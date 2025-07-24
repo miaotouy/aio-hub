@@ -1,0 +1,68 @@
+:root {
+  --bg-color: #f4f4f4;
+  --container-bg: #fff;
+  --text-color: #333;
+  --text-color-light: #666;
+  --border-color: #ddd;
+  --primary-color: #409eff; /* Element Plus primary color */
+  --primary-hover-color: #66b1ff;
+  --error-color: #f56c6c;
+  --input-bg: #fff;
+  --sidebar-bg: #f0f2f5;
+  --sidebar-text: #303133;
+  --header-bg: #ffffff;
+}
+
+body.dark-theme {
+  --bg-color: #2c2c2c;
+  --container-bg: #3c3c3c;
+  --text-color: #f4f4f4;
+  --text-color-light: #bbb;
+  --border-color: #555;
+  --primary-color: #409eff; /* Element Plus primary color, may adjust later for dark theme */
+  --primary-hover-color: #66b1ff;
+  --error-color: #ff6b6b;
+  --input-bg: #2c2c2c;
+  --sidebar-bg: #2b2b2b;
+  --sidebar-text: #f4f4f4;
+  --header-bg: #363636;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.1s, color 0.1s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  display: flex;
+  height: 100vh; /* Make sure app takes full viewport height */
+  width: 100vw;
+  overflow: hidden; /* Prevent body scroll */
+}
+
+/* Element Plus overrides for dark theme */
+.dark-theme .el-menu {
+  background-color: var(--sidebar-bg) !important;
+  border-right: 1px solid var(--border-color);
+}
+
+.dark-theme .el-menu-item,
+.dark-theme .el-sub-menu__title {
+  color: var(--sidebar-text) !important;
+}
+
+.dark-theme .el-menu-item:hover,
+.dark-theme .el-sub-menu__title:hover {
+  background-color: #4e4e4e !important;
+}
+
+.dark-theme .el-menu-item.is-active {
+  background-color: var(--primary-color) !important;
+  color: #fff !important;
+}

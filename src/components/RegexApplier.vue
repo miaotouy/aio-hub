@@ -41,7 +41,7 @@
         <div class="card-header">
           <span>正则规则 ({{ rules.length }})</span>
           <div>
-            <el-button type="primary" @click="addRule">添加规则</el-button>
+            <el-button type="primary" @click="addRule()">添加规则</el-button>
             <el-button @click="importRules">导入规则</el-button>
             <el-button @click="exportRules">导出规则</el-button>
             <el-tooltip content="将剪贴板内容作为输入，应用规则后复制结果回剪贴板" placement="top">
@@ -50,30 +50,37 @@
           </div>
         </div>
       </template>
-      <div class="rules-list">
+      <div class="rules-list-wrapper">
         <div v-if="rules.length === 0" class="empty-rules">
           <el-empty description="暂无正则规则，点击“添加规则”按钮创建"></el-empty>
         </div>
-        <el-row v-for="(rule, index) in rules" :key="index" :gutter="10" class="rule-item">
-          <el-col :span="2">
-            <el-checkbox v-model="rule.enabled" size="large"></el-checkbox>
-          </el-col>
-          <el-col :span="9">
-            <el-input v-model="rule.regex" placeholder="正则表达式"></el-input>
-          </el-col>
-          <el-col :span="9">
-            <el-input v-model="rule.replacement" placeholder="替换内容"></el-input>
-          </el-col>
-          <el-col :span="4">
-            <el-button type="danger" :icon="Delete" circle @click="removeRule(index)"></el-button>
-          </el-col>
-        </el-row>
-      </div>
-      <div class="card-footer">
-        <el-button type="success" @click="processText" :disabled="!sourceText">
-          <el-icon><i-ep-right /></el-icon>
-          处理文本
-        </el-button>
+        <draggable
+          v-else
+          class="rules-list"
+          v-model="rules"
+          item-key="id"
+          handle=".rule-item-handle"
+        >
+          <template #item="{ element: rule, index }">
+            <el-row :gutter="10" class="rule-item">
+              <el-col :span="1" class="rule-item-handle">
+                <el-icon><Rank /></el-icon>
+              </el-col>
+              <el-col :span="2">
+                <el-checkbox v-model="rule.enabled" size="large"></el-checkbox>
+              </el-col>
+              <el-col :span="9">
+                <el-input v-model="rule.regex" placeholder="正则表达式"></el-input>
+              </el-col>
+              <el-col :span="8">
+                <el-input v-model="rule.replacement" placeholder="替换内容"></el-input>
+              </el-col>
+              <el-col :span="4">
+                <el-button type="danger" :icon="Delete" circle @click="removeRule(index)"></el-button>
+              </el-col>
+            </el-row>
+          </template>
+        </draggable>
       </div>
     </el-card>
 
@@ -95,13 +102,16 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Delete } from '@element-plus/icons-vue';
+import { Delete, Rank } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { create, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { open as openFile, save as saveFile } from '@tauri-apps/plugin-dialog';
+import debounce from 'lodash/debounce';
+import Draggable from 'vue-draggable-next';
 
 interface RegexRule {
+  id: string;
   enabled: boolean;
   regex: string;
   replacement: string;
@@ -123,14 +133,11 @@ const addLog = (message: string, type: LogEntry['type'] = 'info') => {
   logs.value.push({ time, message, type });
 };
 
-// 加载/保存规则的配置
 const configFileName = 'regex_rules_config.json';
 const appDataDirPath = ref('');
 
 onMounted(async () => {
-  // 获取应用数据目录路径
   appDataDirPath.value = await appDataDir();
-  // 确保目录存在
   await create(appDataDirPath.value);
   loadRules();
 });
@@ -144,16 +151,21 @@ const loadRules = async () => {
     const filePath = await getConfigFile();
     if (await exists(filePath)) {
       const content = await readTextFile(filePath);
-      rules.value = JSON.parse(content);
+      const loadedRules = JSON.parse(content);
+      // 确保加载的规则都有ID
+      rules.value = loadedRules.map((rule: any) => ({
+        ...rule,
+        id: rule.id || `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+      }));
       addLog(`成功加载 ${rules.value.length} 条正则规则。`, 'info');
     } else {
       addLog('未找到正则规则配置文件，已创建空白规则。', 'info');
-      addRule(); // 初始添加一条空白规则
+      addRule(true);
     }
   } catch (error: any) {
     ElMessage.error(`加载规则失败: ${error.message}`);
     addLog(`加载规则失败: ${error.message}`, 'error');
-    addRule(); // 加载失败也添加一条空白规则
+    addRule(true);
   }
 };
 
@@ -168,12 +180,26 @@ const saveRules = async () => {
   }
 };
 
-// 监听规则变化自动保存
-watch(rules.value, saveRules, { deep: true });
+watch(rules, debounce(saveRules, 500), { deep: true });
 
-const addRule = () => {
-  rules.value.push({ enabled: true, regex: '', replacement: '' });
-  addLog('添加了一条新的空白规则。');
+const debouncedProcessText = debounce(() => {
+  processText();
+}, 300);
+
+watch(sourceText, debouncedProcessText);
+watch(rules, debouncedProcessText, { deep: true });
+
+const addRule = (isInitial = false) => {
+  const newRule: RegexRule = {
+    id: `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    enabled: true,
+    regex: '',
+    replacement: ''
+  };
+  rules.value.push(newRule);
+  if (!isInitial) {
+    addLog('添加了一条新的空白规则。');
+  }
 };
 
 const removeRule = (index: number) => {
@@ -184,12 +210,15 @@ const removeRule = (index: number) => {
       type: 'warning',
     })
     .then(() => {
-      rules.value[index] = { enabled: true, regex: '', replacement: '' };
+      rules.value[index] = {
+        id: `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        enabled: true,
+        regex: '',
+        replacement: ''
+      };
       addLog('最后一条规则已清空。');
     })
-    .catch(() => {
-      // 用户取消
-    });
+    .catch(() => {});
   } else {
     rules.value.splice(index, 1);
     addLog(`移除了第 ${index + 1} 条规则。`);
@@ -198,8 +227,7 @@ const removeRule = (index: number) => {
 
 const processText = () => {
   if (!sourceText.value) {
-    ElMessage.warning('请输入待处理的文本。');
-    addLog('处理失败：输入文本为空。', 'warn');
+    resultText.value = '';
     return;
   }
 
@@ -209,7 +237,7 @@ const processText = () => {
   rules.value.forEach((rule, index) => {
     if (rule.enabled) {
       try {
-        const regex = new RegExp(rule.regex, 'g'); // 全局匹配
+        const regex = new RegExp(rule.regex, 'g');
         const originalProcessed = processed;
         processed = processed.replace(regex, rule.replacement);
         if (originalProcessed !== processed) {
@@ -224,7 +252,9 @@ const processText = () => {
   });
 
   resultText.value = processed;
-  addLog(`文本处理完成。共应用了 ${appliedRulesCount} 条规则。`);
+  if (sourceText.value) {
+    addLog(`文本处理完成。共应用了 ${appliedRulesCount} 条规则。`);
+  }
 };
 
 const pasteToSource = async () => {
@@ -250,9 +280,9 @@ const copyResult = async () => {
 
 const oneClickProcess = async () => {
   addLog('执行一键处理剪贴板...');
-  await pasteToSource(); // 粘贴
-  processText(); // 处理
-  await copyResult(); // 复制结果
+  await pasteToSource();
+  processText();
+  await copyResult();
   addLog('一键处理剪贴板完成。');
 };
 
@@ -260,24 +290,25 @@ const importRules = async () => {
   try {
     const filePath = await openFile({
       multiple: false,
-      filters: [{
-        name: 'JSON',
-        extensions: ['json']
-      }]
+      filters: [{ name: 'JSON', extensions: ['json'] }]
     });
 
     if (filePath) {
       const content = await readTextFile(filePath as string);
-      const importedRules = JSON.parse(content);
+      const importedRules: Partial<RegexRule>[] = JSON.parse(content);
 
-      // 导入逻辑：去重并追加
       const existingRulesMap = new Map(rules.value.map(r => [`${r.regex}::${r.replacement}`, r]));
       let addedCount = 0;
-      importedRules.forEach((newRule: RegexRule) => {
+      importedRules.forEach((newRule) => {
         const key = `${newRule.regex}::${newRule.replacement}`;
         if (!existingRulesMap.has(key)) {
-          rules.value.push(newRule);
-          existingRulesMap.set(key, newRule);
+          rules.value.push({
+            id: newRule.id || `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            enabled: newRule.enabled ?? true,
+            regex: newRule.regex || '',
+            replacement: newRule.replacement || ''
+          });
+          existingRulesMap.set(key, newRule as RegexRule);
           addedCount++;
         }
       });
@@ -302,10 +333,7 @@ const exportRules = async () => {
   try {
     const filePath = await saveFile({
       defaultPath: `regex_rules_${Date.now()}.json`,
-      filters: [{
-        name: 'JSON',
-        extensions: ['json']
-      }]
+      filters: [{ name: 'JSON', extensions: ['json'] }]
     });
 
     if (filePath) {
@@ -320,7 +348,6 @@ const exportRules = async () => {
     addLog(`导出规则失败: ${error.message}`, 'error');
   }
 };
-
 </script>
 
 <style scoped>
@@ -350,10 +377,17 @@ const exportRules = async () => {
   font-family: monospace;
 }
 
-.rules-list {
+.rules-list-wrapper {
   max-height: 300px;
   overflow-y: auto;
-  padding-right: 10px; /* 防止滚动条遮挡内容 */
+  padding-right: 10px;
+}
+
+.rule-item-handle {
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .empty-rules {
@@ -366,6 +400,9 @@ const exportRules = async () => {
   display: flex;
   align-items: center;
   margin-bottom: 10px;
+  padding: 5px;
+  border-radius: 4px;
+  background-color: var(--bg-color);
 }
 
 .rule-item:last-child {
@@ -394,7 +431,7 @@ const exportRules = async () => {
 }
 
 .log-warn {
-  color: #e6a23c; /* warning color */
+  color: #e6a23c;
 }
 
 .log-error {

@@ -12,11 +12,13 @@
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-dialog": "^2",
     "element-plus": "^2.10.4",
+    "lodash": "^4.17.21",
     "vue": "^3.5.13",
+    "vue-draggable-next": "^2.2.1",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {

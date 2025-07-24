@@ -146,6 +146,30 @@ watch(rawCodeInput, formatCode);
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  color: var(--text-color); /* 确保容器内文本颜色正确 */
+}
+
+/* 覆盖 ElCard 样式 */
+.el-card {
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+}
+
+/* 覆盖 ElInput 和 ElTextarea 的样式 */
+.el-input, .el-textarea {
+  --el-input-bg-color: var(--input-bg);
+  --el-input-text-color: var(--text-color);
+  --el-input-border-color: var(--border-color);
+  --el-input-hover-border-color: var(--primary-color);
+  --el-input-focus-border-color: var(--primary-color);
+  --el-input-placeholder-color: var(--text-color-light);
+}
+
+.el-textarea__inner {
+  background-color: var(--input-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
 }
 
 .card-header {

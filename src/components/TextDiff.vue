@@ -161,6 +161,30 @@ watch([textA, textB, outputFormat, diffMode], generateDiff, { immediate: true })
   padding: 20px;
   max-width: 1400px;
   margin: 0 auto;
+  color: var(--text-color); /* 确保容器内文本颜色正确 */
+}
+
+/* 覆盖 ElCard 样式 */
+.el-card {
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+}
+
+/* 覆盖 ElInput 和 ElTextarea 的样式 */
+.el-input, .el-textarea {
+  --el-input-bg-color: var(--input-bg);
+  --el-input-text-color: var(--text-color);
+  --el-input-border-color: var(--border-color);
+  --el-input-hover-border-color: var(--primary-color);
+  --el-input-focus-border-color: var(--primary-color);
+  --el-input-placeholder-color: var(--text-color-light);
+}
+
+.el-textarea__inner {
+  background-color: var(--input-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
 }
 
 .input-section {
@@ -171,11 +195,116 @@ watch([textA, textB, outputFormat, diffMode], generateDiff, { immediate: true })
   display: flex;
   justify-content: space-between;
   align-items: center;
+  color: var(--text-color); /* 确保头部文本颜色正确 */
 }
 
 .diff-view {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color); /* 使用主题边框色 */
   border-radius: 4px;
   padding: 10px;
+}
+
+/* 覆盖 diff2html 样式 */
+/* 使用 ::v-deep 或 :deep() 来穿透 scoped style */
+/* 为了兼容性，这里使用不带 v-deep 的方式，但请注意这会影响全局 */
+/* 更好的做法是在 App.vue 中引入全局样式覆盖或使用 SCSS/Less 等预处理器 */
+
+/* diff2html 的背景色和文本颜色 */
+.d2h-wrapper {
+  background-color: var(--card-bg);
+  color: var(--text-color);
+}
+
+.d2h-file-header {
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.d2h-code-wrapper {
+  background-color: var(--input-bg); /* 代码区域背景 */
+}
+
+.d2h-files-diff {
+  border: none; /* 移除外层边框，由 .diff-view 提供 */
+}
+
+.d2h-code-line {
+  color: var(--text-color);
+}
+
+.d2h-code-line.d2h-info {
+  background-color: var(--container-bg);
+  color: var(--text-color-light);
+}
+
+.d2h-code-line.d2h-cntx {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+}
+
+.d2h-code-line.d2h-ins {
+  background-color: #e6ffed; /* 绿色背景，可根据主题调整 */
+  color: #24292e; /* 深色文本 */
+}
+.dark-theme .d2h-code-line.d2h-ins {
+  background-color: #28a74533; /* 暗色模式下的绿色，透明度 */
+  color: var(--text-color);
+}
+
+.d2h-code-line.d2h-del {
+  background-color: #ffeef0; /* 红色背景，可根据主题调整 */
+  color: #24292e; /* 深色文本 */
+}
+.dark-theme .d2h-code-line.d2h-del {
+  background-color: #d73a4933; /* 暗色模式下的红色，透明度 */
+  color: var(--text-color);
+}
+
+/* json diff 的 pre 标签样式 */
+.diff-view pre {
+  background: var(--input-bg) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--border-color);
+}
+
+/* 调整 ElRadioGroup 和 ElRadioButton 的颜色 */
+.el-radio-group {
+  --el-radio-button-checked-bg-color: var(--primary-color);
+  --el-radio-button-checked-text-color: #fff;
+  --el-radio-button-checked-border-color: var(--primary-color);
+  --el-radio-button-disabled-fill: var(--border-color-light);
+  --el-radio-button-disabled-text-color: var(--text-color-light);
+  --el-radio-button-disabled-border-color: var(--border-color);
+}
+.el-radio-button {
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+.el-radio-button__inner {
+  background-color: var(--container-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+.el-radio-button__orig-radio:checked + .el-radio-button__inner {
+  background-color: var(--primary-color) !important;
+  color: #fff !important;
+  border-color: var(--primary-color) !important;
+}
+.el-radio-button__orig-radio:disabled + .el-radio-button__inner {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-color-light) !important;
+}
+
+/* 调整 ElButton 的颜色 */
+.el-button.el-button--primary {
+  --el-button-bg-color: var(--primary-color);
+  --el-button-hover-bg-color: var(--primary-hover-color);
+  --el-button-active-bg-color: var(--primary-color);
+  --el-button-text-color: #fff;
+  --el-button-hover-text-color: #fff;
+  --el-button-active-text-color: #fff;
 }
 </style>

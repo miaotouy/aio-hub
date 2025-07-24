@@ -49,20 +49,22 @@ const copyContent = async () => {
 <style scoped>
 .info-card {
   border: 1px solid var(--border-color);
-  background-color: var(--container-bg);
+  background-color: var(--card-bg); /* 使用卡片背景色 */
+  color: var(--text-color); /* 确保文本颜色与主题一致 */
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-weight: bold;
+  color: var(--text-color); /* 确保头部文本颜色与主题一致 */
 }
 
 .content-code {
   white-space: pre-wrap;
   word-wrap: break-word;
   background-color: var(--input-bg);
+  color: var(--text-color); /* 确保代码文本颜色与主题一致 */
   padding: 10px;
   border-radius: 4px;
   font-family: monospace;
@@ -73,5 +75,6 @@ const copyContent = async () => {
 .content-text {
   white-space: pre-wrap;
   word-wrap: break-word;
+  color: var(--text-color); /* 确保普通文本颜色与主题一致 */
 }
 </style>

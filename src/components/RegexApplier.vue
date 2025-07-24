@@ -355,13 +355,16 @@ const exportRules = async () => {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  color: var(--text-color); /* 确保容器内文本颜色正确 */
 }
 
+/* 覆盖 ElCard 样式 */
 .box-card {
   margin-bottom: 20px;
   border: 1px solid var(--border-color);
-  background-color: var(--container-bg);
+  background-color: var(--card-bg); /* 使用卡片背景色 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  color: var(--text-color); /* 确保卡片内文本颜色正确 */
 }
 
 .card-header {
@@ -370,6 +373,33 @@ const exportRules = async () => {
   align-items: center;
   font-size: 16px;
   font-weight: bold;
+  color: var(--text-color);
+}
+
+/* 覆盖 ElInput 和 ElTextarea 的样式 */
+.el-input, .el-textarea {
+  --el-input-bg-color: var(--input-bg);
+  --el-input-text-color: var(--text-color);
+  --el-input-border-color: var(--border-color);
+  --el-input-hover-border-color: var(--primary-color);
+  --el-input-focus-border-color: var(--primary-color);
+  --el-input-placeholder-color: var(--text-color-light);
+}
+
+.el-textarea__inner {
+  background-color: var(--input-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* 规则列表项的背景色 */
+.rule-item {
+  background-color: var(--container-bg); /* 使用容器背景色，与卡片背景区分开 */
+  border: 1px solid var(--border-color-light); /* 浅色边框 */
+}
+
+/* 日志区域文本颜色 */
+.log-output {
   color: var(--text-color);
 }
 

@@ -131,6 +131,73 @@ const copyFormattedJson = async () => {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  color: var(--text-color); /* 确保容器内文本颜色正确 */
+}
+
+/* 覆盖 ElCard 样式 */
+.el-card {
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+}
+
+/* 覆盖 ElInput 和 ElTextarea 的样式 */
+.el-input, .el-textarea {
+  --el-input-bg-color: var(--input-bg);
+  --el-input-text-color: var(--text-color);
+  --el-input-border-color: var(--border-color);
+  --el-input-hover-border-color: var(--primary-color);
+  --el-input-focus-border-color: var(--primary-color);
+  --el-input-placeholder-color: var(--text-color-light);
+}
+
+.el-textarea__inner {
+  background-color: var(--input-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* 覆盖 VueJsonPretty 的样式 */
+.json-pretty-output-wrapper {
+  background-color: var(--input-bg); /* 与输入框背景色保持一致 */
+}
+
+/* VueJsonPretty 内部元素样式 */
+.vjs-tree {
+  color: var(--text-color) !important;
+}
+
+.vjs-key {
+  color: var(--text-color) !important;
+}
+
+.vjs-value {
+  color: var(--text-color-light) !important;
+}
+
+/* 针对特定类型的值调整颜色 */
+.vjs-value__string {
+  color: #c94e4e !important; /* 字符串颜色，可调整 */
+}
+.vjs-value__number {
+  color: #3b8a3b !important; /* 数字颜色，可调整 */
+}
+.vjs-value__boolean {
+  color: #925cff !important; /* 布尔值颜色，可调整 */
+}
+.vjs-value__null {
+  color: #808080 !important; /* null 颜色，可调整 */
+}
+
+/* 确保 VueJsonPretty 的边框和填充与输入框类似 */
+.json-pretty-output-wrapper {
+  height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color); /* 使用主题边框色 */
+  border-radius: var(--el-border-radius-base);
+  padding: 10px;
+  box-sizing: border-box;
+  font-size: 14px;
 }
 
 .json-pretty-output-wrapper {

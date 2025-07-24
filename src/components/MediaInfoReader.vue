@@ -203,11 +203,13 @@ const parseWebUIInfo = (parameters: string) => {
   padding: 20px;
   display: flex;
   gap: 20px;
+  color: var(--text-color); /* 确保容器内文本颜色正确 */
 }
 
 #drop-area {
   flex: 1;
-  border: 2px dashed #ccc;
+  border: 2px dashed var(--border-color); /* 使用主题边框色 */
+  background-color: var(--card-bg); /* 使用卡片背景色 */
   border-radius: 8px;
   padding: 20px;
   text-align: center;
@@ -220,12 +222,12 @@ const parseWebUIInfo = (parameters: string) => {
 }
 
 #drop-area.highlight {
-  border-color: #409eff;
-  background-color: #ecf5ff;
+  border-color: var(--primary-color); /* 使用主题主色 */
+  background-color: var(--container-bg); /* 使用容器背景色，使其在拖拽时有视觉反馈 */
 }
 
 .drop-area-content {
-  color: #888;
+  color: var(--text-color-light); /* 使用浅色文本颜色 */
 }
 
 .preview-image {
@@ -248,6 +250,32 @@ const parseWebUIInfo = (parameters: string) => {
 
 .info-tabs {
   width: 100%;
+}
+
+/* 覆盖 ElTabs 样式 */
+.el-tabs {
+  --el-tabs-header-bg-color: var(--card-bg); /* Tab头部背景色 */
+  --el-tabs-content-bg-color: var(--card-bg); /* Tab内容背景色 */
+  --el-tabs-border-color: var(--border-color); /* Tab边框色 */
+}
+
+.el-tabs__item {
+  color: var(--text-color) !important; /* Tab项文本颜色 */
+}
+
+.el-tabs__item.is-active {
+  color: var(--primary-color) !important; /* 选中Tab项文本颜色 */
+}
+
+.el-tabs__nav-wrap {
+  background-color: var(--card-bg); /* Tab导航包裹器背景色 */
+}
+
+.el-tab-pane {
+  background-color: var(--card-bg); /* Tab内容面板背景色 */
+  padding: 15px; /* 添加内边距 */
+  border: 1px solid var(--border-color); /* 添加边框 */
+  border-top: none; /* 顶部边框由Tab导航提供 */
 }
 
 .info-section {

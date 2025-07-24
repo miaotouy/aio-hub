@@ -54,7 +54,7 @@
         <div v-if="rules.length === 0" class="empty-rules">
           <el-empty description="暂无正则规则，点击“添加规则”按钮创建"></el-empty>
         </div>
-        <draggable
+        <VueDraggableNext
           v-else
           class="rules-list"
           v-model="rules"
@@ -80,7 +80,7 @@
               </el-col>
             </el-row>
           </template>
-        </draggable>
+        </VueDraggableNext>
       </div>
     </el-card>
 
@@ -108,7 +108,7 @@ import { create, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { open as openFile, save as saveFile } from '@tauri-apps/plugin-dialog';
 import debounce from 'lodash/debounce';
-import Draggable from 'vue-draggable-next';
+import { VueDraggableNext } from 'vue-draggable-next';
 
 interface RegexRule {
   id: string;

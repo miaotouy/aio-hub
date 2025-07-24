@@ -60,7 +60,7 @@ const handleSelect = (key: string) => {
           <span>JSON 格式化</span>
         </el-menu-item>
         <el-menu-item index="/code-formatter">
-          <el-icon><i-ep-code /></el-icon>
+          <el-icon><i-ep-setting /></el-icon>
           <span>代码格式化</span>
         </el-menu-item>
       </el-menu>

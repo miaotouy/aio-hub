@@ -23,12 +23,12 @@
   },
   "plugins": {
     "fs": {
-      "scope": ["$APPDATA/*", "$HOME/*", "$DESKTOP/*"],
-      "allow": ["read-file", "write-file", "create", "exists"]
+      "requireLiteralLeadingDot": false
     },
     "dialog": {
       "allow": ["open", "save"]
-    }
+    },
+    "opener": {}
   },
   "bundle": {
     "active": true,

@@ -18,11 +18,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["sync-api", "clipboard-manager", "process-start", "shell", "webview", "window", "event", "global-shortcut"] }
+tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = { version = "2" } # Use the same version as main tauri plugin
 tauri-plugin-fs = "2" # Add filesystem plugin
-tauri-plugin-path = "2" # Add path plugin
+tauri-plugin-global-shortcut = "2" # Add global shortcut plugin
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

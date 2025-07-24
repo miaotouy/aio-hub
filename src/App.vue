@@ -55,7 +55,14 @@ const handleSelect = (key: string) => {
           <el-icon><i-ep-files /></el-icon>
           <span>文本/JSON对比</span>
         </el-menu-item>
-        <!-- 更多工具项可以在这里添加 -->
+        <el-menu-item index="/json-formatter">
+          <el-icon><i-ep-brush /></el-icon>
+          <span>JSON 格式化</span>
+        </el-menu-item>
+        <el-menu-item index="/code-formatter">
+          <el-icon><i-ep-code /></el-icon>
+          <span>代码格式化</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>

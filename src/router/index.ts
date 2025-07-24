@@ -19,11 +19,21 @@ const routes: Array<RouteRecordRaw> = [
     name: 'MediaInfoReader',
     component: MediaInfoReader,
   },
-  // {
-  //   path: '/text-diff',
-  //   name: 'TextDiff',
-  //   component: () => import('../components/TextDiff.vue'),
-  // },
+  {
+    path: '/text-diff',
+    name: 'TextDiff',
+    component: () => import('../components/TextDiff.vue'),
+  },
+  {
+    path: '/json-formatter',
+    name: 'JsonFormatter',
+    component: () => import('../components/JsonFormatter.vue'),
+  },
+  {
+    path: '/code-formatter', // 通用代码格式化，内部再区分语言
+    name: 'CodeFormatter',
+    component: () => import('../components/CodeFormatter.vue'),
+  },
 ];
 
 const router = createRouter({

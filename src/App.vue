@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
 
 const router = useRouter();
+const route = useRoute();
 const isDarkTheme = ref(false);
 const isCollapsed = ref(false); // 控制侧边栏收起状态
 
@@ -73,7 +74,7 @@ const handleSelect = (key: string) => {
         </el-tooltip>
 
         <el-menu
-          default-active="/"
+          :default-active="route.path"
           class="el-menu-vertical-demo"
           :collapse="isCollapsed"
           @select="handleSelect"

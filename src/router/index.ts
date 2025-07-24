@@ -1,38 +1,35 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
-import HomePage from '../components/HomePage.vue';
-import RegexApplier from '../components/RegexApplier.vue';
-import MediaInfoReader from '../components/MediaInfoReader.vue';
+import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
 
 const routes: Array<RouteRecordRaw> = [
   {
-    path: '/',
-    name: 'Home',
-    component: HomePage,
+    path: "/",
+    name: "Home",
+    component: () => import("../components/HomePage.vue"),
   },
   {
-    path: '/regex-applier',
-    name: 'RegexApplier',
-    component: RegexApplier, // 直接导入组件
+    path: "/regex-applier",
+    name: "RegexApplier",
+    component: () => import("../components/RegexApplier.vue"),
   },
   {
-    path: '/media-info-reader',
-    name: 'MediaInfoReader',
-    component: MediaInfoReader,
+    path: "/media-info-reader",
+    name: "MediaInfoReader",
+    component: () => import("../components/MediaInfoReader.vue"),
   },
   {
-    path: '/text-diff',
-    name: 'TextDiff',
-    component: () => import('../components/TextDiff.vue'),
+    path: "/text-diff",
+    name: "TextDiff",
+    component: () => import("../components/TextDiff.vue"),
   },
   {
-    path: '/json-formatter',
-    name: 'JsonFormatter',
-    component: () => import('../components/JsonFormatter.vue'),
+    path: "/json-formatter",
+    name: "JsonFormatter",
+    component: () => import("../components/JsonFormatter.vue"),
   },
   {
-    path: '/code-formatter', // 通用代码格式化，内部再区分语言
-    name: 'CodeFormatter',
-    component: () => import('../components/CodeFormatter.vue'),
+    path: "/code-formatter", // 通用代码格式化，内部再区分语言
+    name: "CodeFormatter",
+    component: () => import("../components/CodeFormatter.vue"),
   },
 ];
 

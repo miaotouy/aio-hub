@@ -32,16 +32,31 @@
               </div>
             </div>
           </template>
-          <el-input
-            v-model="formattedJsonOutput"
-            type="textarea"
-            :rows="15"
-            readonly
-            placeholder="格式化后的 JSON 将显示在这里..."
-          />
           <div v-if="jsonError" class="error-message">
             <el-icon><WarningFilled /></el-icon>
             {{ jsonError }}
+          </div>
+          <div class="json-pretty-output-wrapper">
+            <VueJsonPretty
+              v-if="parsedJsonData"
+              :data="parsedJsonData"
+              :showIcon="true"
+              :showLine="true"
+              :showSelectBox="false"
+              :highlightSelectedNode="false"
+              :showLength="true"
+              :showDoubleQuotes="true"
+              :editable="false"
+            />
+            <el-input
+              v-else
+              v-model="formattedJsonOutput"
+              type="textarea"
+              :rows="15"
+              readonly
+              placeholder="格式化后的 JSON 将显示在这里..."
+              class="json-text-output"
+            />
           </div>
         </el-card>
       </el-col>
@@ -55,9 +70,12 @@ import { ElMessage } from 'element-plus';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
+import VueJsonPretty from 'vue-json-pretty';
+import 'vue-json-pretty/lib/styles.css';
 
 const rawJsonInput = ref('');
-const formattedJsonOutput = ref('');
+const formattedJsonOutput = ref(''); // 仍然用于复制功能
+const parsedJsonData = ref<any>(null); // 用于 VueJsonPretty 显示
 const jsonError = ref('');
 const formatOption = ref<'pretty' | 'compact'>('pretty');
 
@@ -65,11 +83,13 @@ const formatJson = debounce(() => {
   jsonError.value = '';
   if (!rawJsonInput.value) {
     formattedJsonOutput.value = '';
+    parsedJsonData.value = null; // 清空数据
     return;
   }
 
   try {
     const parsed = JSON.parse(rawJsonInput.value);
+    parsedJsonData.value = parsed; // 更新解析后的数据
     if (formatOption.value === 'pretty') {
       formattedJsonOutput.value = JSON.stringify(parsed, null, 2);
     } else {
@@ -77,6 +97,7 @@ const formatJson = debounce(() => {
     }
   } catch (e: any) {
     jsonError.value = `JSON 解析错误: ${e.message}`;
+    parsedJsonData.value = null; // 清空数据
     formattedJsonOutput.value = '';
   }
 }, 300);
@@ -110,6 +131,26 @@ const copyFormattedJson = async () => {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.json-pretty-output-wrapper {
+  height: 400px; /* 固定高度，可根据实际情况调整 */
+  overflow-y: auto; /* 允许滚动 */
+  border: 1px solid var(--el-border-color); /* 边框与输入框对齐 */
+  border-radius: var(--el-border-radius-base); /* 圆角 */
+  padding: 10px; /* 内边距 */
+  box-sizing: border-box; /* 边框和内边距包含在高度内 */
+  font-size: 14px; /* 字体大小 */
+}
+
+.json-text-output {
+  height: 100%; /* 保证文本框占据整个高度 */
+  display: flex;
+  flex-direction: column;
+}
+
+.json-text-output .el-textarea__inner {
+  flex-grow: 1; /* 让文本域内容区填充剩余空间 */
 }
 
 .card-header {

@@ -17,6 +17,7 @@
         "lodash": "^4.17.21",
         "vue": "^3.5.13",
         "vue-draggable-next": "^2.2.1",
+        "vue-json-pretty": "^2.5.0",
         "vue-router": "^4.5.1",
       },
       "devDependencies": {
@@ -323,6 +324,8 @@
     "vue-demi": ["vue-demi@0.14.10", "https://registry.npmmirror.com/vue-demi/-/vue-demi-0.14.10.tgz", { "peerDependencies": { "@vue/composition-api": "^1.0.0-rc.1", "vue": "^3.0.0-0 || ^2.6.0" }, "optionalPeers": ["@vue/composition-api"], "bin": { "vue-demi-fix": "bin/vue-demi-fix.js", "vue-demi-switch": "bin/vue-demi-switch.js" } }, "sha512-nMZBOwuzabUO0nLgIcc6rycZEebF6eeUfaiQx9+WSk8e29IbLvPU9feI6tqW4kTo3hvoYAJkMh8n8D0fuISphg=="],
 
     "vue-draggable-next": ["vue-draggable-next@2.2.1", "", { "peerDependencies": { "sortablejs": "^1.14.0", "vue": "^3.2.2" } }, "sha512-EAMS1IRHF0kZO0o5PMOinsQsXIqsrKT1hKmbICxG3UEtn7zLFkLxlAtajcCcUTisNvQ6TtCB5COjD9a1raNADw=="],
+
+    "vue-json-pretty": ["vue-json-pretty@2.5.0", "", { "peerDependencies": { "vue": ">=3.0.0" } }, "sha512-nZA6qXYaiMaE2J0HkKtkrLcPJoN03SDSBdZWEPiRwoOVySWOfoZCyadhBwBN6wAHTga+c/R49ExGWoKFXnu37A=="],
 
     "vue-router": ["vue-router@4.5.1", "https://registry.npmmirror.com/vue-router/-/vue-router-4.5.1.tgz", { "dependencies": { "@vue/devtools-api": "^6.6.4" }, "peerDependencies": { "vue": "^3.2.0" } }, "sha512-ogAF3P97NPm8fJsE4by9dwSYtDwXIY1nFY9T6DyQnGHd1E2Da94w9JIolpe42LJGIl0DwOHBi8TcRPlPGwbTtw=="],
 

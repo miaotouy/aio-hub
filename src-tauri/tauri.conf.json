@@ -21,6 +21,15 @@
       "csp": null
     }
   },
+  "plugins": {
+    "fs": {
+      "scope": ["$APPDATA/*", "$HOME/*", "$DESKTOP/*"],
+      "allow": ["read-file", "write-file", "create", "exists"]
+    },
+    "dialog": {
+      "allow": ["open", "save"]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

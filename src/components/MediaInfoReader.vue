@@ -173,11 +173,26 @@ const parseWebUIInfo = (parameters: string) => {
   const parts = parameters.split('Negative prompt:');
   const positivePrompt = parts[0].trim();
   const rest = parts[1] || '';
+
+  // Enhanced parser from script.js
+  const fields = ["Steps", "Sampler", "CFG scale", "Seed", "Size", "Model", "VAE hash", "VAE", "TI hashes", "Version", "Hashes"];
+  const regex = new RegExp(`(${fields.join('|')}):\\s*(.*?)\\s*(?=(${fields.join('|')}:|$))`, 'g');
+
+  const genInfoObject: { [key: string]: string } = {};
+  let match;
+  while ((match = regex.exec(rest)) !== null) {
+    const key = match[1].trim();
+    const value = match[2].trim().replace(/,$/, ''); // Remove trailing comma
+    genInfoObject[key] = value;
+  }
+
+  const generationInfo = Object.entries(genInfoObject)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
   
-  const generationInfoRegex = /Steps:.*$/s;
-  const generationMatch = rest.match(generationInfoRegex);
-  const generationInfo = generationMatch ? generationMatch[0].trim() : '';
-  const negativePrompt = rest.replace(generationInfoRegex, '').trim();
+  const negativePromptRegex = new RegExp(`^([\\s\\S]*?)(?=(${fields.join('|')}):)`);
+  const negativeMatch = rest.match(negativePromptRegex);
+  const negativePrompt = negativeMatch ? negativeMatch[1].trim() : rest.trim();
 
   return { positivePrompt, negativePrompt, generationInfo };
 };

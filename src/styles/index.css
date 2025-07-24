@@ -11,6 +11,10 @@
   --sidebar-bg: #f0f2f5;
   --sidebar-text: #303133;
   --header-bg: #ffffff;
+  --card-bg: #ffffff; /* 新增卡片背景色 */
+  --border-color-light: #eee; /* 新增浅色边框 */
+  --scrollbar-thumb-color: #c1c1c1;
+  --scrollbar-thumb-hover-color: #a8a8a8;
 }
 
 body.dark-theme {
@@ -26,6 +30,10 @@ body.dark-theme {
   --sidebar-bg: #2b2b2b;
   --sidebar-text: #f4f4f4;
   --header-bg: #363636;
+  --card-bg: #363636; /* 暗色模式卡片背景色 */
+  --border-color-light: #444; /* 暗色模式浅色边框 */
+  --scrollbar-thumb-color: #555;
+  --scrollbar-thumb-hover-color: #777;
 }
 
 body {
@@ -37,13 +45,6 @@ body {
   transition: background-color 0.1s, color 0.1s;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-#app {
-  display: flex;
-  height: 100vh; /* Make sure app takes full viewport height */
-  width: 100vw;
-  overflow: hidden; /* Prevent body scroll */
 }
 
 /* Element Plus overrides for dark theme */
@@ -59,10 +60,29 @@ body {
 
 .dark-theme .el-menu-item:hover,
 .dark-theme .el-sub-menu__title:hover {
-  background-color: #4e4e4e !important;
+  background-color: var(--primary-color-light) !important; /* 使用定义的变量 */
 }
 
 .dark-theme .el-menu-item.is-active {
   background-color: var(--primary-color) !important;
   color: #fff !important;
+}
+/* Global Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px; /* 滚动条宽度 */
+  height: 8px; /* 水平滚动条高度 */
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color); /* 轨道颜色 */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color); /* 滑块颜色 */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover-color); /* 悬停时滑块颜色 */
 }

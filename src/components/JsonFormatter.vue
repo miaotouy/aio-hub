@@ -1,44 +1,97 @@
 <template>
   <div class="json-formatter-container">
-    <el-row :gutter="20" class="input-output-section">
-      <el-col :span="12">
-        <el-card shadow="never">
-          <template #header>
-            <div class="card-header">
-              <span>输入 JSON</span>
-              <el-button text @click="pasteToJson">粘贴</el-button>
-            </div>
-          </template>
+    <!-- 固定顶栏工具栏 -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <el-button @click="pasteToJson" size="small" type="primary">
+          <el-icon><DocumentCopy /></el-icon>
+          粘贴
+        </el-button>
+        <el-button @click="copyFormattedJson" size="small">
+          <el-icon><CopyDocument /></el-icon>
+          复制
+        </el-button>
+      </div>
+      
+      <div class="toolbar-center">
+        <span class="indent-label">缩进层级:</span>
+        <el-slider
+          v-model="indentSpaces"
+          :min="0"
+          :max="8"
+          :step="1"
+          :show-tooltip="false"
+          @input="formatJson"
+          class="indent-slider"
+        />
+        <el-input-number
+          v-model="indentSpaces"
+          :min="0"
+          :max="8"
+          size="small"
+          controls-position="right"
+          @change="formatJson"
+          class="indent-number"
+        />
+      </div>
+
+      <div class="toolbar-right">
+        <el-button @click="clearAll" size="small" type="danger" plain>
+          <el-icon><Delete /></el-icon>
+          清空
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 主编辑区域 -->
+    <div class="editor-container" ref="editorContainer">
+      <!-- 输入区域 -->
+      <div class="editor-panel input-panel" ref="inputPanel">
+        <div class="panel-header">
+          <span class="panel-title">输入 JSON</span>
+          <div v-if="rawJsonInput" class="char-count">
+            {{ rawJsonInput.length }} 字符
+          </div>
+        </div>
+        <div class="editor-content">
           <el-input
             v-model="rawJsonInput"
             type="textarea"
-            :rows="15"
             placeholder="请输入 JSON 字符串..."
             @input="formatJson"
+            class="json-editor"
+            resize="none"
           />
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card shadow="never">
-          <template #header>
-            <div class="card-header">
-              <span>输出 JSON</span>
-              <div class="actions">
-                <el-button text @click="copyFormattedJson">复制</el-button>
-                <el-radio-group v-model="formatOption" size="small" @change="formatJson">
-                  <el-radio-button label="pretty">美化</el-radio-button>
-                  <el-radio-button label="compact">压缩</el-radio-button>
-                </el-radio-group>
-              </div>
-            </div>
-          </template>
+        </div>
+      </div>
+
+      <!-- 分割线，用于左右布局时的视觉分隔和拖拽调整 -->
+      <div class="divider" @mousedown="startResize"></div>
+
+      <!-- 输出区域 -->
+      <div class="editor-panel output-panel" ref="outputPanel">
+        <div class="panel-header">
+          <span class="panel-title">格式化输出</span>
+          <div class="output-info">
+            <span v-if="jsonError" class="error-indicator">
+              <el-icon><WarningFilled /></el-icon>
+              错误
+            </span>
+            <span v-else-if="parsedJsonData && !jsonError" class="success-indicator">
+              <el-icon><CircleCheckFilled /></el-icon>
+              有效 JSON
+            </span>
+          </div>
+        </div>
+        <div class="editor-content">
           <div v-if="jsonError" class="error-message">
             <el-icon><WarningFilled /></el-icon>
-            {{ jsonError }}
+            <span>{{ jsonError }}</span>
           </div>
-          <div class="json-pretty-output-wrapper">
+          <div v-else class="json-output-wrapper">
+            <!-- 当缩进层级 > 0 时使用 VueJsonPretty，否则使用 textarea 进行压缩输出 -->
             <VueJsonPretty
-              v-if="parsedJsonData"
+              v-if="parsedJsonData && indentSpaces > 0"
               :data="parsedJsonData"
               :showIcon="true"
               :showLine="true"
@@ -47,66 +100,85 @@
               :showLength="true"
               :showDoubleQuotes="true"
               :editable="false"
+              class="vue-json-pretty"
+            />
+            <el-input
+              v-else-if="parsedJsonData && indentSpaces === 0"
+              v-model="formattedJsonOutput"
+              type="textarea"
+              readonly
+              placeholder="压缩后的 JSON 将显示在这里..."
+              class="json-editor output-editor"
+              resize="none"
             />
             <el-input
               v-else
               v-model="formattedJsonOutput"
               type="textarea"
-              :rows="15"
               readonly
               placeholder="格式化后的 JSON 将显示在这里..."
-              class="json-text-output"
+              class="json-editor output-editor"
+              resize="none"
             />
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { WarningFilled } from '@element-plus/icons-vue';
+import { 
+  WarningFilled, 
+  CircleCheckFilled, 
+  DocumentCopy, 
+  CopyDocument, 
+  Delete 
+} from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 
 const rawJsonInput = ref('');
-const formattedJsonOutput = ref(''); // 仍然用于复制功能
-const parsedJsonData = ref<any>(null); // 用于 VueJsonPretty 显示
+const formattedJsonOutput = ref('');
+const parsedJsonData = ref<any>(null);
 const jsonError = ref('');
-const formatOption = ref<'pretty' | 'compact'>('pretty');
+const indentSpaces = ref(2); // 默认缩进空格数
 
 const formatJson = debounce(() => {
   jsonError.value = '';
-  if (!rawJsonInput.value) {
+  if (!rawJsonInput.value.trim()) {
     formattedJsonOutput.value = '';
-    parsedJsonData.value = null; // 清空数据
+    parsedJsonData.value = null;
     return;
   }
 
   try {
     const parsed = JSON.parse(rawJsonInput.value);
-    parsedJsonData.value = parsed; // 更新解析后的数据
-    if (formatOption.value === 'pretty') {
-      formattedJsonOutput.value = JSON.stringify(parsed, null, 2);
-    } else {
+    parsedJsonData.value = parsed;
+    
+    // 当缩进层级为 0 时，视为压缩模式
+    if (indentSpaces.value === 0) {
       formattedJsonOutput.value = JSON.stringify(parsed);
+    } else {
+      formattedJsonOutput.value = JSON.stringify(parsed, null, indentSpaces.value);
     }
   } catch (e: any) {
     jsonError.value = `JSON 解析错误: ${e.message}`;
-    parsedJsonData.value = null; // 清空数据
+    parsedJsonData.value = null;
     formattedJsonOutput.value = '';
   }
 }, 300);
 
 const pasteToJson = async () => {
   try {
-    rawJsonInput.value = await readText();
-    formatJson(); // Paste and immediately format
-    ElMessage.success('已从剪贴板粘贴 JSON！');
+    const text = await readText();
+    rawJsonInput.value = text;
+    formatJson();
+    ElMessage.success('已从剪贴板粘贴内容');
   } catch (error: any) {
     ElMessage.error(`粘贴失败: ${error.message}`);
   }
@@ -114,133 +186,323 @@ const pasteToJson = async () => {
 
 const copyFormattedJson = async () => {
   if (!formattedJsonOutput.value) {
-    ElMessage.warning('没有可复制的格式化 JSON。');
+    ElMessage.warning('没有可复制的内容');
     return;
   }
   try {
     await writeText(formattedJsonOutput.value);
-    ElMessage.success('格式化后的 JSON 已复制到剪贴板！');
+    ElMessage.success('已复制到剪贴板');
   } catch (error: any) {
     ElMessage.error(`复制失败: ${error.message}`);
   }
 };
+
+const clearAll = () => {
+  rawJsonInput.value = '';
+  formattedJsonOutput.value = '';
+  parsedJsonData.value = null;
+  jsonError.value = '';
+};
+
+// 分割线拖拽功能
+const editorContainer = ref<HTMLElement | null>(null);
+const inputPanel = ref<HTMLElement | null>(null);
+const outputPanel = ref<HTMLElement | null>(null);
+
+let isResizing = false;
+let startX = 0;
+let initialInputWidth = 0;
+let initialOutputWidth = 0;
+
+const startResize = (e: MouseEvent) => {
+  isResizing = true;
+  startX = e.clientX;
+  if (inputPanel.value && outputPanel.value) {
+    initialInputWidth = inputPanel.value.offsetWidth;
+    initialOutputWidth = outputPanel.value.offsetWidth;
+  }
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+};
+
+const onMouseMove = (e: MouseEvent) => {
+  if (!isResizing || !editorContainer.value || !inputPanel.value || !outputPanel.value) return;
+
+  const dx = e.clientX - startX;
+  const containerWidth = editorContainer.value.offsetWidth;
+
+  let newInputWidth = initialInputWidth + dx;
+  let newOutputWidth = initialOutputWidth - dx;
+
+  // 限制最小宽度
+  const minWidth = 100; // 调整为合适的值
+  if (newInputWidth < minWidth) {
+    newInputWidth = minWidth;
+    newOutputWidth = containerWidth - minWidth;
+  }
+  if (newOutputWidth < minWidth) {
+    newOutputWidth = minWidth;
+    newInputWidth = containerWidth - minWidth;
+  }
+
+  inputPanel.value.style.flexBasis = `${newInputWidth}px`;
+  inputPanel.value.style.flexGrow = '0';
+  outputPanel.value.style.flexBasis = `${newOutputWidth}px`;
+  outputPanel.value.style.flexGrow = '0';
+};
+
+const onMouseUp = () => {
+  isResizing = false;
+  document.removeEventListener('mousemove', onMouseMove);
+  document.removeEventListener('mouseup', onMouseUp);
+};
+
+onMounted(() => {
+  formatJson(); // 初始格式化，以防有默认值
+});
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onMouseMove);
+  document.removeEventListener('mouseup', onMouseUp);
+});
 </script>
 
 <style scoped>
 .json-formatter-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  color: var(--text-color); /* 确保容器内文本颜色正确 */
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* 使用100%而不是100vh，避免超出父容器 */
+  width: 100%; /* 使用100%而不是100vw，避免超出父容器 */
+  overflow: hidden; /* 防止内容溢出产生滚动条 */
+  background-color: var(--bg-color);
+  box-sizing: border-box;
 }
 
-/* 覆盖 ElCard 样式 */
-.el-card {
-  border: 1px solid var(--border-color);
+/* 固定顶栏工具栏 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
   background-color: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* 轻微阴影 */
+  z-index: 10;
+  flex-shrink: 0; /* 不参与伸缩 */
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1; /* 占据中心剩余空间 */
+  justify-content: center;
+  max-width: 400px; /* 限制中心区域最大宽度 */
+}
+
+.indent-label {
+  font-size: 14px;
+  color: var(--text-color);
+  white-space: nowrap; /* 防止换行 */
+}
+
+.indent-slider {
+  width: 120px; /* 固定滑块宽度 */
+}
+
+.indent-number {
+  width: 80px; /* 固定数字输入框宽度 */
+}
+
+/* 主编辑区域 */
+.editor-container {
+  display: flex;
+  flex: 1; /* 撑满剩余垂直空间 */
+  overflow: hidden; /* 内部滚动，外部不滚动 */
+}
+
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* 初始平分空间 */
+  min-width: 100px; /* 面板最小宽度 */
+  overflow: hidden; /* 确保内部内容滚动，而不是面板滚动 */
+}
+
+.input-panel {
+  border-right: 1px solid var(--border-color); /* 输入面板右侧边框 */
+}
+
+/* 窄屏时的上下布局 */
+@media (max-width: 768px) {
+  .editor-container {
+    flex-direction: column; /* 垂直布局 */
+  }
+
+  .input-panel {
+    border-right: none; /* 移除右侧边框 */
+    border-bottom: 1px solid var(--border-color); /* 添加底部边框 */
+  }
+
+  .divider {
+    width: 100%; /* 垂直分割线宽度设为100% */
+    height: 4px; /* 垂直分割线高度 */
+    cursor: row-resize; /* 垂直拖拽光标 */
+  }
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0; /* 不参与伸缩 */
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-color);
 }
 
-/* 覆盖 ElInput 和 ElTextarea 的样式 */
-.el-input, .el-textarea {
-  --el-input-bg-color: var(--input-bg);
-  --el-input-text-color: var(--text-color);
-  --el-input-border-color: var(--border-color);
-  --el-input-hover-border-color: var(--primary-color);
-  --el-input-focus-border-color: var(--primary-color);
-  --el-input-placeholder-color: var(--text-color-light);
+.char-count {
+  font-size: 12px;
+  color: var(--text-color-light);
 }
 
-.el-textarea__inner {
-  background-color: var(--input-bg) !important;
+.output-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.error-indicator {
+  color: #f56c6c; /* 错误提示颜色 */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.success-indicator {
+  color: #67c23a; /* 成功提示颜色 */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-content {
+  flex: 1; /* 撑满剩余空间 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 隐藏超出部分 */
+}
+
+.json-editor {
+  flex: 1; /* 确保 textarea 撑满 */
+  width: 100%; /* 确保 textarea 宽度100% */
+  height: 100%; /* 确保 textarea 高度100% */
+}
+
+.json-editor :deep(.el-textarea__inner) {
+  height: 100% !important; /* 强制 textarea 内部元素高度100% */
+  border: none !important; /* 移除边框 */
+  border-radius: 0 !important; /* 移除圆角 */
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none; /* 禁止手动调整大小 */
+  padding: 16px; /* 统一填充 */
+  box-sizing: border-box; /* 边框和内边距包含在尺寸内 */
+}
+
+.json-editor :deep(.el-textarea__inner):focus {
+  box-shadow: none !important; /* 移除聚焦时的阴影 */
+}
+
+.output-editor :deep(.el-textarea__inner) {
+  background-color: var(--card-bg); /* 输出区域的背景色 */
+}
+
+.divider {
+  width: 4px; /* 默认垂直分割线宽度 */
+  background-color: var(--border-color);
+  cursor: col-resize; /* 左右拖拽光标 */
+  flex-shrink: 0; /* 不参与伸缩 */
+}
+
+.divider:hover {
+  background-color: var(--primary-color); /* 悬停时改变颜色 */
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  color: #f56c6c; /* 错误消息颜色 */
+  background-color: rgba(245, 108, 108, 0.1); /* 错误消息背景 */
+  border: 1px solid #f56c6c;
+  border-radius: var(--el-border-radius-base);
+  margin: 16px; /* 外部边距 */
+  font-size: 14px;
+}
+
+.json-output-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto; /* 内部内容滚动 */
+  background-color: var(--card-bg);
+  /* 移除此处 padding，由 json-editor 内部的 textarea 负责 */
+  box-sizing: border-box;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* VueJsonPretty 样式调整 */
+.vue-json-pretty {
+  flex: 1;
+  /* 覆盖 VueJsonPretty 内部样式 */
+  background-color: var(--card-bg) !important;
+}
+
+.vue-json-pretty :deep(.vjs-tree) {
   color: var(--text-color) !important;
-  border-color: var(--border-color) !important;
+  background-color: var(--card-bg) !important;
 }
 
-/* 覆盖 VueJsonPretty 的样式 */
-.json-pretty-output-wrapper {
-  background-color: var(--input-bg); /* 与输入框背景色保持一致 */
-}
-
-/* VueJsonPretty 内部元素样式 */
-.vjs-tree {
+.vue-json-pretty :deep(.vjs-key) {
   color: var(--text-color) !important;
 }
 
-.vjs-key {
-  color: var(--text-color) !important;
-}
-
-.vjs-value {
+.vue-json-pretty :deep(.vjs-value) {
   color: var(--text-color-light) !important;
 }
 
 /* 针对特定类型的值调整颜色 */
-.vjs-value__string {
-  color: #c94e4e !important; /* 字符串颜色，可调整 */
+.vue-json-pretty :deep(.vjs-value__string) {
+  color: #c94e4e !important; /* 字符串颜色 */
 }
-.vjs-value__number {
-  color: #3b8a3b !important; /* 数字颜色，可调整 */
+.vue-json-pretty :deep(.vjs-value__number) {
+  color: #3b8a3b !important; /* 数字颜色 */
 }
-.vjs-value__boolean {
-  color: #925cff !important; /* 布尔值颜色，可调整 */
+.vue-json-pretty :deep(.vjs-value__boolean) {
+  color: #925cff !important; /* 布尔值颜色 */
 }
-.vjs-value__null {
-  color: #808080 !important; /* null 颜色，可调整 */
-}
-
-/* 确保 VueJsonPretty 的边框和填充与输入框类似 */
-.json-pretty-output-wrapper {
-  height: 400px;
-  overflow-y: auto;
-  border: 1px solid var(--border-color); /* 使用主题边框色 */
-  border-radius: var(--el-border-radius-base);
-  padding: 10px;
-  box-sizing: border-box;
-  font-size: 14px;
-}
-
-.json-pretty-output-wrapper {
-  height: 400px; /* 固定高度，可根据实际情况调整 */
-  overflow-y: auto; /* 允许滚动 */
-  border: 1px solid var(--el-border-color); /* 边框与输入框对齐 */
-  border-radius: var(--el-border-radius-base); /* 圆角 */
-  padding: 10px; /* 内边距 */
-  box-sizing: border-box; /* 边框和内边距包含在高度内 */
-  font-size: 14px; /* 字体大小 */
-}
-
-.json-text-output {
-  height: 100%; /* 保证文本框占据整个高度 */
-  display: flex;
-  flex-direction: column;
-}
-
-.json-text-output .el-textarea__inner {
-  flex-grow: 1; /* 让文本域内容区填充剩余空间 */
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 16px;
-  font-weight: bold;
-  color: var(--text-color);
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.error-message {
-  color: #f56c6c; /* ElMessage.error color */
-  font-size: 14px;
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.vue-json-pretty :deep(.vjs-value__null) {
+  color: #808080 !important; /* null 颜色 */
 }
 </style>

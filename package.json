@@ -11,11 +11,14 @@
     "tauri:dev": "tauri dev"
   },
   "dependencies": {
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/view": "^6.38.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "codemirror": "^6.0.2",
     "diff": "^8.0.2",
     "diff2html": "^3.4.52",
     "element-plus": "^2.10.4",
@@ -23,6 +26,7 @@
     "jsondiffpatch": "^0.7.3",
     "lodash": "^4.17.21",
     "vue": "^3.5.13",
+    "vue-codemirror": "^6.1.1",
     "vue-draggable-next": "^2.2.1",
     "vue-json-pretty": "^2.5.0",
     "vue-router": "^4.5.1"

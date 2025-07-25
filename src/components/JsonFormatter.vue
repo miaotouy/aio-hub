@@ -18,11 +18,11 @@
       </div>
 
       <div class="toolbar-center">
-        <span class="indent-label">缩进层级:</span>
-        <el-slider v-model="indentSpaces" :min="0" :max="8" :step="1" :show-tooltip="false" @input="formatJson"
-          class="indent-slider" />
-        <el-input-number v-model="indentSpaces" :min="0" :max="8" size="small" controls-position="right"
-          @change="formatJson" class="indent-number" />
+        <span class="expand-label">展开层级:</span>
+        <el-slider v-model="defaultExpandDepth" :min="1" :max="10" :step="1" :show-tooltip="false"
+          class="expand-slider" />
+        <el-input-number v-model="defaultExpandDepth" :min="1" :max="10" size="small" controls-position="right"
+          class="expand-number" />
       </div>
 
       <div class="toolbar-right">
@@ -88,12 +88,9 @@
             <span>{{ jsonError }}</span>
           </div>
           <div v-else class="json-output-wrapper">
-            <!-- 当缩进层级 > 0 时使用 VueJsonPretty，否则使用 textarea 进行压缩输出 -->
-            <VueJsonPretty v-if="parsedJsonData && indentSpaces > 0" :data="parsedJsonData" :showIcon="true"
-              :showLine="true" :showSelectBox="false" :highlightSelectedNode="false" :showLength="true"
-              :showDoubleQuotes="true" :editable="false" class="vue-json-pretty" />
-            <el-input v-else-if="parsedJsonData && indentSpaces === 0" v-model="formattedJsonOutput" type="textarea"
-              readonly placeholder="压缩后的 JSON 将显示在这里..." class="json-editor output-editor" resize="none" />
+            <!-- 始终使用自定义 JSON 显示组件进行格式化输出 -->
+            <CustomJsonViewer v-if="parsedJsonData" :data="parsedJsonData"
+              :defaultExpandDepth="defaultExpandDepth" class="custom-json-viewer" />
             <el-input v-else v-model="formattedJsonOutput" type="textarea" readonly placeholder="格式化后的 JSON 将显示在这里..."
               class="json-editor output-editor" resize="none" />
           </div>
@@ -116,15 +113,14 @@ import {
 } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
-import VueJsonPretty from 'vue-json-pretty';
-import 'vue-json-pretty/lib/styles.css';
+import CustomJsonViewer from './CustomJsonViewer.vue';
 
 const rawJsonInput = ref('');
 const isDragging = ref(false); // 新增拖拽状态
 const formattedJsonOutput = ref('');
 const parsedJsonData = ref<any>(null);
 const jsonError = ref('');
-const indentSpaces = ref(2); // 默认缩进空格数
+const defaultExpandDepth = ref(3); // 默认展开层级
 
 const formatJson = debounce(() => {
   jsonError.value = '';
@@ -138,12 +134,8 @@ const formatJson = debounce(() => {
     const parsed = JSON.parse(rawJsonInput.value);
     parsedJsonData.value = parsed;
 
-    // 当缩进层级为 0 时，视为压缩模式
-    if (indentSpaces.value === 0) {
-      formattedJsonOutput.value = JSON.stringify(parsed);
-    } else {
-      formattedJsonOutput.value = JSON.stringify(parsed, null, indentSpaces.value);
-    }
+    // 始终使用 2 个空格进行格式化
+    formattedJsonOutput.value = JSON.stringify(parsed, null, 2);
   } catch (e: any) {
     jsonError.value = `JSON 解析错误: ${e.message}`;
     parsedJsonData.value = null;
@@ -346,25 +338,28 @@ onUnmounted(() => {
   flex: 1;
   /* 占据中心剩余空间 */
   justify-content: center;
-  max-width: 400px;
-  /* 限制中心区域最大宽度 */
+  max-width: 600px;
+  /* 增加中心区域最大宽度以容纳更多控件 */
 }
 
-.indent-label {
+.indent-label,
+.expand-label {
   font-size: 14px;
   color: var(--text-color);
   white-space: nowrap;
   /* 防止换行 */
 }
 
-.indent-slider {
-  width: 120px;
-  /* 固定滑块宽度 */
+.indent-slider,
+.expand-slider {
+  width: 100px;
+  /* 调整滑块宽度 */
 }
 
-.indent-number {
-  width: 80px;
-  /* 固定数字输入框宽度 */
+.indent-number,
+.expand-number {
+  width: 70px;
+  /* 调整数字输入框宽度 */
 }
 
 /* 主编辑区域 */
@@ -581,51 +576,17 @@ onUnmounted(() => {
   overflow: auto;
   /* 内部内容滚动 */
   background-color: var(--card-bg);
-  /* 移除此处 padding，由 json-editor 内部的 textarea 负责 */
   box-sizing: border-box;
+}
+
+.empty-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-color-light);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
-  line-height: 1.5;
 }
 
-/* VueJsonPretty 样式调整 */
-.vue-json-pretty {
-  flex: 1;
-  /* 覆盖 VueJsonPretty 内部样式 */
-  background-color: var(--card-bg) !important;
-}
-
-.vue-json-pretty :deep(.vjs-tree) {
-  color: var(--text-color) !important;
-  background-color: var(--card-bg) !important;
-}
-
-.vue-json-pretty :deep(.vjs-key) {
-  color: var(--text-color) !important;
-}
-
-.vue-json-pretty :deep(.vjs-value) {
-  color: var(--text-color-light) !important;
-}
-
-/* 针对特定类型的值调整颜色 */
-.vue-json-pretty :deep(.vjs-value__string) {
-  color: #c94e4e !important;
-  /* 字符串颜色 */
-}
-
-.vue-json-pretty :deep(.vjs-value__number) {
-  color: #3b8a3b !important;
-  /* 数字颜色 */
-}
-
-.vue-json-pretty :deep(.vjs-value__boolean) {
-  color: #925cff !important;
-  /* 布尔值颜色 */
-}
-
-.vue-json-pretty :deep(.vjs-value__null) {
-  color: #808080 !important;
-  /* null 颜色 */
-}
 </style>

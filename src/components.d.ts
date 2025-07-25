@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     CodeFormatter: typeof import('./components/CodeFormatter.vue')['default']
+    CustomJsonViewer: typeof import('./components/CustomJsonViewer.vue')['default']
     HomePage: typeof import('./components/HomePage.vue')['default']
     IEpBrush: typeof import('~icons/ep/brush')['default']
     IEpCode: typeof import('~icons/ep/code')['default']
@@ -19,6 +20,7 @@ declare module 'vue' {
     IEpSetting: typeof import('~icons/ep/setting')['default']
     InfoCard: typeof import('./components/InfoCard.vue')['default']
     JsonFormatter: typeof import('./components/JsonFormatter.vue')['default']
+    JsonNode: typeof import('./components/JsonNode.vue')['default']
     MediaInfoReader: typeof import('./components/MediaInfoReader.vue')['default']
     RegexApplier: typeof import('./components/RegexApplier.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

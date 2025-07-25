@@ -62,7 +62,7 @@ onMounted(() => {
   if (!editorContainerRef.value) return;
 
   const extensions = [
-    // 基础主题 - 简化版，不依赖外部主题包
+    // 基础主题 - 完全适配全局 CSS 变量
     EditorView.theme({
       "&": {
         color: "var(--text-color)",
@@ -71,6 +71,7 @@ onMounted(() => {
       ".cm-content": {
         padding: "12px",
         minHeight: "200px",
+        color: "var(--text-color)",
       },
       ".cm-focused": {
         outline: "none",
@@ -78,9 +79,100 @@ onMounted(() => {
       ".cm-editor": {
         fontSize: "14px",
         fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
+        color: "var(--text-color)",
+        backgroundColor: "var(--input-bg)",
       },
       ".cm-scroller": {
         fontFamily: "inherit",
+        color: "var(--text-color)",
+      },
+      // 行号样式
+      ".cm-lineNumbers": {
+        color: "var(--text-color-light)",
+        backgroundColor: "var(--input-bg)",
+        borderRight: "1px solid var(--border-color-light)",
+      },
+      ".cm-lineNumbers .cm-gutterElement": {
+        color: "var(--text-color-light)",
+      },
+      // 活跃行高亮
+      ".cm-activeLine": {
+        backgroundColor: "var(--border-color-light)",
+      },
+      ".cm-activeLineGutter": {
+        backgroundColor: "var(--border-color-light)",
+      },
+      // 选择样式
+      ".cm-selectionBackground": {
+        backgroundColor: "var(--primary-color)",
+        opacity: "0.3",
+      },
+      "&.cm-focused .cm-selectionBackground": {
+        backgroundColor: "var(--primary-color)",
+        opacity: "0.3",
+      },
+      // 光标样式
+      ".cm-cursor": {
+        borderLeftColor: "var(--text-color)",
+      },
+      // 搜索匹配高亮
+      ".cm-searchMatch": {
+        backgroundColor: "var(--primary-color)",
+        color: "#fff",
+        opacity: "0.8",
+      },
+      ".cm-searchMatch.cm-searchMatch-selected": {
+        backgroundColor: "var(--primary-hover-color)",
+      },
+      // 折叠装订线
+      ".cm-foldGutter": {
+        color: "var(--text-color-light)",
+        backgroundColor: "var(--input-bg)",
+      },
+      ".cm-foldGutter .cm-gutterElement": {
+        color: "var(--text-color-light)",
+      },
+      // 括号匹配
+      ".cm-matchingBracket": {
+        backgroundColor: "var(--border-color)",
+        outline: "1px solid var(--primary-color)",
+      },
+      ".cm-nonmatchingBracket": {
+        backgroundColor: "var(--error-color)",
+        color: "#fff",
+      },
+      // 自动补全面板
+      ".cm-tooltip": {
+        backgroundColor: "var(--card-bg)",
+        border: "1px solid var(--border-color)",
+        color: "var(--text-color)",
+      },
+      ".cm-tooltip-autocomplete": {
+        backgroundColor: "var(--card-bg)",
+        border: "1px solid var(--border-color)",
+      },
+      ".cm-tooltip-autocomplete ul li": {
+        color: "var(--text-color)",
+      },
+      ".cm-tooltip-autocomplete ul li[aria-selected]": {
+        backgroundColor: "var(--primary-color)",
+        color: "#fff",
+      },
+      // 滚动条样式适配
+      ".cm-scroller::-webkit-scrollbar": {
+        width: "8px",
+        height: "8px",
+      },
+      ".cm-scroller::-webkit-scrollbar-track": {
+        background: "var(--bg-color)",
+        borderRadius: "10px",
+      },
+      ".cm-scroller::-webkit-scrollbar-thumb": {
+        background: "var(--scrollbar-thumb-color)",
+        borderRadius: "10px",
+      },
+      ".cm-scroller::-webkit-scrollbar-thumb:hover": {
+        background: "var(--scrollbar-thumb-hover-color)",
       },
     }),
     editableCompartment.of(EditorView.editable.of(!(props.readOnly ?? false))),
@@ -238,7 +330,7 @@ defineExpose({
   align-items: center;
   padding: 8px 12px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color-light);
   font-size: 0.9em;
 }
 
@@ -250,6 +342,9 @@ defineExpose({
 .char-count {
   font-size: 12px;
   color: var(--text-color-light);
+  background-color: var(--border-color-light);
+  padding: 2px 6px;
+  border-radius: 3px;
 }
 
 .editor-container {
@@ -261,14 +356,82 @@ defineExpose({
 :deep(.cm-editor) {
   height: 100%;
   width: 100%;
+  background-color: var(--input-bg);
+  color: var(--text-color);
 }
 
 :deep(.cm-content) {
   padding: 12px;
+  color: var(--text-color);
 }
 
 :deep(.cm-scroller) {
   touch-action: auto;
+  background-color: var(--input-bg);
+}
+
+/* 确保语法高亮颜色适配主题 */
+:deep(.cm-keyword) {
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
+:deep(.cm-string) {
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+:deep(.cm-comment) {
+  color: var(--text-color-light);
+  font-style: italic;
+}
+
+:deep(.cm-number) {
+  color: var(--primary-hover-color);
+}
+
+:deep(.cm-operator) {
+  color: var(--text-color);
+}
+
+:deep(.cm-punctuation) {
+  color: var(--text-color-light);
+}
+
+/* 确保折叠和装订线适配主题 */
+:deep(.cm-gutters) {
+  background-color: var(--input-bg);
+  border-right: 1px solid var(--border-color-light);
+}
+
+:deep(.cm-gutter) {
+  background-color: var(--input-bg);
+}
+
+/* 确保搜索和替换面板适配主题 */
+:deep(.cm-panel) {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+:deep(.cm-panel input) {
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+:deep(.cm-panel button) {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+:deep(.cm-panel button:hover) {
+  background-color: var(--primary-hover-color);
 }
 
 @media (max-width: 600px) {

@@ -23,6 +23,7 @@ declare module 'vue' {
     JsonNode: typeof import('./components/JsonNode.vue')['default']
     MediaInfoReader: typeof import('./components/MediaInfoReader.vue')['default']
     RegexApplier: typeof import('./components/RegexApplier.vue')['default']
+    RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     TextDiff: typeof import('./components/TextDiff.vue')['default']

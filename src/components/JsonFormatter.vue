@@ -20,9 +20,9 @@
       <div class="toolbar-center">
         <span class="expand-label">展开层级:</span>
         <el-slider v-model="defaultExpandDepth" :min="1" :max="10" :step="1" :show-tooltip="false"
-          class="expand-slider" />
+          class="expand-slider" @change="formatJson" />
         <el-input-number v-model="defaultExpandDepth" :min="1" :max="10" size="small" controls-position="right"
-          class="expand-number" />
+          class="expand-number" @change="formatJson" />
       </div>
 
       <div class="toolbar-right">
@@ -39,12 +39,6 @@
     <div class="editor-container" ref="editorContainer">
       <!-- 输入区域 -->
       <div class="editor-panel input-panel" ref="inputPanel">
-        <div class="panel-header">
-          <span class="panel-title">输入 JSON</span>
-          <div v-if="rawJsonInput" class="char-count">
-            {{ rawJsonInput.length }} 字符
-          </div>
-        </div>
         <div class="editor-content" @dragover.prevent="handleDragOver" @drop.prevent="handleDrop"
           @dragenter="handleDragEnter" @dragleave="handleDragLeave">
           <div v-if="isDragging" class="drag-overlay">
@@ -53,8 +47,14 @@
             </el-icon>
             <p>拖拽文件到此处</p>
           </div>
-          <el-input v-model="rawJsonInput" type="textarea" placeholder="请输入 JSON 字符串或拖拽文件到此处..." @input="formatJson"
-            class="json-editor" resize="none" />
+          <RichCodeEditor
+            v-model="rawJsonInput"
+            language="json"
+            title="输入 JSON"
+            :show-char-count="true"
+            @update:modelValue="formatJson"
+            class="input-editor"
+          />
         </div>
       </div>
 
@@ -63,23 +63,6 @@
 
       <!-- 输出区域 -->
       <div class="editor-panel output-panel" ref="outputPanel">
-        <div class="panel-header">
-          <span class="panel-title">格式化输出</span>
-          <div class="output-info">
-            <span v-if="jsonError" class="error-indicator">
-              <el-icon>
-                <WarningFilled />
-              </el-icon>
-              错误
-            </span>
-            <span v-else-if="parsedJsonData && !jsonError" class="success-indicator">
-              <el-icon>
-                <CircleCheckFilled />
-              </el-icon>
-              有效 JSON
-            </span>
-          </div>
-        </div>
         <div class="editor-content">
           <div v-if="jsonError" class="error-message">
             <el-icon>
@@ -87,13 +70,14 @@
             </el-icon>
             <span>{{ jsonError }}</span>
           </div>
-          <div v-else class="json-output-wrapper">
-            <!-- 始终使用自定义 JSON 显示组件进行格式化输出 -->
-            <CustomJsonViewer v-if="parsedJsonData" :data="parsedJsonData"
-              :defaultExpandDepth="defaultExpandDepth" class="custom-json-viewer" />
-            <el-input v-else v-model="formattedJsonOutput" type="textarea" readonly placeholder="格式化后的 JSON 将显示在这里..."
-              class="json-editor output-editor" resize="none" />
-          </div>
+          <RichCodeEditor
+            v-else
+            v-model="formattedJsonOutput"
+            language="json"
+            :title="outputTitle"
+            :read-only="true"
+            class="output-editor"
+          />
         </div>
       </div>
     </div>
@@ -101,11 +85,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
   WarningFilled,
-  CircleCheckFilled,
   DocumentCopy,
   CopyDocument,
   Delete,
@@ -113,7 +96,7 @@ import {
 } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
-import CustomJsonViewer from './CustomJsonViewer.vue';
+import RichCodeEditor from './common/RichCodeEditor.vue';
 
 const rawJsonInput = ref('');
 const isDragging = ref(false); // 新增拖拽状态
@@ -121,6 +104,65 @@ const formattedJsonOutput = ref('');
 const parsedJsonData = ref<any>(null);
 const jsonError = ref('');
 const defaultExpandDepth = ref(3); // 默认展开层级
+
+// 计算输出标题
+const outputTitle = computed(() => {
+  if (jsonError.value) {
+    return '格式化输出 - 错误';
+  } else if (parsedJsonData.value) {
+    return '格式化输出 - 有效 JSON';
+  }
+  return '格式化输出';
+});
+
+// 自定义 JSON 序列化器，根据展开层级控制格式
+const customJsonStringify = (obj: any, expandDepth: number, currentDepth: number = 0): string => {
+  if (obj === null) return 'null';
+  if (typeof obj === 'undefined') return 'undefined';
+  if (typeof obj === 'string') return JSON.stringify(obj);
+  if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
+  
+  const indent = '  '.repeat(currentDepth);
+  const nextIndent = '  '.repeat(currentDepth + 1);
+  
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return '[]';
+    
+    // 如果当前层级超过展开深度，使用紧凑格式（一行显示）
+    if (currentDepth >= expandDepth) {
+      const compactItems = obj.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          return JSON.stringify(item); // 直接序列化为紧凑格式
+        }
+        return customJsonStringify(item, expandDepth, currentDepth + 1);
+      });
+      return `[${compactItems.join(', ')}]`;
+    }
+    
+    const items = obj.map(item =>
+      nextIndent + customJsonStringify(item, expandDepth, currentDepth + 1)
+    );
+    return `[\n${items.join(',\n')}\n${indent}]`;
+  }
+  
+  if (typeof obj === 'object') {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return '{}';
+    
+    // 如果当前层级超过展开深度，使用紧凑格式（一行显示）
+    if (currentDepth >= expandDepth) {
+      return JSON.stringify(obj); // 直接序列化为紧凑格式
+    }
+    
+    const items = keys.map(key => {
+      const value = customJsonStringify(obj[key], expandDepth, currentDepth + 1);
+      return `${nextIndent}${JSON.stringify(key)}: ${value}`;
+    });
+    return `{\n${items.join(',\n')}\n${indent}}`;
+  }
+  
+  return String(obj);
+};
 
 const formatJson = debounce(() => {
   jsonError.value = '';
@@ -134,8 +176,8 @@ const formatJson = debounce(() => {
     const parsed = JSON.parse(rawJsonInput.value);
     parsedJsonData.value = parsed;
 
-    // 始终使用 2 个空格进行格式化
-    formattedJsonOutput.value = JSON.stringify(parsed, null, 2);
+    // 使用自定义序列化器，根据展开层级生成格式化输出
+    formattedJsonOutput.value = customJsonStringify(parsed, defaultExpandDepth.value);
   } catch (e: any) {
     jsonError.value = `JSON 解析错误: ${e.message}`;
     parsedJsonData.value = null;
@@ -467,43 +509,20 @@ onUnmounted(() => {
   /* 为拖拽覆盖层设置定位上下文 */
 }
 
-.json-editor {
+.input-editor,
+.output-editor {
   flex: 1;
-  /* 确保 textarea 撑满 */
-  width: 100%;
-  /* 确保 textarea 宽度100% */
   height: 100%;
-  /* 确保 textarea 高度100% */
 }
 
-.json-editor :deep(.el-textarea__inner) {
-  height: 100% !important;
-  /* 强制 textarea 内部元素高度100% */
-  border: none !important;
-  /* 移除边框 */
-  border-radius: 0 !important;
-  /* 移除圆角 */
-  background-color: var(--input-bg);
-  color: var(--text-color);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  resize: none;
-  /* 禁止手动调整大小 */
-  padding: 16px;
-  /* 统一填充 */
-  box-sizing: border-box;
-  /* 边框和内边距包含在尺寸内 */
+.input-editor :deep(.rich-code-editor-wrapper) {
+  height: 100%;
+  border: none;
 }
 
-.json-editor :deep(.el-textarea__inner):focus {
-  box-shadow: none !important;
-  /* 移除聚焦时的阴影 */
-}
-
-.output-editor :deep(.el-textarea__inner) {
-  background-color: var(--card-bg);
-  /* 输出区域的背景色 */
+.output-editor :deep(.rich-code-editor-wrapper) {
+  height: 100%;
+  border: none;
 }
 
 .drag-overlay {

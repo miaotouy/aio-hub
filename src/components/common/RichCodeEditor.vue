@@ -1,17 +1,11 @@
 <template>
   <div class="rich-code-editor-wrapper" ref="wrapperRef">
-    <div v-if="title" class="editor-header">
-      <span class="editor-title">{{ title }}</span>
-      <div v-if="showCharCount && content" class="char-count">
-        {{ content.length }} 字符
-      </div>
-    </div>
     <div ref="editorContainerRef" class="editor-container"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import { ref, onMounted, onUnmounted, watch, shallowRef } from "vue";
 import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
@@ -39,8 +33,6 @@ import { foldGutter, foldKeymap } from "@codemirror/language";
 const props = defineProps<{
   modelValue: string;
   language?: "json" | "markdown" | "javascript" | "text" | string;
-  title?: string;
-  showCharCount?: boolean;
   readOnly?: boolean;
   lineNumbers?: boolean;
 }>();
@@ -56,7 +48,6 @@ const lineNumbersCompartment = new Compartment();
 const foldGutterCompartment = new Compartment();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 
-const content = computed(() => props.modelValue);
 
 onMounted(() => {
   if (!editorContainerRef.value) return;
@@ -322,29 +313,6 @@ defineExpose({
 
 .rich-code-editor-wrapper.is-focused {
   border-color: var(--primary-color);
-}
-
-.editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color-light);
-  font-size: 0.9em;
-}
-
-.editor-title {
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.char-count {
-  font-size: 12px;
-  color: var(--text-color-light);
-  background-color: var(--border-color-light);
-  padding: 2px 6px;
-  border-radius: 3px;
 }
 
 .editor-container {

@@ -39,6 +39,12 @@
     <div class="editor-container" ref="editorContainer">
       <!-- 输入区域 -->
       <div class="editor-panel input-panel" ref="inputPanel">
+        <div class="panel-header">
+          <span class="panel-title">输入 JSON</span>
+          <div v-if="rawJsonInput" class="char-count">
+            {{ rawJsonInput.length }} 字符
+          </div>
+        </div>
         <div class="editor-content" @dragover.prevent="handleDragOver" @drop.prevent="handleDrop"
           @dragenter="handleDragEnter" @dragleave="handleDragLeave">
           <div v-if="isDragging" class="drag-overlay">
@@ -50,8 +56,6 @@
           <RichCodeEditor
             v-model="rawJsonInput"
             language="json"
-            title="输入 JSON"
-            :show-char-count="true"
             @update:modelValue="formatJson"
             class="input-editor"
           />
@@ -63,6 +67,9 @@
 
       <!-- 输出区域 -->
       <div class="editor-panel output-panel" ref="outputPanel">
+        <div class="panel-header">
+          <span class="panel-title">{{ outputTitle }}</span>
+        </div>
         <div class="editor-content">
           <div v-if="jsonError" class="error-message">
             <el-icon>
@@ -74,7 +81,6 @@
             v-else
             v-model="formattedJsonOutput"
             language="json"
-            :title="outputTitle"
             :read-only="true"
             class="output-editor"
           />
@@ -473,6 +479,9 @@ onUnmounted(() => {
 .char-count {
   font-size: 12px;
   color: var(--text-color-light);
+  background-color: var(--border-color-light);
+  padding: 2px 6px;
+  border-radius: 3px;
 }
 
 .output-info {

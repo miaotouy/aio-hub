@@ -22,6 +22,7 @@
       <div id="tabs">
         <button :class="{ tab: true, active: activeTab === 'webui' }" @click="activeTab = 'webui'">WebUI Info</button>
         <button :class="{ tab: true, active: activeTab === 'comfyui' }" @click="activeTab = 'comfyui'">ComfyUI Info</button>
+        <button :class="{ tab: true, active: activeTab === 'st' }" @click="activeTab = 'st'">ST Character</button>
         <button :class="{ tab: true, active: activeTab === 'full' }" @click="activeTab = 'full'">完整信息</button>
       </div>
 
@@ -37,6 +38,10 @@
 
       <div v-show="hasData && activeTab === 'comfyui'" id="comfyui-info">
         <InfoCard title="ComfyUI Workflow" :content="comfyuiWorkflow" is-code />
+      </div>
+
+      <div v-show="hasData && activeTab === 'st'" id="st-info">
+        <InfoCard title="SillyTavern Character Card" :content="stCharacterInfo" is-code />
       </div>
 
       <div v-show="hasData && activeTab === 'full'" id="full-info">
@@ -60,9 +65,10 @@ const activeTab = ref('webui');
 
 const webuiInfo = ref({ positivePrompt: '', negativePrompt: '', generationInfo: '' });
 const comfyuiWorkflow = ref('');
+const stCharacterInfo = ref('');
 const fullExifInfo = ref('');
 
-const hasData = computed(() => webuiInfo.value.positivePrompt || comfyuiWorkflow.value || fullExifInfo.value);
+const hasData = computed(() => webuiInfo.value.positivePrompt || comfyuiWorkflow.value || stCharacterInfo.value || fullExifInfo.value);
 
 // Helper to convert Uint8Array to Base64
 const uint8ArrayToBase64 = (bytes: Uint8Array) => {
@@ -72,6 +78,76 @@ const uint8ArrayToBase64 = (bytes: Uint8Array) => {
     binary += String.fromCharCode(bytes[i]);
   }
   return window.btoa(binary);
+};
+
+// Based on: ../../ComfyTavern/apps/backend/src/routes/characterRoutes.ts
+// Note: This is a simplified browser-based implementation.
+const parseCharacterData = async (buffer: Uint8Array | ArrayBuffer): Promise<object | null> => {
+  try {
+    const uint8Buffer = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+
+    // Very basic PNG chunk parsing
+    const dataView = new DataView(uint8Buffer.buffer);
+    // Check for PNG signature
+    if (dataView.getUint32(0) !== 0x89504E47 || dataView.getUint32(4) !== 0x0D0A1A0A) {
+      // Not a PNG or not a valid one
+      return null;
+    }
+
+    let offset = 8;
+    const textChunks: { keyword: string; text: string }[] = [];
+
+    while (offset < uint8Buffer.length) {
+      const length = dataView.getUint32(offset);
+      offset += 4;
+      const type = new TextDecoder().decode(uint8Buffer.subarray(offset, offset + 4));
+      offset += 4;
+
+      if (type === 'tEXt') {
+        const chunkData = uint8Buffer.subarray(offset, offset + length);
+        const nullSeparatorIndex = chunkData.indexOf(0);
+        if (nullSeparatorIndex !== -1) {
+          const keyword = new TextDecoder().decode(chunkData.subarray(0, nullSeparatorIndex));
+          const text = new TextDecoder().decode(chunkData.subarray(nullSeparatorIndex + 1));
+          textChunks.push({ keyword, text });
+        }
+      }
+
+      offset += length; // Move to CRC
+      offset += 4; // Skip CRC
+
+      if (type === 'IEND') {
+        break;
+      }
+    }
+
+    if (textChunks.length === 0) {
+      return null;
+    }
+
+    // Prefer ccv3 (SillyTavern format)
+    const ccv3Chunk = textChunks.find(c => c.keyword === 'ccv3');
+    if (ccv3Chunk) {
+      const jsonStr = new TextDecoder().decode(
+        Uint8Array.from(atob(ccv3Chunk.text), c => c.charCodeAt(0))
+      );
+      return JSON.parse(jsonStr);
+    }
+
+    // Fallback to chara (TavernAI format)
+    const charaChunk = textChunks.find(c => c.keyword === 'chara');
+    if (charaChunk) {
+      const jsonStr = new TextDecoder().decode(
+        Uint8Array.from(atob(charaChunk.text), c => c.charCodeAt(0))
+      );
+      return JSON.parse(jsonStr);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Failed to parse character data from PNG:', error);
+    return null;
+  }
 };
 
 const handleDrop = (e: DragEvent) => {
@@ -150,7 +226,14 @@ const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer) => {
     // Reset info
     webuiInfo.value = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
     comfyuiWorkflow.value = '';
+    stCharacterInfo.value = '';
     fullExifInfo.value = JSON.stringify(output, null, 2);
+
+    // --- ST Character Card Parsing ---
+    const characterCard = await parseCharacterData(buffer);
+    if (characterCard) {
+      stCharacterInfo.value = JSON.stringify(characterCard, null, 2);
+    }
 
     let parameters = output.parameters || output.userComment;
     if (parameters) {
@@ -173,6 +256,8 @@ const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer) => {
       activeTab.value = 'webui';
     } else if (comfyuiWorkflow.value) {
       activeTab.value = 'comfyui';
+    } else if (stCharacterInfo.value) {
+      activeTab.value = 'st';
     } else {
       activeTab.value = 'full';
     }
@@ -181,6 +266,7 @@ const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer) => {
     ElMessage.error('解析图片信息失败');
     webuiInfo.value = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
     comfyuiWorkflow.value = '';
+    stCharacterInfo.value = '';
     if (error instanceof Error) {
       fullExifInfo.value = `无法解析 EXIF 数据: ${error.message}`;
     } else {
@@ -230,7 +316,7 @@ const parseWebUIInfo = (parameters: string) => {
 
 /* Drop Area */
 #drop-area {
-  flex: 3; /* 60% width */
+  flex: 3;
   border: 3px dashed var(--border-color);
   border-radius: 10px;
   padding: 20px;
@@ -268,7 +354,7 @@ const parseWebUIInfo = (parameters: string) => {
 
 /* Info Area */
 #image-info {
-  flex: 2; /* 40% width */
+  flex: 4;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -303,7 +389,7 @@ const parseWebUIInfo = (parameters: string) => {
 }
 
 /* Info Sections */
-#webui-info, #comfyui-info, #full-info {
+#webui-info, #comfyui-info, #full-info, #st-info {
   display: flex;
   flex-direction: column;
   gap: 15px;

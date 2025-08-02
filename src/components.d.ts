@@ -18,7 +18,7 @@ declare module 'vue' {
     IEpMagicStick: typeof import('~icons/ep/magic-stick')['default']
     IEpPictureFilled: typeof import('~icons/ep/picture-filled')['default']
     IEpSetting: typeof import('~icons/ep/setting')['default']
-    InfoCard: typeof import('./components/InfoCard.vue')['default']
+    InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     JsonFormatter: typeof import('./components/JsonFormatter.vue')['default']
     JsonNode: typeof import('./components/JsonNode.vue')['default']
     MediaInfoReader: typeof import('./components/MediaInfoReader.vue')['default']

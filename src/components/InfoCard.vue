@@ -51,7 +51,24 @@ const copyContent = async () => {
   border: 1px solid var(--border-color);
   background-color: var(--card-bg); /* 使用卡片背景色 */
   color: var(--text-color); /* 确保文本颜色与主题一致 */
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* 让卡片本身在 flex 容器中可伸缩 */
+  min-height: 0; /* 关键：允许 flex item 在内容溢出时正确缩小 */
 }
+
+:deep(.el-card__body) {
+  flex: 1; /* 让卡片内容区域占满剩余空间 */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px; /* 恢复合理的内边距 */
+}
+
+:deep(.el-card__header) {
+  padding: 10px 20px;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -68,13 +85,19 @@ const copyContent = async () => {
   padding: 10px;
   border-radius: 4px;
   font-family: monospace;
-  max-height: 400px;
   overflow-y: auto;
+  flex: 1; /* 占满卡片内容区域 */
+  min-height: 0;
+  margin: 0; /* 重置 pre 标签的默认 margin */
 }
 
 .content-text {
   white-space: pre-wrap;
   word-wrap: break-word;
   color: var(--text-color); /* 确保普通文本颜色与主题一致 */
+  overflow-y: auto;
+  flex: 1; /* 占满卡片内容区域 */
+  min-height: 0;
+  margin: 0; /* 移除默认边距 */
 }
 </style>

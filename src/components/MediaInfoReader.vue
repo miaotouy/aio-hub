@@ -1,5 +1,6 @@
 <template>
   <div class="media-info-reader-container">
+    <!-- Drop Area -->
     <div
       id="drop-area"
       :class="{ highlight: isDragging }"
@@ -9,40 +10,45 @@
       @drop.prevent.stop="handleDrop"
       @click="openFilePicker"
     >
-      <div v-if="!previewSrc" class="drop-area-content">
-        <el-icon :size="50"><UploadFilled /></el-icon>
+      <div v-if="!previewSrc" class="upload-controls">
         <p>将图片拖拽到此处，或点击选择文件</p>
+        <el-button id="file-select-btn">选择图片</el-button>
       </div>
-      <img v-if="previewSrc" :src="previewSrc" class="preview-image" />
+      <img v-if="previewSrc" :src="previewSrc" id="preview" />
     </div>
 
-    <div v-if="hasData" class="info-container">
-      <el-tabs v-model="activeTab" class="info-tabs">
-        <el-tab-pane label="WebUI Info" name="webui">
-          <div class="info-section">
-            <InfoCard title="正面提示词 (Positive Prompt)" :content="webuiInfo.positivePrompt" />
-            <InfoCard title="负面提示词 (Negative Prompt)" :content="webuiInfo.negativePrompt" />
-            <InfoCard title="生成参数 (Generation Info)" :content="webuiInfo.generationInfo" is-code />
-          </div>
-        </el-tab-pane>
-        <el-tab-pane label="ComfyUI Info" name="comfyui">
-          <InfoCard title="ComfyUI Workflow" :content="comfyuiWorkflow" is-code />
-        </el-tab-pane>
-        <el-tab-pane label="完整 EXIF 信息" name="full">
-          <InfoCard title="Full EXIF Data" :content="fullExifInfo" is-code />
-        </el-tab-pane>
-      </el-tabs>
-    </div>
-    <div v-else class="no-data-placeholder">
-      <el-empty description="暂无图片信息" />
+    <!-- Info Area -->
+    <div id="image-info">
+      <div id="tabs">
+        <button :class="{ tab: true, active: activeTab === 'webui' }" @click="activeTab = 'webui'">WebUI Info</button>
+        <button :class="{ tab: true, active: activeTab === 'comfyui' }" @click="activeTab = 'comfyui'">ComfyUI Info</button>
+        <button :class="{ tab: true, active: activeTab === 'full' }" @click="activeTab = 'full'">完整信息</button>
+      </div>
+
+      <div v-if="!hasData" class="no-data-placeholder">
+        <el-empty description="暂无图片信息" />
+      </div>
+
+      <div v-show="hasData && activeTab === 'webui'" id="webui-info">
+        <InfoCard title="Positive Prompt" :content="webuiInfo.positivePrompt" />
+        <InfoCard title="Negative Prompt" :content="webuiInfo.negativePrompt" />
+        <InfoCard title="Generation Info" :content="webuiInfo.generationInfo" is-code />
+      </div>
+
+      <div v-show="hasData && activeTab === 'comfyui'" id="comfyui-info">
+        <InfoCard title="ComfyUI Workflow" :content="comfyuiWorkflow" is-code />
+      </div>
+
+      <div v-show="hasData && activeTab === 'full'" id="full-info">
+        <InfoCard title="Full EXIF Data" :content="fullExifInfo" is-code />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { ElMessage, ElIcon, ElTabs, ElTabPane, ElEmpty } from 'element-plus';
-import { UploadFilled } from '@element-plus/icons-vue';
+import { ElMessage, ElButton, ElEmpty } from 'element-plus';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import * as exifr from 'exifr';
@@ -77,16 +83,28 @@ const handleDrop = (e: DragEvent) => {
 
 const openFilePicker = async () => {
   try {
-    const path = await openDialog({
+    const result = await openDialog({
       multiple: false,
       filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
     });
-    if (path) {
-      const fileArray = await readFile(path as string);
+
+    if (result) {
+      let path: string;
+      if (typeof result === 'string') {
+        path = result;
+      } else if (Array.isArray(result)) {
+        // Should not happen with multiple: false, but handle for type safety
+        path = (result as any)[0].path;
+      } else {
+        // This handles the case where result is a single file object
+        path = (result as any).path;
+      }
+
+      const fileArray = await readFile(path);
+      
       // Generate preview from buffer
+      const extension = path.split('.').pop()?.toLowerCase() || 'png';
       const base64 = uint8ArrayToBase64(fileArray);
-      // Guess mime type from extension, default to png
-      const extension = (path as string).split('.').pop()?.toLowerCase() || 'png';
       previewSrc.value = `data:image/${extension};base64,${base64}`;
       
       // Pass the buffer directly to the parser
@@ -124,7 +142,7 @@ const handleFiles = (files: FileList) => {
   parseReader.readAsArrayBuffer(file);
 };
 
-const parseImageInfo = async (buffer: Uint8Array) => {
+const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer) => {
   try {
     const output = await exifr.parse(buffer, true);
     console.log('EXIF Output:', output);
@@ -134,38 +152,40 @@ const parseImageInfo = async (buffer: Uint8Array) => {
     comfyuiWorkflow.value = '';
     fullExifInfo.value = JSON.stringify(output, null, 2);
 
-    // Parse WebUI info from 'parameters' or 'userComment'
     let parameters = output.parameters || output.userComment;
     if (parameters) {
       if (parameters instanceof Uint8Array) {
         parameters = new TextDecoder().decode(parameters);
       }
-      const parsedWebUI = parseWebUIInfo(parameters);
-      webuiInfo.value = parsedWebUI;
+      webuiInfo.value = parseWebUIInfo(parameters);
     }
 
-    // Parse ComfyUI info from 'workflow'
     if (output.workflow) {
       try {
         const workflow = JSON.parse(output.workflow);
         comfyuiWorkflow.value = JSON.stringify(workflow, null, 2);
       } catch (e) {
-        comfyuiWorkflow.value = output.workflow; // Show as raw text if not valid JSON
+        comfyuiWorkflow.value = output.workflow;
       }
     }
     
-    if(webuiInfo.value.positivePrompt) {
-        activeTab.value = 'webui';
+    if (webuiInfo.value.positivePrompt) {
+      activeTab.value = 'webui';
     } else if (comfyuiWorkflow.value) {
-        activeTab.value = 'comfyui';
+      activeTab.value = 'comfyui';
     } else {
-        activeTab.value = 'full';
+      activeTab.value = 'full';
     }
-
   } catch (error) {
     console.error('Error parsing image:', error);
     ElMessage.error('解析图片信息失败');
-    fullExifInfo.value = '无法解析 EXIF 数据。';
+    webuiInfo.value = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
+    comfyuiWorkflow.value = '';
+    if (error instanceof Error) {
+      fullExifInfo.value = `无法解析 EXIF 数据: ${error.message}`;
+    } else {
+      fullExifInfo.value = '无法解析 EXIF 数据，发生未知错误。';
+    }
   }
 };
 
@@ -173,8 +193,7 @@ const parseWebUIInfo = (parameters: string) => {
   const parts = parameters.split('Negative prompt:');
   const positivePrompt = parts[0].trim();
   const rest = parts[1] || '';
-
-  // Enhanced parser from script.js
+  
   const fields = ["Steps", "Sampler", "CFG scale", "Seed", "Size", "Model", "VAE hash", "VAE", "TI hashes", "Version", "Hashes"];
   const regex = new RegExp(`(${fields.join('|')}):\\s*(.*?)\\s*(?=(${fields.join('|')}:|$))`, 'g');
 
@@ -182,7 +201,7 @@ const parseWebUIInfo = (parameters: string) => {
   let match;
   while ((match = regex.exec(rest)) !== null) {
     const key = match[1].trim();
-    const value = match[2].trim().replace(/,$/, ''); // Remove trailing comma
+    const value = match[2].trim().replace(/,$/, '');
     genInfoObject[key] = value;
   }
 
@@ -199,46 +218,98 @@ const parseWebUIInfo = (parameters: string) => {
 </script>
 
 <style scoped>
+/* General Layout */
 .media-info-reader-container {
-  padding: 20px;
   display: flex;
   gap: 20px;
-  color: var(--text-color); /* 确保容器内文本颜色正确 */
+  width: 100%;
+  height: calc(100vh - 100px); /* Adjust based on your app's header/footer height */
+  padding: 20px;
+  box-sizing: border-box;
 }
 
+/* Drop Area */
 #drop-area {
-  flex: 1;
-  border: 2px dashed var(--border-color); /* 使用主题边框色 */
-  background-color: var(--card-bg); /* 使用卡片背景色 */
-  border-radius: 8px;
+  flex: 3; /* 60% width */
+  border: 3px dashed var(--border-color);
+  border-radius: 10px;
   padding: 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.3s, background-color 0.3s;
-  min-height: 300px;
+  background-color: var(--card-bg);
+  transition: all 0.3s ease;
   display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+#drop-area.highlight {
+  background-color: var(--container-bg);
+  border-color: var(--primary-color);
+}
+.upload-controls {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  margin-bottom: 20px;
+  font-size: 1.2em;
+  font-weight: bold;
+  color: var(--text-color-light);
 }
-
-#drop-area.highlight {
-  border-color: var(--primary-color); /* 使用主题主色 */
-  background-color: var(--container-bg); /* 使用容器背景色，使其在拖拽时有视觉反馈 */
+#file-select-btn {
+  margin-top: 15px;
 }
-
-.drop-area-content {
-  color: var(--text-color-light); /* 使用浅色文本颜色 */
-}
-
-.preview-image {
+#preview {
   max-width: 100%;
-  max-height: 400px;
-  border-radius: 4px;
+  max-height: calc(100% - 60px);
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-.info-container {
-  flex: 1;
-  min-height: 300px;
+/* Info Area */
+#image-info {
+  flex: 2; /* 40% width */
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  overflow: hidden;
+}
+
+/* Tabs */
+#tabs {
+  display: flex;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.tab {
+  padding: 10px 20px;
+  background-color: var(--card-bg);
+  color: var(--primary-color);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+  flex-grow: 1;
+  font-size: 1em;
+  font-weight: bold;
+  border-radius: 0;
+}
+.tab.active {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+.tab:hover:not(.active) {
+  background-color: var(--container-bg);
+}
+
+/* Info Sections */
+#webui-info, #comfyui-info, #full-info {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  flex: 1; /* 占满剩余空间 */
+  min-height: 0; /* 允许内容区域在需要时缩小 */
+  overflow: hidden; /* 防止整个区域滚动，让子元素处理滚动 */
 }
 
 .no-data-placeholder {
@@ -246,41 +317,6 @@ const parseWebUIInfo = (parameters: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.info-tabs {
-  width: 100%;
-}
-
-/* 覆盖 ElTabs 样式 */
-.el-tabs {
-  --el-tabs-header-bg-color: var(--card-bg); /* Tab头部背景色 */
-  --el-tabs-content-bg-color: var(--card-bg); /* Tab内容背景色 */
-  --el-tabs-border-color: var(--border-color); /* Tab边框色 */
-}
-
-.el-tabs__item {
-  color: var(--text-color) !important; /* Tab项文本颜色 */
-}
-
-.el-tabs__item.is-active {
-  color: var(--primary-color) !important; /* 选中Tab项文本颜色 */
-}
-
-.el-tabs__nav-wrap {
-  background-color: var(--card-bg); /* Tab导航包裹器背景色 */
-}
-
-.el-tab-pane {
-  background-color: var(--card-bg); /* Tab内容面板背景色 */
-  padding: 15px; /* 添加内边距 */
-  border: 1px solid var(--border-color); /* 添加边框 */
-  border-top: none; /* 顶部边框由Tab导航提供 */
-}
-
-.info-section {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+  height: 100%;
 }
 </style>

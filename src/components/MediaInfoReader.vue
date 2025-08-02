@@ -309,7 +309,7 @@ const parseWebUIInfo = (parameters: string) => {
   display: flex;
   gap: 20px;
   width: 100%;
-  height: calc(100vh - 100px); /* Adjust based on your app's header/footer height */
+  height: 100%;
   padding: 20px;
   box-sizing: border-box;
 }

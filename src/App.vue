@@ -35,7 +35,9 @@ onMounted(() => {
   if (savedCollapsed) {
     isCollapsed.value = savedCollapsed === "true";
   }
+
 });
+
 
 const handleSelect = (key: string) => {
   router.push(key);

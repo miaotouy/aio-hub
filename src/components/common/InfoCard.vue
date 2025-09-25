@@ -1,14 +1,19 @@
 <template>
-  <el-card v-if="content" shadow="never" class="info-card">
-    <template #header>
-      <div class="card-header">
-        <span>{{ title }}</span>
-        <el-button :icon="CopyDocument" text circle @click="copyContent"></el-button>
-      </div>
-    </template>
-    <pre v-if="isCode" class="content-code"><code>{{ content }}</code></pre>
-    <div v-else class="content-text">{{ content }}</div>
-  </el-card>
+  <el-card shadow="never" class="info-card">
+      <template #header>
+        <div class="card-header">
+          <span>{{ title }}</span>
+          <div>
+            <slot name="header-extra"></slot>
+            <el-button v-if="content" :icon="CopyDocument" text circle @click="copyContent"></el-button>
+          </div>
+        </div>
+      </template>
+      <slot>
+        <pre v-if="isCode && content" class="content-code"><code>{{ content }}</code></pre>
+        <div v-else-if="content" class="content-text">{{ content }}</div>
+      </slot>
+    </el-card>
 </template>
 
 <script setup lang="ts">
@@ -24,7 +29,8 @@ const props = defineProps({
   },
   content: {
     type: String,
-    required: true,
+    required: false,
+    default: '',
   },
   isCode: {
     type: Boolean,
@@ -75,6 +81,12 @@ const copyContent = async () => {
   align-items: center;
   font-weight: bold;
   color: var(--text-color); /* 确保头部文本颜色与主题一致 */
+}
+
+.card-header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .content-code {

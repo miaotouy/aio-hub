@@ -5,6 +5,7 @@ import {
   Files,
   Brush,
   Setting,
+  Rank,
 } from '@element-plus/icons-vue';
 
 export interface ToolConfig {
@@ -44,5 +45,11 @@ export const toolsConfig: ToolConfig[] = [
     path: '/code-formatter',
     icon: markRaw(Setting),
     description: '格式化各种编程语言代码'
+  },
+  {
+    name: '符号链接搬家工具',
+    path: '/symlink-mover',
+    icon: markRaw(Rank),
+    description: '支持拖拽的文件批量移动和符号链接创建工具'
   }
 ];

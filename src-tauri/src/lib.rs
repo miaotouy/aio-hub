@@ -7,7 +7,15 @@ fn greet(name: &str) -> String {
 use std::sync::{Arc, Mutex, atomic};
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, State, Emitter}; // 移除未使用的 WindowEvent
+use std::fs;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager, State, Emitter, WindowEvent, DragDropEvent, PhysicalPosition};
+
+#[derive(Clone, serde::Serialize)]
+struct FileDropPayload {
+    paths: Vec<PathBuf>,
+    position: PhysicalPosition<f64>,
+}
 use tauri_plugin_clipboard_manager::ClipboardExt; // 导入 ClipboardExt
 use tauri_plugin_global_shortcut::GlobalShortcutExt; // 导入 GlobalShortcutExt
 
@@ -61,6 +69,87 @@ fn get_clipboard_content_type(state: State<ClipboardMonitorState>) -> String {
     }
 }
 
+// Tauri 命令：文件移动和符号链接创建
+#[tauri::command]
+async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_type: String) -> Result<String, String> {
+    let target_path = PathBuf::from(&target_dir);
+
+    // 确保目标目录存在
+    if !target_path.exists() {
+        return Err(format!("目标目录不存在: {}", target_dir));
+    }
+
+    if !target_path.is_dir() {
+        return Err(format!("目标路径不是目录: {}", target_dir));
+    }
+
+    let mut processed_count = 0;
+    let mut errors = Vec::new();
+
+    for source_path_str in source_paths {
+        let source_path = PathBuf::from(&source_path_str);
+
+        // 检查源文件是否存在
+        if !source_path.exists() {
+            errors.push(format!("源文件不存在: {}", source_path_str));
+            continue;
+        }
+
+        let file_name = source_path.file_name()
+            .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
+            .to_string_lossy().to_string();
+
+        let target_file_path = target_path.join(file_name);
+
+        // 检查目标文件是否已存在
+        if target_file_path.exists() {
+            errors.push(format!("目标文件已存在: {}", target_file_path.display()));
+            continue;
+        }
+
+        // 执行文件移动
+        match fs::rename(&source_path, &target_file_path) {
+            Ok(_) => {
+                // 文件移动成功，现在创建链接
+                let link_result = if link_type == "symlink" {
+                    // 创建符号链接
+                    #[cfg(windows)]
+                    {
+                        std::os::windows::fs::symlink_file(&target_file_path, &source_path)
+                    }
+                    #[cfg(unix)]
+                    {
+                        std::os::unix::fs::symlink(&target_file_path, &source_path)
+                    }
+                } else {
+                    // 创建硬链接
+                    fs::hard_link(&target_file_path, &source_path)
+                };
+
+                match link_result {
+                    Ok(_) => {
+                        processed_count += 1;
+                    }
+                    Err(e) => {
+                        errors.push(format!("创建链接失败 {} -> {}: {}", target_file_path.display(), source_path.display(), e));
+                    }
+                }
+            }
+            Err(e) => {
+                errors.push(format!("移动文件失败 {} -> {}: {}", source_path.display(), target_file_path.display(), e));
+            }
+        }
+    }
+
+    let mut message = format!("成功处理 {} 个文件", processed_count);
+    if !errors.is_empty() {
+        message.push_str(&format!("，{} 个错误", errors.len()));
+        // 可以选择记录错误详情，但这里为了简洁只返回成功信息
+    }
+
+    Ok(message)
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -78,7 +167,8 @@ pub fn run() {
             greet,
             start_clipboard_monitor,
             stop_clipboard_monitor,
-            get_clipboard_content_type
+            get_clipboard_content_type,
+            move_and_link
         ])
         // Remove file drop event handling for now as it's causing issues
         .setup(|app| {
@@ -103,6 +193,22 @@ pub fn run() {
             }).unwrap();
             */
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::DragDrop(event) = event {
+                match event {
+                    DragDropEvent::Drop { paths, position } => {
+                        // We found the event! Now emit it to the frontend with position data.
+                        println!("Correctly captured file drop: {:?} at position {:?}", paths, position);
+                        window.emit("custom-file-drop", FileDropPayload {
+                            paths: paths.clone(),
+                            position: position.clone(),
+                        }).unwrap();
+                    }
+                    // We can also handle other drag events if needed, but we'll ignore them for now.
+                    _ => {}
+                }
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

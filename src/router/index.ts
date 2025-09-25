@@ -31,6 +31,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "CodeFormatter",
     component: () => import("../components/CodeFormatter.vue"),
   },
+  {
+    path: "/symlink-mover",
+    name: "SymlinkMover",
+    component: () => import("../components/SymlinkMover.vue"),
+  },
 ];
 
 const router = createRouter({

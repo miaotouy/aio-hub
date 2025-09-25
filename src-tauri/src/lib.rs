@@ -115,7 +115,11 @@ async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_type:
                     // 创建符号链接
                     #[cfg(windows)]
                     {
-                        std::os::windows::fs::symlink_file(&target_file_path, &source_path)
+                        if target_file_path.is_dir() {
+                            std::os::windows::fs::symlink_dir(&target_file_path, &source_path)
+                        } else {
+                            std::os::windows::fs::symlink_file(&target_file_path, &source_path)
+                        }
                     }
                     #[cfg(unix)]
                     {

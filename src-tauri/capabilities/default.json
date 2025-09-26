@@ -6,6 +6,8 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "core:path:default"
+    "core:path:default",
+    "dialog:default",
+    "dialog:allow-open"
   ]
 }

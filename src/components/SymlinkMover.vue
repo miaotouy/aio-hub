@@ -19,6 +19,7 @@ interface FileItem {
 type DropTarget = 'source' | 'target';
 
 // --- 响应式状态 ---
+const sourcePathInput = ref(""); // 用于手动输入源文件路径
 const sourceFiles = ref<FileItem[]>([]);
 const targetDirectory = ref("");
 const linkType = ref<'symlink' | 'link'>('symlink');
@@ -152,6 +153,15 @@ onUnmounted(() => {
 });
 
 // --- 文件处理方法 ---
+const addSourcePathFromInput = () => {
+  if (!sourcePathInput.value) {
+    ElMessage.warning("请输入文件或文件夹路径");
+    return;
+  }
+  addSourceFiles([sourcePathInput.value]);
+  sourcePathInput.value = ""; // 添加后清空输入框
+};
+
 const addSourceFiles = (paths: string[]) => {
   const newFiles: FileItem[] = paths.map(path => {
     const name = path.split(/[/\\]/).pop() || path;
@@ -182,7 +192,42 @@ const clearFiles = () => {
   }).catch(() => { /* 用户取消操作 */ });
 };
 
-// --- 目录选择 ---
+// --- 文件/目录选择 ---
+const selectSourceFiles = async () => {
+  try {
+    const selected = await open({
+      multiple: true,
+      title: "选择要搬家的文件"
+    });
+    if (Array.isArray(selected) && selected.length > 0) {
+      addSourceFiles(selected);
+    } else if (typeof selected === 'string') {
+      addSourceFiles([selected]);
+    }
+  } catch (error) {
+    console.error("选择文件失败:", error);
+    ElMessage.error("选择文件失败");
+  }
+};
+
+const selectSourceFolders = async () => {
+  try {
+    const selected = await open({
+      multiple: true,
+      directory: true,
+      title: "选择要搬家的文件夹"
+    });
+    if (Array.isArray(selected) && selected.length > 0) {
+      addSourceFiles(selected);
+    } else if (typeof selected === 'string') {
+      addSourceFiles([selected]);
+    }
+  } catch (error) {
+    console.error("选择文件夹失败:", error);
+    ElMessage.error("选择文件夹失败");
+  }
+};
+
 const selectTargetDirectory = async () => {
   try {
     const selected = await open({
@@ -246,11 +291,21 @@ const executeMoveAndLink = async () => {
     <div class="column">
       <InfoCard title="待处理文件" class="full-height-card">
         <template #header-extra>
-          <el-button :icon="Delete" text circle @click="clearFiles" :disabled="sourceFiles.length === 0" />
-        </template>
-        <div
-          ref="sourceDropArea"
-          class="drop-area"
+                  <el-button :icon="Delete" text circle @click="clearFiles" :disabled="sourceFiles.length === 0" />
+                </template>
+                <div class="source-controls">
+                  <el-input v-model="sourcePathInput" placeholder="输入或拖拽文件/文件夹路径" @keyup.enter="addSourcePathFromInput" />
+                  <el-tooltip content="选择文件" placement="top">
+                    <el-button @click="selectSourceFiles" :icon="Document" circle />
+                  </el-tooltip>
+                  <el-tooltip content="选择文件夹" placement="top">
+                    <el-button @click="selectSourceFolders" :icon="FolderOpened" circle />
+                  </el-tooltip>
+                  <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
+                </div>
+                <div
+                  ref="sourceDropArea"
+                  class="drop-area"
           data-drop-target="source"
           :class="{ 'dragover': hoveredTarget === 'source' }"
           @dragover="handleDragOver($event, 'source')"
@@ -291,7 +346,7 @@ const executeMoveAndLink = async () => {
             @dragleave="handleDragLeave"
             @drop="handleDrop"
           >
-            <el-input v-model="targetDirectory" placeholder="拖拽文件夹至此或点击右侧选择" readonly />
+            <el-input v-model="targetDirectory" placeholder="输入、拖拽或点击选择目标目录" />
             <el-button @click="selectTargetDirectory" :icon="FolderOpened">选择</el-button>
           </div>
         </div>
@@ -351,7 +406,15 @@ const executeMoveAndLink = async () => {
 
 :deep(.el-card__body) {
   height: 100%;
-  padding: 0;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.source-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .drop-area {

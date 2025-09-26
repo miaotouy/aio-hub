@@ -15,7 +15,8 @@
         "title": "all-in-one-tools",
         "width": 1280,
         "height": 768,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "devtools": true
       }
     ],
     "security": {

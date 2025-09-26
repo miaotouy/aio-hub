@@ -147,8 +147,10 @@ async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_type:
 
     let mut message = format!("成功处理 {} 个文件", processed_count);
     if !errors.is_empty() {
-        message.push_str(&format!("，{} 个错误", errors.len()));
-        // 可以选择记录错误详情，但这里为了简洁只返回成功信息
+        message.push_str(&format!("，{} 个错误:\n", errors.len()));
+        for error in errors {
+            message.push_str(&format!("- {}\n", error));
+        }
     }
 
     Ok(message)

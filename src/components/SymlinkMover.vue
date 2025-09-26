@@ -266,9 +266,20 @@ const executeMoveAndLink = async () => {
       linkType: linkType.value
     });
 
-    ElMessage.success(result || "文件处理完成");
-    // 假设后端会返回详细的成功/失败信息，这里简单处理
-    sourceFiles.value.forEach(file => file.status = 'success');
+    // 检查结果是否包含错误信息
+    if (result.includes("个错误")) {
+      ElMessage.error(result);
+      // 解析错误信息，更新文件状态
+      sourceFiles.value.forEach(file => {
+        if (file.status === 'processing') {
+          file.status = 'error';
+          file.error = '处理失败，请查看错误详情';
+        }
+      });
+    } else {
+      ElMessage.success(result || "文件处理完成");
+      sourceFiles.value.forEach(file => file.status = 'success');
+    }
 
   } catch (error: any) {
     console.error("处理失败:", error);

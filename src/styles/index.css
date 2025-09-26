@@ -17,25 +17,6 @@
   --scrollbar-thumb-hover-color: #a8a8a8;
 }
 
-body.dark-theme {
-  --bg-color: #2c2c2c;
-  --container-bg: #3c3c3c;
-  --text-color: #f4f4f4;
-  --text-color-light: #bbb;
-  --border-color: #555;
-  --primary-color: #409eff; /* Element Plus primary color, may adjust later for dark theme */
-  --primary-hover-color: #66b1ff;
-  --error-color: #ff6b6b;
-  --input-bg: #2c2c2c;
-  --sidebar-bg: #2b2b2b;
-  --sidebar-text: #f4f4f4;
-  --header-bg: #363636;
-  --card-bg: #363636; /* 暗色模式卡片背景色 */
-  --border-color-light: #444; /* 暗色模式浅色边框 */
-  --scrollbar-thumb-color: #555;
-  --scrollbar-thumb-hover-color: #777;
-}
-
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -45,27 +26,6 @@ body {
   transition: background-color 0.1s, color 0.1s;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* Element Plus overrides for dark theme */
-.dark-theme .el-menu {
-  background-color: var(--sidebar-bg) !important;
-  border-right: 1px solid var(--border-color);
-}
-
-.dark-theme .el-menu-item,
-.dark-theme .el-sub-menu__title {
-  color: var(--sidebar-text) !important;
-}
-
-.dark-theme .el-menu-item:hover,
-.dark-theme .el-sub-menu__title:hover {
-  background-color: var(--primary-color-light) !important; /* 使用定义的变量 */
-}
-
-.dark-theme .el-menu-item.is-active {
-  background-color: var(--primary-color) !important;
-  color: #fff !important;
 }
 /* Global Scrollbar Styles */
 ::-webkit-scrollbar {

@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { useDark, useToggle } from "@vueuse/core";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
 
 const router = useRouter();
 const route = useRoute();
-const isDarkTheme = ref(false);
+const isDark = useDark();
+const toggleDark = useToggle(isDark);
 const isCollapsed = ref(false); // 控制侧边栏收起状态
-
-const toggleTheme = () => {
-  isDarkTheme.value = !isDarkTheme.value;
-  document.body.classList.toggle("dark-theme", isDarkTheme.value);
-  document.body.classList.toggle("light-theme", !isDarkTheme.value);
-  localStorage.setItem("theme", isDarkTheme.value ? "dark" : "light");
-};
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value;
@@ -22,20 +17,10 @@ const toggleSidebar = () => {
 };
 
 onMounted(() => {
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    isDarkTheme.value = savedTheme === "dark";
-  } else {
-    isDarkTheme.value = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  }
-  document.body.classList.toggle("dark-theme", isDarkTheme.value);
-  document.body.classList.toggle("light-theme", !isDarkTheme.value);
-
   const savedCollapsed = localStorage.getItem("sidebarCollapsed");
   if (savedCollapsed) {
     isCollapsed.value = savedCollapsed === "true";
   }
-
 });
 
 
@@ -53,12 +38,12 @@ const handleSelect = (key: string) => {
       <!-- 上部分：标题和导航 -->
       <div class="sidebar-top">
         <!-- 侧边栏头部：根据isCollapsed显示不同内容 -->
-        <div v-if="!isCollapsed" class="sidebar-header" @click="toggleTheme">
+        <div v-if="!isCollapsed" class="sidebar-header" @click="toggleDark()">
           <div class="header-text-wrapper">
             <h2 class="sidebar-title">咕咕工具箱</h2>
           </div>
           <el-icon class="theme-icon">
-            <component :is="isDarkTheme ? Sunny : Moon" />
+            <component :is="isDark ? Sunny : Moon" />
           </el-icon>
         </div>
         <el-tooltip
@@ -68,9 +53,9 @@ const handleSelect = (key: string) => {
           placement="right"
           :hide-after="0"
         >
-          <div class="sidebar-header-collapsed" @click="toggleTheme">
+          <div class="sidebar-header-collapsed" @click="toggleDark()">
             <el-icon class="theme-icon-only">
-              <component :is="isDarkTheme ? Sunny : Moon" />
+              <component :is="isDark ? Sunny : Moon" />
             </el-icon>
           </div>
         </el-tooltip>

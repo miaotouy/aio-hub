@@ -2,8 +2,10 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
+import "element-plus/theme-chalk/dark/css-vars.css";
 import router from "./router"; // 从 ./router/index.ts 导入
 import './styles/index.css'; // 导入全局样式
+import './styles/dark/css-vars.css'; // 导入自定义暗黑模式样式
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ElNotification } from 'element-plus';

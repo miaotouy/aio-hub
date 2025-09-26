@@ -1,0 +1,31 @@
+html.dark {
+  /* Element Plus Official Dark Variables */
+  --el-bg-color: #0a0a0a;
+  --el-bg-color-overlay: #1d1e1f;
+  --el-text-color-primary: #e5e5e5;
+  --el-text-color-regular: #d4d4d4;
+  --el-border-color: #2f2f2f;
+  --el-border-color-light: #2a2a2a;
+  --el-border-color-lighter: #252525;
+  --el-fill-color-light: #2a2a2a;
+  --el-fill-color-lighter: #252525;
+  --el-fill-color-blank: transparent;
+
+  /* Custom Variables for Dark Mode */
+  --bg-color: #2c2c2c;
+  --container-bg: #3c3c3c;
+  --text-color: #f4f4f4;
+  --text-color-light: #bbb;
+  --border-color: #555;
+  --primary-color: #409eff;
+  --primary-hover-color: #66b1ff;
+  --error-color: #ff6b6b;
+  --input-bg: #2c2c2c;
+  --sidebar-bg: #2b2b2b;
+  --sidebar-text: #f4f4f4;
+  --header-bg: #363636;
+  --card-bg: #363636;
+  --border-color-light: #444;
+  --scrollbar-thumb-color: #555;
+  --scrollbar-thumb-hover-color: #777;
+}

@@ -17,10 +17,10 @@ export interface ToolConfig {
 
 export const toolsConfig: ToolConfig[] = [
   {
-    name: '正则应用器',
-    path: '/regex-applier',
+    name: '正则批量替换',
+    path: '/regex-apply',
     icon: markRaw(MagicStick),
-    description: '强大的正则表达式测试和应用工具'
+    description: '使用正则表达式批量处理文本或文件'
   },
   {
     name: '媒体信息读取器',

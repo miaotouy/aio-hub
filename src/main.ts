@@ -10,11 +10,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ElNotification } from 'element-plus';
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
+import { createPinia } from 'pinia'; // 导入 Pinia
 
 const app = createApp(App);
+const pinia = createPinia(); // 创建 Pinia 实例
 
 app.use(ElementPlus);
 app.use(router);
+app.use(pinia); // 注册 Pinia
 
 app.mount("#app");
 

@@ -14,6 +14,7 @@ declare module 'vue' {
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     JsonFormatter: typeof import('./components/JsonFormatter.vue')['default']
     MediaInfoReader: typeof import('./components/MediaInfoReader.vue')['default']
+    PresetAndRuleManager: typeof import('./components/PresetAndRuleManager.vue')['default']
     RegexApplier: typeof import('./components/RegexApplier.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

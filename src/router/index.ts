@@ -7,9 +7,14 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("../components/HomePage.vue"),
   },
   {
-    path: "/regex-applier",
-    name: "RegexApplier",
+    path: "/regex-apply",
+    name: "RegexApply",
     component: () => import("../components/RegexApplier.vue"),
+  },
+  {
+    path: "/regex-manage",
+    name: "RegexManage",
+    component: () => import("../components/PresetAndRuleManager.vue"),
   },
   {
     path: "/media-info-reader",

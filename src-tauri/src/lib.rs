@@ -8,8 +8,10 @@ use std::sync::{Arc, Mutex, atomic};
 use std::thread;
 use std::time::Duration;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State, Emitter, WindowEvent, DragDropEvent, PhysicalPosition};
+use regex::Regex;
+use std::collections::HashMap;
 
 #[derive(Clone, serde::Serialize)]
 struct FileDropPayload {
@@ -67,6 +69,132 @@ fn get_clipboard_content_type(state: State<ClipboardMonitorState>) -> String {
     } else {
         "text".to_string()
     }
+}
+
+// 正则规则结构体
+#[derive(serde::Deserialize)]
+struct RegexRule {
+    regex: String,
+    replacement: String,
+}
+
+// 文件处理结果结构体
+#[derive(serde::Serialize)]
+struct ProcessResult {
+    success_count: usize,
+    error_count: usize,
+    errors: HashMap<String, String>,
+}
+
+// Tauri 命令：批量处理文件应用正则规则
+#[tauri::command]
+async fn process_files_with_regex(
+    file_paths: Vec<String>,
+    output_dir: String,
+    rules: Vec<RegexRule>
+) -> Result<ProcessResult, String> {
+    let output_path = PathBuf::from(&output_dir);
+    
+    // 确保输出目录存在
+    if !output_path.exists() {
+        fs::create_dir_all(&output_path)
+            .map_err(|e| format!("创建输出目录失败: {}", e))?;
+    }
+    
+    if !output_path.is_dir() {
+        return Err(format!("输出路径不是目录: {}", output_dir));
+    }
+    
+    // 编译所有正则表达式
+    let compiled_rules: Result<Vec<(Regex, String)>, String> = rules.iter()
+        .map(|rule| {
+            Regex::new(&rule.regex)
+                .map(|r| (r, rule.replacement.clone()))
+                .map_err(|e| format!("无效的正则表达式 '{}': {}", rule.regex, e))
+        })
+        .collect();
+    
+    let compiled_rules = compiled_rules?;
+    
+    // 收集所有需要处理的文件
+    let mut all_files = Vec::new();
+    for path_str in file_paths {
+        let path = PathBuf::from(&path_str);
+        if path.is_file() {
+            all_files.push(path);
+        } else if path.is_dir() {
+            collect_files_recursive(&path, &mut all_files)?;
+        }
+    }
+    
+    // 处理每个文件
+    let mut success_count = 0;
+    let mut error_count = 0;
+    let mut errors = HashMap::new();
+    
+    for file_path in all_files {
+        match process_single_file(&file_path, &output_path, &compiled_rules) {
+            Ok(_) => success_count += 1,
+            Err(e) => {
+                error_count += 1;
+                errors.insert(file_path.display().to_string(), e);
+            }
+        }
+    }
+    
+    Ok(ProcessResult {
+        success_count,
+        error_count,
+        errors,
+    })
+}
+
+// 递归收集目录中的所有文件
+fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    if dir.is_dir() {
+        let entries = fs::read_dir(dir)
+            .map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;
+        
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+            let path = entry.path();
+            
+            if path.is_file() {
+                files.push(path);
+            } else if path.is_dir() {
+                collect_files_recursive(&path, files)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+// 处理单个文件
+fn process_single_file(
+    file_path: &Path,
+    output_dir: &Path,
+    rules: &[(Regex, String)]
+) -> Result<(), String> {
+    // 读取文件内容
+    let content = fs::read_to_string(file_path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+    
+    // 应用所有正则规则
+    let mut processed = content;
+    for (regex, replacement) in rules {
+        processed = regex.replace_all(&processed, replacement.as_str()).to_string();
+    }
+    
+    // 构造输出文件路径（保持原文件名）
+    let file_name = file_path.file_name()
+        .ok_or_else(|| "无法获取文件名".to_string())?;
+    let output_file = output_dir.join(file_name);
+    
+    // 写入处理后的内容
+    fs::write(&output_file, processed)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+    
+    Ok(())
 }
 
 // Tauri 命令：文件移动和符号链接创建
@@ -175,7 +303,8 @@ pub fn run() {
             start_clipboard_monitor,
             stop_clipboard_monitor,
             get_clipboard_content_type,
-            move_and_link
+            move_and_link,
+            process_files_with_regex
         ])
         // Remove file drop event handling for now as it's causing issues
         .setup(|app| {

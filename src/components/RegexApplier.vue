@@ -46,23 +46,23 @@
         <el-empty v-if="selectedPresetIds.length === 0" description="请添加要应用的预设" />
         <VueDraggableNext
           v-else
-          v-model="selectedPresetIds"
+          v-model="selectedPresets"
           item-key="id"
           class="preset-tags"
         >
-          <template #item="{ element: presetId }">
+          <div v-for="preset in selectedPresets" :key="preset.id">
             <el-tag
               size="large"
               closable
-              @close="removePreset(presetId)"
+              @close="removePreset(preset.id)"
               class="preset-tag"
             >
               <span class="preset-tag-content">
-                {{ getPresetName(presetId) }}
-                <el-badge :value="getPresetRulesCount(presetId)" class="rules-badge" />
+                {{ preset.name }}
+                <el-badge :value="preset.rules.filter(r => r.enabled).length" class="rules-badge" />
               </span>
             </el-tag>
-          </template>
+          </div>
         </VueDraggableNext>
       </div>
     </el-card>
@@ -231,7 +231,7 @@ import debounce from 'lodash/debounce';
 import { VueDraggableNext } from 'vue-draggable-next';
 import InfoCard from './common/InfoCard.vue';
 import { usePresetStore } from '../stores/presetStore';
-import type { LogEntry } from '../modules/regex-applier/types';
+import type { LogEntry, RegexPreset } from '../modules/regex-applier/types';
 import { applyRules } from '../modules/regex-applier/engine';
 
 const router = useRouter();
@@ -273,6 +273,15 @@ const outputDropArea = ref<HTMLElement | null>(null);
 
 // ===== 计算属性 =====
 const availablePresets = computed(() => store.presets);
+
+const selectedPresets = computed({
+  get: () => selectedPresetIds.value
+    .map(id => store.presets.find(p => p.id === id))
+    .filter((p): p is RegexPreset => !!p),
+  set: (presets) => {
+    selectedPresetIds.value = presets.map(p => p.id);
+  }
+});
 
 // ===== 初始化 =====
 onMounted(async () => {
@@ -317,15 +326,6 @@ const removePreset = (presetId: string) => {
   }
 };
 
-const getPresetName = (presetId: string) => {
-  const preset = store.presets.find(p => p.id === presetId);
-  return preset ? preset.name : '未知预设';
-};
-
-const getPresetRulesCount = (presetId: string) => {
-  const preset = store.presets.find(p => p.id === presetId);
-  return preset ? preset.rules.filter(r => r.enabled).length : 0;
-};
 
 // ===== 文本模式处理 =====
 const debouncedProcessText = debounce(() => {

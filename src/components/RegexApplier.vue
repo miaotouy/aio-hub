@@ -50,19 +50,19 @@
           item-key="id"
           class="preset-tags"
         >
-          <div v-for="preset in selectedPresets" :key="preset.id">
-            <el-tag
-              size="large"
-              closable
-              @close="removePreset(preset.id)"
-              class="preset-tag"
-            >
-              <span class="preset-tag-content">
-                {{ preset.name }}
-                <el-badge :value="preset.rules.filter(r => r.enabled).length" class="rules-badge" />
-              </span>
-            </el-tag>
-          </div>
+          <el-tag
+            v-for="preset in selectedPresets"
+            :key="preset.id"
+            size="large"
+            closable
+            @close="removePreset(preset.id)"
+            class="preset-tag"
+          >
+            <span class="preset-tag-content">
+              {{ preset.name }}
+              <el-badge :value="preset.rules.filter(r => r.enabled).length" class="rules-badge" />
+            </span>
+          </el-tag>
         </VueDraggableNext>
       </div>
     </el-card>
@@ -721,6 +721,9 @@ const processFiles = async () => {
 
 .rules-badge {
   margin-left: 4px;
+}
+.rules-badge :deep(.el-badge__content) {
+  background-color: var(--primary-color);
 }
 
 .card-header {

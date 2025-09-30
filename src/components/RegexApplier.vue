@@ -135,26 +135,53 @@
     <!-- 正则规则区域（两种模式共用） -->
     <el-card shadow="never" class="box-card regex-rules-section">
       <template #header>
-        <div class="card-header">
-          <span>正则规则 ({{ rules.length }})</span>
-          <div>
-            <el-button type="primary" @click="addRule()">添加规则</el-button>
-            <el-button @click="importRules">导入规则</el-button>
-            <el-button @click="exportRules">导出规则</el-button>
-            <el-tooltip v-if="processingMode === 'text'" content="将剪贴板内容作为输入，应用规则后复制结果回剪贴板" placement="top">
-              <el-button type="success" @click="oneClickProcess">一键处理剪贴板</el-button>
-            </el-tooltip>
+        <div class="card-header-multi-row">
+          <div class="preset-selector-row">
+            <span class="preset-label">预设:</span>
+            <el-select v-model="activePresetId" placeholder="选择预设" style="width: 220px" @change="onPresetChange">
+              <el-option
+                v-for="preset in presets"
+                :key="preset.id"
+                :label="preset.name"
+                :value="preset.id"
+              />
+            </el-select>
+            <el-button-group>
+              <el-tooltip content="新建预设" placement="top">
+                <el-button :icon="Plus" @click="handleCreatePreset" />
+              </el-tooltip>
+              <el-tooltip content="复制当前预设" placement="top">
+                <el-button :icon="CopyDocument" @click="handleDuplicatePreset" :disabled="!activePresetId" />
+              </el-tooltip>
+              <el-tooltip content="重命名预设" placement="top">
+                <el-button @click="handleRenamePreset" :disabled="!activePresetId">重命名</el-button>
+              </el-tooltip>
+              <el-tooltip content="删除预设" placement="top">
+                <el-button :icon="Delete" @click="handleDeletePreset" :disabled="!activePresetId || presets.length <= 1" />
+              </el-tooltip>
+            </el-button-group>
+          </div>
+          <div class="rules-actions-row">
+            <span>正则规则 ({{ currentRules.length }})</span>
+            <div>
+              <el-button type="primary" @click="handleAddRule">添加规则</el-button>
+              <el-button @click="importRules">导入规则</el-button>
+              <el-button @click="exportPreset">导出预设</el-button>
+              <el-tooltip v-if="processingMode === 'text'" content="将剪贴板内容作为输入，应用规则后复制结果回剪贴板" placement="top">
+                <el-button type="success" @click="oneClickProcess">一键处理剪贴板</el-button>
+              </el-tooltip>
+            </div>
           </div>
         </div>
       </template>
       <div class="rules-list-wrapper">
-        <div v-if="rules.length === 0" class="empty-rules">
+        <div v-if="currentRules.length === 0" class="empty-rules">
           <el-empty description="暂无正则规则，点击'添加规则'按钮创建"></el-empty>
         </div>
         <VueDraggableNext
           v-else
           class="rules-list"
-          v-model="rules"
+          v-model="currentRules"
           item-key="id"
           handle=".rule-item-handle"
         >
@@ -173,7 +200,7 @@
                 <el-input v-model="rule.replacement" placeholder="替换内容"></el-input>
               </el-col>
               <el-col :span="4">
-                <el-button type="danger" :icon="Delete" circle @click="removeRule(index)"></el-button>
+                <el-button type="danger" :icon="Delete" circle @click="handleRemoveRule(index)"></el-button>
               </el-col>
             </el-row>
           </template>
@@ -199,12 +226,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Delete, Rank, Document, FolderOpened, FolderAdd } from '@element-plus/icons-vue';
+import { Delete, Rank, Document, FolderOpened, FolderAdd, Plus, CopyDocument } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { create, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { open as openFile, save as saveFile } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -212,24 +238,23 @@ import debounce from 'lodash/debounce';
 import { VueDraggableNext } from 'vue-draggable-next';
 import InfoCard from './common/InfoCard.vue';
 
-interface RegexRule {
-  id: string;
-  enabled: boolean;
-  regex: string;
-  replacement: string;
-}
+// 导入模块
+import type { RegexRule, RegexPreset, PresetsConfig, LogEntry } from '../modules/regex-applier/types';
+import { applyRules } from '../modules/regex-applier/engine';
+import {
+  loadPresets,
+  savePresets,
+  createPreset,
+  createRule,
+  duplicatePreset,
+  touchPreset
+} from '../modules/regex-applier/presets';
 
 interface FileItem {
   path: string;
   name: string;
   status: 'pending' | 'processing' | 'success' | 'error';
   error?: string;
-}
-
-interface LogEntry {
-  time: string;
-  message: string;
-  type: 'info' | 'warn' | 'error';
 }
 
 type ProcessingMode = 'text' | 'file';
@@ -249,102 +274,187 @@ const outputDirectory = ref('');
 const isProcessing = ref(false);
 const hoveredTarget = ref<DropTarget | null>(null);
 
-// 共用状态
-const rules = ref<RegexRule[]>([]);
+// 预设状态
+const presets = ref<RegexPreset[]>([]);
+const activePresetId = ref<string | null>(null);
+
+// 计算当前规则列表
+const currentRules = computed(() => {
+  const preset = presets.value.find(p => p.id === activePresetId.value);
+  return preset ? preset.rules : [];
+});
+
+// 日志状态
 const logs = ref<LogEntry[]>([]);
 
 // 模板引用
 const fileDropArea = ref<HTMLElement | null>(null);
 const outputDropArea = ref<HTMLElement | null>(null);
 
-// ===== 日志和配置 =====
+// ===== 日志 =====
 const addLog = (message: string, type: LogEntry['type'] = 'info') => {
   const time = new Date().toLocaleTimeString();
   logs.value.push({ time, message, type });
 };
 
-const configFileName = 'regex_rules_config.json';
-const appDataDirPath = ref('');
-
+// ===== 初始化 =====
 onMounted(async () => {
-  appDataDirPath.value = await appDataDir();
-  await create(appDataDirPath.value);
-  loadRules();
+  await init();
   setupFileDropListener();
 });
 
-const getConfigFile = () => {
-  return join(appDataDirPath.value, configFileName);
+const init = async () => {
+  try {
+    const config = await loadPresets();
+    presets.value = config.presets;
+    activePresetId.value = config.activePresetId;
+    addLog(`成功加载 ${presets.value.length} 个预设。`, 'info');
+  } catch (error: any) {
+    ElMessage.error(`加载预设失败: ${error.message}`);
+    addLog(`加载预设失败: ${error.message}`, 'error');
+  }
 };
 
-const loadRules = async () => {
+// ===== 预设管理 =====
+const saveCurrentConfig = debounce(async () => {
   try {
-    const filePath = await getConfigFile();
-    if (await exists(filePath)) {
-      const content = await readTextFile(filePath);
-      const loadedRules = JSON.parse(content);
-      rules.value = loadedRules.map((rule: any) => ({
-        ...rule,
-        id: rule.id || `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-      }));
-      addLog(`成功加载 ${rules.value.length} 条正则规则。`, 'info');
-    } else {
-      addLog('未找到正则规则配置文件，已创建空白规则。', 'info');
-      addRule(true);
+    const config: PresetsConfig = {
+      presets: presets.value,
+      activePresetId: activePresetId.value,
+      version: '1.0.0'
+    };
+    await savePresets(config);
+    
+    // 更新当前预设的更新时间
+    const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+    if (currentPreset) {
+      touchPreset(currentPreset);
     }
   } catch (error: any) {
-    ElMessage.error(`加载规则失败: ${error.message}`);
-    addLog(`加载规则失败: ${error.message}`, 'error');
-    addRule(true);
+    ElMessage.error(`保存失败: ${error.message}`);
+    addLog(`保存失败: ${error.message}`, 'error');
+  }
+}, 500);
+
+// 监听预设和规则变化，自动保存
+watch([presets, activePresetId], saveCurrentConfig, { deep: true });
+
+const onPresetChange = () => {
+  const preset = presets.value.find(p => p.id === activePresetId.value);
+  if (preset) {
+    addLog(`切换到预设: ${preset.name}`);
   }
 };
 
-const saveRules = async () => {
-  try {
-    const filePath = await getConfigFile();
-    await writeTextFile(filePath, JSON.stringify(rules.value, null, 2));
-    addLog('正则规则已自动保存。', 'info');
-  } catch (error: any) {
-    ElMessage.error(`保存规则失败: ${error.message}`);
-    addLog(`保存规则失败: ${error.message}`, 'error');
+const handleCreatePreset = async () => {
+  const { value: name } = await ElMessageBox.prompt('请输入预设名称', '新建预设', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputPattern: /.+/,
+    inputErrorMessage: '预设名称不能为空'
+  });
+
+  if (name) {
+    const newPreset = createPreset(name.trim());
+    presets.value.push(newPreset);
+    activePresetId.value = newPreset.id;
+    ElMessage.success('预设创建成功！');
+    addLog(`创建预设: ${newPreset.name}`);
   }
 };
 
-watch(rules, debounce(saveRules, 500), { deep: true });
+const handleDuplicatePreset = async () => {
+  const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+  if (!currentPreset) return;
+
+  const { value: name } = await ElMessageBox.prompt('请输入新预设名称', '复制预设', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputValue: `${currentPreset.name} (副本)`,
+    inputPattern: /.+/,
+    inputErrorMessage: '预设名称不能为空'
+  });
+
+  if (name) {
+    const newPreset = duplicatePreset(currentPreset, name.trim());
+    presets.value.push(newPreset);
+    activePresetId.value = newPreset.id;
+    ElMessage.success('预设复制成功！');
+    addLog(`复制预设: ${currentPreset.name} -> ${newPreset.name}`);
+  }
+};
+
+const handleRenamePreset = async () => {
+  const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+  if (!currentPreset) return;
+
+  const { value: name } = await ElMessageBox.prompt('请输入新名称', '重命名预设', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputValue: currentPreset.name,
+    inputPattern: /.+/,
+    inputErrorMessage: '预设名称不能为空'
+  });
+
+  if (name) {
+    const oldName = currentPreset.name;
+    currentPreset.name = name.trim();
+    ElMessage.success('预设重命名成功！');
+    addLog(`重命名预设: ${oldName} -> ${currentPreset.name}`);
+  }
+};
+
+const handleDeletePreset = async () => {
+  if (presets.value.length <= 1) {
+    ElMessage.warning('至少需要保留一个预设');
+    return;
+  }
+
+  const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+  if (!currentPreset) return;
+
+  await ElMessageBox.confirm(`确定要删除预设"${currentPreset.name}"吗？`, '删除预设', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  });
+
+  const index = presets.value.findIndex(p => p.id === activePresetId.value);
+  if (index !== -1) {
+    presets.value.splice(index, 1);
+    activePresetId.value = presets.value[0].id;
+    ElMessage.success('预设删除成功！');
+    addLog(`删除预设: ${currentPreset.name}`);
+  }
+};
 
 // ===== 规则管理 =====
-const addRule = (isInitial = false) => {
-  const newRule: RegexRule = {
-    id: `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-    enabled: true,
-    regex: '',
-    replacement: ''
-  };
-  rules.value.push(newRule);
-  if (!isInitial) {
-    addLog('添加了一条新的空白规则。');
-  }
+const handleAddRule = () => {
+  const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+  if (!currentPreset) return;
+
+  const newRule = createRule();
+  currentPreset.rules.push(newRule);
+  addLog('添加了一条新的空白规则。');
 };
 
-const removeRule = (index: number) => {
-  if (rules.value.length === 1) {
+const handleRemoveRule = (index: number) => {
+  const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+  if (!currentPreset) return;
+
+  if (currentPreset.rules.length === 1) {
     ElMessageBox.confirm('这是最后一条规则，确定要清空内容吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning',
     })
     .then(() => {
-      rules.value[index] = {
-        id: `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        enabled: true,
-        regex: '',
-        replacement: ''
-      };
+      currentPreset.rules[index] = createRule();
       addLog('最后一条规则已清空。');
     })
     .catch(() => {});
   } else {
-    rules.value.splice(index, 1);
+    currentPreset.rules.splice(index, 1);
     addLog(`移除了第 ${index + 1} 条规则。`);
   }
 };
@@ -356,35 +466,34 @@ const importRules = async () => {
       filters: [{ name: 'JSON', extensions: ['json'] }]
     });
 
-    if (filePath) {
-      const content = await readTextFile(filePath as string);
-      const importedRules: Partial<RegexRule>[] = JSON.parse(content);
-
-      const existingRulesMap = new Map(rules.value.map(r => [`${r.regex}::${r.replacement}`, r]));
-      let addedCount = 0;
-      importedRules.forEach((newRule) => {
-        const key = `${newRule.regex}::${newRule.replacement}`;
-        if (!existingRulesMap.has(key)) {
-          rules.value.push({
-            id: newRule.id || `rule-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-            enabled: newRule.enabled ?? true,
-            regex: newRule.regex || '',
-            replacement: newRule.replacement || ''
-          });
-          existingRulesMap.set(key, newRule as RegexRule);
-          addedCount++;
-        }
-      });
-
-      if (addedCount > 0) {
-        ElMessage.success(`成功导入 ${addedCount} 条新规则。`);
-        addLog(`成功导入 ${addedCount} 条新规则。`, 'info');
-      } else {
-        ElMessage.info('没有新的规则需要导入。');
-        addLog('没有新的规则需要导入。', 'info');
-      }
-    } else {
+    if (!filePath) {
       addLog('导入规则操作已取消。', 'info');
+      return;
+    }
+
+    const content = await readTextFile(filePath as string);
+    const importedRules: Partial<RegexRule>[] = JSON.parse(content);
+
+    const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+    if (!currentPreset) return;
+
+    const existingRulesMap = new Map(currentPreset.rules.map(r => [`${r.regex}::${r.replacement}`, r]));
+    let addedCount = 0;
+
+    importedRules.forEach((newRule) => {
+      const key = `${newRule.regex}::${newRule.replacement}`;
+      if (!existingRulesMap.has(key)) {
+        currentPreset.rules.push(createRule(newRule.regex || '', newRule.replacement || '', newRule.enabled ?? true));
+        addedCount++;
+      }
+    });
+
+    if (addedCount > 0) {
+      ElMessage.success(`成功导入 ${addedCount} 条新规则。`);
+      addLog(`成功导入 ${addedCount} 条新规则。`, 'info');
+    } else {
+      ElMessage.info('没有新的规则需要导入。');
+      addLog('没有新的规则需要导入。', 'info');
     }
   } catch (error: any) {
     ElMessage.error(`导入规则失败: ${error.message}`);
@@ -392,23 +501,26 @@ const importRules = async () => {
   }
 };
 
-const exportRules = async () => {
+const exportPreset = async () => {
+  const currentPreset = presets.value.find(p => p.id === activePresetId.value);
+  if (!currentPreset) return;
+
   try {
     const filePath = await saveFile({
-      defaultPath: `regex_rules_${Date.now()}.json`,
+      defaultPath: `${currentPreset.name}_${Date.now()}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }]
     });
 
     if (filePath) {
-      await writeTextFile(filePath, JSON.stringify(rules.value, null, 2));
-      ElMessage.success('规则已成功导出！');
-      addLog('规则已成功导出。', 'info');
+      await writeTextFile(filePath, JSON.stringify(currentPreset, null, 2));
+      ElMessage.success('预设已成功导出！');
+      addLog('预设已成功导出。', 'info');
     } else {
-      addLog('导出规则操作已取消。', 'info');
+      addLog('导出预设操作已取消。', 'info');
     }
   } catch (error: any) {
-    ElMessage.error(`导出规则失败: ${error.message}`);
-    addLog(`导出规则失败: ${error.message}`, 'error');
+    ElMessage.error(`导出预设失败: ${error.message}`);
+    addLog(`导出预设失败: ${error.message}`, 'error');
   }
 };
 
@@ -418,7 +530,7 @@ const debouncedProcessText = debounce(() => {
 }, 300);
 
 watch(sourceText, debouncedProcessText);
-watch(rules, debouncedProcessText, { deep: true });
+watch(currentRules, debouncedProcessText, { deep: true });
 
 const processText = () => {
   if (!sourceText.value) {
@@ -426,30 +538,11 @@ const processText = () => {
     return;
   }
 
-  let processed = sourceText.value;
-  let appliedRulesCount = 0;
-
-  rules.value.forEach((rule, index) => {
-    if (rule.enabled) {
-      try {
-        const regex = new RegExp(rule.regex, 'g');
-        const originalProcessed = processed;
-        processed = processed.replace(regex, rule.replacement);
-        if (originalProcessed !== processed) {
-          addLog(`应用规则 ${index + 1}: /${rule.regex}/ -> "${rule.replacement}"`);
-          appliedRulesCount++;
-        }
-      } catch (e: any) {
-        addLog(`规则 ${index + 1} 错误: 无效的正则表达式 "${rule.regex}" - ${e.message}`, 'error');
-        ElMessage.error(`规则 ${index + 1} 错误: ${e.message}`);
-      }
-    }
-  });
-
-  resultText.value = processed;
-  if (sourceText.value) {
-    addLog(`文本处理完成。共应用了 ${appliedRulesCount} 条规则。`);
-  }
+  const result = applyRules(sourceText.value, currentRules.value);
+  resultText.value = result.text;
+  
+  // 添加日志
+  result.logs.forEach(log => logs.value.push(log));
 };
 
 const pasteToSource = async () => {
@@ -663,7 +756,7 @@ const processFiles = async () => {
     return;
   }
 
-  const enabledRules = rules.value.filter(r => r.enabled);
+  const enabledRules = currentRules.value.filter(r => r.enabled);
   if (enabledRules.length === 0) {
     ElMessage.warning("请至少启用一条正则规则");
     return;
@@ -756,6 +849,34 @@ const processFiles = async () => {
 }
 
 .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.card-header-multi-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preset-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.preset-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+  white-space: nowrap;
+}
+
+.rules-actions-row {
   display: flex;
   justify-content: space-between;
   align-items: center;

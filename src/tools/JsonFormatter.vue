@@ -102,7 +102,7 @@ import {
 } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
-import RichCodeEditor from './common/RichCodeEditor.vue';
+import RichCodeEditor from '../components/common/RichCodeEditor.vue';
 
 const rawJsonInput = ref('');
 const isDragging = ref(false); // 新增拖拽状态

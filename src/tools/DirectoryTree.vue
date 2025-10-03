@@ -2,7 +2,7 @@
   <div class="directory-tree-container">
     <!-- 左侧：配置面板 -->
     <div class="config-panel">
-      <InfoCard title="配置选项">
+      <InfoCard title="配置选项" class="config-card">
         <div class="config-section">
           <label>目标路径</label>
           <div class="path-input-group">
@@ -64,6 +64,7 @@
           生成目录树
         </el-button>
       </InfoCard>
+
     </div>
 
     <!-- 右侧：结果显示 -->
@@ -71,6 +72,33 @@
       <InfoCard title="目录结构" class="result-card">
         <template #headerExtra>
           <el-button-group v-if="treeResult">
+            <el-tooltip v-if="statsInfo" placement="top">
+              <template #content>
+                <div class="stats-tooltip">
+                  <div class="stats-row">
+                    <span class="stats-label">总目录:</span>
+                    <span class="stats-value">{{ statsInfo.total_dirs }}</span>
+                  </div>
+                  <div class="stats-row">
+                    <span class="stats-label">总文件:</span>
+                    <span class="stats-value">{{ statsInfo.total_files }}</span>
+                  </div>
+                  <div class="stats-row">
+                    <span class="stats-label">过滤目录:</span>
+                    <span class="stats-value">{{ statsInfo.filtered_dirs }}</span>
+                  </div>
+                  <div class="stats-row">
+                    <span class="stats-label">过滤文件:</span>
+                    <span class="stats-value">{{ statsInfo.filtered_files }}</span>
+                  </div>
+                  <div v-if="statsInfo.filter_count > 0" class="stats-row">
+                    <span class="stats-label">过滤规则:</span>
+                    <span class="stats-value">{{ statsInfo.filter_count }} 条</span>
+                  </div>
+                </div>
+              </template>
+              <el-button :icon="DataAnalysis" text circle />
+            </el-tooltip>
             <el-tooltip content="复制到剪贴板" placement="top">
               <el-button :icon="CopyDocument" text circle @click="copyToClipboard" />
             </el-tooltip>
@@ -95,7 +123,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { FolderOpened, Histogram, CopyDocument, Download } from '@element-plus/icons-vue';
+import { FolderOpened, Histogram, CopyDocument, Download, DataAnalysis } from '@element-plus/icons-vue';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
@@ -114,6 +142,16 @@ const maxDepth = ref(5);
 
 // 结果状态
 const treeResult = ref('');
+const statsInfo = ref<{
+  total_dirs: number;
+  total_files: number;
+  filtered_dirs: number;
+  filtered_files: number;
+  show_files: boolean;
+  show_hidden: boolean;
+  max_depth: string;
+  filter_count: number;
+} | null>(null);
 const isGenerating = ref(false);
 const isLoadingConfig = ref(true);
 
@@ -199,7 +237,7 @@ const generateTree = async () => {
     }
 
     // 调用 Rust 后端生成目录树
-    const result: string = await invoke('generate_directory_tree', {
+    const result: { tree: string; stats: any } = await invoke('generate_directory_tree', {
       path: targetPath.value,
       showFiles: showFiles.value,
       showHidden: showHidden.value,
@@ -207,7 +245,32 @@ const generateTree = async () => {
       ignorePatterns
     });
 
-    treeResult.value = result;
+    treeResult.value = result.tree;
+    statsInfo.value = result.stats;
+    
+    // 在控制台输出统计信息和配置
+    console.log('📊 目录树统计信息:', {
+      总目录: result.stats.total_dirs,
+      总文件: result.stats.total_files,
+      过滤目录: result.stats.filtered_dirs,
+      过滤文件: result.stats.filtered_files,
+      过滤规则数: result.stats.filter_count,
+      显示文件: result.stats.show_files,
+      显示隐藏: result.stats.show_hidden,
+      最大深度: result.stats.max_depth
+    });
+    
+    console.log('⚙️ 使用的配置:', {
+      目标路径: targetPath.value,
+      显示文件: showFiles.value,
+      显示隐藏: showHidden.value,
+      过滤模式: filterMode.value,
+      最大深度: maxDepth.value === 10 ? '无限制' : maxDepth.value,
+      过滤规则: filterMode.value === 'custom'
+        ? customPattern.value.split('\n').filter((l: string) => l.trim()).length + ' 条'
+        : filterMode.value === 'gitignore' ? '使用 .gitignore' : '无'
+    });
+    
     ElMessage.success('目录树生成成功');
   } catch (error: any) {
     console.error('生成目录树失败:', error);
@@ -265,6 +328,13 @@ const exportToFile = async () => {
 .config-panel {
   flex: 0 0 350px;
   min-width: 350px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.config-card {
+  flex-shrink: 0;
 }
 
 .result-panel {
@@ -314,7 +384,7 @@ const exportToFile = async () => {
 
 .depth-info {
   text-align: center;
-  margin-top: 8px;
+  margin-top: 16px;
   font-size: 13px;
   color: var(--text-color-light);
 }
@@ -347,5 +417,27 @@ const exportToFile = async () => {
   border-radius: 4px;
   white-space: pre;
   overflow-x: auto;
+}
+
+.stats-tooltip {
+  padding: 4px 0;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.stats-label {
+  font-weight: 500;
+}
+
+.stats-value {
+  font-weight: 600;
+  font-family: 'Consolas', 'Monaco', monospace;
 }
 </style>

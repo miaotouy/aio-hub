@@ -376,6 +376,44 @@ fn collect_gitignore_patterns(root: &Path) -> Vec<String> {
     patterns
 }
 
+// 统计信息结构
+struct TreeStats {
+    total_dirs: usize,
+    total_files: usize,
+    filtered_dirs: usize,
+    filtered_files: usize,
+}
+
+impl TreeStats {
+    fn new() -> Self {
+        Self {
+            total_dirs: 0,
+            total_files: 0,
+            filtered_dirs: 0,
+            filtered_files: 0,
+        }
+    }
+}
+
+// 返回结果结构，包含目录树和统计信息
+#[derive(serde::Serialize)]
+struct DirectoryTreeResult {
+    tree: String,
+    stats: DirectoryTreeStats,
+}
+
+#[derive(serde::Serialize)]
+struct DirectoryTreeStats {
+    total_dirs: usize,
+    total_files: usize,
+    filtered_dirs: usize,
+    filtered_files: usize,
+    show_files: bool,
+    show_hidden: bool,
+    max_depth: String,
+    filter_count: usize,
+}
+
 // Tauri 命令：生成目录树
 #[tauri::command]
 async fn generate_directory_tree(
@@ -384,7 +422,7 @@ async fn generate_directory_tree(
     show_hidden: bool,
     max_depth: usize,
     ignore_patterns: Vec<String>
-) -> Result<String, String> {
+) -> Result<DirectoryTreeResult, String> {
     let root_path = PathBuf::from(&path);
     
     if !root_path.exists() {
@@ -414,10 +452,29 @@ async fn generate_directory_tree(
         .filter_map(|pattern| glob_to_regex(pattern))
         .collect();
     
+    // 输出调试信息
+    println!("=== 目录树生成配置 ===");
+    println!("目标路径: {}", path);
+    println!("显示文件: {}", show_files);
+    println!("显示隐藏: {}", show_hidden);
+    println!("最大深度: {}", if max_depth == 0 { "无限制".to_string() } else { max_depth.to_string() });
+    println!("过滤模式: {}", if use_gitignore { "gitignore" } else if all_patterns.is_empty() { "无" } else { "自定义" });
+    println!("过滤规则数量: {}", compiled_patterns.len());
+    if !all_patterns.is_empty() && all_patterns.len() <= 10 {
+        println!("过滤规则:");
+        for pattern in &all_patterns {
+            println!("  - {}", pattern);
+        }
+    }
+    println!("======================");
+    
     let mut result = String::new();
+    let mut stats = TreeStats::new();
+    
     result.push_str(&format!("{}/\n", root_path.file_name().unwrap_or_default().to_string_lossy()));
     
     generate_tree_recursive(
+        &root_path,
         &root_path,
         &mut result,
         "",
@@ -425,14 +482,28 @@ async fn generate_directory_tree(
         show_hidden,
         max_depth,
         0,
-        &compiled_patterns
+        &compiled_patterns,
+        &mut stats
     )?;
     
-    Ok(result)
+    Ok(DirectoryTreeResult {
+        tree: result,
+        stats: DirectoryTreeStats {
+            total_dirs: stats.total_dirs,
+            total_files: stats.total_files,
+            filtered_dirs: stats.filtered_dirs,
+            filtered_files: stats.filtered_files,
+            show_files,
+            show_hidden,
+            max_depth: if max_depth == 0 { "无限制".to_string() } else { max_depth.to_string() },
+            filter_count: compiled_patterns.len(),
+        },
+    })
 }
 
 // 递归生成目录树
 fn generate_tree_recursive(
+    root: &Path,
     dir: &Path,
     output: &mut String,
     prefix: &str,
@@ -440,7 +511,8 @@ fn generate_tree_recursive(
     show_hidden: bool,
     max_depth: usize,
     current_depth: usize,
-    ignore_patterns: &[Regex]
+    ignore_patterns: &[Regex],
+    stats: &mut TreeStats
 ) -> Result<(), String> {
     // 检查深度限制（0 表示无限制）
     if max_depth > 0 && current_depth >= max_depth {
@@ -472,27 +544,46 @@ fn generate_tree_recursive(
     for entry in items.iter() {
         let path = entry.path();
         let file_name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = path.is_dir();
+        
+        // 统计总数
+        if is_dir {
+            stats.total_dirs += 1;
+        } else {
+            stats.total_files += 1;
+        }
         
         // 检查是否为隐藏文件
         if !show_hidden && file_name.starts_with('.') {
+            if is_dir {
+                stats.filtered_dirs += 1;
+            } else {
+                stats.filtered_files += 1;
+            }
             continue;
         }
         
         // 检查是否匹配忽略模式
-        // 对于每个忽略模式，检查文件名或相对路径
-        let relative_path = path.strip_prefix(dir)
+        // 使用相对于根目录的完整路径进行匹配
+        let full_relative_path = path.strip_prefix(root)
             .ok()
             .and_then(|p| p.to_str())
             .unwrap_or(&file_name);
         
         if ignore_patterns.iter().any(|pattern| {
-            pattern.is_match(&file_name) || pattern.is_match(relative_path)
+            pattern.is_match(&file_name) || pattern.is_match(full_relative_path)
         }) {
+            if is_dir {
+                stats.filtered_dirs += 1;
+            } else {
+                stats.filtered_files += 1;
+            }
             continue;
         }
         
         // 如果不显示文件且当前是文件，跳过
         if !show_files && path.is_file() {
+            stats.filtered_files += 1;
             continue;
         }
         
@@ -514,6 +605,7 @@ fn generate_tree_recursive(
             // 递归处理子目录
             let new_prefix = format!("{}{}", prefix, extension);
             generate_tree_recursive(
+                root,
                 &path,
                 output,
                 &new_prefix,
@@ -521,7 +613,8 @@ fn generate_tree_recursive(
                 show_hidden,
                 max_depth,
                 current_depth + 1,
-                ignore_patterns
+                ignore_patterns,
+                stats
             )?;
         } else {
             output.push_str(&format!("{}{}{}\n", prefix, connector, file_name));

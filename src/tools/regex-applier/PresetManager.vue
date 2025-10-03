@@ -172,8 +172,8 @@ import { Plus, Delete, CopyDocument, Rank, Upload, Download, WarningFilled, Arro
 import { VueDraggableNext } from 'vue-draggable-next';
 import { open as openFile, save as saveFile } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { usePresetStore } from '../stores/presetStore';
-import type { RegexPreset } from '../modules/regex-applier/types';
+import { usePresetStore } from './store';
+import type { RegexPreset } from './types';
 import debounce from 'lodash/debounce';
 
 const router = useRouter();

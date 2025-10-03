@@ -57,7 +57,7 @@ import { ElMessage, ElButton, ElEmpty } from 'element-plus';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import * as exifr from 'exifr';
-import InfoCard from './common/InfoCard.vue';
+import InfoCard from '../../components/common/InfoCard.vue';
 
 const previewSrc = ref('');
 const isDragging = ref(false);

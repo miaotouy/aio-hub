@@ -8,18 +8,10 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    CodeFormatter: typeof import('./components/CodeFormatter.vue')['default']
-    HomePage: typeof import('./components/HomePage.vue')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
-    JsonFormatter: typeof import('./components/JsonFormatter.vue')['default']
-    MediaInfoReader: typeof import('./components/MediaInfoReader.vue')['default']
-    PresetAndRuleManager: typeof import('./components/PresetAndRuleManager.vue')['default']
-    RegexApplier: typeof import('./components/RegexApplier.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    SymlinkMover: typeof import('./components/SymlinkMover.vue')['default']
-    TextDiff: typeof import('./components/TextDiff.vue')['default']
   }
 }

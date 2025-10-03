@@ -4,42 +4,42 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/",
     name: "Home",
-    component: () => import("../components/HomePage.vue"),
+    component: () => import("../HomePage.vue"),
   },
   {
     path: "/regex-apply",
     name: "RegexApply",
-    component: () => import("../components/RegexApplier.vue"),
+    component: () => import("../tools/regex-applier/RegexApplier.vue"),
   },
   {
     path: "/regex-manage",
     name: "RegexManage",
-    component: () => import("../components/PresetAndRuleManager.vue"),
+    component: () => import("../tools/regex-applier/PresetManager.vue"),
   },
   {
     path: "/media-info-reader",
     name: "MediaInfoReader",
-    component: () => import("../components/MediaInfoReader.vue"),
+    component: () => import("../tools/MediaInfoReader.vue"),
   },
   {
     path: "/text-diff",
     name: "TextDiff",
-    component: () => import("../components/TextDiff.vue"),
+    component: () => import("../tools/TextDiff.vue"),
   },
   {
     path: "/json-formatter",
     name: "JsonFormatter",
-    component: () => import("../components/JsonFormatter.vue"),
+    component: () => import("../tools/JsonFormatter.vue"),
   },
   {
     path: "/code-formatter", // 通用代码格式化，内部再区分语言
     name: "CodeFormatter",
-    component: () => import("../components/CodeFormatter.vue"),
+    component: () => import("../tools/CodeFormatter.vue"),
   },
   {
     path: "/symlink-mover",
     name: "SymlinkMover",
-    component: () => import("../components/SymlinkMover.vue"),
+    component: () => import("../tools/SymlinkMover.vue"),
   },
 ];
 

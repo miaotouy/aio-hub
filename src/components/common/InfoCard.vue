@@ -4,7 +4,7 @@
         <div class="card-header">
           <span>{{ title }}</span>
           <div>
-            <slot name="header-extra"></slot>
+            <slot name="headerExtra"></slot>
             <el-button v-if="content" :icon="CopyDocument" text circle @click="copyContent"></el-button>
           </div>
         </div>

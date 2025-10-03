@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { toolsConfig } from "../config/tools";
+import { toolsConfig } from "./config/tools";
 import { ElIcon } from "element-plus"; // 确保正确导入 ElIcon 组件，虽然在模板中直接使用 component :is 也可以
 
 // toolsConfig 直接从外部导入，无需在 setup 中声明 ref

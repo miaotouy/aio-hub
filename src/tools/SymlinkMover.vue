@@ -5,7 +5,7 @@ import { FolderOpened, Document, Delete, FolderAdd, Rank } from "@element-plus/i
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import InfoCard from './common/InfoCard.vue';
+import InfoCard from '../components/common/InfoCard.vue';
 
 // --- 类型定义 ---
 interface FileItem {
@@ -301,9 +301,9 @@ const executeMoveAndLink = async () => {
     <!-- 左侧列: 待处理文件 -->
     <div class="column">
       <InfoCard title="待处理文件" class="full-height-card">
-        <template #header-extra>
-                  <el-button :icon="Delete" text circle @click="clearFiles" :disabled="sourceFiles.length === 0" />
-                </template>
+        <template #headerExtra>
+          <el-button :icon="Delete" text circle @click="clearFiles" :disabled="sourceFiles.length === 0" />
+        </template>
                 <div class="source-controls">
                   <el-input v-model="sourcePathInput" placeholder="输入或拖拽文件/文件夹路径" @keyup.enter="addSourcePathFromInput" />
                   <el-tooltip content="选择文件" placement="top">

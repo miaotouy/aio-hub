@@ -5,8 +5,8 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { RegexPreset, PresetsConfig, RegexRule } from '../modules/regex-applier/types';
-import { generateId } from '../modules/regex-applier/engine';
+import type { RegexPreset, PresetsConfig, RegexRule } from './types';
+import { generateId } from './engine';
 import { mkdir, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { debounce } from 'lodash';

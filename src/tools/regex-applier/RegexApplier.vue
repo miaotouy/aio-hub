@@ -229,10 +229,10 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import debounce from 'lodash/debounce';
 import { VueDraggableNext } from 'vue-draggable-next';
-import InfoCard from './common/InfoCard.vue';
-import { usePresetStore } from '../stores/presetStore';
-import type { LogEntry, RegexPreset } from '../modules/regex-applier/types';
-import { applyRules } from '../modules/regex-applier/engine';
+import InfoCard from '../../components/common/InfoCard.vue';
+import { usePresetStore } from './store';
+import type { LogEntry, RegexPreset } from './types';
+import { applyRules } from './engine';
 
 const router = useRouter();
 const store = usePresetStore();

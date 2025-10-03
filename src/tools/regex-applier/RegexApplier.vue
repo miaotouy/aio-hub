@@ -238,6 +238,7 @@ import InfoCard from '../../components/common/InfoCard.vue';
 import { usePresetStore } from './store';
 import type { LogEntry, RegexPreset } from './types';
 import { applyRules } from './engine';
+import { loadAppConfig, createDebouncedSave, type AppConfig } from './appConfig';
 
 const router = useRouter();
 const store = usePresetStore();
@@ -272,6 +273,10 @@ const hoveredTarget = ref<DropTarget | null>(null);
 // 日志状态
 const logs = ref<LogEntry[]>([]);
 
+// 应用配置
+const appConfig = ref<AppConfig | null>(null);
+const debouncedSaveConfig = createDebouncedSave(500);
+
 // 模板引用
 const fileDropArea = ref<HTMLElement | null>(null);
 const outputDropArea = ref<HTMLElement | null>(null);
@@ -304,14 +309,62 @@ const onDragEnd = () => {
 
 // ===== 初始化 =====
 onMounted(async () => {
+  // 加载预设
   await store.loadPresets();
-  // 默认选中第一个预设
-  if (store.presets.length > 0) {
-    selectedPresetIds.value = [store.presets[0].id];
+  
+  // 加载应用配置
+  try {
+    const config = await loadAppConfig();
+    appConfig.value = config;
+    
+    // 恢复界面设置
+    processingMode.value = config.processingMode;
+    
+    // 恢复选中的预设（过滤掉已删除的预设）
+    const validPresetIds = config.selectedPresetIds.filter(id =>
+      store.presets.some(p => p.id === id)
+    );
+    selectedPresetIds.value = validPresetIds;
+    
+    // 恢复文件模式设置
+    if (config.fileMode.outputDirectory) {
+      outputDirectory.value = config.fileMode.outputDirectory;
+    }
+    
+    addLog('已恢复上次的设置', 'info');
+  } catch (error) {
+    console.error('加载应用配置失败:', error);
+    // 如果没有选中的预设，默认选中第一个
+    if (selectedPresetIds.value.length === 0 && store.presets.length > 0) {
+      selectedPresetIds.value = [store.presets[0].id];
+    }
   }
+  
   setupFileDropListener();
   addLog('应用已就绪', 'info');
 });
+
+// ===== 配置自动保存 =====
+const saveCurrentConfig = () => {
+  if (!appConfig.value) return;
+  
+  const config: AppConfig = {
+    ...appConfig.value,
+    processingMode: processingMode.value,
+    selectedPresetIds: selectedPresetIds.value,
+    fileMode: {
+      outputDirectory: outputDirectory.value
+    }
+  };
+  
+  appConfig.value = config;
+  debouncedSaveConfig(config);
+};
+
+// 监听设置变化并自动保存
+watch(processingMode, saveCurrentConfig);
+watch(selectedPresetIds, saveCurrentConfig, { deep: true });
+watch(outputDirectory, saveCurrentConfig);
 
 // ===== 日志 =====
 const addLog = (message: string, type: LogEntry['type'] = 'info') => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { FolderOpened, Document, Delete, FolderAdd, Rank } from "@element-plus/icons-vue";
+import { FolderOpened, Document, Delete, FolderAdd, Rank, InfoFilled } from "@element-plus/icons-vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -23,6 +23,7 @@ const sourcePathInput = ref(""); // 用于手动输入源文件路径
 const sourceFiles = ref<FileItem[]>([]);
 const targetDirectory = ref("");
 const linkType = ref<'symlink' | 'link'>('symlink');
+const operationMode = ref<'move' | 'link-only'>('move'); // 新增：操作模式
 const isProcessing = ref(false);
 const hoveredTarget = ref<DropTarget | null>(null);
 
@@ -250,7 +251,7 @@ const executeMoveAndLink = async () => {
     ElMessage.warning("请先添加要处理的文件");
     return;
   }
-  if (!targetDirectory.value) {
+  if (!targetDirectory.value && operationMode.value === 'move') {
     ElMessage.warning("请选择目标目录");
     return;
   }
@@ -260,25 +261,50 @@ const executeMoveAndLink = async () => {
 
   try {
     const sourcePaths = sourceFiles.value.map(file => file.path);
-    const result: string = await invoke('move_and_link', {
-      sourcePaths,
-      targetDir: targetDirectory.value,
-      linkType: linkType.value
-    });
-
-    // 检查结果是否包含错误信息
-    if (result.includes("个错误")) {
-      ElMessage.error(result);
-      // 解析错误信息，更新文件状态
-      sourceFiles.value.forEach(file => {
-        if (file.status === 'processing') {
-          file.status = 'error';
-          file.error = '处理失败，请查看错误详情';
-        }
+    
+    if (operationMode.value === 'move') {
+      // 搬家模式：移动文件并创建链接
+      const result: string = await invoke('move_and_link', {
+        sourcePaths,
+        targetDir: targetDirectory.value,
+        linkType: linkType.value
       });
+
+      // 检查结果是否包含错误信息
+      if (result.includes("个错误")) {
+        ElMessage.error(result);
+        // 解析错误信息，更新文件状态
+        sourceFiles.value.forEach(file => {
+          if (file.status === 'processing') {
+            file.status = 'error';
+            file.error = '处理失败，请查看错误详情';
+          }
+        });
+      } else {
+        ElMessage.success(result || "文件处理完成");
+        sourceFiles.value.forEach(file => file.status = 'success');
+      }
     } else {
-      ElMessage.success(result || "文件处理完成");
-      sourceFiles.value.forEach(file => file.status = 'success');
+      // 仅创建链接模式：只在目标位置创建链接
+      const result: string = await invoke('create_links_only', {
+        sourcePaths,
+        targetDir: targetDirectory.value,
+        linkType: linkType.value
+      });
+
+      // 检查结果是否包含错误信息
+      if (result.includes("个错误")) {
+        ElMessage.error(result);
+        sourceFiles.value.forEach(file => {
+          if (file.status === 'processing') {
+            file.status = 'error';
+            file.error = '处理失败，请查看错误详情';
+          }
+        });
+      } else {
+        ElMessage.success(result || "链接创建完成");
+        sourceFiles.value.forEach(file => file.status = 'success');
+      }
     }
 
   } catch (error: any) {
@@ -347,6 +373,22 @@ const executeMoveAndLink = async () => {
     <div class="column settings-column">
       <InfoCard title="操作设置" class="settings-card">
         <div class="setting-group">
+          <label>操作模式</label>
+          <el-radio-group v-model="operationMode" class="operation-mode-group">
+            <el-radio-button value="move">
+              <el-icon><Rank /></el-icon>
+              搬家模式
+            </el-radio-button>
+            <el-radio-button value="link-only">
+              <el-icon><FolderAdd /></el-icon>
+              仅创建链接
+            </el-radio-button>
+          </el-radio-group>
+          <div class="mode-description">
+            {{ operationMode === 'move' ? '将文件移动到目标目录，并在原位置创建链接' : '在目标目录创建链接，保持原文件不动' }}
+          </div>
+        </div>
+        <div class="setting-group">
           <label>目标目录</label>
           <div
             ref="targetDropArea"
@@ -357,7 +399,7 @@ const executeMoveAndLink = async () => {
             @dragleave="handleDragLeave"
             @drop="handleDrop"
           >
-            <el-input v-model="targetDirectory" placeholder="输入、拖拽或点击选择目标目录" />
+            <el-input v-model="targetDirectory" :placeholder="operationMode === 'move' ? '输入、拖拽或点击选择目标目录' : '输入、拖拽或点击选择链接目录'" />
             <el-button @click="selectTargetDirectory" :icon="FolderOpened">选择</el-button>
           </div>
         </div>
@@ -365,8 +407,12 @@ const executeMoveAndLink = async () => {
           <label>链接类型</label>
           <el-radio-group v-model="linkType">
             <el-radio-button value="symlink">符号链接</el-radio-button>
-            <el-radio-button value="link">硬链接</el-radio-button>
+            <el-radio-button value="link" :disabled="operationMode === 'link-only'">硬链接</el-radio-button>
           </el-radio-group>
+          <div v-if="operationMode === 'link-only' && linkType === 'link'" class="warning-text">
+            <el-icon><InfoFilled /></el-icon>
+            仅创建链接模式下不支持硬链接
+          </div>
         </div>
       </InfoCard>
       <el-button
@@ -378,7 +424,7 @@ const executeMoveAndLink = async () => {
         size="large"
       >
         <el-icon><Rank /></el-icon>
-        {{ isProcessing ? '处理中...' : '开始搬家' }}
+        {{ isProcessing ? '处理中...' : (operationMode === 'move' ? '开始搬家' : '创建链接') }}
       </el-button>
     </div>
   </div>
@@ -551,5 +597,34 @@ const executeMoveAndLink = async () => {
 .execute-btn {
   width: 100%;
   font-size: 16px;
+}
+
+.operation-mode-group {
+  width: 100%;
+}
+
+.operation-mode-group :deep(.el-radio-button__inner) {
+  width: 100%;
+  padding: 10px 15px;
+}
+
+.mode-description {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-color-light);
+  line-height: 1.4;
+}
+
+.warning-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-color-warning);
+}
+
+.warning-text .el-icon {
+  font-size: 14px;
 }
 </style>

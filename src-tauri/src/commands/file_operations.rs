@@ -217,6 +217,89 @@ pub async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_t
     Ok(message)
 }
 
+// Tauri 命令：仅创建链接（不移动文件）
+#[tauri::command]
+pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, link_type: String) -> Result<String, String> {
+    let target_path = PathBuf::from(&target_dir);
+
+    // 确保目标目录存在
+    if !target_path.exists() {
+        return Err(format!("目标目录不存在: {}", target_dir));
+    }
+
+    if !target_path.is_dir() {
+        return Err(format!("目标路径不是目录: {}", target_dir));
+    }
+
+    let mut processed_count = 0;
+    let mut errors = Vec::new();
+
+    for source_path_str in source_paths {
+        let source_path = PathBuf::from(&source_path_str);
+
+        // 检查源文件是否存在
+        if !source_path.exists() {
+            errors.push(format!("源文件不存在: {}", source_path_str));
+            continue;
+        }
+
+        let file_name = source_path.file_name()
+            .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
+            .to_string_lossy().to_string();
+
+        let link_path = target_path.join(file_name);
+
+        // 检查链接位置是否已存在
+        if link_path.exists() {
+            errors.push(format!("目标位置已存在文件: {}", link_path.display()));
+            continue;
+        }
+
+        // 创建链接
+        let link_result = if link_type == "symlink" {
+            // 创建符号链接
+            #[cfg(windows)]
+            {
+                if source_path.is_dir() {
+                    std::os::windows::fs::symlink_dir(&source_path, &link_path)
+                } else {
+                    std::os::windows::fs::symlink_file(&source_path, &link_path)
+                }
+            }
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(&source_path, &link_path)
+            }
+        } else {
+            // 硬链接不支持目录，且要求在同一文件系统
+            if source_path.is_dir() {
+                errors.push(format!("硬链接不支持目录: {}", source_path.display()));
+                continue;
+            }
+            fs::hard_link(&source_path, &link_path)
+        };
+
+        match link_result {
+            Ok(_) => {
+                processed_count += 1;
+            }
+            Err(e) => {
+                errors.push(format!("创建链接失败 {} -> {}: {}", source_path.display(), link_path.display(), e));
+            }
+        }
+    }
+
+    let mut message = format!("成功创建 {} 个链接", processed_count);
+    if !errors.is_empty() {
+        message.push_str(&format!("，{} 个错误:\n", errors.len()));
+        for error in errors {
+            message.push_str(&format!("- {}\n", error));
+        }
+    }
+
+    Ok(message)
+}
+
 // Tauri 命令：检查路径是否为目录
 #[tauri::command]
 pub fn is_directory(path: String) -> Result<bool, String> {

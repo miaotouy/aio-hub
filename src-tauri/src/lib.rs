@@ -13,6 +13,7 @@ use commands::{
     stop_clipboard_monitor,
     get_clipboard_content_type,
     move_and_link,
+    create_links_only,
     process_files_with_regex,
     generate_directory_tree,
     is_directory,
@@ -47,6 +48,7 @@ pub fn run() {
             stop_clipboard_monitor,
             get_clipboard_content_type,
             move_and_link,
+            create_links_only,
             process_files_with_regex,
             generate_directory_tree,
             is_directory

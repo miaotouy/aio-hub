@@ -15,6 +15,7 @@ use commands::{
     move_and_link,
     process_files_with_regex,
     generate_directory_tree,
+    is_directory,
 };
 
 // 导入事件处理
@@ -47,7 +48,8 @@ pub fn run() {
             get_clipboard_content_type,
             move_and_link,
             process_files_with_regex,
-            generate_directory_tree
+            generate_directory_tree,
+            is_directory
         ])
         
         // 设置应用

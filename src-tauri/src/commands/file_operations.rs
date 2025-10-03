@@ -216,3 +216,13 @@ pub async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_t
 
     Ok(message)
 }
+
+// Tauri 命令：检查路径是否为目录
+#[tauri::command]
+pub fn is_directory(path: String) -> Result<bool, String> {
+    let path = Path::new(&path);
+    if !path.exists() {
+        return Err(format!("路径不存在: {}", path.display()));
+    }
+    Ok(path.is_dir())
+}

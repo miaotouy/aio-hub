@@ -25,6 +25,8 @@ export interface DirectoryTreeConfig {
   showHidden: boolean;
   /** 上次的深度限制 */
   maxDepth: number;
+  /** 拖拽后是否自动生成 */
+  autoGenerateOnDrop: boolean;
   /** 配置版本 */
   version: string;
 }
@@ -61,6 +63,7 @@ function createDefaultConfig(): DirectoryTreeConfig {
     showFiles: true,
     showHidden: false,
     maxDepth: 5,
+    autoGenerateOnDrop: true,  // 默认开启自动生成
     version: CONFIG_VERSION
   };
 }

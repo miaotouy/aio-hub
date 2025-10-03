@@ -5,10 +5,17 @@
       <InfoCard title="配置选项" class="config-card">
         <div class="config-section">
           <label>目标路径</label>
-          <div class="path-input-group">
-            <el-input 
-              v-model="targetPath" 
-              placeholder="输入或选择目录路径"
+          <div
+            class="path-input-group drop-zone"
+            :class="{ 'dragover': isDraggingOver }"
+            @dragenter="handleDragEnter"
+            @dragover="handleDragOver"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop"
+          >
+            <el-input
+              v-model="targetPath"
+              placeholder="输入或选择目录路径（支持拖拽）"
               @keyup.enter="generateTree"
             />
             <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
@@ -20,6 +27,7 @@
           <div class="checkbox-group">
             <el-checkbox v-model="showFiles" label="显示文件" />
             <el-checkbox v-model="showHidden" label="显示隐藏文件" />
+            <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
           </div>
         </div>
 
@@ -121,13 +129,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { FolderOpened, Histogram, CopyDocument, Download, DataAnalysis } from '@element-plus/icons-vue';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { debounce } from 'lodash';
 import InfoCard from '../components/common/InfoCard.vue';
 import { loadConfig, saveConfig, type DirectoryTreeConfig } from './directory-tree/config';
@@ -139,6 +148,7 @@ const showHidden = ref(false);
 const filterMode = ref<'none' | 'gitignore' | 'custom'>('none');
 const customPattern = ref('');
 const maxDepth = ref(5);
+const autoGenerateOnDrop = ref(true);  // 拖拽后自动生成
 
 // 结果状态
 const treeResult = ref('');
@@ -155,6 +165,106 @@ const statsInfo = ref<{
 const isGenerating = ref(false);
 const isLoadingConfig = ref(true);
 
+// 拖拽状态
+const isDraggingOver = ref(false);
+
+// 拖放监听器
+let unlistenDrop: (() => void) | null = null;
+let unlistenDragEnter: (() => void) | null = null;
+let unlistenDragOver: (() => void) | null = null;
+let unlistenDragLeave: (() => void) | null = null;
+
+// 判断位置是否在元素内
+const isPositionInRect = (position: { x: number, y: number }, rect: DOMRect) => {
+  const ratio = window.devicePixelRatio || 1;
+  return (
+    position.x >= rect.left * ratio &&
+    position.x <= rect.right * ratio &&
+    position.y >= rect.top * ratio &&
+    position.y <= rect.bottom * ratio
+  );
+};
+
+// 设置 Tauri 后端的文件拖放监听器
+const setupFileDropListener = async () => {
+  // 监听拖动进入事件
+  unlistenDragEnter = await listen('custom-drag-enter', (event: any) => {
+    const { position } = event.payload;
+    const dropZone = document.querySelector('.path-input-group') as HTMLElement;
+    if (dropZone) {
+      const rect = dropZone.getBoundingClientRect();
+      if (isPositionInRect(position, rect)) {
+        isDraggingOver.value = true;
+        console.log('拖动进入目标路径区域');
+      }
+    }
+  });
+
+  // 监听拖动移动事件
+  unlistenDragOver = await listen('custom-drag-over', (event: any) => {
+    const { position } = event.payload;
+    const dropZone = document.querySelector('.path-input-group') as HTMLElement;
+    if (dropZone) {
+      const rect = dropZone.getBoundingClientRect();
+      const isInside = isPositionInRect(position, rect);
+      if (isInside !== isDraggingOver.value) {
+        isDraggingOver.value = isInside;
+      }
+    }
+  });
+
+  // 监听拖动离开事件
+  unlistenDragLeave = await listen('custom-drag-leave', () => {
+    isDraggingOver.value = false;
+    console.log('拖动离开窗口');
+  });
+
+  // 监听文件放下事件
+  unlistenDrop = await listen('custom-file-drop', async (event: any) => {
+    const { paths, position } = event.payload;
+    
+    // 清除高亮状态
+    isDraggingOver.value = false;
+    
+    if (!paths || paths.length === 0) {
+      return;
+    }
+    
+    const dropZone = document.querySelector('.path-input-group') as HTMLElement;
+    if (dropZone) {
+      const rect = dropZone.getBoundingClientRect();
+      if (isPositionInRect(position, rect)) {
+        // 获取第一个路径
+        const droppedPath = paths[0];
+        
+        // 检查是否为目录
+        try {
+          const isDir = await invoke<boolean>('is_directory', { path: droppedPath });
+          if (isDir) {
+            targetPath.value = droppedPath;
+            ElMessage.success(`已设置目标路径: ${droppedPath}`);
+            console.log(`已通过拖拽设置目标路径: ${droppedPath}`);
+            
+            // 根据配置决定是否自动生成目录树
+            if (autoGenerateOnDrop.value) {
+              setTimeout(() => {
+                generateTree();
+              }, 500);
+            }
+          } else {
+            ElMessage.warning('请拖入目录而非文件');
+          }
+        } catch (error) {
+          console.error('检查路径类型失败:', error);
+          // 如果检查失败，仍然尝试设置路径
+          targetPath.value = droppedPath;
+          ElMessage.info(`已设置路径: ${droppedPath}`);
+        }
+      }
+    }
+  });
+};
+
 // 加载配置
 onMounted(async () => {
   try {
@@ -165,11 +275,23 @@ onMounted(async () => {
     showFiles.value = config.showFiles;
     showHidden.value = config.showHidden;
     maxDepth.value = config.maxDepth;
+    autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true;  // 兼容旧配置
   } catch (error) {
     console.error('加载配置失败:', error);
   } finally {
     isLoadingConfig.value = false;
   }
+  
+  // 设置拖放监听器
+  await setupFileDropListener();
+});
+
+// 清理监听器
+onUnmounted(() => {
+  unlistenDrop?.();
+  unlistenDragEnter?.();
+  unlistenDragOver?.();
+  unlistenDragLeave?.();
 });
 
 // 防抖保存配置
@@ -184,6 +306,7 @@ const debouncedSaveConfig = debounce(async () => {
       showFiles: showFiles.value,
       showHidden: showHidden.value,
       maxDepth: maxDepth.value,
+      autoGenerateOnDrop: autoGenerateOnDrop.value,
       version: '1.0.0'
     };
     await saveConfig(config);
@@ -193,7 +316,7 @@ const debouncedSaveConfig = debounce(async () => {
 }, 500);
 
 // 监听配置变化并自动保存
-watch([customPattern, filterMode, targetPath, showFiles, showHidden, maxDepth], () => {
+watch([customPattern, filterMode, targetPath, showFiles, showHidden, maxDepth, autoGenerateOnDrop], () => {
   debouncedSaveConfig();
 });
 
@@ -313,6 +436,50 @@ const exportToFile = async () => {
     ElMessage.error('保存文件失败');
   }
 };
+
+// 前端拖放事件处理 - 用于视觉反馈
+const handleDragEnter = (e: DragEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  isDraggingOver.value = true;
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'copy';
+  }
+};
+
+const handleDragOver = (e: DragEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  // 保持高亮状态
+  if (!isDraggingOver.value) {
+    isDraggingOver.value = true;
+  }
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'copy';
+  }
+};
+
+const handleDragLeave = (e: DragEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // 检查是否真的离开了拖放区域
+  const related = e.relatedTarget as HTMLElement;
+  const currentTarget = e.currentTarget as HTMLElement;
+  
+  // 如果移动到子元素，不要移除高亮
+  if (!currentTarget.contains(related)) {
+    isDraggingOver.value = false;
+  }
+};
+
+const handleDrop = (e: DragEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  // 清除高亮状态
+  isDraggingOver.value = false;
+  // 实际的文件处理由 Tauri 后端的 custom-file-drop 事件处理
+};
 </script>
 
 <style scoped>
@@ -323,6 +490,7 @@ const exportToFile = async () => {
   height: 100%;
   padding: 20px;
   box-sizing: border-box;
+  --primary-color-rgb: 64, 158, 255; /* 默认蓝色的 RGB 值 */
 }
 
 .config-panel {
@@ -370,6 +538,40 @@ const exportToFile = async () => {
 .path-input-group {
   display: flex;
   gap: 10px;
+  position: relative;
+  transition: all 0.3s ease;
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  padding: 8px;
+  margin: -8px;
+}
+
+/* 拖拽悬停效果 */
+.path-input-group.drop-zone.dragover {
+  border-color: var(--primary-color);
+  background-color: rgba(64, 158, 255, 0.05);
+  box-shadow: 0 0 15px rgba(64, 158, 255, 0.3);
+  transform: scale(1.02);
+}
+
+.path-input-group.drop-zone.dragover::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 8px;
+  background: linear-gradient(45deg, transparent, rgba(64, 158, 255, 0.2), transparent);
+  animation: shimmer 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.path-input-group.drop-zone.dragover :deep(.el-input__wrapper) {
+  background-color: rgba(64, 158, 255, 0.08);
+  border-color: var(--primary-color);
 }
 
 .checkbox-group {

@@ -147,6 +147,7 @@
               class="drop-area"
               data-drop-target="files"
               :class="{ 'dragover': hoveredTarget === 'files' }"
+              @dragenter="handleDragEnter($event, 'files')"
               @dragover="handleDragOver($event, 'files')"
               @dragleave="handleDragLeave"
               @drop="handleDrop"
@@ -182,6 +183,7 @@
                 class="target-control"
                 data-drop-target="output"
                 :class="{ 'dragover': hoveredTarget === 'output' }"
+                @dragenter="handleDragEnter($event, 'output')"
                 @dragover="handleDragOver($event, 'output')"
                 @dragleave="handleDragLeave"
                 @drop="handleDrop"
@@ -473,6 +475,9 @@ const oneClickProcess = async () => {
 
 // ===== 文件模式处理 =====
 let unlistenDrop: (() => void) | null = null;
+let unlistenDragEnter: (() => void) | null = null;
+let unlistenDragOver: (() => void) | null = null;
+let unlistenDragLeave: (() => void) | null = null;
 
 const isPositionInRect = (position: { x: number, y: number }, rect: DOMRect) => {
   const ratio = window.devicePixelRatio || 1;
@@ -484,11 +489,65 @@ const isPositionInRect = (position: { x: number, y: number }, rect: DOMRect) => 
   );
 };
 
+// 设置 Tauri 后端的文件拖放监听器
 const setupFileDropListener = async () => {
+  // 监听拖动进入事件
+  unlistenDragEnter = await listen('custom-drag-enter', (event: any) => {
+    if (processingMode.value !== 'file') return;
+    
+    const { position } = event.payload;
+    const fileRect = fileDropArea.value?.getBoundingClientRect();
+    const outputRect = outputDropArea.value?.getBoundingClientRect();
+    
+    if (outputRect && isPositionInRect(position, outputRect)) {
+      hoveredTarget.value = 'output';
+      addLog('拖动进入输出目录区域', 'info');
+    } else if (fileRect && isPositionInRect(position, fileRect)) {
+      hoveredTarget.value = 'files';
+      addLog('拖动进入文件区域', 'info');
+    }
+  });
+
+  // 监听拖动移动事件
+  unlistenDragOver = await listen('custom-drag-over', (event: any) => {
+    if (processingMode.value !== 'file') return;
+    
+    const { position } = event.payload;
+    const fileRect = fileDropArea.value?.getBoundingClientRect();
+    const outputRect = outputDropArea.value?.getBoundingClientRect();
+    
+    let newTarget: DropTarget | null = null;
+    
+    if (outputRect && isPositionInRect(position, outputRect)) {
+      newTarget = 'output';
+    } else if (fileRect && isPositionInRect(position, fileRect)) {
+      newTarget = 'files';
+    }
+    
+    if (newTarget !== hoveredTarget.value) {
+      hoveredTarget.value = newTarget;
+      if (newTarget) {
+        console.log('Drag over - target changed to:', newTarget);
+      }
+    }
+  });
+
+  // 监听拖动离开事件
+  unlistenDragLeave = await listen('custom-drag-leave', () => {
+    if (processingMode.value !== 'file') return;
+    
+    hoveredTarget.value = null;
+    addLog('拖动离开窗口', 'info');
+  });
+
+  // 监听文件放下事件
   unlistenDrop = await listen('custom-file-drop', (event: any) => {
     if (processingMode.value !== 'file') return;
     
     const { paths, position } = event.payload;
+    
+    // 清除高亮状态
+    hoveredTarget.value = null;
     
     if (!paths || (Array.isArray(paths) && paths.length === 0)) {
       return;
@@ -505,9 +564,11 @@ const setupFileDropListener = async () => {
       }
       outputDirectory.value = pathArray[0];
       ElMessage.success(`已设置输出目录: ${pathArray[0]}`);
+      addLog(`已设置输出目录: ${pathArray[0]}`);
     } else if (fileRect && isPositionInRect(position, fileRect)) {
       addFiles(pathArray);
     } else {
+      // 默认添加到文件列表
       addFiles(pathArray);
     }
   });
@@ -515,12 +576,31 @@ const setupFileDropListener = async () => {
 
 onUnmounted(() => {
   unlistenDrop?.();
+  unlistenDragEnter?.();
+  unlistenDragOver?.();
+  unlistenDragLeave?.();
 });
+
+// 前端拖放事件处理 - 用于视觉反馈
+const handleDragEnter = (e: DragEvent, target: DropTarget) => {
+  console.log('dragenter triggered for:', target);
+  e.preventDefault();
+  e.stopPropagation();
+  hoveredTarget.value = target;
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'copy';
+  }
+  addLog(`拖动进入${target === 'files' ? '文件区域' : '输出目录区域'}`, 'info');
+};
 
 const handleDragOver = (e: DragEvent, target: DropTarget) => {
   e.preventDefault();
   e.stopPropagation();
-  hoveredTarget.value = target;
+  // 保持高亮状态
+  if (hoveredTarget.value !== target) {
+    hoveredTarget.value = target;
+    console.log('dragover - setting target:', target);
+  }
   if (e.dataTransfer) {
     e.dataTransfer.dropEffect = 'copy';
   }
@@ -529,17 +609,27 @@ const handleDragOver = (e: DragEvent, target: DropTarget) => {
 const handleDragLeave = (e: DragEvent) => {
   e.preventDefault();
   e.stopPropagation();
+  
+  // 检查是否真的离开了拖放区域
   const related = e.relatedTarget as HTMLElement;
   const currentTarget = e.currentTarget as HTMLElement;
+  
+  // 如果移动到子元素，不要移除高亮
   if (!currentTarget.contains(related)) {
+    console.log('dragleave - clearing target');
     hoveredTarget.value = null;
+    addLog('拖动离开区域', 'info');
   }
 };
 
 const handleDrop = (e: DragEvent) => {
+  console.log('drop triggered');
   e.preventDefault();
   e.stopPropagation();
+  // 清除高亮状态
   hoveredTarget.value = null;
+  addLog('文件已放下，等待处理...', 'info');
+  // 实际的文件处理由 Tauri 后端的 custom-file-drop 事件处理
 };
 
 const addFilePathFromInput = () => {
@@ -729,6 +819,7 @@ const processFiles = async () => {
   max-width: 1400px;
   margin: 0 auto;
   color: var(--text-color);
+  --primary-color-rgb: 64, 158, 255; /* 默认蓝色的 RGB 值 */
 }
 
 .box-card {
@@ -866,11 +957,29 @@ const processFiles = async () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative;
 }
 
 .drop-area.dragover {
   border-color: var(--primary-color);
-  background-color: var(--container-bg);
+  background-color: rgba(64, 158, 255, 0.05);
+  box-shadow: 0 0 15px rgba(64, 158, 255, 0.3);
+  transform: scale(1.01);
+}
+
+.drop-area.dragover::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 8px;
+  background: linear-gradient(45deg, transparent, rgba(64, 158, 255, 0.2), transparent);
+  animation: shimmer 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 .empty-state {
@@ -985,11 +1094,33 @@ const processFiles = async () => {
   border-radius: 8px;
   padding: 8px;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .target-control.dragover {
   border-color: var(--primary-color);
-  background-color: var(--container-bg);
+  background-color: rgba(64, 158, 255, 0.05);
+  box-shadow: 0 0 15px rgba(64, 158, 255, 0.3);
+  transform: scale(1.02);
+}
+
+.target-control.dragover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(64, 158, 255, 0.1),
+    transparent
+  );
+  animation: pulse 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 .execute-btn {

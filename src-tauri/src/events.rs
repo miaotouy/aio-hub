@@ -8,10 +8,33 @@ pub struct FileDropPayload {
     pub position: PhysicalPosition<f64>,
 }
 
+#[derive(Clone, Serialize)]
+pub struct DragPositionPayload {
+    pub position: PhysicalPosition<f64>,
+}
+
 // 处理窗口事件
 pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
     if let WindowEvent::DragDrop(event) = event {
         match event {
+            DragDropEvent::Enter { paths, position } => {
+                // 发送拖动进入事件
+                println!("Drag enter: {:?} at position {:?}", paths, position);
+                window.emit("custom-drag-enter", DragPositionPayload {
+                    position: position.clone(),
+                }).unwrap();
+            }
+            DragDropEvent::Over { position } => {
+                // 发送拖动移动事件
+                window.emit("custom-drag-over", DragPositionPayload {
+                    position: position.clone(),
+                }).unwrap();
+            }
+            DragDropEvent::Leave => {
+                // 发送拖动离开事件
+                println!("Drag leave");
+                window.emit("custom-drag-leave", {}).unwrap();
+            }
             DragDropEvent::Drop { paths, position } => {
                 // 发送文件拖放事件到前端
                 println!("File drop captured: {:?} at position {:?}", paths, position);
@@ -20,7 +43,6 @@ pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
                     position: position.clone(),
                 }).unwrap();
             }
-            // 可以处理其他拖放事件
             _ => {}
         }
     }

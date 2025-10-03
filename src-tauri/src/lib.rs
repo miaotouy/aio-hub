@@ -284,22 +284,76 @@ async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_type:
     Ok(message)
 }
 
+// gitignore 规则结构，支持否定规则
+#[derive(Clone)]
+struct IgnoreRule {
+    regex: Regex,
+    negated: bool,  // true 表示这是一个否定规则（以 ! 开头）
+}
+
 // 将 gitignore 风格的 glob 模式转换为正则表达式
 // 支持 gitignore 的匹配语义：
 // - "target" 匹配任何路径下名为 target 的文件或目录
 // - "/target" 只匹配根目录下的 target
 // - "*.log" 匹配所有 .log 文件
-fn glob_to_regex(pattern: &str) -> Option<Regex> {
+// - "dir/**" 匹配 dir 目录下的所有内容（但不包括 dir 本身）
+// - "!important.log" 否定规则，即使之前的规则匹配也不忽略
+fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
     let pattern = pattern.trim();
     if pattern.is_empty() {
         return None;
     }
     
+    // 检查是否是否定规则
+    let (negated, pattern) = if pattern.starts_with('!') {
+        (true, &pattern[1..])
+    } else {
+        (false, pattern)
+    };
+    
     let mut regex_pattern = String::new();
+    
+    // 处理特殊的 ** 模式
+    // 如果模式是 "dir/**"，应该匹配 dir/ 下的所有内容，但不包括 dir 本身
+    if pattern.contains("/**") {
+        let parts: Vec<&str> = pattern.splitn(2, "/**").collect();
+        if parts.len() == 2 {
+            let dir_part = parts[0];
+            let after_part = parts[1];
+            
+            // 如果以 / 开头，从根路径匹配
+            if dir_part.starts_with('/') {
+                regex_pattern.push_str(&format!("^{}/", &dir_part[1..]));
+            } else {
+                // 可以匹配任何路径下的该目录
+                regex_pattern.push_str(&format!("(^|.*/){}/", dir_part));
+            }
+            
+            // ** 匹配任意深度的路径
+            regex_pattern.push_str(".*");
+            
+            // 处理 ** 之后的部分
+            if !after_part.is_empty() {
+                for ch in after_part.chars() {
+                    match ch {
+                        '*' => regex_pattern.push_str("[^/]*"),
+                        '?' => regex_pattern.push_str("[^/]"),
+                        '.' => regex_pattern.push_str(r"\."),
+                        '/' => regex_pattern.push('/'),
+                        _ => regex_pattern.push(ch),
+                    }
+                }
+            }
+            
+            regex_pattern.push('$');
+            return Regex::new(&regex_pattern).ok().map(|regex| IgnoreRule { regex, negated });
+        }
+    }
     
     // 如果模式以 / 开头，表示从根路径开始匹配
     let starts_with_slash = pattern.starts_with('/');
     let pattern = if starts_with_slash {
+        regex_pattern.push('^');
         &pattern[1..]
     } else {
         // 不以 / 开头的模式可以匹配任何路径下的文件
@@ -308,9 +362,19 @@ fn glob_to_regex(pattern: &str) -> Option<Regex> {
     };
     
     // 转换 glob 模式为正则表达式
-    for ch in pattern.chars() {
-        match ch {
-            '*' => regex_pattern.push_str("[^/]*"),  // * 不匹配路径分隔符
+    let mut i = 0;
+    let chars: Vec<char> = pattern.chars().collect();
+    while i < chars.len() {
+        match chars[i] {
+            '*' => {
+                // 检查是否是 **
+                if i + 1 < chars.len() && chars[i + 1] == '*' {
+                    regex_pattern.push_str(".*");
+                    i += 1; // 跳过第二个 *
+                } else {
+                    regex_pattern.push_str("[^/]*");  // 单个 * 不匹配路径分隔符
+                }
+            },
             '?' => regex_pattern.push_str("[^/]"),   // ? 不匹配路径分隔符
             '.' => regex_pattern.push_str(r"\."),
             '+' => regex_pattern.push_str(r"\+"),
@@ -325,14 +389,20 @@ fn glob_to_regex(pattern: &str) -> Option<Regex> {
             '$' => regex_pattern.push_str(r"\$"),
             '\\' => regex_pattern.push_str(r"\\"),
             '/' => regex_pattern.push('/'),
-            _ => regex_pattern.push(ch),
+            _ => regex_pattern.push(chars[i]),
         }
+        i += 1;
     }
     
-    // 模式可以匹配完整路径或目录名
-    regex_pattern.push_str("(/.*)?$");
+    // 如果模式以 / 结尾，说明只匹配目录
+    if pattern.ends_with('/') {
+        regex_pattern.push('$');
+    } else {
+        // 模式可以匹配完整路径或目录名
+        regex_pattern.push_str("(/.*)?$");
+    }
     
-    Regex::new(&regex_pattern).ok()
+    Regex::new(&regex_pattern).ok().map(|regex| IgnoreRule { regex, negated })
 }
 
 // 收集指定目录及其所有父目录（直到根目录）的 .gitignore 规则
@@ -349,8 +419,8 @@ fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
                     let line = line.trim();
                     // 跳过空行和注释
                     if !line.is_empty() && !line.starts_with('#') {
-                        // 移除行尾的空格和斜杠
-                        let pattern = line.trim_end_matches('/').to_string();
+                        // 保留原始模式，包括尾部的斜杠（对目录很重要）
+                        let pattern = line.to_string();
                         if !patterns.contains(&pattern) {
                             patterns.push(pattern);
                         }
@@ -372,6 +442,27 @@ fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
     }
     
     patterns
+}
+
+// 检查路径是否应该被忽略
+// 按照 gitignore 规则顺序处理，后面的规则可以覆盖前面的规则
+fn should_ignore(path: &str, file_name: &str, rules: &[IgnoreRule]) -> bool {
+    let mut ignored = false;
+    
+    // 将 Windows 路径分隔符统一转换为 Unix 风格
+    let normalized_path = path.replace('\\', "/");
+    
+    for rule in rules {
+        let matches_filename = rule.regex.is_match(file_name);
+        let matches_path = rule.regex.is_match(&normalized_path);
+        
+        if matches_filename || matches_path {
+            // 匹配到规则，根据是否是否定规则来决定
+            ignored = !rule.negated;
+        }
+    }
+    
+    ignored
 }
 
 // 统计信息结构
@@ -436,7 +527,7 @@ async fn generate_directory_tree(
         .any(|p| p == "__USE_GITIGNORE__");
     
     // 准备自定义模式（如果使用）
-    let custom_patterns: Vec<Regex> = if !use_gitignore {
+    let custom_patterns: Vec<IgnoreRule> = if !use_gitignore {
         ignore_patterns.iter()
             .filter(|pattern| !pattern.is_empty() && pattern != &"__USE_GITIGNORE__")
             .filter_map(|pattern| glob_to_regex(pattern))
@@ -444,16 +535,6 @@ async fn generate_directory_tree(
     } else {
         Vec::new()
     };
-    
-    // 输出调试信息
-    println!("=== 目录树生成配置 ===");
-    println!("目标路径: {}", path);
-    println!("显示文件: {}", show_files);
-    println!("显示隐藏: {}", show_hidden);
-    println!("最大深度: {}", if max_depth == 0 { "无限制".to_string() } else { max_depth.to_string() });
-    println!("过滤模式: {}", if use_gitignore { "gitignore" } else if custom_patterns.is_empty() { "无" } else { "自定义" });
-    println!("过滤规则数量: {}", if use_gitignore { "动态收集".to_string() } else { custom_patterns.len().to_string() });
-    println!("======================");
     
     let mut result = String::new();
     let mut stats = TreeStats::new();
@@ -500,7 +581,7 @@ fn generate_tree_recursive(
     max_depth: usize,
     current_depth: usize,
     use_gitignore: bool,
-    custom_patterns: &[Regex],
+    custom_patterns: &[IgnoreRule],
     stats: &mut TreeStats
 ) -> Result<(), String> {
     // 检查深度限制（0 表示无限制）
@@ -509,7 +590,7 @@ fn generate_tree_recursive(
     }
     
     // 如果使用 gitignore 模式，动态收集当前目录及其父目录的规则
-    let ignore_patterns: Vec<Regex> = if use_gitignore {
+    let ignore_patterns: Vec<IgnoreRule> = if use_gitignore {
         collect_gitignore_patterns(dir, root)
             .iter()
             .filter_map(|pattern| glob_to_regex(pattern))
@@ -569,9 +650,8 @@ fn generate_tree_recursive(
             .and_then(|p| p.to_str())
             .unwrap_or(&file_name);
         
-        if ignore_patterns.iter().any(|pattern| {
-            pattern.is_match(&file_name) || pattern.is_match(full_relative_path)
-        }) {
+        // 使用新的 should_ignore 函数，支持否定规则
+        if should_ignore(full_relative_path, &file_name, &ignore_patterns) {
             if is_dir {
                 stats.filtered_dirs += 1;
             } else {

@@ -5,33 +5,9 @@
 
 import type { RegexPreset, PresetsConfig, RegexRule } from './types';
 import { generateId } from './engine';
-import { mkdir, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { createConfigManager, ConfigManager } from '../../utils/configManager';
 
-const MODULE_DIR = 'regex_applier';
-const CONFIG_FILE = 'presets.json';
 const CONFIG_VERSION = '1.0.0';
-
-/**
- * 获取配置文件的完整路径
- */
-async function getConfigPath(): Promise<string> {
-  const appDir = await appDataDir();
-  const moduleDir = await join(appDir, MODULE_DIR);
-  return join(moduleDir, CONFIG_FILE);
-}
-
-/**
- * 确保模块目录存在
- */
-async function ensureModuleDir(): Promise<void> {
-  const appDir = await appDataDir();
-  const moduleDir = await join(appDir, MODULE_DIR);
-  
-  if (!await exists(moduleDir)) {
-    await mkdir(moduleDir, { recursive: true });
-  }
-}
 
 /**
  * 创建默认预设
@@ -68,47 +44,47 @@ function createDefaultConfig(): PresetsConfig {
 }
 
 /**
+ * 自定义配置合并逻辑
+ * 确保预设数据结构完整
+ */
+function mergePresetsConfig(defaultConfig: PresetsConfig, loadedConfig: Partial<PresetsConfig>): PresetsConfig {
+  // 确保预设数组存在且有效
+  const presets = loadedConfig.presets && Array.isArray(loadedConfig.presets) 
+    ? loadedConfig.presets.map(preset => ({
+        ...preset,
+        id: preset.id || generateId('preset'),
+        rules: preset.rules || []
+      }))
+    : defaultConfig.presets;
+
+  // 确保有激活的预设
+  const activePresetId = loadedConfig.activePresetId || 
+    (presets.length > 0 ? presets[0].id : defaultConfig.activePresetId);
+
+  return {
+    presets,
+    activePresetId,
+    version: CONFIG_VERSION
+  };
+}
+
+/**
+ * 创建配置管理器实例
+ */
+const configManager: ConfigManager<PresetsConfig> = createConfigManager({
+  moduleName: 'regex_applier',
+  fileName: 'presets.json',
+  version: CONFIG_VERSION,
+  createDefault: createDefaultConfig,
+  mergeConfig: mergePresetsConfig
+});
+
+/**
  * 加载所有预设
  * @returns 预设配置
  */
 export async function loadPresets(): Promise<PresetsConfig> {
-  try {
-    await ensureModuleDir();
-    const configPath = await getConfigPath();
-    
-    if (!await exists(configPath)) {
-      // 配置文件不存在，创建默认配置
-      const defaultConfig = createDefaultConfig();
-      await savePresets(defaultConfig);
-      return defaultConfig;
-    }
-    
-    const content = await readTextFile(configPath);
-    const config: PresetsConfig = JSON.parse(content);
-    
-    // 确保配置结构完整
-    if (!config.presets || !Array.isArray(config.presets)) {
-      throw new Error('无效的配置格式');
-    }
-    
-    // 确保每个预设都有必要的字段
-    config.presets = config.presets.map(preset => ({
-      ...preset,
-      id: preset.id || generateId('preset'),
-      rules: preset.rules || []
-    }));
-    
-    // 如果没有激活的预设，激活第一个
-    if (!config.activePresetId && config.presets.length > 0) {
-      config.activePresetId = config.presets[0].id;
-    }
-    
-    return config;
-  } catch (error: any) {
-    console.error('加载预设失败:', error);
-    // 加载失败时返回默认配置
-    return createDefaultConfig();
-  }
+  return configManager.load();
 }
 
 /**
@@ -116,14 +92,7 @@ export async function loadPresets(): Promise<PresetsConfig> {
  * @param config 预设配置
  */
 export async function savePresets(config: PresetsConfig): Promise<void> {
-  try {
-    await ensureModuleDir();
-    const configPath = await getConfigPath();
-    await writeTextFile(configPath, JSON.stringify(config, null, 2));
-  } catch (error: any) {
-    console.error('保存预设失败:', error);
-    throw new Error(`保存预设失败: ${error.message}`);
-  }
+  return configManager.save(config);
 }
 
 /**
@@ -194,4 +163,11 @@ export function duplicatePreset(preset: RegexPreset, newName?: string): RegexPre
  */
 export function touchPreset(preset: RegexPreset): void {
   preset.updatedAt = Date.now();
+}
+
+/**
+ * 创建防抖保存函数（导出给 store 使用）
+ */
+export function createDebouncedPresetsSave(delay: number = 500) {
+  return configManager.createDebouncedSave(delay);
 }

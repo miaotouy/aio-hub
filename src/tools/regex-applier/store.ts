@@ -7,63 +7,21 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { RegexPreset, PresetsConfig, RegexRule } from './types';
 import { generateId } from './engine';
-import { mkdir, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
-import { debounce } from 'lodash';
-
-const MODULE_DIR = 'regex_applier';
-const CONFIG_FILE = 'presets.json';
-const CONFIG_VERSION = '1.0.0';
-
-/**
- * 获取配置文件的完整路径
- */
-async function getConfigPath(): Promise<string> {
-  const appDir = await appDataDir();
-  const moduleDir = await join(appDir, MODULE_DIR);
-  return join(moduleDir, CONFIG_FILE);
-}
-
-/**
- * 确保模块目录存在
- */
-async function ensureModuleDir(): Promise<void> {
-  const appDir = await appDataDir();
-  const moduleDir = await join(appDir, MODULE_DIR);
-  
-  if (!await exists(moduleDir)) {
-    await mkdir(moduleDir, { recursive: true });
-  }
-}
-
-/**
- * 创建默认预设
- */
-function createDefaultPreset(): RegexPreset {
-  const now = Date.now();
-  return {
-    id: generateId('preset'),
-    name: '默认预设',
-    description: '空白预设，可以开始添加你的规则',
-    rules: [
-      {
-        id: generateId('rule'),
-        enabled: true,
-        regex: '',
-        replacement: ''
-      }
-    ],
-    createdAt: now,
-    updatedAt: now
-  };
-}
+import { 
+  loadPresets, 
+  savePresets, 
+  createPreset as createNewPreset,
+  duplicatePreset as duplicateExistingPreset,
+  touchPreset as touchPresetTimestamp,
+  createDebouncedPresetsSave
+} from './presets';
 
 export const usePresetStore = defineStore('preset', () => {
   // ===== State =====
   const presets = ref<RegexPreset[]>([]);
   const activePresetId = ref<string | null>(null);
   const isLoading = ref(false);
-  const version = ref(CONFIG_VERSION);
+  const version = ref('1.0.0');
 
   // ===== Getters =====
   
@@ -87,33 +45,34 @@ export const usePresetStore = defineStore('preset', () => {
     }));
   });
 
+  // ===== 内部辅助函数 =====
+  
+  /**
+   * 创建防抖保存函数
+   */
+  const debouncedSave = createDebouncedPresetsSave(500);
+  
+  /**
+   * 保存当前状态到文件
+   */
+  async function saveCurrentState(): Promise<void> {
+    const config: PresetsConfig = {
+      presets: presets.value,
+      activePresetId: activePresetId.value,
+      version: version.value
+    };
+    await debouncedSave(config);
+  }
+
   // ===== Actions =====
 
   /**
    * 从文件加载预设
    */
-  async function loadPresets(): Promise<void> {
+  async function loadPresetsFromFile(): Promise<void> {
     isLoading.value = true;
     try {
-      await ensureModuleDir();
-      const configPath = await getConfigPath();
-      
-      if (!await exists(configPath)) {
-        // 配置文件不存在，创建默认配置
-        const defaultPreset = createDefaultPreset();
-        presets.value = [defaultPreset];
-        activePresetId.value = defaultPreset.id;
-        await savePresetsToFile();
-        return;
-      }
-      
-      const content = await readTextFile(configPath);
-      const config: PresetsConfig = JSON.parse(content);
-      
-      // 确保配置结构完整
-      if (!config.presets || !Array.isArray(config.presets)) {
-        throw new Error('无效的配置格式');
-      }
+      const config = await loadPresets();
       
       // 确保每个预设和规则都有必要的字段，进行数据清洗
       presets.value = config.presets.map(preset => ({
@@ -127,13 +86,13 @@ export const usePresetStore = defineStore('preset', () => {
         })),
       }));
       
-      // 如果没有激活的预设，激活第一个
-      activePresetId.value = config.activePresetId || (presets.value.length > 0 ? presets.value[0].id : null);
+      activePresetId.value = config.activePresetId;
+      version.value = config.version || '1.0.0';
       
     } catch (error: any) {
       console.error('加载预设失败:', error);
       // 加载失败时创建默认配置
-      const defaultPreset = createDefaultPreset();
+      const defaultPreset = createNewPreset('默认预设', '空白预设，可以开始添加你的规则');
       presets.value = [defaultPreset];
       activePresetId.value = defaultPreset.id;
     } finally {
@@ -142,62 +101,21 @@ export const usePresetStore = defineStore('preset', () => {
   }
 
   /**
-   * 保存预设到文件（内部使用，带 debounce）
-   */
-  async function savePresetsToFile(): Promise<void> {
-    try {
-      await ensureModuleDir();
-      const configPath = await getConfigPath();
-      const config: PresetsConfig = {
-        presets: presets.value,
-        activePresetId: activePresetId.value,
-        version: version.value
-      };
-      await writeTextFile(configPath, JSON.stringify(config, null, 2));
-    } catch (error: any) {
-      console.error('保存预设失败:', error);
-      throw new Error(`保存预设失败: ${error.message}`);
-    }
-  }
-
-  /**
-   * 防抖保存
-   */
-  const debouncedSave = debounce(async () => {
-    await savePresetsToFile();
-  }, 500);
-
-  /**
    * 保存预设（对外接口）
    */
-  async function savePresets(): Promise<void> {
-    await debouncedSave();
+  async function savePresetsToFile(): Promise<void> {
+    await saveCurrentState();
   }
 
   /**
    * 创建新预设
    */
   function createPreset(name: string, description?: string): RegexPreset {
-    const now = Date.now();
-    const newPreset: RegexPreset = {
-      id: generateId('preset'),
-      name,
-      description,
-      rules: [
-        {
-          id: generateId('rule'),
-          enabled: true,
-          regex: '',
-          replacement: ''
-        }
-      ],
-      createdAt: now,
-      updatedAt: now
-    };
+    const newPreset = createNewPreset(name, description);
     
     presets.value.push(newPreset);
     activePresetId.value = newPreset.id;
-    savePresets();
+    saveCurrentState();
     
     return newPreset;
   }
@@ -209,22 +127,11 @@ export const usePresetStore = defineStore('preset', () => {
     const sourcePreset = presets.value.find(p => p.id === presetId);
     if (!sourcePreset) return null;
     
-    const now = Date.now();
-    const newPreset: RegexPreset = {
-      ...sourcePreset,
-      id: generateId('preset'),
-      name: newName || `${sourcePreset.name} (副本)`,
-      rules: sourcePreset.rules.map(rule => ({
-        ...rule,
-        id: generateId('rule')
-      })),
-      createdAt: now,
-      updatedAt: now
-    };
+    const newPreset = duplicateExistingPreset(sourcePreset, newName);
     
     presets.value.push(newPreset);
     activePresetId.value = newPreset.id;
-    savePresets();
+    saveCurrentState();
     
     return newPreset;
   }
@@ -238,7 +145,7 @@ export const usePresetStore = defineStore('preset', () => {
     
     preset.name = newName;
     preset.updatedAt = Date.now();
-    savePresets();
+    saveCurrentState();
     
     return true;
   }
@@ -257,7 +164,7 @@ export const usePresetStore = defineStore('preset', () => {
     }
     
     presets.value.splice(index, 1);
-    savePresets();
+    saveCurrentState();
     
     return true;
   }
@@ -270,7 +177,7 @@ export const usePresetStore = defineStore('preset', () => {
     if (!preset) return false;
     
     activePresetId.value = presetId;
-    savePresets();
+    saveCurrentState();
     
     return true;
   }
@@ -281,8 +188,8 @@ export const usePresetStore = defineStore('preset', () => {
   function touchPreset(presetId: string): void {
     const preset = presets.value.find(p => p.id === presetId);
     if (preset) {
-      preset.updatedAt = Date.now();
-      savePresets();
+      touchPresetTimestamp(preset);
+      saveCurrentState();
     }
   }
 
@@ -304,7 +211,7 @@ export const usePresetStore = defineStore('preset', () => {
     
     preset.rules.push(newRule);
     preset.updatedAt = Date.now();
-    savePresets();
+    saveCurrentState();
     
     return newRule;
   }
@@ -321,7 +228,7 @@ export const usePresetStore = defineStore('preset', () => {
     
     Object.assign(rule, updates);
     preset.updatedAt = Date.now();
-    savePresets();
+    saveCurrentState();
     
     return true;
   }
@@ -338,7 +245,7 @@ export const usePresetStore = defineStore('preset', () => {
     
     preset.rules.splice(index, 1);
     preset.updatedAt = Date.now();
-    savePresets();
+    saveCurrentState();
     
     return true;
   }
@@ -355,7 +262,7 @@ export const usePresetStore = defineStore('preset', () => {
     
     rule.enabled = !rule.enabled;
     preset.updatedAt = Date.now();
-    savePresets();
+    saveCurrentState();
     
     return true;
   }
@@ -369,7 +276,7 @@ export const usePresetStore = defineStore('preset', () => {
     
     preset.rules = newOrder;
     preset.updatedAt = Date.now();
-    savePresets();
+    saveCurrentState();
     
     return true;
   }
@@ -399,7 +306,13 @@ export const usePresetStore = defineStore('preset', () => {
     
     if (addedCount > 0) {
       preset.updatedAt = Date.now();
-      await savePresetsToFile();
+      // 导入时直接保存，不使用防抖
+      const config: PresetsConfig = {
+        presets: presets.value,
+        activePresetId: activePresetId.value,
+        version: version.value
+      };
+      await savePresets(config);
     }
     
     return addedCount;
@@ -428,8 +341,8 @@ export const usePresetStore = defineStore('preset', () => {
     presetOptions,
     
     // Actions
-    loadPresets,
-    savePresets,
+    loadPresets: loadPresetsFromFile,
+    savePresets: savePresetsToFile,
     createPreset,
     duplicatePreset,
     renamePreset,

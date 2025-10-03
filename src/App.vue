@@ -4,6 +4,7 @@ import { useRouter, useRoute } from "vue-router";
 import { useDark, useToggle } from "@vueuse/core";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
+import { loadAppSettings, updateAppSettings } from "./utils/appSettings";
 
 const router = useRouter();
 const route = useRoute();
@@ -13,14 +14,14 @@ const isCollapsed = ref(false); // 控制侧边栏收起状态
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value;
-  localStorage.setItem("sidebarCollapsed", isCollapsed.value ? "true" : "false");
+  // 使用新的设置管理器保存状态
+  updateAppSettings({ sidebarCollapsed: isCollapsed.value });
 };
 
 onMounted(() => {
-  const savedCollapsed = localStorage.getItem("sidebarCollapsed");
-  if (savedCollapsed) {
-    isCollapsed.value = savedCollapsed === "true";
-  }
+  // 使用新的设置管理器加载状态
+  const settings = loadAppSettings();
+  isCollapsed.value = settings.sidebarCollapsed;
 });
 
 

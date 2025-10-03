@@ -3,11 +3,8 @@
  * 负责自定义过滤规则的持久化存储
  */
 
-import { mkdir, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { createConfigManager, ConfigManager } from '../../utils/configManager';
 
-const MODULE_DIR = 'directory_tree';
-const CONFIG_FILE = 'config.json';
 const CONFIG_VERSION = '1.0.0';
 
 /**
@@ -32,27 +29,6 @@ export interface DirectoryTreeConfig {
 }
 
 /**
- * 获取配置文件的完整路径
- */
-async function getConfigPath(): Promise<string> {
-  const appDir = await appDataDir();
-  const moduleDir = await join(appDir, MODULE_DIR);
-  return join(moduleDir, CONFIG_FILE);
-}
-
-/**
- * 确保模块目录存在
- */
-async function ensureModuleDir(): Promise<void> {
-  const appDir = await appDataDir();
-  const moduleDir = await join(appDir, MODULE_DIR);
-  
-  if (!await exists(moduleDir)) {
-    await mkdir(moduleDir, { recursive: true });
-  }
-}
-
-/**
  * 创建默认配置
  */
 function createDefaultConfig(): DirectoryTreeConfig {
@@ -69,55 +45,33 @@ function createDefaultConfig(): DirectoryTreeConfig {
 }
 
 /**
+ * 创建配置管理器实例
+ */
+const configManager: ConfigManager<DirectoryTreeConfig> = createConfigManager({
+  moduleName: 'directory_tree',
+  fileName: 'config.json',
+  version: CONFIG_VERSION,
+  createDefault: createDefaultConfig
+  // 使用默认的合并逻辑即可，因为这个配置没有嵌套对象
+});
+
+/**
  * 加载配置
  */
 export async function loadConfig(): Promise<DirectoryTreeConfig> {
-  try {
-    await ensureModuleDir();
-    const configPath = await getConfigPath();
-    
-    if (!await exists(configPath)) {
-      // 配置文件不存在，创建默认配置
-      const defaultConfig = createDefaultConfig();
-      await saveConfig(defaultConfig);
-      return defaultConfig;
-    }
-    
-    const content = await readTextFile(configPath);
-    const config: DirectoryTreeConfig = JSON.parse(content);
-    
-    // 确保配置结构完整，填充缺失的字段
-    const defaultConfig = createDefaultConfig();
-    return {
-      ...defaultConfig,
-      ...config
-    };
-  } catch (error: any) {
-    console.error('加载配置失败:', error);
-    // 加载失败时返回默认配置
-    return createDefaultConfig();
-  }
+  return configManager.load();
 }
 
 /**
  * 保存配置
  */
 export async function saveConfig(config: DirectoryTreeConfig): Promise<void> {
-  try {
-    await ensureModuleDir();
-    const configPath = await getConfigPath();
-    await writeTextFile(configPath, JSON.stringify(config, null, 2));
-  } catch (error: any) {
-    console.error('保存配置失败:', error);
-    throw new Error(`保存配置失败: ${error.message}`);
-  }
+  return configManager.save(config);
 }
 
 /**
  * 更新配置的部分字段
  */
 export async function updateConfig(updates: Partial<DirectoryTreeConfig>): Promise<void> {
-  const config = await loadConfig();
-  const newConfig = { ...config, ...updates };
-  await saveConfig(newConfig);
+  await configManager.update(updates);
 }

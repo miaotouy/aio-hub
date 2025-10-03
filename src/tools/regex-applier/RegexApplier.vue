@@ -48,7 +48,12 @@
           v-else
           v-model="selectedPresets"
           item-key="id"
+          @start="onDragStart"
+          @end="onDragEnd"
           class="preset-tags"
+          ghost-class="ghost"
+          drag-class="drag"
+          :force-fallback="true"
         >
           <el-tag
             v-for="preset in selectedPresets"
@@ -60,7 +65,7 @@
           >
             <span class="preset-tag-content">
               {{ preset.name }}
-              <el-badge :value="preset.rules.filter(r => r.enabled).length" class="rules-badge" />
+              <el-badge :value="preset.rules.filter((r: any) => r.enabled).length" class="rules-badge" />
             </span>
           </el-tag>
         </VueDraggableNext>
@@ -274,14 +279,28 @@ const outputDropArea = ref<HTMLElement | null>(null);
 // ===== 计算属性 =====
 const availablePresets = computed(() => store.presets);
 
-const selectedPresets = computed({
-  get: () => selectedPresetIds.value
+// 使用 ref 而不是 computed 来避免响应性问题
+const selectedPresets = ref<RegexPreset[]>([]);
+
+// 监听 selectedPresetIds 变化，更新 selectedPresets
+watch(selectedPresetIds, (ids) => {
+  selectedPresets.value = ids
     .map(id => store.presets.find(p => p.id === id))
-    .filter((p): p is RegexPreset => !!p),
-  set: (presets) => {
-    selectedPresetIds.value = presets.map(p => p.id);
-  }
-});
+    .filter((p): p is RegexPreset => !!p);
+}, { immediate: true, deep: true });
+
+// 拖拽事件处理
+const onDragStart = () => {
+  console.log('开始拖拽预设');
+  addLog('开始调整预设顺序', 'info');
+};
+
+const onDragEnd = () => {
+  console.log('拖拽结束，新顺序:', selectedPresets.value);
+  // 更新 selectedPresetIds 以保持同步
+  selectedPresetIds.value = selectedPresets.value.map(p => p.id);
+  addLog('预设顺序已更新', 'info');
+};
 
 // ===== 初始化 =====
 onMounted(async () => {
@@ -711,12 +730,29 @@ const processFiles = async () => {
   cursor: move;
   font-size: 14px;
   padding: 8px 12px;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.preset-tag.ghost {
+  opacity: 0.5;
+  background: var(--primary-color-light);
+}
+
+.preset-tag.drag {
+  opacity: 0.8;
+  transform: rotate(5deg);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  transition: none !important;
 }
 
 .preset-tag-content {
   display: flex;
   align-items: center;
   gap: 8px;
+  pointer-events: none;
 }
 
 .rules-badge {

@@ -62,8 +62,12 @@
               v-model="localRules"
               item-key="id"
               handle=".rule-drag-handle"
+              @start="onDragStart"
               @end="onRulesReordered"
               class="rules-list"
+              ghost-class="ghost-rule"
+              drag-class="drag-rule"
+              :force-fallback="true"
             >
               <div
                 v-for="(rule, index) in localRules"
@@ -463,7 +467,13 @@ const onRuleEnabledChange = (ruleId: string) => {
   store.toggleRuleEnabled(store.activePresetId, ruleId);
 };
 
+// 拖拽事件处理
+const onDragStart = () => {
+  console.log('开始拖拽规则');
+};
+
 const onRulesReordered = () => {
+  console.log('拖拽结束，新顺序:', localRules.value);
   if (!store.activePresetId) return;
   // 将本地排序后的结果同步回 store
   store.reorderRules(store.activePresetId, localRules.value);
@@ -613,12 +623,28 @@ function escapeRegex(str: string): string {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.rule-item.ghost-rule {
+  opacity: 0.5;
+  background: var(--primary-color-light);
+}
+
+.rule-item.drag-rule {
+  opacity: 0.8;
+  transform: rotate(2deg);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  transition: none !important;
 }
 
 .rule-item:hover {
   background-color: var(--container-bg);
   border-color: var(--primary-color-light);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .rule-item.active {
@@ -634,6 +660,7 @@ function escapeRegex(str: string): string {
   cursor: grab;
   color: var(--text-color-light);
   font-size: 16px;
+  user-select: none;
 }
 
 .rule-drag-handle:active {

@@ -6,8 +6,8 @@ import {
   Brush,
   Setting,
   Rank,
-  FolderOpened,
 } from '@element-plus/icons-vue';
+import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 
 export interface ToolConfig {
   name: string;
@@ -56,7 +56,7 @@ export const toolsConfig: ToolConfig[] = [
   {
     name: '目录结构浏览器',
     path: '/directory-tree',
-    icon: markRaw(FolderOpened),
+    icon: markRaw(DirectoryTreeIcon),
     description: '生成目录树结构，支持过滤规则和深度限制'
   }
 ];

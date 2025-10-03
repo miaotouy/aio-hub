@@ -335,12 +335,14 @@ fn glob_to_regex(pattern: &str) -> Option<Regex> {
     Regex::new(&regex_pattern).ok()
 }
 
-// 递归收集所有 .gitignore 文件的规则
-fn collect_gitignore_patterns(root: &Path) -> Vec<String> {
+// 收集指定目录及其所有父目录（直到根目录）的 .gitignore 规则
+fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
     let mut patterns = Vec::new();
+    let mut current = dir;
     
-    fn collect_recursive(dir: &Path, patterns: &mut Vec<String>) {
-        let gitignore_path = dir.join(".gitignore");
+    // 从当前目录向上遍历到根目录
+    loop {
+        let gitignore_path = current.join(".gitignore");
         if gitignore_path.exists() {
             if let Ok(content) = fs::read_to_string(&gitignore_path) {
                 for line in content.lines() {
@@ -357,22 +359,18 @@ fn collect_gitignore_patterns(root: &Path) -> Vec<String> {
             }
         }
         
-        // 递归处理子目录
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let path = entry.path();
-                if path.is_dir() {
-                    let file_name = entry.file_name().to_string_lossy().to_string();
-                    // 跳过常见的不需要扫描的目录
-                    if !file_name.starts_with('.') && file_name != "node_modules" && file_name != "target" {
-                        collect_recursive(&path, patterns);
-                    }
-                }
-            }
+        // 如果已经到达根目录，停止向上遍历
+        if current == root {
+            break;
+        }
+        
+        // 尝试获取父目录
+        match current.parent() {
+            Some(parent) if parent.starts_with(root) => current = parent,
+            _ => break,
         }
     }
     
-    collect_recursive(root, &mut patterns);
     patterns
 }
 
@@ -437,20 +435,15 @@ async fn generate_directory_tree(
     let use_gitignore = ignore_patterns.iter()
         .any(|p| p == "__USE_GITIGNORE__");
     
-    // 收集最终的过滤模式
-    let all_patterns = if use_gitignore {
-        // 使用 gitignore 模式：递归收集所有 .gitignore 文件的规则
-        collect_gitignore_patterns(&root_path)
+    // 准备自定义模式（如果使用）
+    let custom_patterns: Vec<Regex> = if !use_gitignore {
+        ignore_patterns.iter()
+            .filter(|pattern| !pattern.is_empty() && pattern != &"__USE_GITIGNORE__")
+            .filter_map(|pattern| glob_to_regex(pattern))
+            .collect()
     } else {
-        // 使用自定义模式：直接使用用户提供的模式
-        ignore_patterns.clone()
+        Vec::new()
     };
-    
-    // 编译所有忽略模式为正则表达式
-    let compiled_patterns: Vec<Regex> = all_patterns.iter()
-        .filter(|pattern| !pattern.is_empty() && pattern != &"__USE_GITIGNORE__")
-        .filter_map(|pattern| glob_to_regex(pattern))
-        .collect();
     
     // 输出调试信息
     println!("=== 目录树生成配置 ===");
@@ -458,14 +451,8 @@ async fn generate_directory_tree(
     println!("显示文件: {}", show_files);
     println!("显示隐藏: {}", show_hidden);
     println!("最大深度: {}", if max_depth == 0 { "无限制".to_string() } else { max_depth.to_string() });
-    println!("过滤模式: {}", if use_gitignore { "gitignore" } else if all_patterns.is_empty() { "无" } else { "自定义" });
-    println!("过滤规则数量: {}", compiled_patterns.len());
-    if !all_patterns.is_empty() && all_patterns.len() <= 10 {
-        println!("过滤规则:");
-        for pattern in &all_patterns {
-            println!("  - {}", pattern);
-        }
-    }
+    println!("过滤模式: {}", if use_gitignore { "gitignore" } else if custom_patterns.is_empty() { "无" } else { "自定义" });
+    println!("过滤规则数量: {}", if use_gitignore { "动态收集".to_string() } else { custom_patterns.len().to_string() });
     println!("======================");
     
     let mut result = String::new();
@@ -482,7 +469,8 @@ async fn generate_directory_tree(
         show_hidden,
         max_depth,
         0,
-        &compiled_patterns,
+        use_gitignore,
+        &custom_patterns,
         &mut stats
     )?;
     
@@ -496,7 +484,7 @@ async fn generate_directory_tree(
             show_files,
             show_hidden,
             max_depth: if max_depth == 0 { "无限制".to_string() } else { max_depth.to_string() },
-            filter_count: compiled_patterns.len(),
+            filter_count: if use_gitignore { 0 } else { custom_patterns.len() },
         },
     })
 }
@@ -511,13 +499,24 @@ fn generate_tree_recursive(
     show_hidden: bool,
     max_depth: usize,
     current_depth: usize,
-    ignore_patterns: &[Regex],
+    use_gitignore: bool,
+    custom_patterns: &[Regex],
     stats: &mut TreeStats
 ) -> Result<(), String> {
     // 检查深度限制（0 表示无限制）
     if max_depth > 0 && current_depth >= max_depth {
         return Ok(());
     }
+    
+    // 如果使用 gitignore 模式，动态收集当前目录及其父目录的规则
+    let ignore_patterns: Vec<Regex> = if use_gitignore {
+        collect_gitignore_patterns(dir, root)
+            .iter()
+            .filter_map(|pattern| glob_to_regex(pattern))
+            .collect()
+    } else {
+        custom_patterns.to_vec()
+    };
     
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;
@@ -613,7 +612,8 @@ fn generate_tree_recursive(
                 show_hidden,
                 max_depth,
                 current_depth + 1,
-                ignore_patterns,
+                use_gitignore,
+                custom_patterns,
                 stats
             )?;
         } else {

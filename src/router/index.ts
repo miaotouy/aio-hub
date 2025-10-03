@@ -44,7 +44,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/directory-tree",
     name: "DirectoryTree",
-    component: () => import("../tools/DirectoryTree.vue"),
+    component: () => import("../tools/directory-tree/DirectoryTree.vue"),
   },
 ];
 

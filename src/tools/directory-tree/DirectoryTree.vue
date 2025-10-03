@@ -138,8 +138,8 @@ import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { debounce } from 'lodash';
-import InfoCard from '../components/common/InfoCard.vue';
-import { loadConfig, saveConfig, type DirectoryTreeConfig } from './directory-tree/config';
+import InfoCard from '../../components/common/InfoCard.vue';
+import { loadConfig, saveConfig, type DirectoryTreeConfig } from './config';
 
 // 配置状态
 const targetPath = ref('');

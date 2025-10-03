@@ -41,6 +41,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "SymlinkMover",
     component: () => import("../tools/SymlinkMover.vue"),
   },
+  {
+    path: "/directory-tree",
+    name: "DirectoryTree",
+    component: () => import("../tools/DirectoryTree.vue"),
+  },
 ];
 
 const router = createRouter({

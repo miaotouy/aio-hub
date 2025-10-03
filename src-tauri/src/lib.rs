@@ -284,6 +284,220 @@ async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_type:
     Ok(message)
 }
 
+// 将 glob 模式转换为正则表达式
+fn glob_to_regex(pattern: &str) -> Option<Regex> {
+    let mut regex_pattern = String::new();
+    regex_pattern.push('^');
+    
+    for ch in pattern.chars() {
+        match ch {
+            '*' => regex_pattern.push_str(".*"),
+            '?' => regex_pattern.push('.'),
+            '.' => regex_pattern.push_str(r"\."),
+            '+' => regex_pattern.push_str(r"\+"),
+            '(' => regex_pattern.push_str(r"\("),
+            ')' => regex_pattern.push_str(r"\)"),
+            '[' => regex_pattern.push_str(r"\["),
+            ']' => regex_pattern.push_str(r"\]"),
+            '{' => regex_pattern.push_str(r"\{"),
+            '}' => regex_pattern.push_str(r"\}"),
+            '|' => regex_pattern.push_str(r"\|"),
+            '^' => regex_pattern.push_str(r"\^"),
+            '$' => regex_pattern.push_str(r"\$"),
+            '\\' => regex_pattern.push_str(r"\\"),
+            _ => regex_pattern.push(ch),
+        }
+    }
+    
+    regex_pattern.push('$');
+    Regex::new(&regex_pattern).ok()
+}
+
+// 递归收集所有 .gitignore 文件的规则
+fn collect_gitignore_patterns(root: &Path) -> Vec<String> {
+    let mut patterns = Vec::new();
+    
+    fn collect_recursive(dir: &Path, patterns: &mut Vec<String>) {
+        let gitignore_path = dir.join(".gitignore");
+        if gitignore_path.exists() {
+            if let Ok(content) = fs::read_to_string(&gitignore_path) {
+                for line in content.lines() {
+                    let line = line.trim();
+                    // 跳过空行和注释
+                    if !line.is_empty() && !line.starts_with('#') {
+                        // 移除行尾的空格和斜杠
+                        let pattern = line.trim_end_matches('/').to_string();
+                        if !patterns.contains(&pattern) {
+                            patterns.push(pattern);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 递归处理子目录
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if path.is_dir() {
+                    let file_name = entry.file_name().to_string_lossy().to_string();
+                    // 跳过常见的不需要扫描的目录
+                    if !file_name.starts_with('.') && file_name != "node_modules" && file_name != "target" {
+                        collect_recursive(&path, patterns);
+                    }
+                }
+            }
+        }
+    }
+    
+    collect_recursive(root, &mut patterns);
+    patterns
+}
+
+// Tauri 命令：生成目录树
+#[tauri::command]
+async fn generate_directory_tree(
+    path: String,
+    show_files: bool,
+    show_hidden: bool,
+    max_depth: usize,
+    ignore_patterns: Vec<String>
+) -> Result<String, String> {
+    let root_path = PathBuf::from(&path);
+    
+    if !root_path.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    
+    if !root_path.is_dir() {
+        return Err(format!("路径不是目录: {}", path));
+    }
+    
+    // 合并用户提供的模式和从 .gitignore 收集的模式
+    let mut all_patterns = ignore_patterns.clone();
+    
+    // 如果用户选择了 gitignore 模式，收集所有 .gitignore 文件的规则
+    if !ignore_patterns.is_empty() {
+        let gitignore_patterns = collect_gitignore_patterns(&root_path);
+        all_patterns.extend(gitignore_patterns);
+    }
+    
+    // 编译所有忽略模式
+    let compiled_patterns: Vec<Regex> = all_patterns.iter()
+        .filter_map(|pattern| glob_to_regex(pattern))
+        .collect();
+    
+    let mut result = String::new();
+    result.push_str(&format!("{}/\n", root_path.file_name().unwrap_or_default().to_string_lossy()));
+    
+    generate_tree_recursive(
+        &root_path,
+        &mut result,
+        "",
+        show_files,
+        show_hidden,
+        max_depth,
+        0,
+        &compiled_patterns
+    )?;
+    
+    Ok(result)
+}
+
+// 递归生成目录树
+fn generate_tree_recursive(
+    dir: &Path,
+    output: &mut String,
+    prefix: &str,
+    show_files: bool,
+    show_hidden: bool,
+    max_depth: usize,
+    current_depth: usize,
+    ignore_patterns: &[Regex]
+) -> Result<(), String> {
+    // 检查深度限制（0 表示无限制）
+    if max_depth > 0 && current_depth >= max_depth {
+        return Ok(());
+    }
+    
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;
+    
+    let mut items: Vec<_> = entries
+        .filter_map(|e| e.ok())
+        .collect();
+    
+    // 排序：目录在前，然后按名称排序
+    items.sort_by(|a, b| {
+        let a_is_dir = a.path().is_dir();
+        let b_is_dir = b.path().is_dir();
+        
+        match (a_is_dir, b_is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.file_name().cmp(&b.file_name())
+        }
+    });
+    
+    let total_items = items.len();
+    let mut visible_index = 0;
+    let mut visible_items = Vec::new();
+    
+    // 第一遍：过滤掉需要忽略的项目
+    for entry in items.iter() {
+        let path = entry.path();
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        
+        // 检查是否为隐藏文件
+        if !show_hidden && file_name.starts_with('.') {
+            continue;
+        }
+        
+        // 检查是否匹配忽略模式
+        if ignore_patterns.iter().any(|pattern| pattern.is_match(&file_name)) {
+            continue;
+        }
+        
+        // 如果不显示文件且当前是文件，跳过
+        if !show_files && path.is_file() {
+            continue;
+        }
+        
+        visible_items.push((entry, file_name));
+    }
+    
+    let visible_count = visible_items.len();
+    
+    // 第二遍：渲染可见项目
+    for (index, (entry, file_name)) in visible_items.iter().enumerate() {
+        let path = entry.path();
+        let is_last = index == visible_count - 1;
+        let connector = if is_last { "└── " } else { "├── " };
+        let extension = if is_last { "    " } else { "│   " };
+        
+        if path.is_dir() {
+            output.push_str(&format!("{}{}{}/\n", prefix, connector, file_name));
+            
+            // 递归处理子目录
+            let new_prefix = format!("{}{}", prefix, extension);
+            generate_tree_recursive(
+                &path,
+                output,
+                &new_prefix,
+                show_files,
+                show_hidden,
+                max_depth,
+                current_depth + 1,
+                ignore_patterns
+            )?;
+        } else {
+            output.push_str(&format!("{}{}{}\n", prefix, connector, file_name));
+        }
+    }
+    
+    Ok(())
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -304,7 +518,8 @@ pub fn run() {
             stop_clipboard_monitor,
             get_clipboard_content_type,
             move_and_link,
-            process_files_with_regex
+            process_files_with_regex,
+            generate_directory_tree
         ])
         // Remove file drop event handling for now as it's causing issues
         .setup(|app| {

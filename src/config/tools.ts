@@ -6,6 +6,7 @@ import {
   Brush,
   Setting,
   Rank,
+  FolderOpened,
 } from '@element-plus/icons-vue';
 
 export interface ToolConfig {
@@ -51,5 +52,11 @@ export const toolsConfig: ToolConfig[] = [
     path: '/symlink-mover',
     icon: markRaw(Rank),
     description: '支持拖拽的文件批量移动和符号链接创建工具'
+  },
+  {
+    name: '目录结构浏览器',
+    path: '/directory-tree',
+    icon: markRaw(FolderOpened),
+    description: '生成目录树结构，支持过滤规则和深度限制'
   }
 ];

@@ -19,20 +19,13 @@
                   <el-option label="JSON" value="json"></el-option>
                   <el-option label="HTML" value="html"></el-option>
                   <el-option label="CSS" value="css"></el-option>
-                  <el-option label="Svelte" value="svelte"></el-option>
                 </el-option-group>
                 <el-option-group label="后端语言">
                   <el-option label="PHP" value="php"></el-option>
-                  <el-option label="Java" value="java"></el-option>
                 </el-option-group>
                 <el-option-group label="配置/数据">
                   <el-option label="XML" value="xml"></el-option>
                   <el-option label="YAML" value="yaml"></el-option>
-                  <el-option label="TOML" value="toml"></el-option>
-                  <el-option label="Properties" value="properties"></el-option>
-                </el-option-group>
-                <el-option-group label="查询语言">
-                  <el-option label="SQL" value="sql"></el-option>
                 </el-option-group>
                 <el-option-group label="标记语言">
                   <el-option label="Markdown" value="markdown"></el-option>
@@ -85,22 +78,19 @@ import { WarningFilled } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import debounce from "lodash/debounce";
 
-// prettier core and built-in plugins
-import prettier from "prettier";
-import parserBabel from "prettier/parser-babel";
-import parserHtml from "prettier/parser-html";
-import parserCss from "prettier/parser-postcss";
-import parserMarkdown from "prettier/parser-markdown";
-import parserTypeScript from "prettier/parser-typescript";
+// prettier standalone 版本（浏览器兼容）
+import * as prettier from "prettier/standalone";
+import * as parserBabel from "prettier/plugins/babel";
+import * as parserHtml from "prettier/plugins/html";
+import * as parserCss from "prettier/plugins/postcss";
+import * as parserMarkdown from "prettier/plugins/markdown";
+import * as parserTypeScript from "prettier/plugins/typescript";
+import * as parserEstree from "prettier/plugins/estree";
 
-// prettier community plugins (浏览器兼容)
-import * as prettierPluginPhp from "@prettier/plugin-php";
+// prettier community plugins
+// 注意：部分插件可能不支持浏览器环境，需要动态导入或使用替代方案
+import * as prettierPluginPhp from "@prettier/plugin-php/standalone";
 import * as prettierPluginXml from "@prettier/plugin-xml";
-import * as prettierPluginJava from "prettier-plugin-java";
-import * as prettierPluginSql from "prettier-plugin-sql";
-import * as prettierPluginToml from "prettier-plugin-toml";
-import * as prettierPluginSvelte from "prettier-plugin-svelte";
-import * as prettierPluginProperties from "prettier-plugin-properties";
 
 const rawCodeInput = ref("");
 const formattedCodeOutput = ref("");
@@ -123,9 +113,12 @@ const formatCode = debounce(async () => {
       // 前端语言
       case "javascript":
       case "typescript":
+        plugins.push(parserBabel, parserEstree, parserTypeScript);
+        parser = language.value === "typescript" ? "typescript" : "babel";
+        break;
       case "json":
-        plugins.push(parserBabel, parserTypeScript);
-        parser = language.value === "json" ? "json" : "babel";
+        plugins.push(parserBabel, parserEstree);
+        parser = "json";
         break;
       case "html":
         plugins.push(parserHtml);
@@ -140,9 +133,10 @@ const formatCode = debounce(async () => {
         parser = "markdown";
         break;
       case "svelte":
-        plugins.push(prettierPluginSvelte, parserTypeScript, parserHtml, parserCss);
-        parser = "svelte";
-        break;
+        // Svelte 插件可能不支持浏览器环境
+        formatError.value = "Svelte 格式化暂不支持（插件不兼容浏览器环境）";
+        formattedCodeOutput.value = rawCodeInput.value;
+        return;
 
       // 后端语言
       case "php":
@@ -150,9 +144,10 @@ const formatCode = debounce(async () => {
         parser = "php";
         break;
       case "java":
-        plugins.push(prettierPluginJava);
-        parser = "java";
-        break;
+        // Java 插件暂不支持浏览器环境
+        formatError.value = "Java 格式化暂不支持（插件不兼容浏览器环境）";
+        formattedCodeOutput.value = rawCodeInput.value;
+        return;
 
       // 配置/数据语言
       case "xml":
@@ -161,24 +156,16 @@ const formatCode = debounce(async () => {
         additionalOptions.xmlWhitespaceSensitivity = "ignore";
         break;
       case "yaml":
-        plugins.push(parserBabel); // YAML 使用 babel parser
+        plugins.push(parserBabel, parserEstree);
         parser = "yaml";
         break;
       case "toml":
-        plugins.push(prettierPluginToml);
-        parser = "toml";
-        break;
       case "properties":
-        plugins.push(prettierPluginProperties);
-        parser = "properties";
-        break;
-
-      // 查询语言
       case "sql":
-        plugins.push(prettierPluginSql);
-        parser = "sql";
-        additionalOptions.language = "sql";
-        break;
+        // 这些插件可能不支持浏览器环境
+        formatError.value = `${language.value.toUpperCase()} 格式化暂不支持（插件不兼容浏览器环境）`;
+        formattedCodeOutput.value = rawCodeInput.value;
+        return;
 
       default:
         formatError.value = `不支持的语言: ${language.value}`;

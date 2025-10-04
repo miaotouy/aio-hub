@@ -28,6 +28,23 @@ export default defineConfig(async () => ({
     }),
   ],
 
+  // 优化依赖配置
+  optimizeDeps: {
+    exclude: [
+      "prettier",
+      "@prettier/plugin-php",
+      "@prettier/plugin-xml",
+    ],
+  },
+
+  // 构建配置
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

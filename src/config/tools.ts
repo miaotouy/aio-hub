@@ -6,6 +6,7 @@ import {
   Brush,
   Setting,
   Rank,
+  Connection,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 
@@ -58,5 +59,11 @@ export const toolsConfig: ToolConfig[] = [
     path: '/directory-tree',
     icon: markRaw(DirectoryTreeIcon),
     description: '生成目录树结构，支持过滤规则和深度限制'
+  },
+  {
+    name: 'API 测试工具',
+    path: '/api-tester',
+    icon: markRaw(Connection),
+    description: '测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设'
   }
 ];

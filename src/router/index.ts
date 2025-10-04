@@ -46,6 +46,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "DirectoryTree",
     component: () => import("../tools/directory-tree/DirectoryTree.vue"),
   },
+  {
+    path: "/api-tester",
+    name: "ApiTester",
+    component: () => import("../tools/api-tester/ApiTester.vue"),
+  },
 ];
 
 const router = createRouter({

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "all-in-one-tools",
+  "productName": "aiotools",
   "version": "0.1.1",
-  "identifier": "com.mzk.all-in-one-tools",
+  "identifier": "com.mty.aiotools",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "all-in-one-tools",
+        "title": "aiotools",
         "width": 1280,
         "height": 768,
         "dragDropEnabled": true,

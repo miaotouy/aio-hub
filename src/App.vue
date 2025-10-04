@@ -41,7 +41,7 @@ const handleSelect = (key: string) => {
         <!-- 侧边栏头部：根据isCollapsed显示不同内容 -->
         <div v-if="!isCollapsed" class="sidebar-header" @click="toggleDark()">
           <div class="header-text-wrapper">
-            <h2 class="sidebar-title">咕咕工具箱</h2>
+            <h2 class="sidebar-title">AIO工具箱</h2>
           </div>
           <el-icon class="theme-icon">
             <component :is="isDark ? Sunny : Moon" />

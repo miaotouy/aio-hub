@@ -1,6 +1,6 @@
 <template>
   <div class="home-page">
-    <span class="title">工具箱</span>
+    <span class="title">All In One 工具箱</span>
     <div class="tool-grid">
       <router-link v-for="tool in toolsConfig" :key="tool.path" :to="tool.path" class="tool-card">
         <el-icon :size="48">

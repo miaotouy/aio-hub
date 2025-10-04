@@ -64,7 +64,7 @@ npm run tauri build
 ## 📁 项目结构
 
 ```
-all-in-one-tools/
+aiotools/
 ├── src/                      # 前端源代码
 │   ├── components/           # 公共组件
 │   │   ├── common/          # 通用组件

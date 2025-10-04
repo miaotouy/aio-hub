@@ -6,9 +6,9 @@ import {
   Brush,
   Setting,
   Rank,
-  Connection,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
+import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
 
 export interface ToolConfig {
   name: string;
@@ -63,7 +63,7 @@ export const toolsConfig: ToolConfig[] = [
   {
     name: 'API 测试工具',
     path: '/api-tester',
-    icon: markRaw(Connection),
+    icon: markRaw(ConnectorIcon),
     description: '测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设'
   }
 ];

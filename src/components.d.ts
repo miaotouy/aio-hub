@@ -8,11 +8,13 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ConnectorIcon: typeof import('./components/icons/ConnectorIcon.vue')['default']
     DirectoryTreeIcon: typeof import('./components/icons/DirectoryTreeIcon.vue')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    WrenchIcon: typeof import('./components/icons/WrenchIcon.vue')['default']
   }
 }

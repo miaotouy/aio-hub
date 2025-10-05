@@ -1,14 +1,17 @@
 html.dark {
   /* Element Plus Official Dark Variables */
-  --el-bg-color: #0a0a0a;
+  --el-bg-color: #141414;  /* 从纯黑调整为深灰黑，更柔和 */
+  --el-bg-color-page: #1a1a1a;  /* 页面背景色，比主背景稍亮 */
   --el-bg-color-overlay: #1d1e1f;
   --el-text-color-primary: #e5e5e5;
   --el-text-color-regular: #d4d4d4;
+  --el-text-color-secondary: #a8a8a8;  /* 添加次要文本色 */
   --el-border-color: #2f2f2f;
   --el-border-color-light: #2a2a2a;
   --el-border-color-lighter: #252525;
+  --el-fill-color: #262626;  /* 添加标准填充色 */
   --el-fill-color-light: #2a2a2a;
-  --el-fill-color-lighter: #252525;
+  --el-fill-color-lighter: #1f1f1f;  /* 调整为更深的颜色，避免与背景对比过大 */
   --el-fill-color-blank: transparent;
 
   /* Custom Variables for Dark Mode */

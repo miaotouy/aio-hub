@@ -56,6 +56,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "LlmProxy",
     component: () => import("../tools/llm-proxy/LlmProxy.vue"),
   },
+  {
+    path: "/git-analyzer",
+    name: "GitAnalyzer",
+    component: () => import("../tools/git-analyzer/GitAnalyzer.vue"),
+  },
 ];
 
 const router = createRouter({

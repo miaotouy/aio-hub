@@ -22,6 +22,14 @@ use commands::{
     stop_llm_proxy,
     get_proxy_status,
     update_proxy_target,
+    // Git分析器相关
+    git_load_repository,
+    git_get_branch_commits,
+    git_get_commit_detail,
+    git_cherry_pick,
+    git_revert,
+    git_export_commits,
+    git_format_log,
 };
 
 // 导入事件处理
@@ -61,7 +69,15 @@ pub fn run() {
             start_llm_proxy,
             stop_llm_proxy,
             get_proxy_status,
-            update_proxy_target
+            update_proxy_target,
+            // Git分析器命令
+            git_load_repository,
+            git_get_branch_commits,
+            git_get_commit_detail,
+            git_cherry_pick,
+            git_revert,
+            git_export_commits,
+            git_format_log
         ])
         
         // 设置应用

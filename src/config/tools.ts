@@ -10,6 +10,7 @@ import {
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
+import GitBranchIcon from '../components/icons/GitBranchIcon.vue';
 
 export interface ToolConfig {
   name: string;
@@ -72,5 +73,11 @@ export const toolsConfig: ToolConfig[] = [
     path: '/llm-proxy',
     icon: markRaw(Monitor),
     description: '监听和分析 LLM API 请求，捕获客户端与服务器之间的通信'
+  },
+  {
+    name: 'Git 分析器',
+    path: '/git-analyzer',
+    icon: markRaw(GitBranchIcon),
+    description: 'Git提交记录分析和可视化处理工具'
   }
 ];

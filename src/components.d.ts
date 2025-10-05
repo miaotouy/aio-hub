@@ -10,6 +10,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     ConnectorIcon: typeof import('./components/icons/ConnectorIcon.vue')['default']
     DirectoryTreeIcon: typeof import('./components/icons/DirectoryTreeIcon.vue')['default']
+    GitBranchIcon: typeof import('./components/icons/GitBranchIcon.vue')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']

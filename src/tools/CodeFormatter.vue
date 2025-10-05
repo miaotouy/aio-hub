@@ -6,13 +6,7 @@
           <template #header>
             <div class="card-header">
               <span>输入代码</span>
-              <el-select
-                v-model="language"
-                placeholder="选择语言"
-                size="small"
-                style="width: 160px"
-                filterable
-              >
+              <el-select v-model="language" placeholder="选择语言" size="small" style="width: 160px" filterable>
                 <el-option-group label="前端语言">
                   <el-option label="JavaScript" value="javascript"></el-option>
                   <el-option label="TypeScript" value="typescript"></el-option>
@@ -34,13 +28,8 @@
             </div>
           </template>
           <div class="textarea-wrapper">
-            <el-input
-              v-model="rawCodeInput"
-              type="textarea"
-              class="full-height-textarea"
-              placeholder="请输入代码..."
-              @input="formatCode"
-            />
+            <el-input v-model="rawCodeInput" type="textarea" class="full-height-textarea" placeholder="请输入代码..."
+              @input="formatCode" />
           </div>
         </el-card>
       </el-col>
@@ -53,16 +42,13 @@
             </div>
           </template>
           <div class="textarea-wrapper">
-            <el-input
-              v-model="formattedCodeOutput"
-              type="textarea"
-              class="full-height-textarea"
-              readonly
-              placeholder="格式化后的代码将显示在这里..."
-            />
+            <el-input v-model="formattedCodeOutput" type="textarea" class="full-height-textarea" readonly
+              placeholder="格式化后的代码将显示在这里..." />
           </div>
           <div v-if="formatError" class="error-message">
-            <el-icon><WarningFilled /></el-icon>
+            <el-icon>
+              <WarningFilled />
+            </el-icon>
             {{ formatError }}
           </div>
         </el-card>
@@ -89,8 +75,9 @@ import * as parserEstree from "prettier/plugins/estree";
 
 // prettier community plugins
 // 注意：部分插件可能不支持浏览器环境，需要动态导入或使用替代方案
-import * as prettierPluginPhp from "@prettier/plugin-php/standalone";
-import * as prettierPluginXml from "@prettier/plugin-xml";
+// PHP 和 XML 插件改为动态导入，避免模块格式冲突
+let prettierPluginPhp: any = null;
+let prettierPluginXml: any = null;
 
 const rawCodeInput = ref("");
 const formattedCodeOutput = ref("");
@@ -140,6 +127,16 @@ const formatCode = debounce(async () => {
 
       // 后端语言
       case "php":
+        // 动态导入 PHP 插件
+        if (!prettierPluginPhp) {
+          try {
+            prettierPluginPhp = await import("@prettier/plugin-php/standalone");
+          } catch (e) {
+            formatError.value = "PHP 格式化插件加载失败";
+            formattedCodeOutput.value = rawCodeInput.value;
+            return;
+          }
+        }
         plugins.push(prettierPluginPhp);
         parser = "php";
         break;
@@ -151,6 +148,16 @@ const formatCode = debounce(async () => {
 
       // 配置/数据语言
       case "xml":
+        // 动态导入 XML 插件，避免模块格式冲突
+        if (!prettierPluginXml) {
+          try {
+            prettierPluginXml = await import("@prettier/plugin-xml");
+          } catch (e) {
+            formatError.value = "XML 格式化插件加载失败（模块格式不兼容）";
+            formattedCodeOutput.value = rawCodeInput.value;
+            return;
+          }
+        }
         plugins.push(prettierPluginXml);
         parser = "xml";
         additionalOptions.xmlWhitespaceSensitivity = "ignore";
@@ -273,7 +280,8 @@ watch(rawCodeInput, formatCode);
 }
 
 /* 覆盖 ElInput 和 ElTextarea 的样式 */
-.el-input, .el-textarea {
+.el-input,
+.el-textarea {
   --el-input-bg-color: var(--input-bg);
   --el-input-text-color: var(--text-color);
   --el-input-border-color: var(--border-color);

@@ -42,4 +42,59 @@ html.dark {
   --el-color-success: #67c23a;
   --el-color-warning: #e6a23c;
   --el-color-info: #909399;
+
+  /* 按钮相关变量 - 修复悬停时文字颜色问题 */
+  --el-button-text-color: var(--text-color);
+  --el-button-hover-text-color: #ffffff;  /* 悬停时文字为白色 */
+  --el-button-hover-bg-color: var(--primary-hover-color);
+  --el-button-hover-border-color: var(--primary-hover-color);
+}
+
+/* 强制覆盖 el-button 的悬停样式 */
+html.dark .el-button:hover {
+  color: #ffffff !important;
+}
+
+html.dark .el-button:focus {
+  color: #ffffff !important;
+}
+
+/* 强制覆盖 el-tag 的样式 - 确保文字在有色背景上清晰可见 */
+html.dark .el-tag {
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+html.dark .el-tag.el-tag--primary {
+  background-color: var(--primary-color) !important;
+  color: #ffffff !important;
+}
+
+html.dark .el-tag.el-tag--success {
+  background-color: var(--el-color-success) !important;
+  color: #ffffff !important;
+}
+
+html.dark .el-tag.el-tag--warning {
+  background-color: var(--el-color-warning) !important;
+  color: #ffffff !important;
+}
+
+html.dark .el-tag.el-tag--danger {
+  background-color: var(--el-color-danger) !important;
+  color: #ffffff !important;
+}
+
+html.dark .el-tag.el-tag--info {
+  background-color: var(--el-color-info) !important;
+  color: #ffffff !important;
+}
+
+/* el-tag 关闭按钮样式 */
+html.dark .el-tag .el-tag__close {
+  color: #ffffff !important;
+}
+
+html.dark .el-tag .el-tag__close:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
 }

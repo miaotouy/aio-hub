@@ -5,6 +5,7 @@ import { useDark, useToggle } from "@vueuse/core";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
 import { loadAppSettings, updateAppSettings } from "./utils/appSettings";
+import TitleBar from "./components/TitleBar.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -31,6 +32,10 @@ const handleSelect = (key: string) => {
 </script>
 
 <template>
+  <!-- 自定义标题栏 -->
+  <TitleBar />
+  
+  <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
   <el-container class="common-layout">
     <el-aside
       :width="isCollapsed ? '64px' : '220px'"
@@ -108,9 +113,10 @@ const handleSelect = (key: string) => {
 
 <style>
 .common-layout {
-  height: 100vh;
+  height: calc(100vh - 32px); /* 减去标题栏高度 */
   width: 100vw;
   overflow: hidden; /* 隐藏整个布局的滚动条 */
+  margin-top: 32px; /* 为标题栏留出空间 */
 }
 
 .main-sidebar {
@@ -290,5 +296,18 @@ const handleSelect = (key: string) => {
 .el-menu-item.is-active {
   background-color: var(--primary-color) !important;
   color: white !important;
+}
+
+/* 确保整个应用没有默认边距 */
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 为透明窗口添加背景 */
+#app {
+  background: var(--bg-color);
+  min-height: 100vh;
 }
 </style>

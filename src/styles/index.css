@@ -9,6 +9,7 @@
   --error-color: #f56c6c;
   --input-bg: #fff;
   --sidebar-bg: #f0f2f5;
+  --sidebar-bg-rgb: 240, 242, 245; /* RGB值用于透明度 */
   --sidebar-text: #303133;
   --header-bg: #ffffff;
   --card-bg: #ffffff; /* 新增卡片背景色 */

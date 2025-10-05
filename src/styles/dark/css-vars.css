@@ -11,6 +11,7 @@ html.dark {
   --error-color: #ff6b6b;  /* 错误色 */
   --input-bg: #1f1f1f;  /* 输入框背景色 */
   --sidebar-bg: #242424;  /* 侧边栏背景色 */
+  --sidebar-bg-rgb: 36, 36, 36;  /* 侧边栏背景RGB值用于透明度 */
   --sidebar-text: #e5e5e5;  /* 侧边栏文字色 */
   --header-bg: #2a2a2a;  /* 头部背景色 */
   --card-bg: #2a2a2a;  /* 卡片背景色 */

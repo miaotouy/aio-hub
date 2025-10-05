@@ -18,7 +18,10 @@
         "minWidth": 360,
         "minHeight": 112,
         "dragDropEnabled": true,
-        "devtools": true
+        "devtools": true,
+        "decorations": false,
+        "transparent": true,
+        "center": true
       }
     ],
     "security": {

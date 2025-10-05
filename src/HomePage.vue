@@ -54,6 +54,8 @@ import { ElIcon } from "element-plus"; // 确保正确导入 ElIcon 组件，虽
   max-width: 1200px;
   /* 控制最大宽度 */
   width: 100%;
+  box-sizing: border-box;
+  /* 确保 padding 包含在 width 内 */
 }
 
 .tool-card {

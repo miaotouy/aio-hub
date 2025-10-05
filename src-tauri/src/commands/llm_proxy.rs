@@ -8,8 +8,6 @@ use axum::{
     Router,
 };
 use http_body_util::BodyExt;
-use hyper_util::client::legacy::Client;
-use hyper_util::rt::TokioExecutor;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -209,7 +207,6 @@ async fn proxy_handler(
     let method = req.method().clone();
     let uri = req.uri().clone();
     let headers = req.headers().clone();
-    let version = req.version();
     
     // 从全局状态获取目标URL
     let target_base_url = TARGET_URL.lock().await.clone();
@@ -250,30 +247,56 @@ async fn proxy_handler(
     // 发送请求事件到前端
     let _ = window.emit("proxy-request", &request_record);
 
-    // 构建转发请求
-    let client = Client::builder(TokioExecutor::new())
-        .build_http::<Body>();
+    // 使用 reqwest 客户端来支持 HTTPS - 更简单可靠
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .danger_accept_invalid_certs(true) // 临时接受无效证书以进行测试
+        .gzip(true) // 启用自动gzip解压
+        .brotli(true) // 启用自动brotli解压
+        .deflate(true) // 启用自动deflate解压
+        .build()
+        .map_err(|e| {
+            eprintln!("创建HTTP客户端失败: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-    let mut forward_request = hyper::Request::builder()
-        .method(method)
-        .uri(&target_url)
-        .version(version);
+    // 构建 reqwest 请求
+    let mut req_builder = match method.as_str() {
+        "GET" => client.get(&target_url),
+        "POST" => client.post(&target_url),
+        "PUT" => client.put(&target_url),
+        "DELETE" => client.delete(&target_url),
+        "PATCH" => client.patch(&target_url),
+        "HEAD" => client.head(&target_url),
+        _ => {
+            eprintln!("不支持的HTTP方法: {}", method);
+            return Err(StatusCode::METHOD_NOT_ALLOWED);
+        }
+    };
 
-    // 复制请求头（跳过Host头）
+    // 复制请求头
     for (name, value) in headers.iter() {
-        if name.as_str().to_lowercase() != "host" {
-            forward_request = forward_request.header(name, value);
+        let name_str = name.as_str().to_lowercase();
+        // 跳过可能导致问题的头，但保留accept-encoding以告诉服务器我们支持压缩
+        if name_str != "host" &&
+           name_str != "content-length" &&
+           name_str != "connection" {
+            if let Ok(v) = value.to_str() {
+                // 不要传递accept-encoding，让reqwest自己处理
+                if name_str != "accept-encoding" {
+                    req_builder = req_builder.header(name.as_str(), v);
+                }
+            }
         }
     }
 
     // 设置请求体
-    let forward_body = Body::from(body_bytes.clone());
-    let forward_request = forward_request
-        .body(forward_body)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    if !body_bytes.is_empty() {
+        req_builder = req_builder.body(body_bytes.to_vec());
+    }
 
     // 发送请求
-    let response = match client.request(forward_request).await {
+    let response = match req_builder.send().await {
         Ok(res) => res,
         Err(e) => {
             eprintln!("代理请求失败: {}", e);
@@ -307,15 +330,68 @@ async fn proxy_handler(
         }
     }
 
-    // 读取响应体
+    // 读取响应体 - reqwest应该自动处理解压
     let response_body_bytes = response
-        .into_body()
-        .collect()
+        .bytes()
         .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?
-        .to_bytes();
+        .map_err(|e| {
+            eprintln!("读取响应体失败: {}", e);
+            StatusCode::BAD_GATEWAY
+        })?;
     
-    let response_body = String::from_utf8_lossy(&response_body_bytes).to_string();
+    // 打印响应体的前几个字节用于调试
+    if response_body_bytes.len() > 0 {
+        let preview = &response_body_bytes[..std::cmp::min(20, response_body_bytes.len())];
+        eprintln!("响应体前20字节: {:?}", preview);
+    }
+    
+    // 尝试将响应体转换为字符串
+    let response_body = match String::from_utf8(response_body_bytes.to_vec()) {
+        Ok(text) => {
+            eprintln!("成功将响应体转换为UTF-8字符串, 长度: {}", text.len());
+            text
+        },
+        Err(e) => {
+            eprintln!("无法将响应体转换为UTF-8: {}", e);
+            // 检查是否是gzip压缩的数据（以1f 8b开头）
+            if response_body_bytes.len() >= 2 && response_body_bytes[0] == 0x1f && response_body_bytes[1] == 0x8b {
+                eprintln!("检测到gzip压缩数据，尝试手动解压");
+                // 手动解压gzip
+                use flate2::read::GzDecoder;
+                use std::io::Read;
+                
+                let mut decoder = GzDecoder::new(&response_body_bytes[..]);
+                let mut decompressed = Vec::new();
+                match decoder.read_to_end(&mut decompressed) {
+                    Ok(_) => {
+                        match String::from_utf8(decompressed) {
+                            Ok(text) => {
+                                eprintln!("手动解压成功，得到UTF-8字符串");
+                                text
+                            },
+                            Err(_) => {
+                                eprintln!("解压后仍不是有效的UTF-8");
+                                use base64::Engine;
+                                format!("[Binary data - base64 encoded]: {}",
+                                    base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("手动解压失败: {}", e);
+                        use base64::Engine;
+                        format!("[Binary data - base64 encoded]: {}",
+                            base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
+                    }
+                }
+            } else {
+                // 不是gzip数据，使用base64编码
+                use base64::Engine;
+                format!("[Binary data - base64 encoded]: {}",
+                    base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
+            }
+        }
+    };
     let response_size = response_body_bytes.len();
 
     // 创建响应记录
@@ -334,14 +410,18 @@ async fn proxy_handler(
 
     // 构建返回给客户端的响应
     let mut final_response = Response::builder()
-        .status(status);
+        .status(status.as_u16());
 
-    // 复制响应头
+    // 复制响应头（但不包括content-encoding，因为我们已经解压了）
     for (name, value) in response_headers.iter() {
-        final_response = final_response.header(name, value);
+        let name_str = name.as_str().to_lowercase();
+        if name_str != "content-encoding" && name_str != "transfer-encoding" {
+            final_response = final_response.header(name.as_str(), value.as_bytes());
+        }
     }
 
+    // 返回解压后的响应体
     final_response
-        .body(Body::from(response_body_bytes))
+        .body(Body::from(response_body_bytes.to_vec()))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }

@@ -1,11 +1,25 @@
 <template>
-  <div v-if="record" class="detail-panel">
-    <div class="detail-header">
-      <h3>请求详情</h3>
-      <button @click="$emit('close')" class="btn-close">×</button>
+  <div class="detail-panel">
+    <!-- 无记录时的空状态 -->
+    <div v-if="!record" class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-text">选择一条记录查看详情</div>
+      <div class="empty-hint">点击左侧列表中的任意请求记录</div>
     </div>
     
-    <div class="detail-content">
+    <!-- 有记录时显示详情 -->
+    <template v-else>
+      <div class="detail-header">
+        <h3>请求详情</h3>
+        <div class="header-actions">
+          <button @click="copyAll" class="btn-copy" title="复制全部">
+            📋 复制全部
+          </button>
+          <button @click="$emit('close')" class="btn-close">×</button>
+        </div>
+      </div>
+      
+      <div class="detail-content">
       <!-- 请求信息 -->
       <div class="section">
         <h4>请求信息</h4>
@@ -25,7 +39,12 @@
         </div>
         
         <div class="subsection">
-          <h5>请求头</h5>
+          <div class="subsection-header">
+            <h5>请求头</h5>
+            <button @click="copyRequestHeaders" class="btn-copy-small" title="复制请求头">
+              📋
+            </button>
+          </div>
           <div class="headers-list">
             <div v-for="(value, key) in record.request.headers" :key="key" class="header-item">
               <span class="header-key">{{ key }}:</span>
@@ -35,7 +54,12 @@
         </div>
         
         <div v-if="record.request.body" class="subsection">
-          <h5>请求体</h5>
+          <div class="subsection-header">
+            <h5>请求体</h5>
+            <button @click="copyRequestBody" class="btn-copy-small" title="复制请求体">
+              📋
+            </button>
+          </div>
           <div class="body-content">
             <pre v-if="isJson(record.request.body)">{{ formatJson(record.request.body) }}</pre>
             <pre v-else>{{ record.request.body }}</pre>
@@ -64,7 +88,12 @@
         </div>
         
         <div class="subsection">
-          <h5>响应头</h5>
+          <div class="subsection-header">
+            <h5>响应头</h5>
+            <button @click="copyResponseHeaders" class="btn-copy-small" title="复制响应头">
+              📋
+            </button>
+          </div>
           <div class="headers-list">
             <div v-for="(value, key) in record.response.headers" :key="key" class="header-item">
               <span class="header-key">{{ key }}:</span>
@@ -74,7 +103,12 @@
         </div>
         
         <div v-if="record.response.body" class="subsection">
-          <h5>响应体</h5>
+          <div class="subsection-header">
+            <h5>响应体</h5>
+            <button @click="copyResponseBody" class="btn-copy-small" title="复制响应体">
+              📋
+            </button>
+          </div>
           <div class="body-content">
             <pre v-if="isJson(record.response.body)">{{ formatJson(record.response.body) }}</pre>
             <pre v-else>{{ record.response.body }}</pre>
@@ -82,6 +116,7 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -114,7 +149,7 @@ interface CombinedRecord {
 }
 
 // Props
-defineProps<{
+const props = defineProps<{
   record: CombinedRecord | null;
 }>();
 
@@ -156,6 +191,94 @@ function formatJson(str: string): string {
     return str;
   }
 }
+
+// 复制功能
+async function copyToClipboard(text: string, message: string = '已复制到剪贴板') {
+  try {
+    await navigator.clipboard.writeText(text);
+    // 简单的提示，可以后续改为更优雅的 toast
+    console.log(message);
+  } catch (err) {
+    console.error('复制失败:', err);
+  }
+}
+
+function copyRequestHeaders() {
+  if (!props.record) return;
+  const headers = Object.entries(props.record.request.headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+  copyToClipboard(headers, '请求头已复制');
+}
+
+function copyRequestBody() {
+  if (!props.record?.request.body) return;
+  const body = isJson(props.record.request.body)
+    ? formatJson(props.record.request.body)
+    : props.record.request.body;
+  copyToClipboard(body, '请求体已复制');
+}
+
+function copyResponseHeaders() {
+  if (!props.record?.response) return;
+  const headers = Object.entries(props.record.response.headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+  copyToClipboard(headers, '响应头已复制');
+}
+
+function copyResponseBody() {
+  if (!props.record?.response?.body) return;
+  const body = isJson(props.record.response.body)
+    ? formatJson(props.record.response.body)
+    : props.record.response.body;
+  copyToClipboard(body, '响应体已复制');
+}
+
+function copyAll() {
+  if (!props.record) return;
+  
+  let fullText = '=== 请求信息 ===\n';
+  fullText += `方法: ${props.record.request.method}\n`;
+  fullText += `URL: ${props.record.request.url}\n`;
+  fullText += `时间: ${new Date(props.record.request.timestamp).toLocaleString()}\n\n`;
+  
+  fullText += '--- 请求头 ---\n';
+  fullText += Object.entries(props.record.request.headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+  fullText += '\n\n';
+  
+  if (props.record.request.body) {
+    fullText += '--- 请求体 ---\n';
+    fullText += isJson(props.record.request.body)
+      ? formatJson(props.record.request.body)
+      : props.record.request.body;
+    fullText += '\n\n';
+  }
+  
+  if (props.record.response) {
+    fullText += '=== 响应信息 ===\n';
+    fullText += `状态码: ${props.record.response.status}\n`;
+    fullText += `耗时: ${props.record.response.duration_ms}ms\n`;
+    fullText += `大小: ${formatSize(props.record.response.response_size)}\n\n`;
+    
+    fullText += '--- 响应头 ---\n';
+    fullText += Object.entries(props.record.response.headers)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n');
+    fullText += '\n\n';
+    
+    if (props.record.response.body) {
+      fullText += '--- 响应体 ---\n';
+      fullText += isJson(props.record.response.body)
+        ? formatJson(props.record.response.body)
+        : props.record.response.body;
+    }
+  }
+  
+  copyToClipboard(fullText, '完整信息已复制');
+}
 </script>
 
 <style scoped>
@@ -179,6 +302,30 @@ function formatJson(str: string): string {
 .detail-header h3 {
   margin: 0;
   color: var(--vscode-foreground, #cccccc);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-copy {
+  padding: 6px 12px;
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.2s;
+}
+
+.btn-copy:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
 .btn-close {
@@ -268,10 +415,34 @@ function formatJson(str: string): string {
   margin-top: 20px;
 }
 
+.subsection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .subsection h5 {
-  margin: 0 0 10px 0;
+  margin: 0;
   color: var(--vscode-foreground, #cccccc);
   font-size: 14px;
+}
+
+.btn-copy-small {
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--vscode-foreground, #cccccc);
+  border: 1px solid var(--vscode-panel-border, #2b2b2b);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.7;
+  transition: all 0.2s;
+}
+
+.btn-copy-small:hover {
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  opacity: 1;
 }
 
 .headers-list {
@@ -317,5 +488,34 @@ function formatJson(str: string): string {
   font-size: 12px;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* 空状态样式 */
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 16px;
+  color: var(--vscode-foreground, #cccccc);
+  margin-bottom: 8px;
+}
+
+.empty-hint {
+  font-size: 14px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
 }
 </style>

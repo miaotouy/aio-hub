@@ -249,13 +249,13 @@ async fn proxy_handler(
     // 发送请求事件到前端
     let _ = window.emit("proxy-request", &request_record);
 
-    // 使用 reqwest 客户端来支持 HTTPS - 更简单可靠
+    // 使用 reqwest 客户端来支持 HTTPS
+    // 对于SSE流，我们需要禁用超时和自动解压
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
         .danger_accept_invalid_certs(true) // 临时接受无效证书以进行测试
-        .gzip(true) // 启用自动gzip解压
-        .brotli(true) // 启用自动brotli解压
-        .deflate(true) // 启用自动deflate解压
+        .no_gzip() // 对于流式响应，禁用自动gzip解压
+        .no_brotli() // 禁用自动brotli解压
+        .no_deflate() // 禁用自动deflate解压
         .build()
         .map_err(|e| {
             eprintln!("创建HTTP客户端失败: {}", e);
@@ -347,7 +347,16 @@ async fn proxy_handler(
         eprintln!("开始处理流式响应...");
         
         // 为流式响应创建一个流
+        eprintln!("响应状态: {}, Content-Length: {:?}, Transfer-Encoding: {:?}",
+            status,
+            response_headers.get("content-length"),
+            response_headers.get("transfer-encoding")
+        );
+        
+        // 尝试使用不同的流处理方式
+        // 对于 SSE，我们需要更直接的流处理
         let stream = response.bytes_stream();
+        eprintln!("[代理] 成功创建字节流");
         
         // 创建两个独立的任务：一个用于代理转发，一个用于数据收集和分析
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
@@ -465,9 +474,22 @@ async fn proxy_handler(
                     }
                     Err(e) => {
                         consecutive_errors += 1;
-                        eprintln!("[代理] 读取源流错误 #{}: {}", consecutive_errors, e);
+                        // 更详细的错误信息
+                        eprintln!("[代理] 读取源流错误 #{} (块 #{} 后): {:?}",
+                            consecutive_errors, chunk_count, e);
                         
-                        // 源流本身出错才停止（不是解析错误）
+                        // 检查错误类型
+                        let error_str = format!("{:?}", e);
+                        if error_str.contains("error decoding response body") {
+                            eprintln!("[代理] 解码错误可能是由于分块传输编码问题");
+                            // 对于解码错误，可能是流已经正常结束
+                            if chunk_count > 0 {
+                                eprintln!("[代理] 已接收 {} 个块，可能是流正常结束", chunk_count);
+                                break;
+                            }
+                        }
+                        
+                        // 源流本身出错才停止
                         if consecutive_errors >= 5 {
                             eprintln!("[代理] 源流连续错误过多，停止转发");
                             break;

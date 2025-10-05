@@ -12,8 +12,9 @@
       <div class="detail-header">
         <h3>请求详情</h3>
         <div class="header-actions">
-          <button @click="copyAll" class="btn-copy" title="复制全部">
+          <button @click="copyAll" class="btn-copy" :title="maskApiKeys ? '复制全部（API Key将被打码）' : '复制全部'">
             📋 复制全部
+            <span v-if="maskApiKeys" class="mask-indicator">🔒</span>
           </button>
           <button @click="$emit('close')" class="btn-close">×</button>
         </div>
@@ -151,6 +152,7 @@ interface CombinedRecord {
 // Props
 const props = defineProps<{
   record: CombinedRecord | null;
+  maskApiKeys?: boolean;
 }>();
 
 // Emits
@@ -192,10 +194,55 @@ function formatJson(str: string): string {
   }
 }
 
+// API Key 打码功能
+function maskSensitiveData(text: string): string {
+  if (!props.maskApiKeys) return text;
+  
+  // 常见的 API Key 模式
+  const patterns = [
+    // Authorization header: Bearer token, API Key, etc.
+    /(?<=Authorization:\s*)(Bearer\s+)?[\w-]{20,}/gi,
+    /(?<=X-API-Key:\s*)[\w-]{20,}/gi,
+    /(?<=API-Key:\s*)[\w-]{20,}/gi,
+    /(?<=x-api-key:\s*)[\w-]{20,}/gi,
+    
+    // OpenAI API Key
+    /(?<=api[_-]?key["']?\s*[:=]\s*["']?)sk-[\w-]{40,}/gi,
+    /\bsk-[\w-]{40,}\b/g,
+    
+    // Anthropic API Key
+    /(?<=x-api-key:\s*)sk-ant-[\w-]{40,}/gi,
+    /\bsk-ant-[\w-]{40,}\b/g,
+    
+    // Google/Gemini API Key
+    /(?<=key[\"']?\s*[:=]\s*[\"']?)AIza[\w-]{35}/gi,
+    /\bAIza[\w-]{35}\b/g,
+    
+    // Generic API keys in JSON
+    /(?<="api[_-]?key"\s*:\s*")[^"]{20,}(?=")/gi,
+    /(?<='api[_-]?key'\s*:\s*')[^']{20,}(?=')/gi,
+  ];
+  
+  let maskedText = text;
+  patterns.forEach(pattern => {
+    maskedText = maskedText.replace(pattern, (match) => {
+      // 保留前6个字符，其余用星号替换
+      if (match.length <= 10) return match;
+      const prefix = match.substring(0, 6);
+      const suffix = match.length > 15 ? match.substring(match.length - 4) : '';
+      const stars = '*'.repeat(Math.min(20, match.length - prefix.length - suffix.length));
+      return `${prefix}${stars}${suffix}`;
+    });
+  });
+  
+  return maskedText;
+}
+
 // 复制功能
 async function copyToClipboard(text: string, message: string = '已复制到剪贴板') {
   try {
-    await navigator.clipboard.writeText(text);
+    const textToCopy = maskSensitiveData(text);
+    await navigator.clipboard.writeText(textToCopy);
     // 简单的提示，可以后续改为更优雅的 toast
     console.log(message);
   } catch (err) {
@@ -208,7 +255,7 @@ function copyRequestHeaders() {
   const headers = Object.entries(props.record.request.headers)
     .map(([key, value]) => `${key}: ${value}`)
     .join('\n');
-  copyToClipboard(headers, '请求头已复制');
+  copyToClipboard(headers, props.maskApiKeys ? '请求头已复制（API Key已打码）' : '请求头已复制');
 }
 
 function copyRequestBody() {
@@ -216,7 +263,7 @@ function copyRequestBody() {
   const body = isJson(props.record.request.body)
     ? formatJson(props.record.request.body)
     : props.record.request.body;
-  copyToClipboard(body, '请求体已复制');
+  copyToClipboard(body, props.maskApiKeys ? '请求体已复制（API Key已打码）' : '请求体已复制');
 }
 
 function copyResponseHeaders() {
@@ -277,7 +324,7 @@ function copyAll() {
     }
   }
   
-  copyToClipboard(fullText, '完整信息已复制');
+  copyToClipboard(fullText, props.maskApiKeys ? '完整信息已复制（API Key已打码）' : '完整信息已复制');
 }
 </script>
 
@@ -326,6 +373,11 @@ function copyAll() {
 
 .btn-copy:hover {
   background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.mask-indicator {
+  font-size: 10px;
+  margin-left: 2px;
 }
 
 .btn-close {

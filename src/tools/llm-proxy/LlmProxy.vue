@@ -63,6 +63,19 @@
           <span class="status-indicator"></span>
           代理服务运行中：http://localhost:{{ config.port }}
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                v-model="maskApiKeys"
+                class="checkbox-input"
+              />
+              <span>复制时打码 API Key</span>
+            </label>
+            <span class="checkbox-hint">开启后复制请求信息时会自动隐藏敏感的 API Key</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -76,8 +89,9 @@
     />
 
     <!-- 详情面板组件 -->
-    <RecordDetail 
+    <RecordDetail
       :record="selectedRecord"
+      :maskApiKeys="maskApiKeys"
       @close="selectedRecord = null"
     />
   </div>
@@ -101,6 +115,7 @@ interface LlmProxySettings {
   config: ProxyConfig;
   searchQuery: string;
   filterStatus: string;
+  maskApiKeys?: boolean;  // API Key 打码开关
   version?: string;
 }
 
@@ -142,6 +157,7 @@ const configManager = createConfigManager<LlmProxySettings>({
     },
     searchQuery: '',
     filterStatus: '',
+    maskApiKeys: true,  // 默认开启打码
     version: '1.0.0'
   })
 });
@@ -161,6 +177,7 @@ const records = ref<CombinedRecord[]>([]);
 const selectedRecord = ref<CombinedRecord | null>(null);
 const searchQuery = ref('');
 const filterStatus = ref('');
+const maskApiKeys = ref(true);  // API Key 打码开关
 
 // 事件监听器
 let unlistenRequest: (() => void) | null = null;
@@ -281,6 +298,7 @@ async function loadSettings() {
     config.value = settings.config;
     searchQuery.value = settings.searchQuery;
     filterStatus.value = settings.filterStatus;
+    maskApiKeys.value = settings.maskApiKeys ?? true;  // 默认开启
   } catch (error) {
     console.error('加载配置失败:', error);
   }
@@ -291,13 +309,14 @@ async function saveSettings() {
   const settings: LlmProxySettings = {
     config: config.value,
     searchQuery: searchQuery.value,
-    filterStatus: filterStatus.value
+    filterStatus: filterStatus.value,
+    maskApiKeys: maskApiKeys.value
   };
   debouncedSave(settings);
 }
 
 // 监听配置变化并自动保存
-watch([config, searchQuery, filterStatus], () => {
+watch([config, searchQuery, filterStatus, maskApiKeys], () => {
   saveSettings();
 }, { deep: true });
 
@@ -474,5 +493,25 @@ button:disabled {
   100% {
     box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
   }
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.checkbox-input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.checkbox-hint {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
 }
 </style>

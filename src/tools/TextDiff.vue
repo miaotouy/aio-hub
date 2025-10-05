@@ -268,43 +268,4 @@ watch([textA, textB, outputFormat, diffMode], generateDiff, { immediate: true })
   border: 1px solid var(--border-color);
 }
 
-/* 调整 ElRadioGroup 和 ElRadioButton 的颜色 */
-.el-radio-group {
-  --el-radio-button-checked-bg-color: var(--primary-color);
-  --el-radio-button-checked-text-color: #fff;
-  --el-radio-button-checked-border-color: var(--primary-color);
-  --el-radio-button-disabled-fill: var(--border-color-light);
-  --el-radio-button-disabled-text-color: var(--text-color-light);
-  --el-radio-button-disabled-border-color: var(--border-color);
-}
-.el-radio-button {
-  background-color: var(--container-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-}
-.el-radio-button__inner {
-  background-color: var(--container-bg) !important;
-  color: var(--text-color) !important;
-  border-color: var(--border-color) !important;
-}
-.el-radio-button__orig-radio:checked + .el-radio-button__inner {
-  background-color: var(--primary-color) !important;
-  color: #fff !important;
-  border-color: var(--primary-color) !important;
-}
-.el-radio-button__orig-radio:disabled + .el-radio-button__inner {
-  background-color: var(--card-bg) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-color-light) !important;
-}
-
-/* 调整 ElButton 的颜色 */
-.el-button.el-button--primary {
-  --el-button-bg-color: var(--primary-color);
-  --el-button-hover-bg-color: var(--primary-hover-color);
-  --el-button-active-bg-color: var(--primary-color);
-  --el-button-text-color: #fff;
-  --el-button-hover-text-color: #fff;
-  --el-button-active-text-color: #fff;
-}
 </style>

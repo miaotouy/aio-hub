@@ -802,62 +802,7 @@ watch(activeTab, () => {
   height: 300px;
 }
 
-/* 优化暗色主题下的统计数字样式 */
-:deep(.el-statistic__number) {
-  color: var(--text-color);
-}
-
-:deep(.el-statistic__title) {
-  color: var(--text-color-light);
-}
-
-/* 优化时间轴样式 */
-:deep(.el-timeline-item__timestamp) {
-  color: var(--text-color-light);
-}
-
-/* 优化对话框样式 */
-:deep(.el-dialog) {
-  background: var(--container-bg);
-}
-
-:deep(.el-dialog__header) {
-  border-bottom: 1px solid var(--border-color-light);
-}
-
-:deep(.el-descriptions__label) {
-  background: var(--card-bg);
-  color: var(--text-color-light);
-}
-
-:deep(.el-descriptions__content) {
-  background: var(--container-bg);
-  color: var(--text-color);
-}
-
-/* 优化输入框和选择器样式 */
-:deep(.el-input__inner),
-:deep(.el-select .el-input__inner) {
-  background-color: var(--input-bg);
-  border-color: var(--border-color);
-  color: var(--text-color);
-}
-
-:deep(.el-input__inner:hover),
-:deep(.el-select .el-input__inner:hover) {
-  border-color: var(--border-color-light);
-}
-
-:deep(.el-input__inner:focus),
-:deep(.el-select .el-input__inner:focus) {
-  border-color: var(--primary-color);
-}
-
-/* 修复日期选择器宽度 */
-:deep(.el-date-editor) {
-  width: 100% !important;
-}
-
+/* 日期选择器的特殊样式 - 保留这些因为涉及布局调整 */
 :deep(.el-date-editor .el-range-separator) {
   padding: 0 4px;
   line-height: 32px;
@@ -867,142 +812,24 @@ watch(activeTab, () => {
   font-size: 13px;
 }
 
-/* 优化分页器样式 */
+/* 分页器样式 - 保留以确保正确布局 */
 :deep(.el-pagination) {
   display: flex;
 }
 
-:deep(.el-pager li) {
-  background: var(--card-bg);
-  color: var(--text-color-light);
-  border: 1px solid var(--border-color-light);
+/* 标签页背景透明 - 保留这个特定样式 */
+:deep(.el-tabs__nav-wrap) {
+  background: transparent;
 }
 
-:deep(.el-pager li:hover) {
-  color: var(--primary-color);
-}
-
-:deep(.el-pager li.active) {
-  background: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-}
-
-/* 优化标签样式 */
-:deep(.el-tag) {
-  background: var(--card-bg);
-  border-color: var(--border-color-light);
-  color: var(--text-color-light);
-}
-
+/* 警告标签的特殊样式 - 保留 */
 :deep(.el-tag--warning) {
   background: rgba(230, 162, 60, 0.1);
   border-color: rgba(230, 162, 60, 0.3);
   color: #e6a23c;
 }
 
-/* 优化按钮样式 */
-:deep(.el-button) {
-  background: var(--container-bg);
-  border-color: var(--border-color);
-  color: var(--text-color);
-}
-
-:deep(.el-button:hover) {
-  background: var(--card-bg);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-:deep(.el-button--primary) {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-}
-
-:deep(.el-button--primary:hover) {
-  background: var(--primary-hover-color);
-  border-color: var(--primary-hover-color);
-}
-
-/* 优化下拉选择器样式 */
-:deep(.el-select-dropdown) {
-  background: var(--container-bg);
-  border-color: var(--border-color);
-}
-
-:deep(.el-select-dropdown__item) {
-  color: var(--text-color);
-}
-
-:deep(.el-select-dropdown__item:hover) {
-  background: var(--card-bg);
-}
-
-:deep(.el-select-dropdown__item.selected) {
-  color: var(--primary-color);
-}
-
-/* 优化日期选择器样式 */
-:deep(.el-date-picker__header-label) {
-  color: var(--text-color);
-}
-
-:deep(.el-picker-panel) {
-  background: var(--container-bg);
-  border-color: var(--border-color);
-}
-
-:deep(.el-picker-panel__content) {
-  color: var(--text-color);
-}
-
-/* 优化标签页样式 */
-:deep(.el-tabs__nav-wrap) {
-  background: transparent;
-}
-
-:deep(.el-tabs__item) {
-  color: var(--text-color-light);
-}
-
-:deep(.el-tabs__item:hover) {
-  color: var(--primary-color);
-}
-
-:deep(.el-tabs__item.is-active) {
-  color: var(--primary-color);
-}
-
-:deep(.el-tabs__active-bar) {
-  background-color: var(--primary-color);
-}
-
-/* 优化表格样式 */
-:deep(.el-table) {
-  background: var(--container-bg);
-  color: var(--text-color);
-}
-
-:deep(.el-table th) {
-  background: var(--card-bg);
-  color: var(--text-color);
-}
-
-:deep(.el-table td) {
-  border-color: var(--border-color-light);
-}
-
-:deep(.el-table--striped .el-table__row--striped td) {
-  background: var(--card-bg);
-}
-
-/* 优化空状态样式 */
-:deep(.el-empty__description) {
-  color: var(--text-color-light);
-}
-
-/* 优化 loading 样式 */
+/* loading 遮罩样式 - 保留半透明效果 */
 :deep(.el-loading-mask) {
   background-color: rgba(0, 0, 0, 0.5);
 }

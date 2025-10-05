@@ -279,17 +279,6 @@ watch(rawCodeInput, formatCode);
   border-color: var(--border-color) !important;
 }
 
-/* 覆盖 ElInput 和 ElTextarea 的样式 */
-.el-input,
-.el-textarea {
-  --el-input-bg-color: var(--input-bg);
-  --el-input-text-color: var(--text-color);
-  --el-input-border-color: var(--border-color);
-  --el-input-hover-border-color: var(--primary-color);
-  --el-input-focus-border-color: var(--primary-color);
-  --el-input-placeholder-color: var(--text-color-light);
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;

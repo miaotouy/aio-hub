@@ -233,7 +233,7 @@
     <el-dialog
       v-model="showDetail"
       :title="`提交详情: ${selectedCommit?.hash?.substring(0, 7)}`"
-      width="700px"
+      width="800px"
     >
       <el-descriptions v-if="selectedCommit" :column="1" border>
         <el-descriptions-item label="哈希">
@@ -512,6 +512,7 @@ async function loadCommitDetail(hash: string) {
       path: repoPath.value || '.',
       hash
     })
+    console.log('Commit Detail from Backend:', detail) // 在这里添加日志
     selectedCommit.value = detail
   } catch (error) {
     ElMessage.error(`加载提交详情失败: ${error}`)

@@ -69,52 +69,78 @@ pub async fn git_get_branch_commits(
 #[tauri::command]
 pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitCommit, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
-    
-    // 获取提交详情
+
+    // 仅输出结构化字段，并使用 \x1e 将头部与完整消息分隔，避免换行干扰
+    // 头部字段: hash, author, email, date, subject, parents
     let output = Command::new("git")
         .arg("-C")
         .arg(repo_path)
         .arg("show")
-        .arg("--format=%H%n%an%n%ae%n%aI%n%s%n%b%n%P")
-        .arg("--stat")
+        .arg("-s") // 只显示提交信息，不包含 diff
+        .arg("--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%P%x1e%B")
         .arg(&hash)
         .output()
         .map_err(|e| format!("Failed to get commit detail: {}", e))?;
-    
+
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
-    
+
     let output_str = String::from_utf8_lossy(&output.stdout);
-    let lines: Vec<&str> = output_str.lines().collect();
-    
-    if lines.len() < 7 {
-        return Err("Invalid git output format".to_string());
+
+    // 分离头部与完整消息
+    let mut sections = output_str.splitn(2, '\x1e');
+    let header = sections.next().unwrap_or("");
+    let full_message_raw = sections.next().unwrap_or("").trim();
+
+    // 解析头部字段（不包含 body）
+    let header_parts: Vec<&str> = header.split('\x1f').collect();
+    if header_parts.len() < 5 {
+        return Err(format!(
+            "Invalid git output format (header fields): expected >=5 parts, got {}. Raw: {:?}",
+            header_parts.len(),
+            header
+        ));
     }
-    
-    // 解析基本信息
+
+    let hash_str = header_parts.get(0).unwrap_or(&"").to_string();
+    let author = header_parts.get(1).unwrap_or(&"").to_string();
+    let email = header_parts.get(2).unwrap_or(&"").to_string();
+    let date = header_parts.get(3).unwrap_or(&"").to_string();
+    let subject = header_parts.get(4).unwrap_or(&"").to_string();
+    let parents_str = header_parts.get(5).unwrap_or(&"").trim();
+
+    // 解析父提交
+    let parents: Vec<String> = if parents_str.is_empty() {
+        Vec::new()
+    } else {
+        parents_str.split_whitespace().map(|s| s.to_string()).collect()
+    };
+
     let mut commit = GitCommit {
-        hash: lines[0].to_string(),
-        author: lines[1].to_string(),
-        email: lines[2].to_string(),
-        date: lines[3].to_string(),
-        message: lines[4].to_string(),
-        full_message: format!("{}\n{}", lines[4], lines[5]),
-        parents: lines[6].split_whitespace().map(|s| s.to_string()).collect(),
+        hash: hash_str.clone(),
+        author,
+        email,
+        date,
+        message: subject.clone(),
+        full_message: if full_message_raw.is_empty() {
+            subject.clone()
+        } else {
+            full_message_raw.to_string()
+        },
+        parents,
         tags: get_commit_tags(repo_path, &hash)?,
         stats: None,
         files: None,
     };
-    
-    // 解析文件变更
+
+    // 独立获取文件与统计，避免与格式输出混淆
     let files = get_commit_files(repo_path, &hash)?;
     commit.files = Some(files);
-    
-    // 解析统计信息
-    if let Some(stats) = parse_commit_stats(&output_str) {
+    if let Ok(stats) = get_commit_stats(repo_path, &hash) {
         commit.stats = Some(stats);
     }
-    
+
     Ok(commit)
 }
 
@@ -311,7 +337,7 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize) -> Result<Ve
         cmd.arg(branch);
     }
 
-    cmd.arg("--pretty=format:%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1f%P")
+    cmd.arg("--pretty=format:%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1f%P%x1f")
         .arg("-z")
         .arg(format!("-n{}", limit));
 
@@ -331,21 +357,25 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize) -> Result<Ve
             continue;
         }
         let parts: Vec<&str> = commit_str.split('\x1f').collect();
-        if parts.len() < 7 {
+        // 7 fields + 1 empty string from trailing separator = 8 parts
+        if parts.len() < 8 {
             continue;
         }
 
         let hash = parts[0].to_string();
         let tags = get_commit_tags(repo_path, &hash).unwrap_or_default();
+        let subject = parts.get(4).unwrap_or(&"").to_string();
+        let body = parts.get(5).unwrap_or(&"").trim().to_string();
+        let parents_str = parts.get(6).unwrap_or(&"").trim();
 
         commits.push(GitCommit {
             hash: hash.clone(),
-            author: parts[1].to_string(),
-            email: parts[2].to_string(),
-            date: parts[3].to_string(),
-            message: parts[4].to_string(),
-            full_message: format!("{}\n{}", parts[4], parts[5]),
-            parents: parts[6].split_whitespace().map(|s| s.to_string()).collect(),
+            author: parts.get(1).unwrap_or(&"").to_string(),
+            email: parts.get(2).unwrap_or(&"").to_string(),
+            date: parts.get(3).unwrap_or(&"").to_string(),
+            message: subject.clone(),
+            full_message: if body.is_empty() { subject } else { format!("{}\n\n{}", subject, body) },
+            parents: parents_str.split_whitespace().map(|s| s.to_string()).collect(),
             tags,
             stats: get_commit_stats(repo_path, &hash).ok(),
             files: None,

@@ -17,6 +17,11 @@ use commands::{
     process_files_with_regex,
     generate_directory_tree,
     is_directory,
+    // LLM代理相关
+    start_llm_proxy,
+    stop_llm_proxy,
+    get_proxy_status,
+    update_proxy_target,
 };
 
 // 导入事件处理
@@ -51,7 +56,12 @@ pub fn run() {
             create_links_only,
             process_files_with_regex,
             generate_directory_tree,
-            is_directory
+            is_directory,
+            // LLM代理命令
+            start_llm_proxy,
+            stop_llm_proxy,
+            get_proxy_status,
+            update_proxy_target
         ])
         
         // 设置应用

@@ -2,8 +2,10 @@
 pub mod clipboard;
 pub mod file_operations;
 pub mod directory_tree;
+pub mod llm_proxy;
 
 // 重新导出所有命令
 pub use clipboard::*;
 pub use file_operations::*;
 pub use directory_tree::*;
+pub use llm_proxy::*;

@@ -51,6 +51,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "ApiTester",
     component: () => import("../tools/api-tester/ApiTester.vue"),
   },
+  {
+    path: "/llm-proxy",
+    name: "LlmProxy",
+    component: () => import("../tools/llm-proxy/LlmProxy.vue"),
+  },
 ];
 
 const router = createRouter({

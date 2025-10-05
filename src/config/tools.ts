@@ -6,6 +6,7 @@ import {
   Brush,
   Setting,
   Rank,
+  Monitor,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
@@ -65,5 +66,11 @@ export const toolsConfig: ToolConfig[] = [
     path: '/api-tester',
     icon: markRaw(ConnectorIcon),
     description: '测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设'
+  },
+  {
+    name: 'LLM 代理监听器',
+    path: '/llm-proxy',
+    icon: markRaw(Monitor),
+    description: '监听和分析 LLM API 请求，捕获客户端与服务器之间的通信'
   }
 ];

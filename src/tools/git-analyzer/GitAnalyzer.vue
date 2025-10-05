@@ -14,22 +14,25 @@
         <div class="toolbar">
           <el-row :gutter="12">
             <el-col :span="10">
-              <div
-                class="path-input-group drop-zone"
-                :class="{ 'dragover': isDraggingOver }"
-                @dragenter="handleDragEnter"
-                @dragover="handleDragOver"
-                @dragleave="handleDragLeave"
-                @drop="handleDrop"
+              <DropZone
+                drop-id="git-analyzer-path"
+                variant="input"
+                :directory-only="true"
+                :multiple="false"
+                :auto-execute="true"
+                hide-content
+                @drop="handlePathDrop"
               >
-                <el-input
-                  v-model="repoPath"
-                  placeholder="仓库路径（支持拖拽，留空使用当前目录）"
-                  clearable
-                  @keyup.enter="loadRepository"
-                />
-                <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
-              </div>
+                <div class="path-input-group">
+                  <el-input
+                    v-model="repoPath"
+                    placeholder="仓库路径（支持拖拽，留空使用当前目录）"
+                    clearable
+                    @keyup.enter="loadRepository"
+                  />
+                  <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
+                </div>
+              </DropZone>
             </el-col>
             <el-col :span="6">
               <el-select
@@ -273,14 +276,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { listen } from '@tauri-apps/api/event'
 import * as echarts from 'echarts'
 import { Refresh, Search, FolderOpened, PriceTag } from '@element-plus/icons-vue'
 import InfoCard from '../../components/common/InfoCard.vue'
+import DropZone from '../../components/common/DropZone.vue'
 
 interface GitCommit {
   hash: string
@@ -322,8 +325,6 @@ const showDetail = ref(false)
 const activeTab = ref('list')
 const limitCount = ref(100)
 
-// 拖拽状态
-const isDraggingOver = ref(false)
 
 // 筛选
 const searchQuery = ref('')
@@ -657,136 +658,17 @@ function formatFullDate(date: string): string {
   return new Date(date).toLocaleString('zh-CN')
 }
 
-// 拖放监听器
-let unlistenDrop: (() => void) | null = null
-let unlistenDragEnter: (() => void) | null = null
-let unlistenDragOver: (() => void) | null = null
-let unlistenDragLeave: (() => void) | null = null
-
-// 判断位置是否在元素内
-const isPositionInRect = (position: { x: number, y: number }, rect: DOMRect) => {
-  const ratio = window.devicePixelRatio || 1
-  return (
-    position.x >= rect.left * ratio &&
-    position.x <= rect.right * ratio &&
-    position.y >= rect.top * ratio &&
-    position.y <= rect.bottom * ratio
-  )
-}
-
-// 设置 Tauri 后端的文件拖放监听器
-const setupFileDropListener = async () => {
-  // 监听拖动进入事件
-  unlistenDragEnter = await listen('custom-drag-enter', (event: any) => {
-    const { position } = event.payload
-    const dropZone = document.querySelector('.git-analyzer .path-input-group') as HTMLElement
-    if (dropZone) {
-      const rect = dropZone.getBoundingClientRect()
-      if (isPositionInRect(position, rect)) {
-        isDraggingOver.value = true
-      }
-    }
-  })
-
-  // 监听拖动移动事件
-  unlistenDragOver = await listen('custom-drag-over', (event: any) => {
-    const { position } = event.payload
-    const dropZone = document.querySelector('.git-analyzer .path-input-group') as HTMLElement
-    if (dropZone) {
-      const rect = dropZone.getBoundingClientRect()
-      const isInside = isPositionInRect(position, rect)
-      if (isInside !== isDraggingOver.value) {
-        isDraggingOver.value = isInside
-      }
-    }
-  })
-
-  // 监听拖动离开事件
-  unlistenDragLeave = await listen('custom-drag-leave', () => {
-    isDraggingOver.value = false
-  })
-
-  // 监听文件放下事件
-  unlistenDrop = await listen('custom-file-drop', async (event: any) => {
-    const { paths, position } = event.payload
+// 处理路径拖放
+const handlePathDrop = (paths: string[]) => {
+  if (paths.length > 0) {
+    repoPath.value = paths[0]
+    ElMessage.success(`已设置 Git 仓库路径: ${paths[0]}`)
     
-    // 清除高亮状态
-    isDraggingOver.value = false
-    
-    if (!paths || paths.length === 0) {
-      return
-    }
-    
-    const dropZone = document.querySelector('.git-analyzer .path-input-group') as HTMLElement
-    if (dropZone) {
-      const rect = dropZone.getBoundingClientRect()
-      if (isPositionInRect(position, rect)) {
-        // 获取第一个路径
-        const droppedPath = paths[0]
-        
-        // 检查是否为目录
-        try {
-          const isDir = await invoke<boolean>('is_directory', { path: droppedPath })
-          if (isDir) {
-            repoPath.value = droppedPath
-            ElMessage.success(`已设置 Git 仓库路径: ${droppedPath}`)
-            
-            // 自动加载仓库
-            setTimeout(() => {
-              loadRepository()
-            }, 500)
-          } else {
-            ElMessage.warning('请拖入 Git 仓库目录而非文件')
-          }
-        } catch (error) {
-          console.error('检查路径类型失败:', error)
-          // 如果检查失败，仍然尝试设置路径
-          repoPath.value = droppedPath
-          ElMessage.info(`已设置路径: ${droppedPath}`)
-        }
-      }
-    }
-  })
-}
-
-// 前端拖放事件处理 - 用于视觉反馈
-const handleDragEnter = (e: DragEvent) => {
-  e.preventDefault()
-  e.stopPropagation()
-  isDraggingOver.value = true
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy'
+    // 自动加载仓库
+    setTimeout(() => {
+      loadRepository()
+    }, 500)
   }
-}
-
-const handleDragOver = (e: DragEvent) => {
-  e.preventDefault()
-  e.stopPropagation()
-  if (!isDraggingOver.value) {
-    isDraggingOver.value = true
-  }
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy'
-  }
-}
-
-const handleDragLeave = (e: DragEvent) => {
-  e.preventDefault()
-  e.stopPropagation()
-  
-  const related = e.relatedTarget as HTMLElement
-  const currentTarget = e.currentTarget as HTMLElement
-  
-  if (!currentTarget.contains(related)) {
-    isDraggingOver.value = false
-  }
-}
-
-const handleDrop = (e: DragEvent) => {
-  e.preventDefault()
-  e.stopPropagation()
-  isDraggingOver.value = false
-  // 实际的文件处理由 Tauri 后端的 custom-file-drop 事件处理
 }
 
 // 监听标签页切换
@@ -794,19 +676,6 @@ watch(activeTab, () => {
   updateCharts()
 })
 
-// 初始化
-onMounted(async () => {
-  // 设置拖放监听器
-  await setupFileDropListener()
-})
-
-// 清理监听器
-onUnmounted(() => {
-  unlistenDrop?.()
-  unlistenDragEnter?.()
-  unlistenDragOver?.()
-  unlistenDragLeave?.()
-})
 </script>
 
 <style scoped>
@@ -837,40 +706,6 @@ onUnmounted(() => {
 .path-input-group {
   display: flex;
   gap: 10px;
-  position: relative;
-  transition: all 0.3s ease;
-  border: 2px dashed transparent;
-  border-radius: 8px;
-  padding: 8px;
-  margin: -8px;
-}
-
-/* 拖拽悬停效果 */
-.path-input-group.drop-zone.dragover {
-  border-color: var(--primary-color);
-  background-color: rgba(64, 158, 255, 0.05);
-  box-shadow: 0 0 15px rgba(64, 158, 255, 0.3);
-  transform: scale(1.02);
-}
-
-.path-input-group.drop-zone.dragover::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 8px;
-  background: linear-gradient(45deg, transparent, rgba(64, 158, 255, 0.2), transparent);
-  animation: shimmer 2s infinite;
-  pointer-events: none;
-}
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-.path-input-group.drop-zone.dragover :deep(.el-input__wrapper) {
-  background-color: rgba(64, 158, 255, 0.08);
-  border-color: var(--primary-color);
 }
 
 .filters {

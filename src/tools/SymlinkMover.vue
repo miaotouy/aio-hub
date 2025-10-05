@@ -1,22 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { FolderOpened, Document, Delete, FolderAdd, Rank, InfoFilled } from "@element-plus/icons-vue";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import InfoCard from '../components/common/InfoCard.vue';
+import DropZone from '../components/common/DropZone.vue';
 
 // --- 类型定义 ---
 interface FileItem {
   path: string;
   name: string;
-  // isDirectory: boolean; // 暂时移除，后端处理
   status: 'pending' | 'processing' | 'success' | 'error';
   error?: string;
 }
-
-type DropTarget = 'source' | 'target';
 
 // --- 响应式状态 ---
 const sourcePathInput = ref(""); // 用于手动输入源文件路径
@@ -25,133 +22,18 @@ const targetDirectory = ref("");
 const linkType = ref<'symlink' | 'link'>('symlink');
 const operationMode = ref<'move' | 'link-only'>('move'); // 新增：操作模式
 const isProcessing = ref(false);
-const hoveredTarget = ref<DropTarget | null>(null);
 
-// --- 模板引用 ---
-const sourceDropArea = ref<HTMLElement | null>(null);
-const targetDropArea = ref<HTMLElement | null>(null);
+// --- 拖放处理 ---
+const handleSourceDrop = (paths: string[]) => {
+  addSourceFiles(paths);
+};
 
-// --- Tauri 事件监听器 ---
-let unlistenDrop: (() => void) | null = null;
-// let unlistenCancel: (() => void) | null = null; // No longer needed
-
-// HTML5 拖放事件处理
-const handleDragOver = (e: DragEvent, target: DropTarget) => {
-  e.preventDefault();
-  e.stopPropagation();
-  
-  // 调试：打印拖放事件信息
-  console.log(`📍 DragOver on ${target}`, {
-    dataTransfer: e.dataTransfer,
-    types: e.dataTransfer?.types,
-    effectAllowed: e.dataTransfer?.effectAllowed,
-    dropEffect: e.dataTransfer?.dropEffect
-  });
-  
-  hoveredTarget.value = target;
-  
-  // 设置拖放效果
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy';
+const handleTargetDrop = (paths: string[]) => {
+  if (paths.length > 0) {
+    targetDirectory.value = paths[0];
+    ElMessage.success(`已设置目标目录: ${paths[0]}`);
   }
 };
-
-const handleDragLeave = (e: DragEvent) => {
-  e.preventDefault();
-  e.stopPropagation();
-  // 检查是否真的离开了目标区域
-  const related = e.relatedTarget as HTMLElement;
-  const currentTarget = e.currentTarget as HTMLElement;
-  if (!currentTarget.contains(related)) {
-    hoveredTarget.value = null;
-  }
-};
-
-const handleDrop = (e: DragEvent) => {
-  e.preventDefault();
-  e.stopPropagation();
-  
-  console.log('💧 Drop event triggered', {
-    currentTarget: hoveredTarget.value,
-    dataTransfer: e.dataTransfer,
-    files: e.dataTransfer?.files
-  });
-  
-  hoveredTarget.value = null;
-};
-
-// --- 辅助函数 ---
-const isPositionInRect = (position: { x: number, y: number }, rect: DOMRect) => {
-  // Account for device pixel ratio/scaling on Windows/macOS
-  const ratio = window.devicePixelRatio || 1;
-  return (
-    position.x >= rect.left * ratio &&
-    position.x <= rect.right * ratio &&
-    position.y >= rect.top * ratio &&
-    position.y <= rect.bottom * ratio
-  );
-};
-
-onMounted(async () => {
-  console.log('SymlinkMover: Setting up custom file drop listeners...');
-  
-  // 监听我们自定义的后端文件拖放事件
-  unlistenDrop = await listen('custom-file-drop', (event: any) => {
-    console.log('🎯 SymlinkMover: Custom file drop event received:', event);
-    
-    const { paths, position } = event.payload;
-    console.log('Dropped paths:', paths, 'at position:', position);
-
-    if (!paths || (Array.isArray(paths) && paths.length === 0)) {
-      console.warn('No paths received in drop event');
-      return;
-    }
-    
-    const pathArray = Array.isArray(paths) ? paths : [paths];
-
-    // 使用坐标判断目标区域
-    const sourceRect = sourceDropArea.value?.getBoundingClientRect();
-    const targetRect = targetDropArea.value?.getBoundingClientRect();
-
-    // --- DEBUGGING ---
-    console.log('Drop Check:', {
-      dropPosition: position,
-      sourceRect,
-      targetRect,
-      isOverTarget: targetRect ? isPositionInRect(position, targetRect) : 'no-rect',
-      isOverSource: sourceRect ? isPositionInRect(position, sourceRect) : 'no-rect',
-    });
-    // --- END DEBUGGING ---
-
-    if (targetRect && isPositionInRect(position, targetRect)) {
-      console.log('Dropped on: target');
-      if (pathArray.length > 1) {
-        ElMessage.warning("目标目录只能选择一个文件夹，已自动选择第一个。");
-      }
-      targetDirectory.value = pathArray[0];
-      ElMessage.success(`已设置目标目录: ${pathArray[0]}`);
-    } else if (sourceRect && isPositionInRect(position, sourceRect)) {
-      console.log('Dropped on: source');
-      addSourceFiles(pathArray);
-    } else {
-      console.warn("Drop occurred outside of any known drop zone. Defaulting to source.", { sourceRect, targetRect, position });
-      addSourceFiles(pathArray);
-    }
-  });
-
-  // 我们不再需要监听Tauri的取消事件，因为后端会处理
-  // unlistenCancel = await listen('tauri://file-drop-cancelled', () => {
-  //   console.log('❌ SymlinkMover: File drop cancelled');
-  //   hoveredTarget.value = null;
-  // });
-  
-  console.log('✅ SymlinkMover: Custom file drop listener registered');
-});
-
-onUnmounted(() => {
-  unlistenDrop?.();
-  // unlistenCancel?.(); // No longer needed
-});
 
 // --- 文件处理方法 ---
 const addSourcePathFromInput = () => {
@@ -330,24 +212,22 @@ const executeMoveAndLink = async () => {
         <template #headerExtra>
           <el-button :icon="Delete" text circle @click="clearFiles" :disabled="sourceFiles.length === 0" />
         </template>
-                <div class="source-controls">
-                  <el-input v-model="sourcePathInput" placeholder="输入或拖拽文件/文件夹路径" @keyup.enter="addSourcePathFromInput" />
-                  <el-tooltip content="选择文件" placement="top">
-                    <el-button @click="selectSourceFiles" :icon="Document" circle />
-                  </el-tooltip>
-                  <el-tooltip content="选择文件夹" placement="top">
-                    <el-button @click="selectSourceFolders" :icon="FolderOpened" circle />
-                  </el-tooltip>
-                  <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
-                </div>
-                <div
-                  ref="sourceDropArea"
-                  class="drop-area"
-          data-drop-target="source"
-          :class="{ 'dragover': hoveredTarget === 'source' }"
-          @dragover="handleDragOver($event, 'source')"
-          @dragleave="handleDragLeave"
-          @drop="handleDrop"
+        <div class="source-controls">
+          <el-input v-model="sourcePathInput" placeholder="输入文件/文件夹路径" @keyup.enter="addSourcePathFromInput" />
+          <el-tooltip content="选择文件" placement="top">
+            <el-button @click="selectSourceFiles" :icon="Document" circle />
+          </el-tooltip>
+          <el-tooltip content="选择文件夹" placement="top">
+            <el-button @click="selectSourceFolders" :icon="FolderOpened" circle />
+          </el-tooltip>
+          <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
+        </div>
+        <DropZone
+          drop-id="symlink-source"
+          placeholder="将要搬家的文件或文件夹拖拽至此"
+          :icon="FolderAdd"
+          :multiple="true"
+          @drop="handleSourceDrop"
         >
           <el-scrollbar class="file-list-scrollbar">
             <div v-if="sourceFiles.length === 0" class="empty-state">
@@ -365,7 +245,7 @@ const executeMoveAndLink = async () => {
               </div>
             </div>
           </el-scrollbar>
-        </div>
+        </DropZone>
       </InfoCard>
     </div>
 
@@ -390,18 +270,19 @@ const executeMoveAndLink = async () => {
         </div>
         <div class="setting-group">
           <label>目标目录</label>
-          <div
-            ref="targetDropArea"
-            class="target-control"
-            data-drop-target="target"
-            :class="{ 'dragover': hoveredTarget === 'target' }"
-            @dragover="handleDragOver($event, 'target')"
-            @dragleave="handleDragLeave"
-            @drop="handleDrop"
+          <DropZone
+            drop-id="symlink-target"
+            variant="input"
+            :directory-only="true"
+            :multiple="false"
+            hide-content
+            @drop="handleTargetDrop"
           >
-            <el-input v-model="targetDirectory" :placeholder="operationMode === 'move' ? '输入、拖拽或点击选择目标目录' : '输入、拖拽或点击选择链接目录'" />
-            <el-button @click="selectTargetDirectory" :icon="FolderOpened">选择</el-button>
-          </div>
+            <div class="target-control">
+              <el-input v-model="targetDirectory" :placeholder="operationMode === 'move' ? '输入、拖拽或点击选择目标目录' : '输入、拖拽或点击选择链接目录'" />
+              <el-button @click="selectTargetDirectory" :icon="FolderOpened">选择</el-button>
+            </div>
+          </DropZone>
         </div>
         <div class="setting-group">
           <label>链接类型</label>
@@ -474,19 +355,6 @@ const executeMoveAndLink = async () => {
   margin-bottom: 10px;
 }
 
-.drop-area {
-  height: 100%;
-  border: 2px dashed var(--border-color);
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-.drop-area.dragover {
-  border-color: var(--primary-color);
-  background-color: var(--container-bg);
-}
 
 .empty-state {
   display: flex;
@@ -583,15 +451,6 @@ const executeMoveAndLink = async () => {
 .target-control {
   display: flex;
   gap: 10px;
-  border: 2px dashed var(--border-color);
-  border-radius: 8px;
-  padding: 8px;
-  transition: all 0.3s ease;
-}
-
-.target-control.dragover {
-  border-color: var(--primary-color);
-  background-color: var(--container-bg);
 }
 
 .execute-btn {

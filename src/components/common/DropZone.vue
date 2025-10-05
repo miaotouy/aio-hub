@@ -355,13 +355,13 @@ defineExpose({
   border-radius: 8px;
   width: 100%;
   height: 100%;
-  min-height: 120px;
 }
 
 /* 默认样式 */
 .drop-zone--default {
   border: 2px dashed var(--el-border-color);
   background-color: transparent;
+  min-height: 120px;
 }
 
 /* 边框样式变体 */
@@ -369,13 +369,15 @@ defineExpose({
   border: 2px dashed transparent;
   padding: 8px;
   margin: -8px;
+  min-height: auto;
 }
 
-/* 输入框样式变体 */
+/* 输入框样式变体 - 不设置最小高度，让内容决定高度 */
 .drop-zone--input {
   border: 2px dashed transparent;
   padding: 4px;
   margin: -4px;
+  min-height: auto;
 }
 
 /* 紧凑模式 */

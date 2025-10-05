@@ -59,6 +59,14 @@ pub struct ResponseRecord {
     pub duration_ms: u64,
 }
 
+// 流式更新事件结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamUpdate {
+    pub id: String,
+    pub chunk: String,
+    pub is_complete: bool,
+}
+
 // 代理配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyConfig {
@@ -346,6 +354,14 @@ async fn proxy_handler(
         // 处理流式响应
         eprintln!("开始处理流式响应...");
         
+        // 立即发送一个流开始事件，让前端知道流式响应已经开始
+        let stream_start = StreamUpdate {
+            id: request_id.clone(),
+            chunk: String::new(),
+            is_complete: false,
+        };
+        let _ = window.emit("proxy-stream-update", &stream_start);
+        
         // 为流式响应创建一个流
         eprintln!("响应状态: {}, Content-Length: {:?}, Transfer-Encoding: {:?}",
             status,
@@ -372,6 +388,8 @@ async fn proxy_handler(
             let mut chunk_count = 0;
             let mut parse_errors = 0;
             const MAX_ACCUMULATED_SIZE: usize = 10 * 1024 * 1024;
+            let mut last_update_size = 0;
+            const UPDATE_THRESHOLD: usize = 256; // 降低阈值到256字节，更频繁地更新
             
             // 持续接收数据块进行分析
             while let Some(chunk) = rx.recv().await {
@@ -398,6 +416,31 @@ async fn proxy_handler(
                     if parse_errors == 1 || parse_errors % 10 == 0 {
                         eprintln!("[分析器] UTF-8解析错误 #{} (位置: {})",
                             parse_errors, e.valid_up_to());
+                    }
+                }
+                
+                // 发送流式更新事件（当累积了足够的数据时，或者是第一个块）
+                if accumulated_body.len() - last_update_size >= UPDATE_THRESHOLD || chunk_count == 1 {
+                    last_update_size = accumulated_body.len();
+                    
+                    // 尝试将数据转换为字符串
+                    let chunk_str = if let Ok(text) = String::from_utf8(chunk.clone()) {
+                        text
+                    } else {
+                        String::from_utf8_lossy(&chunk).to_string()
+                    };
+                    
+                    let stream_update = StreamUpdate {
+                        id: request_id_for_analysis.clone(),
+                        chunk: chunk_str,
+                        is_complete: false,
+                    };
+                    
+                    let _ = window_for_analysis.emit("proxy-stream-update", &stream_update);
+                    
+                    // 在第一个块时额外打印日志
+                    if chunk_count == 1 {
+                        eprintln!("[分析器] 发送第一个流式更新事件，ID: {}", request_id_for_analysis);
                     }
                 }
             }
@@ -433,6 +476,14 @@ async fn proxy_handler(
                     }
                 }
             };
+            
+            // 发送最终的流完成事件
+            let final_stream_update = StreamUpdate {
+                id: request_id_for_analysis.clone(),
+                chunk: String::new(),
+                is_complete: true,
+            };
+            let _ = window_for_analysis.emit("proxy-stream-update", &final_stream_update);
             
             let response_record = ResponseRecord {
                 id: request_id_for_analysis,

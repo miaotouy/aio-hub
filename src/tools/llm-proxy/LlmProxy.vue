@@ -7,35 +7,16 @@
         <div class="form-row">
           <div class="form-group port-group">
             <label>本地监听端口：</label>
-            <input
-              v-model.number="config.port"
-              type="number"
-              placeholder="8999"
-              :disabled="isRunning"
-              min="1024"
-              max="65535"
-              class="port-input"
-            />
-            <button
-              v-if="!isRunning"
-              @click="startProxy"
-              class="btn-primary"
-              :disabled="!config.port || !config.target_url"
-            >
+            <input v-model.number="config.port" type="number" placeholder="8999" :disabled="isRunning" min="1024"
+              max="65535" class="port-input" />
+            <button v-if="!isRunning" @click="startProxy" class="btn-primary"
+              :disabled="!config.port || !config.target_url">
               启动代理
             </button>
-            <button
-              v-else
-              @click="stopProxy"
-              class="btn-danger"
-            >
+            <button v-else @click="stopProxy" class="btn-danger">
               停止代理
             </button>
-            <button
-              @click="clearRecords"
-              class="btn-secondary"
-              :disabled="records.length === 0"
-            >
+            <button @click="clearRecords" class="btn-secondary" :disabled="records.length === 0">
               清空记录
             </button>
           </div>
@@ -43,18 +24,9 @@
         <div class="form-row">
           <div class="form-group target-group">
             <label>目标API地址：</label>
-            <input
-              v-model="config.target_url"
-              type="text"
-              placeholder="https://api.openai.com"
-              class="target-input"
-            />
-            <button
-              v-if="isRunning"
-              @click="updateTargetUrl"
-              class="btn-update"
-              :disabled="!config.target_url || config.target_url === currentTargetUrl"
-            >
+            <input v-model="config.target_url" type="text" placeholder="https://api.openai.com" class="target-input" />
+            <button v-if="isRunning" @click="updateTargetUrl" class="btn-update"
+              :disabled="!config.target_url || config.target_url === currentTargetUrl">
               更新地址
             </button>
           </div>
@@ -66,11 +38,7 @@
         <div class="form-row">
           <div class="form-group">
             <label class="checkbox-label">
-              <input
-                type="checkbox"
-                v-model="maskApiKeys"
-                class="checkbox-input"
-              />
+              <input type="checkbox" v-model="maskApiKeys" class="checkbox-input" />
               <span>复制时打码 API Key</span>
             </label>
             <span class="checkbox-hint">开启后复制请求信息时会自动隐藏敏感的 API Key</span>
@@ -80,20 +48,11 @@
     </div>
 
     <!-- 记录列表组件 -->
-    <RecordsList 
-      :records="records"
-      :selectedRecord="selectedRecord"
-      v-model:searchQuery="searchQuery"
-      v-model:filterStatus="filterStatus"
-      @select="selectRecord"
-    />
+    <RecordsList :records="records" :selectedRecord="selectedRecord" v-model:searchQuery="searchQuery"
+      v-model:filterStatus="filterStatus" @select="selectRecord" />
 
     <!-- 详情面板组件 -->
-    <RecordDetail
-      :record="selectedRecord"
-      :maskApiKeys="maskApiKeys"
-      @close="selectedRecord = null"
-    />
+    <RecordDetail :record="selectedRecord" :maskApiKeys="maskApiKeys" @close="selectedRecord = null" />
   </div>
 </template>
 
@@ -182,6 +141,7 @@ const maskApiKeys = ref(true);  // API Key 打码开关
 // 事件监听器
 let unlistenRequest: (() => void) | null = null;
 let unlistenResponse: (() => void) | null = null;
+let unlistenStreamUpdate: (() => void) | null = null;
 
 // 方法
 async function startProxy() {
@@ -190,7 +150,7 @@ async function startProxy() {
     console.log(result);
     isRunning.value = true;
     currentTargetUrl.value = config.value.target_url;
-    
+
     // 设置事件监听器
     unlistenRequest = await listen('proxy-request', (event) => {
       const request = event.payload as RequestRecord;
@@ -200,13 +160,19 @@ async function startProxy() {
         response: undefined
       });
     });
-    
+
     unlistenResponse = await listen('proxy-response', (event) => {
       const response = event.payload as ResponseRecord;
       const record = records.value.find(r => r.id === response.id);
       if (record) {
         record.response = response;
       }
+    });
+
+    // 监听流式更新事件
+    unlistenStreamUpdate = await listen('proxy-stream-update', (event) => {
+      // 这里只是确保事件监听器被设置，实际处理在 RecordDetail 组件中
+      console.log('Stream update received:', event.payload);
     });
   } catch (error) {
     console.error('启动代理失败:', error);
@@ -230,7 +196,7 @@ async function stopProxy() {
     const result = await invoke('stop_llm_proxy');
     console.log(result);
     isRunning.value = false;
-    
+
     // 清理事件监听器
     if (unlistenRequest) {
       unlistenRequest();
@@ -239,6 +205,10 @@ async function stopProxy() {
     if (unlistenResponse) {
       unlistenResponse();
       unlistenResponse = null;
+    }
+    if (unlistenStreamUpdate) {
+      unlistenStreamUpdate();
+      unlistenStreamUpdate = null;
     }
   } catch (error) {
     console.error('停止代理失败:', error);
@@ -254,7 +224,7 @@ async function checkProxyStatus() {
       config.value.port = status.port;
       config.value.target_url = status.target_url;
       currentTargetUrl.value = status.target_url;
-      
+
       // 如果代理正在运行，设置事件监听器
       if (!unlistenRequest) {
         unlistenRequest = await listen('proxy-request', (event) => {
@@ -266,7 +236,7 @@ async function checkProxyStatus() {
           });
         });
       }
-      
+
       if (!unlistenResponse) {
         unlistenResponse = await listen('proxy-response', (event) => {
           const response = event.payload as ResponseRecord;
@@ -274,6 +244,12 @@ async function checkProxyStatus() {
           if (record) {
             record.response = response;
           }
+        });
+      }
+
+      if (!unlistenStreamUpdate) {
+        unlistenStreamUpdate = await listen('proxy-stream-update', (event) => {
+          console.log('Stream update received:', event.payload);
         });
       }
     }
@@ -329,6 +305,7 @@ onMounted(async () => {
 onUnmounted(() => {
   if (unlistenRequest) unlistenRequest();
   if (unlistenResponse) unlistenResponse();
+  if (unlistenStreamUpdate) unlistenStreamUpdate();
 });
 </script>
 
@@ -338,7 +315,8 @@ onUnmounted(() => {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto 1fr;
   gap: 20px;
-  height: calc(100vh - 40px); /* 减去上下 padding */
+  height: calc(100vh - 40px);
+  /* 减去上下 padding */
   padding: 20px;
   box-sizing: border-box;
   overflow: hidden;
@@ -487,9 +465,11 @@ button:disabled {
   0% {
     box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
   }
+
   70% {
     box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
   }

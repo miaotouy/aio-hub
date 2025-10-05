@@ -24,6 +24,7 @@ export interface GitAnalyzerConfig {
     commitRange: 'all' | 'filtered' | 'custom'
     customCount: number
     dateFormat: 'iso' | 'local' | 'relative' | 'timestamp'
+    includeAuthor: boolean
     includeEmail: boolean
     includeFullMessage: boolean
     includeFiles: boolean
@@ -58,6 +59,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
       commitRange: 'filtered',
       customCount: 100,
       dateFormat: 'local',
+      includeAuthor: true,
       includeEmail: false,
       includeFullMessage: false,
       includeFiles: false,

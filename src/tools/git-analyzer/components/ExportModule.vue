@@ -70,10 +70,18 @@
         </el-form-item>
 
         <el-form-item label="隐私选项">
-          <el-checkbox v-model="exportConfig.includeEmail">
+          <el-checkbox v-model="exportConfig.includeAuthor">
+            显示作者名称
+          </el-checkbox>
+          <el-tooltip content="导出时包含作者的名称" placement="top">
+            <el-icon style="margin-left: 5px; color: var(--text-color-light)">
+              <QuestionFilled />
+            </el-icon>
+          </el-tooltip>
+          <el-checkbox v-model="exportConfig.includeEmail" :disabled="!exportConfig.includeAuthor">
             显示作者邮箱
           </el-checkbox>
-          <el-tooltip content="导出时包含作者的邮箱地址" placement="top">
+          <el-tooltip content="导出时包含作者的邮箱地址（需要先启用显示作者名称）" placement="top">
             <el-icon style="margin-left: 5px; color: var(--text-color-light)">
               <QuestionFilled />
             </el-icon>
@@ -167,6 +175,7 @@ interface ExportConfig {
   commitRange: 'all' | 'filtered' | 'custom'
   customCount: number
   dateFormat: 'iso' | 'local' | 'relative' | 'timestamp'
+  includeAuthor: boolean
   includeEmail: boolean
   includeFullMessage: boolean
   includeFiles: boolean
@@ -192,6 +201,7 @@ const props = defineProps<{
     commitRange: 'all' | 'filtered' | 'custom'
     customCount: number
     dateFormat: 'iso' | 'local' | 'relative' | 'timestamp'
+    includeAuthor: boolean
     includeEmail: boolean
     includeFullMessage: boolean
     includeFiles: boolean
@@ -217,6 +227,7 @@ const exportConfig = ref<ExportConfig>({
   commitRange: 'filtered',
   customCount: 100,
   dateFormat: 'local',
+  includeAuthor: true,
   includeEmail: false,
   includeFullMessage: false,
   includeFiles: false,
@@ -326,12 +337,14 @@ function generateMarkdown(): string {
     commits.forEach(commit => {
       lines.push(`### ${commit.hash.substring(0, 7)} - ${formatDate(commit.date, config.dateFormat)}`)
       lines.push('')
-      if (config.includeEmail) {
-        lines.push(`**作者**: ${commit.author} <${commit.email}>`)
-      } else {
-        lines.push(`**作者**: ${commit.author}`)
+      if (config.includeAuthor) {
+        if (config.includeEmail) {
+          lines.push(`**作者**: ${commit.author} <${commit.email}>`)
+        } else {
+          lines.push(`**作者**: ${commit.author}`)
+        }
+        lines.push('')
       }
-      lines.push('')
       if (config.includeFullMessage && commit.full_message) {
         lines.push(`**提交信息**:`)
         lines.push('')
@@ -386,8 +399,8 @@ function generateJSON(): string {
     const commits = getCommitsToExport()
     data.commits = commits.map(commit => ({
       hash: commit.hash,
-      author: commit.author,
-      ...(config.includeEmail ? { email: commit.email } : {}),
+      ...(config.includeAuthor ? { author: commit.author } : {}),
+      ...(config.includeAuthor && config.includeEmail ? { email: commit.email } : {}),
       date: formatDate(commit.date, config.dateFormat),
       message: commit.message,
       ...(config.includeFullMessage && commit.full_message ? { full_message: commit.full_message } : {}),
@@ -409,9 +422,12 @@ function generateCSV(): string {
     const commits = getCommitsToExport()
     
     // 头部
-    const headers = ['Hash', 'Author']
-    if (config.includeEmail) {
-      headers.push('Email')
+    const headers = ['Hash']
+    if (config.includeAuthor) {
+      headers.push('Author')
+      if (config.includeEmail) {
+        headers.push('Email')
+      }
     }
     headers.push('Date', 'Message')
     if (config.includeStats) {
@@ -424,13 +440,13 @@ function generateCSV(): string {
     
     // 数据行
     commits.forEach(commit => {
-      const row = [
-        commit.hash.substring(0, 7),
-        `"${commit.author}"`
-      ]
+      const row = [commit.hash.substring(0, 7)]
       
-      if (config.includeEmail) {
-        row.push(commit.email)
+      if (config.includeAuthor) {
+        row.push(`"${commit.author}"`)
+        if (config.includeEmail) {
+          row.push(commit.email)
+        }
       }
       
       row.push(
@@ -773,7 +789,7 @@ function generateHTML(): string {
     <div class="${cssPrefix}-commit">
       <p>
         <span class="${cssPrefix}-commit-hash">${commit.hash.substring(0, 7)}</span>
-        <strong>${escapeHtml(commit.author)}</strong>${config.includeEmail ? ` &lt;${escapeHtml(commit.email)}&gt;` : ''}
+        ${config.includeAuthor ? `<strong>${escapeHtml(commit.author)}</strong>${config.includeEmail ? ` &lt;${escapeHtml(commit.email)}&gt;` : ''}` : ''}
         <span class="${cssPrefix}-commit-date">${formatDate(commit.date, config.dateFormat)}</span>
       </p>`
       
@@ -856,10 +872,12 @@ function generateText(): string {
     
     commits.forEach(commit => {
       lines.push(`[${commit.hash.substring(0, 7)}] ${formatDate(commit.date, config.dateFormat)}`)
-      if (config.includeEmail) {
-        lines.push(`作者: ${commit.author} <${commit.email}>`)
-      } else {
-        lines.push(`作者: ${commit.author}`)
+      if (config.includeAuthor) {
+        if (config.includeEmail) {
+          lines.push(`作者: ${commit.author} <${commit.email}>`)
+        } else {
+          lines.push(`作者: ${commit.author}`)
+        }
       }
       if (config.includeFullMessage && commit.full_message) {
         lines.push(`提交信息:`)

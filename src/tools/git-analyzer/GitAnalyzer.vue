@@ -125,10 +125,12 @@
               <el-statistic title="贡献者数" :value="statistics.contributors" />
             </el-col>
             <el-col :span="6">
-              <el-statistic title="时间跨度" :value="statistics.timeSpan" />
+              <el-statistic title="时间跨度" :value="statistics.timeSpan">
+                <template #suffix> 天</template>
+              </el-statistic>
             </el-col>
             <el-col :span="6">
-              <el-statistic title="平均提交/天" :value="statistics.averagePerDay" />
+              <el-statistic title="平均提交/天" :value="statistics.averagePerDay" :precision="1" />
             </el-col>
           </el-row>
         </div>
@@ -276,7 +278,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -361,8 +363,8 @@ const statistics = computed(() => {
   return {
     totalCommits: commits.length,
     contributors: authors.size,
-    timeSpan: `${days} 天`,
-    averagePerDay: (commits.length / Math.max(days, 1)).toFixed(1)
+    timeSpan: days,
+    averagePerDay: (commits.length / Math.max(days, 1))
   }
 })
 
@@ -510,9 +512,11 @@ async function copyCommitHash() {
 
 function updateCharts() {
   if (activeTab.value === 'chart') {
-    drawFrequencyChart()
-    drawContributorChart()
-    drawHeatmapChart()
+    nextTick(() => {
+      drawFrequencyChart()
+      drawContributorChart()
+      drawHeatmapChart()
+    })
   }
 }
 
@@ -676,24 +680,95 @@ watch(activeTab, () => {
   updateCharts()
 })
 
+// 组件挂载时设置图表容器大小监听
+let resizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  // 监听容器大小变化，自动调整图表
+  if (window.ResizeObserver) {
+    resizeObserver = new ResizeObserver(() => {
+      if (activeTab.value === 'chart') {
+        // 延迟调整以确保容器尺寸已更新
+        setTimeout(() => {
+          if (frequencyChart.value) {
+            const chart = echarts.getInstanceByDom(frequencyChart.value)
+            chart?.resize()
+          }
+          if (contributorChart.value) {
+            const chart = echarts.getInstanceByDom(contributorChart.value)
+            chart?.resize()
+          }
+          if (heatmapChart.value) {
+            const chart = echarts.getInstanceByDom(heatmapChart.value)
+            chart?.resize()
+          }
+        }, 100)
+      }
+    })
+    
+    // 监听主内容区域
+    const mainContent = document.querySelector('.main-content')
+    if (mainContent) {
+      resizeObserver.observe(mainContent)
+    }
+  }
+})
+
+onUnmounted(() => {
+  // 清理监听器
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+  
+  // 销毁图表实例
+  if (frequencyChart.value) {
+    echarts.getInstanceByDom(frequencyChart.value)?.dispose()
+  }
+  if (contributorChart.value) {
+    echarts.getInstanceByDom(contributorChart.value)?.dispose()
+  }
+  if (heatmapChart.value) {
+    echarts.getInstanceByDom(heatmapChart.value)?.dispose()
+  }
+})
+
 </script>
 
 <style scoped>
 .git-analyzer {
   padding: 20px;
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .analyzer-card {
-  height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* 重要：允许 flex 子元素收缩 */
+  overflow: hidden;
+}
+
+/* InfoCard 内部的内容容器需要正确的 flex 布局 */
+.analyzer-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .analyzer-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  height: 100%;
+  min-height: 0; /* 重要：允许内容收缩 */
+  overflow: hidden;
 }
 
 .toolbar {
@@ -701,6 +776,7 @@ watch(activeTab, () => {
   background: var(--card-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color-light);
+  flex-shrink: 0; /* 防止收缩 */
 }
 
 .path-input-group {
@@ -713,6 +789,7 @@ watch(activeTab, () => {
   background: var(--card-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color-light);
+  flex-shrink: 0; /* 防止收缩 */
 }
 
 .statistics {
@@ -720,16 +797,50 @@ watch(activeTab, () => {
   background: var(--card-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color-light);
+  flex-shrink: 0; /* 防止收缩 */
 }
 
 .main-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* 允许收缩 */
   overflow: hidden;
+  padding: 16px;
+  background: var(--card-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color-light);
+}
+
+/* tabs 组件需要占满高度 */
+.main-content :deep(.el-tabs) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.main-content :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.main-content :deep(.el-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .commits-container {
-  height: calc(100vh - 400px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  padding-right: 4px; /* 给滚动条留空间 */
+}
+
+.commit-list {
+  padding: 10px;
 }
 
 .commit-card {
@@ -795,11 +906,15 @@ watch(activeTab, () => {
 }
 
 .charts-container {
+  flex: 1;
   padding: 20px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .chart {
   height: 300px;
+  min-height: 300px; /* 确保图表有最小高度 */
 }
 
 /* 日期选择器的特殊样式 - 保留这些因为涉及布局调整 */

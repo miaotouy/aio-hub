@@ -161,6 +161,9 @@ watch([textA, textB, outputFormat, diffMode], generateDiff, { immediate: true })
   padding: 20px;
   max-width: 1400px;
   margin: 0 auto;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
   color: var(--text-color); /* 确保容器内文本颜色正确 */
 }
 

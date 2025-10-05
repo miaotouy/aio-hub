@@ -306,34 +306,38 @@ fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {
 fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize) -> Result<Vec<GitCommit>, String> {
     let mut cmd = Command::new("git");
     cmd.arg("-C").arg(repo_path).arg("log");
-    
+
     if let Some(branch) = branch {
         cmd.arg(branch);
     }
-    
-    cmd.arg("--pretty=format:%H|%an|%ae|%aI|%s|%b|%P")
-        .arg(format!("-{}", limit));
-    
+
+    cmd.arg("--pretty=format:%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1f%P")
+        .arg("-z")
+        .arg(format!("-n{}", limit));
+
     let output = cmd
         .output()
         .map_err(|e| format!("Failed to get commits: {}", e))?;
-    
+
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
-    
+
     let output_str = String::from_utf8_lossy(&output.stdout);
     let mut commits = Vec::new();
-    
-    for line in output_str.lines() {
-        let parts: Vec<&str> = line.split('|').collect();
+
+    for commit_str in output_str.split('\0') {
+        if commit_str.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = commit_str.split('\x1f').collect();
         if parts.len() < 7 {
             continue;
         }
-        
+
         let hash = parts[0].to_string();
         let tags = get_commit_tags(repo_path, &hash).unwrap_or_default();
-        
+
         commits.push(GitCommit {
             hash: hash.clone(),
             author: parts[1].to_string(),
@@ -347,7 +351,7 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize) -> Result<Ve
             files: None,
         });
     }
-    
+
     Ok(commits)
 }
 

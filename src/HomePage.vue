@@ -29,10 +29,12 @@ import { ElIcon } from "element-plus"; // 确保正确导入 ElIcon 组件，虽
   /* 顶部对齐 */
   height: 100%;
   text-align: center;
-  padding-top: 40px;
-  /* 增加顶部内边距 */
+  padding: 40px 20px 20px 20px;
+  /* 统一设置内边距：上40px，左右20px，下20px */
   box-sizing: border-box;
   /* 确保 padding 包含在 height 内 */
+  overflow-y: auto;
+  /* 如果内容超出，允许滚动 */
 }
 
 .title {

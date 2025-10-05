@@ -99,7 +99,7 @@ const handleSelect = (key: string) => {
     </el-aside>
 
     <el-container>
-      <el-main class="main-content" style="padding-top: 0;">
+      <el-main class="main-content">
         <router-view></router-view>
       </el-main>
     </el-container>
@@ -268,9 +268,11 @@ const handleSelect = (key: string) => {
 
 .main-content {
   background-color: var(--bg-color);
-  padding: 20px;
+  padding: 0;
   overflow-y: auto;
   flex-grow: 1;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 /* 覆盖 Element Plus 默认样式以适应主题 */

@@ -106,12 +106,14 @@
         <div v-if="record.response.body" class="subsection">
           <div class="subsection-header">
             <h5>响应体</h5>
+            <span v-if="isStreamingResponse" class="stream-badge">🔄 流式响应</span>
             <button @click="copyResponseBody" class="btn-copy-small" title="复制响应体">
               📋
             </button>
           </div>
           <div class="body-content">
-            <pre v-if="isJson(record.response.body)">{{ formatJson(record.response.body) }}</pre>
+            <pre v-if="isStreamingResponse">{{ formatStreamingResponse(record.response.body) }}</pre>
+            <pre v-else-if="isJson(record.response.body)">{{ formatJson(record.response.body) }}</pre>
             <pre v-else>{{ record.response.body }}</pre>
           </div>
         </div>
@@ -122,6 +124,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+
 // 类型定义
 interface RequestRecord {
   id: string;
@@ -160,6 +164,14 @@ defineEmits<{
   'close': [];
 }>();
 
+// 计算属性：检查是否是流式响应
+const isStreamingResponse = computed(() => {
+  if (!props.record?.response?.headers) return false;
+  const contentType = props.record.response.headers['content-type'] ||
+                     props.record.response.headers['Content-Type'] || '';
+  return contentType.includes('text/event-stream');
+});
+
 // 工具函数
 function formatSize(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -192,6 +204,51 @@ function formatJson(str: string): string {
   } catch {
     return str;
   }
+}
+
+// 格式化流式响应（SSE格式）
+function formatStreamingResponse(str: string): string {
+  if (!str) return '';
+  
+  // 分割SSE事件
+  const events = str.split(/\n\n/);
+  let formatted = '';
+  
+  events.forEach((event, index) => {
+    if (!event.trim()) return;
+    
+    const lines = event.split('\n');
+    let eventData = '';
+    
+    lines.forEach(line => {
+      if (line.startsWith('data: ')) {
+        const data = line.substring(6);
+        
+        // 尝试格式化JSON数据
+        if (data.trim() && data.trim() !== '[DONE]') {
+          try {
+            const parsed = JSON.parse(data);
+            eventData += `data: ${JSON.stringify(parsed, null, 2)}\n`;
+          } catch {
+            eventData += `${line}\n`;
+          }
+        } else {
+          eventData += `${line}\n`;
+        }
+      } else {
+        eventData += `${line}\n`;
+      }
+    });
+    
+    if (eventData) {
+      formatted += eventData;
+      if (index < events.length - 1) {
+        formatted += '\n';
+      }
+    }
+  });
+  
+  return formatted || str;
 }
 
 // API Key 打码功能
@@ -472,6 +529,18 @@ function copyAll() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  gap: 8px;
+}
+
+.stream-badge {
+  background: var(--vscode-badge-background, #007acc);
+  color: var(--vscode-badge-foreground, #ffffff);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: bold;
+  margin-left: auto;
+  margin-right: 8px;
 }
 
 .subsection h5 {

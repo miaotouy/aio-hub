@@ -7,6 +7,8 @@ use axum::{
     routing::any,
     Router,
 };
+use bytes::Bytes;
+use futures_util::StreamExt;
 use http_body_util::BodyExt;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -324,104 +326,280 @@ async fn proxy_handler(
     
     // 收集响应头
     let mut headers_map = HashMap::new();
+    let mut is_streaming = false;
+    
     for (name, value) in response_headers.iter() {
         if let Ok(v) = value.to_str() {
+            let name_str = name.as_str().to_lowercase();
             headers_map.insert(name.to_string(), v.to_string());
-        }
-    }
-
-    // 读取响应体 - reqwest应该自动处理解压
-    let response_body_bytes = response
-        .bytes()
-        .await
-        .map_err(|e| {
-            eprintln!("读取响应体失败: {}", e);
-            StatusCode::BAD_GATEWAY
-        })?;
-    
-    // 打印响应体的前几个字节用于调试
-    if response_body_bytes.len() > 0 {
-        let preview = &response_body_bytes[..std::cmp::min(20, response_body_bytes.len())];
-        eprintln!("响应体前20字节: {:?}", preview);
-    }
-    
-    // 尝试将响应体转换为字符串
-    let response_body = match String::from_utf8(response_body_bytes.to_vec()) {
-        Ok(text) => {
-            eprintln!("成功将响应体转换为UTF-8字符串, 长度: {}", text.len());
-            text
-        },
-        Err(e) => {
-            eprintln!("无法将响应体转换为UTF-8: {}", e);
-            // 检查是否是gzip压缩的数据（以1f 8b开头）
-            if response_body_bytes.len() >= 2 && response_body_bytes[0] == 0x1f && response_body_bytes[1] == 0x8b {
-                eprintln!("检测到gzip压缩数据，尝试手动解压");
-                // 手动解压gzip
-                use flate2::read::GzDecoder;
-                use std::io::Read;
-                
-                let mut decoder = GzDecoder::new(&response_body_bytes[..]);
-                let mut decompressed = Vec::new();
-                match decoder.read_to_end(&mut decompressed) {
-                    Ok(_) => {
-                        match String::from_utf8(decompressed) {
-                            Ok(text) => {
-                                eprintln!("手动解压成功，得到UTF-8字符串");
-                                text
-                            },
-                            Err(_) => {
-                                eprintln!("解压后仍不是有效的UTF-8");
-                                use base64::Engine;
-                                format!("[Binary data - base64 encoded]: {}",
-                                    base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("手动解压失败: {}", e);
-                        use base64::Engine;
-                        format!("[Binary data - base64 encoded]: {}",
-                            base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
-                    }
-                }
-            } else {
-                // 不是gzip数据，使用base64编码
-                use base64::Engine;
-                format!("[Binary data - base64 encoded]: {}",
-                    base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
+            
+            // 检查是否是流式响应
+            if name_str == "content-type" && v.contains("text/event-stream") {
+                is_streaming = true;
+                eprintln!("检测到SSE流式响应");
             }
         }
-    };
-    let response_size = response_body_bytes.len();
-
-    // 创建响应记录
-    let response_record = ResponseRecord {
-        id: request_id,
-        timestamp: chrono::Utc::now().timestamp_millis(),
-        status: status.as_u16(),
-        headers: headers_map.clone(),
-        body: if !response_body.is_empty() { Some(response_body.clone()) } else { None },
-        response_size,
-        duration_ms: start_time.elapsed().as_millis() as u64,
-    };
-
-    // 发送响应事件到前端
-    let _ = window.emit("proxy-response", &response_record);
-
-    // 构建返回给客户端的响应
-    let mut final_response = Response::builder()
-        .status(status.as_u16());
-
-    // 复制响应头（但不包括content-encoding，因为我们已经解压了）
-    for (name, value) in response_headers.iter() {
-        let name_str = name.as_str().to_lowercase();
-        if name_str != "content-encoding" && name_str != "transfer-encoding" {
-            final_response = final_response.header(name.as_str(), value.as_bytes());
-        }
     }
 
-    // 返回解压后的响应体
-    final_response
-        .body(Body::from(response_body_bytes.to_vec()))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    // 根据是否是流式响应选择不同的处理方式
+    if is_streaming {
+        // 处理流式响应
+        eprintln!("开始处理流式响应...");
+        
+        // 为流式响应创建一个流
+        let stream = response.bytes_stream();
+        
+        // 创建两个独立的任务：一个用于代理转发，一个用于数据收集和分析
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+        
+        // 启动异步任务来收集和分析数据（不会影响代理转发）
+        let window_for_analysis = window.clone();
+        let request_id_for_analysis = request_id.clone();
+        let headers_map_for_analysis = headers_map.clone();
+        let start_time_for_analysis = start_time.clone();
+        
+        tokio::spawn(async move {
+            let mut accumulated_body = Vec::new();
+            let mut chunk_count = 0;
+            let mut parse_errors = 0;
+            const MAX_ACCUMULATED_SIZE: usize = 10 * 1024 * 1024;
+            
+            // 持续接收数据块进行分析
+            while let Some(chunk) = rx.recv().await {
+                chunk_count += 1;
+                let chunk_size = chunk.len();
+                
+                // 累积数据（带大小限制）
+                accumulated_body.extend_from_slice(&chunk);
+                if accumulated_body.len() > MAX_ACCUMULATED_SIZE {
+                    let start = accumulated_body.len() - MAX_ACCUMULATED_SIZE;
+                    accumulated_body.drain(..start);
+                    eprintln!("[分析器] 累积数据超过10MB，已截断旧数据");
+                }
+                
+                // 定期报告分析进度
+                if chunk_count % 100 == 0 {
+                    eprintln!("[分析器] 已分析 {} 个数据块，当前块: {} 字节，累积: {} 字节",
+                        chunk_count, chunk_size, accumulated_body.len());
+                }
+                
+                // 尝试解析当前累积的数据（不影响转发）
+                if let Err(e) = std::str::from_utf8(&accumulated_body) {
+                    parse_errors += 1;
+                    if parse_errors == 1 || parse_errors % 10 == 0 {
+                        eprintln!("[分析器] UTF-8解析错误 #{} (位置: {})",
+                            parse_errors, e.valid_up_to());
+                    }
+                }
+            }
+            
+            eprintln!("[分析器] 数据收集完成：{} 个块，{} 字节，{} 个解析错误",
+                chunk_count, accumulated_body.len(), parse_errors);
+            
+            // 最终尝试构建响应记录
+            let response_body = if accumulated_body.is_empty() {
+                String::new()
+            } else {
+                match String::from_utf8(accumulated_body.clone()) {
+                    Ok(text) => {
+                        eprintln!("[分析器] 成功解析完整响应为UTF-8");
+                        text
+                    }
+                    Err(e) => {
+                        eprintln!("[分析器] 最终UTF-8解析失败，使用有损转换");
+                        let valid_up_to = e.utf8_error().valid_up_to();
+                        if valid_up_to > 0 {
+                            // 尝试保留有效部分
+                            let mut truncated = accumulated_body.clone();
+                            truncated.truncate(valid_up_to);
+                            if let Ok(text) = String::from_utf8(truncated) {
+                                eprintln!("[分析器] 保留了前 {} 字节的有效数据", valid_up_to);
+                                text
+                            } else {
+                                String::from_utf8_lossy(&accumulated_body).to_string()
+                            }
+                        } else {
+                            String::from_utf8_lossy(&accumulated_body).to_string()
+                        }
+                    }
+                }
+            };
+            
+            let response_record = ResponseRecord {
+                id: request_id_for_analysis,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+                status: status.as_u16(),
+                headers: headers_map_for_analysis,
+                body: if !response_body.is_empty() { Some(response_body) } else { None },
+                response_size: accumulated_body.len(),
+                duration_ms: start_time_for_analysis.elapsed().as_millis() as u64,
+            };
+            
+            let _ = window_for_analysis.emit("proxy-response", &response_record);
+        });
+        
+        // 使用futures stream转换为axum body - 纯转发，不关心内容
+        let body_stream = async_stream::stream! {
+            let mut stream = Box::pin(stream);
+            let mut chunk_count = 0;
+            let mut consecutive_errors = 0;
+            
+            eprintln!("[代理] 开始转发流式响应...");
+            
+            while let Some(chunk_result) = stream.next().await {
+                match chunk_result {
+                    Ok(chunk) => {
+                        chunk_count += 1;
+                        consecutive_errors = 0; // 重置连续错误计数
+                        
+                        // 发送副本给分析器（不阻塞）
+                        let _ = tx.send(chunk.to_vec());
+                        
+                        // 简单的进度日志
+                        if chunk_count % 100 == 0 {
+                            eprintln!("[代理] 已转发 {} 个数据块", chunk_count);
+                        }
+                        
+                        // 立即转发原始数据块给客户端，不做任何处理
+                        yield Ok::<Bytes, std::io::Error>(chunk);
+                    }
+                    Err(e) => {
+                        consecutive_errors += 1;
+                        eprintln!("[代理] 读取源流错误 #{}: {}", consecutive_errors, e);
+                        
+                        // 源流本身出错才停止（不是解析错误）
+                        if consecutive_errors >= 5 {
+                            eprintln!("[代理] 源流连续错误过多，停止转发");
+                            break;
+                        }
+                        
+                        // 短暂延迟后继续尝试
+                        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                    }
+                }
+            }
+            
+            eprintln!("[代理] 流式转发完成，共转发 {} 个数据块", chunk_count);
+            
+            // 通知分析器流已结束（通过关闭channel）
+            drop(tx);
+        };
+        
+        // 构建流式响应
+        let mut final_response = Response::builder()
+            .status(status.as_u16());
+        
+        // 复制响应头
+        for (name, value) in response_headers.iter() {
+            let name_str = name.as_str().to_lowercase();
+            // 保留原始的transfer-encoding和content-type用于流式传输
+            // 但不包括content-encoding，因为reqwest已经处理了
+            if name_str != "content-encoding" {
+                final_response = final_response.header(name.as_str(), value.as_bytes());
+            }
+        }
+        
+        // 使用流式body
+        let body = Body::from_stream(body_stream);
+        final_response
+            .body(body)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    } else {
+        // 非流式响应，一次性读取
+        eprintln!("处理非流式响应...");
+        
+        let response_body_bytes = response
+            .bytes()
+            .await
+            .map_err(|e| {
+                eprintln!("读取响应体失败: {}", e);
+                StatusCode::BAD_GATEWAY
+            })?;
+        
+        // 打印响应体的前几个字节用于调试
+        if response_body_bytes.len() > 0 {
+            let preview = &response_body_bytes[..std::cmp::min(20, response_body_bytes.len())];
+            eprintln!("响应体前20字节: {:?}", preview);
+        }
+        
+        // 尝试将响应体转换为字符串
+        let response_body = match String::from_utf8(response_body_bytes.to_vec()) {
+            Ok(text) => {
+                eprintln!("成功将响应体转换为UTF-8字符串, 长度: {}", text.len());
+                text
+            },
+            Err(e) => {
+                eprintln!("无法将响应体转换为UTF-8: {}", e);
+                // 检查是否是gzip压缩的数据（以1f 8b开头）
+                if response_body_bytes.len() >= 2 && response_body_bytes[0] == 0x1f && response_body_bytes[1] == 0x8b {
+                    eprintln!("检测到gzip压缩数据，尝试手动解压");
+                    // 手动解压gzip
+                    use flate2::read::GzDecoder;
+                    use std::io::Read;
+                    
+                    let mut decoder = GzDecoder::new(&response_body_bytes[..]);
+                    let mut decompressed = Vec::new();
+                    match decoder.read_to_end(&mut decompressed) {
+                        Ok(_) => {
+                            match String::from_utf8(decompressed) {
+                                Ok(text) => {
+                                    eprintln!("手动解压成功，得到UTF-8字符串");
+                                    text
+                                },
+                                Err(_) => {
+                                    eprintln!("解压后仍不是有效的UTF-8");
+                                    use base64::Engine;
+                                    format!("[Binary data - base64 encoded]: {}",
+                                        base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            eprintln!("手动解压失败: {}", e);
+                            use base64::Engine;
+                            format!("[Binary data - base64 encoded]: {}",
+                                base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
+                        }
+                    }
+                } else {
+                    // 不是gzip数据，使用base64编码
+                    use base64::Engine;
+                    format!("[Binary data - base64 encoded]: {}",
+                        base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
+                }
+            }
+        };
+        let response_size = response_body_bytes.len();
+
+        // 创建响应记录
+        let response_record = ResponseRecord {
+            id: request_id,
+            timestamp: chrono::Utc::now().timestamp_millis(),
+            status: status.as_u16(),
+            headers: headers_map.clone(),
+            body: if !response_body.is_empty() { Some(response_body.clone()) } else { None },
+            response_size,
+            duration_ms: start_time.elapsed().as_millis() as u64,
+        };
+
+        // 发送响应事件到前端
+        let _ = window.emit("proxy-response", &response_record);
+
+        // 构建返回给客户端的响应
+        let mut final_response = Response::builder()
+            .status(status.as_u16());
+
+        // 复制响应头（但不包括content-encoding，因为我们已经解压了）
+        for (name, value) in response_headers.iter() {
+            let name_str = name.as_str().to_lowercase();
+            if name_str != "content-encoding" && name_str != "transfer-encoding" {
+                final_response = final_response.header(name.as_str(), value.as_bytes());
+            }
+        }
+
+        // 返回解压后的响应体
+        final_response
+            .body(Body::from(response_body_bytes.to_vec()))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    }
 }

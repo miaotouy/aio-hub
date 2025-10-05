@@ -296,6 +296,8 @@
       :statistics="statistics"
       :repo-path="repoPath"
       :branch="selectedBranch"
+      :initial-config="config?.exportConfig"
+      @update:exportConfig="handleExportConfigUpdate"
     />
   </div>
 </template>
@@ -310,6 +312,7 @@ import { Refresh, Search, FolderOpened, PriceTag, Upload } from '@element-plus/i
 import InfoCard from '../../components/common/InfoCard.vue'
 import DropZone from '../../components/common/DropZone.vue'
 import ExportModule from './components/ExportModule.vue'
+import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from './config'
 
 interface GitCommit {
   hash: string
@@ -339,6 +342,9 @@ interface GitBranch {
   remote: boolean
 }
 
+// 配置状态
+const config = ref<GitAnalyzerConfig | null>(null)
+
 // 状态
 const loading = ref(false)
 const repoPath = ref('')
@@ -351,7 +357,6 @@ const showDetail = ref(false)
 const activeTab = ref('list')
 const limitCount = ref(100)
 const showExport = ref(false)
-
 
 // 筛选
 const searchQuery = ref('')
@@ -710,6 +715,67 @@ function showExportDialog() {
   showExport.value = true
 }
 
+// 处理导出配置更新
+function handleExportConfigUpdate(newExportConfig: GitAnalyzerConfig['exportConfig']) {
+  if (!config.value) return
+  
+  config.value.exportConfig = newExportConfig
+  debouncedSaveConfig(config.value)
+}
+
+// 加载配置
+async function loadConfig() {
+  try {
+    const loadedConfig = await gitAnalyzerConfigManager.load()
+    config.value = loadedConfig
+    
+    // 恢复配置到各个状态
+    repoPath.value = loadedConfig.repoPath
+    selectedBranch.value = loadedConfig.selectedBranch
+    limitCount.value = loadedConfig.limitCount
+    activeTab.value = loadedConfig.activeTab
+    pageSize.value = loadedConfig.pageSize
+    searchQuery.value = loadedConfig.searchQuery
+    authorFilter.value = loadedConfig.authorFilter
+    
+    // 恢复日期范围（需要将字符串转换为 Date 对象）
+    if (loadedConfig.dateRange) {
+      dateRange.value = [
+        new Date(loadedConfig.dateRange[0]),
+        new Date(loadedConfig.dateRange[1])
+      ]
+    }
+  } catch (error) {
+    console.error('加载配置失败:', error)
+  }
+}
+
+// 保存当前配置
+function saveCurrentConfig() {
+  if (!config.value) return
+  
+  const updatedConfig: GitAnalyzerConfig = {
+    ...config.value,
+    repoPath: repoPath.value,
+    selectedBranch: selectedBranch.value,
+    limitCount: limitCount.value,
+    activeTab: activeTab.value,
+    pageSize: pageSize.value,
+    searchQuery: searchQuery.value,
+    dateRange: dateRange.value
+      ? [dateRange.value[0].toISOString(), dateRange.value[1].toISOString()]
+      : null,
+    authorFilter: authorFilter.value
+  }
+  
+  debouncedSaveConfig(updatedConfig)
+}
+
+// 监听配置变化并自动保存
+watch([repoPath, selectedBranch, limitCount, activeTab, pageSize, searchQuery, dateRange, authorFilter], () => {
+  saveCurrentConfig()
+}, { deep: true })
+
 // 监听标签页切换
 watch(activeTab, () => {
   updateCharts()
@@ -718,7 +784,10 @@ watch(activeTab, () => {
 // 组件挂载时设置图表容器大小监听
 let resizeObserver: ResizeObserver | null = null
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载配置
+  await loadConfig()
+  
   // 监听容器大小变化，自动调整图表
   if (window.ResizeObserver) {
     resizeObserver = new ResizeObserver(() => {

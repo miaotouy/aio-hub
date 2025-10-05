@@ -186,10 +186,24 @@ const props = defineProps<{
   }
   repoPath: string
   branch: string
+  initialConfig?: {
+    format: 'markdown' | 'json' | 'csv' | 'html' | 'text'
+    includes: string[]
+    commitRange: 'all' | 'filtered' | 'custom'
+    customCount: number
+    dateFormat: 'iso' | 'local' | 'relative' | 'timestamp'
+    includeEmail: boolean
+    includeFullMessage: boolean
+    includeFiles: boolean
+    includeTags: boolean
+    includeStats: boolean
+    htmlTheme: 'light' | 'dark' | 'auto'
+  }
 }>()
 
 const emit = defineEmits<{
   close: []
+  'update:exportConfig': [config: ExportConfig]
 }>()
 
 const visible = defineModel<boolean>('visible', { required: true })
@@ -210,6 +224,11 @@ const exportConfig = ref<ExportConfig>({
   includeStats: true,
   htmlTheme: 'light'
 })
+
+// 初始化配置
+if (props.initialConfig) {
+  exportConfig.value = { ...exportConfig.value, ...props.initialConfig }
+}
 
 const totalCommits = computed(() => props.commits.length)
 
@@ -996,9 +1015,18 @@ function handleClose() {
   emit('close')
 }
 
+// 监听配置变化并通知父组件
+watch(exportConfig, (newConfig) => {
+  emit('update:exportConfig', newConfig)
+}, { deep: true })
+
 // 监听对话框打开时更新预览
 watch(() => visible.value, (val) => {
   if (val) {
+    // 如果有初始配置，重新应用
+    if (props.initialConfig) {
+      exportConfig.value = { ...exportConfig.value, ...props.initialConfig }
+    }
     updatePreview()
   }
 })

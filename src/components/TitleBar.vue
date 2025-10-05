@@ -2,9 +2,11 @@
 import { ref, onMounted, computed } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Minus, CopyDocument, Close, House, Setting } from '@element-plus/icons-vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { toolsConfig } from '../config/tools';
 import iconImage from '../assets/icon.png';
+
+const router = useRouter();
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
@@ -30,6 +32,11 @@ const currentTool = computed(() => {
   } else if (route.path === '/regex-manage') {
     return {
       name: '正则预设管理',
+      icon: Setting
+    };
+  } else if (route.path === '/settings') {
+    return {
+      name: '设置',
       icon: Setting
     };
   }
@@ -79,13 +86,26 @@ const toggleMaximize = async () => {
 const closeWindow = () => {
   appWindow.close();
 };
+
+// 导航到设置页面
+const goToSettings = () => {
+  router.push('/settings');
+};
 </script>
 
 <template>
   <div class="title-bar" data-tauri-drag-region>
     <div class="title-bar-content">
-      <!-- 左侧空白区域，用于平衡布局 -->
-      <div class="left-spacer"></div>
+      <!-- 左侧设置按钮 -->
+      <div class="left-controls">
+        <button
+          class="settings-btn"
+          @click="goToSettings"
+          title="设置"
+        >
+          <el-icon><Setting /></el-icon>
+        </button>
+      </div>
       
       <!-- 中间标题区域 -->
       <div class="title-area">
@@ -153,10 +173,31 @@ const closeWindow = () => {
   position: relative;
 }
 
-/* 左侧空白区域，宽度与右侧控制按钮相同，用于平衡布局 */
-.left-spacer {
-  width: 138px; /* 3个按钮 * 46px = 138px */
+/* 左侧控制区域 */
+.left-controls {
+  display: flex;
+  gap: 0;
   flex-shrink: 0;
+  /* 禁止拖动，以便点击按钮 */
+  -webkit-app-region: no-drag;
+}
+
+.settings-btn {
+  width: 46px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--sidebar-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  font-size: 16px;
+}
+
+.settings-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .title-area {

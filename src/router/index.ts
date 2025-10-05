@@ -61,6 +61,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "GitAnalyzer",
     component: () => import("../tools/git-analyzer/GitAnalyzer.vue"),
   },
+  {
+    path: "/settings",
+    name: "Settings",
+    component: () => import("../views/Settings.vue"),
+  },
 ];
 
 const router = createRouter({

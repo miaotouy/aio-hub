@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GitCommit {
     pub hash: String,
@@ -82,7 +85,11 @@ pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitComm
 
     // 仅输出结构化字段，并使用 \x1e 将头部与完整消息分隔，避免换行干扰
     // 头部字段: hash, author, email, date, subject, parents
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("show")
@@ -158,7 +165,11 @@ pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitComm
 pub async fn git_cherry_pick(path: String, hash: String) -> Result<String, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
     
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("cherry-pick")
@@ -177,7 +188,11 @@ pub async fn git_cherry_pick(path: String, hash: String) -> Result<String, Strin
 pub async fn git_revert(path: String, hash: String) -> Result<String, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
     
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("revert")
@@ -275,7 +290,11 @@ pub async fn git_export_commits(commits: Vec<GitCommit>, format: String) -> Resu
 pub async fn git_format_log(path: String, template: String, limit: usize) -> Result<String, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
     
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("log")
@@ -294,7 +313,11 @@ pub async fn git_format_log(path: String, template: String, limit: usize) -> Res
 // 辅助函数
 
 fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("branch")
@@ -341,6 +364,9 @@ fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {
 
 fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize, include_files: bool) -> Result<Vec<GitCommit>, String> {
     let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
     cmd.arg("-C").arg(repo_path).arg("log");
 
     if let Some(branch) = branch {
@@ -402,7 +428,11 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize, include_file
 }
 
 fn get_commit_tags(repo_path: &str, hash: &str) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("tag")
@@ -424,7 +454,11 @@ fn get_commit_tags(repo_path: &str, hash: &str) -> Result<Vec<String>, String> {
 }
 
 fn get_commit_stats(repo_path: &str, hash: &str) -> Result<CommitStats, String> {
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("show")
@@ -486,7 +520,11 @@ fn parse_commit_stats(output: &str) -> Option<CommitStats> {
 }
 
 fn get_commit_files(repo_path: &str, hash: &str) -> Result<Vec<FileChange>, String> {
-    let output = Command::new("git")
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    let output = cmd
         .arg("-C")
         .arg(repo_path)
         .arg("show")

@@ -1,28 +1,37 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { InfoFilled } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  loadAppSettingsAsync,
+  saveAppSettingsDebounced,
+  resetAppSettingsAsync,
+  type AppSettings
+} from '../utils/appSettings';
+import { toolsConfig } from '../config/tools';
+import { getName, getVersion } from '@tauri-apps/api/app';
 
-// 占位符数据
-const settings = ref({
-  // 托盘设置
+// 从路径提取工具ID
+const getToolIdFromPath = (path: string): string => {
+  // 从 /regex-apply 转换为 regexApply
+  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+};
+
+// 应用设置
+const settings = ref<AppSettings>({
+  sidebarCollapsed: false,
+  theme: 'auto',
   trayEnabled: false,
-  
-  // 主题设置
-  theme: 'auto', // auto, light, dark
-  
-  // 工具模块显示
-  toolsVisible: {
-    regexApply: true,
-    mediaInfoReader: true,
-    textDiff: true,
-    jsonFormatter: true,
-    codeFormatter: true,
-    symlinkMover: true,
-    directoryTree: true,
-    apiTester: true,
-    llmProxy: true,
-    gitAnalyzer: true,
-  }
+  toolsVisible: {},
+  toolsOrder: [],
+  version: '1.0.0'
+});
+
+
+// 应用信息
+const appInfo = ref({
+  name: '',
+  version: ''
 });
 
 // 左侧导航状态与滚动容器
@@ -37,7 +46,7 @@ const scrollToSection = (id: string) => {
   if (target) {
     const containerTop = container.getBoundingClientRect().top;
     const targetTop = target.getBoundingClientRect().top;
-    const offset = targetTop - containerTop + container.scrollTop - 8; // 上方留一点间距
+    const offset = targetTop - containerTop + container.scrollTop - 8;
     container.scrollTo({ top: offset, behavior: 'smooth' });
   }
 };
@@ -46,18 +55,140 @@ const handleSelect = (key: string) => {
   scrollToSection(key);
 };
 
-// 占位符函数
-const handleSave = () => {
-  console.log('保存设置（功能待实现）', settings.value);
+
+// 应用主题
+const applyTheme = (theme: 'auto' | 'light' | 'dark') => {
+  const root = document.documentElement;
+  
+  if (theme === 'auto') {
+    // 检测系统主题
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    root.classList.toggle('dark', isDark);
+  } else if (theme === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
 };
 
-const handleReset = () => {
-  console.log('重置设置（功能待实现）');
+// 重置设置
+const handleReset = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要重置所有设置到默认值吗？此操作不可撤销。',
+      '重置设置',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+    
+    isLoadingFromFile = true; // 防止触发不必要的事件
+    const defaultSettings = await resetAppSettingsAsync();
+    settings.value = { ...defaultSettings };
+    applyTheme(settings.value.theme || 'auto');
+    
+    // 手动触发同步事件
+    setTimeout(() => {
+      isLoadingFromFile = false;
+      window.dispatchEvent(new CustomEvent('app-settings-changed', {
+        detail: settings.value
+      }));
+    }, 100);
+    
+    ElMessage.success('设置已重置到默认值');
+  } catch (error) {
+    // 用户取消了操作
+    if (error !== 'cancel') {
+      console.error('重置设置失败:', error);
+      ElMessage.error('重置设置失败');
+    }
+  }
 };
 
+// 显示关于信息
 const showAbout = () => {
-  console.log('显示关于页面（功能待实现）');
+  ElMessageBox.alert(
+    `<div style="text-align: center;">
+      <h3>${appInfo.value.name}</h3>
+      <p>版本: ${appInfo.value.version}</p>
+      <p style="margin-top: 20px; color: #909399;">一个功能丰富的工具箱应用</p>
+    </div>`,
+    '关于',
+    {
+      dangerouslyUseHTMLString: true,
+      confirmButtonText: '确定',
+    }
+  );
 };
+
+// 标记是否正在从文件加载设置，避免触发不必要的事件
+let isLoadingFromFile = false;
+
+// 监听设置变化，自动保存并应用
+watch(settings, (newSettings) => {
+  // 如果是从文件加载的，不触发事件
+  if (isLoadingFromFile) {
+    return;
+  }
+  
+  // 保存设置到文件系统（使用防抖）
+  saveAppSettingsDebounced(newSettings);
+  
+  // 应用主题设置
+  if (newSettings.theme) {
+    applyTheme(newSettings.theme);
+  }
+  
+  // 发出事件通知设置已更改（用于实时同步到侧边栏）
+  window.dispatchEvent(new CustomEvent('app-settings-changed', {
+    detail: newSettings
+  }));
+}, { deep: true });
+
+// 初始化
+onMounted(async () => {
+  // 标记正在加载
+  isLoadingFromFile = true;
+  
+  // 异步加载设置
+  const loadedSettings = await loadAppSettingsAsync();
+  
+  // 确保 toolsVisible 包含所有工具
+  if (!loadedSettings.toolsVisible) {
+    loadedSettings.toolsVisible = {};
+  }
+  
+  // 为每个工具设置默认可见状态
+  toolsConfig.forEach(tool => {
+    const toolId = getToolIdFromPath(tool.path);
+    if (loadedSettings.toolsVisible![toolId] === undefined) {
+      loadedSettings.toolsVisible![toolId] = true;
+    }
+  });
+  
+  settings.value = loadedSettings;
+  
+  // 应用主题
+  applyTheme(settings.value.theme || 'auto');
+  
+  // 获取应用信息
+  try {
+    appInfo.value.name = await getName();
+    appInfo.value.version = await getVersion();
+  } catch (error) {
+    console.error('获取应用信息失败:', error);
+    appInfo.value.name = 'AIO工具箱';
+    appInfo.value.version = '1.0.0';
+  }
+  
+  // 加载完成后，允许触发事件
+  setTimeout(() => {
+    isLoadingFromFile = false;
+  }, 100);
+});
+
 </script>
 
 <template>
@@ -74,8 +205,9 @@ const showAbout = () => {
         </el-menu>
 
         <div class="nav-actions">
-          <el-button @click="handleReset" disabled>重置设置</el-button>
-          <el-button type="primary" @click="handleSave" disabled>保存</el-button>
+          <el-button @click="handleReset" type="danger" plain>
+            重置所有设置
+          </el-button>
         </div>
       </aside>
 
@@ -88,11 +220,25 @@ const showAbout = () => {
           <div class="setting-item">
             <div class="setting-label">
               <span>最小化到托盘</span>
-              <el-tooltip content="功能待实现" placement="top">
+              <el-tooltip content="关闭窗口时最小化到系统托盘而不是退出程序" placement="top">
                 <el-icon class="info-icon"><InfoFilled /></el-icon>
               </el-tooltip>
             </div>
-            <el-switch v-model="settings.trayEnabled" disabled />
+            <el-switch v-model="settings.trayEnabled" />
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <span>主题设置</span>
+              <el-tooltip content="选择应用的主题模式" placement="top">
+                <el-icon class="info-icon"><InfoFilled /></el-icon>
+              </el-tooltip>
+            </div>
+            <el-radio-group v-model="settings.theme">
+              <el-radio-button value="auto">跟随系统</el-radio-button>
+              <el-radio-button value="light">浅色</el-radio-button>
+              <el-radio-button value="dark">深色</el-radio-button>
+            </el-radio-group>
           </div>
         </section>
 
@@ -102,20 +248,45 @@ const showAbout = () => {
 
           <div class="setting-item">
             <div class="setting-label">
-              <span>模块显示与排序</span>
-              <el-tooltip content="功能待实现" placement="top">
+              <span>工具模块显示</span>
+              <el-tooltip content="选择要在主页显示的工具模块" placement="top">
                 <el-icon class="info-icon"><InfoFilled /></el-icon>
               </el-tooltip>
             </div>
-            <el-button disabled size="small">管理模块</el-button>
           </div>
 
           <div class="tools-list">
-            <div v-for="(_, key) in settings.toolsVisible" :key="key" class="tool-item">
-              <el-checkbox v-model="settings.toolsVisible[key]" disabled>
-                {{ key }}
+            <div v-for="tool in toolsConfig" :key="tool.path" class="tool-item">
+              <el-checkbox
+                v-if="settings.toolsVisible"
+                v-model="settings.toolsVisible[getToolIdFromPath(tool.path)]"
+              >
+                <div class="tool-checkbox-content">
+                  <el-icon class="tool-icon"><component :is="tool.icon" /></el-icon>
+                  <div class="tool-info">
+                    <span class="tool-name">{{ tool.name }}</span>
+                    <span v-if="tool.description" class="tool-description">{{ tool.description }}</span>
+                  </div>
+                </div>
               </el-checkbox>
             </div>
+          </div>
+
+          <el-divider />
+          
+          <div class="batch-actions">
+            <el-button
+              size="small"
+              @click="Object.keys(settings.toolsVisible || {}).forEach(k => settings.toolsVisible![k] = true)"
+            >
+              全选
+            </el-button>
+            <el-button
+              size="small"
+              @click="Object.keys(settings.toolsVisible || {}).forEach(k => settings.toolsVisible![k] = false)"
+            >
+              全不选
+            </el-button>
           </div>
         </section>
 
@@ -127,34 +298,15 @@ const showAbout = () => {
             <div class="setting-label">
               <span>应用信息</span>
             </div>
-            <el-button @click="showAbout" disabled size="small">查看详情</el-button>
+            <el-button @click="showAbout" size="small">查看详情</el-button>
           </div>
 
           <div class="about-info">
-            <p>AIO工具箱</p>
-            <p class="version">版本：1.0.0（占位符）</p>
+            <p>{{ appInfo.name }}</p>
+            <p class="version">版本：{{ appInfo.version }}</p>
           </div>
         </section>
 
-        <!-- 提示信息 -->
-        <div class="placeholder-notice">
-          <el-alert
-            title="占位符页面"
-            type="info"
-            :closable="false"
-            show-icon
-          >
-            <template #default>
-              当前设置页面为占位符，所有功能尚未实现。未来将包括：
-              <ul>
-                <li>托盘最小化功能</li>
-                <li>主题色自定义</li>
-                <li>工具模块显示开关和排序</li>
-                <li>关于页面</li>
-              </ul>
-            </template>
-          </el-alert>
-        </div>
       </div>
     </div>
   </div>
@@ -219,20 +371,18 @@ const showAbout = () => {
 
 .nav-actions {
   margin-top: auto; /* 底部对齐 */
-  display: flex;
-  flex-direction: row; /* 改为横向布局 */
-  gap: 8px;
-  align-items: center; /* 垂直居中对齐 */
+  padding-top: 16px;
 }
 
 .nav-actions .el-button {
-  flex: 1; /* 平均分配宽度 */
+  width: 100%;
 }
 
 /* 右侧内容区域滚动 */
 .settings-content {
   height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: 8px;
   box-sizing: border-box;
   padding-right: 10px;
@@ -296,19 +446,71 @@ const showAbout = () => {
 
 .tools-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 12px;
   margin-top: 16px;
 }
 
 .tool-item {
   padding: 8px;
+  overflow: hidden;
+}
+
+/* 覆盖 element-plus checkbox 样式 */
+.tool-item :deep(.el-checkbox) {
+  height: auto;
+  align-items: flex-start;
+}
+
+.tool-item :deep(.el-checkbox__label) {
+  white-space: normal;
+  padding-left: 8px;
+  width: 100%;
+}
+
+.tool-checkbox-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.tool-icon {
+  font-size: 20px;
+  color: var(--primary-color);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.tool-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tool-name {
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-description {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .about-info {
-  margin-top: 16px;
-  padding: 16px;
-  background: var(--bg-color);
+  margin-top: 6px;
   border-radius: 6px;
 }
 
@@ -322,31 +524,11 @@ const showAbout = () => {
   color: var(--text-color-secondary);
 }
 
-/* 保留占位提示样式 */
-.placeholder-notice {
-  margin-top: 32px;
+/* 批量操作按钮 */
+.batch-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
 }
 
-.placeholder-notice ul {
-  margin: 12px 0 0 0;
-  padding-left: 20px;
-}
-
-.placeholder-notice li {
-  margin: 4px 0;
-}
-
-/* 暗色主题适配 */
-:root.dark .settings-page {
-  background: var(--bg-color);
-}
-
-:root.dark .settings-section {
-  background: var(--card-bg);
-  border-color: var(--border-color);
-}
-
-:root.dark .about-info {
-  background: var(--bg-color);
-}
 </style>

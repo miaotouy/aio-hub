@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useDark, useToggle } from "@vueuse/core";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
-import { loadAppSettings, updateAppSettings } from "./utils/appSettings";
+import { loadAppSettingsAsync, updateAppSettingsAsync, type AppSettings } from "./utils/appSettings";
 import TitleBar from "./components/TitleBar.vue";
 
 const router = useRouter();
@@ -13,16 +13,80 @@ const isDark = useDark();
 const toggleDark = useToggle(isDark);
 const isCollapsed = ref(false); // 控制侧边栏收起状态
 
-const toggleSidebar = () => {
-  isCollapsed.value = !isCollapsed.value;
-  // 使用新的设置管理器保存状态
-  updateAppSettings({ sidebarCollapsed: isCollapsed.value });
+// 应用设置
+const appSettings = ref<AppSettings>({
+  sidebarCollapsed: false,
+  toolsVisible: {}
+});
+
+// 从路径提取工具ID
+const getToolIdFromPath = (path: string): string => {
+  // 从 /regex-apply 转换为 regexApply
+  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
-onMounted(() => {
-  // 使用新的设置管理器加载状态
-  const settings = loadAppSettings();
+// 计算可见的工具列表
+const visibleTools = computed(() => {
+  if (!appSettings.value.toolsVisible) {
+    return toolsConfig; // 如果没有设置，显示所有工具
+  }
+  
+  return toolsConfig.filter(tool => {
+    const toolId = getToolIdFromPath(tool.path);
+    // 默认为 true，如果未设置则显示
+    return appSettings.value.toolsVisible![toolId] !== false;
+  });
+});
+
+const toggleSidebar = async () => {
+  isCollapsed.value = !isCollapsed.value;
+  // 使用新的设置管理器保存状态（异步保存）
+  updateAppSettingsAsync({ sidebarCollapsed: isCollapsed.value });
+};
+
+// 监听设置变化（用于响应设置页面的更改）
+const loadSettings = async () => {
+  const settings = await loadAppSettingsAsync();
+  appSettings.value = settings;
   isCollapsed.value = settings.sidebarCollapsed;
+};
+
+// 存储事件处理函数的引用，用于清理
+let handleSettingsChange: ((event: Event) => void) | null = null;
+
+onMounted(async () => {
+  // 初始加载设置
+  await loadSettings();
+  
+  // 监听设置变化事件（来自设置页面）- 这是主要的同步机制
+  handleSettingsChange = (event: Event) => {
+    const customEvent = event as CustomEvent<AppSettings>;
+    if (customEvent.detail) {
+      appSettings.value = customEvent.detail;
+      isCollapsed.value = customEvent.detail.sidebarCollapsed;
+    }
+  };
+  
+  window.addEventListener('app-settings-changed', handleSettingsChange);
+});
+
+// 监听路由变化，仅在离开设置页面时更新一次
+watch(() => route.path, async (_, oldPath) => {
+  if (oldPath === '/settings') {
+    // 离开设置页面时从文件系统加载最新设置，确保数据同步
+    // 使用 setTimeout 避免与事件处理冲突
+    setTimeout(async () => {
+      await loadSettings();
+    }, 100);
+  }
+});
+
+// 清理事件监听器
+onUnmounted(() => {
+  // 移除事件监听器
+  if (handleSettingsChange) {
+    window.removeEventListener('app-settings-changed', handleSettingsChange);
+  }
 });
 
 
@@ -76,7 +140,7 @@ const handleSelect = (key: string) => {
             <el-icon><i-ep-home-filled /></el-icon>
             <template #title>主页</template>
           </el-menu-item>
-          <el-menu-item v-for="tool in toolsConfig" :key="tool.path" :index="tool.path">
+          <el-menu-item v-for="tool in visibleTools" :key="tool.path" :index="tool.path">
             <el-icon><component :is="tool.icon" /></el-icon>
             <template #title>{{ tool.name }}</template>
           </el-menu-item>

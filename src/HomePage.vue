@@ -2,7 +2,12 @@
   <div class="home-page">
     <span class="title">All In One 工具箱</span>
     <div class="tool-grid">
-      <router-link v-for="tool in toolsConfig" :key="tool.path" :to="tool.path" class="tool-card">
+      <router-link
+        v-for="tool in visibleTools"
+        :key="tool.path"
+        :to="tool.path"
+        class="tool-card"
+      >
         <el-icon :size="48">
           <component :is="tool.icon" />
         </el-icon>
@@ -10,14 +15,79 @@
         <div class="tool-description">{{ tool.description }}</div>
       </router-link>
     </div>
+    
+    <!-- 如果没有可显示的工具，显示提示 -->
+    <div v-if="visibleTools.length === 0" class="no-tools-message">
+      <el-empty description="没有可显示的工具">
+        <el-button type="primary" @click="router.push('/settings')">
+          前往设置页面配置工具
+        </el-button>
+      </el-empty>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { toolsConfig } from "./config/tools";
-import { ElIcon } from "element-plus"; // 确保正确导入 ElIcon 组件，虽然在模板中直接使用 component :is 也可以
+import { loadAppSettingsAsync, type AppSettings } from './utils/appSettings';
 
-// toolsConfig 直接从外部导入，无需在 setup 中声明 ref
+const router = useRouter();
+
+// 从路径提取工具ID（与设置页面保持一致）
+const getToolIdFromPath = (path: string): string => {
+  // 从 /regex-apply 转换为 regexApply
+  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+};
+
+// 当前设置
+const settings = ref<AppSettings>({
+  sidebarCollapsed: false,
+  theme: 'auto',
+  trayEnabled: false,
+  toolsVisible: {},
+  toolsOrder: [],
+  version: '1.0.0'
+});
+
+// 计算可见的工具列表
+const visibleTools = computed(() => {
+  if (!settings.value.toolsVisible) {
+    // 如果没有配置，显示所有工具
+    return toolsConfig;
+  }
+  
+  return toolsConfig.filter(tool => {
+    const toolId = getToolIdFromPath(tool.path);
+    // 默认显示未配置的工具
+    return settings.value.toolsVisible![toolId] !== false;
+  });
+});
+
+// 监听localStorage变化以实时更新（保留以防万一，但主要依赖路由变化）
+const handleStorageChange = async () => {
+  settings.value = await loadAppSettingsAsync();
+};
+
+onMounted(async () => {
+  // 初始化时加载设置
+  settings.value = await loadAppSettingsAsync();
+  // 监听storage事件，以便在设置页面保存后实时更新
+  window.addEventListener('storage', handleStorageChange);
+});
+
+// 组件卸载时清理
+onUnmounted(() => {
+  window.removeEventListener('storage', handleStorageChange);
+});
+
+// 也可以通过路由守卫在从设置页返回时重新加载
+watch(() => router.currentRoute.value.path, async (newPath, oldPath) => {
+  if (oldPath === '/settings' && newPath === '/') {
+    settings.value = await loadAppSettingsAsync();
+  }
+});
 </script>
 
 <style scoped>
@@ -101,5 +171,9 @@ import { ElIcon } from "element-plus"; // 确保正确导入 ElIcon 组件，虽
   color: var(--text-color-light);
   text-align: center;
   line-height: 1.5;
+}
+
+.no-tools-message {
+  margin-top: 50px;
 }
 </style>

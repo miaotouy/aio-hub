@@ -50,8 +50,8 @@ pub async fn git_load_repository(path: String, limit: usize) -> Result<Repositor
     // 获取分支列表
     let branches = get_branches(repo_path)?;
     
-    // 获取提交记录
-    let commits = get_commits(repo_path, None, limit)?;
+    // 获取提交记录（不包含文件列表以提高性能）
+    let commits = get_commits(repo_path, None, limit, false)?;
     
     Ok(RepositoryInfo { branches, commits })
 }
@@ -63,7 +63,17 @@ pub async fn git_get_branch_commits(
     limit: usize,
 ) -> Result<Vec<GitCommit>, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
-    get_commits(repo_path, Some(&branch), limit)
+    get_commits(repo_path, Some(&branch), limit, false)
+}
+
+#[tauri::command]
+pub async fn git_load_commits_with_files(
+    path: String,
+    branch: Option<String>,
+    limit: usize,
+) -> Result<Vec<GitCommit>, String> {
+    let repo_path = if path.is_empty() { "." } else { &path };
+    get_commits(repo_path, branch.as_deref(), limit, true)
 }
 
 #[tauri::command]
@@ -329,7 +339,7 @@ fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {
     Ok(branches)
 }
 
-fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize) -> Result<Vec<GitCommit>, String> {
+fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize, include_files: bool) -> Result<Vec<GitCommit>, String> {
     let mut cmd = Command::new("git");
     cmd.arg("-C").arg(repo_path).arg("log");
 
@@ -368,6 +378,12 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize) -> Result<Ve
         let body = parts.get(5).unwrap_or(&"").trim().to_string();
         let parents_str = parts.get(6).unwrap_or(&"").trim();
 
+        let files = if include_files {
+            get_commit_files(repo_path, &hash).ok()
+        } else {
+            None
+        };
+
         commits.push(GitCommit {
             hash: hash.clone(),
             author: parts.get(1).unwrap_or(&"").to_string(),
@@ -378,7 +394,7 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize) -> Result<Ve
             parents: parents_str.split_whitespace().map(|s| s.to_string()).collect(),
             tags,
             stats: get_commit_stats(repo_path, &hash).ok(),
-            files: None,
+            files,
         });
     }
 

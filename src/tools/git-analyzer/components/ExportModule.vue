@@ -93,7 +93,7 @@
             包含完整提交消息
           </el-checkbox>
           <el-checkbox v-model="exportConfig.includeFiles">
-            包含文件变更详情
+            包含文件变更列表
           </el-checkbox>
           <el-checkbox v-model="exportConfig.includeTags">
             包含标签信息
@@ -108,6 +108,9 @@
       <div class="preview-section">
         <div class="preview-header">
           <span>内容预览</span>
+          <el-tag v-if="loadingFiles" type="warning" size="small" style="margin-left: 10px;">
+            正在加载文件信息...
+          </el-tag>
           <el-button-group>
             <el-button size="small" @click="updatePreview" :icon="RefreshRight" :loading="generating">
               刷新预览
@@ -146,6 +149,7 @@ import { ElMessage } from 'element-plus'
 import { CopyDocument, Download, RefreshRight, QuestionFilled } from '@element-plus/icons-vue'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
+import { invoke } from '@tauri-apps/api/core'
 
 interface GitCommit {
   hash: string
@@ -195,20 +199,7 @@ const props = defineProps<{
   }
   repoPath: string
   branch: string
-  initialConfig?: {
-    format: 'markdown' | 'json' | 'csv' | 'html' | 'text'
-    includes: string[]
-    commitRange: 'all' | 'filtered' | 'custom'
-    customCount: number
-    dateFormat: 'iso' | 'local' | 'relative' | 'timestamp'
-    includeAuthor: boolean
-    includeEmail: boolean
-    includeFullMessage: boolean
-    includeFiles: boolean
-    includeTags: boolean
-    includeStats: boolean
-    htmlTheme: 'light' | 'dark' | 'auto'
-  }
+  initialConfig?: Partial<ExportConfig>
 }>()
 
 const emit = defineEmits<{
@@ -220,6 +211,8 @@ const visible = defineModel<boolean>('visible', { required: true })
 const generating = ref(false)
 const exporting = ref(false)
 const previewContent = ref('')
+const commitsWithFiles = ref<GitCommit[]>([])
+const loadingFiles = ref(false)
 
 const exportConfig = ref<ExportConfig>({
   format: 'markdown',
@@ -277,16 +270,69 @@ function getRelativeTime(date: Date): string {
 
 // 获取要导出的提交记录
 function getCommitsToExport(): GitCommit[] {
-  switch (exportConfig.value.commitRange) {
-    case 'all':
-      return props.commits
-    case 'filtered':
-      return props.filteredCommits
-    case 'custom':
-      return props.filteredCommits.slice(0, exportConfig.value.customCount)
-    default:
-      return props.filteredCommits
+  // 先根据范围获取基础提交列表
+  const base: GitCommit[] = (() => {
+    switch (exportConfig.value.commitRange) {
+      case 'all':
+        return props.commits
+      case 'filtered':
+        return props.filteredCommits
+      case 'custom':
+        return props.filteredCommits.slice(0, exportConfig.value.customCount)
+      default:
+        return props.filteredCommits
+    }
+  })()
+
+  // 如果需要文件变更信息，合并文件数据（内部已做开关与可用性判断）
+  return getMergedCommits(base)
+}
+
+// 加载带文件信息的提交列表
+async function loadCommitsWithFiles() {
+  if (!exportConfig.value.includeFiles) {
+    commitsWithFiles.value = []
+    return
   }
+  
+  loadingFiles.value = true
+  try {
+    // 使用新的后端接口一次性加载所有提交的文件信息
+    const commits = await invoke<GitCommit[]>('git_load_commits_with_files', {
+      path: props.repoPath || '.',
+      branch: null,
+      limit: props.commits.length
+    })
+    
+    commitsWithFiles.value = commits
+    ElMessage.success('已加载文件变更信息')
+  } catch (error) {
+    console.error('加载文件信息失败:', error)
+    ElMessage.error('加载文件信息失败')
+    commitsWithFiles.value = []
+  } finally {
+    loadingFiles.value = false
+  }
+}
+
+// 获取合并后的提交数据（优先使用带文件信息的版本）
+function getMergedCommits(commits: GitCommit[]): GitCommit[] {
+  if (!exportConfig.value.includeFiles || commitsWithFiles.value.length === 0) {
+    return commits
+  }
+  
+  // 创建一个 hash -> commit 的映射
+  const filesMap = new Map<string, GitCommit>()
+  commitsWithFiles.value.forEach(c => filesMap.set(c.hash, c))
+  
+  // 合并数据
+  return commits.map(commit => {
+    const withFiles = filesMap.get(commit.hash)
+    if (withFiles && withFiles.files) {
+      return { ...commit, files: withFiles.files }
+    }
+    return commit
+  })
 }
 
 // 生成 Markdown 格式
@@ -314,13 +360,14 @@ function generateMarkdown(): string {
   
   // 贡献者列表
   if (config.includes.includes('contributors')) {
-    const contributors = getContributorStats()
+    const commitsToExport = getCommitsToExport()
+    const contributors = getContributorStats(commitsToExport)
     lines.push('## 👥 贡献者统计')
     lines.push('')
     lines.push('| 贡献者 | 提交数 | 占比 |')
     lines.push('|--------|--------|------|')
     contributors.slice(0, 10).forEach(c => {
-      const percentage = ((c.count / props.statistics.totalCommits) * 100).toFixed(1)
+      const percentage = commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : '0.0'
       lines.push(`| ${c.name} | ${c.count} | ${percentage}% |`)
     })
     lines.push('')
@@ -392,7 +439,7 @@ function generateJSON(): string {
   const config = exportConfig.value
   
   if (config.includes.includes('contributors')) {
-    data.contributors = getContributorStats()
+    data.contributors = getContributorStats(getCommitsToExport())
   }
   
   if (config.includes.includes('commits')) {
@@ -750,7 +797,8 @@ function generateHTML(): string {
   
   // 贡献者列表
   if (config.includes.includes('contributors')) {
-    const contributors = getContributorStats()
+    const commitsToExport = getCommitsToExport()
+    const contributors = getContributorStats(commitsToExport)
     html += `
     <h2 class="${cssPrefix}-h2">👥 贡献者统计</h2>
     <table class="${cssPrefix}-table">
@@ -764,7 +812,7 @@ function generateHTML(): string {
       <tbody>`
     
     contributors.slice(0, 10).forEach(c => {
-      const percentage = ((c.count / props.statistics.totalCommits) * 100).toFixed(1)
+      const percentage = commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : '0.0'
       html += `
         <tr>
           <td>${escapeHtml(c.name)}</td>
@@ -813,6 +861,22 @@ function generateHTML(): string {
       <p><strong>标签:</strong> ${commit.tags.map(t => escapeHtml(t)).join(', ')}</p>`
       }
       
+      if (config.includeFiles && commit.files && commit.files.length > 0) {
+        html += `
+      <p><strong>文件变更 (${commit.files.length}):</strong></p>
+      <ul style="margin: 10px 0; padding-left: 20px;">`
+        commit.files.forEach(file => {
+          html += `
+        <li>
+          <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;">${escapeHtml(file.path)}</code>
+          <span class="${cssPrefix}-additions">+${file.additions}</span>
+          <span class="${cssPrefix}-deletions">-${file.deletions}</span>
+        </li>`
+        })
+        html += `
+      </ul>`
+      }
+      
       html += `
     </div>`
     })
@@ -852,12 +916,13 @@ function generateText(): string {
   }
   
   if (config.includes.includes('contributors')) {
-    const contributors = getContributorStats()
+    const commitsToExport = getCommitsToExport()
+    const contributors = getContributorStats(commitsToExport)
     lines.push('-'.repeat(40))
     lines.push('贡献者统计')
     lines.push('-'.repeat(40))
     contributors.slice(0, 10).forEach(c => {
-      const percentage = ((c.count / props.statistics.totalCommits) * 100).toFixed(1)
+      const percentage = commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : '0.0'
       lines.push(`${c.name}: ${c.count} 次提交 (${percentage}%)`)
     })
     lines.push('')
@@ -894,6 +959,13 @@ function generateText(): string {
         lines.push(`标签: ${commit.tags.join(', ')}`)
       }
       
+      if (config.includeFiles && commit.files && commit.files.length > 0) {
+        lines.push(`文件变更 (${commit.files.length}):`)
+        commit.files.forEach(file => {
+          lines.push(`  - ${file.path} (+${file.additions} -${file.deletions})`)
+        })
+      }
+      
       lines.push('')
     })
   }
@@ -914,8 +986,8 @@ function escapeHtml(text: string): string {
 }
 
 // 获取贡献者统计
-function getContributorStats() {
-  const authorCounts = props.filteredCommits.reduce((acc, c) => {
+function getContributorStats(commits: GitCommit[]) {
+  const authorCounts = commits.reduce((acc, c) => {
     acc[c.author] = (acc[c.author] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -1039,12 +1111,26 @@ watch(exportConfig, (newConfig) => {
 }, { deep: true })
 
 // 监听对话框打开时更新预览
-watch(() => visible.value, (val) => {
+watch(() => visible.value, async (val) => {
   if (val) {
     // 如果有初始配置，重新应用
     if (props.initialConfig) {
       exportConfig.value = { ...exportConfig.value, ...props.initialConfig }
     }
+    
+    // 如果勾选了包含文件变更列表，先加载文件信息
+    if (exportConfig.value.includeFiles) {
+      await loadCommitsWithFiles()
+    }
+    
+    updatePreview()
+  }
+})
+
+// 监听 includeFiles 选项变化
+watch(() => exportConfig.value.includeFiles, async (includeFiles) => {
+  if (includeFiles && visible.value && commitsWithFiles.value.length === 0) {
+    await loadCommitsWithFiles()
     updatePreview()
   }
 })

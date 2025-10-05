@@ -120,20 +120,30 @@
 
         <!-- 统计信息 -->
         <div class="statistics" v-if="commits.length > 0">
-          <el-row :gutter="20">
+          <el-row :gutter="16">
             <el-col :span="6">
-              <el-statistic title="总提交数" :value="statistics.totalCommits" />
+              <div class="stat-item-compact">
+                <span class="stat-value">{{ statistics.totalCommits }}</span>
+                <span class="stat-label">总提交数</span>
+              </div>
             </el-col>
             <el-col :span="6">
-              <el-statistic title="贡献者数" :value="statistics.contributors" />
+              <div class="stat-item-compact">
+                <span class="stat-value">{{ statistics.contributors }}</span>
+                <span class="stat-label">贡献者数</span>
+              </div>
             </el-col>
             <el-col :span="6">
-              <el-statistic title="时间跨度" :value="statistics.timeSpan">
-                <template #suffix> 天</template>
-              </el-statistic>
+              <div class="stat-item-compact">
+                <span class="stat-value">{{ statistics.timeSpan }}</span>
+                <span class="stat-label">时间跨度(天)</span>
+              </div>
             </el-col>
             <el-col :span="6">
-              <el-statistic title="平均提交/天" :value="statistics.averagePerDay" :precision="1" />
+              <div class="stat-item-compact">
+                <span class="stat-value">{{ statistics.averagePerDay.toFixed(1) }}</span>
+                <span class="stat-label">平均提交/天</span>
+              </div>
             </el-col>
           </el-row>
         </div>
@@ -791,7 +801,7 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   min-height: 0; /* 重要：允许内容收缩 */
   overflow: hidden;
 }
@@ -818,11 +828,33 @@ onUnmounted(() => {
 }
 
 .statistics {
-  padding: 16px;
+  padding: 8px 16px;
   background: var(--card-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color-light);
   flex-shrink: 0; /* 防止收缩 */
+}
+
+.stat-item-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-color-light);
+  margin-top: 2px;
+  line-height: 1;
 }
 
 .main-content {

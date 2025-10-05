@@ -1077,6 +1077,30 @@ watch(() => visible.value, (val) => {
 
 :deep(.el-radio-group) {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+/* 修复 radio-button 样式问题 */
+:deep(.el-radio-button) {
+  .el-radio-button__inner {
+    border: 1px solid var(--el-border-color);
+    border-radius: 4px !important;
+    margin-right: 8px;
+  }
+  
+  &:not(:last-child) .el-radio-button__inner {
+    border-right: 1px solid var(--el-border-color);
+  }
+  
+  &.is-active .el-radio-button__inner {
+    border-color: var(--el-color-primary);
+    background-color: var(--el-color-primary);
+    color: var(--el-color-white);
+  }
+  
+  &:hover .el-radio-button__inner {
+    border-color: var(--el-color-primary);
+  }
 }
 </style>

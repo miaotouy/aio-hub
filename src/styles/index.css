@@ -47,3 +47,16 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover-color); /* 悬停时滑块颜色 */
 }
+
+/* 调整 Element Plus 组件的位置，避免被自定义标题栏遮挡 */
+.el-notification {
+  top: 52px !important; /* 标题栏高度32px + 额外间距20px */
+}
+
+.el-message {
+  top: 52px !important; /* 标题栏高度32px + 额外间距20px */
+}
+
+.el-message-box {
+  margin-top: 32px !important; /* 给标题栏留出空间 */
+}

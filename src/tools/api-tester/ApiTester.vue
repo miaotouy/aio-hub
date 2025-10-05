@@ -78,7 +78,7 @@ async function handleSend() {
 .api-tester {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 40px); /* 减去上下 padding */
+  height: 100%;
   padding: 20px;
   box-sizing: border-box;
   overflow: hidden;

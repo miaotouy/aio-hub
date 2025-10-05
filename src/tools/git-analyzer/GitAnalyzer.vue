@@ -6,6 +6,9 @@
           <el-button :icon="Refresh" @click="loadRepository" :loading="loading">
             刷新
           </el-button>
+          <el-button :icon="Upload" @click="showExportDialog" :disabled="commits.length === 0">
+            导出
+          </el-button>
         </el-button-group>
       </template>
 
@@ -243,7 +246,7 @@
           {{ formatFullDate(selectedCommit.date) }}
         </el-descriptions-item>
         <el-descriptions-item label="提交信息">
-          <el-text style="white-space: pre-wrap;">{{ selectedCommit.fullMessage || selectedCommit.message }}</el-text>
+          <el-text style="white-space: pre-wrap;">{{ selectedCommit.full_message || selectedCommit.message }}</el-text>
         </el-descriptions-item>
         <el-descriptions-item label="父提交" v-if="selectedCommit.parents">
           <el-space>
@@ -274,6 +277,16 @@
         </el-space>
       </template>
     </el-dialog>
+
+    <!-- 导出模块 -->
+    <ExportModule
+      v-model:visible="showExport"
+      :commits="commits"
+      :filtered-commits="filteredCommits"
+      :statistics="statistics"
+      :repo-path="repoPath"
+      :branch="selectedBranch"
+    />
   </div>
 </template>
 
@@ -283,9 +296,10 @@ import { ElMessage } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import * as echarts from 'echarts'
-import { Refresh, Search, FolderOpened, PriceTag } from '@element-plus/icons-vue'
+import { Refresh, Search, FolderOpened, PriceTag, Upload } from '@element-plus/icons-vue'
 import InfoCard from '../../components/common/InfoCard.vue'
 import DropZone from '../../components/common/DropZone.vue'
+import ExportModule from './components/ExportModule.vue'
 
 interface GitCommit {
   hash: string
@@ -293,7 +307,7 @@ interface GitCommit {
   email: string
   date: string
   message: string
-  fullMessage?: string
+  full_message?: string  // 注意：后端使用 snake_case
   parents?: string[]
   tags?: string[]
   stats?: {
@@ -326,6 +340,7 @@ const selectedCommit = ref<GitCommit | null>(null)
 const showDetail = ref(false)
 const activeTab = ref('list')
 const limitCount = ref(100)
+const showExport = ref(false)
 
 
 // 筛选
@@ -349,8 +364,8 @@ const statistics = computed(() => {
     return {
       totalCommits: 0,
       contributors: 0,
-      timeSpan: 'N/A',
-      averagePerDay: '0'
+      timeSpan: 0,
+      averagePerDay: 0
     }
   }
 
@@ -673,6 +688,15 @@ const handlePathDrop = (paths: string[]) => {
       loadRepository()
     }, 500)
   }
+}
+
+// 显示导出对话框
+function showExportDialog() {
+  if (commits.value.length === 0) {
+    ElMessage.warning('请先加载仓库数据')
+    return
+  }
+  showExport.value = true
 }
 
 // 监听标签页切换

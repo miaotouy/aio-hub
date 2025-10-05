@@ -78,9 +78,10 @@ async function handleSend() {
 .api-tester {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 40px); /* 减去上下 padding */
   padding: 20px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .tester-header {
@@ -126,6 +127,7 @@ async function handleSend() {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   flex: 1;
+  min-height: 0; /* 防止 flex 子项撑开容器 */
   overflow: hidden;
   margin-top: 20px;
 }

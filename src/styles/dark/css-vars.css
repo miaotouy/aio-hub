@@ -1,34 +1,45 @@
 html.dark {
-  /* Element Plus Official Dark Variables */
-  --el-bg-color: #141414;  /* 从纯黑调整为深灰黑，更柔和 */
-  --el-bg-color-page: #1a1a1a;  /* 页面背景色，比主背景稍亮 */
-  --el-bg-color-overlay: #1d1e1f;
-  --el-text-color-primary: #e5e5e5;
-  --el-text-color-regular: #d4d4d4;
-  --el-text-color-secondary: #a8a8a8;  /* 添加次要文本色 */
-  --el-border-color: #2f2f2f;
-  --el-border-color-light: #2a2a2a;
-  --el-border-color-lighter: #252525;
-  --el-fill-color: #262626;  /* 添加标准填充色 */
-  --el-fill-color-light: #2a2a2a;
-  --el-fill-color-lighter: #1f1f1f;  /* 调整为更深的颜色，避免与背景对比过大 */
-  --el-fill-color-blank: transparent;
+  /* Custom Variables for Dark Mode - 统一使用我们自己的主题变量 */
+  --bg-color: #1a1a1a;  /* 主背景色 - 深灰黑 */
+  --container-bg: #242424;  /* 容器背景色 - 比主背景稍亮 */
+  --text-color: #e5e5e5;  /* 主文字颜色 */
+  --text-color-light: #a8a8a8;  /* 次要文字颜色 */
+  --border-color: #3a3a3a;  /* 主边框颜色 */
+  --border-color-light: #2f2f2f;  /* 浅边框颜色 */
+  --primary-color: #409eff;  /* 主色调 - 保持 Element Plus 蓝色 */
+  --primary-hover-color: #66b1ff;  /* 主色调悬停色 */
+  --error-color: #ff6b6b;  /* 错误色 */
+  --input-bg: #1f1f1f;  /* 输入框背景色 */
+  --sidebar-bg: #242424;  /* 侧边栏背景色 */
+  --sidebar-text: #e5e5e5;  /* 侧边栏文字色 */
+  --header-bg: #2a2a2a;  /* 头部背景色 */
+  --card-bg: #2a2a2a;  /* 卡片背景色 */
+  --scrollbar-thumb-color: #555;  /* 滚动条颜色 */
+  --scrollbar-thumb-hover-color: #777;  /* 滚动条悬停色 */
 
-  /* Custom Variables for Dark Mode */
-  --bg-color: #2c2c2c;
-  --container-bg: #3c3c3c;
-  --text-color: #f4f4f4;
-  --text-color-light: #bbb;
-  --border-color: #555;
-  --primary-color: #409eff;
-  --primary-hover-color: #66b1ff;
-  --error-color: #ff6b6b;
-  --input-bg: #2c2c2c;
-  --sidebar-bg: #2b2b2b;
-  --sidebar-text: #f4f4f4;
-  --header-bg: #363636;
-  --card-bg: #363636;
-  --border-color-light: #444;
-  --scrollbar-thumb-color: #555;
-  --scrollbar-thumb-hover-color: #777;
+  /* Element Plus 兼容变量 - 映射到我们的主题变量 */
+  --el-bg-color: var(--bg-color);
+  --el-bg-color-page: var(--bg-color);
+  --el-bg-color-overlay: var(--container-bg);
+  --el-text-color-primary: var(--text-color);
+  --el-text-color-regular: var(--text-color);
+  --el-text-color-secondary: var(--text-color-light);
+  --el-text-color-placeholder: var(--text-color-light);
+  --el-border-color: var(--border-color);
+  --el-border-color-light: var(--border-color-light);
+  --el-border-color-lighter: var(--border-color-light);
+  --el-border-color-extra-light: var(--border-color-light);
+  --el-fill-color: var(--card-bg);
+  --el-fill-color-light: var(--card-bg);
+  --el-fill-color-lighter: var(--container-bg);
+  --el-fill-color-blank: transparent;
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: var(--primary-hover-color);
+  --el-color-primary-light-5: var(--primary-hover-color);
+  --el-color-primary-light-7: var(--primary-hover-color);
+  --el-color-primary-light-9: var(--primary-hover-color);
+  --el-color-danger: var(--error-color);
+  --el-color-success: #67c23a;
+  --el-color-warning: #e6a23c;
+  --el-color-info: #909399;
 }

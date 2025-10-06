@@ -6,14 +6,16 @@
 
 ### 🛠️ 已实现的工具
 
-- **目录树生成器** - 生成项目目录结构，支持自定义过滤和格式化
-- **正则表达式批处理** - 批量应用正则表达式，支持预设管理
-- **JSON 格式化** - JSON 数据的格式化、压缩和验证
-- **代码格式化** - 多语言代码格式化工具
-- **文本对比** - 文本差异对比工具
-- **媒体信息读取** - 读取图片、视频等媒体文件的元信息
-- **符号链接移动** - 管理和移动系统符号链接
-- **API 测试器** - HTTP API 请求测试工具
+- **正则批量替换** - 使用正则表达式批量处理文本或文件，支持预设管理
+- **媒体信息读取器** - 读取图片、视频等媒体文件的详细信息
+- **文本/JSON对比** - 对比文本和 JSON 文件的差异
+- **JSON 格式化** - 格式化和美化 JSON 数据
+- **代码格式化** - 格式化各种编程语言代码
+- **符号链接搬家工具** - 支持拖拽的文件批量移动和符号链接创建工具
+- **目录结构浏览器** - 生成目录树结构，支持过滤规则和深度限制
+- **API 测试工具** - 测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设
+- **LLM 代理监听器** - 监听和分析 LLM API 请求，捕获客户端与服务器之间的通信
+- **Git 分析器** - Git 提交记录分析和可视化处理工具
 
 ### 🎨 界面特性
 
@@ -64,24 +66,31 @@ npm run tauri build
 ## 📁 项目结构
 
 ```
-aiotools/
-├── src/                      # 前端源代码
-│   ├── components/           # 公共组件
-│   │   ├── common/          # 通用组件
-│   │   └── icons/           # 图标组件
-│   ├── tools/               # 工具页面
-│   │   ├── directory-tree/  # 目录树工具
-│   │   ├── regex-applier/   # 正则批处理工具
-│   │   └── ...             # 其他工具
-│   ├── config/              # 配置文件
-│   ├── router/              # 路由配置
-│   ├── styles/              # 样式文件
-│   └── utils/               # 工具函数
-├── src-tauri/               # Tauri 后端
+all-in-one-tools/
+├── src/                        # 前端源代码
+│   ├── components/             # 公共组件
+│   │   ├── common/            # 通用组件
+│   │   └── icons/             # 图标组件
+│   ├── tools/                 # 工具页面
+│   │   ├── api-tester/        # API 测试工具
+│   │   ├── directory-tree/    # 目录结构浏览器
+│   │   ├── git-analyzer/      # Git 分析器
+│   │   ├── llm-proxy/         # LLM 代理监听器
+│   │   ├── regex-applier/     # 正则批量替换工具
+│   │   ├── CodeFormatter.vue  # 代码格式化
+│   │   ├── JsonFormatter.vue  # JSON 格式化
+│   │   ├── MediaInfoReader.vue # 媒体信息读取器
+│   │   ├── SymlinkMover.vue   # 符号链接搬家工具
+│   │   └── TextDiff.vue       # 文本/JSON对比
+│   ├── config/                # 配置文件
+│   ├── router/                # 路由配置
+│   ├── styles/                # 样式文件
+│   └── utils/                 # 工具函数
+├── src-tauri/                 # Tauri 后端
 │   ├── src/
-│   │   ├── commands/        # Tauri 命令
-│   │   └── main.rs         # 主入口
-│   └── tauri.conf.json     # Tauri 配置
+│   │   ├── commands/          # Tauri 命令
+│   │   └── main.rs           # 主入口
+│   └── tauri.conf.json       # Tauri 配置
 └── package.json
 
 ```

@@ -10,6 +10,7 @@ import {
 } from '../utils/appSettings';
 import { toolsConfig } from '../config/tools';
 import { getName, getVersion } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -126,6 +127,19 @@ const showAbout = () => {
 // 标记是否正在从文件加载设置，避免触发不必要的事件
 let isLoadingFromFile = false;
 
+// 监听托盘设置变化
+watch(() => settings.value.trayEnabled, async (newValue) => {
+  if (isLoadingFromFile) return;
+  
+  try {
+    // 同步到 Rust 后端
+    await invoke('update_tray_setting', { enabled: newValue });
+  } catch (error) {
+    console.error('更新托盘设置失败:', error);
+    ElMessage.error('更新托盘设置失败');
+  }
+});
+
 // 监听设置变化，自动保存并应用
 watch(settings, (newSettings) => {
   // 如果是从文件加载的，不触发事件
@@ -181,6 +195,13 @@ onMounted(async () => {
     console.error('获取应用信息失败:', error);
     appInfo.value.name = 'AIO工具箱';
     appInfo.value.version = '1.0.0';
+  }
+  
+  // 同步托盘设置到后端
+  try {
+    await invoke('update_tray_setting', { enabled: settings.value.trayEnabled || false });
+  } catch (error) {
+    console.error('初始化托盘设置失败:', error);
   }
   
   // 加载完成后，允许触发事件

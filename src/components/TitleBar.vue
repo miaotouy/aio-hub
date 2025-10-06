@@ -5,12 +5,14 @@ import { Minus, CopyDocument, Close, House, Setting } from '@element-plus/icons-
 import { useRoute, useRouter } from 'vue-router';
 import { toolsConfig } from '../config/tools';
 import iconImage from '../assets/icon.png';
+import { loadAppSettingsAsync, type AppSettings } from '../utils/appSettings';
 
 const router = useRouter();
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
 const route = useRoute();
+const settings = ref<AppSettings | null>(null);
 
 // 获取当前页面的工具配置
 const currentTool = computed(() => {
@@ -64,12 +66,24 @@ const checkMaximized = async () => {
 };
 
 // 监听窗口大小变化
-onMounted(() => {
+onMounted(async () => {
   checkMaximized();
   
   // 监听窗口resize事件
   appWindow.onResized(() => {
     checkMaximized();
+  });
+  
+  // 加载应用设置
+  try {
+    settings.value = await loadAppSettingsAsync();
+  } catch (error) {
+    console.error('加载应用设置失败:', error);
+  }
+  
+  // 监听设置变化事件
+  window.addEventListener('app-settings-changed', (event: any) => {
+    settings.value = event.detail;
   });
 });
 
@@ -83,8 +97,13 @@ const toggleMaximize = async () => {
   isMaximized.value = !isMaximized.value;
 };
 
-const closeWindow = () => {
-  appWindow.close();
+const closeWindow = async () => {
+  // 如果启用了托盘，隐藏窗口而不是关闭
+  if (settings.value?.trayEnabled) {
+    await appWindow.hide();
+  } else {
+    await appWindow.close();
+  }
 };
 
 // 导航到设置页面
@@ -138,7 +157,7 @@ const goToSettings = () => {
         <button
           class="control-btn close-btn"
           @click="closeWindow"
-          title="关闭"
+          :title="settings?.trayEnabled ? '隐藏到托盘' : '关闭'"
         >
           <el-icon><Close /></el-icon>
         </button>

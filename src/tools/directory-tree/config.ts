@@ -24,6 +24,8 @@ export interface DirectoryTreeConfig {
   maxDepth: number;
   /** 拖拽后是否自动生成 */
   autoGenerateOnDrop: boolean;
+  /** 输出时是否包含配置和统计信息 */
+  includeMetadata: boolean;
   /** 配置版本 */
   version: string;
 }
@@ -40,6 +42,7 @@ function createDefaultConfig(): DirectoryTreeConfig {
     showHidden: false,
     maxDepth: 5,
     autoGenerateOnDrop: true,  // 默认开启自动生成
+    includeMetadata: false,  // 默认不包含元数据
     version: CONFIG_VERSION
   };
 }

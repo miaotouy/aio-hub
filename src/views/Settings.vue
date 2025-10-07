@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from 'vue';
-import { InfoFilled } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { useDark } from '@vueuse/core';
+import { ref, onMounted, watch, onUnmounted } from "vue";
+import { InfoFilled } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { useDark } from "@vueuse/core";
 import {
   loadAppSettingsAsync,
   saveAppSettingsDebounced,
   resetAppSettingsAsync,
-  type AppSettings
-} from '../utils/appSettings';
-import { toolsConfig } from '../config/tools';
-import { getName, getVersion } from '@tauri-apps/api/app';
-import { invoke } from '@tauri-apps/api/core';
+  type AppSettings,
+} from "../utils/appSettings";
+import { toolsConfig } from "../config/tools";
+import { getName, getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 
 const isDark = useDark();
 
@@ -24,25 +24,85 @@ const getToolIdFromPath = (path: string): string => {
 // 应用设置
 const settings = ref<AppSettings>({
   sidebarCollapsed: false,
-  theme: 'auto',
+  theme: "auto",
   trayEnabled: false,
   toolsVisible: {},
   toolsOrder: [],
-  version: '1.0.0'
+  version: "1.0.0",
 });
-
 
 // 应用信息
 const appInfo = ref({
-  name: '',
-  version: ''
+  name: "",
+  version: "",
 });
 
 // 左侧导航状态与滚动容器
-const activeSection = ref('general');
+const activeSection = ref("general");
 const contentRef = ref<HTMLElement | null>(null);
+const isScrollingProgrammatically = ref(false);
+
+// 节流函数
+const throttle = (func: Function, delay: number) => {
+  let timeoutId: number | null = null;
+  let lastExecTime = 0;
+
+  return (...args: any[]) => {
+    const currentTime = Date.now();
+
+    if (currentTime - lastExecTime > delay) {
+      func(...args);
+      lastExecTime = currentTime;
+    } else {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(
+        () => {
+          func(...args);
+          lastExecTime = Date.now();
+        },
+        delay - (currentTime - lastExecTime)
+      );
+    }
+  };
+};
+
+// 处理滚动事件，反向匹配导航
+const handleScroll = throttle(() => {
+  if (isScrollingProgrammatically.value) return;
+
+  const container = contentRef.value;
+  if (!container) return;
+
+  const sections = ["general", "tools", "about"];
+  const containerHeight = container.clientHeight;
+
+  // 查找当前在视口中最靠近顶部的 section
+  let currentSection = sections[0];
+
+  for (const sectionId of sections) {
+    const element = container.querySelector<HTMLElement>(`#${sectionId}`);
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const relativeTop = rect.top - containerRect.top;
+
+      // 如果 section 顶部在视口上半部分，认为它是当前 section
+      if (relativeTop <= containerHeight * 0.3) {
+        currentSection = sectionId;
+      }
+    }
+  }
+
+  // 更新激活状态
+  if (activeSection.value !== currentSection) {
+    activeSection.value = currentSection;
+  }
+}, 200); // 200ms 节流延迟
 
 const scrollToSection = (id: string) => {
+  isScrollingProgrammatically.value = true;
   activeSection.value = id;
   const container = contentRef.value;
   if (!container) return;
@@ -51,7 +111,12 @@ const scrollToSection = (id: string) => {
     const containerTop = container.getBoundingClientRect().top;
     const targetTop = target.getBoundingClientRect().top;
     const offset = targetTop - containerTop + container.scrollTop - 8;
-    container.scrollTo({ top: offset, behavior: 'smooth' });
+    container.scrollTo({ top: offset, behavior: "smooth" });
+
+    // 滚动完成后重置标记
+    setTimeout(() => {
+      isScrollingProgrammatically.value = false;
+    }, 500);
   }
 };
 
@@ -59,14 +124,13 @@ const handleSelect = (key: string) => {
   scrollToSection(key);
 };
 
-
 // 应用主题
-const applyTheme = (theme: 'auto' | 'light' | 'dark') => {
-  if (theme === 'auto') {
+const applyTheme = (theme: "auto" | "light" | "dark") => {
+  if (theme === "auto") {
     // 检测系统主题
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     isDark.value = systemDark;
-  } else if (theme === 'dark') {
+  } else if (theme === "dark") {
     isDark.value = true;
   } else {
     isDark.value = false;
@@ -76,35 +140,33 @@ const applyTheme = (theme: 'auto' | 'light' | 'dark') => {
 // 重置设置
 const handleReset = async () => {
   try {
-    await ElMessageBox.confirm(
-      '确定要重置所有设置到默认值吗？此操作不可撤销。',
-      '重置设置',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
-    
+    await ElMessageBox.confirm("确定要重置所有设置到默认值吗？此操作不可撤销。", "重置设置", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+
     isLoadingFromFile = true; // 防止触发不必要的事件
     const defaultSettings = await resetAppSettingsAsync();
     settings.value = { ...defaultSettings };
-    applyTheme(settings.value.theme || 'auto');
-    
+    applyTheme(settings.value.theme || "auto");
+
     // 手动触发同步事件
     setTimeout(() => {
       isLoadingFromFile = false;
-      window.dispatchEvent(new CustomEvent('app-settings-changed', {
-        detail: settings.value
-      }));
+      window.dispatchEvent(
+        new CustomEvent("app-settings-changed", {
+          detail: settings.value,
+        })
+      );
     }, 100);
-    
-    ElMessage.success('设置已重置到默认值');
+
+    ElMessage.success("设置已重置到默认值");
   } catch (error) {
     // 用户取消了操作
-    if (error !== 'cancel') {
-      console.error('重置设置失败:', error);
-      ElMessage.error('重置设置失败');
+    if (error !== "cancel") {
+      console.error("重置设置失败:", error);
+      ElMessage.error("重置设置失败");
     }
   }
 };
@@ -117,10 +179,10 @@ const showAbout = () => {
       <p>版本: ${appInfo.value.version}</p>
       <p style="margin-top: 20px; color: #909399;">一个功能丰富的工具箱应用</p>
     </div>`,
-    '关于',
+    "关于",
     {
       dangerouslyUseHTMLString: true,
-      confirmButtonText: '确定',
+      confirmButtonText: "确定",
     }
   );
 };
@@ -131,50 +193,59 @@ let isLoadingFromFile = false;
 // 监听暗黑模式变化，更新设置中的主题
 watch(isDark, (newValue) => {
   // 如果正在加载文件或主题是自动模式，不处理
-  if (isLoadingFromFile || settings.value.theme === 'auto') {
+  if (isLoadingFromFile || settings.value.theme === "auto") {
     return;
   }
-  
+
   // 根据暗黑模式状态更新主题设置
-  const newTheme = newValue ? 'dark' : 'light';
+  const newTheme = newValue ? "dark" : "light";
   if (settings.value.theme !== newTheme) {
     settings.value.theme = newTheme;
   }
 });
 
 // 监听托盘设置变化
-watch(() => settings.value.trayEnabled, async (newValue) => {
-  if (isLoadingFromFile) return;
-  
-  try {
-    // 同步到 Rust 后端
-    await invoke('update_tray_setting', { enabled: newValue });
-  } catch (error) {
-    console.error('更新托盘设置失败:', error);
-    ElMessage.error('更新托盘设置失败');
+watch(
+  () => settings.value.trayEnabled,
+  async (newValue) => {
+    if (isLoadingFromFile) return;
+
+    try {
+      // 同步到 Rust 后端
+      await invoke("update_tray_setting", { enabled: newValue });
+    } catch (error) {
+      console.error("更新托盘设置失败:", error);
+      ElMessage.error("更新托盘设置失败");
+    }
   }
-});
+);
 
 // 监听设置变化，自动保存并应用
-watch(settings, (newSettings) => {
-  // 如果是从文件加载的，不触发事件
-  if (isLoadingFromFile) {
-    return;
-  }
-  
-  // 保存设置到文件系统（使用防抖）
-  saveAppSettingsDebounced(newSettings);
-  
-  // 应用主题设置
-  if (newSettings.theme) {
-    applyTheme(newSettings.theme);
-  }
-  
-  // 发出事件通知设置已更改（用于实时同步到侧边栏）
-  window.dispatchEvent(new CustomEvent('app-settings-changed', {
-    detail: newSettings
-  }));
-}, { deep: true });
+watch(
+  settings,
+  (newSettings) => {
+    // 如果是从文件加载的，不触发事件
+    if (isLoadingFromFile) {
+      return;
+    }
+
+    // 保存设置到文件系统（使用防抖）
+    saveAppSettingsDebounced(newSettings);
+
+    // 应用主题设置
+    if (newSettings.theme) {
+      applyTheme(newSettings.theme);
+    }
+
+    // 发出事件通知设置已更改（用于实时同步到侧边栏）
+    window.dispatchEvent(
+      new CustomEvent("app-settings-changed", {
+        detail: newSettings,
+      })
+    );
+  },
+  { deep: true }
+);
 
 // 存储事件处理函数的引用
 let handleSettingsChange: ((event: Event) => void) | null = null;
@@ -183,45 +254,45 @@ let handleSettingsChange: ((event: Event) => void) | null = null;
 onMounted(async () => {
   // 标记正在加载
   isLoadingFromFile = true;
-  
+
   // 异步加载设置
   const loadedSettings = await loadAppSettingsAsync();
-  
+
   // 确保 toolsVisible 包含所有工具
   if (!loadedSettings.toolsVisible) {
     loadedSettings.toolsVisible = {};
   }
-  
+
   // 为每个工具设置默认可见状态
-  toolsConfig.forEach(tool => {
+  toolsConfig.forEach((tool) => {
     const toolId = getToolIdFromPath(tool.path);
     if (loadedSettings.toolsVisible![toolId] === undefined) {
       loadedSettings.toolsVisible![toolId] = true;
     }
   });
-  
+
   settings.value = loadedSettings;
-  
+
   // 应用主题
-  applyTheme(settings.value.theme || 'auto');
-  
+  applyTheme(settings.value.theme || "auto");
+
   // 获取应用信息
   try {
     appInfo.value.name = await getName();
     appInfo.value.version = await getVersion();
   } catch (error) {
-    console.error('获取应用信息失败:', error);
-    appInfo.value.name = 'AIO工具箱';
-    appInfo.value.version = '1.0.0';
+    console.error("获取应用信息失败:", error);
+    appInfo.value.name = "AIO工具箱";
+    appInfo.value.version = "1.0.0";
   }
-  
+
   // 同步托盘设置到后端
   try {
-    await invoke('update_tray_setting', { enabled: settings.value.trayEnabled || false });
+    await invoke("update_tray_setting", { enabled: settings.value.trayEnabled || false });
   } catch (error) {
-    console.error('初始化托盘设置失败:', error);
+    console.error("初始化托盘设置失败:", error);
   }
-  
+
   // 监听来自侧边栏的设置变化事件
   handleSettingsChange = (event: Event) => {
     const customEvent = event as CustomEvent<AppSettings>;
@@ -235,9 +306,9 @@ onMounted(async () => {
       }, 100);
     }
   };
-  
-  window.addEventListener('app-settings-changed', handleSettingsChange);
-  
+
+  window.addEventListener("app-settings-changed", handleSettingsChange);
+
   // 加载完成后，允许触发事件
   setTimeout(() => {
     isLoadingFromFile = false;
@@ -247,10 +318,9 @@ onMounted(async () => {
 // 清理事件监听器
 onUnmounted(() => {
   if (handleSettingsChange) {
-    window.removeEventListener('app-settings-changed', handleSettingsChange);
+    window.removeEventListener("app-settings-changed", handleSettingsChange);
   }
 });
-
 </script>
 
 <template>
@@ -260,21 +330,37 @@ onUnmounted(() => {
       <aside class="settings-nav">
         <h1 class="nav-title">设置</h1>
 
-        <el-menu class="nav-menu" :default-active="activeSection" @select="handleSelect">
-          <el-menu-item index="general">通用设置</el-menu-item>
-          <el-menu-item index="tools">工具模块</el-menu-item>
-          <el-menu-item index="about">关于</el-menu-item>
-        </el-menu>
+        <div class="nav-menu">
+          <button
+            class="nav-menu-item"
+            :class="{ active: activeSection === 'general' }"
+            @click="handleSelect('general')"
+          >
+            通用设置
+          </button>
+          <button
+            class="nav-menu-item"
+            :class="{ active: activeSection === 'tools' }"
+            @click="handleSelect('tools')"
+          >
+            工具模块
+          </button>
+          <button
+            class="nav-menu-item"
+            :class="{ active: activeSection === 'about' }"
+            @click="handleSelect('about')"
+          >
+            关于
+          </button>
+        </div>
 
         <div class="nav-actions">
-          <el-button @click="handleReset" type="danger" plain>
-            重置所有设置
-          </el-button>
+          <el-button @click="handleReset" type="danger" plain> 重置所有设置 </el-button>
         </div>
       </aside>
 
       <!-- 右侧内容 -->
-      <div class="settings-content" ref="contentRef">
+      <div class="settings-content" ref="contentRef" @scroll="handleScroll">
         <!-- 通用设置 -->
         <section id="general" class="settings-section">
           <h2 class="section-title">通用设置</h2>
@@ -327,7 +413,9 @@ onUnmounted(() => {
                   <el-icon class="tool-icon"><component :is="tool.icon" /></el-icon>
                   <div class="tool-info">
                     <span class="tool-name">{{ tool.name }}</span>
-                    <span v-if="tool.description" class="tool-description">{{ tool.description }}</span>
+                    <span v-if="tool.description" class="tool-description">{{
+                      tool.description
+                    }}</span>
                   </div>
                 </div>
               </el-checkbox>
@@ -335,17 +423,25 @@ onUnmounted(() => {
           </div>
 
           <el-divider />
-          
+
           <div class="batch-actions">
             <el-button
               size="small"
-              @click="Object.keys(settings.toolsVisible || {}).forEach(k => settings.toolsVisible![k] = true)"
+              @click="
+                Object.keys(settings.toolsVisible || {}).forEach(
+                  (k) => (settings.toolsVisible![k] = true)
+                )
+              "
             >
               全选
             </el-button>
             <el-button
               size="small"
-              @click="Object.keys(settings.toolsVisible || {}).forEach(k => settings.toolsVisible![k] = false)"
+              @click="
+                Object.keys(settings.toolsVisible || {}).forEach(
+                  (k) => (settings.toolsVisible![k] = false)
+                )
+              "
             >
               全不选
             </el-button>
@@ -368,7 +464,6 @@ onUnmounted(() => {
             <p class="version">版本：{{ appInfo.version }}</p>
           </div>
         </section>
-
       </div>
     </div>
   </div>
@@ -386,7 +481,7 @@ onUnmounted(() => {
 /* 新布局：左侧导航 + 右侧内容 */
 .settings-wrapper {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 220px 1fr;
   gap: 20px;
   height: 100%;
   align-items: start;
@@ -414,21 +509,60 @@ onUnmounted(() => {
   margin: 0 0 12px 0;
 }
 
-/* 覆盖 el-menu 样式（scoped 环境下使用深度选择器） */
-.settings-nav :deep(.el-menu) {
-  background-color: transparent;
-  border-right: none;
+/* 自定义导航菜单样式 */
+.nav-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
 }
 
-.settings-nav :deep(.el-menu-item) {
+.nav-menu-item {
+  width: 100%;
   height: 40px;
-  line-height: 40px;
+  padding: 0 16px;
+  border: none;
   border-radius: 6px;
-  margin: 2px 0;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+  outline: none;
 }
 
-.settings-nav :deep(.el-menu-item.is-active) {
-  background-color: var(--bg-color);
+/* 默认 hover 效果 */
+.nav-menu-item:hover:not(.active) {
+  background-color: rgba(var(--primary-color-rgb), 0.05);
+  color: var(--primary-color);
+}
+
+/* 激活状态 - 左侧边缘高亮 */
+.nav-menu-item.active {
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.08);
+  font-weight: 500;
+}
+
+/* 左侧高亮条 */
+.nav-menu-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 3px;
+  background-color: var(--primary-color);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.4);
+}
+
+/* 点击效果 */
+.nav-menu-item:active {
+  transform: scale(0.98);
 }
 
 .nav-actions {
@@ -449,6 +583,35 @@ onUnmounted(() => {
   box-sizing: border-box;
   padding-right: 10px;
   padding-bottom: 40px;
+}
+
+/* 添加 CSS 变量支持 */
+:root {
+  --primary-color-rgb: 64, 158, 255; /* 默认蓝色 */
+}
+
+/* 暗色模式下的主色调 RGB */
+.dark {
+  --primary-color-rgb: 64, 158, 255;
+}
+
+/* 滚动条样式优化 */
+.settings-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-radius: 4px;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-color-secondary);
 }
 
 /* 旧容器保留但未使用 */
@@ -592,5 +755,4 @@ onUnmounted(() => {
   gap: 8px;
   margin-top: 16px;
 }
-
 </style>

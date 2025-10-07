@@ -330,8 +330,7 @@ const generateTree = async () => {
         "## 目录结构",
         "",
       ]
-        .filter((line) => line !== "")
-        .join("\n");
+      .join("\n");
 
       outputContent = metadata + outputContent;
     }

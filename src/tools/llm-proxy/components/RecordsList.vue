@@ -162,8 +162,8 @@ function getStatusClass(status?: number): string {
 
 <style scoped>
 .records-panel {
-  background: var(--vscode-editor-background, #1e1e1e);
-  border: 1px solid var(--vscode-panel-border, #2b2b2b);
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -172,7 +172,7 @@ function getStatusClass(status?: number): string {
 
 .records-header {
   padding: 15px;
-  border-bottom: 1px solid var(--vscode-panel-border, #2b2b2b);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -180,7 +180,7 @@ function getStatusClass(status?: number): string {
 
 .records-header h3 {
   margin: 0;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
 }
 
 .filter-controls {
@@ -191,9 +191,9 @@ function getStatusClass(status?: number): string {
 .search-input,
 .filter-select {
   padding: 6px 10px;
-  background: var(--vscode-input-background, #3c3c3c);
-  border: 1px solid var(--vscode-input-border, #3c3c3c);
-  color: var(--vscode-input-foreground, #cccccc);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   border-radius: 4px;
 }
 
@@ -204,7 +204,7 @@ function getStatusClass(status?: number): string {
 }
 
 .record-item {
-  background: var(--vscode-list-inactiveSelectionBackground, #2a2d2e);
+  background: var(--card-bg);
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 10px;
@@ -214,12 +214,14 @@ function getStatusClass(status?: number): string {
 }
 
 .record-item:hover {
-  background: var(--vscode-list-hoverBackground, #2a2d2e);
+  background: var(--container-bg);
+  border-color: var(--border-color-light);
 }
 
 .record-item.selected {
-  background: var(--vscode-list-activeSelectionBackground, #094771);
-  border-color: var(--vscode-focusBorder, #007acc);
+  background: var(--primary-color);
+  background: rgba(64, 158, 255, 0.1);
+  border-color: var(--primary-color);
 }
 
 .record-header {
@@ -238,33 +240,33 @@ function getStatusClass(status?: number): string {
 }
 
 .method.get {
-  background: #28a745;
+  background: var(--el-color-success, #67c23a);
   color: white;
 }
 
 .method.post {
-  background: #17a2b8;
+  background: var(--el-color-info, #909399);
   color: white;
 }
 
 .method.put {
-  background: #ffc107;
-  color: #333;
+  background: var(--el-color-warning, #e6a23c);
+  color: white;
 }
 
 .method.delete {
-  background: #dc3545;
+  background: var(--el-color-danger, #f56c6c);
   color: white;
 }
 
 .method.patch {
-  background: #6f42c1;
+  background: var(--primary-color);
   color: white;
 }
 
 .url {
   flex: 1;
-  color: var(--vscode-textLink-foreground, #3794ff);
+  color: var(--primary-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -278,17 +280,17 @@ function getStatusClass(status?: number): string {
 }
 
 .status.success {
-  background: #28a745;
+  background: var(--el-color-success, #67c23a);
   color: white;
 }
 
 .status.client-error {
-  background: #ffc107;
-  color: #333;
+  background: var(--el-color-warning, #e6a23c);
+  color: white;
 }
 
 .status.server-error {
-  background: #dc3545;
+  background: var(--el-color-danger, #f56c6c);
   color: white;
 }
 
@@ -296,6 +298,6 @@ function getStatusClass(status?: number): string {
   display: flex;
   gap: 15px;
   font-size: 12px;
-  color: var(--vscode-descriptionForeground, #8b8b8b);
+  color: var(--text-color-light);
 }
 </style>

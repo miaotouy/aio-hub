@@ -624,8 +624,8 @@ onUnmounted(() => {
 
 <style scoped>
 .detail-panel {
-  background: var(--vscode-editor-background, #1e1e1e);
-  border: 1px solid var(--vscode-panel-border, #2b2b2b);
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -634,7 +634,7 @@ onUnmounted(() => {
 
 .detail-header {
   padding: 15px;
-  border-bottom: 1px solid var(--vscode-panel-border, #2b2b2b);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -642,7 +642,7 @@ onUnmounted(() => {
 
 .detail-header h3 {
   margin: 0;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
 }
 
 .header-actions {
@@ -653,9 +653,9 @@ onUnmounted(() => {
 
 .btn-copy {
   padding: 6px 12px;
-  background: var(--vscode-button-secondaryBackground, #3a3d41);
-  color: var(--vscode-button-secondaryForeground, #cccccc);
-  border: none;
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
@@ -666,7 +666,8 @@ onUnmounted(() => {
 }
 
 .btn-copy:hover {
-  background: var(--vscode-button-secondaryHoverBackground, #45494e);
+  background: var(--container-bg);
+  border-color: var(--border-color-light);
 }
 
 .mask-indicator {
@@ -679,7 +680,7 @@ onUnmounted(() => {
   height: 30px;
   padding: 0;
   background: transparent;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
   font-size: 20px;
   display: flex;
   align-items: center;
@@ -691,7 +692,7 @@ onUnmounted(() => {
 }
 
 .btn-close:hover {
-  background: var(--vscode-toolbar-hoverBackground, #5a5d5e);
+  background: var(--card-bg);
 }
 
 .detail-content {
@@ -706,8 +707,8 @@ onUnmounted(() => {
 
 .section h4 {
   margin: 0 0 15px 0;
-  color: var(--vscode-foreground, #cccccc);
-  border-bottom: 1px solid var(--vscode-panel-border, #2b2b2b);
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 5px;
 }
 
@@ -724,11 +725,11 @@ onUnmounted(() => {
 }
 
 .info-item label {
-  color: var(--vscode-descriptionForeground, #8b8b8b);
+  color: var(--text-color-light);
 }
 
 .info-item span {
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
 }
 
 .url-full {
@@ -743,17 +744,17 @@ onUnmounted(() => {
 }
 
 .status-badge.success {
-  background: #28a745;
+  background: var(--el-color-success, #67c23a);
   color: white;
 }
 
 .status-badge.client-error {
-  background: #ffc107;
-  color: #333;
+  background: var(--el-color-warning, #e6a23c);
+  color: white;
 }
 
 .status-badge.server-error {
-  background: #dc3545;
+  background: var(--el-color-danger, #f56c6c);
   color: white;
 }
 
@@ -777,8 +778,8 @@ onUnmounted(() => {
 }
 
 .stream-badge {
-  background: var(--vscode-badge-background, #007acc);
-  color: var(--vscode-badge-foreground, #ffffff);
+  background: var(--primary-color);
+  color: #ffffff;
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 11px;
@@ -787,7 +788,7 @@ onUnmounted(() => {
 }
 
 .stream-badge.active {
-  background: #dc3545;
+  background: var(--error-color);
   animation: blink 1s infinite;
 }
 
@@ -806,7 +807,7 @@ onUnmounted(() => {
 .view-mode-toggle {
   display: flex;
   gap: 2px;
-  background: var(--vscode-dropdown-background, #3c3c3c);
+  background: var(--card-bg);
   border-radius: 4px;
   padding: 2px;
 }
@@ -814,7 +815,7 @@ onUnmounted(() => {
 .mode-btn {
   padding: 4px 10px;
   background: transparent;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
   border: none;
   border-radius: 3px;
   cursor: pointer;
@@ -823,25 +824,25 @@ onUnmounted(() => {
 }
 
 .mode-btn:hover {
-  background: var(--vscode-list-hoverBackground, #2a2d2e);
+  background: var(--container-bg);
 }
 
 .mode-btn.active {
-  background: var(--vscode-button-background, #0e639c);
-  color: var(--vscode-button-foreground, #ffffff);
+  background: var(--primary-color);
+  color: #ffffff;
 }
 
 .subsection h5 {
   margin: 0;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
   font-size: 14px;
 }
 
 .btn-copy-small {
   padding: 4px 8px;
   background: transparent;
-  color: var(--vscode-foreground, #cccccc);
-  border: 1px solid var(--vscode-panel-border, #2b2b2b);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
@@ -850,13 +851,13 @@ onUnmounted(() => {
 }
 
 .btn-copy-small:hover {
-  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  background: var(--card-bg);
   opacity: 1;
 }
 
 .headers-list {
-  background: var(--vscode-textCodeBlock-background, #0a0a0a);
-  border: 1px solid var(--vscode-panel-border, #2b2b2b);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 10px;
   max-height: 200px;
@@ -872,17 +873,17 @@ onUnmounted(() => {
 }
 
 .header-key {
-  color: var(--vscode-symbolIcon-variableForeground, #75beff);
+  color: var(--primary-color);
   font-weight: bold;
 }
 
 .header-value {
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
   word-break: break-all;
 }
 
 .streaming-status {
-  color: var(--vscode-notificationsWarningIcon-foreground, #ff9800);
+  color: var(--el-color-warning, #e6a23c);
   font-weight: bold;
   animation: pulse 1.5s infinite;
 }
@@ -900,8 +901,8 @@ onUnmounted(() => {
 }
 
 .body-content {
-  background: var(--vscode-textCodeBlock-background, #0a0a0a);
-  border: 1px solid var(--vscode-panel-border, #2b2b2b);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 15px;
   max-height: 400px;
@@ -910,7 +911,7 @@ onUnmounted(() => {
 
 .body-content pre {
   margin: 0;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
   font-family: 'Courier New', monospace;
   font-size: 12px;
   white-space: pre-wrap;
@@ -926,7 +927,7 @@ onUnmounted(() => {
 }
 
 .extracted-text {
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
   font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -934,7 +935,7 @@ onUnmounted(() => {
 }
 
 .no-content {
-  color: var(--vscode-descriptionForeground, #8b8b8b);
+  color: var(--text-color-light);
   font-style: italic;
   text-align: center;
   padding: 20px;
@@ -947,7 +948,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--vscode-descriptionForeground, #8b8b8b);
+  color: var(--text-color-light);
   padding: 40px;
   text-align: center;
 }
@@ -960,12 +961,12 @@ onUnmounted(() => {
 
 .empty-text {
   font-size: 16px;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
   margin-bottom: 8px;
 }
 
 .empty-hint {
   font-size: 14px;
-  color: var(--vscode-descriptionForeground, #8b8b8b);
+  color: var(--text-color-light);
 }
 </style>

@@ -323,15 +323,15 @@ onUnmounted(() => {
 
 .config-panel {
   grid-column: 1 / -1;
-  background: var(--vscode-editor-background, #1e1e1e);
-  border: 1px solid var(--vscode-panel-border, #2b2b2b);
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 20px;
 }
 
 .config-panel h2 {
   margin: 0 0 20px 0;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
 }
 
 .config-form {
@@ -367,24 +367,24 @@ onUnmounted(() => {
 
 .form-group label {
   min-width: 120px;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
 }
 
 .port-input {
   width: 120px;
   padding: 8px 12px;
-  background: var(--vscode-input-background, #3c3c3c);
-  border: 1px solid var(--vscode-input-border, #3c3c3c);
-  color: var(--vscode-input-foreground, #cccccc);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   border-radius: 4px;
 }
 
 .target-input {
   flex: 1;
   padding: 8px 12px;
-  background: var(--vscode-input-background, #3c3c3c);
-  border: 1px solid var(--vscode-input-border, #3c3c3c);
-  color: var(--vscode-input-foreground, #cccccc);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   border-radius: 4px;
 }
 
@@ -409,39 +409,42 @@ button:disabled {
 }
 
 .btn-primary {
-  background: var(--vscode-button-background, #0e639c);
-  color: var(--vscode-button-foreground, #ffffff);
+  background: var(--primary-color);
+  color: #ffffff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--vscode-button-hoverBackground, #1177bb);
+  background: var(--primary-hover-color);
 }
 
 .btn-danger {
-  background: #d73a49;
+  background: var(--error-color);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #cb2431;
+  background: var(--error-color);
+  opacity: 0.9;
 }
 
 .btn-secondary {
-  background: var(--vscode-button-secondaryBackground, #3a3d41);
-  color: var(--vscode-button-secondaryForeground, #cccccc);
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--vscode-button-secondaryHoverBackground, #45494e);
+  background: var(--container-bg);
+  border-color: var(--border-color-light);
 }
 
 .btn-update {
-  background: var(--vscode-button-background, #0e639c);
-  color: var(--vscode-button-foreground, #ffffff);
+  background: var(--primary-color);
+  color: #ffffff;
 }
 
 .btn-update:hover:not(:disabled) {
-  background: var(--vscode-button-hoverBackground, #1177bb);
+  background: var(--primary-hover-color);
 }
 
 .status-info {
@@ -449,28 +452,28 @@ button:disabled {
   align-items: center;
   gap: 10px;
   margin-top: 10px;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
 }
 
 .status-indicator {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #28a745;
+  background: var(--el-color-success, #67c23a);
   animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
+    box-shadow: 0 0 0 0 rgba(103, 194, 58, 0.4);
   }
 
   70% {
-    box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    box-shadow: 0 0 0 10px rgba(103, 194, 58, 0);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    box-shadow: 0 0 0 0 rgba(103, 194, 58, 0);
   }
 }
 
@@ -479,18 +482,19 @@ button:disabled {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: var(--vscode-foreground, #cccccc);
+  color: var(--text-color);
 }
 
 .checkbox-input {
   width: 16px;
   height: 16px;
   cursor: pointer;
+  accent-color: var(--primary-color);
 }
 
 .checkbox-hint {
   margin-left: 10px;
   font-size: 12px;
-  color: var(--vscode-descriptionForeground, #8b8b8b);
+  color: var(--text-color-light);
 }
 </style>

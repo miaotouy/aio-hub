@@ -1,22 +1,83 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { useDark, useToggle } from "@vueuse/core";
+import { useDark } from "@vueuse/core";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
 import { loadAppSettingsAsync, updateAppSettingsAsync, type AppSettings } from "./utils/appSettings";
 import TitleBar from "./components/TitleBar.vue";
+import SystemThemeIcon from "./components/icons/SystemThemeIcon.vue";
 
 const router = useRouter();
 const route = useRoute();
 const isDark = useDark();
-const toggleDark = useToggle(isDark);
 const isCollapsed = ref(false); // 控制侧边栏收起状态
 
 // 应用设置
 const appSettings = ref<AppSettings>({
   sidebarCollapsed: false,
+  theme: 'auto',
   toolsVisible: {}
+});
+
+// 切换主题（循环切换：auto -> light -> dark -> auto）
+const toggleDark = async () => {
+  let newTheme: 'auto' | 'light' | 'dark';
+  
+  // 根据当前主题设置决定下一个主题
+  const currentTheme = appSettings.value.theme || 'auto';
+  
+  if (currentTheme === 'auto') {
+    // 自动 -> 浅色
+    newTheme = 'light';
+  } else if (currentTheme === 'light') {
+    // 浅色 -> 深色
+    newTheme = 'dark';
+  } else {
+    // 深色 -> 自动
+    newTheme = 'auto';
+  }
+  
+  // 更新设置并保存
+  appSettings.value.theme = newTheme;
+  await updateAppSettingsAsync({ theme: newTheme });
+  
+  // 应用新主题
+  applyTheme(newTheme);
+  
+  // 发送事件通知设置页面
+  window.dispatchEvent(new CustomEvent('app-settings-changed', {
+    detail: { ...appSettings.value, theme: newTheme }
+  }));
+};
+
+// 获取当前主题图标
+const getThemeIcon = computed(() => {
+  const theme = appSettings.value.theme || 'auto';
+  
+  if (theme === 'auto') {
+    // 跟随系统模式，显示自定义的太阳月亮组合图标
+    return SystemThemeIcon;
+  } else if (theme === 'light') {
+    // 固定浅色模式，显示太阳
+    return Sunny;
+  } else {
+    // 固定深色模式，显示月亮
+    return Moon;
+  }
+});
+
+// 获取主题提示文本
+const getThemeTooltip = computed(() => {
+  const theme = appSettings.value.theme || 'auto';
+  
+  if (theme === 'auto') {
+    return '主题：跟随系统';
+  } else if (theme === 'light') {
+    return '主题：浅色';
+  } else {
+    return '主题：深色';
+  }
 });
 
 // 从路径提取工具ID
@@ -44,11 +105,29 @@ const toggleSidebar = async () => {
   updateAppSettingsAsync({ sidebarCollapsed: isCollapsed.value });
 };
 
+// 应用主题设置
+const applyTheme = (theme: 'auto' | 'light' | 'dark') => {
+  if (theme === 'auto') {
+    // 检测系统主题
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    isDark.value = systemDark;
+  } else if (theme === 'dark') {
+    isDark.value = true;
+  } else {
+    isDark.value = false;
+  }
+};
+
 // 监听设置变化（用于响应设置页面的更改）
 const loadSettings = async () => {
   const settings = await loadAppSettingsAsync();
   appSettings.value = settings;
   isCollapsed.value = settings.sidebarCollapsed;
+  
+  // 应用主题设置
+  if (settings.theme) {
+    applyTheme(settings.theme);
+  }
 };
 
 // 存储事件处理函数的引用，用于清理
@@ -64,6 +143,11 @@ onMounted(async () => {
     if (customEvent.detail) {
       appSettings.value = customEvent.detail;
       isCollapsed.value = customEvent.detail.sidebarCollapsed;
+      
+      // 同步主题设置
+      if (customEvent.detail.theme) {
+        applyTheme(customEvent.detail.theme);
+      }
     }
   };
   
@@ -108,24 +192,31 @@ const handleSelect = (key: string) => {
       <!-- 上部分：标题和导航 -->
       <div class="sidebar-top">
         <!-- 侧边栏头部：根据isCollapsed显示不同内容 -->
-        <div v-if="!isCollapsed" class="sidebar-header" @click="toggleDark()">
+        <div v-if="!isCollapsed" class="sidebar-header">
           <div class="header-text-wrapper">
             <h2 class="sidebar-title">AIO工具箱</h2>
           </div>
-          <el-icon class="theme-icon">
-            <component :is="isDark ? Sunny : Moon" />
-          </el-icon>
+          <el-tooltip
+            effect="dark"
+            :content="getThemeTooltip"
+            placement="bottom"
+            :hide-after="0"
+          >
+            <el-icon class="theme-icon" @click="toggleDark">
+              <component :is="getThemeIcon" />
+            </el-icon>
+          </el-tooltip>
         </div>
         <el-tooltip
           v-else
           effect="dark"
-          content="切换主题"
+          :content="getThemeTooltip"
           placement="right"
           :hide-after="0"
         >
-          <div class="sidebar-header-collapsed" @click="toggleDark()">
+          <div class="sidebar-header-collapsed" @click="toggleDark">
             <el-icon class="theme-icon-only">
-              <component :is="isDark ? Sunny : Moon" />
+              <component :is="getThemeIcon" />
             </el-icon>
           </div>
         </el-tooltip>
@@ -218,7 +309,6 @@ const handleSelect = (key: string) => {
   display: flex;
   align-items: center; /* 垂直居中 */
   justify-content: space-between; /* 文本和图标分别在两端 */
-  cursor: pointer; /* 表示可点击 */
   user-select: none; /* 防止双击选择文字 */
   padding: 0 20px; /* 增加点击区域的左右内边距，方便点击 */
   box-sizing: border-box; /* 确保padding不会撑大元素 */
@@ -236,12 +326,17 @@ const handleSelect = (key: string) => {
 .sidebar-header .theme-icon {
   font-size: 20px; /* 图标大小 */
   color: var(--sidebar-text); /* 图标颜色与文字一致 */
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
+  cursor: pointer; /* 表示可点击 */
+  padding: 4px;
+  border-radius: 4px;
 }
 
 .sidebar-header .theme-icon:hover {
   color: var(--primary-color); /* 悬停颜色 */
+  background-color: rgba(var(--primary-color-rgb), 0.1);
 }
+
 
 .sidebar-title {
   color: var(--sidebar-text);

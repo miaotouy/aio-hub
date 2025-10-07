@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, onUnmounted } from 'vue';
 import { InfoFilled } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useDark } from '@vueuse/core';
 import {
   loadAppSettingsAsync,
   saveAppSettingsDebounced,
@@ -11,6 +12,8 @@ import {
 import { toolsConfig } from '../config/tools';
 import { getName, getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
+
+const isDark = useDark();
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -59,16 +62,14 @@ const handleSelect = (key: string) => {
 
 // 应用主题
 const applyTheme = (theme: 'auto' | 'light' | 'dark') => {
-  const root = document.documentElement;
-  
   if (theme === 'auto') {
     // 检测系统主题
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.classList.toggle('dark', isDark);
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    isDark.value = systemDark;
   } else if (theme === 'dark') {
-    root.classList.add('dark');
+    isDark.value = true;
   } else {
-    root.classList.remove('dark');
+    isDark.value = false;
   }
 };
 
@@ -127,6 +128,20 @@ const showAbout = () => {
 // 标记是否正在从文件加载设置，避免触发不必要的事件
 let isLoadingFromFile = false;
 
+// 监听暗黑模式变化，更新设置中的主题
+watch(isDark, (newValue) => {
+  // 如果正在加载文件或主题是自动模式，不处理
+  if (isLoadingFromFile || settings.value.theme === 'auto') {
+    return;
+  }
+  
+  // 根据暗黑模式状态更新主题设置
+  const newTheme = newValue ? 'dark' : 'light';
+  if (settings.value.theme !== newTheme) {
+    settings.value.theme = newTheme;
+  }
+});
+
 // 监听托盘设置变化
 watch(() => settings.value.trayEnabled, async (newValue) => {
   if (isLoadingFromFile) return;
@@ -160,6 +175,9 @@ watch(settings, (newSettings) => {
     detail: newSettings
   }));
 }, { deep: true });
+
+// 存储事件处理函数的引用
+let handleSettingsChange: ((event: Event) => void) | null = null;
 
 // 初始化
 onMounted(async () => {
@@ -204,10 +222,33 @@ onMounted(async () => {
     console.error('初始化托盘设置失败:', error);
   }
   
+  // 监听来自侧边栏的设置变化事件
+  handleSettingsChange = (event: Event) => {
+    const customEvent = event as CustomEvent<AppSettings>;
+    if (customEvent.detail && customEvent.detail.theme) {
+      // 更新本地设置但不触发保存（因为侧边栏已经保存了）
+      isLoadingFromFile = true;
+      settings.value.theme = customEvent.detail.theme;
+      applyTheme(customEvent.detail.theme);
+      setTimeout(() => {
+        isLoadingFromFile = false;
+      }, 100);
+    }
+  };
+  
+  window.addEventListener('app-settings-changed', handleSettingsChange);
+  
   // 加载完成后，允许触发事件
   setTimeout(() => {
     isLoadingFromFile = false;
   }, 100);
+});
+
+// 清理事件监听器
+onUnmounted(() => {
+  if (handleSettingsChange) {
+    window.removeEventListener('app-settings-changed', handleSettingsChange);
+  }
 });
 
 </script>

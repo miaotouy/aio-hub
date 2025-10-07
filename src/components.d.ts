@@ -17,6 +17,7 @@ declare module 'vue' {
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SystemThemeIcon: typeof import('./components/icons/SystemThemeIcon.vue')['default']
     TitleBar: typeof import('./components/TitleBar.vue')['default']
   }
 }

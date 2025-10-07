@@ -11,6 +11,7 @@ export interface AppSettings {
   
   // 通用设置
   trayEnabled?: boolean;
+  themeColor?: string; // 主题色 hex 值
   
   // 工具模块设置
   toolsVisible?: Record<string, boolean>;
@@ -25,6 +26,7 @@ export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
   theme: 'auto',
   trayEnabled: false,
+  themeColor: '#409eff', // 默认蓝色
   toolsVisible: {
     regexApply: true,
     mediaInfoReader: true,

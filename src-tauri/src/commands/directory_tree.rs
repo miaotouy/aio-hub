@@ -151,9 +151,10 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
         i += 1;
     }
     
-    // 如果模式以 / 结尾，说明只匹配目录
+    // 如果模式以 / 结尾，说明只匹配目录（及其所有内容）
     if pattern.ends_with('/') {
-        regex_pattern.push('$');
+        // 匹配目录本身或其任何子路径
+        regex_pattern.push_str(".*$");
     } else {
         // 模式可以匹配完整路径或目录名
         regex_pattern.push_str("(/.*)?$");
@@ -172,12 +173,25 @@ fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
         let gitignore_path = current.join(".gitignore");
         if gitignore_path.exists() {
             if let Ok(content) = fs::read_to_string(&gitignore_path) {
+                // 计算当前 .gitignore 相对于 root 的路径
+                let relative_dir = current.strip_prefix(root)
+                    .ok()
+                    .and_then(|p| p.to_str())
+                    .unwrap_or("")
+                    .replace('\\', "/");
+                
                 for line in content.lines() {
                     let line = line.trim();
                     // 跳过空行和注释
                     if !line.is_empty() && !line.starts_with('#') {
-                        // 保留原始模式，包括尾部的斜杠（对目录很重要）
-                        let pattern = line.to_string();
+                        let pattern = if line.starts_with('/') && !relative_dir.is_empty() {
+                            // 以 / 开头的模式是相对于 .gitignore 所在目录的
+                            // 需要将其转换为相对于根目录的路径
+                            format!("/{}/{}", relative_dir, &line[1..])
+                        } else {
+                            line.to_string()
+                        };
+                        
                         if !patterns.contains(&pattern) {
                             patterns.push(pattern);
                         }

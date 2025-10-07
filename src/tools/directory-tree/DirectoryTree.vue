@@ -135,7 +135,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { FolderOpened, Histogram, CopyDocument, Download, DataAnalysis } from '@element-plus/icons-vue';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { invoke } from '@tauri-apps/api/core';
@@ -326,8 +326,27 @@ const copyToClipboard = async () => {
 // 导出为文件
 const exportToFile = async () => {
   try {
-    const savePath = await openDialog({
-      defaultPath: 'directory-tree.txt',
+    // 从路径中提取目录名称
+    const getDirName = (path: string) => {
+      const normalized = path.replace(/\\/g, '/');
+      const parts = normalized.split('/');
+      return parts[parts.length - 1] || parts[parts.length - 2] || '目录';
+    };
+    
+    // 生成带日期时间的文件名
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    const dirName = getDirName(targetPath.value);
+    const dateTime = `${year}${month}${day}_${hours}${minutes}`;
+    const defaultFileName = `${dirName}_目录树_${dateTime}.txt`;
+    
+    const savePath = await saveDialog({
+      defaultPath: defaultFileName,
       filters: [
         { name: 'Text Files', extensions: ['txt'] },
         { name: 'Markdown Files', extensions: ['md'] }
@@ -335,7 +354,7 @@ const exportToFile = async () => {
       title: '保存目录树'
     });
 
-    if (typeof savePath === 'string') {
+    if (savePath) {
       await writeTextFile(savePath, treeResult.value);
       ElMessage.success('文件保存成功');
     }

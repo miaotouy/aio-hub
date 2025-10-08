@@ -67,19 +67,19 @@
           drag-class="drag"
           :force-fallback="true"
         >
-          <el-tag
+          <div
             v-for="preset in selectedPresets"
             :key="preset.id"
-            size="large"
-            closable
-            @close="removePreset(preset.id)"
             class="preset-tag"
           >
             <span class="preset-tag-content">
               {{ preset.name }}
-              <el-badge :value="preset.rules.filter((r: any) => r.enabled).length" class="rules-badge" />
+              <span class="rules-count">{{ preset.rules.filter((r: any) => r.enabled).length }}</span>
             </span>
-          </el-tag>
+            <el-icon class="close-icon" @click="removePreset(preset.id)">
+              <Close />
+            </el-icon>
+          </div>
         </VueDraggableNext>
       </div>
     </el-card>
@@ -244,7 +244,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Delete, Rank, Document, FolderOpened, FolderAdd, Plus, Setting, MagicStick, List } from '@element-plus/icons-vue';
+import { Delete, Rank, Document, FolderOpened, FolderAdd, Plus, Setting, MagicStick, List, Close } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { open as openFile } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
@@ -923,6 +923,20 @@ const processFiles = async () => {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+  border: 1.5px solid var(--primary-color);
+  border-radius: 4px;
+  background-color: transparent;
+  color: var(--primary-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.preset-tag:hover {
+  background-color: rgba(var(--primary-color-rgb), 0.08);
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 6px rgba(var(--primary-color-rgb), 0.15);
 }
 
 .preset-tag.ghost {
@@ -942,13 +956,35 @@ const processFiles = async () => {
   align-items: center;
   gap: 8px;
   pointer-events: none;
+  flex: 1;
 }
 
-.rules-badge {
-  margin-left: 4px;
-}
-.rules-badge :deep(.el-badge__content) {
+.rules-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   background-color: var(--primary-color);
+  color: white;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.close-icon {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--primary-color);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.close-icon:hover {
+  color: var(--error-color);
+  transform: scale(1.2);
 }
 
 .card-header {
@@ -1271,12 +1307,4 @@ const processFiles = async () => {
   font-size: 14px;
 }
 
-.el-input, .el-textarea {
-  --el-input-bg-color: var(--input-bg);
-  --el-input-text-color: var(--text-color);
-  --el-input-border-color: var(--border-color);
-  --el-input-hover-border-color: var(--primary-color);
-  --el-input-focus-border-color: var(--primary-color);
-  --el-input-placeholder-color: var(--text-color-light);
-}
 </style>

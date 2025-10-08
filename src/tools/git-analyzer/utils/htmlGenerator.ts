@@ -3,18 +3,24 @@
  * 用于生成 Git 仓库分析报告的 HTML 格式
  */
 
-import type { GitCommit, ExportConfig, RepoStatistics } from '../types'
+import type { GitCommit, ExportConfig, RepoStatistics } from "../types";
 
 interface HtmlGeneratorOptions {
-  config: ExportConfig
-  repoPath: string
-  branch: string
-  statistics: RepoStatistics
-  commits: GitCommit[]
-  getCommitsToExport: () => GitCommit[]
-  getContributorStats: (commits: GitCommit[]) => Array<{ name: string; count: number }>
-  formatDate: (date: string, format: string) => string
-  escapeHtml: (text: string) => string
+  config: ExportConfig;
+  repoPath: string;
+  branch: string;
+  statistics: RepoStatistics;
+  commits: GitCommit[];
+  getCommitsToExport: () => GitCommit[];
+  getContributorStats: (commits: GitCommit[]) => Array<{ name: string; count: number }>;
+  formatDate: (date: string, format: string) => string;
+  escapeHtml: (text: string) => string;
+  generateTimelineData?: (commits: GitCommit[]) => Array<{ date: string; count: number }>;
+  generateChartData?: (commits: GitCommit[]) => {
+    frequency: Array<{ date: string; count: number }>;
+    contributors: Array<{ name: string; count: number }>;
+    heatmap: Array<{ day: number; hour: number; count: number }>;
+  };
 }
 
 /**
@@ -29,15 +35,17 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     getCommitsToExport,
     getContributorStats,
     formatDate,
-    escapeHtml
-  } = options
+    escapeHtml,
+    generateTimelineData,
+    generateChartData,
+  } = options;
 
   // 生成独特的 CSS 类前缀，避免样式污染
-  const cssPrefix = 'git-export-' + Date.now()
+  const cssPrefix = "git-export-" + Date.now();
 
   // 根据主题选择生成不同的样式
   const getThemeStyles = () => {
-    if (config.htmlTheme === 'dark') {
+    if (config.htmlTheme === "dark") {
       return `
     /* 深色主题 */
     .${cssPrefix}-root {
@@ -51,8 +59,8 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       --success-color: #4caf50;
       --danger-color: #f44336;
       --hover-bg: #3a3a3a;
-    }`
-    } else if (config.htmlTheme === 'auto') {
+    }`;
+    } else if (config.htmlTheme === "auto") {
       return `
     /* 自动主题 - 浅色模式 */
     .${cssPrefix}-root {
@@ -82,7 +90,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
         --danger-color: #f44336;
         --hover-bg: #3a3a3a;
       }
-    }`
+    }`;
     } else {
       // 默认浅色主题
       return `
@@ -98,9 +106,9 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       --success-color: #27ae60;
       --danger-color: #e74c3c;
       --hover-bg: #f8f9fa;
-    }`
+    }`;
     }
-  }
+  };
 
   let html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -276,13 +284,13 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     <h1 class="${cssPrefix}-h1">Git 仓库分析报告</h1>
     
     <div class="${cssPrefix}-info">
-      <p><strong>仓库路径:</strong> ${repoPath || '当前目录'}</p>
+      <p><strong>仓库路径:</strong> ${repoPath || "当前目录"}</p>
       <p><strong>分支:</strong> ${branch}</p>
-      <p><strong>生成时间:</strong> ${new Date().toLocaleString('zh-CN')}</p>
-    </div>`
+      <p><strong>生成时间:</strong> ${new Date().toLocaleString("zh-CN")}</p>
+    </div>`;
 
   // 统计信息
-  if (config.includes.includes('statistics')) {
+  if (config.includes.includes("statistics")) {
     html += `
     <h2 class="${cssPrefix}-h2">📊 统计信息</h2>
     <div class="${cssPrefix}-stats">
@@ -302,13 +310,13 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
         <div class="${cssPrefix}-stat-value">${statistics.averagePerDay.toFixed(2)}</div>
         <div class="${cssPrefix}-stat-label">平均提交/天</div>
       </div>
-    </div>`
+    </div>`;
   }
 
   // 贡献者列表
-  if (config.includes.includes('contributors')) {
-    const commitsToExport = getCommitsToExport()
-    const contributors = getContributorStats(commitsToExport)
+  if (config.includes.includes("contributors")) {
+    const commitsToExport = getCommitsToExport();
+    const contributors = getContributorStats(commitsToExport);
     html += `
     <h2 class="${cssPrefix}-h2">👥 贡献者统计</h2>
     <table class="${cssPrefix}-table">
@@ -319,42 +327,153 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
           <th>占比</th>
         </tr>
       </thead>
-      <tbody>`
+      <tbody>`;
 
-    contributors.slice(0, 10).forEach(c => {
-      const percentage = commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : '0.0'
+    contributors.slice(0, 10).forEach((c) => {
+      const percentage =
+        commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : "0.0";
       html += `
         <tr>
           <td>${escapeHtml(c.name)}</td>
           <td>${c.count}</td>
           <td>${percentage}%</td>
-        </tr>`
-    })
+        </tr>`;
+    });
 
     html += `
       </tbody>
-    </table>`
+    </table>`;
+  }
+
+  // 时间线
+  if (config.includes.includes("timeline") && generateTimelineData) {
+    const commitsToExport = getCommitsToExport();
+    const timelineData = generateTimelineData(commitsToExport);
+    html += `
+    <h2 class="${cssPrefix}-h2">📅 提交时间线</h2>
+    <table class="${cssPrefix}-table">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>提交数</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    timelineData.forEach((item) => {
+      html += `
+        <tr>
+          <td>${item.date}</td>
+          <td>${item.count}</td>
+        </tr>`;
+    });
+
+    html += `
+      </tbody>
+    </table>`;
+  }
+
+  // 图表数据
+  if (config.includes.includes("charts") && generateChartData) {
+    const commitsToExport = getCommitsToExport();
+    const chartData = generateChartData(commitsToExport);
+    const weekDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+    html += `
+    <h2 class="${cssPrefix}-h2">📈 图表数据</h2>
+    
+    <h3 class="${cssPrefix}-h2" style="font-size: 1.2em; margin-top: 20px;">提交频率</h3>
+    <table class="${cssPrefix}-table">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>提交数</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    chartData.frequency.slice(0, 30).forEach((item) => {
+      html += `
+        <tr>
+          <td>${item.date}</td>
+          <td>${item.count}</td>
+        </tr>`;
+    });
+
+    html += `
+      </tbody>
+    </table>
+    
+    <h3 class="${cssPrefix}-h2" style="font-size: 1.2em; margin-top: 20px;">贡献者分布</h3>
+    <table class="${cssPrefix}-table">
+      <thead>
+        <tr>
+          <th>贡献者</th>
+          <th>提交数</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    chartData.contributors.slice(0, 10).forEach((item) => {
+      html += `
+        <tr>
+          <td>${escapeHtml(item.name)}</td>
+          <td>${item.count}</td>
+        </tr>`;
+    });
+
+    html += `
+      </tbody>
+    </table>
+    
+    <h3 class="${cssPrefix}-h2" style="font-size: 1.2em; margin-top: 20px;">提交热力图（周几×小时）</h3>
+    <table class="${cssPrefix}-table">
+      <thead>
+        <tr>
+          <th>星期</th>
+          <th>小时</th>
+          <th>提交数</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    chartData.heatmap
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20)
+      .forEach((item) => {
+        html += `
+        <tr>
+          <td>${weekDays[item.day]}</td>
+          <td>${item.hour}:00</td>
+          <td>${item.count}</td>
+        </tr>`;
+      });
+
+    html += `
+      </tbody>
+    </table>`;
   }
 
   // 提交记录
-  if (config.includes.includes('commits')) {
-    const commits = getCommitsToExport()
+  if (config.includes.includes("commits")) {
+    const commits = getCommitsToExport();
     html += `
-    <h2 class="${cssPrefix}-h2">📝 提交记录 (${commits.length} 条)</h2>`
+    <h2 class="${cssPrefix}-h2">📝 提交记录 (${commits.length} 条)</h2>`;
 
-    commits.slice(0, 100).forEach(commit => {
+    commits.slice(0, 100).forEach((commit) => {
       html += `
     <div class="${cssPrefix}-commit">
       <p>
         <span class="${cssPrefix}-commit-hash">${commit.hash.substring(0, 7)}</span>
-        ${config.includeAuthor ? `<strong>${escapeHtml(commit.author)}</strong>${config.includeEmail ? ` &lt;${escapeHtml(commit.email)}&gt;` : ''}` : ''}
+        ${config.includeAuthor ? `<strong>${escapeHtml(commit.author)}</strong>${config.includeEmail ? ` &lt;${escapeHtml(commit.email)}&gt;` : ""}` : ""}
         <span class="${cssPrefix}-commit-date">${formatDate(commit.date, config.dateFormat)}</span>
-      </p>`
+      </p>`;
 
       if (config.includeFullMessage && commit.full_message) {
-        html += `<pre>${escapeHtml(commit.full_message)}</pre>`
+        html += `<pre>${escapeHtml(commit.full_message)}</pre>`;
       } else {
-        html += `<p>${escapeHtml(commit.message)}</p>`
+        html += `<p>${escapeHtml(commit.message)}</p>`;
       }
 
       if (config.includeStats && commit.stats) {
@@ -363,39 +482,39 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
         <span class="${cssPrefix}-additions">+${commit.stats.additions}</span>
         <span class="${cssPrefix}-deletions">-${commit.stats.deletions}</span>
         <span class="${cssPrefix}-files-count">${commit.stats.files} 文件</span>
-      </p>`
+      </p>`;
       }
 
       if (config.includeTags && commit.tags && commit.tags.length > 0) {
         html += `
-      <p><strong>标签:</strong> ${commit.tags.map(t => escapeHtml(t)).join(', ')}</p>`
+      <p><strong>标签:</strong> ${commit.tags.map((t) => escapeHtml(t)).join(", ")}</p>`;
       }
 
       if (config.includeFiles && commit.files && commit.files.length > 0) {
         html += `
       <p><strong>文件变更 (${commit.files.length}):</strong></p>
-      <ul style="margin: 10px 0; padding-left: 20px;">`
-        commit.files.forEach(file => {
+      <ul style="margin: 10px 0; padding-left: 20px;">`;
+        commit.files.forEach((file) => {
           html += `
         <li>
           <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;">${escapeHtml(file.path)}</code>
           <span class="${cssPrefix}-additions">+${file.additions}</span>
           <span class="${cssPrefix}-deletions">-${file.deletions}</span>
-        </li>`
-        })
+        </li>`;
+        });
         html += `
-      </ul>`
+      </ul>`;
       }
 
       html += `
-    </div>`
-    })
+    </div>`;
+    });
   }
 
   html += `
   </div>
 </body>
-</html>`
+</html>`;
 
-  return html
+  return html;
 }

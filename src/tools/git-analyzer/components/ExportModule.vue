@@ -286,6 +286,58 @@ function getMergedCommits(commits: GitCommit[]): GitCommit[] {
   });
 }
 
+// 生成时间线数据
+function generateTimelineData(commits: GitCommit[]): Array<{ date: string; count: number }> {
+  const dateCounts = commits.reduce(
+    (acc, c) => {
+      const date = c.date.split("T")[0];
+      acc[date] = (acc[date] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  return Object.entries(dateCounts)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// 生成图表数据
+function generateChartData(commits: GitCommit[]) {
+  // 提交频率数据
+  const frequencyData = generateTimelineData(commits);
+
+  // 贡献者分布数据
+  const contributorData = getContributorStats(commits);
+
+  // 热力图数据
+  const heatmapData: Array<{ day: number; hour: number; count: number }> = [];
+  const dayMap = new Map<string, number>();
+
+  commits.forEach((c) => {
+    const date = new Date(c.date);
+    const day = date.getDay();
+    const hour = date.getHours();
+    const key = `${day}-${hour}`;
+    dayMap.set(key, (dayMap.get(key) || 0) + 1);
+  });
+
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      const count = dayMap.get(`${day}-${hour}`) || 0;
+      if (count > 0) {
+        heatmapData.push({ day, hour, count });
+      }
+    }
+  }
+
+  return {
+    frequency: frequencyData,
+    contributors: contributorData,
+    heatmap: heatmapData,
+  };
+}
+
 // 生成 Markdown 格式
 function generateMarkdown(): string {
   const lines: string[] = [];
@@ -322,6 +374,64 @@ function generateMarkdown(): string {
         commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : "0.0";
       lines.push(`| ${c.name} | ${c.count} | ${percentage}% |`);
     });
+    lines.push("");
+  }
+
+  // 时间线
+  if (config.includes.includes("timeline")) {
+    const commitsToExport = getCommitsToExport();
+    const timelineData = generateTimelineData(commitsToExport);
+    lines.push("## 📅 提交时间线");
+    lines.push("");
+    lines.push("| 日期 | 提交数 |");
+    lines.push("|------|--------|");
+    timelineData.forEach((item) => {
+      lines.push(`| ${item.date} | ${item.count} |`);
+    });
+    lines.push("");
+  }
+
+  // 图表数据
+  if (config.includes.includes("charts")) {
+    const commitsToExport = getCommitsToExport();
+    const chartData = generateChartData(commitsToExport);
+
+    lines.push("## 📈 图表数据");
+    lines.push("");
+
+    // 提交频率趋势
+    lines.push("### 提交频率");
+    lines.push("");
+    lines.push("| 日期 | 提交数 |");
+    lines.push("|------|--------|");
+    chartData.frequency.slice(0, 30).forEach((item) => {
+      lines.push(`| ${item.date} | ${item.count} |`);
+    });
+    lines.push("");
+
+    // 贡献者分布
+    lines.push("### 贡献者分布");
+    lines.push("");
+    lines.push("| 贡献者 | 提交数 |");
+    lines.push("|--------|--------|");
+    chartData.contributors.slice(0, 10).forEach((item) => {
+      lines.push(`| ${item.name} | ${item.count} |`);
+    });
+    lines.push("");
+
+    // 提交热力图
+    lines.push("### 提交热力图（周几×小时）");
+    lines.push("");
+    const weekDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+    lines.push("| 星期 | 小时 | 提交数 |");
+    lines.push("|------|------|--------|");
+    chartData.heatmap
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20)
+      .forEach((item) => {
+        lines.push(`| ${weekDays[item.day]} | ${item.hour}:00 | ${item.count} |`);
+      });
     lines.push("");
   }
 
@@ -393,14 +503,22 @@ function generateJSON(): string {
   };
 
   const config = exportConfig.value;
+  const commitsToExport = getCommitsToExport();
 
   if (config.includes.includes("contributors")) {
-    data.contributors = getContributorStats(getCommitsToExport());
+    data.contributors = getContributorStats(commitsToExport);
+  }
+
+  if (config.includes.includes("timeline")) {
+    data.timeline = generateTimelineData(commitsToExport);
+  }
+
+  if (config.includes.includes("charts")) {
+    data.charts = generateChartData(commitsToExport);
   }
 
   if (config.includes.includes("commits")) {
-    const commits = getCommitsToExport();
-    data.commits = commits.map((commit) => ({
+    data.commits = commitsToExport.map((commit) => ({
       hash: commit.hash,
       ...(config.includeAuthor ? { author: commit.author } : {}),
       ...(config.includeAuthor && config.includeEmail ? { email: commit.email } : {}),
@@ -515,6 +633,48 @@ function generateText(): string {
     lines.push("");
   }
 
+  if (config.includes.includes("timeline")) {
+    const commitsToExport = getCommitsToExport();
+    const timelineData = generateTimelineData(commitsToExport);
+    lines.push("-".repeat(40));
+    lines.push("提交时间线");
+    lines.push("-".repeat(40));
+    timelineData.forEach((item) => {
+      lines.push(`${item.date}: ${item.count} 次提交`);
+    });
+    lines.push("");
+  }
+
+  if (config.includes.includes("charts")) {
+    const commitsToExport = getCommitsToExport();
+    const chartData = generateChartData(commitsToExport);
+
+    lines.push("-".repeat(40));
+    lines.push("图表数据");
+    lines.push("-".repeat(40));
+
+    lines.push("\n提交频率 (最近30天):");
+    chartData.frequency.slice(0, 30).forEach((item) => {
+      lines.push(`  ${item.date}: ${item.count}`);
+    });
+
+    lines.push("\n贡献者分布 (Top 10):");
+    chartData.contributors.slice(0, 10).forEach((item) => {
+      lines.push(`  ${item.name}: ${item.count}`);
+    });
+
+    lines.push("\n提交热力图 (Top 20):");
+    const weekDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+    chartData.heatmap
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20)
+      .forEach((item) => {
+        lines.push(`  ${weekDays[item.day]} ${item.hour}:00 - ${item.count} 次`);
+      });
+    lines.push("");
+  }
+
   if (config.includes.includes("commits")) {
     const commits = getCommitsToExport();
     lines.push("-".repeat(40));
@@ -614,6 +774,8 @@ async function updatePreview() {
           getContributorStats,
           formatDate,
           escapeHtml,
+          generateTimelineData,
+          generateChartData,
         });
         break;
       case "text":

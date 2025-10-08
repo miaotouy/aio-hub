@@ -508,8 +508,9 @@ function escapeRegex(str: string): string {
 .preset-rule-manager {
   display: flex;
   gap: 20px;
-  height: calc(100vh - 60px);
+  height: 100%;
   padding: 20px;
+  box-sizing: border-box;
   background-color: var(--bg-color);
 }
 

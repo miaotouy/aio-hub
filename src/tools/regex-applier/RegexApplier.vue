@@ -10,9 +10,21 @@
             <el-radio-button value="file">文件模式</el-radio-button>
           </el-radio-group>
         </div>
-        <el-button type="primary" @click="goToManageRules" :icon="Setting">
-          管理规则
-        </el-button>
+        <div class="header-actions">
+          <el-badge
+            :value="errorLogCount"
+            :hidden="errorLogCount === 0"
+            :max="99"
+            type="danger"
+          >
+            <el-button @click="openLogDialog" :icon="List">
+              查看日志{{ logs.length > 0 ? `(${logs.length})` : '' }}
+            </el-button>
+          </el-badge>
+          <el-button type="primary" @click="goToManageRules" :icon="Setting">
+            管理规则
+          </el-button>
+        </div>
       </div>
     </el-card>
 
@@ -76,32 +88,42 @@
     <div v-if="processingMode === 'text'" class="text-mode-container">
       <el-row :gutter="20" class="input-output-section">
         <el-col :span="12">
-          <el-card shadow="never" class="box-card">
+          <el-card shadow="never" class="box-card text-card">
             <template #header>
               <div class="card-header">
                 <span>输入文本</span>
-                <el-button class="button" text @click="pasteToSource">粘贴</el-button>
+                <div class="card-actions">
+                  <el-button text @click="pasteToSource">粘贴</el-button>
+                  <el-button
+                    type="success"
+                    @click="oneClickProcess"
+                    :icon="MagicStick"
+                    :disabled="selectedPresetIds.length === 0"
+                  >
+                    一键处理
+                  </el-button>
+                </div>
               </div>
             </template>
             <el-input
               v-model="sourceText"
-              :rows="15"
+              :rows="20"
               type="textarea"
               placeholder="请输入待处理的文本..."
             />
           </el-card>
         </el-col>
         <el-col :span="12">
-          <el-card shadow="never" class="box-card">
+          <el-card shadow="never" class="box-card text-card">
             <template #header>
               <div class="card-header">
                 <span>输出文本</span>
-                <el-button class="button" text @click="copyResult">复制</el-button>
+                <el-button text @click="copyResult">复制</el-button>
               </div>
             </template>
             <el-input
               v-model="resultText"
-              :rows="15"
+              :rows="20"
               type="textarea"
               placeholder="处理结果将显示在这里..."
               readonly
@@ -109,19 +131,6 @@
           </el-card>
         </el-col>
       </el-row>
-
-      <el-card shadow="never" class="box-card">
-        <el-button
-          type="success"
-          @click="oneClickProcess"
-          :icon="MagicStick"
-          size="large"
-          :disabled="selectedPresetIds.length === 0"
-          style="width: 100%"
-        >
-          一键处理剪贴板
-        </el-button>
-      </el-card>
     </div>
 
     <!-- 文件模式界面 -->
@@ -208,20 +217,26 @@
       </el-row>
     </div>
 
-    <!-- 日志区域 -->
-    <el-card shadow="never" class="box-card log-section">
-      <template #header>
-        <div class="card-header">
-          <span>日志</span>
-          <el-button text @click="logs = []">清空</el-button>
+    <!-- 日志弹窗 -->
+    <el-dialog
+      v-model="logDialogVisible"
+      title="日志"
+      width="800px"
+      :close-on-click-modal="false"
+    >
+      <div class="log-dialog-content">
+        <div class="log-output">
+          <p v-for="(log, index) in logs" :key="index" :class="`log-${log.type}`">
+            [{{ log.time }}] {{ log.message }}
+          </p>
+          <p v-if="logs.length === 0" class="empty-log">暂无日志</p>
         </div>
-      </template>
-      <div class="log-output">
-        <p v-for="(log, index) in logs" :key="index" :class="`log-${log.type}`">
-          [{{ log.time }}] {{ log.message }}
-        </p>
       </div>
-    </el-card>
+      <template #footer>
+        <el-button @click="clearLogs">清空日志</el-button>
+        <el-button type="primary" @click="logDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -229,7 +244,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Delete, Rank, Document, FolderOpened, FolderAdd, Plus, Setting, MagicStick } from '@element-plus/icons-vue';
+import { Delete, Rank, Document, FolderOpened, FolderAdd, Plus, Setting, MagicStick, List } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { open as openFile } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
@@ -274,6 +289,7 @@ const hoveredTarget = ref<DropTarget | null>(null);
 
 // 日志状态
 const logs = ref<LogEntry[]>([]);
+const logDialogVisible = ref(false);
 
 // 应用配置
 const appConfig = ref<AppConfig | null>(null);
@@ -288,6 +304,11 @@ const availablePresets = computed(() => store.presets);
 
 // 使用 ref 而不是 computed 来避免响应性问题
 const selectedPresets = ref<RegexPreset[]>([]);
+
+// 计算错误和警告日志数量
+const errorLogCount = computed(() =>
+  logs.value.filter(log => log.type === 'error' || log.type === 'warn').length
+);
 
 // 监听 selectedPresetIds 变化，更新 selectedPresets
 watch(selectedPresetIds, (ids) => {
@@ -372,6 +393,15 @@ watch(outputDirectory, saveCurrentConfig);
 const addLog = (message: string, type: LogEntry['type'] = 'info') => {
   const time = new Date().toLocaleTimeString();
   logs.value.push({ time, message, type });
+};
+
+const clearLogs = () => {
+  logs.value = [];
+  ElMessage.success('日志已清空');
+};
+
+const openLogDialog = () => {
+  logDialogVisible.value = true;
 };
 
 // ===== 预设操作 =====
@@ -816,10 +846,17 @@ const processFiles = async () => {
 <style scoped>
 .regex-applier-container {
   padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   color: var(--text-color);
   --primary-color-rgb: 64, 158, 255; /* 默认蓝色的 RGB 值 */
+  box-sizing: border-box;
+}
+
+.regex-applier-container * {
+  box-sizing: border-box;
 }
 
 .box-card {
@@ -832,14 +869,21 @@ const processFiles = async () => {
 
 /* 头部区域 */
 .header-section {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  padding: 4px 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .mode-switch {
@@ -856,7 +900,8 @@ const processFiles = async () => {
 
 /* 预设选择区域 */
 .preset-section {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .preset-tags-container {
@@ -915,12 +960,47 @@ const processFiles = async () => {
   color: var(--text-color);
 }
 
-/* 文本模式 */
-.text-mode-container {
-  margin-bottom: 20px;
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.input-output-section .el-textarea__inner {
+/* 文本模式 */
+.text-mode-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.input-output-section {
+  height: 100%;
+}
+
+.text-card {
+  height: 100%;
+  margin-bottom: 0;
+}
+
+.text-card :deep(.el-card__body) {
+  height: calc(100% - 60px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.text-card :deep(.el-textarea) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.text-card :deep(.el-textarea__inner) {
+  flex: 1;
+  height: 100% !important;
+  resize: none;
   font-family: monospace;
   background-color: var(--input-bg) !important;
   color: var(--text-color) !important;
@@ -929,11 +1009,23 @@ const processFiles = async () => {
 
 /* 文件模式样式 */
 .file-mode-container {
-  margin-bottom: 20px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-mode-container .el-row {
+  height: 100%;
+}
+
+.file-mode-container .el-col {
+  height: 100%;
 }
 
 .full-height-card {
-  height: 400px;
+  height: 100%;
+  margin-bottom: 0;
 }
 
 .full-height-card :deep(.el-card__body) {
@@ -1072,7 +1164,13 @@ const processFiles = async () => {
   transition: opacity 0.2s ease;
 }
 
+.output-settings-card {
+  height: 100%;
+  margin-bottom: 0;
+}
+
 .output-settings-card :deep(.el-card__body) {
+  height: calc(100% - 60px);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -1129,17 +1227,29 @@ const processFiles = async () => {
   margin-top: auto;
 }
 
-/* 日志区域样式 */
-.log-section .log-output {
-  height: 150px;
+/* 日志弹窗样式 */
+.log-dialog-content {
+  max-height: 60vh;
   overflow-y: auto;
+}
+
+.log-output {
   background-color: var(--input-bg);
   border: 1px solid var(--border-color);
-  padding: 10px;
+  border-radius: 4px;
+  padding: 12px;
   font-family: monospace;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-color);
-  line-height: 1.5;
+  line-height: 1.6;
+  min-height: 300px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.log-output p {
+  margin: 4px 0;
+  padding: 2px 0;
 }
 
 .log-info {
@@ -1152,6 +1262,13 @@ const processFiles = async () => {
 
 .log-error {
   color: var(--error-color);
+}
+
+.empty-log {
+  color: var(--text-color-light);
+  text-align: center;
+  padding: 40px 0;
+  font-size: 14px;
 }
 
 .el-input, .el-textarea {

@@ -260,7 +260,11 @@ const handleSelect = (key: string) => {
 
     <el-container>
       <el-main class="main-content">
-        <router-view></router-view>
+        <router-view v-slot="{ Component }">
+          <keep-alive :exclude="['Settings']">
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>

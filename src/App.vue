@@ -526,8 +526,24 @@ const handleSelect = (key: string) => {
   background-color: var(--primary-color-light) !important;
 }
 .el-menu-item.is-active {
-  background-color: var(--primary-color) !important;
-  color: white !important;
+  background-color: rgba(var(--primary-color-rgb), 0.08) !important;
+  color: var(--primary-color) !important;
+  font-weight: 500;
+  position: relative;
+}
+
+/* 左侧高亮条 */
+.el-menu-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 3px;
+  background-color: var(--primary-color);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.4);
 }
 
 /* 确保整个应用没有默认边距 */

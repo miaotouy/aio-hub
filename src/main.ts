@@ -12,6 +12,56 @@ import { ElNotification } from 'element-plus';
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from 'pinia'; // 导入 Pinia
 
+// 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
+// 这样可以避免应用启动时的颜色闪烁
+(() => {
+  try {
+    const cachedThemeColor = localStorage.getItem('app-theme-color');
+    if (cachedThemeColor && /^#[0-9A-F]{6}$/i.test(cachedThemeColor)) {
+      const root = document.documentElement;
+      
+      // 设置主题色
+      root.style.setProperty("--primary-color", cachedThemeColor);
+      
+      // 计算悬停色
+      const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16),
+        } : null;
+      };
+      
+      const lightenColor = (hex: string, percent: number) => {
+        const rgb = hexToRgb(hex);
+        if (!rgb) return hex;
+        const r = Math.min(255, Math.floor(rgb.r + (255 - rgb.r) * (percent / 100)));
+        const g = Math.min(255, Math.floor(rgb.g + (255 - rgb.g) * (percent / 100)));
+        const b = Math.min(255, Math.floor(rgb.b + (255 - rgb.b) * (percent / 100)));
+        return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+      };
+      
+      const hoverColor = lightenColor(cachedThemeColor, 20);
+      root.style.setProperty("--primary-hover-color", hoverColor);
+      
+      const rgb = hexToRgb(cachedThemeColor);
+      if (rgb) {
+        root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+      }
+      
+      // 同步 Element Plus 变量
+      root.style.setProperty("--el-color-primary", cachedThemeColor);
+      root.style.setProperty("--el-color-primary-light-3", hoverColor);
+      root.style.setProperty("--el-color-primary-light-5", hoverColor);
+      root.style.setProperty("--el-color-primary-light-7", hoverColor);
+      root.style.setProperty("--el-color-primary-light-9", hoverColor);
+    }
+  } catch (error) {
+    console.warn('Failed to apply cached theme color:', error);
+  }
+})();
+
 const app = createApp(App);
 const pinia = createPinia(); // 创建 Pinia 实例
 

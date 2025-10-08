@@ -187,6 +187,13 @@ const applyThemeColor = (color: string) => {
   root.style.setProperty("--el-color-primary-light-5", hoverColor);
   root.style.setProperty("--el-color-primary-light-7", hoverColor);
   root.style.setProperty("--el-color-primary-light-9", hoverColor);
+  
+  // 缓存到 localStorage 以避免下次启动时的闪烁
+  try {
+    localStorage.setItem('app-theme-color', color);
+  } catch (error) {
+    console.warn('Failed to cache theme color:', error);
+  }
 };
 
 // 颜色处理工具函数

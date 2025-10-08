@@ -70,6 +70,17 @@ pub async fn git_get_branch_commits(
 }
 
 #[tauri::command]
+pub async fn git_get_incremental_commits(
+    path: String,
+    branch: Option<String>,
+    skip: usize,
+    limit: usize,
+) -> Result<Vec<GitCommit>, String> {
+    let repo_path = if path.is_empty() { "." } else { &path };
+    get_commits_with_skip(repo_path, branch.as_deref(), skip, limit, false)
+}
+
+#[tauri::command]
 pub async fn git_load_commits_with_files(
     path: String,
     branch: Option<String>,
@@ -363,6 +374,10 @@ fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {
 }
 
 fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize, include_files: bool) -> Result<Vec<GitCommit>, String> {
+    get_commits_with_skip(repo_path, branch, 0, limit, include_files)
+}
+
+fn get_commits_with_skip(repo_path: &str, branch: Option<&str>, skip: usize, limit: usize, include_files: bool) -> Result<Vec<GitCommit>, String> {
     let mut cmd = Command::new("git");
     #[cfg(target_os = "windows")]
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
@@ -374,8 +389,13 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize, include_file
     }
 
     cmd.arg("--pretty=format:%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1f%P%x1f")
-        .arg("-z")
-        .arg(format!("-n{}", limit));
+        .arg("-z");
+    
+    // 添加 skip 和 limit 参数
+    if skip > 0 {
+        cmd.arg(format!("--skip={}", skip));
+    }
+    cmd.arg(format!("-n{}", limit));
 
     let output = cmd
         .output()

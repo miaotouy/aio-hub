@@ -23,6 +23,11 @@ export function useGitRepository() {
   const currentPage = ref(1)
   const pageSize = ref(20)
 
+  // 增量加载状态：记录上次加载的仓库路径和分支
+  const lastLoadedRepo = ref('')
+  const lastLoadedBranch = ref('')
+  const lastLoadedLimit = ref(0)
+
   // 计算属性 - 统计信息
   const statistics = computed<RepoStatistics>(() => {
     const commits = filteredCommits.value
@@ -74,14 +79,85 @@ export function useGitRepository() {
     }
   }
 
-  // 方法 - 加载仓库
+  // 方法 - 加载仓库（增量加载）
   async function loadRepository() {
     loading.value = true
     try {
+      const currentRepoPath = repoPath.value || '.'
+      const currentBranch = selectedBranch.value
+
+      // 检查是否是同一个仓库和分支，且只是增加了数量限制
+      const isSameRepo = lastLoadedRepo.value === currentRepoPath
+      const isSameBranch = lastLoadedBranch.value === currentBranch
+      const isIncrementalLoad = isSameRepo && isSameBranch && limitCount.value > lastLoadedLimit.value
+
+      if (isIncrementalLoad) {
+        // 增量加载：只加载新增的部分
+        const skip = lastLoadedLimit.value
+        const newLimit = limitCount.value - lastLoadedLimit.value
+
+        const newCommits = await invoke<GitCommit[]>('git_get_incremental_commits', {
+          path: currentRepoPath,
+          branch: currentBranch,
+          skip,
+          limit: newLimit,
+        })
+
+        // 将新提交添加到现有列表末尾
+        commits.value = [...commits.value, ...newCommits]
+        filteredCommits.value = commits.value
+
+        // 更新记录
+        lastLoadedLimit.value = limitCount.value
+
+        ElMessage.success(`增量加载了 ${newCommits.length} 条新提交记录，当前共 ${commits.value.length} 条`)
+      } else {
+        // 全量加载
+        const result = await invoke<{ branches: GitBranch[]; commits: GitCommit[] }>(
+          'git_load_repository',
+          {
+            path: currentRepoPath,
+            limit: limitCount.value,
+          }
+        )
+
+        branches.value = result.branches
+        commits.value = result.commits
+        filteredCommits.value = result.commits
+
+        // 设置当前分支
+        const currentBranchInfo = result.branches.find((b) => b.current)
+        if (currentBranchInfo) {
+          selectedBranch.value = currentBranchInfo.name
+        }
+
+        // 更新记录
+        lastLoadedRepo.value = currentRepoPath
+        lastLoadedBranch.value = selectedBranch.value
+        lastLoadedLimit.value = limitCount.value
+
+        ElMessage.success(`加载了 ${result.commits.length} 条提交记录`)
+      }
+
+      return true
+    } catch (error) {
+      ElMessage.error(`加载仓库失败: ${error}`)
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 方法 - 刷新仓库（全量重载）
+  async function refreshRepository() {
+    loading.value = true
+    try {
+      const currentRepoPath = repoPath.value || '.'
+
       const result = await invoke<{ branches: GitBranch[]; commits: GitCommit[] }>(
         'git_load_repository',
         {
-          path: repoPath.value || '.',
+          path: currentRepoPath,
           limit: limitCount.value,
         }
       )
@@ -96,11 +172,16 @@ export function useGitRepository() {
         selectedBranch.value = currentBranch.name
       }
 
-      ElMessage.success(`加载了 ${result.commits.length} 条提交记录`)
+      // 更新记录
+      lastLoadedRepo.value = currentRepoPath
+      lastLoadedBranch.value = selectedBranch.value
+      lastLoadedLimit.value = limitCount.value
+
+      ElMessage.success(`刷新完成，加载了 ${result.commits.length} 条提交记录`)
 
       return true
     } catch (error) {
-      ElMessage.error(`加载仓库失败: ${error}`)
+      ElMessage.error(`刷新仓库失败: ${error}`)
       return false
     } finally {
       loading.value = false
@@ -205,6 +286,7 @@ export function useGitRepository() {
     // 方法
     selectDirectory,
     loadRepository,
+    refreshRepository,
     onBranchChange,
     filterCommits,
     clearFilters,

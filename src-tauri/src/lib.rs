@@ -27,6 +27,7 @@ use commands::{
     // Git分析器相关
     git_load_repository,
     git_get_branch_commits,
+    git_get_incremental_commits,
     git_load_commits_with_files,
     git_get_commit_detail,
     git_cherry_pick,
@@ -111,6 +112,7 @@ pub fn run() {
             // Git分析器命令
             git_load_repository,
             git_get_branch_commits,
+            git_get_incremental_commits,
             git_load_commits_with_files,
             git_get_commit_detail,
             git_cherry_pick,

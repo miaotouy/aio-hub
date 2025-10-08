@@ -3,7 +3,7 @@
     <InfoCard title="Git 仓库分析" class="analyzer-card">
       <template #headerExtra>
         <el-button-group>
-          <el-button :icon="Refresh" @click="loadRepository" :loading="loading"> 刷新 </el-button>
+          <el-button :icon="Refresh" @click="refreshRepository" :loading="loading"> 刷新 </el-button>
           <el-button :icon="Upload" @click="showExportDialog" :disabled="commits.length === 0">
             导出
           </el-button>
@@ -342,6 +342,7 @@ const {
   // 方法
   selectDirectory,
   loadRepository: loadRepo,
+  refreshRepository: refreshRepo,
   onBranchChange: switchBranch,
   filterCommits: doFilter,
   clearFilters,
@@ -373,9 +374,17 @@ const {
 const activeTab = ref('list')
 const showExport = ref(false)
 
-// 包装 loadRepository 以在成功后更新图表
+// 包装 loadRepository 以在成功后更新图表（增量加载）
 async function loadRepository() {
   const success = await loadRepo()
+  if (success) {
+    updateCharts()
+  }
+}
+
+// 包装 refreshRepository 以在成功后更新图表（全量刷新）
+async function refreshRepository() {
+  const success = await refreshRepo()
   if (success) {
     updateCharts()
   }

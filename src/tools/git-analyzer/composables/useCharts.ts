@@ -2,6 +2,7 @@ import { ref, onUnmounted, watch, type Ref } from 'vue'
 import { useDark } from '@vueuse/core'
 import * as echarts from 'echarts'
 import type { GitCommit } from '../types'
+import { getContributorStats, generateTimelineData, generateHeatmapData } from './useGitDataProcessor'
 
 export function useCharts(filteredCommits: Ref<GitCommit[]>) {
   // 图表 DOM 引用
@@ -67,14 +68,10 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
     if (!chart) {
       chart = echarts.init(frequencyChart.value)
     }
-    const dates = filteredCommits.value.map((c) => c.date.split('T')[0])
-    const dateCounts = dates.reduce(
-      (acc, date) => {
-        acc[date] = (acc[date] || 0) + 1
-        return acc
-      },
-      {} as Record<string, number>
-    )
+    // 使用统一的数据处理函数
+    const timelineData = generateTimelineData(filteredCommits.value)
+    const dates = timelineData.map((item) => item.date)
+    const counts = timelineData.map((item) => item.count)
 
     const colors = getThemeColors()
     const commonOptions = getCommonChartOptions()
@@ -83,7 +80,7 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       ...commonOptions,
       xAxis: {
         type: 'category',
-        data: Object.keys(dateCounts),
+        data: dates,
         axisLine: {
           lineStyle: {
             color: colors.borderColor,
@@ -111,7 +108,7 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       },
       series: [
         {
-          data: Object.values(dateCounts),
+          data: counts,
           type: 'line',
           smooth: true,
           itemStyle: {
@@ -171,18 +168,12 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
     if (!chart) {
       chart = echarts.init(contributorChart.value)
     }
-    const authorCounts = filteredCommits.value.reduce(
-      (acc, c) => {
-        acc[c.author] = (acc[c.author] || 0) + 1
-        return acc
-      },
-      {} as Record<string, number>
-    )
-
-    const data = Object.entries(authorCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, value]) => ({ name, value }))
+    // 使用统一的数据处理函数
+    const contributorStats = getContributorStats(filteredCommits.value)
+    const data = contributorStats.slice(0, 10).map((item) => ({
+      name: item.name,
+      value: item.count,
+    }))
 
     const colors = getThemeColors()
     const commonOptions = getCommonChartOptions()
@@ -250,21 +241,15 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       chart = echarts.init(heatmapChart.value)
     }
 
-    // 生成热力图数据
+    // 使用统一的数据处理函数
+    const heatmapDataRaw = generateHeatmapData(filteredCommits.value)
+    
+    // 转换为 ECharts 需要的格式 [hour, day, count]
     const heatmapData: Array<[number, number, number]> = []
-    const dayMap = new Map<string, number>()
-
-    filteredCommits.value.forEach((c) => {
-      const date = new Date(c.date)
-      const day = date.getDay()
-      const hour = date.getHours()
-      const key = `${day}-${hour}`
-      dayMap.set(key, (dayMap.get(key) || 0) + 1)
-    })
-
     for (let day = 0; day < 7; day++) {
       for (let hour = 0; hour < 24; hour++) {
-        const count = dayMap.get(`${day}-${hour}`) || 0
+        const item = heatmapDataRaw.find((d) => d.day === day && d.hour === hour)
+        const count = item ? item.count : 0
         heatmapData.push([hour, day, count])
       }
     }

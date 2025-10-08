@@ -2,6 +2,12 @@
  * Git 分析器类型定义
  */
 
+export interface GitBranch {
+  name: string
+  current: boolean
+  remote: boolean
+}
+
 export interface GitCommit {
   hash: string
   author: string

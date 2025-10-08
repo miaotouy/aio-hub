@@ -307,465 +307,138 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { ElMessage } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import * as echarts from "echarts";
-import { Refresh, Search, FolderOpened, PriceTag, Upload } from "@element-plus/icons-vue";
-import InfoCard from "../../components/common/InfoCard.vue";
-import DropZone from "../../components/common/DropZone.vue";
-import ExportModule from "./components/ExportModule.vue";
-import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config";
-
-interface GitCommit {
-  hash: string;
-  author: string;
-  email: string;
-  date: string;
-  message: string;
-  full_message?: string; // 注意：后端使用 snake_case
-  parents?: string[];
-  tags?: string[];
-  stats?: {
-    additions: number;
-    deletions: number;
-    files: number;
-  };
-  files?: Array<{
-    path: string;
-    status: string;
-    additions: number;
-    deletions: number;
-  }>;
-}
-
-interface GitBranch {
-  name: string;
-  current: boolean;
-  remote: boolean;
-}
+import { ref, watch, nextTick, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Refresh, Search, FolderOpened, PriceTag, Upload } from '@element-plus/icons-vue'
+import InfoCard from '../../components/common/InfoCard.vue'
+import DropZone from '../../components/common/DropZone.vue'
+import ExportModule from './components/ExportModule.vue'
+import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from './config'
+import { useGitRepository } from './composables/useGitRepository'
+import { useCharts } from './composables/useCharts'
+import { useCommitDetail } from './composables/useCommitDetail'
 
 // 配置状态
-const config = ref<GitAnalyzerConfig | null>(null);
+const config = ref<GitAnalyzerConfig | null>(null)
 
-// 状态
-const loading = ref(false);
-const repoPath = ref("");
-const selectedBranch = ref("main");
-const branches = ref<GitBranch[]>([]);
-const commits = ref<GitCommit[]>([]);
-const filteredCommits = ref<GitCommit[]>([]);
-const selectedCommit = ref<GitCommit | null>(null);
-const showDetail = ref(false);
-const activeTab = ref("list");
-const limitCount = ref(100);
-const showExport = ref(false);
+// 使用 composables
+const {
+  // 状态
+  loading,
+  repoPath,
+  selectedBranch,
+  branches,
+  commits,
+  filteredCommits,
+  limitCount,
+  searchQuery,
+  dateRange,
+  authorFilter,
+  currentPage,
+  pageSize,
+  // 计算属性
+  statistics,
+  paginatedCommits,
+  // 方法
+  selectDirectory,
+  loadRepository: loadRepo,
+  onBranchChange: switchBranch,
+  filterCommits: doFilter,
+  clearFilters,
+  handlePathDrop,
+} = useGitRepository()
 
-// 筛选
-const searchQuery = ref("");
-const dateRange = ref<[Date, Date] | null>(null);
-const authorFilter = ref("");
+const {
+  // DOM 引用
+  frequencyChart,
+  contributorChart,
+  heatmapChart,
+  // 方法
+  updateCharts,
+  setupResizeObserver,
+} = useCharts(filteredCommits)
 
-// 分页
-const currentPage = ref(1);
-const pageSize = ref(20);
+const {
+  // 状态
+  selectedCommit,
+  showDetail,
+  // 方法
+  selectCommit,
+  copyCommitHash,
+  formatDate,
+  formatFullDate,
+} = useCommitDetail(() => repoPath.value)
 
-// 图表实例
-const frequencyChart = ref<HTMLDivElement>();
-const contributorChart = ref<HTMLDivElement>();
-const heatmapChart = ref<HTMLDivElement>();
+// 本地状态
+const activeTab = ref('list')
+const showExport = ref(false)
 
-// 计算属性
-const statistics = computed(() => {
-  const commits = filteredCommits.value;
-  if (commits.length === 0) {
-    return {
-      totalCommits: 0,
-      contributors: 0,
-      timeSpan: 0,
-      averagePerDay: 0,
-    };
-  }
-
-  const authors = new Set(commits.map((c) => c.author));
-  const dates = commits.map((c) => new Date(c.date).getTime());
-  const minDate = new Date(Math.min(...dates));
-  const maxDate = new Date(Math.max(...dates));
-  const days = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
-
-  return {
-    totalCommits: commits.length,
-    contributors: authors.size,
-    timeSpan: days,
-    averagePerDay: commits.length / Math.max(days, 1),
-  };
-});
-
-const paginatedCommits = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value;
-  const end = start + pageSize.value;
-  return filteredCommits.value.slice(start, end);
-});
-
-// 方法
-async function selectDirectory() {
-  try {
-    const selected = await openDialog({
-      directory: true,
-      multiple: false,
-      title: "选择 Git 仓库目录",
-    });
-    if (typeof selected === "string") {
-      repoPath.value = selected;
-      ElMessage.success(`已选择目录: ${selected}`);
-    }
-  } catch (error) {
-    console.error("选择目录失败:", error);
-    ElMessage.error("选择目录失败");
-  }
-}
-
+// 包装 loadRepository 以在成功后更新图表
 async function loadRepository() {
-  loading.value = true;
-  try {
-    const result = await invoke<{ branches: GitBranch[]; commits: GitCommit[] }>(
-      "git_load_repository",
-      {
-        path: repoPath.value || ".",
-        limit: limitCount.value,
-      }
-    );
-
-    branches.value = result.branches;
-    commits.value = result.commits;
-    filteredCommits.value = result.commits;
-
-    // 设置当前分支
-    const currentBranch = result.branches.find((b) => b.current);
-    if (currentBranch) {
-      selectedBranch.value = currentBranch.name;
-    }
-
-    ElMessage.success(`加载了 ${result.commits.length} 条提交记录`);
-
-    // 更新图表
-    updateCharts();
-  } catch (error) {
-    ElMessage.error(`加载仓库失败: ${error}`);
-  } finally {
-    loading.value = false;
+  const success = await loadRepo()
+  if (success) {
+    updateCharts()
   }
 }
 
+// 包装 onBranchChange 以在成功后更新图表
 async function onBranchChange(branch: string) {
-  loading.value = true;
-  try {
-    const result = await invoke<GitCommit[]>("git_get_branch_commits", {
-      path: repoPath.value || ".",
-      branch,
-      limit: limitCount.value,
-    });
-
-    commits.value = result;
-    filteredCommits.value = result;
-    ElMessage.success(`切换到分支: ${branch}`);
-
-    updateCharts();
-  } catch (error) {
-    ElMessage.error(`切换分支失败: ${error}`);
-  } finally {
-    loading.value = false;
+  const success = await switchBranch(branch)
+  if (success) {
+    updateCharts()
   }
 }
 
+// 包装 filterCommits 以在筛选后更新图表
 function filterCommits() {
-  let filtered = [...commits.value];
-
-  // 搜索筛选
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(
-      (c) => c.message.toLowerCase().includes(query) || c.hash.toLowerCase().includes(query)
-    );
-  }
-
-  // 作者筛选
-  if (authorFilter.value) {
-    const author = authorFilter.value.toLowerCase();
-    filtered = filtered.filter((c) => c.author.toLowerCase().includes(author));
-  }
-
-  // 日期筛选
-  if (dateRange.value) {
-    const [start, end] = dateRange.value;
-    filtered = filtered.filter((c) => {
-      const date = new Date(c.date);
-      return date >= start && date <= end;
-    });
-  }
-
-  filteredCommits.value = filtered;
-  currentPage.value = 1;
-  updateCharts();
+  doFilter()
+  updateCharts()
 }
-
-function clearFilters() {
-  searchQuery.value = "";
-  dateRange.value = null;
-  authorFilter.value = "";
-  filteredCommits.value = commits.value;
-  currentPage.value = 1;
-  updateCharts();
-}
-
-function selectCommit(commit: GitCommit) {
-  selectedCommit.value = commit;
-  showDetail.value = true;
-  loadCommitDetail(commit.hash);
-}
-
-async function loadCommitDetail(hash: string) {
-  try {
-    const detail = await invoke<GitCommit>("git_get_commit_detail", {
-      path: repoPath.value || ".",
-      hash,
-    });
-    console.log("Commit Detail from Backend:", detail); // 在这里添加日志
-    selectedCommit.value = detail;
-  } catch (error) {
-    ElMessage.error(`加载提交详情失败: ${error}`);
-  }
-}
-
-async function copyCommitHash() {
-  if (selectedCommit.value) {
-    await navigator.clipboard.writeText(selectedCommit.value.hash);
-    ElMessage.success("已复制提交哈希");
-  }
-}
-
-function updateCharts() {
-  if (activeTab.value === "chart") {
-    nextTick(() => {
-      drawFrequencyChart();
-      drawContributorChart();
-      drawHeatmapChart();
-    });
-  }
-}
-
-function drawFrequencyChart() {
-  if (!frequencyChart.value) return;
-
-  const chart = echarts.init(frequencyChart.value);
-  const dates = filteredCommits.value.map((c) => c.date.split("T")[0]);
-  const dateCounts = dates.reduce(
-    (acc, date) => {
-      acc[date] = (acc[date] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const option = {
-    xAxis: {
-      type: "category",
-      data: Object.keys(dateCounts),
-    },
-    yAxis: {
-      type: "value",
-    },
-    series: [
-      {
-        data: Object.values(dateCounts),
-        type: "line",
-        smooth: true,
-        areaStyle: {},
-      },
-    ],
-    tooltip: {
-      trigger: "axis",
-    },
-  };
-
-  chart.setOption(option);
-}
-
-function drawContributorChart() {
-  if (!contributorChart.value) return;
-
-  const chart = echarts.init(contributorChart.value);
-  const authorCounts = filteredCommits.value.reduce(
-    (acc, c) => {
-      acc[c.author] = (acc[c.author] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const data = Object.entries(authorCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([name, value]) => ({ name, value }));
-
-  const option = {
-    series: [
-      {
-        type: "pie",
-        radius: ["40%", "70%"],
-        data,
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: "rgba(0, 0, 0, 0.5)",
-          },
-        },
-      },
-    ],
-    tooltip: {
-      trigger: "item",
-      formatter: "{b}: {c} ({d}%)",
-    },
-  };
-
-  chart.setOption(option);
-}
-
-function drawHeatmapChart() {
-  if (!heatmapChart.value) return;
-
-  const chart = echarts.init(heatmapChart.value);
-
-  // 生成热力图数据
-  const heatmapData: Array<[number, number, number]> = [];
-  const dayMap = new Map<string, number>();
-
-  filteredCommits.value.forEach((c) => {
-    const date = new Date(c.date);
-    const day = date.getDay();
-    const hour = date.getHours();
-    const key = `${day}-${hour}`;
-    dayMap.set(key, (dayMap.get(key) || 0) + 1);
-  });
-
-  for (let day = 0; day < 7; day++) {
-    for (let hour = 0; hour < 24; hour++) {
-      const count = dayMap.get(`${day}-${hour}`) || 0;
-      heatmapData.push([hour, day, count]);
-    }
-  }
-
-  const option = {
-    xAxis: {
-      type: "category",
-      data: Array.from({ length: 24 }, (_, i) => `${i}:00`),
-    },
-    yAxis: {
-      type: "category",
-      data: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
-    },
-    visualMap: {
-      min: 0,
-      max: Math.max(...heatmapData.map((d) => d[2])),
-      calculable: true,
-      orient: "horizontal",
-      left: "center",
-      bottom: "0%",
-    },
-    series: [
-      {
-        type: "heatmap",
-        data: heatmapData,
-        label: {
-          show: true,
-        },
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowColor: "rgba(0, 0, 0, 0.5)",
-          },
-        },
-      },
-    ],
-    tooltip: {
-      position: "top",
-      formatter: (params: any) => {
-        return `${params.value[2]} 次提交`;
-      },
-    },
-  };
-
-  chart.setOption(option);
-}
-
-// 辅助函数
-function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString("zh-CN");
-}
-
-function formatFullDate(date: string): string {
-  return new Date(date).toLocaleString("zh-CN");
-}
-
-// 处理路径拖放
-const handlePathDrop = (paths: string[]) => {
-  if (paths.length > 0) {
-    repoPath.value = paths[0];
-    ElMessage.success(`已设置 Git 仓库路径: ${paths[0]}`);
-
-    // 自动加载仓库
-    setTimeout(() => {
-      loadRepository();
-    }, 500);
-  }
-};
 
 // 显示导出对话框
 function showExportDialog() {
   if (commits.value.length === 0) {
-    ElMessage.warning("请先加载仓库数据");
-    return;
+    ElMessage.warning('请先加载仓库数据')
+    return
   }
-  showExport.value = true;
+  showExport.value = true
 }
 
 // 处理导出配置更新
-function handleExportConfigUpdate(newExportConfig: GitAnalyzerConfig["exportConfig"]) {
-  if (!config.value) return;
+function handleExportConfigUpdate(newExportConfig: GitAnalyzerConfig['exportConfig']) {
+  if (!config.value) return
 
-  config.value.exportConfig = newExportConfig;
-  debouncedSaveConfig(config.value);
+  config.value.exportConfig = newExportConfig
+  debouncedSaveConfig(config.value)
 }
 
 // 加载配置
 async function loadConfig() {
   try {
-    const loadedConfig = await gitAnalyzerConfigManager.load();
-    config.value = loadedConfig;
+    const loadedConfig = await gitAnalyzerConfigManager.load()
+    config.value = loadedConfig
 
     // 恢复配置到各个状态
-    repoPath.value = loadedConfig.repoPath;
-    selectedBranch.value = loadedConfig.selectedBranch;
-    limitCount.value = loadedConfig.limitCount;
-    activeTab.value = loadedConfig.activeTab;
-    pageSize.value = loadedConfig.pageSize;
-    searchQuery.value = loadedConfig.searchQuery;
-    authorFilter.value = loadedConfig.authorFilter;
+    repoPath.value = loadedConfig.repoPath
+    selectedBranch.value = loadedConfig.selectedBranch
+    limitCount.value = loadedConfig.limitCount
+    activeTab.value = loadedConfig.activeTab
+    pageSize.value = loadedConfig.pageSize
+    searchQuery.value = loadedConfig.searchQuery
+    authorFilter.value = loadedConfig.authorFilter
 
     // 恢复日期范围（需要将字符串转换为 Date 对象）
     if (loadedConfig.dateRange) {
-      dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])];
+      dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])]
     }
   } catch (error) {
-    console.error("加载配置失败:", error);
+    console.error('加载配置失败:', error)
   }
 }
 
 // 保存当前配置
 function saveCurrentConfig() {
-  if (!config.value) return;
+  if (!config.value) return
 
   const updatedConfig: GitAnalyzerConfig = {
     ...config.value,
@@ -779,80 +452,38 @@ function saveCurrentConfig() {
       ? [dateRange.value[0].toISOString(), dateRange.value[1].toISOString()]
       : null,
     authorFilter: authorFilter.value,
-  };
+  }
 
-  debouncedSaveConfig(updatedConfig);
+  debouncedSaveConfig(updatedConfig)
 }
 
 // 监听配置变化并自动保存
 watch(
   [repoPath, selectedBranch, limitCount, activeTab, pageSize, searchQuery, dateRange, authorFilter],
   () => {
-    saveCurrentConfig();
+    saveCurrentConfig()
   },
   { deep: true }
-);
+)
 
 // 监听标签页切换
 watch(activeTab, () => {
-  updateCharts();
-});
+  if (activeTab.value === 'chart') {
+    nextTick(() => {
+      updateCharts()
+    })
+  }
+})
 
-// 组件挂载时设置图表容器大小监听
-let resizeObserver: ResizeObserver | null = null;
-
+// 组件挂载
 onMounted(async () => {
   // 加载配置
-  await loadConfig();
+  await loadConfig()
 
-  // 监听容器大小变化，自动调整图表
-  if (window.ResizeObserver) {
-    resizeObserver = new ResizeObserver(() => {
-      if (activeTab.value === "chart") {
-        // 延迟调整以确保容器尺寸已更新
-        setTimeout(() => {
-          if (frequencyChart.value) {
-            const chart = echarts.getInstanceByDom(frequencyChart.value);
-            chart?.resize();
-          }
-          if (contributorChart.value) {
-            const chart = echarts.getInstanceByDom(contributorChart.value);
-            chart?.resize();
-          }
-          if (heatmapChart.value) {
-            const chart = echarts.getInstanceByDom(heatmapChart.value);
-            chart?.resize();
-          }
-        }, 100);
-      }
-    });
-
-    // 监听主内容区域
-    const mainContent = document.querySelector(".main-content");
-    if (mainContent) {
-      resizeObserver.observe(mainContent);
-    }
-  }
-});
-
-onUnmounted(() => {
-  // 清理监听器
-  if (resizeObserver) {
-    resizeObserver.disconnect();
-    resizeObserver = null;
-  }
-
-  // 销毁图表实例
-  if (frequencyChart.value) {
-    echarts.getInstanceByDom(frequencyChart.value)?.dispose();
-  }
-  if (contributorChart.value) {
-    echarts.getInstanceByDom(contributorChart.value)?.dispose();
-  }
-  if (heatmapChart.value) {
-    echarts.getInstanceByDom(heatmapChart.value)?.dispose();
-  }
-});
+  // 设置图表 ResizeObserver
+  const mainContent = document.querySelector('.main-content')
+  setupResizeObserver(mainContent)
+})
 </script>
 
 <style scoped>

@@ -1,4 +1,5 @@
-import { ref, onUnmounted, type Ref } from 'vue'
+import { ref, onUnmounted, watch, type Ref } from 'vue'
+import { useDark } from '@vueuse/core'
 import * as echarts from 'echarts'
 import type { GitCommit } from '../types'
 
@@ -10,6 +11,44 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
 
   // ResizeObserver 实例
   let resizeObserver: ResizeObserver | null = null
+
+  // 主题检测
+  const isDark = useDark()
+
+  /**
+   * 获取当前主题的颜色配置
+   */
+  function getThemeColors() {
+    const root = getComputedStyle(document.documentElement)
+    return {
+      textColor: root.getPropertyValue('--text-color').trim(),
+      textColorLight: root.getPropertyValue('--text-color-light').trim(),
+      borderColor: root.getPropertyValue('--border-color').trim(),
+      primaryColor: root.getPropertyValue('--primary-color').trim(),
+      bgColor: root.getPropertyValue('--bg-color').trim(),
+      containerBg: root.getPropertyValue('--container-bg').trim(),
+    }
+  }
+
+  /**
+   * 获取通用图表配置
+   */
+  function getCommonChartOptions() {
+    const colors = getThemeColors()
+    return {
+      textStyle: {
+        color: colors.textColor,
+      },
+      backgroundColor: 'transparent',
+      grid: {
+        borderColor: colors.borderColor,
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true,
+      },
+    }
+  }
 
   /**
    * 绘制提交频率图表
@@ -37,24 +76,78 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       {} as Record<string, number>
     )
 
+    const colors = getThemeColors()
+    const commonOptions = getCommonChartOptions()
+
     const option = {
+      ...commonOptions,
       xAxis: {
         type: 'category',
         data: Object.keys(dateCounts),
+        axisLine: {
+          lineStyle: {
+            color: colors.borderColor,
+          },
+        },
+        axisLabel: {
+          color: colors.textColorLight,
+        },
       },
       yAxis: {
         type: 'value',
+        axisLine: {
+          lineStyle: {
+            color: colors.borderColor,
+          },
+        },
+        axisLabel: {
+          color: colors.textColorLight,
+        },
+        splitLine: {
+          lineStyle: {
+            color: colors.borderColor,
+          },
+        },
       },
       series: [
         {
           data: Object.values(dateCounts),
           type: 'line',
           smooth: true,
-          areaStyle: {},
+          itemStyle: {
+            color: colors.primaryColor,
+          },
+          lineStyle: {
+            color: colors.primaryColor,
+          },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                {
+                  offset: 0,
+                  color: colors.primaryColor + '80', // 50% 透明度
+                },
+                {
+                  offset: 1,
+                  color: colors.primaryColor + '10', // 6% 透明度
+                },
+              ],
+            },
+          },
         },
       ],
       tooltip: {
         trigger: 'axis',
+        backgroundColor: colors.containerBg,
+        borderColor: colors.borderColor,
+        textStyle: {
+          color: colors.textColor,
+        },
       },
     }
 
@@ -91,17 +184,36 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       .slice(0, 10)
       .map(([name, value]) => ({ name, value }))
 
+    const colors = getThemeColors()
+    const commonOptions = getCommonChartOptions()
+
     const option = {
+      ...commonOptions,
+      color: [
+        colors.primaryColor,
+        '#5470c6',
+        '#91cc75',
+        '#fac858',
+        '#ee6666',
+        '#73c0de',
+        '#3ba272',
+        '#fc8452',
+        '#9a60b4',
+        '#ea7ccc',
+      ],
       series: [
         {
           type: 'pie',
           radius: ['40%', '70%'],
           data,
+          label: {
+            color: colors.textColor,
+          },
           emphasis: {
             itemStyle: {
               shadowBlur: 10,
               shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)',
+              shadowColor: isDark.value ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.5)',
             },
           },
         },
@@ -109,6 +221,11 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       tooltip: {
         trigger: 'item',
         formatter: '{b}: {c} ({d}%)',
+        backgroundColor: colors.containerBg,
+        borderColor: colors.borderColor,
+        textStyle: {
+          color: colors.textColor,
+        },
       },
     }
 
@@ -152,14 +269,38 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       }
     }
 
+    const colors = getThemeColors()
+    const commonOptions = getCommonChartOptions()
+
     const option = {
+      ...commonOptions,
+      grid: {
+        ...commonOptions.grid,
+        bottom: '80px', // 为 visualMap 留出足够空间
+      },
       xAxis: {
         type: 'category',
         data: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+        axisLine: {
+          lineStyle: {
+            color: colors.borderColor,
+          },
+        },
+        axisLabel: {
+          color: colors.textColorLight,
+        },
       },
       yAxis: {
         type: 'category',
         data: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
+        axisLine: {
+          lineStyle: {
+            color: colors.borderColor,
+          },
+        },
+        axisLabel: {
+          color: colors.textColorLight,
+        },
       },
       visualMap: {
         min: 0,
@@ -167,7 +308,15 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
         calculable: true,
         orient: 'horizontal',
         left: 'center',
-        bottom: '0%',
+        bottom: '20px',
+        textStyle: {
+          color: colors.textColor,
+        },
+        inRange: {
+          color: isDark.value
+            ? ['#1a1a1a', colors.primaryColor]
+            : ['#f0f9ff', colors.primaryColor],
+        },
       },
       series: [
         {
@@ -175,11 +324,12 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
           data: heatmapData,
           label: {
             show: true,
+            color: colors.textColor,
           },
           emphasis: {
             itemStyle: {
               shadowBlur: 10,
-              shadowColor: 'rgba(0, 0, 0, 0.5)',
+              shadowColor: isDark.value ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.5)',
             },
           },
         },
@@ -188,6 +338,11 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
         position: 'top',
         formatter: (params: any) => {
           return `${params.value[2]} 次提交`
+        },
+        backgroundColor: colors.containerBg,
+        borderColor: colors.borderColor,
+        textStyle: {
+          color: colors.textColor,
         },
       },
     }
@@ -252,6 +407,11 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       echarts.getInstanceByDom(heatmapChart.value)?.dispose()
     }
   }
+
+  // 监听主题变化，重新绘制图表
+  watch(isDark, () => {
+    updateCharts()
+  })
 
   // 组件卸载时清理
   onUnmounted(() => {

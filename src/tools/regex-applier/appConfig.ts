@@ -12,6 +12,8 @@ export interface AppConfig {
   processingMode: 'text' | 'file';
   // 选中的预设ID列表
   selectedPresetIds: string[];
+  // 是否显示预设选择区域
+  showPresetSection: boolean;
   // 文件模式设置
   fileMode: {
     outputDirectory: string;
@@ -30,6 +32,7 @@ function createDefaultAppConfig(): AppConfig {
   return {
     processingMode: 'text',
     selectedPresetIds: [],
+    showPresetSection: true,
     fileMode: {
       outputDirectory: '',
       forceTxt: false,

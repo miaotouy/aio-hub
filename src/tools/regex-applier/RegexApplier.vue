@@ -11,6 +11,13 @@
           </el-radio-group>
         </div>
         <div class="header-actions">
+          <el-button
+            @click="togglePresetSection"
+            :icon="showPresetSection ? 'ArrowUp' : 'ArrowDown'"
+            text
+          >
+            {{ showPresetSection ? '隐藏预设' : '显示预设' }}
+          </el-button>
           <el-badge
             :value="errorLogCount"
             :hidden="errorLogCount === 0"
@@ -29,7 +36,7 @@
     </el-card>
 
     <!-- 预设选择区域 -->
-    <el-card shadow="never" class="box-card preset-section">
+    <el-card v-show="showPresetSection" shadow="never" class="box-card preset-section">
       <template #header>
         <div class="card-header">
           <span>选择预设 (按顺序应用)</span>
@@ -299,6 +306,7 @@ const processingMode = ref<ProcessingMode>('text');
 
 // 预设选择
 const selectedPresetIds = ref<string[]>([]);
+const showPresetSection = ref(true);
 
 // 文本模式状态
 const sourceText = ref('');
@@ -369,6 +377,7 @@ onMounted(async () => {
     
     // 恢复界面设置
     processingMode.value = config.processingMode;
+    showPresetSection.value = config.showPresetSection;
     
     // 恢复选中的预设（过滤掉已删除的预设）
     const validPresetIds = config.selectedPresetIds.filter(id =>
@@ -405,6 +414,7 @@ const saveCurrentConfig = () => {
     ...appConfig.value,
     processingMode: processingMode.value,
     selectedPresetIds: selectedPresetIds.value,
+    showPresetSection: showPresetSection.value,
     fileMode: {
       outputDirectory: outputDirectory.value,
       forceTxt: forceTxt.value,
@@ -420,6 +430,7 @@ const saveCurrentConfig = () => {
 // 监听设置变化并自动保存
 watch(processingMode, saveCurrentConfig);
 watch(selectedPresetIds, saveCurrentConfig, { deep: true });
+watch(showPresetSection, saveCurrentConfig);
 watch(outputDirectory, saveCurrentConfig);
 watch(forceTxt, saveCurrentConfig);
 watch(filenameSuffix, saveCurrentConfig);
@@ -441,6 +452,10 @@ const openLogDialog = () => {
 };
 
 // ===== 预设操作 =====
+const togglePresetSection = () => {
+  showPresetSection.value = !showPresetSection.value;
+};
+
 const goToManageRules = () => {
   router.push('/regex-manage');
 };

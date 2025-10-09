@@ -116,8 +116,8 @@ export const presets: ApiPreset[] = [
   {
     id: 'gemini-chat',
     name: 'Google Gemini API',
-    description: 'Google Gemini 的生成内容 API',
-    urlTemplate: '{{protocol}}://{{baseUrl}}/{{apiVersion}}/models/{{model}}:generateContent?key={{apiKey}}',
+    description: 'Google Gemini 的生成内容 API（流式时需手动将端点改为 streamGenerateContent）',
+    urlTemplate: '{{protocol}}://{{baseUrl}}/{{apiVersion}}/models/{{model}}:{{endpoint}}?key={{apiKey}}',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -175,6 +175,15 @@ export const presets: ApiPreset[] = [
         description: 'Google API 密钥',
       },
       {
+        key: 'endpoint',
+        value: 'generateContent',
+        type: 'enum',
+        label: 'API 端点',
+        options: ['generateContent', 'streamGenerateContent'],
+        required: true,
+        description: 'API 端点类型（流式请求使用 streamGenerateContent）',
+      },
+      {
         key: 'model',
         value: 'gemini-2.5-pro',
         type: 'enum',
@@ -212,6 +221,13 @@ export const presets: ApiPreset[] = [
         label: 'Max Tokens',
         placeholder: '最大生成 token 数',
         description: '最大生成的 token 数量',
+      },
+      {
+        key: 'stream',
+        value: false,
+        type: 'boolean',
+        label: '流式输出',
+        description: '是否使用流式响应（将使用 streamGenerateContent 端点）',
       },
     ],
   },

@@ -62,4 +62,7 @@ export interface ApiResponse {
   duration: number; // 请求耗时（毫秒）
   timestamp: string;
   error?: string;
+  isStreaming?: boolean; // 是否是流式响应
+  streamChunks?: string[]; // 流式响应的数据块
+  isStreamComplete?: boolean; // 流是否已完成
 }

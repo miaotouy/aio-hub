@@ -26,12 +26,20 @@
       </button>
       
       <button
+        v-if="!isLoading"
         @click="$emit('send')"
-        :disabled="isLoading"
         class="btn-send"
-        :title="isLoading ? '请求进行中...' : '发送请求'"
+        title="发送请求"
       >
-        {{ isLoading ? '⏳' : '🚀' }} {{ isLoading ? '发送中' : '发送' }}
+        🚀 发送
+      </button>
+      <button
+        v-else
+        @click="handleAbort"
+        class="btn-abort"
+        title="中止请求"
+      >
+        ⏹️ 中止
       </button>
     </div>
   </div>
@@ -139,6 +147,11 @@ function copyUrl() {
   navigator.clipboard.writeText(url).then(() => {
     alert('URL 已复制到剪贴板');
   });
+}
+
+// 中止请求
+function handleAbort() {
+  store.abortRequest();
 }
 
 // 监听 urlTemplate 变化
@@ -292,5 +305,24 @@ onMounted(() => {
   color: var(--text-color-light);
   cursor: not-allowed;
   transform: none;
+}
+
+.btn-abort {
+  padding: 10px 24px;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  background: var(--error-color);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-abort:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(245, 108, 108, 0.3);
 }
 </style>

@@ -8,8 +8,19 @@
       >
         {{ store.lastResponse!.status }} {{ store.lastResponse!.statusText }}
       </span>
+      <span v-if="store.lastResponse!.isStreaming" class="streaming-badge">
+        {{ store.lastResponse!.isStreamComplete ? '✅ 流式完成' : '📡 流式接收中...' }}
+      </span>
       <span class="response-time">⏱️ {{ store.lastResponse!.duration }}ms</span>
       <span class="response-timestamp">🕒 {{ formatTimestamp(store.lastResponse!.timestamp) }}</span>
+      <button
+        v-if="store.lastResponse!.isStreaming && !store.lastResponse!.isStreamComplete"
+        @click="handleAbort"
+        class="btn-abort"
+        title="停止接收"
+      >
+        ⏹️ 停止
+      </button>
       <button
         class="wrap-toggle"
         @click="wrapText = !wrapText"
@@ -24,17 +35,23 @@
     </div>
 
     <div v-else class="response-body">
-      <pre :class="{ 'wrap-text': wrapText }"><code>{{ store.lastResponse!.body }}</code></pre>
+      <div v-if="store.lastResponse!.isStreaming" class="stream-info">
+        <span>📦 已接收数据块: {{ store.lastResponse!.streamChunks?.length || 0 }}</span>
+        <span>📏 总大小: {{ formatSize(store.lastResponse!.body.length) }}</span>
+      </div>
+      <pre :class="{ 'wrap-text': wrapText }" ref="responsePreRef"><code>{{ store.lastResponse!.body }}</code></pre>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import { useApiTesterStore } from '../store';
 
 const store = useApiTesterStore();
 const wrapText = ref(false);
+const responsePreRef = ref<HTMLPreElement | null>(null);
+const autoScroll = ref(true);
 
 function getStatusClass(status: number): string {
   if (status >= 200 && status < 300) return 'status-success';
@@ -46,6 +63,30 @@ function getStatusClass(status: number): string {
 function formatTimestamp(timestamp: string): string {
   return new Date(timestamp).toLocaleString('zh-CN');
 }
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function handleAbort() {
+  store.abortRequest();
+}
+
+// 监听流式响应的body变化，自动滚动到底部
+watch(
+  () => store.lastResponse?.body,
+  async () => {
+    if (store.lastResponse?.isStreaming && autoScroll.value && responsePreRef.value) {
+      await nextTick();
+      const container = responsePreRef.value.parentElement;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  }
+);
 </script>
 
 <style scoped>
@@ -144,5 +185,58 @@ function formatTimestamp(timestamp: string): string {
 .wrap-toggle:hover {
   background: var(--input-bg);
   border-color: var(--primary-color);
+}
+
+.streaming-badge {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 13px;
+  background: rgba(64, 158, 255, 0.15);
+  color: var(--primary-color);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.btn-abort {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--error-color);
+  background: rgba(245, 108, 108, 0.1);
+  color: var(--error-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.btn-abort:hover {
+  background: var(--error-color);
+  color: white;
+}
+
+.stream-info {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  background: rgba(64, 158, 255, 0.1);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-color-light);
+  margin-bottom: 12px;
+}
+
+.stream-info span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

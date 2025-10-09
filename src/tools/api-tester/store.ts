@@ -23,6 +23,8 @@ interface ApiTesterState {
   isLoading: boolean;
   // 已保存的配置列表
   savedProfiles: RequestProfile[];
+  // 用于中止请求的控制器
+  abortController: AbortController | null;
 }
 
 export const useApiTesterStore = defineStore('apiTester', {
@@ -35,6 +37,7 @@ export const useApiTesterStore = defineStore('apiTester', {
     lastResponse: null,
     isLoading: false,
     savedProfiles: [],
+    abortController: null,
   }),
 
   getters: {
@@ -178,6 +181,9 @@ export const useApiTesterStore = defineStore('apiTester', {
       this.isLoading = true;
       const startTime = Date.now();
 
+      // 创建新的 AbortController
+      this.abortController = new AbortController();
+
       try {
         const url = this.buildUrl;
         const headers = this.buildHeaders;
@@ -187,45 +193,122 @@ export const useApiTesterStore = defineStore('apiTester', {
           method: this.selectedPreset.method,
           headers,
           body: this.selectedPreset.method !== 'GET' ? body : undefined,
+          signal: this.abortController.signal,
         });
 
-        const duration = Date.now() - startTime;
         const responseHeaders: Record<string, string> = {};
         response.headers.forEach((value, key) => {
           responseHeaders[key] = value;
         });
 
-        let responseBody: string;
         const contentType = response.headers.get('content-type') || '';
         
-        if (contentType.includes('application/json')) {
-          const json = await response.json();
-          responseBody = JSON.stringify(json, null, 2);
+        // 检测是否是 SSE 流式响应
+        if (contentType.includes('text/event-stream') || contentType.includes('application/stream')) {
+          await this.handleStreamResponse(response, responseHeaders, startTime);
         } else {
-          responseBody = await response.text();
-        }
+          // 普通响应处理
+          let responseBody: string;
+          
+          if (contentType.includes('application/json')) {
+            const json = await response.json();
+            responseBody = JSON.stringify(json, null, 2);
+          } else {
+            responseBody = await response.text();
+          }
 
-        this.lastResponse = {
-          status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders,
-          body: responseBody,
-          duration,
-          timestamp: new Date().toISOString(),
-        };
+          this.lastResponse = {
+            status: response.status,
+            statusText: response.statusText,
+            headers: responseHeaders,
+            body: responseBody,
+            duration: Date.now() - startTime,
+            timestamp: new Date().toISOString(),
+          };
+        }
       } catch (error) {
-        const duration = Date.now() - startTime;
-        this.lastResponse = {
-          status: 0,
-          statusText: 'Error',
-          headers: {},
-          body: '',
-          duration,
-          timestamp: new Date().toISOString(),
-          error: error instanceof Error ? error.message : String(error),
-        };
+        // 如果是中止错误，不显示为错误
+        if (error instanceof Error && error.name === 'AbortError') {
+          if (this.lastResponse?.isStreaming) {
+            this.lastResponse.isStreamComplete = true;
+            this.lastResponse.duration = Date.now() - startTime;
+          }
+        } else {
+          this.lastResponse = {
+            status: 0,
+            statusText: 'Error',
+            headers: {},
+            body: '',
+            duration: Date.now() - startTime,
+            timestamp: new Date().toISOString(),
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
       } finally {
         this.isLoading = false;
+        this.abortController = null;
+      }
+    },
+
+    // 处理流式响应
+    async handleStreamResponse(
+      response: Response,
+      responseHeaders: Record<string, string>,
+      startTime: number
+    ): Promise<void> {
+      // 初始化流式响应对象
+      this.lastResponse = {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+        body: '',
+        duration: 0,
+        timestamp: new Date().toISOString(),
+        isStreaming: true,
+        streamChunks: [],
+        isStreamComplete: false,
+      };
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      const decoder = new TextDecoder();
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            this.lastResponse.isStreamComplete = true;
+            this.lastResponse.duration = Date.now() - startTime;
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          
+          // 将数据块添加到响应中
+          this.lastResponse.streamChunks!.push(chunk);
+          this.lastResponse.body += chunk;
+          this.lastResponse.duration = Date.now() - startTime;
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          this.lastResponse.error = error.message;
+        }
+        this.lastResponse.isStreamComplete = true;
+        this.lastResponse.duration = Date.now() - startTime;
+      } finally {
+        reader.releaseLock();
+      }
+    },
+
+    // 中止当前请求
+    abortRequest(): void {
+      if (this.abortController) {
+        this.abortController.abort();
+        this.abortController = null;
       }
     },
 

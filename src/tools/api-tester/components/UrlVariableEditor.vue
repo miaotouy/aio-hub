@@ -2,9 +2,7 @@
   <div class="section variables-section">
     <div class="section-header">
       <h3>URL 变量</h3>
-      <button @click="addNewVariable" class="btn-secondary btn-sm">
-        + 添加变量
-      </button>
+      <button @click="addNewVariable" class="btn-secondary btn-sm">+ 添加变量</button>
     </div>
 
     <div class="variables-table">
@@ -17,11 +15,7 @@
       </div>
 
       <div class="table-body">
-        <div
-          v-for="variable in editableVariables"
-          :key="variable.key"
-          class="table-row"
-        >
+        <div v-for="variable in editableVariables" :key="variable.key" class="table-row">
           <div>
             <input
               v-model="variable.key"
@@ -33,11 +27,7 @@
           </div>
 
           <div>
-            <select
-              v-model="variable.type"
-              @change="updateVariable(variable)"
-              class="select-sm"
-            >
+            <select v-model="variable.type" @change="updateVariable(variable)" class="select-sm">
               <option value="string">文本</option>
               <option value="enum">枚举</option>
               <option value="boolean">布尔值</option>
@@ -56,20 +46,17 @@
             />
 
             <!-- 枚举类型 -->
-            <select
-              v-else-if="variable.type === 'enum'"
-              v-model="variable.value"
-              @change="updateVariable(variable)"
-              class="select-sm"
-            >
-              <option
-                v-for="option in variable.options"
-                :key="option"
-                :value="option"
-              >
-                {{ option }}
-              </option>
-            </select>
+            <div v-else-if="variable.type === 'enum'" class="enum-value-cell">
+              <select v-model="variable.value" @change="updateVariable(variable)" class="select-sm">
+                <option value="">-- 选择值 --</option>
+                <option v-for="option in variable.options || []" :key="option" :value="option">
+                  {{ option }}
+                </option>
+              </select>
+              <button @click="editEnumOptions(variable)" class="btn-edit-options" title="编辑选项">
+                ⚙️
+              </button>
+            </div>
 
             <!-- 布尔类型 -->
             <label v-else-if="variable.type === 'boolean'" class="checkbox-label">
@@ -78,7 +65,7 @@
                 :checked="!!variable.value"
                 @change="toggleBoolean(variable)"
               />
-              <span>{{ variable.value ? '是' : '否' }}</span>
+              <span>{{ variable.value ? "是" : "否" }}</span>
             </label>
           </div>
 
@@ -93,11 +80,7 @@
           </div>
 
           <div class="action-cell">
-            <button
-              @click="removeVariable(variable.key)"
-              class="btn-delete"
-              title="删除变量"
-            >
+            <button @click="removeVariable(variable.key)" class="btn-delete" title="删除变量">
               ✕
             </button>
           </div>
@@ -108,24 +91,51 @@
         </div>
       </div>
     </div>
+
+    <!-- 枚举选项编辑对话框 -->
+    <div v-if="editingEnum" class="modal-overlay" @click.self="closeEnumEditor">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4>编辑枚举选项 - {{ editingEnum.key }}</h4>
+          <button @click="closeEnumEditor" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="hint">每行输入一个选项值：</p>
+          <textarea
+            v-model="enumOptionsText"
+            placeholder="选项1&#10;选项2&#10;选项3"
+            rows="8"
+            class="options-textarea"
+          ></textarea>
+          <div class="modal-actions">
+            <button @click="saveEnumOptions" class="btn-primary">✓ 保存</button>
+            <button @click="closeEnumEditor" class="btn-cancel">✕ 取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { useApiTesterStore } from '../store';
-import type { Variable } from '../types';
+import { ref, watch } from "vue";
+import { useApiTesterStore } from "../store";
+import type { Variable } from "../types";
 
 const store = useApiTesterStore();
 
 // 可编辑的变量列表
 const editableVariables = ref<Variable[]>([]);
 
+// 枚举编辑状态
+const editingEnum = ref<Variable | null>(null);
+const enumOptionsText = ref("");
+
 // 从 store 加载变量
 function loadVariables() {
   if (!store.selectedPreset) return;
-  
-  editableVariables.value = store.selectedPreset.variables.map(v => ({
+
+  editableVariables.value = store.selectedPreset.variables.map((v) => ({
     ...v,
     value: store.variables[v.key] ?? v.value,
   }));
@@ -135,18 +145,27 @@ function loadVariables() {
 function addNewVariable() {
   const newVar: Variable = {
     key: `var${Date.now()}`,
-    value: '',
-    type: 'string',
-    label: '新变量',
-    description: '',
+    value: "",
+    type: "string",
+    label: "新变量",
+    description: "",
   };
-  
+
   editableVariables.value.push(newVar);
   store.updateVariable(newVar.key, newVar.value);
 }
 
 // 更新变量
 function updateVariable(variable: Variable) {
+  // 当类型改为枚举时，初始化 options
+  if (variable.type === "enum" && !variable.options) {
+    variable.options = [];
+    variable.value = "";
+  }
+  // 当类型改为布尔时，设置默认值
+  if (variable.type === "boolean" && typeof variable.value !== "boolean") {
+    variable.value = false;
+  }
   store.updateVariable(variable.key, variable.value);
 }
 
@@ -158,17 +177,55 @@ function toggleBoolean(variable: Variable) {
 
 // 删除变量
 function removeVariable(key: string) {
-  const index = editableVariables.value.findIndex(v => v.key === key);
+  const index = editableVariables.value.findIndex((v) => v.key === key);
   if (index !== -1) {
     editableVariables.value.splice(index, 1);
     store.removeVariable(key);
   }
 }
 
+// 编辑枚举选项
+function editEnumOptions(variable: Variable) {
+  editingEnum.value = variable;
+  enumOptionsText.value = (variable.options || []).join("\n");
+}
+
+// 保存枚举选项
+function saveEnumOptions() {
+  if (!editingEnum.value) return;
+
+  const options = enumOptionsText.value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  editingEnum.value.options = options;
+
+  // 如果当前值不在新选项中，重置为第一个选项或空字符串
+  if (options.length > 0 && !options.includes(String(editingEnum.value.value))) {
+    editingEnum.value.value = options[0];
+  } else if (options.length === 0) {
+    editingEnum.value.value = "";
+  }
+
+  updateVariable(editingEnum.value);
+  closeEnumEditor();
+}
+
+// 关闭枚举编辑器
+function closeEnumEditor() {
+  editingEnum.value = null;
+  enumOptionsText.value = "";
+}
+
 // 监听预设变化
-watch(() => store.selectedPreset, () => {
-  loadVariables();
-}, { immediate: true });
+watch(
+  () => store.selectedPreset,
+  () => {
+    loadVariables();
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>
@@ -318,5 +375,151 @@ watch(() => store.selectedPreset, () => {
   text-align: center;
   color: var(--text-color-light);
   font-size: 14px;
+}
+
+/* 枚举值单元格 */
+.enum-value-cell {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.enum-value-cell .select-sm {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-edit-options {
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-edit-options:hover {
+  background: var(--primary-hover-color);
+  transform: scale(1.05);
+}
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--container-bg);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-color);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.hint {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--text-color-light);
+}
+
+.options-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: monospace;
+  background: var(--input-bg);
+  color: var(--text-color);
+  resize: vertical;
+  min-height: 150px;
+  box-sizing: border-box;
+}
+
+.options-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+.btn-primary,
+.btn-cancel {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover-color);
+}
+
+.btn-cancel {
+  background: var(--border-color);
+  color: var(--text-color);
+}
+
+.btn-cancel:hover {
+  background: var(--border-color-light);
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-close:hover {
+  background: var(--border-color);
 }
 </style>

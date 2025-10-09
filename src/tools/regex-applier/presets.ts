@@ -125,14 +125,16 @@ export function createPreset(name: string, description?: string): RegexPreset {
  * @param regex 正则表达式
  * @param replacement 替换内容
  * @param enabled 是否启用
+ * @param name 规则名称
  * @returns 新创建的规则
  */
-export function createRule(regex: string = '', replacement: string = '', enabled: boolean = true): RegexRule {
+export function createRule(regex: string = '', replacement: string = '', enabled: boolean = true, name?: string): RegexRule {
   return {
     id: generateId('rule'),
     enabled,
     regex,
-    replacement
+    replacement,
+    name
   };
 }
 

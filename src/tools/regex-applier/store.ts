@@ -83,6 +83,8 @@ export const usePresetStore = defineStore('preset', () => {
           enabled: rule.enabled ?? true,
           regex: rule.regex || '',
           replacement: rule.replacement || '',
+          // 兼容旧数据：如果没有 name 字段，使用 regex 作为名称，regex 为空则使用 '未命名规则'
+          name: rule.name || rule.regex || '未命名规则',
         })),
       }));
       
@@ -206,7 +208,8 @@ export const usePresetStore = defineStore('preset', () => {
       id: generateId('rule'),
       enabled: rule?.enabled ?? true,
       regex: rule?.regex ?? '',
-      replacement: rule?.replacement ?? ''
+      replacement: rule?.replacement ?? '',
+      name: rule?.name || rule?.regex || '未命名规则'
     };
     
     preset.rules.push(newRule);
@@ -298,7 +301,8 @@ export const usePresetStore = defineStore('preset', () => {
           id: generateId('rule'),
           enabled: newRule.enabled ?? true,
           regex: newRule.regex || '',
-          replacement: newRule.replacement || ''
+          replacement: newRule.replacement || '',
+          name: newRule.name || newRule.regex || '未命名规则'
         });
         addedCount++;
       }

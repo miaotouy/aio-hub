@@ -83,8 +83,8 @@
                   @click.stop
                 />
                 <div class="rule-content">
-                  <div class="rule-regex">{{ rule.regex || '(空规则)' }}</div>
-                  <div class="rule-replacement">→ {{ rule.replacement || '(空替换)' }}</div>
+                  <div class="rule-name">{{ rule.name || rule.regex || '(未命名规则)' }}</div>
+                  <div class="rule-preview">{{ rule.regex || '(空正则)' }} → {{ rule.replacement || '(空替换)' }}</div>
                 </div>
                 <el-button
                   :icon="Delete"
@@ -109,6 +109,15 @@
         <div class="editor-section">
           <div class="section-title">规则编辑</div>
           
+          <div class="editor-field">
+            <label>规则名称</label>
+            <el-input
+              v-model="selectedRule.name"
+              placeholder="输入规则名称，例如：移除空行"
+              @input="onRuleEdit"
+            />
+          </div>
+
           <div class="editor-field">
             <label>正则表达式</label>
             <el-input
@@ -673,24 +682,24 @@ function escapeRegex(str: string): string {
   min-width: 0;
 }
 
-.rule-regex,
-.rule-replacement {
+.rule-name,
+.rule-preview {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 13px;
 }
 
-.rule-regex {
+.rule-name {
   color: var(--text-color);
-  font-family: monospace;
   font-weight: 500;
   margin-bottom: 2px;
 }
 
-.rule-replacement {
+.rule-preview {
   color: var(--text-color-light);
   font-family: monospace;
+  font-size: 12px;
 }
 
 .rule-delete-btn {

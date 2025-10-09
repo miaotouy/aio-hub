@@ -8,6 +8,7 @@ export interface RegexRule {
   enabled: boolean;
   regex: string;
   replacement: string;
+  name?: string; // 规则名称，可选字段
 }
 
 /** 正则预设 */

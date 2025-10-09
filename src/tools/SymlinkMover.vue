@@ -251,7 +251,7 @@ const executeMoveAndLink = async () => {
 
     <!-- 右侧列: 操作设置 -->
     <div class="column settings-column">
-      <InfoCard title="操作设置" class="settings-card">
+      <InfoCard title="操作设置" class="settings-card full-height-card">
         <div class="setting-group">
           <label>操作模式</label>
           <el-radio-group v-model="operationMode" class="operation-mode-group">
@@ -295,18 +295,20 @@ const executeMoveAndLink = async () => {
             仅创建链接模式下不支持硬链接
           </div>
         </div>
+        <div class="setting-group execute-group">
+          <el-button
+            type="primary"
+            @click="executeMoveAndLink"
+            :loading="isProcessing"
+            :disabled="isProcessing || sourceFiles.length === 0 || !targetDirectory"
+            class="execute-btn"
+            size="large"
+          >
+            <el-icon><Rank /></el-icon>
+            {{ isProcessing ? '处理中...' : (operationMode === 'move' ? '开始搬家' : '创建链接') }}
+          </el-button>
+        </div>
       </InfoCard>
-      <el-button
-        type="primary"
-        @click="executeMoveAndLink"
-        :loading="isProcessing"
-        :disabled="isProcessing || sourceFiles.length === 0 || !targetDirectory"
-        class="execute-btn"
-        size="large"
-      >
-        <el-icon><Rank /></el-icon>
-        {{ isProcessing ? '处理中...' : (operationMode === 'move' ? '开始搬家' : '创建链接') }}
-      </el-button>
     </div>
   </div>
 </template>
@@ -428,11 +430,6 @@ const executeMoveAndLink = async () => {
   transition: opacity 0.2s ease;
 }
 
-.settings-card {
-  background-color: transparent;
-  border: none;
-}
-
 .settings-card :deep(.el-card__body) {
   padding: 20px;
   display: flex;
@@ -451,6 +448,10 @@ const executeMoveAndLink = async () => {
 .target-control {
   display: flex;
   gap: 10px;
+}
+
+.execute-group {
+  margin-top: auto;
 }
 
 .execute-btn {

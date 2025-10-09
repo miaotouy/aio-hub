@@ -24,8 +24,12 @@ pub struct ProcessResult {
 pub async fn process_files_with_regex(
     file_paths: Vec<String>,
     output_dir: String,
-    rules: Vec<RegexRule>
+    rules: Vec<RegexRule>,
+    force_txt: Option<bool>,
+    filename_suffix: Option<String>
 ) -> Result<ProcessResult, String> {
+    let force_txt = force_txt.unwrap_or(false);
+    let filename_suffix = filename_suffix.unwrap_or_default();
     let output_path = PathBuf::from(&output_dir);
     
     // 确保输出目录存在
@@ -66,7 +70,7 @@ pub async fn process_files_with_regex(
     let mut errors = HashMap::new();
     
     for file_path in all_files {
-        match process_single_file(&file_path, &output_path, &compiled_rules) {
+        match process_single_file(&file_path, &output_path, &compiled_rules, force_txt, &filename_suffix) {
             Ok(_) => success_count += 1,
             Err(e) => {
                 error_count += 1;
@@ -106,7 +110,9 @@ fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), S
 fn process_single_file(
     file_path: &Path,
     output_dir: &Path,
-    rules: &[(Regex, String)]
+    rules: &[(Regex, String)],
+    force_txt: bool,
+    filename_suffix: &str
 ) -> Result<(), String> {
     // 读取文件内容
     let content = fs::read_to_string(file_path)
@@ -118,10 +124,26 @@ fn process_single_file(
         processed = regex.replace_all(&processed, replacement.as_str()).to_string();
     }
     
-    // 构造输出文件路径（保持原文件名）
-    let file_name = file_path.file_name()
-        .ok_or_else(|| "无法获取文件名".to_string())?;
-    let output_file = output_dir.join(file_name);
+    // 构造输出文件路径
+    let original_name = file_path.file_stem()
+        .ok_or_else(|| "无法获取文件名".to_string())?
+        .to_string_lossy();
+    
+    let extension = if force_txt {
+        "txt".to_string()
+    } else {
+        file_path.extension()
+            .map(|e| e.to_string_lossy().to_string())
+            .unwrap_or_else(|| "txt".to_string())
+    };
+    
+    let final_name = if filename_suffix.is_empty() {
+        format!("{}.{}", original_name, extension)
+    } else {
+        format!("{}{}.{}", original_name, filename_suffix, extension)
+    };
+    
+    let output_file = output_dir.join(final_name);
     
     // 写入处理后的内容
     fs::write(&output_file, processed)

@@ -201,6 +201,30 @@
                 <el-button @click="selectOutputDirectory" :icon="FolderOpened">选择</el-button>
               </div>
             </div>
+            
+            <div class="setting-group">
+              <label>文件名后缀</label>
+              <el-input
+                v-model="filenameSuffix"
+                placeholder="可选，例如 _processed"
+                clearable
+              >
+                <template #prepend>原文件名</template>
+                <template #append>.扩展名</template>
+              </el-input>
+              <div class="setting-hint">在原文件名后添加后缀，方便区分处理后的文件</div>
+            </div>
+            
+            <div class="setting-group">
+              <el-checkbox v-model="forceTxt" label="强制保存为 .txt 格式" />
+              <div class="setting-hint">忽略原始文件扩展名，统一保存为 .txt</div>
+            </div>
+            
+            <div class="setting-group">
+              <el-checkbox v-model="clearProcessedFiles" label="处理后清除成功的文件" />
+              <div class="setting-hint">处理成功的文件将自动从列表中移除</div>
+            </div>
+            
             <el-button
               type="primary"
               @click="processFiles"
@@ -284,6 +308,9 @@ const resultText = ref('');
 const filePathInput = ref('');
 const files = ref<FileItem[]>([]);
 const outputDirectory = ref('');
+const forceTxt = ref(false);
+const filenameSuffix = ref('');
+const clearProcessedFiles = ref(false);
 const isProcessing = ref(false);
 const hoveredTarget = ref<DropTarget | null>(null);
 
@@ -353,6 +380,9 @@ onMounted(async () => {
     if (config.fileMode.outputDirectory) {
       outputDirectory.value = config.fileMode.outputDirectory;
     }
+    forceTxt.value = config.fileMode.forceTxt;
+    filenameSuffix.value = config.fileMode.filenameSuffix;
+    clearProcessedFiles.value = config.fileMode.clearProcessedFiles;
     
     addLog('已恢复上次的设置', 'info');
   } catch (error) {
@@ -376,7 +406,10 @@ const saveCurrentConfig = () => {
     processingMode: processingMode.value,
     selectedPresetIds: selectedPresetIds.value,
     fileMode: {
-      outputDirectory: outputDirectory.value
+      outputDirectory: outputDirectory.value,
+      forceTxt: forceTxt.value,
+      filenameSuffix: filenameSuffix.value,
+      clearProcessedFiles: clearProcessedFiles.value
     }
   };
   
@@ -388,6 +421,9 @@ const saveCurrentConfig = () => {
 watch(processingMode, saveCurrentConfig);
 watch(selectedPresetIds, saveCurrentConfig, { deep: true });
 watch(outputDirectory, saveCurrentConfig);
+watch(forceTxt, saveCurrentConfig);
+watch(filenameSuffix, saveCurrentConfig);
+watch(clearProcessedFiles, saveCurrentConfig);
 
 // ===== 日志 =====
 const addLog = (message: string, type: LogEntry['type'] = 'info') => {
@@ -805,7 +841,9 @@ const processFiles = async () => {
     const result: any = await invoke('process_files_with_regex', {
       filePaths,
       outputDir: outputDirectory.value,
-      rules: rulesForBackend
+      rules: rulesForBackend,
+      forceTxt: forceTxt.value,
+      filenameSuffix: filenameSuffix.value
     });
 
     addLog(`处理完成: 成功 ${result.success_count} 个，失败 ${result.error_count} 个`);
@@ -817,15 +855,26 @@ const processFiles = async () => {
     }
 
     // 更新文件状态
-    files.value.forEach(file => {
+    const successfulFiles: number[] = [];
+    files.value.forEach((file, index) => {
       if (result.errors && result.errors[file.path]) {
         file.status = 'error';
         file.error = result.errors[file.path];
         addLog(`文件 ${file.name} 处理失败: ${file.error}`, 'error');
       } else {
         file.status = 'success';
+        successfulFiles.push(index);
       }
     });
+    
+    // 如果启用了清除选项，移除成功处理的文件
+    if (clearProcessedFiles.value && successfulFiles.length > 0) {
+      // 从后往前删除，避免索引问题
+      for (let i = successfulFiles.length - 1; i >= 0; i--) {
+        files.value.splice(successfulFiles[i], 1);
+      }
+      addLog(`已从列表中移除 ${successfulFiles.length} 个成功处理的文件`);
+    }
 
   } catch (error: any) {
     console.error("处理失败:", error);
@@ -1210,15 +1259,28 @@ const processFiles = async () => {
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 18px;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .setting-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
+}
+
+.setting-hint {
+  font-size: 12px;
+  color: var(--text-color-light);
+  line-height: 1.4;
+  margin-top: -4px;
 }
 
 .target-control {

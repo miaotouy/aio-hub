@@ -15,6 +15,9 @@ export interface AppConfig {
   // 文件模式设置
   fileMode: {
     outputDirectory: string;
+    forceTxt: boolean;
+    filenameSuffix: string;
+    clearProcessedFiles: boolean;
   };
   // 版本号
   version: string;
@@ -28,7 +31,10 @@ function createDefaultAppConfig(): AppConfig {
     processingMode: 'text',
     selectedPresetIds: [],
     fileMode: {
-      outputDirectory: ''
+      outputDirectory: '',
+      forceTxt: false,
+      filenameSuffix: '',
+      clearProcessedFiles: false
     },
     version: APP_CONFIG_VERSION
   };

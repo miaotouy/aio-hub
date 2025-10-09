@@ -10,6 +10,13 @@
       </span>
       <span class="response-time">⏱️ {{ store.lastResponse!.duration }}ms</span>
       <span class="response-timestamp">🕒 {{ formatTimestamp(store.lastResponse!.timestamp) }}</span>
+      <button
+        class="wrap-toggle"
+        @click="wrapText = !wrapText"
+        :title="wrapText ? '关闭自动换行' : '开启自动换行'"
+      >
+        {{ wrapText ? '📄 自动换行' : '📜 不换行' }}
+      </button>
     </div>
 
     <div v-if="store.lastResponse!.error" class="response-error">
@@ -17,15 +24,17 @@
     </div>
 
     <div v-else class="response-body">
-      <pre><code>{{ store.lastResponse!.body }}</code></pre>
+      <pre :class="{ 'wrap-text': wrapText }"><code>{{ store.lastResponse!.body }}</code></pre>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useApiTesterStore } from '../store';
 
 const store = useApiTesterStore();
+const wrapText = ref(false);
 
 function getStatusClass(status: number): string {
   if (status >= 200 && status < 300) return 'status-success';
@@ -45,6 +54,8 @@ function formatTimestamp(timestamp: string): string {
   border-radius: 8px;
   padding: 20px;
   border: 1px solid var(--border-color);
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .section h3 {
@@ -92,7 +103,8 @@ function formatTimestamp(timestamp: string): string {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: auto;
-  max-height: 500px;
+  height: 86%;
+  box-sizing: border-box;
 }
 
 .response-body pre {
@@ -102,10 +114,35 @@ function formatTimestamp(timestamp: string): string {
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-color);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.response-body pre.wrap-text {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: hidden;
 }
 
 .response-body code {
   font-family: inherit;
   color: inherit;
+}
+
+.wrap-toggle {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--container-bg);
+  color: var(--text-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: auto;
+}
+
+.wrap-toggle:hover {
+  background: var(--input-bg);
+  border-color: var(--primary-color);
 }
 </style>

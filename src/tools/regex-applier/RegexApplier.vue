@@ -11,13 +11,23 @@
           </el-radio-group>
         </div>
         <div class="header-actions">
-          <el-button
-            @click="togglePresetSection"
-            :icon="showPresetSection ? 'ArrowUp' : 'ArrowDown'"
-            text
-          >
-            {{ showPresetSection ? '隐藏预设' : '显示预设' }}
-          </el-button>
+          <el-tooltip placement="bottom" :disabled="selectedPresetIds.length === 0">
+            <template #content>
+              <div v-if="selectedPresetIds.length > 0">
+                <div style="font-weight: bold; margin-bottom: 4px;">已启用的预设：</div>
+                <div v-for="preset in selectedPresets" :key="preset.id" style="margin: 2px 0;">
+                  {{ preset.name }} ({{ preset.rules.filter((r: any) => r.enabled).length }} 条规则)
+                </div>
+              </div>
+            </template>
+            <el-button
+              @click="togglePresetSection"
+              :icon="showPresetSection ? 'ArrowUp' : 'ArrowDown'"
+              text
+            >
+              {{ showPresetSection ? '隐藏预设' : '显示预设' }}
+            </el-button>
+          </el-tooltip>
           <el-badge
             :value="errorLogCount"
             :hidden="errorLogCount === 0"

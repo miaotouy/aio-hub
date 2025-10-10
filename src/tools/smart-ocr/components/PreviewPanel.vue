@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Upload, Delete, Picture, Scissor } from '@element-plus/icons-vue';
+import { Upload, Delete, Picture, Scissor, Plus } from '@element-plus/icons-vue';
 import type { ImageBlock, CutLine, UploadedImage } from '../types';
 import { useFileDrop } from '../../../composables/useFileDrop';
 import { invoke } from '@tauri-apps/api/core';
@@ -362,6 +362,16 @@ onUnmounted(() => {
 
 <template>
   <div class="preview-panel">
+    <!-- 隐藏的文件选择器 -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept="image/*"
+      multiple
+      style="display: none"
+      @change="handleFileChange"
+    />
+    
     <div class="panel-header">
       <h3>图片预览</h3>
       <div class="header-actions">
@@ -432,6 +442,14 @@ onUnmounted(() => {
             />
           </div>
         </div>
+        
+        <!-- 添加图片按钮 -->
+        <div class="add-image-btn" @click="handleFileSelect" title="添加图片">
+          <el-icon :size="32" color="var(--el-color-primary)">
+            <Plus />
+          </el-icon>
+          <span>添加图片</span>
+        </div>
       </div>
       
       <!-- 预览内容 -->
@@ -446,14 +464,6 @@ onUnmounted(() => {
       >
         <template v-if="uploadedImages.length === 0">
           <div class="empty-state">
-            <input
-              ref="fileInputRef"
-              type="file"
-              accept="image/*"
-              multiple
-              style="display: none"
-              @change="handleFileChange"
-            />
             <el-icon :size="64" color="#909399">
               <Picture />
             </el-icon>
@@ -645,6 +655,32 @@ onUnmounted(() => {
 
 .action-btn:hover {
   transform: scale(1.1);
+}
+
+.add-image-btn {
+  border: 2px dashed var(--el-color-primary-light-5);
+  border-radius: 8px;
+  height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: var(--bg-color);
+}
+
+.add-image-btn:hover {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-11);
+  transform: translateY(-2px);
+}
+
+.add-image-btn span {
+  font-size: 13px;
+  color: var(--el-color-primary);
+  font-weight: 500;
 }
 
 .preview-content {

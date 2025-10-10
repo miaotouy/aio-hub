@@ -320,6 +320,8 @@ const handleBatchOcr = async () => {
   emit("ocrStart");
 
   try {
+    const allResults: OcrResult[] = []; // 累积所有图片的识别结果
+    
     for (const uploadedImage of props.uploadedImages) {
       const img = uploadedImage.img;
       const imageId = uploadedImage.id;
@@ -361,10 +363,15 @@ const handleBatchOcr = async () => {
 
       // 执行OCR识别
       const results = await runOcr(blocks, props.engineConfig, (updatedResults: OcrResult[]) => {
-        emit("ocrResultUpdate", updatedResults);
+        // 合并进度更新：保留之前图片的结果 + 当前图片的进度
+        const mergedResults = [...allResults, ...updatedResults];
+        emit("ocrResultUpdate", mergedResults);
       });
 
-      emit("ocrResultUpdate", results);
+      // 将当前图片的结果添加到累积数组
+      allResults.push(...results);
+      // 发送完整的累积结果
+      emit("ocrResultUpdate", allResults);
     }
 
     emit("ocrComplete");
@@ -600,28 +607,28 @@ defineExpose({
 
     <!-- 操作按钮 - 固定在底部 -->
     <div class="panel-footer">
-      <el-button
-        type="primary"
-        size="large"
-        :disabled="!selectedImage || isProcessing"
-        :loading="isProcessing"
-        @click="handleStartOcr"
-        style="width: 100%"
-      >
-        {{ isProcessing ? "识别中..." : "识别当前图片" }}
-      </el-button>
+      <div class="button-group" :class="{ 'has-batch': uploadedImages.length > 1 }">
+        <el-button
+          type="primary"
+          size="large"
+          :disabled="!selectedImage || isProcessing"
+          :loading="isProcessing"
+          @click="handleStartOcr"
+        >
+          {{ isProcessing ? "识别中..." : "识别当前图片" }}
+        </el-button>
 
-      <el-button
-        v-if="uploadedImages.length > 1"
-        type="success"
-        size="large"
-        :disabled="uploadedImages.length === 0 || isProcessing"
-        :loading="isProcessing"
-        @click="handleBatchOcr"
-        style="width: 100%; margin-top: 12px"
-      >
-        批量识别全部
-      </el-button>
+        <el-button
+          v-if="uploadedImages.length > 1"
+          type="success"
+          size="large"
+          :disabled="uploadedImages.length === 0 || isProcessing"
+          :loading="isProcessing"
+          @click="handleBatchOcr"
+        >
+          批量识别全部
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -670,6 +677,28 @@ defineExpose({
 .panel-footer {
   padding: 16px 20px;
   border-top: 1px solid var(--border-color);
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+}
+
+.button-group:not(.has-batch) {
+  flex-direction: column;
+}
+
+.button-group.has-batch {
+  flex-direction: row;
+  align-items: center;
+}
+
+.button-group .el-button {
+  flex: 1;
+}
+
+.button-group:not(.has-batch) .el-button {
+  width: 100%;
 }
 
 /* Element Plus 组件样式覆盖 */

@@ -26,13 +26,14 @@ const emit = defineEmits<{
 const canvasRef = ref<HTMLCanvasElement>();
 const fileInputRef = ref<HTMLInputElement>();
 const dropZoneRef = ref<HTMLDivElement>();
+const previewBodyRef = ref<HTMLDivElement>();
 
 // 拖拽状态 - 浏览器内部拖拽
 const isDragging = ref(false);
 
 // Tauri 文件拖放处理（用于从外部应用拖拽）
 const { isDraggingOver: isTauriDragging } = useFileDrop({
-  element: dropZoneRef,
+  element: previewBodyRef,
   fileOnly: true,
   multiple: true,
   accept: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'],
@@ -213,8 +214,8 @@ const handleDragOver = (e: DragEvent) => {
 const handleDragLeave = (e: DragEvent) => {
   e.preventDefault();
   e.stopPropagation();
-  // 只有离开dropZone才设置为false
-  if (e.target === dropZoneRef.value) {
+  // 只有离开 previewBody 才设置为 false
+  if (e.target === previewBodyRef.value) {
     isDragging.value = false;
   }
 };
@@ -323,6 +324,9 @@ watch(currentImageBlocks, (blocks) => {
   if (blocks.length > 0 && previewMode.value === 'original') {
     // 自动切换到块视图
     previewMode.value = 'blocks';
+  } else if (blocks.length === 0 && previewMode.value === 'blocks') {
+    // 没有图片块时，切回原图视图
+    previewMode.value = 'original';
   }
 });
 
@@ -399,7 +403,15 @@ onUnmounted(() => {
       </div>
     </div>
     
-    <div class="preview-body">
+    <div
+      ref="previewBodyRef"
+      class="preview-body"
+      :class="{ 'body-dragging': isAnyDragging }"
+      @dragenter="handleDragEnter"
+      @dragover="handleDragOver"
+      @dragleave="handleDragLeave"
+      @drop="handleDrop"
+    >
       <!-- 图片列表 -->
       <div v-if="uploadedImages.length > 0" class="images-list">
         <div
@@ -456,11 +468,6 @@ onUnmounted(() => {
       <div
         ref="dropZoneRef"
         class="preview-content"
-        :class="{ dragging: isAnyDragging }"
-        @dragenter="handleDragEnter"
-        @dragover="handleDragOver"
-        @dragleave="handleDragLeave"
-        @drop="handleDrop"
       >
         <template v-if="uploadedImages.length === 0">
           <div class="empty-state">
@@ -562,6 +569,20 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   overflow: hidden;
+  position: relative;
+}
+
+.preview-body.body-dragging {
+  background-color: var(--el-color-primary-light-10);
+}
+
+.preview-body.body-dragging::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px dashed var(--el-color-primary);
+  pointer-events: none;
+  z-index: 5;
 }
 
 .images-list {
@@ -582,6 +603,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s;
   background-color: var(--bg-color);
+  flex-shrink: 0;
 }
 
 .image-item:hover {
@@ -669,6 +691,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s;
   background-color: var(--bg-color);
+  flex-shrink: 0;
 }
 
 .add-image-btn:hover {
@@ -688,10 +711,6 @@ onUnmounted(() => {
   overflow: auto;
   padding: 20px;
   position: relative;
-}
-
-.preview-content.dragging {
-  background-color: var(--el-color-primary-light-9);
 }
 
 .drag-overlay {

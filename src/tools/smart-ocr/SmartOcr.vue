@@ -1,28 +1,110 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import ControlPanel from './components/ControlPanel.vue';
 import PreviewPanel from './components/PreviewPanel.vue';
 import ResultPanel from './components/ResultPanel.vue';
 import type { OcrEngineConfig, ImageBlock, OcrResult, SlicerConfig, CutLine, UploadedImage } from './types';
+import type { SmartOcrConfig } from './config';
+import { loadSmartOcrConfig, createDebouncedSave, getCurrentEngineConfig, defaultSmartOcrConfig } from './config';
 
 // 图片相关状态
 const uploadedImages = ref<UploadedImage[]>([]);
 const selectedImageId = ref<string | null>(null);
 
-// OCR引擎配置
-const engineConfig = ref<OcrEngineConfig>({
-  type: 'tesseract',
-  name: 'Tesseract.js',
-  language: 'chi_sim+eng'
+// 完整配置对象（内部维护）
+const fullConfig = ref<SmartOcrConfig>({ ...defaultSmartOcrConfig });
+
+// 当前引擎配置（通过计算属性暴露给子组件）
+const engineConfig = computed<OcrEngineConfig>({
+  get: () => getCurrentEngineConfig(fullConfig.value),
+  set: (newConfig: OcrEngineConfig) => {
+    const type = newConfig.type;
+    
+    // 检查是否只是切换引擎类型（配置对象只包含 type 字段）
+    const isTypeSwitch = Object.keys(newConfig).length === 1 && 'type' in newConfig;
+    
+    if (isTypeSwitch) {
+      // 切换引擎类型：更新当前引擎类型，保持各引擎已保存的配置不变
+      fullConfig.value = {
+        ...fullConfig.value,
+        currentEngineType: type
+      };
+    } else {
+      // 更新当前引擎的配置
+      const newEngineConfigs = { ...fullConfig.value.engineConfigs };
+      
+      // 根据引擎类型更新对应的配置
+      switch (type) {
+        case 'tesseract':
+          // 只更新实际改变的字段，保留其他字段
+          newEngineConfigs.tesseract = {
+            ...newEngineConfigs.tesseract,
+            name: newConfig.name || newEngineConfigs.tesseract.name,
+            language: (newConfig as any).language !== undefined
+              ? (newConfig as any).language
+              : newEngineConfigs.tesseract.language
+          };
+          break;
+        case 'native':
+          newEngineConfigs.native = {
+            ...newEngineConfigs.native,
+            name: newConfig.name || newEngineConfigs.native.name
+          };
+          break;
+        case 'vlm':
+          newEngineConfigs.vlm = {
+            ...newEngineConfigs.vlm,
+            name: newConfig.name || newEngineConfigs.vlm.name,
+            profileId: (newConfig as any).profileId !== undefined
+              ? (newConfig as any).profileId
+              : newEngineConfigs.vlm.profileId,
+            modelId: (newConfig as any).modelId !== undefined
+              ? (newConfig as any).modelId
+              : newEngineConfigs.vlm.modelId,
+            prompt: (newConfig as any).prompt !== undefined
+              ? (newConfig as any).prompt
+              : newEngineConfigs.vlm.prompt,
+            temperature: (newConfig as any).temperature !== undefined
+              ? (newConfig as any).temperature
+              : newEngineConfigs.vlm.temperature,
+            maxTokens: (newConfig as any).maxTokens !== undefined
+              ? (newConfig as any).maxTokens
+              : newEngineConfigs.vlm.maxTokens
+          };
+          break;
+        case 'cloud':
+          newEngineConfigs.cloud = {
+            ...newEngineConfigs.cloud,
+            name: newConfig.name || newEngineConfigs.cloud.name,
+            apiEndpoint: (newConfig as any).apiEndpoint !== undefined
+              ? (newConfig as any).apiEndpoint
+              : newEngineConfigs.cloud.apiEndpoint,
+            apiKey: (newConfig as any).apiKey !== undefined
+              ? (newConfig as any).apiKey
+              : newEngineConfigs.cloud.apiKey
+          };
+          break;
+      }
+      
+      // 更新完整配置
+      fullConfig.value = {
+        ...fullConfig.value,
+        currentEngineType: type,
+        engineConfigs: newEngineConfigs
+      };
+    }
+  }
 });
 
-// 智能切图配置
-const slicerConfig = ref<SlicerConfig>({
-  enabled: true,
-  aspectRatioThreshold: 3,
-  blankThreshold: 0.05, // 5%的黑色像素占比阈值
-  minBlankHeight: 20,
-  minCutHeight: 10 // 最小切割块高度
+// 智能切图配置（通过计算属性暴露给子组件）
+const slicerConfig = computed<SlicerConfig>({
+  get: () => fullConfig.value.slicerConfig,
+  set: (value: SlicerConfig) => {
+    fullConfig.value = {
+      ...fullConfig.value,
+      slicerConfig: value
+    };
+  }
 });
 
 // 切图相关状态（按图片ID分组）
@@ -32,6 +114,23 @@ const imageBlocksMap = ref<Map<string, ImageBlock[]>>(new Map());
 // OCR结果
 const ocrResults = ref<OcrResult[]>([]);
 const isProcessing = ref(false);
+
+// 配置持久化
+const debouncedSave = createDebouncedSave();
+
+// 监听完整配置变化并自动保存
+watch(fullConfig, () => {
+  debouncedSave(fullConfig.value);
+}, { deep: true });
+
+// 组件挂载时加载配置
+onMounted(async () => {
+  try {
+    fullConfig.value = await loadSmartOcrConfig();
+  } catch (error) {
+    console.error('加载配置失败:', error);
+  }
+});
 
 // 处理图片上传
 const handleImagesUpload = (images: UploadedImage[]) => {

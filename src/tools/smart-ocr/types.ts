@@ -33,6 +33,52 @@ export type OcrEngineConfig =
     };
 
 /**
+ * Tesseract 引擎配置
+ */
+export interface TesseractEngineConfig {
+  name: string;
+  language: string;
+}
+
+/**
+ * Native 引擎配置
+ */
+export interface NativeEngineConfig {
+  name: string;
+}
+
+/**
+ * VLM 引擎配置
+ */
+export interface VlmEngineConfig {
+  name: string;
+  profileId: string;
+  modelId: string;
+  prompt: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+/**
+ * Cloud 引擎配置
+ */
+export interface CloudEngineConfig {
+  name: string;
+  apiEndpoint: string;
+  apiKey: string;
+}
+
+/**
+ * 所有引擎的配置集合
+ */
+export interface EngineConfigs {
+  tesseract: TesseractEngineConfig;
+  native: NativeEngineConfig;
+  vlm: VlmEngineConfig;
+  cloud: CloudEngineConfig;
+}
+
+/**
  * 上传的图片信息
  */
 export interface UploadedImage {

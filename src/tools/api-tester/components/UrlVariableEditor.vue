@@ -17,13 +17,15 @@
       <div class="table-body">
         <div v-for="variable in editableVariables" :key="variable.key" class="table-row">
           <div>
-            <input
-              v-model="variable.key"
-              type="text"
-              placeholder="变量名"
-              @blur="updateVariable(variable)"
-              class="input-sm"
-            />
+            <el-tooltip :content="variable.key || '变量名'" placement="top-start" :disabled="!variable.key">
+              <input
+                v-model="variable.key"
+                type="text"
+                placeholder="变量名"
+                @blur="updateVariable(variable)"
+                class="input-sm"
+              />
+            </el-tooltip>
           </div>
 
           <div>
@@ -36,23 +38,35 @@
 
           <div>
             <!-- 文本类型 -->
-            <input
+            <el-tooltip
               v-if="variable.type === 'string'"
-              v-model="variable.value"
-              type="text"
-              :placeholder="variable.placeholder || '输入值'"
-              @blur="updateVariable(variable)"
-              class="input-sm"
-            />
+              :content="String(variable.value) || '输入值'"
+              placement="top-start"
+              :disabled="!variable.value"
+            >
+              <input
+                v-model="variable.value"
+                type="text"
+                :placeholder="variable.placeholder || '输入值'"
+                @blur="updateVariable(variable)"
+                class="input-sm"
+              />
+            </el-tooltip>
 
             <!-- 枚举类型 -->
             <div v-else-if="variable.type === 'enum'" class="enum-value-cell">
-              <select v-model="variable.value" @change="updateVariable(variable)" class="select-sm">
-                <option value="">-- 选择值 --</option>
-                <option v-for="option in variable.options || []" :key="option" :value="option">
-                  {{ option }}
-                </option>
-              </select>
+              <el-tooltip
+                :content="String(variable.value) || '选择值'"
+                placement="top-start"
+                :disabled="!variable.value"
+              >
+                <select v-model="variable.value" @change="updateVariable(variable)" class="select-sm">
+                  <option value="">-- 选择值 --</option>
+                  <option v-for="option in variable.options || []" :key="option" :value="option">
+                    {{ option }}
+                  </option>
+                </select>
+              </el-tooltip>
               <button @click="editEnumOptions(variable)" class="btn-edit-options" title="编辑选项">
                 ⚙️
               </button>
@@ -70,13 +84,19 @@
           </div>
 
           <div>
-            <input
-              v-model="variable.description"
-              type="text"
-              placeholder="可选说明"
-              @blur="updateVariable(variable)"
-              class="input-sm"
-            />
+            <el-tooltip
+              :content="variable.description || '可选说明'"
+              placement="top-start"
+              :disabled="!variable.description"
+            >
+              <input
+                v-model="variable.description"
+                type="text"
+                placeholder="可选说明"
+                @blur="updateVariable(variable)"
+                class="input-sm"
+              />
+            </el-tooltip>
           </div>
 
           <div class="action-cell">

@@ -23,6 +23,13 @@ export const settingsModules: SettingsModule[] = [
 		),
 	},
 	{
+		id: "ocr-service",
+		title: "云端 OCR 服务",
+		component: defineAsyncComponent(
+			() => import("../views/components/OcrServiceSettings.vue"),
+		),
+	},
+	{
 		id: "about",
 		title: "关于",
 	},

@@ -41,8 +41,7 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
     },
     cloud: {
       name: 'Cloud OCR',
-      apiEndpoint: '',
-      apiKey: ''
+      activeProfileId: '' // 默认未选中任何云端服务
     }
   },
   slicerConfig: {

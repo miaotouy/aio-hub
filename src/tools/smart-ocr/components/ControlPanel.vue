@@ -13,6 +13,7 @@ import type {
 import { useImageSlicer } from "../composables/useImageSlicer";
 import { useOcrRunner } from "../composables/useOcrRunner";
 import { useLlmProfiles } from "../../../composables/useLlmProfiles";
+import { useOcrProfiles } from "../../../composables/useOcrProfiles";
 import type { LlmProfile, LlmModelInfo } from "../../../types/llm-profiles";
 
 const props = defineProps<{
@@ -38,6 +39,7 @@ const emit = defineEmits<{
 const { sliceImage } = useImageSlicer();
 const { runOcr } = useOcrRunner();
 const { visionProfiles } = useLlmProfiles();
+const { enabledProfiles: ocrProfiles } = useOcrProfiles();
 
 // 辅助函数：更新引擎配置
 function updateEngineConfig(updates: Partial<OcrEngineConfig>) {
@@ -93,6 +95,12 @@ const engineConcurrency = computed({
 const engineDelay = computed({
   get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.delay ?? 0 : 0),
   set: (value) => updateEngineConfig({ delay: value } as any),
+});
+
+// Cloud OCR 选中的服务
+const cloudActiveProfileId = computed({
+  get: () => (props.engineConfig.type === 'cloud' ? props.engineConfig.activeProfileId : ''),
+  set: (value) => updateEngineConfig({ activeProfileId: value } as any),
 });
 
 // 切图启用
@@ -423,7 +431,7 @@ defineExpose({
             <el-select v-model="engineType" style="width: 100%">
               <el-option label="Native OCR (系统原生)" value="native" />
               <el-option label="Tesseract.js (本地)" value="tesseract" />
-              <el-option label="云端OCR" value="cloud" disabled />
+              <el-option label="云端OCR" value="cloud" />
               <el-option label="视觉语言模型 (VLM)" value="vlm" />
             </el-select>
             <el-text
@@ -433,6 +441,14 @@ defineExpose({
               style="margin-top: 8px; display: block"
             >
               请先在设置中配置 LLM 服务并添加视觉模型
+            </el-text>
+            <el-text
+              v-if="engineType === 'cloud' && ocrProfiles.length === 0"
+              size="small"
+              type="warning"
+              style="margin-top: 8px; display: block"
+            >
+              请先在设置中配置云端 OCR 服务
             </el-text>
           </el-form-item>
 
@@ -445,6 +461,30 @@ defineExpose({
               <el-option label="日文" value="jpn" />
               <el-option label="韩文" value="kor" />
             </el-select>
+          </el-form-item>
+
+          <el-form-item v-if="engineType === 'cloud'" label="云端服务">
+            <el-select
+              v-model="cloudActiveProfileId"
+              style="width: 100%"
+              placeholder="选择云端 OCR 服务"
+              :disabled="ocrProfiles.length === 0"
+            >
+              <el-option
+                v-for="profile in ocrProfiles"
+                :key="profile.id"
+                :label="profile.name"
+                :value="profile.id"
+              />
+            </el-select>
+            <el-text
+              v-if="ocrProfiles.length === 0"
+              size="small"
+              type="warning"
+              style="margin-top: 8px; display: block"
+            >
+              请先在设置中配置云端 OCR 服务
+            </el-text>
           </el-form-item>
 
           <template v-if="engineType === 'vlm'">

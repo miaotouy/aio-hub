@@ -2,6 +2,8 @@ import { createWorker, Worker } from 'tesseract.js';
 import { invoke } from '@tauri-apps/api/core';
 import type { ImageBlock, OcrEngineConfig, OcrResult } from '../types';
 import { useLlmRequest } from '../../../composables/useLlmRequest';
+import { useCloudOcrRunner } from './useCloudOcrRunner';
+import { useOcrProfiles } from '../../../composables/useOcrProfiles';
 
 /**
  * OCR 运行器 Composable
@@ -83,8 +85,7 @@ export function useOcrRunner() {
     } else if (config.type === 'vlm') {
       await recognizeWithVlmEngine(blocks, config, results, onProgress);
     } else if (config.type === 'cloud') {
-      // TODO: 云端 OCR 实现
-      throw new Error('云端OCR尚未实现');
+      await recognizeWithCloudEngine(blocks, config, results, onProgress);
     }
 
 
@@ -263,6 +264,46 @@ export function useOcrRunner() {
       const batch = indices.slice(i, i + concurrency);
       await Promise.all(batch.map(index => processBlock(index)));
     }
+  };
+
+  /**
+   * 使用云端引擎批量识别
+   */
+  const recognizeWithCloudEngine = async (
+    blocks: ImageBlock[],
+    config: Extract<OcrEngineConfig, { type: 'cloud' }>,
+    results: OcrResult[],
+    onProgress?: (results: OcrResult[]) => void
+  ) => {
+    console.log('使用云端 OCR 引擎识别...');
+
+    // 获取选中的 OCR Profile
+    const { getProfileById } = useOcrProfiles();
+    const profile = getProfileById(config.activeProfileId);
+
+    if (!profile) {
+      throw new Error('请先在设置中配置云端 OCR 服务');
+    }
+
+    if (!profile.enabled) {
+      throw new Error(`云端 OCR 服务 "${profile.name}" 未启用`);
+    }
+
+    // 使用云端 OCR 运行器
+    const { runCloudOcr } = useCloudOcrRunner();
+    
+    const cloudResults = await runCloudOcr(blocks, profile, (updatedResults: OcrResult[]) => {
+      // 更新结果数组
+      updatedResults.forEach((result, index) => {
+        results[index] = result;
+      });
+      onProgress?.([...results]);
+    });
+
+    // 最终更新
+    cloudResults.forEach((result, index) => {
+      results[index] = result;
+    });
   };
 
   /**

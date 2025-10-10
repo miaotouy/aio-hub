@@ -30,8 +30,7 @@ export type OcrEngineConfig =
   | {
       type: 'cloud';
       name: string;
-      apiEndpoint: string;
-      apiKey: string;
+      activeProfileId: string; // 当前选中的云端 OCR 服务配置 ID
     };
 
 /**
@@ -68,8 +67,7 @@ export interface VlmEngineConfig {
  */
 export interface CloudEngineConfig {
   name: string;
-  apiEndpoint: string;
-  apiKey: string;
+  activeProfileId: string; // 当前选中的云端 OCR 服务配置 ID
 }
 
 /**

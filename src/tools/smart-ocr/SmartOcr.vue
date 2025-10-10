@@ -84,12 +84,9 @@ const engineConfig = computed<OcrEngineConfig>({
           newEngineConfigs.cloud = {
             ...newEngineConfigs.cloud,
             name: newConfig.name || newEngineConfigs.cloud.name,
-            apiEndpoint: (newConfig as any).apiEndpoint !== undefined
-              ? (newConfig as any).apiEndpoint
-              : newEngineConfigs.cloud.apiEndpoint,
-            apiKey: (newConfig as any).apiKey !== undefined
-              ? (newConfig as any).apiKey
-              : newEngineConfigs.cloud.apiKey
+            activeProfileId: (newConfig as any).activeProfileId !== undefined
+              ? (newConfig as any).activeProfileId
+              : newEngineConfigs.cloud.activeProfileId
           };
           break;
       }

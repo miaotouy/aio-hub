@@ -27,6 +27,8 @@ const emit = defineEmits<{
   "update:engineConfig": [config: OcrEngineConfig];
   "update:slicerConfig": [config: SlicerConfig];
   sliceComplete: [imageId: string, blocks: ImageBlock[], lines: CutLine[]];
+  sliceImage: [imageId: string];
+  sliceAllImages: [];
   ocrStart: [];
   ocrResultUpdate: [results: OcrResult[]];
   ocrComplete: [];
@@ -168,6 +170,73 @@ const selectedModelCombo = computed({
 // 因为父组件（SmartOcr.vue）会通过配置管理器保留各个引擎的配置
 // 切换引擎时只需改变类型，已保存的配置会自动应用
 
+// 单独切图（不执行OCR）
+const handleSliceOnly = async (imageId: string) => {
+  const uploadedImage = props.uploadedImages.find(img => img.id === imageId);
+  if (!uploadedImage) {
+    ElMessage.warning("图片不存在");
+    return;
+  }
+
+  const img = uploadedImage.img;
+  
+  // 检查是否需要切图
+  const needSlice =
+    props.slicerConfig.enabled &&
+    img.height / img.width > props.slicerConfig.aspectRatioThreshold;
+
+  if (!needSlice) {
+    ElMessage.info("当前图片不满足切图条件");
+    return;
+  }
+
+  try {
+    // 执行智能切图
+    const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
+    emit("sliceComplete", imageId, sliceResult.blocks, sliceResult.lines);
+    ElMessage.success(`检测到 ${sliceResult.blocks.length} 个图片块`);
+  } catch (error) {
+    console.error("切图失败:", error);
+    ElMessage.error("切图失败: " + (error as Error).message);
+  }
+};
+
+// 批量切图所有图片
+const handleSliceAll = async () => {
+  if (props.uploadedImages.length === 0) {
+    ElMessage.warning("请先上传图片");
+    return;
+  }
+
+  let slicedCount = 0;
+  
+  for (const uploadedImage of props.uploadedImages) {
+    const img = uploadedImage.img;
+    const imageId = uploadedImage.id;
+    
+    // 检查是否需要切图
+    const needSlice =
+      props.slicerConfig.enabled &&
+      img.height / img.width > props.slicerConfig.aspectRatioThreshold;
+
+    if (needSlice) {
+      try {
+        const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
+        emit("sliceComplete", imageId, sliceResult.blocks, sliceResult.lines);
+        slicedCount++;
+      } catch (error) {
+        console.error(`切图失败 (${uploadedImage.name}):`, error);
+      }
+    }
+  }
+
+  if (slicedCount > 0) {
+    ElMessage.success(`成功切图 ${slicedCount} 张图片`);
+  } else {
+    ElMessage.info("没有符合切图条件的图片");
+  }
+};
+
 // 开始识别
 const handleStartOcr = async () => {
   if (!selectedImage.value) {
@@ -300,6 +369,12 @@ const handleBatchOcr = async () => {
     emit("ocrComplete");
   }
 };
+
+// 暴露方法给父组件
+defineExpose({
+  handleSliceOnly,
+  handleSliceAll
+});
 </script>
 
 <template>

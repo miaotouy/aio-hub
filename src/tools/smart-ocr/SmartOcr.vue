@@ -118,6 +118,9 @@ const isProcessing = ref(false);
 // 配置持久化
 const debouncedSave = createDebouncedSave();
 
+// ControlPanel 组件引用
+const controlPanelRef = ref<InstanceType<typeof ControlPanel>>();
+
 // 监听完整配置变化并自动保存
 watch(fullConfig, () => {
   debouncedSave(fullConfig.value);
@@ -181,6 +184,16 @@ const handleOcrResultUpdate = (results: OcrResult[]) => {
 const handleOcrComplete = () => {
   isProcessing.value = false;
 };
+
+// 处理单个图片切图
+const handleSliceImage = (imageId: string) => {
+  controlPanelRef.value?.handleSliceOnly(imageId);
+};
+
+// 处理批量切图
+const handleSliceAllImages = () => {
+  controlPanelRef.value?.handleSliceAll();
+};
 </script>
 
 <template>
@@ -188,6 +201,7 @@ const handleOcrComplete = () => {
     <!-- 左栏：控制面板 -->
     <div class="left-panel">
       <ControlPanel
+        ref="controlPanelRef"
         v-model:engine-config="engineConfig"
         v-model:slicer-config="slicerConfig"
         :uploaded-images="uploadedImages"
@@ -210,6 +224,8 @@ const handleOcrComplete = () => {
         @images-upload="handleImagesUpload"
         @image-remove="handleImageRemove"
         @image-select="handleImageSelect"
+        @slice-image="handleSliceImage"
+        @slice-all-images="handleSliceAllImages"
       />
     </div>
 

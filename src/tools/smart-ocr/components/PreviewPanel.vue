@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Upload, Delete, Picture } from '@element-plus/icons-vue';
+import { Upload, Delete, Picture, Scissor } from '@element-plus/icons-vue';
 import type { ImageBlock, CutLine, UploadedImage } from '../types';
 
 const props = defineProps<{
@@ -15,10 +15,11 @@ const emit = defineEmits<{
   'imagesUpload': [images: UploadedImage[]];
   'imageRemove': [imageId: string];
   'imageSelect': [imageId: string];
+  'sliceImage': [imageId: string];
+  'sliceAllImages': [];
 }>();
 
 // 预览容器引用
-const previewContainerRef = ref<HTMLDivElement>();
 const canvasRef = ref<HTMLCanvasElement>();
 const fileInputRef = ref<HTMLInputElement>();
 const dropZoneRef = ref<HTMLDivElement>();
@@ -28,6 +29,10 @@ const isDragging = ref(false);
 
 // 当前预览模式：original（原图+切割线） | blocks（切割后的图片块）
 const previewMode = ref<'original' | 'blocks'>('original');
+
+// Canvas 尺寸（响应式）
+const canvasWidth = ref(0);
+const canvasHeight = ref(0);
 
 // 缩放比例
 const scale = ref(1);
@@ -173,6 +178,17 @@ const handlePaste = async (e: ClipboardEvent) => {
   }
 };
 
+// 计算缩放比例
+const updateScale = () => {
+  if (!canvasRef.value || !dropZoneRef.value) return;
+  
+  const canvas = canvasRef.value;
+  const containerWidth = dropZoneRef.value.clientWidth - 40;
+  // 优先按宽度缩放，让图片充分利用水平空间
+  const scaleX = containerWidth / canvas.width;
+  scale.value = Math.min(scaleX, 1);
+};
+
 // 绘制原图和切割线
 const drawOriginalWithLines = () => {
   if (!selectedImage.value || !canvasRef.value) return;
@@ -181,9 +197,11 @@ const drawOriginalWithLines = () => {
   const ctx = canvas.getContext('2d')!;
   const img = selectedImage.value.img;
   
-  // 设置canvas尺寸
+  // 设置canvas尺寸（同时更新响应式 ref）
   canvas.width = img.width;
   canvas.height = img.height;
+  canvasWidth.value = img.width;
+  canvasHeight.value = img.height;
   
   // 绘制原图
   ctx.drawImage(img, 0, 0);
@@ -204,19 +222,18 @@ const drawOriginalWithLines = () => {
     ctx.setLineDash([]);
   }
   
-  // 计算适合容器的缩放比例
-  if (previewContainerRef.value) {
-    const containerWidth = previewContainerRef.value.clientWidth - 40;
-    const containerHeight = previewContainerRef.value.clientHeight - 120;
-    const scaleX = containerWidth / canvas.width;
-    const scaleY = containerHeight / canvas.height;
-    scale.value = Math.min(scaleX, scaleY, 1);
-  }
+  // 使用 requestAnimationFrame 确保布局完成后再计算缩放
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      updateScale();
+    });
+  });
 };
 
 // 监听选中图片和切割线变化
-watch([selectedImage, currentCutLines], () => {
+watch([selectedImage, currentCutLines], async () => {
   if (previewMode.value === 'original') {
+    await nextTick();
     drawOriginalWithLines();
   }
 }, { immediate: true });
@@ -230,17 +247,19 @@ watch(currentImageBlocks, (blocks) => {
 });
 
 // 切换预览模式
-const togglePreviewMode = () => {
+const togglePreviewMode = async () => {
   previewMode.value = previewMode.value === 'original' ? 'blocks' : 'original';
+  
   if (previewMode.value === 'original') {
+    await nextTick();
     drawOriginalWithLines();
   }
 };
 
 // 计算canvas样式
 const canvasStyle = computed(() => ({
-  width: `${(canvasRef.value?.width || 0) * scale.value}px`,
-  height: `${(canvasRef.value?.height || 0) * scale.value}px`
+  width: `${canvasWidth.value * scale.value}px`,
+  height: `${canvasHeight.value * scale.value}px`
 }));
 
 // 格式化文件大小
@@ -269,18 +288,14 @@ onUnmounted(() => {
         <el-tag v-if="uploadedImages.length > 0" type="info" size="small">
           {{ uploadedImages.length }} 张图片
         </el-tag>
-        <el-tag v-if="currentCutLines.length > 0" type="success" size="small">
-          {{ currentCutLines.length }} 个切割点
-        </el-tag>
-        <el-tag v-if="currentImageBlocks.length > 0" type="primary" size="small">
-          {{ currentImageBlocks.length }} 个图片块
-        </el-tag>
         <el-button
-          v-if="currentImageBlocks.length > 0"
+          v-if="uploadedImages.length > 0"
           size="small"
-          @click="togglePreviewMode"
+          type="warning"
+          :icon="Scissor"
+          @click="emit('sliceAllImages')"
         >
-          {{ previewMode === 'original' ? '查看图片块' : '查看原图' }}
+          批量切图
         </el-button>
       </div>
     </div>
@@ -300,14 +315,33 @@ onUnmounted(() => {
             <span class="image-name" :title="image.name">{{ image.name }}</span>
             <span class="image-size">{{ formatFileSize(image.size) }}</span>
           </div>
-          <el-button
-            class="delete-btn"
-            type="danger"
-            size="small"
-            :icon="Delete"
-            circle
-            @click.stop="emit('imageRemove', image.id)"
-          />
+          <!-- 图片块数量徽章 -->
+          <div
+            v-if="imageBlocksMap.get(image.id)?.length"
+            class="block-count-badge"
+          >
+            {{ imageBlocksMap.get(image.id)!.length }}
+          </div>
+          <div class="image-actions">
+            <el-button
+              class="action-btn slice-btn"
+              type="warning"
+              size="small"
+              :icon="Scissor"
+              circle
+              @click.stop="emit('sliceImage', image.id)"
+              title="切图"
+            />
+            <el-button
+              class="action-btn delete-btn"
+              type="danger"
+              size="small"
+              :icon="Delete"
+              circle
+              @click.stop="emit('imageRemove', image.id)"
+              title="删除"
+            />
+          </div>
         </div>
       </div>
       
@@ -355,6 +389,16 @@ onUnmounted(() => {
               <Upload />
             </el-icon>
             <p>释放以上传图片</p>
+          </div>
+          
+          <!-- 视图切换按钮 -->
+          <div v-if="currentImageBlocks.length > 0" class="preview-toolbar">
+            <el-button
+              size="small"
+              @click="togglePreviewMode"
+            >
+              {{ previewMode === 'original' ? '查看图片块' : '查看原图' }}
+            </el-button>
           </div>
           
           <!-- 原图+切割线视图 -->
@@ -412,6 +456,7 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .preview-body {
@@ -476,16 +521,41 @@ onUnmounted(() => {
   color: var(--el-text-color-secondary);
 }
 
-.delete-btn {
+.block-count-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background-color: var(--el-color-primary);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+.image-actions {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  gap: 4px;
   opacity: 0;
   transition: opacity 0.2s;
+  z-index: 2;
 }
 
-.image-item:hover .delete-btn {
+.image-item:hover .image-actions {
   opacity: 1;
+}
+
+.action-btn {
+  transition: transform 0.2s;
+}
+
+.action-btn:hover {
+  transform: scale(1.1);
 }
 
 .preview-content {
@@ -539,6 +609,12 @@ onUnmounted(() => {
   margin: 0;
   font-size: 12px;
   color: var(--el-text-color-placeholder);
+}
+
+.preview-toolbar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
 }
 
 .original-view {

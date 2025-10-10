@@ -3,7 +3,6 @@
  * 支持文本和视觉模型的统一调用
  */
 
-import { fetch } from '@tauri-apps/plugin-http';
 import type { LlmProfile } from '../types/llm-profiles';
 import { useLlmProfiles } from './useLlmProfiles';
 

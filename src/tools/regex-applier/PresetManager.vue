@@ -810,17 +810,4 @@ function escapeRegex(str: string): string {
 .error-preview {
   color: var(--error-color);
 }
-
-/* Element Plus 组件样式覆盖 */
-.el-input__inner,
-.el-textarea__inner {
-  background-color: var(--input-bg) !important;
-  color: var(--text-color) !important;
-  border-color: var(--border-color) !important;
-}
-
-.el-select {
-  --el-select-input-color: var(--text-color);
-  --el-select-border-color-hover: var(--primary-color);
-}
 </style>

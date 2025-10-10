@@ -274,9 +274,6 @@ watch(rawCodeInput, formatCode);
 .full-height-textarea :deep(.el-textarea__inner) {
   height: 100% !important;
   resize: none;
-  background-color: var(--input-bg) !important;
-  color: var(--text-color) !important;
-  border-color: var(--border-color) !important;
 }
 
 .card-header {

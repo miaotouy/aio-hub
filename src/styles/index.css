@@ -60,3 +60,45 @@ body {
 .el-message-box {
   margin-top: 32px !important; /* 给标题栏留出空间 */
 }
+
+/* Element Plus 全局主题适配 - 输入组件 */
+.el-input,
+.el-textarea {
+  --el-input-bg-color: var(--input-bg);
+  --el-input-text-color: var(--text-color);
+  --el-input-border-color: var(--border-color);
+  --el-input-hover-border-color: var(--primary-color);
+  --el-input-focus-border-color: var(--primary-color);
+  --el-input-placeholder-color: var(--text-color-light);
+}
+
+.el-input__inner,
+.el-textarea__inner {
+  background-color: var(--input-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Element Plus 全局主题适配 - 卡片组件 */
+.el-card {
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+}
+
+.el-card__header {
+  background-color: var(--card-bg);
+  border-bottom-color: var(--border-color);
+  color: var(--text-color);
+}
+
+/* Element Plus 全局主题适配 - 选择器 */
+.el-select {
+  --el-select-input-color: var(--text-color);
+  --el-select-border-color-hover: var(--primary-color);
+}
+
+/* Element Plus 全局主题适配 - 图标 */
+.el-icon {
+  color: var(--text-color);
+}

@@ -7,11 +7,11 @@ import {
   Setting,
   Rank,
   Monitor,
-  Document,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
 import GitBranchIcon from '../components/icons/GitBranchIcon.vue';
+import OcrIcon from '../components/icons/OcrIcon.vue';
 
 export interface ToolConfig {
   name: string;
@@ -84,7 +84,7 @@ export const toolsConfig: ToolConfig[] = [
   {
     name: '智能 OCR',
     path: '/smart-ocr',
-    icon: markRaw(Document),
+    icon: markRaw(OcrIcon),
     description: '智能OCR文字识别工具，支持多引擎和智能切图'
   }
 ];

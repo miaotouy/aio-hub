@@ -4,6 +4,7 @@ export interface SettingsModule {
 	id: string;
 	title: string;
 	component?: Component;
+	minHeight?: string; // 动态组件的最小高度，例如 "800px" 或 "auto"
 }
 
 export const settingsModules: SettingsModule[] = [
@@ -21,6 +22,7 @@ export const settingsModules: SettingsModule[] = [
 		component: defineAsyncComponent(
 			() => import("../views/components/LlmServiceSettings.vue"),
 		),
+		minHeight:"500px",
 	},
 	{
 		id: "ocr-service",
@@ -28,6 +30,7 @@ export const settingsModules: SettingsModule[] = [
 		component: defineAsyncComponent(
 			() => import("../views/components/OcrServiceSettings.vue"),
 		),
+		minHeight:"500px",
 	},
 	{
 		id: "about",

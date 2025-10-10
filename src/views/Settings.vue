@@ -468,6 +468,7 @@ onUnmounted(() => {
             v-if="module.component"
             :id="module.id"
             class="settings-section component-section"
+            :style="{ minHeight: module.minHeight || 'auto' }"
           >
             <h2 class="section-title">{{ module.title }}</h2>
             <component :is="module.component" />
@@ -1116,10 +1117,10 @@ onUnmounted(() => {
 /* 动态组件 section 特殊样式 */
 .component-section {
   padding: 0;
-  overflow: hidden;
-  min-height: 800px;
+  overflow: auto;
   display: flex;
   flex-direction: column;
+  max-height: 2000px;
 }
 
 .component-section .section-title {

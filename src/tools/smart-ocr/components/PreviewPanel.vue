@@ -55,6 +55,21 @@ const currentImageBlocks = computed(() => {
   return props.imageBlocksMap.get(props.selectedImageId) || [];
 });
 
+// 计算实际使用的切割线位置（从图片块中提取）
+const usedCutLineYPositions = computed(() => {
+  if (currentImageBlocks.value.length === 0) return new Set<number>();
+  
+  const positions = new Set<number>();
+  // 从图片块的 endY 提取切割位置（除了最后一块）
+  currentImageBlocks.value.forEach((block, index) => {
+    if (index < currentImageBlocks.value.length - 1) {
+      positions.add(block.endY);
+    }
+  });
+  
+  return positions;
+});
+
 // 处理文件上传
 const handleFiles = async (files: FileList | File[]) => {
   const fileArray = Array.from(files);
@@ -208,11 +223,17 @@ const drawOriginalWithLines = () => {
   
   // 绘制切割线
   if (currentCutLines.value.length > 0) {
-    ctx.strokeStyle = '#ff4444';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
+    const usedPositions = usedCutLineYPositions.value;
     
     currentCutLines.value.forEach(line => {
+      const isUsed = usedPositions.has(line.y);
+      
+      // 实际使用的切割线：绿色实线
+      // 未使用的切割线：红色虚线
+      ctx.strokeStyle = isUsed ? '#00cc66' : '#ff4444';
+      ctx.lineWidth = isUsed ? 2.5 : 1.5;
+      ctx.setLineDash(isUsed ? [] : [5, 5]);
+      
       ctx.beginPath();
       ctx.moveTo(0, line.y);
       ctx.lineTo(canvas.width, line.y);

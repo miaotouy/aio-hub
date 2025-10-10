@@ -113,6 +113,12 @@ const slicerMinCutHeight = computed({
   set: (value) => updateSlicerConfig({ minCutHeight: value }),
 });
 
+// 切割线偏移
+const slicerCutLineOffset = computed({
+  get: () => props.slicerConfig.cutLineOffset,
+  set: (value) => updateSlicerConfig({ cutLineOffset: value }),
+});
+
 // 获取选中的图片
 const selectedImage = computed(() => {
   if (!props.selectedImageId) return null;
@@ -543,7 +549,7 @@ defineExpose({
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                单色像素占比 < {{ (slicerBlankThreshold * 100).toFixed(0) }}% 视为空白行
+                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}% 视为空白行（颜色越单一，方差越小）
               </el-text>
             </el-form-item>
 
@@ -570,7 +576,21 @@ defineExpose({
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                切割后的块至少高 {{ slicerMinCutHeight }}px，更小的块会被跳过
+                切割块的最小高度 {{ slicerMinCutHeight }}px，小于此值的块将与相邻块合并
+              </el-text>
+            </el-form-item>
+
+            <el-form-item label="切割线偏移">
+              <el-slider
+                v-model="slicerCutLineOffset"
+                :min="-1"
+                :max="1"
+                :step="0.1"
+                show-input
+                :show-input-controls="false"
+              />
+              <el-text size="small" type="info">
+                调整切割位置：{{ slicerCutLineOffset < 0 ? '向上偏移' : slicerCutLineOffset > 0 ? '向下偏移' : '居中' }}
               </el-text>
             </el-form-item>
           </template>

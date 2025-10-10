@@ -17,6 +17,7 @@ const emit = defineEmits<{
   'imageSelect': [imageId: string];
   'sliceImage': [imageId: string];
   'sliceAllImages': [];
+  'clearAllImages': [];
 }>();
 
 // 预览容器引用
@@ -309,6 +310,15 @@ onUnmounted(() => {
         <el-tag v-if="uploadedImages.length > 0" type="info" size="small">
           {{ uploadedImages.length }} 张图片
         </el-tag>
+        <el-button
+          v-if="uploadedImages.length > 0"
+          size="small"
+          type="danger"
+          :icon="Delete"
+          @click="emit('clearAllImages')"
+        >
+          清除全部
+        </el-button>
         <el-button
           v-if="uploadedImages.length > 0"
           size="small"

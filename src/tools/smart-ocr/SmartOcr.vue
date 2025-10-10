@@ -164,6 +164,16 @@ const handleImageRemove = (imageId: string) => {
   }
 };
 
+// 处理清除所有图片
+const handleClearAllImages = () => {
+  uploadedImages.value = [];
+  cutLinesMap.value.clear();
+  imageBlocksMap.value.clear();
+  selectedImageId.value = null;
+  ocrResults.value = [];
+  ElMessage.success('已清除所有图片');
+};
+
 // 处理图片选择
 const handleImageSelect = (imageId: string) => {
   selectedImageId.value = imageId;
@@ -298,6 +308,7 @@ const handleToggleIgnore = (blockId: string) => {
         @image-select="handleImageSelect"
         @slice-image="handleSliceImage"
         @slice-all-images="handleSliceAllImages"
+        @clear-all-images="handleClearAllImages"
       />
     </div>
 

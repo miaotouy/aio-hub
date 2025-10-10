@@ -10,6 +10,7 @@ import {
   type AppSettings,
 } from "../utils/appSettings";
 import { toolsConfig } from "../config/tools";
+import { settingsModules } from "../config/settings";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -98,7 +99,7 @@ const handleScroll = throttle(() => {
   const container = contentRef.value;
   if (!container) return;
 
-  const sections = ["general", "tools", "about"];
+  const sections = settingsModules.map((m) => m.id);
   const containerHeight = container.clientHeight;
 
   // 查找当前在视口中最靠近顶部的 section
@@ -170,29 +171,29 @@ const applyThemeColor = (color: string) => {
   // 设置 CSS 变量
   const root = document.documentElement;
   root.style.setProperty("--primary-color", color);
-  
+
   // 计算悬停色（变亮）
   const hoverColor = lightenColor(color, 20);
   root.style.setProperty("--primary-hover-color", hoverColor);
-  
+
   // 计算 RGB 值
   const rgb = hexToRgb(color);
   if (rgb) {
     root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
   }
-  
+
   // 同步 Element Plus 变量
   root.style.setProperty("--el-color-primary", color);
   root.style.setProperty("--el-color-primary-light-3", hoverColor);
   root.style.setProperty("--el-color-primary-light-5", hoverColor);
   root.style.setProperty("--el-color-primary-light-7", hoverColor);
   root.style.setProperty("--el-color-primary-light-9", hoverColor);
-  
+
   // 缓存到 localStorage 以避免下次启动时的闪烁
   try {
-    localStorage.setItem('app-theme-color', color);
+    localStorage.setItem("app-theme-color", color);
   } catch (error) {
-    console.warn('Failed to cache theme color:', error);
+    console.warn("Failed to cache theme color:", error);
   }
 };
 
@@ -211,11 +212,11 @@ const hexToRgb = (hex: string) => {
 const lightenColor = (hex: string, percent: number) => {
   const rgb = hexToRgb(hex);
   if (!rgb) return hex;
-  
+
   const r = Math.min(255, Math.floor(rgb.r + (255 - rgb.r) * (percent / 100)));
   const g = Math.min(255, Math.floor(rgb.g + (255 - rgb.g) * (percent / 100)));
   const b = Math.min(255, Math.floor(rgb.b + (255 - rgb.b) * (percent / 100)));
-  
+
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 };
 
@@ -411,12 +412,12 @@ onMounted(async () => {
 
   // 应用主题
   applyTheme(settings.value.theme || "auto");
-  
+
   // 应用主题色
   if (settings.value.themeColor) {
     applyThemeColor(settings.value.themeColor);
     // 如果是自定义颜色，更新记忆
-    if (!presetColors.find(p => p.color === settings.value.themeColor)) {
+    if (!presetColors.find((p) => p.color === settings.value.themeColor)) {
       customColor.value = settings.value.themeColor;
       lastCustomColor.value = settings.value.themeColor;
     }
@@ -475,28 +476,15 @@ onUnmounted(() => {
       <!-- 左侧导航 -->
       <aside class="settings-nav">
         <h1 class="nav-title">设置</h1>
-
         <div class="nav-menu">
           <button
+            v-for="module in settingsModules"
+            :key="module.id"
             class="nav-menu-item"
-            :class="{ active: activeSection === 'general' }"
-            @click="handleSelect('general')"
+            :class="{ active: activeSection === module.id }"
+            @click="handleSelect(module.id)"
           >
-            通用设置
-          </button>
-          <button
-            class="nav-menu-item"
-            :class="{ active: activeSection === 'tools' }"
-            @click="handleSelect('tools')"
-          >
-            工具模块
-          </button>
-          <button
-            class="nav-menu-item"
-            :class="{ active: activeSection === 'about' }"
-            @click="handleSelect('about')"
-          >
-            关于
+            {{ module.title }}
           </button>
         </div>
 
@@ -507,210 +495,237 @@ onUnmounted(() => {
 
       <!-- 右侧内容 -->
       <div class="settings-content" ref="contentRef" @scroll="handleScroll">
-        <!-- 通用设置 -->
-        <section id="general" class="settings-section">
-          <h2 class="section-title">通用设置</h2>
+        <template v-for="module in settingsModules" :key="module.id">
+          <!-- 动态组件模块 -->
+          <section
+            v-if="module.component"
+            :id="module.id"
+            class="settings-section component-section"
+          >
+            <h2 class="section-title">{{ module.title }}</h2>
+            <component :is="module.component" />
+          </section>
 
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>最小化到托盘</span>
-              <el-tooltip content="关闭窗口时最小化到系统托盘而不是退出程序" placement="top">
-                <el-icon class="info-icon"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </div>
-            <el-switch v-model="settings.trayEnabled" />
-          </div>
+          <!-- 静态模块 -->
+          <!-- 通用设置 -->
+          <section v-if="module.id === 'general'" id="general" class="settings-section">
+            <h2 class="section-title">通用设置</h2>
 
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>主题设置</span>
-              <el-tooltip content="选择应用的主题模式" placement="top">
-                <el-icon class="info-icon"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </div>
-            <el-radio-group v-model="settings.theme">
-              <el-radio-button value="auto">跟随系统</el-radio-button>
-              <el-radio-button value="light">浅色</el-radio-button>
-              <el-radio-button value="dark">深色</el-radio-button>
-            </el-radio-group>
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>主题色</span>
-              <el-tooltip content="选择应用的主题色调" placement="top">
-                <el-icon class="info-icon"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </div>
-            <div class="theme-color-selector">
-              <div class="preset-colors">
-                <el-tooltip
-                  v-for="preset in presetColors"
-                  :key="preset.color"
-                  :content="preset.name"
-                  placement="top"
-                >
-                  <button
-                    class="color-item"
-                    :class="{ active: settings.themeColor === preset.color }"
-                    :style="{ backgroundColor: preset.color }"
-                    @click="selectPresetColor(preset.color)"
-                  >
-                    <span v-if="settings.themeColor === preset.color" class="check-mark">✓</span>
-                  </button>
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>最小化到托盘</span>
+                <el-tooltip content="关闭窗口时最小化到系统托盘而不是退出程序" placement="top">
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
                 </el-tooltip>
-                
-                <!-- 自定义颜色按钮 -->
-                <el-popover
-                  v-model:visible="showColorPicker"
-                  placement="bottom"
-                  :width="260"
-                  trigger="click"
-                  @before-enter="handleColorPickerOpen"
-                >
-                  <template #reference>
+              </div>
+              <el-switch v-model="settings.trayEnabled" />
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>主题设置</span>
+                <el-tooltip content="选择应用的主题模式" placement="top">
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
+                </el-tooltip>
+              </div>
+              <el-radio-group v-model="settings.theme">
+                <el-radio-button value="auto">跟随系统</el-radio-button>
+                <el-radio-button value="light">浅色</el-radio-button>
+                <el-radio-button value="dark">深色</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>主题色</span>
+                <el-tooltip content="选择应用的主题色调" placement="top">
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
+                </el-tooltip>
+              </div>
+              <div class="theme-color-selector">
+                <div class="preset-colors">
+                  <el-tooltip
+                    v-for="preset in presetColors"
+                    :key="preset.color"
+                    :content="preset.name"
+                    placement="top"
+                  >
                     <button
-                      class="color-item custom-color-btn"
-                      :class="{ active: !selectedPresetColor }"
-                      :style="{
-                        backgroundColor: !selectedPresetColor ? settings.themeColor : lastCustomColor,
-                        border: !selectedPresetColor ? 'none' : '2px dashed var(--border-color)'
-                      }"
-                      :title="!selectedPresetColor ? '当前自定义颜色' : '自定义颜色'"
+                      class="color-item"
+                      :class="{ active: settings.themeColor === preset.color }"
+                      :style="{ backgroundColor: preset.color }"
+                      @click="selectPresetColor(preset.color)"
                     >
-                      <span v-if="!selectedPresetColor" class="check-mark">✓</span>
-                      <span v-else class="custom-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <circle cx="13.5" cy="6.5" r="3.5"/>
-                          <circle cx="8.5" cy="11.5" r="3.5"/>
-                          <circle cx="15.5" cy="11.5" r="3.5"/>
-                        </svg>
-                      </span>
+                      <span v-if="settings.themeColor === preset.color" class="check-mark">✓</span>
                     </button>
-                  </template>
-                  
-                  <div class="custom-color-picker">
-                    <h4>自定义颜色</h4>
-                    <div class="color-input-group">
-                      <el-input
-                        v-model="customColor"
-                        placeholder="#409eff"
-                        :prefix-icon="null"
-                        maxlength="7"
-                      >
-                        <template #prepend>
-                          <input
-                            type="color"
-                            v-model="customColor"
-                            class="native-color-picker"
-                          />
-                        </template>
-                      </el-input>
-                    </div>
-                    <div class="color-preview" :style="{ backgroundColor: customColor }"></div>
-                    <div class="picker-actions">
-                      <el-button size="small" @click="showColorPicker = false">取消</el-button>
-                      <el-button type="primary" size="small" @click="applyCustomColor">
-                        应用
-                      </el-button>
-                    </div>
-                  </div>
-                </el-popover>
-                
-                <!-- 重置按钮 -->
-                <el-tooltip content="重置为默认颜色" placement="top">
-                  <button
-                    class="color-item reset-btn"
-                    @click="resetThemeColor"
+                  </el-tooltip>
+
+                  <!-- 自定义颜色按钮 -->
+                  <el-popover
+                    v-model:visible="showColorPicker"
+                    placement="bottom"
+                    :width="260"
+                    trigger="click"
+                    @before-enter="handleColorPickerOpen"
                   >
-                    <el-icon><Refresh /></el-icon>
-                  </button>
+                    <template #reference>
+                      <button
+                        class="color-item custom-color-btn"
+                        :class="{ active: !selectedPresetColor }"
+                        :style="{
+                          backgroundColor: !selectedPresetColor
+                            ? settings.themeColor
+                            : lastCustomColor,
+                          border: !selectedPresetColor ? 'none' : '2px dashed var(--border-color)',
+                        }"
+                        :title="!selectedPresetColor ? '当前自定义颜色' : '自定义颜色'"
+                      >
+                        <span v-if="!selectedPresetColor" class="check-mark">✓</span>
+                        <span v-else class="custom-icon">
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            <circle cx="13.5" cy="6.5" r="3.5" />
+                            <circle cx="8.5" cy="11.5" r="3.5" />
+                            <circle cx="15.5" cy="11.5" r="3.5" />
+                          </svg>
+                        </span>
+                      </button>
+                    </template>
+
+                    <div class="custom-color-picker">
+                      <h4>自定义颜色</h4>
+                      <div class="color-input-group">
+                        <el-input
+                          v-model="customColor"
+                          placeholder="#409eff"
+                          :prefix-icon="null"
+                          maxlength="7"
+                        >
+                          <template #prepend>
+                            <input type="color" v-model="customColor" class="native-color-picker" />
+                          </template>
+                        </el-input>
+                      </div>
+                      <div class="color-preview" :style="{ backgroundColor: customColor }"></div>
+                      <div class="picker-actions">
+                        <el-button size="small" @click="showColorPicker = false">取消</el-button>
+                        <el-button type="primary" size="small" @click="applyCustomColor">
+                          应用
+                        </el-button>
+                      </div>
+                    </div>
+                  </el-popover>
+
+                  <!-- 重置按钮 -->
+                  <el-tooltip content="重置为默认颜色" placement="top">
+                    <button class="color-item reset-btn" @click="resetThemeColor">
+                      <el-icon>
+                        <Refresh />
+                      </el-icon>
+                    </button>
+                  </el-tooltip>
+                </div>
+
+                <!-- 当前颜色显示 -->
+                <div class="current-color-info">
+                  <span class="color-label">当前：</span>
+                  <span class="color-value">{{ settings.themeColor }}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 工具模块设置 -->
+          <section v-if="module.id === 'tools'" id="tools" class="settings-section">
+            <h2 class="section-title">工具模块</h2>
+
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>工具模块显示</span>
+                <el-tooltip content="选择要在主页显示的工具模块" placement="top">
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
                 </el-tooltip>
               </div>
-              
-              <!-- 当前颜色显示 -->
-              <div class="current-color-info">
-                <span class="color-label">当前：</span>
-                <span class="color-value">{{ settings.themeColor }}</span>
+            </div>
+
+            <div class="tools-list">
+              <div v-for="tool in toolsConfig" :key="tool.path" class="tool-item">
+                <el-checkbox
+                  v-if="settings.toolsVisible"
+                  v-model="settings.toolsVisible[getToolIdFromPath(tool.path)]"
+                >
+                  <div class="tool-checkbox-content">
+                    <el-icon class="tool-icon">
+                      <component :is="tool.icon" />
+                    </el-icon>
+                    <div class="tool-info">
+                      <span class="tool-name">{{ tool.name }}</span>
+                      <span v-if="tool.description" class="tool-description">{{
+                        tool.description
+                      }}</span>
+                    </div>
+                  </div>
+                </el-checkbox>
               </div>
             </div>
-          </div>
-        </section>
 
-        <!-- 工具模块设置 -->
-        <section id="tools" class="settings-section">
-          <h2 class="section-title">工具模块</h2>
+            <el-divider />
 
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>工具模块显示</span>
-              <el-tooltip content="选择要在主页显示的工具模块" placement="top">
-                <el-icon class="info-icon"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </div>
-          </div>
-
-          <div class="tools-list">
-            <div v-for="tool in toolsConfig" :key="tool.path" class="tool-item">
-              <el-checkbox
-                v-if="settings.toolsVisible"
-                v-model="settings.toolsVisible[getToolIdFromPath(tool.path)]"
+            <div class="batch-actions">
+              <el-button
+                size="small"
+                @click="
+                  Object.keys(settings.toolsVisible || {}).forEach(
+                    (k) => (settings.toolsVisible![k] = true)
+                  )
+                "
               >
-                <div class="tool-checkbox-content">
-                  <el-icon class="tool-icon"><component :is="tool.icon" /></el-icon>
-                  <div class="tool-info">
-                    <span class="tool-name">{{ tool.name }}</span>
-                    <span v-if="tool.description" class="tool-description">{{
-                      tool.description
-                    }}</span>
-                  </div>
-                </div>
-              </el-checkbox>
+                全选
+              </el-button>
+              <el-button
+                size="small"
+                @click="
+                  Object.keys(settings.toolsVisible || {}).forEach(
+                    (k) => (settings.toolsVisible![k] = false)
+                  )
+                "
+              >
+                全不选
+              </el-button>
             </div>
-          </div>
+          </section>
 
-          <el-divider />
+          <!-- 关于 -->
+          <section v-if="module.id === 'about'" id="about" class="settings-section">
+            <h2 class="section-title">关于</h2>
 
-          <div class="batch-actions">
-            <el-button
-              size="small"
-              @click="
-                Object.keys(settings.toolsVisible || {}).forEach(
-                  (k) => (settings.toolsVisible![k] = true)
-                )
-              "
-            >
-              全选
-            </el-button>
-            <el-button
-              size="small"
-              @click="
-                Object.keys(settings.toolsVisible || {}).forEach(
-                  (k) => (settings.toolsVisible![k] = false)
-                )
-              "
-            >
-              全不选
-            </el-button>
-          </div>
-        </section>
-
-        <!-- 关于 -->
-        <section id="about" class="settings-section">
-          <h2 class="section-title">关于</h2>
-
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>应用信息</span>
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>应用信息</span>
+              </div>
+              <el-button @click="showAbout" size="small">查看详情</el-button>
             </div>
-            <el-button @click="showAbout" size="small">查看详情</el-button>
-          </div>
 
-          <div class="about-info">
-            <p>{{ appInfo.name }}</p>
-            <p class="version">版本：{{ appInfo.version }}</p>
-          </div>
-        </section>
+            <div class="about-info">
+              <p>{{ appInfo.name }}</p>
+              <p class="version">版本：{{ appInfo.version }}</p>
+            </div>
+          </section>
+        </template>
       </div>
     </div>
   </div>
@@ -719,7 +734,8 @@ onUnmounted(() => {
 <style scoped>
 .settings-page {
   height: 100%;
-  overflow: hidden; /* 由右侧内容滚动 */
+  overflow: hidden;
+  /* 由右侧内容滚动 */
   padding: 20px;
   background: var(--bg-color);
   box-sizing: border-box;
@@ -813,7 +829,8 @@ onUnmounted(() => {
 }
 
 .nav-actions {
-  margin-top: auto; /* 底部对齐 */
+  margin-top: auto;
+  /* 底部对齐 */
   padding-top: 16px;
 }
 
@@ -834,7 +851,8 @@ onUnmounted(() => {
 
 /* 添加 CSS 变量支持 */
 :root {
-  --primary-color-rgb: 64, 158, 255; /* 默认蓝色 */
+  --primary-color-rgb: 64, 158, 255;
+  /* 默认蓝色 */
 }
 
 /* 暗色模式下的主色调 RGB */
@@ -1061,14 +1079,20 @@ onUnmounted(() => {
 }
 
 .custom-color-btn:not(.active)::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   width: 100%;
   height: 100%;
-  background: linear-gradient(45deg, transparent 48%, var(--border-color) 49%, var(--border-color) 51%, transparent 52%);
+  background: linear-gradient(
+    45deg,
+    transparent 48%,
+    var(--border-color) 49%,
+    var(--border-color) 51%,
+    transparent 52%
+  );
   pointer-events: none;
 }
 
@@ -1151,5 +1175,38 @@ onUnmounted(() => {
   font-family: monospace;
   color: var(--text-color);
   font-weight: 500;
+}
+
+/* 动态组件 section 特殊样式 */
+.component-section {
+  padding: 0;
+  overflow: hidden;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.component-section .section-title {
+  padding: 24px 24px 12px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.component-section :deep(.llm-service-settings) {
+  padding: 0 24px 24px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.component-section :deep(.llm-service-settings .settings-layout) {
+  flex: 1;
+  min-height: 0;
+}
+
+.component-section :deep(.llm-service-settings .profile-list),
+.component-section :deep(.llm-service-settings .profile-detail) {
+  min-height: 500px;
 }
 </style>

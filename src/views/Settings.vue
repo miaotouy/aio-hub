@@ -1192,21 +1192,4 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.component-section :deep(.llm-service-settings) {
-  padding: 0 24px 24px;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.component-section :deep(.llm-service-settings .settings-layout) {
-  flex: 1;
-  min-height: 0;
-}
-
-.component-section :deep(.llm-service-settings .profile-list),
-.component-section :deep(.llm-service-settings .profile-detail) {
-  min-height: 500px;
-}
 </style>

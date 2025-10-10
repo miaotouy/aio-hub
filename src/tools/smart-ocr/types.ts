@@ -24,6 +24,8 @@ export type OcrEngineConfig =
       prompt: string;    // OCR 提示词
       temperature?: number;  // 温度参数
       maxTokens?: number;    // 最大 token 数
+      concurrency?: number;  // 并发数
+      delay?: number;        // 请求延迟（毫秒）
     }
   | {
       type: 'cloud';
@@ -57,6 +59,8 @@ export interface VlmEngineConfig {
   prompt: string;
   temperature: number;
   maxTokens: number;
+  concurrency: number; // 并发数
+  delay: number; // 请求延迟（毫秒）
 }
 
 /**

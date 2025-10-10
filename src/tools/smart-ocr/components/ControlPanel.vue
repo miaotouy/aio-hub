@@ -83,6 +83,18 @@ const engineMaxTokens = computed({
   set: (value) => updateEngineConfig({ maxTokens: value } as any),
 });
 
+// VLM 并发数
+const engineConcurrency = computed({
+  get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.concurrency ?? 3 : 3),
+  set: (value) => updateEngineConfig({ concurrency: value } as any),
+});
+
+// VLM 请求延迟
+const engineDelay = computed({
+  get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.delay ?? 0 : 0),
+  set: (value) => updateEngineConfig({ delay: value } as any),
+});
+
 // 切图启用
 const slicerEnabled = computed({
   get: () => props.slicerConfig.enabled,
@@ -508,6 +520,34 @@ defineExpose({
                 style="width: 100%"
               />
               <el-text size="small" type="info"> 限制模型生成的最大 token 数量 </el-text>
+            </el-form-item>
+
+            <el-form-item label="并发数">
+              <el-slider
+                v-model="engineConcurrency"
+                :min="1"
+                :max="10"
+                :step="1"
+                show-input
+                :show-input-controls="false"
+              />
+              <el-text size="small" type="info">
+                同时处理 {{ engineConcurrency }} 个图片块，提高识别速度
+              </el-text>
+            </el-form-item>
+
+            <el-form-item label="请求延迟 (ms)">
+              <el-slider
+                v-model="engineDelay"
+                :min="0"
+                :max="5000"
+                :step="100"
+                show-input
+                :show-input-controls="false"
+              />
+              <el-text size="small" type="info">
+                每个请求之间延迟 {{ engineDelay }}ms，避免触发 API 限流
+              </el-text>
             </el-form-item>
           </template>
         </el-form>

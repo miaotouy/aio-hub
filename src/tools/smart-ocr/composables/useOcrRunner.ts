@@ -199,17 +199,21 @@ export function useOcrRunner() {
     console.log('使用 VLM 引擎识别...');
 
     const { sendRequest } = useLlmRequest();
+    const concurrency = config.concurrency ?? 3;
+    const delay = config.delay ?? 0;
 
-    // 逐个识别图片块
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i];
+    console.log(`并发数: ${concurrency}, 延迟: ${delay}ms`);
+
+    // 并发处理函数
+    const processBlock = async (index: number) => {
+      const block = blocks[index];
 
       // 更新状态为处理中
-      results[i].status = 'processing';
+      results[index].status = 'processing';
       onProgress?.([...results]);
 
       try {
-        console.log(`识别第 ${i + 1}/${blocks.length} 个图片块...`);
+        console.log(`识别第 ${index + 1}/${blocks.length} 个图片块...`);
 
         // 将 canvas 转换为 base64
         const imageBase64 = block.canvas.toDataURL('image/png').split(',')[1];
@@ -221,30 +225,43 @@ export function useOcrRunner() {
           messages: [
             {
               type: 'text',
-              text: '请识别图片中的所有文字内容，保持原有格式和换行。直接输出文字内容，不要添加任何解释或说明。'
+              text: config.prompt || '请识别图片中的所有文字内容，保持原有格式和换行。直接输出文字内容，不要添加任何解释或说明。'
             },
             {
               type: 'image',
               imageBase64
             }
           ],
-          maxTokens: 2000,
-          temperature: 0
+          maxTokens: config.maxTokens ?? 2000,
+          temperature: config.temperature ?? 0
         });
 
         // 更新结果
-        results[i].text = response.content.trim();
-        results[i].status = 'success';
+        results[index].text = response.content.trim();
+        results[index].status = 'success';
 
-        console.log(`第 ${i + 1} 个块识别完成`);
+        console.log(`第 ${index + 1} 个块识别完成`);
       } catch (error) {
-        console.error(`第 ${i + 1} 个块识别失败:`, error);
-        results[i].status = 'error';
-        results[i].error = (error as Error).message;
+        console.error(`第 ${index + 1} 个块识别失败:`, error);
+        results[index].status = 'error';
+        results[index].error = (error as Error).message;
       }
 
       // 通知进度更新
       onProgress?.([...results]);
+
+      // 添加延迟
+      if (delay > 0 && index < blocks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    };
+
+    // 使用并发控制处理所有块
+    const indices = Array.from({ length: blocks.length }, (_, i) => i);
+    
+    for (let i = 0; i < indices.length; i += concurrency) {
+      const batch = indices.slice(i, i + concurrency);
+      await Promise.all(batch.map(index => processBlock(index)));
     }
   };
 

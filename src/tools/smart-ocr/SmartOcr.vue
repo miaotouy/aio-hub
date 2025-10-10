@@ -71,7 +71,13 @@ const engineConfig = computed<OcrEngineConfig>({
               : newEngineConfigs.vlm.temperature,
             maxTokens: (newConfig as any).maxTokens !== undefined
               ? (newConfig as any).maxTokens
-              : newEngineConfigs.vlm.maxTokens
+              : newEngineConfigs.vlm.maxTokens,
+            concurrency: (newConfig as any).concurrency !== undefined
+              ? (newConfig as any).concurrency
+              : newEngineConfigs.vlm.concurrency,
+            delay: (newConfig as any).delay !== undefined
+              ? (newConfig as any).delay
+              : newEngineConfigs.vlm.delay
           };
           break;
         case 'cloud':

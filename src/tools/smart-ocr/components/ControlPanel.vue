@@ -294,35 +294,49 @@ const handleBatchOcr = async () => {
                 空白区域至少 {{ localSlicerConfig.minBlankHeight }}px 才切割
               </el-text>
             </el-form-item>
+            
+            <el-form-item label="最小切割高度">
+              <el-slider
+                v-model="localSlicerConfig.minCutHeight"
+                :min="20"
+                :max="1000"
+                :step="10"
+                show-input
+                :show-input-controls="false"
+              />
+              <el-text size="small" type="info">
+                切割后的块至少高 {{ localSlicerConfig.minCutHeight }}px，更小的块会被跳过
+              </el-text>
+            </el-form-item>
           </template>
         </el-form>
       </el-card>
+    </div>
+    
+    <!-- 操作按钮 - 固定在底部 -->
+    <div class="panel-footer">
+      <el-button
+        type="primary"
+        size="large"
+        :disabled="!selectedImage || isProcessing"
+        :loading="isProcessing"
+        @click="handleStartOcr"
+        style="width: 100%"
+      >
+        {{ isProcessing ? '识别中...' : '识别当前图片' }}
+      </el-button>
       
-      <!-- 操作按钮 -->
-      <div class="action-buttons">
-        <el-button
-          type="primary"
-          size="large"
-          :disabled="!selectedImage || isProcessing"
-          :loading="isProcessing"
-          @click="handleStartOcr"
-          style="width: 100%"
-        >
-          {{ isProcessing ? '识别中...' : '识别当前图片' }}
-        </el-button>
-        
-        <el-button
-          v-if="uploadedImages.length > 1"
-          type="success"
-          size="large"
-          :disabled="uploadedImages.length === 0 || isProcessing"
-          :loading="isProcessing"
-          @click="handleBatchOcr"
-          style="width: 100%; margin-top: 12px"
-        >
-          批量识别全部
-        </el-button>
-      </div>
+      <el-button
+        v-if="uploadedImages.length > 1"
+        type="success"
+        size="large"
+        :disabled="uploadedImages.length === 0 || isProcessing"
+        :loading="isProcessing"
+        @click="handleBatchOcr"
+        style="width: 100%; margin-top: 12px"
+      >
+        批量识别全部
+      </el-button>
     </div>
   </div>
 </template>
@@ -349,6 +363,7 @@ const handleBatchOcr = async () => {
 .panel-content {
   flex: 1;
   padding: 20px;
+  padding-bottom: 16px;
   overflow-y: auto;
 }
 
@@ -367,8 +382,9 @@ const handleBatchOcr = async () => {
   font-weight: 600;
 }
 
-.action-buttons {
-  margin-top: 20px;
+.panel-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
 }
 
 /* Element Plus 组件样式覆盖 */

@@ -21,7 +21,8 @@ const slicerConfig = ref<SlicerConfig>({
   enabled: true,
   aspectRatioThreshold: 3,
   blankThreshold: 0.05, // 5%的黑色像素占比阈值
-  minBlankHeight: 20
+  minBlankHeight: 20,
+  minCutHeight: 10 // 最小切割块高度
 });
 
 // 切图相关状态（按图片ID分组）
@@ -135,7 +136,7 @@ const handleOcrComplete = () => {
 }
 
 .left-panel {
-  flex: 0 0 320px;
+  flex: 0 0 360px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -155,7 +156,7 @@ const handleOcrComplete = () => {
 }
 
 .right-panel {
-  flex: 0 0 380px;
+  flex: 0 0 420px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;

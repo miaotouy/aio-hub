@@ -62,6 +62,7 @@ export interface SlicerConfig {
   aspectRatioThreshold: number; // 长宽比阈值，超过此值才触发切图
   blankThreshold: number; // 空白行判定阈值：黑色像素占比小于此值视为空白行（0-1，默认0.05表示5%）
   minBlankHeight: number; // 最小空白横带高度（像素）
+  minCutHeight: number; // 最小切割块高度（像素），小于此高度的块会被跳过
 }
 
 /**

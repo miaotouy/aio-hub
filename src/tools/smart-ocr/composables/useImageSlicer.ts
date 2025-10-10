@@ -158,7 +158,8 @@ export function useImageSlicer() {
   const splitImage = (
     originalImage: HTMLImageElement,
     cutLines: CutLine[],
-    imageId: string
+    imageId: string,
+    config: SlicerConfig
   ): ImageBlock[] => {
     const blocks: ImageBlock[] = [];
     const height = originalImage.height;
@@ -206,7 +207,7 @@ export function useImageSlicer() {
       const blockHeight = region.endY - region.startY;
       
       // 跳过太小的块
-      if (blockHeight < 10) return;
+      if (blockHeight < config.minCutHeight) return;
       
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -269,7 +270,7 @@ export function useImageSlicer() {
     console.log('找到切割线:', cutLines.length);
     
     // 5. 分割图像
-    const blocks = splitImage(image, cutLines, imageId);
+    const blocks = splitImage(image, cutLines, imageId, config);
     console.log('生成图片块:', blocks.length);
     
     return { blocks, lines: cutLines };

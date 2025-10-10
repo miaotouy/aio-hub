@@ -63,9 +63,9 @@ export interface LlmProfile {
    */
   baseUrl: string;
   /**
-   * API Key
+   * API Keys 列表，支持多个 Key 用于负载均衡和轮询
    */
-  apiKey: string;
+  apiKeys: string[];
   /**
    * 是否启用该配置
    */
@@ -74,4 +74,12 @@ export interface LlmProfile {
    * 该配置下用户添加的可用模型列表
    */
   models: LlmModelInfo[];
+  /**
+   * 渠道 Logo 的 URL 地址（可选）
+   */
+  logoUrl?: string;
+  /**
+   * 自定义请求头（可选）
+   */
+  customHeaders?: Record<string, string>;
 }

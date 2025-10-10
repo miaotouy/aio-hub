@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Setting } from '@element-plus/icons-vue';
 import type { OcrEngineConfig, SlicerConfig, ImageBlock, CutLine, OcrResult, UploadedImage } from '../types';
 import { useImageSlicer } from '../composables/useImageSlicer';
 import { useOcrRunner } from '../composables/useOcrRunner';
+import { useLlmProfiles } from '../../../composables/useLlmProfiles';
+import type { LlmProfile, LlmModelInfo } from '../../../types/llm-profiles';
 
 const props = defineProps<{
   engineConfig: OcrEngineConfig;
@@ -26,6 +28,7 @@ const emit = defineEmits<{
 // 使用 composables
 const { sliceImage } = useImageSlicer();
 const { runOcr } = useOcrRunner();
+const { visionProfiles } = useLlmProfiles();
 
 // 计算属性
 const localEngineConfig = computed({
@@ -42,6 +45,91 @@ const localSlicerConfig = computed({
 const selectedImage = computed(() => {
   if (!props.selectedImageId) return null;
   return props.uploadedImages.find(img => img.id === props.selectedImageId);
+});
+
+// 获取所有可用的视觉模型（按 profile 分组）
+const availableVisionModels = computed(() => {
+  const models: Array<{
+    value: string; // 格式: profileId:modelId
+    label: string;
+    group: string;
+    profile: LlmProfile;
+    model: LlmModelInfo;
+  }> = [];
+  
+  visionProfiles.value.forEach((profile: LlmProfile) => {
+    profile.models.forEach((model: LlmModelInfo) => {
+      if (model.isVision) {
+        models.push({
+          value: `${profile.id}:${model.id}`,
+          label: model.name,
+          group: `${profile.name} (${profile.type})`,
+          profile,
+          model
+        });
+      }
+    });
+  });
+  
+  return models;
+});
+
+// 当前选中的模型组合值
+const selectedModelCombo = computed({
+  get: () => {
+    const config = localEngineConfig.value;
+    if (config.type !== 'vlm') return '';
+    return `${config.profileId}:${config.modelId}`;
+  },
+  set: (value: string) => {
+    if (!value) return;
+    const [profileId, modelId] = value.split(':');
+    const config = localEngineConfig.value;
+    if (config.type === 'vlm') {
+      config.profileId = profileId;
+      config.modelId = modelId;
+    }
+  }
+});
+
+// 监听引擎类型变化，自动初始化对应配置
+watch(() => localEngineConfig.value.type, (newType, oldType) => {
+  if (newType === oldType) return;
+  
+  // 切换到不同类型时，重新初始化配置
+  if (newType === 'native') {
+    localEngineConfig.value = {
+      type: 'native',
+      name: 'Native OCR'
+    };
+  } else if (newType === 'tesseract') {
+    localEngineConfig.value = {
+      type: 'tesseract',
+      name: 'Tesseract.js',
+      language: 'chi_sim+eng'
+    };
+  } else if (newType === 'vlm') {
+    // 自动选择第一个可用的 profile 和模型
+    const firstProfile = visionProfiles.value[0];
+    const firstModel = firstProfile?.models.find((m: LlmModelInfo) => m.isVision);
+    
+    localEngineConfig.value = {
+      type: 'vlm',
+      name: 'Vision Language Model',
+      profileId: firstProfile?.id || '',
+      modelId: firstModel?.id || '',
+      prompt: '请识别图片中的所有文字内容，直接输出文字，不要添加任何解释。',
+      temperature: 0.3,
+      maxTokens: 4096
+    };
+  } else if (newType === 'cloud') {
+    localEngineConfig.value = {
+      type: 'cloud',
+      name: 'Cloud OCR',
+      apiEndpoint: '',
+      apiKey: ''
+    };
+  }
 });
 
 // 开始识别
@@ -218,8 +306,16 @@ const handleBatchOcr = async () => {
               <el-option label="Native OCR (系统原生)" value="native" />
               <el-option label="Tesseract.js (本地)" value="tesseract" />
               <el-option label="云端OCR" value="cloud" disabled />
-              <el-option label="视觉语言模型" value="vlm" disabled />
+              <el-option label="视觉语言模型 (VLM)" value="vlm" />
             </el-select>
+            <el-text
+              v-if="localEngineConfig.type === 'vlm' && visionProfiles.length === 0"
+              size="small"
+              type="warning"
+              style="margin-top: 8px; display: block;"
+            >
+              请先在设置中配置 LLM 服务并添加视觉模型
+            </el-text>
           </el-form-item>
           
           <el-form-item v-if="localEngineConfig.type === 'tesseract'" label="识别语言">
@@ -232,6 +328,79 @@ const handleBatchOcr = async () => {
               <el-option label="韩文" value="kor" />
             </el-select>
           </el-form-item>
+          
+          <template v-if="localEngineConfig.type === 'vlm'">
+            <el-form-item label="视觉模型">
+              <el-select
+                v-model="selectedModelCombo"
+                style="width: 100%"
+                placeholder="选择模型"
+                :disabled="availableVisionModels.length === 0"
+              >
+                <el-option-group
+                  v-for="group in [...new Set(availableVisionModels.map(m => m.group))]"
+                  :key="group"
+                  :label="group"
+                >
+                  <el-option
+                    v-for="item in availableVisionModels.filter(m => m.group === group)"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  >
+                    <span>{{ item.label }}</span>
+                    <el-text v-if="item.model.group" size="small" type="info" style="margin-left: 8px">
+                      {{ item.model.group }}
+                    </el-text>
+                  </el-option>
+                </el-option-group>
+              </el-select>
+              <el-text
+                v-if="availableVisionModels.length === 0"
+                size="small"
+                type="warning"
+                style="margin-top: 8px; display: block;"
+              >
+                请先在设置中配置 LLM 服务并添加视觉模型
+              </el-text>
+            </el-form-item>
+            
+            <el-form-item label="识别提示词">
+              <el-input
+                v-model="localEngineConfig.prompt"
+                type="textarea"
+                :rows="3"
+                placeholder="输入 OCR 识别的提示词"
+              />
+            </el-form-item>
+            
+            <el-form-item label="温度参数">
+              <el-slider
+                v-model="localEngineConfig.temperature"
+                :min="0"
+                :max="2"
+                :step="0.1"
+                show-input
+                :show-input-controls="false"
+              />
+              <el-text size="small" type="info">
+                较低的温度让输出更确定，较高的温度让输出更随机
+              </el-text>
+            </el-form-item>
+            
+            <el-form-item label="最大 Token 数">
+              <el-input-number
+                v-model="localEngineConfig.maxTokens"
+                :min="100"
+                :max="32000"
+                :step="64"
+                style="width: 100%"
+              />
+              <el-text size="small" type="info">
+                限制模型生成的最大 token 数量
+              </el-text>
+            </el-form-item>
+          </template>
         </el-form>
       </el-card>
       

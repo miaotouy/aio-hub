@@ -6,16 +6,31 @@ export type OcrEngineType = 'tesseract' | 'native' | 'vlm' | 'cloud';
 /**
  * OCR引擎配置
  */
-export interface OcrEngineConfig {
-  type: OcrEngineType;
-  name: string;
-  // VLM相关配置
-  apiEndpoint?: string;
-  apiKey?: string;
-  model?: string;
-  // Tesseract相关配置
-  language?: string;
-}
+export type OcrEngineConfig =
+  | {
+      type: 'tesseract';
+      name: string;
+      language: string;
+    }
+  | {
+      type: 'native';
+      name: string;
+    }
+  | {
+      type: 'vlm';
+      name: string;
+      profileId: string; // 对应 LlmProfile 的 id
+      modelId: string;   // 对应 LlmModelInfo 的 id
+      prompt: string;    // OCR 提示词
+      temperature?: number;  // 温度参数
+      maxTokens?: number;    // 最大 token 数
+    }
+  | {
+      type: 'cloud';
+      name: string;
+      apiEndpoint: string;
+      apiKey: string;
+    };
 
 /**
  * 上传的图片信息

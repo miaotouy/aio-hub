@@ -1,6 +1,7 @@
 import { createWorker, Worker } from 'tesseract.js';
 import { invoke } from '@tauri-apps/api/core';
 import type { ImageBlock, OcrEngineConfig, OcrResult } from '../types';
+import { useLlmRequest } from '../../../composables/useLlmRequest';
 
 /**
  * OCR 运行器 Composable
@@ -79,8 +80,7 @@ export function useOcrRunner() {
     } else if (config.type === 'native') {
       await recognizeWithNativeEngine(blocks, results, onProgress);
     } else if (config.type === 'vlm') {
-      // TODO: VLM 引擎实现
-      throw new Error('VLM引擎尚未实现');
+      await recognizeWithVlmEngine(blocks, config, results, onProgress);
     } else if (config.type === 'cloud') {
       // TODO: 云端 OCR 实现
       throw new Error('云端OCR尚未实现');
@@ -95,11 +95,11 @@ export function useOcrRunner() {
    */
   const recognizeWithTesseractEngine = async (
     blocks: ImageBlock[],
-    config: OcrEngineConfig,
+    config: Extract<OcrEngineConfig, { type: 'tesseract' }>,
     results: OcrResult[],
     onProgress?: (results: OcrResult[]) => void
   ) => {
-    const language = config.language || 'chi_sim+eng';
+    const language = config.language;
 
     // 初始化 worker
     console.log('初始化 Tesseract Worker...');
@@ -175,6 +175,67 @@ export function useOcrRunner() {
         results[i].status = 'success';
 
         console.log(`第 ${i + 1} 个块识别完成，置信度: ${(result.confidence * 100).toFixed(1)}%`);
+      } catch (error) {
+        console.error(`第 ${i + 1} 个块识别失败:`, error);
+        results[i].status = 'error';
+        results[i].error = (error as Error).message;
+      }
+
+      // 通知进度更新
+      onProgress?.([...results]);
+    }
+  };
+
+  /**
+   * 使用 VLM 引擎批量识别
+   */
+  const recognizeWithVlmEngine = async (
+    blocks: ImageBlock[],
+    config: Extract<OcrEngineConfig, { type: 'vlm' }>,
+    results: OcrResult[],
+    onProgress?: (results: OcrResult[]) => void
+  ) => {
+    console.log('使用 VLM 引擎识别...');
+
+    const { sendRequest } = useLlmRequest();
+
+    // 逐个识别图片块
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+
+      // 更新状态为处理中
+      results[i].status = 'processing';
+      onProgress?.([...results]);
+
+      try {
+        console.log(`识别第 ${i + 1}/${blocks.length} 个图片块...`);
+
+        // 将 canvas 转换为 base64
+        const imageBase64 = block.canvas.toDataURL('image/png').split(',')[1];
+
+        // 调用通用 LLM 请求中间件
+        const response = await sendRequest({
+          profileId: config.profileId,
+          modelId: config.modelId,
+          messages: [
+            {
+              type: 'text',
+              text: '请识别图片中的所有文字内容，保持原有格式和换行。直接输出文字内容，不要添加任何解释或说明。'
+            },
+            {
+              type: 'image',
+              imageBase64
+            }
+          ],
+          maxTokens: 2000,
+          temperature: 0
+        });
+
+        // 更新结果
+        results[i].text = response.content.trim();
+        results[i].status = 'success';
+
+        console.log(`第 ${i + 1} 个块识别完成`);
       } catch (error) {
         console.error(`第 ${i + 1} 个块识别失败:`, error);
         results[i].status = 'error';

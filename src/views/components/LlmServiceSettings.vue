@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Plus, Delete, Edit, Check, Close } from "@element-plus/icons-vue";
+import { Plus, Delete, Edit } from "@element-plus/icons-vue";
+import ServiceSettingsLayout from "./ServiceSettingsLayout.vue";
 import { useLlmProfiles } from "../../composables/useLlmProfiles";
 import { providerTypes, llmPresets } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
@@ -12,10 +13,6 @@ const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, 
 
 // 当前选中的配置
 const selectedProfileId = ref<string | null>(null);
-const selectedProfile = computed(() => {
-  if (!selectedProfileId.value) return null;
-  return profiles.value.find((p) => p.id === selectedProfileId.value) || null;
-});
 
 // 编辑状态
 const isEditing = ref(false);
@@ -204,383 +201,251 @@ const fetchModels = async () => {
 </script>
 
 <template>
-  <div class="llm-service-settings">
-    <div class="settings-layout">
-      <!-- 左侧：配置列表 -->
-      <div class="profile-list">
-        <div class="list-header">
-          <h3>LLM 服务</h3>
-          <el-button type="primary" :icon="Plus" size="small" @click="handleAddClick">
-            添加
-          </el-button>
+  <ServiceSettingsLayout
+    title="LLM 服务"
+    :profiles="profiles"
+    :selected-profile-id="selectedProfileId"
+    :is-editing="isEditing"
+    empty-state-text="还没有配置任何 LLM 服务"
+    @select="selectProfile"
+    @add="handleAddClick"
+    @edit="editProfile"
+    @delete="handleDelete"
+    @toggle="handleToggle"
+    @save="saveCurrentProfile"
+    @cancel="cancelEdit"
+  >
+    <!-- 列表项插槽：显示 LLM 特有信息 -->
+    <template #list-item="{ profile }">
+      <div class="profile-info">
+        <div class="profile-name">{{ profile.name }}</div>
+        <div class="profile-type">{{ getProviderTypeInfo(profile.type)?.name }}</div>
+        <div class="profile-models">{{ profile.models.length }} 个模型</div>
+      </div>
+    </template>
+
+    <!-- 查看内容插槽：显示 LLM 配置详情 -->
+    <template #view-content="{ profile }">
+      <div v-if="profile" class="llm-view-content">
+        <div class="info-item">
+          <label>服务类型</label>
+          <span>{{ getProviderTypeInfo(profile.type)?.name }}</span>
+        </div>
+        <div class="info-item">
+          <label>API 地址</label>
+          <span class="monospace">{{ profile.baseUrl }}</span>
+        </div>
+        <div class="info-item">
+          <label>API Key</label>
+          <span class="masked">{{
+            profile.apiKeys.length ? `${profile.apiKeys.length} 个密钥` : "未设置"
+          }}</span>
+        </div>
+        <div class="info-item">
+          <label>状态</label>
+          <el-tag :type="profile.enabled ? 'success' : 'info'" size="small">
+            {{ profile.enabled ? "已启用" : "已禁用" }}
+          </el-tag>
         </div>
 
-        <div class="list-content">
-          <div
-            v-for="profile in profiles"
-            :key="profile.id"
-            class="profile-item"
-            :class="{ active: selectedProfileId === profile.id }"
-            @click="selectProfile(profile.id)"
-          >
-            <div class="profile-info">
-              <div class="profile-name">{{ profile.name }}</div>
-              <div class="profile-type">{{ getProviderTypeInfo(profile.type)?.name }}</div>
-              <div class="profile-models">{{ profile.models.length }} 个模型</div>
-            </div>
-            <el-switch
-              :model-value="profile.enabled"
-              size="small"
-              @click.stop
-              @change="handleToggle(profile)"
-            />
-          </div>
+        <el-divider />
 
-          <div v-if="profiles.length === 0" class="empty-state">
-            <p>还没有配置任何 LLM 服务</p>
-            <p class="hint">点击上方"添加"按钮开始配置</p>
+        <div class="models-section">
+          <h4>已配置模型 ({{ profile.models.length }})</h4>
+          <div class="models-list">
+            <div v-for="model in profile.models" :key="model.id" class="model-card">
+              <div class="model-info">
+                <div class="model-name">{{ model.name }}</div>
+                <div class="model-id">{{ model.id }}</div>
+                <div v-if="model.group" class="model-group">分组: {{ model.group }}</div>
+              </div>
+              <el-tag v-if="model.isVision" type="success" size="small">VLM</el-tag>
+            </div>
           </div>
         </div>
       </div>
+    </template>
 
-      <!-- 右侧：配置详情 -->
-      <div class="profile-detail">
-        <div v-if="!selectedProfile && !isEditing" class="empty-detail">
-          <p>请选择或创建一个 LLM 服务配置</p>
-        </div>
+    <!-- 编辑表单插槽：LLM 配置编辑 -->
+    <template #edit-form>
+      <el-form :model="editForm" label-width="100px" label-position="left">
+        <el-form-item label="渠道名称">
+          <el-input
+            v-model="editForm.name"
+            placeholder="例如: 我的 OpenAI"
+            maxlength="50"
+            show-word-limit
+          />
+        </el-form-item>
 
-        <div v-else class="detail-content">
-          <!-- 查看模式 -->
-          <div v-if="!isEditing" class="view-mode">
-            <div class="detail-header">
-              <h3>{{ selectedProfile?.name }}</h3>
-              <div class="header-actions">
+        <el-form-item label="服务类型">
+          <el-select v-model="editForm.type" style="width: 100%">
+            <el-option
+              v-for="provider in providerTypes"
+              :key="provider.type"
+              :label="provider.name"
+              :value="provider.type"
+            >
+              <div>
+                <div>{{ provider.name }}</div>
+                <div style="font-size: 12px; color: var(--el-text-color-secondary)">
+                  {{ provider.description }}
+                </div>
+              </div>
+            </el-option>
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="API 地址">
+          <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com" />
+          <div class="form-hint">
+            默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}
+          </div>
+        </el-form-item>
+
+        <el-form-item label="API Key">
+          <el-input
+            v-model="apiKeyInput"
+            type="password"
+            placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
+            show-password
+            @blur="updateApiKeys"
+          />
+          <div v-if="editForm.apiKeys.length > 0" class="form-hint">
+            已配置 {{ editForm.apiKeys.length }} 个密钥
+          </div>
+        </el-form-item>
+
+        <el-divider />
+
+        <el-form-item label="模型配置">
+          <div class="models-editor">
+            <div class="models-header">
+              <span>已添加 {{ editForm.models.length }} 个模型</span>
+              <div class="models-actions">
                 <el-button
-                  type="primary"
-                  :icon="Edit"
+                  v-if="getProviderTypeInfo(editForm.type)?.supportsModelList"
                   size="small"
-                  @click="editProfile(selectedProfile!)"
+                  @click="fetchModels"
                 >
-                  编辑
+                  从 API 获取
                 </el-button>
-                <el-button
-                  type="danger"
-                  :icon="Delete"
-                  size="small"
-                  @click="handleDelete(selectedProfile!)"
-                >
-                  删除
+                <el-button type="primary" size="small" :icon="Plus" @click="addModel">
+                  手动添加
                 </el-button>
               </div>
             </div>
 
-            <div class="detail-body">
-              <div class="info-item">
-                <label>服务类型</label>
-                <span>{{ getProviderTypeInfo(selectedProfile!.type)?.name }}</span>
+            <div class="models-list">
+              <div
+                v-for="(model, index) in editForm.models"
+                :key="index"
+                class="model-edit-item"
+              >
+                <div class="model-info">
+                  <div class="model-name">{{ model.name }}</div>
+                  <div class="model-id">{{ model.id }}</div>
+                  <div v-if="model.group" class="model-group">{{ model.group }}</div>
+                </div>
+                <div class="model-badges">
+                  <el-tag v-if="model.isVision" type="success" size="small">VLM</el-tag>
+                </div>
+                <div class="model-actions">
+                  <el-button size="small" :icon="Edit" @click="editModel(index)" />
+                  <el-button
+                    size="small"
+                    type="danger"
+                    :icon="Delete"
+                    @click="deleteModel(index)"
+                  />
+                </div>
               </div>
-              <div class="info-item">
-                <label>API 地址</label>
-                <span class="monospace">{{ selectedProfile?.baseUrl }}</span>
-              </div>
-              <div class="info-item">
-                <label>API Key</label>
-                <span class="masked">{{
-                  selectedProfile?.apiKeys.length
-                    ? `${selectedProfile.apiKeys.length} 个密钥`
-                    : "未设置"
-                }}</span>
-              </div>
-              <div class="info-item">
-                <label>状态</label>
-                <el-tag :type="selectedProfile?.enabled ? 'success' : 'info'" size="small">
-                  {{ selectedProfile?.enabled ? "已启用" : "已禁用" }}
-                </el-tag>
-              </div>
+            </div>
+          </div>
+        </el-form-item>
+      </el-form>
+    </template>
 
-              <el-divider />
-
-              <div class="models-section">
-                <h4>已配置模型 ({{ selectedProfile?.models.length }})</h4>
-                <div class="models-list">
-                  <div v-for="model in selectedProfile?.models" :key="model.id" class="model-card">
-                    <div class="model-info">
-                      <div class="model-name">{{ model.name }}</div>
-                      <div class="model-id">{{ model.id }}</div>
-                      <div v-if="model.group" class="model-group">分组: {{ model.group }}</div>
-                    </div>
-                    <el-tag v-if="model.isVision" type="success" size="small">VLM</el-tag>
-                  </div>
+    <!-- 对话框插槽：预设选择和模型编辑对话框 -->
+    <template #dialogs>
+      <!-- 预设选择对话框 -->
+      <el-dialog v-model="showPresetDialog" title="选择创建方式" width="600px">
+        <div class="preset-options">
+          <div class="preset-section">
+            <h4>从预设模板创建</h4>
+            <div class="preset-grid">
+              <div
+                v-for="preset in llmPresets"
+                :key="preset.name"
+                class="preset-card"
+                @click="createFromPresetTemplate(preset)"
+              >
+                <div class="preset-icon">
+                  <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 编辑模式 -->
-          <div v-else class="edit-mode">
-            <div class="detail-header">
-              <h3>{{ editForm.id === selectedProfile?.id ? "编辑配置" : "新建配置" }}</h3>
-              <div class="header-actions">
-                <el-button :icon="Check" type="primary" size="small" @click="saveCurrentProfile">
-                  保存
-                </el-button>
-                <el-button :icon="Close" size="small" @click="cancelEdit"> 取消 </el-button>
-              </div>
-            </div>
+          <el-divider />
 
-            <div class="detail-body">
-              <el-form :model="editForm" label-width="100px" label-position="left">
-                <el-form-item label="渠道名称">
-                  <el-input
-                    v-model="editForm.name"
-                    placeholder="例如: 我的 OpenAI"
-                    maxlength="50"
-                    show-word-limit
-                  />
-                </el-form-item>
-
-                <el-form-item label="服务类型">
-                  <el-select v-model="editForm.type" style="width: 100%">
-                    <el-option
-                      v-for="provider in providerTypes"
-                      :key="provider.type"
-                      :label="provider.name"
-                      :value="provider.type"
-                    >
-                      <div>
-                        <div>{{ provider.name }}</div>
-                        <div style="font-size: 12px; color: var(--el-text-color-secondary)">
-                          {{ provider.description }}
-                        </div>
-                      </div>
-                    </el-option>
-                  </el-select>
-                </el-form-item>
-
-                <el-form-item label="API 地址">
-                  <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com" />
-                  <div class="form-hint">
-                    默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}
-                  </div>
-                </el-form-item>
-
-                <el-form-item label="API Key">
-                  <el-input
-                    v-model="apiKeyInput"
-                    type="password"
-                    placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
-                    show-password
-                    @blur="updateApiKeys"
-                  />
-                  <div v-if="editForm.apiKeys.length > 0" class="form-hint">
-                    已配置 {{ editForm.apiKeys.length }} 个密钥
-                  </div>
-                </el-form-item>
-
-                <el-divider />
-
-                <el-form-item label="模型配置">
-                  <div class="models-editor">
-                    <div class="models-header">
-                      <span>已添加 {{ editForm.models.length }} 个模型</span>
-                      <div class="models-actions">
-                        <el-button
-                          v-if="getProviderTypeInfo(editForm.type)?.supportsModelList"
-                          size="small"
-                          @click="fetchModels"
-                        >
-                          从 API 获取
-                        </el-button>
-                        <el-button type="primary" size="small" :icon="Plus" @click="addModel">
-                          手动添加
-                        </el-button>
-                      </div>
-                    </div>
-
-                    <div class="models-list">
-                      <div
-                        v-for="(model, index) in editForm.models"
-                        :key="index"
-                        class="model-edit-item"
-                      >
-                        <div class="model-info">
-                          <div class="model-name">{{ model.name }}</div>
-                          <div class="model-id">{{ model.id }}</div>
-                          <div v-if="model.group" class="model-group">{{ model.group }}</div>
-                        </div>
-                        <div class="model-badges">
-                          <el-tag v-if="model.isVision" type="success" size="small">VLM</el-tag>
-                        </div>
-                        <div class="model-actions">
-                          <el-button size="small" :icon="Edit" @click="editModel(index)" />
-                          <el-button
-                            size="small"
-                            type="danger"
-                            :icon="Delete"
-                            @click="deleteModel(index)"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </el-form-item>
-              </el-form>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 预设选择对话框 -->
-    <el-dialog v-model="showPresetDialog" title="选择创建方式" width="600px">
-      <div class="preset-options">
-        <div class="preset-section">
-          <h4>从预设模板创建</h4>
-          <div class="preset-grid">
-            <div
-              v-for="preset in llmPresets"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
+          <div class="preset-section">
+            <h4>或者</h4>
+            <el-button
+              style="width: 100%"
+              @click="
+                () => {
+                  createNewProfile();
+                  showPresetDialog = false;
+                }
+              "
             >
-              <div class="preset-icon">
-                <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
-              </div>
-            </div>
+              从空白创建
+            </el-button>
           </div>
         </div>
+      </el-dialog>
 
-        <el-divider />
+      <!-- 模型编辑对话框 -->
+      <el-dialog
+        v-model="showModelDialog"
+        :title="editingModelIndex === -1 ? '添加模型' : '编辑模型'"
+        width="500px"
+      >
+        <el-form :model="modelEditForm" label-width="80px">
+          <el-form-item label="模型 ID">
+            <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o" />
+          </el-form-item>
+          <el-form-item label="显示名称">
+            <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
+          </el-form-item>
+          <el-form-item label="分组">
+            <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
+          </el-form-item>
+          <el-form-item label="视觉模型">
+            <el-switch v-model="modelEditForm.isVision" />
+            <div class="form-hint">是否为支持图像输入的视觉语言模型 (VLM)</div>
+          </el-form-item>
+        </el-form>
 
-        <div class="preset-section">
-          <h4>或者</h4>
-          <el-button
-            style="width: 100%"
-            @click="
-              () => {
-                createNewProfile();
-                showPresetDialog = false;
-              }
-            "
-          >
-            从空白创建
-          </el-button>
-        </div>
-      </div>
-    </el-dialog>
-
-    <!-- 模型编辑对话框 -->
-    <el-dialog
-      v-model="showModelDialog"
-      :title="editingModelIndex === -1 ? '添加模型' : '编辑模型'"
-      width="500px"
-    >
-      <el-form :model="modelEditForm" label-width="80px">
-        <el-form-item label="模型 ID">
-          <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o" />
-        </el-form-item>
-        <el-form-item label="显示名称">
-          <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
-        </el-form-item>
-        <el-form-item label="分组">
-          <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
-        </el-form-item>
-        <el-form-item label="视觉模型">
-          <el-switch v-model="modelEditForm.isVision" />
-          <div class="form-hint">是否为支持图像输入的视觉语言模型 (VLM)</div>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="showModelDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveModel">确定</el-button>
-      </template>
-    </el-dialog>
-  </div>
+        <template #footer>
+          <el-button @click="showModelDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveModel">确定</el-button>
+        </template>
+      </el-dialog>
+    </template>
+  </ServiceSettingsLayout>
 </template>
 
 <style scoped>
-.llm-service-settings {
-  height: 100%;
-}
+/* LLM 特有样式 */
 
-.settings-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 20px;
-  height: 100%;
-}
-
-/* 左侧列表 */
-.profile-list {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.list-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.list-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.list-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-}
-
-.profile-item {
-  padding: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.profile-item:hover {
-  background: var(--bg-color);
-}
-
-.profile-item.active {
-  background: rgba(var(--primary-color-rgb), 0.1);
-  border-left: 3px solid var(--primary-color);
-}
-
-.profile-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.profile-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-color);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* 列表项特有样式 */
 .profile-type {
   font-size: 12px;
   color: var(--text-color-secondary);
@@ -593,68 +458,7 @@ const fetchModels = async () => {
   margin-top: 2px;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--text-color-secondary);
-}
-
-.empty-state .hint {
-  font-size: 12px;
-  margin-top: 8px;
-}
-
-/* 右侧详情 */
-.profile-detail {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.empty-detail {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-color-secondary);
-}
-
-.detail-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.detail-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.detail-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.detail-body {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-/* 查看模式 */
+/* 查看内容样式 */
 .info-item {
   display: flex;
   justify-content: space-between;
@@ -732,7 +536,7 @@ const fetchModels = async () => {
   margin-top: 2px;
 }
 
-/* 编辑模式 */
+/* 编辑表单样式 */
 .form-hint {
   font-size: 12px;
   color: var(--text-color-secondary);

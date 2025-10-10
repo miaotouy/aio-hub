@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { ElMessage } from 'element-plus';
 import ControlPanel from './components/ControlPanel.vue';
 import PreviewPanel from './components/PreviewPanel.vue';
 import ResultPanel from './components/ResultPanel.vue';
 import type { OcrEngineConfig, ImageBlock, OcrResult, SlicerConfig, CutLine, UploadedImage } from './types';
 import type { SmartOcrConfig } from './config';
 import { loadSmartOcrConfig, createDebouncedSave, getCurrentEngineConfig, defaultSmartOcrConfig } from './config';
+import { useOcrRunner } from './composables/useOcrRunner';
 
 // 图片相关状态
 const uploadedImages = ref<UploadedImage[]>([]);
@@ -121,6 +123,9 @@ const debouncedSave = createDebouncedSave();
 // ControlPanel 组件引用
 const controlPanelRef = ref<InstanceType<typeof ControlPanel>>();
 
+// OCR 运行器
+const { runOcr } = useOcrRunner();
+
 // 监听完整配置变化并自动保存
 watch(fullConfig, () => {
   debouncedSave(fullConfig.value);
@@ -194,6 +199,73 @@ const handleSliceImage = (imageId: string) => {
 const handleSliceAllImages = () => {
   controlPanelRef.value?.handleSliceAll();
 };
+
+// 处理重试单个块
+const handleRetryBlock = async (blockId: string) => {
+  // 找到对应的result
+  const resultIndex = ocrResults.value.findIndex(r => r.blockId === blockId);
+  if (resultIndex === -1) {
+    ElMessage.warning('未找到对应的识别结果');
+    return;
+  }
+  
+  const result = ocrResults.value[resultIndex];
+  const imageId = result.imageId;
+  
+  // 找到对应的block
+  const blocks = imageBlocksMap.value.get(imageId);
+  if (!blocks) {
+    ElMessage.warning('未找到对应的图片块');
+    return;
+  }
+  
+  const block = blocks.find(b => b.id === blockId);
+  if (!block) {
+    ElMessage.warning('未找到对应的图片块');
+    return;
+  }
+  
+  // 更新状态为处理中
+  ocrResults.value[resultIndex].status = 'processing';
+  ocrResults.value[resultIndex].error = undefined;
+  
+  try {
+    // 重新识别这个块
+    const singleBlockResults = await runOcr([block], engineConfig.value, (updatedResults: OcrResult[]) => {
+      // 更新单个结果
+      if (updatedResults.length > 0) {
+        ocrResults.value[resultIndex] = {
+          ...updatedResults[0],
+          imageId // 保持 imageId
+        };
+      }
+    });
+    
+    // 最终更新
+    if (singleBlockResults.length > 0) {
+      ocrResults.value[resultIndex] = {
+        ...singleBlockResults[0],
+        imageId // 保持 imageId
+      };
+    }
+    
+    ElMessage.success('重试完成');
+  } catch (error) {
+    console.error('重试失败:', error);
+    ocrResults.value[resultIndex].status = 'error';
+    ocrResults.value[resultIndex].error = (error as Error).message;
+    ElMessage.error('重试失败');
+  }
+};
+
+// 处理切换忽略状态
+const handleToggleIgnore = (blockId: string) => {
+  const result = ocrResults.value.find(r => r.blockId === blockId);
+  if (result) {
+    result.ignored = !result.ignored;
+    ElMessage.success(result.ignored ? '已忽略该块' : '已取消忽略');
+  }
+};
 </script>
 
 <template>
@@ -234,6 +306,10 @@ const handleSliceAllImages = () => {
       <ResultPanel
         :ocr-results="ocrResults"
         :is-processing="isProcessing"
+        :uploaded-images="uploadedImages"
+        :image-blocks-map="imageBlocksMap"
+        @retry-block="handleRetryBlock"
+        @toggle-ignore="handleToggleIgnore"
       />
     </div>
   </div>

@@ -1,27 +1,60 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { CopyDocument, Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue';
-import type { OcrResult } from '../types';
+import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide } from '@element-plus/icons-vue';
+import type { OcrResult, UploadedImage, ImageBlock } from '../types';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 
 const props = defineProps<{
   ocrResults: OcrResult[];
   isProcessing: boolean;
+  uploadedImages: UploadedImage[];
+  imageBlocksMap: Map<string, ImageBlock[]>;
 }>();
+
+const emit = defineEmits<{
+  retryBlock: [blockId: string];
+  toggleIgnore: [blockId: string];
+}>();
+
+// 按图片分组结果
+const groupedResults = computed(() => {
+  const groups = new Map<string, OcrResult[]>();
+  
+  props.ocrResults.forEach(result => {
+    if (!groups.has(result.imageId)) {
+      groups.set(result.imageId, []);
+    }
+    groups.get(result.imageId)!.push(result);
+  });
+  
+  return groups;
+});
 
 // 计算已完成的数量
 const completedCount = computed(() => {
   return props.ocrResults.filter(r => r.status === 'success').length;
 });
 
-// 计算总文本
+// 计算总文本（排除被忽略的块）
 const allText = computed(() => {
   return props.ocrResults
-    .filter(r => r.status === 'success')
+    .filter(r => r.status === 'success' && !r.ignored)
     .map(r => r.text)
     .join('\n\n');
 });
+
+// 获取图片名称
+const getImageName = (imageId: string) => {
+  const image = props.uploadedImages.find(img => img.id === imageId);
+  return image?.name || '未知图片';
+};
+
+// 获取块在图片中的索引
+const getBlockIndex = (imageId: string, blockId: string) => {
+  const blocks = props.imageBlocksMap.get(imageId) || [];
+  return blocks.findIndex(b => b.id === blockId) + 1;
+};
 
 // 复制文本
 const copyText = async (text: string) => {
@@ -84,6 +117,16 @@ const getStatusText = (status: OcrResult['status']) => {
       return '等待中';
   }
 };
+
+// 处理重试
+const handleRetry = (blockId: string) => {
+  emit('retryBlock', blockId);
+};
+
+// 处理忽略切换
+const handleToggleIgnore = (blockId: string) => {
+  emit('toggleIgnore', blockId);
+};
 </script>
 
 <template>
@@ -114,62 +157,101 @@ const getStatusText = (status: OcrResult['status']) => {
       
       <template v-else>
         <div class="result-list">
+          <!-- 按图片分组显示 -->
           <div
-            v-for="(result, index) in ocrResults"
-            :key="result.blockId"
-            class="result-item"
+            v-for="[imageId, results] in groupedResults"
+            :key="imageId"
+            class="image-group"
           >
-            <div class="result-header">
-              <div class="header-left">
-                <el-tag size="small">块 {{ index + 1 }}</el-tag>
-                <el-tag
-                  :type="getStatusType(result.status)"
-                  size="small"
-                  :icon="getStatusIcon(result.status)"
-                >
-                  {{ getStatusText(result.status) }}
-                </el-tag>
-              </div>
-              <el-button
-                v-if="result.status === 'success' && result.text"
-                size="small"
-                :icon="CopyDocument"
-                @click="copyText(result.text)"
-              >
-                复制
-              </el-button>
+            <div class="group-header">
+              <el-text class="group-title" type="primary" size="large">
+                {{ getImageName(imageId) }}
+              </el-text>
+              <el-tag size="small">
+                {{ results.filter(r => r.status === 'success').length }} / {{ results.length }}
+              </el-tag>
             </div>
             
-            <div class="result-content">
-              <template v-if="result.status === 'processing'">
-                <div class="loading-state">
-                  <el-icon class="is-loading"><Loading /></el-icon>
-                  <el-text type="info">正在识别...</el-text>
+            <div class="group-content">
+              <div
+                v-for="result in results"
+                :key="result.blockId"
+                class="result-item"
+                :class="{ 'is-ignored': result.ignored }"
+              >
+                <div class="result-header">
+                  <div class="header-left">
+                    <el-tag size="small">块 {{ getBlockIndex(imageId, result.blockId) }}</el-tag>
+                    <el-tag
+                      :type="getStatusType(result.status)"
+                      size="small"
+                      :icon="getStatusIcon(result.status)"
+                    >
+                      {{ getStatusText(result.status) }}
+                    </el-tag>
+                    <el-tag v-if="result.ignored" size="small" type="info">已忽略</el-tag>
+                  </div>
+                  <div class="header-actions">
+                    <el-button
+                      v-if="result.status === 'error' || result.status === 'success'"
+                      size="small"
+                      :icon="Refresh"
+                      @click="handleRetry(result.blockId)"
+                    >
+                      重试
+                    </el-button>
+                    <el-button
+                      v-if="result.status === 'success'"
+                      size="small"
+                      :icon="Hide"
+                      :type="result.ignored ? 'primary' : 'default'"
+                      @click="handleToggleIgnore(result.blockId)"
+                    >
+                      {{ result.ignored ? '取消忽略' : '忽略' }}
+                    </el-button>
+                    <el-button
+                      v-if="result.status === 'success' && result.text"
+                      size="small"
+                      :icon="CopyDocument"
+                      @click="copyText(result.text)"
+                    >
+                      复制
+                    </el-button>
+                  </div>
                 </div>
-              </template>
-              
-              <template v-else-if="result.status === 'error'">
-                <div class="error-state">
-                  <el-text type="danger">{{ result.error || '识别失败' }}</el-text>
+                
+                <div class="result-content">
+                  <template v-if="result.status === 'processing'">
+                    <div class="loading-state">
+                      <el-icon class="is-loading"><Loading /></el-icon>
+                      <el-text type="info">正在识别...</el-text>
+                    </div>
+                  </template>
+                  
+                  <template v-else-if="result.status === 'error'">
+                    <div class="error-state">
+                      <el-text type="danger">{{ result.error || '识别失败' }}</el-text>
+                    </div>
+                  </template>
+                  
+                  <template v-else-if="result.status === 'success'">
+                    <div class="text-content">
+                      <pre>{{ result.text || '(无文本)' }}</pre>
+                    </div>
+                    <div v-if="result.confidence" class="confidence">
+                      <el-text size="small" type="info">
+                        置信度: {{ (result.confidence * 100).toFixed(1) }}%
+                      </el-text>
+                    </div>
+                  </template>
+                  
+                  <template v-else>
+                    <div class="pending-state">
+                      <el-text type="info">等待处理...</el-text>
+                    </div>
+                  </template>
                 </div>
-              </template>
-              
-              <template v-else-if="result.status === 'success'">
-                <div class="text-content">
-                  <pre>{{ result.text || '(无文本)' }}</pre>
-                </div>
-                <div v-if="result.confidence" class="confidence">
-                  <el-text size="small" type="info">
-                    置信度: {{ (result.confidence * 100).toFixed(1) }}%
-                  </el-text>
-                </div>
-              </template>
-              
-              <template v-else>
-                <div class="pending-state">
-                  <el-text type="info">等待处理...</el-text>
-                </div>
-              </template>
+              </div>
             </div>
           </div>
         </div>
@@ -222,7 +304,35 @@ const getStatusText = (status: OcrResult['status']) => {
 .result-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
+}
+
+.image-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: var(--card-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.group-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.group-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 8px;
 }
 
 .result-item {
@@ -230,6 +340,11 @@ const getStatusText = (status: OcrResult['status']) => {
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--bg-color);
+  transition: opacity 0.2s;
+}
+
+.result-item.is-ignored {
+  opacity: 0.5;
 }
 
 .result-header {

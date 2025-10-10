@@ -109,10 +109,12 @@ export interface ImageBlock {
  */
 export interface OcrResult {
   blockId: string;
+  imageId: string; // 所属图片ID
   text: string;
   confidence?: number;
   status: 'pending' | 'processing' | 'success' | 'error';
   error?: string;
+  ignored?: boolean; // 是否被忽略（复制时跳过）
 }
 
 /**

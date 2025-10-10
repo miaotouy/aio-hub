@@ -68,6 +68,7 @@ export function useOcrRunner() {
   ): Promise<OcrResult[]> => {
     const results: OcrResult[] = blocks.map(block => ({
       blockId: block.id,
+      imageId: block.imageId,
       text: '',
       status: 'pending' as const
     }));

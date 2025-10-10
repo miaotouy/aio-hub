@@ -3,6 +3,8 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Upload, Delete, Picture, Scissor } from '@element-plus/icons-vue';
 import type { ImageBlock, CutLine, UploadedImage } from '../types';
+import { useFileDrop } from '../../../composables/useFileDrop';
+import { invoke } from '@tauri-apps/api/core';
 
 const props = defineProps<{
   uploadedImages: UploadedImage[];
@@ -25,8 +27,64 @@ const canvasRef = ref<HTMLCanvasElement>();
 const fileInputRef = ref<HTMLInputElement>();
 const dropZoneRef = ref<HTMLDivElement>();
 
-// 拖拽状态
+// 拖拽状态 - 浏览器内部拖拽
 const isDragging = ref(false);
+
+// Tauri 文件拖放处理（用于从外部应用拖拽）
+const { isDraggingOver: isTauriDragging } = useFileDrop({
+  element: dropZoneRef,
+  fileOnly: true,
+  multiple: true,
+  accept: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'],
+  onDrop: async (paths: string[]) => {
+    // 将文件路径转换为 File 对象
+    const files: File[] = [];
+    for (const path of paths) {
+      try {
+        // 使用 Tauri 命令读取文件为 base64
+        const base64Data = await invoke<string>('read_file_as_base64', { path });
+        
+        // 获取文件名
+        const fileName = path.split(/[/\\]/).pop() || 'image';
+        
+        // 根据文件扩展名推断 MIME 类型
+        const ext = fileName.toLowerCase().split('.').pop() || '';
+        const mimeTypes: Record<string, string> = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'gif': 'image/gif',
+          'bmp': 'image/bmp',
+          'webp': 'image/webp'
+        };
+        const mimeType = mimeTypes[ext] || 'image/jpeg';
+        
+        // 将 base64 转换为 Blob
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+        
+        // 创建 File 对象
+        const file = new File([blob], fileName, { type: mimeType });
+        files.push(file);
+      } catch (error) {
+        console.error('读取文件失败:', path, error);
+        ElMessage.error(`读取文件失败: ${path.split(/[/\\]/).pop()}`);
+      }
+    }
+    
+    if (files.length > 0) {
+      await handleFiles(files);
+    }
+  }
+});
+
+// 合并拖拽状态（浏览器拖拽 + Tauri拖拽）
+const isAnyDragging = computed(() => isDragging.value || isTauriDragging.value);
 
 // 当前预览模式：original（原图+切割线） | blocks（切割后的图片块）
 const previewMode = ref<'original' | 'blocks'>('original');
@@ -380,7 +438,7 @@ onUnmounted(() => {
       <div
         ref="dropZoneRef"
         class="preview-content"
-        :class="{ dragging: isDragging }"
+        :class="{ dragging: isAnyDragging }"
         @dragenter="handleDragEnter"
         @dragover="handleDragOver"
         @dragleave="handleDragLeave"
@@ -415,7 +473,7 @@ onUnmounted(() => {
         
         <template v-else>
           <!-- 拖拽提示层 -->
-          <div v-if="isDragging" class="drag-overlay">
+          <div v-if="isAnyDragging" class="drag-overlay">
             <el-icon :size="64" color="#409EFF">
               <Upload />
             </el-icon>

@@ -331,3 +331,19 @@ pub fn is_directory(path: String) -> Result<bool, String> {
     }
     Ok(path.is_dir())
 }
+
+// Tauri 命令：读取文件为base64
+#[tauri::command]
+pub fn read_file_as_base64(path: String) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    
+    let file_path = Path::new(&path);
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
+    
+    let bytes = fs::read(file_path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+    
+    Ok(general_purpose::STANDARD.encode(&bytes))
+}

@@ -148,7 +148,7 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       },
     }
 
-    chart.setOption(option)
+    chart.setOption(option, { notMerge: true })
   }
 
   /**
@@ -220,7 +220,7 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       },
     }
 
-    chart.setOption(option)
+    chart.setOption(option, { notMerge: true })
   }
 
   /**
@@ -332,7 +332,7 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
       },
     }
 
-    chart.setOption(option)
+    chart.setOption(option, { notMerge: true })
   }
 
   /**
@@ -395,7 +395,10 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
 
   // 监听主题变化，重新绘制图表
   watch(isDark, () => {
-    updateCharts()
+    // 添加延迟确保 CSS 变量已更新
+    setTimeout(() => {
+      updateCharts()
+    }, 50)
   })
 
   // 组件卸载时清理

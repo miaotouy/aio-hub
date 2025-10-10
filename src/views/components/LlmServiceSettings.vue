@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import ProfileSidebar from "./ProfileSidebar.vue";
 import ProfileEditor from "./ProfileEditor.vue";
@@ -11,6 +11,9 @@ import type { LlmPreset } from "../../config/llm-providers";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
+
+// 防抖保存的计时器
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 当前选中的配置
 const selectedProfileId = ref<string | null>(null);
@@ -95,20 +98,44 @@ const handleAddClick = () => {
   showPresetDialog.value = true;
 };
 
-// 保存配置
+// 保存配置（验证并保存）
 const saveCurrentProfile = () => {
   if (!editForm.value.name.trim()) {
     ElMessage.error("请输入渠道名称");
-    return;
+    return false;
   }
   if (!editForm.value.baseUrl.trim()) {
     ElMessage.error("请输入 API 地址");
-    return;
+    return false;
   }
 
   saveProfile(editForm.value);
-  ElMessage.success("保存成功");
+  return true;
 };
+
+// 防抖自动保存
+const autoSave = () => {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+  }
+  saveTimer = setTimeout(() => {
+    if (saveCurrentProfile()) {
+      // 静默保存，不显示成功提示
+    }
+  }, 1000); // 1秒防抖
+};
+
+// 监听表单变化，自动保存
+watch(
+  () => editForm.value,
+  () => {
+    // 只有在选中了配置时才自动保存
+    if (selectedProfileId.value) {
+      autoSave();
+    }
+  },
+  { deep: true }
+);
 
 // 删除配置
 const handleDelete = async () => {
@@ -218,7 +245,7 @@ const fetchModels = async () => {
       <ProfileEditor
         v-if="selectedProfile"
         :title="selectedProfile.name"
-        @save="saveCurrentProfile"
+        :show-save="false"
         @delete="handleDelete"
       >
         <el-form :model="editForm" label-width="100px" label-position="left">

@@ -4,10 +4,12 @@ import { Delete } from "@element-plus/icons-vue";
 interface Props {
   title: string;
   showDelete?: boolean;
+  showSave?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
   showDelete: true,
+  showSave: true,
 });
 
 interface Emits {
@@ -23,7 +25,7 @@ const emit = defineEmits<Emits>();
     <div class="editor-header">
       <h3>{{ title }}</h3>
       <div class="header-actions">
-        <el-button type="primary" size="small" @click="emit('save')"> 保存 </el-button>
+        <el-button v-if="showSave" type="primary" size="small" @click="emit('save')"> 保存 </el-button>
         <el-button
           v-if="showDelete"
           type="danger"

@@ -186,28 +186,54 @@ export function useImageSlicer() {
       return blocks;
     }
     
-    // 生成切割区间
-    const regions: Array<{ startY: number; endY: number }> = [];
+    // 过滤切割线：跳过会产生过小块的切割点
+    const validCutLines: number[] = [];
     let lastY = 0;
     
-    cutLines.forEach((line) => {
-      if (line.y > lastY) {
-        regions.push({ startY: lastY, endY: line.y });
+    for (const line of cutLines) {
+      const blockHeight = line.y - lastY;
+      
+      // 如果这个切割会产生一个足够高的块，则保留这个切割点
+      if (blockHeight >= config.minCutHeight) {
+        validCutLines.push(line.y);
+        lastY = line.y;
       }
-      lastY = line.y;
-    });
-    
-    // 添加最后一个区域
-    if (lastY < height) {
-      regions.push({ startY: lastY, endY: height });
+      // 否则跳过这个切割点（小块会自动合并到前一个块）
     }
     
-    // 为每个区域创建图片块
-    regions.forEach((region, index) => {
-      const blockHeight = region.endY - region.startY;
+    // 检查最后一个块的高度
+    const lastBlockHeight = height - lastY;
+    // 如果最后一块太小，移除最后一个切割点（让它合并到前面）
+    if (lastBlockHeight < config.minCutHeight && validCutLines.length > 0) {
+      validCutLines.pop();
+    }
+    
+    // 如果过滤后没有有效的切割线，返回整张图
+    if (validCutLines.length === 0) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(originalImage, 0, 0);
       
-      // 跳过太小的块
-      if (blockHeight < config.minCutHeight) return;
+      blocks.push({
+        id: 'full',
+        imageId,
+        canvas,
+        dataUrl: canvas.toDataURL(),
+        startY: 0,
+        endY: height,
+        width,
+        height
+      });
+      return blocks;
+    }
+    
+    // 根据有效的切割线生成块
+    let currentY = 0;
+    
+    validCutLines.forEach((cutY, index) => {
+      const blockHeight = cutY - currentY;
       
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -217,10 +243,10 @@ export function useImageSlicer() {
       // 从原图裁剪对应区域
       ctx.drawImage(
         originalImage,
-        0, region.startY, // 源图起点
-        width, blockHeight, // 源图尺寸
-        0, 0, // 目标起点
-        width, blockHeight // 目标尺寸
+        0, currentY,
+        width, blockHeight,
+        0, 0,
+        width, blockHeight
       );
       
       blocks.push({
@@ -228,11 +254,39 @@ export function useImageSlicer() {
         imageId,
         canvas,
         dataUrl: canvas.toDataURL(),
-        startY: region.startY,
-        endY: region.endY,
+        startY: currentY,
+        endY: cutY,
         width,
         height: blockHeight
       });
+      
+      currentY = cutY;
+    });
+    
+    // 添加最后一个块
+    const finalBlockHeight = height - currentY;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = finalBlockHeight;
+    const ctx = canvas.getContext('2d')!;
+    
+    ctx.drawImage(
+      originalImage,
+      0, currentY,
+      width, finalBlockHeight,
+      0, 0,
+      width, finalBlockHeight
+    );
+    
+    blocks.push({
+      id: `block-${validCutLines.length}`,
+      imageId,
+      canvas,
+      dataUrl: canvas.toDataURL(),
+      startY: currentY,
+      endY: height,
+      width,
+      height: finalBlockHeight
     });
     
     return blocks;

@@ -34,6 +34,8 @@ use commands::{
     git_revert,
     git_export_commits,
     git_format_log,
+    // OCR相关
+    native_ocr,
 };
 
 // 导入事件处理
@@ -118,7 +120,9 @@ pub fn run() {
             git_cherry_pick,
             git_revert,
             git_export_commits,
-            git_format_log
+            git_format_log,
+            // OCR命令
+            native_ocr
         ])
         
         // 设置应用

@@ -47,3 +47,12 @@ base64 = "0.22"
 flate2 = "1.0"
 async-stream = "0.3"
 
+# OCR 依赖
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage_Streams",
+    "Globalization",
+] }
+

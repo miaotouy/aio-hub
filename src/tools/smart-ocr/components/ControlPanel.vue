@@ -215,6 +215,7 @@ const handleBatchOcr = async () => {
         <el-form label-position="top" size="small">
           <el-form-item label="引擎类型">
             <el-select v-model="localEngineConfig.type" style="width: 100%">
+              <el-option label="Native OCR (系统原生)" value="native" />
               <el-option label="Tesseract.js (本地)" value="tesseract" />
               <el-option label="云端OCR" value="cloud" disabled />
               <el-option label="视觉语言模型" value="vlm" disabled />

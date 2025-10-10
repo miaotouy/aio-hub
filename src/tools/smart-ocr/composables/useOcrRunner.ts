@@ -1,4 +1,5 @@
 import { createWorker, Worker } from 'tesseract.js';
+import { invoke } from '@tauri-apps/api/core';
 import type { ImageBlock, OcrEngineConfig, OcrResult } from '../types';
 
 /**
@@ -45,7 +46,7 @@ export function useOcrRunner() {
 
       // 执行识别
       const result = await tesseractWorker!.recognize(canvas);
-      
+
       return {
         text: result.data.text.trim(),
         confidence: result.data.confidence / 100
@@ -72,10 +73,11 @@ export function useOcrRunner() {
 
     // 通知初始状态
     onProgress?.(results);
-
     // 根据引擎类型选择识别方法
     if (config.type === 'tesseract') {
       await recognizeWithTesseractEngine(blocks, config, results, onProgress);
+    } else if (config.type === 'native') {
+      await recognizeWithNativeEngine(blocks, results, onProgress);
     } else if (config.type === 'vlm') {
       // TODO: VLM 引擎实现
       throw new Error('VLM引擎尚未实现');
@@ -83,6 +85,7 @@ export function useOcrRunner() {
       // TODO: 云端 OCR 实现
       throw new Error('云端OCR尚未实现');
     }
+
 
     return results;
   };
@@ -105,7 +108,7 @@ export function useOcrRunner() {
     // 逐个识别图片块
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i];
-      
+
       // 更新状态为处理中
       results[i].status = 'processing';
       onProgress?.([...results]);
@@ -113,12 +116,12 @@ export function useOcrRunner() {
       try {
         console.log(`识别第 ${i + 1}/${blocks.length} 个图片块...`);
         const { text, confidence } = await recognizeWithTesseract(block.canvas, language);
-        
+
         // 更新结果
         results[i].text = text;
         results[i].confidence = confidence;
         results[i].status = 'success';
-        
+
         console.log(`第 ${i + 1} 个块识别完成，置信度: ${(confidence * 100).toFixed(1)}%`);
       } catch (error) {
         console.error(`第 ${i + 1} 个块识别失败:`, error);
@@ -134,6 +137,52 @@ export function useOcrRunner() {
     if (tesseractWorker) {
       await tesseractWorker.terminate();
       tesseractWorker = null;
+    }
+  };
+
+  /**
+   * 使用原生引擎批量识别
+   */
+  const recognizeWithNativeEngine = async (
+    blocks: ImageBlock[],
+    results: OcrResult[],
+    onProgress?: (results: OcrResult[]) => void
+  ) => {
+    console.log('使用原生OCR引擎识别...');
+
+    // 逐个识别图片块
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+
+      // 更新状态为处理中
+      results[i].status = 'processing';
+      onProgress?.([...results]);
+
+      try {
+        console.log(`识别第 ${i + 1}/${blocks.length} 个图片块...`);
+
+        // 将 canvas 转换为 base64
+        const imageData = block.canvas.toDataURL('image/png');
+
+        // 调用 Tauri 命令进行 OCR 识别
+        const result = await invoke<{ text: string; confidence: number }>('native_ocr', {
+          imageData
+        });
+
+        // 更新结果
+        results[i].text = result.text.trim();
+        results[i].confidence = result.confidence;
+        results[i].status = 'success';
+
+        console.log(`第 ${i + 1} 个块识别完成，置信度: ${(result.confidence * 100).toFixed(1)}%`);
+      } catch (error) {
+        console.error(`第 ${i + 1} 个块识别失败:`, error);
+        results[i].status = 'error';
+        results[i].error = (error as Error).message;
+      }
+
+      // 通知进度更新
+      onProgress?.([...results]);
     }
   };
 

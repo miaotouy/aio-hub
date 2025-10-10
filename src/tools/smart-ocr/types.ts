@@ -1,7 +1,7 @@
 /**
  * OCR引擎类型
  */
-export type OcrEngineType = 'tesseract' | 'vlm' | 'cloud';
+export type OcrEngineType = 'tesseract' | 'native' | 'vlm' | 'cloud';
 
 /**
  * OCR引擎配置

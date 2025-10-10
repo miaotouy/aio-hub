@@ -11,7 +11,6 @@ import {
 } from "../utils/appSettings";
 import { toolsConfig } from "../config/tools";
 import { settingsModules } from "../config/settings";
-import { getName, getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 
 const isDark = useDark();
@@ -53,12 +52,6 @@ const settings = ref<AppSettings>({
   toolsVisible: {},
   toolsOrder: [],
   version: "1.0.0",
-});
-
-// 应用信息
-const appInfo = ref({
-  name: "",
-  version: "",
 });
 
 // 左侧导航状态与滚动容器
@@ -293,22 +286,6 @@ const handleReset = async () => {
   }
 };
 
-// 显示关于信息
-const showAbout = () => {
-  ElMessageBox.alert(
-    `<div style="text-align: center;">
-      <h3>${appInfo.value.name}</h3>
-      <p>版本: ${appInfo.value.version}</p>
-      <p style="margin-top: 20px; color: #909399;">一个功能丰富的工具箱应用</p>
-    </div>`,
-    "关于",
-    {
-      dangerouslyUseHTMLString: true,
-      confirmButtonText: "确定",
-    }
-  );
-};
-
 // 标记是否正在从文件加载设置，避免触发不必要的事件
 let isLoadingFromFile = false;
 
@@ -421,16 +398,6 @@ onMounted(async () => {
       customColor.value = settings.value.themeColor;
       lastCustomColor.value = settings.value.themeColor;
     }
-  }
-
-  // 获取应用信息
-  try {
-    appInfo.value.name = await getName();
-    appInfo.value.version = await getVersion();
-  } catch (error) {
-    console.error("获取应用信息失败:", error);
-    appInfo.value.name = "AIO工具箱";
-    appInfo.value.version = "1.0.0";
   }
 
   // 同步托盘设置到后端
@@ -709,22 +676,6 @@ onUnmounted(() => {
             </div>
           </section>
 
-          <!-- 关于 -->
-          <section v-if="module.id === 'about'" id="about" class="settings-section">
-            <h2 class="section-title">关于</h2>
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>应用信息</span>
-              </div>
-              <el-button @click="showAbout" size="small">查看详情</el-button>
-            </div>
-
-            <div class="about-info">
-              <p>{{ appInfo.name }}</p>
-              <p class="version">版本：{{ appInfo.version }}</p>
-            </div>
-          </section>
         </template>
       </div>
     </div>
@@ -999,21 +950,6 @@ onUnmounted(() => {
   hyphens: auto;
 }
 
-.about-info {
-  margin-top: 6px;
-  border-radius: 6px;
-}
-
-.about-info p {
-  margin: 4px 0;
-  color: var(--text-color);
-}
-
-.about-info .version {
-  font-size: 13px;
-  color: var(--text-color-secondary);
-}
-
 /* 批量操作按钮 */
 .batch-actions {
   display: flex;
@@ -1181,7 +1117,7 @@ onUnmounted(() => {
 .component-section {
   padding: 0;
   overflow: hidden;
-  min-height: 600px;
+  min-height: 800px;
   display: flex;
   flex-direction: column;
 }

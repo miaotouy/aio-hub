@@ -13,6 +13,8 @@ declare module 'vue' {
     DropZone: typeof import('./components/common/DropZone.vue')['default']
     GitBranchIcon: typeof import('./components/icons/GitBranchIcon.vue')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
+    IEpPicture: typeof import('~icons/ep/picture')['default']
+    IEpScissor: typeof import('~icons/ep/scissor')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

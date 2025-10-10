@@ -62,6 +62,11 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("../tools/git-analyzer/GitAnalyzer.vue"),
   },
   {
+    path: "/smart-ocr",
+    name: "SmartOcr",
+    component: () => import("../tools/smart-ocr/SmartOcr.vue"),
+  },
+  {
     path: "/settings",
     name: "Settings",
     component: () => import("../views/Settings.vue"),

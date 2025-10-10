@@ -7,6 +7,7 @@ import {
   Setting,
   Rank,
   Monitor,
+  Document,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
@@ -79,5 +80,11 @@ export const toolsConfig: ToolConfig[] = [
     path: '/git-analyzer',
     icon: markRaw(GitBranchIcon),
     description: 'Git提交记录分析和可视化处理工具'
+  },
+  {
+    name: '智能 OCR',
+    path: '/smart-ocr',
+    icon: markRaw(Document),
+    description: '智能OCR文字识别工具，支持多引擎和智能切图'
   }
 ];

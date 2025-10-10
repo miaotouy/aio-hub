@@ -5,6 +5,7 @@
 
 import type { LlmProfile } from '../types/llm-profiles';
 import { useLlmProfiles } from './useLlmProfiles';
+import { buildLlmApiUrl } from '../utils/llm-api-url';
 
 /**
  * LLM 请求的消息内容
@@ -83,14 +84,15 @@ export function useLlmRequest() {
     profile: LlmProfile,
     options: LlmRequestOptions
   ): Promise<LlmResponse> => {
-    const url = `${profile.baseUrl}/v1/chat/completions`;
+    const url = buildLlmApiUrl(profile.baseUrl, 'openai', 'chat/completions');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    if (profile.apiKey) {
-      headers['Authorization'] = `Bearer ${profile.apiKey}`;
+    // 使用第一个可用的 API Key
+    if (profile.apiKeys && profile.apiKeys.length > 0) {
+      headers['Authorization'] = `Bearer ${profile.apiKeys[0]}`;
     }
 
     // 构建消息内容
@@ -161,7 +163,10 @@ export function useLlmRequest() {
     profile: LlmProfile,
     options: LlmRequestOptions
   ): Promise<LlmResponse> => {
-    const url = `${profile.baseUrl}/v1beta/models/${options.modelId}:generateContent?key=${profile.apiKey}`;
+    // 获取第一个可用的 API Key
+    const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : '';
+    const baseUrl = buildLlmApiUrl(profile.baseUrl, 'gemini', `models/${options.modelId}:generateContent`);
+    const url = `${baseUrl}?key=${apiKey}`;
 
     // 构建 parts
     const parts: any[] = [];
@@ -229,7 +234,7 @@ export function useLlmRequest() {
     profile: LlmProfile,
     options: LlmRequestOptions
   ): Promise<LlmResponse> => {
-    const url = `${profile.baseUrl}/v1/messages`;
+    const url = buildLlmApiUrl(profile.baseUrl, 'claude', 'messages');
 
     // 构建消息内容
     const content: any[] = [];
@@ -268,11 +273,14 @@ export function useLlmRequest() {
       body.system = options.systemPrompt;
     }
 
+    // 获取第一个可用的 API Key
+    const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : '';
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': profile.apiKey,
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify(body)

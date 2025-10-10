@@ -8,6 +8,7 @@ import { useLlmProfiles } from "../../composables/useLlmProfiles";
 import { providerTypes, llmPresets } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
 import type { LlmPreset } from "../../config/llm-providers";
+import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "../../utils/llm-api-url";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
@@ -218,6 +219,19 @@ const deleteModel = (index: number) => {
 const fetchModels = async () => {
   ElMessage.info("自动获取模型列表功能开发中...");
 };
+
+// API 端点预览
+const apiEndpointPreview = computed(() => {
+  if (!editForm.value.baseUrl) {
+    return '';
+  }
+  return generateLlmApiEndpointPreview(editForm.value.baseUrl, editForm.value.type);
+});
+
+// 端点提示文本
+const endpointHintText = computed(() => {
+  return getLlmEndpointHint(editForm.value.type);
+});
 </script>
 
 <template>
@@ -278,7 +292,11 @@ const fetchModels = async () => {
 
           <el-form-item label="API 地址">
             <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com" />
-            <div class="form-hint">
+            <div v-if="apiEndpointPreview" class="api-preview-container">
+              <div class="api-preview-url">{{ apiEndpointPreview }}</div>
+              <div class="api-preview-hint">{{ endpointHintText }}</div>
+            </div>
+            <div v-else class="form-hint">
               默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}
             </div>
           </el-form-item>
@@ -434,6 +452,33 @@ const fetchModels = async () => {
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 4px;
+}
+
+/* API 端点预览容器 */
+.api-preview-container {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+/* API 端点 URL 预览 */
+.api-preview-url {
+  font-size: 12px;
+  color: var(--text-color);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  word-break: break-all;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+/* API 端点提示文本 */
+.api-preview-hint {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  opacity: 0.7;
+  line-height: 1.4;
 }
 
 /* 预设选择对话框 */

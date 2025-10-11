@@ -1,21 +1,38 @@
 # 模型图标预设目录
 
-这个目录用于存放 LLM 模型的预设图标文件。
+这个目录用于存放 LLM 模型的预设图标文件，包含了主流 AI 服务商、国内 AI 平台、云服务商等 100+ 个图标。
 
-## 目录结构
+## 图标分类
 
-```
-public/model-icons/
-├── README.md           # 本说明文件
-├── openai.svg         # OpenAI 图标
-├── anthropic.svg      # Anthropic (Claude) 图标
-├── google.svg         # Google (Gemini) 图标
-├── deepseek.svg       # DeepSeek 图标
-├── moonshot.svg       # Moonshot AI 图标
-├── zhipu.svg          # 智谱 AI 图标
-├── groq.svg           # Groq 图标
-└── xai.svg            # xAI (Grok) 图标
-```
+### 🤖 主流 AI 服务商
+- OpenAI、Anthropic、Claude、Google、Gemini、Gemma
+- DeepSeek、Groq、xAI (Grok)、Mistral、Cohere
+- Meta、DeepMind 等
+
+### 🇨🇳 国内 AI 服务商
+- Moonshot (Kimi)、智谱 AI、ChatGLM、通义千问
+- 百度文心、豆包、混元、MiniMax
+- 零一万物、商汤、百川、天工、海螺
+- InternLM、青言、元宝、Skywork、RWKV 等
+
+### ☁️ 云服务商
+- AWS Bedrock、Azure AI、Vertex AI
+- 百度云、腾讯云、火山引擎、阿里百炼
+- Cloudflare Workers AI 等
+
+### 🔌 API 服务
+- OpenRouter、SiliconFlow、DeepInfra
+- Together、Fireworks、Perplexity
+- Infermatic、Hyperbolic、Featherless 等
+
+### 🛠️ 开源/自托管工具
+- Ollama、HuggingFace、ModelScope
+- Open WebUI、Dify、FastGPT
+- LobeHub、NewAPI (One-API) 等
+
+### 📦 其他服务
+- Microsoft、GitHub Copilot、Nvidia
+- IBM、Coze、POE、Notion、NotebookLM 等
 
 ## 图标要求
 
@@ -99,7 +116,17 @@ public/model-icons/
    - PNG: [TinyPNG](https://tinypng.com/)
 4. **深色模式**: 建议提供在深色和浅色背景下都清晰的图标
 
-## 示例配置
+## 快速开始
+
+### 方法 1: 使用图形界面（推荐）
+1. 打开应用设置 → 模型图标配置
+2. 点击"查看预设"查看所有可用图标
+3. 点击"添加配置"创建新规则
+4. 选择匹配类型、填写匹配值和图标路径
+5. 保存即可生效
+
+### 方法 2: 手动配置
+编辑配置文件或在设置中导入 JSON 配置：
 
 ```json
 {
@@ -112,6 +139,33 @@ public/model-icons/
   "description": "OpenAI 提供商图标"
 }
 ```
+
+## 预设配置示例
+
+应用已内置以下默认配置（可在设置中查看完整列表）：
+
+- **Provider 级别** (优先级 10)
+  - OpenAI → `openai.svg`
+  - Anthropic → `claude-color.svg`
+  - Gemini → `gemini-color.svg`
+  - DeepSeek → `deepseek-color.svg`
+  - Moonshot → `kimi-color.svg`
+  - 智谱 AI → `zhipu-color.svg`
+  - Groq → `groq.svg`
+
+- **Model Prefix 级别** (优先级 20)
+  - `gpt-` → `openai.svg`
+  - `claude-` → `claude-color.svg`
+  - `gemini-` → `gemini-color.svg`
+  - `deepseek-` → `deepseek-color.svg`
+  - `glm-` → `chatglm-color.svg`
+  - `llama-` → `meta-color.svg`
+  - `qwen-` → `qwen-color.svg`
+
+- **特定模型** (优先级 30)
+  - `chatgpt-4o-latest` → `openai.svg`
+  - `claude-opus-4-20250514` → `claude-color.svg`
+  - `gemini-2.0-flash-exp` → `gemini-color.svg`
 
 ## 常见问题
 

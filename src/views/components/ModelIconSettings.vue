@@ -16,6 +16,62 @@
     <div class="settings-stats">
       <span>总配置: {{ configs.length }}</span>
       <span>已启用: {{ enabledCount }}</span>
+      <span v-if="searchText || filterEnabled !== 'all'">
+        当前显示: {{ filteredConfigs.length }}
+      </span>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <div class="search-box">
+        <input
+          v-model="searchText"
+          @input="resetPage"
+          type="text"
+          placeholder="搜索配置（匹配值、类型、描述）..."
+          class="search-input"
+        />
+      </div>
+      
+      <div class="toolbar-controls">
+        <select v-model="sortBy" class="sort-select">
+          <option value="priority">按优先级排序</option>
+          <option value="type">按类型排序</option>
+          <option value="name">按名称排序</option>
+        </select>
+
+        <select v-model="filterEnabled" @change="resetPage" class="filter-select">
+          <option value="all">全部状态</option>
+          <option value="enabled">仅启用</option>
+          <option value="disabled">仅禁用</option>
+        </select>
+
+        <select v-model.number="pageSize" @change="resetPage" class="pagesize-select">
+          <option :value="12">12 项/页</option>
+          <option :value="24">24 项/页</option>
+          <option :value="48">48 项/页</option>
+          <option :value="96">96 项/页</option>
+        </select>
+
+        <div class="view-toggle">
+          <button
+            @click="viewMode = 'grid'"
+            :class="{ active: viewMode === 'grid' }"
+            class="view-btn"
+            title="网格视图"
+          >
+            ⊞
+          </button>
+          <button
+            @click="viewMode = 'list'"
+            :class="{ active: viewMode === 'list' }"
+            class="view-btn"
+            title="列表视图"
+          >
+            ☰
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 预设图标面板 -->
@@ -48,59 +104,113 @@
     </div>
 
     <!-- 配置列表 -->
-    <div class="configs-list">
+    <div v-if="paginatedConfigs.length > 0" class="configs-container">
       <div
-        v-for="config in sortedConfigs"
-        :key="config.id"
-        class="config-item"
-        :class="{ disabled: config.enabled === false }"
+        class="configs-list"
+        :class="{ 'grid-view': viewMode === 'grid', 'list-view': viewMode === 'list' }"
       >
-        <div class="config-icon">
-          <img
-            v-if="config.iconPath"
-            :src="config.iconPath"
-            :alt="config.matchValue"
-            @error="handleImageError"
-          />
-          <div v-else class="icon-placeholder">?</div>
-        </div>
-
-        <div class="config-info">
-          <div class="config-header">
-            <span class="config-type-badge">{{ getMatchTypeLabel(config.matchType) }}</span>
-            <span class="config-value">{{ config.matchValue }}</span>
-            <span v-if="config.priority" class="config-priority">优先级: {{ config.priority }}</span>
+        <div
+          v-for="config in paginatedConfigs"
+          :key="config.id"
+          class="config-item"
+          :class="{ disabled: config.enabled === false }"
+        >
+          <div class="config-icon">
+            <img
+              v-if="config.iconPath"
+              :src="config.iconPath"
+              :alt="config.matchValue"
+              @error="handleImageError"
+            />
+            <div v-else class="icon-placeholder">?</div>
           </div>
-          <div v-if="config.description" class="config-description">
-            {{ config.description }}
-          </div>
-          <div class="config-path">{{ config.iconPath }}</div>
-        </div>
 
-        <div class="config-actions">
-          <button
-            @click="toggleConfig(config.id)"
-            class="btn-icon"
-            :title="config.enabled === false ? '启用' : '禁用'"
-          >
-            {{ config.enabled === false ? '☐' : '☑' }}
-          </button>
-          <button
-            @click="handleEdit(config)"
-            class="btn-icon"
-            title="编辑"
-          >
-            ✏️
-          </button>
-          <button
-            @click="handleDelete(config.id)"
-            class="btn-icon btn-danger"
-            title="删除"
-          >
-            🗑️
-          </button>
+          <div class="config-info">
+            <div class="config-header">
+              <span class="config-type-badge">{{ getMatchTypeLabel(config.matchType) }}</span>
+              <span class="config-value">{{ config.matchValue }}</span>
+            </div>
+            <div v-if="config.priority" class="config-priority">
+              优先级: {{ config.priority }}
+            </div>
+            <div v-if="config.description" class="config-description">
+              {{ config.description }}
+            </div>
+            <div class="config-path">{{ config.iconPath }}</div>
+          </div>
+
+          <div class="config-actions">
+            <button
+              @click="toggleConfig(config.id)"
+              class="btn-icon"
+              :title="config.enabled === false ? '启用' : '禁用'"
+            >
+              {{ config.enabled === false ? '☐' : '☑' }}
+            </button>
+            <button
+              @click="handleEdit(config)"
+              class="btn-icon"
+              title="编辑"
+            >
+              ✏️
+            </button>
+            <button
+              @click="handleDelete(config.id)"
+              class="btn-icon btn-danger"
+              title="删除"
+            >
+              🗑️
+            </button>
+          </div>
         </div>
       </div>
+
+      <!-- 分页 -->
+      <div v-if="totalPages > 1" class="pagination">
+        <button
+          @click="goToPage(currentPage - 1)"
+          :disabled="currentPage === 1"
+          class="page-btn"
+        >
+          ← 上一页
+        </button>
+        
+        <div class="page-numbers">
+          <button
+            v-for="page in getPageNumbers()"
+            :key="page"
+            @click="page > 0 && goToPage(page)"
+            :class="{ active: page === currentPage, ellipsis: page < 0 }"
+            :disabled="page < 0"
+            class="page-number"
+          >
+            {{ page > 0 ? page : '...' }}
+          </button>
+        </div>
+
+        <button
+          @click="goToPage(currentPage + 1)"
+          :disabled="currentPage === totalPages"
+          class="page-btn"
+        >
+          下一页 →
+        </button>
+
+        <div class="page-info">
+          {{ currentPage }} / {{ totalPages }}
+        </div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-else class="empty-state">
+      <div class="empty-icon">📭</div>
+      <div class="empty-text">
+        {{ searchText ? '未找到匹配的配置' : '暂无配置' }}
+      </div>
+      <button v-if="!searchText" @click="handleAdd" class="btn-primary">
+        添加第一个配置
+      </button>
     </div>
 
     <!-- 编辑对话框 -->
@@ -213,10 +323,73 @@ const showPresets = ref(false);
 const editingConfig = ref<Partial<ModelIconConfig> | null>(null);
 const isNewConfig = ref(false);
 
-// 按优先级排序的配置列表
-const sortedConfigs = computed(() => {
-  return [...configs.value].sort((a, b) => (b.priority || 0) - (a.priority || 0));
+// 搜索和过滤
+const searchText = ref('');
+const sortBy = ref<'priority' | 'type' | 'name'>('priority');
+const filterEnabled = ref<'all' | 'enabled' | 'disabled'>('all');
+const currentPage = ref(1);
+const pageSize = ref(12);
+const viewMode = ref<'grid' | 'list'>('grid');
+
+// 过滤后的配置列表
+const filteredConfigs = computed(() => {
+  let result = [...configs.value];
+
+  // 搜索过滤
+  if (searchText.value.trim()) {
+    const search = searchText.value.toLowerCase();
+    result = result.filter(config =>
+      config.matchValue.toLowerCase().includes(search) ||
+      config.matchType.toLowerCase().includes(search) ||
+      (config.description?.toLowerCase().includes(search))
+    );
+  }
+
+  // 启用状态过滤
+  if (filterEnabled.value === 'enabled') {
+    result = result.filter(config => config.enabled !== false);
+  } else if (filterEnabled.value === 'disabled') {
+    result = result.filter(config => config.enabled === false);
+  }
+
+  return result;
 });
+
+// 排序后的配置列表
+const sortedConfigs = computed(() => {
+  const result = [...filteredConfigs.value];
+  
+  switch (sortBy.value) {
+    case 'priority':
+      return result.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    case 'type':
+      return result.sort((a, b) => a.matchType.localeCompare(b.matchType));
+    case 'name':
+      return result.sort((a, b) => a.matchValue.localeCompare(b.matchValue));
+    default:
+      return result;
+  }
+});
+
+// 分页
+const totalPages = computed(() => Math.ceil(sortedConfigs.value.length / pageSize.value));
+
+const paginatedConfigs = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return sortedConfigs.value.slice(start, end);
+});
+
+// 重置到第一页（当搜索或过滤改变时）
+function resetPage() {
+  currentPage.value = 1;
+}
+
+function goToPage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page;
+  }
+}
 
 // 获取匹配类型标签
 function getMatchTypeLabel(type: IconMatchType): string {
@@ -343,13 +516,47 @@ function handleImageError(e: Event) {
   const img = e.target as HTMLImageElement;
   img.style.display = 'none';
 }
+
+// 获取页码数组（用于分页显示）
+function getPageNumbers(): number[] {
+  const pages: number[] = [];
+  const total = totalPages.value;
+  const current = currentPage.value;
+  
+  if (total <= 7) {
+    // 总页数<=7，显示所有页码
+    for (let i = 1; i <= total; i++) {
+      pages.push(i);
+    }
+  } else {
+    // 总页数>7，智能显示页码
+    if (current <= 4) {
+      // 当前页靠前
+      for (let i = 1; i <= 5; i++) pages.push(i);
+      pages.push(-1); // -1 表示省略号
+      pages.push(total);
+    } else if (current >= total - 3) {
+      // 当前页靠后
+      pages.push(1);
+      pages.push(-1);
+      for (let i = total - 4; i <= total; i++) pages.push(i);
+    } else {
+      // 当前页在中间
+      pages.push(1);
+      pages.push(-1);
+      for (let i = current - 1; i <= current + 1; i++) pages.push(i);
+      pages.push(-1);
+      pages.push(total);
+    }
+  }
+  
+  return pages;
+}
 </script>
 
 <style scoped>
 .model-icon-settings {
   padding: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
 }
 
 .settings-header {
@@ -372,18 +579,100 @@ function handleImageError(e: Event) {
 .settings-stats {
   display: flex;
   gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   padding: 0.75rem;
-  background: var(--vscode-editor-background);
+  background: var(--container-bg);
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.toolbar-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sort-select,
+.filter-select,
+.pagesize-select {
+  padding: 0.5rem;
+  background: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sort-select:focus,
+.filter-select:focus,
+.pagesize-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.view-btn {
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--text-color);
+  transition: all 0.2s;
+}
+
+.view-btn:hover {
+  background: var(--card-bg);
+}
+
+.view-btn.active {
+  background: var(--primary-color);
+  color: white;
 }
 
 /* 预设面板 */
 .presets-panel {
   margin-bottom: 2rem;
   padding: 1rem;
-  background: var(--vscode-editor-background);
+  background: var(--container-bg);
   border-radius: 4px;
 }
 
@@ -400,8 +689,8 @@ function handleImageError(e: Event) {
 
 .preset-item {
   padding: 1rem;
-  background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
@@ -409,7 +698,7 @@ function handleImageError(e: Event) {
 }
 
 .preset-item:hover {
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--primary-color);
   transform: translateY(-2px);
 }
 
@@ -444,42 +733,122 @@ function handleImageError(e: Event) {
 .tag {
   display: inline-block;
   padding: 0.125rem 0.375rem;
-  background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
+  background: transparent;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
   border-radius: 3px;
   font-size: 0.75rem;
 }
 
-/* 配置列表 */
-.configs-list {
+/* 配置列表容器 */
+.configs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 网格视图 */
+.configs-list.grid-view {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.configs-list.grid-view .config-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.configs-list.grid-view .config-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+.configs-list.grid-view .config-info {
+  min-width: 0;
+  text-align: center;
+}
+
+.configs-list.grid-view .config-header {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.configs-list.grid-view .config-value {
+  word-break: break-all;
+}
+
+.configs-list.grid-view .config-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+}
+
+/* 列表视图 */
+.configs-list.list-view {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.config-item {
+.configs-list.list-view .config-item {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-input-border);
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   transition: all 0.2s;
 }
 
+.configs-list.list-view .config-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.configs-list.list-view .config-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.configs-list.list-view .config-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.configs-list.list-view .config-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* 通用配置项样式 */
 .config-item.disabled {
   opacity: 0.5;
 }
 
 .config-item:hover {
-  border-color: var(--vscode-focusBorder);
-}
-
-.config-icon {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
+  border-color: var(--primary-color);
 }
 
 .config-icon img {
@@ -494,10 +863,10 @@ function handleImageError(e: Event) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--vscode-input-background);
+  background: var(--input-bg);
   border-radius: 4px;
   font-size: 1.5rem;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-color-light);
 }
 
 .config-info {
@@ -506,18 +875,15 @@ function handleImageError(e: Event) {
 }
 
 .config-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   margin-bottom: 0.25rem;
-  flex-wrap: wrap;
 }
 
 .config-type-badge {
   display: inline-block;
   padding: 0.125rem 0.5rem;
-  background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
+  background: transparent;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
   border-radius: 3px;
   font-size: 0.75rem;
   font-weight: 500;
@@ -530,18 +896,18 @@ function handleImageError(e: Event) {
 
 .config-priority {
   font-size: 0.85rem;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-color-light);
 }
 
 .config-description {
   font-size: 0.85rem;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-color-light);
   margin-bottom: 0.25rem;
 }
 
 .config-path {
   font-size: 0.75rem;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-color-light);
   font-family: 'Consolas', 'Monaco', monospace;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -552,6 +918,93 @@ function handleImageError(e: Event) {
   display: flex;
   gap: 0.25rem;
   flex-shrink: 0;
+}
+
+/* 分页样式 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem 0;
+  margin-top: 1rem;
+}
+
+.page-btn {
+  padding: 0.5rem 1rem;
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.page-btn:hover:not(:disabled) {
+  background: var(--border-color);
+  border-color: var(--primary-color);
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-numbers {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.page-number {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0.5rem;
+  background: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-number:hover:not(:disabled):not(.ellipsis) {
+  background: var(--card-bg);
+  border-color: var(--primary-color);
+}
+
+.page-number.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.page-number.ellipsis {
+  background: transparent;
+  border: none;
+  cursor: default;
+  color: var(--text-color-light);
+}
+
+.page-number:disabled {
+  cursor: not-allowed;
+}
+
+.page-info {
+  padding: 0.5rem 1rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-color-light);
+  white-space: nowrap;
 }
 
 /* 按钮样式 */
@@ -568,21 +1021,21 @@ function handleImageError(e: Event) {
 }
 
 .btn-primary {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--primary-color);
+  color: white;
 }
 
 .btn-primary:hover {
-  background: var(--vscode-button-hoverBackground);
+  background: var(--primary-hover-color);
 }
 
 .btn-secondary {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
+  background: var(--card-bg);
+  color: var(--text-color);
 }
 
 .btn-secondary:hover {
-  background: var(--vscode-button-secondaryHoverBackground);
+  background: var(--border-color);
 }
 
 .btn-warning {
@@ -595,13 +1048,24 @@ function handleImageError(e: Event) {
 }
 
 .btn-icon {
-  padding: 0.375rem 0.5rem;
+  padding: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  border: 1px solid var(--vscode-input-border);
+  border: 1px solid var(--border-color);
+  line-height: 1;
+  color: var(--text-color-light);
+  border-radius: 4px;
 }
 
 .btn-icon:hover {
-  background: var(--vscode-input-background);
+  background: var(--input-bg);
+  color: var(--text-color);
+  border-color: var(--primary-color);
 }
 
 .btn-icon.btn-danger:hover {
@@ -625,8 +1089,8 @@ function handleImageError(e: Event) {
 }
 
 .modal-content {
-  background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-input-border);
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   width: 90%;
   max-width: 600px;
@@ -639,7 +1103,7 @@ function handleImageError(e: Event) {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--vscode-input-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h3 {
@@ -651,14 +1115,14 @@ function handleImageError(e: Event) {
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: var(--vscode-foreground);
+  color: var(--text-color);
   padding: 0;
   width: 2rem;
   height: 2rem;
 }
 
 .btn-close:hover {
-  color: var(--vscode-errorForeground);
+  color: var(--error-color);
 }
 
 .modal-body {
@@ -670,7 +1134,7 @@ function handleImageError(e: Event) {
   justify-content: flex-end;
   gap: 0.5rem;
   padding: 1rem 1.5rem;
-  border-top: 1px solid var(--vscode-input-border);
+  border-top: 1px solid var(--border-color);
 }
 
 /* 表单 */
@@ -688,9 +1152,9 @@ function handleImageError(e: Event) {
 .form-group select {
   width: 100%;
   padding: 0.5rem;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
+  background: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 0.9rem;
 }
@@ -698,14 +1162,14 @@ function handleImageError(e: Event) {
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--primary-color);
 }
 
 .form-group small {
   display: block;
   margin-top: 0.25rem;
   font-size: 0.8rem;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-color-light);
 }
 
 .checkbox-group label {
@@ -723,7 +1187,7 @@ function handleImageError(e: Event) {
 .icon-preview {
   margin-top: 1rem;
   padding: 1rem;
-  background: var(--vscode-input-background);
+  background: var(--input-bg);
   border-radius: 4px;
   text-align: center;
 }

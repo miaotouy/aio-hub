@@ -7,9 +7,22 @@ import type { ModelIconConfig, ModelIconConfigStore, PresetIconInfo } from '../t
 import type { LlmModelInfo } from '../types/llm-profiles';
 import { DEFAULT_ICON_CONFIGS, PRESET_ICONS, PRESET_ICONS_DIR, getModelIconPath, isValidIconPath } from '../config/model-icons';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { createConfigManager } from '../utils/configManager';
 
-const STORAGE_KEY = 'model-icon-configs';
+const STORAGE_KEY = 'model-icon-configs'; // 用于 localStorage 数据迁移
 const CONFIG_VERSION = '1.0.0';
+
+// 配置文件管理器
+const configManager = createConfigManager<ModelIconConfigStore>({
+  moduleName: 'model-icons',
+  fileName: 'configs.json',
+  version: CONFIG_VERSION,
+  createDefault: () => ({
+    version: CONFIG_VERSION,
+    configs: [...DEFAULT_ICON_CONFIGS],
+    updatedAt: new Date().toISOString(),
+  }),
+});
 
 /**
  * 模型图标配置管理
@@ -34,17 +47,34 @@ export function useModelIcons() {
   );
 
   /**
-   * 从本地存储加载配置
+   * 从文件系统加载配置（支持 localStorage 迁移）
    */
-  function loadConfigs() {
+  async function loadConfigs() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const data: ModelIconConfigStore = JSON.parse(stored);
-        if (data.configs && Array.isArray(data.configs)) {
-          configs.value = data.configs;
+      // 尝试从文件系统加载
+      const data = await configManager.load();
+      
+      // 如果文件系统中没有自定义配置，尝试从 localStorage 迁移
+      if (data.configs.length === DEFAULT_ICON_CONFIGS.length) {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          console.log('检测到 localStorage 数据，开始迁移到文件系统...');
+          const oldData: ModelIconConfigStore = JSON.parse(stored);
+          if (oldData.configs && Array.isArray(oldData.configs)) {
+            data.configs = oldData.configs;
+            data.updatedAt = new Date().toISOString();
+            
+            // 保存到文件系统
+            await configManager.save(data);
+            
+            // 清除 localStorage 数据
+            localStorage.removeItem(STORAGE_KEY);
+            console.log('数据迁移完成');
+          }
         }
       }
+      
+      configs.value = data.configs;
       isLoaded.value = true;
     } catch (error) {
       console.error('加载模型图标配置失败:', error);
@@ -55,16 +85,16 @@ export function useModelIcons() {
   }
 
   /**
-   * 保存配置到本地存储
+   * 保存配置到文件系统
    */
-  function saveConfigs() {
+  async function saveConfigs() {
     try {
       const data: ModelIconConfigStore = {
         version: CONFIG_VERSION,
         configs: configs.value,
         updatedAt: new Date().toISOString(),
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      await configManager.save(data);
       return true;
     } catch (error) {
       console.error('保存模型图标配置失败:', error);
@@ -75,7 +105,7 @@ export function useModelIcons() {
   /**
    * 添加新配置
    */
-  function addConfig(config: Omit<ModelIconConfig, 'id'>): boolean {
+  async function addConfig(config: Omit<ModelIconConfig, 'id'>): Promise<boolean> {
     try {
       const newConfig: ModelIconConfig = {
         ...config,
@@ -88,7 +118,7 @@ export function useModelIcons() {
       }
       
       configs.value.push(newConfig);
-      saveConfigs();
+      await saveConfigs();
       return true;
     } catch (error) {
       console.error('添加配置失败:', error);
@@ -99,7 +129,7 @@ export function useModelIcons() {
   /**
    * 更新配置
    */
-  function updateConfig(id: string, updates: Partial<ModelIconConfig>): boolean {
+  async function updateConfig(id: string, updates: Partial<ModelIconConfig>): Promise<boolean> {
     try {
       const index = configs.value.findIndex(c => c.id === id);
       if (index === -1) {
@@ -115,7 +145,7 @@ export function useModelIcons() {
         ...updates,
       };
       
-      saveConfigs();
+      await saveConfigs();
       return true;
     } catch (error) {
       console.error('更新配置失败:', error);
@@ -126,7 +156,7 @@ export function useModelIcons() {
   /**
    * 删除配置
    */
-  function deleteConfig(id: string): boolean {
+  async function deleteConfig(id: string): Promise<boolean> {
     try {
       const index = configs.value.findIndex(c => c.id === id);
       if (index === -1) {
@@ -134,7 +164,7 @@ export function useModelIcons() {
       }
       
       configs.value.splice(index, 1);
-      saveConfigs();
+      await saveConfigs();
       return true;
     } catch (error) {
       console.error('删除配置失败:', error);
@@ -145,22 +175,22 @@ export function useModelIcons() {
   /**
    * 切换配置启用状态
    */
-  function toggleConfig(id: string): boolean {
+  async function toggleConfig(id: string): Promise<boolean> {
     const config = configs.value.find(c => c.id === id);
     if (!config) return false;
     
     config.enabled = !config.enabled;
-    saveConfigs();
+    await saveConfigs();
     return true;
   }
 
   /**
    * 重置为默认配置
    */
-  function resetToDefaults(): boolean {
+  async function resetToDefaults(): Promise<boolean> {
     try {
       configs.value = [...DEFAULT_ICON_CONFIGS];
-      saveConfigs();
+      await saveConfigs();
       return true;
     } catch (error) {
       console.error('重置配置失败:', error);
@@ -251,7 +281,7 @@ export function useModelIcons() {
   /**
    * 导入配置
    */
-  function importConfigs(jsonStr: string): boolean {
+  async function importConfigs(jsonStr: string): Promise<boolean> {
     try {
       const data: ModelIconConfigStore = JSON.parse(jsonStr);
       
@@ -270,7 +300,7 @@ export function useModelIcons() {
       }
       
       configs.value = data.configs;
-      saveConfigs();
+      await saveConfigs();
       return true;
     } catch (error) {
       console.error('导入配置失败:', error);

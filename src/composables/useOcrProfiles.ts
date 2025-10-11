@@ -4,8 +4,17 @@
 
 import { ref, computed } from 'vue';
 import type { OcrProfile } from '../types/ocr-profiles';
+import { createConfigManager } from '../utils/configManager';
 
-const STORAGE_KEY = 'ocr-profiles';
+const STORAGE_KEY = 'ocr-profiles'; // 用于 localStorage 数据迁移
+
+// 配置文件管理器
+const configManager = createConfigManager<{ profiles: OcrProfile[] }>({
+  moduleName: 'ocr-service',
+  fileName: 'profiles.json',
+  version: '1.0.0',
+  createDefault: () => ({ profiles: [] }),
+});
 
 // 全局状态
 const profiles = ref<OcrProfile[]>([]);
@@ -13,14 +22,31 @@ const isLoaded = ref(false);
 
 export function useOcrProfiles() {
   /**
-   * 从 localStorage 加载配置
+   * 从文件系统加载配置（支持 localStorage 迁移）
    */
-  const loadProfiles = () => {
+  const loadProfiles = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        profiles.value = JSON.parse(stored);
+      // 尝试从文件系统加载
+      const config = await configManager.load();
+      let loadedProfiles = config.profiles || [];
+
+      // 如果文件系统中没有数据，尝试从 localStorage 迁移
+      if (loadedProfiles.length === 0) {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          console.log('检测到 localStorage 数据，开始迁移到文件系统...');
+          loadedProfiles = JSON.parse(stored);
+          
+          // 保存到文件系统
+          await configManager.save({ profiles: loadedProfiles });
+          
+          // 清除 localStorage 数据
+          localStorage.removeItem(STORAGE_KEY);
+          console.log('数据迁移完成');
+        }
       }
+
+      profiles.value = loadedProfiles;
       isLoaded.value = true;
     } catch (error) {
       console.error('加载云端 OCR 配置失败:', error);
@@ -30,11 +56,11 @@ export function useOcrProfiles() {
   };
 
   /**
-   * 保存配置到 localStorage
+   * 保存配置到文件系统
    */
-  const saveToStorage = () => {
+  const saveToStorage = async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles.value));
+      await configManager.save({ profiles: profiles.value });
     } catch (error) {
       console.error('保存云端 OCR 配置失败:', error);
       throw error;
@@ -44,7 +70,7 @@ export function useOcrProfiles() {
   /**
    * 添加或更新配置
    */
-  const saveProfile = (profile: OcrProfile) => {
+  const saveProfile = async (profile: OcrProfile) => {
     const index = profiles.value.findIndex(p => p.id === profile.id);
     if (index !== -1) {
       // 更新现有配置
@@ -53,17 +79,17 @@ export function useOcrProfiles() {
       // 添加新配置
       profiles.value.push(profile);
     }
-    saveToStorage();
+    await saveToStorage();
   };
 
   /**
    * 删除配置
    */
-  const deleteProfile = (id: string) => {
+  const deleteProfile = async (id: string) => {
     const index = profiles.value.findIndex(p => p.id === id);
     if (index !== -1) {
       profiles.value.splice(index, 1);
-      saveToStorage();
+      await saveToStorage();
     }
   };
 
@@ -84,11 +110,11 @@ export function useOcrProfiles() {
   /**
    * 切换配置的启用状态
    */
-  const toggleProfileEnabled = (id: string) => {
+  const toggleProfileEnabled = async (id: string) => {
     const profile = profiles.value.find(p => p.id === id);
     if (profile) {
       profile.enabled = !profile.enabled;
-      saveToStorage();
+      await saveToStorage();
     }
   };
 

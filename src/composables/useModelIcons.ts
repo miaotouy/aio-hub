@@ -4,7 +4,9 @@
 
 import { ref, computed } from 'vue';
 import type { ModelIconConfig, ModelIconConfigStore, PresetIconInfo } from '../types/model-icons';
+import type { LlmModelInfo } from '../types/llm-profiles';
 import { DEFAULT_ICON_CONFIGS, PRESET_ICONS, PRESET_ICONS_DIR, getModelIconPath, isValidIconPath } from '../config/model-icons';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 const STORAGE_KEY = 'model-icon-configs';
 const CONFIG_VERSION = '1.0.0';
@@ -188,6 +190,53 @@ export function useModelIcons() {
   }
 
   /**
+   * 获取用于显示的图标路径
+   * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
+   */
+  function getDisplayIconPath(iconPath: string): string {
+    if (!iconPath) return '';
+
+    // 检查是否为绝对路径
+    // Windows: C:\, D:\, E:\ 等
+    const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
+    // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
+    const isUnixAbsolutePath = iconPath.startsWith('/') && !iconPath.startsWith('/model-icons');
+
+    if (isWindowsAbsolutePath || isUnixAbsolutePath) {
+      // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
+      return convertFileSrc(iconPath);
+    }
+
+    // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
+    return iconPath;
+  }
+
+  /**
+   * 获取模型图标（三级优先级逻辑 + 路径转换）
+   * 1. 优先使用模型自定义图标
+   * 2. 其次使用全局匹配规则
+   * 3. 最后返回 null（由调用方显示占位符）
+   *
+   * @param model 模型信息对象
+   * @returns 可直接用于 img src 的图标 URL，或 null
+   */
+  function getModelIcon(model: LlmModelInfo): string | null {
+    // 第一优先级：模型自定义图标
+    if (model.icon) {
+      return getDisplayIconPath(model.icon);
+    }
+
+    // 第二优先级：全局匹配规则
+    const matchedIcon = getModelIconPath(model.id, model.provider, configs.value);
+    if (matchedIcon) {
+      return getDisplayIconPath(matchedIcon);
+    }
+
+    // 第三优先级：返回 null，由调用方显示占位符
+    return null;
+  }
+
+  /**
    * 导出配置
    */
   function exportConfigs(): string {
@@ -270,5 +319,7 @@ export function useModelIcons() {
     importConfigs,
     sortByPriority,
     getConfigsByType,
+    getDisplayIconPath,
+    getModelIcon,
   };
 }

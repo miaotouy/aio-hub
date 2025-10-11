@@ -10,12 +10,12 @@ import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-pro
 import type { LlmPreset } from "../../config/llm-providers";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "../../utils/llm-api-url";
 import { useModelIcons } from "../../composables/useModelIcons";
-import { getModelIconPath, PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-icons";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-icons";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
-const { configs: iconConfigs } = useModelIcons();
+// 使用统一的图标获取方法
+const { getDisplayIconPath, getIconPath } = useModelIcons();
 
 // 防抖保存的计时器
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -252,34 +252,15 @@ const getProviderIcon = (profile: LlmProfile) => {
   if (profile.icon) {
     return getDisplayIconPath(profile.icon);
   }
-  return getModelIconPath("", profile.type, iconConfigs.value);
+  // 使用空字符串作为 modelId，provider 作为匹配条件
+  const iconPath = getIconPath("", profile.type);
+  return iconPath ? getDisplayIconPath(iconPath) : null;
 };
 
 const getProviderIconForPreset = (providerType: ProviderType) => {
-  return getModelIconPath("", providerType, iconConfigs.value);
+  const iconPath = getIconPath("", providerType);
+  return iconPath ? getDisplayIconPath(iconPath) : null;
 };
-
-/**
- * 获取用于显示的图标路径
- * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
- */
-function getDisplayIconPath(iconPath: string): string {
-  if (!iconPath) return "";
-
-  // 检查是否为绝对路径
-  // Windows: C:\, D:\, E:\ 等
-  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
-  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
-  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
-
-  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
-    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
-    return convertFileSrc(iconPath);
-  }
-
-  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
-  return iconPath;
-}
 
 const selectPresetIcon = (icon: any) => {
   const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;

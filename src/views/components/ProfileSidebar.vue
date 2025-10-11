@@ -42,12 +42,14 @@ const emit = defineEmits<Emits>();
           </div>
         </slot>
 
-        <el-switch
-          :model-value="profile.enabled"
-          size="small"
-          @click.stop
-          @change="emit('toggle', profile)"
-        />
+        <div class="switch-container">
+          <el-switch
+            :model-value="profile.enabled"
+            size="small"
+            @click.stop
+            @change="emit('toggle', profile)"
+          />
+        </div>
       </div>
 
       <div v-if="profiles.length === 0" class="sidebar-empty">
@@ -102,10 +104,13 @@ const emit = defineEmits<Emits>();
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+.switch-container {
+  margin-left: auto;
 }
 
 .sidebar-item:hover {

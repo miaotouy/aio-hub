@@ -2,9 +2,7 @@
 import { computed } from "vue";
 import { Plus, Delete, Edit, View, Search, Tools, Document, ArrowRight } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
-import { getModelIconPath } from "../../config/model-icons";
 import { useModelIcons } from "../../composables/useModelIcons";
-import { convertFileSrc } from "@tauri-apps/api/core";
 
 interface Props {
   models: LlmModelInfo[];
@@ -68,51 +66,8 @@ const isGroupExpanded = (groupName: string): boolean => {
   return props.expandState?.[groupName] ?? true;
 };
 
-const { configs: iconConfigs } = useModelIcons();
-
-/**
- * 获取模型图标（三级优先级逻辑）
- * 1. 优先使用模型自定义图标
- * 2. 其次使用全局匹配规则
- * 3. 最后使用占位符
- */
-const getModelIcon = (model: LlmModelInfo): string | null => {
-  // 第一优先级：模型自定义图标
-  if (model.icon) {
-    return getDisplayIconPath(model.icon);
-  }
-
-  // 第二优先级：全局匹配规则
-  const matchedIcon = getModelIconPath(model.id, model.provider, iconConfigs.value);
-  if (matchedIcon) {
-    return getDisplayIconPath(matchedIcon);
-  }
-
-  // 第三优先级：返回 null，由模板显示占位符
-  return null;
-};
-
-/**
- * 获取用于显示的图标路径
- * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
- */
-function getDisplayIconPath(iconPath: string): string {
-  if (!iconPath) return "";
-
-  // 检查是否为绝对路径
-  // Windows: C:\, D:\, E:\ 等
-  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
-  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
-  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
-
-  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
-    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
-    return convertFileSrc(iconPath);
-  }
-
-  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
-  return iconPath;
-}
+// 使用统一的图标获取方法
+const { getModelIcon } = useModelIcons();
 </script>
 
 <template>

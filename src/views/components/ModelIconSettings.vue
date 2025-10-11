@@ -4,7 +4,7 @@
       <h2>模型图标配置</h2>
       <div class="header-actions">
         <button @click="showPresets = !showPresets" class="btn-secondary">
-          {{ showPresets ? '隐藏预设' : '查看预设' }}
+          {{ showPresets ? "隐藏预设" : "查看预设" }}
         </button>
         <button @click="handleImport" class="btn-secondary">导入配置</button>
         <button @click="handleExport" class="btn-secondary">导出配置</button>
@@ -32,7 +32,7 @@
           class="search-input"
         />
       </div>
-      
+
       <div class="toolbar-controls">
         <select v-model="sortBy" class="sort-select">
           <option value="priority">按优先级排序</option>
@@ -90,11 +90,7 @@
           <div class="preset-info">
             <div class="preset-name">{{ preset.name }}</div>
             <div v-if="preset.suggestedFor" class="preset-tags">
-              <span
-                v-for="tag in preset.suggestedFor"
-                :key="tag"
-                class="tag"
-              >
+              <span v-for="tag in preset.suggestedFor" :key="tag" class="tag">
                 {{ tag }}
               </span>
             </div>
@@ -110,74 +106,60 @@
           class="configs-list"
           :class="{ 'grid-view': viewMode === 'grid', 'list-view': viewMode === 'list' }"
         >
-        <div
-          v-for="config in paginatedConfigs"
-          :key="config.id"
-          class="config-item"
-          :class="{ disabled: config.enabled === false }"
-        >
-          <div class="config-icon">
-            <img
-              v-if="config.iconPath"
-              :src="config.iconPath"
-              :alt="config.matchValue"
-              @error="handleImageError"
-            />
-            <div v-else class="icon-placeholder">?</div>
-          </div>
+          <div
+            v-for="config in paginatedConfigs"
+            :key="config.id"
+            class="config-item"
+            :class="{ disabled: config.enabled === false }"
+          >
+            <div class="config-icon">
+              <img
+                v-if="config.iconPath"
+                :src="config.iconPath"
+                :alt="config.matchValue"
+                @error="handleImageError"
+              />
+              <div v-else class="icon-placeholder">?</div>
+            </div>
 
-          <div class="config-info">
-            <div class="config-header">
-              <span class="config-type-badge">{{ getMatchTypeLabel(config.matchType) }}</span>
-              <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
-              <span class="config-value">{{ config.matchValue }}</span>
+            <div class="config-info">
+              <div class="config-header">
+                <span class="config-type-badge">{{ getMatchTypeLabel(config.matchType) }}</span>
+                <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
+                <span class="config-value">{{ config.matchValue }}</span>
+              </div>
+              <div v-if="config.priority" class="config-priority">
+                优先级: {{ config.priority }}
+              </div>
+              <div v-if="config.description" class="config-description">
+                {{ config.description }}
+              </div>
+              <div class="config-path">{{ config.iconPath }}</div>
             </div>
-            <div v-if="config.priority" class="config-priority">
-              优先级: {{ config.priority }}
-            </div>
-            <div v-if="config.description" class="config-description">
-              {{ config.description }}
-            </div>
-            <div class="config-path">{{ config.iconPath }}</div>
-          </div>
 
-          <div class="config-actions">
-            <button
-              @click="toggleConfig(config.id)"
-              class="btn-icon"
-              :title="config.enabled === false ? '启用' : '禁用'"
-            >
-              {{ config.enabled === false ? '☐' : '☑' }}
-            </button>
-            <button
-              @click="handleEdit(config)"
-              class="btn-icon"
-              title="编辑"
-            >
-              ✏️
-            </button>
-            <button
-              @click="handleDelete(config.id)"
-              class="btn-icon btn-danger"
-              title="删除"
-            >
-              🗑️
-            </button>
+            <div class="config-actions">
+              <button
+                @click="toggleConfig(config.id)"
+                class="btn-icon"
+                :title="config.enabled === false ? '启用' : '禁用'"
+              >
+                {{ config.enabled === false ? "☐" : "☑" }}
+              </button>
+              <button @click="handleEdit(config)" class="btn-icon" title="编辑">✏️</button>
+              <button @click="handleDelete(config.id)" class="btn-icon btn-danger" title="删除">
+                🗑️
+              </button>
+            </div>
           </div>
-        </div>
         </div>
       </div>
-      
+
       <!-- 固定分页 -->
       <div v-if="totalPages > 1" class="pagination">
-        <button
-          @click="goToPage(currentPage - 1)"
-          :disabled="currentPage === 1"
-          class="page-btn"
-        >
+        <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="page-btn">
           ← 上一页
         </button>
-        
+
         <div class="page-numbers">
           <button
             v-for="page in getPageNumbers()"
@@ -187,7 +169,7 @@
             :disabled="page < 0"
             class="page-number"
           >
-            {{ page > 0 ? page : '...' }}
+            {{ page > 0 ? page : "..." }}
           </button>
         </div>
 
@@ -199,9 +181,7 @@
           下一页 →
         </button>
 
-        <div class="page-info">
-          {{ currentPage }} / {{ totalPages }}
-        </div>
+        <div class="page-info">{{ currentPage }} / {{ totalPages }}</div>
       </div>
     </div>
 
@@ -209,121 +189,26 @@
     <div v-else class="empty-state">
       <div class="empty-icon">📭</div>
       <div class="empty-text">
-        {{ searchText ? '未找到匹配的配置' : '暂无配置' }}
+        {{ searchText ? "未找到匹配的配置" : "暂无配置" }}
       </div>
-      <button v-if="!searchText" @click="handleAdd" class="btn-primary">
-        添加第一个配置
-      </button>
+      <button v-if="!searchText" @click="handleAdd" class="btn-primary">添加第一个配置</button>
     </div>
 
     <!-- 编辑对话框 -->
-    <div v-if="editingConfig" class="modal-overlay" @click.self="closeEditor">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>{{ isNewConfig ? '添加配置' : '编辑配置' }}</h3>
-          <button @click="closeEditor" class="btn-close">✕</button>
-        </div>
-
-        <div class="modal-body">
-          <div class="form-group">
-            <label>匹配类型</label>
-            <select v-model="editingConfig.matchType">
-              <option value="provider">Provider (提供商)</option>
-              <option value="model">Model (精确模型)</option>
-              <option value="modelPrefix">Model Prefix (模型前缀)</option>
-              <option value="modelGroup">Model Group (模型分组)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>匹配值</label>
-            <input
-              v-model="editingConfig.matchValue"
-              type="text"
-              :placeholder="editingConfig.useRegex ? '例如: ^o[1-4](-.*)?$, gpt-(4|3\\.5)' : '例如: openai, gpt-, claude-opus-4'"
-            />
-          </div>
-
-          <div class="form-group checkbox-group">
-            <label>
-              <input
-                v-model="editingConfig.useRegex"
-                type="checkbox"
-                :disabled="editingConfig.matchType === 'provider' || editingConfig.matchType === 'modelGroup'"
-              />
-              使用正则表达式匹配
-              <small v-if="editingConfig.matchType === 'provider' || editingConfig.matchType === 'modelGroup'">
-                （此匹配类型不支持正则）
-              </small>
-            </label>
-            <small v-if="editingConfig.useRegex">
-              启用后，匹配值将作为正则表达式进行匹配。例如：^o[1-4] 可匹配 o1、o2、o3、o4 开头的模型
-            </small>
-          </div>
-
-          <div class="form-group">
-            <label>图标路径</label>
-            <input
-              v-model="editingConfig.iconPath"
-              type="text"
-              placeholder="例如: /model-icons/openai.svg"
-            />
-            <small>支持相对路径或绝对路径，推荐使用预设图标</small>
-          </div>
-
-          <div class="form-group">
-            <label>优先级</label>
-            <input
-              v-model.number="editingConfig.priority"
-              type="number"
-              min="0"
-              max="100"
-              placeholder="0-100，数字越大优先级越高"
-            />
-          </div>
-
-          <div class="form-group">
-            <label>描述</label>
-            <input
-              v-model="editingConfig.description"
-              type="text"
-              placeholder="配置说明（可选）"
-            />
-          </div>
-
-          <div class="form-group checkbox-group">
-            <label>
-              <input
-                v-model="editingConfig.enabled"
-                type="checkbox"
-              />
-              启用此配置
-            </label>
-          </div>
-
-          <div v-if="editingConfig.iconPath" class="icon-preview">
-            <h4>图标预览</h4>
-            <img
-              :src="editingConfig.iconPath"
-              alt="预览"
-              @error="handleImageError"
-            />
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button @click="closeEditor" class="btn-secondary">取消</button>
-          <button @click="handleSave" class="btn-primary">保存</button>
-        </div>
-      </div>
-    </div>
+    <ModelIconConfigEditor
+      v-model="editingConfig"
+      :is-new="isNewConfig"
+      @save="handleSave"
+      @close="closeEditor"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useModelIcons } from '../../composables/useModelIcons';
-import type { ModelIconConfig, IconMatchType } from '../../types/model-icons';
+import { ref, computed } from "vue";
+import { useModelIcons } from "../../composables/useModelIcons";
+import type { ModelIconConfig, IconMatchType } from "../../types/model-icons";
+import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
 
 const {
   configs,
@@ -344,12 +229,12 @@ const editingConfig = ref<Partial<ModelIconConfig> | null>(null);
 const isNewConfig = ref(false);
 
 // 搜索和过滤
-const searchText = ref('');
-const sortBy = ref<'priority' | 'type' | 'name'>('priority');
-const filterEnabled = ref<'all' | 'enabled' | 'disabled'>('all');
+const searchText = ref("");
+const sortBy = ref<"priority" | "type" | "name">("priority");
+const filterEnabled = ref<"all" | "enabled" | "disabled">("all");
 const currentPage = ref(1);
 const pageSize = ref(12);
-const viewMode = ref<'grid' | 'list'>('grid');
+const viewMode = ref<"grid" | "list">("grid");
 
 // 过滤后的配置列表
 const filteredConfigs = computed(() => {
@@ -358,18 +243,19 @@ const filteredConfigs = computed(() => {
   // 搜索过滤
   if (searchText.value.trim()) {
     const search = searchText.value.toLowerCase();
-    result = result.filter(config =>
-      config.matchValue.toLowerCase().includes(search) ||
-      config.matchType.toLowerCase().includes(search) ||
-      (config.description?.toLowerCase().includes(search))
+    result = result.filter(
+      (config) =>
+        config.matchValue.toLowerCase().includes(search) ||
+        config.matchType.toLowerCase().includes(search) ||
+        config.description?.toLowerCase().includes(search)
     );
   }
 
   // 启用状态过滤
-  if (filterEnabled.value === 'enabled') {
-    result = result.filter(config => config.enabled !== false);
-  } else if (filterEnabled.value === 'disabled') {
-    result = result.filter(config => config.enabled === false);
+  if (filterEnabled.value === "enabled") {
+    result = result.filter((config) => config.enabled !== false);
+  } else if (filterEnabled.value === "disabled") {
+    result = result.filter((config) => config.enabled === false);
   }
 
   return result;
@@ -378,13 +264,13 @@ const filteredConfigs = computed(() => {
 // 排序后的配置列表
 const sortedConfigs = computed(() => {
   const result = [...filteredConfigs.value];
-  
+
   switch (sortBy.value) {
-    case 'priority':
+    case "priority":
       return result.sort((a, b) => (b.priority || 0) - (a.priority || 0));
-    case 'type':
+    case "type":
       return result.sort((a, b) => a.matchType.localeCompare(b.matchType));
-    case 'name':
+    case "name":
       return result.sort((a, b) => a.matchValue.localeCompare(b.matchValue));
     default:
       return result;
@@ -414,10 +300,10 @@ function goToPage(page: number) {
 // 获取匹配类型标签
 function getMatchTypeLabel(type: IconMatchType): string {
   const labels: Record<IconMatchType, string> = {
-    provider: 'Provider',
-    model: 'Model',
-    modelPrefix: 'Prefix',
-    modelGroup: 'Group',
+    provider: "Provider",
+    model: "Model",
+    modelPrefix: "Prefix",
+    modelGroup: "Group",
   };
   return labels[type] || type;
 }
@@ -433,12 +319,12 @@ function selectPreset(preset: any) {
 function handleAdd() {
   isNewConfig.value = true;
   editingConfig.value = {
-    matchType: 'provider',
-    matchValue: '',
-    iconPath: '',
+    matchType: "provider",
+    matchValue: "",
+    iconPath: "",
     priority: 10,
     enabled: true,
-    description: '',
+    description: "",
   };
 }
 
@@ -453,16 +339,16 @@ function handleSave() {
   if (!editingConfig.value) return;
 
   const config = editingConfig.value;
-  
+
   // 验证必填字段
   if (!config.matchValue || !config.iconPath) {
-    alert('请填写匹配值和图标路径');
+    alert("请填写匹配值和图标路径");
     return;
   }
 
   let success = false;
   if (isNewConfig.value) {
-    success = addConfig(config as Omit<ModelIconConfig, 'id'>);
+    success = addConfig(config as Omit<ModelIconConfig, "id">);
   } else if (config.id) {
     success = updateConfig(config.id, config);
   }
@@ -470,13 +356,13 @@ function handleSave() {
   if (success) {
     closeEditor();
   } else {
-    alert('保存失败，请检查配置');
+    alert("保存失败，请检查配置");
   }
 }
 
 // 处理删除
 function handleDelete(id: string) {
-  if (confirm('确定要删除这个配置吗？')) {
+  if (confirm("确定要删除这个配置吗？")) {
     deleteConfig(id);
   }
 }
@@ -489,9 +375,9 @@ function closeEditor() {
 
 // 处理重置
 function handleReset() {
-  if (confirm('确定要重置为默认配置吗？这将清除所有自定义配置。')) {
+  if (confirm("确定要重置为默认配置吗？这将清除所有自定义配置。")) {
     if (resetToDefaults()) {
-      alert('已重置为默认配置');
+      alert("已重置为默认配置");
     }
   }
 }
@@ -499,9 +385,9 @@ function handleReset() {
 // 处理导出
 function handleExport() {
   const json = exportConfigs();
-  const blob = new Blob([json], { type: 'application/json' });
+  const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = `model-icons-config-${Date.now()}.json`;
   a.click();
@@ -510,9 +396,9 @@ function handleExport() {
 
 // 处理导入
 function handleImport() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'application/json';
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json";
   input.onchange = async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
@@ -520,12 +406,12 @@ function handleImport() {
     try {
       const text = await file.text();
       if (importConfigs(text)) {
-        alert('导入成功');
+        alert("导入成功");
       } else {
-        alert('导入失败，请检查文件格式');
+        alert("导入失败，请检查文件格式");
       }
     } catch (error) {
-      alert('导入失败: ' + error);
+      alert("导入失败: " + error);
     }
   };
   input.click();
@@ -534,7 +420,7 @@ function handleImport() {
 // 处理图片加载错误
 function handleImageError(e: Event) {
   const img = e.target as HTMLImageElement;
-  img.style.display = 'none';
+  img.style.display = "none";
 }
 
 // 获取页码数组（用于分页显示）
@@ -542,7 +428,7 @@ function getPageNumbers(): number[] {
   const pages: number[] = [];
   const total = totalPages.value;
   const current = currentPage.value;
-  
+
   if (total <= 7) {
     // 总页数<=7，显示所有页码
     for (let i = 1; i <= total; i++) {
@@ -569,7 +455,7 @@ function getPageNumbers(): number[] {
       pages.push(total);
     }
   }
-  
+
   return pages;
 }
 </script>
@@ -941,7 +827,7 @@ function getPageNumbers(): number[] {
 
 .config-value {
   font-weight: 500;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
 }
 
 .config-priority {
@@ -958,7 +844,7 @@ function getPageNumbers(): number[] {
 .config-path {
   font-size: 0.75rem;
   color: var(--text-color-light);
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1125,133 +1011,5 @@ function getPageNumbers(): number[] {
   background: #ef4444;
   color: white;
   border-color: #ef4444;
-}
-
-/* 模态框 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--container-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.btn-close {
-  background: transparent;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--text-color);
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-}
-
-.btn-close:hover {
-  color: var(--error-color);
-}
-
-.modal-body {
-  padding: 1.5rem;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-color);
-}
-
-/* 表单 */
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group select {
-  width: 100%;
-  padding: 0.5rem;
-  background: var(--input-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: var(--primary-color);
-}
-
-.form-group small {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: var(--text-color-light);
-}
-
-.checkbox-group label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-}
-
-.checkbox-group input[type="checkbox"] {
-  width: auto;
-  margin: 0;
-}
-
-.icon-preview {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: var(--input-bg);
-  border-radius: 4px;
-  text-align: center;
-}
-
-.icon-preview h4 {
-  margin-top: 0;
-  margin-bottom: 0.75rem;
-}
-
-.icon-preview img {
-  max-width: 120px;
-  max-height: 120px;
 }
 </style>

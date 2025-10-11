@@ -3,12 +3,14 @@ import { ref, computed, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import ProfileSidebar from "./ProfileSidebar.vue";
 import ProfileEditor from "./ProfileEditor.vue";
+import CustomOcrRequestEditor from "./CustomOcrRequestEditor.vue";
 import { useOcrProfiles } from "../../composables/useOcrProfiles";
 import { ocrProviderTypes, ocrPresets } from "../../config/ocr-providers";
-import type { OcrProfile, OcrProviderType } from "../../types/ocr-profiles";
+import type { OcrProfile, OcrProviderType, OcrApiRequest } from "../../types/ocr-profiles";
 import type { OcrPreset } from "../../config/ocr-providers";
 
-const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } = useOcrProfiles();
+const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
+  useOcrProfiles();
 
 // 防抖保存的计时器
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -82,16 +84,33 @@ const handleAddClick = () => {
 
 // 保存配置（验证并保存）
 const saveCurrentProfile = () => {
-  // 基础验证：名称和端点必填
+  // 基础验证：名称必填
   if (!editForm.value.name.trim()) {
     ElMessage.error("请输入服务名称");
     return false;
   }
-  if (!editForm.value.endpoint.trim()) {
+
+  // 对于非自定义类型，端点必填
+  if (editForm.value.provider !== "custom" && !editForm.value.endpoint.trim()) {
     ElMessage.error("请输入 API 端点地址");
     return false;
   }
-  // API Key 可选，某些服务可能不需要
+
+  // 对于自定义类型，验证 apiRequest
+  if (editForm.value.provider === "custom") {
+    if (!editForm.value.apiRequest) {
+      ElMessage.error("请配置自定义 API 请求");
+      return false;
+    }
+    if (!editForm.value.apiRequest.urlTemplate.trim()) {
+      ElMessage.error("请输入 API URL 地址");
+      return false;
+    }
+    if (!editForm.value.apiRequest.resultPath.trim()) {
+      ElMessage.error("请输入结果提取路径");
+      return false;
+    }
+  }
 
   saveProfile(editForm.value);
   return true;
@@ -156,12 +175,37 @@ const getProviderTypeInfo = (type: OcrProviderType) => {
   return ocrProviderTypes.find((p) => p.type === type);
 };
 
-// 当服务商类型改变时，更新默认端点
+// 当服务商类型改变时，更新默认端点并初始化自定义配置
 const handleProviderChange = (type: OcrProviderType) => {
   const providerInfo = getProviderTypeInfo(type);
   if (providerInfo) {
     editForm.value.endpoint = providerInfo.defaultEndpoint;
   }
+
+  // 如果切换到自定义类型，初始化 apiRequest
+  if (type === "custom" && !editForm.value.apiRequest) {
+    editForm.value.apiRequest = createDefaultApiRequest();
+  }
+};
+
+// 创建默认的 API 请求配置
+const createDefaultApiRequest = (): OcrApiRequest => {
+  return {
+    urlTemplate: "https://api.example.com/ocr",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    bodyTemplate: JSON.stringify(
+      {
+        image: "{{imageBase64}}",
+      },
+      null,
+      2
+    ),
+    variables: [],
+    resultPath: "data.text",
+  };
 };
 </script>
 
@@ -232,34 +276,42 @@ const handleProviderChange = (type: OcrProviderType) => {
             </el-select>
           </el-form-item>
 
-          <el-form-item label="API 端点">
-            <el-input v-model="editForm.endpoint" placeholder="https://api.example.com/ocr" />
-            <div class="form-hint">
-              默认: {{ getProviderTypeInfo(editForm.provider)?.defaultEndpoint }}
-            </div>
-          </el-form-item>
+          <!-- 标准服务商配置 -->
+          <template v-if="editForm.provider !== 'custom'">
+            <el-form-item label="API 端点">
+              <el-input v-model="editForm.endpoint" placeholder="https://api.example.com/ocr" />
+              <div class="form-hint">
+                默认: {{ getProviderTypeInfo(editForm.provider)?.defaultEndpoint }}
+              </div>
+            </el-form-item>
 
-          <el-form-item label="API Key">
-            <el-input
-              v-model="editForm.credentials.apiKey"
-              type="password"
-              placeholder="可选，某些服务可能不需要"
-              show-password
-            />
-          </el-form-item>
+            <el-form-item label="API Key">
+              <el-input
+                v-model="editForm.credentials.apiKey"
+                type="password"
+                placeholder="可选，某些服务可能不需要"
+                show-password
+              />
+            </el-form-item>
 
-          <el-form-item
-            v-if="editForm.provider === 'baidu' || editForm.provider === 'custom'"
-            label="API Secret"
-          >
-            <el-input
-              v-model="editForm.credentials.apiSecret"
-              type="password"
-              placeholder="请输入 API Secret（某些服务需要）"
-              show-password
-            />
-            <div class="form-hint">百度云需要 API Secret 来获取 access_token</div>
-          </el-form-item>
+            <el-form-item v-if="editForm.provider === 'baidu'" label="API Secret">
+              <el-input
+                v-model="editForm.credentials.apiSecret"
+                type="password"
+                placeholder="请输入 API Secret"
+                show-password
+              />
+              <div class="form-hint">百度云需要 API Secret 来获取 access_token</div>
+            </el-form-item>
+          </template>
+
+          <!-- 自定义服务配置 -->
+          <template v-else>
+            <el-divider content-position="left">
+              <span style="font-size: 14px; font-weight: 600">自定义 API 配置</span>
+            </el-divider>
+            <CustomOcrRequestEditor v-if="editForm.apiRequest" v-model="editForm.apiRequest" />
+          </template>
 
           <el-divider />
 
@@ -284,9 +336,7 @@ const handleProviderChange = (type: OcrProviderType) => {
               show-input
               :show-input-controls="false"
             />
-            <div class="form-hint">
-              每个请求之间延迟 {{ editForm.delay }}ms，避免触发 API 限流
-            </div>
+            <div class="form-hint">每个请求之间延迟 {{ editForm.delay }}ms，避免触发 API 限流</div>
           </el-form-item>
         </el-form>
       </ProfileEditor>
@@ -501,5 +551,10 @@ const handleProviderChange = (type: OcrProviderType) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Divider 样式 */
+:deep(.el-divider__text) {
+  background-color: var(--card-bg);
 }
 </style>

@@ -4,6 +4,7 @@
 
 import type { OcrProfile } from '../../../types/ocr-profiles';
 import type { ImageBlock, OcrResult } from '../types';
+import { buildUrl, buildHeaders, buildBody, getValueByPath } from '../../../utils/apiRequest';
 
 /**
  * 百度云 Access Token 缓存
@@ -119,16 +120,78 @@ async function callBaiduOcr(
    throw new Error('阿里云 OCR 暂未实现，敬请期待');
  }
  
- /**
-  * 调用自定义 OCR API (占位实现)
-  */
- async function callCustomOcr(
-   _imageBase64: string,
-   _profile: OcrProfile
- ): Promise<string> {
-   // TODO: 实现自定义 OCR
-   throw new Error('自定义 OCR 需要根据您的 API 规范进行配置');
- }
+/**
+ * 调用自定义 OCR API
+ */
+async function callCustomOcr(
+  imageBase64: string,
+  profile: OcrProfile
+): Promise<string> {
+  // 检查自定义配置是否存在
+  if (!profile.apiRequest) {
+    throw new Error('自定义 OCR 服务未配置。请在设置中配置 API 请求结构。');
+  }
+
+  const { urlTemplate, method, headers, bodyTemplate, variables, resultPath } = profile.apiRequest;
+
+  // 构建变量映射表
+  const variableValues: Record<string, any> = {};
+  
+  // 从 variables 数组中提取所有变量的值
+  variables.forEach(variable => {
+    variableValues[variable.key] = variable.value;
+  });
+  
+  // 添加特殊变量：图片 Base64 数据
+  variableValues['imageBase64'] = imageBase64;
+
+  try {
+    // 使用工具函数构建请求
+    const url = buildUrl(urlTemplate, variableValues);
+    const requestHeaders = buildHeaders(headers, variableValues);
+    const requestBody = buildBody(bodyTemplate, variableValues);
+
+    console.log('自定义 OCR 请求:', {
+      url,
+      method,
+      headers: requestHeaders,
+      bodyPreview: requestBody.substring(0, 200) + '...'
+    });
+
+    // 发送请求
+    const response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body: method !== 'GET' ? requestBody : undefined,
+    });
+
+    // 检查响应状态
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${response.statusText}. ${errorText}`);
+    }
+
+    // 解析响应 JSON
+    const responseData = await response.json();
+
+    // 根据 resultPath 提取结果
+    const text = getValueByPath(responseData, resultPath);
+
+    if (typeof text !== 'string') {
+      throw new Error(
+        `无法从响应中提取文本。路径 "${resultPath}" 指向的值类型为 ${typeof text}，期望为 string。` +
+        `\n响应数据: ${JSON.stringify(responseData, null, 2)}`
+      );
+    }
+
+    return text;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`自定义 OCR 请求失败: ${error.message}`);
+    }
+    throw error;
+  }
+}
 /**
  * 使用云端 OCR 识别图片块
  */

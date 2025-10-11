@@ -52,6 +52,8 @@ const apiKeyInput = ref("");
 // 预设选择对话框
 const showPresetDialog = ref(false);
 const showPresetIconDialog = ref(false);
+// 标记当前正在编辑的图标类型：'provider' 或 'model'
+const editingIconTarget = ref<'provider' | 'model'>('provider');
 
 // 计算当前选中的配置
 const selectedProfile = computed(() => {
@@ -280,10 +282,33 @@ function getDisplayIconPath(iconPath: string): string {
 }
 
 const selectPresetIcon = (icon: any) => {
-  if (editForm.value) {
-    editForm.value.icon = `${PRESET_ICONS_DIR}/${icon.path}`;
+  const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
+  
+  if (editingIconTarget.value === 'provider') {
+    // 编辑供应商图标
+    if (editForm.value) {
+      editForm.value.icon = iconPath;
+    }
+  } else {
+    // 编辑模型图标
+    if (modelEditForm.value) {
+      modelEditForm.value.icon = iconPath;
+    }
   }
+  
   showPresetIconDialog.value = false;
+};
+
+// 打开供应商图标选择器
+const openProviderIconSelector = () => {
+  editingIconTarget.value = 'provider';
+  showPresetIconDialog.value = true;
+};
+
+// 打开模型图标选择器
+const openModelIconSelector = () => {
+  editingIconTarget.value = 'model';
+  showPresetIconDialog.value = true;
 };
 </script>
 
@@ -364,7 +389,7 @@ const selectPresetIcon = (icon: any) => {
               placeholder="自定义图标路径或URL, 或选择预设"
             >
               <template #append>
-                <el-button @click="showPresetIconDialog = true">选择预设</el-button>
+                <el-button @click="openProviderIconSelector">选择预设</el-button>
               </template>
             </el-input>
           </el-form-item>
@@ -478,6 +503,17 @@ const selectPresetIcon = (icon: any) => {
         </el-form-item>
         <el-form-item label="分组">
           <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
+        </el-form-item>
+        <el-form-item label="模型图标">
+          <el-input
+            v-model="modelEditForm.icon"
+            placeholder="可选，自定义图标路径或选择预设"
+          >
+            <template #append>
+              <el-button @click="openModelIconSelector">选择预设</el-button>
+            </template>
+          </el-input>
+          <div class="form-hint">留空则使用全局规则自动匹配</div>
         </el-form-item>
         <el-form-item label="视觉模型">
           <el-switch v-model="modelEditForm.capabilities!.vision" />

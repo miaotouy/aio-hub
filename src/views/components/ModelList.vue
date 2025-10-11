@@ -2,6 +2,9 @@
 import { computed } from "vue";
 import { Plus, Delete, Edit, View, Search, Tools, Document, ArrowRight } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
+import { getModelIconPath } from "../../config/model-icons";
+import { useModelIcons } from "../../composables/useModelIcons";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 interface Props {
   models: LlmModelInfo[];
@@ -65,19 +68,51 @@ const isGroupExpanded = (groupName: string): boolean => {
   return props.expandState?.[groupName] ?? true;
 };
 
-// 获取 provider Logo URL (简化版，实际可以从配置中获取)
-const getProviderLogo = (provider?: string): string | null => {
-  const logos: Record<string, string> = {
-    openai: 'https://cdn.oaistatic.com/_next/static/media/apple-touch-icon.59f2e898.png',
-    gemini: 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
-    anthropic: 'https://www.anthropic.com/images/icons/favicon-32x32.png',
-    deepseek: 'https://www.deepseek.com/favicon.ico',
-    moonshot: 'https://platform.moonshot.cn/favicon.ico',
-    zhipu: 'https://open.bigmodel.cn/favicon.ico',
-    groq: 'https://groq.com/favicon.ico',
-  };
-  return provider ? (logos[provider] || null) : null;
+const { configs: iconConfigs } = useModelIcons();
+
+/**
+ * 获取模型图标（三级优先级逻辑）
+ * 1. 优先使用模型自定义图标
+ * 2. 其次使用全局匹配规则
+ * 3. 最后使用占位符
+ */
+const getModelIcon = (model: LlmModelInfo): string | null => {
+  // 第一优先级：模型自定义图标
+  if (model.icon) {
+    return getDisplayIconPath(model.icon);
+  }
+
+  // 第二优先级：全局匹配规则
+  const matchedIcon = getModelIconPath(model.id, model.provider, iconConfigs.value);
+  if (matchedIcon) {
+    return getDisplayIconPath(matchedIcon);
+  }
+
+  // 第三优先级：返回 null，由模板显示占位符
+  return null;
 };
+
+/**
+ * 获取用于显示的图标路径
+ * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
+ */
+function getDisplayIconPath(iconPath: string): string {
+  if (!iconPath) return "";
+
+  // 检查是否为绝对路径
+  // Windows: C:\, D:\, E:\ 等
+  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
+  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
+  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
+
+  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
+    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
+    return convertFileSrc(iconPath);
+  }
+
+  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
+  return iconPath;
+}
 </script>
 
 <template>
@@ -127,13 +162,13 @@ const getProviderLogo = (provider?: string): string | null => {
               <!-- Logo -->
               <div class="model-logo">
                 <img
-                  v-if="getProviderLogo(item.model.provider)"
-                  :src="getProviderLogo(item.model.provider)!"
-                  :alt="item.model.provider"
+                  v-if="getModelIcon(item.model)"
+                  :src="getModelIcon(item.model)!"
+                  :alt="item.model.name"
                   @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
                 />
                 <div v-else class="logo-placeholder">
-                  {{ item.model.provider?.charAt(0).toUpperCase() || 'M' }}
+                  {{ item.model.name.substring(0, 2).toUpperCase() }}
                 </div>
               </div>
 

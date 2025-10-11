@@ -54,6 +54,11 @@ export interface LlmModelInfo {
     /** 是否支持代码执行 */
     codeExecution?: boolean;
   };
+  /**
+   * 自定义模型图标路径（可选）
+   * 优先级高于 provider 图标和全局匹配规则
+   */
+  icon?: string;
 }
 
 /**

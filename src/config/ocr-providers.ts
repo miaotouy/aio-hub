@@ -15,6 +15,7 @@ export const ocrProviderTypes: OcrProviderTypeInfo[] = [
     defaultEndpoint: 'https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic',
     requiresAuth: true,
     authType: 'access_token',
+    icon: '/ocr-icons/百度智能云.svg',
   },
   {
     type: 'tencent',
@@ -23,6 +24,7 @@ export const ocrProviderTypes: OcrProviderTypeInfo[] = [
     defaultEndpoint: 'https://ocr.tencentcloudapi.com',
     requiresAuth: true,
     authType: 'api_key',
+    icon: '/ocr-icons/腾讯云.svg',
   },
   {
     type: 'aliyun',
@@ -31,6 +33,7 @@ export const ocrProviderTypes: OcrProviderTypeInfo[] = [
     defaultEndpoint: 'https://ocr-api.cn-shanghai.aliyuncs.com',
     requiresAuth: true,
     authType: 'api_key',
+    icon: '/ocr-icons/阿里云.svg',
   },
   {
     type: 'custom',

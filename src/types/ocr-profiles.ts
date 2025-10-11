@@ -17,6 +17,7 @@ export interface OcrProviderTypeInfo {
   defaultEndpoint: string;
   requiresAuth: boolean; // 是否需要认证
   authType: 'access_token' | 'api_key' | 'custom'; // 认证方式
+  icon?: string; // 图标路径
 }
 
 /**

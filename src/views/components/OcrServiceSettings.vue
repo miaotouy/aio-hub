@@ -165,8 +165,16 @@ const handleProviderChange = (type: OcrProviderType) => {
       >
         <template #item="{ profile }">
           <div class="profile-info">
-            <div class="profile-name">{{ profile.name }}</div>
-            <div class="profile-type">{{ getProviderTypeInfo(profile.provider)?.name }}</div>
+            <img
+              v-if="getProviderTypeInfo(profile.provider)?.icon"
+              :src="getProviderTypeInfo(profile.provider)?.icon"
+              class="provider-icon"
+              alt=""
+            />
+            <div class="profile-text">
+              <div class="profile-name">{{ profile.name }}</div>
+              <div class="profile-type">{{ getProviderTypeInfo(profile.provider)?.name }}</div>
+            </div>
           </div>
         </template>
       </ProfileSidebar>
@@ -305,10 +313,38 @@ const handleProviderChange = (type: OcrProviderType) => {
 }
 
 /* 列表项样式 */
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.provider-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.profile-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .profile-type {
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 表单提示 */

@@ -23,7 +23,10 @@ const emit = defineEmits<Emits>();
 <template>
   <div class="profile-editor">
     <div class="editor-header">
-      <h3>{{ title }}</h3>
+      <div class="editor-title">
+        <slot name="header-actions" />
+        <h3>{{ title }}</h3>
+      </div>
       <div class="header-actions">
         <el-button v-if="showSave" type="primary" size="small" @click="emit('save')"> 保存 </el-button>
         <el-button
@@ -68,6 +71,11 @@ const emit = defineEmits<Emits>();
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+}
+
+.editor-title {
+  display: flex;
+  align-items: center;
 }
 
 .header-actions {

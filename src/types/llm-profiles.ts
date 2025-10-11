@@ -93,6 +93,10 @@ export interface LlmProfile {
    */
   logoUrl?: string;
   /**
+   * 自定义供应商图标路径（可选）
+   */
+  icon?: string;
+  /**
    * 自定义请求头（可选）
    */
   customHeaders?: Record<string, string>;

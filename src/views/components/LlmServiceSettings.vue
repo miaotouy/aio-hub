@@ -9,9 +9,13 @@ import { providerTypes, llmPresets } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
 import type { LlmPreset } from "../../config/llm-providers";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "../../utils/llm-api-url";
+import { useModelIcons } from "../../composables/useModelIcons";
+import { getModelIconPath, PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-icons";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
+const { configs: iconConfigs } = useModelIcons();
 
 // 防抖保存的计时器
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -47,6 +51,7 @@ const apiKeyInput = ref("");
 
 // 预设选择对话框
 const showPresetDialog = ref(false);
+const showPresetIconDialog = ref(false);
 
 // 计算当前选中的配置
 const selectedProfile = computed(() => {
@@ -240,6 +245,46 @@ const apiEndpointPreview = computed(() => {
 const endpointHintText = computed(() => {
   return getLlmEndpointHint(editForm.value.type);
 });
+
+const getProviderIcon = (profile: LlmProfile) => {
+  if (profile.icon) {
+    return getDisplayIconPath(profile.icon);
+  }
+  return getModelIconPath("", profile.type, iconConfigs.value);
+};
+
+const getProviderIconForPreset = (providerType: ProviderType) => {
+  return getModelIconPath("", providerType, iconConfigs.value);
+};
+
+/**
+ * 获取用于显示的图标路径
+ * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
+ */
+function getDisplayIconPath(iconPath: string): string {
+  if (!iconPath) return "";
+
+  // 检查是否为绝对路径
+  // Windows: C:\, D:\, E:\ 等
+  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
+  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
+  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
+
+  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
+    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
+    return convertFileSrc(iconPath);
+  }
+
+  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
+  return iconPath;
+}
+
+const selectPresetIcon = (icon: any) => {
+  if (editForm.value) {
+    editForm.value.icon = `${PRESET_ICONS_DIR}/${icon.path}`;
+  }
+  showPresetIconDialog.value = false;
+};
 </script>
 
 <template>
@@ -255,6 +300,13 @@ const endpointHintText = computed(() => {
         @toggle="handleToggle"
       >
         <template #item="{ profile }">
+          <img
+            v-if="getProviderIcon(profile)"
+            :src="getProviderIcon(profile)!"
+            class="profile-icon"
+            alt=""
+          />
+          <div v-else class="profile-icon-placeholder"></div>
           <div class="profile-info">
             <div class="profile-name">{{ profile.name }}</div>
             <div class="profile-type">{{ getProviderTypeInfo(profile.type)?.name }}</div>
@@ -270,6 +322,14 @@ const endpointHintText = computed(() => {
         :show-save="false"
         @delete="handleDelete"
       >
+        <template #header-actions>
+          <el-image
+            v-if="editForm.icon"
+            :src="getDisplayIconPath(editForm.icon)"
+            class="profile-editor-icon"
+            fit="contain"
+          />
+        </template>
         <el-form :model="editForm" label-width="100px" label-position="left">
           <el-form-item label="渠道名称">
             <el-input
@@ -296,6 +356,17 @@ const endpointHintText = computed(() => {
                 </div>
               </el-option>
             </el-select>
+          </el-form-item>
+
+          <el-form-item label="供应商图标">
+            <el-input
+              v-model="editForm.icon"
+              placeholder="自定义图标路径或URL, 或选择预设"
+            >
+              <template #append>
+                <el-button @click="showPresetIconDialog = true">选择预设</el-button>
+              </template>
+            </el-input>
           </el-form-item>
 
           <el-form-item label="API 地址">
@@ -357,7 +428,12 @@ const endpointHintText = computed(() => {
               @click="createFromPresetTemplate(preset)"
             >
               <div class="preset-icon">
-                <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                <img
+                  v-if="getProviderIconForPreset(preset.type)"
+                  :src="getProviderIconForPreset(preset.type)!"
+                  :alt="preset.name"
+                />
+                <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
                 <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
               </div>
               <div class="preset-info">
@@ -414,6 +490,17 @@ const endpointHintText = computed(() => {
         <el-button type="primary" @click="saveModel">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 预设图标选择对话框 -->
+    <el-dialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" top="5vh">
+      <IconPresetSelector
+        :icons="PRESET_ICONS"
+        :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
+        show-search
+        show-categories
+        @select="selectPresetIcon"
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -431,6 +518,13 @@ const endpointHintText = computed(() => {
   grid-template-columns: 280px 1fr;
   gap: 20px;
   flex: 1;
+}
+
+.profile-editor-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  margin-right: 12px;
 }
 
 .empty-state {
@@ -455,6 +549,18 @@ const endpointHintText = computed(() => {
   font-size: 11px;
   color: var(--text-color-secondary);
   margin-top: 2px;
+}
+
+.profile-icon,
+.profile-icon-placeholder {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
+.profile-icon-placeholder {
+  background-color: var(--el-fill-color-light);
 }
 
 /* 表单提示 */
@@ -577,4 +683,5 @@ const endpointHintText = computed(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 </style>

@@ -98,6 +98,12 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     suggestedFor: ['deepmind'],
     category: 'AI 服务商',
   },
+  {
+    name: 'AI21 Labs (彩色)',
+    path: 'aionlabs-color.svg',
+    suggestedFor: ['ai21', 'jamba'],
+    category: 'AI 服务商',
+  },
 
   // === 国内 AI 服务商 ===
   {
@@ -238,6 +244,12 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     suggestedFor: ['rwkv'],
     category: '国内 AI',
   },
+  {
+    name: 'Z AI',
+    path: 'zai.svg',
+    suggestedFor: ['z-ai'],
+    category: '国内 AI',
+  },
 
   // === 云服务商 ===
   {
@@ -304,6 +316,12 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     name: 'Workers AI (彩色)',
     path: 'workersai-color.svg',
     suggestedFor: ['workersai'],
+    category: '云服务',
+  },
+  {
+    name: 'Nebius',
+    path: 'nebius.svg',
+    suggestedFor: ['nebius'],
     category: '云服务',
   },
 
@@ -538,7 +556,34 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     enabled: true,
     description: 'Groq 提供商图标',
   },
-  
+  {
+    id: 'provider-z-ai',
+    matchType: 'provider',
+    matchValue: 'z-ai',
+    iconPath: `${PRESET_ICONS_DIR}/zai.svg`,
+    priority: 10,
+    enabled: true,
+    description: 'Z AI 提供商图标',
+  },
+  {
+    id: 'provider-ai21',
+    matchType: 'provider',
+    matchValue: 'ai21',
+    iconPath: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+    priority: 10,
+    enabled: true,
+    description: 'AI21 Labs 提供商图标',
+  },
+  {
+    id: 'provider-nebius',
+    matchType: 'provider',
+    matchValue: 'nebius',
+    iconPath: `${PRESET_ICONS_DIR}/nebius.svg`,
+    priority: 10,
+    enabled: true,
+    description: 'Nebius 提供商图标',
+  },
+
   // === Model Prefix 级别匹配（优先级 20） ===
   {
     id: 'model-prefix-gpt',
@@ -575,6 +620,15 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: 'Gemini 系列模型图标',
+  },
+  {
+    id: 'model-prefix-gemma',
+    matchType: 'modelPrefix',
+    matchValue: 'gemma-',
+    iconPath: `${PRESET_ICONS_DIR}/gemma-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: 'Gemma 系列模型图标',
   },
   {
     id: 'model-prefix-deepseek',
@@ -639,7 +693,34 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     enabled: true,
     description: '通义千问系列模型图标',
   },
-  
+  {
+    id: 'model-prefix-command',
+    matchType: 'modelPrefix',
+    matchValue: 'command-',
+    iconPath: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: 'Command 系列模型图标',
+  },
+  {
+    id: 'model-prefix-jamba',
+    matchType: 'modelPrefix',
+    matchValue: 'jamba-',
+    iconPath: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: 'Jamba 系列模型图标',
+  },
+  {
+    id: 'model-prefix-phi',
+    matchType: 'modelPrefix',
+    matchValue: 'phi-',
+    iconPath: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: 'Phi 系列模型图标',
+  },
+
   // === 特定模型匹配（优先级 30） ===
   {
     id: 'model-chatgpt-4o-latest',
@@ -651,13 +732,24 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     description: 'ChatGPT-4o Latest 特定图标',
   },
   {
-    id: 'model-claude-opus-4',
+    id: 'model-gpt-5',
     matchType: 'model',
-    matchValue: 'claude-opus-4-20250514',
+    matchValue: '^gpt-5',
+    useRegex: true,
+    iconPath: `${PRESET_ICONS_DIR}/openai.svg`,
+    priority: 30,
+    enabled: true,
+    description: 'GPT-5 系列特定图标',
+  },
+  {
+    id: 'model-claude-4',
+    matchType: 'model',
+    matchValue: '^claude-4',
+    useRegex: true,
     iconPath: `${PRESET_ICONS_DIR}/claude-color.svg`,
     priority: 30,
     enabled: true,
-    description: 'Claude Opus 4 特定图标',
+    description: 'Claude 4 系列特定图标',
   },
   {
     id: 'model-gemini-2-flash',
@@ -667,6 +759,24 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 30,
     enabled: true,
     description: 'Gemini 2.0 Flash 特定图标',
+  },
+  {
+    id: 'model-gemini-2-5-pro',
+    matchType: 'model',
+    matchValue: 'gemini-2.5-pro',
+    iconPath: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+    priority: 30,
+    enabled: true,
+    description: 'Gemini 2.5 Pro 特定图标',
+  },
+  {
+    id: 'model-gemini-2-5-flash',
+    matchType: 'model',
+    matchValue: 'gemini-2.5-flash',
+    iconPath: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+    priority: 30,
+    enabled: true,
+    description: 'Gemini 2.5 Flash 特定图标',
   },
 ];
 
@@ -706,7 +816,7 @@ export function getModelIconPath(
           }
         }
         break;
-      
+
       case 'modelPrefix':
         if (config.useRegex) {
           try {
@@ -724,11 +834,11 @@ export function getModelIconPath(
           }
         }
         break;
-      
+
       case 'modelGroup':
         // 模型分组匹配逻辑（可根据需要扩展）
         break;
-      
+
       case 'provider':
         if (provider && provider === config.matchValue) {
           return config.iconPath;
@@ -750,12 +860,12 @@ export function isValidIconPath(iconPath: string): boolean {
   if (!iconPath || typeof iconPath !== 'string') {
     return false;
   }
-  
+
   // 支持的图片格式
   const validExtensions = ['.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif'];
-  const hasValidExtension = validExtensions.some(ext => 
+  const hasValidExtension = validExtensions.some(ext =>
     iconPath.toLowerCase().endsWith(ext)
   );
-  
+
   return hasValidExtension;
 }

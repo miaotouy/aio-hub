@@ -172,28 +172,13 @@
 
     <!-- 预设图标对话框 -->
     <el-dialog v-model="showPresets" title="预设图标" width="80%" top="5vh">
-      <div class="presets-scroll-area-dialog">
-        <div class="presets-grid">
-          <div
-            v-for="preset in presetIcons"
-            :key="preset.path"
-            class="preset-item"
-            @click="selectPreset(preset)"
-          >
-            <div class="preset-icon">
-              <img :src="getPresetIconPath(preset.path)" :alt="preset.name" />
-            </div>
-            <div class="preset-info">
-              <div class="preset-name">{{ preset.name }}</div>
-              <div v-if="preset.suggestedFor" class="preset-tags">
-                <span v-for="tag in preset.suggestedFor" :key="tag" class="tag">
-                  {{ tag }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <IconPresetSelector
+        :icons="presetIcons"
+        :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
+        show-search
+        show-categories
+        @select="selectPreset"
+      />
     </el-dialog>
 
     <!-- 编辑对话框 -->
@@ -213,6 +198,8 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelIcons } from "../../composables/useModelIcons";
 import type { ModelIconConfig, IconMatchType } from "../../types/model-icons";
 import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
+import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
+import { PRESET_ICONS_DIR } from "../../config/model-icons";
 import {
   Edit,
   Delete,
@@ -231,7 +218,6 @@ const {
   deleteConfig,
   toggleConfig,
   resetToDefaults,
-  getPresetIconPath,
   exportConfigs,
   importConfigs,
 } = useModelIcons();
@@ -323,7 +309,7 @@ function getMatchTypeLabel(type: IconMatchType): string {
 // 选择预设图标
 function selectPreset(preset: any) {
   if (editingConfig.value) {
-    editingConfig.value.iconPath = getPresetIconPath(preset.path);
+    editingConfig.value.iconPath = `${PRESET_ICONS_DIR}/${preset.path}`;
   }
   showPresets.value = false; // Close dialog on selection
 }
@@ -617,72 +603,6 @@ function getPageNumbers(): number[] {
   color: white;
 }
 
-/* 预设面板 (弹窗) */
-.presets-scroll-area-dialog {
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 0 1rem;
-}
-
-.presets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 1rem;
-  padding-bottom: 12px;
-}
-
-.preset-item {
-  padding: 1rem;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
-}
-
-.preset-item:hover {
-  border-color: var(--primary-color);
-  transform: translateY(-2px);
-}
-
-.preset-icon {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 0.5rem;
-}
-
-.preset-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.preset-info {
-  font-size: 0.85rem;
-}
-
-.preset-name {
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-}
-
-.preset-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  justify-content: center;
-}
-
-.tag {
-  display: inline-block;
-  padding: 0.125rem 0.375rem;
-  background: transparent;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
-  border-radius: 3px;
-  font-size: 0.75rem;
-}
 
 /* 配置列表容器 */
 .configs-container {

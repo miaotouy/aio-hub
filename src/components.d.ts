@@ -12,6 +12,7 @@ declare module 'vue' {
     DirectoryTreeIcon: typeof import('./components/icons/DirectoryTreeIcon.vue')['default']
     DropZone: typeof import('./components/common/DropZone.vue')['default']
     GitBranchIcon: typeof import('./components/icons/GitBranchIcon.vue')['default']
+    IconPresetSelector: typeof import('./components/common/IconPresetSelector.vue')['default']
     IEpArrowRight: typeof import('~icons/ep/arrow-right')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
     IEpPicture: typeof import('~icons/ep/picture')['default']

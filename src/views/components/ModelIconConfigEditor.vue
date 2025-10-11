@@ -90,7 +90,11 @@
 
         <div v-if="localConfig.iconPath" class="icon-preview">
           <h4>图标预览</h4>
-          <img :src="getDisplayIconPath(localConfig.iconPath)" alt="预览" @error="handleImageError" />
+          <img
+            :src="getDisplayIconPath(localConfig.iconPath)"
+            alt="预览"
+            @error="handleImageError"
+          />
         </div>
       </div>
 
@@ -111,8 +115,6 @@ import type { ModelIconConfig } from "../../types/model-icons";
 interface Props {
   modelValue: Partial<ModelIconConfig> | null;
   isNew: boolean;
-  presetIcons?: any[];
-  getPresetIconPath?: (path: string) => string;
 }
 
 interface Emits {
@@ -173,18 +175,18 @@ async function handleSelectFile() {
  */
 function getDisplayIconPath(iconPath: string): string {
   if (!iconPath) return "";
-  
+
   // 检查是否为绝对路径
   // Windows: C:\, D:\, E:\ 等
   const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
   // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
   const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
-  
+
   if (isWindowsAbsolutePath || isUnixAbsolutePath) {
     // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
     return convertFileSrc(iconPath);
   }
-  
+
   // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
   return iconPath;
 }

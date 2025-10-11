@@ -60,7 +60,7 @@
             class="view-btn"
             title="网格视图"
           >
-            ⊞
+            <el-icon><Grid /></el-icon>
           </button>
           <button
             @click="viewMode = 'list'"
@@ -68,7 +68,7 @@
             class="view-btn"
             title="列表视图"
           >
-            ☰
+            <el-icon><List /></el-icon>
           </button>
         </div>
       </div>
@@ -143,11 +143,13 @@
                 class="btn-icon"
                 :title="config.enabled === false ? '启用' : '禁用'"
               >
-                {{ config.enabled === false ? "☐" : "☑" }}
+                <el-icon><Select v-if="config.enabled !== false" /><Close v-else /></el-icon>
               </button>
-              <button @click="handleEdit(config)" class="btn-icon" title="编辑">✏️</button>
+              <button @click="handleEdit(config)" class="btn-icon" title="编辑">
+                <el-icon><Edit /></el-icon>
+              </button>
               <button @click="handleDelete(config.id)" class="btn-icon btn-danger" title="删除">
-                🗑️
+                <el-icon><Delete /></el-icon>
               </button>
             </div>
           </div>
@@ -209,6 +211,14 @@ import { ref, computed } from "vue";
 import { useModelIcons } from "../../composables/useModelIcons";
 import type { ModelIconConfig, IconMatchType } from "../../types/model-icons";
 import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
+import {
+  Edit,
+  Delete,
+  Select,
+  Close,
+  Grid,
+  List
+} from "@element-plus/icons-vue";
 
 const {
   configs,
@@ -828,6 +838,7 @@ function getPageNumbers(): number[] {
 .config-value {
   font-weight: 500;
   font-family: "Consolas", "Monaco", monospace;
+  margin-left: 0.5rem;
 }
 
 .config-priority {
@@ -863,6 +874,7 @@ function getPageNumbers(): number[] {
   justify-content: center;
   gap: 0.75rem;
   padding: 1rem 0;
+  border-radius: 4px;
   margin-top: 0.5rem;
   flex-shrink: 0;
   border-top: 1px solid var(--border-color);

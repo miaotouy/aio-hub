@@ -4,16 +4,20 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import ProfileSidebar from "./ProfileSidebar.vue";
 import ProfileEditor from "./ProfileEditor.vue";
 import { useOcrProfiles } from "../../composables/useOcrProfiles";
-import { ocrProviderTypes } from "../../config/ocr-providers";
+import { ocrProviderTypes, ocrPresets } from "../../config/ocr-providers";
 import type { OcrProfile, OcrProviderType } from "../../types/ocr-profiles";
+import type { OcrPreset } from "../../config/ocr-providers";
 
-const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId } = useOcrProfiles();
+const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } = useOcrProfiles();
 
 // 防抖保存的计时器
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 当前选中的配置
 const selectedProfileId = ref<string | null>(null);
+
+// 预设选择对话框
+const showPresetDialog = ref(false);
 
 // 编辑表单
 const editForm = ref<OcrProfile>({
@@ -45,12 +49,12 @@ const selectProfile = (profileId: string) => {
   }
 };
 
-// 创建新配置
+// 创建新配置 - 从空白开始
 const createNewProfile = () => {
   const defaultProvider = ocrProviderTypes[0];
   editForm.value = {
     id: generateId(),
-    name: "",
+    name: "新建 OCR 服务",
     provider: defaultProvider.type,
     endpoint: defaultProvider.defaultEndpoint,
     credentials: {
@@ -64,8 +68,21 @@ const createNewProfile = () => {
   selectedProfileId.value = editForm.value.id;
 };
 
+// 从预设创建配置
+const createFromPresetTemplate = (preset: OcrPreset) => {
+  editForm.value = createFromPreset(preset);
+  selectedProfileId.value = editForm.value.id;
+  showPresetDialog.value = false;
+};
+
+// 显示创建选项
+const handleAddClick = () => {
+  showPresetDialog.value = true;
+};
+
 // 保存配置（验证并保存）
 const saveCurrentProfile = () => {
+  // 基础验证：名称和端点必填
   if (!editForm.value.name.trim()) {
     ElMessage.error("请输入服务名称");
     return false;
@@ -74,10 +91,7 @@ const saveCurrentProfile = () => {
     ElMessage.error("请输入 API 端点地址");
     return false;
   }
-  if (!editForm.value.credentials.apiKey?.trim()) {
-    ElMessage.error("请输入 API Key");
-    return false;
-  }
+  // API Key 可选，某些服务可能不需要
 
   saveProfile(editForm.value);
   return true;
@@ -160,7 +174,7 @@ const handleProviderChange = (type: OcrProviderType) => {
         :profiles="profiles"
         :selected-id="selectedProfileId"
         @select="selectProfile"
-        @add="createNewProfile"
+        @add="handleAddClick"
         @toggle="handleToggle"
       >
         <template #item="{ profile }">
@@ -229,7 +243,7 @@ const handleProviderChange = (type: OcrProviderType) => {
             <el-input
               v-model="editForm.credentials.apiKey"
               type="password"
-              placeholder="请输入 API Key"
+              placeholder="可选，某些服务可能不需要"
               show-password
             />
           </el-form-item>
@@ -282,6 +296,49 @@ const handleProviderChange = (type: OcrProviderType) => {
         <p>请选择或创建一个云端 OCR 服务配置</p>
       </div>
     </div>
+
+    <!-- 预设选择对话框 -->
+    <el-dialog v-model="showPresetDialog" title="选择创建方式" width="600px">
+      <div class="preset-options">
+        <div class="preset-section">
+          <h4>从预设模板创建</h4>
+          <div class="preset-grid">
+            <div
+              v-for="preset in ocrPresets"
+              :key="preset.name"
+              class="preset-card"
+              @click="createFromPresetTemplate(preset)"
+            >
+              <div class="preset-icon">
+                <img v-if="preset.icon" :src="preset.icon" :alt="preset.name" />
+                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+              </div>
+              <div class="preset-info">
+                <div class="preset-name">{{ preset.name }}</div>
+                <div class="preset-desc">{{ preset.description }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <el-divider />
+
+        <div class="preset-section">
+          <h4>或者</h4>
+          <el-button
+            style="width: 100%"
+            @click="
+              () => {
+                createNewProfile();
+                showPresetDialog = false;
+              }
+            "
+          >
+            从空白创建
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -357,5 +414,92 @@ const handleProviderChange = (type: OcrProviderType) => {
 /* 滑块输入框宽度调整 */
 :deep(.el-slider .el-input-number) {
   width: 65px;
+}
+
+/* 预设选择对话框 */
+.preset-options {
+  padding: 10px 0;
+}
+
+.preset-section {
+  margin-bottom: 20px;
+}
+
+.preset-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.preset-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-card:hover {
+  border-color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb), 0.05);
+}
+
+.preset-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.preset-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preset-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-color);
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.preset-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preset-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+  margin-bottom: 4px;
+}
+
+.preset-desc {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

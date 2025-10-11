@@ -4,6 +4,7 @@
 
 import { ref, computed } from 'vue';
 import type { OcrProfile } from '../types/ocr-profiles';
+import type { OcrPreset } from '../config/ocr-providers';
 import { createConfigManager } from '../utils/configManager';
 
 const STORAGE_KEY = 'ocr-profiles'; // 用于 localStorage 数据迁移
@@ -125,6 +126,25 @@ export function useOcrProfiles() {
     return `ocr-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
 
+  /**
+   * 从预设创建配置
+   */
+  const createFromPreset = (preset: OcrPreset): OcrProfile => {
+    return {
+      id: generateId(),
+      name: preset.name,
+      provider: preset.provider,
+      endpoint: preset.endpoint,
+      credentials: {
+        apiKey: '',
+        apiSecret: '',
+      },
+      enabled: true,
+      concurrency: 3,
+      delay: 0,
+    };
+  };
+
   // 如果还未加载，自动加载
   if (!isLoaded.value) {
     loadProfiles();
@@ -140,5 +160,6 @@ export function useOcrProfiles() {
     enabledProfiles,
     toggleProfileEnabled,
     generateId,
+    createFromPreset,
   };
 }

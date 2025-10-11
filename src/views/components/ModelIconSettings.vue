@@ -77,22 +77,24 @@
     <!-- 预设图标面板 -->
     <div v-if="showPresets" class="presets-panel">
       <h3>预设图标</h3>
-      <div class="presets-grid">
-        <div
-          v-for="preset in presetIcons"
-          :key="preset.path"
-          class="preset-item"
-          @click="selectPreset(preset)"
-        >
-          <div class="preset-icon">
-            <img :src="getPresetIconPath(preset.path)" :alt="preset.name" />
-          </div>
-          <div class="preset-info">
-            <div class="preset-name">{{ preset.name }}</div>
-            <div v-if="preset.suggestedFor" class="preset-tags">
-              <span v-for="tag in preset.suggestedFor" :key="tag" class="tag">
-                {{ tag }}
-              </span>
+      <div class="presets-scroll-area">
+        <div class="presets-grid">
+          <div
+            v-for="preset in presetIcons"
+            :key="preset.path"
+            class="preset-item"
+            @click="selectPreset(preset)"
+          >
+            <div class="preset-icon">
+              <img :src="getPresetIconPath(preset.path)" :alt="preset.name" />
+            </div>
+            <div class="preset-info">
+              <div class="preset-name">{{ preset.name }}</div>
+              <div v-if="preset.suggestedFor" class="preset-tags">
+                <span v-for="tag in preset.suggestedFor" :key="tag" class="tag">
+                  {{ tag }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -598,11 +600,23 @@ function getPageNumbers(): number[] {
   background: var(--container-bg);
   border-radius: 4px;
   flex-shrink: 0;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .presets-panel h3 {
   margin-top: 0;
   margin-bottom: 1rem;
+  flex-shrink: 0;
+}
+
+.presets-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.5rem;
 }
 
 .presets-grid {
@@ -697,7 +711,7 @@ function getPageNumbers(): number[] {
   padding: 1rem;
   background: var(--container-bg);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 16px;
   transition: all 0.2s;
 }
 

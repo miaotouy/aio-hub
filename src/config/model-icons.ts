@@ -215,7 +215,7 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     category: '国内 AI',
   },
   {
-    name: '青言 (彩色)',
+    name: '智谱清言 (彩色)',
     path: 'qingyan-color.svg',
     suggestedFor: ['qingyan'],
     category: '国内 AI',

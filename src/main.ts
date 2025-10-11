@@ -11,6 +11,10 @@ import { listen } from "@tauri-apps/api/event";
 import { ElNotification } from 'element-plus';
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from 'pinia'; // 导入 Pinia
+import { errorHandler, ErrorLevel } from './utils/errorHandler';
+import { createModuleLogger } from './utils/logger';
+
+const logger = createModuleLogger('Main');
 
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
 // 这样可以避免应用启动时的颜色闪烁
@@ -69,7 +73,71 @@ app.use(ElementPlus);
 app.use(router);
 app.use(pinia); // 注册 Pinia
 
+// 全局错误处理
+app.config.errorHandler = (err, instance, info) => {
+  logger.error('Vue 全局错误', err, {
+    componentName: instance?.$options?.name || 'Unknown',
+    errorInfo: info
+  });
+  
+  errorHandler.handle(err, {
+    module: 'Vue',
+    level: ErrorLevel.ERROR,
+    userMessage: '应用遇到错误，请查看控制台了解详情',
+    context: {
+      component: instance?.$options?.name,
+      info
+    }
+  });
+};
+
+// 全局警告处理
+app.config.warnHandler = (msg, instance, trace) => {
+  logger.warn('Vue 警告', {
+    message: msg,
+    componentName: instance?.$options?.name || 'Unknown',
+    trace
+  });
+};
+
+// 未捕获的 Promise 错误
+window.addEventListener('unhandledrejection', (event) => {
+  logger.error('未捕获的 Promise 错误', event.reason, {
+    promise: event.promise
+  });
+  
+  errorHandler.handle(event.reason, {
+    module: 'Promise',
+    level: ErrorLevel.ERROR,
+    userMessage: '操作失败，请重试',
+  });
+  
+  event.preventDefault();
+});
+
+// 全局错误捕获
+window.addEventListener('error', (event) => {
+  logger.error('全局错误', event.error, {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno
+  });
+  
+  errorHandler.handle(event.error, {
+    module: 'Global',
+    level: ErrorLevel.ERROR,
+    context: {
+      filename: event.filename,
+      line: event.lineno,
+      column: event.colno
+    }
+  });
+});
+
+logger.info('应用启动', { version: '0.1.5' });
 app.mount("#app");
+logger.info('应用挂载完成');
 
 // 剪贴板监听逻辑
 // 在 Vue 应用挂载后执行

@@ -690,14 +690,38 @@ export function getModelIconPath(
   for (const config of enabledConfigs) {
     switch (config.matchType) {
       case 'model':
-        if (modelId === config.matchValue) {
-          return config.iconPath;
+        if (config.useRegex) {
+          try {
+            const regex = new RegExp(config.matchValue);
+            if (regex.test(modelId)) {
+              return config.iconPath;
+            }
+          } catch (e) {
+            // 正则表达式无效，跳过
+            console.warn(`Invalid regex pattern: ${config.matchValue}`, e);
+          }
+        } else {
+          if (modelId === config.matchValue) {
+            return config.iconPath;
+          }
         }
         break;
       
       case 'modelPrefix':
-        if (modelId.startsWith(config.matchValue)) {
-          return config.iconPath;
+        if (config.useRegex) {
+          try {
+            const regex = new RegExp(config.matchValue);
+            if (regex.test(modelId)) {
+              return config.iconPath;
+            }
+          } catch (e) {
+            // 正则表达式无效，跳过
+            console.warn(`Invalid regex pattern: ${config.matchValue}`, e);
+          }
+        } else {
+          if (modelId.startsWith(config.matchValue)) {
+            return config.iconPath;
+          }
         }
         break;
       

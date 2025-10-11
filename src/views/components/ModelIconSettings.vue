@@ -105,10 +105,11 @@
 
     <!-- 配置列表 -->
     <div v-if="paginatedConfigs.length > 0" class="configs-container">
-      <div
-        class="configs-list"
-        :class="{ 'grid-view': viewMode === 'grid', 'list-view': viewMode === 'list' }"
-      >
+      <div class="configs-scroll-area">
+        <div
+          class="configs-list"
+          :class="{ 'grid-view': viewMode === 'grid', 'list-view': viewMode === 'list' }"
+        >
         <div
           v-for="config in paginatedConfigs"
           :key="config.id"
@@ -128,6 +129,7 @@
           <div class="config-info">
             <div class="config-header">
               <span class="config-type-badge">{{ getMatchTypeLabel(config.matchType) }}</span>
+              <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
               <span class="config-value">{{ config.matchValue }}</span>
             </div>
             <div v-if="config.priority" class="config-priority">
@@ -163,9 +165,10 @@
             </button>
           </div>
         </div>
+        </div>
       </div>
-
-      <!-- 分页 -->
+      
+      <!-- 固定分页 -->
       <div v-if="totalPages > 1" class="pagination">
         <button
           @click="goToPage(currentPage - 1)"
@@ -237,8 +240,25 @@
             <input
               v-model="editingConfig.matchValue"
               type="text"
-              placeholder="例如: openai, gpt-, claude-opus-4"
+              :placeholder="editingConfig.useRegex ? '例如: ^o[1-4](-.*)?$, gpt-(4|3\\.5)' : '例如: openai, gpt-, claude-opus-4'"
             />
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label>
+              <input
+                v-model="editingConfig.useRegex"
+                type="checkbox"
+                :disabled="editingConfig.matchType === 'provider' || editingConfig.matchType === 'modelGroup'"
+              />
+              使用正则表达式匹配
+              <small v-if="editingConfig.matchType === 'provider' || editingConfig.matchType === 'modelGroup'">
+                （此匹配类型不支持正则）
+              </small>
+            </label>
+            <small v-if="editingConfig.useRegex">
+              启用后，匹配值将作为正则表达式进行匹配。例如：^o[1-4] 可匹配 o1、o2、o3、o4 开头的模型
+            </small>
           </div>
 
           <div class="form-group">
@@ -556,7 +576,11 @@ function getPageNumbers(): number[] {
 
 <style scoped>
 .model-icon-settings {
+  max-height: 1200px;
+  display: flex;
+  flex-direction: column;
   padding: 1.5rem;
+  overflow: hidden;
 }
 
 .settings-header {
@@ -564,6 +588,7 @@ function getPageNumbers(): number[] {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+  flex-shrink: 0;
 }
 
 .settings-header h2 {
@@ -584,6 +609,7 @@ function getPageNumbers(): number[] {
   background: var(--container-bg);
   border-radius: 4px;
   font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
 /* 工具栏 */
@@ -592,6 +618,7 @@ function getPageNumbers(): number[] {
   gap: 1rem;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .search-box {
@@ -670,10 +697,11 @@ function getPageNumbers(): number[] {
 
 /* 预设面板 */
 .presets-panel {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   padding: 1rem;
   background: var(--container-bg);
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .presets-panel h3 {
@@ -744,7 +772,17 @@ function getPageNumbers(): number[] {
 .configs-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 可滚动区域 */
+.configs-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 1rem;
 }
 
 /* 网格视图 */
@@ -889,6 +927,18 @@ function getPageNumbers(): number[] {
   font-weight: 500;
 }
 
+.regex-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: transparent;
+  color: #10b981;
+  border: 1px solid #10b981;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
 .config-value {
   font-weight: 500;
   font-family: 'Consolas', 'Monaco', monospace;
@@ -926,8 +976,11 @@ function getPageNumbers(): number[] {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: 1.5rem 0;
-  margin-top: 1rem;
+  padding: 1rem 0;
+  margin-top: 0.5rem;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color);
+  background: var(--container-bg);
 }
 
 .page-btn {

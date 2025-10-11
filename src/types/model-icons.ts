@@ -23,6 +23,8 @@ export interface ModelIconConfig {
   priority?: number;
   /** 是否启用 */
   enabled?: boolean;
+  /** 是否使用正则表达式匹配（仅对 model、modelPrefix 有效） */
+  useRegex?: boolean;
   /** 备注说明 */
   description?: string;
 }

@@ -15,6 +15,9 @@ import { useOcrRunner } from "../composables/useOcrRunner";
 import { useLlmProfiles } from "../../../composables/useLlmProfiles";
 import { useOcrProfiles } from "../../../composables/useOcrProfiles";
 import type { LlmProfile, LlmModelInfo } from "../../../types/llm-profiles";
+import { getModelIconPath } from "../../../config/model-icons";
+import { useModelIcons } from "../../../composables/useModelIcons";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 const props = defineProps<{
   engineConfig: OcrEngineConfig;
@@ -40,6 +43,7 @@ const { sliceImage } = useImageSlicer();
 const { runOcr } = useOcrRunner();
 const { visionProfiles } = useLlmProfiles();
 const { enabledProfiles: ocrProfiles } = useOcrProfiles();
+const { configs: iconConfigs } = useModelIcons();
 
 // 辅助函数：更新引擎配置
 function updateEngineConfig(updates: Partial<OcrEngineConfig>) {
@@ -191,6 +195,50 @@ const selectedModelCombo = computed({
     }
   },
 });
+
+/**
+ * 获取模型图标（三级优先级逻辑）
+ * 1. 优先使用模型自定义图标
+ * 2. 其次使用全局匹配规则
+ * 3. 最后使用占位符
+ */
+const getModelIcon = (model: LlmModelInfo): string | null => {
+  // 第一优先级：模型自定义图标
+  if (model.icon) {
+    return getDisplayIconPath(model.icon);
+  }
+
+  // 第二优先级：全局匹配规则
+  const matchedIcon = getModelIconPath(model.id, model.provider, iconConfigs.value);
+  if (matchedIcon) {
+    return getDisplayIconPath(matchedIcon);
+  }
+
+  // 第三优先级：返回 null，由模板显示占位符
+  return null;
+};
+
+/**
+ * 获取用于显示的图标路径
+ * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
+ */
+function getDisplayIconPath(iconPath: string): string {
+  if (!iconPath) return "";
+
+  // 检查是否为绝对路径
+  // Windows: C:\, D:\, E:\ 等
+  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
+  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
+  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
+
+  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
+    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
+    return convertFileSrc(iconPath);
+  }
+
+  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
+  return iconPath;
+}
 
 // 注意：不再需要监听引擎类型变化来重新初始化配置
 // 因为父组件（SmartOcr.vue）会通过配置管理器保留各个引擎的配置
@@ -506,15 +554,44 @@ defineExpose({
                     :label="item.label"
                     :value="item.value"
                   >
-                    <span>{{ item.label }}</span>
-                    <el-text
-                      v-if="item.model.group"
-                      size="small"
-                      type="info"
-                      style="margin-left: 8px"
-                    >
-                      {{ item.model.group }}
-                    </el-text>
+                    <div style="display: flex; align-items: center; gap: 8px">
+                      <!-- 模型图标 -->
+                      <img
+                        v-if="getModelIcon(item.model)"
+                        :src="getModelIcon(item.model)!"
+                        :alt="item.label"
+                        style="width: 20px; height: 20px; object-fit: contain"
+                        @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+                      />
+                      <div
+                        v-else
+                        style="
+                          width: 20px;
+                          height: 20px;
+                          border-radius: 4px;
+                          background: var(--el-color-primary-light-5);
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          font-size: 10px;
+                          font-weight: 600;
+                          color: var(--el-color-primary);
+                        "
+                      >
+                        {{ item.model.name.substring(0, 2).toUpperCase() }}
+                      </div>
+                      <!-- 模型名称 -->
+                      <span style="flex: 1">{{ item.label }}</span>
+                      <!-- 模型分组 -->
+                      <el-text
+                        v-if="item.model.group"
+                        size="small"
+                        type="info"
+                        style="margin-left: auto"
+                      >
+                        {{ item.model.group }}
+                      </el-text>
+                    </div>
                   </el-option>
                 </el-option-group>
               </el-select>

@@ -53,11 +53,15 @@
 
         <div class="form-group">
           <label>图标路径</label>
-          <input
-            v-model="localConfig.iconPath"
-            type="text"
-            placeholder="例如: /model-icons/openai.svg"
-          />
+          <div class="input-with-actions">
+            <input
+              v-model="localConfig.iconPath"
+              type="text"
+              placeholder="例如: /model-icons/openai.svg"
+            />
+            <button @click="handleSelectFile" class="btn-action">选择文件</button>
+            <button @click="$emit('open-presets')" class="btn-action">选择预设</button>
+          </div>
           <small>支持相对路径或绝对路径，推荐使用预设图标</small>
         </div>
 
@@ -86,7 +90,7 @@
 
         <div v-if="localConfig.iconPath" class="icon-preview">
           <h4>图标预览</h4>
-          <img :src="localConfig.iconPath" alt="预览" @error="handleImageError" />
+          <img :src="getDisplayIconPath(localConfig.iconPath)" alt="预览" @error="handleImageError" />
         </div>
       </div>
 
@@ -100,6 +104,8 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { open } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ModelIconConfig } from "../../types/model-icons";
 
 interface Props {
@@ -113,6 +119,7 @@ interface Emits {
   (e: "update:modelValue", value: Partial<ModelIconConfig> | null): void;
   (e: "save", config: Partial<ModelIconConfig>): void;
   (e: "close"): void;
+  (e: "open-presets"): void;
 }
 
 const props = defineProps<Props>();
@@ -138,6 +145,48 @@ function handleSave() {
 function handleImageError(e: Event) {
   const img = e.target as HTMLImageElement;
   img.style.display = "none";
+}
+
+async function handleSelectFile() {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "svg", "webp", "ico"],
+        },
+      ],
+    });
+    if (typeof selected === "string" && localConfig.value) {
+      localConfig.value.iconPath = selected;
+    }
+  } catch (error) {
+    console.error("Error selecting file:", error);
+    alert("选择文件失败: " + error);
+  }
+}
+
+/**
+ * 获取用于显示的图标路径
+ * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
+ */
+function getDisplayIconPath(iconPath: string): string {
+  if (!iconPath) return "";
+  
+  // 检查是否为绝对路径
+  // Windows: C:\, D:\, E:\ 等
+  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
+  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
+  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
+  
+  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
+    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
+    return convertFileSrc(iconPath);
+  }
+  
+  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
+  return iconPath;
 }
 </script>
 
@@ -272,6 +321,33 @@ function handleImageError(e: Event) {
 .icon-preview img {
   width: 160px;
   height: 160px;
+  object-fit: contain;
+}
+
+.input-with-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input-with-actions input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-action {
+  padding: 0.5rem 1rem;
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-action:hover {
+  background: var(--border-color);
 }
 
 /* 按钮样式 */

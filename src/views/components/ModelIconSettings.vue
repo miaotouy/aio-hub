@@ -3,9 +3,7 @@
     <div class="settings-header">
       <h2>模型图标配置</h2>
       <div class="header-actions">
-        <button @click="showPresets = !showPresets" class="btn-secondary">
-          {{ showPresets ? "隐藏预设" : "查看预设" }}
-        </button>
+        <button @click="showPresets = true" class="btn-secondary">查看预设</button>
         <button @click="handleImport" class="btn-secondary">导入配置</button>
         <button @click="handleExport" class="btn-secondary">导出配置</button>
         <button @click="handleReset" class="btn-warning">重置为默认</button>
@@ -74,32 +72,6 @@
       </div>
     </div>
 
-    <!-- 预设图标面板 -->
-    <div v-if="showPresets" class="presets-panel">
-      <h3>预设图标</h3>
-      <div class="presets-scroll-area">
-        <div class="presets-grid">
-          <div
-            v-for="preset in presetIcons"
-            :key="preset.path"
-            class="preset-item"
-            @click="selectPreset(preset)"
-          >
-            <div class="preset-icon">
-              <img :src="getPresetIconPath(preset.path)" :alt="preset.name" />
-            </div>
-            <div class="preset-info">
-              <div class="preset-name">{{ preset.name }}</div>
-              <div v-if="preset.suggestedFor" class="preset-tags">
-                <span v-for="tag in preset.suggestedFor" :key="tag" class="tag">
-                  {{ tag }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 配置列表 -->
     <div v-if="paginatedConfigs.length > 0" class="configs-container">
@@ -117,7 +89,7 @@
             <div class="config-icon">
               <img
                 v-if="config.iconPath"
-                :src="config.iconPath"
+                :src="getDisplayIconPath(config.iconPath)"
                 :alt="config.matchValue"
                 @error="handleImageError"
               />
@@ -198,18 +170,46 @@
       <button v-if="!searchText" @click="handleAdd" class="btn-primary">添加第一个配置</button>
     </div>
 
+    <!-- 预设图标对话框 -->
+    <el-dialog v-model="showPresets" title="预设图标" width="80%" top="5vh">
+      <div class="presets-scroll-area-dialog">
+        <div class="presets-grid">
+          <div
+            v-for="preset in presetIcons"
+            :key="preset.path"
+            class="preset-item"
+            @click="selectPreset(preset)"
+          >
+            <div class="preset-icon">
+              <img :src="getPresetIconPath(preset.path)" :alt="preset.name" />
+            </div>
+            <div class="preset-info">
+              <div class="preset-name">{{ preset.name }}</div>
+              <div v-if="preset.suggestedFor" class="preset-tags">
+                <span v-for="tag in preset.suggestedFor" :key="tag" class="tag">
+                  {{ tag }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 编辑对话框 -->
     <ModelIconConfigEditor
       v-model="editingConfig"
       :is-new="isNewConfig"
       @save="handleSave"
       @close="closeEditor"
+      @open-presets="showPresets = true"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelIcons } from "../../composables/useModelIcons";
 import type { ModelIconConfig, IconMatchType } from "../../types/model-icons";
 import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
@@ -325,6 +325,7 @@ function selectPreset(preset: any) {
   if (editingConfig.value) {
     editingConfig.value.iconPath = getPresetIconPath(preset.path);
   }
+  showPresets.value = false; // Close dialog on selection
 }
 
 // 处理添加
@@ -433,6 +434,29 @@ function handleImport() {
 function handleImageError(e: Event) {
   const img = e.target as HTMLImageElement;
   img.style.display = "none";
+}
+
+/**
+ * 获取用于显示的图标路径
+ * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
+ */
+function getDisplayIconPath(iconPath: string): string {
+  if (!iconPath) return "";
+  
+  // 检查是否为绝对路径
+  // Windows: C:\, D:\, E:\ 等
+  // 但要排除 /model-icons/ 这样的相对路径
+  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
+  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
+  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
+  
+  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
+    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
+    return convertFileSrc(iconPath);
+  }
+  
+  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
+  return iconPath;
 }
 
 // 获取页码数组（用于分页显示）
@@ -593,36 +617,18 @@ function getPageNumbers(): number[] {
   color: white;
 }
 
-/* 预设面板 */
-.presets-panel {
-  margin-bottom: 1rem;
-  padding: 1rem;
-  background: var(--container-bg);
-  border-radius: 4px;
-  flex-shrink: 0;
-  max-height: 600px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.presets-panel h3 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  flex-shrink: 0;
-}
-
-.presets-scroll-area {
-  flex: 1;
+/* 预设面板 (弹窗) */
+.presets-scroll-area-dialog {
+  max-height: 70vh;
   overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 0.5rem;
+  padding: 0 1rem;
 }
 
 .presets-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 1rem;
+  padding-bottom: 12px;
 }
 
 .preset-item {

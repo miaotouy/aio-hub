@@ -58,11 +58,11 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: 'https://api.openai.com',
     logoUrl: 'https://cdn.oaistatic.com/_next/static/media/apple-touch-icon.59f2e898.png',
     defaultModels: [
-      { id: 'gpt-4o', name: 'GPT-4o', group: 'GPT-4', isVision: true },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', group: 'GPT-4' },
-      { id: 'chatgpt-4o-latest', name: 'ChatGPT-4o Latest', group: 'GPT-4' },
-      { id: 'o1', name: 'o1', group: 'o1' },
-      { id: 'o1-mini', name: 'o1-mini', group: 'o1' },
+      { id: 'gpt-4o', name: 'GPT-4o', group: 'GPT-4', provider: 'openai', capabilities: { vision: true } },
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', group: 'GPT-4', provider: 'openai' },
+      { id: 'chatgpt-4o-latest', name: 'ChatGPT-4o Latest', group: 'GPT-4', provider: 'openai' },
+      { id: 'o1', name: 'o1', group: 'o1', provider: 'openai' },
+      { id: 'o1-mini', name: 'o1-mini', group: 'o1', provider: 'openai' },
     ],
   },
   // DeepSeek
@@ -73,8 +73,8 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: 'https://api.deepseek.com',
     logoUrl: 'https://www.deepseek.com/favicon.ico',
     defaultModels: [
-      { id: 'deepseek-chat', name: 'DeepSeek Chat', group: 'DeepSeek' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', group: 'DeepSeek' },
+      { id: 'deepseek-chat', name: 'DeepSeek Chat', group: 'DeepSeek', provider: 'deepseek' },
+      { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', group: 'DeepSeek', provider: 'deepseek' },
     ],
   },
   // Moonshot (月之暗面 Kimi)
@@ -85,9 +85,9 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: 'https://api.moonshot.cn',
     logoUrl: 'https://platform.moonshot.cn/favicon.ico',
     defaultModels: [
-      { id: 'moonshot-v1-8k', name: 'Moonshot V1 8K', group: 'Moonshot' },
-      { id: 'moonshot-v1-32k', name: 'Moonshot V1 32K', group: 'Moonshot' },
-      { id: 'moonshot-v1-128k', name: 'Moonshot V1 128K', group: 'Moonshot' },
+      { id: 'moonshot-v1-8k', name: 'Moonshot V1 8K', group: 'Moonshot', provider: 'moonshot' },
+      { id: 'moonshot-v1-32k', name: 'Moonshot V1 32K', group: 'Moonshot', provider: 'moonshot' },
+      { id: 'moonshot-v1-128k', name: 'Moonshot V1 128K', group: 'Moonshot', provider: 'moonshot' },
     ],
   },
   // 智谱 AI
@@ -98,10 +98,10 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     logoUrl: 'https://open.bigmodel.cn/favicon.ico',
     defaultModels: [
-      { id: 'glm-4-plus', name: 'GLM-4 Plus', group: 'GLM-4' },
-      { id: 'glm-4-0520', name: 'GLM-4 0520', group: 'GLM-4' },
-      { id: 'glm-4-flash', name: 'GLM-4 Flash', group: 'GLM-4' },
-      { id: 'glm-4v-plus', name: 'GLM-4V Plus', group: 'GLM-4', isVision: true },
+      { id: 'glm-4-plus', name: 'GLM-4 Plus', group: 'GLM-4', provider: 'zhipu' },
+      { id: 'glm-4-0520', name: 'GLM-4 0520', group: 'GLM-4', provider: 'zhipu' },
+      { id: 'glm-4-flash', name: 'GLM-4 Flash', group: 'GLM-4', provider: 'zhipu' },
+      { id: 'glm-4v-plus', name: 'GLM-4V Plus', group: 'GLM-4', provider: 'zhipu', capabilities: { vision: true } },
     ],
   },
   // Groq
@@ -112,9 +112,9 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: 'https://api.groq.com/openai',
     logoUrl: 'https://groq.com/favicon.ico',
     defaultModels: [
-      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', group: 'Llama' },
-      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', group: 'Llama' },
-      { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', group: 'Mixtral' },
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', group: 'Llama', provider: 'groq' },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', group: 'Llama', provider: 'groq' },
+      { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', group: 'Mixtral', provider: 'groq' },
     ],
   },
   // Google Gemini
@@ -125,10 +125,10 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: 'https://generativelanguage.googleapis.com',
     logoUrl: 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
     defaultModels: [
-      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', group: 'Gemini 2.0', isVision: true },
-      { id: 'gemini-exp-1206', name: 'Gemini Exp 1206', group: 'Gemini Exp', isVision: true },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', group: 'Gemini 1.5', isVision: true },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', group: 'Gemini 1.5', isVision: true },
+      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', group: 'Gemini 2.0', provider: 'gemini', capabilities: { vision: true } },
+      { id: 'gemini-exp-1206', name: 'Gemini Exp 1206', group: 'Gemini Exp', provider: 'gemini', capabilities: { vision: true } },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', group: 'Gemini 1.5', provider: 'gemini', capabilities: { vision: true } },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', group: 'Gemini 1.5', provider: 'gemini', capabilities: { vision: true } },
     ],
   },
   // Anthropic Claude
@@ -139,9 +139,9 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: 'https://api.anthropic.com',
     logoUrl: 'https://www.anthropic.com/images/icons/favicon-32x32.png',
     defaultModels: [
-      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', group: 'Claude 4', isVision: true },
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', group: 'Claude 4', isVision: true },
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', group: 'Claude 3.5', isVision: true },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', group: 'Claude 4', provider: 'anthropic', capabilities: { vision: true } },
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', group: 'Claude 4', provider: 'anthropic', capabilities: { vision: true } },
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', group: 'Claude 3.5', provider: 'anthropic', capabilities: { vision: true } },
     ],
   },
   // Ollama (本地)

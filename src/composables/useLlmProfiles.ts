@@ -113,8 +113,8 @@ export function useLlmProfiles() {
    * 获取包含视觉模型的配置
    */
   const visionProfiles = computed(() => {
-    return enabledProfiles.value.filter(p => 
-      p.models.some(m => m.isVision)
+    return enabledProfiles.value.filter(p =>
+      p.models.some(m => m.capabilities?.vision)
     );
   });
 

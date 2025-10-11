@@ -157,7 +157,7 @@ const availableVisionModels = computed(() => {
 
   visionProfiles.value.forEach((profile: LlmProfile) => {
     profile.models.forEach((model: LlmModelInfo) => {
-      if (model.isVision) {
+      if (model.capabilities?.vision) {
         models.push({
           value: `${profile.id}:${model.id}`,
           label: model.name,

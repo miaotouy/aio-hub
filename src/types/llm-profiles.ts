@@ -37,9 +37,23 @@ export interface LlmModelInfo {
    */
   group?: string;
   /**
-   * 是否为视觉模型（VLM）
+   * 模型所属的提供商标识 (e.g., 'openai', 'gemini', 'anthropic')
+   * 用于 UI 显示 logo 等
    */
-  isVision?: boolean;
+  provider?: string;
+  /**
+   * 模型能力标识
+   */
+  capabilities?: {
+    /** 是否支持视觉输入（VLM） */
+    vision?: boolean;
+    /** 是否支持联网搜索 */
+    webSearch?: boolean;
+    /** 是否支持工具调用/函数调用 */
+    toolUse?: boolean;
+    /** 是否支持代码执行 */
+    codeExecution?: boolean;
+  };
 }
 
 /**
@@ -82,4 +96,9 @@ export interface LlmProfile {
    * 自定义请求头（可选）
    */
   customHeaders?: Record<string, string>;
+  /**
+   * 模型分组的展开状态（可选）
+   * key 为分组名称，value 为是否展开
+   */
+  modelGroupsExpandState?: Record<string, boolean>;
 }

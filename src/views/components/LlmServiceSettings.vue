@@ -35,7 +35,9 @@ const modelEditForm = ref<LlmModelInfo>({
   id: "",
   name: "",
   group: "",
-  isVision: false,
+  capabilities: {
+    vision: false,
+  },
 });
 const showModelDialog = ref(false);
 const editingModelIndex = ref<number>(-1);
@@ -179,14 +181,20 @@ const addModel = () => {
     id: "",
     name: "",
     group: "",
-    isVision: false,
+    capabilities: {
+      vision: false,
+    },
   };
   editingModelIndex.value = -1;
   showModelDialog.value = true;
 };
 
 const editModel = (index: number) => {
-  modelEditForm.value = { ...editForm.value.models[index] };
+  const model = editForm.value.models[index];
+  modelEditForm.value = {
+    ...model,
+    capabilities: model.capabilities || { vision: false },
+  };
   editingModelIndex.value = index;
   showModelDialog.value = true;
 };
@@ -319,10 +327,12 @@ const endpointHintText = computed(() => {
           <el-form-item label="模型配置">
             <ModelList
               :models="editForm.models"
+              :expand-state="editForm.modelGroupsExpandState || {}"
               @add="addModel"
               @edit="editModel"
               @delete="deleteModel"
               @fetch="fetchModels"
+              @update:expand-state="(state) => editForm.modelGroupsExpandState = state"
             />
           </el-form-item>
         </el-form>
@@ -394,7 +404,7 @@ const endpointHintText = computed(() => {
           <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
         </el-form-item>
         <el-form-item label="视觉模型">
-          <el-switch v-model="modelEditForm.isVision" />
+          <el-switch v-model="modelEditForm.capabilities!.vision" />
           <div class="form-hint">是否为支持图像输入的视觉语言模型 (VLM)</div>
         </el-form-item>
       </el-form>

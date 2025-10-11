@@ -334,7 +334,7 @@ function handleEdit(config: ModelIconConfig) {
 }
 
 // 处理保存
-function handleSave() {
+async function handleSave() {
   if (!editingConfig.value) return;
 
   const config = editingConfig.value;
@@ -347,9 +347,9 @@ function handleSave() {
 
   let success = false;
   if (isNewConfig.value) {
-    success = addConfig(config as Omit<ModelIconConfig, "id">);
+    success = await addConfig(config as Omit<ModelIconConfig, "id">);
   } else if (config.id) {
-    success = updateConfig(config.id, config);
+    success = await updateConfig(config.id, config);
   }
 
   if (success) {
@@ -373,9 +373,9 @@ function closeEditor() {
 }
 
 // 处理重置
-function handleReset() {
+async function handleReset() {
   if (confirm("确定要重置为默认配置吗？这将清除所有自定义配置。")) {
-    if (resetToDefaults()) {
+    if (await resetToDefaults()) {
       alert("已重置为默认配置");
     }
   }
@@ -404,7 +404,7 @@ function handleImport() {
 
     try {
       const text = await file.text();
-      if (importConfigs(text)) {
+      if (await importConfigs(text)) {
         alert("导入成功");
       } else {
         alert("导入失败，请检查文件格式");

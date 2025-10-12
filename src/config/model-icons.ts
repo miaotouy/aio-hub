@@ -111,6 +111,12 @@ export const PRESET_ICONS: PresetIconInfo[] = [
 
   // === 国内 AI 服务商 ===
   {
+    name: "快手 (Kolors)",
+    path: "kolors-color.svg",
+    suggestedFor: ["kolors", "kwai"],
+    category: "国内 AI",
+  },
+  {
     name: "Moonshot (Kimi)",
     path: "moonshot.svg",
     suggestedFor: ["moonshot", "kimi"],
@@ -252,6 +258,12 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     name: "Z AI",
     path: "zai.svg",
     suggestedFor: ["z-ai"],
+    category: "国内 AI",
+  },
+  {
+    name: "Inclusion AI (灵)",
+    path: "ling.png",
+    suggestedFor: ["inclusionai", "ling"],
     category: "国内 AI",
   },
 
@@ -436,6 +448,24 @@ export const PRESET_ICONS: PresetIconInfo[] = [
   },
 
   // === 其他服务 ===
+  {
+    name: "Stability AI (彩色)",
+    path: "stability-color.svg",
+    suggestedFor: ["stability", "stable-diffusion"],
+    category: "其他",
+  },
+  {
+    name: "智源研究院 (BAAI)",
+    path: "baai.svg",
+    suggestedFor: ["baai", "bge"],
+    category: "其他",
+  },
+  {
+    name: "Black Forest Labs (FLUX)",
+    path: "flux.svg",
+    suggestedFor: ["flux", "black-forest-labs"],
+    category: "其他",
+  },
   {
     name: "Microsoft (彩色)",
     path: "microsoft-color.svg",
@@ -702,6 +732,33 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     enabled: true,
     description: "商汤提供商图标",
   },
+  {
+    id: "provider-kwai",
+    matchType: "provider",
+    matchValue: "kwai-kolors",
+    iconPath: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+    priority: 10,
+    enabled: true,
+    description: "快手 Kolors 提供商图标",
+  },
+  {
+    id: "provider-siliconflow",
+    matchType: "provider",
+    matchValue: "siliconflow",
+    iconPath: `${PRESET_ICONS_DIR}/siliconcloud-color.svg`,
+    priority: 10,
+    enabled: true,
+    description: "SiliconFlow 提供商图标",
+  },
+  {
+    id: "provider-inclusionai",
+    matchType: "provider",
+    matchValue: "inclusionai",
+    iconPath: `${PRESET_ICONS_DIR}/ling.png`,
+    priority: 10,
+    enabled: true,
+    description: "Inclusion AI 提供商图标",
+  },
 
   // 其他服务商
   {
@@ -730,6 +787,33 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Nebius 提供商图标",
+  },
+  {
+    id: "provider-stabilityai",
+    matchType: "provider",
+    matchValue: "stabilityai",
+    iconPath: `${PRESET_ICONS_DIR}/stability-color.svg`,
+    priority: 10,
+    enabled: true,
+    description: "Stability AI 提供商图标",
+  },
+  {
+    id: "provider-baai",
+    matchType: "provider",
+    matchValue: "baai",
+    iconPath: `${PRESET_ICONS_DIR}/baai.svg`,
+    priority: 10,
+    enabled: true,
+    description: "智源研究院 BAAI 提供商图标",
+  },
+  {
+    id: "provider-black-forest-labs",
+    matchType: "provider",
+    matchValue: "black-forest-labs",
+    iconPath: `${PRESET_ICONS_DIR}/flux.svg`,
+    priority: 10,
+    enabled: true,
+    description: "Black Forest Labs 提供商图标",
   },
 
   // === Model Prefix 级别匹配（优先级 20） ===
@@ -866,6 +950,15 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     enabled: true,
     description: "通义千问系列模型图标",
   },
+  {
+    id: "model-prefix-qwq",
+    matchType: "modelPrefix",
+    matchValue: "qwq-",
+    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: "通义千问 QwQ 系列模型图标",
+  },
 
   // 字节跳动豆包系列模型
   {
@@ -909,6 +1002,15 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "MiniMax ABAB 系列模型图标",
+  },
+  {
+    id: "model-prefix-minimax",
+    matchType: "modelPrefix",
+    matchValue: "minimax-",
+    iconPath: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: "MiniMax 系列模型图标",
   },
 
   // 零一万物系列模型
@@ -1059,6 +1161,50 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     description: "Phi 系列模型图标",
   },
 
+  // Stability AI 系列模型
+  {
+    id: "model-prefix-stable-diffusion",
+    matchType: "modelPrefix",
+    matchValue: "stable-diffusion",
+    iconPath: `${PRESET_ICONS_DIR}/stability-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: "Stable Diffusion 系列模型图标",
+  },
+
+  // BAAI 系列模型
+  {
+    id: "model-prefix-bge",
+    matchType: "modelPrefix",
+    matchValue: "bge-",
+    iconPath: `${PRESET_ICONS_DIR}/baai.svg`,
+    priority: 20,
+    enabled: true,
+    description: "BAAI BGE 系列模型图标",
+  },
+
+  // Black Forest Labs 系列模型
+  {
+    id: "model-prefix-flux",
+    matchType: "modelPrefix",
+    matchValue: "flux",
+    iconPath: `${PRESET_ICONS_DIR}/flux.svg`,
+    priority: 20,
+    enabled: true,
+    description: "FLUX 系列模型图标",
+  },
+
+  // 快手 Kolors 系列模型
+  {
+    id: "model-prefix-kolors",
+    matchType: "modelPrefix",
+    matchValue: "kolors",
+    iconPath: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: "Kolors 系列模型图标",
+  },
+
   // === 特定模型匹配（优先级 30） ===
   // OpenAI Sora 视频生成
   {
@@ -1151,7 +1297,10 @@ export function getModelIconPath(
             });
           }
         } else {
-          if (modelId.startsWith(config.matchValue)) {
+          // 从模型 ID 中提取模型名称（最后一个 / 之后的部分），以实现更精确的匹配
+          const modelName = modelId.split("/").pop() || modelId;
+          // 使用 toLowerCase 和 includes 对模型名称进行不区分大小写的、更灵活的匹配
+          if (modelName.toLowerCase().includes(config.matchValue.toLowerCase())) {
             return config.iconPath;
           }
         }
@@ -1163,7 +1312,7 @@ export function getModelIconPath(
         break;
 
       case "provider":
-        if (provider && provider === config.matchValue) {
+        if (provider && provider.toLowerCase() === config.matchValue.toLowerCase()) {
           return config.iconPath;
         }
         break;

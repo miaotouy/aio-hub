@@ -6,7 +6,7 @@
  * LLM 服务提供商类型
  * 决定了请求体的格式
  */
-export type ProviderType = 'openai' | 'gemini' | 'claude';
+export type ProviderType = 'openai' | 'openai-responses' | 'gemini' | 'claude' | 'cohere' | 'huggingface' | 'vertexai';
 
 /**
  * 服务提供商类型的显示信息
@@ -59,6 +59,11 @@ export interface LlmModelInfo {
    * 优先级高于 provider 图标和全局匹配规则
    */
   icon?: string;
+  /**
+   * 模型描述信息（可选）
+   * 用于在 UI 中显示模型的特性和用途说明
+   */
+  description?: string;
 }
 
 /**

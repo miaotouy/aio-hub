@@ -38,10 +38,20 @@ export function formatLlmApiHost(host: string, providerType?: ProviderType): str
     case 'gemini':
       // Gemini 使用 /v1beta/
       return `${host}/v1beta/`;
+    case 'cohere':
+      // Cohere 使用 /v2/
+      return `${host}/v2/`;
+    case 'vertexai':
+      // Vertex AI 使用 /v1/
+      return `${host}/v1/`;
+    case 'huggingface':
+      // Hugging Face 不需要版本路径
+      return `${host}/`;
     case 'openai':
+    case 'openai-responses':
     case 'claude':
     default:
-      // OpenAI 和 Claude 使用 /v1/
+      // OpenAI、OpenAI Responses 和 Claude 使用 /v1/
       return `${host}/v1/`;
   }
 }
@@ -78,18 +88,31 @@ export function buildLlmApiUrl(
   if (endpoint) {
     return `${formattedHost}${endpoint}`;
   }
-  
   // 根据provider类型返回默认端点
   switch (providerType) {
     case 'openai':
       return `${formattedHost}chat/completions`;
       
+    case 'openai-responses':
+      return `${formattedHost}responses`;
+      
     case 'gemini':
-      // Gemini 需要模型ID，这里返回模板
+      // Gemini 需要模型ID,这里返回模板
       return `${formattedHost}models/{model}:generateContent`;
       
     case 'claude':
       return `${formattedHost}messages`;
+      
+    case 'cohere':
+      return `${formattedHost}chat`;
+      
+    case 'huggingface':
+      // Hugging Face 需要模型ID
+      return `${formattedHost}models/{model}`;
+      
+    case 'vertexai':
+      // Vertex AI 需要项目和位置信息
+      return `${formattedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
       
     default:
       return formattedHost;
@@ -127,10 +150,18 @@ export function getLlmEndpointHint(providerType: ProviderType): string {
   switch (providerType) {
     case 'openai':
       return '将自动添加 /v1/chat/completions（如需禁用请在URL末尾加#）';
+    case 'openai-responses':
+      return '将自动添加 /v1/responses（支持工具调用和推理的有状态交互）';
     case 'gemini':
       return '将自动添加 /v1beta/models/{model}:generateContent';
     case 'claude':
       return '将自动添加 /v1/messages';
+    case 'cohere':
+      return '将自动添加 /v2/chat';
+    case 'huggingface':
+      return '将自动添加 /models/{model}';
+    case 'vertexai':
+      return '将自动添加 /v1/projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent';
     default:
       return '';
   }

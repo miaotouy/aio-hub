@@ -77,6 +77,18 @@
         </div>
 
         <div class="form-group">
+          <label>分组名称</label>
+          <input
+            v-model="localConfig.groupName"
+            type="text"
+            placeholder="在模型列表中显示的分组名称（可选）"
+          />
+          <small>
+            设置后，匹配此规则的模型将显示在指定分组中，优先级高于模型自身的 group 属性
+          </small>
+        </div>
+
+        <div class="form-group">
           <label>描述</label>
           <input v-model="localConfig.description" type="text" placeholder="配置说明（可选）" />
         </div>

@@ -26,7 +26,7 @@
           v-model="searchText"
           @input="resetPage"
           type="text"
-          placeholder="搜索配置（匹配值、类型、描述）..."
+          placeholder="搜索配置（匹配值、类型、分组、描述）..."
           class="search-input"
         />
       </div>
@@ -101,6 +101,9 @@
                 <span class="config-type-badge">{{ getMatchTypeLabel(config.matchType) }}</span>
                 <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
                 <span class="config-value">{{ config.matchValue }}</span>
+              </div>
+              <div v-if="config.groupName" class="config-group">
+                分组: {{ config.groupName }}
               </div>
               <div v-if="config.priority" class="config-priority">
                 优先级: {{ config.priority }}
@@ -245,7 +248,8 @@ const filteredConfigs = computed(() => {
       (config) =>
         config.matchValue.toLowerCase().includes(search) ||
         config.matchType.toLowerCase().includes(search) ||
-        config.description?.toLowerCase().includes(search)
+        config.description?.toLowerCase().includes(search) ||
+        config.groupName?.toLowerCase().includes(search)
     );
   }
 
@@ -779,6 +783,12 @@ function getPageNumbers(): number[] {
   font-weight: 500;
   font-family: "Consolas", "Monaco", monospace;
   margin-left: 0.5rem;
+}
+
+.config-group {
+  font-size: 0.85rem;
+  color: var(--primary-color);
+  font-weight: 500;
 }
 
 .config-priority {

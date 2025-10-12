@@ -514,6 +514,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: 'Anthropic (Claude) 提供商图标',
+    groupName: 'Claude',
   },
   {
     id: 'provider-gemini',
@@ -523,6 +524,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: 'Google Gemini 提供商图标',
+    groupName: 'Gemini',
   },
   {
     id: 'provider-deepseek',
@@ -532,6 +534,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: 'DeepSeek 提供商图标',
+    groupName: 'DeepSeek',
   },
   {
     id: 'provider-moonshot',
@@ -615,6 +618,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: 'Claude 系列模型图标',
+    groupName: 'Claude',
   },
   {
     id: 'model-prefix-gemini',
@@ -624,6 +628,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: 'Gemini 系列模型图标',
+    groupName: 'Gemini',
   },
   {
     id: 'model-prefix-gemma',
@@ -642,6 +647,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: 'DeepSeek 系列模型图标',
+    groupName: 'DeepSeek',
   },
   {
     id: 'model-prefix-glm',
@@ -848,7 +854,8 @@ export function getModelIconPath(
         break;
 
       case 'modelGroup':
-        // 模型分组匹配逻辑（可根据需要扩展）
+        // modelGroup 已废弃，分组功能通过 groupName 字段实现
+        // 保留此 case 以兼容旧配置
         break;
 
       case 'provider':

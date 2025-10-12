@@ -257,6 +257,91 @@ export function useModelIcons() {
   }
 
   /**
+   * 获取匹配模型的配置项
+   * @param modelId 模型 ID
+   * @param provider 提供商
+   * @returns 匹配的配置项或 undefined
+   */
+  function getMatchedConfig(modelId: string, provider?: string): ModelIconConfig | undefined {
+    // 过滤启用的配置并按优先级排序
+    const enabledConfigs = configs.value
+      .filter(c => c.enabled !== false)
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+    for (const config of enabledConfigs) {
+      switch (config.matchType) {
+        case 'model':
+          if (config.useRegex) {
+            try {
+              const regex = new RegExp(config.matchValue);
+              if (regex.test(modelId)) {
+                return config;
+              }
+            } catch (e) {
+              // 正则表达式无效，跳过
+            }
+          } else {
+            if (modelId === config.matchValue) {
+              return config;
+            }
+          }
+          break;
+
+        case 'modelPrefix':
+          if (config.useRegex) {
+            try {
+              const regex = new RegExp(config.matchValue);
+              if (regex.test(modelId)) {
+                return config;
+              }
+            } catch (e) {
+              // 正则表达式无效，跳过
+            }
+          } else {
+            if (modelId.startsWith(config.matchValue)) {
+              return config;
+            }
+          }
+          break;
+
+        case 'provider':
+          if (provider && provider === config.matchValue) {
+            return config;
+          }
+          break;
+
+        case 'modelGroup':
+          // modelGroup 已废弃，保留以兼容旧配置
+          break;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * 获取模型分组名称
+   * 优先级：模型手动配置 > 规则匹配 > 默认分组
+   * @param model 模型信息对象
+   * @returns 分组名称
+   */
+  function getModelGroup(model: LlmModelInfo): string {
+    // 第一优先级：模型自身的 group 属性（用户手动配置，最高优先级）
+    if (model.group) {
+      return model.group;
+    }
+
+    // 第二优先级：图标配置中的 groupName（规则匹配）
+    const matchedConfig = getMatchedConfig(model.id, model.provider);
+    if (matchedConfig?.groupName) {
+      return matchedConfig.groupName;
+    }
+
+    // 第三优先级：默认分组
+    return '未分组';
+  }
+
+  /**
    * 获取模型图标（三级优先级逻辑 + 路径转换）
    * 1. 优先使用模型自定义图标
    * 2. 其次使用全局匹配规则
@@ -366,5 +451,7 @@ export function useModelIcons() {
     getConfigsByType,
     getDisplayIconPath,
     getModelIcon,
+    getMatchedConfig,
+    getModelGroup,
   };
 }

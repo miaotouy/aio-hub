@@ -30,7 +30,8 @@ const modelGroups = computed(() => {
   const groups = new Map<string, Array<{ model: LlmModelInfo; index: number }>>();
 
   props.models.forEach((model, index) => {
-    const group = model.group || "未分组";
+    // 使用 getModelGroup 获取分组名称（优先使用图标配置中的 groupName）
+    const group = getModelGroup(model);
     if (!groups.has(group)) {
       groups.set(group, []);
     }
@@ -66,8 +67,8 @@ const isGroupExpanded = (groupName: string): boolean => {
   return props.expandState?.[groupName] ?? true;
 };
 
-// 使用统一的图标获取方法
-const { getModelIcon } = useModelIcons();
+// 使用统一的图标获取方法和分组方法
+const { getModelIcon, getModelGroup } = useModelIcons();
 </script>
 
 <template>

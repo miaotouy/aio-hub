@@ -27,6 +27,8 @@ export interface ModelIconConfig {
   useRegex?: boolean;
   /** 备注说明 */
   description?: string;
+  /** 分组名称（用于在 ModelList 中显示，优先级高于模型自身的 group） */
+  groupName?: string;
 }
 
 /**

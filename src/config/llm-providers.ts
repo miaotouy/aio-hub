@@ -37,7 +37,8 @@ export const providerTypes: ProviderTypeInfo[] = [
     name: 'Anthropic Claude',
     description: 'Anthropic Claude API',
     defaultBaseUrl: 'https://api.anthropic.com',
-    supportsModelList: false,
+    supportsModelList: true,
+    modelListEndpoint: '/v1/models',
   },
   {
     type: 'cohere',
@@ -46,13 +47,6 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: 'https://api.cohere.com',
     supportsModelList: true,
     modelListEndpoint: '/v2/models',
-  },
-  {
-    type: 'huggingface',
-    name: 'Hugging Face',
-    description: 'Hugging Face Inference API',
-    defaultBaseUrl: 'https://api-inference.huggingface.co',
-    supportsModelList: false,
   },
   {
     type: 'vertexai',
@@ -204,11 +198,11 @@ export const llmPresets: LlmPreset[] = [
       { id: 'command-light', name: 'Command Light', group: 'Command', provider: 'cohere' },
     ],
   },
-  // Hugging Face
+  // Hugging Face (使用 OpenAI 兼容的 Chat Completion API)
   {
-    type: 'huggingface',
+    type: 'openai',
     name: 'Hugging Face',
-    description: 'Hugging Face Inference API',
+    description: 'Hugging Face Chat Completion API (OpenAI 兼容)',
     defaultBaseUrl: 'https://api-inference.huggingface.co',
     logoUrl: '/model-icons/huggingface-color.svg',
     defaultModels: [

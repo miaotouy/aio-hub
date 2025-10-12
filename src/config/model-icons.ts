@@ -815,7 +815,16 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     enabled: true,
     description: "Black Forest Labs 提供商图标",
   },
-
+  // API 服务商
+  {
+    id: "provider-openrouter",
+    matchType: "provider",
+    matchValue: "openrouter",
+    iconPath: `${PRESET_ICONS_DIR}/openrouter.svg`,
+    priority: 10,
+    enabled: true,
+    description: "OpenRouter 提供商图标",
+  },
   // === Model Prefix 级别匹配（优先级 20） ===
   // OpenAI 系列模型
   {
@@ -1092,7 +1101,8 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
   {
     id: "model-prefix-llama",
     matchType: "modelPrefix",
-    matchValue: "llama-",
+    matchValue: "(?<!o)llama[1-9-]",
+    useRegex: true,
     iconPath: `${PRESET_ICONS_DIR}/meta-color.svg`,
     priority: 20,
     enabled: true,
@@ -1237,6 +1247,18 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 30,
     enabled: true,
     description: "Suno 音乐生成模型图标",
+  },
+
+  // Midjourney
+  {
+    id: "model-midjourney",
+    matchType: "modelPrefix",
+    matchValue: "midjourney|mj",
+    useRegex: true,
+    iconPath: `${PRESET_ICONS_DIR}/midjourney.svg`,
+    priority: 30,
+    enabled: true,
+    description: "Midjourney 系列模型图标",
   },
 ];
 

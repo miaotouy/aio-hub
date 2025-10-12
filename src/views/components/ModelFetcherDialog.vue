@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { LlmModelInfo } from '../../types/llm-profiles';
 import { groupBy } from 'lodash-es';
 import { useModelIcons } from '../../composables/useModelIcons';
+import DynamicIcon from '../../components/common/DynamicIcon.vue';
 
 const props = defineProps<{
   models: LlmModelInfo[];
@@ -120,7 +121,7 @@ const getModelIcon = (model: LlmModelInfo) => {
         <div v-for="(groupModels, groupName) in filteredGroups" :key="groupName" class="model-group">
           <div class="group-header" @click="toggleGroupSelection(groupModels)">
             <span>{{ groupName }} ({{ groupModels.length }})</span>
-            <el-button type="text">
+            <el-button link>
               {{ groupModels.every(m => isModelSelected(m) || isModelExisting(m.id)) ? '取消全选' : '全选' }}
             </el-button>
           </div>
@@ -131,7 +132,7 @@ const getModelIcon = (model: LlmModelInfo) => {
             :class="{ selected: isModelSelected(model), disabled: isModelExisting(model.id) }"
             @click="toggleModelSelection(model)"
           >
-            <img v-if="getModelIcon(model)" :src="getModelIcon(model)!" class="model-icon" alt="" />
+            <DynamicIcon v-if="getModelIcon(model)" :src="getModelIcon(model)!" class="model-icon" :alt="model.name" />
             <div v-else class="model-icon-placeholder" />
             <div class="model-info">
               <div class="model-name">{{ model.name }}</div>

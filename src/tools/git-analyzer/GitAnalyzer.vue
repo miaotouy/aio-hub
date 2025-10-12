@@ -181,13 +181,14 @@
                 <div class="commit-list" v-if="filteredCommits.length > 0">
                   <el-timeline>
                     <el-timeline-item
-                      v-for="commit in paginatedCommits"
+                      v-for="(commit, index) in paginatedCommits"
                       :key="commit.hash"
                       :timestamp="formatDate(commit.date)"
                       placement="top"
                     >
                       <el-card @click="selectCommit(commit)" class="commit-card">
                         <div class="commit-header">
+                          <span class="commit-sequence">#{{ (currentPage - 1) * pageSize + index + 1 }}</span>
                           <el-tag size="small">
                             {{ commit.hash.substring(0, 7) }}
                           </el-tag>
@@ -705,6 +706,12 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.commit-sequence {
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--el-color-primary);
 }
 
 .commit-author {

@@ -139,7 +139,7 @@ window.addEventListener('error', (event) => {
   });
 });
 
-logger.info('应用启动', { version: '0.1.5' });
+logger.info('应用启动', { version: '0.1.6' });
 app.mount("#app");
 logger.info('应用挂载完成');
 

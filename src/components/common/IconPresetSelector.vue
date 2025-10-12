@@ -194,7 +194,7 @@ function handleSelect(icon: PresetIconInfo) {
 /* 图标网格 */
 .presets-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
   padding: 0.5rem;
 }
@@ -244,9 +244,16 @@ function handleSelect(icon: PresetIconInfo) {
   font-size: 0.85rem;
   font-weight: 500;
   margin-bottom: 0.25rem;
+  line-height: 1.2;
+  height: calc(0.85rem * 1.2 * 2); /* Fixed height for 2 lines */
+  overflow-wrap: break-word;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .preset-tags {

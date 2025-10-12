@@ -155,3 +155,32 @@ html.dark .el-button--info {
   --el-button-active-bg-color: color-mix(in srgb, var(--el-color-info) 35%, transparent);
   --el-button-active-border-color: var(--el-color-info);
 }
+
+/* el-message 样式修复 - 半透明样式 */
+html.dark .el-message--success {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  --el-message-text-color: var(--el-color-success);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-success) 40%, transparent);
+  --el-message-close-color: var(--el-color-success);
+}
+
+html.dark .el-message--warning {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  --el-message-text-color: var(--el-color-warning);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-warning) 40%, transparent);
+  --el-message-close-color: var(--el-color-warning);
+}
+
+html.dark .el-message--error {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  --el-message-text-color: var(--el-color-danger);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-danger) 40%, transparent);
+  --el-message-close-color: var(--el-color-danger);
+}
+
+html.dark .el-message--info {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  --el-message-text-color: var(--el-color-info);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
+  --el-message-close-color: var(--el-color-info);
+}

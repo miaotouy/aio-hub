@@ -158,3 +158,28 @@ body {
   --el-button-active-bg-color: color-mix(in srgb, var(--el-color-info) 30%, transparent);
   --el-button-active-border-color: var(--el-color-info);
 }
+
+/* el-message 样式修复 - 确保亮色模式下文字清晰 */
+.el-message--success {
+  --el-message-bg-color: #f0f9eb;
+  --el-message-text-color: var(--el-color-success);
+  --el-message-close-color: var(--el-color-success);
+}
+
+.el-message--warning {
+  --el-message-bg-color: #fdf6ec;
+  --el-message-text-color: var(--el-color-warning);
+  --el-message-close-color: var(--el-color-warning);
+}
+
+.el-message--error {
+  --el-message-bg-color: #fef0f0;
+  --el-message-text-color: var(--el-color-danger);
+  --el-message-close-color: var(--el-color-danger);
+}
+
+.el-message--info {
+  --el-message-bg-color: #f4f4f5;
+  --el-message-text-color: var(--el-color-info);
+  --el-message-close-color: var(--el-color-info);
+}

@@ -51,24 +51,22 @@
           <option :value="96">96 项/页</option>
         </select>
 
-        <div class="view-toggle">
-          <button
+        <el-button-group class="view-toggle">
+          <el-button
             @click="viewMode = 'grid'"
-            :class="{ active: viewMode === 'grid' }"
-            class="view-btn"
+            :type="viewMode === 'grid' ? 'primary' : ''"
             title="网格视图"
           >
             <el-icon><Grid /></el-icon>
-          </button>
-          <button
+          </el-button>
+          <el-button
             @click="viewMode = 'list'"
-            :class="{ active: viewMode === 'list' }"
-            class="view-btn"
+            :type="viewMode === 'list' ? 'primary' : ''"
             title="列表视图"
           >
             <el-icon><List /></el-icon>
-          </button>
-        </div>
+          </el-button>
+        </el-button-group>
       </div>
     </div>
 
@@ -578,34 +576,6 @@ function getPageNumbers(): number[] {
   border-color: var(--primary-color);
 }
 
-.view-toggle {
-  display: flex;
-  gap: 2px;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.view-btn {
-  padding: 0.5rem 0.75rem;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 1rem;
-  color: var(--text-color);
-  transition: all 0.2s;
-}
-
-.view-btn:hover {
-  background: var(--card-bg);
-}
-
-.view-btn.active {
-  background: var(--primary-color);
-  color: white;
-}
-
 /* 配置列表容器 */
 .configs-container {
   display: flex;
@@ -907,9 +877,6 @@ function getPageNumbers(): number[] {
 }
 
 /* 按钮样式 */
-.btn-primary,
-.btn-secondary,
-.btn-warning,
 .btn-icon {
   padding: 0.5rem 1rem;
   border: none;
@@ -919,32 +886,6 @@ function getPageNumbers(): number[] {
   transition: all 0.2s;
 }
 
-.btn-primary {
-  background: var(--primary-color);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: var(--primary-hover-color);
-}
-
-.btn-secondary {
-  background: var(--card-bg);
-  color: var(--text-color);
-}
-
-.btn-secondary:hover {
-  background: var(--border-color);
-}
-
-.btn-warning {
-  background: #f59e0b;
-  color: white;
-}
-
-.btn-warning:hover {
-  background: #d97706;
-}
 
 .btn-icon {
   padding: 0;

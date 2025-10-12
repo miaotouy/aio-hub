@@ -6,6 +6,10 @@
   --border-color: #ddd;
   --primary-color: #409eff; /* Element Plus primary color */
   --primary-hover-color: #66b1ff;
+  --success-color: #67c23a;
+  --warning-color: #e6a23c;
+  --danger-color: #f56c6c;
+  --info-color: #909399;
   --error-color: #f56c6c;
   --input-bg: #fff;
   --sidebar-bg: #f0f2f5;
@@ -103,6 +107,79 @@ body {
   color: var(--text-color);
 }
 
+/* Element Plus 全局主题适配 - 单选按钮组 */
+.el-radio-group {
+  --el-radio-text-color: var(--text-color);
+  --el-radio-input-border-color: var(--border-color);
+  --el-radio-input-border-color-hover: var(--primary-color);
+}
+
+.el-radio {
+  --el-radio-text-color: var(--text-color);
+  --el-radio-input-border-color: var(--border-color);
+  --el-radio-input-border-color-hover: var(--primary-color);
+}
+
+.el-radio__input.is-checked .el-radio__inner {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.el-radio__label {
+  color: var(--text-color);
+}
+
+/* Element Plus 单选按钮禁用状态 */
+.el-radio.is-disabled .el-radio__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+}
+
+.el-radio.is-disabled .el-radio__label {
+  color: var(--text-color-light);
+  cursor: not-allowed;
+}
+
+.el-radio.is-disabled.is-checked .el-radio__inner {
+  background-color: var(--border-color);
+  border-color: var(--border-color);
+}
+
+/* Element Plus 全局主题适配 - 单选按钮按钮样式 */
+.el-radio-button__inner {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.el-radio-button__inner:hover {
+  color: var(--primary-color);
+}
+
+.el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  box-shadow: -1px 0 0 0 var(--primary-color);
+}
+
+.el-radio-button__original-radio:checked + .el-radio-button__inner:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.el-radio-button.is-disabled .el-radio-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  cursor: not-allowed;
+}
+
+.el-radio-button.is-disabled .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+}
+
 /* Element Plus 全局主题适配 - 按钮半透明高亮样式（使用动态颜色变量） */
 .el-button--primary {
   --el-button-bg-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
@@ -157,6 +234,114 @@ body {
   --el-button-hover-text-color: var(--el-color-info);
   --el-button-active-bg-color: color-mix(in srgb, var(--el-color-info) 30%, transparent);
   --el-button-active-border-color: var(--el-color-info);
+}
+
+/* Element Plus 按钮禁用状态 */
+.el-button.is-disabled,
+.el-button.is-disabled:hover,
+.el-button.is-disabled:focus,
+.el-button.is-disabled:active {
+  background-color: var(--border-color-light) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-color-light) !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+
+.el-button--primary.is-disabled,
+.el-button--primary.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light) !important;
+  --el-button-border-color: var(--border-color) !important;
+  --el-button-text-color: var(--text-color-light) !important;
+}
+
+.el-button--success.is-disabled,
+.el-button--success.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light) !important;
+  --el-button-border-color: var(--border-color) !important;
+  --el-button-text-color: var(--text-color-light) !important;
+}
+
+.el-button--warning.is-disabled,
+.el-button--warning.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light) !important;
+  --el-button-border-color: var(--border-color) !important;
+  --el-button-text-color: var(--text-color-light) !important;
+}
+
+.el-button--danger.is-disabled,
+.el-button--danger.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light) !important;
+  --el-button-border-color: var(--border-color) !important;
+  --el-button-text-color: var(--text-color-light) !important;
+}
+
+.el-button--info.is-disabled,
+.el-button--info.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light) !important;
+  --el-button-border-color: var(--border-color) !important;
+  --el-button-text-color: var(--text-color-light) !important;
+}
+
+/* Custom global button styles */
+.btn-primary,
+.btn-secondary,
+.btn-warning,
+.btn-danger,
+.btn-info {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  border: 1px solid;
+  background-color: transparent;
+}
+
+.btn-primary {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+.btn-primary:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.btn-secondary {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+.btn-secondary:hover {
+  background-color: var(--border-color-light);
+  border-color: var(--primary-color);
+}
+
+.btn-warning {
+  background-color: color-mix(in srgb, var(--warning-color) 10%, transparent);
+  border-color: var(--warning-color);
+  color: var(--warning-color);
+}
+.btn-warning:hover {
+  background-color: color-mix(in srgb, var(--warning-color) 20%, transparent);
+}
+
+.btn-danger {
+  background-color: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+.btn-danger:hover {
+  background-color: color-mix(in srgb, var(--danger-color) 20%, transparent);
+}
+
+.btn-info {
+  background-color: color-mix(in srgb, var(--info-color) 10%, transparent);
+  border-color: var(--info-color);
+  color: var(--info-color);
+}
+.btn-info:hover {
+  background-color: color-mix(in srgb, var(--info-color) 20%, transparent);
 }
 
 /* el-message 样式修复 - 确保亮色模式下文字清晰 */

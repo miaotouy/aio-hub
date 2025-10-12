@@ -117,6 +117,31 @@
           </el-row>
         </div>
 
+        <!-- 范围选择器 -->
+        <div class="range-selector" v-if="commits.length > 0">
+          <el-row :gutter="16" align="middle">
+            <el-col :span="3">
+              <span class="range-label">提交范围:</span>
+            </el-col>
+            <el-col :span="16">
+              <el-slider
+                v-model="commitRange"
+                :max="commits.length"
+                range
+                :disabled="commits.length === 0"
+                @change="filterCommits"
+                :marks="{ [0]: '最新', [commits.length]: '最旧' }"
+              />
+            </el-col>
+            <el-col :span="5">
+              <span class="range-label"
+                >范围: {{ commitRange[0] }} - {{ commitRange[1] }} (共
+                {{ commitRange[1] - commitRange[0] }} 条)</span
+              >
+            </el-col>
+          </el-row>
+        </div>
+
         <!-- 统计信息 -->
         <div class="statistics" v-if="commits.length > 0">
           <el-row :gutter="16">
@@ -335,6 +360,7 @@ const {
   commits,
   filteredCommits,
   limitCount,
+  commitRange,
   searchQuery,
   dateRange,
   authorFilter,
@@ -444,6 +470,7 @@ async function loadConfig() {
     if (loadedConfig.dateRange) {
       dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])]
     }
+    commitRange.value = loadedConfig.commitRange || [0, 0]
   } catch (error) {
     logger.error('加载配置失败', error, { repoPath: repoPath.value })
   }
@@ -465,14 +492,15 @@ function saveCurrentConfig() {
       ? [dateRange.value[0].toISOString(), dateRange.value[1].toISOString()]
       : null,
     authorFilter: authorFilter.value,
-  }
+    commitRange: commitRange.value,
+}
 
-  debouncedSaveConfig(updatedConfig)
+debouncedSaveConfig(updatedConfig)
 }
 
 // 监听配置变化并自动保存
 watch(
-  [repoPath, selectedBranch, limitCount, activeTab, pageSize, searchQuery, dateRange, authorFilter],
+  [repoPath, selectedBranch, limitCount, activeTab, pageSize, searchQuery, dateRange, authorFilter, commitRange],
   () => {
     saveCurrentConfig()
   },
@@ -558,6 +586,21 @@ onMounted(async () => {
   border: 1px solid var(--border-color-light);
   flex-shrink: 0;
   /* 防止收缩 */
+}
+
+.range-selector {
+  padding: 12px 16px 20px;
+  background: var(--card-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color-light);
+  flex-shrink: 0;
+}
+
+.range-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+  white-space: nowrap;
 }
 
 .statistics {

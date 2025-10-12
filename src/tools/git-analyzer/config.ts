@@ -16,6 +16,7 @@ export interface GitAnalyzerConfig {
   searchQuery: string
   dateRange: [string, string] | null
   authorFilter: string
+  commitRange: [number, number]
   
   // 导出配置
   exportConfig: {
@@ -51,6 +52,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
     searchQuery: '',
     dateRange: null,
     authorFilter: '',
+    commitRange: [0, 0],
     
     // 导出配置
     exportConfig: {

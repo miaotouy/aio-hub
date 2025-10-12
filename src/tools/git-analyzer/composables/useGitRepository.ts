@@ -16,6 +16,7 @@ export function useGitRepository() {
   const commits = ref<GitCommit[]>([])
   const filteredCommits = ref<GitCommit[]>([])
   const limitCount = ref(100)
+  const commitRange = ref<[number, number]>([0, 0])
 
   // 筛选状态
   const searchQuery = ref('')
@@ -131,6 +132,9 @@ export function useGitRepository() {
         commits.value = result.commits
         filteredCommits.value = result.commits
 
+        // 重置提交范围
+        commitRange.value = [0, result.commits.length]
+
         // 设置当前分支
         const currentBranchInfo = result.branches.find((b) => b.current)
         if (currentBranchInfo) {
@@ -172,6 +176,9 @@ export function useGitRepository() {
       commits.value = result.commits
       filteredCommits.value = result.commits
 
+      // 重置提交范围
+      commitRange.value = [0, result.commits.length]
+
       // 设置当前分支
       const currentBranch = result.branches.find((b) => b.current)
       if (currentBranch) {
@@ -206,6 +213,10 @@ export function useGitRepository() {
 
       commits.value = result
       filteredCommits.value = result
+
+      // 重置提交范围
+      commitRange.value = [0, result.length]
+
       ElMessage.success(`切换到分支: ${branch}`)
 
       return true
@@ -219,7 +230,8 @@ export function useGitRepository() {
 
   // 方法 - 筛选提交
   function filterCommits() {
-    let filtered = [...commits.value]
+    // 首先根据范围选择器从原始列表中切片
+    let filtered = commits.value.slice(commitRange.value[0], commitRange.value[1])
 
     // 搜索筛选
     if (searchQuery.value) {
@@ -253,7 +265,8 @@ export function useGitRepository() {
     searchQuery.value = ''
     dateRange.value = null
     authorFilter.value = ''
-    filteredCommits.value = commits.value
+    // 重新应用筛选（此时只会应用范围选择）
+    filterCommits()
     currentPage.value = 1
   }
 
@@ -279,6 +292,7 @@ export function useGitRepository() {
     commits,
     filteredCommits,
     limitCount,
+    commitRange,
     searchQuery,
     dateRange,
     authorFilter,

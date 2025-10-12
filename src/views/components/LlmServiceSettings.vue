@@ -346,7 +346,7 @@ const openModelIconSelector = () => {
             />
           </el-form-item>
 
-          <el-form-item label="服务类型">
+          <el-form-item label="API 格式">
             <el-select v-model="editForm.type" style="width: 100%">
               <el-option
                 v-for="provider in providerTypes"
@@ -362,6 +362,7 @@ const openModelIconSelector = () => {
                 </div>
               </el-option>
             </el-select>
+            <div class="form-hint">API 请求格式类型（兼容该格式的所有服务商均可使用）</div>
           </el-form-item>
 
           <el-form-item label="供应商图标">
@@ -422,29 +423,98 @@ const openModelIconSelector = () => {
     </div>
 
     <!-- 预设选择对话框 -->
-    <el-dialog v-model="showPresetDialog" title="选择创建方式" width="600px">
+    <el-dialog v-model="showPresetDialog" title="选择创建方式" width="800px">
       <div class="preset-options">
         <div class="preset-section">
           <h4>从预设模板创建</h4>
-          <div class="preset-grid">
-            <div
-              v-for="preset in llmPresets"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
-            >
-              <div class="preset-icon">
-                <img
-                  v-if="getProviderIconForPreset(preset.type)"
-                  :src="getProviderIconForPreset(preset.type)!"
-                  :alt="preset.name"
-                />
-                <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+          <p class="preset-section-desc">选择常用服务商快速创建配置</p>
+          
+          <!-- OpenAI 兼容格式 -->
+          <div class="preset-type-group">
+            <div class="preset-type-header">
+              <span class="preset-type-badge">OpenAI 兼容</span>
+              <span class="preset-type-desc">支持 OpenAI、DeepSeek、Kimi 等兼容接口</span>
+            </div>
+            <div class="preset-grid">
+              <div
+                v-for="preset in llmPresets.filter(p => p.type === 'openai')"
+                :key="preset.name"
+                class="preset-card"
+                @click="createFromPresetTemplate(preset)"
+              >
+                <div class="preset-icon">
+                  <img
+                    v-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!"
+                    :alt="preset.name"
+                  />
+                  <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </div>
               </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
+            </div>
+          </div>
+
+          <!-- Google Gemini 格式 -->
+          <div class="preset-type-group">
+            <div class="preset-type-header">
+              <span class="preset-type-badge gemini">Gemini</span>
+              <span class="preset-type-desc">Google Gemini 专用接口</span>
+            </div>
+            <div class="preset-grid">
+              <div
+                v-for="preset in llmPresets.filter(p => p.type === 'gemini')"
+                :key="preset.name"
+                class="preset-card"
+                @click="createFromPresetTemplate(preset)"
+              >
+                <div class="preset-icon">
+                  <img
+                    v-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!"
+                    :alt="preset.name"
+                  />
+                  <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anthropic Claude 格式 -->
+          <div class="preset-type-group">
+            <div class="preset-type-header">
+              <span class="preset-type-badge claude">Claude</span>
+              <span class="preset-type-desc">Anthropic Claude 专用接口</span>
+            </div>
+            <div class="preset-grid">
+              <div
+                v-for="preset in llmPresets.filter(p => p.type === 'claude')"
+                :key="preset.name"
+                class="preset-card"
+                @click="createFromPresetTemplate(preset)"
+              >
+                <div class="preset-icon">
+                  <img
+                    v-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!"
+                    :alt="preset.name"
+                  />
+                  <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -453,7 +523,7 @@ const openModelIconSelector = () => {
         <el-divider />
 
         <div class="preset-section">
-          <h4>或者</h4>
+          <h4>自定义配置</h4>
           <el-button
             style="width: 100%"
             @click="
@@ -617,17 +687,64 @@ const openModelIconSelector = () => {
 /* 预设选择对话框 */
 .preset-options {
   padding: 10px 0;
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
 .preset-section {
   margin-bottom: 20px;
 }
-
 .preset-section h4 {
-  margin: 0 0 16px 0;
+  margin: 0 0 8px 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-color);
+}
+
+.preset-section-desc {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+}
+
+.preset-type-group {
+  margin-bottom: 20px;
+}
+
+.preset-type-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.preset-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--el-color-primary-light-8);
+  color: var(--el-color-primary);
+  border-radius: 4px;
+  border: 1px solid var(--el-color-primary-light-5);
+}
+
+.preset-type-badge.gemini {
+  background: var(--el-color-success-light-8);
+  color: var(--el-color-success);
+  border-color: var(--el-color-success-light-5);
+}
+
+.preset-type-badge.claude {
+  background: var(--el-color-warning-light-8);
+  color: var(--el-color-warning);
+  border-color: var(--el-color-warning-light-5);
+}
+
+.preset-type-desc {
+  font-size: 12px;
+  color: var(--text-color-secondary);
 }
 
 .preset-grid {

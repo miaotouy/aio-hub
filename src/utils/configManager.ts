@@ -5,6 +5,9 @@
 
 import { mkdir, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
+import { createModuleLogger } from './logger';
+
+const logger = createModuleLogger('ConfigManager');
 
 /**
  * 配置管理器的选项
@@ -44,20 +47,33 @@ export class ConfigManager<T extends Record<string, any>> {
    * 获取配置文件的完整路径
    */
   async getConfigPath(): Promise<string> {
-    const appDir = await appDataDir();
-    const moduleDir = await join(appDir, this.moduleName);
-    return join(moduleDir, this.fileName);
+    try {
+      const appDir = await appDataDir();
+      const moduleDir = await join(appDir, this.moduleName);
+      const configPath = await join(moduleDir, this.fileName);
+      logger.debug(`获取配置路径: ${configPath}`, { moduleName: this.moduleName, fileName: this.fileName });
+      return configPath;
+    } catch (error) {
+      logger.error(`获取配置路径失败`, error, { moduleName: this.moduleName, fileName: this.fileName });
+      throw new Error(`获取配置路径失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   
   /**
    * 确保模块目录存在
    */
   async ensureModuleDir(): Promise<void> {
-    const appDir = await appDataDir();
-    const moduleDir = await join(appDir, this.moduleName);
-    
-    if (!await exists(moduleDir)) {
-      await mkdir(moduleDir, { recursive: true });
+    try {
+      const appDir = await appDataDir();
+      const moduleDir = await join(appDir, this.moduleName);
+      
+      if (!await exists(moduleDir)) {
+        logger.info(`创建模块目录: ${moduleDir}`, { moduleName: this.moduleName });
+        await mkdir(moduleDir, { recursive: true });
+      }
+    } catch (error) {
+      logger.error(`创建模块目录失败`, error, { moduleName: this.moduleName });
+      throw new Error(`创建模块目录失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   
@@ -66,36 +82,51 @@ export class ConfigManager<T extends Record<string, any>> {
    */
   async load(): Promise<T> {
     try {
+      logger.debug(`开始加载配置`, { moduleName: this.moduleName, fileName: this.fileName });
+      
       await this.ensureModuleDir();
       const configPath = await this.getConfigPath();
       
       if (!await exists(configPath)) {
         // 配置文件不存在，创建默认配置
+        logger.info(`配置文件不存在，创建默认配置`, { configPath });
         const defaultConfig = this.createDefault();
         await this.save(defaultConfig);
         return defaultConfig;
       }
       
       const content = await readTextFile(configPath);
+      logger.debug(`读取配置文件成功`, { configPath, contentLength: content.length });
+      
       const loadedConfig: Partial<T> = JSON.parse(content);
       
       // 确保配置结构完整，补充缺失的字段
       const defaultConfig = this.createDefault();
       
       // 使用自定义合并逻辑或默认的浅合并
+      let mergedConfig: T;
       if (this.mergeConfig) {
-        return this.mergeConfig(defaultConfig, loadedConfig);
+        mergedConfig = this.mergeConfig(defaultConfig, loadedConfig);
       } else {
         // 默认的浅合并，确保版本号总是更新
-        return {
+        mergedConfig = {
           ...defaultConfig,
           ...loadedConfig,
           version: this.version
         } as T;
       }
+      
+      logger.info(`配置加载成功`, { moduleName: this.moduleName });
+      return mergedConfig;
     } catch (error: any) {
-      console.error(`加载${this.moduleName}配置失败:`, error);
+      logger.error(`加载配置失败`, error, {
+        moduleName: this.moduleName,
+        fileName: this.fileName,
+        errorMessage: error?.message
+      });
+      
       // 加载失败时返回默认配置
+      logger.warn(`使用默认配置`, { moduleName: this.moduleName });
       return this.createDefault();
     }
   }
@@ -105,6 +136,8 @@ export class ConfigManager<T extends Record<string, any>> {
    */
   async save(config: T): Promise<void> {
     try {
+      logger.debug(`开始保存配置`, { moduleName: this.moduleName });
+      
       await this.ensureModuleDir();
       const configPath = await this.getConfigPath();
       
@@ -114,10 +147,20 @@ export class ConfigManager<T extends Record<string, any>> {
         version: this.version
       };
       
-      await writeTextFile(configPath, JSON.stringify(configWithVersion, null, 2));
+      const jsonContent = JSON.stringify(configWithVersion, null, 2);
+      await writeTextFile(configPath, jsonContent);
+      
+      logger.info(`配置保存成功`, {
+        moduleName: this.moduleName,
+        configPath,
+        contentLength: jsonContent.length
+      });
     } catch (error: any) {
-      console.error(`保存${this.moduleName}配置失败:`, error);
-      throw new Error(`保存配置失败: ${error.message}`);
+      logger.error(`保存配置失败`, error, {
+        moduleName: this.moduleName,
+        errorMessage: error?.message
+      });
+      throw new Error(`保存配置失败: ${error?.message || String(error)}`);
     }
   }
   
@@ -125,10 +168,19 @@ export class ConfigManager<T extends Record<string, any>> {
    * 更新配置的部分字段
    */
   async update(updates: Partial<T>): Promise<T> {
-    const config = await this.load();
-    const newConfig = { ...config, ...updates };
-    await this.save(newConfig);
-    return newConfig;
+    try {
+      logger.debug(`更新配置`, { moduleName: this.moduleName, updates });
+      
+      const config = await this.load();
+      const newConfig = { ...config, ...updates };
+      await this.save(newConfig);
+      
+      logger.info(`配置更新成功`, { moduleName: this.moduleName });
+      return newConfig;
+    } catch (error) {
+      logger.error(`更新配置失败`, error, { moduleName: this.moduleName });
+      throw error;
+    }
   }
   
   /**
@@ -145,8 +197,9 @@ export class ConfigManager<T extends Record<string, any>> {
       timeoutId = setTimeout(async () => {
         try {
           await this.save(config);
+          logger.debug(`防抖保存完成`, { moduleName: this.moduleName, delay });
         } catch (error) {
-          console.error(`自动保存${this.moduleName}配置失败:`, error);
+          logger.error(`防抖保存失败`, error, { moduleName: this.moduleName });
         }
       }, delay);
     };

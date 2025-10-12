@@ -5,6 +5,7 @@ import { Upload, Delete, Picture, Scissor, Plus } from '@element-plus/icons-vue'
 import type { ImageBlock, CutLine, UploadedImage } from '../types';
 import { useFileDrop } from '../../../composables/useFileDrop';
 import { invoke } from '@tauri-apps/api/core';
+import { logger } from '@utils/logger';
 
 const props = defineProps<{
   uploadedImages: UploadedImage[];
@@ -73,8 +74,13 @@ const { isDraggingOver: isTauriDragging } = useFileDrop({
         const file = new File([blob], fileName, { type: mimeType });
         files.push(file);
       } catch (error) {
-        console.error('读取文件失败:', path, error);
-        ElMessage.error(`读取文件失败: ${path.split(/[/\\]/).pop()}`);
+        const fileName = path.split(/[/\\]/).pop() || path;
+        logger.error('PreviewPanel', '文件读取失败', error, {
+          action: 'readFileAsTauriDrop',
+          filePath: path,
+          fileName
+        });
+        ElMessage.error(`读取文件失败: ${fileName}`);
       }
     }
     
@@ -156,8 +162,13 @@ const handleFiles = async (files: FileList | File[]) => {
         dataUrl: img.src
       });
     } catch (error) {
+      logger.error('PreviewPanel', '图片加载失败', error, {
+        action: 'loadImage',
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
+      });
       ElMessage.error(`加载图片 ${file.name} 失败`);
-      console.error('图片加载失败:', error);
     }
   }
   

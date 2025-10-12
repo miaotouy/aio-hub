@@ -150,6 +150,10 @@ import { debounce } from "lodash";
 import InfoCard from "../../components/common/InfoCard.vue";
 import DropZone from "../../components/common/DropZone.vue";
 import { loadConfig, saveConfig, type DirectoryTreeConfig } from "./config";
+import { createModuleLogger } from "@utils/logger";
+
+// 创建模块日志器
+const logger = createModuleLogger("tools/directory-tree");
 
 // 配置状态
 const targetPath = ref("");
@@ -181,7 +185,7 @@ const handlePathDrop = (paths: string[]) => {
   if (paths.length > 0) {
     targetPath.value = paths[0];
     ElMessage.success(`已设置目标路径: ${paths[0]}`);
-    console.log(`已通过拖拽设置目标路径: ${paths[0]}`);
+    logger.info("通过拖拽设置目标路径", { path: paths[0] });
 
     // 根据配置决定是否自动生成目录树
     if (autoGenerateOnDrop.value) {
@@ -205,7 +209,7 @@ onMounted(async () => {
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
   } catch (error) {
-    console.error("加载配置失败:", error);
+    logger.error("加载配置失败", error);
   } finally {
     isLoadingConfig.value = false;
   }
@@ -229,7 +233,14 @@ const debouncedSaveConfig = debounce(async () => {
     };
     await saveConfig(config);
   } catch (error) {
-    console.error("保存配置失败:", error);
+    logger.error("保存配置失败", error, {
+      customPatterns: customPattern.value,
+      lastFilterMode: filterMode.value,
+      lastTargetPath: targetPath.value,
+      showFiles: showFiles.value,
+      showHidden: showHidden.value,
+      maxDepth: maxDepth.value,
+    });
   }
 }, 500);
 
@@ -262,7 +273,7 @@ const selectDirectory = async () => {
       targetPath.value = selected;
     }
   } catch (error) {
-    console.error("选择目录失败:", error);
+    logger.error("选择目录失败", error);
     ElMessage.error("选择目录失败");
   }
 };
@@ -338,35 +349,44 @@ const generateTree = async () => {
     treeResult.value = outputContent;
     statsInfo.value = result.stats;
 
-    // 在控制台输出统计信息和配置
-    console.log("📊 目录树统计信息:", {
-      总目录: result.stats.total_dirs,
-      总文件: result.stats.total_files,
-      过滤目录: result.stats.filtered_dirs,
-      过滤文件: result.stats.filtered_files,
-      过滤规则数: result.stats.filter_count,
-      显示文件: result.stats.show_files,
-      显示隐藏: result.stats.show_hidden,
-      最大深度: result.stats.max_depth,
-    });
-
-    console.log("⚙️ 使用的配置:", {
-      目标路径: targetPath.value,
-      显示文件: showFiles.value,
-      显示隐藏: showHidden.value,
-      过滤模式: filterMode.value,
-      最大深度: maxDepth.value === 10 ? "无限制" : maxDepth.value,
-      过滤规则:
-        filterMode.value === "custom"
-          ? customPattern.value.split("\n").filter((l: string) => l.trim()).length + " 条"
-          : filterMode.value === "gitignore"
-            ? "使用 .gitignore"
-            : "无",
+    // 记录成功生成的日志，附带统计信息和配置
+    logger.info("目录树生成成功", {
+      statistics: {
+        总目录: result.stats.total_dirs,
+        总文件: result.stats.total_files,
+        过滤目录: result.stats.filtered_dirs,
+        过滤文件: result.stats.filtered_files,
+        过滤规则数: result.stats.filter_count,
+        显示文件: result.stats.show_files,
+        显示隐藏: result.stats.show_hidden,
+        最大深度: result.stats.max_depth,
+      },
+      configuration: {
+        目标路径: targetPath.value,
+        显示文件: showFiles.value,
+        显示隐藏: showHidden.value,
+        过滤模式: filterMode.value,
+        最大深度: maxDepth.value === 10 ? "无限制" : maxDepth.value,
+        过滤规则:
+          filterMode.value === "custom"
+            ? customPattern.value.split("\n").filter((l: string) => l.trim()).length + " 条"
+            : filterMode.value === "gitignore"
+              ? "使用 .gitignore"
+              : "无",
+      },
     });
 
     ElMessage.success("目录树生成成功");
   } catch (error: any) {
-    console.error("生成目录树失败:", error);
+    logger.error("生成目录树失败", error, {
+      path: targetPath.value,
+      configuration: {
+        显示文件: showFiles.value,
+        显示隐藏: showHidden.value,
+        过滤模式: filterMode.value,
+        最大深度: maxDepth.value === 10 ? "无限制" : maxDepth.value,
+      },
+    });
     ElMessage.error(`生成失败: ${error}`);
     treeResult.value = `错误: ${error}`;
   } finally {
@@ -380,13 +400,14 @@ const copyToClipboard = async () => {
     await writeText(treeResult.value);
     ElMessage.success("已复制到剪贴板");
   } catch (error) {
-    console.error("复制失败:", error);
+    logger.error("复制到剪贴板失败", error);
     ElMessage.error("复制到剪贴板失败");
   }
 };
 
 // 导出为文件
 const exportToFile = async () => {
+  let savePath: string | null = null;
   try {
     // 从路径中提取目录名称
     const getDirName = (path: string) => {
@@ -407,7 +428,7 @@ const exportToFile = async () => {
     const dateTime = `${year}${month}${day}_${hours}${minutes}`;
     const defaultFileName = `${dirName}_目录树_${dateTime}.txt`;
 
-    const savePath = await saveDialog({
+    savePath = await saveDialog({
       defaultPath: defaultFileName,
       filters: [
         { name: "Text Files", extensions: ["txt"] },
@@ -421,7 +442,7 @@ const exportToFile = async () => {
       ElMessage.success("文件保存成功");
     }
   } catch (error) {
-    console.error("保存文件失败:", error);
+    logger.error("保存文件失败", error, { path: savePath });
     ElMessage.error("保存文件失败");
   }
 };

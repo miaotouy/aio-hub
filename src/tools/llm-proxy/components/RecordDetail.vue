@@ -158,6 +158,10 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { listen } from '@tauri-apps/api/event';
+import { createModuleLogger } from '@utils/logger';
+
+// 日志
+const logger = createModuleLogger('LLMProxy/RecordDetail');
 
 // 类型定义
 interface RequestRecord {
@@ -464,10 +468,9 @@ async function copyToClipboard(text: string, message: string = '已复制到剪�
   try {
     const textToCopy = maskSensitiveData(text);
     await navigator.clipboard.writeText(textToCopy);
-    // 简单的提示，可以后续改为更优雅的 toast
-    console.log(message);
+    logger.debug('内容已复制到剪贴板', { message, masked: props.maskApiKeys });
   } catch (err) {
-    console.error('复制失败:', err);
+    logger.error('复制到剪贴板失败', err, { message });
   }
 }
 
@@ -569,7 +572,12 @@ async function setupStreamListener() {
     unlistenStreamUpdate = await listen('proxy-stream-update', (event) => {
       const update = event.payload as StreamUpdate;
 
-      console.log('收到流式更新事件:', update.id, '当前记录:', props.record?.id, '完成状态:', update.is_complete);
+      logger.debug('收到流式更新事件', {
+        streamId: update.id,
+        currentRecordId: props.record?.id,
+        isComplete: update.is_complete,
+        chunkLength: update.chunk?.length
+      });
 
       // 更新缓冲区
       if (update.chunk) {
@@ -579,13 +587,13 @@ async function setupStreamListener() {
 
       // 如果当前显示的就是这个记录，更新状态
       if (props.record?.id === update.id) {
-        console.log('更新流式状态 - ID匹配:', update.id);
+        logger.debug('更新流式状态 - ID匹配', { streamId: update.id });
         isStreamingActive.value = !update.is_complete;
         if (!update.is_complete) {
           activeStreamId.value = update.id;
         } else if (activeStreamId.value === update.id) {
           activeStreamId.value = null;
-          console.log('流式传输完成:', update.id);
+          logger.debug('流式传输完成', { streamId: update.id });
         }
       }
 
@@ -595,7 +603,7 @@ async function setupStreamListener() {
         // 如果这是一个新的流式响应，且是当前记录，立即激活流式状态
         if (props.record?.id === update.id && !isStreamingActive.value) {
           isStreamingActive.value = true;
-          console.log('激活流式状态 for:', update.id);
+          logger.debug('激活流式状态', { streamId: update.id });
         }
       }
 
@@ -605,7 +613,7 @@ async function setupStreamListener() {
       }
     });
   } catch (error) {
-    console.error('设置流式监听器失败:', error);
+    logger.error('设置流式监听器失败', error);
   }
 }
 

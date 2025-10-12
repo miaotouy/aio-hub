@@ -43,6 +43,10 @@ import type { GitCommit, ExportConfig, RepoStatistics } from '../types'
 import { useReportGenerator } from '../composables/useReportGenerator'
 import ExportConfiguration from './ExportConfiguration.vue'
 import ExportPreview from './ExportPreview.vue'
+import { createModuleLogger } from '@utils/logger'
+
+// 创建模块日志记录器
+const logger = createModuleLogger('ExportModule')
 
 const props = defineProps<{
   commits: GitCommit[]
@@ -143,7 +147,12 @@ async function loadCommitsWithFiles() {
     commitsWithFiles.value = commits
     ElMessage.success('已加载文件变更信息')
   } catch (error) {
-    console.error('加载文件信息失败:', error)
+    logger.error('加载文件变更信息失败', error, {
+      repoPath: props.repoPath,
+      branch: props.branch,
+      totalCommits: props.commits.length,
+      includeFiles: exportConfig.value.includeFiles,
+    })
     ElMessage.error('加载文件信息失败')
     commitsWithFiles.value = []
   } finally {
@@ -187,7 +196,12 @@ async function updatePreview() {
   try {
     previewContent.value = reportGenerator.generateReport()
   } catch (error) {
-    console.error('生成预览失败:', error)
+    logger.error('生成报告预览失败', error, {
+      format: exportConfig.value.format,
+      commitRange: exportConfig.value.commitRange,
+      includes: exportConfig.value.includes,
+      includeFiles: exportConfig.value.includeFiles,
+    })
     ElMessage.error('生成预览失败')
   } finally {
     generating.value = false
@@ -200,7 +214,10 @@ async function copyToClipboard() {
     await navigator.clipboard.writeText(previewContent.value)
     ElMessage.success('已复制到剪贴板')
   } catch (error) {
-    console.error('复制失败:', error)
+    logger.error('复制报告内容到剪贴板失败', error, {
+      format: exportConfig.value.format,
+      contentLength: previewContent.value.length,
+    })
     ElMessage.error('复制失败')
   }
 }
@@ -235,17 +252,19 @@ async function downloadFile() {
 // 导出文件（使用 Tauri 的文件保存对话框）
 async function handleExport() {
   exporting.value = true
-  try {
-    const formatExtensions: Record<string, string> = {
-      markdown: 'md',
-      json: 'json',
-      csv: 'csv',
-      html: 'html',
-      text: 'txt',
-    }
+  
+  const formatExtensions: Record<string, string> = {
+    markdown: 'md',
+    json: 'json',
+    csv: 'csv',
+    html: 'html',
+    text: 'txt',
+  }
 
-    const extension = formatExtensions[exportConfig.value.format]
-    const defaultName = generateFileName(extension)
+  const extension = formatExtensions[exportConfig.value.format]
+  const defaultName = generateFileName(extension)
+  
+  try {
 
     const filePath = await save({
       defaultPath: defaultName,
@@ -263,7 +282,12 @@ async function handleExport() {
       visible.value = false
     }
   } catch (error) {
-    console.error('导出失败:', error)
+    logger.error('导出报告文件失败', error, {
+      format: exportConfig.value.format,
+      defaultFileName: defaultName,
+      contentLength: previewContent.value.length,
+      commitRange: exportConfig.value.commitRange,
+    })
     ElMessage.error('导出失败')
   } finally {
     exporting.value = false

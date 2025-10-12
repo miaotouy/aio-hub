@@ -7,7 +7,8 @@ import type { ModelIconConfig, ModelIconConfigStore, PresetIconInfo } from '../t
 import type { LlmModelInfo } from '../types/llm-profiles';
 import { DEFAULT_ICON_CONFIGS, PRESET_ICONS, PRESET_ICONS_DIR, getModelIconPath, isValidIconPath } from '../config/model-icons';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { createConfigManager } from '../utils/configManager';
+import { createConfigManager } from '@utils/configManager';
+import { logger } from '@utils/logger';
 
 const STORAGE_KEY = 'model-icon-configs'; // 用于 localStorage 数据迁移
 const CONFIG_VERSION = '1.0.0';
@@ -58,7 +59,9 @@ export function useModelIcons() {
       if (data.configs.length === DEFAULT_ICON_CONFIGS.length) {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          console.log('检测到 localStorage 数据，开始迁移到文件系统...');
+          logger.info('useModelIcons', '检测到 localStorage 数据，开始迁移到文件系统', {
+            storageKey: STORAGE_KEY,
+          });
           const oldData: ModelIconConfigStore = JSON.parse(stored);
           if (oldData.configs && Array.isArray(oldData.configs)) {
             data.configs = oldData.configs;
@@ -69,7 +72,9 @@ export function useModelIcons() {
             
             // 清除 localStorage 数据
             localStorage.removeItem(STORAGE_KEY);
-            console.log('数据迁移完成');
+            logger.info('useModelIcons', '数据迁移完成', {
+              configCount: data.configs.length,
+            });
           }
         }
       }
@@ -77,7 +82,7 @@ export function useModelIcons() {
       configs.value = data.configs;
       isLoaded.value = true;
     } catch (error) {
-      console.error('加载模型图标配置失败:', error);
+      logger.error('useModelIcons', '加载模型图标配置失败', error);
       // 加载失败时使用默认配置
       configs.value = [...DEFAULT_ICON_CONFIGS];
       isLoaded.value = true;
@@ -97,7 +102,9 @@ export function useModelIcons() {
       await configManager.save(data);
       return true;
     } catch (error) {
-      console.error('保存模型图标配置失败:', error);
+      logger.error('useModelIcons', '保存模型图标配置失败', error, {
+        configCount: configs.value.length,
+      });
       return false;
     }
   }
@@ -121,7 +128,10 @@ export function useModelIcons() {
       await saveConfigs();
       return true;
     } catch (error) {
-      console.error('添加配置失败:', error);
+      logger.error('useModelIcons', '添加配置失败', error, {
+        matchType: config.matchType,
+        matchValue: config.matchValue,
+      });
       return false;
     }
   }
@@ -148,7 +158,10 @@ export function useModelIcons() {
       await saveConfigs();
       return true;
     } catch (error) {
-      console.error('更新配置失败:', error);
+      logger.error('useModelIcons', '更新配置失败', error, {
+        configId: id,
+        updates,
+      });
       return false;
     }
   }
@@ -167,7 +180,9 @@ export function useModelIcons() {
       await saveConfigs();
       return true;
     } catch (error) {
-      console.error('删除配置失败:', error);
+      logger.error('useModelIcons', '删除配置失败', error, {
+        configId: id,
+      });
       return false;
     }
   }
@@ -193,7 +208,7 @@ export function useModelIcons() {
       await saveConfigs();
       return true;
     } catch (error) {
-      console.error('重置配置失败:', error);
+      logger.error('useModelIcons', '重置配置失败', error);
       return false;
     }
   }
@@ -303,7 +318,7 @@ export function useModelIcons() {
       await saveConfigs();
       return true;
     } catch (error) {
-      console.error('导入配置失败:', error);
+      logger.error('useModelIcons', '导入配置失败', error);
       return false;
     }
   }

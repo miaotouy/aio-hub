@@ -56,6 +56,9 @@ import 'diff2html/bundles/css/diff2html.min.css';
 import debounce from 'lodash/debounce';
 import * as jsondiffpatch from 'jsondiffpatch';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { createModuleLogger } from '@utils/logger';
+
+const logger = createModuleLogger('TextDiff');
 
 const textA = ref('');
 const textB = ref('');
@@ -103,7 +106,10 @@ const generateDiff = debounce(() => {
       }
     } catch (e: any) {
       diffHtml.value = `<div style="color: red;">JSON 解析或对比错误: ${e.message}</div>`;
-      console.error('JSON diff error:', e);
+      logger.error('JSON 对比失败', e, {
+        textALength: textA.value.length,
+        textBLength: textB.value.length
+      });
     }
   } else {
     // Fallback to text diff if not JSON mode or invalid JSON
@@ -149,7 +155,10 @@ const mergeJson = () => {
     }
   } catch (e: any) {
     ElMessage.error(`合并失败: ${e.message}`);
-    console.error('JSON merge error:', e);
+    logger.error('JSON 合并失败', e, {
+      textALength: textA.value.length,
+      textBLength: textB.value.length
+    });
   }
 };
 

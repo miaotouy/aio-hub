@@ -4,7 +4,8 @@
 
 import type { OcrProfile } from '../../../types/ocr-profiles';
 import type { ImageBlock, OcrResult } from '../types';
-import { buildUrl, buildHeaders, buildBody, getValueByPath } from '../../../utils/apiRequest';
+import { buildUrl, buildHeaders, buildBody, getValueByPath } from '@utils/apiRequest';
+import { logger } from '@utils/logger';
 
 /**
  * 百度云 Access Token 缓存
@@ -25,8 +26,11 @@ async function getBaiduAccessToken(apiKey: string, apiSecret: string): Promise<s
   const cached = baiduTokenCache.get(cacheKey);
   
   if (cached && cached.expiresAt > Date.now()) {
+    logger.debug('CloudOcrRunner', '百度云 Access Token 缓存命中', { expiresAt: new Date(cached.expiresAt) });
     return cached.token;
   }
+
+  logger.debug('CloudOcrRunner', '百度云 Access Token 缓存未命中，请求新 token');
 
   // 请求新的 token
   const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${apiKey}&client_secret=${apiSecret}`;
@@ -36,10 +40,15 @@ async function getBaiduAccessToken(apiKey: string, apiSecret: string): Promise<s
     const data = await response.json();
     
     if (data.error) {
+      logger.error('CloudOcrRunner', '百度云认证失败', new Error(data.error_description || data.error), {
+        error: data.error,
+        errorDescription: data.error_description
+      });
       throw new Error(`百度云认证失败: ${data.error_description || data.error}`);
     }
     
     if (!data.access_token) {
+      logger.error('CloudOcrRunner', '百度云 access_token 响应缺失');
       throw new Error('获取百度云 access_token 失败');
     }
     
@@ -50,8 +59,13 @@ async function getBaiduAccessToken(apiKey: string, apiSecret: string): Promise<s
       expiresAt: Date.now() + expiresIn - 5 * 60 * 1000,
     });
     
+    logger.info('CloudOcrRunner', '百度云 Access Token 获取成功', {
+      expiresIn: `${Math.floor(expiresIn / 1000 / 60)} 分钟`
+    });
+    
     return data.access_token;
   } catch (error) {
+    logger.error('CloudOcrRunner', '获取百度云 access_token 失败', error);
     throw new Error(`获取百度云 access_token 失败: ${(error as Error).message}`);
   }
 }
@@ -66,6 +80,11 @@ async function callBaiduOcr(
 ): Promise<string> {
   const url = `${endpoint}?access_token=${accessToken}`;
   
+  logger.debug('CloudOcrRunner', '调用百度云 OCR API', {
+    endpoint,
+    imageSize: `${Math.floor(imageBase64.length / 1024)} KB`
+  });
+  
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -78,10 +97,15 @@ async function callBaiduOcr(
     const data = await response.json();
     
     if (data.error_code) {
+      logger.error('CloudOcrRunner', '百度云 OCR API 返回错误', new Error(data.error_msg || String(data.error_code)), {
+        errorCode: data.error_code,
+        errorMsg: data.error_msg
+      });
       throw new Error(`百度云 OCR 错误: ${data.error_msg || data.error_code}`);
     }
     
     if (!data.words_result || !Array.isArray(data.words_result)) {
+      logger.error('CloudOcrRunner', '百度云 OCR 返回格式异常', new Error('返回格式异常'), { responseData: data });
       throw new Error('百度云 OCR 返回格式异常');
     }
     
@@ -91,8 +115,14 @@ async function callBaiduOcr(
       .filter(Boolean)
       .join('\n');
     
+    logger.debug('CloudOcrRunner', '百度云 OCR 识别成功', {
+      wordsCount: data.words_result.length,
+      textLength: text.length
+    });
+    
     return text;
   } catch (error) {
+    logger.error('CloudOcrRunner', '百度云 OCR 请求失败', error, { endpoint });
     throw new Error(`百度云 OCR 请求失败: ${(error as Error).message}`);
   }
 }
@@ -129,6 +159,7 @@ async function callCustomOcr(
 ): Promise<string> {
   // 检查自定义配置是否存在
   if (!profile.apiRequest) {
+    logger.error('CloudOcrRunner', '自定义 OCR 服务未配置', new Error('服务未配置'), { profileName: profile.name });
     throw new Error('自定义 OCR 服务未配置。请在设置中配置 API 请求结构。');
   }
 
@@ -151,11 +182,13 @@ async function callCustomOcr(
     const requestHeaders = buildHeaders(headers, variableValues);
     const requestBody = buildBody(bodyTemplate, variableValues);
 
-    console.log('自定义 OCR 请求:', {
+    logger.debug('CloudOcrRunner', '自定义 OCR 请求', {
+      profileName: profile.name,
       url,
       method,
       headers: requestHeaders,
-      bodyPreview: requestBody.substring(0, 200) + '...'
+      bodyPreview: requestBody.substring(0, 200) + '...',
+      imageSize: `${Math.floor(imageBase64.length / 1024)} KB`
     });
 
     // 发送请求
@@ -168,6 +201,12 @@ async function callCustomOcr(
     // 检查响应状态
     if (!response.ok) {
       const errorText = await response.text();
+      logger.error('CloudOcrRunner', '自定义 OCR HTTP 请求失败', new Error(`HTTP ${response.status}: ${response.statusText}`), {
+        profileName: profile.name,
+        status: response.status,
+        statusText: response.statusText,
+        errorText
+      });
       throw new Error(`HTTP ${response.status}: ${response.statusText}. ${errorText}`);
     }
 
@@ -178,14 +217,28 @@ async function callCustomOcr(
     const text = getValueByPath(responseData, resultPath);
 
     if (typeof text !== 'string') {
+      logger.error('CloudOcrRunner', '自定义 OCR 结果提取失败', new Error(`路径 "${resultPath}" 指向的值类型为 ${typeof text}`), {
+        profileName: profile.name,
+        resultPath,
+        actualType: typeof text,
+        responseData
+      });
       throw new Error(
         `无法从响应中提取文本。路径 "${resultPath}" 指向的值类型为 ${typeof text}，期望为 string。` +
         `\n响应数据: ${JSON.stringify(responseData, null, 2)}`
       );
     }
 
+    logger.debug('CloudOcrRunner', '自定义 OCR 识别成功', {
+      profileName: profile.name,
+      textLength: text.length
+    });
+
     return text;
   } catch (error) {
+    logger.error('CloudOcrRunner', '自定义 OCR 请求失败', error, {
+      profileName: profile.name
+    });
     if (error instanceof Error) {
       throw new Error(`自定义 OCR 请求失败: ${error.message}`);
     }
@@ -199,9 +252,15 @@ async function recognizeWithCloudOcr(
   imageBase64: string,
   profile: OcrProfile
 ): Promise<string> {
+  logger.debug('CloudOcrRunner', '开始云端 OCR 识别', {
+    provider: profile.provider,
+    profileName: profile.name
+  });
+
   switch (profile.provider) {
     case 'baidu': {
       if (!profile.credentials.apiKey || !profile.credentials.apiSecret) {
+        logger.error('CloudOcrRunner', '百度云 OCR 凭证缺失', new Error('凭证缺失'), { profileName: profile.name });
         throw new Error('百度云 OCR 需要 API Key 和 API Secret');
       }
       
@@ -223,6 +282,10 @@ async function recognizeWithCloudOcr(
       return await callCustomOcr(imageBase64, profile);
     
     default:
+      logger.error('CloudOcrRunner', '不支持的 OCR 服务商', new Error(`不支持的服务商类型: ${profile.provider}`), {
+        provider: profile.provider,
+        profileName: profile.name
+      });
       throw new Error(`不支持的服务商类型: ${profile.provider}`);
   }
 }
@@ -252,7 +315,13 @@ export function useCloudOcrRunner() {
     const concurrency = profile.concurrency || 3;
     const delay = profile.delay || 0;
 
-    console.log(`使用云端 OCR (${profile.name})，并发数: ${concurrency}, 延迟: ${delay}ms`);
+    logger.info('CloudOcrRunner', '开始批量云端 OCR 识别', {
+      profileName: profile.name,
+      provider: profile.provider,
+      totalBlocks: blocks.length,
+      concurrency,
+      delay: `${delay}ms`
+    });
 
     // 并发处理函数
     const processBlock = async (index: number) => {
@@ -263,7 +332,12 @@ export function useCloudOcrRunner() {
       onProgress?.([...results]);
 
       try {
-        console.log(`识别第 ${index + 1}/${blocks.length} 个图片块...`);
+        logger.debug('CloudOcrRunner', '识别图片块', {
+          current: index + 1,
+          total: blocks.length,
+          blockId: block.id,
+          imageId: block.imageId
+        });
 
         // 将 canvas 转换为 base64 (不带前缀)
         const imageBase64 = block.canvas.toDataURL('image/png').split(',')[1];
@@ -275,9 +349,19 @@ export function useCloudOcrRunner() {
         results[index].text = text.trim();
         results[index].status = 'success';
 
-        console.log(`第 ${index + 1} 个块识别完成`);
+        logger.debug('CloudOcrRunner', '图片块识别完成', {
+          current: index + 1,
+          total: blocks.length,
+          blockId: block.id,
+          textLength: text.trim().length
+        });
       } catch (error) {
-        console.error(`第 ${index + 1} 个块识别失败:`, error);
+        logger.error('CloudOcrRunner', '图片块识别失败', error, {
+          current: index + 1,
+          total: blocks.length,
+          blockId: block.id,
+          imageId: block.imageId
+        });
         results[index].status = 'error';
         results[index].error = (error as Error).message;
       }
@@ -298,6 +382,16 @@ export function useCloudOcrRunner() {
       const batch = indices.slice(i, i + concurrency);
       await Promise.all(batch.map(index => processBlock(index)));
     }
+
+    const successCount = results.filter(r => r.status === 'success').length;
+    const errorCount = results.filter(r => r.status === 'error').length;
+
+    logger.info('CloudOcrRunner', '批量云端 OCR 识别完成', {
+      profileName: profile.name,
+      total: blocks.length,
+      success: successCount,
+      error: errorCount
+    });
 
     return results;
   };

@@ -4,6 +4,9 @@ import { ElMessage } from 'element-plus';
 import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide } from '@element-plus/icons-vue';
 import type { OcrResult, UploadedImage, ImageBlock } from '../types';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { createModuleLogger } from '@utils/logger';
+
+const logger = createModuleLogger('smart-ocr/ResultPanel');
 
 const props = defineProps<{
   ocrResults: OcrResult[];
@@ -57,12 +60,15 @@ const getBlockIndex = (imageId: string, blockId: string) => {
 };
 
 // 复制文本
-const copyText = async (text: string) => {
+const copyText = async (text: string, context: string = '单个结果') => {
   try {
     await writeText(text);
     ElMessage.success('已复制到剪贴板');
   } catch (error) {
-    console.error('复制失败:', error);
+    logger.error(`复制${context}到剪贴板失败`, error, {
+      context,
+      textLength: text.length,
+    });
     ElMessage.error('复制失败');
   }
 };
@@ -73,7 +79,7 @@ const copyAllText = async () => {
     ElMessage.warning('暂无可复制的内容');
     return;
   }
-  await copyText(allText.value);
+  await copyText(allText.value, '全部结果');
 };
 
 // 获取状态图标

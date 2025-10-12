@@ -3,6 +3,9 @@ import { useDark } from '@vueuse/core'
 import * as echarts from 'echarts'
 import type { GitCommit } from '../types'
 import { getContributorStats, generateTimelineData, generateHeatmapData } from './useGitDataProcessor'
+import { createModuleLogger } from '@utils/logger'
+
+const logger = createModuleLogger('git-analyzer:charts')
 
 export function useCharts(filteredCommits: Ref<GitCommit[]>) {
   // 图表 DOM 引用
@@ -59,7 +62,11 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
 
     // 检查 DOM 尺寸
     if (frequencyChart.value.clientWidth === 0 || frequencyChart.value.clientHeight === 0) {
-      console.warn('Frequency chart container has zero size')
+      logger.warn('图表容器尺寸为零，无法渲染', {
+        chart: 'Frequency',
+        width: frequencyChart.value.clientWidth,
+        height: frequencyChart.value.clientHeight,
+      })
       return
     }
 
@@ -159,7 +166,11 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
 
     // 检查 DOM 尺寸
     if (contributorChart.value.clientWidth === 0 || contributorChart.value.clientHeight === 0) {
-      console.warn('Contributor chart container has zero size')
+      logger.warn('图表容器尺寸为零，无法渲染', {
+        chart: 'Contributor',
+        width: contributorChart.value.clientWidth,
+        height: contributorChart.value.clientHeight,
+      })
       return
     }
 
@@ -231,7 +242,11 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
 
     // 检查 DOM 尺寸
     if (heatmapChart.value.clientWidth === 0 || heatmapChart.value.clientHeight === 0) {
-      console.warn('Heatmap chart container has zero size')
+      logger.warn('图表容器尺寸为零，无法渲染', {
+        chart: 'Heatmap',
+        width: heatmapChart.value.clientWidth,
+        height: heatmapChart.value.clientHeight,
+      })
       return
     }
 

@@ -8,11 +8,13 @@ import {
   saveAppSettingsDebounced,
   resetAppSettingsAsync,
   type AppSettings,
-} from "../utils/appSettings";
+} from "@utils/appSettings";
 import { toolsConfig } from "../config/tools";
 import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
+import { createModuleLogger } from "@utils/logger";
 
+const logger = createModuleLogger("Settings");
 const isDark = useDark();
 
 // 预设主题色
@@ -61,7 +63,7 @@ const isScrollingProgrammatically = ref(false);
 
 // 节流函数
 const throttle = (func: Function, delay: number) => {
-  let timeoutId: number | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   let lastExecTime = 0;
 
   return (...args: any[]) => {
@@ -186,7 +188,7 @@ const applyThemeColor = (color: string) => {
   try {
     localStorage.setItem("app-theme-color", color);
   } catch (error) {
-    console.warn("Failed to cache theme color:", error);
+    logger.warn("缓存主题色到 localStorage 失败", { color, error });
   }
 };
 
@@ -280,7 +282,7 @@ const handleReset = async () => {
   } catch (error) {
     // 用户取消了操作
     if (error !== "cancel") {
-      console.error("重置设置失败:", error);
+      logger.error("重置应用设置失败", error);
       ElMessage.error("重置设置失败");
     }
   }
@@ -313,7 +315,7 @@ watch(
       // 同步到 Rust 后端
       await invoke("update_tray_setting", { enabled: newValue });
     } catch (error) {
-      console.error("更新托盘设置失败:", error);
+      logger.error("更新系统托盘设置失败", error, { enabled: newValue });
       ElMessage.error("更新托盘设置失败");
     }
   }
@@ -404,7 +406,9 @@ onMounted(async () => {
   try {
     await invoke("update_tray_setting", { enabled: settings.value.trayEnabled || false });
   } catch (error) {
-    console.error("初始化托盘设置失败:", error);
+    logger.error("初始化系统托盘设置失败", error, {
+      enabled: settings.value.trayEnabled || false
+    });
   }
 
   // 监听来自侧边栏的设置变化事件

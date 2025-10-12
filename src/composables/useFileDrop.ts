@@ -2,6 +2,10 @@ import { ref, onMounted, onUnmounted, Ref } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { ElMessage } from 'element-plus'
+import { createModuleLogger } from '@utils/logger'
+
+// 创建模块日志记录器
+const logger = createModuleLogger('useFileDrop')
 
 // 拖放选项接口
 export interface FileDropOptions {
@@ -110,7 +114,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
             isValid = false
           }
         } catch (error) {
-          console.error('检查路径类型失败:', error)
+          logger.error('检查路径类型失败', error, { path })
           // 如果检查失败，仍然添加路径
         }
       }
@@ -170,7 +174,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
       }
       
     } catch (error: any) {
-      console.error('处理拖放文件失败:', error)
+      logger.error('处理拖放文件失败', error, { paths })
       const errorMsg = error.toString()
       if (options.onError) {
         options.onError(errorMsg)

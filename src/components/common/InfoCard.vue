@@ -21,6 +21,10 @@ import { toRefs } from 'vue';
 import { ElCard, ElButton, ElMessage } from 'element-plus';
 import { CopyDocument } from '@element-plus/icons-vue';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建日志实例
+const logger = createModuleLogger('InfoCard');
 
 const props = defineProps({
   title: {
@@ -38,7 +42,7 @@ const props = defineProps({
   },
 });
 
-const { content } = toRefs(props);
+const { content, title } = toRefs(props);
 
 const copyContent = async () => {
   if (!content.value) return;
@@ -46,7 +50,10 @@ const copyContent = async () => {
     await writeText(content.value);
     ElMessage.success('已复制到剪贴板！');
   } catch (error) {
-    console.error('Failed to copy:', error);
+    logger.error('复制内容到剪贴板失败', error, {
+      title: title.value,
+      contentLength: content.value.length,
+    });
     ElMessage.error('复制失败');
   }
 };

@@ -1,9 +1,11 @@
 import type { ImageBlock, SlicerConfig, CutLine } from '../types';
+import { createModuleLogger } from '@utils/logger';
 
 /**
  * 智能切图 Composable
  */
 export function useImageSlicer() {
+  const logger = createModuleLogger('ImageSlicer');
   /**
    * 计算每一行的灰度方差
    * 方差越小，说明这一行的颜色越单一（越可能是空白行）
@@ -266,7 +268,11 @@ export function useImageSlicer() {
     const imageData = ctx.getImageData(0, 0, image.width, image.height);
     
     // 1. 计算每行的方差
-    console.log('开始计算行方差...');
+    logger.debug('开始计算行方差', {
+      imageId,
+      width: image.width,
+      height: image.height
+    });
     const variances = calculateRowVariance(imageData);
     
     // 调试信息：输出方差统计
@@ -275,20 +281,40 @@ export function useImageSlicer() {
     const maxVariance = Math.max(...variances);
     const minVariance = Math.min(...variances);
     
-    console.log('方差统计:', {
+    logger.debug('方差统计完成', {
+      imageId,
       最小值: minVariance.toFixed(2),
       中位数: medianVariance.toFixed(2),
       最大值: maxVariance.toFixed(2),
-      动态阈值: (medianVariance * config.blankThreshold).toFixed(2)
+      动态阈值: (medianVariance * config.blankThreshold).toFixed(2),
+      阈值比例: config.blankThreshold
     });
     
     // 2. 寻找切割点
     const cutLines = findCutLines(variances, config);
-    console.log('找到切割线:', cutLines.length, cutLines);
+    logger.debug('找到切割线', {
+      imageId,
+      切割线数量: cutLines.length,
+      切割线详情: cutLines,
+      配置: {
+        minBlankHeight: config.minBlankHeight,
+        minCutHeight: config.minCutHeight,
+        cutLineOffset: config.cutLineOffset
+      }
+    });
     
     // 3. 分割图像
     const blocks = splitImage(image, cutLines, imageId, config);
-    console.log('生成图片块:', blocks.length);
+    logger.debug('图片切分完成', {
+      imageId,
+      生成块数量: blocks.length,
+      块信息: blocks.map(b => ({
+        id: b.id,
+        startY: b.startY,
+        endY: b.endY,
+        height: b.height
+      }))
+    });
     
     return { blocks, lines: cutLines };
   };

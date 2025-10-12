@@ -4,6 +4,9 @@ import type { ImageBlock, OcrEngineConfig, OcrResult } from '../types';
 import { useLlmRequest } from '../../../composables/useLlmRequest';
 import { useCloudOcrRunner } from './useCloudOcrRunner';
 import { useOcrProfiles } from '../../../composables/useOcrProfiles';
+import { createModuleLogger } from '@utils/logger';
+
+const logger = createModuleLogger('OCR/Runner');
 
 /**
  * OCR 运行器 Composable
@@ -25,7 +28,10 @@ export function useOcrRunner() {
       // 日志级别
       logger: (m) => {
         if (m.status === 'recognizing text') {
-          console.log(`Tesseract进度: ${(m.progress * 100).toFixed(1)}%`);
+          logger.debug(`Tesseract 识别进度: ${(m.progress * 100).toFixed(1)}%`, {
+            status: m.status,
+            progress: m.progress
+          });
         }
       }
     });
@@ -55,7 +61,7 @@ export function useOcrRunner() {
         confidence: result.data.confidence / 100
       };
     } catch (error) {
-      console.error('Tesseract识别失败:', error);
+      logger.error('Tesseract 识别失败', error, { language });
       throw error;
     }
   };
@@ -77,6 +83,12 @@ export function useOcrRunner() {
 
     // 通知初始状态
     onProgress?.(results);
+    
+    logger.info(`开始 OCR 识别 [${config.type}]`, {
+      engineType: config.type,
+      blocksCount: blocks.length
+    });
+    
     // 根据引擎类型选择识别方法
     if (config.type === 'tesseract') {
       await recognizeWithTesseractEngine(blocks, config, results, onProgress);
@@ -88,6 +100,14 @@ export function useOcrRunner() {
       await recognizeWithCloudEngine(blocks, config, results, onProgress);
     }
 
+    const successCount = results.filter(r => r.status === 'success').length;
+    const errorCount = results.filter(r => r.status === 'error').length;
+    
+    logger.info(`OCR 识别完成 [${config.type}]`, {
+      totalBlocks: blocks.length,
+      successCount,
+      errorCount
+    });
 
     return results;
   };
@@ -104,7 +124,7 @@ export function useOcrRunner() {
     const language = config.language;
 
     // 初始化 worker
-    console.log('初始化 Tesseract Worker...');
+    logger.info(`初始化 Tesseract Worker [${language}]`, { language });
     await initTesseract(language);
 
     // 逐个识别图片块
@@ -116,7 +136,11 @@ export function useOcrRunner() {
       onProgress?.([...results]);
 
       try {
-        console.log(`识别第 ${i + 1}/${blocks.length} 个图片块...`);
+        logger.debug(`处理图片块 ${i + 1}/${blocks.length}`, {
+          blockId: block.id,
+          language
+        });
+        
         const { text, confidence } = await recognizeWithTesseract(block.canvas, language);
 
         // 更新结果
@@ -124,9 +148,16 @@ export function useOcrRunner() {
         results[i].confidence = confidence;
         results[i].status = 'success';
 
-        console.log(`第 ${i + 1} 个块识别完成，置信度: ${(confidence * 100).toFixed(1)}%`);
+        logger.debug(`图片块识别完成 ${i + 1}/${blocks.length}`, {
+          blockId: block.id,
+          confidence: `${(confidence * 100).toFixed(1)}%`,
+          textLength: text.length
+        });
       } catch (error) {
-        console.error(`第 ${i + 1} 个块识别失败:`, error);
+        logger.error(`图片块识别失败 ${i + 1}/${blocks.length}`, error, {
+          blockId: block.id,
+          language
+        });
         results[i].status = 'error';
         results[i].error = (error as Error).message;
       }
@@ -150,7 +181,7 @@ export function useOcrRunner() {
     results: OcrResult[],
     onProgress?: (results: OcrResult[]) => void
   ) => {
-    console.log('使用原生OCR引擎识别...');
+    logger.info(`使用原生 OCR 引擎识别 (${blocks.length} 块)`, { blocksCount: blocks.length });
 
     // 逐个识别图片块
     for (let i = 0; i < blocks.length; i++) {
@@ -161,7 +192,10 @@ export function useOcrRunner() {
       onProgress?.([...results]);
 
       try {
-        console.log(`识别第 ${i + 1}/${blocks.length} 个图片块...`);
+        logger.debug(`处理图片块 ${i + 1}/${blocks.length}`, {
+          blockId: block.id,
+          engine: 'native'
+        });
 
         // 将 canvas 转换为 base64
         const imageData = block.canvas.toDataURL('image/png');
@@ -176,9 +210,16 @@ export function useOcrRunner() {
         results[i].confidence = result.confidence;
         results[i].status = 'success';
 
-        console.log(`第 ${i + 1} 个块识别完成，置信度: ${(result.confidence * 100).toFixed(1)}%`);
+        logger.debug(`图片块识别完成 ${i + 1}/${blocks.length}`, {
+          blockId: block.id,
+          confidence: `${(result.confidence * 100).toFixed(1)}%`,
+          textLength: result.text.length
+        });
       } catch (error) {
-        console.error(`第 ${i + 1} 个块识别失败:`, error);
+        logger.error(`图片块识别失败 ${i + 1}/${blocks.length}`, error, {
+          blockId: block.id,
+          engine: 'native'
+        });
         results[i].status = 'error';
         results[i].error = (error as Error).message;
       }
@@ -197,13 +238,23 @@ export function useOcrRunner() {
     results: OcrResult[],
     onProgress?: (results: OcrResult[]) => void
   ) => {
-    console.log('使用 VLM 引擎识别...');
-
-    const { sendRequest } = useLlmRequest();
     const concurrency = config.concurrency ?? 3;
     const delay = config.delay ?? 0;
+    
+    logger.info(`使用 VLM 引擎识别 (${blocks.length} 块)`, {
+      profileId: config.profileId,
+      modelId: config.modelId,
+      concurrency,
+      delay: `${delay}ms`
+    });
 
-    console.log(`并发数: ${concurrency}, 延迟: ${delay}ms`);
+    logger.debug('VLM 引擎配置', {
+      maxTokens: config.maxTokens ?? 2000,
+      temperature: config.temperature ?? 0,
+      promptLength: (config.prompt || '').length
+    });
+
+    const { sendRequest } = useLlmRequest();
 
     // 并发处理函数
     const processBlock = async (index: number) => {
@@ -214,7 +265,11 @@ export function useOcrRunner() {
       onProgress?.([...results]);
 
       try {
-        console.log(`识别第 ${index + 1}/${blocks.length} 个图片块...`);
+        logger.debug(`处理图片块 ${index + 1}/${blocks.length}`, {
+          blockId: block.id,
+          engine: 'vlm',
+          modelId: config.modelId
+        });
 
         // 将 canvas 转换为 base64
         const imageBase64 = block.canvas.toDataURL('image/png').split(',')[1];
@@ -241,9 +296,16 @@ export function useOcrRunner() {
         results[index].text = response.content.trim();
         results[index].status = 'success';
 
-        console.log(`第 ${index + 1} 个块识别完成`);
+        logger.debug(`图片块识别完成 ${index + 1}/${blocks.length}`, {
+          blockId: block.id,
+          textLength: response.content.length
+        });
       } catch (error) {
-        console.error(`第 ${index + 1} 个块识别失败:`, error);
+        logger.error(`图片块识别失败 ${index + 1}/${blocks.length}`, error, {
+          blockId: block.id,
+          modelId: config.modelId,
+          profileId: config.profileId
+        });
         results[index].status = 'error';
         results[index].error = (error as Error).message;
       }
@@ -275,19 +337,32 @@ export function useOcrRunner() {
     results: OcrResult[],
     onProgress?: (results: OcrResult[]) => void
   ) => {
-    console.log('使用云端 OCR 引擎识别...');
-
     // 获取选中的 OCR Profile
     const { getProfileById } = useOcrProfiles();
     const profile = getProfileById(config.activeProfileId);
 
     if (!profile) {
-      throw new Error('请先在设置中配置云端 OCR 服务');
+      const errorMsg = '请先在设置中配置云端 OCR 服务';
+      logger.error('云端 OCR 配置缺失', new Error(errorMsg), {
+        activeProfileId: config.activeProfileId
+      });
+      throw new Error(errorMsg);
     }
 
     if (!profile.enabled) {
-      throw new Error(`云端 OCR 服务 "${profile.name}" 未启用`);
+      const errorMsg = `云端 OCR 服务 "${profile.name}" 未启用`;
+      logger.error('云端 OCR 服务未启用', new Error(errorMsg), {
+        profileId: profile.id,
+        profileName: profile.name
+      });
+      throw new Error(errorMsg);
     }
+    
+    logger.info(`使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.length} 块)`, {
+      profileId: profile.id,
+      profileName: profile.name,
+      provider: profile.provider
+    });
 
     // 使用云端 OCR 运行器
     const { runCloudOcr } = useCloudOcrRunner();

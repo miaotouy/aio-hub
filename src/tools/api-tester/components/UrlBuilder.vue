@@ -48,6 +48,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useApiTesterStore } from '../store';
+import { createModuleLogger } from '@utils/logger';
 
 defineProps<{
   isLoading?: boolean;
@@ -59,6 +60,9 @@ defineEmits<{
 
 const store = useApiTesterStore();
 const urlInput = ref<HTMLDivElement | null>(null);
+
+// 日志实例
+const logger = createModuleLogger('api-tester/UrlBuilder');
 
 // HTTP 方法（独立管理，不依赖预设）
 const currentMethod = computed({
@@ -126,9 +130,9 @@ function restoreCursor(offset: number) {
   
   const selection = window.getSelection();
   const range = document.createRange();
+  const textNode = urlInput.value.firstChild;
   
   try {
-    const textNode = urlInput.value.firstChild;
     if (textNode && textNode.nodeType === Node.TEXT_NODE) {
       const maxOffset = Math.min(offset, (textNode as Text).length);
       range.setStart(textNode, maxOffset);
@@ -137,7 +141,7 @@ function restoreCursor(offset: number) {
       selection?.addRange(range);
     }
   } catch (e) {
-    console.warn('无法恢复光标位置', e);
+    logger.warn('恢复光标位置失败', { error: e, offset, hasTextNode: !!textNode });
   }
 }
 

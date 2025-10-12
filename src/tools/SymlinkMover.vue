@@ -6,6 +6,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import InfoCard from '../components/common/InfoCard.vue';
 import DropZone from '../components/common/DropZone.vue';
+import { createModuleLogger } from '@utils/logger';
+
+// 日志记录器
+const logger = createModuleLogger('SymlinkMover');
 
 // --- 类型定义 ---
 interface FileItem {
@@ -88,7 +92,7 @@ const selectSourceFiles = async () => {
       addSourceFiles([selected]);
     }
   } catch (error) {
-    console.error("选择文件失败:", error);
+    logger.error('选择文件失败', error, { operation: 'selectFiles' });
     ElMessage.error("选择文件失败");
   }
 };
@@ -106,7 +110,7 @@ const selectSourceFolders = async () => {
       addSourceFiles([selected]);
     }
   } catch (error) {
-    console.error("选择文件夹失败:", error);
+    logger.error('选择文件夹失败', error, { operation: 'selectFolders' });
     ElMessage.error("选择文件夹失败");
   }
 };
@@ -122,7 +126,7 @@ const selectTargetDirectory = async () => {
       targetDirectory.value = selected;
     }
   } catch (error) {
-    console.error("选择目录失败:", error);
+    logger.error('选择目标目录失败', error, { operation: 'selectTargetDirectory' });
     ElMessage.error("选择目录失败");
   }
 };
@@ -190,7 +194,12 @@ const executeMoveAndLink = async () => {
     }
 
   } catch (error: any) {
-    console.error("处理失败:", error);
+    logger.error('文件处理失败', error, {
+      operation: operationMode.value,
+      sourcePaths: sourceFiles.value.map(f => f.path),
+      targetDirectory: targetDirectory.value,
+      linkType: linkType.value
+    });
     ElMessage.error(`文件处理失败: ${error}`);
     sourceFiles.value.forEach(file => {
       if (file.status === 'processing') {

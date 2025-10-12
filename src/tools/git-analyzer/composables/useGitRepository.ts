@@ -3,6 +3,9 @@ import { ElMessage } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import type { GitCommit, GitBranch, RepoStatistics } from '../types'
+import { createModuleLogger } from '@utils/logger'
+
+const logger = createModuleLogger('GitRepository')
 
 export function useGitRepository() {
   // 状态
@@ -74,7 +77,10 @@ export function useGitRepository() {
         ElMessage.success(`已选择目录: ${selected}`)
       }
     } catch (error) {
-      console.error('选择目录失败:', error)
+      logger.error('选择目录失败', error, {
+        action: 'selectDirectory',
+        context: '用户选择 Git 仓库目录时发生错误'
+      })
       ElMessage.error('选择目录失败')
     }
   }

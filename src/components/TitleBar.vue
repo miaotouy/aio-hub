@@ -5,7 +5,11 @@ import { Minus, CopyDocument, Close, House, Setting } from '@element-plus/icons-
 import { useRoute, useRouter } from 'vue-router';
 import { toolsConfig } from '../config/tools';
 import iconImage from '../assets/icon.png';
-import { loadAppSettingsAsync, type AppSettings } from '../utils/appSettings';
+import { loadAppSettingsAsync, type AppSettings } from '@utils/appSettings';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建模块日志记录器
+const logger = createModuleLogger('TitleBar');
 
 const router = useRouter();
 
@@ -78,7 +82,7 @@ onMounted(async () => {
   try {
     settings.value = await loadAppSettingsAsync();
   } catch (error) {
-    console.error('加载应用设置失败:', error);
+    logger.error('加载应用设置失败', error);
   }
   
   // 监听设置变化事件

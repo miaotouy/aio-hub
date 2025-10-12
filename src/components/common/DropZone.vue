@@ -35,6 +35,10 @@ import { FolderAdd } from '@element-plus/icons-vue'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { ElMessage } from 'element-plus'
+import { createModuleLogger } from '@utils/logger'
+
+// 创建模块日志器
+const logger = createModuleLogger('DropZone')
 
 // Props 定义
 interface Props {
@@ -202,15 +206,15 @@ const setupFileDropListener = async () => {
 
 // 处理文件拖放
 const handleFileDrop = async (paths: string[]) => {
+  // 验证文件类型
+  let validPaths: string[] = []
+  
   try {
     // 验证文件数量
     if (!props.multiple && paths.length > 1) {
       paths = [paths[0]]
       ElMessage.warning('只能选择一个文件，已自动选择第一个')
     }
-    
-    // 验证文件类型
-    const validPaths: string[] = []
     
     for (const path of paths) {
       let isValid = true
@@ -228,7 +232,7 @@ const handleFileDrop = async (paths: string[]) => {
             isValid = false
           }
         } catch (error) {
-          console.error('检查路径类型失败:', error)
+          logger.error('检查路径类型失败', error, { path })
         }
       }
       
@@ -270,7 +274,7 @@ const handleFileDrop = async (paths: string[]) => {
     }
     
   } catch (error: any) {
-    console.error('处理拖放文件失败:', error)
+    logger.error('处理拖放文件失败', error, { paths: validPaths })
     emit('error', error.toString())
     ElMessage.error(`处理失败: ${error}`)
   }

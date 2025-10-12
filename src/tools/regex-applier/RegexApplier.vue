@@ -297,6 +297,10 @@ import { usePresetStore } from './store';
 import type { LogEntry, RegexPreset } from './types';
 import { applyRules } from './engine';
 import { loadAppConfig, createDebouncedSave, type AppConfig } from './appConfig';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建模块日志器
+const logger = createModuleLogger('RegexApplier');
 
 const router = useRouter();
 const store = usePresetStore();
@@ -364,12 +368,12 @@ watch(selectedPresetIds, (ids) => {
 
 // 拖拽事件处理
 const onDragStart = () => {
-  console.log('开始拖拽预设');
+  logger.debug('开始拖拽预设');
   addLog('开始调整预设顺序', 'info');
 };
 
 const onDragEnd = () => {
-  console.log('拖拽结束，新顺序:', selectedPresets.value);
+  logger.debug('拖拽结束，新顺序', { presets: selectedPresets.value.map(p => ({ id: p.id, name: p.name })) });
   // 更新 selectedPresetIds 以保持同步
   selectedPresetIds.value = selectedPresets.value.map(p => p.id);
   addLog('预设顺序已更新', 'info');
@@ -405,7 +409,7 @@ onMounted(async () => {
     
     addLog('已恢复上次的设置', 'info');
   } catch (error) {
-    console.error('加载应用配置失败:', error);
+    logger.error('加载应用配置失败', error);
     // 如果没有选中的预设，默认选中第一个
     if (selectedPresetIds.value.length === 0 && store.presets.length > 0) {
       selectedPresetIds.value = [store.presets[0].id];
@@ -592,9 +596,11 @@ const setupFileDropListener = async () => {
     
     if (outputRect && isPositionInRect(position, outputRect)) {
       hoveredTarget.value = 'output';
+      logger.debug('拖动进入输出目录区域', { position });
       addLog('拖动进入输出目录区域', 'info');
     } else if (fileRect && isPositionInRect(position, fileRect)) {
       hoveredTarget.value = 'files';
+      logger.debug('拖动进入文件区域', { position });
       addLog('拖动进入文件区域', 'info');
     }
   });
@@ -618,7 +624,7 @@ const setupFileDropListener = async () => {
     if (newTarget !== hoveredTarget.value) {
       hoveredTarget.value = newTarget;
       if (newTarget) {
-        console.log('Drag over - target changed to:', newTarget);
+        logger.debug('拖动目标切换', { target: newTarget, position });
       }
     }
   });
@@ -628,6 +634,7 @@ const setupFileDropListener = async () => {
     if (processingMode.value !== 'file') return;
     
     hoveredTarget.value = null;
+    logger.debug('拖动离开窗口');
     addLog('拖动离开窗口', 'info');
   });
 
@@ -674,7 +681,7 @@ onUnmounted(() => {
 
 // 前端拖放事件处理 - 用于视觉反馈
 const handleDragEnter = (e: DragEvent, target: DropTarget) => {
-  console.log('dragenter triggered for:', target);
+  logger.debug('前端拖拽进入事件', { target });
   e.preventDefault();
   e.stopPropagation();
   hoveredTarget.value = target;
@@ -690,7 +697,7 @@ const handleDragOver = (e: DragEvent, target: DropTarget) => {
   // 保持高亮状态
   if (hoveredTarget.value !== target) {
     hoveredTarget.value = target;
-    console.log('dragover - setting target:', target);
+    logger.debug('前端拖拽悬停目标切换', { target });
   }
   if (e.dataTransfer) {
     e.dataTransfer.dropEffect = 'copy';
@@ -707,14 +714,14 @@ const handleDragLeave = (e: DragEvent) => {
   
   // 如果移动到子元素，不要移除高亮
   if (!currentTarget.contains(related)) {
-    console.log('dragleave - clearing target');
+    logger.debug('前端拖拽离开事件');
     hoveredTarget.value = null;
     addLog('拖动离开区域', 'info');
   }
 };
 
 const handleDrop = (e: DragEvent) => {
-  console.log('drop triggered');
+  logger.debug('前端拖拽放下事件');
   e.preventDefault();
   e.stopPropagation();
   // 清除高亮状态
@@ -773,7 +780,7 @@ const selectFiles = async () => {
       addFiles([selected]);
     }
   } catch (error) {
-    console.error("选择文件失败:", error);
+    logger.error("选择文件失败", error, { operation: 'selectFiles' });
     ElMessage.error("选择文件失败");
   }
 };
@@ -791,7 +798,7 @@ const selectFolders = async () => {
       addFiles([selected]);
     }
   } catch (error) {
-    console.error("选择文件夹失败:", error);
+    logger.error("选择文件夹失败", error, { operation: 'selectFolders' });
     ElMessage.error("选择文件夹失败");
   }
 };
@@ -807,7 +814,7 @@ const selectOutputDirectory = async () => {
       outputDirectory.value = selected;
     }
   } catch (error) {
-    console.error("选择目录失败:", error);
+    logger.error("选择输出目录失败", error, { operation: 'selectOutputDirectory' });
     ElMessage.error("选择目录失败");
   }
 };
@@ -902,7 +909,12 @@ const processFiles = async () => {
     }
 
   } catch (error: any) {
-    console.error("处理失败:", error);
+    logger.error("文件处理失败", error, {
+      operation: 'processFiles',
+      fileCount: files.value.length,
+      outputDir: outputDirectory.value,
+      ruleCount: allRules.length
+    });
     ElMessage.error(`文件处理失败: ${error}`);
     addLog(`文件处理失败: ${error}`, 'error');
     files.value.forEach(file => {

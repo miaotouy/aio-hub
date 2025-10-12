@@ -2,6 +2,9 @@ import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import type { GitCommit } from '../types'
+import { createModuleLogger } from '@utils/logger'
+
+const logger = createModuleLogger('git-analyzer:useCommitDetail')
 
 export function useCommitDetail(repoPath: () => string) {
   // 状态
@@ -26,7 +29,13 @@ export function useCommitDetail(repoPath: () => string) {
         path: repoPath() || '.',
         hash,
       })
-      console.log('Commit Detail from Backend:', detail)
+      logger.debug('从后端成功获取 commit 详细信息', {
+        sha: hash.substring(0, 8),
+        fullSha: hash,
+        author: detail.author,
+        date: detail.date,
+        message: detail.message.substring(0, 100),
+      })
       selectedCommit.value = detail
     } catch (error) {
       ElMessage.error(`加载提交详情失败: ${error}`)

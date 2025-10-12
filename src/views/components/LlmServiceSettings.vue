@@ -8,7 +8,7 @@ import { useLlmProfiles } from "../../composables/useLlmProfiles";
 import { providerTypes, llmPresets } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
 import type { LlmPreset } from "../../config/llm-providers";
-import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "../../utils/llm-api-url";
+import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@utils/llm-api-url";
 import { useModelIcons } from "../../composables/useModelIcons";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-icons";
 

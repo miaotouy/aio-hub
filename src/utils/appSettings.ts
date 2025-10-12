@@ -3,20 +3,21 @@
  * 使用 Tauri 文件系统存储配置
  */
 
-import { createConfigManager } from './configManager';
+import { createConfigManager } from "./configManager";
+import { logger } from "./logger";
 
 export interface AppSettings {
   sidebarCollapsed: boolean;
-  theme?: 'light' | 'dark' | 'auto';
-  
+  theme?: "light" | "dark" | "auto";
+
   // 通用设置
   trayEnabled?: boolean;
   themeColor?: string; // 主题色 hex 值
-  
+
   // 工具模块设置
   toolsVisible?: Record<string, boolean>;
   toolsOrder?: string[];
-  
+
   // 关于信息
   version?: string;
 }
@@ -24,9 +25,9 @@ export interface AppSettings {
 // 默认设置
 export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
-  theme: 'auto',
+  theme: "auto",
   trayEnabled: false,
-  themeColor: '#409eff', // 默认蓝色
+  themeColor: "#409eff", // 默认蓝色
   toolsVisible: {
     regexApply: true,
     mediaInfoReader: true,
@@ -40,28 +41,28 @@ export const defaultAppSettings: AppSettings = {
     gitAnalyzer: true,
   },
   toolsOrder: [],
-  version: '1.0.0'
+  version: "1.0.0",
 };
 
 // 创建应用设置管理器实例
 const appSettingsManager = createConfigManager<AppSettings>({
-  moduleName: 'app-settings',
-  fileName: 'settings.json',
-  version: '1.0.0',
+  moduleName: "app-settings",
+  fileName: "settings.json",
+  version: "1.0.0",
   createDefault: () => defaultAppSettings,
   mergeConfig: (defaultConfig, loadedConfig) => {
     // 深度合并 toolsVisible 对象
     const mergedToolsVisible = {
       ...defaultConfig.toolsVisible,
-      ...loadedConfig.toolsVisible
+      ...loadedConfig.toolsVisible,
     };
-    
+
     return {
       ...defaultConfig,
       ...loadedConfig,
-      toolsVisible: mergedToolsVisible
+      toolsVisible: mergedToolsVisible,
     };
-  }
+  },
 });
 
 // 缓存当前设置，避免频繁的异步读取
@@ -74,9 +75,10 @@ export const loadAppSettingsAsync = async (): Promise<AppSettings> => {
   try {
     const settings = await appSettingsManager.load();
     cachedSettings = settings;
+    logger.info("appSettings", "应用设置加载成功");
     return settings;
   } catch (error) {
-    console.error('加载应用设置失败:', error);
+    logger.error("appSettings", "加载应用设置失败", error, { operation: "load" });
     return defaultAppSettings;
   }
 };
@@ -88,8 +90,9 @@ export const saveAppSettingsAsync = async (settings: AppSettings): Promise<void>
   try {
     await appSettingsManager.save(settings);
     cachedSettings = settings;
+    logger.info("appSettings", "应用设置保存成功");
   } catch (error) {
-    console.error('保存应用设置失败:', error);
+    logger.error("appSettings", "保存应用设置失败", error, { operation: "save" });
     throw error;
   }
 };
@@ -97,13 +100,21 @@ export const saveAppSettingsAsync = async (settings: AppSettings): Promise<void>
 /**
  * 更新部分设置（异步版本）
  */
-export const updateAppSettingsAsync = async (updates: Partial<AppSettings>): Promise<AppSettings> => {
+export const updateAppSettingsAsync = async (
+  updates: Partial<AppSettings>
+): Promise<AppSettings> => {
   try {
     const updatedSettings = await appSettingsManager.update(updates);
     cachedSettings = updatedSettings;
+    logger.info("appSettings", "应用设置更新成功", {
+      updatedKeys: Object.keys(updates),
+    });
     return updatedSettings;
   } catch (error) {
-    console.error('更新应用设置失败:', error);
+    logger.error("appSettings", "更新应用设置失败", error, {
+      operation: "update",
+      updatedKeys: Object.keys(updates),
+    });
     throw error;
   }
 };
@@ -115,9 +126,10 @@ export const resetAppSettingsAsync = async (): Promise<AppSettings> => {
   try {
     await appSettingsManager.save(defaultAppSettings);
     cachedSettings = defaultAppSettings;
+    logger.info("appSettings", "应用设置重置成功");
     return defaultAppSettings;
   } catch (error) {
-    console.error('重置应用设置失败:', error);
+    logger.error("appSettings", "重置应用设置失败", error, { operation: "reset" });
     throw error;
   }
 };
@@ -142,7 +154,10 @@ export const saveAppSettingsDebounced = (settings: AppSettings): void => {
  */
 export const loadAppSettings = (): AppSettings => {
   if (!cachedSettings) {
-    console.warn('设置尚未加载，返回默认设置。请先调用 loadAppSettingsAsync');
+    logger.warn("appSettings", "设置尚未加载，返回默认设置", {
+      operation: "loadSync",
+      hint: "请先调用 loadAppSettingsAsync 初始化",
+    });
     return defaultAppSettings;
   }
   return cachedSettings;
@@ -162,8 +177,8 @@ export const saveAppSettings = (settings: AppSettings): void => {
 export const resetAppSettings = (): AppSettings => {
   cachedSettings = defaultAppSettings;
   // 异步保存，不等待结果
-  resetAppSettingsAsync().catch(error => {
-    console.error('异步重置设置失败:', error);
+  resetAppSettingsAsync().catch((error) => {
+    logger.error("appSettings", "异步重置设置失败", error, { operation: "resetAsync" });
   });
   return defaultAppSettings;
 };

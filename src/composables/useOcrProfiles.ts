@@ -5,7 +5,10 @@
 import { ref, computed } from 'vue';
 import type { OcrProfile } from '../types/ocr-profiles';
 import type { OcrPreset } from '../config/ocr-providers';
-import { createConfigManager } from '../utils/configManager';
+import { createConfigManager } from '@utils/configManager';
+import { createModuleLogger } from '@utils/logger';
+
+const logger = createModuleLogger('OcrProfiles');
 
 const STORAGE_KEY = 'ocr-profiles'; // 用于 localStorage 数据迁移
 
@@ -27,6 +30,8 @@ export function useOcrProfiles() {
    */
   const loadProfiles = async () => {
     try {
+      logger.info('开始加载 OCR 配置');
+      
       // 尝试从文件系统加载
       const config = await configManager.load();
       let loadedProfiles = config.profiles || [];
@@ -35,22 +40,27 @@ export function useOcrProfiles() {
       if (loadedProfiles.length === 0) {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          console.log('检测到 localStorage 数据，开始迁移到文件系统...');
-          loadedProfiles = JSON.parse(stored);
-          
-          // 保存到文件系统
-          await configManager.save({ profiles: loadedProfiles });
-          
-          // 清除 localStorage 数据
-          localStorage.removeItem(STORAGE_KEY);
-          console.log('数据迁移完成');
+          logger.info('检测到 localStorage 数据，开始迁移到文件系统');
+          try {
+            loadedProfiles = JSON.parse(stored);
+            
+            // 保存到文件系统
+            await configManager.save({ profiles: loadedProfiles });
+            
+            // 清除 localStorage 数据
+            localStorage.removeItem(STORAGE_KEY);
+            logger.info('数据迁移完成', { profileCount: loadedProfiles.length });
+          } catch (parseError) {
+            logger.error('解析 localStorage 数据失败', parseError);
+          }
         }
       }
 
       profiles.value = loadedProfiles;
       isLoaded.value = true;
+      logger.info('OCR 配置加载成功', { profileCount: loadedProfiles.length });
     } catch (error) {
-      console.error('加载云端 OCR 配置失败:', error);
+      logger.error('加载 OCR 配置失败', error);
       profiles.value = [];
       isLoaded.value = true;
     }
@@ -61,9 +71,11 @@ export function useOcrProfiles() {
    */
   const saveToStorage = async () => {
     try {
+      logger.debug('保存 OCR 配置到文件系统', { profileCount: profiles.value.length });
       await configManager.save({ profiles: profiles.value });
+      logger.info('OCR 配置保存成功');
     } catch (error) {
-      console.error('保存云端 OCR 配置失败:', error);
+      logger.error('保存 OCR 配置失败', error, { profileCount: profiles.value.length });
       throw error;
     }
   };
@@ -72,25 +84,44 @@ export function useOcrProfiles() {
    * 添加或更新配置
    */
   const saveProfile = async (profile: OcrProfile) => {
-    const index = profiles.value.findIndex(p => p.id === profile.id);
-    if (index !== -1) {
-      // 更新现有配置
-      profiles.value[index] = profile;
-    } else {
-      // 添加新配置
-      profiles.value.push(profile);
+    try {
+      const index = profiles.value.findIndex(p => p.id === profile.id);
+      if (index !== -1) {
+        // 更新现有配置
+        logger.info('更新 OCR 配置', { profileId: profile.id, profileName: profile.name });
+        profiles.value[index] = profile;
+      } else {
+        // 添加新配置
+        logger.info('添加新 OCR 配置', { profileId: profile.id, profileName: profile.name });
+        profiles.value.push(profile);
+      }
+      await saveToStorage();
+    } catch (error) {
+      logger.error('保存 OCR 配置失败', error, {
+        profileId: profile.id,
+        profileName: profile.name
+      });
+      throw error;
     }
-    await saveToStorage();
   };
 
   /**
    * 删除配置
    */
   const deleteProfile = async (id: string) => {
-    const index = profiles.value.findIndex(p => p.id === id);
-    if (index !== -1) {
-      profiles.value.splice(index, 1);
-      await saveToStorage();
+    try {
+      const index = profiles.value.findIndex(p => p.id === id);
+      if (index !== -1) {
+        const profileName = profiles.value[index].name;
+        logger.info('删除 OCR 配置', { profileId: id, profileName });
+        profiles.value.splice(index, 1);
+        await saveToStorage();
+      } else {
+        logger.warn('尝试删除不存在的配置', { profileId: id });
+      }
+    } catch (error) {
+      logger.error('删除 OCR 配置失败', error, { profileId: id });
+      throw error;
     }
   };
 
@@ -112,10 +143,22 @@ export function useOcrProfiles() {
    * 切换配置的启用状态
    */
   const toggleProfileEnabled = async (id: string) => {
-    const profile = profiles.value.find(p => p.id === id);
-    if (profile) {
-      profile.enabled = !profile.enabled;
-      await saveToStorage();
+    try {
+      const profile = profiles.value.find(p => p.id === id);
+      if (profile) {
+        profile.enabled = !profile.enabled;
+        logger.info('切换 OCR 配置状态', {
+          profileId: id,
+          profileName: profile.name,
+          enabled: profile.enabled
+        });
+        await saveToStorage();
+      } else {
+        logger.warn('尝试切换不存在的配置', { profileId: id });
+      }
+    } catch (error) {
+      logger.error('切换配置状态失败', error, { profileId: id });
+      throw error;
     }
   };
 

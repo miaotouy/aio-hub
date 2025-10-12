@@ -58,6 +58,9 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import * as exifr from 'exifr';
 import InfoCard from '../components/common/InfoCard.vue';
+import { createModuleLogger } from '@utils/logger';
+
+const logger = createModuleLogger('MediaInfoReader');
 
 const previewSrc = ref('');
 const isDragging = ref(false);
@@ -145,7 +148,7 @@ const parseCharacterData = async (buffer: Uint8Array | ArrayBuffer): Promise<obj
 
     return null;
   } catch (error) {
-    console.error('Failed to parse character data from PNG:', error);
+    logger.error('解析 PNG 字符数据失败', error);
     return null;
   }
 };
@@ -184,10 +187,10 @@ const openFilePicker = async () => {
       previewSrc.value = `data:image/${extension};base64,${base64}`;
       
       // Pass the buffer directly to the parser
-      parseImageInfo(fileArray);
+      parseImageInfo(fileArray, path);
     }
   } catch (error) {
-    console.error('Error opening file picker:', error);
+    logger.error('打开文件选择器失败', error);
     ElMessage.error('打开文件失败');
   }
 };
@@ -212,16 +215,16 @@ const handleFiles = (files: FileList) => {
   parseReader.onload = (e) => {
     const buffer = e.target?.result as ArrayBuffer;
     if (buffer) {
-      parseImageInfo(new Uint8Array(buffer));
+      parseImageInfo(new Uint8Array(buffer), file.name);
     }
   };
   parseReader.readAsArrayBuffer(file);
 };
 
-const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer) => {
+const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer, fileName?: string) => {
   try {
     const output = await exifr.parse(buffer, true);
-    console.log('EXIF Output:', output);
+    logger.debug('成功解析图片 EXIF 信息', { fileName, output });
 
     // Reset info
     webuiInfo.value = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
@@ -262,7 +265,7 @@ const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer) => {
       activeTab.value = 'full';
     }
   } catch (error) {
-    console.error('Error parsing image:', error);
+    logger.error('解析图片信息失败', error, { fileName });
     ElMessage.error('解析图片信息失败');
     webuiInfo.value = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
     comfyuiWorkflow.value = '';

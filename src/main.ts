@@ -19,8 +19,9 @@ const logger = createModuleLogger('Main');
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
 // 这样可以避免应用启动时的颜色闪烁
 (() => {
+  let cachedThemeColor: string | null = null;
   try {
-    const cachedThemeColor = localStorage.getItem('app-theme-color');
+    cachedThemeColor = localStorage.getItem('app-theme-color');
     if (cachedThemeColor && /^#[0-9A-F]{6}$/i.test(cachedThemeColor)) {
       const root = document.documentElement;
       
@@ -62,7 +63,10 @@ const logger = createModuleLogger('Main');
       root.style.setProperty("--el-color-primary-light-9", hoverColor);
     }
   } catch (error) {
-    console.warn('Failed to apply cached theme color:', error);
+    logger.warn('应用缓存主题颜色失败', {
+      error,
+      cachedColor: cachedThemeColor
+    });
   }
 })();
 

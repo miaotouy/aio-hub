@@ -4,8 +4,12 @@
  * 为每种引擎类型分别存储配置，切换引擎时不会丢失其他引擎的配置
  */
 
-import { createConfigManager } from '../../utils/configManager';
+import { createConfigManager } from '@utils/configManager';
+import { createModuleLogger } from '@utils/logger';
 import type { OcrEngineConfig, OcrEngineType, SlicerConfig, EngineConfigs } from './types';
+
+// 创建模块日志记录器
+const logger = createModuleLogger('smart-ocr/config');
 
 export interface SmartOcrConfig {
   // 当前选择的引擎类型
@@ -107,7 +111,7 @@ export const loadSmartOcrConfig = async (): Promise<SmartOcrConfig> => {
   try {
     return await smartOcrConfigManager.load();
   } catch (error) {
-    console.error('加载 SmartOCR 配置失败:', error);
+    logger.error('加载 SmartOCR 配置失败', error);
     return defaultSmartOcrConfig;
   }
 };
@@ -119,7 +123,7 @@ export const saveSmartOcrConfig = async (config: SmartOcrConfig): Promise<void> 
   try {
     await smartOcrConfigManager.save(config);
   } catch (error) {
-    console.error('保存 SmartOCR 配置失败:', error);
+    logger.error('保存 SmartOCR 配置失败', error);
     throw error;
   }
 };
@@ -131,7 +135,7 @@ export const updateSmartOcrConfig = async (updates: Partial<SmartOcrConfig>): Pr
   try {
     return await smartOcrConfigManager.update(updates);
   } catch (error) {
-    console.error('更新 SmartOCR 配置失败:', error);
+    logger.error('更新 SmartOCR 配置失败', error);
     throw error;
   }
 };

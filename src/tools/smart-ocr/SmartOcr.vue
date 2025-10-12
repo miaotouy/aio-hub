@@ -8,6 +8,10 @@ import type { OcrEngineConfig, ImageBlock, OcrResult, SlicerConfig, CutLine, Upl
 import type { SmartOcrConfig } from './config';
 import { loadSmartOcrConfig, createDebouncedSave, getCurrentEngineConfig, defaultSmartOcrConfig } from './config';
 import { useOcrRunner } from './composables/useOcrRunner';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建模块日志记录器
+const log = createModuleLogger('SmartOCR');
 
 // 图片相关状态
 const uploadedImages = ref<UploadedImage[]>([]);
@@ -139,7 +143,7 @@ onMounted(async () => {
   try {
     fullConfig.value = await loadSmartOcrConfig();
   } catch (error) {
-    console.error('加载配置失败:', error);
+    log.error('加载配置失败', error as Error);
   }
 });
 
@@ -264,7 +268,11 @@ const handleRetryBlock = async (blockId: string) => {
     
     ElMessage.success('重试完成');
   } catch (error) {
-    console.error('重试失败:', error);
+    log.error('重试失败', error as Error, {
+      blockId,
+      imageId,
+      engineType: engineConfig.value.type
+    });
     ocrResults.value[resultIndex].status = 'error';
     ocrResults.value[resultIndex].error = (error as Error).message;
     ElMessage.error('重试失败');

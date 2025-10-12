@@ -103,6 +103,10 @@ import {
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
 import RichCodeEditor from '../components/common/RichCodeEditor.vue';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建模块日志记录器
+const logger = createModuleLogger('JsonFormatter');
 
 const rawJsonInput = ref('');
 const isDragging = ref(false); // 新增拖拽状态
@@ -279,13 +283,16 @@ const onMouseUp = () => {
 let dragCounter = 0; // 用于跟踪拖拽进入/离开的次数
 
 const handleDragOver = (event: DragEvent) => {
-  console.log('DragOver triggered');
+  logger.debug('拖放事件：dragover', { eventType: 'dragover' });
   event.preventDefault();
   event.stopPropagation();
 };
 
 const handleDragEnter = (event: DragEvent) => {
-  console.log('DragEnter triggered', dragCounter);
+  logger.debug('拖放事件：dragenter', {
+    eventType: 'dragenter',
+    dragCounter: dragCounter + 1
+  });
   event.preventDefault();
   event.stopPropagation();
   dragCounter++;
@@ -293,7 +300,10 @@ const handleDragEnter = (event: DragEvent) => {
 };
 
 const handleDragLeave = (event: DragEvent) => {
-  console.log('DragLeave triggered', dragCounter);
+  logger.debug('拖放事件：dragleave', {
+    eventType: 'dragleave',
+    dragCounter: dragCounter - 1
+  });
   event.preventDefault();
   event.stopPropagation();
   dragCounter--;
@@ -303,26 +313,36 @@ const handleDragLeave = (event: DragEvent) => {
 };
 
 const handleDrop = (event: DragEvent) => {
-  console.log('Drop triggered', event.dataTransfer?.files);
+  const files = event.dataTransfer?.files;
+  logger.debug('拖放事件：drop', {
+    eventType: 'drop',
+    filesCount: files?.length || 0,
+    fileName: files?.[0]?.name
+  });
   event.preventDefault();
   event.stopPropagation();
   dragCounter = 0;
   isDragging.value = false;
 
-  const files = event.dataTransfer?.files;
   if (files && files.length > 0) {
     const file = files[0];
     if (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt')) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        console.log('FileReader onload', e.target?.result);
         const content = e.target?.result as string;
+        logger.debug('文件读取成功', {
+          fileName: file.name,
+          contentLength: content.length
+        });
         rawJsonInput.value = content;
         formatJson();
         ElMessage.success(`成功读取文件: ${file.name}`);
       };
       reader.onerror = (e) => {
-        console.log('FileReader error', e.target?.error);
+        logger.debug('文件读取失败', {
+          fileName: file.name,
+          error: e.target?.error?.message || '未知错误'
+        });
         ElMessage.error(`读取文件失败: ${file.name} - ${e.target?.error}`);
       };
       reader.readAsText(file);

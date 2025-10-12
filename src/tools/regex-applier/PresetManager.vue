@@ -188,9 +188,11 @@ import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { usePresetStore } from './store';
 import type { RegexPreset } from './types';
 import debounce from 'lodash/debounce';
+import { createModuleLogger } from '@utils/logger';
 
 const router = useRouter();
 const store = usePresetStore();
+const logger = createModuleLogger('PresetManager');
 
 // ===== 状态 =====
 const selectedRuleId = ref<string | null>(null);
@@ -353,7 +355,10 @@ const handleDeletePreset = async () => {
     selectedRuleId.value = null;
   } catch (error: any) {
     // 用户取消删除操作，不作处理
-    console.log('删除预设操作已取消:', error);
+    logger.debug('用户取消删除预设操作', {
+      presetName: currentPreset.name,
+      presetId: store.activePresetId,
+    });
   }
 };
 
@@ -478,11 +483,20 @@ const onRuleEnabledChange = (ruleId: string) => {
 
 // 拖拽事件处理
 const onDragStart = () => {
-  console.log('开始拖拽规则');
+  logger.debug('开始拖拽规则', {
+    presetId: store.activePresetId,
+    presetName: store.activePreset?.name,
+    ruleCount: localRules.value.length,
+  });
 };
 
 const onRulesReordered = () => {
-  console.log('拖拽结束，新顺序:', localRules.value);
+  logger.debug('拖拽结束，规则已重新排序', {
+    presetId: store.activePresetId,
+    presetName: store.activePreset?.name,
+    newOrder: localRules.value.map(r => ({ id: r.id, name: r.name || r.regex || '(未命名)' })),
+    ruleCount: localRules.value.length,
+  });
   if (!store.activePresetId) return;
   // 将本地排序后的结果同步回 store
   store.reorderRules(store.activePresetId, localRules.value);

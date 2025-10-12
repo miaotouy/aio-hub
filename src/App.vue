@@ -5,8 +5,11 @@ import { useDark } from "@vueuse/core";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
 import { loadAppSettingsAsync, updateAppSettingsAsync, type AppSettings } from "./utils/appSettings";
+import { createModuleLogger } from "./utils/logger";
 import TitleBar from "./components/TitleBar.vue";
 import SystemThemeIcon from "./components/icons/SystemThemeIcon.vue";
+
+const logger = createModuleLogger('App');
 
 const router = useRouter();
 const route = useRoute();
@@ -150,7 +153,7 @@ const applyThemeColor = (color: string) => {
   try {
     localStorage.setItem('app-theme-color', color);
   } catch (error) {
-    console.warn('Failed to cache theme color:', error);
+    logger.warn('缓存主题颜色失败', { color, error });
   }
 };
 

@@ -317,6 +317,10 @@ import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig }
 import { useGitRepository } from './composables/useGitRepository'
 import { useCharts } from './composables/useCharts'
 import { useCommitDetail } from './composables/useCommitDetail'
+import { createModuleLogger } from '@utils/logger'
+
+// 创建模块日志记录器
+const logger = createModuleLogger('GitAnalyzer')
 
 // 配置状态
 const config = ref<GitAnalyzerConfig | null>(null)
@@ -441,7 +445,7 @@ async function loadConfig() {
       dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])]
     }
   } catch (error) {
-    console.error('加载配置失败:', error)
+    logger.error('加载配置失败', error, { repoPath: repoPath.value })
   }
 }
 

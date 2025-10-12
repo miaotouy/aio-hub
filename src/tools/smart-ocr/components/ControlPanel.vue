@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ElMessage } from "element-plus";
+import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
+
+// 创建模块日志记录器
+const logger = createModuleLogger("SmartOCR.ControlPanel");
 import type {
   OcrEngineConfig,
   SlicerConfig,
@@ -220,12 +224,31 @@ const handleSliceOnly = async (imageId: string) => {
   }
 
   try {
+    logger.info("开始执行单张图片切图", {
+      imageId,
+      imageName: uploadedImage.name,
+      imageSize: { width: img.width, height: img.height },
+      slicerConfig: props.slicerConfig,
+    });
+
     // 执行智能切图
     const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
     emit("sliceComplete", imageId, sliceResult.blocks, sliceResult.lines);
+    
+    logger.info("单张图片切图成功", {
+      imageId,
+      imageName: uploadedImage.name,
+      blocksCount: sliceResult.blocks.length,
+    });
+    
     ElMessage.success(`检测到 ${sliceResult.blocks.length} 个图片块`);
   } catch (error) {
-    console.error("切图失败:", error);
+    logger.error("单张图片切图失败", {
+      imageId,
+      imageName: uploadedImage.name,
+      slicerConfig: props.slicerConfig,
+      error: error instanceof Error ? error.message : String(error),
+    });
     ElMessage.error("切图失败: " + (error as Error).message);
   }
 };
@@ -237,7 +260,13 @@ const handleSliceAll = async () => {
     return;
   }
 
+  logger.info("开始批量切图所有图片", {
+    totalImages: props.uploadedImages.length,
+    slicerConfig: props.slicerConfig,
+  });
+
   let slicedCount = 0;
+  const failedImages: string[] = [];
   
   for (const uploadedImage of props.uploadedImages) {
     const img = uploadedImage.img;
@@ -254,10 +283,22 @@ const handleSliceAll = async () => {
         emit("sliceComplete", imageId, sliceResult.blocks, sliceResult.lines);
         slicedCount++;
       } catch (error) {
-        console.error(`切图失败 (${uploadedImage.name}):`, error);
+        failedImages.push(uploadedImage.name);
+        logger.error("批量切图中单张图片失败", {
+          imageName: uploadedImage.name,
+          imageId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
   }
+
+  logger.info("批量切图完成", {
+    totalImages: props.uploadedImages.length,
+    slicedCount,
+    failedCount: failedImages.length,
+    failedImages: failedImages.length > 0 ? failedImages : undefined,
+  });
 
   if (slicedCount > 0) {
     ElMessage.success(`成功切图 ${slicedCount} 张图片`);
@@ -272,6 +313,13 @@ const handleStartOcr = async () => {
     ElMessage.warning("请先上传并选择图片");
     return;
   }
+
+  logger.info("开始执行单张图片OCR识别", {
+    imageId: selectedImage.value.id,
+    imageName: selectedImage.value.name,
+    engineType: props.engineConfig.type,
+    slicerEnabled: props.slicerConfig.enabled,
+  });
 
   emit("ocrStart");
 
@@ -324,9 +372,23 @@ const handleStartOcr = async () => {
 
     emit("ocrResultUpdate", results);
     emit("ocrComplete");
+    
+    logger.info("单张图片OCR识别完成", {
+      imageId: selectedImage.value.id,
+      imageName: selectedImage.value.name,
+      blocksCount: blocks.length,
+      resultsCount: results.length,
+    });
+    
     ElMessage.success("识别完成");
   } catch (error) {
-    console.error("OCR处理失败:", error);
+    logger.error("单张图片OCR识别失败", {
+      imageId: selectedImage.value?.id,
+      imageName: selectedImage.value?.name,
+      engineType: props.engineConfig.type,
+      slicerEnabled: props.slicerConfig.enabled,
+      error: error instanceof Error ? error.message : String(error),
+    });
     ElMessage.error("识别失败: " + (error as Error).message);
     emit("ocrComplete");
   }
@@ -339,11 +401,18 @@ const handleBatchOcr = async () => {
     return;
   }
 
+  logger.info("开始批量OCR识别所有图片", {
+    totalImages: props.uploadedImages.length,
+    engineType: props.engineConfig.type,
+    slicerEnabled: props.slicerConfig.enabled,
+  });
+
   ElMessage.info(`准备批量识别 ${props.uploadedImages.length} 张图片`);
   emit("ocrStart");
 
+  const allResults: OcrResult[] = []; // 累积所有图片的识别结果
+
   try {
-    const allResults: OcrResult[] = []; // 累积所有图片的识别结果
     
     for (const uploadedImage of props.uploadedImages) {
       const img = uploadedImage.img;
@@ -398,9 +467,21 @@ const handleBatchOcr = async () => {
     }
 
     emit("ocrComplete");
+    
+    logger.info("批量OCR识别完成", {
+      totalImages: props.uploadedImages.length,
+      totalResults: allResults.length,
+      engineType: props.engineConfig.type,
+    });
+    
     ElMessage.success("批量识别完成");
   } catch (error) {
-    console.error("批量OCR处理失败:", error);
+    logger.error("批量OCR识别失败", {
+      totalImages: props.uploadedImages.length,
+      engineType: props.engineConfig.type,
+      processedResults: allResults.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
     ElMessage.error("批量识别失败: " + (error as Error).message);
     emit("ocrComplete");
   }
@@ -840,3 +921,4 @@ defineExpose({
   width: 65px;
 }
 </style>
+

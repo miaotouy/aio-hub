@@ -60,9 +60,13 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { createConfigManager } from '../../utils/configManager';
+import { createConfigManager } from '@utils/configManager';
+import { createModuleLogger } from '@utils/logger';
 import RecordsList from './components/RecordsList.vue';
 import RecordDetail from './components/RecordDetail.vue';
+
+// 创建模块日志记录器
+const logger = createModuleLogger('LlmProxy');
 
 // 类型定义
 interface ProxyConfig {
@@ -147,7 +151,11 @@ let unlistenStreamUpdate: (() => void) | null = null;
 async function startProxy() {
   try {
     const result = await invoke('start_llm_proxy', { config: config.value });
-    console.log(result);
+    logger.info('代理服务启动成功', {
+      port: config.value.port,
+      targetUrl: config.value.target_url,
+      result
+    });
     isRunning.value = true;
     currentTargetUrl.value = config.value.target_url;
 
@@ -172,10 +180,13 @@ async function startProxy() {
     // 监听流式更新事件
     unlistenStreamUpdate = await listen('proxy-stream-update', (event) => {
       // 这里只是确保事件监听器被设置，实际处理在 RecordDetail 组件中
-      console.log('Stream update received:', event.payload);
+      logger.debug('接收到流式更新事件', { payload: event.payload });
     });
   } catch (error) {
-    console.error('启动代理失败:', error);
+    logger.error('启动代理服务失败', error, {
+      port: config.value.port,
+      targetUrl: config.value.target_url
+    });
     alert(`启动代理失败: ${error}`);
   }
 }
@@ -183,10 +194,15 @@ async function startProxy() {
 async function updateTargetUrl() {
   try {
     const result = await invoke('update_proxy_target', { target_url: config.value.target_url });
-    console.log('目标地址已更新:', result);
+    logger.info('代理目标地址更新成功', {
+      newTargetUrl: config.value.target_url,
+      result
+    });
     currentTargetUrl.value = config.value.target_url;
   } catch (error) {
-    console.error('更新目标地址失败:', error);
+    logger.error('更新代理目标地址失败', error, {
+      targetUrl: config.value.target_url
+    });
     alert(`更新目标地址失败: ${error}`);
   }
 }
@@ -194,7 +210,7 @@ async function updateTargetUrl() {
 async function stopProxy() {
   try {
     const result = await invoke('stop_llm_proxy');
-    console.log(result);
+    logger.info('代理服务停止成功', { result });
     isRunning.value = false;
 
     // 清理事件监听器
@@ -211,7 +227,7 @@ async function stopProxy() {
       unlistenStreamUpdate = null;
     }
   } catch (error) {
-    console.error('停止代理失败:', error);
+    logger.error('停止代理服务失败', error);
     alert(`停止代理失败: ${error}`);
   }
 }
@@ -224,6 +240,11 @@ async function checkProxyStatus() {
       config.value.port = status.port;
       config.value.target_url = status.target_url;
       currentTargetUrl.value = status.target_url;
+
+      logger.info('检测到代理服务正在运行', {
+        port: status.port,
+        targetUrl: status.target_url
+      });
 
       // 如果代理正在运行，设置事件监听器
       if (!unlistenRequest) {
@@ -249,12 +270,12 @@ async function checkProxyStatus() {
 
       if (!unlistenStreamUpdate) {
         unlistenStreamUpdate = await listen('proxy-stream-update', (event) => {
-          console.log('Stream update received:', event.payload);
+          logger.debug('接收到流式更新事件', { payload: event.payload });
         });
       }
     }
   } catch (error) {
-    console.error('检查代理状态失败:', error);
+    logger.error('检查代理状态失败', error);
   }
 }
 
@@ -275,8 +296,12 @@ async function loadSettings() {
     searchQuery.value = settings.searchQuery;
     filterStatus.value = settings.filterStatus;
     maskApiKeys.value = settings.maskApiKeys ?? true;  // 默认开启
+    logger.info('配置加载成功', {
+      port: settings.config.port,
+      targetUrl: settings.config.target_url
+    });
   } catch (error) {
-    console.error('加载配置失败:', error);
+    logger.error('加载配置失败', error);
   }
 }
 

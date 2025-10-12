@@ -2,6 +2,10 @@
 import { ref, onMounted } from "vue";
 import { ElMessageBox } from "element-plus";
 import { getName, getVersion } from "@tauri-apps/api/app";
+import { createModuleLogger } from "@utils/logger";
+
+// 创建模块日志记录器
+const logger = createModuleLogger("AboutSettings");
 
 // 应用信息
 const appInfo = ref({
@@ -32,7 +36,10 @@ onMounted(async () => {
     appInfo.value.name = await getName();
     appInfo.value.version = await getVersion();
   } catch (error) {
-    console.error("获取应用信息失败:", error);
+    logger.error("获取应用信息失败", error, {
+      fallbackName: "AIO工具箱",
+      fallbackVersion: "1.0.0",
+    });
     appInfo.value.name = "AIO工具箱";
     appInfo.value.version = "1.0.0";
   }

@@ -5,6 +5,10 @@
 import { defineStore } from 'pinia';
 import type { ApiPreset, RequestProfile, ApiResponse } from './types';
 import { presets } from './presets';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建模块日志器
+const logger = createModuleLogger('api-tester/store');
 
 interface ApiTesterState {
   // 当前选中的预设
@@ -364,7 +368,10 @@ export const useApiTesterStore = defineStore('apiTester', {
           JSON.stringify(this.savedProfiles)
         );
       } catch (error) {
-        console.error('Failed to save profiles:', error);
+        logger.error('保存 Profile 配置失败', error, {
+          operation: 'persistProfiles',
+          profilesCount: this.savedProfiles.length
+        });
       }
     },
 
@@ -376,7 +383,9 @@ export const useApiTesterStore = defineStore('apiTester', {
           this.savedProfiles = JSON.parse(stored);
         }
       } catch (error) {
-        console.error('Failed to load profiles:', error);
+        logger.error('加载 Profile 配置失败', error, {
+          operation: 'loadProfiles'
+        });
       }
     },
 

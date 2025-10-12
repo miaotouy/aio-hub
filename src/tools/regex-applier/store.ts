@@ -7,14 +7,18 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { RegexPreset, PresetsConfig, RegexRule } from './types';
 import { generateId } from './engine';
-import { 
-  loadPresets, 
-  savePresets, 
+import {
+  loadPresets,
+  savePresets,
   createPreset as createNewPreset,
   duplicatePreset as duplicateExistingPreset,
   touchPreset as touchPresetTimestamp,
   createDebouncedPresetsSave
 } from './presets';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建模块日志记录器
+const logger = createModuleLogger('regex-applier/store');
 
 export const usePresetStore = defineStore('preset', () => {
   // ===== State =====
@@ -92,7 +96,9 @@ export const usePresetStore = defineStore('preset', () => {
       version.value = config.version || '1.0.0';
       
     } catch (error: any) {
-      console.error('加载预设失败:', error);
+      logger.error('加载预设失败', error, {
+        context: '从文件加载预设配置时发生错误，将使用默认配置'
+      });
       // 加载失败时创建默认配置
       const defaultPreset = createNewPreset('默认预设', '空白预设，可以开始添加你的规则');
       presets.value = [defaultPreset];

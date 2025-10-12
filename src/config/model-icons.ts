@@ -3,6 +3,10 @@
  */
 
 import type { ModelIconConfig, PresetIconInfo } from '../types/model-icons';
+import { createModuleLogger } from '@utils/logger';
+
+// 创建模块日志器
+const logger = createModuleLogger('model-icons');
 
 /**
  * 预设图标目录（相对于 public 目录）
@@ -808,7 +812,11 @@ export function getModelIconPath(
             }
           } catch (e) {
             // 正则表达式无效，跳过
-            console.warn(`Invalid regex pattern: ${config.matchValue}`, e);
+            logger.warn('无效的正则表达式模式', {
+              configId: config.id,
+              matchValue: config.matchValue,
+              error: e instanceof Error ? e.message : String(e),
+            });
           }
         } else {
           if (modelId === config.matchValue) {
@@ -826,7 +834,11 @@ export function getModelIconPath(
             }
           } catch (e) {
             // 正则表达式无效，跳过
-            console.warn(`Invalid regex pattern: ${config.matchValue}`, e);
+            logger.warn('无效的正则表达式模式', {
+              configId: config.id,
+              matchValue: config.matchValue,
+              error: e instanceof Error ? e.message : String(e),
+            });
           }
         } else {
           if (modelId.startsWith(config.matchValue)) {

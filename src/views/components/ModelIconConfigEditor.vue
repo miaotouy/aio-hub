@@ -111,6 +111,7 @@ import { computed } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ModelIconConfig } from "../../types/model-icons";
+import { createModuleLogger } from "@utils/logger";
 
 interface Props {
   modelValue: Partial<ModelIconConfig> | null;
@@ -126,6 +127,8 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const logger = createModuleLogger("ModelIconConfigEditor");
 
 const localConfig = computed({
   get: () => props.modelValue || {},
@@ -164,7 +167,9 @@ async function handleSelectFile() {
       localConfig.value.iconPath = selected;
     }
   } catch (error) {
-    console.error("Error selecting file:", error);
+    logger.error("选择本地图标文件失败", error, {
+      filters: ["png", "jpg", "jpeg", "svg", "webp", "ico"],
+    });
     alert("选择文件失败: " + error);
   }
 }

@@ -30,6 +30,8 @@ interface Emits {
   (e: "add"): void;
   (e: "edit", index: number): void;
   (e: "delete", index: number): void;
+  (e: "delete-group", indices: number[]): void;
+  (e: "clear"): void;
   (e: "fetch"): void;
   (e: "update:expandState", state: Record<string, boolean>): void;
 }
@@ -66,6 +68,12 @@ const modelGroups = computed(() => {
   return result;
 });
 
+// 删除模型分组
+const deleteGroup = (group: { models: { index: number }[] }) => {
+  const indices = group.models.map((item) => item.index);
+  emit("delete-group", indices);
+};
+
 // 切换分组展开状态
 const toggleGroup = (groupName: string) => {
   const newState = { ...props.expandState };
@@ -91,6 +99,16 @@ const { getModelIcon, getModelGroup } = useModelIcons();
         <el-button v-if="editable" type="primary" size="small" :icon="Plus" @click="emit('add')">
           手动添加
         </el-button>
+        <el-popconfirm
+          v-if="editable && models.length > 0"
+          title="确定要清空所有模型吗？"
+          width="200"
+          @confirm="emit('clear')"
+        >
+          <template #reference>
+            <el-button type="danger" size="small" :icon="Delete"> 清空 </el-button>
+          </template>
+        </el-popconfirm>
       </div>
     </div>
 
@@ -102,13 +120,24 @@ const { getModelIcon, getModelGroup } = useModelIcons();
     <div v-else class="model-groups">
       <div v-for="group in modelGroups" :key="group.name" class="model-group">
         <!-- 分组标题 -->
-        <div class="group-header" @click="toggleGroup(group.name)">
-          <div class="group-title">
+        <div class="group-header">
+          <div class="group-title" @click="toggleGroup(group.name)">
             <el-icon class="expand-icon" :class="{ expanded: isGroupExpanded(group.name) }">
               <ArrowRight />
             </el-icon>
             <span class="group-name">{{ group.name }}</span>
             <span class="group-count">{{ group.models.length }}</span>
+          </div>
+          <div v-if="editable" class="group-actions">
+            <el-popconfirm
+              :title="`确定删除 '${group.name}' 分组下的所有模型吗?`"
+              width="240"
+              @confirm.stop="deleteGroup(group)"
+            >
+              <template #reference>
+                <el-button size="small" type="danger" :icon="Delete" circle @click.stop />
+              </template>
+            </el-popconfirm>
           </div>
         </div>
 
@@ -221,9 +250,11 @@ const { getModelIcon, getModelGroup } = useModelIcons();
 }
 
 .group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 8px 12px;
   background: var(--container-bg);
-  cursor: pointer;
   user-select: none;
   transition: background 0.2s;
 }
@@ -236,6 +267,13 @@ const { getModelIcon, getModelGroup } = useModelIcons();
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.group-actions {
+  flex-shrink: 0;
 }
 
 .expand-icon {

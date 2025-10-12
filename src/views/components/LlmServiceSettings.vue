@@ -207,6 +207,20 @@ const deleteModel = (index: number) => {
   editForm.value.models.splice(index, 1);
 };
 
+const deleteModelGroup = (indices: number[]) => {
+  // 从大到小排序索引，避免 splice 时的索引错乱
+  const sortedIndices = indices.sort((a, b) => b - a);
+  sortedIndices.forEach((index) => {
+    editForm.value.models.splice(index, 1);
+  });
+  ElMessage.success(`成功删除分组下的 ${indices.length} 个模型`);
+};
+
+const clearAllModels = () => {
+  editForm.value.models = [];
+  ElMessage.success("已清空所有模型");
+};
+
 const showModelFetcherDialog = ref(false);
 const fetchedModels = ref<LlmModelInfo[]>([]);
 
@@ -361,9 +375,17 @@ const openProviderIconSelector = () => {
           <el-divider />
 
           <el-form-item label="模型配置">
-            <ModelList :models="editForm.models" :expand-state="editForm.modelGroupsExpandState || {}" @add="addModel"
-              @edit="editModel" @delete="deleteModel" @fetch="fetchModels"
-              @update:expand-state="(state) => (editForm.modelGroupsExpandState = state)" />
+            <ModelList
+              :models="editForm.models"
+              :expand-state="editForm.modelGroupsExpandState || {}"
+              @add="addModel"
+              @edit="editModel"
+              @delete="deleteModel"
+              @delete-group="deleteModelGroup"
+              @clear="clearAllModels"
+              @fetch="fetchModels"
+              @update:expand-state="(state) => (editForm.modelGroupsExpandState = state)"
+            />
           </el-form-item>
         </el-form>
       </ProfileEditor>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted, computed } from "vue";
-import { InfoFilled, Refresh } from "@element-plus/icons-vue";
+import { ref, onMounted, watch, onUnmounted } from "vue";
+import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useDark } from "@vueuse/core";
 import {
@@ -13,31 +13,10 @@ import { toolsConfig } from "../config/tools";
 import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
+import ThemeColorSettings from "./components/ThemeColorSettings.vue";
 
 const logger = createModuleLogger("Settings");
 const isDark = useDark();
-
-// 预设主题色
-const presetColors = [
-  { name: "默认蓝", color: "#409eff" },
-  { name: "翡翠绿", color: "#00b96b" },
-  { name: "日暮橙", color: "#ff8c00" },
-  { name: "薰衣紫", color: "#8b7ec8" },
-  { name: "樱花粉", color: "#ff69b4" },
-  { name: "深海蓝", color: "#1890ff" },
-  { name: "森林绿", color: "#52c41a" },
-  { name: "火焰红", color: "#ff4d4f" },
-  { name: "金属灰", color: "#6b7280" },
-  { name: "歌姬绿", color: "#39C5BB" },
-  { name: "歌姬黄", color: "#FFE211" },
-  { name: "歌姬蓝", color: "#66CCFF" },
-];
-
-// 自定义颜色输入
-const customColor = ref("#409eff");
-const showColorPicker = ref(false);
-// 记住上次的自定义颜色
-const lastCustomColor = ref("#409eff");
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -51,6 +30,10 @@ const settings = ref<AppSettings>({
   theme: "auto",
   trayEnabled: false,
   themeColor: "#409eff",
+  successColor: "#67c23a",
+  warningColor: "#e6a23c",
+  dangerColor: "#f56c6c",
+  infoColor: "#909399",
   toolsVisible: {},
   toolsOrder: [],
   version: "1.0.0",
@@ -156,39 +139,81 @@ const applyTheme = (theme: "auto" | "light" | "dark") => {
   }
 };
 
-// 应用主题色
-const applyThemeColor = (color: string) => {
-  // 验证颜色格式
-  if (!/^#[0-9A-F]{6}$/i.test(color)) {
-    return;
-  }
-
-  // 设置 CSS 变量
+// 应用主题色系统
+const applyThemeColors = (colors: {
+  primary?: string;
+  success?: string;
+  warning?: string;
+  danger?: string;
+  info?: string;
+}) => {
   const root = document.documentElement;
-  root.style.setProperty("--primary-color", color);
 
-  // 计算悬停色（变亮）
-  const hoverColor = lightenColor(color, 20);
-  root.style.setProperty("--primary-hover-color", hoverColor);
-
-  // 计算 RGB 值
-  const rgb = hexToRgb(color);
-  if (rgb) {
-    root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+  // 应用主色调
+  if (colors.primary && /^#[0-9A-F]{6}$/i.test(colors.primary)) {
+    root.style.setProperty("--primary-color", colors.primary);
+    const hoverColor = lightenColor(colors.primary, 20);
+    root.style.setProperty("--primary-hover-color", hoverColor);
+    const rgb = hexToRgb(colors.primary);
+    if (rgb) {
+      root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+    }
+    root.style.setProperty("--el-color-primary", colors.primary);
+    root.style.setProperty("--el-color-primary-light-3", hoverColor);
+    root.style.setProperty("--el-color-primary-light-5", hoverColor);
+    root.style.setProperty("--el-color-primary-light-7", hoverColor);
+    root.style.setProperty("--el-color-primary-light-9", hoverColor);
   }
 
-  // 同步 Element Plus 变量
-  root.style.setProperty("--el-color-primary", color);
-  root.style.setProperty("--el-color-primary-light-3", hoverColor);
-  root.style.setProperty("--el-color-primary-light-5", hoverColor);
-  root.style.setProperty("--el-color-primary-light-7", hoverColor);
-  root.style.setProperty("--el-color-primary-light-9", hoverColor);
+  // 应用成功色
+  if (colors.success && /^#[0-9A-F]{6}$/i.test(colors.success)) {
+    root.style.setProperty("--el-color-success", colors.success);
+    const successLight = lightenColor(colors.success, 20);
+    root.style.setProperty("--el-color-success-light-3", successLight);
+    root.style.setProperty("--el-color-success-light-5", successLight);
+    root.style.setProperty("--el-color-success-light-7", successLight);
+    root.style.setProperty("--el-color-success-light-9", successLight);
+  }
+
+  // 应用警告色
+  if (colors.warning && /^#[0-9A-F]{6}$/i.test(colors.warning)) {
+    root.style.setProperty("--el-color-warning", colors.warning);
+    const warningLight = lightenColor(colors.warning, 20);
+    root.style.setProperty("--el-color-warning-light-3", warningLight);
+    root.style.setProperty("--el-color-warning-light-5", warningLight);
+    root.style.setProperty("--el-color-warning-light-7", warningLight);
+    root.style.setProperty("--el-color-warning-light-9", warningLight);
+  }
+
+  // 应用危险色
+  if (colors.danger && /^#[0-9A-F]{6}$/i.test(colors.danger)) {
+    root.style.setProperty("--el-color-danger", colors.danger);
+    const dangerLight = lightenColor(colors.danger, 20);
+    root.style.setProperty("--el-color-danger-light-3", dangerLight);
+    root.style.setProperty("--el-color-danger-light-5", dangerLight);
+    root.style.setProperty("--el-color-danger-light-7", dangerLight);
+    root.style.setProperty("--el-color-danger-light-9", dangerLight);
+  }
+
+  // 应用信息色
+  if (colors.info && /^#[0-9A-F]{6}$/i.test(colors.info)) {
+    root.style.setProperty("--el-color-info", colors.info);
+    const infoLight = lightenColor(colors.info, 20);
+    root.style.setProperty("--el-color-info-light-3", infoLight);
+    root.style.setProperty("--el-color-info-light-5", infoLight);
+    root.style.setProperty("--el-color-info-light-7", infoLight);
+    root.style.setProperty("--el-color-info-light-9", infoLight);
+  }
 
   // 缓存到 localStorage 以避免下次启动时的闪烁
   try {
-    localStorage.setItem("app-theme-color", color);
+    if (colors.primary) localStorage.setItem("app-theme-color", colors.primary);
+    if (colors.success) localStorage.setItem("app-success-color", colors.success);
+    if (colors.warning) localStorage.setItem("app-warning-color", colors.warning);
+    if (colors.danger) localStorage.setItem("app-danger-color", colors.danger);
+    if (colors.info) localStorage.setItem("app-info-color", colors.info);
   } catch (error) {
-    logger.warn("缓存主题色到 localStorage 失败", { color, error });
+    logger.warn("缓存主题色到 localStorage 失败", { colors, error });
   }
 };
 
@@ -214,45 +239,6 @@ const lightenColor = (hex: string, percent: number) => {
 
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 };
-
-// 选择预设颜色
-const selectPresetColor = (color: string) => {
-  settings.value.themeColor = color;
-  // 不改变 customColor，保持用户的自定义颜色
-};
-
-// 应用自定义颜色
-const applyCustomColor = () => {
-  if (/^#[0-9A-F]{6}$/i.test(customColor.value)) {
-    settings.value.themeColor = customColor.value;
-    lastCustomColor.value = customColor.value; // 保存自定义颜色
-    showColorPicker.value = false;
-  } else {
-    ElMessage.error("请输入有效的颜色值（格式：#RRGGBB）");
-  }
-};
-
-// 打开自定义颜色选择器时的处理
-const handleColorPickerOpen = () => {
-  // 如果当前是自定义颜色，使用当前颜色
-  // 否则使用上次保存的自定义颜色
-  if (!selectedPresetColor.value) {
-    customColor.value = settings.value.themeColor || lastCustomColor.value;
-  } else {
-    customColor.value = lastCustomColor.value;
-  }
-};
-
-// 重置为默认颜色
-const resetThemeColor = () => {
-  settings.value.themeColor = "#409eff";
-  // 不改变 customColor 和 lastCustomColor，保持用户的自定义颜色记忆
-};
-
-// 计算当前选中的预设颜色
-const selectedPresetColor = computed(() => {
-  return presetColors.find((p) => p.color === settings.value.themeColor);
-});
 
 // 重置设置
 const handleReset = async () => {
@@ -326,7 +312,47 @@ watch(
   () => settings.value.themeColor,
   (newColor) => {
     if (newColor) {
-      applyThemeColor(newColor);
+      applyThemeColors({ primary: newColor });
+    }
+  }
+);
+
+// 监听成功色变化
+watch(
+  () => settings.value.successColor,
+  (newColor) => {
+    if (newColor) {
+      applyThemeColors({ success: newColor });
+    }
+  }
+);
+
+// 监听警告色变化
+watch(
+  () => settings.value.warningColor,
+  (newColor) => {
+    if (newColor) {
+      applyThemeColors({ warning: newColor });
+    }
+  }
+);
+
+// 监听危险色变化
+watch(
+  () => settings.value.dangerColor,
+  (newColor) => {
+    if (newColor) {
+      applyThemeColors({ danger: newColor });
+    }
+  }
+);
+
+// 监听信息色变化
+watch(
+  () => settings.value.infoColor,
+  (newColor) => {
+    if (newColor) {
+      applyThemeColors({ info: newColor });
     }
   }
 );
@@ -348,10 +374,14 @@ watch(
       applyTheme(newSettings.theme);
     }
 
-    // 应用主题色
-    if (newSettings.themeColor) {
-      applyThemeColor(newSettings.themeColor);
-    }
+    // 应用主题色系统
+    applyThemeColors({
+      primary: newSettings.themeColor,
+      success: newSettings.successColor,
+      warning: newSettings.warningColor,
+      danger: newSettings.dangerColor,
+      info: newSettings.infoColor,
+    });
 
     // 发出事件通知设置已更改（用于实时同步到侧边栏）
     window.dispatchEvent(
@@ -392,15 +422,14 @@ onMounted(async () => {
   // 应用主题
   applyTheme(settings.value.theme || "auto");
 
-  // 应用主题色
-  if (settings.value.themeColor) {
-    applyThemeColor(settings.value.themeColor);
-    // 如果是自定义颜色，更新记忆
-    if (!presetColors.find((p) => p.color === settings.value.themeColor)) {
-      customColor.value = settings.value.themeColor;
-      lastCustomColor.value = settings.value.themeColor;
-    }
-  }
+  // 应用主题色系统
+  applyThemeColors({
+    primary: settings.value.themeColor,
+    success: settings.value.successColor,
+    warning: settings.value.warningColor,
+    danger: settings.value.dangerColor,
+    info: settings.value.infoColor,
+  });
 
   // 同步托盘设置到后端
   try {
@@ -475,7 +504,17 @@ onUnmounted(() => {
             :style="{ minHeight: module.minHeight || 'auto' }"
           >
             <h2 class="section-title">{{ module.title }}</h2>
-            <component :is="module.component" />
+            <!-- 主题色配置组件需要特殊处理，传递 v-model 绑定 -->
+            <ThemeColorSettings
+              v-if="module.id === 'theme-colors'"
+              v-model:theme-color="settings.themeColor"
+              v-model:success-color="settings.successColor"
+              v-model:warning-color="settings.warningColor"
+              v-model:danger-color="settings.dangerColor"
+              v-model:info-color="settings.infoColor"
+            />
+            <!-- 其他动态组件 -->
+            <component v-else :is="module.component" />
           </section>
 
           <!-- 静态模块 -->
@@ -511,112 +550,6 @@ onUnmounted(() => {
               </el-radio-group>
             </div>
 
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>主题色</span>
-                <el-tooltip content="选择应用的主题色调" placement="top">
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-              </div>
-              <div class="theme-color-selector">
-                <div class="preset-colors">
-                  <el-tooltip
-                    v-for="preset in presetColors"
-                    :key="preset.color"
-                    :content="preset.name"
-                    placement="top"
-                  >
-                    <button
-                      class="color-item"
-                      :class="{ active: settings.themeColor === preset.color }"
-                      :style="{ backgroundColor: preset.color }"
-                      @click="selectPresetColor(preset.color)"
-                    >
-                      <span v-if="settings.themeColor === preset.color" class="check-mark">✓</span>
-                    </button>
-                  </el-tooltip>
-
-                  <!-- 自定义颜色按钮 -->
-                  <el-popover
-                    v-model:visible="showColorPicker"
-                    placement="bottom"
-                    :width="260"
-                    trigger="click"
-                    @before-enter="handleColorPickerOpen"
-                  >
-                    <template #reference>
-                      <button
-                        class="color-item custom-color-btn"
-                        :class="{ active: !selectedPresetColor }"
-                        :style="{
-                          backgroundColor: !selectedPresetColor
-                            ? settings.themeColor
-                            : lastCustomColor,
-                          border: !selectedPresetColor ? 'none' : '2px dashed var(--border-color)',
-                        }"
-                        :title="!selectedPresetColor ? '当前自定义颜色' : '自定义颜色'"
-                      >
-                        <span v-if="!selectedPresetColor" class="check-mark">✓</span>
-                        <span v-else class="custom-icon">
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                          >
-                            <circle cx="13.5" cy="6.5" r="3.5" />
-                            <circle cx="8.5" cy="11.5" r="3.5" />
-                            <circle cx="15.5" cy="11.5" r="3.5" />
-                          </svg>
-                        </span>
-                      </button>
-                    </template>
-
-                    <div class="custom-color-picker">
-                      <h4>自定义颜色</h4>
-                      <div class="color-input-group">
-                        <el-input
-                          v-model="customColor"
-                          placeholder="#409eff"
-                          :prefix-icon="null"
-                          maxlength="7"
-                        >
-                          <template #prepend>
-                            <input type="color" v-model="customColor" class="native-color-picker" />
-                          </template>
-                        </el-input>
-                      </div>
-                      <div class="color-preview" :style="{ backgroundColor: customColor }"></div>
-                      <div class="picker-actions">
-                        <el-button size="small" @click="showColorPicker = false">取消</el-button>
-                        <el-button type="primary" size="small" @click="applyCustomColor">
-                          应用
-                        </el-button>
-                      </div>
-                    </div>
-                  </el-popover>
-
-                  <!-- 重置按钮 -->
-                  <el-tooltip content="重置为默认颜色" placement="top">
-                    <button class="color-item reset-btn" @click="resetThemeColor">
-                      <el-icon>
-                        <Refresh />
-                      </el-icon>
-                    </button>
-                  </el-tooltip>
-                </div>
-
-                <!-- 当前颜色显示 -->
-                <div class="current-color-info">
-                  <span class="color-label">当前：</span>
-                  <span class="color-value">{{ settings.themeColor }}</span>
-                </div>
-              </div>
-            </div>
           </section>
 
           <!-- 工具模块设置 -->
@@ -960,162 +893,6 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   margin-top: 16px;
-}
-
-/* 主题色选择器样式 */
-.theme-color-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.preset-colors {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.color-item {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: 2px solid transparent;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  background-color: var(--card-bg);
-}
-
-.color-item:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
-}
-
-.color-item.active {
-  border-color: var(--text-color);
-  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
-}
-
-.check-mark {
-  color: white;
-  font-weight: bold;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
-}
-
-.custom-color-btn .custom-icon {
-  color: var(--text-color-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.custom-color-btn:not(.active) {
-  position: relative;
-  overflow: hidden;
-}
-
-.custom-color-btn:not(.active)::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    45deg,
-    transparent 48%,
-    var(--border-color) 49%,
-    var(--border-color) 51%,
-    transparent 52%
-  );
-  pointer-events: none;
-}
-
-.reset-btn {
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
-  color: var(--text-color-secondary);
-}
-
-.reset-btn:hover {
-  color: var(--primary-color);
-  border-color: var(--primary-color);
-}
-
-/* 自定义颜色选择器弹窗 */
-.custom-color-picker {
-  padding: 8px;
-}
-
-.custom-color-picker h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: var(--text-color);
-}
-
-.color-input-group {
-  margin-bottom: 12px;
-}
-
-.native-color-picker {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  padding: 0;
-  background: transparent;
-}
-
-.native-color-picker::-webkit-color-swatch-wrapper {
-  padding: 2px;
-}
-
-.native-color-picker::-webkit-color-swatch {
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-}
-
-.color-preview {
-  width: 100%;
-  height: 60px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  margin-bottom: 12px;
-  transition: background-color 0.3s ease;
-}
-
-.picker-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.current-color-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  padding: 6px 12px;
-  background: var(--bg-color);
-  border-radius: 4px;
-  border: 1px solid var(--border-color-light);
-}
-
-.color-label {
-  color: var(--text-color-secondary);
-}
-
-.color-value {
-  font-family: monospace;
-  color: var(--text-color);
-  font-weight: 500;
 }
 
 /* 动态组件 section 特殊样式 */

@@ -12,7 +12,13 @@ export interface AppSettings {
 
   // 通用设置
   trayEnabled?: boolean;
-  themeColor?: string; // 主题色 hex 值
+  
+  // 主题颜色配置
+  themeColor?: string; // 主色调 hex 值
+  successColor?: string; // 成功色 hex 值
+  warningColor?: string; // 警告色 hex 值
+  dangerColor?: string; // 危险色 hex 值
+  infoColor?: string; // 信息色 hex 值
 
   // 工具模块设置
   toolsVisible?: Record<string, boolean>;
@@ -27,7 +33,12 @@ export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
   theme: "auto",
   trayEnabled: false,
-  themeColor: "#409eff", // 默认蓝色
+  // 默认主题颜色
+  themeColor: "#409eff", // 主色调 - Element Plus 蓝色
+  successColor: "#67c23a", // 成功色 - Element Plus 绿色
+  warningColor: "#e6a23c", // 警告色 - Element Plus 橙色
+  dangerColor: "#f56c6c", // 危险色 - Element Plus 红色
+  infoColor: "#909399", // 信息色 - Element Plus 灰色
   toolsVisible: {
     regexApply: true,
     mediaInfoReader: true,

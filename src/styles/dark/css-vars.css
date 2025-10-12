@@ -99,3 +99,59 @@ html.dark .el-tag .el-tag__close {
 html.dark .el-tag .el-tag__close:hover {
   background-color: rgba(255, 255, 255, 0.2) !important;
 }
+
+/* 按钮半透明高亮样式 - 暗色主题（使用动态颜色变量） */
+html.dark .el-button--primary {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-primary-light-3);
+  --el-button-hover-text-color: var(--el-color-primary-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-primary) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-primary);
+}
+
+html.dark .el-button--success {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  --el-button-border-color: var(--el-color-success);
+  --el-button-text-color: var(--el-color-success);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-success) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-success-light-3);
+  --el-button-hover-text-color: var(--el-color-success-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-success) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-success);
+}
+
+html.dark .el-button--warning {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  --el-button-border-color: var(--el-color-warning);
+  --el-button-text-color: var(--el-color-warning);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-warning) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-warning-light-3);
+  --el-button-hover-text-color: var(--el-color-warning-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-warning) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-warning);
+}
+
+html.dark .el-button--danger {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  --el-button-border-color: var(--el-color-danger);
+  --el-button-text-color: var(--el-color-danger);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-danger) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-danger-light-3);
+  --el-button-hover-text-color: var(--el-color-danger-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-danger) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-danger);
+}
+
+html.dark .el-button--info {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  --el-button-border-color: var(--el-color-info);
+  --el-button-text-color: var(--el-color-info);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-info) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-info-light-3);
+  --el-button-hover-text-color: var(--el-color-info-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-info) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-info);
+}

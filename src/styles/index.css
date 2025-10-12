@@ -102,3 +102,59 @@ body {
 .el-icon {
   color: var(--text-color);
 }
+
+/* Element Plus 全局主题适配 - 按钮半透明高亮样式（使用动态颜色变量） */
+.el-button--primary {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-primary);
+  --el-button-hover-text-color: var(--el-color-primary);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-primary) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-primary);
+}
+
+.el-button--success {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  --el-button-border-color: var(--el-color-success);
+  --el-button-text-color: var(--el-color-success);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-success) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-success);
+  --el-button-hover-text-color: var(--el-color-success);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-success) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-success);
+}
+
+.el-button--warning {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  --el-button-border-color: var(--el-color-warning);
+  --el-button-text-color: var(--el-color-warning);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-warning);
+  --el-button-hover-text-color: var(--el-color-warning);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-warning) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-warning);
+}
+
+.el-button--danger {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+  --el-button-border-color: var(--el-color-danger);
+  --el-button-text-color: var(--el-color-danger);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-danger) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-danger);
+  --el-button-hover-text-color: var(--el-color-danger);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-danger) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-danger);
+}
+
+.el-button--info {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-info) 10%, transparent);
+  --el-button-border-color: var(--el-color-info);
+  --el-button-text-color: var(--el-color-info);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-info) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-info);
+  --el-button-hover-text-color: var(--el-color-info);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-info) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-info);
+}

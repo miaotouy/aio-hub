@@ -13,6 +13,14 @@ export const settingsModules: SettingsModule[] = [
 		title: "通用设置",
 	},
 	{
+		id: "theme-colors",
+		title: "主题色配置",
+		component: defineAsyncComponent(
+			() => import("../views/components/ThemeColorSettings.vue"),
+		),
+		minHeight: "auto",
+	},
+	{
 		id: "tools",
 		title: "工具模块",
 	},

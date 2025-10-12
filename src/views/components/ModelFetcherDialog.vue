@@ -148,7 +148,7 @@ const getModelIcon = (model: LlmModelInfo) => {
     </div>
 
     <template #footer>
-      <span>已选择 {{ selectedModels.length }} 个模型</span>
+      <span style="padding-right: 24px;">已选择 {{ selectedModels.length }} 个模型</span>
       <el-button @click="closeDialog">取消</el-button>
       <el-button type="primary" @click="handleConfirm" :disabled="selectedModels.length === 0">
         添加
@@ -190,13 +190,15 @@ const getModelIcon = (model: LlmModelInfo) => {
   padding: 8px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  border: 2px solid transparent;
 }
 .model-item:hover {
   background-color: var(--card-bg-hover);
 }
 .model-item.selected {
-  background-color: var(--el-color-primary-light-9);
+  background-color: color-mix(in srgb, var(--el-color-primary) 6%, transparent);
+  border-color: var(--el-color-primary);
 }
 .model-item.disabled {
   cursor: not-allowed;

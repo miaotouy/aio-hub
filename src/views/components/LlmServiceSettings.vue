@@ -439,12 +439,12 @@ const openProviderIconSelector = () => {
                 @click="createFromPresetTemplate(preset)"
               >
                 <div class="preset-icon">
+                  <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
                   <img
-                    v-if="getProviderIconForPreset(preset.type)"
+                    v-else-if="getProviderIconForPreset(preset.type)"
                     :src="getProviderIconForPreset(preset.type)!"
                     :alt="preset.name"
                   />
-                  <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
                   <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
                 </div>
                 <div class="preset-info">
@@ -469,12 +469,12 @@ const openProviderIconSelector = () => {
                 @click="createFromPresetTemplate(preset)"
               >
                 <div class="preset-icon">
+                  <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
                   <img
-                    v-if="getProviderIconForPreset(preset.type)"
+                    v-else-if="getProviderIconForPreset(preset.type)"
                     :src="getProviderIconForPreset(preset.type)!"
                     :alt="preset.name"
                   />
-                  <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
                   <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
                 </div>
                 <div class="preset-info">
@@ -499,12 +499,12 @@ const openProviderIconSelector = () => {
                 @click="createFromPresetTemplate(preset)"
               >
                 <div class="preset-icon">
+                  <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
                   <img
-                    v-if="getProviderIconForPreset(preset.type)"
+                    v-else-if="getProviderIconForPreset(preset.type)"
                     :src="getProviderIconForPreset(preset.type)!"
                     :alt="preset.name"
                   />
-                  <img v-else-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
                   <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
                 </div>
                 <div class="preset-info">

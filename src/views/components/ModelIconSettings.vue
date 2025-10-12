@@ -72,7 +72,6 @@
       </div>
     </div>
 
-
     <!-- 配置列表 -->
     <div v-if="paginatedConfigs.length > 0" class="configs-container">
       <div class="configs-scroll-area">
@@ -102,9 +101,7 @@
                 <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
                 <span class="config-value">{{ config.matchValue }}</span>
               </div>
-              <div v-if="config.groupName" class="config-group">
-                分组: {{ config.groupName }}
-              </div>
+              <div v-if="config.groupName" class="config-group">分组: {{ config.groupName }}</div>
               <div v-if="config.priority" class="config-priority">
                 优先级: {{ config.priority }}
               </div>
@@ -197,20 +194,14 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelIcons } from "../../composables/useModelIcons";
 import type { ModelIconConfig, IconMatchType } from "../../types/model-icons";
 import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
 import { PRESET_ICONS_DIR } from "../../config/model-icons";
-import {
-  Edit,
-  Delete,
-  Select,
-  Close,
-  Grid,
-  List
-} from "@element-plus/icons-vue";
+import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
 
 const {
   configs,
@@ -375,13 +366,21 @@ function closeEditor() {
   editingConfig.value = null;
   isNewConfig.value = false;
 }
-
 // 处理重置
 async function handleReset() {
-  if (confirm("确定要重置为默认配置吗？这将清除所有自定义配置。")) {
+  try {
+    await ElMessageBox.confirm("确定要重置为默认配置吗？这将清除所有自定义配置。", "警告", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
     if (await resetToDefaults()) {
-      alert("已重置为默认配置");
+      ElMessage.success("已重置为默认配置");
+    } else {
+      ElMessage.error("重置失败");
     }
+  } catch {
+    ElMessage.info("操作已取消");
   }
 }
 
@@ -432,19 +431,19 @@ function handleImageError(e: Event) {
  */
 function getDisplayIconPath(iconPath: string): string {
   if (!iconPath) return "";
-  
+
   // 检查是否为绝对路径
   // Windows: C:\, D:\, E:\ 等
   // 但要排除 /model-icons/ 这样的相对路径
   const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
   // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
   const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
-  
+
   if (isWindowsAbsolutePath || isUnixAbsolutePath) {
     // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
     return convertFileSrc(iconPath);
   }
-  
+
   // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
   return iconPath;
 }
@@ -606,7 +605,6 @@ function getPageNumbers(): number[] {
   background: var(--primary-color);
   color: white;
 }
-
 
 /* 配置列表容器 */
 .configs-container {

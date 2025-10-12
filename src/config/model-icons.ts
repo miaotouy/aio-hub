@@ -1297,10 +1297,8 @@ export function getModelIconPath(
             });
           }
         } else {
-          // 从模型 ID 中提取模型名称（最后一个 / 之后的部分），以实现更精确的匹配
-          const modelName = modelId.split("/").pop() || modelId;
-          // 使用 toLowerCase 和 includes 对模型名称进行不区分大小写的、更灵活的匹配
-          if (modelName.toLowerCase().includes(config.matchValue.toLowerCase())) {
+          // 对整个模型 ID 进行不区分大小写的包含匹配，以兼容 user/model-name 格式
+          if (modelId.toLowerCase().includes(config.matchValue.toLowerCase())) {
             return config.iconPath;
           }
         }

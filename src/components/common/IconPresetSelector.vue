@@ -2,12 +2,7 @@
   <div class="icon-preset-selector">
     <!-- 搜索栏（可选） -->
     <div v-if="showSearch" class="search-bar">
-      <input
-        v-model="searchText"
-        type="text"
-        placeholder="搜索图标..."
-        class="search-input"
-      />
+      <input v-model="searchText" type="text" placeholder="搜索图标..." class="search-input" />
     </div>
 
     <!-- 分类标签（可选） -->
@@ -33,7 +28,7 @@
           @click="handleSelect(icon)"
         >
           <div class="preset-icon">
-            <img :src="getIconPath(icon.path)" :alt="icon.name" />
+            <DynamicIcon :src="getIconPath(icon.path)" :alt="icon.name" />
           </div>
           <div class="preset-info">
             <div class="preset-name">{{ icon.name }}</div>
@@ -56,8 +51,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import type { PresetIconInfo } from '../../types/model-icons';
+import { ref, computed } from "vue";
+import type { PresetIconInfo } from "../../types/model-icons";
+import DynamicIcon from "./DynamicIcon.vue";
 
 interface Props {
   icons: PresetIconInfo[];
@@ -69,27 +65,27 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'select', icon: PresetIconInfo): void;
+  (e: "select", icon: PresetIconInfo): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showSearch: false,
   showCategories: false,
   showTags: true,
-  gridClass: '',
+  gridClass: "",
 });
 
 const emit = defineEmits<Emits>();
 
 // 搜索文本
-const searchText = ref('');
+const searchText = ref("");
 
 // 选中的分类
-const selectedCategory = ref('全部');
+const selectedCategory = ref("全部");
 
 // 获取所有分类
 const categories = computed(() => {
-  const cats = new Set<string>(['全部']);
+  const cats = new Set<string>(["全部"]);
   props.icons.forEach((icon) => {
     if (icon.category) {
       cats.add(icon.category);
@@ -103,7 +99,7 @@ const filteredIcons = computed(() => {
   let result = [...props.icons];
 
   // 分类过滤
-  if (selectedCategory.value !== '全部') {
+  if (selectedCategory.value !== "全部") {
     result = result.filter((icon) => icon.category === selectedCategory.value);
   }
 
@@ -122,7 +118,7 @@ const filteredIcons = computed(() => {
 
 // 处理选择
 function handleSelect(icon: PresetIconInfo) {
-  emit('select', icon);
+  emit("select", icon);
 }
 </script>
 

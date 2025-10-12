@@ -57,14 +57,18 @@
             :type="viewMode === 'grid' ? 'primary' : ''"
             title="网格视图"
           >
-            <el-icon><Grid /></el-icon>
+            <el-icon>
+              <Grid />
+            </el-icon>
           </el-button>
           <el-button
             @click="viewMode = 'list'"
             :type="viewMode === 'list' ? 'primary' : ''"
             title="列表视图"
           >
-            <el-icon><List /></el-icon>
+            <el-icon>
+              <List />
+            </el-icon>
           </el-button>
         </el-button-group>
       </div>
@@ -84,11 +88,10 @@
             :class="{ disabled: config.enabled === false }"
           >
             <div class="config-icon">
-              <img
+              <DynamicIcon
                 v-if="config.iconPath"
                 :src="getDisplayIconPath(config.iconPath)"
                 :alt="config.matchValue"
-                @error="handleImageError"
               />
               <div v-else class="icon-placeholder">?</div>
             </div>
@@ -115,13 +118,20 @@
                 class="btn-icon"
                 :title="config.enabled === false ? '启用' : '禁用'"
               >
-                <el-icon><Select v-if="config.enabled !== false" /><Close v-else /></el-icon>
+                <el-icon
+                  ><Select v-if="config.enabled !== false" />
+                  <Close v-else />
+                </el-icon>
               </button>
               <button @click="handleEdit(config)" class="btn-icon" title="编辑">
-                <el-icon><Edit /></el-icon>
+                <el-icon>
+                  <Edit />
+                </el-icon>
               </button>
               <button @click="handleDelete(config.id)" class="btn-icon btn-danger" title="删除">
-                <el-icon><Delete /></el-icon>
+                <el-icon>
+                  <Delete />
+                </el-icon>
               </button>
             </div>
           </div>
@@ -200,6 +210,7 @@ import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
 import { PRESET_ICONS_DIR } from "../../config/model-icons";
 import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
+import DynamicIcon from "../../components/common/DynamicIcon.vue";
 
 const {
   configs,
@@ -415,12 +426,6 @@ function handleImport() {
     }
   };
   input.click();
-}
-
-// 处理图片加载错误
-function handleImageError(e: Event) {
-  const img = e.target as HTMLImageElement;
-  img.style.display = "none";
 }
 
 /**
@@ -885,7 +890,6 @@ function getPageNumbers(): number[] {
   font-size: 0.9rem;
   transition: all 0.2s;
 }
-
 
 .btn-icon {
   padding: 0;

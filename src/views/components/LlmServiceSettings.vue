@@ -14,6 +14,7 @@ import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@utils/llm-ap
 import { useModelIcons } from "../../composables/useModelIcons";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-icons";
 import { fetchModelsFromApi } from "../../llm-apis/model-fetcher";
+import DynamicIcon from "../../components/common/DynamicIcon.vue";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
@@ -192,7 +193,7 @@ const editModel = (index: number) => {
 const handleSaveModel = (model: LlmModelInfo) => {
   if (isEditingModel.value && editingModel.value) {
     // 编辑模式：找到原模型并替换
-    const index = editForm.value.models.findIndex(m => m.id === editingModel.value!.id);
+    const index = editForm.value.models.findIndex((m) => m.id === editingModel.value!.id);
     if (index !== -1) {
       editForm.value.models[index] = model;
     }
@@ -218,13 +219,13 @@ const fetchModels = async () => {
 
   const loading = ElLoading.service({
     lock: true,
-    text: '正在从 API 获取模型列表...',
-    background: 'rgba(0, 0, 0, 0.7)',
+    text: "正在从 API 获取模型列表...",
+    background: "rgba(0, 0, 0, 0.7)",
   });
 
   try {
     const models = await fetchModelsFromApi(selectedProfile.value);
-    
+
     if (models.length === 0) {
       ElMessage.warning("未获取到任何模型");
       return;
@@ -241,9 +242,7 @@ const fetchModels = async () => {
 
 // 添加从弹窗选择的模型
 const handleAddModels = (modelsToAdd: LlmModelInfo[]) => {
-  const newModels = modelsToAdd.filter(
-    (m) => !editForm.value.models.some((em) => em.id === m.id)
-  );
+  const newModels = modelsToAdd.filter((m) => !editForm.value.models.some((em) => em.id === m.id));
   editForm.value.models.push(...newModels);
   ElMessage.success(`成功添加 ${newModels.length} 个模型`);
 };
@@ -251,7 +250,7 @@ const handleAddModels = (modelsToAdd: LlmModelInfo[]) => {
 // API 端点预览
 const apiEndpointPreview = computed(() => {
   if (!editForm.value.baseUrl) {
-    return '';
+    return "";
   }
   return generateLlmApiEndpointPreview(editForm.value.baseUrl, editForm.value.type);
 });
@@ -293,21 +292,10 @@ const openProviderIconSelector = () => {
   <div class="llm-settings-page">
     <div class="settings-layout">
       <!-- 左侧：渠道列表 -->
-      <ProfileSidebar
-        title="LLM 服务"
-        :profiles="profiles"
-        :selected-id="selectedProfileId"
-        @select="selectProfile"
-        @add="handleAddClick"
-        @toggle="handleToggle"
-      >
+      <ProfileSidebar title="LLM 服务" :profiles="profiles" :selected-id="selectedProfileId" @select="selectProfile"
+        @add="handleAddClick" @toggle="handleToggle">
         <template #item="{ profile }">
-          <img
-            v-if="getProviderIcon(profile)"
-            :src="getProviderIcon(profile)!"
-            class="profile-icon"
-            alt=""
-          />
+          <DynamicIcon v-if="getProviderIcon(profile)" :src="getProviderIcon(profile)!" class="profile-icon" alt="" />
           <div v-else class="profile-icon-placeholder"></div>
           <div class="profile-info">
             <div class="profile-name">{{ profile.name }}</div>
@@ -318,38 +306,20 @@ const openProviderIconSelector = () => {
       </ProfileSidebar>
 
       <!-- 右侧：配置编辑 -->
-      <ProfileEditor
-        v-if="selectedProfile"
-        :title="selectedProfile.name"
-        :show-save="false"
-        @delete="handleDelete"
-      >
+      <ProfileEditor v-if="selectedProfile" :title="selectedProfile.name" :show-save="false" @delete="handleDelete">
         <template #header-actions>
-          <el-image
-            v-if="editForm.icon"
-            :src="getDisplayIconPath(editForm.icon)"
-            class="profile-editor-icon"
-            fit="contain"
-          />
+          <el-image v-if="editForm.icon" :src="getDisplayIconPath(editForm.icon)" class="profile-editor-icon"
+            fit="contain" />
         </template>
         <el-form :model="editForm" label-width="100px" label-position="left">
           <el-form-item label="渠道名称">
-            <el-input
-              v-model="editForm.name"
-              placeholder="例如: 我的 OpenAI"
-              maxlength="50"
-              show-word-limit
-            />
+            <el-input v-model="editForm.name" placeholder="例如: 我的 OpenAI" maxlength="50" show-word-limit />
           </el-form-item>
 
           <el-form-item label="API 格式">
             <el-select v-model="editForm.type" style="width: 100%">
-              <el-option
-                v-for="provider in providerTypes"
-                :key="provider.type"
-                :label="provider.name"
-                :value="provider.type"
-              >
+              <el-option v-for="provider in providerTypes" :key="provider.type" :label="provider.name"
+                :value="provider.type">
                 <div>
                   <div>{{ provider.name }}</div>
                   <div style="font-size: 12px; color: var(--el-text-color-secondary)">
@@ -362,10 +332,7 @@ const openProviderIconSelector = () => {
           </el-form-item>
 
           <el-form-item label="供应商图标">
-            <el-input
-              v-model="editForm.icon"
-              placeholder="自定义图标路径或URL，或选择预设"
-            >
+            <el-input v-model="editForm.icon" placeholder="自定义图标路径或URL，或选择预设">
               <template #append>
                 <el-button @click="openProviderIconSelector">选择预设</el-button>
               </template>
@@ -384,13 +351,8 @@ const openProviderIconSelector = () => {
           </el-form-item>
 
           <el-form-item label="API Key">
-            <el-input
-              v-model="apiKeyInput"
-              type="password"
-              placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
-              show-password
-              @blur="updateApiKeys"
-            />
+            <el-input v-model="apiKeyInput" type="password" placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔" show-password
+              @blur="updateApiKeys" />
             <div v-if="editForm.apiKeys.length > 0" class="form-hint">
               已配置 {{ editForm.apiKeys.length }} 个密钥
             </div>
@@ -399,15 +361,9 @@ const openProviderIconSelector = () => {
           <el-divider />
 
           <el-form-item label="模型配置">
-            <ModelList
-              :models="editForm.models"
-              :expand-state="editForm.modelGroupsExpandState || {}"
-              @add="addModel"
-              @edit="editModel"
-              @delete="deleteModel"
-              @fetch="fetchModels"
-              @update:expand-state="(state) => editForm.modelGroupsExpandState = state"
-            />
+            <ModelList :models="editForm.models" :expand-state="editForm.modelGroupsExpandState || {}" @add="addModel"
+              @edit="editModel" @delete="deleteModel" @fetch="fetchModels"
+              @update:expand-state="(state) => (editForm.modelGroupsExpandState = state)" />
           </el-form-item>
         </el-form>
       </ProfileEditor>
@@ -424,7 +380,7 @@ const openProviderIconSelector = () => {
         <div class="preset-section">
           <h4>从预设模板创建</h4>
           <p class="preset-section-desc">选择常用服务商快速创建配置</p>
-          
+
           <!-- OpenAI 兼容格式 -->
           <div class="preset-type-group">
             <div class="preset-type-header">
@@ -432,19 +388,12 @@ const openProviderIconSelector = () => {
               <span class="preset-type-desc">支持 OpenAI、DeepSeek、Kimi 等兼容接口</span>
             </div>
             <div class="preset-grid">
-              <div
-                v-for="preset in llmPresets.filter(p => p.type === 'openai')"
-                :key="preset.name"
-                class="preset-card"
-                @click="createFromPresetTemplate(preset)"
-              >
+              <div v-for="preset in llmPresets.filter((p) => p.type === 'openai')" :key="preset.name"
+                class="preset-card" @click="createFromPresetTemplate(preset)">
                 <div class="preset-icon">
-                  <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                  <img
-                    v-else-if="getProviderIconForPreset(preset.type)"
-                    :src="getProviderIconForPreset(preset.type)!"
-                    :alt="preset.name"
-                  />
+                  <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <DynamicIcon v-else-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!" :alt="preset.name" />
                   <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
                 </div>
                 <div class="preset-info">
@@ -462,19 +411,12 @@ const openProviderIconSelector = () => {
               <span class="preset-type-desc">Google Gemini 专用接口</span>
             </div>
             <div class="preset-grid">
-              <div
-                v-for="preset in llmPresets.filter(p => p.type === 'gemini')"
-                :key="preset.name"
-                class="preset-card"
-                @click="createFromPresetTemplate(preset)"
-              >
+              <div v-for="preset in llmPresets.filter((p) => p.type === 'gemini')" :key="preset.name"
+                class="preset-card" @click="createFromPresetTemplate(preset)">
                 <div class="preset-icon">
-                  <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                  <img
-                    v-else-if="getProviderIconForPreset(preset.type)"
-                    :src="getProviderIconForPreset(preset.type)!"
-                    :alt="preset.name"
-                  />
+                  <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <DynamicIcon v-else-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!" :alt="preset.name" />
                   <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
                 </div>
                 <div class="preset-info">
@@ -492,19 +434,12 @@ const openProviderIconSelector = () => {
               <span class="preset-type-desc">Anthropic Claude 专用接口</span>
             </div>
             <div class="preset-grid">
-              <div
-                v-for="preset in llmPresets.filter(p => p.type === 'claude')"
-                :key="preset.name"
-                class="preset-card"
-                @click="createFromPresetTemplate(preset)"
-              >
+              <div v-for="preset in llmPresets.filter((p) => p.type === 'claude')" :key="preset.name"
+                class="preset-card" @click="createFromPresetTemplate(preset)">
                 <div class="preset-icon">
-                  <img v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                  <img
-                    v-else-if="getProviderIconForPreset(preset.type)"
-                    :src="getProviderIconForPreset(preset.type)!"
-                    :alt="preset.name"
-                  />
+                  <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <DynamicIcon v-else-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!" :alt="preset.name" />
                   <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
                 </div>
                 <div class="preset-info">
@@ -520,15 +455,12 @@ const openProviderIconSelector = () => {
 
         <div class="preset-section">
           <h4>自定义配置</h4>
-          <el-button
-            style="width: 100%"
-            @click="
-              () => {
-                createNewProfile();
-                showPresetDialog = false;
-              }
-            "
-          >
+          <el-button style="width: 100%" @click="
+            () => {
+              createNewProfile();
+              showPresetDialog = false;
+            }
+          ">
             从空白创建
           </el-button>
         </div>
@@ -536,32 +468,18 @@ const openProviderIconSelector = () => {
     </el-dialog>
 
     <!-- 模型编辑对话框 -->
-    <ModelEditDialog
-      v-model:visible="showModelDialog"
-      :model="editingModel"
-      :is-editing="isEditingModel"
-      @save="handleSaveModel"
-    />
+    <ModelEditDialog v-model:visible="showModelDialog" :model="editingModel" :is-editing="isEditingModel"
+      @save="handleSaveModel" />
 
     <!-- 预设图标选择对话框 -->
     <el-dialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" top="5vh">
-      <IconPresetSelector
-        :icons="PRESET_ICONS"
-        :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
-        show-search
-        show-categories
-        @select="selectPresetIcon"
-      />
+      <IconPresetSelector :icons="PRESET_ICONS" :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`" show-search
+        show-categories @select="selectPresetIcon" />
     </el-dialog>
 
     <!-- 模型获取对话框 -->
-    <ModelFetcherDialog
-      v-if="showModelFetcherDialog"
-      v-model:visible="showModelFetcherDialog"
-      :models="fetchedModels"
-      :existing-models="editForm.models"
-      @add-models="handleAddModels"
-    />
+    <ModelFetcherDialog v-if="showModelFetcherDialog" v-model:visible="showModelFetcherDialog" :models="fetchedModels"
+      :existing-models="editForm.models" @add-models="handleAddModels" />
   </div>
 </template>
 
@@ -644,7 +562,7 @@ const openProviderIconSelector = () => {
 .api-preview-url {
   font-size: 12px;
   color: var(--text-color);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   word-break: break-all;
   line-height: 1.5;
   margin-bottom: 6px;
@@ -668,6 +586,7 @@ const openProviderIconSelector = () => {
 .preset-section {
   margin-bottom: 20px;
 }
+
 .preset-section h4 {
   margin: 0 0 8px 0;
   font-size: 14px;
@@ -791,5 +710,4 @@ const openProviderIconSelector = () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 </style>

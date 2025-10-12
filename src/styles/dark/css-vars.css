@@ -353,3 +353,8 @@ html.dark .el-message--info {
   --el-message-border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
   --el-message-close-color: var(--el-color-info);
 }
+
+/* 单色图标在暗色模式下反色 */
+.invert-on-dark {
+  filter: invert(1);
+}

@@ -1,8 +1,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Plus, Delete, Edit, View, Search, Tools, Document, ArrowRight, Cpu } from "@element-plus/icons-vue";
+import {
+  Plus,
+  Delete,
+  Edit,
+  View,
+  Search,
+  Tools,
+  Document,
+  ArrowRight,
+  Cpu,
+} from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
 import { useModelIcons } from "../../composables/useModelIcons";
+import DynamicIcon from "../../components/common/DynamicIcon.vue";
 
 interface Props {
   models: LlmModelInfo[];
@@ -46,10 +57,10 @@ const modelGroups = computed(() => {
   // 如果没有保存的展开状态，默认展开所有分组
   if (Object.keys(props.expandState || {}).length === 0 && result.length > 0) {
     const newState: Record<string, boolean> = {};
-    result.forEach(group => {
+    result.forEach((group) => {
       newState[group.name] = true;
     });
-    emit('update:expandState', newState);
+    emit("update:expandState", newState);
   }
 
   return result;
@@ -59,7 +70,7 @@ const modelGroups = computed(() => {
 const toggleGroup = (groupName: string) => {
   const newState = { ...props.expandState };
   newState[groupName] = !newState[groupName];
-  emit('update:expandState', newState);
+  emit("update:expandState", newState);
 };
 
 // 判断分组是否展开
@@ -76,9 +87,7 @@ const { getModelIcon, getModelGroup } = useModelIcons();
     <div class="list-header">
       <span class="model-count">已添加 {{ models.length }} 个模型</span>
       <div class="list-actions">
-        <el-button v-if="editable" size="small" @click="emit('fetch')">
-          从 API 获取
-        </el-button>
+        <el-button v-if="editable" size="small" @click="emit('fetch')"> 从 API 获取 </el-button>
         <el-button v-if="editable" type="primary" size="small" :icon="Plus" @click="emit('add')">
           手动添加
         </el-button>
@@ -91,11 +100,7 @@ const { getModelIcon, getModelGroup } = useModelIcons();
     </div>
 
     <div v-else class="model-groups">
-      <div
-        v-for="group in modelGroups"
-        :key="group.name"
-        class="model-group"
-      >
+      <div v-for="group in modelGroups" :key="group.name" class="model-group">
         <!-- 分组标题 -->
         <div class="group-header" @click="toggleGroup(group.name)">
           <div class="group-title">
@@ -110,19 +115,10 @@ const { getModelIcon, getModelGroup } = useModelIcons();
         <!-- 分组内容 -->
         <transition name="group-collapse">
           <div v-show="isGroupExpanded(group.name)" class="group-content">
-            <div
-              v-for="item in group.models"
-              :key="item.model.id"
-              class="model-item"
-            >
+            <div v-for="item in group.models" :key="item.model.id" class="model-item">
               <!-- Logo -->
               <div class="model-logo">
-                <img
-                  v-if="getModelIcon(item.model)"
-                  :src="getModelIcon(item.model)!"
-                  :alt="item.model.name"
-                  @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
-                />
+                <DynamicIcon v-if="getModelIcon(item.model)" :src="getModelIcon(item.model)!" :alt="item.model.name" />
                 <div v-else class="logo-placeholder">
                   {{ item.model.name.substring(0, 2).toUpperCase() }}
                 </div>
@@ -137,35 +133,36 @@ const { getModelIcon, getModelGroup } = useModelIcons();
               <!-- 能力图标 -->
               <div class="model-capabilities">
                 <el-tooltip v-if="item.model.capabilities?.vision" content="视觉能力" placement="top">
-                  <el-icon class="capability-icon vision"><View /></el-icon>
+                  <el-icon class="capability-icon vision">
+                    <View />
+                  </el-icon>
                 </el-tooltip>
                 <el-tooltip v-if="item.model.capabilities?.thinking" content="思考模式" placement="top">
-                  <el-icon class="capability-icon thinking"><Cpu /></el-icon>
+                  <el-icon class="capability-icon thinking">
+                    <Cpu />
+                  </el-icon>
                 </el-tooltip>
                 <el-tooltip v-if="item.model.capabilities?.webSearch" content="联网搜索" placement="top">
-                  <el-icon class="capability-icon web-search"><Search /></el-icon>
+                  <el-icon class="capability-icon web-search">
+                    <Search />
+                  </el-icon>
                 </el-tooltip>
                 <el-tooltip v-if="item.model.capabilities?.toolUse" content="工具调用" placement="top">
-                  <el-icon class="capability-icon tool-use"><Tools /></el-icon>
+                  <el-icon class="capability-icon tool-use">
+                    <Tools />
+                  </el-icon>
                 </el-tooltip>
                 <el-tooltip v-if="item.model.capabilities?.codeExecution" content="代码执行" placement="top">
-                  <el-icon class="capability-icon code-exec"><Document /></el-icon>
+                  <el-icon class="capability-icon code-exec">
+                    <Document />
+                  </el-icon>
                 </el-tooltip>
               </div>
 
               <!-- 操作按钮 -->
               <div v-if="editable" class="model-actions">
-                <el-button
-                  size="small"
-                  :icon="Edit"
-                  @click="emit('edit', item.index)"
-                />
-                <el-button
-                  size="small"
-                  type="danger"
-                  :icon="Delete"
-                  @click="emit('delete', item.index)"
-                />
+                <el-button size="small" :icon="Edit" @click="emit('edit', item.index)" />
+                <el-button size="small" type="danger" :icon="Delete" @click="emit('delete', item.index)" />
               </div>
             </div>
           </div>

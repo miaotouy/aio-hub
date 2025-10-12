@@ -11,6 +11,7 @@ declare module 'vue' {
     ConnectorIcon: typeof import('./components/icons/ConnectorIcon.vue')['default']
     DirectoryTreeIcon: typeof import('./components/icons/DirectoryTreeIcon.vue')['default']
     DropZone: typeof import('./components/common/DropZone.vue')['default']
+    DynamicIcon: typeof import('./components/common/DynamicIcon.vue')['default']
     GitBranchIcon: typeof import('./components/icons/GitBranchIcon.vue')['default']
     IconPresetSelector: typeof import('./components/common/IconPresetSelector.vue')['default']
     IEpCheck: typeof import('~icons/ep/check')['default']

@@ -14,7 +14,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     description: 'OpenAI 官方接口及所有兼容格式的服务（如 Ollama、DeepSeek 等）',
     defaultBaseUrl: 'https://api.openai.com',
     supportsModelList: true,
-    modelListEndpoint: '/v1/models',
+    modelListEndpoint: 'models',
   },
   {
     type: 'openai-responses',
@@ -22,7 +22,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     description: 'OpenAI Responses API - 新一代有状态交互接口，支持工具调用、推理等高级功能',
     defaultBaseUrl: 'https://api.openai.com',
     supportsModelList: true,
-    modelListEndpoint: '/v1/models',
+    modelListEndpoint: 'models',
   },
   {
     type: 'gemini',
@@ -30,7 +30,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     description: 'Google Gemini API',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com',
     supportsModelList: true,
-    modelListEndpoint: '/v1beta/models',
+    modelListEndpoint: 'models',
   },
   {
     type: 'claude',
@@ -38,7 +38,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     description: 'Anthropic Claude API',
     defaultBaseUrl: 'https://api.anthropic.com',
     supportsModelList: true,
-    modelListEndpoint: '/v1/models',
+    modelListEndpoint: 'models',
   },
   {
     type: 'cohere',
@@ -46,7 +46,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     description: 'Cohere API (v2 格式)',
     defaultBaseUrl: 'https://api.cohere.com',
     supportsModelList: true,
-    modelListEndpoint: '/v2/models',
+    modelListEndpoint: 'models',
   },
   {
     type: 'vertexai',
@@ -54,7 +54,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     description: 'Google Cloud Vertex AI API',
     defaultBaseUrl: 'https://us-central1-aiplatform.googleapis.com',
     supportsModelList: true,
-    modelListEndpoint: '/v1/models',
+    modelListEndpoint: 'models',
   },
 ];
 /**

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage, ElMessageBox, ElLoading } from "element-plus";
 import ProfileSidebar from "./ProfileSidebar.vue";
 import ProfileEditor from "./ProfileEditor.vue";
 import ModelList from "./ModelList.vue";
+import ModelFetcherDialog from "./ModelFetcherDialog.vue";
 import { useLlmProfiles } from "../../composables/useLlmProfiles";
 import { providerTypes, llmPresets } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
@@ -11,6 +12,7 @@ import type { LlmPreset } from "../../config/llm-providers";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@utils/llm-api-url";
 import { useModelIcons } from "../../composables/useModelIcons";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-icons";
+import { fetchModelsFromApi } from "../../llm-apis/model-fetcher";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
@@ -230,9 +232,46 @@ const deleteModel = (index: number) => {
   editForm.value.models.splice(index, 1);
 };
 
-// 从 API 获取模型列表（TODO: 实现）
+const showModelFetcherDialog = ref(false);
+const fetchedModels = ref<LlmModelInfo[]>([]);
+
+// 从 API 获取模型列表
 const fetchModels = async () => {
-  ElMessage.info("自动获取模型列表功能开发中...");
+  if (!selectedProfile.value) {
+    ElMessage.error("请先选择一个配置");
+    return;
+  }
+
+  const loading = ElLoading.service({
+    lock: true,
+    text: '正在从 API 获取模型列表...',
+    background: 'rgba(0, 0, 0, 0.7)',
+  });
+
+  try {
+    const models = await fetchModelsFromApi(selectedProfile.value);
+    
+    if (models.length === 0) {
+      ElMessage.warning("未获取到任何模型");
+      return;
+    }
+
+    fetchedModels.value = models;
+    showModelFetcherDialog.value = true;
+  } catch (error: any) {
+    ElMessage.error(`获取模型列表失败: ${error.message}`);
+  } finally {
+    loading.close();
+  }
+};
+
+// 添加从弹窗选择的模型
+const handleAddModels = (modelsToAdd: LlmModelInfo[]) => {
+  const newModels = modelsToAdd.filter(
+    (m) => !editForm.value.models.some((em) => em.id === m.id)
+  );
+  editForm.value.models.push(...newModels);
+  ElMessage.success(`成功添加 ${newModels.length} 个模型`);
 };
 
 // API 端点预览
@@ -588,6 +627,15 @@ const openModelIconSelector = () => {
         @select="selectPresetIcon"
       />
     </el-dialog>
+
+    <!-- 模型获取对话框 -->
+    <ModelFetcherDialog
+      v-if="showModelFetcherDialog"
+      v-model:visible="showModelFetcherDialog"
+      :models="fetchedModels"
+      :existing-models="editForm.models"
+      @add-models="handleAddModels"
+    />
   </div>
 </template>
 

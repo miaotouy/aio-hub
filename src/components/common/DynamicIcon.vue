@@ -2,15 +2,16 @@
   <img
     v-if="src"
     :src="src"
-    :class="{ 'invert-on-dark': needsInversion }"
+    :class="{ 'invert-on-dark': shouldInvert }"
     @error="handleImageError"
     v-bind="$attrs"
   />
 </template>
 
 <script setup lang="ts">
-import { toRefs } from "vue";
+import { toRefs, computed } from "vue";
 import { useIconColorAnalyzer } from "../../composables/useIconColorAnalyzer";
+import { useTheme } from "../../composables/useTheme";
 
 const props = defineProps({
   src: {
@@ -21,6 +22,10 @@ const props = defineProps({
 
 const { src } = toRefs(props);
 const { needsInversion } = useIconColorAnalyzer(src.value);
+const { isDark } = useTheme();
+
+// 计算是否应该反色：只有在暗色模式且图标需要反色时才反色
+const shouldInvert = computed(() => isDark.value && needsInversion.value);
 
 const FALLBACK_ICON_SRC = "/model-icons/openai.svg";
 
@@ -41,5 +46,10 @@ const handleImageError = (e: Event) => {
 img {
   display: inline-block;
   vertical-align: middle;
+}
+
+/* 单色图标在需要时反色 */
+img.invert-on-dark {
+  filter: invert(1);
 }
 </style>

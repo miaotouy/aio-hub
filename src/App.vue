@@ -1,67 +1,38 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { useDark } from "@vueuse/core";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig } from "./config/tools";
-import { loadAppSettingsAsync, updateAppSettingsAsync, type AppSettings } from "./utils/appSettings";
+import {
+  loadAppSettingsAsync,
+  updateAppSettingsAsync,
+  type AppSettings,
+} from "./utils/appSettings";
 import { createModuleLogger } from "./utils/logger";
 import TitleBar from "./components/TitleBar.vue";
 import SystemThemeIcon from "./components/icons/SystemThemeIcon.vue";
+import { useTheme } from "./composables/useTheme";
 
-const logger = createModuleLogger('App');
+const logger = createModuleLogger("App");
 
 const router = useRouter();
 const route = useRoute();
-const isDark = useDark();
+const { currentTheme, toggleTheme } = useTheme();
 const isCollapsed = ref(false); // 控制侧边栏收起状态
 
 // 应用设置
 const appSettings = ref<AppSettings>({
   sidebarCollapsed: false,
-  theme: 'auto',
-  toolsVisible: {}
+  theme: "auto",
+  toolsVisible: {},
 });
-
-// 切换主题（循环切换：auto -> light -> dark -> auto）
-const toggleDark = async () => {
-  let newTheme: 'auto' | 'light' | 'dark';
-  
-  // 根据当前主题设置决定下一个主题
-  const currentTheme = appSettings.value.theme || 'auto';
-  
-  if (currentTheme === 'auto') {
-    // 自动 -> 浅色
-    newTheme = 'light';
-  } else if (currentTheme === 'light') {
-    // 浅色 -> 深色
-    newTheme = 'dark';
-  } else {
-    // 深色 -> 自动
-    newTheme = 'auto';
-  }
-  
-  // 更新设置并保存
-  appSettings.value.theme = newTheme;
-  await updateAppSettingsAsync({ theme: newTheme });
-  
-  // 应用新主题
-  applyTheme(newTheme);
-  
-  // 发送事件通知设置页面
-  window.dispatchEvent(new CustomEvent('app-settings-changed', {
-    detail: { ...appSettings.value, theme: newTheme }
-  }));
-};
 
 // 获取当前主题图标
 const getThemeIcon = computed(() => {
-  const theme = appSettings.value.theme || 'auto';
-  
-  if (theme === 'auto') {
+  if (currentTheme.value === "auto") {
     // 跟随系统模式，显示自定义的太阳月亮组合图标
     return SystemThemeIcon;
-  } else if (theme === 'light') {
+  } else if (currentTheme.value === "light") {
     // 固定浅色模式，显示太阳
     return Sunny;
   } else {
@@ -72,14 +43,12 @@ const getThemeIcon = computed(() => {
 
 // 获取主题提示文本
 const getThemeTooltip = computed(() => {
-  const theme = appSettings.value.theme || 'auto';
-  
-  if (theme === 'auto') {
-    return '主题：跟随系统';
-  } else if (theme === 'light') {
-    return '主题：浅色';
+  if (currentTheme.value === "auto") {
+    return "主题：跟随系统";
+  } else if (currentTheme.value === "light") {
+    return "主题：浅色";
   } else {
-    return '主题：深色';
+    return "主题：深色";
   }
 });
 
@@ -94,8 +63,8 @@ const visibleTools = computed(() => {
   if (!appSettings.value.toolsVisible) {
     return toolsConfig; // 如果没有设置，显示所有工具
   }
-  
-  return toolsConfig.filter(tool => {
+
+  return toolsConfig.filter((tool) => {
     const toolId = getToolIdFromPath(tool.path);
     // 默认为 true，如果未设置则显示
     return appSettings.value.toolsVisible![toolId] !== false;
@@ -108,19 +77,6 @@ const toggleSidebar = async () => {
   updateAppSettingsAsync({ sidebarCollapsed: isCollapsed.value });
 };
 
-// 应用主题设置
-const applyTheme = (theme: 'auto' | 'light' | 'dark') => {
-  if (theme === 'auto') {
-    // 检测系统主题
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    isDark.value = systemDark;
-  } else if (theme === 'dark') {
-    isDark.value = true;
-  } else {
-    isDark.value = false;
-  }
-};
-
 // 应用主题色
 const applyThemeColor = (color: string) => {
   // 验证颜色格式
@@ -131,29 +87,29 @@ const applyThemeColor = (color: string) => {
   // 设置 CSS 变量
   const root = document.documentElement;
   root.style.setProperty("--primary-color", color);
-  
+
   // 计算悬停色（变亮）
   const hoverColor = lightenColor(color, 20);
   root.style.setProperty("--primary-hover-color", hoverColor);
-  
+
   // 计算 RGB 值
   const rgb = hexToRgb(color);
   if (rgb) {
     root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
   }
-  
+
   // 同步 Element Plus 变量
   root.style.setProperty("--el-color-primary", color);
   root.style.setProperty("--el-color-primary-light-3", hoverColor);
   root.style.setProperty("--el-color-primary-light-5", hoverColor);
   root.style.setProperty("--el-color-primary-light-7", hoverColor);
   root.style.setProperty("--el-color-primary-light-9", hoverColor);
-  
+
   // 缓存到 localStorage 以避免下次启动时的闪烁
   try {
-    localStorage.setItem('app-theme-color', color);
+    localStorage.setItem("app-theme-color", color);
   } catch (error) {
-    logger.warn('缓存主题颜色失败', { color, error });
+    logger.warn("缓存主题颜色失败", { color, error });
   }
 };
 
@@ -172,11 +128,11 @@ const hexToRgb = (hex: string) => {
 const lightenColor = (hex: string, percent: number) => {
   const rgb = hexToRgb(hex);
   if (!rgb) return hex;
-  
+
   const r = Math.min(255, Math.floor(rgb.r + (255 - rgb.r) * (percent / 100)));
   const g = Math.min(255, Math.floor(rgb.g + (255 - rgb.g) * (percent / 100)));
   const b = Math.min(255, Math.floor(rgb.b + (255 - rgb.b) * (percent / 100)));
-  
+
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 };
 
@@ -185,12 +141,9 @@ const loadSettings = async () => {
   const settings = await loadAppSettingsAsync();
   appSettings.value = settings;
   isCollapsed.value = settings.sidebarCollapsed;
-  
-  // 应用主题设置
-  if (settings.theme) {
-    applyTheme(settings.theme);
-  }
-  
+
+  // 主题设置由 useTheme 模块自动加载和应用
+
   // 应用主题色
   if (settings.themeColor) {
     applyThemeColor(settings.themeColor);
@@ -203,48 +156,47 @@ let handleSettingsChange: ((event: Event) => void) | null = null;
 onMounted(async () => {
   // 初始加载设置
   await loadSettings();
-  
+
   // 监听设置变化事件（来自设置页面）- 这是主要的同步机制
   handleSettingsChange = (event: Event) => {
     const customEvent = event as CustomEvent<AppSettings>;
     if (customEvent.detail) {
       appSettings.value = customEvent.detail;
       isCollapsed.value = customEvent.detail.sidebarCollapsed;
-      
-      // 同步主题设置
-      if (customEvent.detail.theme) {
-        applyTheme(customEvent.detail.theme);
-      }
-      
+
+      // 主题设置由 useTheme 模块处理
+
       // 同步主题色
       if (customEvent.detail.themeColor) {
         applyThemeColor(customEvent.detail.themeColor);
       }
     }
   };
-  
-  window.addEventListener('app-settings-changed', handleSettingsChange);
+
+  window.addEventListener("app-settings-changed", handleSettingsChange);
 });
 
 // 监听路由变化，仅在离开设置页面时更新一次
-watch(() => route.path, async (_, oldPath) => {
-  if (oldPath === '/settings') {
-    // 离开设置页面时从文件系统加载最新设置，确保数据同步
-    // 使用 setTimeout 避免与事件处理冲突
-    setTimeout(async () => {
-      await loadSettings();
-    }, 100);
+watch(
+  () => route.path,
+  async (_, oldPath) => {
+    if (oldPath === "/settings") {
+      // 离开设置页面时从文件系统加载最新设置，确保数据同步
+      // 使用 setTimeout 避免与事件处理冲突
+      setTimeout(async () => {
+        await loadSettings();
+      }, 100);
+    }
   }
-});
+);
 
 // 清理事件监听器
 onUnmounted(() => {
   // 移除事件监听器
   if (handleSettingsChange) {
-    window.removeEventListener('app-settings-changed', handleSettingsChange);
+    window.removeEventListener("app-settings-changed", handleSettingsChange);
   }
 });
-
 
 const handleSelect = (key: string) => {
   router.push(key);
@@ -254,7 +206,7 @@ const handleSelect = (key: string) => {
 <template>
   <!-- 自定义标题栏 -->
   <TitleBar />
-  
+
   <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
   <el-container class="common-layout">
     <el-aside
@@ -268,13 +220,8 @@ const handleSelect = (key: string) => {
           <div class="header-text-wrapper">
             <h2 class="sidebar-title">AIO工具箱</h2>
           </div>
-          <el-tooltip
-            effect="dark"
-            :content="getThemeTooltip"
-            placement="bottom"
-            :hide-after="0"
-          >
-            <el-icon class="theme-icon" @click="toggleDark">
+          <el-tooltip effect="dark" :content="getThemeTooltip" placement="bottom" :hide-after="0">
+            <el-icon class="theme-icon" @click="toggleTheme">
               <component :is="getThemeIcon" />
             </el-icon>
           </el-tooltip>
@@ -286,7 +233,7 @@ const handleSelect = (key: string) => {
           placement="right"
           :hide-after="0"
         >
-          <div class="sidebar-header-collapsed" @click="toggleDark">
+          <div class="sidebar-header-collapsed" @click="toggleTheme">
             <el-icon class="theme-icon-only">
               <component :is="getThemeIcon" />
             </el-icon>
@@ -412,7 +359,6 @@ const handleSelect = (key: string) => {
   color: var(--primary-color); /* 悬停颜色 */
   background-color: rgba(var(--primary-color-rgb), 0.1);
 }
-
 
 .sidebar-title {
   color: var(--sidebar-text);

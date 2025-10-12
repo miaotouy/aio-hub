@@ -2,7 +2,6 @@
 import { ref, onMounted, watch, onUnmounted } from "vue";
 import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { useDark } from "@vueuse/core";
 import {
   loadAppSettingsAsync,
   saveAppSettingsDebounced,
@@ -15,9 +14,10 @@ import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
 import ThemeColorSettings from "./components/ThemeColorSettings.vue";
+import { useTheme } from "../composables/useTheme";
 
 const logger = createModuleLogger("Settings");
-const isDark = useDark();
+const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -127,18 +127,6 @@ const handleSelect = (key: string) => {
   scrollToSection(key);
 };
 
-// 应用主题
-const applyTheme = (theme: "auto" | "light" | "dark") => {
-  if (theme === "auto") {
-    // 检测系统主题
-    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    isDark.value = systemDark;
-  } else if (theme === "dark") {
-    isDark.value = true;
-  } else {
-    isDark.value = false;
-  }
-};
 
 // 重置设置
 const handleReset = async () => {
@@ -152,7 +140,7 @@ const handleReset = async () => {
     isLoadingFromFile = true; // 防止触发不必要的事件
     const defaultSettings = await resetAppSettingsAsync();
     settings.value = { ...defaultSettings };
-    applyTheme(settings.value.theme || "auto");
+    applyThemeFromComposable(settings.value.theme || "auto");
 
     // 手动触发同步事件
     setTimeout(() => {
@@ -269,9 +257,9 @@ watch(
     // 保存设置到文件系统（使用防抖）
     saveAppSettingsDebounced(newSettings);
 
-    // 应用主题设置
+    // 应用主题设置（使用统一的主题管理）
     if (newSettings.theme) {
-      applyTheme(newSettings.theme);
+      applyThemeFromComposable(newSettings.theme);
     }
 
     // 应用主题色系统
@@ -319,8 +307,8 @@ onMounted(async () => {
 
   settings.value = loadedSettings;
 
-  // 应用主题
-  applyTheme(settings.value.theme || "auto");
+  // 应用主题（使用统一的主题管理）
+  applyThemeFromComposable(settings.value.theme || "auto");
 
   // 应用主题色系统
   applyThemeColors({
@@ -347,7 +335,7 @@ onMounted(async () => {
       // 更新本地设置但不触发保存（因为侧边栏已经保存了）
       isLoadingFromFile = true;
       settings.value.theme = customEvent.detail.theme;
-      applyTheme(customEvent.detail.theme);
+      // 主题已经由 useTheme 统一管理，这里只需要同步本地状态
       setTimeout(() => {
         isLoadingFromFile = false;
       }, 100);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Plus, Delete, Edit, View, Search, Tools, Document, ArrowRight } from "@element-plus/icons-vue";
+import { Plus, Delete, Edit, View, Search, Tools, Document, ArrowRight, Cpu } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
 import { useModelIcons } from "../../composables/useModelIcons";
 
@@ -138,6 +138,9 @@ const { getModelIcon, getModelGroup } = useModelIcons();
               <div class="model-capabilities">
                 <el-tooltip v-if="item.model.capabilities?.vision" content="视觉能力" placement="top">
                   <el-icon class="capability-icon vision"><View /></el-icon>
+                </el-tooltip>
+                <el-tooltip v-if="item.model.capabilities?.thinking" content="思考模式" placement="top">
+                  <el-icon class="capability-icon thinking"><Cpu /></el-icon>
                 </el-tooltip>
                 <el-tooltip v-if="item.model.capabilities?.webSearch" content="联网搜索" placement="top">
                   <el-icon class="capability-icon web-search"><Search /></el-icon>
@@ -375,6 +378,10 @@ const { getModelIcon, getModelGroup } = useModelIcons();
 
 .capability-icon.vision {
   color: #409eff;
+}
+
+.capability-icon.thinking {
+  color: #9c27b0;
 }
 
 .capability-icon.web-search {

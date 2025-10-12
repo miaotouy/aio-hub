@@ -53,7 +53,64 @@ export interface LlmModelInfo {
     toolUse?: boolean;
     /** 是否支持代码执行 */
     codeExecution?: boolean;
+    /** 是否支持思考模式 */
+    thinking?: boolean;
   };
+  /**
+   * Token 限制信息（可选）
+   */
+  tokenLimits?: {
+    /** 输出 token 限制 */
+    output?: number;
+    /** 上下文窗口大小 */
+    contextLength?: number;
+  };
+  /**
+   * 架构和模态信息（可选）
+   */
+  architecture?: {
+    /** 模态类型，如 'text->text', 'text+image->text' */
+    modality?: string;
+    /** 输入模态列表 */
+    inputModalities?: string[];
+    /** 输出模态列表 */
+    outputModalities?: string[];
+  };
+  /**
+   * 支持的生成方法或参数（可选）
+   */
+  supportedFeatures?: {
+    /** 支持的生成方法（Gemini） */
+    generationMethods?: string[];
+    /** 支持的参数列表（OpenRouter） */
+    parameters?: string[];
+  };
+  /**
+   * 默认参数建议（可选）
+   */
+  defaultParameters?: {
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    maxTemperature?: number;
+  };
+  /**
+   * 价格信息（可选）
+   */
+  pricing?: {
+    /** 输入价格（每 token） */
+    prompt?: string;
+    /** 输出价格（每 token） */
+    completion?: string;
+    /** 请求价格 */
+    request?: string;
+    /** 图片价格 */
+    image?: string;
+  };
+  /**
+   * 模型版本（可选）
+   */
+  version?: string;
   /**
    * 自定义模型图标路径（可选）
    * 优先级高于 provider 图标和全局匹配规则

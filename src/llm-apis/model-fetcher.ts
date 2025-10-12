@@ -116,14 +116,78 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
     case 'openai':
     case 'openai-responses':
       // OpenAI 格式: { data: [{ id, object, created, owned_by }] }
+      // 或增强格式 (OpenRouter): { data: [{ id, name, description, context_length, architecture, pricing, ... }] }
       if (data.data && Array.isArray(data.data)) {
         for (const model of data.data) {
-          models.push({
+          // 检测是否为增强格式（有更多字段）
+          const isEnhancedFormat = model.context_length || model.architecture || model.pricing;
+          
+          const modelInfo: LlmModelInfo = {
             id: model.id,
-            name: model.id, // 使用 ID 作为默认名称
+            name: model.name || model.id,
             group: extractModelGroup(model.id, 'openai'),
-            provider: 'openai',
-          });
+            provider: model.owned_by || 'openai',
+            description: model.description,
+          };
+
+          // 解析增强字段
+          if (isEnhancedFormat) {
+            // Token 限制
+            if (model.context_length) {
+              modelInfo.tokenLimits = {
+                contextLength: model.context_length,
+              };
+              
+              // 如果有 max_completion_tokens，设置输出限制
+              if (model.top_provider?.max_completion_tokens) {
+                modelInfo.tokenLimits.output = model.top_provider.max_completion_tokens;
+              }
+            }
+            
+            // 架构信息
+            if (model.architecture) {
+              modelInfo.architecture = {
+                modality: model.architecture.modality,
+                inputModalities: model.architecture.input_modalities,
+                outputModalities: model.architecture.output_modalities,
+              };
+              
+              // 根据架构判断能力
+              const inputMods = model.architecture.input_modalities || [];
+              modelInfo.capabilities = {
+                vision: inputMods.includes('image'),
+                thinking: model.supported_parameters?.includes('reasoning') ||
+                          model.supported_parameters?.includes('include_reasoning'),
+              };
+            }
+            
+            // 价格信息
+            if (model.pricing) {
+              modelInfo.pricing = {
+                prompt: model.pricing.prompt,
+                completion: model.pricing.completion,
+                request: model.pricing.request,
+                image: model.pricing.image,
+              };
+            }
+            
+            // 支持的参数
+            if (model.supported_parameters) {
+              modelInfo.supportedFeatures = {
+                parameters: model.supported_parameters,
+              };
+            }
+            
+            // 默认参数
+            if (model.default_parameters) {
+              modelInfo.defaultParameters = {
+                temperature: model.default_parameters.temperature,
+                topP: model.default_parameters.top_p,
+              };
+            }
+          }
+          
+          models.push(modelInfo);
         }
       }
       break;
@@ -138,6 +202,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
               name: model.display_name || model.id,
               group: extractModelGroup(model.id, 'claude'),
               provider: 'anthropic',
+              description: model.description,
               capabilities: {
                 vision: model.id.includes('opus') || model.id.includes('sonnet') || model.id.includes('haiku'),
               },
@@ -148,18 +213,39 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
       break;
 
     case 'gemini':
-      // Gemini 格式: { models: [{ name, displayName, supportedGenerationMethods }] }
+      // Gemini 格式: { models: [{ name, displayName, supportedGenerationMethods, inputTokenLimit, outputTokenLimit, ... }] }
       if (data.models && Array.isArray(data.models)) {
         for (const model of data.models) {
           // 从 name 中提取模型 ID (格式: models/gemini-xxx)
           const modelId = model.name.replace('models/', '');
+          
+          // 判断是否支持视觉：检查是否支持 generateContent 且不是 embedding 模型
+          const supportsVision = model.supportedGenerationMethods?.includes('generateContent')
+            && !modelId.includes('embedding');
+          
           models.push({
             id: modelId,
             name: model.displayName || modelId,
             group: extractModelGroup(modelId, 'gemini'),
             provider: 'gemini',
+            version: model.version,
+            description: model.description,
             capabilities: {
-              vision: model.supportedGenerationMethods?.includes('generateContent'),
+              vision: supportsVision,
+              thinking: model.thinking === true,
+            },
+            tokenLimits: {
+              contextLength: model.inputTokenLimit,
+              output: model.outputTokenLimit,
+            },
+            supportedFeatures: {
+              generationMethods: model.supportedGenerationMethods,
+            },
+            defaultParameters: {
+              temperature: model.temperature,
+              topP: model.topP,
+              topK: model.topK,
+              maxTemperature: model.maxTemperature,
             },
           });
         }

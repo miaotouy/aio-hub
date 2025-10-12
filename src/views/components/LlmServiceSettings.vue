@@ -5,6 +5,7 @@ import ProfileSidebar from "./ProfileSidebar.vue";
 import ProfileEditor from "./ProfileEditor.vue";
 import ModelList from "./ModelList.vue";
 import ModelFetcherDialog from "./ModelFetcherDialog.vue";
+import ModelEditDialog from "./ModelEditDialog.vue";
 import { useLlmProfiles } from "../../composables/useLlmProfiles";
 import { providerTypes, llmPresets } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
@@ -37,16 +38,9 @@ const editForm = ref<LlmProfile>({
 });
 
 // 模型编辑
-const modelEditForm = ref<LlmModelInfo>({
-  id: "",
-  name: "",
-  group: "",
-  capabilities: {
-    vision: false,
-  },
-});
 const showModelDialog = ref(false);
-const editingModelIndex = ref<number>(-1);
+const editingModel = ref<LlmModelInfo | null>(null);
+const isEditingModel = ref(false);
 
 // API Key 输入处理
 const apiKeyInput = ref("");
@@ -54,8 +48,6 @@ const apiKeyInput = ref("");
 // 预设选择对话框
 const showPresetDialog = ref(false);
 const showPresetIconDialog = ref(false);
-// 标记当前正在编辑的图标类型：'provider' 或 'model'
-const editingIconTarget = ref<'provider' | 'model'>('provider');
 
 // 计算当前选中的配置
 const selectedProfile = computed(() => {
@@ -186,46 +178,28 @@ const getProviderTypeInfo = (type: ProviderType) => {
 
 // 模型管理
 const addModel = () => {
-  modelEditForm.value = {
-    id: "",
-    name: "",
-    group: "",
-    capabilities: {
-      vision: false,
-    },
-  };
-  editingModelIndex.value = -1;
+  editingModel.value = null;
+  isEditingModel.value = false;
   showModelDialog.value = true;
 };
 
 const editModel = (index: number) => {
-  const model = editForm.value.models[index];
-  modelEditForm.value = {
-    ...model,
-    capabilities: model.capabilities || { vision: false },
-  };
-  editingModelIndex.value = index;
+  editingModel.value = editForm.value.models[index];
+  isEditingModel.value = true;
   showModelDialog.value = true;
 };
 
-const saveModel = () => {
-  if (!modelEditForm.value.id.trim()) {
-    ElMessage.error("请输入模型 ID");
-    return;
-  }
-  if (!modelEditForm.value.name.trim()) {
-    ElMessage.error("请输入模型名称");
-    return;
-  }
-
-  if (editingModelIndex.value === -1) {
-    // 新增
-    editForm.value.models.push({ ...modelEditForm.value });
+const handleSaveModel = (model: LlmModelInfo) => {
+  if (isEditingModel.value && editingModel.value) {
+    // 编辑模式：找到原模型并替换
+    const index = editForm.value.models.findIndex(m => m.id === editingModel.value!.id);
+    if (index !== -1) {
+      editForm.value.models[index] = model;
+    }
   } else {
-    // 编辑
-    editForm.value.models[editingModelIndex.value] = { ...modelEditForm.value };
+    // 新增模式
+    editForm.value.models.push(model);
   }
-  showModelDialog.value = false;
 };
 
 const deleteModel = (index: number) => {
@@ -303,31 +277,14 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
 
 const selectPresetIcon = (icon: any) => {
   const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
-  
-  if (editingIconTarget.value === 'provider') {
-    // 编辑供应商图标
-    if (editForm.value) {
-      editForm.value.icon = iconPath;
-    }
-  } else {
-    // 编辑模型图标
-    if (modelEditForm.value) {
-      modelEditForm.value.icon = iconPath;
-    }
+  if (editForm.value) {
+    editForm.value.icon = iconPath;
   }
-  
   showPresetIconDialog.value = false;
 };
 
 // 打开供应商图标选择器
 const openProviderIconSelector = () => {
-  editingIconTarget.value = 'provider';
-  showPresetIconDialog.value = true;
-};
-
-// 打开模型图标选择器
-const openModelIconSelector = () => {
-  editingIconTarget.value = 'model';
   showPresetIconDialog.value = true;
 };
 </script>
@@ -407,7 +364,7 @@ const openModelIconSelector = () => {
           <el-form-item label="供应商图标">
             <el-input
               v-model="editForm.icon"
-              placeholder="自定义图标路径或URL, 或选择预设"
+              placeholder="自定义图标路径或URL，或选择预设"
             >
               <template #append>
                 <el-button @click="openProviderIconSelector">选择预设</el-button>
@@ -579,43 +536,12 @@ const openModelIconSelector = () => {
     </el-dialog>
 
     <!-- 模型编辑对话框 -->
-    <el-dialog
-      v-model="showModelDialog"
-      :title="editingModelIndex === -1 ? '添加模型' : '编辑模型'"
-      width="500px"
-    >
-      <el-form :model="modelEditForm" label-width="80px">
-        <el-form-item label="模型 ID">
-          <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o" />
-        </el-form-item>
-        <el-form-item label="显示名称">
-          <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
-        </el-form-item>
-        <el-form-item label="分组">
-          <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
-        </el-form-item>
-        <el-form-item label="模型图标">
-          <el-input
-            v-model="modelEditForm.icon"
-            placeholder="可选，自定义图标路径或选择预设"
-          >
-            <template #append>
-              <el-button @click="openModelIconSelector">选择预设</el-button>
-            </template>
-          </el-input>
-          <div class="form-hint">留空则使用全局规则自动匹配</div>
-        </el-form-item>
-        <el-form-item label="视觉模型">
-          <el-switch v-model="modelEditForm.capabilities!.vision" />
-          <div class="form-hint">是否为支持图像输入的视觉语言模型 (VLM)</div>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="showModelDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveModel">确定</el-button>
-      </template>
-    </el-dialog>
+    <ModelEditDialog
+      v-model:visible="showModelDialog"
+      :model="editingModel"
+      :is-editing="isEditingModel"
+      @save="handleSaveModel"
+    />
 
     <!-- 预设图标选择对话框 -->
     <el-dialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" top="5vh">

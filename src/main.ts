@@ -14,6 +14,8 @@ import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获�
 import { createPinia } from 'pinia'; // 导入 Pinia
 import { errorHandler, ErrorLevel } from './utils/errorHandler';
 import { createModuleLogger } from './utils/logger';
+import { loadAppSettingsAsync } from './utils/appSettings';
+import { initTheme } from './composables/useTheme';
 
 const logger = createModuleLogger('Main');
 
@@ -151,10 +153,33 @@ window.addEventListener('error', (event) => {
     }
   });
 });
+// 异步启动函数
+const initializeApp = async () => {
+  try {
+    // 1. 首先异步加载应用设置
+    await loadAppSettingsAsync();
+    logger.info('应用设置初始化完成');
+
+    // 2. 初始化主题
+    await initTheme();
+    logger.info('主题初始化完成');
+
+    // 3. 挂载 Vue 应用
+    app.mount("#app");
+    logger.info('应用挂载完成');
+  } catch (error) {
+    logger.error('应用初始化失败', error);
+    // 可以在这里显示一个全局的错误提示
+    errorHandler.handle(error, {
+      module: 'Main',
+      level: ErrorLevel.CRITICAL,
+      userMessage: '应用启动失败，请检查配置或联系支持。',
+    });
+  }
+};
 
 logger.info('应用启动', { version: '0.1.6' });
-app.mount("#app");
-logger.info('应用挂载完成');
+initializeApp();
 
 // 剪贴板监听逻辑
 // 在 Vue 应用挂载后执行

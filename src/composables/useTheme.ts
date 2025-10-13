@@ -1,8 +1,8 @@
 import { ref } from "vue";
 import { useDark } from "@vueuse/core";
-import { loadAppSettings, updateAppSettings } from "@utils/appSettings";
+import { loadAppSettingsAsync, updateAppSettings } from "@utils/appSettings";
 
-// 这是一个全局共享的状态，类似于单例
+// 这是一个全局共享的状态,类似于单例
 const isDark = useDark();
 const currentTheme = ref<'auto' | 'light' | 'dark'>('auto');
 
@@ -41,10 +41,14 @@ function toggleTheme() {
   updateAppSettings({ theme: newTheme });
 }
 
-// 在模块首次加载时，从设置中初始化主题
-// 这段代码只会在应用启动时执行一次
-const settings = loadAppSettings();
-applyTheme(settings.theme || 'auto');
+/**
+ * 异步初始化主题
+ * 从应用设置中加载主题配置
+ */
+export async function initTheme(): Promise<void> {
+  const settings = await loadAppSettingsAsync();
+  applyTheme(settings.theme || 'auto');
+}
 
 // 监听系统颜色方案变化，以便在 'auto' 模式下实时更新
 const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');

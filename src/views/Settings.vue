@@ -15,6 +15,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
 import ThemeColorSettings from "./components/ThemeColorSettings.vue";
 import { useTheme } from "../composables/useTheme";
+import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { appDataDir, join } from "@tauri-apps/api/path";
+import { openPath } from "@tauri-apps/plugin-opener";
 
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
@@ -158,6 +162,117 @@ const handleReset = async () => {
     if (error !== "cancel") {
       logger.error("重置应用设置失败", error);
       ElMessage.error("重置设置失败");
+    }
+  }
+};
+// 打开配置文件目录
+const handleOpenConfigDir = async () => {
+  try {
+    const appDir = await appDataDir();
+    const configDir = await join(appDir, "app-settings");
+
+    // 使用 TypeScript API
+    try {
+      await openPath(configDir);
+    } catch (openError) {
+      // 备用方案：复制路径到剪贴板
+      logger.warn("无法直接打开目录，尝试复制路径", openError);
+
+      const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+      await writeText(configDir);
+
+      ElMessageBox.alert(
+        `无法自动打开目录，路径已复制到剪贴板：\n${configDir}`,
+        "提示",
+        {
+          confirmButtonText: "确定",
+          type: "info",
+        }
+      );
+    }
+  } catch (error) {
+    logger.error("获取配置目录路径失败", error);
+    ElMessage.error("无法访问配置目录");
+  }
+};
+
+// 导出配置
+const handleExportConfig = async () => {
+  try {
+    const filePath = await save({
+      title: "导出配置",
+      defaultPath: `all-in-one-tools-config-${new Date().toISOString().split("T")[0]}.json`,
+      filters: [
+        {
+          name: "JSON 配置文件",
+          extensions: ["json"],
+        },
+      ],
+    });
+
+    if (filePath) {
+      const configContent = JSON.stringify(settings.value, null, 2);
+      await writeTextFile(filePath, configContent);
+      ElMessage.success("配置导出成功");
+    }
+  } catch (error) {
+    logger.error("导出配置失败", error);
+    ElMessage.error("导出配置失败");
+  }
+};
+
+// 导入配置
+const handleImportConfig = async () => {
+  try {
+    const filePath = await openDialog({
+      title: "导入配置",
+      multiple: false,
+      filters: [
+        {
+          name: "JSON 配置文件",
+          extensions: ["json"],
+        },
+      ],
+    });
+
+    if (filePath) {
+      await ElMessageBox.confirm(
+        "导入配置将覆盖当前所有设置，是否继续？",
+        "导入配置",
+        {
+          confirmButtonText: "确定",
+          cancelButtonText: "取消",
+          type: "warning",
+        }
+      );
+
+      const configContent = await readTextFile(filePath as string);
+      const importedConfig = JSON.parse(configContent);
+
+      // 验证导入的配置是否有效
+      if (typeof importedConfig !== "object" || importedConfig === null) {
+        throw new Error("无效的配置文件格式");
+      }
+
+      isLoadingFromFile = true;
+      settings.value = { ...settings.value, ...importedConfig };
+
+      // 手动触发同步事件
+      setTimeout(() => {
+        isLoadingFromFile = false;
+        window.dispatchEvent(
+          new CustomEvent("app-settings-changed", {
+            detail: settings.value,
+          })
+        );
+      }, 100);
+
+      ElMessage.success("配置导入成功");
+    }
+  } catch (error) {
+    if (error !== "cancel") {
+      logger.error("导入配置失败", error);
+      ElMessage.error("导入配置失败");
     }
   }
 };
@@ -485,6 +600,30 @@ onUnmounted(() => {
                 </el-tooltip>
               </div>
               <el-switch v-model="settings.autoAdjustWindowPosition" />
+            </div>
+
+            <el-divider />
+
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>配置管理</span>
+                <el-tooltip content="打开配置文件目录、导出或导入配置文件" placement="top">
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
+                </el-tooltip>
+              </div>
+              <div class="config-actions">
+                <el-button @click="handleOpenConfigDir" size="small">
+                  打开配置目录
+                </el-button>
+                <el-button @click="handleExportConfig" size="small">
+                  导出配置
+                </el-button>
+                <el-button @click="handleImportConfig" size="small">
+                  导入配置
+                </el-button>
+              </div>
             </div>
           </section>
 
@@ -829,6 +968,13 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* 配置管理按钮组 */
+.config-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* 动态组件 section 特殊样式 */

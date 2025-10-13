@@ -358,3 +358,10 @@ html.dark .el-message--info {
 .invert-on-dark {
   filter: invert(1);
 }
+
+/* 修复 el-dropdown 在暗色模式下悬停时的样式 - 使用半透明背景和白色文字 */
+html.dark .el-dropdown-menu__item:focus,
+html.dark .el-dropdown-menu__item:not(.is-disabled):hover {
+  background-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent) !important;
+  color: #ffffff !important;
+}

@@ -368,3 +368,10 @@ body {
   --el-message-text-color: var(--el-color-info);
   --el-message-close-color: var(--el-color-info);
 }
+
+/* 修复 el-dropdown 悬停时的样式 - 使用半透明背景，亮色模式下文字保持主题色 */
+.el-dropdown-menu__item:focus,
+.el-dropdown-menu__item:not(.is-disabled):hover {
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent) !important;
+  color: var(--el-color-primary) !important;
+}

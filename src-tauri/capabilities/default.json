@@ -37,6 +37,7 @@
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-meta-recursive",
     "clipboard-manager:default",
+    "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text"
   ]
 }

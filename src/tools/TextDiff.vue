@@ -169,8 +169,8 @@
           v-model:modified="textB"
           :language="language"
           :options="editorOptions"
+          :theme="monacoTheme"
           class="diff-editor"
-          theme="vs-dark"
           @editor-mounted="handleEditorMounted"
         />
       </div>
@@ -198,8 +198,12 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { ElMessage } from "element-plus";
 import { createTwoFilesPatch } from "diff";
 import { useFileDrop } from "@composables/useFileDrop";
+import { useTheme } from "@composables/useTheme";
 
 const logger = createModuleLogger("TextDiff");
+
+// 主题
+const { isDark } = useTheme();
 
 // 文本内容
 const textA = ref("");
@@ -228,6 +232,9 @@ const currentDiffIndex = ref(0);
 const totalDiffs = ref(0);
 const diffEditor = shallowRef<editor.IStandaloneDiffEditor | null>(null);
 const diffNavigator = shallowRef<any>(null);
+
+// Monaco 主题（根据亮暗主题动态切换）
+const monacoTheme = computed(() => isDark.value ? "vs-dark" : "vs");
 
 // 编辑器配置（计算属性）
 const editorOptions = computed(() => ({

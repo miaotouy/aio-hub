@@ -14,6 +14,7 @@ declare module 'vue' {
     DynamicIcon: typeof import('./components/common/DynamicIcon.vue')['default']
     GitBranchIcon: typeof import('./components/icons/GitBranchIcon.vue')['default']
     IconPresetSelector: typeof import('./components/common/IconPresetSelector.vue')['default']
+    IEpArrowRight: typeof import('~icons/ep/arrow-right')['default']
     IEpCheck: typeof import('~icons/ep/check')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
     IEpLink: typeof import('~icons/ep/link')['default']

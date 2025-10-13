@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { LlmModelInfo } from '../../types/llm-profiles';
-import { groupBy } from 'lodash-es';
 import { useModelIcons } from '../../composables/useModelIcons';
 import DynamicIcon from '../../components/common/DynamicIcon.vue';
 
@@ -13,14 +12,32 @@ const props = defineProps<{
 
 const emit = defineEmits(['update:visible', 'add-models']);
 
-const { getDisplayIconPath, getIconPath } = useModelIcons();
+const { getDisplayIconPath, getIconPath, getModelGroup } = useModelIcons();
 
 const searchQuery = ref('');
 const selectedModels = ref<LlmModelInfo[]>([]);
+const expandedGroups = ref<Record<string, boolean>>({});
 
-// 根据分组聚合模型
+// 根据分组聚合模型（使用 getModelGroup 获取正确的分组）
 const groupedModels = computed(() => {
-  return groupBy(props.models, 'group');
+  const groups: Record<string, LlmModelInfo[]> = {};
+  
+  for (const model of props.models) {
+    const groupName = getModelGroup(model);
+    if (!groups[groupName]) {
+      groups[groupName] = [];
+    }
+    groups[groupName].push(model);
+  }
+  
+  // 初始化展开状态（默认全部展开）
+  for (const groupName of Object.keys(groups)) {
+    if (!(groupName in expandedGroups.value)) {
+      expandedGroups.value[groupName] = true;
+    }
+  }
+  
+  return groups;
 });
 
 // 过滤后的模型
@@ -82,6 +99,16 @@ const toggleGroupSelection = (groupModels: LlmModelInfo[]) => {
   }
 };
 
+// 切换分组展开状态
+const toggleGroupExpand = (groupName: string) => {
+  expandedGroups.value[groupName] = !expandedGroups.value[groupName];
+};
+
+// 判断分组是否展开
+const isGroupExpanded = (groupName: string): boolean => {
+  return expandedGroups.value[groupName] !== false;
+};
+
 const handleConfirm = () => {
   emit('add-models', selectedModels.value);
   closeDialog();
@@ -119,31 +146,41 @@ const getModelIcon = (model: LlmModelInfo) => {
 
       <div class="model-list-container">
         <div v-for="(groupModels, groupName) in filteredGroups" :key="groupName" class="model-group">
-          <div class="group-header" @click="toggleGroupSelection(groupModels)">
-            <span>{{ groupName }} ({{ groupModels.length }})</span>
-            <el-button link>
+          <div class="group-header">
+            <div class="group-title" @click="toggleGroupExpand(groupName)">
+              <el-icon class="expand-icon" :class="{ expanded: isGroupExpanded(groupName) }">
+                <i-ep-arrow-right />
+              </el-icon>
+              <span class="group-name">{{ groupName }}</span>
+              <span class="group-count">{{ groupModels.length }}</span>
+            </div>
+            <el-button link size="small" @click.stop="toggleGroupSelection(groupModels)">
               {{ groupModels.every(m => isModelSelected(m) || isModelExisting(m.id)) ? '取消全选' : '全选' }}
             </el-button>
           </div>
-          <div
-            v-for="model in groupModels"
-            :key="model.id"
-            class="model-item"
-            :class="{ selected: isModelSelected(model), disabled: isModelExisting(model.id) }"
-            @click="toggleModelSelection(model)"
-          >
-            <DynamicIcon v-if="getModelIcon(model)" :src="getModelIcon(model)!" class="model-icon" :alt="model.name" />
-            <div v-else class="model-icon-placeholder" />
-            <div class="model-info">
-              <div class="model-name">{{ model.name }}</div>
-              <div class="model-id">{{ model.id }}</div>
+          <transition name="group-collapse">
+            <div v-show="isGroupExpanded(groupName)" class="group-content">
+              <div
+                v-for="model in groupModels"
+                :key="model.id"
+                class="model-item"
+                :class="{ selected: isModelSelected(model), disabled: isModelExisting(model.id) }"
+                @click="toggleModelSelection(model)"
+              >
+                <DynamicIcon v-if="getModelIcon(model)" :src="getModelIcon(model)!" class="model-icon" :alt="model.name" />
+                <div v-else class="model-icon-placeholder" />
+                <div class="model-info">
+                  <div class="model-name">{{ model.name }}</div>
+                  <div class="model-id">{{ model.id }}</div>
+                </div>
+                <div class="model-status">
+                  <el-tag v-if="isModelExisting(model.id)" type="info" size="small">已存在</el-tag>
+                  <el-icon v-else-if="isModelSelected(model)"><i-ep-check /></el-icon>
+                  <el-icon v-else><i-ep-plus /></el-icon>
+                </div>
+              </div>
             </div>
-            <div class="model-status">
-              <el-tag v-if="isModelExisting(model.id)" type="info" size="small">已存在</el-tag>
-              <el-icon v-else-if="isModelSelected(model)"><i-ep-check /></el-icon>
-              <el-icon v-else><i-ep-plus /></el-icon>
-            </div>
-          </div>
+          </transition>
         </div>
       </div>
     </div>
@@ -175,30 +212,98 @@ const getModelIcon = (model: LlmModelInfo) => {
   padding: 8px;
 }
 .model-group {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color-light);
+  border-radius: 8px;
+  overflow: hidden;
 }
 .group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px;
-  font-weight: bold;
+  padding: 8px 12px;
+  background: var(--container-bg);
+  user-select: none;
+  transition: background 0.2s;
+}
+.group-header:hover {
+  background: var(--card-bg-hover);
+}
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+.expand-icon {
+  transition: transform 0.3s ease;
+  color: var(--text-color-secondary);
+  flex-shrink: 0;
+}
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+.group-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-color);
+}
+.group-count {
+  font-size: 12px;
+  color: var(--text-color-light);
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+}
+.group-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: transparent;
+}
+/* 折叠动画 */
+.group-collapse-enter-active,
+.group-collapse-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+.group-collapse-enter-from,
+.group-collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.group-collapse-enter-to,
+.group-collapse-leave-from {
+  opacity: 1;
+  max-height: 2000px;
 }
 .model-item {
   display: flex;
   align-items: center;
-  padding: 8px;
-  border-radius: 4px;
+  padding: 12px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
-  border: 2px solid transparent;
+  border: 1px solid var(--border-color-light);
+  background: var(--card-bg);
 }
 .model-item:hover {
-  background-color: var(--card-bg-hover);
+  border-color: var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .model-item.selected {
-  background-color: color-mix(in srgb, var(--el-color-primary) 6%, transparent);
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, var(--card-bg));
   border-color: var(--el-color-primary);
 }
 .model-item.disabled {
@@ -207,10 +312,20 @@ const getModelIcon = (model: LlmModelInfo) => {
 }
 .model-icon,
 .model-icon-placeholder {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   margin-right: 12px;
   flex-shrink: 0;
+}
+.model-icon-placeholder {
+  background: var(--primary-color);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
 }
 .model-info {
   flex-grow: 1;

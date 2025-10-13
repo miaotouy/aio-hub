@@ -1,4 +1,3 @@
-
 /**
  * LLM 模型列表获取工具
  * 支持从不同提供商 API 获取可用模型列表
@@ -9,6 +8,7 @@ import { getProviderTypeInfo } from '../config/llm-providers';
 import { buildLlmApiUrl } from '@utils/llm-api-url';
 import { fetchWithRetry } from './common';
 import { createModuleLogger } from '@utils/logger';
+import { DEFAULT_ICON_CONFIGS } from '../config/model-icons';
 
 const logger = createModuleLogger('ModelFetcher');
 
@@ -125,7 +125,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
           const modelInfo: LlmModelInfo = {
             id: model.id,
             name: model.name || model.id,
-            group: extractModelGroup(model.id, 'openai'),
+            group: extractModelGroup(model.id, 'openai', model.owned_by || 'openai'),
             provider: model.owned_by || 'openai',
             description: model.description,
           };
@@ -200,7 +200,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
             models.push({
               id: model.id,
               name: model.display_name || model.id,
-              group: extractModelGroup(model.id, 'claude'),
+              group: extractModelGroup(model.id, 'claude', 'anthropic'),
               provider: 'anthropic',
               description: model.description,
               capabilities: {
@@ -226,7 +226,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
           models.push({
             id: modelId,
             name: model.displayName || modelId,
-            group: extractModelGroup(modelId, 'gemini'),
+            group: extractModelGroup(modelId, 'gemini', 'gemini'),
             provider: 'gemini',
             version: model.version,
             description: model.description,
@@ -259,7 +259,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
           models.push({
             id: model.name,
             name: model.name,
-            group: extractModelGroup(model.name, 'cohere'),
+            group: extractModelGroup(model.name, 'cohere', 'cohere'),
             provider: 'cohere',
           });
         }
@@ -274,7 +274,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
           models.push({
             id: modelId,
             name: model.displayName || modelId,
-            group: extractModelGroup(modelId, 'gemini'),
+            group: extractModelGroup(modelId, 'gemini', 'google'),
             provider: 'google',
             capabilities: {
               vision: true, // Vertex AI 的模型通常都支持视觉
@@ -290,8 +290,57 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
 
 /**
  * 从模型 ID 提取分组信息
+ * 优先使用图标配置中的 groupName，如果没有则使用默认分组逻辑
  */
-function extractModelGroup(modelId: string, providerType: ProviderType): string {
+function extractModelGroup(modelId: string, providerType: ProviderType, provider?: string): string {
+  // 首先尝试从图标配置中获取分组
+  const configs = DEFAULT_ICON_CONFIGS
+    .filter(c => c.enabled !== false && c.groupName)
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+  for (const config of configs) {
+    let matched = false;
+    
+    switch (config.matchType) {
+      case 'model':
+        if (config.useRegex) {
+          try {
+            const regex = new RegExp(config.matchValue);
+            matched = regex.test(modelId);
+          } catch (e) {
+            // 正则表达式无效，跳过
+          }
+        } else {
+          matched = modelId === config.matchValue;
+        }
+        break;
+
+      case 'modelPrefix':
+        if (config.useRegex) {
+          try {
+            const regex = new RegExp(config.matchValue);
+            matched = regex.test(modelId);
+          } catch (e) {
+            // 正则表达式无效，跳过
+          }
+        } else {
+          matched = modelId.toLowerCase().includes(config.matchValue.toLowerCase());
+        }
+        break;
+
+      case 'provider':
+        if (provider && provider.toLowerCase() === config.matchValue.toLowerCase()) {
+          matched = true;
+        }
+        break;
+    }
+    
+    if (matched && config.groupName) {
+      return config.groupName;
+    }
+  }
+  
+  // 如果图标配置中没有匹配，使用默认分组逻辑
   const id = modelId.toLowerCase();
   
   switch (providerType) {

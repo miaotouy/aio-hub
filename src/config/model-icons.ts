@@ -149,7 +149,7 @@ export const PRESET_ICONS: PresetIconInfo[] = [
   {
     name: "通义千问 (彩色)",
     path: "qwen-color.svg",
-    suggestedFor: ["qwen", "tongyi"],
+    suggestedFor: ["qwen", "tongyi", "wan"],
     category: "国内 AI",
   },
   {
@@ -264,6 +264,54 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     name: "Inclusion AI (灵)",
     path: "ling.png",
     suggestedFor: ["inclusionai", "ling"],
+    category: "国内 AI",
+  },
+  {
+    name: "StepFun",
+    path: "stepfun-color.svg",
+    suggestedFor: ["stepfun"],
+    category: "国内 AI",
+  },
+  {
+    name: "TeleAI",
+    path: "TeleAI.svg",
+    suggestedFor: ["teleai"],
+    category: "国内 AI",
+  },
+  {
+    name: "盘古 (Ascend Tribe)",
+    path: "ascend_tribe.svg",
+    suggestedFor: ["pangu", "ascend-tribe"],
+    category: "国内 AI",
+  },
+  {
+    name: "MOSS",
+    path: "openmoss.svg",
+    suggestedFor: ["moss", "fnlp"],
+    category: "国内 AI",
+  },
+  {
+    name: "FunAudioLLM",
+    path: "FunAudioLLM.png",
+    suggestedFor: ["funaudiollm", "cosyvoice", "sensevoice"],
+    category: "国内 AI",
+  },
+  {
+    name: "IndexTeam",
+    path: "IndexTeam.svg",
+    suggestedFor: ["indextts", "indexteam"],
+    category: "国内 AI",
+  },
+  {
+    name: "网易有道 (Netease Youdao)",
+    path: "netease-youdao.svg",
+    suggestedFor: ["netease", "youdao", "bce"],
+    category: "国内 AI",
+  },
+  {
+    name: "FishAudio",
+    path: "fishaudio.svg",
+    suggestedFor: ["fishaudio", "fish-speech"],
     category: "国内 AI",
   },
 
@@ -780,6 +828,96 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     description: "Inclusion AI 提供商图标",
     groupName: "InclusionAI",
   },
+  {
+    id: "provider-wan-ai",
+    matchType: "provider",
+    matchValue: "wan-ai",
+    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    priority: 10,
+    enabled: true,
+    description: "千问万象 (Wan AI) 提供商图标",
+    groupName: "Qwen",
+  },
+  {
+    id: "provider-stepfun-ai",
+    matchType: "provider",
+    matchValue: "stepfun-ai",
+    iconPath: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+    priority: 10,
+    enabled: true,
+    description: "StepFun AI 提供商图标",
+    groupName: "StepFun",
+  },
+  {
+    id: "provider-teleai",
+    matchType: "provider",
+    matchValue: "teleai",
+    iconPath: `${PRESET_ICONS_DIR}/TeleAI.svg`,
+    priority: 10,
+    enabled: true,
+    description: "TeleAI 提供商图标",
+    groupName: "TeleAI",
+  },
+  {
+    id: "provider-ascend-tribe",
+    matchType: "provider",
+    matchValue: "ascend-tribe",
+    iconPath: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+    priority: 10,
+    enabled: true,
+    description: "Ascend Tribe (Pangu) 提供商图标",
+    groupName: "Pangu",
+  },
+  {
+    id: "provider-fnlp",
+    matchType: "provider",
+    matchValue: "fnlp",
+    iconPath: `${PRESET_ICONS_DIR}/openmoss.svg`,
+    priority: 10,
+    enabled: true,
+    description: "MOSS (FNLP) 提供商图标",
+    groupName: "MOSS",
+  },
+  {
+    id: "provider-funaudiollm",
+    matchType: "provider",
+    matchValue: "funaudiollm",
+    iconPath: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+    priority: 10,
+    enabled: true,
+    description: "FunAudioLLM 提供商图标",
+    groupName: "FunAudioLLM",
+  },
+  {
+    id: "provider-indexteam",
+    matchType: "provider",
+    matchValue: "indexteam",
+    iconPath: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+    priority: 10,
+    enabled: true,
+    description: "IndexTeam 提供商图标",
+    groupName: "IndexTeam",
+  },
+  {
+    id: "provider-netease-youdao",
+    matchType: "provider",
+    matchValue: "netease-youdao",
+    iconPath: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+    priority: 10,
+    enabled: true,
+    description: "网易有道提供商图标",
+    groupName: "Netease Youdao",
+  },
+  {
+    id: "provider-fishaudio",
+    matchType: "provider",
+    matchValue: "fishaudio",
+    iconPath: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+    priority: 10,
+    enabled: true,
+    description: "FishAudio 提供商图标",
+    groupName: "FishAudio",
+  },
 
   // 其他服务商
   {
@@ -1275,6 +1413,128 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     enabled: true,
     description: "Kolors 系列模型图标",
     groupName: "Kwai",
+  },
+  // Inclusion AI 系列模型
+  {
+    id: "model-prefix-inclusionai",
+    matchType: "modelPrefix",
+    matchValue: "inclusionai|ling",
+    useRegex: true,
+    iconPath: `${PRESET_ICONS_DIR}/ling.png`,
+    priority: 20,
+    enabled: true,
+    description: "Inclusion AI (灵) 系列模型图标",
+    groupName: "InclusionAI",
+  },
+
+  // 字节跳动 Seed 系列模型
+  {
+    id: "model-prefix-bytedance-seed",
+    matchType: "modelPrefix",
+    matchValue: "bytedance-seed|seed-",
+    useRegex: true,
+    iconPath: `${PRESET_ICONS_DIR}/bytedance-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: "字节跳动 Seed 系列模型图标",
+    groupName: "ByteDance",
+  },
+
+  // 千问万象系列模型
+  {
+    id: "model-prefix-wan-ai",
+    matchType: "modelPrefix",
+    matchValue: "wan-ai",
+    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: "千问万象系列模型图标",
+    groupName: "Qwen",
+  },
+
+  // StepFun 系列模型
+  {
+    id: "model-prefix-stepfun",
+    matchType: "modelPrefix",
+    matchValue: "stepfun",
+    iconPath: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+    priority: 20,
+    enabled: true,
+    description: "StepFun 系列模型图标",
+    groupName: "StepFun",
+  },
+
+  // 盘古系列模型
+  {
+    id: "model-prefix-pangu",
+    matchType: "modelPrefix",
+    matchValue: "pangu",
+    iconPath: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+    priority: 20,
+    enabled: true,
+    description: "盘古系列模型图标",
+    groupName: "Pangu",
+  },
+
+  // MOSS 系列模型
+  {
+    id: "model-prefix-moss",
+    matchType: "modelPrefix",
+    matchValue: "moss",
+    iconPath: `${PRESET_ICONS_DIR}/openmoss.svg`,
+    priority: 20,
+    enabled: true,
+    description: "MOSS 系列模型图标",
+    groupName: "MOSS",
+  },
+
+  // FunAudioLLM 系列模型
+  {
+    id: "model-prefix-funaudiollm",
+    matchType: "modelPrefix",
+    matchValue: "cosyvoice|sensevoice",
+    useRegex: true,
+    iconPath: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+    priority: 20,
+    enabled: true,
+    description: "FunAudioLLM 系列模型图标",
+    groupName: "FunAudioLLM",
+  },
+
+  // IndexTeam 系列模型
+  {
+    id: "model-prefix-indextts",
+    matchType: "modelPrefix",
+    matchValue: "indextts",
+    iconPath: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+    priority: 20,
+    enabled: true,
+    description: "IndexTTS 系列模型图标",
+    groupName: "IndexTeam",
+  },
+
+  // 网易有道 BCE 系列模型
+  {
+    id: "model-prefix-bce",
+    matchType: "modelPrefix",
+    matchValue: "bce-",
+    iconPath: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+    priority: 20,
+    enabled: true,
+    description: "网易有道 BCE 系列模型图标",
+    groupName: "Netease Youdao",
+  },
+
+  // FishAudio 系列模型
+  {
+    id: "model-prefix-fish-speech",
+    matchType: "modelPrefix",
+    matchValue: "fish-speech",
+    iconPath: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+    priority: 20,
+    enabled: true,
+    description: "FishAudio 系列模型图标",
+    groupName: "FishAudio",
   },
 
   // === 特定模型匹配（优先级 30） ===

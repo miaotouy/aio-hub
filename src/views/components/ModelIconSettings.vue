@@ -601,38 +601,46 @@ function getPageNumbers(): number[] {
 /* 网格视图 */
 .configs-list.grid-view {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   gap: 1.5rem;
   align-items: start;
 }
 
 .configs-list.grid-view .config-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: auto 1fr; /* Icon and content */
+  grid-template-rows: 1fr auto; /* Info and actions */
+  grid-template-areas:
+    "icon info"
+    "icon actions";
+  gap: 0.5rem 1rem; /* row-gap column-gap */
   padding: 1rem;
   background: var(--container-bg);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 12px;
   transition: all 0.2s;
+  align-items: center;
 }
 
 .configs-list.grid-view .config-icon {
+  grid-area: icon;
   width: 64px;
   height: 64px;
-  margin: 0 auto;
+  margin: 0;
   flex-shrink: 0;
 }
 
 .configs-list.grid-view .config-info {
+  grid-area: info;
   min-width: 0;
-  text-align: center;
+  text-align: left;
 }
 
 .configs-list.grid-view .config-header {
-  flex-direction: column;
+  display: flex;
+  flex-direction: row;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
@@ -642,11 +650,12 @@ function getPageNumbers(): number[] {
 }
 
 .configs-list.grid-view .config-actions {
+  grid-area: actions;
   display: flex;
   gap: 0.5rem;
-  justify-content: center;
+  justify-content: flex-end;
   flex-shrink: 0;
-  margin-top: 0.5rem;
+  margin-top: 0;
 }
 
 /* 列表视图 */

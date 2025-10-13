@@ -2,6 +2,7 @@ import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { createModuleLogger } from '../utils/logger';
+import { type AppSettings, loadAppSettings } from '../utils/appSettings';
 
 const logger = createModuleLogger('DetachedTools');
 
@@ -59,8 +60,22 @@ export function useDetachedTools() {
         existingWindows: Array.from(detachedToolIds.value)
       });
 
-      // 启动定期位置检查（每30秒检查一次）
-      startPositionCheck();
+      // 根据设置启动或停止定期位置检查
+      const settings = loadAppSettings();
+      if (settings.autoAdjustWindowPosition) {
+        startPositionCheck();
+      }
+
+      // 监听设置变化，动态启停检查器
+      window.addEventListener("app-settings-changed", (event: Event) => {
+        const customEvent = event as CustomEvent<AppSettings>;
+        if (customEvent.detail.autoAdjustWindowPosition) {
+          startPositionCheck();
+        } else {
+          stopPositionCheck();
+        }
+      });
+
     } catch (error) {
       logger.error('初始化监听器失败', { error });
     }
@@ -71,6 +86,12 @@ export function useDetachedTools() {
    */
   const startPositionCheck = () => {
     if (positionCheckInterval !== null) return;
+
+    const settings = loadAppSettings();
+    if (!settings.autoAdjustWindowPosition) {
+      logger.info('自动调整窗口位置功能已禁用，不启动检查器');
+      return;
+    }
 
     // 每30秒检查一次所有工具窗口的位置
     positionCheckInterval = window.setInterval(async () => {

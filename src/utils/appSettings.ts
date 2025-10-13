@@ -12,7 +12,8 @@ export interface AppSettings {
 
   // 通用设置
   trayEnabled?: boolean;
-  
+  autoAdjustWindowPosition?: boolean; // 新增：是否自动调整窗口位置
+
   // 主题颜色配置
   themeColor?: string; // 主色调 hex 值
   successColor?: string; // 成功色 hex 值
@@ -33,6 +34,7 @@ export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
   theme: "auto",
   trayEnabled: false,
+  autoAdjustWindowPosition: true, // 默认开启
   // 默认主题颜色
   themeColor: "#409eff", // 主色调 - Element Plus 蓝色
   successColor: "#67c23a", // 成功色 - Element Plus 绿色

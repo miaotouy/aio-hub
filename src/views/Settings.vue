@@ -475,6 +475,17 @@ onUnmounted(() => {
               </el-button>
             </div>
 
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>自动调整窗口位置</span>
+                <el-tooltip content="当工具窗口移动到屏幕外时，自动将其拉回可见区域" placement="top">
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
+                </el-tooltip>
+              </div>
+              <el-switch v-model="settings.autoAdjustWindowPosition" />
+            </div>
           </section>
 
           <!-- 工具模块设置 -->

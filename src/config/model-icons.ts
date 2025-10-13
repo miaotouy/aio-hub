@@ -536,6 +536,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "OpenAI 提供商图标",
+    groupName: "OpenAI",
   },
   {
     id: "provider-anthropic",
@@ -575,6 +576,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Cohere 提供商图标",
+    groupName: "Cohere",
   },
   {
     id: "provider-mistral",
@@ -584,6 +586,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Mistral AI 提供商图标",
+    groupName: "Mistral",
   },
   {
     id: "provider-meta",
@@ -593,6 +596,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Meta 提供商图标",
+    groupName: "Meta",
   },
   {
     id: "provider-microsoft",
@@ -602,6 +606,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Microsoft 提供商图标",
+    groupName: "Microsoft",
   },
   {
     id: "provider-xai",
@@ -611,6 +616,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "xAI 提供商图标",
+    groupName: "xAI",
   },
   {
     id: "provider-groq",
@@ -620,6 +626,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Groq 提供商图标",
+    groupName: "Groq",
   },
   {
     id: "provider-ai21",
@@ -629,6 +636,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "AI21 Labs 提供商图标",
+    groupName: "AI21",
   },
 
   // 国内 AI 服务商
@@ -650,6 +658,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Moonshot AI (Kimi) 提供商图标",
+    groupName: "Kimi",
   },
   {
     id: "provider-zhipu",
@@ -659,6 +668,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "智谱 AI 提供商图标",
+    groupName: "Zhipu",
   },
   {
     id: "provider-qwen",
@@ -668,6 +678,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "通义千问提供商图标",
+    groupName: "Qwen",
   },
   {
     id: "provider-bytedance",
@@ -677,6 +688,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "字节跳动提供商图标",
+    groupName: "ByteDance",
   },
   {
     id: "provider-baidu",
@@ -686,6 +698,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "百度提供商图标",
+    groupName: "Baidu",
   },
   {
     id: "provider-tencent",
@@ -695,6 +708,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "腾讯提供商图标",
+    groupName: "Tencent",
   },
   {
     id: "provider-minimax",
@@ -704,6 +718,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "MiniMax 提供商图标",
+    groupName: "MiniMax",
   },
   {
     id: "provider-01ai",
@@ -713,6 +728,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "零一万物提供商图标",
+    groupName: "Yi",
   },
   {
     id: "provider-baichuan",
@@ -722,6 +738,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "百川提供商图标",
+    groupName: "Baichuan",
   },
   {
     id: "provider-sensenova",
@@ -731,6 +748,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "商汤提供商图标",
+    groupName: "SenseNova",
   },
   {
     id: "provider-kwai",
@@ -740,6 +758,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "快手 Kolors 提供商图标",
+    groupName: "Kwai",
   },
   {
     id: "provider-siliconflow",
@@ -749,6 +768,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "SiliconFlow 提供商图标",
+    groupName: "SiliconFlow",
   },
   {
     id: "provider-inclusionai",
@@ -758,6 +778,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Inclusion AI 提供商图标",
+    groupName: "InclusionAI",
   },
 
   // 其他服务商
@@ -769,6 +790,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "HuggingFace 提供商图标",
+    groupName: "HuggingFace",
   },
   {
     id: "provider-z-ai",
@@ -778,6 +800,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Z AI 提供商图标",
+    groupName: "Z AI",
   },
   {
     id: "provider-nebius",
@@ -787,6 +810,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Nebius 提供商图标",
+    groupName: "Nebius",
   },
   {
     id: "provider-stabilityai",
@@ -796,6 +820,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Stability AI 提供商图标",
+    groupName: "Stability AI",
   },
   {
     id: "provider-baai",
@@ -805,6 +830,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "智源研究院 BAAI 提供商图标",
+    groupName: "BAAI",
   },
   {
     id: "provider-black-forest-labs",
@@ -814,6 +840,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "Black Forest Labs 提供商图标",
+    groupName: "Black Forest Labs",
   },
   // API 服务商
   {
@@ -824,6 +851,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 10,
     enabled: true,
     description: "OpenRouter 提供商图标",
+    groupName: "OpenRouter",
   },
   // === Model Prefix 级别匹配（优先级 20） ===
   // OpenAI 系列模型
@@ -835,6 +863,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "GPT 系列模型图标",
+    groupName: "OpenAI",
   },
   {
     id: "model-prefix-o1",
@@ -844,6 +873,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "o1 系列模型图标",
+    groupName: "OpenAI",
   },
   {
     id: "model-prefix-o3",
@@ -853,6 +883,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "o3 系列模型图标",
+    groupName: "OpenAI",
   },
   {
     id: "model-prefix-chatgpt",
@@ -862,6 +893,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "ChatGPT 系列模型图标",
+    groupName: "OpenAI",
   },
 
   // Anthropic 系列模型
@@ -895,6 +927,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Gemma 系列模型图标",
+    groupName: "Gemma",
   },
 
   // DeepSeek 系列模型
@@ -918,6 +951,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "GLM 系列模型图标",
+    groupName: "Zhipu",
   },
   {
     id: "model-prefix-chatglm",
@@ -927,6 +961,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "ChatGLM 系列模型图标",
+    groupName: "Zhipu",
   },
 
   // Moonshot/Kimi 系列模型
@@ -934,10 +969,11 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-moonshot",
     matchType: "modelPrefix",
     matchValue: "moonshot-",
-    iconPath: `${PRESET_ICONS_DIR}/kimi-color.svg`,
+    iconPath: `${PRESET_ICONS_DIR}/moonshot.svg`,
     priority: 20,
     enabled: true,
     description: "Moonshot 系列模型图标",
+    groupName: "moonshot",
   },
   {
     id: "model-prefix-kimi",
@@ -947,6 +983,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Kimi 系列模型图标",
+    groupName: "Kimi",
   },
 
   // 通义千问系列模型
@@ -958,6 +995,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "通义千问系列模型图标",
+    groupName: "Qwen",
   },
   {
     id: "model-prefix-qwq",
@@ -967,6 +1005,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "通义千问 QwQ 系列模型图标",
+    groupName: "Qwen",
   },
 
   // 字节跳动豆包系列模型
@@ -978,6 +1017,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "豆包系列模型图标",
+    groupName: "ByteDance",
   },
 
   // 腾讯混元系列模型
@@ -989,6 +1029,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "混元系列模型图标",
+    groupName: "Tencent",
   },
 
   // 百度文心系列模型
@@ -1000,6 +1041,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "ERNIE 系列模型图标",
+    groupName: "Baidu",
   },
 
   // MiniMax 系列模型
@@ -1011,6 +1053,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "MiniMax ABAB 系列模型图标",
+    groupName: "MiniMax",
   },
   {
     id: "model-prefix-minimax",
@@ -1020,6 +1063,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "MiniMax 系列模型图标",
+    groupName: "MiniMax",
   },
 
   // 零一万物系列模型
@@ -1031,6 +1075,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Yi 系列模型图标",
+    groupName: "Yi",
   },
 
   // 百川系列模型
@@ -1042,6 +1087,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "百川系列模型图标",
+    groupName: "Baichuan",
   },
 
   // InternLM 系列模型
@@ -1053,6 +1099,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "InternLM 系列模型图标",
+    groupName: "InternLM",
   },
 
   // Skywork 系列模型
@@ -1064,6 +1111,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Skywork 系列模型图标",
+    groupName: "Skywork",
   },
 
   // RWKV 系列模型
@@ -1075,6 +1123,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "RWKV 系列模型图标",
+    groupName: "RWKV",
   },
 
   // xAI 系列模型
@@ -1086,6 +1135,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Grok 系列模型图标",
+    groupName: "xAI",
   },
   {
     id: "model-prefix-imagine",
@@ -1095,6 +1145,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "xAI Imagine 系列模型图标",
+    groupName: "xAI",
   },
 
   // Meta 系列模型
@@ -1107,6 +1158,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Llama 系列模型图标",
+    groupName: "Meta",
   },
 
   // Mistral 系列模型
@@ -1118,6 +1170,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Mistral 系列模型图标",
+    groupName: "Mistral",
   },
   {
     id: "model-prefix-mixtral",
@@ -1127,6 +1180,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Mixtral 系列模型图标",
+    groupName: "Mistral",
   },
 
   // Cohere 系列模型
@@ -1138,6 +1192,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Command 系列模型图标",
+    groupName: "Cohere",
   },
   {
     id: "model-prefix-aya",
@@ -1147,6 +1202,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Aya 系列模型图标",
+    groupName: "Cohere",
   },
 
   // AI21 系列模型
@@ -1158,6 +1214,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Jamba 系列模型图标",
+    groupName: "AI21",
   },
 
   // Microsoft 系列模型
@@ -1169,6 +1226,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Phi 系列模型图标",
+    groupName: "Microsoft",
   },
 
   // Stability AI 系列模型
@@ -1180,6 +1238,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Stable Diffusion 系列模型图标",
+    groupName: "Stability AI",
   },
 
   // BAAI 系列模型
@@ -1191,6 +1250,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "BAAI BGE 系列模型图标",
+    groupName: "BAAI",
   },
 
   // Black Forest Labs 系列模型
@@ -1202,6 +1262,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "FLUX 系列模型图标",
+    groupName: "Black Forest Labs",
   },
 
   // 快手 Kolors 系列模型
@@ -1213,6 +1274,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 20,
     enabled: true,
     description: "Kolors 系列模型图标",
+    groupName: "Kwai",
   },
 
   // === 特定模型匹配（优先级 30） ===
@@ -1225,6 +1287,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 30,
     enabled: true,
     description: "Sora 视频生成模型图标",
+    groupName: "OpenAI",
   },
 
   // 快手可灵视频生成
@@ -1236,6 +1299,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 30,
     enabled: true,
     description: "可灵视频生成模型图标",
+    groupName: "Kwai",
   },
 
   // Suno 音乐生成
@@ -1247,6 +1311,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 30,
     enabled: true,
     description: "Suno 音乐生成模型图标",
+    groupName: "Suno",
   },
 
   // Midjourney
@@ -1259,6 +1324,7 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     priority: 30,
     enabled: true,
     description: "Midjourney 系列模型图标",
+    groupName: "Midjourney",
   },
 ];
 

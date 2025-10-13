@@ -28,10 +28,10 @@ export const toolsConfig: ToolConfig[] = [
     description: '使用正则表达式批量处理文本或文件'
   },
   {
-    name: '媒体信息读取器',
+    name: 'AI作图信息查看器',
     path: '/media-info-reader',
     icon: markRaw(PictureFilled),
-    description: '读取图片、视频等媒体文件的详细信息'
+    description: '读取AI生成图片的元数据(WebUI/ComfyUI)及角色卡片信息'
   },
   {
     name: '文本差异对比',

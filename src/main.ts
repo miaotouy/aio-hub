@@ -5,23 +5,24 @@ import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
 import router from "./router"; // 从 ./router/index.ts 导入
-import './styles/index.css'; // 导入全局样式
-import './styles/dark/css-vars.css'; // 导入自定义暗黑模式样式
+import "./styles/index.css"; // 导入全局样式
+import "./styles/dark/css-vars.css"; // 导入自定义暗黑模式样式
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ElNotification } from 'element-plus';
+import { ElNotification } from "element-plus";
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
-import { createPinia } from 'pinia'; // 导入 Pinia
-import { errorHandler, ErrorLevel } from './utils/errorHandler';
-import { createModuleLogger } from './utils/logger';
-import { loadAppSettingsAsync } from './utils/appSettings';
-import { initTheme } from './composables/useTheme';
+import { createPinia } from "pinia"; // 导入 Pinia
+import { errorHandler, ErrorLevel } from "./utils/errorHandler";
+import { createModuleLogger } from "./utils/logger";
+import { loadAppSettingsAsync } from "./utils/appSettings";
+import { initTheme } from "./composables/useTheme";
+import packageJson from "../package.json";
 
-const logger = createModuleLogger('Main');
+const logger = createModuleLogger("Main");
 
 // 检查是否为独立工具窗口
 const isDetachedWindow = () => {
-  return window.location.pathname === '/detached-window';
+  return window.location.pathname === "/detached-window";
 };
 
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
@@ -29,23 +30,25 @@ const isDetachedWindow = () => {
 (() => {
   let cachedThemeColor: string | null = null;
   try {
-    cachedThemeColor = localStorage.getItem('app-theme-color');
+    cachedThemeColor = localStorage.getItem("app-theme-color");
     if (cachedThemeColor && /^#[0-9A-F]{6}$/i.test(cachedThemeColor)) {
       const root = document.documentElement;
-      
+
       // 设置主题色
       root.style.setProperty("--primary-color", cachedThemeColor);
-      
+
       // 计算悬停色
       const hexToRgb = (hex: string) => {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-          r: parseInt(result[1], 16),
-          g: parseInt(result[2], 16),
-          b: parseInt(result[3], 16),
-        } : null;
+        return result
+          ? {
+              r: parseInt(result[1], 16),
+              g: parseInt(result[2], 16),
+              b: parseInt(result[3], 16),
+            }
+          : null;
       };
-      
+
       const lightenColor = (hex: string, percent: number) => {
         const rgb = hexToRgb(hex);
         if (!rgb) return hex;
@@ -54,15 +57,15 @@ const isDetachedWindow = () => {
         const b = Math.min(255, Math.floor(rgb.b + (255 - rgb.b) * (percent / 100)));
         return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
       };
-      
+
       const hoverColor = lightenColor(cachedThemeColor, 20);
       root.style.setProperty("--primary-hover-color", hoverColor);
-      
+
       const rgb = hexToRgb(cachedThemeColor);
       if (rgb) {
         root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
       }
-      
+
       // 同步 Element Plus 变量
       root.style.setProperty("--el-color-primary", cachedThemeColor);
       root.style.setProperty("--el-color-primary-light-3", hoverColor);
@@ -71,18 +74,18 @@ const isDetachedWindow = () => {
       root.style.setProperty("--el-color-primary-light-9", hoverColor);
     }
   } catch (error) {
-    logger.warn('应用缓存主题颜色失败', {
+    logger.warn("应用缓存主题颜色失败", {
       error,
-      cachedColor: cachedThemeColor
+      cachedColor: cachedThemeColor,
     });
   }
 })();
 
 // 根据窗口类型选择根组件
 const rootComponent = isDetachedWindow() ? DetachedWindowContainer : App;
-logger.info('选择根组件', {
-  component: isDetachedWindow() ? 'DetachedWindowContainer' : 'App',
-  hash: window.location.hash
+logger.info("选择根组件", {
+  component: isDetachedWindow() ? "DetachedWindowContainer" : "App",
+  hash: window.location.hash,
 });
 
 const app = createApp(rootComponent);
@@ -94,63 +97,63 @@ app.use(pinia); // 注册 Pinia
 
 // 全局错误处理
 app.config.errorHandler = (err, instance, info) => {
-  logger.error('Vue 全局错误', err, {
-    componentName: instance?.$options?.name || 'Unknown',
-    errorInfo: info
+  logger.error("Vue 全局错误", err, {
+    componentName: instance?.$options?.name || "Unknown",
+    errorInfo: info,
   });
-  
+
   errorHandler.handle(err, {
-    module: 'Vue',
+    module: "Vue",
     level: ErrorLevel.ERROR,
-    userMessage: '应用遇到错误，请查看控制台了解详情',
+    userMessage: "应用遇到错误，请查看控制台了解详情",
     context: {
       component: instance?.$options?.name,
-      info
-    }
+      info,
+    },
   });
 };
 
 // 全局警告处理
 app.config.warnHandler = (msg, instance, trace) => {
-  logger.warn('Vue 警告', {
+  logger.warn("Vue 警告", {
     message: msg,
-    componentName: instance?.$options?.name || 'Unknown',
-    trace
+    componentName: instance?.$options?.name || "Unknown",
+    trace,
   });
 };
 
 // 未捕获的 Promise 错误
-window.addEventListener('unhandledrejection', (event) => {
-  logger.error('未捕获的 Promise 错误', event.reason, {
-    promise: event.promise
+window.addEventListener("unhandledrejection", (event) => {
+  logger.error("未捕获的 Promise 错误", event.reason, {
+    promise: event.promise,
   });
-  
+
   errorHandler.handle(event.reason, {
-    module: 'Promise',
+    module: "Promise",
     level: ErrorLevel.ERROR,
-    userMessage: '操作失败，请重试',
+    userMessage: "操作失败，请重试",
   });
-  
+
   event.preventDefault();
 });
 
 // 全局错误捕获
-window.addEventListener('error', (event) => {
-  logger.error('全局错误', event.error, {
+window.addEventListener("error", (event) => {
+  logger.error("全局错误", event.error, {
     message: event.message,
     filename: event.filename,
     lineno: event.lineno,
-    colno: event.colno
+    colno: event.colno,
   });
-  
+
   errorHandler.handle(event.error, {
-    module: 'Global',
+    module: "Global",
     level: ErrorLevel.ERROR,
     context: {
       filename: event.filename,
       line: event.lineno,
-      column: event.colno
-    }
+      column: event.colno,
+    },
   });
 });
 // 异步启动函数
@@ -158,32 +161,32 @@ const initializeApp = async () => {
   try {
     // 1. 首先异步加载应用设置
     await loadAppSettingsAsync();
-    logger.info('应用设置初始化完成');
+    logger.info("应用设置初始化完成");
 
     // 2. 初始化主题
     await initTheme();
-    logger.info('主题初始化完成');
+    logger.info("主题初始化完成");
 
     // 3. 挂载 Vue 应用
     app.mount("#app");
-    logger.info('应用挂载完成');
+    logger.info("应用挂载完成");
   } catch (error) {
-    logger.error('应用初始化失败', error);
+    logger.error("应用初始化失败", error);
     // 可以在这里显示一个全局的错误提示
     errorHandler.handle(error, {
-      module: 'Main',
+      module: "Main",
       level: ErrorLevel.CRITICAL,
-      userMessage: '应用启动失败，请检查配置或联系支持。',
+      userMessage: "应用启动失败，请检查配置或联系支持。",
     });
   }
 };
 
-logger.info('应用启动', { version: '0.1.6' });
+logger.info("应用启动", { version: packageJson.version });
 initializeApp();
 
 // 剪贴板监听逻辑
 // 在 Vue 应用挂载后执行
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener("DOMContentLoaded", () => {
   invoke("start_clipboard_monitor"); // 启动剪贴板监听服务
 
   listen("clipboard-changed", async (event: { payload: string }) => {
@@ -204,8 +207,8 @@ window.addEventListener('DOMContentLoaded', () => {
           type: "info",
           duration: 3000,
           onClick: () => {
-            router.push('/json-formatter'); // 跳转到 JSON 格式化工具
-          }
+            router.push("/json-formatter"); // 跳转到 JSON 格式化工具
+          },
         });
         break;
       case "base64":
@@ -216,7 +219,7 @@ window.addEventListener('DOMContentLoaded', () => {
           title: title,
           message: message,
           type: "info",
-          duration: 3000
+          duration: 3000,
         });
         break;
       case "text":
@@ -235,9 +238,9 @@ window.addEventListener('DOMContentLoaded', () => {
       const filePath = paths[0]; // 只处理第一个拖拽的文件
       const extension = await extname(filePath);
 
-      let targetRoute = '';
+      let targetRoute = "";
       let message = `已拖拽文件: ${filePath}`;
-      
+
       switch (extension.toLowerCase()) {
         case "png":
         case "jpg":
@@ -266,7 +269,7 @@ window.addEventListener('DOMContentLoaded', () => {
             title: "文件拖拽",
             message: `不支持的文件类型: .${extension}`,
             type: "warning",
-            duration: 3000
+            duration: 3000,
           });
           return; // 不跳转
       }
@@ -282,14 +285,13 @@ window.addEventListener('DOMContentLoaded', () => {
             // 考虑如何将文件内容传递给目标组件
             // 目前只跳转，内容读取需要组件内部实现
           }
-        }
+        },
       });
     }
   });
-
 });
 
 // 在应用关闭前停止剪贴板监听 (可选，因为进程会直接关闭)
-window.addEventListener('beforeunload', () => {
+window.addEventListener("beforeunload", () => {
   invoke("stop_clipboard_monitor");
 });

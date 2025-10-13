@@ -239,52 +239,71 @@ const handleImportConfig = async () => {
       ],
     });
 
-    if (filePath) {
-      await ElMessageBox.confirm(
-        "导入配置将覆盖当前所有模块的配置，是否继续？",
-        "导入配置",
-        {
-          confirmButtonText: "确定",
-          cancelButtonText: "取消",
-          type: "warning",
-        }
-      );
-
-      const configContent = await readTextFile(filePath as string);
-      
-      // 调用后端命令导入所有模块的配置
-      const result = await invoke<string>("import_all_configs", {
-        configJson: configContent,
-      });
-
-      // 重新加载应用设置以反映变化
-      isLoadingFromFile = true;
-      const loadedSettings = await loadAppSettingsAsync();
-      settings.value = loadedSettings;
-
-      // 应用主题
-      applyThemeFromComposable(settings.value.theme || "auto");
-      applyThemeColors({
-        primary: settings.value.themeColor,
-        success: settings.value.successColor,
-        warning: settings.value.warningColor,
-        danger: settings.value.dangerColor,
-        info: settings.value.infoColor,
-      });
-
-      // 手动触发同步事件
-      setTimeout(() => {
-        isLoadingFromFile = false;
-        window.dispatchEvent(
-          new CustomEvent("app-settings-changed", {
-            detail: settings.value,
-          })
-        );
-      }, 100);
-
-      ElMessage.success(result);
-      logger.info("配置已导入", { result });
+    if (!filePath) {
+      return;
     }
+
+    // 读取配置文件内容
+    const configContent = await readTextFile(filePath as string);
+
+    // 让用户选择导入模式
+    let mergeMode = false;
+    try {
+      await ElMessageBox({
+        title: "选择导入模式",
+        message: "请选择如何导入配置：\n\n• 合并导入：保留现有配置，仅更新导入文件中存在的项\n• 覆盖导入：完全替换为导入文件中的配置",
+        showCancelButton: true,
+        confirmButtonText: "合并导入",
+        cancelButtonText: "覆盖导入",
+        distinguishCancelAndClose: true,
+        closeOnClickModal: false,
+        type: "info",
+      });
+      // 用户选择了"合并导入"
+      mergeMode = true;
+    } catch (action) {
+      if (action === "cancel") {
+        // 用户选择了"覆盖导入"
+        mergeMode = false;
+      } else {
+        // 用户关闭了对话框，取消操作
+        return;
+      }
+    }
+
+    // 调用后端命令导入所有模块的配置
+    const result = await invoke<string>("import_all_configs", {
+      configJson: configContent,
+      merge: mergeMode,
+    });
+
+    // 重新加载应用设置以反映变化
+    isLoadingFromFile = true;
+    const loadedSettings = await loadAppSettingsAsync();
+    settings.value = loadedSettings;
+
+    // 应用主题
+    applyThemeFromComposable(settings.value.theme || "auto");
+    applyThemeColors({
+      primary: settings.value.themeColor,
+      success: settings.value.successColor,
+      warning: settings.value.warningColor,
+      danger: settings.value.dangerColor,
+      info: settings.value.infoColor,
+    });
+
+    // 手动触发同步事件
+    setTimeout(() => {
+      isLoadingFromFile = false;
+      window.dispatchEvent(
+        new CustomEvent("app-settings-changed", {
+          detail: settings.value,
+        })
+      );
+    }, 100);
+
+    ElMessage.success(result);
+    logger.info("配置已导入", { result, mergeMode });
   } catch (error) {
     if (error !== "cancel") {
       logger.error("导入配置失败", error);

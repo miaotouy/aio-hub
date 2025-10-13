@@ -51,6 +51,39 @@ fn write_config_file(path: &Path, value: &Value) -> Result<(), String> {
         .map_err(|e| format!("写入配置文件失败: {}", e))
 }
 
+/// 深度合并两个 JSON 值
+/// - 如果两个值都是对象，则递归合并它们的字段
+/// - 如果两个值都是数组，则将 source 的元素追加到 target
+/// - 否则，source 的值会覆盖 target 的值
+fn merge_json_values(target: &mut Value, source: &Value) {
+    match (target, source) {
+        (Value::Object(target_map), Value::Object(source_map)) => {
+            // 两者都是对象，递归合并
+            for (key, source_value) in source_map {
+                if let Some(target_value) = target_map.get_mut(key) {
+                    // 键已存在，递归合并
+                    merge_json_values(target_value, source_value);
+                } else {
+                    // 键不存在，直接插入
+                    target_map.insert(key.clone(), source_value.clone());
+                }
+            }
+        }
+        (Value::Array(target_array), Value::Array(source_array)) => {
+            // 两者都是数组，将 source 的元素追加到 target（去重）
+            for item in source_array {
+                if !target_array.contains(item) {
+                    target_array.push(item.clone());
+                }
+            }
+        }
+        (target_value, source_value) => {
+            // 其他情况，直接用 source 覆盖 target
+            *target_value = source_value.clone();
+        }
+    }
+}
+
 /// 检查是否应该排除该目录
 fn should_exclude_dir(dir_name: &str) -> bool {
     // 排除的目录列表
@@ -150,6 +183,7 @@ pub async fn export_all_configs(app: AppHandle) -> Result<ConfigExport, String> 
 pub async fn import_all_configs(
     app: AppHandle,
     config_json: String,
+    merge: bool,
 ) -> Result<String, String> {
     // 解析 JSON 字符串为 ConfigExport 结构
     let config_data: ConfigExport = serde_json::from_str(&config_json)
@@ -158,6 +192,7 @@ pub async fn import_all_configs(
     let app_data_dir = get_app_data_dir(&app)?;
     
     let mut imported_count = 0;
+    let mut merged_count = 0;
     let mut errors: Vec<String> = Vec::new();
     
     // 写入每个模块的配置文件
@@ -165,7 +200,27 @@ pub async fn import_all_configs(
         for (file_name, value) in module_configs {
             let config_path = app_data_dir.join(&module_name).join(&file_name);
             
-            match write_config_file(&config_path, &value) {
+            // 根据 merge 参数决定是覆盖还是合并
+            let final_value = if merge && config_path.exists() {
+                // 合并模式：读取现有配置并合并
+                match read_config_file(&config_path) {
+                    Ok(mut existing_value) => {
+                        merge_json_values(&mut existing_value, &value);
+                        merged_count += 1;
+                        existing_value
+                    }
+                    Err(e) => {
+                        // 读取失败，记录错误但继续用新值覆盖
+                        eprintln!("读取现有配置失败 {}/{}: {}，将直接覆盖", module_name, file_name, e);
+                        value
+                    }
+                }
+            } else {
+                // 覆盖模式：直接使用新值
+                value
+            };
+            
+            match write_config_file(&config_path, &final_value) {
                 Ok(_) => {
                     imported_count += 1;
                 }
@@ -177,7 +232,11 @@ pub async fn import_all_configs(
     }
     
     if errors.is_empty() {
-        Ok(format!("成功导入 {} 个配置文件", imported_count))
+        if merge && merged_count > 0 {
+            Ok(format!("成功导入 {} 个配置文件（其中 {} 个已合并）", imported_count, merged_count))
+        } else {
+            Ok(format!("成功导入 {} 个配置文件", imported_count))
+        }
     } else {
         Err(format!(
             "导入了 {} 个配置文件，但有 {} 个错误:\n{}",

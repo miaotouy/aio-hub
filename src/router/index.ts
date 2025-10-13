@@ -4,7 +4,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/",
     name: "Home",
-    component: () => import("../HomePage.vue"),
+    component: () => import("../views/HomePage.vue"),
   },
   {
     path: "/regex-apply",
@@ -74,7 +74,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/detached-window",
     name: "DetachedWindow",
-    component: () => import("../DetachedWindowContainer.vue"),
+    component: () => import("../views/DetachedWindowContainer.vue"),
   },
 ];
 

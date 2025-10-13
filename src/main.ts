@@ -1,6 +1,6 @@
 import { createApp } from "vue";
 import App from "./App.vue";
-import DetachedWindowContainer from "./DetachedWindowContainer.vue";
+import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
 import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";

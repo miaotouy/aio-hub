@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useTheme } from './composables/useTheme';
-import TitleBar from './components/TitleBar.vue';
+import { useTheme } from '../composables/useTheme';
+import TitleBar from '../components/TitleBar.vue';
 
 const route = useRoute();
 const router = useRouter();

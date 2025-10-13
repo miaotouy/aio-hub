@@ -40,9 +40,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { toolsConfig } from "./config/tools";
-import { loadAppSettingsAsync, type AppSettings } from './utils/appSettings';
-import { useDetachedTools } from './composables/useDetachedTools';
+import { toolsConfig } from "../config/tools";
+import { loadAppSettingsAsync, type AppSettings } from '../utils/appSettings';
+import { useDetachedTools } from '../composables/useDetachedTools';
 
 const router = useRouter();
 const { isToolDetached, focusWindow, initializeListeners } = useDetachedTools();

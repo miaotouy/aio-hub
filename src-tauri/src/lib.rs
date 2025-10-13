@@ -4,7 +4,7 @@ mod events;
 mod tray;
 
 // 导入所需的依赖
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use std::sync::Mutex;
 
@@ -37,6 +37,13 @@ use commands::{
     git_format_log,
     // OCR相关
     native_ocr,
+    // 窗口管理相关
+    create_tool_window,
+    focus_window,
+    get_window_position,
+    set_window_position,
+    ensure_window_visible,
+    get_all_tool_windows,
 };
 
 // 导入事件处理
@@ -124,7 +131,14 @@ pub fn run() {
             git_export_commits,
             git_format_log,
             // OCR命令
-            native_ocr
+            native_ocr,
+            // 窗口管理命令
+            create_tool_window,
+            focus_window,
+            get_window_position,
+            set_window_position,
+            ensure_window_visible,
+            get_all_tool_windows
         ])
         
         // 设置应用
@@ -138,10 +152,12 @@ pub fn run() {
             main_window.set_skip_taskbar(false)
                 .expect("Failed to set skip taskbar");
 
-            // 注册全局快捷键
-            app_handle.global_shortcut()
-                .register("CmdOrCtrl+Shift+Space")
-                .expect("Failed to register global shortcut");
+            // 注册全局快捷键（如果失败则记录警告但继续运行）
+            if let Err(e) = app_handle.global_shortcut()
+                .register("CmdOrCtrl+Shift+Space") {
+                eprintln!("警告: 无法注册全局快捷键 CmdOrCtrl+Shift+Space: {}", e);
+                eprintln!("程序将继续运行，但全局快捷键功能可能不可用");
+            }
             
             // 创建系统托盘
             create_system_tray(&app_handle)?;
@@ -154,10 +170,17 @@ pub fn run() {
             // 先处理文件拖放事件
             handle_window_event(window, event);
             
-            // 处理窗口关闭事件（托盘功能）
+            // 处理窗口关闭事件（托盘功能和工具窗口）
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // 获取应用状态
-                if let Some(app_state) = window.app_handle().try_state::<AppState>() {
+                let window_label = window.label().to_string();
+                
+                // 如果关闭的是工具窗口（非主窗口），发送事件通知
+                if window_label != "main" {
+                    let app_handle = window.app_handle();
+                    let _ = app_handle.emit("tool-attached", window_label);
+                }
+                // 如果是主窗口，处理托盘逻辑
+                else if let Some(app_state) = window.app_handle().try_state::<AppState>() {
                     if let Ok(tray_enabled) = app_state.tray_enabled.lock() {
                         if should_prevent_close(*tray_enabled) {
                             // 阻止关闭，改为隐藏

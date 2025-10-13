@@ -15,6 +15,7 @@ const router = useRouter();
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
+const isMainWindow = ref(false); // 判断是否为主窗口
 const route = useRoute();
 const settings = ref<AppSettings | null>(null);
 
@@ -71,6 +72,9 @@ const checkMaximized = async () => {
 
 // 监听窗口大小变化
 onMounted(async () => {
+  // 判断是否为主窗口
+  isMainWindow.value = appWindow.label === 'main';
+  
   checkMaximized();
   
   // 监听窗口resize事件
@@ -102,10 +106,11 @@ const toggleMaximize = async () => {
 };
 
 const closeWindow = async () => {
-  // 如果启用了托盘，隐藏窗口而不是关闭
-  if (settings.value?.trayEnabled) {
+  // 如果是主窗口且启用了托盘，隐藏窗口而不是关闭
+  if (isMainWindow.value && settings.value?.trayEnabled) {
     await appWindow.hide();
   } else {
+    // 子窗口或未启用托盘时直接关闭
     await appWindow.close();
   }
 };
@@ -119,9 +124,11 @@ const goToSettings = () => {
 <template>
   <div class="title-bar" data-tauri-drag-region>
     <div class="title-bar-content">
-      <!-- 左侧设置按钮 -->
+      <!-- 左侧控制区域 -->
       <div class="left-controls">
+        <!-- 设置按钮（仅主窗口显示） -->
         <button
+          v-if="isMainWindow"
           class="settings-btn"
           @click="goToSettings"
           title="设置"
@@ -161,7 +168,7 @@ const goToSettings = () => {
         <button
           class="control-btn close-btn"
           @click="closeWindow"
-          :title="settings?.trayEnabled ? '隐藏到托盘' : '关闭'"
+          :title="isMainWindow && settings?.trayEnabled ? '隐藏到托盘' : '关闭'"
         >
           <el-icon><Close /></el-icon>
         </button>
@@ -199,6 +206,7 @@ const goToSettings = () => {
 /* 左侧控制区域 */
 .left-controls {
   display: flex;
+  width: 46px; /* 确保占位，将右侧按钮推到正确位置 */
   gap: 0;
   flex-shrink: 0;
   /* 禁止拖动，以便点击按钮 */

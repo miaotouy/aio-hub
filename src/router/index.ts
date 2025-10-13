@@ -71,6 +71,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "Settings",
     component: () => import("../views/Settings.vue"),
   },
+  {
+    path: "/detached-window",
+    name: "DetachedWindow",
+    component: () => import("../DetachedWindowContainer.vue"),
+  },
 ];
 
 const router = createRouter({

@@ -16,6 +16,7 @@ declare module 'vue' {
     IconPresetSelector: typeof import('./components/common/IconPresetSelector.vue')['default']
     IEpCheck: typeof import('~icons/ep/check')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
+    IEpLink: typeof import('~icons/ep/link')['default']
     IEpPlus: typeof import('~icons/ep/plus')['default']
     IEpScissor: typeof import('~icons/ep/scissor')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']

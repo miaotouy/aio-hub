@@ -6,8 +6,18 @@
         v-for="tool in visibleTools"
         :key="tool.path"
         :to="tool.path"
-        class="tool-card"
+        :class="[
+          'tool-card',
+          { 'tool-card-detached': isToolDetached(getToolIdFromPath(tool.path)) }
+        ]"
+        @click="handleToolClick($event, tool.path)"
       >
+        <!-- 已分离徽章 -->
+        <div v-if="isToolDetached(getToolIdFromPath(tool.path))" class="detached-badge">
+          <el-icon><i-ep-link /></el-icon>
+          已分离
+        </div>
+        
         <el-icon :size="48">
           <component :is="tool.icon" />
         </el-icon>
@@ -32,8 +42,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { toolsConfig } from "./config/tools";
 import { loadAppSettingsAsync, type AppSettings } from './utils/appSettings';
+import { useDetachedTools } from './composables/useDetachedTools';
 
 const router = useRouter();
+const { isToolDetached, focusWindow, initializeListeners } = useDetachedTools();
 
 // 从路径提取工具ID（与设置页面保持一致）
 const getToolIdFromPath = (path: string): string => {
@@ -51,7 +63,7 @@ const settings = ref<AppSettings>({
   version: '1.0.0'
 });
 
-// 计算可见的工具列表
+// 计算可见的工具列表（包括已分离的工具，用于显示）
 const visibleTools = computed(() => {
   if (!settings.value.toolsVisible) {
     // 如果没有配置，显示所有工具
@@ -65,12 +77,27 @@ const visibleTools = computed(() => {
   });
 });
 
+// 处理工具卡片点击
+const handleToolClick = async (event: MouseEvent, toolPath: string) => {
+  const toolId = getToolIdFromPath(toolPath);
+  
+  // 如果工具已分离，聚焦其窗口而不是导航
+  if (isToolDetached(toolId)) {
+    event.preventDefault();
+    await focusWindow(toolId);
+  }
+  // 否则让 router-link 正常导航
+};
+
 // 监听localStorage变化以实时更新（保留以防万一，但主要依赖路由变化）
 const handleStorageChange = async () => {
   settings.value = await loadAppSettingsAsync();
 };
 
 onMounted(async () => {
+  // 初始化分离工具监听器
+  await initializeListeners();
+  
   // 初始化时加载设置
   settings.value = await loadAppSettingsAsync();
   // 监听storage事件，以便在设置页面保存后实时更新
@@ -175,5 +202,44 @@ watch(() => router.currentRoute.value.path, async (newPath, oldPath) => {
 
 .no-tools-message {
   margin-top: 50px;
+}
+
+/* 已分离工具的样式 */
+.tool-card-detached {
+  position: relative;
+  border-color: var(--primary-color);
+  background: linear-gradient(135deg, var(--card-bg) 0%, rgba(var(--primary-color-rgb), 0.05) 100%);
+}
+
+.tool-card-detached::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid var(--primary-color);
+  border-radius: 12px;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.detached-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.detached-badge .el-icon {
+  font-size: 14px;
 }
 </style>

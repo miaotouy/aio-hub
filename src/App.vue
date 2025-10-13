@@ -2,7 +2,8 @@
 import { ref, onMounted, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
-import { toolsConfig } from "./config/tools";
+import { toolsConfig, type ToolConfig } from "./config/tools";
+import { useDetachedTools, type WindowConfig } from "./composables/useDetachedTools";
 import {
   loadAppSettingsAsync,
   updateAppSettingsAsync,
@@ -18,7 +19,12 @@ const logger = createModuleLogger("App");
 const router = useRouter();
 const route = useRoute();
 const { currentTheme, toggleTheme } = useTheme();
+const { createToolWindow, isToolDetached, initializeListeners } = useDetachedTools();
 const isCollapsed = ref(false); // 控制侧边栏收起状态
+
+// 拖拽状态
+const draggedTool = ref<ToolConfig | null>(null);
+const dragStartPos = ref<{ x: number; y: number }>({ x: 0, y: 0 });
 
 // 应用设置
 const appSettings = ref<AppSettings>({
@@ -60,15 +66,15 @@ const getToolIdFromPath = (path: string): string => {
 
 // 计算可见的工具列表
 const visibleTools = computed(() => {
-  if (!appSettings.value.toolsVisible) {
-    return toolsConfig; // 如果没有设置，显示所有工具
-  }
+  const baseTools = appSettings.value.toolsVisible
+    ? toolsConfig.filter((tool) => {
+        const toolId = getToolIdFromPath(tool.path);
+        return appSettings.value.toolsVisible![toolId] !== false;
+      })
+    : toolsConfig;
 
-  return toolsConfig.filter((tool) => {
-    const toolId = getToolIdFromPath(tool.path);
-    // 默认为 true，如果未设置则显示
-    return appSettings.value.toolsVisible![toolId] !== false;
-  });
+  // 过滤掉已分离的工具
+  return baseTools.filter((tool) => !isToolDetached(getToolIdFromPath(tool.path)));
 });
 
 const toggleSidebar = async () => {
@@ -154,6 +160,9 @@ const loadSettings = async () => {
 let handleSettingsChange: ((event: Event) => void) | null = null;
 
 onMounted(async () => {
+  // 初始化分离工具的事件监听
+  initializeListeners();
+
   // 初始加载设置
   await loadSettings();
 
@@ -200,6 +209,52 @@ onUnmounted(() => {
 
 const handleSelect = (key: string) => {
   router.push(key);
+};
+
+// --- 拖拽处理 ---
+
+const handleDragStart = (event: DragEvent, tool: ToolConfig) => {
+  draggedTool.value = tool;
+  dragStartPos.value = { x: event.clientX, y: event.clientY };
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    // 设置一个透明的拖拽图像，避免默认的截图
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    event.dataTransfer.setDragImage(canvas, 0, 0);
+  }
+  logger.info("开始拖拽工具", { tool: tool.name });
+};
+const handleDragEnd = async (event: DragEvent) => {
+  if (!draggedTool.value) return;
+
+  const tool = draggedTool.value;
+  const startPos = dragStartPos.value;
+  const endPos = { x: event.clientX, y: event.clientY };
+
+  const distance = Math.sqrt(Math.pow(endPos.x - startPos.x, 2) + Math.pow(endPos.y - startPos.y, 2));
+
+  // 拖拽距离超过100像素时触发分离
+  if (distance > 100) {
+    logger.info("拖拽距离足够，尝试分离窗口", { tool: tool.name, distance });
+    
+    const toolId = getToolIdFromPath(tool.path);
+    const config: WindowConfig = {
+      label: toolId,
+      title: tool.name,
+      // 使用专门的独立窗口容器，通过 query 参数传递工具信息
+      url: `/detached-window?toolPath=${encodeURIComponent(tool.path)}&title=${encodeURIComponent(tool.name)}`,
+      width: 900,
+      height: 700,
+    };
+    await createToolWindow(config);
+  } else {
+    logger.info("拖拽距离不足，取消分离", { tool: tool.name, distance });
+  }
+
+  // 重置状态
+  draggedTool.value = null;
+  dragStartPos.value = { x: 0, y: 0 };
 };
 </script>
 
@@ -250,7 +305,15 @@ const handleSelect = (key: string) => {
             <el-icon><i-ep-home-filled /></el-icon>
             <template #title>主页</template>
           </el-menu-item>
-          <el-menu-item v-for="tool in visibleTools" :key="tool.path" :index="tool.path">
+          <el-menu-item
+            v-for="tool in visibleTools"
+            :key="tool.path"
+            :index="tool.path"
+            :draggable="true"
+            @dragstart="handleDragStart($event, tool)"
+            @dragend="handleDragEnd"
+            class="draggable-menu-item"
+          >
             <el-icon><component :is="tool.icon" /></el-icon>
             <template #title>{{ tool.name }}</template>
           </el-menu-item>
@@ -506,5 +569,22 @@ body {
 #app {
   background: var(--bg-color);
   min-height: 100vh;
+}
+
+/* 拖拽菜单项样式 */
+.draggable-menu-item {
+  cursor: move;
+  user-select: none;
+}
+
+.draggable-menu-item:active {
+  opacity: 0.7;
+}
+
+/* 独立窗口模式样式 */
+.detached-content {
+  padding: 20px;
+  width: 100%;
+  height: 100%;
 }
 </style>

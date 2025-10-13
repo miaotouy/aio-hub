@@ -1,5 +1,6 @@
 import { createApp } from "vue";
 import App from "./App.vue";
+import DetachedWindowContainer from "./DetachedWindowContainer.vue";
 import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
@@ -15,6 +16,11 @@ import { errorHandler, ErrorLevel } from './utils/errorHandler';
 import { createModuleLogger } from './utils/logger';
 
 const logger = createModuleLogger('Main');
+
+// 检查是否为独立工具窗口
+const isDetachedWindow = () => {
+  return window.location.pathname === '/detached-window';
+};
 
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
 // 这样可以避免应用启动时的颜色闪烁
@@ -70,7 +76,14 @@ const logger = createModuleLogger('Main');
   }
 })();
 
-const app = createApp(App);
+// 根据窗口类型选择根组件
+const rootComponent = isDetachedWindow() ? DetachedWindowContainer : App;
+logger.info('选择根组件', {
+  component: isDetachedWindow() ? 'DetachedWindowContainer' : 'App',
+  hash: window.location.hash
+});
+
+const app = createApp(rootComponent);
 const pinia = createPinia(); // 创建 Pinia 实例
 
 app.use(ElementPlus);

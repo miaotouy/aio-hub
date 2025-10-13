@@ -56,6 +56,7 @@ dependencies = [
  "tokio",
  "tower 0.4.13",
  "tower-http 0.5.2",
+ "url",
  "uuid",
  "windows 0.58.0",
 ]

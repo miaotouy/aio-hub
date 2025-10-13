@@ -5,6 +5,7 @@ pub mod directory_tree;
 pub mod llm_proxy;
 pub mod git_analyzer;
 pub mod ocr;
+pub mod window_manager;
 
 // 重新导出所有命令
 pub use clipboard::*;
@@ -13,3 +14,4 @@ pub use directory_tree::*;
 pub use llm_proxy::*;
 pub use git_analyzer::*;
 pub use ocr::*;
+pub use window_manager::*;

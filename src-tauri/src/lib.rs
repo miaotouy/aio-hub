@@ -45,6 +45,10 @@ use commands::{
     ensure_window_visible,
     get_all_tool_windows,
     clear_window_state,
+    // 配置管理相关
+    export_all_configs,
+    import_all_configs,
+    list_config_files,
 };
 
 // 导入事件处理
@@ -141,7 +145,11 @@ pub fn run() {
             set_window_position,
             ensure_window_visible,
             get_all_tool_windows,
-            clear_window_state
+            clear_window_state,
+            // 配置管理命令
+            export_all_configs,
+            import_all_configs,
+            list_config_files
         ])
         
         // 设置应用

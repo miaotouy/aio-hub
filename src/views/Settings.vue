@@ -19,6 +19,7 @@ import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { openPath } from "@tauri-apps/plugin-opener";
+import type { ConfigExport } from "../types/config-export";
 
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
@@ -211,9 +212,12 @@ const handleExportConfig = async () => {
     });
 
     if (filePath) {
-      const configContent = JSON.stringify(settings.value, null, 2);
+      // 调用后端命令导出所有模块的配置
+      const configData = await invoke<ConfigExport>("export_all_configs");
+      const configContent = JSON.stringify(configData, null, 2);
       await writeTextFile(filePath, configContent);
       ElMessage.success("配置导出成功");
+      logger.info("配置已导出", { filePath, configData });
     }
   } catch (error) {
     logger.error("导出配置失败", error);
@@ -237,7 +241,7 @@ const handleImportConfig = async () => {
 
     if (filePath) {
       await ElMessageBox.confirm(
-        "导入配置将覆盖当前所有设置，是否继续？",
+        "导入配置将覆盖当前所有模块的配置，是否继续？",
         "导入配置",
         {
           confirmButtonText: "确定",
@@ -247,15 +251,26 @@ const handleImportConfig = async () => {
       );
 
       const configContent = await readTextFile(filePath as string);
-      const importedConfig = JSON.parse(configContent);
+      
+      // 调用后端命令导入所有模块的配置
+      const result = await invoke<string>("import_all_configs", {
+        configJson: configContent,
+      });
 
-      // 验证导入的配置是否有效
-      if (typeof importedConfig !== "object" || importedConfig === null) {
-        throw new Error("无效的配置文件格式");
-      }
-
+      // 重新加载应用设置以反映变化
       isLoadingFromFile = true;
-      settings.value = { ...settings.value, ...importedConfig };
+      const loadedSettings = await loadAppSettingsAsync();
+      settings.value = loadedSettings;
+
+      // 应用主题
+      applyThemeFromComposable(settings.value.theme || "auto");
+      applyThemeColors({
+        primary: settings.value.themeColor,
+        success: settings.value.successColor,
+        warning: settings.value.warningColor,
+        danger: settings.value.dangerColor,
+        info: settings.value.infoColor,
+      });
 
       // 手动触发同步事件
       setTimeout(() => {
@@ -267,7 +282,8 @@ const handleImportConfig = async () => {
         );
       }, 100);
 
-      ElMessage.success("配置导入成功");
+      ElMessage.success(result);
+      logger.info("配置已导入", { result });
     }
   } catch (error) {
     if (error !== "cancel") {

@@ -162,6 +162,29 @@ const handleReset = async () => {
   }
 };
 
+// 清除窗口状态
+const handleClearWindowState = async () => {
+  try {
+    await ElMessageBox.confirm(
+      "确定要清除所有窗口的位置和大小记忆吗？下次打开窗口时将恢复默认位置。",
+      "清除窗口状态",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
+
+    await invoke("clear_window_state");
+    ElMessage.success("窗口状态已清除");
+  } catch (error) {
+    if (error !== "cancel") {
+      logger.error("清除窗口状态失败", error);
+      ElMessage.error("清除窗口状态失败");
+    }
+  }
+};
+
 // 标记是否正在从文件加载设置，避免触发不必要的事件
 let isLoadingFromFile = false;
 
@@ -436,6 +459,20 @@ onUnmounted(() => {
                 <el-radio-button value="light">浅色</el-radio-button>
                 <el-radio-button value="dark">深色</el-radio-button>
               </el-radio-group>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>窗口位置记忆</span>
+                <el-tooltip content="清除所有窗口的位置和大小记忆，恢复默认状态" placement="top">
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
+                </el-tooltip>
+              </div>
+              <el-button @click="handleClearWindowState" size="small">
+                清除窗口状态
+              </el-button>
             </div>
 
           </section>

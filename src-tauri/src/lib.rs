@@ -44,6 +44,7 @@ use commands::{
     set_window_position,
     ensure_window_visible,
     get_all_tool_windows,
+    clear_window_state,
 };
 
 // 导入事件处理
@@ -96,6 +97,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         
         // 管理状态
         .manage(ClipboardMonitorState::new())
@@ -138,7 +140,8 @@ pub fn run() {
             get_window_position,
             set_window_position,
             ensure_window_visible,
-            get_all_tool_windows
+            get_all_tool_windows,
+            clear_window_state
         ])
         
         // 设置应用

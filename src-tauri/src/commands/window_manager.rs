@@ -56,7 +56,6 @@ pub async fn create_tool_window(
     .min_inner_size(400.0, 300.0)
     .decorations(false)  // 无边框，与主窗口保持一致
     .transparent(true)   // 透明背景
-    .center()           // 居中显示
     .build()
     .map_err(|e| e.to_string())?;
 
@@ -197,4 +196,25 @@ pub async fn get_all_tool_windows(app: AppHandle) -> Result<Vec<String>, String>
         .collect();
     
     Ok(windows)
+}
+
+/// 清除所有窗口的保存状态
+#[tauri::command]
+pub async fn clear_window_state(app: AppHandle) -> Result<(), String> {
+    // tauri-plugin-window-state 将状态保存在 app data 目录下的 .window-state 文件中
+    // 删除该文件即可清除所有窗口的保存状态
+    use std::fs;
+    
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+    
+    let state_file = app_data_dir.join(".window-state");
+    
+    if state_file.exists() {
+        fs::remove_file(&state_file)
+            .map_err(|e| format!("删除窗口状态文件失败: {}", e))?;
+    }
+    
+    Ok(())
 }

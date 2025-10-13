@@ -43,7 +43,7 @@ onMounted(() => {
 .tool-content {
   flex: 1;
   overflow: auto;
-  padding: 0;
+  padding-top: 32px;
 }
 
 

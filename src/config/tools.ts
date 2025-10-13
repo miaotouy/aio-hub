@@ -2,7 +2,6 @@ import { markRaw, Component } from 'vue';
 import {
   MagicStick,
   PictureFilled,
-  Files,
   Brush,
   Setting,
   Rank,
@@ -12,6 +11,7 @@ import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
 import GitBranchIcon from '../components/icons/GitBranchIcon.vue';
 import OcrIcon from '../components/icons/OcrIcon.vue';
+import TextDiffIcon from '../components/icons/TextDiffIcon.vue';
 
 export interface ToolConfig {
   name: string;
@@ -34,10 +34,10 @@ export const toolsConfig: ToolConfig[] = [
     description: '读取图片、视频等媒体文件的详细信息'
   },
   {
-    name: '文本/JSON对比',
+    name: '文本差异对比',
     path: '/text-diff',
-    icon: markRaw(Files),
-    description: '对比文本和JSON文件的差异'
+    icon: markRaw(TextDiffIcon),
+    description: '对比文本文件的差异'
   },
   {
     name: 'JSON 格式化',

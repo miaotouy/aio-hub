@@ -15,6 +15,7 @@
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-markdown": "^6.3.3",
     "@codemirror/view": "^6.38.1",
+    "@guolao/vue-monaco-editor": "^1.5.5",
     "@prettier/plugin-php": "^0.24.0",
     "@prettier/plugin-xml": "^3.4.2",
     "@rigstech/codemirror-vscodesearch": "^1.0.4",

@@ -1,260 +1,310 @@
 <template>
   <div class="text-diff-container">
-    <el-row :gutter="20" class="input-section">
-      <el-col :span="12">
-        <el-card shadow="never">
-          <template #header><span>源文本 (左)</span></template>
-          <el-input
-            v-model="textA"
-            type="textarea"
-            :rows="15"
-            placeholder="请输入源文本..."
-          />
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card shadow="never">
-          <template #header><span>目标文本 (右)</span></template>
-          <el-input
-            v-model="textB"
-            type="textarea"
-            :rows="15"
-            placeholder="请输入目标文本..."
-          />
-        </el-card>
-      </el-col>
-    </el-row>
+    <!-- 工具栏 -->
+    <el-card shadow="never" class="toolbar-card">
+      <div class="toolbar">
+        <!-- 语言选择 -->
+        <div class="toolbar-group">
+          <el-select v-model="language" placeholder="选择语言" size="small" style="width: 150px;">
+            <el-option label="纯文本" value="plaintext" />
+            <el-option label="JavaScript" value="javascript" />
+            <el-option label="TypeScript" value="typescript" />
+            <el-option label="JSON" value="json" />
+            <el-option label="HTML" value="html" />
+            <el-option label="CSS" value="css" />
+            <el-option label="Python" value="python" />
+            <el-option label="Java" value="java" />
+            <el-option label="C++" value="cpp" />
+            <el-option label="Markdown" value="markdown" />
+          </el-select>
+        </div>
 
-    <el-card shadow="never" class="output-section">
-      <template #header>
-        <div class="output-header">
-          <span>差异对比</span>
-          <div class="output-controls">
-            <el-radio-group v-model="diffMode" size="small" style="margin-right: 10px;">
-              <el-radio-button label="text">文本对比</el-radio-button>
-              <el-radio-button label="json" :disabled="!isJsonA || !isJsonB">JSON对比</el-radio-button>
-            </el-radio-group>
-            <el-radio-group v-model="outputFormat" size="small" v-show="diffMode === 'text'">
-              <el-radio-button label="side-by-side">并排视图</el-radio-button>
-              <el-radio-button label="line-by-line">行内视图</el-radio-button>
-            </el-radio-group>
-            <el-button v-if="diffMode === 'json' && isJsonA && isJsonB" @click="mergeJson" type="primary" size="small" style="margin-left: 10px;">合并 JSON (优先右侧)</el-button>
+        <!-- 布局切换 -->
+        <div class="toolbar-group">
+          <el-radio-group v-model="renderSideBySide" size="small">
+            <el-radio-button :value="true">并排</el-radio-button>
+            <el-radio-button :value="false">内联</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <!-- 比对选项 -->
+        <div class="toolbar-group">
+          <el-checkbox v-model="ignoreWhitespace" size="small">忽略行尾空白</el-checkbox>
+          <el-checkbox v-model="renderOverviewRuler" size="small">只看变更</el-checkbox>
+          <el-checkbox v-model="wordWrap" size="small">自动换行</el-checkbox>
+          <div class="checkbox-with-tip">
+            <el-checkbox v-model="ignoreCaseInDiffComputing" size="small">
+              忽略大小写
+            </el-checkbox>
+            <el-tooltip content="实验性功能：仅影响导航计数，不改变可视差异" placement="top">
+              <el-icon class="experimental-icon" :size="16" color="var(--el-color-info)">
+                <QuestionFilled />
+              </el-icon>
+            </el-tooltip>
           </div>
         </div>
-      </template>
-      <div v-if="diffHtml" v-html="diffHtml" class="diff-view" :class="{ 'json-diff-view': diffMode === 'json' }"></div>
-      <el-empty v-else description="暂无差异"></el-empty>
+
+        <!-- 差异导航 -->
+        <div class="toolbar-group">
+          <el-button-group size="small">
+            <el-button :disabled="!canNavigate" @click="goToPreviousDiff">
+              <el-icon><ArrowUp /></el-icon>
+              上一处
+            </el-button>
+            <el-button :disabled="!canNavigate" @click="goToNextDiff">
+              下一处
+              <el-icon><ArrowDown /></el-icon>
+            </el-button>
+          </el-button-group>
+          <span v-if="totalDiffs > 0" class="diff-counter">
+            {{ currentDiffIndex + 1 }} / {{ totalDiffs }}
+          </span>
+          <span v-else class="diff-counter">无差异</span>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="toolbar-group">
+          <el-button size="small" @click="clearAll">清空</el-button>
+          <el-button size="small" @click="swapTexts">交换</el-button>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- Diff 编辑器 - 一体化输入和对比 -->
+    <el-card shadow="never" class="diff-editor-card">
+      <vue-monaco-diff-editor
+        v-model:original="textA"
+        v-model:modified="textB"
+        :language="language"
+        :options="editorOptions"
+        class="diff-editor"
+        theme="vs-dark"
+        @editor-mounted="handleEditorMounted"
+      />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { createPatch } from 'diff';
-import { html } from 'diff2html';
-import 'diff2html/bundles/css/diff2html.min.css';
-import debounce from 'lodash/debounce';
-import * as jsondiffpatch from 'jsondiffpatch';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ref, computed, watch, nextTick, shallowRef } from 'vue';
+import { VueMonacoDiffEditor } from '@guolao/vue-monaco-editor';
+import { ArrowUp, ArrowDown, QuestionFilled } from '@element-plus/icons-vue';
 import { createModuleLogger } from '@utils/logger';
+import type { editor } from 'monaco-editor';
 
 const logger = createModuleLogger('TextDiff');
 
+// 文本内容
 const textA = ref('');
 const textB = ref('');
-const diffHtml = ref('');
-const outputFormat = ref<'side-by-side' | 'line-by-line'>('side-by-side');
-const diffMode = ref<'text' | 'json'>('text'); // 新增：差异模式
+const language = ref<string>('plaintext');
 
-const isJsonA = computed(() => {
-  try {
-    JSON.parse(textA.value);
-    return true;
-  } catch (e) {
-    return false;
+// 布局与比对选项
+const renderSideBySide = ref(true); // 并排/内联
+const ignoreWhitespace = ref(true); // 忽略行尾空白
+const renderOverviewRuler = ref(false); // 只看变更
+const wordWrap = ref(false); // 自动换行
+const ignoreCaseInDiffComputing = ref(false); // 忽略大小写（实验）
+
+// 差异导航状态
+const currentDiffIndex = ref(0);
+const totalDiffs = ref(0);
+const diffEditor = shallowRef<editor.IStandaloneDiffEditor | null>(null);
+const diffNavigator = shallowRef<any>(null);
+
+// 编辑器配置（计算属性）
+const editorOptions = computed(() => ({
+  readOnly: false,
+  renderSideBySide: renderSideBySide.value,
+  automaticLayout: true,
+  fontSize: 14,
+  lineNumbers: 'on' as const,
+  minimap: { enabled: true },
+  scrollBeyondLastLine: false,
+  wordWrap: (wordWrap.value ? 'on' : 'off') as 'on' | 'off',
+  folding: true,
+  renderWhitespace: 'selection' as const,
+  diffWordWrap: (wordWrap.value ? 'on' : 'off') as 'on' | 'off',
+  // 忽略空白差异
+  ignoreTrimWhitespace: ignoreWhitespace.value,
+  // 只看变更相关选项
+  renderOverviewRuler: !renderOverviewRuler.value,
+  renderIndicators: !renderOverviewRuler.value,
+  // 差异算法优化
+  diffAlgorithm: 'advanced' as const,
+}));
+
+// 是否可以导航
+const canNavigate = computed(() => totalDiffs.value > 0);
+
+// 编辑器挂载处理
+const handleEditorMounted = (editorInstance: any) => {
+  diffEditor.value = editorInstance.getDiffEditor();
+  
+  // 创建差异导航器
+  if (diffEditor.value && (window as any).monaco) {
+    const monaco = (window as any).monaco;
+    diffNavigator.value = monaco.editor.createDiffNavigator(diffEditor.value, {
+      followsCaret: true,
+      ignoreCharChanges: true,
+    });
   }
-});
 
-const isJsonB = computed(() => {
-  try {
-    JSON.parse(textB.value);
-    return true;
-  } catch (e) {
-    return false;
-  }
-});
+  // 初始化差异计数
+  updateDiffCount();
+  
+  logger.info('差异编辑器已挂载');
+};
 
-const generateDiff = debounce(() => {
-  diffHtml.value = ''; // Clear previous diff
-
-  if (!textA.value && !textB.value) {
+// 更新差异计数
+const updateDiffCount = () => {
+  if (!diffEditor.value) {
+    totalDiffs.value = 0;
+    currentDiffIndex.value = 0;
     return;
   }
 
-  if (diffMode.value === 'json' && isJsonA.value && isJsonB.value) {
-    try {
-      const objA = JSON.parse(textA.value);
-      const objB = JSON.parse(textB.value);
-      const instance = jsondiffpatch.create();
-      const delta = instance.diff(objA, objB);
-      
-      if (delta) {
-        // 简单的 JSON 差异显示，使用格式化的 JSON 字符串
-        diffHtml.value = `<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto;">${JSON.stringify(delta, null, 2)}</pre>`;
-      } else {
-        diffHtml.value = '<div style="color: green; text-align: center; padding: 20px;">JSON 对象完全相同</div>';
-      }
-    } catch (e: any) {
-      diffHtml.value = `<div style="color: red;">JSON 解析或对比错误: ${e.message}</div>`;
-      logger.error('JSON 对比失败', e, {
-        textALength: textA.value.length,
-        textBLength: textB.value.length
-      });
-    }
-  } else {
-    // Fallback to text diff if not JSON mode or invalid JSON
-    const diffPatch = createPatch('file.txt', textA.value, textB.value);
-    diffHtml.value = html(diffPatch, {
-      drawFileList: false,
-      matching: 'lines',
-      outputFormat: outputFormat.value,
-    });
-  }
-}, 300);
-
-const mergeJson = () => {
-  if (!isJsonA.value || !isJsonB.value) {
-    ElMessage.error('请确保两个输入都是有效的 JSON！');
-    return;
-  }
   try {
-    const objA = JSON.parse(textA.value);
-    const objB = JSON.parse(textB.value);
-    const instance = jsondiffpatch.create();
-    const delta = instance.diff(objA, objB);
-
-    if (delta) {
-      // 优先右侧合并：将 delta 应用到左侧，冲突时保留右侧的值
-      const merged = instance.patch(objA, delta); // 这会应用所有差异，包括增加、删除、修改。
-      // 对于冲突，jsondiffpatch的patch默认行为是直接应用delta，不会有“优先哪个”的选择
-      // 如果需要更复杂的合并策略，需要实现自定义的合并逻辑
-      ElMessageBox.alert(
-        `<pre>${JSON.stringify(merged, null, 2)}</pre>`,
-        '合并结果 (优先右侧)',
-        {
-          dangerouslyUseHTMLString: true,
-          confirmButtonText: '确定',
-          callback: () => {
-            textA.value = JSON.stringify(merged, null, 2); // 将合并结果放回左侧
-            ElMessage.success('合并结果已填充到源文本！');
-          }
-        }
-      );
-    } else {
-      ElMessage.info('两个 JSON 对象完全相同，无需合并。');
-    }
-  } catch (e: any) {
-    ElMessage.error(`合并失败: ${e.message}`);
-    logger.error('JSON 合并失败', e, {
-      textALength: textA.value.length,
-      textBLength: textB.value.length
-    });
+    const lineChanges = diffEditor.value.getLineChanges() || [];
+    totalDiffs.value = lineChanges.length;
+    currentDiffIndex.value = 0;
+    
+    logger.debug(`差异计数更新: ${totalDiffs.value} 处`);
+  } catch (error) {
+    logger.error('更新差异计数失败', error);
+    totalDiffs.value = 0;
   }
 };
 
-watch([textA, textB, outputFormat, diffMode], generateDiff, { immediate: true });
+// 上一处差异
+const goToPreviousDiff = () => {
+  if (!diffNavigator.value || !canNavigate.value) return;
+  
+  try {
+    diffNavigator.value.previous();
+    if (currentDiffIndex.value > 0) {
+      currentDiffIndex.value--;
+    } else {
+      currentDiffIndex.value = totalDiffs.value - 1;
+    }
+    logger.debug(`导航到上一处差异: ${currentDiffIndex.value + 1}/${totalDiffs.value}`);
+  } catch (error) {
+    logger.error('导航到上一处差异失败', error);
+  }
+};
+
+// 下一处差异
+const goToNextDiff = () => {
+  if (!diffNavigator.value || !canNavigate.value) return;
+  
+  try {
+    diffNavigator.value.next();
+    if (currentDiffIndex.value < totalDiffs.value - 1) {
+      currentDiffIndex.value++;
+    } else {
+      currentDiffIndex.value = 0;
+    }
+    logger.debug(`导航到下一处差异: ${currentDiffIndex.value + 1}/${totalDiffs.value}`);
+  } catch (error) {
+    logger.error('导航到下一处差异失败', error);
+  }
+};
+
+// 清空所有文本
+const clearAll = () => {
+  textA.value = '';
+  textB.value = '';
+  logger.info('已清空所有文本');
+};
+
+// 交换左右文本
+const swapTexts = () => {
+  const temp = textA.value;
+  textA.value = textB.value;
+  textB.value = temp;
+  logger.info('已交换左右文本');
+};
+
+// 监听文本变化，更新差异计数
+watch([textA, textB], () => {
+  nextTick(() => {
+    updateDiffCount();
+  });
+}, { flush: 'post' });
+
+// 监听比对选项变化，重新计算差异
+watch([ignoreWhitespace, ignoreCaseInDiffComputing], () => {
+  nextTick(() => {
+    updateDiffCount();
+  });
+});
 </script>
 
 <style scoped>
 .text-diff-container {
+  display: flex;
+  flex-direction: column;
   padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
   height: 100%;
   box-sizing: border-box;
-  overflow-y: auto;
-  color: var(--text-color); /* 确保容器内文本颜色正确 */
+  gap: 20px;
+  overflow: hidden;
 }
 
-.input-section {
-  margin-bottom: 20px;
+.toolbar-card {
+  flex-shrink: 0;
 }
 
-.output-header {
+.toolbar {
   display: flex;
-  justify-content: space-between;
+  gap: 16px;
   align-items: center;
-  color: var(--text-color); /* 确保头部文本颜色正确 */
+  flex-wrap: wrap;
 }
 
-.diff-view {
-  border: 1px solid var(--border-color); /* 使用主题边框色 */
-  border-radius: 4px;
-  padding: 10px;
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* 覆盖 diff2html 样式 */
-/* 使用 ::v-deep 或 :deep() 来穿透 scoped style */
-/* 为了兼容性，这里使用不带 v-deep 的方式，但请注意这会影响全局 */
-/* 更好的做法是在 App.vue 中引入全局样式覆盖或使用 SCSS/Less 等预处理器 */
-
-/* diff2html 的背景色和文本颜色 */
-.d2h-wrapper {
-  background-color: var(--card-bg);
-  color: var(--text-color);
+.checkbox-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.d2h-file-header {
-  background-color: var(--container-bg);
-  color: var(--text-color);
-  border-bottom: 1px solid var(--border-color);
+.experimental-icon {
+  cursor: help;
+  vertical-align: middle;
 }
 
-.d2h-code-wrapper {
-  background-color: var(--input-bg); /* 代码区域背景 */
+.diff-counter {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  margin-left: 8px;
 }
 
-.d2h-files-diff {
-  border: none; /* 移除外层边框，由 .diff-view 提供 */
+.diff-editor-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.d2h-code-line {
-  color: var(--text-color);
+.diff-editor-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
 }
 
-.d2h-code-line.d2h-info {
-  background-color: var(--container-bg);
-  color: var(--text-color-light);
+.diff-editor {
+  flex: 1;
+  min-height: 400px;
+  height: 100%;
 }
-
-.d2h-code-line.d2h-cntx {
-  background-color: var(--input-bg);
-  color: var(--text-color);
-}
-
-.d2h-code-line.d2h-ins {
-  background-color: #e6ffed; /* 绿色背景，可根据主题调整 */
-  color: #24292e; /* 深色文本 */
-}
-.dark-theme .d2h-code-line.d2h-ins {
-  background-color: #28a74533; /* 暗色模式下的绿色，透明度 */
-  color: var(--text-color);
-}
-
-.d2h-code-line.d2h-del {
-  background-color: #ffeef0; /* 红色背景，可根据主题调整 */
-  color: #24292e; /* 深色文本 */
-}
-.dark-theme .d2h-code-line.d2h-del {
-  background-color: #d73a4933; /* 暗色模式下的红色，透明度 */
-  color: var(--text-color);
-}
-
-/* json diff 的 pre 标签样式 */
-.diff-view pre {
-  background: var(--input-bg) !important;
-  color: var(--text-color) !important;
-  border: 1px solid var(--border-color);
-}
-
 </style>

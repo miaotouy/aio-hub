@@ -14,8 +14,7 @@
       >
         <!-- 已分离徽章 -->
         <div v-if="isToolDetached(getToolIdFromPath(tool.path))" class="detached-badge">
-          <el-icon><i-ep-link /></el-icon>
-          已分离
+          <el-icon><i-ep-full-screen /></el-icon>
         </div>
         
         <el-icon :size="48">
@@ -230,16 +229,16 @@ watch(() => router.currentRoute.value.path, async (newPath, oldPath) => {
   right: 10px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: var(--primary-color);
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   color: white;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .detached-badge .el-icon {
-  font-size: 14px;
+  font-size: 16px;
+  margin: 0;
 }
 </style>

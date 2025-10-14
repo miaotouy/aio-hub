@@ -843,13 +843,18 @@ const processFiles = async () => {
     return;
   }
 
-  // 收集所有选中预设的启用规则
+  // 收集所有选中预设的启用规则，并附加预设名称信息
   const allRules = [];
   for (const presetId of selectedPresetIds.value) {
     const preset = store.presets.find(p => p.id === presetId);
     if (preset) {
       const enabledRules = preset.rules.filter(r => r.enabled);
-      allRules.push(...enabledRules);
+      // 为每个规则附加预设名称
+      const rulesWithPreset = enabledRules.map(r => ({
+        ...r,
+        preset_name: preset.name
+      }));
+      allRules.push(...rulesWithPreset);
     }
   }
 
@@ -865,7 +870,9 @@ const processFiles = async () => {
     const filePaths = files.value.map(file => file.path);
     const rulesForBackend = allRules.map(r => ({
       regex: r.regex,
-      replacement: r.replacement
+      replacement: r.replacement,
+      name: r.name,
+      preset_name: r.preset_name
     }));
 
     addLog(`开始处理 ${filePaths.length} 个文件，应用 ${allRules.length} 条规则...`);

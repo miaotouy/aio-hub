@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub struct RegexRule {
     pub regex: String,
     pub replacement: String,
+    pub name: Option<String>,        // 规则名称
+    pub preset_name: Option<String>, // 所属预设名称
 }
 
 // 解析正则表达式字符串，支持 /pattern/flags 格式
@@ -117,18 +119,45 @@ pub async fn process_files_with_regex(
     // 编译所有正则表达式
     add_log("--- 编译正则表达式 ---".to_string(), "info");
     let mut compiled_rules_vec = Vec::new();
+    let mut skipped_count = 0;
+    
     for (idx, rule) in rules.iter().enumerate() {
-        let (pattern, flags) = parse_regex_pattern(&rule.regex)?;
-        add_log(format!("规则 {}: /{}/{} -> \"{}\"", idx + 1, pattern, flags, rule.replacement), "info");
+        // 构建规则标识（用于日志和错误消息）
+        let rule_label = match (&rule.preset_name, &rule.name) {
+            (Some(preset), Some(name)) => format!("[{}] {}", preset, name),
+            (Some(preset), None) => format!("[{}] 规则 {}", preset, idx + 1),
+            (None, Some(name)) => name.clone(),
+            (None, None) => format!("规则 {}", idx + 1),
+        };
+        
+        let (pattern, flags) = match parse_regex_pattern(&rule.regex) {
+            Ok(result) => result,
+            Err(e) => {
+                add_log(format!("⚠ {} 跳过: {} - Rust 后端不支持该语法", rule_label, e), "warn");
+                skipped_count += 1;
+                continue;
+            }
+        };
+        
+        add_log(format!("{}: /{}/{} -> \"{}\"", rule_label, pattern, flags, rule.replacement), "info");
         
         match build_regex_with_flags(&pattern, &flags) {
             Ok(r) => {
                 compiled_rules_vec.push((r, rule.replacement.clone(), pattern, flags));
             }
             Err(e) => {
-                return Err(format!("无效的正则表达式 '{}': {}", rule.regex, e));
+                add_log(format!("⚠ {} 跳过: 无效的正则表达式 '{}' - {} (Rust 后端不支持)", rule_label, rule.regex, e), "warn");
+                skipped_count += 1;
             }
         }
+    }
+    
+    if skipped_count > 0 {
+        add_log(format!("已跳过 {} 条 Rust 后端不支持的规则", skipped_count), "warn");
+    }
+    
+    if compiled_rules_vec.is_empty() {
+        return Err("所有规则都无法在 Rust 后端编译，请检查规则语法".to_string());
     }
     
     // 收集所有需要处理的文件

@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
+import DragIndicator from "./views/DragIndicator.vue";
 import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
@@ -19,11 +20,14 @@ import { initTheme } from "./composables/useTheme";
 import packageJson from "../package.json";
 
 const logger = createModuleLogger("Main");
+// 检查是否为拖拽指示器窗口（完全透明、无布局）
+const isDragIndicator = () => {
+  return window.location.pathname === "/drag-indicator";
+};
 
-// 检查是否为独立工具窗口（需要轻量级布局的窗口）
+// 检查是否为独立工具窗口（需要标题栏和标准布局）
 const isDetachedWindow = () => {
-  const pathname = window.location.pathname;
-  return pathname === "/detached-window" || pathname === "/drag-indicator";
+  return window.location.pathname === "/detached-window";
 };
 
 // 为拖拽指示器窗口添加透明背景类名
@@ -90,10 +94,15 @@ if (window.location.pathname === "/drag-indicator") {
 })();
 
 // 根据窗口类型选择根组件
-const rootComponent = isDetachedWindow() ? DetachedWindowContainer : App;
+const rootComponent = isDragIndicator()
+  ? DragIndicator
+  : (isDetachedWindow() ? DetachedWindowContainer : App);
+
 logger.info("选择根组件", {
-  component: isDetachedWindow() ? "DetachedWindowContainer" : "App",
-  hash: window.location.hash,
+  component: isDragIndicator()
+    ? "DragIndicator"
+    : (isDetachedWindow() ? "DetachedWindowContainer" : "App"),
+  pathname: window.location.pathname,
 });
 
 const app = createApp(rootComponent);

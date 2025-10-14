@@ -86,31 +86,57 @@ onUnmounted(() => {
 
 /* 横向布局的指示器 */
 .drag-indicator {
-  background: var(--card-bg);
-  border: 2px solid var(--primary-color);
-  border-radius: 8px;
-  padding: 10px 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  background: color-mix(in srgb, var(--card-bg) 85%, transparent);
+  border: 1.5px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1),
+              0 2px 8px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: row; /* 横向布局 */
   align-items: center;
   gap: 12px;
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+  backdrop-filter: blur(12px) saturate(180%);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: auto; /* 指示器本身可以接收鼠标事件 */
   min-width: 200px;
+  position: relative;
+  overflow: hidden;
 }
 
-/* 可以分离状态 - 绿色 */
+/* 可以分离状态 - 优雅的成功提示 */
 .drag-indicator.can-detach {
   border-color: var(--success-color);
-  animation: successPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--success-color) 20%, transparent),
+              0 2px 10px color-mix(in srgb, var(--success-color) 15%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--success-color) 10%, transparent);
+  animation: gentleGlow 2s ease-in-out infinite, floatUp 3s ease-in-out infinite;
 }
 
-/* 不可分离状态 - 警告色 */
+/* 不可分离状态 - 柔和的警告提示 */
 .drag-indicator.cannot-detach {
   border-color: var(--warning-color);
-  animation: warningPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--warning-color) 15%, transparent),
+              0 2px 10px color-mix(in srgb, var(--warning-color) 10%, transparent);
+  animation: subtlePulse 2s ease-in-out infinite;
+}
+
+/* 内部光晕效果 */
+.drag-indicator.can-detach::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--success-color) 8%, transparent) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  animation: innerGlow 2s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .icon-wrapper {
@@ -118,15 +144,21 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drag-indicator.can-detach .icon-wrapper {
+  animation: iconBounce 2s ease-in-out infinite;
 }
 
 .tool-icon {
-  color: var(--primary-color);
-  transition: color 0.3s ease;
+  color: var(--text-color);
+  transition: color 0.3s ease, filter 0.3s ease;
 }
 
 .drag-indicator.can-detach .tool-icon {
   color: var(--success-color);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--success-color) 30%, transparent));
 }
 
 .drag-indicator.cannot-detach .tool-icon {
@@ -136,6 +168,7 @@ onUnmounted(() => {
 .emoji-icon {
   font-size: 20px;
   line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
 }
 
 .tool-name {
@@ -144,6 +177,7 @@ onUnmounted(() => {
   color: var(--text-color);
   white-space: nowrap;
   flex-shrink: 0;
+  letter-spacing: 0.3px;
 }
 
 .status-indicator {
@@ -153,45 +187,100 @@ onUnmounted(() => {
 }
 
 .hint {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   white-space: nowrap;
-  padding: 4px 10px;
-  border-radius: 4px;
-  transition: all 0.3s ease;
+  padding: 5px 12px;
+  border-radius: 6px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .drag-indicator.can-detach .hint {
   color: var(--success-color);
-  background: rgba(103, 194, 58, 0.15);
+  background: color-mix(in srgb, var(--success-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success-color) 25%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--success-color) 15%, transparent);
 }
 
 .drag-indicator.cannot-detach .hint {
   color: var(--warning-color);
-  background: rgba(230, 162, 60, 0.15);
+  background: color-mix(in srgb, var(--warning-color) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning-color) 20%, transparent);
 }
 
-/* 成功状态动画 */
-@keyframes successPulse {
+/* 柔和的光晕动画 - 用于成功状态 */
+@keyframes gentleGlow {
   0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--success-color) 20%, transparent),
+                0 2px 10px color-mix(in srgb, var(--success-color) 15%, transparent),
+                0 0 0 1px color-mix(in srgb, var(--success-color) 10%, transparent);
   }
   50% {
-    transform: scale(1.02);
-    box-shadow: 0 12px 32px rgba(103, 194, 58, 0.3);
+    box-shadow: 0 6px 28px color-mix(in srgb, var(--success-color) 30%, transparent),
+                0 3px 14px color-mix(in srgb, var(--success-color) 20%, transparent),
+                0 0 0 1px color-mix(in srgb, var(--success-color) 15%, transparent);
   }
 }
 
-/* 警告状态动画 */
-@keyframes warningPulse {
+/* 轻微的脉冲效果 - 用于警告状态 */
+@keyframes subtlePulse {
   0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--warning-color) 15%, transparent),
+                0 2px 10px color-mix(in srgb, var(--warning-color) 10%, transparent);
   }
   50% {
-    transform: scale(1.02);
-    box-shadow: 0 12px 32px rgba(230, 162, 60, 0.3);
+    box-shadow: 0 5px 24px color-mix(in srgb, var(--warning-color) 20%, transparent),
+                0 3px 12px color-mix(in srgb, var(--warning-color) 15%, transparent);
   }
+}
+
+/* 优雅的上浮效果 */
+@keyframes floatUp {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* 图标微弹跳效果 */
+@keyframes iconBounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+/* 内部光晕呼吸效果 */
+@keyframes innerGlow {
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* 暗色主题适配 */
+.theme-dark .drag-indicator {
+  background: color-mix(in srgb, var(--card-bg) 75%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3),
+              0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.theme-dark .drag-indicator.can-detach {
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--success-color) 25%, transparent),
+              0 4px 14px color-mix(in srgb, var(--success-color) 18%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--success-color) 20%, transparent);
+}
+
+.theme-dark .drag-indicator.cannot-detach {
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--warning-color) 20%, transparent),
+              0 4px 14px color-mix(in srgb, var(--warning-color) 15%, transparent);
 }
 </style>

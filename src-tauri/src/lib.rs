@@ -165,9 +165,10 @@ pub fn run() {
                 tauri::WebviewUrl::App("/drag-indicator".into()),
             )
             .title("拖拽指示器")
-            .inner_size(300.0, 120.0)
+            .inner_size(1.0, 1.0) // 初始尺寸设为最小，避免闪烁
             .decorations(false)
             .transparent(true)
+            .shadow(false) // 移除窗口阴影（实现完全透明效果）
             .resizable(false)
             .skip_taskbar(true)
             .always_on_top(true)

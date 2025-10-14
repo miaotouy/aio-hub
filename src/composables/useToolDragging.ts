@@ -7,6 +7,10 @@ import type { WindowConfig } from './useDetachedTools';
 
 const logger = createModuleLogger('ToolDragging');
 
+// 指示器尺寸 (唯一来源)
+const INDICATOR_WIDTH = 400;
+const INDICATOR_HEIGHT = 120;
+
 // 拖拽状态
 const isDragging = ref(false);
 const draggedTool = ref<WindowConfig | null>(null);
@@ -79,6 +83,8 @@ export function useToolDragging() {
         toolName: toolConfig.title,
         mouseX: globalX,
         mouseY: globalY,
+        width: INDICATOR_WIDTH,
+        height: INDICATOR_HEIGHT,
       });
     } catch (error) {
       logger.error('准备拖拽指示器失败', { error });

@@ -243,6 +243,8 @@ pub async fn prepare_drag_indicator(
     tool_name: String,
     mouse_x: f64,
     mouse_y: f64,
+    width: f64,
+    height: f64,
 ) -> Result<(), String> {
     // 获取系统鼠标位置进行对比验证
     #[cfg(target_os = "windows")]
@@ -259,6 +261,10 @@ pub async fn prepare_drag_indicator(
     
     let indicator_window = app.get_webview_window("drag-indicator")
         .ok_or_else(|| "Drag indicator window not found.".to_string())?;
+
+    // 在显示之前调整大小
+    indicator_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }))
+        .map_err(|e| e.to_string())?;
 
     indicator_window.emit("update-drag-indicator", DragIndicatorPayload { tool_name })
         .map_err(|e| e.to_string())?;

@@ -293,6 +293,23 @@ pub async fn get_all_tool_windows(app: AppHandle) -> Result<Vec<String>, String>
 
     Ok(windows)
 }
+
+/// 关闭工具窗口（重新附加到主窗口）
+#[tauri::command]
+pub async fn close_tool_window(app: AppHandle, label: String) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(&label) {
+        // 发送工具重新附加事件
+        app.emit("tool-attached", label.clone())
+            .map_err(|e| e.to_string())?;
+        
+        // 关闭窗口
+        window.close().map_err(|e| e.to_string())?;
+        
+        Ok(())
+    } else {
+        Err(format!("Window '{}' not found", label))
+    }
+}
 /// 清除所有窗口的保存状态
 /// 清除所有窗口的保存状态
 #[tauri::command]

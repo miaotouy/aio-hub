@@ -171,6 +171,21 @@ export function useDetachedTools() {
   };
 
   /**
+   * 关闭工具窗口（重新附加到主窗口）
+   */
+  const closeToolWindow = async (label: string): Promise<boolean> => {
+    try {
+      logger.info('正在关闭工具窗口', { label });
+      await invoke('close_tool_window', { label });
+      logger.info('工具窗口关闭成功', { label });
+      return true;
+    } catch (error) {
+      logger.error('关闭工具窗口失败', { error, label });
+      return false;
+    }
+  };
+
+  /**
    * 检查工具是否已分离
    */
   const isToolDetached = (toolId: string): boolean => {
@@ -189,6 +204,7 @@ export function useDetachedTools() {
     createToolWindow,
     focusWindow,
     ensureWindowVisible,
+    closeToolWindow,
     isToolDetached,
     detachedToolIds: computed(() => detachedToolIds.value),
     getDetachedTools,

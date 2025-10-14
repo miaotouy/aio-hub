@@ -2,29 +2,43 @@
   <div class="home-page">
     <span class="title">All In One 工具箱</span>
     <div class="tool-grid">
-      <router-link
+      <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
+      <component
+        :is="isToolDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
         v-for="tool in visibleTools"
         :key="tool.path"
-        :to="tool.path"
+        :to="isToolDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
         :class="[
           'tool-card',
-          { 'tool-card-detached': isToolDetached(getToolIdFromPath(tool.path)) }
+          { 'tool-card-detached': isToolDetached(getToolIdFromPath(tool.path)) },
         ]"
-        @click="handleToolClick($event, tool.path)"
+        @click="handleToolClick(tool.path)"
       >
-        <!-- 已分离徽章 -->
-        <div v-if="isToolDetached(getToolIdFromPath(tool.path))" class="detached-badge">
-          <el-icon><i-ep-full-screen /></el-icon>
-        </div>
-        
+        <!-- 已分离徽章（带下拉菜单） -->
+        <el-dropdown
+          v-if="isToolDetached(getToolIdFromPath(tool.path))"
+          class="detached-badge-dropdown"
+          trigger="hover"
+          @command="(command: string) => handleDropdownCommand(command, tool.path)"
+        >
+          <div class="detached-badge" @click.stop>
+            <el-icon><i-ep-full-screen /></el-icon>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
         <el-icon :size="48">
           <component :is="tool.icon" />
         </el-icon>
         <div class="tool-name">{{ tool.name }}</div>
         <div class="tool-description">{{ tool.description }}</div>
-      </router-link>
+      </component>
     </div>
-    
+
     <!-- 如果没有可显示的工具，显示提示 -->
     <div v-if="visibleTools.length === 0" class="no-tools-message">
       <el-empty description="没有可显示的工具">
@@ -37,14 +51,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { toolsConfig } from "../config/tools";
-import { loadAppSettingsAsync, type AppSettings } from '../utils/appSettings';
-import { useDetachedTools } from '../composables/useDetachedTools';
+import { loadAppSettingsAsync, type AppSettings } from "../utils/appSettings";
+import { useDetachedTools } from "../composables/useDetachedTools";
+import { ElMessage } from "element-plus";
 
 const router = useRouter();
-const { isToolDetached, focusWindow, initializeListeners } = useDetachedTools();
+const { isToolDetached, focusWindow, closeToolWindow, initializeListeners } = useDetachedTools();
 
 // 从路径提取工具ID（与设置页面保持一致）
 const getToolIdFromPath = (path: string): string => {
@@ -55,11 +70,11 @@ const getToolIdFromPath = (path: string): string => {
 // 当前设置
 const settings = ref<AppSettings>({
   sidebarCollapsed: false,
-  theme: 'auto',
+  theme: "auto",
   trayEnabled: false,
   toolsVisible: {},
   toolsOrder: [],
-  version: '1.0.0'
+  version: "1.0.0",
 });
 
 // 计算可见的工具列表（包括已分离的工具，用于显示）
@@ -68,24 +83,41 @@ const visibleTools = computed(() => {
     // 如果没有配置，显示所有工具
     return toolsConfig;
   }
-  
-  return toolsConfig.filter(tool => {
+
+  return toolsConfig.filter((tool) => {
     const toolId = getToolIdFromPath(tool.path);
     // 默认显示未配置的工具
     return settings.value.toolsVisible![toolId] !== false;
   });
 });
-
 // 处理工具卡片点击
-const handleToolClick = async (event: MouseEvent, toolPath: string) => {
+const handleToolClick = async (toolPath: string) => {
   const toolId = getToolIdFromPath(toolPath);
-  
-  // 如果工具已分离，聚焦其窗口而不是导航
+
+  // 如果工具已分离，聚焦其窗口（此时是 div，不会触发导航）
   if (isToolDetached(toolId)) {
-    event.preventDefault();
     await focusWindow(toolId);
   }
-  // 否则让 router-link 正常导航
+  // 如果工具未分离，让 router-link 正常导航（无需额外处理）
+};
+
+// 处理下拉菜单命令
+const handleDropdownCommand = async (command: string, toolPath: string) => {
+  if (command === "cancel") {
+    const toolId = getToolIdFromPath(toolPath);
+
+    try {
+      const success = await closeToolWindow(toolId);
+      if (success) {
+        ElMessage.success("已取消分离");
+      } else {
+        ElMessage.error("取消分离失败");
+      }
+    } catch (error) {
+      console.error("取消分离时出错:", error);
+      ElMessage.error("取消分离时出错");
+    }
+  }
 };
 
 // 监听localStorage变化以实时更新（保留以防万一，但主要依赖路由变化）
@@ -96,24 +128,27 @@ const handleStorageChange = async () => {
 onMounted(async () => {
   // 初始化分离工具监听器
   await initializeListeners();
-  
+
   // 初始化时加载设置
   settings.value = await loadAppSettingsAsync();
   // 监听storage事件，以便在设置页面保存后实时更新
-  window.addEventListener('storage', handleStorageChange);
+  window.addEventListener("storage", handleStorageChange);
 });
 
 // 组件卸载时清理
 onUnmounted(() => {
-  window.removeEventListener('storage', handleStorageChange);
+  window.removeEventListener("storage", handleStorageChange);
 });
 
 // 也可以通过路由守卫在从设置页返回时重新加载
-watch(() => router.currentRoute.value.path, async (newPath, oldPath) => {
-  if (oldPath === '/settings' && newPath === '/') {
-    settings.value = await loadAppSettingsAsync();
+watch(
+  () => router.currentRoute.value.path,
+  async (newPath, oldPath) => {
+    if (oldPath === "/settings" && newPath === "/") {
+      settings.value = await loadAppSettingsAsync();
+    }
   }
-});
+);
 </script>
 
 <style scoped>
@@ -211,7 +246,7 @@ watch(() => router.currentRoute.value.path, async (newPath, oldPath) => {
 }
 
 .tool-card-detached::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -223,10 +258,14 @@ watch(() => router.currentRoute.value.path, async (newPath, oldPath) => {
   pointer-events: none;
 }
 
-.detached-badge {
+.detached-badge-dropdown {
   position: absolute;
   top: 10px;
   right: 10px;
+  z-index: 10;
+}
+
+.detached-badge {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -235,6 +274,13 @@ watch(() => router.currentRoute.value.path, async (newPath, oldPath) => {
   color: white;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.detached-badge:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .detached-badge .el-icon {

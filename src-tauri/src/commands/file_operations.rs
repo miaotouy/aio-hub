@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::time::Instant;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +10,48 @@ use serde::{Deserialize, Serialize};
 pub struct RegexRule {
     pub regex: String,
     pub replacement: String,
+}
+
+// 解析正则表达式字符串，支持 /pattern/flags 格式
+fn parse_regex_pattern(pattern: &str) -> Result<(String, String), String> {
+    // 检查是否是 /pattern/flags 格式
+    if pattern.starts_with('/') {
+        if let Some(end_pos) = pattern[1..].rfind('/') {
+            let pattern_part = &pattern[1..end_pos + 1];
+            let flags_part = &pattern[end_pos + 2..];
+            
+            // 验证 flags 只包含合法字符
+            for c in flags_part.chars() {
+                if !"imsuxU".contains(c) {
+                    return Err(format!("无效的正则标志: {}", c));
+                }
+            }
+            
+            return Ok((pattern_part.to_string(), flags_part.to_string()));
+        }
+    }
+    
+    // 默认使用 m 标志以支持多行匹配
+    Ok((pattern.to_string(), "m".to_string()))
+}
+
+// 根据标志构建正则表达式
+fn build_regex_with_flags(pattern: &str, flags: &str) -> Result<Regex, regex::Error> {
+    let mut builder = regex::RegexBuilder::new(pattern);
+    
+    for flag in flags.chars() {
+        match flag {
+            'i' => { builder.case_insensitive(true); },
+            'm' => { builder.multi_line(true); },
+            's' => { builder.dot_matches_new_line(true); },
+            'u' => { builder.unicode(true); },
+            'x' => { builder.ignore_whitespace(true); },
+            'U' => { builder.swap_greed(true); },
+            _ => {}
+        }
+    }
+    
+    builder.build()
 }
 
 // 文件处理结果结构体
@@ -28,9 +71,18 @@ pub async fn process_files_with_regex(
     force_txt: Option<bool>,
     filename_suffix: Option<String>
 ) -> Result<ProcessResult, String> {
+    let start_time = Instant::now();
     let force_txt = force_txt.unwrap_or(false);
     let filename_suffix = filename_suffix.unwrap_or_default();
     let output_path = PathBuf::from(&output_dir);
+    
+    println!("========== 正则文件处理开始 ==========");
+    println!("输出目录: {}", output_dir);
+    println!("规则数量: {}", rules.len());
+    println!("强制 TXT: {}", force_txt);
+    if !filename_suffix.is_empty() {
+        println!("文件后缀: {}", filename_suffix);
+    }
     
     // 确保输出目录存在
     if !output_path.exists() {
@@ -43,10 +95,15 @@ pub async fn process_files_with_regex(
     }
     
     // 编译所有正则表达式
-    let compiled_rules: Result<Vec<(Regex, String)>, String> = rules.iter()
-        .map(|rule| {
-            Regex::new(&rule.regex)
-                .map(|r| (r, rule.replacement.clone()))
+    println!("\n--- 编译正则表达式 ---");
+    let compiled_rules: Result<Vec<(Regex, String, String, String)>, String> = rules.iter()
+        .enumerate()
+        .map(|(idx, rule)| {
+            let (pattern, flags) = parse_regex_pattern(&rule.regex)?;
+            println!("规则 {}: /{}/{} -> \"{}\"", idx + 1, pattern, flags, rule.replacement);
+            
+            build_regex_with_flags(&pattern, &flags)
+                .map(|r| (r, rule.replacement.clone(), pattern, flags))
                 .map_err(|e| format!("无效的正则表达式 '{}': {}", rule.regex, e))
         })
         .collect();
@@ -54,30 +111,48 @@ pub async fn process_files_with_regex(
     let compiled_rules = compiled_rules?;
     
     // 收集所有需要处理的文件
+    println!("\n--- 收集文件 ---");
     let mut all_files = Vec::new();
-    for path_str in file_paths {
-        let path = PathBuf::from(&path_str);
+    for path_str in &file_paths {
+        let path = PathBuf::from(path_str);
         if path.is_file() {
             all_files.push(path);
         } else if path.is_dir() {
             collect_files_recursive(&path, &mut all_files)?;
         }
     }
+    println!("找到 {} 个文件待处理", all_files.len());
     
     // 处理每个文件
+    println!("\n--- 处理文件 ---");
     let mut success_count = 0;
     let mut error_count = 0;
     let mut errors = HashMap::new();
+    let mut total_matches = 0;
     
-    for file_path in all_files {
-        match process_single_file(&file_path, &output_path, &compiled_rules, force_txt, &filename_suffix) {
-            Ok(_) => success_count += 1,
+    for (idx, file_path) in all_files.iter().enumerate() {
+        print!("[{}/{}] 处理: {} ... ", idx + 1, all_files.len(), file_path.display());
+        match process_single_file(file_path, &output_path, &compiled_rules, force_txt, &filename_suffix) {
+            Ok(matches) => {
+                success_count += 1;
+                total_matches += matches;
+                println!("成功 (匹配 {} 次)", matches);
+            },
             Err(e) => {
                 error_count += 1;
-                errors.insert(file_path.display().to_string(), e);
+                errors.insert(file_path.display().to_string(), e.clone());
+                println!("失败: {}", e);
             }
         }
     }
+    
+    let duration = start_time.elapsed();
+    println!("\n========== 处理完成 ==========");
+    println!("成功: {} 个文件", success_count);
+    println!("失败: {} 个文件", error_count);
+    println!("总匹配次数: {}", total_matches);
+    println!("总耗时: {:.2}ms", duration.as_secs_f64() * 1000.0);
+    println!("================================\n");
     
     Ok(ProcessResult {
         success_count,
@@ -106,23 +181,35 @@ fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), S
     Ok(())
 }
 
-// 处理单个文件
+// 处理单个文件，返回总匹配次数
 fn process_single_file(
     file_path: &Path,
     output_dir: &Path,
-    rules: &[(Regex, String)],
+    rules: &[(Regex, String, String, String)], // (regex, replacement, pattern, flags)
     force_txt: bool,
     filename_suffix: &str
-) -> Result<(), String> {
+) -> Result<usize, String> {
     // 读取文件内容
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("读取文件失败: {}", e))?;
     
+    let original_len = content.len();
+    
     // 应用所有正则规则
-    let mut processed = content;
-    for (regex, replacement) in rules {
-        processed = regex.replace_all(&processed, replacement.as_str()).to_string();
+    let mut processed = content.clone();
+    let mut total_matches = 0;
+    
+    for (regex, replacement, _pattern, _flags) in rules {
+        let before = processed.clone();
+        let matches = regex.find_iter(&before).count();
+        if matches > 0 {
+            processed = regex.replace_all(&processed, replacement.as_str()).to_string();
+            total_matches += matches;
+        }
     }
+    
+    let final_len = processed.len();
+    let text_changed = content != processed;
     
     // 构造输出文件路径
     let original_name = file_path.file_stem()
@@ -146,10 +233,18 @@ fn process_single_file(
     let output_file = output_dir.join(final_name);
     
     // 写入处理后的内容
-    fs::write(&output_file, processed)
+    fs::write(&output_file, &processed)
         .map_err(|e| format!("写入文件失败: {}", e))?;
     
-    Ok(())
+    // 如果文本发生变化，输出详细统计
+    if text_changed {
+        let len_diff = final_len as i64 - original_len as i64;
+        let sign = if len_diff >= 0 { "+" } else { "" };
+        println!("    原始长度: {} 字符, 处理后: {} 字符 ({}{})",
+                 original_len, final_len, sign, len_diff);
+    }
+    
+    Ok(total_matches)
 }
 
 // Tauri 命令：文件移动和符号链接创建

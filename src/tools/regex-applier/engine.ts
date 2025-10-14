@@ -4,6 +4,9 @@
  */
 
 import type { RegexRule, ApplyResult, LogEntry } from './types';
+import { createModuleLogger } from '@/utils/logger';
+
+const logger = createModuleLogger('RegexEngine');
 
 /**
  * 解析正则表达式字符串，支持 /pattern/flags 格式
@@ -44,8 +47,19 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
     };
   }
 
+  const startTime = performance.now();
+  const enabledRules = rules.filter(r => r.enabled);
+  
+  // 记录处理开始
+  logger.info('开始处理文本', {
+    textLength: text.length,
+    totalRules: rules.length,
+    enabledRules: enabledRules.length
+  });
+
   let processed = text;
   let appliedRulesCount = 0;
+  let totalMatches = 0;
   const logs: LogEntry[] = [];
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
@@ -65,23 +79,56 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
       const { pattern, flags } = parseRegexPattern(rule.regex);
       const regex = new RegExp(pattern, flags);
       const originalProcessed = processed;
+      
+      // 统计匹配次数
+      const matches = originalProcessed.match(regex);
+      const matchCount = matches ? matches.length : 0;
+      
       processed = processed.replace(regex, rule.replacement);
       
       if (originalProcessed !== processed) {
         addLog(`应用规则 ${index + 1}: /${pattern}/${flags} -> "${rule.replacement}"`);
         appliedRulesCount++;
+        totalMatches += matchCount;
+        
+        // 记录单个规则应用详情
+        logger.debug(`规则 ${index + 1} 应用成功`, {
+          pattern,
+          flags,
+          matchCount,
+          replacement: rule.replacement
+        });
       }
     } catch (e: any) {
       addLog(
         `规则 ${index + 1} 错误: 无效的正则表达式 "${rule.regex}" - ${e.message}`,
         'error'
       );
+      logger.error(`规则 ${index + 1} 应用失败`, e, {
+        regex: rule.regex,
+        replacement: rule.replacement
+      });
     }
   });
 
   if (text && appliedRulesCount > 0) {
     addLog(`文本处理完成。共应用了 ${appliedRulesCount} 条规则。`);
   }
+
+  const endTime = performance.now();
+  const duration = endTime - startTime;
+  const textChanged = text !== processed;
+  
+  // 记录处理完成统计
+  logger.info('文本处理完成', {
+    appliedRulesCount,
+    totalMatches,
+    duration: `${duration.toFixed(2)}ms`,
+    originalLength: text.length,
+    processedLength: processed.length,
+    lengthDiff: processed.length - text.length,
+    textChanged
+  });
 
   return {
     text: processed,

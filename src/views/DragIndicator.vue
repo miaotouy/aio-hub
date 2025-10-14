@@ -8,7 +8,7 @@ const { currentTheme } = useTheme();
 const canDetach = ref(false); // 从事件中获取状态
 const toolName = ref('工具');
 let unlistenUpdate: (() => void) | null = null;
-let unlistenStatus: (() => void) | null = null;
+let unlistenSession: (() => void) | null = null;
 
 // 根据工具名称获取图标
 const toolIcon = computed<Component | string>(() => {
@@ -27,14 +27,17 @@ const indicatorClass = computed(() => {
 });
 
 onMounted(async () => {
-  // 监听来自后端的事件以更新工具名称
+  // 监听来自后端的事件以更新工具名称（保留兼容旧事件）
   unlistenUpdate = await listen<{ tool_name: string }>('update-drag-indicator', (event) => {
     toolName.value = event.payload.tool_name || '工具';
   });
 
-  // 监听拖拽状态
-  unlistenStatus = await listen<{ canDetach: boolean }>('update-drag-status', (event) => {
-    canDetach.value = event.payload.canDetach;
+  // 监听新的拖拽会话更新事件
+  unlistenSession = await listen<{ can_detach: boolean; tool_name: string }>('drag-session-update', (event) => {
+    canDetach.value = event.payload.can_detach;
+    if (event.payload.tool_name) {
+      toolName.value = event.payload.tool_name;
+    }
   });
 });
 
@@ -43,8 +46,8 @@ onUnmounted(() => {
   if (unlistenUpdate) {
     unlistenUpdate();
   }
-  if (unlistenStatus) {
-    unlistenStatus();
+  if (unlistenSession) {
+    unlistenSession();
   }
 });
 </script>

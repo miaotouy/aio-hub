@@ -1,8 +1,44 @@
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tokio::time::sleep;
+
+/// 全局拖拽会话状态
+static DRAG_SESSION: once_cell::sync::Lazy<Arc<Mutex<Option<DragSession>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+
+/// 拖拽会话数据
+#[derive(Debug, Clone)]
+struct DragSession {
+    /// 工具配置
+    tool_config: WindowConfig,
+    /// 起始全局坐标（逻辑坐标）
+    start_x: f64,
+    start_y: f64,
+    /// 主窗口位置和尺寸（物理坐标）
+    main_window_x: i32,
+    main_window_y: i32,
+    main_window_width: u32,
+    main_window_height: u32,
+    /// 缩放因子
+    scale_factor: f64,
+    /// 指示器尺寸
+    indicator_width: f64,
+    indicator_height: f64,
+    /// 会话开始时间
+    start_time: Instant,
+    /// 是否需要停止
+    should_stop: bool,
+}
+
+/// 拖拽距离阈值（与前端保持一致）
+const DETACH_THRESHOLD: f64 = 100.0;
+/// 更新频率（Hz）
+const UPDATE_FREQUENCY_HZ: u64 = 20;
 
 /// 窗口创建配置
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct WindowConfig {
     /// 窗口标签（唯一标识符）
     pub label: String,
@@ -275,7 +311,249 @@ pub async fn prepare_drag_indicator(
     Ok(())
 }
 
-/// 结束拖拽：根据最终位置判断是否创建新窗口
+/// 事件载荷：拖拽会话更新
+#[derive(Clone, serde::Serialize)]
+struct DragSessionUpdate {
+    can_detach: bool,
+    tool_name: String,
+}
+
+/// 获取系统鼠标位置（物理坐标）
+#[cfg(target_os = "windows")]
+fn get_cursor_position() -> Result<(i32, i32), String> {
+    unsafe {
+        let mut point = windows::Win32::Foundation::POINT { x: 0, y: 0 };
+        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point)
+            .map_err(|e| format!("获取鼠标位置失败: {}", e))?;
+        Ok((point.x, point.y))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_cursor_position() -> Result<(i32, i32), String> {
+    Err("非 Windows 平台暂不支持".to_string())
+}
+
+/// 开始拖拽会话
+#[tauri::command]
+pub async fn start_drag_session(
+    app: AppHandle,
+    tool_config: WindowConfig,
+    indicator_width: f64,
+    indicator_height: f64,
+) -> Result<(), String> {
+    // 获取主窗口信息
+    let main_window = app.get_webview_window("main")
+        .ok_or_else(|| "主窗口未找到".to_string())?;
+    
+    let scale_factor = main_window.scale_factor().map_err(|e| e.to_string())?;
+    let main_pos = main_window.outer_position().map_err(|e| e.to_string())?;
+    let main_size = main_window.outer_size().map_err(|e| e.to_string())?;
+    
+    // 获取当前鼠标位置（物理坐标）
+    let (cursor_x, cursor_y) = get_cursor_position()?;
+    
+    // 转换为逻辑坐标
+    let start_x = cursor_x as f64 / scale_factor;
+    let start_y = cursor_y as f64 / scale_factor;
+    
+    println!("[DRAG_SESSION] 开始 | 工具='{}' | 起始位置=(物理:{}, {} | 逻辑:{:.0}, {:.0}) | 主窗口=({}, {}, {}x{})",
+        tool_config.title, cursor_x, cursor_y, start_x, start_y,
+        main_pos.x, main_pos.y, main_size.width, main_size.height);
+    
+    // 创建会话
+    let session = DragSession {
+        tool_config: tool_config.clone(),
+        start_x,
+        start_y,
+        main_window_x: main_pos.x,
+        main_window_y: main_pos.y,
+        main_window_width: main_size.width,
+        main_window_height: main_size.height,
+        scale_factor,
+        indicator_width,
+        indicator_height,
+        start_time: Instant::now(),
+        should_stop: false,
+    };
+    
+    // 保存到全局状态
+    {
+        let mut drag_session = DRAG_SESSION.lock().unwrap();
+        *drag_session = Some(session);
+    }
+    
+    // 显示并初始化指示器窗口
+    let indicator_window = app.get_webview_window("drag-indicator")
+        .ok_or_else(|| "拖拽指示器窗口未找到".to_string())?;
+    
+    indicator_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+        width: indicator_width,
+        height: indicator_height,
+    })).map_err(|e| e.to_string())?;
+    
+    indicator_window.emit("update-drag-indicator", serde_json::json!({
+        "tool_name": tool_config.title
+    })).map_err(|e| e.to_string())?;
+    
+    set_window_position(app.clone(), "drag-indicator".to_string(), start_x, start_y, Some(true)).await?;
+    indicator_window.show().map_err(|e| e.to_string())?;
+    
+    // 启动后台更新循环
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        drag_update_loop(app_clone).await;
+    });
+    
+    Ok(())
+}
+
+/// 后台拖拽更新循环
+async fn drag_update_loop(app: AppHandle) {
+    let update_interval = Duration::from_millis(1000 / UPDATE_FREQUENCY_HZ);
+    let mut last_update = Instant::now();
+    
+    loop {
+        // 检查会话是否还存在
+        let session_info = {
+            let session_lock = DRAG_SESSION.lock().unwrap();
+            if let Some(ref session) = *session_lock {
+                if session.should_stop {
+                    break;
+                }
+                Some((
+                    session.start_x,
+                    session.start_y,
+                    session.scale_factor,
+                    session.tool_config.title.clone(),
+                ))
+            } else {
+                None
+            }
+        };
+        
+        if session_info.is_none() {
+            break;
+        }
+        
+        let (start_x, start_y, scale_factor, tool_name) = session_info.unwrap();
+        
+        // 获取当前鼠标位置
+        if let Ok((cursor_x, cursor_y)) = get_cursor_position() {
+            let current_x = cursor_x as f64 / scale_factor;
+            let current_y = cursor_y as f64 / scale_factor;
+            
+            // 更新指示器窗口位置
+            if let Ok(_) = set_window_position(
+                app.clone(),
+                "drag-indicator".to_string(),
+                current_x,
+                current_y,
+                Some(true)
+            ).await {
+                // 计算是否满足分离条件
+                let distance = ((current_x - start_x).powi(2) + (current_y - start_y).powi(2)).sqrt();
+                let can_detach = distance > DETACH_THRESHOLD;
+                
+                // 节流发送更新事件
+                if last_update.elapsed() >= Duration::from_millis(50) {
+                    let _ = app.emit("drag-session-update", DragSessionUpdate {
+                        can_detach,
+                        tool_name: tool_name.clone(),
+                    });
+                    last_update = Instant::now();
+                }
+            }
+        }
+        
+        sleep(update_interval).await;
+    }
+    
+    println!("[DRAG_SESSION] 更新循环已停止");
+}
+
+/// 结束拖拽会话
+#[tauri::command]
+pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
+    // 获取会话信息并标记停止
+    let session = {
+        let mut session_lock = DRAG_SESSION.lock().unwrap();
+        if let Some(ref mut session) = *session_lock {
+            session.should_stop = true;
+            Some(session.clone())
+        } else {
+            None
+        }
+    };
+    
+    let session = session.ok_or_else(|| "没有活跃的拖拽会话".to_string())?;
+    
+    // 隐藏指示器窗口
+    if let Some(indicator_window) = app.get_webview_window("drag-indicator") {
+        indicator_window.hide().map_err(|e| e.to_string())?;
+    }
+    
+    // 获取最终鼠标位置
+    let (final_cursor_x, final_cursor_y) = get_cursor_position()?;
+    let final_x = final_cursor_x as f64 / session.scale_factor;
+    let final_y = final_cursor_y as f64 / session.scale_factor;
+    
+    // 计算距离
+    let distance = ((final_x - session.start_x).powi(2) + (final_y - session.start_y).powi(2)).sqrt();
+    
+    // 判断是否在主窗口外
+    let is_outside =
+        final_cursor_x < session.main_window_x ||
+        final_cursor_x > session.main_window_x + session.main_window_width as i32 ||
+        final_cursor_y < session.main_window_y ||
+        final_cursor_y > session.main_window_y + session.main_window_height as i32;
+    
+    let can_detach = is_outside || distance > DETACH_THRESHOLD;
+    
+    println!("[DRAG_SESSION] 结束 | 最终位置=(物理:{}, {} | 逻辑:{:.0}, {:.0}) | 距离={:.0} | 在窗口外={} | 可分离={}",
+        final_cursor_x, final_cursor_y, final_x, final_y, distance, is_outside, can_detach);
+    
+    // 清除会话
+    {
+        let mut session_lock = DRAG_SESSION.lock().unwrap();
+        *session_lock = None;
+    }
+    
+    // 如果满足条件，创建新窗口
+    if can_detach {
+        let config = &session.tool_config;
+        let new_win_w_offset = (config.width * session.scale_factor / 2.0) as i32;
+        let new_win_h_offset = (config.height * session.scale_factor / 2.0) as i32;
+        let new_win_x = final_cursor_x - new_win_w_offset;
+        let new_win_y = final_cursor_y - new_win_h_offset;
+        
+        println!("[DRAG_SESSION] 创建窗口于 ({}, {})", new_win_x, new_win_y);
+        
+        let tool_window = WebviewWindowBuilder::new(
+            &app,
+            &config.label,
+            WebviewUrl::App(config.url.clone().into()),
+        )
+        .title(&config.title)
+        .inner_size(config.width, config.height)
+        .min_inner_size(400.0, 300.0)
+        .position(new_win_x as f64, new_win_y as f64)
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+        
+        tool_window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
+        app.emit("tool-detached", config.label.clone()).map_err(|e| e.to_string())?;
+        
+        Ok(true)
+    } else {
+        println!("[DRAG_SESSION] 取消创建（在窗口内或距离不足）");
+        Ok(false)
+    }
+}
+
+/// 结束拖拽：根据最终位置判断是否创建新窗口（保留旧命令以兼容）
 #[tauri::command]
 pub async fn finalize_drag_indicator(
     app: AppHandle,

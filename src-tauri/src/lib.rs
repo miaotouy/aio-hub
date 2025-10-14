@@ -47,6 +47,8 @@ use commands::{
     clear_window_state,
     prepare_drag_indicator,
     finalize_drag_indicator,
+    start_drag_session,
+    end_drag_session,
     // 配置管理相关
     export_all_configs,
     import_all_configs,
@@ -150,6 +152,8 @@ pub fn run() {
             clear_window_state,
             prepare_drag_indicator,
             finalize_drag_indicator,
+            start_drag_session,
+            end_drag_session,
             // 配置管理命令
             export_all_configs,
             import_all_configs,

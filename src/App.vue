@@ -209,14 +209,43 @@ const handleSelect = (key: string) => {
   router.push(key);
 };
 
+// 拖拽触发配置
+const DRAG_THRESHOLD = {
+  DISTANCE: 8,        // 移动距离阈值（像素）
+  TIME_MIN: 100,      // 最小按下时间（毫秒）
+  TIME_MAX: 300,      // 超过此时间即使移动很小也触发拖拽（毫秒）
+};
+
+// 拖拽状态跟踪
+let dragState: {
+  isTracking: boolean;
+  startTime: number;
+  startX: number;
+  startY: number;
+  tool: ToolConfig | null;
+  windowConfig: WindowConfig | null;
+  dragTriggered: boolean;
+} | null = null;
+
 const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
   // 阻止默认行为和事件冒泡，防止触发 el-menu 的点击导航
   event.preventDefault();
   event.stopPropagation();
 
-  // 数据转换：将 ToolConfig 转换为 WindowConfig
+  // 初始化拖拽状态
+  dragState = {
+    isTracking: true,
+    startTime: Date.now(),
+    startX: event.clientX,
+    startY: event.clientY,
+    tool,
+    windowConfig: null,
+    dragTriggered: false,
+  };
+
+  // 准备 WindowConfig
   const toolId = getToolIdFromPath(tool.path);
-  const windowConfig: WindowConfig = {
+  dragState.windowConfig = {
     label: toolId,
     title: tool.name,
     url: `/detached-window?toolPath=${encodeURIComponent(
@@ -226,13 +255,58 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
     height: 700,
   };
 
-  // 调用指挥部的 startDrag 方法
-  startDrag(event, windowConfig);
+  // 添加鼠标移动和释放监听
+  document.addEventListener('mousemove', handleDragMove);
+  document.addEventListener('mouseup', handleDragEnd);
+};
 
-  // 如果当前就在这个工具页面，拖拽后导航回主页
-  if (route.path === tool.path) {
-    router.push("/");
+const handleDragMove = (event: MouseEvent) => {
+  if (!dragState || !dragState.isTracking || dragState.dragTriggered) {
+    return;
   }
+
+  const deltaX = Math.abs(event.clientX - dragState.startX);
+  const deltaY = Math.abs(event.clientY - dragState.startY);
+  const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  const elapsed = Date.now() - dragState.startTime;
+
+  // 判断是否应该触发拖拽
+  const shouldTrigger =
+    // 条件1：移动距离超过阈值且按下时间超过最小时间
+    (distance >= DRAG_THRESHOLD.DISTANCE && elapsed >= DRAG_THRESHOLD.TIME_MIN) ||
+    // 条件2：按下时间超过最大时间阈值（即使移动距离小）
+    (elapsed >= DRAG_THRESHOLD.TIME_MAX && distance >= 3);
+
+  if (shouldTrigger && dragState.windowConfig) {
+    dragState.dragTriggered = true;
+    
+    // 触发拖拽
+    startDrag(event, dragState.windowConfig);
+
+    // 如果当前就在这个工具页面，拖拽后导航回主页
+    if (dragState.tool && route.path === dragState.tool.path) {
+      router.push("/");
+    }
+  }
+};
+
+const handleDragEnd = (_event: MouseEvent) => {
+  // 清理监听器
+  document.removeEventListener('mousemove', handleDragMove);
+  document.removeEventListener('mouseup', handleDragEnd);
+
+  if (!dragState) {
+    return;
+  }
+
+  // 如果没有触发拖拽，视为普通点击，执行导航
+  if (!dragState.dragTriggered && dragState.tool) {
+    // 导航到对应工具页面
+    router.push(dragState.tool.path);
+  }
+
+  // 重置状态
+  dragState = null;
 };
 </script>
 

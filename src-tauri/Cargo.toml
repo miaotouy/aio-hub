@@ -49,6 +49,7 @@ chrono = "0.4"
 base64 = "0.22"
 flate2 = "1.0"
 async-stream = "0.3"
+rdev = "0.5" # 全局鼠标监听
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

@@ -40,7 +40,11 @@
         <div class="preset-io-actions">
           <el-button @click="importPreset" size="small" style="width: 100%">
             <el-icon><Upload /></el-icon>
-            导入预设
+            从文件导入
+          </el-button>
+          <el-button @click="importFromClipboard" size="small" style="width: 100%">
+            <el-icon><DocumentCopy /></el-icon>
+            从剪贴板导入
           </el-button>
           <el-button @click="exportCurrentPreset" size="small" style="width: 100%" :disabled="!store.activePresetId">
             <el-icon><Download /></el-icon>
@@ -181,7 +185,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Delete, CopyDocument, Rank, Upload, Download, WarningFilled, ArrowLeft } from '@element-plus/icons-vue';
+import { Plus, Delete, CopyDocument, DocumentCopy, Rank, Upload, Download, WarningFilled, ArrowLeft } from '@element-plus/icons-vue';
 import { VueDraggableNext } from 'vue-draggable-next';
 import { open as openFile, save as saveFile } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
@@ -395,6 +399,79 @@ const importPreset = async () => {
     ElMessage.success(`成功导入预设: ${importedPreset.name}`);
   } catch (error: any) {
     ElMessage.error(`导入预设失败: ${error.message}`);
+  }
+};
+
+const importFromClipboard = async () => {
+  try {
+    const { value: jsonContent } = await ElMessageBox.prompt(
+      '请粘贴预设的 JSON 内容（可以是完整的预设，或者只包含规则数组）',
+      '从剪贴板导入',
+      {
+        confirmButtonText: '导入',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputPlaceholder: '粘贴 JSON 内容...',
+        inputValidator: (value) => {
+          if (!value || !value.trim()) {
+            return '请输入 JSON 内容';
+          }
+          try {
+            JSON.parse(value);
+            return true;
+          } catch {
+            return 'JSON 格式无效，请检查格式';
+          }
+        },
+      }
+    ).catch(() => ({ value: null }));
+
+    if (!jsonContent) return;
+
+    const parsedData = JSON.parse(jsonContent.trim());
+
+    // 判断导入的是完整预设还是规则数组
+    if (Array.isArray(parsedData)) {
+      // 导入为规则数组
+      if (!store.activePresetId) {
+        ElMessage.warning('请先选择一个预设');
+        return;
+      }
+
+      // 验证规则格式
+      const isValidRules = parsedData.every(rule =>
+        typeof rule === 'object' &&
+        ('regex' in rule || 'name' in rule)
+      );
+
+      if (!isValidRules) {
+        throw new Error('规则格式无效');
+      }
+
+      await store.importRules(store.activePresetId, parsedData);
+      ElMessage.success(`成功导入 ${parsedData.length} 条规则到当前预设`);
+    } else if (parsedData.name && Array.isArray(parsedData.rules)) {
+      // 导入为完整预设
+      const importedPreset: RegexPreset = parsedData;
+
+      // 创建新预设
+      const newPreset = store.createPreset(importedPreset.name, importedPreset.description);
+      
+      // 清空默认规则并导入规则
+      if (newPreset && store.activePresetId) {
+        const preset = store.getPresetById(store.activePresetId);
+        if (preset) {
+          preset.rules = [];
+          await store.importRules(store.activePresetId, importedPreset.rules);
+        }
+      }
+
+      ElMessage.success(`成功导入预设: ${importedPreset.name}`);
+    } else {
+      throw new Error('无效的格式：必须是规则数组或包含 name 和 rules 的预设对象');
+    }
+  } catch (error: any) {
+    ElMessage.error(`导入失败: ${error.message}`);
   }
 };
 

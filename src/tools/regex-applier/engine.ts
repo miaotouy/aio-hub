@@ -1,9 +1,32 @@
 /**
  * 正则处理引擎
- * 纯逻辑层，不依赖任何 UI 框架
+ * 纯逻辑层,不依赖任何 UI 框架
  */
 
 import type { RegexRule, ApplyResult, LogEntry } from './types';
+
+/**
+ * 解析正则表达式字符串，支持 /pattern/flags 格式
+ * @param pattern 正则表达式字符串，可以是纯模式或 /pattern/flags 格式
+ * @returns { pattern: string, flags: string } 解析后的模式和标志
+ */
+export function parseRegexPattern(pattern: string): { pattern: string; flags: string } {
+  // 检查是否是 /pattern/flags 格式
+  const match = pattern.match(/^\/(.+?)\/([gimsuvy]*)$/);
+  
+  if (match) {
+    return {
+      pattern: match[1],
+      flags: match[2] || 'g'
+    };
+  }
+  
+  // 默认使用 gm 标志以支持多行匹配
+  return {
+    pattern: pattern,
+    flags: 'gm'
+  };
+}
 
 /**
  * 应用多条正则规则到文本
@@ -38,12 +61,13 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
     }
 
     try {
-      const regex = new RegExp(rule.regex, 'g');
+      const { pattern, flags } = parseRegexPattern(rule.regex);
+      const regex = new RegExp(pattern, flags);
       const originalProcessed = processed;
       processed = processed.replace(regex, rule.replacement);
       
       if (originalProcessed !== processed) {
-        addLog(`应用规则 ${index + 1}: /${rule.regex}/ -> "${rule.replacement}"`);
+        addLog(`应用规则 ${index + 1}: /${pattern}/${flags} -> "${rule.replacement}"`);
         appliedRulesCount++;
       }
     } catch (e: any) {

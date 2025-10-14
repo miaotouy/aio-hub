@@ -189,6 +189,7 @@ import { usePresetStore } from './store';
 import type { RegexPreset } from './types';
 import debounce from 'lodash/debounce';
 import { createModuleLogger } from '@utils/logger';
+import { parseRegexPattern } from './engine';
 
 const router = useRouter();
 const store = usePresetStore();
@@ -226,36 +227,36 @@ const highlightedOutput = computed(() => {
     matchCount.value = null;
     return '<div class="empty-preview">请输入正则表达式...</div>';
   }
+try {
+  regexError.value = null;
+  const { pattern, flags } = parseRegexPattern(regex);
+  const re = new RegExp(pattern, flags);
+  
+  // 计算匹配次数
+  const matches = testInput.value.match(re);
+  matchCount.value = matches ? matches.length : 0;
 
-  try {
-    regexError.value = null;
-    const re = new RegExp(regex, 'g');
-    
-    // 计算匹配次数
-    const matches = testInput.value.match(re);
-    matchCount.value = matches ? matches.length : 0;
-
-    // 如果有替换内容，显示替换结果
-    if (replacement !== undefined && replacement !== '') {
-      const result = testInput.value.replace(re, replacement);
-      // 高亮显示修改的部分
-      return escapeHtml(result).replace(
-        new RegExp(escapeRegex(replacement), 'g'),
-        `<mark class="highlight-replacement">${escapeHtml(replacement)}</mark>`
-      );
-    }
-
-    // 否则只高亮匹配项
-    const result = testInput.value.replace(re, (match) => {
-      return `<mark class="highlight-match">${escapeHtml(match)}</mark>`;
-    });
-    
-    return result || testInput.value;
-  } catch (error: any) {
-    regexError.value = error.message;
-    matchCount.value = null;
-    return `<div class="error-preview">正则表达式错误: ${escapeHtml(error.message)}</div>`;
+  // 如果有替换内容，显示替换结果
+  if (replacement !== undefined && replacement !== '') {
+    const result = testInput.value.replace(re, replacement);
+    // 高亮显示修改的部分
+    return escapeHtml(result).replace(
+      new RegExp(escapeRegex(replacement), flags.includes('g') ? 'g' : ''),
+      `<mark class="highlight-replacement">${escapeHtml(replacement)}</mark>`
+    );
   }
+
+  // 否则只高亮匹配项
+  const result = testInput.value.replace(re, (match) => {
+    return `<mark class="highlight-match">${escapeHtml(match)}</mark>`;
+  });
+  
+  return result || testInput.value;
+} catch (error: any) {
+  regexError.value = error.message;
+  matchCount.value = null;
+  return `<div class="error-preview">正则表达式错误: ${escapeHtml(error.message)}</div>`;
+}
 });
 
 // ===== 生命周期 =====

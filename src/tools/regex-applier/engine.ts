@@ -17,7 +17,8 @@ export function parseRegexPattern(pattern: string): { pattern: string; flags: st
   if (match) {
     return {
       pattern: match[1],
-      flags: match[2] || 'g'
+      // 修正: 确保 g 标志总是存在,同时保留用户指定的其他标志
+      flags: match[2] ? (match[2].includes('g') ? match[2] : `${match[2]}g`) : 'g'
     };
   }
   

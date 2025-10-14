@@ -878,10 +878,19 @@ const processFiles = async () => {
       filenameSuffix: filenameSuffix.value
     });
 
-    addLog(`处理完成: 成功 ${result.success_count} 个，失败 ${result.error_count} 个`);
+    // 添加后端返回的日志
+    if (result.logs && Array.isArray(result.logs)) {
+      result.logs.forEach((log: any) => {
+        const logType = log.level === 'error' ? 'error' : (log.level === 'warn' ? 'warn' : 'info');
+        addLog(log.message, logType);
+      });
+    }
+    
+    // 显示统计摘要
+    const summaryMsg = `处理完成: 成功 ${result.success_count} 个，失败 ${result.error_count} 个，总匹配 ${result.total_matches} 次，耗时 ${result.duration_ms?.toFixed(2)}ms`;
     
     if (result.error_count > 0) {
-      ElMessage.warning(`处理完成: 成功 ${result.success_count} 个，失败 ${result.error_count} 个`);
+      ElMessage.warning(summaryMsg);
     } else {
       ElMessage.success(`所有文件处理完成！共处理 ${result.success_count} 个文件`);
     }

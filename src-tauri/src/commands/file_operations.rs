@@ -54,12 +54,22 @@ fn build_regex_with_flags(pattern: &str, flags: &str) -> Result<Regex, regex::Er
     builder.build()
 }
 
+// 日志条目结构体
+#[derive(Serialize, Clone)]
+pub struct LogEntry {
+    pub message: String,
+    pub level: String, // "info", "warn", "error"
+}
+
 // 文件处理结果结构体
 #[derive(Serialize)]
 pub struct ProcessResult {
     pub success_count: usize,
     pub error_count: usize,
+    pub total_matches: usize,
+    pub duration_ms: f64,
     pub errors: HashMap<String, String>,
+    pub logs: Vec<LogEntry>,
 }
 
 // Tauri 命令：批量处理文件应用正则规则
@@ -75,13 +85,23 @@ pub async fn process_files_with_regex(
     let force_txt = force_txt.unwrap_or(false);
     let filename_suffix = filename_suffix.unwrap_or_default();
     let output_path = PathBuf::from(&output_dir);
+    let mut logs = Vec::new();
     
-    println!("========== 正则文件处理开始 ==========");
-    println!("输出目录: {}", output_dir);
-    println!("规则数量: {}", rules.len());
-    println!("强制 TXT: {}", force_txt);
+    // 添加日志辅助函数
+    let mut add_log = |message: String, level: &str| {
+        println!("{}", message);
+        logs.push(LogEntry {
+            message,
+            level: level.to_string(),
+        });
+    };
+    
+    add_log("========== 正则文件处理开始 ==========".to_string(), "info");
+    add_log(format!("输出目录: {}", output_dir), "info");
+    add_log(format!("规则数量: {}", rules.len()), "info");
+    add_log(format!("强制 TXT: {}", force_txt), "info");
     if !filename_suffix.is_empty() {
-        println!("文件后缀: {}", filename_suffix);
+        add_log(format!("文件后缀: {}", filename_suffix), "info");
     }
     
     // 确保输出目录存在
@@ -95,23 +115,24 @@ pub async fn process_files_with_regex(
     }
     
     // 编译所有正则表达式
-    println!("\n--- 编译正则表达式 ---");
-    let compiled_rules: Result<Vec<(Regex, String, String, String)>, String> = rules.iter()
-        .enumerate()
-        .map(|(idx, rule)| {
-            let (pattern, flags) = parse_regex_pattern(&rule.regex)?;
-            println!("规则 {}: /{}/{} -> \"{}\"", idx + 1, pattern, flags, rule.replacement);
-            
-            build_regex_with_flags(&pattern, &flags)
-                .map(|r| (r, rule.replacement.clone(), pattern, flags))
-                .map_err(|e| format!("无效的正则表达式 '{}': {}", rule.regex, e))
-        })
-        .collect();
-    
-    let compiled_rules = compiled_rules?;
+    add_log("--- 编译正则表达式 ---".to_string(), "info");
+    let mut compiled_rules_vec = Vec::new();
+    for (idx, rule) in rules.iter().enumerate() {
+        let (pattern, flags) = parse_regex_pattern(&rule.regex)?;
+        add_log(format!("规则 {}: /{}/{} -> \"{}\"", idx + 1, pattern, flags, rule.replacement), "info");
+        
+        match build_regex_with_flags(&pattern, &flags) {
+            Ok(r) => {
+                compiled_rules_vec.push((r, rule.replacement.clone(), pattern, flags));
+            }
+            Err(e) => {
+                return Err(format!("无效的正则表达式 '{}': {}", rule.regex, e));
+            }
+        }
+    }
     
     // 收集所有需要处理的文件
-    println!("\n--- 收集文件 ---");
+    add_log("--- 收集文件 ---".to_string(), "info");
     let mut all_files = Vec::new();
     for path_str in &file_paths {
         let path = PathBuf::from(path_str);
@@ -121,43 +142,48 @@ pub async fn process_files_with_regex(
             collect_files_recursive(&path, &mut all_files)?;
         }
     }
-    println!("找到 {} 个文件待处理", all_files.len());
+    add_log(format!("找到 {} 个文件待处理", all_files.len()), "info");
     
     // 处理每个文件
-    println!("\n--- 处理文件 ---");
+    add_log("--- 处理文件 ---".to_string(), "info");
     let mut success_count = 0;
     let mut error_count = 0;
     let mut errors = HashMap::new();
     let mut total_matches = 0;
     
     for (idx, file_path) in all_files.iter().enumerate() {
-        print!("[{}/{}] 处理: {} ... ", idx + 1, all_files.len(), file_path.display());
-        match process_single_file(file_path, &output_path, &compiled_rules, force_txt, &filename_suffix) {
+        let file_name = file_path.display().to_string();
+        match process_single_file(file_path, &output_path, &compiled_rules_vec, force_txt, &filename_suffix) {
             Ok(matches) => {
                 success_count += 1;
                 total_matches += matches;
-                println!("成功 (匹配 {} 次)", matches);
+                add_log(format!("[{}/{}] {}: 成功 (匹配 {} 次)", idx + 1, all_files.len(), file_name, matches), "info");
             },
             Err(e) => {
                 error_count += 1;
-                errors.insert(file_path.display().to_string(), e.clone());
-                println!("失败: {}", e);
+                errors.insert(file_name.clone(), e.clone());
+                add_log(format!("[{}/{}] {}: 失败 - {}", idx + 1, all_files.len(), file_name, e), "error");
             }
         }
     }
     
     let duration = start_time.elapsed();
-    println!("\n========== 处理完成 ==========");
-    println!("成功: {} 个文件", success_count);
-    println!("失败: {} 个文件", error_count);
-    println!("总匹配次数: {}", total_matches);
-    println!("总耗时: {:.2}ms", duration.as_secs_f64() * 1000.0);
-    println!("================================\n");
+    let duration_ms = duration.as_secs_f64() * 1000.0;
+    
+    add_log("========== 处理完成 ==========".to_string(), "info");
+    add_log(format!("成功: {} 个文件", success_count), "info");
+    add_log(format!("失败: {} 个文件", error_count), if error_count > 0 { "warn" } else { "info" });
+    add_log(format!("总匹配次数: {}", total_matches), "info");
+    add_log(format!("总耗时: {:.2}ms", duration_ms), "info");
+    add_log("================================".to_string(), "info");
     
     Ok(ProcessResult {
         success_count,
         error_count,
+        total_matches,
+        duration_ms,
         errors,
+        logs,
     })
 }
 

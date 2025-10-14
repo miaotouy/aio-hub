@@ -4,6 +4,7 @@ import { useRouter, useRoute } from "vue-router";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "./config/tools";
 import { useDetachedTools, type WindowConfig } from "./composables/useDetachedTools";
+import { useToolDragging } from "./composables/useToolDragging";
 import {
   loadAppSettingsAsync,
   updateAppSettingsAsync,
@@ -19,12 +20,9 @@ const logger = createModuleLogger("App");
 const router = useRouter();
 const route = useRoute();
 const { currentTheme, toggleTheme } = useTheme();
-const { createToolWindow, isToolDetached, initializeListeners } = useDetachedTools();
+const { isToolDetached, initializeListeners } = useDetachedTools();
+const { startDrag } = useToolDragging();
 const isCollapsed = ref(false); // 控制侧边栏收起状态
-
-// 拖拽状态
-const draggedTool = ref<ToolConfig | null>(null);
-const dragStartPos = ref<{ x: number; y: number }>({ x: 0, y: 0 });
 
 // 应用设置
 const appSettings = ref<AppSettings>({
@@ -211,50 +209,30 @@ const handleSelect = (key: string) => {
   router.push(key);
 };
 
-// --- 拖拽处理 ---
+const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
+  // 阻止默认行为和事件冒泡，防止触发 el-menu 的点击导航
+  event.preventDefault();
+  event.stopPropagation();
 
-const handleDragStart = (event: DragEvent, tool: ToolConfig) => {
-  draggedTool.value = tool;
-  dragStartPos.value = { x: event.clientX, y: event.clientY };
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-    // 设置一个透明的拖拽图像，避免默认的截图
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 1;
-    event.dataTransfer.setDragImage(canvas, 0, 0);
+  // 数据转换：将 ToolConfig 转换为 WindowConfig
+  const toolId = getToolIdFromPath(tool.path);
+  const windowConfig: WindowConfig = {
+    label: toolId,
+    title: tool.name,
+    url: `/detached-window?toolPath=${encodeURIComponent(
+      tool.path
+    )}&title=${encodeURIComponent(tool.name)}`,
+    width: 900,
+    height: 700,
+  };
+
+  // 调用指挥部的 startDrag 方法
+  startDrag(event, windowConfig);
+
+  // 如果当前就在这个工具页面，拖拽后导航回主页
+  if (route.path === tool.path) {
+    router.push("/");
   }
-  logger.info("开始拖拽工具", { tool: tool.name });
-};
-const handleDragEnd = async (event: DragEvent) => {
-  if (!draggedTool.value) return;
-
-  const tool = draggedTool.value;
-  const startPos = dragStartPos.value;
-  const endPos = { x: event.clientX, y: event.clientY };
-
-  const distance = Math.sqrt(Math.pow(endPos.x - startPos.x, 2) + Math.pow(endPos.y - startPos.y, 2));
-
-  // 拖拽距离超过100像素时触发分离
-  if (distance > 100) {
-    logger.info("拖拽距离足够，尝试分离窗口", { tool: tool.name, distance });
-    
-    const toolId = getToolIdFromPath(tool.path);
-    const config: WindowConfig = {
-      label: toolId,
-      title: tool.name,
-      // 使用专门的独立窗口容器，通过 query 参数传递工具信息
-      url: `/detached-window?toolPath=${encodeURIComponent(tool.path)}&title=${encodeURIComponent(tool.name)}`,
-      width: 900,
-      height: 700,
-    };
-    await createToolWindow(config);
-  } else {
-    logger.info("拖拽距离不足，取消分离", { tool: tool.name, distance });
-  }
-
-  // 重置状态
-  draggedTool.value = null;
-  dragStartPos.value = { x: 0, y: 0 };
 };
 </script>
 
@@ -309,9 +287,7 @@ const handleDragEnd = async (event: DragEvent) => {
             v-for="tool in visibleTools"
             :key="tool.path"
             :index="tool.path"
-            :draggable="true"
-            @dragstart="handleDragStart($event, tool)"
-            @dragend="handleDragEnd"
+            @mousedown.left="handleDragStart($event, tool)"
             class="draggable-menu-item"
           >
             <el-icon><component :is="tool.icon" /></el-icon>

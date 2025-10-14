@@ -18,7 +18,6 @@ declare module 'vue' {
     IEpCheck: typeof import('~icons/ep/check')['default']
     IEpFullScreen: typeof import('~icons/ep/full-screen')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
-    IEpLink: typeof import('~icons/ep/link')['default']
     IEpPlus: typeof import('~icons/ep/plus')['default']
     IEpScissor: typeof import('~icons/ep/scissor')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']

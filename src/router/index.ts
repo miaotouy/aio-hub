@@ -76,6 +76,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "DetachedWindow",
     component: () => import("../views/DetachedWindowContainer.vue"),
   },
+  {
+    path: "/drag-indicator",
+    name: "DragIndicator",
+    component: () => import("../views/DragIndicator.vue"),
+  },
 ];
 
 const router = createRouter({

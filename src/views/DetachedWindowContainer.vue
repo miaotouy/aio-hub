@@ -10,6 +10,9 @@ const { currentTheme } = useTheme();
 
 const toolTitle = computed(() => route.query.title as string || '工具窗口');
 
+// 判断是否需要显示标题栏（拖拽指示器不需要）
+const showTitleBar = computed(() => route.path !== '/drag-indicator');
+
 onMounted(() => {
   // 如果有 toolPath 参数，导航到对应的工具页面
   const toolPath = route.query.toolPath as string;
@@ -21,9 +24,9 @@ onMounted(() => {
 
 <template>
   <div class="detached-container" :class="`theme-${currentTheme}`">
-    <TitleBar :title="toolTitle" />
+    <TitleBar v-if="showTitleBar" :title="toolTitle" />
     
-    <div class="tool-content">
+    <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
       <router-view />
     </div>
   </div>
@@ -44,6 +47,10 @@ onMounted(() => {
   flex: 1;
   overflow: auto;
   padding-top: 32px;
+}
+
+.tool-content.no-titlebar {
+  padding-top: 0;
 }
 
 

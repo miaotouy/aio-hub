@@ -45,6 +45,8 @@ use commands::{
     ensure_window_visible,
     get_all_tool_windows,
     clear_window_state,
+    prepare_drag_indicator,
+    finalize_drag_indicator,
     // 配置管理相关
     export_all_configs,
     import_all_configs,
@@ -146,6 +148,8 @@ pub fn run() {
             ensure_window_visible,
             get_all_tool_windows,
             clear_window_state,
+            prepare_drag_indicator,
+            finalize_drag_indicator,
             // 配置管理命令
             export_all_configs,
             import_all_configs,
@@ -154,6 +158,25 @@ pub fn run() {
         
         // 设置应用
         .setup(|app| {
+            // 预加载拖拽指示器窗口
+            let indicator_window = tauri::WebviewWindowBuilder::new(
+                app,
+                "drag-indicator",
+                tauri::WebviewUrl::App("/drag-indicator".into()),
+            )
+            .title("拖拽指示器")
+            .inner_size(300.0, 120.0)
+            .decorations(false)
+            .transparent(true)
+            .resizable(false)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .visible(false) // 初始时隐藏
+            .build()?;
+            
+            // 强制隐藏，以防窗口状态插件恢复其可见性
+            let _ = indicator_window.hide();
+
             // 注册全局快捷键
             let app_handle = app.handle();
             let main_window = app_handle.get_webview_window("main")

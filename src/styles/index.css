@@ -32,6 +32,19 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* 拖拽指示器窗口需要完全透明的背景 */
+body.transparent-window {
+  background-color: transparent !important;
+}
+
+body.transparent-window #app {
+  background: transparent !important;
+}
+
+html.transparent-window {
+  background-color: transparent !important;
+}
 /* Global Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 8px; /* 滚动条宽度 */

@@ -42,14 +42,11 @@ pub async fn create_tool_window(
         return Ok(format!("Window '{}' already exists and has been focused", config.label));
     }
 
-    // 构建完整的 URL
-    let window_url = format!("http://localhost:1420{}", config.url);
-    
     // 创建新窗口
     let window = WebviewWindowBuilder::new(
         &app,
         &config.label,
-        WebviewUrl::External(window_url.parse().map_err(|e: url::ParseError| e.to_string())?),
+        WebviewUrl::App(config.url.into()),
     )
     .title(&config.title)
     .inner_size(config.width, config.height)
@@ -102,17 +99,32 @@ pub async fn get_window_position(
     }
 }
 
-/// 设置窗口位置
+/// 设置窗口位置（接收逻辑坐标并转换为物理坐标）
 #[tauri::command]
 pub async fn set_window_position(
     app: AppHandle,
     label: String,
-    x: i32,
-    y: i32,
+    x: f64,
+    y: f64,
+    center: Option<bool>,
 ) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(&label) {
-        window.set_position(PhysicalPosition::new(x, y))
+        let scale_factor = window.scale_factor().map_err(|e| e.to_string())?;
+        let mut physical_x = (x * scale_factor) as i32;
+        let mut physical_y = (y * scale_factor) as i32;
+
+        // 如果需要居中，则计算偏移量
+        if center.unwrap_or(false) {
+            let size = window.outer_size().map_err(|e| e.to_string())?;
+            let offset_x = (size.width as i32) / 2;
+            let offset_y = (size.height as i32) / 2;
+            physical_x -= offset_x;
+            physical_y -= offset_y;
+        }
+
+        window.set_position(PhysicalPosition::new(physical_x, physical_y))
             .map_err(|e| e.to_string())?;
+        
         Ok(())
     } else {
         Err(format!("Window '{}' not found", label))
@@ -197,7 +209,7 @@ pub async fn get_all_tool_windows(app: AppHandle) -> Result<Vec<String>, String>
     
     Ok(windows)
 }
-
+/// 清除所有窗口的保存状态
 /// 清除所有窗口的保存状态
 #[tauri::command]
 pub async fn clear_window_state(app: AppHandle) -> Result<(), String> {
@@ -217,4 +229,125 @@ pub async fn clear_window_state(app: AppHandle) -> Result<(), String> {
     }
     
     Ok(())
+}
+/// 事件载荷：更新拖拽指示器信息
+#[derive(Clone, serde::Serialize)]
+struct DragIndicatorPayload {
+    tool_name: String,
+}
+
+/// 准备拖拽：显示并定位指示器窗口
+#[tauri::command]
+pub async fn prepare_drag_indicator(
+    app: AppHandle,
+    tool_name: String,
+    mouse_x: f64,
+    mouse_y: f64,
+) -> Result<(), String> {
+    // 获取系统鼠标位置进行对比验证
+    #[cfg(target_os = "windows")]
+    let system_mouse_pos = unsafe {
+        let mut point = windows::Win32::Foundation::POINT { x: 0, y: 0 };
+        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point).ok();
+        Some((point.x, point.y))
+    };
+    #[cfg(not(target_os = "windows"))]
+    let system_mouse_pos: Option<(i32, i32)> = None;
+    
+    println!("[DRAG_START] Tool='{}' | Frontend=(x:{:.0}, y:{:.0}) | System={:?}",
+        tool_name, mouse_x, mouse_y, system_mouse_pos);
+    
+    let indicator_window = app.get_webview_window("drag-indicator")
+        .ok_or_else(|| "Drag indicator window not found.".to_string())?;
+
+    indicator_window.emit("update-drag-indicator", DragIndicatorPayload { tool_name })
+        .map_err(|e| e.to_string())?;
+    
+    set_window_position(app.clone(), "drag-indicator".to_string(), mouse_x, mouse_y, Some(true)).await?;
+    indicator_window.show().map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+/// 结束拖拽：根据最终位置判断是否创建新窗口
+#[tauri::command]
+pub async fn finalize_drag_indicator(
+    app: AppHandle,
+    tool_config: WindowConfig,
+    mouse_x: f64,
+    mouse_y: f64,
+    drag_start_x: f64,
+    drag_start_y: f64,
+) -> Result<bool, String> {
+    // 获取系统鼠标位置进行对比验证
+    #[cfg(target_os = "windows")]
+    let system_mouse_pos = unsafe {
+        let mut point = windows::Win32::Foundation::POINT { x: 0, y: 0 };
+        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point).ok();
+        Some((point.x, point.y))
+    };
+    #[cfg(not(target_os = "windows"))]
+    let system_mouse_pos: Option<(i32, i32)> = None;
+    
+    let indicator_window = app.get_webview_window("drag-indicator")
+        .ok_or_else(|| "Drag indicator window not found.".to_string())?;
+    
+    let main_window = app.get_webview_window("main")
+        .ok_or_else(|| "Main window not found.".to_string())?;
+
+    indicator_window.hide().map_err(|e| e.to_string())?;
+
+    let scale_factor = main_window.scale_factor().map_err(|e| e.to_string())?;
+    let main_pos = main_window.outer_position().map_err(|e| e.to_string())?;
+    let main_size = main_window.outer_size().map_err(|e| e.to_string())?;
+    
+    let physical_mouse_x = (mouse_x * scale_factor) as i32;
+    let physical_mouse_y = (mouse_y * scale_factor) as i32;
+    
+    println!("[DRAG_END] Frontend=(x:{:.0}, y:{:.0}) | Physical=({}, {}) | System={:?} | MainWin=({}, {}, {}x{})",
+        mouse_x, mouse_y, physical_mouse_x, physical_mouse_y, system_mouse_pos,
+        main_pos.x, main_pos.y, main_size.width, main_size.height);
+
+    let is_outside =
+        physical_mouse_x < main_pos.x ||
+        physical_mouse_x > main_pos.x + main_size.width as i32 ||
+        physical_mouse_y < main_pos.y ||
+        physical_mouse_y > main_pos.y + main_size.height as i32;
+    
+    let distance = ((mouse_x - drag_start_x).powi(2) + (mouse_y - drag_start_y).powi(2)).sqrt();
+    let is_far_enough = distance > 100.0;
+    
+    println!("[DRAG_END] Outside={} | Distance={:.0} | FarEnough={}", is_outside, distance, is_far_enough);
+
+    let can_detach = is_outside || is_far_enough;
+
+    if can_detach {
+        let new_win_w_offset = (tool_config.width * scale_factor / 2.0) as i32;
+        let new_win_h_offset = (tool_config.height * scale_factor / 2.0) as i32;
+        let new_win_x = physical_mouse_x - new_win_w_offset;
+        let new_win_y = physical_mouse_y - new_win_h_offset;
+        
+        println!("[DRAG_END] Creating window at ({}, {})", new_win_x, new_win_y);
+
+        let tool_window = WebviewWindowBuilder::new(
+            &app,
+            &tool_config.label,
+            WebviewUrl::App(tool_config.url.into()),
+        )
+        .title(&tool_config.title)
+        .inner_size(tool_config.width, tool_config.height)
+        .min_inner_size(400.0, 300.0)
+        .position(new_win_x as f64, new_win_y as f64)
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+        tool_window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
+        app.emit("tool-detached", tool_config.label.clone()).map_err(|e| e.to_string())?;
+        Ok(true)
+    } else {
+        println!("[DRAG_END] Canceled (inside window or too close)");
+        Ok(false)
+    }
 }

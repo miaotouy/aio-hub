@@ -20,10 +20,18 @@ import packageJson from "../package.json";
 
 const logger = createModuleLogger("Main");
 
-// 检查是否为独立工具窗口
+// 检查是否为独立工具窗口（需要轻量级布局的窗口）
 const isDetachedWindow = () => {
-  return window.location.pathname === "/detached-window";
+  const pathname = window.location.pathname;
+  return pathname === "/detached-window" || pathname === "/drag-indicator";
 };
+
+// 为拖拽指示器窗口添加透明背景类名
+if (window.location.pathname === "/drag-indicator") {
+  document.documentElement.classList.add("transparent-window");
+  document.body.classList.add("transparent-window");
+  logger.info("拖拽指示器窗口：已添加透明背景类");
+}
 
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
 // 这样可以避免应用启动时的颜色闪烁

@@ -23,11 +23,6 @@ struct DragSession {
     main_window_height: u32,
     /// 缩放因子
     scale_factor: f64,
-    /// 指示器尺寸
-    indicator_width: f64,
-    indicator_height: f64,
-    /// 会话开始时间
-    start_time: Instant,
     /// 是否需要停止
     should_stop: bool,
 }
@@ -371,9 +366,6 @@ pub async fn start_drag_session(
         main_window_width: main_size.width,
         main_window_height: main_size.height,
         scale_factor,
-        indicator_width,
-        indicator_height,
-        start_time: Instant::now(),
         should_stop: false,
     };
     
@@ -522,12 +514,16 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
     // 如果满足条件，创建新窗口
     if can_detach {
         let config = &session.tool_config;
-        let new_win_w_offset = (config.width * session.scale_factor / 2.0) as i32;
-        let new_win_h_offset = (config.height * session.scale_factor / 2.0) as i32;
-        let new_win_x = final_cursor_x - new_win_w_offset;
-        let new_win_y = final_cursor_y - new_win_h_offset;
         
-        println!("[DRAG_SESSION] 创建窗口于 ({}, {})", new_win_x, new_win_y);
+        // 在逻辑坐标系中计算窗口位置（窗口中心对齐鼠标）
+        let new_win_w_offset = config.width / 2.0;
+        let new_win_h_offset = config.height / 2.0;
+        let new_win_x = final_x - new_win_w_offset;
+        let new_win_y = final_y - new_win_h_offset;
+        println!("[DRAG_SESSION] 创建窗口 | 逻辑坐标=({:.1}, {:.1}) | 物理坐标=({:.0}, {:.0})",
+                 new_win_x, new_win_y,
+                 new_win_x * session.scale_factor,
+                 new_win_y * session.scale_factor);
         
         let tool_window = WebviewWindowBuilder::new(
             &app,
@@ -537,7 +533,7 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         .title(&config.title)
         .inner_size(config.width, config.height)
         .min_inner_size(400.0, 300.0)
-        .position(new_win_x as f64, new_win_y as f64)
+        .position(new_win_x, new_win_y)  // 使用逻辑坐标
         .decorations(false)
         .transparent(true)
         .build()
@@ -606,12 +602,15 @@ pub async fn finalize_drag_indicator(
     let can_detach = is_outside || is_far_enough;
 
     if can_detach {
-        let new_win_w_offset = (tool_config.width * scale_factor / 2.0) as i32;
-        let new_win_h_offset = (tool_config.height * scale_factor / 2.0) as i32;
-        let new_win_x = physical_mouse_x - new_win_w_offset;
-        let new_win_y = physical_mouse_y - new_win_h_offset;
+        // 修复：在逻辑坐标系中计算窗口位置
+        let new_win_w_offset = tool_config.width / 2.0;
+        let new_win_h_offset = tool_config.height / 2.0;
+        let new_win_x = mouse_x - new_win_w_offset;
+        let new_win_y = mouse_y - new_win_h_offset;
         
-        println!("[DRAG_END] Creating window at ({}, {})", new_win_x, new_win_y);
+        println!("[DRAG_END] Creating window at logical ({:.1}, {:.1}), physical ({:.0}, {:.0})",
+                 new_win_x, new_win_y,
+                 new_win_x * scale_factor, new_win_y * scale_factor);
 
         let tool_window = WebviewWindowBuilder::new(
             &app,
@@ -621,7 +620,7 @@ pub async fn finalize_drag_indicator(
         .title(&tool_config.title)
         .inner_size(tool_config.width, tool_config.height)
         .min_inner_size(400.0, 300.0)
-        .position(new_win_x as f64, new_win_y as f64)
+        .position(new_win_x, new_win_y)  // 使用逻辑坐标
         .decorations(false)
         .transparent(true)
         .build()

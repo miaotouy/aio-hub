@@ -569,7 +569,8 @@ const formatBytes = (bytes: number): string => {
                       • 直接指向文件数据，与原文件平等<br />
                       • <strong>不能跨分区/跨盘</strong><br />
                       • <strong>不能链接目录</strong><br />
-                      • 删除任一个不影响另一个
+                      • 删除任一个不影响另一个<br />
+                      • 全部删完就都没了
                     </div>
                   </div>
                 </div>
@@ -1093,7 +1094,6 @@ const formatBytes = (bytes: number): string => {
 .tooltip-text {
   font-size: 12px;
   line-height: 1.6;
-  color: var(--text-color);
 }
 
 .tooltip-text strong {

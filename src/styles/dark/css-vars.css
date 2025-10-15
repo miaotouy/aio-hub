@@ -362,6 +362,64 @@ html.dark .el-message--info {
 /* 修复 el-dropdown 在暗色模式下悬停时的样式 - 使用半透明背景和白色文字 */
 html.dark .el-dropdown-menu__item:focus,
 html.dark .el-dropdown-menu__item:not(.is-disabled):hover {
-  background-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent) !important;
-  color: #ffffff !important;
+  background-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
+  color: #ffffff;
+}
+
+/* Element Plus Tooltip 主题适配 - 暗色模式 */
+/* 使用 .el-popper 选择器覆盖 Element Plus 默认样式 */
+html.dark .el-popper.is-dark {
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+html.dark .el-popper.is-dark > .el-popper__arrow::before {
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
+}
+
+html.dark .el-popper.is-light {
+  background-color: var(--text-color);
+  color: var(--bg-color);
+  border: 1px solid var(--border-color);
+}
+
+html.dark .el-popper.is-light > .el-popper__arrow::before {
+  background: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+/* 箭头方向颜色 - dark 模式 */
+html.dark .el-popper.is-dark[data-popper-placement^='top'] .el-popper__arrow::before {
+  border-top-color: var(--container-bg);
+}
+
+html.dark .el-popper.is-dark[data-popper-placement^='bottom'] .el-popper__arrow::before {
+  border-bottom-color: var(--container-bg);
+}
+
+html.dark .el-popper.is-dark[data-popper-placement^='left'] .el-popper__arrow::before {
+  border-left-color: var(--container-bg);
+}
+
+html.dark .el-popper.is-dark[data-popper-placement^='right'] .el-popper__arrow::before {
+  border-right-color: var(--container-bg);
+}
+
+/* 箭头方向颜色 - light 模式 */
+html.dark .el-popper.is-light[data-popper-placement^='top'] .el-popper__arrow::before {
+  border-top-color: var(--text-color);
+}
+
+html.dark .el-popper.is-light[data-popper-placement^='bottom'] .el-popper__arrow::before {
+  border-bottom-color: var(--text-color);
+}
+
+html.dark .el-popper.is-light[data-popper-placement^='left'] .el-popper__arrow::before {
+  border-left-color: var(--text-color);
+}
+
+html.dark .el-popper.is-light[data-popper-placement^='right'] .el-popper__arrow::before {
+  border-right-color: var(--text-color);
 }

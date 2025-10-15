@@ -35,15 +35,15 @@ body {
 
 /* 拖拽指示器窗口需要完全透明的背景 */
 body.transparent-window {
-  background-color: transparent !important;
+  background-color: transparent;
 }
 
 body.transparent-window #app {
-  background: transparent !important;
+  background: transparent;
 }
 
 html.transparent-window {
-  background-color: transparent !important;
+  background-color: transparent;
 }
 /* Global Scrollbar Styles */
 ::-webkit-scrollbar {
@@ -67,15 +67,15 @@ html.transparent-window {
 
 /* 调整 Element Plus 组件的位置，避免被自定义标题栏遮挡 */
 .el-notification {
-  top: 52px !important; /* 标题栏高度32px + 额外间距20px */
+  top: 52px; /* 标题栏高度32px + 额外间距20px */
 }
 
 .el-message {
-  top: 52px !important; /* 标题栏高度32px + 额外间距20px */
+  top: 52px; /* 标题栏高度32px + 额外间距20px */
 }
 
 .el-message-box {
-  margin-top: 32px !important; /* 给标题栏留出空间 */
+  margin-top: 32px; /* 给标题栏留出空间 */
 }
 
 /* Element Plus 全局主题适配 - 输入组件 */
@@ -91,9 +91,9 @@ html.transparent-window {
 
 .el-input__inner,
 .el-textarea__inner {
-  background-color: var(--input-bg) !important;
-  color: var(--text-color) !important;
-  border-color: var(--border-color) !important;
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
 }
 
 /* Element Plus 全局主题适配 - 卡片组件 */
@@ -254,46 +254,46 @@ html.transparent-window {
 .el-button.is-disabled:hover,
 .el-button.is-disabled:focus,
 .el-button.is-disabled:active {
-  background-color: var(--border-color-light) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-color-light) !important;
-  cursor: not-allowed !important;
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  cursor: not-allowed;
   opacity: 0.6;
 }
 
 .el-button--primary.is-disabled,
 .el-button--primary.is-disabled:hover {
-  --el-button-bg-color: var(--border-color-light) !important;
-  --el-button-border-color: var(--border-color) !important;
-  --el-button-text-color: var(--text-color-light) !important;
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
 }
 
 .el-button--success.is-disabled,
 .el-button--success.is-disabled:hover {
-  --el-button-bg-color: var(--border-color-light) !important;
-  --el-button-border-color: var(--border-color) !important;
-  --el-button-text-color: var(--text-color-light) !important;
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
 }
 
 .el-button--warning.is-disabled,
 .el-button--warning.is-disabled:hover {
-  --el-button-bg-color: var(--border-color-light) !important;
-  --el-button-border-color: var(--border-color) !important;
-  --el-button-text-color: var(--text-color-light) !important;
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
 }
 
 .el-button--danger.is-disabled,
 .el-button--danger.is-disabled:hover {
-  --el-button-bg-color: var(--border-color-light) !important;
-  --el-button-border-color: var(--border-color) !important;
-  --el-button-text-color: var(--text-color-light) !important;
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
 }
 
 .el-button--info.is-disabled,
 .el-button--info.is-disabled:hover {
-  --el-button-bg-color: var(--border-color-light) !important;
-  --el-button-border-color: var(--border-color) !important;
-  --el-button-text-color: var(--text-color-light) !important;
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
 }
 
 /* Custom global button styles */
@@ -385,6 +385,64 @@ html.transparent-window {
 /* 修复 el-dropdown 悬停时的样式 - 使用半透明背景，亮色模式下文字保持主题色 */
 .el-dropdown-menu__item:focus,
 .el-dropdown-menu__item:not(.is-disabled):hover {
-  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent) !important;
-  color: var(--el-color-primary) !important;
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  color: var(--el-color-primary);
+}
+
+/* Element Plus Tooltip 主题适配 - 亮色模式 */
+/* 使用 .el-popper 选择器覆盖 Element Plus 默认样式 */
+.el-popper.is-dark {
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.el-popper.is-dark > .el-popper__arrow::before {
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
+}
+
+.el-popper.is-light {
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.el-popper.is-light > .el-popper__arrow::before {
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
+}
+
+/* 箭头方向颜色 - dark 模式 */
+.el-popper.is-dark[data-popper-placement^='top'] .el-popper__arrow::before {
+  border-top-color: var(--container-bg);
+}
+
+.el-popper.is-dark[data-popper-placement^='bottom'] .el-popper__arrow::before {
+  border-bottom-color: var(--container-bg);
+}
+
+.el-popper.is-dark[data-popper-placement^='left'] .el-popper__arrow::before {
+  border-left-color: var(--container-bg);
+}
+
+.el-popper.is-dark[data-popper-placement^='right'] .el-popper__arrow::before {
+  border-right-color: var(--container-bg);
+}
+
+/* 箭头方向颜色 - light 模式 */
+.el-popper.is-light[data-popper-placement^='top'] .el-popper__arrow::before {
+  border-top-color: var(--container-bg);
+}
+
+.el-popper.is-light[data-popper-placement^='bottom'] .el-popper__arrow::before {
+  border-bottom-color: var(--container-bg);
+}
+
+.el-popper.is-light[data-popper-placement^='left'] .el-popper__arrow::before {
+  border-left-color: var(--container-bg);
+}
+
+.el-popper.is-light[data-popper-placement^='right'] .el-popper__arrow::before {
+  border-right-color: var(--container-bg);
 }

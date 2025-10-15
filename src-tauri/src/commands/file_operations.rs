@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::time::Instant;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use fs_extra;
+use std::path::Component;
 
 // 正则规则结构体
 #[derive(Deserialize)]
@@ -302,6 +304,47 @@ fn process_single_file(
     Ok(total_matches)
 }
 
+// 检测是否跨盘/跨设备移动
+fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        // Windows: 比较盘符（如 C:\ 和 E:\）
+        let source_prefix = source.components().find_map(|c| {
+            if let Component::Prefix(prefix) = c {
+                Some(prefix.as_os_str().to_owned())
+            } else {
+                None
+            }
+        });
+        
+        let target_prefix = target_dir.components().find_map(|c| {
+            if let Component::Prefix(prefix) = c {
+                Some(prefix.as_os_str().to_owned())
+            } else {
+                None
+            }
+        });
+        
+        source_prefix != target_prefix
+    }
+    
+    #[cfg(unix)]
+    {
+        // Unix: 比较设备 ID
+        use std::os::unix::fs::MetadataExt;
+        if let (Ok(source_meta), Ok(target_meta)) = (source.metadata(), target_dir.metadata()) {
+            source_meta.dev() != target_meta.dev()
+        } else {
+            false
+        }
+    }
+    
+    #[cfg(not(any(windows, unix)))]
+    {
+        false
+    }
+}
+
 // Tauri 命令：文件移动和符号链接创建
 #[tauri::command]
 pub async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_type: String) -> Result<String, String> {
@@ -340,42 +383,83 @@ pub async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_t
             continue;
         }
 
+        // 检测是否跨盘移动
+        let is_cross_dev = is_cross_device(&source_path, &target_path);
+        
         // 执行文件移动
-        match fs::rename(&source_path, &target_file_path) {
-            Ok(_) => {
-                // 文件移动成功，现在创建链接
-                let link_result = if link_type == "symlink" {
-                    // 创建符号链接
-                    #[cfg(windows)]
-                    {
-                        if target_file_path.is_dir() {
-                            std::os::windows::fs::symlink_dir(&target_file_path, &source_path)
-                        } else {
-                            std::os::windows::fs::symlink_file(&target_file_path, &source_path)
+        let move_success = if is_cross_dev {
+            // 跨盘移动：使用复制+删除
+            let copy_result = if source_path.is_dir() {
+                fs_extra::dir::copy(&source_path, &target_path, &fs_extra::dir::CopyOptions::new())
+                    .map(|_| ())
+            } else {
+                fs_extra::file::copy(&source_path, &target_file_path, &fs_extra::file::CopyOptions::new())
+                    .map(|_| ())
+            };
+            
+            match copy_result {
+                Ok(_) => {
+                    // 复制成功，删除源文件
+                    let remove_result = if source_path.is_dir() {
+                        fs::remove_dir_all(&source_path)
+                    } else {
+                        fs::remove_file(&source_path)
+                    };
+                    
+                    match remove_result {
+                        Ok(_) => true,
+                        Err(e) => {
+                            errors.push(format!("删除源文件失败 {}: {}（文件已复制到目标位置）", source_path.display(), e));
+                            false
                         }
                     }
-                    #[cfg(unix)]
-                    {
-                        std::os::unix::fs::symlink(&target_file_path, &source_path)
-                    }
-                } else {
-                    // 创建硬链接
-                    fs::hard_link(&target_file_path, &source_path)
-                };
-
-                match link_result {
-                    Ok(_) => {
-                        processed_count += 1;
-                    }
-                    Err(e) => {
-                        errors.push(format!("创建链接失败 {} -> {}: {}", target_file_path.display(), source_path.display(), e));
-                    }
+                }
+                Err(e) => {
+                    errors.push(format!("跨盘复制文件失败 {} -> {}: {}", source_path.display(), target_file_path.display(), e));
+                    false
                 }
             }
-            Err(e) => {
-                errors.push(format!("移动文件失败 {} -> {}: {}", source_path.display(), target_file_path.display(), e));
+        } else {
+            // 同盘移动：使用快速的 rename
+            match fs::rename(&source_path, &target_file_path) {
+                Ok(_) => true,
+                Err(e) => {
+                    errors.push(format!("移动文件失败 {} -> {}: {}", source_path.display(), target_file_path.display(), e));
+                    false
+                }
+            }
+        };
+
+        if move_success {
+    // 文件移动成功，现在创建链接
+    let link_result = if link_type == "symlink" {
+        // 创建符号链接
+        #[cfg(windows)]
+        {
+            if target_file_path.is_dir() {
+                std::os::windows::fs::symlink_dir(&target_file_path, &source_path)
+            } else {
+                std::os::windows::fs::symlink_file(&target_file_path, &source_path)
             }
         }
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&target_file_path, &source_path)
+        }
+    } else {
+        // 创建硬链接
+        fs::hard_link(&target_file_path, &source_path)
+    };
+
+    match link_result {
+        Ok(_) => {
+            processed_count += 1;
+        }
+        Err(e) => {
+            errors.push(format!("创建链接失败 {} -> {}: {}", target_file_path.display(), source_path.display(), e));
+        }
+    }
+}
     }
 
     let mut message = format!("成功处理 {} 个文件", processed_count);

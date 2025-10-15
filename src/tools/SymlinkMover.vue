@@ -51,6 +51,16 @@ interface FileItem {
   name: string;
   status: "pending" | "processing" | "success" | "error";
   error?: string;
+  isDirectory?: boolean;
+  isCrossDevice?: boolean;
+  warning?: string;
+}
+
+// 验证结果类型
+interface FileValidation {
+  isDirectory: boolean;
+  isCrossDevice: boolean;
+  exists: boolean;
 }
 
 // --- 响应式状态 ---
@@ -184,6 +194,49 @@ const handleTargetDrop = (paths: string[]) => {
   }
 };
 
+// 验证文件列表
+const validateFiles = async () => {
+  if (!targetDirectory.value || sourceFiles.value.length === 0) {
+    return;
+  }
+
+  for (const file of sourceFiles.value) {
+    try {
+      const validation = await invoke<FileValidation>(
+        "validate_file_for_link",
+        {
+          sourcePath: file.path,
+          targetDir: targetDirectory.value,
+          linkType: linkType.value,
+        }
+      );
+
+      file.isDirectory = validation.isDirectory;
+      file.isCrossDevice = validation.isCrossDevice;
+
+      // 硬链接的限制检查
+      if (linkType.value === "link" && operationMode.value === "link-only") {
+        if (validation.isDirectory) {
+          file.warning = "硬链接不支持目录";
+        } else if (validation.isCrossDevice) {
+          file.warning = "硬链接不支持跨分区/跨盘";
+        } else {
+          file.warning = undefined;
+        }
+      } else {
+        file.warning = undefined;
+      }
+    } catch (error) {
+      logger.error("验证文件失败", error, { path: file.path });
+    }
+  }
+};
+
+// 监听目标目录和链接类型变化，触发验证
+watch([targetDirectory, linkType, operationMode], () => {
+  validateFiles();
+});
+
 // --- 文件处理方法 ---
 const addSourcePathFromInput = () => {
   if (!sourcePathInput.value) {
@@ -207,6 +260,8 @@ const addSourceFiles = (paths: string[]) => {
   if (uniqueNewFiles.length > 0) {
     sourceFiles.value.push(...uniqueNewFiles);
     ElMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
+    // 添加文件后触发验证
+    validateFiles();
   }
 };
 
@@ -431,13 +486,19 @@ const formatBytes = (bytes: number): string => {
               <p>将要搬家的文件或文件夹拖拽至此</p>
             </div>
             <div v-else class="file-list">
-              <div v-for="(file, index) in sourceFiles" :key="file.path" class="file-item">
-                <el-icon class="file-icon">
+              <div v-for="(file, index) in sourceFiles" :key="file.path" class="file-item" :class="{ 'has-warning': file.warning }">
+                <el-icon class="file-icon" :class="{ 'warning-icon': file.warning }">
                   <Document />
                 </el-icon>
                 <div class="file-details">
                   <div class="file-name" :title="file.name">{{ file.name }}</div>
                   <div class="file-path" :title="file.path">{{ file.path }}</div>
+                  <div v-if="file.warning" class="file-warning">
+                    <el-icon>
+                      <InfoFilled />
+                    </el-icon>
+                    {{ file.warning }}
+                  </div>
                 </div>
                 <el-button @click="removeFile(index)" :icon="Delete" text circle size="small" class="remove-btn" />
               </div>
@@ -488,7 +549,36 @@ const formatBytes = (bytes: number): string => {
           </DropZone>
         </div>
         <div class="setting-group">
-          <label>链接类型</label>
+          <label>
+            链接类型
+            <el-tooltip placement="top" :show-after="300">
+              <template #content>
+                <div class="link-type-tooltip">
+                  <div class="tooltip-section">
+                    <div class="tooltip-title">符号链接（Symlink）</div>
+                    <div class="tooltip-text">
+                      • 类似快捷方式，存储目标路径<br />
+                      • 可以跨分区/跨盘使用<br />
+                      • 可以链接目录<br />
+                      • 原文件删除后会失效
+                    </div>
+                  </div>
+                  <div class="tooltip-section">
+                    <div class="tooltip-title">硬链接（Hard Link）</div>
+                    <div class="tooltip-text">
+                      • 直接指向文件数据，与原文件平等<br />
+                      • <strong>不能跨分区/跨盘</strong><br />
+                      • <strong>不能链接目录</strong><br />
+                      • 删除任一个不影响另一个
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <el-icon class="info-icon">
+                <InfoFilled />
+              </el-icon>
+            </el-tooltip>
+          </label>
           <el-radio-group v-model="linkType">
             <el-radio-button value="symlink">符号链接</el-radio-button>
             <el-radio-button value="link" :disabled="operationMode === 'link-only'">硬链接</el-radio-button>
@@ -802,7 +892,7 @@ const formatBytes = (bytes: number): string => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: linear-gradient(135deg, var(--container-bg) 0%, rgba(64, 158, 255, 0.05) 100%);
+  background: linear-gradient(135deg, var(--container-bg) 0%, color-mix(in srgb, var(--el-color-primary) 5%, transparent) 100%);
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
   margin-bottom: 12px;
@@ -966,5 +1056,72 @@ const formatBytes = (bytes: number): string => {
   color: var(--text-color);
   word-break: break-all;
   flex: 1;
+}
+
+/* 链接类型说明提示样式 */
+.setting-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-icon {
+  font-size: 14px;
+  color: var(--el-color-info);
+  cursor: help;
+}
+
+.link-type-tooltip {
+  max-width: 350px;
+}
+
+.tooltip-section {
+  margin-bottom: 12px;
+}
+
+.tooltip-section:last-child {
+  margin-bottom: 0;
+}
+
+.tooltip-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--el-color-primary);
+}
+
+.tooltip-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-color);
+}
+
+.tooltip-text strong {
+  color: var(--el-color-warning);
+  font-weight: 600;
+}
+
+/* 文件警告样式 */
+.file-item.has-warning {
+  border-left: 3px solid var(--el-color-warning);
+  background-color: var(--el-color-warning-light-9);
+}
+
+.file-warning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--el-color-warning);
+  font-weight: 500;
+}
+
+.file-warning .el-icon {
+  font-size: 12px;
+}
+
+.file-icon.warning-icon {
+  color: var(--el-color-warning);
 }
 </style>

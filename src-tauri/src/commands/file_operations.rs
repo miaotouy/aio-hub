@@ -793,3 +793,46 @@ pub fn read_file_as_base64(path: String) -> Result<String, String> {
 pub fn cancel_move_operation(cancel_token: tauri::State<'_, Arc<CancellationToken>>) {
     cancel_token.inner().cancel();
 }
+
+// 文件验证结果
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileValidation {
+    pub is_directory: bool,
+    pub is_cross_device: bool,
+    pub exists: bool,
+}
+
+// Tauri 命令：验证文件属性（用于硬链接检查）
+#[tauri::command]
+pub fn validate_file_for_link(source_path: String, target_dir: String, link_type: String) -> Result<FileValidation, String> {
+    let source = PathBuf::from(&source_path);
+    let target = PathBuf::from(&target_dir);
+    
+    if !source.exists() {
+        return Ok(FileValidation {
+            is_directory: false,
+            is_cross_device: false,
+            exists: false,
+        });
+    }
+    
+    let is_dir = source.is_dir();
+    
+    // 只有硬链接需要检查跨设备
+    let is_cross_dev = if link_type == "link" {
+        if target.exists() {
+            is_cross_device(&source, &target)
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    
+    Ok(FileValidation {
+        is_directory: is_dir,
+        is_cross_device: is_cross_dev,
+        exists: true,
+    })
+}

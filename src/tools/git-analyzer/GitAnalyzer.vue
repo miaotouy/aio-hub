@@ -111,6 +111,11 @@
                 @input="filterCommits"
               />
             </el-col>
+            <el-col :span="3">
+              <el-checkbox v-model="reverseOrder" @change="filterCommits">
+                倒序排列
+              </el-checkbox>
+            </el-col>
             <el-col :span="2">
               <el-button @click="clearFilters" :icon="Refresh"> 清除 </el-button>
             </el-col>
@@ -326,6 +331,7 @@
       :statistics="statistics"
       :repo-path="repoPath"
       :branch="selectedBranch"
+      :reverse-order="reverseOrder"
       :initial-config="config?.exportConfig"
       @update:exportConfig="handleExportConfigUpdate"
     />
@@ -365,6 +371,7 @@ const {
   searchQuery,
   dateRange,
   authorFilter,
+  reverseOrder,
   currentPage,
   pageSize,
   // 计算属性
@@ -466,6 +473,7 @@ async function loadConfig() {
     pageSize.value = loadedConfig.pageSize
     searchQuery.value = loadedConfig.searchQuery
     authorFilter.value = loadedConfig.authorFilter
+    reverseOrder.value = loadedConfig.reverseOrder
 
     // 恢复日期范围（需要将字符串转换为 Date 对象）
     if (loadedConfig.dateRange) {
@@ -494,6 +502,7 @@ function saveCurrentConfig() {
       : null,
     authorFilter: authorFilter.value,
     commitRange: commitRange.value,
+    reverseOrder: reverseOrder.value,
 }
 
 debouncedSaveConfig(updatedConfig)
@@ -501,7 +510,7 @@ debouncedSaveConfig(updatedConfig)
 
 // 监听配置变化并自动保存
 watch(
-  [repoPath, selectedBranch, limitCount, activeTab, pageSize, searchQuery, dateRange, authorFilter, commitRange],
+  [repoPath, selectedBranch, limitCount, activeTab, pageSize, searchQuery, dateRange, authorFilter, commitRange, reverseOrder],
   () => {
     saveCurrentConfig()
   },

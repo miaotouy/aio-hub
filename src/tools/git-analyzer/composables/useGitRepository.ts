@@ -22,6 +22,7 @@ export function useGitRepository() {
   const searchQuery = ref('')
   const dateRange = ref<[Date, Date] | null>(null)
   const authorFilter = ref('')
+  const reverseOrder = ref(false)
 
   // 分页状态
   const currentPage = ref(1)
@@ -256,6 +257,11 @@ export function useGitRepository() {
       })
     }
 
+    // 倒序排列
+    if (reverseOrder.value) {
+      filtered = [...filtered].reverse()
+    }
+
     filteredCommits.value = filtered
     currentPage.value = 1
   }
@@ -265,6 +271,7 @@ export function useGitRepository() {
     searchQuery.value = ''
     dateRange.value = null
     authorFilter.value = ''
+    reverseOrder.value = false
     // 重新应用筛选（此时只会应用范围选择）
     filterCommits()
     currentPage.value = 1
@@ -296,6 +303,7 @@ export function useGitRepository() {
     searchQuery,
     dateRange,
     authorFilter,
+    reverseOrder,
     currentPage,
     pageSize,
 

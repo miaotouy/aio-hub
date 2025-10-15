@@ -55,6 +55,7 @@ const props = defineProps<{
   repoPath: string
   branch: string
   initialConfig?: Partial<ExportConfig>
+  reverseOrder?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -107,11 +108,10 @@ function generateFileName(extension: string): string {
 
   return `${projectName}_提交统计_${dateStr}.${extension}`
 }
-
 // 获取要导出的提交记录
 function getCommitsToExport(): GitCommit[] {
   // 先根据范围获取基础提交列表
-  const base: GitCommit[] = (() => {
+  let base: GitCommit[] = (() => {
     switch (exportConfig.value.commitRange) {
       case 'all':
         return props.commits
@@ -123,6 +123,11 @@ function getCommitsToExport(): GitCommit[] {
         return props.filteredCommits
     }
   })()
+
+  // 应用倒序（仅当选择"所有提交"且启用倒序时）
+  if (exportConfig.value.commitRange === 'all' && props.reverseOrder) {
+    base = [...base].reverse()
+  }
 
   // 如果需要文件变更信息，合并文件数据
   return getMergedCommits(base)

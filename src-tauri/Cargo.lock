@@ -42,6 +42,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "lazy_static",
  "once_cell",
  "rdev",
  "regex",

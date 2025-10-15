@@ -7,8 +7,10 @@ use serde::{Deserialize, Serialize};
 use fs_extra;
 use std::path::Component;
 use tokio_util::sync::CancellationToken;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
+use std::time::SystemTime;
+use lazy_static::lazy_static;
 
 // 进度事件结构体
 #[derive(Clone, Serialize)]
@@ -18,6 +20,60 @@ pub struct CopyProgress {
     pub copied_bytes: u64,
     pub total_bytes: u64,
     pub progress_percentage: f64,
+}
+
+// 操作日志条目
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationLog {
+    pub timestamp: u64,
+    pub operation_type: String,    // "move" 或 "link-only"
+    pub link_type: String,         // "symlink" 或 "link"
+    pub source_count: usize,
+    pub success_count: usize,
+    pub error_count: usize,
+    pub errors: Vec<String>,
+    pub duration_ms: u128,
+    pub target_directory: String,  // 目标目录
+    pub source_paths: Vec<String>, // 源文件路径列表
+    pub total_size: u64,           // 总文件大小（字节）
+    pub processed_files: Vec<String>, // 成功处理的文件名列表
+}
+
+// 全局操作日志历史（最多保存100条）
+lazy_static! {
+    static ref OPERATION_LOGS: Mutex<Vec<OperationLog>> = Mutex::new(Vec::new());
+}
+
+// 添加操作日志
+fn add_operation_log(log: OperationLog) {
+    if let Ok(mut logs) = OPERATION_LOGS.lock() {
+        logs.push(log);
+        // 只保留最近100条
+        if logs.len() > 100 {
+            logs.remove(0);
+        }
+    }
+}
+
+// 获取最新的操作日志
+#[tauri::command]
+pub fn get_latest_operation_log() -> Option<OperationLog> {
+    if let Ok(logs) = OPERATION_LOGS.lock() {
+        logs.last().cloned()
+    } else {
+        None
+    }
+}
+
+// 获取所有操作日志
+#[tauri::command]
+pub fn get_all_operation_logs() -> Vec<OperationLog> {
+    if let Ok(logs) = OPERATION_LOGS.lock() {
+        logs.clone()
+    } else {
+        Vec::new()
+    }
 }
 
 // 正则规则结构体
@@ -317,6 +373,28 @@ fn process_single_file(
     Ok(total_matches)
 }
 
+// 递归计算目录大小
+fn calculate_dir_size(dir: &Path) -> Result<u64, std::io::Error> {
+    let mut total = 0u64;
+    
+    if dir.is_dir() {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.is_file() {
+                if let Ok(metadata) = path.metadata() {
+                    total += metadata.len();
+                }
+            } else if path.is_dir() {
+                total += calculate_dir_size(&path).unwrap_or(0);
+            }
+        }
+    }
+    
+    Ok(total)
+}
+
 // 检测是否跨盘/跨设备移动
 fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
     #[cfg(windows)]
@@ -367,6 +445,12 @@ pub async fn move_and_link(
     link_type: String,
     cancel_token: tauri::State<'_, Arc<CancellationToken>>
 ) -> Result<String, String> {
+    let start_time = Instant::now();
+    let timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
     let target_path = PathBuf::from(&target_dir);
 
     // 确保目标目录存在
@@ -378,10 +462,13 @@ pub async fn move_and_link(
         return Err(format!("目标路径不是目录: {}", target_dir));
     }
 
+    let source_count = source_paths.len();
     let mut processed_count = 0;
     let mut errors = Vec::new();
+    let mut total_size = 0u64;
+    let mut processed_files = Vec::new();
 
-    for source_path_str in source_paths {
+    for source_path_str in &source_paths {
         let source_path = PathBuf::from(&source_path_str);
 
         // 检查源文件是否存在
@@ -394,7 +481,17 @@ pub async fn move_and_link(
             .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
             .to_string_lossy().to_string();
 
-        let target_file_path = target_path.join(file_name);
+        let target_file_path = target_path.join(&file_name);
+        
+        // 计算文件/目录大小
+        if let Ok(metadata) = source_path.metadata() {
+            total_size += if metadata.is_file() {
+                metadata.len()
+            } else {
+                // 目录递归计算大小
+                calculate_dir_size(&source_path).unwrap_or(0)
+            };
+        }
 
         // 检查目标文件是否已存在
         if target_file_path.exists() {
@@ -505,6 +602,7 @@ pub async fn move_and_link(
     match link_result {
         Ok(_) => {
             processed_count += 1;
+            processed_files.push(file_name);
         }
         Err(e) => {
             errors.push(format!("创建链接失败 {} -> {}: {}", target_file_path.display(), source_path.display(), e));
@@ -512,6 +610,25 @@ pub async fn move_and_link(
     }
 }
     }
+
+    let duration = start_time.elapsed();
+    
+    // 记录操作日志
+    let log = OperationLog {
+        timestamp,
+        operation_type: "move".to_string(),
+        link_type: link_type.clone(),
+        source_count,
+        success_count: processed_count,
+        error_count: errors.len(),
+        errors: errors.clone(),
+        duration_ms: duration.as_millis(),
+        target_directory: target_dir.clone(),
+        source_paths: source_paths.clone(),
+        total_size,
+        processed_files,
+    };
+    add_operation_log(log);
 
     let mut message = format!("成功处理 {} 个文件", processed_count);
     if !errors.is_empty() {
@@ -527,6 +644,12 @@ pub async fn move_and_link(
 // Tauri 命令：仅创建链接（不移动文件）
 #[tauri::command]
 pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, link_type: String) -> Result<String, String> {
+    let start_time = Instant::now();
+    let timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
     let target_path = PathBuf::from(&target_dir);
 
     // 确保目标目录存在
@@ -538,10 +661,13 @@ pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, li
         return Err(format!("目标路径不是目录: {}", target_dir));
     }
 
+    let source_count = source_paths.len();
     let mut processed_count = 0;
     let mut errors = Vec::new();
+    let mut total_size = 0u64;
+    let mut processed_files = Vec::new();
 
-    for source_path_str in source_paths {
+    for source_path_str in &source_paths {
         let source_path = PathBuf::from(&source_path_str);
 
         // 检查源文件是否存在
@@ -554,7 +680,16 @@ pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, li
             .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
             .to_string_lossy().to_string();
 
-        let link_path = target_path.join(file_name);
+        let link_path = target_path.join(&file_name);
+        
+        // 计算文件/目录大小
+        if let Ok(metadata) = source_path.metadata() {
+            total_size += if metadata.is_file() {
+                metadata.len()
+            } else {
+                calculate_dir_size(&source_path).unwrap_or(0)
+            };
+        }
 
         // 检查链接位置是否已存在
         if link_path.exists() {
@@ -589,12 +724,32 @@ pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, li
         match link_result {
             Ok(_) => {
                 processed_count += 1;
+                processed_files.push(file_name);
             }
             Err(e) => {
                 errors.push(format!("创建链接失败 {} -> {}: {}", source_path.display(), link_path.display(), e));
             }
         }
     }
+
+    let duration = start_time.elapsed();
+    
+    // 记录操作日志
+    let log = OperationLog {
+        timestamp,
+        operation_type: "link-only".to_string(),
+        link_type: link_type.clone(),
+        source_count,
+        success_count: processed_count,
+        error_count: errors.len(),
+        errors: errors.clone(),
+        duration_ms: duration.as_millis(),
+        target_directory: target_dir.clone(),
+        source_paths: source_paths.clone(),
+        total_size,
+        processed_files,
+    };
+    add_operation_log(log);
 
     let mut message = format!("成功创建 {} 个链接", processed_count);
     if !errors.is_empty() {

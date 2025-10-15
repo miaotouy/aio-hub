@@ -1,16 +1,41 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { FolderOpened, Document, Delete, FolderAdd, Rank, InfoFilled, Close } from "@element-plus/icons-vue";
+import {
+  FolderOpened,
+  Document,
+  Delete,
+  FolderAdd,
+  Rank,
+  InfoFilled,
+  Close,
+  View,
+} from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import InfoCard from '../components/common/InfoCard.vue';
-import DropZone from '../components/common/DropZone.vue';
-import { createModuleLogger } from '@utils/logger';
+import InfoCard from "../components/common/InfoCard.vue";
+import DropZone from "../components/common/DropZone.vue";
+import { createModuleLogger } from "@utils/logger";
 
 // 日志记录器
-const logger = createModuleLogger('SymlinkMover');
+const logger = createModuleLogger("SymlinkMover");
+
+// 操作日志类型
+interface OperationLog {
+  timestamp: number;
+  operationType: string;
+  linkType: string;
+  sourceCount: number;
+  successCount: number;
+  errorCount: number;
+  errors: string[];
+  durationMs: number;
+  targetDirectory: string;
+  sourcePaths: string[];
+  totalSize: number;
+  processedFiles: string[];
+}
 
 // 进度事件类型
 interface CopyProgress {
@@ -24,7 +49,7 @@ interface CopyProgress {
 interface FileItem {
   path: string;
   name: string;
-  status: 'pending' | 'processing' | 'success' | 'error';
+  status: "pending" | "processing" | "success" | "error";
   error?: string;
 }
 
@@ -32,30 +57,46 @@ interface FileItem {
 const sourcePathInput = ref(""); // 用于手动输入源文件路径
 const sourceFiles = ref<FileItem[]>([]);
 const targetDirectory = ref("");
-const linkType = ref<'symlink' | 'link'>('symlink');
-const operationMode = ref<'move' | 'link-only'>('move'); // 新增：操作模式
+const linkType = ref<"symlink" | "link">("symlink");
+const operationMode = ref<"move" | "link-only">("move"); // 新增：操作模式
 const isProcessing = ref(false);
 
 // 进度相关状态
 const showProgress = ref(false);
 const currentProgress = ref(0);
-const currentFile = ref('');
+const currentFile = ref("");
 const copiedBytes = ref(0);
 const totalBytes = ref(0);
 
 // 事件监听器
 let progressUnlisten: UnlistenFn | null = null;
 
+// 操作日志相关
+const latestLog = ref<OperationLog | null>(null);
+const showLogDialog = ref(false);
+const allLogs = ref<OperationLog[]>([]);
+const tickerKey = ref(0); // 用于触发动画
+
 // --- 生命周期钩子 ---
 onMounted(async () => {
   // 监听进度事件
-  progressUnlisten = await listen<CopyProgress>('copy-progress', (event) => {
+  progressUnlisten = await listen<CopyProgress>("copy-progress", (event) => {
     const progress = event.payload;
     currentFile.value = progress.currentFile;
     currentProgress.value = progress.progressPercentage;
     copiedBytes.value = progress.copiedBytes;
     totalBytes.value = progress.totalBytes;
     showProgress.value = true;
+  });
+
+  // 加载最新日志
+  await loadLatestLog();
+
+  // 监听日志变化，触发滚动动画
+  watch(latestLog, (newLog, oldLog) => {
+    if (newLog && (!oldLog || newLog.timestamp !== oldLog.timestamp)) {
+      tickerKey.value++;
+    }
   });
 });
 
@@ -65,6 +106,71 @@ onUnmounted(() => {
     progressUnlisten();
   }
 });
+
+// --- 日志相关方法 ---
+const loadLatestLog = async () => {
+  try {
+    const log = await invoke<OperationLog | null>("get_latest_operation_log");
+    latestLog.value = log;
+  } catch (error) {
+    logger.error("加载最新日志失败", error);
+  }
+};
+
+const loadAllLogs = async () => {
+  try {
+    const logs = await invoke<OperationLog[]>("get_all_operation_logs");
+    allLogs.value = logs.reverse(); // 最新的在前面
+  } catch (error) {
+    logger.error("加载所有日志失败", error);
+    ElMessage.error("加载日志失败");
+  }
+};
+
+const openLogDialog = async () => {
+  await loadAllLogs();
+  showLogDialog.value = true;
+};
+
+const formatTimestamp = (timestamp: number): string => {
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+};
+
+const formatDuration = (ms: number): string => {
+  if (ms < 1000) {
+    return `${ms}ms`;
+  } else if (ms < 60000) {
+    return `${(ms / 1000).toFixed(2)}s`;
+  } else {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = ((ms % 60000) / 1000).toFixed(0);
+    return `${minutes}m ${seconds}s`;
+  }
+};
+
+const getOperationTypeLabel = (type: string): string => {
+  return type === "move" ? "搬家模式" : "仅创建链接";
+};
+
+const getLinkTypeLabel = (type: string): string => {
+  return type === "symlink" ? "符号链接" : "硬链接";
+};
+
+// 格式化日志为滚动文字
+const formatLogTicker = (log: OperationLog): string => {
+  const opType = getOperationTypeLabel(log.operationType);
+  const linkType = getLinkTypeLabel(log.linkType);
+  const status = log.errorCount > 0 ? "部分成功" : "成功";
+  return `${opType} · ${linkType} · ${status} ${log.successCount}/${log.sourceCount} · ${formatBytes(log.totalSize)} · ${formatDuration(log.durationMs)}`;
+};
 
 // --- 拖放处理 ---
 const handleSourceDrop = (paths: string[]) => {
@@ -89,13 +195,15 @@ const addSourcePathFromInput = () => {
 };
 
 const addSourceFiles = (paths: string[]) => {
-  const newFiles: FileItem[] = paths.map(path => {
+  const newFiles: FileItem[] = paths.map((path) => {
     const name = path.split(/[/\\]/).pop() || path;
-    return { path, name, status: 'pending' };
+    return { path, name, status: "pending" };
   });
 
   // 避免重复添加
-  const uniqueNewFiles = newFiles.filter(nf => !sourceFiles.value.some(sf => sf.path === nf.path));
+  const uniqueNewFiles = newFiles.filter(
+    (nf) => !sourceFiles.value.some((sf) => sf.path === nf.path)
+  );
   if (uniqueNewFiles.length > 0) {
     sourceFiles.value.push(...uniqueNewFiles);
     ElMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
@@ -108,14 +216,18 @@ const removeFile = (index: number) => {
 
 const clearFiles = () => {
   if (sourceFiles.value.length === 0) return;
-  ElMessageBox.confirm('确定要清空所有待处理文件吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning',
-  }).then(() => {
-    sourceFiles.value = [];
-    ElMessage.success('文件列表已清空');
-  }).catch(() => { /* 用户取消操作 */ });
+  ElMessageBox.confirm("确定要清空所有待处理文件吗？", "提示", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(() => {
+      sourceFiles.value = [];
+      ElMessage.success("文件列表已清空");
+    })
+    .catch(() => {
+      /* 用户取消操作 */
+    });
 };
 
 // --- 文件/目录选择 ---
@@ -123,15 +235,15 @@ const selectSourceFiles = async () => {
   try {
     const selected = await open({
       multiple: true,
-      title: "选择要搬家的文件"
+      title: "选择要搬家的文件",
     });
     if (Array.isArray(selected) && selected.length > 0) {
       addSourceFiles(selected);
-    } else if (typeof selected === 'string') {
+    } else if (typeof selected === "string") {
       addSourceFiles([selected]);
     }
   } catch (error) {
-    logger.error('选择文件失败', error, { operation: 'selectFiles' });
+    logger.error("选择文件失败", error, { operation: "selectFiles" });
     ElMessage.error("选择文件失败");
   }
 };
@@ -141,15 +253,15 @@ const selectSourceFolders = async () => {
     const selected = await open({
       multiple: true,
       directory: true,
-      title: "选择要搬家的文件夹"
+      title: "选择要搬家的文件夹",
     });
     if (Array.isArray(selected) && selected.length > 0) {
       addSourceFiles(selected);
-    } else if (typeof selected === 'string') {
+    } else if (typeof selected === "string") {
       addSourceFiles([selected]);
     }
   } catch (error) {
-    logger.error('选择文件夹失败', error, { operation: 'selectFolders' });
+    logger.error("选择文件夹失败", error, { operation: "selectFolders" });
     ElMessage.error("选择文件夹失败");
   }
 };
@@ -159,13 +271,13 @@ const selectTargetDirectory = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: "选择目标目录"
+      title: "选择目标目录",
     });
-    if (typeof selected === 'string') {
+    if (typeof selected === "string") {
       targetDirectory.value = selected;
     }
   } catch (error) {
-    logger.error('选择目标目录失败', error, { operation: 'selectTargetDirectory' });
+    logger.error("选择目标目录失败", error, { operation: "selectTargetDirectory" });
     ElMessage.error("选择目录失败");
   }
 };
@@ -173,11 +285,11 @@ const selectTargetDirectory = async () => {
 // --- 取消操作 ---
 const cancelOperation = async () => {
   try {
-    await invoke('cancel_move_operation');
-    ElMessage.info('正在取消操作...');
+    await invoke("cancel_move_operation");
+    ElMessage.info("正在取消操作...");
   } catch (error) {
-    logger.error('取消操作失败', error);
-    ElMessage.error('取消操作失败');
+    logger.error("取消操作失败", error);
+    ElMessage.error("取消操作失败");
   }
 };
 
@@ -187,7 +299,7 @@ const executeMoveAndLink = async () => {
     ElMessage.warning("请先添加要处理的文件");
     return;
   }
-  if (!targetDirectory.value && operationMode.value === 'move') {
+  if (!targetDirectory.value && operationMode.value === "move") {
     ElMessage.warning("请选择目标目录");
     return;
   }
@@ -195,79 +307,78 @@ const executeMoveAndLink = async () => {
   // 重置进度状态
   showProgress.value = false;
   currentProgress.value = 0;
-  currentFile.value = '';
+  currentFile.value = "";
   copiedBytes.value = 0;
   totalBytes.value = 0;
 
   isProcessing.value = true;
-  sourceFiles.value.forEach(file => file.status = 'processing');
+  sourceFiles.value.forEach((file) => (file.status = "processing"));
 
   try {
-    const sourcePaths = sourceFiles.value.map(file => file.path);
-    
-    if (operationMode.value === 'move') {
+    const sourcePaths = sourceFiles.value.map((file) => file.path);
+
+    if (operationMode.value === "move") {
       // 搬家模式：移动文件并创建链接
-      const result: string = await invoke('move_and_link', {
+      const result: string = await invoke("move_and_link", {
         sourcePaths,
         targetDir: targetDirectory.value,
-        linkType: linkType.value
+        linkType: linkType.value,
       });
 
       // 检查结果是否包含错误信息或取消信息
       if (result.includes("已被用户取消")) {
         ElMessage.warning(result);
-        sourceFiles.value.forEach(file => {
-          if (file.status === 'processing') {
-            file.status = 'pending';
+        sourceFiles.value.forEach((file) => {
+          if (file.status === "processing") {
+            file.status = "pending";
           }
         });
       } else if (result.includes("个错误")) {
         ElMessage.error(result);
         // 解析错误信息，更新文件状态
-        sourceFiles.value.forEach(file => {
-          if (file.status === 'processing') {
-            file.status = 'error';
-            file.error = '处理失败，请查看错误详情';
+        sourceFiles.value.forEach((file) => {
+          if (file.status === "processing") {
+            file.status = "error";
+            file.error = "处理失败，请查看错误详情";
           }
         });
       } else {
         ElMessage.success(result || "文件处理完成");
-        sourceFiles.value.forEach(file => file.status = 'success');
+        sourceFiles.value.forEach((file) => (file.status = "success"));
       }
     } else {
       // 仅创建链接模式：只在目标位置创建链接
-      const result: string = await invoke('create_links_only', {
+      const result: string = await invoke("create_links_only", {
         sourcePaths,
         targetDir: targetDirectory.value,
-        linkType: linkType.value
+        linkType: linkType.value,
       });
 
       // 检查结果是否包含错误信息
       if (result.includes("个错误")) {
         ElMessage.error(result);
-        sourceFiles.value.forEach(file => {
-          if (file.status === 'processing') {
-            file.status = 'error';
-            file.error = '处理失败，请查看错误详情';
+        sourceFiles.value.forEach((file) => {
+          if (file.status === "processing") {
+            file.status = "error";
+            file.error = "处理失败，请查看错误详情";
           }
         });
       } else {
         ElMessage.success(result || "链接创建完成");
-        sourceFiles.value.forEach(file => file.status = 'success');
+        sourceFiles.value.forEach((file) => (file.status = "success"));
       }
     }
-
   } catch (error: any) {
-    logger.error('文件处理失败', error, {
+    logger.error("文件处理失败", error, {
       operation: operationMode.value,
-      sourcePaths: sourceFiles.value.map(f => f.path),
+      sourcePaths: sourceFiles.value.map((f) => f.path),
       targetDirectory: targetDirectory.value,
-      linkType: linkType.value
+      linkType: linkType.value,
     });
     ElMessage.error(`文件处理失败: ${error}`);
-    sourceFiles.value.forEach(file => {
-      if (file.status === 'processing') {
-        file.status = 'error';
+    sourceFiles.value.forEach((file) => {
+      if (file.status === "processing") {
+        file.status = "error";
         file.error = error.toString();
       }
     });
@@ -277,16 +388,18 @@ const executeMoveAndLink = async () => {
     setTimeout(() => {
       showProgress.value = false;
     }, 1000);
+    // 重新加载最新日志
+    await loadLatestLog();
   }
 };
 
 // 格式化字节数
 const formatBytes = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
 };
 </script>
 
@@ -308,21 +421,20 @@ const formatBytes = (bytes: number): string => {
           </el-tooltip>
           <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
         </div>
-        <DropZone
-          drop-id="symlink-source"
-          placeholder="将要搬家的文件或文件夹拖拽至此"
-          :icon="FolderAdd"
-          :multiple="true"
-          @drop="handleSourceDrop"
-        >
+        <DropZone drop-id="symlink-source" placeholder="将要搬家的文件或文件夹拖拽至此" :icon="FolderAdd" :multiple="true"
+          @drop="handleSourceDrop">
           <el-scrollbar class="file-list-scrollbar">
             <div v-if="sourceFiles.length === 0" class="empty-state">
-              <el-icon><FolderAdd /></el-icon>
+              <el-icon>
+                <FolderAdd />
+              </el-icon>
               <p>将要搬家的文件或文件夹拖拽至此</p>
             </div>
             <div v-else class="file-list">
               <div v-for="(file, index) in sourceFiles" :key="file.path" class="file-item">
-                <el-icon class="file-icon"><Document /></el-icon>
+                <el-icon class="file-icon">
+                  <Document />
+                </el-icon>
                 <div class="file-details">
                   <div class="file-name" :title="file.name">{{ file.name }}</div>
                   <div class="file-path" :title="file.path">{{ file.path }}</div>
@@ -342,30 +454,35 @@ const formatBytes = (bytes: number): string => {
           <label>操作模式</label>
           <el-radio-group v-model="operationMode" class="operation-mode-group">
             <el-radio-button value="move">
-              <el-icon><Rank /></el-icon>
+              <el-icon>
+                <Rank />
+              </el-icon>
               搬家模式
             </el-radio-button>
             <el-radio-button value="link-only">
-              <el-icon><FolderAdd /></el-icon>
+              <el-icon>
+                <FolderAdd />
+              </el-icon>
               仅创建链接
             </el-radio-button>
           </el-radio-group>
           <div class="mode-description">
-            {{ operationMode === 'move' ? '将文件移动到目标目录，并在原位置创建链接' : '在目标目录创建链接，保持原文件不动' }}
+            {{
+              operationMode === "move"
+                ? "将文件移动到目标目录，并在原位置创建链接"
+                : "在目标目录创建链接，保持原文件不动"
+            }}
           </div>
         </div>
         <div class="setting-group">
           <label>目标目录</label>
-          <DropZone
-            drop-id="symlink-target"
-            variant="input"
-            :directory-only="true"
-            :multiple="false"
-            hide-content
-            @drop="handleTargetDrop"
-          >
+          <DropZone drop-id="symlink-target" variant="input" :directory-only="true" :multiple="false" hide-content
+            @drop="handleTargetDrop">
             <div class="target-control">
-              <el-input v-model="targetDirectory" :placeholder="operationMode === 'move' ? '输入、拖拽或点击选择目标目录' : '输入、拖拽或点击选择链接目录'" />
+              <el-input v-model="targetDirectory" :placeholder="operationMode === 'move'
+                  ? '输入、拖拽或点击选择目标目录'
+                  : '输入、拖拽或点击选择链接目录'
+                " />
               <el-button @click="selectTargetDirectory" :icon="FolderOpened">选择</el-button>
             </div>
           </DropZone>
@@ -377,7 +494,9 @@ const formatBytes = (bytes: number): string => {
             <el-radio-button value="link" :disabled="operationMode === 'link-only'">硬链接</el-radio-button>
           </el-radio-group>
           <div v-if="operationMode === 'link-only' && linkType === 'link'" class="warning-text">
-            <el-icon><InfoFilled /></el-icon>
+            <el-icon>
+              <InfoFilled />
+            </el-icon>
             仅创建链接模式下不支持硬链接
           </div>
         </div>
@@ -389,38 +508,88 @@ const formatBytes = (bytes: number): string => {
               {{ formatBytes(copiedBytes) }} / {{ formatBytes(totalBytes) }}
             </div>
           </div>
-          <el-progress
-            :percentage="currentProgress"
-            :status="isProcessing ? undefined : 'success'"
-            :stroke-width="12"
-          />
+          <el-progress :percentage="currentProgress" :status="isProcessing ? undefined : 'success'"
+            :stroke-width="12" />
         </div>
 
         <div class="setting-group execute-group">
-          <el-button
-            v-if="!isProcessing"
-            type="primary"
-            @click="executeMoveAndLink"
-            :disabled="sourceFiles.length === 0 || !targetDirectory"
-            class="execute-btn"
-            size="large"
-          >
-            <el-icon><Rank /></el-icon>
-            {{ operationMode === 'move' ? '开始搬家' : '创建链接' }}
+          <!-- 垂直滚动日志通知条 -->
+          <div v-if="latestLog" class="log-ticker">
+            <div class="log-ticker-content">
+              <div class="log-ticker-message" :key="tickerKey">
+                {{ formatLogTicker(latestLog) }}
+              </div>
+            </div>
+            <el-button :icon="View" text size="small" @click="openLogDialog" class="log-ticker-btn">
+              详情
+            </el-button>
+          </div>
+          <el-button v-if="!isProcessing" type="primary" @click="executeMoveAndLink"
+            :disabled="sourceFiles.length === 0 || !targetDirectory" class="execute-btn" size="large">
+            <el-icon>
+              <Rank />
+            </el-icon>
+            {{ operationMode === "move" ? "开始搬家" : "创建链接" }}
           </el-button>
-          <el-button
-            v-else
-            type="danger"
-            @click="cancelOperation"
-            class="execute-btn"
-            size="large"
-          >
-            <el-icon><Close /></el-icon>
+          <el-button v-else type="danger" @click="cancelOperation" class="execute-btn" size="large">
+            <el-icon>
+              <Close />
+            </el-icon>
             取消操作
           </el-button>
         </div>
       </InfoCard>
     </div>
+
+    <!-- 日志详情弹窗 -->
+    <el-dialog v-model="showLogDialog" title="操作历史记录" width="70%" :close-on-click-modal="false">
+      <el-scrollbar max-height="500px">
+        <div v-if="allLogs.length === 0" class="empty-logs">
+          <el-icon>
+            <InfoFilled />
+          </el-icon>
+          <p>暂无操作记录</p>
+        </div>
+        <div v-else class="logs-list">
+          <div v-for="(log, index) in allLogs" :key="index" class="log-item">
+            <div class="log-item-header">
+              <div class="log-item-title">
+                <el-tag :type="log.errorCount > 0 ? 'warning' : 'success'" size="small">
+                  {{ getOperationTypeLabel(log.operationType) }}
+                </el-tag>
+                <span class="log-item-time">{{ formatTimestamp(log.timestamp) }}</span>
+              </div>
+              <div class="log-item-meta">
+                <span>{{ getLinkTypeLabel(log.linkType) }}</span>
+                <span>耗时: {{ formatDuration(log.durationMs) }}</span>
+              </div>
+            </div>
+            <div class="log-item-stats">
+              <span>处理: {{ log.sourceCount }} 个</span>
+              <span class="success-text">成功: {{ log.successCount }}</span>
+              <span v-if="log.errorCount > 0" class="error-text">失败: {{ log.errorCount }}</span>
+              <span>大小: {{ formatBytes(log.totalSize) }}</span>
+            </div>
+            <div class="log-item-details">
+              <div class="detail-item">
+                <span class="detail-label">目标目录:</span>
+                <span class="detail-value" :title="log.targetDirectory">{{ log.targetDirectory }}</span>
+              </div>
+              <div v-if="log.processedFiles && log.processedFiles.length > 0" class="detail-item">
+                <span class="detail-label">成功文件:</span>
+                <span class="detail-value">{{ log.processedFiles.join(", ") }}</span>
+              </div>
+            </div>
+            <div v-if="log.errors.length > 0" class="log-item-errors">
+              <div class="error-title">错误详情:</div>
+              <div v-for="(error, errIdx) in log.errors" :key="errIdx" class="error-message">
+                {{ error }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-scrollbar>
+    </el-dialog>
   </div>
 </template>
 
@@ -467,7 +636,6 @@ const formatBytes = (bytes: number): string => {
   gap: 10px;
   margin-bottom: 10px;
 }
-
 
 .empty-state {
   display: flex;
@@ -519,7 +687,8 @@ const formatBytes = (bytes: number): string => {
   min-width: 0;
 }
 
-.file-name, .file-path {
+.file-name,
+.file-path {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -626,5 +795,176 @@ const formatBytes = (bytes: number): string => {
   font-size: 12px;
   color: var(--text-color-light);
   white-space: nowrap;
+}
+
+.log-ticker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, var(--container-bg) 0%, rgba(64, 158, 255, 0.05) 100%);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  margin-bottom: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.log-ticker-content {
+  flex: 1;
+  overflow: hidden;
+  height: 20px;
+  position: relative;
+}
+
+.log-ticker-message {
+  font-size: 12px;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.log-ticker-btn {
+  flex-shrink: 0;
+  padding: 4px 8px;
+}
+
+.empty-logs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-color-light);
+}
+
+.empty-logs .el-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.log-item {
+  padding: 16px;
+  background-color: var(--container-bg);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.log-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.log-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-item-time {
+  font-size: 13px;
+  color: var(--text-color);
+}
+
+.log-item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.log-item-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-color);
+  margin-bottom: 8px;
+}
+
+.success-text {
+  color: var(--el-color-success);
+}
+
+.error-text {
+  color: var(--el-color-error);
+}
+
+.log-item-errors {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: var(--el-color-error-light-9);
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-error);
+}
+
+.error-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--el-color-error);
+  margin-bottom: 8px;
+}
+
+.error-message {
+  font-size: 12px;
+  color: var(--text-color);
+  line-height: 1.6;
+  padding-left: 12px;
+  position: relative;
+}
+
+.error-message::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--el-color-error);
+}
+
+.log-item-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-item {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detail-label {
+  color: var(--text-color-light);
+  flex-shrink: 0;
+  min-width: 70px;
+}
+
+.detail-value {
+  color: var(--text-color);
+  word-break: break-all;
+  flex: 1;
 }
 </style>

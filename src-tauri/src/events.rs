@@ -13,6 +13,16 @@ pub struct DragPositionPayload {
     pub position: PhysicalPosition<f64>,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryScanProgress {
+    pub current_path: String,
+    pub scanned_count: usize,
+    pub total_count: Option<usize>, // None 表示未知总数
+    pub current_depth: usize,
+    pub found_items: usize,
+}
+
 // 处理窗口事件
 pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
     if let WindowEvent::DragDrop(event) = event {

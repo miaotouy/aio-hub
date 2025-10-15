@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use regex::Regex;
+use tauri::Emitter;
+use crate::events::DirectoryScanProgress;
 
 // 项目信息结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +110,8 @@ fn analyze_directory_recursive(
     criteria: &FilterCriteria,
     current_depth: usize,
     items: &mut Vec<ItemInfo>,
+    window: Option<&tauri::Window>,
+    scanned_count: &mut usize,
 ) -> Result<(), String> {
     // 检查深度限制
     if let Some(max_depth) = criteria.max_depth {
@@ -180,9 +184,29 @@ fn analyze_directory_recursive(
             });
         }
         
+        // 更新扫描计数并发送进度事件
+        *scanned_count += 1;
+        
+        // 每扫描 10 个项目发送一次进度事件
+        if let Some(window) = window {
+            if *scanned_count % 10 == 0 {
+                let progress = DirectoryScanProgress {
+                    current_path: path.to_string_lossy().to_string(),
+                    scanned_count: *scanned_count,
+                    total_count: None, // 无法预先知道总数
+                    current_depth,
+                    found_items: items.len(),
+                };
+                
+                if let Err(e) = window.emit("directory-scan-progress", progress) {
+                    eprintln!("发送进度事件失败: {}", e);
+                }
+            }
+        }
+        
         // 如果是目录，递归处理（无论是否匹配，都要递归扫描子目录）
         if is_dir {
-            analyze_directory_recursive(&path, root, criteria, current_depth + 1, items)?;
+            analyze_directory_recursive(&path, root, criteria, current_depth + 1, items, window, scanned_count)?;
         }
     }
     
@@ -197,6 +221,7 @@ pub async fn analyze_directory_for_cleanup(
     min_age_days: Option<u32>,
     min_size_mb: Option<u64>,
     max_depth: Option<usize>,
+    window: tauri::Window,
 ) -> Result<AnalysisResult, String> {
     let root_path = PathBuf::from(&path);
     
@@ -216,8 +241,35 @@ pub async fn analyze_directory_for_cleanup(
     };
     
     let mut items = Vec::new();
+    let mut scanned_count = 0;
     
-    analyze_directory_recursive(&root_path, &root_path, &criteria, 0, &mut items)?;
+    // 发送开始扫描事件
+    let start_progress = DirectoryScanProgress {
+        current_path: path.clone(),
+        scanned_count: 0,
+        total_count: None,
+        current_depth: 0,
+        found_items: 0,
+    };
+    
+    if let Err(e) = window.emit("directory-scan-progress", start_progress) {
+        eprintln!("发送开始扫描事件失败: {}", e);
+    }
+    
+    analyze_directory_recursive(&root_path, &root_path, &criteria, 0, &mut items, Some(&window), &mut scanned_count)?;
+    
+    // 发送扫描完成事件
+    let end_progress = DirectoryScanProgress {
+        current_path: path.clone(),
+        scanned_count,
+        total_count: Some(scanned_count),
+        current_depth: 0,
+        found_items: items.len(),
+    };
+    
+    if let Err(e) = window.emit("directory-scan-progress", end_progress) {
+        eprintln!("发送扫描完成事件失败: {}", e);
+    }
     
     // 计算统计信息
     let total_items = items.len();

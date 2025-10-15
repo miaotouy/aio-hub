@@ -106,11 +106,35 @@
           :disabled="!scanPath"
           class="analyze-btn"
         >
-          <el-icon style="padding-right: 5px;">
+          <el-icon style="padding-right: 5px">
             <Search />
           </el-icon>
           开始分析
         </el-button>
+
+        <!-- 扫描进度 -->
+        <div v-if="showProgress" class="progress-section">
+          <div class="progress-header">
+            <span class="progress-title">正在扫描...</span>
+            <span v-if="scanProgress" class="progress-stats">
+              已扫描: {{ scanProgress.scannedCount }} 项
+              <span v-if="scanProgress.foundItems > 0"
+                >| 找到: {{ scanProgress.foundItems }} 项</span
+              >
+            </span>
+          </div>
+
+          <el-progress
+            :percentage="progressPercentage"
+            :status="isAnalyzing ? undefined : 'success'"
+            :stroke-width="8"
+          />
+
+          <div v-if="scanProgress" class="progress-details">
+            <div class="current-path">当前: {{ formatCurrentPath(scanProgress.currentPath) }}</div>
+            <div class="depth-info">深度: {{ scanProgress.currentDepth }} 层</div>
+          </div>
+        </div>
       </InfoCard>
     </div>
 
@@ -206,7 +230,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   FolderOpened,
@@ -220,11 +244,21 @@ import {
 } from "@element-plus/icons-vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { appDataDir, homeDir } from "@tauri-apps/api/path";
+import { homeDir } from "@tauri-apps/api/path";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import InfoCard from "../../components/common/InfoCard.vue";
 import DropZone from "../../components/common/DropZone.vue";
 import { createModuleLogger } from "@utils/logger";
 import { builtInPresets, type CleanupPreset } from "./presets";
+
+// 进度事件类型定义
+interface DirectoryScanProgress {
+  currentPath: string;
+  scannedCount: number;
+  totalCount?: number;
+  currentDepth: number;
+  foundItems: number;
+}
 
 const logger = createModuleLogger("tools/directory-janitor");
 
@@ -279,27 +313,26 @@ const resolveEnvPath = async (path: string): Promise<string> => {
   // Windows 环境变量替换
   if (resolvedPath.includes("%")) {
     try {
-      // %AppData% -> AppData/Roaming
+      const home = await homeDir();
+      const homePath = home?.replace(/[/\\]$/, "") || "";
+      
+      // %AppData% -> C:/Users/xxx/AppData/Roaming
+      // 注意：不能使用 appDataDir()，因为它返回应用自己的目录
       if (resolvedPath.includes("%AppData%")) {
-        const appData = await appDataDir();
-        // appDataDir() 返回类似 C:/Users/xxx/AppData/Roaming/
-        // 移除末尾的斜杠
-        resolvedPath = resolvedPath.replace(/%AppData%/gi, appData.replace(/[/\\]$/, ""));
+        const appDataPath = `${homePath}/AppData/Roaming`;
+        resolvedPath = resolvedPath.replace(/%AppData%/gi, appDataPath);
       }
 
-      // %LocalAppData% -> AppData/Local
+      // %LocalAppData% -> C:/Users/xxx/AppData/Local
       if (resolvedPath.includes("%LocalAppData%")) {
-        const appData = await appDataDir();
-        // 将 Roaming 替换为 Local
-        const localAppData = appData.replace(/Roaming[/\\]?$/, "Local");
-        resolvedPath = resolvedPath.replace(/%LocalAppData%/gi, localAppData.replace(/[/\\]$/, ""));
+        const localAppDataPath = `${homePath}/AppData/Local`;
+        resolvedPath = resolvedPath.replace(/%LocalAppData%/gi, localAppDataPath);
       }
 
       // %UserProfile% 或 %HOME% -> 用户主目录
       if (resolvedPath.includes("%UserProfile%") || resolvedPath.includes("%HOME%")) {
-        const home = await homeDir();
-        resolvedPath = resolvedPath.replace(/%UserProfile%/gi, home?.replace(/[/\\]$/, "") || "");
-        resolvedPath = resolvedPath.replace(/%HOME%/gi, home?.replace(/[/\\]$/, "") || "");
+        resolvedPath = resolvedPath.replace(/%UserProfile%/gi, homePath);
+        resolvedPath = resolvedPath.replace(/%HOME%/gi, homePath);
       }
     } catch (error) {
       logger.error("解析环境变量失败", error);
@@ -311,8 +344,9 @@ const resolveEnvPath = async (path: string): Promise<string> => {
     try {
       if (resolvedPath.includes("$HOME") || resolvedPath.includes("${HOME}")) {
         const home = await homeDir();
-        resolvedPath = resolvedPath.replace(/\$HOME/g, home?.replace(/[/\\]$/, "") || "");
-        resolvedPath = resolvedPath.replace(/\$\{HOME\}/g, home?.replace(/[/\\]$/, "") || "");
+        const homePath = home?.replace(/[/\\]$/, "") || "";
+        resolvedPath = resolvedPath.replace(/\$HOME/g, homePath);
+        resolvedPath = resolvedPath.replace(/\$\{HOME\}/g, homePath);
       }
     } catch (error) {
       logger.error("解析环境变量失败", error);
@@ -371,6 +405,10 @@ const selectedPaths = ref(new Set<string>());
 const isAnalyzing = ref(false);
 const hasAnalyzed = ref(false);
 
+// 进度相关状态
+const scanProgress = ref<DirectoryScanProgress | null>(null);
+const showProgress = ref(false);
+
 // 计算属性
 const selectedItems = computed(() =>
   items.value.filter((item) => selectedPaths.value.has(item.path))
@@ -416,6 +454,9 @@ const analyzePath = async () => {
   }
 
   isAnalyzing.value = true;
+  showProgress.value = true;
+  scanProgress.value = null;
+
   try {
     const result: AnalysisResult = await invoke("analyze_directory_for_cleanup", {
       path: scanPath.value,
@@ -423,6 +464,7 @@ const analyzePath = async () => {
       minAgeDays: minAgeDays.value,
       minSizeMb: minSizeMB.value,
       maxDepth: maxDepth.value === 10 ? undefined : maxDepth.value,
+      window: getCurrentWindow(),
     });
 
     items.value = result.items;
@@ -444,6 +486,8 @@ const analyzePath = async () => {
     ElMessage.error(`分析失败: ${error}`);
   } finally {
     isAnalyzing.value = false;
+    showProgress.value = false;
+    scanProgress.value = null;
   }
 };
 
@@ -570,6 +614,50 @@ watch(
   },
   { deep: true }
 );
+
+// 监听扫描进度事件
+const handleScanProgress = (event: any) => {
+  scanProgress.value = event.payload as DirectoryScanProgress;
+  logger.debug("扫描进度更新", scanProgress.value);
+};
+
+// 组件挂载时注册事件监听
+onMounted(async () => {
+  const window = getCurrentWindow();
+  await window.listen("directory-scan-progress", handleScanProgress);
+});
+
+// 组件卸载时移除事件监听
+onUnmounted(async () => {
+  try {
+    // Tauri 2.x 中事件监听会自动清理，这里暂时留空
+    logger.debug("组件卸载，事件监听将自动清理");
+  } catch (error) {
+    logger.warn("清理事件监听时出错", error);
+  }
+});
+
+// 计算进度百分比
+const progressPercentage = computed(() => {
+  if (!scanProgress.value) return 0;
+  
+  const scannedCount = Number(scanProgress.value.scannedCount) || 0;
+  const totalCount = scanProgress.value.totalCount ? Number(scanProgress.value.totalCount) : null;
+  
+  if (totalCount && totalCount > 0) {
+    const percentage = Math.round((scannedCount / totalCount) * 100);
+    return Math.min(Math.max(percentage, 0), 100); // 限制在 0-100 范围内
+  }
+  
+  // 如果总数未知，使用基于已扫描数量的估算（每100个项目算作10%）
+  return Math.min(Math.round(scannedCount / 10), 90);
+});
+
+// 格式化当前路径显示
+const formatCurrentPath = (path: string | undefined): string => {
+  if (!path || path.length <= 50) return path || '';
+  return "..." + path.substring(path.length - 47);
+};
 </script>
 
 <style scoped>
@@ -778,5 +866,48 @@ watch(
 .item-size,
 .item-age {
   flex-shrink: 0;
+}
+
+/* 进度条样式 */
+.progress-section {
+  margin-top: 20px;
+  padding: 16px;
+  background-color: var(--container-bg);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.progress-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.progress-stats {
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.progress-details {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.current-path {
+  margin-bottom: 4px;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.depth-info {
+  color: var(--text-color-lighter);
 }
 </style>

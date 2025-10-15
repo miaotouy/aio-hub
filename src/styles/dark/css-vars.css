@@ -380,13 +380,13 @@ html.dark .el-popper.is-dark > .el-popper__arrow::before {
 }
 
 html.dark .el-popper.is-light {
-  background-color: var(--text-color);
-  color: var(--bg-color);
+  background-color: var(--container-bg);
+  color: var(--text-color);
   border: 1px solid var(--border-color);
 }
 
 html.dark .el-popper.is-light > .el-popper__arrow::before {
-  background: var(--text-color);
+  background: var(--container-bg);
   border: 1px solid var(--border-color);
 }
 
@@ -409,17 +409,17 @@ html.dark .el-popper.is-dark[data-popper-placement^='right'] .el-popper__arrow::
 
 /* 箭头方向颜色 - light 模式 */
 html.dark .el-popper.is-light[data-popper-placement^='top'] .el-popper__arrow::before {
-  border-top-color: var(--text-color);
+  border-top-color: var(--container-bg);
 }
 
 html.dark .el-popper.is-light[data-popper-placement^='bottom'] .el-popper__arrow::before {
-  border-bottom-color: var(--text-color);
+  border-bottom-color: var(--container-bg);
 }
 
 html.dark .el-popper.is-light[data-popper-placement^='left'] .el-popper__arrow::before {
-  border-left-color: var(--text-color);
+  border-left-color: var(--container-bg);
 }
 
 html.dark .el-popper.is-light[data-popper-placement^='right'] .el-popper__arrow::before {
-  border-right-color: var(--text-color);
+  border-right-color: var(--container-bg);
 }

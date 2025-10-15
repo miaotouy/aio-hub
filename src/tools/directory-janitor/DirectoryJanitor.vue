@@ -3,115 +3,126 @@
     <!-- 左侧：配置面板 -->
     <div class="config-panel">
       <InfoCard title="扫描配置" class="config-card">
-        <!-- 预设选择 -->
-        <div class="config-section preset-section">
-          <label>快速预设</label>
-          <el-select
-            v-model="selectedPresetId"
-            placeholder="选择预设配置"
-            clearable
-            @change="applyPreset"
-            class="full-width"
-          >
-            <el-option
-              v-for="preset in presets"
-              :key="preset.id"
-              :label="preset.name"
-              :value="preset.id"
+        <div class="config-content">
+          <!-- 预设选择 -->
+          <div class="config-section preset-section">
+            <label>快速预设</label>
+            <el-select
+              v-model="selectedPresetId"
+              placeholder="选择预设配置"
+              clearable
+              @change="applyPreset"
+              class="full-width"
             >
-              <div class="preset-option">
-                <span class="preset-name">{{ preset.name }}</span>
-                <span class="preset-desc">{{ preset.description }}</span>
+              <el-option
+                v-for="preset in presets"
+                :key="preset.id"
+                :label="preset.name"
+                :value="preset.id"
+              >
+                <div class="preset-option">
+                  <span class="preset-name">{{ preset.name }}</span>
+                  <span class="preset-desc">{{ preset.description }}</span>
+                </div>
+              </el-option>
+            </el-select>
+          </div>
+
+          <div class="config-section">
+            <label>扫描路径</label>
+            <DropZone
+              drop-id="janitor-path"
+              variant="input"
+              :directory-only="true"
+              :multiple="false"
+              hide-content
+              @drop="handlePathDrop"
+            >
+              <div class="path-input-group">
+                <el-input
+                  v-model="scanPath"
+                  placeholder="输入或拖拽目录路径"
+                  @keyup.enter="analyzePath"
+                />
+                <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
               </div>
-            </el-option>
-          </el-select>
-        </div>
+            </DropZone>
+          </div>
 
-        <div class="config-section">
-          <label>扫描路径</label>
-          <DropZone
-            drop-id="janitor-path"
-            variant="input"
-            :directory-only="true"
-            :multiple="false"
-            hide-content
-            @drop="handlePathDrop"
-          >
-            <div class="path-input-group">
-              <el-input
-                v-model="scanPath"
-                placeholder="输入或拖拽目录路径"
-                @keyup.enter="analyzePath"
-              />
-              <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
+          <div class="config-section">
+            <label>过滤条件</label>
+
+            <div class="filter-item">
+              <span class="filter-label">名称匹配</span>
+              <el-input v-model="namePattern" placeholder="例如: *.tmp 或 temp*" clearable>
+                <template #prepend>
+                  <el-icon>
+                    <Filter />
+                  </el-icon>
+                </template>
+              </el-input>
             </div>
-          </DropZone>
-        </div>
 
-        <div class="config-section">
-          <label>过滤条件</label>
+            <div class="filter-item">
+              <span class="filter-label">最小年龄（天）</span>
+              <el-input-number
+                v-model="minAgeDays"
+                :min="0"
+                :max="3650"
+                placeholder="修改时间早于 N 天前"
+                controls-position="right"
+                class="full-width"
+              />
+            </div>
 
-          <div class="filter-item">
-            <span class="filter-label">名称匹配</span>
-            <el-input v-model="namePattern" placeholder="例如: *.tmp 或 temp*" clearable>
-              <template #prepend>
-                <el-icon>
-                  <Filter />
-                </el-icon>
-              </template>
-            </el-input>
-          </div>
+            <div class="filter-item">
+              <span class="filter-label">最小大小（MB）</span>
+              <el-input-number
+                v-model="minSizeMB"
+                :min="0"
+                :max="102400"
+                placeholder="大于 N MB"
+                controls-position="right"
+                class="full-width"
+              />
+            </div>
 
-          <div class="filter-item">
-            <span class="filter-label">最小年龄（天）</span>
-            <el-input-number
-              v-model="minAgeDays"
-              :min="0"
-              :max="3650"
-              placeholder="修改时间早于 N 天前"
-              controls-position="right"
-              class="full-width"
-            />
-          </div>
-
-          <div class="filter-item">
-            <span class="filter-label">最小大小（MB）</span>
-            <el-input-number
-              v-model="minSizeMB"
-              :min="0"
-              :max="102400"
-              placeholder="大于 N MB"
-              controls-position="right"
-              class="full-width"
-            />
-          </div>
-
-          <div class="filter-item">
-            <span class="filter-label">扫描深度</span>
-            <el-slider
-              v-model="maxDepth"
-              :min="1"
-              :max="10"
-              :marks="{ 1: '1', 5: '5', 10: '无限' }"
-              show-stops
-            />
-            <div class="depth-info">{{ maxDepth === 10 ? "无限制" : `${maxDepth} 层` }}</div>
+            <div class="filter-item">
+              <span class="filter-label">扫描深度</span>
+              <div class="slider-wrapper">
+                <el-slider
+                  v-model="maxDepth"
+                  :min="1"
+                  :max="10"
+                  :marks="{ 1: '1', 5: '5', 10: '无限' }"
+                  show-stops
+                />
+              </div>
+              <div class="depth-info">{{ maxDepth === 10 ? "无限制" : `${maxDepth} 层` }}</div>
+            </div>
           </div>
         </div>
 
-        <el-button
-          type="primary"
-          @click="analyzePath"
-          :loading="isAnalyzing"
-          :disabled="!scanPath"
-          class="analyze-btn"
-        >
-          <el-icon style="padding-right: 5px">
-            <Search />
-          </el-icon>
-          开始分析
-        </el-button>
+        <div class="button-footer">
+          <el-button
+            type="primary"
+            @click="analyzePath"
+            :loading="isAnalyzing"
+            :disabled="!scanPath"
+            class="analyze-btn"
+          >
+            <el-icon style="padding-right: 5px">
+              <Search />
+            </el-icon>
+            开始分析
+          </el-button>
+        </div>
+      </InfoCard>
+    </div>
 
+    <!-- 右侧：结果面板 -->
+    <div class="result-panel">
+      <InfoCard title="扫描结果" class="result-card">
         <!-- 扫描进度 -->
         <div v-if="showProgress" class="progress-section">
           <div class="progress-header">
@@ -129,12 +140,7 @@
             <div class="depth-info">深度: {{ scanProgress.currentDepth }} 层</div>
           </div>
         </div>
-      </InfoCard>
-    </div>
 
-    <!-- 右侧：结果面板 -->
-    <div class="result-panel">
-      <InfoCard title="扫描结果" class="result-card">
         <template #headerExtra>
           <div v-if="items.length > 0" class="header-actions">
             <el-tag type="info" size="large">
@@ -737,6 +743,27 @@ const formatCurrentPath = (path: string | undefined): string => {
 
 .config-card {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.config-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.config-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.button-footer {
+  flex-shrink: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .result-panel {
@@ -811,6 +838,10 @@ const formatCurrentPath = (path: string | undefined): string => {
   width: 100%;
 }
 
+.slider-wrapper {
+  padding: 0 16px;
+}
+
 .depth-info {
   text-align: center;
   margin-top: 8px;
@@ -820,7 +851,6 @@ const formatCurrentPath = (path: string | undefined): string => {
 
 .analyze-btn {
   width: 100%;
-  margin-top: 10px;
 }
 
 .header-actions {
@@ -942,7 +972,7 @@ const formatCurrentPath = (path: string | undefined): string => {
 
 /* 进度条样式 */
 .progress-section {
-  margin-top: 20px;
+  margin-bottom: 16px;
   padding: 16px;
   background-color: var(--container-bg);
   border-radius: 8px;

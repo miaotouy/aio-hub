@@ -25,6 +25,9 @@ use commands::{
     is_directory,
     read_file_as_base64,
     validate_file_for_link,
+    // 目录清理相关
+    analyze_directory_for_cleanup,
+    cleanup_items,
     // LLM代理相关
     start_llm_proxy,
     stop_llm_proxy,
@@ -136,6 +139,9 @@ pub fn run() {
             is_directory,
             read_file_as_base64,
             validate_file_for_link,
+            // 目录清理命令
+            analyze_directory_for_cleanup,
+            cleanup_items,
             // LLM代理命令
             start_llm_proxy,
             stop_llm_proxy,

@@ -8,6 +8,7 @@ import {
   Monitor,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
+import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
 import GitBranchIcon from '../components/icons/GitBranchIcon.vue';
 import OcrIcon from '../components/icons/OcrIcon.vue';
@@ -62,6 +63,12 @@ export const toolsConfig: ToolConfig[] = [
     path: '/directory-tree',
     icon: markRaw(DirectoryTreeIcon),
     description: '生成目录树结构，支持过滤规则和深度限制'
+  },
+  {
+    name: '目录清洁工具',
+    path: '/directory-janitor',
+    icon: markRaw(DirectoryJanitorIcon),
+    description: '智能清理过时的缓存和存档，支持按规则、日期和大小过滤'
   },
   {
     name: 'API 测试工具',

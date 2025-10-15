@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     ConnectorIcon: typeof import('./components/icons/ConnectorIcon.vue')['default']
+    DirectoryJanitorIcon: typeof import('./components/icons/DirectoryJanitorIcon.vue')['default']
     DirectoryTreeIcon: typeof import('./components/icons/DirectoryTreeIcon.vue')['default']
     DropZone: typeof import('./components/common/DropZone.vue')['default']
     DynamicIcon: typeof import('./components/common/DynamicIcon.vue')['default']

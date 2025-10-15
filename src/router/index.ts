@@ -47,6 +47,11 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("../tools/directory-tree/DirectoryTree.vue"),
   },
   {
+    path: "/directory-janitor",
+    name: "DirectoryJanitor",
+    component: () => import("../tools/directory-janitor/DirectoryJanitor.vue"),
+  },
+  {
     path: "/api-tester",
     name: "ApiTester",
     component: () => import("../tools/api-tester/ApiTester.vue"),

@@ -2,6 +2,7 @@
 pub mod clipboard;
 pub mod file_operations;
 pub mod directory_tree;
+pub mod directory_janitor;
 pub mod llm_proxy;
 pub mod git_analyzer;
 pub mod ocr;
@@ -12,6 +13,7 @@ pub mod config_manager;
 pub use clipboard::*;
 pub use file_operations::*;
 pub use directory_tree::*;
+pub use directory_janitor::*;
 pub use llm_proxy::*;
 pub use git_analyzer::*;
 pub use ocr::*;

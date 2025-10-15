@@ -124,12 +124,6 @@
             </span>
           </div>
 
-          <el-progress
-            :percentage="progressPercentage"
-            :status="isAnalyzing ? undefined : 'success'"
-            :stroke-width="8"
-          />
-
           <div v-if="scanProgress" class="progress-details">
             <div class="current-path">当前: {{ formatCurrentPath(scanProgress.currentPath) }}</div>
             <div class="depth-info">深度: {{ scanProgress.currentDepth }} 层</div>
@@ -181,6 +175,44 @@
         </div>
 
         <div v-else class="result-content">
+          <!-- 二次筛选区域 -->
+          <div class="result-filters">
+            <div class="filter-row">
+              <el-input
+                v-model="filterNamePattern"
+                placeholder="在结果中筛选名称..."
+                clearable
+                size="small"
+                style="flex: 1"
+              >
+                <template #prepend>
+                  <el-icon>
+                    <Filter />
+                  </el-icon>
+                </template>
+              </el-input>
+              <el-input-number
+                v-model="filterMinAgeDays"
+                :min="0"
+                placeholder="最小天数"
+                controls-position="right"
+                size="small"
+                style="width: 140px"
+              />
+              <el-input-number
+                v-model="filterMinSizeMB"
+                :min="0"
+                placeholder="最小大小(MB)"
+                controls-position="right"
+                size="small"
+                style="width: 150px"
+              />
+              <el-button size="small" @click="clearFilters" :disabled="!hasActiveFilters">
+                清除筛选
+              </el-button>
+            </div>
+          </div>
+
           <div class="result-header">
             <el-checkbox
               v-model="selectAll"
@@ -190,17 +222,17 @@
               全选
             </el-checkbox>
             <div class="stats-info">
-              <span>总计: {{ items.length }} 项</span>
-              <span>总大小: {{ formatBytes(statistics.totalSize) }}</span>
-              <span>目录: {{ statistics.totalDirs }}</span>
-              <span>文件: {{ statistics.totalFiles }}</span>
+              <span>显示: {{ filteredItems.length }} / {{ allItems.length }} 项</span>
+              <span>总大小: {{ formatBytes(filteredStatistics.totalSize) }}</span>
+              <span>目录: {{ filteredStatistics.totalDirs }}</span>
+              <span>文件: {{ filteredStatistics.totalFiles }}</span>
             </div>
           </div>
 
           <el-scrollbar class="items-scrollbar">
             <div class="items-list">
               <div
-                v-for="item in items"
+                v-for="item in filteredItems"
                 :key="item.path"
                 class="item-row"
                 :class="{ selected: selectedPaths.has(item.path) }"
@@ -255,7 +287,6 @@ import { builtInPresets, type CleanupPreset } from "./presets";
 interface DirectoryScanProgress {
   currentPath: string;
   scannedCount: number;
-  totalCount?: number;
   currentDepth: number;
   foundItems: number;
 }
@@ -315,7 +346,7 @@ const resolveEnvPath = async (path: string): Promise<string> => {
     try {
       const home = await homeDir();
       const homePath = home?.replace(/[/\\]$/, "") || "";
-      
+
       // %AppData% -> C:/Users/xxx/AppData/Roaming
       // 注意：不能使用 appDataDir()，因为它返回应用自己的目录
       if (resolvedPath.includes("%AppData%")) {
@@ -394,13 +425,12 @@ const applyPreset = async (presetId?: string) => {
 };
 
 // 结果状态
-const items = ref<ItemInfo[]>([]);
-const statistics = ref<Statistics>({
-  totalItems: 0,
-  totalSize: 0,
-  totalDirs: 0,
-  totalFiles: 0,
-});
+const allItems = ref<ItemInfo[]>([]); // 存储完整扫描结果
+const items = ref<ItemInfo[]>([]); // 保持兼容性，指向 allItems
+const filterNamePattern = ref(""); // 二次筛选：名称
+const filterMinAgeDays = ref<number | undefined>(undefined); // 二次筛选：最小年龄
+const filterMinSizeMB = ref<number | undefined>(undefined); // 二次筛选：最小大小
+
 const selectedPaths = ref(new Set<string>());
 const isAnalyzing = ref(false);
 const hasAnalyzed = ref(false);
@@ -409,16 +439,65 @@ const hasAnalyzed = ref(false);
 const scanProgress = ref<DirectoryScanProgress | null>(null);
 const showProgress = ref(false);
 
-// 计算属性
+// 计算属性 - 根据二次筛选条件过滤结果
+const filteredItems = computed(() => {
+  let filtered = allItems.value;
+
+  // 名称筛选
+  if (filterNamePattern.value) {
+    const pattern = filterNamePattern.value.toLowerCase();
+    filtered = filtered.filter(
+      (item: ItemInfo) =>
+        item.name.toLowerCase().includes(pattern) || item.path.toLowerCase().includes(pattern)
+    );
+  }
+
+  // 年龄筛选
+  if (filterMinAgeDays.value !== undefined && filterMinAgeDays.value > 0) {
+    const minTimestamp = Math.floor(Date.now() / 1000) - filterMinAgeDays.value * 86400;
+    filtered = filtered.filter((item: ItemInfo) => item.modified < minTimestamp);
+  }
+
+  // 大小筛选
+  if (filterMinSizeMB.value !== undefined && filterMinSizeMB.value > 0) {
+    const minSize = filterMinSizeMB.value * 1024 * 1024;
+    filtered = filtered.filter((item: ItemInfo) => item.size >= minSize);
+  }
+
+  return filtered;
+});
+
+// 筛选后的统计信息
+const filteredStatistics = computed(() => ({
+  totalItems: filteredItems.value.length,
+  totalSize: filteredItems.value.reduce((sum: number, item: ItemInfo) => sum + item.size, 0),
+  totalDirs: filteredItems.value.filter((item: ItemInfo) => item.isDir).length,
+  totalFiles: filteredItems.value.filter((item: ItemInfo) => !item.isDir).length,
+}));
+
+// 是否有激活的筛选条件
+const hasActiveFilters = computed(() => {
+  return !!(filterNamePattern.value || filterMinAgeDays.value || filterMinSizeMB.value);
+});
+
+// 清除筛选条件
+const clearFilters = () => {
+  filterNamePattern.value = "";
+  filterMinAgeDays.value = undefined;
+  filterMinSizeMB.value = undefined;
+};
+
 const selectedItems = computed(() =>
-  items.value.filter((item) => selectedPaths.value.has(item.path))
+  filteredItems.value.filter((item: ItemInfo) => selectedPaths.value.has(item.path))
 );
 
-const selectedSize = computed(() => selectedItems.value.reduce((sum, item) => sum + item.size, 0));
+const selectedSize = computed(() =>
+  selectedItems.value.reduce((sum: number, item: ItemInfo) => sum + item.size, 0)
+);
 
 const selectAll = ref(false);
 const isIndeterminate = computed(
-  () => selectedPaths.value.size > 0 && selectedPaths.value.size < items.value.length
+  () => selectedPaths.value.size > 0 && selectedPaths.value.size < filteredItems.value.length
 );
 
 // 处理路径拖放
@@ -467,10 +546,13 @@ const analyzePath = async () => {
       window: getCurrentWindow(),
     });
 
-    items.value = result.items;
-    statistics.value = result.statistics;
+    allItems.value = result.items;
+    items.value = result.items; // 保持兼容性
     selectedPaths.value.clear();
     hasAnalyzed.value = true;
+
+    // 清除之前的二次筛选条件
+    clearFilters();
 
     logger.info("目录分析完成", {
       path: scanPath.value,
@@ -500,10 +582,10 @@ const toggleItem = (item: ItemInfo) => {
   }
 };
 
-// 全选/取消全选
+// 全选/取消全选（只选择当前筛选结果）
 const handleSelectAll = (checked: boolean) => {
   if (checked) {
-    items.value.forEach((item) => selectedPaths.value.add(item.path));
+    filteredItems.value.forEach((item) => selectedPaths.value.add(item.path));
   } else {
     selectedPaths.value.clear();
   }
@@ -560,19 +642,12 @@ const executeCleanup = async () => {
     }
 
     // 从列表中移除成功清理的项目
-    items.value = items.value.filter(
+    allItems.value = allItems.value.filter(
       (item) =>
         !pathsToClean.includes(item.path) || result.errors.some((e) => e.includes(item.path))
     );
+    items.value = allItems.value; // 保持同步
     selectedPaths.value.clear();
-
-    // 更新统计信息
-    statistics.value = {
-      totalItems: items.value.length,
-      totalSize: items.value.reduce((sum, item) => sum + item.size, 0),
-      totalDirs: items.value.filter((item) => item.isDir).length,
-      totalFiles: items.value.filter((item) => !item.isDir).length,
-    };
   } catch (error: any) {
     logger.error("清理失败", error);
     ElMessage.error(`清理失败: ${error}`);
@@ -610,7 +685,8 @@ const formatAge = (timestamp: number): string => {
 watch(
   selectedPaths,
   () => {
-    selectAll.value = selectedPaths.value.size === items.value.length && items.value.length > 0;
+    selectAll.value =
+      selectedPaths.value.size === filteredItems.value.length && filteredItems.value.length > 0;
   },
   { deep: true }
 );
@@ -637,25 +713,9 @@ onUnmounted(async () => {
   }
 });
 
-// 计算进度百分比
-const progressPercentage = computed(() => {
-  if (!scanProgress.value) return 0;
-  
-  const scannedCount = Number(scanProgress.value.scannedCount) || 0;
-  const totalCount = scanProgress.value.totalCount ? Number(scanProgress.value.totalCount) : null;
-  
-  if (totalCount && totalCount > 0) {
-    const percentage = Math.round((scannedCount / totalCount) * 100);
-    return Math.min(Math.max(percentage, 0), 100); // 限制在 0-100 范围内
-  }
-  
-  // 如果总数未知，使用基于已扫描数量的估算（每100个项目算作10%）
-  return Math.min(Math.round(scannedCount / 10), 90);
-});
-
 // 格式化当前路径显示
 const formatCurrentPath = (path: string | undefined): string => {
-  if (!path || path.length <= 50) return path || '';
+  if (!path || path.length <= 50) return path || "";
   return "..." + path.substring(path.length - 47);
 };
 </script>
@@ -796,6 +856,18 @@ const formatCurrentPath = (path: string | undefined): string => {
   gap: 16px;
   font-size: 13px;
   color: var(--text-color-light);
+}
+
+.result-filters {
+  padding: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background-color: var(--container-bg);
+}
+
+.filter-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .items-scrollbar {

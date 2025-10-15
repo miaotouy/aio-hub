@@ -18,7 +18,6 @@ pub struct DragPositionPayload {
 pub struct DirectoryScanProgress {
     pub current_path: String,
     pub scanned_count: usize,
-    pub total_count: Option<usize>, // None 表示未知总数
     pub current_depth: usize,
     pub found_items: usize,
 }

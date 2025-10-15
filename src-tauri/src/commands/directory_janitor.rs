@@ -193,7 +193,6 @@ fn analyze_directory_recursive(
                 let progress = DirectoryScanProgress {
                     current_path: path.to_string_lossy().to_string(),
                     scanned_count: *scanned_count,
-                    total_count: None, // 无法预先知道总数
                     current_depth,
                     found_items: items.len(),
                 };
@@ -247,7 +246,6 @@ pub async fn analyze_directory_for_cleanup(
     let start_progress = DirectoryScanProgress {
         current_path: path.clone(),
         scanned_count: 0,
-        total_count: None,
         current_depth: 0,
         found_items: 0,
     };
@@ -262,7 +260,6 @@ pub async fn analyze_directory_for_cleanup(
     let end_progress = DirectoryScanProgress {
         current_path: path.clone(),
         scanned_count,
-        total_count: Some(scanned_count),
         current_depth: 0,
         found_items: items.len(),
     };

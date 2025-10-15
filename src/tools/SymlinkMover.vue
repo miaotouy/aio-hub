@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { FolderOpened, Document, Delete, FolderAdd, Rank, InfoFilled } from "@element-plus/icons-vue";
+import { FolderOpened, Document, Delete, FolderAdd, Rank, InfoFilled, Close } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import InfoCard from '../components/common/InfoCard.vue';
 import DropZone from '../components/common/DropZone.vue';
@@ -10,6 +11,14 @@ import { createModuleLogger } from '@utils/logger';
 
 // 日志记录器
 const logger = createModuleLogger('SymlinkMover');
+
+// 进度事件类型
+interface CopyProgress {
+  currentFile: string;
+  copiedBytes: number;
+  totalBytes: number;
+  progressPercentage: number;
+}
 
 // --- 类型定义 ---
 interface FileItem {
@@ -26,6 +35,36 @@ const targetDirectory = ref("");
 const linkType = ref<'symlink' | 'link'>('symlink');
 const operationMode = ref<'move' | 'link-only'>('move'); // 新增：操作模式
 const isProcessing = ref(false);
+
+// 进度相关状态
+const showProgress = ref(false);
+const currentProgress = ref(0);
+const currentFile = ref('');
+const copiedBytes = ref(0);
+const totalBytes = ref(0);
+
+// 事件监听器
+let progressUnlisten: UnlistenFn | null = null;
+
+// --- 生命周期钩子 ---
+onMounted(async () => {
+  // 监听进度事件
+  progressUnlisten = await listen<CopyProgress>('copy-progress', (event) => {
+    const progress = event.payload;
+    currentFile.value = progress.currentFile;
+    currentProgress.value = progress.progressPercentage;
+    copiedBytes.value = progress.copiedBytes;
+    totalBytes.value = progress.totalBytes;
+    showProgress.value = true;
+  });
+});
+
+onUnmounted(() => {
+  // 清理事件监听
+  if (progressUnlisten) {
+    progressUnlisten();
+  }
+});
 
 // --- 拖放处理 ---
 const handleSourceDrop = (paths: string[]) => {
@@ -131,6 +170,17 @@ const selectTargetDirectory = async () => {
   }
 };
 
+// --- 取消操作 ---
+const cancelOperation = async () => {
+  try {
+    await invoke('cancel_move_operation');
+    ElMessage.info('正在取消操作...');
+  } catch (error) {
+    logger.error('取消操作失败', error);
+    ElMessage.error('取消操作失败');
+  }
+};
+
 // --- 核心操作 ---
 const executeMoveAndLink = async () => {
   if (sourceFiles.value.length === 0) {
@@ -141,6 +191,13 @@ const executeMoveAndLink = async () => {
     ElMessage.warning("请选择目标目录");
     return;
   }
+
+  // 重置进度状态
+  showProgress.value = false;
+  currentProgress.value = 0;
+  currentFile.value = '';
+  copiedBytes.value = 0;
+  totalBytes.value = 0;
 
   isProcessing.value = true;
   sourceFiles.value.forEach(file => file.status = 'processing');
@@ -156,8 +213,15 @@ const executeMoveAndLink = async () => {
         linkType: linkType.value
       });
 
-      // 检查结果是否包含错误信息
-      if (result.includes("个错误")) {
+      // 检查结果是否包含错误信息或取消信息
+      if (result.includes("已被用户取消")) {
+        ElMessage.warning(result);
+        sourceFiles.value.forEach(file => {
+          if (file.status === 'processing') {
+            file.status = 'pending';
+          }
+        });
+      } else if (result.includes("个错误")) {
         ElMessage.error(result);
         // 解析错误信息，更新文件状态
         sourceFiles.value.forEach(file => {
@@ -209,7 +273,20 @@ const executeMoveAndLink = async () => {
     });
   } finally {
     isProcessing.value = false;
+    // 隐藏进度条
+    setTimeout(() => {
+      showProgress.value = false;
+    }, 1000);
   }
+};
+
+// 格式化字节数
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 };
 </script>
 
@@ -304,17 +381,42 @@ const executeMoveAndLink = async () => {
             仅创建链接模式下不支持硬链接
           </div>
         </div>
+        <!-- 进度显示 -->
+        <div v-if="showProgress" class="setting-group progress-group">
+          <div class="progress-info">
+            <div class="progress-file">{{ currentFile }}</div>
+            <div class="progress-stats">
+              {{ formatBytes(copiedBytes) }} / {{ formatBytes(totalBytes) }}
+            </div>
+          </div>
+          <el-progress
+            :percentage="currentProgress"
+            :status="isProcessing ? undefined : 'success'"
+            :stroke-width="12"
+          />
+        </div>
+
         <div class="setting-group execute-group">
           <el-button
+            v-if="!isProcessing"
             type="primary"
             @click="executeMoveAndLink"
-            :loading="isProcessing"
-            :disabled="isProcessing || sourceFiles.length === 0 || !targetDirectory"
+            :disabled="sourceFiles.length === 0 || !targetDirectory"
             class="execute-btn"
             size="large"
           >
             <el-icon><Rank /></el-icon>
-            {{ isProcessing ? '处理中...' : (operationMode === 'move' ? '开始搬家' : '创建链接') }}
+            {{ operationMode === 'move' ? '开始搬家' : '创建链接' }}
+          </el-button>
+          <el-button
+            v-else
+            type="danger"
+            @click="cancelOperation"
+            class="execute-btn"
+            size="large"
+          >
+            <el-icon><Close /></el-icon>
+            取消操作
           </el-button>
         </div>
       </InfoCard>
@@ -495,5 +597,34 @@ const executeMoveAndLink = async () => {
 
 .warning-text .el-icon {
   font-size: 14px;
+}
+
+.progress-group {
+  padding: 12px;
+  background-color: var(--container-bg);
+  border-radius: 8px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.progress-file {
+  font-size: 13px;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 12px;
+}
+
+.progress-stats {
+  font-size: 12px;
+  color: var(--text-color-light);
+  white-space: nowrap;
 }
 </style>

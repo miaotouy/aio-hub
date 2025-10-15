@@ -6,7 +6,8 @@ mod tray;
 // 导入所需的依赖
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
 use commands::{
@@ -16,6 +17,7 @@ use commands::{
     get_clipboard_content_type,
     move_and_link,
     create_links_only,
+    cancel_move_operation,
     process_files_with_regex,
     generate_directory_tree,
     is_directory,
@@ -111,6 +113,7 @@ pub fn run() {
         // 管理状态
         .manage(ClipboardMonitorState::new())
         .manage(AppState::default())
+        .manage(Arc::new(CancellationToken::new()))
         
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
@@ -122,6 +125,7 @@ pub fn run() {
             get_clipboard_content_type,
             move_and_link,
             create_links_only,
+            cancel_move_operation,
             process_files_with_regex,
             generate_directory_tree,
             is_directory,

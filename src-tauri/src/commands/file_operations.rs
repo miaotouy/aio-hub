@@ -6,6 +6,19 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use fs_extra;
 use std::path::Component;
+use tokio_util::sync::CancellationToken;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter};
+
+// 进度事件结构体
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopyProgress {
+    pub current_file: String,
+    pub copied_bytes: u64,
+    pub total_bytes: u64,
+    pub progress_percentage: f64,
+}
 
 // 正则规则结构体
 #[derive(Deserialize)]
@@ -345,9 +358,15 @@ fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
     }
 }
 
-// Tauri 命令：文件移动和符号链接创建
+// Tauri 命令：文件移动和符号链接创建（带进度和取消支持）
 #[tauri::command]
-pub async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_type: String) -> Result<String, String> {
+pub async fn move_and_link(
+    app: AppHandle,
+    source_paths: Vec<String>,
+    target_dir: String,
+    link_type: String,
+    cancel_token: tauri::State<'_, Arc<CancellationToken>>
+) -> Result<String, String> {
     let target_path = PathBuf::from(&target_dir);
 
     // 确保目标目录存在
@@ -383,33 +402,65 @@ pub async fn move_and_link(source_paths: Vec<String>, target_dir: String, link_t
             continue;
         }
 
+        // 检查是否已取消
+        if cancel_token.is_cancelled() {
+            return Err("操作已被用户取消".to_string());
+        }
+
         // 检测是否跨盘移动
         let is_cross_dev = is_cross_device(&source_path, &target_path);
         
         // 执行文件移动
         let move_success = if is_cross_dev {
-            // 跨盘移动：使用复制+删除
+            // 跨盘移动：使用带进度的复制+删除
+            let token_clone = cancel_token.inner().clone();
+            let app_clone = app.clone();
+            let source_name = source_path_str.clone();
+            
             let copy_result = if source_path.is_dir() {
+                // 目录复制暂不支持进度（fs_extra 的目录复制进度回调较复杂）
                 fs_extra::dir::copy(&source_path, &target_path, &fs_extra::dir::CopyOptions::new())
                     .map(|_| ())
             } else {
-                fs_extra::file::copy(&source_path, &target_file_path, &fs_extra::file::CopyOptions::new())
-                    .map(|_| ())
+                // 文件复制支持进度回调
+                let options = fs_extra::file::CopyOptions::new();
+                fs_extra::file::copy_with_progress(
+                    &source_path,
+                    &target_file_path,
+                    &options,
+                    |process: fs_extra::file::TransitProcess| {
+                        // 检查取消状态
+                        if token_clone.is_cancelled() {
+                            // fs_extra 的进度回调不支持中断，只能记录状态
+                            // 实际的取消检查在复制完成后进行
+                        }
+                        
+                        // 发送进度事件
+                        let progress = CopyProgress {
+                            current_file: source_name.clone(),
+                            copied_bytes: process.copied_bytes,
+                            total_bytes: process.total_bytes,
+                            progress_percentage: if process.total_bytes > 0 {
+                                (process.copied_bytes as f64 / process.total_bytes as f64) * 100.0
+                            } else {
+                                0.0
+                            },
+                        };
+                        
+                        let _ = app_clone.emit("copy-progress", progress);
+                    }
+                ).map(|_| ())
             };
             
             match copy_result {
                 Ok(_) => {
-                    // 复制成功，删除源文件
-                    let remove_result = if source_path.is_dir() {
-                        fs::remove_dir_all(&source_path)
-                    } else {
-                        fs::remove_file(&source_path)
-                    };
+                    // 复制成功，使用 trash 移入回收站而非直接删除
+                    let remove_result = trash::delete(&source_path);
                     
                     match remove_result {
                         Ok(_) => true,
                         Err(e) => {
-                            errors.push(format!("删除源文件失败 {}: {}（文件已复制到目标位置）", source_path.display(), e));
+                            errors.push(format!("移入回收站失败 {}: {}（文件已复制到目标位置）", source_path.display(), e));
                             false
                         }
                     }
@@ -580,4 +631,10 @@ pub fn read_file_as_base64(path: String) -> Result<String, String> {
         .map_err(|e| format!("读取文件失败: {}", e))?;
     
     Ok(general_purpose::STANDARD.encode(&bytes))
+}
+
+// Tauri 命令：取消文件移动操作
+#[tauri::command]
+pub fn cancel_move_operation(cancel_token: tauri::State<'_, Arc<CancellationToken>>) {
+    cancel_token.inner().cancel();
 }

@@ -375,12 +375,35 @@ export function useCloudOcrRunner() {
       }
     };
 
-    // 使用并发控制处理所有块
-    const indices = Array.from({ length: blocks.length }, (_, i) => i);
-    
-    for (let i = 0; i < indices.length; i += concurrency) {
-      const batch = indices.slice(i, i + concurrency);
-      await Promise.all(batch.map(index => processBlock(index)));
+    // 使用队列模式的并发控制：任意任务完成后立即启动下一个
+    const queue = Array.from({ length: blocks.length }, (_, i) => i);
+    const inProgress = new Set<Promise<void>>();
+
+    // 处理单个块的包装函数
+    const processWithQueue = async (index: number) => {
+      await processBlock(index);
+      
+      // 任务完成后，如果队列还有任务，立即启动下一个
+      if (queue.length > 0) {
+        const nextIndex = queue.shift()!;
+        const nextPromise = processWithQueue(nextIndex);
+        inProgress.add(nextPromise);
+        nextPromise.finally(() => inProgress.delete(nextPromise));
+      }
+    };
+
+    // 启动初始的 concurrency 个任务
+    const initialCount = Math.min(concurrency, blocks.length);
+    for (let i = 0; i < initialCount; i++) {
+      const index = queue.shift()!;
+      const promise = processWithQueue(index);
+      inProgress.add(promise);
+      promise.finally(() => inProgress.delete(promise));
+    }
+
+    // 等待所有任务完成
+    while (inProgress.size > 0) {
+      await Promise.race(inProgress);
     }
 
     const successCount = results.filter(r => r.status === 'success').length;

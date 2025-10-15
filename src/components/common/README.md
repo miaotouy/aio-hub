@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import IconPresetSelector from '@/components/common/IconPresetSelector.vue';
-import { PRESET_ICONS } from '@/config/model-icons';
+import { PRESET_ICONS } from '@/config/model-metadata';
 
 const showDialog = ref(false);
 
@@ -77,8 +77,8 @@ function handleSelect(icon) {
 <script setup lang="ts">
 import { ref } from 'vue';
 import IconPresetSelector from '@/components/common/IconPresetSelector.vue';
-import { PRESET_ICONS } from '@/config/model-icons';
-import { useModelIcons } from '@/composables/useModelIcons';
+import { PRESET_ICONS } from '@/config/model-metadata';
+import { useModelIcons } from '@/composables/useModelMetadata';
 
 const { getPresetIconPath } = useModelIcons();
 const showDialog = ref(false);

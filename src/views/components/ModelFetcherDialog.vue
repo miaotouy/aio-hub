@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { LlmModelInfo } from '../../types/llm-profiles';
-import { useModelIcons } from '../../composables/useModelIcons';
+import { useModelMetadata } from '../../composables/useModelMetadata';
 import DynamicIcon from '../../components/common/DynamicIcon.vue';
 
 const props = defineProps<{
@@ -12,7 +12,7 @@ const props = defineProps<{
 
 const emit = defineEmits(['update:visible', 'add-models']);
 
-const { getDisplayIconPath, getIconPath, getModelGroup } = useModelIcons();
+const { getDisplayIconPath, getIconPath, getModelGroup } = useModelMetadata();
 
 const searchQuery = ref('');
 const selectedModels = ref<LlmModelInfo[]>([]);

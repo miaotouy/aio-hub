@@ -8,7 +8,7 @@ import { getProviderTypeInfo } from '../config/llm-providers';
 import { buildLlmApiUrl } from '@utils/llm-api-url';
 import { fetchWithRetry } from './common';
 import { createModuleLogger } from '@utils/logger';
-import { DEFAULT_ICON_CONFIGS } from '../config/model-icons';
+import { DEFAULT_METADATA_RULES } from '../config/model-metadata';
 
 const logger = createModuleLogger('ModelFetcher');
 
@@ -293,54 +293,54 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
  * 优先使用图标配置中的 groupName，如果没有则使用默认分组逻辑
  */
 function extractModelGroup(modelId: string, providerType: ProviderType, provider?: string): string {
-  // 首先尝试从图标配置中获取分组
-  const configs = DEFAULT_ICON_CONFIGS
-    .filter(c => c.enabled !== false && c.groupName)
+  // 首先尝试从元数据规则中获取分组
+  const rules = DEFAULT_METADATA_RULES
+    .filter(r => r.enabled !== false && r.properties?.group)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
-  for (const config of configs) {
+  for (const rule of rules) {
     let matched = false;
     
-    switch (config.matchType) {
+    switch (rule.matchType) {
       case 'model':
-        if (config.useRegex) {
+        if (rule.useRegex) {
           try {
-            const regex = new RegExp(config.matchValue);
+            const regex = new RegExp(rule.matchValue);
             matched = regex.test(modelId);
           } catch (e) {
             // 正则表达式无效，跳过
           }
         } else {
-          matched = modelId === config.matchValue;
+          matched = modelId === rule.matchValue;
         }
         break;
 
       case 'modelPrefix':
-        if (config.useRegex) {
+        if (rule.useRegex) {
           try {
-            const regex = new RegExp(config.matchValue);
+            const regex = new RegExp(rule.matchValue);
             matched = regex.test(modelId);
           } catch (e) {
             // 正则表达式无效，跳过
           }
         } else {
-          matched = modelId.toLowerCase().includes(config.matchValue.toLowerCase());
+          matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
         }
         break;
 
       case 'provider':
-        if (provider && provider.toLowerCase() === config.matchValue.toLowerCase()) {
+        if (provider && provider.toLowerCase() === rule.matchValue.toLowerCase()) {
           matched = true;
         }
         break;
     }
     
-    if (matched && config.groupName) {
-      return config.groupName;
+    if (matched && rule.properties?.group) {
+      return rule.properties.group;
     }
   }
   
-  // 如果图标配置中没有匹配，使用默认分组逻辑
+  // 如果元数据规则中没有匹配，使用默认分组逻辑
   const id = modelId.toLowerCase();
   
   switch (providerType) {

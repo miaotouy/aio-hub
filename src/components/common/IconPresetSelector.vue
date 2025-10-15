@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import type { PresetIconInfo } from "../../types/model-icons";
+import type { PresetIconInfo } from "../../types/model-metadata";
 import DynamicIcon from "./DynamicIcon.vue";
 
 interface Props {

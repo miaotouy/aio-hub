@@ -12,7 +12,7 @@ import {
   Cpu,
 } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
-import { useModelIcons } from "../../composables/useModelIcons";
+import { useModelMetadata } from "../../composables/useModelMetadata";
 import DynamicIcon from "../../components/common/DynamicIcon.vue";
 
 interface Props {
@@ -87,7 +87,7 @@ const isGroupExpanded = (groupName: string): boolean => {
 };
 
 // 使用统一的图标获取方法和分组方法
-const { getModelIcon, getModelGroup } = useModelIcons();
+const { getModelIcon, getModelGroup } = useModelMetadata();
 </script>
 
 <template>

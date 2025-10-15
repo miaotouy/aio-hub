@@ -55,7 +55,7 @@
           <label>图标路径</label>
           <div class="input-with-actions">
             <input
-              v-model="localConfig.iconPath"
+              v-model="localConfig.properties!.icon"
               type="text"
               placeholder="例如: /model-icons/openai.svg"
             />
@@ -79,7 +79,7 @@
         <div class="form-group">
           <label>分组名称</label>
           <input
-            v-model="localConfig.groupName"
+            v-model="localConfig.properties!.group"
             type="text"
             placeholder="在模型列表中显示的分组名称（可选）"
           />
@@ -100,10 +100,10 @@
           </label>
         </div>
 
-        <div v-if="localConfig.iconPath" class="icon-preview">
+        <div v-if="localConfig.properties?.icon" class="icon-preview">
           <h4>图标预览</h4>
           <img
-            :src="getDisplayIconPath(localConfig.iconPath)"
+            :src="getDisplayIconPath(localConfig.properties.icon)"
             alt="预览"
             @error="handleImageError"
           />
@@ -122,17 +122,17 @@
 import { computed } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { ModelIconConfig } from "../../types/model-icons";
+import type { ModelMetadataRule } from "../../types/model-metadata";
 import { createModuleLogger } from "@utils/logger";
 
 interface Props {
-  modelValue: Partial<ModelIconConfig> | null;
+  modelValue: Partial<ModelMetadataRule> | null;
   isNew: boolean;
 }
 
 interface Emits {
-  (e: "update:modelValue", value: Partial<ModelIconConfig> | null): void;
-  (e: "save", config: Partial<ModelIconConfig>): void;
+  (e: "update:modelValue", value: Partial<ModelMetadataRule> | null): void;
+  (e: "save", config: Partial<ModelMetadataRule>): void;
   (e: "close"): void;
   (e: "open-presets"): void;
 }
@@ -151,7 +151,7 @@ function handleSave() {
   if (!props.modelValue) return;
 
   // 验证必填字段
-  if (!props.modelValue.matchValue || !props.modelValue.iconPath) {
+  if (!props.modelValue.matchValue || !props.modelValue.properties?.icon) {
     alert("请填写匹配值和图标路径");
     return;
   }
@@ -176,7 +176,10 @@ async function handleSelectFile() {
       ],
     });
     if (typeof selected === "string" && localConfig.value) {
-      localConfig.value.iconPath = selected;
+      if (!localConfig.value.properties) {
+        localConfig.value.properties = {};
+      }
+      localConfig.value.properties.icon = selected;
     }
   } catch (error) {
     logger.error("选择本地图标文件失败", error, {

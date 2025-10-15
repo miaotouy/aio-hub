@@ -129,12 +129,14 @@ all-in-one-tools/
 │   ├── composables/               # 组合式函数
 │   │   ├── useDetachedTools.ts   # 工具窗口分离管理
 │   │   ├── useLlmProfiles.ts     # LLM 配置管理
-│   │   ├── useModelIcons.ts      # 模型图标管理
+│   │   ├── useModelMetadata.ts   # 模型元数据管理
+
 │   │   ├── useOcrProfiles.ts     # OCR 配置管理
 │   │   └── useTheme.ts           # 主题管理
 │   ├── config/                    # 配置定义
 │   │   ├── llm-providers.ts      # LLM 服务商预设
-│   │   ├── model-icons.ts        # 模型图标映射规则
+│   │   ├── model-metadata.ts     # 模型元数据规则
+
 │   │   ├── ocr-providers.ts      # OCR 服务商预设
 │   │   ├── settings.ts           # 应用设置
 │   │   └── tools.ts              # 工具注册配置
@@ -185,7 +187,8 @@ all-in-one-tools/
 │   ├── types/                     # TypeScript 类型定义
 │   │   ├── config-export.ts      # 配置导出类型
 │   │   ├── llm-profiles.ts       # LLM 配置类型
-│   │   ├── model-icons.ts        # 图标配置类型
+│   │   ├── model-metadata.ts     # 模型元数据配置类型
+
 │   │   └── ocr-profiles.ts       # OCR 配置类型
 │   ├── utils/                     # 工具函数
 │   │   ├── apiRequest.ts         # API 请求封装

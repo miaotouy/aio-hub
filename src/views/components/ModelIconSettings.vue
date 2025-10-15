@@ -89,8 +89,8 @@
           >
             <div class="config-icon">
               <DynamicIcon
-                v-if="config.iconPath"
-                :src="getDisplayIconPath(config.iconPath)"
+                v-if="config.properties?.icon"
+                :src="getDisplayIconPath(config.properties.icon)"
                 :alt="config.matchValue"
               />
               <div v-else class="icon-placeholder">?</div>
@@ -102,14 +102,14 @@
                 <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
                 <span class="config-value">{{ config.matchValue }}</span>
               </div>
-              <div v-if="config.groupName" class="config-group">分组: {{ config.groupName }}</div>
+              <div v-if="config.properties?.group" class="config-group">分组: {{ config.properties.group }}</div>
               <div v-if="config.priority" class="config-priority">
                 优先级: {{ config.priority }}
               </div>
               <div v-if="config.description" class="config-description">
                 {{ config.description }}
               </div>
-              <div class="config-path">{{ config.iconPath }}</div>
+              <div class="config-path">{{ config.properties?.icon }}</div>
             </div>
 
             <div class="config-actions">
@@ -204,29 +204,29 @@
 import { ref, computed } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { useModelIcons } from "../../composables/useModelIcons";
-import type { ModelIconConfig, IconMatchType } from "../../types/model-icons";
+import { useModelMetadata } from "../../composables/useModelMetadata";
+import type { ModelMetadataRule, MetadataMatchType } from "../../types/model-metadata";
 import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
-import { PRESET_ICONS_DIR } from "../../config/model-icons";
+import { PRESET_ICONS_DIR } from "../../config/model-metadata";
 import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
 import DynamicIcon from "../../components/common/DynamicIcon.vue";
 
 const {
-  configs,
+  rules: configs,
   presetIcons,
   enabledCount,
-  addConfig,
-  updateConfig,
-  deleteConfig,
-  toggleConfig,
+  addRule: addConfig,
+  updateRule: updateConfig,
+  deleteRule: deleteConfig,
+  toggleRule: toggleConfig,
   resetToDefaults,
-  exportConfigs,
-  importConfigs,
-} = useModelIcons();
+  exportRules: exportConfigs,
+  importRules: importConfigs,
+} = useModelMetadata();
 
 const showPresets = ref(false);
-const editingConfig = ref<Partial<ModelIconConfig> | null>(null);
+const editingConfig = ref<Partial<ModelMetadataRule> | null>(null);
 const isNewConfig = ref(false);
 
 // 搜索和过滤
@@ -249,7 +249,7 @@ const filteredConfigs = computed(() => {
         config.matchValue.toLowerCase().includes(search) ||
         config.matchType.toLowerCase().includes(search) ||
         config.description?.toLowerCase().includes(search) ||
-        config.groupName?.toLowerCase().includes(search)
+        config.properties?.group?.toLowerCase().includes(search)
     );
   }
 
@@ -300,8 +300,8 @@ function goToPage(page: number) {
 }
 
 // 获取匹配类型标签
-function getMatchTypeLabel(type: IconMatchType): string {
-  const labels: Record<IconMatchType, string> = {
+function getMatchTypeLabel(type: MetadataMatchType): string {
+  const labels: Record<MetadataMatchType, string> = {
     provider: "Provider",
     model: "Model",
     modelPrefix: "Prefix",
@@ -313,7 +313,10 @@ function getMatchTypeLabel(type: IconMatchType): string {
 // 选择预设图标
 function selectPreset(preset: any) {
   if (editingConfig.value) {
-    editingConfig.value.iconPath = `${PRESET_ICONS_DIR}/${preset.path}`;
+    if (!editingConfig.value.properties) {
+      editingConfig.value.properties = {};
+    }
+    editingConfig.value.properties.icon = `${PRESET_ICONS_DIR}/${preset.path}`;
   }
   showPresets.value = false; // Close dialog on selection
 }
@@ -324,7 +327,9 @@ function handleAdd() {
   editingConfig.value = {
     matchType: "provider",
     matchValue: "",
-    iconPath: "",
+    properties: {
+      icon: "",
+    },
     priority: 10,
     enabled: true,
     description: "",
@@ -332,7 +337,7 @@ function handleAdd() {
 }
 
 // 处理编辑
-function handleEdit(config: ModelIconConfig) {
+function handleEdit(config: ModelMetadataRule) {
   isNewConfig.value = false;
   editingConfig.value = { ...config };
 }
@@ -344,14 +349,14 @@ async function handleSave() {
   const config = editingConfig.value;
 
   // 验证必填字段
-  if (!config.matchValue || !config.iconPath) {
+  if (!config.matchValue || !config.properties?.icon) {
     alert("请填写匹配值和图标路径");
     return;
   }
 
   let success = false;
   if (isNewConfig.value) {
-    success = await addConfig(config as Omit<ModelIconConfig, "id">);
+    success = await addConfig(config as Omit<ModelMetadataRule, "id">);
   } else if (config.id) {
     success = await updateConfig(config.id, config);
   }

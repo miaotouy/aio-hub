@@ -11,15 +11,15 @@ import { providerTypes, llmPresets } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
 import type { LlmPreset } from "../../config/llm-providers";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@utils/llm-api-url";
-import { useModelIcons } from "../../composables/useModelIcons";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-icons";
+import { useModelMetadata } from "../../composables/useModelMetadata";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-metadata";
 import { fetchModelsFromApi } from "../../llm-apis/model-fetcher";
 import DynamicIcon from "../../components/common/DynamicIcon.vue";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
 // 使用统一的图标获取方法
-const { getDisplayIconPath, getIconPath } = useModelIcons();
+const { getDisplayIconPath, getIconPath } = useModelMetadata();
 
 // 防抖保存的计时器
 let saveTimer: ReturnType<typeof setTimeout> | null = null;

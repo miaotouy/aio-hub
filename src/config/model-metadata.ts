@@ -1,12 +1,15 @@
 /**
- * 模型图标默认配置
+ * 模型元数据默认配置
+ * 
+ * 这个文件定义了所有预设的模型元数据匹配规则。
+ * 当前主要包含图标和分组信息，未来可以扩展更多属性。
  */
 
-import type { ModelIconConfig, PresetIconInfo } from "../types/model-icons";
+import type { ModelMetadataRule, ModelMetadataProperties, PresetIconInfo } from "../types/model-metadata";
 import { createModuleLogger } from "@utils/logger";
 
 // 创建模块日志器
-const logger = createModuleLogger("model-icons");
+const logger = createModuleLogger("model-metadata");
 
 /**
  * 预设图标目录（相对于 public 目录）
@@ -15,6 +18,8 @@ export const PRESET_ICONS_DIR = "/model-icons";
 
 /**
  * 预设图标列表（按分类组织）
+ * 
+ * 这个列表用于在 UI 中展示可选的预设图标。
  */
 export const PRESET_ICONS: PresetIconInfo[] = [
   // === 主流 AI 服务商 ===
@@ -571,120 +576,145 @@ export const PRESET_ICONS: PresetIconInfo[] = [
 ];
 
 /**
- * 默认图标配置（使用彩色图标）
+ * 默认元数据规则配置
+ * 
+ * 这个数组定义了所有预设的模型元数据匹配规则。
+ * 当前主要包含图标和分组信息，未来可以扩展更多属性如能力、价格等。
  */
-export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
+export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   // === Provider 级别匹配（优先级 10） ===
   // 主流国际 AI 服务商
   {
     id: "provider-openai",
     matchType: "provider",
     matchValue: "openai",
-    iconPath: `${PRESET_ICONS_DIR}/openai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
     priority: 10,
     enabled: true,
     description: "OpenAI 提供商图标",
-    groupName: "OpenAI",
   },
   {
     id: "provider-anthropic",
     matchType: "provider",
     matchValue: "anthropic",
-    iconPath: `${PRESET_ICONS_DIR}/claude-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/claude-color.svg`,
+      group: "Claude",
+    },
     priority: 10,
     enabled: true,
     description: "Anthropic (Claude) 提供商图标",
-    groupName: "Claude",
   },
   {
     id: "provider-google",
     matchType: "provider",
     matchValue: "google",
-    iconPath: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      group: "Gemini",
+    },
     priority: 10,
     enabled: true,
     description: "Google 提供商图标",
-    groupName: "Gemini",
   },
   {
     id: "provider-gemini",
     matchType: "provider",
     matchValue: "gemini",
-    iconPath: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      group: "Gemini",
+    },
     priority: 10,
     enabled: true,
     description: "Google Gemini 提供商图标",
-    groupName: "Gemini",
   },
   {
     id: "provider-cohere",
     matchType: "provider",
     matchValue: "cohere",
-    iconPath: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+      group: "Cohere",
+    },
     priority: 10,
     enabled: true,
     description: "Cohere 提供商图标",
-    groupName: "Cohere",
   },
   {
     id: "provider-mistral",
     matchType: "provider",
     matchValue: "mistral",
-    iconPath: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+      group: "Mistral",
+    },
     priority: 10,
     enabled: true,
     description: "Mistral AI 提供商图标",
-    groupName: "Mistral",
   },
   {
     id: "provider-meta",
     matchType: "provider",
     matchValue: "meta",
-    iconPath: `${PRESET_ICONS_DIR}/meta-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
+      group: "Meta",
+    },
     priority: 10,
     enabled: true,
     description: "Meta 提供商图标",
-    groupName: "Meta",
   },
   {
     id: "provider-microsoft",
     matchType: "provider",
     matchValue: "microsoft",
-    iconPath: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+      group: "Microsoft",
+    },
     priority: 10,
     enabled: true,
     description: "Microsoft 提供商图标",
-    groupName: "Microsoft",
   },
   {
     id: "provider-xai",
     matchType: "provider",
     matchValue: "xai",
-    iconPath: `${PRESET_ICONS_DIR}/xai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/xai.svg`,
+      group: "xAI",
+    },
     priority: 10,
     enabled: true,
     description: "xAI 提供商图标",
-    groupName: "xAI",
   },
   {
     id: "provider-groq",
     matchType: "provider",
     matchValue: "groq",
-    iconPath: `${PRESET_ICONS_DIR}/groq.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/groq.svg`,
+      group: "Groq",
+    },
     priority: 10,
     enabled: true,
     description: "Groq 提供商图标",
-    groupName: "Groq",
   },
   {
     id: "provider-ai21",
     matchType: "provider",
     matchValue: "ai21",
-    iconPath: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+      group: "AI21",
+    },
     priority: 10,
     enabled: true,
     description: "AI21 Labs 提供商图标",
-    groupName: "AI21",
   },
 
   // 国内 AI 服务商
@@ -692,231 +722,277 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "provider-deepseek",
     matchType: "provider",
     matchValue: "deepseek",
-    iconPath: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
+      group: "DeepSeek",
+    },
     priority: 10,
     enabled: true,
     description: "DeepSeek 提供商图标",
-    groupName: "DeepSeek",
   },
   {
     id: "provider-moonshot",
     matchType: "provider",
     matchValue: "moonshot",
-    iconPath: `${PRESET_ICONS_DIR}/kimi-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/kimi-color.svg`,
+      group: "Kimi",
+    },
     priority: 10,
     enabled: true,
     description: "Moonshot AI (Kimi) 提供商图标",
-    groupName: "Kimi",
   },
   {
     id: "provider-zhipu",
     matchType: "provider",
     matchValue: "zhipu",
-    iconPath: `${PRESET_ICONS_DIR}/zhipu-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/zhipu-color.svg`,
+      group: "Zhipu",
+    },
     priority: 10,
     enabled: true,
     description: "智谱 AI 提供商图标",
-    groupName: "Zhipu",
   },
   {
     id: "provider-qwen",
     matchType: "provider",
     matchValue: "qwen",
-    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      group: "Qwen",
+    },
     priority: 10,
     enabled: true,
     description: "通义千问提供商图标",
-    groupName: "Qwen",
   },
   {
     id: "provider-bytedance",
     matchType: "provider",
     matchValue: "bytedance",
-    iconPath: `${PRESET_ICONS_DIR}/doubao-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/doubao-color.svg`,
+      group: "ByteDance",
+    },
     priority: 10,
     enabled: true,
     description: "字节跳动提供商图标",
-    groupName: "ByteDance",
   },
   {
     id: "provider-baidu",
     matchType: "provider",
     matchValue: "baidu",
-    iconPath: `${PRESET_ICONS_DIR}/wenxin-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/wenxin-color.svg`,
+      group: "Baidu",
+    },
     priority: 10,
     enabled: true,
     description: "百度提供商图标",
-    groupName: "Baidu",
   },
   {
     id: "provider-tencent",
     matchType: "provider",
     matchValue: "tencent",
-    iconPath: `${PRESET_ICONS_DIR}/hunyuan-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/hunyuan-color.svg`,
+      group: "Tencent",
+    },
     priority: 10,
     enabled: true,
     description: "腾讯提供商图标",
-    groupName: "Tencent",
   },
   {
     id: "provider-minimax",
     matchType: "provider",
     matchValue: "minimax",
-    iconPath: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+      group: "MiniMax",
+    },
     priority: 10,
     enabled: true,
     description: "MiniMax 提供商图标",
-    groupName: "MiniMax",
   },
   {
     id: "provider-01ai",
     matchType: "provider",
     matchValue: "01ai",
-    iconPath: `${PRESET_ICONS_DIR}/yi-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/yi-color.svg`,
+      group: "Yi",
+    },
     priority: 10,
     enabled: true,
     description: "零一万物提供商图标",
-    groupName: "Yi",
   },
   {
     id: "provider-baichuan",
     matchType: "provider",
     matchValue: "baichuan",
-    iconPath: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
+      group: "Baichuan",
+    },
     priority: 10,
     enabled: true,
     description: "百川提供商图标",
-    groupName: "Baichuan",
   },
   {
     id: "provider-sensenova",
     matchType: "provider",
     matchValue: "sensenova",
-    iconPath: `${PRESET_ICONS_DIR}/sensenova-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/sensenova-color.svg`,
+      group: "SenseNova",
+    },
     priority: 10,
     enabled: true,
     description: "商汤提供商图标",
-    groupName: "SenseNova",
   },
   {
     id: "provider-kwai",
     matchType: "provider",
     matchValue: "kwai-kolors",
-    iconPath: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+      group: "Kwai",
+    },
     priority: 10,
     enabled: true,
     description: "快手 Kolors 提供商图标",
-    groupName: "Kwai",
   },
   {
     id: "provider-siliconflow",
     matchType: "provider",
     matchValue: "siliconflow",
-    iconPath: `${PRESET_ICONS_DIR}/siliconcloud-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/siliconcloud-color.svg`,
+      group: "SiliconFlow",
+    },
     priority: 10,
     enabled: true,
     description: "SiliconFlow 提供商图标",
-    groupName: "SiliconFlow",
   },
   {
     id: "provider-inclusionai",
     matchType: "provider",
     matchValue: "inclusionai",
-    iconPath: `${PRESET_ICONS_DIR}/ling.png`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/ling.png`,
+      group: "InclusionAI",
+    },
     priority: 10,
     enabled: true,
     description: "Inclusion AI 提供商图标",
-    groupName: "InclusionAI",
   },
   {
     id: "provider-wan-ai",
     matchType: "provider",
     matchValue: "wan-ai",
-    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      group: "Qwen",
+    },
     priority: 10,
     enabled: true,
     description: "千问万象 (Wan AI) 提供商图标",
-    groupName: "Qwen",
   },
   {
     id: "provider-stepfun-ai",
     matchType: "provider",
     matchValue: "stepfun-ai",
-    iconPath: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+      group: "StepFun",
+    },
     priority: 10,
     enabled: true,
     description: "StepFun AI 提供商图标",
-    groupName: "StepFun",
   },
   {
     id: "provider-teleai",
     matchType: "provider",
     matchValue: "teleai",
-    iconPath: `${PRESET_ICONS_DIR}/TeleAI.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/TeleAI.svg`,
+      group: "TeleAI",
+    },
     priority: 10,
     enabled: true,
     description: "TeleAI 提供商图标",
-    groupName: "TeleAI",
   },
   {
     id: "provider-ascend-tribe",
     matchType: "provider",
     matchValue: "ascend-tribe",
-    iconPath: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+      group: "Pangu",
+    },
     priority: 10,
     enabled: true,
     description: "Ascend Tribe (Pangu) 提供商图标",
-    groupName: "Pangu",
   },
   {
     id: "provider-fnlp",
     matchType: "provider",
     matchValue: "fnlp",
-    iconPath: `${PRESET_ICONS_DIR}/openmoss.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openmoss.svg`,
+      group: "MOSS",
+    },
     priority: 10,
     enabled: true,
     description: "MOSS (FNLP) 提供商图标",
-    groupName: "MOSS",
   },
   {
     id: "provider-funaudiollm",
     matchType: "provider",
     matchValue: "funaudiollm",
-    iconPath: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+      group: "FunAudioLLM",
+    },
     priority: 10,
     enabled: true,
     description: "FunAudioLLM 提供商图标",
-    groupName: "FunAudioLLM",
   },
   {
     id: "provider-indexteam",
     matchType: "provider",
     matchValue: "indexteam",
-    iconPath: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+      group: "IndexTeam",
+    },
     priority: 10,
     enabled: true,
     description: "IndexTeam 提供商图标",
-    groupName: "IndexTeam",
   },
   {
     id: "provider-netease-youdao",
     matchType: "provider",
     matchValue: "netease-youdao",
-    iconPath: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+      group: "Netease Youdao",
+    },
     priority: 10,
     enabled: true,
     description: "网易有道提供商图标",
-    groupName: "Netease Youdao",
   },
   {
     id: "provider-fishaudio",
     matchType: "provider",
     matchValue: "fishaudio",
-    iconPath: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+      group: "FishAudio",
+    },
     priority: 10,
     enabled: true,
     description: "FishAudio 提供商图标",
-    groupName: "FishAudio",
   },
 
   // 其他服务商
@@ -924,114 +1000,137 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "provider-huggingface",
     matchType: "provider",
     matchValue: "huggingface",
-    iconPath: `${PRESET_ICONS_DIR}/huggingface-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/huggingface-color.svg`,
+      group: "HuggingFace",
+    },
     priority: 10,
     enabled: true,
     description: "HuggingFace 提供商图标",
-    groupName: "HuggingFace",
   },
   {
     id: "provider-z-ai",
     matchType: "provider",
     matchValue: "z-ai",
-    iconPath: `${PRESET_ICONS_DIR}/zai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/zai.svg`,
+      group: "Z AI",
+    },
     priority: 10,
     enabled: true,
     description: "Z AI 提供商图标",
-    groupName: "Z AI",
   },
   {
     id: "provider-nebius",
     matchType: "provider",
     matchValue: "nebius",
-    iconPath: `${PRESET_ICONS_DIR}/nebius.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/nebius.svg`,
+      group: "Nebius",
+    },
     priority: 10,
     enabled: true,
     description: "Nebius 提供商图标",
-    groupName: "Nebius",
   },
   {
     id: "provider-stabilityai",
     matchType: "provider",
     matchValue: "stabilityai",
-    iconPath: `${PRESET_ICONS_DIR}/stability-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/stability-color.svg`,
+      group: "Stability AI",
+    },
     priority: 10,
     enabled: true,
     description: "Stability AI 提供商图标",
-    groupName: "Stability AI",
   },
   {
     id: "provider-baai",
     matchType: "provider",
     matchValue: "baai",
-    iconPath: `${PRESET_ICONS_DIR}/baai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/baai.svg`,
+      group: "BAAI",
+    },
     priority: 10,
     enabled: true,
     description: "智源研究院 BAAI 提供商图标",
-    groupName: "BAAI",
   },
   {
     id: "provider-black-forest-labs",
     matchType: "provider",
     matchValue: "black-forest-labs",
-    iconPath: `${PRESET_ICONS_DIR}/flux.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/flux.svg`,
+      group: "Black Forest Labs",
+    },
     priority: 10,
     enabled: true,
     description: "Black Forest Labs 提供商图标",
-    groupName: "Black Forest Labs",
   },
   // API 服务商
   {
     id: "provider-openrouter",
     matchType: "provider",
     matchValue: "openrouter",
-    iconPath: `${PRESET_ICONS_DIR}/openrouter.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openrouter.svg`,
+      group: "OpenRouter",
+    },
     priority: 10,
     enabled: true,
     description: "OpenRouter 提供商图标",
-    groupName: "OpenRouter",
   },
+
   // === Model Prefix 级别匹配（优先级 20） ===
   // OpenAI 系列模型
   {
     id: "model-prefix-gpt",
     matchType: "modelPrefix",
     matchValue: "gpt-",
-    iconPath: `${PRESET_ICONS_DIR}/openai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
     priority: 20,
     enabled: true,
     description: "GPT 系列模型图标",
-    groupName: "OpenAI",
   },
   {
     id: "model-prefix-o1",
     matchType: "modelPrefix",
     matchValue: "o1",
-    iconPath: `${PRESET_ICONS_DIR}/openai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
     priority: 20,
     enabled: true,
     description: "o1 系列模型图标",
-    groupName: "OpenAI",
   },
   {
     id: "model-prefix-o3",
     matchType: "modelPrefix",
     matchValue: "o3",
-    iconPath: `${PRESET_ICONS_DIR}/openai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
     priority: 20,
     enabled: true,
     description: "o3 系列模型图标",
-    groupName: "OpenAI",
   },
   {
     id: "model-prefix-chatgpt",
     matchType: "modelPrefix",
     matchValue: "chatgpt-",
-    iconPath: `${PRESET_ICONS_DIR}/openai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
     priority: 20,
     enabled: true,
     description: "ChatGPT 系列模型图标",
-    groupName: "OpenAI",
   },
 
   // Anthropic 系列模型
@@ -1039,11 +1138,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-claude",
     matchType: "modelPrefix",
     matchValue: "claude-",
-    iconPath: `${PRESET_ICONS_DIR}/claude-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/claude-color.svg`,
+      group: "Claude",
+    },
     priority: 20,
     enabled: true,
     description: "Claude 系列模型图标",
-    groupName: "Claude",
   },
 
   // Google 系列模型
@@ -1051,21 +1152,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-gemini",
     matchType: "modelPrefix",
     matchValue: "gemini-",
-    iconPath: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      group: "Gemini",
+    },
     priority: 20,
     enabled: true,
     description: "Gemini 系列模型图标",
-    groupName: "Gemini",
   },
   {
     id: "model-prefix-gemma",
     matchType: "modelPrefix",
     matchValue: "gemma-",
-    iconPath: `${PRESET_ICONS_DIR}/gemma-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/gemma-color.svg`,
+      group: "Gemma",
+    },
     priority: 20,
     enabled: true,
     description: "Gemma 系列模型图标",
-    groupName: "Gemma",
   },
 
   // DeepSeek 系列模型
@@ -1073,11 +1178,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-deepseek",
     matchType: "modelPrefix",
     matchValue: "deepseek-",
-    iconPath: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
+      group: "DeepSeek",
+    },
     priority: 20,
     enabled: true,
     description: "DeepSeek 系列模型图标",
-    groupName: "DeepSeek",
   },
 
   // 智谱 AI 系列模型
@@ -1085,21 +1192,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-glm",
     matchType: "modelPrefix",
     matchValue: "glm-",
-    iconPath: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
+      group: "Zhipu",
+    },
     priority: 20,
     enabled: true,
     description: "GLM 系列模型图标",
-    groupName: "Zhipu",
   },
   {
     id: "model-prefix-chatglm",
     matchType: "modelPrefix",
     matchValue: "chatglm-",
-    iconPath: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
+      group: "Zhipu",
+    },
     priority: 20,
     enabled: true,
     description: "ChatGLM 系列模型图标",
-    groupName: "Zhipu",
   },
 
   // Moonshot/Kimi 系列模型
@@ -1107,21 +1218,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-moonshot",
     matchType: "modelPrefix",
     matchValue: "moonshot-",
-    iconPath: `${PRESET_ICONS_DIR}/moonshot.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/moonshot.svg`,
+      group: "moonshot",
+    },
     priority: 20,
     enabled: true,
     description: "Moonshot 系列模型图标",
-    groupName: "moonshot",
   },
   {
     id: "model-prefix-kimi",
     matchType: "modelPrefix",
     matchValue: "kimi-",
-    iconPath: `${PRESET_ICONS_DIR}/kimi-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/kimi-color.svg`,
+      group: "Kimi",
+    },
     priority: 20,
     enabled: true,
     description: "Kimi 系列模型图标",
-    groupName: "Kimi",
   },
 
   // 通义千问系列模型
@@ -1129,21 +1244,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-qwen",
     matchType: "modelPrefix",
     matchValue: "qwen",
-    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      group: "Qwen",
+    },
     priority: 20,
     enabled: true,
     description: "通义千问系列模型图标",
-    groupName: "Qwen",
   },
   {
     id: "model-prefix-qwq",
     matchType: "modelPrefix",
     matchValue: "qwq-",
-    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      group: "Qwen",
+    },
     priority: 20,
     enabled: true,
     description: "通义千问 QwQ 系列模型图标",
-    groupName: "Qwen",
   },
 
   // 字节跳动豆包系列模型
@@ -1151,11 +1270,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-doubao",
     matchType: "modelPrefix",
     matchValue: "doubao-",
-    iconPath: `${PRESET_ICONS_DIR}/doubao-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/doubao-color.svg`,
+      group: "ByteDance",
+    },
     priority: 20,
     enabled: true,
     description: "豆包系列模型图标",
-    groupName: "ByteDance",
   },
 
   // 腾讯混元系列模型
@@ -1163,11 +1284,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-hunyuan",
     matchType: "modelPrefix",
     matchValue: "hunyuan-",
-    iconPath: `${PRESET_ICONS_DIR}/hunyuan-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/hunyuan-color.svg`,
+      group: "Tencent",
+    },
     priority: 20,
     enabled: true,
     description: "混元系列模型图标",
-    groupName: "Tencent",
   },
 
   // 百度文心系列模型
@@ -1175,11 +1298,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-ernie",
     matchType: "modelPrefix",
     matchValue: "ernie-",
-    iconPath: `${PRESET_ICONS_DIR}/wenxin-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/wenxin-color.svg`,
+      group: "Baidu",
+    },
     priority: 20,
     enabled: true,
     description: "ERNIE 系列模型图标",
-    groupName: "Baidu",
   },
 
   // MiniMax 系列模型
@@ -1187,21 +1312,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-abab",
     matchType: "modelPrefix",
     matchValue: "abab",
-    iconPath: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+      group: "MiniMax",
+    },
     priority: 20,
     enabled: true,
     description: "MiniMax ABAB 系列模型图标",
-    groupName: "MiniMax",
   },
   {
     id: "model-prefix-minimax",
     matchType: "modelPrefix",
     matchValue: "minimax-",
-    iconPath: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+      group: "MiniMax",
+    },
     priority: 20,
     enabled: true,
     description: "MiniMax 系列模型图标",
-    groupName: "MiniMax",
   },
 
   // 零一万物系列模型
@@ -1209,11 +1338,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-yi",
     matchType: "modelPrefix",
     matchValue: "yi-",
-    iconPath: `${PRESET_ICONS_DIR}/yi-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/yi-color.svg`,
+      group: "Yi",
+    },
     priority: 20,
     enabled: true,
     description: "Yi 系列模型图标",
-    groupName: "Yi",
   },
 
   // 百川系列模型
@@ -1221,11 +1352,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-baichuan",
     matchType: "modelPrefix",
     matchValue: "baichuan",
-    iconPath: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
+      group: "Baichuan",
+    },
     priority: 20,
     enabled: true,
     description: "百川系列模型图标",
-    groupName: "Baichuan",
   },
 
   // InternLM 系列模型
@@ -1233,11 +1366,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-internlm",
     matchType: "modelPrefix",
     matchValue: "internlm",
-    iconPath: `${PRESET_ICONS_DIR}/internlm-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/internlm-color.svg`,
+      group: "InternLM",
+    },
     priority: 20,
     enabled: true,
     description: "InternLM 系列模型图标",
-    groupName: "InternLM",
   },
 
   // Skywork 系列模型
@@ -1245,11 +1380,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-skywork",
     matchType: "modelPrefix",
     matchValue: "skywork",
-    iconPath: `${PRESET_ICONS_DIR}/skywork-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/skywork-color.svg`,
+      group: "Skywork",
+    },
     priority: 20,
     enabled: true,
     description: "Skywork 系列模型图标",
-    groupName: "Skywork",
   },
 
   // RWKV 系列模型
@@ -1257,11 +1394,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-rwkv",
     matchType: "modelPrefix",
     matchValue: "rwkv",
-    iconPath: `${PRESET_ICONS_DIR}/rwkv-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/rwkv-color.svg`,
+      group: "RWKV",
+    },
     priority: 20,
     enabled: true,
     description: "RWKV 系列模型图标",
-    groupName: "RWKV",
   },
 
   // xAI 系列模型
@@ -1269,21 +1408,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-grok",
     matchType: "modelPrefix",
     matchValue: "grok-",
-    iconPath: `${PRESET_ICONS_DIR}/grok.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/grok.svg`,
+      group: "xAI",
+    },
     priority: 20,
     enabled: true,
     description: "Grok 系列模型图标",
-    groupName: "xAI",
   },
   {
     id: "model-prefix-imagine",
     matchType: "modelPrefix",
     matchValue: "imagine-",
-    iconPath: `${PRESET_ICONS_DIR}/xai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/xai.svg`,
+      group: "xAI",
+    },
     priority: 20,
     enabled: true,
     description: "xAI Imagine 系列模型图标",
-    groupName: "xAI",
   },
 
   // Meta 系列模型
@@ -1292,11 +1435,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     matchType: "modelPrefix",
     matchValue: "(?<!o)llama[1-9-]",
     useRegex: true,
-    iconPath: `${PRESET_ICONS_DIR}/meta-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
+      group: "Meta",
+    },
     priority: 20,
     enabled: true,
     description: "Llama 系列模型图标",
-    groupName: "Meta",
   },
 
   // Mistral 系列模型
@@ -1304,21 +1449,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-mistral",
     matchType: "modelPrefix",
     matchValue: "mistral-",
-    iconPath: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+      group: "Mistral",
+    },
     priority: 20,
     enabled: true,
     description: "Mistral 系列模型图标",
-    groupName: "Mistral",
   },
   {
     id: "model-prefix-mixtral",
     matchType: "modelPrefix",
     matchValue: "mixtral-",
-    iconPath: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+      group: "Mistral",
+    },
     priority: 20,
     enabled: true,
     description: "Mixtral 系列模型图标",
-    groupName: "Mistral",
   },
 
   // Cohere 系列模型
@@ -1326,21 +1475,25 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-command",
     matchType: "modelPrefix",
     matchValue: "command-",
-    iconPath: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+      group: "Cohere",
+    },
     priority: 20,
     enabled: true,
     description: "Command 系列模型图标",
-    groupName: "Cohere",
   },
   {
     id: "model-prefix-aya",
     matchType: "modelPrefix",
     matchValue: "aya-",
-    iconPath: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+      group: "Cohere",
+    },
     priority: 20,
     enabled: true,
     description: "Aya 系列模型图标",
-    groupName: "Cohere",
   },
 
   // AI21 系列模型
@@ -1348,11 +1501,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-jamba",
     matchType: "modelPrefix",
     matchValue: "jamba-",
-    iconPath: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+      group: "AI21",
+    },
     priority: 20,
     enabled: true,
     description: "Jamba 系列模型图标",
-    groupName: "AI21",
   },
 
   // Microsoft 系列模型
@@ -1360,11 +1515,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-phi",
     matchType: "modelPrefix",
     matchValue: "phi-",
-    iconPath: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+      group: "Microsoft",
+    },
     priority: 20,
     enabled: true,
     description: "Phi 系列模型图标",
-    groupName: "Microsoft",
   },
 
   // Stability AI 系列模型
@@ -1372,11 +1529,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-stable-diffusion",
     matchType: "modelPrefix",
     matchValue: "stable-diffusion",
-    iconPath: `${PRESET_ICONS_DIR}/stability-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/stability-color.svg`,
+      group: "Stability AI",
+    },
     priority: 20,
     enabled: true,
     description: "Stable Diffusion 系列模型图标",
-    groupName: "Stability AI",
   },
 
   // BAAI 系列模型
@@ -1384,11 +1543,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-bge",
     matchType: "modelPrefix",
     matchValue: "bge-",
-    iconPath: `${PRESET_ICONS_DIR}/baai.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/baai.svg`,
+      group: "BAAI",
+    },
     priority: 20,
     enabled: true,
     description: "BAAI BGE 系列模型图标",
-    groupName: "BAAI",
   },
 
   // Black Forest Labs 系列模型
@@ -1396,11 +1557,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-flux",
     matchType: "modelPrefix",
     matchValue: "flux",
-    iconPath: `${PRESET_ICONS_DIR}/flux.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/flux.svg`,
+      group: "Black Forest Labs",
+    },
     priority: 20,
     enabled: true,
     description: "FLUX 系列模型图标",
-    groupName: "Black Forest Labs",
   },
 
   // 快手 Kolors 系列模型
@@ -1408,11 +1571,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-kolors",
     matchType: "modelPrefix",
     matchValue: "kolors",
-    iconPath: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+      group: "Kwai",
+    },
     priority: 20,
     enabled: true,
     description: "Kolors 系列模型图标",
-    groupName: "Kwai",
   },
   // Inclusion AI 系列模型
   {
@@ -1420,11 +1585,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     matchType: "modelPrefix",
     matchValue: "inclusionai|ling",
     useRegex: true,
-    iconPath: `${PRESET_ICONS_DIR}/ling.png`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/ling.png`,
+      group: "InclusionAI",
+    },
     priority: 20,
     enabled: true,
     description: "Inclusion AI (灵) 系列模型图标",
-    groupName: "InclusionAI",
   },
 
   // 字节跳动 Seed 系列模型
@@ -1433,11 +1600,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     matchType: "modelPrefix",
     matchValue: "bytedance-seed|seed-",
     useRegex: true,
-    iconPath: `${PRESET_ICONS_DIR}/bytedance-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/bytedance-color.svg`,
+      group: "ByteDance",
+    },
     priority: 20,
     enabled: true,
     description: "字节跳动 Seed 系列模型图标",
-    groupName: "ByteDance",
   },
 
   // 千问万象系列模型
@@ -1445,11 +1614,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-wan-ai",
     matchType: "modelPrefix",
     matchValue: "wan-ai",
-    iconPath: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      group: "Qwen",
+    },
     priority: 20,
     enabled: true,
     description: "千问万象系列模型图标",
-    groupName: "Qwen",
   },
 
   // StepFun 系列模型
@@ -1457,11 +1628,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-stepfun",
     matchType: "modelPrefix",
     matchValue: "stepfun",
-    iconPath: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+      group: "StepFun",
+    },
     priority: 20,
     enabled: true,
     description: "StepFun 系列模型图标",
-    groupName: "StepFun",
   },
 
   // 盘古系列模型
@@ -1469,11 +1642,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-pangu",
     matchType: "modelPrefix",
     matchValue: "pangu",
-    iconPath: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+      group: "Pangu",
+    },
     priority: 20,
     enabled: true,
     description: "盘古系列模型图标",
-    groupName: "Pangu",
   },
 
   // MOSS 系列模型
@@ -1481,11 +1656,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-moss",
     matchType: "modelPrefix",
     matchValue: "moss",
-    iconPath: `${PRESET_ICONS_DIR}/openmoss.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openmoss.svg`,
+      group: "MOSS",
+    },
     priority: 20,
     enabled: true,
     description: "MOSS 系列模型图标",
-    groupName: "MOSS",
   },
 
   // FunAudioLLM 系列模型
@@ -1494,11 +1671,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     matchType: "modelPrefix",
     matchValue: "cosyvoice|sensevoice",
     useRegex: true,
-    iconPath: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+      group: "FunAudioLLM",
+    },
     priority: 20,
     enabled: true,
     description: "FunAudioLLM 系列模型图标",
-    groupName: "FunAudioLLM",
   },
 
   // IndexTeam 系列模型
@@ -1506,11 +1685,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-indextts",
     matchType: "modelPrefix",
     matchValue: "indextts",
-    iconPath: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+      group: "IndexTeam",
+    },
     priority: 20,
     enabled: true,
     description: "IndexTTS 系列模型图标",
-    groupName: "IndexTeam",
   },
 
   // 网易有道 BCE 系列模型
@@ -1518,11 +1699,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-bce",
     matchType: "modelPrefix",
     matchValue: "bce-",
-    iconPath: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+      group: "Netease Youdao",
+    },
     priority: 20,
     enabled: true,
     description: "网易有道 BCE 系列模型图标",
-    groupName: "Netease Youdao",
   },
 
   // FishAudio 系列模型
@@ -1530,11 +1713,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-prefix-fish-speech",
     matchType: "modelPrefix",
     matchValue: "fish-speech",
-    iconPath: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+      group: "FishAudio",
+    },
     priority: 20,
     enabled: true,
     description: "FishAudio 系列模型图标",
-    groupName: "FishAudio",
   },
 
   // === 特定模型匹配（优先级 30） ===
@@ -1543,11 +1728,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-sora",
     matchType: "modelPrefix",
     matchValue: "sora",
-    iconPath: `${PRESET_ICONS_DIR}/sora-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/sora-color.svg`,
+      group: "OpenAI",
+    },
     priority: 30,
     enabled: true,
     description: "Sora 视频生成模型图标",
-    groupName: "OpenAI",
   },
 
   // 快手可灵视频生成
@@ -1555,11 +1742,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-kling",
     matchType: "modelPrefix",
     matchValue: "kling",
-    iconPath: `${PRESET_ICONS_DIR}/kling-color.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/kling-color.svg`,
+      group: "Kwai",
+    },
     priority: 30,
     enabled: true,
     description: "可灵视频生成模型图标",
-    groupName: "Kwai",
   },
 
   // Suno 音乐生成
@@ -1567,11 +1756,13 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     id: "model-suno",
     matchType: "modelPrefix",
     matchValue: "suno",
-    iconPath: `${PRESET_ICONS_DIR}/suno.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/suno.svg`,
+      group: "Suno",
+    },
     priority: 30,
     enabled: true,
     description: "Suno 音乐生成模型图标",
-    groupName: "Suno",
   },
 
   // Midjourney
@@ -1580,92 +1771,106 @@ export const DEFAULT_ICON_CONFIGS: ModelIconConfig[] = [
     matchType: "modelPrefix",
     matchValue: "midjourney|mj",
     useRegex: true,
-    iconPath: `${PRESET_ICONS_DIR}/midjourney.svg`,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/midjourney.svg`,
+      group: "Midjourney",
+    },
     priority: 30,
     enabled: true,
     description: "Midjourney 系列模型图标",
-    groupName: "Midjourney",
   },
 ];
 
 /**
- * 获取模型图标路径
+ * 获取匹配模型的元数据属性
  * @param modelId 模型 ID
  * @param provider 提供商
- * @param configs 图标配置列表（可选，默认使用内置配置）
- * @returns 图标路径或 undefined
+ * @param rules 元数据规则列表（可选，默认使用内置规则）
+ * @returns 匹配的元数据属性对象或 undefined
  */
-export function getModelIconPath(
+export function getMatchedModelProperties(
   modelId: string,
   provider?: string,
-  configs: ModelIconConfig[] = DEFAULT_ICON_CONFIGS
-): string | undefined {
-  // 过滤启用的配置并按优先级排序
-  const enabledConfigs = configs
-    .filter((c) => c.enabled !== false)
+  rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
+): ModelMetadataProperties | undefined {
+  // 过滤启用的规则并按优先级排序
+  const enabledRules = rules
+    .filter((r) => r.enabled !== false)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
-  for (const config of enabledConfigs) {
-    switch (config.matchType) {
+  for (const rule of enabledRules) {
+    let matched = false;
+
+    switch (rule.matchType) {
       case "model":
-        if (config.useRegex) {
+        if (rule.useRegex) {
           try {
-            const regex = new RegExp(config.matchValue);
-            if (regex.test(modelId)) {
-              return config.iconPath;
-            }
+            const regex = new RegExp(rule.matchValue);
+            matched = regex.test(modelId);
           } catch (e) {
-            // 正则表达式无效，跳过
             logger.warn("无效的正则表达式模式", {
-              configId: config.id,
-              matchValue: config.matchValue,
+              ruleId: rule.id,
+              matchValue: rule.matchValue,
               error: e instanceof Error ? e.message : String(e),
             });
           }
         } else {
-          if (modelId === config.matchValue) {
-            return config.iconPath;
-          }
+          matched = modelId === rule.matchValue;
         }
         break;
 
       case "modelPrefix":
-        if (config.useRegex) {
+        if (rule.useRegex) {
           try {
-            const regex = new RegExp(config.matchValue);
-            if (regex.test(modelId)) {
-              return config.iconPath;
-            }
+            const regex = new RegExp(rule.matchValue);
+            matched = regex.test(modelId);
           } catch (e) {
-            // 正则表达式无效，跳过
             logger.warn("无效的正则表达式模式", {
-              configId: config.id,
-              matchValue: config.matchValue,
+              ruleId: rule.id,
+              matchValue: rule.matchValue,
               error: e instanceof Error ? e.message : String(e),
             });
           }
         } else {
           // 对整个模型 ID 进行不区分大小写的包含匹配，以兼容 user/model-name 格式
-          if (modelId.toLowerCase().includes(config.matchValue.toLowerCase())) {
-            return config.iconPath;
-          }
+          matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
         }
         break;
 
       case "modelGroup":
-        // modelGroup 已废弃，分组功能通过 groupName 字段实现
-        // 保留此 case 以兼容旧配置
+        // modelGroup 已废弃，分组功能通过 properties.group 字段实现
+        // 保留此 case 以兼容旧规则
         break;
 
       case "provider":
-        if (provider && provider.toLowerCase() === config.matchValue.toLowerCase()) {
-          return config.iconPath;
+        if (provider && provider.toLowerCase() === rule.matchValue.toLowerCase()) {
+          matched = true;
         }
         break;
+    }
+
+    if (matched) {
+      return rule.properties;
     }
   }
 
   return undefined;
+}
+
+/**
+ * 获取模型图标路径（向后兼容函数）
+ * @param modelId 模型 ID
+ * @param provider 提供商
+ * @param rules 元数据规则列表（可选，默认使用内置规则）
+ * @returns 图标路径或 undefined
+ */
+export function getModelIconPath(
+  modelId: string,
+  provider?: string,
+  rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
+): string | undefined {
+  const properties = getMatchedModelProperties(modelId, provider, rules);
+  return properties?.icon;
 }
 
 /**

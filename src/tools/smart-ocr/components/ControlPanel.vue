@@ -19,7 +19,7 @@ import { useOcrRunner } from "../composables/useOcrRunner";
 import { useLlmProfiles } from "../../../composables/useLlmProfiles";
 import { useOcrProfiles } from "../../../composables/useOcrProfiles";
 import type { LlmProfile, LlmModelInfo } from "../../../types/llm-profiles";
-import { useModelIcons } from "../../../composables/useModelIcons";
+import { useModelMetadata } from "../../../composables/useModelMetadata";
 
 const props = defineProps<{
   engineConfig: OcrEngineConfig;
@@ -46,7 +46,7 @@ const { runOcr } = useOcrRunner();
 const { visionProfiles } = useLlmProfiles();
 const { enabledProfiles: ocrProfiles } = useOcrProfiles();
 // 使用统一的图标获取方法
-const { getModelIcon } = useModelIcons();
+const { getModelIcon } = useModelMetadata();
 
 // 辅助函数：更新引擎配置
 function updateEngineConfig(updates: Partial<OcrEngineConfig>) {

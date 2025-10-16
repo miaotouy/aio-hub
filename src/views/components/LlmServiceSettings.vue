@@ -449,6 +449,29 @@ const openProviderIconSelector = () => {
             </div>
           </div>
 
+          <!-- OpenAI Responses 格式 -->
+          <div class="preset-type-group">
+            <div class="preset-type-header">
+              <span class="preset-type-badge openai-responses">OpenAI Responses</span>
+              <span class="preset-type-desc">OpenAI 新一代有状态交互接口</span>
+            </div>
+            <div class="preset-grid">
+              <div v-for="preset in llmPresets.filter((p) => p.type === 'openai-responses')" :key="preset.name"
+                class="preset-card" @click="createFromPresetTemplate(preset)">
+                <div class="preset-icon">
+                  <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <DynamicIcon v-else-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!" :alt="preset.name" />
+                  <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Anthropic Claude 格式 -->
           <div class="preset-type-group">
             <div class="preset-type-header">
@@ -457,6 +480,52 @@ const openProviderIconSelector = () => {
             </div>
             <div class="preset-grid">
               <div v-for="preset in llmPresets.filter((p) => p.type === 'claude')" :key="preset.name"
+                class="preset-card" @click="createFromPresetTemplate(preset)">
+                <div class="preset-icon">
+                  <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <DynamicIcon v-else-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!" :alt="preset.name" />
+                  <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cohere 格式 -->
+          <div class="preset-type-group">
+            <div class="preset-type-header">
+              <span class="preset-type-badge cohere">Cohere</span>
+              <span class="preset-type-desc">Cohere API v2 企业级服务</span>
+            </div>
+            <div class="preset-grid">
+              <div v-for="preset in llmPresets.filter((p) => p.type === 'cohere')" :key="preset.name"
+                class="preset-card" @click="createFromPresetTemplate(preset)">
+                <div class="preset-icon">
+                  <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
+                  <DynamicIcon v-else-if="getProviderIconForPreset(preset.type)"
+                    :src="getProviderIconForPreset(preset.type)!" :alt="preset.name" />
+                  <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vertex AI 格式 -->
+          <div class="preset-type-group">
+            <div class="preset-type-header">
+              <span class="preset-type-badge vertexai">Vertex AI</span>
+              <span class="preset-type-desc">Google Cloud Vertex AI 企业级服务</span>
+            </div>
+            <div class="preset-grid">
+              <div v-for="preset in llmPresets.filter((p) => p.type === 'vertexai')" :key="preset.name"
                 class="preset-card" @click="createFromPresetTemplate(preset)">
                 <div class="preset-icon">
                   <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
@@ -655,6 +724,24 @@ const openProviderIconSelector = () => {
   background: var(--el-color-warning-light-8);
   color: var(--el-color-warning);
   border-color: var(--el-color-warning-light-5);
+}
+
+.preset-type-badge.openai-responses {
+  background: var(--el-color-info-light-8);
+  color: var(--el-color-info);
+  border-color: var(--el-color-info-light-5);
+}
+
+.preset-type-badge.cohere {
+  background: var(--el-color-danger-light-8);
+  color: var(--el-color-danger);
+  border-color: var(--el-color-danger-light-5);
+}
+
+.preset-type-badge.vertexai {
+  background: var(--el-color-success-light-8);
+  color: var(--el-color-success);
+  border-color: var(--el-color-success-light-5);
 }
 
 .preset-type-desc {

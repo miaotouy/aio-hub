@@ -6,19 +6,49 @@
  * LLM 服务提供商类型
  * 决定了请求体的格式
  */
-export type ProviderType = 'openai' | 'openai-responses' | 'gemini' | 'claude' | 'cohere' | 'huggingface' | 'vertexai';
+export type ProviderType =
+  | "openai"
+  | "openai-responses"
+  | "gemini"
+  | "claude"
+  | "cohere"
+  | "huggingface"
+  | "vertexai";
 
 /**
- /**
-  * LLM 参数支持定义
-  */
+ * LLM 参数支持定义
+ */
 export interface LlmParameterSupport {
+  // 基础参数
   temperature?: boolean;
   maxTokens?: boolean;
   topP?: boolean;
   topK?: boolean;
   frequencyPenalty?: boolean;
   presencePenalty?: boolean;
+  seed?: boolean;
+  stop?: boolean;
+
+  // 高级参数
+  maxCompletionTokens?: boolean;
+  reasoningEffort?: boolean;
+  logprobs?: boolean;
+  topLogprobs?: boolean;
+  responseFormat?: boolean;
+  tools?: boolean;
+  toolChoice?: boolean;
+  parallelToolCalls?: boolean;
+
+  // 特殊功能
+  thinking?: boolean; // Claude 思考模式
+  thinkingConfig?: boolean; // Gemini 思考配置
+  webSearch?: boolean; // 网络搜索
+  fileSearch?: boolean; // 文件搜索
+  reasoning?: boolean; // 推理模式
+  codeExecution?: boolean; // 代码执行
+  modalities?: boolean; // 多模态输出
+  audio?: boolean; // 音频输出
+  prediction?: boolean; // 预测输出
 }
 
 /**
@@ -68,6 +98,10 @@ export interface LlmModelInfo {
     codeExecution?: boolean;
     /** 是否支持思考模式 */
     thinking?: boolean;
+    /** 是否支持文件搜索 */
+    fileSearch?: boolean;
+    /** 是否支持推理模式 */
+    reasoning?: boolean;
   };
   /**
    * Token 限制信息（可选）

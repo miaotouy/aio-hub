@@ -84,6 +84,10 @@ export const useAgentStore = defineStore('llmChatAgent', {
         parameters: {
           temperature: options?.parameters?.temperature ?? 0.7,
           maxTokens: options?.parameters?.maxTokens ?? 4096,
+          topP: options?.parameters?.topP,
+          topK: options?.parameters?.topK,
+          frequencyPenalty: options?.parameters?.frequencyPenalty,
+          presencePenalty: options?.parameters?.presencePenalty,
         },
         createdAt: now,
         isBuiltIn: false,
@@ -220,6 +224,10 @@ export const useAgentStore = defineStore('llmChatAgent', {
           parameters: {
             temperature: 0.7,
             maxTokens: 4096,
+            topP: undefined,
+            topK: undefined,
+            frequencyPenalty: undefined,
+            presencePenalty: undefined,
           },
         }
       );
@@ -254,6 +262,10 @@ export const useAgentStore = defineStore('llmChatAgent', {
         parameters: {
           temperature: overrides?.parameterOverrides?.temperature ?? agent.parameters.temperature,
           maxTokens: overrides?.parameterOverrides?.maxTokens ?? agent.parameters.maxTokens,
+          topP: overrides?.parameterOverrides?.topP ?? agent.parameters.topP,
+          topK: overrides?.parameterOverrides?.topK ?? agent.parameters.topK,
+          frequencyPenalty: overrides?.parameterOverrides?.frequencyPenalty ?? agent.parameters.frequencyPenalty,
+          presencePenalty: overrides?.parameterOverrides?.presencePenalty ?? agent.parameters.presencePenalty,
         },
       };
     },

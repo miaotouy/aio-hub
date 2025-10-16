@@ -3,8 +3,9 @@
  */
 
 import { ref, computed } from 'vue';
-import type { LlmProfile } from '../types/llm-profiles';
+import type { LlmProfile, LlmParameterSupport, ProviderType } from '../types/llm-profiles';
 import type { LlmPreset } from '../config/llm-providers';
+import { providerTypes } from '../config/llm-providers';
 import { createConfigManager } from '@utils/configManager';
 import { createModuleLogger } from '@utils/logger';
 
@@ -221,6 +222,24 @@ export function useLlmProfiles() {
     };
   };
 
+  /**
+   * 获取指定渠道类型支持的参数
+   */
+  const getSupportedParameters = (providerType: ProviderType): LlmParameterSupport => {
+    const provider = providerTypes.find(p => p.type === providerType);
+    
+    // 如果找到了配置且定义了支持的参数，返回配置的参数
+    if (provider?.supportedParameters) {
+      return provider.supportedParameters;
+    }
+    
+    // 否则返回默认基本参数（保证向后兼容）
+    return {
+      temperature: true,
+      maxTokens: true,
+    };
+  };
+
   // 如果还未加载,自动加载
   if (!isLoaded.value) {
     loadProfiles();
@@ -238,5 +257,6 @@ export function useLlmProfiles() {
     toggleProfileEnabled,
     generateId,
     createFromPreset,
+    getSupportedParameters,
   };
 }

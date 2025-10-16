@@ -149,6 +149,10 @@ export interface ChatSession {
 export interface LlmParameters {
   temperature: number;
   maxTokens: number;
+  topP?: number;
+  topK?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
 }
 
 /**

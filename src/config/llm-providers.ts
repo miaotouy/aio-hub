@@ -15,6 +15,13 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: "https://api.openai.com",
     supportsModelList: true,
     modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+    },
   },
   {
     type: "openai-responses",
@@ -23,6 +30,13 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: "https://api.openai.com",
     supportsModelList: true,
     modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+    },
   },
   {
     type: "gemini",
@@ -31,6 +45,12 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: "https://generativelanguage.googleapis.com",
     supportsModelList: true,
     modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      topK: true,
+    },
   },
   {
     type: "claude",
@@ -39,6 +59,12 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: "https://api.anthropic.com",
     supportsModelList: true,
     modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      topK: true,
+    },
   },
   {
     type: "cohere",
@@ -47,6 +73,13 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: "https://api.cohere.com",
     supportsModelList: true,
     modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+    },
   },
   {
     type: "vertexai",
@@ -55,6 +88,12 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: "https://us-central1-aiplatform.googleapis.com",
     supportsModelList: true,
     modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      topK: true,
+    },
   },
 ];
 /**

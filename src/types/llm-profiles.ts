@@ -9,6 +9,19 @@
 export type ProviderType = 'openai' | 'openai-responses' | 'gemini' | 'claude' | 'cohere' | 'huggingface' | 'vertexai';
 
 /**
+ /**
+  * LLM 参数支持定义
+  */
+export interface LlmParameterSupport {
+  temperature?: boolean;
+  maxTokens?: boolean;
+  topP?: boolean;
+  topK?: boolean;
+  frequencyPenalty?: boolean;
+  presencePenalty?: boolean;
+}
+
+/**
  * 服务提供商类型的显示信息
  */
 export interface ProviderTypeInfo {
@@ -18,8 +31,8 @@ export interface ProviderTypeInfo {
   defaultBaseUrl: string;
   supportsModelList: boolean; // 是否支持从 API 自动获取模型列表
   modelListEndpoint?: string; // 模型列表端点（相对路径）
+  supportedParameters?: LlmParameterSupport; // 支持的参数类型
 }
-
 /**
  * 单个模型的信息
  */

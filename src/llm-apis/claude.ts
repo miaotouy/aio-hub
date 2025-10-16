@@ -460,8 +460,8 @@ export const callClaudeApi = async (
   if (options.stopSequences && options.stopSequences.length > 0) {
     body.stop_sequences = options.stopSequences;
   }
-  if (options.metadata) {
-    body.metadata = options.metadata;
+  if (options.claudeMetadata) {
+    body.metadata = options.claudeMetadata;
   }
   if (options.thinking) {
     body.thinking = options.thinking;

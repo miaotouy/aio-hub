@@ -95,6 +95,48 @@ export interface LlmRequestOptions {
   streamOptions?: {
     includeUsage?: boolean;
   };
+  /** 用户标识符 */
+  user?: string;
+  /** 标记偏差配置 */
+  logitBias?: Record<string, number>;
+  /** 补全中可生成的最大标记数（替代 maxTokens） */
+  maxCompletionTokens?: number;
+  /** 是否存储输出用于模型蒸馏 */
+  store?: boolean;
+  /** o系列模型的推理工作约束 */
+  reasoningEffort?: "low" | "medium" | "high";
+  /** 元数据键值对 */
+  metadata?: Record<string, string>;
+  /** 输出模态类型 */
+  modalities?: Array<"text" | "audio">;
+  /** 预测输出配置 */
+  prediction?: {
+    type: "content";
+    content: string | Array<{
+      type: "text";
+      text: string;
+    }>;
+  };
+  /** 音频输出参数 */
+  audio?: {
+    voice: "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer";
+    format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
+  };
+  /** 服务层级 */
+  serviceTier?: "auto" | "default" | "flex";
+  /** 网络搜索选项 */
+  webSearchOptions?: {
+    searchContextSize?: "low" | "medium" | "high";
+    userLocation?: {
+      approximate: {
+        city?: string;
+        country?: string;
+        region?: string;
+        timezone?: string;
+        type: "approximate";
+      };
+    };
+  };
   
   // ===== Claude 特有参数 =====
   /** Claude: Thinking 模式配置 */
@@ -104,8 +146,8 @@ export interface LlmRequestOptions {
   };
   /** Claude: 停止序列 */
   stopSequences?: string[];
-  /** Claude: 元数据 */
-  metadata?: {
+  /** Claude: 元数据（用户ID等） */
+  claudeMetadata?: {
     user_id?: string;
   };
   /** Claude: 消息历史（用于多轮对话） */
@@ -124,6 +166,18 @@ export interface LlmResponse {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    /** 提示token详细信息 */
+    promptTokensDetails?: {
+      cachedTokens?: number;
+      audioTokens?: number;
+    };
+    /** 完成token详细信息 */
+    completionTokensDetails?: {
+      reasoningTokens?: number;
+      audioTokens?: number;
+      acceptedPredictionTokens?: number;
+      rejectedPredictionTokens?: number;
+    };
   };
   /** 是否为流式响应 */
   isStream?: boolean;
@@ -154,9 +208,41 @@ export interface LlmResponse {
         bytes: number[] | null;
       }>;
     }> | null;
+    /** 拒绝的logprobs信息 */
+    refusal?: Array<{
+      token: string;
+      logprob: number;
+      bytes: number[] | null;
+      topLogprobs: Array<{
+        token: string;
+        logprob: number;
+        bytes: number[] | null;
+      }>;
+    }> | null;
   };
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
+  /** 消息注释（如网络搜索的URL引用） */
+  annotations?: Array<{
+    type: "url_citation";
+    urlCitation: {
+      startIndex: number;
+      endIndex: number;
+      url: string;
+      title: string;
+    };
+  }>;
+  /** 音频响应数据 */
+  audio?: {
+    id: string;
+    data: string;
+    transcript: string;
+    expiresAt: number;
+  };
+  /** 系统指纹 */
+  systemFingerprint?: string;
+  /** 使用的服务层级 */
+  serviceTier?: string;
 }
 
 /**

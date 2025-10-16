@@ -56,9 +56,17 @@ export const callOpenAiCompatibleApi = async (
   const body: any = {
     model: options.modelId,
     messages,
-    max_tokens: options.maxTokens || 4000,
     temperature: options.temperature ?? 0.5,
   };
+
+  // max_tokens 和 max_completion_tokens（优先使用新参数）
+  if (options.maxCompletionTokens !== undefined) {
+    body.max_completion_tokens = options.maxCompletionTokens;
+  } else if (options.maxTokens !== undefined) {
+    body.max_tokens = options.maxTokens;
+  } else {
+    body.max_tokens = 4000;
+  }
 
   // 添加可选的高级参数
   if (options.topP !== undefined) {
@@ -96,6 +104,39 @@ export const callOpenAiCompatibleApi = async (
   }
   if (options.parallelToolCalls !== undefined) {
     body.parallel_tool_calls = options.parallelToolCalls;
+  }
+  if (options.user !== undefined) {
+    body.user = options.user;
+  }
+  if (options.logitBias !== undefined) {
+    body.logit_bias = options.logitBias;
+  }
+  if (options.store !== undefined) {
+    body.store = options.store;
+  }
+  if (options.reasoningEffort !== undefined) {
+    body.reasoning_effort = options.reasoningEffort;
+  }
+  if (options.metadata !== undefined) {
+    body.metadata = options.metadata;
+  }
+  if (options.modalities !== undefined) {
+    body.modalities = options.modalities;
+  }
+  if (options.prediction !== undefined) {
+    body.prediction = options.prediction;
+  }
+  if (options.audio !== undefined) {
+    body.audio = options.audio;
+  }
+  if (options.serviceTier !== undefined) {
+    body.service_tier = options.serviceTier;
+  }
+  if (options.webSearchOptions !== undefined) {
+    body.web_search_options = options.webSearchOptions;
+  }
+  if (options.streamOptions !== undefined) {
+    body.stream_options = options.streamOptions;
   }
 
   // 如果启用流式响应
@@ -150,6 +191,16 @@ export const callOpenAiCompatibleApi = async (
             promptTokens: json.usage.prompt_tokens,
             completionTokens: json.usage.completion_tokens,
             totalTokens: json.usage.total_tokens,
+            promptTokensDetails: json.usage.prompt_tokens_details ? {
+              cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+              audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+            } : undefined,
+            completionTokensDetails: json.usage.completion_tokens_details ? {
+              reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
+              audioTokens: json.usage.completion_tokens_details.audio_tokens,
+              acceptedPredictionTokens: json.usage.completion_tokens_details.accepted_prediction_tokens,
+              rejectedPredictionTokens: json.usage.completion_tokens_details.rejected_prediction_tokens,
+            } : undefined,
           };
         }
       } catch {
@@ -192,19 +243,57 @@ export const callOpenAiCompatibleApi = async (
 
   const message = choice.message;
   
+  // 提取注释信息（如网络搜索的URL引用）
+  const annotations = message?.annotations?.map((ann: any) => ({
+    type: "url_citation" as const,
+    urlCitation: {
+      startIndex: ann.url_citation?.start_index,
+      endIndex: ann.url_citation?.end_index,
+      url: ann.url_citation?.url,
+      title: ann.url_citation?.title,
+    },
+  }));
+
+  // 提取音频信息
+  const audio = message?.audio ? {
+    id: message.audio.id,
+    data: message.audio.data,
+    transcript: message.audio.transcript,
+    expiresAt: message.audio.expires_at,
+  } : undefined;
+
+  // 处理 logprobs（包括 refusal）
+  const logprobs = choice.logprobs ? {
+    content: choice.logprobs.content,
+    refusal: choice.logprobs.refusal,
+  } : undefined;
+
+  // 构建 usage 信息
+  const usage = data.usage ? {
+    promptTokens: data.usage.prompt_tokens,
+    completionTokens: data.usage.completion_tokens,
+    totalTokens: data.usage.total_tokens,
+    promptTokensDetails: data.usage.prompt_tokens_details ? {
+      cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
+      audioTokens: data.usage.prompt_tokens_details.audio_tokens,
+    } : undefined,
+    completionTokensDetails: data.usage.completion_tokens_details ? {
+      reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
+      audioTokens: data.usage.completion_tokens_details.audio_tokens,
+      acceptedPredictionTokens: data.usage.completion_tokens_details.accepted_prediction_tokens,
+      rejectedPredictionTokens: data.usage.completion_tokens_details.rejected_prediction_tokens,
+    } : undefined,
+  } : undefined;
+  
   // 如果有拒绝消息，优先返回拒绝消息
   if (message?.refusal) {
     return {
       content: "",
       refusal: message.refusal,
       finishReason: choice.finish_reason,
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-            totalTokens: data.usage.total_tokens,
-          }
-        : undefined,
+      systemFingerprint: data.system_fingerprint,
+      serviceTier: data.service_tier,
+      usage,
     };
   }
 
@@ -214,13 +303,11 @@ export const callOpenAiCompatibleApi = async (
     refusal: message?.refusal || null,
     finishReason: choice.finish_reason,
     toolCalls: message?.tool_calls,
-    logprobs: choice.logprobs,
-    usage: data.usage
-      ? {
-          promptTokens: data.usage.prompt_tokens,
-          completionTokens: data.usage.completion_tokens,
-          totalTokens: data.usage.total_tokens,
-        }
-      : undefined,
+    logprobs,
+    annotations,
+    audio,
+    systemFingerprint: data.system_fingerprint,
+    serviceTier: data.service_tier,
+    usage,
   };
 };

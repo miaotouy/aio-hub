@@ -36,6 +36,8 @@ export interface LlmRequestOptions {
   timeout?: number;
   /** 最大重试次数，默认 3 */
   maxRetries?: number;
+  /** 用于中止请求的 AbortSignal */
+  signal?: AbortSignal;
 }
 
 /**
@@ -64,7 +66,8 @@ export const fetchWithRetry = async (
   url: string,
   options: RequestInit,
   maxRetries: number = DEFAULT_MAX_RETRIES,
-  timeout: number = DEFAULT_TIMEOUT
+  timeout: number = DEFAULT_TIMEOUT,
+  externalSignal?: AbortSignal
 ): Promise<Response> => {
   let lastError: Error | null = null;
 
@@ -73,12 +76,22 @@ export const fetchWithRetry = async (
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+      // 如果外部信号已经中止，立即抛出错误
+      if (externalSignal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+
+      // 监听外部中止信号
+      const externalAbortHandler = () => controller.abort();
+      externalSignal?.addEventListener('abort', externalAbortHandler);
+
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', externalAbortHandler);
 
       // 如果是 4xx 错误，不重试
       if (response.status >= 400 && response.status < 500) {

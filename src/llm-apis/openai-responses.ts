@@ -65,7 +65,8 @@ export const callOpenAiResponsesApi = async (
         body: JSON.stringify(body),
       },
       options.maxRetries,
-      options.timeout
+      options.timeout,
+      options.signal
     );
 
     if (!response.ok) {

@@ -69,7 +69,8 @@ export const callGeminiApi = async (
         body: JSON.stringify(body),
       },
       options.maxRetries,
-      options.timeout
+      options.timeout,
+      options.signal
     );
 
     if (!response.ok) {
@@ -83,6 +84,7 @@ export const callGeminiApi = async (
 
     const reader = response.body.getReader();
     let fullContent = "";
+    let usage: LlmResponse['usage'] | undefined;
 
     await parseSSEStream(reader, (data) => {
       const text = extractTextFromSSE(data, "gemini");
@@ -90,10 +92,25 @@ export const callGeminiApi = async (
         fullContent += text;
         options.onStream!(text);
       }
+      
+      // 尝试从流数据中提取 usage 信息（Gemini 在响应中包含 usageMetadata）
+      try {
+        const json = JSON.parse(data);
+        if (json.usageMetadata) {
+          usage = {
+            promptTokens: json.usageMetadata.promptTokenCount || 0,
+            completionTokens: json.usageMetadata.candidatesTokenCount || 0,
+            totalTokens: json.usageMetadata.totalTokenCount || 0,
+          };
+        }
+      } catch {
+        // 忽略非 JSON 数据
+      }
     });
 
     return {
       content: fullContent,
+      usage,
       isStream: true,
     };
   }

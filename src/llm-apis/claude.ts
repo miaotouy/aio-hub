@@ -68,7 +68,8 @@ export const callClaudeApi = async (
         body: JSON.stringify(body),
       },
       options.maxRetries,
-      options.timeout
+      options.timeout,
+      options.signal
     );
 
     if (!response.ok) {
@@ -82,6 +83,7 @@ export const callClaudeApi = async (
 
     const reader = response.body.getReader();
     let fullContent = "";
+    let usage: LlmResponse['usage'] | undefined;
 
     await parseSSEStream(reader, (data) => {
       const text = extractTextFromSSE(data, "claude");
@@ -89,10 +91,32 @@ export const callClaudeApi = async (
         fullContent += text;
         options.onStream!(text);
       }
+      
+      // 尝试从流数据中提取 usage 信息（Claude 在消息结束事件中发送 usage）
+      try {
+        const json = JSON.parse(data);
+        if (json.type === 'message_stop' && json.message?.usage) {
+          usage = {
+            promptTokens: json.message.usage.input_tokens,
+            completionTokens: json.message.usage.output_tokens,
+            totalTokens: json.message.usage.input_tokens + json.message.usage.output_tokens,
+          };
+        } else if (json.usage) {
+          // 某些 Claude 响应直接在顶层包含 usage
+          usage = {
+            promptTokens: json.usage.input_tokens,
+            completionTokens: json.usage.output_tokens,
+            totalTokens: json.usage.input_tokens + json.usage.output_tokens,
+          };
+        }
+      } catch {
+        // 忽略非 JSON 数据
+      }
     });
 
     return {
       content: fullContent,
+      usage,
       isStream: true,
     };
   }

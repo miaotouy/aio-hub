@@ -72,7 +72,8 @@ export const callOpenAiCompatibleApi = async (
         body: JSON.stringify(body),
       },
       options.maxRetries,
-      options.timeout
+      options.timeout,
+      options.signal
     );
 
     if (!response.ok) {
@@ -87,6 +88,7 @@ export const callOpenAiCompatibleApi = async (
 
     const reader = response.body.getReader();
     let fullContent = "";
+    let usage: LlmResponse['usage'] | undefined;
 
     await parseSSEStream(reader, (data) => {
       const text = extractTextFromSSE(data, "openai");
@@ -94,10 +96,25 @@ export const callOpenAiCompatibleApi = async (
         fullContent += text;
         options.onStream!(text);
       }
+      
+      // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
+      try {
+        const json = JSON.parse(data);
+        if (json.usage) {
+          usage = {
+            promptTokens: json.usage.prompt_tokens,
+            completionTokens: json.usage.completion_tokens,
+            totalTokens: json.usage.total_tokens,
+          };
+        }
+      } catch {
+        // 忽略非 JSON 数据
+      }
     });
 
     return {
       content: fullContent,
+      usage,
       isStream: true,
     };
   }

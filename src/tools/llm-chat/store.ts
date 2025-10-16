@@ -312,6 +312,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           temperature: agentConfig.parameters.temperature,
           maxTokens: agentConfig.parameters.maxTokens,
           stream: true,
+          signal: this.abortController.signal,
           onStream: (chunk: string) => {
             // 流式更新助手消息
             assistantNode.content += chunk;

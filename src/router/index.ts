@@ -72,6 +72,11 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("../tools/smart-ocr/SmartOcr.vue"),
   },
   {
+    path: "/llm-chat",
+    name: "LlmChat",
+    component: () => import("../tools/llm-chat/LlmChat.vue"),
+  },
+  {
     path: "/settings",
     name: "Settings",
     component: () => import("../views/Settings.vue"),

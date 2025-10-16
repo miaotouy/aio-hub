@@ -6,6 +6,7 @@ import {
   Setting,
   Rank,
   Monitor,
+  ChatDotRound,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
@@ -93,5 +94,11 @@ export const toolsConfig: ToolConfig[] = [
     path: '/smart-ocr',
     icon: markRaw(OcrIcon),
     description: '智能OCR文字识别工具，支持多引擎和智能切图'
+  },
+  {
+    name: 'LLM 对话',
+    path: '/llm-chat',
+    icon: markRaw(ChatDotRound),
+    description: '与 LLM 进行多轮对话，支持流式响应和会话管理'
   }
 ];

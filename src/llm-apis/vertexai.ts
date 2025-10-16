@@ -139,7 +139,7 @@ function buildVertexAiParts(messages: LlmMessageContent[]): VertexAiPart[] {
   for (const imagePart of parsed.imageParts) {
     parts.push({
       inlineData: {
-        mimeType: inferImageMimeType(imagePart.base64),
+        mimeType: imagePart.mimeType || inferImageMimeType(imagePart.base64),
         data: imagePart.base64,
       },
     });
@@ -278,7 +278,7 @@ function buildClaudeMessages(
             type: "image",
             source: {
               type: "base64",
-              media_type: inferImageMimeType(imagePart.base64),
+              media_type: imagePart.mimeType || inferImageMimeType(imagePart.base64),
               data: imagePart.base64,
             },
           });
@@ -306,7 +306,7 @@ function buildClaudeMessages(
         type: "image",
         source: {
           type: "base64",
-          media_type: inferImageMimeType(imagePart.base64),
+          media_type: imagePart.mimeType || inferImageMimeType(imagePart.base64),
           data: imagePart.base64,
         },
       });

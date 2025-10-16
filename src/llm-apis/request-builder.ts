@@ -1,9 +1,9 @@
 /**
  * LLM API 请求构建辅助模块
- * 
+ *
  * 该模块包含用于将内部统一的 LlmRequestOptions 格式转换为
  * 各个 LLM API 提供商特定格式的通用辅助函数。
- * 
+ *
  * 设计原则：
  * - 提取通用逻辑，减少代码重复
  * - 保持灵活性，各 API 模块可根据需要进一步定制
@@ -46,13 +46,11 @@ export interface ParsedMessageContent {
 /**
  * 解析消息内容数组
  * 将 LlmMessageContent[] 解析为分类的各个部分
- * 
+ *
  * @param messages - 要解析的消息内容数组
  * @returns 解析后的消息内容结构
  */
-export function parseMessageContents(
-  messages: LlmMessageContent[]
-): ParsedMessageContent {
+export function parseMessageContents(messages: LlmMessageContent[]): ParsedMessageContent {
   const result: ParsedMessageContent = {
     textParts: [],
     imageParts: [],
@@ -73,7 +71,7 @@ export function parseMessageContents(
         if (msg.imageBase64) {
           result.imageParts.push({
             base64: msg.imageBase64,
-            mimeType: "image/png", // 默认，调用方可以覆盖
+            mimeType: inferImageMimeType(msg.imageBase64), // 自动推断 MIME 类型
           });
         }
         break;
@@ -124,7 +122,7 @@ export interface CommonToolDefinition {
 
 /**
  * 从 LlmRequestOptions 中提取工具定义
- * 
+ *
  * @param tools - LlmRequestOptions 中的工具数组
  * @returns 标准化的工具定义数组，如果没有工具则返回 undefined
  */
@@ -163,13 +161,11 @@ export interface CommonParameters {
 
 /**
  * 从 LlmRequestOptions 中提取通用参数
- * 
+ *
  * @param options - LLM 请求选项
  * @returns 标准化的通用参数对象
  */
-export function extractCommonParameters(
-  options: LlmRequestOptions
-): CommonParameters {
+export function extractCommonParameters(options: LlmRequestOptions): CommonParameters {
   const params: CommonParameters = {};
 
   if (options.temperature !== undefined) {
@@ -208,7 +204,7 @@ export type ToolChoiceType = "auto" | "none" | "required" | { functionName: stri
 /**
  * 解析工具选择策略
  * 将 LlmRequestOptions.toolChoice 转换为标准化格式
- * 
+ *
  * @param toolChoice - LlmRequestOptions 中的工具选择策略
  * @returns 标准化的工具选择类型
  */
@@ -233,7 +229,7 @@ export function parseToolChoice(
 /**
  * 合并对话历史和当前消息
  * 这是许多 API 都需要的常见操作
- * 
+ *
  * @param currentMessages - 当前要发送的消息
  * @param conversationHistory - 对话历史
  * @returns 合并后的完整消息数组
@@ -272,15 +268,12 @@ export function mergeConversationHistory(
 /**
  * 推断图片的 MIME 类型
  * 基于 base64 数据头或文件扩展名
- * 
+ *
  * @param base64Data - base64 编码的图片数据
  * @param fileExt - 可选的文件扩展名
  * @returns MIME 类型字符串
  */
-export function inferImageMimeType(
-  base64Data?: string,
-  fileExt?: string
-): string {
+export function inferImageMimeType(base64Data?: string, fileExt?: string): string {
   // 根据文件扩展名推测
   if (fileExt) {
     const extMap: Record<string, string> = {
@@ -306,4 +299,61 @@ export function inferImageMimeType(
   }
 
   return "image/png"; // 默认
+}
+
+/**
+ * 推断媒体的 MIME 类型（支持图片、音频、视频、文档）
+ * 基于 base64 数据头或文件扩展名
+ * 这是 inferImageMimeType 的扩展版本，支持更多媒体类型
+ *
+ * @param base64Data - base64 编码的媒体数据
+ * @param fileExt - 可选的文件扩展名
+ * @returns MIME 类型字符串
+ */
+export function inferMediaMimeType(base64Data?: string, fileExt?: string): string {
+  // 首先尝试推断图片类型
+  const imageMimeType = inferImageMimeType(base64Data, fileExt);
+
+  // 如果不是默认的 image/png，说明已经成功识别了图片类型
+  if (imageMimeType !== "image/png" || !fileExt) {
+    return imageMimeType;
+  }
+
+  // 扩展支持音频、视频等其他媒体类型
+  if (fileExt) {
+    const extMap: Record<string, string> = {
+      // 音频
+      mp3: "audio/mpeg",
+      wav: "audio/wav",
+      ogg: "audio/ogg",
+      aac: "audio/aac",
+      flac: "audio/flac",
+      // 视频
+      mp4: "video/mp4",
+      mpeg: "video/mpeg",
+      mov: "video/quicktime",
+      avi: "video/x-msvideo",
+      webm: "video/webm",
+      // 文档
+      pdf: "application/pdf",
+    };
+    const ext = fileExt.toLowerCase().replace(".", "");
+    if (extMap[ext]) return extMap[ext];
+  }
+
+  // 如果都没匹配到，返回默认值
+  return imageMimeType;
+}
+
+/**
+ * 构建 Base64 Data URL
+ * 将 base64 数据和 MIME 类型组合成标准的 Data URL 格式
+ *
+ * @param base64Data - base64 编码的数据
+ * @param mimeType - MIME 类型，如果未提供则自动推断
+ * @returns Data URL 字符串，格式为 "data:mimeType;base64,data"
+ */
+export function buildBase64DataUrl(base64Data: string, mimeType?: string): string {
+  const finalMimeType = mimeType || inferImageMimeType(base64Data);
+  return `data:${finalMimeType};base64,${base64Data}`;
 }

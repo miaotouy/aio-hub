@@ -3,7 +3,11 @@ import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
-import { parseMessageContents, extractCommonParameters } from "./request-builder";
+import {
+  parseMessageContents,
+  extractCommonParameters,
+  buildBase64DataUrl,
+} from "./request-builder";
 
 /**
  * 调用 Cohere API
@@ -43,11 +47,10 @@ export const callCohereApi = async (
 
     // 添加图像部分
     for (const img of parsed.imageParts) {
-      const mimeType = img.mimeType || "image/png";
       userContent.push({
         type: "image_url",
         image_url: {
-          url: `data:${mimeType};base64,${img.base64}`,
+          url: buildBase64DataUrl(img.base64, img.mimeType),
         },
       });
     }

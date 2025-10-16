@@ -3,7 +3,11 @@ import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
-import { parseMessageContents, extractCommonParameters } from "./request-builder";
+import {
+  parseMessageContents,
+  extractCommonParameters,
+  buildBase64DataUrl,
+} from "./request-builder";
 
 /**
  * 调用 OpenAI 兼容格式的 API
@@ -36,7 +40,7 @@ export const callOpenAiCompatibleApi = async (
     messageContent.push({
       type: "image_url",
       image_url: {
-        url: `data:image/png;base64,${imagePart.base64}`,
+        url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
       },
     });
   }
@@ -177,7 +181,7 @@ export const callOpenAiCompatibleApi = async (
     const reader = response.body.getReader();
     let fullContent = "";
     let fullReasoningContent = "";
-    let usage: LlmResponse['usage'] | undefined;
+    let usage: LlmResponse["usage"] | undefined;
 
     await parseSSEStream(reader, (data) => {
       const text = extractTextFromSSE(data, "openai");
@@ -185,13 +189,13 @@ export const callOpenAiCompatibleApi = async (
         fullContent += text;
         options.onStream!(text);
       }
-      
+
       // 提取推理内容（DeepSeek reasoning）
       const reasoningText = extractReasoningFromSSE(data, "openai");
       if (reasoningText) {
         fullReasoningContent += reasoningText;
       }
-      
+
       // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
       try {
         const json = JSON.parse(data);
@@ -200,16 +204,22 @@ export const callOpenAiCompatibleApi = async (
             promptTokens: json.usage.prompt_tokens,
             completionTokens: json.usage.completion_tokens,
             totalTokens: json.usage.total_tokens,
-            promptTokensDetails: json.usage.prompt_tokens_details ? {
-              cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
-              audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-            } : undefined,
-            completionTokensDetails: json.usage.completion_tokens_details ? {
-              reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
-              audioTokens: json.usage.completion_tokens_details.audio_tokens,
-              acceptedPredictionTokens: json.usage.completion_tokens_details.accepted_prediction_tokens,
-              rejectedPredictionTokens: json.usage.completion_tokens_details.rejected_prediction_tokens,
-            } : undefined,
+            promptTokensDetails: json.usage.prompt_tokens_details
+              ? {
+                  cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+                  audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+                }
+              : undefined,
+            completionTokensDetails: json.usage.completion_tokens_details
+              ? {
+                  reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
+                  audioTokens: json.usage.completion_tokens_details.audio_tokens,
+                  acceptedPredictionTokens:
+                    json.usage.completion_tokens_details.accepted_prediction_tokens,
+                  rejectedPredictionTokens:
+                    json.usage.completion_tokens_details.rejected_prediction_tokens,
+                }
+              : undefined,
           };
         }
       } catch {
@@ -251,7 +261,7 @@ export const callOpenAiCompatibleApi = async (
   }
 
   const message = choice.message;
-  
+
   // 提取注释信息（如网络搜索的URL引用）
   const annotations = message?.annotations?.map((ann: any) => ({
     type: "url_citation" as const,
@@ -264,36 +274,48 @@ export const callOpenAiCompatibleApi = async (
   }));
 
   // 提取音频信息
-  const audio = message?.audio ? {
-    id: message.audio.id,
-    data: message.audio.data,
-    transcript: message.audio.transcript,
-    expiresAt: message.audio.expires_at,
-  } : undefined;
+  const audio = message?.audio
+    ? {
+        id: message.audio.id,
+        data: message.audio.data,
+        transcript: message.audio.transcript,
+        expiresAt: message.audio.expires_at,
+      }
+    : undefined;
 
   // 处理 logprobs（包括 refusal）
-  const logprobs = choice.logprobs ? {
-    content: choice.logprobs.content,
-    refusal: choice.logprobs.refusal,
-  } : undefined;
+  const logprobs = choice.logprobs
+    ? {
+        content: choice.logprobs.content,
+        refusal: choice.logprobs.refusal,
+      }
+    : undefined;
 
   // 构建 usage 信息
-  const usage = data.usage ? {
-    promptTokens: data.usage.prompt_tokens,
-    completionTokens: data.usage.completion_tokens,
-    totalTokens: data.usage.total_tokens,
-    promptTokensDetails: data.usage.prompt_tokens_details ? {
-      cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
-      audioTokens: data.usage.prompt_tokens_details.audio_tokens,
-    } : undefined,
-    completionTokensDetails: data.usage.completion_tokens_details ? {
-      reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
-      audioTokens: data.usage.completion_tokens_details.audio_tokens,
-      acceptedPredictionTokens: data.usage.completion_tokens_details.accepted_prediction_tokens,
-      rejectedPredictionTokens: data.usage.completion_tokens_details.rejected_prediction_tokens,
-    } : undefined,
-  } : undefined;
-  
+  const usage = data.usage
+    ? {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+        promptTokensDetails: data.usage.prompt_tokens_details
+          ? {
+              cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
+              audioTokens: data.usage.prompt_tokens_details.audio_tokens,
+            }
+          : undefined,
+        completionTokensDetails: data.usage.completion_tokens_details
+          ? {
+              reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
+              audioTokens: data.usage.completion_tokens_details.audio_tokens,
+              acceptedPredictionTokens:
+                data.usage.completion_tokens_details.accepted_prediction_tokens,
+              rejectedPredictionTokens:
+                data.usage.completion_tokens_details.rejected_prediction_tokens,
+            }
+          : undefined,
+      }
+    : undefined;
+
   // 如果有拒绝消息，优先返回拒绝消息
   if (message?.refusal) {
     return {

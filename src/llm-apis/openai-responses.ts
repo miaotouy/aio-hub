@@ -3,7 +3,11 @@ import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream } from "@utils/sse-parser";
-import { parseMessageContents, extractCommonParameters } from "./request-builder";
+import {
+  parseMessageContents,
+  extractCommonParameters,
+  buildBase64DataUrl,
+} from "./request-builder";
 
 /**
  * 调用 OpenAI Responses API
@@ -28,7 +32,7 @@ export const callOpenAiResponsesApi = async (
 
   // 构建输入内容 - Responses API 使用不同的格式
   const inputContent: any[] = [];
-  
+
   for (const textPart of parsed.textParts) {
     inputContent.push({ type: "input_text", text: textPart.text });
   }
@@ -36,14 +40,15 @@ export const callOpenAiResponsesApi = async (
   for (const imagePart of parsed.imageParts) {
     inputContent.push({
       type: "input_image",
-      image_url: `data:image/png;base64,${imagePart.base64}`,
+      image_url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
     });
   }
 
   // 如果只有一个文本输入，可以直接使用字符串
-  const input = inputContent.length === 1 && inputContent[0].type === "input_text"
-    ? inputContent[0].text
-    : [{ role: "user", content: inputContent }];
+  const input =
+    inputContent.length === 1 && inputContent[0].type === "input_text"
+      ? inputContent[0].text
+      : [{ role: "user", content: inputContent }];
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);
@@ -64,7 +69,7 @@ export const callOpenAiResponsesApi = async (
   if (commonParams.topP !== undefined) {
     body.top_p = commonParams.topP;
   }
-  
+
   // 工具相关参数
   if (options.tools !== undefined) {
     body.tools = options.tools;
@@ -75,26 +80,26 @@ export const callOpenAiResponsesApi = async (
   if (options.parallelToolCalls !== undefined) {
     body.parallel_tool_calls = options.parallelToolCalls;
   }
-  
+
   // 响应格式配置
   if (options.responseFormat !== undefined) {
     body.text = {
-      format: options.responseFormat
+      format: options.responseFormat,
     };
   }
-  
+
   // 推理配置（o系列模型）
   if (options.seed !== undefined) {
     // Responses API 中 reasoning effort 通过独立参数传递
     body.reasoning = body.reasoning || {};
-    if (typeof options.seed === 'string') {
+    if (typeof options.seed === "string") {
       body.reasoning.effort = options.seed; // 复用 seed 字段传递 effort
     }
   }
-  
+
   // 其他高级参数
   if (commonParams.stop !== undefined) {
-    body.truncation = commonParams.stop === 'auto' ? 'auto' : 'disabled';
+    body.truncation = commonParams.stop === "auto" ? "auto" : "disabled";
   }
 
   // 如果启用流式响应
@@ -125,25 +130,25 @@ export const callOpenAiResponsesApi = async (
 
     const reader = response.body.getReader();
     let fullContent = "";
-    let usage: LlmResponse['usage'] | undefined;
+    let usage: LlmResponse["usage"] | undefined;
     let refusal: string | null = null;
-    let finishReason: LlmResponse['finishReason'] = null;
-    const toolCalls: LlmResponse['toolCalls'] = [];
-    const annotations: LlmResponse['annotations'] = [];
+    let finishReason: LlmResponse["finishReason"] = null;
+    const toolCalls: LlmResponse["toolCalls"] = [];
+    const annotations: LlmResponse["annotations"] = [];
 
     await parseSSEStream(reader, (data) => {
       try {
         const json = JSON.parse(data);
-        
+
         // 提取文本内容（从 delta 事件）
-        if (json.type === 'response.output_text.delta' && json.delta) {
+        if (json.type === "response.output_text.delta" && json.delta) {
           const text = json.delta;
           fullContent += text;
           options.onStream!(text);
         }
-        
+
         // 从完成事件中提取 usage 信息
-        if (json.type === 'response.completed' && json.response) {
+        if (json.type === "response.completed" && json.response) {
           const resp = json.response;
           if (resp.usage) {
             usage = {
@@ -152,14 +157,14 @@ export const callOpenAiResponsesApi = async (
               totalTokens: resp.usage.total_tokens,
             };
           }
-          
+
           // 提取状态信息
           if (resp.status === "completed") {
             finishReason = "stop";
           } else if (resp.status === "incomplete") {
             finishReason = "length";
           }
-          
+
           // 检查输出中的工具调用和 annotations
           if (resp.output && Array.isArray(resp.output)) {
             for (const item of resp.output) {
@@ -245,10 +250,10 @@ export const callOpenAiResponsesApi = async (
   // Responses API 的响应格式：output 是一个数组，可能包含多种类型
   let content = "";
   let refusal: string | null = null;
-  let finishReason: LlmResponse['finishReason'] = null;
-  const toolCalls: LlmResponse['toolCalls'] = [];
-  const annotations: LlmResponse['annotations'] = [];
-  
+  let finishReason: LlmResponse["finishReason"] = null;
+  const toolCalls: LlmResponse["toolCalls"] = [];
+  const annotations: LlmResponse["annotations"] = [];
+
   if (data.output && Array.isArray(data.output)) {
     for (const item of data.output) {
       // 处理消息类型输出
@@ -256,7 +261,7 @@ export const callOpenAiResponsesApi = async (
         for (const contentItem of item.content) {
           if (contentItem.type === "output_text") {
             content += contentItem.text;
-            
+
             // 提取 annotations
             if (contentItem.annotations && Array.isArray(contentItem.annotations)) {
               for (const annotation of contentItem.annotations) {

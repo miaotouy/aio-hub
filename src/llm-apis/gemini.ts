@@ -8,7 +8,7 @@ import {
   extractToolDefinitions,
   parseToolChoice,
   extractCommonParameters,
-  inferImageMimeType,
+  inferMediaMimeType,
 } from "./request-builder";
 
 /**
@@ -150,7 +150,11 @@ interface GeminiGenerationConfig {
   enableEnhancedCivicAnswers?: boolean; // 启用增强型城市服务回答
   speechConfig?: GeminiSpeechConfig; // 语音生成配置
   thinkingConfig?: GeminiThinkingConfig; // 思考功能配置
-  mediaResolution?: "MEDIA_RESOLUTION_LOW" | "MEDIA_RESOLUTION_MEDIUM" | "MEDIA_RESOLUTION_HIGH" | "MEDIA_RESOLUTION_UNSPECIFIED";
+  mediaResolution?:
+    | "MEDIA_RESOLUTION_LOW"
+    | "MEDIA_RESOLUTION_MEDIUM"
+    | "MEDIA_RESOLUTION_HIGH"
+    | "MEDIA_RESOLUTION_UNSPECIFIED";
 }
 
 // 请求体
@@ -162,45 +166,6 @@ interface GeminiRequest {
   systemInstruction?: GeminiContent;
   generationConfig?: GeminiGenerationConfig;
   cachedContent?: string; // 缓存内容的名称
-}
-
-/**
- * 推测媒体类型的 MIME Type（扩展版）
- * 支持音频、视频等多媒体格式
- */
-function inferMimeType(base64Data?: string, fileExt?: string): string {
-  // 首先使用共享的图片 MIME 类型推测
-  const imageMimeType = inferImageMimeType(base64Data, fileExt);
-  
-  // 如果不是默认的 image/png，说明已经成功识别了图片类型
-  if (imageMimeType !== "image/png" || !fileExt) {
-    return imageMimeType;
-  }
-
-  // 扩展支持音频、视频等其他媒体类型
-  if (fileExt) {
-    const extMap: Record<string, string> = {
-      // 音频
-      mp3: "audio/mpeg",
-      wav: "audio/wav",
-      ogg: "audio/ogg",
-      aac: "audio/aac",
-      flac: "audio/flac",
-      // 视频
-      mp4: "video/mp4",
-      mpeg: "video/mpeg",
-      mov: "video/quicktime",
-      avi: "video/x-msvideo",
-      webm: "video/webm",
-      // 文档
-      pdf: "application/pdf",
-    };
-    const ext = fileExt.toLowerCase().replace(".", "");
-    if (extMap[ext]) return extMap[ext];
-  }
-
-  // 如果都没匹配到，返回默认值
-  return imageMimeType;
 }
 
 /**
@@ -221,7 +186,7 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   for (const imagePart of parsed.imageParts) {
     parts.push({
       inlineData: {
-        mimeType: inferMimeType(imagePart.base64),
+        mimeType: imagePart.mimeType || inferMediaMimeType(imagePart.base64),
         data: imagePart.base64,
       },
     });
@@ -286,9 +251,7 @@ function buildGeminiContents(options: LlmRequestOptions): GeminiContent[] {
 
     for (const msg of options.conversationHistory) {
       const parts =
-        typeof msg.content === "string"
-          ? [{ text: msg.content }]
-          : buildGeminiParts(msg.content);
+        typeof msg.content === "string" ? [{ text: msg.content }] : buildGeminiParts(msg.content);
 
       contents.push({
         role: msg.role === "assistant" ? "model" : "user",
@@ -397,20 +360,27 @@ function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerati
   // 添加通用参数
   if (commonParams.topP !== undefined) config.topP = commonParams.topP;
   if (commonParams.topK !== undefined) config.topK = commonParams.topK;
-  if (commonParams.presencePenalty !== undefined) config.presencePenalty = commonParams.presencePenalty;
-  if (commonParams.frequencyPenalty !== undefined) config.frequencyPenalty = commonParams.frequencyPenalty;
+  if (commonParams.presencePenalty !== undefined)
+    config.presencePenalty = commonParams.presencePenalty;
+  if (commonParams.frequencyPenalty !== undefined)
+    config.frequencyPenalty = commonParams.frequencyPenalty;
   if (commonParams.seed !== undefined) config.seed = commonParams.seed;
 
   // 停止序列
   if (commonParams.stop) {
-    config.stopSequences = Array.isArray(commonParams.stop) ? commonParams.stop : [commonParams.stop];
+    config.stopSequences = Array.isArray(commonParams.stop)
+      ? commonParams.stop
+      : [commonParams.stop];
   }
 
   // 响应格式
   if (options.responseFormat) {
     if (options.responseFormat.type === "json_object") {
       config.responseMimeType = "application/json";
-    } else if (options.responseFormat.type === "json_schema" && options.responseFormat.json_schema) {
+    } else if (
+      options.responseFormat.type === "json_schema" &&
+      options.responseFormat.json_schema
+    ) {
       config.responseMimeType = "application/json";
       // 将 JSON Schema 转换为 Gemini Schema
       config.responseSchema = convertToGeminiSchema(options.responseFormat.json_schema.schema);
@@ -427,7 +397,7 @@ function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerati
 
   // 扩展参数支持
   const extendedOptions = options as any;
-  
+
   // 思考配置
   if (extendedOptions.thinkingConfig) {
     config.thinkingConfig = extendedOptions.thinkingConfig;
@@ -714,7 +684,7 @@ function parseGeminiResponse(data: any): LlmResponse {
     if (data.promptFeedback?.blockReason) {
       throw new Error(`请求被屏蔽: ${data.promptFeedback.blockReason}`);
     }
-    
+
     throw new Error(`Gemini API 响应格式异常: ${JSON.stringify(data)}`);
   }
 
@@ -756,21 +726,23 @@ function parseGeminiResponse(data: any): LlmResponse {
 function parseGeminiLogprobs(logprobsResult: any): LlmResponse["logprobs"] {
   if (!logprobsResult?.topCandidates) return undefined;
 
-  const content = logprobsResult.topCandidates.map((topCandidate: any) => {
-    if (!topCandidate.candidates?.[0]) return null;
-    
-    const candidate = topCandidate.candidates[0];
-    return {
-      token: candidate.token || "",
-      logprob: candidate.logProbability || 0,
-      bytes: null, // Gemini 不提供 bytes
-      topLogprobs: topCandidate.candidates.slice(0, 5).map((c: any) => ({
-        token: c.token || "",
-        logprob: c.logProbability || 0,
-        bytes: null,
-      })),
-    };
-  }).filter(Boolean);
+  const content = logprobsResult.topCandidates
+    .map((topCandidate: any) => {
+      if (!topCandidate.candidates?.[0]) return null;
+
+      const candidate = topCandidate.candidates[0];
+      return {
+        token: candidate.token || "",
+        logprob: candidate.logProbability || 0,
+        bytes: null, // Gemini 不提供 bytes
+        topLogprobs: topCandidate.candidates.slice(0, 5).map((c: any) => ({
+          token: c.token || "",
+          logprob: c.logProbability || 0,
+          bytes: null,
+        })),
+      };
+    })
+    .filter(Boolean);
 
   return content.length > 0 ? { content } : undefined;
 }

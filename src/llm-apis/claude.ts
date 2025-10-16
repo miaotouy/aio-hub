@@ -217,7 +217,7 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
       type: "image",
       source: {
         type: "base64",
-        media_type: imagePart.mimeType || "image/png",
+        media_type: imagePart.mimeType || "image/png", // Claude 已经通过 parseMessageContents 自动推断了 mimeType
         data: imagePart.base64,
       },
       cache_control: imagePart.cacheControl,

@@ -1,69 +1,474 @@
 import type { LlmProfile } from "../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "./common";
+import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
-import { parseMessageContents, extractCommonParameters, inferImageMimeType } from "./request-builder";
+import { createModuleLogger } from "@utils/logger";
+import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
+import {
+  parseMessageContents,
+  extractCommonParameters,
+  inferImageMimeType,
+  extractToolDefinitions,
+  parseToolChoice,
+} from "./request-builder";
+
+const logger = createModuleLogger("VertexAiApi");
 
 /**
- * 调用 Vertex AI API
+ * Vertex AI Content Part 类型
  */
-export const callVertexAiApi = async (
-  profile: LlmProfile,
-  options: LlmRequestOptions
-): Promise<LlmResponse> => {
-  // Vertex AI 需要项目信息，这里假设在 baseUrl 中已经包含
-  // 或者从 profile 的自定义配置中获取
-  const url = buildLlmApiUrl(
-    profile.baseUrl,
-    "vertexai",
-    `models/${options.modelId}:generateContent`
-  );
+interface VertexAiPart {
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string;
+  };
+  functionCall?: {
+    name: string;
+    args: Record<string, any>;
+  };
+  functionResponse?: {
+    name: string;
+    response: Record<string, any>;
+  };
+}
 
-  // 获取第一个可用的 API Key (Access Token)
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+/**
+ * Vertex AI Content 类型
+ */
+interface VertexAiContent {
+  role?: "user" | "model";
+  parts: VertexAiPart[];
+}
 
-  // 使用共享函数解析消息内容
-  const parsed = parseMessageContents(options.messages);
+/**
+ * Vertex AI Tool 定义
+ */
+interface VertexAiTool {
+  functionDeclarations?: Array<{
+    name: string;
+    description?: string;
+    parameters?: Record<string, any>;
+  }>;
+}
 
-  // 构建 parts（格式类似 Gemini）
-  const parts: any[] = [];
-  
+/**
+ * Vertex AI Tool 配置
+ */
+interface VertexAiToolConfig {
+  functionCallingConfig?: {
+    mode?: "AUTO" | "ANY" | "NONE";
+    allowedFunctionNames?: string[];
+  };
+}
+
+/**
+ * Vertex AI Generation Config
+ */
+interface VertexAiGenerationConfig {
+  maxOutputTokens?: number;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  stopSequences?: string[];
+}
+
+/**
+ * Vertex AI Gemini 请求体（Google Publisher）
+ */
+interface VertexAiGeminiRequest {
+  contents: VertexAiContent[];
+  generationConfig?: VertexAiGenerationConfig;
+  systemInstruction?: VertexAiContent;
+  tools?: VertexAiTool[];
+  toolConfig?: VertexAiToolConfig;
+}
+
+/**
+ * Vertex AI Claude 请求体（Anthropic Publisher）
+ */
+interface VertexAiClaudeRequest {
+  anthropic_version: string;
+  messages: Array<{
+    role: "user" | "assistant";
+    content:
+      | string
+      | Array<{
+          type: "text" | "image";
+          text?: string;
+          source?: {
+            type: "base64";
+            media_type: string;
+            data: string;
+          };
+        }>;
+  }>;
+  max_tokens: number;
+  temperature?: number;
+  top_k?: number;
+  top_p?: number;
+  system?: string;
+  stop_sequences?: string[];
+}
+
+/**
+ * 检测模型发布者类型
+ */
+function detectPublisher(modelId: string): "google" | "anthropic" {
+  // Claude 模型特征：包含 claude 关键词
+  if (modelId.toLowerCase().includes("claude")) {
+    return "anthropic";
+  }
+  // 默认为 Google (Gemini)
+  return "google";
+}
+
+/**
+ * 构建 Vertex AI Parts（Gemini 格式）
+ */
+function buildVertexAiParts(messages: LlmMessageContent[]): VertexAiPart[] {
+  const parsed = parseMessageContents(messages);
+  const parts: VertexAiPart[] = [];
+
+  // 文本部分
   for (const textPart of parsed.textParts) {
     parts.push({ text: textPart.text });
   }
 
+  // 图片部分
   for (const imagePart of parsed.imageParts) {
     parts.push({
-      inline_data: {
-        mime_type: inferImageMimeType(imagePart.base64),
+      inlineData: {
+        mimeType: inferImageMimeType(imagePart.base64),
         data: imagePart.base64,
       },
     });
   }
 
-  // 使用共享函数提取通用参数
+  // 工具调用
+  for (const toolUse of parsed.toolUseParts) {
+    parts.push({
+      functionCall: {
+        name: toolUse.name,
+        args: toolUse.input,
+      },
+    });
+  }
+
+  // 工具结果
+  for (const toolResult of parsed.toolResultParts) {
+    const response =
+      typeof toolResult.content === "string"
+        ? { result: toolResult.content }
+        : { result: JSON.stringify(toolResult.content) };
+
+    parts.push({
+      functionResponse: {
+        name: toolResult.id,
+        response,
+      },
+    });
+  }
+
+  return parts;
+}
+
+/**
+ * 构建多轮对话 Contents（Gemini 格式）
+ */
+function buildVertexAiContents(options: LlmRequestOptions): VertexAiContent[] {
+  if (options.conversationHistory && options.conversationHistory.length > 0) {
+    const contents: VertexAiContent[] = [];
+
+    for (const msg of options.conversationHistory) {
+      const parts =
+        typeof msg.content === "string" ? [{ text: msg.content }] : buildVertexAiParts(msg.content);
+
+      contents.push({
+        role: msg.role === "assistant" ? "model" : "user",
+        parts,
+      });
+    }
+
+    // 添加当前消息
+    const currentParts = buildVertexAiParts(options.messages);
+    if (currentParts.length > 0) {
+      contents.push({
+        role: "user",
+        parts: currentParts,
+      });
+    }
+
+    return contents;
+  }
+
+  // 单轮对话
+  const parts = buildVertexAiParts(options.messages);
+  return parts.length > 0 ? [{ parts }] : [];
+}
+
+/**
+ * 构建工具配置（Gemini 格式）
+ */
+function buildVertexAiTools(options: LlmRequestOptions): VertexAiTool[] | undefined {
+  const commonTools = extractToolDefinitions(options.tools);
+  if (!commonTools) return undefined;
+
+  const functionDeclarations = commonTools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+  }));
+
+  return [{ functionDeclarations }];
+}
+
+/**
+ * 构建工具调用配置（Gemini 格式）
+ */
+function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToolConfig | undefined {
+  const parsed = parseToolChoice(options.toolChoice);
+  if (!parsed) return undefined;
+
+  const config: VertexAiToolConfig = {
+    functionCallingConfig: {},
+  };
+
+  if (parsed === "auto") {
+    config.functionCallingConfig!.mode = "AUTO";
+  } else if (parsed === "none") {
+    config.functionCallingConfig!.mode = "NONE";
+  } else if (parsed === "required") {
+    config.functionCallingConfig!.mode = "ANY";
+  } else if (typeof parsed === "object" && "functionName" in parsed) {
+    config.functionCallingConfig!.mode = "ANY";
+    config.functionCallingConfig!.allowedFunctionNames = [parsed.functionName];
+  }
+
+  return config;
+}
+
+/**
+ * 构建 Claude 格式的消息（Anthropic Publisher）
+ */
+function buildClaudeMessages(
+  messages: LlmMessageContent[],
+  conversationHistory?: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>
+): VertexAiClaudeRequest["messages"] {
+  const claudeMessages: VertexAiClaudeRequest["messages"] = [];
+
+  // 添加历史消息
+  if (conversationHistory && conversationHistory.length > 0) {
+    for (const msg of conversationHistory) {
+      if (typeof msg.content === "string") {
+        claudeMessages.push({
+          role: msg.role,
+          content: msg.content,
+        });
+      } else {
+        const parsed = parseMessageContents(msg.content);
+        const contentBlocks: any[] = [];
+
+        for (const textPart of parsed.textParts) {
+          contentBlocks.push({ type: "text", text: textPart.text });
+        }
+
+        for (const imagePart of parsed.imageParts) {
+          contentBlocks.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: inferImageMimeType(imagePart.base64),
+              data: imagePart.base64,
+            },
+          });
+        }
+
+        claudeMessages.push({
+          role: msg.role,
+          content: contentBlocks,
+        });
+      }
+    }
+  }
+
+  // 添加当前消息
+  if (messages.length > 0) {
+    const parsed = parseMessageContents(messages);
+    const contentBlocks: any[] = [];
+
+    for (const textPart of parsed.textParts) {
+      contentBlocks.push({ type: "text", text: textPart.text });
+    }
+
+    for (const imagePart of parsed.imageParts) {
+      contentBlocks.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: inferImageMimeType(imagePart.base64),
+          data: imagePart.base64,
+        },
+      });
+    }
+
+    // 如果最后一条历史消息是 user，且当前也是 user，则合并
+    if (claudeMessages.length > 0 && claudeMessages[claudeMessages.length - 1].role === "user") {
+      const lastMessage = claudeMessages[claudeMessages.length - 1];
+      if (typeof lastMessage.content === "string") {
+        lastMessage.content = [{ type: "text", text: lastMessage.content }, ...contentBlocks];
+      } else {
+        lastMessage.content = [...lastMessage.content, ...contentBlocks];
+      }
+    } else {
+      claudeMessages.push({
+        role: "user",
+        content: contentBlocks,
+      });
+    }
+  }
+
+  return claudeMessages;
+}
+
+/**
+ * 调用 Vertex AI API（Google Publisher - Gemini 模型）
+ */
+async function callVertexAiGemini(
+  _profile: LlmProfile,
+  options: LlmRequestOptions,
+  url: string,
+  apiKey: string
+): Promise<LlmResponse> {
   const commonParams = extractCommonParameters(options);
 
-  const body: any = {
-    contents: [
-      {
-        role: "user",
-        parts,
-      },
-    ],
+  // 构建请求体
+  const body: VertexAiGeminiRequest = {
+    contents: buildVertexAiContents(options),
     generationConfig: {
-      maxOutputTokens: commonParams.maxTokens || 4000,
-      temperature: commonParams.temperature ?? 0.5,
+      maxOutputTokens: commonParams.maxTokens || 8192,
+      temperature: commonParams.temperature ?? 1.0,
+      topP: commonParams.topP,
+      topK: commonParams.topK,
+      stopSequences: commonParams.stop
+        ? Array.isArray(commonParams.stop)
+          ? commonParams.stop
+          : [commonParams.stop]
+        : undefined,
     },
   };
 
-  // Vertex AI 使用 systemInstruction
+  // 系统指令
   if (options.systemPrompt) {
     body.systemInstruction = {
       parts: [{ text: options.systemPrompt }],
     };
   }
 
+  // 工具配置
+  const tools = buildVertexAiTools(options);
+  if (tools) {
+    body.tools = tools;
+  }
+
+  const toolConfig = buildVertexAiToolConfig(options);
+  if (toolConfig) {
+    body.toolConfig = toolConfig;
+  }
+
+  logger.info("发送 Vertex AI Gemini 请求", {
+    model: options.modelId,
+    hasTools: !!tools,
+    stream: !!options.stream,
+  });
+
+  // 流式响应
+  if (options.stream && options.onStream) {
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      },
+      options.maxRetries,
+      options.timeout,
+      options.signal
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("Vertex AI Gemini 请求失败", new Error(errorText), {
+        status: response.status,
+      });
+      throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error("响应体为空");
+    }
+
+    const reader = response.body.getReader();
+    let fullContent = "";
+    let usage: LlmResponse["usage"] | undefined;
+    let finishReason: LlmResponse["finishReason"] = null;
+    let toolCalls: LlmResponse["toolCalls"] = undefined;
+
+    await parseSSEStream(reader, (data) => {
+      const text = extractTextFromSSE(data, "gemini");
+      if (text) {
+        fullContent += text;
+        options.onStream!(text);
+      }
+
+      // 提取元数据
+      try {
+        const json = JSON.parse(data);
+
+        if (json.usageMetadata) {
+          usage = {
+            promptTokens: json.usageMetadata.promptTokenCount || 0,
+            completionTokens: json.usageMetadata.candidatesTokenCount || 0,
+            totalTokens: json.usageMetadata.totalTokenCount || 0,
+          };
+        }
+
+        if (json.candidates?.[0]?.finishReason) {
+          finishReason = mapVertexAiFinishReason(json.candidates[0].finishReason);
+        }
+
+        // 提取函数调用
+        const functionCall = json.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+        if (functionCall) {
+          toolCalls = [
+            {
+              id: `call_${Date.now()}`,
+              type: "function",
+              function: {
+                name: functionCall.name,
+                arguments: JSON.stringify(functionCall.args || {}),
+              },
+            },
+          ];
+        }
+      } catch {
+        // 忽略非 JSON 数据
+      }
+    });
+
+    return {
+      content: fullContent,
+      usage,
+      finishReason,
+      toolCalls,
+      isStream: true,
+    };
+  }
+
+  // 非流式响应
   const response = await fetchWithRetry(
     url,
     {
@@ -81,24 +486,299 @@ export const callVertexAiApi = async (
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
+    logger.error("Vertex AI Gemini 请求失败", new Error(errorText), {
+      status: response.status,
+    });
+    throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
 
-  // 验证响应格式
-  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+  // 解析响应
+  const candidate = data.candidates?.[0];
+  if (!candidate) {
+    throw new Error(`Vertex AI 响应格式异常: 没有候选回答`);
+  }
+
+  let content = "";
+  let toolCalls: LlmResponse["toolCalls"] = undefined;
+
+  if (candidate.content?.parts) {
+    for (const part of candidate.content.parts) {
+      if (part.text) {
+        content += part.text;
+      } else if (part.functionCall) {
+        if (!toolCalls) toolCalls = [];
+        toolCalls.push({
+          id: `call_${Date.now()}_${toolCalls.length}`,
+          type: "function",
+          function: {
+            name: part.functionCall.name,
+            arguments: JSON.stringify(part.functionCall.args || {}),
+          },
+        });
+      }
+    }
+  }
+
+  if (!content && !toolCalls) {
     throw new Error(`Vertex AI 响应格式异常: ${JSON.stringify(data)}`);
   }
 
+  logger.info("Vertex AI Gemini 响应成功", {
+    contentLength: content.length,
+    toolCallsCount: toolCalls?.length || 0,
+  });
+
   return {
-    content: data.candidates[0].content.parts[0].text,
+    content,
     usage: data.usageMetadata
       ? {
-          promptTokens: data.usageMetadata.promptTokenCount,
-          completionTokens: data.usageMetadata.candidatesTokenCount,
-          totalTokens: data.usageMetadata.totalTokenCount,
+          promptTokens: data.usageMetadata.promptTokenCount || 0,
+          completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+          totalTokens: data.usageMetadata.totalTokenCount || 0,
         }
       : undefined,
+    finishReason: mapVertexAiFinishReason(candidate.finishReason),
+    toolCalls,
   };
+}
+
+/**
+ * 调用 Vertex AI API（Anthropic Publisher - Claude 模型）
+ */
+async function callVertexAiClaude(
+  _profile: LlmProfile,
+  options: LlmRequestOptions,
+  url: string,
+  apiKey: string
+): Promise<LlmResponse> {
+  const commonParams = extractCommonParameters(options);
+
+  // 构建请求体
+  const body: VertexAiClaudeRequest = {
+    anthropic_version: "vertex-2023-10-16",
+    messages: buildClaudeMessages(options.messages, options.conversationHistory),
+    max_tokens: commonParams.maxTokens || 4096,
+  };
+
+  // 添加参数
+  if (commonParams.temperature !== undefined) {
+    body.temperature = commonParams.temperature;
+  }
+  if (commonParams.topK !== undefined) {
+    body.top_k = commonParams.topK;
+  }
+  if (commonParams.topP !== undefined) {
+    body.top_p = commonParams.topP;
+  }
+
+  // 系统提示
+  if (options.systemPrompt) {
+    body.system = options.systemPrompt;
+  }
+
+  // 停止序列
+  if (options.stopSequences && options.stopSequences.length > 0) {
+    body.stop_sequences = options.stopSequences;
+  }
+
+  logger.info("发送 Vertex AI Claude 请求", {
+    model: options.modelId,
+    messageCount: body.messages.length,
+    stream: !!options.stream,
+  });
+
+  // 流式响应
+  if (options.stream && options.onStream) {
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      },
+      options.maxRetries,
+      options.timeout,
+      options.signal
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("Vertex AI Claude 请求失败", new Error(errorText), {
+        status: response.status,
+      });
+      throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error("响应体为空");
+    }
+
+    const reader = response.body.getReader();
+    let fullContent = "";
+    let usage: LlmResponse["usage"] | undefined;
+    let stopReason: string | undefined;
+
+    await parseSSEStream(reader, (data) => {
+      try {
+        const event = JSON.parse(data);
+
+        // Claude 流式事件处理
+        if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+          const text = event.delta.text;
+          if (text) {
+            fullContent += text;
+            options.onStream!(text);
+          }
+        } else if (event.type === "message_delta") {
+          if (event.delta?.stop_reason) {
+            stopReason = event.delta.stop_reason;
+          }
+          if (event.usage) {
+            usage = {
+              promptTokens: event.usage.input_tokens || 0,
+              completionTokens: event.usage.output_tokens || 0,
+              totalTokens: (event.usage.input_tokens || 0) + (event.usage.output_tokens || 0),
+            };
+          }
+        } else if (event.type === "error") {
+          throw new Error(`Vertex AI Claude 错误: ${event.error?.message}`);
+        }
+      } catch (parseError) {
+        logger.warn("解析 Claude 流数据失败", { data, error: parseError });
+      }
+    });
+
+    return {
+      content: fullContent,
+      usage,
+      finishReason: stopReason as any,
+      isStream: true,
+    };
+  }
+
+  // 非流式响应
+  const response = await fetchWithRetry(
+    url,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    },
+    options.maxRetries,
+    options.timeout,
+    options.signal
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error("Vertex AI Claude 请求失败", new Error(errorText), {
+      status: response.status,
+    });
+    throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+
+  // 提取文本内容
+  let textContent = "";
+  if (data.content && Array.isArray(data.content)) {
+    for (const block of data.content) {
+      if (block.type === "text" && block.text) {
+        textContent += block.text;
+      }
+    }
+  }
+
+  if (!textContent) {
+    throw new Error(`Vertex AI Claude 响应格式异常: ${JSON.stringify(data)}`);
+  }
+
+  logger.info("Vertex AI Claude 响应成功", {
+    contentLength: textContent.length,
+    stopReason: data.stop_reason,
+  });
+
+  return {
+    content: textContent,
+    usage: data.usage
+      ? {
+          promptTokens: data.usage.input_tokens || 0,
+          completionTokens: data.usage.output_tokens || 0,
+          totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
+        }
+      : undefined,
+    finishReason: data.stop_reason,
+    stopSequence: data.stop_sequence,
+  };
+}
+
+/**
+ * 映射 Vertex AI finishReason 到通用格式
+ */
+function mapVertexAiFinishReason(reason: string | undefined): LlmResponse["finishReason"] {
+  if (!reason) return null;
+
+  const reasonMap: Record<string, LlmResponse["finishReason"]> = {
+    STOP: "stop",
+    MAX_TOKENS: "max_tokens",
+    SAFETY: "content_filter",
+    RECITATION: "content_filter",
+    OTHER: "stop",
+  };
+
+  return reasonMap[reason] || "stop";
+}
+
+/**
+ * 调用 Vertex AI API
+ * 自动检测模型发布者类型（Google/Anthropic）并调用相应的实现
+ */
+export const callVertexAiApi = async (
+  profile: LlmProfile,
+  options: LlmRequestOptions
+): Promise<LlmResponse> => {
+  // 获取 Access Token
+  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+
+  // 检测发布者类型
+  const publisher = detectPublisher(options.modelId);
+
+  // 构建端点 URL
+  let endpoint: string;
+  if (publisher === "google") {
+    // Gemini 模型
+    endpoint =
+      options.stream && options.onStream
+        ? `publishers/google/models/${options.modelId}:streamGenerateContent`
+        : `publishers/google/models/${options.modelId}:generateContent`;
+  } else {
+    // Claude 模型
+    endpoint =
+      options.stream && options.onStream
+        ? `publishers/anthropic/models/${options.modelId}:streamRawPredict`
+        : `publishers/anthropic/models/${options.modelId}:rawPredict`;
+  }
+
+  const url = buildLlmApiUrl(profile.baseUrl, "vertexai", endpoint);
+
+  logger.info("调用 Vertex AI API", {
+    publisher,
+    model: options.modelId,
+    endpoint,
+  });
+
+  // 根据发布者调用不同的实现
+  if (publisher === "google") {
+    return callVertexAiGemini(profile, options, url, apiKey);
+  } else {
+    return callVertexAiClaude(profile, options, url, apiKey);
+  }
 };

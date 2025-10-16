@@ -789,7 +789,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "bytedance",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/doubao-color.svg`,
+      icon: `${PRESET_ICONS_DIR}/bytedance-color.svg`,
       group: "ByteDance",
     },
     priority: 10,

@@ -3,6 +3,7 @@ import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
+import { parseMessageContents, extractCommonParameters } from "./request-builder";
 
 /**
  * 调用 OpenAI 兼容格式的 API
@@ -22,19 +23,22 @@ export const callOpenAiCompatibleApi = async (
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
-  // 构建消息内容
+  // 使用共享函数解析消息内容
+  const parsed = parseMessageContents(options.messages);
   const messageContent: any[] = [];
-  for (const msg of options.messages) {
-    if (msg.type === "text" && msg.text) {
-      messageContent.push({ type: "text", text: msg.text });
-    } else if (msg.type === "image" && msg.imageBase64) {
-      messageContent.push({
-        type: "image_url",
-        image_url: {
-          url: `data:image/png;base64,${msg.imageBase64}`,
-        },
-      });
-    }
+
+  // 转换为 OpenAI 格式
+  for (const textPart of parsed.textParts) {
+    messageContent.push({ type: "text", text: textPart.text });
+  }
+
+  for (const imagePart of parsed.imageParts) {
+    messageContent.push({
+      type: "image_url",
+      image_url: {
+        url: `data:image/png;base64,${imagePart.base64}`,
+      },
+    });
   }
 
   const messages: any[] = [];
@@ -53,39 +57,44 @@ export const callOpenAiCompatibleApi = async (
     content: messageContent,
   });
 
+  // 使用共享函数提取通用参数
+  const commonParams = extractCommonParameters(options);
+
   const body: any = {
     model: options.modelId,
     messages,
-    temperature: options.temperature ?? 0.5,
+    temperature: commonParams.temperature ?? 0.5,
   };
 
   // max_tokens 和 max_completion_tokens（优先使用新参数）
   if (options.maxCompletionTokens !== undefined) {
     body.max_completion_tokens = options.maxCompletionTokens;
-  } else if (options.maxTokens !== undefined) {
-    body.max_tokens = options.maxTokens;
+  } else if (commonParams.maxTokens !== undefined) {
+    body.max_tokens = commonParams.maxTokens;
   } else {
     body.max_tokens = 4000;
   }
 
-  // 添加可选的高级参数
-  if (options.topP !== undefined) {
-    body.top_p = options.topP;
+  // 添加通用参数
+  if (commonParams.topP !== undefined) {
+    body.top_p = commonParams.topP;
   }
-  if (options.frequencyPenalty !== undefined) {
-    body.frequency_penalty = options.frequencyPenalty;
+  if (commonParams.frequencyPenalty !== undefined) {
+    body.frequency_penalty = commonParams.frequencyPenalty;
   }
-  if (options.presencePenalty !== undefined) {
-    body.presence_penalty = options.presencePenalty;
+  if (commonParams.presencePenalty !== undefined) {
+    body.presence_penalty = commonParams.presencePenalty;
   }
-  if (options.stop !== undefined) {
-    body.stop = options.stop;
+  if (commonParams.stop !== undefined) {
+    body.stop = commonParams.stop;
   }
+  if (commonParams.seed !== undefined) {
+    body.seed = commonParams.seed;
+  }
+
+  // 添加 OpenAI 特有的参数
   if (options.n !== undefined) {
     body.n = options.n;
-  }
-  if (options.seed !== undefined) {
-    body.seed = options.seed;
   }
   if (options.logprobs !== undefined) {
     body.logprobs = options.logprobs;

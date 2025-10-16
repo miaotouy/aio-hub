@@ -3,6 +3,12 @@ import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
+import {
+  parseMessageContents,
+  extractToolDefinitions,
+  parseToolChoice,
+  extractCommonParameters,
+} from "./request-builder";
 
 const logger = createModuleLogger("ClaudeApi");
 
@@ -189,52 +195,67 @@ const convertToClaudeMessages = (
 
 /**
  * 转换内容块
+ * 使用共享的 parseMessageContents 辅助函数，然后转换为 Claude 特定格式
  */
 const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock[] => {
+  const parsed = parseMessageContents(messages);
   const blocks: ClaudeContentBlock[] = [];
 
-  for (const msg of messages) {
-    if (msg.type === "text" && msg.text) {
-      blocks.push({
-        type: "text",
-        text: msg.text,
-      });
-    } else if (msg.type === "image" && msg.imageBase64) {
-      blocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: "image/png",
-          data: msg.imageBase64,
-        },
-      });
-    } else if (msg.type === "tool_use" && msg.toolUseId && msg.toolName) {
-      blocks.push({
-        type: "tool_use",
-        id: msg.toolUseId,
-        name: msg.toolName,
-        input: msg.toolInput || {},
-      });
-    } else if (msg.type === "tool_result" && msg.toolResultId) {
-      const toolResultBlock: ClaudeContentBlock = {
-        type: "tool_result",
-        tool_use_id: msg.toolResultId,
-        is_error: msg.isError,
-      };
+  // 转换文本部分
+  for (const textPart of parsed.textParts) {
+    blocks.push({
+      type: "text",
+      text: textPart.text,
+      cache_control: textPart.cacheControl,
+    });
+  }
 
-      if (typeof msg.toolResultContent === "string") {
-        toolResultBlock.content = msg.toolResultContent;
-      } else if (Array.isArray(msg.toolResultContent)) {
-        toolResultBlock.content = convertContentBlocks(msg.toolResultContent);
-      }
+  // 转换图片部分
+  for (const imagePart of parsed.imageParts) {
+    blocks.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: imagePart.mimeType || "image/png",
+        data: imagePart.base64,
+      },
+      cache_control: imagePart.cacheControl,
+    });
+  }
 
-      blocks.push(toolResultBlock);
-    } else if (msg.type === "document" && msg.documentSource) {
-      blocks.push({
-        type: "document",
-        source: msg.documentSource as any,
-      });
+  // 转换工具使用部分
+  for (const toolUse of parsed.toolUseParts) {
+    blocks.push({
+      type: "tool_use",
+      id: toolUse.id,
+      name: toolUse.name,
+      input: toolUse.input,
+    });
+  }
+
+  // 转换工具结果部分
+  for (const toolResult of parsed.toolResultParts) {
+    const toolResultBlock: ClaudeContentBlock = {
+      type: "tool_result",
+      tool_use_id: toolResult.id,
+      is_error: toolResult.isError,
+    };
+
+    if (typeof toolResult.content === "string") {
+      toolResultBlock.content = toolResult.content;
+    } else if (Array.isArray(toolResult.content)) {
+      toolResultBlock.content = convertContentBlocks(toolResult.content);
     }
+
+    blocks.push(toolResultBlock);
+  }
+
+  // 转换文档部分
+  for (const doc of parsed.documentParts) {
+    blocks.push({
+      type: "document",
+      source: doc.source as any,
+    });
   }
 
   return blocks;
@@ -242,42 +263,45 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
 
 /**
  * 转换工具定义
+ * 使用共享的 extractToolDefinitions 辅助函数
  */
 const convertTools = (
   tools?: LlmRequestOptions["tools"]
 ): ClaudeTool[] | undefined => {
-  if (!tools || tools.length === 0) return undefined;
+  const commonTools = extractToolDefinitions(tools);
+  if (!commonTools) return undefined;
 
-  return tools.map((tool) => ({
-    type: "custom",
-    name: tool.function.name,
-    description: tool.function.description,
-    input_schema: tool.function.parameters || {
-      type: "object",
-      properties: {},
-    },
+  return commonTools.map((tool) => ({
+    type: "custom" as const,
+    name: tool.name,
+    description: tool.description,
+    input_schema: tool.parameters,
   }));
 };
 
 /**
  * 转换工具选择策略
+ * 使用共享的 parseToolChoice 辅助函数
  */
 const convertToolChoice = (
   toolChoice?: LlmRequestOptions["toolChoice"],
   parallelToolCalls?: boolean
 ): ClaudeToolChoice | undefined => {
-  if (!toolChoice) return undefined;
+  const parsed = parseToolChoice(toolChoice);
+  if (!parsed) return undefined;
 
   const disableParallel = parallelToolCalls === false;
 
-  if (toolChoice === "auto") {
+  if (parsed === "auto") {
     return { type: "auto", disable_parallel_tool_use: disableParallel };
-  } else if (toolChoice === "required") {
+  } else if (parsed === "required") {
     return { type: "any", disable_parallel_tool_use: disableParallel };
-  } else if (typeof toolChoice === "object" && toolChoice.type === "function") {
+  } else if (parsed === "none") {
+    return undefined; // Claude 不支持显式的 "none"
+  } else if (typeof parsed === "object" && "functionName" in parsed) {
     return {
       type: "tool",
-      name: toolChoice.function.name,
+      name: parsed.functionName,
       disable_parallel_tool_use: disableParallel,
     };
   }
@@ -437,23 +461,28 @@ export const callClaudeApi = async (
     options.conversationHistory
   );
 
+  // 使用共享函数提取通用参数
+  const commonParams = extractCommonParameters(options);
+
   // 构建请求体
   const body: ClaudeRequest = {
     model: options.modelId,
     messages,
-    max_tokens: options.maxTokens || 4096,
+    max_tokens: commonParams.maxTokens || 4096,
   };
 
-  // 添加可选参数
-  if (options.temperature !== undefined) {
-    body.temperature = options.temperature;
+  // 添加通用参数
+  if (commonParams.temperature !== undefined) {
+    body.temperature = commonParams.temperature;
   }
-  if (options.topK !== undefined) {
-    body.top_k = options.topK;
+  if (commonParams.topK !== undefined) {
+    body.top_k = commonParams.topK;
   }
-  if (options.topP !== undefined) {
-    body.top_p = options.topP;
+  if (commonParams.topP !== undefined) {
+    body.top_p = commonParams.topP;
   }
+
+  // 添加 Claude 特有参数
   if (options.systemPrompt) {
     body.system = options.systemPrompt;
   }

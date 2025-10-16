@@ -2,6 +2,7 @@ import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
+import { parseMessageContents, extractCommonParameters, inferImageMimeType } from "./request-builder";
 
 /**
  * 调用 Vertex AI API
@@ -21,20 +22,27 @@ export const callVertexAiApi = async (
   // 获取第一个可用的 API Key (Access Token)
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
+  // 使用共享函数解析消息内容
+  const parsed = parseMessageContents(options.messages);
+
   // 构建 parts（格式类似 Gemini）
   const parts: any[] = [];
-  for (const msg of options.messages) {
-    if (msg.type === "text" && msg.text) {
-      parts.push({ text: msg.text });
-    } else if (msg.type === "image" && msg.imageBase64) {
-      parts.push({
-        inline_data: {
-          mime_type: "image/png",
-          data: msg.imageBase64,
-        },
-      });
-    }
+  
+  for (const textPart of parsed.textParts) {
+    parts.push({ text: textPart.text });
   }
+
+  for (const imagePart of parsed.imageParts) {
+    parts.push({
+      inline_data: {
+        mime_type: inferImageMimeType(imagePart.base64),
+        data: imagePart.base64,
+      },
+    });
+  }
+
+  // 使用共享函数提取通用参数
+  const commonParams = extractCommonParameters(options);
 
   const body: any = {
     contents: [
@@ -44,8 +52,8 @@ export const callVertexAiApi = async (
       },
     ],
     generationConfig: {
-      maxOutputTokens: options.maxTokens || 4000,
-      temperature: options.temperature ?? 0.5,
+      maxOutputTokens: commonParams.maxTokens || 4000,
+      temperature: commonParams.temperature ?? 0.5,
     },
   };
 

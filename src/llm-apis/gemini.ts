@@ -3,6 +3,13 @@ import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
+import {
+  parseMessageContents,
+  extractToolDefinitions,
+  parseToolChoice,
+  extractCommonParameters,
+  inferImageMimeType,
+} from "./request-builder";
 
 /**
  * Gemini API 类型定义
@@ -158,19 +165,21 @@ interface GeminiRequest {
 }
 
 /**
- * 推测媒体类型的 MIME Type
- * 根据文件扩展名或数据头推测
+ * 推测媒体类型的 MIME Type（扩展版）
+ * 支持音频、视频等多媒体格式
  */
 function inferMimeType(base64Data?: string, fileExt?: string): string {
-  // 根据文件扩展名推测
+  // 首先使用共享的图片 MIME 类型推测
+  const imageMimeType = inferImageMimeType(base64Data, fileExt);
+  
+  // 如果不是默认的 image/png，说明已经成功识别了图片类型
+  if (imageMimeType !== "image/png" || !fileExt) {
+    return imageMimeType;
+  }
+
+  // 扩展支持音频、视频等其他媒体类型
   if (fileExt) {
     const extMap: Record<string, string> = {
-      // 图片
-      png: "image/png",
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      gif: "image/gif",
-      webp: "image/webp",
       // 音频
       mp3: "audio/mpeg",
       wav: "audio/wav",
@@ -190,78 +199,78 @@ function inferMimeType(base64Data?: string, fileExt?: string): string {
     if (extMap[ext]) return extMap[ext];
   }
 
-  // 根据 base64 数据头推测
-  if (base64Data) {
-    const header = base64Data.substring(0, 20);
-    if (header.startsWith("iVBOR")) return "image/png";
-    if (header.startsWith("/9j/")) return "image/jpeg";
-    if (header.startsWith("R0lGO")) return "image/gif";
-    if (header.startsWith("UklGR")) return "image/webp";
-    if (header.startsWith("JVBERi")) return "application/pdf";
-  }
-
-  return "image/png"; // 默认
+  // 如果都没匹配到，返回默认值
+  return imageMimeType;
 }
 
 /**
  * 构建 Gemini Parts
+ * 使用共享的 parseMessageContents，然后转换为 Gemini 特定格式
  * 支持文本、图片、音频、视频、PDF、工具调用等
  */
 function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
+  const parsed = parseMessageContents(messages);
   const parts: GeminiPart[] = [];
 
-  for (const msg of messages) {
-    if (msg.type === "text" && msg.text) {
-      parts.push({ text: msg.text });
-    } else if (msg.type === "image" && msg.imageBase64) {
-      // 图片内容
+  // 转换文本部分
+  for (const textPart of parsed.textParts) {
+    parts.push({ text: textPart.text });
+  }
+
+  // 转换图片部分
+  for (const imagePart of parsed.imageParts) {
+    parts.push({
+      inlineData: {
+        mimeType: inferMimeType(imagePart.base64),
+        data: imagePart.base64,
+      },
+    });
+  }
+
+  // 转换文档部分
+  for (const doc of parsed.documentParts) {
+    const docData = doc.source.data || doc.source.base64;
+    if (docData) {
       parts.push({
         inlineData: {
-          mimeType: inferMimeType(msg.imageBase64),
-          data: msg.imageBase64,
+          mimeType: doc.source.mimeType || "application/pdf",
+          data: docData,
         },
       });
-    } else if (msg.type === "document" && msg.documentSource) {
-      // 文档内容（PDF等）
-      const docData = msg.documentSource.data || msg.documentSource.base64;
-      if (docData) {
-        parts.push({
-          inlineData: {
-            mimeType: msg.documentSource.mimeType || "application/pdf",
-            data: docData,
-          },
-        });
-      } else if (msg.documentSource.uri) {
-        // 使用 File API 上传的文件
-        parts.push({
-          fileData: {
-            mimeType: msg.documentSource.mimeType || "application/pdf",
-            fileUri: msg.documentSource.uri,
-          },
-        });
-      }
-    } else if (msg.type === "tool_use" && msg.toolName && msg.toolInput) {
-      // 函数调用
+    } else if (doc.source.uri) {
+      // 使用 File API 上传的文件
       parts.push({
-        functionCall: {
-          name: msg.toolName,
-          args: msg.toolInput,
-        },
-      });
-    } else if (msg.type === "tool_result" && msg.toolName) {
-      // 函数响应
-      const response =
-        typeof msg.toolResultContent === "string"
-          ? { result: msg.toolResultContent }
-          : { result: JSON.stringify(msg.toolResultContent) };
-
-      parts.push({
-        functionResponse: {
-          name: msg.toolName,
-          response,
+        fileData: {
+          mimeType: doc.source.mimeType || "application/pdf",
+          fileUri: doc.source.uri,
         },
       });
     }
+  }
+
+  // 转换工具使用部分
+  for (const toolUse of parsed.toolUseParts) {
+    parts.push({
+      functionCall: {
+        name: toolUse.name,
+        args: toolUse.input,
+      },
+    });
+  }
+
+  // 转换工具结果部分
+  for (const toolResult of parsed.toolResultParts) {
+    const response =
+      typeof toolResult.content === "string"
+        ? { result: toolResult.content }
+        : { result: JSON.stringify(toolResult.content) };
+
+    parts.push({
+      functionResponse: {
+        name: toolResult.id, // Gemini 使用工具名称而不是 ID
+        response,
+      },
+    });
   }
 
   return parts;
@@ -306,24 +315,25 @@ function buildGeminiContents(options: LlmRequestOptions): GeminiContent[] {
 
 /**
  * 构建工具配置
+ * 使用共享的 extractToolDefinitions 辅助函数
  */
 function buildGeminiTools(options: LlmRequestOptions): GeminiTool[] | undefined {
   const tools: GeminiTool[] = [];
 
   // 函数声明
-  if (options.tools && options.tools.length > 0) {
-    const functionDeclarations = options.tools.map((tool) => ({
-      name: tool.function.name,
-      description: tool.function.description,
-      parameters: tool.function.parameters,
+  const commonTools = extractToolDefinitions(options.tools);
+  if (commonTools) {
+    const functionDeclarations = commonTools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
     }));
 
     tools.push({ functionDeclarations });
   }
 
-  // 代码执行
+  // 代码执行（Gemini 特有功能）
   // 检查是否需要启用代码执行（通过特殊标记或配置）
-  // 目前通过 options 中的自定义标记来启用
   if ((options as any).enableCodeExecution) {
     tools.push({ codeExecution: {} });
   }
@@ -333,29 +343,25 @@ function buildGeminiTools(options: LlmRequestOptions): GeminiTool[] | undefined 
 
 /**
  * 构建工具调用配置
+ * 使用共享的 parseToolChoice 辅助函数
  */
 function buildGeminiToolConfig(options: LlmRequestOptions): GeminiToolConfig | undefined {
-  if (!options.toolChoice) return undefined;
+  const parsed = parseToolChoice(options.toolChoice);
+  if (!parsed) return undefined;
 
   const config: GeminiToolConfig = {
     functionCallingConfig: {},
   };
 
-  if (typeof options.toolChoice === "string") {
-    switch (options.toolChoice) {
-      case "auto":
-        config.functionCallingConfig!.mode = "AUTO";
-        break;
-      case "none":
-        config.functionCallingConfig!.mode = "NONE";
-        break;
-      case "required":
-        config.functionCallingConfig!.mode = "ANY";
-        break;
-    }
-  } else if (options.toolChoice.type === "function") {
+  if (parsed === "auto") {
+    config.functionCallingConfig!.mode = "AUTO";
+  } else if (parsed === "none") {
+    config.functionCallingConfig!.mode = "NONE";
+  } else if (parsed === "required") {
     config.functionCallingConfig!.mode = "ANY";
-    config.functionCallingConfig!.allowedFunctionNames = [options.toolChoice.function.name];
+  } else if (typeof parsed === "object" && "functionName" in parsed) {
+    config.functionCallingConfig!.mode = "ANY";
+    config.functionCallingConfig!.allowedFunctionNames = [parsed.functionName];
   }
 
   return config;
@@ -377,24 +383,27 @@ function buildGeminiSafetySettings(options: LlmRequestOptions): GeminiSafetySett
 
 /**
  * 构建生成配置
- * 支持完整的 Gemini 生成参数
+ * 使用共享的 extractCommonParameters，支持完整的 Gemini 生成参数
  */
 function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerationConfig {
+  // 使用共享函数提取通用参数
+  const commonParams = extractCommonParameters(options);
+
   const config: GeminiGenerationConfig = {
-    maxOutputTokens: options.maxTokens || 8192,
-    temperature: options.temperature ?? 1.0,
+    maxOutputTokens: commonParams.maxTokens || 8192,
+    temperature: commonParams.temperature ?? 1.0,
   };
 
-  // 基础参数
-  if (options.topP !== undefined) config.topP = options.topP;
-  if (options.topK !== undefined) config.topK = options.topK;
-  if (options.presencePenalty !== undefined) config.presencePenalty = options.presencePenalty;
-  if (options.frequencyPenalty !== undefined) config.frequencyPenalty = options.frequencyPenalty;
-  if (options.seed !== undefined) config.seed = options.seed;
+  // 添加通用参数
+  if (commonParams.topP !== undefined) config.topP = commonParams.topP;
+  if (commonParams.topK !== undefined) config.topK = commonParams.topK;
+  if (commonParams.presencePenalty !== undefined) config.presencePenalty = commonParams.presencePenalty;
+  if (commonParams.frequencyPenalty !== undefined) config.frequencyPenalty = commonParams.frequencyPenalty;
+  if (commonParams.seed !== undefined) config.seed = commonParams.seed;
 
   // 停止序列
-  if (options.stop) {
-    config.stopSequences = Array.isArray(options.stop) ? options.stop : [options.stop];
+  if (commonParams.stop) {
+    config.stopSequences = Array.isArray(commonParams.stop) ? commonParams.stop : [commonParams.stop];
   }
 
   // 响应格式

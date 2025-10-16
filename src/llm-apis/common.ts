@@ -158,6 +158,37 @@ export interface LlmRequestOptions {
 }
 
 /**
+ * URL 引用注释（网络搜索工具）
+ */
+export interface UrlCitation {
+  type: "url_citation";
+  urlCitation: {
+    startIndex: number;
+    endIndex: number;
+    url: string;
+    title: string;
+  };
+}
+
+/**
+ * 文件引用注释（文件搜索工具）
+ */
+export interface FileCitation {
+  type: "file_citation";
+  fileCitation: {
+    startIndex: number;
+    endIndex: number;
+    fileId: string;
+    quote?: string;
+  };
+}
+
+/**
+ * 注释类型联合
+ */
+export type Annotation = UrlCitation | FileCitation;
+
+/**
  * LLM 响应结果
  */
 export interface LlmResponse {
@@ -222,16 +253,8 @@ export interface LlmResponse {
   };
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
-  /** 消息注释（如网络搜索的URL引用） */
-  annotations?: Array<{
-    type: "url_citation";
-    urlCitation: {
-      startIndex: number;
-      endIndex: number;
-      url: string;
-      title: string;
-    };
-  }>;
+  /** 消息注释（如网络搜索的URL引用、文件搜索的文件引用） */
+  annotations?: Annotation[];
   /** 音频响应数据 */
   audio?: {
     id: string;

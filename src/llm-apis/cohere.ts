@@ -3,6 +3,7 @@ import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
+import { parseMessageContents, extractCommonParameters } from "./request-builder";
 
 /**
  * 调用 Cohere API
@@ -16,18 +17,19 @@ export const callCohereApi = async (
   // 获取第一个可用的 API Key
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
-  // 构建消息内容
+  // 使用共享函数解析消息内容
   // 注意：Cohere 聊天 API 目前不支持多模态输入（图像），只处理文本
-  const message = options.messages
-    .filter((msg) => msg.type === "text" && msg.text)
-    .map((msg) => msg.text)
-    .join("\n");
+  const parsed = parseMessageContents(options.messages);
+  const message = parsed.textParts.map((part) => part.text).join("\n");
+
+  // 使用共享函数提取通用参数
+  const commonParams = extractCommonParameters(options);
 
   const body: any = {
     model: options.modelId,
     message,
-    max_tokens: options.maxTokens || 4000,
-    temperature: options.temperature ?? 0.5,
+    max_tokens: commonParams.maxTokens || 4000,
+    temperature: commonParams.temperature ?? 0.5,
   };
 
   // Cohere 使用 preamble 作为系统提示

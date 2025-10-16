@@ -3,6 +3,7 @@ import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream } from "@utils/sse-parser";
+import { parseMessageContents, extractCommonParameters } from "./request-builder";
 
 /**
  * 调用 OpenAI Responses API
@@ -22,18 +23,21 @@ export const callOpenAiResponsesApi = async (
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
+  // 使用共享函数解析消息内容
+  const parsed = parseMessageContents(options.messages);
+
   // 构建输入内容 - Responses API 使用不同的格式
   const inputContent: any[] = [];
   
-  for (const msg of options.messages) {
-    if (msg.type === "text" && msg.text) {
-      inputContent.push({ type: "input_text", text: msg.text });
-    } else if (msg.type === "image" && msg.imageBase64) {
-      inputContent.push({
-        type: "input_image",
-        image_url: `data:image/png;base64,${msg.imageBase64}`,
-      });
-    }
+  for (const textPart of parsed.textParts) {
+    inputContent.push({ type: "input_text", text: textPart.text });
+  }
+
+  for (const imagePart of parsed.imageParts) {
+    inputContent.push({
+      type: "input_image",
+      image_url: `data:image/png;base64,${imagePart.base64}`,
+    });
   }
 
   // 如果只有一个文本输入，可以直接使用字符串
@@ -41,11 +45,14 @@ export const callOpenAiResponsesApi = async (
     ? inputContent[0].text
     : [{ role: "user", content: inputContent }];
 
+  // 使用共享函数提取通用参数
+  const commonParams = extractCommonParameters(options);
+
   const body: any = {
     model: options.modelId,
     input,
-    max_output_tokens: options.maxTokens || 4000,
-    temperature: options.temperature ?? 1.0,
+    max_output_tokens: commonParams.maxTokens || 4000,
+    temperature: commonParams.temperature ?? 1.0,
   };
 
   // 添加系统指令（如果有）
@@ -53,9 +60,9 @@ export const callOpenAiResponsesApi = async (
     body.instructions = options.systemPrompt;
   }
 
-  // 添加可选的高级参数
-  if (options.topP !== undefined) {
-    body.top_p = options.topP;
+  // 添加通用参数
+  if (commonParams.topP !== undefined) {
+    body.top_p = commonParams.topP;
   }
   
   // 工具相关参数
@@ -86,8 +93,8 @@ export const callOpenAiResponsesApi = async (
   }
   
   // 其他高级参数
-  if (options.stop !== undefined) {
-    body.truncation = options.stop === 'auto' ? 'auto' : 'disabled';
+  if (commonParams.stop !== undefined) {
+    body.truncation = commonParams.stop === 'auto' ? 'auto' : 'disabled';
   }
 
   // 如果启用流式响应
@@ -122,6 +129,7 @@ export const callOpenAiResponsesApi = async (
     let refusal: string | null = null;
     let finishReason: LlmResponse['finishReason'] = null;
     const toolCalls: LlmResponse['toolCalls'] = [];
+    const annotations: LlmResponse['annotations'] = [];
 
     await parseSSEStream(reader, (data) => {
       try {
@@ -152,7 +160,7 @@ export const callOpenAiResponsesApi = async (
             finishReason = "length";
           }
           
-          // 检查输出中的工具调用
+          // 检查输出中的工具调用和 annotations
           if (resp.output && Array.isArray(resp.output)) {
             for (const item of resp.output) {
               if (item.type === "function_call") {
@@ -165,6 +173,36 @@ export const callOpenAiResponsesApi = async (
                   },
                 });
                 finishReason = "tool_calls";
+              }
+              // 提取 message 中的 annotations
+              else if (item.type === "message" && item.content) {
+                for (const contentItem of item.content) {
+                  if (contentItem.type === "output_text" && contentItem.annotations) {
+                    for (const annotation of contentItem.annotations) {
+                      if (annotation.type === "url_citation") {
+                        annotations.push({
+                          type: "url_citation",
+                          urlCitation: {
+                            startIndex: annotation.start_index,
+                            endIndex: annotation.end_index,
+                            url: annotation.url,
+                            title: annotation.title,
+                          },
+                        });
+                      } else if (annotation.type === "file_citation") {
+                        annotations.push({
+                          type: "file_citation",
+                          fileCitation: {
+                            startIndex: annotation.start_index,
+                            endIndex: annotation.end_index,
+                            fileId: annotation.file_id,
+                            quote: annotation.quote,
+                          },
+                        });
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -180,6 +218,7 @@ export const callOpenAiResponsesApi = async (
       refusal,
       finishReason,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      annotations: annotations.length > 0 ? annotations : undefined,
       isStream: true,
     };
   }
@@ -208,6 +247,7 @@ export const callOpenAiResponsesApi = async (
   let refusal: string | null = null;
   let finishReason: LlmResponse['finishReason'] = null;
   const toolCalls: LlmResponse['toolCalls'] = [];
+  const annotations: LlmResponse['annotations'] = [];
   
   if (data.output && Array.isArray(data.output)) {
     for (const item of data.output) {
@@ -216,6 +256,33 @@ export const callOpenAiResponsesApi = async (
         for (const contentItem of item.content) {
           if (contentItem.type === "output_text") {
             content += contentItem.text;
+            
+            // 提取 annotations
+            if (contentItem.annotations && Array.isArray(contentItem.annotations)) {
+              for (const annotation of contentItem.annotations) {
+                if (annotation.type === "url_citation") {
+                  annotations.push({
+                    type: "url_citation",
+                    urlCitation: {
+                      startIndex: annotation.start_index,
+                      endIndex: annotation.end_index,
+                      url: annotation.url,
+                      title: annotation.title,
+                    },
+                  });
+                } else if (annotation.type === "file_citation") {
+                  annotations.push({
+                    type: "file_citation",
+                    fileCitation: {
+                      startIndex: annotation.start_index,
+                      endIndex: annotation.end_index,
+                      fileId: annotation.file_id,
+                      quote: annotation.quote,
+                    },
+                  });
+                }
+              }
+            }
           } else if (contentItem.type === "refusal") {
             refusal = contentItem.refusal;
           }
@@ -252,6 +319,7 @@ export const callOpenAiResponsesApi = async (
     refusal,
     finishReason,
     toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    annotations: annotations.length > 0 ? annotations : undefined,
     usage: data.usage
       ? {
           promptTokens: data.usage.input_tokens,

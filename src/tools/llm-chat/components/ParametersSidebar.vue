@@ -6,6 +6,7 @@ import { useModelMetadata } from '@/composables/useModelMetadata';
 import type { LlmParameters } from '../types';
 import type { LlmProfile, LlmModelInfo } from '@/types/llm-profiles';
 import { Refresh } from '@element-plus/icons-vue';
+import DynamicIcon from '@/components/common/DynamicIcon.vue';
 
 interface Props {
   currentAgentId: string;
@@ -198,12 +199,11 @@ const resetToAgentDefaults = () => {
             >
               <div style="display: flex; align-items: center; gap: 8px">
                 <!-- 模型图标 -->
-                <img
+                <DynamicIcon
                   v-if="getModelIcon(item.model)"
                   :src="getModelIcon(item.model)!"
                   :alt="item.label"
                   style="width: 20px; height: 20px; object-fit: contain"
-                  @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
                 />
                 <div
                   v-else

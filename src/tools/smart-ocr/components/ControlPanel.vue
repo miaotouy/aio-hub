@@ -20,6 +20,7 @@ import { useLlmProfiles } from "../../../composables/useLlmProfiles";
 import { useOcrProfiles } from "../../../composables/useOcrProfiles";
 import type { LlmProfile, LlmModelInfo } from "../../../types/llm-profiles";
 import { useModelMetadata } from "../../../composables/useModelMetadata";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 const props = defineProps<{
   engineConfig: OcrEngineConfig;
@@ -592,12 +593,11 @@ defineExpose({
                   >
                     <div style="display: flex; align-items: center; gap: 8px">
                       <!-- 模型图标 -->
-                      <img
+                      <DynamicIcon
                         v-if="getModelIcon(item.model)"
                         :src="getModelIcon(item.model)!"
                         :alt="item.label"
                         style="width: 20px; height: 20px; object-fit: contain"
-                        @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
                       />
                       <div
                         v-else

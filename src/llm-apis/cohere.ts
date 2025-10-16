@@ -20,22 +20,28 @@ export const callCohereApi = async (
   // 使用共享函数解析消息内容
   // 注意：Cohere 聊天 API 目前不支持多模态输入（图像），只处理文本
   const parsed = parseMessageContents(options.messages);
-  const message = parsed.textParts.map((part) => part.text).join("\n");
+  const userMessageContent = parsed.textParts.map((part) => part.text).join("\n");
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);
 
+  // 构建 messages 数组（V2 API 格式）
+  const messages = [];
+
+  // 添加系统提示
+  if (options.systemPrompt) {
+    messages.push({ role: "system", content: options.systemPrompt });
+  }
+
+  // 添加用户消息
+  messages.push({ role: "user", content: userMessageContent });
+
   const body: any = {
     model: options.modelId,
-    message,
+    messages: messages,
     max_tokens: commonParams.maxTokens || 4000,
     temperature: commonParams.temperature ?? 0.5,
   };
-
-  // Cohere 使用 preamble 作为系统提示
-  if (options.systemPrompt) {
-    body.preamble = options.systemPrompt;
-  }
 
   // 如果启用流式响应
   if (options.stream && options.onStream) {

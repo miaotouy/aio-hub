@@ -13,9 +13,19 @@ export const DEFAULT_RETRY_DELAY = 1000; // 1秒
  * LLM 请求的消息内容
  */
 export interface LlmMessageContent {
-  type: "text" | "image";
+  type: "text" | "image" | "tool_use" | "tool_result" | "document";
   text?: string;
   imageBase64?: string;
+  // 工具使用
+  toolUseId?: string;
+  toolName?: string;
+  toolInput?: Record<string, any>;
+  // 工具结果
+  toolResultId?: string;
+  toolResultContent?: string | LlmMessageContent[];
+  isError?: boolean;
+  // 文档
+  documentSource?: Record<string, any>;
 }
 
 /**
@@ -38,6 +48,71 @@ export interface LlmRequestOptions {
   maxRetries?: number;
   /** 用于中止请求的 AbortSignal */
   signal?: AbortSignal;
+  
+  // OpenAI 兼容的高级参数
+  /** Top-p 采样参数，介于 0 和 1 之间 */
+  topP?: number;
+  /** Top-k 采样参数（某些模型支持） */
+  topK?: number;
+  /** 频率惩罚，介于 -2.0 和 2.0 之间 */
+  frequencyPenalty?: number;
+  /** 存在惩罚，介于 -2.0 和 2.0 之间 */
+  presencePenalty?: number;
+  /** 停止序列，最多 4 个 */
+  stop?: string | string[];
+  /** 生成的响应数量 */
+  n?: number;
+  /** 随机种子，用于确定性采样 */
+  seed?: number;
+  /** 是否返回 logprobs */
+  logprobs?: boolean;
+  /** 返回的 top logprobs 数量（0-20） */
+  topLogprobs?: number;
+  /** 响应格式配置 */
+  responseFormat?: {
+    type: "text" | "json_object" | "json_schema";
+    json_schema?: {
+      name: string;
+      schema: Record<string, any>;
+      strict?: boolean;
+    };
+  };
+  /** 工具列表（函数调用） */
+  tools?: Array<{
+    type: "function";
+    function: {
+      name: string;
+      description?: string;
+      parameters?: Record<string, any>;
+      strict?: boolean;
+    };
+  }>;
+  /** 工具选择策略 */
+  toolChoice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+  /** 是否启用并行工具调用 */
+  parallelToolCalls?: boolean;
+  /** 流式选项 */
+  streamOptions?: {
+    includeUsage?: boolean;
+  };
+  
+  // ===== Claude 特有参数 =====
+  /** Claude: Thinking 模式配置 */
+  thinking?: {
+    type: "enabled" | "disabled";
+    budget_tokens?: number;
+  };
+  /** Claude: 停止序列 */
+  stopSequences?: string[];
+  /** Claude: 元数据 */
+  metadata?: {
+    user_id?: string;
+  };
+  /** Claude: 消息历史（用于多轮对话） */
+  conversationHistory?: Array<{
+    role: "user" | "assistant";
+    content: string | LlmMessageContent[];
+  }>;
 }
 
 /**
@@ -52,6 +127,36 @@ export interface LlmResponse {
   };
   /** 是否为流式响应 */
   isStream?: boolean;
+  /** 模型的拒绝消息（如果模型拒绝响应） */
+  refusal?: string | null;
+  /** 停止原因 */
+  finishReason?: "stop" | "length" | "content_filter" | "tool_calls" | "function_call" | "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
+  /** 停止序列（Claude） */
+  stopSequence?: string | null;
+  /** 工具调用结果（函数调用） */
+  toolCalls?: Array<{
+    id: string;
+    type: "function";
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+  /** Logprobs 信息 */
+  logprobs?: {
+    content: Array<{
+      token: string;
+      logprob: number;
+      bytes: number[] | null;
+      topLogprobs: Array<{
+        token: string;
+        logprob: number;
+        bytes: number[] | null;
+      }>;
+    }> | null;
+  };
+  /** 推理内容（DeepSeek reasoning 模式） */
+  reasoningContent?: string;
 }
 
 /**

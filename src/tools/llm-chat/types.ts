@@ -80,6 +80,8 @@ export interface ChatMessageNode {
       completionTokens: number;
       totalTokens: number;
     };
+    /** 推理内容（DeepSeek reasoning 模式） */
+    reasoningContent?: string;
   };
 }
 

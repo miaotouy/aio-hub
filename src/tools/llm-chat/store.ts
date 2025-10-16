@@ -285,32 +285,54 @@ export const useLlmChatStore = defineStore('llmChat', {
 
         // 构建消息列表（从当前消息链构建，排除正在生成的助手消息）
         const messageChain = this.currentMessageChain.filter(
-          node => node.id !== assistantNodeId
+          node => node.id !== assistantNodeId && node.role !== 'system'
         );
 
-        const messages: LlmMessageContent[] = messageChain
-          .filter(node => node.role !== 'system') // 排除系统根节点
-          .map(node => ({
-            type: 'text' as const,
-            text: node.content,
-          }));
+        // 将消息链转换为对话历史格式（支持 Claude 等需要角色区分的 API）
+        const conversationHistory: Array<{
+          role: 'user' | 'assistant';
+          content: string | LlmMessageContent[];
+        }> = [];
+        
+        // 将除最后一条用户消息外的所有消息作为历史
+        for (let i = 0; i < messageChain.length - 1; i++) {
+          const node = messageChain[i];
+          if (node.role === 'user' || node.role === 'assistant') {
+            conversationHistory.push({
+              role: node.role,
+              content: node.content,
+            });
+          }
+        }
+
+        // 最后一条消息（用户消息）作为当前请求
+        const currentMessage: LlmMessageContent[] = [{
+          type: 'text' as const,
+          text: content,
+        }];
 
         logger.info('发送 LLM 请求', {
           sessionId: session.id,
           agentId: session.currentAgentId,
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
-          messageCount: messages.length,
+          historyMessageCount: conversationHistory.length,
+          currentMessageLength: content.length,
         });
 
         // 发送请求（支持流式）
         const response = await sendRequest({
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
-          messages,
+          messages: currentMessage,
+          conversationHistory,
           systemPrompt: agentConfig.systemPrompt,
           temperature: agentConfig.parameters.temperature,
           maxTokens: agentConfig.parameters.maxTokens,
+          topP: agentConfig.parameters.topP,
+          topK: agentConfig.parameters.topK,
+          frequencyPenalty: agentConfig.parameters.frequencyPenalty,
+          presencePenalty: agentConfig.parameters.presencePenalty,
           stream: true,
           signal: this.abortController.signal,
           onStream: (chunk: string) => {
@@ -330,6 +352,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           modelId: agentConfig.modelId,
           modelName: agent?.name,
           usage: response.usage,
+          reasoningContent: response.reasoningContent,
         };
 
         this.persistSessions();

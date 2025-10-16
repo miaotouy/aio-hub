@@ -17,6 +17,18 @@ const emit = defineEmits<Emits>();
 
 const messagesContainer = ref<HTMLElement>();
 
+// 推理内容展开状态
+const expandedReasoning = ref<Set<string>>(new Set());
+
+// 切换推理内容展开/折叠
+const toggleReasoning = (messageId: string) => {
+  if (expandedReasoning.value.has(messageId)) {
+    expandedReasoning.value.delete(messageId);
+  } else {
+    expandedReasoning.value.add(messageId);
+  }
+};
+
 // 自动滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
@@ -70,6 +82,22 @@ const canRegenerate = () => {
           {{ message.role === 'user' ? '👤 你' : '🤖 助手' }}
         </span>
         <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+      </div>
+
+      <!-- 推理内容（DeepSeek reasoning） -->
+      <div v-if="message.metadata?.reasoningContent" class="reasoning-section">
+        <button
+          @click="toggleReasoning(message.id)"
+          class="reasoning-toggle"
+          :class="{ expanded: expandedReasoning.has(message.id) }"
+        >
+          <span class="toggle-icon">{{ expandedReasoning.has(message.id) ? '▼' : '▶' }}</span>
+          <span class="toggle-text">思维链推理过程</span>
+          <span class="reasoning-badge">Reasoning</span>
+        </button>
+        <div v-if="expandedReasoning.has(message.id)" class="reasoning-content">
+          <pre class="reasoning-text">{{ message.metadata.reasoningContent }}</pre>
+        </div>
       </div>
 
       <div class="message-content">
@@ -302,5 +330,74 @@ const canRegenerate = () => {
 
 .message-list::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover-color);
+}
+
+/* 推理内容样式 */
+.reasoning-section {
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--container-bg);
+}
+
+.reasoning-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-color);
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+
+.reasoning-toggle:hover {
+  background-color: var(--hover-bg);
+}
+
+.reasoning-toggle.expanded {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toggle-icon {
+  font-size: 10px;
+  color: var(--text-color-light);
+  transition: transform 0.2s;
+}
+
+.toggle-text {
+  flex: 1;
+  text-align: left;
+  font-weight: 500;
+}
+
+.reasoning-badge {
+  padding: 2px 8px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.reasoning-content {
+  padding: 12px;
+  background-color: var(--bg-color);
+  border-top: 1px solid var(--border-color);
+}
+
+.reasoning-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text-color-light);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.85;
 }
 </style>

@@ -1,8 +1,497 @@
 import type { LlmProfile } from "../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "./common";
+import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
+
+/**
+ * Gemini API 类型定义
+ * 基于 Google Gemini Generate Content API 规范
+ */
+
+// Part 类型 - 支持多种内容类型
+interface GeminiPart {
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string; // base64 编码
+  };
+  fileData?: {
+    mimeType: string;
+    fileUri: string;
+  };
+  functionCall?: {
+    name: string;
+    args: Record<string, any>;
+  };
+  functionResponse?: {
+    name: string;
+    response: Record<string, any>;
+  };
+  executableCode?: {
+    language: "PYTHON" | "LANGUAGE_UNSPECIFIED";
+    code: string;
+  };
+  codeExecutionResult?: {
+    outcome: "OUTCOME_OK" | "OUTCOME_FAILED" | "OUTCOME_DEADLINE_EXCEEDED" | "OUTCOME_UNSPECIFIED";
+    output: string;
+  };
+}
+
+// Content 类型
+interface GeminiContent {
+  parts: GeminiPart[];
+  role?: "user" | "model" | "function" | "tool";
+}
+
+// Tool 配置
+interface GeminiTool {
+  functionDeclarations?: Array<{
+    name: string;
+    description?: string;
+    parameters?: Record<string, any>;
+  }>;
+  codeExecution?: Record<string, never>; // 空对象，启用代码执行
+}
+
+// Tool 配置
+interface GeminiToolConfig {
+  functionCallingConfig?: {
+    mode?: "AUTO" | "ANY" | "NONE" | "MODE_UNSPECIFIED";
+    allowedFunctionNames?: string[];
+  };
+}
+
+// 安全设置
+interface GeminiSafetySetting {
+  category:
+    | "HARM_CATEGORY_HARASSMENT"
+    | "HARM_CATEGORY_HATE_SPEECH"
+    | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+    | "HARM_CATEGORY_DANGEROUS_CONTENT"
+    | "HARM_CATEGORY_CIVIC_INTEGRITY";
+  threshold:
+    | "BLOCK_NONE"
+    | "BLOCK_ONLY_HIGH"
+    | "BLOCK_MEDIUM_AND_ABOVE"
+    | "BLOCK_LOW_AND_ABOVE"
+    | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
+    | "OFF";
+}
+
+// 响应 Schema - 支持完整的 JSON Schema
+interface GeminiSchema {
+  type: "STRING" | "NUMBER" | "INTEGER" | "BOOLEAN" | "ARRAY" | "OBJECT" | "TYPE_UNSPECIFIED";
+  description?: string;
+  enum?: string[];
+  example?: any;
+  nullable?: boolean;
+  format?: string; // 如 "date", "date-time" 等
+  items?: GeminiSchema; // 用于 ARRAY 类型
+  properties?: Record<string, GeminiSchema>; // 用于 OBJECT 类型
+  required?: string[]; // 必需属性列表
+  minimum?: number;
+  maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  minLength?: number;
+  maxLength?: number;
+}
+
+// 语音配置
+interface GeminiSpeechConfig {
+  voiceConfig?: {
+    prebuiltVoiceConfig?: {
+      voiceName?: string;
+    };
+  };
+  multiSpeakerVoiceConfig?: {
+    speakerVoiceConfigs?: Array<{
+      speaker?: string;
+      voiceConfig?: {
+        prebuiltVoiceConfig?: {
+          voiceName?: string;
+        };
+      };
+    }>;
+  };
+  languageCode?: string; // 如 "zh-CN", "en-US"
+}
+
+// 思考配置
+interface GeminiThinkingConfig {
+  includeThoughts?: boolean;
+  thinkingBudget?: number; // 模型应生成的想法 token 数量
+}
+
+// 生成配置
+interface GeminiGenerationConfig {
+  stopSequences?: string[];
+  responseMimeType?: string; // "text/plain", "application/json", "text/x.enum"
+  responseSchema?: GeminiSchema;
+  responseModalities?: Array<"TEXT" | "IMAGE" | "AUDIO">; // 请求的响应模式
+  candidateCount?: number;
+  maxOutputTokens?: number;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  seed?: number; // 用于确定性采样
+  presencePenalty?: number;
+  frequencyPenalty?: number;
+  responseLogprobs?: boolean;
+  logprobs?: number; // 返回的顶部 logprob 数量
+  enableEnhancedCivicAnswers?: boolean; // 启用增强型城市服务回答
+  speechConfig?: GeminiSpeechConfig; // 语音生成配置
+  thinkingConfig?: GeminiThinkingConfig; // 思考功能配置
+  mediaResolution?: "MEDIA_RESOLUTION_LOW" | "MEDIA_RESOLUTION_MEDIUM" | "MEDIA_RESOLUTION_HIGH" | "MEDIA_RESOLUTION_UNSPECIFIED";
+}
+
+// 请求体
+interface GeminiRequest {
+  contents: GeminiContent[];
+  tools?: GeminiTool[];
+  toolConfig?: GeminiToolConfig;
+  safetySettings?: GeminiSafetySetting[];
+  systemInstruction?: GeminiContent;
+  generationConfig?: GeminiGenerationConfig;
+  cachedContent?: string; // 缓存内容的名称
+}
+
+/**
+ * 推测媒体类型的 MIME Type
+ * 根据文件扩展名或数据头推测
+ */
+function inferMimeType(base64Data?: string, fileExt?: string): string {
+  // 根据文件扩展名推测
+  if (fileExt) {
+    const extMap: Record<string, string> = {
+      // 图片
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+      // 音频
+      mp3: "audio/mpeg",
+      wav: "audio/wav",
+      ogg: "audio/ogg",
+      aac: "audio/aac",
+      flac: "audio/flac",
+      // 视频
+      mp4: "video/mp4",
+      mpeg: "video/mpeg",
+      mov: "video/quicktime",
+      avi: "video/x-msvideo",
+      webm: "video/webm",
+      // 文档
+      pdf: "application/pdf",
+    };
+    const ext = fileExt.toLowerCase().replace(".", "");
+    if (extMap[ext]) return extMap[ext];
+  }
+
+  // 根据 base64 数据头推测
+  if (base64Data) {
+    const header = base64Data.substring(0, 20);
+    if (header.startsWith("iVBOR")) return "image/png";
+    if (header.startsWith("/9j/")) return "image/jpeg";
+    if (header.startsWith("R0lGO")) return "image/gif";
+    if (header.startsWith("UklGR")) return "image/webp";
+    if (header.startsWith("JVBERi")) return "application/pdf";
+  }
+
+  return "image/png"; // 默认
+}
+
+/**
+ * 构建 Gemini Parts
+ * 支持文本、图片、音频、视频、PDF、工具调用等
+ */
+function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
+  const parts: GeminiPart[] = [];
+
+  for (const msg of messages) {
+    if (msg.type === "text" && msg.text) {
+      parts.push({ text: msg.text });
+    } else if (msg.type === "image" && msg.imageBase64) {
+      // 图片内容
+      parts.push({
+        inlineData: {
+          mimeType: inferMimeType(msg.imageBase64),
+          data: msg.imageBase64,
+        },
+      });
+    } else if (msg.type === "document" && msg.documentSource) {
+      // 文档内容（PDF等）
+      const docData = msg.documentSource.data || msg.documentSource.base64;
+      if (docData) {
+        parts.push({
+          inlineData: {
+            mimeType: msg.documentSource.mimeType || "application/pdf",
+            data: docData,
+          },
+        });
+      } else if (msg.documentSource.uri) {
+        // 使用 File API 上传的文件
+        parts.push({
+          fileData: {
+            mimeType: msg.documentSource.mimeType || "application/pdf",
+            fileUri: msg.documentSource.uri,
+          },
+        });
+      }
+    } else if (msg.type === "tool_use" && msg.toolName && msg.toolInput) {
+      // 函数调用
+      parts.push({
+        functionCall: {
+          name: msg.toolName,
+          args: msg.toolInput,
+        },
+      });
+    } else if (msg.type === "tool_result" && msg.toolName) {
+      // 函数响应
+      const response =
+        typeof msg.toolResultContent === "string"
+          ? { result: msg.toolResultContent }
+          : { result: JSON.stringify(msg.toolResultContent) };
+
+      parts.push({
+        functionResponse: {
+          name: msg.toolName,
+          response,
+        },
+      });
+    }
+  }
+
+  return parts;
+}
+
+/**
+ * 构建多轮对话的 contents
+ */
+function buildGeminiContents(options: LlmRequestOptions): GeminiContent[] {
+  // 如果有 conversationHistory，使用它构建多轮对话
+  if (options.conversationHistory && options.conversationHistory.length > 0) {
+    const contents: GeminiContent[] = [];
+
+    for (const msg of options.conversationHistory) {
+      const parts =
+        typeof msg.content === "string"
+          ? [{ text: msg.content }]
+          : buildGeminiParts(msg.content);
+
+      contents.push({
+        role: msg.role === "assistant" ? "model" : "user",
+        parts,
+      });
+    }
+
+    // 添加当前消息
+    const currentParts = buildGeminiParts(options.messages);
+    if (currentParts.length > 0) {
+      contents.push({
+        role: "user",
+        parts: currentParts,
+      });
+    }
+
+    return contents;
+  }
+
+  // 否则使用单轮对话
+  const parts = buildGeminiParts(options.messages);
+  return parts.length > 0 ? [{ parts }] : [];
+}
+
+/**
+ * 构建工具配置
+ */
+function buildGeminiTools(options: LlmRequestOptions): GeminiTool[] | undefined {
+  const tools: GeminiTool[] = [];
+
+  // 函数声明
+  if (options.tools && options.tools.length > 0) {
+    const functionDeclarations = options.tools.map((tool) => ({
+      name: tool.function.name,
+      description: tool.function.description,
+      parameters: tool.function.parameters,
+    }));
+
+    tools.push({ functionDeclarations });
+  }
+
+  // 代码执行
+  // 检查是否需要启用代码执行（通过特殊标记或配置）
+  // 目前通过 options 中的自定义标记来启用
+  if ((options as any).enableCodeExecution) {
+    tools.push({ codeExecution: {} });
+  }
+
+  return tools.length > 0 ? tools : undefined;
+}
+
+/**
+ * 构建工具调用配置
+ */
+function buildGeminiToolConfig(options: LlmRequestOptions): GeminiToolConfig | undefined {
+  if (!options.toolChoice) return undefined;
+
+  const config: GeminiToolConfig = {
+    functionCallingConfig: {},
+  };
+
+  if (typeof options.toolChoice === "string") {
+    switch (options.toolChoice) {
+      case "auto":
+        config.functionCallingConfig!.mode = "AUTO";
+        break;
+      case "none":
+        config.functionCallingConfig!.mode = "NONE";
+        break;
+      case "required":
+        config.functionCallingConfig!.mode = "ANY";
+        break;
+    }
+  } else if (options.toolChoice.type === "function") {
+    config.functionCallingConfig!.mode = "ANY";
+    config.functionCallingConfig!.allowedFunctionNames = [options.toolChoice.function.name];
+  }
+
+  return config;
+}
+
+/**
+ * 构建安全设置
+ */
+function buildGeminiSafetySettings(options: LlmRequestOptions): GeminiSafetySetting[] | undefined {
+  // 可以通过 options 传入自定义安全设置
+  const customSettings = (options as any).safetySettings;
+  if (customSettings) {
+    return customSettings;
+  }
+
+  // 默认使用宽松的安全设置
+  return undefined;
+}
+
+/**
+ * 构建生成配置
+ * 支持完整的 Gemini 生成参数
+ */
+function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerationConfig {
+  const config: GeminiGenerationConfig = {
+    maxOutputTokens: options.maxTokens || 8192,
+    temperature: options.temperature ?? 1.0,
+  };
+
+  // 基础参数
+  if (options.topP !== undefined) config.topP = options.topP;
+  if (options.topK !== undefined) config.topK = options.topK;
+  if (options.presencePenalty !== undefined) config.presencePenalty = options.presencePenalty;
+  if (options.frequencyPenalty !== undefined) config.frequencyPenalty = options.frequencyPenalty;
+  if (options.seed !== undefined) config.seed = options.seed;
+
+  // 停止序列
+  if (options.stop) {
+    config.stopSequences = Array.isArray(options.stop) ? options.stop : [options.stop];
+  }
+
+  // 响应格式
+  if (options.responseFormat) {
+    if (options.responseFormat.type === "json_object") {
+      config.responseMimeType = "application/json";
+    } else if (options.responseFormat.type === "json_schema" && options.responseFormat.json_schema) {
+      config.responseMimeType = "application/json";
+      // 将 JSON Schema 转换为 Gemini Schema
+      config.responseSchema = convertToGeminiSchema(options.responseFormat.json_schema.schema);
+    }
+  }
+
+  // Logprobs
+  if (options.logprobs) {
+    config.responseLogprobs = true;
+    if (options.topLogprobs !== undefined) {
+      config.logprobs = options.topLogprobs;
+    }
+  }
+
+  // 扩展参数支持
+  const extendedOptions = options as any;
+  
+  // 思考配置
+  if (extendedOptions.thinkingConfig) {
+    config.thinkingConfig = extendedOptions.thinkingConfig;
+  }
+
+  // 语音配置
+  if (extendedOptions.speechConfig) {
+    config.speechConfig = extendedOptions.speechConfig;
+  }
+
+  // 响应模式
+  if (extendedOptions.responseModalities) {
+    config.responseModalities = extendedOptions.responseModalities;
+  }
+
+  // 媒体分辨率
+  if (extendedOptions.mediaResolution) {
+    config.mediaResolution = extendedOptions.mediaResolution;
+  }
+
+  // 增强型城市服务回答
+  if (extendedOptions.enableEnhancedCivicAnswers !== undefined) {
+    config.enableEnhancedCivicAnswers = extendedOptions.enableEnhancedCivicAnswers;
+  }
+
+  return config;
+}
+
+/**
+ * 转换 JSON Schema 到 Gemini Schema
+ */
+function convertToGeminiSchema(schema: Record<string, any>): GeminiSchema {
+  const geminiSchema: GeminiSchema = {
+    type: convertSchemaType(schema.type),
+  };
+
+  if (schema.description) geminiSchema.description = schema.description;
+  if (schema.enum) geminiSchema.enum = schema.enum;
+  if (schema.nullable) geminiSchema.nullable = schema.nullable;
+
+  if (schema.type === "array" && schema.items) {
+    geminiSchema.items = convertToGeminiSchema(schema.items);
+  }
+
+  if (schema.type === "object") {
+    if (schema.properties) {
+      geminiSchema.properties = {};
+      for (const [key, value] of Object.entries(schema.properties)) {
+        geminiSchema.properties[key] = convertToGeminiSchema(value as Record<string, any>);
+      }
+    }
+    if (schema.required) {
+      geminiSchema.required = schema.required;
+    }
+  }
+
+  return geminiSchema;
+}
+
+/**
+ * 转换 Schema 类型
+ */
+function convertSchemaType(type: string): GeminiSchema["type"] {
+  const typeMap: Record<string, GeminiSchema["type"]> = {
+    string: "STRING",
+    number: "NUMBER",
+    integer: "INTEGER",
+    boolean: "BOOLEAN",
+    array: "ARRAY",
+    object: "OBJECT",
+  };
+  return typeMap[type] || "STRING";
+}
 
 /**
  * 调用 Google Gemini API
@@ -23,38 +512,35 @@ export const callGeminiApi = async (
   const baseUrl = buildLlmApiUrl(profile.baseUrl, "gemini", endpoint);
   const url = `${baseUrl}?key=${apiKey}${options.stream ? "&alt=sse" : ""}`;
 
-  // 构建 parts
-  const parts: any[] = [];
-  for (const msg of options.messages) {
-    if (msg.type === "text" && msg.text) {
-      parts.push({ text: msg.text });
-    } else if (msg.type === "image" && msg.imageBase64) {
-      parts.push({
-        inline_data: {
-          mime_type: "image/png",
-          data: msg.imageBase64,
-        },
-      });
-    }
-  }
-
-  const body: any = {
-    contents: [
-      {
-        parts,
-      },
-    ],
-    generationConfig: {
-      maxOutputTokens: options.maxTokens || 4000,
-      temperature: options.temperature ?? 0.5,
-    },
+  // 构建请求体
+  const body: GeminiRequest = {
+    contents: buildGeminiContents(options),
+    generationConfig: buildGeminiGenerationConfig(options),
   };
 
-  // Gemini 使用 systemInstruction 而不是 system message
+  // 添加系统指令
   if (options.systemPrompt) {
     body.systemInstruction = {
       parts: [{ text: options.systemPrompt }],
     };
+  }
+
+  // 添加工具
+  const tools = buildGeminiTools(options);
+  if (tools) {
+    body.tools = tools;
+  }
+
+  // 添加工具配置
+  const toolConfig = buildGeminiToolConfig(options);
+  if (toolConfig) {
+    body.toolConfig = toolConfig;
+  }
+
+  // 添加安全设置
+  const safetySettings = buildGeminiSafetySettings(options);
+  if (safetySettings) {
+    body.safetySettings = safetySettings;
   }
 
   // 如果启用流式响应
@@ -84,7 +570,9 @@ export const callGeminiApi = async (
 
     const reader = response.body.getReader();
     let fullContent = "";
-    let usage: LlmResponse['usage'] | undefined;
+    let usage: LlmResponse["usage"] | undefined;
+    let finishReason: LlmResponse["finishReason"] = null;
+    let toolCalls: LlmResponse["toolCalls"] = undefined;
 
     await parseSSEStream(reader, (data) => {
       const text = extractTextFromSSE(data, "gemini");
@@ -92,16 +580,38 @@ export const callGeminiApi = async (
         fullContent += text;
         options.onStream!(text);
       }
-      
-      // 尝试从流数据中提取 usage 信息（Gemini 在响应中包含 usageMetadata）
+
+      // 尝试从流数据中提取详细信息
       try {
         const json = JSON.parse(data);
+
+        // 提取 usage 信息
         if (json.usageMetadata) {
           usage = {
             promptTokens: json.usageMetadata.promptTokenCount || 0,
             completionTokens: json.usageMetadata.candidatesTokenCount || 0,
             totalTokens: json.usageMetadata.totalTokenCount || 0,
           };
+        }
+
+        // 提取 finishReason
+        if (json.candidates?.[0]?.finishReason) {
+          finishReason = mapGeminiFinishReason(json.candidates[0].finishReason);
+        }
+
+        // 提取函数调用
+        const functionCall = json.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+        if (functionCall) {
+          toolCalls = [
+            {
+              id: `call_${Date.now()}`, // Gemini 不提供 ID，生成一个
+              type: "function",
+              function: {
+                name: functionCall.name,
+                arguments: JSON.stringify(functionCall.args || {}),
+              },
+            },
+          ];
         }
       } catch {
         // 忽略非 JSON 数据
@@ -111,6 +621,8 @@ export const callGeminiApi = async (
     return {
       content: fullContent,
       usage,
+      finishReason,
+      toolCalls,
       isStream: true,
     };
   }
@@ -136,19 +648,143 @@ export const callGeminiApi = async (
 
   const data = await response.json();
 
-  // 验证响应格式
-  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+  // 处理响应
+  return parseGeminiResponse(data);
+};
+
+/**
+ * 解析 Gemini API 响应
+ * 支持文本、工具调用、代码执行、思考内容、logprobs 等
+ */
+function parseGeminiResponse(data: any): LlmResponse {
+  const candidate = data.candidates?.[0];
+
+  if (!candidate) {
+    throw new Error(`Gemini API 响应格式异常: 没有候选回答`);
+  }
+
+  // 提取文本内容
+  let content = "";
+  let toolCalls: LlmResponse["toolCalls"] = undefined;
+  let thoughtsContent = ""; // 思考内容
+
+  if (candidate.content?.parts) {
+    for (const part of candidate.content.parts) {
+      if (part.text) {
+        content += part.text;
+      } else if (part.functionCall) {
+        // 函数调用
+        if (!toolCalls) toolCalls = [];
+        toolCalls.push({
+          id: `call_${Date.now()}_${toolCalls.length}`,
+          type: "function",
+          function: {
+            name: part.functionCall.name,
+            arguments: JSON.stringify(part.functionCall.args || {}),
+          },
+        });
+      } else if (part.executableCode) {
+        // 可执行代码
+        content += `\n\`\`\`${part.executableCode.language.toLowerCase()}\n${part.executableCode.code}\n\`\`\`\n`;
+      } else if (part.codeExecutionResult) {
+        // 代码执行结果
+        const outcomeText = part.codeExecutionResult.outcome === "OUTCOME_OK" ? "成功" : "失败";
+        content += `\n**代码执行结果 (${outcomeText}):**\n\`\`\`\n${part.codeExecutionResult.output}\n\`\`\`\n`;
+      }
+    }
+  }
+
+  // 提取思考内容（如果启用了思考模式）
+  if (candidate.thoughts) {
+    thoughtsContent = candidate.thoughts;
+  }
+
+  // 如果没有内容且没有函数调用，检查是否有错误或安全过滤
+  if (!content && !toolCalls) {
+    // 检查是否因安全设置被屏蔽
+    if (data.promptFeedback?.blockReason) {
+      throw new Error(`请求被屏蔽: ${data.promptFeedback.blockReason}`);
+    }
+    
     throw new Error(`Gemini API 响应格式异常: ${JSON.stringify(data)}`);
   }
 
-  return {
-    content: data.candidates[0].content.parts[0].text,
-    usage: data.usageMetadata
-      ? {
-          promptTokens: data.usageMetadata.promptTokenCount,
-          completionTokens: data.usageMetadata.candidatesTokenCount,
-          totalTokens: data.usageMetadata.totalTokenCount,
-        }
-      : undefined,
+  const result: LlmResponse = {
+    content,
+    finishReason: mapGeminiFinishReason(candidate.finishReason),
   };
-};
+
+  // 添加 usage 信息
+  if (data.usageMetadata) {
+    result.usage = {
+      promptTokens: data.usageMetadata.promptTokenCount || 0,
+      completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+      totalTokens: data.usageMetadata.totalTokenCount || 0,
+    };
+  }
+
+  // 添加工具调用
+  if (toolCalls) {
+    result.toolCalls = toolCalls;
+  }
+
+  // 添加思考内容（使用 reasoningContent 字段）
+  if (thoughtsContent) {
+    result.reasoningContent = thoughtsContent;
+  }
+
+  // 添加 logprobs 信息
+  if (candidate.logprobsResult) {
+    result.logprobs = parseGeminiLogprobs(candidate.logprobsResult);
+  }
+
+  return result;
+}
+
+/**
+ * 解析 Gemini Logprobs 结果
+ */
+function parseGeminiLogprobs(logprobsResult: any): LlmResponse["logprobs"] {
+  if (!logprobsResult?.topCandidates) return undefined;
+
+  const content = logprobsResult.topCandidates.map((topCandidate: any) => {
+    if (!topCandidate.candidates?.[0]) return null;
+    
+    const candidate = topCandidate.candidates[0];
+    return {
+      token: candidate.token || "",
+      logprob: candidate.logProbability || 0,
+      bytes: null, // Gemini 不提供 bytes
+      topLogprobs: topCandidate.candidates.slice(0, 5).map((c: any) => ({
+        token: c.token || "",
+        logprob: c.logProbability || 0,
+        bytes: null,
+      })),
+    };
+  }).filter(Boolean);
+
+  return content.length > 0 ? { content } : undefined;
+}
+
+/**
+ * 映射 Gemini finishReason 到通用格式
+ */
+function mapGeminiFinishReason(reason: string | undefined): LlmResponse["finishReason"] {
+  if (!reason) return null;
+
+  const reasonMap: Record<string, LlmResponse["finishReason"]> = {
+    STOP: "stop",
+    MAX_TOKENS: "max_tokens",
+    SAFETY: "content_filter",
+    RECITATION: "content_filter",
+    LANGUAGE: "content_filter",
+    OTHER: "stop",
+    BLOCKLIST: "content_filter",
+    PROHIBITED_CONTENT: "content_filter",
+    SPII: "content_filter",
+    MALFORMED_FUNCTION_CALL: "stop",
+    IMAGE_SAFETY: "content_filter",
+  };
+
+  return reasonMap[reason] || "stop";
+}

@@ -123,3 +123,26 @@ export function extractTextFromSSE(data: string, providerType: string): string |
     return null;
   }
 }
+
+/**
+ * 从 SSE 数据中提取推理内容（DeepSeek reasoning）
+ * @param data SSE 数据字符串
+ * @param providerType Provider 类型
+ * @returns 推理内容或 null
+ */
+export function extractReasoningFromSSE(data: string, providerType: string): string | null {
+  try {
+    const json = JSON.parse(data);
+
+    switch (providerType) {
+      case 'openai':
+        // DeepSeek reasoning 格式: choices[0].delta.reasoning_content
+        return json.choices?.[0]?.delta?.reasoning_content || null;
+
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}

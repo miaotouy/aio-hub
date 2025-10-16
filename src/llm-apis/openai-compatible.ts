@@ -2,7 +2,7 @@ import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
-import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
+import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 
 /**
  * 调用 OpenAI 兼容格式的 API
@@ -60,6 +60,44 @@ export const callOpenAiCompatibleApi = async (
     temperature: options.temperature ?? 0.5,
   };
 
+  // 添加可选的高级参数
+  if (options.topP !== undefined) {
+    body.top_p = options.topP;
+  }
+  if (options.frequencyPenalty !== undefined) {
+    body.frequency_penalty = options.frequencyPenalty;
+  }
+  if (options.presencePenalty !== undefined) {
+    body.presence_penalty = options.presencePenalty;
+  }
+  if (options.stop !== undefined) {
+    body.stop = options.stop;
+  }
+  if (options.n !== undefined) {
+    body.n = options.n;
+  }
+  if (options.seed !== undefined) {
+    body.seed = options.seed;
+  }
+  if (options.logprobs !== undefined) {
+    body.logprobs = options.logprobs;
+  }
+  if (options.topLogprobs !== undefined) {
+    body.top_logprobs = options.topLogprobs;
+  }
+  if (options.responseFormat !== undefined) {
+    body.response_format = options.responseFormat;
+  }
+  if (options.tools !== undefined) {
+    body.tools = options.tools;
+  }
+  if (options.toolChoice !== undefined) {
+    body.tool_choice = options.toolChoice;
+  }
+  if (options.parallelToolCalls !== undefined) {
+    body.parallel_tool_calls = options.parallelToolCalls;
+  }
+
   // 如果启用流式响应
   if (options.stream && options.onStream) {
     body.stream = true;
@@ -88,6 +126,7 @@ export const callOpenAiCompatibleApi = async (
 
     const reader = response.body.getReader();
     let fullContent = "";
+    let fullReasoningContent = "";
     let usage: LlmResponse['usage'] | undefined;
 
     await parseSSEStream(reader, (data) => {
@@ -95,6 +134,12 @@ export const callOpenAiCompatibleApi = async (
       if (text) {
         fullContent += text;
         options.onStream!(text);
+      }
+      
+      // 提取推理内容（DeepSeek reasoning）
+      const reasoningText = extractReasoningFromSSE(data, "openai");
+      if (reasoningText) {
+        fullReasoningContent += reasoningText;
       }
       
       // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
@@ -114,6 +159,7 @@ export const callOpenAiCompatibleApi = async (
 
     return {
       content: fullContent,
+      reasoningContent: fullReasoningContent || undefined,
       usage,
       isStream: true,
     };
@@ -139,12 +185,36 @@ export const callOpenAiCompatibleApi = async (
   const data = await response.json();
 
   // 验证响应格式
-  if (!data.choices?.[0]?.message?.content) {
+  const choice = data.choices?.[0];
+  if (!choice) {
     throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
   }
 
+  const message = choice.message;
+  
+  // 如果有拒绝消息，优先返回拒绝消息
+  if (message?.refusal) {
+    return {
+      content: "",
+      refusal: message.refusal,
+      finishReason: choice.finish_reason,
+      usage: data.usage
+        ? {
+            promptTokens: data.usage.prompt_tokens,
+            completionTokens: data.usage.completion_tokens,
+            totalTokens: data.usage.total_tokens,
+          }
+        : undefined,
+    };
+  }
+
   return {
-    content: data.choices[0].message.content,
+    content: message?.content || "",
+    reasoningContent: message?.reasoning_content || undefined,
+    refusal: message?.refusal || null,
+    finishReason: choice.finish_reason,
+    toolCalls: message?.tool_calls,
+    logprobs: choice.logprobs,
     usage: data.usage
       ? {
           promptTokens: data.usage.prompt_tokens,

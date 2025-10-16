@@ -2,7 +2,9 @@
 import { ref, watch, computed } from 'vue';
 import { useAgentStore } from '../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
+import { useModelMetadata } from '@/composables/useModelMetadata';
 import type { LlmParameters } from '../types';
+import type { LlmProfile, LlmModelInfo } from '@/types/llm-profiles';
 import { Refresh } from '@element-plus/icons-vue';
 
 interface Props {
@@ -22,46 +24,51 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
-const { enabledProfiles, getProfileById } = useLlmProfiles();
+const { enabledProfiles } = useLlmProfiles();
+const { getModelIcon } = useModelMetadata();
 
 // 获取当前智能体
 const currentAgent = computed(() => agentStore.getAgentById(props.currentAgentId));
 
-// 当前选中的 Profile 和 Model
-const selectedProfileId = ref('');
-const selectedModelId = ref('');
-
-// 当智能体改变时，更新选中的 Profile 和 Model
-watch(currentAgent, (agent) => {
-  if (agent) {
-    selectedProfileId.value = agent.profileId;
-    selectedModelId.value = agent.modelId;
-  }
-}, { immediate: true });
-
-// 当前 Profile 的可用模型列表
+// 获取所有可用的模型（按 profile 分组）
 const availableModels = computed(() => {
-  const profile = getProfileById(selectedProfileId.value);
-  return profile?.models || [];
+  const models: Array<{
+    value: string; // 格式: profileId:modelId
+    label: string;
+    group: string;
+    profile: LlmProfile;
+    model: LlmModelInfo;
+  }> = [];
+
+  enabledProfiles.value.forEach((profile: LlmProfile) => {
+    profile.models.forEach((model: LlmModelInfo) => {
+      models.push({
+        value: `${profile.id}:${model.id}`,
+        label: model.name,
+        group: `${profile.name} (${profile.type})`,
+        profile,
+        model,
+      });
+    });
+  });
+
+  return models;
 });
 
-// 更新 Profile
-const updateProfile = (profileId: string) => {
-  selectedProfileId.value = profileId;
-  // 切换 Profile 时，选择第一个可用模型
-  const profile = getProfileById(profileId);
-  if (profile && profile.models.length > 0) {
-    selectedModelId.value = profile.models[0].id;
-    emit('update:modelId', profile.models[0].id);
-  }
-  emit('update:profileId', profileId);
-};
-
-// 更新 Model
-const updateModel = (modelId: string) => {
-  selectedModelId.value = modelId;
-  emit('update:modelId', modelId);
-};
+// 当前选中的模型组合值
+const selectedModelCombo = computed({
+  get: () => {
+    const agent = currentAgent.value;
+    if (!agent) return '';
+    return `${agent.profileId}:${agent.modelId}`;
+  },
+  set: (value: string) => {
+    if (!value) return;
+    const [profileId, modelId] = value.split(':');
+    emit('update:profileId', profileId);
+    emit('update:modelId', modelId);
+  },
+});
 
 // 计算有效参数（覆盖或默认）
 const effectiveTemp = computed(() =>
@@ -170,40 +177,74 @@ const resetToAgentDefaults = () => {
       <!-- 模型选择 -->
       <div class="param-group">
         <label class="param-label">
-          <span>服务提供商</span>
-        </label>
-        <el-select
-          v-model="selectedProfileId"
-          @change="updateProfile"
-          placeholder="选择服务提供商"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="profile in enabledProfiles"
-            :key="profile.id"
-            :label="profile.name"
-            :value="profile.id"
-          />
-        </el-select>
-      </div>
-
-      <div class="param-group">
-        <label class="param-label">
           <span>模型</span>
         </label>
         <el-select
-          v-model="selectedModelId"
-          @change="updateModel"
+          v-model="selectedModelCombo"
           placeholder="选择模型"
           style="width: 100%"
+          :disabled="availableModels.length === 0"
         >
-          <el-option
-            v-for="model in availableModels"
-            :key="model.id"
-            :label="model.name"
-            :value="model.id"
-          />
+          <el-option-group
+            v-for="group in [...new Set(availableModels.map((m) => m.group))]"
+            :key="group"
+            :label="group"
+          >
+            <el-option
+              v-for="item in availableModels.filter((m) => m.group === group)"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            >
+              <div style="display: flex; align-items: center; gap: 8px">
+                <!-- 模型图标 -->
+                <img
+                  v-if="getModelIcon(item.model)"
+                  :src="getModelIcon(item.model)!"
+                  :alt="item.label"
+                  style="width: 20px; height: 20px; object-fit: contain"
+                  @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+                />
+                <div
+                  v-else
+                  style="
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 4px;
+                    background: var(--el-color-primary-light-5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    font-weight: 600;
+                    color: var(--el-color-primary);
+                  "
+                >
+                  {{ item.model.name.substring(0, 2).toUpperCase() }}
+                </div>
+                <!-- 模型名称 -->
+                <span style="flex: 1">{{ item.label }}</span>
+                <!-- 模型分组 -->
+                <el-text
+                  v-if="item.model.group"
+                  size="small"
+                  type="info"
+                  style="margin-left: auto"
+                >
+                  {{ item.model.group }}
+                </el-text>
+              </div>
+            </el-option>
+          </el-option-group>
         </el-select>
+        <el-text
+          v-if="availableModels.length === 0"
+          size="small"
+          type="warning"
+          style="margin-top: 8px; display: block"
+        >
+          请先在设置中配置 LLM 服务并添加模型
+        </el-text>
       </div>
 
       <!-- Temperature -->

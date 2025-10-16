@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useAgentStore } from '../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { Plus, Edit, Delete } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, MoreFilled } from '@element-plus/icons-vue';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import type { ChatAgent } from '../types';
 
@@ -120,16 +120,37 @@ const handleDelete = (agent: ChatAgent) => {
         <div class="agent-icon">{{ agent.icon || '🙄' }}</div>
         <div class="agent-info">
           <div class="agent-name">{{ agent.name }}</div>
-          <div class="agent-model">
-            {{ getAgentModelInfo(agent).profileName }} | {{ getAgentModelInfo(agent).modelName }}
-          </div>
-          <div v-if="agent.description" class="agent-desc">
-            {{ agent.description }}
-          </div>
+          <!-- 只在选中时显示详细信息 -->
+          <template v-if="isAgentSelected(agent.id)">
+            <div class="agent-model">
+              {{ getAgentModelInfo(agent).profileName }} | {{ getAgentModelInfo(agent).modelName }}
+            </div>
+            <div v-if="agent.description" class="agent-desc">
+              {{ agent.description }}
+            </div>
+          </template>
         </div>
+        <!-- 三点菜单 -->
         <div class="agent-actions">
-          <el-button text circle :icon="Edit" @click.stop="handleEdit(agent)" />
-          <el-button text circle :icon="Delete" @click.stop="handleDelete(agent)" :disabled="agent.isBuiltIn" />
+          <el-dropdown trigger="click" @click.stop>
+            <el-button text circle :icon="MoreFilled" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleEdit(agent)">
+                  <el-icon><Edit /></el-icon>
+                  编辑
+                </el-dropdown-item>
+                <el-dropdown-item
+                  @click="handleDelete(agent)"
+                  :disabled="agent.isBuiltIn"
+                  divided
+                >
+                  <el-icon><Delete /></el-icon>
+                  删除
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </div>
@@ -188,7 +209,7 @@ const handleDelete = (agent: ChatAgent) => {
 
 .agent-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 12px;
   margin-bottom: 8px;
@@ -215,16 +236,19 @@ const handleDelete = (agent: ChatAgent) => {
 
 .agent-actions {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
   opacity: 0;
   transition: opacity 0.2s;
+}
+
+.agent-item.selected .agent-actions {
+  opacity: 1;
 }
 
 .agent-actions .el-button {
   width: 28px;
   height: 28px;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .agent-icon {

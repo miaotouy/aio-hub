@@ -37,8 +37,8 @@ const options: LlmRequestOptions = {
   modelId: "gemini-2.0-flash",
   messages: [
     { type: "text", text: "总结这份PDF文档" },
-    { 
-      type: "document", 
+    {
+      type: "document",
       documentSource: {
         mimeType: "application/pdf",
         data: "base64编码的PDF数据"
@@ -47,6 +47,12 @@ const options: LlmRequestOptions = {
   ]
 };
 ```
+
+> **⚠️ 文件上传限制**
+>
+> PDF 文件仅支持通过 `inlineData` (base64) 方式上传，不支持 `fileData.fileUri` 或 File API。
+>
+> 虽然代码中预留了 `fileData.fileUri` 的接口（见 [src/llm-apis/gemini.ts:234-241](src/llm-apis/gemini.ts:234)），但在当前版本中，该功能尚未完整实现或启用。实际使用时请统一使用 base64 方式上传。
 
 ### 音频/视频处理
 
@@ -79,6 +85,12 @@ const videoOptions: LlmRequestOptions = {
   ]
 };
 ```
+
+> **⚠️ 文件上传限制**
+>
+> 音频和视频文件仅支持通过 `inlineData` (base64) 方式上传，不支持 `fileData.fileUri` 或 File API。
+>
+> 虽然代码中预留了 `fileData.fileUri` 的接口（见 [src/llm-apis/gemini.ts:234-241](src/llm-apis/gemini.ts:234)），但在当前版本中，该功能尚未完整实现或启用。实际使用时请统一使用 base64 方式上传。
 
 ---
 
@@ -420,7 +432,8 @@ async function advancedGeminiExample() {
 
 1. **文件上传限制**：
    - 音频、视频、PDF 文件仅支持通过 `inlineData` (base64) 上传
-   - 不支持 `fileData.fileUri` 或 File API（当前实现）
+   - **关于"当前实现"的说明**：虽然在 `src/llm-apis/gemini.ts` 中保留了处理 `fileData.fileUri` 的代码分支（第234-241行），但这部分功能在本项目的当前版本中尚未完整实现或启用。使用 File API 需要额外的文件上传、URI 管理等复杂流程，目前应用的数据流不会触发该代码路径。
+   - 为确保功能稳定可靠，请统一使用 base64 方式上传多媒体文件
 
 2. **模型支持**：
    - 不同模型支持的功能可能不同

@@ -30,6 +30,12 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     category: "AI 服务商",
   },
   {
+    name: "OpenAI Responses",
+    path: "openai.svg",
+    suggestedFor: ["openai-responses"],
+    category: "AI 服务商",
+  },
+  {
     name: "Anthropic",
     path: "anthropic.svg",
     suggestedFor: ["anthropic"],
@@ -595,6 +601,18 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 10,
     enabled: true,
     description: "OpenAI 提供商图标",
+  },
+  {
+    id: "provider-openai-responses",
+    matchType: "provider",
+    matchValue: "openai-responses",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI Responses",
+    },
+    priority: 10,
+    enabled: true,
+    description: "OpenAI Responses 提供商图标",
   },
   {
     id: "provider-anthropic",

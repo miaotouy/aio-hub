@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { llmPresets } from "../../config/llm-providers";
+import { ref, computed } from "vue";
+import { llmPresets, providerTypes } from "../../config/llm-providers";
 import type { LlmPreset } from "../../config/llm-providers";
 import type { ProviderType } from "../../types/llm-profiles";
 import { useModelMetadata } from "../../composables/useModelMetadata";
@@ -23,6 +24,24 @@ const emit = defineEmits<Emits>();
 // 使用统一的图标获取方法
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
 
+// 当前选中的提供商类型
+const selectedProviderType = ref<ProviderType | "all">("all");
+
+// 提供商分类（从实际预设中提取）
+const providerCategories = computed<Array<ProviderType | "all">>(() => {
+  const types = new Set<ProviderType>();
+  llmPresets.forEach((p) => types.add(p.type));
+  return ["all" as const, ...Array.from(types)];
+});
+
+// 根据分类过滤预设
+const filteredPresets = computed(() => {
+  if (selectedProviderType.value === "all") {
+    return llmPresets;
+  }
+  return llmPresets.filter((p) => p.type === selectedProviderType.value);
+});
+
 // 从预设创建配置
 const createFromPresetTemplate = (preset: LlmPreset) => {
   emit("create-from-preset", preset);
@@ -40,13 +59,24 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
   const iconPath = getIconPath("", providerType);
   return iconPath ? getDisplayIconPath(iconPath) : null;
 };
+
+// 获取提供商类型信息
+const getProviderInfo = (type: ProviderType) => {
+  return providerTypes.find((p) => p.type === type);
+};
+
+// 获取分类显示名称
+const getCategoryLabel = (category: ProviderType | "all") => {
+  if (category === "all") return "全部";
+  return getProviderInfo(category)?.name || category;
+};
 </script>
 
 <template>
   <el-dialog
     :model-value="visible"
     title="选择创建方式"
-    width="800px"
+    width="80%"
     @update:model-value="(val: boolean) => emit('update:visible', val)"
   >
     <div class="preset-options">
@@ -54,45 +84,24 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
         <h4>从预设模板创建</h4>
         <p class="preset-section-desc">选择常用服务商快速创建配置</p>
 
-        <!-- OpenAI 兼容格式 -->
-        <div class="preset-type-group">
-          <div class="preset-type-header">
-            <span class="preset-type-badge">OpenAI 兼容</span>
-            <span class="preset-type-desc">支持 OpenAI、DeepSeek、Kimi 等兼容接口</span>
-          </div>
-          <div class="preset-grid">
-            <div
-              v-for="preset in llmPresets.filter((p) => p.type === 'openai')"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
-            >
-              <div class="preset-icon">
-                <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <DynamicIcon
-                  v-else-if="getProviderIconForPreset(preset.type)"
-                  :src="getProviderIconForPreset(preset.type)!"
-                  :alt="preset.name"
-                />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
-              </div>
-            </div>
-          </div>
+        <!-- 分类标签 -->
+        <div class="category-tabs">
+          <button
+            v-for="category in providerCategories"
+            :key="category"
+            @click="selectedProviderType = category"
+            :class="{ active: selectedProviderType === category }"
+            class="category-tab"
+          >
+            {{ getCategoryLabel(category) }}
+          </button>
         </div>
 
-        <!-- Google Gemini 格式 -->
-        <div class="preset-type-group">
-          <div class="preset-type-header">
-            <span class="preset-type-badge gemini">Gemini</span>
-            <span class="preset-type-desc">Google Gemini 专用接口</span>
-          </div>
+        <!-- 预设网格 -->
+        <div class="presets-scroll-area">
           <div class="preset-grid">
             <div
-              v-for="preset in llmPresets.filter((p) => p.type === 'gemini')"
+              v-for="preset in filteredPresets"
               :key="preset.name"
               class="preset-card"
               @click="createFromPresetTemplate(preset)"
@@ -108,127 +117,9 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
               </div>
               <div class="preset-info">
                 <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- OpenAI Responses 格式 -->
-        <div class="preset-type-group">
-          <div class="preset-type-header">
-            <span class="preset-type-badge openai-responses">OpenAI Responses</span>
-            <span class="preset-type-desc">OpenAI 新一代有状态交互接口</span>
-          </div>
-          <div class="preset-grid">
-            <div
-              v-for="preset in llmPresets.filter((p) => p.type === 'openai-responses')"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
-            >
-              <div class="preset-icon">
-                <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <DynamicIcon
-                  v-else-if="getProviderIconForPreset(preset.type)"
-                  :src="getProviderIconForPreset(preset.type)!"
-                  :alt="preset.name"
-                />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Anthropic Claude 格式 -->
-        <div class="preset-type-group">
-          <div class="preset-type-header">
-            <span class="preset-type-badge claude">Claude</span>
-            <span class="preset-type-desc">Anthropic Claude 专用接口</span>
-          </div>
-          <div class="preset-grid">
-            <div
-              v-for="preset in llmPresets.filter((p) => p.type === 'claude')"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
-            >
-              <div class="preset-icon">
-                <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <DynamicIcon
-                  v-else-if="getProviderIconForPreset(preset.type)"
-                  :src="getProviderIconForPreset(preset.type)!"
-                  :alt="preset.name"
-                />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Cohere 格式 -->
-        <div class="preset-type-group">
-          <div class="preset-type-header">
-            <span class="preset-type-badge cohere">Cohere</span>
-            <span class="preset-type-desc">Cohere API v2 企业级服务</span>
-          </div>
-          <div class="preset-grid">
-            <div
-              v-for="preset in llmPresets.filter((p) => p.type === 'cohere')"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
-            >
-              <div class="preset-icon">
-                <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <DynamicIcon
-                  v-else-if="getProviderIconForPreset(preset.type)"
-                  :src="getProviderIconForPreset(preset.type)!"
-                  :alt="preset.name"
-                />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Vertex AI 格式 -->
-        <div class="preset-type-group">
-          <div class="preset-type-header">
-            <span class="preset-type-badge vertexai">Vertex AI</span>
-            <span class="preset-type-desc">Google Cloud Vertex AI 企业级服务</span>
-          </div>
-          <div class="preset-grid">
-            <div
-              v-for="preset in llmPresets.filter((p) => p.type === 'vertexai')"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
-            >
-              <div class="preset-icon">
-                <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <DynamicIcon
-                  v-else-if="getProviderIconForPreset(preset.type)"
-                  :src="getProviderIconForPreset(preset.type)!"
-                  :alt="preset.name"
-                />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
+                <el-tooltip :content="preset.description" placement="top" :show-after="500">
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </el-tooltip>
               </div>
             </div>
           </div>
@@ -250,11 +141,20 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
 .preset-options {
   padding: 10px 0;
   max-height: 70vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .preset-section {
   margin-bottom: 20px;
+}
+
+/* 第一个 preset-section 需要是 flex 容器以支持内部滚动 */
+.preset-section:first-child {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .preset-section h4 {
@@ -270,68 +170,51 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
   color: var(--text-color-secondary);
 }
 
-.preset-type-group {
-  margin-bottom: 20px;
-}
-
-.preset-type-header {
+/* 分类标签 */
+.category-tabs {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-shrink: 0;
 }
 
-.preset-type-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--el-color-primary-light-8);
-  color: var(--el-color-primary);
+.category-tab {
+  padding: 0.5rem 1rem;
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  border: 1px solid var(--el-color-primary-light-5);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
 }
 
-.preset-type-badge.gemini {
-  background: var(--el-color-success-light-8);
-  color: var(--el-color-success);
-  border-color: var(--el-color-success-light-5);
+.category-tab:hover {
+  border-color: var(--primary-color);
+  background: var(--input-bg);
 }
 
-.preset-type-badge.claude {
-  background: var(--el-color-warning-light-8);
-  color: var(--el-color-warning);
-  border-color: var(--el-color-warning-light-5);
+.category-tab.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
 }
 
-.preset-type-badge.openai-responses {
-  background: var(--el-color-info-light-8);
-  color: var(--el-color-info);
-  border-color: var(--el-color-info-light-5);
+/* 可滚动区域 */
+.presets-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
-.preset-type-badge.cohere {
-  background: var(--el-color-danger-light-8);
-  color: var(--el-color-danger);
-  border-color: var(--el-color-danger-light-5);
-}
-
-.preset-type-badge.vertexai {
-  background: var(--el-color-success-light-8);
-  color: var(--el-color-success);
-  border-color: var(--el-color-success-light-5);
-}
-
-.preset-type-desc {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-}
-
+/* 预设网格 */
 .preset-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
+  padding: 2px;
 }
 
 .preset-card {
@@ -343,11 +226,14 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  background: var(--card-bg);
 }
 
 .preset-card:hover {
   border-color: var(--primary-color);
   background: rgba(var(--primary-color-rgb), 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .preset-icon {
@@ -390,12 +276,16 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
   color: var(--text-color);
   margin-bottom: 4px;
 }
-
 .preset-desc {
   font-size: 12px;
   color: var(--text-color-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+  max-height: calc(1.4em * 2);
 }
 </style>

@@ -2,7 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { ElMessage } from "element-plus";
 import type { LlmModelInfo } from "../../types/llm-profiles";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-metadata";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
 
 const props = defineProps<{

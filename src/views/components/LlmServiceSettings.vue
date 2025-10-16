@@ -13,7 +13,7 @@ import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-pro
 import type { LlmPreset } from "../../config/llm-providers";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@utils/llm-api-url";
 import { useModelMetadata } from "../../composables/useModelMetadata";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/model-metadata";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
 import { fetchModelsFromApi } from "../../llm-apis/model-fetcher";
 import DynamicIcon from "../../components/common/DynamicIcon.vue";
 

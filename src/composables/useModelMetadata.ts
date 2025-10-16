@@ -13,14 +13,13 @@ import type {
   PresetIconInfo 
 } from '../types/model-metadata';
 import type { LlmModelInfo } from '../types/llm-profiles';
-import { 
-  DEFAULT_METADATA_RULES, 
-  PRESET_ICONS, 
-  PRESET_ICONS_DIR, 
+import {
+  DEFAULT_METADATA_RULES,
   getMatchedModelProperties,
   getModelIconPath,
-  isValidIconPath 
+  isValidIconPath
 } from '../config/model-metadata';
+import { PRESET_ICONS, PRESET_ICONS_DIR } from '../config/preset-icons';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { createConfigManager } from '@utils/configManager';
 import { logger } from '@utils/logger';

@@ -208,7 +208,7 @@ import { useModelMetadata } from "../../composables/useModelMetadata";
 import type { ModelMetadataRule, MetadataMatchType } from "../../types/model-metadata";
 import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
-import { PRESET_ICONS_DIR } from "../../config/model-metadata";
+import { PRESET_ICONS_DIR } from "../../config/preset-icons";
 import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
 import DynamicIcon from "../../components/common/DynamicIcon.vue";
 

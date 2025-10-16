@@ -18,12 +18,43 @@ export const callCohereApi = async (
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 使用共享函数解析消息内容
-  // 注意：Cohere 聊天 API 目前不支持多模态输入（图像），只处理文本
   const parsed = parseMessageContents(options.messages);
-  const userMessageContent = parsed.textParts.map((part) => part.text).join("\n");
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);
+
+  // 构建用户消息内容
+  // 如果有图像，使用多模态格式（content 为数组）
+  // 如果只有文本，使用简单格式（content 为字符串）
+  let userContent: string | any[];
+
+  if (parsed.imageParts.length > 0) {
+    // 多模态：content 是一个数组，包含文本和图像
+    userContent = [];
+
+    // 添加文本部分
+    if (parsed.textParts.length > 0) {
+      const textContent = parsed.textParts.map((part) => part.text).join("\n");
+      userContent.push({
+        type: "text",
+        text: textContent,
+      });
+    }
+
+    // 添加图像部分
+    for (const img of parsed.imageParts) {
+      const mimeType = img.mimeType || "image/png";
+      userContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${mimeType};base64,${img.base64}`,
+        },
+      });
+    }
+  } else {
+    // 纯文本：content 是字符串
+    userContent = parsed.textParts.map((part) => part.text).join("\n");
+  }
 
   // 构建 messages 数组（V2 API 格式）
   const messages = [];
@@ -34,7 +65,7 @@ export const callCohereApi = async (
   }
 
   // 添加用户消息
-  messages.push({ role: "user", content: userMessageContent });
+  messages.push({ role: "user", content: userContent });
 
   const body: any = {
     model: options.modelId,

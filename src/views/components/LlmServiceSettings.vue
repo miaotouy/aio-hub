@@ -406,17 +406,19 @@ const openProviderIconSelector = () => {
           <el-divider />
 
           <el-form-item label="模型配置">
-            <ModelList
-              :models="editForm.models"
-              :expand-state="editForm.modelGroupsExpandState || {}"
-              @add="addModel"
-              @edit="editModel"
-              @delete="deleteModel"
-              @delete-group="deleteModelGroup"
-              @clear="clearAllModels"
-              @fetch="fetchModels"
-              @update:expand-state="(state) => (editForm.modelGroupsExpandState = state)"
-            />
+            <div class="model-list-container">
+              <ModelList
+                :models="editForm.models"
+                :expand-state="editForm.modelGroupsExpandState || {}"
+                @add="addModel"
+                @edit="editModel"
+                @delete="deleteModel"
+                @delete-group="deleteModelGroup"
+                @clear="clearAllModels"
+                @fetch="fetchModels"
+                @update:expand-state="(state) => (editForm.modelGroupsExpandState = state)"
+              />
+            </div>
           </el-form-item>
         </el-form>
       </ProfileEditor>
@@ -555,5 +557,13 @@ const openProviderIconSelector = () => {
   color: var(--text-color-secondary);
   opacity: 0.7;
   line-height: 1.4;
+}
+
+.model-list-container {
+  max-height: 600px; /* 设置最大高度，可根据实际情况调整 */
+  overflow-y: auto; /* 启用垂直滚动 */
+  width: 100%;
+  padding-right: 8px; /* 留出滚动条空间 */
+  box-sizing: border-box;
 }
 </style>

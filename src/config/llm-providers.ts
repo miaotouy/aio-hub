@@ -313,7 +313,7 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "deepseek-v3.2-exp",
         name: "DeepSeek V3.2 Exp",
-        group: "DeepSeek V3",
+        group: "DeepSeek",
         provider: "deepseek",
         description: "实验MoE，DSA稀疏注意力，成本降75%（2025-09-29）",
       },
@@ -327,7 +327,7 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "deepseek-v3.1",
         name: "DeepSeek V3.1",
-        group: "DeepSeek V3",
+        group: "DeepSeek",
         provider: "deepseek",
         description: "极致性价比 MoE 架构（2025-08）",
       },
@@ -1481,7 +1481,7 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "Qwen/QwQ-32B-Preview",
         name: "QwQ-32B-Preview",
-        group: "QwQ",
+        group: "Qwen",
         provider: "modelscope",
         capabilities: { toolUse: true },
         description: "推理专用模型，32B参数",
@@ -1489,7 +1489,7 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "Qwen/QVQ-72B-Preview",
         name: "QVQ-72B-Preview",
-        group: "QVQ",
+        group: "Qwen",
         provider: "modelscope",
         capabilities: { vision: true },
         description: "视觉推理模型，72B参数",
@@ -1497,14 +1497,14 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "deepseek-ai/DeepSeek-V3.2-Exp",
         name: "DeepSeek-V3.2-Exp",
-        group: "DeepSeek V3",
+        group: "DeepSeek",
         provider: "modelscope",
         description: "实验版MoE模型，DSA稀疏注意力（2025-09-29）",
       },
       {
         id: "deepseek-ai/DeepSeek-R1-0528",
         name: "DeepSeek-R1-0528",
-        group: "DeepSeek R1",
+        group: "DeepSeek",
         provider: "modelscope",
         capabilities: { toolUse: true },
         description: "Dense推理旗舰，混合V3.1架构（限额200次/天）",
@@ -1512,7 +1512,7 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "ZhipuAI/GLM-4.6",
         name: "GLM-4.6",
-        group: "GLM-4.6",
+        group: "GLM",
         provider: "modelscope",
         capabilities: { toolUse: true },
         description: "智谱最新旗舰，200K上下文（2025-10-04）",
@@ -1520,7 +1520,7 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "ZhipuAI/GLM-4.5",
         name: "GLM-4.5",
-        group: "GLM-4.5",
+        group: "GLM",
         provider: "modelscope",
         capabilities: { toolUse: true },
         description: "智谱开源代理专用（2025-07-28）",
@@ -1542,7 +1542,7 @@ export const llmPresets: LlmPreset[] = [
       {
         id: "OpenGVLab/InternVL3_5-241B-A28B",
         name: "InternVL3.5-241B",
-        group: "InternVL",
+        group: "Intern",
         provider: "modelscope",
         capabilities: { vision: true },
         description: "开源视觉语言模型，241B参数",

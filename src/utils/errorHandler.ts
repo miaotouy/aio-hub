@@ -3,8 +3,9 @@
  * 提供统一的错误捕获、处理和用户提示
  */
 
-import { ElMessage, ElNotification } from 'element-plus';
+import { ElNotification } from 'element-plus';
 import { createModuleLogger } from './logger';
+import { customMessage } from './customMessage';
 
 const logger = createModuleLogger('ErrorHandler');
 
@@ -150,18 +151,18 @@ class GlobalErrorHandler {
   /**
    * 显示错误给用户
    */
-  private showToUser(error: StandardError, customMessage?: string): void {
-    const message = customMessage || this.getUserFriendlyMessage(error);
+  private showToUser(error: StandardError, userMessage?: string): void {
+    const message = userMessage || this.getUserFriendlyMessage(error);
 
     switch (error.level) {
       case ErrorLevel.INFO:
-        ElMessage.info(message);
+        customMessage.info(message);
         break;
       case ErrorLevel.WARNING:
-        ElMessage.warning(message);
+        customMessage.warning(message);
         break;
       case ErrorLevel.ERROR:
-        ElMessage.error(message);
+        customMessage.error(message);
         break;
       case ErrorLevel.CRITICAL:
         ElNotification.error({

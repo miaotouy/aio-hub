@@ -17,6 +17,7 @@ import { errorHandler, ErrorLevel } from "./utils/errorHandler";
 import { createModuleLogger } from "./utils/logger";
 import { loadAppSettingsAsync } from "./utils/appSettings";
 import { initTheme } from "./composables/useTheme";
+import { customMessage } from "./utils/customMessage";
 import packageJson from "../package.json";
 
 const logger = createModuleLogger("Main");
@@ -111,6 +112,9 @@ const pinia = createPinia(); // 创建 Pinia 实例
 app.use(ElementPlus);
 app.use(router);
 app.use(pinia); // 注册 Pinia
+
+// 全局注册 customMessage，这样在所有组件中都可以使用
+app.config.globalProperties.$message = customMessage;
 
 // 全局错误处理
 app.config.errorHandler = (err, instance, info) => {

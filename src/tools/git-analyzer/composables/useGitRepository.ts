@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { customMessage } from '@/utils/customMessage'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import type { GitCommit, GitBranch, RepoStatistics } from '../types'
@@ -76,14 +76,14 @@ export function useGitRepository() {
       })
       if (typeof selected === 'string') {
         repoPath.value = selected
-        ElMessage.success(`已选择目录: ${selected}`)
+        customMessage.success(`已选择目录: ${selected}`)
       }
     } catch (error) {
       logger.error('选择目录失败', error, {
         action: 'selectDirectory',
         context: '用户选择 Git 仓库目录时发生错误'
       })
-      ElMessage.error('选择目录失败')
+      customMessage.error('选择目录失败')
     }
   }
 
@@ -118,7 +118,7 @@ export function useGitRepository() {
         // 更新记录
         lastLoadedLimit.value = limitCount.value
 
-        ElMessage.success(`增量加载了 ${newCommits.length} 条新提交记录，当前共 ${commits.value.length} 条`)
+        customMessage.success(`增量加载了 ${newCommits.length} 条新提交记录，当前共 ${commits.value.length} 条`)
       } else {
         // 全量加载
         const result = await invoke<{ branches: GitBranch[]; commits: GitCommit[] }>(
@@ -147,12 +147,12 @@ export function useGitRepository() {
         lastLoadedBranch.value = selectedBranch.value
         lastLoadedLimit.value = limitCount.value
 
-        ElMessage.success(`加载了 ${result.commits.length} 条提交记录`)
+        customMessage.success(`加载了 ${result.commits.length} 条提交记录`)
       }
 
       return true
     } catch (error) {
-      ElMessage.error(`加载仓库失败: ${error}`)
+      customMessage.error(`加载仓库失败: ${error}`)
       return false
     } finally {
       loading.value = false
@@ -191,11 +191,11 @@ export function useGitRepository() {
       lastLoadedBranch.value = selectedBranch.value
       lastLoadedLimit.value = limitCount.value
 
-      ElMessage.success(`刷新完成，加载了 ${result.commits.length} 条提交记录`)
+      customMessage.success(`刷新完成，加载了 ${result.commits.length} 条提交记录`)
 
       return true
     } catch (error) {
-      ElMessage.error(`刷新仓库失败: ${error}`)
+      customMessage.error(`刷新仓库失败: ${error}`)
       return false
     } finally {
       loading.value = false
@@ -218,11 +218,11 @@ export function useGitRepository() {
       // 重置提交范围
       commitRange.value = [0, result.length]
 
-      ElMessage.success(`切换到分支: ${branch}`)
+      customMessage.success(`切换到分支: ${branch}`)
 
       return true
     } catch (error) {
-      ElMessage.error(`切换分支失败: ${error}`)
+      customMessage.error(`切换分支失败: ${error}`)
       return false
     } finally {
       loading.value = false
@@ -281,7 +281,7 @@ export function useGitRepository() {
   function handlePathDrop(paths: string[]) {
     if (paths.length > 0) {
       repoPath.value = paths[0]
-      ElMessage.success(`已设置 Git 仓库路径: ${paths[0]}`)
+      customMessage.success(`已设置 Git 仓库路径: ${paths[0]}`)
 
       // 自动加载仓库
       setTimeout(() => {

@@ -134,7 +134,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 import {
   FolderOpened,
   Histogram,
@@ -184,7 +184,7 @@ const isLoadingConfig = ref(true);
 const handlePathDrop = (paths: string[]) => {
   if (paths.length > 0) {
     targetPath.value = paths[0];
-    ElMessage.success(`已设置目标路径: ${paths[0]}`);
+    customMessage.success(`已设置目标路径: ${paths[0]}`);
     logger.info("通过拖拽设置目标路径", { path: paths[0] });
 
     // 根据配置决定是否自动生成目录树
@@ -274,14 +274,14 @@ const selectDirectory = async () => {
     }
   } catch (error) {
     logger.error("选择目录失败", error);
-    ElMessage.error("选择目录失败");
+    customMessage.error("选择目录失败");
   }
 };
 
 // 生成目录树
 const generateTree = async () => {
   if (!targetPath.value) {
-    ElMessage.warning("请先选择目录");
+    customMessage.warning("请先选择目录");
     return;
   }
 
@@ -376,7 +376,7 @@ const generateTree = async () => {
       },
     });
 
-    ElMessage.success("目录树生成成功");
+    customMessage.success("目录树生成成功");
   } catch (error: any) {
     logger.error("生成目录树失败", error, {
       path: targetPath.value,
@@ -387,7 +387,7 @@ const generateTree = async () => {
         最大深度: maxDepth.value === 10 ? "无限制" : maxDepth.value,
       },
     });
-    ElMessage.error(`生成失败: ${error}`);
+    customMessage.error(`生成失败: ${error}`);
     treeResult.value = `错误: ${error}`;
   } finally {
     isGenerating.value = false;
@@ -398,10 +398,10 @@ const generateTree = async () => {
 const copyToClipboard = async () => {
   try {
     await writeText(treeResult.value);
-    ElMessage.success("已复制到剪贴板");
+    customMessage.success("已复制到剪贴板");
   } catch (error) {
     logger.error("复制到剪贴板失败", error);
-    ElMessage.error("复制到剪贴板失败");
+    customMessage.error("复制到剪贴板失败");
   }
 };
 
@@ -439,11 +439,11 @@ const exportToFile = async () => {
 
     if (savePath) {
       await writeTextFile(savePath, treeResult.value);
-      ElMessage.success("文件保存成功");
+      customMessage.success("文件保存成功");
     }
   } catch (error) {
     logger.error("保存文件失败", error, { path: savePath });
-    ElMessage.error("保存文件失败");
+    customMessage.error("保存文件失败");
   }
 };
 </script>

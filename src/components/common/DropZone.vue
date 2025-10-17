@@ -34,7 +34,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { FolderAdd } from '@element-plus/icons-vue'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { ElMessage } from 'element-plus'
+import { customMessage } from '@/utils/customMessage'
 import { createModuleLogger } from '@utils/logger'
 
 // 创建模块日志器
@@ -213,7 +213,7 @@ const handleFileDrop = async (paths: string[]) => {
     // 验证文件数量
     if (!props.multiple && paths.length > 1) {
       paths = [paths[0]]
-      ElMessage.warning('只能选择一个文件，已自动选择第一个')
+      customMessage.warning('只能选择一个文件，已自动选择第一个')
     }
     
     for (const path of paths) {
@@ -225,10 +225,10 @@ const handleFileDrop = async (paths: string[]) => {
           const isDir = await invoke<boolean>('is_directory', { path })
           
           if (props.directoryOnly && !isDir) {
-            ElMessage.warning(`请拖入文件夹: ${path}`)
+            customMessage.warning(`请拖入文件夹: ${path}`)
             isValid = false
           } else if (props.fileOnly && isDir) {
-            ElMessage.warning(`请拖入文件: ${path}`)
+            customMessage.warning(`请拖入文件: ${path}`)
             isValid = false
           }
         } catch (error) {
@@ -240,7 +240,7 @@ const handleFileDrop = async (paths: string[]) => {
       if (props.accept.length > 0 && isValid) {
         const ext = path.substring(path.lastIndexOf('.')).toLowerCase()
         if (!props.accept.includes(ext)) {
-          ElMessage.warning(`不支持的文件类型: ${ext}`)
+          customMessage.warning(`不支持的文件类型: ${ext}`)
           isValid = false
         }
       }
@@ -270,13 +270,13 @@ const handleFileDrop = async (paths: string[]) => {
       const message = validPaths.length === 1 
         ? `已添加: ${validPaths[0].split(/[/\\]/).pop()}`
         : `已添加 ${validPaths.length} 个项目`
-      ElMessage.success(message)
+      customMessage.success(message)
     }
     
   } catch (error: any) {
     logger.error('处理拖放文件失败', error, { paths: validPaths })
     emit('error', error.toString())
-    ElMessage.error(`处理失败: ${error}`)
+    customMessage.error(`处理失败: ${error}`)
   }
 }
 

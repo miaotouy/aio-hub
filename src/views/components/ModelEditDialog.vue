@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 import { InfoFilled } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
@@ -84,11 +84,11 @@ watch(
 // 保存模型
 const handleSave = () => {
   if (!modelEditForm.value.id.trim()) {
-    ElMessage.error("请输入模型 ID");
+    customMessage.error("请输入模型 ID");
     return;
   }
   if (!modelEditForm.value.name.trim()) {
-    ElMessage.error("请输入模型名称");
+    customMessage.error("请输入模型名称");
     return;
   }
 

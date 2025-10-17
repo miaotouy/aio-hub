@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import ProfileSidebar from "./ProfileSidebar.vue";
 import ProfileEditor from "./ProfileEditor.vue";
 import CustomOcrRequestEditor from "./CustomOcrRequestEditor.vue";
@@ -86,28 +87,28 @@ const handleAddClick = () => {
 const saveCurrentProfile = () => {
   // 基础验证：名称必填
   if (!editForm.value.name.trim()) {
-    ElMessage.error("请输入服务名称");
+    customMessage.error("请输入服务名称");
     return false;
   }
 
   // 对于非自定义类型，端点必填
   if (editForm.value.provider !== "custom" && !editForm.value.endpoint.trim()) {
-    ElMessage.error("请输入 API 端点地址");
+    customMessage.error("请输入 API 端点地址");
     return false;
   }
 
   // 对于自定义类型，验证 apiRequest
   if (editForm.value.provider === "custom") {
     if (!editForm.value.apiRequest) {
-      ElMessage.error("请配置自定义 API 请求");
+      customMessage.error("请配置自定义 API 请求");
       return false;
     }
     if (!editForm.value.apiRequest.urlTemplate.trim()) {
-      ElMessage.error("请输入 API URL 地址");
+      customMessage.error("请输入 API URL 地址");
       return false;
     }
     if (!editForm.value.apiRequest.resultPath.trim()) {
-      ElMessage.error("请输入结果提取路径");
+      customMessage.error("请输入结果提取路径");
       return false;
     }
   }
@@ -159,7 +160,7 @@ const handleDelete = async () => {
     if (selectedProfileId.value) {
       selectProfile(selectedProfileId.value);
     }
-    ElMessage.success("删除成功");
+    customMessage.success("删除成功");
   } catch {
     // 用户取消
   }

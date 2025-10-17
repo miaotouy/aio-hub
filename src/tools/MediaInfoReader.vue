@@ -53,7 +53,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { ElMessage, ElButton, ElEmpty } from 'element-plus';
+import { ElButton, ElEmpty } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import * as exifr from 'exifr';
@@ -191,7 +192,7 @@ const openFilePicker = async () => {
     }
   } catch (error) {
     logger.error('打开文件选择器失败', error);
-    ElMessage.error('打开文件失败');
+    customMessage.error('打开文件失败');
   }
 };
 
@@ -199,7 +200,7 @@ const handleFiles = (files: FileList) => {
   if (files.length === 0) return;
   const file = files[0];
   if (!file.type.startsWith('image/')) {
-    ElMessage.error('请上传图片文件');
+    customMessage.error('请上传图片文件');
     return;
   }
 
@@ -266,7 +267,7 @@ const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer, fileName?: strin
     }
   } catch (error) {
     logger.error('解析图片信息失败', error, { fileName });
-    ElMessage.error('解析图片信息失败');
+    customMessage.error('解析图片信息失败');
     webuiInfo.value = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
     comfyuiWorkflow.value = '';
     stCharacterInfo.value = '';

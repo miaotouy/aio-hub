@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { InfoFilled, Refresh } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 
 // 颜色类型定义
 type ColorType = 'primary' | 'success' | 'warning' | 'danger' | 'info';
@@ -209,7 +209,7 @@ const applyCustomColor = (type: ColorType) => {
     lastCustomColors.value[type] = color;
     showColorPickers.value[type] = false;
   } else {
-    ElMessage.error("请输入有效的颜色值（格式：#RRGGBB）");
+    customMessage.error("请输入有效的颜色值（格式：#RRGGBB）");
   }
 };
 

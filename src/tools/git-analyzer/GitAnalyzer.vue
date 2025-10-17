@@ -340,7 +340,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { customMessage } from '@/utils/customMessage'
 import { Refresh, Search, FolderOpened, PriceTag, Upload } from '@element-plus/icons-vue'
 import InfoCard from '../../components/common/InfoCard.vue'
 import DropZone from '../../components/common/DropZone.vue'
@@ -445,7 +445,7 @@ function filterCommits() {
 // 显示导出对话框
 function showExportDialog() {
   if (commits.value.length === 0) {
-    ElMessage.warning('请先加载仓库数据')
+    customMessage.warning('请先加载仓库数据')
     return
   }
   showExport.value = true

@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { customMessage } from '@/utils/customMessage'
 import { invoke } from '@tauri-apps/api/core'
 import type { GitCommit } from '../types'
 import { createModuleLogger } from '@utils/logger'
@@ -38,7 +38,7 @@ export function useCommitDetail(repoPath: () => string) {
       })
       selectedCommit.value = detail
     } catch (error) {
-      ElMessage.error(`加载提交详情失败: ${error}`)
+      customMessage.error(`加载提交详情失败: ${error}`)
     }
   }
 
@@ -48,7 +48,7 @@ export function useCommitDetail(repoPath: () => string) {
   async function copyCommitHash() {
     if (selectedCommit.value) {
       await navigator.clipboard.writeText(selectedCommit.value.hash)
-      ElMessage.success('已复制提交哈希')
+      customMessage.success('已复制提交哈希')
     }
   }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import {
   FolderOpened,
   Document,
@@ -133,7 +134,7 @@ const loadAllLogs = async () => {
     allLogs.value = logs.reverse(); // 最新的在前面
   } catch (error) {
     logger.error("加载所有日志失败", error);
-    ElMessage.error("加载日志失败");
+    customMessage.error("加载日志失败");
   }
 };
 
@@ -190,7 +191,7 @@ const handleSourceDrop = (paths: string[]) => {
 const handleTargetDrop = (paths: string[]) => {
   if (paths.length > 0) {
     targetDirectory.value = paths[0];
-    ElMessage.success(`已设置目标目录: ${paths[0]}`);
+    customMessage.success(`已设置目标目录: ${paths[0]}`);
   }
 };
 
@@ -240,7 +241,7 @@ watch([targetDirectory, linkType, operationMode], () => {
 // --- 文件处理方法 ---
 const addSourcePathFromInput = () => {
   if (!sourcePathInput.value) {
-    ElMessage.warning("请输入文件或文件夹路径");
+    customMessage.warning("请输入文件或文件夹路径");
     return;
   }
   addSourceFiles([sourcePathInput.value]);
@@ -259,7 +260,7 @@ const addSourceFiles = (paths: string[]) => {
   );
   if (uniqueNewFiles.length > 0) {
     sourceFiles.value.push(...uniqueNewFiles);
-    ElMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
+    customMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
     // 添加文件后触发验证
     validateFiles();
   }
@@ -278,7 +279,7 @@ const clearFiles = () => {
   })
     .then(() => {
       sourceFiles.value = [];
-      ElMessage.success("文件列表已清空");
+      customMessage.success("文件列表已清空");
     })
     .catch(() => {
       /* 用户取消操作 */
@@ -299,7 +300,7 @@ const selectSourceFiles = async () => {
     }
   } catch (error) {
     logger.error("选择文件失败", error, { operation: "selectFiles" });
-    ElMessage.error("选择文件失败");
+    customMessage.error("选择文件失败");
   }
 };
 
@@ -317,7 +318,7 @@ const selectSourceFolders = async () => {
     }
   } catch (error) {
     logger.error("选择文件夹失败", error, { operation: "selectFolders" });
-    ElMessage.error("选择文件夹失败");
+    customMessage.error("选择文件夹失败");
   }
 };
 
@@ -333,7 +334,7 @@ const selectTargetDirectory = async () => {
     }
   } catch (error) {
     logger.error("选择目标目录失败", error, { operation: "selectTargetDirectory" });
-    ElMessage.error("选择目录失败");
+    customMessage.error("选择目录失败");
   }
 };
 
@@ -341,21 +342,21 @@ const selectTargetDirectory = async () => {
 const cancelOperation = async () => {
   try {
     await invoke("cancel_move_operation");
-    ElMessage.info("正在取消操作...");
+    customMessage.info("正在取消操作...");
   } catch (error) {
     logger.error("取消操作失败", error);
-    ElMessage.error("取消操作失败");
+    customMessage.error("取消操作失败");
   }
 };
 
 // --- 核心操作 ---
 const executeMoveAndLink = async () => {
   if (sourceFiles.value.length === 0) {
-    ElMessage.warning("请先添加要处理的文件");
+    customMessage.warning("请先添加要处理的文件");
     return;
   }
   if (!targetDirectory.value && operationMode.value === "move") {
-    ElMessage.warning("请选择目标目录");
+    customMessage.warning("请选择目标目录");
     return;
   }
 
@@ -382,14 +383,14 @@ const executeMoveAndLink = async () => {
 
       // 检查结果是否包含错误信息或取消信息
       if (result.includes("已被用户取消")) {
-        ElMessage.warning(result);
+        customMessage.warning(result);
         sourceFiles.value.forEach((file) => {
           if (file.status === "processing") {
             file.status = "pending";
           }
         });
       } else if (result.includes("个错误")) {
-        ElMessage.error(result);
+        customMessage.error(result);
         // 解析错误信息，更新文件状态
         sourceFiles.value.forEach((file) => {
           if (file.status === "processing") {
@@ -398,7 +399,7 @@ const executeMoveAndLink = async () => {
           }
         });
       } else {
-        ElMessage.success(result || "文件处理完成");
+        customMessage.success(result || "文件处理完成");
         sourceFiles.value.forEach((file) => (file.status = "success"));
       }
     } else {
@@ -411,7 +412,7 @@ const executeMoveAndLink = async () => {
 
       // 检查结果是否包含错误信息
       if (result.includes("个错误")) {
-        ElMessage.error(result);
+        customMessage.error(result);
         sourceFiles.value.forEach((file) => {
           if (file.status === "processing") {
             file.status = "error";
@@ -419,7 +420,7 @@ const executeMoveAndLink = async () => {
           }
         });
       } else {
-        ElMessage.success(result || "链接创建完成");
+        customMessage.success(result || "链接创建完成");
         sourceFiles.value.forEach((file) => (file.status = "success"));
       }
     }
@@ -430,7 +431,7 @@ const executeMoveAndLink = async () => {
       targetDirectory: targetDirectory.value,
       linkType: linkType.value,
     });
-    ElMessage.error(`文件处理失败: ${error}`);
+    customMessage.error(`文件处理失败: ${error}`);
     sourceFiles.value.forEach((file) => {
       if (file.status === "processing") {
         file.status = "error";

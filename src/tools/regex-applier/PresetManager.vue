@@ -219,7 +219,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import {
   Plus,
   Delete,
@@ -364,7 +365,7 @@ const handleCreatePreset = async () => {
 
   if (name) {
     store.createPreset(name.trim());
-    ElMessage.success("预设创建成功！");
+    customMessage.success("预设创建成功！");
   }
 };
 
@@ -383,7 +384,7 @@ const handleDuplicatePreset = async () => {
 
   if (name) {
     store.duplicatePreset(store.activePresetId, name.trim());
-    ElMessage.success("预设复制成功！");
+    customMessage.success("预设复制成功！");
   }
 };
 
@@ -402,13 +403,13 @@ const handleRenamePreset = async () => {
 
   if (name) {
     store.renamePreset(store.activePresetId, name.trim());
-    ElMessage.success("预设重命名成功！");
+    customMessage.success("预设重命名成功！");
   }
 };
 
 const handleDeletePreset = async () => {
   if (!store.activePresetId || store.presets.length <= 1) {
-    ElMessage.warning("至少需要保留一个预设");
+    customMessage.warning("至少需要保留一个预设");
     return;
   }
 
@@ -423,7 +424,7 @@ const handleDeletePreset = async () => {
     });
 
     store.deletePreset(store.activePresetId);
-    ElMessage.success("预设删除成功！");
+    customMessage.success("预设删除成功！");
     selectedRuleId.value = null;
   } catch (error: any) {
     // 用户取消删除操作，不作处理
@@ -463,9 +464,9 @@ const importPreset = async () => {
       }
     }
 
-    ElMessage.success(`成功导入预设: ${importedPreset.name}`);
+    customMessage.success(`成功导入预设: ${importedPreset.name}`);
   } catch (error: any) {
-    ElMessage.error(`导入预设失败: ${error.message}`);
+    customMessage.error(`导入预设失败: ${error.message}`);
   }
 };
 
@@ -501,7 +502,7 @@ const importFromClipboard = async () => {
     if (Array.isArray(parsedData)) {
       // 导入为规则数组
       if (!store.activePresetId) {
-        ElMessage.warning("请先选择一个预设");
+        customMessage.warning("请先选择一个预设");
         return;
       }
 
@@ -515,7 +516,7 @@ const importFromClipboard = async () => {
       }
 
       await store.importRules(store.activePresetId, parsedData);
-      ElMessage.success(`成功导入 ${parsedData.length} 条规则到当前预设`);
+      customMessage.success(`成功导入 ${parsedData.length} 条规则到当前预设`);
     } else if (parsedData.name && Array.isArray(parsedData.rules)) {
       // 导入为完整预设
       const importedPreset: RegexPreset = parsedData;
@@ -532,12 +533,12 @@ const importFromClipboard = async () => {
         }
       }
 
-      ElMessage.success(`成功导入预设: ${importedPreset.name}`);
+      customMessage.success(`成功导入预设: ${importedPreset.name}`);
     } else {
       throw new Error("无效的格式：必须是规则数组或包含 name 和 rules 的预设对象");
     }
   } catch (error: any) {
-    ElMessage.error(`导入失败: ${error.message}`);
+    customMessage.error(`导入失败: ${error.message}`);
   }
 };
 
@@ -556,11 +557,11 @@ const exportCurrentPreset = async () => {
       const json = store.exportPreset(store.activePresetId);
       if (json) {
         await writeTextFile(filePath, json);
-        ElMessage.success("预设已成功导出！");
+        customMessage.success("预设已成功导出！");
       }
     }
   } catch (error: any) {
-    ElMessage.error(`导出预设失败: ${error.message}`);
+    customMessage.error(`导出预设失败: ${error.message}`);
   }
 };
 
@@ -575,7 +576,7 @@ const handleAddRule = () => {
   const newRule = store.addRule(store.activePresetId);
   if (newRule) {
     selectedRuleId.value = newRule.id;
-    ElMessage.success("已添加新规则");
+    customMessage.success("已添加新规则");
   }
 };
 
@@ -616,7 +617,7 @@ const handleRemoveRule = async (index: number) => {
       }
     }
 
-    ElMessage.success("规则已删除");
+    customMessage.success("规则已删除");
   }
 };
 

@@ -284,7 +284,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import { Delete, Rank, Document, FolderOpened, FolderAdd, Plus, Setting, MagicStick, List, Close } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { open as openFile } from '@tauri-apps/plugin-dialog';
@@ -458,7 +459,7 @@ const addLog = (message: string, type: LogEntry['type'] = 'info') => {
 
 const clearLogs = () => {
   logs.value = [];
-  ElMessage.success('日志已清空');
+  customMessage.success('日志已清空');
 };
 
 const openLogDialog = () => {
@@ -540,7 +541,7 @@ const pasteToSource = async () => {
     sourceText.value = await readText();
     addLog('已从剪贴板粘贴内容到输入框。');
   } catch (error: any) {
-    ElMessage.error(`粘贴失败: ${error.message}`);
+    customMessage.error(`粘贴失败: ${error.message}`);
     addLog(`粘贴失败: ${error.message}`, 'error');
   }
 };
@@ -548,17 +549,17 @@ const pasteToSource = async () => {
 const copyResult = async () => {
   try {
     await writeText(resultText.value);
-    ElMessage.success('处理结果已复制到剪贴板！');
+    customMessage.success('处理结果已复制到剪贴板！');
     addLog('处理结果已复制到剪贴板。');
   } catch (error: any) {
-    ElMessage.error(`复制失败: ${error.message}`);
+    customMessage.error(`复制失败: ${error.message}`);
     addLog(`复制失败: ${error.message}`, 'error');
   }
 };
 
 const oneClickProcess = async () => {
   if (selectedPresetIds.value.length === 0) {
-    ElMessage.warning('请先选择至少一个预设');
+    customMessage.warning('请先选择至少一个预设');
     return;
   }
   addLog('执行一键处理剪贴板...');
@@ -658,10 +659,10 @@ const setupFileDropListener = async () => {
 
     if (outputRect && isPositionInRect(position, outputRect)) {
       if (pathArray.length > 1) {
-        ElMessage.warning("输出目录只能选择一个文件夹，已自动选择第一个。");
+        customMessage.warning("输出目录只能选择一个文件夹，已自动选择第一个。");
       }
       outputDirectory.value = pathArray[0];
-      ElMessage.success(`已设置输出目录: ${pathArray[0]}`);
+      customMessage.success(`已设置输出目录: ${pathArray[0]}`);
       addLog(`已设置输出目录: ${pathArray[0]}`);
     } else if (fileRect && isPositionInRect(position, fileRect)) {
       addFiles(pathArray);
@@ -732,7 +733,7 @@ const handleDrop = (e: DragEvent) => {
 
 const addFilePathFromInput = () => {
   if (!filePathInput.value) {
-    ElMessage.warning("请输入文件或文件夹路径");
+    customMessage.warning("请输入文件或文件夹路径");
     return;
   }
   addFiles([filePathInput.value]);
@@ -748,7 +749,7 @@ const addFiles = (paths: string[]) => {
   const uniqueNewFiles = newFiles.filter(nf => !files.value.some(sf => sf.path === nf.path));
   if (uniqueNewFiles.length > 0) {
     files.value.push(...uniqueNewFiles);
-    ElMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
+    customMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
   }
 };
 
@@ -764,7 +765,7 @@ const clearFiles = () => {
     type: 'warning',
   }).then(() => {
     files.value = [];
-    ElMessage.success('文件列表已清空');
+    customMessage.success('文件列表已清空');
   }).catch(() => {});
 };
 
@@ -781,7 +782,7 @@ const selectFiles = async () => {
     }
   } catch (error) {
     logger.error("选择文件失败", error, { operation: 'selectFiles' });
-    ElMessage.error("选择文件失败");
+    customMessage.error("选择文件失败");
   }
 };
 
@@ -799,7 +800,7 @@ const selectFolders = async () => {
     }
   } catch (error) {
     logger.error("选择文件夹失败", error, { operation: 'selectFolders' });
-    ElMessage.error("选择文件夹失败");
+    customMessage.error("选择文件夹失败");
   }
 };
 
@@ -815,7 +816,7 @@ const selectOutputDirectory = async () => {
     }
   } catch (error) {
     logger.error("选择输出目录失败", error, { operation: 'selectOutputDirectory' });
-    ElMessage.error("选择目录失败");
+    customMessage.error("选择目录失败");
   }
 };
 
@@ -831,15 +832,15 @@ const getStatusText = (status: FileItem['status']) => {
 
 const processFiles = async () => {
   if (files.value.length === 0) {
-    ElMessage.warning("请先添加要处理的文件");
+    customMessage.warning("请先添加要处理的文件");
     return;
   }
   if (!outputDirectory.value) {
-    ElMessage.warning("请选择输出目录");
+    customMessage.warning("请选择输出目录");
     return;
   }
   if (selectedPresetIds.value.length === 0) {
-    ElMessage.warning("请至少选择一个预设");
+    customMessage.warning("请至少选择一个预设");
     return;
   }
 
@@ -859,7 +860,7 @@ const processFiles = async () => {
   }
 
   if (allRules.length === 0) {
-    ElMessage.warning("所选预设中没有启用的规则");
+    customMessage.warning("所选预设中没有启用的规则");
     return;
   }
 
@@ -897,9 +898,9 @@ const processFiles = async () => {
     const summaryMsg = `处理完成: 成功 ${result.success_count} 个，失败 ${result.error_count} 个，总匹配 ${result.total_matches} 次，耗时 ${result.duration_ms?.toFixed(2)}ms`;
     
     if (result.error_count > 0) {
-      ElMessage.warning(summaryMsg);
+      customMessage.warning(summaryMsg);
     } else {
-      ElMessage.success(`所有文件处理完成！共处理 ${result.success_count} 个文件`);
+      customMessage.success(`所有文件处理完成！共处理 ${result.success_count} 个文件`);
     }
 
     // 更新文件状态
@@ -931,7 +932,7 @@ const processFiles = async () => {
       outputDir: outputDirectory.value,
       ruleCount: allRules.length
     });
-    ElMessage.error(`文件处理失败: ${error}`);
+    customMessage.error(`文件处理失败: ${error}`);
     addLog(`文件处理失败: ${error}`, 'error');
     files.value.forEach(file => {
       if (file.status === 'processing') {

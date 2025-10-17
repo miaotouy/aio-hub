@@ -121,7 +121,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 import { FolderOpened, Search, Filter } from "@element-plus/icons-vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import InfoCard from "../../../components/common/InfoCard.vue";
@@ -220,9 +220,9 @@ const handlePresetChange = async (presetId?: string) => {
   });
 
   if (!preset.scanPath) {
-    ElMessage.info(`已应用预设: ${preset.name}，请选择扫描路径`);
+    customMessage.info(`已应用预设: ${preset.name}，请选择扫描路径`);
   } else {
-    ElMessage.success(`已应用预设: ${preset.name}`);
+    customMessage.success(`已应用预设: ${preset.name}`);
   }
 };
 
@@ -230,7 +230,7 @@ const handlePresetChange = async (presetId?: string) => {
 const handlePathDrop = (paths: string[]) => {
   if (paths.length > 0) {
     localScanPath.value = paths[0];
-    ElMessage.success(`已设置扫描路径: ${paths[0]}`);
+    customMessage.success(`已设置扫描路径: ${paths[0]}`);
   }
 };
 
@@ -247,7 +247,7 @@ const selectDirectory = async () => {
     }
   } catch (error) {
     logger.error("选择目录失败", error);
-    ElMessage.error("选择目录失败");
+    customMessage.error("选择目录失败");
   }
 };
 

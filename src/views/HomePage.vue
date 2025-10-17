@@ -77,7 +77,7 @@ import { useRouter } from "vue-router";
 import { toolsConfig } from "../config/tools";
 import { loadAppSettingsAsync, type AppSettings } from "../utils/appSettings";
 import { useDetachedTools } from "../composables/useDetachedTools";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 
 const router = useRouter();
 const { isToolDetached, focusWindow, closeToolWindow, initializeListeners } = useDetachedTools();
@@ -168,13 +168,13 @@ const handleDropdownCommand = async (command: string, toolPath: string) => {
     try {
       const success = await closeToolWindow(toolId);
       if (success) {
-        ElMessage.success("已取消分离");
+        customMessage.success("已取消分离");
       } else {
-        ElMessage.error("取消分离失败");
+        customMessage.error("取消分离失败");
       }
     } catch (error) {
       console.error("取消分离时出错:", error);
-      ElMessage.error("取消分离时出错");
+      customMessage.error("取消分离时出错");
     }
   }
 };

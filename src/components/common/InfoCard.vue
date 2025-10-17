@@ -18,7 +18,8 @@
 
 <script setup lang="ts">
 import { toRefs } from 'vue';
-import { ElCard, ElButton, ElMessage } from 'element-plus';
+import { ElCard, ElButton } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import { CopyDocument } from '@element-plus/icons-vue';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { createModuleLogger } from '@utils/logger';
@@ -48,13 +49,13 @@ const copyContent = async () => {
   if (!content.value) return;
   try {
     await writeText(content.value);
-    ElMessage.success('已复制到剪贴板！');
+    customMessage.success('已复制到剪贴板！');
   } catch (error) {
     logger.error('复制内容到剪贴板失败', error, {
       title: title.value,
       contentLength: content.value.length,
     });
-    ElMessage.error('复制失败');
+    customMessage.error('复制失败');
   }
 };
 </script>

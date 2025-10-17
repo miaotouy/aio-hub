@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { customMessage } from '@/utils/customMessage'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
@@ -150,7 +150,7 @@ async function loadCommitsWithFiles() {
     })
 
     commitsWithFiles.value = commits
-    ElMessage.success('已加载文件变更信息')
+    customMessage.success('已加载文件变更信息')
   } catch (error) {
     logger.error('加载文件变更信息失败', error, {
       repoPath: props.repoPath,
@@ -158,7 +158,7 @@ async function loadCommitsWithFiles() {
       totalCommits: props.commits.length,
       includeFiles: exportConfig.value.includeFiles,
     })
-    ElMessage.error('加载文件信息失败')
+    customMessage.error('加载文件信息失败')
     commitsWithFiles.value = []
   } finally {
     loadingFiles.value = false
@@ -207,7 +207,7 @@ async function updatePreview() {
       includes: exportConfig.value.includes,
       includeFiles: exportConfig.value.includeFiles,
     })
-    ElMessage.error('生成预览失败')
+    customMessage.error('生成预览失败')
   } finally {
     generating.value = false
   }
@@ -217,13 +217,13 @@ async function updatePreview() {
 async function copyToClipboard() {
   try {
     await navigator.clipboard.writeText(previewContent.value)
-    ElMessage.success('已复制到剪贴板')
+    customMessage.success('已复制到剪贴板')
   } catch (error) {
     logger.error('复制报告内容到剪贴板失败', error, {
       format: exportConfig.value.format,
       contentLength: previewContent.value.length,
     })
-    ElMessage.error('复制失败')
+    customMessage.error('复制失败')
   }
 }
 
@@ -251,7 +251,7 @@ async function downloadFile() {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 
-  ElMessage.success(`已下载: ${fileName}`)
+  customMessage.success(`已下载: ${fileName}`)
 }
 
 // 导出文件（使用 Tauri 的文件保存对话框）
@@ -283,7 +283,7 @@ async function handleExport() {
 
     if (filePath) {
       await writeTextFile(filePath, previewContent.value)
-      ElMessage.success(`文件已保存: ${filePath}`)
+      customMessage.success(`文件已保存: ${filePath}`)
       visible.value = false
     }
   } catch (error) {
@@ -293,7 +293,7 @@ async function handleExport() {
       contentLength: previewContent.value.length,
       commitRange: exportConfig.value.commitRange,
     })
-    ElMessage.error('导出失败')
+    customMessage.error('导出失败')
   } finally {
     exporting.value = false
   }

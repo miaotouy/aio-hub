@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 import { WarningFilled } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import debounce from "lodash/debounce";
@@ -195,14 +195,14 @@ const formatCode = debounce(async () => {
 
 const copyFormattedCode = async () => {
   if (!formattedCodeOutput.value) {
-    ElMessage.warning("没有可复制的格式化代码。");
+    customMessage.warning("没有可复制的格式化代码。");
     return;
   }
   try {
     await writeText(formattedCodeOutput.value);
-    ElMessage.success("格式化后的代码已复制到剪贴板！");
+    customMessage.success("格式化后的代码已复制到剪贴板！");
   } catch (error: any) {
-    ElMessage.error(`复制失败: ${error.message}`);
+    customMessage.error(`复制失败: ${error.message}`);
   }
 };
 

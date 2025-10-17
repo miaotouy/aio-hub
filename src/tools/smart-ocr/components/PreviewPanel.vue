@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import { ElMessage } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import { Upload, Delete, Picture, Scissor, Plus } from '@element-plus/icons-vue';
 import type { ImageBlock, CutLine, UploadedImage } from '../types';
 import { useFileDrop } from '../../../composables/useFileDrop';
@@ -80,7 +80,7 @@ const { isDraggingOver: isTauriDragging } = useFileDrop({
           filePath: path,
           fileName
         });
-        ElMessage.error(`读取文件失败: ${fileName}`);
+        customMessage.error(`读取文件失败: ${fileName}`);
       }
     }
     
@@ -142,7 +142,7 @@ const handleFiles = async (files: FileList | File[]) => {
   const imageFiles = fileArray.filter(file => file.type.startsWith('image/'));
   
   if (imageFiles.length === 0) {
-    ElMessage.warning('请选择图片文件');
+    customMessage.warning('请选择图片文件');
     return;
   }
   
@@ -168,13 +168,13 @@ const handleFiles = async (files: FileList | File[]) => {
         fileSize: file.size,
         fileType: file.type
       });
-      ElMessage.error(`加载图片 ${file.name} 失败`);
+      customMessage.error(`加载图片 ${file.name} 失败`);
     }
   }
   
   if (uploadedImages.length > 0) {
     emit('imagesUpload', uploadedImages);
-    ElMessage.success(`成功上传 ${uploadedImages.length} 张图片`);
+    customMessage.success(`成功上传 ${uploadedImages.length} 张图片`);
   }
 };
 

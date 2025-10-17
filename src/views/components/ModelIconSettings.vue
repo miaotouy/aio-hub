@@ -202,7 +202,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelMetadata } from "../../composables/useModelMetadata";
 import type { ModelMetadataRule, MetadataMatchType } from "../../types/model-metadata";
@@ -389,12 +390,12 @@ async function handleReset() {
       type: "warning",
     });
     if (await resetToDefaults()) {
-      ElMessage.success("已重置为默认配置");
+      customMessage.success("已重置为默认配置");
     } else {
-      ElMessage.error("重置失败");
+      customMessage.error("重置失败");
     }
   } catch {
-    ElMessage.info("操作已取消");
+    customMessage.info("操作已取消");
   }
 }
 

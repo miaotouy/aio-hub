@@ -92,7 +92,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import {
   WarningFilled,
   DocumentCopy,
@@ -200,22 +200,22 @@ const pasteToJson = async () => {
     const text = await readText();
     rawJsonInput.value = text;
     formatJson();
-    ElMessage.success('已从剪贴板粘贴内容');
+    customMessage.success('已从剪贴板粘贴内容');
   } catch (error: any) {
-    ElMessage.error(`粘贴失败: ${error.message}`);
+    customMessage.error(`粘贴失败: ${error.message}`);
   }
 };
 
 const copyFormattedJson = async () => {
   if (!formattedJsonOutput.value) {
-    ElMessage.warning('没有可复制的内容');
+    customMessage.warning('没有可复制的内容');
     return;
   }
   try {
     await writeText(formattedJsonOutput.value);
-    ElMessage.success('已复制到剪贴板');
+    customMessage.success('已复制到剪贴板');
   } catch (error: any) {
-    ElMessage.error(`复制失败: ${error.message}`);
+    customMessage.error(`复制失败: ${error.message}`);
   }
 };
 
@@ -336,18 +336,18 @@ const handleDrop = (event: DragEvent) => {
         });
         rawJsonInput.value = content;
         formatJson();
-        ElMessage.success(`成功读取文件: ${file.name}`);
+        customMessage.success(`成功读取文件: ${file.name}`);
       };
       reader.onerror = (e) => {
         logger.debug('文件读取失败', {
           fileName: file.name,
           error: e.target?.error?.message || '未知错误'
         });
-        ElMessage.error(`读取文件失败: ${file.name} - ${e.target?.error}`);
+        customMessage.error(`读取文件失败: ${file.name} - ${e.target?.error}`);
       };
       reader.readAsText(file);
     } else {
-      ElMessage.warning('请拖拽 JSON 或文本文件。');
+      customMessage.warning('请拖拽 JSON 或文本文件。');
     }
 
   }

@@ -3,7 +3,8 @@ import { computed } from 'vue';
 import { useAgentStore } from '../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { Plus, Edit, Delete, MoreFilled } from '@element-plus/icons-vue';
-import { ElMessageBox, ElMessage } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import type { ChatAgent } from '../types';
 
 interface Props {
@@ -56,7 +57,7 @@ const handleAdd = () => {
     .then(({ value }) => {
       const { enabledProfiles } = useLlmProfiles();
       if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
-        ElMessage.error('没有可用的模型配置，无法创建智能体');
+        customMessage.error('没有可用的模型配置，无法创建智能体');
         return;
       }
       const defaultProfile = enabledProfiles.value[0];
@@ -66,7 +67,7 @@ const handleAdd = () => {
         description: '新创建的智能体',
         icon: '🤖',
       });
-      ElMessage.success(`智能体 "${value}" 创建成功`);
+      customMessage.success(`智能体 "${value}" 创建成功`);
       // 自动选中新创建的智能体
       selectAgent(newAgentId);
     })
@@ -77,7 +78,7 @@ const handleAdd = () => {
 
 // 编辑智能体（占位）
 const handleEdit = (agent: ChatAgent) => {
-  ElMessage.info(`编辑功能待实现: ${agent.name}`);
+  customMessage.info(`编辑功能待实现: ${agent.name}`);
   // 未来可以路由到专门的编辑页面
   // router.push(`/settings/llm/agents/${agent.id}`);
 };
@@ -85,7 +86,7 @@ const handleEdit = (agent: ChatAgent) => {
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
   if (agent.isBuiltIn) {
-    ElMessage.warning('不能删除内置的默认智能体。');
+    customMessage.warning('不能删除内置的默认智能体。');
     return;
   }
   ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？此操作不可撤销。`, '确认删除', {
@@ -95,7 +96,7 @@ const handleDelete = (agent: ChatAgent) => {
   })
     .then(() => {
       agentStore.deleteAgent(agent.id);
-      ElMessage.success('智能体已删除');
+      customMessage.success('智能体已删除');
     })
     .catch(() => {
       // 用户取消

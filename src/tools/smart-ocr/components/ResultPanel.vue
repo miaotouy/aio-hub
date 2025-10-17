@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide } from '@element-plus/icons-vue';
 import type { OcrResult, UploadedImage, ImageBlock } from '../types';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
@@ -63,20 +63,20 @@ const getBlockIndex = (imageId: string, blockId: string) => {
 const copyText = async (text: string, context: string = '单个结果') => {
   try {
     await writeText(text);
-    ElMessage.success('已复制到剪贴板');
+    customMessage.success('已复制到剪贴板');
   } catch (error) {
     logger.error(`复制${context}到剪贴板失败`, error, {
       context,
       textLength: text.length,
     });
-    ElMessage.error('复制失败');
+    customMessage.error('复制失败');
   }
 };
 
 // 复制所有文本
 const copyAllText = async () => {
   if (!allText.value) {
-    ElMessage.warning('暂无可复制的内容');
+    customMessage.warning('暂无可复制的内容');
     return;
   }
   await copyText(allText.value, '全部结果');

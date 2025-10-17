@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
 
@@ -208,7 +208,7 @@ const selectedModelCombo = computed({
 const handleSliceOnly = async (imageId: string) => {
   const uploadedImage = props.uploadedImages.find(img => img.id === imageId);
   if (!uploadedImage) {
-    ElMessage.warning("图片不存在");
+    customMessage.warning("图片不存在");
     return;
   }
 
@@ -220,7 +220,7 @@ const handleSliceOnly = async (imageId: string) => {
     img.height / img.width > props.slicerConfig.aspectRatioThreshold;
 
   if (!needSlice) {
-    ElMessage.info("当前图片不满足切图条件");
+    customMessage.info("当前图片不满足切图条件");
     return;
   }
 
@@ -242,7 +242,7 @@ const handleSliceOnly = async (imageId: string) => {
       blocksCount: sliceResult.blocks.length,
     });
     
-    ElMessage.success(`检测到 ${sliceResult.blocks.length} 个图片块`);
+    customMessage.success(`检测到 ${sliceResult.blocks.length} 个图片块`);
   } catch (error) {
     logger.error("单张图片切图失败", {
       imageId,
@@ -250,14 +250,14 @@ const handleSliceOnly = async (imageId: string) => {
       slicerConfig: props.slicerConfig,
       error: error instanceof Error ? error.message : String(error),
     });
-    ElMessage.error("切图失败: " + (error as Error).message);
+    customMessage.error("切图失败: " + (error as Error).message);
   }
 };
 
 // 批量切图所有图片
 const handleSliceAll = async () => {
   if (props.uploadedImages.length === 0) {
-    ElMessage.warning("请先上传图片");
+    customMessage.warning("请先上传图片");
     return;
   }
 
@@ -302,16 +302,16 @@ const handleSliceAll = async () => {
   });
 
   if (slicedCount > 0) {
-    ElMessage.success(`成功切图 ${slicedCount} 张图片`);
+    customMessage.success(`成功切图 ${slicedCount} 张图片`);
   } else {
-    ElMessage.info("没有符合切图条件的图片");
+    customMessage.info("没有符合切图条件的图片");
   }
 };
 
 // 开始识别
 const handleStartOcr = async () => {
   if (!selectedImage.value) {
-    ElMessage.warning("请先上传并选择图片");
+    customMessage.warning("请先上传并选择图片");
     return;
   }
 
@@ -342,7 +342,7 @@ const handleStartOcr = async () => {
       blocks = sliceResult.blocks;
       lines = sliceResult.lines;
       emit("sliceComplete", imageId, blocks, lines);
-      ElMessage.success(`检测到 ${blocks.length} 个图片块`);
+      customMessage.success(`检测到 ${blocks.length} 个图片块`);
     } else {
       // 不切图，直接使用整张图片
       const canvas = document.createElement("canvas");
@@ -381,7 +381,7 @@ const handleStartOcr = async () => {
       resultsCount: results.length,
     });
     
-    ElMessage.success("识别完成");
+    customMessage.success("识别完成");
   } catch (error) {
     logger.error("单张图片OCR识别失败", {
       imageId: selectedImage.value?.id,
@@ -390,7 +390,7 @@ const handleStartOcr = async () => {
       slicerEnabled: props.slicerConfig.enabled,
       error: error instanceof Error ? error.message : String(error),
     });
-    ElMessage.error("识别失败: " + (error as Error).message);
+    customMessage.error("识别失败: " + (error as Error).message);
     emit("ocrComplete");
   }
 };
@@ -398,7 +398,7 @@ const handleStartOcr = async () => {
 // 批量识别所有图片
 const handleBatchOcr = async () => {
   if (props.uploadedImages.length === 0) {
-    ElMessage.warning("请先上传图片");
+    customMessage.warning("请先上传图片");
     return;
   }
 
@@ -408,7 +408,7 @@ const handleBatchOcr = async () => {
     slicerEnabled: props.slicerConfig.enabled,
   });
 
-  ElMessage.info(`准备批量识别 ${props.uploadedImages.length} 张图片`);
+  customMessage.info(`准备批量识别 ${props.uploadedImages.length} 张图片`);
   emit("ocrStart");
 
   const allResults: OcrResult[] = []; // 累积所有图片的识别结果
@@ -475,7 +475,7 @@ const handleBatchOcr = async () => {
       engineType: props.engineConfig.type,
     });
     
-    ElMessage.success("批量识别完成");
+    customMessage.success("批量识别完成");
   } catch (error) {
     logger.error("批量OCR识别失败", {
       totalImages: props.uploadedImages.length,
@@ -483,7 +483,7 @@ const handleBatchOcr = async () => {
       processedResults: allResults.length,
       error: error instanceof Error ? error.message : String(error),
     });
-    ElMessage.error("批量识别失败: " + (error as Error).message);
+    customMessage.error("批量识别失败: " + (error as Error).message);
     emit("ocrComplete");
   }
 };

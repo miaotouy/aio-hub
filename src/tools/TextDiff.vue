@@ -195,7 +195,7 @@ import type { editor } from "monaco-editor";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { ElMessage } from "element-plus";
+import { customMessage } from '@/utils/customMessage';
 import { createTwoFilesPatch } from "diff";
 import { useFileDrop } from "@composables/useFileDrop";
 import { useTheme } from "@composables/useTheme";
@@ -411,12 +411,12 @@ const openFile = async (side: "left" | "right") => {
 
     // 检查大文件
     if (content.length > 10 * 1024 * 1024) {
-      await ElMessage.warning("文件较大（>10MB），可能影响性能");
+      await customMessage.warning("文件较大（>10MB），可能影响性能");
     }
 
     // 检测二进制文件
     if (content.includes("\0")) {
-      ElMessage.error("不支持二进制文件");
+      customMessage.error("不支持二进制文件");
       return;
     }
 
@@ -435,11 +435,11 @@ const openFile = async (side: "left" | "right") => {
     // 自动推断语言
     language.value = inferLanguage(filePath as string);
 
-    ElMessage.success(`已加载: ${fileName}`);
+    customMessage.success(`已加载: ${fileName}`);
     logger.info(`文件已加载到${side}侧`, { path: filePath, size: content.length });
   } catch (error: any) {
     logger.error("打开文件失败", error);
-    ElMessage.error(`打开文件失败: ${error}`);
+    customMessage.error(`打开文件失败: ${error}`);
   }
 };
 
@@ -456,7 +456,7 @@ const saveFile = async (side: "left" | "right" | "both") => {
     const currentName = side === "left" ? leftFileName.value : rightFileName.value;
 
     if (!content) {
-      ElMessage.warning(`${side === "left" ? "左侧" : "右侧"}内容为空`);
+      customMessage.warning(`${side === "left" ? "左侧" : "右侧"}内容为空`);
       return;
     }
 
@@ -478,11 +478,11 @@ const saveFile = async (side: "left" | "right" | "both") => {
       rightFileName.value = fileName;
     }
 
-    ElMessage.success(`已保存: ${fileName}`);
+    customMessage.success(`已保存: ${fileName}`);
     logger.info(`文件已保存`, { path: filePath, size: content.length });
   } catch (error: any) {
     logger.error("保存文件失败", error);
-    ElMessage.error(`保存失败: ${error}`);
+    customMessage.error(`保存失败: ${error}`);
   }
 };
 
@@ -515,7 +515,7 @@ const handleFileDrop = async (paths: string[], side: "left" | "right") => {
     }
   } catch (error: any) {
     logger.error("处理拖放文件失败", error);
-    ElMessage.error(`处理失败: ${error}`);
+    customMessage.error(`处理失败: ${error}`);
   }
 };
 
@@ -525,11 +525,11 @@ const loadFileToSide = async (filePath: string, side: "left" | "right") => {
     const content = await readTextFile(filePath);
 
     if (content.length > 10 * 1024 * 1024) {
-      await ElMessage.warning("文件较大（>10MB），可能影响性能");
+      await customMessage.warning("文件较大（>10MB），可能影响性能");
     }
 
     if (content.includes("\0")) {
-      ElMessage.error("不支持二进制文件");
+      customMessage.error("不支持二进制文件");
       return;
     }
 
@@ -564,19 +564,19 @@ const copyToClipboard = async (type: "left" | "right" | "patch") => {
     if (type === "left") {
       content = textA.value;
       if (!content) {
-        ElMessage.warning("左侧内容为空");
+        customMessage.warning("左侧内容为空");
         return;
       }
     } else if (type === "right") {
       content = textB.value;
       if (!content) {
-        ElMessage.warning("右侧内容为空");
+        customMessage.warning("右侧内容为空");
         return;
       }
     } else if (type === "patch") {
       content = generateUnifiedPatch();
       if (!content) {
-        ElMessage.warning("无法生成补丁：两侧内容相同或为空");
+        customMessage.warning("无法生成补丁：两侧内容相同或为空");
         return;
       }
     }
@@ -584,11 +584,11 @@ const copyToClipboard = async (type: "left" | "right" | "patch") => {
     await writeText(content);
 
     const label = type === "left" ? "左侧内容" : type === "right" ? "右侧内容" : "补丁";
-    ElMessage.success(`已复制${label}到剪贴板`);
+    customMessage.success(`已复制${label}到剪贴板`);
     logger.info(`已复制${label}到剪贴板`, { length: content.length });
   } catch (error: any) {
     logger.error("复制到剪贴板失败", error);
-    ElMessage.error(`复制失败: ${error}`);
+    customMessage.error(`复制失败: ${error}`);
   }
 };
 
@@ -598,7 +598,7 @@ const pasteFromClipboard = async (side: "left" | "right") => {
     const content = await readText();
 
     if (!content) {
-      ElMessage.warning("剪贴板为空");
+      customMessage.warning("剪贴板为空");
       return;
     }
 
@@ -612,11 +612,11 @@ const pasteFromClipboard = async (side: "left" | "right") => {
       rightFileName.value = "";
     }
 
-    ElMessage.success(`已粘贴到${side === "left" ? "左侧" : "右侧"}`);
+    customMessage.success(`已粘贴到${side === "left" ? "左侧" : "右侧"}`);
     logger.info(`已从剪贴板粘贴到${side}侧`, { length: content.length });
   } catch (error: any) {
     logger.error("从剪贴板粘贴失败", error);
-    ElMessage.error(`粘贴失败: ${error}`);
+    customMessage.error(`粘贴失败: ${error}`);
   }
 };
 
@@ -660,7 +660,7 @@ const exportPatch = async () => {
     const patch = generateUnifiedPatch();
 
     if (!patch) {
-      ElMessage.warning("无法生成补丁：两侧内容相同或为空");
+      customMessage.warning("无法生成补丁：两侧内容相同或为空");
       return;
     }
 
@@ -688,11 +688,11 @@ const exportPatch = async () => {
     await writeTextFile(filePath, patch);
 
     const fileName = filePath.split(/[/\\]/).pop() || "";
-    ElMessage.success(`补丁已导出: ${fileName}`);
+    customMessage.success(`补丁已导出: ${fileName}`);
     logger.info("补丁已导出", { path: filePath, size: patch.length });
   } catch (error: any) {
     logger.error("导出补丁失败", error);
-    ElMessage.error(`导出失败: ${error}`);
+    customMessage.error(`导出失败: ${error}`);
   }
 };
 

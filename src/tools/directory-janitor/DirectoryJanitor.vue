@@ -33,7 +33,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import ConfigPanel from "./components/ConfigPanel.vue";
@@ -69,7 +70,7 @@ const showProgress = ref(false);
 // 分析路径
 const analyzePath = async () => {
   if (!scanPath.value) {
-    ElMessage.warning("请先选择扫描路径");
+    customMessage.warning("请先选择扫描路径");
     return;
   }
 
@@ -103,12 +104,12 @@ const analyzePath = async () => {
       totalSize: result.statistics.totalSize,
     });
 
-    ElMessage.success(
+    customMessage.success(
       `找到 ${result.statistics.totalItems} 项，共 ${formatBytes(result.statistics.totalSize)}`
     );
   } catch (error: any) {
     logger.error("分析失败", error);
-    ElMessage.error(`分析失败: ${error}`);
+    customMessage.error(`分析失败: ${error}`);
   } finally {
     isAnalyzing.value = false;
     showProgress.value = false;
@@ -136,7 +137,7 @@ const executeCleanup = async (pathsToClean: string[]) => {
         { type: "warning" }
       );
     } else {
-      ElMessage.success(
+      customMessage.success(
         `成功清理 ${result.successCount} 项，释放 ${formatBytes(result.freedSpace)}`
       );
     }
@@ -150,7 +151,7 @@ const executeCleanup = async (pathsToClean: string[]) => {
     selectedPaths.value.clear();
   } catch (error: any) {
     logger.error("清理失败", error);
-    ElMessage.error(`清理失败: ${error}`);
+    customMessage.error(`清理失败: ${error}`);
   }
 };
 

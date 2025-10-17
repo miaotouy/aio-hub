@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted } from "vue";
 import { InfoFilled } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import {
   loadAppSettingsAsync,
   saveAppSettingsDebounced,
@@ -157,12 +158,12 @@ const handleReset = async () => {
       );
     }, 100);
 
-    ElMessage.success("设置已重置到默认值");
+    customMessage.success("设置已重置到默认值");
   } catch (error) {
     // 用户取消了操作
     if (error !== "cancel") {
       logger.error("重置应用设置失败", error);
-      ElMessage.error("重置设置失败");
+      customMessage.error("重置设置失败");
     }
   }
 };
@@ -193,7 +194,7 @@ const handleOpenConfigDir = async () => {
     }
   } catch (error) {
     logger.error("获取配置目录路径失败", error);
-    ElMessage.error("无法访问配置目录");
+    customMessage.error("无法访问配置目录");
   }
 };
 
@@ -216,12 +217,12 @@ const handleExportConfig = async () => {
       const configData = await invoke<ConfigExport>("export_all_configs");
       const configContent = JSON.stringify(configData, null, 2);
       await writeTextFile(filePath, configContent);
-      ElMessage.success("配置导出成功");
+      customMessage.success("配置导出成功");
       logger.info("配置已导出", { filePath, configData });
     }
   } catch (error) {
     logger.error("导出配置失败", error);
-    ElMessage.error("导出配置失败");
+    customMessage.error("导出配置失败");
   }
 };
 
@@ -302,12 +303,12 @@ const handleImportConfig = async () => {
       );
     }, 100);
 
-    ElMessage.success(result);
+    customMessage.success(result);
     logger.info("配置已导入", { result, mergeMode });
   } catch (error) {
     if (error !== "cancel") {
       logger.error("导入配置失败", error);
-      ElMessage.error("导入配置失败");
+      customMessage.error("导入配置失败");
     }
   }
 };
@@ -326,11 +327,11 @@ const handleClearWindowState = async () => {
     );
 
     await invoke("clear_window_state");
-    ElMessage.success("窗口状态已清除");
+    customMessage.success("窗口状态已清除");
   } catch (error) {
     if (error !== "cancel") {
       logger.error("清除窗口状态失败", error);
-      ElMessage.error("清除窗口状态失败");
+      customMessage.error("清除窗口状态失败");
     }
   }
 };
@@ -363,7 +364,7 @@ watch(
       await invoke("update_tray_setting", { enabled: newValue });
     } catch (error) {
       logger.error("更新系统托盘设置失败", error, { enabled: newValue });
-      ElMessage.error("更新托盘设置失败");
+      customMessage.error("更新托盘设置失败");
     }
   }
 );

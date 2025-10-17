@@ -1,7 +1,7 @@
 import { ref, onMounted, onUnmounted, Ref } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { ElMessage } from 'element-plus'
+import { customMessage } from '@/utils/customMessage'
 import { createModuleLogger } from '@utils/logger'
 
 // 创建模块日志记录器
@@ -93,7 +93,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
     // 验证文件数量
     if (!options.multiple && paths.length > 1) {
       paths = [paths[0]]
-      ElMessage.warning('只能选择一个文件，已自动选择第一个')
+      customMessage.warning('只能选择一个文件，已自动选择第一个')
     }
     
     const validPaths: string[] = []
@@ -107,10 +107,10 @@ export function useFileDrop(options: FileDropOptions = {}) {
           const isDir = await invoke<boolean>('is_directory', { path })
           
           if (options.directoryOnly && !isDir) {
-            ElMessage.warning(`请拖入文件夹: ${path}`)
+            customMessage.warning(`请拖入文件夹: ${path}`)
             isValid = false
           } else if (options.fileOnly && isDir) {
-            ElMessage.warning(`请拖入文件: ${path}`)
+            customMessage.warning(`请拖入文件: ${path}`)
             isValid = false
           }
         } catch (error) {
@@ -123,7 +123,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
       if (options.accept && options.accept.length > 0 && isValid) {
         const ext = path.substring(path.lastIndexOf('.')).toLowerCase()
         if (!options.accept.includes(ext)) {
-          ElMessage.warning(`不支持的文件类型: ${ext}`)
+          customMessage.warning(`不支持的文件类型: ${ext}`)
           isValid = false
         }
       }
@@ -170,7 +170,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
         const message = validPaths.length === 1 
           ? `已添加: ${validPaths[0].split(/[/\\]/).pop()}`
           : `已添加 ${validPaths.length} 个项目`
-        ElMessage.success(message)
+        customMessage.success(message)
       }
       
     } catch (error: any) {
@@ -179,7 +179,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
       if (options.onError) {
         options.onError(errorMsg)
       } else {
-        ElMessage.error(`处理失败: ${errorMsg}`)
+        customMessage.error(`处理失败: ${errorMsg}`)
       }
     } finally {
       isProcessing.value = false
@@ -303,7 +303,7 @@ export function usePathDrop(
       if (paths.length > 0) {
         pathRef.value = paths[0]
         const fileName = paths[0].split(/[/\\]/).pop() || paths[0]
-        ElMessage.success(`已设置路径: ${fileName}`)
+        customMessage.success(`已设置路径: ${fileName}`)
         
         // 自动加载
         if (options.autoLoad) {
@@ -345,9 +345,9 @@ export function useFileListDrop<T = string>(
       
       if (uniqueNewItems.length > 0) {
         filesRef.value.push(...uniqueNewItems)
-        ElMessage.success(`已添加 ${uniqueNewItems.length} 个项目`)
+        customMessage.success(`已添加 ${uniqueNewItems.length} 个项目`)
       } else {
-        ElMessage.info('所有项目都已存在')
+        customMessage.info('所有项目都已存在')
       }
     }
   })

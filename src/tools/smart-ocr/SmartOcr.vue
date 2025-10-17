@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { customMessage } from '@/utils/customMessage';
 import ControlPanel from './components/ControlPanel.vue';
 import PreviewPanel from './components/PreviewPanel.vue';
 import ResultPanel from './components/ResultPanel.vue';
@@ -178,7 +178,7 @@ const handleClearAllImages = () => {
   imageBlocksMap.value.clear();
   selectedImageId.value = null;
   ocrResults.value = [];
-  ElMessage.success('已清除所有图片');
+  customMessage.success('已清除所有图片');
 };
 
 // 处理图片选择
@@ -222,7 +222,7 @@ const handleRetryBlock = async (blockId: string) => {
   // 找到对应的result
   const resultIndex = ocrResults.value.findIndex(r => r.blockId === blockId);
   if (resultIndex === -1) {
-    ElMessage.warning('未找到对应的识别结果');
+    customMessage.warning('未找到对应的识别结果');
     return;
   }
   
@@ -232,13 +232,13 @@ const handleRetryBlock = async (blockId: string) => {
   // 找到对应的block
   const blocks = imageBlocksMap.value.get(imageId);
   if (!blocks) {
-    ElMessage.warning('未找到对应的图片块');
+    customMessage.warning('未找到对应的图片块');
     return;
   }
   
   const block = blocks.find(b => b.id === blockId);
   if (!block) {
-    ElMessage.warning('未找到对应的图片块');
+    customMessage.warning('未找到对应的图片块');
     return;
   }
   
@@ -266,7 +266,7 @@ const handleRetryBlock = async (blockId: string) => {
       };
     }
     
-    ElMessage.success('重试完成');
+    customMessage.success('重试完成');
   } catch (error) {
     log.error('重试失败', error as Error, {
       blockId,
@@ -275,7 +275,7 @@ const handleRetryBlock = async (blockId: string) => {
     });
     ocrResults.value[resultIndex].status = 'error';
     ocrResults.value[resultIndex].error = (error as Error).message;
-    ElMessage.error('重试失败');
+    customMessage.error('重试失败');
   }
 };
 
@@ -284,7 +284,7 @@ const handleToggleIgnore = (blockId: string) => {
   const result = ocrResults.value.find(r => r.blockId === blockId);
   if (result) {
     result.ignored = !result.ignored;
-    ElMessage.success(result.ignored ? '已忽略该块' : '已取消忽略');
+    customMessage.success(result.ignored ? '已忽略该块' : '已取消忽略');
   }
 };
 </script>

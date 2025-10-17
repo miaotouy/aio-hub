@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ElMessage, ElMessageBox, ElLoading } from "element-plus";
+import { ElMessageBox, ElLoading } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import ProfileSidebar from "./ProfileSidebar.vue";
 import ProfileEditor from "./ProfileEditor.vue";
 import ModelList from "./ModelList.vue";
@@ -108,11 +109,11 @@ const handleAddClick = () => {
 // 保存配置（验证并保存）
 const saveCurrentProfile = () => {
   if (!editForm.value.name.trim()) {
-    ElMessage.error("请输入渠道名称");
+    customMessage.error("请输入渠道名称");
     return false;
   }
   if (!editForm.value.baseUrl.trim()) {
-    ElMessage.error("请输入 API 地址");
+    customMessage.error("请输入 API 地址");
     return false;
   }
 
@@ -163,7 +164,7 @@ const handleDelete = async () => {
     if (selectedProfileId.value) {
       selectProfile(selectedProfileId.value);
     }
-    ElMessage.success("删除成功");
+    customMessage.success("删除成功");
   } catch {
     // 用户取消
   }
@@ -215,12 +216,12 @@ const deleteModelGroup = (indices: number[]) => {
   sortedIndices.forEach((index) => {
     editForm.value.models.splice(index, 1);
   });
-  ElMessage.success(`成功删除分组下的 ${indices.length} 个模型`);
+  customMessage.success(`成功删除分组下的 ${indices.length} 个模型`);
 };
 
 const clearAllModels = () => {
   editForm.value.models = [];
-  ElMessage.success("已清空所有模型");
+  customMessage.success("已清空所有模型");
 };
 
 const showModelFetcherDialog = ref(false);
@@ -229,7 +230,7 @@ const fetchedModels = ref<LlmModelInfo[]>([]);
 // 从 API 获取模型列表
 const fetchModels = async () => {
   if (!selectedProfile.value) {
-    ElMessage.error("请先选择一个配置");
+    customMessage.error("请先选择一个配置");
     return;
   }
 
@@ -243,14 +244,14 @@ const fetchModels = async () => {
     const models = await fetchModelsFromApi(selectedProfile.value);
 
     if (models.length === 0) {
-      ElMessage.warning("未获取到任何模型");
+      customMessage.warning("未获取到任何模型");
       return;
     }
 
     fetchedModels.value = models;
     showModelFetcherDialog.value = true;
   } catch (error: any) {
-    ElMessage.error(`获取模型列表失败: ${error.message}`);
+    customMessage.error(`获取模型列表失败: ${error.message}`);
   } finally {
     loading.close();
   }
@@ -260,7 +261,7 @@ const fetchModels = async () => {
 const handleAddModels = (modelsToAdd: LlmModelInfo[]) => {
   const newModels = modelsToAdd.filter((m) => !editForm.value.models.some((em) => em.id === m.id));
   editForm.value.models.push(...newModels);
-  ElMessage.success(`成功添加 ${newModels.length} 个模型`);
+  customMessage.success(`成功添加 ${newModels.length} 个模型`);
 };
 
 // API 端点预览

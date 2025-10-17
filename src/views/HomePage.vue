@@ -1,11 +1,30 @@
 <template>
   <div class="home-page">
     <span class="title">All In One 工具箱</span>
+
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+      <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
+    </div>
+
+    <!-- 分类标签 -->
+    <div v-if="categories.length > 1" class="category-tabs">
+      <button
+        v-for="category in categories"
+        :key="category"
+        @click="selectedCategory = category"
+        :class="{ active: selectedCategory === category }"
+        class="category-tab"
+      >
+        {{ category }}
+      </button>
+    </div>
+
     <div class="tool-grid">
       <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
       <component
         :is="isToolDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
-        v-for="tool in visibleTools"
+        v-for="tool in filteredTools"
         :key="tool.path"
         :to="isToolDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
         :class="[
@@ -39,13 +58,15 @@
       </component>
     </div>
 
-    <!-- 如果没有可显示的工具，显示提示 -->
-    <div v-if="visibleTools.length === 0" class="no-tools-message">
-      <el-empty description="没有可显示的工具">
-        <el-button type="primary" @click="router.push('/settings')">
-          前往设置页面配置工具
-        </el-button>
-      </el-empty>
+    <!-- 空状态 -->
+    <div v-if="filteredTools.length === 0" class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-text">
+        {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
+      </div>
+      <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
+        前往设置页面配置工具
+      </el-button>
     </div>
   </div>
 </template>
@@ -60,6 +81,12 @@ import { ElMessage } from "element-plus";
 
 const router = useRouter();
 const { isToolDetached, focusWindow, closeToolWindow, initializeListeners } = useDetachedTools();
+
+// 搜索文本
+const searchText = ref("");
+
+// 选中的分类
+const selectedCategory = ref("全部");
 
 // 从路径提取工具ID（与设置页面保持一致）
 const getToolIdFromPath = (path: string): string => {
@@ -77,6 +104,17 @@ const settings = ref<AppSettings>({
   version: "1.0.0",
 });
 
+// 获取所有分类
+const categories = computed(() => {
+  const cats = new Set<string>(["全部"]);
+  toolsConfig.forEach((tool) => {
+    if (tool.category) {
+      cats.add(tool.category);
+    }
+  });
+  return Array.from(cats);
+});
+
 // 计算可见的工具列表（包括已分离的工具，用于显示）
 const visibleTools = computed(() => {
   if (!settings.value.toolsVisible) {
@@ -89,6 +127,27 @@ const visibleTools = computed(() => {
     // 默认显示未配置的工具
     return settings.value.toolsVisible![toolId] !== false;
   });
+});
+
+// 过滤后的工具列表（应用搜索和分类筛选）
+const filteredTools = computed(() => {
+  let result = [...visibleTools.value];
+
+  // 分类过滤
+  if (selectedCategory.value !== "全部") {
+    result = result.filter((tool) => tool.category === selectedCategory.value);
+  }
+
+  // 搜索过滤
+  if (searchText.value.trim()) {
+    const search = searchText.value.toLowerCase();
+    result = result.filter(
+      (tool) =>
+        tool.name.toLowerCase().includes(search) || tool.description?.toLowerCase().includes(search)
+    );
+  }
+
+  return result;
 });
 // 处理工具卡片点击
 const handleToolClick = async (toolPath: string) => {
@@ -234,8 +293,85 @@ watch(
   line-height: 1.5;
 }
 
-.no-tools-message {
-  margin-top: 50px;
+/* 搜索栏 */
+.search-bar {
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 1.5rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+}
+
+/* 分类标签 */
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  justify-content: center;
+}
+
+.category-tab {
+  padding: 0.6rem 1.2rem;
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.category-tab:hover {
+  border-color: var(--primary-color);
+  background: var(--input-bg);
+  transform: translateY(-2px);
+}
+
+.category-tab.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.3);
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--text-color-secondary);
+  margin-top: 2rem;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 /* 已分离工具的样式 */

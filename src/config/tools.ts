@@ -20,85 +20,98 @@ export interface ToolConfig {
   path: string;
   icon: Component;
   description?: string;
+  category?: string;
 }
-
 export const toolsConfig: ToolConfig[] = [
   {
     name: '正则批量替换',
     path: '/regex-apply',
     icon: markRaw(MagicStick),
-    description: '使用正则表达式批量处理文本或文件'
+    description: '使用正则表达式批量处理文本或文件',
+    category: '文本处理'
   },
   {
     name: 'AI作图信息查看器',
     path: '/media-info-reader',
     icon: markRaw(PictureFilled),
-    description: '读取AI生成图片的元数据(WebUI/ComfyUI)及角色卡片信息'
+    description: '读取AI生成图片的元数据(WebUI/ComfyUI)及角色卡片信息',
+    category: 'AI 工具'
   },
   {
     name: '文本差异对比',
     path: '/text-diff',
     icon: markRaw(TextDiffIcon),
-    description: '对比文本文件的差异'
+    description: '对比文本文件的差异',
+    category: '文本处理'
   },
   {
     name: 'JSON 格式化',
     path: '/json-formatter',
     icon: markRaw(Brush),
-    description: '格式化和美化JSON数据'
+    description: '格式化和美化JSON数据',
+    category: '文本处理'
   },
   {
     name: '代码格式化',
     path: '/code-formatter',
     icon: markRaw(Setting),
-    description: '格式化各种编程语言代码'
+    description: '格式化各种编程语言代码',
+    category: '文本处理'
   },
   {
     name: '符号链接搬家工具',
     path: '/symlink-mover',
     icon: markRaw(Rank),
-    description: '支持拖拽的文件批量移动和符号链接创建工具'
+    description: '支持拖拽的文件批量移动和符号链接创建工具',
+    category: '文件管理'
   },
   {
     name: '目录结构浏览器',
     path: '/directory-tree',
     icon: markRaw(DirectoryTreeIcon),
-    description: '生成目录树结构，支持过滤规则和深度限制'
+    description: '生成目录树结构，支持过滤规则和深度限制',
+    category: '文件管理'
   },
   {
     name: '目录清洁工具',
     path: '/directory-janitor',
     icon: markRaw(DirectoryJanitorIcon),
-    description: '智能清理过时的缓存和存档，支持按规则、日期和大小过滤'
+    description: '智能清理过时的缓存和存档，支持按规则、日期和大小过滤',
+    category: '文件管理'
   },
   {
     name: 'API 测试工具',
     path: '/api-tester',
     icon: markRaw(ConnectorIcon),
-    description: '测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设'
+    description: '测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设',
+    category: '开发工具'
   },
   {
     name: 'LLM 代理监听器',
     path: '/llm-proxy',
     icon: markRaw(Monitor),
-    description: '监听和分析 LLM API 请求，捕获客户端与服务器之间的通信'
+    description: '监听和分析 LLM API 请求，捕获客户端与服务器之间的通信',
+    category: '开发工具'
   },
   {
     name: 'Git 分析器',
     path: '/git-analyzer',
     icon: markRaw(GitBranchIcon),
-    description: 'Git提交记录分析和可视化处理工具'
+    description: 'Git提交记录分析和可视化处理工具',
+    category: '开发工具'
   },
   {
     name: '智能 OCR',
     path: '/smart-ocr',
     icon: markRaw(OcrIcon),
-    description: '智能OCR文字识别工具，支持多引擎和智能切图'
+    description: '智能OCR文字识别工具，支持多引擎和智能切图',
+    category: 'AI 工具'
   },
   {
     name: 'LLM 对话',
     path: '/llm-chat',
     icon: markRaw(ChatDotRound),
-    description: '与 LLM 进行多轮对话，支持流式响应和会话管理'
+    description: '与 LLM 进行多轮对话，支持流式响应和会话管理',
+    category: 'AI 工具'
   }
 ];

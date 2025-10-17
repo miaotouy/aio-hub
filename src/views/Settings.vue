@@ -1018,7 +1018,7 @@ onUnmounted(() => {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  max-height: 1600px;
+  max-height: 95%;
 }
 
 .component-section .section-title {

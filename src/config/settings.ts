@@ -25,18 +25,18 @@ export const settingsModules: SettingsModule[] = [
 		title: "工具模块",
 	},
 	{
-		id: "llm-service",
-		title: "LLM 服务配置",
-		component: defineAsyncComponent(
-			() => import("../views/components/LlmServiceSettings.vue"),
-		),
-		minHeight:"500px",
-	},
-	{
 		id: "ocr-service",
 		title: "云端 OCR 服务",
 		component: defineAsyncComponent(
 			() => import("../views/components/OcrServiceSettings.vue"),
+		),
+		minHeight:"500px",
+	},
+	{
+		id: "llm-service",
+		title: "LLM 服务配置",
+		component: defineAsyncComponent(
+			() => import("../views/components/LlmServiceSettings.vue"),
 		),
 		minHeight:"500px",
 	},
@@ -46,7 +46,7 @@ export const settingsModules: SettingsModule[] = [
 		component: defineAsyncComponent(
 			() => import("../views/components/ModelIconSettings.vue"),
 		),
-		minHeight:"600px",
+		minHeight:"800px",
 	},
 	{
 		id: "about",

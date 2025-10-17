@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { ElMessage } from "element-plus";
+import { InfoFilled } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
+import { MODEL_CAPABILITIES } from "../../config/model-capabilities";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
 
 const props = defineProps<{
@@ -27,6 +29,8 @@ const modelEditForm = ref<LlmModelInfo>({
     webSearch: false,
     toolUse: false,
     codeExecution: false,
+    fileSearch: false,
+    reasoning: false,
   },
   tokenLimits: {},
   pricing: {},
@@ -47,6 +51,8 @@ watch(
           webSearch: false,
           toolUse: false,
           codeExecution: false,
+          fileSearch: false,
+          reasoning: false,
           ...newModel.capabilities,
         },
         tokenLimits: newModel.tokenLimits || {},
@@ -64,6 +70,8 @@ watch(
           webSearch: false,
           toolUse: false,
           codeExecution: false,
+          fileSearch: false,
+          reasoning: false,
         },
         tokenLimits: {},
         pricing: {},
@@ -114,7 +122,7 @@ const dialogTitle = computed(() => {
   <el-dialog
     :model-value="visible"
     :title="dialogTitle"
-    width="900px"
+    width="75%"
     @update:model-value="handleClose"
     class="model-edit-dialog"
   >
@@ -188,30 +196,28 @@ const dialogTitle = computed(() => {
       <!-- 模型能力 -->
       <el-divider content-position="left">模型能力</el-divider>
 
-      <el-form-item label="视觉能力">
-        <el-switch v-model="modelEditForm.capabilities!.vision" />
-        <div class="form-hint">支持图像输入 (VLM)</div>
-      </el-form-item>
-
-      <el-form-item label="思考模式">
-        <el-switch v-model="modelEditForm.capabilities!.thinking" />
-        <div class="form-hint">支持深度思考/推理模式</div>
-      </el-form-item>
-
-      <el-form-item label="联网搜索">
-        <el-switch v-model="modelEditForm.capabilities!.webSearch" />
-        <div class="form-hint">支持实时联网搜索</div>
-      </el-form-item>
-
-      <el-form-item label="工具调用">
-        <el-switch v-model="modelEditForm.capabilities!.toolUse" />
-        <div class="form-hint">支持 Function Calling / Tool Use</div>
-      </el-form-item>
-
-      <el-form-item label="代码执行">
-        <el-switch v-model="modelEditForm.capabilities!.codeExecution" />
-        <div class="form-hint">支持代码解释器</div>
-      </el-form-item>
+      <div class="capabilities-grid">
+        <div
+          v-for="capability in MODEL_CAPABILITIES"
+          :key="capability.key"
+          class="capability-item"
+        >
+          <el-switch
+            v-model="modelEditForm.capabilities![capability.key]"
+            size="small"
+          />
+          <span class="capability-label">{{ capability.label }}</span>
+          <el-tooltip
+            :content="capability.description"
+            placement="top"
+            effect="dark"
+          >
+            <el-icon class="capability-info">
+              <InfoFilled />
+            </el-icon>
+          </el-tooltip>
+        </div>
+      </div>
 
       <!-- 价格信息 -->
       <el-divider content-position="left">价格配置</el-divider>
@@ -275,9 +281,10 @@ const dialogTitle = computed(() => {
 
 <style scoped>
 /* 对话框高度控制 */
-.model-edit-dialog :deep(.el-dialog__body) {
+.model-edit-dialog{
   padding: 0;
   max-height: 65vh;
+  width: 75%;
   overflow: hidden;
 }
 
@@ -302,5 +309,49 @@ const dialogTitle = computed(() => {
 
 .el-form :deep(.el-slider) {
   margin-bottom: 12px;
+}
+
+/* 能力开关网格布局 */
+.capabilities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px 12px;
+  padding: 8px 0 0 28px;
+}
+
+.capability-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--el-fill-color-lighter);
+  transition: all 0.2s;
+}
+
+.capability-item:hover {
+  background: var(--el-fill-color-light);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.capability-label {
+  font-size: 13px;
+  color: var(--text-color);
+  flex: 1;
+  user-select: none;
+  cursor: default;
+}
+
+.capability-info {
+  font-size: 14px;
+  color: var(--el-color-info);
+  cursor: help;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.capability-info:hover {
+  opacity: 1;
+  color: var(--el-color-primary);
 }
 </style>

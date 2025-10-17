@@ -1,18 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import {
-  Plus,
-  Delete,
-  Edit,
-  View,
-  Search,
-  Tools,
-  Document,
-  ArrowRight,
-  Cpu,
-} from "@element-plus/icons-vue";
+import { Plus, Delete, Edit, ArrowRight } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
 import { useModelMetadata } from "../../composables/useModelMetadata";
+import { MODEL_CAPABILITIES } from "../../config/model-capabilities";
 import DynamicIcon from "../../components/common/DynamicIcon.vue";
 
 interface Props {
@@ -147,7 +138,11 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
             <div v-for="item in group.models" :key="item.model.id" class="model-item">
               <!-- Logo -->
               <div class="model-logo">
-                <DynamicIcon v-if="getModelIcon(item.model)" :src="getModelIcon(item.model)!" :alt="item.model.name" />
+                <DynamicIcon
+                  v-if="getModelIcon(item.model)"
+                  :src="getModelIcon(item.model)!"
+                  :alt="item.model.name"
+                />
                 <div v-else class="logo-placeholder">
                   {{ item.model.name.substring(0, 2).toUpperCase() }}
                 </div>
@@ -161,37 +156,32 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
 
               <!-- 能力图标 -->
               <div class="model-capabilities">
-                <el-tooltip v-if="item.model.capabilities?.vision" content="视觉能力" placement="top">
-                  <el-icon class="capability-icon vision">
-                    <View />
-                  </el-icon>
-                </el-tooltip>
-                <el-tooltip v-if="item.model.capabilities?.thinking" content="思考模式" placement="top">
-                  <el-icon class="capability-icon thinking">
-                    <Cpu />
-                  </el-icon>
-                </el-tooltip>
-                <el-tooltip v-if="item.model.capabilities?.webSearch" content="联网搜索" placement="top">
-                  <el-icon class="capability-icon web-search">
-                    <Search />
-                  </el-icon>
-                </el-tooltip>
-                <el-tooltip v-if="item.model.capabilities?.toolUse" content="工具调用" placement="top">
-                  <el-icon class="capability-icon tool-use">
-                    <Tools />
-                  </el-icon>
-                </el-tooltip>
-                <el-tooltip v-if="item.model.capabilities?.codeExecution" content="代码执行" placement="top">
-                  <el-icon class="capability-icon code-exec">
-                    <Document />
-                  </el-icon>
-                </el-tooltip>
+                <template v-for="capability in MODEL_CAPABILITIES" :key="capability.key">
+                  <el-tooltip
+                    v-if="item.model.capabilities?.[capability.key]"
+                    :content="capability.description"
+                    placement="top"
+                  >
+                    <el-icon
+                      class="capability-icon"
+                      :class="capability.className"
+                      :style="{ color: capability.color }"
+                    >
+                      <component :is="capability.icon" />
+                    </el-icon>
+                  </el-tooltip>
+                </template>
               </div>
 
               <!-- 操作按钮 -->
               <div v-if="editable" class="model-actions">
                 <el-button size="small" :icon="Edit" @click="emit('edit', item.index)" />
-                <el-button size="small" type="danger" :icon="Delete" @click="emit('delete', item.index)" />
+                <el-button
+                  size="small"
+                  type="danger"
+                  :icon="Delete"
+                  @click="emit('delete', item.index)"
+                />
               </div>
             </div>
           </div>
@@ -409,26 +399,7 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
   font-size: 18px;
   cursor: help;
   flex-shrink: 0;
-}
-
-.capability-icon.vision {
-  color: #409eff;
-}
-
-.capability-icon.thinking {
-  color: #9c27b0;
-}
-
-.capability-icon.web-search {
-  color: #67c23a;
-}
-
-.capability-icon.tool-use {
-  color: #e6a23c;
-}
-
-.capability-icon.code-exec {
-  color: #f56c6c;
+  /* 颜色通过配置文件的 color 属性动态设置 */
 }
 
 .model-actions {

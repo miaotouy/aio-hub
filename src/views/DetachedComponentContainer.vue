@@ -142,6 +142,8 @@ onMounted(async () => {
 }
 
 .component-wrapper {
+  width: 100%;
+  height: 100%;
   position: relative;
   overflow: visible; /* 允许组件的阴影效果溢出 */
   display: flex;

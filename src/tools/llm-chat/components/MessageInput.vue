@@ -3,6 +3,7 @@ import { ref, onUnmounted } from "vue";
 import { useDetachedComponents } from "@/composables/useDetachedComponents";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const logger = createModuleLogger("MessageInput");
 
@@ -29,6 +30,10 @@ const isDragging = ref(false);
 const dragLabel = ref<string | null>(null);
 const dragStartPos = ref({ x: 0, y: 0 });
 const hasMovedEnough = ref(false); // 新增状态，判断是否移动了足够距离以触发拖拽
+
+// 拖拽 RAF 节流变量
+let pendingDragPosition: { x: number; y: number } | null = null;
+let dragAnimationFrame: number | null = null;
 
 // 使用组件分离管理器
 const { requestPreviewWindow, updatePreviewPosition, finalizePreviewWindow, cancelPreviewWindow } =
@@ -83,7 +88,28 @@ const handleDragStart = (e: MouseEvent) => {
   window.addEventListener("mouseup", handleDragEnd, { once: true });
 };
 
-// 2. 鼠标移动：如果移动超过阈值，则正式开始拖拽
+// 实际执行拖拽位置更新的函数（在 RAF 中调用）
+const applyPendingDrag = async () => {
+  if (!pendingDragPosition || !dragLabel.value) {
+    dragAnimationFrame = null;
+    return;
+  }
+
+  const { x, y } = pendingDragPosition;
+  pendingDragPosition = null; // 清空待处理位置
+  dragAnimationFrame = null; // 重置 RAF ID
+
+  try {
+    // 真正执行位置更新
+    await updatePreviewPosition(dragLabel.value, x, y);
+  } catch (error) {
+    logger.error("通过 RAF 更新预览位置失败", { error });
+    // 发生错误时结束拖拽
+    isDragging.value = false;
+  }
+};
+
+// 2. 鼠标移动：如果移动超过阈值，则正式开始拖拽（使用 RAF 节流）
 const handleDragMove = async (e: MouseEvent) => {
   if (!isDragging.value) return;
 
@@ -98,9 +124,15 @@ const handleDragMove = async (e: MouseEvent) => {
     await createPreview(e);
   }
 
-  // 如果预览窗口已创建,则持续更新其位置
+  // 如果预览窗口已创建，使用 RAF 节流来更新位置
   if (hasMovedEnough.value && dragLabel.value) {
-    await updatePreviewPosition(dragLabel.value, e.screenX, e.screenY);
+    // 记录最新的鼠标屏幕坐标
+    pendingDragPosition = { x: e.screenX, y: e.screenY };
+
+    // 如果当前没有正在等待执行的 RAF，就请求一个新的
+    if (dragAnimationFrame === null) {
+      dragAnimationFrame = requestAnimationFrame(applyPendingDrag);
+    }
   }
 };
 
@@ -112,6 +144,12 @@ const handleDragEnd = async (e: MouseEvent) => {
   if (!isDragging.value) return;
 
   logger.info("结束拖拽");
+
+  // 取消任何待处理的 RAF
+  if (dragAnimationFrame !== null) {
+    cancelAnimationFrame(dragAnimationFrame);
+    dragAnimationFrame = null;
+  }
 
   // 如果预览窗口被创建了，则根据最终位置决定是固定还是取消
   if (dragLabel.value && hasMovedEnough.value) {
@@ -134,6 +172,7 @@ const handleDragEnd = async (e: MouseEvent) => {
   isDragging.value = false;
   hasMovedEnough.value = false;
   dragLabel.value = null;
+  pendingDragPosition = null; // 清理拖拽位置状态
 };
 
 // 辅助函数：创建预览窗口
@@ -172,10 +211,39 @@ const createPreview = async (e: MouseEvent) => {
   }
 };
 
+// ===== 窗口大小调整功能 =====
+// 使用 Tauri v2 原生 API startResizeDragging，让系统原生处理拖拽调整
+const handleResizeStart = async (e: MouseEvent) => {
+  if (!props.isDetached) return;
+
+  e.preventDefault();
+  e.stopPropagation(); // 防止触发其他拖拽事件
+
+  logger.info("开始调整窗口大小（使用原生 API）");
+
+  try {
+    const window = getCurrentWindow();
+    // 使用系统原生的拖拽调整
+    // Tauri v2 ResizeDirection: East, North, NorthEast, NorthWest, South, SouthEast, SouthWest, West
+    // SouthEast = 右下角（同时调整宽度和高度）
+    await window.startResizeDragging("SouthEast" as any);
+    logger.info("窗口调整完成");
+  } catch (error: any) {
+    logger.error("窗口调整失败", {
+      error: String(error),
+    });
+  }
+};
+
 // 组件卸载时确保移除监听器，防止内存泄漏
 onUnmounted(() => {
   window.removeEventListener("mousemove", handleDragMove);
   window.removeEventListener("mouseup", handleDragEnd);
+
+  // 确保组件卸载时也取消拖拽相关的 RAF
+  if (dragAnimationFrame !== null) {
+    cancelAnimationFrame(dragAnimationFrame);
+  }
 });
 </script>
 <template>
@@ -230,11 +298,20 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
+    <div
+      v-if="isDetached"
+      class="resize-handle"
+      @mousedown="handleResizeStart"
+      title="拖拽调整窗口大小"
+    />
   </div>
 </template>
 
 <style scoped>
 .message-input-container {
+  position: relative; /* 为 resize handle 提供定位上下文 */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -392,5 +469,31 @@ onUnmounted(() => {
 
 .message-textarea::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover-color);
+}
+
+/* 右下角调整大小手柄 */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  /* 创建一个三角形视觉效果 */
+  background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
+  border-radius: 0 0 8px 0;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  opacity: 1;
+  background: linear-gradient(135deg, transparent 50%, var(--primary-hover-color) 50%);
+}
+
+.resize-handle:active {
+  opacity: 1;
+  background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
 }
 </style>

@@ -4,70 +4,71 @@ mod events;
 mod tray;
 
 // 导入所需的依赖
+use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
 use commands::{
-    ClipboardMonitorState,
-    start_clipboard_monitor,
-    stop_clipboard_monitor,
-    get_clipboard_content_type,
-    move_and_link,
-    create_links_only,
-    cancel_move_operation,
-    get_latest_operation_log,
-    get_all_operation_logs,
-    process_files_with_regex,
-    generate_directory_tree,
-    is_directory,
-    read_file_as_base64,
-    validate_file_for_link,
     // 目录清理相关
     analyze_directory_for_cleanup,
+    cancel_move_operation,
+    cancel_preview_window,
     cleanup_items,
-    // LLM代理相关
-    start_llm_proxy,
-    stop_llm_proxy,
-    get_proxy_status,
-    update_proxy_target,
-    // Git分析器相关
-    git_load_repository,
-    git_get_branch_commits,
-    git_get_incremental_commits,
-    git_load_commits_with_files,
-    git_get_commit_detail,
-    git_cherry_pick,
-    git_revert,
-    git_export_commits,
-    git_format_log,
-    // OCR相关
-    native_ocr,
+    clear_window_state,
+    close_tool_window,
+    create_links_only,
     // 窗口管理相关
     create_tool_window,
-    focus_window,
-    get_window_position,
-    set_window_position,
-    ensure_window_visible,
-    get_all_tool_windows,
-    close_tool_window,
-    clear_window_state,
-    prepare_drag_indicator,
-    finalize_drag_indicator,
-    start_drag_session,
     end_drag_session,
-    // 组件窗口管理
-    request_preview_window,
-    update_preview_position,
-    finalize_preview_window,
-    cancel_preview_window,
-    reattach_component,
+    ensure_window_visible,
     // 配置管理相关
     export_all_configs,
+    finalize_drag_indicator,
+    finalize_preview_window,
+    focus_window,
+    generate_directory_tree,
+    get_all_operation_logs,
+    get_all_tool_windows,
+    get_clipboard_content_type,
+    get_latest_operation_log,
+    get_proxy_status,
+    get_window_position,
+    git_cherry_pick,
+    git_export_commits,
+    git_format_log,
+    git_get_branch_commits,
+    git_get_commit_detail,
+    git_get_incremental_commits,
+    git_load_commits_with_files,
+    // Git分析器相关
+    git_load_repository,
+    git_revert,
     import_all_configs,
+    is_component_finalized,
+    is_directory,
     list_config_files,
+    move_and_link,
+    // OCR相关
+    native_ocr,
+    prepare_drag_indicator,
+    process_files_with_regex,
+    read_file_as_base64,
+    reattach_component,
+    // 组件窗口管理
+    request_preview_window,
+    set_window_position,
+    start_clipboard_monitor,
+    start_drag_session,
+    // LLM代理相关
+    start_llm_proxy,
+    stop_clipboard_monitor,
+    stop_llm_proxy,
+    update_preview_position,
+    update_proxy_target,
+    validate_file_for_link,
+    ClipboardMonitorState,
 };
 
 // 导入事件处理
@@ -95,12 +96,12 @@ fn update_tray_setting(
 ) -> Result<(), String> {
     let mut tray_enabled = state.tray_enabled.lock().map_err(|e| e.to_string())?;
     *tray_enabled = enabled;
-    
+
     // 如果禁用托盘，确保窗口可见
     if !enabled {
         window.show().map_err(|e| e.to_string())?;
     }
-    
+
     Ok(())
 }
 
@@ -121,12 +122,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        
         // 管理状态
         .manage(ClipboardMonitorState::new())
         .manage(AppState::default())
         .manage(Arc::new(CancellationToken::new()))
-        
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -184,12 +183,12 @@ pub fn run() {
             finalize_preview_window,
             cancel_preview_window,
             reattach_component,
+            is_component_finalized,
             // 配置管理命令
             export_all_configs,
             import_all_configs,
             list_config_files
         ])
-        
         // 设置应用
         .setup(|app| {
             // 预加载拖拽指示器窗口
@@ -208,41 +207,44 @@ pub fn run() {
             .always_on_top(true)
             .visible(false) // 初始时隐藏
             .build()?;
-            
+
             // 强制隐藏，以防窗口状态插件恢复其可见性
             let _ = indicator_window.hide();
 
             // 注册全局快捷键
             let app_handle = app.handle();
-            let main_window = app_handle.get_webview_window("main")
+            let main_window = app_handle
+                .get_webview_window("main")
                 .expect("Failed to get main window");
-            
+
             // 确保窗口显示在任务栏
-            main_window.set_skip_taskbar(false)
+            main_window
+                .set_skip_taskbar(false)
                 .expect("Failed to set skip taskbar");
 
             // 注册全局快捷键（如果失败则记录警告但继续运行）
-            if let Err(e) = app_handle.global_shortcut()
-                .register("CmdOrCtrl+Shift+Space") {
+            if let Err(e) = app_handle
+                .global_shortcut()
+                .register("CmdOrCtrl+Shift+Space")
+            {
                 eprintln!("警告: 无法注册全局快捷键 CmdOrCtrl+Shift+Space: {}", e);
                 eprintln!("程序将继续运行，但全局快捷键功能可能不可用");
             }
-            
+
             // 创建系统托盘
             create_system_tray(&app_handle)?;
-            
+
             Ok(())
         })
-        
         // 窗口事件处理
         .on_window_event(|window, event| {
             // 先处理文件拖放事件
             handle_window_event(window, event);
-            
+
             // 处理窗口关闭事件（托盘功能和工具窗口）
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let window_label = window.label().to_string();
-                
+
                 // 如果关闭的是工具窗口（非主窗口），发送事件通知
                 if window_label != "main" {
                     let app_handle = window.app_handle();
@@ -260,7 +262,6 @@ pub fn run() {
                 }
             }
         })
-        
         // 运行应用
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

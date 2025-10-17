@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -8,6 +9,10 @@ use tokio::time::sleep;
 /// 全局拖拽会话状态
 static DRAG_SESSION: once_cell::sync::Lazy<Arc<Mutex<Option<DragSession>>>> =
     once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+
+/// 已固定的组件窗口集合
+static FINALIZED_COMPONENTS: once_cell::sync::Lazy<Arc<Mutex<HashSet<String>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashSet::new())));
 
 /// 组件窗口ID计数器
 static COMPONENT_WINDOW_ID: AtomicUsize = AtomicUsize::new(0);
@@ -114,6 +119,12 @@ pub async fn finalize_preview_window(app: AppHandle, label: String) -> Result<()
         .map_err(|e| e.to_string())?;
     window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
 
+    // 添加到已固定窗口集合
+    {
+        let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
+        finalized.insert(label.clone());
+    }
+
     // 向该窗口发送事件，通知前端更新UI
     window
         .emit("finalize-component-view", ())
@@ -136,6 +147,12 @@ pub async fn cancel_preview_window(app: AppHandle, label: String) -> Result<(), 
         .get_webview_window(&label)
         .ok_or_else(|| format!("窗口不存在: {}", label))?;
 
+    // 从已固定窗口集合中移除（如果存在）
+    {
+        let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
+        finalized.remove(&label);
+    }
+
     // 直接关闭窗口
     window.close().map_err(|e| e.to_string())?;
 
@@ -153,6 +170,12 @@ pub async fn reattach_component(app: AppHandle, label: String) -> Result<(), Str
         .get_webview_window(&label)
         .ok_or_else(|| format!("窗口不存在: {}", label))?;
 
+    // 从已固定窗口集合中移除
+    {
+        let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
+        finalized.remove(&label);
+    }
+
     // 向主窗口发送组件重新附着事件
     app.emit("component-attached", label.clone())
         .map_err(|e| e.to_string())?;
@@ -162,6 +185,19 @@ pub async fn reattach_component(app: AppHandle, label: String) -> Result<(), Str
 
     println!("[REATTACH] 组件已重新附着: {}", label);
     Ok(())
+}
+
+/// 检查组件窗口是否已固定（通过查询全局固定窗口集合）
+#[tauri::command]
+pub async fn is_component_finalized(_app: AppHandle, label: String) -> Result<bool, String> {
+    let finalized = FINALIZED_COMPONENTS.lock().unwrap();
+    let is_finalized = finalized.contains(&label);
+
+    println!(
+        "[CHECK_FINALIZED] 窗口 {} 固定状态: {}",
+        label, is_finalized
+    );
+    Ok(is_finalized)
 }
 
 /// 拖拽会话数据

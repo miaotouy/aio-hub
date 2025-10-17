@@ -65,12 +65,12 @@ const autoResize = () => {
   }
 };
 
-// ----------------------------------------------------------------
-// 新的、简化的拖拽逻辑
-// ----------------------------------------------------------------
-
 // 1. 鼠标按下：准备开始拖拽
 const handleDragStart = (e: MouseEvent) => {
+  // 如果已经分离，则不执行任何操作，让Tauri的窗口拖拽接管
+  if (props.isDetached) {
+    return;
+  }
   e.preventDefault();
   logger.info("准备拖拽");
 
@@ -98,9 +98,9 @@ const handleDragMove = async (e: MouseEvent) => {
     await createPreview(e);
   }
 
-  // 如果预览窗口已创建，则持续更新其位置
+  // 如果预览窗口已创建,则持续更新其位置
   if (hasMovedEnough.value && dragLabel.value) {
-    await updatePreviewPosition(dragLabel.value, e.clientX, e.clientY);
+    await updatePreviewPosition(dragLabel.value, e.screenX, e.screenY);
   }
 };
 
@@ -120,7 +120,8 @@ const handleDragEnd = async (e: MouseEvent) => {
     const dy = e.clientY - dragStartPos.value.y;
     const totalDistance = Math.sqrt(dx * dx + dy * dy);
 
-    if (totalDistance > 100) { // 拖拽超过100像素则固定
+    if (totalDistance > 100) {
+      // 拖拽超过100像素则固定
       logger.info("固定预览窗口", { totalDistance });
       await finalizePreviewWindow(dragLabel.value);
     } else {
@@ -137,8 +138,7 @@ const handleDragEnd = async (e: MouseEvent) => {
 
 // 辅助函数：创建预览窗口
 const createPreview = async (e: MouseEvent) => {
-
-// 获取容器尺寸
+  // 获取容器尺寸
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
     logger.error("无法获取容器尺寸");
@@ -147,14 +147,14 @@ const createPreview = async (e: MouseEvent) => {
   }
 
   try {
-// 请求预览窗口
+    // 请求预览窗口（添加50px边距用于辉光阴影效果）
     const label = await requestPreviewWindow({
       componentId: "chat-input",
       displayName: "聊天输入框",
-      width: rect.width,
-      height: rect.height,
-      mouseX: e.clientX,
-      mouseY: e.clientY,
+      width: rect.width + 50,
+      height: rect.height + 50,
+      mouseX: e.screenX,
+      mouseY: e.screenY,
     });
 
     if (label) {
@@ -179,19 +179,15 @@ onUnmounted(() => {
 });
 </script>
 <template>
-  <div ref="containerRef" class="message-input-container">
-    <!-- 组件头部（仅在独立模式显示） -->
-    <ComponentHeader v-if="isDetached" position="top" title="聊天输入框" />
-
+  <div ref="containerRef" :class="['message-input-container', { 'detached-mode': isDetached }]">
     <!-- 主内容区 -->
     <div class="main-content">
-      <!-- 拖拽手柄：使用 ComponentHeader 作为分离触发器 -->
+      <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
       <ComponentHeader
-        v-if="!isDetached"
         position="left"
-        drag-mode="detach"
-        :show-actions="false"
-        title="拖拽以分离可在独立窗口打开"
+        :drag-mode="isDetached ? 'window' : 'detach'"
+        show-actions
+        :collapsible="false"
         class="detachable-handle"
         @mousedown="handleDragStart"
       />
@@ -242,21 +238,34 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px;
+  padding: 16px 16px 16px 4px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  background: var(--container-bg);
+  /* 添加阴影效果 */
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* 分离模式下组件完全一致，只是添加更强的阴影 */
+.message-input-container.detached-mode {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .main-content {
   display: flex;
   gap: 6px;
   align-items: stretch;
+  background: var(--container-bg);
 }
 
 /* 分离手柄的特定样式 */
 .detachable-handle {
   flex-shrink: 0;
-  width: 16px; /* 设置固定宽度，提供更好的拖拽区域 */
+  width: 20px;
   padding: 0;
   border: none;
   background: transparent;
@@ -265,7 +274,12 @@ onUnmounted(() => {
 }
 
 .detachable-handle:hover {
-  background: rgba(var(--sidebar-bg-rgb), 0.95);
+  background: rgba(var(--primary-color-rgb), 0.1);
+}
+
+/* 分离模式下，手柄也可以用于拖动窗口 */
+.message-input-container.detached-mode .detachable-handle {
+  cursor: move;
 }
 
 .input-content {

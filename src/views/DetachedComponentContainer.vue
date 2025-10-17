@@ -117,46 +117,41 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 参考 DragIndicator 的透明实现 */
 .detached-component-container {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
-  background: var(--bg-color);
-  color: var(--text-color);
-  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  overflow: visible;
+  pointer-events: none; /* 让鼠标事件穿透容器 */
+  padding: 16px; /* 添加内边距，让组件不会紧贴窗口边缘 */
+  box-sizing: border-box;
 }
 
-/* 预览模式样式 */
+/* 预览模式样式 - 半透明提示 */
 .preview-mode {
-  opacity: 0.85;
-  background: var(--bg-color);
-  border: 2px dashed var(--primary-color);
-  border-radius: 8px;
+  opacity: 0.5;
 }
 
-/* 最终模式样式 */
+/* 最终模式样式 - 完全不透明 */
 .final-mode {
   opacity: 1;
-  border: none;
 }
 
 .component-wrapper {
-  flex: 1;
   position: relative;
-  overflow: hidden;
+  overflow: visible; /* 允许组件的阴影效果溢出 */
   display: flex;
   flex-direction: column;
-}
-
-.component-wrapper.with-titlebar {
-  padding-top: 32px;
+  pointer-events: auto; /* 组件本身可以接收鼠标事件 */
 }
 
 /* 预览提示 */
 .preview-hint {
   position: absolute;
-  top: 8px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -166,9 +161,9 @@ onMounted(async () => {
 .hint-content {
   background: var(--primary-color);
   color: white;
-  padding: 6px 16px;
-  border-radius: 16px;
-  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
   font-weight: 500;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   white-space: nowrap;

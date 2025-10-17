@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
+import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
 import DragIndicator from "./views/DragIndicator.vue";
 import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
@@ -30,12 +31,12 @@ const isDragIndicator = () => {
 const isDetachedWindow = () => {
   return window.location.pathname === "/detached-window";
 };
-
-// 为拖拽指示器窗口添加透明背景类名
-if (window.location.pathname === "/drag-indicator") {
+// 为所有需要透明背景的窗口添加类名
+const transparentPaths = ["/drag-indicator", "/detached-component-loader"];
+if (transparentPaths.includes(window.location.pathname)) {
   document.documentElement.classList.add("transparent-window");
   document.body.classList.add("transparent-window");
-  logger.info("拖拽指示器窗口：已添加透明背景类");
+  logger.info(`透明窗口 (${window.location.pathname})：已添加透明背景类`);
 }
 
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
@@ -95,14 +96,20 @@ if (window.location.pathname === "/drag-indicator") {
 })();
 
 // 根据窗口类型选择根组件
-const rootComponent = isDragIndicator()
-  ? DragIndicator
-  : (isDetachedWindow() ? DetachedWindowContainer : App);
+// 检查是否为分离组件加载器
+const isDetachedComponentLoader = () => {
+  return window.location.pathname === "/detached-component-loader";
+};
+
+const rootComponent = (() => {
+  if (isDragIndicator()) return DragIndicator;
+  if (isDetachedWindow()) return DetachedWindowContainer;
+  if (isDetachedComponentLoader()) return DetachedComponentContainer;
+  return App;
+})();
 
 logger.info("选择根组件", {
-  component: isDragIndicator()
-    ? "DragIndicator"
-    : (isDetachedWindow() ? "DetachedWindowContainer" : "App"),
+  component: rootComponent.name || "Unknown",
   pathname: window.location.pathname,
 });
 

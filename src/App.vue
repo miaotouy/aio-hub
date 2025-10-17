@@ -26,6 +26,20 @@ const { initializeListeners: initComponentListeners } = useDetachedComponents();
 const { startDrag } = useToolDragging();
 const isCollapsed = ref(false); // 控制侧边栏收起状态
 
+// 特殊路由列表 - 这些路由不需要显示标题栏和侧边栏
+const specialRoutes = [
+  '/detached-component-loader',
+  '/detached-component',
+  '/drag-indicator',
+  '/component-container',
+  '/component-standby',
+];
+
+// 判断当前是否为特殊路由
+const isSpecialRoute = computed(() => {
+  return specialRoutes.includes(route.path);
+});
+
 // 应用设置
 const appSettings = ref<AppSettings>({
   sidebarCollapsed: false,
@@ -316,12 +330,14 @@ const handleDragEnd = (_event: MouseEvent) => {
 </script>
 
 <template>
-  <!-- 自定义标题栏 -->
-  <TitleBar />
+  <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
+  <TitleBar v-if="!isSpecialRoute" />
 
   <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
-  <el-container class="common-layout">
+  <el-container :class="['common-layout', { 'no-titlebar': isSpecialRoute }]">
+    <!-- 侧边栏 - 仅在非特殊路由显示 -->
     <el-aside
+      v-if="!isSpecialRoute"
       :width="isCollapsed ? '64px' : '220px'"
       :class="['main-sidebar', { 'is-collapsed': isCollapsed }]"
     >
@@ -413,6 +429,12 @@ const handleDragEnd = (_event: MouseEvent) => {
   width: 100vw;
   overflow: hidden; /* 隐藏整个布局的滚动条 */
   margin-top: 32px; /* 为标题栏留出空间 */
+}
+
+/* 特殊路由（无标题栏）样式 */
+.common-layout.no-titlebar {
+  height: 100vh; /* 无标题栏时占满全屏 */
+  margin-top: 0; /* 移除顶部边距 */
 }
 
 .main-sidebar {

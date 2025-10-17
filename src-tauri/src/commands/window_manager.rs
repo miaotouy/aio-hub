@@ -1,10 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
-use url::Url;
 use tokio::time::sleep;
 
 /// 全局拖拽会话状态
@@ -40,53 +38,53 @@ pub async fn request_preview_window(
     config: ComponentPreviewConfig,
 ) -> Result<String, String> {
     println!("[PREVIEW] 正在请求预览窗口: {}", config.component_id);
-    
+
     // 将 config 序列化并通过 URL 参数传递
-    let config_json = serde_json::to_string(&config)
-        .map_err(|e| format!("序列化组件配置失败: {}", e))?;
+    let config_json =
+        serde_json::to_string(&config).map_err(|e| format!("序列化组件配置失败: {}", e))?;
     let config_encoded = urlencoding::encode(&config_json);
     let url = format!("/detached-component-loader?config={}", config_encoded);
-    
+
     // 生成新的窗口标签
     let label = generate_component_label();
-    
+
     println!("[PREVIEW] 创建新窗口 {} 并加载 {}", label, url);
-    
+
     // 直接创建窗口，在创建时就指定正确的 URL
-    let window = WebviewWindowBuilder::new(
-        &app,
-        &label,
-        WebviewUrl::App(url.into()),
-    )
-    .title("Component Preview")
-    .inner_size(config.width + 20.0, config.height + 20.0)
-    .decorations(false)
-    .transparent(true)
-    .skip_taskbar(true)
-    .visible(false)
-    .build()
-    .map_err(|e| e.to_string())?;
-    
+    let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
+        .title("Component Preview")
+        .inner_size(config.width, config.height) // 前端已包含边距，后端直接使用
+        .decorations(false)
+        .transparent(true)
+        .shadow(false) // 禁用窗口阴影
+        .skip_taskbar(true)
+        .visible(false)
+        .build()
+        .map_err(|e| e.to_string())?;
+
     // 设置预览模式的特性
-    window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
-    
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|e| e.to_string())?;
+
     // 设置位置（居中于鼠标）
     set_window_position(
         app.clone(),
         label.clone(),
         config.mouse_x,
         config.mouse_y,
-        Some(true),  // 居中
-    ).await?;
+        Some(true), // 居中
+    )
+    .await?;
 
     // 等待前端加载完成，避免显示空白内容导致闪烁
     sleep(Duration::from_millis(150)).await;
 
     // 显示窗口
     window.show().map_err(|e| e.to_string())?;
-    
+
     println!("[PREVIEW] 预览窗口已激活: {}", label);
-    
+
     Ok(label)
 }
 
@@ -103,71 +101,68 @@ pub async fn update_preview_position(
 
 /// 将预览窗口转换为固定窗口
 #[tauri::command]
-pub async fn finalize_preview_window(
-    app: AppHandle,
-    label: String,
-) -> Result<(), String> {
+pub async fn finalize_preview_window(app: AppHandle, label: String) -> Result<(), String> {
     println!("[FINALIZE] 正在固定预览窗口: {}", label);
-    
-    let window = app.get_webview_window(&label)
+
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("窗口不存在: {}", label))?;
-    
+
     // 转换窗口属性为固定模式
-    window.set_ignore_cursor_events(false).map_err(|e| e.to_string())?;
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|e| e.to_string())?;
     window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
-    
+
     // 向该窗口发送事件，通知前端更新UI
-    window.emit("finalize-component-view", ()).map_err(|e| e.to_string())?;
-    
+    window
+        .emit("finalize-component-view", ())
+        .map_err(|e| e.to_string())?;
+
     // 向主窗口发送组件已分离事件
     app.emit("component-detached", label.clone())
         .map_err(|e| e.to_string())?;
-    
+
     println!("[FINALIZE] 预览窗口已固定: {}", label);
     Ok(())
 }
 
 /// 取消预览窗口（直接关闭）
 #[tauri::command]
-pub async fn cancel_preview_window(
-    app: AppHandle,
-    label: String,
-) -> Result<(), String> {
+pub async fn cancel_preview_window(app: AppHandle, label: String) -> Result<(), String> {
     println!("[CANCEL] 正在取消预览窗口: {}", label);
-    
-    let window = app.get_webview_window(&label)
+
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("窗口不存在: {}", label))?;
-    
+
     // 直接关闭窗口
     window.close().map_err(|e| e.to_string())?;
-    
+
     println!("[CANCEL] 预览窗口已关闭: {}", label);
     Ok(())
 }
 
 /// 重新附着组件到主窗口
 #[tauri::command]
-pub async fn reattach_component(
-    app: AppHandle,
-    label: String,
-) -> Result<(), String> {
+pub async fn reattach_component(app: AppHandle, label: String) -> Result<(), String> {
     println!("[REATTACH] 正在重新附着组件: {}", label);
-    
+
     // 获取窗口实例
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("窗口不存在: {}", label))?;
-    
+
     // 向主窗口发送组件重新附着事件
     app.emit("component-attached", label.clone())
         .map_err(|e| e.to_string())?;
-    
+
     // 关闭组件窗口
     window.close().map_err(|e| e.to_string())?;
-    
+
     println!("[REATTACH] 组件已重新附着: {}", label);
     Ok(())
 }
-
 
 /// 拖拽会话数据
 #[derive(Debug, Clone)]
@@ -245,6 +240,7 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         .min_inner_size(400.0, 300.0)
         .decorations(false) // 无边框，与主窗口保持一致
         .transparent(true) // 透明背景
+        .shadow(false) // 禁用窗口阴影
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -462,10 +458,10 @@ pub async fn close_tool_window(app: AppHandle, label: String) -> Result<(), Stri
         // 发送工具重新附加事件
         app.emit("tool-attached", label.clone())
             .map_err(|e| e.to_string())?;
-        
+
         // 关闭窗口
         window.close().map_err(|e| e.to_string())?;
-        
+
         Ok(())
     } else {
         Err(format!("Window '{}' not found", label))
@@ -805,6 +801,7 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         .position(new_win_x, new_win_y) // 使用原始逻辑坐标
         .decorations(false)
         .transparent(true)
+        .shadow(false) // 禁用窗口阴影
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -920,6 +917,7 @@ pub async fn finalize_drag_indicator(
         .position(new_win_x, new_win_y) // 使用逻辑坐标
         .decorations(false)
         .transparent(true)
+        .shadow(false) // 禁用窗口阴影
         .build()
         .map_err(|e| e.to_string())?;
 

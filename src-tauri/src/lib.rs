@@ -58,6 +58,12 @@ use commands::{
     finalize_drag_indicator,
     start_drag_session,
     end_drag_session,
+    // 组件窗口管理
+    request_preview_window,
+    update_preview_position,
+    finalize_preview_window,
+    cancel_preview_window,
+    reattach_component,
     // 配置管理相关
     export_all_configs,
     import_all_configs,
@@ -172,6 +178,12 @@ pub fn run() {
             finalize_drag_indicator,
             start_drag_session,
             end_drag_session,
+            // 组件窗口管理命令
+            request_preview_window,
+            update_preview_position,
+            finalize_preview_window,
+            cancel_preview_window,
+            reattach_component,
             // 配置管理命令
             export_all_configs,
             import_all_configs,

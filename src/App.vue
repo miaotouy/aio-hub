@@ -4,6 +4,7 @@ import { useRouter, useRoute } from "vue-router";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "./config/tools";
 import { useDetachedTools, type WindowConfig } from "./composables/useDetachedTools";
+import { useDetachedComponents } from "./composables/useDetachedComponents";
 import { useToolDragging } from "./composables/useToolDragging";
 import {
   loadAppSettingsAsync,
@@ -21,6 +22,7 @@ const router = useRouter();
 const route = useRoute();
 const { currentTheme, toggleTheme } = useTheme();
 const { isToolDetached, initializeListeners } = useDetachedTools();
+const { initializeListeners: initComponentListeners } = useDetachedComponents();
 const { startDrag } = useToolDragging();
 const isCollapsed = ref(false); // 控制侧边栏收起状态
 
@@ -160,6 +162,9 @@ let handleSettingsChange: ((event: Event) => void) | null = null;
 onMounted(async () => {
   // 初始化分离工具的事件监听
   initializeListeners();
+  
+  // 初始化组件分离的事件监听
+  initComponentListeners();
 
   // 初始加载设置
   await loadSettings();

@@ -91,6 +91,27 @@ const routes: Array<RouteRecordRaw> = [
     name: "DragIndicator",
     component: () => import("../views/DragIndicator.vue"),
   },
+  {
+    path: "/component-container",
+    name: "ComponentContainer",
+    component: () => import("../views/ComponentContainer.vue"),
+  },
+  {
+    path: "/component-standby",
+    name: "ComponentStandby",
+    component: () => import("../views/ComponentStandby.vue"),
+  },
+  {
+    path: "/detached-component",
+    name: "DetachedComponent",
+    component: () => import("../views/DetachedComponentContainer.vue"),
+  },
+  {
+    // 新增一个专门用于加载的路由，避免和URL参数耦合
+    path: "/detached-component-loader",
+    name: "DetachedComponentLoader",
+    component: () => import("../views/DetachedComponentContainer.vue"),
+  },
 ];
 
 const router = createRouter({

@@ -1,12 +1,173 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use url::Url;
 use tokio::time::sleep;
 
 /// 全局拖拽会话状态
 static DRAG_SESSION: once_cell::sync::Lazy<Arc<Mutex<Option<DragSession>>>> =
     once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+
+/// 组件窗口ID计数器
+static COMPONENT_WINDOW_ID: AtomicUsize = AtomicUsize::new(0);
+
+/// 生成新的组件窗口标签
+fn generate_component_label() -> String {
+    let id = COMPONENT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
+    format!("component-window-{}", id)
+}
+
+/// 组件预览配置
+#[derive(Debug, Clone, Deserialize, Serialize)] // 添加 Serialize
+#[serde(rename_all = "camelCase")]
+pub struct ComponentPreviewConfig {
+    pub component_id: String,
+    #[allow(dead_code)]
+    pub display_name: String,
+    pub width: f64,
+    pub height: f64,
+    pub mouse_x: f64,
+    pub mouse_y: f64,
+}
+
+/// 请求预览窗口
+#[tauri::command]
+pub async fn request_preview_window(
+    app: AppHandle,
+    config: ComponentPreviewConfig,
+) -> Result<String, String> {
+    println!("[PREVIEW] 正在请求预览窗口: {}", config.component_id);
+    
+    // 将 config 序列化并通过 URL 参数传递
+    let config_json = serde_json::to_string(&config)
+        .map_err(|e| format!("序列化组件配置失败: {}", e))?;
+    let config_encoded = urlencoding::encode(&config_json);
+    let url = format!("/detached-component-loader?config={}", config_encoded);
+    
+    // 生成新的窗口标签
+    let label = generate_component_label();
+    
+    println!("[PREVIEW] 创建新窗口 {} 并加载 {}", label, url);
+    
+    // 直接创建窗口，在创建时就指定正确的 URL
+    let window = WebviewWindowBuilder::new(
+        &app,
+        &label,
+        WebviewUrl::App(url.into()),
+    )
+    .title("Component Preview")
+    .inner_size(config.width + 20.0, config.height + 20.0)
+    .decorations(false)
+    .transparent(true)
+    .skip_taskbar(true)
+    .visible(false)
+    .build()
+    .map_err(|e| e.to_string())?;
+    
+    // 设置预览模式的特性
+    window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
+    
+    // 设置位置（居中于鼠标）
+    set_window_position(
+        app.clone(),
+        label.clone(),
+        config.mouse_x,
+        config.mouse_y,
+        Some(true),  // 居中
+    ).await?;
+
+    // 等待前端加载完成，避免显示空白内容导致闪烁
+    sleep(Duration::from_millis(150)).await;
+
+    // 显示窗口
+    window.show().map_err(|e| e.to_string())?;
+    
+    println!("[PREVIEW] 预览窗口已激活: {}", label);
+    
+    Ok(label)
+}
+
+/// 更新预览窗口位置
+#[tauri::command]
+pub async fn update_preview_position(
+    app: AppHandle,
+    label: String,
+    x: f64,
+    y: f64,
+) -> Result<(), String> {
+    set_window_position(app, label, x, y, Some(true)).await
+}
+
+/// 将预览窗口转换为固定窗口
+#[tauri::command]
+pub async fn finalize_preview_window(
+    app: AppHandle,
+    label: String,
+) -> Result<(), String> {
+    println!("[FINALIZE] 正在固定预览窗口: {}", label);
+    
+    let window = app.get_webview_window(&label)
+        .ok_or_else(|| format!("窗口不存在: {}", label))?;
+    
+    // 转换窗口属性为固定模式
+    window.set_ignore_cursor_events(false).map_err(|e| e.to_string())?;
+    window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
+    
+    // 向该窗口发送事件，通知前端更新UI
+    window.emit("finalize-component-view", ()).map_err(|e| e.to_string())?;
+    
+    // 向主窗口发送组件已分离事件
+    app.emit("component-detached", label.clone())
+        .map_err(|e| e.to_string())?;
+    
+    println!("[FINALIZE] 预览窗口已固定: {}", label);
+    Ok(())
+}
+
+/// 取消预览窗口（直接关闭）
+#[tauri::command]
+pub async fn cancel_preview_window(
+    app: AppHandle,
+    label: String,
+) -> Result<(), String> {
+    println!("[CANCEL] 正在取消预览窗口: {}", label);
+    
+    let window = app.get_webview_window(&label)
+        .ok_or_else(|| format!("窗口不存在: {}", label))?;
+    
+    // 直接关闭窗口
+    window.close().map_err(|e| e.to_string())?;
+    
+    println!("[CANCEL] 预览窗口已关闭: {}", label);
+    Ok(())
+}
+
+/// 重新附着组件到主窗口
+#[tauri::command]
+pub async fn reattach_component(
+    app: AppHandle,
+    label: String,
+) -> Result<(), String> {
+    println!("[REATTACH] 正在重新附着组件: {}", label);
+    
+    // 获取窗口实例
+    let window = app.get_webview_window(&label)
+        .ok_or_else(|| format!("窗口不存在: {}", label))?;
+    
+    // 向主窗口发送组件重新附着事件
+    app.emit("component-attached", label.clone())
+        .map_err(|e| e.to_string())?;
+    
+    // 关闭组件窗口
+    window.close().map_err(|e| e.to_string())?;
+    
+    println!("[REATTACH] 组件已重新附着: {}", label);
+    Ok(())
+}
+
 
 /// 拖拽会话数据
 #[derive(Debug, Clone)]

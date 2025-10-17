@@ -27,6 +27,17 @@ export interface WindowConfig {
 }
 
 /**
+ * 可拖拽组件配置接口
+ */
+export interface DraggableComponentConfig {
+  componentId: string;       // 组件唯一标识符（在 ComponentContainer 的注册表中）
+  displayName: string;        // 显示名称
+  width?: number;            // 窗口宽度
+  height?: number;           // 窗口高度
+  props?: Record<string, any>; // 传递给组件的额外属性
+}
+
+/**
  * 管理分离工具的 composable
  */
 export function useDetachedTools() {
@@ -140,6 +151,40 @@ export function useDetachedTools() {
   };
 
   /**
+   * 创建组件窗口
+   * 这是针对组件级拖拽的便捷方法
+   */
+  const createComponentWindow = async (config: DraggableComponentConfig): Promise<boolean> => {
+    try {
+      // 构建 URL：/component-container?componentId=xxx&prop1=value1&prop2=value2
+      const params = new URLSearchParams({
+        componentId: config.componentId,
+        ...config.props,
+      });
+      const url = `/component-container?${params.toString()}`;
+      
+      // 使用组件 ID 作为窗口标签，确保同一组件只能有一个独立窗口
+      const label = `component-${config.componentId}`;
+      
+      const windowConfig: WindowConfig = {
+        label,
+        title: config.displayName,
+        url,
+        width: config.width || 600,
+        height: config.height || 400,
+      };
+      
+      logger.info('正在创建组件窗口', { componentConfig: config, windowConfig });
+      const result = await invoke<string>('create_tool_window', { config: windowConfig });
+      logger.info('组件窗口创建成功', { result });
+      return true;
+    } catch (error) {
+      logger.error('创建组件窗口失败', { error, config });
+      return false;
+    }
+  };
+
+  /**
    * 聚焦现有窗口
    */
   const focusWindow = async (label: string): Promise<boolean> => {
@@ -202,6 +247,7 @@ export function useDetachedTools() {
   return {
     initializeListeners,
     createToolWindow,
+    createComponentWindow,
     focusWindow,
     ensureWindowVisible,
     closeToolWindow,

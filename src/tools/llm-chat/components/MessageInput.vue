@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
-import { useDetachedComponents } from "@/composables/useDetachedComponents";
+import { ref } from "vue";
+import { useComponentDragging } from "@/composables/useComponentDragging";
+import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const logger = createModuleLogger("MessageInput");
 
@@ -24,20 +24,6 @@ const emit = defineEmits<Emits>();
 const inputText = ref("");
 const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
-
-// 拖拽状态
-const isDragging = ref(false);
-const dragLabel = ref<string | null>(null);
-const dragStartPos = ref({ x: 0, y: 0 });
-const hasMovedEnough = ref(false); // 新增状态，判断是否移动了足够距离以触发拖拽
-
-// 拖拽 RAF 节流变量
-let pendingDragPosition: { x: number; y: number } | null = null;
-let dragAnimationFrame: number | null = null;
-
-// 使用组件分离管理器
-const { requestPreviewWindow, updatePreviewPosition, finalizePreviewWindow, cancelPreviewWindow } =
-  useDetachedComponents();
 
 // 处理发送
 const handleSend = () => {
@@ -70,181 +56,45 @@ const autoResize = () => {
   }
 };
 
-// 1. 鼠标按下：准备开始拖拽
+// ===== 拖拽功能 =====
+const { startDrag } = useComponentDragging(
+  {
+    threshold: 10,
+    finalizeThreshold: 100,
+    enableThrottle: true,
+  },
+  {
+    onCreatePreview: (e) => {
+      const rect = containerRef.value?.getBoundingClientRect();
+      if (!rect) {
+        logger.error("无法获取容器尺寸");
+        return null;
+      }
+
+      return {
+        componentId: "chat-input",
+        displayName: "聊天输入框",
+        width: rect.width + 50,
+        height: rect.height + 50,
+        mouseX: e.screenX,
+        mouseY: e.screenY,
+      };
+    },
+  }
+);
+
+// 处理拖拽开始
 const handleDragStart = (e: MouseEvent) => {
   // 如果已经分离，则不执行任何操作，让Tauri的窗口拖拽接管
   if (props.isDetached) {
     return;
   }
-  e.preventDefault();
-  logger.info("准备拖拽");
-
-  dragStartPos.value = { x: e.clientX, y: e.clientY };
-  isDragging.value = true;
-  hasMovedEnough.value = false;
-
-  // 注册全局的移动和释放事件
-  window.addEventListener("mousemove", handleDragMove);
-  window.addEventListener("mouseup", handleDragEnd, { once: true });
-};
-
-// 实际执行拖拽位置更新的函数（在 RAF 中调用）
-const applyPendingDrag = async () => {
-  if (!pendingDragPosition || !dragLabel.value) {
-    dragAnimationFrame = null;
-    return;
-  }
-
-  const { x, y } = pendingDragPosition;
-  pendingDragPosition = null; // 清空待处理位置
-  dragAnimationFrame = null; // 重置 RAF ID
-
-  try {
-    // 真正执行位置更新
-    await updatePreviewPosition(dragLabel.value, x, y);
-  } catch (error) {
-    logger.error("通过 RAF 更新预览位置失败", { error });
-    // 发生错误时结束拖拽
-    isDragging.value = false;
-  }
-};
-
-// 2. 鼠标移动：如果移动超过阈值，则正式开始拖拽（使用 RAF 节流）
-const handleDragMove = async (e: MouseEvent) => {
-  if (!isDragging.value) return;
-
-  const dx = e.clientX - dragStartPos.value.x;
-  const dy = e.clientY - dragStartPos.value.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  // 移动超过10像素才真正触发预览窗口
-  if (distance > 10 && !hasMovedEnough.value) {
-    hasMovedEnough.value = true;
-    logger.info("达到拖拽阈值，开始创建预览窗口");
-    await createPreview(e);
-  }
-
-  // 如果预览窗口已创建，使用 RAF 节流来更新位置
-  if (hasMovedEnough.value && dragLabel.value) {
-    // 记录最新的鼠标屏幕坐标
-    pendingDragPosition = { x: e.screenX, y: e.screenY };
-
-    // 如果当前没有正在等待执行的 RAF，就请求一个新的
-    if (dragAnimationFrame === null) {
-      dragAnimationFrame = requestAnimationFrame(applyPendingDrag);
-    }
-  }
-};
-
-// 3. 鼠标释放：结束拖拽
-const handleDragEnd = async (e: MouseEvent) => {
-  // 移除全局事件
-  window.removeEventListener("mousemove", handleDragMove);
-
-  if (!isDragging.value) return;
-
-  logger.info("结束拖拽");
-
-  // 取消任何待处理的 RAF
-  if (dragAnimationFrame !== null) {
-    cancelAnimationFrame(dragAnimationFrame);
-    dragAnimationFrame = null;
-  }
-
-  // 如果预览窗口被创建了，则根据最终位置决定是固定还是取消
-  if (dragLabel.value && hasMovedEnough.value) {
-    // 计算总拖拽距离
-    const dx = e.clientX - dragStartPos.value.x;
-    const dy = e.clientY - dragStartPos.value.y;
-    const totalDistance = Math.sqrt(dx * dx + dy * dy);
-
-    if (totalDistance > 100) {
-      // 拖拽超过100像素则固定
-      logger.info("固定预览窗口", { totalDistance });
-      await finalizePreviewWindow(dragLabel.value);
-    } else {
-      logger.info("取消预览窗口", { totalDistance });
-      await cancelPreviewWindow(dragLabel.value);
-    }
-  }
-
-  // 重置所有状态
-  isDragging.value = false;
-  hasMovedEnough.value = false;
-  dragLabel.value = null;
-  pendingDragPosition = null; // 清理拖拽位置状态
-};
-
-// 辅助函数：创建预览窗口
-const createPreview = async (e: MouseEvent) => {
-  // 获取容器尺寸
-  const rect = containerRef.value?.getBoundingClientRect();
-  if (!rect) {
-    logger.error("无法获取容器尺寸");
-    isDragging.value = false; // 确保重置状态
-    return;
-  }
-
-  try {
-    // 请求预览窗口（添加50px边距用于辉光阴影效果）
-    const label = await requestPreviewWindow({
-      componentId: "chat-input",
-      displayName: "聊天输入框",
-      width: rect.width + 50,
-      height: rect.height + 50,
-      mouseX: e.screenX,
-      mouseY: e.screenY,
-    });
-
-    if (label) {
-      dragLabel.value = label;
-      logger.info("预览窗口已创建", { label });
-    } else {
-      // 如果创建失败，也需要重置状态
-      isDragging.value = false;
-      hasMovedEnough.value = false;
-    }
-  } catch (error) {
-    logger.error("创建预览窗口失败", { error });
-    isDragging.value = false;
-    hasMovedEnough.value = false;
-  }
+  startDrag(e);
 };
 
 // ===== 窗口大小调整功能 =====
-// 使用 Tauri v2 原生 API startResizeDragging，让系统原生处理拖拽调整
-const handleResizeStart = async (e: MouseEvent) => {
-  if (!props.isDetached) return;
-
-  e.preventDefault();
-  e.stopPropagation(); // 防止触发其他拖拽事件
-
-  logger.info("开始调整窗口大小（使用原生 API）");
-
-  try {
-    const window = getCurrentWindow();
-    // 使用系统原生的拖拽调整
-    // Tauri v2 ResizeDirection: East, North, NorthEast, NorthWest, South, SouthEast, SouthWest, West
-    // SouthEast = 右下角（同时调整宽度和高度）
-    await window.startResizeDragging("SouthEast" as any);
-    logger.info("窗口调整完成");
-  } catch (error: any) {
-    logger.error("窗口调整失败", {
-      error: String(error),
-    });
-  }
-};
-
-// 组件卸载时确保移除监听器，防止内存泄漏
-onUnmounted(() => {
-  window.removeEventListener("mousemove", handleDragMove);
-  window.removeEventListener("mouseup", handleDragEnd);
-
-  // 确保组件卸载时也取消拖拽相关的 RAF
-  if (dragAnimationFrame !== null) {
-    cancelAnimationFrame(dragAnimationFrame);
-  }
-});
+const { createResizeHandler } = useWindowResize();
+const handleResizeStart = createResizeHandler("SouthEast");
 </script>
 <template>
   <div ref="containerRef" :class="['message-input-container', { 'detached-mode': isDetached }]">

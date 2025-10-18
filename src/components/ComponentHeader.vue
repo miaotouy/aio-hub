@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
 
@@ -37,7 +37,7 @@ onMounted(async () => {
   // 仅在独立窗口模式下检查置顶状态
   if (props.dragMode === "window") {
     try {
-      const win = getCurrentWindow();
+      const win = getCurrentWebviewWindow();
       isPinned.value = await win.isAlwaysOnTop();
     } catch (error) {
       logger.error("获取窗口置顶状态失败", { error });
@@ -63,7 +63,7 @@ const toggleCollapse = () => {
 const handleReattach = async () => {
   try {
     logger.info("请求重新附着到主窗口");
-    const currentWindow = getCurrentWindow();
+    const currentWindow = getCurrentWebviewWindow();
     await invoke("reattach_component", { label: currentWindow.label });
     // 关闭当前独立窗口
     await currentWindow.close();
@@ -75,13 +75,28 @@ const handleReattach = async () => {
 
 const togglePin = async () => {
   try {
-    const win = getCurrentWindow();
+    const win = getCurrentWebviewWindow();
     const newPinStatus = !isPinned.value;
+    
+    logger.info("准备切换窗口置顶状态", {
+      currentStatus: isPinned.value,
+      targetStatus: newPinStatus,
+      windowLabel: win.label
+    });
+    
     await win.setAlwaysOnTop(newPinStatus);
     isPinned.value = newPinStatus;
-    logger.info(`窗口置顶状态设置为: ${isPinned.value}`);
-  } catch (error) {
-    logger.error("切换窗口置顶失败", { error });
+    
+    logger.info("窗口置顶状态已更新", { newStatus: newPinStatus });
+  } catch (error: any) {
+    // 详细的错误信息
+    const errorDetail = {
+      message: error?.message || '未知错误',
+      type: error?.constructor?.name || typeof error,
+      detail: JSON.stringify(error, null, 2),
+      stack: error?.stack
+    };
+    logger.error("切换窗口置顶失败", errorDetail);
   } finally {
     closeMenu();
   }
@@ -129,8 +144,9 @@ const handleMenuReattach = async () => {
     <!-- Actions -->
     <div v-if="showActions" class="actions">
       <!-- Collapse Button -->
-      <el-tooltip :content="isCollapsed ? '展开' : '收起'" placement="top" :show-arrow="false" :offset="10" :enterable="false">
-        <button v-if="collapsible" @click="toggleCollapse" class="action-btn">
+      <template v-if="collapsible">
+        <el-tooltip :content="isCollapsed ? '展开' : '收起'" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+          <button @click="toggleCollapse" class="action-btn">
           <svg
             v-if="!isCollapsed"
             xmlns="http://www.w3.org/2000/svg"
@@ -160,8 +176,9 @@ const handleMenuReattach = async () => {
             <path d="M5 12h14" />
             <path d="M12 5v14" />
           </svg>
-        </button>
-      </el-tooltip>
+          </button>
+        </el-tooltip>
+      </template>
 
       <!-- Menu Button -->
       <div class="menu-container">

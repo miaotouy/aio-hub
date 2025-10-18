@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, defineAsyncComponent, type Component, watch } from "vue";
+import { ref, shallowRef, onMounted, defineAsyncComponent, type Component, watch } from "vue";
 import { useRoute } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -13,7 +13,7 @@ const { currentTheme } = useTheme();
 
 // 组件状态
 const isPreview = ref(true);
-const componentToRender = ref<Component | null>(null);
+const componentToRender = shallowRef<Component | null>(null);
 
 // 从事件载荷中提取的 props
 const componentProps = ref<Record<string, any>>({ isDetached: true });
@@ -84,7 +84,17 @@ onMounted(async () => {
         logger.info("从路由参数解析到组件配置", { config });
 
         const { componentId, ...props } = config;
-        componentProps.value = { ...props, isDetached: true };
+        
+        // 为不同组件提供默认 props
+        const defaultProps: Record<string, any> = { isDetached: true };
+        
+        if (componentId === 'chat-input') {
+          // MessageInput 需要的默认 props
+          defaultProps.disabled = false;
+          defaultProps.isSending = false;
+        }
+        
+        componentProps.value = { ...defaultProps, ...props };
 
         // 加载组件
         logger.info("准备加载组件", {

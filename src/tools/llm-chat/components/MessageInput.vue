@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useComponentDragging } from "@/composables/useComponentDragging";
+import { useDetachedComponents } from "@/composables/useDetachedComponents";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
@@ -126,6 +127,51 @@ const handleDragStart = (e: MouseEvent) => {
 // ===== 窗口大小调整功能 =====
 const { createResizeHandler } = useWindowResize();
 const handleResizeStart = createResizeHandler("SouthEast");
+
+// ===== 独立窗口功能 =====
+const { requestPreviewWindow, finalizePreviewWindow } = useDetachedComponents();
+
+// 处理从菜单打开独立窗口
+const handleDetach = async () => {
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (!rect) {
+    logger.error("无法获取容器尺寸");
+    return;
+  }
+
+  try {
+    // 使用组件分离的正确流程
+    const config = {
+      componentId: "chat-input",
+      displayName: "聊天输入框",
+      width: rect.width + 80,
+      height: rect.height + 80,
+      mouseX: rect.left + rect.width / 2, // 使用组件中心位置
+      mouseY: rect.top + rect.height / 2,
+    };
+
+    logger.info("通过菜单创建独立窗口", { config });
+
+    // 请求预览窗口
+    const label = await requestPreviewWindow(config);
+
+    if (label) {
+      logger.info("预览窗口已创建，立即固定", { label });
+      // 立即固定窗口（因为这是菜单点击，不是拖拽）
+      const success = await finalizePreviewWindow(label);
+
+      if (success) {
+        logger.info("独立窗口创建成功", { label });
+      } else {
+        logger.error("固定预览窗口失败");
+      }
+    } else {
+      logger.error("创建预览窗口失败");
+    }
+  } catch (error) {
+    logger.error("通过菜单创建独立窗口失败", { error });
+  }
+};
 </script>
 <template>
   <div ref="containerRef" :class="['message-input-container', { 'detached-mode': isDetached }]">
@@ -139,6 +185,7 @@ const handleResizeStart = createResizeHandler("SouthEast");
         :collapsible="false"
         class="detachable-handle"
         @mousedown="handleDragStart"
+        @detach="handleDetach"
       />
 
       <!-- 输入内容区 -->
@@ -295,10 +342,9 @@ const handleResizeStart = createResizeHandler("SouthEast");
 
 /* 分离模式下取消最大高度限制 */
 .message-input-container.detached-mode .message-textarea {
+  max-height: 100%;
   flex: 1; /* 分离模式下允许填充可用空间 */
 }
-
-
 
 .message-textarea:focus {
   outline: none;

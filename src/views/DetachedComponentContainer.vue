@@ -21,6 +21,7 @@ const componentProps = ref<Record<string, any>>({ isDetached: true });
 // 组件注册表
 const componentRegistry: Record<string, () => Promise<Component>> = {
   "chat-input": () => import("../tools/llm-chat/components/MessageInput.vue"),
+  "chat-area": () => import("../tools/llm-chat/components/ChatArea.vue"),
   // 未来可添加其他可分离的组件
 };
 
@@ -92,6 +93,11 @@ onMounted(async () => {
           // MessageInput 需要的默认 props
           defaultProps.disabled = false;
           defaultProps.isSending = false;
+        } else if (componentId === 'chat-area') {
+          // ChatArea 需要的默认 props
+          defaultProps.messages = [];
+          defaultProps.isSending = false;
+          defaultProps.disabled = false;
         }
         
         componentProps.value = { ...defaultProps, ...props };

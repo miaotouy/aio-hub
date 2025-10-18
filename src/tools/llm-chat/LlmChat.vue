@@ -5,9 +5,7 @@ import { useAgentStore } from './agentStore';
 import { useDetachedComponents } from '@/composables/useDetachedComponents';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import ChatHeader from './components/ChatHeader.vue';
-import MessageList from './components/MessageList.vue';
-import MessageInput from './components/MessageInput.vue';
+import ChatArea from './components/ChatArea.vue';
 import SessionsSidebar from './components/SessionsSidebar.vue';
 import LeftSidebar from './components/LeftSidebar.vue';
 import { createModuleLogger } from '@utils/logger';
@@ -19,17 +17,17 @@ const agentStore = useAgentStore();
 // 分离组件管理
 const { initializeListeners } = useDetachedComponents();
 
-// 输入框是否已分离的状态
-const isInputDetached = ref(false);
+// 对话区域是否已分离的状态
+const isChatAreaDetached = ref(false);
 
-// 检查输入框是否已分离
-const checkInputDetached = async () => {
+// 检查对话区域是否已分离
+const checkChatAreaDetached = async () => {
   try {
     const components = await invoke<Array<{ label: string; componentId: string }>>('get_finalized_components');
-    const chatInputComponent = components.find(c => c.componentId === 'chat-input');
-    if (chatInputComponent) {
-      isInputDetached.value = true;
-      logger.info('检测到输入框已分离', { label: chatInputComponent.label });
+    const chatAreaComponent = components.find(c => c.componentId === 'chat-area');
+    if (chatAreaComponent) {
+      isChatAreaDetached.value = true;
+      logger.info('检测到对话区域已分离', { label: chatAreaComponent.label });
     }
   } catch (error) {
     logger.error('检查已固定组件失败', { error });
@@ -44,34 +42,46 @@ onMounted(async () => {
   // 初始化分离组件监听器
   await initializeListeners();
   
-  // 检查输入框是否已分离（刷新页面时恢复状态）
-  await checkInputDetached();
+  // 检查对话区域是否已分离（刷新页面时恢复状态）
+  await checkChatAreaDetached();
   
-  // 监听输入框分离/回归事件
+  // 监听对话区域分离/回归事件
   await listen<{ label: string; componentId: string }>('component-detached', (event) => {
-    if (event.payload.componentId === 'chat-input') {
-      isInputDetached.value = true;
-      logger.info('输入框已分离', { label: event.payload.label });
+    if (event.payload.componentId === 'chat-area') {
+      isChatAreaDetached.value = true;
+      logger.info('对话区域已分离', { label: event.payload.label });
     }
   });
   
   await listen<{ label: string; componentId: string }>('component-attached', (event) => {
-    if (event.payload.componentId === 'chat-input') {
-      isInputDetached.value = false;
-      logger.info('输入框已回归', { label: event.payload.label });
+    if (event.payload.componentId === 'chat-area') {
+      isChatAreaDetached.value = false;
+      logger.info('对话区域已回归', { label: event.payload.label });
     }
   });
   
   // 监听分离窗口的消息发送事件
-  await listen<{ content: string }>('chat-input-send', (event) => {
+  await listen<{ content: string }>('chat-area-send', (event) => {
     logger.info('收到分离窗口的发送消息事件', { content: event.payload.content });
     handleSendMessage(event.payload.content);
   });
   
   // 监听分离窗口的中止事件
-  await listen('chat-input-abort', () => {
+  await listen('chat-area-abort', () => {
     logger.info('收到分离窗口的中止事件');
     handleAbortSending();
+  });
+  
+  // 监听分离窗口的删除消息事件
+  await listen<{ messageId: string }>('chat-area-delete-message', (event) => {
+    logger.info('收到分离窗口的删除消息事件', { messageId: event.payload.messageId });
+    handleDeleteMessage(event.payload.messageId);
+  });
+  
+  // 监听分离窗口的重新生成事件
+  await listen('chat-area-regenerate', () => {
+    logger.info('收到分离窗口的重新生成事件');
+    handleRegenerate();
   });
   
   logger.info('LLM Chat 模块已加载', {
@@ -181,22 +191,6 @@ const handleUpdateModelId = (modelId: string) => {
   agentStore.updateAgent(currentAgentId.value, { modelId });
   logger.info('更新智能体 Model', { agentId: currentAgentId.value, modelId });
 };
-
-// 处理导出会话
-const handleExportSession = () => {
-  if (!store.currentSession) return;
-  
-  const markdown = store.exportSessionAsMarkdown();
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${store.currentSession.name}-${Date.now()}.md`;
-  a.click();
-  URL.revokeObjectURL(url);
-  
-  logger.info('导出会话', { sessionId: store.currentSession.id });
-};
 </script>
 
 <template>
@@ -216,36 +210,19 @@ const handleExportSession = () => {
       />
     </div>
 
-    <!-- 中间主内容区 -->
-    <div class="middle-panel">
-      <div class="main-content">
-        <!-- 顶部工具栏 -->
-        <ChatHeader
-          :current-session="store.currentSession"
-          :is-sending="store.isSending"
-          @export="handleExportSession"
-        />
-
-        <!-- 聊天内容区 -->
-        <div class="chat-content">
-          <!-- 消息列表 -->
-          <MessageList
-            :messages="store.currentMessageChain"
-            :is-sending="store.isSending"
-            @delete-message="handleDeleteMessage"
-            @regenerate="handleRegenerate"
-          />
-
-          <!-- 输入框 - 仅在未分离时显示 -->
-          <MessageInput
-            v-if="!isInputDetached"
-            :disabled="!store.currentSession || store.isSending"
-            :is-sending="store.isSending"
-            @send="handleSendMessage"
-            @abort="handleAbortSending"
-          />
-        </div>
-      </div>
+    <!-- 中间主内容区 - 仅在未分离时显示 -->
+    <div v-if="!isChatAreaDetached" class="middle-panel">
+      <ChatArea
+        :messages="store.currentMessageChain"
+        :is-sending="store.isSending"
+        :disabled="!store.currentSession"
+        :current-agent-id="currentAgentId"
+        :current-model-id="store.currentSession?.currentAgentId ? agentStore.getAgentById(store.currentSession.currentAgentId)?.modelId : undefined"
+        @send="handleSendMessage"
+        @abort="handleAbortSending"
+        @delete-message="handleDeleteMessage"
+        @regenerate="handleRegenerate"
+      />
     </div>
 
     <!-- 右侧边栏：会话列表 -->
@@ -288,9 +265,6 @@ const handleExportSession = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: var(--card-bg);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
   min-width: 0;
 }
 
@@ -304,22 +278,6 @@ const handleExportSession = () => {
   border: 1px solid var(--border-color);
 }
 
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-
-.chat-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0 20px 20px;
-  gap: 16px;
-}
 
 /* 自定义滚动条样式 */
 .left-panel::-webkit-scrollbar,

@@ -22,7 +22,6 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   position: "top",
   collapsible: true,
-  title: "独立组件",
   dragMode: "window",
   showActions: true,
 });
@@ -77,24 +76,24 @@ const togglePin = async () => {
   try {
     const win = getCurrentWebviewWindow();
     const newPinStatus = !isPinned.value;
-    
+
     logger.info("准备切换窗口置顶状态", {
       currentStatus: isPinned.value,
       targetStatus: newPinStatus,
-      windowLabel: win.label
+      windowLabel: win.label,
     });
-    
+
     await win.setAlwaysOnTop(newPinStatus);
     isPinned.value = newPinStatus;
-    
+
     logger.info("窗口置顶状态已更新", { newStatus: newPinStatus });
   } catch (error: any) {
     // 详细的错误信息
     const errorDetail = {
-      message: error?.message || '未知错误',
+      message: error?.message || "未知错误",
       type: error?.constructor?.name || typeof error,
       detail: JSON.stringify(error, null, 2),
-      stack: error?.stack
+      stack: error?.stack,
     };
     logger.error("切换窗口置顶失败", errorDetail);
   } finally {
@@ -124,7 +123,13 @@ const handleMenuReattach = async () => {
 <template>
   <div class="component-header" :class="positionClasses">
     <!-- Drag and Title Area -->
-    <el-tooltip :content="dragTooltip" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+    <el-tooltip
+      :content="dragTooltip"
+      placement="top"
+      :show-arrow="false"
+      :offset="10"
+      :enterable="false"
+    >
       <div
         class="drag-area"
         :class="{ 'window-drag-mode': dragMode === 'window' }"
@@ -133,9 +138,6 @@ const handleMenuReattach = async () => {
         <slot name="drag-region">
           <div class="drag-handle">
             <i-ep-rank class="drag-icon" />
-            <span v-if="!isCollapsed && position !== 'left' && position !== 'right'" class="title">{{
-              title
-            }}</span>
           </div>
         </slot>
       </div>
@@ -145,44 +147,56 @@ const handleMenuReattach = async () => {
     <div v-if="showActions" class="actions">
       <!-- Collapse Button -->
       <template v-if="collapsible">
-        <el-tooltip :content="isCollapsed ? '展开' : '收起'" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+        <el-tooltip
+          :content="isCollapsed ? '展开' : '收起'"
+          placement="top"
+          :show-arrow="false"
+          :offset="10"
+          :enterable="false"
+        >
           <button @click="toggleCollapse" class="action-btn">
-          <svg
-            v-if="!isCollapsed"
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M5 12h14" />
-          </svg>
-          <svg
-            v-else
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M5 12h14" />
-            <path d="M12 5v14" />
-          </svg>
+            <svg
+              v-if="!isCollapsed"
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14" />
+            </svg>
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="M12 5v14" />
+            </svg>
           </button>
         </el-tooltip>
       </template>
 
       <!-- Menu Button -->
       <div class="menu-container">
-        <el-tooltip content="菜单" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+        <el-tooltip
+          content="菜单"
+          placement="top"
+          :show-arrow="false"
+          :offset="10"
+          :enterable="false"
+        >
           <button @click="toggleMenu" class="action-btn" :class="{ active: showMenu }">
             <i-ep-menu />
           </button>
@@ -193,7 +207,13 @@ const handleMenuReattach = async () => {
           <div v-if="showMenu" class="expanded-menu" @click.stop>
             <!-- 分离模式下的按钮 -->
             <template v-if="dragMode === 'window'">
-              <el-tooltip content="回归主窗口" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+              <el-tooltip
+                content="回归主窗口"
+                placement="top"
+                :show-arrow="false"
+                :offset="10"
+                :enterable="false"
+              >
                 <button @click="handleMenuReattach" class="action-btn menu-action-btn">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -239,7 +259,13 @@ const handleMenuReattach = async () => {
             </template>
             <!-- 内嵌模式下的按钮 -->
             <template v-else>
-              <el-tooltip content="在独立窗口打开" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+              <el-tooltip
+                content="在独立窗口打开"
+                placement="top"
+                :show-arrow="false"
+                :offset="10"
+                :enterable="false"
+              >
                 <button @click="handleMenuDetach" class="action-btn menu-action-btn">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -278,7 +304,6 @@ const handleMenuReattach = async () => {
   z-index: 1000;
   -webkit-app-region: no-drag;
 }
-
 
 /* --- Layout Variants --- */
 .position-top,
@@ -341,7 +366,7 @@ const handleMenuReattach = async () => {
 .drag-handle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   padding: 4px;
   border-radius: 4px;
   transition: background 0.2s;

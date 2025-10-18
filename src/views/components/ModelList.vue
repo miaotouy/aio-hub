@@ -211,6 +211,8 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
 .list-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .list-empty {

@@ -16,6 +16,11 @@ import {
   Cpu,
   MagicStick,
   FolderOpened,
+  Picture,
+  Film,
+  Headset,
+  DataLine,
+  Sort,
 } from '@element-plus/icons-vue';
 
 /**
@@ -101,6 +106,46 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(FolderOpened),
     color: "#909399",
     className: "file-search",
+  },
+  {
+    key: "imageGeneration",
+    label: "图像生成",
+    description: "支持文本到图像的生成",
+    icon: markRaw(Picture),
+    color: "#f57c00",
+    className: "image-gen",
+  },
+  {
+    key: "videoGeneration",
+    label: "视频生成",
+    description: "支持文本到视频的生成",
+    icon: markRaw(Film),
+    color: "#1976d2",
+    className: "video-gen",
+  },
+  {
+    key: "musicGeneration",
+    label: "音乐生成",
+    description: "支持文本到音乐的生成",
+    icon: markRaw(Headset),
+    color: "#ff4081",
+    className: "music-gen",
+  },
+  {
+    key: "embedding",
+    label: "嵌入",
+    description: "支持生成文本嵌入向量 (Embedding)",
+    icon: markRaw(DataLine),
+    color: "#607d8b",
+    className: "embedding",
+  },
+  {
+    key: "rerank",
+    label: "重排",
+    description: "支持对文档或结果进行重排序 (Rerank)",
+    icon: markRaw(Sort),
+    color: "#8d6e63",
+    className: "rerank",
   },
 ] as const;
 

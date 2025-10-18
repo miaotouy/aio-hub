@@ -82,6 +82,16 @@ export interface ModelCapabilities {
   fileSearch?: boolean;
   /** 是否支持推理模式 */
   reasoning?: boolean;
+  /** 是否支持图像生成 */
+  imageGeneration?: boolean;
+  /** 是否支持视频生成 */
+  videoGeneration?: boolean;
+  /** 是否支持音乐生成 */
+  musicGeneration?: boolean;
+  /** 是否支持嵌入（Embedding） */
+  embedding?: boolean;
+  /** 是否支持重排（Rerank） */
+  rerank?: boolean;
 }
 
 /**

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { customMessage } from '@/utils/customMessage';
+import { customMessage } from "@/utils/customMessage";
 import { InfoFilled } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
@@ -18,20 +18,21 @@ const emit = defineEmits<{
   (e: "save", model: LlmModelInfo): void;
 }>();
 
+// 根据 MODEL_CAPABILITIES 动态生成一个所有功能都为 false 的对象
+const createDefaultCapabilities = () => {
+  const capabilities: Record<string, boolean> = {};
+  for (const cap of MODEL_CAPABILITIES) {
+    capabilities[cap.key] = false;
+  }
+  return capabilities as Required<LlmModelInfo>["capabilities"];
+};
+
 // 内部表单状态
 const modelEditForm = ref<LlmModelInfo>({
   id: "",
   name: "",
   group: "",
-  capabilities: {
-    vision: false,
-    thinking: false,
-    webSearch: false,
-    toolUse: false,
-    codeExecution: false,
-    fileSearch: false,
-    reasoning: false,
-  },
+  capabilities: createDefaultCapabilities(),
   tokenLimits: {},
   pricing: {},
 });
@@ -46,13 +47,7 @@ watch(
       modelEditForm.value = {
         ...newModel,
         capabilities: {
-          vision: false,
-          thinking: false,
-          webSearch: false,
-          toolUse: false,
-          codeExecution: false,
-          fileSearch: false,
-          reasoning: false,
+          ...createDefaultCapabilities(),
           ...newModel.capabilities,
         },
         tokenLimits: newModel.tokenLimits || {},
@@ -64,15 +59,7 @@ watch(
         id: "",
         name: "",
         group: "",
-        capabilities: {
-          vision: false,
-          thinking: false,
-          webSearch: false,
-          toolUse: false,
-          codeExecution: false,
-          fileSearch: false,
-          reasoning: false,
-        },
+        capabilities: createDefaultCapabilities(),
         tokenLimits: {},
         pricing: {},
       };
@@ -116,6 +103,53 @@ const openModelIconSelector = () => {
 const dialogTitle = computed(() => {
   return props.isEditing ? "编辑模型" : "添加模型";
 });
+
+// Token 预设值
+const contextLengthPresets = [
+  { label: "1K", value: 1024 },
+  { label: "2K", value: 2048 },
+  { label: "4K", value: 4096 },
+  { label: "8K", value: 8192 },
+  { label: "16K", value: 16384 },
+  { label: "32K", value: 32768 },
+  { label: "64K", value: 64000 },
+  { label: "128K", value: 128000 },
+  { label: "200K", value: 200000 },
+  { label: "256K", value: 262144 },
+  { label: "500K", value: 500000 },
+  { label: "1M", value: 1000000 },
+  { label: "2M", value: 2000000 },
+  { label: "4M", value: 4000000 },
+  { label: "10M", value: 10000000 },
+  { label: "20M", value: 20000000 },
+  { label: "50M", value: 50000000 },
+];
+
+const outputLimitPresets = [
+  { label: "2K", value: 2048 },
+  { label: "4K", value: 4096 },
+  { label: "8K", value: 8192 },
+  { label: "16K", value: 16384 },
+  { label: "32K", value: 32768 },
+  { label: "64K", value: 65536 },
+  { label: "128K", value: 131072 },
+  { label: "256K", value: 262144 },
+];
+
+// 应用预设值
+const applyContextPreset = (value: number) => {
+  if (!modelEditForm.value.tokenLimits) {
+    modelEditForm.value.tokenLimits = {};
+  }
+  modelEditForm.value.tokenLimits.contextLength = value;
+};
+
+const applyOutputPreset = (value: number) => {
+  if (!modelEditForm.value.tokenLimits) {
+    modelEditForm.value.tokenLimits = {};
+  }
+  modelEditForm.value.tokenLimits.output = value;
+};
 </script>
 
 <template>
@@ -128,136 +162,150 @@ const dialogTitle = computed(() => {
   >
     <div class="form-container">
       <el-form :model="modelEditForm" label-width="110px">
-      <!-- 基本信息 -->
-      <el-divider content-position="left">基本信息</el-divider>
+        <!-- 基本信息 -->
+        <el-divider content-position="left">基本信息</el-divider>
 
-      <el-form-item label="模型 ID">
-        <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o" />
-      </el-form-item>
+        <el-form-item label="模型 ID">
+          <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o" />
+        </el-form-item>
 
-      <el-form-item label="显示名称">
-        <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
-      </el-form-item>
+        <el-form-item label="显示名称">
+          <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
+        </el-form-item>
 
-      <el-form-item label="分组">
-        <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
-      </el-form-item>
+        <el-form-item label="分组">
+          <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
+        </el-form-item>
 
-      <el-form-item label="描述">
-        <el-input
-          v-model="modelEditForm.description"
-          type="textarea"
-          :rows="2"
-          placeholder="可选，模型描述信息"
-        />
-      </el-form-item>
-
-      <el-form-item label="模型图标">
-        <el-input
-          v-model="modelEditForm.icon"
-          placeholder="可选，自定义图标路径或选择预设"
-        >
-          <template #append>
-            <el-button @click="openModelIconSelector">选择预设</el-button>
-          </template>
-        </el-input>
-        <div class="form-hint">留空则使用全局规则自动匹配</div>
-      </el-form-item>
-
-      <!-- Token 限制 -->
-      <el-divider content-position="left">Token 限制</el-divider>
-
-      <el-form-item label="上下文窗口">
-        <el-slider
-          v-model="modelEditForm.tokenLimits!.contextLength"
-          :min="0"
-          :max="2000000"
-          :step="1000"
-          :marks="{ 0: '0', 128000: '128K', 256000: '256K', 1000000: '1M', 2000000: '2M' }"
-          show-input
-          :show-input-controls="false"
-        />
-        <div class="form-hint">模型可处理的总 token 数量（包含输入和历史消息）</div>
-      </el-form-item>
-
-      <el-form-item label="输出限制">
-        <el-slider
-          v-model="modelEditForm.tokenLimits!.output"
-          :min="0"
-          :max="65536"
-          :step="1000"
-          :marks="{ 0: '0', 4096: '4K', 16384: '16K', 32768: '32K', 65536: '64K' }"
-          show-input
-          :show-input-controls="false"
-        />
-        <div class="form-hint">单次响应最大输出 token 数（包含推理 token）</div>
-      </el-form-item>
-
-      <!-- 模型能力 -->
-      <el-divider content-position="left">模型能力</el-divider>
-
-      <div class="capabilities-grid">
-        <div
-          v-for="capability in MODEL_CAPABILITIES"
-          :key="capability.key"
-          class="capability-item"
-        >
-          <el-switch
-            v-model="modelEditForm.capabilities![capability.key]"
-            size="small"
+        <el-form-item label="描述">
+          <el-input
+            v-model="modelEditForm.description"
+            type="textarea"
+            :rows="2"
+            placeholder="可选，模型描述信息"
           />
-          <span class="capability-label">{{ capability.label }}</span>
-          <el-tooltip
-            :content="capability.description"
-            placement="top"
-            effect="dark"
+        </el-form-item>
+
+        <el-form-item label="模型图标">
+          <el-input v-model="modelEditForm.icon" placeholder="可选，自定义图标路径或选择预设">
+            <template #append>
+              <el-button @click="openModelIconSelector">选择预设</el-button>
+            </template>
+          </el-input>
+          <div class="form-hint">留空则使用全局规则自动匹配</div>
+        </el-form-item>
+
+        <!-- Token 限制 -->
+        <el-divider content-position="left">Token 限制</el-divider>
+
+        <el-form-item label="上下文窗口">
+          <div class="token-input-group">
+            <el-select
+              :model-value="modelEditForm.tokenLimits?.contextLength"
+              @update:model-value="applyContextPreset"
+              placeholder="选择预设"
+              clearable
+              class="preset-selector"
+            >
+              <el-option
+                v-for="preset in contextLengthPresets"
+                :key="preset.value"
+                :label="preset.label"
+                :value="preset.value"
+              />
+            </el-select>
+            <el-input-number
+              v-model="modelEditForm.tokenLimits!.contextLength"
+              :min="0"
+              :max="10000000"
+              :step="1000"
+              controls-position="right"
+              class="token-input"
+            />
+          </div>
+          <div class="form-hint">模型可处理的总 token 数量（包含输入和历史消息）</div>
+        </el-form-item>
+
+        <el-form-item label="输出限制">
+          <div class="token-input-group">
+            <el-select
+              :model-value="modelEditForm.tokenLimits?.output"
+              @update:model-value="applyOutputPreset"
+              placeholder="选择预设"
+              clearable
+              class="preset-selector"
+            >
+              <el-option
+                v-for="preset in outputLimitPresets"
+                :key="preset.value"
+                :label="preset.label"
+                :value="preset.value"
+              />
+            </el-select>
+            <el-input-number
+              v-model="modelEditForm.tokenLimits!.output"
+              :min="0"
+              :max="1000000"
+              :step="1000"
+              controls-position="right"
+              class="token-input"
+            />
+          </div>
+          <div class="form-hint">单次响应最大输出 token 数（包含推理 token）</div>
+        </el-form-item>
+
+        <!-- 模型能力 -->
+        <el-divider content-position="left">模型能力</el-divider>
+
+        <div class="capabilities-grid">
+          <div
+            v-for="capability in MODEL_CAPABILITIES"
+            :key="capability.key"
+            class="capability-item"
           >
-            <el-icon class="capability-info">
-              <InfoFilled />
-            </el-icon>
-          </el-tooltip>
+            <el-switch v-model="modelEditForm.capabilities![capability.key]" size="small" />
+            <span class="capability-label">{{ capability.label }}</span>
+            <el-tooltip :content="capability.description" placement="top" effect="dark">
+              <el-icon class="capability-info">
+                <InfoFilled />
+              </el-icon>
+            </el-tooltip>
+          </div>
         </div>
-      </div>
 
-      <!-- 价格信息 -->
-      <el-divider content-position="left">价格配置</el-divider>
+        <!-- 价格信息 -->
+        <el-divider content-position="left">价格配置</el-divider>
 
-      <el-form-item label="输入价格">
-        <el-input
-          v-model="modelEditForm.pricing!.prompt"
-          placeholder="例如: $0.01 / 1M tokens"
-        >
-          <template #prepend>$</template>
-        </el-input>
-        <div class="form-hint">每百万 token 的输入价格</div>
-      </el-form-item>
+        <el-form-item label="输入价格">
+          <el-input v-model="modelEditForm.pricing!.prompt" placeholder="例如: $0.01 / 1M tokens">
+            <template #prepend>$</template>
+          </el-input>
+          <div class="form-hint">每百万 token 的输入价格</div>
+        </el-form-item>
 
-      <el-form-item label="输出价格">
-        <el-input
-          v-model="modelEditForm.pricing!.completion"
-          placeholder="例如: $0.03 / 1M tokens"
-        >
-          <template #prepend>$</template>
-        </el-input>
-        <div class="form-hint">每百万 token 的输出价格</div>
-      </el-form-item>
+        <el-form-item label="输出价格">
+          <el-input
+            v-model="modelEditForm.pricing!.completion"
+            placeholder="例如: $0.03 / 1M tokens"
+          >
+            <template #prepend>$</template>
+          </el-input>
+          <div class="form-hint">每百万 token 的输出价格</div>
+        </el-form-item>
 
-      <el-form-item label="请求价格">
-        <el-input
-          v-model="modelEditForm.pricing!.request"
-          placeholder="例如: $0.001 / request"
-        >
-          <template #prepend>$</template>
-        </el-input>
-        <div class="form-hint">每次请求的固定价格（可选）</div>
-      </el-form-item>
+        <el-form-item label="请求价格">
+          <el-input v-model="modelEditForm.pricing!.request" placeholder="例如: $0.001 / request">
+            <template #prepend>$</template>
+          </el-input>
+          <div class="form-hint">每次请求的固定价格（可选）</div>
+        </el-form-item>
 
-      <el-form-item label="图像价格">
-        <el-input v-model="modelEditForm.pricing!.image" placeholder="例如: $0.005 / image">
-          <template #prepend>$</template>
-        </el-input>
-        <div class="form-hint">每张图像的处理价格（可选）</div>
-      </el-form-item>
+        <el-form-item label="图像价格">
+          <el-input v-model="modelEditForm.pricing!.image" placeholder="例如: $0.005 / image">
+            <template #prepend>$</template>
+          </el-input>
+          <div class="form-hint">每张图像的处理价格（可选）</div>
+        </el-form-item>
       </el-form>
     </div>
 
@@ -281,7 +329,7 @@ const dialogTitle = computed(() => {
 
 <style scoped>
 /* 对话框高度控制 */
-.model-edit-dialog{
+.model-edit-dialog {
   padding: 0;
   max-height: 65vh;
   width: 75%;
@@ -302,13 +350,26 @@ const dialogTitle = computed(() => {
   margin-top: 8px;
 }
 
-/* 滑块项特殊处理，避免提示文字与滑块标记重叠 */
-.el-form :deep(.el-form-item:has(.el-slider)) {
-  margin-bottom: 32px;
+/* Token 输入组合 */
+.token-input-group {
+  display: flex;
+  gap: 12px;
+  width: 100%;
 }
 
-.el-form :deep(.el-slider) {
-  margin-bottom: 12px;
+.preset-selector {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.token-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.token-input :deep(.el-input-number__decrease),
+.token-input :deep(.el-input-number__increase) {
+  width: 32px;
 }
 
 /* 能力开关网格布局 */

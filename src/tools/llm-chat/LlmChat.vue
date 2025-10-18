@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, ref } from 'vue';
 import { useLlmChatStore } from './store';
 import { useAgentStore } from './agentStore';
+import { useDetachedComponents } from '@/composables/useDetachedComponents';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import ChatHeader from './components/ChatHeader.vue';
 import MessageList from './components/MessageList.vue';
 import MessageInput from './components/MessageInput.vue';
@@ -13,10 +16,64 @@ const logger = createModuleLogger('LlmChat');
 const store = useLlmChatStore();
 const agentStore = useAgentStore();
 
+// 分离组件管理
+const { initializeListeners } = useDetachedComponents();
+
+// 输入框是否已分离的状态
+const isInputDetached = ref(false);
+
+// 检查输入框是否已分离
+const checkInputDetached = async () => {
+  try {
+    const components = await invoke<Array<{ label: string; componentId: string }>>('get_finalized_components');
+    const chatInputComponent = components.find(c => c.componentId === 'chat-input');
+    if (chatInputComponent) {
+      isInputDetached.value = true;
+      logger.info('检测到输入框已分离', { label: chatInputComponent.label });
+    }
+  } catch (error) {
+    logger.error('检查已固定组件失败', { error });
+  }
+};
+
 // 组件挂载时加载会话和智能体
-onMounted(() => {
+onMounted(async () => {
   agentStore.loadAgents();
   store.loadSessions();
+  
+  // 初始化分离组件监听器
+  await initializeListeners();
+  
+  // 检查输入框是否已分离（刷新页面时恢复状态）
+  await checkInputDetached();
+  
+  // 监听输入框分离/回归事件
+  await listen<{ label: string; componentId: string }>('component-detached', (event) => {
+    if (event.payload.componentId === 'chat-input') {
+      isInputDetached.value = true;
+      logger.info('输入框已分离', { label: event.payload.label });
+    }
+  });
+  
+  await listen<{ label: string; componentId: string }>('component-attached', (event) => {
+    if (event.payload.componentId === 'chat-input') {
+      isInputDetached.value = false;
+      logger.info('输入框已回归', { label: event.payload.label });
+    }
+  });
+  
+  // 监听分离窗口的消息发送事件
+  await listen<{ content: string }>('chat-input-send', (event) => {
+    logger.info('收到分离窗口的发送消息事件', { content: event.payload.content });
+    handleSendMessage(event.payload.content);
+  });
+  
+  // 监听分离窗口的中止事件
+  await listen('chat-input-abort', () => {
+    logger.info('收到分离窗口的中止事件');
+    handleAbortSending();
+  });
+  
   logger.info('LLM Chat 模块已加载', {
     sessionCount: store.sessions.length,
     agentCount: agentStore.agents.length,
@@ -179,8 +236,9 @@ const handleExportSession = () => {
             @regenerate="handleRegenerate"
           />
 
-          <!-- 输入框 -->
+          <!-- 输入框 - 仅在未分离时显示 -->
           <MessageInput
+            v-if="!isInputDetached"
             :disabled="!store.currentSession || store.isSending"
             :is-sending="store.isSending"
             @send="handleSendMessage"

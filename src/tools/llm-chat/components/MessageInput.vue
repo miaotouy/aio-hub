@@ -4,6 +4,7 @@ import { useComponentDragging } from "@/composables/useComponentDragging";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
+import { emit as tauriEmit } from "@tauri-apps/api/event";
 
 const logger = createModuleLogger("MessageInput");
 
@@ -24,18 +25,48 @@ const emit = defineEmits<Emits>();
 const inputText = ref("");
 const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
-
 // 处理发送
-const handleSend = () => {
+const handleSend = async () => {
   const content = inputText.value.trim();
   if (!content || props.disabled) return;
 
-  emit("send", content);
-  inputText.value = "";
+  // 如果是分离窗口，通过事件系统发送到主窗口
+  if (props.isDetached) {
+    try {
+      await tauriEmit("chat-input-send", { content });
+      logger.info("分离窗口发送消息事件", { content });
+      inputText.value = "";
+      // 重置文本框高度
+      if (textareaRef.value) {
+        textareaRef.value.style.height = "auto";
+      }
+    } catch (error) {
+      logger.error("发送消息事件失败", { error });
+    }
+  } else {
+    // 主窗口直接发送
+    emit("send", content);
+    inputText.value = "";
+    // 重置文本框高度
+    if (textareaRef.value) {
+      textareaRef.value.style.height = "auto";
+    }
+  }
+};
 
-  // 重置文本框高度
-  if (textareaRef.value) {
-    textareaRef.value.style.height = "auto";
+// 处理中止
+const handleAbort = async () => {
+  // 如果是分离窗口，通过事件系统发送到主窗口
+  if (props.isDetached) {
+    try {
+      await tauriEmit("chat-input-abort", {});
+      logger.info("分离窗口发送中止事件");
+    } catch (error) {
+      logger.error("发送中止事件失败", { error });
+    }
+  } else {
+    // 主窗口直接发送
+    emit("abort");
   }
 };
 
@@ -152,7 +183,7 @@ const handleResizeStart = createResizeHandler("SouthEast");
                   <polyline points="5 12 12 5 19 12"></polyline>
                 </svg>
               </button>
-              <button v-else @click="emit('abort')" class="btn-abort" title="停止生成">
+              <button v-else @click="handleAbort" class="btn-abort" title="停止生成">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="20"

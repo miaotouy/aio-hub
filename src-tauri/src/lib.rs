@@ -32,6 +32,7 @@ use commands::{
     get_all_operation_logs,
     get_all_tool_windows,
     get_clipboard_content_type,
+    get_finalized_components,
     get_latest_operation_log,
     get_proxy_status,
     get_window_position,
@@ -184,6 +185,7 @@ pub fn run() {
             cancel_preview_window,
             reattach_component,
             is_component_finalized,
+            get_finalized_components,
             // 配置管理命令
             export_all_configs,
             import_all_configs,

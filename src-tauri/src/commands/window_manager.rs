@@ -17,6 +17,10 @@ static FINALIZED_COMPONENTS: once_cell::sync::Lazy<Arc<Mutex<HashSet<String>>>> 
 /// 组件窗口ID计数器
 static COMPONENT_WINDOW_ID: AtomicUsize = AtomicUsize::new(0);
 
+/// 窗口label到componentId的映射
+static COMPONENT_ID_MAP: once_cell::sync::Lazy<Arc<Mutex<std::collections::HashMap<String, String>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(std::collections::HashMap::new())));
+
 /// 生成新的组件窗口标签
 fn generate_component_label() -> String {
     let id = COMPONENT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
@@ -52,8 +56,14 @@ pub async fn request_preview_window(
 
     // 生成新的窗口标签
     let label = generate_component_label();
+    
+    // 存储 componentId 映射
+    {
+        let mut map = COMPONENT_ID_MAP.lock().unwrap();
+        map.insert(label.clone(), config.component_id.clone());
+    }
 
-    println!("[PREVIEW] 创建新窗口 {} 并加载 {}", label, url);
+    println!("[PREVIEW] 创建新窗口 {} (componentId: {}) 并加载 {}", label, config.component_id, url);
 
     // 直接创建窗口，在创建时就指定正确的 URL
     let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
@@ -130,8 +140,18 @@ pub async fn finalize_preview_window(app: AppHandle, label: String) -> Result<()
         .emit("finalize-component-view", ())
         .map_err(|e| e.to_string())?;
 
-    // 向主窗口发送组件已分离事件
-    app.emit("component-detached", label.clone())
+    // 获取 componentId
+    let component_id = {
+        let map = COMPONENT_ID_MAP.lock().unwrap();
+        map.get(&label).cloned()
+    };
+    
+    // 向主窗口发送组件已分离事件，包含 componentId
+    let payload = serde_json::json!({
+        "label": label.clone(),
+        "componentId": component_id.unwrap_or_else(|| "unknown".to_string())
+    });
+    app.emit("component-detached", payload)
         .map_err(|e| e.to_string())?;
 
     println!("[FINALIZE] 预览窗口已固定: {}", label);
@@ -151,6 +171,12 @@ pub async fn cancel_preview_window(app: AppHandle, label: String) -> Result<(), 
     {
         let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
         finalized.remove(&label);
+    }
+    
+    // 从 componentId 映射中移除
+    {
+        let mut map = COMPONENT_ID_MAP.lock().unwrap();
+        map.remove(&label);
     }
 
     // 直接关闭窗口
@@ -175,9 +201,19 @@ pub async fn reattach_component(app: AppHandle, label: String) -> Result<(), Str
         let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
         finalized.remove(&label);
     }
+    
+    // 获取 componentId
+    let component_id = {
+        let mut map = COMPONENT_ID_MAP.lock().unwrap();
+        map.remove(&label)
+    };
 
-    // 向主窗口发送组件重新附着事件
-    app.emit("component-attached", label.clone())
+    // 向主窗口发送组件重新附着事件，包含 componentId
+    let payload = serde_json::json!({
+        "label": label.clone(),
+        "componentId": component_id.unwrap_or_else(|| "unknown".to_string())
+    });
+    app.emit("component-attached", payload)
         .map_err(|e| e.to_string())?;
 
     // 关闭组件窗口
@@ -198,6 +234,32 @@ pub async fn is_component_finalized(_app: AppHandle, label: String) -> Result<bo
         label, is_finalized
     );
     Ok(is_finalized)
+}
+
+/// 获取所有已固定的组件窗口信息
+#[derive(Debug, Serialize)]
+pub struct FinalizedComponent {
+    pub label: String,
+    pub component_id: String,
+}
+
+#[tauri::command]
+pub async fn get_finalized_components(_app: AppHandle) -> Result<Vec<FinalizedComponent>, String> {
+    let finalized = FINALIZED_COMPONENTS.lock().unwrap();
+    let id_map = COMPONENT_ID_MAP.lock().unwrap();
+    
+    let components: Vec<FinalizedComponent> = finalized
+        .iter()
+        .filter_map(|label| {
+            id_map.get(label).map(|component_id| FinalizedComponent {
+                label: label.clone(),
+                component_id: component_id.clone(),
+            })
+        })
+        .collect();
+    
+    println!("[GET_FINALIZED] 已固定组件数量: {}", components.len());
+    Ok(components)
 }
 
 /// 拖拽会话数据

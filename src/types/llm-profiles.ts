@@ -63,6 +63,27 @@ export interface ProviderTypeInfo {
   modelListEndpoint?: string; // 模型列表端点（相对路径）
   supportedParameters?: LlmParameterSupport; // 支持的参数类型
 }
+
+/**
+ * 模型能力标识
+ */
+export interface ModelCapabilities {
+  /** 是否支持视觉输入（VLM） */
+  vision?: boolean;
+  /** 是否支持联网搜索 */
+  webSearch?: boolean;
+  /** 是否支持工具调用/函数调用 */
+  toolUse?: boolean;
+  /** 是否支持代码执行 */
+  codeExecution?: boolean;
+  /** 是否支持思考模式 */
+  thinking?: boolean;
+  /** 是否支持文件搜索 */
+  fileSearch?: boolean;
+  /** 是否支持推理模式 */
+  reasoning?: boolean;
+}
+
 /**
  * 单个模型的信息
  */
@@ -87,22 +108,7 @@ export interface LlmModelInfo {
   /**
    * 模型能力标识
    */
-  capabilities?: {
-    /** 是否支持视觉输入（VLM） */
-    vision?: boolean;
-    /** 是否支持联网搜索 */
-    webSearch?: boolean;
-    /** 是否支持工具调用/函数调用 */
-    toolUse?: boolean;
-    /** 是否支持代码执行 */
-    codeExecution?: boolean;
-    /** 是否支持思考模式 */
-    thinking?: boolean;
-    /** 是否支持文件搜索 */
-    fileSearch?: boolean;
-    /** 是否支持推理模式 */
-    reasoning?: boolean;
-  };
+  capabilities?: ModelCapabilities;
   /**
    * Token 限制信息（可选）
    */

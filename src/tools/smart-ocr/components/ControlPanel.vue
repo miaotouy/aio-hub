@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { customMessage } from '@/utils/customMessage';
+import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 
 // 创建模块日志记录器
 const logger = createModuleLogger("SmartOCR.ControlPanel");
@@ -18,9 +19,6 @@ import { useImageSlicer } from "../composables/useImageSlicer";
 import { useOcrRunner } from "../composables/useOcrRunner";
 import { useLlmProfiles } from "../../../composables/useLlmProfiles";
 import { useOcrProfiles } from "../../../composables/useOcrProfiles";
-import type { LlmProfile, LlmModelInfo } from "../../../types/llm-profiles";
-import { useModelMetadata } from "../../../composables/useModelMetadata";
-import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 const props = defineProps<{
   engineConfig: OcrEngineConfig;
@@ -46,8 +44,6 @@ const { sliceImage } = useImageSlicer();
 const { runOcr } = useOcrRunner();
 const { visionProfiles } = useLlmProfiles();
 const { enabledProfiles: ocrProfiles } = useOcrProfiles();
-// 使用统一的图标获取方法
-const { getModelIcon } = useModelMetadata();
 
 // 辅助函数：更新引擎配置
 function updateEngineConfig(updates: Partial<OcrEngineConfig>) {
@@ -71,43 +67,43 @@ const engineType = computed({
 
 // Tesseract 语言
 const engineLanguage = computed({
-  get: () => (props.engineConfig.type === 'tesseract' ? props.engineConfig.language : ''),
+  get: () => (props.engineConfig.type === "tesseract" ? props.engineConfig.language : ""),
   set: (value) => updateEngineConfig({ language: value } as any),
 });
 
 // VLM 提示词
 const enginePrompt = computed({
-  get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.prompt : ''),
+  get: () => (props.engineConfig.type === "vlm" ? props.engineConfig.prompt : ""),
   set: (value) => updateEngineConfig({ prompt: value } as any),
 });
 
 // VLM 温度
 const engineTemperature = computed({
-  get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.temperature ?? 0.7 : 0.7),
+  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.temperature ?? 0.7) : 0.7),
   set: (value) => updateEngineConfig({ temperature: value } as any),
 });
 
 // VLM 最大 Token
 const engineMaxTokens = computed({
-  get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.maxTokens ?? 4096 : 4096),
+  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.maxTokens ?? 4096) : 4096),
   set: (value) => updateEngineConfig({ maxTokens: value } as any),
 });
 
 // VLM 并发数
 const engineConcurrency = computed({
-  get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.concurrency ?? 3 : 3),
+  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.concurrency ?? 3) : 3),
   set: (value) => updateEngineConfig({ concurrency: value } as any),
 });
 
 // VLM 请求延迟
 const engineDelay = computed({
-  get: () => (props.engineConfig.type === 'vlm' ? props.engineConfig.delay ?? 0 : 0),
+  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.delay ?? 0) : 0),
   set: (value) => updateEngineConfig({ delay: value } as any),
 });
 
 // Cloud OCR 选中的服务
 const cloudActiveProfileId = computed({
-  get: () => (props.engineConfig.type === 'cloud' ? props.engineConfig.activeProfileId : ''),
+  get: () => (props.engineConfig.type === "cloud" ? props.engineConfig.activeProfileId : ""),
   set: (value) => updateEngineConfig({ activeProfileId: value } as any),
 });
 
@@ -153,33 +149,6 @@ const selectedImage = computed(() => {
   return props.uploadedImages.find((img) => img.id === props.selectedImageId);
 });
 
-// 获取所有可用的视觉模型（按 profile 分组）
-const availableVisionModels = computed(() => {
-  const models: Array<{
-    value: string; // 格式: profileId:modelId
-    label: string;
-    group: string;
-    profile: LlmProfile;
-    model: LlmModelInfo;
-  }> = [];
-
-  visionProfiles.value.forEach((profile: LlmProfile) => {
-    profile.models.forEach((model: LlmModelInfo) => {
-      if (model.capabilities?.vision) {
-        models.push({
-          value: `${profile.id}:${model.id}`,
-          label: model.name,
-          group: `${profile.name} (${profile.type})`,
-          profile,
-          model,
-        });
-      }
-    });
-  });
-
-  return models;
-});
-
 // 当前选中的模型组合值
 const selectedModelCombo = computed({
   get: () => {
@@ -206,18 +175,17 @@ const selectedModelCombo = computed({
 
 // 单独切图（不执行OCR）
 const handleSliceOnly = async (imageId: string) => {
-  const uploadedImage = props.uploadedImages.find(img => img.id === imageId);
+  const uploadedImage = props.uploadedImages.find((img) => img.id === imageId);
   if (!uploadedImage) {
     customMessage.warning("图片不存在");
     return;
   }
 
   const img = uploadedImage.img;
-  
+
   // 检查是否需要切图
   const needSlice =
-    props.slicerConfig.enabled &&
-    img.height / img.width > props.slicerConfig.aspectRatioThreshold;
+    props.slicerConfig.enabled && img.height / img.width > props.slicerConfig.aspectRatioThreshold;
 
   if (!needSlice) {
     customMessage.info("当前图片不满足切图条件");
@@ -235,13 +203,13 @@ const handleSliceOnly = async (imageId: string) => {
     // 执行智能切图
     const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
     emit("sliceComplete", imageId, sliceResult.blocks, sliceResult.lines);
-    
+
     logger.info("单张图片切图成功", {
       imageId,
       imageName: uploadedImage.name,
       blocksCount: sliceResult.blocks.length,
     });
-    
+
     customMessage.success(`检测到 ${sliceResult.blocks.length} 个图片块`);
   } catch (error) {
     logger.error("单张图片切图失败", {
@@ -268,11 +236,11 @@ const handleSliceAll = async () => {
 
   let slicedCount = 0;
   const failedImages: string[] = [];
-  
+
   for (const uploadedImage of props.uploadedImages) {
     const img = uploadedImage.img;
     const imageId = uploadedImage.id;
-    
+
     // 检查是否需要切图
     const needSlice =
       props.slicerConfig.enabled &&
@@ -373,14 +341,14 @@ const handleStartOcr = async () => {
 
     emit("ocrResultUpdate", results);
     emit("ocrComplete");
-    
+
     logger.info("单张图片OCR识别完成", {
       imageId: selectedImage.value.id,
       imageName: selectedImage.value.name,
       blocksCount: blocks.length,
       resultsCount: results.length,
     });
-    
+
     customMessage.success("识别完成");
   } catch (error) {
     logger.error("单张图片OCR识别失败", {
@@ -414,7 +382,6 @@ const handleBatchOcr = async () => {
   const allResults: OcrResult[] = []; // 累积所有图片的识别结果
 
   try {
-    
     for (const uploadedImage of props.uploadedImages) {
       const img = uploadedImage.img;
       const imageId = uploadedImage.id;
@@ -468,13 +435,13 @@ const handleBatchOcr = async () => {
     }
 
     emit("ocrComplete");
-    
+
     logger.info("批量OCR识别完成", {
       totalImages: props.uploadedImages.length,
       totalResults: allResults.length,
       engineType: props.engineConfig.type,
     });
-    
+
     customMessage.success("批量识别完成");
   } catch (error) {
     logger.error("批量OCR识别失败", {
@@ -491,7 +458,7 @@ const handleBatchOcr = async () => {
 // 暴露方法给父组件
 defineExpose({
   handleSliceOnly,
-  handleSliceAll
+  handleSliceAll,
 });
 </script>
 
@@ -574,71 +541,11 @@ defineExpose({
 
           <template v-if="engineType === 'vlm'">
             <el-form-item label="视觉模型">
-              <el-select
+              <LlmModelSelector
                 v-model="selectedModelCombo"
-                style="width: 100%"
-                placeholder="选择模型"
-                :disabled="availableVisionModels.length === 0"
-              >
-                <el-option-group
-                  v-for="group in [...new Set(availableVisionModels.map((m) => m.group))]"
-                  :key="group"
-                  :label="group"
-                >
-                  <el-option
-                    v-for="item in availableVisionModels.filter((m) => m.group === group)"
-                    :key="item.value"
-                    :label="item.label"
-                    :value="item.value"
-                  >
-                    <div style="display: flex; align-items: center; gap: 8px">
-                      <!-- 模型图标 -->
-                      <DynamicIcon
-                        v-if="getModelIcon(item.model)"
-                        :src="getModelIcon(item.model)!"
-                        :alt="item.label"
-                        style="width: 20px; height: 20px; object-fit: contain"
-                      />
-                      <div
-                        v-else
-                        style="
-                          width: 20px;
-                          height: 20px;
-                          border-radius: 4px;
-                          background: var(--el-color-primary-light-5);
-                          display: flex;
-                          align-items: center;
-                          justify-content: center;
-                          font-size: 10px;
-                          font-weight: 600;
-                          color: var(--el-color-primary);
-                        "
-                      >
-                        {{ item.model.name.substring(0, 2).toUpperCase() }}
-                      </div>
-                      <!-- 模型名称 -->
-                      <span style="flex: 1">{{ item.label }}</span>
-                      <!-- 模型分组 -->
-                      <el-text
-                        v-if="item.model.group"
-                        size="small"
-                        type="info"
-                        style="margin-left: auto"
-                      >
-                        {{ item.model.group }}
-                      </el-text>
-                    </div>
-                  </el-option>
-                </el-option-group>
-              </el-select>
-              <el-text
-                v-if="availableVisionModels.length === 0"
-                size="small"
-                type="warning"
-                style="margin-top: 8px; display: block"
-              >
-                请先在设置中配置 LLM 服务并添加视觉模型
-              </el-text>
+                :capabilities="{ vision: true }"
+                :disabled="visionProfiles.length === 0"
+              />
             </el-form-item>
 
             <el-form-item label="识别提示词">
@@ -717,11 +624,7 @@ defineExpose({
 
         <el-form label-position="top" size="small">
           <el-form-item>
-            <el-switch
-              v-model="slicerEnabled"
-              active-text="启用"
-              inactive-text="禁用"
-            />
+            <el-switch v-model="slicerEnabled" active-text="启用" inactive-text="禁用" />
           </el-form-item>
 
           <template v-if="slicerEnabled">
@@ -749,7 +652,8 @@ defineExpose({
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}% 视为空白行（颜色越单一，方差越小）
+                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}%
+                视为空白行（颜色越单一，方差越小）
               </el-text>
             </el-form-item>
 
@@ -790,7 +694,13 @@ defineExpose({
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                调整切割位置：{{ slicerCutLineOffset < 0 ? '向上偏移' : slicerCutLineOffset > 0 ? '向下偏移' : '居中' }}
+                调整切割位置：{{
+                  slicerCutLineOffset < 0
+                    ? "向上偏移"
+                    : slicerCutLineOffset > 0
+                      ? "向下偏移"
+                      : "居中"
+                }}
               </el-text>
             </el-form-item>
           </template>
@@ -921,4 +831,3 @@ defineExpose({
   width: 65px;
 }
 </style>
-

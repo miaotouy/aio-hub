@@ -1,74 +1,52 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useAgentStore } from '../agentStore';
-import type { ChatSession } from '../types';
-import { Plus, Delete } from '@element-plus/icons-vue';
+import { computed, ref } from "vue";
+import { useAgentStore } from "../agentStore";
+import type { ChatSession } from "../types";
+import { Plus, Delete, Search } from "@element-plus/icons-vue";
 
 interface Props {
   sessions: ChatSession[];
   currentSessionId: string | null;
+  currentAgentId: string; // 当前激活的智能体ID
 }
 
 interface Emits {
-  (e: 'switch', sessionId: string): void;
-  (e: 'delete', sessionId: string): void;
-  (e: 'new-session', data: { agentId: string; name?: string }): void;
+  (e: "switch", sessionId: string): void;
+  (e: "delete", sessionId: string): void;
+  (e: "new-session", data: { agentId: string; name?: string }): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
+const searchQuery = ref("");
 
-// 新建会话相关
-const showNewSessionForm = ref(false);
-const selectedAgentId = ref('');
-const sessionName = ref('');
-
-// 可用智能体列表
-const availableAgents = computed(() => agentStore.sortedAgents);
-
-// 创建新会话
-const handleCreateSession = () => {
-  if (!selectedAgentId.value) {
-    alert('请选择智能体');
-    return;
-  }
-
-  emit('new-session', {
-    agentId: selectedAgentId.value,
-    name: sessionName.value || undefined,
-  });
-
-  resetNewSessionForm();
-};
-
-// 重置表单
-const resetNewSessionForm = () => {
-  showNewSessionForm.value = false;
-  selectedAgentId.value = '';
-  sessionName.value = '';
-};
-
-// 快速新建（使用默认智能体）
+// 快速新建会话
 const handleQuickNewSession = () => {
-  const defaultAgent = agentStore.defaultAgent;
-  if (!defaultAgent) {
-    // 如果没有默认智能体，显示表单
-    showNewSessionForm.value = true;
+  // 优先使用当前会话的智能体，否则使用默认智能体
+  const agentId = props.currentAgentId || agentStore.defaultAgent?.id;
+  if (!agentId) {
+    alert("没有可用的智能体来创建新会话");
     return;
   }
-
-  emit('new-session', {
-    agentId: defaultAgent.id,
-  });
+  emit("new-session", { agentId });
 };
 
 // 按更新时间倒序排列
 const sortedSessions = computed(() => {
-  return [...props.sessions].sort((a, b) => 
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  return [...props.sessions].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
+});
+
+// 搜索过滤
+const filteredSessions = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return sortedSessions.value;
+  }
+  const query = searchQuery.value.toLowerCase();
+  return sortedSessions.value.filter((session) => session.name.toLowerCase().includes(query));
 });
 
 // 格式化日期
@@ -80,14 +58,14 @@ const formatDate = (timestamp: string) => {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return '刚刚';
+  if (diffMins < 1) return "刚刚";
   if (diffMins < 60) return `${diffMins} 分钟前`;
   if (diffHours < 24) return `${diffHours} 小时前`;
   if (diffDays < 7) return `${diffDays} 天前`;
-  
-  return date.toLocaleDateString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
+
+  return date.toLocaleDateString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
   });
 };
 
@@ -100,70 +78,33 @@ const getMessageCount = (session: ChatSession) => {
 const confirmDelete = (session: ChatSession, event: Event) => {
   event.stopPropagation();
   if (confirm(`确定要删除对话"${session.name}"吗？`)) {
-    emit('delete', session.id);
+    emit("delete", session.id);
   }
 };
 </script>
 
 <template>
   <div class="sessions-sidebar">
-    <div class="sidebar-header">
+    <div class="sessions-sidebar-header">
       <div class="header-top">
-        <el-button
-          type="primary"
-          @click="handleQuickNewSession"
-          :icon="Plus"
-          style="width: 100%"
-        >
-          新建对话
-        </el-button>
+        <el-input v-model="searchQuery" placeholder="搜索会话..." :prefix-icon="Search" clearable />
+        <el-button :icon="Plus" @click="handleQuickNewSession" title="新建对话" circle />
       </div>
-
-      <!-- 新建会话表单 -->
-      <div v-if="showNewSessionForm" class="new-session-form">
-        <div class="form-group">
-          <el-input
-            v-model="sessionName"
-            placeholder="对话名称（可选）"
-          />
-        </div>
-
-        <div class="form-group">
-          <el-select
-            v-model="selectedAgentId"
-            placeholder="选择智能体"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="agent in availableAgents"
-              :key="agent.id"
-              :label="`${agent.icon || '🤖'} ${agent.name}`"
-              :value="agent.id"
-            />
-          </el-select>
-        </div>
-
-        <div class="form-actions">
-          <el-button type="primary" @click="handleCreateSession">
-            创建
-          </el-button>
-          <el-button @click="resetNewSessionForm">
-            取消
-          </el-button>
-        </div>
-      </div>
-
-      <div class="session-count">{{ sessions.length }} 个会话</div>
     </div>
 
+    <div class="session-count">{{ filteredSessions.length }} / {{ sessions.length }} 个会话</div>
     <div class="sessions-list">
       <div v-if="sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
-        <p class="hint">点击上方按钮创建新会话</p>
+        <p class="hint">点击上方 "+" 按钮创建新会话</p>
+      </div>
+
+      <div v-else-if="filteredSessions.length === 0" class="empty-state">
+        <p>未找到匹配的会话</p>
       </div>
 
       <div
-        v-for="session in sortedSessions"
+        v-for="session in filteredSessions"
         :key="session.id"
         :class="['session-item', { active: session.id === currentSessionId }]"
         @click="emit('switch', session.id)"
@@ -175,7 +116,7 @@ const confirmDelete = (session: ChatSession, event: Event) => {
             <span class="session-time">{{ formatDate(session.updatedAt) }}</span>
           </div>
         </div>
-        
+
         <el-button
           @click="confirmDelete(session, $event)"
           :icon="Delete"
@@ -198,39 +139,22 @@ const confirmDelete = (session: ChatSession, event: Event) => {
   background-color: var(--card-bg);
 }
 
-.sidebar-header {
+.sessions-sidebar-header {
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
 }
 
 .header-top {
-  margin-bottom: 12px;
-}
-
-
-.new-session-form {
-  padding: 12px;
-  background-color: var(--container-bg);
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
-
-.form-group {
-  margin-bottom: 8px;
-}
-
-
-.form-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.form-actions .el-button {
-  flex: 1;
+  gap: 8px;
+  align-items: center;
 }
 
 .session-count {
+  margin: 0;
+  padding: 8px 0;
   font-size: 12px;
   color: var(--text-color-light);
   text-align: center;

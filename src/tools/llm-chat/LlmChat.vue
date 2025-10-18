@@ -253,6 +253,7 @@ const handleExportSession = () => {
       <SessionsSidebar
         :sessions="store.sessions"
         :current-session-id="store.currentSessionId"
+        :current-agent-id="currentAgentId"
         @switch="handleSwitchSession"
         @delete="handleDeleteSession"
         @new-session="handleNewSession"

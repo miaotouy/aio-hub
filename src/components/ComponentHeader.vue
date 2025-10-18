@@ -109,130 +109,141 @@ const handleMenuReattach = async () => {
 <template>
   <div class="component-header" :class="positionClasses">
     <!-- Drag and Title Area -->
-    <div
-      class="drag-area"
-      :class="{ 'window-drag-mode': dragMode === 'window' }"
-      :data-tauri-drag-region="dragMode === 'window' ? '' : null"
-      :title="dragTooltip"
-    >
-      <slot name="drag-region">
-        <div class="drag-handle">
-          <i-ep-rank class="drag-icon" />
-          <span v-if="!isCollapsed && position !== 'left' && position !== 'right'" class="title">{{
-            title
-          }}</span>
-        </div>
-      </slot>
-    </div>
+    <el-tooltip :content="dragTooltip" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+      <div
+        class="drag-area"
+        :class="{ 'window-drag-mode': dragMode === 'window' }"
+        :data-tauri-drag-region="dragMode === 'window' ? '' : null"
+      >
+        <slot name="drag-region">
+          <div class="drag-handle">
+            <i-ep-rank class="drag-icon" />
+            <span v-if="!isCollapsed && position !== 'left' && position !== 'right'" class="title">{{
+              title
+            }}</span>
+          </div>
+        </slot>
+      </div>
+    </el-tooltip>
 
     <!-- Actions -->
     <div v-if="showActions" class="actions">
       <!-- Collapse Button -->
-      <button
-        v-if="collapsible"
-        @click="toggleCollapse"
-        class="action-btn"
-        :title="isCollapsed ? '展开' : '收起'"
-      >
-        <svg
-          v-if="!isCollapsed"
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M5 12h14" />
-        </svg>
-        <svg
-          v-else
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M5 12h14" />
-          <path d="M12 5v14" />
-        </svg>
-      </button>
+      <el-tooltip :content="isCollapsed ? '展开' : '收起'" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+        <button v-if="collapsible" @click="toggleCollapse" class="action-btn">
+          <svg
+            v-if="!isCollapsed"
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 12h14" />
+          </svg>
+          <svg
+            v-else
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+          </svg>
+        </button>
+      </el-tooltip>
 
       <!-- Menu Button -->
       <div class="menu-container">
-        <button @click="toggleMenu" class="action-btn" :class="{ active: showMenu }" title="菜单">
-          <i-ep-menu />
-        </button>
+        <el-tooltip content="菜单" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+          <button @click="toggleMenu" class="action-btn" :class="{ active: showMenu }">
+            <i-ep-menu />
+          </button>
+        </el-tooltip>
 
-        <!-- Dropdown Menu -->
-        <div v-if="showMenu" class="dropdown-menu" @click.stop>
-          <!-- 分离模式下的菜单 -->
-          <template v-if="dragMode === 'window'">
-            <div class="menu-item" @click="handleMenuReattach">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+        <!-- Expanded Icon Buttons -->
+        <transition name="menu-expand">
+          <div v-if="showMenu" class="expanded-menu" @click.stop>
+            <!-- 分离模式下的按钮 -->
+            <template v-if="dragMode === 'window'">
+              <el-tooltip content="回归主窗口" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+                <button @click="handleMenuReattach" class="action-btn menu-action-btn">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M18 16l-4-4 4-4" />
+                    <path d="M6 8h8a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H6" />
+                  </svg>
+                </button>
+              </el-tooltip>
+              <el-tooltip
+                :content="isPinned ? '取消置顶' : '置顶窗口'"
+                placement="top"
+                :show-arrow="false"
+                :offset="10"
+                :enterable="false"
               >
-                <path d="M18 16l-4-4 4-4" />
-                <path d="M6 8h8a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H6" />
-              </svg>
-              <span>回归主窗口</span>
-            </div>
-            <div class="menu-item" @click="togglePin">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M12 22V8" />
-                <path d="M5 8h14" />
-                <path d="m12 8-4 4h8l-4-4z" />
-              </svg>
-              <span>{{ isPinned ? "取消置顶" : "置顶窗口" }}</span>
-            </div>
-          </template>
-          <!-- 内嵌模式下的菜单 -->
-          <template v-else>
-            <div class="menu-item" @click="handleMenuDetach">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-              <span>在独立窗口打开</span>
-            </div>
-          </template>
-        </div>
+                <button @click="togglePin" class="action-btn menu-action-btn">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 22V8" />
+                    <path d="M5 8h14" />
+                    <path d="m12 8-4 4h8l-4-4z" />
+                  </svg>
+                </button>
+              </el-tooltip>
+            </template>
+            <!-- 内嵌模式下的按钮 -->
+            <template v-else>
+              <el-tooltip content="在独立窗口打开" placement="top" :show-arrow="false" :offset="10" :enterable="false">
+                <button @click="handleMenuDetach" class="action-btn menu-action-btn">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </button>
+              </el-tooltip>
+            </template>
+          </div>
+        </transition>
         <div v-if="showMenu" class="menu-backdrop" @click="closeMenu"></div>
       </div>
     </div>
@@ -399,43 +410,67 @@ const handleMenuReattach = async () => {
 /* --- Menu --- */
 .menu-container {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.dropdown-menu {
-  position: absolute;
-  min-width: 180px;
-  background: var(--sidebar-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
+.expanded-menu {
+  display: flex;
+  align-items: center;
   z-index: 1001;
-  padding: 4px;
-  animation: menu-fade-in 0.15s ease-out;
-}
-.position-top .dropdown-menu,
-.position-bottom .dropdown-menu {
-  top: calc(100% + 4px);
-  right: 0;
-}
-.position-left .dropdown-menu {
-  top: 0;
-  left: calc(100% + 4px);
-}
-.position-right .dropdown-menu {
-  top: 0;
-  right: calc(100% + 4px);
 }
 
-@keyframes menu-fade-in {
+.position-top .expanded-menu,
+.position-bottom .expanded-menu {
+  flex-direction: row;
+  gap: 2px;
+}
+
+.position-left .expanded-menu,
+.position-right .expanded-menu {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.position-left .menu-container,
+.position-right .menu-container {
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.menu-action-btn {
+  animation: menu-btn-fade-in 0.2s ease-out backwards;
+}
+
+.menu-action-btn:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.menu-action-btn:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+@keyframes menu-btn-fade-in {
   from {
     opacity: 0;
-    transform: scale(0.95) translateY(-5px);
+    transform: scale(0.8);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1);
   }
+}
+
+.menu-expand-enter-active,
+.menu-expand-leave-active {
+  transition: all 0.2s ease;
+}
+
+.menu-expand-enter-from,
+.menu-expand-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
 }
 
 .menu-backdrop {
@@ -446,32 +481,6 @@ const handleMenuReattach = async () => {
   bottom: 0;
   z-index: 1000;
   background: transparent;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  cursor: pointer;
-  transition: background 0.2s;
-  color: var(--text-color);
-  font-size: 13px;
-  border-radius: 4px;
-}
-
-.menu-item:hover {
-  background: rgba(var(--primary-color-rgb), 0.1);
-  color: var(--primary-color);
-}
-
-.menu-item svg {
-  width: 14px;
-  height: 14px;
-  opacity: 0.8;
-}
-.menu-item:hover svg {
-  opacity: 1;
 }
 
 /* --- Collapsed State --- */

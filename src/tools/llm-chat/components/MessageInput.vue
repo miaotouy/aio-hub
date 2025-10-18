@@ -221,7 +221,7 @@ const handleResizeStart = createResizeHandler("SouthEast");
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 24px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
   transition: border-color 0.2s;
@@ -247,7 +247,7 @@ const handleResizeStart = createResizeHandler("SouthEast");
 /* 分离手柄的特定样式 */
 .detachable-handle {
   flex-shrink: 0;
-  width: 20px;
+  width: 26px;
   padding: 0;
   border: 1px solid var(--border-color);
   background: transparent;
@@ -280,7 +280,6 @@ const handleResizeStart = createResizeHandler("SouthEast");
   border-color: var(--primary-color);
 }
 .message-textarea {
-  flex: 1;
   padding: 10px 14px;
   font-size: 14px;
   line-height: 1.6;
@@ -288,9 +287,15 @@ const handleResizeStart = createResizeHandler("SouthEast");
   background-color: transparent;
   color: var(--text-color);
   resize: none;
-  max-height: 250px; /* Capped height */
   overflow-y: auto;
   font-family: inherit;
+  min-height: 40px; /* 最小高度约1-2行 */
+  max-height: 200px; /* 默认最大高度约8行 */
+}
+
+/* 分离模式下取消最大高度限制 */
+.message-input-container.detached-mode .message-textarea {
+  flex: 1; /* 分离模式下允许填充可用空间 */
 }
 
 
@@ -331,8 +336,8 @@ const handleResizeStart = createResizeHandler("SouthEast");
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 50%;
   cursor: pointer;

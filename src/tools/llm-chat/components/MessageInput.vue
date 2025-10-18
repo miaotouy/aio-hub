@@ -193,6 +193,7 @@ const handleResizeStart = createResizeHandler("SouthEast");
   border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
+  transition: border-color 0.2s;
 }
 
 /* 分离模式下组件完全一致，只是添加更强的阴影 */
@@ -217,10 +218,11 @@ const handleResizeStart = createResizeHandler("SouthEast");
   flex-shrink: 0;
   width: 20px;
   padding: 0;
-  border: none;
+  border: 1px solid var(--border-color);
   background: transparent;
   cursor: move;
-  border-radius: 8px 0 0 8px;
+  border-radius: 8px;
+  align-self: flex-start;
 }
 
 /* 分离模式下，手柄也可以用于拖动窗口 */
@@ -235,19 +237,15 @@ const handleResizeStart = createResizeHandler("SouthEast");
   gap: 8px;
   min-width: 0;
 }
-
 .input-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   border-radius: 8px; /* Slightly smaller radius for nesting */
-  border: 1px solid var(--border-color);
-  background: var(--bg-color); /* A slightly different background */
-  transition: border-color 0.2s;
   overflow: hidden;
 }
 
-.input-wrapper:focus-within {
+.message-input-container:focus-within {
   border-color: var(--primary-color);
 }
 .message-textarea {

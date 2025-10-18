@@ -163,7 +163,7 @@ onMounted(async () => {
   pointer-events: none;
   /* 让鼠标事件穿透容器 */
   gap: 8px;
-  padding: 26px;
+  padding: 32px;
   /* 添加内边距，让组件不会紧贴窗口边缘 */
   box-sizing: border-box;
 }

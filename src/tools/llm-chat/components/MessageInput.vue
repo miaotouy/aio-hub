@@ -5,7 +5,6 @@ import { useDetachedComponents } from "@/composables/useDetachedComponents";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
-import { emit as tauriEmit } from "@tauri-apps/api/event";
 
 const logger = createModuleLogger("MessageInput");
 
@@ -27,50 +26,23 @@ const inputText = ref("");
 const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
 // 处理发送
-const handleSend = async () => {
+// 处理发送
+const handleSend = () => {
   const content = inputText.value.trim();
   if (!content || props.disabled) return;
 
-  // 如果是分离窗口，通过事件系统发送到主窗口
-  if (props.isDetached) {
-    try {
-      await tauriEmit("chat-input-send", { content });
-      logger.info("分离窗口发送消息事件", { content });
-      inputText.value = "";
-      // 重置文本框高度
-      if (textareaRef.value) {
-        textareaRef.value.style.height = "auto";
-      }
-    } catch (error) {
-      logger.error("发送消息事件失败", { error });
-    }
-  } else {
-    // 主窗口直接发送
-    emit("send", content);
-    inputText.value = "";
-    // 重置文本框高度
-    if (textareaRef.value) {
-      textareaRef.value.style.height = "auto";
-    }
+  emit("send", content);
+  inputText.value = "";
+  // 重置文本框高度
+  if (textareaRef.value) {
+    textareaRef.value.style.height = "auto";
   }
 };
 
 // 处理中止
-const handleAbort = async () => {
-  // 如果是分离窗口，通过事件系统发送到主窗口
-  if (props.isDetached) {
-    try {
-      await tauriEmit("chat-input-abort", {});
-      logger.info("分离窗口发送中止事件");
-    } catch (error) {
-      logger.error("发送中止事件失败", { error });
-    }
-  } else {
-    // 主窗口直接发送
-    emit("abort");
-  }
+const handleAbort = () => {
+  emit("abort");
 };
-
 // 处理键盘事件
 const handleKeydown = (e: KeyboardEvent) => {
   // Ctrl/Cmd + Enter 发送

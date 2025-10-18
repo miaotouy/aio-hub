@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import type { ChatMessageNode } from '../types';
 import { useComponentDragging } from '@/composables/useComponentDragging';
 import { useDetachedComponents } from '@/composables/useDetachedComponents';
@@ -106,7 +106,19 @@ const { createResizeHandler } = useWindowResize();
 const handleResizeStart = createResizeHandler('SouthEast');
 
 // ===== 独立窗口功能 =====
-const { requestPreviewWindow, finalizePreviewWindow } = useDetachedComponents();
+const { initializeListeners, requestPreviewWindow, finalizePreviewWindow, isComponentDetached } = useDetachedComponents();
+
+const isMessageInputDetached = computed(() => {
+  const result = isComponentDetached('chat-input');
+  logger.info('MessageInput 分离状态检查', { isDetached: result });
+  return result;
+});
+
+// 初始化监听器以同步分离状态
+onMounted(async () => {
+  await initializeListeners();
+  logger.info('ChatArea 分离组件监听器已初始化');
+});
 
 // 处理从菜单打开独立窗口
 const handleDetach = async () => {
@@ -249,9 +261,9 @@ const handleRegenerate = async () => {
 
         <!-- 输入框 -->
         <MessageInput
+          v-if="!isMessageInputDetached"
           :disabled="disabled"
           :is-sending="isSending"
-          :is-detached="isDetached"
           @send="handleSendMessage"
           @abort="handleAbort"
         />

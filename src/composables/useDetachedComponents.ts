@@ -5,11 +5,29 @@ import { createModuleLogger } from '../utils/logger';
 
 const logger = createModuleLogger('DetachedComponents');
 
-// 全局状态：已分离的组件 ID 集合
-const detachedComponentIds = ref<Set<string>>(new Set());
+// 全局状态：已分离的组件标签集合
+const detachedComponentLabels = ref<Set<string>>(new Set());
+
+// 全局状态：窗口标签到组件 ID 的映射
+const labelToComponentId = ref<Map<string, string>>(new Map());
 
 // 是否已初始化监听器
 let initialized = false;
+
+/**
+ * 打印当前组件窗口列表
+ */
+const printComponentWindowList = (context: string) => {
+  const labels = Array.from(detachedComponentLabels.value);
+  console.log('========================================');
+  console.log(`[${context}] 当前组件窗口列表 (总数: ${labels.length})`);
+  console.log('========================================');
+  labels.forEach((label, index) => {
+    const componentId = labelToComponentId.value.get(label);
+    console.log(`  [${index + 1}] ${label} -> ${componentId || 'unknown'}`);
+  });
+  console.log('========================================');
+};
 
 /**
  * 组件预览配置接口
@@ -21,6 +39,8 @@ export interface ComponentPreviewConfig {
   height: number;
   mouseX: number;
   mouseY: number;
+  // 允许任意额外的属性，用于传递组件特定的 props
+  [key: string]: any;
 }
 
 /**
@@ -35,22 +55,53 @@ export function useDetachedComponents() {
 
     try {
       // 监听组件被分离事件
-      await listen<string>('component-detached', (event) => {
-        logger.info('组件被分离', { label: event.payload });
-        // 从 label 中提取 componentId (格式: component-window-N)
-        // 但我们需要存储实际的组件ID，而不是窗口label
-        // 这里暂时使用 label，后续可以改进
-        detachedComponentIds.value.add(event.payload);
+      await listen<{ label: string; componentId: string }>('component-detached', (event) => {
+        const { label, componentId } = event.payload;
+        logger.info('组件被分离', { label, componentId });
+        
+        // 创建新的 Set 和 Map 来触发响应式更新
+        const newSet = new Set(detachedComponentLabels.value);
+        newSet.add(label);
+        detachedComponentLabels.value = newSet;
+        
+        // 同时更新映射表
+        const newMap = new Map(labelToComponentId.value);
+        newMap.set(label, componentId);
+        labelToComponentId.value = newMap;
+        
+        logger.info('更新后的状态', {
+          detachedLabels: Array.from(detachedComponentLabels.value),
+          labelToComponentIdMap: Array.from(labelToComponentId.value.entries())
+        });
+        
+        printComponentWindowList('组件分离');
       });
 
       // 监听组件被重新附着事件
-      await listen<string>('component-attached', (event) => {
-        logger.info('组件被重新附着', { label: event.payload });
-        detachedComponentIds.value.delete(event.payload);
+      await listen<{ label: string; componentId: string }>('component-attached', (event) => {
+        const { label, componentId } = event.payload;
+        logger.info('组件被重新附着', { label, componentId });
+        
+        // 创建新的 Set 和 Map 来触发响应式更新
+        const newSet = new Set(detachedComponentLabels.value);
+        newSet.delete(label);
+        detachedComponentLabels.value = newSet;
+        
+        const newMap = new Map(labelToComponentId.value);
+        newMap.delete(label);
+        labelToComponentId.value = newMap;
+        
+        logger.info('更新后的状态', {
+          detachedLabels: Array.from(detachedComponentLabels.value),
+          labelToComponentIdMap: Array.from(labelToComponentId.value.entries())
+        });
+        
+        printComponentWindowList('组件附着');
       });
 
       initialized = true;
       logger.info('分离组件监听器初始化完成');
+      printComponentWindowList('初始化');
 
     } catch (error) {
       logger.error('初始化监听器失败', { error });
@@ -65,6 +116,10 @@ export function useDetachedComponents() {
       logger.info('正在请求预览窗口', { config });
       const label = await invoke<string>('request_preview_window', { config });
       logger.info('预览窗口已创建', { label });
+      
+      // 记录 label 到 componentId 的映射
+      labelToComponentId.value.set(label, config.componentId);
+      
       return label;
     } catch (error) {
       logger.error('请求预览窗口失败', { error, config });
@@ -133,18 +188,38 @@ export function useDetachedComponents() {
    * 检查组件是否已分离
    */
   const isComponentDetached = (componentId: string): boolean => {
-    // TODO: 这里需要改进，因为我们存储的是窗口label，而不是componentId
-    // 暂时使用简单的检查
-    return Array.from(detachedComponentIds.value).some(label => 
-      label.includes(componentId)
-    );
+    logger.info('检查组件是否已分离', {
+      componentId,
+      detachedLabels: Array.from(detachedComponentLabels.value),
+      labelToComponentIdMap: Array.from(labelToComponentId.value.entries())
+    });
+    
+    // 遍历所有已分离的窗口标签，检查是否有匹配的组件 ID
+    for (const label of detachedComponentLabels.value) {
+      const mappedComponentId = labelToComponentId.value.get(label);
+      logger.info('检查标签映射', { label, mappedComponentId, targetComponentId: componentId });
+      if (mappedComponentId === componentId) {
+        logger.info('找到匹配的已分离组件', { componentId, label });
+        return true;
+      }
+    }
+    
+    logger.info('组件未分离', { componentId });
+    return false;
   };
 
   /**
-   * 获取所有已分离的组件
+   * 获取所有已分离的组件 ID 列表
    */
   const getDetachedComponents = computed(() => {
-    return Array.from(detachedComponentIds.value);
+    const componentIds = new Set<string>();
+    for (const label of detachedComponentLabels.value) {
+      const componentId = labelToComponentId.value.get(label);
+      if (componentId) {
+        componentIds.add(componentId);
+      }
+    }
+    return Array.from(componentIds);
   });
 
   return {
@@ -155,7 +230,8 @@ export function useDetachedComponents() {
     cancelPreviewWindow,
     getPoolStatus,
     isComponentDetached,
-    detachedComponentIds: computed(() => detachedComponentIds.value),
+    detachedComponentLabels: computed(() => detachedComponentLabels.value),
+    labelToComponentId: computed(() => labelToComponentId.value),
     getDetachedComponents,
   };
 }

@@ -113,6 +113,20 @@ fn get_tray_setting(state: tauri::State<AppState>) -> Result<bool, String> {
     Ok(*tray_enabled)
 }
 
+// 打印当前窗口列表
+fn print_window_list(app_handle: &tauri::AppHandle) {
+    let windows = app_handle.webview_windows();
+    let window_labels: Vec<String> = windows.keys().map(|k| k.to_string()).collect();
+    
+    println!("========================================");
+    println!("当前窗口列表 (总数: {})", window_labels.len());
+    println!("========================================");
+    for (index, label) in window_labels.iter().enumerate() {
+        println!("  [{}] {}", index + 1, label);
+    }
+    println!("========================================");
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -262,6 +276,11 @@ pub fn run() {
                         }
                     }
                 }
+            }
+
+            // 监听窗口销毁事件，打印窗口列表
+            if let tauri::WindowEvent::Destroyed = event {
+                print_window_list(window.app_handle());
             }
         })
         // 运行应用

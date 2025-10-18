@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { onMounted, computed, ref } from 'vue';
+import { onMounted, computed, watch } from 'vue';
 import { useLlmChatStore } from './store';
 import { useAgentStore } from './agentStore';
 import { useDetachedComponents } from '@/composables/useDetachedComponents';
 import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
+import { getAllWebviewWindows } from '@tauri-apps/api/webviewWindow';
 import ChatArea from './components/ChatArea.vue';
 import SessionsSidebar from './components/SessionsSidebar.vue';
 import LeftSidebar from './components/LeftSidebar.vue';
@@ -15,22 +15,74 @@ const store = useLlmChatStore();
 const agentStore = useAgentStore();
 
 // 分离组件管理
-const { initializeListeners } = useDetachedComponents();
+const {
+  initializeListeners,
+  isComponentDetached,
+  detachedComponentLabels,
+  labelToComponentId
+} = useDetachedComponents();
 
 // 对话区域是否已分离的状态
-const isChatAreaDetached = ref(false);
+const isChatAreaDetached = computed(() => {
+  const result = isComponentDetached('chat-area');
+  logger.info('ChatArea 分离状态检查', { isDetached: result });
+  return result;
+});
 
-// 检查对话区域是否已分离
-const checkChatAreaDetached = async () => {
+// 向分离窗口推送数据
+const pushDataToDetachedWindow = async () => {
+  if (!isChatAreaDetached.value) return;
+  
   try {
-    const components = await invoke<Array<{ label: string; componentId: string }>>('get_finalized_components');
-    const chatAreaComponent = components.find(c => c.componentId === 'chat-area');
-    if (chatAreaComponent) {
-      isChatAreaDetached.value = true;
-      logger.info('检测到对话区域已分离', { label: chatAreaComponent.label });
+    const windows = await getAllWebviewWindows();
+    
+    // 找到 chat-area 对应的窗口标签
+    let chatAreaLabel: string | null = null;
+    for (const label of detachedComponentLabels.value) {
+      if (labelToComponentId.value.get(label) === 'chat-area') {
+        chatAreaLabel = label;
+        break;
+      }
+    }
+    
+    if (!chatAreaLabel) {
+      logger.warn('未找到 ChatArea 窗口标签', {
+        detachedLabels: Array.from(detachedComponentLabels.value),
+        labelMap: Array.from(labelToComponentId.value.entries())
+      });
+      return;
+    }
+    
+    // 查找对应的窗口对象
+    const chatAreaWindow = windows.find(w => w.label === chatAreaLabel);
+    
+    if (chatAreaWindow) {
+      const currentAgent = currentAgentId.value ? agentStore.getAgentById(currentAgentId.value) : null;
+      
+      const syncData = {
+        messages: store.currentMessageChain,
+        isSending: store.isSending,
+        disabled: !store.currentSession,
+        currentAgentId: currentAgentId.value,
+        currentModelId: currentAgent?.modelId,
+      };
+      
+      // 发送到特定窗口
+      await chatAreaWindow.emit('chat-area-sync-data', syncData);
+      logger.info('推送数据到分离窗口', {
+        windowLabel: chatAreaWindow.label,
+        messageCount: syncData.messages.length,
+        isSending: syncData.isSending,
+        currentAgentId: syncData.currentAgentId
+      });
+    } else {
+      logger.warn('未找到 ChatArea 分离窗口对象', {
+        chatAreaLabel,
+        availableWindows: windows.map(w => w.label)
+      });
     }
   } catch (error) {
-    logger.error('检查已固定组件失败', { error });
+    logger.error('推送数据到分离窗口失败', { error });
   }
 };
 
@@ -42,43 +94,35 @@ onMounted(async () => {
   // 初始化分离组件监听器
   await initializeListeners();
   
-  // 检查对话区域是否已分离（刷新页面时恢复状态）
-  await checkChatAreaDetached();
-  
-  // 监听对话区域分离/回归事件
-  await listen<{ label: string; componentId: string }>('component-detached', (event) => {
-    if (event.payload.componentId === 'chat-area') {
-      isChatAreaDetached.value = true;
-      logger.info('对话区域已分离', { label: event.payload.label });
-    }
-  });
-  
-  await listen<{ label: string; componentId: string }>('component-attached', (event) => {
-    if (event.payload.componentId === 'chat-area') {
-      isChatAreaDetached.value = false;
-      logger.info('对话区域已回归', { label: event.payload.label });
-    }
-  });
-  
-  // 监听分离窗口的消息发送事件
+  // 监听分离窗口的消息发送事件（来自 ChatArea 或 MessageInput）
   await listen<{ content: string }>('chat-area-send', (event) => {
-    logger.info('收到分离窗口的发送消息事件', { content: event.payload.content });
+    logger.info('收到 ChatArea 分离窗口的发送消息事件', { content: event.payload.content });
     handleSendMessage(event.payload.content);
   });
   
-  // 监听分离窗口的中止事件
+  await listen<{ content: string }>('chat-input-send', (event) => {
+    logger.info('收到 MessageInput 分离窗口的发送消息事件', { content: event.payload.content });
+    handleSendMessage(event.payload.content);
+  });
+  
+  // 监听分离窗口的中止事件（来自 ChatArea 或 MessageInput）
   await listen('chat-area-abort', () => {
-    logger.info('收到分离窗口的中止事件');
+    logger.info('收到 ChatArea 分离窗口的中止事件');
     handleAbortSending();
   });
   
-  // 监听分离窗口的删除消息事件
+  await listen('chat-input-abort', () => {
+    logger.info('收到 MessageInput 分离窗口的中止事件');
+    handleAbortSending();
+  });
+  
+  // 监听分离窗口的删除消息事件（来自 ChatArea）
   await listen<{ messageId: string }>('chat-area-delete-message', (event) => {
     logger.info('收到分离窗口的删除消息事件', { messageId: event.payload.messageId });
     handleDeleteMessage(event.payload.messageId);
   });
   
-  // 监听分离窗口的重新生成事件
+  // 监听分离窗口的重新生成事件（来自 ChatArea）
   await listen('chat-area-regenerate', () => {
     logger.info('收到分离窗口的重新生成事件');
     handleRegenerate();
@@ -96,6 +140,61 @@ onMounted(async () => {
       handleNewSession({ agentId: defaultAgent.id });
     }
   }
+  
+  // 监听会话选择变化，推送数据到分离窗口
+  watch(
+    () => store.currentSessionId,
+    async () => {
+      logger.info('会话切换，推送数据到分离窗口');
+      await pushDataToDetachedWindow();
+    }
+  );
+  
+  // 监听消息链变化，推送数据到分离窗口
+  watch(
+    () => store.currentMessageChain,
+    async () => {
+      logger.info('消息链变化，推送数据到分离窗口');
+      await pushDataToDetachedWindow();
+    },
+    { deep: true }
+  );
+  
+  // 监听发送状态变化，推送数据到分离窗口
+  watch(
+    () => store.isSending,
+    async () => {
+      logger.info('发送状态变化，推送数据到分离窗口');
+      await pushDataToDetachedWindow();
+    }
+  );
+  
+  // 监听智能体变化，推送数据到分离窗口
+  watch(
+    () => currentAgentId.value,
+    async () => {
+      logger.info('智能体变化，推送数据到分离窗口');
+      await pushDataToDetachedWindow();
+    }
+  );
+  
+  // 监听组件分离事件，立即推送数据
+  await listen<{ label: string; componentId: string }>('component-detached', async (event) => {
+    if (event.payload.componentId === 'chat-area') {
+      logger.info('ChatArea 组件已分离，立即推送数据', { label: event.payload.label });
+      // 等待一小段时间确保分离窗口已完全初始化
+      setTimeout(async () => {
+        await pushDataToDetachedWindow();
+      }, 500);
+    }
+  });
+  
+  // 监听组件附着事件
+  await listen<{ label: string; componentId: string }>('component-attached', (event) => {
+    if (event.payload.componentId === 'chat-area') {
+      logger.info('ChatArea 组件已重新附着', { label: event.payload.label });
+    }
+  });
 });
 
 // 当前会话的智能体ID
@@ -210,9 +309,11 @@ const handleUpdateModelId = (modelId: string) => {
       />
     </div>
 
-    <!-- 中间主内容区 - 仅在未分离时显示 -->
-    <div v-if="!isChatAreaDetached" class="middle-panel">
+    <!-- 中间主内容区 -->
+    <div class="middle-panel">
+      <!-- ChatArea 组件 - 仅在未分离时显示 -->
       <ChatArea
+        v-if="!isChatAreaDetached"
         :messages="store.currentMessageChain"
         :is-sending="store.isSending"
         :disabled="!store.currentSession"
@@ -223,6 +324,18 @@ const handleUpdateModelId = (modelId: string) => {
         @delete-message="handleDeleteMessage"
         @regenerate="handleRegenerate"
       />
+      
+      <!-- 分离后的占位提示 -->
+      <div v-else class="detached-placeholder">
+        <div class="placeholder-content">
+          <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2"/>
+            <path d="M9 3v18M3 9h18M3 15h6M15 15h6" stroke-width="2"/>
+          </svg>
+          <h3 class="placeholder-title">对话区域已分离</h3>
+          <p class="placeholder-description">对话区域已在独立窗口中打开</p>
+        </div>
+      </div>
     </div>
 
     <!-- 右侧边栏：会话列表 -->
@@ -266,6 +379,46 @@ const handleUpdateModelId = (modelId: string) => {
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+  position: relative;
+}
+
+/* 分离后的占位样式 */
+.detached-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.placeholder-content {
+  text-align: center;
+  padding: 48px 24px;
+  max-width: 400px;
+}
+
+.placeholder-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.placeholder-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.placeholder-description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.6;
 }
 
 .right-panel {

@@ -27,6 +27,20 @@ fn generate_component_label() -> String {
     format!("component-window-{}", id)
 }
 
+/// 打印当前窗口列表
+fn print_window_list(app_handle: &AppHandle) {
+    let windows = app_handle.webview_windows();
+    let window_labels: Vec<String> = windows.keys().map(|k| k.to_string()).collect();
+    
+    println!("========================================");
+    println!("当前窗口列表 (总数: {})", window_labels.len());
+    println!("========================================");
+    for (index, label) in window_labels.iter().enumerate() {
+        println!("  [{}] {}", index + 1, label);
+    }
+    println!("========================================");
+}
+
 /// 组件预览配置
 #[derive(Debug, Clone, Deserialize, Serialize)] // 添加 Serialize
 #[serde(rename_all = "camelCase")]
@@ -99,6 +113,9 @@ pub async fn request_preview_window(
     window.show().map_err(|e| e.to_string())?;
 
     println!("[PREVIEW] 预览窗口已激活: {}", label);
+    
+    // 打印当前窗口列表
+    print_window_list(&app);
 
     Ok(label)
 }
@@ -348,6 +365,9 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
     // 发送全局事件通知所有窗口
     app.emit("tool-detached", config.label.clone())
         .map_err(|e| e.to_string())?;
+
+    // 打印当前窗口列表
+    print_window_list(&app);
 
     Ok(format!("Window '{}' created successfully", config.label))
 }
@@ -925,6 +945,9 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         // 获取窗口所在的显示器，然后限制窗口位置在该显示器内
         // 这样可以确保窗口在其所在的显示器内可见，而不是强制在主窗口所在的显示器
         ensure_window_visible(app.clone(), config.label.clone()).await?;
+
+        // 打印当前窗口列表
+        print_window_list(&app);
 
         Ok(true)
     } else {

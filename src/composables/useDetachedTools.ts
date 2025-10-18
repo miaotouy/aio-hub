@@ -16,6 +16,20 @@ let initialized = false;
 let positionCheckInterval: number | null = null;
 
 /**
+ * 打印当前窗口列表
+ */
+const printWindowList = (context: string) => {
+  const toolIds = Array.from(detachedToolIds.value);
+  console.log('========================================');
+  console.log(`[${context}] 当前工具窗口列表 (总数: ${toolIds.length})`);
+  console.log('========================================');
+  toolIds.forEach((id, index) => {
+    console.log(`  [${index + 1}] ${id}`);
+  });
+  console.log('========================================');
+};
+
+/**
  * 窗口配置接口
  */
 export interface WindowConfig {
@@ -52,12 +66,14 @@ export function useDetachedTools() {
       await listen<string>('tool-detached', (event) => {
         logger.info('工具被分离', { toolId: event.payload });
         detachedToolIds.value.add(event.payload);
+        printWindowList('工具分离');
       });
 
       // 监听工具被重新附着事件
       await listen<string>('tool-attached', (event) => {
         logger.info('工具被重新附着', { toolId: event.payload });
         detachedToolIds.value.delete(event.payload);
+        printWindowList('工具附着');
       });
 
       // 从后端获取当前所有工具窗口
@@ -70,6 +86,7 @@ export function useDetachedTools() {
       logger.info('分离工具监听器初始化完成', {
         existingWindows: Array.from(detachedToolIds.value)
       });
+      printWindowList('初始化');
 
       // 根据设置启动或停止定期位置检查
       const settings = loadAppSettings();

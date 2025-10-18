@@ -74,8 +74,8 @@ const { startDrag } = useComponentDragging(
       return {
         componentId: "chat-input",
         displayName: "聊天输入框",
-        width: rect.width + 50,
-        height: rect.height + 50,
+        width: rect.width + 80,
+        height: rect.height + 80,
         mouseX: e.screenX,
         mouseY: e.screenY,
       };
@@ -125,26 +125,50 @@ const handleResizeStart = createResizeHandler("SouthEast");
             @keydown="handleKeydown"
             @input="autoResize"
           />
-
-          <div class="input-actions">
-            <button
-              v-if="!isSending"
-              @click="handleSend"
-              :disabled="disabled || !inputText.trim()"
-              class="btn-send"
-              title="发送 (Ctrl/Cmd + Enter)"
-            >
-              📤 发送
-            </button>
-
-            <button v-else @click="emit('abort')" class="btn-abort" title="停止生成">
-              ⏹️ 停止
-            </button>
+          <div class="input-bottom-bar">
+            <div class="tool-actions">
+              <!-- TODO: Add tool buttons here -->
+            </div>
+            <div class="input-actions">
+              <button
+                v-if="!isSending"
+                @click="handleSend"
+                :disabled="disabled || !inputText.trim()"
+                class="btn-send"
+                title="发送 (Ctrl/Cmd + Enter)"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="12" y1="19" x2="12" y2="5"></line>
+                  <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
+              </button>
+              <button v-else @click="emit('abort')" class="btn-abort" title="停止生成">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div class="input-hint">
-          💡 提示：按 Ctrl/Cmd + Enter 快速发送消息 | 这里可能会用来放一些工具快捷栏，但是还没做
         </div>
       </div>
     </div>
@@ -161,32 +185,31 @@ const handleResizeStart = createResizeHandler("SouthEast");
 
 <style scoped>
 .message-input-container {
-  position: relative; /* 为 resize handle 提供定位上下文 */
+  position: relative; /* For resize handle */
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 16px 16px 4px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
-  /* 添加阴影效果 */
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.1),
-    0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 /* 分离模式下组件完全一致，只是添加更强的阴影 */
 .message-input-container.detached-mode {
+  height: 90vh;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.25),
+    0 8px 16px rgba(0, 0, 0, 0.25),
     0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .main-content {
   display: flex;
+  flex: 1;
   gap: 6px;
   align-items: stretch;
-  background: var(--container-bg);
+  min-width: 0;
+  background: transparent; /* Ensure it doesn't have its own background */
 }
 
 /* 分离手柄的特定样式 */
@@ -198,10 +221,6 @@ const handleResizeStart = createResizeHandler("SouthEast");
   background: transparent;
   cursor: move;
   border-radius: 8px 0 0 8px;
-}
-
-.detachable-handle:hover {
-  background: rgba(var(--primary-color-rgb), 0.1);
 }
 
 /* 分离模式下，手柄也可以用于拖动窗口 */
@@ -218,30 +237,37 @@ const handleResizeStart = createResizeHandler("SouthEast");
 }
 
 .input-wrapper {
+  flex: 1;
   display: flex;
-  gap: 12px;
-  align-items: flex-end;
+  flex-direction: column;
+  border-radius: 8px; /* Slightly smaller radius for nesting */
+  border: 1px solid var(--border-color);
+  background: var(--bg-color); /* A slightly different background */
+  transition: border-color 0.2s;
+  overflow: hidden;
 }
 
+.input-wrapper:focus-within {
+  border-color: var(--primary-color);
+}
 .message-textarea {
   flex: 1;
-  padding: 12px;
+  padding: 10px 14px;
   font-size: 14px;
-  line-height: 1.5;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background-color: var(--container-bg);
+  line-height: 1.6;
+  border: none;
+  background-color: transparent;
   color: var(--text-color);
   resize: none;
-  max-height: 200px;
+  max-height: 250px; /* Capped height */
   overflow-y: auto;
   font-family: inherit;
-  transition: border-color 0.2s;
 }
+
+
 
 .message-textarea:focus {
   outline: none;
-  border-color: var(--primary-color);
 }
 
 .message-textarea:disabled {
@@ -253,21 +279,35 @@ const handleResizeStart = createResizeHandler("SouthEast");
   color: var(--text-color-light);
 }
 
+.input-bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px 4px 12px;
+}
+
+.tool-actions {
+  display: flex;
+  gap: 4px;
+  color: var(--text-color-light);
+  /* TODO: Style for tool buttons */
+}
+
 .input-actions {
   display: flex;
-  gap: 8px;
 }
 
 .btn-send,
 .btn-abort {
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 6px;
+  border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s;
-  white-space: nowrap;
 }
 
 .btn-send {
@@ -296,11 +336,7 @@ const handleResizeStart = createResizeHandler("SouthEast");
   transform: translateY(-1px);
 }
 
-.input-hint {
-  font-size: 12px;
-  color: var(--text-color-light);
-  padding-left: 4px;
-}
+/* .input-hint has been removed */
 
 /* 自定义滚动条 */
 .message-textarea::-webkit-scrollbar {

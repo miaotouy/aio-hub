@@ -117,7 +117,7 @@ const handleMenuReattach = async () => {
     >
       <slot name="drag-region">
         <div class="drag-handle">
-          <span class="drag-icon">::</span>
+          <i-ep-rank class="drag-icon" />
           <span v-if="!isCollapsed && position !== 'left' && position !== 'right'" class="title">{{
             title
           }}</span>
@@ -168,21 +168,7 @@ const handleMenuReattach = async () => {
       <!-- Menu Button -->
       <div class="menu-container">
         <button @click="toggleMenu" class="action-btn" :class="{ active: showMenu }" title="菜单">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="1"></circle>
-            <circle cx="12" cy="5" r="1"></circle>
-            <circle cx="12" cy="19" r="1"></circle>
-          </svg>
+          <i-ep-menu />
         </button>
 
         <!-- Dropdown Menu -->
@@ -265,9 +251,6 @@ const handleMenuReattach = async () => {
   -webkit-app-region: no-drag;
 }
 
-.component-header:hover {
-  background: rgba(var(--sidebar-bg-rgb), 0.95);
-}
 
 /* --- Layout Variants --- */
 .position-top,
@@ -344,12 +327,10 @@ const handleMenuReattach = async () => {
 }
 
 .drag-icon {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
   color: var(--text-color-light);
   opacity: 0.6;
-  letter-spacing: 0;
-  font-weight: bold;
 }
 .drag-area:hover .drag-icon {
   opacity: 0.9;

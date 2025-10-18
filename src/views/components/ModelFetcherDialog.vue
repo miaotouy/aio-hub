@@ -126,6 +126,25 @@ const getModelIcon = (model: LlmModelInfo) => {
   const iconPath = getIconPath(model.id, model.provider);
   return iconPath ? getDisplayIconPath(iconPath) : null;
 };
+
+// 格式化模型名称
+const formatModelName = (modelId: string): string => {
+  // 找到最后一个 / 的位置
+  const lastSlashIndex = modelId.lastIndexOf('/');
+  
+  // 如果找到 /，取后面的部分，否则使用整个 ID
+  let name = lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
+  
+  // 将 - 替换为空格
+  name = name.replace(/-/g, ' ');
+  
+  // 首字母大写
+  if (name.length > 0) {
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  
+  return name;
+};
 </script>
 
 <template>
@@ -170,7 +189,7 @@ const getModelIcon = (model: LlmModelInfo) => {
                 <DynamicIcon v-if="getModelIcon(model)" :src="getModelIcon(model)!" class="model-icon" :alt="model.name" />
                 <div v-else class="model-icon-placeholder" />
                 <div class="model-info">
-                  <div class="model-name">{{ model.name }}</div>
+                  <div class="model-name">{{ formatModelName(model.id) }}</div>
                   <div class="model-id">{{ model.id }}</div>
                 </div>
                 <div class="model-status">

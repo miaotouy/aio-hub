@@ -3,40 +3,40 @@
  * 支持从不同提供商 API 获取可用模型列表
  */
 
-import type { LlmProfile, LlmModelInfo, ProviderType } from '../types/llm-profiles';
-import { getProviderTypeInfo } from '../config/llm-providers';
-import { buildLlmApiUrl } from '@utils/llm-api-url';
-import { fetchWithRetry } from './common';
-import { createModuleLogger } from '@utils/logger';
-import { DEFAULT_METADATA_RULES } from '../config/model-metadata';
+import type { LlmProfile, LlmModelInfo, ProviderType } from "../types/llm-profiles";
+import { getProviderTypeInfo } from "../config/llm-providers";
+import { buildLlmApiUrl } from "@utils/llm-api-url";
+import { fetchWithRetry } from "./common";
+import { createModuleLogger } from "@utils/logger";
+import { DEFAULT_METADATA_RULES, testRuleMatch } from "../config/model-metadata";
 
-const logger = createModuleLogger('ModelFetcher');
+const logger = createModuleLogger("ModelFetcher");
 
 /**
  * 从 API 获取模型列表
  */
 export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelInfo[]> {
   const providerInfo = getProviderTypeInfo(profile.type);
-  
+
   if (!providerInfo?.supportsModelList || !providerInfo.modelListEndpoint) {
     throw new Error(`提供商 ${providerInfo?.name} 不支持自动获取模型列表`);
   }
 
-  logger.info('开始获取模型列表', {
+  logger.info("开始获取模型列表", {
     profileName: profile.name,
     providerType: profile.type,
     endpoint: providerInfo.modelListEndpoint,
   });
 
   const url = buildLlmApiUrl(profile.baseUrl, profile.type, providerInfo.modelListEndpoint);
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : '';
+  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 根据不同提供商构建请求头
   const headers = buildRequestHeaders(profile.type, apiKey);
 
   try {
     const response = await fetchWithRetry(url, {
-      method: 'GET',
+      method: "GET",
       headers,
     });
 
@@ -48,14 +48,14 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
     const data = await response.json();
     const models = parseModelsResponse(data, profile.type);
 
-    logger.info('模型列表获取成功', {
+    logger.info("模型列表获取成功", {
       profileName: profile.name,
       modelCount: models.length,
     });
 
     return models;
   } catch (error) {
-    logger.error('获取模型列表失败', error, {
+    logger.error("获取模型列表失败", error, {
       profileName: profile.name,
       providerType: profile.type,
     });
@@ -68,37 +68,37 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
  */
 function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record<string, string> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   };
 
   switch (providerType) {
-    case 'openai':
-    case 'openai-responses':
+    case "openai":
+    case "openai-responses":
       if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers["Authorization"] = `Bearer ${apiKey}`;
       }
       break;
 
-    case 'claude':
+    case "claude":
       if (apiKey) {
-        headers['x-api-key'] = apiKey;
-        headers['anthropic-version'] = '2023-06-01';
+        headers["x-api-key"] = apiKey;
+        headers["anthropic-version"] = "2023-06-01";
       }
       break;
 
-    case 'gemini':
+    case "gemini":
       // Gemini 使用 URL 参数传递 API Key，不需要在 header 中
       break;
 
-    case 'cohere':
+    case "cohere":
       if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers["Authorization"] = `Bearer ${apiKey}`;
       }
       break;
 
-    case 'vertexai':
+    case "vertexai":
       if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers["Authorization"] = `Bearer ${apiKey}`;
       }
       break;
   }
@@ -113,20 +113,20 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
   const models: LlmModelInfo[] = [];
 
   switch (providerType) {
-    case 'openai':
-    case 'openai-responses':
+    case "openai":
+    case "openai-responses":
       // OpenAI 格式: { data: [{ id, object, created, owned_by }] }
       // 或增强格式 (OpenRouter): { data: [{ id, name, description, context_length, architecture, pricing, ... }] }
       if (data.data && Array.isArray(data.data)) {
         for (const model of data.data) {
           // 检测是否为增强格式（有更多字段）
           const isEnhancedFormat = model.context_length || model.architecture || model.pricing;
-          
+
           const modelInfo: LlmModelInfo = {
             id: model.id,
             name: model.name || model.id,
-            group: extractModelGroup(model.id, 'openai', model.owned_by || 'openai'),
-            provider: model.owned_by || 'openai',
+            group: extractModelGroup(model.id, "openai", model.owned_by || "openai"),
+            provider: model.owned_by || "openai",
             description: model.description,
           };
 
@@ -137,13 +137,13 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
               modelInfo.tokenLimits = {
                 contextLength: model.context_length,
               };
-              
+
               // 如果有 max_completion_tokens，设置输出限制
               if (model.top_provider?.max_completion_tokens) {
                 modelInfo.tokenLimits.output = model.top_provider.max_completion_tokens;
               }
             }
-            
+
             // 架构信息
             if (model.architecture) {
               modelInfo.architecture = {
@@ -151,16 +151,17 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
                 inputModalities: model.architecture.input_modalities,
                 outputModalities: model.architecture.output_modalities,
               };
-              
+
               // 根据架构判断能力
               const inputMods = model.architecture.input_modalities || [];
               modelInfo.capabilities = {
-                vision: inputMods.includes('image'),
-                thinking: model.supported_parameters?.includes('reasoning') ||
-                          model.supported_parameters?.includes('include_reasoning'),
+                vision: inputMods.includes("image"),
+                thinking:
+                  model.supported_parameters?.includes("reasoning") ||
+                  model.supported_parameters?.includes("include_reasoning"),
               };
             }
-            
+
             // 价格信息
             if (model.pricing) {
               modelInfo.pricing = {
@@ -170,14 +171,14 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
                 image: model.pricing.image,
               };
             }
-            
+
             // 支持的参数
             if (model.supported_parameters) {
               modelInfo.supportedFeatures = {
                 parameters: model.supported_parameters,
               };
             }
-            
+
             // 默认参数
             if (model.default_parameters) {
               modelInfo.defaultParameters = {
@@ -186,25 +187,28 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
               };
             }
           }
-          
+
           models.push(modelInfo);
         }
       }
       break;
 
-    case 'claude':
+    case "claude":
       // Claude 格式: { data: [{ id, display_name, type, created_at }] }
       if (data.data && Array.isArray(data.data)) {
         for (const model of data.data) {
-          if (model.type === 'model') {
+          if (model.type === "model") {
             models.push({
               id: model.id,
               name: model.display_name || model.id,
-              group: extractModelGroup(model.id, 'claude', 'anthropic'),
-              provider: 'anthropic',
+              group: extractModelGroup(model.id, "claude", "anthropic"),
+              provider: "anthropic",
               description: model.description,
               capabilities: {
-                vision: model.id.includes('opus') || model.id.includes('sonnet') || model.id.includes('haiku'),
+                vision:
+                  model.id.includes("opus") ||
+                  model.id.includes("sonnet") ||
+                  model.id.includes("haiku"),
               },
             });
           }
@@ -212,22 +216,23 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
       }
       break;
 
-    case 'gemini':
+    case "gemini":
       // Gemini 格式: { models: [{ name, displayName, supportedGenerationMethods, inputTokenLimit, outputTokenLimit, ... }] }
       if (data.models && Array.isArray(data.models)) {
         for (const model of data.models) {
           // 从 name 中提取模型 ID (格式: models/gemini-xxx)
-          const modelId = model.name.replace('models/', '');
-          
+          const modelId = model.name.replace("models/", "");
+
           // 判断是否支持视觉：检查是否支持 generateContent 且不是 embedding 模型
-          const supportsVision = model.supportedGenerationMethods?.includes('generateContent')
-            && !modelId.includes('embedding');
-          
+          const supportsVision =
+            model.supportedGenerationMethods?.includes("generateContent") &&
+            !modelId.includes("embedding");
+
           models.push({
             id: modelId,
             name: model.displayName || modelId,
-            group: extractModelGroup(modelId, 'gemini', 'gemini'),
-            provider: 'gemini',
+            group: extractModelGroup(modelId, "gemini", "gemini"),
+            provider: "gemini",
             version: model.version,
             description: model.description,
             capabilities: {
@@ -252,30 +257,30 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
       }
       break;
 
-    case 'cohere':
+    case "cohere":
       // Cohere 格式: { models: [{ name, endpoints }] }
       if (data.models && Array.isArray(data.models)) {
         for (const model of data.models) {
           models.push({
             id: model.name,
             name: model.name,
-            group: extractModelGroup(model.name, 'cohere', 'cohere'),
-            provider: 'cohere',
+            group: extractModelGroup(model.name, "cohere", "cohere"),
+            provider: "cohere",
           });
         }
       }
       break;
 
-    case 'vertexai':
+    case "vertexai":
       // Vertex AI 使用与 Gemini 类似的格式
       if (data.models && Array.isArray(data.models)) {
         for (const model of data.models) {
-          const modelId = model.name.split('/').pop() || model.name;
+          const modelId = model.name.split("/").pop() || model.name;
           models.push({
             id: modelId,
             name: model.displayName || modelId,
-            group: extractModelGroup(modelId, 'gemini', 'google'),
-            provider: 'google',
+            group: extractModelGroup(modelId, "gemini", "google"),
+            provider: "google",
             capabilities: {
               vision: true, // Vertex AI 的模型通常都支持视觉
             },
@@ -294,81 +299,45 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
  */
 function extractModelGroup(modelId: string, providerType: ProviderType, provider?: string): string {
   // 首先尝试从元数据规则中获取分组
-  const rules = DEFAULT_METADATA_RULES
-    .filter(r => r.enabled !== false && r.properties?.group)
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  const rules = DEFAULT_METADATA_RULES.filter(
+    (r) => r.enabled !== false && r.properties?.group
+  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of rules) {
-    let matched = false;
-    
-    switch (rule.matchType) {
-      case 'model':
-        if (rule.useRegex) {
-          try {
-            const regex = new RegExp(rule.matchValue);
-            matched = regex.test(modelId);
-          } catch (e) {
-            // 正则表达式无效，跳过
-          }
-        } else {
-          matched = modelId === rule.matchValue;
-        }
-        break;
-
-      case 'modelPrefix':
-        if (rule.useRegex) {
-          try {
-            const regex = new RegExp(rule.matchValue);
-            matched = regex.test(modelId);
-          } catch (e) {
-            // 正则表达式无效，跳过
-          }
-        } else {
-          matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
-        }
-        break;
-
-      case 'provider':
-        if (provider && provider.toLowerCase() === rule.matchValue.toLowerCase()) {
-          matched = true;
-        }
-        break;
-    }
-    
-    if (matched && rule.properties?.group) {
+    if (testRuleMatch(rule, modelId, provider) && rule.properties?.group) {
       return rule.properties.group;
     }
   }
-  
+
   // 如果元数据规则中没有匹配，使用默认分组逻辑
   const id = modelId.toLowerCase();
-  
+
   switch (providerType) {
-    case 'openai':
-      if (id.includes('gpt-4')) return 'GPT-4';
-      if (id.includes('gpt-3.5')) return 'GPT-3.5';
-      if (id.includes('o1')) return 'o1';
-      if (id.includes('o3')) return 'o3';
-      return 'Other';
-      
-    case 'claude':
-      if (id.includes('opus')) return 'Claude Opus';
-      if (id.includes('sonnet')) return 'Claude Sonnet';
-      if (id.includes('haiku')) return 'Claude Haiku';
-      return 'Claude';
-      
-    case 'gemini':
-      if (id.includes('2.5')) return 'Gemini 2.5';
-      if (id.includes('2.0')) return 'Gemini 2.0';
-      if (id.includes('1.5')) return 'Gemini 1.5';
-      if (id.includes('1.0')) return 'Gemini 1.0';
-      return 'Gemini';
-      
-    case 'cohere':
-      if (id.includes('command')) return 'Command';
-      return 'Cohere';
-      
+    case "openai":
+      if (id.includes("gpt-4")) return "GPT-4";
+      if (id.includes("gpt-3.5")) return "GPT-3.5";
+      if (id.includes("o1")) return "o1";
+      if (id.includes("o3")) return "o3";
+      return "Other";
+
+    case "claude":
+      if (id.includes("opus")) return "Claude Opus";
+      if (id.includes("sonnet")) return "Claude Sonnet";
+      if (id.includes("haiku")) return "Claude Haiku";
+      return "Claude";
+
+    case "gemini":
+      if (id.includes("2.5")) return "Gemini 2.5";
+      if (id.includes("2.0")) return "Gemini 2.0";
+      if (id.includes("1.5")) return "Gemini 1.5";
+      if (id.includes("1.0")) return "Gemini 1.0";
+      return "Gemini";
+
+    case "cohere":
+      if (id.includes("command")) return "Command";
+      return "Cohere";
+
     default:
-      return 'Models';
+      return "Models";
   }
 }

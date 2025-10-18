@@ -1,6 +1,6 @@
 /**
  * 模型元数据默认配置
- * 
+ *
  * 这个文件定义了所有预设的模型元数据匹配规则。
  * 当前主要包含图标和分组信息，未来可以扩展更多属性。
  */
@@ -17,7 +17,7 @@ export { PRESET_ICONS_DIR, PRESET_ICONS } from "./preset-icons";
 
 /**
  * 默认元数据规则配置
- * 
+ *
  * 这个数组定义了所有预设的模型元数据匹配规则。
  * 当前主要包含图标和分组信息，未来可以扩展更多属性如能力、价格等。
  */
@@ -336,7 +336,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 10,
     enabled: true,
-    description: "Inclusion AI 提供商图标",
+    description: "蚂蚁集团旗下 Inclusion AI 提供商图标",
   },
   {
     id: "provider-wan-ai",
@@ -1234,6 +1234,71 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
 ];
 
 /**
+ * 测试规则是否匹配模型
+ * @param rule 规则对象
+ * @param modelId 模型 ID
+ * @param provider 提供商（可选）
+ * @returns 是否匹配
+ */
+export function testRuleMatch(
+  rule: ModelMetadataRule,
+  modelId: string,
+  provider?: string
+): boolean {
+  let matched = false;
+
+  switch (rule.matchType) {
+    case "model":
+      if (rule.useRegex) {
+        try {
+          const regex = new RegExp(rule.matchValue, "i");
+          matched = regex.test(modelId);
+        } catch (e) {
+          logger.warn("无效的正则表达式模式", {
+            ruleId: rule.id,
+            matchValue: rule.matchValue,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      } else {
+        matched = modelId === rule.matchValue;
+      }
+      break;
+
+    case "modelPrefix":
+      if (rule.useRegex) {
+        try {
+          const regex = new RegExp(rule.matchValue, "i");
+          matched = regex.test(modelId);
+        } catch (e) {
+          logger.warn("无效的正则表达式模式", {
+            ruleId: rule.id,
+            matchValue: rule.matchValue,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      } else {
+        // 对整个模型 ID 进行不区分大小写的包含匹配，以兼容 user/model-name 格式
+        matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
+      }
+      break;
+
+    case "modelGroup":
+      // modelGroup 已废弃，分组功能通过 properties.group 字段实现
+      // 保留此 case 以兼容旧规则
+      break;
+
+    case "provider":
+      if (provider && provider.toLowerCase() === rule.matchValue.toLowerCase()) {
+        matched = true;
+      }
+      break;
+  }
+
+  return matched;
+}
+
+/**
  * 获取匹配模型的元数据属性
  * @param modelId 模型 ID
  * @param provider 提供商
@@ -1251,57 +1316,7 @@ export function getMatchedModelProperties(
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of enabledRules) {
-    let matched = false;
-
-    switch (rule.matchType) {
-      case "model":
-        if (rule.useRegex) {
-          try {
-            const regex = new RegExp(rule.matchValue);
-            matched = regex.test(modelId);
-          } catch (e) {
-            logger.warn("无效的正则表达式模式", {
-              ruleId: rule.id,
-              matchValue: rule.matchValue,
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
-        } else {
-          matched = modelId === rule.matchValue;
-        }
-        break;
-
-      case "modelPrefix":
-        if (rule.useRegex) {
-          try {
-            const regex = new RegExp(rule.matchValue);
-            matched = regex.test(modelId);
-          } catch (e) {
-            logger.warn("无效的正则表达式模式", {
-              ruleId: rule.id,
-              matchValue: rule.matchValue,
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
-        } else {
-          // 对整个模型 ID 进行不区分大小写的包含匹配，以兼容 user/model-name 格式
-          matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
-        }
-        break;
-
-      case "modelGroup":
-        // modelGroup 已废弃，分组功能通过 properties.group 字段实现
-        // 保留此 case 以兼容旧规则
-        break;
-
-      case "provider":
-        if (provider && provider.toLowerCase() === rule.matchValue.toLowerCase()) {
-          matched = true;
-        }
-        break;
-    }
-
-    if (matched) {
+    if (testRuleMatch(rule, modelId, provider)) {
       return rule.properties;
     }
   }

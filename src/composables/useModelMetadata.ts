@@ -1,36 +1,37 @@
 /**
  * 模型元数据管理 Composable
- * 
+ *
  * 这是一个通用的模型元数据管理系统，支持为模型预设任意属性。
  * 同时保持向后兼容原有的 useModelIcons API。
  */
 
-import { ref, computed } from 'vue';
-import type { 
-  ModelMetadataRule, 
-  ModelMetadataStore, 
+import { ref, computed } from "vue";
+import type {
+  ModelMetadataRule,
+  ModelMetadataStore,
   ModelMetadataProperties,
-  PresetIconInfo 
-} from '../types/model-metadata';
-import type { LlmModelInfo } from '../types/llm-profiles';
+  PresetIconInfo,
+} from "../types/model-metadata";
+import type { LlmModelInfo } from "../types/llm-profiles";
 import {
   DEFAULT_METADATA_RULES,
   getMatchedModelProperties,
   getModelIconPath,
-  isValidIconPath
-} from '../config/model-metadata';
-import { PRESET_ICONS, PRESET_ICONS_DIR } from '../config/preset-icons';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { createConfigManager } from '@utils/configManager';
-import { logger } from '@utils/logger';
+  isValidIconPath,
+  testRuleMatch,
+} from "../config/model-metadata";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "../config/preset-icons";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { createConfigManager } from "@utils/configManager";
+import { logger } from "@utils/logger";
 
-const STORAGE_KEY = 'model-icon-configs'; // 用于 localStorage 数据迁移（向后兼容）
-const CONFIG_VERSION = '2.0.0'; // 版本号升级到 2.0.0
+const STORAGE_KEY = "model-icon-configs"; // 用于 localStorage 数据迁移（向后兼容）
+const CONFIG_VERSION = "2.0.0"; // 版本号升级到 2.0.0
 
 // 配置文件管理器
 const configManager = createConfigManager<ModelMetadataStore>({
-  moduleName: 'model-metadata',
-  fileName: 'metadata-rules.json',
+  moduleName: "model-metadata",
+  fileName: "metadata-rules.json",
   version: CONFIG_VERSION,
   createDefault: () => ({
     version: CONFIG_VERSION,
@@ -45,7 +46,7 @@ const configManager = createConfigManager<ModelMetadataStore>({
 export function useModelMetadata() {
   // 规则列表
   const rules = ref<ModelMetadataRule[]>([...DEFAULT_METADATA_RULES]);
-  
+
   // 是否已加载
   const isLoaded = ref(false);
 
@@ -57,9 +58,7 @@ export function useModelMetadata() {
   /**
    * 启用的规则数量
    */
-  const enabledCount = computed(() => 
-    rules.value.filter(r => r.enabled !== false).length
-  );
+  const enabledCount = computed(() => rules.value.filter((r) => r.enabled !== false).length);
 
   /**
    * 从文件系统加载规则（支持旧版本数据迁移）
@@ -68,22 +67,22 @@ export function useModelMetadata() {
     try {
       // 尝试从新版本文件系统加载
       const data = await configManager.load();
-      
+
       // 如果新版本文件系统中没有自定义配置，尝试从旧版本迁移
       if (data.rules.length === DEFAULT_METADATA_RULES.length) {
         // 尝试从 localStorage 迁移（兼容最旧的版本）
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          logger.info('useModelMetadata', '检测到 localStorage 中的旧版数据，开始迁移', {
+          logger.info("useModelMetadata", "检测到 localStorage 中的旧版数据，开始迁移", {
             storageKey: STORAGE_KEY,
           });
-          
+
           try {
             // 旧版本使用 ModelIconConfig 格式
             const oldData: { configs: any[] } = JSON.parse(stored);
             if (oldData.configs && Array.isArray(oldData.configs)) {
               // 转换旧格式到新格式
-              data.rules = oldData.configs.map(config => ({
+              data.rules = oldData.configs.map((config) => ({
                 id: config.id,
                 matchType: config.matchType,
                 matchValue: config.matchValue,
@@ -97,26 +96,26 @@ export function useModelMetadata() {
                 description: config.description,
               }));
               data.updatedAt = new Date().toISOString();
-              
+
               // 保存到新文件系统
               await configManager.save(data);
-              
+
               // 清除 localStorage 数据
               localStorage.removeItem(STORAGE_KEY);
-              logger.info('useModelMetadata', 'localStorage 数据迁移完成', {
+              logger.info("useModelMetadata", "localStorage 数据迁移完成", {
                 ruleCount: data.rules.length,
               });
             }
           } catch (e) {
-            logger.error('useModelMetadata', 'localStorage 数据迁移失败', e);
+            logger.error("useModelMetadata", "localStorage 数据迁移失败", e);
           }
         }
       }
-      
+
       rules.value = data.rules;
       isLoaded.value = true;
     } catch (error) {
-      logger.error('useModelMetadata', '加载模型元数据规则失败', error);
+      logger.error("useModelMetadata", "加载模型元数据规则失败", error);
       // 加载失败时使用默认配置
       rules.value = [...DEFAULT_METADATA_RULES];
       isLoaded.value = true;
@@ -136,7 +135,7 @@ export function useModelMetadata() {
       await configManager.save(data);
       return true;
     } catch (error) {
-      logger.error('useModelMetadata', '保存模型元数据规则失败', error, {
+      logger.error("useModelMetadata", "保存模型元数据规则失败", error, {
         ruleCount: rules.value.length,
       });
       return false;
@@ -146,24 +145,24 @@ export function useModelMetadata() {
   /**
    * 添加新规则
    */
-  async function addRule(rule: Omit<ModelMetadataRule, 'id'>): Promise<boolean> {
+  async function addRule(rule: Omit<ModelMetadataRule, "id">): Promise<boolean> {
     try {
       const newRule: ModelMetadataRule = {
         ...rule,
         id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         enabled: rule.enabled !== false,
       };
-      
+
       // 验证图标路径（如果有）
       if (newRule.properties.icon && !isValidIconPath(newRule.properties.icon)) {
-        throw new Error('无效的图标路径');
+        throw new Error("无效的图标路径");
       }
-      
+
       rules.value.push(newRule);
       await saveRules();
       return true;
     } catch (error) {
-      logger.error('useModelMetadata', '添加规则失败', error, {
+      logger.error("useModelMetadata", "添加规则失败", error, {
         matchType: rule.matchType,
         matchValue: rule.matchValue,
       });
@@ -176,16 +175,16 @@ export function useModelMetadata() {
    */
   async function updateRule(id: string, updates: Partial<ModelMetadataRule>): Promise<boolean> {
     try {
-      const index = rules.value.findIndex(r => r.id === id);
+      const index = rules.value.findIndex((r) => r.id === id);
       if (index === -1) {
-        throw new Error('规则不存在');
+        throw new Error("规则不存在");
       }
-      
+
       // 验证图标路径（如果更新了图标）
       if (updates.properties?.icon && !isValidIconPath(updates.properties.icon)) {
-        throw new Error('无效的图标路径');
+        throw new Error("无效的图标路径");
       }
-      
+
       // 合并更新（注意 properties 需要深度合并）
       rules.value[index] = {
         ...rules.value[index],
@@ -195,11 +194,11 @@ export function useModelMetadata() {
           ...(updates.properties || {}),
         },
       };
-      
+
       await saveRules();
       return true;
     } catch (error) {
-      logger.error('useModelMetadata', '更新规则失败', error, {
+      logger.error("useModelMetadata", "更新规则失败", error, {
         ruleId: id,
         updates,
       });
@@ -212,16 +211,16 @@ export function useModelMetadata() {
    */
   async function deleteRule(id: string): Promise<boolean> {
     try {
-      const index = rules.value.findIndex(r => r.id === id);
+      const index = rules.value.findIndex((r) => r.id === id);
       if (index === -1) {
-        throw new Error('规则不存在');
+        throw new Error("规则不存在");
       }
-      
+
       rules.value.splice(index, 1);
       await saveRules();
       return true;
     } catch (error) {
-      logger.error('useModelMetadata', '删除规则失败', error, {
+      logger.error("useModelMetadata", "删除规则失败", error, {
         ruleId: id,
       });
       return false;
@@ -232,9 +231,9 @@ export function useModelMetadata() {
    * 切换规则启用状态
    */
   async function toggleRule(id: string): Promise<boolean> {
-    const rule = rules.value.find(r => r.id === id);
+    const rule = rules.value.find((r) => r.id === id);
     if (!rule) return false;
-    
+
     rule.enabled = !rule.enabled;
     await saveRules();
     return true;
@@ -249,7 +248,7 @@ export function useModelMetadata() {
       await saveRules();
       return true;
     } catch (error) {
-      logger.error('useModelMetadata', '重置规则失败', error);
+      logger.error("useModelMetadata", "重置规则失败", error);
       return false;
     }
   }
@@ -263,52 +262,11 @@ export function useModelMetadata() {
   function getMatchedRule(modelId: string, provider?: string): ModelMetadataRule | undefined {
     // 过滤启用的规则并按优先级排序
     const enabledRules = rules.value
-      .filter(r => r.enabled !== false)
+      .filter((r) => r.enabled !== false)
       .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
     for (const rule of enabledRules) {
-      let matched = false;
-
-      switch (rule.matchType) {
-        case 'model':
-          if (rule.useRegex) {
-            try {
-              const regex = new RegExp(rule.matchValue);
-              matched = regex.test(modelId);
-            } catch (e) {
-              // 正则表达式无效，跳过
-            }
-          } else {
-            matched = modelId === rule.matchValue;
-          }
-          break;
-
-        case 'modelPrefix':
-          if (rule.useRegex) {
-            try {
-              const regex = new RegExp(rule.matchValue);
-              matched = regex.test(modelId);
-            } catch (e) {
-              // 正则表达式无效，跳过
-            }
-          } else {
-            // 对整个模型 ID 进行不区分大小写的包含匹配
-            matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
-          }
-          break;
-
-        case 'provider':
-          if (provider && provider.toLowerCase() === rule.matchValue.toLowerCase()) {
-            matched = true;
-          }
-          break;
-
-        case 'modelGroup':
-          // modelGroup 已废弃，保留以兼容旧规则
-          break;
-      }
-
-      if (matched) {
+      if (testRuleMatch(rule, modelId, provider)) {
         return rule;
       }
     }
@@ -322,7 +280,10 @@ export function useModelMetadata() {
    * @param provider 提供商
    * @returns 匹配的元数据属性对象或 undefined
    */
-  function getMatchedProperties(modelId: string, provider?: string): ModelMetadataProperties | undefined {
+  function getMatchedProperties(
+    modelId: string,
+    provider?: string
+  ): ModelMetadataProperties | undefined {
     return getMatchedModelProperties(modelId, provider, rules.value);
   }
 
@@ -368,7 +329,7 @@ export function useModelMetadata() {
     }
 
     // 第三优先级：默认分组
-    return '未分组';
+    return "未分组";
   }
 
   /**
@@ -376,11 +337,11 @@ export function useModelMetadata() {
    * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
    */
   function getDisplayIconPath(iconPath: string): string {
-    if (!iconPath) return '';
+    if (!iconPath) return "";
 
     // 检查是否为绝对路径
     const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
-    const isUnixAbsolutePath = iconPath.startsWith('/') && !iconPath.startsWith('/model-icons');
+    const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
 
     if (isWindowsAbsolutePath || isUnixAbsolutePath) {
       // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
@@ -445,26 +406,26 @@ export function useModelMetadata() {
   async function importRules(jsonStr: string): Promise<boolean> {
     try {
       const data: ModelMetadataStore = JSON.parse(jsonStr);
-      
+
       if (!data.rules || !Array.isArray(data.rules)) {
-        throw new Error('无效的配置格式');
+        throw new Error("无效的配置格式");
       }
-      
+
       // 验证每个规则项
       for (const rule of data.rules) {
         if (!rule.id || !rule.matchType || !rule.matchValue || !rule.properties) {
-          throw new Error('规则缺少必需字段');
+          throw new Error("规则缺少必需字段");
         }
         if (rule.properties.icon && !isValidIconPath(rule.properties.icon)) {
           throw new Error(`无效的图标路径: ${rule.properties.icon}`);
         }
       }
-      
+
       rules.value = data.rules;
       await saveRules();
       return true;
     } catch (error) {
-      logger.error('useModelMetadata', '导入规则失败', error);
+      logger.error("useModelMetadata", "导入规则失败", error);
       return false;
     }
   }
@@ -479,8 +440,8 @@ export function useModelMetadata() {
   /**
    * 获取匹配特定条件的规则
    */
-  function getRulesByType(matchType: ModelMetadataRule['matchType']) {
-    return rules.value.filter(r => r.matchType === matchType);
+  function getRulesByType(matchType: ModelMetadataRule["matchType"]) {
+    return rules.value.filter((r) => r.matchType === matchType);
   }
 
   /**
@@ -501,7 +462,7 @@ export function useModelMetadata() {
     isLoaded,
     presetIcons,
     enabledCount,
-    
+
     // 规则管理
     loadRules,
     saveRules,
@@ -514,7 +475,7 @@ export function useModelMetadata() {
     importRules,
     sortByPriority,
     getRulesByType,
-    
+
     // 匹配与查询
     getMatchedRule,
     getMatchedProperties,
@@ -522,7 +483,7 @@ export function useModelMetadata() {
     getModelGroup,
     getModelIcon,
     getIconPath,
-    
+
     // 工具函数
     getPresetIconPath,
     getDisplayIconPath,

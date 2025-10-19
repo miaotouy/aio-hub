@@ -323,8 +323,8 @@ watch(
         exportConfig.value = { ...exportConfig.value, ...props.initialConfig }
       }
 
-      // 如果勾选了包含文件变更列表，先加载文件信息
-      if (exportConfig.value.includeFiles) {
+      // 如果勾选了包含文件变更列表，且未加载过，则加载文件信息
+      if (exportConfig.value.includeFiles && commitsWithFiles.value.length === 0) {
         await loadCommitsWithFiles()
       }
 

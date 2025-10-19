@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, toRef, withDefaults, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import type { ChatMessageNode } from '../types';
 import { useDetachable } from '@/composables/useDetachable';
@@ -14,9 +14,9 @@ import { useDetachedChatArea } from '../composables/useDetachedChatArea';
 const logger = createModuleLogger('ChatArea');
 
 interface Props {
-  messages: ChatMessageNode[];
-  isSending: boolean;
-  disabled: boolean;
+  messages?: ChatMessageNode[];
+  isSending?: boolean;
+  disabled?: boolean;
   isDetached?: boolean; // 是否在独立窗口中
   currentAgentId?: string; // 当前智能体 ID
   currentModelId?: string; // 当前模型 ID
@@ -29,7 +29,12 @@ interface Emits {
   (e: 'regenerate'): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  messages: () => [],
+  isSending: false,
+  disabled: true,
+  isDetached: false,
+});
 const emit = defineEmits<Emits>();
 
 const containerRef = ref<HTMLDivElement>();
@@ -66,7 +71,7 @@ const modelIcon = computed(() => {
 });
 
 // ===== 拖拽与分离功能 =====
-const { isDetached } = useDetachedManager();
+const { detachedComponents } = useDetachedManager();
 const { startDetaching } = useDetachable();
 const handleDragStart = (e: MouseEvent) => {
   if (props.isDetached) return;
@@ -117,10 +122,15 @@ const handleDragStart = (e: MouseEvent) => {
 const { createResizeHandler } = useWindowResize();
 const handleResizeStart = createResizeHandler('SouthEast');
 
-const isMessageInputDetached = computed(() => {
-  const result = isDetached('chat-input');
-  logger.info('MessageInput 分离状态检查', { isDetached: result });
-  return result;
+const isInputVisible = computed(() => {
+  // 只要输入框被独立分离出去，无论 ChatArea 在主窗口还是独立窗口，都应隐藏内部的输入框。
+  const isInputDetached = detachedComponents.value.includes('chat-input');
+  logger.info('MessageInput 分离状态检查', {
+    isInputDetached,
+    isChatAreaDetached: props.isDetached,
+    allDetached: detachedComponents.value,
+  });
+  return !isInputDetached;
 });
 
 // 处理从菜单打开独立窗口
@@ -176,11 +186,12 @@ const handleDetach = async () => {
 
 // ===== 消息事件处理 =====
 // 根据是否分离，决定是直接 emit 还是使用代理
-let finalMessages = ref<ChatMessageNode[]>(props.messages);
-let finalIsSending = ref(props.isSending);
-let finalDisabled = ref(props.disabled);
-let finalCurrentAgentId = ref(props.currentAgentId);
-let finalCurrentModelId = ref(props.currentModelId);
+// 使用 toRef 确保响应 props 的变化
+let finalMessages = toRef(props, 'messages');
+let finalIsSending = toRef(props, 'isSending');
+let finalDisabled = toRef(props, 'disabled');
+let finalCurrentAgentId = toRef(props, 'currentAgentId');
+let finalCurrentModelId = toRef(props, 'currentModelId');
 
 let handleSendMessage = (content: string) => emit('send', content);
 let handleAbort = () => emit('abort');
@@ -203,6 +214,28 @@ if (props.isDetached) {
   
   logger.info('ChatArea 运行在分离模式');
 }
+
+onMounted(() => {
+  logger.info('ChatArea mounted', {
+    props: {
+      messages: props.messages?.length,
+      isSending: props.isSending,
+      disabled: props.disabled,
+      isDetached: props.isDetached,
+      currentAgentId: props.currentAgentId,
+      currentModelId: props.currentModelId,
+    },
+    final: {
+      messages: finalMessages.value?.length,
+      isSending: finalIsSending.value,
+      disabled: finalDisabled.value,
+      currentAgentId: finalCurrentAgentId.value,
+      currentModelId: finalCurrentModelId.value,
+    },
+    agent: currentAgent.value,
+    model: currentModel.value,
+  });
+});
 </script>
 
 <template>
@@ -248,7 +281,7 @@ if (props.isDetached) {
 
         <!-- 输入框 -->
         <MessageInput
-          v-if="!isMessageInputDetached"
+          v-if="isInputVisible"
           :disabled="finalDisabled"
           :is-sending="finalIsSending"
           @send="handleSendMessage"

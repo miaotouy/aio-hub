@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, defineAsyncComponent, type Component, watch } from "vue";
 import { useRoute } from "vue-router";
+import { useWindowSyncBus } from "../composables/useWindowSyncBus";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -54,6 +55,11 @@ watch(
 );
 
 onMounted(async () => {
+  // 初始化此窗口的通信总线，并请求初始状态
+  const { initializeSyncBus, requestInitialState } = useWindowSyncBus();
+  initializeSyncBus();
+  requestInitialState();
+
   logger.info("DetachedComponentContainer 挂载", {
     currentPath: route.path,
   });
@@ -108,6 +114,11 @@ onMounted(async () => {
           // MessageInput 需要的默认 props
           defaultProps.disabled = false;
           defaultProps.isSending = false;
+        } else if (id === 'chat-area') {
+          // ChatArea 需要的默认 props（这些会被同步引擎覆盖）
+          defaultProps.messages = [];
+          defaultProps.isSending = false;
+          defaultProps.disabled = true;
         }
         
         componentProps.value = { ...defaultProps, ...props };

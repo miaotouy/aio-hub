@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { useWindowSyncBus } from "./composables/useWindowSyncBus";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "./config/tools";
 import { useDetachedManager } from "./composables/useDetachedManager";
@@ -172,6 +173,10 @@ const loadSettings = async () => {
 let handleSettingsChange: ((event: Event) => void) | null = null;
 
 onMounted(async () => {
+  // 初始化跨窗口通信总线
+  const { initializeSyncBus } = useWindowSyncBus();
+  initializeSyncBus();
+
   // 初始化统一的分离窗口管理器
   await initialize();
 

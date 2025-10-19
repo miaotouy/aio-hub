@@ -20,11 +20,12 @@ export type WindowType = 'main' | 'detached-component' | 'detached-tool';
  * 消息类型
  */
 export type WindowMessageType =
-  | 'handshake'           // 握手消息（建立连接）
-  | 'state-sync'          // 状态同步
-  | 'action-request'      // 操作请求（分离窗口 → 主窗口）
-  | 'action-response'     // 操作响应（主窗口 → 分离窗口）
-  | 'heartbeat';          // 心跳检测
+  | 'handshake'               // 握手消息（建立连接）
+  | 'state-sync'              // 状态同步
+  | 'action-request'          // 操作请求（分离窗口 → 主窗口）
+  | 'action-response'         // 操作响应（主窗口 → 分离窗口）
+  | 'heartbeat'               // 心跳检测
+  | 'request-initial-state';  // 请求初始状态
 
 /**
  * 状态类型（用于标识不同的状态数据）
@@ -177,6 +178,11 @@ export type ConnectionHandler = (windowLabel: string, windowInfo: WindowInfo) =>
  * 操作处理器（主窗口使用）
  */
 export type ActionHandler = (action: string, params: any, requestId: string) => Promise<any>;
+
+/**
+ * 初始状态请求处理器（主窗口使用）
+ */
+export type InitialStateRequestHandler = (requesterLabel: string) => void;
 
 // ============================================================================
 // 配置选项

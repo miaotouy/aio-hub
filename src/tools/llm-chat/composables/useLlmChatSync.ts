@@ -3,7 +3,7 @@
  * 
  * 封装了 LlmChat.vue 与分离窗口之间的所有状态同步和操作代理逻辑
  */
-import { computed } from 'vue';
+import { computed, type Ref } from 'vue';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
@@ -33,25 +33,20 @@ export function useLlmChatSync() {
   });
 
   // 2. 状态同步引擎实例化
-  useStateSyncEngine(chatMessages, {
-    stateKey: 'chat-messages' as StateType,
-    autoPush: true,
-  });
+  const stateEngines: Array<{ manualPush: (isFullSync?: boolean, targetWindowLabel?: string) => Promise<void> }> = [];
 
-  useStateSyncEngine(chatSession, {
-    stateKey: 'chat-session' as StateType,
-    autoPush: true,
-  });
+  const createStateEngine = <T>(stateSource: Ref<T>, stateKey: StateType) => {
+    const engine = useStateSyncEngine(stateSource, {
+      stateKey,
+      autoPush: true,
+    });
+    stateEngines.push(engine);
+  };
 
-  useStateSyncEngine(chatAgent, {
-    stateKey: 'chat-agent' as StateType,
-    autoPush: true,
-  });
-
-  useStateSyncEngine(chatParameters, {
-    stateKey: 'chat-parameters' as StateType,
-    autoPush: true,
-  });
+  createStateEngine(chatMessages, 'chat-messages');
+  createStateEngine(chatSession, 'chat-session');
+  createStateEngine(chatAgent, 'chat-agent');
+  createStateEngine(chatParameters, 'chat-parameters');
 
   logger.info('LLM Chat 同步引擎已初始化');
 
@@ -79,14 +74,17 @@ export function useLlmChatSync() {
   if (bus.windowType === 'main') {
     bus.onActionRequest(handleActionRequest);
     logger.info('已注册操作请求处理器');
-  }
 
-  // 4. 监听连接事件，为新连接的窗口推送一次全量状态
-  // (StateSyncEngine 内部应该处理这个，但这里可以加一个保险)
-  bus.onConnect((windowLabel, windowInfo) => {
-    logger.info('新窗口已连接，准备推送初始状态', { windowLabel, windowInfo });
-    // TODO: 触发一次全量推送
-  });
+    // 4. 监听初始状态请求，按需推送全量状态
+    bus.onInitialStateRequest((requesterLabel) => {
+      logger.info(`收到来自 ${requesterLabel} 的初始状态请求，开始推送...`);
+      for (const engine of stateEngines) {
+        // 定向、强制推送全量状态给请求者
+        engine.manualPush(true, requesterLabel);
+      }
+      logger.info(`已向 ${requesterLabel} 推送所有初始状态`);
+    });
+  }
 
   return {};
 }

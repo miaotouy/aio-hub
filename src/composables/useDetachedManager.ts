@@ -42,6 +42,7 @@ const useDetachedWindowManager = () => {
         const { label, id, type } = event.payload;
         logger.info(`窗口已分离: ${type} '${id}' (label: ${label})`);
         detachedWindows.value.set(label, { label, id, type });
+        detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
       });
 
       await listen<{ label: string }>('window-attached', (event) => {
@@ -49,7 +50,9 @@ const useDetachedWindowManager = () => {
         const detached = detachedWindows.value.get(label);
         if (detached) {
           logger.info(`窗口已重新附着: ${detached.type} '${detached.id}' (label: ${label})`);
-          detachedWindows.value.delete(label);
+          if (detachedWindows.value.delete(label)) {
+            detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
+          }
         }
       });
 
@@ -58,12 +61,15 @@ const useDetachedWindowManager = () => {
         const label = event.payload;
         logger.info(`工具窗口已分离(旧事件): '${label}'`);
         detachedWindows.value.set(label, { label, id: label, type: 'tool' });
+        detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
       });
 
       await listen<string>('tool-attached', (event) => {
         const label = event.payload;
         logger.info(`工具窗口已重新附着(旧事件): '${label}'`);
-        detachedWindows.value.delete(label);
+        if (detachedWindows.value.delete(label)) {
+          detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
+        }
       });
 
       // 兼容旧的组件系统事件
@@ -71,12 +77,15 @@ const useDetachedWindowManager = () => {
         const { label, componentId } = event.payload;
         logger.info(`组件窗口已分离(旧事件): '${componentId}' (label: ${label})`);
         detachedWindows.value.set(label, { label, id: componentId, type: 'component' });
+        detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
       });
 
       await listen<{ label: string; componentId: string }>('component-attached', (event) => {
         const { label } = event.payload;
         logger.info(`组件窗口已重新附着(旧事件): (label: ${label})`);
-        detachedWindows.value.delete(label);
+        if (detachedWindows.value.delete(label)) {
+          detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
+        }
       });
 
       // 从后端获取当前所有已分离的窗口进行初始化

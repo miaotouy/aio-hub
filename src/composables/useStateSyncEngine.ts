@@ -4,7 +4,7 @@
  * 封装了与 WindowSyncBus 交互的状态同步逻辑，
  * 实现了自动的状态推送和接收，并支持增量更新。
  */
-import { ref, watch, onUnmounted, type Ref, isRef } from 'vue';
+import { ref, onUnmounted, type Ref, isRef, watch } from 'vue';
 import { useWindowSyncBus } from './useWindowSyncBus';
 import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator } from '@/utils/sync-helpers';
 import { createModuleLogger } from '@/utils/logger';
@@ -29,7 +29,8 @@ export function useStateSyncEngine<T>(
   const state = isRef(stateSource) ? stateSource : ref(stateSource);
   const stateVersion = ref(0);
   
-  let lastSyncedValue: T | null = JSON.parse(JSON.stringify(state.value));
+  let lastSyncedValue: T = JSON.parse(JSON.stringify(state.value));
+  let isInitialized = true; // 标记是否已初始化
   let unlistenStateSync: (() => void) | null = null;
   let stopWatching: (() => void) | null = null;
 
@@ -37,8 +38,8 @@ export function useStateSyncEngine<T>(
    * 推送状态更新
    */
   const pushState = async (isFullSync = false) => {
-    if (!lastSyncedValue) {
-      logger.warn('无法推送状态，因为没有基准状态', { stateKey });
+    if (!isInitialized) {
+      logger.warn('无法推送状态，因为未初始化', { stateKey });
       return;
     }
 
@@ -47,7 +48,12 @@ export function useStateSyncEngine<T>(
     
     let payload: StateSyncPayload;
 
-    if (isFullSync || !enableDelta) {
+    // 如果是全量同步、禁用增量、或值为 null/undefined，直接使用全量同步
+    const shouldForceFullSync = isFullSync || !enableDelta ||
+                                newValue === null || newValue === undefined ||
+                                lastSyncedValue === null || lastSyncedValue === undefined;
+
+    if (shouldForceFullSync) {
       payload = {
         stateType: stateKey,
         version: newVersion,
@@ -91,9 +97,7 @@ export function useStateSyncEngine<T>(
   /**
    * 接收并应用状态更新
    */
-  const receiveState = (message: BaseMessage<StateSyncPayload>) => {
-    const { payload } = message;
-
+  const receiveState = (payload: StateSyncPayload, _message: BaseMessage) => {
     if (payload.stateType !== stateKey) return;
     if (payload.version <= stateVersion.value) {
       logger.warn('收到旧版本状态，已忽略', { 
@@ -133,7 +137,7 @@ export function useStateSyncEngine<T>(
   }
 
   if (autoReceive && bus.windowType !== 'main') {
-    unlistenStateSync = bus.onMessage('state-sync', receiveState as (payload: any, message: BaseMessage) => void);
+    unlistenStateSync = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
     logger.info('已启动自动接收', { stateKey });
   }
 

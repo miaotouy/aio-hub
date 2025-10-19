@@ -25,6 +25,7 @@ import type {
   ConnectionHandler,
   ActionHandler,
   WindowSyncBusConfig,
+  InitialStateRequestHandler,
 } from '@/types/window-sync';
 
 const logger = createModuleLogger('WindowSyncBus');
@@ -43,6 +44,7 @@ class WindowSyncBus {
   private connectionHandlers = new Set<ConnectionHandler>();
   private disconnectionHandlers = new Set<ConnectionHandler>();
   private actionHandler: ActionHandler | null = null;
+  private initialStateRequestHandler: InitialStateRequestHandler | null = null;
   
   // 心跳管理
   private heartbeatInterval: number | null = null;
@@ -104,13 +106,8 @@ class WindowSyncBus {
         this.startHeartbeat();
       }
 
-      // 如果是分离窗口，发送握手消息
-      if (this.windowType !== 'main') {
-        await this.sendHandshake();
-      }
-
       this.initialized = true;
-      logger.info('WindowSyncBus 初始化完成');
+      logger.info('WindowSyncBus 核心监听器初始化完成');
     } catch (error) {
       logger.error('WindowSyncBus 初始化失败', error as Error);
       throw error;
@@ -203,6 +200,9 @@ class WindowSyncBus {
         break;
       case 'heartbeat':
         this.handleHeartbeat(message as BaseMessage<HeartbeatPayload>);
+        break;
+      case 'request-initial-state':
+        this.handleInitialStateRequest(message.from);
         break;
     }
 
@@ -391,11 +391,13 @@ class WindowSyncBus {
     version: number,
     target?: string
   ): Promise<void> {
+    const isFull = data.patches === undefined;
     const payload: StateSyncPayload = {
       stateType: stateType as any,
       version,
-      isFull: true,
-      data,
+      isFull,
+      data: isFull ? data : undefined,
+      patches: isFull ? undefined : data.patches,
     };
 
     await this.sendMessage('state-sync', payload, target);
@@ -421,14 +423,16 @@ class WindowSyncBus {
     // 发送到主窗口
     await this.sendMessage('action-request', payload, 'main');
 
-    // 等待响应（简化版本，实际需要 Promise + timeout）
+    // 等待响应
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error('操作请求超时'));
+        unlisten();
+        reject(new Error(`操作请求超时: ${action}`));
       }, 10000);
 
-      const handler: MessageHandler<ActionResponsePayload> = (responsePayload) => {
+      const unlisten = this.onMessage<ActionResponsePayload>('action-response', (responsePayload) => {
         if (responsePayload.requestId === requestId) {
+          unlisten();
           clearTimeout(timeout);
           if (responsePayload.success) {
             resolve(responsePayload.data as TResult);
@@ -436,11 +440,33 @@ class WindowSyncBus {
             reject(new Error(responsePayload.error || '操作失败'));
           }
         }
-      };
-
-      this.onMessage('action-response', handler);
+      });
     });
   }
+  
+  /**
+   * 请求初始状态（分离窗口使用）
+   */
+  async requestInitialState(): Promise<void> {
+    logger.info('向主窗口请求初始状态');
+    await this.sendMessage('request-initial-state', {}, 'main');
+  }
+/**
+ * 监听初始状态请求（主窗口使用）
+ */
+onInitialStateRequest(handler: InitialStateRequestHandler): UnlistenFn {
+  this.initialStateRequestHandler = handler;
+  return () => {
+    this.initialStateRequestHandler = null;
+  };
+}
+
+private handleInitialStateRequest(requesterLabel: string): void {
+  if (this.windowType === 'main' && this.initialStateRequestHandler) {
+    logger.info(`收到来自 ${requesterLabel} 的初始状态请求，准备推送`);
+    this.initialStateRequestHandler(requesterLabel);
+  }
+}
 
   /**
    * 注册操作处理器（主窗口使用）
@@ -521,6 +547,7 @@ class WindowSyncBus {
     this.connectionHandlers.clear();
     this.disconnectionHandlers.clear();
     this.actionHandler = null;
+    this.initialStateRequestHandler = null;
 
     this.initialized = false;
     logger.info('WindowSyncBus 已清理');
@@ -529,25 +556,61 @@ class WindowSyncBus {
 
 /**
  * 使用窗口同步总线（Composable）
+ * 这是与总线交互的唯一入口点。它管理单例实例并提供所有公共API。
  */
-export function useWindowSyncBus(config?: WindowSyncBusConfig) {
-  const bus = getOrCreateInstance('WindowSyncBus', () => new WindowSyncBus(config));
+export function useWindowSyncBus() {
+  // 获取或创建总线单例
+  const bus = getOrCreateInstance('WindowSyncBus', () => new WindowSyncBus());
 
-  // 确保已初始化
-  if (!bus['initialized']) {
-    bus.initialize();
-  }
+  /**
+   * 初始化总线实例。
+   * 必须在应用根组件（如 App.vue, DetachedComponentContainer.vue）的 onMounted 中调用。
+   * 此函数会设置核心监听器，并为非主窗口发送初始握手消息。
+   */
+  const initializeSyncBus = async (config?: WindowSyncBusConfig) => {
+    if (bus['initialized']) {
+      return;
+    }
+    
+    // 如果提供了配置，则更新实例的配置
+    if (config) {
+      Object.assign(bus['config'], config);
+      logger.info('总线配置已更新', bus['config']);
+    }
+    
+    // 初始化核心监听器
+    await bus.initialize();
+
+    // 如果是分离窗口，则在初始化后立即发送握手消息
+    if (bus['windowType'] !== 'main') {
+      await bus.sendHandshake();
+    }
+  };
 
   return {
+    // 新的初始化函数
+    initializeSyncBus,
+    
+    // 公开请求初始状态的函数
+    requestInitialState: bus.requestInitialState.bind(bus),
+
+    // 基础信息
     windowLabel: bus['windowLabel'],
     windowType: bus['windowType'],
     connectedWindows: bus.connectedWindowsList,
+    
+    // 核心 API
     syncState: bus.syncState.bind(bus),
     requestAction: bus.requestAction.bind(bus),
+    
+    // 事件监听
     onActionRequest: bus.onActionRequest.bind(bus),
+    onInitialStateRequest: bus.onInitialStateRequest.bind(bus),
     onMessage: bus.onMessage.bind(bus),
     onConnect: bus.onConnect.bind(bus),
     onDisconnect: bus.onDisconnect.bind(bus),
+    
+    // 生命周期
     cleanup: bus.cleanup.bind(bus),
   };
 }

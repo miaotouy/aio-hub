@@ -13,13 +13,17 @@ import type { JsonPatchOperation, IdempotencyCacheItem } from '@/types/window-sy
 
 /**
  * 计算两个对象之间的差异（JSON Patch）
- * 
+ *
  * @param oldValue 原始值
  * @param newValue 新值
  * @returns JSON Patch 操作数组
  */
 export function calculateDiff(oldValue: any, newValue: any): JsonPatchOperation[] {
   try {
+    // 如果旧值或新值为 null/undefined，无法进行差异计算
+    if (oldValue === null || oldValue === undefined || newValue === null || newValue === undefined) {
+      return [];
+    }
     return compare(oldValue, newValue);
   } catch (error) {
     console.error('计算差异失败:', error);

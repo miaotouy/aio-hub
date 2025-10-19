@@ -27,6 +27,7 @@ declare module 'vue' {
     IEpScissor: typeof import('~icons/ep/scissor')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     LlmModelSelector: typeof import('./components/common/LlmModelSelector.vue')['default']
+    MainSidebar: typeof import('./components/MainSidebar.vue')['default']
     OcrIcon: typeof import('./components/icons/OcrIcon.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

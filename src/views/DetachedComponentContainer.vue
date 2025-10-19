@@ -7,6 +7,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
 import { createModuleLogger } from "../utils/logger";
 import { useAgentStore } from "../tools/llm-chat/agentStore";
+import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 
 const logger = createModuleLogger("DetachedComponentContainer");
 const agentStore = useAgentStore();
@@ -177,9 +178,7 @@ onMounted(async () => {
       </div>
 
       <!-- 预览模式提示 -->
-      <div v-if="isPreview" class="preview-hint">
-        <div class="hint-content">📌 松手即可创建独立窗口</div>
-      </div>
+      <DetachPreviewHint :visible="isPreview" />
     </div>
   </div>
 </template>
@@ -222,26 +221,6 @@ onMounted(async () => {
   flex-direction: column;
   pointer-events: auto;
   /* 组件本身可以接收鼠标事件 */
-}
-
-/* 预览提示 */
-.preview-hint {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  pointer-events: none;
-}
-
-.hint-content {
-  background: var(--primary-color);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
 }
 
 /* 错误消息 */

@@ -57,6 +57,7 @@ use commands::{
     // 新统一分离系统命令
     begin_detach_session,
     update_detach_session_position,
+    update_detach_session_status,
     finalize_detach_session,
     get_all_detached_windows,
     close_detached_window, // 新增：统一的关闭命令
@@ -179,6 +180,7 @@ pub fn run() {
             // 新统一分离命令
             begin_detach_session,
             update_detach_session_position,
+            update_detach_session_status,
             finalize_detach_session,
             get_all_detached_windows,
             close_detached_window,

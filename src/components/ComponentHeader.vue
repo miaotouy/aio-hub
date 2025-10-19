@@ -17,6 +17,7 @@ interface Props {
 interface Emits {
   (e: "reattach"): void;
   (e: "detach"): void;
+  (e: "mousedown", event: MouseEvent): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -63,9 +64,8 @@ const handleReattach = async () => {
   try {
     logger.info("请求重新附着到主窗口");
     const currentWindow = getCurrentWebviewWindow();
-    await invoke("reattach_component", { label: currentWindow.label });
-    // 关闭当前独立窗口
-    await currentWindow.close();
+    // 使用统一的关闭命令，它会自动处理重新附着事件
+    await invoke("close_detached_window", { label: currentWindow.label });
     emit("reattach");
   } catch (error) {
     logger.error("重新附着失败", { error });
@@ -134,6 +134,7 @@ const handleMenuReattach = async () => {
         class="drag-area"
         :class="{ 'window-drag-mode': dragMode === 'window' }"
         :data-tauri-drag-region="dragMode === 'window' ? '' : null"
+        @mousedown="(e) => dragMode === 'detach' && emit('mousedown', e)"
       >
         <slot name="drag-region">
           <div class="drag-handle">

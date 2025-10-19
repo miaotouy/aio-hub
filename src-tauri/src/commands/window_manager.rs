@@ -162,6 +162,36 @@ pub async fn update_detach_session_position(
     }
 }
 
+/// 更新分离会话的状态（是否可以分离）并通知预览窗口
+#[tauri::command]
+pub async fn update_detach_session_status(
+    app: AppHandle,
+    session_id: String,
+    can_detach: bool,
+) -> Result<(), String> {
+    // 在独立作用域中获取锁，提取需要的数据后立即释放锁
+    let preview_label = {
+        let sessions = DETACH_SESSIONS.lock().unwrap();
+        sessions.get(&session_id)
+            .map(|session| session.preview_window_label.clone())
+    };
+    
+    // 锁已释放，现在可以安全地进行异步操作
+    if let Some(label) = preview_label {
+        if let Some(window) = app.get_webview_window(&label) {
+            // 向预览窗口发送状态更新事件
+            window
+                .emit("detach-status-update", serde_json::json!({ "canDetach": can_detach }))
+                .map_err(|e| format!("发送状态更新事件失败: {}", e))?;
+            Ok(())
+        } else {
+            Err(format!("预览窗口 '{}' 不存在", label))
+        }
+    } else {
+        Err(format!("分离会话 {} 不存在", session_id))
+    }
+}
+
 /// 持久化的已分离窗口集合
 /// key: window label, value: DetachedWindowInfo
 static FINALIZED_DETACHED_WINDOWS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, DetachedWindowInfo>>>> =

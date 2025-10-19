@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeMount, onUnmounted } from 'vue';
 import { listen } from '@tauri-apps/api/event';
 import { createModuleLogger } from '../../utils/logger';
 
@@ -17,14 +17,38 @@ withDefaults(defineProps<Props>(), {
 // 是否可以分离（拖拽距离是否足够）
 const canDetach = ref(false);
 
-onMounted(async () => {
-  // 监听拖拽状态更新事件
-  await listen<{ canDetach: boolean }>("detach-status-update", (event) => {
+// 保存事件监听器的清理函数
+let unlisten: (() => void) | null = null;
+
+// 在组件挂载之前就设置监听器，确保不会错过任何事件
+onBeforeMount(async () => {
+  logger.info("DetachPreviewHint 开始初始化");
+  
+  // 立即设置监听器,避免错过早期事件
+  unlisten = await listen<{ canDetach: boolean }>("detach-status-update", (event) => {
+    logger.info("收到拖拽状态更新", {
+      canDetach: event.payload.canDetach,
+      payload: event.payload
+    });
     canDetach.value = event.payload.canDetach;
-    logger.info("收到拖拽状态更新", { canDetach: canDetach.value });
   });
 
-  logger.info("DetachPreviewHint 初始化完成");
+  logger.info("DetachPreviewHint 监听器已设置");
+});
+
+onMounted(() => {
+  logger.info("DetachPreviewHint 挂载完成", {
+    visible: true,
+    initialCanDetach: canDetach.value
+  });
+});
+
+// 组件卸载时清理事件监听器
+onUnmounted(() => {
+  if (unlisten) {
+    unlisten();
+    logger.info("DetachPreviewHint 事件监听器已清理");
+  }
 });
 </script>
 

@@ -88,6 +88,18 @@ const useDetachedWindowManager = () => {
         }
       });
 
+      // 监听窗口销毁事件，确保状态被清理
+      await listen<{ label: string }>('tauri://destroyed', (event) => {
+        const { label } = event.payload;
+        if (detachedWindows.value.has(label)) {
+          const detached = detachedWindows.value.get(label)!;
+          logger.info(`窗口已销毁，清理状态: ${detached.type} '${detached.id}' (label: ${label})`);
+          if (detachedWindows.value.delete(label)) {
+            detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
+          }
+        }
+      });
+
       // 从后端获取当前所有已分离的窗口进行初始化
       const existingWindows = await invoke<DetachedWindow[]>('get_all_detached_windows');
       for (const win of existingWindows) {

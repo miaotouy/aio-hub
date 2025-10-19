@@ -82,6 +82,14 @@ export function useLlmChatSync() {
       }
       logger.info(`已向 ${requesterLabel} 推送所有初始状态`);
     });
+
+    // 5. 监听重连事件，广播全量状态
+    bus.onReconnect(() => {
+      logger.info('主窗口重新获得焦点，向所有子窗口广播最新状态...');
+      for (const engine of stateEngines) {
+        engine.manualPush(true); // 广播全量状态
+      }
+    });
   }
 
   return {};

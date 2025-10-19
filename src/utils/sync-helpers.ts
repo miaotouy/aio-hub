@@ -230,23 +230,40 @@ export const idempotencyCache = new IdempotencyCache();
 // ============================================================================
 
 /**
+ * 带有 cancel 方法的防抖函数返回类型
+ */
+export interface DebouncedFunction<T extends (...args: any[]) => any> {
+  (...args: Parameters<T>): void;
+  cancel(): void;
+}
+
+/**
  * 防抖函数
  */
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   delay: number
-): (...args: Parameters<T>) => void {
+): DebouncedFunction<T> {
   let timeoutId: number | undefined;
-  
-  return (...args: Parameters<T>) => {
+
+  const debounced = (...args: Parameters<T>) => {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
     }
-    
+
     timeoutId = window.setTimeout(() => {
       func(...args);
     }, delay);
   };
+
+  debounced.cancel = () => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  };
+
+  return debounced;
 }
 
 // ============================================================================
@@ -255,28 +272,16 @@ export function debounce<T extends (...args: any[]) => any>(
 
 /**
  * 版本号生成器
+ * 基于时间戳和随机数生成唯一版本号，避免多窗口环境下的版本冲突
  */
-export class VersionGenerator {
-  private static counter = 0;
-
+export const VersionGenerator = {
   /**
    * 生成新的版本号
+   * 使用 Date.now() 和随机数组合确保唯一性
    */
-  static next(): number {
-    return ++this.counter;
-  }
-
-  /**
-   * 重置计数器
-   */
-  static reset(): void {
-    this.counter = 0;
-  }
-
-  /**
-   * 获取当前版本号
-   */
-  static current(): number {
-    return this.counter;
-  }
-}
+  next(): number {
+    // Math.random() 在某些情况下可能不够随机，但对于这个场景足够了。
+    // Date.now() 提供了毫秒级的时间戳，确保了版本号的递增。
+    return Date.now() + Math.random();
+  },
+};

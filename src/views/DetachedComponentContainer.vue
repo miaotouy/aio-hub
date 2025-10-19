@@ -55,10 +55,9 @@ watch(
 );
 
 onMounted(async () => {
-  // 初始化此窗口的通信总线，并请求初始状态
+  // 初始化此窗口的通信总线
   const { initializeSyncBus, requestInitialState } = useWindowSyncBus();
   initializeSyncBus();
-  requestInitialState();
 
   logger.info("DetachedComponentContainer 挂载", {
     currentPath: route.path,
@@ -141,9 +140,14 @@ onMounted(async () => {
           logger.error("未找到或未注册可分离的组件", {
             id,
             registered: Object.keys(componentRegistry),
-          });
-        }
-      } catch (error) {
+            });
+          }
+ 
+         // 在组件被赋值后，请求初始状态，确保同步引擎已准备好接收
+         requestInitialState();
+         logger.info("已发送初始状态请求");
+ 
+        } catch (error) {
         logger.error("解析路由中的组件配置失败", { error, config: route.query.config });
       }
     } else {

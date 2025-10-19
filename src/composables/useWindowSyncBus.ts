@@ -44,6 +44,7 @@ class WindowSyncBus {
   private messageHandlers = new Map<WindowMessageType, Set<MessageHandler<any>>>();
   private connectionHandlers = new Set<ConnectionHandler>();
   private disconnectionHandlers = new Set<ConnectionHandler>();
+  private reconnectionHandlers = new Set<() => void>();
   private actionHandler: ActionHandler | null = null;
   private initialStateRequestHandler: InitialStateRequestHandler | null = null;
   
@@ -102,10 +103,19 @@ class WindowSyncBus {
       });
       this.eventUnlisteners.push(unlisten);
 
-      // 如果是主窗口，启动心跳检测
-      if (this.windowType === 'main' && this.config.enableHeartbeat) {
+      // 启动心跳检测
+      if (this.config.enableHeartbeat) {
         this.startHeartbeat();
       }
+
+      // 监听窗口焦点变化以实现重连
+      const currentWindow = getCurrentWebviewWindow();
+      const unlistenFocus = await currentWindow.onFocusChanged(({ payload: focused }: { payload: boolean }) => {
+        if (focused) {
+          this.handleReconnect();
+        }
+      });
+      this.eventUnlisteners.push(unlistenFocus);
 
       this.initialized = true;
       logger.info('WindowSyncBus 核心监听器初始化完成');
@@ -384,26 +394,46 @@ class WindowSyncBus {
   }
 
   /**
+   * 处理重连逻辑
+   */
+  private handleReconnect(): void {
+    logger.info('窗口重新获得焦点，触发重连逻辑');
+    if (this.windowType === 'main') {
+      // 主窗口触发重连事件
+      for (const handler of this.reconnectionHandlers) {
+        try {
+          handler();
+        } catch (error) {
+          logger.error('重连处理器执行失败', error as Error);
+        }
+      }
+    } else {
+      // 分离窗口请求初始状态
+      this.requestInitialState();
+    }
+  }
+
+  /**
+   * 同步状态
    * 同步状态
    */
   async syncState<K extends StateKey>(
     stateType: K,
     data: any,
     version: number,
+    isFull: boolean,
     target?: string
   ): Promise<void> {
-    const isFull = data.patches === undefined;
     const payload: StateSyncPayload = {
       stateType: stateType as any,
       version,
       isFull,
       data: isFull ? data : undefined,
-      patches: isFull ? undefined : data.patches,
+      patches: isFull ? undefined : data,
     };
 
     await this.sendMessage('state-sync', payload, target);
   }
-
   /**
    * 请求操作
    */
@@ -521,6 +551,16 @@ private handleInitialStateRequest(requesterLabel: string): void {
   }
 
   /**
+   * 监听重连事件（主窗口使用）
+   */
+  onReconnect(handler: () => void): UnlistenFn {
+    this.reconnectionHandlers.add(handler);
+    return () => {
+      this.reconnectionHandlers.delete(handler);
+    };
+  }
+
+  /**
    * 获取已连接的窗口列表
    */
   get connectedWindowsList() {
@@ -547,6 +587,7 @@ private handleInitialStateRequest(requesterLabel: string): void {
     this.messageHandlers.clear();
     this.connectionHandlers.clear();
     this.disconnectionHandlers.clear();
+    this.reconnectionHandlers.clear();
     this.actionHandler = null;
     this.initialStateRequestHandler = null;
 
@@ -610,6 +651,7 @@ export function useWindowSyncBus() {
     onMessage: bus.onMessage.bind(bus),
     onConnect: bus.onConnect.bind(bus),
     onDisconnect: bus.onDisconnect.bind(bus),
+    onReconnect: bus.onReconnect.bind(bus),
     
     // 生命周期
     cleanup: bus.cleanup.bind(bus),

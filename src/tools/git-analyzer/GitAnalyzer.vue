@@ -3,7 +3,9 @@
     <InfoCard title="Git 仓库分析" class="analyzer-card">
       <template #headerExtra>
         <el-button-group>
-          <el-button :icon="Refresh" @click="refreshRepository" :loading="loading"> 刷新 </el-button>
+          <el-button :icon="Refresh" @click="refreshRepository" :loading="loading">
+            刷新
+          </el-button>
           <el-button :icon="Upload" @click="showExportDialog" :disabled="commits.length === 0">
             导出
           </el-button>
@@ -13,7 +15,7 @@
       <div class="analyzer-content">
         <!-- 工具栏 -->
         <div class="toolbar">
-          <el-row :gutter="12">
+          <el-row :gutter="12" align="middle">
             <el-col :span="10">
               <DropZone
                 drop-id="git-analyzer-path"
@@ -111,10 +113,8 @@
                 @input="filterCommits"
               />
             </el-col>
-            <el-col :span="3">
-              <el-checkbox v-model="reverseOrder" @change="filterCommits">
-                倒序排列
-              </el-checkbox>
+            <el-col :span="2">
+              <el-checkbox v-model="reverseOrder" @change="filterCommits"> 倒序排列 </el-checkbox>
             </el-col>
             <el-col :span="2">
               <el-button @click="clearFilters" :icon="Refresh"> 清除 </el-button>
@@ -193,7 +193,9 @@
                     >
                       <el-card @click="selectCommit(commit)" class="commit-card">
                         <div class="commit-header">
-                          <span class="commit-sequence">#{{ (currentPage - 1) * pageSize + index + 1 }}</span>
+                          <span class="commit-sequence"
+                            >#{{ (currentPage - 1) * pageSize + index + 1 }}</span
+                          >
                           <el-tag size="small">
                             {{ commit.hash.substring(0, 7) }}
                           </el-tag>
@@ -339,23 +341,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
-import { customMessage } from '@/utils/customMessage'
-import { Refresh, Search, FolderOpened, PriceTag, Upload } from '@element-plus/icons-vue'
-import InfoCard from '../../components/common/InfoCard.vue'
-import DropZone from '../../components/common/DropZone.vue'
-import ExportModule from './components/ExportModule.vue'
-import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from './config'
-import { useGitRepository } from './composables/useGitRepository'
-import { useCharts } from './composables/useCharts'
-import { useCommitDetail } from './composables/useCommitDetail'
-import { createModuleLogger } from '@utils/logger'
+import { ref, watch, nextTick, onMounted } from "vue";
+import { customMessage } from "@/utils/customMessage";
+import { Refresh, Search, FolderOpened, PriceTag, Upload } from "@element-plus/icons-vue";
+import InfoCard from "../../components/common/InfoCard.vue";
+import DropZone from "../../components/common/DropZone.vue";
+import ExportModule from "./components/ExportModule.vue";
+import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config";
+import { useGitRepository } from "./composables/useGitRepository";
+import { useCharts } from "./composables/useCharts";
+import { useCommitDetail } from "./composables/useCommitDetail";
+import { createModuleLogger } from "@utils/logger";
 
 // 创建模块日志记录器
-const logger = createModuleLogger('GitAnalyzer')
+const logger = createModuleLogger("GitAnalyzer");
 
 // 配置状态
-const config = ref<GitAnalyzerConfig | null>(null)
+const config = ref<GitAnalyzerConfig | null>(null);
 
 // 使用 composables
 const {
@@ -385,7 +387,7 @@ const {
   filterCommits: doFilter,
   clearFilters,
   handlePathDrop,
-} = useGitRepository()
+} = useGitRepository();
 
 const {
   // DOM 引用
@@ -395,7 +397,7 @@ const {
   // 方法
   updateCharts,
   setupResizeObserver,
-} = useCharts(filteredCommits)
+} = useCharts(filteredCommits);
 
 const {
   // 状态
@@ -406,88 +408,88 @@ const {
   copyCommitHash,
   formatDate,
   formatFullDate,
-} = useCommitDetail(() => repoPath.value)
+} = useCommitDetail(() => repoPath.value);
 
 // 本地状态
-const activeTab = ref('list')
-const showExport = ref(false)
+const activeTab = ref("list");
+const showExport = ref(false);
 
 // 包装 loadRepository 以在成功后更新图表（增量加载）
 async function loadRepository() {
-  const success = await loadRepo()
+  const success = await loadRepo();
   if (success) {
-    updateCharts()
+    updateCharts();
   }
 }
 
 // 包装 refreshRepository 以在成功后更新图表（全量刷新）
 async function refreshRepository() {
-  const success = await refreshRepo()
+  const success = await refreshRepo();
   if (success) {
-    updateCharts()
+    updateCharts();
   }
 }
 
 // 包装 onBranchChange 以在成功后更新图表
 async function onBranchChange(branch: string) {
-  const success = await switchBranch(branch)
+  const success = await switchBranch(branch);
   if (success) {
-    updateCharts()
+    updateCharts();
   }
 }
 
 // 包装 filterCommits 以在筛选后更新图表
 function filterCommits() {
-  doFilter()
-  updateCharts()
+  doFilter();
+  updateCharts();
 }
 
 // 显示导出对话框
 function showExportDialog() {
   if (commits.value.length === 0) {
-    customMessage.warning('请先加载仓库数据')
-    return
+    customMessage.warning("请先加载仓库数据");
+    return;
   }
-  showExport.value = true
+  showExport.value = true;
 }
 
 // 处理导出配置更新
-function handleExportConfigUpdate(newExportConfig: GitAnalyzerConfig['exportConfig']) {
-  if (!config.value) return
+function handleExportConfigUpdate(newExportConfig: GitAnalyzerConfig["exportConfig"]) {
+  if (!config.value) return;
 
-  config.value.exportConfig = newExportConfig
-  debouncedSaveConfig(config.value)
+  config.value.exportConfig = newExportConfig;
+  debouncedSaveConfig(config.value);
 }
 
 // 加载配置
 async function loadConfig() {
   try {
-    const loadedConfig = await gitAnalyzerConfigManager.load()
-    config.value = loadedConfig
+    const loadedConfig = await gitAnalyzerConfigManager.load();
+    config.value = loadedConfig;
 
     // 恢复配置到各个状态
-    repoPath.value = loadedConfig.repoPath
-    selectedBranch.value = loadedConfig.selectedBranch
-    limitCount.value = loadedConfig.limitCount
-    activeTab.value = loadedConfig.activeTab
-    pageSize.value = loadedConfig.pageSize
-    searchQuery.value = loadedConfig.searchQuery
-    authorFilter.value = loadedConfig.authorFilter
-    reverseOrder.value = loadedConfig.reverseOrder
+    repoPath.value = loadedConfig.repoPath;
+    selectedBranch.value = loadedConfig.selectedBranch;
+    limitCount.value = loadedConfig.limitCount;
+    activeTab.value = loadedConfig.activeTab;
+    pageSize.value = loadedConfig.pageSize;
+    searchQuery.value = loadedConfig.searchQuery;
+    authorFilter.value = loadedConfig.authorFilter;
+    reverseOrder.value = loadedConfig.reverseOrder;
 
     // 恢复日期范围（需要将字符串转换为 Date 对象）
     if (loadedConfig.dateRange) {
-      dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])]
+      dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])];
     }
-    commitRange.value = loadedConfig.commitRange || [0, 0]
+    commitRange.value = loadedConfig.commitRange || [0, 0];
   } catch (error) {
-    logger.error('加载配置失败', error, { repoPath: repoPath.value })
+    logger.error("加载配置失败", error, { repoPath: repoPath.value });
   }
 }
 
 // 保存当前配置
 function saveCurrentConfig() {
-  if (!config.value) return
+  if (!config.value) return;
 
   const updatedConfig: GitAnalyzerConfig = {
     ...config.value,
@@ -503,38 +505,49 @@ function saveCurrentConfig() {
     authorFilter: authorFilter.value,
     commitRange: commitRange.value,
     reverseOrder: reverseOrder.value,
-}
+  };
 
-debouncedSaveConfig(updatedConfig)
+  debouncedSaveConfig(updatedConfig);
 }
 
 // 监听配置变化并自动保存
 watch(
-  [repoPath, selectedBranch, limitCount, activeTab, pageSize, searchQuery, dateRange, authorFilter, commitRange, reverseOrder],
+  [
+    repoPath,
+    selectedBranch,
+    limitCount,
+    activeTab,
+    pageSize,
+    searchQuery,
+    dateRange,
+    authorFilter,
+    commitRange,
+    reverseOrder,
+  ],
   () => {
-    saveCurrentConfig()
+    saveCurrentConfig();
   },
   { deep: true }
-)
+);
 
 // 监听标签页切换
 watch(activeTab, () => {
-  if (activeTab.value === 'chart') {
+  if (activeTab.value === "chart") {
     nextTick(() => {
-      updateCharts()
-    })
+      updateCharts();
+    });
   }
-})
+});
 
 // 组件挂载
 onMounted(async () => {
   // 加载配置
-  await loadConfig()
+  await loadConfig();
 
   // 设置图表 ResizeObserver
-  const mainContent = document.querySelector('.main-content')
-  setupResizeObserver(mainContent)
-})
+  const mainContent = document.querySelector(".main-content");
+  setupResizeObserver(mainContent);
+});
 </script>
 
 <style scoped>

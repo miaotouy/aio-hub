@@ -2,13 +2,192 @@ use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 use tokio::time::sleep;
+use rdev::{listen, Event, EventType};
+use std::thread;
 
 // ============================================================================
 // 新统一分离系统 (Unified Detachment System)
 // ============================================================================
+
+// ============================================================================
+// 基于 rdev 的拖拽会话管理 (Global Mouse Listener Based Drag Session)
+// ============================================================================
+
+/// 拖拽会话状态
+#[derive(Debug, Clone)]
+struct DragSessionState {
+    /// 分离配置
+    config: DetachableConfig,
+    /// 预览窗口的标签
+    preview_window_label: String,
+    /// 起始屏幕坐标
+    start_x: f64,
+    start_y: f64,
+    /// 当前屏幕坐标
+    current_x: f64,
+    current_y: f64,
+    /// 是否可以分离
+    can_detach: bool,
+    /// 会话创建时间
+    created_at: Instant,
+    /// AppHandle 的克隆（用于在后台线程中更新窗口）
+    app_handle: AppHandle,
+}
+
+/// 全局拖拽会话（同一时刻只有一个）
+static DRAG_SESSION: once_cell::sync::Lazy<Arc<Mutex<Option<DragSessionState>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+
+/// 分离阈值（与前端保持一致）
+const DETACH_THRESHOLD: f64 = 50.0;
+
+/// 初始化全局鼠标监听器
+/// 应在应用启动时调用一次
+pub fn init_global_mouse_listener() {
+    thread::spawn(move || {
+        let session_arc = DRAG_SESSION.clone();
+        let callback = move |event: Event| {
+            match event.event_type {
+                EventType::MouseMove { x, y } => {
+                    let mut session_opt = session_arc.lock().unwrap();
+                    if let Some(session) = session_opt.as_mut() {
+                        session.current_x = x;
+                        session.current_y = y;
+
+                        let delta_x = x - session.start_x;
+                        let delta_y = y - session.start_y;
+                        let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
+
+                        let new_can_detach = distance >= DETACH_THRESHOLD;
+                        let status_changed = new_can_detach != session.can_detach;
+                        session.can_detach = new_can_detach;
+
+                        let app_handle = session.app_handle.clone();
+                        let preview_label = session.preview_window_label.clone();
+                        let can_detach = session.can_detach;
+                        
+                        drop(session_opt);
+
+                        if let Some(window) = app_handle.get_webview_window(&preview_label) {
+                            // rdev 返回的 x, y 已经是物理坐标，不需要再缩放
+                            let mut physical_x = x as i32;
+                            let mut physical_y = y as i32;
+                            
+                            // 居中窗口
+                            if let Ok(size) = window.outer_size() {
+                                physical_x -= (size.width as i32) / 2;
+                                physical_y -= (size.height as i32) / 2;
+                            }
+                            
+                            let _ = window.set_position(PhysicalPosition::new(physical_x, physical_y));
+                            
+                            if status_changed {
+                                let _ = window.emit("detach-status-update", serde_json::json!({ "canDetach": can_detach }));
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        };
+        println!("[DRAG] 全局鼠标监听器已启动");
+        if let Err(error) = listen(callback) {
+            eprintln!("[DRAG] 全局鼠标监听错误: {:?}", error);
+        }
+    });
+}
+
+/// 开始一个基于全局鼠标监听的拖拽会话
+#[tauri::command]
+pub async fn start_drag_session(
+    app: AppHandle,
+    config: DetachableConfig,
+) -> Result<(), String> {
+    // 检查是否已有活动会话
+    {
+        let session = DRAG_SESSION.lock().unwrap();
+        if session.is_some() {
+            return Err("已存在活动的拖拽会话".to_string());
+        }
+    }
+
+    println!("[DRAG] 开始拖拽会话: {}", config.display_name);
+
+    // 创建预览窗口
+    let preview_label = format!("preview-{}", nanoid!(8));
+    create_preview_window_internal(&app, &preview_label, &config).await?;
+
+    // 前端传入的是逻辑坐标，需要转换为物理坐标以匹配 rdev 的坐标系统
+    let scale_factor = if let Some(window) = app.get_webview_window(&preview_label) {
+        window.scale_factor().unwrap_or(1.0)
+    } else {
+        1.0
+    };
+    
+    let physical_start_x = config.mouse_x * scale_factor;
+    let physical_start_y = config.mouse_y * scale_factor;
+
+    // 创建会话状态
+    let session_state = DragSessionState {
+        config: config.clone(),
+        preview_window_label: preview_label.clone(),
+        start_x: physical_start_x,
+        start_y: physical_start_y,
+        current_x: physical_start_x,
+        current_y: physical_start_y,
+        can_detach: false,
+        created_at: Instant::now(),
+        app_handle: app.clone(),
+    };
+
+    // 保存会话状态
+    {
+        let mut session = DRAG_SESSION.lock().unwrap();
+        *session = Some(session_state);
+    }
+
+    Ok(())
+}
+
+/// 结束拖拽会话
+#[tauri::command]
+pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
+    let session_state = {
+        let mut session = DRAG_SESSION.lock().unwrap();
+        session.take()
+    };
+
+    if let Some(state) = session_state {
+        let duration = state.created_at.elapsed();
+        println!(
+            "[DRAG] 结束拖拽会话: {}, can_detach: {}, 持续时间: {:?}",
+            state.config.display_name,
+            state.can_detach,
+            duration
+        );
+
+        let preview_window_label = state.preview_window_label.clone();
+        let should_detach = state.can_detach;
+
+        if should_detach {
+            // 固化窗口
+            finalize_window_internal(&app, &preview_window_label, &state.config).await?;
+            Ok(true)
+        } else {
+            // 取消分离，关闭预览窗口
+            if let Some(window) = app.get_webview_window(&preview_window_label) {
+                window.close().map_err(|e| e.to_string())?;
+            }
+            Ok(false)
+        }
+    } else {
+        Err("没有活动的拖拽会话".to_string())
+    }
+}
+
 
 /// 统一的窗口分离配置
 #[derive(Debug, Clone, Deserialize, Serialize)]

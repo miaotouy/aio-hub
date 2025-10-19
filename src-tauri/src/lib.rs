@@ -61,8 +61,14 @@ use commands::{
     finalize_detach_session,
     get_all_detached_windows,
     close_detached_window, // 新增：统一的关闭命令
+    // 基于 rdev 的拖拽会话命令
+    start_drag_session,
+    end_drag_session,
     ClipboardMonitorState,
 };
+
+// 导入全局鼠标监听器初始化函数
+use commands::window_manager::init_global_mouse_listener;
 
 // 导入事件处理
 use events::handle_window_event;
@@ -184,6 +190,9 @@ pub fn run() {
             finalize_detach_session,
             get_all_detached_windows,
             close_detached_window,
+            // 基于 rdev 的拖拽会话命令
+            start_drag_session,
+            end_drag_session,
             // 配置管理命令
             export_all_configs,
             import_all_configs,
@@ -233,6 +242,9 @@ pub fn run() {
 
             // 创建系统托盘
             create_system_tray(&app_handle)?;
+
+            // 初始化全局鼠标监听器（用于基于 rdev 的拖拽）
+            init_global_mouse_listener();
 
             Ok(())
         })

@@ -27,7 +27,6 @@ export interface DetachableConfig {
 }
 
 const isDragging = ref(false);
-const sessionId = ref<string | null>(null);
 
 // 拖拽状态管理
 const dragState = reactive({
@@ -81,23 +80,14 @@ export function useDetachable() {
       isDragging.value = true;
       dragState.isPreparing = false;
       
-      const currentSessionId = await invoke<string>('begin_detach_session', {
+      // 使用新的基于 rdev 的拖拽会话
+      await invoke('start_drag_session', {
         config: dragState.config
       });
-      sessionId.value = currentSessionId;
-      console.log(`[DETACH] 拖拽会话已创建: ${currentSessionId}`);
       
-      // 立即发送初始状态（canDetach = false），确保预览窗口能正确显示
-      invoke('update_detach_session_status', {
-        sessionId: currentSessionId,
-        canDetach: false,
-      }).then(() => {
-        console.log('[DETACH] 已发送初始状态到预览窗口');
-      }).catch(error => {
-        console.error('[DETACH] 发送初始状态失败:', error);
-      });
+      console.log('[DETACH] 基于 rdev 的拖拽会话已启动');
     } catch (error) {
-      console.error('[DETACH] 创建拖拽会话失败:', error);
+      console.error('[DETACH] 启动拖拽会话失败:', error);
       isDragging.value = false;
       dragState.isPreparing = false;
       dragState.config = null;
@@ -126,48 +116,16 @@ export function useDetachable() {
           thresholds: DRAG_THRESHOLD
         });
         await beginDragSession();
-      } else {
-        // 还未满足启动条件，不做任何操作
-        return;
       }
     }
 
-    // 如果已经在拖拽中
-    if (isDragging.value && sessionId.value) {
-      // 更新可分离状态
-      const newCanDetach = distance >= DETACH_THRESHOLD;
-      if (newCanDetach !== dragState.canDetach) {
-        dragState.canDetach = newCanDetach;
-        
-        console.log('[DETACH] 拖拽状态变化', { canDetach: newCanDetach, distance });
-        
-        // 通知后端状态变化
-        invoke('update_detach_session_status', {
-          sessionId: sessionId.value,
-          canDetach: newCanDetach,
-        }).then(() => {
-          console.log('[DETACH] 成功发送状态更新到预览窗口', { canDetach: newCanDetach });
-        }).catch(error => {
-          console.error('[DETACH] 更新分离状态失败:', error);
-        });
-      }
-
-      // 更新预览窗口位置
-      invoke('update_detach_session_position', {
-        sessionId: sessionId.value,
-        x: event.screenX,
-        y: event.screenY,
-      }).catch(error => {
-        console.error('[DETACH] 更新预览窗口位置失败:', error);
-        // 如果会话ID无效，可能意味着窗口已在另一端被关闭
-        if (error.includes('不存在')) {
-          stopDragging(false); // 强制停止
-        }
-      });
+    // 更新 canDetach 状态供 stopDragging 使用
+    if (isDragging.value) {
+      dragState.canDetach = distance >= DETACH_THRESHOLD;
     }
   };
 
-  const stopDragging = (shouldDetach: boolean) => {
+  const stopDragging = () => {
     // 如果还在准备阶段（没有真正开始拖拽），视为点击
     if (dragState.isPreparing && !isDragging.value) {
       console.log('[DETACH] 未达到启动条件，视为点击');
@@ -185,30 +143,30 @@ export function useDetachable() {
       return;
     }
 
-    // 如果已经开始拖拽，正常结束会话
-    if (isDragging.value && sessionId.value) {
-      console.log(`[DETACH] 结束拖拽会话: ${sessionId.value}, 是否固化: ${shouldDetach}`);
+    // 如果已经开始拖拽，调用新的结束命令
+    if (isDragging.value) {
+      console.log('[DETACH] 结束拖拽会话，是否固化由后端根据距离判断');
 
-      invoke('finalize_detach_session', {
-        sessionId: sessionId.value,
-        shouldDetach,
-      }).catch(error => {
-        console.error('[DETACH] 结束分离会话失败:', error);
-      }).finally(() => {
-        isDragging.value = false;
-        sessionId.value = null;
-        dragState.isPreparing = false;
-        dragState.config = null;
-        dragState.canDetach = false;
-        dragState.startTime = 0;
-      });
+      invoke<boolean>('end_drag_session')
+        .then((created) => {
+          console.log(`[DETACH] 拖拽会话结束，窗口${created ? '已' : '未'}创建`);
+        })
+        .catch(error => {
+          console.error('[DETACH] 结束拖拽会话失败:', error);
+        })
+        .finally(() => {
+          isDragging.value = false;
+          dragState.isPreparing = false;
+          dragState.config = null;
+          dragState.canDetach = false;
+          dragState.startTime = 0;
+        });
     }
   };
 
   const handleMouseUp = (_event: MouseEvent) => {
-    // 根据拖拽距离决定是否分离
-    // 只有当拖拽距离超过阈值时，才会创建独立窗口
-    stopDragging(dragState.canDetach);
+    // 后端会根据拖拽距离自动判断是否创建窗口
+    stopDragging();
   };
 
   // 在准备阶段和拖拽阶段都需要监听全局事件

@@ -16,8 +16,8 @@ import { generateHTML } from "../utils/htmlGenerator";
 
 interface ReportGeneratorOptions {
   config: Ref<ExportConfig>;
-  repoPath: string;
-  branch: string;
+  repoPath: Ref<string>;
+  branch: Ref<string>;
   statistics: RepoStatistics;
   commits: GitCommit[];
   getCommitsToExport: () => GitCommit[];
@@ -64,8 +64,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
 
     lines.push(`# Git 仓库分析报告`);
     lines.push("");
-    lines.push(`**仓库路径**: ${repoPath || "当前目录"}`);
-    lines.push(`**分支**: ${branch}`);
+    lines.push(`**仓库路径**: ${repoPath.value || "当前目录"}`);
+    lines.push(`**分支**: ${branch.value}`);
     lines.push(`**生成时间**: ${new Date().toLocaleString("zh-CN")}`);
     lines.push("");
 
@@ -218,8 +218,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     const statistics = calculateStatistics(commitsToExport);
 
     const data: any = {
-      repository: repoPath || "当前目录",
-      branch: branch,
+      repository: repoPath.value || "当前目录",
+      branch: branch.value,
       generatedAt: new Date().toISOString(),
       statistics: statistics,
     };
@@ -330,8 +330,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     lines.push("Git 仓库分析报告");
     lines.push("=".repeat(60));
     lines.push("");
-    lines.push(`仓库路径: ${repoPath || "当前目录"}`);
-    lines.push(`分支: ${branch}`);
+    lines.push(`仓库路径: ${repoPath.value || "当前目录"}`);
+    lines.push(`分支: ${branch.value}`);
     lines.push(`生成时间: ${new Date().toLocaleString("zh-CN")}`);
     lines.push("");
 
@@ -456,8 +456,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
 
     return generateHTML({
       config: config.value,
-      repoPath,
-      branch,
+      repoPath: repoPath.value,
+      branch: branch.value,
       statistics,
       commits: options.commits,
       getCommitsToExport,

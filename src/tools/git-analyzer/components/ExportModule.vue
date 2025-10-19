@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, toRef } from 'vue'
 import { customMessage } from '@/utils/customMessage'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
@@ -188,8 +188,8 @@ function getMergedCommits(commits: GitCommit[]): GitCommit[] {
 // 初始化报告生成器
 const reportGenerator = useReportGenerator({
   config: exportConfig,
-  repoPath: props.repoPath,
-  branch: props.branch,
+  repoPath: toRef(props, 'repoPath'),
+  branch: toRef(props, 'branch'),
   statistics: props.statistics,
   commits: props.commits,
   getCommitsToExport,

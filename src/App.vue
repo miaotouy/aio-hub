@@ -3,9 +3,8 @@ import { ref, onMounted, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "./config/tools";
-import { useDetachedTools, type WindowConfig } from "./composables/useDetachedTools";
-import { useDetachedComponents } from "./composables/useDetachedComponents";
-import { useToolDragging } from "./composables/useToolDragging";
+import { useDetachedManager, type WindowConfig } from "./composables/useDetachedManager";
+import { useDetachable } from "./composables/useDetachable";
 import {
   loadAppSettingsAsync,
   updateAppSettingsAsync,
@@ -21,9 +20,8 @@ const logger = createModuleLogger("App");
 const router = useRouter();
 const route = useRoute();
 const { currentTheme, toggleTheme } = useTheme();
-const { isToolDetached, initializeListeners } = useDetachedTools();
-const { initializeListeners: initComponentListeners } = useDetachedComponents();
-const { startDrag } = useToolDragging();
+const { isDetached, initialize } = useDetachedManager();
+const { startDetaching } = useDetachable();
 const isCollapsed = ref(false); // 控制侧边栏收起状态
 
 // 特殊路由列表 - 这些路由不需要显示标题栏和侧边栏
@@ -88,7 +86,7 @@ const visibleTools = computed(() => {
     : toolsConfig;
 
   // 过滤掉已分离的工具
-  return baseTools.filter((tool) => !isToolDetached(getToolIdFromPath(tool.path)));
+  return baseTools.filter((tool) => !isDetached(getToolIdFromPath(tool.path)));
 });
 
 const toggleSidebar = async () => {
@@ -174,11 +172,8 @@ const loadSettings = async () => {
 let handleSettingsChange: ((event: Event) => void) | null = null;
 
 onMounted(async () => {
-  // 初始化分离工具的事件监听
-  initializeListeners();
-  
-  // 初始化组件分离的事件监听
-  initComponentListeners();
+  // 初始化统一的分离窗口管理器
+  await initialize();
 
   // 初始加载设置
   await loadSettings();
@@ -296,16 +291,32 @@ const handleDragMove = (event: MouseEvent) => {
     // 条件2：按下时间超过最大时间阈值（即使移动距离小）
     (elapsed >= DRAG_THRESHOLD.TIME_MAX && distance >= 3);
 
-  if (shouldTrigger && dragState.windowConfig) {
+  if (shouldTrigger && dragState.tool) {
     dragState.dragTriggered = true;
     
-    // 触发拖拽
-    startDrag(event, dragState.windowConfig);
+    // 清理 App.vue 的监听器，让 useDetachable 接管
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+    
+    // 使用新的统一拖拽系统
+    const tool = dragState.tool;
+    startDetaching({
+      id: getToolIdFromPath(tool.path),
+      displayName: tool.name,
+      type: 'tool',
+      width: 900,
+      height: 700,
+      mouseX: event.screenX,
+      mouseY: event.screenY,
+    });
 
     // 如果当前就在这个工具页面，拖拽后导航回主页
-    if (dragState.tool && route.path === dragState.tool.path) {
+    if (route.path === tool.path) {
       router.push("/");
     }
+    
+    // 重置状态
+    dragState = null;
   }
 };
 

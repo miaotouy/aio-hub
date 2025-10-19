@@ -68,7 +68,10 @@ onMounted(async () => {
       const label = currentWindow.label;
       logger.info("检查窗口固定状态", { label });
 
-      const isFinalized = await invoke<boolean>("is_component_finalized", { label });
+      // 使用新的统一命令检查窗口是否已固定
+      const windows = await invoke<Array<{ id: string; label: string }>>("get_all_detached_windows");
+      const isFinalized = windows.some(w => w.label === label);
+      
       logger.info("窗口固定状态检查结果", { label, isFinalized });
 
       if (isFinalized) {
@@ -93,13 +96,14 @@ onMounted(async () => {
         const config = JSON.parse(route.query.config);
         logger.info("从路由参数解析到组件配置", { config });
 
-        const { componentId, ...props } = config;
-        currentComponentId.value = componentId;
+        // 新系统使用 id 而不是 componentId
+        const { id, ...props } = config;
+        currentComponentId.value = id;
         
         // 为不同组件提供默认 props
         const defaultProps: Record<string, any> = { isDetached: true };
         
-        if (componentId === 'chat-input') {
+        if (id === 'chat-input') {
           // MessageInput 需要的默认 props
           defaultProps.disabled = false;
           defaultProps.isSending = false;
@@ -108,22 +112,22 @@ onMounted(async () => {
         componentProps.value = { ...defaultProps, ...props };
         
         logger.info('组件 props 已初始化', {
-          componentId,
+          id,
           props: componentProps.value
         });
 
         // 加载组件
         logger.info("准备加载组件", {
-          componentId,
+          id,
           availableComponents: Object.keys(componentRegistry),
         });
-        if (componentId && componentRegistry[componentId]) {
-          logger.info("正在加载组件", { componentId });
-          componentToRender.value = defineAsyncComponent(componentRegistry[componentId]);
-          logger.info("组件加载成功", { componentId });
+        if (id && componentRegistry[id]) {
+          logger.info("正在加载组件", { id });
+          componentToRender.value = defineAsyncComponent(componentRegistry[id]);
+          logger.info("组件加载成功", { id });
         } else {
           logger.error("未找到或未注册可分离的组件", {
-            componentId,
+            id,
             registered: Object.keys(componentRegistry),
           });
         }

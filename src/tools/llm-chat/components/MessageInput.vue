@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useComponentDragging } from "@/composables/useComponentDragging";
-import { useDetachedComponents } from "@/composables/useDetachedComponents";
+import { invoke } from "@tauri-apps/api/core";
+import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
@@ -60,48 +60,32 @@ const autoResize = () => {
   }
 };
 
-// ===== 拖拽功能 =====
-const { startDrag } = useComponentDragging(
-  {
-    threshold: 10,
-    finalizeThreshold: 100,
-    enableThrottle: true,
-  },
-  {
-    onCreatePreview: (e) => {
-      const rect = containerRef.value?.getBoundingClientRect();
-      if (!rect) {
-        logger.error("无法获取容器尺寸");
-        return null;
-      }
+// ===== 拖拽与分离功能 =====
+const { startDetaching } = useDetachable();
 
-      return {
-        componentId: "chat-input",
-        displayName: "聊天输入框",
-        width: rect.width + 80,
-        height: rect.height + 80,
-        mouseX: e.screenX,
-        mouseY: e.screenY,
-      };
-    },
-  }
-);
-
-// 处理拖拽开始
 const handleDragStart = (e: MouseEvent) => {
-  // 如果已经分离，则不执行任何操作，让Tauri的窗口拖拽接管
-  if (props.isDetached) {
+  if (props.isDetached) return;
+
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (!rect) {
+    logger.error("无法获取容器尺寸，无法开始拖拽");
     return;
   }
-  startDrag(e);
+
+  startDetaching({
+    id: 'chat-input',
+    displayName: '聊天输入框',
+    type: 'component',
+    width: rect.width,
+    height: rect.height,
+    mouseX: e.screenX,
+    mouseY: e.screenY,
+  });
 };
 
 // ===== 窗口大小调整功能 =====
 const { createResizeHandler } = useWindowResize();
 const handleResizeStart = createResizeHandler("SouthEast");
-
-// ===== 独立窗口功能 =====
-const { requestPreviewWindow, finalizePreviewWindow } = useDetachedComponents();
 
 // 处理从菜单打开独立窗口
 const handleDetach = async () => {
@@ -111,37 +95,31 @@ const handleDetach = async () => {
     return;
   }
 
+  const config = {
+    id: 'chat-input',
+    displayName: '聊天输入框',
+    type: 'component' as const,
+    width: rect.width,
+    height: rect.height,
+    mouseX: window.screenX + rect.left + rect.width / 2,
+    mouseY: window.screenY + rect.top + rect.height / 2,
+  };
+
+  logger.info("通过菜单请求分离窗口", { config });
+
   try {
-    // 使用组件分离的正确流程
-    const config = {
-      componentId: "chat-input",
-      displayName: "聊天输入框",
-      width: rect.width + 80,
-      height: rect.height + 80,
-      mouseX: rect.left + rect.width / 2, // 使用组件中心位置
-      mouseY: rect.top + rect.height / 2,
-    };
-
-    logger.info("通过菜单创建独立窗口", { config });
-
-    // 请求预览窗口
-    const label = await requestPreviewWindow(config);
-
-    if (label) {
-      logger.info("预览窗口已创建，立即固定", { label });
-      // 立即固定窗口（因为这是菜单点击，不是拖拽）
-      const success = await finalizePreviewWindow(label);
-
-      if (success) {
-        logger.info("独立窗口创建成功", { label });
-      } else {
-        logger.error("固定预览窗口失败");
-      }
+    const sessionId = await invoke<string>('begin_detach_session', { config });
+    if (sessionId) {
+      await invoke('finalize_detach_session', {
+        sessionId,
+        shouldDetach: true,
+      });
+      logger.info("通过菜单分离窗口成功", { sessionId });
     } else {
-      logger.error("创建预览窗口失败");
+      logger.error('开始分离会话失败，未返回会话 ID');
     }
   } catch (error) {
-    logger.error("通过菜单创建独立窗口失败", { error });
+    logger.error("通过菜单分离窗口失败", { error });
   }
 };
 </script>

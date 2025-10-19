@@ -23,19 +23,19 @@
     <div class="tool-grid">
       <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
       <component
-        :is="isToolDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
+        :is="isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
         v-for="tool in filteredTools"
         :key="tool.path"
-        :to="isToolDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
+        :to="isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
         :class="[
           'tool-card',
-          { 'tool-card-detached': isToolDetached(getToolIdFromPath(tool.path)) },
+          { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) },
         ]"
         @click="handleToolClick(tool.path)"
       >
         <!-- 已分离徽章（带下拉菜单） -->
         <el-dropdown
-          v-if="isToolDetached(getToolIdFromPath(tool.path))"
+          v-if="isDetached(getToolIdFromPath(tool.path))"
           class="detached-badge-dropdown"
           trigger="hover"
           @command="(command: string) => handleDropdownCommand(command, tool.path)"
@@ -76,11 +76,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { toolsConfig } from "../config/tools";
 import { loadAppSettingsAsync, type AppSettings } from "../utils/appSettings";
-import { useDetachedTools } from "../composables/useDetachedTools";
+import { useDetachedManager } from "../composables/useDetachedManager";
 import { customMessage } from '@/utils/customMessage';
 
 const router = useRouter();
-const { isToolDetached, focusWindow, closeToolWindow, initializeListeners } = useDetachedTools();
+const { isDetached, focusWindow, closeWindow, initialize } = useDetachedManager();
 
 // 搜索文本
 const searchText = ref("");
@@ -154,7 +154,7 @@ const handleToolClick = async (toolPath: string) => {
   const toolId = getToolIdFromPath(toolPath);
 
   // 如果工具已分离，聚焦其窗口（此时是 div，不会触发导航）
-  if (isToolDetached(toolId)) {
+  if (isDetached(toolId)) {
     await focusWindow(toolId);
   }
   // 如果工具未分离，让 router-link 正常导航（无需额外处理）
@@ -166,7 +166,7 @@ const handleDropdownCommand = async (command: string, toolPath: string) => {
     const toolId = getToolIdFromPath(toolPath);
 
     try {
-      const success = await closeToolWindow(toolId);
+      const success = await closeWindow(toolId);
       if (success) {
         customMessage.success("已取消分离");
       } else {
@@ -185,8 +185,8 @@ const handleStorageChange = async () => {
 };
 
 onMounted(async () => {
-  // 初始化分离工具监听器
-  await initializeListeners();
+  // 初始化统一的分离窗口管理器
+  await initialize();
 
   // 初始化时加载设置
   settings.value = await loadAppSettingsAsync();

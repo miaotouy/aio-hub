@@ -2,7 +2,7 @@
 import { onMounted, computed } from 'vue';
 import { useLlmChatStore } from './store';
 import { useAgentStore } from './agentStore';
-import { useDetachedComponents } from '@/composables/useDetachedComponents';
+import { useDetachedManager } from '@/composables/useDetachedManager';
 import { useLlmChatSync } from './composables/useLlmChatSync';
 import ChatArea from './components/ChatArea.vue';
 import SessionsSidebar from './components/SessionsSidebar.vue';
@@ -17,18 +17,18 @@ const agentStore = useAgentStore();
 useLlmChatSync();
 
 // 分离组件管理
-const { initializeListeners, isComponentDetached } = useDetachedComponents();
+const { initialize, isDetached } = useDetachedManager();
 
 // 对话区域是否已分离的状态
-const isChatAreaDetached = computed(() => isComponentDetached('chat-area'));
+const isChatAreaDetached = computed(() => isDetached('chat-area'));
 
 // 组件挂载时加载会话和智能体
 onMounted(async () => {
   agentStore.loadAgents();
   store.loadSessions();
   
-  // 初始化分离组件监听器
-  await initializeListeners();
+  // 初始化统一的分离窗口管理器
+  await initialize();
   
   logger.info('LLM Chat 模块已加载', {
     sessionCount: store.sessions.length,

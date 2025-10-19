@@ -5,7 +5,7 @@ mod tray;
 
 // 导入所需的依赖
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tokio_util::sync::CancellationToken;
 
@@ -14,28 +14,20 @@ use commands::{
     // 目录清理相关
     analyze_directory_for_cleanup,
     cancel_move_operation,
-    cancel_preview_window,
     cleanup_items,
     clear_window_state,
-    close_tool_window,
     create_links_only,
     // 窗口管理相关
     create_tool_window,
-    end_drag_session,
     ensure_window_visible,
     // 配置管理相关
     export_all_configs,
-    finalize_drag_indicator,
-    finalize_preview_window,
     focus_window,
     generate_directory_tree,
     get_all_operation_logs,
-    get_all_tool_windows,
     get_clipboard_content_type,
-    get_finalized_components,
     get_latest_operation_log,
     get_proxy_status,
-    get_window_position,
     git_cherry_pick,
     git_export_commits,
     git_format_log,
@@ -47,28 +39,27 @@ use commands::{
     git_load_repository,
     git_revert,
     import_all_configs,
-    is_component_finalized,
     is_directory,
     list_config_files,
     move_and_link,
     // OCR相关
     native_ocr,
-    prepare_drag_indicator,
     process_files_with_regex,
     read_file_as_base64,
-    reattach_component,
-    // 组件窗口管理
-    request_preview_window,
     set_window_position,
     start_clipboard_monitor,
-    start_drag_session,
     // LLM代理相关
     start_llm_proxy,
     stop_clipboard_monitor,
     stop_llm_proxy,
-    update_preview_position,
     update_proxy_target,
     validate_file_for_link,
+    // 新统一分离系统命令
+    begin_detach_session,
+    update_detach_session_position,
+    finalize_detach_session,
+    get_all_detached_windows,
+    close_detached_window, // 新增：统一的关闭命令
     ClipboardMonitorState,
 };
 
@@ -182,24 +173,15 @@ pub fn run() {
             // 窗口管理命令
             create_tool_window,
             focus_window,
-            get_window_position,
             set_window_position,
             ensure_window_visible,
-            get_all_tool_windows,
-            close_tool_window,
             clear_window_state,
-            prepare_drag_indicator,
-            finalize_drag_indicator,
-            start_drag_session,
-            end_drag_session,
-            // 组件窗口管理命令
-            request_preview_window,
-            update_preview_position,
-            finalize_preview_window,
-            cancel_preview_window,
-            reattach_component,
-            is_component_finalized,
-            get_finalized_components,
+            // 新统一分离命令
+            begin_detach_session,
+            update_detach_session_position,
+            finalize_detach_session,
+            get_all_detached_windows,
+            close_detached_window,
             // 配置管理命令
             export_all_configs,
             import_all_configs,
@@ -261,10 +243,14 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let window_label = window.label().to_string();
 
-                // 如果关闭的是工具窗口（非主窗口），发送事件通知
-                if window_label != "main" {
-                    let app_handle = window.app_handle();
-                    let _ = app_handle.emit("tool-attached", window_label);
+                // 如果关闭的是分离窗口（非主窗口），调用统一的关闭命令
+                if window_label != "main" && !window_label.starts_with("drag-indicator") {
+                    let app_handle = window.app_handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = commands::close_detached_window(app_handle, window_label).await {
+                            eprintln!("Error closing detached window: {}", e);
+                        }
+                    });
                 }
                 // 如果是主窗口，处理托盘逻辑
                 else if let Some(app_state) = window.app_handle().try_state::<AppState>() {

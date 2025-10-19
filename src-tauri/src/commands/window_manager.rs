@@ -1,375 +1,323 @@
+use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 use tokio::time::sleep;
 
-/// 全局拖拽会话状态
-static DRAG_SESSION: once_cell::sync::Lazy<Arc<Mutex<Option<DragSession>>>> =
-    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+// ============================================================================
+// 新统一分离系统 (Unified Detachment System)
+// ============================================================================
 
-/// 已固定的组件窗口集合
-static FINALIZED_COMPONENTS: once_cell::sync::Lazy<Arc<Mutex<HashSet<String>>>> =
-    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashSet::new())));
-
-/// 组件窗口ID计数器
-static COMPONENT_WINDOW_ID: AtomicUsize = AtomicUsize::new(0);
-
-/// 窗口label到componentId的映射
-static COMPONENT_ID_MAP: once_cell::sync::Lazy<Arc<Mutex<std::collections::HashMap<String, String>>>> =
-    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(std::collections::HashMap::new())));
-
-/// 生成新的组件窗口标签
-fn generate_component_label() -> String {
-    let id = COMPONENT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
-    format!("component-window-{}", id)
-}
-
-/// 打印当前窗口列表
-fn print_window_list(app_handle: &AppHandle) {
-    let windows = app_handle.webview_windows();
-    let window_labels: Vec<String> = windows.keys().map(|k| k.to_string()).collect();
-    
-    println!("========================================");
-    println!("当前窗口列表 (总数: {})", window_labels.len());
-    println!("========================================");
-    for (index, label) in window_labels.iter().enumerate() {
-        println!("  [{}] {}", index + 1, label);
-    }
-    println!("========================================");
-}
-
-/// 组件预览配置
-#[derive(Debug, Clone, Deserialize, Serialize)] // 添加 Serialize
+/// 统一的窗口分离配置
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ComponentPreviewConfig {
-    pub component_id: String,
-    #[allow(dead_code)]
+pub struct DetachableConfig {
+    /// 唯一标识符 (e.g., "json-formatter" or "chat-area")
+    pub id: String,
+    /// 显示名称 (e.g., "JSON Formatter" or "对话区域")
     pub display_name: String,
+    /// 窗口类型: 'tool' 或 'component'
+    pub r#type: String, // 'type' is a keyword in Rust
+    /// 初始宽度
     pub width: f64,
+    /// 初始高度
     pub height: f64,
+    /// 鼠标起始X坐标
     pub mouse_x: f64,
+    /// 鼠标起始Y坐标
     pub mouse_y: f64,
 }
 
-/// 请求预览窗口
-#[tauri::command]
-pub async fn request_preview_window(
-    app: AppHandle,
-    config: ComponentPreviewConfig,
-) -> Result<String, String> {
-    println!("[PREVIEW] 正在请求预览窗口: {}", config.component_id);
+/// 统一的拖拽分离会话状态
+#[derive(Debug, Clone)]
+struct DetachSession {
+    /// 分离配置
+    config: DetachableConfig,
+    /// 预览窗口的标签
+    preview_window_label: String,
+}
 
-    // 将 config 序列化并通过 URL 参数传递
-    let config_json =
-        serde_json::to_string(&config).map_err(|e| format!("序列化组件配置失败: {}", e))?;
-    let config_encoded = urlencoding::encode(&config_json);
-    let url = format!("/detached-component-loader?config={}", config_encoded);
+/// 全局分离会话管理器
+static DETACH_SESSIONS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, DetachSession>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-    // 生成新的窗口标签
-    let label = generate_component_label();
-    
-    // 存储 componentId 映射
-    {
-        let mut map = COMPONENT_ID_MAP.lock().unwrap();
-        map.insert(label.clone(), config.component_id.clone());
+/// 辅助函数：将驼峰命名转换为短横线命名
+fn camel_to_kebab(s: &str) -> String {
+    let mut result = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                result.push('-');
+            }
+            result.push(ch.to_lowercase().next().unwrap());
+        } else {
+            result.push(ch);
+        }
     }
+    result
+}
 
-    println!("[PREVIEW] 创建新窗口 {} (componentId: {}) 并加载 {}", label, config.component_id, url);
+/// 辅助函数：创建一个预览窗口
+async fn create_preview_window_internal(
+    app: &AppHandle,
+    label: &str,
+    config: &DetachableConfig,
+) -> Result<(), String> {
+    // 根据类型选择不同的路由
+    let url = if config.r#type == "tool" {
+        // 工具类型：使用 DetachedWindowContainer
+        // 将驼峰命名的 ID 转换为短横线格式的路径
+        let tool_path = format!("/{}", camel_to_kebab(&config.id));
+        format!(
+            "/detached-window?toolPath={}&title={}",
+            urlencoding::encode(&tool_path),
+            urlencoding::encode(&config.display_name)
+        )
+    } else {
+        // 组件类型：使用 DetachedComponentContainer
+        let config_json =
+            serde_json::to_string(config).map_err(|e| format!("序列化组件配置失败: {}", e))?;
+        let config_encoded = urlencoding::encode(&config_json);
+        format!("/detached-component-loader?config={}", config_encoded)
+    };
 
-    // 直接创建窗口，在创建时就指定正确的 URL
-    let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
-        .title("Component Preview")
-        .inner_size(config.width, config.height) // 前端已包含边距，后端直接使用
+    let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+        .title("Preview")
+        .inner_size(config.width, config.height)
         .decorations(false)
         .transparent(true)
-        .shadow(false) // 禁用窗口阴影
+        .shadow(false)
         .skip_taskbar(true)
         .visible(false)
         .build()
         .map_err(|e| e.to_string())?;
 
-    // 设置预览模式的特性
     window
         .set_ignore_cursor_events(true)
         .map_err(|e| e.to_string())?;
 
-    // 设置位置（居中于鼠标）
     set_window_position(
         app.clone(),
-        label.clone(),
+        label.to_string(),
         config.mouse_x,
         config.mouse_y,
-        Some(true), // 居中
+        Some(true),
     )
     .await?;
 
-    // 等待前端加载完成，避免显示空白内容导致闪烁
     sleep(Duration::from_millis(150)).await;
-
-    // 显示窗口
     window.show().map_err(|e| e.to_string())?;
 
-    println!("[PREVIEW] 预览窗口已激活: {}", label);
-    
-    // 打印当前窗口列表
-    print_window_list(&app);
-
-    Ok(label)
+    Ok(())
 }
 
-/// 更新预览窗口位置
+/// 开始一个统一的分离会话
 #[tauri::command]
-pub async fn update_preview_position(
+pub async fn begin_detach_session(
     app: AppHandle,
-    label: String,
+    config: DetachableConfig,
+) -> Result<String, String> {
+    let preview_label = format!("preview-{}", nanoid!(8));
+    let session_id = preview_label.clone();
+
+    println!("[DETACH] 开始新会话: {}, 类型: {}, ID: {}", session_id, config.r#type, config.id);
+
+    create_preview_window_internal(&app, &preview_label, &config).await?;
+
+    let session = DetachSession {
+        config,
+        preview_window_label: preview_label,
+    };
+    
+    {
+        let mut sessions = DETACH_SESSIONS.lock().unwrap();
+        sessions.insert(session_id.clone(), session);
+    }
+
+    Ok(session_id)
+}
+
+/// 更新分离会话中预览窗口的位置
+#[tauri::command]
+pub async fn update_detach_session_position(
+    app: AppHandle,
+    session_id: String,
     x: f64,
     y: f64,
 ) -> Result<(), String> {
-    set_window_position(app, label, x, y, Some(true)).await
+    // 在独立作用域中获取锁，提取需要的数据后立即释放锁
+    let preview_label = {
+        let sessions = DETACH_SESSIONS.lock().unwrap();
+        sessions.get(&session_id)
+            .map(|session| session.preview_window_label.clone())
+    };
+    
+    // 锁已释放，现在可以安全地进行异步操作
+    if let Some(label) = preview_label {
+        set_window_position(app, label, x, y, Some(true)).await
+    } else {
+        Err(format!("分离会话 {} 不存在", session_id))
+    }
 }
 
-/// 将预览窗口转换为固定窗口
-#[tauri::command]
-pub async fn finalize_preview_window(app: AppHandle, label: String) -> Result<(), String> {
-    println!("[FINALIZE] 正在固定预览窗口: {}", label);
+/// 持久化的已分离窗口集合
+/// key: window label, value: DetachedWindowInfo
+static FINALIZED_DETACHED_WINDOWS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, DetachedWindowInfo>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-    let window = app
-        .get_webview_window(&label)
-        .ok_or_else(|| format!("窗口不存在: {}", label))?;
+/// 辅助函数：固化一个窗口
+async fn finalize_window_internal(app: &AppHandle, label: &str, config: &DetachableConfig) -> Result<(), String> {
+    let window = app.get_webview_window(label).ok_or_else(|| format!("窗口不存在: {}", label))?;
 
-    // 转换窗口属性为固定模式
-    window
-        .set_ignore_cursor_events(false)
-        .map_err(|e| e.to_string())?;
+    // 更新窗口标题为实际的显示名称
+    window.set_title(&config.display_name).map_err(|e| e.to_string())?;
+    
+    window.set_ignore_cursor_events(false).map_err(|e| e.to_string())?;
     window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
 
-    // 添加到已固定窗口集合
-    {
-        let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
-        finalized.insert(label.clone());
-    }
+    // 通知前端视图更新 (e.g., to hide preview-only elements)
+    window.emit("finalize-component-view", ()).map_err(|e| e.to_string())?;
 
-    // 向该窗口发送事件，通知前端更新UI
-    window
-        .emit("finalize-component-view", ())
-        .map_err(|e| e.to_string())?;
-
-    // 获取 componentId
-    let component_id = {
-        let map = COMPONENT_ID_MAP.lock().unwrap();
-        map.get(&label).cloned()
-    };
-    
-    // 向主窗口发送组件已分离事件，包含 componentId
-    let payload = serde_json::json!({
-        "label": label.clone(),
-        "componentId": component_id.unwrap_or_else(|| "unknown".to_string())
-    });
-    app.emit("component-detached", payload)
-        .map_err(|e| e.to_string())?;
-
-    println!("[FINALIZE] 预览窗口已固定: {}", label);
-    Ok(())
-}
-
-/// 取消预览窗口（直接关闭）
-#[tauri::command]
-pub async fn cancel_preview_window(app: AppHandle, label: String) -> Result<(), String> {
-    println!("[CANCEL] 正在取消预览窗口: {}", label);
-
-    let window = app
-        .get_webview_window(&label)
-        .ok_or_else(|| format!("窗口不存在: {}", label))?;
-
-    // 从已固定窗口集合中移除（如果存在）
-    {
-        let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
-        finalized.remove(&label);
-    }
-    
-    // 从 componentId 映射中移除
-    {
-        let mut map = COMPONENT_ID_MAP.lock().unwrap();
-        map.remove(&label);
-    }
-
-    // 直接关闭窗口
-    window.close().map_err(|e| e.to_string())?;
-
-    println!("[CANCEL] 预览窗口已关闭: {}", label);
-    Ok(())
-}
-
-/// 重新附着组件到主窗口
-#[tauri::command]
-pub async fn reattach_component(app: AppHandle, label: String) -> Result<(), String> {
-    println!("[REATTACH] 正在重新附着组件: {}", label);
-
-    // 获取窗口实例
-    let window = app
-        .get_webview_window(&label)
-        .ok_or_else(|| format!("窗口不存在: {}", label))?;
-
-    // 从已固定窗口集合中移除
-    {
-        let mut finalized = FINALIZED_COMPONENTS.lock().unwrap();
-        finalized.remove(&label);
-    }
-    
-    // 获取 componentId
-    let component_id = {
-        let mut map = COMPONENT_ID_MAP.lock().unwrap();
-        map.remove(&label)
+    let info = DetachedWindowInfo {
+        label: label.to_string(),
+        id: config.id.clone(),
+        r#type: config.r#type.clone(),
     };
 
-    // 向主窗口发送组件重新附着事件，包含 componentId
-    let payload = serde_json::json!({
-        "label": label.clone(),
-        "componentId": component_id.unwrap_or_else(|| "unknown".to_string())
-    });
-    app.emit("component-attached", payload)
-        .map_err(|e| e.to_string())?;
+    // 1. Add to persistent state
+    {
+        let mut detached_windows = FINALIZED_DETACHED_WINDOWS.lock().unwrap();
+        detached_windows.insert(label.to_string(), info.clone());
+    }
 
-    // 关闭组件窗口
-    window.close().map_err(|e| e.to_string())?;
-
-    println!("[REATTACH] 组件已重新附着: {}", label);
+    // 2. Emit the unified 'window-detached' event
+    app.emit("window-detached", info).map_err(|e| e.to_string())?;
+    
     Ok(())
 }
 
-/// 检查组件窗口是否已固定（通过查询全局固定窗口集合）
-#[tauri::command]
-pub async fn is_component_finalized(_app: AppHandle, label: String) -> Result<bool, String> {
-    let finalized = FINALIZED_COMPONENTS.lock().unwrap();
-    let is_finalized = finalized.contains(&label);
-
-    println!(
-        "[CHECK_FINALIZED] 窗口 {} 固定状态: {}",
-        label, is_finalized
-    );
-    Ok(is_finalized)
-}
-
-/// 获取所有已固定的组件窗口信息
-#[derive(Debug, Serialize)]
-pub struct FinalizedComponent {
+/// 统一获取所有已分离的窗口信息
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetachedWindowInfo {
     pub label: String,
-    pub component_id: String,
+    pub id: String,
+    pub r#type: String,
 }
 
 #[tauri::command]
-pub async fn get_finalized_components(_app: AppHandle) -> Result<Vec<FinalizedComponent>, String> {
-    let finalized = FINALIZED_COMPONENTS.lock().unwrap();
-    let id_map = COMPONENT_ID_MAP.lock().unwrap();
-    
-    let components: Vec<FinalizedComponent> = finalized
-        .iter()
-        .filter_map(|label| {
-            id_map.get(label).map(|component_id| FinalizedComponent {
-                label: label.clone(),
-                component_id: component_id.clone(),
-            })
-        })
-        .collect();
-    
-    println!("[GET_FINALIZED] 已固定组件数量: {}", components.len());
-    Ok(components)
+pub async fn get_all_detached_windows(_app: AppHandle) -> Result<Vec<DetachedWindowInfo>, String> {
+    let detached_windows = FINALIZED_DETACHED_WINDOWS.lock().unwrap();
+    let windows: Vec<DetachedWindowInfo> = detached_windows.values().cloned().collect();
+    Ok(windows)
 }
 
-/// 拖拽会话数据
-#[derive(Debug, Clone)]
-struct DragSession {
-    /// 工具配置
-    tool_config: WindowConfig,
-    /// 起始全局坐标（逻辑坐标）
-    start_x: f64,
-    start_y: f64,
-    /// 主窗口位置和尺寸（物理坐标）
-    main_window_x: i32,
-    main_window_y: i32,
-    main_window_width: u32,
-    main_window_height: u32,
-    /// 缩放因子
-    scale_factor: f64,
-    /// 是否需要停止
-    should_stop: bool,
+/// 最终化一个分离会话（创建真实窗口或取消）
+#[tauri::command]
+pub async fn finalize_detach_session(
+    app: AppHandle,
+    session_id: String,
+    should_detach: bool,
+) -> Result<(), String> {
+    let session = {
+        let mut sessions = DETACH_SESSIONS.lock().unwrap();
+        sessions.remove(&session_id)
+    };
+
+    if let Some(session) = session {
+        let preview_window_label = session.preview_window_label.clone();
+        let preview_window = app.get_webview_window(&preview_window_label).ok_or_else(|| format!("预览窗口 '{}' 不存在", preview_window_label))?;
+
+        if should_detach {
+            println!("[DETACH] 会话 {} 已固化", session_id);
+            finalize_window_internal(&app, &preview_window_label, &session.config).await?;
+        } else {
+            println!("[DETACH] 会话 {} 已取消", session_id);
+            preview_window.close().map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    } else {
+        Err(format!("分离会话 {} 不存在或已被处理", session_id))
+    }
 }
 
-/// 拖拽距离阈值（与前端保持一致）
-const DETACH_THRESHOLD: f64 = 100.0;
-/// 更新频率（Hz）
-const UPDATE_FREQUENCY_HZ: u64 = 60;
 
-/// 窗口创建配置
+// ============================================================================
+// 通用窗口管理命令 (Common Window Management Commands)
+// ============================================================================
+
+/// 窗口创建配置 (用于非拖拽创建)
 #[derive(Debug, Clone, Deserialize)]
 pub struct WindowConfig {
-    /// 窗口标签（唯一标识符）
     pub label: String,
-    /// 窗口标题
     pub title: String,
-    /// 窗口 URL（相对路径，如 /json-formatter?detached=true）
     pub url: String,
-    /// 窗口宽度
     #[serde(default = "default_width")]
     pub width: f64,
-    /// 窗口高度
     #[serde(default = "default_height")]
     pub height: f64,
 }
 
-fn default_width() -> f64 {
-    900.0
-}
-fn default_height() -> f64 {
-    700.0
-}
+fn default_width() -> f64 { 900.0 }
+fn default_height() -> f64 { 700.0 }
 
-/// 窗口位置信息
-#[derive(Debug, Serialize)]
-pub struct WindowPosition {
-    pub x: i32,
-    pub y: i32,
-}
 
-/// 创建工具窗口
+/// 创建工具窗口 (用于从菜单等非拖拽方式打开)
 #[tauri::command]
-pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<String, String> {
-    // 检查窗口是否已存在
+pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<(), String> {
     if let Some(existing_window) = app.get_webview_window(&config.label) {
-        // 如果已存在，直接聚焦
         existing_window.set_focus().map_err(|e| e.to_string())?;
-        existing_window.show().map_err(|e| e.to_string())?;
-        return Ok(format!(
-            "Window '{}' already exists and has been focused",
-            config.label
-        ));
+        return Ok(());
     }
 
-    // 创建新窗口
-    let window = WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
+    let _window = WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
         .title(&config.title)
         .inner_size(config.width, config.height)
         .min_inner_size(400.0, 300.0)
-        .decorations(false) // 无边框，与主窗口保持一致
-        .transparent(true) // 透明背景
-        .shadow(false) // 禁用窗口阴影
+        .decorations(false)
+        .transparent(true)
         .build()
         .map_err(|e| e.to_string())?;
 
-    // 确保窗口显示在任务栏
-    window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
+    let detachable_config = DetachableConfig {
+        id: config.label.clone(),
+        display_name: config.title.clone(),
+        r#type: "tool".to_string(),
+        width: config.width,
+        height: config.height,
+        mouse_x: 0.0, // 不适用于此场景
+        mouse_y: 0.0,
+    };
 
-    // 发送全局事件通知所有窗口
-    app.emit("tool-detached", config.label.clone())
-        .map_err(|e| e.to_string())?;
+    finalize_window_internal(&app, &config.label, &detachable_config).await
+}
 
-    // 打印当前窗口列表
-    print_window_list(&app);
+/// 关闭分离的窗口（重新附加）
+#[tauri::command]
+pub async fn close_detached_window(app: AppHandle, label: String) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(&label) {
+        // 1. 从持久化状态中移除
+        let info = {
+            let mut detached_windows = FINALIZED_DETACHED_WINDOWS.lock().unwrap();
+            detached_windows.remove(&label)
+        };
 
-    Ok(format!("Window '{}' created successfully", config.label))
+        // 2. 发送窗口重新附着事件
+        if let Some(info) = info {
+            let payload = serde_json::json!({ "label": info.label });
+            app.emit("window-attached", payload)
+                .map_err(|e| e.to_string())?;
+        }
+        
+        // 3. 关闭窗口
+        window.close().map_err(|e| e.to_string())?;
+
+        Ok(())
+    } else {
+        Err(format!("Window '{}' not found", label))
+    }
 }
 
 /// 聚焦指定窗口
@@ -380,20 +328,6 @@ pub async fn focus_window(app: AppHandle, label: String) -> Result<(), String> {
         window.show().map_err(|e| e.to_string())?;
         window.unminimize().map_err(|e| e.to_string())?;
         Ok(())
-    } else {
-        Err(format!("Window '{}' not found", label))
-    }
-}
-
-/// 获取窗口位置
-#[tauri::command]
-pub async fn get_window_position(app: AppHandle, label: String) -> Result<WindowPosition, String> {
-    if let Some(window) = app.get_webview_window(&label) {
-        let position = window.outer_position().map_err(|e| e.to_string())?;
-        Ok(WindowPosition {
-            x: position.x,
-            y: position.y,
-        })
     } else {
         Err(format!("Window '{}' not found", label))
     }
@@ -413,13 +347,10 @@ pub async fn set_window_position(
         let mut physical_x = (x * scale_factor) as i32;
         let mut physical_y = (y * scale_factor) as i32;
 
-        // 如果需要居中，则计算偏移量
         if center.unwrap_or(false) {
             let size = window.outer_size().map_err(|e| e.to_string())?;
-            let offset_x = (size.width as i32) / 2;
-            let offset_y = (size.height as i32) / 2;
-            physical_x -= offset_x;
-            physical_y -= offset_y;
+            physical_x -= (size.width as i32) / 2;
+            physical_y -= (size.height as i32) / 2;
         }
 
         window
@@ -432,32 +363,54 @@ pub async fn set_window_position(
     }
 }
 
-/// 将窗口位置限制在屏幕可见区域内（逻辑坐标）
-///
-/// 参数：
-/// - x, y: 窗口左上角的逻辑坐标
-/// - width, height: 窗口的逻辑尺寸
-/// - monitor_pos_x, monitor_pos_y: 显示器的物理坐标
-/// - monitor_width, monitor_height: 显示器的物理尺寸
-/// - scale_factor: 缩放因子
-///
-/// 返回：限制后的逻辑坐标 (x, y)
+/// 检查窗口位置是否在屏幕内，如果不在则拉回
+#[tauri::command]
+pub async fn ensure_window_visible(app: AppHandle, label: String) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window(&label) {
+        if let Some(monitor) = window.current_monitor().map_err(|e| e.to_string())? {
+            let position = window.outer_position().map_err(|e| e.to_string())?;
+            let size = window.outer_size().map_err(|e| e.to_string())?;
+            let scale_factor = monitor.scale_factor();
+
+            let logical_x = position.x as f64 / scale_factor;
+            let logical_y = position.y as f64 / scale_factor;
+            let logical_width = size.width as f64 / scale_factor;
+            let logical_height = size.height as f64 / scale_factor;
+
+            let monitor_pos = monitor.position();
+            let monitor_size = monitor.size();
+
+            let (clamped_x, clamped_y) = clamp_position_to_screen(
+                logical_x, logical_y, logical_width, logical_height,
+                monitor_pos.x, monitor_pos.y,
+                monitor_size.width, monitor_size.height,
+                scale_factor,
+            );
+
+            let needs_adjustment = (clamped_x - logical_x).abs() > 0.1 || (clamped_y - logical_y).abs() > 0.1;
+
+            if needs_adjustment {
+                set_window_position(app.clone(), label, clamped_x, clamped_y, Some(false)).await?;
+            }
+
+            Ok(needs_adjustment)
+        } else {
+            Err("No monitor found for the window".to_string())
+        }
+    } else {
+        Err(format!("Window '{}' not found", label))
+    }
+}
+
 fn clamp_position_to_screen(
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-    monitor_pos_x: i32,
-    monitor_pos_y: i32,
-    monitor_width: u32,
-    monitor_height: u32,
+    x: f64, y: f64, width: f64, _height: f64,
+    monitor_pos_x: i32, monitor_pos_y: i32,
+    monitor_width: u32, monitor_height: u32,
     scale_factor: f64,
 ) -> (f64, f64) {
-    // 转换为物理坐标进行计算
     let physical_x = (x * scale_factor) as i32;
     let physical_y = (y * scale_factor) as i32;
     let physical_width = (width * scale_factor) as i32;
-    let physical_height = (height * scale_factor) as i32;
 
     let monitor_right = monitor_pos_x + monitor_width as i32;
     let monitor_bottom = monitor_pos_y + monitor_height as i32;
@@ -465,591 +418,30 @@ fn clamp_position_to_screen(
     let mut clamped_x = physical_x;
     let mut clamped_y = physical_y;
 
-    // 确保窗口左边缘在屏幕内
-    if clamped_x < monitor_pos_x {
-        clamped_x = monitor_pos_x;
+    if clamped_x + physical_width < monitor_pos_x + 60 { // 至少保留60px可见
+        clamped_x = monitor_pos_x + 60 - physical_width;
     }
-    // 确保窗口右边缘在屏幕内
-    if clamped_x + physical_width > monitor_right {
-        clamped_x = monitor_right - physical_width;
+    if clamped_x > monitor_right - 60 {
+        clamped_x = monitor_right - 60;
     }
-
-    // 确保窗口上边缘在屏幕内
     if clamped_y < monitor_pos_y {
         clamped_y = monitor_pos_y;
     }
-    // 确保窗口下边缘在屏幕内
-    if clamped_y + physical_height > monitor_bottom {
-        clamped_y = monitor_bottom - physical_height;
+    if clamped_y > monitor_bottom - 60 {
+        clamped_y = monitor_bottom - 60;
     }
 
-    // 转换回逻辑坐标
-    let logical_x = clamped_x as f64 / scale_factor;
-    let logical_y = clamped_y as f64 / scale_factor;
-
-    (logical_x, logical_y)
+    (clamped_x as f64 / scale_factor, clamped_y as f64 / scale_factor)
 }
 
-/// 检查窗口位置是否在屏幕内，如果不在则拉回
-#[tauri::command]
-pub async fn ensure_window_visible(app: AppHandle, label: String) -> Result<bool, String> {
-    if let Some(window) = app.get_webview_window(&label) {
-        let position = window.outer_position().map_err(|e| e.to_string())?;
-        let size = window.outer_size().map_err(|e| e.to_string())?;
-        let scale_factor = window.scale_factor().map_err(|e| e.to_string())?;
-
-        // 获取当前显示器信息
-        if let Some(monitor) = window.current_monitor().map_err(|e| e.to_string())? {
-            let monitor_size = monitor.size();
-            let monitor_position = monitor.position();
-
-            // 转换为逻辑坐标
-            let logical_x = position.x as f64 / scale_factor;
-            let logical_y = position.y as f64 / scale_factor;
-            let logical_width = size.width as f64 / scale_factor;
-            let logical_height = size.height as f64 / scale_factor;
-
-            // 计算限制后的位置
-            let (clamped_x, clamped_y) = clamp_position_to_screen(
-                logical_x,
-                logical_y,
-                logical_width,
-                logical_height,
-                monitor_position.x,
-                monitor_position.y,
-                monitor_size.width,
-                monitor_size.height,
-                scale_factor,
-            );
-
-            // 检查是否需要调整
-            let needs_adjustment =
-                (clamped_x - logical_x).abs() > 0.1 || (clamped_y - logical_y).abs() > 0.1;
-
-            if needs_adjustment {
-                println!(
-                    "[ENSURE_VISIBLE] 调整窗口位置 | 原位置=({:.1}, {:.1}) | 新位置=({:.1}, {:.1})",
-                    logical_x, logical_y, clamped_x, clamped_y
-                );
-                set_window_position(
-                    app.clone(),
-                    label,
-                    clamped_x,
-                    clamped_y,
-                    Some(false), // 不居中，直接使用计算出的左上角坐标
-                )
-                .await?;
-            }
-
-            Ok(needs_adjustment)
-        } else {
-            Err("No monitor found".to_string())
-        }
-    } else {
-        Err(format!("Window '{}' not found", label))
-    }
-}
-
-/// 获取所有工具窗口的标签列表
-#[tauri::command]
-pub async fn get_all_tool_windows(app: AppHandle) -> Result<Vec<String>, String> {
-    let windows: Vec<String> = app
-        .webview_windows()
-        .iter()
-        .filter_map(|(label, _)| {
-            // 过滤掉主窗口
-            if label != "main" {
-                Some(label.clone())
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(windows)
-}
-
-/// 关闭工具窗口（重新附加到主窗口）
-#[tauri::command]
-pub async fn close_tool_window(app: AppHandle, label: String) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window(&label) {
-        // 发送工具重新附加事件
-        app.emit("tool-attached", label.clone())
-            .map_err(|e| e.to_string())?;
-
-        // 关闭窗口
-        window.close().map_err(|e| e.to_string())?;
-
-        Ok(())
-    } else {
-        Err(format!("Window '{}' not found", label))
-    }
-}
-/// 清除所有窗口的保存状态
 /// 清除所有窗口的保存状态
 #[tauri::command]
 pub async fn clear_window_state(app: AppHandle) -> Result<(), String> {
-    // tauri-plugin-window-state 将状态保存在 app data 目录下的 .window-state 文件中
-    // 删除该文件即可清除所有窗口的保存状态
     use std::fs;
-
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
-
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("获取应用数据目录失败: {}", e))?;
     let state_file = app_data_dir.join(".window-state");
-
     if state_file.exists() {
         fs::remove_file(&state_file).map_err(|e| format!("删除窗口状态文件失败: {}", e))?;
     }
-
     Ok(())
-}
-/// 事件载荷：更新拖拽指示器信息
-#[derive(Clone, serde::Serialize)]
-struct DragIndicatorPayload {
-    tool_name: String,
-}
-
-/// 准备拖拽：显示并定位指示器窗口
-#[tauri::command]
-pub async fn prepare_drag_indicator(
-    app: AppHandle,
-    tool_name: String,
-    mouse_x: f64,
-    mouse_y: f64,
-    width: f64,
-    height: f64,
-) -> Result<(), String> {
-    // 获取系统鼠标位置进行对比验证
-    #[cfg(target_os = "windows")]
-    let system_mouse_pos = unsafe {
-        let mut point = windows::Win32::Foundation::POINT { x: 0, y: 0 };
-        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point).ok();
-        Some((point.x, point.y))
-    };
-    #[cfg(not(target_os = "windows"))]
-    let system_mouse_pos: Option<(i32, i32)> = None;
-
-    println!(
-        "[DRAG_START] Tool='{}' | Frontend=(x:{:.0}, y:{:.0}) | System={:?}",
-        tool_name, mouse_x, mouse_y, system_mouse_pos
-    );
-
-    let indicator_window = app
-        .get_webview_window("drag-indicator")
-        .ok_or_else(|| "Drag indicator window not found.".to_string())?;
-
-    // 在显示之前调整大小
-    indicator_window
-        .set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }))
-        .map_err(|e| e.to_string())?;
-
-    indicator_window
-        .emit("update-drag-indicator", DragIndicatorPayload { tool_name })
-        .map_err(|e| e.to_string())?;
-
-    set_window_position(
-        app.clone(),
-        "drag-indicator".to_string(),
-        mouse_x,
-        mouse_y,
-        Some(true),
-    )
-    .await?;
-    indicator_window.show().map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-/// 事件载荷：拖拽会话更新
-#[derive(Clone, serde::Serialize)]
-struct DragSessionUpdate {
-    can_detach: bool,
-    tool_name: String,
-}
-
-/// 获取系统鼠标位置（物理坐标）
-#[cfg(target_os = "windows")]
-fn get_cursor_position() -> Result<(i32, i32), String> {
-    unsafe {
-        let mut point = windows::Win32::Foundation::POINT { x: 0, y: 0 };
-        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point)
-            .map_err(|e| format!("获取鼠标位置失败: {}", e))?;
-        Ok((point.x, point.y))
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn get_cursor_position() -> Result<(i32, i32), String> {
-    Err("非 Windows 平台暂不支持".to_string())
-}
-
-/// 开始拖拽会话
-#[tauri::command]
-pub async fn start_drag_session(
-    app: AppHandle,
-    tool_config: WindowConfig,
-    indicator_width: f64,
-    indicator_height: f64,
-) -> Result<(), String> {
-    // 获取主窗口信息
-    let main_window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "主窗口未找到".to_string())?;
-
-    let scale_factor = main_window.scale_factor().map_err(|e| e.to_string())?;
-    let main_pos = main_window.outer_position().map_err(|e| e.to_string())?;
-    let main_size = main_window.outer_size().map_err(|e| e.to_string())?;
-
-    // 获取当前鼠标位置（物理坐标）
-    let (cursor_x, cursor_y) = get_cursor_position()?;
-
-    // 转换为逻辑坐标
-    let start_x = cursor_x as f64 / scale_factor;
-    let start_y = cursor_y as f64 / scale_factor;
-
-    println!("[DRAG_SESSION] 开始 | 工具='{}' | 起始位置=(物理:{}, {} | 逻辑:{:.0}, {:.0}) | 主窗口=({}, {}, {}x{})",
-        tool_config.title, cursor_x, cursor_y, start_x, start_y,
-        main_pos.x, main_pos.y, main_size.width, main_size.height);
-
-    // 创建会话
-    let session = DragSession {
-        tool_config: tool_config.clone(),
-        start_x,
-        start_y,
-        main_window_x: main_pos.x,
-        main_window_y: main_pos.y,
-        main_window_width: main_size.width,
-        main_window_height: main_size.height,
-        scale_factor,
-        should_stop: false,
-    };
-
-    // 保存到全局状态
-    {
-        let mut drag_session = DRAG_SESSION.lock().unwrap();
-        *drag_session = Some(session);
-    }
-
-    // 显示并初始化指示器窗口
-    let indicator_window = app
-        .get_webview_window("drag-indicator")
-        .ok_or_else(|| "拖拽指示器窗口未找到".to_string())?;
-
-    indicator_window
-        .set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: indicator_width,
-            height: indicator_height,
-        }))
-        .map_err(|e| e.to_string())?;
-
-    indicator_window
-        .emit(
-            "update-drag-indicator",
-            serde_json::json!({
-                "tool_name": tool_config.title
-            }),
-        )
-        .map_err(|e| e.to_string())?;
-
-    set_window_position(
-        app.clone(),
-        "drag-indicator".to_string(),
-        start_x,
-        start_y,
-        Some(true),
-    )
-    .await?;
-    indicator_window.show().map_err(|e| e.to_string())?;
-
-    // 启动后台更新循环
-    let app_clone = app.clone();
-    tokio::spawn(async move {
-        drag_update_loop(app_clone).await;
-    });
-
-    Ok(())
-}
-
-/// 后台拖拽更新循环
-async fn drag_update_loop(app: AppHandle) {
-    let update_interval = Duration::from_millis(1000 / UPDATE_FREQUENCY_HZ);
-    let mut last_update = Instant::now();
-
-    loop {
-        // 检查会话是否还存在
-        let session_info = {
-            let session_lock = DRAG_SESSION.lock().unwrap();
-            if let Some(ref session) = *session_lock {
-                if session.should_stop {
-                    break;
-                }
-                Some((
-                    session.start_x,
-                    session.start_y,
-                    session.scale_factor,
-                    session.tool_config.title.clone(),
-                ))
-            } else {
-                None
-            }
-        };
-
-        if session_info.is_none() {
-            break;
-        }
-
-        let (start_x, start_y, scale_factor, tool_name) = session_info.unwrap();
-
-        // 获取当前鼠标位置
-        if let Ok((cursor_x, cursor_y)) = get_cursor_position() {
-            let current_x = cursor_x as f64 / scale_factor;
-            let current_y = cursor_y as f64 / scale_factor;
-
-            // 更新指示器窗口位置
-            if let Ok(_) = set_window_position(
-                app.clone(),
-                "drag-indicator".to_string(),
-                current_x,
-                current_y,
-                Some(true),
-            )
-            .await
-            {
-                // 计算是否满足分离条件
-                let distance =
-                    ((current_x - start_x).powi(2) + (current_y - start_y).powi(2)).sqrt();
-                let can_detach = distance > DETACH_THRESHOLD;
-
-                // 节流发送更新事件
-                if last_update.elapsed() >= Duration::from_millis(50) {
-                    let _ = app.emit(
-                        "drag-session-update",
-                        DragSessionUpdate {
-                            can_detach,
-                            tool_name: tool_name.clone(),
-                        },
-                    );
-                    last_update = Instant::now();
-                }
-            }
-        }
-
-        sleep(update_interval).await;
-    }
-
-    println!("[DRAG_SESSION] 更新循环已停止");
-}
-
-/// 结束拖拽会话
-#[tauri::command]
-pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
-    // 获取会话信息并标记停止
-    let session = {
-        let mut session_lock = DRAG_SESSION.lock().unwrap();
-        if let Some(ref mut session) = *session_lock {
-            session.should_stop = true;
-            Some(session.clone())
-        } else {
-            None
-        }
-    };
-
-    let session = session.ok_or_else(|| "没有活跃的拖拽会话".to_string())?;
-
-    // 隐藏指示器窗口
-    if let Some(indicator_window) = app.get_webview_window("drag-indicator") {
-        indicator_window.hide().map_err(|e| e.to_string())?;
-    }
-
-    // 获取最终鼠标位置
-    let (final_cursor_x, final_cursor_y) = get_cursor_position()?;
-    let final_x = final_cursor_x as f64 / session.scale_factor;
-    let final_y = final_cursor_y as f64 / session.scale_factor;
-
-    // 计算距离
-    let distance =
-        ((final_x - session.start_x).powi(2) + (final_y - session.start_y).powi(2)).sqrt();
-
-    // 判断是否在主窗口外
-    let is_outside = final_cursor_x < session.main_window_x
-        || final_cursor_x > session.main_window_x + session.main_window_width as i32
-        || final_cursor_y < session.main_window_y
-        || final_cursor_y > session.main_window_y + session.main_window_height as i32;
-
-    let can_detach = is_outside || distance > DETACH_THRESHOLD;
-
-    println!("[DRAG_SESSION] 结束 | 最终位置=(物理:{}, {} | 逻辑:{:.0}, {:.0}) | 距离={:.0} | 在窗口外={} | 可分离={}",
-        final_cursor_x, final_cursor_y, final_x, final_y, distance, is_outside, can_detach);
-
-    // 清除会话
-    {
-        let mut session_lock = DRAG_SESSION.lock().unwrap();
-        *session_lock = None;
-    }
-
-    // 如果满足条件，创建新窗口
-    if can_detach {
-        let config = &session.tool_config;
-
-        // 在逻辑坐标系中计算窗口位置（窗口中心对齐鼠标）
-        let new_win_w_offset = config.width / 2.0;
-        let new_win_h_offset = config.height / 2.0;
-        let new_win_x = final_x - new_win_w_offset;
-        let new_win_y = final_y - new_win_h_offset;
-
-        println!(
-            "[DRAG_SESSION] 创建窗口 | 逻辑坐标=({:.1}, {:.1}) | 物理坐标=({:.0}, {:.0})",
-            new_win_x,
-            new_win_y,
-            new_win_x * session.scale_factor,
-            new_win_y * session.scale_factor
-        );
-
-        let tool_window = WebviewWindowBuilder::new(
-            &app,
-            &config.label,
-            WebviewUrl::App(config.url.clone().into()),
-        )
-        .title(&config.title)
-        .inner_size(config.width, config.height)
-        .min_inner_size(400.0, 300.0)
-        .position(new_win_x, new_win_y) // 使用原始逻辑坐标
-        .decorations(false)
-        .transparent(true)
-        .shadow(false) // 禁用窗口阴影
-        .build()
-        .map_err(|e| e.to_string())?;
-
-        tool_window
-            .set_skip_taskbar(false)
-            .map_err(|e| e.to_string())?;
-        app.emit("tool-detached", config.label.clone())
-            .map_err(|e| e.to_string())?;
-
-        // 强制设置窗口位置，覆盖 tauri-plugin-window-state 的自动还原
-        set_window_position(
-            app.clone(),
-            config.label.clone(),
-            final_x,
-            final_y,
-            Some(true),
-        )
-        .await?;
-
-        // 等待窗口位置更新完成
-        sleep(Duration::from_millis(50)).await;
-
-        // 获取窗口所在的显示器，然后限制窗口位置在该显示器内
-        // 这样可以确保窗口在其所在的显示器内可见，而不是强制在主窗口所在的显示器
-        ensure_window_visible(app.clone(), config.label.clone()).await?;
-
-        // 打印当前窗口列表
-        print_window_list(&app);
-
-        Ok(true)
-    } else {
-        println!("[DRAG_SESSION] 取消创建（在窗口内或距离不足）");
-        Ok(false)
-    }
-}
-
-/// 结束拖拽：根据最终位置判断是否创建新窗口（保留旧命令以兼容）
-#[tauri::command]
-pub async fn finalize_drag_indicator(
-    app: AppHandle,
-    tool_config: WindowConfig,
-    mouse_x: f64,
-    mouse_y: f64,
-    drag_start_x: f64,
-    drag_start_y: f64,
-) -> Result<bool, String> {
-    // 获取系统鼠标位置进行对比验证
-    #[cfg(target_os = "windows")]
-    let system_mouse_pos = unsafe {
-        let mut point = windows::Win32::Foundation::POINT { x: 0, y: 0 };
-        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point).ok();
-        Some((point.x, point.y))
-    };
-    #[cfg(not(target_os = "windows"))]
-    let system_mouse_pos: Option<(i32, i32)> = None;
-
-    let indicator_window = app
-        .get_webview_window("drag-indicator")
-        .ok_or_else(|| "Drag indicator window not found.".to_string())?;
-
-    let main_window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "Main window not found.".to_string())?;
-
-    indicator_window.hide().map_err(|e| e.to_string())?;
-
-    let scale_factor = main_window.scale_factor().map_err(|e| e.to_string())?;
-    let main_pos = main_window.outer_position().map_err(|e| e.to_string())?;
-    let main_size = main_window.outer_size().map_err(|e| e.to_string())?;
-
-    let physical_mouse_x = (mouse_x * scale_factor) as i32;
-    let physical_mouse_y = (mouse_y * scale_factor) as i32;
-
-    println!("[DRAG_END] Frontend=(x:{:.0}, y:{:.0}) | Physical=({}, {}) | System={:?} | MainWin=({}, {}, {}x{})",
-        mouse_x, mouse_y, physical_mouse_x, physical_mouse_y, system_mouse_pos,
-        main_pos.x, main_pos.y, main_size.width, main_size.height);
-
-    let is_outside = physical_mouse_x < main_pos.x
-        || physical_mouse_x > main_pos.x + main_size.width as i32
-        || physical_mouse_y < main_pos.y
-        || physical_mouse_y > main_pos.y + main_size.height as i32;
-
-    let distance = ((mouse_x - drag_start_x).powi(2) + (mouse_y - drag_start_y).powi(2)).sqrt();
-    let is_far_enough = distance > 100.0;
-
-    println!(
-        "[DRAG_END] Outside={} | Distance={:.0} | FarEnough={}",
-        is_outside, distance, is_far_enough
-    );
-
-    let can_detach = is_outside || is_far_enough;
-
-    if can_detach {
-        // 修复：在逻辑坐标系中计算窗口位置
-        let new_win_w_offset = tool_config.width / 2.0;
-        let new_win_h_offset = tool_config.height / 2.0;
-        let new_win_x = mouse_x - new_win_w_offset;
-        let new_win_y = mouse_y - new_win_h_offset;
-
-        println!(
-            "[DRAG_END] Creating window at logical ({:.1}, {:.1}), physical ({:.0}, {:.0})",
-            new_win_x,
-            new_win_y,
-            new_win_x * scale_factor,
-            new_win_y * scale_factor
-        );
-
-        let tool_window = WebviewWindowBuilder::new(
-            &app,
-            &tool_config.label,
-            WebviewUrl::App(tool_config.url.into()),
-        )
-        .title(&tool_config.title)
-        .inner_size(tool_config.width, tool_config.height)
-        .min_inner_size(400.0, 300.0)
-        .position(new_win_x, new_win_y) // 使用逻辑坐标
-        .decorations(false)
-        .transparent(true)
-        .shadow(false) // 禁用窗口阴影
-        .build()
-        .map_err(|e| e.to_string())?;
-
-        tool_window
-            .set_skip_taskbar(false)
-            .map_err(|e| e.to_string())?;
-        app.emit("tool-detached", tool_config.label.clone())
-            .map_err(|e| e.to_string())?;
-        Ok(true)
-    } else {
-        println!("[DRAG_END] Canceled (inside window or too close)");
-        Ok(false)
-    }
 }

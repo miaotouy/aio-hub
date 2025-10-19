@@ -31,7 +31,7 @@ export function useDetachedChatArea() {
     autoReceive: true,
   });
 
-  const { state: syncedSession } = useStateSyncEngine(session, {
+  useStateSyncEngine(session, {
     stateKey: 'chat-session' as StateType,
     autoReceive: true,
   });

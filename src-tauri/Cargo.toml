@@ -54,6 +54,7 @@ fs_extra = "1.3" # 文件复制工具
 tokio-util = "0.7" # 取消令牌
 trash = "5.2" # 安全删除到回收站
 lazy_static = "1.4" # 全局静态变量
+nanoid = "0.4.0" # 生成唯一ID
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

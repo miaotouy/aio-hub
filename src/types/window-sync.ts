@@ -1,4 +1,4 @@
-import type { Operation } from 'fast-json-patch';
+import type { Operation } from "fast-json-patch";
 
 /**
  * 窗口同步系统类型定义
@@ -14,27 +14,27 @@ import type { Operation } from 'fast-json-patch';
 /**
  * 窗口类型
  */
-export type WindowType = 'main' | 'detached-component' | 'detached-tool';
+export type WindowType = "main" | "detached-component" | "detached-tool";
 
 /**
  * 消息类型
  */
 export type WindowMessageType =
-  | 'handshake'               // 握手消息（建立连接）
-  | 'state-sync'              // 状态同步
-  | 'action-request'          // 操作请求（分离窗口 → 主窗口）
-  | 'action-response'         // 操作响应（主窗口 → 分离窗口）
-  | 'heartbeat'               // 心跳检测
-  | 'request-initial-state';  // 请求初始状态
+  | "handshake" // 握手消息（建立连接）
+  | "state-sync" // 状态同步
+  | "action-request" // 操作请求（分离窗口 → 主窗口）
+  | "action-response" // 操作响应（主窗口 → 分离窗口）
+  | "heartbeat" // 心跳检测
+  | "request-initial-state"; // 请求初始状态
 
 /**
- * 状态类型（用于标识不同的状态数据）
+ * 状态键类型（用于标识不同的状态数据）
+ *
+ * 注意：这里使用 string 类型而不是具体的业务枚举，
+ * 是为了保持基础设施层的业务无关性。
+ * 具体的状态键应该由各个业务模块自行定义。
  */
-export type StateType =
-  | 'chat-messages'       // 聊天消息
-  | 'chat-session'        // 会话信息
-  | 'chat-agent'          // 智能体信息
-  | 'chat-parameters';    // 参数配置
+export type StateKey = string;
 
 // ============================================================================
 // 窗口信息
@@ -89,9 +89,9 @@ export interface HandshakePayload {
 /**
  * 状态同步消息载荷
  */
-export interface StateSyncPayload {
+export interface StateSyncPayload<K extends StateKey = StateKey> {
   /** 状态类型 */
-  stateType: StateType;
+  stateType: K;
   /** 状态版本号 */
   version: number;
   /** 是否为全量数据 */
@@ -189,11 +189,11 @@ export type InitialStateRequestHandler = (requesterLabel: string) => void;
 // ============================================================================
 
 /**
- * 状态同步引擎配置
- */
-export interface StateSyncConfig {
+  * 状态同步引擎配置
+  */
+export interface StateSyncConfig<K extends StateKey = StateKey> {
   /** 状态类型标识 */
-  stateKey: StateType;
+  stateKey: K;
   /** 是否自动推送状态变化 */
   autoPush?: boolean;
   /** 是否自动接收状态更新 */
@@ -205,7 +205,6 @@ export interface StateSyncConfig {
   /** 防抖延迟（毫秒） */
   debounce?: number;
 }
-
 /**
  * 操作代理配置
  */

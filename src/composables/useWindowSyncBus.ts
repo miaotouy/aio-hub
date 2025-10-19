@@ -26,6 +26,7 @@ import type {
   ActionHandler,
   WindowSyncBusConfig,
   InitialStateRequestHandler,
+  StateKey,
 } from '@/types/window-sync';
 
 const logger = createModuleLogger('WindowSyncBus');
@@ -385,8 +386,8 @@ class WindowSyncBus {
   /**
    * 同步状态
    */
-  async syncState(
-    stateType: string,
+  async syncState<K extends StateKey>(
+    stateType: K,
     data: any,
     version: number,
     target?: string

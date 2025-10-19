@@ -8,13 +8,13 @@ import { ref, onUnmounted, type Ref, isRef, watch } from 'vue';
 import { useWindowSyncBus } from './useWindowSyncBus';
 import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator } from '@/utils/sync-helpers';
 import { createModuleLogger } from '@/utils/logger';
-import type { StateSyncConfig, StateSyncPayload, JsonPatchOperation, BaseMessage } from '@/types/window-sync';
+import type { StateSyncConfig, StateSyncPayload, JsonPatchOperation, BaseMessage, StateKey } from '@/types/window-sync';
 
 const logger = createModuleLogger('StateSyncEngine');
 
-export function useStateSyncEngine<T>(
+export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   stateSource: Ref<T> | T,
-  config: StateSyncConfig
+  config: StateSyncConfig<K>
 ) {
   const {
     stateKey,

@@ -9,7 +9,8 @@ import { useAgentStore } from '../agentStore';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { createModuleLogger } from '@/utils/logger';
-import type { StateType } from '@/types/window-sync';
+import type { LlmChatStateKey } from '../types/sync';
+import { CHAT_STATE_KEYS, createChatSyncConfig } from '../types/sync';
 
 const logger = createModuleLogger('LlmChatSync');
 
@@ -35,18 +36,15 @@ export function useLlmChatSync() {
   // 2. 状态同步引擎实例化
   const stateEngines: Array<{ manualPush: (isFullSync?: boolean, targetWindowLabel?: string) => Promise<void> }> = [];
 
-  const createStateEngine = <T>(stateSource: Ref<T>, stateKey: StateType) => {
-    const engine = useStateSyncEngine(stateSource, {
-      stateKey,
-      autoPush: true,
-    });
+  const createStateEngine = <T>(stateSource: Ref<T>, stateKey: LlmChatStateKey) => {
+    const engine = useStateSyncEngine(stateSource, createChatSyncConfig(stateKey));
     stateEngines.push(engine);
   };
 
-  createStateEngine(chatMessages, 'chat-messages');
-  createStateEngine(chatSession, 'chat-session');
-  createStateEngine(chatAgent, 'chat-agent');
-  createStateEngine(chatParameters, 'chat-parameters');
+  createStateEngine(chatMessages, CHAT_STATE_KEYS.MESSAGES);
+  createStateEngine(chatSession, CHAT_STATE_KEYS.SESSION);
+  createStateEngine(chatAgent, CHAT_STATE_KEYS.AGENT);
+  createStateEngine(chatParameters, CHAT_STATE_KEYS.PARAMETERS);
 
   logger.info('LLM Chat 同步引擎已初始化');
 

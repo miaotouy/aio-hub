@@ -9,7 +9,7 @@ import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { createModuleLogger } from '@/utils/logger';
 import type { ChatMessageNode, ChatSession, ChatAgent } from '../types';
-import type { StateType } from '@/types/window-sync';
+import { CHAT_STATE_KEYS } from '../types/sync';
 
 const logger = createModuleLogger('DetachedChatArea');
 
@@ -27,22 +27,22 @@ export function useDetachedChatArea() {
 
   // 2. 状态接收引擎
   const { state: syncedMessages } = useStateSyncEngine(messages, {
-    stateKey: 'chat-messages' as StateType,
+    stateKey: CHAT_STATE_KEYS.MESSAGES,
     autoReceive: true,
   });
 
   useStateSyncEngine(session, {
-    stateKey: 'chat-session' as StateType,
+    stateKey: CHAT_STATE_KEYS.SESSION,
     autoReceive: true,
   });
 
   const { state: syncedAgent } = useStateSyncEngine(agent, {
-    stateKey: 'chat-agent' as StateType,
+    stateKey: CHAT_STATE_KEYS.AGENT,
     autoReceive: true,
   });
 
   const { state: syncedParameters } = useStateSyncEngine(parameters, {
-    stateKey: 'chat-parameters' as StateType,
+    stateKey: CHAT_STATE_KEYS.PARAMETERS,
     autoReceive: true,
   });
 

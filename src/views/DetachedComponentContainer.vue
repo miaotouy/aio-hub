@@ -2,6 +2,7 @@
 import { ref, shallowRef, onMounted, defineAsyncComponent, type Component, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useWindowSyncBus } from "../composables/useWindowSyncBus";
+import { useDetachedManager } from "../composables/useDetachedManager";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -53,11 +54,14 @@ watch(
   },
   { immediate: true, deep: true }
 );
-
 onMounted(async () => {
   // 初始化此窗口的通信总线
   const { initializeSyncBus, requestInitialState } = useWindowSyncBus();
   initializeSyncBus();
+
+  // 初始化分离窗口管理器，以便能正确检测其他组件的分离状态
+  const { initialize } = useDetachedManager();
+  await initialize();
 
   logger.info("DetachedComponentContainer 挂载", {
     currentPath: route.path,

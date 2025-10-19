@@ -215,6 +215,9 @@ class WindowSyncBus {
       case 'request-initial-state':
         this.handleInitialStateRequest(message.from);
         break;
+     case 'request-specific-state':
+       this.handleSpecificStateRequest(message as BaseMessage<{ stateKey: StateKey }>);
+       break;
     }
 
     // 调用注册的消息处理器
@@ -415,7 +418,6 @@ class WindowSyncBus {
 
   /**
    * 同步状态
-   * 同步状态
    */
   async syncState<K extends StateKey>(
     stateType: K,
@@ -482,6 +484,15 @@ class WindowSyncBus {
     logger.info('向主窗口请求初始状态');
     await this.sendMessage('request-initial-state', {}, 'main');
   }
+
+  /**
+   * 请求特定状态（分离窗口使用）
+   */
+  async requestSpecificState(stateKey: StateKey): Promise<void> {
+    logger.info(`向主窗口请求特定状态: ${stateKey}`);
+    await this.sendMessage('request-specific-state', { stateKey }, 'main');
+  }
+  
 /**
  * 监听初始状态请求（主窗口使用）
  */
@@ -496,6 +507,14 @@ private handleInitialStateRequest(requesterLabel: string): void {
   if (this.windowType === 'main' && this.initialStateRequestHandler) {
     logger.info(`收到来自 ${requesterLabel} 的初始状态请求，准备推送`);
     this.initialStateRequestHandler(requesterLabel);
+  }
+}
+
+private handleSpecificStateRequest(message: BaseMessage<{ stateKey: StateKey }>): void {
+  if (this.windowType === 'main' && this.initialStateRequestHandler) {
+    logger.info(`收到来自 ${message.from} 的特定状态请求: ${message.payload.stateKey}`);
+    // 复用同一个 handler，但传入 stateKey
+    this.initialStateRequestHandler(message.from, message.payload.stateKey);
   }
 }
 
@@ -635,6 +654,7 @@ export function useWindowSyncBus() {
     
     // 公开请求初始状态的函数
     requestInitialState: bus.requestInitialState.bind(bus),
+    requestSpecificState: bus.requestSpecificState.bind(bus),
 
     // 基础信息
     windowLabel: bus['windowLabel'],

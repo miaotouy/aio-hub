@@ -56,7 +56,7 @@ watch(
 );
 onMounted(async () => {
   // 初始化此窗口的通信总线
-  const { initializeSyncBus, requestInitialState } = useWindowSyncBus();
+  const { initializeSyncBus } = useWindowSyncBus();
   initializeSyncBus();
 
   // 初始化分离窗口管理器，以便能正确检测其他组件的分离状态
@@ -147,9 +147,9 @@ onMounted(async () => {
             });
           }
  
-         // 在组件被赋值后，请求初始状态，确保同步引擎已准备好接收
-         requestInitialState();
-         logger.info("已发送初始状态请求");
+         // 状态将由每个 useDetached... Composable 内部的
+         // useStateSyncEngine 通过 requestOnMount 自动请求
+         logger.info("组件已加载，状态将自动同步");
  
         } catch (error) {
         logger.error("解析路由中的组件配置失败", { error, config: route.query.config });

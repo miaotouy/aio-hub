@@ -29,21 +29,25 @@ export function useDetachedChatArea() {
   const { state: syncedMessages } = useStateSyncEngine(messages, {
     stateKey: CHAT_STATE_KEYS.MESSAGES,
     autoReceive: true,
+    requestOnMount: true,
   });
 
   useStateSyncEngine(session, {
     stateKey: CHAT_STATE_KEYS.SESSION,
     autoReceive: true,
+    requestOnMount: true,
   });
 
   const { state: syncedAgent } = useStateSyncEngine(agent, {
     stateKey: CHAT_STATE_KEYS.AGENT,
     autoReceive: true,
+    requestOnMount: true,
   });
 
   const { state: syncedParameters } = useStateSyncEngine(parameters, {
     stateKey: CHAT_STATE_KEYS.PARAMETERS,
     autoReceive: true,
+    requestOnMount: true,
   });
 
   logger.info('分离的 ChatArea 同步引擎已初始化');

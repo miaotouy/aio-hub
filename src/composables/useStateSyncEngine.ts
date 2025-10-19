@@ -23,6 +23,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     enableDelta = true,
     deltaThreshold = 0.5,
     debounce: debounceDelay = 100,
+    requestOnMount = false,
   } = config;
 
   const bus = useWindowSyncBus();
@@ -30,16 +31,11 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   const stateVersion = ref(0);
   
   let lastSyncedValue: T = JSON.parse(JSON.stringify(state.value));
-  let isInitialized = true; // 标记是否已初始化
-  let isApplyingExternalState = false; // 用于防止同步循环的标志
+  let isInitialized = true;
+  let isApplyingExternalState = false;
   let unlistenStateSync: (() => void) | null = null;
   let stopWatching: (() => void) | null = null;
 
-  /**
-   * 推送状态更新
-   * @param isFullSync 是否强制全量同步
-   * @param targetWindowLabel 目标窗口标签（可选，不指定则广播到所有窗口）
-   */
   const pushState = async (isFullSync = false, targetWindowLabel?: string) => {
     if (!isInitialized) {
       logger.warn('无法推送状态，因为未初始化', { stateKey });
@@ -51,18 +47,12 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     
     let payload: StateSyncPayload;
 
-    // 如果是全量同步、禁用增量、或值为 null/undefined，直接使用全量同步
     const shouldForceFullSync = isFullSync || !enableDelta ||
                                 newValue === null || newValue === undefined ||
                                 lastSyncedValue === null || lastSyncedValue === undefined;
 
     if (shouldForceFullSync) {
-      payload = {
-        stateType: stateKey,
-        version: newVersion,
-        isFull: true,
-        data: newValue,
-      };
+      payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
       logger.info('执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
     } else {
       const patches = calculateDiff(lastSyncedValue, newValue);
@@ -72,20 +62,10 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       }
       
       if (shouldUseDelta(patches, newValue, deltaThreshold)) {
-        payload = {
-          stateType: stateKey,
-          version: newVersion,
-          isFull: false,
-          patches,
-        };
+        payload = { stateType: stateKey, version: newVersion, isFull: false, patches };
         logger.info('执行增量同步', { stateKey, version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
       } else {
-        payload = {
-          stateType: stateKey,
-          version: newVersion,
-          isFull: true,
-          data: newValue,
-        };
+        payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
         logger.info('增量过大，执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
       }
     }
@@ -103,9 +83,6 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
 
   const debouncedPushState = debounce(pushState, debounceDelay);
 
-  /**
-   * 接收并应用状态更新
-   */
   const receiveState = (payload: StateSyncPayload, _message: BaseMessage) => {
     if (payload.stateType !== stateKey) return;
     if (payload.version <= stateVersion.value) {
@@ -130,20 +107,16 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       lastSyncedValue = JSON.parse(JSON.stringify(state.value));
     } catch (error) {
       logger.error('应用状态更新失败', error as Error, { stateKey });
-      // 可以在这里触发一次全量同步请求
     } finally {
       isApplyingExternalState = false;
     }
   };
 
-  // 根据配置初始化
   if (autoPush && bus.windowType === 'main') {
     stopWatching = watch(
       state,
       () => {
-        if (isApplyingExternalState) {
-          return;
-        }
+        if (isApplyingExternalState) return;
         debouncedPushState();
       },
       { deep: true }
@@ -154,22 +127,17 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   if (autoReceive) {
     unlistenStateSync = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
     logger.info('已启动自动接收', { stateKey, windowType: bus.windowType });
+    
+    if (requestOnMount && bus.windowType !== 'main') {
+      bus.requestSpecificState(stateKey);
+    }
   }
 
-  /**
-   * 手动触发一次状态推送
-   * @param isFullSync 是否强制全量同步
-   * @param targetWindowLabel 目标窗口标签
-   */
   const manualPush = (isFullSync = true, targetWindowLabel?: string) => {
-    // 取消任何待定的防抖推送，立即执行
     debouncedPushState.cancel();
     return pushState(isFullSync, targetWindowLabel);
   };
 
-  /**
-   * 清理资源
-   */
   const cleanup = () => {
     stopWatching?.();
     unlistenStateSync?.();

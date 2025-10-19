@@ -16,6 +16,8 @@ withDefaults(defineProps<Props>(), {
 
 // 是否可以分离（拖拽距离是否足够）
 const canDetach = ref(false);
+// 追踪上一次的状态，用于判断是否发生变化
+const lastCanDetach = ref<boolean | null>(null);
 
 // 保存事件监听器的清理函数
 let unlisten: (() => void) | null = null;
@@ -26,11 +28,22 @@ onBeforeMount(async () => {
   
   // 立即设置监听器,避免错过早期事件
   unlisten = await listen<{ canDetach: boolean }>("detach-status-update", (event) => {
-    logger.info("收到拖拽状态更新", {
-      canDetach: event.payload.canDetach,
-      payload: event.payload
-    });
-    canDetach.value = event.payload.canDetach;
+    const newCanDetach = event.payload.canDetach;
+    
+    // 初始状态或状态发生变化时才输出日志
+    if (lastCanDetach.value === null) {
+      logger.info("初始拖拽状态", {
+        canDetach: newCanDetach
+      });
+    } else if (lastCanDetach.value !== newCanDetach) {
+      logger.info("拖拽状态变化", {
+        from: lastCanDetach.value,
+        to: newCanDetach
+      });
+    }
+    
+    lastCanDetach.value = newCanDetach;
+    canDetach.value = newCanDetach;
   });
 
   logger.info("DetachPreviewHint 监听器已设置");

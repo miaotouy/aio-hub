@@ -185,6 +185,16 @@ const handleStorageChange = async () => {
 };
 
 onMounted(async () => {
+  // 优先从缓存加载工具可见性，防止闪烁
+  try {
+    const cachedToolsVisible = localStorage.getItem("app-tools-visible");
+    if (cachedToolsVisible) {
+      settings.value.toolsVisible = JSON.parse(cachedToolsVisible);
+    }
+  } catch (error) {
+    // 忽略错误，后续会从文件加载
+  }
+
   // 初始化统一的分离窗口管理器
   await initialize();
 

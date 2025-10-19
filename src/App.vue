@@ -16,7 +16,7 @@ const logger = createModuleLogger("App");
 
 const route = useRoute();
 const { isDetached, initialize } = useDetachedManager();
-const isCollapsed = ref(false); // 控制侧边栏收起状态
+const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
 
 // 特殊路由列表 - 这些路由不需要显示标题栏和侧边栏
 const specialRoutes = [
@@ -43,6 +43,17 @@ const appSettings = ref<AppSettings>({
 watch(isCollapsed, (newVal) => {
   updateAppSettingsAsync({ sidebarCollapsed: newVal });
 });
+
+// 缓存工具可见性配置
+const cacheToolsVisible = (toolsVisible: Record<string, boolean> | undefined) => {
+  if (toolsVisible) {
+    try {
+      localStorage.setItem("app-tools-visible", JSON.stringify(toolsVisible));
+    } catch (error) {
+      logger.warn("缓存工具可见性失败", { error });
+    }
+  }
+};
 
 // 应用主题色
 const applyThemeColor = (color: string) => {
@@ -110,6 +121,7 @@ const loadSettings = async () => {
   isCollapsed.value = settings.sidebarCollapsed;
 
   // 主题设置由 useTheme 模块自动加载和应用
+  cacheToolsVisible(settings.toolsVisible);
 
   // 应用主题色
   if (settings.themeColor) {
@@ -121,6 +133,16 @@ const loadSettings = async () => {
 let handleSettingsChange: ((event: Event) => void) | null = null;
 
 onMounted(async () => {
+  // 优先从缓存加载工具可见性，防止闪烁
+  try {
+    const cachedToolsVisible = localStorage.getItem("app-tools-visible");
+    if (cachedToolsVisible) {
+      appSettings.value.toolsVisible = JSON.parse(cachedToolsVisible);
+    }
+  } catch (error) {
+    logger.warn("加载工具可见性缓存失败", { error });
+  }
+
   // 初始化跨窗口通信总线
   const { initializeSyncBus } = useWindowSyncBus();
   initializeSyncBus();
@@ -139,6 +161,7 @@ onMounted(async () => {
       isCollapsed.value = customEvent.detail.sidebarCollapsed;
 
       // 主题设置由 useTheme 模块处理
+      cacheToolsVisible(customEvent.detail.toolsVisible);
 
       // 同步主题色
       if (customEvent.detail.themeColor) {

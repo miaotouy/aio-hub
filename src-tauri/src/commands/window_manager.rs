@@ -35,6 +35,11 @@ struct DragSessionState {
     created_at: Instant,
     /// AppHandle 的克隆（用于在后台线程中更新窗口）
     app_handle: AppHandle,
+    /// 手柄偏移量（物理坐标）
+    handle_offset_x: f64,
+    handle_offset_y: f64,
+    /// 上次更新窗口位置的时间（用于节流）
+    last_update_time: Instant,
 }
 
 /// 全局拖拽会话（同一时刻只有一个）
@@ -44,6 +49,10 @@ static DRAG_SESSION: once_cell::sync::Lazy<Arc<Mutex<Option<DragSessionState>>>>
 /// 分离阈值（与前端保持一致）
 const DETACH_THRESHOLD: f64 = 50.0;
 
+/// 窗口位置更新的最小时间间隔（毫秒）
+/// 设置为约 8ms，即最高 120Hz 更新频率
+const UPDATE_THROTTLE_MS: u64 = 8;
+
 /// 初始化全局鼠标监听器
 /// 应在应用启动时调用一次
 pub fn init_global_mouse_listener() {
@@ -52,37 +61,50 @@ pub fn init_global_mouse_listener() {
         let callback = move |event: Event| {
             match event.event_type {
                 EventType::MouseMove { x, y } => {
-                    let mut session_opt = session_arc.lock().unwrap();
-                    if let Some(session) = session_opt.as_mut() {
-                        session.current_x = x;
-                        session.current_y = y;
+                    // 一次性提取所有需要的数据，然后立即释放锁
+                    let update_data = {
+                        let mut session_opt = session_arc.lock().unwrap();
+                        if let Some(session) = session_opt.as_mut() {
+                            session.current_x = x;
+                            session.current_y = y;
 
-                        let delta_x = x - session.start_x;
-                        let delta_y = y - session.start_y;
-                        let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
-                        // 更新可分离状态
-                        let new_can_detach = distance >= DETACH_THRESHOLD;
-                        session.can_detach = new_can_detach;
+                            let delta_x = x - session.start_x;
+                            let delta_y = y - session.start_y;
+                            let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
+                            // 更新可分离状态
+                            session.can_detach = distance >= DETACH_THRESHOLD;
 
-                        let app_handle = session.app_handle.clone();
-                        let preview_label = session.preview_window_label.clone();
-                        let can_detach = session.can_detach;
+                            // 节流检查：只有距离上次更新超过阈值时间才执行更新
+                            let now = Instant::now();
+                            let should_update = now.duration_since(session.last_update_time).as_millis() >= UPDATE_THROTTLE_MS as u128;
+                            
+                            if should_update {
+                                session.last_update_time = now;
+                                Some((
+                                    session.app_handle.clone(),
+                                    session.preview_window_label.clone(),
+                                    session.can_detach,
+                                    session.handle_offset_x,
+                                    session.handle_offset_y,
+                                ))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    };
+                    // 锁已释放
 
-                        drop(session_opt);
-
+                    // 只有在需要更新时才执行窗口操作
+                    if let Some((app_handle, preview_label, can_detach, handle_offset_x, handle_offset_y)) = update_data {
                         if let Some(window) = app_handle.get_webview_window(&preview_label) {
                             // rdev 返回的 x, y 已经是物理坐标，不需要再缩放
-                            let mut physical_x = x as i32;
-                            let mut physical_y = y as i32;
+                            // 使用手柄偏移量而不是窗口中心
+                            let physical_x = (x - handle_offset_x) as i32;
+                            let physical_y = (y - handle_offset_y) as i32;
 
-                            // 居中窗口
-                            if let Ok(size) = window.outer_size() {
-                                physical_x -= (size.width as i32) / 2;
-                                physical_y -= (size.height as i32) / 2;
-                            }
-
-                            let _ =
-                                window.set_position(PhysicalPosition::new(physical_x, physical_y));
+                            let _ = window.set_position(PhysicalPosition::new(physical_x, physical_y));
 
                             // 始终发送状态更新事件，确保预览窗口能及时收到
                             // 即使状态没有变化，也可能是窗口刚创建错过了之前的事件
@@ -129,8 +151,11 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
 
     let physical_start_x = config.mouse_x * scale_factor;
     let physical_start_y = config.mouse_y * scale_factor;
+    let physical_handle_offset_x = config.handle_offset_x * scale_factor;
+    let physical_handle_offset_y = config.handle_offset_y * scale_factor;
 
     // 创建会话状态
+    let now = Instant::now();
     let session_state = DragSessionState {
         config: config.clone(),
         preview_window_label: preview_label.clone(),
@@ -139,8 +164,11 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
         current_x: physical_start_x,
         current_y: physical_start_y,
         can_detach: false,
-        created_at: Instant::now(),
+        created_at: now,
         app_handle: app.clone(),
+        handle_offset_x: physical_handle_offset_x,
+        handle_offset_y: physical_handle_offset_y,
+        last_update_time: now,
     };
 
     // 保存会话状态
@@ -204,6 +232,12 @@ pub struct DetachableConfig {
     pub mouse_x: f64,
     /// 鼠标起始Y坐标
     pub mouse_y: f64,
+    /// 手柄相对于窗口左上角的X偏移量（可选）
+    #[serde(default)]
+    pub handle_offset_x: f64,
+    /// 手柄相对于窗口左上角的Y偏移量（可选）
+    #[serde(default)]
+    pub handle_offset_y: f64,
 }
 
 /// 统一的拖拽分离会话状态
@@ -274,12 +308,17 @@ async fn create_preview_window_internal(
         .set_ignore_cursor_events(true)
         .map_err(|e| e.to_string())?;
 
+    // 使用手柄偏移量来定位窗口
+    // 窗口位置 = 鼠标位置 - 手柄偏移量
+    let window_x = config.mouse_x - config.handle_offset_x;
+    let window_y = config.mouse_y - config.handle_offset_y;
+
     set_window_position(
         app.clone(),
         label.to_string(),
-        config.mouse_x,
-        config.mouse_y,
-        Some(true),
+        window_x,
+        window_y,
+        Some(false), // 不居中，使用精确位置
     )
     .await?;
 
@@ -522,6 +561,8 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         height: config.height,
         mouse_x: 0.0, // 不适用于此场景
         mouse_y: 0.0,
+        handle_offset_x: 0.0,
+        handle_offset_y: 0.0,
     };
 
     finalize_window_internal(&app, &config.label, &detachable_config).await

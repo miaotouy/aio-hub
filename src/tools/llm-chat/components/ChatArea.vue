@@ -33,6 +33,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const containerRef = ref<HTMLDivElement>();
+const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 
 // 获取智能体和模型信息
 import { useAgentStore } from '../agentStore';
@@ -67,7 +68,6 @@ const modelIcon = computed(() => {
 // ===== 拖拽与分离功能 =====
 const { isDetached } = useDetachedManager();
 const { startDetaching } = useDetachable();
-
 const handleDragStart = (e: MouseEvent) => {
   if (props.isDetached) return;
 
@@ -75,6 +75,29 @@ const handleDragStart = (e: MouseEvent) => {
   if (!rect) {
     logger.error('无法获取容器尺寸，无法开始拖拽');
     return;
+  }
+
+  // 获取拖拽手柄的位置
+  const headerEl = headerRef.value?.$el as HTMLElement;
+  const headerRect = headerEl?.getBoundingClientRect();
+  
+  // 计算手柄相对于容器的偏移量
+  let handleOffsetX = 0;
+  let handleOffsetY = 0;
+  
+  if (headerRect) {
+    // 手柄中心相对于容器左上角的偏移量
+    handleOffsetX = (headerRect.left - rect.left) + headerRect.width / 2;
+    handleOffsetY = (headerRect.top - rect.top) + headerRect.height / 2;
+    
+    logger.info('拖拽手柄偏移量计算', {
+      mouseX: e.screenX,
+      mouseY: e.screenY,
+      handleOffsetX,
+      handleOffsetY,
+      headerWidth: headerRect.width,
+      headerHeight: headerRect.height
+    });
   }
 
   startDetaching({
@@ -85,6 +108,8 @@ const handleDragStart = (e: MouseEvent) => {
     height: rect.height,
     mouseX: e.screenX,
     mouseY: e.screenY,
+    handleOffsetX,
+    handleOffsetY,
   });
 };
 
@@ -106,6 +131,18 @@ const handleDetach = async () => {
     return;
   }
 
+  // 获取手柄位置用于计算偏移量
+  const headerEl = headerRef.value?.$el as HTMLElement;
+  const headerRect = headerEl?.getBoundingClientRect();
+  
+  let handleOffsetX = 0;
+  let handleOffsetY = 0;
+  
+  if (headerRect) {
+    handleOffsetX = (headerRect.left - rect.left) + headerRect.width / 2;
+    handleOffsetY = (headerRect.top - rect.top) + headerRect.height / 2;
+  }
+
   const config = {
     id: 'chat-area',
     displayName: '对话区域',
@@ -115,6 +152,8 @@ const handleDetach = async () => {
     // 对于菜单点击，我们使用组件中心作为起始点（需要转换为屏幕坐标）
     mouseX: window.screenX + rect.left + rect.width / 2,
     mouseY: window.screenY + rect.top + rect.height / 2,
+    handleOffsetX,
+    handleOffsetY,
   };
 
   logger.info('通过菜单请求分离窗口', { config });
@@ -172,6 +211,7 @@ if (props.isDetached) {
     <div class="chat-header">
       <!-- 拖拽手柄 -->
       <ComponentHeader
+        ref="headerRef"
         position="top"
         :drag-mode="props.isDetached ? 'window' : 'detach'"
         show-actions

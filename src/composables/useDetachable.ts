@@ -20,6 +20,10 @@ export interface DetachableConfig {
   mouseX: number;
   /** 鼠标起始Y坐标 */
   mouseY: number;
+  /** 手柄相对于窗口左上角的X偏移量（可选，默认0表示窗口中心） */
+  handleOffsetX?: number;
+  /** 手柄相对于窗口左上角的Y偏移量（可选，默认0表示窗口中心） */
+  handleOffsetY?: number;
   /** 可选的元数据，可用于传递额外信息 */
   metadata?: Record<string, any>;
   /** 如果未触发拖拽（视为点击），调用此回调 */

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, defineAsyncComponent, type Component, watch } from "vue";
 import { useRoute } from "vue-router";
-import { listen, emit as tauriEmit } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
@@ -103,26 +103,12 @@ onMounted(async () => {
           // MessageInput 需要的默认 props
           defaultProps.disabled = false;
           defaultProps.isSending = false;
-        } else if (componentId === 'chat-area') {
-          // ChatArea 需要的默认 props
-          defaultProps.messages = [];
-          defaultProps.isSending = false;
-          defaultProps.disabled = false;
-          // 保留从配置传入的 currentAgentId 和 currentModelId
-          if (props.currentAgentId !== undefined) {
-            defaultProps.currentAgentId = props.currentAgentId;
-          }
-          if (props.currentModelId !== undefined) {
-            defaultProps.currentModelId = props.currentModelId;
-          }
         }
         
         componentProps.value = { ...defaultProps, ...props };
         
         logger.info('组件 props 已初始化', {
           componentId,
-          hasCurrentAgentId: !!componentProps.value.currentAgentId,
-          hasCurrentModelId: !!componentProps.value.currentModelId,
           props: componentProps.value
         });
 
@@ -161,90 +147,8 @@ onMounted(async () => {
     isPreview.value = false;
   });
 
-  // 监听来自主窗口的数据同步事件（仅针对 chat-area 组件）
-  if (currentComponentId.value === 'chat-area') {
-    await listen<{
-      messages: any[];
-      isSending: boolean;
-      disabled: boolean;
-      currentAgentId?: string;
-      currentModelId?: string;
-    }>('chat-area-sync-data', (event) => {
-      logger.info('收到来自主窗口的数据同步', {
-        messageCount: event.payload.messages.length,
-        isSending: event.payload.isSending,
-        currentAgentId: event.payload.currentAgentId,
-        currentModelId: event.payload.currentModelId
-      });
-      
-      // 更新组件 props
-      componentProps.value = {
-        ...componentProps.value,
-        messages: event.payload.messages,
-        isSending: event.payload.isSending,
-        disabled: event.payload.disabled,
-        currentAgentId: event.payload.currentAgentId,
-        currentModelId: event.payload.currentModelId,
-      };
-      
-      logger.info('组件 props 已更新', {
-        messageCount: componentProps.value.messages?.length,
-        isSending: componentProps.value.isSending,
-        currentAgentId: componentProps.value.currentAgentId,
-        currentModelId: componentProps.value.currentModelId
-      });
-    });
-    
-    logger.info('ChatArea 数据同步监听器已初始化');
-  }
-
   logger.info("DetachedComponentContainer 初始化完成");
 });
-
-// ===== 事件转发处理函数 =====
-// 这些函数监听组件的 Vue 事件，并通过 Tauri 转发到主窗口
-
-// 处理发送消息（来自 MessageInput 或 ChatArea）
-const handleSend = async (content: string) => {
-  try {
-    const eventName = currentComponentId.value === 'chat-input' ? 'chat-input-send' : 'chat-area-send';
-    await tauriEmit(eventName, { content });
-    logger.info('转发发送消息事件到主窗口', { eventName, content });
-  } catch (error) {
-    logger.error('转发发送消息事件失败', { error });
-  }
-};
-
-// 处理中止（来自 MessageInput 或 ChatArea）
-const handleAbort = async () => {
-  try {
-    const eventName = currentComponentId.value === 'chat-input' ? 'chat-input-abort' : 'chat-area-abort';
-    await tauriEmit(eventName, {});
-    logger.info('转发中止事件到主窗口', { eventName });
-  } catch (error) {
-    logger.error('转发中止事件失败', { error });
-  }
-};
-
-// 处理删除消息（来自 ChatArea）
-const handleDeleteMessage = async (messageId: string) => {
-  try {
-    await tauriEmit('chat-area-delete-message', { messageId });
-    logger.info('转发删除消息事件到主窗口', { messageId });
-  } catch (error) {
-    logger.error('转发删除消息事件失败', { error });
-  }
-};
-
-// 处理重新生成（来自 ChatArea）
-const handleRegenerate = async () => {
-  try {
-    await tauriEmit('chat-area-regenerate', {});
-    logger.info('转发重新生成事件到主窗口');
-  } catch (error) {
-    logger.error('转发重新生成事件失败', { error });
-  }
-};
 </script>
 
 <template>
@@ -258,10 +162,6 @@ const handleRegenerate = async () => {
         v-if="componentToRender"
         :is="componentToRender"
         v-bind="componentProps"
-        @send="handleSend"
-        @abort="handleAbort"
-        @delete-message="handleDeleteMessage"
-        @regenerate="handleRegenerate"
       />
       <div v-else class="error-message">
         <h2>组件加载失败</h2>

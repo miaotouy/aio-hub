@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import type { ChatMessageNode } from '../types';
 import { useComponentDragging } from '@/composables/useComponentDragging';
 import { useDetachedComponents } from '@/composables/useDetachedComponents';
@@ -8,7 +8,7 @@ import { createModuleLogger } from '@utils/logger';
 import ComponentHeader from '@/components/ComponentHeader.vue';
 import MessageList from './MessageList.vue';
 import MessageInput from './MessageInput.vue';
-import { emit as tauriEmit } from '@tauri-apps/api/event';
+import { useDetachedChatArea } from '../composables/useDetachedChatArea';
 
 const logger = createModuleLogger('ChatArea');
 
@@ -37,16 +37,14 @@ const containerRef = ref<HTMLDivElement>();
 import { useAgentStore } from '../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useModelMetadata } from '@/composables/useModelMetadata';
-import { computed } from 'vue';
-
 const agentStore = useAgentStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 
 // 当前智能体信息
 const currentAgent = computed(() => {
-  if (!props.currentAgentId) return null;
-  return agentStore.getAgentById(props.currentAgentId);
+  if (!finalCurrentAgentId.value) return null;
+  return agentStore.getAgentById(finalCurrentAgentId.value);
 });
 
 // 当前模型信息
@@ -54,7 +52,9 @@ const currentModel = computed(() => {
   if (!currentAgent.value) return null;
   const profile = getProfileById(currentAgent.value.profileId);
   if (!profile) return null;
-  return profile.models.find(m => m.id === currentAgent.value!.modelId);
+  // 在分离模式下，我们可能没有完整的模型列表，所以需要处理
+  const modelId = finalCurrentModelId.value || currentAgent.value.modelId;
+  return profile.models.find(m => m.id === modelId);
 });
 
 // 模型图标
@@ -85,8 +85,6 @@ const { startDrag } = useComponentDragging(
         height: rect.height + 80,
         mouseX: e.screenX,
         mouseY: e.screenY,
-        currentAgentId: props.currentAgentId,
-        currentModelId: props.currentModelId,
       };
     },
   }
@@ -137,8 +135,6 @@ const handleDetach = async () => {
       height: rect.height + 80,
       mouseX: rect.left + rect.width / 2,
       mouseY: rect.top + rect.height / 2,
-      currentAgentId: props.currentAgentId,
-      currentModelId: props.currentModelId,
     };
 
     logger.info('通过菜单创建独立窗口', { config });
@@ -165,58 +161,34 @@ const handleDetach = async () => {
 };
 
 // ===== 消息事件处理 =====
-// 如果在分离窗口中，通过事件系统转发到主窗口
-const handleSendMessage = async (content: string) => {
-  if (props.isDetached) {
-    try {
-      await tauriEmit('chat-area-send', { content });
-      logger.info('分离窗口发送消息事件', { content });
-    } catch (error) {
-      logger.error('发送消息事件失败', { error });
-    }
-  } else {
-    emit('send', content);
-  }
-};
+// 根据是否分离，决定是直接 emit 还是使用代理
+let finalMessages = ref<ChatMessageNode[]>(props.messages);
+let finalIsSending = ref(props.isSending);
+let finalDisabled = ref(props.disabled);
+let finalCurrentAgentId = ref(props.currentAgentId);
+let finalCurrentModelId = ref(props.currentModelId);
 
-const handleAbort = async () => {
-  if (props.isDetached) {
-    try {
-      await tauriEmit('chat-area-abort', {});
-      logger.info('分离窗口发送中止事件');
-    } catch (error) {
-      logger.error('发送中止事件失败', { error });
-    }
-  } else {
-    emit('abort');
-  }
-};
+let handleSendMessage = (content: string) => emit('send', content);
+let handleAbort = () => emit('abort');
+let handleDeleteMessage = (messageId: string) => emit('delete-message', messageId);
+let handleRegenerate = () => emit('regenerate');
 
-const handleDeleteMessage = async (messageId: string) => {
-  if (props.isDetached) {
-    try {
-      await tauriEmit('chat-area-delete-message', { messageId });
-      logger.info('分离窗口发送删除消息事件', { messageId });
-    } catch (error) {
-      logger.error('发送删除消息事件失败', { error });
-    }
-  } else {
-    emit('delete-message', messageId);
-  }
-};
+if (props.isDetached) {
+  const detached = useDetachedChatArea();
+  
+  finalMessages = detached.messages;
+  finalIsSending = detached.isSending;
+  finalDisabled = detached.disabled;
+  finalCurrentAgentId = detached.currentAgentId;
+  finalCurrentModelId = detached.currentModelId;
 
-const handleRegenerate = async () => {
-  if (props.isDetached) {
-    try {
-      await tauriEmit('chat-area-regenerate', {});
-      logger.info('分离窗口发送重新生成事件');
-    } catch (error) {
-      logger.error('发送重新生成事件失败', { error });
-    }
-  } else {
-    emit('regenerate');
-  }
-};
+  handleSendMessage = detached.sendMessage;
+  handleAbort = detached.abortSending;
+  handleDeleteMessage = detached.deleteMessage;
+  handleRegenerate = detached.regenerateLastMessage;
+  
+  logger.info('ChatArea 运行在分离模式');
+}
 </script>
 
 <template>
@@ -253,8 +225,8 @@ const handleRegenerate = async () => {
       <div class="chat-content">
         <!-- 消息列表 -->
         <MessageList
-          :messages="messages"
-          :is-sending="isSending"
+          :messages="finalMessages"
+          :is-sending="finalIsSending"
           @delete-message="handleDeleteMessage"
           @regenerate="handleRegenerate"
         />
@@ -262,8 +234,8 @@ const handleRegenerate = async () => {
         <!-- 输入框 -->
         <MessageInput
           v-if="!isMessageInputDetached"
-          :disabled="disabled"
-          :is-sending="isSending"
+          :disabled="finalDisabled"
+          :is-sending="finalIsSending"
           @send="handleSendMessage"
           @abort="handleAbort"
         />

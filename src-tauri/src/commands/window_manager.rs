@@ -1,4 +1,3 @@
-use nanoid::nanoid;
 use rdev::{listen, Event, EventType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -138,9 +137,9 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
 
     println!("[DRAG] 开始拖拽会话: {}", config.display_name);
 
-    // 创建预览窗口
-    let preview_label = format!("preview-{}", nanoid!(8));
-    create_preview_window_internal(&app, &preview_label, &config).await?;
+    // 创建预览窗口，使用固定标签以支持窗口状态记忆
+    let preview_label = format!("detached-{}", &config.id);
+    create_preview_window_internal(&app, &preview_label, &config, true).await?;
 
     // 前端传入的是逻辑坐标，需要转换为物理坐标以匹配 rdev 的坐标系统
     let scale_factor = if let Some(window) = app.get_webview_window(&preview_label) {
@@ -270,10 +269,14 @@ fn camel_to_kebab(s: &str) -> String {
 }
 
 /// 辅助函数：创建一个预览窗口
+///
+/// # 参数
+/// * `is_drag` - 是否为拖拽创建（true: 拖拽创建，需要覆盖尺寸和位置；false: 按钮创建，完全依赖插件恢复）
 async fn create_preview_window_internal(
     app: &AppHandle,
     label: &str,
     config: &DetachableConfig,
+    is_drag: bool,
 ) -> Result<(), String> {
     // 根据类型选择不同的路由
     let url = if config.r#type == "tool" {
@@ -308,19 +311,33 @@ async fn create_preview_window_internal(
         .set_ignore_cursor_events(true)
         .map_err(|e| e.to_string())?;
 
-    // 使用手柄偏移量来定位窗口
-    // 窗口位置 = 鼠标位置 - 手柄偏移量
-    let window_x = config.mouse_x - config.handle_offset_x;
-    let window_y = config.mouse_y - config.handle_offset_y;
+    // 只有在拖拽创建时才需要覆盖尺寸和位置
+    if is_drag {
+        // 仅对组件类型强制设置窗口尺寸，覆盖插件可能恢复的旧尺寸
+        // 这确保拖拽出来的组件大小与在页面内时的大小一致
+        // 工具类型则保留插件恢复的尺寸或使用默认尺寸
+        if config.r#type == "component" {
+            use tauri::LogicalSize;
+            window
+                .set_size(LogicalSize::new(config.width, config.height))
+                .map_err(|e| e.to_string())?;
+        }
 
-    set_window_position(
-        app.clone(),
-        label.to_string(),
-        window_x,
-        window_y,
-        Some(false), // 不居中，使用精确位置
-    )
-    .await?;
+        // 使用手柄偏移量来定位窗口
+        // 窗口位置 = 鼠标位置 - 手柄偏移量
+        let window_x = config.mouse_x - config.handle_offset_x;
+        let window_y = config.mouse_y - config.handle_offset_y;
+
+        set_window_position(
+            app.clone(),
+            label.to_string(),
+            window_x,
+            window_y,
+            Some(false), // 不居中，使用精确位置
+        )
+        .await?;
+    }
+    // 按钮创建时，完全依赖插件恢复位置和尺寸，不做任何覆盖
 
     sleep(Duration::from_millis(150)).await;
     window.show().map_err(|e| e.to_string())?;
@@ -328,21 +345,23 @@ async fn create_preview_window_internal(
     Ok(())
 }
 
-/// 开始一个统一的分离会话
+/// 开始一个统一的分离会话（用于按钮分离）
 #[tauri::command]
 pub async fn begin_detach_session(
     app: AppHandle,
     config: DetachableConfig,
 ) -> Result<String, String> {
-    let preview_label = format!("preview-{}", nanoid!(8));
+    // 使用固定标签以支持窗口状态记忆
+    let preview_label = format!("detached-{}", &config.id);
     let session_id = preview_label.clone();
 
     println!(
-        "[DETACH] 开始新会话: {}, 类型: {}, ID: {}",
+        "[DETACH] 开始按钮分离会话: {}, 类型: {}, ID: {}",
         session_id, config.r#type, config.id
     );
 
-    create_preview_window_internal(&app, &preview_label, &config).await?;
+    // 按钮创建时 is_drag=false，完全依赖插件恢复位置和尺寸
+    create_preview_window_internal(&app, &preview_label, &config, false).await?;
 
     let session = DetachSession {
         config,

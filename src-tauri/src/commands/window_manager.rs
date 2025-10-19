@@ -1,12 +1,12 @@
 use nanoid::nanoid;
+use rdev::{listen, Event, EventType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 use tokio::time::sleep;
-use rdev::{listen, Event, EventType};
-use std::thread;
 
 // ============================================================================
 // 新统一分离系统 (Unified Detachment System)
@@ -60,33 +60,36 @@ pub fn init_global_mouse_listener() {
                         let delta_x = x - session.start_x;
                         let delta_y = y - session.start_y;
                         let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
-
+                        // 更新可分离状态
                         let new_can_detach = distance >= DETACH_THRESHOLD;
-                        let status_changed = new_can_detach != session.can_detach;
                         session.can_detach = new_can_detach;
 
                         let app_handle = session.app_handle.clone();
                         let preview_label = session.preview_window_label.clone();
                         let can_detach = session.can_detach;
-                        
+
                         drop(session_opt);
 
                         if let Some(window) = app_handle.get_webview_window(&preview_label) {
                             // rdev 返回的 x, y 已经是物理坐标，不需要再缩放
                             let mut physical_x = x as i32;
                             let mut physical_y = y as i32;
-                            
+
                             // 居中窗口
                             if let Ok(size) = window.outer_size() {
                                 physical_x -= (size.width as i32) / 2;
                                 physical_y -= (size.height as i32) / 2;
                             }
-                            
-                            let _ = window.set_position(PhysicalPosition::new(physical_x, physical_y));
-                            
-                            if status_changed {
-                                let _ = window.emit("detach-status-update", serde_json::json!({ "canDetach": can_detach }));
-                            }
+
+                            let _ =
+                                window.set_position(PhysicalPosition::new(physical_x, physical_y));
+
+                            // 始终发送状态更新事件，确保预览窗口能及时收到
+                            // 即使状态没有变化，也可能是窗口刚创建错过了之前的事件
+                            let _ = window.emit(
+                                "detach-status-update",
+                                serde_json::json!({ "canDetach": can_detach }),
+                            );
                         }
                     }
                 }
@@ -102,10 +105,7 @@ pub fn init_global_mouse_listener() {
 
 /// 开始一个基于全局鼠标监听的拖拽会话
 #[tauri::command]
-pub async fn start_drag_session(
-    app: AppHandle,
-    config: DetachableConfig,
-) -> Result<(), String> {
+pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Result<(), String> {
     // 检查是否已有活动会话
     {
         let session = DRAG_SESSION.lock().unwrap();
@@ -126,7 +126,7 @@ pub async fn start_drag_session(
     } else {
         1.0
     };
-    
+
     let physical_start_x = config.mouse_x * scale_factor;
     let physical_start_y = config.mouse_y * scale_factor;
 
@@ -164,9 +164,7 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         let duration = state.created_at.elapsed();
         println!(
             "[DRAG] 结束拖拽会话: {}, can_detach: {}, 持续时间: {:?}",
-            state.config.display_name,
-            state.can_detach,
-            duration
+            state.config.display_name, state.can_detach, duration
         );
 
         let preview_window_label = state.preview_window_label.clone();
@@ -187,7 +185,6 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         Err("没有活动的拖拽会话".to_string())
     }
 }
-
 
 /// 统一的窗口分离配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -301,7 +298,10 @@ pub async fn begin_detach_session(
     let preview_label = format!("preview-{}", nanoid!(8));
     let session_id = preview_label.clone();
 
-    println!("[DETACH] 开始新会话: {}, 类型: {}, ID: {}", session_id, config.r#type, config.id);
+    println!(
+        "[DETACH] 开始新会话: {}, 类型: {}, ID: {}",
+        session_id, config.r#type, config.id
+    );
 
     create_preview_window_internal(&app, &preview_label, &config).await?;
 
@@ -309,7 +309,7 @@ pub async fn begin_detach_session(
         config,
         preview_window_label: preview_label,
     };
-    
+
     {
         let mut sessions = DETACH_SESSIONS.lock().unwrap();
         sessions.insert(session_id.clone(), session);
@@ -329,10 +329,11 @@ pub async fn update_detach_session_position(
     // 在独立作用域中获取锁，提取需要的数据后立即释放锁
     let preview_label = {
         let sessions = DETACH_SESSIONS.lock().unwrap();
-        sessions.get(&session_id)
+        sessions
+            .get(&session_id)
             .map(|session| session.preview_window_label.clone())
     };
-    
+
     // 锁已释放，现在可以安全地进行异步操作
     if let Some(label) = preview_label {
         set_window_position(app, label, x, y, Some(true)).await
@@ -351,16 +352,20 @@ pub async fn update_detach_session_status(
     // 在独立作用域中获取锁，提取需要的数据后立即释放锁
     let preview_label = {
         let sessions = DETACH_SESSIONS.lock().unwrap();
-        sessions.get(&session_id)
+        sessions
+            .get(&session_id)
             .map(|session| session.preview_window_label.clone())
     };
-    
+
     // 锁已释放，现在可以安全地进行异步操作
     if let Some(label) = preview_label {
         if let Some(window) = app.get_webview_window(&label) {
             // 向预览窗口发送状态更新事件
             window
-                .emit("detach-status-update", serde_json::json!({ "canDetach": can_detach }))
+                .emit(
+                    "detach-status-update",
+                    serde_json::json!({ "canDetach": can_detach }),
+                )
                 .map_err(|e| format!("发送状态更新事件失败: {}", e))?;
             Ok(())
         } else {
@@ -373,21 +378,34 @@ pub async fn update_detach_session_status(
 
 /// 持久化的已分离窗口集合
 /// key: window label, value: DetachedWindowInfo
-static FINALIZED_DETACHED_WINDOWS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, DetachedWindowInfo>>>> =
-    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+static FINALIZED_DETACHED_WINDOWS: once_cell::sync::Lazy<
+    Arc<Mutex<HashMap<String, DetachedWindowInfo>>>,
+> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 /// 辅助函数：固化一个窗口
-async fn finalize_window_internal(app: &AppHandle, label: &str, config: &DetachableConfig) -> Result<(), String> {
-    let window = app.get_webview_window(label).ok_or_else(|| format!("窗口不存在: {}", label))?;
+async fn finalize_window_internal(
+    app: &AppHandle,
+    label: &str,
+    config: &DetachableConfig,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window(label)
+        .ok_or_else(|| format!("窗口不存在: {}", label))?;
 
     // 更新窗口标题为实际的显示名称
-    window.set_title(&config.display_name).map_err(|e| e.to_string())?;
-    
-    window.set_ignore_cursor_events(false).map_err(|e| e.to_string())?;
+    window
+        .set_title(&config.display_name)
+        .map_err(|e| e.to_string())?;
+
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|e| e.to_string())?;
     window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
 
     // 通知前端视图更新 (e.g., to hide preview-only elements)
-    window.emit("finalize-component-view", ()).map_err(|e| e.to_string())?;
+    window
+        .emit("finalize-component-view", ())
+        .map_err(|e| e.to_string())?;
 
     let info = DetachedWindowInfo {
         label: label.to_string(),
@@ -402,8 +420,9 @@ async fn finalize_window_internal(app: &AppHandle, label: &str, config: &Detacha
     }
 
     // 2. Emit the unified 'window-detached' event
-    app.emit("window-detached", info).map_err(|e| e.to_string())?;
-    
+    app.emit("window-detached", info)
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -437,7 +456,9 @@ pub async fn finalize_detach_session(
 
     if let Some(session) = session {
         let preview_window_label = session.preview_window_label.clone();
-        let preview_window = app.get_webview_window(&preview_window_label).ok_or_else(|| format!("预览窗口 '{}' 不存在", preview_window_label))?;
+        let preview_window = app
+            .get_webview_window(&preview_window_label)
+            .ok_or_else(|| format!("预览窗口 '{}' 不存在", preview_window_label))?;
 
         if should_detach {
             println!("[DETACH] 会话 {} 已固化", session_id);
@@ -451,7 +472,6 @@ pub async fn finalize_detach_session(
         Err(format!("分离会话 {} 不存在或已被处理", session_id))
     }
 }
-
 
 // ============================================================================
 // 通用窗口管理命令 (Common Window Management Commands)
@@ -469,9 +489,12 @@ pub struct WindowConfig {
     pub height: f64,
 }
 
-fn default_width() -> f64 { 900.0 }
-fn default_height() -> f64 { 700.0 }
-
+fn default_width() -> f64 {
+    900.0
+}
+fn default_height() -> f64 {
+    700.0
+}
 
 /// 创建工具窗口 (用于从菜单等非拖拽方式打开)
 #[tauri::command]
@@ -481,14 +504,15 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         return Ok(());
     }
 
-    let _window = WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
-        .title(&config.title)
-        .inner_size(config.width, config.height)
-        .min_inner_size(400.0, 300.0)
-        .decorations(false)
-        .transparent(true)
-        .build()
-        .map_err(|e| e.to_string())?;
+    let _window =
+        WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
+            .title(&config.title)
+            .inner_size(config.width, config.height)
+            .min_inner_size(400.0, 300.0)
+            .decorations(false)
+            .transparent(true)
+            .build()
+            .map_err(|e| e.to_string())?;
 
     let detachable_config = DetachableConfig {
         id: config.label.clone(),
@@ -519,7 +543,7 @@ pub async fn close_detached_window(app: AppHandle, label: String) -> Result<(), 
             app.emit("window-attached", payload)
                 .map_err(|e| e.to_string())?;
         }
-        
+
         // 3. 关闭窗口
         window.close().map_err(|e| e.to_string())?;
 
@@ -590,13 +614,19 @@ pub async fn ensure_window_visible(app: AppHandle, label: String) -> Result<bool
             let monitor_size = monitor.size();
 
             let (clamped_x, clamped_y) = clamp_position_to_screen(
-                logical_x, logical_y, logical_width, logical_height,
-                monitor_pos.x, monitor_pos.y,
-                monitor_size.width, monitor_size.height,
+                logical_x,
+                logical_y,
+                logical_width,
+                logical_height,
+                monitor_pos.x,
+                monitor_pos.y,
+                monitor_size.width,
+                monitor_size.height,
                 scale_factor,
             );
 
-            let needs_adjustment = (clamped_x - logical_x).abs() > 0.1 || (clamped_y - logical_y).abs() > 0.1;
+            let needs_adjustment =
+                (clamped_x - logical_x).abs() > 0.1 || (clamped_y - logical_y).abs() > 0.1;
 
             if needs_adjustment {
                 set_window_position(app.clone(), label, clamped_x, clamped_y, Some(false)).await?;
@@ -612,9 +642,14 @@ pub async fn ensure_window_visible(app: AppHandle, label: String) -> Result<bool
 }
 
 fn clamp_position_to_screen(
-    x: f64, y: f64, width: f64, _height: f64,
-    monitor_pos_x: i32, monitor_pos_y: i32,
-    monitor_width: u32, monitor_height: u32,
+    x: f64,
+    y: f64,
+    width: f64,
+    _height: f64,
+    monitor_pos_x: i32,
+    monitor_pos_y: i32,
+    monitor_width: u32,
+    monitor_height: u32,
     scale_factor: f64,
 ) -> (f64, f64) {
     let physical_x = (x * scale_factor) as i32;
@@ -627,7 +662,8 @@ fn clamp_position_to_screen(
     let mut clamped_x = physical_x;
     let mut clamped_y = physical_y;
 
-    if clamped_x + physical_width < monitor_pos_x + 60 { // 至少保留60px可见
+    if clamped_x + physical_width < monitor_pos_x + 60 {
+        // 至少保留60px可见
         clamped_x = monitor_pos_x + 60 - physical_width;
     }
     if clamped_x > monitor_right - 60 {
@@ -640,14 +676,20 @@ fn clamp_position_to_screen(
         clamped_y = monitor_bottom - 60;
     }
 
-    (clamped_x as f64 / scale_factor, clamped_y as f64 / scale_factor)
+    (
+        clamped_x as f64 / scale_factor,
+        clamped_y as f64 / scale_factor,
+    )
 }
 
 /// 清除所有窗口的保存状态
 #[tauri::command]
 pub async fn clear_window_state(app: AppHandle) -> Result<(), String> {
     use std::fs;
-    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
     let state_file = app_data_dir.join(".window-state");
     if state_file.exists() {
         fs::remove_file(&state_file).map_err(|e| format!("删除窗口状态文件失败: {}", e))?;

@@ -76,8 +76,8 @@ const handleDragStart = (e: MouseEvent) => {
     id: 'chat-input',
     displayName: '聊天输入框',
     type: 'component',
-    width: rect.width,
-    height: rect.height,
+    width: rect.width + 80,
+    height: rect.height + 80,
     mouseX: e.screenX,
     mouseY: e.screenY,
   });
@@ -99,8 +99,8 @@ const handleDetach = async () => {
     id: 'chat-input',
     displayName: '聊天输入框',
     type: 'component' as const,
-    width: rect.width,
-    height: rect.height,
+    width: rect.width + 80,
+    height: rect.height + 80,
     mouseX: window.screenX + rect.left + rect.width / 2,
     mouseY: window.screenY + rect.top + rect.height / 2,
   };

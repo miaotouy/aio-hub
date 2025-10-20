@@ -20,6 +20,7 @@ export interface DirectoryTreeConfig {
   /** 上次的显示选项 */
   showFiles: boolean;
   showHidden: boolean;
+  showSize: boolean;
   /** 上次的深度限制 */
   maxDepth: number;
   /** 拖拽后是否自动生成 */
@@ -40,6 +41,7 @@ function createDefaultConfig(): DirectoryTreeConfig {
     lastTargetPath: '',
     showFiles: true,
     showHidden: false,
+    showSize: false,  // 默认不显示文件大小
     maxDepth: 5,
     autoGenerateOnDrop: true,  // 默认开启自动生成
     includeMetadata: false,  // 默认不包含元数据

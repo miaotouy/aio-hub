@@ -31,6 +31,7 @@
             <div class="checkbox-group">
               <el-checkbox v-model="showFiles" label="显示文件" />
               <el-checkbox v-model="showHidden" label="显示隐藏文件" />
+              <el-checkbox v-model="showSize" label="显示文件大小" />
               <el-checkbox v-model="includeMetadata" label="输出包含配置和统计" />
               <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
             </div>
@@ -164,6 +165,7 @@ const logger = createModuleLogger("tools/directory-tree");
 const targetPath = ref("");
 const showFiles = ref(true);
 const showHidden = ref(false);
+const showSize = ref(false);
 const filterMode = ref<"none" | "gitignore" | "custom">("none");
 const customPattern = ref("");
 const maxDepth = ref(5);
@@ -210,6 +212,7 @@ onMounted(async () => {
     targetPath.value = config.lastTargetPath;
     showFiles.value = config.showFiles;
     showHidden.value = config.showHidden;
+    showSize.value = config.showSize ?? false; // 兼容旧配置
     maxDepth.value = config.maxDepth;
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
@@ -231,6 +234,7 @@ const debouncedSaveConfig = debounce(async () => {
       lastTargetPath: targetPath.value,
       showFiles: showFiles.value,
       showHidden: showHidden.value,
+      showSize: showSize.value,
       maxDepth: maxDepth.value,
       autoGenerateOnDrop: autoGenerateOnDrop.value,
       includeMetadata: includeMetadata.value,
@@ -244,6 +248,7 @@ const debouncedSaveConfig = debounce(async () => {
       lastTargetPath: targetPath.value,
       showFiles: showFiles.value,
       showHidden: showHidden.value,
+      showSize: showSize.value,
       maxDepth: maxDepth.value,
     });
   }
@@ -257,6 +262,7 @@ watch(
     targetPath,
     showFiles,
     showHidden,
+    showSize,
     maxDepth,
     autoGenerateOnDrop,
     includeMetadata,
@@ -310,6 +316,7 @@ const generateTree = async () => {
       path: targetPath.value,
       showFiles: showFiles.value,
       showHidden: showHidden.value,
+      showSize: showSize.value,
       maxDepth: maxDepth.value === 10 ? 0 : maxDepth.value, // 0 表示无限制
       ignorePatterns,
     });
@@ -333,6 +340,7 @@ const generateTree = async () => {
         `- 目标路径: ${targetPath.value}`,
         `- 显示文件: ${showFiles.value ? "是" : "否"}`,
         `- 显示隐藏: ${showHidden.value ? "是" : "否"}`,
+        `- 显示大小: ${showSize.value ? "是" : "否"}`,
         `- 过滤模式: ${filterMode.value === "gitignore" ? "使用 .gitignore" : filterMode.value === "custom" ? "自定义规则" : "无"}`,
         `- 最大深度: ${maxDepth.value === 10 ? "无限制" : maxDepth.value}`,
         filterMode.value === "custom" && customPattern.value.trim()
@@ -369,6 +377,7 @@ const generateTree = async () => {
         目标路径: targetPath.value,
         显示文件: showFiles.value,
         显示隐藏: showHidden.value,
+        显示大小: showSize.value,
         过滤模式: filterMode.value,
         最大深度: maxDepth.value === 10 ? "无限制" : maxDepth.value,
         过滤规则:
@@ -387,6 +396,7 @@ const generateTree = async () => {
       configuration: {
         显示文件: showFiles.value,
         显示隐藏: showHidden.value,
+        显示大小: showSize.value,
         过滤模式: filterMode.value,
         最大深度: maxDepth.value === 10 ? "无限制" : maxDepth.value,
       },

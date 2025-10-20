@@ -3,6 +3,24 @@ use std::path::{Path, PathBuf};
 use regex::Regex;
 use serde::Serialize;
 
+// 格式化文件大小，转换为人类可读的格式
+fn format_size(size: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let mut size = size as f64;
+    let mut unit_index = 0;
+    
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+    
+    if unit_index == 0 {
+        format!("{:.0} {}", size, UNITS[unit_index])
+    } else {
+        format!("{:.2} {}", size, UNITS[unit_index])
+    }
+}
+
 // gitignore 规则结构，支持否定规则
 #[derive(Clone)]
 struct IgnoreRule {
@@ -242,6 +260,7 @@ pub async fn generate_directory_tree(
     path: String,
     show_files: bool,
     show_hidden: bool,
+    show_size: bool,
     max_depth: usize,
     ignore_patterns: Vec<String>
 ) -> Result<DirectoryTreeResult, String> {
@@ -281,6 +300,7 @@ pub async fn generate_directory_tree(
         "",
         show_files,
         show_hidden,
+        show_size,
         max_depth,
         0,
         use_gitignore,
@@ -311,6 +331,7 @@ fn generate_tree_recursive(
     prefix: &str,
     show_files: bool,
     show_hidden: bool,
+    show_size: bool,
     max_depth: usize,
     current_depth: usize,
     use_gitignore: bool,
@@ -423,6 +444,7 @@ fn generate_tree_recursive(
                 &new_prefix,
                 show_files,
                 show_hidden,
+                show_size,
                 max_depth,
                 current_depth + 1,
                 use_gitignore,
@@ -430,7 +452,18 @@ fn generate_tree_recursive(
                 stats
             )?;
         } else {
-            output.push_str(&format!("{}{}{}\n", prefix, connector, file_name));
+            // 如果需要显示文件大小，获取并格式化
+            if show_size {
+                if let Ok(metadata) = fs::metadata(&path) {
+                    let size = metadata.len();
+                    let size_str = format_size(size);
+                    output.push_str(&format!("{}{}{} ({})\n", prefix, connector, file_name, size_str));
+                } else {
+                    output.push_str(&format!("{}{}{}\n", prefix, connector, file_name));
+                }
+            } else {
+                output.push_str(&format!("{}{}{}\n", prefix, connector, file_name));
+            }
         }
     }
     

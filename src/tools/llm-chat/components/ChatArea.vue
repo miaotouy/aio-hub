@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, toRef, withDefaults, onMounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import type { ChatMessageNode } from '../types';
-import { useDetachable } from '@/composables/useDetachable';
-import { useDetachedManager } from '@/composables/useDetachedManager';
-import { useWindowResize } from '@/composables/useWindowResize';
-import { createModuleLogger } from '@utils/logger';
-import ComponentHeader from '@/components/ComponentHeader.vue';
-import MessageList from './MessageList.vue';
-import MessageInput from './MessageInput.vue';
-import { useDetachedChatArea } from '../composables/useDetachedChatArea';
+import { ref, computed, toRef, withDefaults, onMounted } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import type { ChatMessageNode } from "../types";
+import { useDetachable } from "@/composables/useDetachable";
+import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useWindowResize } from "@/composables/useWindowResize";
+import { createModuleLogger } from "@utils/logger";
+import ComponentHeader from "@/components/ComponentHeader.vue";
+import MessageList from "./MessageList.vue";
+import MessageInput from "./MessageInput.vue";
+import { useDetachedChatArea } from "../composables/useDetachedChatArea";
 
-const logger = createModuleLogger('ChatArea');
+const logger = createModuleLogger("ChatArea");
 
 interface Props {
   messages?: ChatMessageNode[];
@@ -23,10 +23,10 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'send', content: string): void;
-  (e: 'abort'): void;
-  (e: 'delete-message', messageId: string): void;
-  (e: 'regenerate'): void;
+  (e: "send", content: string): void;
+  (e: "abort"): void;
+  (e: "delete-message", messageId: string): void;
+  (e: "regenerate"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -41,9 +41,9 @@ const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 
 // 获取智能体和模型信息
-import { useAgentStore } from '../agentStore';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { useModelMetadata } from '@/composables/useModelMetadata';
+import { useAgentStore } from "../agentStore";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
 const agentStore = useAgentStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
@@ -61,7 +61,7 @@ const currentModel = computed(() => {
   if (!profile) return null;
   // 在分离模式下，我们可能没有完整的模型列表，所以需要处理
   const modelId = finalCurrentModelId.value || currentAgent.value.modelId;
-  return profile.models.find(m => m.id === modelId);
+  return profile.models.find((m) => m.id === modelId);
 });
 
 // 模型图标
@@ -78,37 +78,37 @@ const handleDragStart = (e: MouseEvent) => {
 
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
-    logger.error('无法获取容器尺寸，无法开始拖拽');
+    logger.error("无法获取容器尺寸，无法开始拖拽");
     return;
   }
 
   // 获取拖拽手柄的位置
   const headerEl = headerRef.value?.$el as HTMLElement;
   const headerRect = headerEl?.getBoundingClientRect();
-  
+
   // 计算手柄相对于容器的偏移量
   let handleOffsetX = 0;
   let handleOffsetY = 0;
-  
+
   if (headerRect) {
     // 手柄中心相对于容器左上角的偏移量
-    handleOffsetX = (headerRect.left - rect.left) + headerRect.width / 2;
-    handleOffsetY = (headerRect.top - rect.top) + headerRect.height / 2;
-    
-    logger.info('拖拽手柄偏移量计算', {
+    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+
+    logger.info("拖拽手柄偏移量计算", {
       mouseX: e.screenX,
       mouseY: e.screenY,
       handleOffsetX,
       handleOffsetY,
       headerWidth: headerRect.width,
-      headerHeight: headerRect.height
+      headerHeight: headerRect.height,
     });
   }
 
   startDetaching({
-    id: 'chat-area',
-    displayName: '对话区域',
-    type: 'component',
+    id: "chat-area",
+    displayName: "对话区域",
+    type: "component",
     width: rect.width,
     height: rect.height,
     mouseX: e.screenX,
@@ -120,12 +120,12 @@ const handleDragStart = (e: MouseEvent) => {
 
 // ===== 窗口大小调整功能 =====
 const { createResizeHandler } = useWindowResize();
-const handleResizeStart = createResizeHandler('SouthEast');
+const handleResizeStart = createResizeHandler("SouthEast");
 
 const isInputVisible = computed(() => {
   // 只要输入框被独立分离出去，无论 ChatArea 在主窗口还是独立窗口，都应隐藏内部的输入框。
-  const isInputDetached = detachedComponents.value.includes('chat-input');
-  logger.info('MessageInput 分离状态检查', {
+  const isInputDetached = detachedComponents.value.includes("chat-input");
+  logger.info("MessageInput 分离状态检查", {
     isInputDetached,
     isChatAreaDetached: props.isDetached,
     allDetached: detachedComponents.value,
@@ -137,26 +137,26 @@ const isInputVisible = computed(() => {
 const handleDetach = async () => {
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
-    logger.error('无法获取容器尺寸');
+    logger.error("无法获取容器尺寸");
     return;
   }
 
   // 获取手柄位置用于计算偏移量
   const headerEl = headerRef.value?.$el as HTMLElement;
   const headerRect = headerEl?.getBoundingClientRect();
-  
+
   let handleOffsetX = 0;
   let handleOffsetY = 0;
-  
+
   if (headerRect) {
-    handleOffsetX = (headerRect.left - rect.left) + headerRect.width / 2;
-    handleOffsetY = (headerRect.top - rect.top) + headerRect.height / 2;
+    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
   }
 
   const config = {
-    id: 'chat-area',
-    displayName: '对话区域',
-    type: 'component' as const,
+    id: "chat-area",
+    displayName: "对话区域",
+    type: "component" as const,
     width: rect.width,
     height: rect.height,
     // 对于菜单点击，我们使用组件中心作为起始点（需要转换为屏幕坐标）
@@ -166,41 +166,41 @@ const handleDetach = async () => {
     handleOffsetY,
   };
 
-  logger.info('通过菜单请求分离窗口', { config });
+  logger.info("通过菜单请求分离窗口", { config });
 
   try {
-    const sessionId = await invoke<string>('begin_detach_session', { config });
+    const sessionId = await invoke<string>("begin_detach_session", { config });
     if (sessionId) {
-      await invoke('finalize_detach_session', {
+      await invoke("finalize_detach_session", {
         sessionId,
         shouldDetach: true,
       });
-      logger.info('通过菜单分离窗口成功', { sessionId });
+      logger.info("通过菜单分离窗口成功", { sessionId });
     } else {
-      logger.error('开始分离会话失败，未返回会话 ID');
+      logger.error("开始分离会话失败，未返回会话 ID");
     }
   } catch (error) {
-    logger.error('通过菜单分离窗口失败', { error });
+    logger.error("通过菜单分离窗口失败", { error });
   }
 };
 
 // ===== 消息事件处理 =====
 // 根据是否分离，决定是直接 emit 还是使用代理
 // 使用 toRef 确保响应 props 的变化
-let finalMessages = toRef(props, 'messages');
-let finalIsSending = toRef(props, 'isSending');
-let finalDisabled = toRef(props, 'disabled');
-let finalCurrentAgentId = toRef(props, 'currentAgentId');
-let finalCurrentModelId = toRef(props, 'currentModelId');
+let finalMessages = toRef(props, "messages");
+let finalIsSending = toRef(props, "isSending");
+let finalDisabled = toRef(props, "disabled");
+let finalCurrentAgentId = toRef(props, "currentAgentId");
+let finalCurrentModelId = toRef(props, "currentModelId");
 
-let handleSendMessage = (content: string) => emit('send', content);
-let handleAbort = () => emit('abort');
-let handleDeleteMessage = (messageId: string) => emit('delete-message', messageId);
-let handleRegenerate = () => emit('regenerate');
+let handleSendMessage = (content: string) => emit("send", content);
+let handleAbort = () => emit("abort");
+let handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
+let handleRegenerate = () => emit("regenerate");
 
 if (props.isDetached) {
   const detached = useDetachedChatArea();
-  
+
   finalMessages = detached.messages;
   finalIsSending = detached.isSending;
   finalDisabled = detached.disabled;
@@ -211,12 +211,12 @@ if (props.isDetached) {
   handleAbort = detached.abortSending;
   handleDeleteMessage = detached.deleteMessage;
   handleRegenerate = detached.regenerateLastMessage;
-  
-  logger.info('ChatArea 运行在分离模式');
+
+  logger.info("ChatArea 运行在分离模式");
 }
 
 onMounted(() => {
-  logger.info('ChatArea mounted', {
+  logger.info("ChatArea mounted", {
     props: {
       messages: props.messages?.length,
       isSending: props.isSending,
@@ -257,11 +257,16 @@ onMounted(() => {
       <!-- 智能体和模型信息 -->
       <div class="agent-model-info">
         <div v-if="currentAgent" class="agent-info">
-          <span class="agent-icon">{{ currentAgent.icon || '🤖' }}</span>
+          <span class="agent-icon">{{ currentAgent.icon || "🤖" }}</span>
           <span class="agent-name">{{ currentAgent.name }}</span>
         </div>
         <div v-if="currentModel" class="model-info">
-          <img v-if="modelIcon" :src="modelIcon" class="model-icon" :alt="currentModel.name || currentModel.id" />
+          <img
+            v-if="modelIcon"
+            :src="modelIcon"
+            class="model-icon"
+            :alt="currentModel.name || currentModel.id"
+          />
           <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
         </div>
       </div>
@@ -306,8 +311,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--card-bg);
-  border-radius: 8px;
   border: 1px solid var(--border-color);
   overflow: hidden;
 }
@@ -326,8 +329,6 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: var(--sidebar-bg);
-  border-bottom: 1px solid var(--border-color);
   min-height: 42px;
 }
 
@@ -420,7 +421,6 @@ onMounted(() => {
   height: 16px;
   cursor: se-resize;
   background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
-  border-radius: 0 0 8px 0;
   opacity: 0.5;
   transition: opacity 0.2s;
   z-index: 10;

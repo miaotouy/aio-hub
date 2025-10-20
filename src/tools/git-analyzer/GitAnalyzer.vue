@@ -13,260 +13,45 @@
       </template>
 
       <div class="analyzer-content">
-        <!-- 工具栏 -->
-        <div class="toolbar">
-          <el-row :gutter="12" align="middle">
-            <el-col :span="10">
-              <DropZone
-                drop-id="git-analyzer-path"
-                variant="input"
-                :directory-only="true"
-                :multiple="false"
-                :auto-execute="true"
-                hide-content
-                @drop="handlePathDrop"
-              >
-                <div class="path-input-group">
-                  <el-input
-                    v-model="repoPath"
-                    placeholder="仓库路径（支持拖拽，留空使用当前目录）"
-                    clearable
-                    @keyup.enter="loadRepository"
-                  />
-                  <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
-                </div>
-              </DropZone>
-            </el-col>
-            <el-col :span="6">
-              <el-select
-                v-model="selectedBranch"
-                placeholder="选择分支"
-                @change="onBranchChange"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="branch in branches"
-                  :key="branch.name"
-                  :label="branch.current ? `${branch.name} (当前)` : branch.name"
-                  :value="branch.name"
-                />
-              </el-select>
-            </el-col>
-            <el-col :span="3">
-              <el-tooltip content="设置要加载的提交记录数量" placement="top">
-                <el-input-number
-                  v-model="limitCount"
-                  :min="10"
-                  :max="5000"
-                  :step="10"
-                  placeholder="显示条数"
-                  style="width: 100%"
-                />
-              </el-tooltip>
-            </el-col>
-            <el-col :span="2">
-              <el-button type="primary" @click="loadRepository" :loading="loading">
-                加载仓库
-              </el-button>
-            </el-col>
-          </el-row>
-        </div>
-
-        <!-- 筛选器 -->
-        <div class="filters">
-          <el-row :gutter="12">
-            <el-col :span="6">
-              <el-input
-                v-model="searchQuery"
-                placeholder="搜索提交信息..."
-                clearable
-                @input="filterCommits"
-              >
-                <template #prefix>
-                  <el-icon>
-                    <Search />
-                  </el-icon>
-                </template>
-              </el-input>
-            </el-col>
-            <el-col :span="8">
-              <el-date-picker
-                v-model="dateRange"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                @change="filterCommits"
-                style="width: 100%"
-                size="default"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-              />
-            </el-col>
-            <div style="width: 20px"></div>
-            <!-- 日期选择器由于不明原因和作者筛选重叠 -->
-            <el-col :span="5">
-              <el-input
-                v-model="authorFilter"
-                placeholder="作者筛选"
-                clearable
-                @input="filterCommits"
-              />
-            </el-col>
-            <el-col :span="2">
-              <el-checkbox v-model="reverseOrder" @change="filterCommits"> 倒序排列 </el-checkbox>
-            </el-col>
-            <el-col :span="2">
-              <el-button @click="clearFilters" :icon="Refresh"> 清除 </el-button>
-            </el-col>
-          </el-row>
-        </div>
-
-        <!-- 范围选择器 -->
-        <div class="range-selector" v-if="commits.length > 0">
-          <el-row :gutter="16" align="middle">
-            <el-col :span="3">
-              <span class="range-label">提交范围:</span>
-            </el-col>
-            <el-col :span="16">
-              <el-slider
-                v-model="commitRange"
-                :max="commits.length"
-                range
-                :disabled="commits.length === 0"
-                @change="filterCommits"
-                :marks="{ [0]: '最新', [commits.length]: '最旧' }"
-              />
-            </el-col>
-            <el-col :span="5">
-              <span class="range-label"
-                >范围: {{ commitRange[0] }} - {{ commitRange[1] }} (共
-                {{ commitRange[1] - commitRange[0] }} 条)</span
-              >
-            </el-col>
-          </el-row>
-        </div>
-
-        <!-- 统计信息 -->
-        <div class="statistics" v-if="commits.length > 0">
-          <el-row :gutter="16">
-            <el-col :span="6">
-              <div class="stat-item-compact">
-                <span class="stat-value">{{ statistics.totalCommits }}</span>
-                <span class="stat-label">总提交数</span>
-              </div>
-            </el-col>
-            <el-col :span="6">
-              <div class="stat-item-compact">
-                <span class="stat-value">{{ statistics.contributors }}</span>
-                <span class="stat-label">贡献者数</span>
-              </div>
-            </el-col>
-            <el-col :span="6">
-              <div class="stat-item-compact">
-                <span class="stat-value">{{ statistics.timeSpan }}</span>
-                <span class="stat-label">时间跨度(天)</span>
-              </div>
-            </el-col>
-            <el-col :span="6">
-              <div class="stat-item-compact">
-                <span class="stat-value">{{ statistics.averagePerDay.toFixed(1) }}</span>
-                <span class="stat-label">平均提交/天</span>
-              </div>
-            </el-col>
-          </el-row>
-        </div>
+        <!-- 控制面板 -->
+        <ControlPanel
+          v-model:repo-path="repoPath"
+          v-model:selected-branch="selectedBranch"
+          v-model:limit-count="limitCount"
+          v-model:commit-range="commitRange"
+          v-model:search-query="searchQuery"
+          v-model:date-range="dateRange"
+          v-model:author-filter="authorFilter"
+          v-model:reverse-order="reverseOrder"
+          :loading="loading"
+          :branches="branches"
+          :commits="commits"
+          :statistics="statistics"
+          @select-directory="selectDirectory"
+          @load-repository="loadRepository"
+          @branch-change="onBranchChange"
+          @filter-commits="filterCommits"
+          @clear-filters="clearFilters"
+        />
 
         <!-- 主内容区 -->
         <div class="main-content">
           <el-tabs v-model="activeTab">
             <!-- 提交列表视图 -->
             <el-tab-pane label="提交列表" name="list">
-              <div class="commits-container" v-loading="loading">
-                <div class="commit-list" v-if="filteredCommits.length > 0">
-                  <el-timeline>
-                    <el-timeline-item
-                      v-for="(commit, index) in paginatedCommits"
-                      :key="commit.hash"
-                      :timestamp="formatDate(commit.date)"
-                      placement="top"
-                    >
-                      <el-card @click="selectCommit(commit)" class="commit-card">
-                        <div class="commit-header">
-                          <span class="commit-sequence"
-                            >#{{ (currentPage - 1) * pageSize + index + 1 }}</span
-                          >
-                          <el-tag size="small">
-                            {{ commit.hash.substring(0, 7) }}
-                          </el-tag>
-                          <span class="commit-author">{{ commit.author }}</span>
-                          <el-popover v-if="commit.tags && commit.tags.length > 0" placement="top">
-                            <template #reference>
-                              <el-tag type="warning" size="small">
-                                <el-icon>
-                                  <PriceTag />
-                                </el-icon>
-                                {{ commit.tags.length }}
-                              </el-tag>
-                            </template>
-                            <div>
-                              <el-tag v-for="tag in commit.tags" :key="tag" style="margin: 2px">
-                                {{ tag }}
-                              </el-tag>
-                            </div>
-                          </el-popover>
-                        </div>
-                        <div class="commit-message">{{ commit.message }}</div>
-                        <div class="commit-stats" v-if="commit.stats">
-                          <el-space size="small">
-                            <span class="stat-item additions">+{{ commit.stats.additions }}</span>
-                            <span class="stat-item deletions">-{{ commit.stats.deletions }}</span>
-                            <span class="stat-item files">{{ commit.stats.files }} 文件</span>
-                          </el-space>
-                        </div>
-                      </el-card>
-                    </el-timeline-item>
-                  </el-timeline>
-
-                  <el-pagination
-                    v-model:current-page="currentPage"
-                    :page-size="pageSize"
-                    :total="filteredCommits.length"
-                    layout="prev, pager, next"
-                    style="margin-top: 20px; justify-content: center"
-                  />
-                </div>
-
-                <el-empty v-else description="暂无提交记录" />
-              </div>
+              <CommitListView
+                v-model:current-page="currentPage"
+                :loading="loading"
+                :filtered-commits="filteredCommits"
+                :paginated-commits="paginatedCommits"
+                :page-size="pageSize"
+                @select-commit="selectCommit"
+              />
             </el-tab-pane>
 
             <!-- 图表视图 -->
             <el-tab-pane label="统计图表" name="chart">
-              <div class="charts-container">
-                <el-row :gutter="12">
-                  <el-col :span="12">
-                    <el-card>
-                      <template #header>提交频率</template>
-                      <div ref="frequencyChart" class="chart"></div>
-                    </el-card>
-                  </el-col>
-                  <el-col :span="12">
-                    <el-card>
-                      <template #header>贡献者统计</template>
-                      <div ref="contributorChart" class="chart"></div>
-                    </el-card>
-                  </el-col>
-                </el-row>
-                <el-row :gutter="12" style="margin-top: 20px">
-                  <el-col :span="24">
-                    <el-card>
-                      <template #header>提交热力图</template>
-                      <div ref="heatmapChart" class="chart"></div>
-                    </el-card>
-                  </el-col>
-                </el-row>
-              </div>
+              <ChartsView ref="chartsViewRef" />
             </el-tab-pane>
           </el-tabs>
         </div>
@@ -274,56 +59,11 @@
     </InfoCard>
 
     <!-- 提交详情对话框 -->
-    <el-dialog
-      v-model="showDetail"
-      :title="`提交详情: ${selectedCommit?.hash?.substring(0, 7)}`"
-      width="800px"
-      top="8vh"
-    >
-      <el-descriptions v-if="selectedCommit" :column="1" border>
-        <el-descriptions-item label="哈希">
-          <el-text type="info">{{ selectedCommit.hash }}</el-text>
-        </el-descriptions-item>
-        <el-descriptions-item label="作者">
-          {{ selectedCommit.author }} &lt;{{ selectedCommit.email }}&gt;
-        </el-descriptions-item>
-        <el-descriptions-item label="日期">
-          {{ formatFullDate(selectedCommit.date) }}
-        </el-descriptions-item>
-        <el-descriptions-item label="提交信息">
-          <el-text style="white-space: pre-wrap">{{
-            selectedCommit.full_message || selectedCommit.message
-          }}</el-text>
-        </el-descriptions-item>
-        <el-descriptions-item label="父提交" v-if="selectedCommit.parents">
-          <el-space>
-            <el-tag v-for="parent in selectedCommit.parents" :key="parent">
-              {{ parent.substring(0, 7) }}
-            </el-tag>
-          </el-space>
-        </el-descriptions-item>
-      </el-descriptions>
-
-      <div v-if="selectedCommit?.files && selectedCommit.files.length > 0" style="margin-top: 20px">
-        <h4>文件更改 ({{ selectedCommit.files.length }})</h4>
-        <el-table :data="selectedCommit.files" style="width: 100%">
-          <el-table-column prop="path" label="文件路径" />
-          <el-table-column label="更改" width="150">
-            <template #default="scope">
-              <span class="additions">+{{ scope.row.additions }}</span>
-              <span class="deletions" style="margin-left: 10px">-{{ scope.row.deletions }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <template #footer>
-        <el-space>
-          <el-button @click="copyCommitHash">复制哈希</el-button>
-          <el-button @click="showDetail = false">关闭</el-button>
-        </el-space>
-      </template>
-    </el-dialog>
+    <CommitDetailDialog
+      v-model:visible="showDetail"
+      :selected-commit="selectedCommit"
+      @copy-hash="copyCommitHash"
+    />
 
     <!-- 导出模块 -->
     <ExportModule
@@ -343,10 +83,13 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { Refresh, Search, FolderOpened, PriceTag, Upload } from "@element-plus/icons-vue";
+import { Refresh, Upload } from "@element-plus/icons-vue";
 import InfoCard from "../../components/common/InfoCard.vue";
-import DropZone from "../../components/common/DropZone.vue";
 import ExportModule from "./components/ExportModule.vue";
+import ControlPanel from "./components/ControlPanel.vue";
+import CommitListView from "./components/CommitListView.vue";
+import ChartsView from "./components/ChartsView.vue";
+import CommitDetailDialog from "./components/CommitDetailDialog.vue";
 import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config";
 import { useGitRepository } from "./composables/useGitRepository";
 import { useCharts } from "./composables/useCharts";
@@ -386,29 +129,16 @@ const {
   onBranchChange: switchBranch,
   filterCommits: doFilter,
   clearFilters,
-  handlePathDrop,
 } = useGitRepository();
 
-const {
-  // DOM 引用
-  frequencyChart,
-  contributorChart,
-  heatmapChart,
-  // 方法
-  updateCharts,
-  setupResizeObserver,
-} = useCharts(filteredCommits);
+// Charts 视图引用
+const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 
-const {
-  // 状态
-  selectedCommit,
-  showDetail,
-  // 方法
-  selectCommit,
-  copyCommitHash,
-  formatDate,
-  formatFullDate,
-} = useCommitDetail(() => repoPath.value);
+const { updateCharts, setupResizeObserver } = useCharts(filteredCommits);
+
+const { selectedCommit, showDetail, selectCommit, copyCommitHash } = useCommitDetail(
+  () => repoPath.value
+);
 
 // 本地状态
 const activeTab = ref("list");

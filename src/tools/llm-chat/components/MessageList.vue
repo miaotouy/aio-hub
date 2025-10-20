@@ -156,11 +156,12 @@ const canRegenerate = () => {
 <style scoped>
 .message-list {
   flex: 1;
-  overflow-y: auto;
-  padding: 20px;
+  overflow-y: scroll; /* 始终显示滚动条区域以防止布局抖动 */
+  padding: 84px 12px 20px 20px; /* 右边距减去滚动条宽度以保持对称 */
   display: flex;
   flex-direction: column;
   gap: 16px;
+  clip-path: inset(0); /* 优化滚动渲染 */
 }
 
 .empty-state {
@@ -175,17 +176,11 @@ const canRegenerate = () => {
 .message-item {
   padding: 16px;
   border-radius: 8px;
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
   transition: all 0.2s;
 }
 
 .message-item:hover {
   border-color: var(--primary-color);
-}
-
-.message-user {
-  background-color: var(--container-bg);
 }
 
 .message-header {
@@ -319,17 +314,18 @@ const canRegenerate = () => {
 }
 
 .message-list::-webkit-scrollbar-track {
-  background: var(--bg-color);
+  background: transparent;
   border-radius: 4px;
 }
 
 .message-list::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
+  background: transparent;
   border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
-.message-list::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
+.message-list:hover::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color);
 }
 
 /* 推理内容样式 */

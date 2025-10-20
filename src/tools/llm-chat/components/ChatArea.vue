@@ -287,6 +287,7 @@ onMounted(() => {
         <!-- 输入框 -->
         <MessageInput
           v-if="isInputVisible"
+          class="chat-message-input"
           :disabled="finalDisabled"
           :is-sending="finalIsSending"
           @send="handleSendMessage"
@@ -315,9 +316,10 @@ onMounted(() => {
   overflow: hidden;
 }
 
-/* 分离模式下添加更强的阴影 */
+/* 分离模式下添加更强的阴影和圆角 */
 .chat-area-container.detached-mode {
   height: 90vh;
+  border-radius: 16px;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),
     0 4px 16px rgba(0, 0, 0, 0.15);
@@ -325,12 +327,25 @@ onMounted(() => {
 
 /* 头部区域 */
 .chat-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
-  min-height: 46px;
-  background-color: var(--container-bg);
+  padding: 12px 12px 24px; /* 增加底部内边距给遮罩留空间 */
+  min-height: 64px; /* 增加高度 */
+  /* --card-bg-rgb is defined in css-vars.css */
+  background-color: rgba(var(--card-bg-rgb), 0.75); /* 半透明背景 */
+  backdrop-filter: blur(8px); /* 模糊滤镜 */
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%); /* 底部虚化遮罩 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 60%,
+    transparent 100%
+  );
 }
 
 /* 智能体和模型信息 */
@@ -383,7 +398,7 @@ onMounted(() => {
 .main-content {
   display: flex;
   flex: 1;
-  padding: 12px;
+  /* padding: 12px; */ /* 由 MessageList 和 MessageInput 自己管理 */
   min-width: 0;
   min-height: 0;
 }
@@ -407,10 +422,10 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  padding: 0 12px 12px; /* 左右和底部保留边距 */
+  /* overflow: hidden; */ /* 解除限制，让 MessageList 可以滚动 */
 }
 
 /* 右下角调整大小手柄 */
@@ -435,5 +450,11 @@ onMounted(() => {
 .resize-handle:active {
   opacity: 1;
   background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
+}
+
+/* MessageInput 两侧边距，增强层次感 */
+.chat-message-input {
+  margin-left: 8px;
+  margin-right: 8px;
 }
 </style>

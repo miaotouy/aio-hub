@@ -261,7 +261,7 @@ onMounted(() => {
           <span class="agent-name">{{ currentAgent.name }}</span>
         </div>
         <div v-if="currentModel" class="model-info">
-          <img
+          <DynamicIcon
             v-if="modelIcon"
             :src="modelIcon"
             class="model-icon"

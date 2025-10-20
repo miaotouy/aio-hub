@@ -23,6 +23,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = { version = "2" } # Use the same version as main tauri plugin
 tauri-plugin-fs = "2" # Add filesystem plugin
 tauri-plugin-global-shortcut = "2" # Add global shortcut plugin
+tauri-plugin-os = "2" # Add OS info plugin
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2" # Add dialog plugin
@@ -64,4 +65,8 @@ windows = { version = "0.58", features = [
     "Storage_Streams",
     "Globalization",
 ] }
+
+# macOS 特定依赖
+[target."cfg(target_os = \"macos\")".dependencies]
+cocoa = "0.26"
 

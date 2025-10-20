@@ -135,6 +135,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_os::init())
         // 管理状态
         .manage(ClipboardMonitorState::new())
         .manage(AppState::default())
@@ -200,6 +201,32 @@ pub fn run() {
         ])
         // 设置应用
         .setup(|app| {
+            // 创建主窗口
+            let mut win_builder = tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("aiotools")
+            .inner_size(1280.0, 768.0)
+            .min_inner_size(360.0, 112.0)
+            .transparent(true);
+
+            // 根据不同平台应用不同的窗口样式
+            #[cfg(target_os = "macos")]
+            {
+                win_builder = win_builder
+                    .title_bar_style(tauri::TitleBarStyle::Transparent)
+                    .hidden_title(true);
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                win_builder = win_builder.decorations(false);
+            }
+
+            let main_window = win_builder.build()?;
+            
             // 预加载拖拽指示器窗口
             let indicator_window = tauri::WebviewWindowBuilder::new(
                 app,
@@ -222,9 +249,6 @@ pub fn run() {
 
             // 注册全局快捷键
             let app_handle = app.handle();
-            let main_window = app_handle
-                .get_webview_window("main")
-                .expect("Failed to get main window");
 
             // 确保窗口显示在任务栏
             main_window

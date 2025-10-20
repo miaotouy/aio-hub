@@ -7,6 +7,7 @@ import { toolsConfig } from '../config/tools';
 import iconImage from '../assets/icon.png';
 import { loadAppSettingsAsync, type AppSettings } from '@utils/appSettings';
 import { createModuleLogger } from '@utils/logger';
+import { platform } from '@tauri-apps/plugin-os';
 
 // 创建模块日志记录器
 const logger = createModuleLogger('TitleBar');
@@ -16,6 +17,7 @@ const router = useRouter();
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
 const isMainWindow = ref(false); // 判断是否为主窗口
+const isMacOS = ref(false); // 判断是否为 macOS
 const route = useRoute();
 const settings = ref<AppSettings | null>(null);
 
@@ -75,6 +77,10 @@ onMounted(async () => {
   // 判断是否为主窗口
   isMainWindow.value = appWindow.label === 'main';
   
+  // 检测操作系统
+  const currentPlatform = platform();
+  isMacOS.value = currentPlatform === 'macos';
+  
   checkMaximized();
   
   // 监听窗口resize事件
@@ -122,10 +128,10 @@ const goToSettings = () => {
 </script>
 
 <template>
-  <div class="title-bar" data-tauri-drag-region>
+  <div class="title-bar" :class="{ 'macos': isMacOS }" data-tauri-drag-region>
     <div class="title-bar-content">
       <!-- 左侧控制区域 -->
-      <div class="left-controls">
+      <div class="left-controls" :class="{ 'macos': isMacOS }">
         <!-- 设置按钮（仅主窗口显示） -->
         <button
           v-if="isMainWindow"
@@ -147,8 +153,8 @@ const goToSettings = () => {
         <span class="app-title">{{ currentToolName }}</span>
       </div>
       
-      <!-- 右侧窗口控制按钮 -->
-      <div class="window-controls">
+      <!-- 右侧窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
+      <div v-if="!isMacOS" class="window-controls">
         <button
           class="control-btn minimize-btn"
           @click="minimizeWindow"
@@ -211,6 +217,12 @@ const goToSettings = () => {
   flex-shrink: 0;
   /* 禁止拖动，以便点击按钮 */
   -webkit-app-region: no-drag;
+}
+
+/* macOS 上为左侧控制区域添加额外的 padding，避免与原生红绿灯按钮冲突 */
+.left-controls.macos {
+  padding-left: 70px;
+  width: 116px; /* 46px + 70px padding */
 }
 
 .settings-btn {

@@ -10,19 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "aiotools",
-        "width": 1280,
-        "height": 768,
-        "minWidth": 360,
-        "minHeight": 112,
-        "dragDropEnabled": true,
-        "devtools": true,
-        "decorations": false,
-        "transparent": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

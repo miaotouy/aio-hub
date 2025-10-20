@@ -3,79 +3,84 @@
     <!-- 左侧：配置面板 -->
     <div class="config-panel">
       <InfoCard title="配置选项" class="config-card">
-        <div class="config-section">
-          <label>目标路径</label>
-          <DropZone
-            drop-id="directory-tree-path"
-            variant="input"
-            :directory-only="true"
-            :multiple="false"
-            :auto-execute="autoGenerateOnDrop"
-            hide-content
-            @drop="handlePathDrop"
-          >
-            <div class="path-input-group">
-              <el-input
-                v-model="targetPath"
-                placeholder="输入或选择目录路径（支持拖拽）"
-                @keyup.enter="generateTree"
-              />
-              <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
-            </div>
-          </DropZone>
-        </div>
+        <div class="config-content">
+          <div class="config-section">
+            <label>目标路径</label>
+            <DropZone
+              drop-id="directory-tree-path"
+              variant="input"
+              :directory-only="true"
+              :multiple="false"
+              :auto-execute="autoGenerateOnDrop"
+              hide-content
+              @drop="handlePathDrop"
+            >
+              <div class="path-input-group">
+                <el-input
+                  v-model="targetPath"
+                  placeholder="输入或选择目录路径（支持拖拽）"
+                  @keyup.enter="generateTree"
+                />
+                <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
+              </div>
+            </DropZone>
+          </div>
 
-        <div class="config-section">
-          <label>显示选项</label>
-          <div class="checkbox-group">
-            <el-checkbox v-model="showFiles" label="显示文件" />
-            <el-checkbox v-model="showHidden" label="显示隐藏文件" />
-            <el-checkbox v-model="includeMetadata" label="输出包含配置和统计" />
-            <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
+          <div class="config-section">
+            <label>显示选项</label>
+            <div class="checkbox-group">
+              <el-checkbox v-model="showFiles" label="显示文件" />
+              <el-checkbox v-model="showHidden" label="显示隐藏文件" />
+              <el-checkbox v-model="includeMetadata" label="输出包含配置和统计" />
+              <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
+            </div>
+          </div>
+
+          <div class="config-section">
+            <label>过滤规则</label>
+            <el-select v-model="filterMode" placeholder="选择过滤模式">
+              <el-option label="无过滤" value="none" />
+              <el-option label="应用 .gitignore" value="gitignore" />
+              <el-option label="自定义规则" value="custom" />
+            </el-select>
+
+            <el-input
+              v-if="filterMode === 'custom'"
+              v-model="customPattern"
+              type="textarea"
+              :rows="5"
+              placeholder="每行一个规则，支持通配符&#10;例如: *.log&#10;node_modules/"
+              class="custom-pattern-input"
+            />
+          </div>
+
+          <div class="config-section">
+            <label>深度限制</label>
+            <div class="slider-container">
+              <el-slider
+                v-model="maxDepth"
+                :min="1"
+                :max="10"
+                :marks="{ 1: '1', 5: '5', 10: '10' }"
+                show-stops
+              />
+            </div>
+            <div class="depth-info">当前深度: {{ maxDepth === 10 ? "无限制" : maxDepth }}</div>
           </div>
         </div>
 
-        <div class="config-section">
-          <label>过滤规则</label>
-          <el-select v-model="filterMode" placeholder="选择过滤模式">
-            <el-option label="无过滤" value="none" />
-            <el-option label="应用 .gitignore" value="gitignore" />
-            <el-option label="自定义规则" value="custom" />
-          </el-select>
-
-          <el-input
-            v-if="filterMode === 'custom'"
-            v-model="customPattern"
-            type="textarea"
-            :rows="5"
-            placeholder="每行一个规则，支持通配符&#10;例如: *.log&#10;node_modules/"
-            class="custom-pattern-input"
-          />
+        <div class="button-footer">
+          <el-button
+            type="primary"
+            @click="generateTree"
+            :loading="isGenerating"
+            :disabled="!targetPath"
+            class="generate-btn"
+          >
+            <el-icon><Histogram /></el-icon>
+            生成目录树
+          </el-button>
         </div>
-
-        <div class="config-section">
-          <label>深度限制</label>
-          <el-slider
-            v-model="maxDepth"
-            :min="1"
-            :max="10"
-            :marks="{ 1: '1', 5: '5', 10: '10' }"
-            show-stops
-          />
-          <div class="depth-info">当前深度: {{ maxDepth === 10 ? "无限制" : maxDepth }}</div>
-        </div>
-
-        <el-button
-          type="primary"
-          @click="generateTree"
-          :loading="isGenerating"
-          :disabled="!targetPath"
-          class="generate-btn"
-        >
-          <el-icon><Histogram /></el-icon>
-          生成目录树
-        </el-button>
-        <div style="padding-bottom: 30px"></div>
       </InfoCard>
     </div>
 
@@ -134,7 +139,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import { customMessage } from '@/utils/customMessage';
+import { customMessage } from "@/utils/customMessage";
 import {
   FolderOpened,
   Histogram,
@@ -340,8 +345,7 @@ const generateTree = async () => {
         "",
         "## 目录结构",
         "",
-      ]
-      .join("\n");
+      ].join("\n");
 
       outputContent = metadata + outputContent;
     }
@@ -469,7 +473,28 @@ const exportToFile = async () => {
 
 .config-card {
   flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.config-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.config-content {
+  flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.button-footer {
+  flex-shrink: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .result-panel {
@@ -484,14 +509,15 @@ const exportToFile = async () => {
   min-height: 0;
 }
 
-:deep(.el-card__body) {
+:deep(.result-card .el-card__body) {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
 .config-section {
-  margin-bottom: 12px;
+  margin-bottom: 20px;
+  padding: 4px;
 }
 
 .config-section label {
@@ -517,6 +543,10 @@ const exportToFile = async () => {
   margin-top: 10px;
 }
 
+.slider-container {
+  margin: 0 12px;
+}
+
 .depth-info {
   text-align: center;
   margin-top: 16px;
@@ -526,7 +556,6 @@ const exportToFile = async () => {
 
 .generate-btn {
   width: 100%;
-  margin-top: 10px;
 }
 
 .empty-state {

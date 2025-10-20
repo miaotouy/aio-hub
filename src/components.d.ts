@@ -23,6 +23,7 @@ declare module 'vue' {
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
     IEpMenu: typeof import('~icons/ep/menu')['default']
     IEpPlus: typeof import('~icons/ep/plus')['default']
+    IEpQuestionFilled: typeof import('~icons/ep/question-filled')['default']
     IEpRank: typeof import('~icons/ep/rank')['default']
     IEpScissor: typeof import('~icons/ep/scissor')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']

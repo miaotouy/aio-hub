@@ -4,9 +4,14 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
 
 // 创建模块日志记录器
 const logger = createModuleLogger("SmartOCR.ControlPanel");
+
+// 设置页导航
+const { navigateToSettings } = useSettingsNavigator();
+
 import type {
   OcrEngineConfig,
   SlicerConfig,
@@ -455,6 +460,19 @@ const handleBatchOcr = async () => {
   }
 };
 
+// 根据引擎类型跳转到对应设置
+const handleNavigateToSettings = () => {
+  const engineType = props.engineConfig.type;
+  if (engineType === "vlm") {
+    navigateToSettings("llm-service");
+  } else if (engineType === "cloud") {
+    navigateToSettings("ocr-service");
+  } else {
+    // tesseract 和 native 也跳转到通用设置
+    navigateToSettings("general");
+  }
+};
+
 // 暴露方法给父组件
 defineExpose({
   handleSliceOnly,
@@ -472,9 +490,25 @@ defineExpose({
       <!-- OCR引擎选择 -->
       <el-card shadow="never" class="section-card">
         <template #header>
-          <div class="card-header">
-            <el-icon><Setting /></el-icon>
-            <span>OCR引擎</span>
+          <div class="card-header card-header-with-action">
+            <div class="card-header-title">
+              <el-icon><Setting /></el-icon>
+              <span>OCR引擎</span>
+            </div>
+            <el-tooltip
+              :content="
+                engineType === 'vlm'
+                  ? '前往 LLM 服务设置配置视觉模型'
+                  : engineType === 'cloud'
+                    ? '前往 OCR 服务设置配置云端服务'
+                    : '前往通用设置'
+              "
+              placement="left"
+            >
+              <el-button type="primary" text size="small" @click="handleNavigateToSettings">
+                配置
+              </el-button>
+            </el-tooltip>
           </div>
         </template>
 
@@ -486,22 +520,30 @@ defineExpose({
               <el-option label="云端OCR" value="cloud" />
               <el-option label="视觉语言模型 (VLM)" value="vlm" />
             </el-select>
-            <el-text
-              v-if="engineType === 'vlm' && visionProfiles.length === 0"
-              size="small"
-              type="warning"
-              style="margin-top: 8px; display: block"
-            >
-              请先在设置中配置 LLM 服务并添加视觉模型
-            </el-text>
-            <el-text
-              v-if="engineType === 'cloud' && ocrProfiles.length === 0"
-              size="small"
-              type="warning"
-              style="margin-top: 8px; display: block"
-            >
-              请先在设置中配置云端 OCR 服务
-            </el-text>
+            <div v-if="engineType === 'vlm' && visionProfiles.length === 0" class="warning-hint">
+              <el-text size="small" type="warning">
+                请先在设置中配置 LLM 服务并添加视觉模型
+              </el-text>
+              <el-button
+                type="warning"
+                text
+                size="small"
+                @click="navigateToSettings('llm-service')"
+              >
+                前往配置
+              </el-button>
+            </div>
+            <div v-if="engineType === 'cloud' && ocrProfiles.length === 0" class="warning-hint">
+              <el-text size="small" type="warning"> 请先在设置中配置云端 OCR 服务 </el-text>
+              <el-button
+                type="warning"
+                text
+                size="small"
+                @click="navigateToSettings('ocr-service')"
+              >
+                前往配置
+              </el-button>
+            </div>
           </el-form-item>
 
           <el-form-item v-if="engineType === 'tesseract'" label="识别语言">
@@ -529,14 +571,17 @@ defineExpose({
                 :value="profile.id"
               />
             </el-select>
-            <el-text
-              v-if="ocrProfiles.length === 0"
-              size="small"
-              type="warning"
-              style="margin-top: 8px; display: block"
-            >
-              请先在设置中配置云端 OCR 服务
-            </el-text>
+            <div v-if="ocrProfiles.length === 0" class="warning-hint">
+              <el-text size="small" type="warning"> 请先在设置中配置云端 OCR 服务 </el-text>
+              <el-button
+                type="warning"
+                text
+                size="small"
+                @click="navigateToSettings('ocr-service')"
+              >
+                前往配置
+              </el-button>
+            </div>
           </el-form-item>
 
           <template v-if="engineType === 'vlm'">
@@ -557,7 +602,17 @@ defineExpose({
               />
             </el-form-item>
 
-            <el-form-item label="温度参数">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="控制输出的随机性和创造性。较低的值（如0.2）输出更确定和聚焦，较高的值（如1.5）输出更多样化和创造性"
+                  placement="top"
+                >
+                  <span
+                    >温度参数 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="engineTemperature"
                 :min="0"
@@ -571,7 +626,17 @@ defineExpose({
               </el-text>
             </el-form-item>
 
-            <el-form-item label="最大 Token 数">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="限制模型单次响应生成的最大 token 数量。1 token 约等于 0.75 个英文单词或 0.5 个中文字符"
+                  placement="top"
+                >
+                  <span
+                    >最大 Token 数 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-input-number
                 v-model="engineMaxTokens"
                 :min="100"
@@ -582,7 +647,17 @@ defineExpose({
               <el-text size="small" type="info"> 限制模型生成的最大 token 数量 </el-text>
             </el-form-item>
 
-            <el-form-item label="并发数">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="同时处理的图片块数量。增加并发数可以提高处理速度，但可能会增加 API 限流风险"
+                  placement="top"
+                >
+                  <span
+                    >并发数 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="engineConcurrency"
                 :min="1"
@@ -596,7 +671,17 @@ defineExpose({
               </el-text>
             </el-form-item>
 
-            <el-form-item label="请求延迟 (ms)">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="每个请求之间的等待时间，用于避免触发 API 速率限制。如果遇到限流错误，可适当增加延迟"
+                  placement="top"
+                >
+                  <span
+                    >请求延迟 (ms) <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="engineDelay"
                 :min="0"
@@ -628,7 +713,17 @@ defineExpose({
           </el-form-item>
 
           <template v-if="slicerEnabled">
-            <el-form-item label="长宽比阈值">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="当图片的高宽比（高度÷宽度）超过此阈值时，会自动触发智能切图以提高识别效果"
+                  placement="top"
+                >
+                  <span
+                    >长宽比阈值 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="slicerAspectRatioThreshold"
                 :min="2"
@@ -638,11 +733,21 @@ defineExpose({
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                当图片高度/宽度 > {{ slicerAspectRatioThreshold }} 时触发切图
+                当图片高度/宽度 > {{ slicerAspectRatioThreshold }} 时自动触发切图
               </el-text>
             </el-form-item>
 
-            <el-form-item label="空白行阈值">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="用于检测图片中的空白区域。值越小，检测越严格；值越大，检测越宽松"
+                  placement="top"
+                >
+                  <span
+                    >空白行阈值 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="slicerBlankThreshold"
                 :min="0.01"
@@ -657,7 +762,17 @@ defineExpose({
               </el-text>
             </el-form-item>
 
-            <el-form-item label="最小空白高度">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="空白区域需要达到的最小高度才会被识别为切割点，避免对细小间隙进行切割"
+                  placement="top"
+                >
+                  <span
+                    >最小空白高度 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="slicerMinBlankHeight"
                 :min="10"
@@ -670,7 +785,17 @@ defineExpose({
               </el-text>
             </el-form-item>
 
-            <el-form-item label="最小切割高度">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="切割后每个图片块的最小高度。如果切割后的块小于此值，将与相邻块合并，避免产生过小的碎片"
+                  placement="top"
+                >
+                  <span
+                    >最小切割高度 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="slicerMinCutHeight"
                 :min="20"
@@ -684,7 +809,17 @@ defineExpose({
               </el-text>
             </el-form-item>
 
-            <el-form-item label="切割线偏移">
+            <el-form-item>
+              <template #label>
+                <el-tooltip
+                  content="微调切割线的位置。负值向上偏移，正值向下偏移，0 表示在空白区域中心切割"
+                  placement="top"
+                >
+                  <span
+                    >切割线偏移 <el-icon><i-ep-question-filled /></el-icon
+                  ></span>
+                </el-tooltip>
+              </template>
               <el-slider
                 v-model="slicerCutLineOffset"
                 :min="-1"
@@ -711,26 +846,48 @@ defineExpose({
     <!-- 操作按钮 - 固定在底部 -->
     <div class="panel-footer">
       <div class="button-group" :class="{ 'has-batch': uploadedImages.length > 1 }">
-        <el-button
-          type="primary"
-          size="large"
-          :disabled="!selectedImage || isProcessing"
-          :loading="isProcessing"
-          @click="handleStartOcr"
+        <el-tooltip
+          :content="
+            !selectedImage
+              ? '请先上传并选择一张图片'
+              : isProcessing
+                ? '正在处理中，请稍候...'
+                : '开始识别当前选中的图片'
+          "
+          :disabled="!!selectedImage && !isProcessing"
         >
-          {{ isProcessing ? "识别中..." : "识别当前图片" }}
-        </el-button>
+          <el-button
+            type="primary"
+            size="large"
+            :disabled="!selectedImage || isProcessing"
+            :loading="isProcessing"
+            @click="handleStartOcr"
+          >
+            {{ isProcessing ? "识别中..." : "识别当前图片" }}
+          </el-button>
+        </el-tooltip>
 
-        <el-button
+        <el-tooltip
           v-if="uploadedImages.length > 1"
-          type="success"
-          size="large"
-          :disabled="uploadedImages.length === 0 || isProcessing"
-          :loading="isProcessing"
-          @click="handleBatchOcr"
+          :content="
+            uploadedImages.length === 0
+              ? '请先上传图片'
+              : isProcessing
+                ? '正在处理中，请稍候...'
+                : `批量识别全部 ${uploadedImages.length} 张图片`
+          "
+          :disabled="uploadedImages.length > 0 && !isProcessing"
         >
-          批量识别全部
-        </el-button>
+          <el-button
+            type="success"
+            size="large"
+            :disabled="uploadedImages.length === 0 || isProcessing"
+            :loading="isProcessing"
+            @click="handleBatchOcr"
+          >
+            批量识别全部
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
   </div>
@@ -775,6 +932,17 @@ defineExpose({
   align-items: center;
   gap: 8px;
   font-weight: 600;
+}
+
+/* 带操作按钮的卡片头部 */
+.card-header-with-action {
+  justify-content: space-between;
+}
+
+.card-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .panel-footer {
@@ -829,5 +997,19 @@ defineExpose({
 /* 调整滑块和输入框的宽度占比 */
 :deep(.el-slider .el-input-number) {
   width: 65px;
+}
+
+/* 警告提示样式 */
+.warning-hint {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.warning-hint .el-button {
+  padding: 0 4px;
+  height: auto;
 }
 </style>

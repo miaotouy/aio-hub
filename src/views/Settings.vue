@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from "vue";
+import { ref, onMounted, watch, onUnmounted, nextTick } from "vue";
+import { useRoute } from "vue-router";
 import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -24,6 +25,7 @@ import type { ConfigExport } from "../types/config-export";
 
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
+const route = useRoute();
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -131,6 +133,16 @@ const scrollToSection = (id: string) => {
 
 const handleSelect = (key: string) => {
   scrollToSection(key);
+};
+
+// 检查路由参数并滚动到指定区域
+const checkRouteAndScroll = (query: Record<string, any>) => {
+  if (query.section && typeof query.section === 'string') {
+    // 使用 nextTick 确保 DOM 已经渲染完成
+    nextTick(() => {
+      scrollToSection(query.section as string);
+    });
+  }
 };
 
 
@@ -522,7 +534,18 @@ onMounted(async () => {
   setTimeout(() => {
     isLoadingFromFile = false;
   }, 100);
+
+  // 检查初始路由参数，可能需要跳转到特定区域
+  checkRouteAndScroll(route.query);
 });
+
+// 监听路由查询参数变化，支持页面内导航
+watch(
+  () => route.query,
+  (newQuery) => {
+    checkRouteAndScroll(newQuery);
+  }
+);
 
 // 清理事件监听器
 onUnmounted(() => {

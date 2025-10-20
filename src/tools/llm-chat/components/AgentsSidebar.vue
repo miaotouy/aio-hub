@@ -188,7 +188,6 @@ const handleDelete = (agent: ChatAgent) => {
 .agents-footer {
   flex-shrink: 0;
   padding: 12px;
-  border-top: 1px solid var(--border-color);
   background-color: var(--card-bg);
 }
 

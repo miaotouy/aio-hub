@@ -329,7 +329,8 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  min-height: 42px;
+  min-height: 46px;
+  background-color: var(--container-bg);
 }
 
 /* 智能体和模型信息 */

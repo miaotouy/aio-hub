@@ -74,8 +74,6 @@ const activeTab = ref<TabType>('agents');
 
 .sidebar-tabs {
   display: flex;
-  border-bottom: 1px solid var(--border-color);
-  background-color: var(--container-bg);
 }
 
 .tab-btn {

@@ -159,7 +159,6 @@ const handleMenuCommand = (command: 'delete', session: ChatSession) => {
 
 .sessions-sidebar-header {
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
 }

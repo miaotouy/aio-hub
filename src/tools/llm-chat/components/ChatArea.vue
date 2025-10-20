@@ -348,6 +348,18 @@ onMounted(() => {
   );
 }
 
+/* 分离模式下，整个头部区域可以拖拽窗口 */
+.chat-area-container.detached-mode .chat-header {
+  cursor: move;
+  -webkit-app-region: drag; /* 允许拖拽窗口 */
+}
+
+/* 分离模式下，头部内的可交互元素需要禁用拖拽 */
+.chat-area-container.detached-mode .chat-header .detachable-handle,
+.chat-area-container.detached-mode .chat-header .agent-model-info {
+  -webkit-app-region: no-drag;
+}
+
 /* 智能体和模型信息 */
 .agent-model-info {
   display: flex;

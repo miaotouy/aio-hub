@@ -192,18 +192,61 @@ const handleUpdateSystemPromptOverride = (prompt: string | undefined) => {
   });
 };
 
+// 临时存储待更新的值，用于批量更新
+const pendingModelUpdate = ref<{ profileId?: string; modelId?: string } | null>(null);
+let updateTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 批量更新 Profile 和 Model（避免重复调用 updateAgent）
+const commitPendingModelUpdate = () => {
+  if (pendingModelUpdate.value && currentAgentId.value) {
+    const updates = pendingModelUpdate.value;
+    agentStore.updateAgent(currentAgentId.value, updates);
+    logger.info("更新智能体模型配置", {
+      agentId: currentAgentId.value,
+      ...updates,
+    });
+    pendingModelUpdate.value = null;
+  }
+};
+
 // 处理 Profile 更新
 const handleUpdateProfileId = (profileId: string) => {
   if (!currentAgentId.value) return;
-  agentStore.updateAgent(currentAgentId.value, { profileId });
-  logger.info("更新智能体 Profile", { agentId: currentAgentId.value, profileId });
+
+  // 合并到待更新对象
+  if (!pendingModelUpdate.value) {
+    pendingModelUpdate.value = {};
+  }
+  pendingModelUpdate.value.profileId = profileId;
+
+  // 延迟批量提交，等待 modelId 一起更新
+  if (updateTimer) {
+    clearTimeout(updateTimer);
+  }
+  updateTimer = setTimeout(() => {
+    commitPendingModelUpdate();
+    updateTimer = null;
+  }, 10);
 };
 
 // 处理 Model 更新
 const handleUpdateModelId = (modelId: string) => {
   if (!currentAgentId.value) return;
-  agentStore.updateAgent(currentAgentId.value, { modelId });
-  logger.info("更新智能体 Model", { agentId: currentAgentId.value, modelId });
+
+  // 合并到待更新对象
+  if (!pendingModelUpdate.value) {
+    pendingModelUpdate.value = {};
+  }
+  pendingModelUpdate.value.modelId = modelId;
+
+  // 延迟批量提交，等待 profileId 一起更新
+  if (updateTimer) {
+    clearTimeout(updateTimer);
+  }
+  updateTimer = setTimeout(() => {
+    commitPendingModelUpdate();
+    updateTimer = null;
+  }, 10);
 };
 </script>
 

@@ -116,11 +116,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
         return;
       }
 
-      if (agent.isBuiltIn) {
-        logger.warn('更新智能体失败：不能修改内置智能体', { agentId });
-        return;
-      }
-
       Object.assign(agent, updates);
       this.persistAgents();
 
@@ -138,11 +133,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       const agent = this.agents[index];
-      if (agent.isBuiltIn) {
-        logger.warn('删除智能体失败：不能删除内置智能体', { agentId });
-        return;
-      }
-
       this.agents.splice(index, 1);
       this.persistAgents();
 
@@ -212,15 +202,15 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
       const firstModel = firstProfile.models[0];
 
-      // 创建默认的通用助手
+      // 创建默认智能体（占位角色）
       const defaultAgentId = this.createAgent(
-        '默认助手',
+        '助手',
         firstProfile.id,
         firstModel.id,
         {
-          description: '通用对话助手',
-          icon: '🤖',
-          systemPrompt: '',
+          description: '一个可以自由定制的对话伙伴',
+          icon: '✨',
+          systemPrompt: '你是一个友好且乐于助人的 AI 助手。',
           parameters: {
             temperature: 0.7,
             maxTokens: 4096,
@@ -232,7 +222,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         }
       );
 
-      // 标记为内置
+      // 标记为内置（但现在可以被修改和删除）
       const defaultAgent = this.agents.find(a => a.id === defaultAgentId);
       if (defaultAgent) {
         defaultAgent.isBuiltIn = true;

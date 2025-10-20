@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { useAgentStore } from "../agentStore";
 import type { ChatSession } from "../types";
-import { Plus, Delete, Search } from "@element-plus/icons-vue";
+import { Plus, Delete, Search, MoreFilled } from "@element-plus/icons-vue";
 
 interface Props {
   sessions: ChatSession[];
@@ -75,10 +75,16 @@ const getMessageCount = (session: ChatSession) => {
 };
 
 // 确认删除
-const confirmDelete = (session: ChatSession, event: Event) => {
-  event.stopPropagation();
+const confirmDelete = (session: ChatSession) => {
   if (confirm(`确定要删除对话"${session.name}"吗？`)) {
     emit("delete", session.id);
+  }
+};
+
+// 处理菜单命令
+const handleMenuCommand = (command: 'delete', session: ChatSession) => {
+  if (command === 'delete') {
+    confirmDelete(session);
   }
 };
 </script>
@@ -114,17 +120,29 @@ const confirmDelete = (session: ChatSession, event: Event) => {
           <div class="session-info">
             <span class="message-count">{{ getMessageCount(session) }} 条</span>
             <span class="session-time">{{ formatDate(session.updatedAt) }}</span>
+            <el-dropdown
+              @command="handleMenuCommand($event, session)"
+              trigger="click"
+              @click.stop
+              class="menu-dropdown"
+            >
+              <el-button
+                :icon="MoreFilled"
+                size="small"
+                text
+                class="btn-menu"
+                title="更多操作"
+              />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="delete" :icon="Delete">
+                    删除会话
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </div>
-
-        <el-button
-          @click="confirmDelete(session, $event)"
-          :icon="Delete"
-          size="small"
-          text
-          class="btn-delete"
-          title="删除会话"
-        />
       </div>
     </div>
   </div>
@@ -227,18 +245,22 @@ const confirmDelete = (session: ChatSession, event: Event) => {
   color: var(--text-color-light);
 }
 
+.menu-dropdown {
+  margin-left: auto;
+}
+
 .message-count {
   background-color: var(--container-bg);
   padding: 1px 6px;
   border-radius: 3px;
 }
 
-.btn-delete {
+.btn-menu {
   opacity: 0;
   transition: all 0.2s;
 }
 
-.session-item:hover .btn-delete {
+.session-item:hover .btn-menu {
   opacity: 1;
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted, nextTick } from "vue";
-import { useRoute } from "vue-router";
-import { InfoFilled } from "@element-plus/icons-vue";
+import { useRoute, useRouter } from "vue-router";
+import { InfoFilled, ArrowLeft } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import {
@@ -26,6 +26,12 @@ import type { ConfigExport } from "../types/config-export";
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
 const route = useRoute();
+const router = useRouter();
+
+// 返回上一页
+const handleGoBack = () => {
+  router.back();
+};
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -560,6 +566,10 @@ onUnmounted(() => {
     <div class="settings-wrapper">
       <!-- 左侧导航 -->
       <aside class="settings-nav">
+        <button class="back-button" @click="handleGoBack">
+          <el-icon><ArrowLeft /></el-icon>
+          <span>返回</span>
+        </button>
         <h1 class="nav-title">设置</h1>
         <div class="nav-menu">
           <button
@@ -786,6 +796,34 @@ onUnmounted(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0 12px;
+  height: 36px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-color-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  outline: none;
+}
+
+.back-button:hover {
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.08);
+}
+
+.back-button .el-icon {
+  font-size: 16px;
 }
 
 .nav-title {

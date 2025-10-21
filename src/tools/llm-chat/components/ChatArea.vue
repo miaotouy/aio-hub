@@ -26,7 +26,7 @@ interface Emits {
   (e: "send", content: string): void;
   (e: "abort"): void;
   (e: "delete-message", messageId: string): void;
-  (e: "regenerate"): void;
+  (e: "regenerate", messageId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -196,7 +196,7 @@ let finalCurrentModelId = toRef(props, "currentModelId");
 let handleSendMessage = (content: string) => emit("send", content);
 let handleAbort = () => emit("abort");
 let handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
-let handleRegenerate = () => emit("regenerate");
+let handleRegenerate = (messageId: string) => emit("regenerate", messageId);
 
 if (props.isDetached) {
   const detached = useDetachedChatArea();

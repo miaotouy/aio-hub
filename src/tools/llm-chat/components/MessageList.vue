@@ -9,7 +9,7 @@ interface Props {
 
 interface Emits {
   (e: 'delete-message', messageId: string): void;
-  (e: 'regenerate'): void;
+  (e: 'regenerate', messageId: string): void;
 }
 
 const props = defineProps<Props>();
@@ -56,13 +56,6 @@ const copyMessage = async (content: string) => {
   } catch (error) {
     console.error('复制失败', error);
   }
-};
-
-// 是否可以重新生成（最后一条消息是助手消息）
-const canRegenerate = () => {
-  if (props.messages.length === 0) return false;
-  const lastMessage = props.messages[props.messages.length - 1];
-  return lastMessage.role === 'assistant' && lastMessage.status !== 'generating';
 };
 </script>
 
@@ -132,8 +125,8 @@ const canRegenerate = () => {
           📋
         </button>
         <button
-          v-if="message.role === 'assistant' && canRegenerate()"
-          @click="emit('regenerate')"
+          v-if="message.role === 'assistant'"
+          @click="emit('regenerate', message.id)"
           class="action-btn"
           :disabled="isSending"
           title="重新生成"

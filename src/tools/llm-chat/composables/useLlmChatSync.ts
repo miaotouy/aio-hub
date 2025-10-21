@@ -57,8 +57,8 @@ export function useLlmChatSync() {
       case 'abort-sending':
         store.abortSending();
         return Promise.resolve();
-      case 'regenerate-last-message':
-        return store.regenerateLastMessage();
+      case 'regenerate-from-node':
+        return store.regenerateFromNode(params.messageId);
       case 'delete-message':
         store.deleteMessage(params.messageId);
         return Promise.resolve();

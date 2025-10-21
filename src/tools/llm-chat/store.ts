@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAgentStore } from './agentStore';
+import { useNodeManager } from './composables/useNodeManager';
 import type { ChatSession, ChatMessageNode, LlmParameters } from './types';
 import type { LlmMessageContent } from '@/llm-apis/common';
 import { createModuleLogger } from '@utils/logger';
@@ -235,57 +236,23 @@ export const useLlmChatStore = defineStore('llmChat', {
       this.isSending = true;
       this.abortController = new AbortController();
 
-      const now = new Date().toISOString();
-
-      // 创建用户消息节点
-      const userNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const userNode: ChatMessageNode = {
-        id: userNodeId,
-        parentId: session.activeLeafId,
-        childrenIds: [],
+      // 使用节点管理器创建消息对
+      const nodeManager = useNodeManager();
+      const { assistantNode } = nodeManager.createMessagePair(
+        session,
         content,
-        role: 'user',
-        status: 'complete',
-        isEnabled: true,
-        timestamp: now,
-      };
-
-      // 创建助手消息节点（初始为空，等待流式输出）
-      const assistantNodeId = `node-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`;
-      const assistantNode: ChatMessageNode = {
-        id: assistantNodeId,
-        parentId: userNodeId,
-        childrenIds: [],
-        content: '',
-        role: 'assistant',
-        status: 'generating',
-        isEnabled: true,
-        timestamp: now,
-      };
-
-      // 更新父节点的 childrenIds
-      const currentLeafNode = session.nodes[session.activeLeafId];
-      if (currentLeafNode) {
-        currentLeafNode.childrenIds.push(userNodeId);
-      }
-
-      // 更新用户节点的 childrenIds
-      userNode.childrenIds.push(assistantNodeId);
-
-      // 添加节点到会话
-      session.nodes[userNodeId] = userNode;
-      session.nodes[assistantNodeId] = assistantNode;
+        session.activeLeafId
+      );
 
       // 更新活跃叶节点
-      session.activeLeafId = assistantNodeId;
-      session.updatedAt = now;
+      nodeManager.updateActiveLeaf(session, assistantNode.id);
 
       try {
         const { sendRequest } = useLlmRequest();
 
         // 构建消息列表（从当前消息链构建，排除正在生成的助手消息）
         const messageChain = this.currentMessageChain.filter(
-          node => node.id !== assistantNodeId && node.role !== 'system'
+          node => node.id !== assistantNode.id && node.role !== 'system'
         );
 
         // 将消息链转换为对话历史格式（支持 Claude 等需要角色区分的 API）
@@ -399,7 +366,183 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
-     * 重新生成最后一条助手消息
+     * 从指定节点重新生成（创建新分支）
+     * 这是实现树形对话历史的核心功能
+     */
+    async regenerateFromNode(nodeId: string): Promise<void> {
+      const session = this.currentSession;
+      if (!session) {
+        logger.warn('重新生成失败：没有活动会话');
+        return;
+      }
+
+      if (this.isSending) {
+        logger.warn('重新生成失败：正在发送中', { sessionId: session.id });
+        return;
+      }
+
+      // 定位目标节点（要重新生成的助手消息）
+      const targetNode = session.nodes[nodeId];
+      if (!targetNode) {
+        logger.warn('重新生成失败：目标节点不存在', { sessionId: session.id, nodeId });
+        return;
+      }
+
+      if (!targetNode.parentId) {
+        logger.warn('重新生成失败：目标节点没有父节点', { sessionId: session.id, nodeId });
+        return;
+      }
+
+      if (!session.currentAgentId) {
+        logger.error('重新生成失败：会话没有关联智能体', new Error('No agent'));
+        return;
+      }
+
+      const agentStore = useAgentStore();
+      const agentConfig = agentStore.getAgentConfig(session.currentAgentId, {
+        parameterOverrides: session.parameterOverrides,
+        systemPromptOverride: session.systemPromptOverride,
+      });
+
+      if (!agentConfig) {
+        logger.error('重新生成失败：无法获取智能体配置', new Error('Agent config not found'));
+        return;
+      }
+
+      // 使用节点管理器创建重新生成分支
+      const nodeManager = useNodeManager();
+      const assistantNode = nodeManager.createRegenerateBranch(
+        session,
+        nodeId,
+        targetNode.parentId
+      );
+
+      if (!assistantNode) {
+        // 创建分支失败（已记录日志）
+        return;
+      }
+
+      // 获取父节点（用户的提问）
+      const parentNode = session.nodes[targetNode.parentId];
+      if (!parentNode) {
+        logger.error('重新生成失败：父节点不存在', new Error('Parent node not found'));
+        return;
+      }
+
+      // 更新活跃叶节点
+      nodeManager.updateActiveLeaf(session, assistantNode.id);
+
+      this.isSending = true;
+      this.abortController = new AbortController();
+
+      try {
+        const { sendRequest } = useLlmRequest();
+
+        // 构建消息链（截止到父节点）
+        const messageChain = this.currentMessageChain.filter(
+          node => node.id !== assistantNode.id && node.role !== 'system'
+        );
+
+        // 构建对话历史
+        const conversationHistory: Array<{
+          role: 'user' | 'assistant';
+          content: string | LlmMessageContent[];
+        }> = [];
+        
+        for (let i = 0; i < messageChain.length - 1; i++) {
+          const node = messageChain[i];
+          if (node.role === 'user' || node.role === 'assistant') {
+            conversationHistory.push({
+              role: node.role,
+              content: node.content,
+            });
+          }
+        }
+
+        // 当前请求（父节点的用户消息）
+        const currentMessage: LlmMessageContent[] = [{
+          type: 'text' as const,
+          text: parentNode.content,
+        }];
+
+        logger.info('从节点重新生成', {
+          sessionId: session.id,
+          targetNodeId: nodeId,
+          parentNodeId: parentNode.id,
+          newNodeId: assistantNode.id,
+          agentId: session.currentAgentId,
+          profileId: agentConfig.profileId,
+          modelId: agentConfig.modelId,
+          historyMessageCount: conversationHistory.length,
+        });
+
+        // 默认启用流式输出
+        const enableStream = true;
+
+        const response = await sendRequest({
+          profileId: agentConfig.profileId,
+          modelId: agentConfig.modelId,
+          messages: currentMessage,
+          conversationHistory,
+          systemPrompt: agentConfig.systemPrompt,
+          temperature: agentConfig.parameters.temperature,
+          maxTokens: agentConfig.parameters.maxTokens,
+          topP: agentConfig.parameters.topP,
+          topK: agentConfig.parameters.topK,
+          frequencyPenalty: agentConfig.parameters.frequencyPenalty,
+          presencePenalty: agentConfig.parameters.presencePenalty,
+          stream: enableStream,
+          signal: this.abortController.signal,
+          onStream: enableStream ? (chunk: string) => {
+            session.nodes[assistantNode.id].content += chunk;
+          } : undefined,
+        });
+
+        const agent = agentStore.getAgentById(session.currentAgentId);
+
+        assistantNode.content = response.content;
+        assistantNode.status = 'complete';
+        assistantNode.metadata = {
+          profileId: agentConfig.profileId,
+          modelId: agentConfig.modelId,
+          modelName: agent?.name,
+          usage: response.usage,
+          reasoningContent: response.reasoningContent,
+        };
+
+        this.persistSessions();
+        logger.info('从节点重新生成成功', {
+          sessionId: session.id,
+          newNodeId: assistantNode.id,
+          messageLength: response.content.length,
+          usage: response.usage,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          assistantNode.status = 'error';
+          assistantNode.metadata = {
+            error: '已取消',
+          };
+          logger.info('重新生成已取消', { sessionId: session.id });
+        } else {
+          assistantNode.status = 'error';
+          assistantNode.metadata = {
+            error: error instanceof Error ? error.message : String(error),
+          };
+          logger.error('重新生成失败', error as Error, {
+            sessionId: session.id,
+            agentId: session.currentAgentId,
+          });
+        }
+        this.persistSessions();
+      } finally {
+        this.isSending = false;
+        this.abortController = null;
+      }
+    },
+
+    /**
+     * 重新生成最后一条助手消息（向后兼容）
      */
     async regenerateLastMessage(): Promise<void> {
       const session = this.currentSession;
@@ -445,17 +588,12 @@ export const useLlmChatStore = defineStore('llmChat', {
       const session = this.currentSession;
       if (!session) return;
 
-      const node = session.nodes[nodeId];
-      if (!node) {
-        logger.warn('删除消息失败：节点不存在', { sessionId: session.id, nodeId });
-        return;
+      const nodeManager = useNodeManager();
+      const success = nodeManager.softDeleteNode(session, nodeId);
+      
+      if (success) {
+        this.persistSessions();
       }
-
-      // 软删除：将节点标记为禁用
-      node.isEnabled = false;
-      session.updatedAt = new Date().toISOString();
-      this.persistSessions();
-      logger.info('删除消息（软删除）', { sessionId: session.id, nodeId });
     },
 
     /**
@@ -465,16 +603,12 @@ export const useLlmChatStore = defineStore('llmChat', {
       const session = this.currentSession;
       if (!session) return;
 
-      const node = session.nodes[nodeId];
-      if (!node) {
-        logger.warn('切换分支失败：节点不存在', { sessionId: session.id, nodeId });
-        return;
+      const nodeManager = useNodeManager();
+      const success = nodeManager.updateActiveLeaf(session, nodeId);
+      
+      if (success) {
+        this.persistSessions();
       }
-
-      session.activeLeafId = nodeId;
-      session.updatedAt = new Date().toISOString();
-      this.persistSessions();
-      logger.info('切换分支', { sessionId: session.id, newLeafId: nodeId });
     },
 
     /**

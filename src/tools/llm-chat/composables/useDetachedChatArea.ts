@@ -63,9 +63,9 @@ export function useDetachedChatArea() {
     return bus.requestAction('abort-sending', {});
   };
 
-  const regenerateLastMessage = () => {
-    logger.info('代理重新生成操作');
-    return bus.requestAction('regenerate-last-message', {});
+  const regenerateLastMessage = (messageId: string) => {
+    logger.info('代理重新生成操作', { messageId });
+    return bus.requestAction('regenerate-from-node', { messageId });
   };
 
   const deleteMessage = (messageId: string) => {

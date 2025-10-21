@@ -135,8 +135,8 @@ const handleAbortSending = () => {
 };
 
 // 处理重新生成
-const handleRegenerate = async () => {
-  await store.regenerateLastMessage();
+const handleRegenerate = async (messageId: string) => {
+  await store.regenerateFromNode(messageId);
 };
 
 // 处理删除消息

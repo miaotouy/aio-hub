@@ -2,20 +2,13 @@
 import { ref } from 'vue';
 import AgentsSidebar from './AgentsSidebar.vue';
 import ParametersSidebar from './ParametersSidebar.vue';
-import type { LlmParameters } from '../types';
 
 interface Props {
   currentAgentId: string;
-  parameterOverrides?: Partial<LlmParameters>;
-  systemPromptOverride?: string;
 }
 
 interface Emits {
   (e: 'change-agent', agentId: string): void;
-  (e: 'update:parameterOverrides', overrides: Partial<LlmParameters> | undefined): void;
-  (e: 'update:systemPromptOverride', override: string | undefined): void;
-  (e: 'update:profileId', profileId: string): void;
-  (e: 'update:modelId', modelId: string): void;
 }
 
 defineProps<Props>();
@@ -52,12 +45,6 @@ const activeTab = ref<TabType>('agents');
       <ParametersSidebar
         v-if="activeTab === 'parameters'"
         :current-agent-id="currentAgentId"
-        :parameter-overrides="parameterOverrides"
-        :system-prompt-override="systemPromptOverride"
-        @update:parameter-overrides="(overrides) => emit('update:parameterOverrides', overrides)"
-        @update:system-prompt-override="(override) => emit('update:systemPromptOverride', override)"
-        @update:profile-id="(profileId) => emit('update:profileId', profileId)"
-        @update:model-id="(modelId) => emit('update:modelId', modelId)"
       />
     </div>
   </div>

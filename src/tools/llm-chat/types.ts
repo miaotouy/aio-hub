@@ -132,11 +132,6 @@ export interface ChatSession {
    */
   parameterOverrides?: Partial<LlmParameters>;
 
-  /**
-   * 会话级别的系统提示词覆盖（可选）
-   * 用于临时覆盖智能体的系统提示词
-   */
-  systemPromptOverride?: string;
 
   /**
    * 会话创建和最后更新的时间戳
@@ -196,25 +191,16 @@ export interface ChatAgent {
   modelId: string;
 
   /**
-   * 系统提示词
+   * 预设消息序列
+   *
+   * 这是智能体的核心配置，用于构建对话的上下文基础。
+   * 支持插入系统消息、用户示例、助手回答等，实现 Few-shot、角色扮演等高级功能。
+   *
+   * 特殊占位符：
+   * - 可以包含一个特殊的 role='placeholder' 节点，标记【实际会话消息】的插入位置
+   * - 如果没有占位符，则默认将实际会话追加在预设消息之后
    */
-  systemPrompt?: string;
-
-  /**
-   * 上下文预设
-   * 这个是一个在会话上层的预设，会包裹会话
-   * 比如：
-   * system消息1
-   * user消息1
-   * 模型消息1
-   * user消息2
-   * 模型消息2
-   * 【会话消息】
-   * 模型消息3
-   * ……
-   * 先留着吧不着急做
-   */
-  // contextPreset?:;
+  presetMessages?: ChatMessageNode[];
 
   /**
    * 参数配置

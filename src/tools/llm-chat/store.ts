@@ -278,7 +278,6 @@ export const useLlmChatStore = defineStore('llmChat', {
       const agentStore = useAgentStore();
       const agentConfig = agentStore.getAgentConfig(session.currentAgentId, {
         parameterOverrides: session.parameterOverrides,
-        systemPromptOverride: session.systemPromptOverride,
       });
 
       if (!agentConfig) {
@@ -306,11 +305,36 @@ export const useLlmChatStore = defineStore('llmChat', {
         // 使用新的 llmContext 构建上下文（已自动过滤禁用节点）
         const context = this.llmContext;
         
-        // 将上下文转换为对话历史格式（排除最后一条，因为那是当前要发送的用户消息）
-        const conversationHistory: Array<{
+        // TODO: 临时兼容逻辑 - 将来应迁移到统一的"消息预处理"阶段
+        // 当前实现：从预设消息中提取 system 消息合并为 systemPrompt，其他消息放入 conversationHistory
+        // 迁移计划：开发消息预处理功能，支持用户自定义配置消息转换规则（如：合并 system、处理不支持中途 system 角色的模型等）
+        const presetMessages = agentConfig.presetMessages || [];
+        const enabledPresets = presetMessages.filter(msg => msg.isEnabled !== false);
+        
+        // 提取 system 消息并合并为 systemPrompt
+        const systemMessages = enabledPresets
+          .filter(msg => msg.role === 'system')
+          .map(msg => msg.content);
+        const systemPrompt = systemMessages.length > 0
+          ? systemMessages.join('\n\n')
+          : undefined;
+        
+        // 提取对话消息（user 和 assistant）
+        const presetConversation: Array<{
           role: 'user' | 'assistant';
           content: string | LlmMessageContent[];
-        }> = context.slice(0, -1); // 排除最后一条用户消息
+        }> = enabledPresets
+          .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+          .map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+          }));
+        
+        // 将会话上下文转换为对话历史格式（排除最后一条，因为那是当前要发送的用户消息）
+        const sessionContext = context.slice(0, -1);
+        
+        // 合并预设对话和会话上下文
+        const conversationHistory = [...presetConversation, ...sessionContext];
         
         // 当前请求（最后一条用户消息）
         const currentMessage: LlmMessageContent[] = [{
@@ -333,7 +357,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           modelId: agentConfig.modelId,
           messages: currentMessage,
           conversationHistory,
-          systemPrompt: agentConfig.systemPrompt,
+          systemPrompt,
           temperature: agentConfig.parameters.temperature,
           maxTokens: agentConfig.parameters.maxTokens,
           topP: agentConfig.parameters.topP,
@@ -441,7 +465,6 @@ export const useLlmChatStore = defineStore('llmChat', {
       const agentStore = useAgentStore();
       const agentConfig = agentStore.getAgentConfig(session.currentAgentId, {
         parameterOverrides: session.parameterOverrides,
-        systemPromptOverride: session.systemPromptOverride,
       });
 
       if (!agentConfig) {
@@ -481,11 +504,36 @@ export const useLlmChatStore = defineStore('llmChat', {
         // 使用新的 llmContext 构建上下文（已自动过滤禁用节点）
         const context = this.llmContext;
         
-        // 将上下文转换为对话历史格式（排除最后一条，因为那是要重新生成的用户消息）
-        const conversationHistory: Array<{
+        // TODO: 临时兼容逻辑 - 将来应迁移到统一的"消息预处理"阶段
+        // 当前实现：从预设消息中提取 system 消息合并为 systemPrompt，其他消息放入 conversationHistory
+        // 迁移计划：开发消息预处理功能，支持用户自定义配置消息转换规则（如：合并 system、处理不支持中途 system 角色的模型等）
+        const presetMessages = agentConfig.presetMessages || [];
+        const enabledPresets = presetMessages.filter(msg => msg.isEnabled !== false);
+        
+        // 提取 system 消息并合并为 systemPrompt
+        const systemMessages = enabledPresets
+          .filter(msg => msg.role === 'system')
+          .map(msg => msg.content);
+        const systemPrompt = systemMessages.length > 0
+          ? systemMessages.join('\n\n')
+          : undefined;
+        
+        // 提取对话消息（user 和 assistant）
+        const presetConversation: Array<{
           role: 'user' | 'assistant';
           content: string | LlmMessageContent[];
-        }> = context.slice(0, -1);
+        }> = enabledPresets
+          .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+          .map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+          }));
+        
+        // 将会话上下文转换为对话历史格式（排除最后一条，因为那是要重新生成的用户消息）
+        const sessionContext = context.slice(0, -1);
+        
+        // 合并预设对话和会话上下文
+        const conversationHistory = [...presetConversation, ...sessionContext];
         
         // 当前请求（父节点的用户消息）
         const currentMessage: LlmMessageContent[] = [{
@@ -512,7 +560,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           modelId: agentConfig.modelId,
           messages: currentMessage,
           conversationHistory,
-          systemPrompt: agentConfig.systemPrompt,
+          systemPrompt,
           temperature: agentConfig.parameters.temperature,
           maxTokens: agentConfig.parameters.maxTokens,
           topP: agentConfig.parameters.topP,

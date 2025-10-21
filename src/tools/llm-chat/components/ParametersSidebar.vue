@@ -2,24 +2,14 @@
 import { ref, watch, computed } from "vue";
 import { useAgentStore } from "../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import type { LlmParameters } from "../types";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   currentAgentId: string;
-  parameterOverrides?: Partial<LlmParameters>;
-  systemPromptOverride?: string;
-}
-
-interface Emits {
-  (e: "update:parameterOverrides", overrides: Partial<LlmParameters> | undefined): void;
-  (e: "update:systemPromptOverride", override: string | undefined): void;
-  (e: "update:profileId", profileId: string): void;
-  (e: "update:modelId", modelId: string): void;
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
 const { enabledProfiles, getSupportedParameters } = useLlmProfiles();
@@ -44,97 +34,52 @@ const selectedModelCombo = computed({
     return `${agent.profileId}:${agent.modelId}`;
   },
   set: (value: string) => {
-    if (!value) return;
+    if (!value || !currentAgent.value) return;
     const [profileId, modelId] = value.split(":");
-    emit("update:profileId", profileId);
-    emit("update:modelId", modelId);
+    // 直接更新 Agent 的模型配置
+    agentStore.updateAgent(props.currentAgentId, { profileId, modelId });
+    customMessage.success("模型已更新");
   },
 });
 
-// 计算有效参数（覆盖或默认）
-const effectiveTemp = computed(
-  () => props.parameterOverrides?.temperature ?? currentAgent.value?.parameters.temperature ?? 0.7
-);
+// 本地状态 - 直接从 Agent 读取
+const localTemp = ref(currentAgent.value?.parameters.temperature ?? 0.7);
+const localMaxTokens = ref(currentAgent.value?.parameters.maxTokens ?? 4096);
 
-const effectiveMaxTokens = computed(
-  () => props.parameterOverrides?.maxTokens ?? currentAgent.value?.parameters.maxTokens ?? 4096
-);
-
-const effectiveSystemPrompt = computed(
-  () => props.systemPromptOverride ?? currentAgent.value?.systemPrompt ?? ""
-);
-
-// 本地状态
-const localTemp = ref(effectiveTemp.value);
-const localMaxTokens = ref(effectiveMaxTokens.value);
-const localSystemPrompt = ref(effectiveSystemPrompt.value);
-
-// 监听有效值变化同步到本地
-watch(effectiveTemp, (val) => {
-  localTemp.value = val;
-});
-
-watch(effectiveMaxTokens, (val) => {
-  localMaxTokens.value = val;
-});
-
-watch(effectiveSystemPrompt, (val) => {
-  localSystemPrompt.value = val;
-});
-
-// 检查是否有覆盖
-const hasTempOverride = computed(() => props.parameterOverrides?.temperature !== undefined);
-const hasMaxTokensOverride = computed(() => props.parameterOverrides?.maxTokens !== undefined);
-const hasSystemPromptOverride = computed(() => props.systemPromptOverride !== undefined);
-
-// 更新参数
-const updateTemperature = () => {
-  const defaultValue = currentAgent.value?.parameters.temperature ?? 0.7;
-  if (localTemp.value === defaultValue) {
-    // 如果等于默认值，移除覆盖
-    const newOverrides = { ...props.parameterOverrides };
-    delete newOverrides.temperature;
-    emit(
-      "update:parameterOverrides",
-      Object.keys(newOverrides).length > 0 ? newOverrides : undefined
-    );
-  } else {
-    // 设置覆盖
-    emit("update:parameterOverrides", {
-      ...props.parameterOverrides,
-      temperature: localTemp.value,
-    });
+// 监听 Agent 变化同步到本地
+watch(
+  () => currentAgent.value?.parameters.temperature,
+  (val) => {
+    if (val !== undefined) localTemp.value = val;
   }
+);
+
+watch(
+  () => currentAgent.value?.parameters.maxTokens,
+  (val) => {
+    if (val !== undefined) localMaxTokens.value = val;
+  }
+);
+
+// 更新参数 - 直接保存到 Agent
+const updateTemperature = () => {
+  if (!currentAgent.value) return;
+  agentStore.updateAgent(props.currentAgentId, {
+    parameters: {
+      ...currentAgent.value.parameters,
+      temperature: localTemp.value,
+    },
+  });
 };
 
 const updateMaxTokens = () => {
-  const defaultValue = currentAgent.value?.parameters.maxTokens ?? 4096;
-  if (localMaxTokens.value === defaultValue) {
-    // 如果等于默认值，移除覆盖
-    const newOverrides = { ...props.parameterOverrides };
-    delete newOverrides.maxTokens;
-    emit(
-      "update:parameterOverrides",
-      Object.keys(newOverrides).length > 0 ? newOverrides : undefined
-    );
-  } else {
-    // 设置覆盖
-    emit("update:parameterOverrides", {
-      ...props.parameterOverrides,
+  if (!currentAgent.value) return;
+  agentStore.updateAgent(props.currentAgentId, {
+    parameters: {
+      ...currentAgent.value.parameters,
       maxTokens: localMaxTokens.value,
-    });
-  }
-};
-
-const updateSystemPrompt = () => {
-  const defaultValue = currentAgent.value?.systemPrompt ?? "";
-  if (localSystemPrompt.value === defaultValue) {
-    // 如果等于默认值，移除覆盖
-    emit("update:systemPromptOverride", undefined);
-  } else {
-    // 设置覆盖
-    emit("update:systemPromptOverride", localSystemPrompt.value);
-  }
+    },
+  });
 };
 
 // 根据渠道类型获取支持的参数
@@ -150,121 +95,80 @@ const supportedParameters = computed(() => {
   return getSupportedParameters(type);
 });
 
-// 扩展的本地状态
-const localTopP = ref(0.9);
-const localTopK = ref(40);
-const localFrequencyPenalty = ref(0);
-const localPresencePenalty = ref(0);
+// 扩展的本地状态 - 直接从 Agent 读取
+const localTopP = ref(currentAgent.value?.parameters.topP ?? 0.9);
+const localTopK = ref(currentAgent.value?.parameters.topK ?? 40);
+const localFrequencyPenalty = ref(currentAgent.value?.parameters.frequencyPenalty ?? 0);
+const localPresencePenalty = ref(currentAgent.value?.parameters.presencePenalty ?? 0);
 
-// 监听扩展参数的变化
-const effectiveTopP = computed(
-  () => props.parameterOverrides?.topP ?? currentAgent.value?.parameters.topP ?? 0.9
-);
-
-const effectiveTopK = computed(
-  () => props.parameterOverrides?.topK ?? currentAgent.value?.parameters.topK ?? 40
-);
-
-const effectiveFrequencyPenalty = computed(
-  () =>
-    props.parameterOverrides?.frequencyPenalty ??
-    currentAgent.value?.parameters.frequencyPenalty ??
-    0
-);
-
-const effectivePresencePenalty = computed(
-  () =>
-    props.parameterOverrides?.presencePenalty ?? currentAgent.value?.parameters.presencePenalty ?? 0
-);
-
-// 监听有效值变化同步到本地
-watch(effectiveTopP, (val) => {
-  localTopP.value = val;
-});
-
-watch(effectiveTopK, (val) => {
-  localTopK.value = val;
-});
-
-watch(effectiveFrequencyPenalty, (val) => {
-  localFrequencyPenalty.value = val;
-});
-
-watch(effectivePresencePenalty, (val) => {
-  localPresencePenalty.value = val;
-});
-
-// 检查是否有覆盖
-const hasTopPOverride = computed(() => props.parameterOverrides?.topP !== undefined);
-const hasTopKOverride = computed(() => props.parameterOverrides?.topK !== undefined);
-const hasFrequencyPenaltyOverride = computed(
-  () => props.parameterOverrides?.frequencyPenalty !== undefined
-);
-const hasPresencePenaltyOverride = computed(
-  () => props.parameterOverrides?.presencePenalty !== undefined
-);
-
-// 更新扩展参数的函数
-const updateTopP = () => {
-  const defaultValue = currentAgent.value?.parameters.topP ?? 0.9;
-  if (localTopP.value === defaultValue) {
-    const newOverrides = { ...props.parameterOverrides };
-    delete newOverrides.topP;
-    emit(
-      "update:parameterOverrides",
-      Object.keys(newOverrides).length > 0 ? newOverrides : undefined
-    );
-  } else {
-    emit("update:parameterOverrides", { ...props.parameterOverrides, topP: localTopP.value });
+// 监听 Agent 变化同步到本地
+watch(
+  () => currentAgent.value?.parameters.topP,
+  (val) => {
+    if (val !== undefined) localTopP.value = val;
   }
+);
+
+watch(
+  () => currentAgent.value?.parameters.topK,
+  (val) => {
+    if (val !== undefined) localTopK.value = val;
+  }
+);
+
+watch(
+  () => currentAgent.value?.parameters.frequencyPenalty,
+  (val) => {
+    if (val !== undefined) localFrequencyPenalty.value = val;
+  }
+);
+
+watch(
+  () => currentAgent.value?.parameters.presencePenalty,
+  (val) => {
+    if (val !== undefined) localPresencePenalty.value = val;
+  }
+);
+
+// 更新扩展参数 - 直接保存到 Agent
+const updateTopP = () => {
+  if (!currentAgent.value) return;
+  agentStore.updateAgent(props.currentAgentId, {
+    parameters: {
+      ...currentAgent.value.parameters,
+      topP: localTopP.value,
+    },
+  });
 };
 
 const updateTopK = () => {
-  const defaultValue = currentAgent.value?.parameters.topK ?? 40;
-  if (localTopK.value === defaultValue) {
-    const newOverrides = { ...props.parameterOverrides };
-    delete newOverrides.topK;
-    emit(
-      "update:parameterOverrides",
-      Object.keys(newOverrides).length > 0 ? newOverrides : undefined
-    );
-  } else {
-    emit("update:parameterOverrides", { ...props.parameterOverrides, topK: localTopK.value });
-  }
+  if (!currentAgent.value) return;
+  agentStore.updateAgent(props.currentAgentId, {
+    parameters: {
+      ...currentAgent.value.parameters,
+      topK: localTopK.value,
+    },
+  });
 };
 
 const updateFrequencyPenalty = () => {
-  const defaultValue = currentAgent.value?.parameters.frequencyPenalty ?? 0;
-  if (localFrequencyPenalty.value === defaultValue) {
-    const newOverrides = { ...props.parameterOverrides };
-    delete newOverrides.frequencyPenalty;
-    emit(
-      "update:parameterOverrides",
-      Object.keys(newOverrides).length > 0 ? newOverrides : undefined
-    );
-  } else {
-    emit("update:parameterOverrides", {
-      ...props.parameterOverrides,
+  if (!currentAgent.value) return;
+  agentStore.updateAgent(props.currentAgentId, {
+    parameters: {
+      ...currentAgent.value.parameters,
       frequencyPenalty: localFrequencyPenalty.value,
-    });
-  }
+    },
+  });
 };
 
 const updatePresencePenalty = () => {
-  const defaultValue = currentAgent.value?.parameters.presencePenalty ?? 0;
-  if (localPresencePenalty.value === defaultValue) {
-    const newOverrides = { ...props.parameterOverrides };
-    delete newOverrides.presencePenalty;
-    emit(
-      "update:parameterOverrides",
-      Object.keys(newOverrides).length > 0 ? newOverrides : undefined
-    );
-  } else {
-    emit("update:parameterOverrides", {
-      ...props.parameterOverrides,
+  if (!currentAgent.value) return;
+  agentStore.updateAgent(props.currentAgentId, {
+    parameters: {
+      ...currentAgent.value.parameters,
       presencePenalty: localPresencePenalty.value,
-    });
-  }
+    },
+  });
 };
 
 // 折叠状态管理
@@ -316,10 +220,7 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
           <!-- Temperature -->
           <div v-if="supportedParameters.temperature" class="param-group">
             <label class="param-label">
-              <span>
-                Temperature
-                <span v-if="hasTempOverride" class="override-badge">已覆盖</span>
-              </span>
+              <span>Temperature</span>
               <span class="param-value">{{ localTemp.toFixed(2) }}</span>
             </label>
             <input
@@ -340,10 +241,7 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
           <!-- Max Tokens -->
           <div v-if="supportedParameters.maxTokens" class="param-group">
             <label class="param-label">
-              <span>
-                Max Tokens
-                <span v-if="hasMaxTokensOverride" class="override-badge">已覆盖</span>
-              </span>
+              <span>Max Tokens</span>
               <span class="param-value">{{ localMaxTokens }}</span>
             </label>
             <input
@@ -363,10 +261,7 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
           <!-- Top P -->
           <div v-if="supportedParameters.topP" class="param-group">
             <label class="param-label">
-              <span>
-                Top P
-                <span v-if="hasTopPOverride" class="override-badge">已覆盖</span>
-              </span>
+              <span>Top P</span>
               <span class="param-value">{{ localTopP.toFixed(2) }}</span>
             </label>
             <input
@@ -387,10 +282,7 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
           <!-- Top K -->
           <div v-if="supportedParameters.topK" class="param-group">
             <label class="param-label">
-              <span>
-                Top K
-                <span v-if="hasTopKOverride" class="override-badge">已覆盖</span>
-              </span>
+              <span>Top K</span>
               <span class="param-value">{{ localTopK }}</span>
             </label>
             <input
@@ -410,10 +302,7 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
           <!-- Frequency Penalty -->
           <div v-if="supportedParameters.frequencyPenalty" class="param-group">
             <label class="param-label">
-              <span>
-                Frequency Penalty
-                <span v-if="hasFrequencyPenaltyOverride" class="override-badge">已覆盖</span>
-              </span>
+              <span>Frequency Penalty</span>
               <span class="param-value">{{ localFrequencyPenalty.toFixed(2) }}</span>
             </label>
             <input
@@ -434,10 +323,7 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
           <!-- Presence Penalty -->
           <div v-if="supportedParameters.presencePenalty" class="param-group">
             <label class="param-label">
-              <span>
-                Presence Penalty
-                <span v-if="hasPresencePenaltyOverride" class="override-badge">已覆盖</span>
-              </span>
+              <span>Presence Penalty</span>
               <span class="param-value">{{ localPresencePenalty.toFixed(2) }}</span>
             </label>
             <input
@@ -457,84 +343,9 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
         </div>
       </div>
 
-      <!-- 系统提示词分组 -->
-      <div class="param-section">
-        <div
-          class="param-section-header clickable"
-          @click="toggleSection('systemPrompt')"
-          :title="systemPromptSectionExpanded ? '点击折叠' : '点击展开'"
-        >
-          <span class="param-section-title">📝 系统提示词</span>
-          <span class="collapse-icon">{{ systemPromptSectionExpanded ? "▼" : "▶" }}</span>
-        </div>
-
-        <div class="param-section-content" :class="{ collapsed: !systemPromptSectionExpanded }">
-          <div class="param-group">
-            <label class="param-label">
-              <span>
-                System Prompt
-                <span v-if="hasSystemPromptOverride" class="override-badge">已覆盖</span>
-              </span>
-            </label>
-            <textarea
-              v-model="localSystemPrompt"
-              class="param-textarea"
-              placeholder="输入系统提示词，用于定义助手的行为和角色..."
-              rows="6"
-              @blur="updateSystemPrompt"
-            />
-            <div class="param-desc">
-              系统提示词会在每次对话开始时发送。当前智能体默认:
-              {{ currentAgent.systemPrompt || "（无）" }}
-            </div>
-          </div>
-
-          <!-- 预设模板 -->
-          <div class="param-group">
-            <label class="param-label">
-              <span>快速预设</span>
-            </label>
-            <div class="preset-buttons">
-              <el-button
-                @click="
-                  localSystemPrompt = '你是一个专业的编程助手，擅长解答技术问题和编写代码。';
-                  updateSystemPrompt();
-                "
-                size="small"
-              >
-                💻 编程助手
-              </el-button>
-              <el-button
-                @click="
-                  localSystemPrompt = '你是一个富有创意的写作助手，善于讲故事和创作内容。';
-                  updateSystemPrompt();
-                "
-                size="small"
-              >
-                ✍️ 写作助手
-              </el-button>
-              <el-button
-                @click="
-                  localSystemPrompt = '你是一个专业的翻译助手，提供准确、流畅的翻译服务。';
-                  updateSystemPrompt();
-                "
-                size="small"
-              >
-                🌐 翻译助手
-              </el-button>
-              <el-button
-                @click="
-                  localSystemPrompt = currentAgent.systemPrompt || '';
-                  updateSystemPrompt();
-                "
-                size="small"
-              >
-                🔄 恢复默认
-              </el-button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- TODO: 会话临时调整功能 -->
+      <!-- 未来将在输入框工具区添加一个图标入口，打开小弹窗用于临时调整模型和参数 -->
+      <!-- 这个调整会是全局的，不绑定特定会话 -->
     </div>
   </div>
 </template>

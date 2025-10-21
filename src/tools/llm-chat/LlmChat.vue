@@ -115,10 +115,6 @@ onMounted(async () => {
 // 当前会话的智能体ID
 const currentAgentId = computed(() => store.currentSession?.currentAgentId || "");
 
-// 当前会话的参数覆盖
-const parameterOverrides = computed(() => store.currentSession?.parameterOverrides);
-const systemPromptOverride = computed(() => store.currentSession?.systemPromptOverride);
-
 // 处理发送消息
 const handleSendMessage = async (content: string) => {
   if (!store.currentSession) {
@@ -181,30 +177,9 @@ const handleChangeAgent = (agentId: string) => {
 
   store.updateSession(store.currentSession.id, {
     currentAgentId: agentId,
-    // 清除参数和系统提示词覆盖
-    parameterOverrides: undefined,
-    systemPromptOverride: undefined,
   });
 
   logger.info("切换智能体", { agentId });
-};
-
-// 处理更新参数覆盖
-const handleUpdateParameterOverrides = (params: any) => {
-  if (!store.currentSession) return;
-
-  store.updateSession(store.currentSession.id, {
-    parameterOverrides: params,
-  });
-};
-
-// 处理更新系统提示词覆盖
-const handleUpdateSystemPromptOverride = (prompt: string | undefined) => {
-  if (!store.currentSession) return;
-
-  store.updateSession(store.currentSession.id, {
-    systemPromptOverride: prompt,
-  });
 };
 
 // 临时存储待更新的值，用于批量更新
@@ -278,11 +253,7 @@ const handleUpdateModelId = (modelId: string) => {
           <LeftSidebar
             v-if="store.currentSession"
             :current-agent-id="currentAgentId"
-            :parameter-overrides="parameterOverrides"
-            :system-prompt-override="systemPromptOverride"
             @change-agent="handleChangeAgent"
-            @update:parameter-overrides="handleUpdateParameterOverrides"
-            @update:system-prompt-override="handleUpdateSystemPromptOverride"
             @update:profile-id="handleUpdateProfileId"
             @update:model-id="handleUpdateModelId"
           />

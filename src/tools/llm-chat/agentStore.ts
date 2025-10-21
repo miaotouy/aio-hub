@@ -4,7 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import type { ChatAgent, LlmParameters } from './types';
+import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import { createModuleLogger } from '@utils/logger';
 
 const logger = createModuleLogger('llm-chat/agentStore');
@@ -66,7 +66,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       options?: {
         description?: string;
         icon?: string;
-        systemPrompt?: string;
+        presetMessages?: ChatMessageNode[];
         parameters?: Partial<LlmParameters>;
       }
     ): string {
@@ -80,7 +80,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         icon: options?.icon,
         profileId,
         modelId,
-        systemPrompt: options?.systemPrompt,
+        presetMessages: options?.presetMessages,
         parameters: {
           temperature: options?.parameters?.temperature ?? 0.7,
           maxTokens: options?.parameters?.maxTokens ?? 4096,
@@ -101,6 +101,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         name,
         profileId,
         modelId,
+        hasPresetMessages: !!options?.presetMessages,
       });
 
       return agentId;
@@ -199,8 +200,21 @@ export const useAgentStore = defineStore('llmChatAgent', {
         logger.warn('无法创建默认智能体：Profile 没有可用模型');
         return;
       }
-
       const firstModel = firstProfile.models[0];
+
+      // 创建默认的预设消息
+      const defaultPresetMessages: ChatMessageNode[] = [
+        {
+          id: `preset-system-${Date.now()}`,
+          parentId: null,
+          childrenIds: [],
+          content: '你是一个友好且乐于助人的 AI 助手。',
+          role: 'system',
+          status: 'complete',
+          isEnabled: true,
+          timestamp: new Date().toISOString(),
+        },
+      ];
 
       // 创建默认智能体（占位角色）
       const defaultAgentId = this.createAgent(
@@ -210,7 +224,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         {
           description: '一个可以自由定制的对话伙伴',
           icon: '✨',
-          systemPrompt: '你是一个友好且乐于助人的 AI 助手。',
+          presetMessages: defaultPresetMessages,
           parameters: {
             temperature: 0.7,
             maxTokens: 4096,
@@ -237,7 +251,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     getAgentConfig(agentId: string, overrides?: {
       parameterOverrides?: Partial<LlmParameters>;
-      systemPromptOverride?: string;
     }) {
       const agent = this.getAgentById(agentId);
       if (!agent) {
@@ -248,7 +261,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       return {
         profileId: agent.profileId,
         modelId: agent.modelId,
-        systemPrompt: overrides?.systemPromptOverride ?? agent.systemPrompt ?? '',
+        presetMessages: agent.presetMessages ?? [],
         parameters: {
           temperature: overrides?.parameterOverrides?.temperature ?? agent.parameters.temperature,
           maxTokens: overrides?.parameterOverrides?.maxTokens ?? agent.parameters.maxTokens,

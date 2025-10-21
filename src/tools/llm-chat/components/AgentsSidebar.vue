@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, reactive } from 'vue';
 import { useAgentStore } from '../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { Plus, Edit, Delete, MoreFilled } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { customMessage } from '@/utils/customMessage';
-import type { ChatAgent } from '../types';
+import type { ChatAgent, ChatMessageNode } from '../types';
+import AgentPresetEditor from './AgentPresetEditor.vue';
+import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
 
 interface Props {
   currentAgentId: string;
@@ -46,41 +48,141 @@ const getAgentModelInfo = (agent: any) => {
   };
 };
 
-// 添加智能体
-const handleAdd = () => {
-  ElMessageBox.prompt('请输入智能体名称', '创建新智能体', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    inputPattern: /\S/, // a non-whitespace character
-    inputErrorMessage: '名称不能为空',
-  })
-    .then(({ value }) => {
-      const { enabledProfiles } = useLlmProfiles();
-      if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
-        customMessage.error('没有可用的模型配置，无法创建智能体');
-        return;
-      }
-      const defaultProfile = enabledProfiles.value[0];
-      const defaultModel = defaultProfile.models[0];
-      
-      const newAgentId = agentStore.createAgent(value, defaultProfile.id, defaultModel.id, {
-        description: '新创建的智能体',
-        icon: '🤖',
-      });
-      customMessage.success(`智能体 "${value}" 创建成功`);
-      // 自动选中新创建的智能体
-      selectAgent(newAgentId);
-    })
-    .catch(() => {
-      // 用户取消
-    });
+// 编辑对话框状态
+const editDialogVisible = ref(false);
+const isEditMode = ref(false);
+const editingAgentId = ref<string | null>(null);
+
+// 编辑表单
+const editForm = reactive({
+  name: '',
+  description: '',
+  icon: '',
+  profileId: '',
+  modelId: '',
+  modelCombo: '', // 用于 LlmModelSelector 的组合值 (profileId:modelId)
+  presetMessages: [] as ChatMessageNode[],
+  temperature: 0.7,
+  maxTokens: 4096,
+});
+
+// 监听 modelCombo 的变化，拆分为 profileId 和 modelId
+const handleModelComboChange = (value: string) => {
+  if (value) {
+    const [profileId, modelId] = value.split(':');
+    editForm.profileId = profileId;
+    editForm.modelId = modelId;
+    editForm.modelCombo = value;
+  }
 };
 
-// 编辑智能体（占位）
+// 添加智能体
+const handleAdd = () => {
+  const { enabledProfiles } = useLlmProfiles();
+  if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
+    customMessage.error('没有可用的模型配置，无法创建智能体');
+    return;
+  }
+
+  isEditMode.value = false;
+  editingAgentId.value = null;
+  
+  // 重置表单为默认值
+  const defaultProfile = enabledProfiles.value[0];
+  const defaultModel = defaultProfile.models[0];
+  
+  editForm.name = '';
+  editForm.description = '';
+  editForm.icon = '🤖';
+  editForm.profileId = defaultProfile.id;
+  editForm.modelId = defaultModel.id;
+  editForm.modelCombo = `${defaultProfile.id}:${defaultModel.id}`;
+  editForm.presetMessages = [
+    {
+      id: `preset-system-${Date.now()}`,
+      parentId: null,
+      childrenIds: [],
+      content: '你是一个友好且乐于助人的 AI 助手。',
+      role: 'system',
+      status: 'complete',
+      isEnabled: true,
+      timestamp: new Date().toISOString(),
+    },
+  ];
+  editForm.temperature = 0.7;
+  editForm.maxTokens = 4096;
+  
+  editDialogVisible.value = true;
+};
+
+// 编辑智能体
 const handleEdit = (agent: ChatAgent) => {
-  customMessage.info(`编辑功能待实现: ${agent.name}`);
-  // 未来可以路由到专门的编辑页面
-  // router.push(`/settings/llm/agents/${agent.id}`);
+  isEditMode.value = true;
+  editingAgentId.value = agent.id;
+  
+  // 加载现有智能体数据
+  editForm.name = agent.name;
+  editForm.description = agent.description || '';
+  editForm.icon = agent.icon || '🤖';
+  editForm.profileId = agent.profileId;
+  editForm.modelId = agent.modelId;
+  editForm.modelCombo = `${agent.profileId}:${agent.modelId}`;
+  editForm.presetMessages = agent.presetMessages ? JSON.parse(JSON.stringify(agent.presetMessages)) : [];
+  editForm.temperature = agent.parameters.temperature;
+  editForm.maxTokens = agent.parameters.maxTokens;
+  
+  editDialogVisible.value = true;
+};
+
+// 保存智能体
+const handleSaveAgent = () => {
+  if (!editForm.name.trim()) {
+    customMessage.warning('智能体名称不能为空');
+    return;
+  }
+
+  if (!editForm.profileId || !editForm.modelId) {
+    customMessage.warning('请选择模型');
+    return;
+  }
+
+  if (isEditMode.value && editingAgentId.value) {
+    // 更新模式
+    agentStore.updateAgent(editingAgentId.value, {
+      name: editForm.name,
+      description: editForm.description,
+      icon: editForm.icon,
+      profileId: editForm.profileId,
+      modelId: editForm.modelId,
+      presetMessages: editForm.presetMessages,
+      parameters: {
+        temperature: editForm.temperature,
+        maxTokens: editForm.maxTokens,
+      },
+    });
+    customMessage.success('智能体已更新');
+  } else {
+    // 创建模式
+    const newAgentId = agentStore.createAgent(
+      editForm.name,
+      editForm.profileId,
+      editForm.modelId,
+      {
+        description: editForm.description,
+        icon: editForm.icon,
+        presetMessages: editForm.presetMessages,
+        parameters: {
+          temperature: editForm.temperature,
+          maxTokens: editForm.maxTokens,
+        },
+      }
+    );
+    customMessage.success(`智能体 "${editForm.name}" 创建成功`);
+    // 自动选中新创建的智能体
+    selectAgent(newAgentId);
+  }
+
+  editDialogVisible.value = false;
 };
 
 // 删除智能体
@@ -162,6 +264,78 @@ const handleDelete = (agent: ChatAgent) => {
         添加智能体
       </el-button>
     </div>
+
+    <!-- 智能体编辑对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      :title="isEditMode ? '编辑智能体' : '创建智能体'"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="editForm" label-width="100px" label-position="left">
+        <!-- 基本信息 -->
+        <el-form-item label="名称" required>
+          <el-input v-model="editForm.name" placeholder="输入智能体名称" />
+        </el-form-item>
+
+        <el-form-item label="图标">
+          <el-input v-model="editForm.icon" placeholder="输入 emoji 图标" maxlength="2" style="width: 120px;" />
+        </el-form-item>
+
+        <el-form-item label="描述">
+          <el-input
+            v-model="editForm.description"
+            type="textarea"
+            :rows="2"
+            placeholder="智能体的简短描述..."
+          />
+        </el-form-item>
+
+        <!-- 模型选择 -->
+        <el-form-item label="模型" required>
+          <LlmModelSelector
+            v-model="editForm.modelCombo"
+            @update:model-value="handleModelComboChange"
+          />
+        </el-form-item>
+
+        <!-- 预设消息编辑器 -->
+        <el-form-item label="预设消息">
+          <AgentPresetEditor
+            v-model="editForm.presetMessages"
+            height="400px"
+          />
+        </el-form-item>
+
+        <!-- 参数配置 -->
+        <el-form-item label="Temperature">
+          <el-slider
+            v-model="editForm.temperature"
+            :min="0"
+            :max="2"
+            :step="0.1"
+            show-input
+            :input-size="'small'"
+          />
+        </el-form-item>
+
+        <el-form-item label="Max Tokens">
+          <el-input-number
+            v-model="editForm.maxTokens"
+            :min="1"
+            :max="100000"
+            :step="100"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveAgent">
+          {{ isEditMode ? '保存' : '创建' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

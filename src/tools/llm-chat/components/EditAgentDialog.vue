@@ -4,6 +4,7 @@ import { customMessage } from '@/utils/customMessage';
 import type { ChatAgent, ChatMessageNode } from '../types';
 import AgentPresetEditor from './AgentPresetEditor.vue';
 import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
+import BaseDialog from '@/components/common/BaseDialog.vue';
 
 interface Props {
   visible: boolean;
@@ -141,18 +142,16 @@ const handleSave = () => {
   handleClose();
 };
 </script>
-
 <template>
-  <el-dialog
-    :model-value="visible"
+  <BaseDialog
+    :visible="visible"
+    @update:visible="$emit('update:visible', $event)"
     :title="mode === 'edit' ? '编辑智能体' : '创建智能体'"
     width="80%"
-    :close-on-click-modal="false"
-    class="edit-agent-dialog"
-    @update:model-value="$emit('update:visible', $event)"
+    height="85vh"
+    :close-on-backdrop-click="false"
   >
-    <div class="dialog-content">
-      <el-form :model="editForm" label-width="100px" label-position="left">
+    <el-form :model="editForm" label-width="100px" label-position="left">
       <!-- 基本信息 -->
       <el-form-item label="名称" required>
         <el-input v-model="editForm.name" placeholder="输入智能体名称" />
@@ -207,8 +206,7 @@ const handleSave = () => {
           :step="100"
         />
       </el-form-item>
-      </el-form>
-    </div>
+    </el-form>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
@@ -216,43 +214,9 @@ const handleSave = () => {
         {{ mode === 'edit' ? '保存' : '创建' }}
       </el-button>
     </template>
-  </el-dialog>
+  </BaseDialog>
 </template>
 
 <style scoped>
-.edit-agent-dialog :deep(.el-dialog) {
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.edit-agent-dialog :deep(.el-dialog__body) {
-  flex: 1;
-  overflow: hidden;
-  padding: 0;
-}
-
-.dialog-content {
-  max-height: calc(90vh - 120px);
-  overflow-y: auto;
-  padding: 20px;
-}
-
-/* 滚动条样式 */
-.dialog-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.dialog-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.dialog-content::-webkit-scrollbar-thumb {
-  background: var(--el-border-color-light);
-  border-radius: 3px;
-}
-
-.dialog-content::-webkit-scrollbar-thumb:hover {
-  background: var(--el-border-color);
-}
+/* 🎉 不需要任何样式覆盖！BaseDialog 自动处理所有布局和滚动 */
 </style>

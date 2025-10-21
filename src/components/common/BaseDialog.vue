@@ -1,0 +1,311 @@
+<template>
+  <Teleport to="body">
+    <div
+      v-if="props.visible"
+      class="base-dialog-backdrop"
+      :style="{ zIndex: dynamicZIndex }"
+      :class="{ 
+        'backdrop-visible': showContentTransition,
+        'backdrop-hidden': !showContentTransition 
+      }"
+      @click="props.closeOnBackdropClick && handleClose()"
+    >
+      <div
+        class="base-dialog-container"
+        :class="[
+          props.bare ? 'dialog-bare' : 'dialog-styled',
+          props.dialogClass,
+          { 
+            'dialog-enter': showContentTransition,
+            'dialog-leave': !showContentTransition 
+          }
+        ]"
+        :style="dialogStyles"
+        @click.stop
+      >
+        <!-- 头部区域 -->
+        <div 
+          v-if="hasHeaderSlot || props.title || props.showCloseButton"
+          class="dialog-header"
+          :class="{ 'with-border': !props.bare }"
+        >
+          <slot name="header">
+            <h3 v-if="props.title" class="dialog-title">
+              {{ props.title }}
+            </h3>
+            <div v-else></div>
+          </slot>
+          <button
+            v-if="props.showCloseButton"
+            @click="handleClose"
+            class="dialog-close-btn"
+            aria-label="关闭"
+          >
+            <svg class="close-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="dialog-content" :class="props.contentClass">
+          <slot name="content">
+            <slot></slot>
+          </slot>
+        </div>
+
+        <!-- 底部区域 -->
+        <div v-if="hasFooterSlot" class="dialog-footer" :class="{ 'with-border': !props.bare }">
+          <slot name="footer"></slot>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<script setup lang="ts">
+import { ref, watch, onMounted, onBeforeUnmount, useSlots, computed, nextTick } from 'vue';
+
+const props = withDefaults(defineProps<{
+  visible: boolean;
+  title?: string;
+  width?: string;
+  height?: string;
+  showCloseButton?: boolean;
+  closeOnBackdropClick?: boolean;
+  bare?: boolean;
+  dialogClass?: string;
+  contentClass?: string;
+  zIndex?: number;
+}>(), {
+  showCloseButton: true,
+  closeOnBackdropClick: true,
+  width: '600px',
+  height: 'auto',
+  bare: false,
+  dialogClass: '',
+  contentClass: '',
+  zIndex: 2000,
+});
+
+const emit = defineEmits<{
+  (e: 'update:visible', value: boolean): void;
+  (e: 'close'): void;
+}>();
+
+const slots = useSlots();
+const hasFooterSlot = computed(() => !!slots.footer);
+const hasHeaderSlot = computed(() => !!slots.header);
+
+const showContentTransition = ref(false);
+const dynamicZIndex = ref(props.zIndex);
+
+// 计算对话框样式
+const dialogStyles = computed(() => {
+  const styles: Record<string, string> = {};
+  
+  // 处理宽度
+  if (props.width) {
+    // 如果是像素值、百分比、vh等，直接使用
+    if (/^\d+(px|%|vh|vw|rem|em)$/.test(props.width)) {
+      styles.width = props.width;
+      styles.maxWidth = props.width;
+    } else {
+      // 否则当作最大宽度
+      styles.maxWidth = props.width;
+    }
+  }
+  
+  // 处理高度
+  if (props.height && props.height !== 'auto') {
+    styles.height = props.height;
+  }
+  
+  return styles;
+});
+
+watch(() => props.visible, (newValue) => {
+  if (newValue) {
+    // 对话框打开时，可能需要递增 z-index（如果有多个对话框）
+    // 这里简化处理，直接使用传入的 zIndex
+    dynamicZIndex.value = props.zIndex;
+    
+    // DOM 更新后启动入场动画
+    nextTick(() => {
+      showContentTransition.value = true;
+    });
+  } else {
+    showContentTransition.value = false;
+  }
+}, { immediate: true });
+
+function handleClose() {
+  showContentTransition.value = false;
+  // 等待退场动画完成
+  setTimeout(() => {
+    emit('update:visible', false);
+    emit('close');
+  }, 300);
+}
+
+const handleKeyDown = (event: KeyboardEvent) => {
+  if (props.visible && event.key === 'Escape' && props.showCloseButton) {
+    handleClose();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
+</script>
+
+<style scoped>
+/* 遮罩层 */
+.base-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+}
+
+.backdrop-hidden {
+  opacity: 0;
+}
+
+.backdrop-visible {
+  opacity: 1;
+}
+
+/* 对话框容器 */
+.base-dialog-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 90vw;
+  max-height: 90vh;
+  transition: all 0.3s ease;
+}
+
+/* 样式模式 */
+.dialog-styled {
+  background-color: var(--el-bg-color);
+  border-radius: 8px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--el-border-color);
+}
+
+/* 无样式模式 */
+.dialog-bare {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+}
+
+/* 动画效果 */
+.dialog-leave {
+  opacity: 0;
+  transform: scale(0.95) translateY(-10px);
+}
+
+.dialog-enter {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* 头部 */
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+
+.dialog-header.with-border {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.dialog-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dialog-close-btn:hover {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+}
+
+.dialog-close-btn:active {
+  background-color: var(--el-fill-color);
+}
+
+.close-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* 内容区域 */
+.dialog-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  min-height: 0; /* 重要：配合 flex 正确处理滚动 */
+}
+
+/* 底部 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+
+.dialog-footer.with-border {
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+/* 滚动条样式 */
+.dialog-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dialog-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dialog-content::-webkit-scrollbar-thumb {
+  background: var(--el-border-color-light);
+  border-radius: 3px;
+}
+
+.dialog-content::-webkit-scrollbar-thumb:hover {
+  background: var(--el-border-color);
+}
+</style>

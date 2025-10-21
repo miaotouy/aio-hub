@@ -707,14 +707,11 @@ export const useLlmChatStore = defineStore('llmChat', {
           logger.warn('重新生成失败：父节点不是用户消息', { sessionId: session.id });
           return;
         }
-
-        // 禁用当前助手节点（而不是删除，保留历史）
-        currentLeaf.isEnabled = false;
-
+  
         // 将活跃叶节点回退到用户消息
         session.activeLeafId = parentNode.id;
-
-        // 重新发送用户消息
+  
+        // 重新发送用户消息（会创建新的助手节点作为兄弟分支）
         await this.sendMessage(parentNode.content);
       } else {
         logger.warn('重新生成失败：当前叶节点不是助手消息', { 

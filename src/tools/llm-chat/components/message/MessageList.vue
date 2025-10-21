@@ -25,7 +25,8 @@ const store = useLlmChatStore();
 // 为每条消息计算兄弟节点信息
 const getMessageSiblings = (messageId: string) => {
   const siblings = store.getSiblings(messageId);
-  const currentIndex = siblings.findIndex(s => s.id === messageId);
+  // 找到在当前活动路径上的兄弟节点（而不是传入的 messageId 自己）
+  const currentIndex = siblings.findIndex(s => store.isNodeInActivePath(s.id));
   return {
     siblings,
     currentIndex,

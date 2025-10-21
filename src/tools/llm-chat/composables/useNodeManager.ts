@@ -149,7 +149,7 @@ export function useNodeManager() {
 
   /**
    * 创建新分支（重新生成场景）
-   * 禁用旧分支，创建新的助手消息节点
+   * 创建新的助手消息节点作为兄弟分支
    */
   const createRegenerateBranch = (
     session: ChatSession,
@@ -187,10 +187,7 @@ export function useNodeManager() {
       return null;
     }
 
-    // 禁用旧分支（包括所有子节点）
-    disableNodeTree(session, targetNodeId);
-
-    // 创建新的助手消息节点
+    // 创建新的助手消息节点（作为兄弟分支，不禁用旧节点）
     const newAssistantNode = createNode({
       role: 'assistant',
       content: '',

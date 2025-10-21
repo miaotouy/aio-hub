@@ -8,6 +8,8 @@ import { customMessage } from '@/utils/customMessage';
 import type { ChatAgent, ChatMessageNode } from '../types';
 import AgentPresetEditor from './AgentPresetEditor.vue';
 import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
+import CreateAgentDialog from './CreateAgentDialog.vue';
+import type { AgentPreset } from '../types';
 
 interface Props {
   currentAgentId: string;
@@ -48,8 +50,9 @@ const getAgentModelInfo = (agent: any) => {
   };
 };
 
-// 编辑对话框状态
-const editDialogVisible = ref(false);
+// 对话框状态
+const createDialogVisible = ref(false); // 创建选择对话框
+const editDialogVisible = ref(false); // 编辑/创建对话框
 const isEditMode = ref(false);
 const editingAgentId = ref<string | null>(null);
 
@@ -76,8 +79,13 @@ const handleModelComboChange = (value: string) => {
   }
 };
 
-// 添加智能体
-const handleAdd = () => {
+// 打开创建智能体选择对话框
+const handleOpenCreateDialog = () => {
+  createDialogVisible.value = true;
+};
+
+// 从空白创建
+const handleCreateFromBlank = () => {
   const { enabledProfiles } = useLlmProfiles();
   if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
     customMessage.error('没有可用的模型配置，无法创建智能体');
@@ -86,11 +94,11 @@ const handleAdd = () => {
 
   isEditMode.value = false;
   editingAgentId.value = null;
-  
+
   // 重置表单为默认值
   const defaultProfile = enabledProfiles.value[0];
   const defaultModel = defaultProfile.models[0];
-  
+
   editForm.name = '';
   editForm.description = '';
   editForm.icon = '🤖';
@@ -111,7 +119,44 @@ const handleAdd = () => {
   ];
   editForm.temperature = 0.7;
   editForm.maxTokens = 4096;
-  
+
+  editDialogVisible.value = true;
+};
+
+// 从预设创建
+const handleCreateFromPreset = (preset: AgentPreset) => {
+  const { enabledProfiles } = useLlmProfiles();
+  if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
+    customMessage.error('没有可用的模型配置，无法创建智能体');
+    return;
+  }
+
+  isEditMode.value = false;
+  editingAgentId.value = null;
+
+  // 使用预设数据填充表单
+  const defaultProfile = enabledProfiles.value[0];
+  const defaultModel = defaultProfile.models[0];
+
+  editForm.name = preset.name;
+  editForm.description = preset.description;
+  editForm.icon = preset.icon;
+  editForm.profileId = defaultProfile.id;
+  editForm.modelId = defaultModel.id;
+  editForm.modelCombo = `${defaultProfile.id}:${defaultModel.id}`;
+  // 深度复制 presetMessages，并确保它们有唯一的 ID
+  editForm.presetMessages = JSON.parse(JSON.stringify(preset.presetMessages)).map((msg: any) => ({
+    ...msg,
+    id: `preset-${msg.role}-${Date.now()}-${Math.random()}`,
+    parentId: null,
+    childrenIds: [],
+    status: 'complete',
+    isEnabled: true,
+    timestamp: new Date().toISOString(),
+  }));
+  editForm.temperature = preset.parameters.temperature;
+  editForm.maxTokens = preset.parameters.maxTokens || 4096;
+
   editDialogVisible.value = true;
 };
 
@@ -260,10 +305,17 @@ const handleDelete = (agent: ChatAgent) => {
 
     <!-- 底部常驻添加按钮 -->
     <div class="agents-footer">
-      <el-button type="primary" @click="handleAdd" :icon="Plus" style="width: 100%;">
+      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus" style="width: 100%;">
         添加智能体
       </el-button>
     </div>
+
+    <!-- 创建智能体选择对话框 -->
+    <CreateAgentDialog
+      v-model:visible="createDialogVisible"
+      @create-from-preset="handleCreateFromPreset"
+      @create-from-blank="handleCreateFromBlank"
+    />
 
     <!-- 智能体编辑对话框 -->
     <el-dialog

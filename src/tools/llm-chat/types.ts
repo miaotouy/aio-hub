@@ -222,3 +222,48 @@ export interface ChatAgent {
    */
   isBuiltIn?: boolean;
 }
+
+/**
+ * 智能体预设模板（从配置文件加载）
+ *
+ * 预设是一个智能体的模板，不包含具体的 profileId 和 modelId。
+ * 用户在创建智能体时，可以从预设中选择一个作为起点，然后指定使用的模型。
+ */
+export interface AgentPreset {
+  /**
+   * 预设的唯一标识符（通常为文件名）
+   */
+  id: string;
+
+  /**
+   * 预设名称（显示在UI上）
+   */
+  name: string;
+
+  /**
+   * 预设的简短描述
+   */
+  description: string;
+
+  /**
+   * 预设的图标（推荐使用 Emoji）
+   */
+  icon: string;
+
+  /**
+   * 预设消息序列
+   * 通常包含系统提示词和示例对话
+   */
+  presetMessages: ChatMessageNode[];
+
+  /**
+   * 默认的模型参数
+   */
+  parameters: LlmParameters;
+
+  /**
+   * 分类标签（可选）
+   * 用于在UI中进行分组和筛选
+   */
+  tags?: string[];
+}

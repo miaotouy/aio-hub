@@ -88,6 +88,11 @@ export function useDetachedChatArea() {
     return bus.requestAction('edit-message', { nodeId, newContent });
   };
 
+  const abortNode = (nodeId: string) => {
+    logger.info('代理中止节点生成操作', { nodeId });
+    return bus.requestAction('abort-node', { nodeId });
+  };
+
   // 4. 导出的计算属性
   const currentAgentId = computed(() => syncedAgent.value?.id);
   const currentModelId = computed(() => syncedAgent.value?.modelId);
@@ -112,5 +117,6 @@ export function useDetachedChatArea() {
     switchSibling,
     toggleEnabled,
     editMessage,
+    abortNode,
   };
 }

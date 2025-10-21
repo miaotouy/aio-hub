@@ -8,13 +8,13 @@ interface Props {
   messages: ChatMessageNode[];
   isSending: boolean;
 }
-
 interface Emits {
   (e: 'delete-message', messageId: string): void;
   (e: 'regenerate', messageId: string): void;
   (e: 'switch-sibling', nodeId: string, direction: 'prev' | 'next'): void;
   (e: 'toggle-enabled', nodeId: string): void;
   (e: 'edit-message', nodeId: string, newContent: string): void;
+  (e: 'abort-node', nodeId: string): void;
 }
 
 const props = defineProps<Props>();
@@ -67,6 +67,7 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           @toggle-enabled="emit('toggle-enabled', message.id)"
           @edit="(newContent) => emit('edit-message', message.id, newContent)"
           @copy="() => {}"
+          @abort="emit('abort-node', message.id)"
         />
       </div>
     </template>

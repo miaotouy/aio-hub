@@ -71,6 +71,9 @@ export function useLlmChatSync() {
       case 'edit-message':
         store.editMessage(params.nodeId, params.newContent);
         return Promise.resolve();
+      case 'abort-node':
+        store.abortNodeGeneration(params.nodeId);
+        return Promise.resolve();
       default:
         logger.warn('未知的操作请求', { action });
         return Promise.reject(new Error(`Unknown action: ${action}`));

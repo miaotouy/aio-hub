@@ -4,6 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { useLlmRequest } from '@/composables/useLlmRequest';
+import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useAgentStore } from './agentStore';
 import { useNodeManager } from './composables/useNodeManager';
 import { BranchNavigator } from './utils/BranchNavigator';
@@ -21,10 +22,12 @@ interface LlmChatState {
   currentSessionId: string | null;
   /** LLM 参数配置 */
   parameters: LlmParameters;
-  /** 是否正在发送消息 */
+  /** 是否正在发送消息（全局锁，防止用户输入新消息） */
   isSending: boolean;
-  /** 用于中止请求的控制器 */
-  abortController: AbortController | null;
+  /** 用于中止请求的控制器（按节点ID索引，支持并行生成） */
+  abortControllers: Map<string, AbortController>;
+  /** 正在生成的节点ID集合 */
+  generatingNodes: Set<string>;
 }
 
 export const useLlmChatStore = defineStore('llmChat', {
@@ -36,7 +39,8 @@ export const useLlmChatStore = defineStore('llmChat', {
       maxTokens: 4096,
     },
     isSending: false,
-    abortController: null,
+    abortControllers: new Map(),
+    generatingNodes: new Set(),
   }),
 
   getters: {
@@ -112,22 +116,29 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
-     * 判断节点是否在当前活动路径上
-     */
-    isNodeInActivePath: (state) => (nodeId: string): boolean => {
-      const session = state.sessions.find(s => s.id === state.currentSessionId);
-      if (!session) return false;
-
-      let currentId: string | null = session.activeLeafId;
-      while (currentId !== null) {
-        if (currentId === nodeId) return true;
-        const node: ChatMessageNode | undefined = session.nodes[currentId];
-        if (!node) break;
-        currentId = node.parentId;
-      }
-      return false;
-    },
-
+     /**
+      * 判断节点是否在当前活动路径上
+      */
+     isNodeInActivePath: (state) => (nodeId: string): boolean => {
+       const session = state.sessions.find(s => s.id === state.currentSessionId);
+       if (!session) return false;
+ 
+       let currentId: string | null = session.activeLeafId;
+       while (currentId !== null) {
+         if (currentId === nodeId) return true;
+         const node: ChatMessageNode | undefined = session.nodes[currentId];
+         if (!node) break;
+         currentId = node.parentId;
+       }
+       return false;
+     },
+ 
+     /**
+      * 判断某个节点是否正在生成
+      */
+     isNodeGenerating: (state) => (nodeId: string): boolean => {
+       return state.generatingNodes.has(nodeId);
+     },
     /**
      * 当前会话的消息数量（所有节点，包括禁用的）
      */
@@ -321,7 +332,6 @@ export const useLlmChatStore = defineStore('llmChat', {
       }
 
       this.isSending = true;
-      this.abortController = new AbortController();
 
       // 使用节点管理器创建消息对
       const nodeManager = useNodeManager();
@@ -331,8 +341,26 @@ export const useLlmChatStore = defineStore('llmChat', {
         session.activeLeafId
       );
 
+      // 获取模型信息用于元数据（在生成前就设置基本信息）
+      const { getProfileById } = useLlmProfiles();
+      const profile = getProfileById(agentConfig.profileId);
+      const model = profile?.models.find(m => m.id === agentConfig.modelId);
+
+      // 在生成开始时就设置基本的 metadata，以便 UI 可以显示模型信息
+      assistantNode.metadata = {
+        agentId: agentStore.currentAgentId,
+        profileId: agentConfig.profileId,
+        modelId: agentConfig.modelId,
+        modelName: model?.name || model?.id,
+      };
+
       // 更新活跃叶节点
       nodeManager.updateActiveLeaf(session, assistantNode.id);
+
+      // 创建节点级别的 AbortController
+      const abortController = new AbortController();
+      this.abortControllers.set(assistantNode.id, abortController);
+      this.generatingNodes.add(assistantNode.id);
 
       try {
         const { sendRequest } = useLlmRequest();
@@ -400,27 +428,28 @@ export const useLlmChatStore = defineStore('llmChat', {
           frequencyPenalty: agentConfig.parameters.frequencyPenalty,
           presencePenalty: agentConfig.parameters.presencePenalty,
           stream: true,
-          signal: this.abortController.signal,
+          signal: abortController.signal,
           onStream: (chunk: string) => {
             // 流式更新助手消息 - 通过 session 对象确保响应式更新
-            session.nodes[assistantNode.id].content += chunk;
+            const node = session.nodes[assistantNode.id];
+            if (node) {
+              node.content += chunk;
+            }
           },
         });
 
-        // 获取智能体信息用于元数据
-        const agent = agentStore.getAgentById(agentStore.currentAgentId);
-
-        // 更新最终内容和元数据
-        assistantNode.content = response.content;
-        assistantNode.status = 'complete';
-        assistantNode.metadata = {
-          agentId: agentStore.currentAgentId,
-          profileId: agentConfig.profileId,
-          modelId: agentConfig.modelId,
-          modelName: agent?.name,
-          usage: response.usage,
-          reasoningContent: response.reasoningContent,
-        };
+        // 更新最终内容和元数据（合并已有的 metadata）
+        // 通过 session.nodes 访问确保响应式更新
+        const finalNode = session.nodes[assistantNode.id];
+        if (finalNode) {
+          finalNode.content = response.content;
+          finalNode.status = 'complete';
+          finalNode.metadata = {
+            ...finalNode.metadata, // 保留生成前设置的基本信息
+            usage: response.usage,
+            reasoningContent: response.reasoningContent,
+          };
+        }
 
         // 更新会话中的智能体使用统计
         if (!session.agentUsage) {
@@ -439,41 +468,64 @@ export const useLlmChatStore = defineStore('llmChat', {
           usage: response.usage,
         });
       } catch (error) {
-        // 如果是中止错误，标记为取消
-        if (error instanceof Error && error.name === 'AbortError') {
-          assistantNode.status = 'error';
-          assistantNode.metadata = {
-            agentId: agentStore.currentAgentId,
-            error: '已取消',
-          };
-          logger.info('消息发送已取消', { sessionId: session.id });
-        } else {
-          // 其他错误
-          assistantNode.status = 'error';
-          assistantNode.metadata = {
-            agentId: agentStore.currentAgentId,
-            error: error instanceof Error ? error.message : String(error),
-          };
-          logger.error('消息发送失败', error as Error, {
-            sessionId: session.id,
-            agentId: agentStore.currentAgentId,
-          });
+        // 通过 session.nodes 访问确保响应式更新
+        const errorNode = session.nodes[assistantNode.id];
+        if (errorNode) {
+          // 如果是中止错误，标记为取消
+          if (error instanceof Error && error.name === 'AbortError') {
+            errorNode.status = 'error';
+            errorNode.metadata = {
+              agentId: agentStore.currentAgentId,
+              error: '已取消',
+            };
+            logger.info('消息发送已取消', { sessionId: session.id });
+          } else {
+            // 其他错误
+            errorNode.status = 'error';
+            errorNode.metadata = {
+              agentId: agentStore.currentAgentId,
+              error: error instanceof Error ? error.message : String(error),
+            };
+            logger.error('消息发送失败', error as Error, {
+              sessionId: session.id,
+              agentId: agentStore.currentAgentId,
+            });
+          }
         }
         this.persistSessions();
       } finally {
         this.isSending = false;
-        this.abortController = null;
+        // 清理节点级别的状态
+        this.abortControllers.delete(assistantNode.id);
+        this.generatingNodes.delete(assistantNode.id);
       }
     },
 
     /**
-     * 中止当前发送
+     * 中止当前发送（中止所有正在生成的节点）
      */
     abortSending(): void {
-      if (this.abortController) {
-        this.abortController.abort();
-        this.abortController = null;
-        logger.info('已中止消息发送');
+      if (this.abortControllers.size > 0) {
+        this.abortControllers.forEach((controller, nodeId) => {
+          controller.abort();
+          logger.info('已中止节点生成', { nodeId });
+        });
+        this.abortControllers.clear();
+        this.generatingNodes.clear();
+        logger.info('已中止所有消息发送');
+      }
+    },
+
+    /**
+     * 中止指定节点的生成
+     */
+    abortNodeGeneration(nodeId: string): void {
+      const controller = this.abortControllers.get(nodeId);
+      if (controller) {
+        controller.abort();
+        this.abortControllers.delete(nodeId);
+        this.generatingNodes.delete(nodeId);
+        logger.info('已中止节点生成', { nodeId });
       }
     },
 
@@ -488,10 +540,11 @@ export const useLlmChatStore = defineStore('llmChat', {
         return;
       }
 
-      if (this.isSending) {
-        logger.warn('重新生成失败：正在发送中', { sessionId: session.id });
-        return;
-      }
+      // 移除全局发送锁检查，允许并行生成多个分支
+      // if (this.isSending) {
+      //   logger.warn('重新生成失败：正在发送中', { sessionId: session.id });
+      //   return;
+      // }
 
       // 定位目标节点（要重新生成的助手消息）
       const targetNode = session.nodes[nodeId];
@@ -542,11 +595,26 @@ export const useLlmChatStore = defineStore('llmChat', {
         return;
       }
 
+      // 获取模型信息用于元数据（在生成前就设置基本信息）
+      const { getProfileById } = useLlmProfiles();
+      const profile = getProfileById(agentConfig.profileId);
+      const model = profile?.models.find(m => m.id === agentConfig.modelId);
+
+      // 在生成开始时就设置基本的 metadata，以便 UI 可以显示模型信息
+      assistantNode.metadata = {
+        agentId: agentStore.currentAgentId,
+        profileId: agentConfig.profileId,
+        modelId: agentConfig.modelId,
+        modelName: model?.name || model?.id,
+      };
+
       // 更新活跃叶节点
       nodeManager.updateActiveLeaf(session, assistantNode.id);
 
-      this.isSending = true;
-      this.abortController = new AbortController();
+      // 创建节点级别的 AbortController
+      const abortController = new AbortController();
+      this.abortControllers.set(assistantNode.id, abortController);
+      this.generatingNodes.add(assistantNode.id);
 
       try {
         const { sendRequest } = useLlmRequest();
@@ -618,7 +686,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           frequencyPenalty: agentConfig.parameters.frequencyPenalty,
           presencePenalty: agentConfig.parameters.presencePenalty,
           stream: enableStream,
-          signal: this.abortController.signal,
+          signal: abortController.signal,
           onStream: enableStream ? (chunk: string) => {
             // 流式更新 - 通过 session 对象确保响应式更新
             const node = session.nodes[assistantNode.id];
@@ -628,18 +696,18 @@ export const useLlmChatStore = defineStore('llmChat', {
           } : undefined,
         });
 
-        const agent = agentStore.getAgentById(agentStore.currentAgentId);
-
-        assistantNode.content = response.content;
-        assistantNode.status = 'complete';
-        assistantNode.metadata = {
-          agentId: agentStore.currentAgentId,
-          profileId: agentConfig.profileId,
-          modelId: agentConfig.modelId,
-          modelName: agent?.name,
-          usage: response.usage,
-          reasoningContent: response.reasoningContent,
-        };
+        // 更新最终内容和元数据（合并已有的 metadata）
+        // 通过 session.nodes 访问确保响应式更新
+        const finalNode = session.nodes[assistantNode.id];
+        if (finalNode) {
+          finalNode.content = response.content;
+          finalNode.status = 'complete';
+          finalNode.metadata = {
+            ...finalNode.metadata, // 保留生成前设置的基本信息
+            usage: response.usage,
+            reasoningContent: response.reasoningContent,
+          };
+        }
 
         // 更新会话中的智能体使用统计
         if (!session.agentUsage) {
@@ -659,28 +727,38 @@ export const useLlmChatStore = defineStore('llmChat', {
           usage: response.usage,
         });
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          assistantNode.status = 'error';
-          assistantNode.metadata = {
-            agentId: agentStore.currentAgentId,
-            error: '已取消',
-          };
-          logger.info('重新生成已取消', { sessionId: session.id });
-        } else {
-          assistantNode.status = 'error';
-          assistantNode.metadata = {
-            agentId: agentStore.currentAgentId,
-            error: error instanceof Error ? error.message : String(error),
-          };
-          logger.error('重新生成失败', error as Error, {
-            sessionId: session.id,
-            agentId: agentStore.currentAgentId,
-          });
+        // 通过 session.nodes 访问确保响应式更新
+        const errorNode = session.nodes[assistantNode.id];
+        if (errorNode) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            errorNode.status = 'error';
+            errorNode.metadata = {
+              agentId: agentStore.currentAgentId,
+              error: '已取消',
+            };
+            logger.info('重新生成已取消', { sessionId: session.id });
+          } else {
+            errorNode.status = 'error';
+            errorNode.metadata = {
+              agentId: agentStore.currentAgentId,
+              error: error instanceof Error ? error.message : String(error),
+            };
+            logger.error('重新生成失败', error as Error, {
+              sessionId: session.id,
+              agentId: agentStore.currentAgentId,
+            });
+          }
         }
         this.persistSessions();
       } finally {
-        this.isSending = false;
-        this.abortController = null;
+        // 清理节点级别的状态
+        this.abortControllers.delete(assistantNode.id);
+        this.generatingNodes.delete(assistantNode.id);
+        
+        // 如果没有其他节点在生成，则解除全局锁
+        if (this.generatingNodes.size === 0) {
+          this.isSending = false;
+        }
       }
     },
 

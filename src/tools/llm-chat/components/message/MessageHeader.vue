@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Loader2 } from 'lucide-vue-next';
 import type { ChatMessageNode } from '../../types';
 import { useAgentStore } from '../../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
@@ -22,15 +23,28 @@ const agent = computed(() => {
   return agentStore.getAgentById(agentId);
 });
 
-// 获取智能体使用的 Profile 和 Model 信息
+// 获取消息生成时使用的 Profile 和 Model 信息
 const agentProfileInfo = computed(() => {
-  const agentValue = agent.value;
-  if (!agentValue) return null;
+  const metadata = props.message.metadata;
+  if (!metadata) return null;
   
-  const profile = getProfileById(agentValue.profileId);
+  // 优先从消息元数据中读取 profileId 和 modelId
+  const profileId = metadata.profileId;
+  const modelId = metadata.modelId;
+  
+  // 如果元数据中没有，回退到从智能体读取（兼容旧消息）
+  const fallbackProfileId = agent.value?.profileId;
+  const fallbackModelId = agent.value?.modelId;
+  
+  const actualProfileId = profileId || fallbackProfileId;
+  const actualModelId = modelId || fallbackModelId;
+  
+  if (!actualProfileId || !actualModelId) return null;
+  
+  const profile = getProfileById(actualProfileId);
   if (!profile) return null;
   
-  const model = profile.models.find(m => m.id === agentValue.modelId);
+  const model = profile.models.find(m => m.id === actualModelId);
   if (!model) return null;
   
   // 获取模型图标
@@ -39,10 +53,13 @@ const agentProfileInfo = computed(() => {
   // 获取渠道图标（Profile 的 icon 或 logoUrl）
   const profileIcon = profile.icon || profile.logoUrl;
   
+  // 优先使用元数据中的模型名称，如果没有则使用 model 对象的名称
+  const displayModelName = metadata.modelName || model.name || model.id;
+  
   return {
     profileName: profile.name,
     profileIcon: profileIcon,
-    modelName: model.name || model.id,
+    modelName: displayModelName,
     modelIcon: modelIcon
   };
 });
@@ -125,6 +142,13 @@ const shouldShowSubtitle = computed(() => {
         </div>
       </div>
     </div>
+    
+    <!-- 生成状态指示器 -->
+    <div v-if="message.status === 'generating'" class="generating-indicator">
+      <Loader2 :size="14" class="spinning-icon" />
+      <span class="generating-text">生成中</span>
+    </div>
+    
     <span class="message-time">{{ formatTime(message.timestamp) }}</span>
   </div>
 </template>
@@ -212,8 +236,40 @@ const shouldShowSubtitle = computed(() => {
   opacity: 0.5;
 }
 
+.generating-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background-color: var(--primary-color);
+  color: white;
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.spinning-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.generating-text {
+  white-space: nowrap;
+}
+
 .message-time {
   color: var(--text-color-light);
   font-size: 12px;
+  flex-shrink: 0;
 }
 </style>

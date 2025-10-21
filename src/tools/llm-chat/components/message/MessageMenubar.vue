@@ -10,8 +10,10 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  XCircle,
 } from 'lucide-vue-next';
 import type { ChatMessageNode } from '../../types';
+import { useLlmChatStore } from '../../store';
 
 interface Props {
   message: ChatMessageNode;
@@ -27,10 +29,13 @@ interface Emits {
   (e: 'regenerate'): void;
   (e: 'toggle-enabled'): void;
   (e: 'switch', direction: 'prev' | 'next'): void;
+  (e: 'abort'): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const store = useLlmChatStore();
 
 // 复制状态
 const copied = ref(false);
@@ -39,6 +44,7 @@ const copied = ref(false);
 const isDisabled = computed(() => props.message.isEnabled === false);
 const isUserMessage = computed(() => props.message.role === 'user');
 const isAssistantMessage = computed(() => props.message.role === 'assistant');
+const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
 
 // 复制消息
 const copyMessage = async () => {
@@ -59,6 +65,7 @@ const handleEdit = () => emit('edit');
 const handleDelete = () => emit('delete');
 const handleRegenerate = () => emit('regenerate');
 const handleToggleEnabled = () => emit('toggle-enabled');
+const handleAbort = () => emit('abort');
 </script>
 
 <template>
@@ -98,45 +105,53 @@ const handleToggleEnabled = () => emit('toggle-enabled');
       <Copy v-else :size="16" />
     </button>
 
-    <!-- 编辑（用户和助手消息都可以） -->
+    <!-- 终止生成（仅在生成中显示） -->
     <button
-      v-if="isUserMessage || isAssistantMessage"
+      v-if="isGenerating"
+      class="menu-btn menu-btn-abort"
+      @click="handleAbort"
+      title="终止生成"
+    >
+      <XCircle :size="16" />
+    </button>
+
+    <!-- 编辑（用户和助手消息都可以，生成中不可编辑） -->
+    <button
+      v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
       class="menu-btn"
       @click="handleEdit"
-      :disabled="isSending"
       title="编辑"
     >
       <Edit :size="16" />
     </button>
 
-    <!-- 重新生成（仅助手消息） -->
+    <!-- 重新生成（仅助手消息，不禁用以支持并行生成） -->
     <button
       v-if="isAssistantMessage"
       class="menu-btn"
       @click="handleRegenerate"
-      :disabled="isSending"
       title="重新生成"
     >
       <RefreshCw :size="16" />
     </button>
 
-    <!-- 启用/禁用 -->
+    <!-- 启用/禁用（生成中不可切换） -->
     <button
+      v-if="!isGenerating"
       class="menu-btn"
       :class="{ 'menu-btn-highlight': isDisabled }"
       @click="handleToggleEnabled"
-      :disabled="isSending"
       :title="isDisabled ? '启用此消息' : '禁用此消息'"
     >
       <Eye v-if="isDisabled" :size="16" />
       <EyeOff v-else :size="16" />
     </button>
 
-    <!-- 删除 -->
+    <!-- 删除（生成中不可删除） -->
     <button
+      v-if="!isGenerating"
       class="menu-btn menu-btn-danger"
       @click="handleDelete"
-      :disabled="isSending"
       title="删除"
     >
       <Trash2 :size="16" />
@@ -230,5 +245,14 @@ const handleToggleEnabled = () => emit('toggle-enabled');
   background-color: var(--error-color);
   border-color: var(--error-color);
   color: white;
+}
+
+.menu-btn-abort {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.menu-btn-abort:hover {
+  opacity: 0.8;
 }
 </style>

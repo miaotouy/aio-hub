@@ -30,6 +30,7 @@ interface Emits {
   (e: "switch-sibling", nodeId: string, direction: 'prev' | 'next'): void;
   (e: "toggle-enabled", nodeId: string): void;
   (e: "edit-message", nodeId: string, newContent: string): void;
+  (e: "abort-node", nodeId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -203,6 +204,7 @@ let handleRegenerate = (messageId: string) => emit("regenerate", messageId);
 let handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => emit("switch-sibling", nodeId, direction);
 let handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
 let handleEditMessage = (nodeId: string, newContent: string) => emit("edit-message", nodeId, newContent);
+let handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
 
 if (props.isDetached) {
   const detached = useDetachedChatArea();
@@ -220,6 +222,7 @@ if (props.isDetached) {
   handleSwitchSibling = detached.switchSibling;
   handleToggleEnabled = detached.toggleEnabled;
   handleEditMessage = detached.editMessage;
+  handleAbortNode = detached.abortNode;
 
   logger.info("ChatArea 运行在分离模式");
 }
@@ -303,6 +306,7 @@ onMounted(() => {
           @switch-sibling="handleSwitchSibling"
           @toggle-enabled="handleToggleEnabled"
           @edit-message="handleEditMessage"
+          @abort-node="handleAbortNode"
         />
 
         <!-- 输入框 -->

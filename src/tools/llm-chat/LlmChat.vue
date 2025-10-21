@@ -152,6 +152,11 @@ const handleEditMessage = (nodeId: string, newContent: string) => {
   store.editMessage(nodeId, newContent);
 };
 
+// 处理中止单个节点的生成
+const handleAbortNode = (nodeId: string) => {
+  store.abortNodeGeneration(nodeId);
+};
+
 // 处理新建会话
 const handleNewSession = (data: { agentId: string; name?: string }) => {
   store.createSession(data.agentId, data.name);
@@ -242,6 +247,7 @@ const handleDeleteSession = (sessionId: string) => {
           @switch-sibling="handleSwitchSibling"
           @toggle-enabled="handleToggleEnabled"
           @edit-message="handleEditMessage"
+          @abort-node="handleAbortNode"
         />
 
         <!-- 分离后的占位提示 -->

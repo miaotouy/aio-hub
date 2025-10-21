@@ -19,6 +19,7 @@ interface Emits {
   (e: 'toggle-enabled'): void;
   (e: 'edit', newContent: string): void;
   (e: 'copy'): void;
+  (e: 'abort'): void;
 }
 
 const props = defineProps<Props>();
@@ -79,9 +80,9 @@ defineExpose({
       @cancel-edit="cancelEdit"
     />
 
-    <!-- 悬浮操作栏（非编辑和非生成状态时显示） -->
+    <!-- 悬浮操作栏（始终显示，除非正在编辑） -->
     <MessageMenubar
-      v-if="message.status !== 'generating' && !isEditing"
+      v-if="!isEditing"
       :message="message"
       :is-sending="isSending"
       :siblings="props.siblings"
@@ -92,6 +93,7 @@ defineExpose({
       @regenerate="emit('regenerate')"
       @toggle-enabled="emit('toggle-enabled')"
       @switch="(direction) => emit('switch-sibling', direction)"
+      @abort="emit('abort')"
     />
   </div>
 </template>

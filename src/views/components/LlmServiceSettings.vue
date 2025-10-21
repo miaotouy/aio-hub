@@ -563,10 +563,6 @@ const openProviderIconSelector = () => {
 }
 
 .model-list-container {
-  max-height: 600px; /* 设置最大高度，可根据实际情况调整 */
-  overflow-y: auto; /* 启用垂直滚动 */
   width: 100%;
-  padding-right: 8px; /* 留出滚动条空间 */
-  box-sizing: border-box;
 }
 </style>

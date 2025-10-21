@@ -103,12 +103,13 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
       </div>
     </div>
 
-    <div v-if="models.length === 0" class="list-empty">
-      <p>还没有添加任何模型</p>
-      <p class="hint">点击"手动添加"或"从 API 获取"来添加模型</p>
-    </div>
+    <div class="list-content">
+      <div v-if="models.length === 0" class="list-empty">
+        <p>还没有添加任何模型</p>
+        <p class="hint">点击"手动添加"或"从 API 获取"来添加模型</p>
+      </div>
 
-    <div v-else class="model-groups">
+      <div v-else class="model-groups">
       <div v-for="group in modelGroups" :key="group.name" class="model-group">
         <!-- 分组标题 -->
         <div class="group-header">
@@ -187,6 +188,7 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
           </div>
         </transition>
       </div>
+      </div>
     </div>
   </div>
 </template>
@@ -194,13 +196,25 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
 <style scoped>
 .model-list {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
 }
 
 .list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  padding-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.list-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: 4px;
 }
 
 .model-count {

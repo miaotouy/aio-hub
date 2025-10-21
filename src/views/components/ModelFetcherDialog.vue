@@ -110,7 +110,12 @@ const isGroupExpanded = (groupName: string): boolean => {
 };
 
 const handleConfirm = () => {
-  emit('add-models', selectedModels.value);
+  // 对选中的模型进行处理，使用格式化后的名称
+  const modelsToAdd = selectedModels.value.map(model => ({
+    ...model,
+    name: formatModelName(model.id)
+  }));
+  emit('add-models', modelsToAdd);
   closeDialog();
 };
 

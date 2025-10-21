@@ -1,17 +1,24 @@
 <template>
+  <!-- SVG 图标：渲染处理后的内容 -->
+  <span
+    v-if="isSvg && svgContent"
+    class="dynamic-icon"
+    v-html="svgContent"
+    v-bind="$attrs"
+  />
+  <!-- PNG 或其他图标：直接使用 img 标签 -->
   <img
-    v-if="src"
-    :src="src"
-    :class="{ 'invert-on-dark': shouldInvert }"
+    v-else-if="iconUrl"
+    :src="iconUrl"
+    class="dynamic-icon"
     @error="handleImageError"
     v-bind="$attrs"
   />
 </template>
 
 <script setup lang="ts">
-import { toRefs, computed } from "vue";
-import { useIconColorAnalyzer } from "../../composables/useIconColorAnalyzer";
-import { useTheme } from "../../composables/useTheme";
+import { toRefs, ref } from "vue";
+import { useThemeAwareIcon } from "../../composables/useThemeAwareIcon";
 
 const props = defineProps({
   src: {
@@ -21,35 +28,45 @@ const props = defineProps({
 });
 
 const { src } = toRefs(props);
-const { needsInversion } = useIconColorAnalyzer(src.value);
-const { isDark } = useTheme();
-
-// 计算是否应该反色：只有在暗色模式且图标需要反色时才反色
-const shouldInvert = computed(() => isDark.value && needsInversion.value);
+const { isSvg, svgContent, iconUrl } = useThemeAwareIcon(src);
 
 const FALLBACK_ICON_SRC = "/model-icons/openai.svg";
+const hasFailed = ref(false);
 
 const handleImageError = (e: Event) => {
   const img = e.target as HTMLImageElement;
   // 如果已经是兜底图标了还出错，那就直接隐藏，别无限循环了
-  if (img.src.includes(FALLBACK_ICON_SRC)) {
+  if (hasFailed.value || img.src.includes(FALLBACK_ICON_SRC)) {
     img.style.display = "none";
     return;
   }
   // 设置为兜底图标
+  hasFailed.value = true;
   img.src = FALLBACK_ICON_SRC;
 };
 </script>
 
 <style scoped>
-/* 默认情况下，图片正常显示 */
-img {
+/* 图标容器统一样式 */
+.dynamic-icon {
   display: inline-block;
   vertical-align: middle;
+  /* 使用主题文字颜色，让 currentColor 能够响应 */
+  color: var(--el-text-color-primary);
+  /* 确保容器本身也能继承父容器的尺寸 */
+  width: 100%;
+  height: 100%;
 }
 
-/* 单色图标在需要时反色 */
-img.invert-on-dark {
-  filter: invert(1);
+/* img 标签需要保持 object-fit */
+.dynamic-icon:where(img) {
+  object-fit: contain;
+}
+
+/* SVG 容器需要确保内部 SVG 继承尺寸 */
+.dynamic-icon:not(img) :deep(svg) {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 </style>

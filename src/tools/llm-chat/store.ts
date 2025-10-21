@@ -665,6 +665,94 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
+     * 编辑用户消息（非破坏性）
+     * 创建新节点并嫁接子树，旧节点保留
+     */
+    editUserMessage(nodeId: string, newContent: string): void {
+      const session = this.currentSession;
+      if (!session) {
+        logger.warn('编辑消息失败：没有活动会话');
+        return;
+      }
+
+      const oldNode = session.nodes[nodeId];
+      if (!oldNode) {
+        logger.warn('编辑消息失败：节点不存在', { sessionId: session.id, nodeId });
+        return;
+      }
+
+      if (oldNode.role !== 'user') {
+        logger.warn('编辑消息失败：只能编辑用户消息', {
+          sessionId: session.id,
+          nodeId,
+          role: oldNode.role
+        });
+        return;
+      }
+
+      const nodeManager = useNodeManager();
+
+      // 创建新的用户消息节点
+      const newNode = nodeManager.createNode({
+        role: 'user',
+        content: newContent,
+        parentId: oldNode.parentId,
+        status: 'complete',
+      });
+
+      // 添加到会话
+      nodeManager.addNodeToSession(session, newNode);
+
+      // 嫁接子节点到新节点
+      nodeManager.transferChildren(session, oldNode.id, newNode.id);
+
+      // 如果旧节点在当前活动路径上，切换到新分支
+      if (this.isNodeInActivePath(oldNode.id)) {
+        const newLeafId = BranchNavigator.findLeafOfBranch(session, newNode.id);
+        session.activeLeafId = newLeafId;
+      }
+
+      this.persistSessions();
+
+      logger.info('用户消息已编辑', {
+        sessionId: session.id,
+        oldNodeId: oldNode.id,
+        newNodeId: newNode.id,
+        contentLength: newContent.length,
+      });
+    },
+
+    /**
+     * 切换节点启用状态
+     */
+    toggleNodeEnabled(nodeId: string): void {
+      const session = this.currentSession;
+      if (!session) {
+        logger.warn('切换节点状态失败：没有活动会话');
+        return;
+      }
+
+      const node = session.nodes[nodeId];
+      if (!node) {
+        logger.warn('切换节点状态失败：节点不存在', { sessionId: session.id, nodeId });
+        return;
+      }
+
+      // 切换启用状态
+      const newState = !(node.isEnabled ?? true);
+      node.isEnabled = newState;
+
+      this.persistSessions();
+
+      logger.info('节点状态已切换', {
+        sessionId: session.id,
+        nodeId,
+        role: node.role,
+        isEnabled: newState,
+      });
+    },
+
+    /**
      * 更新参数配置
      */
     updateParameters(parameters: Partial<LlmParameters>): void {

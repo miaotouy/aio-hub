@@ -372,6 +372,49 @@ export function useNodeManager() {
     return descendants;
   };
 
+  /**
+   * 将某个节点的子节点嫁接到另一个节点
+   * 用于非破坏性编辑时转移子树
+   */
+  const transferChildren = (
+    session: ChatSession,
+    fromNodeId: string,
+    toNodeId: string
+  ): void => {
+    const fromNode = session.nodes[fromNodeId];
+    const toNode = session.nodes[toNodeId];
+
+    if (!fromNode || !toNode) {
+      logger.warn('嫁接子节点失败：源节点或目标节点不存在', {
+        sessionId: session.id,
+        fromNodeId,
+        toNodeId,
+      });
+      return;
+    }
+
+    // 转移子节点列表
+    toNode.childrenIds = [...fromNode.childrenIds];
+    
+    // 更新每个子节点的 parentId
+    toNode.childrenIds.forEach(childId => {
+      const child = session.nodes[childId];
+      if (child) {
+        child.parentId = toNode.id;
+      }
+    });
+
+    // 清空原节点的子节点列表
+    fromNode.childrenIds = [];
+
+    logger.debug('子节点嫁接成功', {
+      sessionId: session.id,
+      fromNodeId,
+      toNodeId,
+      transferredCount: toNode.childrenIds.length,
+    });
+  };
+
   return {
     generateNodeId,
     createNode,
@@ -384,5 +427,6 @@ export function useNodeManager() {
     validateNodeIntegrity,
     getNodePath,
     getAllDescendants,
+    transferChildren,
   };
 }

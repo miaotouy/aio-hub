@@ -78,6 +78,16 @@ export function useDetachedChatArea() {
     return bus.requestAction('switch-sibling', { nodeId, direction });
   };
 
+  const toggleEnabled = (nodeId: string) => {
+    logger.info('代理切换节点启用状态操作', { nodeId });
+    return bus.requestAction('toggle-enabled', { nodeId });
+  };
+
+  const editMessage = (nodeId: string, newContent: string) => {
+    logger.info('代理编辑消息操作', { nodeId, contentLength: newContent.length });
+    return bus.requestAction('edit-message', { nodeId, newContent });
+  };
+
   // 4. 导出的计算属性
   const currentAgentId = computed(() => syncedAgent.value?.id);
   const currentModelId = computed(() => syncedAgent.value?.modelId);
@@ -100,5 +110,7 @@ export function useDetachedChatArea() {
     deleteMessage,
     regenerateLastMessage,
     switchSibling,
+    toggleEnabled,
+    editMessage,
   };
 }

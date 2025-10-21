@@ -65,6 +65,12 @@ export function useLlmChatSync() {
       case 'switch-sibling':
         store.switchToSiblingBranch(params.nodeId, params.direction);
         return Promise.resolve();
+      case 'toggle-enabled':
+        store.toggleNodeEnabled(params.nodeId);
+        return Promise.resolve();
+      case 'edit-message':
+        store.editUserMessage(params.nodeId, params.newContent);
+        return Promise.resolve();
       default:
         logger.warn('未知的操作请求', { action });
         return Promise.reject(new Error(`Unknown action: ${action}`));

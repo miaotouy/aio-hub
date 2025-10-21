@@ -149,6 +149,16 @@ const handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => {
   store.switchToSiblingBranch(nodeId, direction);
 };
 
+// 处理切换节点启用状态
+const handleToggleEnabled = (nodeId: string) => {
+  store.toggleNodeEnabled(nodeId);
+};
+
+// 处理编辑消息
+const handleEditMessage = (nodeId: string, newContent: string) => {
+  store.editUserMessage(nodeId, newContent);
+};
+
 // 处理新建会话
 const handleNewSession = (data: { agentId: string; name?: string }) => {
   store.createSession(data.agentId, data.name);
@@ -335,6 +345,8 @@ const handleUpdateModelId = (modelId: string) => {
           @delete-message="handleDeleteMessage"
           @regenerate="handleRegenerate"
           @switch-sibling="handleSwitchSibling"
+          @toggle-enabled="handleToggleEnabled"
+          @edit-message="handleEditMessage"
         />
 
         <!-- 分离后的占位提示 -->

@@ -12,6 +12,8 @@ interface Emits {
   (e: 'delete-message', messageId: string): void;
   (e: 'regenerate', messageId: string): void;
   (e: 'switch-sibling', nodeId: string, direction: 'prev' | 'next'): void;
+  (e: 'toggle-enabled', nodeId: string): void;
+  (e: 'edit-message', nodeId: string, newContent: string): void;
 }
 
 const props = defineProps<Props>();
@@ -43,6 +45,30 @@ const toggleReasoning = (messageId: string) => {
   } else {
     expandedReasoning.value.add(messageId);
   }
+};
+
+// 编辑状态
+const editingMessageId = ref<string | null>(null);
+const editingContent = ref('');
+
+// 开始编辑消息
+const startEdit = (messageId: string, currentContent: string) => {
+  editingMessageId.value = messageId;
+  editingContent.value = currentContent;
+};
+
+// 保存编辑
+const saveEdit = (messageId: string) => {
+  if (editingContent.value.trim()) {
+    emit('edit-message', messageId, editingContent.value);
+  }
+  cancelEdit();
+};
+
+// 取消编辑
+const cancelEdit = () => {
+  editingMessageId.value = null;
+  editingContent.value = '';
 };
 
 // 自动滚动到底部
@@ -84,7 +110,11 @@ const copyMessage = async (content: string) => {
     <div
       v-for="message in messages"
       :key="message.id"
-      :class="['message-item', `message-${message.role}`]"
+      :class="[
+        'message-item',
+        `message-${message.role}`,
+        { 'is-disabled': message.isEnabled === false }
+      ]"
     >
       <div class="message-header">
         <span class="message-role">
@@ -137,12 +167,34 @@ const copyMessage = async (content: string) => {
       </div>
 
       <div class="message-content">
-        <pre v-if="message.content" class="message-text">{{ message.content }}</pre>
-        <div v-if="message.status === 'generating'" class="streaming-indicator">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
+        <!-- 编辑模式 -->
+        <div v-if="editingMessageId === message.id" class="edit-mode">
+          <textarea
+            v-model="editingContent"
+            class="edit-textarea"
+            rows="3"
+            @keydown.ctrl.enter="saveEdit(message.id)"
+            @keydown.esc="cancelEdit"
+          />
+          <div class="edit-actions">
+            <button @click="saveEdit(message.id)" class="edit-btn edit-btn-save">
+              保存 (Ctrl+Enter)
+            </button>
+            <button @click="cancelEdit" class="edit-btn edit-btn-cancel">
+              取消 (Esc)
+            </button>
+          </div>
         </div>
+        
+        <!-- 正常显示模式 -->
+        <template v-else>
+          <pre v-if="message.content" class="message-text">{{ message.content }}</pre>
+          <div v-if="message.status === 'generating'" class="streaming-indicator">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        </template>
       </div>
 
       <!-- 元数据 -->
@@ -159,13 +211,22 @@ const copyMessage = async (content: string) => {
       </div>
 
       <!-- 操作按钮 -->
-      <div v-if="message.status !== 'generating'" class="message-actions">
+      <div v-if="message.status !== 'generating' && editingMessageId !== message.id" class="message-actions">
         <button
           @click="copyMessage(message.content)"
           class="action-btn"
           title="复制"
         >
           📋
+        </button>
+        <button
+          v-if="message.role === 'user'"
+          @click="startEdit(message.id, message.content)"
+          class="action-btn"
+          :disabled="isSending"
+          title="编辑"
+        >
+          ✏️
         </button>
         <button
           v-if="message.role === 'assistant'"
@@ -175,6 +236,15 @@ const copyMessage = async (content: string) => {
           title="重新生成"
         >
           🔄
+        </button>
+        <button
+          @click="emit('toggle-enabled', message.id)"
+          class="action-btn"
+          :class="{ 'action-btn-enabled': message.isEnabled === false }"
+          :disabled="isSending"
+          :title="message.isEnabled === false ? '启用此消息' : '禁用此消息'"
+        >
+          {{ message.isEnabled === false ? '👁️' : '🚫' }}
         </button>
         <button
           @click="emit('delete-message', message.id)"
@@ -217,6 +287,15 @@ const copyMessage = async (content: string) => {
 
 .message-item:hover {
   border-color: var(--primary-color);
+}
+
+/* 禁用状态样式 */
+.message-item.is-disabled {
+  opacity: 0.5;
+}
+
+.message-item.is-disabled .message-text {
+  color: var(--text-color-light);
 }
 
 .message-header {
@@ -344,6 +423,76 @@ const copyMessage = async (content: string) => {
   color: white;
 }
 
+.action-btn-enabled {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.action-btn-enabled:hover:not(:disabled) {
+  background-color: var(--primary-color);
+  opacity: 0.8;
+}
+
+/* 编辑模式样式 */
+.edit-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.edit-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.edit-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.edit-btn-save {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.edit-btn-save:hover {
+  opacity: 0.9;
+}
+
+.edit-btn-cancel:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--primary-color);
+}
+
 /* 自定义滚动条 */
 .message-list::-webkit-scrollbar {
   width: 8px;
@@ -431,6 +580,7 @@ const copyMessage = async (content: string) => {
   font-size: 13px;
   line-height: 1.5;
   opacity: 0.85;
+}
 
 /* 分支指示器样式 */
 .branch-indicator {
@@ -473,6 +623,5 @@ const copyMessage = async (content: string) => {
   text-align: center;
   font-size: 11px;
   font-weight: 600;
-}
 }
 </style>

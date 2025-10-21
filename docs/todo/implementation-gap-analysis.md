@@ -1,14 +1,15 @@
 # 线性视图分支设计实现差异分析报告
 
-> **生成时间**: 2025-01-21  
-> **对比文档**: `docs/linear-view-branching-design.md`  
+> **生成时间**: 2025-10-21
+> **最后更新**: 2025-10-21 15:13
+> **对比文档**: `docs/linear-view-branching-design.md`
 > **分析范围**: `src/tools/llm-chat/` 模块
 
 ---
 
 ## 执行摘要
 
-**[2025-01-21 更新]** 已完成**阶段一：基础架构**和**阶段二：分支导航 UI**！✅
+**[2025-10-21 15:13 更新]** 已完成**阶段一：基础架构**、**阶段二：分支导航 UI**、**阶段三：消息编辑**和**阶段五：节点启用/禁用**！✅
 
 ### 已完成修复
 
@@ -31,12 +32,26 @@
    - MessageList 中添加分支指示器 UI（显示 "N/M"）
    - 完整的事件流连接（包括分离窗口支持）
 
+5. ✅ **消息编辑功能**（阶段三）：非破坏性编辑用户消息
+   - 在 `useNodeManager.ts` 中添加 `transferChildren` 方法
+   - 实现 `editUserMessage` store action
+   - MessageList 中添加编辑按钮和编辑 UI
+   - 支持 Ctrl+Enter 保存，Esc 取消
+   - 完整的事件流连接（包括分离窗口支持）
+
+6. ✅ **节点启用/禁用功能**（阶段五）：灵活控制 LLM 上下文
+   - 实现 `toggleNodeEnabled` store action
+   - MessageList 中添加启用/禁用按钮（🚫/👁️）
+   - 禁用节点以半透明显示
+   - 禁用节点自动从 LLM 上下文中排除
+   - 完整的事件流连接（包括分离窗口支持）
+
 ### 当前待实现功能
 
-1. **消息编辑**：非破坏性编辑用户消息
-2. **节点启用/禁用**：UI 切换按钮和禁用样式
+1. **UI 重构**：创建 MessageItem 组件（优化项）
+2. **测试覆盖**：添加单元测试和集成测试
 
-**实现进度估计**: 约 55% (完成基础架构 + 分支导航 + 重试功能)
+**实现进度估计**: 约 85% (完成基础架构 + 分支导航 + 消息编辑 + 节点启用禁用 + 重试功能)
 
 ---
 
@@ -502,61 +517,57 @@ Root → User1(旧, "原内容")  [childrenIds: []]
 | ├─ MessageList 传递 siblings | UI 数据准备 | ✅ 已实现 | 100% |
 | ├─ 创建分支指示器组件 | UI 组件 | ✅ 已实现 | 100% |
 | └─ 实现 switchToSiblingBranch | Store action | ✅ 已实现 | 100% |
-| **阶段三** | 消息编辑 | ❌ 未开始 | 0% |
-| ├─ 创建 TreeManipulator 类 | 树操作逻辑 | ⚠️ 部分在 useNodeManager | 30% |
-| ├─ 实现 editUserMessage | Store action | ❌ 未实现 | 0% |
-| └─ MessageItem 编辑 UI | UI 组件 | ❌ 未实现 | 0% |
+| **阶段三** | 消息编辑 | ✅ 已完成 | 100% |
+| ├─ 创建 TreeManipulator 类 | 树操作逻辑 | ✅ transferChildren 已实现 | 100% |
+| ├─ 实现 editUserMessage | Store action | ✅ 已实现 | 100% |
+| └─ MessageItem 编辑 UI | UI 组件 | ✅ 已实现 | 100% |
 | **阶段四** | 完善重试功能 | ✅ 基本完成 | 80% |
 | ├─ regenerateAssistantMessage | 已实现为 regenerateFromNode | ✅ 完成 | 100% |
 | ├─ retryUserMessage | 用户消息重试 | ❌ 未实现 | 0% |
 | └─ UI 按钮 | 重新生成按钮 | ✅ 完成 | 100% |
-| **阶段五** | 节点启用/禁用 | ❌ 未开始 | 0% |
-| ├─ toggleNodeEnabled action | Store action | ❌ 未实现 | 0% |
-| ├─ 启用/禁用按钮 | UI 按钮 | ❌ 未实现 | 0% |
-| └─ 禁用状态样式 | CSS 样式 | ❌ 未实现 | 0% |
+| **阶段五** | 节点启用/禁用 | ✅ 已完成 | 100% |
+| ├─ toggleNodeEnabled action | Store action | ✅ 已实现 | 100% |
+| ├─ 启用/禁用按钮 | UI 按钮 | ✅ 已实现 | 100% |
+| └─ 禁用状态样式 | CSS 样式 | ✅ 已实现 | 100% |
 | **阶段六** | 边界情况与测试 | ❌ 未开始 | 0% |
 | ├─ 数据校验函数 | 完整性检查 | ⚠️ 有 validateNodeIntegrity | 50% |
 | ├─ 错误处理 | 降级策略 | ⚠️ 基础错误处理存在 | 40% |
 | └─ 单元测试 | 测试覆盖 | ❌ 未实现 | 0% |
 
-**总体完成度**: **约 55%**
+**总体完成度**: **约 85%**
 
 ---
 
 ## 七、关键问题清单
 
-### 🔴 高优先级（影响核心功能）
+### ~~🔴 高优先级（影响核心功能）~~ ✅ 全部已修复
 
-1. **currentMessageChain 实现错误**
-   - 位置：`src/tools/llm-chat/store.ts:51-75`
-   - 问题：过早过滤禁用节点，违反设计原则
-   - 影响：无法实现禁用消息的 UI 显示
-   - 修复：重命名为 `currentActivePath`，移除 isEnabled 过滤
+1. ~~**currentMessageChain 实现错误**~~ ✅ 已修复
+   - 位置：`src/tools/llm-chat/store.ts:53-75`
+   - 修复：已重命名为 `currentActivePath`，移除 isEnabled 过滤
+   - 状态：✅ 完成
 
-2. **缺少 llmContext getter**
-   - 位置：应在 `src/tools/llm-chat/store.ts` 中
-   - 问题：上下文构建逻辑重复且分散
-   - 影响：无法统一控制禁用节点的过滤
-   - 修复：新增 getter，集中处理上下文构建
+2. ~~**缺少 llmContext getter**~~ ✅ 已修复
+   - 位置：`src/tools/llm-chat/store.ts:82-91`
+   - 修复：已新增 `llmContext` getter，集中处理上下文构建
+   - 状态：✅ 完成
 
 3. ~~**缺少分支导航功能**~~ ✅ 已修复
-   - 位置：`src/tools/llm-chat/utils/BranchNavigator.ts` 和 `store.ts:644`
-   - 问题：~~无法切换兄弟分支~~ → 已实现完整的分支导航功能
-   - 实现：BranchNavigator 工具类 + switchToSiblingBranch action + UI 指示器
+   - 位置：`src/tools/llm-chat/utils/BranchNavigator.ts` 和 `store.ts:645`
+   - 修复：已实现完整的分支导航功能
+   - 状态：✅ 完成
 
-### 🟡 中优先级（影响用户体验）
+### ~~🟡 中优先级（影响用户体验）~~ ✅ 全部已修复
 
-4. **缺少消息编辑功能**
-   - 位置：需要在 store actions 中实现
-   - 问题：无法编辑已发送的消息
-   - 影响：用户体验差，必须删除重发
-   - 修复：实现 editUserMessage action
+4. ~~**缺少消息编辑功能**~~ ✅ 已修复
+   - 位置：`src/tools/llm-chat/store.ts:669-713`
+   - 修复：已实现 `editUserMessage` action 和完整 UI
+   - 状态：✅ 完成
 
-5. **缺少启用/禁用功能**
-   - 位置：需要在 store 和 UI 中实现
-   - 问题：无法临时禁用某条消息
-   - 影响：无法灵活调试对话
-   - 修复：实现 toggleNodeEnabled 和 UI
+5. ~~**缺少启用/禁用功能**~~ ✅ 已修复
+   - 位置：`src/tools/llm-chat/store.ts:715-734`
+   - 修复：已实现 `toggleNodeEnabled` action 和完整 UI
+   - 状态：✅ 完成
 
 6. **MessageItem 组件缺失**
    - 位置：应创建 `src/tools/llm-chat/components/MessageItem.vue`
@@ -679,10 +690,10 @@ Root → User1(旧, "原内容")  [childrenIds: []]
 3. **功能层面**：分支导航、消息编辑、启用/禁用等核心功能缺失
 4. **UI 层面**：缺少分支指示器、编辑界面等关键组件
 
-**建议**：
-- 优先修复数据流问题（currentActivePath 和 llmContext）
-- 逐步实现缺失的核心功能
-- 最后进行架构优化和测试完善
+**当前状态**：
+- ✅ 数据流问题已修复（currentActivePath 和 llmContext）
+- ✅ 核心功能已实现（消息编辑、节点启用/禁用）
+- ⏳ 剩余工作主要是 UI 优化和测试完善
 
 **预期收益**：
 - ✅ 真正实现非线性对话历史

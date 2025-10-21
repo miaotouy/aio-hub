@@ -595,7 +595,7 @@ export const callGeminiApi = async (
       } catch {
         // 忽略非 JSON 数据
       }
-    });
+    }, undefined, options.signal);
 
     return {
       content: fullContent,

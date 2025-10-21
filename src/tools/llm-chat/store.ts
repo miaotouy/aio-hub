@@ -494,10 +494,14 @@ export const useLlmChatStore = defineStore('llmChat', {
         }
         this.persistSessions();
       } finally {
-        this.isSending = false;
         // 清理节点级别的状态
         this.abortControllers.delete(assistantNode.id);
         this.generatingNodes.delete(assistantNode.id);
+
+        // 如果没有其他节点在生成，则解除全局锁
+        if (this.generatingNodes.size === 0) {
+          this.isSending = false;
+        }
       }
     },
 
@@ -517,18 +521,18 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
-     * 中止指定节点的生成
-     */
-    abortNodeGeneration(nodeId: string): void {
-      const controller = this.abortControllers.get(nodeId);
-      if (controller) {
-        controller.abort();
-        this.abortControllers.delete(nodeId);
-        this.generatingNodes.delete(nodeId);
-        logger.info('已中止节点生成', { nodeId });
-      }
-    },
-
+     /**
+      * 中止指定节点的生成
+      */
+     abortNodeGeneration(nodeId: string): void {
+       const controller = this.abortControllers.get(nodeId);
+       if (controller) {
+         controller.abort();
+         this.abortControllers.delete(nodeId);
+         this.generatingNodes.delete(nodeId);
+         logger.info('已中止节点生成', { nodeId });
+       }
+     },
     /**
      * 从指定节点重新生成（创建新分支）
      * 这是实现树形对话历史的核心功能

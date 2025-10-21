@@ -215,7 +215,7 @@ export const callOpenAiResponsesApi = async (
       } catch (e) {
         // 忽略解析错误，可能是非 JSON 数据
       }
-    });
+    }, undefined, options.signal);
 
     return {
       content: fullContent,

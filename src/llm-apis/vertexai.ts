@@ -457,7 +457,7 @@ async function callVertexAiGemini(
       } catch {
         // 忽略非 JSON 数据
       }
-    });
+    }, undefined, options.signal);
 
     return {
       content: fullContent,
@@ -651,7 +651,7 @@ async function callVertexAiClaude(
       } catch (parseError) {
         logger.warn("解析 Claude 流数据失败", { data, error: parseError });
       }
-    });
+    }, undefined, options.signal);
 
     return {
       content: fullContent,

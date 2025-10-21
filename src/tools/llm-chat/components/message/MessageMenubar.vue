@@ -65,7 +65,14 @@ const handleEdit = () => emit('edit');
 const handleDelete = () => emit('delete');
 const handleRegenerate = () => emit('regenerate');
 const handleToggleEnabled = () => emit('toggle-enabled');
-const handleAbort = () => emit('abort');
+const handleAbort = () => {
+  console.log('[MessageMenubar] 停止按钮点击', {
+    nodeId: props.message.id,
+    role: props.message.role,
+    isGenerating: isGenerating.value
+  });
+  emit('abort');
+};
 </script>
 
 <template>

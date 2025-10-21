@@ -18,17 +18,25 @@ export interface SSEEvent {
  * @param reader ReadableStreamDefaultReader
  * @param onChunk 接收到数据块时的回调
  * @param onError 发生错误时的回调
+ * @param signal AbortSignal 用于取消流读取
  */
 export async function parseSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onChunk: (chunk: string) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const decoder = new TextDecoder();
   let buffer = '';
 
   try {
     while (true) {
+      // 检查是否被中止
+      if (signal?.aborted) {
+        await reader.cancel();
+        throw new DOMException('The operation was aborted.', 'AbortError');
+      }
+      
       const { done, value } = await reader.read();
       
       if (done) {

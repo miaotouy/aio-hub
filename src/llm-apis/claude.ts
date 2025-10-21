@@ -314,7 +314,8 @@ const convertToolChoice = (
  */
 const parseClaudeSSE = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<{
   fullContent: string;
   usage?: LlmResponse["usage"];
@@ -416,7 +417,7 @@ const parseClaudeSSE = async (
     } catch (parseError) {
       logger.warn("解析流数据失败", { data, error: parseError });
     }
-  });
+  }, undefined, signal);
 
   return {
     fullContent,
@@ -536,7 +537,7 @@ export const callClaudeApi = async (
     }
 
     const reader = response.body.getReader();
-    const result = await parseClaudeSSE(reader, options.onStream);
+    const result = await parseClaudeSSE(reader, options.onStream, options.signal);
 
     return {
       content: result.fullContent,

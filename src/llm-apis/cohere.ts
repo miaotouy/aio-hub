@@ -114,7 +114,7 @@ export const callCohereApi = async (
         fullContent += text;
         options.onStream!(text);
       }
-    });
+    }, undefined, options.signal);
 
     return {
       content: fullContent,

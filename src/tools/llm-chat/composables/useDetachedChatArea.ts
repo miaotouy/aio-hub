@@ -73,6 +73,11 @@ export function useDetachedChatArea() {
     return bus.requestAction('delete-message', { messageId });
   };
 
+  const switchSibling = (nodeId: string, direction: 'prev' | 'next') => {
+    logger.info('代理切换兄弟分支操作', { nodeId, direction });
+    return bus.requestAction('switch-sibling', { nodeId, direction });
+  };
+
   // 4. 导出的计算属性
   const currentAgentId = computed(() => syncedAgent.value?.id);
   const currentModelId = computed(() => syncedAgent.value?.modelId);
@@ -94,5 +99,6 @@ export function useDetachedChatArea() {
     abortSending,
     deleteMessage,
     regenerateLastMessage,
+    switchSibling,
   };
 }

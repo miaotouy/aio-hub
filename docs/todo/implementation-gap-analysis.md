@@ -8,30 +8,35 @@
 
 ## 执行摘要
 
-**[2025-01-21 更新]** 已完成**阶段一：基础架构**的核心修复！✅
+**[2025-01-21 更新]** 已完成**阶段一：基础架构**和**阶段二：分支导航 UI**！✅
 
 ### 已完成修复
 
-1. ✅ **数据流修复**：重构 getter，实现职责分离
+1. ✅ **数据流修复**（阶段一）：重构 getter，实现职责分离
    - `currentMessageChain` → `currentActivePath`（移除 isEnabled 过滤）
    - 新增 `llmContext` getter（专门用于 LLM 请求）
    - 新增 `getSiblings` 和 `isNodeInActivePath` 辅助 getter
 
-2. ✅ **上下文构建优化**：统一了 LLM 请求的上下文构建逻辑
+2. ✅ **上下文构建优化**（阶段一）：统一了 LLM 请求的上下文构建逻辑
    - `sendMessage` 和 `regenerateFromNode` 都使用新的 `llmContext`
    - 减少了重复代码，提高了可维护性
 
-3. ✅ **设计原则落地**：
+3. ✅ **设计原则落地**（阶段一）：
    - `activeLeafId` 决定"看哪条分支"
    - `isEnabled` 决定"这条分支上的哪句话要被 AI 忽略"
 
+4. ✅ **分支导航功能**（阶段二）：完整实现分支切换
+   - 创建 `BranchNavigator` 工具类，提供分支导航能力
+   - 实现 `switchToSiblingBranch` store action
+   - MessageList 中添加分支指示器 UI（显示 "N/M"）
+   - 完整的事件流连接（包括分离窗口支持）
+
 ### 当前待实现功能
 
-1. **分支导航 UI**：分支指示器、兄弟分支切换
-2. **消息编辑**：非破坏性编辑用户消息
-3. **节点启用/禁用**：UI 切换按钮和禁用样式
+1. **消息编辑**：非破坏性编辑用户消息
+2. **节点启用/禁用**：UI 切换按钮和禁用样式
 
-**实现进度估计**: 约 45% (完成基础架构 + 重试功能)
+**实现进度估计**: 约 55% (完成基础架构 + 分支导航 + 重试功能)
 
 ---
 
@@ -42,7 +47,7 @@
 | 文档要求 | 实际状态 | 影响 |
 |---------|---------|------|
 | `PathResolver` 类 | ❌ 不存在 | 路径解析逻辑散落在 store 和 composable 中 |
-| `BranchNavigator` 类 | ❌ 不存在 | 无法实现分支切换功能 |
+| `BranchNavigator` 类 | ✅ 已实现 | 已创建独立工具类 `src/tools/llm-chat/utils/BranchNavigator.ts` |
 | `ContextBuilder` 类 | ❌ 不存在 | 上下文构建逻辑与路径解析混杂 |
 | `TreeManipulator` 类 | ⚠️ 部分实现 | 功能散落在 `useNodeManager.ts` 中 |
 
@@ -212,7 +217,7 @@ for (let i = 0; i < messageChain.length - 1; i++) {
 | `sendMessage` | ✅ 已实现 | 基础功能完整 |
 | `regenerateAssistantMessage` | ✅ 已实现 | 名为 `regenerateFromNode` |
 | `editUserMessage` | ❌ 不存在 | **无法编辑用户消息** |
-| `switchToSiblingBranch` | ❌ 不存在 | **无法切换分支** |
+| `switchToSiblingBranch` | ✅ 已实现 | 已实现在 `store.ts:644` |
 | `toggleNodeEnabled` | ❌ 不存在 | **无法禁用/启用节点** |
 
 ### 3.2 缺失功能详解
@@ -288,12 +293,15 @@ switchToSiblingBranch(nodeId: string, direction: 'prev' | 'next'): void {
 }
 ```
 
-**实际状态**：❌ 完全不存在
+**实际状态**：✅ 已实现
 
-**影响**：
-- 用户无法在多个重新生成的版本间切换
-- 只能看到最新的版本，旧版本完全隐藏
-- 树形对话历史的核心价值无法体现
+**实现位置**：`src/tools/llm-chat/store.ts:644-667`
+
+**已完成**：
+- ✅ 创建 BranchNavigator 工具类提供分支导航能力
+- ✅ 实现 switchToSiblingBranch action
+- ✅ 完整的事件流连接（主窗口和分离窗口）
+- ✅ UI 分支指示器显示当前位置
 
 #### 3.2.3 启用/禁用节点 (toggleNodeEnabled)
 
@@ -347,7 +355,7 @@ interface MessageListProps {
 interface MessageListEmits {
   'delete-message': (nodeId: string) => void;     // ✅ 已实现
   'regenerate': (nodeId: string) => void;         // ✅ 已实现
-  'switch-sibling': (nodeId: string, direction: 'prev' | 'next') => void;  // ❌ 不存在
+  'switch-sibling': (nodeId: string, direction: 'prev' | 'next') => void;  // ✅ 已实现
   'toggle-enabled': (nodeId: string) => void;     // ❌ 不存在
   'edit-message': (nodeId: string, newContent: string) => void;  // ❌ 不存在
 }
@@ -385,7 +393,9 @@ interface MessageListEmits {
 **实际状态**：
 - `MessageItem.vue` 组件完全不存在
 - 所有消息渲染逻辑都在 `MessageList.vue` 的 `v-for` 循环中
-- 缺少分支指示器、编辑功能、启用/禁用按钮
+- ✅ 分支指示器已在 MessageList 中实现
+- ❌ 缺少编辑功能
+- ❌ 缺少启用/禁用按钮
 
 ### 4.4 样式规则缺失
 
@@ -407,8 +417,8 @@ interface MessageListEmits {
 ```
 
 **实际状态**：
-- 无禁用状态的视觉反馈
-- 无分支切换的 UI
+- ❌ 无禁用状态的视觉反馈
+- ✅ 分支指示器已实现（显示 "N/M" 和左右箭头按钮）
 
 ---
 
@@ -487,11 +497,11 @@ Root → User1(旧, "原内容")  [childrenIds: []]
 | ├─ 新增 `llmContext` getter | 专门用于上下文构建 | ✅ 已完成 | 100% |
 | ├─ 修改 `sendMessage` | 使用 llmContext | ✅ 已完成 | 100% |
 | └─ 新增 `getSiblings` getter | 获取兄弟节点 | ✅ 已完成 | 100% |
-| **阶段二** | 分支导航 UI | ❌ 未开始 | 0% |
-| ├─ 创建 BranchNavigator 类 | 分支导航逻辑 | ❌ 未实现 | 0% |
-| ├─ MessageList 传递 siblings | UI 数据准备 | ❌ 未实现 | 0% |
-| ├─ 创建分支指示器组件 | UI 组件 | ❌ 未实现 | 0% |
-| └─ 实现 switchToSiblingBranch | Store action | ❌ 未实现 | 0% |
+| **阶段二** | 分支导航 UI | ✅ 已完成 | 100% |
+| ├─ 创建 BranchNavigator 类 | 分支导航逻辑 | ✅ 已实现 | 100% |
+| ├─ MessageList 传递 siblings | UI 数据准备 | ✅ 已实现 | 100% |
+| ├─ 创建分支指示器组件 | UI 组件 | ✅ 已实现 | 100% |
+| └─ 实现 switchToSiblingBranch | Store action | ✅ 已实现 | 100% |
 | **阶段三** | 消息编辑 | ❌ 未开始 | 0% |
 | ├─ 创建 TreeManipulator 类 | 树操作逻辑 | ⚠️ 部分在 useNodeManager | 30% |
 | ├─ 实现 editUserMessage | Store action | ❌ 未实现 | 0% |
@@ -509,7 +519,7 @@ Root → User1(旧, "原内容")  [childrenIds: []]
 | ├─ 错误处理 | 降级策略 | ⚠️ 基础错误处理存在 | 40% |
 | └─ 单元测试 | 测试覆盖 | ❌ 未实现 | 0% |
 
-**总体完成度**: **约 30%**
+**总体完成度**: **约 55%**
 
 ---
 
@@ -529,11 +539,10 @@ Root → User1(旧, "原内容")  [childrenIds: []]
    - 影响：无法统一控制禁用节点的过滤
    - 修复：新增 getter，集中处理上下文构建
 
-3. **缺少分支导航功能**
-   - 位置：需要在 store 和 UI 中实现
-   - 问题：无法切换兄弟分支
-   - 影响：树形历史的核心价值无法体现
-   - 修复：实现 BranchNavigator 和相关 UI
+3. ~~**缺少分支导航功能**~~ ✅ 已修复
+   - 位置：`src/tools/llm-chat/utils/BranchNavigator.ts` 和 `store.ts:644`
+   - 问题：~~无法切换兄弟分支~~ → 已实现完整的分支导航功能
+   - 实现：BranchNavigator 工具类 + switchToSiblingBranch action + UI 指示器
 
 ### 🟡 中优先级（影响用户体验）
 
@@ -603,11 +612,11 @@ Root → User1(旧, "原内容")  [childrenIds: []]
 
 **目标**：实现分支导航和消息编辑
 
-1. **实现分支导航**
-   - 创建 `getSiblings` getter
-   - 实现 `switchToSiblingBranch` action
-   - 添加分支指示器 UI
-   - 添加左右切换按钮
+1. ~~**实现分支导航**~~ ✅ 已完成
+   - ✅ 创建 `getSiblings` getter
+   - ✅ 实现 `switchToSiblingBranch` action
+   - ✅ 添加分支指示器 UI
+   - ✅ 添加左右切换按钮
 
 2. **实现消息编辑**
    - 实现 `editUserMessage` action
@@ -625,7 +634,7 @@ Root → User1(旧, "原内容")  [childrenIds: []]
 
 1. **重构工具类**
    - 提取 PathResolver
-   - 提取 BranchNavigator
+   - ✅ BranchNavigator 已独立
    - 提取 ContextBuilder
    - 完善 TreeManipulator
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import type { ChatMessageNode } from '../types';
+import { useLlmChatStore } from '../store';
 
 interface Props {
   messages: ChatMessageNode[];
@@ -10,10 +11,25 @@ interface Props {
 interface Emits {
   (e: 'delete-message', messageId: string): void;
   (e: 'regenerate', messageId: string): void;
+  (e: 'switch-sibling', nodeId: string, direction: 'prev' | 'next'): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const store = useLlmChatStore();
+
+// 为每条消息计算兄弟节点信息
+const getMessageSiblings = (messageId: string) => {
+  const siblings = store.getSiblings(messageId);
+  const currentIndex = siblings.findIndex(s => s.id === messageId);
+  return {
+    siblings,
+    currentIndex,
+    total: siblings.length,
+    hasSiblings: siblings.length > 1,
+  };
+};
 
 const messagesContainer = ref<HTMLElement>();
 
@@ -74,6 +90,33 @@ const copyMessage = async (content: string) => {
         <span class="message-role">
           {{ message.role === 'user' ? '👤 你' : '🤖 助手' }}
         </span>
+        
+        <!-- 分支指示器 -->
+        <div
+          v-if="getMessageSiblings(message.id).hasSiblings"
+          class="branch-indicator"
+        >
+          <button
+            @click="emit('switch-sibling', message.id, 'prev')"
+            class="branch-nav-btn"
+            title="上一个分支"
+            :disabled="isSending"
+          >
+            ←
+          </button>
+          <span class="branch-count">
+            {{ getMessageSiblings(message.id).currentIndex + 1 }} / {{ getMessageSiblings(message.id).total }}
+          </span>
+          <button
+            @click="emit('switch-sibling', message.id, 'next')"
+            class="branch-nav-btn"
+            title="下一个分支"
+            :disabled="isSending"
+          >
+            →
+          </button>
+        </div>
+        
         <span class="message-time">{{ formatTime(message.timestamp) }}</span>
       </div>
 
@@ -388,5 +431,48 @@ const copyMessage = async (content: string) => {
   font-size: 13px;
   line-height: 1.5;
   opacity: 0.85;
+
+/* 分支指示器样式 */
+.branch-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.branch-nav-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: background-color 0.2s;
+}
+
+.branch-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.branch-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.branch-count {
+  min-width: 40px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+}
 }
 </style>

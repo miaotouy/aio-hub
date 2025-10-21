@@ -6,6 +6,7 @@ import { defineStore } from 'pinia';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAgentStore } from './agentStore';
 import { useNodeManager } from './composables/useNodeManager';
+import { BranchNavigator } from './utils/BranchNavigator';
 import type { ChatSession, ChatMessageNode, LlmParameters } from './types';
 import type { LlmMessageContent } from '@/llm-apis/common';
 import { createModuleLogger } from '@utils/logger';
@@ -635,6 +636,31 @@ export const useLlmChatStore = defineStore('llmChat', {
       
       if (success) {
         this.persistSessions();
+      }
+    },
+
+    /**
+     * 切换到兄弟分支
+     */
+    switchToSiblingBranch(nodeId: string, direction: 'prev' | 'next'): void {
+      const session = this.currentSession;
+      if (!session) {
+        logger.warn('切换兄弟分支失败：没有活动会话');
+        return;
+      }
+
+      const newLeafId = BranchNavigator.switchToSibling(session, nodeId, direction);
+      
+      if (newLeafId !== session.activeLeafId) {
+        session.activeLeafId = newLeafId;
+        this.persistSessions();
+        
+        logger.info('已切换到兄弟分支', {
+          sessionId: session.id,
+          fromNode: nodeId,
+          toLeaf: newLeafId,
+          direction,
+        });
       }
     },
 

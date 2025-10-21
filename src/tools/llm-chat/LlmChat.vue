@@ -144,6 +144,11 @@ const handleDeleteMessage = (messageId: string) => {
   store.deleteMessage(messageId);
 };
 
+// 处理切换兄弟分支
+const handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => {
+  store.switchToSiblingBranch(nodeId, direction);
+};
+
 // 处理新建会话
 const handleNewSession = (data: { agentId: string; name?: string }) => {
   store.createSession(data.agentId, data.name);
@@ -329,6 +334,7 @@ const handleUpdateModelId = (modelId: string) => {
           @abort="handleAbortSending"
           @delete-message="handleDeleteMessage"
           @regenerate="handleRegenerate"
+          @switch-sibling="handleSwitchSibling"
         />
 
         <!-- 分离后的占位提示 -->

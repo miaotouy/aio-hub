@@ -27,6 +27,7 @@ interface Emits {
   (e: "abort"): void;
   (e: "delete-message", messageId: string): void;
   (e: "regenerate", messageId: string): void;
+  (e: "switch-sibling", nodeId: string, direction: 'prev' | 'next'): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -197,6 +198,7 @@ let handleSendMessage = (content: string) => emit("send", content);
 let handleAbort = () => emit("abort");
 let handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
 let handleRegenerate = (messageId: string) => emit("regenerate", messageId);
+let handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => emit("switch-sibling", nodeId, direction);
 
 if (props.isDetached) {
   const detached = useDetachedChatArea();
@@ -211,6 +213,7 @@ if (props.isDetached) {
   handleAbort = detached.abortSending;
   handleDeleteMessage = detached.deleteMessage;
   handleRegenerate = detached.regenerateLastMessage;
+  handleSwitchSibling = detached.switchSibling;
 
   logger.info("ChatArea 运行在分离模式");
 }
@@ -282,6 +285,7 @@ onMounted(() => {
           :is-sending="finalIsSending"
           @delete-message="handleDeleteMessage"
           @regenerate="handleRegenerate"
+          @switch-sibling="handleSwitchSibling"
         />
 
         <!-- 输入框 -->

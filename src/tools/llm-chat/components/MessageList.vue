@@ -2,7 +2,7 @@
 import { ref, watch, nextTick } from 'vue';
 import type { ChatMessageNode } from '../types';
 import { useLlmChatStore } from '../store';
-import MessageItem from './MessageItem.vue';
+import ChatMessage from './ChatMessage.vue';
 
 interface Props {
   messages: ChatMessageNode[];
@@ -53,20 +53,22 @@ watch(() => props.messages, scrollToBottom, { deep: true });
       <p>👋 开始新的对话吧！</p>
     </div>
 
-    <MessageItem
-      v-for="message in messages"
-      :key="message.id"
-      :message="message"
-      :is-sending="isSending"
-      :siblings="getMessageSiblings(message.id).siblings"
-      :current-sibling-index="getMessageSiblings(message.id).currentIndex"
-      @delete="emit('delete-message', message.id)"
-      @regenerate="emit('regenerate', message.id)"
-      @switch-sibling="(direction) => emit('switch-sibling', message.id, direction)"
-      @toggle-enabled="emit('toggle-enabled', message.id)"
-      @edit="(newContent) => emit('edit-message', message.id, newContent)"
-      @copy="() => {}"
-    />
+    <template v-for="message in messages" :key="message.id">
+      <div class="message-wrapper">
+        <ChatMessage
+          :message="message"
+          :is-sending="isSending"
+          :siblings="getMessageSiblings(message.id).siblings"
+          :current-sibling-index="getMessageSiblings(message.id).currentIndex"
+          @delete="emit('delete-message', message.id)"
+          @regenerate="emit('regenerate', message.id)"
+          @switch-sibling="(direction) => emit('switch-sibling', message.id, direction)"
+          @toggle-enabled="emit('toggle-enabled', message.id)"
+          @edit="(newContent) => emit('edit-message', message.id, newContent)"
+          @copy="() => {}"
+        />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -79,6 +81,12 @@ watch(() => props.messages, scrollToBottom, { deep: true });
   flex-direction: column;
   gap: 16px;
   clip-path: inset(0); /* 优化滚动渲染 */
+}
+
+.message-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .empty-state {

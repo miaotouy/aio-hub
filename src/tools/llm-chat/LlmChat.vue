@@ -93,8 +93,8 @@ const isChatAreaDetached = computed(() => isDetached("chat-area"));
 
 // 组件挂载时加载会话和智能体
 onMounted(async () => {
-  agentStore.loadAgents();
-  store.loadSessions();
+  await agentStore.loadAgents();
+  await store.loadSessions();
 
   // 初始化统一的分离窗口管理器
   await initialize();

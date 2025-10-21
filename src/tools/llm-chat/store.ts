@@ -7,6 +7,7 @@ import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAgentStore } from './agentStore';
 import { useNodeManager } from './composables/useNodeManager';
 import { BranchNavigator } from './utils/BranchNavigator';
+import { useChatStorage } from './composables/useChatStorage';
 import type { ChatSession, ChatMessageNode, LlmParameters } from './types';
 import type { LlmMessageContent } from '@/llm-apis/common';
 import { createModuleLogger } from '@utils/logger';
@@ -833,62 +834,36 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
-     * 持久化会话到 localStorage
+     * 持久化会话到文件
      */
     persistSessions(): void {
-      try {
-        localStorage.setItem('llm-chat-sessions', JSON.stringify(this.sessions));
-        localStorage.setItem('llm-chat-current-session-id', this.currentSessionId || '');
-      } catch (error) {
+      const { saveSessions } = useChatStorage();
+      saveSessions(this.sessions, this.currentSessionId).catch(error => {
         logger.error('持久化会话失败', error as Error, {
           sessionCount: this.sessions.length,
         });
-      }
+      });
     },
 
     /**
-     * 从 localStorage 加载会话
-     */
-    loadSessions(): void {
-      try {
-        const stored = localStorage.getItem('llm-chat-sessions');
-        if (stored) {
-          const parsedSessions = JSON.parse(stored) as ChatSession[];
-          
-          // 验证数据格式：检查是否是新的树形结构
-          const isValidFormat = parsedSessions.every(
-            session =>
-              session.nodes !== undefined &&
-              session.rootNodeId !== undefined &&
-              session.activeLeafId !== undefined
-          );
-
-          if (isValidFormat) {
-            this.sessions = parsedSessions;
-            logger.info('加载会话成功', { sessionCount: this.sessions.length });
-          } else {
-            // 旧格式数据，清空并提示
-            logger.warn('检测到旧格式的会话数据，已清空', {
-              oldSessionCount: parsedSessions.length
-            });
-            this.sessions = [];
-            this.currentSessionId = null;
-            this.persistSessions(); // 清空 localStorage
-            return;
-          }
-        }
-
-        const currentId = localStorage.getItem('llm-chat-current-session-id');
-        if (currentId && this.sessions.find(s => s.id === currentId)) {
-          this.currentSessionId = currentId;
-        }
-      } catch (error) {
-        logger.error('加载会话失败', error as Error);
-        this.sessions = [];
-        this.currentSessionId = null;
-      }
-    },
-
+     /**
+      * 从文件加载会话
+      */
+     async loadSessions(): Promise<void> {
+       try {
+         const { loadSessions } = useChatStorage();
+         const { sessions, currentSessionId } = await loadSessions();
+         
+         this.sessions = sessions;
+         this.currentSessionId = currentSessionId;
+         
+         logger.info('加载会话成功', { sessionCount: this.sessions.length });
+       } catch (error) {
+         logger.error('加载会话失败', error as Error);
+         this.sessions = [];
+         this.currentSessionId = null;
+       }
+     },
     /**
      * 导出当前会话为 Markdown
      */

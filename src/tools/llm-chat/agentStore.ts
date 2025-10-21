@@ -4,6 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
+import { useAgentStorage } from './composables/useAgentStorage';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import { createModuleLogger } from '@utils/logger';
 
@@ -152,26 +153,27 @@ export const useAgentStore = defineStore('llmChatAgent', {
     },
 
     /**
-     * 持久化智能体到 localStorage
+     * 持久化智能体到文件
      */
     persistAgents(): void {
-      try {
-        localStorage.setItem('llm-chat-agents', JSON.stringify(this.agents));
-      } catch (error) {
+      const { saveAgents } = useAgentStorage();
+      saveAgents(this.agents).catch(error => {
         logger.error('持久化智能体失败', error as Error, {
           agentCount: this.agents.length,
         });
-      }
+      });
     },
 
     /**
-     * 从 localStorage 加载智能体
+     * 从文件加载智能体
      */
-    loadAgents(): void {
+    async loadAgents(): Promise<void> {
       try {
-        const stored = localStorage.getItem('llm-chat-agents');
-        if (stored) {
-          this.agents = JSON.parse(stored) as ChatAgent[];
+        const { loadAgents } = useAgentStorage();
+        const agents = await loadAgents();
+        
+        if (agents.length > 0) {
+          this.agents = agents;
           logger.info('加载智能体成功', { agentCount: this.agents.length });
         } else {
           // 首次加载，创建默认智能体

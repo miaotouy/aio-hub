@@ -300,10 +300,6 @@ async function handleExport() {
   }
 }
 
-// 关闭对话框
-function handleClose() {
-  emit('close')
-}
 
 // 监听配置变化并通知父组件
 watch(

@@ -359,16 +359,6 @@ function handleToggleEnabled(_index: number) {
   // 状态已经通过 v-model 自动更新
 }
 
-/**
- * 关闭对话框
- */
-function handleDialogClose() {
-  editForm.value = {
-    role: 'system',
-    content: '',
-  };
-  editingIndex.value = -1;
-}
 
 /**
  * 导出预设消息

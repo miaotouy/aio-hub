@@ -23,7 +23,7 @@ export function useLlmChatSync() {
   const chatMessages = computed(() => store.currentActivePath);
   const chatSession = computed(() => store.currentSession);
   const chatAgent = computed(() => {
-    const agentId = store.currentSession?.currentAgentId;
+    const agentId = store.currentSession?.displayAgentId;
     return agentId ? agentStore.getAgentById(agentId) : null;
   });
   const chatParameters = computed(() => {

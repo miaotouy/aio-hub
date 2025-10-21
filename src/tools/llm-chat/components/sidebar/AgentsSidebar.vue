@@ -6,8 +6,8 @@ import { Plus, Edit, Delete, MoreFilled } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { customMessage } from '@/utils/customMessage';
 import type { ChatAgent, ChatMessageNode } from '../../types';
-import CreateAgentDialog from './CreateAgentDialog.vue';
-import EditAgentDialog from './EditAgentDialog.vue';
+import CreateAgentDialog from '../agent/CreateAgentDialog.vue';
+import EditAgentDialog from '../agent/EditAgentDialog.vue';
 import type { AgentPreset } from '../../types';
 
 const agentStore = useAgentStore();

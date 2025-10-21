@@ -149,7 +149,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       // 从活跃叶节点向上遍历，找到第一个助手消息
       while (currentId !== null) {
-        const node = session.nodes[currentId];
+        const node: ChatMessageNode = session.nodes[currentId];
         if (!node) break;
 
         // 找到第一个助手角色的消息

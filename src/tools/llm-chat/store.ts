@@ -402,8 +402,8 @@ export const useLlmChatStore = defineStore('llmChat', {
           stream: true,
           signal: this.abortController.signal,
           onStream: (chunk: string) => {
-            // 流式更新助手消息
-            assistantNode.content += chunk;
+            // 流式更新助手消息 - 通过 session 对象确保响应式更新
+            session.nodes[assistantNode.id].content += chunk;
           },
         });
 
@@ -620,7 +620,11 @@ export const useLlmChatStore = defineStore('llmChat', {
           stream: enableStream,
           signal: this.abortController.signal,
           onStream: enableStream ? (chunk: string) => {
-            session.nodes[assistantNode.id].content += chunk;
+            // 流式更新 - 通过 session 对象确保响应式更新
+            const node = session.nodes[assistantNode.id];
+            if (node) {
+              node.content += chunk;
+            }
           } : undefined,
         });
 

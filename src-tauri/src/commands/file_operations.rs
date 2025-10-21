@@ -836,3 +836,98 @@ pub fn validate_file_for_link(source_path: String, target_dir: String, link_type
         exists: true,
     })
 }
+
+// Tauri 命令：保存上传的文件到应用数据目录
+#[tauri::command]
+pub async fn save_uploaded_file(
+    app: AppHandle,
+    file_data: Vec<u8>,
+    filename: String,
+    subdirectory: String,
+) -> Result<String, String> {
+    use tauri::Manager;
+    
+    // 获取应用数据目录
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    
+    // 创建子目录路径
+    let target_dir = app_data_dir.join(&subdirectory);
+    
+    // 确保目录存在
+    if !target_dir.exists() {
+        fs::create_dir_all(&target_dir)
+            .map_err(|e| format!("创建目录失败: {}", e))?;
+    }
+    
+    // 构建目标文件路径
+    let target_file = target_dir.join(&filename);
+    
+    // 写入文件
+    fs::write(&target_file, &file_data)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+    
+    // 返回相对于应用数据目录的路径
+    let relative_path = target_file.strip_prefix(&app_data_dir)
+        .map_err(|e| format!("生成相对路径失败: {}", e))?;
+    
+    Ok(relative_path.to_string_lossy().to_string())
+}
+
+// Tauri 命令：从应用数据目录复制文件
+#[tauri::command]
+pub async fn copy_file_to_app_data(
+    app: AppHandle,
+    source_path: String,
+    subdirectory: String,
+    new_filename: Option<String>,
+) -> Result<String, String> {
+    use tauri::Manager;
+    
+    let source = PathBuf::from(&source_path);
+    
+    // 检查源文件是否存在
+    if !source.exists() {
+        return Err(format!("源文件不存在: {}", source_path));
+    }
+    
+    if !source.is_file() {
+        return Err(format!("源路径不是文件: {}", source_path));
+    }
+    
+    // 获取应用数据目录
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    
+    // 创建子目录路径
+    let target_dir = app_data_dir.join(&subdirectory);
+    
+    // 确保目录存在
+    if !target_dir.exists() {
+        fs::create_dir_all(&target_dir)
+            .map_err(|e| format!("创建目录失败: {}", e))?;
+    }
+    
+    // 确定目标文件名
+    let filename = new_filename.unwrap_or_else(|| {
+        source.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string()
+    });
+    
+    // 构建目标文件路径
+    let target_file = target_dir.join(&filename);
+    
+    // 复制文件
+    fs::copy(&source, &target_file)
+        .map_err(|e| format!("复制文件失败: {}", e))?;
+    
+    // 返回相对于应用数据目录的路径
+    let relative_path = target_file.strip_prefix(&app_data_dir)
+        .map_err(|e| format!("生成相对路径失败: {}", e))?;
+    
+    Ok(relative_path.to_string_lossy().to_string())
+}

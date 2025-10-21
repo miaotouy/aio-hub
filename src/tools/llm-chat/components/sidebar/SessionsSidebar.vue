@@ -123,9 +123,16 @@ const handleMenuCommand = (command: 'delete', session: ChatSession) => {
         <div class="session-content">
           <div class="session-title">
             <el-tooltip v-if="getSessionDisplayAgent(session)" :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`" placement="top" :show-after="500">
-              <span class="agent-icon">
-                {{ getSessionDisplayAgent(session)?.icon }}
-              </span>
+              <div class="agent-icon">
+                <img
+                  v-if="getSessionDisplayAgent(session)?.icon?.startsWith('/') || getSessionDisplayAgent(session)?.icon?.startsWith('appdata://') || getSessionDisplayAgent(session)?.icon?.startsWith('http')"
+                  :src="getSessionDisplayAgent(session)?.icon?.startsWith('appdata://') ? getSessionDisplayAgent(session)?.icon?.replace('appdata://', '/') : getSessionDisplayAgent(session)?.icon"
+                  :alt="getSessionDisplayAgent(session)?.name"
+                  class="icon-image"
+                  @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
+                />
+                <span v-else class="icon-emoji">{{ getSessionDisplayAgent(session)?.icon }}</span>
+              </div>
             </el-tooltip>
             <span class="title-text">{{ session.name }}</span>
           </div>
@@ -250,8 +257,26 @@ const handleMenuCommand = (command: 'delete', session: ChatSession) => {
 }
 
 .agent-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  font-size: 16px;
+  overflow: hidden;
+  border-radius: 4px;
+  background-color: var(--container-bg);
+  border: 1px solid var(--border-color);
+}
+
+.icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.icon-emoji {
+  font-size: 14px;
   line-height: 1;
 }
 

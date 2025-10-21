@@ -266,7 +266,16 @@ onMounted(() => {
       <!-- 智能体和模型信息 -->
       <div class="agent-model-info">
         <div v-if="currentAgent" class="agent-info">
-          <span class="agent-icon">{{ currentAgent.icon || "🤖" }}</span>
+          <div class="agent-icon">
+            <img
+              v-if="currentAgent.icon && (currentAgent.icon.startsWith('/') || currentAgent.icon.startsWith('appdata://') || currentAgent.icon.startsWith('http'))"
+              :src="currentAgent.icon.startsWith('appdata://') ? currentAgent.icon.replace('appdata://', '/') : currentAgent.icon"
+              :alt="currentAgent.name"
+              class="icon-image"
+              @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
+            />
+            <span v-else class="icon-emoji">{{ currentAgent.icon || "🤖" }}</span>
+          </div>
           <span class="agent-name">{{ currentAgent.name }}</span>
         </div>
         <div v-if="currentModel" class="model-info">
@@ -390,9 +399,27 @@ onMounted(() => {
 }
 
 .agent-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: var(--container-bg);
+  border: 1px solid var(--border-color);
+}
+
+.icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.icon-emoji {
   font-size: 18px;
   line-height: 1;
-  flex-shrink: 0;
 }
 
 .agent-name {

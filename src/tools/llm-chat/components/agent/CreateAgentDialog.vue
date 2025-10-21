@@ -86,7 +86,14 @@ const getCategoryLabel = (category: string | 'all') => {
               @click="handleCreateFromPreset(preset)"
             >
               <div class="preset-icon">
-                <span>{{ preset.icon }}</span>
+                <img
+                  v-if="preset.icon && (preset.icon.startsWith('/') || preset.icon.startsWith('appdata://') || preset.icon.startsWith('http'))"
+                  :src="preset.icon.startsWith('appdata://') ? preset.icon.replace('appdata://', '/') : preset.icon"
+                  :alt="preset.name"
+                  class="preset-icon-image"
+                  @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
+                />
+                <span v-else class="preset-icon-emoji">{{ preset.icon }}</span>
               </div>
               <div class="preset-info">
                 <div class="preset-name">{{ preset.name }}</div>
@@ -202,6 +209,17 @@ const getCategoryLabel = (category: string | 'all') => {
   border-radius: 6px;
   overflow: hidden;
   font-size: 24px;
+}
+
+.preset-icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preset-icon-emoji {
+  font-size: 24px;
+  line-height: 1;
 }
 .preset-info {
   flex: 1;

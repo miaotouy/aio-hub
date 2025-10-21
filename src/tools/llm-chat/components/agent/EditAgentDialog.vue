@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { reactive, watch, ref } from 'vue';
 import { customMessage } from '@/utils/customMessage';
 import type { ChatAgent, ChatMessageNode } from '../../types';
 import AgentPresetEditor from './AgentPresetEditor.vue';
 import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
 import BaseDialog from '@/components/common/BaseDialog.vue';
+import IconPresetSelector from '@/components/common/IconPresetSelector.vue';
+import { PRESET_ICONS, PRESET_ICONS_DIR } from '@/config/preset-icons';
+import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
+import { Picture, Upload, RefreshLeft } from '@element-plus/icons-vue';
 
 interface Props {
   visible: boolean;
@@ -44,6 +49,12 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+
+// 预设图标对话框
+const showPresetIconDialog = ref(false);
+
+// 图像上传中状态
+const isUploadingImage = ref(false);
 
 // 编辑表单
 const editForm = reactive({
@@ -141,6 +152,62 @@ const handleSave = () => {
 
   handleClose();
 };
+
+// 打开预设图标选择器
+const openPresetIconSelector = () => {
+  showPresetIconDialog.value = true;
+};
+
+// 选择预设图标
+const selectPresetIcon = (icon: any) => {
+  const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
+  editForm.icon = iconPath;
+  showPresetIconDialog.value = false;
+  customMessage.success('已选择预设图标');
+};
+
+// 上传自定义图像
+const uploadCustomImage = async () => {
+  try {
+    // 打开文件选择对话框
+    const selected = await open({
+      multiple: false,
+      filters: [{
+        name: '图像文件',
+        extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico']
+      }]
+    });
+
+    if (!selected) return;
+
+    isUploadingImage.value = true;
+
+    // 从路径中提取文件名
+    const fileName = selected.split(/[/\\]/).pop() || 'agent-icon.png';
+    
+    // 将文件保存到应用数据目录
+    const savedPath = await invoke<string>('copy_file_to_app_data', {
+      sourcePath: selected,
+      subdirectory: 'agent-icons',
+      newFilename: `${Date.now()}-${fileName}`
+    });
+
+    // 使用相对路径（应用会自动解析为应用数据目录下的路径）
+    editForm.icon = `appdata://${savedPath}`;
+    customMessage.success('图像上传成功');
+  } catch (error) {
+    console.error('上传图像失败:', error);
+    customMessage.error(`上传图像失败: ${error}`);
+  } finally {
+    isUploadingImage.value = false;
+  }
+};
+
+// 清除图标
+const clearIcon = () => {
+  editForm.icon = '🤖';
+  customMessage.info('已重置为默认图标');
+};
 </script>
 <template>
   <BaseDialog
@@ -158,7 +225,42 @@ const handleSave = () => {
       </el-form-item>
 
       <el-form-item label="图标">
-        <el-input v-model="editForm.icon" placeholder="输入 emoji 图标" maxlength="2" style="width: 120px;" />
+        <div class="icon-input-group">
+          <el-input
+            v-model="editForm.icon"
+            placeholder="输入 emoji、路径或选择图像"
+            class="icon-input"
+          >
+            <template #prepend>
+              <div class="icon-preview">
+                <img
+                  v-if="editForm.icon && (editForm.icon.startsWith('/') || editForm.icon.startsWith('appdata://') || editForm.icon.startsWith('http'))"
+                  :src="editForm.icon.startsWith('appdata://') ? editForm.icon.replace('appdata://', '/') : editForm.icon"
+                  alt="图标预览"
+                  class="preview-image"
+                  @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
+                />
+                <span v-else class="preview-emoji">{{ editForm.icon || '🤖' }}</span>
+              </div>
+            </template>
+            <template #append>
+              <el-button-group>
+                <el-button @click="openPresetIconSelector" title="选择预设图标">
+                  <el-icon><Picture /></el-icon>
+                </el-button>
+                <el-button @click="uploadCustomImage" :loading="isUploadingImage" title="上传自定义图像">
+                  <el-icon><Upload /></el-icon>
+                </el-button>
+                <el-button @click="clearIcon" title="重置为默认">
+                  <el-icon><RefreshLeft /></el-icon>
+                </el-button>
+              </el-button-group>
+            </template>
+          </el-input>
+        </div>
+        <div class="form-hint">
+          可以输入 emoji、从预设选择、上传图像或输入绝对路径
+        </div>
       </el-form-item>
 
       <el-form-item label="描述">
@@ -214,9 +316,61 @@ const handleSave = () => {
         {{ mode === 'edit' ? '保存' : '创建' }}
       </el-button>
     </template>
+
+    <!-- 预设图标选择对话框 -->
+    <BaseDialog
+      :visible="showPresetIconDialog"
+      @update:visible="showPresetIconDialog = $event"
+      title="选择预设图标"
+      width="80%"
+      height="70vh"
+    >
+      <template #content>
+        <IconPresetSelector
+          :icons="PRESET_ICONS"
+          :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
+          show-search
+          show-categories
+          @select="selectPresetIcon"
+        />
+      </template>
+    </BaseDialog>
   </BaseDialog>
 </template>
 
 <style scoped>
-/* 🎉 不需要任何样式覆盖！BaseDialog 自动处理所有布局和滚动 */
+/* Icon input group */
+.icon-input-group {
+  width: 100%;
+}
+
+.icon-input {
+  width: 100%;
+}
+
+.icon-preview {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preview-emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-top: 8px;
+}
 </style>

@@ -185,7 +185,19 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
 <template>
   <div class="parameters-sidebar-content">
     <div class="section-header">
-      <h4 v-if="currentAgent">{{ currentAgent.icon }} {{ currentAgent.name }}</h4>
+      <div v-if="currentAgent" class="agent-header">
+        <div class="agent-icon">
+          <img
+            v-if="currentAgent.icon && (currentAgent.icon.startsWith('/') || currentAgent.icon.startsWith('appdata://') || currentAgent.icon.startsWith('http'))"
+            :src="currentAgent.icon.startsWith('appdata://') ? currentAgent.icon.replace('appdata://', '/') : currentAgent.icon"
+            :alt="currentAgent.name"
+            class="icon-image"
+            @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <span v-else class="icon-emoji">{{ currentAgent.icon || '🤖' }}</span>
+        </div>
+        <h4>{{ currentAgent.name }}</h4>
+      </div>
       <h4 v-else>⚙️ 参数配置</h4>
     </div>
 
@@ -367,6 +379,36 @@ const toggleSection = (section: "modelParams" | "systemPrompt") => {
   font-size: 16px;
   color: var(--text-color);
   font-weight: 600;
+}
+
+.agent-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.agent-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: var(--container-bg);
+  border: 1px solid var(--border-color);
+}
+
+.icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.icon-emoji {
+  font-size: 20px;
+  line-height: 1;
 }
 
 .empty-state {

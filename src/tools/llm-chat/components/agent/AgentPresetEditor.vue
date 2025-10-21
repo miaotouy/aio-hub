@@ -164,7 +164,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import draggable from 'vuedraggable';
-import type { ChatMessageNode, MessageRole } from '../types';
+import type { ChatMessageNode, MessageRole } from '../../types';
 import {
   QuestionFilled,
   Download,

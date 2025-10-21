@@ -11,7 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-vue-next';
-import type { ChatMessageNode } from '../types';
+import type { ChatMessageNode } from '../../types';
 
 interface Props {
   message: ChatMessageNode;

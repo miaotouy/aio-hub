@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { ChevronRight, ChevronDown } from 'lucide-vue-next';
-import type { ChatMessageNode } from '../types';
+import type { ChatMessageNode } from '../../types';
 
 interface Props {
   message: ChatMessageNode;

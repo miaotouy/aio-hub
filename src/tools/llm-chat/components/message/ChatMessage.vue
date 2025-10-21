@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { ChatMessageNode } from '../types';
+import type { ChatMessageNode } from '../../types';
 import MessageHeader from './MessageHeader.vue';
 import MessageContent from './MessageContent.vue';
 import MessageMenubar from './MessageMenubar.vue';

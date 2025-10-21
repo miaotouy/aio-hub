@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 import { customMessage } from '@/utils/customMessage';
-import type { ChatAgent, ChatMessageNode } from '../types';
+import type { ChatAgent, ChatMessageNode } from '../../types';
 import AgentPresetEditor from './AgentPresetEditor.vue';
 import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
 import BaseDialog from '@/components/common/BaseDialog.vue';

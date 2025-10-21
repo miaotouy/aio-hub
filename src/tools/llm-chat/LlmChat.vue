@@ -5,8 +5,8 @@ import { useAgentStore } from "./agentStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useLlmChatSync } from "./composables/useLlmChatSync";
 import ChatArea from "./components/ChatArea.vue";
-import SessionsSidebar from "./components/SessionsSidebar.vue";
-import LeftSidebar from "./components/LeftSidebar.vue";
+import SessionsSidebar from "./components/sidebar/SessionsSidebar.vue";
+import LeftSidebar from "./components/sidebar/LeftSidebar.vue";
 import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
 import { createModuleLogger } from "@utils/logger";
 

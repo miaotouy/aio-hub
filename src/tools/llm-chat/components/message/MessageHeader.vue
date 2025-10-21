@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { ChatMessageNode } from '../types';
-import { useAgentStore } from '../agentStore';
+import type { ChatMessageNode } from '../../types';
+import { useAgentStore } from '../../agentStore';
 
 interface Props {
   message: ChatMessageNode;

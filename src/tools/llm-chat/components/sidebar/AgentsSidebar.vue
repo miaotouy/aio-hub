@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useAgentStore } from '../agentStore';
+import { useAgentStore } from '../../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { Plus, Edit, Delete, MoreFilled } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { customMessage } from '@/utils/customMessage';
-import type { ChatAgent, ChatMessageNode } from '../types';
+import type { ChatAgent, ChatMessageNode } from '../../types';
 import CreateAgentDialog from './CreateAgentDialog.vue';
 import EditAgentDialog from './EditAgentDialog.vue';
-import type { AgentPreset } from '../types';
+import type { AgentPreset } from '../../types';
 
 const agentStore = useAgentStore();
 const { getProfileById } = useLlmProfiles();

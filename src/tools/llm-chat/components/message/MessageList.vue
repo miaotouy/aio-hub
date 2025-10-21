@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
-import type { ChatMessageNode } from '../types';
-import { useLlmChatStore } from '../store';
+import type { ChatMessageNode } from '../../types';
+import { useLlmChatStore } from '../../store';
 import ChatMessage from './ChatMessage.vue';
 
 interface Props {

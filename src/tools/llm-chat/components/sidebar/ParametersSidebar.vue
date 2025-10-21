@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import { useAgentStore } from "../agentStore";
+import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { customMessage } from "@/utils/customMessage";

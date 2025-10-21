@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useAgentPresets } from '@/composables/useAgentPresets';
-import type { AgentPreset } from '../types';
+import type { AgentPreset } from '../../types';
 
 // Emits
 interface Emits {

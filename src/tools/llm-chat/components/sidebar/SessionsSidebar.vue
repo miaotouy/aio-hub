@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useAgentStore } from "../agentStore";
-import type { ChatSession } from "../types";
+import { useAgentStore } from "../../agentStore";
+import type { ChatSession } from "../../types";
 import { Plus, Delete, Search, MoreFilled } from "@element-plus/icons-vue";
 
 interface Props {

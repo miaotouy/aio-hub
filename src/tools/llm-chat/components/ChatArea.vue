@@ -7,7 +7,7 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
-import MessageList from "./MessageList.vue";
+import MessageList from "./message/MessageList.vue";
 import MessageInput from "./MessageInput.vue";
 import { useDetachedChatArea } from "../composables/useDetachedChatArea";
 

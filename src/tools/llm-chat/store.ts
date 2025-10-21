@@ -167,17 +167,23 @@ export const useLlmChatStore = defineStore('llmChat', {
         timestamp: now,
       };
 
-      // 生成会话名称（使用模型ID作为默认名称）
+      // 生成会话名称（使用日期时间作为默认名称）
       let sessionName = name;
       if (!sessionName) {
-        // 如果没有提供名称，使用模型ID作为默认名称
-        sessionName = `${agent.modelId} 对话`;
+        // 格式化当前时间为 "会话 YYYY-MM-DD HH:mm:ss"
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        sessionName = `会话 ${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
       }
 
       const session: ChatSession = {
         id: sessionId,
         name: sessionName,
-        currentAgentId: agentId,
         nodes: {
           [rootNodeId]: rootNode,
         },
@@ -271,13 +277,15 @@ export const useLlmChatStore = defineStore('llmChat', {
         return;
       }
 
-      if (!session.currentAgentId) {
-        logger.error('发送消息失败：会话没有关联智能体', new Error('No agent'));
-        throw new Error('会话没有关联智能体');
+      const agentStore = useAgentStore();
+      
+      // 使用当前选中的智能体（独立于会话）
+      if (!agentStore.currentAgentId) {
+        logger.error('发送消息失败：没有选中智能体', new Error('No agent selected'));
+        throw new Error('请先选择一个智能体');
       }
 
-      const agentStore = useAgentStore();
-      const agentConfig = agentStore.getAgentConfig(session.currentAgentId, {
+      const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, {
         parameterOverrides: session.parameterOverrides,
       });
 
@@ -345,7 +353,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
         logger.info('发送 LLM 请求', {
           sessionId: session.id,
-          agentId: session.currentAgentId,
+          agentId: agentStore.currentAgentId,
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
           historyMessageCount: conversationHistory.length,
@@ -374,7 +382,7 @@ export const useLlmChatStore = defineStore('llmChat', {
         });
 
         // 获取智能体信息用于元数据
-        const agent = agentStore.getAgentById(session.currentAgentId);
+        const agent = agentStore.getAgentById(agentStore.currentAgentId);
 
         // 更新最终内容和元数据
         assistantNode.content = response.content;
@@ -409,7 +417,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           };
           logger.error('消息发送失败', error as Error, {
             sessionId: session.id,
-            agentId: session.currentAgentId,
+            agentId: agentStore.currentAgentId,
           });
         }
         this.persistSessions();
@@ -458,13 +466,15 @@ export const useLlmChatStore = defineStore('llmChat', {
         return;
       }
 
-      if (!session.currentAgentId) {
-        logger.error('重新生成失败：会话没有关联智能体', new Error('No agent'));
+      const agentStore = useAgentStore();
+      
+      // 使用当前选中的智能体
+      if (!agentStore.currentAgentId) {
+        logger.error('重新生成失败：没有选中智能体', new Error('No agent selected'));
         return;
       }
 
-      const agentStore = useAgentStore();
-      const agentConfig = agentStore.getAgentConfig(session.currentAgentId, {
+      const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, {
         parameterOverrides: session.parameterOverrides,
       });
 
@@ -547,7 +557,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           targetNodeId: nodeId,
           parentNodeId: parentNode.id,
           newNodeId: assistantNode.id,
-          agentId: session.currentAgentId,
+          agentId: agentStore.currentAgentId,
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
           historyMessageCount: conversationHistory.length,
@@ -575,7 +585,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           } : undefined,
         });
 
-        const agent = agentStore.getAgentById(session.currentAgentId);
+        const agent = agentStore.getAgentById(agentStore.currentAgentId);
 
         assistantNode.content = response.content;
         assistantNode.status = 'complete';
@@ -608,7 +618,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           };
           logger.error('重新生成失败', error as Error, {
             sessionId: session.id,
-            agentId: session.currentAgentId,
+            agentId: agentStore.currentAgentId,
           });
         }
         this.persistSessions();

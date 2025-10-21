@@ -104,16 +104,13 @@ onMounted(async () => {
     agentCount: agentStore.agents.length,
   });
 
-  // 如果没有会话，尝试使用默认智能体创建一个
-  if (store.sessions.length === 0) {
-    const defaultAgent = agentStore.defaultAgent;
-    if (defaultAgent) {
-      handleNewSession({ agentId: defaultAgent.id });
-    }
+  // 如果没有会话且有选中的智能体，创建一个新会话
+  if (store.sessions.length === 0 && agentStore.currentAgentId) {
+    handleNewSession({ agentId: agentStore.currentAgentId });
   }
 });
-// 当前会话的智能体ID
-const currentAgentId = computed(() => store.currentSession?.currentAgentId || "");
+// 当前选中的智能体ID（独立于会话）
+const currentAgentId = computed(() => agentStore.currentAgentId || "");
 
 // 处理发送消息
 const handleSendMessage = async (content: string) => {
@@ -171,73 +168,6 @@ const handleDeleteSession = (sessionId: string) => {
   store.deleteSession(sessionId);
 };
 
-// 处理切换智能体
-const handleChangeAgent = (agentId: string) => {
-  if (!store.currentSession) return;
-
-  store.updateSession(store.currentSession.id, {
-    currentAgentId: agentId,
-  });
-
-  logger.info("切换智能体", { agentId });
-};
-
-// 临时存储待更新的值，用于批量更新
-const pendingModelUpdate = ref<{ profileId?: string; modelId?: string } | null>(null);
-let updateTimer: ReturnType<typeof setTimeout> | null = null;
-
-// 批量更新 Profile 和 Model（避免重复调用 updateAgent）
-const commitPendingModelUpdate = () => {
-  if (pendingModelUpdate.value && currentAgentId.value) {
-    const updates = pendingModelUpdate.value;
-    agentStore.updateAgent(currentAgentId.value, updates);
-    logger.info("更新智能体模型配置", {
-      agentId: currentAgentId.value,
-      ...updates,
-    });
-    pendingModelUpdate.value = null;
-  }
-};
-
-// 处理 Profile 更新
-const handleUpdateProfileId = (profileId: string) => {
-  if (!currentAgentId.value) return;
-
-  // 合并到待更新对象
-  if (!pendingModelUpdate.value) {
-    pendingModelUpdate.value = {};
-  }
-  pendingModelUpdate.value.profileId = profileId;
-
-  // 延迟批量提交，等待 modelId 一起更新
-  if (updateTimer) {
-    clearTimeout(updateTimer);
-  }
-  updateTimer = setTimeout(() => {
-    commitPendingModelUpdate();
-    updateTimer = null;
-  }, 10);
-};
-
-// 处理 Model 更新
-const handleUpdateModelId = (modelId: string) => {
-  if (!currentAgentId.value) return;
-
-  // 合并到待更新对象
-  if (!pendingModelUpdate.value) {
-    pendingModelUpdate.value = {};
-  }
-  pendingModelUpdate.value.modelId = modelId;
-
-  // 延迟批量提交，等待 profileId 一起更新
-  if (updateTimer) {
-    clearTimeout(updateTimer);
-  }
-  updateTimer = setTimeout(() => {
-    commitPendingModelUpdate();
-    updateTimer = null;
-  }, 10);
-};
 </script>
 
 <template>
@@ -250,13 +180,7 @@ const handleUpdateModelId = (modelId: string) => {
         :style="{ width: `${leftSidebarWidth}px` }"
       >
         <div class="sidebar-content">
-          <LeftSidebar
-            v-if="store.currentSession"
-            :current-agent-id="currentAgentId"
-            @change-agent="handleChangeAgent"
-            @update:profile-id="handleUpdateProfileId"
-            @update:model-id="handleUpdateModelId"
-          />
+          <LeftSidebar />
         </div>
 
         <!-- 拖拽分隔条 -->
@@ -307,8 +231,8 @@ const handleUpdateModelId = (modelId: string) => {
           :disabled="!store.currentSession"
           :current-agent-id="currentAgentId"
           :current-model-id="
-            store.currentSession?.currentAgentId
-              ? agentStore.getAgentById(store.currentSession.currentAgentId)?.modelId
+            agentStore.currentAgentId
+              ? agentStore.getAgentById(agentStore.currentAgentId)?.modelId
               : undefined
           "
           @send="handleSendMessage"
@@ -380,7 +304,6 @@ const handleUpdateModelId = (modelId: string) => {
           <SessionsSidebar
             :sessions="store.sessions"
             :current-session-id="store.currentSessionId"
-            :current-agent-id="currentAgentId"
             @switch="handleSwitchSession"
             @delete="handleDeleteSession"
             @new-session="handleNewSession"

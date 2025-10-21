@@ -7,7 +7,6 @@ import { Plus, Delete, Search, MoreFilled } from "@element-plus/icons-vue";
 interface Props {
   sessions: ChatSession[];
   currentSessionId: string | null;
-  currentAgentId: string; // 当前激活的智能体ID
 }
 
 interface Emits {
@@ -24,8 +23,8 @@ const searchQuery = ref("");
 
 // 快速新建会话
 const handleQuickNewSession = () => {
-  // 优先使用当前会话的智能体，否则使用默认智能体
-  const agentId = props.currentAgentId || agentStore.defaultAgent?.id;
+  // 使用当前选中的智能体，或使用默认智能体
+  const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
   if (!agentId) {
     alert("没有可用的智能体来创建新会话");
     return;

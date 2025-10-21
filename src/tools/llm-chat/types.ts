@@ -88,10 +88,10 @@ export interface ChatMessageNode {
 /**
  * 聊天会话（树形历史结构）
  *
- * 设计理念：会话与智能体解耦
- * - 会话引用当前使用的智能体ID
+ * 设计理念：会话与智能体完全解耦
+ * - 智能体选择是全局的（存储在 agentStore 中）
  * - 每条消息的 metadata 记录生成时使用的智能体/模型
- * - 用户可以在同一会话中切换不同智能体继续对话
+ * - 用户可以随时切换智能体，影响所有会话的后续消息
  * - 会话也可以临时覆盖智能体的参数（参数微调）
  */
 export interface ChatSession {
@@ -121,17 +121,10 @@ export interface ChatSession {
   name: string;
 
   /**
-   * 当前使用的智能体 ID
-   * 如果为 null，则表示使用自定义配置（无智能体）
-   */
-  currentAgentId: string | null;
-
-  /**
    * 会话级别的参数覆盖（可选）
    * 用于临时微调智能体的参数，不影响智能体本身的配置
    */
   parameterOverrides?: Partial<LlmParameters>;
-
 
   /**
    * 会话创建和最后更新的时间戳

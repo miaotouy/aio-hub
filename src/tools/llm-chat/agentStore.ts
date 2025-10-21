@@ -13,11 +13,14 @@ const logger = createModuleLogger('llm-chat/agentStore');
 interface AgentStoreState {
   /** 所有智能体列表 */
   agents: ChatAgent[];
+  /** 当前选中的智能体 ID（独立于会话） */
+  currentAgentId: string | null;
 }
 
 export const useAgentStore = defineStore('llmChatAgent', {
   state: (): AgentStoreState => ({
     agents: [],
+    currentAgentId: null,
   }),
 
   getters: {
@@ -142,6 +145,21 @@ export const useAgentStore = defineStore('llmChatAgent', {
     },
 
     /**
+     * 选择智能体（独立于会话）
+     */
+    selectAgent(agentId: string): void {
+      const agent = this.agents.find(a => a.id === agentId);
+      if (!agent) {
+        logger.warn('选择智能体失败：智能体不存在', { agentId });
+        return;
+      }
+
+      this.currentAgentId = agentId;
+      this.updateLastUsed(agentId);
+      logger.info('选择智能体', { agentId, name: agent.name });
+    },
+
+    /**
      * 更新智能体的最后使用时间
      */
     updateLastUsed(agentId: string): void {
@@ -175,6 +193,11 @@ export const useAgentStore = defineStore('llmChatAgent', {
         if (agents.length > 0) {
           this.agents = agents;
           logger.info('加载智能体成功', { agentCount: this.agents.length });
+          
+          // 自动选择默认智能体（最近使用的）
+          if (!this.currentAgentId && this.defaultAgent) {
+            this.currentAgentId = this.defaultAgent.id;
+          }
         } else {
           // 首次加载，创建默认智能体
           this.createDefaultAgents();
@@ -243,6 +266,9 @@ export const useAgentStore = defineStore('llmChatAgent', {
       if (defaultAgent) {
         defaultAgent.isBuiltIn = true;
       }
+
+      // 自动选中默认智能体
+      this.currentAgentId = defaultAgentId;
 
       this.persistAgents();
       logger.info('创建默认智能体', { agentId: defaultAgentId });

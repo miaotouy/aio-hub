@@ -10,31 +10,23 @@ import CreateAgentDialog from './CreateAgentDialog.vue';
 import EditAgentDialog from './EditAgentDialog.vue';
 import type { AgentPreset } from '../types';
 
-interface Props {
-  currentAgentId: string;
-}
-
-interface Emits {
-  (e: 'change', agentId: string): void;
-}
-
-const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
-
 const agentStore = useAgentStore();
 const { getProfileById } = useLlmProfiles();
 
 // 按最后使用时间排序的智能体列表
 const sortedAgents = computed(() => agentStore.sortedAgents);
 
-// 选择智能体
+// 当前选中的智能体ID（从 store 读取）
+const currentAgentId = computed(() => agentStore.currentAgentId);
+
+// 选择智能体（直接调用 store）
 const selectAgent = (agentId: string) => {
-  emit('change', agentId);
+  agentStore.selectAgent(agentId);
 };
 
 // 判断智能体是否被选中
 const isAgentSelected = (agentId: string) => {
-  return agentId === props.currentAgentId;
+  return agentId === currentAgentId.value;
 };
 
 // 获取智能体的模型信息

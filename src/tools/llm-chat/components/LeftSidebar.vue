@@ -3,17 +3,6 @@ import { ref } from 'vue';
 import AgentsSidebar from './AgentsSidebar.vue';
 import ParametersSidebar from './ParametersSidebar.vue';
 
-interface Props {
-  currentAgentId: string;
-}
-
-interface Emits {
-  (e: 'change-agent', agentId: string): void;
-}
-
-defineProps<Props>();
-const emit = defineEmits<Emits>();
-
 type TabType = 'agents' | 'parameters';
 const activeTab = ref<TabType>('agents');
 </script>
@@ -36,16 +25,8 @@ const activeTab = ref<TabType>('agents');
     </div>
 
     <div class="sidebar-content">
-      <AgentsSidebar
-        v-if="activeTab === 'agents'"
-        :current-agent-id="currentAgentId"
-        @change="(agentId) => emit('change-agent', agentId)"
-      />
-      
-      <ParametersSidebar
-        v-if="activeTab === 'parameters'"
-        :current-agent-id="currentAgentId"
-      />
+      <AgentsSidebar v-if="activeTab === 'agents'" />
+      <ParametersSidebar v-if="activeTab === 'parameters'" />
     </div>
   </div>
 </template>

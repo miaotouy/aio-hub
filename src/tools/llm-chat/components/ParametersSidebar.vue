@@ -5,17 +5,14 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { customMessage } from "@/utils/customMessage";
 
-interface Props {
-  currentAgentId: string;
-}
-
-const props = defineProps<Props>();
-
 const agentStore = useAgentStore();
 const { enabledProfiles, getSupportedParameters } = useLlmProfiles();
 
-// 获取当前智能体
-const currentAgent = computed(() => agentStore.getAgentById(props.currentAgentId));
+// 获取当前智能体（从 store 读取）
+const currentAgent = computed(() => {
+  if (!agentStore.currentAgentId) return null;
+  return agentStore.getAgentById(agentStore.currentAgentId);
+});
 
 // 获取当前选中的 profile
 const currentProfile = computed(() => {
@@ -34,10 +31,10 @@ const selectedModelCombo = computed({
     return `${agent.profileId}:${agent.modelId}`;
   },
   set: (value: string) => {
-    if (!value || !currentAgent.value) return;
+    if (!value || !currentAgent.value || !agentStore.currentAgentId) return;
     const [profileId, modelId] = value.split(":");
     // 直接更新 Agent 的模型配置
-    agentStore.updateAgent(props.currentAgentId, { profileId, modelId });
+    agentStore.updateAgent(agentStore.currentAgentId, { profileId, modelId });
     customMessage.success("模型已更新");
   },
 });
@@ -63,8 +60,8 @@ watch(
 
 // 更新参数 - 直接保存到 Agent
 const updateTemperature = () => {
-  if (!currentAgent.value) return;
-  agentStore.updateAgent(props.currentAgentId, {
+  if (!currentAgent.value || !agentStore.currentAgentId) return;
+  agentStore.updateAgent(agentStore.currentAgentId, {
     parameters: {
       ...currentAgent.value.parameters,
       temperature: localTemp.value,
@@ -73,8 +70,8 @@ const updateTemperature = () => {
 };
 
 const updateMaxTokens = () => {
-  if (!currentAgent.value) return;
-  agentStore.updateAgent(props.currentAgentId, {
+  if (!currentAgent.value || !agentStore.currentAgentId) return;
+  agentStore.updateAgent(agentStore.currentAgentId, {
     parameters: {
       ...currentAgent.value.parameters,
       maxTokens: localMaxTokens.value,
@@ -132,8 +129,8 @@ watch(
 
 // 更新扩展参数 - 直接保存到 Agent
 const updateTopP = () => {
-  if (!currentAgent.value) return;
-  agentStore.updateAgent(props.currentAgentId, {
+  if (!currentAgent.value || !agentStore.currentAgentId) return;
+  agentStore.updateAgent(agentStore.currentAgentId, {
     parameters: {
       ...currentAgent.value.parameters,
       topP: localTopP.value,
@@ -142,8 +139,8 @@ const updateTopP = () => {
 };
 
 const updateTopK = () => {
-  if (!currentAgent.value) return;
-  agentStore.updateAgent(props.currentAgentId, {
+  if (!currentAgent.value || !agentStore.currentAgentId) return;
+  agentStore.updateAgent(agentStore.currentAgentId, {
     parameters: {
       ...currentAgent.value.parameters,
       topK: localTopK.value,
@@ -152,8 +149,8 @@ const updateTopK = () => {
 };
 
 const updateFrequencyPenalty = () => {
-  if (!currentAgent.value) return;
-  agentStore.updateAgent(props.currentAgentId, {
+  if (!currentAgent.value || !agentStore.currentAgentId) return;
+  agentStore.updateAgent(agentStore.currentAgentId, {
     parameters: {
       ...currentAgent.value.parameters,
       frequencyPenalty: localFrequencyPenalty.value,
@@ -162,8 +159,8 @@ const updateFrequencyPenalty = () => {
 };
 
 const updatePresencePenalty = () => {
-  if (!currentAgent.value) return;
-  agentStore.updateAgent(props.currentAgentId, {
+  if (!currentAgent.value || !agentStore.currentAgentId) return;
+  agentStore.updateAgent(agentStore.currentAgentId, {
     parameters: {
       ...currentAgent.value.parameters,
       presencePenalty: localPresencePenalty.value,

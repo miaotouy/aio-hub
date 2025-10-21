@@ -475,7 +475,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           if (error instanceof Error && error.name === 'AbortError') {
             errorNode.status = 'error';
             errorNode.metadata = {
-              agentId: agentStore.currentAgentId,
+              ...errorNode.metadata, // 保留生成前设置的基本信息
               error: '已取消',
             };
             logger.info('消息发送已取消', { sessionId: session.id });
@@ -483,7 +483,7 @@ export const useLlmChatStore = defineStore('llmChat', {
             // 其他错误
             errorNode.status = 'error';
             errorNode.metadata = {
-              agentId: agentStore.currentAgentId,
+              ...errorNode.metadata, // 保留生成前设置的基本信息
               error: error instanceof Error ? error.message : String(error),
             };
             logger.error('消息发送失败', error as Error, {
@@ -737,14 +737,14 @@ export const useLlmChatStore = defineStore('llmChat', {
           if (error instanceof Error && error.name === 'AbortError') {
             errorNode.status = 'error';
             errorNode.metadata = {
-              agentId: agentStore.currentAgentId,
+              ...errorNode.metadata, // 保留生成前设置的基本信息
               error: '已取消',
             };
             logger.info('重新生成已取消', { sessionId: session.id });
           } else {
             errorNode.status = 'error';
             errorNode.metadata = {
-              agentId: agentStore.currentAgentId,
+              ...errorNode.metadata, // 保留生成前设置的基本信息
               error: error instanceof Error ? error.message : String(error),
             };
             logger.error('重新生成失败', error as Error, {

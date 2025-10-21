@@ -69,7 +69,7 @@ export function useLlmChatSync() {
         store.toggleNodeEnabled(params.nodeId);
         return Promise.resolve();
       case 'edit-message':
-        store.editUserMessage(params.nodeId, params.newContent);
+        store.editMessage(params.nodeId, params.newContent);
         return Promise.resolve();
       default:
         logger.warn('未知的操作请求', { action });

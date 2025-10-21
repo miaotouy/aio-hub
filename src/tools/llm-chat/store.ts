@@ -665,10 +665,11 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
-     * 编辑用户消息（非破坏性）
+     * 编辑消息（非破坏性）- 通用方法
      * 创建新节点并嫁接子树，旧节点保留
+     * 支持编辑用户消息和助手消息
      */
-    editUserMessage(nodeId: string, newContent: string): void {
+    editMessage(nodeId: string, newContent: string): void {
       const session = this.currentSession;
       if (!session) {
         logger.warn('编辑消息失败：没有活动会话');
@@ -681,8 +682,9 @@ export const useLlmChatStore = defineStore('llmChat', {
         return;
       }
 
-      if (oldNode.role !== 'user') {
-        logger.warn('编辑消息失败：只能编辑用户消息', {
+      // 只允许编辑用户消息和助手消息
+      if (oldNode.role !== 'user' && oldNode.role !== 'assistant') {
+        logger.warn('编辑消息失败：只能编辑用户或助手消息', {
           sessionId: session.id,
           nodeId,
           role: oldNode.role
@@ -692,13 +694,18 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       const nodeManager = useNodeManager();
 
-      // 创建新的用户消息节点
+      // 创建新节点（保持原有角色）
       const newNode = nodeManager.createNode({
-        role: 'user',
+        role: oldNode.role,
         content: newContent,
         parentId: oldNode.parentId,
         status: 'complete',
       });
+
+      // 如果是助手消息，复制元数据（token 使用信息、推理内容等）
+      if (oldNode.role === 'assistant' && oldNode.metadata) {
+        newNode.metadata = { ...oldNode.metadata };
+      }
 
       // 添加到会话
       nodeManager.addNodeToSession(session, newNode);
@@ -714,12 +721,29 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       this.persistSessions();
 
-      logger.info('用户消息已编辑', {
+      logger.info('消息已编辑', {
         sessionId: session.id,
+        role: oldNode.role,
         oldNodeId: oldNode.id,
         newNodeId: newNode.id,
         contentLength: newContent.length,
       });
+    },
+
+    /**
+     * 编辑用户消息（向后兼容）
+     * @deprecated 使用 editMessage 代替
+     */
+    editUserMessage(nodeId: string, newContent: string): void {
+      this.editMessage(nodeId, newContent);
+    },
+
+    /**
+     * 编辑助手消息（向后兼容）
+     * @deprecated 使用 editMessage 代替
+     */
+    editAssistantMessage(nodeId: string, newContent: string): void {
+      this.editMessage(nodeId, newContent);
     },
 
     /**

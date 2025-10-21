@@ -154,9 +154,9 @@ const handleToggleEnabled = (nodeId: string) => {
   store.toggleNodeEnabled(nodeId);
 };
 
-// 处理编辑消息
+// 处理编辑消息（使用统一方法）
 const handleEditMessage = (nodeId: string, newContent: string) => {
-  store.editUserMessage(nodeId, newContent);
+  store.editMessage(nodeId, newContent);
 };
 
 // 处理新建会话

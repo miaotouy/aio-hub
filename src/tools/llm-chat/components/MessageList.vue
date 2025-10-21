@@ -220,7 +220,7 @@ const copyMessage = async (content: string) => {
           📋
         </button>
         <button
-          v-if="message.role === 'user'"
+          v-if="message.role === 'user' || message.role === 'assistant'"
           @click="startEdit(message.id, message.content)"
           class="action-btn"
           :disabled="isSending"

@@ -45,33 +45,85 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
-     * 当前会话的消息链（从根节点到当前激活叶节点的路径）
-     * 返回一个线性的、有序的消息节点数组，供 UI 组件渲染
+     * 当前活动路径（UI 渲染数据源）
+     * 注意：不过滤 isEnabled 状态，返回完整路径
+     * 符合设计原则：activeLeafId 决定"看哪条分支"
      */
-    currentMessageChain(): ChatMessageNode[] {
+    currentActivePath(): ChatMessageNode[] {
       const session = this.currentSession;
       if (!session) return [];
 
-      const chain: ChatMessageNode[] = [];
+      const path: ChatMessageNode[] = [];
       let currentId: string | null = session.activeLeafId;
 
       // 从活跃叶节点向上遍历到根节点
       while (currentId !== null) {
         const node: ChatMessageNode | undefined = session.nodes[currentId];
         if (!node) {
-          logger.warn('消息链中断：节点不存在', { sessionId: session.id, nodeId: currentId });
+          logger.warn('活动路径中断：节点不存在', { sessionId: session.id, nodeId: currentId });
           break;
         }
         
-        // 只添加启用的节点
-        if (node.isEnabled !== false) {
-          chain.unshift(node);
-        }
+        // ✅ 不过滤 isEnabled，返回完整路径供 UI 渲染
+        path.unshift(node);
         
         currentId = node.parentId;
       }
 
-      return chain;
+      return path;
+    },
+
+    /**
+     * LLM 上下文（过滤了 isEnabled === false 的节点）
+     * 专门用于构建发送给 LLM 的消息列表
+     * 符合设计原则：isEnabled 决定"这条分支上的哪句话要被 AI 忽略"
+     */
+    llmContext(): Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }> {
+      return this.currentActivePath
+        .filter(node => node.isEnabled !== false)  // 过滤禁用节点
+        .filter(node => node.role !== 'system')    // 排除系统根节点
+        .filter(node => node.role === 'user' || node.role === 'assistant') // 只保留对话消息
+        .map(node => ({
+          role: node.role as 'user' | 'assistant',
+          content: node.content,
+        }));
+    },
+
+    /**
+     * 获取某个节点的兄弟节点（包括自己）
+     */
+    getSiblings: (state) => (nodeId: string): ChatMessageNode[] => {
+      const session = state.sessions.find(s => s.id === state.currentSessionId);
+      if (!session) return [];
+
+      const node = session.nodes[nodeId];
+      if (!node || !node.parentId) {
+        return node ? [node] : [];
+      }
+
+      const parent = session.nodes[node.parentId];
+      if (!parent) return [node];
+
+      return parent.childrenIds
+        .map(id => session.nodes[id])
+        .filter(Boolean);
+    },
+
+    /**
+     * 判断节点是否在当前活动路径上
+     */
+    isNodeInActivePath: (state) => (nodeId: string): boolean => {
+      const session = state.sessions.find(s => s.id === state.currentSessionId);
+      if (!session) return false;
+
+      let currentId: string | null = session.activeLeafId;
+      while (currentId !== null) {
+        if (currentId === nodeId) return true;
+        const node: ChatMessageNode | undefined = session.nodes[currentId];
+        if (!node) break;
+        currentId = node.parentId;
+      }
+      return false;
     },
 
     /**
@@ -250,29 +302,16 @@ export const useLlmChatStore = defineStore('llmChat', {
       try {
         const { sendRequest } = useLlmRequest();
 
-        // 构建消息列表（从当前消息链构建，排除正在生成的助手消息）
-        const messageChain = this.currentMessageChain.filter(
-          node => node.id !== assistantNode.id && node.role !== 'system'
-        );
-
-        // 将消息链转换为对话历史格式（支持 Claude 等需要角色区分的 API）
+        // 使用新的 llmContext 构建上下文（已自动过滤禁用节点）
+        const context = this.llmContext;
+        
+        // 将上下文转换为对话历史格式（排除最后一条，因为那是当前要发送的用户消息）
         const conversationHistory: Array<{
           role: 'user' | 'assistant';
           content: string | LlmMessageContent[];
-        }> = [];
+        }> = context.slice(0, -1); // 排除最后一条用户消息
         
-        // 将除最后一条用户消息外的所有消息作为历史
-        for (let i = 0; i < messageChain.length - 1; i++) {
-          const node = messageChain[i];
-          if (node.role === 'user' || node.role === 'assistant') {
-            conversationHistory.push({
-              role: node.role,
-              content: node.content,
-            });
-          }
-        }
-
-        // 最后一条消息（用户消息）作为当前请求
+        // 当前请求（最后一条用户消息）
         const currentMessage: LlmMessageContent[] = [{
           type: 'text' as const,
           text: content,
@@ -438,27 +477,15 @@ export const useLlmChatStore = defineStore('llmChat', {
       try {
         const { sendRequest } = useLlmRequest();
 
-        // 构建消息链（截止到父节点）
-        const messageChain = this.currentMessageChain.filter(
-          node => node.id !== assistantNode.id && node.role !== 'system'
-        );
-
-        // 构建对话历史
+        // 使用新的 llmContext 构建上下文（已自动过滤禁用节点）
+        const context = this.llmContext;
+        
+        // 将上下文转换为对话历史格式（排除最后一条，因为那是要重新生成的用户消息）
         const conversationHistory: Array<{
           role: 'user' | 'assistant';
           content: string | LlmMessageContent[];
-        }> = [];
+        }> = context.slice(0, -1);
         
-        for (let i = 0; i < messageChain.length - 1; i++) {
-          const node = messageChain[i];
-          if (node.role === 'user' || node.role === 'assistant') {
-            conversationHistory.push({
-              role: node.role,
-              content: node.content,
-            });
-          }
-        }
-
         // 当前请求（父节点的用户消息）
         const currentMessage: LlmMessageContent[] = [{
           type: 'text' as const,
@@ -699,10 +726,10 @@ export const useLlmChatStore = defineStore('llmChat', {
         '',
       ];
 
-      // 使用当前消息链（已启用的节点）
-      const messageChain = this.currentMessageChain;
+      // 使用当前活动路径（包括禁用节点，以便用户看到完整历史）
+      const activePath = this.currentActivePath;
 
-      messageChain.forEach(node => {
+      activePath.forEach((node: ChatMessageNode) => {
         if (node.role === 'system') return; // 跳过系统根节点
 
         const role = node.role === 'user' ? '👤 用户' : '🤖 助手';

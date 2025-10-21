@@ -20,7 +20,7 @@ export function useLlmChatSync() {
   const bus = useWindowSyncBus();
 
   // 1. 状态定义
-  const chatMessages = computed(() => store.currentMessageChain);
+  const chatMessages = computed(() => store.currentActivePath);
   const chatSession = computed(() => store.currentSession);
   const chatAgent = computed(() => {
     const agentId = store.currentSession?.currentAgentId;

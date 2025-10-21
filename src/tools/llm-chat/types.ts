@@ -62,6 +62,8 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: {
+    /** 生成此消息时使用的 Agent ID */
+    agentId?: string;
     /** 生成此消息时使用的 Profile ID */
     profileId?: string;
     /** 生成此消息时使用的模型 ID */
@@ -119,6 +121,16 @@ export interface ChatSession {
    * 会话的标题
    */
   name: string;
+
+  /**
+   * 用于 UI 展示的智能体 ID（当前活动路径最新助手消息所使用的智能体）
+   */
+  displayAgentId?: string | null;
+
+  /**
+   * 会话中智能体使用情况统计
+   */
+  agentUsage?: Record<string, number>;
 
   /**
    * 会话级别的参数覆盖（可选）

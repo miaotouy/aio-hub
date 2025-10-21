@@ -73,6 +73,12 @@ const getMessageCount = (session: ChatSession) => {
   return Object.keys(session.nodes).length - 1;
 };
 
+// 获取会话当前显示的智能体信息
+const getSessionDisplayAgent = (session: ChatSession) => {
+  if (!session.displayAgentId) return null;
+  return agentStore.getAgentById(session.displayAgentId);
+};
+
 // 确认删除
 const confirmDelete = (session: ChatSession) => {
   if (confirm(`确定要删除对话"${session.name}"吗？`)) {
@@ -115,7 +121,14 @@ const handleMenuCommand = (command: 'delete', session: ChatSession) => {
         @click="emit('switch', session.id)"
       >
         <div class="session-content">
-          <div class="session-title">{{ session.name }}</div>
+          <div class="session-title">
+            <el-tooltip v-if="getSessionDisplayAgent(session)" :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`" placement="top" :show-after="500">
+              <span class="agent-icon">
+                {{ getSessionDisplayAgent(session)?.icon }}
+              </span>
+            </el-tooltip>
+            <span class="title-text">{{ session.name }}</span>
+          </div>
           <div class="session-info">
             <span class="message-count">{{ getMessageCount(session) }} 条</span>
             <span class="session-time">{{ formatDate(session.updatedAt) }}</span>
@@ -230,9 +243,24 @@ const handleMenuCommand = (command: 'delete', session: ChatSession) => {
   font-weight: 500;
   color: var(--text-color);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.agent-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.title-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .session-info {

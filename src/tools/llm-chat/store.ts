@@ -140,6 +140,32 @@ export const useLlmChatStore = defineStore('llmChat', {
 
   actions: {
     /**
+     * 更新会话的 displayAgentId（内部辅助函数）
+     * 从当前活动路径中找到最新的助手消息，获取其使用的智能体 ID
+     */
+    _updateSessionDisplayAgent(session: ChatSession): void {
+      let currentId: string | null = session.activeLeafId;
+      let foundAgentId: string | null = null;
+
+      // 从活跃叶节点向上遍历，找到第一个助手消息
+      while (currentId !== null) {
+        const node = session.nodes[currentId];
+        if (!node) break;
+
+        // 找到第一个助手角色的消息
+        if (node.role === 'assistant' && node.metadata?.agentId) {
+          foundAgentId = node.metadata.agentId;
+          break;
+        }
+
+        currentId = node.parentId;
+      }
+
+      // 更新会话的 displayAgentId
+      session.displayAgentId = foundAgentId;
+    },
+
+    /**
      * 创建新会话（使用智能体）
      */
     createSession(agentId: string, name?: string): string {
@@ -388,12 +414,23 @@ export const useLlmChatStore = defineStore('llmChat', {
         assistantNode.content = response.content;
         assistantNode.status = 'complete';
         assistantNode.metadata = {
+          agentId: agentStore.currentAgentId,
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
           modelName: agent?.name,
           usage: response.usage,
           reasoningContent: response.reasoningContent,
         };
+
+        // 更新会话中的智能体使用统计
+        if (!session.agentUsage) {
+          session.agentUsage = {};
+        }
+        const currentCount = session.agentUsage[agentStore.currentAgentId] || 0;
+        session.agentUsage[agentStore.currentAgentId] = currentCount + 1;
+
+        // 更新 displayAgentId
+        this._updateSessionDisplayAgent(session);
 
         this.persistSessions();
         logger.info('消息发送成功', {
@@ -406,6 +443,7 @@ export const useLlmChatStore = defineStore('llmChat', {
         if (error instanceof Error && error.name === 'AbortError') {
           assistantNode.status = 'error';
           assistantNode.metadata = {
+            agentId: agentStore.currentAgentId,
             error: '已取消',
           };
           logger.info('消息发送已取消', { sessionId: session.id });
@@ -413,6 +451,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           // 其他错误
           assistantNode.status = 'error';
           assistantNode.metadata = {
+            agentId: agentStore.currentAgentId,
             error: error instanceof Error ? error.message : String(error),
           };
           logger.error('消息发送失败', error as Error, {
@@ -590,12 +629,23 @@ export const useLlmChatStore = defineStore('llmChat', {
         assistantNode.content = response.content;
         assistantNode.status = 'complete';
         assistantNode.metadata = {
+          agentId: agentStore.currentAgentId,
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
           modelName: agent?.name,
           usage: response.usage,
           reasoningContent: response.reasoningContent,
         };
+
+        // 更新会话中的智能体使用统计
+        if (!session.agentUsage) {
+          session.agentUsage = {};
+        }
+        const currentCount = session.agentUsage[agentStore.currentAgentId] || 0;
+        session.agentUsage[agentStore.currentAgentId] = currentCount + 1;
+
+        // 更新 displayAgentId
+        this._updateSessionDisplayAgent(session);
 
         this.persistSessions();
         logger.info('从节点重新生成成功', {
@@ -608,12 +658,14 @@ export const useLlmChatStore = defineStore('llmChat', {
         if (error instanceof Error && error.name === 'AbortError') {
           assistantNode.status = 'error';
           assistantNode.metadata = {
+            agentId: agentStore.currentAgentId,
             error: '已取消',
           };
           logger.info('重新生成已取消', { sessionId: session.id });
         } else {
           assistantNode.status = 'error';
           assistantNode.metadata = {
+            agentId: agentStore.currentAgentId,
             error: error instanceof Error ? error.message : String(error),
           };
           logger.error('重新生成失败', error as Error, {
@@ -679,6 +731,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       const success = nodeManager.softDeleteNode(session, nodeId);
       
       if (success) {
+        this._updateSessionDisplayAgent(session);
         this.persistSessions();
       }
     },
@@ -694,6 +747,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       const success = nodeManager.updateActiveLeaf(session, nodeId);
       
       if (success) {
+        this._updateSessionDisplayAgent(session);
         this.persistSessions();
       }
     },
@@ -712,6 +766,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       
       if (newLeafId !== session.activeLeafId) {
         session.activeLeafId = newLeafId;
+        this._updateSessionDisplayAgent(session);
         this.persistSessions();
         
         logger.info('已切换到兄弟分支', {
@@ -776,6 +831,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (this.isNodeInActivePath(oldNode.id)) {
         const newLeafId = BranchNavigator.findLeafOfBranch(session, newNode.id);
         session.activeLeafId = newLeafId;
+        this._updateSessionDisplayAgent(session);
       }
 
       this.persistSessions();

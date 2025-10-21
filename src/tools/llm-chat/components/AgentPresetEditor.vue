@@ -24,83 +24,85 @@
       </div>
     </div>
 
-    <!-- 消息列表 -->
+    <!-- 消息列表滚动容器 -->
     <div class="messages-container" :style="{ height: containerHeight }">
-      <draggable
-        v-model="localMessages"
-        item-key="id"
-        handle=".drag-handle"
-        animation="200"
-        class="messages-list"
-      >
-        <template #item="{ element, index }">
-          <div
-            class="message-card"
-            :class="{ disabled: element.isEnabled === false }"
-          >
-            <!-- 拖拽手柄 -->
-            <div class="drag-handle">
-              <el-icon><Rank /></el-icon>
-            </div>
+      <div class="messages-scroll-wrapper">
+        <draggable
+          v-model="localMessages"
+          item-key="id"
+          handle=".drag-handle"
+          animation="200"
+          class="messages-list"
+        >
+          <template #item="{ element, index }">
+            <div
+              class="message-card"
+              :class="{ disabled: element.isEnabled === false }"
+            >
+              <!-- 拖拽手柄 -->
+              <div class="drag-handle">
+                <el-icon><Rank /></el-icon>
+              </div>
 
-            <!-- 消息内容 -->
-            <div class="message-content">
-              <!-- 角色标签 -->
-              <div class="message-role">
-                <el-tag
-                  :type="getRoleTagType(element.role)"
+              <!-- 消息内容 -->
+              <div class="message-content">
+                <!-- 角色标签 -->
+                <div class="message-role">
+                  <el-tag
+                    :type="getRoleTagType(element.role)"
+                    size="small"
+                    effect="plain"
+                  >
+                    <el-icon style="margin-right: 4px">
+                      <component :is="getRoleIcon(element.role)" />
+                    </el-icon>
+                    {{ getRoleLabel(element.role) }}
+                  </el-tag>
+                </div>
+
+                <!-- 消息文本预览 -->
+                <div class="message-text">
+                  {{ truncateText(element.content, 120) }}
+                </div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="message-actions">
+                <el-switch
+                  v-model="element.isEnabled"
+                  :active-value="true"
+                  :inactive-value="false"
                   size="small"
-                  effect="plain"
+                  @change="handleToggleEnabled(index)"
+                />
+                <el-button
+                  link
+                  size="small"
+                  @click="handleEditMessage(index)"
                 >
-                  <el-icon style="margin-right: 4px">
-                    <component :is="getRoleIcon(element.role)" />
-                  </el-icon>
-                  {{ getRoleLabel(element.role) }}
-                </el-tag>
-              </div>
-
-              <!-- 消息文本预览 -->
-              <div class="message-text">
-                {{ truncateText(element.content, 120) }}
+                  <el-icon><Edit /></el-icon>
+                </el-button>
+                <el-button
+                  link
+                  size="small"
+                  type="danger"
+                  @click="handleDeleteMessage(index)"
+                >
+                  <el-icon><Delete /></el-icon>
+                </el-button>
               </div>
             </div>
+          </template>
+        </draggable>
 
-            <!-- 操作按钮 -->
-            <div class="message-actions">
-              <el-switch
-                v-model="element.isEnabled"
-                :active-value="true"
-                :inactive-value="false"
-                size="small"
-                @change="handleToggleEnabled(index)"
-              />
-              <el-button
-                link
-                size="small"
-                @click="handleEditMessage(index)"
-              >
-                <el-icon><Edit /></el-icon>
-              </el-button>
-              <el-button
-                link
-                size="small"
-                type="danger"
-                @click="handleDeleteMessage(index)"
-              >
-                <el-icon><Delete /></el-icon>
-              </el-button>
-            </div>
-          </div>
-        </template>
-      </draggable>
-
-      <!-- 空状态 -->
-      <div v-if="localMessages.length === 0" class="empty-state">
-        <el-empty description="暂无预设消息，点击上方按钮添加">
-          <el-button type="primary" @click="handleAddMessage">
-            添加第一条消息
-          </el-button>
-        </el-empty>
+        <!-- 空状态 -->
+        <div v-if="localMessages.length === 0" class="empty-state">
+          <el-empty description="暂无预设消息，点击上方按钮添加">
+            <el-button type="primary" @click="handleAddMessage">
+              添加第一条消息
+            </el-button>
+          </el-empty>
+        </div>
       </div>
     </div>
 
@@ -452,7 +454,14 @@ async function handleFileSelected(event: Event) {
 
 .messages-container {
   flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.messages-scroll-wrapper {
+  height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
 }
 
@@ -460,6 +469,7 @@ async function handleFileSelected(event: Event) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: min-content;
 }
 
 .message-card {

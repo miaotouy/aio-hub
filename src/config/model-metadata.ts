@@ -379,7 +379,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "ascend-tribe",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+      icon: `${PRESET_ICONS_DIR}/ascend_tribe.png`,
       group: "Pangu",
     },
     priority: 10,
@@ -1095,7 +1095,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "pangu",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/ascend_tribe.svg`,
+      icon: `${PRESET_ICONS_DIR}/ascend_tribe.png`,
       group: "Pangu",
     },
     priority: 20,

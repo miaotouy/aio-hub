@@ -179,15 +179,17 @@
     </div>
 
     <!-- 预设图标对话框 -->
-    <el-dialog v-model="showPresets" title="预设图标" width="80%" top="5vh">
-      <IconPresetSelector
+    <BaseDialog :visible="showPresets" @update:visible="showPresets = $event" title="预设图标" width="80%">
+      <template #content>
+        <IconPresetSelector
         :icons="presetIcons"
         :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
         show-search
         show-categories
         @select="selectPreset"
-      />
-    </el-dialog>
+        />
+      </template>
+    </BaseDialog>
 
     <!-- 编辑对话框 -->
     <ModelIconConfigEditor
@@ -496,11 +498,11 @@ function getPageNumbers(): number[] {
 
 <style scoped>
 .model-icon-settings {
-  max-height: 1200px;
   display: flex;
   flex-direction: column;
   padding: 1.5rem;
   overflow: hidden;
+  height: 100%;
 }
 
 .settings-header {

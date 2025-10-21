@@ -1,11 +1,13 @@
 <template>
-  <el-dialog
-    v-model="visible"
+  <BaseDialog
+    :visible="visible"
+    @update:visible="visible = $event"
     :title="`提交详情: ${selectedCommit?.hash?.substring(0, 7)}`"
     width="800px"
-    top="8vh"
+    height="auto"
   >
-    <el-descriptions v-if="selectedCommit" :column="1" border>
+    <template #content>
+      <el-descriptions v-if="selectedCommit" :column="1" border>
       <el-descriptions-item label="哈希">
         <el-text type="info">{{ selectedCommit.hash }}</el-text>
       </el-descriptions-item>
@@ -41,6 +43,7 @@
         </el-table-column>
       </el-table>
     </div>
+    </template>
 
     <template #footer>
       <el-space>
@@ -48,7 +51,7 @@
         <el-button @click="visible = false">关闭</el-button>
       </el-space>
     </template>
-  </el-dialog>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">

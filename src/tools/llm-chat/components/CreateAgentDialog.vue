@@ -43,13 +43,15 @@ const getCategoryLabel = (category: string | 'all') => {
 </script>
 
 <template>
-  <el-dialog
-    :model-value="visible"
+  <BaseDialog
+    :visible="visible"
+    @update:visible="(val: boolean) => emit('update:visible', val)"
     title="创建新智能体"
     width="80%"
-    @update:model-value="(val: boolean) => emit('update:visible', val)"
+    height="75vh"
   >
-    <div class="preset-options">
+    <template #content>
+      <div class="preset-options">
       <div class="preset-section">
         <h4>从预设模板创建</h4>
         <p class="preset-section-desc">选择一个预设模板，快速开始你的对话。</p>
@@ -102,16 +104,16 @@ const getCategoryLabel = (category: string | 'all') => {
       <div class="preset-section">
         <h4>自定义配置</h4>
         <el-button style="width: 100%" @click="handleCreateFromBlank"> 从空白创建 </el-button>
+        </div>
       </div>
-    </div>
-  </el-dialog>
+    </template>
+  </BaseDialog>
 </template>
 
 <style scoped>
 /* 样式与 CreateProfileDialog.vue 保持一致 */
 .preset-options {
-  padding: 10px 0;
-  max-height: 70vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }

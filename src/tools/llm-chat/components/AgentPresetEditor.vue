@@ -107,13 +107,15 @@
     </div>
 
     <!-- 编辑对话框 -->
-    <el-dialog
-      v-model="editDialogVisible"
+    <BaseDialog
+      :visible="editDialogVisible"
+      @update:visible="editDialogVisible = $event"
       :title="isEditMode ? '编辑消息' : '添加消息'"
       width="800px"
-      @close="handleDialogClose"
+      height="auto"
     >
-      <el-form :model="editForm" label-width="80px">
+      <template #content>
+        <el-form :model="editForm" label-width="80px">
         <el-form-item label="角色">
           <el-radio-group v-model="editForm.role">
             <el-radio value="system">
@@ -137,15 +139,16 @@
             :rows="16"
             placeholder="请输入消息内容..."
           />
-        </el-form-item>
-      </el-form>
+          </el-form-item>
+        </el-form>
+      </template>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleSaveMessage">
           {{ isEditMode ? '保存' : '添加' }}
         </el-button>
       </template>
-    </el-dialog>
+    </BaseDialog>
 
     <!-- 导入文件选择器 -->
     <input

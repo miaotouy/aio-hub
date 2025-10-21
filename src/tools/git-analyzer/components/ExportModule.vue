@@ -1,14 +1,14 @@
 <template>
-  <el-dialog
-    v-model="visible"
+  <BaseDialog
+    :visible="visible"
+    @update:visible="visible = $event"
     title="导出分析报告"
     width="1000px"
-    :close-on-click-modal="false"
-    @close="handleClose"
-    top="4vh"
-    class="export-dialog"
+    height="85vh"
+    :close-on-backdrop-click="false"
   >
-    <div class="export-module">
+    <template #content>
+      <div class="export-module">
       <!-- 导出配置 -->
       <ExportConfiguration v-model:config="exportConfig" :total-commits="totalCommits" />
 
@@ -21,8 +21,9 @@
         @refresh="updatePreview"
         @copy="copyToClipboard"
         @download="downloadFile"
-      />
-    </div>
+        />
+      </div>
+    </template>
 
     <template #footer>
       <el-space>
@@ -30,7 +31,7 @@
         <el-button type="primary" @click="handleExport" :loading="exporting"> 导出文件 </el-button>
       </el-space>
     </template>
-  </el-dialog>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
@@ -350,16 +351,5 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-height: calc(90vh - 120px);
-  overflow-y: auto;
-}
-
-/* 对话框整体样式优化 */
-:deep(.export-dialog) {
-  .el-dialog__body {
-    padding: 20px;
-    max-height: calc(90vh - 120px);
-    overflow-y: auto;
-  }
 }
 </style>

@@ -127,7 +127,6 @@ function handleSelect(icon: PresetIconInfo) {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-height: 80vh;
 }
 
 /* 搜索栏 */

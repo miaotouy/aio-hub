@@ -148,14 +148,15 @@ const formatModelName = (modelId: string): string => {
 </script>
 
 <template>
-  <el-dialog
-    :model-value="visible"
+  <BaseDialog
+    :visible="visible"
+    @update:visible="closeDialog"
     title="从 API 添加模型"
     width="800px"
-    top="5vh"
-    @update:model-value="closeDialog"
+    height="80vh"
   >
-    <div class="model-fetcher-dialog">
+    <template #content>
+      <div class="model-fetcher-dialog">
       <el-input
         v-model="searchQuery"
         placeholder="搜索模型 ID 或名称"
@@ -200,9 +201,10 @@ const formatModelName = (modelId: string): string => {
               </div>
             </div>
           </transition>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
 
     <template #footer>
       <span style="padding-right: 24px;">已选择 {{ selectedModels.length }} 个模型</span>
@@ -211,14 +213,14 @@ const formatModelName = (modelId: string): string => {
         添加
       </el-button>
     </template>
-  </el-dialog>
+  </BaseDialog>
 </template>
 
 <style scoped>
 .model-fetcher-dialog {
   display: flex;
   flex-direction: column;
-  height: 60vh;
+  height: 100%;
 }
 .search-input {
   margin-bottom: 16px;

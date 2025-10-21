@@ -259,25 +259,29 @@
     </div>
 
     <!-- 日志弹窗 -->
-    <el-dialog
-      v-model="logDialogVisible"
+    <BaseDialog
+      :visible="logDialogVisible"
+      @update:visible="logDialogVisible = $event"
       title="日志"
       width="800px"
-      :close-on-click-modal="false"
+      height="auto"
+      :close-on-backdrop-click="false"
     >
-      <div class="log-dialog-content">
+      <template #content>
+        <div class="log-dialog-content">
         <div class="log-output">
           <p v-for="(log, index) in logs" :key="index" :class="`log-${log.type}`">
             [{{ log.time }}] {{ log.message }}
           </p>
           <p v-if="logs.length === 0" class="empty-log">暂无日志</p>
+          </div>
         </div>
-      </div>
+      </template>
       <template #footer>
         <el-button @click="clearLogs">清空日志</el-button>
         <el-button type="primary" @click="logDialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </BaseDialog>
   </div>
 </template>
 
@@ -1381,7 +1385,6 @@ const processFiles = async () => {
 
 /* 日志弹窗样式 */
 .log-dialog-content {
-  max-height: 60vh;
   overflow-y: auto;
 }
 

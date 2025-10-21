@@ -349,8 +349,9 @@ const createDefaultApiRequest = (): OcrApiRequest => {
     </div>
 
     <!-- 预设选择对话框 -->
-    <el-dialog v-model="showPresetDialog" title="选择创建方式" width="600px">
-      <div class="preset-options">
+    <BaseDialog :visible="showPresetDialog" @update:visible="showPresetDialog = $event" title="选择创建方式" width="600px">
+      <template #content>
+        <div class="preset-options">
         <div class="preset-section">
           <h4>从预设模板创建</h4>
           <div class="preset-grid">
@@ -387,9 +388,10 @@ const createDefaultApiRequest = (): OcrApiRequest => {
           >
             从空白创建
           </el-button>
+          </div>
         </div>
-      </div>
-    </el-dialog>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 

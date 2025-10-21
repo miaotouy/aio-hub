@@ -634,8 +634,8 @@ const formatBytes = (bytes: number): string => {
     </div>
 
     <!-- 日志详情弹窗 -->
-    <el-dialog v-model="showLogDialog" title="操作历史记录" width="70%" :close-on-click-modal="false">
-      <el-scrollbar max-height="500px">
+    <BaseDialog :visible="showLogDialog" @update:visible="showLogDialog = $event" title="操作历史记录" width="70%" height="600px" :close-on-backdrop-click="false">
+      <template #content>
         <div v-if="allLogs.length === 0" class="empty-logs">
           <el-icon>
             <InfoFilled />
@@ -679,9 +679,9 @@ const formatBytes = (bytes: number): string => {
               </div>
             </div>
           </div>
-        </div>
-      </el-scrollbar>
-    </el-dialog>
+          </div>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 

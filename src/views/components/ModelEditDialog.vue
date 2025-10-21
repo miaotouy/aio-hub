@@ -153,14 +153,15 @@ const applyOutputPreset = (value: number) => {
 </script>
 
 <template>
-  <el-dialog
-    :model-value="visible"
+  <BaseDialog
+    :visible="visible"
+    @update:visible="handleClose"
     :title="dialogTitle"
     width="75%"
-    @update:model-value="handleClose"
-    class="model-edit-dialog"
+    height="75vh"
   >
-    <div class="form-container">
+    <template #content>
+      <div class="form-container">
       <el-form :model="modelEditForm" label-width="110px">
         <!-- 基本信息 -->
         <el-divider content-position="left">基本信息</el-divider>
@@ -305,9 +306,10 @@ const applyOutputPreset = (value: number) => {
             <template #prepend>$</template>
           </el-input>
           <div class="form-hint">每张图像的处理价格（可选）</div>
-        </el-form-item>
-      </el-form>
-    </div>
+          </el-form-item>
+        </el-form>
+      </div>
+    </template>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
@@ -315,31 +317,23 @@ const applyOutputPreset = (value: number) => {
     </template>
 
     <!-- 预设图标选择对话框 -->
-    <el-dialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" top="5vh">
-      <IconPresetSelector
+    <BaseDialog :visible="showPresetIconDialog" @update:visible="showPresetIconDialog = $event" title="选择预设图标" width="80%">
+      <template #content>
+        <IconPresetSelector
         :icons="PRESET_ICONS"
         :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
         show-search
         show-categories
         @select="selectPresetIcon"
-      />
-    </el-dialog>
-  </el-dialog>
+        />
+      </template>
+    </BaseDialog>
+  </BaseDialog>
 </template>
 
 <style scoped>
-/* 对话框高度控制 */
-.model-edit-dialog {
-  padding: 0;
-  max-height: 65vh;
-  width: 75%;
-  overflow: hidden;
-}
-
 /* 表单滚动容器 */
 .form-container {
-  max-height: 65vh;
-  overflow-y: auto;
   padding: 20px 20px 10px;
 }
 

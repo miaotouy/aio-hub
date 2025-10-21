@@ -446,15 +446,17 @@ const openProviderIconSelector = () => {
     />
 
     <!-- 预设图标选择对话框 -->
-    <el-dialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" top="5vh">
-      <IconPresetSelector
+    <BaseDialog :visible="showPresetIconDialog" @update:visible="showPresetIconDialog = $event" title="选择预设图标" width="80%">
+      <template #content>
+        <IconPresetSelector
         :icons="PRESET_ICONS"
         :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
         show-search
         show-categories
         @select="selectPresetIcon"
-      />
-    </el-dialog>
+        />
+      </template>
+    </BaseDialog>
 
     <!-- 模型获取对话框 -->
     <ModelFetcherDialog

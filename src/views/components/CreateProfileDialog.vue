@@ -73,13 +73,15 @@ const getCategoryLabel = (category: ProviderType | "all") => {
 </script>
 
 <template>
-  <el-dialog
-    :model-value="visible"
+  <BaseDialog
+    :visible="visible"
+    @update:visible="(val: boolean) => emit('update:visible', val)"
     title="选择创建方式"
     width="80%"
-    @update:model-value="(val: boolean) => emit('update:visible', val)"
+    height="75vh"
   >
-    <div class="preset-options">
+    <template #content>
+      <div class="preset-options">
       <div class="preset-section">
         <h4>从预设模板创建</h4>
         <p class="preset-section-desc">选择常用服务商快速创建配置</p>
@@ -131,16 +133,16 @@ const getCategoryLabel = (category: ProviderType | "all") => {
       <div class="preset-section">
         <h4>自定义配置</h4>
         <el-button style="width: 100%" @click="createFromBlank"> 从空白创建 </el-button>
+        </div>
       </div>
-    </div>
-  </el-dialog>
+    </template>
+  </BaseDialog>
 </template>
 
 <style scoped>
 /* 预设选择对话框 */
 .preset-options {
-  padding: 10px 0;
-  max-height: 70vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }

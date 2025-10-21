@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useAgentStore } from '../../agentStore';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { Plus, Edit, Delete, MoreFilled } from '@element-plus/icons-vue';
-import { ElMessageBox } from 'element-plus';
-import { customMessage } from '@/utils/customMessage';
-import type { ChatAgent, ChatMessageNode } from '../../types';
-import CreateAgentDialog from '../agent/CreateAgentDialog.vue';
-import EditAgentDialog from '../agent/EditAgentDialog.vue';
-import type { AgentPreset } from '../../types';
+import { computed, ref } from "vue";
+import { useAgentStore } from "../../agentStore";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { Plus, Edit, Delete, MoreFilled } from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
+import type { ChatAgent, ChatMessageNode } from "../../types";
+import CreateAgentDialog from "../agent/CreateAgentDialog.vue";
+import EditAgentDialog from "../agent/EditAgentDialog.vue";
+import type { AgentPreset } from "../../types";
 
 const agentStore = useAgentStore();
-const { getProfileById } = useLlmProfiles();
 
 // 按最后使用时间排序的智能体列表
 const sortedAgents = computed(() => agentStore.sortedAgents);
@@ -29,22 +28,10 @@ const isAgentSelected = (agentId: string) => {
   return agentId === currentAgentId.value;
 };
 
-// 获取智能体的模型信息
-const getAgentModelInfo = (agent: any) => {
-  const profile = getProfileById(agent.profileId);
-  if (!profile) return { profileName: '未知服务', modelName: '未知模型' };
-  
-  const model = profile.models.find(m => m.id === agent.modelId);
-  return {
-    profileName: profile.name,
-    modelName: model?.name || '未知模型',
-  };
-};
-
 // 对话框状态
 const createDialogVisible = ref(false); // 创建选择对话框
 const editDialogVisible = ref(false); // 编辑/创建对话框
-const editDialogMode = ref<'create' | 'edit'>('create');
+const editDialogMode = ref<"create" | "edit">("create");
 const editingAgent = ref<ChatAgent | null>(null);
 const editDialogInitialData = ref<any>(null);
 
@@ -57,7 +44,7 @@ const handleOpenCreateDialog = () => {
 const handleCreateFromBlank = () => {
   const { enabledProfiles } = useLlmProfiles();
   if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
-    customMessage.error('没有可用的模型配置，无法创建智能体');
+    customMessage.error("没有可用的模型配置，无法创建智能体");
     return;
   }
 
@@ -65,12 +52,12 @@ const handleCreateFromBlank = () => {
   const defaultProfile = enabledProfiles.value[0];
   const defaultModel = defaultProfile.models[0];
 
-  editDialogMode.value = 'create';
+  editDialogMode.value = "create";
   editingAgent.value = null;
   editDialogInitialData.value = {
-    name: '',
-    description: '',
-    icon: '🤖',
+    name: "",
+    description: "",
+    icon: "🤖",
     profileId: defaultProfile.id,
     modelId: defaultModel.id,
     presetMessages: [
@@ -78,9 +65,9 @@ const handleCreateFromBlank = () => {
         id: `preset-system-${Date.now()}`,
         parentId: null,
         childrenIds: [],
-        content: '你是一个友好且乐于助人的 AI 助手。',
-        role: 'system',
-        status: 'complete',
+        content: "你是一个友好且乐于助人的 AI 助手。",
+        role: "system",
+        status: "complete",
         isEnabled: true,
         timestamp: new Date().toISOString(),
       },
@@ -96,7 +83,7 @@ const handleCreateFromBlank = () => {
 const handleCreateFromPreset = (preset: AgentPreset) => {
   const { enabledProfiles } = useLlmProfiles();
   if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
-    customMessage.error('没有可用的模型配置，无法创建智能体');
+    customMessage.error("没有可用的模型配置，无法创建智能体");
     return;
   }
 
@@ -104,7 +91,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
   const defaultProfile = enabledProfiles.value[0];
   const defaultModel = defaultProfile.models[0];
 
-  editDialogMode.value = 'create';
+  editDialogMode.value = "create";
   editingAgent.value = null;
   editDialogInitialData.value = {
     name: preset.name,
@@ -118,7 +105,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
       id: `preset-${msg.role}-${Date.now()}-${Math.random()}`,
       parentId: null,
       childrenIds: [],
-      status: 'complete',
+      status: "complete",
       isEnabled: true,
       timestamp: new Date().toISOString(),
     })),
@@ -131,10 +118,10 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
 
 // 编辑智能体
 const handleEdit = (agent: ChatAgent) => {
-  editDialogMode.value = 'edit';
+  editDialogMode.value = "edit";
   editingAgent.value = agent;
   editDialogInitialData.value = null;
-  
+
   editDialogVisible.value = true;
 };
 
@@ -151,23 +138,18 @@ const handleSaveAgent = (data: {
     maxTokens: number;
   };
 }) => {
-  if (editDialogMode.value === 'edit' && editingAgent.value) {
+  if (editDialogMode.value === "edit" && editingAgent.value) {
     // 更新模式
     agentStore.updateAgent(editingAgent.value.id, data);
-    customMessage.success('智能体已更新');
+    customMessage.success("智能体已更新");
   } else {
     // 创建模式
-    const newAgentId = agentStore.createAgent(
-      data.name,
-      data.profileId,
-      data.modelId,
-      {
-        description: data.description,
-        icon: data.icon,
-        presetMessages: data.presetMessages,
-        parameters: data.parameters,
-      }
-    );
+    const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, {
+      description: data.description,
+      icon: data.icon,
+      presetMessages: data.presetMessages,
+      parameters: data.parameters,
+    });
     customMessage.success(`智能体 "${data.name}" 创建成功`);
     // 自动选中新创建的智能体
     selectAgent(newAgentId);
@@ -177,17 +159,17 @@ const handleSaveAgent = (data: {
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
   if (agent.isBuiltIn) {
-    customMessage.warning('不能删除内置的默认智能体。');
+    customMessage.warning("不能删除内置的默认智能体。");
     return;
   }
-  ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？此操作不可撤销。`, '确认删除', {
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-    type: 'warning',
+  ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？此操作不可撤销。`, "确认删除", {
+    confirmButtonText: "删除",
+    cancelButtonText: "取消",
+    type: "warning",
   })
     .then(() => {
       agentStore.deleteAgent(agent.id);
-      customMessage.success('智能体已删除');
+      customMessage.success("智能体已删除");
     })
     .catch(() => {
       // 用户取消
@@ -209,14 +191,11 @@ const handleDelete = (agent: ChatAgent) => {
         :class="['agent-item', { selected: isAgentSelected(agent.id) }]"
         @click="selectAgent(agent.id)"
       >
-        <div class="agent-icon">{{ agent.icon || '🙄' }}</div>
+        <div class="agent-icon">{{ agent.icon || "🙄" }}</div>
         <div class="agent-info">
           <div class="agent-name">{{ agent.name }}</div>
           <!-- 只在选中时显示详细信息 -->
           <template v-if="isAgentSelected(agent.id)">
-            <div class="agent-model">
-              {{ getAgentModelInfo(agent).profileName }} | {{ getAgentModelInfo(agent).modelName }}
-            </div>
             <div v-if="agent.description" class="agent-desc">
               {{ agent.description }}
             </div>
@@ -232,11 +211,7 @@ const handleDelete = (agent: ChatAgent) => {
                   <el-icon><Edit /></el-icon>
                   编辑
                 </el-dropdown-item>
-                <el-dropdown-item
-                  @click="handleDelete(agent)"
-                  :disabled="agent.isBuiltIn"
-                  divided
-                >
+                <el-dropdown-item @click="handleDelete(agent)" :disabled="agent.isBuiltIn" divided>
                   <el-icon><Delete /></el-icon>
                   删除
                 </el-dropdown-item>
@@ -249,7 +224,7 @@ const handleDelete = (agent: ChatAgent) => {
 
     <!-- 底部常驻添加按钮 -->
     <div class="agents-footer">
-      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus" style="width: 100%;">
+      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus" style="width: 100%">
         添加智能体
       </el-button>
     </div>
@@ -380,17 +355,17 @@ const handleDelete = (agent: ChatAgent) => {
   margin-bottom: 4px;
 }
 
-.agent-model {
-  font-size: 12px;
-  color: var(--text-color-light);
-  margin-bottom: 2px;
-}
-
 .agent-desc {
   font-size: 11px;
   color: var(--text-color-light);
   margin-top: 4px;
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 滚动条样式 */

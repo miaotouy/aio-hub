@@ -88,6 +88,11 @@ export function useDetachedChatArea() {
     return bus.requestAction('edit-message', { nodeId, newContent });
   };
 
+  const createBranch = (nodeId: string) => {
+    logger.info('代理创建分支操作', { nodeId });
+    return bus.requestAction('create-branch', { nodeId });
+  };
+
   const abortNode = (nodeId: string) => {
     logger.info('代理中止节点生成操作', { nodeId });
     return bus.requestAction('abort-node', { nodeId });
@@ -117,6 +122,7 @@ export function useDetachedChatArea() {
     switchSibling,
     toggleEnabled,
     editMessage,
+    createBranch,
     abortNode,
   };
 }

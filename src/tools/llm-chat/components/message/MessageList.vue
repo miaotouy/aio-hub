@@ -15,6 +15,7 @@ interface Emits {
   (e: 'toggle-enabled', nodeId: string): void;
   (e: 'edit-message', nodeId: string, newContent: string): void;
   (e: 'abort-node', nodeId: string): void;
+  (e: 'create-branch', nodeId: string): void;
 }
 
 const props = defineProps<Props>();
@@ -68,6 +69,7 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           @edit="(newContent) => emit('edit-message', message.id, newContent)"
           @copy="() => {}"
           @abort="emit('abort-node', message.id)"
+          @create-branch="emit('create-branch', message.id)"
         />
       </div>
     </template>

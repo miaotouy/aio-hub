@@ -1002,9 +1002,8 @@ export const useLlmChatStore = defineStore("llmChat", {
     },
 
     /**
-     * 编辑消息（非破坏性）- 通用方法
-     * 创建新节点并嫁接子树，旧节点保留
-     * 支持编辑用户消息和助手消息
+     * 编辑消息（原地修改内容）
+     * 直接修改节点内容，不创建新节点
      */
     editMessage(nodeId: string, newContent: string): void {
       const session = this.currentSession;
@@ -1013,58 +1012,98 @@ export const useLlmChatStore = defineStore("llmChat", {
         return;
       }
 
-      const oldNode = session.nodes[nodeId];
-      if (!oldNode) {
+      const node = session.nodes[nodeId];
+      if (!node) {
         logger.warn("编辑消息失败：节点不存在", { sessionId: session.id, nodeId });
         return;
       }
 
       // 只允许编辑用户消息和助手消息
-      if (oldNode.role !== "user" && oldNode.role !== "assistant") {
+      if (node.role !== "user" && node.role !== "assistant") {
         logger.warn("编辑消息失败：只能编辑用户或助手消息", {
           sessionId: session.id,
           nodeId,
-          role: oldNode.role,
+          role: node.role,
+        });
+        return;
+      }
+
+      // 直接更新节点内容
+      node.content = newContent;
+
+      // 更新时间戳
+      session.updatedAt = new Date().toISOString();
+
+      this.persistSessions();
+
+      logger.info("消息已编辑", {
+        sessionId: session.id,
+        nodeId,
+        role: node.role,
+        contentLength: newContent.length,
+      });
+    },
+
+    /**
+     * 创建分支（创建源节点的兄弟节点，复制内容）
+     * 用于在同一父节点下创建新的分支
+     */
+    createBranch(sourceNodeId: string): void {
+      const session = this.currentSession;
+      if (!session) {
+        logger.warn("创建分支失败：没有活动会话");
+        return;
+      }
+
+      const sourceNode = session.nodes[sourceNodeId];
+      if (!sourceNode) {
+        logger.warn("创建分支失败：源节点不存在", { sessionId: session.id, sourceNodeId });
+        return;
+      }
+
+      // 只允许为用户消息和助手消息创建分支
+      if (sourceNode.role !== "user" && sourceNode.role !== "assistant") {
+        logger.warn("创建分支失败：只能为用户或助手消息创建分支", {
+          sessionId: session.id,
+          sourceNodeId,
+          role: sourceNode.role,
         });
         return;
       }
 
       const nodeManager = useNodeManager();
 
-      // 创建新节点（保持原有角色）
+      // 创建新的兄弟节点，复制源节点的内容
       const newNode = nodeManager.createNode({
-        role: oldNode.role,
-        content: newContent,
-        parentId: oldNode.parentId,
+        parentId: sourceNode.parentId, // 使用相同的父节点，成为兄弟
+        role: sourceNode.role,
+        content: sourceNode.content, // 复制内容
+        isEnabled: true,
         status: "complete",
       });
 
-      // 如果是助手消息，复制元数据（token 使用信息、推理内容等）
-      if (oldNode.role === "assistant" && oldNode.metadata) {
-        newNode.metadata = { ...oldNode.metadata };
+      // 如果是助手消息，复制元数据
+      if (sourceNode.role === "assistant" && sourceNode.metadata) {
+        newNode.metadata = { ...sourceNode.metadata };
       }
 
-      // 添加到会话
+      // 添加新节点到会话
       nodeManager.addNodeToSession(session, newNode);
 
-      // 嫁接子节点到新节点
-      nodeManager.transferChildren(session, oldNode.id, newNode.id);
+      // 切换到新分支
+      session.activeLeafId = newNode.id;
 
-      // 如果旧节点在当前活动路径上，切换到新分支
-      if (this.isNodeInActivePath(oldNode.id)) {
-        const newLeafId = BranchNavigator.findLeafOfBranch(session, newNode.id);
-        session.activeLeafId = newLeafId;
-        this._updateSessionDisplayAgent(session);
-      }
+      // 更新时间戳
+      session.updatedAt = new Date().toISOString();
 
+      this._updateSessionDisplayAgent(session);
       this.persistSessions();
 
-      logger.info("消息已编辑", {
+      logger.info("分支已创建", {
         sessionId: session.id,
-        role: oldNode.role,
-        oldNodeId: oldNode.id,
+        sourceNodeId,
         newNodeId: newNode.id,
-        contentLength: newContent.length,
+        role: newNode.role,
       });
     },
 

@@ -31,6 +31,7 @@ interface Emits {
   (e: "toggle-enabled", nodeId: string): void;
   (e: "edit-message", nodeId: string, newContent: string): void;
   (e: "abort-node", nodeId: string): void;
+  (e: "create-branch", nodeId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -205,6 +206,7 @@ let handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => emit("
 let handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
 let handleEditMessage = (nodeId: string, newContent: string) => emit("edit-message", nodeId, newContent);
 let handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
+let handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 
 if (props.isDetached) {
   const detached = useDetachedChatArea();
@@ -223,6 +225,7 @@ if (props.isDetached) {
   handleToggleEnabled = detached.toggleEnabled;
   handleEditMessage = detached.editMessage;
   handleAbortNode = detached.abortNode;
+  handleCreateBranch = detached.createBranch;
 
   logger.info("ChatArea 运行在分离模式");
 }
@@ -307,6 +310,7 @@ onMounted(() => {
           @toggle-enabled="handleToggleEnabled"
           @edit-message="handleEditMessage"
           @abort-node="handleAbortNode"
+          @create-branch="handleCreateBranch"
         />
 
         <!-- 输入框 -->

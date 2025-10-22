@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import {
   Copy,
   Edit,
+  GitFork,
   Trash2,
   RefreshCw,
   Eye,
@@ -25,6 +26,7 @@ interface Props {
 interface Emits {
   (e: 'copy'): void;
   (e: 'edit'): void;
+  (e: 'create-branch'): void;
   (e: 'delete'): void;
   (e: 'regenerate'): void;
   (e: 'toggle-enabled'): void;
@@ -59,9 +61,9 @@ const copyMessage = async () => {
     console.error('复制失败', error);
   }
 };
-
 // 其他操作
 const handleEdit = () => emit('edit');
+const handleCreateBranch = () => emit('create-branch');
 const handleDelete = () => emit('delete');
 const handleRegenerate = () => emit('regenerate');
 const handleToggleEnabled = () => emit('toggle-enabled');
@@ -130,6 +132,16 @@ const handleAbort = () => {
       title="编辑"
     >
       <Edit :size="16" />
+    </button>
+
+    <!-- 创建分支（用户和助手消息都可以，生成中不可创建） -->
+    <button
+      v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+      class="menu-btn"
+      @click="handleCreateBranch"
+      title="创建分支"
+    >
+      <GitFork :size="16" />
     </button>
 
     <!-- 重新生成（仅助手消息，不禁用以支持并行生成） -->

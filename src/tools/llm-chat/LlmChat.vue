@@ -152,6 +152,11 @@ const handleEditMessage = (nodeId: string, newContent: string) => {
   store.editMessage(nodeId, newContent);
 };
 
+// 处理创建分支
+const handleCreateBranch = (nodeId: string) => {
+  store.createBranch(nodeId);
+};
+
 // 处理中止单个节点的生成
 const handleAbortNode = (nodeId: string) => {
   store.abortNodeGeneration(nodeId);
@@ -248,6 +253,7 @@ const handleDeleteSession = (sessionId: string) => {
           @toggle-enabled="handleToggleEnabled"
           @edit-message="handleEditMessage"
           @abort-node="handleAbortNode"
+          @create-branch="handleCreateBranch"
         />
 
         <!-- 分离后的占位提示 -->

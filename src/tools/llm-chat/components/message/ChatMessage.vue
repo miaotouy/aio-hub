@@ -20,6 +20,7 @@ interface Emits {
   (e: 'edit', newContent: string): void;
   (e: 'copy'): void;
   (e: 'abort'): void;
+  (e: 'create-branch'): void;
 }
 
 const props = defineProps<Props>();
@@ -94,6 +95,7 @@ defineExpose({
       @toggle-enabled="emit('toggle-enabled')"
       @switch="(direction) => emit('switch-sibling', direction)"
       @abort="emit('abort')"
+      @create-branch="emit('create-branch')"
     />
   </div>
 </template>

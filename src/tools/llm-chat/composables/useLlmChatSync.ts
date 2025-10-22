@@ -71,6 +71,9 @@ export function useLlmChatSync() {
       case 'edit-message':
         store.editMessage(params.nodeId, params.newContent);
         return Promise.resolve();
+      case 'create-branch':
+        store.createBranch(params.nodeId);
+        return Promise.resolve();
       case 'abort-node':
         store.abortNodeGeneration(params.nodeId);
         return Promise.resolve();

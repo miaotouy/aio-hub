@@ -267,27 +267,37 @@ export const useLlmChatStore = defineStore("llmChat", {
     },
 
     /**
-     * 删除会话
-     */
-    deleteSession(sessionId: string): void {
-      const index = this.sessions.findIndex((s) => s.id === sessionId);
-      if (index === -1) {
-        logger.warn("删除会话失败：会话不存在", { sessionId });
-        return;
-      }
-
-      const session = this.sessions[index];
-      this.sessions.splice(index, 1);
-
-      // 如果删除的是当前会话，切换到第一个会话或清空
-      if (this.currentSessionId === sessionId) {
-        this.currentSessionId = this.sessions[0]?.id || null;
-      }
-
-      this.persistSessions();
-      logger.info("删除会话", { sessionId, sessionName: session.name });
-    },
-
+     /**
+      * 删除会话
+      */
+     async deleteSession(sessionId: string): Promise<void> {
+       const index = this.sessions.findIndex((s) => s.id === sessionId);
+       if (index === -1) {
+         logger.warn("删除会话失败：会话不存在", { sessionId });
+         return;
+       }
+ 
+       const session = this.sessions[index];
+       
+       // 从内存中移除
+       this.sessions.splice(index, 1);
+ 
+       // 如果删除的是当前会话，切换到第一个会话或清空
+       if (this.currentSessionId === sessionId) {
+         this.currentSessionId = this.sessions[0]?.id || null;
+       }
+ 
+       // 使用统一存储接口删除会话文件和更新索引
+       try {
+         const { deleteSession: deleteSessionFile } = useChatStorage();
+         await deleteSessionFile(sessionId);
+         logger.info("删除会话", { sessionId, sessionName: session.name });
+       } catch (error) {
+         logger.error("删除会话文件失败", error as Error, { sessionId });
+         // 即使文件删除失败，也已从内存中移除，需要同步索引
+         this.persistSessions();
+       }
+     },
     /**
      * 更新会话信息
      */

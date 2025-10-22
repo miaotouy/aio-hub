@@ -3,42 +3,107 @@
     <!-- 配置面板 -->
     <div class="config-panel">
       <h2>LLM 代理监听器</h2>
+      
+      <!-- 错误提示 -->
+      <div v-if="error" class="error-message">
+        <span class="error-icon">⚠️</span>
+        <span class="error-text">{{ error }}</span>
+        <button @click="clearError" class="error-close">×</button>
+      </div>
+
       <div class="config-form">
         <div class="form-row">
           <div class="form-group port-group">
             <label>本地监听端口：</label>
-            <input v-model.number="config.port" type="number" placeholder="8999" :disabled="isRunning" min="1024"
-              max="65535" class="port-input" />
-            <button v-if="!isRunning" @click="startProxy" class="btn-primary"
-              :disabled="!config.port || !config.target_url">
-              启动代理
+            <input 
+              v-model.number="config.port" 
+              type="number" 
+              placeholder="8999" 
+              :disabled="isRunning" 
+              min="1024"
+              max="65535" 
+              class="port-input" 
+            />
+            <button 
+              v-if="!isRunning" 
+              @click="handleStartProxy" 
+              class="btn-primary"
+              :disabled="!canStartProxy || isLoading"
+            >
+              <span v-if="isLoading">启动中...</span>
+              <span v-else>启动代理</span>
             </button>
-            <button v-else @click="stopProxy" class="btn-danger">
-              停止代理
+            <button 
+              v-else 
+              @click="handleStopProxy" 
+              class="btn-danger"
+              :disabled="isLoading"
+            >
+              <span v-if="isLoading">停止中...</span>
+              <span v-else>停止代理</span>
             </button>
-            <button @click="clearRecords" class="btn-secondary" :disabled="records.length === 0">
+            <button 
+              @click="handleClearRecords" 
+              class="btn-secondary" 
+              :disabled="records.length === 0"
+            >
               清空记录
             </button>
           </div>
         </div>
+        
         <div class="form-row">
           <div class="form-group target-group">
             <label>目标API地址：</label>
-            <input v-model="config.target_url" type="text" placeholder="https://api.openai.com" class="target-input" />
-            <button v-if="isRunning" @click="updateTargetUrl" class="btn-update"
-              :disabled="!config.target_url || config.target_url === currentTargetUrl">
+            <input 
+              v-model="config.target_url" 
+              type="text" 
+              placeholder="https://api.openai.com" 
+              class="target-input" 
+            />
+            <button 
+              v-if="isRunning" 
+              @click="handleUpdateTargetUrl" 
+              class="btn-update"
+              :disabled="!config.target_url || config.target_url === currentTargetUrl || isLoading"
+            >
               更新地址
             </button>
           </div>
         </div>
+        
         <div v-if="isRunning" class="status-info">
           <span class="status-indicator"></span>
           代理服务运行中：http://localhost:{{ config.port }}
+          <span class="stream-info" v-if="activeStreamCount > 0">
+            ({{ activeStreamCount }} 个活动流)
+          </span>
         </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-row">
+          <div class="stat-item">
+            <span class="stat-label">总记录：</span>
+            <span class="stat-value">{{ records.length }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">已完成：</span>
+            <span class="stat-value">{{ getRecordStats().completed }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">处理中：</span>
+            <span class="stat-value">{{ getRecordStats().pending }}</span>
+          </div>
+        </div>
+        
         <div class="form-row">
           <div class="form-group">
             <label class="checkbox-label">
-              <input type="checkbox" v-model="maskApiKeys" class="checkbox-input" />
+              <input 
+                type="checkbox" 
+                v-model="maskApiKeys" 
+                class="checkbox-input" 
+              />
               <span>复制时打码 API Key</span>
             </label>
             <span class="checkbox-hint">开启后复制请求信息时会自动隐藏敏感的 API Key</span>
@@ -48,290 +113,89 @@
     </div>
 
     <!-- 记录列表组件 -->
-    <RecordsList :records="records" :selectedRecord="selectedRecord" v-model:searchQuery="searchQuery"
-      v-model:filterStatus="filterStatus" @select="selectRecord" />
+    <RecordsList 
+      :records="filteredRecords" 
+      :selectedRecord="selectedRecord" 
+      v-model:searchQuery="filterOptions.searchQuery"
+      v-model:filterStatus="filterOptions.filterStatus" 
+      @select="selectRecord" 
+    />
 
     <!-- 详情面板组件 -->
-    <RecordDetail :record="selectedRecord" :maskApiKeys="maskApiKeys" @close="selectedRecord = null" />
+    <RecordDetail 
+      :record="selectedRecord" 
+      :maskApiKeys="maskApiKeys" 
+      @close="selectRecord(null)" 
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { createConfigManager } from '@utils/configManager';
-import { createModuleLogger } from '@utils/logger';
+import { useProxyManager } from './composables/useProxyManager';
 import RecordsList from './components/RecordsList.vue';
 import RecordDetail from './components/RecordDetail.vue';
 
-// 创建模块日志记录器
-const logger = createModuleLogger('LlmProxy');
+// 使用代理管理器
+const {
+  // 状态
+  isRunning,
+  currentTargetUrl,
+  config,
+  maskApiKeys,
+  isLoading,
+  error,
+  
+  // 计算属性
+  canStartProxy,
+  
+  // 数据
+  records,
+  selectedRecord,
+  filterOptions,
+  filteredRecords,
+  activeStreamCount,
+  
+  // 方法
+  startProxy,
+  stopProxy,
+  updateTargetUrl,
+  clearRecords,
+  selectRecord,
+  getRecordStats,
+  clearError
+} = useProxyManager();
 
-// 类型定义
-interface ProxyConfig {
-  port: number;
-  target_url: string;
-}
-
-interface LlmProxySettings {
-  config: ProxyConfig;
-  searchQuery: string;
-  filterStatus: string;
-  maskApiKeys?: boolean;  // API Key 打码开关
-  version?: string;
-}
-
-interface RequestRecord {
-  id: string;
-  timestamp: number;
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  body?: string;
-  request_size: number;
-}
-
-interface ResponseRecord {
-  id: string;
-  timestamp: number;
-  status: number;
-  headers: Record<string, string>;
-  body?: string;
-  response_size: number;
-  duration_ms: number;
-}
-
-interface CombinedRecord {
-  id: string;
-  request: RequestRecord;
-  response?: ResponseRecord;
-}
-
-// 创建配置管理器
-const configManager = createConfigManager<LlmProxySettings>({
-  moduleName: 'llm-proxy',
-  fileName: 'settings.json',
-  version: '1.0.0',
-  createDefault: () => ({
-    config: {
-      port: 8999,
-      target_url: 'https://api.openai.com'
-    },
-    searchQuery: '',
-    filterStatus: '',
-    maskApiKeys: true,  // 默认开启打码
-    version: '1.0.0'
-  })
-});
-
-// 创建防抖保存函数
-const debouncedSave = configManager.createDebouncedSave(500);
-
-// 响应式状态
-const config = ref<ProxyConfig>({
-  port: 8999,
-  target_url: 'https://api.openai.com'
-});
-
-const isRunning = ref(false);
-const currentTargetUrl = ref('');
-const records = ref<CombinedRecord[]>([]);
-const selectedRecord = ref<CombinedRecord | null>(null);
-const searchQuery = ref('');
-const filterStatus = ref('');
-const maskApiKeys = ref(true);  // API Key 打码开关
-
-// 事件监听器
-let unlistenRequest: (() => void) | null = null;
-let unlistenResponse: (() => void) | null = null;
-let unlistenStreamUpdate: (() => void) | null = null;
-
-// 方法
-async function startProxy() {
+// 事件处理器
+async function handleStartProxy() {
   try {
-    const result = await invoke('start_llm_proxy', { config: config.value });
-    logger.info('代理服务启动成功', {
-      port: config.value.port,
-      targetUrl: config.value.target_url,
-      result
-    });
-    isRunning.value = true;
-    currentTargetUrl.value = config.value.target_url;
-
-    // 设置事件监听器
-    unlistenRequest = await listen('proxy-request', (event) => {
-      const request = event.payload as RequestRecord;
-      records.value.push({
-        id: request.id,
-        request,
-        response: undefined
-      });
-    });
-
-    unlistenResponse = await listen('proxy-response', (event) => {
-      const response = event.payload as ResponseRecord;
-      const record = records.value.find(r => r.id === response.id);
-      if (record) {
-        record.response = response;
-      }
-    });
-
-    // 监听流式更新事件
-    unlistenStreamUpdate = await listen('proxy-stream-update', (event) => {
-      // 这里只是确保事件监听器被设置，实际处理在 RecordDetail 组件中
-      logger.debug('接收到流式更新事件', { payload: event.payload });
-    });
-  } catch (error) {
-    logger.error('启动代理服务失败', error, {
-      port: config.value.port,
-      targetUrl: config.value.target_url
-    });
-    alert(`启动代理失败: ${error}`);
+    await startProxy();
+  } catch (err) {
+    // 错误已经在 useProxyManager 中处理
+    console.error('启动代理失败:', err);
   }
 }
 
-async function updateTargetUrl() {
+async function handleStopProxy() {
   try {
-    const result = await invoke('update_proxy_target', { target_url: config.value.target_url });
-    logger.info('代理目标地址更新成功', {
-      newTargetUrl: config.value.target_url,
-      result
-    });
-    currentTargetUrl.value = config.value.target_url;
-  } catch (error) {
-    logger.error('更新代理目标地址失败', error, {
-      targetUrl: config.value.target_url
-    });
-    alert(`更新目标地址失败: ${error}`);
+    await stopProxy();
+  } catch (err) {
+    // 错误已经在 useProxyManager 中处理
+    console.error('停止代理失败:', err);
   }
 }
 
-async function stopProxy() {
+async function handleUpdateTargetUrl() {
   try {
-    const result = await invoke('stop_llm_proxy');
-    logger.info('代理服务停止成功', { result });
-    isRunning.value = false;
-
-    // 清理事件监听器
-    if (unlistenRequest) {
-      unlistenRequest();
-      unlistenRequest = null;
-    }
-    if (unlistenResponse) {
-      unlistenResponse();
-      unlistenResponse = null;
-    }
-    if (unlistenStreamUpdate) {
-      unlistenStreamUpdate();
-      unlistenStreamUpdate = null;
-    }
-  } catch (error) {
-    logger.error('停止代理服务失败', error);
-    alert(`停止代理失败: ${error}`);
+    await updateTargetUrl();
+  } catch (err) {
+    // 错误已经在 useProxyManager 中处理
+    console.error('更新目标地址失败:', err);
   }
 }
 
-async function checkProxyStatus() {
-  try {
-    const status = await invoke('get_proxy_status') as any;
-    isRunning.value = status.is_running;
-    if (status.is_running) {
-      config.value.port = status.port;
-      config.value.target_url = status.target_url;
-      currentTargetUrl.value = status.target_url;
-
-      logger.info('检测到代理服务正在运行', {
-        port: status.port,
-        targetUrl: status.target_url
-      });
-
-      // 如果代理正在运行，设置事件监听器
-      if (!unlistenRequest) {
-        unlistenRequest = await listen('proxy-request', (event) => {
-          const request = event.payload as RequestRecord;
-          records.value.push({
-            id: request.id,
-            request,
-            response: undefined
-          });
-        });
-      }
-
-      if (!unlistenResponse) {
-        unlistenResponse = await listen('proxy-response', (event) => {
-          const response = event.payload as ResponseRecord;
-          const record = records.value.find(r => r.id === response.id);
-          if (record) {
-            record.response = response;
-          }
-        });
-      }
-
-      if (!unlistenStreamUpdate) {
-        unlistenStreamUpdate = await listen('proxy-stream-update', (event) => {
-          logger.debug('接收到流式更新事件', { payload: event.payload });
-        });
-      }
-    }
-  } catch (error) {
-    logger.error('检查代理状态失败', error);
-  }
+function handleClearRecords() {
+  clearRecords();
 }
-
-function clearRecords() {
-  records.value = [];
-  selectedRecord.value = null;
-}
-
-function selectRecord(record: CombinedRecord) {
-  selectedRecord.value = record;
-}
-
-// 加载配置
-async function loadSettings() {
-  try {
-    const settings = await configManager.load();
-    config.value = settings.config;
-    searchQuery.value = settings.searchQuery;
-    filterStatus.value = settings.filterStatus;
-    maskApiKeys.value = settings.maskApiKeys ?? true;  // 默认开启
-    logger.info('配置加载成功', {
-      port: settings.config.port,
-      targetUrl: settings.config.target_url
-    });
-  } catch (error) {
-    logger.error('加载配置失败', error);
-  }
-}
-
-// 保存配置
-async function saveSettings() {
-  const settings: LlmProxySettings = {
-    config: config.value,
-    searchQuery: searchQuery.value,
-    filterStatus: filterStatus.value,
-    maskApiKeys: maskApiKeys.value
-  };
-  debouncedSave(settings);
-}
-
-// 监听配置变化并自动保存
-watch([config, searchQuery, filterStatus, maskApiKeys], () => {
-  saveSettings();
-}, { deep: true });
-
-// 生命周期
-onMounted(async () => {
-  await loadSettings();
-  checkProxyStatus();
-});
-
-onUnmounted(() => {
-  if (unlistenRequest) unlistenRequest();
-  if (unlistenResponse) unlistenResponse();
-  if (unlistenStreamUpdate) unlistenStreamUpdate();
-});
 </script>
 
 <style scoped>
@@ -357,6 +221,48 @@ onUnmounted(() => {
 .config-panel h2 {
   margin: 0 0 20px 0;
   color: var(--text-color);
+}
+
+/* 错误消息样式 */
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(245, 108, 108, 0.1);
+  border: 1px solid var(--error-color);
+  border-radius: 6px;
+  margin-bottom: 20px;
+  color: var(--error-color);
+}
+
+.error-icon {
+  font-size: 16px;
+}
+
+.error-text {
+  flex: 1;
+  font-size: 14px;
+}
+
+.error-close {
+  background: transparent;
+  border: none;
+  color: var(--error-color);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.error-close:hover {
+  background: rgba(245, 108, 108, 0.2);
 }
 
 .config-form {
@@ -480,6 +386,11 @@ button:disabled {
   color: var(--text-color);
 }
 
+.stream-info {
+  color: var(--el-color-warning, #e6a23c);
+  font-size: 12px;
+}
+
 .status-indicator {
   width: 10px;
   height: 10px;
@@ -492,14 +403,38 @@ button:disabled {
   0% {
     box-shadow: 0 0 0 0 rgba(103, 194, 58, 0.4);
   }
-
   70% {
     box-shadow: 0 0 0 10px rgba(103, 194, 58, 0);
   }
-
   100% {
     box-shadow: 0 0 0 0 rgba(103, 194, 58, 0);
   }
+}
+
+/* 统计信息样式 */
+.stats-row {
+  display: flex;
+  gap: 20px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stat-label {
+  color: var(--text-color-light);
+  font-size: 12px;
+}
+
+.stat-value {
+  color: var(--text-color);
+  font-weight: bold;
+  font-size: 14px;
 }
 
 .checkbox-label {

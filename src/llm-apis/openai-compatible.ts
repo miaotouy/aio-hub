@@ -194,6 +194,10 @@ export const callOpenAiCompatibleApi = async (
       const reasoningText = extractReasoningFromSSE(data, "openai");
       if (reasoningText) {
         fullReasoningContent += reasoningText;
+        // 实时回调推理内容
+        if (options.onReasoningStream) {
+          options.onReasoningStream(reasoningText);
+        }
       }
 
       // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）

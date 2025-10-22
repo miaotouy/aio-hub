@@ -436,6 +436,19 @@ export const useLlmChatStore = defineStore('llmChat', {
               node.content += chunk;
             }
           },
+          onReasoningStream: (chunk: string) => {
+            // 流式更新推理内容
+            const node = session.nodes[assistantNode.id];
+            if (node) {
+              if (!node.metadata) {
+                node.metadata = {};
+              }
+              if (!node.metadata.reasoningContent) {
+                node.metadata.reasoningContent = '';
+              }
+              node.metadata.reasoningContent += chunk;
+            }
+          },
         });
 
         // 更新最终内容和元数据（合并已有的 metadata）
@@ -696,6 +709,19 @@ export const useLlmChatStore = defineStore('llmChat', {
             const node = session.nodes[assistantNode.id];
             if (node) {
               node.content += chunk;
+            }
+          } : undefined,
+          onReasoningStream: enableStream ? (chunk: string) => {
+            // 流式更新推理内容
+            const node = session.nodes[assistantNode.id];
+            if (node) {
+              if (!node.metadata) {
+                node.metadata = {};
+              }
+              if (!node.metadata.reasoningContent) {
+                node.metadata.reasoningContent = '';
+              }
+              node.metadata.reasoningContent += chunk;
             }
           } : undefined,
         });

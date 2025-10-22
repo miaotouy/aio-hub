@@ -42,6 +42,8 @@ export interface LlmRequestOptions {
   stream?: boolean;
   /** 流式响应回调 */
   onStream?: (chunk: string) => void;
+  /** 流式推理内容回调（DeepSeek reasoning 等） */
+  onReasoningStream?: (chunk: string) => void;
   /** 请求超时时间（毫秒），默认 60000 */
   timeout?: number;
   /** 最大重试次数，默认 3 */

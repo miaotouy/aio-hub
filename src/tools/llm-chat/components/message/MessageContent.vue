@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ChevronRight, ChevronDown } from 'lucide-vue-next';
+import { ChevronRight, ChevronDown, Copy, Check } from 'lucide-vue-next';
 import type { ChatMessageNode } from '../../types';
+import { customMessage } from '@/utils/customMessage';
 
 interface Props {
   message: ChatMessageNode;
@@ -24,6 +25,9 @@ const isReasoningExpanded = ref(false);
 // 编辑状态
 const editingContent = ref('');
 
+// 错误信息复制状态
+const errorCopied = ref(false);
+
 // 推理内容切换
 const toggleReasoning = () => {
   isReasoningExpanded.value = !isReasoningExpanded.value;
@@ -45,6 +49,24 @@ const saveEdit = () => {
 const cancelEdit = () => {
   editingContent.value = '';
   emit('cancel-edit');
+};
+
+// 复制错误信息
+const copyError = async () => {
+  if (!props.message.metadata?.error) return;
+  
+  try {
+    await navigator.clipboard.writeText(props.message.metadata.error);
+    errorCopied.value = true;
+    customMessage.success('错误信息已复制');
+    
+    // 2秒后重置复制状态
+    setTimeout(() => {
+      errorCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    customMessage.error('复制失败');
+  }
 };
 
 // 监听编辑模式变化
@@ -113,7 +135,16 @@ watch(() => props.isEditing, (newVal) => {
         </span>
       </div>
       <div v-if="message.metadata?.error" class="error-info">
-        ⚠️ {{ message.metadata.error }}
+        <span class="error-text">⚠️ {{ message.metadata.error }}</span>
+        <button
+          @click="copyError"
+          class="error-copy-btn"
+          :class="{ copied: errorCopied }"
+          :title="errorCopied ? '已复制' : '复制错误信息'"
+        >
+          <Check v-if="errorCopied" :size="14" />
+          <Copy v-else :size="14" />
+        </button>
       </div>
     </div>
   </div>
@@ -184,8 +215,42 @@ watch(() => props.isEditing, (newVal) => {
 }
 
 .error-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   color: var(--error-color);
-  margin-top: 4px;
+  margin-top: 8px;
+  margin-bottom: 32px;
+}
+
+.error-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.error-copy-btn {
+  flex-shrink: 0;
+  padding: 4px;
+  border: 1px solid var(--error-color);
+  border-radius: 4px;
+  background-color: transparent;
+  color: var(--error-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error-copy-btn:hover {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.error-copy-btn.copied {
+  background-color: var(--success-color, #67c23a);
+  border-color: var(--success-color, #67c23a);
+  color: white;
 }
 
 /* 编辑模式样式 */

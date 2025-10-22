@@ -5,12 +5,12 @@
 /**
  * 消息角色
  */
-export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageRole = "user" | "assistant" | "system";
 
 /**
  * 消息生成状态
  */
-export type MessageStatus = 'generating' | 'complete' | 'error';
+export type MessageStatus = "generating" | "complete" | "error";
 
 /**
  * 消息节点（树形结构）
@@ -84,6 +84,10 @@ export interface ChatMessageNode {
     };
     /** 推理内容（DeepSeek reasoning 模式） */
     reasoningContent?: string;
+    /** 推理开始时间戳 */
+    reasoningStartTime?: number;
+    /** 推理结束时间戳 */
+    reasoningEndTime?: number;
   };
 }
 

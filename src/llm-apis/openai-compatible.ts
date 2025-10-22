@@ -183,53 +183,58 @@ export const callOpenAiCompatibleApi = async (
     let fullReasoningContent = "";
     let usage: LlmResponse["usage"] | undefined;
 
-    await parseSSEStream(reader, (data) => {
-      const text = extractTextFromSSE(data, "openai");
-      if (text) {
-        fullContent += text;
-        options.onStream!(text);
-      }
-
-      // 提取推理内容（DeepSeek reasoning）
-      const reasoningText = extractReasoningFromSSE(data, "openai");
-      if (reasoningText) {
-        fullReasoningContent += reasoningText;
-        // 实时回调推理内容
-        if (options.onReasoningStream) {
-          options.onReasoningStream(reasoningText);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        const text = extractTextFromSSE(data, "openai");
+        if (text) {
+          fullContent += text;
+          options.onStream!(text);
         }
-      }
 
-      // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
-      try {
-        const json = JSON.parse(data);
-        if (json.usage) {
-          usage = {
-            promptTokens: json.usage.prompt_tokens,
-            completionTokens: json.usage.completion_tokens,
-            totalTokens: json.usage.total_tokens,
-            promptTokensDetails: json.usage.prompt_tokens_details
-              ? {
-                  cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
-                  audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-                }
-              : undefined,
-            completionTokensDetails: json.usage.completion_tokens_details
-              ? {
-                  reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
-                  audioTokens: json.usage.completion_tokens_details.audio_tokens,
-                  acceptedPredictionTokens:
-                    json.usage.completion_tokens_details.accepted_prediction_tokens,
-                  rejectedPredictionTokens:
-                    json.usage.completion_tokens_details.rejected_prediction_tokens,
-                }
-              : undefined,
-          };
+        // 提取推理内容（DeepSeek reasoning）
+        const reasoningText = extractReasoningFromSSE(data, "openai");
+        if (reasoningText) {
+          fullReasoningContent += reasoningText;
+          // 实时回调推理内容
+          if (options.onReasoningStream) {
+            options.onReasoningStream(reasoningText);
+          }
         }
-      } catch {
-        // 忽略非 JSON 数据
-      }
-    }, undefined, options.signal);
+
+        // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
+        try {
+          const json = JSON.parse(data);
+          if (json.usage) {
+            usage = {
+              promptTokens: json.usage.prompt_tokens,
+              completionTokens: json.usage.completion_tokens,
+              totalTokens: json.usage.total_tokens,
+              promptTokensDetails: json.usage.prompt_tokens_details
+                ? {
+                    cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+                    audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+                  }
+                : undefined,
+              completionTokensDetails: json.usage.completion_tokens_details
+                ? {
+                    reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
+                    audioTokens: json.usage.completion_tokens_details.audio_tokens,
+                    acceptedPredictionTokens:
+                      json.usage.completion_tokens_details.accepted_prediction_tokens,
+                    rejectedPredictionTokens:
+                      json.usage.completion_tokens_details.rejected_prediction_tokens,
+                  }
+                : undefined,
+            };
+          }
+        } catch {
+          // 忽略非 JSON 数据
+        }
+      },
+      undefined,
+      options.signal
+    );
 
     return {
       content: fullContent,

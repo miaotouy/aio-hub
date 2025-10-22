@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ChevronRight, ChevronDown, Copy, Check } from 'lucide-vue-next';
-import type { ChatMessageNode } from '../../types';
-import { customMessage } from '@/utils/customMessage';
+import { ref, computed } from "vue";
+import { ChevronRight, ChevronDown, Copy, Check } from "lucide-vue-next";
+import type { ChatMessageNode } from "../../types";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   message: ChatMessageNode;
@@ -10,8 +10,8 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'save-edit', newContent: string): void;
-  (e: 'cancel-edit'): void;
+  (e: "save-edit", newContent: string): void;
+  (e: "cancel-edit"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -23,10 +23,67 @@ const emit = defineEmits<Emits>();
 const isReasoningExpanded = ref(false);
 
 // 编辑状态
-const editingContent = ref('');
+const editingContent = ref("");
 
 // 错误信息复制状态
 const errorCopied = ref(false);
+
+// 计算推理用时（毫秒）
+const reasoningDuration = computed(() => {
+  const start = props.message.metadata?.reasoningStartTime;
+  const end = props.message.metadata?.reasoningEndTime;
+  if (start && end) {
+    return end - start;
+  }
+  return null;
+});
+
+// 格式化推理用时
+const formattedReasoningDuration = computed(() => {
+  const duration = reasoningDuration.value;
+  if (duration === null) return "";
+
+  if (duration < 1000) {
+    return `${duration}ms`;
+  } else if (duration < 60000) {
+    return `${(duration / 1000).toFixed(2)}s`;
+  } else {
+    const minutes = Math.floor(duration / 60000);
+    const seconds = ((duration % 60000) / 1000).toFixed(0);
+    return `${minutes}m ${seconds}s`;
+  }
+});
+
+// 判断是否正在推理中
+const isReasoning = computed(() => {
+  return (
+    props.message.status === "generating" &&
+    props.message.metadata?.reasoningContent &&
+    !props.message.metadata?.reasoningEndTime
+  );
+});
+
+// 获取推理内容的最新片段（用于跑马灯显示）
+const reasoningPreview = computed(() => {
+  const content = props.message.metadata?.reasoningContent;
+  if (!content) return "";
+
+  // 获取最后100个字符作为预览
+  const previewLength = 100;
+  if (content.length <= previewLength) {
+    return content;
+  }
+
+  // 从最后开始截取，找到一个合适的断句位置
+  const preview = content.slice(-previewLength);
+  // 尝试从句号、问号、感叹号等位置开始
+  const sentenceEnd = preview.search(/[。！？\.\!\?]\s*/);
+  if (sentenceEnd !== -1 && sentenceEnd < previewLength - 20) {
+    return preview.slice(sentenceEnd + 1).trim();
+  }
+
+  return "..." + preview.trim();
+});
 
 // 推理内容切换
 const toggleReasoning = () => {
@@ -41,41 +98,44 @@ const initEditMode = () => {
 // 保存编辑
 const saveEdit = () => {
   if (editingContent.value.trim()) {
-    emit('save-edit', editingContent.value);
+    emit("save-edit", editingContent.value);
   }
 };
 
 // 取消编辑
 const cancelEdit = () => {
-  editingContent.value = '';
-  emit('cancel-edit');
+  editingContent.value = "";
+  emit("cancel-edit");
 };
 
 // 复制错误信息
 const copyError = async () => {
   if (!props.message.metadata?.error) return;
-  
+
   try {
     await navigator.clipboard.writeText(props.message.metadata.error);
     errorCopied.value = true;
-    customMessage.success('错误信息已复制');
-    
+    customMessage.success("错误信息已复制");
+
     // 2秒后重置复制状态
     setTimeout(() => {
       errorCopied.value = false;
     }, 2000);
   } catch (err) {
-    customMessage.error('复制失败');
+    customMessage.error("复制失败");
   }
 };
 
 // 监听编辑模式变化
-import { watch } from 'vue';
-watch(() => props.isEditing, (newVal) => {
-  if (newVal) {
-    initEditMode();
+import { watch } from "vue";
+watch(
+  () => props.isEditing,
+  (newVal) => {
+    if (newVal) {
+      initEditMode();
+    }
   }
-});
+);
 </script>
 
 <template>
@@ -90,7 +150,17 @@ watch(() => props.isEditing, (newVal) => {
         <ChevronRight v-if="!isReasoningExpanded" :size="14" class="toggle-icon" />
         <ChevronDown v-else :size="14" class="toggle-icon" />
         <span class="toggle-text">思维链推理过程</span>
-        <span class="reasoning-badge">Reasoning</span>
+        <!-- 推理进行中：显示内容跑马灯 -->
+        <div v-if="isReasoning && !isReasoningExpanded" class="reasoning-marquee">
+          <span class="marquee-content">{{ reasoningPreview }}</span>
+        </div>
+        <!-- 推理完成：显示用时 -->
+        <span
+          v-else-if="formattedReasoningDuration && !isReasoningExpanded"
+          class="reasoning-duration"
+        >
+          {{ formattedReasoningDuration }}
+        </span>
       </button>
       <div v-if="isReasoningExpanded" class="reasoning-content">
         <pre class="reasoning-text">{{ message.metadata.reasoningContent }}</pre>
@@ -107,15 +177,11 @@ watch(() => props.isEditing, (newVal) => {
         @keydown.esc="cancelEdit"
       />
       <div class="edit-actions">
-        <button @click="saveEdit" class="edit-btn edit-btn-save">
-          保存 (Ctrl+Enter)
-        </button>
-        <button @click="cancelEdit" class="edit-btn edit-btn-cancel">
-          取消 (Esc)
-        </button>
+        <button @click="saveEdit" class="edit-btn edit-btn-save">保存 (Ctrl+Enter)</button>
+        <button @click="cancelEdit" class="edit-btn edit-btn-cancel">取消 (Esc)</button>
       </div>
     </div>
-    
+
     <!-- 正常显示模式 -->
     <template v-else>
       <pre v-if="message.content" class="message-text">{{ message.content }}</pre>
@@ -131,7 +197,8 @@ watch(() => props.isEditing, (newVal) => {
       <div v-if="message.metadata?.usage" class="usage-info">
         <span>Token: {{ message.metadata.usage.totalTokens }}</span>
         <span class="usage-detail">
-          (输入: {{ message.metadata.usage.promptTokens }}, 输出: {{ message.metadata.usage.completionTokens }})
+          (输入: {{ message.metadata.usage.promptTokens }}, 输出:
+          {{ message.metadata.usage.completionTokens }})
         </span>
       </div>
       <div v-if="message.metadata?.error" class="error-info">
@@ -188,7 +255,9 @@ watch(() => props.isEditing, (newVal) => {
 }
 
 @keyframes pulse {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     opacity: 0.3;
     transform: scale(0.8);
   }
@@ -354,13 +423,48 @@ watch(() => props.isEditing, (newVal) => {
   font-weight: 500;
 }
 
-.reasoning-badge {
+.reasoning-duration {
   padding: 2px 8px;
-  background-color: var(--primary-color);
-  color: white;
   border-radius: 12px;
   font-size: 11px;
   font-weight: 600;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.reasoning-marquee {
+  flex: 1;
+  margin-left: 8px;
+  overflow: hidden;
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 0 8px;
+}
+
+.marquee-content {
+  display: inline-block;
+  white-space: nowrap;
+  color: var(--text-color-light);
+  font-size: 12px;
+  animation: marquee-scroll 15s linear infinite;
+  padding-right: 50px;
+}
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* 当内容较短时，停止滚动 */
+.reasoning-marquee:hover .marquee-content {
+  animation-play-state: paused;
 }
 
 .reasoning-content {
@@ -374,7 +478,7 @@ watch(() => props.isEditing, (newVal) => {
   white-space: pre-wrap;
   word-wrap: break-word;
   color: var(--text-color-light);
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 13px;
   line-height: 1.5;
   opacity: 0.85;

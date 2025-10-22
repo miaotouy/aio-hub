@@ -331,93 +331,98 @@ const parseClaudeSSE = async (
   let currentToolCall: { id: string; name: string; input: string } | null = null;
 
   // 使用通用 SSE 解析器处理底层字节流
-  await parseSSEStream(reader, (data: string) => {
-    try {
-      const event: ClaudeStreamEvent = JSON.parse(data);
+  await parseSSEStream(
+    reader,
+    (data: string) => {
+      try {
+        const event: ClaudeStreamEvent = JSON.parse(data);
 
-      // Claude 特有的业务逻辑处理
-      switch (event.type) {
-        case "message_start":
-          logger.debug("流开始", { messageId: event.message?.id });
-          break;
+        // Claude 特有的业务逻辑处理
+        switch (event.type) {
+          case "message_start":
+            logger.debug("流开始", { messageId: event.message?.id });
+            break;
 
-        case "content_block_start":
-          if (event.content_block?.type === "text") {
-            logger.debug("文本块开始", { index: event.index });
-          } else if (event.content_block?.type === "tool_use") {
-            currentToolCall = {
-              id: event.content_block.id!,
-              name: event.content_block.name!,
-              input: "",
-            };
-            logger.debug("工具调用块开始", {
-              index: event.index,
-              toolName: currentToolCall.name,
+          case "content_block_start":
+            if (event.content_block?.type === "text") {
+              logger.debug("文本块开始", { index: event.index });
+            } else if (event.content_block?.type === "tool_use") {
+              currentToolCall = {
+                id: event.content_block.id!,
+                name: event.content_block.name!,
+                input: "",
+              };
+              logger.debug("工具调用块开始", {
+                index: event.index,
+                toolName: currentToolCall.name,
+              });
+            }
+            break;
+
+          case "content_block_delta":
+            if (event.delta?.type === "text_delta" && event.delta.text) {
+              fullContent += event.delta.text;
+              onChunk(event.delta.text);
+            } else if (
+              event.delta?.type === "input_json_delta" &&
+              event.delta.partial_json &&
+              currentToolCall
+            ) {
+              currentToolCall.input += event.delta.partial_json;
+            }
+            break;
+
+          case "content_block_stop":
+            if (currentToolCall) {
+              toolCalls.push({
+                id: currentToolCall.id,
+                type: "function",
+                function: {
+                  name: currentToolCall.name,
+                  arguments: currentToolCall.input,
+                },
+              });
+              logger.debug("工具调用块结束", {
+                toolId: currentToolCall.id,
+                toolName: currentToolCall.name,
+              });
+              currentToolCall = null;
+            }
+            break;
+
+          case "message_delta":
+            if (event.delta?.stop_reason) {
+              stopReason = event.delta.stop_reason;
+            }
+            if (event.delta?.stop_sequence !== undefined) {
+              stopSequence = event.delta.stop_sequence;
+            }
+            if (event.usage) {
+              usage = {
+                promptTokens: event.usage.input_tokens,
+                completionTokens: event.usage.output_tokens,
+                totalTokens: event.usage.input_tokens + event.usage.output_tokens,
+              };
+            }
+            break;
+
+          case "message_stop":
+            logger.debug("流结束");
+            break;
+
+          case "error":
+            logger.error("流错误", new Error(event.error?.message), {
+              errorType: event.error?.type,
             });
-          }
-          break;
-
-        case "content_block_delta":
-          if (event.delta?.type === "text_delta" && event.delta.text) {
-            fullContent += event.delta.text;
-            onChunk(event.delta.text);
-          } else if (
-            event.delta?.type === "input_json_delta" &&
-            event.delta.partial_json &&
-            currentToolCall
-          ) {
-            currentToolCall.input += event.delta.partial_json;
-          }
-          break;
-
-        case "content_block_stop":
-          if (currentToolCall) {
-            toolCalls.push({
-              id: currentToolCall.id,
-              type: "function",
-              function: {
-                name: currentToolCall.name,
-                arguments: currentToolCall.input,
-              },
-            });
-            logger.debug("工具调用块结束", {
-              toolId: currentToolCall.id,
-              toolName: currentToolCall.name,
-            });
-            currentToolCall = null;
-          }
-          break;
-
-        case "message_delta":
-          if (event.delta?.stop_reason) {
-            stopReason = event.delta.stop_reason;
-          }
-          if (event.delta?.stop_sequence !== undefined) {
-            stopSequence = event.delta.stop_sequence;
-          }
-          if (event.usage) {
-            usage = {
-              promptTokens: event.usage.input_tokens,
-              completionTokens: event.usage.output_tokens,
-              totalTokens: event.usage.input_tokens + event.usage.output_tokens,
-            };
-          }
-          break;
-
-        case "message_stop":
-          logger.debug("流结束");
-          break;
-
-        case "error":
-          logger.error("流错误", new Error(event.error?.message), {
-            errorType: event.error?.type,
-          });
-          throw new Error(`Claude API 错误: ${event.error?.message}`);
+            throw new Error(`Claude API 错误: ${event.error?.message}`);
+        }
+      } catch (parseError) {
+        logger.warn("解析流数据失败", { data, error: parseError });
       }
-    } catch (parseError) {
-      logger.warn("解析流数据失败", { data, error: parseError });
-    }
-  }, undefined, signal);
+    },
+    undefined,
+    signal
+  );
 
   return {
     fullContent,

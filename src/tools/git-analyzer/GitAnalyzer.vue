@@ -42,6 +42,7 @@
               <CommitListView
                 v-model:current-page="currentPage"
                 :loading="loading"
+                :commits="commits"
                 :filtered-commits="filteredCommits"
                 :paginated-commits="paginatedCommits"
                 :page-size="pageSize"

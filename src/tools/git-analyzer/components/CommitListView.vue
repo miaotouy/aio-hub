@@ -3,7 +3,7 @@
     <div class="commit-list" v-if="filteredCommits.length > 0">
       <el-timeline>
         <el-timeline-item
-          v-for="(commit, index) in paginatedCommits"
+          v-for="commit in paginatedCommits"
           :key="commit.hash"
           :timestamp="formatDate(commit.date)"
           placement="top"
@@ -11,7 +11,7 @@
           <el-card @click="$emit('select-commit', commit)" class="commit-card">
             <div class="commit-header">
               <span class="commit-sequence"
-                >#{{ (currentPage - 1) * pageSize + index + 1 }}</span
+                >#{{ getOriginalIndex(commit) }}</span
               >
               <el-tag size="small">
                 {{ commit.hash.substring(0, 7) }}
@@ -64,13 +64,14 @@ import type { GitCommit } from "../types";
 
 interface Props {
   loading: boolean;
+  commits: GitCommit[];
   filteredCommits: GitCommit[];
   paginatedCommits: GitCommit[];
   currentPage: number;
   pageSize: number;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const currentPage = defineModel<number>("currentPage", { required: true });
 
@@ -87,6 +88,12 @@ function formatDate(dateStr: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// 获取提交在原始列表中的索引（从1开始）
+function getOriginalIndex(commit: GitCommit): number {
+  const index = props.commits.findIndex(c => c.hash === commit.hash);
+  return index !== -1 ? index + 1 : 0;
 }
 </script>
 

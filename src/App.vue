@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import { listen } from "@tauri-apps/api/event";
 import { useWindowSyncBus } from "./composables/useWindowSyncBus";
 import { useDetachedManager } from "./composables/useDetachedManager";
 import {
@@ -15,6 +16,7 @@ import MainSidebar from "./components/MainSidebar.vue";
 const logger = createModuleLogger("App");
 
 const route = useRoute();
+const router = useRouter();
 const { isDetached, initialize } = useDetachedManager();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
 
@@ -128,6 +130,7 @@ const loadSettings = async () => {
 
 // 存储事件处理函数的引用，用于清理
 let handleSettingsChange: ((event: Event) => void) | null = null;
+let unlisten: (() => void) | null = null;
 
 onMounted(async () => {
   // 优先从缓存加载工具可见性，防止闪烁
@@ -168,6 +171,15 @@ onMounted(async () => {
   };
 
   window.addEventListener("app-settings-changed", handleSettingsChange);
+
+  // 监听来自分离窗口的导航请求
+  unlisten = await listen<{ sectionId: string }>("navigate-to-settings", (event) => {
+    const { sectionId } = event.payload;
+    logger.info("收到来自分离窗口的导航请求", { sectionId });
+    
+    // 导航到设置页面
+    router.push({ path: "/settings", query: { section: sectionId } });
+  });
 });
 
 // 监听路由变化，仅在离开设置页面时更新一次
@@ -189,6 +201,11 @@ onUnmounted(() => {
   // 移除事件监听器
   if (handleSettingsChange) {
     window.removeEventListener("app-settings-changed", handleSettingsChange);
+  }
+  
+  // 清理 Tauri 事件监听器
+  if (unlisten) {
+    unlisten();
   }
 });
 </script>

@@ -66,6 +66,8 @@ use commands::{
     // 基于 rdev 的拖拽会话命令
     start_drag_session,
     end_drag_session,
+    // 窗口导航命令
+    navigate_main_window_to_settings,
     ClipboardMonitorState,
 };
 
@@ -198,6 +200,8 @@ pub fn run() {
             // 基于 rdev 的拖拽会话命令
             start_drag_session,
             end_drag_session,
+            // 窗口导航命令
+            navigate_main_window_to_settings,
             // 配置管理命令
             export_all_configs,
             import_all_configs,

@@ -1,11 +1,25 @@
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
+import { invoke } from "@tauri-apps/api/core";
+import { createModuleLogger } from "@utils/logger";
+
+const logger = createModuleLogger("SettingsNavigator");
 
 /**
  * 设置页面导航 Composable
  * 提供一个统一的方式从任何组件跳转到设置页的特定区域
+ * 支持从主窗口和分离窗口中调用
  */
 export function useSettingsNavigator() {
   const router = useRouter();
+  const route = useRoute();
+
+  /**
+   * 检测当前是否在分离窗口中
+   */
+  const isInDetachedWindow = (): boolean => {
+    const path = route.path;
+    return path.startsWith("/detached-window/") || path.startsWith("/detached-component/");
+  };
 
   /**
    * 导航到设置页面的指定区域
@@ -19,8 +33,26 @@ export function useSettingsNavigator() {
    * - 'model-icons': 模型图标配置
    * - 'about': 关于
    */
-  const navigateToSettings = (sectionId: string) => {
-    router.push({ path: "/settings", query: { section: sectionId } });
+  const navigateToSettings = async (sectionId: string) => {
+    try {
+      if (isInDetachedWindow()) {
+        // 在分离窗口中，需要聚焦主窗口并在主窗口中导航
+        logger.info("从分离窗口导航到设置页面", { sectionId });
+        
+        // 通过 Tauri 命令在主窗口中打开设置页面
+        await invoke("navigate_main_window_to_settings", { sectionId });
+        
+        logger.info("已请求主窗口导航到设置页面", { sectionId });
+      } else {
+        // 在主窗口中，直接使用路由导航
+        logger.info("在主窗口中导航到设置页面", { sectionId });
+        router.push({ path: "/settings", query: { section: sectionId } });
+      }
+    } catch (error) {
+      logger.error("导航到设置页面失败", { error, sectionId });
+      // 降级处理：尝试直接使用路由导航
+      router.push({ path: "/settings", query: { section: sectionId } });
+    }
   };
 
   return { navigateToSettings };

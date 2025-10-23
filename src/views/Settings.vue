@@ -144,9 +144,12 @@ const handleSelect = (key: string) => {
 // 检查路由参数并滚动到指定区域
 const checkRouteAndScroll = (query: Record<string, any>) => {
   if (query.section && typeof query.section === 'string') {
-    // 使用 nextTick 确保 DOM 已经渲染完成
+    // 使用 nextTick 和额外延迟确保 DOM 已经完全渲染
+    // 特别是从分离窗口导航过来时，需要更多时间
     nextTick(() => {
-      scrollToSection(query.section as string);
+      setTimeout(() => {
+        scrollToSection(query.section as string);
+      }, 100);
     });
   }
 };

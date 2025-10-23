@@ -753,3 +753,31 @@ pub async fn clear_window_state(app: AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// 从分离窗口导航主窗口到设置页面
+#[tauri::command]
+pub async fn navigate_main_window_to_settings(
+    app: AppHandle,
+    section_id: String,
+) -> Result<(), String> {
+    // 尝试获取主窗口
+    let main_window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+
+    // 聚焦主窗口
+    main_window.set_focus().map_err(|e| e.to_string())?;
+    main_window.show().map_err(|e| e.to_string())?;
+    main_window.unminimize().map_err(|e| e.to_string())?;
+
+    // 向主窗口发送导航事件
+    main_window
+        .emit(
+            "navigate-to-settings",
+            serde_json::json!({ "sectionId": section_id }),
+        )
+        .map_err(|e| format!("发送导航事件失败: {}", e))?;
+
+    println!("[NAVIGATION] 已请求主窗口导航到设置页面: {}", section_id);
+    Ok(())
+}

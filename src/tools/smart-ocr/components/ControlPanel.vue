@@ -468,8 +468,8 @@ const handleNavigateToSettings = () => {
   } else if (engineType === "cloud") {
     navigateToSettings("ocr-service");
   } else {
-    // tesseract 和 native 也跳转到通用设置
-    navigateToSettings("general");
+    // tesseract 和 native 默认跳转到 VLM 配置（更常用）
+    navigateToSettings("llm-service");
   }
 };
 
@@ -501,7 +501,7 @@ defineExpose({
                   ? '前往 LLM 服务设置配置视觉模型'
                   : engineType === 'cloud'
                     ? '前往 OCR 服务设置配置云端服务'
-                    : '前往通用设置'
+                    : '前往 LLM 服务设置（推荐配置 VLM）'
               "
               placement="left"
             >

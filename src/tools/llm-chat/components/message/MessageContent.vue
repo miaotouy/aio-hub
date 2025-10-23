@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { ChevronRight, ChevronDown, Copy, Check } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import { customMessage } from "@/utils/customMessage";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 
 interface Props {
   message: ChatMessageNode;
@@ -184,7 +185,7 @@ watch(
 
     <!-- 正常显示模式 -->
     <template v-else>
-      <pre v-if="message.content" class="message-text">{{ message.content }}</pre>
+      <RichTextRenderer v-if="message.content" :content="message.content" />
       <div v-if="message.status === 'generating'" class="streaming-indicator">
         <span class="dot"></span>
         <span class="dot"></span>

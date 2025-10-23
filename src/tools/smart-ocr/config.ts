@@ -51,10 +51,10 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
   slicerConfig: {
     enabled: true,
     aspectRatioThreshold: 3,
-    blankThreshold: 0.05,
+    blankThreshold: 0.30,
     minBlankHeight: 20,
-    minCutHeight: 10,
-    cutLineOffset: 0
+    minCutHeight: 480,
+    cutLineOffset: 0.2
   },
   version: '1.0.0'
 };

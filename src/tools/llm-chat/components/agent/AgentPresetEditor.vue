@@ -1,7 +1,7 @@
 <template>
-  <div class="agent-preset-editor">
+  <div class="agent-preset-editor" :class="{ compact: props.compact }">
     <!-- 头部操作栏 -->
-    <div class="editor-header">
+    <div v-if="!props.compact" class="editor-header">
       <div class="header-title">
         <span>预设消息配置</span>
         <el-tooltip content="预设消息将作为所有对话的上下文基础" placement="top">
@@ -43,9 +43,44 @@
             :key="element.id"
             class="message-card-wrapper"
           >
-            <!-- 历史消息占位符 -->
+            <!-- 历史消息占位符 - 紧凑模式 -->
             <div
-              v-if="element.type === 'chat_history'"
+              v-if="element.type === 'chat_history' && props.compact"
+              class="message-card message-card-compact history-placeholder-compact"
+              :class="{ disabled: element.isEnabled === false }"
+            >
+              <!-- 拖拽手柄 -->
+              <div class="drag-handle">
+                <el-icon><Rank /></el-icon>
+              </div>
+
+              <!-- 历史图标 -->
+              <div class="role-icon">
+                <el-icon color="var(--el-color-warning)">
+                  <ChatDotRound />
+                </el-icon>
+              </div>
+
+              <!-- 文本 -->
+              <div class="message-text-compact placeholder-text">
+                💬 聊天历史插入位置
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="message-actions-compact">
+                <el-switch
+                  v-model="element.isEnabled"
+                  :active-value="true"
+                  :inactive-value="false"
+                  size="small"
+                  @change="handleToggleEnabled(index)"
+                />
+              </div>
+            </div>
+
+            <!-- 历史消息占位符 - 正常模式 -->
+            <div
+              v-else-if="element.type === 'chat_history'"
               class="message-card history-placeholder"
               :class="{ disabled: element.isEnabled === false }"
             >
@@ -88,7 +123,58 @@
               </div>
             </div>
 
-            <!-- 普通预设消息 -->
+            <!-- 普通预设消息 - 紧凑模式 -->
+            <div
+              v-else-if="props.compact"
+              class="message-card message-card-compact"
+              :class="{ disabled: element.isEnabled === false }"
+              @click="handleEditMessage(index)"
+            >
+              <!-- 拖拽手柄 -->
+              <div class="drag-handle">
+                <el-icon><Rank /></el-icon>
+              </div>
+
+              <!-- 角色图标 -->
+              <div class="role-icon">
+                <el-icon :color="getRoleColor(element.role)">
+                  <component :is="getRoleIcon(element.role)" />
+                </el-icon>
+              </div>
+
+              <!-- 消息文本预览（单行） -->
+              <div class="message-text-compact">
+                {{ truncateText(element.content, 60) }}
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="message-actions-compact" @click.stop>
+                <el-switch
+                  v-model="element.isEnabled"
+                  :active-value="true"
+                  :inactive-value="false"
+                  size="small"
+                  @change="handleToggleEnabled(index)"
+                />
+                <el-button
+                  link
+                  size="small"
+                  @click="handleEditMessage(index)"
+                >
+                  <el-icon><Edit /></el-icon>
+                </el-button>
+                <el-button
+                  link
+                  size="small"
+                  type="danger"
+                  @click="handleDeleteMessage(index)"
+                >
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </div>
+            </div>
+
+            <!-- 普通预设消息 - 正常模式 -->
             <div
               v-else
               class="message-card"
@@ -237,6 +323,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 interface Props {
   modelValue?: ChatMessageNode[];
   height?: string;
+  /** 紧凑模式：只显示一行，隐藏头部操作栏 */
+  compact?: boolean;
 }
 
 interface Emits {
@@ -246,6 +334,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => [],
   height: '500px',
+  compact: false,
 });
 
 const emit = defineEmits<Emits>();
@@ -357,6 +446,18 @@ function getRoleLabel(role: MessageRole): string {
     assistant: 'Assistant',
   };
   return labelMap[role];
+}
+
+/**
+ * 获取角色颜色（紧凑模式用）
+ */
+function getRoleColor(role: MessageRole): string {
+  const colorMap: Record<MessageRole, string> = {
+    system: 'var(--el-color-info)',
+    user: 'var(--el-color-primary)',
+    assistant: 'var(--el-color-success)',
+  };
+  return colorMap[role];
 }
 
 /**
@@ -561,6 +662,7 @@ async function handleFileSelected(event: Event) {
   flex: 1;
   overflow: hidden;
   position: relative;
+  min-height: 0; /* 确保 flex 子元素可以正确收缩 */
 }
 
 .messages-scroll-wrapper {
@@ -568,16 +670,13 @@ async function handleFileSelected(event: Event) {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .messages-list {
   display: flex;
   flex-direction: column;
-  min-height: min-content;
-}
-
-.message-card-wrapper {
-  margin-bottom: 12px;
+  gap: 12px; /* 使用 gap 替代每个 wrapper 的 margin-bottom */
 }
 
 .message-card {
@@ -671,5 +770,89 @@ async function handleFileSelected(event: Event) {
   align-items: center;
   height: 100%;
   min-height: 300px;
+}
+
+/* 紧凑模式样式 */
+.agent-preset-editor.compact .messages-scroll-wrapper {
+  padding: 8px;
+}
+
+.agent-preset-editor.compact .messages-list {
+  gap: 8px; /* 紧凑模式下使用更小的间距 */
+}
+
+.message-card-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  transition: all 0.2s;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.message-card-compact:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-fill-color-light);
+}
+
+.message-card-compact.disabled {
+  opacity: 0.5;
+}
+
+.message-card-compact .drag-handle {
+  padding: 2px;
+  font-size: 14px;
+}
+
+.role-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.message-text-compact {
+  flex: 1;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.message-actions-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 紧凑模式下的空状态 */
+.agent-preset-editor.compact .empty-state {
+  min-height: 100px;
+  font-size: 13px;
+}
+
+/* 紧凑模式下的历史消息占位符 */
+.history-placeholder-compact {
+  background: var(--el-color-warning-light-9);
+  border-color: var(--el-color-warning-light-5);
+  border-style: dashed;
+}
+
+.history-placeholder-compact:hover {
+  border-color: var(--el-color-warning);
+  background: var(--el-color-warning-light-8);
+}
+
+.history-placeholder-compact .placeholder-text {
+  color: var(--el-color-warning-dark-2);
+  font-weight: 500;
 }
 </style>

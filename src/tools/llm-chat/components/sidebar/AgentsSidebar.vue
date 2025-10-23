@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { Plus, Edit, Delete, MoreFilled, Search } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -12,9 +13,11 @@ import type { AgentPreset } from "../../types";
 
 const agentStore = useAgentStore();
 
-// 搜索和排序状态
+// 使用持久化的UI状态
+const { agentSortBy } = useLlmChatUiState();
+
+// 搜索状态（不需要持久化）
 const searchQuery = ref("");
-const sortBy = ref<"lastUsed" | "name" | "createdAt">("lastUsed");
 
 // 过滤和排序后的智能体列表
 const filteredAndSortedAgents = computed(() => {
@@ -34,7 +37,7 @@ const filteredAndSortedAgents = computed(() => {
 
   // 排序
   agents.sort((a, b) => {
-    switch (sortBy.value) {
+    switch (agentSortBy.value) {
       case "lastUsed":
         const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
         const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
@@ -229,7 +232,7 @@ const handleDelete = (agent: ChatAgent) => {
         clearable
         size="small"
       />
-      <el-select v-model="sortBy" size="small" style="width: 120px">
+      <el-select v-model="agentSortBy" size="small" style="width: 120px">
         <el-option label="最近使用" value="lastUsed" />
         <el-option label="按名称" value="name" />
         <el-option label="创建时间" value="createdAt" />

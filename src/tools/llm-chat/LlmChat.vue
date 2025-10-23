@@ -4,6 +4,7 @@ import { useLlmChatStore } from "./store";
 import { useAgentStore } from "./agentStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useLlmChatSync } from "./composables/useLlmChatSync";
+import { useLlmChatUiState } from "./composables/useLlmChatUiState";
 import ChatArea from "./components/ChatArea.vue";
 import SessionsSidebar from "./components/sidebar/SessionsSidebar.vue";
 import LeftSidebar from "./components/sidebar/LeftSidebar.vue";
@@ -14,13 +15,15 @@ const logger = createModuleLogger("LlmChat");
 const store = useLlmChatStore();
 const agentStore = useAgentStore();
 
-// 侧边栏折叠状态
-const isLeftSidebarCollapsed = ref(false);
-const isRightSidebarCollapsed = ref(false);
-
-// 侧边栏宽度
-const leftSidebarWidth = ref(320);
-const rightSidebarWidth = ref(280);
+// UI状态持久化
+const {
+  isLeftSidebarCollapsed,
+  isRightSidebarCollapsed,
+  leftSidebarWidth,
+  rightSidebarWidth,
+  loadUiState,
+  startWatching,
+} = useLlmChatUiState();
 
 // 拖拽状态
 const isDraggingLeft = ref(false);
@@ -93,6 +96,12 @@ const isChatAreaDetached = computed(() => isDetached("chat-area"));
 
 // 组件挂载时加载会话和智能体
 onMounted(async () => {
+  // 加载UI状态
+  await loadUiState();
+  
+  // 启动UI状态自动保存
+  startWatching();
+  
   await agentStore.loadAgents();
   await store.loadSessions();
 

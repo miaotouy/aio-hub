@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, defineAsyncComponent, type Component } from "vue";
+import { computed, onMounted, ref, shallowRef, defineAsyncComponent, type Component } from "vue";
 import { useRoute } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -24,7 +24,7 @@ const toolConfig = computed(() => toolsConfig.find((t) => t.path === toolPath.va
 const toolTitle = computed(() => toolConfig.value?.name || "工具窗口");
 
 // 动态加载的工具组件
-const toolComponent = ref<Component | null>(null);
+const toolComponent = shallowRef<Component | null>(null);
 
 const isPreview = ref(true);
 

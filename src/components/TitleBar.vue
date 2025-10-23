@@ -172,18 +172,8 @@ const goToSettings = () => {
 <template>
   <div class="title-bar" :class="{ 'macos': isMacOS }" data-tauri-drag-region>
     <div class="title-bar-content">
-      <!-- 左侧控制区域 -->
-      <div class="left-controls" :class="{ 'macos': isMacOS }">
-        <!-- 设置按钮（仅主窗口显示） -->
-        <button
-          v-if="isMainWindow"
-          class="settings-btn"
-          @click="goToSettings"
-          title="设置"
-        >
-          <el-icon><Setting /></el-icon>
-        </button>
-      </div>
+      <!-- 左侧占位区域（macOS 需要为原生控件留出空间） -->
+      <div class="left-controls" :class="{ 'macos': isMacOS }"></div>
       
       <!-- 中间标题区域 -->
       <div class="title-area">
@@ -195,15 +185,27 @@ const goToSettings = () => {
         <span class="app-title">{{ currentToolName }}</span>
       </div>
       
-      <!-- 右侧窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
-      <div v-if="!isMacOS" class="window-controls">
+      <!-- 右侧控制区域 -->
+      <div class="right-controls">
+        <!-- 设置按钮（仅主窗口显示） -->
         <button
-          class="control-btn minimize-btn"
-          @click="minimizeWindow"
-          title="最小化"
+          v-if="isMainWindow"
+          class="control-btn settings-btn"
+          @click="goToSettings"
+          title="设置"
         >
-          <el-icon><Minus /></el-icon>
+          <el-icon><Setting /></el-icon>
         </button>
+        
+        <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
+        <template v-if="!isMacOS">
+          <button
+            class="control-btn minimize-btn"
+            @click="minimizeWindow"
+            title="最小化"
+          >
+            <el-icon><Minus /></el-icon>
+          </button>
         <button
           class="control-btn maximize-btn"
           @click="toggleMaximize"
@@ -213,13 +215,14 @@ const goToSettings = () => {
             <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
           </el-icon>
         </button>
-        <button
-          class="control-btn close-btn"
-          @click="closeWindow"
-          :title="isMainWindow && settings?.trayEnabled ? '隐藏到托盘' : '关闭'"
-        >
-          <el-icon><Close /></el-icon>
-        </button>
+          <button
+            class="control-btn close-btn"
+            @click="closeWindow"
+            :title="isMainWindow && settings?.trayEnabled ? '隐藏到托盘' : '关闭'"
+          >
+            <el-icon><Close /></el-icon>
+          </button>
+        </template>
       </div>
     </div>
   </div>
@@ -251,38 +254,17 @@ const goToSettings = () => {
   position: relative;
 }
 
-/* 左侧控制区域 */
+/* 左侧占位区域 */
 .left-controls {
   display: flex;
-  width: 46px; /* 确保占位，将右侧按钮推到正确位置 */
-  gap: 0;
+  width: 0;
   flex-shrink: 0;
-  /* 禁止拖动，以便点击按钮 */
-  -webkit-app-region: no-drag;
 }
 
 /* macOS 上为左侧控制区域添加额外的 padding，避免与原生红绿灯按钮冲突 */
 .left-controls.macos {
   padding-left: 70px;
-  width: 116px; /* 46px + 70px padding */
-}
-
-.settings-btn {
-  width: 46px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: var(--sidebar-text);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-  font-size: 16px;
-}
-
-.settings-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  width: 70px;
 }
 
 .title-area {
@@ -324,7 +306,7 @@ const goToSettings = () => {
   padding-top: 2px;
 }
 
-.window-controls {
+.right-controls {
   display: flex;
   gap: 0;
   flex-shrink: 0;

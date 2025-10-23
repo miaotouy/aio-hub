@@ -30,7 +30,15 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   const state = isRef(stateSource) ? stateSource : ref(stateSource);
   const stateVersion = ref(0);
   
-  let lastSyncedValue: T = JSON.parse(JSON.stringify(state.value));
+  // 安全地深拷贝值，处理 undefined 情况
+  const safeDeepClone = <V>(value: V): V => {
+    if (value === undefined || value === null) {
+      return value;
+    }
+    return JSON.parse(JSON.stringify(value));
+  };
+  
+  let lastSyncedValue: T = safeDeepClone(state.value);
   let isInitialized = true;
   let isApplyingExternalState = false;
   let unlistenStateSync: (() => void) | null = null;
@@ -78,7 +86,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       targetWindowLabel
     );
     stateVersion.value = newVersion;
-    lastSyncedValue = JSON.parse(JSON.stringify(newValue));
+    lastSyncedValue = safeDeepClone(newValue);
   };
 
   const debouncedPushState = debounce(pushState, debounceDelay);
@@ -104,7 +112,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
         logger.info('已应用增量状态', { stateKey, version: payload.version });
       }
       stateVersion.value = payload.version;
-      lastSyncedValue = JSON.parse(JSON.stringify(state.value));
+      lastSyncedValue = safeDeepClone(state.value);
     } catch (error) {
       logger.error('应用状态更新失败', error as Error, { stateKey });
     } finally {

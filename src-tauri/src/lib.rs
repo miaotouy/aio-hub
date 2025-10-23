@@ -15,11 +15,16 @@ use commands::{
     analyze_directory_for_cleanup,
     cancel_move_operation,
     cleanup_items,
-    clear_window_state,
     create_links_only,
     // 窗口管理相关
     create_tool_window,
     ensure_window_visible,
+    // 窗口配置管理相关
+    save_window_config,
+    apply_window_config,
+    delete_window_config,
+    clear_all_window_configs,
+    get_saved_window_labels,
     // 配置管理相关
     export_all_configs,
     focus_window,
@@ -138,7 +143,6 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_os::init())
         // 管理状态
         .manage(ClipboardMonitorState::new())
@@ -189,7 +193,12 @@ pub fn run() {
             focus_window,
             set_window_position,
             ensure_window_visible,
-            clear_window_state,
+            // 窗口配置管理命令
+            save_window_config,
+            apply_window_config,
+            delete_window_config,
+            clear_all_window_configs,
+            get_saved_window_labels,
             // 新统一分离命令
             begin_detach_session,
             update_detach_session_position,
@@ -234,6 +243,14 @@ pub fn run() {
             }
 
             let main_window = win_builder.build()?;
+            
+            // 应用保存的窗口配置（如果存在）
+            let main_window_clone = main_window.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = apply_window_config(main_window_clone).await {
+                    eprintln!("[WINDOW_CONFIG] 应用主窗口配置失败: {}", e);
+                }
+            });
             
             // 预加载拖拽指示器窗口
             let indicator_window = tauri::WebviewWindowBuilder::new(
@@ -288,6 +305,13 @@ pub fn run() {
             // 处理窗口关闭事件（托盘功能和工具窗口）
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let window_label = window.label().to_string();
+                
+                // 在关闭前同步保存窗口配置（排除拖拽指示器）
+                if !window_label.starts_with("drag-indicator") {
+                    if let Err(e) = commands::window_config::save_window_config_sync(window.app_handle(), &window_label) {
+                        eprintln!("[WINDOW_CONFIG] 保存窗口配置失败: {}", e);
+                    }
+                }
 
                 // 如果关闭的是分离窗口（非主窗口），调用统一的关闭命令
                 if window_label != "main" && !window_label.starts_with("drag-indicator") {

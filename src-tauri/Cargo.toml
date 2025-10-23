@@ -30,7 +30,6 @@ tauri-plugin-dialog = "2" # Add dialog plugin
 regex = "1"
 url = "2"
 urlencoding = "2.1"
-tauri-plugin-window-state = "2" # 窗口状态持久化
 
 # LLM代理服务依赖
 tokio = { version = "1", features = ["full"] }

@@ -336,6 +336,14 @@ async fn create_preview_window_internal(
     }
     // 按钮创建时，完全依赖插件恢复位置和尺寸，不做任何覆盖
 
+    // 应用保存的窗口配置（如果存在）
+    // 注意：这会覆盖上面的位置和尺寸设置（如果有保存的配置）
+    let window_clone = window.clone();
+    let apply_result = crate::commands::window_config::apply_window_config(window_clone).await;
+    if let Err(e) = apply_result {
+        eprintln!("[WINDOW_CONFIG] 应用窗口配置失败: {}", e);
+    }
+
     sleep(Duration::from_millis(150)).await;
     window.show().map_err(|e| e.to_string())?;
 
@@ -657,6 +665,12 @@ pub async fn set_window_position(
 #[tauri::command]
 pub async fn ensure_window_visible(app: AppHandle, label: String) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window(&label) {
+        // 如果窗口已最大化，跳过位置调整
+        // 在 Windows 上，调用 set_position 会自动取消最大化状态
+        if window.is_maximized().map_err(|e| e.to_string())? {
+            return Ok(false);
+        }
+
         if let Some(monitor) = window.current_monitor().map_err(|e| e.to_string())? {
             let position = window.outer_position().map_err(|e| e.to_string())?;
             let size = window.outer_size().map_err(|e| e.to_string())?;
@@ -737,21 +751,6 @@ fn clamp_position_to_screen(
         clamped_x as f64 / scale_factor,
         clamped_y as f64 / scale_factor,
     )
-}
-
-/// 清除所有窗口的保存状态
-#[tauri::command]
-pub async fn clear_window_state(app: AppHandle) -> Result<(), String> {
-    use std::fs;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
-    let state_file = app_data_dir.join(".window-state");
-    if state_file.exists() {
-        fs::remove_file(&state_file).map_err(|e| format!("删除窗口状态文件失败: {}", e))?;
-    }
-    Ok(())
 }
 
 /// 从分离窗口导航主窗口到设置页面

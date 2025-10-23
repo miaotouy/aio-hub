@@ -21,6 +21,9 @@ const isMacOS = ref(false); // 判断是否为 macOS
 const route = useRoute();
 const settings = ref<AppSettings | null>(null);
 
+// 用于区分手动和自动的最大化状态变更
+const isManualMaximizeChange = ref(false);
+
 // 获取当前页面的工具配置
 const currentTool = computed(() => {
   // 根据当前路由路径匹配工具配置
@@ -69,7 +72,32 @@ const useDefaultIcon = computed(() => {
 
 // 检查窗口是否最大化
 const checkMaximized = async () => {
-  isMaximized.value = await appWindow.isMaximized();
+  const previousState = isMaximized.value;
+  const currentState = await appWindow.isMaximized();
+  
+  // 如果状态发生变化，记录日志
+  if (previousState !== currentState) {
+    const changeType = isManualMaximizeChange.value ? '[手动操作]' : '[自动变更]';
+    const windowLabel = appWindow.label;
+    
+    logger.debug('窗口最大化状态变化', {
+      window: windowLabel,
+      timestamp: new Date().toISOString(),
+      from: previousState,
+      to: currentState,
+      type: changeType,
+      stackTrace: new Error().stack
+    });
+    
+    console.log(
+      `[${new Date().toISOString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`
+    );
+  }
+  
+  isMaximized.value = currentState;
+  
+  // 重置手动操作标志
+  isManualMaximizeChange.value = false;
 };
 
 // 监听窗口大小变化
@@ -107,8 +135,13 @@ const minimizeWindow = () => {
 };
 
 const toggleMaximize = async () => {
+  // 标记为手动操作
+  isManualMaximizeChange.value = true;
+  
   await appWindow.toggleMaximize();
-  isMaximized.value = !isMaximized.value;
+  
+  // toggleMaximize 会触发 onResized 事件，进而调用 checkMaximized
+  // 所以这里不需要再次设置 isMaximized.value
 };
 
 const closeWindow = async () => {

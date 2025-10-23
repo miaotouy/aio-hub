@@ -27,15 +27,70 @@
     <!-- 消息列表滚动容器 -->
     <div class="messages-container" :style="{ height: containerHeight }">
       <div class="messages-scroll-wrapper">
-        <draggable
+        <VueDraggableNext
           v-model="localMessages"
           item-key="id"
           handle=".drag-handle"
-          animation="200"
+          @start="onDragStart"
+          @end="onDragEnd"
           class="messages-list"
+          ghost-class="ghost-message"
+          drag-class="drag-message"
+          :force-fallback="true"
         >
-          <template #item="{ element, index }">
+          <div
+            v-for="(element, index) in localMessages"
+            :key="element.id"
+            class="message-card-wrapper"
+          >
+            <!-- 历史消息占位符 -->
             <div
+              v-if="element.type === 'chat_history'"
+              class="message-card history-placeholder"
+              :class="{ disabled: element.isEnabled === false }"
+            >
+              <!-- 拖拽手柄 -->
+              <div class="drag-handle">
+                <el-icon><Rank /></el-icon>
+              </div>
+
+              <!-- 消息内容 -->
+              <div class="message-content">
+                <!-- 角色标签 -->
+                <div class="message-role">
+                  <el-tag
+                    type="warning"
+                    size="small"
+                    effect="plain"
+                  >
+                    <el-icon style="margin-right: 4px">
+                      <ChatDotRound />
+                    </el-icon>
+                    历史消息占位符
+                  </el-tag>
+                </div>
+
+                <!-- 消息文本预览 -->
+                <div class="message-text placeholder-text">
+                  实际的聊天历史将在此处插入
+                </div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="message-actions">
+                <el-switch
+                  v-model="element.isEnabled"
+                  :active-value="true"
+                  :inactive-value="false"
+                  size="small"
+                  @change="handleToggleEnabled(index)"
+                />
+              </div>
+            </div>
+
+            <!-- 普通预设消息 -->
+            <div
+              v-else
               class="message-card"
               :class="{ disabled: element.isEnabled === false }"
             >
@@ -92,8 +147,8 @@
                 </el-button>
               </div>
             </div>
-          </template>
-        </draggable>
+          </div>
+        </VueDraggableNext>
 
         <!-- 空状态 -->
         <div v-if="localMessages.length === 0" class="empty-state">
@@ -163,7 +218,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import draggable from 'vuedraggable';
+import { VueDraggableNext } from 'vue-draggable-next';
 import type { ChatMessageNode, MessageRole } from '../../types';
 import {
   QuestionFilled,
@@ -211,25 +266,62 @@ const editForm = ref({
 const importFileInput = ref<HTMLInputElement | null>(null);
 
 // 容器高度
+// 容器高度
 const containerHeight = computed(() => props.height);
 
 // 监听外部变化
 watch(
   () => props.modelValue,
   (newValue) => {
-    localMessages.value = JSON.parse(JSON.stringify(newValue || []));
+    // 确保所有消息都有唯一ID，并且存在历史消息占位符
+    const CHAT_HISTORY_PLACEHOLDER_ID = 'chat-history-placeholder';
+    
+    // 从外部获取消息列表
+    let existingMessages = [...(newValue || [])];
+    
+    // 检查是否已存在历史消息占位符
+    const hasHistoryPlaceholder = existingMessages.some((msg) => msg.type === 'chat_history');
+    
+    // 如果不存在，创建一个
+    if (!hasHistoryPlaceholder) {
+      const historyPlaceholder: ChatMessageNode = {
+        id: CHAT_HISTORY_PLACEHOLDER_ID,
+        parentId: null,
+        childrenIds: [],
+        role: 'system',
+        content: '聊天历史',
+        type: 'chat_history',
+        status: 'complete',
+        isEnabled: true,
+        timestamp: new Date().toISOString(),
+      };
+      // 将占位符添加到列表末尾，这样聊天记录默认会被插入到底部
+      existingMessages = [...existingMessages, historyPlaceholder];
+    }
+    
+    localMessages.value = existingMessages;
+    
+    // 如果我们添加了占位符，同步到外部
+    if (!hasHistoryPlaceholder && existingMessages.length > 0) {
+      emit('update:modelValue', existingMessages);
+    }
   },
   { immediate: true, deep: true }
 );
+// 拖拽开始事件
+function onDragStart() {
+  // 可以在这里添加日志或其他逻辑
+}
 
-// 监听本地变化并同步到外部
-watch(
-  localMessages,
-  (newValue) => {
-    emit('update:modelValue', newValue);
-  },
-  { deep: true }
-);
+// 拖拽结束事件 - 同步到外部
+function onDragEnd() {
+  emit('update:modelValue', localMessages.value);
+}
+
+// 同步到外部的辅助函数
+function syncToParent() {
+  emit('update:modelValue', localMessages.value);
+}
 
 /**
  * 获取角色标签类型
@@ -291,9 +383,16 @@ function handleAddMessage() {
  * 编辑消息
  */
 function handleEditMessage(index: number) {
+  const message = localMessages.value[index];
+  
+  // 不允许编辑历史消息占位符
+  if (message.type === 'chat_history') {
+    ElMessage.warning('历史消息占位符不可编辑');
+    return;
+  }
+  
   isEditMode.value = true;
   editingIndex.value = index;
-  const message = localMessages.value[index];
   editForm.value = {
     role: message.role,
     content: message.content,
@@ -324,6 +423,7 @@ function handleSaveMessage() {
       content: editForm.value.content,
       role: editForm.value.role,
       status: 'complete',
+      type: 'message', // 明确标记为普通消息
       isEnabled: true,
       timestamp: new Date().toISOString(),
     };
@@ -331,12 +431,21 @@ function handleSaveMessage() {
   }
 
   editDialogVisible.value = false;
+  syncToParent();
 }
 
 /**
  * 删除消息
  */
 async function handleDeleteMessage(index: number) {
+  const message = localMessages.value[index];
+  
+  // 不允许删除历史消息占位符
+  if (message.type === 'chat_history') {
+    ElMessage.warning('历史消息占位符不可删除');
+    return;
+  }
+  
   try {
     await ElMessageBox.confirm(
       '确定要删除这条预设消息吗？',
@@ -346,6 +455,7 @@ async function handleDeleteMessage(index: number) {
       }
     );
     localMessages.value.splice(index, 1);
+    syncToParent();
     ElMessage.success('删除成功');
   } catch {
     // 用户取消
@@ -356,7 +466,8 @@ async function handleDeleteMessage(index: number) {
  * 切换启用状态
  */
 function handleToggleEnabled(_index: number) {
-  // 状态已经通过 v-model 自动更新
+  // 状态已经通过 v-model 自动更新，需要手动同步
+  syncToParent();
 }
 
 
@@ -406,6 +517,7 @@ async function handleFileSelected(event: Event) {
     }
 
     localMessages.value = imported;
+    syncToParent();
     ElMessage.success('导入成功');
   } catch (error) {
     ElMessage.error('导入失败：文件格式不正确');
@@ -461,8 +573,11 @@ async function handleFileSelected(event: Event) {
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   min-height: min-content;
+}
+
+.message-card-wrapper {
+  margin-bottom: 12px;
 }
 
 .message-card {
@@ -485,12 +600,44 @@ async function handleFileSelected(event: Event) {
   opacity: 0.5;
 }
 
+.message-card.history-placeholder {
+  background: var(--el-color-warning-light-9);
+  border-color: var(--el-color-warning-light-5);
+  border-style: dashed;
+}
+
+.message-card.history-placeholder:hover {
+  border-color: var(--el-color-warning);
+}
+
+.placeholder-text {
+  color: var(--el-text-color-secondary);
+  font-style: italic;
+}
+
+.ghost-message {
+  opacity: 0.5;
+  background: var(--el-color-primary-light-9);
+}
+
+.drag-message {
+  opacity: 0.8;
+  transform: rotate(2deg);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transition: none !important;
+}
+
 .drag-handle {
   display: flex;
   align-items: center;
-  cursor: move;
+  cursor: grab;
   color: var(--el-text-color-secondary);
   padding: 4px;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .drag-handle:hover {

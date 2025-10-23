@@ -13,6 +13,13 @@ export type MessageRole = "user" | "assistant" | "system";
 export type MessageStatus = "generating" | "complete" | "error";
 
 /**
+ * 消息类型
+ * - message: 普通消息
+ * - chat_history: 历史消息占位符（用于标记实际会话消息的插入位置）
+ */
+export type MessageType = "message" | "chat_history";
+
+/**
  * 消息节点（树形结构）
  */
 export interface ChatMessageNode {
@@ -52,6 +59,13 @@ export interface ChatMessageNode {
    * - false: 节点禁用，其内容在上下文构建时将被跳过。
    */
   isEnabled?: boolean;
+
+  /**
+   * 消息类型（可选，默认为 "message"）
+   * - message: 普通预设消息
+   * - chat_history: 历史消息占位符
+   */
+  type?: MessageType;
 
   /**
    * 消息创建的时间戳 (ISO 8601 格式)

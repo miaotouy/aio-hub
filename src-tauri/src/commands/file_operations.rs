@@ -875,6 +875,23 @@ pub async fn save_uploaded_file(
     Ok(relative_path.to_string_lossy().to_string())
 }
 
+// Tauri 命令：删除文件到回收站
+#[tauri::command]
+pub async fn delete_file_to_trash(file_path: String) -> Result<String, String> {
+    let path = PathBuf::from(&file_path);
+    
+    // 检查文件是否存在
+    if !path.exists() {
+        return Err(format!("文件不存在: {}", file_path));
+    }
+    
+    // 使用 trash crate 移到回收站
+    trash::delete(&path)
+        .map_err(|e| format!("移入回收站失败: {}", e))?;
+    
+    Ok(format!("文件已移入回收站: {}", file_path))
+}
+
 // Tauri 命令：从应用数据目录复制文件
 #[tauri::command]
 pub async fn copy_file_to_app_data(

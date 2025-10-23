@@ -199,18 +199,22 @@ const handleSaveAgent = (data: {
 
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
-  if (agent.isBuiltIn) {
-    customMessage.warning("不能删除内置的默认智能体。");
-    return;
-  }
-  ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？此操作不可撤销。`, "确认删除", {
-    confirmButtonText: "删除",
-    cancelButtonText: "取消",
-    type: "warning",
-  })
-    .then(() => {
-      agentStore.deleteAgent(agent.id);
-      customMessage.success("智能体已删除");
+  ElMessageBox.confirm(
+    `确定要删除智能体 "${agent.name}" 吗？文件将被移入回收站。`,
+    "确认删除",
+    {
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
+    .then(async () => {
+      try {
+        await agentStore.deleteAgent(agent.id);
+        customMessage.success("智能体已删除并移入回收站");
+      } catch (error) {
+        customMessage.error(`删除智能体失败: ${error}`);
+      }
     })
     .catch(() => {
       // 用户取消
@@ -282,7 +286,7 @@ const handleDelete = (agent: ChatAgent) => {
                   <el-icon><Edit /></el-icon>
                   编辑
                 </el-dropdown-item>
-                <el-dropdown-item @click="handleDelete(agent)" :disabled="agent.isBuiltIn" divided>
+                <el-dropdown-item @click="handleDelete(agent)" divided>
                   <el-icon><Delete /></el-icon>
                   删除
                 </el-dropdown-item>

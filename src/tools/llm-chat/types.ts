@@ -239,11 +239,6 @@ export interface ChatAgent {
    * 最后使用时间
    */
   lastUsedAt?: string;
-
-  /**
-   * 是否为内置预设
-   */
-  isBuiltIn?: boolean;
 }
 
 /**

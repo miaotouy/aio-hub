@@ -53,6 +53,7 @@ use commands::{
     read_file_as_base64,
     save_uploaded_file,
     copy_file_to_app_data,
+    delete_file_to_trash,
     set_window_position,
     start_clipboard_monitor,
     // LLM代理相关
@@ -167,6 +168,7 @@ pub fn run() {
             read_file_as_base64,
             save_uploaded_file,
             copy_file_to_app_data,
+            delete_file_to_trash,
             validate_file_for_link,
             // 目录清理命令
             analyze_directory_for_cleanup,

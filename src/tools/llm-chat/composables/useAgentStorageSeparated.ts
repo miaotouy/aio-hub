@@ -3,8 +3,9 @@
  * 使用 ConfigManager 管理索引文件，每个智能体存储为独立文件
  */
 
-import { exists, readTextFile, writeTextFile, remove } from '@tauri-apps/plugin-fs';
+import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
+import { invoke } from '@tauri-apps/api/core';
 import { createConfigManager } from '@/utils/configManager';
 import type { ChatAgent } from '../types';
 import { createModuleLogger } from '@/utils/logger';
@@ -26,7 +27,6 @@ interface AgentIndexItem {
   modelId: string;
   lastUsedAt?: string;
   createdAt: string;
-  isBuiltIn: boolean;
 }
 
 /**
@@ -148,15 +148,18 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 删除单个智能体文件
+   * 删除单个智能体文件（移入回收站）
    */
   async function deleteAgentFile(agentId: string): Promise<void> {
     try {
       const agentPath = await getAgentPath(agentId);
       const agentExists = await exists(agentPath);
       if (agentExists) {
-        await remove(agentPath);
-        logger.info('智能体文件已删除', { agentId });
+        // 使用回收站删除而不是直接删除
+        await invoke<string>('delete_file_to_trash', { filePath: agentPath });
+        logger.info('智能体文件已移入回收站', { agentId, path: agentPath });
+      } else {
+        logger.warn('智能体文件不存在，跳过删除', { agentId, path: agentPath });
       }
     } catch (error) {
       logger.error('删除智能体文件失败', error as Error, { agentId });
@@ -193,22 +196,21 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 从智能体创建索引项
-   */
-  function createIndexItem(agent: ChatAgent): AgentIndexItem {
-    return {
-      id: agent.id,
-      name: agent.name,
-      description: agent.description,
-      icon: agent.icon,
-      profileId: agent.profileId,
-      modelId: agent.modelId,
-      lastUsedAt: agent.lastUsedAt,
-      createdAt: agent.createdAt,
-      isBuiltIn: agent.isBuiltIn ?? false,
-    };
-  }
-
+   /**
+    * 从智能体创建索引项
+    */
+   function createIndexItem(agent: ChatAgent): AgentIndexItem {
+     return {
+       id: agent.id,
+       name: agent.name,
+       description: agent.description,
+       icon: agent.icon,
+       profileId: agent.profileId,
+       modelId: agent.modelId,
+       lastUsedAt: agent.lastUsedAt,
+       createdAt: agent.createdAt,
+     };
+   }
   /**
    * 同步索引：合并索引中的 ID 和目录中的文件，加载新文件的元数据
    */

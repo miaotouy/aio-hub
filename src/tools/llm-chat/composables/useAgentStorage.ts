@@ -43,6 +43,18 @@ export function useAgentStorage() {
   };
 
   /**
+   * 删除智能体
+   */
+  const deleteAgent = async (agentId: string): Promise<void> => {
+    try {
+      await separatedStorage.deleteAgent(agentId);
+    } catch (error) {
+      logger.error('删除智能体失败', error as Error, { agentId });
+      throw error;
+    }
+  };
+
+  /**
    * 创建防抖保存函数
    */
   const createDebouncedSave = (delay: number = 500) => {
@@ -52,6 +64,7 @@ export function useAgentStorage() {
   return {
     loadAgents,
     saveAgents,
+    deleteAgent,
     createDebouncedSave,
   };
 }

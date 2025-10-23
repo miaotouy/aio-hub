@@ -94,7 +94,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
           presencePenalty: options?.parameters?.presencePenalty,
         },
         createdAt: now,
-        isBuiltIn: false,
       };
 
       this.agents.push(agent);
@@ -114,7 +113,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
     /**
      * 更新智能体
      */
-    updateAgent(agentId: string, updates: Partial<Omit<ChatAgent, 'id' | 'createdAt' | 'isBuiltIn'>>): void {
+    updateAgent(agentId: string, updates: Partial<Omit<ChatAgent, 'id' | 'createdAt'>>): void {
       const agent = this.agents.find(a => a.id === agentId);
       if (!agent) {
         logger.warn('更新智能体失败：智能体不存在', { agentId });
@@ -130,7 +129,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
     /**
      * 删除智能体
      */
-    deleteAgent(agentId: string): void {
+    async deleteAgent(agentId: string): Promise<void> {
       const index = this.agents.findIndex(a => a.id === agentId);
       if (index === -1) {
         logger.warn('删除智能体失败：智能体不存在', { agentId });
@@ -138,10 +137,20 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       const agent = this.agents[index];
+      
+      // 调用存储层删除（会移入回收站）
+      const { deleteAgent } = useAgentStorage();
+      await deleteAgent(agentId);
+      
+      // 从内存中移除
       this.agents.splice(index, 1);
-      this.persistAgents();
+      
+      // 如果删除的是当前智能体，切换到第一个智能体
+      if (this.currentAgentId === agentId) {
+        this.currentAgentId = this.agents[0]?.id || null;
+      }
 
-      logger.info('删除智能体', { agentId, name: agent.name });
+      logger.info('智能体已删除', { agentId, name: agent.name });
     },
 
     /**
@@ -261,12 +270,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
           },
         }
       );
-
-      // 标记为内置（但现在可以被修改和删除）
-      const defaultAgent = this.agents.find(a => a.id === defaultAgentId);
-      if (defaultAgent) {
-        defaultAgent.isBuiltIn = true;
-      }
 
       // 自动选中默认智能体
       this.currentAgentId = defaultAgentId;

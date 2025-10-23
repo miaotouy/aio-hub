@@ -90,7 +90,7 @@ pub fn init_global_mouse_listener() {
                     }
                 }
                 EventType::KeyPress(key) => {
-                    println!("[DRAG] 检测到按键按下: {:?}", key);
+                    // println!("[DRAG] 检测到按键按下: {:?}", key);
                     if matches!(key, rdev::Key::Escape) {
                         let session_to_cancel = { session_arc.lock().unwrap().take() };
 
@@ -112,7 +112,7 @@ pub fn init_global_mouse_listener() {
                     }
                 }
                 EventType::KeyRelease(key) => {
-                    println!("[DRAG] 检测到按键释放: {:?}", key);
+                    // println!("[DRAG] 检测到按键释放: {:?}", key);
                     if matches!(key, rdev::Key::Escape) {
                         let session_to_cancel = { session_arc.lock().unwrap().take() };
 

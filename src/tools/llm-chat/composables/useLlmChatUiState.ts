@@ -49,20 +49,21 @@ const uiStateManager = createConfigManager<LlmChatUiState>({
 // 创建防抖保存函数
 const debouncedSave = uiStateManager.createDebouncedSave(300);
 
+// 将响应式状态提升到模块级别，使其成为真正的单例
+const isLeftSidebarCollapsed = ref(defaultUiState.isLeftSidebarCollapsed);
+const isRightSidebarCollapsed = ref(defaultUiState.isRightSidebarCollapsed);
+const leftSidebarWidth = ref(defaultUiState.leftSidebarWidth);
+const rightSidebarWidth = ref(defaultUiState.rightSidebarWidth);
+const leftSidebarActiveTab = ref<'agents' | 'parameters'>(defaultUiState.leftSidebarActiveTab);
+const agentSortBy = ref<'lastUsed' | 'name' | 'createdAt'>(defaultUiState.agentSortBy);
+
+// 是否已初始化
+let isInitialized = false;
+
 /**
  * LLM Chat UI 状态管理 Composable
  */
 export function useLlmChatUiState() {
-  // 响应式状态
-  const isLeftSidebarCollapsed = ref(defaultUiState.isLeftSidebarCollapsed);
-  const isRightSidebarCollapsed = ref(defaultUiState.isRightSidebarCollapsed);
-  const leftSidebarWidth = ref(defaultUiState.leftSidebarWidth);
-  const rightSidebarWidth = ref(defaultUiState.rightSidebarWidth);
-  const leftSidebarActiveTab = ref<'agents' | 'parameters'>(defaultUiState.leftSidebarActiveTab);
-  const agentSortBy = ref<'lastUsed' | 'name' | 'createdAt'>(defaultUiState.agentSortBy);
-  
-  // 是否已初始化
-  let isInitialized = false;
   
   /**
    * 加载UI状态

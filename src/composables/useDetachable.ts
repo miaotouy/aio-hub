@@ -75,6 +75,16 @@ export function useDetachable() {
       startY: config.mouseY,
       startTime: dragState.startTime
     });
+
+    // 添加超时检查，防止状态卡在 'isPreparing'
+    setTimeout(() => {
+      if (dragState.isPreparing && !isDragging.value) {
+        console.warn('[DETACH] 拖拽准备超时，自动重置状态');
+        dragState.isPreparing = false;
+        dragState.config = null;
+        dragState.startTime = 0;
+      }
+    }, 15000); // 15秒超时
   };
 
   const beginDragSession = async () => {
@@ -183,6 +193,28 @@ export function useDetachable() {
   useEventListener(window, 'mouseup', (event) => {
     if (isDragging.value || dragState.isPreparing) {
       handleMouseUp(event);
+    }
+  });
+
+  // 添加全局键盘监听，用于处理 ESC 取消
+  useEventListener(window, 'keydown', (event) => {
+    if ((isDragging.value || dragState.isPreparing) && event.key === 'Escape') {
+      console.log('[DETACH] 检测到 ESC 键，强制取消拖拽');
+      // 强制结束会话，不创建窗口
+      invoke('end_drag_session')
+        .catch(error => {
+          // 忽略 "没有活动会话" 的错误，因为可能已经由后端取消
+          if (!error.toString().includes('没有活动的拖拽会话')) {
+            console.error('[DETACH] ESC 取消拖拽会话失败:', error);
+          }
+        })
+        .finally(() => {
+          isDragging.value = false;
+          dragState.isPreparing = false;
+          dragState.config = null;
+          dragState.canDetach = false;
+          dragState.startTime = 0;
+        });
     }
   });
 

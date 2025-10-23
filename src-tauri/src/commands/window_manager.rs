@@ -59,6 +59,80 @@ pub fn init_global_mouse_listener() {
         let session_arc = DRAG_SESSION.clone();
         let callback = move |event: Event| {
             match event.event_type {
+                EventType::ButtonRelease(_button) => {
+                    let app_handle_opt = {
+                        let session_opt = session_arc.lock().unwrap();
+                        session_opt.as_ref().map(|s| s.app_handle.clone())
+                    };
+
+                    if let Some(app_handle) = app_handle_opt {
+                        println!("[DRAG] 检测到全局鼠标释放，尝试结束会话");
+
+                        // 在新线程中创建 Tokio 运行时并执行异步代码
+                        thread::spawn(move || {
+                            let rt = tokio::runtime::Builder::new_current_thread()
+                                .enable_all() // 启用所有功能，包括时间
+                                .build()
+                                .unwrap();
+
+                            rt.block_on(async {
+                                // 等待一小段时间，让前端的 mouseup 先处理
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                // 尝试结束会话，如果已经结束则忽略错误
+                                if let Err(e) = end_drag_session(app_handle).await {
+                                    // 只有在错误不是"没有活动会话"时才打印
+                                    if !e.contains("没有活动的拖拽会话") {
+                                        eprintln!("[DRAG] 自动结束会话失败: {}", e);
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
+                EventType::KeyPress(key) => {
+                    println!("[DRAG] 检测到按键按下: {:?}", key);
+                    if matches!(key, rdev::Key::Escape) {
+                        let session_to_cancel = { session_arc.lock().unwrap().take() };
+
+                        if let Some(session) = session_to_cancel {
+                            println!("[DRAG] 检测到 ESC 键按下，取消拖拽会话");
+                            let app_handle = session.app_handle.clone();
+                            let preview_label = session.preview_window_label.clone();
+
+                            thread::spawn(move || {
+                                if let Some(window) = app_handle.get_webview_window(&preview_label)
+                                {
+                                    let _ = window.close();
+                                    println!("[DRAG] 拖拽会话已取消，预览窗口已关闭");
+                                }
+                            });
+                        } else {
+                            println!("[DRAG] ESC 键按下，但没有活动会话");
+                        }
+                    }
+                }
+                EventType::KeyRelease(key) => {
+                    println!("[DRAG] 检测到按键释放: {:?}", key);
+                    if matches!(key, rdev::Key::Escape) {
+                        let session_to_cancel = { session_arc.lock().unwrap().take() };
+
+                        if let Some(session) = session_to_cancel {
+                            println!("[DRAG] 检测到 ESC 键释放，取消拖拽会话");
+                            let app_handle = session.app_handle.clone();
+                            let preview_label = session.preview_window_label.clone();
+
+                            thread::spawn(move || {
+                                if let Some(window) = app_handle.get_webview_window(&preview_label)
+                                {
+                                    let _ = window.close();
+                                    println!("[DRAG] 拖拽会话已取消，预览窗口已关闭");
+                                }
+                            });
+                        } else {
+                            println!("[DRAG] ESC 键释放，但没有活动会话");
+                        }
+                    }
+                }
                 EventType::MouseMove { x, y } => {
                     // 一次性提取所有需要的数据，然后立即释放锁
                     let update_data = {
@@ -75,8 +149,10 @@ pub fn init_global_mouse_listener() {
 
                             // 节流检查：只有距离上次更新超过阈值时间才执行更新
                             let now = Instant::now();
-                            let should_update = now.duration_since(session.last_update_time).as_millis() >= UPDATE_THROTTLE_MS as u128;
-                            
+                            let should_update =
+                                now.duration_since(session.last_update_time).as_millis()
+                                    >= UPDATE_THROTTLE_MS as u128;
+
                             if should_update {
                                 session.last_update_time = now;
                                 Some((
@@ -96,14 +172,22 @@ pub fn init_global_mouse_listener() {
                     // 锁已释放
 
                     // 只有在需要更新时才执行窗口操作
-                    if let Some((app_handle, preview_label, can_detach, handle_offset_x, handle_offset_y)) = update_data {
+                    if let Some((
+                        app_handle,
+                        preview_label,
+                        can_detach,
+                        handle_offset_x,
+                        handle_offset_y,
+                    )) = update_data
+                    {
                         if let Some(window) = app_handle.get_webview_window(&preview_label) {
                             // rdev 返回的 x, y 已经是物理坐标，不需要再缩放
                             // 使用手柄偏移量而不是窗口中心
                             let physical_x = (x - handle_offset_x) as i32;
                             let physical_y = (y - handle_offset_y) as i32;
 
-                            let _ = window.set_position(PhysicalPosition::new(physical_x, physical_y));
+                            let _ =
+                                window.set_position(PhysicalPosition::new(physical_x, physical_y));
 
                             // 始终发送状态更新事件，确保预览窗口能及时收到
                             // 即使状态没有变化，也可能是窗口刚创建错过了之前的事件
@@ -127,11 +211,30 @@ pub fn init_global_mouse_listener() {
 /// 开始一个基于全局鼠标监听的拖拽会话
 #[tauri::command]
 pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Result<(), String> {
-    // 检查是否已有活动会话
+    // 检查并清理可能卡住的旧会话
     {
-        let session = DRAG_SESSION.lock().unwrap();
-        if session.is_some() {
-            return Err("已存在活动的拖拽会话".to_string());
+        let mut session_opt = DRAG_SESSION.lock().unwrap();
+        if let Some(existing_session) = &*session_opt {
+            // 如果会话存在超过10秒，就认为它卡住了
+            if existing_session.created_at.elapsed() > Duration::from_secs(10) {
+                println!("[DRAG] 检测到卡住的旧会话，强制清理...");
+                let old_preview_label = existing_session.preview_window_label.clone();
+                let app_clone = app.clone();
+
+                // 在后台线程中关闭旧窗口
+                thread::spawn(move || {
+                    if let Some(window) = app_clone.get_webview_window(&old_preview_label) {
+                        let _ = window.close();
+                    }
+                });
+
+                // 清理会话
+                *session_opt = None;
+                println!("[DRAG] 旧会话已清理");
+            } else {
+                // 如果会话还很新，拒绝创建新会话
+                return Err("已存在活动的拖拽会话".to_string());
+            }
         }
     }
 
@@ -290,7 +393,10 @@ async fn create_preview_window_internal(
         let config_json =
             serde_json::to_string(config).map_err(|e| format!("序列化组件配置失败: {}", e))?;
         let config_encoded = urlencoding::encode(&config_json);
-        format!("/detached-component/{}?config={}", &config.id, config_encoded)
+        format!(
+            "/detached-component/{}?config={}",
+            &config.id, config_encoded
+        )
     };
 
     let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))

@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { Plus, Edit, Delete, MoreFilled } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, MoreFilled, Search } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode } from "../../types";
@@ -12,8 +12,49 @@ import type { AgentPreset } from "../../types";
 
 const agentStore = useAgentStore();
 
-// 按最后使用时间排序的智能体列表
-const sortedAgents = computed(() => agentStore.sortedAgents);
+// 搜索和排序状态
+const searchQuery = ref("");
+const sortBy = ref<"lastUsed" | "name" | "createdAt">("lastUsed");
+
+// 过滤和排序后的智能体列表
+const filteredAndSortedAgents = computed(() => {
+  let agents = [...agentStore.agents];
+
+  // 搜索过滤
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase().trim();
+    agents = agents.filter((agent) => {
+      return (
+        agent.name.toLowerCase().includes(query) ||
+        (agent.description && agent.description.toLowerCase().includes(query)) ||
+        (agent.icon && agent.icon.toLowerCase().includes(query))
+      );
+    });
+  }
+
+  // 排序
+  agents.sort((a, b) => {
+    switch (sortBy.value) {
+      case "lastUsed":
+        const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+        const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+        return bTime - aTime;
+      case "name":
+        return a.name.localeCompare(b.name, undefined, {
+          sensitivity: 'base',
+          numeric: true
+        });
+      case "createdAt":
+        const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bCreated - aCreated;
+      default:
+        return 0;
+    }
+  });
+
+  return agents;
+});
 
 // 当前选中的智能体ID（从 store 读取）
 const currentAgentId = computed(() => agentStore.currentAgentId);
@@ -179,14 +220,35 @@ const handleDelete = (agent: ChatAgent) => {
 
 <template>
   <div class="agents-sidebar-content">
+    <!-- 搜索和排序工具栏 -->
+    <div class="agents-toolbar">
+      <el-input
+        v-model="searchQuery"
+        :prefix-icon="Search"
+        placeholder="搜索智能体..."
+        clearable
+        size="small"
+      />
+      <el-select v-model="sortBy" size="small" style="width: 120px">
+        <el-option label="最近使用" value="lastUsed" />
+        <el-option label="按名称" value="name" />
+        <el-option label="创建时间" value="createdAt" />
+      </el-select>
+    </div>
+
     <div class="agents-list">
-      <div v-if="sortedAgents.length === 0" class="empty-state">
+      <div v-if="filteredAndSortedAgents.length === 0 && !searchQuery" class="empty-state">
         <p>暂无智能体</p>
         <p class="hint">点击下方按钮创建智能体</p>
       </div>
 
+      <div v-else-if="filteredAndSortedAgents.length === 0" class="empty-state">
+        <p>没有找到匹配的智能体</p>
+        <p class="hint">尝试其他搜索关键词</p>
+      </div>
+
       <div
-        v-for="agent in sortedAgents"
+        v-for="agent in filteredAndSortedAgents"
         :key="agent.id"
         :class="['agent-item', { selected: isAgentSelected(agent.id) }]"
         @click="selectAgent(agent.id)"
@@ -261,6 +323,15 @@ const handleDelete = (agent: ChatAgent) => {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.agents-toolbar {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .hint {

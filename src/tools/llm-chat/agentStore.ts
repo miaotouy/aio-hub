@@ -146,6 +146,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
     /**
      * 选择智能体（独立于会话）
+     * 注意：仅选择不更新 lastUsedAt，只有真正使用（如发送消息）时才更新
      */
     selectAgent(agentId: string): void {
       const agent = this.agents.find(a => a.id === agentId);
@@ -155,7 +156,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       this.currentAgentId = agentId;
-      this.updateLastUsed(agentId);
+      // 不在这里更新 lastUsedAt，避免选择时改变列表排序
       logger.info('选择智能体', { agentId, name: agent.name });
     },
 

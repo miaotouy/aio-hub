@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, defineAsyncComponent, type Component, watch } from "vue";
+import { ref, shallowRef, onMounted, type Component, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useWindowSyncBus } from "../composables/useWindowSyncBus";
 import { useDetachedManager } from "../composables/useDetachedManager";
@@ -8,34 +8,23 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
 import { createModuleLogger } from "../utils/logger";
-import { useAgentStore } from "../tools/llm-chat/agentStore";
+import { getDetachableComponentConfig, loadDetachableComponent } from "../config/detachable-components";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 
 const logger = createModuleLogger("DetachedComponentContainer");
-const agentStore = useAgentStore();
 const route = useRoute();
 const { currentTheme } = useTheme();
-const bus = useWindowSyncBus();
 
 // 组件状态
 const isPreview = ref(true);
 const componentToRender = shallowRef<Component | null>(null);
 
-// 从事件载荷中提取的 props
-const componentProps = ref<Record<string, any>>({ isDetached: true });
+// 从逻辑钩子获取的 props 和 listeners
+const componentProps = ref<Record<string, any>>({});
+const componentEventListeners = ref<Record<string, any>>({});
 
 // 当前组件 ID
 const currentComponentId = ref<string>('');
-
-// 事件监听器映射
-const componentEventListeners = ref<Record<string, any>>({});
-
-// 组件注册表
-const componentRegistry: Record<string, () => Promise<Component>> = {
-  "chat-input": () => import("../tools/llm-chat/components/MessageInput.vue"),
-  "chat-area": () => import("../tools/llm-chat/components/ChatArea.vue"),
-  // 未来可添加其他可分离的组件
-};
 
 // 路由变化监听
 watch(
@@ -70,10 +59,6 @@ onMounted(async () => {
   logger.info("DetachedComponentContainer 挂载", {
     currentPath: route.path,
   });
-  
-  // 加载智能体数据（用于 ChatArea 显示智能体信息）
-  agentStore.loadAgents();
-  logger.info("智能体数据已加载", { agentCount: agentStore.agents.length });
 
   // 检查窗口是否已经固定（用于刷新时恢复状态）
   const checkIfFinalized = async () => {
@@ -111,51 +96,37 @@ onMounted(async () => {
         logger.info("从路由参数解析到组件配置", { config });
 
         // 新系统使用 id 而不是 componentId
-        const { id, ...props } = config;
+        const { id } = config;
         currentComponentId.value = id;
-        
-        // 为不同组件提供默认 props
-        const defaultProps: Record<string, any> = { isDetached: true };
-        
-        if (id === 'chat-input') {
-          // MessageInput 需要的默认 props
-          defaultProps.disabled = false;
-          defaultProps.isSending = false;
-        } else if (id === 'chat-area') {
-          // ChatArea 需要的默认 props（这些会被同步引擎覆盖）
-          defaultProps.messages = [];
-          defaultProps.isSending = false;
-          defaultProps.disabled = true;
-        }
-        
-        componentProps.value = { ...defaultProps, ...props };
-        
-        logger.info('组件 props 已初始化', {
-          id,
-          props: componentProps.value
-        });
 
-        // 加载组件
-        logger.info("准备加载组件", {
-          id,
-          availableComponents: Object.keys(componentRegistry),
-        });
-        if (id && componentRegistry[id]) {
+        // 从注册表获取组件配置
+        const componentConfig = getDetachableComponentConfig(id);
+        
+        if (componentConfig) {
           logger.info("正在加载组件", { id });
-          componentToRender.value = defineAsyncComponent(componentRegistry[id]);
-          logger.info("组件加载成功", { id });
-        } else {
-          logger.error("未找到或未注册可分离的组件", {
+          
+          // 加载组件
+          componentToRender.value = loadDetachableComponent(id);
+          
+          // 执行逻辑钩子获取 props 和 listeners
+          const logicResult = componentConfig.logicHook();
+          componentProps.value = logicResult.props.value;
+          componentEventListeners.value = logicResult.listeners;
+          
+          // 监听 props 的变化（因为 logicResult.props 是响应式的）
+          watch(logicResult.props, (newProps) => {
+            componentProps.value = newProps;
+          }, { deep: true });
+          
+          logger.info("组件加载成功", {
             id,
-            registered: Object.keys(componentRegistry),
-            });
-          }
- 
-         // 状态将由每个 useDetached... Composable 内部的
-         // useStateSyncEngine 通过 requestOnMount 自动请求
-         logger.info("组件已加载，状态将自动同步");
- 
-        } catch (error) {
+            propsKeys: Object.keys(componentProps.value),
+            listenersKeys: Object.keys(componentEventListeners.value)
+          });
+        } else {
+          logger.error("未找到或未注册可分离的组件", { id });
+        }
+      } catch (error) {
         logger.error("解析路由中的组件配置失败", { error, config: route.query.config });
       }
     } else {
@@ -177,33 +148,6 @@ onMounted(async () => {
 
   logger.info("DetachedComponentContainer 初始化完成");
 });
-
-// 事件处理器 - 将组件事件代理到主窗口
-const handleSendMessage = (content: string) => {
-  logger.info('MessageInput 发送事件，代理到主窗口', { content });
-  bus.requestAction('send-message', { content });
-};
-
-const handleAbort = () => {
-  logger.info('MessageInput 中止事件，代理到主窗口');
-  bus.requestAction('abort-sending', {});
-};
-
-// 根据组件类型设置事件监听器
-watch(currentComponentId, (id) => {
-  if (id === 'chat-input') {
-    componentEventListeners.value = {
-      send: handleSendMessage,
-      abort: handleAbort,
-    };
-    logger.info('已设置 MessageInput 事件监听器');
-  } else if (id === 'chat-area') {
-    // ChatArea 的事件已经在 useDetachedChatArea 中处理
-    componentEventListeners.value = {};
-  } else {
-    componentEventListeners.value = {};
-  }
-}, { immediate: true });
 </script>
 
 <template>

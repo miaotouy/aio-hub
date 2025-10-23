@@ -27,6 +27,7 @@ export function useDetachedChatArea() {
 
   // 1. 创建本地 ref 用于接收同步数据
   const syncedAgents = ref<ChatAgent[]>([]);
+  const syncedCurrentAgentId = ref<string | null>(null);
   const syncedSessions = ref<ChatSession[]>([]);
   const syncedCurrentSessionId = ref<string | null>(null);
   const syncedParameters = ref({
@@ -37,6 +38,11 @@ export function useDetachedChatArea() {
   // 2. 使用状态同步引擎接收完整状态（只接收，不推送）
   useStateSyncEngine(syncedAgents, {
     ...createChatSyncConfig(CHAT_STATE_KEYS.AGENTS),
+    autoPush: false,
+  });
+
+  useStateSyncEngine(syncedCurrentAgentId, {
+    ...createChatSyncConfig(CHAT_STATE_KEYS.CURRENT_AGENT_ID),
     autoPush: false,
   });
 
@@ -62,6 +68,13 @@ export function useDetachedChatArea() {
       agentStore.agents = newAgents;
     }
   }, { deep: true });
+
+  watch(syncedCurrentAgentId, (newId) => {
+    if (newId !== null) {
+      logger.info('接收到 currentAgentId 同步数据，更新到 Store', { agentId: newId });
+      agentStore.currentAgentId = newId;
+    }
+  });
 
   watch(syncedSessions, (newSessions) => {
     if (newSessions && newSessions.length > 0) {
@@ -126,9 +139,11 @@ export function useDetachedChatArea() {
   };
 
   // 4. 导出的计算属性和操作（现在可以直接从 Store 获取）
-  const currentAgentId = computed(() => store.currentSession?.displayAgentId ?? undefined);
+  // 使用全局的 currentAgentId，而不是会话的 displayAgentId
+  // 这样即使切换到新会话，智能体信息也不会消失
+  const currentAgentId = computed(() => agentStore.currentAgentId || undefined);
   const currentModelId = computed(() => {
-    const agentId = store.currentSession?.displayAgentId;
+    const agentId = agentStore.currentAgentId;
     return agentId ? agentStore.getAgentById(agentId)?.modelId : undefined;
   });
 

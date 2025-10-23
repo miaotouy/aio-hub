@@ -12,12 +12,14 @@
  *
  * 同步策略：
  * - AGENTS: 同步完整的智能体列表，让分离窗口能访问所有Agent
+ * - CURRENT_AGENT_ID: 同步当前选中的智能体ID（全局）
  * - SESSIONS: 同步完整的会话列表（包括每个会话的完整消息树），让分离窗口能切换会话
  * - CURRENT_SESSION_ID: 同步当前激活的会话ID
  * - PARAMETERS: 同步运行时参数（如 isSending 状态）
  */
 export type LlmChatStateKey =
   | 'chat-agents'           // 智能体列表（完整）
+  | 'chat-current-agent-id' // 当前选中的智能体ID（全局）
   | 'chat-sessions'         // 会话列表（完整，包含所有消息树）
   | 'chat-current-session-id'  // 当前会话ID
   | 'chat-parameters';      // 参数配置
@@ -29,6 +31,7 @@ export type LlmChatStateKey =
  */
 export const CHAT_STATE_KEYS = {
   AGENTS: 'chat-agents' as const,
+  CURRENT_AGENT_ID: 'chat-current-agent-id' as const,
   SESSIONS: 'chat-sessions' as const,
   CURRENT_SESSION_ID: 'chat-current-session-id' as const,
   PARAMETERS: 'chat-parameters' as const,

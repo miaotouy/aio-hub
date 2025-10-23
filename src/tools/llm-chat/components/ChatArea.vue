@@ -9,7 +9,6 @@ import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
 import MessageInput from "./MessageInput.vue";
-import { useDetachedChatArea } from "../composables/useDetachedChatArea";
 
 const logger = createModuleLogger("ChatArea");
 
@@ -190,45 +189,23 @@ const handleDetach = async () => {
 };
 
 // ===== 消息事件处理 =====
-// 根据是否分离，决定是直接 emit 还是使用代理
-// 使用 toRef 确保响应 props 的变化
-let finalMessages = toRef(props, "messages");
-let finalIsSending = toRef(props, "isSending");
-let finalDisabled = toRef(props, "disabled");
-let finalCurrentAgentId = toRef(props, "currentAgentId");
-let finalCurrentModelId = toRef(props, "currentModelId");
+// ChatArea 现在是一个纯粹的视图组件，只负责接收 props 和发出 emits
+// 所有分离逻辑都由 DetachedComponentContainer 通过适配器注入
+const finalMessages = toRef(props, "messages");
+const finalIsSending = toRef(props, "isSending");
+const finalDisabled = toRef(props, "disabled");
+const finalCurrentAgentId = toRef(props, "currentAgentId");
+const finalCurrentModelId = toRef(props, "currentModelId");
 
-let handleSendMessage = (content: string) => emit("send", content);
-let handleAbort = () => emit("abort");
-let handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
-let handleRegenerate = (messageId: string) => emit("regenerate", messageId);
-let handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => emit("switch-sibling", nodeId, direction);
-let handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
-let handleEditMessage = (nodeId: string, newContent: string) => emit("edit-message", nodeId, newContent);
-let handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
-let handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
-
-if (props.isDetached) {
-  const detached = useDetachedChatArea();
-
-  finalMessages = detached.messages;
-  finalIsSending = detached.isSending;
-  finalDisabled = detached.disabled;
-  finalCurrentAgentId = detached.currentAgentId;
-  finalCurrentModelId = detached.currentModelId;
-
-  handleSendMessage = detached.sendMessage;
-  handleAbort = detached.abortSending;
-  handleDeleteMessage = detached.deleteMessage;
-  handleRegenerate = detached.regenerateLastMessage;
-  handleSwitchSibling = detached.switchSibling;
-  handleToggleEnabled = detached.toggleEnabled;
-  handleEditMessage = detached.editMessage;
-  handleAbortNode = detached.abortNode;
-  handleCreateBranch = detached.createBranch;
-
-  logger.info("ChatArea 运行在分离模式");
-}
+const handleSendMessage = (content: string) => emit("send", content);
+const handleAbort = () => emit("abort");
+const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
+const handleRegenerate = (messageId: string) => emit("regenerate", messageId);
+const handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => emit("switch-sibling", nodeId, direction);
+const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
+const handleEditMessage = (nodeId: string, newContent: string) => emit("edit-message", nodeId, newContent);
+const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
+const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 
 onMounted(() => {
   logger.info("ChatArea mounted", {
@@ -239,13 +216,6 @@ onMounted(() => {
       isDetached: props.isDetached,
       currentAgentId: props.currentAgentId,
       currentModelId: props.currentModelId,
-    },
-    final: {
-      messages: finalMessages.value?.length,
-      isSending: finalIsSending.value,
-      disabled: finalDisabled.value,
-      currentAgentId: finalCurrentAgentId.value,
-      currentModelId: finalCurrentModelId.value,
     },
     agent: currentAgent.value,
     model: currentModel.value,

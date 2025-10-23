@@ -23,6 +23,7 @@ export function useLlmChatSync() {
   // 这样分离窗口能获得完整的上下文，可以独立工作
   // 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
   const allAgents = toRef(agentStore, 'agents');
+  const currentAgentId = toRef(agentStore, 'currentAgentId');
   const allSessions = toRef(store, 'sessions');
   const currentSessionId = toRef(store, 'currentSessionId');
   const chatParameters = computed(() => {
@@ -42,6 +43,8 @@ export function useLlmChatSync() {
 
   // 同步完整的智能体列表
   createStateEngine(allAgents, CHAT_STATE_KEYS.AGENTS);
+  // 同步当前选中的智能体ID（全局）
+  createStateEngine(currentAgentId, CHAT_STATE_KEYS.CURRENT_AGENT_ID);
   // 同步完整的会话列表（包含所有消息树）
   createStateEngine(allSessions, CHAT_STATE_KEYS.SESSIONS);
   // 同步当前激活的会话ID

@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import AgentsSidebar from './AgentsSidebar.vue';
-import ParametersSidebar from './ParametersSidebar.vue';
+import AgentsSidebar from "./AgentsSidebar.vue";
+import ParametersSidebar from "./ParametersSidebar.vue";
+import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 
-type TabType = 'agents' | 'parameters';
-const activeTab = ref<TabType>('agents');
+const { leftSidebarActiveTab: activeTab } = useLlmChatUiState();
 </script>
 
 <template>
@@ -14,7 +13,7 @@ const activeTab = ref<TabType>('agents');
         :class="['tab-btn', { active: activeTab === 'agents' }]"
         @click="activeTab = 'agents'"
       >
-        🤖 智能体
+        🔮 智能体
       </button>
       <button
         :class="['tab-btn', { active: activeTab === 'parameters' }]"

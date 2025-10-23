@@ -17,6 +17,9 @@ export interface LlmChatUiState {
   leftSidebarWidth: number;
   rightSidebarWidth: number;
   
+  // 左侧边栏当前激活的标签页
+  leftSidebarActiveTab: 'agents' | 'parameters';
+  
   // 智能体列表排序方式
   agentSortBy: 'lastUsed' | 'name' | 'createdAt';
   
@@ -30,6 +33,7 @@ const defaultUiState: LlmChatUiState = {
   isRightSidebarCollapsed: false,
   leftSidebarWidth: 320,
   rightSidebarWidth: 280,
+  leftSidebarActiveTab: 'agents',
   agentSortBy: 'lastUsed',
   version: '1.0.0',
 };
@@ -54,6 +58,7 @@ export function useLlmChatUiState() {
   const isRightSidebarCollapsed = ref(defaultUiState.isRightSidebarCollapsed);
   const leftSidebarWidth = ref(defaultUiState.leftSidebarWidth);
   const rightSidebarWidth = ref(defaultUiState.rightSidebarWidth);
+  const leftSidebarActiveTab = ref<'agents' | 'parameters'>(defaultUiState.leftSidebarActiveTab);
   const agentSortBy = ref<'lastUsed' | 'name' | 'createdAt'>(defaultUiState.agentSortBy);
   
   // 是否已初始化
@@ -70,6 +75,7 @@ export function useLlmChatUiState() {
       isRightSidebarCollapsed.value = state.isRightSidebarCollapsed;
       leftSidebarWidth.value = state.leftSidebarWidth;
       rightSidebarWidth.value = state.rightSidebarWidth;
+      leftSidebarActiveTab.value = state.leftSidebarActiveTab;
       agentSortBy.value = state.agentSortBy;
       
       isInitialized = true;
@@ -95,6 +101,7 @@ export function useLlmChatUiState() {
       isRightSidebarCollapsed: isRightSidebarCollapsed.value,
       leftSidebarWidth: leftSidebarWidth.value,
       rightSidebarWidth: rightSidebarWidth.value,
+      leftSidebarActiveTab: leftSidebarActiveTab.value,
       agentSortBy: agentSortBy.value,
     };
     
@@ -108,7 +115,7 @@ export function useLlmChatUiState() {
   const startWatching = () => {
     // 监听所有UI状态变化
     watch(
-      [isLeftSidebarCollapsed, isRightSidebarCollapsed, leftSidebarWidth, rightSidebarWidth, agentSortBy],
+      [isLeftSidebarCollapsed, isRightSidebarCollapsed, leftSidebarWidth, rightSidebarWidth, leftSidebarActiveTab, agentSortBy],
       () => {
         saveUiState();
       }
@@ -128,6 +135,7 @@ export function useLlmChatUiState() {
       isRightSidebarCollapsed.value = defaultUiState.isRightSidebarCollapsed;
       leftSidebarWidth.value = defaultUiState.leftSidebarWidth;
       rightSidebarWidth.value = defaultUiState.rightSidebarWidth;
+      leftSidebarActiveTab.value = defaultUiState.leftSidebarActiveTab;
       agentSortBy.value = defaultUiState.agentSortBy;
       
       logger.info('UI状态已重置');
@@ -142,6 +150,7 @@ export function useLlmChatUiState() {
     isRightSidebarCollapsed,
     leftSidebarWidth,
     rightSidebarWidth,
+    leftSidebarActiveTab,
     agentSortBy,
     
     // 方法

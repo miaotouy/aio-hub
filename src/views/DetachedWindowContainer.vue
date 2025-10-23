@@ -28,6 +28,9 @@ const toolConfig = computed(() => toolsConfig.find((t) => t.path === toolPath.va
 // 工具标题
 const toolTitle = computed(() => toolConfig.value?.name || "工具窗口");
 
+// 工具图标
+const toolIcon = computed(() => toolConfig.value?.icon);
+
 // 动态加载的工具组件
 const toolComponent = shallowRef<Component | null>(null);
 
@@ -113,7 +116,7 @@ onMounted(async () => {
     <!-- 全局同步服务提供者 - 分离的工具窗口也需要同步服务 -->
     <SyncServiceProvider />
     
-    <TitleBar v-if="showTitleBar" :title="toolTitle" />
+    <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
 
     <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
       <component v-if="toolComponent" :is="toolComponent" />

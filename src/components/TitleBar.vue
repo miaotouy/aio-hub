@@ -9,6 +9,12 @@ import { loadAppSettingsAsync, type AppSettings } from '@utils/appSettings';
 import { createModuleLogger } from '@utils/logger';
 import { platform } from '@tauri-apps/plugin-os';
 
+// 接收可选的标题和图标 prop（用于分离窗口）
+const props = defineProps<{
+  title?: string;
+  icon?: any; // Vue 组件类型
+}>();
+
 // 创建模块日志记录器
 const logger = createModuleLogger('TitleBar');
 
@@ -60,13 +66,16 @@ const currentTool = computed(() => {
 });
 
 // 获取当前页面的工具名称
-const currentToolName = computed(() => currentTool.value.name);
-
+// 优先使用传入的 title prop（用于分离窗口），否则从路由推断
+const currentToolName = computed(() => props.title || currentTool.value.name);
 // 获取当前页面的图标组件
-const currentIcon = computed(() => currentTool.value.icon);
+// 优先使用传入的 icon prop（用于分离窗口），否则从路由推断
+const currentIcon = computed(() => props.icon || currentTool.value.icon);
 
 // 判断是否使用默认图标（主页和无匹配时显示默认图标）
+// 如果传入了 icon prop，则不使用默认图标
 const useDefaultIcon = computed(() => {
+  if (props.icon) return false;
   return route.path === '/' || !toolsConfig.find(tool => tool.path === route.path);
 });
 

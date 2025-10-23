@@ -78,6 +78,10 @@ export interface ChatMessageNode {
   metadata?: {
     /** 生成此消息时使用的 Agent ID */
     agentId?: string;
+    /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */
+    agentName?: string;
+    /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
+    agentIcon?: string;
     /** 生成此消息时使用的 Profile ID */
     profileId?: string;
     /** 生成此消息时使用的模型 ID */

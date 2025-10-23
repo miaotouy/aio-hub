@@ -77,7 +77,8 @@ const displayName = computed(() => {
   if (props.message.role === 'user') {
     return '你';
   } else if (props.message.role === 'assistant') {
-    return agent.value?.name || '助手';
+    // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）
+    return props.message.metadata?.agentName || agent.value?.name || '助手';
   } else {
     return '系统';
   }
@@ -87,7 +88,8 @@ const displayIcon = computed(() => {
   if (props.message.role === 'user') {
     return '👤';
   } else if (props.message.role === 'assistant') {
-    return agent.value?.icon || '🤖';
+    // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）
+    return props.message.metadata?.agentIcon || agent.value?.icon || '🤖';
   } else {
     return '⚙️';
   }

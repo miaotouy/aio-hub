@@ -251,9 +251,14 @@ export function useChatHandler() {
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
 
-    // 在生成开始时就设置基本的 metadata
+    // 获取当前智能体信息
+    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
+
+    // 在生成开始时就设置基本的 metadata（包括 Agent 名称和图标的快照）
     assistantNode.metadata = {
       agentId: agentStore.currentAgentId,
+      agentName: currentAgent?.name,
+      agentIcon: currentAgent?.icon,
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,
@@ -386,9 +391,14 @@ export function useChatHandler() {
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
 
-    // 在生成开始时就设置基本的 metadata
+    // 获取当前智能体信息
+    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
+
+    // 在生成开始时就设置基本的 metadata（包括 Agent 名称和图标的快照）
     assistantNode.metadata = {
       agentId: agentStore.currentAgentId,
+      agentName: currentAgent?.name,
+      agentIcon: currentAgent?.icon,
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,

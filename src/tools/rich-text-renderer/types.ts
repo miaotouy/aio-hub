@@ -319,3 +319,37 @@ export interface StreamProcessorOptions {
 export interface StreamSource {
   subscribe: (callback: (chunk: string) => void) => () => void;
 }
+
+// ============ 配置管理相关类型 ============
+
+/**
+ * 测试页面配置
+ */
+export interface TesterConfig {
+  /** 配置版本号 */
+  version: string;
+  /** 输入栏是否折叠 */
+  isInputCollapsed: boolean;
+  /** 当前选中的预设 ID */
+  selectedPreset: string;
+  /** 流式输出是否启用 */
+  streamEnabled: boolean;
+  /** 流式输出速度（字符/秒） */
+  streamSpeed: number;
+  /** 初始延迟（毫秒） */
+  initialDelay: number;
+  /** 波动模式是否启用 */
+  fluctuationEnabled: boolean;
+  /** 延迟波动范围 */
+  delayFluctuation: {
+    min: number;
+    max: number;
+  };
+  /** 字符数波动范围 */
+  charsFluctuation: {
+    min: number;
+    max: number;
+  };
+  /** 输入内容 */
+  inputContent: string;
+}

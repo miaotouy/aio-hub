@@ -33,6 +33,7 @@ declare module 'vue' {
     MainSidebar: typeof import('./components/MainSidebar.vue')['default']
     OcrIcon: typeof import('./components/icons/OcrIcon.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
+    RichTextRendererIcon: typeof import('./components/icons/RichTextRendererIcon.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SidebarToggleIcon: typeof import('./components/icons/SidebarToggleIcon.vue')['default']

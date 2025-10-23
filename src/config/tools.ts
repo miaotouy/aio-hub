@@ -10,6 +10,7 @@ import {
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
+import RichTextRendererIcon from '../components/icons/RichTextRendererIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
 import GitBranchIcon from '../components/icons/GitBranchIcon.vue';
 import OcrIcon from '../components/icons/OcrIcon.vue';
@@ -128,5 +129,13 @@ export const toolsConfig: ToolConfig[] = [
     component: () => import('../tools/llm-chat/LlmChat.vue'),
     description: '与 LLM 进行多轮对话，支持流式响应和会话管理',
     category: 'AI 工具'
+  },
+  {
+    name: '富文本渲染测试',
+    path: '/rich-text-renderer-tester',
+    icon: markRaw(RichTextRendererIcon),
+    component: () => import('../tools/rich-text-renderer/RichTextRendererTester.vue'),
+    description: '测试 Markdown 富文本渲染，支持流式输出模拟',
+    category: '开发工具'
   }
 ];

@@ -41,8 +41,8 @@ const filteredAndSortedAgents = computed(() => {
         return bTime - aTime;
       case "name":
         return a.name.localeCompare(b.name, undefined, {
-          sensitivity: 'base',
-          numeric: true
+          sensitivity: "base",
+          numeric: true,
         });
       case "createdAt":
         const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -199,15 +199,11 @@ const handleSaveAgent = (data: {
 
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
-  ElMessageBox.confirm(
-    `确定要删除智能体 "${agent.name}" 吗？文件将被移入回收站。`,
-    "确认删除",
-    {
-      confirmButtonText: "删除",
-      cancelButtonText: "取消",
-      type: "warning",
-    }
-  )
+  ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？文件将被移入回收站。`, "确认删除", {
+    confirmButtonText: "删除",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
     .then(async () => {
       try {
         await agentStore.deleteAgent(agent.id);
@@ -259,8 +255,17 @@ const handleDelete = (agent: ChatAgent) => {
       >
         <div class="agent-icon">
           <img
-            v-if="agent.icon && (agent.icon.startsWith('/') || agent.icon.startsWith('appdata://') || agent.icon.startsWith('http'))"
-            :src="agent.icon.startsWith('appdata://') ? agent.icon.replace('appdata://', '/') : agent.icon"
+            v-if="
+              agent.icon &&
+              (agent.icon.startsWith('/') ||
+                agent.icon.startsWith('appdata://') ||
+                agent.icon.startsWith('http'))
+            "
+            :src="
+              agent.icon.startsWith('appdata://')
+                ? agent.icon.replace('appdata://', '/')
+                : agent.icon
+            "
             :alt="agent.name"
             class="agent-icon-image"
             @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
@@ -277,8 +282,8 @@ const handleDelete = (agent: ChatAgent) => {
           </template>
         </div>
         <!-- 三点菜单 -->
-        <div class="agent-actions">
-          <el-dropdown trigger="click" @click.stop>
+        <div class="agent-actions" @click.stop>
+          <el-dropdown trigger="click">
             <el-button text circle :icon="MoreFilled" />
             <template #dropdown>
               <el-dropdown-menu>

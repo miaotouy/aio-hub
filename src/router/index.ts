@@ -1,4 +1,22 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
+import { toolsConfig } from "../config/tools";
+
+// 从 toolsConfig 动态生成工具路由
+const toolRoutes: RouteRecordRaw[] = toolsConfig.map((tool) => {
+  // 将路径转换为驼峰命名作为路由名称
+  // 例如：/regex-apply -> RegexApply
+  const routeName = tool.path
+    .substring(1) // 移除开头的 /
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+
+  return {
+    path: tool.path,
+    name: routeName,
+    component: tool.component,
+  };
+});
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -6,96 +24,29 @@ const routes: Array<RouteRecordRaw> = [
     name: "Home",
     component: () => import("../views/HomePage.vue"),
   },
-  {
-    path: "/regex-apply",
-    name: "RegexApply",
-    component: () => import("../tools/regex-applier/RegexApplier.vue"),
-  },
-  {
-    path: "/regex-manage",
-    name: "RegexManage",
-    component: () => import("../tools/regex-applier/PresetManager.vue"),
-  },
-  {
-    path: "/media-info-reader",
-    name: "MediaInfoReader",
-    component: () => import("../tools/MediaInfoReader.vue"),
-  },
-  {
-    path: "/text-diff",
-    name: "TextDiff",
-    component: () => import("../tools/TextDiff.vue"),
-  },
-  {
-    path: "/json-formatter",
-    name: "JsonFormatter",
-    component: () => import("../tools/JsonFormatter.vue"),
-  },
-  {
-    path: "/code-formatter", // 通用代码格式化，内部再区分语言
-    name: "CodeFormatter",
-    component: () => import("../tools/CodeFormatter.vue"),
-  },
-  {
-    path: "/symlink-mover",
-    name: "SymlinkMover",
-    component: () => import("../tools/SymlinkMover.vue"),
-  },
-  {
-    path: "/directory-tree",
-    name: "DirectoryTree",
-    component: () => import("../tools/directory-tree/DirectoryTree.vue"),
-  },
-  {
-    path: "/directory-janitor",
-    name: "DirectoryJanitor",
-    component: () => import("../tools/directory-janitor/DirectoryJanitor.vue"),
-  },
-  {
-    path: "/api-tester",
-    name: "ApiTester",
-    component: () => import("../tools/api-tester/ApiTester.vue"),
-  },
-  {
-    path: "/llm-proxy",
-    name: "LlmProxy",
-    component: () => import("../tools/llm-proxy/LlmProxy.vue"),
-  },
-  {
-    path: "/git-analyzer",
-    name: "GitAnalyzer",
-    component: () => import("../tools/git-analyzer/GitAnalyzer.vue"),
-  },
-  {
-    path: "/smart-ocr",
-    name: "SmartOcr",
-    component: () => import("../tools/smart-ocr/SmartOcr.vue"),
-  },
-  {
-    path: "/llm-chat",
-    name: "LlmChat",
-    component: () => import("../tools/llm-chat/LlmChat.vue"),
-  },
+  // 动态生成的工具路由
+  ...toolRoutes,
   {
     path: "/settings",
     name: "Settings",
     component: () => import("../views/Settings.vue"),
   },
   {
-    path: "/detached-window",
+    // 动态路由：分离的工具窗口 /detached-window/{tool-path}
+    path: "/detached-window/:toolPath",
     name: "DetachedWindow",
     component: () => import("../views/DetachedWindowContainer.vue"),
+  },
+  {
+    // 动态路由：分离的组件窗口 /detached-component/{component-id}
+    path: "/detached-component/:componentId",
+    name: "DetachedComponent",
+    component: () => import("../views/DetachedComponentContainer.vue"),
   },
   {
     path: "/drag-indicator",
     name: "DragIndicator",
     component: () => import("../views/DragIndicator.vue"),
-  },
-  {
-    // 统一的组件/工具加载器路由
-    path: "/detached-component-loader",
-    name: "DetachedComponentLoader",
-    component: () => import("../views/DetachedComponentContainer.vue"),
   },
 ];
 

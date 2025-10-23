@@ -1,30 +1,49 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { useTheme } from '../composables/useTheme';
-import { createModuleLogger } from '../utils/logger';
-import TitleBar from '../components/TitleBar.vue';
-import DetachPreviewHint from '../components/common/DetachPreviewHint.vue';
+import { computed, onMounted, ref, defineAsyncComponent, type Component } from "vue";
+import { useRoute } from "vue-router";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { useTheme } from "../composables/useTheme";
+import { createModuleLogger } from "../utils/logger";
+import { toolsConfig } from "../config/tools";
+import TitleBar from "../components/TitleBar.vue";
+import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 
-const logger = createModuleLogger('DetachedWindowContainer');
+const logger = createModuleLogger("DetachedWindowContainer");
 const route = useRoute();
-const router = useRouter();
 const { currentTheme } = useTheme();
 
-const toolTitle = computed(() => route.query.title as string || '工具窗口');
+// 从路由参数获取工具路径
+const toolPath = computed(() => `/${route.params.toolPath as string}`);
+
+// 从工具配置中查找对应的工具
+const toolConfig = computed(() => toolsConfig.find((t) => t.path === toolPath.value));
+
+// 工具标题
+const toolTitle = computed(() => toolConfig.value?.name || "工具窗口");
+
+// 动态加载的工具组件
+const toolComponent = ref<Component | null>(null);
+
 const isPreview = ref(true);
 
-// 判断是否需要显示标题栏（拖拽指示器不需要）
-const showTitleBar = computed(() => route.path !== '/drag-indicator');
+// 判断是否需要显示标题栏
+const showTitleBar = computed(() => true);
 
 onMounted(async () => {
-  // 如果有 toolPath 参数，导航到对应的工具页面
-  const toolPath = route.query.toolPath as string;
-  if (toolPath) {
-    router.replace(toolPath);
+  const config = toolConfig.value;
+
+  if (config) {
+    try {
+      logger.info("加载工具组件", { toolPath: toolPath.value, toolName: config.name });
+      // 使用 toolsConfig 中定义的组件导入函数
+      toolComponent.value = defineAsyncComponent(config.component);
+    } catch (error) {
+      logger.error("加载工具组件失败", { error, toolPath: toolPath.value });
+    }
+  } else {
+    logger.error("未找到工具配置", { toolPath: toolPath.value });
   }
 
   // 检查窗口是否已经固定（用于刷新时恢复状态）
@@ -32,22 +51,24 @@ onMounted(async () => {
     try {
       const currentWindow = getCurrentWebviewWindow();
       const label = currentWindow.label;
-      logger.info('检查窗口固定状态', { label });
+      logger.info("检查窗口固定状态", { label });
 
-      const windows = await invoke<Array<{ id: string; label: string }>>("get_all_detached_windows");
-      const isFinalized = windows.some(w => w.label === label);
-      
-      logger.info('窗口固定状态检查结果', { label, isFinalized });
+      const windows = await invoke<Array<{ id: string; label: string }>>(
+        "get_all_detached_windows"
+      );
+      const isFinalized = windows.some((w) => w.label === label);
+
+      logger.info("窗口固定状态检查结果", { label, isFinalized });
 
       if (isFinalized) {
         isPreview.value = false;
-        logger.info('窗口已固定，设置为最终模式');
+        logger.info("窗口已固定，设置为最终模式");
       } else {
         isPreview.value = true;
-        logger.info('窗口未固定，保持预览模式');
+        logger.info("窗口未固定，保持预览模式");
       }
     } catch (error) {
-      logger.error('检查窗口固定状态失败，默认使用预览模式', { error });
+      logger.error("检查窗口固定状态失败，默认使用预览模式", { error });
       isPreview.value = true;
     }
   };
@@ -66,25 +87,31 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="detached-container" :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]">
+  <div
+    class="detached-container"
+    :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
+  >
     <TitleBar v-if="showTitleBar" :title="toolTitle" />
-    
+
     <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
-      <router-view />
+      <component v-if="toolComponent" :is="toolComponent" />
+      <div v-else class="loading-message">
+        <p>加载中...</p>
+      </div>
     </div>
 
     <!-- 预览模式提示 -->
     <DetachPreviewHint :visible="isPreview" />
   </div>
 </template>
-
 <style scoped>
 .detached-container {
   width: 100vw;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-color);
+  background: transparent;
+  overflow: visible;
   color: var(--text-color);
   overflow: hidden;
 }
@@ -109,4 +136,11 @@ onMounted(async () => {
   opacity: 1;
 }
 
+.loading-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: var(--text-color);
+}
 </style>

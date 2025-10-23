@@ -280,20 +280,17 @@ async fn create_preview_window_internal(
 ) -> Result<(), String> {
     // 根据类型选择不同的路由
     let url = if config.r#type == "tool" {
-        // 工具类型：使用 DetachedWindowContainer
+        // 工具类型：使用清晰的路径结构 /detached-window/{tool-path}
         // 将驼峰命名的 ID 转换为短横线格式的路径
-        let tool_path = format!("/{}", camel_to_kebab(&config.id));
-        format!(
-            "/detached-window?toolPath={}&title={}",
-            urlencoding::encode(&tool_path),
-            urlencoding::encode(&config.display_name)
-        )
+        let tool_path = camel_to_kebab(&config.id);
+        format!("/detached-window/{}", tool_path)
     } else {
-        // 组件类型：使用 DetachedComponentContainer
+        // 组件类型：使用清晰的路径结构 /detached-component/{component-id}
+        // 需要传递配置信息以支持动态尺寸和 props
         let config_json =
             serde_json::to_string(config).map_err(|e| format!("序列化组件配置失败: {}", e))?;
         let config_encoded = urlencoding::encode(&config_json);
-        format!("/detached-component-loader?config={}", config_encoded)
+        format!("/detached-component/{}?config={}", &config.id, config_encoded)
     };
 
     let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))

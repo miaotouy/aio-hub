@@ -29,11 +29,19 @@ const isDragIndicator = () => {
 
 // 检查是否为独立工具窗口（需要标题栏和标准布局）
 const isDetachedWindow = () => {
-  return window.location.pathname === "/detached-window";
+  return window.location.pathname.startsWith("/detached-window/");
 };
+
+// 检查是否为分离组件加载器
+const isDetachedComponentLoader = () => {
+  return window.location.pathname.startsWith("/detached-component/");
+};
+
 // 为所有需要透明背景的窗口添加类名
-const transparentPaths = ["/drag-indicator", "/detached-component-loader"];
-if (transparentPaths.includes(window.location.pathname)) {
+const transparentPaths = ["/drag-indicator"];
+const needsTransparentBackground =
+  transparentPaths.includes(window.location.pathname) || isDetachedComponentLoader();
+if (needsTransparentBackground) {
   document.documentElement.classList.add("transparent-window");
   document.body.classList.add("transparent-window");
   logger.info(`透明窗口 (${window.location.pathname})：已添加透明背景类`);
@@ -96,11 +104,6 @@ if (transparentPaths.includes(window.location.pathname)) {
 })();
 
 // 根据窗口类型选择根组件
-// 检查是否为分离组件加载器
-const isDetachedComponentLoader = () => {
-  return window.location.pathname === "/detached-component-loader";
-};
-
 const rootComponent = (() => {
   if (isDragIndicator()) return DragIndicator;
   if (isDetachedWindow()) return DetachedWindowContainer;

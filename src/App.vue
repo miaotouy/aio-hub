@@ -18,18 +18,15 @@ const route = useRoute();
 const { isDetached, initialize } = useDetachedManager();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
 
-// 特殊路由列表 - 这些路由不需要显示标题栏和侧边栏
-const specialRoutes = [
-  "/detached-component-loader",
-  "/detached-component",
-  "/drag-indicator",
-  "/component-container",
-  "/component-standby",
-];
-
-// 判断当前是否为特殊路由
+// 判断当前是否为特殊路由（不需要显示侧边栏）
 const isSpecialRoute = computed(() => {
-  return specialRoutes.includes(route.path);
+  const path = route.path;
+  // 使用路径匹配判断是否为分离窗口或特殊路由
+  return (
+    path.startsWith("/detached-window/") ||
+    path.startsWith("/detached-component/") ||
+    path === "/drag-indicator"
+  );
 });
 
 // 应用设置

@@ -5,7 +5,6 @@
       <!-- 预设管理区域 -->
       <div class="preset-section">
         <div class="preset-header">
-          <el-button :icon="ArrowLeft" @click="goBack" size="small" text>返回</el-button>
           <span class="section-title">预设管理</span>
         </div>
 
@@ -218,7 +217,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { useRouter } from "vue-router";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import {
@@ -230,7 +228,6 @@ import {
   Upload,
   Download,
   WarningFilled,
-  ArrowLeft,
   Search,
 } from "@element-plus/icons-vue";
 import { VueDraggableNext } from "vue-draggable-next";
@@ -242,7 +239,6 @@ import debounce from "lodash/debounce";
 import { createModuleLogger } from "@utils/logger";
 import { parseRegexPattern } from "./engine";
 
-const router = useRouter();
 const store = usePresetStore();
 const logger = createModuleLogger("PresetManager");
 
@@ -339,11 +335,6 @@ onMounted(async () => {
     selectedRuleId.value = currentRules.value[0].id;
   }
 });
-
-// ===== 导航 =====
-const goBack = () => {
-  router.push("/regex-apply");
-};
 
 // ===== 预设操作 =====
 const onPresetChange = () => {

@@ -14,8 +14,8 @@
           <el-tooltip placement="bottom" :disabled="selectedPresetIds.length === 0">
             <template #content>
               <div v-if="selectedPresetIds.length > 0">
-                <div style="font-weight: bold; margin-bottom: 4px;">已启用的预设：</div>
-                <div v-for="preset in selectedPresets" :key="preset.id" style="margin: 2px 0;">
+                <div style="font-weight: bold; margin-bottom: 4px">已启用的预设：</div>
+                <div v-for="preset in selectedPresets" :key="preset.id" style="margin: 2px 0">
                   {{ preset.name }} ({{ preset.rules.filter((r: any) => r.enabled).length }} 条规则)
                 </div>
               </div>
@@ -25,22 +25,15 @@
               :icon="showPresetSection ? 'ArrowUp' : 'ArrowDown'"
               text
             >
-              {{ showPresetSection ? '隐藏预设' : '显示预设' }}
+              {{ showPresetSection ? "隐藏预设" : "显示预设" }}
             </el-button>
           </el-tooltip>
-          <el-badge
-            :value="errorLogCount"
-            :hidden="errorLogCount === 0"
-            :max="99"
-            type="danger"
-          >
+          <el-badge :value="errorLogCount" :hidden="errorLogCount === 0" :max="99" type="danger">
             <el-button @click="openLogDialog" :icon="List">
-              查看日志{{ logs.length > 0 ? `(${logs.length})` : '' }}
+              查看日志{{ logs.length > 0 ? `(${logs.length})` : "" }}
             </el-button>
           </el-badge>
-          <el-button type="primary" @click="goToManageRules" :icon="Setting">
-            管理规则
-          </el-button>
+          <el-button type="primary" @click="goToManageRules" :icon="Setting"> 管理规则 </el-button>
         </div>
       </div>
     </el-card>
@@ -70,7 +63,7 @@
           </el-dropdown>
         </div>
       </template>
-      
+
       <div class="preset-tags-container">
         <el-empty v-if="selectedPresetIds.length === 0" description="请添加要应用的预设" />
         <VueDraggableNext
@@ -84,14 +77,12 @@
           drag-class="drag"
           :force-fallback="true"
         >
-          <div
-            v-for="preset in selectedPresets"
-            :key="preset.id"
-            class="preset-tag"
-          >
+          <div v-for="preset in selectedPresets" :key="preset.id" class="preset-tag">
             <span class="preset-tag-content">
               {{ preset.name }}
-              <span class="rules-count">{{ preset.rules.filter((r: any) => r.enabled).length }}</span>
+              <span class="rules-count">{{
+                preset.rules.filter((r: any) => r.enabled).length
+              }}</span>
             </span>
             <el-icon class="close-icon" @click="removePreset(preset.id)">
               <Close />
@@ -156,10 +147,20 @@
         <el-col :span="16">
           <InfoCard title="待处理文件" class="full-height-card">
             <template #header-extra>
-              <el-button :icon="Delete" text circle @click="clearFiles" :disabled="files.length === 0" />
+              <el-button
+                :icon="Delete"
+                text
+                circle
+                @click="clearFiles"
+                :disabled="files.length === 0"
+              />
             </template>
             <div class="source-controls">
-              <el-input v-model="filePathInput" placeholder="输入或拖拽文件/文件夹路径" @keyup.enter="addFilePathFromInput" />
+              <el-input
+                v-model="filePathInput"
+                placeholder="输入或拖拽文件/文件夹路径"
+                @keyup.enter="addFilePathFromInput"
+              />
               <el-tooltip content="选择文件" placement="top">
                 <el-button @click="selectFiles" :icon="Document" circle />
               </el-tooltip>
@@ -172,7 +173,7 @@
               ref="fileDropArea"
               class="drop-area"
               data-drop-target="files"
-              :class="{ 'dragover': hoveredTarget === 'files' }"
+              :class="{ dragover: hoveredTarget === 'files' }"
               @dragenter="handleDragEnter($event, 'files')"
               @dragover="handleDragOver($event, 'files')"
               @dragleave="handleDragLeave"
@@ -189,11 +190,22 @@
                     <div class="file-details">
                       <div class="file-name" :title="file.name">{{ file.name }}</div>
                       <div class="file-path" :title="file.path">{{ file.path }}</div>
-                      <div v-if="file.status !== 'pending'" class="file-status" :class="`status-${file.status}`">
+                      <div
+                        v-if="file.status !== 'pending'"
+                        class="file-status"
+                        :class="`status-${file.status}`"
+                      >
                         {{ getStatusText(file.status) }}
                       </div>
                     </div>
-                    <el-button @click="removeFile(index)" :icon="Delete" text circle size="small" class="remove-btn" />
+                    <el-button
+                      @click="removeFile(index)"
+                      :icon="Delete"
+                      text
+                      circle
+                      size="small"
+                      class="remove-btn"
+                    />
                   </div>
                 </div>
               </el-scrollbar>
@@ -208,7 +220,7 @@
                 ref="outputDropArea"
                 class="target-control"
                 data-drop-target="output"
-                :class="{ 'dragover': hoveredTarget === 'output' }"
+                :class="{ dragover: hoveredTarget === 'output' }"
                 @dragenter="handleDragEnter($event, 'output')"
                 @dragover="handleDragOver($event, 'output')"
                 @dragleave="handleDragLeave"
@@ -218,45 +230,60 @@
                 <el-button @click="selectOutputDirectory" :icon="FolderOpened">选择</el-button>
               </div>
             </div>
-            
+
             <div class="setting-group">
               <label>文件名后缀</label>
-              <el-input
-                v-model="filenameSuffix"
-                placeholder="可选，例如 _processed"
-                clearable
-              >
+              <el-input v-model="filenameSuffix" placeholder="可选，例如 _processed" clearable>
                 <template #prepend>原文件名</template>
                 <template #append>.扩展名</template>
               </el-input>
               <div class="setting-hint">在原文件名后添加后缀，方便区分处理后的文件</div>
             </div>
-            
+
             <div class="setting-group">
               <el-checkbox v-model="forceTxt" label="强制保存为 .txt 格式" />
               <div class="setting-hint">忽略原始文件扩展名，统一保存为 .txt</div>
             </div>
-            
+
             <div class="setting-group">
               <el-checkbox v-model="clearProcessedFiles" label="处理后清除成功的文件" />
               <div class="setting-hint">处理成功的文件将自动从列表中移除</div>
             </div>
-            
+
             <el-button
               type="primary"
               @click="processFiles"
               :loading="isProcessing"
-              :disabled="isProcessing || files.length === 0 || !outputDirectory || selectedPresetIds.length === 0"
+              :disabled="
+                isProcessing ||
+                files.length === 0 ||
+                !outputDirectory ||
+                selectedPresetIds.length === 0
+              "
               class="execute-btn"
               size="large"
             >
               <el-icon><Rank /></el-icon>
-              {{ isProcessing ? '处理中...' : '开始处理文件' }}
+              {{ isProcessing ? "处理中..." : "开始处理文件" }}
             </el-button>
           </InfoCard>
         </el-col>
       </el-row>
     </div>
+
+    <!-- 预设管理弹窗 -->
+    <BaseDialog
+      :visible="presetManagerVisible"
+      @update:visible="handlePresetManagerClose"
+      title="管理预设规则"
+      width="90%"
+      height="90%"
+      :close-on-backdrop-click="false"
+    >
+      <template #content>
+        <PresetManager />
+      </template>
+    </BaseDialog>
 
     <!-- 日志弹窗 -->
     <BaseDialog
@@ -269,11 +296,11 @@
     >
       <template #content>
         <div class="log-dialog-content">
-        <div class="log-output">
-          <p v-for="(log, index) in logs" :key="index" :class="`log-${log.type}`">
-            [{{ log.time }}] {{ log.message }}
-          </p>
-          <p v-if="logs.length === 0" class="empty-log">暂无日志</p>
+          <div class="log-output">
+            <p v-for="(log, index) in logs" :key="index" :class="`log-${log.type}`">
+              [{{ log.time }}] {{ log.message }}
+            </p>
+            <p v-if="logs.length === 0" class="empty-log">暂无日志</p>
           </div>
         </div>
       </template>
@@ -286,57 +313,68 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { ElMessageBox } from 'element-plus';
-import { customMessage } from '@/utils/customMessage';
-import { Delete, Rank, Document, FolderOpened, FolderAdd, Plus, Setting, MagicStick, List, Close } from '@element-plus/icons-vue';
-import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { open as openFile } from '@tauri-apps/plugin-dialog';
-import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
-import debounce from 'lodash/debounce';
-import { VueDraggableNext } from 'vue-draggable-next';
-import InfoCard from '../../components/common/InfoCard.vue';
-import { usePresetStore } from './store';
-import type { LogEntry, RegexPreset } from './types';
-import { applyRules } from './engine';
-import { loadAppConfig, createDebouncedSave, type AppConfig } from './appConfig';
-import { createModuleLogger } from '@utils/logger';
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
+import {
+  Delete,
+  Rank,
+  Document,
+  FolderOpened,
+  FolderAdd,
+  Plus,
+  Setting,
+  MagicStick,
+  List,
+  Close,
+} from "@element-plus/icons-vue";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { open as openFile } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import debounce from "lodash/debounce";
+import { VueDraggableNext } from "vue-draggable-next";
+import InfoCard from "../../components/common/InfoCard.vue";
+import BaseDialog from "../../components/common/BaseDialog.vue";
+import PresetManager from "./PresetManager.vue";
+import { usePresetStore } from "./store";
+import type { LogEntry, RegexPreset } from "./types";
+import { applyRules } from "./engine";
+import { loadAppConfig, createDebouncedSave, type AppConfig } from "./appConfig";
+import { createModuleLogger } from "@utils/logger";
 
 // 创建模块日志器
-const logger = createModuleLogger('RegexApplier');
+const logger = createModuleLogger("RegexApplier");
 
-const router = useRouter();
 const store = usePresetStore();
 
 interface FileItem {
   path: string;
   name: string;
-  status: 'pending' | 'processing' | 'success' | 'error';
+  status: "pending" | "processing" | "success" | "error";
   error?: string;
 }
 
-type ProcessingMode = 'text' | 'file';
-type DropTarget = 'files' | 'output';
+type ProcessingMode = "text" | "file";
+type DropTarget = "files" | "output";
 
 // ===== 状态定义 =====
-const processingMode = ref<ProcessingMode>('text');
+const processingMode = ref<ProcessingMode>("text");
 
 // 预设选择
 const selectedPresetIds = ref<string[]>([]);
 const showPresetSection = ref(true);
 
 // 文本模式状态
-const sourceText = ref('');
-const resultText = ref('');
+const sourceText = ref("");
+const resultText = ref("");
 
 // 文件模式状态
-const filePathInput = ref('');
+const filePathInput = ref("");
 const files = ref<FileItem[]>([]);
-const outputDirectory = ref('');
+const outputDirectory = ref("");
 const forceTxt = ref(false);
-const filenameSuffix = ref('');
+const filenameSuffix = ref("");
 const clearProcessedFiles = ref(false);
 const isProcessing = ref(false);
 const hoveredTarget = ref<DropTarget | null>(null);
@@ -344,6 +382,9 @@ const hoveredTarget = ref<DropTarget | null>(null);
 // 日志状态
 const logs = ref<LogEntry[]>([]);
 const logDialogVisible = ref(false);
+
+// 预设管理弹窗状态
+const presetManagerVisible = ref(false);
 
 // 应用配置
 const appConfig = ref<AppConfig | null>(null);
@@ -360,50 +401,56 @@ const availablePresets = computed(() => store.presets);
 const selectedPresets = ref<RegexPreset[]>([]);
 
 // 计算错误和警告日志数量
-const errorLogCount = computed(() =>
-  logs.value.filter(log => log.type === 'error' || log.type === 'warn').length
+const errorLogCount = computed(
+  () => logs.value.filter((log) => log.type === "error" || log.type === "warn").length
 );
 
 // 监听 selectedPresetIds 变化，更新 selectedPresets
-watch(selectedPresetIds, (ids) => {
-  selectedPresets.value = ids
-    .map(id => store.presets.find(p => p.id === id))
-    .filter((p): p is RegexPreset => !!p);
-}, { immediate: true, deep: true });
+watch(
+  selectedPresetIds,
+  (ids) => {
+    selectedPresets.value = ids
+      .map((id) => store.presets.find((p) => p.id === id))
+      .filter((p): p is RegexPreset => !!p);
+  },
+  { immediate: true, deep: true }
+);
 
 // 拖拽事件处理
 const onDragStart = () => {
-  logger.debug('开始拖拽预设');
-  addLog('开始调整预设顺序', 'info');
+  logger.debug("开始拖拽预设");
+  addLog("开始调整预设顺序", "info");
 };
 
 const onDragEnd = () => {
-  logger.debug('拖拽结束，新顺序', { presets: selectedPresets.value.map(p => ({ id: p.id, name: p.name })) });
+  logger.debug("拖拽结束，新顺序", {
+    presets: selectedPresets.value.map((p) => ({ id: p.id, name: p.name })),
+  });
   // 更新 selectedPresetIds 以保持同步
-  selectedPresetIds.value = selectedPresets.value.map(p => p.id);
-  addLog('预设顺序已更新', 'info');
+  selectedPresetIds.value = selectedPresets.value.map((p) => p.id);
+  addLog("预设顺序已更新", "info");
 };
 
 // ===== 初始化 =====
 onMounted(async () => {
   // 加载预设
   await store.loadPresets();
-  
+
   // 加载应用配置
   try {
     const config = await loadAppConfig();
     appConfig.value = config;
-    
+
     // 恢复界面设置
     processingMode.value = config.processingMode;
     showPresetSection.value = config.showPresetSection;
-    
+
     // 恢复选中的预设（过滤掉已删除的预设）
-    const validPresetIds = config.selectedPresetIds.filter(id =>
-      store.presets.some(p => p.id === id)
+    const validPresetIds = config.selectedPresetIds.filter((id) =>
+      store.presets.some((p) => p.id === id)
     );
     selectedPresetIds.value = validPresetIds;
-    
+
     // 恢复文件模式设置
     if (config.fileMode.outputDirectory) {
       outputDirectory.value = config.fileMode.outputDirectory;
@@ -411,24 +458,24 @@ onMounted(async () => {
     forceTxt.value = config.fileMode.forceTxt;
     filenameSuffix.value = config.fileMode.filenameSuffix;
     clearProcessedFiles.value = config.fileMode.clearProcessedFiles;
-    
-    addLog('已恢复上次的设置', 'info');
+
+    addLog("已恢复上次的设置", "info");
   } catch (error) {
-    logger.error('加载应用配置失败', error);
+    logger.error("加载应用配置失败", error);
     // 如果没有选中的预设，默认选中第一个
     if (selectedPresetIds.value.length === 0 && store.presets.length > 0) {
       selectedPresetIds.value = [store.presets[0].id];
     }
   }
-  
+
   setupFileDropListener();
-  addLog('应用已就绪', 'info');
+  addLog("应用已就绪", "info");
 });
 
 // ===== 配置自动保存 =====
 const saveCurrentConfig = () => {
   if (!appConfig.value) return;
-  
+
   const config: AppConfig = {
     ...appConfig.value,
     processingMode: processingMode.value,
@@ -438,10 +485,10 @@ const saveCurrentConfig = () => {
       outputDirectory: outputDirectory.value,
       forceTxt: forceTxt.value,
       filenameSuffix: filenameSuffix.value,
-      clearProcessedFiles: clearProcessedFiles.value
-    }
+      clearProcessedFiles: clearProcessedFiles.value,
+    },
   };
-  
+
   appConfig.value = config;
   debouncedSaveConfig(config);
 };
@@ -456,14 +503,14 @@ watch(filenameSuffix, saveCurrentConfig);
 watch(clearProcessedFiles, saveCurrentConfig);
 
 // ===== 日志 =====
-const addLog = (message: string, type: LogEntry['type'] = 'info') => {
+const addLog = (message: string, type: LogEntry["type"] = "info") => {
   const time = new Date().toLocaleTimeString();
   logs.value.push({ time, message, type });
 };
 
 const clearLogs = () => {
   logs.value = [];
-  customMessage.success('日志已清空');
+  customMessage.success("日志已清空");
 };
 
 const openLogDialog = () => {
@@ -476,13 +523,24 @@ const togglePresetSection = () => {
 };
 
 const goToManageRules = () => {
-  router.push('/regex-manage');
+  presetManagerVisible.value = true;
+};
+
+// 处理预设管理器关闭事件
+const handlePresetManagerClose = async () => {
+  presetManagerVisible.value = false;
+  // 重新加载预设以获取最新数据
+  await store.loadPresets();
+  // 更新选中的预设列表（移除已删除的预设）
+  selectedPresetIds.value = selectedPresetIds.value.filter((id) =>
+    store.presets.some((p) => p.id === id)
+  );
 };
 
 const handleAddPreset = (presetId: string) => {
   if (!selectedPresetIds.value.includes(presetId)) {
     selectedPresetIds.value.push(presetId);
-    const preset = store.presets.find(p => p.id === presetId);
+    const preset = store.presets.find((p) => p.id === presetId);
     if (preset) {
       addLog(`已添加预设: ${preset.name}`);
     }
@@ -492,14 +550,13 @@ const handleAddPreset = (presetId: string) => {
 const removePreset = (presetId: string) => {
   const index = selectedPresetIds.value.indexOf(presetId);
   if (index !== -1) {
-    const preset = store.presets.find(p => p.id === presetId);
+    const preset = store.presets.find((p) => p.id === presetId);
     selectedPresetIds.value.splice(index, 1);
     if (preset) {
       addLog(`已移除预设: ${preset.name}`);
     }
   }
 };
-
 
 // ===== 文本模式处理 =====
 const debouncedProcessText = debounce(() => {
@@ -511,7 +568,7 @@ watch(selectedPresetIds, debouncedProcessText, { deep: true });
 
 const processText = () => {
   if (!sourceText.value) {
-    resultText.value = '';
+    resultText.value = "";
     return;
   }
 
@@ -525,15 +582,15 @@ const processText = () => {
 
   // 按顺序应用每个预设
   for (const presetId of selectedPresetIds.value) {
-    const preset = store.presets.find(p => p.id === presetId);
+    const preset = store.presets.find((p) => p.id === presetId);
     if (preset) {
-      const enabledRules = preset.rules.filter(r => r.enabled);
+      const enabledRules = preset.rules.filter((r) => r.enabled);
       const applyResult = applyRules(result, enabledRules);
       result = applyResult.text;
       totalRulesApplied += applyResult.appliedRulesCount;
-      
+
       // 添加日志
-      applyResult.logs.forEach(log => logs.value.push(log));
+      applyResult.logs.forEach((log) => logs.value.push(log));
     }
   }
 
@@ -543,34 +600,34 @@ const processText = () => {
 const pasteToSource = async () => {
   try {
     sourceText.value = await readText();
-    addLog('已从剪贴板粘贴内容到输入框。');
+    addLog("已从剪贴板粘贴内容到输入框。");
   } catch (error: any) {
     customMessage.error(`粘贴失败: ${error.message}`);
-    addLog(`粘贴失败: ${error.message}`, 'error');
+    addLog(`粘贴失败: ${error.message}`, "error");
   }
 };
 
 const copyResult = async () => {
   try {
     await writeText(resultText.value);
-    customMessage.success('处理结果已复制到剪贴板！');
-    addLog('处理结果已复制到剪贴板。');
+    customMessage.success("处理结果已复制到剪贴板！");
+    addLog("处理结果已复制到剪贴板。");
   } catch (error: any) {
     customMessage.error(`复制失败: ${error.message}`);
-    addLog(`复制失败: ${error.message}`, 'error');
+    addLog(`复制失败: ${error.message}`, "error");
   }
 };
 
 const oneClickProcess = async () => {
   if (selectedPresetIds.value.length === 0) {
-    customMessage.warning('请先选择至少一个预设');
+    customMessage.warning("请先选择至少一个预设");
     return;
   }
-  addLog('执行一键处理剪贴板...');
+  addLog("执行一键处理剪贴板...");
   await pasteToSource();
   processText();
   await copyResult();
-  addLog('一键处理剪贴板完成。');
+  addLog("一键处理剪贴板完成。");
 };
 
 // ===== 文件模式处理 =====
@@ -579,7 +636,7 @@ let unlistenDragEnter: (() => void) | null = null;
 let unlistenDragOver: (() => void) | null = null;
 let unlistenDragLeave: (() => void) | null = null;
 
-const isPositionInRect = (position: { x: number, y: number }, rect: DOMRect) => {
+const isPositionInRect = (position: { x: number; y: number }, rect: DOMRect) => {
   const ratio = window.devicePixelRatio || 1;
   return (
     position.x >= rect.left * ratio &&
@@ -592,70 +649,70 @@ const isPositionInRect = (position: { x: number, y: number }, rect: DOMRect) => 
 // 设置 Tauri 后端的文件拖放监听器
 const setupFileDropListener = async () => {
   // 监听拖动进入事件
-  unlistenDragEnter = await listen('custom-drag-enter', (event: any) => {
-    if (processingMode.value !== 'file') return;
-    
+  unlistenDragEnter = await listen("custom-drag-enter", (event: any) => {
+    if (processingMode.value !== "file") return;
+
     const { position } = event.payload;
     const fileRect = fileDropArea.value?.getBoundingClientRect();
     const outputRect = outputDropArea.value?.getBoundingClientRect();
-    
+
     if (outputRect && isPositionInRect(position, outputRect)) {
-      hoveredTarget.value = 'output';
-      logger.debug('拖动进入输出目录区域', { position });
-      addLog('拖动进入输出目录区域', 'info');
+      hoveredTarget.value = "output";
+      logger.debug("拖动进入输出目录区域", { position });
+      addLog("拖动进入输出目录区域", "info");
     } else if (fileRect && isPositionInRect(position, fileRect)) {
-      hoveredTarget.value = 'files';
-      logger.debug('拖动进入文件区域', { position });
-      addLog('拖动进入文件区域', 'info');
+      hoveredTarget.value = "files";
+      logger.debug("拖动进入文件区域", { position });
+      addLog("拖动进入文件区域", "info");
     }
   });
 
   // 监听拖动移动事件
-  unlistenDragOver = await listen('custom-drag-over', (event: any) => {
-    if (processingMode.value !== 'file') return;
-    
+  unlistenDragOver = await listen("custom-drag-over", (event: any) => {
+    if (processingMode.value !== "file") return;
+
     const { position } = event.payload;
     const fileRect = fileDropArea.value?.getBoundingClientRect();
     const outputRect = outputDropArea.value?.getBoundingClientRect();
-    
+
     let newTarget: DropTarget | null = null;
-    
+
     if (outputRect && isPositionInRect(position, outputRect)) {
-      newTarget = 'output';
+      newTarget = "output";
     } else if (fileRect && isPositionInRect(position, fileRect)) {
-      newTarget = 'files';
+      newTarget = "files";
     }
-    
+
     if (newTarget !== hoveredTarget.value) {
       hoveredTarget.value = newTarget;
       if (newTarget) {
-        logger.debug('拖动目标切换', { target: newTarget, position });
+        logger.debug("拖动目标切换", { target: newTarget, position });
       }
     }
   });
 
   // 监听拖动离开事件
-  unlistenDragLeave = await listen('custom-drag-leave', () => {
-    if (processingMode.value !== 'file') return;
-    
+  unlistenDragLeave = await listen("custom-drag-leave", () => {
+    if (processingMode.value !== "file") return;
+
     hoveredTarget.value = null;
-    logger.debug('拖动离开窗口');
-    addLog('拖动离开窗口', 'info');
+    logger.debug("拖动离开窗口");
+    addLog("拖动离开窗口", "info");
   });
 
   // 监听文件放下事件
-  unlistenDrop = await listen('custom-file-drop', (event: any) => {
-    if (processingMode.value !== 'file') return;
-    
+  unlistenDrop = await listen("custom-file-drop", (event: any) => {
+    if (processingMode.value !== "file") return;
+
     const { paths, position } = event.payload;
-    
+
     // 清除高亮状态
     hoveredTarget.value = null;
-    
+
     if (!paths || (Array.isArray(paths) && paths.length === 0)) {
       return;
     }
-    
+
     const pathArray = Array.isArray(paths) ? paths : [paths];
 
     const fileRect = fileDropArea.value?.getBoundingClientRect();
@@ -686,14 +743,14 @@ onUnmounted(() => {
 
 // 前端拖放事件处理 - 用于视觉反馈
 const handleDragEnter = (e: DragEvent, target: DropTarget) => {
-  logger.debug('前端拖拽进入事件', { target });
+  logger.debug("前端拖拽进入事件", { target });
   e.preventDefault();
   e.stopPropagation();
   hoveredTarget.value = target;
   if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = "copy";
   }
-  addLog(`拖动进入${target === 'files' ? '文件区域' : '输出目录区域'}`, 'info');
+  addLog(`拖动进入${target === "files" ? "文件区域" : "输出目录区域"}`, "info");
 };
 
 const handleDragOver = (e: DragEvent, target: DropTarget) => {
@@ -702,36 +759,36 @@ const handleDragOver = (e: DragEvent, target: DropTarget) => {
   // 保持高亮状态
   if (hoveredTarget.value !== target) {
     hoveredTarget.value = target;
-    logger.debug('前端拖拽悬停目标切换', { target });
+    logger.debug("前端拖拽悬停目标切换", { target });
   }
   if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = "copy";
   }
 };
 
 const handleDragLeave = (e: DragEvent) => {
   e.preventDefault();
   e.stopPropagation();
-  
+
   // 检查是否真的离开了拖放区域
   const related = e.relatedTarget as HTMLElement;
   const currentTarget = e.currentTarget as HTMLElement;
-  
+
   // 如果移动到子元素，不要移除高亮
   if (!currentTarget.contains(related)) {
-    logger.debug('前端拖拽离开事件');
+    logger.debug("前端拖拽离开事件");
     hoveredTarget.value = null;
-    addLog('拖动离开区域', 'info');
+    addLog("拖动离开区域", "info");
   }
 };
 
 const handleDrop = (e: DragEvent) => {
-  logger.debug('前端拖拽放下事件');
+  logger.debug("前端拖拽放下事件");
   e.preventDefault();
   e.stopPropagation();
   // 清除高亮状态
   hoveredTarget.value = null;
-  addLog('文件已放下，等待处理...', 'info');
+  addLog("文件已放下，等待处理...", "info");
   // 实际的文件处理由 Tauri 后端的 custom-file-drop 事件处理
 };
 
@@ -745,12 +802,12 @@ const addFilePathFromInput = () => {
 };
 
 const addFiles = (paths: string[]) => {
-  const newFiles: FileItem[] = paths.map(path => {
+  const newFiles: FileItem[] = paths.map((path) => {
     const name = path.split(/[/\\]/).pop() || path;
-    return { path, name, status: 'pending' };
+    return { path, name, status: "pending" };
   });
 
-  const uniqueNewFiles = newFiles.filter(nf => !files.value.some(sf => sf.path === nf.path));
+  const uniqueNewFiles = newFiles.filter((nf) => !files.value.some((sf) => sf.path === nf.path));
   if (uniqueNewFiles.length > 0) {
     files.value.push(...uniqueNewFiles);
     customMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
@@ -763,29 +820,31 @@ const removeFile = (index: number) => {
 
 const clearFiles = () => {
   if (files.value.length === 0) return;
-  ElMessageBox.confirm('确定要清空所有待处理文件吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning',
-  }).then(() => {
-    files.value = [];
-    customMessage.success('文件列表已清空');
-  }).catch(() => {});
+  ElMessageBox.confirm("确定要清空所有待处理文件吗？", "提示", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(() => {
+      files.value = [];
+      customMessage.success("文件列表已清空");
+    })
+    .catch(() => {});
 };
 
 const selectFiles = async () => {
   try {
     const selected = await openFile({
       multiple: true,
-      title: "选择要处理的文件"
+      title: "选择要处理的文件",
     });
     if (Array.isArray(selected) && selected.length > 0) {
       addFiles(selected);
-    } else if (typeof selected === 'string') {
+    } else if (typeof selected === "string") {
       addFiles([selected]);
     }
   } catch (error) {
-    logger.error("选择文件失败", error, { operation: 'selectFiles' });
+    logger.error("选择文件失败", error, { operation: "selectFiles" });
     customMessage.error("选择文件失败");
   }
 };
@@ -795,15 +854,15 @@ const selectFolders = async () => {
     const selected = await openFile({
       multiple: true,
       directory: true,
-      title: "选择要处理的文件夹"
+      title: "选择要处理的文件夹",
     });
     if (Array.isArray(selected) && selected.length > 0) {
       addFiles(selected);
-    } else if (typeof selected === 'string') {
+    } else if (typeof selected === "string") {
       addFiles([selected]);
     }
   } catch (error) {
-    logger.error("选择文件夹失败", error, { operation: 'selectFolders' });
+    logger.error("选择文件夹失败", error, { operation: "selectFolders" });
     customMessage.error("选择文件夹失败");
   }
 };
@@ -813,23 +872,23 @@ const selectOutputDirectory = async () => {
     const selected = await openFile({
       directory: true,
       multiple: false,
-      title: "选择输出目录"
+      title: "选择输出目录",
     });
-    if (typeof selected === 'string') {
+    if (typeof selected === "string") {
       outputDirectory.value = selected;
     }
   } catch (error) {
-    logger.error("选择输出目录失败", error, { operation: 'selectOutputDirectory' });
+    logger.error("选择输出目录失败", error, { operation: "selectOutputDirectory" });
     customMessage.error("选择目录失败");
   }
 };
 
-const getStatusText = (status: FileItem['status']) => {
+const getStatusText = (status: FileItem["status"]) => {
   const statusMap = {
-    'pending': '待处理',
-    'processing': '处理中',
-    'success': '成功',
-    'error': '失败'
+    pending: "待处理",
+    processing: "处理中",
+    success: "成功",
+    error: "失败",
   };
   return statusMap[status];
 };
@@ -851,13 +910,13 @@ const processFiles = async () => {
   // 收集所有选中预设的启用规则，并附加预设名称信息
   const allRules = [];
   for (const presetId of selectedPresetIds.value) {
-    const preset = store.presets.find(p => p.id === presetId);
+    const preset = store.presets.find((p) => p.id === presetId);
     if (preset) {
-      const enabledRules = preset.rules.filter(r => r.enabled);
+      const enabledRules = preset.rules.filter((r) => r.enabled);
       // 为每个规则附加预设名称
-      const rulesWithPreset = enabledRules.map(r => ({
+      const rulesWithPreset = enabledRules.map((r) => ({
         ...r,
-        preset_name: preset.name
+        preset_name: preset.name,
       }));
       allRules.push(...rulesWithPreset);
     }
@@ -869,38 +928,38 @@ const processFiles = async () => {
   }
 
   isProcessing.value = true;
-  files.value.forEach(file => file.status = 'processing');
+  files.value.forEach((file) => (file.status = "processing"));
 
   try {
-    const filePaths = files.value.map(file => file.path);
-    const rulesForBackend = allRules.map(r => ({
+    const filePaths = files.value.map((file) => file.path);
+    const rulesForBackend = allRules.map((r) => ({
       regex: r.regex,
       replacement: r.replacement,
       name: r.name,
-      preset_name: r.preset_name
+      preset_name: r.preset_name,
     }));
 
     addLog(`开始处理 ${filePaths.length} 个文件，应用 ${allRules.length} 条规则...`);
-    
-    const result: any = await invoke('process_files_with_regex', {
+
+    const result: any = await invoke("process_files_with_regex", {
       filePaths,
       outputDir: outputDirectory.value,
       rules: rulesForBackend,
       forceTxt: forceTxt.value,
-      filenameSuffix: filenameSuffix.value
+      filenameSuffix: filenameSuffix.value,
     });
 
     // 添加后端返回的日志
     if (result.logs && Array.isArray(result.logs)) {
       result.logs.forEach((log: any) => {
-        const logType = log.level === 'error' ? 'error' : (log.level === 'warn' ? 'warn' : 'info');
+        const logType = log.level === "error" ? "error" : log.level === "warn" ? "warn" : "info";
         addLog(log.message, logType);
       });
     }
-    
+
     // 显示统计摘要
     const summaryMsg = `处理完成: 成功 ${result.success_count} 个，失败 ${result.error_count} 个，总匹配 ${result.total_matches} 次，耗时 ${result.duration_ms?.toFixed(2)}ms`;
-    
+
     if (result.error_count > 0) {
       customMessage.warning(summaryMsg);
     } else {
@@ -911,15 +970,15 @@ const processFiles = async () => {
     const successfulFiles: number[] = [];
     files.value.forEach((file, index) => {
       if (result.errors && result.errors[file.path]) {
-        file.status = 'error';
+        file.status = "error";
         file.error = result.errors[file.path];
-        addLog(`文件 ${file.name} 处理失败: ${file.error}`, 'error');
+        addLog(`文件 ${file.name} 处理失败: ${file.error}`, "error");
       } else {
-        file.status = 'success';
+        file.status = "success";
         successfulFiles.push(index);
       }
     });
-    
+
     // 如果启用了清除选项，移除成功处理的文件
     if (clearProcessedFiles.value && successfulFiles.length > 0) {
       // 从后往前删除，避免索引问题
@@ -928,19 +987,18 @@ const processFiles = async () => {
       }
       addLog(`已从列表中移除 ${successfulFiles.length} 个成功处理的文件`);
     }
-
   } catch (error: any) {
     logger.error("文件处理失败", error, {
-      operation: 'processFiles',
+      operation: "processFiles",
       fileCount: files.value.length,
       outputDir: outputDirectory.value,
-      ruleCount: allRules.length
+      ruleCount: allRules.length,
     });
     customMessage.error(`文件处理失败: ${error}`);
-    addLog(`文件处理失败: ${error}`, 'error');
-    files.value.forEach(file => {
-      if (file.status === 'processing') {
-        file.status = 'error';
+    addLog(`文件处理失败: ${error}`, "error");
+    files.value.forEach((file) => {
+      if (file.status === "processing") {
+        file.status = "error";
         file.error = error.toString();
       }
     });
@@ -1054,7 +1112,7 @@ const processFiles = async () => {
 .preset-tag.drag {
   opacity: 0.8;
   transform: rotate(5deg);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   transition: none !important;
 }
 
@@ -1203,7 +1261,7 @@ const processFiles = async () => {
 }
 
 .drop-area.dragover::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: -2px;
   border-radius: 8px;
@@ -1213,8 +1271,12 @@ const processFiles = async () => {
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .empty-state {
@@ -1268,7 +1330,8 @@ const processFiles = async () => {
   min-width: 0;
 }
 
-.file-name, .file-path {
+.file-name,
+.file-path {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1360,21 +1423,22 @@ const processFiles = async () => {
 }
 
 .target-control.dragover::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg,
-    transparent,
-    rgba(64, 158, 255, 0.1),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(64, 158, 255, 0.1), transparent);
   animation: pulse 1.5s ease-in-out infinite;
   pointer-events: none;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .execute-btn {
@@ -1425,5 +1489,4 @@ const processFiles = async () => {
   padding: 40px 0;
   font-size: 14px;
 }
-
 </style>

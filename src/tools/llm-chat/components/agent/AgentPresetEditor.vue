@@ -163,14 +163,6 @@
                 >
                   <el-icon><Edit /></el-icon>
                 </el-button>
-                <el-button
-                  link
-                  size="small"
-                  type="danger"
-                  @click="handleDeleteMessage(index)"
-                >
-                  <el-icon><Delete /></el-icon>
-                </el-button>
               </div>
             </div>
 

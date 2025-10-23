@@ -113,24 +113,30 @@ const lightenColor = (hex: string, percent: number) => {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 };
 
+// 将驼峰命名转换为短横线路径
+const camelToKebab = (str: string): string => {
+return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
+};
+
 // 监听设置变化（用于响应设置页面的更改）
 const loadSettings = async () => {
-  const settings = await loadAppSettingsAsync();
-  appSettings.value = settings;
-  isCollapsed.value = settings.sidebarCollapsed;
+const settings = await loadAppSettingsAsync();
+appSettings.value = settings;
+isCollapsed.value = settings.sidebarCollapsed;
 
-  // 主题设置由 useTheme 模块自动加载和应用
-  cacheToolsVisible(settings.toolsVisible);
+// 主题设置由 useTheme 模块自动加载和应用
+cacheToolsVisible(settings.toolsVisible);
 
-  // 应用主题色
-  if (settings.themeColor) {
-    applyThemeColor(settings.themeColor);
-  }
+// 应用主题色
+if (settings.themeColor) {
+  applyThemeColor(settings.themeColor);
+}
 };
 
 // 存储事件处理函数的引用，用于清理
 let handleSettingsChange: ((event: Event) => void) | null = null;
 let unlisten: (() => void) | null = null;
+let unlistenDetached: (() => void) | null = null;
 
 onMounted(async () => {
   // 优先从缓存加载工具可见性，防止闪烁
@@ -180,6 +186,29 @@ onMounted(async () => {
     // 导航到设置页面
     router.push({ path: "/settings", query: { section: sectionId } });
   });
+
+  // 监听窗口分离事件，自动导航回主页
+  unlistenDetached = await listen<{ label: string; id: string; type: string }>("window-detached", (event) => {
+    const { id, type } = event.payload;
+    
+    // 只处理工具类型的分离
+    if (type === 'tool') {
+      // 将工具ID（驼峰命名）转换为路由路径（短横线命名）
+      const toolPath = '/' + camelToKebab(id);
+      
+      logger.info("工具已分离，检查是否需要导航", {
+        toolId: id,
+        toolPath,
+        currentPath: route.path
+      });
+      
+      // 如果当前路由正是被分离的工具页面，自动导航回主页
+      if (route.path === toolPath) {
+        logger.info("当前页面已分离，导航回主页", { from: toolPath });
+        router.push('/');
+      }
+    }
+  });
 });
 
 // 监听路由变化，仅在离开设置页面时更新一次
@@ -206,6 +235,9 @@ onUnmounted(() => {
   // 清理 Tauri 事件监听器
   if (unlisten) {
     unlisten();
+  }
+  if (unlistenDetached) {
+    unlistenDetached();
   }
 });
 </script>

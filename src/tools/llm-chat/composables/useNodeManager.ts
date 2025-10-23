@@ -149,28 +149,74 @@ export function useNodeManager() {
 
   /**
    * 创建新分支（重新生成场景）
-   * 创建新的助手消息节点作为兄弟分支
+   * 支持从用户消息或助手消息重新生成
+   * - 用户消息：创建新的助手回复（作为其子节点的兄弟）
+   * - 助手消息：创建新的助手回复（作为兄弟节点）
    */
   const createRegenerateBranch = (
     session: ChatSession,
-    targetNodeId: string,
-    parentNodeId: string
-  ): ChatMessageNode | null => {
+    targetNodeId: string
+  ): { assistantNode: ChatMessageNode; userNode: ChatMessageNode } | null => {
     const targetNode = session.nodes[targetNodeId];
-    const parentNode = session.nodes[parentNodeId];
 
-    if (!targetNode || !parentNode) {
+    if (!targetNode) {
       logger.warn('创建重新生成分支失败：节点不存在', {
         sessionId: session.id,
         targetNodeId,
-        parentNodeId,
       });
       return null;
     }
 
-    // 验证角色
-    if (targetNode.role !== 'assistant') {
-      logger.warn('创建重新生成分支失败：只能重新生成助手消息', {
+    let userNode: ChatMessageNode;
+    let parentNodeId: string;
+
+    if (targetNode.role === 'user') {
+      // 从用户消息重新生成：用户消息本身就是父节点
+      userNode = targetNode;
+      parentNodeId = targetNode.id;
+      
+      logger.info('从用户消息创建重新生成分支', {
+        sessionId: session.id,
+        userNodeId: targetNode.id,
+      });
+    } else if (targetNode.role === 'assistant') {
+      // 从助手消息重新生成：使用其父节点（用户消息）
+      if (!targetNode.parentId) {
+        logger.warn('创建重新生成分支失败：助手消息没有父节点', {
+          sessionId: session.id,
+          targetNodeId,
+        });
+        return null;
+      }
+
+      const parentNode = session.nodes[targetNode.parentId];
+      if (!parentNode) {
+        logger.warn('创建重新生成分支失败：父节点不存在', {
+          sessionId: session.id,
+          parentNodeId: targetNode.parentId,
+        });
+        return null;
+      }
+
+      if (parentNode.role !== 'user') {
+        logger.warn('创建重新生成分支失败：父节点不是用户消息', {
+          sessionId: session.id,
+          parentNodeId: targetNode.parentId,
+          role: parentNode.role,
+        });
+        return null;
+      }
+
+      userNode = parentNode;
+      parentNodeId = parentNode.id;
+
+      logger.info('从助手消息创建重新生成分支', {
+        sessionId: session.id,
+        targetNodeId,
+        userNodeId: parentNode.id,
+      });
+    } else {
+      logger.warn('创建重新生成分支失败：不支持的消息角色', {
         sessionId: session.id,
         targetNodeId,
         role: targetNode.role,
@@ -178,16 +224,7 @@ export function useNodeManager() {
       return null;
     }
 
-    if (parentNode.role !== 'user') {
-      logger.warn('创建重新生成分支失败：父节点不是用户消息', {
-        sessionId: session.id,
-        parentNodeId,
-        role: parentNode.role,
-      });
-      return null;
-    }
-
-    // 创建新的助手消息节点（作为兄弟分支，不禁用旧节点）
+    // 创建新的助手消息节点（作为用户消息的子节点）
     const newAssistantNode = createNode({
       role: 'assistant',
       content: '',
@@ -198,14 +235,14 @@ export function useNodeManager() {
     // 添加到会话
     addNodeToSession(session, newAssistantNode);
 
-    logger.info('创建重新生成分支', {
+    logger.info('创建重新生成分支成功', {
       sessionId: session.id,
-      oldNodeId: targetNodeId,
+      targetNodeId,
       newNodeId: newAssistantNode.id,
       parentNodeId,
     });
 
-    return newAssistantNode;
+    return { assistantNode: newAssistantNode, userNode };
   };
 
   /**

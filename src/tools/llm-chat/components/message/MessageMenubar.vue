@@ -144,12 +144,12 @@ const handleAbort = () => {
       <GitFork :size="16" />
     </button>
 
-    <!-- 重新生成（仅助手消息，不禁用以支持并行生成） -->
+    <!-- 重新生成（用户和助手消息都可以，不禁用以支持并行生成） -->
     <button
-      v-if="isAssistantMessage"
+      v-if="isUserMessage || isAssistantMessage"
       class="menu-btn"
       @click="handleRegenerate"
-      title="重新生成"
+      :title="isUserMessage ? '重新生成回复' : '重新生成'"
     >
       <RefreshCw :size="16" />
     </button>

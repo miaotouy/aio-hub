@@ -334,6 +334,7 @@ export function useChatHandler() {
 
   /**
    * 从指定节点重新生成
+   * 支持从用户消息或助手消息重新生成
    */
   const regenerateFromNode = async (
     session: ChatSession,
@@ -342,15 +343,10 @@ export function useChatHandler() {
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>
   ): Promise<void> => {
-    // 定位目标节点（要重新生成的助手消息）
+    // 定位目标节点
     const targetNode = session.nodes[nodeId];
     if (!targetNode) {
       logger.warn('重新生成失败：目标节点不存在', { sessionId: session.id, nodeId });
-      return;
-    }
-
-    if (!targetNode.parentId) {
-      logger.warn('重新生成失败：目标节点没有父节点', { sessionId: session.id, nodeId });
       return;
     }
 
@@ -373,18 +369,13 @@ export function useChatHandler() {
 
     // 使用节点管理器创建重新生成分支
     const nodeManager = useNodeManager();
-    const assistantNode = nodeManager.createRegenerateBranch(session, nodeId, targetNode.parentId);
+    const result = nodeManager.createRegenerateBranch(session, nodeId);
 
-    if (!assistantNode) {
+    if (!result) {
       return;
     }
 
-    // 获取父节点（用户的提问）
-    const parentNode = session.nodes[targetNode.parentId];
-    if (!parentNode) {
-      logger.error('重新生成失败：父节点不存在', new Error('Parent node not found'));
-      return;
-    }
+    const { assistantNode, userNode } = result;
 
     // 获取模型信息用于元数据
     const { getProfileById } = useLlmProfiles();
@@ -415,23 +406,24 @@ export function useChatHandler() {
     try {
       const { sendRequest } = useLlmRequest();
 
-      // 构建 LLM 上下文
-      const { systemPrompt, conversationHistory, currentMessage } = buildLlmContext(
-        activePath,
-        agentConfig,
-        parentNode.content
-      );
-
-      logger.info('从节点重新生成', {
-        sessionId: session.id,
-        targetNodeId: nodeId,
-        parentNodeId: parentNode.id,
-        newNodeId: assistantNode.id,
-        agentId: agentStore.currentAgentId,
-        profileId: agentConfig.profileId,
-        modelId: agentConfig.modelId,
-        historyMessageCount: conversationHistory.length,
-      });
+        // 构建 LLM 上下文（使用用户消息的内容）
+        const { systemPrompt, conversationHistory, currentMessage } = buildLlmContext(
+          activePath,
+          agentConfig,
+          userNode.content
+        );
+  
+        logger.info('从节点重新生成', {
+          sessionId: session.id,
+          targetNodeId: nodeId,
+          targetRole: targetNode.role,
+          userNodeId: userNode.id,
+          newNodeId: assistantNode.id,
+          agentId: agentStore.currentAgentId,
+          profileId: agentConfig.profileId,
+          modelId: agentConfig.modelId,
+          historyMessageCount: conversationHistory.length,
+        });
 
       const response = await sendRequest({
         profileId: agentConfig.profileId,

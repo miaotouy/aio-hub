@@ -3,7 +3,7 @@
  * 
  * 封装了 LlmChat.vue 与分离窗口之间的所有状态同步和操作代理逻辑
  */
-import { computed, type Ref } from 'vue';
+import { computed, toRef, type Ref } from 'vue';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
@@ -19,13 +19,12 @@ export function useLlmChatSync() {
   const agentStore = useAgentStore();
   const bus = useWindowSyncBus();
 
-  // 1. 状态定义
-  const chatMessages = computed(() => store.currentActivePath);
-  const chatSession = computed(() => store.currentSession);
-  const chatAgent = computed(() => {
-    const agentId = store.currentSession?.displayAgentId;
-    return agentId ? agentStore.getAgentById(agentId) : null;
-  });
+  // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
+  // 这样分离窗口能获得完整的上下文，可以独立工作
+  // 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
+  const allAgents = toRef(agentStore, 'agents');
+  const allSessions = toRef(store, 'sessions');
+  const currentSessionId = toRef(store, 'currentSessionId');
   const chatParameters = computed(() => {
     return {
       isSending: store.isSending,
@@ -41,9 +40,13 @@ export function useLlmChatSync() {
     stateEngines.push(engine);
   };
 
-  createStateEngine(chatMessages, CHAT_STATE_KEYS.MESSAGES);
-  createStateEngine(chatSession, CHAT_STATE_KEYS.SESSION);
-  createStateEngine(chatAgent, CHAT_STATE_KEYS.AGENT);
+  // 同步完整的智能体列表
+  createStateEngine(allAgents, CHAT_STATE_KEYS.AGENTS);
+  // 同步完整的会话列表（包含所有消息树）
+  createStateEngine(allSessions, CHAT_STATE_KEYS.SESSIONS);
+  // 同步当前激活的会话ID
+  createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
+  // 同步运行时参数
   createStateEngine(chatParameters, CHAT_STATE_KEYS.PARAMETERS);
 
   logger.info('LLM Chat 同步引擎已初始化');
@@ -53,12 +56,16 @@ export function useLlmChatSync() {
     logger.info('收到操作请求', { action, params });
     switch (action) {
       case 'send-message':
-        return store.sendMessage(params.content);
+        // 不要 await，立即返回，防止请求超时
+        store.sendMessage(params.content);
+        return Promise.resolve();
       case 'abort-sending':
         store.abortSending();
         return Promise.resolve();
       case 'regenerate-from-node':
-        return store.regenerateFromNode(params.messageId);
+        // 不要 await，立即返回，防止请求超时
+        store.regenerateFromNode(params.messageId);
+        return Promise.resolve();
       case 'delete-message':
         store.deleteMessage(params.messageId);
         return Promise.resolve();
@@ -83,10 +90,12 @@ export function useLlmChatSync() {
     }
   };
 
-  // 仅在主窗口注册操作处理器
+  // 【关键修改】只在主窗口注册操作处理器
+  // detached-tool 窗口不处理业务逻辑，它只是主窗口的"副本+中继站"
+  // 所有操作请求都应该由主窗口处理，确保全局只有一个状态源
   if (bus.windowType === 'main') {
     bus.onActionRequest(handleActionRequest);
-    logger.info('已注册操作请求处理器');
+    logger.info('已注册操作请求处理器（仅主窗口）', { windowType: bus.windowType });
 
     // 4. 监听初始状态请求，按需推送全量状态
     bus.onInitialStateRequest((requesterLabel) => {
@@ -105,6 +114,8 @@ export function useLlmChatSync() {
         engine.manualPush(true); // 广播全量状态
       }
     });
+  } else {
+    logger.info('非主窗口，不注册操作处理器（所有操作将代理至主窗口）', { windowType: bus.windowType });
   }
 
   return {};

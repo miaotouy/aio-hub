@@ -3,7 +3,7 @@ import { onMounted, computed, ref, onUnmounted } from "vue";
 import { useLlmChatStore } from "./store";
 import { useAgentStore } from "./agentStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
-import { useLlmChatSync } from "./composables/useLlmChatSync";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatUiState } from "./composables/useLlmChatUiState";
 import ChatArea from "./components/ChatArea.vue";
 import SessionsSidebar from "./components/sidebar/SessionsSidebar.vue";
@@ -14,6 +14,11 @@ import { createModuleLogger } from "@utils/logger";
 const logger = createModuleLogger("LlmChat");
 const store = useLlmChatStore();
 const agentStore = useAgentStore();
+const bus = useWindowSyncBus();
+
+// 检测当前窗口类型
+const isInDetachedToolWindow = bus.windowType === 'detached-tool';
+logger.info('LlmChat 窗口类型', { windowType: bus.windowType, isInDetachedToolWindow });
 
 // UI状态持久化
 const {
@@ -85,11 +90,8 @@ onUnmounted(() => {
   document.removeEventListener("mouseup", handleMouseUp);
 });
 
-// 新的同步逻辑
-useLlmChatSync();
-
 // 分离组件管理
-const { initialize, isDetached } = useDetachedManager();
+const { isDetached } = useDetachedManager();
 
 // 对话区域是否已分离的状态
 const isChatAreaDetached = computed(() => isDetached("chat-area"));
@@ -105,9 +107,6 @@ onMounted(async () => {
   await agentStore.loadAgents();
   await store.loadSessions();
 
-  // 初始化统一的分离窗口管理器
-  await initialize();
-
   logger.info("LLM Chat 模块已加载", {
     sessionCount: store.sessions.length,
     agentCount: agentStore.agents.length,
@@ -122,53 +121,99 @@ onMounted(async () => {
 const currentAgentId = computed(() => agentStore.currentAgentId || "");
 
 // 处理发送消息
+// 如果在 detached-tool 窗口中，代理操作回主窗口
 const handleSendMessage = async (content: string) => {
   if (!store.currentSession) {
     logger.warn("发送消息失败：没有活动会话");
     return;
   }
 
-  await store.sendMessage(content);
+  if (isInDetachedToolWindow) {
+    logger.info('代理发送消息操作到主窗口', { content });
+    await bus.requestAction('send-message', { content });
+  } else {
+    await store.sendMessage(content);
+  }
 };
 
 // 处理中止发送
 const handleAbortSending = () => {
-  store.abortSending();
+  if (isInDetachedToolWindow) {
+    logger.info('代理中止发送操作到主窗口');
+    bus.requestAction('abort-sending', {});
+  } else {
+    store.abortSending();
+  }
 };
 
 // 处理重新生成
 const handleRegenerate = async (messageId: string) => {
-  await store.regenerateFromNode(messageId);
+  if (isInDetachedToolWindow) {
+    logger.info('代理重新生成操作到主窗口', { messageId });
+    await bus.requestAction('regenerate-from-node', { messageId });
+  } else {
+    await store.regenerateFromNode(messageId);
+  }
 };
 
 // 处理删除消息
 const handleDeleteMessage = (messageId: string) => {
-  store.deleteMessage(messageId);
+  if (isInDetachedToolWindow) {
+    logger.info('代理删除消息操作到主窗口', { messageId });
+    bus.requestAction('delete-message', { messageId });
+  } else {
+    store.deleteMessage(messageId);
+  }
 };
 
 // 处理切换兄弟分支
 const handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => {
-  store.switchToSiblingBranch(nodeId, direction);
+  if (isInDetachedToolWindow) {
+    logger.info('代理切换兄弟分支操作到主窗口', { nodeId, direction });
+    bus.requestAction('switch-sibling', { nodeId, direction });
+  } else {
+    store.switchToSiblingBranch(nodeId, direction);
+  }
 };
 
 // 处理切换节点启用状态
 const handleToggleEnabled = (nodeId: string) => {
-  store.toggleNodeEnabled(nodeId);
+  if (isInDetachedToolWindow) {
+    logger.info('代理切换节点启用状态操作到主窗口', { nodeId });
+    bus.requestAction('toggle-enabled', { nodeId });
+  } else {
+    store.toggleNodeEnabled(nodeId);
+  }
 };
 
 // 处理编辑消息（使用统一方法）
 const handleEditMessage = (nodeId: string, newContent: string) => {
-  store.editMessage(nodeId, newContent);
+  if (isInDetachedToolWindow) {
+    logger.info('代理编辑消息操作到主窗口', { nodeId, contentLength: newContent.length });
+    bus.requestAction('edit-message', { nodeId, newContent });
+  } else {
+    store.editMessage(nodeId, newContent);
+  }
 };
 
 // 处理创建分支
 const handleCreateBranch = (nodeId: string) => {
-  store.createBranch(nodeId);
+  if (isInDetachedToolWindow) {
+    logger.info('代理创建分支操作到主窗口', { nodeId });
+    bus.requestAction('create-branch', { nodeId });
+  } else {
+    store.createBranch(nodeId);
+  }
 };
 
 // 处理中止单个节点的生成
 const handleAbortNode = (nodeId: string) => {
-  store.abortNodeGeneration(nodeId);
+  if (isInDetachedToolWindow) {
+    logger.info('代理中止节点生成操作到主窗口', { nodeId });
+    bus.requestAction('abort-node', { nodeId });
+  } else {
+    store.abortNodeGeneration(nodeId);
+  }
 };
 
 // 处理新建会话

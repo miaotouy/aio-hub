@@ -35,6 +35,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SidebarToggleIcon: typeof import('./components/icons/SidebarToggleIcon.vue')['default']
+    SyncServiceProvider: typeof import('./components/SyncServiceProvider.vue')['default']
     SystemThemeIcon: typeof import('./components/icons/SystemThemeIcon.vue')['default']
     TextDiffIcon: typeof import('./components/icons/TextDiffIcon.vue')['default']
     TitleBar: typeof import('./components/TitleBar.vue')['default']

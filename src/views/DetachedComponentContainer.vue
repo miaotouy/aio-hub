@@ -15,6 +15,7 @@ const logger = createModuleLogger("DetachedComponentContainer");
 const agentStore = useAgentStore();
 const route = useRoute();
 const { currentTheme } = useTheme();
+const bus = useWindowSyncBus();
 
 // 组件状态
 const isPreview = ref(true);
@@ -25,6 +26,9 @@ const componentProps = ref<Record<string, any>>({ isDetached: true });
 
 // 当前组件 ID
 const currentComponentId = ref<string>('');
+
+// 事件监听器映射
+const componentEventListeners = ref<Record<string, any>>({});
 
 // 组件注册表
 const componentRegistry: Record<string, () => Promise<Component>> = {
@@ -173,6 +177,33 @@ onMounted(async () => {
 
   logger.info("DetachedComponentContainer 初始化完成");
 });
+
+// 事件处理器 - 将组件事件代理到主窗口
+const handleSendMessage = (content: string) => {
+  logger.info('MessageInput 发送事件，代理到主窗口', { content });
+  bus.requestAction('send-message', { content });
+};
+
+const handleAbort = () => {
+  logger.info('MessageInput 中止事件，代理到主窗口');
+  bus.requestAction('abort-sending', {});
+};
+
+// 根据组件类型设置事件监听器
+watch(currentComponentId, (id) => {
+  if (id === 'chat-input') {
+    componentEventListeners.value = {
+      send: handleSendMessage,
+      abort: handleAbort,
+    };
+    logger.info('已设置 MessageInput 事件监听器');
+  } else if (id === 'chat-area') {
+    // ChatArea 的事件已经在 useDetachedChatArea 中处理
+    componentEventListeners.value = {};
+  } else {
+    componentEventListeners.value = {};
+  }
+}, { immediate: true });
 </script>
 
 <template>
@@ -186,6 +217,7 @@ onMounted(async () => {
         v-if="componentToRender"
         :is="componentToRender"
         v-bind="componentProps"
+        v-on="componentEventListeners"
       />
       <div v-else class="error-message">
         <h2>组件加载失败</h2>

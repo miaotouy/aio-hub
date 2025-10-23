@@ -120,7 +120,11 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     }
   };
 
-  if (autoPush && bus.windowType === 'main') {
+  // 自动推送：main 窗口和 detached-tool 窗口都需要
+  // - main: 作为状态源头，监听 Store 变化并广播给所有下游
+  // - detached-tool: 作为中继站，监听自己 Store 的变化（来自上游的更新）并广播给自己的子组件
+  // - detached-component: 不需要推送，只接收
+  if (autoPush && (bus.windowType === 'main' || bus.windowType === 'detached-tool')) {
     stopWatching = watch(
       state,
       () => {
@@ -129,7 +133,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       },
       { deep: true }
     );
-    logger.info('已启动自动推送', { stateKey });
+    logger.info('已启动自动推送', { stateKey, windowType: bus.windowType });
   }
 
   if (autoReceive) {

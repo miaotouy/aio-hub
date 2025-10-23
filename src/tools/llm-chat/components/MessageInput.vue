@@ -27,11 +27,22 @@ const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 // 处理发送
-// 处理发送
 const handleSend = () => {
   const content = inputText.value.trim();
-  if (!content || props.disabled) return;
+  if (!content || props.disabled) {
+    logger.info('发送被阻止', {
+      hasContent: !!content,
+      disabled: props.disabled,
+      isDetached: props.isDetached
+    });
+    return;
+  }
 
+  logger.info('发送消息', {
+    contentLength: content.length,
+    isDetached: props.isDetached
+  });
+  
   emit("send", content);
   inputText.value = "";
   // 重置文本框高度

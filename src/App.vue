@@ -12,6 +12,7 @@ import {
 import { createModuleLogger } from "./utils/logger";
 import TitleBar from "./components/TitleBar.vue";
 import MainSidebar from "./components/MainSidebar.vue";
+import SyncServiceProvider from "./components/SyncServiceProvider.vue";
 
 const logger = createModuleLogger("App");
 
@@ -243,6 +244,9 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <!-- 全局同步服务提供者 - 无界面，仅在主窗口启动服务 -->
+  <SyncServiceProvider />
+  
   <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
   <TitleBar v-if="!isSpecialRoute" />
 

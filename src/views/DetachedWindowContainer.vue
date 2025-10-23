@@ -5,14 +5,19 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
+import { useDetachedManager } from "../composables/useDetachedManager";
+import { useWindowSyncBus } from "../composables/useWindowSyncBus";
+import { useLlmChatStateConsumer } from "../tools/llm-chat/composables/useLlmChatStateConsumer";
 import { createModuleLogger } from "../utils/logger";
 import { toolsConfig } from "../config/tools";
 import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
+import SyncServiceProvider from "../components/SyncServiceProvider.vue";
 
 const logger = createModuleLogger("DetachedWindowContainer");
 const route = useRoute();
 const { currentTheme } = useTheme();
+const { initialize: initializeDetachedManager } = useDetachedManager();
 
 // 从路由参数获取工具路径
 const toolPath = computed(() => `/${route.params.toolPath as string}`);
@@ -32,6 +37,20 @@ const isPreview = ref(true);
 const showTitleBar = computed(() => true);
 
 onMounted(async () => {
+  // 初始化跨窗口通信总线
+  const { initializeSyncBus } = useWindowSyncBus();
+  initializeSyncBus();
+  
+  // 初始化统一的分离窗口管理器
+  await initializeDetachedManager();
+  
+  // 如果是 llm-chat 工具窗口，启动状态消费者
+  // 这确保分离的工具窗口能从主窗口接收完整状态，成为主窗口的副本
+  if (toolPath.value === '/llm-chat') {
+    logger.info('启动 LLM Chat 状态消费者（作为主窗口的副本）');
+    useLlmChatStateConsumer();
+  }
+  
   const config = toolConfig.value;
 
   if (config) {
@@ -91,6 +110,9 @@ onMounted(async () => {
     class="detached-container"
     :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
   >
+    <!-- 全局同步服务提供者 - 分离的工具窗口也需要同步服务 -->
+    <SyncServiceProvider />
+    
     <TitleBar v-if="showTitleBar" :title="toolTitle" />
 
     <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">

@@ -64,13 +64,20 @@ class WindowSyncBus {
     const currentWindow = getCurrentWebviewWindow();
     this.windowLabel = currentWindow.label;
     
-    // 判断窗口类型
+    // 判断窗口类型 - 基于路由路径而不是窗口标签
     if (this.windowLabel === 'main') {
       this.windowType = 'main';
-    } else if (this.windowLabel.startsWith('component-')) {
-      this.windowType = 'detached-component';
     } else {
-      this.windowType = 'detached-tool';
+      // 对于分离窗口，检查当前路由路径
+      const currentPath = window.location.pathname;
+      if (currentPath.startsWith('/detached-component/')) {
+        this.windowType = 'detached-component';
+      } else if (currentPath.startsWith('/detached-window/')) {
+        this.windowType = 'detached-tool';
+      } else {
+        // 默认为分离工具（向后兼容旧标签格式）
+        this.windowType = 'detached-tool';
+      }
     }
     
     // 配置
@@ -438,6 +445,7 @@ class WindowSyncBus {
   }
   /**
    * 请求操作
+   * 改为广播模式：向所有窗口发送请求，由注册了处理器的窗口响应
    */
   async requestAction<TParams, TResult>(
     action: string,
@@ -453,8 +461,9 @@ class WindowSyncBus {
       idempotencyKey: options?.idempotencyKey,
     };
 
-    // 发送到主窗口
-    await this.sendMessage('action-request', payload, 'main');
+    // 广播到所有窗口，由有处理器的窗口响应
+    // 这样无论服务端在主窗口还是分离的工具窗口都能正确处理
+    await this.sendMessage('action-request', payload);
 
     // 等待响应
     return new Promise((resolve, reject) => {

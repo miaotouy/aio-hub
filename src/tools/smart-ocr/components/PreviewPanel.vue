@@ -6,6 +6,7 @@ import type { ImageBlock, CutLine, UploadedImage } from '../types';
 import { useFileDrop } from '../../../composables/useFileDrop';
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@utils/logger';
+import { useImageViewer } from '@/composables/useImageViewer';
 
 const props = defineProps<{
   uploadedImages: UploadedImage[];
@@ -31,6 +32,9 @@ const previewBodyRef = ref<HTMLDivElement>();
 
 // 拖拽状态 - 浏览器内部拖拽
 const isDragging = ref(false);
+
+// 全局图片查看器
+const imageViewer = useImageViewer();
 
 // Tauri 文件拖放处理（用于从外部应用拖拽）
 const { isDraggingOver: isTauriDragging } = useFileDrop({
@@ -364,6 +368,26 @@ const formatFileSize = (bytes: number): string => {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 };
 
+// 查看图片大图
+const handleViewImage = (imageId: string) => {
+  const image = props.uploadedImages.find(img => img.id === imageId);
+  if (image) {
+    imageViewer.show(image.dataUrl);
+  }
+};
+
+// 查看原图
+const handleViewOriginal = () => {
+  if (selectedImage.value) {
+    imageViewer.show(selectedImage.value.dataUrl);
+  }
+};
+
+// 查看图片块
+const handleViewBlock = (block: ImageBlock) => {
+  imageViewer.show(block.dataUrl);
+};
+
 // 生命周期
 onMounted(() => {
   // 监听全局粘贴事件
@@ -432,9 +456,18 @@ onUnmounted(() => {
           :class="{ active: image.id === selectedImageId }"
           @click="emit('imageSelect', image.id)"
         >
-          <img :src="image.dataUrl" :alt="image.name" />
+          <el-tooltip content="双击查看大图" placement="top">
+            <img
+              :src="image.dataUrl"
+              :alt="image.name"
+              @dblclick.stop="handleViewImage(image.id)"
+              class="thumbnail-image"
+            />
+          </el-tooltip>
           <div class="image-info">
-            <span class="image-name" :title="image.name">{{ image.name }}</span>
+            <el-tooltip :content="image.name" placement="top">
+              <span class="image-name">{{ image.name }}</span>
+            </el-tooltip>
             <span class="image-size">{{ formatFileSize(image.size) }}</span>
           </div>
           <!-- 图片块数量徽章 -->
@@ -445,34 +478,38 @@ onUnmounted(() => {
             {{ imageBlocksMap.get(image.id)!.length }}
           </div>
           <div class="image-actions">
-            <el-button
-              class="action-btn slice-btn"
-              type="warning"
-              size="small"
-              :icon="Scissor"
-              circle
-              @click.stop="emit('sliceImage', image.id)"
-              title="切图"
-            />
-            <el-button
-              class="action-btn delete-btn"
-              type="danger"
-              size="small"
-              :icon="Delete"
-              circle
-              @click.stop="emit('imageRemove', image.id)"
-              title="删除"
-            />
+            <el-tooltip content="切图" placement="top">
+              <el-button
+                class="action-btn slice-btn"
+                type="warning"
+                size="small"
+                :icon="Scissor"
+                circle
+                @click.stop="emit('sliceImage', image.id)"
+              />
+            </el-tooltip>
+            <el-tooltip content="删除" placement="top">
+              <el-button
+                class="action-btn delete-btn"
+                type="danger"
+                size="small"
+                :icon="Delete"
+                circle
+                @click.stop="emit('imageRemove', image.id)"
+              />
+            </el-tooltip>
           </div>
         </div>
         
         <!-- 添加图片按钮 -->
-        <div class="add-image-btn" @click="handleFileSelect" title="添加图片">
-          <el-icon :size="32" color="var(--el-color-primary)">
-            <Plus />
-          </el-icon>
-          <span>添加图片</span>
-        </div>
+        <el-tooltip content="添加图片" placement="top">
+          <div class="add-image-btn" @click="handleFileSelect">
+            <el-icon :size="32" color="var(--el-color-primary)">
+              <Plus />
+            </el-icon>
+            <span>添加图片</span>
+          </div>
+        </el-tooltip>
       </div>
       
       <!-- 预览内容 -->
@@ -520,7 +557,14 @@ onUnmounted(() => {
           
           <!-- 原图+切割线视图 -->
           <div v-if="previewMode === 'original'" class="original-view">
-            <canvas ref="canvasRef" :style="canvasStyle"></canvas>
+            <el-tooltip content="点击查看大图" placement="top">
+              <canvas
+                ref="canvasRef"
+                :style="canvasStyle"
+                @click="handleViewOriginal"
+                class="clickable-canvas"
+              ></canvas>
+            </el-tooltip>
           </div>
           
           <!-- 图片块视图 -->
@@ -537,7 +581,14 @@ onUnmounted(() => {
                 </el-text>
               </div>
               <div class="block-image">
-                <img :src="block.dataUrl" :alt="`块 ${index + 1}`" />
+                <el-tooltip content="点击查看大图" placement="top">
+                  <img
+                    :src="block.dataUrl"
+                    :alt="`块 ${index + 1}`"
+                    @click="handleViewBlock(block)"
+                    class="clickable-block"
+                  />
+                </el-tooltip>
               </div>
             </div>
           </div>
@@ -777,11 +828,29 @@ onUnmounted(() => {
   justify-content: center;
   align-items: flex-start;
 }
-
 .original-view canvas {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.clickable-canvas {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.clickable-canvas:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.thumbnail-image {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.thumbnail-image:hover {
+  opacity: 0.9;
 }
 
 .blocks-view {
@@ -819,6 +888,16 @@ onUnmounted(() => {
   height: auto;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.clickable-block {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.clickable-block:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* 自定义滚动条 */

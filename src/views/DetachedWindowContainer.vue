@@ -13,8 +13,13 @@ import { toolsConfig } from "../config/tools";
 import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import SyncServiceProvider from "../components/SyncServiceProvider.vue";
+import ImageViewer from "../components/common/ImageViewer.vue";
+import { useImageViewer } from "../composables/useImageViewer";
 
 const logger = createModuleLogger("DetachedWindowContainer");
+
+// 全局图片查看器
+const imageViewer = useImageViewer();
 const route = useRoute();
 const { currentTheme } = useTheme();
 const { initialize: initializeDetachedManager } = useDetachedManager();
@@ -115,6 +120,16 @@ onMounted(async () => {
   >
     <!-- 全局同步服务提供者 - 分离的工具窗口也需要同步服务 -->
     <SyncServiceProvider />
+    
+    <!-- 全局图片查看器 - 分离窗口也需要独立的图片查看功能 -->
+    <ImageViewer
+      v-if="imageViewer.state.value.visible"
+      :images="imageViewer.state.value.images"
+      :initial-index="imageViewer.state.value.currentIndex"
+      :options="imageViewer.state.value.options"
+      @close="imageViewer.hide()"
+      @change="(index) => imageViewer.state.value.currentIndex = index"
+    />
     
     <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
 

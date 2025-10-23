@@ -13,6 +13,8 @@ import { createModuleLogger } from "./utils/logger";
 import TitleBar from "./components/TitleBar.vue";
 import MainSidebar from "./components/MainSidebar.vue";
 import SyncServiceProvider from "./components/SyncServiceProvider.vue";
+import ImageViewer from "./components/common/ImageViewer.vue";
+import { useImageViewer } from "./composables/useImageViewer";
 
 const logger = createModuleLogger("App");
 
@@ -20,6 +22,9 @@ const route = useRoute();
 const router = useRouter();
 const { isDetached, initialize } = useDetachedManager();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
+
+// 全局图片查看器
+const imageViewer = useImageViewer();
 
 // 判断当前是否为特殊路由（不需要显示侧边栏）
 const isSpecialRoute = computed(() => {
@@ -246,6 +251,16 @@ onUnmounted(() => {
 <template>
   <!-- 全局同步服务提供者 - 无界面，仅在主窗口启动服务 -->
   <SyncServiceProvider />
+  
+  <!-- 全局图片查看器 -->
+  <ImageViewer
+    v-if="imageViewer.state.value.visible"
+    :images="imageViewer.state.value.images"
+    :initial-index="imageViewer.state.value.currentIndex"
+    :options="imageViewer.state.value.options"
+    @close="imageViewer.hide()"
+    @change="(index) => imageViewer.state.value.currentIndex = index"
+  />
   
   <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
   <TitleBar v-if="!isSpecialRoute" />

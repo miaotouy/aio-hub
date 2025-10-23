@@ -27,6 +27,7 @@ declare module 'vue' {
     IEpQuestionFilled: typeof import('~icons/ep/question-filled')['default']
     IEpRank: typeof import('~icons/ep/rank')['default']
     IEpScissor: typeof import('~icons/ep/scissor')['default']
+    ImageViewer: typeof import('./components/common/ImageViewer.vue')['default']
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     LlmModelSelector: typeof import('./components/common/LlmModelSelector.vue')['default']
     MainSidebar: typeof import('./components/MainSidebar.vue')['default']

@@ -448,3 +448,14 @@ body.transparent-window #app {
 .el-popper.is-light[data-popper-placement^='right'] .el-popper__arrow::before {
   border-right-color: var(--container-bg);
 }
+
+/* viewerjs 图片查看器避开标题栏 */
+.viewer-container {
+  top: 32px !important; /* 标题栏高度 */
+  height: calc(100vh - 32px) !important; /* 调整高度以适应顶部偏移 */
+}
+
+/* 确保 viewer 的 canvas 和工具栏位置正确 */
+.viewer-canvas {
+  top: 0 !important;
+}

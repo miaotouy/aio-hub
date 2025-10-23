@@ -10,8 +10,13 @@ import { useTheme } from "../composables/useTheme";
 import { createModuleLogger } from "../utils/logger";
 import { getDetachableComponentConfig, loadDetachableComponent } from "../config/detachable-components";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
+import ImageViewer from "../components/common/ImageViewer.vue";
+import { useImageViewer } from "../composables/useImageViewer";
 
 const logger = createModuleLogger("DetachedComponentContainer");
+
+// 全局图片查看器
+const imageViewer = useImageViewer();
 const route = useRoute();
 const { currentTheme } = useTheme();
 
@@ -155,6 +160,16 @@ onMounted(async () => {
     class="detached-component-container"
     :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
   >
+    <!-- 全局图片查看器 - 分离组件窗口也需要独立的图片查看功能 -->
+    <ImageViewer
+      v-if="imageViewer.state.value.visible"
+      :images="imageViewer.state.value.images"
+      :initial-index="imageViewer.state.value.currentIndex"
+      :options="imageViewer.state.value.options"
+      @close="imageViewer.hide()"
+      @change="(index) => imageViewer.state.value.currentIndex = index"
+    />
+    
     <!-- 组件渲染区域 -->
     <div class="component-wrapper">
       <component

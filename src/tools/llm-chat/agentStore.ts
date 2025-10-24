@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useAgentStorage } from './composables/useAgentStorage';
+import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import { createModuleLogger } from '@utils/logger';
 
@@ -13,14 +14,11 @@ const logger = createModuleLogger('llm-chat/agentStore');
 interface AgentStoreState {
   /** 所有智能体列表 */
   agents: ChatAgent[];
-  /** 当前选中的智能体 ID（独立于会话） */
-  currentAgentId: string | null;
 }
 
 export const useAgentStore = defineStore('llmChatAgent', {
   state: (): AgentStoreState => ({
     agents: [],
-    currentAgentId: null,
   }),
 
   getters: {
@@ -56,6 +54,14 @@ export const useAgentStore = defineStore('llmChatAgent', {
       });
       
       return sorted[0];
+    },
+
+    /**
+     * 当前选中的智能体 ID（从 UI 状态获取）
+     */
+    currentAgentId: (): string | null => {
+      const { currentAgentId } = useLlmChatUiState();
+      return currentAgentId.value;
     },
   },
 
@@ -146,8 +152,9 @@ export const useAgentStore = defineStore('llmChatAgent', {
       this.agents.splice(index, 1);
       
       // 如果删除的是当前智能体，切换到第一个智能体
-      if (this.currentAgentId === agentId) {
-        this.currentAgentId = this.agents[0]?.id || null;
+      const { currentAgentId } = useLlmChatUiState();
+      if (currentAgentId.value === agentId) {
+        currentAgentId.value = this.agents[0]?.id || null;
       }
 
       logger.info('智能体已删除', { agentId, name: agent.name });
@@ -164,7 +171,8 @@ export const useAgentStore = defineStore('llmChatAgent', {
         return;
       }
 
-      this.currentAgentId = agentId;
+      const { currentAgentId } = useLlmChatUiState();
+      currentAgentId.value = agentId;
       // 不在这里更新 lastUsedAt，避免选择时改变列表排序
       logger.info('选择智能体', { agentId, name: agent.name });
     },
@@ -205,8 +213,9 @@ export const useAgentStore = defineStore('llmChatAgent', {
           logger.info('加载智能体成功', { agentCount: this.agents.length });
           
           // 自动选择默认智能体（最近使用的）
-          if (!this.currentAgentId && this.defaultAgent) {
-            this.currentAgentId = this.defaultAgent.id;
+          const { currentAgentId } = useLlmChatUiState();
+          if (!currentAgentId.value && this.defaultAgent) {
+            currentAgentId.value = this.defaultAgent.id;
           }
         } else {
           // 首次加载，创建默认智能体
@@ -272,7 +281,8 @@ export const useAgentStore = defineStore('llmChatAgent', {
       );
 
       // 自动选中默认智能体
-      this.currentAgentId = defaultAgentId;
+      const { currentAgentId } = useLlmChatUiState();
+      currentAgentId.value = defaultAgentId;
 
       this.persistAgents();
       logger.info('创建默认智能体', { agentId: defaultAgentId });

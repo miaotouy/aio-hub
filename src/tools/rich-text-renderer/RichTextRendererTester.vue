@@ -454,8 +454,32 @@ const copyComparison = async () => {
   // 提取渲染后的纯文本（去除HTML标签）
   const renderedText = renderContainerRef.value.textContent || "";
   
+  // 构建测试配置信息
+  let configInfo = `流式输出: ${streamEnabled.value ? '启用' : '禁用'}`;
+  
+  if (streamEnabled.value) {
+    configInfo += `\n输出速度: ${streamSpeed.value} 字符/秒`;
+    configInfo += `\n初始延迟: ${initialDelay.value} 毫秒`;
+    configInfo += `\n波动模式: ${fluctuationEnabled.value ? '启用' : '禁用'}`;
+    
+    if (fluctuationEnabled.value) {
+      configInfo += `\n延迟波动范围: ${delayFluctuation.value.min}~${delayFluctuation.value.max} 毫秒`;
+      configInfo += `\n字符数波动范围: ${charsFluctuation.value.min}~${charsFluctuation.value.max} 字符`;
+    }
+  }
+  
+  if (selectedPreset.value) {
+    const preset = presets.find(p => p.id === selectedPreset.value);
+    if (preset) {
+      configInfo += `\n预设内容: ${preset.name}`;
+    }
+  }
+  
   // 构建对比内容
-  const comparisonText = `========== Markdown 原文 ==========
+  const comparisonText = `========== 测试配置 ==========
+${configInfo}
+
+========== Markdown 原文 ==========
 ${inputContent.value}
 
 ========== 渲染后的 HTML ==========
@@ -468,7 +492,9 @@ ${renderedText}
 原文字符数: ${inputContent.value.length}
 渲染文本字符数: ${renderedText.length}
 HTML 完整字符数: ${htmlContent.length}
-渲染时间: ${new Date().toLocaleString('zh-CN')}`;
+渲染时间: ${new Date().toLocaleString('zh-CN')}
+=============================
+`;
 
   try {
     await navigator.clipboard.writeText(comparisonText);

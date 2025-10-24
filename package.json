@@ -47,6 +47,7 @@
     "naive-ui": "^2.43.1",
     "pinia": "^3.0.3",
     "prettier": "^3.4.2",
+    "stream-monaco": "^0.0.2",
     "tesseract.js": "^6.0.1",
     "v-viewer": "^3.0.22",
     "viewerjs": "^1.11.7",

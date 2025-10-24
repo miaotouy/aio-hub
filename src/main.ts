@@ -21,6 +21,32 @@ import { loadAppSettingsAsync } from "./utils/appSettings";
 import { initTheme } from "./composables/useTheme";
 import { customMessage } from "./utils/customMessage";
 import packageJson from "../package.json";
+import * as monaco from 'monaco-editor'
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
+import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
+import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+
+self.MonacoEnvironment = {
+  getWorker(_, label) {
+    if (label === 'json') {
+      return new jsonWorker()
+    }
+    if (label === 'css' || label === 'scss' || label === 'less') {
+      return new cssWorker()
+    }
+    if (label === 'html' || label === 'handlebars' || label === 'razor') {
+      return new htmlWorker()
+    }
+    if (label === 'typescript' || label === 'javascript') {
+      return new tsWorker()
+    }
+    return new editorWorker()
+  },
+}
+
+monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true)
 
 const logger = createModuleLogger("Main");
 // 检查是否为拖拽指示器窗口（完全透明、无布局）
@@ -171,6 +197,13 @@ window.addEventListener("unhandledrejection", (event) => {
 
 // 全局错误捕获
 window.addEventListener("error", (event) => {
+  // 过滤良性的 ResizeObserver 警告
+  // 这个警告在使用 Monaco Editor 等复杂 UI 组件时很常见，不影响功能
+  if (event.message?.includes("ResizeObserver loop completed with undelivered notifications")) {
+    event.preventDefault();
+    return;
+  }
+
   logger.error("全局错误", event.error, {
     message: event.message,
     filename: event.filename,

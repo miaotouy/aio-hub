@@ -232,7 +232,22 @@ export class StreamProcessor {
       return [];
     }
 
-    // 1. 如果新旧都只有一个段落节点，且内容是追加的，则优化为 text-append
+    // 1. 优化：代码块流式更新
+    if (
+      oldPending.length === 1 && newPending.length === 1 &&
+      oldPending[0].type === 'code_block' && newPending[0].type === 'code_block'
+    ) {
+      const oldNode = oldPending[0] as CodeBlockNode;
+      const newNode = newPending[0] as CodeBlockNode;
+      // 仅当语言未变时才优化，否则回退到完全替换
+      if (oldNode.props.language === newNode.props.language) {
+        newNode.id = oldNode.id;
+        // diffSingleNode 会生成 replace-node patch，避免了 remove+insert 导致的闪烁
+        return this.diffSingleNode(oldNode, newNode);
+      }
+    }
+
+    // 2. 优化：段落流式更新 (打字机效果)
     if (
       oldPending.length === 1 && newPending.length === 1 &&
       oldPending[0].type === 'paragraph' && newPending[0].type === 'paragraph'
@@ -247,7 +262,7 @@ export class StreamProcessor {
       }
     }
 
-    // 2. 否则，执行完全替换
+    // 3. 否则，执行完全替换
     // 移除所有旧的待定节点
     for (const oldNode of oldPending) {
       patches.push({ op: 'remove-node', id: oldNode.id });
@@ -278,6 +293,12 @@ export class StreamProcessor {
   private getNodeTextContent(node: AstNode): string {
     if (node.type === 'text') {
       return (node as TextNode).props.content;
+    }
+    if (node.type === 'code_block') {
+      return (node as CodeBlockNode).props.content;
+    }
+    if (node.type === 'inline_code') {
+      return (node as InlineCodeNode).props.content;
     }
     if (!node.children) return '';
     return node.children.map(child => this.getNodeTextContent(child)).join('');

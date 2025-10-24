@@ -12,11 +12,11 @@ const logger = createModuleLogger('llm-chat/branch-manager');
 
 export function useBranchManager() {
   /**
-   * 删除消息节点（软删除：通过 isEnabled 标记）
+   * 删除消息节点（硬删除：从节点树中移除）
    */
   const deleteMessage = (session: ChatSession, nodeId: string): boolean => {
     const nodeManager = useNodeManager();
-    const success = nodeManager.softDeleteNode(session, nodeId);
+    const success = nodeManager.hardDeleteNode(session, nodeId);
 
     if (success) {
       logger.info('消息已删除', { sessionId: session.id, nodeId });

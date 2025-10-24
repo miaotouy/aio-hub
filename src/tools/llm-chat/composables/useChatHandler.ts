@@ -55,20 +55,68 @@ export function useChatHandler() {
       .map((msg: any) => msg.content);
     const systemPrompt = systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined;
 
-    // 提取对话消息（user 和 assistant）
-    const presetConversation: Array<{
+    // 会话上下文（排除最后一条用户消息，因为那是当前要发送的）
+    const sessionContext = llmContext.slice(0, -1);
+
+    // 查找历史消息占位符
+    const chatHistoryPlaceholderIndex = enabledPresets.findIndex(
+      (msg: any) => msg.type === 'chat_history'
+    );
+
+    let conversationHistory: Array<{
       role: 'user' | 'assistant';
       content: string | LlmMessageContent[];
-    }> = enabledPresets
-      .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg: any) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      }));
+    }>;
 
-    // 合并预设对话和会话上下文（排除最后一条用户消息，因为那是当前要发送的）
-    const sessionContext = llmContext.slice(0, -1);
-    const conversationHistory = [...presetConversation, ...sessionContext];
+    if (chatHistoryPlaceholderIndex !== -1) {
+      // 如果找到占位符，将会话上下文插入到占位符位置
+      const presetsBeforePlaceholder: Array<{
+        role: 'user' | 'assistant';
+        content: string | LlmMessageContent[];
+      }> = enabledPresets
+        .slice(0, chatHistoryPlaceholderIndex)
+        .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg: any) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }));
+
+      const presetsAfterPlaceholder: Array<{
+        role: 'user' | 'assistant';
+        content: string | LlmMessageContent[];
+      }> = enabledPresets
+        .slice(chatHistoryPlaceholderIndex + 1)
+        .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg: any) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }));
+
+      conversationHistory = [
+        ...presetsBeforePlaceholder,
+        ...sessionContext,
+        ...presetsAfterPlaceholder,
+      ];
+
+      logger.debug('使用历史消息占位符构建上下文', {
+        presetsBeforeCount: presetsBeforePlaceholder.length,
+        sessionContextCount: sessionContext.length,
+        presetsAfterCount: presetsAfterPlaceholder.length,
+      });
+    } else {
+      // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后
+      const presetConversation: Array<{
+        role: 'user' | 'assistant';
+        content: string | LlmMessageContent[];
+      }> = enabledPresets
+        .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg: any) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }));
+
+      conversationHistory = [...presetConversation, ...sessionContext];
+    }
 
     // 当前请求（最后一条用户消息）
     const currentMessage: LlmMessageContent[] = [

@@ -300,6 +300,137 @@ export function useNodeManager() {
   };
 
   /**
+   * 硬删除节点（从树中移除，级联删除所有子节点）
+   */
+  const hardDeleteNode = (session: ChatSession, nodeId: string): boolean => {
+    logger.info('🗑️ [硬删除] 开始硬删除节点', {
+      sessionId: session.id,
+      nodeId,
+    });
+
+    const node = session.nodes[nodeId];
+    if (!node) {
+      logger.warn('🗑️ [硬删除] 失败：节点不存在', {
+        sessionId: session.id,
+        nodeId,
+      });
+      return false;
+    }
+
+    logger.info('🗑️ [硬删除] 找到目标节点', {
+      sessionId: session.id,
+      nodeId,
+      role: node.role,
+      content: node.content.substring(0, 50),
+      hasChildren: node.childrenIds.length > 0,
+      childrenCount: node.childrenIds.length,
+    });
+
+    // 不允许删除根节点
+    if (node.id === session.rootNodeId) {
+      logger.warn('🗑️ [硬删除] 失败：不能删除根节点', {
+        sessionId: session.id,
+        nodeId,
+      });
+      return false;
+    }
+
+    // 收集需要删除的所有节点（包括所有子孙节点）
+    const nodesToDelete = new Set<string>([nodeId]);
+    const collectDescendants = (id: string) => {
+      const currentNode = session.nodes[id];
+      if (!currentNode) return;
+      
+      currentNode.childrenIds.forEach(childId => {
+        nodesToDelete.add(childId);
+        collectDescendants(childId);
+      });
+    };
+    collectDescendants(nodeId);
+
+    logger.info('🗑️ [硬删除] 收集到需要删除的节点', {
+      totalCount: nodesToDelete.size,
+      nodeIds: Array.from(nodesToDelete),
+    });
+
+    // 如果当前活动叶节点将被删除，需要调整到兄弟节点或父节点
+    const oldActiveLeafId = session.activeLeafId;
+    if (nodesToDelete.has(session.activeLeafId)) {
+      logger.info('🗑️ [硬删除] 当前活动叶节点将被删除，需要调整', {
+        oldActiveLeafId: session.activeLeafId,
+      });
+
+      // 获取兄弟节点
+      const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
+      const siblingNodes = siblings
+        .filter(id => id !== nodeId)
+        .map(id => session.nodes[id])
+        .filter(n => n);
+
+      logger.info('🗑️ [硬删除] 兄弟节点信息', {
+        siblingCount: siblingNodes.length,
+        siblingIds: siblingNodes.map(n => n.id),
+      });
+
+      if (siblingNodes.length > 0) {
+        // 有兄弟节点，切换到第一个兄弟节点的最深叶子
+        const findDeepestLeaf = (n: ChatMessageNode): string => {
+          if (n.childrenIds.length === 0) return n.id;
+          const lastChild = session.nodes[n.childrenIds[n.childrenIds.length - 1]];
+          return lastChild ? findDeepestLeaf(lastChild) : n.id;
+        };
+        session.activeLeafId = findDeepestLeaf(siblingNodes[0]);
+        logger.info('🗑️ [硬删除] 切换到兄弟节点的最深叶子', {
+          newActiveLeafId: session.activeLeafId,
+        });
+      } else {
+        // 没有兄弟节点，回退到父节点
+        session.activeLeafId = node.parentId || session.rootNodeId;
+        logger.info('🗑️ [硬删除] 回退到父节点', {
+          newActiveLeafId: session.activeLeafId,
+          parentId: node.parentId,
+        });
+      }
+    }
+
+    // 从父节点的 childrenIds 中移除
+    if (node.parentId) {
+      const parentNode = session.nodes[node.parentId];
+      if (parentNode) {
+        const oldChildrenCount = parentNode.childrenIds.length;
+        parentNode.childrenIds = parentNode.childrenIds.filter(id => id !== nodeId);
+        logger.info('🗑️ [硬删除] 从父节点移除引用', {
+          parentId: node.parentId,
+          oldChildrenCount,
+          newChildrenCount: parentNode.childrenIds.length,
+        });
+      }
+    }
+
+    // 删除所有收集到的节点
+    const beforeDeleteCount = Object.keys(session.nodes).length;
+    nodesToDelete.forEach(id => {
+      delete session.nodes[id];
+    });
+    const afterDeleteCount = Object.keys(session.nodes).length;
+
+    session.updatedAt = new Date().toISOString();
+
+    logger.info('🗑️ [硬删除] 删除完成', {
+      sessionId: session.id,
+      nodeId,
+      role: node.role,
+      deletedCount: nodesToDelete.size,
+      beforeNodeCount: beforeDeleteCount,
+      afterNodeCount: afterDeleteCount,
+      newActiveLeafId: session.activeLeafId,
+      activeLeafChanged: oldActiveLeafId !== session.activeLeafId,
+    });
+
+    return true;
+  };
+
+  /**
    * 验证节点关系的完整性
    */
   const validateNodeIntegrity = (session: ChatSession): {
@@ -458,6 +589,7 @@ export function useNodeManager() {
     createRegenerateBranch,
     updateActiveLeaf,
     softDeleteNode,
+    hardDeleteNode,
     validateNodeIntegrity,
     getNodePath,
     getAllDescendants,

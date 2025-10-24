@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { ElMessageBox } from 'element-plus';
 import {
   Copy,
   Edit,
@@ -64,7 +65,25 @@ const copyMessage = async () => {
 // 其他操作
 const handleEdit = () => emit('edit');
 const handleCreateBranch = () => emit('create-branch');
-const handleDelete = () => emit('delete');
+const handleDelete = async () => {
+  // 硬删除需要二次确认
+  try {
+    await ElMessageBox.confirm(
+      '删除后将无法恢复，且所有分支回复也会被删除。',
+      '确定要永久删除这条消息吗？',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    );
+    // 用户确认后才执行删除
+    emit('delete');
+  } catch {
+    // 用户取消，不做任何操作
+  }
+};
 const handleRegenerate = () => emit('regenerate');
 const handleToggleEnabled = () => emit('toggle-enabled');
 const handleAbort = () => {

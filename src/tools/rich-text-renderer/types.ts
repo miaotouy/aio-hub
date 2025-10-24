@@ -171,6 +171,15 @@ export interface HrNode extends BaseAstNode {
 }
 
 /**
+ * 硬换行节点 (GFM style)
+ */
+export interface HardBreakNode extends BaseAstNode {
+  type: 'hard_break';
+  props: Record<string, never>;
+  children?: never;
+}
+
+/**
  * HTML 块级节点
  * 用于渲染 HTML 块级标签（如 <div>, <p>, <section> 等）
  */
@@ -252,6 +261,7 @@ export type AstNode =
   | InlineCodeNode
   | LinkNode
   | HtmlInlineNode
+  | HardBreakNode
   | GenericHtmlNode // V2 架构新增
 
   // 块级节点

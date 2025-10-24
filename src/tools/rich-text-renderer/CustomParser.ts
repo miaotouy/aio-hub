@@ -60,6 +60,15 @@ class Tokenizer {
 
       // 块级标记（只在行首有效）
       if (atLineStart) {
+        // 允许前导空格（0-4个）用于块级元素缩进
+        // 这符合 Markdown 标准，列表项可以有 0-4 个空格缩进
+        const leadingSpaceMatch = remaining.match(/^( {1,4})(?=[*+\-]|\d+\.|#{1,6}\s|>|```)/);
+        if (leadingSpaceMatch) {
+          // 跳过前导空格，保持 atLineStart 为 true
+          i += leadingSpaceMatch[1].length;
+          continue;
+        }
+        
         // 代码围栏
         if (remaining.startsWith('```')) {
           const match = remaining.match(/^```(\w*)/);
@@ -717,9 +726,15 @@ export class CustomParser {
         continue;
       }
 
-      // 单换行转为空格
+      // 单换行转为硬换行
       if (token.type === 'newline' && token.count === 1) {
-        accumulatedText += ' ';
+        flushText();
+        nodes.push({
+          id: '',
+          type: 'hard_break',
+          props: {},
+          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        });
         i++;
         continue;
       }
@@ -924,22 +939,16 @@ export class CustomParser {
       }
 
       if (itemTokens.length > 0) {
-        // 列表项内容作为内联元素解析
-        const itemChildren = this.parseInlines(itemTokens);
+        // 列表项内容作为块级元素解析
+        const itemChildren = this.parseBlocks(itemTokens);
         
-        // 如果解析出了内容，包装成段落
+        // 如果解析出了内容
         if (itemChildren.length > 0) {
           items.push({
             id: '',
             type: 'list_item',
             props: {},
-            children: [{
-              id: '',
-              type: 'paragraph',
-              props: {},
-              children: itemChildren,
-              meta: { range: { start: 0, end: 0 }, status: 'stable' }
-            }],
+            children: itemChildren,
             meta: { range: { start: 0, end: 0 }, status: 'stable' }
           });
         }

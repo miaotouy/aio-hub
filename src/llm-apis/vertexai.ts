@@ -177,34 +177,19 @@ function buildVertexAiParts(messages: LlmMessageContent[]): VertexAiPart[] {
  * 构建多轮对话 Contents（Gemini 格式）
  */
 function buildVertexAiContents(options: LlmRequestOptions): VertexAiContent[] {
-  if (options.conversationHistory && options.conversationHistory.length > 0) {
-    const contents: VertexAiContent[] = [];
+  const contents: VertexAiContent[] = [];
 
-    for (const msg of options.conversationHistory) {
-      const parts =
-        typeof msg.content === "string" ? [{ text: msg.content }] : buildVertexAiParts(msg.content);
+  for (const msg of options.messages) {
+    const parts =
+      typeof msg.content === "string" ? [{ text: msg.content }] : buildVertexAiParts(msg.content);
 
-      contents.push({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts,
-      });
-    }
-
-    // 添加当前消息
-    const currentParts = buildVertexAiParts(options.messages);
-    if (currentParts.length > 0) {
-      contents.push({
-        role: "user",
-        parts: currentParts,
-      });
-    }
-
-    return contents;
+    contents.push({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts,
+    });
   }
 
-  // 单轮对话
-  const parts = buildVertexAiParts(options.messages);
-  return parts.length > 0 ? [{ parts }] : [];
+  return contents;
 }
 
 /**
@@ -252,77 +237,37 @@ function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToolConfig
  * 构建 Claude 格式的消息（Anthropic Publisher）
  */
 function buildClaudeMessages(
-  messages: LlmMessageContent[],
-  conversationHistory?: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>
+  messages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>
 ): VertexAiClaudeRequest["messages"] {
   const claudeMessages: VertexAiClaudeRequest["messages"] = [];
 
-  // 添加历史消息
-  if (conversationHistory && conversationHistory.length > 0) {
-    for (const msg of conversationHistory) {
-      if (typeof msg.content === "string") {
-        claudeMessages.push({
-          role: msg.role,
-          content: msg.content,
-        });
-      } else {
-        const parsed = parseMessageContents(msg.content);
-        const contentBlocks: any[] = [];
-
-        for (const textPart of parsed.textParts) {
-          contentBlocks.push({ type: "text", text: textPart.text });
-        }
-
-        for (const imagePart of parsed.imageParts) {
-          contentBlocks.push({
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: imagePart.mimeType || inferImageMimeType(imagePart.base64),
-              data: imagePart.base64,
-            },
-          });
-        }
-
-        claudeMessages.push({
-          role: msg.role,
-          content: contentBlocks,
-        });
-      }
-    }
-  }
-
-  // 添加当前消息
-  if (messages.length > 0) {
-    const parsed = parseMessageContents(messages);
-    const contentBlocks: any[] = [];
-
-    for (const textPart of parsed.textParts) {
-      contentBlocks.push({ type: "text", text: textPart.text });
-    }
-
-    for (const imagePart of parsed.imageParts) {
-      contentBlocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: imagePart.mimeType || inferImageMimeType(imagePart.base64),
-          data: imagePart.base64,
-        },
-      });
-    }
-
-    // 如果最后一条历史消息是 user，且当前也是 user，则合并
-    if (claudeMessages.length > 0 && claudeMessages[claudeMessages.length - 1].role === "user") {
-      const lastMessage = claudeMessages[claudeMessages.length - 1];
-      if (typeof lastMessage.content === "string") {
-        lastMessage.content = [{ type: "text", text: lastMessage.content }, ...contentBlocks];
-      } else {
-        lastMessage.content = [...lastMessage.content, ...contentBlocks];
-      }
-    } else {
+  for (const msg of messages) {
+    if (typeof msg.content === "string") {
       claudeMessages.push({
-        role: "user",
+        role: msg.role,
+        content: msg.content,
+      });
+    } else {
+      const parsed = parseMessageContents(msg.content);
+      const contentBlocks: any[] = [];
+
+      for (const textPart of parsed.textParts) {
+        contentBlocks.push({ type: "text", text: textPart.text });
+      }
+
+      for (const imagePart of parsed.imageParts) {
+        contentBlocks.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: imagePart.mimeType || inferImageMimeType(imagePart.base64),
+            data: imagePart.base64,
+          },
+        });
+      }
+
+      claudeMessages.push({
+        role: msg.role,
         content: contentBlocks,
       });
     }
@@ -558,7 +503,7 @@ async function callVertexAiClaude(
   // 构建请求体
   const body: VertexAiClaudeRequest = {
     anthropic_version: "vertex-2023-10-16",
-    messages: buildClaudeMessages(options.messages, options.conversationHistory),
+    messages: buildClaudeMessages(options.messages),
     max_tokens: commonParams.maxTokens || 4096,
   };
 

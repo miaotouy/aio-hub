@@ -27,24 +27,6 @@ export const callOpenAiCompatibleApi = async (
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
-  // 使用共享函数解析消息内容
-  const parsed = parseMessageContents(options.messages);
-  const messageContent: any[] = [];
-
-  // 转换为 OpenAI 格式
-  for (const textPart of parsed.textParts) {
-    messageContent.push({ type: "text", text: textPart.text });
-  }
-
-  for (const imagePart of parsed.imageParts) {
-    messageContent.push({
-      type: "image_url",
-      image_url: {
-        url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
-      },
-    });
-  }
-
   const messages: any[] = [];
 
   // 添加系统提示（如果有）
@@ -55,11 +37,38 @@ export const callOpenAiCompatibleApi = async (
     });
   }
 
-  // 添加用户消息
-  messages.push({
-    role: "user",
-    content: messageContent,
-  });
+  // 转换所有消息
+  for (const msg of options.messages) {
+    // 如果消息内容是字符串，直接使用
+    if (typeof msg.content === "string") {
+      messages.push({
+        role: msg.role,
+        content: msg.content,
+      });
+    } else {
+      // 如果是复杂内容，需要转换格式
+      const parsed = parseMessageContents(msg.content);
+      const contentArray: any[] = [];
+
+      for (const textPart of parsed.textParts) {
+        contentArray.push({ type: "text", text: textPart.text });
+      }
+
+      for (const imagePart of parsed.imageParts) {
+        contentArray.push({
+          type: "image_url",
+          image_url: {
+            url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
+          },
+        });
+      }
+
+      messages.push({
+        role: msg.role,
+        content: contentArray,
+      });
+    }
+  }
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);

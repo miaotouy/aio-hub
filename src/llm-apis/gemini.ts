@@ -245,35 +245,19 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
  * 构建多轮对话的 contents
  */
 function buildGeminiContents(options: LlmRequestOptions): GeminiContent[] {
-  // 如果有 conversationHistory，使用它构建多轮对话
-  if (options.conversationHistory && options.conversationHistory.length > 0) {
-    const contents: GeminiContent[] = [];
+  const contents: GeminiContent[] = [];
 
-    for (const msg of options.conversationHistory) {
-      const parts =
-        typeof msg.content === "string" ? [{ text: msg.content }] : buildGeminiParts(msg.content);
+  for (const msg of options.messages) {
+    const parts =
+      typeof msg.content === "string" ? [{ text: msg.content }] : buildGeminiParts(msg.content);
 
-      contents.push({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts,
-      });
-    }
-
-    // 添加当前消息
-    const currentParts = buildGeminiParts(options.messages);
-    if (currentParts.length > 0) {
-      contents.push({
-        role: "user",
-        parts: currentParts,
-      });
-    }
-
-    return contents;
+    contents.push({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts,
+    });
   }
 
-  // 否则使用单轮对话
-  const parts = buildGeminiParts(options.messages);
-  return parts.length > 0 ? [{ parts }] : [];
+  return contents;
 }
 
 /**

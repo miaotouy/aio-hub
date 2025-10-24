@@ -34,7 +34,11 @@ export interface LlmMessageContent {
 export interface LlmRequestOptions {
   profileId: string;
   modelId: string;
-  messages: LlmMessageContent[];
+  /** 完整的消息列表（包括 role 和 content） */
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: string | LlmMessageContent[];
+  }>;
   maxTokens?: number;
   temperature?: number;
   systemPrompt?: string;
@@ -152,11 +156,6 @@ export interface LlmRequestOptions {
   claudeMetadata?: {
     user_id?: string;
   };
-  /** Claude: 消息历史（用于多轮对话） */
-  conversationHistory?: Array<{
-    role: "user" | "assistant";
-    content: string | LlmMessageContent[];
-  }>;
 }
 
 /**

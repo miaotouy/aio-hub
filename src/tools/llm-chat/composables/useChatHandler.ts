@@ -18,11 +18,10 @@ const logger = createModuleLogger('llm-chat/chat-handler');
  */
 interface LlmContextData {
   systemPrompt?: string;
-  conversationHistory: Array<{
+  messages: Array<{
     role: 'user' | 'assistant';
     content: string | LlmMessageContent[];
   }>;
-  currentMessage: LlmMessageContent[];
 }
 
 export function useChatHandler() {
@@ -58,12 +57,20 @@ export function useChatHandler() {
     // 会话上下文（排除最后一条用户消息，因为那是当前要发送的）
     const sessionContext = llmContext.slice(0, -1);
 
+    // 当前用户消息（转换为标准格式）
+    const currentMessage: LlmMessageContent[] = [
+      {
+        type: 'text' as const,
+        text: currentUserMessage,
+      },
+    ];
+
     // 查找历史消息占位符
     const chatHistoryPlaceholderIndex = enabledPresets.findIndex(
       (msg: any) => msg.type === 'chat_history'
     );
 
-    let conversationHistory: Array<{
+    let messages: Array<{
       role: 'user' | 'assistant';
       content: string | LlmMessageContent[];
     }>;
@@ -92,19 +99,21 @@ export function useChatHandler() {
           content: msg.content,
         }));
 
-      conversationHistory = [
+      messages = [
         ...presetsBeforePlaceholder,
         ...sessionContext,
         ...presetsAfterPlaceholder,
+        { role: 'user' as const, content: currentMessage },
       ];
 
       logger.debug('使用历史消息占位符构建上下文', {
         presetsBeforeCount: presetsBeforePlaceholder.length,
         sessionContextCount: sessionContext.length,
         presetsAfterCount: presetsAfterPlaceholder.length,
+        totalMessages: messages.length,
       });
     } else {
-      // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后
+      // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后，当前消息在最后
       const presetConversation: Array<{
         role: 'user' | 'assistant';
         content: string | LlmMessageContent[];
@@ -115,18 +124,14 @@ export function useChatHandler() {
           content: msg.content,
         }));
 
-      conversationHistory = [...presetConversation, ...sessionContext];
+      messages = [
+        ...presetConversation,
+        ...sessionContext,
+        { role: 'user' as const, content: currentMessage },
+      ];
     }
 
-    // 当前请求（最后一条用户消息）
-    const currentMessage: LlmMessageContent[] = [
-      {
-        type: 'text' as const,
-        text: currentUserMessage,
-      },
-    ];
-
-    return { systemPrompt, conversationHistory, currentMessage };
+    return { systemPrompt, messages };
   };
 
   /**
@@ -324,7 +329,7 @@ export function useChatHandler() {
       const { sendRequest } = useLlmRequest();
 
       // 构建 LLM 上下文
-      const { systemPrompt, conversationHistory, currentMessage } = buildLlmContext(
+      const { systemPrompt, messages } = buildLlmContext(
         activePath,
         agentConfig,
         content
@@ -335,7 +340,7 @@ export function useChatHandler() {
         agentId: agentStore.currentAgentId,
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
-        historyMessageCount: conversationHistory.length,
+        totalMessageCount: messages.length,
         currentMessageLength: content.length,
       });
 
@@ -343,8 +348,7 @@ export function useChatHandler() {
       const response = await sendRequest({
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
-        messages: currentMessage,
-        conversationHistory,
+        messages,
         systemPrompt,
         temperature: agentConfig.parameters.temperature,
         maxTokens: agentConfig.parameters.maxTokens,
@@ -455,7 +459,7 @@ export function useChatHandler() {
       const { sendRequest } = useLlmRequest();
 
         // 构建 LLM 上下文（使用用户消息的内容）
-        const { systemPrompt, conversationHistory, currentMessage } = buildLlmContext(
+        const { systemPrompt, messages } = buildLlmContext(
           activePath,
           agentConfig,
           userNode.content
@@ -470,14 +474,13 @@ export function useChatHandler() {
           agentId: agentStore.currentAgentId,
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
-          historyMessageCount: conversationHistory.length,
+          totalMessageCount: messages.length,
         });
 
       const response = await sendRequest({
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
-        messages: currentMessage,
-        conversationHistory,
+        messages,
         systemPrompt,
         temperature: agentConfig.parameters.temperature,
         maxTokens: agentConfig.parameters.maxTokens,

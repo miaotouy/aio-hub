@@ -21,43 +21,8 @@ export const callCohereApi = async (
   // 获取第一个可用的 API Key
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
-  // 使用共享函数解析消息内容
-  const parsed = parseMessageContents(options.messages);
-
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);
-
-  // 构建用户消息内容
-  // 如果有图像，使用多模态格式（content 为数组）
-  // 如果只有文本，使用简单格式（content 为字符串）
-  let userContent: string | any[];
-
-  if (parsed.imageParts.length > 0) {
-    // 多模态：content 是一个数组，包含文本和图像
-    userContent = [];
-
-    // 添加文本部分
-    if (parsed.textParts.length > 0) {
-      const textContent = parsed.textParts.map((part) => part.text).join("\n");
-      userContent.push({
-        type: "text",
-        text: textContent,
-      });
-    }
-
-    // 添加图像部分
-    for (const img of parsed.imageParts) {
-      userContent.push({
-        type: "image_url",
-        image_url: {
-          url: buildBase64DataUrl(img.base64, img.mimeType),
-        },
-      });
-    }
-  } else {
-    // 纯文本：content 是字符串
-    userContent = parsed.textParts.map((part) => part.text).join("\n");
-  }
 
   // 构建 messages 数组（V2 API 格式）
   const messages = [];
@@ -67,8 +32,44 @@ export const callCohereApi = async (
     messages.push({ role: "system", content: options.systemPrompt });
   }
 
-  // 添加用户消息
-  messages.push({ role: "user", content: userContent });
+  // 转换所有消息
+  for (const msg of options.messages) {
+    if (typeof msg.content === "string") {
+      messages.push({
+        role: msg.role,
+        content: msg.content,
+      });
+    } else {
+      // 处理复杂内容（包含图片等）
+      const parsed = parseMessageContents(msg.content);
+      let contentValue: string | any[];
+
+      if (parsed.imageParts.length > 0) {
+        // 多模态格式
+        contentValue = [];
+        if (parsed.textParts.length > 0) {
+          const textContent = parsed.textParts.map((part) => part.text).join("\n");
+          contentValue.push({ type: "text", text: textContent });
+        }
+        for (const img of parsed.imageParts) {
+          contentValue.push({
+            type: "image_url",
+            image_url: {
+              url: buildBase64DataUrl(img.base64, img.mimeType),
+            },
+          });
+        }
+      } else {
+        // 纯文本格式
+        contentValue = parsed.textParts.map((part) => part.text).join("\n");
+      }
+
+      messages.push({
+        role: msg.role,
+        content: contentValue,
+      });
+    }
+  }
 
   const body: any = {
     model: options.modelId,

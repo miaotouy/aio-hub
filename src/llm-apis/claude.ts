@@ -149,44 +149,20 @@ interface ClaudeStreamEvent {
  * 将内部消息格式转换为 Claude API 格式
  */
 const convertToClaudeMessages = (
-  messages: LlmMessageContent[],
-  conversationHistory?: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>
+  messages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>
 ): ClaudeMessage[] => {
   const claudeMessages: ClaudeMessage[] = [];
 
-  // 首先添加对话历史
-  if (conversationHistory && conversationHistory.length > 0) {
-    for (const msg of conversationHistory) {
-      if (typeof msg.content === "string") {
-        claudeMessages.push({
-          role: msg.role,
-          content: msg.content,
-        });
-      } else {
-        claudeMessages.push({
-          role: msg.role,
-          content: convertContentBlocks(msg.content),
-        });
-      }
-    }
-  }
-
-  // 然后添加当前消息
-  if (messages.length > 0) {
-    const contentBlocks = convertContentBlocks(messages);
-
-    // 如果最后一条历史消息是 user，且当前也是 user，则合并
-    if (claudeMessages.length > 0 && claudeMessages[claudeMessages.length - 1].role === "user") {
-      const lastMessage = claudeMessages[claudeMessages.length - 1];
-      if (typeof lastMessage.content === "string") {
-        lastMessage.content = [{ type: "text", text: lastMessage.content }, ...contentBlocks];
-      } else {
-        lastMessage.content = [...lastMessage.content, ...contentBlocks];
-      }
+  for (const msg of messages) {
+    if (typeof msg.content === "string") {
+      claudeMessages.push({
+        role: msg.role,
+        content: msg.content,
+      });
     } else {
       claudeMessages.push({
-        role: "user",
-        content: contentBlocks,
+        role: msg.role,
+        content: convertContentBlocks(msg.content),
       });
     }
   }
@@ -443,7 +419,7 @@ export const callClaudeApi = async (
   const url = buildLlmApiUrl(profile.baseUrl, "claude", "messages");
 
   // 构建消息
-  const messages = convertToClaudeMessages(options.messages, options.conversationHistory);
+  const messages = convertToClaudeMessages(options.messages);
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);

@@ -27,28 +27,44 @@ export const callOpenAiResponsesApi = async (
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
-  // 使用共享函数解析消息内容
-  const parsed = parseMessageContents(options.messages);
+  // 构建输入内容 - Responses API 使用多轮对话格式
+  const messages: any[] = [];
 
-  // 构建输入内容 - Responses API 使用不同的格式
-  const inputContent: any[] = [];
+  // 转换所有消息
+  for (const msg of options.messages) {
+    if (typeof msg.content === "string") {
+      messages.push({
+        role: msg.role,
+        content: msg.content,
+      });
+    } else {
+      const parsed = parseMessageContents(msg.content);
+      const contentArray: any[] = [];
 
-  for (const textPart of parsed.textParts) {
-    inputContent.push({ type: "input_text", text: textPart.text });
+      for (const textPart of parsed.textParts) {
+        contentArray.push({ type: "input_text", text: textPart.text });
+      }
+
+      for (const imagePart of parsed.imageParts) {
+        contentArray.push({
+          type: "input_image",
+          image_url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
+        });
+      }
+
+      messages.push({
+        role: msg.role,
+        content: contentArray,
+      });
+    }
   }
 
-  for (const imagePart of parsed.imageParts) {
-    inputContent.push({
-      type: "input_image",
-      image_url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
-    });
-  }
-
-  // 如果只有一个文本输入，可以直接使用字符串
+  // 如果只有一条消息且是纯文本，可以使用简化格式
   const input =
-    inputContent.length === 1 && inputContent[0].type === "input_text"
-      ? inputContent[0].text
-      : [{ role: "user", content: inputContent }];
+    messages.length === 1 &&
+    typeof messages[0].content === "string"
+      ? messages[0].content
+      : messages;
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);

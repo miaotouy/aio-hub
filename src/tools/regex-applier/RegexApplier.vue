@@ -146,7 +146,7 @@
       <el-row :gutter="20">
         <el-col :span="16">
           <InfoCard title="待处理文件" class="full-height-card">
-            <template #header-extra>
+            <template #headerExtra>
               <el-button
                 :icon="Delete"
                 text

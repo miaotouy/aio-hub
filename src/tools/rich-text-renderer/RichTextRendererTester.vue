@@ -211,18 +211,30 @@
       <!-- 右侧渲染预览区 -->
       <div class="preview-panel">
         <InfoCard title="渲染预览" class="preview-card">
-          <template #header-extra>
-            <div class="render-stats" v-if="renderStats.totalChars > 0">
-              <el-tag size="small" type="info">
-                {{ renderStats.renderedChars }}/{{ renderStats.totalChars }} 字符
-              </el-tag>
-              <el-tag v-if="streamEnabled && isRendering" size="small" type="primary">
-                {{ renderStats.speed.toFixed(0) }} 字符/秒
-              </el-tag>
+          <template #headerExtra>
+            <div class="preview-header-controls">
+              <div class="render-stats" v-if="renderStats.totalChars > 0">
+                <el-tag size="small" type="info">
+                  {{ renderStats.renderedChars }}/{{ renderStats.totalChars }} 字符
+                </el-tag>
+                <el-tag v-if="streamEnabled && isRendering" size="small" type="primary">
+                  {{ renderStats.speed.toFixed(0) }} 字符/秒
+                </el-tag>
+              </div>
+              <div class="visualizer-toggle">
+                <el-tooltip content="可视化稳定区和待定区" placement="bottom">
+                  <el-switch v-model="visualizeBlockStatus" size="small" />
+                </el-tooltip>
+                <span>可视化块状态</span>
+              </div>
             </div>
           </template>
 
-          <div class="render-container" ref="renderContainerRef">
+          <div
+            class="render-container"
+            :class="{ 'visualize-block-status': visualizeBlockStatus }"
+            ref="renderContainerRef"
+          >
             <RichTextRenderer
               v-if="currentContent || streamSource"
               :key="renderKey"
@@ -275,6 +287,7 @@ const {
 const isRendering = ref(false);
 const currentContent = ref("");
 const streamSource = shallowRef<StreamSource | undefined>(undefined);
+const visualizeBlockStatus = ref(false);
 
 // 渲染统计
 const renderStats = reactive({
@@ -512,6 +525,49 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 可视化样式 */
+.preview-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.visualizer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.render-container.visualize-block-status :deep([data-node-status]) {
+  position: relative;
+}
+
+.render-container.visualize-block-status :deep([data-node-status]::before) {
+  content: attr(data-node-status);
+  position: absolute;
+  top: -12px;
+  left: 0;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  z-index: 10;
+  opacity: 0.7;
+}
+
+.render-container.visualize-block-status :deep([data-node-status="stable"]::before) {
+  background-color: #67c23a; /* Element Plus Success color */
+  color: white;
+}
+
+.render-container.visualize-block-status :deep([data-node-status="pending"]::before) {
+  background-color: #e6a23c; /* Element Plus Warning color */
+  color: white;
+}
+
 .rich-text-renderer-tester {
   padding: 20px;
   height: 100%;

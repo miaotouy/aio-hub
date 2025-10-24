@@ -12,6 +12,7 @@
  */
 export interface NodeMeta {
   range: { start: number; end: number };
+  status?: 'stable' | 'pending';
 }
 
 /**

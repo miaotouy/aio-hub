@@ -164,6 +164,7 @@ export class StreamProcessor {
   private processComplete(): void {
     const finalAst = this.parseMarkdown(this.buffer);
     this.assignIds(finalAst);
+    this.markNodesStatus(finalAst, 'stable');
     
     const currentAst = [...this.stableAst, ...this.pendingAst];
     this.preserveExistingIds(finalAst, currentAst);
@@ -193,6 +194,7 @@ export class StreamProcessor {
     if (stableText.length > this.stableTextLength) {
       const newStableAst = this.parseMarkdown(stableText);
       this.assignIds(newStableAst);
+      this.markNodesStatus(newStableAst, 'stable');
       this.preserveExistingIds(newStableAst, this.stableAst);
       
       const stablePatches = this.diffAst(this.stableAst, newStableAst);
@@ -205,6 +207,7 @@ export class StreamProcessor {
     // 3. 处理待定区 (全量替换)
     const newPendingAst = this.parseMarkdown(pendingText);
     this.assignIds(newPendingAst);
+    this.markNodesStatus(newPendingAst, 'pending');
     
     const pendingPatches = this.replacePendingRegion(this.pendingAst, newPendingAst);
     allPatches.push(...pendingPatches);
@@ -360,6 +363,15 @@ export class StreamProcessor {
       }
       if (node.children) {
         this.assignIds(node.children);
+      }
+    }
+  }
+
+  private markNodesStatus(nodes: AstNode[], status: 'stable' | 'pending'): void {
+    for (const node of nodes) {
+      node.meta.status = status;
+      if (node.children) {
+        this.markNodesStatus(node.children, status);
       }
     }
   }

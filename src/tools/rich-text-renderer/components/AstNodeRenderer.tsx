@@ -96,6 +96,7 @@ const AstNodeRenderer = defineComponent({
           {
             key: node.id,
             nodeId: node.id,
+            'data-node-status': node.meta.status,
             ...node.props,
           },
           children ? () => children : undefined

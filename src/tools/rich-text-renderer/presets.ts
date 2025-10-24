@@ -11,9 +11,9 @@ export interface RenderPreset {
 
 export const presets: RenderPreset[] = [
   {
-    id: 'basic',
-    name: '基础元素',
-    description: '测试基本的 Markdown 元素',
+    id: "basic",
+    name: "基础元素",
+    description: "测试基本的 Markdown 元素",
     content: `# 标题测试
 
 ## 二级标题
@@ -37,12 +37,12 @@ export const presets: RenderPreset[] = [
 
 1. 有序列表项 1
 2. 有序列表项 2
-3. 有序列表项 3`
+3. 有序列表项 3`,
   },
   {
-    id: 'code',
-    name: '代码块测试',
-    description: '测试各种代码块',
+    id: "code",
+    name: "代码块测试",
+    description: "测试各种代码块",
     content: `# 代码块示例
 
 ## JavaScript 代码
@@ -91,12 +91,12 @@ class UserManager {
     return this.users.find(u => u.id === id);
   }
 }
-\`\`\``
+\`\`\``,
   },
   {
-    id: 'table',
-    name: '表格测试',
-    description: '测试 Markdown 表格',
+    id: "table",
+    name: "表格测试",
+    description: "测试 Markdown 表格",
     content: `# 表格示例
 
 ## 简单表格
@@ -121,12 +121,12 @@ class UserManager {
 |------|------|--------|------|
 | 用户登录 | ✅ 完成 | 高 | 已上线 |
 | 数据导出 | 🚧 进行中 | 中 | 开发中 |
-| 报表生成 | 📅 计划中 | 低 | 下个版本 |`
+| 报表生成 | 📅 计划中 | 低 | 下个版本 |`,
   },
   {
-    id: 'mixed',
-    name: '综合测试',
-    description: '混合各种元素的复杂文档',
+    id: "mixed",
+    name: "综合测试",
+    description: "混合各种元素的复杂文档",
     content: `# 项目文档
 
 ## 概述
@@ -197,12 +197,12 @@ async function fetchUsers() {
 
 ---
 
-更多信息请访问 [官方文档](https://example.com/docs)`
+更多信息请访问 [官方文档](https://example.com/docs)`,
   },
   {
-    id: 'long',
-    name: '长文本测试',
-    description: '测试流式渲染性能',
+    id: "long",
+    name: "长文本测试",
+    description: "测试流式渲染性能",
     content: `# 长文本流式渲染测试
 
 ## 第一部分：介绍
@@ -339,12 +339,12 @@ graph LR
 - [Vue 性能优化指南](https://vuejs.org/guide/best-practices/performance.html)
 - [Web 性能优化](https://web.dev/performance/)
 
-*最后更新：2025年1月*`
+*最后更新：2025年1月*`,
   },
   {
-    id: 'emoji',
-    name: 'Emoji 和特殊字符',
-    description: '测试 Emoji 和特殊字符渲染',
+    id: "emoji",
+    name: "Emoji 和特殊字符",
+    description: "测试 Emoji 和特殊字符渲染",
     content: `# Emoji 渲染测试 🎨
 
 ## 常用 Emoji
@@ -391,12 +391,12 @@ console.log(\`操作结果: \${status.success}\`);
 ← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ⇔
 
 ### 其他符号
-© ® ™ § ¶ † ‡ • ◦ ‣ ⁃`
+© ® ™ § ¶ † ‡ • ◦ ‣ ⁃`,
   },
   {
-    id: 'comprehensive',
-    name: 'Markdown 渲染测试文档',
-    description: '全面的 Markdown 语法测试文档，包含各种元素和嵌套结构',
+    id: "comprehensive",
+    name: "Markdown 渲染测试文档",
+    description: "全面的 Markdown 语法测试文档，包含各种元素和嵌套结构",
     content: `# Markdown 渲染测试文档
 
 ## 目录
@@ -435,8 +435,8 @@ console.log(\`操作结果: \${status.success}\`);
 1. 第一步
 2. 第二步
 3. 第三步
-   1. 子步骤 3.1
-   2. 子步骤 3.2
+    1. 子步骤 3.1
+    2. 子步骤 3.2
 
 ### 任务列表
 - [x] 已完成任务
@@ -593,6 +593,131 @@ $$
 
 ---
 
-> **提示：** 这份文档包含了大部分常用的 Markdown 语法，可以用来测试渲染器的兼容性！`
-  }
+> **提示：** 这份文档包含了大部分常用的 Markdown 语法，可以用来测试渲染器的兼容性！`,
+  },
+  {
+    id: "xml",
+    name: "XML/HTML 标签",
+    description: "测试 XML/HTML 标签的渲染",
+    content: `# XML/HTML 标签渲染测试
+
+## 基本 HTML 标签
+
+这是一个段落，包含 <b>粗体标签</b> 和 <i>斜体标签</i>。
+
+还有 <u>下划线</u> 和 <s>删除线</s> 标签。
+
+<div>这是一个 div 块级元素</div>
+
+<span>这是一个 span 行内元素</span>
+
+## 带属性的标签
+
+<a href="https://example.com" title="示例链接">带属性的链接</a>
+
+<img src="image.jpg" alt="图片描述" width="300" height="200" />
+
+<button onclick="alert('clicked')" class="btn">点击按钮</button>
+
+## 嵌套标签
+
+<div class="container">
+  <p>这是段落文本</p>
+  <ul>
+    <li>列表项 1</li>
+    <li>列表项 2</li>
+  </ul>
+</div>
+
+## 自闭合标签
+
+<br />
+<hr />
+<input type="text" placeholder="输入文本" />
+
+## XML 风格标签
+
+<user>
+  <name>张三</name>
+  <age>25</age>
+  <email>zhangsan@example.com</email>
+</user>
+
+<config>
+  <setting name="timeout" value="30" />
+  <setting name="retry" value="3" />
+</config>
+
+## 代码块中的标签
+
+\`\`\`xml
+<?xml version="1.0" encoding="UTF-8"?>
+<bookstore>
+  <book category="cooking">
+    <title lang="en">Everyday Italian</title>
+    <author>Giada De Laurentiis</author>
+    <year>2005</year>
+    <price>30.00</price>
+  </book>
+  <book category="children">
+    <title lang="en">Harry Potter</title>
+    <author>J K. Rowling</author>
+    <year>2005</year>
+    <price>29.99</price>
+  </book>
+</bookstore>
+\`\`\`
+
+\`\`\`html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>示例页面</title>
+  <style>
+    .container { max-width: 1200px; }
+    .button { padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>欢迎</h1>
+    <p>这是示例内容</p>
+    <button class="button">点击</button>
+  </div>
+  <script>
+    console.log('Hello, World!');
+  </script>
+</body>
+</html>
+\`\`\`
+
+## 混合内容
+
+这是一段包含 **Markdown 粗体** 和 <b>HTML 粗体</b> 的文本。
+
+> 引用块中也可以包含 <em>HTML 标签</em>
+
+- 列表项中的 <code>code 标签</code>
+- 另一个项目
+
+## 注释标签
+
+<!-- 这是 HTML 注释 -->
+
+<![CDATA[这是 CDATA 内容]]>
+
+## 特殊字符
+
+&lt;div&gt;这是转义的标签&lt;/div&gt;
+
+&amp; &quot; &apos; &nbsp;
+
+## 表格中的标签
+
+| 列 1 | 列 2 | 列 3 |
+|------|------|------|
+| <b>粗体</b> | <i>斜体</i> | <code>代码</code> |
+| <a href="#">链接</a> | 普通文本 | <span style="color: red">红色</span> |`,
+  },
 ];

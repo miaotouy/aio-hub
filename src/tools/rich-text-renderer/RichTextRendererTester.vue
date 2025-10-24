@@ -315,6 +315,7 @@ const loadPreset = () => {
 // 创建流式数据源
 const createStreamSource = (content: string): StreamSource => {
   const subscribers: Array<(chunk: string) => void> = [];
+  const completeSubscribers: Array<() => void> = [];
 
   const subscribe = (callback: (chunk: string) => void) => {
     subscribers.push(callback);
@@ -322,6 +323,16 @@ const createStreamSource = (content: string): StreamSource => {
       const index = subscribers.indexOf(callback);
       if (index > -1) {
         subscribers.splice(index, 1);
+      }
+    };
+  };
+
+  const onComplete = (callback: () => void) => {
+    completeSubscribers.push(callback);
+    return () => {
+      const index = completeSubscribers.indexOf(callback);
+      if (index > -1) {
+        completeSubscribers.splice(index, 1);
       }
     };
   };
@@ -395,11 +406,13 @@ const createStreamSource = (content: string): StreamSource => {
     }
 
     isRendering.value = false;
+    // 通知订阅者流已完成
+    completeSubscribers.forEach(cb => cb());
   };
 
   startStreaming();
 
-  return { subscribe };
+  return { subscribe, onComplete };
 };
 
 // 开始渲染

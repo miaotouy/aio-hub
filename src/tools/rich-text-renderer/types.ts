@@ -346,6 +346,7 @@ export interface StreamProcessorOptions {
  */
 export interface StreamSource {
   subscribe: (callback: (chunk: string) => void) => () => void;
+  onComplete?: (callback: () => void) => () => void;
 }
 
 // ============ 配置管理相关类型 ============

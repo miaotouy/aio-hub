@@ -151,14 +151,17 @@ export class StreamProcessor {
     return `node-${this.nodeIdCounter++}`;
   }
 
-  process(chunk: string, isComplete = false): void {
+  process(chunk: string): void {
     this.buffer += chunk;
+    this.processIncremental();
+  }
 
-    if (isComplete) {
-      this.processComplete();
-    } else {
-      this.processIncremental();
-    }
+  /**
+   * 结束流式处理。
+   * 这会处理缓冲区中剩余的任何内容，并确保所有节点都处于稳定状态。
+   */
+  finalize(): void {
+    this.processComplete();
   }
 
   private processComplete(): void {
@@ -339,8 +342,13 @@ export class StreamProcessor {
     // ID 必须预先处理好
     newNode.id = oldNode.id;
     
-    if (oldNode.type !== newNode.type || this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode)) {
-      // 节点类型或内容变化，直接替换
+    // 检查类型、内容或状态是否发生变化
+    const typeChanged = oldNode.type !== newNode.type;
+    const contentChanged = this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
+    const statusChanged = oldNode.meta.status !== newNode.meta.status;
+    
+    if (typeChanged || contentChanged || statusChanged) {
+      // 节点类型、内容或状态发生变化，直接替换
       // 递归保留子节点 ID
       if (oldNode.children && newNode.children) {
         this.preserveExistingIds(newNode.children, oldNode.children);
@@ -348,7 +356,7 @@ export class StreamProcessor {
       return [{ op: 'replace-node', id: oldNode.id, newNode }];
     }
 
-    // 类型和内容相同，递归比较子节点
+    // 类型、内容和状态都相同，递归比较子节点
     if (oldNode.children || newNode.children) {
       return this.diffAst(oldNode.children || [], newNode.children || []);
     }

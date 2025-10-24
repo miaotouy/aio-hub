@@ -26,23 +26,34 @@ let unsubscribe: (() => void) | null = null;
 
 // 监听 content 属性变化（用于静态内容模式的响应式更新）
 watch(() => props.content, (newContent) => {
-  if (newContent && !props.streamSource) {
+  if (typeof newContent === 'string' && !props.streamSource) {
     streamProcessor.reset();
-    streamProcessor.process(newContent, true); // isComplete = true
+    streamProcessor.process(newContent);
+    streamProcessor.finalize();
   }
 }, { immediate: true });
+
+let unsubscribeComplete: (() => void) | null = null;
 
 onMounted(() => {
   if (props.streamSource) {
     // 流式模式
+    streamProcessor.reset();
     unsubscribe = props.streamSource.subscribe((chunk) => {
       streamProcessor.process(chunk);
     });
+    // 监听流完成事件
+    if (props.streamSource.onComplete) {
+      unsubscribeComplete = props.streamSource.onComplete(() => {
+        streamProcessor.finalize();
+      });
+    }
   }
 });
 
 onBeforeUnmount(() => {
   unsubscribe?.();
+  unsubscribeComplete?.();
   streamProcessor.reset();
 });
 </script>

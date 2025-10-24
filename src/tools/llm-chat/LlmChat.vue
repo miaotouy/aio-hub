@@ -232,6 +232,12 @@ const handleDeleteSession = (sessionId: string) => {
   store.deleteSession(sessionId);
 };
 
+// 处理重命名会话
+const handleRenameSession = (data: { sessionId: string; newName: string }) => {
+  store.updateSession(data.sessionId, { name: data.newName });
+  logger.info("重命名会话", data);
+};
+
 </script>
 
 <template>
@@ -373,6 +379,7 @@ const handleDeleteSession = (sessionId: string) => {
             @switch="handleSwitchSession"
             @delete="handleDeleteSession"
             @new-session="handleNewSession"
+            @rename="handleRenameSession"
           />
         </div>
       </div>

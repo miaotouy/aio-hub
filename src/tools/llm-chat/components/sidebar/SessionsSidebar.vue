@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import type { ChatSession } from "../../types";
-import { Plus, Delete, Search, MoreFilled } from "@element-plus/icons-vue";
+import { Plus, Delete, Search, MoreFilled, Edit } from "@element-plus/icons-vue";
 
 interface Props {
   sessions: ChatSession[];
@@ -13,6 +13,7 @@ interface Emits {
   (e: "switch", sessionId: string): void;
   (e: "delete", sessionId: string): void;
   (e: "new-session", data: { agentId: string; name?: string }): void;
+  (e: "rename", data: { sessionId: string; newName: string }): void;
 }
 
 const props = defineProps<Props>();
@@ -20,6 +21,11 @@ const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
 const searchQuery = ref("");
+
+// 重命名相关状态
+const renameDialogVisible = ref(false);
+const renamingSession = ref<ChatSession | null>(null);
+const newSessionName = ref("");
 
 // 快速新建会话
 const handleQuickNewSession = () => {
@@ -86,10 +92,51 @@ const confirmDelete = (session: ChatSession) => {
   }
 };
 
+// 打开重命名对话框
+const openRenameDialog = (session: ChatSession) => {
+  renamingSession.value = session;
+  newSessionName.value = session.name;
+  renameDialogVisible.value = true;
+};
+
+// 确认重命名
+const confirmRename = () => {
+  if (!renamingSession.value) return;
+  
+  const trimmedName = newSessionName.value.trim();
+  if (!trimmedName) {
+    alert("会话名称不能为空");
+    return;
+  }
+  
+  if (trimmedName === renamingSession.value.name) {
+    renameDialogVisible.value = false;
+    return;
+  }
+  
+  emit("rename", {
+    sessionId: renamingSession.value.id,
+    newName: trimmedName,
+  });
+  
+  renameDialogVisible.value = false;
+  renamingSession.value = null;
+  newSessionName.value = "";
+};
+
+// 取消重命名
+const cancelRename = () => {
+  renameDialogVisible.value = false;
+  renamingSession.value = null;
+  newSessionName.value = "";
+};
+
 // 处理菜单命令
-const handleMenuCommand = (command: 'delete', session: ChatSession) => {
+const handleMenuCommand = (command: 'delete' | 'rename', session: ChatSession) => {
   if (command === 'delete') {
     confirmDelete(session);
+  } else if (command === 'rename') {
+    openRenameDialog(session);
   }
 };
 </script>
@@ -154,6 +201,9 @@ const handleMenuCommand = (command: 'delete', session: ChatSession) => {
               />
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item command="rename" :icon="Edit">
+                    重命名
+                  </el-dropdown-item>
                   <el-dropdown-item command="delete" :icon="Delete">
                     删除会话
                   </el-dropdown-item>
@@ -164,6 +214,27 @@ const handleMenuCommand = (command: 'delete', session: ChatSession) => {
         </div>
       </div>
     </div>
+
+    <!-- 重命名对话框 -->
+    <el-dialog
+      v-model="renameDialogVisible"
+      title="重命名会话"
+      width="400px"
+      @close="cancelRename"
+    >
+      <el-input
+        v-model="newSessionName"
+        placeholder="请输入新的会话名称"
+        maxlength="100"
+        show-word-limit
+        @keyup.enter="confirmRename"
+        autofocus
+      />
+      <template #footer>
+        <el-button @click="cancelRename">取消</el-button>
+        <el-button type="primary" @click="confirmRename">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

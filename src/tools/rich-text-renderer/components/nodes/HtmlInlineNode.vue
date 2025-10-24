@@ -14,8 +14,18 @@ const props = defineProps<{
 // 净化 HTML 内容以防止 XSS 攻击
 const sanitizedContent = computed(() => {
   return DOMPurify.sanitize(props.content, {
-    ALLOWED_TAGS: ['span', 'b', 'i', 'u', 's', 'em', 'strong', 'code', 'a', 'br', 'button'],
-    ALLOWED_ATTR: ['class', 'href', 'title', 'target', 'rel', 'style', 'onclick'],
+    ALLOWED_TAGS: [
+      'span', 'b', 'i', 'u', 's', 'em', 'strong', 'code', 'a', 'br', 'button',
+      'mark', 'small', 'del', 'ins', 'sub', 'sup', 'abbr', 'kbd', 'q', 'cite', 'time',
+      'img' // img is technically an inline-block, but often used inline
+    ],
+    ALLOWED_ATTR: [
+      'class', 'style', 'title', 'lang',
+      'href', 'target', 'rel',
+      'src', 'alt', 'width', 'height',
+      'datetime', 'cite', 'onclick', 'aria-label'
+    ],
+    ALLOW_DATA_ATTR: true,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
     FORBID_ATTR: ['onerror', 'onload', 'onmouseover'],
   });

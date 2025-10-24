@@ -16,25 +16,51 @@ const props = defineProps<{
 const sanitizedContent = computed(() => {
   return DOMPurify.sanitize(props.content, {
     ALLOWED_TAGS: [
-      'div', 'p', 'section', 'article', 'aside', 'header', 'footer', 'nav',
-      'span', 'b', 'i', 'u', 's', 'em', 'strong', 'code', 'pre',
-      'a', 'br', 'hr',
-      'ul', 'ol', 'li',
+      // Structure & Semantics
+      'div', 'p', 'section', 'article', 'aside', 'header', 'footer', 'nav', 'main',
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'blockquote',
-      'table', 'thead', 'tbody', 'tr', 'th', 'td',
-      'img',
-      'button', 'input',
-      // --- Add custom XML tags for test ---
+      'blockquote', 'figure', 'figcaption',
+      // Text Formatting
+      'span', 'b', 'i', 'u', 's', 'em', 'strong', 'code', 'pre', 'br', 'hr',
+      'mark', 'small', 'del', 'ins', 'sub', 'sup', 'abbr', 'kbd', 'q', 'cite', 'time',
+      // Links & Media
+      'a', 'img', 'audio', 'video', 'source', 'iframe',
+      // Lists
+      'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+      // Tables
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+      // Forms
+      'form', 'fieldset', 'legend', 'label', 'input', 'button', 'select', 'option', 'textarea',
+      // Interactive
+      'details', 'summary',
+      // Meter & Progress
+      'progress', 'meter',
+      // Custom XML for test
       'user', 'name', 'age', 'email', 'config', 'setting'
     ],
     ALLOWED_ATTR: [
-      'class', 'id', 'style',
-      'href', 'title', 'target', 'rel',
-      'src', 'alt', 'width', 'height',
-      'type', 'name', 'value', 'placeholder', 'onclick'
+      // General
+      'class', 'id', 'style', 'title', 'lang', 'dir',
+      // Links
+      'href', 'target', 'rel', 'download',
+      // Media
+      'src', 'alt', 'width', 'height', 'poster', 'preload', 'controls', 'autoplay', 'loop', 'muted',
+      // iframe - use with caution
+      'allowfullscreen', 'frameborder',
+      // Tables
+      'colspan', 'rowspan', 'scope', 'align', 'valign',
+      // Forms
+      'type', 'name', 'value', 'placeholder', 'disabled', 'checked', 'selected', 'readonly',
+      'action', 'method', 'for', 'min', 'max', 'step', 'rows', 'cols',
+      // Interactive
+      'open',
+      // Meter & Progress
+      'low', 'high', 'optimum',
+      // Other
+      'datetime', 'cite', 'onclick', 'loading', 'decoding', 'aria-label', 'aria-pressed'
     ],
-    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'applet', 'link', 'meta'],
+    ALLOW_DATA_ATTR: true, // Allow all data-* attributes
+    FORBID_TAGS: ['script', 'style', 'object', 'embed', 'applet', 'link', 'meta', 'base'],
     FORBID_ATTR: ['onerror', 'onload', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
   });
 });

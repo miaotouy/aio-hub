@@ -466,6 +466,52 @@ const clearOutput = () => {
   renderStats.speed = 0;
 };
 
+// 净化 Markdown 文本为纯文本
+const stripMarkdown = (markdown: string): string => {
+  // 创建一个临时 div 元素用于处理 HTML 实体
+  const tempDiv = document.createElement('div');
+  
+  let text = markdown;
+  
+  // 移除代码块
+  text = text.replace(/```[\s\S]*?```/g, '');
+  
+  // 移除行内代码
+  text = text.replace(/`[^`]+`/g, (match) => match.slice(1, -1));
+  
+  // 移除标题标记
+  text = text.replace(/^#{1,6}\s+/gm, '');
+  
+  // 移除粗体和斜体
+  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2');
+  text = text.replace(/(\*|_)(.*?)\1/g, '$2');
+  
+  // 移除删除线
+  text = text.replace(/~~(.*?)~~/g, '$1');
+  
+  // 移除链接，保留文本
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  
+  // 移除图片
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+  
+  // 移除引用标记
+  text = text.replace(/^>\s+/gm, '');
+  
+  // 移除列表标记
+  text = text.replace(/^[\*\-\+]\s+/gm, '');
+  text = text.replace(/^\d+\.\s+/gm, '');
+  
+  // 移除水平线
+  text = text.replace(/^(\*{3,}|-{3,}|_{3,})$/gm, '');
+  
+  // 移除可能存在的 HTML 标签
+  tempDiv.innerHTML = text;
+  text = tempDiv.textContent || tempDiv.innerText || '';
+  
+  return text.trim();
+};
+
 // 复制原文和渲染结果的对比
 const copyComparison = async () => {
   if (!inputContent.value.trim()) {
@@ -486,6 +532,9 @@ const copyComparison = async () => {
 
   // 提取渲染后的纯文本（去除HTML标签）
   const renderedText = renderContainerRef.value.textContent || "";
+  
+  // 净化原文为纯文本
+  const cleanedInput = stripMarkdown(inputContent.value);
   
   // 构建测试配置信息
   let configInfo = `流式输出: ${streamEnabled.value ? '启用' : '禁用'}`;
@@ -515,6 +564,9 @@ ${configInfo}
 ========== Markdown 原文 ==========
 ${inputContent.value}
 
+========== 净化后的原文（纯文本） ==========
+${cleanedInput}
+
 ========== 渲染后的 HTML ==========
 ${htmlContent}
 
@@ -522,8 +574,10 @@ ${htmlContent}
 ${renderedText}
 
 ========== 对比信息 ==========
-原文字符数: ${inputContent.value.length}
+原文字符数（带标记）: ${inputContent.value.length}
+原文字符数（纯文本）: ${cleanedInput.length}
 渲染文本字符数: ${renderedText.length}
+字符差异（纯文本对比）: ${Math.abs(cleanedInput.length - renderedText.length)}
 HTML 完整字符数: ${htmlContent.length}
 渲染时间: ${new Date().toLocaleString('zh-CN')}
 =============================

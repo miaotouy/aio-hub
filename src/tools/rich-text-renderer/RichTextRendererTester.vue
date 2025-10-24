@@ -49,7 +49,7 @@
             <el-button
               :icon="CopyDocument"
               @click="copyComparison"
-              :disabled="(!inputContent.trim()) || (!currentContent && !streamSource)"
+              :disabled="!inputContent.trim() || (!currentContent && !streamSource)"
             >
               复制对比
             </el-button>
@@ -233,6 +233,12 @@
                 </el-tooltip>
                 <span>可视化块状态</span>
               </div>
+              <div class="visualizer-toggle">
+                <el-tooltip content="使用新的 V2 解析器（支持复杂 HTML 嵌套）" placement="bottom">
+                  <el-switch v-model="useV2Parser" size="small" />
+                </el-tooltip>
+                <span>V2 解析器</span>
+              </div>
             </div>
           </template>
 
@@ -246,6 +252,7 @@
               :key="renderKey"
               :content="currentContent"
               :stream-source="streamSource"
+              :use-v2="useV2Parser"
             />
             <div v-else class="empty-placeholder">
               <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -264,17 +271,17 @@ import {
   DArrowRight,
   VideoPlay,
   VideoPause,
-    RefreshRight,
-    Loading,
-    CopyDocument,
-  } from "@element-plus/icons-vue";
-  import InfoCard from "@/components/common/InfoCard.vue";
-  import RichTextRenderer from "./RichTextRenderer.vue";
-  import type { StreamSource } from "./types";
-  import { presets } from "./presets";
-  import { useRichTextRendererStore } from "./store";
-  import { storeToRefs } from "pinia";
-  import customMessage from "@/utils/customMessage";
+  RefreshRight,
+  Loading,
+  CopyDocument,
+} from "@element-plus/icons-vue";
+import InfoCard from "@/components/common/InfoCard.vue";
+import RichTextRenderer from "./RichTextRenderer.vue";
+import type { StreamSource } from "./types";
+import { presets } from "./presets";
+import { useRichTextRendererStore } from "./store";
+import { storeToRefs } from "pinia";
+import customMessage from "@/utils/customMessage";
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
 const {
@@ -289,6 +296,7 @@ const {
   charsFluctuation,
   autoScroll,
   visualizeBlockStatus,
+  useV2Parser,
 } = storeToRefs(store);
 
 // 渲染状态
@@ -414,7 +422,7 @@ const createStreamSource = (content: string): StreamSource => {
 
     isRendering.value = false;
     // 通知订阅者流已完成
-    completeSubscribers.forEach(cb => cb());
+    completeSubscribers.forEach((cb) => cb());
   };
 
   startStreaming();
@@ -469,47 +477,56 @@ const clearOutput = () => {
 // 净化 Markdown 文本为纯文本
 const stripMarkdown = (markdown: string): string => {
   // 创建一个临时 div 元素用于处理 HTML 实体
-  const tempDiv = document.createElement('div');
-  
+  const tempDiv = document.createElement("div");
+
   let text = markdown;
-  
+
   // 移除代码块
-  text = text.replace(/```[\s\S]*?```/g, '');
-  
+  text = text.replace(/```[\s\S]*?```/g, "");
+
   // 移除行内代码
   text = text.replace(/`[^`]+`/g, (match) => match.slice(1, -1));
-  
+
   // 移除标题标记
-  text = text.replace(/^#{1,6}\s+/gm, '');
-  
+  text = text.replace(/^#{1,6}\s+/gm, "");
+
   // 移除粗体和斜体
-  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2');
-  text = text.replace(/(\*|_)(.*?)\1/g, '$2');
-  
+  text = text.replace(/(\*\*|__)(.*?)\1/g, "$2");
+  text = text.replace(/(\*|_)(.*?)\1/g, "$2");
+
   // 移除删除线
-  text = text.replace(/~~(.*?)~~/g, '$1');
-  
+  text = text.replace(/~~(.*?)~~/g, "$1");
+
   // 移除链接，保留文本
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-  
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+
   // 移除图片
-  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
-  
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1");
+
   // 移除引用标记
-  text = text.replace(/^>\s+/gm, '');
-  
+  text = text.replace(/^>\s+/gm, "");
+
   // 移除列表标记
-  text = text.replace(/^[\*\-\+]\s+/gm, '');
-  text = text.replace(/^\d+\.\s+/gm, '');
-  
+  text = text.replace(/^[\*\-\+]\s+/gm, "");
+  text = text.replace(/^\d+\.\s+/gm, "");
+
   // 移除水平线
-  text = text.replace(/^(\*{3,}|-{3,}|_{3,})$/gm, '');
-  
+  text = text.replace(/^(\*{3,}|-{3,}|_{3,})$/gm, "");
+
   // 移除可能存在的 HTML 标签
   tempDiv.innerHTML = text;
-  text = tempDiv.textContent || tempDiv.innerText || '';
-  
+  text = tempDiv.textContent || tempDiv.innerText || "";
+
   return text.trim();
+};
+
+// 规范化空白字符（用于对比）
+const normalizeWhitespace = (text: string): string => {
+  return text
+    .replace(/\r\n/g, "\n") // 统一换行符
+    .replace(/\s+/g, " ") // 将所有连续空白字符（包括换行）合并为一个空格
+    .replace(/^\s+|\s+$/g, "") // 移除首尾空白
+    .trim();
 };
 
 // 复制原文和渲染结果的对比
@@ -518,12 +535,12 @@ const copyComparison = async () => {
     customMessage.warning("没有可复制的原文内容");
     return;
   }
-  
+
   if (!renderContainerRef.value) {
     customMessage.warning("渲染容器不存在");
     return;
   }
-  
+
   const htmlContent = renderContainerRef.value.innerHTML;
   if (!htmlContent.trim() || renderContainerRef.value.querySelector(".empty-placeholder")) {
     customMessage.warning("没有可复制的 HTML 内容");
@@ -532,31 +549,40 @@ const copyComparison = async () => {
 
   // 提取渲染后的纯文本（去除HTML标签）
   const renderedText = renderContainerRef.value.textContent || "";
-  
+
   // 净化原文为纯文本
   const cleanedInput = stripMarkdown(inputContent.value);
-  
+
+  // 规范化后的文本（用于准确对比）
+  const normalizedInput = normalizeWhitespace(cleanedInput);
+  const normalizedRendered = normalizeWhitespace(renderedText);
+
   // 构建测试配置信息
-  let configInfo = `流式输出: ${streamEnabled.value ? '启用' : '禁用'}`;
-  
+  let configInfo = `流式输出: ${streamEnabled.value ? "启用" : "禁用"}`;
+
   if (streamEnabled.value) {
     configInfo += `\n输出速度: ${streamSpeed.value} 字符/秒`;
     configInfo += `\n初始延迟: ${initialDelay.value} 毫秒`;
-    configInfo += `\n波动模式: ${fluctuationEnabled.value ? '启用' : '禁用'}`;
-    
+    configInfo += `\n波动模式: ${fluctuationEnabled.value ? "启用" : "禁用"}`;
+
     if (fluctuationEnabled.value) {
       configInfo += `\n延迟波动范围: ${delayFluctuation.value.min}~${delayFluctuation.value.max} 毫秒`;
       configInfo += `\n字符数波动范围: ${charsFluctuation.value.min}~${charsFluctuation.value.max} 字符`;
     }
   }
-  
+
   if (selectedPreset.value) {
-    const preset = presets.find(p => p.id === selectedPreset.value);
+    const preset = presets.find((p) => p.id === selectedPreset.value);
     if (preset) {
       configInfo += `\n预设内容: ${preset.name}`;
     }
   }
-  
+
+  // 计算差异
+  const rawDiff = Math.abs(cleanedInput.length - renderedText.length);
+  const normalizedDiff = Math.abs(normalizedInput.length - normalizedRendered.length);
+  const isMatched = normalizedDiff === 0;
+
   // 构建对比内容
   const comparisonText = `========== 测试配置 ==========
 ${configInfo}
@@ -564,22 +590,28 @@ ${configInfo}
 ========== Markdown 原文 ==========
 ${inputContent.value}
 
-========== 净化后的原文（纯文本） ==========
-${cleanedInput}
-
 ========== 渲染后的 HTML ==========
 ${htmlContent}
 
-========== 渲染后的纯文本 ==========
-${renderedText}
+========== 规范化后的原文 ==========
+${normalizedInput}
+
+========== 规范化后的渲染文本 ==========
+${normalizedRendered}
 
 ========== 对比信息 ==========
 原文字符数（带标记）: ${inputContent.value.length}
 原文字符数（纯文本）: ${cleanedInput.length}
 渲染文本字符数: ${renderedText.length}
-字符差异（纯文本对比）: ${Math.abs(cleanedInput.length - renderedText.length)}
+字符差异（保留空白）: ${rawDiff}
+---
+规范化后原文字符数: ${normalizedInput.length}
+规范化后渲染字符数: ${normalizedRendered.length}
+字符差异（规范化后）: ${normalizedDiff}
+文本匹配: ${isMatched ? "✅ 完全匹配" : "❌ 不匹配"}
+---
 HTML 完整字符数: ${htmlContent.length}
-渲染时间: ${new Date().toLocaleString('zh-CN')}
+渲染时间: ${new Date().toLocaleString("zh-CN")}
 =============================
 `;
 

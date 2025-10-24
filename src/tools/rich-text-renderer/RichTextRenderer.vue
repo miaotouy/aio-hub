@@ -5,31 +5,51 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch } from 'vue';
+import { onMounted, onBeforeUnmount, watch, ref } from 'vue';
 import { useMarkdownAst } from './composables/useMarkdownAst';
 import { StreamProcessor } from './StreamProcessor';
+import { StreamProcessorV2 } from './StreamProcessorV2';
 import AstNodeRenderer from './components/AstNodeRenderer.tsx';
 import type { StreamSource } from './types';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   content?: string;
   streamSource?: StreamSource;
-}>();
+  useV2?: boolean; // 是否使用 V2 处理器
+}>(), {
+  useV2: false
+});
 
 const { ast, enqueuePatch } = useMarkdownAst();
 
-const streamProcessor = new StreamProcessor({
-  onPatch: enqueuePatch,
-});
+// 根据 props 选择处理器
+const streamProcessor = ref(props.useV2
+  ? new StreamProcessorV2({ onPatch: enqueuePatch })
+  : new StreamProcessor({ onPatch: enqueuePatch })
+);
 
 let unsubscribe: (() => void) | null = null;
+
+// 监听 useV2 变化，重新创建处理器
+watch(() => props.useV2, (newUseV2) => {
+  streamProcessor.value = newUseV2
+    ? new StreamProcessorV2({ onPatch: enqueuePatch })
+    : new StreamProcessor({ onPatch: enqueuePatch });
+  
+  // 如果有内容，重新处理
+  if (props.content && !props.streamSource) {
+    streamProcessor.value.reset();
+    streamProcessor.value.process(props.content);
+    streamProcessor.value.finalize();
+  }
+});
 
 // 监听 content 属性变化（用于静态内容模式的响应式更新）
 watch(() => props.content, (newContent) => {
   if (typeof newContent === 'string' && !props.streamSource) {
-    streamProcessor.reset();
-    streamProcessor.process(newContent);
-    streamProcessor.finalize();
+    streamProcessor.value.reset();
+    streamProcessor.value.process(newContent);
+    streamProcessor.value.finalize();
   }
 }, { immediate: true });
 
@@ -38,14 +58,14 @@ let unsubscribeComplete: (() => void) | null = null;
 onMounted(() => {
   if (props.streamSource) {
     // 流式模式
-    streamProcessor.reset();
+    streamProcessor.value.reset();
     unsubscribe = props.streamSource.subscribe((chunk) => {
-      streamProcessor.process(chunk);
+      streamProcessor.value.process(chunk);
     });
     // 监听流完成事件
     if (props.streamSource.onComplete) {
       unsubscribeComplete = props.streamSource.onComplete(() => {
-        streamProcessor.finalize();
+        streamProcessor.value.finalize();
       });
     }
   }
@@ -54,7 +74,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   unsubscribe?.();
   unsubscribeComplete?.();
-  streamProcessor.reset();
+  streamProcessor.value.reset();
 });
 </script>
 

@@ -34,6 +34,7 @@ const configManager = createConfigManager<TesterConfig>({
     inputContent: '',
     autoScroll: true,
     visualizeBlockStatus: false,
+    useV2Parser: false,
   }),
 });
 
@@ -56,6 +57,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
   });
   const autoScroll = ref(true);
   const visualizeBlockStatus = ref(false);
+  const useV2Parser = ref(false);
 
   // 是否已加载配置
   const isConfigLoaded = ref(false);
@@ -84,6 +86,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       charsFluctuation.max = config.charsFluctuation.max;
       autoScroll.value = config.autoScroll;
       visualizeBlockStatus.value = config.visualizeBlockStatus;
+      useV2Parser.value = config.useV2Parser;
 
       isConfigLoaded.value = true;
       logger.info('配置加载成功');
@@ -118,6 +121,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
         },
         autoScroll: autoScroll.value,
         visualizeBlockStatus: visualizeBlockStatus.value,
+        useV2Parser: useV2Parser.value,
       };
 
       await configManager.save(config);
@@ -157,6 +161,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       },
       autoScroll: autoScroll.value,
       visualizeBlockStatus: visualizeBlockStatus.value,
+      useV2Parser: useV2Parser.value,
     };
 
     debouncedSave(config);
@@ -179,6 +184,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     charsFluctuation.max = 10;
     autoScroll.value = true;
     visualizeBlockStatus.value = false;
+    useV2Parser.value = false;
 
     saveConfig();
   }
@@ -201,6 +207,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       () => charsFluctuation.max,
       autoScroll,
       visualizeBlockStatus,
+      useV2Parser,
     ],
     () => {
       autoSaveConfig();
@@ -220,6 +227,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     charsFluctuation,
     autoScroll,
     visualizeBlockStatus,
+    useV2Parser,
     isConfigLoaded,
 
     // Actions

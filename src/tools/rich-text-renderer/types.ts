@@ -193,6 +193,18 @@ export interface HtmlInlineNode extends BaseAstNode {
   };
   children?: never;
 }
+/**
+ * 通用 HTML 节点
+ * 用于解析和表示结构化的 HTML 标签，内部可包含混合内容
+ */
+export interface GenericHtmlNode extends BaseAstNode {
+  type: 'generic_html';
+  props: {
+    tagName: string;              // e.g., 'div', 'p', 'span'
+    attributes: Record<string, string>; // e.g., { style: '...', class: '...' }
+  };
+  children: AstNode[]; // 内部可以包含任何其他 AST 节点！
+}
 
 /**
  * 表格节点
@@ -240,6 +252,8 @@ export type AstNode =
   | InlineCodeNode
   | LinkNode
   | HtmlInlineNode
+  | GenericHtmlNode // V2 架构新增
+
   // 块级节点
   | ParagraphNode
   | HeadingNode
@@ -410,4 +424,6 @@ export interface TesterConfig {
   autoScroll: boolean;
   /** 是否可视化块状态 */
   visualizeBlockStatus: boolean;
+  /** 是否使用 V2 解析器 */
+  useV2Parser: boolean;
 }

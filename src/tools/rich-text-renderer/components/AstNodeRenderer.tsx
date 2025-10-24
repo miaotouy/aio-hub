@@ -19,6 +19,7 @@ import StrikethroughNode from "./nodes/StrikethroughNode.vue";
 import InlineCodeNode from "./nodes/InlineCodeNode.vue";
 import LinkNode from "./nodes/LinkNode.vue";
 import HtmlInlineNode from "./nodes/HtmlInlineNode.vue";
+import GenericHtmlNode from "./nodes/GenericHtmlNode.vue";
 // 块级节点
 import ParagraphNode from "./nodes/ParagraphNode.vue";
 import HeadingNode from "./nodes/HeadingNode.vue";
@@ -45,6 +46,7 @@ const componentMap: Record<string, any> = {
   inline_code: InlineCodeNode,
   link: LinkNode,
   html_inline: HtmlInlineNode,
+  generic_html: GenericHtmlNode,
   // 块级节点
   paragraph: ParagraphNode,
   heading: HeadingNode,

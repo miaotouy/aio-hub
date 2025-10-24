@@ -32,7 +32,7 @@ export function useChatHandler() {
   const buildLlmContext = (
     activePath: ChatMessageNode[],
     agentConfig: any,
-    currentUserMessage: string
+    _currentUserMessage: string
   ): LlmContextData => {
     // 过滤出有效的对话上下文（排除禁用节点和系统节点）
     const llmContext = activePath
@@ -54,16 +54,8 @@ export function useChatHandler() {
       .map((msg: any) => msg.content);
     const systemPrompt = systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined;
 
-    // 会话上下文（排除最后一条用户消息，因为那是当前要发送的）
-    const sessionContext = llmContext.slice(0, -1);
-
-    // 当前用户消息（转换为标准格式）
-    const currentMessage: LlmMessageContent[] = [
-      {
-        type: 'text' as const,
-        text: currentUserMessage,
-      },
-    ];
+    // 会话上下文（完整历史，不再单独处理最后一条）
+    const sessionContext = llmContext;
 
     // 查找历史消息占位符
     const chatHistoryPlaceholderIndex = enabledPresets.findIndex(
@@ -103,7 +95,6 @@ export function useChatHandler() {
         ...presetsBeforePlaceholder,
         ...sessionContext,
         ...presetsAfterPlaceholder,
-        { role: 'user' as const, content: currentMessage },
       ];
 
       logger.debug('使用历史消息占位符构建上下文', {
@@ -113,7 +104,7 @@ export function useChatHandler() {
         totalMessages: messages.length,
       });
     } else {
-      // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后，当前消息在最后
+      // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后
       const presetConversation: Array<{
         role: 'user' | 'assistant';
         content: string | LlmMessageContent[];
@@ -127,9 +118,25 @@ export function useChatHandler() {
       messages = [
         ...presetConversation,
         ...sessionContext,
-        { role: 'user' as const, content: currentMessage },
       ];
     }
+
+    // 详细的 debug 日志，展示最终构建的消息
+    logger.debug('🔍 构建 LLM 上下文完成', {
+      systemPromptLength: systemPrompt?.length || 0,
+      totalMessages: messages.length,
+      messages: messages.map((msg, index) => ({
+        index,
+        role: msg.role,
+        contentType: typeof msg.content,
+        contentPreview: typeof msg.content === 'string'
+          ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
+          : `[${msg.content.length} parts]`,
+        contentLength: typeof msg.content === 'string'
+          ? msg.content.length
+          : msg.content.reduce((sum, part) => sum + (typeof part === 'object' && 'text' in part && part.text ? part.text.length : 0), 0),
+      })),
+    });
 
     return { systemPrompt, messages };
   };
@@ -274,7 +281,7 @@ export function useChatHandler() {
   const sendMessage = async (
     session: ChatSession,
     content: string,
-    activePath: ChatMessageNode[],
+    _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>
   ): Promise<void> => {
@@ -297,7 +304,7 @@ export function useChatHandler() {
 
     // 使用节点管理器创建消息对
     const nodeManager = useNodeManager();
-    const { assistantNode } = nodeManager.createMessagePair(session, content, session.activeLeafId);
+    const { userNode, assistantNode } = nodeManager.createMessagePair(session, content, session.activeLeafId);
 
     // 获取模型信息用于元数据
     const { getProfileById } = useLlmProfiles();
@@ -320,6 +327,9 @@ export function useChatHandler() {
     // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
+    // 重新获取包含新用户消息的完整路径
+    const pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
+
     // 创建节点级别的 AbortController
     const abortController = new AbortController();
     abortControllers.set(assistantNode.id, abortController);
@@ -328,20 +338,30 @@ export function useChatHandler() {
     try {
       const { sendRequest } = useLlmRequest();
 
-      // 构建 LLM 上下文
+      // 构建 LLM 上下文（activePath 现在包含了新创建的用户消息）
       const { systemPrompt, messages } = buildLlmContext(
-        activePath,
+        pathWithNewMessage,
         agentConfig,
-        content
+        content  // 这个参数现在不再使用，但保留以兼容函数签名
       );
 
-      logger.info('发送 LLM 请求', {
+      logger.info('📤 发送 LLM 请求', {
         sessionId: session.id,
         agentId: agentStore.currentAgentId,
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
         totalMessageCount: messages.length,
-        currentMessageLength: content.length,
+        systemPromptLength: systemPrompt?.length || 0,
+      });
+
+      logger.debug('📋 发送的完整消息列表', {
+        messages: messages.map((msg, index) => ({
+          index,
+          role: msg.role,
+          contentPreview: typeof msg.content === 'string'
+            ? msg.content.substring(0, 200)
+            : JSON.stringify(msg.content).substring(0, 200),
+        })),
       });
 
       // 发送请求（支持流式）
@@ -391,7 +411,7 @@ export function useChatHandler() {
   const regenerateFromNode = async (
     session: ChatSession,
     nodeId: string,
-    activePath: ChatMessageNode[],
+    _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>
   ): Promise<void> => {
@@ -459,13 +479,16 @@ export function useChatHandler() {
       const { sendRequest } = useLlmRequest();
 
         // 构建 LLM 上下文（使用用户消息的内容）
+        // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
+        const pathToUserNode = nodeManager.getNodePath(session, userNode.id);
+
         const { systemPrompt, messages } = buildLlmContext(
-          activePath,
+          pathToUserNode, // 使用包含用户消息的完整路径
           agentConfig,
-          userNode.content
+          userNode.content  // 这个参数不再使用，但保留以兼容函数签名
         );
   
-        logger.info('从节点重新生成', {
+        logger.info('🔄 从节点重新生成', {
           sessionId: session.id,
           targetNodeId: nodeId,
           targetRole: targetNode.role,
@@ -475,6 +498,17 @@ export function useChatHandler() {
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
           totalMessageCount: messages.length,
+          systemPromptLength: systemPrompt?.length || 0,
+        });
+
+        logger.debug('📋 重新生成的完整消息列表', {
+          messages: messages.map((msg, index) => ({
+            index,
+            role: msg.role,
+            contentPreview: typeof msg.content === 'string'
+              ? msg.content.substring(0, 200)
+              : JSON.stringify(msg.content).substring(0, 200),
+          })),
         });
 
       const response = await sendRequest({

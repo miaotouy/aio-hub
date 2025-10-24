@@ -154,40 +154,20 @@ export class StreamProcessorV2 {
    * 完整处理
    */
   private processComplete(): void {
-    // 如果还有待定文本，解析并追加到稳定区
+    // 如果有待定节点，直接将它们标记为稳定即可
+    // 不需要删除后重新解析，因为它们已经被正确解析过了
     if (this.pendingAst.length > 0) {
-      const patches: Patch[] = [];
-
-      // 移除旧的待定节点
-      for (const oldNode of this.pendingAst) {
-        patches.push({ op: "remove-node", id: oldNode.id });
-      }
-
-      // 解析剩余文本并标记为稳定
-      const remainingText = this.buffer.substring(this.stableTextLength);
-      if (remainingText) {
-        this.parser.reset();
-        const finalNodes = this.parser.parse(remainingText);
-        this.assignIds(finalNodes);
-        this.markNodesStatus(finalNodes, "stable");
-
-        // 追加到稳定区
-        if (this.stableAst.length > 0) {
-          let currentAnchor = this.stableAst[this.stableAst.length - 1].id;
-          for (const newNode of finalNodes) {
-            patches.push({ op: "insert-after", id: currentAnchor, newNode });
-            currentAnchor = newNode.id;
-          }
-        } else {
-          patches.push({ op: "replace-root", newRoot: finalNodes });
-        }
-
-        this.stableAst.push(...finalNodes);
-      }
-
+      this.markNodesStatus(this.pendingAst, "stable");
+      const patches: Patch[] = this.pendingAst.map(node => ({
+        op: "replace-node",
+        id: node.id,
+        newNode: node
+      }));
+      
+      this.stableAst.push(...this.pendingAst);
       this.pendingAst = [];
       this.stableTextLength = this.buffer.length;
-
+      
       if (patches.length > 0) {
         this.onPatch(patches);
       }
@@ -313,7 +293,7 @@ export class StreamProcessorV2 {
         : this.stableAst[this.stableAst.length - 1]?.id;
       
       if (!anchorId) {
-        return [{ op: 'replace-root', newRoot: newNodes }];
+        return [{ op: 'replace-root', newRoot: [...newNodes] }]; // 克隆数组，避免引用问题
       }
       
       let currentAnchor = anchorId;

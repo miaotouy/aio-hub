@@ -1,0 +1,472 @@
+<script setup lang="ts">
+import { ref, onMounted, watch } from "vue";
+import { InfoFilled, FolderOpened, Delete } from "@element-plus/icons-vue";
+import { ElMessageBox, ElButton } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
+import { logger, LogLevel } from "@/utils/logger";
+import { appDataDir, join } from "@tauri-apps/api/path";
+import { openPath } from "@tauri-apps/plugin-opener";
+import { createModuleLogger } from "@utils/logger";
+
+const moduleLogger = createModuleLogger("LogSettings");
+
+// 日志级别选项
+const logLevelOptions = [
+  { label: "DEBUG (调试)", value: "DEBUG" },
+  { label: "INFO (信息)", value: "INFO" },
+  { label: "WARN (警告)", value: "WARN" },
+  { label: "ERROR (错误)", value: "ERROR" },
+];
+
+// 日志缓冲区大小选项
+const bufferSizeOptions = [
+  { label: "500 条", value: 500 },
+  { label: "1000 条", value: 1000 },
+  { label: "2000 条", value: 2000 },
+  { label: "5000 条", value: 5000 },
+  { label: "1 万条", value: 10000 },
+  { label: "5 万条", value: 50000 },
+];
+
+// 组件属性
+const props = defineProps<{
+  logLevel?: "DEBUG" | "INFO" | "WARN" | "ERROR";
+  logToFile?: boolean;
+  logToConsole?: boolean;
+  logBufferSize?: number;
+}>();
+
+// 事件
+const emit = defineEmits<{
+  "update:logLevel": [value: "DEBUG" | "INFO" | "WARN" | "ERROR"];
+  "update:logToFile": [value: boolean];
+  "update:logToConsole": [value: boolean];
+  "update:logBufferSize": [value: number];
+}>();
+
+// 内部状态
+const internalLogLevel = ref<"DEBUG" | "INFO" | "WARN" | "ERROR">("INFO");
+const internalLogToFile = ref<boolean>(true);
+const internalLogToConsole = ref<boolean>(true);
+const internalLogBufferSize = ref<number>(1000);
+
+// 日志统计信息
+const logStats = ref({
+  totalLogs: 0,
+  debugLogs: 0,
+  infoLogs: 0,
+  warnLogs: 0,
+  errorLogs: 0,
+});
+
+// 日志文件路径
+const logFilePath = ref<string>("");
+
+// 初始化
+onMounted(async () => {
+  // 从 props 更新内部状态
+  if (props.logLevel) internalLogLevel.value = props.logLevel;
+  if (props.logToFile !== undefined) internalLogToFile.value = props.logToFile;
+  if (props.logToConsole !== undefined) internalLogToConsole.value = props.logToConsole;
+  if (props.logBufferSize) internalLogBufferSize.value = props.logBufferSize;
+
+  // 获取日志统计信息
+  updateLogStats();
+
+  // 获取日志文件路径
+  try {
+    const appDir = await appDataDir();
+    const logsDir = await join(appDir, "logs");
+    const date = new Date().toISOString().split("T")[0];
+    logFilePath.value = await join(logsDir, `app-${date}.log`);
+  } catch (error) {
+    moduleLogger.error("获取日志文件路径失败", error);
+  }
+});
+
+// 监听 props 变化
+watch(
+  () => props.logLevel,
+  (newValue) => {
+    if (newValue) internalLogLevel.value = newValue;
+  }
+);
+
+watch(
+  () => props.logToFile,
+  (newValue) => {
+    if (newValue !== undefined) internalLogToFile.value = newValue;
+  }
+);
+
+watch(
+  () => props.logToConsole,
+  (newValue) => {
+    if (newValue !== undefined) internalLogToConsole.value = newValue;
+  }
+);
+
+watch(
+  () => props.logBufferSize,
+  (newValue) => {
+    if (newValue) internalLogBufferSize.value = newValue;
+  }
+);
+
+// 更新日志统计信息
+const updateLogStats = () => {
+  const logs = logger.getLogBuffer();
+  logStats.value = {
+    totalLogs: logs.length,
+    debugLogs: logs.filter((log) => log.level === LogLevel.DEBUG).length,
+    infoLogs: logs.filter((log) => log.level === LogLevel.INFO).length,
+    warnLogs: logs.filter((log) => log.level === LogLevel.WARN).length,
+    errorLogs: logs.filter((log) => log.level === LogLevel.ERROR).length,
+  };
+};
+
+// 打开日志目录
+const handleOpenLogDir = async () => {
+  try {
+    const appDir = await appDataDir();
+    const logsDir = await join(appDir, "logs");
+    await openPath(logsDir);
+    customMessage.success("日志目录已打开");
+  } catch (error) {
+    moduleLogger.error("打开日志目录失败", error);
+    customMessage.error("无法打开日志目录");
+  }
+};
+
+// 清空日志缓冲区
+const handleClearLogBuffer = async () => {
+  try {
+    await ElMessageBox.confirm(
+      "确定要清空内存中的日志缓冲区吗？这不会删除已保存的日志文件。",
+      "清空日志缓冲区",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
+
+    logger.clearBuffer();
+    updateLogStats();
+    customMessage.success("日志缓冲区已清空");
+  } catch (error) {
+    if (error !== "cancel") {
+      moduleLogger.error("清空日志缓冲区失败", error);
+      customMessage.error("清空日志缓冲区失败");
+    }
+  }
+};
+
+// 导出日志
+const handleExportLogs = async () => {
+  try {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const filePath = await save({
+      title: "导出日志",
+      defaultPath: `logs-${new Date().toISOString().split("T")[0]}.txt`,
+      filters: [
+        {
+          name: "文本文件",
+          extensions: ["txt"],
+        },
+      ],
+    });
+
+    if (filePath) {
+      await logger.exportLogs(filePath as string);
+      customMessage.success("日志导出成功");
+    }
+  } catch (error) {
+    moduleLogger.error("导出日志失败", error);
+    customMessage.error("导出日志失败");
+  }
+};
+
+// 测试日志功能
+const handleTestLogs = () => {
+  const testLogger = createModuleLogger("LogTest");
+  testLogger.debug("这是一条测试调试日志");
+  testLogger.info("这是一条测试信息日志");
+  testLogger.warn("这是一条测试警告日志");
+  testLogger.error("这是一条测试错误日志", new Error("测试错误"));
+
+  // 更新统计信息
+  setTimeout(updateLogStats, 100);
+  customMessage.success("测试日志已生成");
+};
+
+// 监听内部状态变化，发出事件
+watch(internalLogLevel, (newValue) => {
+  emit("update:logLevel", newValue);
+  // 更新日志级别
+  logger.setLevel(LogLevel[newValue as keyof typeof LogLevel]);
+});
+
+watch(internalLogToFile, (newValue) => {
+  emit("update:logToFile", newValue);
+  // 更新文件日志设置
+  logger.setLogToFile(newValue);
+});
+
+watch(internalLogToConsole, (newValue) => {
+  emit("update:logToConsole", newValue);
+  // 更新控制台日志设置
+  logger.setLogToConsole(newValue);
+});
+
+watch(internalLogBufferSize, (newValue) => {
+  emit("update:logBufferSize", newValue);
+  // 更新日志缓冲区大小
+  logger.setLogBufferSize(newValue);
+});
+</script>
+
+<template>
+  <div class="log-settings">
+    <!-- 日志级别设置 -->
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>日志级别</span>
+        <el-tooltip content="设置记录的最低日志级别，低于此级别的日志将被忽略" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <el-select v-model="internalLogLevel" style="width: 200px">
+        <el-option
+          v-for="option in logLevelOptions"
+          :key="option.value"
+          :label="option.label"
+          :value="option.value"
+        />
+      </el-select>
+    </div>
+
+    <!-- 日志输出设置 -->
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>文件日志</span>
+        <el-tooltip content="将日志保存到本地文件" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <el-switch v-model="internalLogToFile" />
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>控制台日志</span>
+        <el-tooltip content="在浏览器控制台显示日志" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <el-switch v-model="internalLogToConsole" />
+    </div>
+
+    <!-- 日志缓冲区大小 -->
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>日志缓冲区大小</span>
+        <el-tooltip content="内存中保存的日志条数，超过后将删除最早的日志" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <el-select v-model="internalLogBufferSize" style="width: 150px">
+        <el-option
+          v-for="option in bufferSizeOptions"
+          :key="option.value"
+          :label="option.label"
+          :value="option.value"
+        />
+      </el-select>
+    </div>
+
+    <el-divider />
+
+    <!-- 日志统计信息 -->
+    <div class="log-stats">
+      <h3 class="stats-title">日志统计</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value">{{ logStats.totalLogs }}</div>
+          <div class="stat-label">总计</div>
+        </div>
+        <div class="stat-item debug">
+          <div class="stat-value">{{ logStats.debugLogs }}</div>
+          <div class="stat-label">DEBUG</div>
+        </div>
+        <div class="stat-item info">
+          <div class="stat-value">{{ logStats.infoLogs }}</div>
+          <div class="stat-label">INFO</div>
+        </div>
+        <div class="stat-item warn">
+          <div class="stat-value">{{ logStats.warnLogs }}</div>
+          <div class="stat-label">WARN</div>
+        </div>
+        <div class="stat-item error">
+          <div class="stat-value">{{ logStats.errorLogs }}</div>
+          <div class="stat-label">ERROR</div>
+        </div>
+      </div>
+    </div>
+
+    <el-divider />
+
+    <!-- 日志操作 -->
+    <div class="log-actions">
+      <h3 class="actions-title">日志操作</h3>
+      <div class="action-buttons">
+        <el-button @click="handleOpenLogDir" :icon="FolderOpened" size="small">
+          打开日志目录
+        </el-button>
+        <el-button @click="handleExportLogs" size="small"> 导出日志 </el-button>
+        <el-button @click="handleClearLogBuffer" :icon="Delete" size="small" type="warning">
+          清空缓冲区
+        </el-button>
+        <el-button @click="handleTestLogs" size="small" type="primary"> 测试日志 </el-button>
+      </div>
+    </div>
+
+    <!-- 日志文件路径 -->
+    <div v-if="logFilePath" class="log-file-path">
+      <div class="setting-label">
+        <span>当前日志文件</span>
+        <el-tooltip content="当前日志文件的保存路径" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <div class="file-path">{{ logFilePath }}</div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.log-settings {
+  padding: 24px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.setting-item:not(:last-child) {
+  border-bottom: 1px solid var(--border-color-light);
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.info-icon {
+  color: var(--text-color-secondary);
+  cursor: help;
+}
+
+.log-stats {
+  margin: 20px 0;
+}
+
+.stats-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0 0 16px 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 16px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg-color-page);
+  border: 1px solid var(--border-color);
+}
+
+.stat-item.debug {
+  border-left: 4px solid #909399;
+}
+
+.stat-item.info {
+  border-left: 4px solid #409eff;
+}
+
+.stat-item.warn {
+  border-left: 4px solid #e6a23c;
+}
+
+.stat-item.error {
+  border-left: 4px solid #f56c6c;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  text-transform: uppercase;
+}
+
+.log-actions {
+  margin: 20px 0;
+}
+
+.actions-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0 0 16px 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.log-file-path {
+  margin-top: 20px;
+  padding: 12px;
+  background: var(--bg-color-page);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.file-path {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  word-break: break-all;
+  margin-top: 8px;
+}
+</style>

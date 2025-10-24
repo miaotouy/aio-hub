@@ -16,7 +16,9 @@ import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
 import ThemeColorSettings from "./components/ThemeColorSettings.vue";
+import LogSettings from "./components/LogSettings.vue";
 import { useTheme } from "../composables/useTheme";
+import { useLogConfig } from "../composables/useLogConfig";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
@@ -25,6 +27,7 @@ import type { ConfigExport } from "../types/config-export";
 
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
+const { applyLogConfig, watchLogConfig } = useLogConfig();
 const route = useRoute();
 const router = useRouter();
 
@@ -51,6 +54,11 @@ const settings = ref<AppSettings>({
   infoColor: "#909399",
   toolsVisible: {},
   toolsOrder: [],
+  // 日志配置
+  logLevel: "INFO",
+  logToFile: true,
+  logToConsole: true,
+  logBufferSize: 1000,
   version: "1.0.0",
 });
 
@@ -143,7 +151,7 @@ const handleSelect = (key: string) => {
 
 // 检查路由参数并滚动到指定区域
 const checkRouteAndScroll = (query: Record<string, any>) => {
-  if (query.section && typeof query.section === 'string') {
+  if (query.section && typeof query.section === "string") {
     // 使用 nextTick 和额外延迟确保 DOM 已经完全渲染
     // 特别是从分离窗口导航过来时，需要更多时间
     nextTick(() => {
@@ -153,7 +161,6 @@ const checkRouteAndScroll = (query: Record<string, any>) => {
     });
   }
 };
-
 
 // 重置设置
 const handleReset = async () => {
@@ -204,14 +211,10 @@ const handleOpenConfigDir = async () => {
       const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
       await writeText(configDir);
 
-      ElMessageBox.alert(
-        `无法自动打开目录，路径已复制到剪贴板：\n${configDir}`,
-        "提示",
-        {
-          confirmButtonText: "确定",
-          type: "info",
-        }
-      );
+      ElMessageBox.alert(`无法自动打开目录，路径已复制到剪贴板：\n${configDir}`, "提示", {
+        confirmButtonText: "确定",
+        type: "info",
+      });
     }
   } catch (error) {
     logger.error("获取配置目录路径失败", error);
@@ -273,7 +276,8 @@ const handleImportConfig = async () => {
     try {
       await ElMessageBox({
         title: "选择导入模式",
-        message: "请选择如何导入配置：\n\n• 合并导入：保留现有配置，仅更新导入文件中存在的项\n• 覆盖导入：完全替换为导入文件中的配置",
+        message:
+          "请选择如何导入配置：\n\n• 合并导入：保留现有配置，仅更新导入文件中存在的项\n• 覆盖导入：完全替换为导入文件中的配置",
         showCancelButton: true,
         confirmButtonText: "合并导入",
         cancelButtonText: "覆盖导入",
@@ -502,6 +506,12 @@ onMounted(async () => {
 
   settings.value = loadedSettings;
 
+  // 应用日志配置
+  applyLogConfig(settings.value);
+
+  // 监听日志配置变化
+  watchLogConfig(settings.value);
+
   // 应用主题（使用统一的主题管理）
   applyThemeFromComposable(settings.value.theme || "auto");
 
@@ -519,7 +529,7 @@ onMounted(async () => {
     await invoke("update_tray_setting", { enabled: settings.value.trayEnabled || false });
   } catch (error) {
     logger.error("初始化系统托盘设置失败", error, {
-      enabled: settings.value.trayEnabled || false
+      enabled: settings.value.trayEnabled || false,
     });
   }
 
@@ -611,6 +621,14 @@ onUnmounted(() => {
               v-model:danger-color="settings.dangerColor"
               v-model:info-color="settings.infoColor"
             />
+            <!-- 日志配置组件需要特殊处理，传递 v-model 绑定 -->
+            <LogSettings
+              v-else-if="module.id === 'log-settings'"
+              v-model:log-level="settings.logLevel"
+              v-model:log-to-file="settings.logToFile"
+              v-model:log-to-console="settings.logToConsole"
+              v-model:log-buffer-size="settings.logBufferSize"
+            />
             <!-- 其他动态组件 -->
             <component v-else :is="module.component" />
           </section>
@@ -657,15 +675,16 @@ onUnmounted(() => {
                   </el-icon>
                 </el-tooltip>
               </div>
-              <el-button @click="handleClearWindowState" size="small">
-                清除窗口状态
-              </el-button>
+              <el-button @click="handleClearWindowState" size="small"> 清除窗口状态 </el-button>
             </div>
 
             <div class="setting-item">
               <div class="setting-label">
                 <span>自动调整窗口位置</span>
-                <el-tooltip content="当工具窗口移动到屏幕外时，自动将其拉回可见区域" placement="top">
+                <el-tooltip
+                  content="当工具窗口移动到屏幕外时，自动将其拉回可见区域"
+                  placement="top"
+                >
                   <el-icon class="info-icon">
                     <InfoFilled />
                   </el-icon>
@@ -686,15 +705,9 @@ onUnmounted(() => {
                 </el-tooltip>
               </div>
               <div class="config-actions">
-                <el-button @click="handleOpenConfigDir" size="small">
-                  打开配置目录
-                </el-button>
-                <el-button @click="handleExportConfig" size="small">
-                  导出配置
-                </el-button>
-                <el-button @click="handleImportConfig" size="small">
-                  导入配置
-                </el-button>
+                <el-button @click="handleOpenConfigDir" size="small"> 打开配置目录 </el-button>
+                <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
+                <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
               </div>
             </div>
           </section>
@@ -760,7 +773,6 @@ onUnmounted(() => {
               </el-button>
             </div>
           </section>
-
         </template>
       </div>
     </div>
@@ -1091,5 +1103,4 @@ onUnmounted(() => {
   margin: 0;
   flex-shrink: 0;
 }
-
 </style>

@@ -25,6 +25,12 @@ export interface AppSettings {
   toolsVisible?: Record<string, boolean>;
   toolsOrder?: string[];
 
+  // 日志配置
+  logLevel?: "DEBUG" | "INFO" | "WARN" | "ERROR"; // 日志级别
+  logToFile?: boolean; // 是否启用文件日志
+  logToConsole?: boolean; // 是否启用控制台日志
+  logBufferSize?: number; // 日志缓冲区大小
+
   // 关于信息
   version?: string;
 }
@@ -54,6 +60,11 @@ export const defaultAppSettings: AppSettings = {
     gitAnalyzer: true,
   },
   toolsOrder: [],
+  // 默认日志配置
+  logLevel: "INFO", // 默认 INFO 级别
+  logToFile: true, // 默认启用文件日志
+  logToConsole: true, // 默认启用控制台日志
+  logBufferSize: 1000, // 默认缓冲区大小
   version: "1.0.0",
 };
 

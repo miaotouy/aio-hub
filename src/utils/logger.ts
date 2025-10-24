@@ -3,8 +3,8 @@
  * 提供分级日志、错误追踪和日志持久化功能
  */
 
-import { writeTextFile, exists, mkdir } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { writeTextFile, exists, mkdir } from "@tauri-apps/plugin-fs";
+import { appDataDir, join } from "@tauri-apps/api/path";
 
 export enum LogLevel {
   DEBUG = 0,
@@ -23,11 +23,13 @@ export interface LogEntry {
 }
 
 class Logger {
-  private currentLevel: LogLevel = LogLevel.INFO;
+  private currentLevel: LogLevel = LogLevel.DEBUG;
   private logBuffer: LogEntry[] = [];
   private maxBufferSize = 1000;
   private logFilePath: string | null = null;
   private isInitialized = false;
+  private logToFile = true;
+  private logToConsole = true;
 
   constructor() {
     this.initialize();
@@ -39,17 +41,17 @@ class Logger {
   private async initialize() {
     try {
       const appDir = await appDataDir();
-      const logsDir = await join(appDir, 'logs');
-      
-      if (!await exists(logsDir)) {
+      const logsDir = await join(appDir, "logs");
+
+      if (!(await exists(logsDir))) {
         await mkdir(logsDir, { recursive: true });
       }
-      
-      const date = new Date().toISOString().split('T')[0];
+
+      const date = new Date().toISOString().split("T")[0];
       this.logFilePath = await join(logsDir, `app-${date}.log`);
       this.isInitialized = true;
     } catch (error) {
-      console.error('初始化日志系统失败:', error);
+      console.error("初始化日志系统失败:", error);
     }
   }
 
@@ -61,12 +63,49 @@ class Logger {
   }
 
   /**
+   * 设置是否写入文件日志
+   */
+  setLogToFile(enabled: boolean) {
+    this.logToFile = enabled;
+  }
+
+  /**
+   * 设置是否输出到控制台
+   */
+  setLogToConsole(enabled: boolean) {
+    this.logToConsole = enabled;
+  }
+
+  /**
+   * 设置日志缓冲区大小
+   */
+  setLogBufferSize(size: number) {
+    this.maxBufferSize = size;
+    // 如果当前缓冲区超过新的大小，截断最早的日志
+    while (this.logBuffer.length > this.maxBufferSize) {
+      this.logBuffer.shift();
+    }
+  }
+
+  /**
+   * 获取当前日志配置
+   */
+  getLogConfig() {
+    return {
+      level: LogLevel[this.currentLevel] as keyof typeof LogLevel,
+      logToFile: this.logToFile,
+      logToConsole: this.logToConsole,
+      bufferSize: this.maxBufferSize,
+    };
+  }
+
+  /**
    * 格式化日志条目
    */
   private formatLogEntry(entry: LogEntry): string {
     const levelStr = LogLevel[entry.level];
     let log = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
-    
+
     if (entry.data) {
       try {
         log += `\n数据: ${JSON.stringify(entry.data, null, 2)}`;
@@ -74,11 +113,11 @@ class Logger {
         log += `\n数据: [无法序列化]`;
       }
     }
-    
+
     if (entry.stack) {
       log += `\n堆栈: ${entry.stack}`;
     }
-    
+
     return log;
   }
 
@@ -88,37 +127,39 @@ class Logger {
   private async writeLog(entry: LogEntry) {
     // 添加到缓冲区
     this.logBuffer.push(entry);
-    
+
     // 保持缓冲区大小
     if (this.logBuffer.length > this.maxBufferSize) {
       this.logBuffer.shift();
     }
-    
-    // 输出到控制台
-    const consoleMsg = this.formatLogEntry(entry);
-    switch (entry.level) {
-      case LogLevel.DEBUG:
-        console.debug(consoleMsg);
-        break;
-      case LogLevel.INFO:
-        console.info(consoleMsg);
-        break;
-      case LogLevel.WARN:
-        console.warn(consoleMsg);
-        break;
-      case LogLevel.ERROR:
-        console.error(consoleMsg);
-        break;
+
+    // 输出到控制台（如果启用）
+    if (this.logToConsole) {
+      const consoleMsg = this.formatLogEntry(entry);
+      switch (entry.level) {
+        case LogLevel.DEBUG:
+          console.debug(consoleMsg);
+          break;
+        case LogLevel.INFO:
+          console.info(consoleMsg);
+          break;
+        case LogLevel.WARN:
+          console.warn(consoleMsg);
+          break;
+        case LogLevel.ERROR:
+          console.error(consoleMsg);
+          break;
+      }
     }
-    
+
     // 写入文件（异步，不阻塞）
-    if (this.isInitialized && this.logFilePath) {
+    if (this.logToFile && this.isInitialized && this.logFilePath) {
       try {
-        const logLine = this.formatLogEntry(entry) + '\n';
+        const logLine = this.formatLogEntry(entry) + "\n";
         await writeTextFile(this.logFilePath, logLine, { append: true });
       } catch (error) {
         // 写入失败不影响主流程
-        console.error('写入日志文件失败:', error);
+        console.error("写入日志文件失败:", error);
       }
     }
   }
@@ -197,10 +238,10 @@ class Logger {
    */
   async exportLogs(filePath: string): Promise<void> {
     try {
-      const logs = this.logBuffer.map(entry => this.formatLogEntry(entry)).join('\n');
+      const logs = this.logBuffer.map((entry) => this.formatLogEntry(entry)).join("\n");
       await writeTextFile(filePath, logs);
     } catch (error) {
-      console.error('导出日志失败:', error);
+      console.error("导出日志失败:", error);
       throw error;
     }
   }
@@ -215,6 +256,7 @@ export function createModuleLogger(moduleName: string) {
     debug: (message: string, data?: any) => logger.debug(moduleName, message, data),
     info: (message: string, data?: any) => logger.info(moduleName, message, data),
     warn: (message: string, data?: any) => logger.warn(moduleName, message, data),
-    error: (message: string, error?: Error | any, data?: any) => logger.error(moduleName, message, error, data),
+    error: (message: string, error?: Error | any, data?: any) =>
+      logger.error(moduleName, message, error, data),
   };
 }

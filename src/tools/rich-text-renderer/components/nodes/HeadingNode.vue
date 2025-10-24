@@ -1,7 +1,8 @@
 <template>
   <component :is="tag" :class="['markdown-heading', `heading-${level}`]">
-    <slot />
-    <span v-if="content">{{ content }}</span>
+    <span>
+      <slot />
+    </span>
   </component>
 </template>
 
@@ -11,7 +12,6 @@ import { computed } from 'vue';
 const props = defineProps<{
   nodeId: string;
   level: number;
-  content?: string;
 }>();
 
 const tag = computed(() => `h${Math.min(Math.max(props.level, 1), 6)}`);

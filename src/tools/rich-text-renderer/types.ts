@@ -25,14 +25,50 @@ export interface BaseAstNode {
 }
 
 /**
- * 段落节点
+ * 纯文本节点（内联）
  */
-export interface ParagraphNode extends BaseAstNode {
-  type: 'paragraph';
+export interface TextNode extends BaseAstNode {
+  type: 'text';
   props: {
     content: string;
   };
   children?: never;
+}
+
+/**
+ * 粗体节点（内联）
+ */
+export interface StrongNode extends BaseAstNode {
+  type: 'strong';
+  props: Record<string, never>;
+  children: AstNode[];
+}
+
+/**
+ * 斜体节点（内联）
+ */
+export interface EmNode extends BaseAstNode {
+  type: 'em';
+  props: Record<string, never>;
+  children: AstNode[];
+}
+
+/**
+ * 删除线节点（内联）
+ */
+export interface StrikethroughNode extends BaseAstNode {
+  type: 'strikethrough';
+  props: Record<string, never>;
+  children: AstNode[];
+}
+
+/**
+ * 段落节点
+ */
+export interface ParagraphNode extends BaseAstNode {
+  type: 'paragraph';
+  props: Record<string, never>;
+  children: AstNode[];  // 包含内联元素
 }
 
 /**
@@ -42,9 +78,8 @@ export interface HeadingNode extends BaseAstNode {
   type: 'heading';
   props: {
     level: number;      // 1-6
-    content: string;
   };
-  children?: never;
+  children: AstNode[];  // 包含内联元素
 }
 
 /**
@@ -92,16 +127,15 @@ export interface ListItemNode extends BaseAstNode {
 }
 
 /**
- * 链接节点
+ * 链接节点（内联）
  */
 export interface LinkNode extends BaseAstNode {
   type: 'link';
   props: {
     href: string;
     title?: string;
-    content: string;
   };
-  children?: never;
+  children: AstNode[];  // 链接文本
 }
 
 /**
@@ -135,17 +169,6 @@ export interface HrNode extends BaseAstNode {
   children?: never;
 }
 
-/**
- * 强调节点（粗体/斜体等）
- */
-export interface EmphasisNode extends BaseAstNode {
-  type: 'emphasis';
-  props: {
-    level: 1 | 2;       // 1=斜体, 2=粗体
-    content: string;
-  };
-  children?: never;
-}
 
 /**
  * 表格节点
@@ -177,26 +200,30 @@ export interface TableCellNode extends BaseAstNode {
   props: {
     align?: 'left' | 'center' | 'right';
     isHeader?: boolean;
-    content: string;
   };
-  children?: never;
+  children: AstNode[];  // 包含内联元素
 }
 
 /**
  * 联合类型：所有支持的 AST 节点类型
  */
 export type AstNode =
+  // 内联节点
+  | TextNode
+  | StrongNode
+  | EmNode
+  | StrikethroughNode
+  | InlineCodeNode
+  | LinkNode
+  // 块级节点
   | ParagraphNode
   | HeadingNode
   | CodeBlockNode
-  | InlineCodeNode
   | ListNode
   | ListItemNode
-  | LinkNode
   | ImageNode
   | BlockquoteNode
   | HrNode
-  | EmphasisNode
   | TableNode
   | TableRowNode
   | TableCellNode;

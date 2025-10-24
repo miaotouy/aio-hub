@@ -245,6 +245,325 @@ graph TD
     *   **尾部重解析窗口**: 为应对不完整的流式语法，它只对文本流的末端"不稳定"区域进行重解析，已稳定的部分则锁定不变，确保性能和稳定性。
     *   **解析器路由**: 它不绑定任何特定的解析器。通过内容嗅探（如 `<div>`、`\`\`\`python` 等标记），它可以将不同的文本块路由给相应的解析器（Markdown、HTML、自定义解析器等），实现多内容类型的支持。
 
+#### 4.1.2 缓冲层设计 (Buffering Strategy)
+
+为应对 SSE 流的特性和 Markdown 语法的复杂性，StreamProcessor 实现了**四层缓冲机制**，确保流式解析的正确性和性能：
+
+##### 1. SSE 消息边界缓冲 ⭐⭐⭐
+
+**问题**: SSE 协议的 `data:` 行可能在单次 `onmessage` 事件中被截断，导致不完整的消息。
+
+**解决方案**: 维护行级缓冲区，确保只处理完整的 SSE 消息。
+
+```typescript
+class SSEMessageBuffer {
+  private lineBuffer = '';
+  
+  /**
+   * 处理原始 chunk，返回完整的消息数组
+   */
+  processChunk(rawChunk: string): string[] {
+    this.lineBuffer += rawChunk;
+    const lines = this.lineBuffer.split('\n');
+    
+    // 保留最后一行（可能不完整）
+    this.lineBuffer = lines.pop() || '';
+    
+    // 提取所有完整的 data: 行
+    return lines
+      .filter(line => line.startsWith('data:'))
+      .map(line => line.slice(5).trim());
+  }
+  
+  /**
+   * 在流结束时获取剩余内容
+   */
+  flush(): string {
+    const remaining = this.lineBuffer;
+    this.lineBuffer = '';
+    return remaining;
+  }
+}
+```
+
+**集成方式**: 在 `StreamProcessor.process()` 的入口处使用此缓冲器过滤 chunk。
+
+---
+
+##### 2. Markdown 语义边界缓冲 ⭐⭐⭐
+
+**问题**: 在代码块、列表、表格等结构的中间进行解析，会导致错误的 AST 结构。
+
+**解决方案**: 将输入文本分为"稳定区"和"待定区"，只解析确认完整的稳定区。
+
+```typescript
+class MarkdownBoundaryDetector {
+  /**
+   * 判断是否是安全的解析点
+   */
+  isSafeParsePoint(text: string): boolean {
+    const lines = text.split('\n');
+    const lastLines = lines.slice(-3); // 检查最后 3 行
+    
+    // 不安全情况：
+    // 1. 代码块未闭合
+    if (this.isInsideCodeBlock(lines)) return false;
+    
+    // 2. 列表项未完成（缩进突然增加）
+    if (this.isIncompleteList(lastLines)) return false;
+    
+    // 3. 表格未完成
+    if (this.isIncompleteTable(lastLines)) return false;
+    
+    // 4. 引用块未完成
+    if (this.isIncompleteBlockquote(lastLines)) return false;
+    
+    return true;
+  }
+  
+  /**
+   * 检查是否在代码块内部
+   */
+  private isInsideCodeBlock(lines: string[]): boolean {
+    let fenceCount = 0;
+    for (const line of lines) {
+      if (/^```/.test(line.trim())) {
+        fenceCount++;
+      }
+    }
+    // 奇数个围栏 = 未闭合
+    return fenceCount % 2 !== 0;
+  }
+  
+  /**
+   * 检查列表是否不完整
+   */
+  private isIncompleteList(lastLines: string[]): boolean {
+    if (lastLines.length < 2) return false;
+    
+    const getIndent = (line: string) => line.match(/^\s*/)?.[0].length || 0;
+    const lastIndent = getIndent(lastLines[lastLines.length - 1]);
+    const prevIndent = getIndent(lastLines[lastLines.length - 2]);
+    
+    // 如果最后一行缩进突然增加，可能是子列表的开始
+    return lastIndent > prevIndent + 2;
+  }
+  
+  /**
+   * 检查表格是否不完整
+   */
+  private isIncompleteTable(lastLines: string[]): boolean {
+    // 如果最后一行是表格分隔符 (|---|---|)，则不完整
+    const lastLine = lastLines[lastLines.length - 1]?.trim() || '';
+    return /^\|[\s:-]+\|/.test(lastLine);
+  }
+  
+  /**
+   * 检查引用块是否不完整
+   */
+  private isIncompleteBlockquote(lastLines: string[]): boolean {
+    // 如果最后几行都是引用，且没有空行结束，则可能不完整
+    const allQuotes = lastLines.every(line => line.trim().startsWith('>'));
+    const hasEmptyEnd = lastLines[lastLines.length - 1]?.trim() === '';
+    return allQuotes && !hasEmptyEnd;
+  }
+  
+  /**
+   * 找到安全的块边界，返回稳定区和待定区
+   */
+  splitByBlockBoundary(text: string): { stable: string; pending: string } {
+    const lines = text.split('\n');
+    let stableEnd = lines.length;
+    
+    // 从后向前查找安全边界
+    for (let i = lines.length - 1; i >= Math.max(0, lines.length - 10); i--) {
+      const testText = lines.slice(0, i + 1).join('\n');
+      if (this.isSafeParsePoint(testText)) {
+        stableEnd = i + 1;
+        break;
+      }
+    }
+    
+    return {
+      stable: lines.slice(0, stableEnd).join('\n'),
+      pending: lines.slice(stableEnd).join('\n')
+    };
+  }
+}
+```
+
+**集成方式**: 在 `StreamProcessor` 的增量解析流程中使用：
+
+```typescript
+class StreamProcessor {
+  private boundaryDetector = new MarkdownBoundaryDetector();
+  private pendingBuffer = '';
+  
+  private processIncremental(): void {
+    // 1. 划分稳定区和待定区
+    const { stable, pending } = this.boundaryDetector.splitByBlockBoundary(this.buffer);
+    
+    // 2. 仅解析稳定区 + 之前的待定区
+    const parseText = stable + this.pendingBuffer;
+    const newNodes = this.parseMarkdown(parseText);
+    
+    // 3. 更新待定缓冲
+    this.pendingBuffer = pending;
+    
+    // 4. 生成 Patch（只包含新稳定的节点）
+    const patches = this.diffNodes(this.stableAst, newNodes);
+    if (patches.length > 0) {
+      this.onPatch(patches);
+    }
+  }
+}
+```
+
+---
+
+##### 3. 时间缓冲（Debounce）⭐⭐
+
+**问题**: 高频 chunk（< 5ms 间隔）直接触发解析会浪费 CPU，但过度延迟又会影响用户体验。
+
+**解决方案**: 在 StreamProcessor 层增加智能 debounce，平衡吞吐量和延迟。
+
+```typescript
+class StreamProcessor {
+  private parseTimer: number | null = null;
+  private readonly PARSE_DEBOUNCE_MS = 16; // 约 60fps
+  private readonly MAX_DEBOUNCE_MS = 100;   // 最大延迟限制
+  private lastParseTime = 0;
+  
+  process(chunk: string, isComplete = false) {
+    this.buffer += chunk;
+    
+    // 取消之前的定时器
+    if (this.parseTimer !== null) {
+      clearTimeout(this.parseTimer);
+      this.parseTimer = null;
+    }
+    
+    if (isComplete) {
+      // 完成时立即解析
+      this.doParse(true);
+    } else {
+      const now = performance.now();
+      const elapsed = now - this.lastParseTime;
+      
+      // 如果距离上次解析时间过长，立即执行（避免用户感知延迟）
+      if (elapsed > this.MAX_DEBOUNCE_MS) {
+        this.doParse(false);
+      } else {
+        // 否则延迟执行
+        this.parseTimer = setTimeout(() => {
+          this.doParse(false);
+          this.parseTimer = null;
+        }, this.PARSE_DEBOUNCE_MS) as unknown as number;
+      }
+    }
+  }
+  
+  private doParse(isComplete: boolean) {
+    this.lastParseTime = performance.now();
+    
+    if (isComplete) {
+      this.processComplete();
+    } else {
+      this.processIncremental();
+    }
+  }
+}
+```
+
+**效果**:
+- 正常流速下，合并高频 chunk，减少解析次数
+- 低频流下，避免不必要的延迟
+- 完成时立即触发，保证最终一致性
+
+---
+
+##### 4. 解析窗口缓冲 ⭐
+
+**问题**: 文档提到"尾部重解析窗口"，但窗口大小和滑动策略需要明确。
+
+**解决方案**: 维护固定大小的尾部窗口，向前扩展到块边界。
+
+```typescript
+class StreamProcessor {
+  private readonly TAIL_WINDOW_SIZE = 1024; // 字符数
+  
+  /**
+   * 获取尾部解析窗口
+   */
+  private getTailWindow(buffer: string): string {
+    // 如果缓冲区小于窗口，返回全部
+    if (buffer.length <= this.TAIL_WINDOW_SIZE) {
+      return buffer;
+    }
+    
+    // 否则返回尾部窗口 + 向前扩展到完整块边界
+    const start = buffer.length - this.TAIL_WINDOW_SIZE;
+    const tail = buffer.slice(start);
+    
+    // 向前扩展到块边界（避免截断代码块等）
+    const expandedStart = this.findPreviousBlockBoundary(buffer, start);
+    return buffer.slice(expandedStart);
+  }
+  
+  /**
+   * 向前查找块边界
+   */
+  private findPreviousBlockBoundary(buffer: string, startPos: number): number {
+    // 向前最多查找 200 个字符
+    const searchStart = Math.max(0, startPos - 200);
+    const searchText = buffer.slice(searchStart, startPos);
+    
+    // 查找最近的块边界标记（空行、代码块围栏等）
+    const blockBoundaries = [
+      /\n\n/g,           // 双换行
+      /\n```/g,          // 代码块开始
+      /\n#{1,6}\s/g,     // 标题
+      /\n[-*+]\s/g,      // 列表
+    ];
+    
+    let latestBoundary = searchStart;
+    
+    for (const regex of blockBoundaries) {
+      let match;
+      while ((match = regex.exec(searchText)) !== null) {
+        const boundaryPos = searchStart + match.index;
+        if (boundaryPos > latestBoundary) {
+          latestBoundary = boundaryPos;
+        }
+      }
+    }
+    
+    return latestBoundary;
+  }
+}
+```
+
+---
+
+##### 5. 缓冲层优先级与实施建议
+
+| 缓冲层 | 优先级 | 实施阶段 | 理由 |
+|--------|--------|---------|------|
+| **SSE 消息边界** | 🔥 P0 | M0 | SSE 特有问题，不处理会崩溃 |
+| **Markdown 语义边界** | 🔥 P0 | M0 | 保证解析正确性的核心 |
+| **时间缓冲** | ⚙️ P1 | M1 | 性能优化，可逐步完善 |
+| **解析窗口** | 📊 P2 | M2 | 大文档优化，早期可简化 |
+
+**最小可用实现 (MVP)**:
+- 必须实现：SSE 消息边界缓冲 + Markdown 语义边界缓冲
+- 可选优化：时间缓冲 + 解析窗口缓冲
+
+**与 rAF 批处理的关系**:
+- 这四层缓冲主要在 **StreamProcessor (解析层)** 实现
+- rAF 批处理在 **useMarkdownAst (状态管理层)** 实现
+- 两者职责互补，共同保证流式处理的稳定性和性能
+
+
 ### 4.2 状态管理层 (State Management Layer)
 
 这是保证渲染性能和数据一致性的核心。

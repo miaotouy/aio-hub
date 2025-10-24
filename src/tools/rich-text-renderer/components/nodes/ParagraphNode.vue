@@ -1,14 +1,12 @@
 <template>
   <p class="markdown-paragraph">
     <slot />
-    <span v-if="content">{{ content }}</span>
   </p>
 </template>
 
 <script setup lang="ts">
 defineProps<{
   nodeId: string;
-  content?: string;
 }>();
 </script>
 

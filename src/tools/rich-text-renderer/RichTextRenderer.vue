@@ -8,7 +8,7 @@
 import { onMounted, onBeforeUnmount, watch } from 'vue';
 import { useMarkdownAst } from './composables/useMarkdownAst';
 import { StreamProcessor } from './StreamProcessor';
-import AstNodeRenderer from './components/AstNodeRenderer';
+import AstNodeRenderer from './components/AstNodeRenderer.tsx';
 import type { StreamSource } from './types';
 
 const props = defineProps<{

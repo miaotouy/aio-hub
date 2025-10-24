@@ -152,26 +152,52 @@ export function useMarkdownAst() {
       }
 
       case 'insert-after': {
-        // 在指定节点之后插入
+        // 在指定节点之后插入（支持嵌套）
+        let found = false;
         const result: AstNode[] = [];
+        
         for (const node of nodes) {
           result.push(node);
           if (node.id === patch.id) {
             result.push(patch.newNode);
+            found = true;
+          } else if (!found && node.children) {
+            // 递归查找子节点
+            const newChildren = applySinglePatch(node.children, patch);
+            if (newChildren !== node.children) {
+              // 子节点中找到了，更新节点
+              result[result.length - 1] = { ...node, children: newChildren };
+              found = true;
+            }
           }
         }
+        
         return result;
       }
 
       case 'insert-before': {
-        // 在指定节点之前插入
+        // 在指定节点之前插入（支持嵌套）
+        let found = false;
         const result: AstNode[] = [];
+        
         for (const node of nodes) {
           if (node.id === patch.id) {
             result.push(patch.newNode);
+            found = true;
           }
           result.push(node);
+          
+          if (!found && node.children) {
+            // 递归查找子节点
+            const newChildren = applySinglePatch(node.children, patch);
+            if (newChildren !== node.children) {
+              // 子节点中找到了，更新节点
+              result[result.length - 1] = { ...node, children: newChildren };
+              found = true;
+            }
+          }
         }
+        
         return result;
       }
 

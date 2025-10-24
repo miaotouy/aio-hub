@@ -1,9 +1,9 @@
 <template>
-  <component 
-    :is="tag" 
+  <component
+    :is="tag"
     :class="['markdown-table-cell', alignClass]"
   >
-    {{ content }}
+    <slot />
   </component>
 </template>
 
@@ -12,7 +12,6 @@ import { computed } from 'vue';
 
 const props = defineProps<{
   nodeId: string;
-  content: string;
   align?: 'left' | 'center' | 'right';
   isHeader?: boolean;
 }>();

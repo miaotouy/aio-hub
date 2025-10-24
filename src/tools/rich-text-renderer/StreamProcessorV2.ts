@@ -151,34 +151,42 @@ export class StreamProcessorV2 {
     }
   }
   /**
-   * 完整处理
+   * 完整处理（重写版）
+   *
+   * 在流结束时，将整个 buffer 作为最终内容重新解析，
+   * 然后与当前的 AST 进行 diff，确保正确处理节点合并等情况
    */
   private processComplete(): void {
-    // 如果有待定节点，直接将它们标记为稳定即可
-    // 不需要删除后重新解析，因为它们已经被正确解析过了
-    if (this.pendingAst.length > 0) {
-      this.markNodesStatus(this.pendingAst, "stable");
-      const patches: Patch[] = this.pendingAst.map(node => ({
-        op: "replace-node",
-        id: node.id,
-        newNode: node
-      }));
-      
-      this.stableAst.push(...this.pendingAst);
-      this.pendingAst = [];
-      this.stableTextLength = this.buffer.length;
-      
-      if (patches.length > 0) {
-        this.onPatch(patches);
-      }
+    // 将整个 buffer 作为最终内容重新解析
+    this.parser.reset();
+    const finalAst = this.parser.parse(this.buffer);
+    
+    // 保留现有节点的 ID
+    const currentFullAst = [...this.stableAst, ...this.pendingAst];
+    this.preserveExistingIds(finalAst, currentFullAst);
+    this.assignIds(finalAst);
+    this.markNodesStatus(finalAst, 'stable');
+    
+    // 计算 diff
+    const patches = this.diffAst(currentFullAst, finalAst);
+    
+    // 更新状态
+    this.stableAst = finalAst;
+    this.pendingAst = [];
+    this.stableTextLength = this.buffer.length;
+    
+    // 发送变更
+    if (patches.length > 0) {
+      this.onPatch(patches);
     }
   }
   /**
-   * 替换待定区（完全替换策略）
+   * 替换待定区（改进版）
+   *
+   * 优先使用针对性的流式优化（代码块、段落），
+   * 回退到 diff 策略而非完全替换，减少闪烁
    */
   private replacePendingRegion(oldPending: AstNode[], newPending: AstNode[]): Patch[] {
-    const patches: Patch[] = [];
-
     if (oldPending.length === 0 && newPending.length === 0) {
       return [];
     }
@@ -215,27 +223,12 @@ export class StreamProcessorV2 {
       }
     }
 
-    // 默认：完全替换
-    for (const oldNode of oldPending) {
-      patches.push({ op: "remove-node", id: oldNode.id });
-    }
-
-    if (newPending.length > 0) {
-      const anchorId =
-        this.stableAst.length > 0 ? this.stableAst[this.stableAst.length - 1].id : undefined;
-
-      if (anchorId) {
-        let currentAnchor = anchorId;
-        for (const newNode of newPending) {
-          patches.push({ op: "insert-after", id: currentAnchor, newNode });
-          currentAnchor = newNode.id;
-        }
-      } else {
-        patches.push({ op: "replace-root", newRoot: newPending });
-      }
-    }
-
-    return patches;
+    // 改进的默认策略：使用 diff 而不是完全替换
+    const anchorId = this.stableAst.length > 0
+      ? this.stableAst[this.stableAst.length - 1].id
+      : undefined;
+    
+    return this.diffAst(oldPending, newPending, anchorId);
   }
 
   private getNodeTextContent(node: AstNode): string {
@@ -277,7 +270,12 @@ export class StreamProcessorV2 {
     }
   }
 
-  private diffAst(oldNodes: AstNode[], newNodes: AstNode[]): Patch[] {
+  /**
+   * 解耦后的 diffAst 方法
+   *
+   * @param anchorId 可选的锚点ID，用于计算插入位置
+   */
+  private diffAst(oldNodes: AstNode[], newNodes: AstNode[], anchorId?: string): Patch[] {
     const patches: Patch[] = [];
     const minLen = Math.min(oldNodes.length, newNodes.length);
 
@@ -288,15 +286,21 @@ export class StreamProcessorV2 {
 
     // 新增节点
     if (newNodes.length > oldNodes.length) {
-      const anchorId = oldNodes.length > 0
-        ? oldNodes[oldNodes.length - 1].id
-        : this.stableAst[this.stableAst.length - 1]?.id;
-      
-      if (!anchorId) {
-        return [{ op: 'replace-root', newRoot: [...newNodes] }]; // 克隆数组，避免引用问题
+      // 确定锚点：优先使用传入的 anchorId，其次使用 oldNodes 的最后一个节点，最后回退到 stableAst
+      let insertAnchorId: string | undefined;
+      if (anchorId !== undefined) {
+        insertAnchorId = anchorId;
+      } else if (oldNodes.length > 0) {
+        insertAnchorId = oldNodes[oldNodes.length - 1].id;
+      } else {
+        insertAnchorId = this.stableAst[this.stableAst.length - 1]?.id;
       }
       
-      let currentAnchor = anchorId;
+      if (!insertAnchorId) {
+        return [{ op: 'replace-root', newRoot: [...newNodes] }];
+      }
+      
+      let currentAnchor = insertAnchorId;
       for (let i = minLen; i < newNodes.length; i++) {
         patches.push({ op: 'insert-after', id: currentAnchor, newNode: newNodes[i] });
         currentAnchor = newNodes[i].id;

@@ -288,14 +288,19 @@ export function useOcrRunner() {
           modelId: config.modelId,
           messages: [
             {
-              type: "text",
-              text:
-                config.prompt ||
-                "请识别图片中的所有文字内容，保持原有格式和换行。直接输出文字内容，不要添加任何解释或说明。",
-            },
-            {
-              type: "image",
-              imageBase64,
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text:
+                    config.prompt ||
+                    "请识别图片中的所有文字内容，保持原有格式和换行。直接输出文字内容，不要添加任何解释或说明。",
+                },
+                {
+                  type: "image",
+                  imageBase64,
+                },
+              ],
             },
           ],
           maxTokens: config.maxTokens ?? 2000,

@@ -14,6 +14,7 @@ import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
+import { useLlmChatUiState } from './useLlmChatUiState';
 import { createModuleLogger } from '@/utils/logger';
 import type { ChatAgent, ChatSession } from '../types';
 import { CHAT_STATE_KEYS, createChatSyncConfig } from '../types/sync';
@@ -71,8 +72,9 @@ export function useDetachedChatArea() {
 
   watch(syncedCurrentAgentId, (newId) => {
     if (newId !== null) {
-      logger.info('接收到 currentAgentId 同步数据，更新到 Store', { agentId: newId });
-      agentStore.currentAgentId = newId;
+      logger.info('接收到 currentAgentId 同步数据，更新到 UI State', { agentId: newId });
+      const { currentAgentId } = useLlmChatUiState();
+      currentAgentId.value = newId;
     }
   });
 

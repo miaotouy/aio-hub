@@ -180,11 +180,10 @@ export function useSessionManager() {
    */
   const persistSession = (
     session: ChatSession,
-    allSessions: ChatSession[],
     currentSessionId: string | null
   ): void => {
     const { persistSession: persistSessionToStorage } = useChatStorage();
-    persistSessionToStorage(session, allSessions, currentSessionId).catch((error) => {
+    persistSessionToStorage(session, currentSessionId).catch((error) => {
       logger.error('持久化会话失败', error as Error, {
         sessionId: session.id,
       });

@@ -193,7 +193,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     persistAgent(agent: ChatAgent): void {
       const { persistAgent: persistAgentToStorage } = useAgentStorage();
-      persistAgentToStorage(agent, this.agents).catch(error => {
+      persistAgentToStorage(agent).catch(error => {
         logger.error('持久化智能体失败', error as Error, {
           agentId: agent.id,
         });

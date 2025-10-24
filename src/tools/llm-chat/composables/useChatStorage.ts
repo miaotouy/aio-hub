@@ -3,8 +3,8 @@
  * 使用分离式存储，每个会话独立文件
  */
 
-import { useChatStorageSeparated } from './useChatStorageSeparated';
-import type { ChatSession } from '../types';
+import { useChatStorageSeparated } from "./useChatStorageSeparated";
+import type { ChatSession } from "../types";
 
 /**
  * 会话存储 composable
@@ -48,38 +48,36 @@ export function useChatStorage() {
   };
 
   /**
-   /**
-    * 保存单个会话
-    */
-   const saveSession = async (session: ChatSession): Promise<void> => {
-     return separatedStorage.saveSession(session);
-   };
- 
-   /**
-    * 保存单个会话并更新索引（推荐使用）
-    */
-   const persistSession = async (
-     session: ChatSession,
-     allSessions: ChatSession[],
-     currentSessionId: string | null
-   ): Promise<void> => {
-     return separatedStorage.persistSession(session, allSessions, currentSessionId);
-   };
- 
-   /**
-    * 创建防抖保存函数
-    */
-   const createDebouncedSave = (delay: number = 500) => {
-     return separatedStorage.createDebouncedSave(delay);
-   };
- 
-   return {
-     loadSessions,
-     saveSessions,
-     persistSession, // 新增：单会话保存
-     deleteSession,
-     loadSession,
-     saveSession,
-     createDebouncedSave,
-   };
- }
+   * 保存单个会话
+   */
+  const saveSession = async (session: ChatSession): Promise<void> => {
+    return separatedStorage.saveSession(session);
+  };
+
+  /**
+   * 保存单个会话并更新索引（推荐使用）
+   */
+  const persistSession = async (
+    session: ChatSession,
+    currentSessionId: string | null
+  ): Promise<void> => {
+    return separatedStorage.persistSession(session, currentSessionId);
+  };
+
+  /**
+   * 创建防抖保存函数
+   */
+  const createDebouncedSave = (delay: number = 500) => {
+    return separatedStorage.createDebouncedSave(delay);
+  };
+
+  return {
+    loadSessions,
+    saveSessions,
+    persistSession, // 新增：单会话保存
+    deleteSession,
+    loadSession,
+    saveSession,
+    createDebouncedSave,
+  };
+}

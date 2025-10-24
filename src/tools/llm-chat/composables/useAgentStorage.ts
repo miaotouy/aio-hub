@@ -58,11 +58,10 @@ export function useAgentStorage() {
    * 保存单个智能体并更新索引（推荐使用）
    */
   const persistAgent = async (
-    agent: ChatAgent,
-    allAgents: ChatAgent[]
+    agent: ChatAgent
   ): Promise<void> => {
     try {
-      await separatedStorage.persistAgent(agent, allAgents);
+      await separatedStorage.persistAgent(agent);
     } catch (error) {
       logger.error('保存单个智能体失败', error as Error, { agentId: agent.id });
       throw error;

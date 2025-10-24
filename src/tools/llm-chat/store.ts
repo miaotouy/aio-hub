@@ -3,15 +3,15 @@
  * 重构后的精简版本：专注于状态管理，复杂逻辑委托给 composables
  */
 
-import { defineStore } from 'pinia';
-import { useSessionManager } from './composables/useSessionManager';
-import { useChatHandler } from './composables/useChatHandler';
-import { useBranchManager } from './composables/useBranchManager';
-import type { ChatSession, ChatMessageNode, LlmParameters } from './types';
-import type { LlmMessageContent } from '@/llm-apis/common';
-import { createModuleLogger } from '@utils/logger';
+import { defineStore } from "pinia";
+import { useSessionManager } from "./composables/useSessionManager";
+import { useChatHandler } from "./composables/useChatHandler";
+import { useBranchManager } from "./composables/useBranchManager";
+import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
+import type { LlmMessageContent } from "@/llm-apis/common";
+import { createModuleLogger } from "@utils/logger";
 
-const logger = createModuleLogger('llm-chat/store');
+const logger = createModuleLogger("llm-chat/store");
 
 interface LlmChatState {
   /** 所有会话列表 */
@@ -28,7 +28,7 @@ interface LlmChatState {
   generatingNodes: Set<string>;
 }
 
-export const useLlmChatStore = defineStore('llmChat', {
+export const useLlmChatStore = defineStore("llmChat", {
   state: (): LlmChatState => ({
     sessions: [],
     currentSessionId: null,
@@ -64,7 +64,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       while (currentId !== null) {
         const node: ChatMessageNode | undefined = session.nodes[currentId];
         if (!node) {
-          logger.warn('活动路径中断：节点不存在', { sessionId: session.id, nodeId: currentId });
+          logger.warn("活动路径中断：节点不存在", { sessionId: session.id, nodeId: currentId });
           break;
         }
 
@@ -80,13 +80,13 @@ export const useLlmChatStore = defineStore('llmChat', {
      * 专门用于构建发送给 LLM 的消息列表
      * 符合设计原则：isEnabled 决定"这条分支上的哪句话要被 AI 忽略"
      */
-    llmContext(): Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }> {
+    llmContext(): Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }> {
       return this.currentActivePath
         .filter((node) => node.isEnabled !== false)
-        .filter((node) => node.role !== 'system')
-        .filter((node) => node.role === 'user' || node.role === 'assistant')
+        .filter((node) => node.role !== "system")
+        .filter((node) => node.role === "user" || node.role === "assistant")
         .map((node) => ({
-          role: node.role as 'user' | 'assistant',
+          role: node.role as "user" | "assistant",
           content: node.content,
         }));
     },
@@ -148,7 +148,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       this.sessions.push(session);
       this.currentSessionId = sessionId;
-      sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+      sessionManager.persistSession(session, this.currentSessionId);
 
       return sessionId;
     },
@@ -159,12 +159,12 @@ export const useLlmChatStore = defineStore('llmChat', {
     switchSession(sessionId: string): void {
       const session = this.sessions.find((s) => s.id === sessionId);
       if (!session) {
-        logger.warn('切换会话失败：会话不存在', { sessionId });
+        logger.warn("切换会话失败：会话不存在", { sessionId });
         return;
       }
 
       this.currentSessionId = sessionId;
-      logger.info('切换会话', { sessionId, sessionName: session.name });
+      logger.info("切换会话", { sessionId, sessionName: session.name });
     },
 
     /**
@@ -191,13 +191,13 @@ export const useLlmChatStore = defineStore('llmChat', {
     updateSession(sessionId: string, updates: Partial<ChatSession>): void {
       const session = this.sessions.find((s) => s.id === sessionId);
       if (!session) {
-        logger.warn('更新会话失败：会话不存在', { sessionId });
+        logger.warn("更新会话失败：会话不存在", { sessionId });
         return;
       }
 
       const sessionManager = useSessionManager();
       sessionManager.updateSession(session, updates);
-      sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+      sessionManager.persistSession(session, this.currentSessionId);
     },
 
     /**
@@ -241,7 +241,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       const sessionManager = useSessionManager();
       sessionManager.clearAllSessions();
-      logger.info('清空所有会话');
+      logger.info("清空所有会话");
     },
 
     // ==================== 核心聊天逻辑 ====================
@@ -252,12 +252,12 @@ export const useLlmChatStore = defineStore('llmChat', {
     async sendMessage(content: string): Promise<void> {
       const session = this.currentSession;
       if (!session) {
-        logger.error('发送消息失败：没有活动会话', new Error('No active session'));
-        throw new Error('请先创建或选择一个会话');
+        logger.error("发送消息失败：没有活动会话", new Error("No active session"));
+        throw new Error("请先创建或选择一个会话");
       }
 
       if (this.isSending) {
-        logger.warn('发送消息失败：正在发送中', { sessionId: session.id });
+        logger.warn("发送消息失败：正在发送中", { sessionId: session.id });
         return;
       }
 
@@ -277,10 +277,10 @@ export const useLlmChatStore = defineStore('llmChat', {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
 
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       } catch (error) {
         const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
         throw error;
       } finally {
         // 如果没有其他节点在生成，则解除全局锁
@@ -296,7 +296,7 @@ export const useLlmChatStore = defineStore('llmChat', {
     async regenerateFromNode(nodeId: string): Promise<void> {
       const session = this.currentSession;
       if (!session) {
-        logger.warn('重新生成失败：没有活动会话');
+        logger.warn("重新生成失败：没有活动会话");
         return;
       }
 
@@ -314,10 +314,10 @@ export const useLlmChatStore = defineStore('llmChat', {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
 
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       } catch (error) {
         const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
         throw error;
       } finally {
         // 如果没有其他节点在生成，则解除全局锁
@@ -333,7 +333,7 @@ export const useLlmChatStore = defineStore('llmChat', {
     async regenerateLastMessage(): Promise<void> {
       const session = this.currentSession;
       if (!session) {
-        logger.warn('重新生成失败：没有活动会话');
+        logger.warn("重新生成失败：没有活动会话");
         return;
       }
 
@@ -358,11 +358,11 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (this.abortControllers.size > 0) {
         this.abortControllers.forEach((controller, nodeId) => {
           controller.abort();
-          logger.info('已中止节点生成', { nodeId });
+          logger.info("已中止节点生成", { nodeId });
         });
         this.abortControllers.clear();
         this.generatingNodes.clear();
-        logger.info('已中止所有消息发送');
+        logger.info("已中止所有消息发送");
       }
     },
 
@@ -375,7 +375,7 @@ export const useLlmChatStore = defineStore('llmChat', {
         controller.abort();
         this.abortControllers.delete(nodeId);
         this.generatingNodes.delete(nodeId);
-        logger.info('已中止节点生成', { nodeId });
+        logger.info("已中止节点生成", { nodeId });
       }
     },
 
@@ -394,7 +394,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (success) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       }
     },
 
@@ -407,21 +407,20 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       const branchManager = useBranchManager();
       const success = branchManager.switchBranch(session, nodeId);
-
       if (success) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       }
     },
 
     /**
      * 切换到兄弟分支
      */
-    switchToSiblingBranch(nodeId: string, direction: 'prev' | 'next'): void {
+    switchToSiblingBranch(nodeId: string, direction: "prev" | "next"): void {
       const session = this.currentSession;
       if (!session) {
-        logger.warn('切换兄弟分支失败：没有活动会话');
+        logger.warn("切换兄弟分支失败：没有活动会话");
         return;
       }
 
@@ -431,7 +430,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (newLeafId !== session.activeLeafId) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       }
     },
 
@@ -441,7 +440,7 @@ export const useLlmChatStore = defineStore('llmChat', {
     editMessage(nodeId: string, newContent: string): void {
       const session = this.currentSession;
       if (!session) {
-        logger.warn('编辑消息失败：没有活动会话');
+        logger.warn("编辑消息失败：没有活动会话");
         return;
       }
 
@@ -450,7 +449,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       if (success) {
         const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       }
     },
 
@@ -460,7 +459,7 @@ export const useLlmChatStore = defineStore('llmChat', {
     createBranch(sourceNodeId: string): void {
       const session = this.currentSession;
       if (!session) {
-        logger.warn('创建分支失败：没有活动会话');
+        logger.warn("创建分支失败：没有活动会话");
         return;
       }
 
@@ -470,7 +469,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (newNodeId) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       }
     },
 
@@ -496,7 +495,7 @@ export const useLlmChatStore = defineStore('llmChat', {
     toggleNodeEnabled(nodeId: string): void {
       const session = this.currentSession;
       if (!session) {
-        logger.warn('切换节点状态失败：没有活动会话');
+        logger.warn("切换节点状态失败：没有活动会话");
         return;
       }
 
@@ -505,7 +504,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       if (success) {
         const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
+        sessionManager.persistSession(session, this.currentSessionId);
       }
     },
 
@@ -516,7 +515,7 @@ export const useLlmChatStore = defineStore('llmChat', {
      */
     updateParameters(parameters: Partial<LlmParameters>): void {
       Object.assign(this.parameters, parameters);
-      logger.info('更新参数配置', { parameters });
+      logger.info("更新参数配置", { parameters });
     },
   },
 });

@@ -124,15 +124,34 @@ export function useChatStorageSeparated() {
   }
 
   /**
-   * 保存单个会话
+   * 保存单个会话（仅在内容变化时写入）
    */
-  async function saveSession(session: ChatSession): Promise<void> {
+  async function saveSession(session: ChatSession, forceWrite: boolean = false): Promise<void> {
     try {
       await indexManager.ensureModuleDir(); // 使用 ConfigManager 确保模块目录存在
       await ensureSessionsDir(); // 确保 sessions 子目录存在
       const sessionPath = await getSessionPath(session.id);
-      const content = JSON.stringify(session, null, 2);
-      await writeTextFile(sessionPath, content);
+      const newContent = JSON.stringify(session, null, 2);
+      
+      // 如果不是强制写入，先检查内容是否真的改变了
+      if (!forceWrite) {
+        const fileExists = await exists(sessionPath);
+        if (fileExists) {
+          try {
+            const oldContent = await readTextFile(sessionPath);
+            // 内容相同则跳过写入
+            if (oldContent === newContent) {
+              logger.debug('会话内容未变化，跳过写入', { sessionId: session.id });
+              return;
+            }
+          } catch (readError) {
+            // 读取失败则继续写入
+            logger.warn('读取现有会话文件失败，继续写入', { sessionId: session.id });
+          }
+        }
+      }
+      
+      await writeTextFile(sessionPath, newContent);
       
       logger.debug('会话保存成功', {
         sessionId: session.id,
@@ -318,17 +337,53 @@ export function useChatStorageSeparated() {
   }
 
   /**
-   * 保存所有会话（兼容接口）
+   * 保存单个会话并更新索引
+   */
+  async function persistSession(
+    session: ChatSession,
+    currentSessionId: string | null
+  ): Promise<void> {
+    try {
+      logger.debug('保存单个会话', { sessionId: session.id });
+      
+      // 1. 保存会话文件
+      await saveSession(session, true); // 强制写入
+      
+      // 2. 更新索引（仅更新元数据，不触碰其他文件）
+      const index = await loadIndex();
+      index.currentSessionId = currentSessionId;
+      
+      // 更新或添加当前会话的索引项
+      const sessionIndex = index.sessions.findIndex(s => s.id === session.id);
+      const newIndexItem = createIndexItem(session);
+      
+      if (sessionIndex >= 0) {
+        index.sessions[sessionIndex] = newIndexItem;
+      } else {
+        index.sessions.push(newIndexItem);
+      }
+      
+      await saveIndex(index);
+      
+      logger.debug('单个会话保存成功', { sessionId: session.id });
+    } catch (error) {
+      logger.error('保存单个会话失败', error as Error, { sessionId: session.id });
+      throw error;
+    }
+  }
+
+  /**
+   * 保存所有会话（仅用于批量操作，如初始化）
    */
   async function saveSessions(
     sessions: ChatSession[],
     currentSessionId: string | null
   ): Promise<void> {
     try {
-      logger.debug('开始保存所有会话', { sessionCount: sessions.length });
+      logger.debug('开始批量保存所有会话', { sessionCount: sessions.length });
       
-      // 1. 并行保存所有会话文件
-      await Promise.all(sessions.map(session => saveSession(session)));
+      // 1. 并行保存所有会话文件（强制写入）
+      await Promise.all(sessions.map(session => saveSession(session, true)));
       
       // 2. 更新索引（保存元数据）
       const index: SessionsIndex = {
@@ -339,12 +394,12 @@ export function useChatStorageSeparated() {
 
       await saveIndex(index);
       
-      logger.info('所有会话保存成功', {
+      logger.info('所有会话批量保存成功', {
         sessionCount: sessions.length,
         currentSessionId
       });
     } catch (error) {
-      logger.error('保存所有会话失败', error as Error, {
+      logger.error('批量保存所有会话失败', error as Error, {
         sessionCount: sessions.length,
       });
       throw error;
@@ -402,6 +457,7 @@ export function useChatStorageSeparated() {
   return {
     loadSessions,
     saveSessions,
+    persistSession, // 新增：单会话保存
     deleteSession,
     createDebouncedSave,
     loadSession,

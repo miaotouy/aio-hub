@@ -127,15 +127,34 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 保存单个智能体
+   * 保存单个智能体（仅在内容变化时写入）
    */
-  async function saveAgent(agent: ChatAgent): Promise<void> {
+  async function saveAgent(agent: ChatAgent, forceWrite: boolean = false): Promise<void> {
     try {
       await indexManager.ensureModuleDir(); // 使用 ConfigManager 确保模块目录存在
       await ensureAgentsDir(); // 确保 agents 子目录存在
       const agentPath = await getAgentPath(agent.id);
-      const content = JSON.stringify(agent, null, 2);
-      await writeTextFile(agentPath, content);
+      const newContent = JSON.stringify(agent, null, 2);
+      
+      // 如果不是强制写入，先检查内容是否真的改变了
+      if (!forceWrite) {
+        const fileExists = await exists(agentPath);
+        if (fileExists) {
+          try {
+            const oldContent = await readTextFile(agentPath);
+            // 内容相同则跳过写入
+            if (oldContent === newContent) {
+              logger.debug('智能体内容未变化，跳过写入', { agentId: agent.id });
+              return;
+            }
+          } catch (readError) {
+            // 读取失败则继续写入
+            logger.warn('读取现有智能体文件失败，继续写入', { agentId: agent.id });
+          }
+        }
+      }
+      
+      await writeTextFile(agentPath, newContent);
       
       logger.debug('智能体保存成功', {
         agentId: agent.id,
@@ -292,25 +311,59 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 保存所有智能体（兼容接口）
+   * 保存单个智能体并更新索引
+   */
+  async function persistAgent(
+    agent: ChatAgent
+  ): Promise<void> {
+    try {
+      logger.debug('保存单个智能体', { agentId: agent.id });
+      
+      // 1. 保存智能体文件
+      await saveAgent(agent, true); // 强制写入
+      
+      // 2. 更新索引（仅更新元数据，不触碰其他文件）
+      const index = await loadIndex();
+      
+      // 更新或添加当前智能体的索引项
+      const agentIndex = index.agents.findIndex(a => a.id === agent.id);
+      const newIndexItem = createIndexItem(agent);
+      
+      if (agentIndex >= 0) {
+        index.agents[agentIndex] = newIndexItem;
+      } else {
+        index.agents.push(newIndexItem);
+      }
+      
+      await saveIndex(index);
+      
+      logger.debug('单个智能体保存成功', { agentId: agent.id });
+    } catch (error) {
+      logger.error('保存单个智能体失败', error as Error, { agentId: agent.id });
+      throw error;
+    }
+  }
+
+  /**
+   * 保存所有智能体（仅用于批量操作）
    */
   async function saveAgents(agents: ChatAgent[]): Promise<void> {
     try {
-      logger.debug('开始保存所有智能体', { agentCount: agents.length });
+      logger.debug('开始批量保存所有智能体', { agentCount: agents.length });
       
-      // 1. 并行保存所有智能体文件
-      await Promise.all(agents.map(agent => saveAgent(agent)));
+      // 1. 并行保存所有智能体文件（强制写入）
+      await Promise.all(agents.map(agent => saveAgent(agent, true)));
       
       // 2. 更新索引（保存元数据）
       const index = await loadIndex();
       index.agents = agents.map(a => createIndexItem(a));
       await saveIndex(index);
       
-      logger.info('所有智能体保存成功', {
+      logger.info('所有智能体批量保存成功', {
         agentCount: agents.length
       });
     } catch (error) {
-      logger.error('保存所有智能体失败', error as Error, {
+      logger.error('批量保存所有智能体失败', error as Error, {
         agentCount: agents.length,
       });
       throw error;
@@ -396,6 +449,7 @@ export function useAgentStorageSeparated() {
   return {
     loadAgents,
     saveAgents,
+    persistAgent, // 新增：单智能体保存
     deleteAgent,
     loadAgent,
     saveAgent,

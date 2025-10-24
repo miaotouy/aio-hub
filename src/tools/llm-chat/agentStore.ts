@@ -127,7 +127,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       Object.assign(agent, updates);
-      this.persistAgents();
+      this.persistAgent(agent); // 只保存这一个智能体
 
       logger.info('更新智能体', { agentId, updates });
     },
@@ -184,17 +184,29 @@ export const useAgentStore = defineStore('llmChatAgent', {
       const agent = this.agents.find(a => a.id === agentId);
       if (agent) {
         agent.lastUsedAt = new Date().toISOString();
-        this.persistAgents();
+        this.persistAgent(agent); // 只保存这一个智能体
       }
     },
 
     /**
-     * 持久化智能体到文件
+     * 持久化单个智能体到文件（仅保存指定智能体）
+     */
+    persistAgent(agent: ChatAgent): void {
+      const { persistAgent: persistAgentToStorage } = useAgentStorage();
+      persistAgentToStorage(agent, this.agents).catch(error => {
+        logger.error('持久化智能体失败', error as Error, {
+          agentId: agent.id,
+        });
+      });
+    },
+
+    /**
+     * 持久化所有智能体到文件（批量操作）
      */
     persistAgents(): void {
       const { saveAgents } = useAgentStorage();
       saveAgents(this.agents).catch(error => {
-        logger.error('持久化智能体失败', error as Error, {
+        logger.error('持久化所有智能体失败', error as Error, {
           agentCount: this.agents.length,
         });
       });

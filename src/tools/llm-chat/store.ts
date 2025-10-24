@@ -148,7 +148,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       this.sessions.push(session);
       this.currentSessionId = sessionId;
-      this.persistSessions();
+      sessionManager.persistSession(session, this.sessions, this.currentSessionId);
 
       return sessionId;
     },
@@ -197,7 +197,7 @@ export const useLlmChatStore = defineStore('llmChat', {
 
       const sessionManager = useSessionManager();
       sessionManager.updateSession(session, updates);
-      this.persistSessions();
+      sessionManager.persistSession(session, this.sessions, this.currentSessionId);
     },
 
     /**
@@ -277,9 +277,10 @@ export const useLlmChatStore = defineStore('llmChat', {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
 
-        this.persistSessions();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       } catch (error) {
-        this.persistSessions();
+        const sessionManager = useSessionManager();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
         throw error;
       } finally {
         // 如果没有其他节点在生成，则解除全局锁
@@ -313,9 +314,10 @@ export const useLlmChatStore = defineStore('llmChat', {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
 
-        this.persistSessions();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       } catch (error) {
-        this.persistSessions();
+        const sessionManager = useSessionManager();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
         throw error;
       } finally {
         // 如果没有其他节点在生成，则解除全局锁
@@ -392,7 +394,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (success) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        this.persistSessions();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       }
     },
 
@@ -409,7 +411,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (success) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        this.persistSessions();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       }
     },
 
@@ -429,7 +431,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (newLeafId !== session.activeLeafId) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        this.persistSessions();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       }
     },
 
@@ -447,7 +449,8 @@ export const useLlmChatStore = defineStore('llmChat', {
       const success = branchManager.editMessage(session, nodeId, newContent);
 
       if (success) {
-        this.persistSessions();
+        const sessionManager = useSessionManager();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       }
     },
 
@@ -467,7 +470,7 @@ export const useLlmChatStore = defineStore('llmChat', {
       if (newNodeId) {
         const sessionManager = useSessionManager();
         sessionManager.updateSessionDisplayAgent(session);
-        this.persistSessions();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       }
     },
 
@@ -501,7 +504,8 @@ export const useLlmChatStore = defineStore('llmChat', {
       const success = branchManager.toggleNodeEnabled(session, nodeId);
 
       if (success) {
-        this.persistSessions();
+        const sessionManager = useSessionManager();
+        sessionManager.persistSession(session, this.sessions, this.currentSessionId);
       }
     },
 

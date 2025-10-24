@@ -55,6 +55,21 @@ export function useAgentStorage() {
   };
 
   /**
+   * 保存单个智能体并更新索引（推荐使用）
+   */
+  const persistAgent = async (
+    agent: ChatAgent,
+    allAgents: ChatAgent[]
+  ): Promise<void> => {
+    try {
+      await separatedStorage.persistAgent(agent, allAgents);
+    } catch (error) {
+      logger.error('保存单个智能体失败', error as Error, { agentId: agent.id });
+      throw error;
+    }
+  };
+
+  /**
    * 创建防抖保存函数
    */
   const createDebouncedSave = (delay: number = 500) => {
@@ -64,6 +79,7 @@ export function useAgentStorage() {
   return {
     loadAgents,
     saveAgents,
+    persistAgent, // 新增：单智能体保存
     deleteAgent,
     createDebouncedSave,
   };

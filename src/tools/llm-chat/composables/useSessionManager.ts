@@ -176,12 +176,28 @@ export function useSessionManager() {
   };
 
   /**
-   * 持久化会话到文件
+   * 持久化单个会话到文件（仅保存指定会话）
+   */
+  const persistSession = (
+    session: ChatSession,
+    allSessions: ChatSession[],
+    currentSessionId: string | null
+  ): void => {
+    const { persistSession: persistSessionToStorage } = useChatStorage();
+    persistSessionToStorage(session, allSessions, currentSessionId).catch((error) => {
+      logger.error('持久化会话失败', error as Error, {
+        sessionId: session.id,
+      });
+    });
+  };
+
+  /**
+   * 持久化所有会话到文件（批量操作）
    */
   const persistSessions = (sessions: ChatSession[], currentSessionId: string | null): void => {
     const { saveSessions } = useChatStorage();
     saveSessions(sessions, currentSessionId).catch((error) => {
-      logger.error('持久化会话失败', error as Error, {
+      logger.error('持久化所有会话失败', error as Error, {
         sessionCount: sessions.length,
       });
     });
@@ -251,7 +267,8 @@ export function useSessionManager() {
     deleteSession,
     updateSession,
     loadSessions,
-    persistSessions,
+    persistSession,  // 新增：单会话保存
+    persistSessions, // 批量保存
     updateSessionDisplayAgent,
     exportSessionAsMarkdown,
     clearAllSessions,

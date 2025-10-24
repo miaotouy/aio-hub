@@ -21,6 +21,8 @@ import type {
   ListItemNode,
   BlockquoteNode,
   HrNode,
+  HtmlBlockNode,
+  HtmlInlineNode,
   TableNode,
   TableRowNode,
   TableCellNode,
@@ -140,7 +142,7 @@ export class StreamProcessor {
     this.boundaryDetector = new MarkdownBoundaryDetector();
     
     this.md = new MarkdownIt({
-      html: false,
+      html: true, // 启用 HTML 解析
       breaks: true,
       linkify: true,
       typographer: true,
@@ -300,6 +302,9 @@ export class StreamProcessor {
     if (node.type === 'inline_code') {
       return (node as InlineCodeNode).props.content;
     }
+    if (node.type === 'html_inline' || node.type === 'html_block') {
+      return (node as HtmlInlineNode | HtmlBlockNode).props.content;
+    }
     if (!node.children) return '';
     return node.children.map(child => this.getNodeTextContent(child)).join('');
   }
@@ -428,49 +433,69 @@ export class StreamProcessor {
     return ast;
   }
 
-  private parseInlineTokens(tokens: any[]): AstNode[] {
-    const nodes: AstNode[] = [];
-    let i = 0;
-    while (i < tokens.length) {
-      const token = tokens[i];
-      switch (token.type) {
-        case 'text':
-          nodes.push({ id: this.generateNodeId(), type: 'text', props: { content: token.content }, meta: { range: { start: 0, end: 0 } } } as TextNode);
-          break;
-        case 'strong_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'strong_close');
-          nodes.push({ id: this.generateNodeId(), type: 'strong', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrongNode);
-          i = nextIndex;
-          break;
+    private parseInlineTokens(tokens: any[]): AstNode[] {
+      const nodes: AstNode[] = [];
+      let i = 0;
+      while (i < tokens.length) {
+        const token = tokens[i];
+  
+        // 组合连续的 text 和 html_inline 令牌
+        if (token.type === 'text' || token.type === 'html_inline') {
+          let buffer = '';
+          let currentPos = i;
+          while (currentPos < tokens.length && (tokens[currentPos].type === 'text' || tokens[currentPos].type === 'html_inline')) {
+            buffer += tokens[currentPos].content;
+            currentPos++;
+          }
+  
+          // 如果组合后的内容包含 HTML 标签，则创建 HtmlInlineNode，否则创建 TextNode
+          // 这样可以避免将纯文本错误地用 v-html 渲染
+          if (/<[a-z][\s\S]*>/i.test(buffer)) {
+            nodes.push({ id: this.generateNodeId(), type: 'html_inline', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as HtmlInlineNode);
+          } else {
+            nodes.push({ id: this.generateNodeId(), type: 'text', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as TextNode);
+          }
+          
+          i = currentPos; // 快进索引
+          continue; // 继续下一次大循环
         }
-        case 'em_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'em_close');
-          nodes.push({ id: this.generateNodeId(), type: 'em', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as EmNode);
-          i = nextIndex;
-          break;
+        
+        // 处理其他非文本/html的令牌
+        switch (token.type) {
+          case 'strong_open': {
+            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'strong_close');
+            nodes.push({ id: this.generateNodeId(), type: 'strong', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrongNode);
+            i = nextIndex;
+            break;
+          }
+          case 'em_open': {
+            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'em_close');
+            nodes.push({ id: this.generateNodeId(), type: 'em', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as EmNode);
+            i = nextIndex;
+            break;
+          }
+          case 's_open': {
+            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 's_close');
+            nodes.push({ id: this.generateNodeId(), type: 'strikethrough', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrikethroughNode);
+            i = nextIndex;
+            break;
+          }
+          case 'code_inline':
+            nodes.push({ id: this.generateNodeId(), type: 'inline_code', props: { content: token.content }, meta: { range: { start: 0, end: 0 } } } as InlineCodeNode);
+            break;
+          case 'link_open': {
+            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'link_close');
+            const href = token.attrGet('href') || '';
+            const title = token.attrGet('title') || undefined;
+            nodes.push({ id: this.generateNodeId(), type: 'link', props: { href, title }, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as LinkNode);
+            i = nextIndex;
+            break;
+          }
         }
-        case 's_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 's_close');
-          nodes.push({ id: this.generateNodeId(), type: 'strikethrough', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrikethroughNode);
-          i = nextIndex;
-          break;
-        }
-        case 'code_inline':
-          nodes.push({ id: this.generateNodeId(), type: 'inline_code', props: { content: token.content }, meta: { range: { start: 0, end: 0 } } } as InlineCodeNode);
-          break;
-        case 'link_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'link_close');
-          const href = token.attrGet('href') || '';
-          const title = token.attrGet('title') || undefined;
-          nodes.push({ id: this.generateNodeId(), type: 'link', props: { href, title }, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as LinkNode);
-          i = nextIndex;
-          break;
-        }
+        i++;
       }
-      i++;
+      return nodes;
     }
-    return nodes;
-  }
 
   private extractInnerTokens(tokens: any[], startIndex: number, closingType: string): { innerTokens: any[], nextIndex: number } {
     const innerTokens: any[] = [];
@@ -516,6 +541,8 @@ export class StreamProcessor {
         const children = this.extractTableContent(tokens, index);
         return { id: this.generateNodeId(), type: 'table', props: {}, children, meta } as TableNode;
       }
+      case 'html_block':
+        return { id: this.generateNodeId(), type: 'html_block', props: { content: token.content }, meta } as HtmlBlockNode;
       default:
         return null;
     }

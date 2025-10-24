@@ -615,7 +615,7 @@ $$
 
 <a href="https://example.com" title="示例链接">带属性的链接</a>
 
-<img src="image.jpg" alt="图片描述" width="300" height="200" />
+<img src="/agent-icons/sakata-gintoki.jpg" alt="图片描述" width="300" height="200" />
 
 <button onclick="alert('clicked')" class="btn">点击按钮</button>
 

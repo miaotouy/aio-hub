@@ -170,6 +170,29 @@ export interface HrNode extends BaseAstNode {
   children?: never;
 }
 
+/**
+ * HTML 块级节点
+ * 用于渲染 HTML 块级标签（如 <div>, <p>, <section> 等）
+ */
+export interface HtmlBlockNode extends BaseAstNode {
+  type: 'html_block';
+  props: {
+    content: string;  // 原始 HTML 内容
+  };
+  children?: never;
+}
+
+/**
+ * HTML 内联节点
+ * 用于渲染 HTML 内联标签（如 <span>, <b>, <i> 等）
+ */
+export interface HtmlInlineNode extends BaseAstNode {
+  type: 'html_inline';
+  props: {
+    content: string;  // 原始 HTML 内容
+  };
+  children?: never;
+}
 
 /**
  * 表格节点
@@ -216,6 +239,7 @@ export type AstNode =
   | StrikethroughNode
   | InlineCodeNode
   | LinkNode
+  | HtmlInlineNode
   // 块级节点
   | ParagraphNode
   | HeadingNode
@@ -225,6 +249,7 @@ export type AstNode =
   | ImageNode
   | BlockquoteNode
   | HrNode
+  | HtmlBlockNode
   | TableNode
   | TableRowNode
   | TableCellNode;

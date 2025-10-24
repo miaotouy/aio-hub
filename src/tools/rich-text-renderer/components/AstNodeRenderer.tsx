@@ -18,6 +18,7 @@ import EmNode from "./nodes/EmNode.vue";
 import StrikethroughNode from "./nodes/StrikethroughNode.vue";
 import InlineCodeNode from "./nodes/InlineCodeNode.vue";
 import LinkNode from "./nodes/LinkNode.vue";
+import HtmlInlineNode from "./nodes/HtmlInlineNode.vue";
 // 块级节点
 import ParagraphNode from "./nodes/ParagraphNode.vue";
 import HeadingNode from "./nodes/HeadingNode.vue";
@@ -26,6 +27,7 @@ import ListNode from "./nodes/ListNode.vue";
 import ListItemNode from "./nodes/ListItemNode.vue";
 import BlockquoteNode from "./nodes/BlockquoteNode.vue";
 import HrNode from "./nodes/HrNode.vue";
+import HtmlBlockNode from "./nodes/HtmlBlockNode.vue";
 import TableNode from "./nodes/TableNode.vue";
 import TableRowNode from "./nodes/TableRowNode.vue";
 import TableCellNode from "./nodes/TableCellNode.vue";
@@ -42,6 +44,7 @@ const componentMap: Record<string, any> = {
   strikethrough: StrikethroughNode,
   inline_code: InlineCodeNode,
   link: LinkNode,
+  html_inline: HtmlInlineNode,
   // 块级节点
   paragraph: ParagraphNode,
   heading: HeadingNode,
@@ -50,6 +53,7 @@ const componentMap: Record<string, any> = {
   list_item: ListItemNode,
   blockquote: BlockquoteNode,
   hr: HrNode,
+  html_block: HtmlBlockNode,
   table: TableNode,
   table_row: TableRowNode,
   table_cell: TableCellNode,

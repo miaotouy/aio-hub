@@ -1,10 +1,60 @@
 <template>
   <div class="markdown-code-block">
     <div v-if="language" class="code-header">
-      <span class="language-tag">{{ language }}</span>
+      <div class="language-info">
+        <span class="language-tag">{{ language }}</span>
+      </div>
+      <div class="header-actions">
+        <!-- 字体大小调整按钮 -->
+        <button
+          class="action-btn"
+          :disabled="codeFontSize <= codeFontMin"
+          @click="decreaseCodeFont"
+          title="减小字体"
+        >
+          <Minus :size="14" />
+        </button>
+        <button
+          class="action-btn"
+          :disabled="!fontBaselineReady || codeFontSize === defaultCodeFontSize"
+          @click="resetCodeFont"
+          title="重置字体大小"
+        >
+          <RotateCcw :size="14" />
+        </button>
+        <button
+          class="action-btn"
+          :disabled="codeFontSize >= codeFontMax"
+          @click="increaseCodeFont"
+          title="增大字体"
+        >
+          <Plus :size="14" />
+        </button>
+        
+        <!-- 复制按钮 -->
+        <button
+          class="action-btn"
+          :class="{ 'action-btn-active': copied }"
+          @click="copyCode"
+          :title="copied ? '已复制' : '复制代码'"
+        >
+          <Check v-if="copied" :size="14" />
+          <Copy v-else :size="14" />
+        </button>
+        
+        <!-- 展开/折叠按钮 -->
+        <button
+          class="action-btn"
+          @click="toggleExpand"
+          :title="isExpanded ? '折叠' : '展开'"
+        >
+          <Minimize2 v-if="isExpanded" :size="14" />
+          <Maximize2 v-else :size="14" />
+        </button>
+      </div>
     </div>
     <!-- 容器本身负责滚动，而不是 Monaco 编辑器 -->
-    <div class="code-editor-container">
+    <div class="code-editor-container" :class="{ 'expanded': isExpanded }">
       <div ref="editorEl"></div>
     </div>
   </div>
@@ -12,7 +62,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { Copy, Check, Maximize2, Minimize2, Plus, Minus, RotateCcw } from 'lucide-vue-next';
 import { useTheme } from '@composables/useTheme';
+import { customMessage } from '@/utils/customMessage';
 // 动态导入，避免类型检查时就报错
 type StreamMonacoModule = typeof import('stream-monaco');
 
@@ -24,6 +76,25 @@ const props = defineProps<{
 
 const editorEl = ref<HTMLElement | null>(null);
 const { isDark } = useTheme();
+
+// 复制状态
+const copied = ref(false);
+
+// 展开状态
+const isExpanded = ref(false);
+
+// 字体大小控制
+const codeFontMin = 10;
+const codeFontMax = 36;
+const codeFontStep = 1;
+const defaultCodeFontSize = ref<number>(14);
+const codeFontSize = ref<number>(14);
+const fontBaselineReady = computed(() => {
+  const a = defaultCodeFontSize.value;
+  const b = codeFontSize.value;
+  return typeof a === 'number' && Number.isFinite(a) && a > 0 &&
+         typeof b === 'number' && Number.isFinite(b) && b > 0;
+});
 
 // Monaco 编辑器语言映射
 const languageMap: Record<string, string> = {
@@ -45,6 +116,56 @@ const monacoLanguage = computed(() => {
 let updateCode: (code: string, lang: string) => void = () => {};
 let cleanupEditor: () => void = () => {};
 let setTheme: (theme: any) => Promise<void> = async () => {};
+let getEditorView: () => any = () => ({ updateOptions: () => {} });
+
+// 复制代码
+const copyCode = async () => {
+  try {
+    await navigator.clipboard.writeText(props.content);
+    copied.value = true;
+    customMessage.success('代码已复制');
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch (error) {
+    console.error('[CodeBlockNode] 复制失败:', error);
+    customMessage.error('复制失败');
+  }
+};
+
+// 切换展开/折叠
+const toggleExpand = () => {
+  isExpanded.value = !isExpanded.value;
+};
+
+// 字体大小调整
+const increaseCodeFont = () => {
+  const newSize = Math.min(codeFontMax, codeFontSize.value + codeFontStep);
+  codeFontSize.value = newSize;
+  updateEditorFontSize(newSize);
+};
+
+const decreaseCodeFont = () => {
+  const newSize = Math.max(codeFontMin, codeFontSize.value - codeFontStep);
+  codeFontSize.value = newSize;
+  updateEditorFontSize(newSize);
+};
+
+const resetCodeFont = () => {
+  codeFontSize.value = defaultCodeFontSize.value;
+  updateEditorFontSize(defaultCodeFontSize.value);
+};
+
+const updateEditorFontSize = (size: number) => {
+  try {
+    const editor = getEditorView();
+    if (editor && typeof editor.updateOptions === 'function') {
+      editor.updateOptions({ fontSize: size });
+    }
+  } catch (error) {
+    console.error('[CodeBlockNode] 更新字体大小失败:', error);
+  }
+};
 
 onMounted(async () => {
   if (!editorEl.value) return;
@@ -102,6 +223,15 @@ onMounted(async () => {
     updateCode = helpers.updateCode;
     cleanupEditor = helpers.cleanupEditor;
     setTheme = helpers.setTheme;
+    getEditorView = helpers.getEditorView || getEditorView;
+    
+    // 设置初始字体大小
+    const editor = getEditorView();
+    if (editor && typeof editor.updateOptions === 'function') {
+      const actualFontSize = editorOptions.fontSize || 13;
+      defaultCodeFontSize.value = actualFontSize;
+      codeFontSize.value = actualFontSize;
+    }
 
   } catch (error) {
     console.error('[CodeBlockNode] Failed to initialize Monaco editor via stream-monaco:', error);
@@ -141,10 +271,17 @@ watch(() => props.content, (newContent) => {
 .code-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 8px 12px;
   background-color: var(--el-fill-color);
   border-bottom: 1px solid var(--el-border-color);
   flex-shrink: 0;
+}
+
+.language-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .language-tag {
@@ -152,6 +289,46 @@ watch(() => props.content, (newContent) => {
   font-weight: 500;
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover:not(:disabled) {
+  background-color: var(--el-fill-color-darker);
+  color: var(--el-text-color-primary);
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-btn-active {
+  background-color: var(--el-color-primary);
+  color: white;
+}
+
+.action-btn-active:hover {
+  background-color: var(--el-color-primary-light-3);
 }
 
 .code-editor-container {
@@ -163,6 +340,11 @@ watch(() => props.content, (newContent) => {
   /* 确保 flex 布局下可以正确伸缩 */
   position: relative;
   flex: 1 1 auto;
+  transition: max-height 0.3s ease;
+}
+
+.code-editor-container.expanded {
+  max-height: none;
 }
 
 /*

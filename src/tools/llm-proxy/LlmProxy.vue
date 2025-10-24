@@ -113,12 +113,12 @@
     </div>
 
     <!-- 记录列表组件 -->
-    <RecordsList 
-      :records="filteredRecords" 
-      :selectedRecord="selectedRecord" 
+    <RecordsList
+      :records="records"
+      :selectedRecord="selectedRecord"
       v-model:searchQuery="filterOptions.searchQuery"
-      v-model:filterStatus="filterOptions.filterStatus" 
-      @select="selectRecord" 
+      v-model:filterStatus="filterOptions.filterStatus"
+      @select="selectRecord"
     />
 
     <!-- 详情面板组件 -->
@@ -152,7 +152,6 @@ const {
   records,
   selectedRecord,
   filterOptions,
-  filteredRecords,
   activeStreamCount,
   
   // 方法

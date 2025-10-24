@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { Copy, Check, Maximize2, Minimize2, Plus, Minus, RotateCcw } from 'lucide-vue-next';
 import { useTheme } from '@composables/useTheme';
 import { customMessage } from '@/utils/customMessage';
@@ -133,9 +133,79 @@ const copyCode = async () => {
   }
 };
 
+// 获取内容高度
+const computeContentHeight = (): number | null => {
+  try {
+    const editor = getEditorView();
+    if (!editor) return null;
+    
+    // 优先使用 Monaco 的 contentHeight
+    if (typeof editor.getContentHeight === 'function') {
+      const h = editor.getContentHeight();
+      if (h > 0) return Math.ceil(h);
+    }
+    
+    // 后备方案：行数 * 行高
+    const model = editor.getModel?.();
+    const lineCount = model?.getLineCount?.() || 1;
+    const lineHeight = 18; // 默认行高
+    return Math.ceil(lineCount * lineHeight);
+  } catch {
+    return null;
+  }
+};
+
+// 设置 automaticLayout
+const setAutomaticLayout = (enabled: boolean) => {
+  try {
+    const editor = getEditorView();
+    if (editor && typeof editor.updateOptions === 'function') {
+      editor.updateOptions({ automaticLayout: enabled });
+    }
+  } catch (error) {
+    console.error('[CodeBlockNode] 设置 automaticLayout 失败:', error);
+  }
+};
+
 // 切换展开/折叠
-const toggleExpand = () => {
+const toggleExpand = async () => {
   isExpanded.value = !isExpanded.value;
+  
+  const editor = getEditorView();
+  const container = editorEl.value;
+  if (!editor || !container) return;
+  
+  await nextTick();
+  
+  try {
+    if (isExpanded.value) {
+      // 展开：启用自动布局，移除高度限制
+      setAutomaticLayout(true);
+      container.style.maxHeight = 'none';
+      container.style.overflow = 'hidden'; // 保持 overflow hidden
+      
+      // 计算并设置内容高度
+      const h = computeContentHeight();
+      if (h && h > 0) {
+        container.style.height = `${h}px`;
+      } else {
+        container.style.height = 'auto'; // Fallback
+      }
+    } else {
+      // 收起：禁用自动布局，恢复高度限制
+      setAutomaticLayout(false);
+      container.style.maxHeight = '500px';
+      container.style.height = '500px';
+      container.style.overflow = 'hidden'; // 恢复默认值，而不是 'auto'
+    }
+    
+    // 触发重新布局
+    if (typeof editor.layout === 'function') {
+      editor.layout();
+    }
+  } catch (error) {
+    console.error('[CodeBlockNode] 切换展开状态失败:', error);
+  }
 };
 
 // 字体大小调整
@@ -195,17 +265,16 @@ onMounted(async () => {
       lineNumbers: 'on' as const,
       renderLineHighlight: 'none' as const,
       scrollbar: {
-        // Monaco 自己不处理滚动，由外层 div.code-editor-container 处理
-        vertical: 'hidden' as const,
-        horizontal: 'hidden' as const,
-        handleMouseWheel: false, // 禁用内部滚轮处理
+        // 让 Monaco 自己处理滚动
+        vertical: 'auto' as const,
+        horizontal: 'auto' as const,
+        handleMouseWheel: true,
       },
       wordWrap: 'on' as const,
       wrappingIndent: 'same' as const,
       folding: true,
-      // 启用自动布局，让 Monaco 自动感知容器变化
-      automaticLayout: true,
-      // automaticLayout 会自动处理高度，无需手动设置
+      // 禁用自动布局，使用固定高度
+      automaticLayout: false,
       theme: isDark.value ? 'github-dark' : 'github-light',
     };
     
@@ -231,6 +300,39 @@ onMounted(async () => {
       const actualFontSize = editorOptions.fontSize || 13;
       defaultCodeFontSize.value = actualFontSize;
       codeFontSize.value = actualFontSize;
+    }
+
+    // Add scroll passthrough handler to fix nested scrolling issue
+    const containerEl = editorEl.value?.parentElement;
+    if (containerEl) {
+      const handleWheel = (event: WheelEvent) => {
+        const el = event.currentTarget as HTMLElement;
+        const { scrollTop, scrollHeight, clientHeight } = el;
+
+        const isAtTop = event.deltaY < 0 && scrollTop === 0;
+        // Add a small tolerance for floating point inaccuracies
+        const isAtBottom = event.deltaY > 0 && (scrollHeight - scrollTop - clientHeight) < 1;
+
+        if (isAtTop || isAtBottom) {
+          // At a scroll boundary, allow parent to scroll.
+          // We prevent Monaco's handler from calling event.preventDefault()
+          // by temporarily overriding it on the event object.
+          const originalPreventDefault = event.preventDefault;
+          event.preventDefault = () => {};
+          // Restore the original method after this event has been processed.
+          setTimeout(() => {
+            event.preventDefault = originalPreventDefault;
+          }, 0);
+        }
+      };
+
+      // Listen in the capture phase to intercept before Monaco's listeners.
+      containerEl.addEventListener('wheel', handleWheel, { capture: true });
+
+      // Cleanup on unmount
+      onUnmounted(() => {
+        containerEl.removeEventListener('wheel', handleWheel, { capture: true });
+      });
     }
 
   } catch (error) {
@@ -332,27 +434,28 @@ watch(() => props.content, (newContent) => {
 }
 
 .code-editor-container {
-  /* 关键：让容器自己处理滚动 */
-  overflow: auto;
-  /* 关键：设置最大高度，超过则滚动 */
-  max-height: 500px;
+  /* Monaco 编辑器容器，固定高度让编辑器自己滚动 */
+  height: 500px;
   min-height: 100px;
-  /* 确保 flex 布局下可以正确伸缩 */
   position: relative;
-  flex: 1 1 auto;
-  transition: max-height 0.3s ease;
+  transition: height 0.3s ease;
+  /* 容器不需要滚动，让内部 Monaco 处理 */
+  overflow: hidden;
 }
 
 .code-editor-container.expanded {
+  /* 展开时高度由JS根据内容计算，移除固定的视窗高度限制 */
+  height: auto;
   max-height: none;
 }
 
-/*
-  Monaco 编辑器将通过 automaticLayout 填充父容器 .code-editor-container
-  我们不再需要手动计算和设置它的高度。
-*/
+/* Monaco 编辑器需要填充整个容器 */
+.code-editor-container > div {
+  height: 100%;
+  width: 100%;
+}
+
 :deep(.monaco-editor) {
-  /* 确保编辑器本身不会出现滚动条 */
-  overflow: hidden;
+  height: 100% !important;
 }
 </style>

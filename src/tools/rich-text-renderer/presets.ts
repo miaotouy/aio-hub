@@ -91,6 +91,283 @@ class UserManager {
     return this.users.find(u => u.id === id);
   }
 }
+\`\`\`
+
+## Rust 代码
+
+\`\`\`rust
+// main.rs
+use std::collections::HashMap;
+
+fn main() {
+    let mut scores = HashMap::new();
+
+    scores.insert(String::from("Blue"), 10);
+    scores.insert(String::from("Yellow"), 50);
+
+    let team_name = String::from("Blue");
+    let score = scores.get(&team_name).copied().unwrap_or(0);
+
+    println!("The score for {} is: {}", team_name, score);
+
+    for (key, value) in &scores {
+        println!("{}: {}", key, value);
+    }
+}
+\`\`\`
+
+## Go 代码
+
+\`\`\`go
+package main
+
+import (
+ "fmt"
+ "math"
+)
+
+type Vertex struct {
+ X, Y float64
+}
+
+func (v Vertex) Abs() float64 {
+ return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func main() {
+ v := Vertex{3, 4}
+ fmt.Println(v.Abs())
+}
+\`\`\`
+
+## CSS 代码
+
+\`\`\`css
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: auto;
+  padding: 2rem;
+  max-width: 70ch;
+  background-color: #f4f4f4;
+  color: #333;
+}
+
+h1, h2, h3 {
+  color: #2a2a2a;
+  border-bottom: 1px solid #ccc;
+}
+
+a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+\`\`\`
+
+## JSON 示例
+
+\`\`\`json
+{
+  "name": "all-in-one-tools",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1.5.3",
+    "vue": "^3.4.21"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.5.11",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.8",
+    "vue-tsc": "^2.0.13"
+  }
+}
+\`\`\`
+
+## Shell 脚本
+
+\`\`\`bash
+#!/bin/bash
+
+# A simple script to list files and count them
+
+echo "Listing files in the current directory:"
+ls -l
+
+FILE_COUNT=$(ls -1 | wc -l)
+echo
+echo "Total number of files and directories: $FILE_COUNT"
+
+if [ "$FILE_COUNT" -gt 10 ]; then
+  echo "This is a busy directory."
+else
+  echo "This directory is not very busy."
+fi
+\`\`\`
+
+## 无语言标识的代码块
+
+\`\`\`
+This is a plain text block.
+It should not have any syntax highlighting.
+Line 1
+Line 2
+  Indented line 3
+\`\`\``,
+  },
+  {
+    id: "long-code",
+    name: "长代码块",
+    description: "测试长代码块的渲染性能",
+    content: `# 超长代码块（TypeScript）
+
+\`\`\`typescript
+/**
+ * Represents a user in the system.
+ */
+interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  createdAt: Date;
+  lastLogin: Date;
+  isActive: boolean;
+  roles: ('admin' | 'editor' | 'viewer')[];
+}
+
+/**
+ * A service for managing user profiles.
+ * Provides methods for CRUD operations and other user-related actions.
+ */
+class UserProfileService {
+  private users: Map<string, UserProfile> = new Map();
+
+  constructor(initialUsers: UserProfile[] = []) {
+    for (const user of initialUsers) {
+      this.users.set(user.id, user);
+    }
+    console.log('UserProfileService initialized.');
+  }
+
+  /**
+   * Adds a new user to the system.
+   * @param userData - The data for the new user.
+   * @returns The newly created user profile.
+   * @throws If a user with the same ID already exists.
+   */
+  addUser(userData: Omit<UserProfile, 'id' | 'createdAt' | 'lastLogin'>): UserProfile {
+    const id = crypto.randomUUID();
+    if (this.users.has(id)) {
+      throw new Error('A user with this ID already exists.');
+    }
+
+    const newUser: UserProfile = {
+      ...userData,
+      id,
+      createdAt: new Date(),
+      lastLogin: new Date(),
+    };
+
+    this.users.set(id, newUser);
+    console.log(\`User "\${newUser.username}" added with ID: \${id}\`);
+    return newUser;
+  }
+
+  /**
+   * Retrieves a user by their ID.
+   * @param id - The ID of the user to retrieve.
+   * @returns The user profile or undefined if not found.
+   */
+  getUserById(id: string): UserProfile | undefined {
+    return this.users.get(id);
+  }
+
+  /**
+   * Updates an existing user's profile.
+   * @param id - The ID of the user to update.
+   * @param updates - An object containing the fields to update.
+   * @returns The updated user profile.
+   * @throws If the user is not found.
+   */
+  updateUser(id: string, updates: Partial<Omit<UserProfile, 'id' | 'createdAt'>>): UserProfile {
+    const user = this.users.get(id);
+    if (!user) {
+      throw new Error(\`User with ID "\${id}" not found.\`);
+    }
+
+    const updatedUser = { ...user, ...updates };
+    this.users.set(id, updatedUser);
+    console.log(\`User "\${user.username}" has been updated.\`);
+    return updatedUser;
+  }
+
+  /**
+   * Deletes a user from the system.
+   * @param id - The ID of the user to delete.
+   * @returns True if the user was deleted, false otherwise.
+   */
+  deleteUser(id: string): boolean {
+    const user = this.users.get(id);
+    if (user) {
+      this.users.delete(id);
+      console.log(\`User "\${user.username}" has been deleted.\`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Retrieves all users, optionally filtered by a role.
+   * @param role - An optional role to filter users by.
+   * @returns An array of user profiles.
+   */
+  getAllUsers(role?: 'admin' | 'editor' | 'viewer'): UserProfile[] {
+    const allUsers = Array.from(this.users.values());
+    if (role) {
+      return allUsers.filter(user => user.roles.includes(role));
+    }
+    return allUsers;
+  }
+
+  /**
+   * Deactivates a user's account.
+   * @param id - The ID of the user to deactivate.
+   */
+  deactivateUser(id: string): void {
+    this.updateUser(id, { isActive: false });
+    console.log(\`User with ID "\${id}" has been deactivated.\`);
+  }
+
+  /**
+   * Records a login event for a user.
+   * @param id - The ID of the user logging in.
+   */
+  recordLogin(id: string): void {
+    this.updateUser(id, { lastLogin: new Date() });
+  }
+}
+
+// Example usage:
+const userService = new UserProfileService();
+userService.addUser({
+  username: 'miaotouy',
+  email: 'miaotouy@example.com',
+  isActive: true,
+  roles: ['admin', 'editor'],
+});
+
+const allAdmins = userService.getAllUsers('admin');
+console.log('Current admins:', allAdmins);
 \`\`\``,
   },
   {

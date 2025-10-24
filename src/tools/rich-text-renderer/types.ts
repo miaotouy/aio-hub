@@ -381,4 +381,8 @@ export interface TesterConfig {
   };
   /** 输入内容 */
   inputContent: string;
+  /** 是否自动滚动到底部 */
+  autoScroll: boolean;
+  /** 是否可视化块状态 */
+  visualizeBlockStatus: boolean;
 }

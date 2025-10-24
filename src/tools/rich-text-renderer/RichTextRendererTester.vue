@@ -222,6 +222,12 @@
                 </el-tag>
               </div>
               <div class="visualizer-toggle">
+                <el-tooltip content="渲染时自动滚动到底部" placement="bottom">
+                  <el-switch v-model="autoScroll" size="small" />
+                </el-tooltip>
+                <span>自动滚动</span>
+              </div>
+              <div class="visualizer-toggle">
                 <el-tooltip content="可视化稳定区和待定区" placement="bottom">
                   <el-switch v-model="visualizeBlockStatus" size="small" />
                 </el-tooltip>
@@ -252,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, shallowRef, onMounted } from "vue";
+import { ref, reactive, shallowRef, onMounted, watch, nextTick } from "vue";
 import {
   DArrowLeft,
   DArrowRight,
@@ -281,13 +287,14 @@ const {
   fluctuationEnabled,
   delayFluctuation,
   charsFluctuation,
+  autoScroll,
+  visualizeBlockStatus,
 } = storeToRefs(store);
 
 // 渲染状态
 const isRendering = ref(false);
 const currentContent = ref("");
 const streamSource = shallowRef<StreamSource | undefined>(undefined);
-const visualizeBlockStatus = ref(false);
 
 // 渲染统计
 const renderStats = reactive({
@@ -530,6 +537,27 @@ HTML 完整字符数: ${htmlContent.length}
     console.error("Failed to copy comparison:", err);
   }
 };
+
+// 自动滚动到底部
+const scrollToBottom = () => {
+  if (autoScroll.value && renderContainerRef.value) {
+    nextTick(() => {
+      if (renderContainerRef.value) {
+        renderContainerRef.value.scrollTop = renderContainerRef.value.scrollHeight;
+      }
+    });
+  }
+};
+
+// 监听渲染进度，自动滚动
+watch(
+  () => renderStats.renderedChars,
+  () => {
+    if (isRendering.value) {
+      scrollToBottom();
+    }
+  }
+);
 
 // 组件挂载时加载配置
 onMounted(async () => {

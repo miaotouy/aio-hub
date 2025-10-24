@@ -32,6 +32,8 @@ const configManager = createConfigManager<TesterConfig>({
       max: 10,
     },
     inputContent: '',
+    autoScroll: true,
+    visualizeBlockStatus: false,
   }),
 });
 
@@ -52,6 +54,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     min: 1,
     max: 10,
   });
+  const autoScroll = ref(true);
+  const visualizeBlockStatus = ref(false);
 
   // 是否已加载配置
   const isConfigLoaded = ref(false);
@@ -78,6 +82,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       delayFluctuation.max = config.delayFluctuation.max;
       charsFluctuation.min = config.charsFluctuation.min;
       charsFluctuation.max = config.charsFluctuation.max;
+      autoScroll.value = config.autoScroll;
+      visualizeBlockStatus.value = config.visualizeBlockStatus;
 
       isConfigLoaded.value = true;
       logger.info('配置加载成功');
@@ -110,6 +116,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
           min: charsFluctuation.min,
           max: charsFluctuation.max,
         },
+        autoScroll: autoScroll.value,
+        visualizeBlockStatus: visualizeBlockStatus.value,
       };
 
       await configManager.save(config);
@@ -147,6 +155,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
         min: charsFluctuation.min,
         max: charsFluctuation.max,
       },
+      autoScroll: autoScroll.value,
+      visualizeBlockStatus: visualizeBlockStatus.value,
     };
 
     debouncedSave(config);
@@ -167,6 +177,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     delayFluctuation.max = 200;
     charsFluctuation.min = 1;
     charsFluctuation.max = 10;
+    autoScroll.value = true;
+    visualizeBlockStatus.value = false;
 
     saveConfig();
   }
@@ -187,6 +199,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       () => delayFluctuation.max,
       () => charsFluctuation.min,
       () => charsFluctuation.max,
+      autoScroll,
+      visualizeBlockStatus,
     ],
     () => {
       autoSaveConfig();
@@ -204,6 +218,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     fluctuationEnabled,
     delayFluctuation,
     charsFluctuation,
+    autoScroll,
+    visualizeBlockStatus,
     isConfigLoaded,
 
     // Actions

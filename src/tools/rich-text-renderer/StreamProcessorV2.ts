@@ -7,17 +7,23 @@
  * 3. CustomParser 只负责解析完整文本，本类负责流式管理
  */
 
-import type { AstNode, Patch, StreamProcessorOptions, CodeBlockNode } from "./types";
+import type { AstNode, Patch, StreamProcessorOptions } from "./types";
 import { CustomParser } from "./CustomParser";
 
 /**
- * Markdown 语义边界检测器（从 V1 借鉴）
+ * Markdown 语义边界检测器（增强版）
+ *
+ * 检测内容是否处于完整状态，包括：
+ * 1. 代码块是否闭合
+ * 2. 表格是否完整
+ * 3. HTML 标签是否闭合
  */
 class MarkdownBoundaryDetector {
   isSafeParsePoint(text: string): boolean {
     const lines = text.split("\n");
     if (this.isInsideCodeBlock(lines)) return false;
     if (this.isIncompleteTable(lines.slice(-3))) return false;
+    if (this.hasUnclosedHtmlTags(text)) return false;
     return true;
   }
 
@@ -40,6 +46,48 @@ class MarkdownBoundaryDetector {
       }
     }
     return false;
+  }
+
+  /**
+   * 检查是否存在未闭合的 HTML 标签
+   *
+   * 简化策略：统计开放标签和闭合标签的数量
+   * - 跳过自闭合标签（如 <br />）
+   * - 跳过常见的空标签（如 <img>, <hr>）
+   */
+  private hasUnclosedHtmlTags(text: string): boolean {
+    const tagStack: string[] = [];
+    const selfClosingTags = new Set(['br', 'hr', 'img', 'input', 'meta', 'link']);
+    
+    // 匹配所有 HTML 标签
+    const tagRegex = /<\/?([a-zA-Z0-9]+)(?:\s[^>]*)?\/?>/g;
+    let match;
+    
+    while ((match = tagRegex.exec(text)) !== null) {
+      const fullTag = match[0];
+      const tagName = match[1].toLowerCase();
+
+      // 忽略 <think> 标签
+      if (tagName === 'think') continue;
+      
+      // 跳过自闭合标签
+      if (selfClosingTags.has(tagName)) continue;
+      if (fullTag.endsWith('/>')) continue;
+      
+      // 闭合标签
+      if (fullTag.startsWith('</')) {
+        // 从栈顶弹出匹配的开放标签
+        if (tagStack.length > 0 && tagStack[tagStack.length - 1] === tagName) {
+          tagStack.pop();
+        }
+      } else {
+        // 开放标签
+        tagStack.push(tagName);
+      }
+    }
+    
+    // 如果栈不为空，说明有未闭合的标签
+    return tagStack.length > 0;
   }
 
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
@@ -82,7 +130,6 @@ export class StreamProcessorV2 {
   private buffer = "";
   private stableAst: AstNode[] = [];
   private pendingAst: AstNode[] = [];
-  private stableTextLength = 0;
   private nodeIdCounter = 1;
 
   constructor(options: StreamProcessorOptions) {
@@ -111,43 +158,53 @@ export class StreamProcessorV2 {
   }
 
   /**
-   * 增量处理（遵循 V1 的成功模式）
+   * 增量处理（统一 diff 策略）
+   *
+   * 核心改进：不再分别处理稳定区和待定区，而是：
+   * 1. 解析新的稳定区和待定区
+   * 2. 将当前的 stableAst 和 pendingAst 合并为"旧状态树"
+   * 3. 将新的稳定区和待定区 AST 合并为"新状态树"
+   * 4. 对整个树进行一次性 diff
+   *
+   * 这样可以确保节点从待定区转移到稳定区时，ID 能被正确保留
    */
   private processIncremental(): void {
-    const allPatches: Patch[] = [];
-
     // 1. 划分稳定区和待定区
     const { stable: stableText, pending: pendingText } =
       this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
-    // 2. 处理稳定区（重新解析整个稳定文本）
-    if (stableText.length > this.stableTextLength) {
-      this.parser.reset();
-      const newStableAst = this.parser.parse(stableText);
-      this.preserveExistingIds(newStableAst, this.stableAst);
-      this.assignIds(newStableAst);
-      this.markNodesStatus(newStableAst, 'stable');
-      
-      const stablePatches = this.diffAst(this.stableAst, newStableAst);
-      allPatches.push(...stablePatches);
-      
-      this.stableAst = newStableAst;
-      this.stableTextLength = stableText.length;
-    }
-
-    // 3. 处理待定区（完全替换）
+    // 2. 解析稳定区
+    this.parser.reset();
+    const newStableAst = this.parser.parse(stableText);
+    
+    // 3. 解析待定区
     this.parser.reset();
     const newPendingAst = this.parser.parse(pendingText);
-    this.assignIds(newPendingAst);
+    
+    // 4. 合并当前的完整状态树（旧状态）
+    const currentFullAst = [...this.stableAst, ...this.pendingAst];
+    
+    // 5. 合并新的完整状态树（新状态）
+    const newFullAst = [...newStableAst, ...newPendingAst];
+    
+    // 6. 在整个旧状态树中为新状态树保留 ID
+    this.preserveExistingIds(newFullAst, currentFullAst);
+    this.assignIds(newFullAst);
+    
+    // 7. 标记节点状态
+    this.markNodesStatus(newStableAst, 'stable');
     this.markNodesStatus(newPendingAst, 'pending');
     
-    const pendingPatches = this.replacePendingRegion(this.pendingAst, newPendingAst);
-    allPatches.push(...pendingPatches);
+    // 8. 对整个树进行一次性 diff
+    const patches = this.diffAst(currentFullAst, newFullAst);
+    
+    // 9. 更新状态
+    this.stableAst = newStableAst;
     this.pendingAst = newPendingAst;
-
-    // 4. 发送变更
-    if (allPatches.length > 0) {
-      this.onPatch(allPatches);
+    
+    // 10. 发送变更
+    if (patches.length > 0) {
+      this.onPatch(patches);
     }
   }
   /**
@@ -173,62 +230,11 @@ export class StreamProcessorV2 {
     // 更新状态
     this.stableAst = finalAst;
     this.pendingAst = [];
-    this.stableTextLength = this.buffer.length;
     
     // 发送变更
     if (patches.length > 0) {
       this.onPatch(patches);
     }
-  }
-  /**
-   * 替换待定区（改进版）
-   *
-   * 优先使用针对性的流式优化（代码块、段落），
-   * 回退到 diff 策略而非完全替换，减少闪烁
-   */
-  private replacePendingRegion(oldPending: AstNode[], newPending: AstNode[]): Patch[] {
-    if (oldPending.length === 0 && newPending.length === 0) {
-      return [];
-    }
-
-    // 优化：单个代码块的流式更新（保留ID）
-    if (
-      oldPending.length === 1 &&
-      newPending.length === 1 &&
-      oldPending[0].type === "code_block" &&
-      newPending[0].type === "code_block"
-    ) {
-      const oldNode = oldPending[0] as CodeBlockNode;
-      const newNode = newPending[0] as CodeBlockNode;
-      if (oldNode.props.language === newNode.props.language) {
-        newNode.id = oldNode.id;
-        newNode.meta.status = "pending";
-        return [{ op: "replace-node", id: oldNode.id, newNode }];
-      }
-    }
-
-    // 优化：单个段落的流式更新（保留ID）
-    if (
-      oldPending.length === 1 &&
-      newPending.length === 1 &&
-      oldPending[0].type === "paragraph" &&
-      newPending[0].type === "paragraph"
-    ) {
-      const oldText = this.getNodeTextContent(oldPending[0]);
-      const newText = this.getNodeTextContent(newPending[0]);
-      if (newText.startsWith(oldText)) {
-        newPending[0].id = oldPending[0].id;
-        newPending[0].meta.status = "pending";
-        return [{ op: "replace-node", id: oldPending[0].id, newNode: newPending[0] }];
-      }
-    }
-
-    // 改进的默认策略：使用 diff 而不是完全替换
-    const anchorId = this.stableAst.length > 0
-      ? this.stableAst[this.stableAst.length - 1].id
-      : undefined;
-    
-    return this.diffAst(oldPending, newPending, anchorId);
   }
 
   private getNodeTextContent(node: AstNode): string {
@@ -366,7 +372,6 @@ export class StreamProcessorV2 {
     this.buffer = "";
     this.stableAst = [];
     this.pendingAst = [];
-    this.stableTextLength = 0;
     this.nodeIdCounter = 1;
     this.parser.reset();
   }

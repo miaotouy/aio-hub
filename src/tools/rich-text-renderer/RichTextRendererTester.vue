@@ -16,6 +16,45 @@
             渲染中...
           </el-tag>
         </div>
+        <div class="header-right">
+          <el-tooltip
+            :content="
+              isRendering
+                ? '停止当前的渲染'
+                : streamEnabled
+                  ? '开始流式渲染输入的 Markdown 内容'
+                  : '立即渲染输入的 Markdown 内容'
+            "
+            placement="bottom"
+          >
+            <el-button
+              :type="isRendering ? 'danger' : 'primary'"
+              :icon="isRendering ? VideoPause : VideoPlay"
+              @click="isRendering ? stopRender() : startRender()"
+              :disabled="!isRendering && !inputContent.trim()"
+            >
+              {{ isRendering ? "停止" : streamEnabled ? "开始流式渲染" : "立即渲染" }}
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="清空右侧的渲染输出区域" placement="bottom">
+            <el-button
+              :icon="RefreshRight"
+              @click="clearOutput"
+              :disabled="!currentContent && !streamSource"
+            >
+              清空输出
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="复制原文和渲染后的 HTML，便于对比排查问题" placement="bottom">
+            <el-button
+              :icon="CopyDocument"
+              @click="copyComparison"
+              :disabled="(!inputContent.trim()) || (!currentContent && !streamSource)"
+            >
+              复制对比
+            </el-button>
+          </el-tooltip>
+        </div>
       </div>
     </el-card>
 
@@ -166,38 +205,6 @@
               class="markdown-input"
             />
           </div>
-
-          <!-- 操作按钮 -->
-          <div class="action-section">
-            <el-tooltip
-              :content="
-                isRendering
-                  ? '停止当前的渲染'
-                  : streamEnabled
-                    ? '开始流式渲染输入的 Markdown 内容'
-                    : '立即渲染输入的 Markdown 内容'
-              "
-              placement="top"
-            >
-              <el-button
-                :type="isRendering ? 'danger' : 'primary'"
-                :icon="isRendering ? VideoPause : VideoPlay"
-                @click="isRendering ? stopRender() : startRender()"
-                :disabled="!isRendering && !inputContent.trim()"
-              >
-                {{ isRendering ? "停止" : streamEnabled ? "开始流式渲染" : "立即渲染" }}
-              </el-button>
-            </el-tooltip>
-            <el-tooltip content="清空右侧的渲染输出区域" placement="top">
-              <el-button
-                :icon="RefreshRight"
-                @click="clearOutput"
-                :disabled="!currentContent && !streamSource"
-              >
-                清空输出
-              </el-button>
-            </el-tooltip>
-          </div>
         </InfoCard>
       </div>
 
@@ -215,7 +222,7 @@
             </div>
           </template>
 
-          <div class="render-container">
+          <div class="render-container" ref="renderContainerRef">
             <RichTextRenderer
               v-if="currentContent || streamSource"
               :key="renderKey"
@@ -239,16 +246,17 @@ import {
   DArrowRight,
   VideoPlay,
   VideoPause,
-  RefreshRight,
-  Loading,
-} from "@element-plus/icons-vue";
-import InfoCard from "@/components/common/InfoCard.vue";
-import RichTextRenderer from "./RichTextRenderer.vue";
-import type { StreamSource } from "./types";
-import { presets } from "./presets";
-import { useRichTextRendererStore } from "./store";
-import { storeToRefs } from "pinia";
-
+    RefreshRight,
+    Loading,
+    CopyDocument,
+  } from "@element-plus/icons-vue";
+  import InfoCard from "@/components/common/InfoCard.vue";
+  import RichTextRenderer from "./RichTextRenderer.vue";
+  import type { StreamSource } from "./types";
+  import { presets } from "./presets";
+  import { useRichTextRendererStore } from "./store";
+  import { storeToRefs } from "pinia";
+  import customMessage from "@/utils/customMessage";
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
 const {
@@ -281,6 +289,7 @@ let streamAbortController: AbortController | null = null;
 
 // 渲染 key，用于强制重新挂载组件
 const renderKey = ref(0);
+const renderContainerRef = ref<HTMLDivElement | null>(null);
 
 // 加载预设内容
 const loadPreset = () => {
@@ -424,6 +433,52 @@ const clearOutput = () => {
   renderStats.speed = 0;
 };
 
+// 复制原文和渲染结果的对比
+const copyComparison = async () => {
+  if (!inputContent.value.trim()) {
+    customMessage.warning("没有可复制的原文内容");
+    return;
+  }
+  
+  if (!renderContainerRef.value) {
+    customMessage.warning("渲染容器不存在");
+    return;
+  }
+  
+  const htmlContent = renderContainerRef.value.innerHTML;
+  if (!htmlContent.trim() || renderContainerRef.value.querySelector(".empty-placeholder")) {
+    customMessage.warning("没有可复制的 HTML 内容");
+    return;
+  }
+
+  // 提取渲染后的纯文本（去除HTML标签）
+  const renderedText = renderContainerRef.value.textContent || "";
+  
+  // 构建对比内容
+  const comparisonText = `========== Markdown 原文 ==========
+${inputContent.value}
+
+========== 渲染后的 HTML ==========
+${htmlContent}
+
+========== 渲染后的纯文本 ==========
+${renderedText}
+
+========== 对比信息 ==========
+原文字符数: ${inputContent.value.length}
+渲染文本字符数: ${renderedText.length}
+HTML 完整字符数: ${htmlContent.length}
+渲染时间: ${new Date().toLocaleString('zh-CN')}`;
+
+  try {
+    await navigator.clipboard.writeText(comparisonText);
+    customMessage.success("原文和 HTML 对比内容已复制到剪贴板");
+  } catch (err) {
+    customMessage.error("复制失败，请检查浏览器权限");
+    console.error("Failed to copy comparison:", err);
+  }
+};
+
 // 组件挂载时加载配置
 onMounted(async () => {
   await store.loadConfig();
@@ -462,6 +517,12 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .page-title {
@@ -617,15 +678,6 @@ onMounted(async () => {
   line-height: 1.6;
   background-color: var(--input-bg);
   color: var(--text-color);
-}
-
-/* 操作按钮区 */
-.action-section {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-color-light);
 }
 
 /* 渲染统计 */

@@ -4,7 +4,6 @@ import {
   PictureFilled,
   Brush,
   Setting,
-  Rank,
   Monitor,
   ChatDotRound,
 } from '@element-plus/icons-vue';

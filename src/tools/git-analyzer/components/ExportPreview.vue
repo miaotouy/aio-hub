@@ -14,7 +14,7 @@
       </el-button-group>
     </div>
     <div class="preview-content" v-loading="generating">
-      <el-scrollbar height="400px">
+      <el-scrollbar>
         <pre v-if="format !== 'html'" class="preview-text">{{ content }}</pre>
         <div v-else v-html="content" class="preview-html"></div>
       </el-scrollbar>
@@ -44,6 +44,10 @@ defineEmits<{
   border: 1px solid var(--border-color-light);
   border-radius: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* 重要：允许 flex 子元素收缩 */
 }
 
 .preview-header {
@@ -54,11 +58,21 @@ defineEmits<{
   background: var(--card-bg);
   border-bottom: 1px solid var(--border-color-light);
   font-weight: 500;
+  flex-shrink: 0; /* 防止头部收缩 */
 }
 
 .preview-content {
   background: var(--container-bg);
-  height: 400px;
+  flex: 1;
+  min-height: 0; /* 重要：允许 flex 子元素收缩 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* el-scrollbar 需要占满父容器 */
+.preview-content :deep(.el-scrollbar) {
+  flex: 1;
+  min-height: 0;
 }
 
 .preview-text {

@@ -280,7 +280,7 @@ function buildClaudeMessages(
  * 调用 Vertex AI API（Google Publisher - Gemini 模型）
  */
 async function callVertexAiGemini(
-  _profile: LlmProfile,
+  profile: LlmProfile,
   options: LlmRequestOptions,
   url: string,
   apiKey: string
@@ -327,16 +327,24 @@ async function callVertexAiGemini(
     stream: !!options.stream,
   });
 
+  // 构建请求头
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  // 应用自定义请求头
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
   // 流式响应
   if (options.stream && options.onStream) {
     const response = await fetchWithRetry(
       url,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify(body),
       },
       options.maxRetries,
@@ -418,10 +426,7 @@ async function callVertexAiGemini(
     url,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     },
     options.maxRetries,
@@ -493,7 +498,7 @@ async function callVertexAiGemini(
  * 调用 Vertex AI API（Anthropic Publisher - Claude 模型）
  */
 async function callVertexAiClaude(
-  _profile: LlmProfile,
+  profile: LlmProfile,
   options: LlmRequestOptions,
   url: string,
   apiKey: string
@@ -534,16 +539,24 @@ async function callVertexAiClaude(
     stream: !!options.stream,
   });
 
+  // 构建请求头
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  // 应用自定义请求头
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
   // 流式响应
   if (options.stream && options.onStream) {
     const response = await fetchWithRetry(
       url,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify(body),
       },
       options.maxRetries,
@@ -611,10 +624,7 @@ async function callVertexAiClaude(
     url,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     },
     options.maxRetries,

@@ -481,6 +481,11 @@ export const callClaudeApi = async (
     headers["anthropic-beta"] = "thinking-2025-12-05";
   }
 
+  // 应用自定义请求头
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
   logger.info("发送 Claude API 请求", {
     model: options.modelId,
     messageCount: messages.length,

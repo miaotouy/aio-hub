@@ -8,6 +8,7 @@ import ModelList from "./ModelList.vue";
 import ModelFetcherDialog from "./ModelFetcherDialog.vue";
 import ModelEditDialog from "./ModelEditDialog.vue";
 import CreateProfileDialog from "./CreateProfileDialog.vue";
+import CustomHeadersEditor from "./CustomHeadersEditor.vue";
 import { useLlmProfiles } from "../../composables/useLlmProfiles";
 import { providerTypes } from "../../config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
@@ -298,6 +299,9 @@ const selectPresetIcon = (icon: any) => {
 const openProviderIconSelector = () => {
   showPresetIconDialog.value = true;
 };
+
+// 自定义请求头弹窗
+const showCustomHeadersDialog = ref(false);
 </script>
 
 <template>
@@ -406,6 +410,25 @@ const openProviderIconSelector = () => {
 
           <el-divider />
 
+          <el-form-item label="自定义请求头">
+            <div class="custom-headers-section">
+              <el-button @click="showCustomHeadersDialog = true">
+                配置自定义请求头
+                <span
+                  v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0"
+                  class="header-count"
+                >
+                  (已配置 {{ Object.keys(editForm.customHeaders).length }} 个)
+                </span>
+              </el-button>
+              <div class="form-hint">
+                添加自定义 HTTP 请求头，可用于客户端标识、超时控制等
+              </div>
+            </div>
+          </el-form-item>
+
+          <el-divider />
+
           <el-form-item label="模型配置">
             <div class="model-list-container">
               <ModelList
@@ -465,6 +488,12 @@ const openProviderIconSelector = () => {
       :models="fetchedModels"
       :existing-models="editForm.models"
       @add-models="handleAddModels"
+    />
+
+    <!-- 自定义请求头配置弹窗 -->
+    <CustomHeadersEditor
+      v-model:visible="showCustomHeadersDialog"
+      v-model="editForm.customHeaders"
     />
   </div>
 </template>
@@ -564,5 +593,16 @@ const openProviderIconSelector = () => {
 
 .model-list-container {
   width: 100%;
+}
+
+/* 自定义请求头区域 */
+.custom-headers-section {
+  width: 100%;
+}
+
+.header-count {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
 }
 </style>

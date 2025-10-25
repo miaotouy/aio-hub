@@ -27,6 +27,11 @@ export const callOpenAiCompatibleApi = async (
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
+  // 应用自定义请求头
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
   const messages: any[] = [];
 
   // 添加系统提示（如果有）

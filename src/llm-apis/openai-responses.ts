@@ -27,6 +27,11 @@ export const callOpenAiResponsesApi = async (
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
+  // 应用自定义请求头
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
   // 构建输入内容 - Responses API 使用多轮对话格式
   const messages: any[] = [];
 

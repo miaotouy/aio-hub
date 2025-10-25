@@ -78,6 +78,17 @@ export const callCohereApi = async (
     temperature: commonParams.temperature ?? 0.5,
   };
 
+  // 构建请求头
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  // 应用自定义请求头
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
   // 如果启用流式响应
   if (options.stream && options.onStream) {
     body.stream = true;
@@ -86,10 +97,7 @@ export const callCohereApi = async (
       url,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify(body),
       },
       options.maxRetries,
@@ -128,10 +136,7 @@ export const callCohereApi = async (
     url,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     },
     options.maxRetries,

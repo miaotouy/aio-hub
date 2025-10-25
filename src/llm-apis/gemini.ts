@@ -506,15 +506,23 @@ export const callGeminiApi = async (
     body.safetySettings = safetySettings;
   }
 
+  // 构建请求头
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  // 应用自定义请求头
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
   // 如果启用流式响应
   if (options.stream && options.onStream) {
     const response = await fetchWithRetry(
       url,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(body),
       },
       options.maxRetries,
@@ -595,9 +603,7 @@ export const callGeminiApi = async (
     url,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(body),
     },
     options.maxRetries,

@@ -1,11 +1,27 @@
 <template>
   <div class="rich-code-editor-wrapper" ref="wrapperRef">
-    <div ref="editorContainerRef" class="editor-container"></div>
+    <!-- CodeMirror 编辑器 -->
+    <div v-if="props.editorType === 'codemirror'" ref="editorContainerRef" class="editor-container"></div>
+    
+    <!-- Monaco 编辑器 -->
+    <vue-monaco-editor
+      v-else-if="props.editorType === 'monaco'"
+      v-model:value="monacoValue"
+      :language="getMonacoLanguage()"
+      :options="monacoOptions"
+      :theme="monacoTheme"
+      class="monaco-editor-container"
+      @mount="handleMonacoMount"
+      @focus="handleMonacoFocus"
+      @blur="handleMonacoBlur"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, shallowRef } from "vue";
+import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import type { editor as MonacoEditor } from 'monaco-editor';
 import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
@@ -30,12 +46,17 @@ import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { foldGutter, foldKeymap } from "@codemirror/language";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string;
   language?: "json" | "markdown" | "javascript" | "text" | string;
   readOnly?: boolean;
   lineNumbers?: boolean;
-}>();
+  editorType?: 'codemirror' | 'monaco';
+}>(), {
+  editorType: 'codemirror',
+  lineNumbers: true,
+  readOnly: false,
+});
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
@@ -48,9 +69,95 @@ const lineNumbersCompartment = new Compartment();
 const foldGutterCompartment = new Compartment();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 
+// Monaco Editor 相关状态
+const monacoEditorInstance = shallowRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+const monacoValue = ref(props.modelValue);
+
+// Monaco Editor 配置
+const monacoOptions = computed<MonacoEditor.IStandaloneEditorConstructionOptions>(() => ({
+  readOnly: props.readOnly ?? false,
+  lineNumbers: (props.lineNumbers ?? true) ? 'on' : 'off',
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  fontSize: 14,
+  fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
+  wordWrap: 'on',
+  automaticLayout: true,
+  scrollbar: {
+    vertical: 'auto',
+    horizontal: 'auto',
+    verticalScrollbarSize: 8,
+    horizontalScrollbarSize: 8,
+  },
+  renderLineHighlight: 'all',
+  folding: true,
+  foldingStrategy: 'indentation',
+  showFoldingControls: 'always',
+}));
+
+// Monaco 主题（根据 CSS 变量动态生成）
+const monacoTheme = ref('vs-dark');
+
+// Monaco 语言映射
+const getMonacoLanguage = () => {
+  if (!props.language) return 'plaintext';
+  const lang = props.language.toLowerCase();
+  switch (lang) {
+    case 'javascript':
+    case 'js':
+      return 'javascript';
+    case 'json':
+      return 'json';
+    case 'markdown':
+    case 'md':
+      return 'markdown';
+    case 'text':
+      return 'plaintext';
+    default:
+      return lang;
+  }
+};
+
+// Monaco Editor 事件处理
+const handleMonacoMount = (editor: MonacoEditor.IStandaloneCodeEditor) => {
+  monacoEditorInstance.value = editor;
+  
+  // 定义自定义主题以适配全局 CSS 变量
+  const monaco = (window as any).monaco;
+  if (monaco) {
+    monaco.editor.defineTheme('custom-theme', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [],
+      colors: {
+        'editor.background': '#00000000', // 透明背景，使用外层的背景色
+        'editor.foreground': '#d4d4d4',
+        'editor.lineHighlightBackground': '#2a2a2a',
+        'editorLineNumber.foreground': '#858585',
+        'editorGutter.background': '#00000000',
+      }
+    });
+    monaco.editor.setTheme('custom-theme');
+  }
+};
+
+const handleMonacoFocus = () => {
+  wrapperRef.value?.classList.add("is-focused");
+};
+
+const handleMonacoBlur = () => {
+  wrapperRef.value?.classList.remove("is-focused");
+};
+
+// 监听 Monaco 值变化并同步到父组件
+watch(monacoValue, (newVal) => {
+  if (props.editorType === 'monaco' && newVal !== props.modelValue) {
+    emit("update:modelValue", newVal);
+  }
+});
 
 onMounted(() => {
-  if (!editorContainerRef.value) return;
+  if (props.editorType !== 'codemirror' || !editorContainerRef.value) return;
 
   const extensions = [
     // 基础主题 - 完全适配全局 CSS 变量
@@ -244,52 +351,74 @@ onUnmounted(() => {
 watch(
   () => props.modelValue,
   (newVal) => {
-    if (editorView.value && newVal !== editorView.value.state.doc.toString()) {
-      editorView.value.dispatch({
-        changes: { from: 0, to: editorView.value.state.doc.length, insert: newVal },
-      });
+    if (props.editorType === 'codemirror') {
+      if (editorView.value && newVal !== editorView.value.state.doc.toString()) {
+        editorView.value.dispatch({
+          changes: { from: 0, to: editorView.value.state.doc.length, insert: newVal },
+        });
+      }
+    } else if (props.editorType === 'monaco') {
+      if (newVal !== monacoValue.value) {
+        monacoValue.value = newVal;
+      }
     }
   }
 );
 
-// 监听配置变化
+// 监听配置变化 - CodeMirror
 watch(
   () => props.readOnly,
   (isReadOnly) => {
-    if (editorView.value) {
+    if (props.editorType === 'codemirror' && editorView.value) {
       editorView.value.dispatch({
         effects: editableCompartment.reconfigure(EditorView.editable.of(!(isReadOnly ?? false))),
       });
     }
+    // Monaco 通过 computed options 自动响应
   }
 );
 
 watch(
   () => props.lineNumbers,
   (show) => {
-    if (editorView.value) {
+    if (props.editorType === 'codemirror' && editorView.value) {
       editorView.value.dispatch({
         effects: lineNumbersCompartment.reconfigure(show ?? true ? lineNumbers() : []),
       });
     }
+    // Monaco 通过 computed options 自动响应
   }
 );
 
-// 暴露一些有用的方法
+// 暴露一些有用的方法（统一 CodeMirror 和 Monaco 的 API）
 const getContent = (): string => {
-  return editorView.value?.state.doc.toString() || "";
+  if (props.editorType === 'codemirror') {
+    return editorView.value?.state.doc.toString() || "";
+  } else {
+    return monacoEditorInstance.value?.getValue() || "";
+  }
 };
 
 const setContent = (newContent: string): void => {
-  if (editorView.value) {
-    editorView.value.dispatch({
-      changes: { from: 0, to: editorView.value.state.doc.length, insert: newContent },
-    });
+  if (props.editorType === 'codemirror') {
+    if (editorView.value) {
+      editorView.value.dispatch({
+        changes: { from: 0, to: editorView.value.state.doc.length, insert: newContent },
+      });
+    }
+  } else {
+    if (monacoEditorInstance.value) {
+      monacoEditorInstance.value.setValue(newContent);
+    }
   }
 };
 
 const focusEditor = (): void => {
-  editorView.value?.focus();
+  if (props.editorType === 'codemirror') {
+    editorView.value?.focus();
+  } else {
+    monacoEditorInstance.value?.focus();
+  }
 };
 
 defineExpose({
@@ -297,6 +426,7 @@ defineExpose({
   setContent,
   focusEditor,
   editorView,
+  monacoEditorInstance,
 });
 </script>
 
@@ -315,10 +445,34 @@ defineExpose({
   border-color: var(--primary-color);
 }
 
-.editor-container {
+.editor-container,
+.monaco-editor-container {
   flex-grow: 1;
   overflow: auto;
   position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+/* Monaco Editor 样式覆盖以适配主题 */
+.monaco-editor-container :deep(.monaco-editor) {
+  background-color: var(--input-bg) !important;
+}
+
+.monaco-editor-container :deep(.monaco-editor .margin) {
+  background-color: var(--input-bg) !important;
+}
+
+.monaco-editor-container :deep(.monaco-editor .lines-content) {
+  background-color: var(--input-bg) !important;
+}
+
+.monaco-editor-container :deep(.monaco-scrollable-element > .scrollbar > .slider) {
+  background: var(--scrollbar-thumb-color) !important;
+}
+
+.monaco-editor-container :deep(.monaco-scrollable-element > .scrollbar > .slider:hover) {
+  background: var(--scrollbar-thumb-hover-color) !important;
 }
 
 :deep(.cm-editor) {

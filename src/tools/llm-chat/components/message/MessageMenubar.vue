@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { ElMessageBox } from 'element-plus';
+import { ElMessageBox, ElTooltip } from 'element-plus';
 import {
   Copy,
   Edit,
@@ -108,109 +108,121 @@ const handleAnalyzeContext = () => {
   <div class="message-menubar">
     <!-- Branch control (if applicable) -->
     <div v-if="siblings.length > 1" class="branch-control">
-      <button
-        class="menu-btn"
-        :disabled="currentSiblingIndex === 0 || isSending"
-        @click="emit('switch', 'prev')"
-        title="上一个版本"
-      >
-        <ChevronLeft :size="16" />
-      </button>
+      <el-tooltip content="上一个版本" placement="top">
+        <button
+          class="menu-btn"
+          :disabled="currentSiblingIndex === 0 || isSending"
+          @click="emit('switch', 'prev')"
+        >
+          <ChevronLeft :size="16" />
+        </button>
+      </el-tooltip>
       <div class="branch-indicator">
         {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
       </div>
-      <button
-        class="menu-btn"
-        :disabled="currentSiblingIndex === siblings.length - 1 || isSending"
-        @click="emit('switch', 'next')"
-        title="下一个版本"
-      >
-        <ChevronRight :size="16" />
-      </button>
+      <el-tooltip content="下一个版本" placement="top">
+        <button
+          class="menu-btn"
+          :disabled="currentSiblingIndex === siblings.length - 1 || isSending"
+          @click="emit('switch', 'next')"
+        >
+          <ChevronRight :size="16" />
+        </button>
+      </el-tooltip>
     </div>
     <div v-if="siblings.length > 1" class="separator"></div>
 
     <!-- 复制 -->
-    <button
-      class="menu-btn"
-      :class="{ 'menu-btn-active': copied }"
-      @click="copyMessage"
-      title="复制"
-    >
-      <Check v-if="copied" :size="16" />
-      <Copy v-else :size="16" />
-    </button>
+    <el-tooltip content="复制" placement="top">
+      <button
+        class="menu-btn"
+        :class="{ 'menu-btn-active': copied }"
+        @click="copyMessage"
+      >
+        <Check v-if="copied" :size="16" />
+        <Copy v-else :size="16" />
+      </button>
+    </el-tooltip>
 
     <!-- 上下文分析 -->
-    <button
-      class="menu-btn"
-      @click="handleAnalyzeContext"
-      title="上下文分析"
-    >
-      <BarChart3 :size="16" />
-    </button>
+    <el-tooltip content="上下文分析" placement="top">
+      <button
+        class="menu-btn"
+        @click="handleAnalyzeContext"
+      >
+        <BarChart3 :size="16" />
+      </button>
+    </el-tooltip>
 
     <!-- 终止生成（仅在生成中显示） -->
-    <button
-      v-if="isGenerating"
-      class="menu-btn menu-btn-abort"
-      @click="handleAbort"
-      title="终止生成"
-    >
-      <XCircle :size="16" />
-    </button>
+    <el-tooltip v-if="isGenerating" content="终止生成" placement="top">
+      <button
+        class="menu-btn menu-btn-abort"
+        @click="handleAbort"
+      >
+        <XCircle :size="16" />
+      </button>
+    </el-tooltip>
 
     <!-- 编辑（用户和助手消息都可以，生成中不可编辑） -->
-    <button
-      v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
-      class="menu-btn"
-      @click="handleEdit"
-      title="编辑"
-    >
-      <Edit :size="16" />
-    </button>
+    <el-tooltip v-if="(isUserMessage || isAssistantMessage) && !isGenerating" content="编辑" placement="top">
+      <button
+        class="menu-btn"
+        @click="handleEdit"
+      >
+        <Edit :size="16" />
+      </button>
+    </el-tooltip>
 
     <!-- 创建分支（用户和助手消息都可以，生成中不可创建） -->
-    <button
-      v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
-      class="menu-btn"
-      @click="handleCreateBranch"
-      title="创建分支"
-    >
-      <GitFork :size="16" />
-    </button>
+    <el-tooltip v-if="(isUserMessage || isAssistantMessage) && !isGenerating" content="创建分支" placement="top">
+      <button
+        class="menu-btn"
+        @click="handleCreateBranch"
+      >
+        <GitFork :size="16" />
+      </button>
+    </el-tooltip>
 
     <!-- 重新生成（用户和助手消息都可以，不禁用以支持并行生成） -->
-    <button
+    <el-tooltip
       v-if="isUserMessage || isAssistantMessage"
-      class="menu-btn"
-      @click="handleRegenerate"
-      :title="isUserMessage ? '重新生成回复' : '重新生成'"
+      :content="isUserMessage ? '重新生成回复' : '重新生成'"
+      placement="top"
     >
-      <RefreshCw :size="16" />
-    </button>
+      <button
+        class="menu-btn"
+        @click="handleRegenerate"
+      >
+        <RefreshCw :size="16" />
+      </button>
+    </el-tooltip>
 
     <!-- 启用/禁用（生成中不可切换） -->
-    <button
+    <el-tooltip
       v-if="!isGenerating"
-      class="menu-btn"
-      :class="{ 'menu-btn-highlight': isDisabled }"
-      @click="handleToggleEnabled"
-      :title="isDisabled ? '启用此消息' : '禁用此消息'"
+      :content="isDisabled ? '启用此消息' : '禁用此消息'"
+      placement="top"
     >
-      <Eye v-if="isDisabled" :size="16" />
-      <EyeOff v-else :size="16" />
-    </button>
+      <button
+        class="menu-btn"
+        :class="{ 'menu-btn-highlight': isDisabled }"
+        @click="handleToggleEnabled"
+      >
+        <Eye v-if="isDisabled" :size="16" />
+        <EyeOff v-else :size="16" />
+      </button>
+    </el-tooltip>
 
     <!-- 删除（生成中不可删除） -->
-    <button
-      v-if="!isGenerating"
-      class="menu-btn menu-btn-danger"
-      @click="handleDelete"
-      title="删除"
-    >
-      <Trash2 :size="16" />
-    </button>
+    <el-tooltip v-if="!isGenerating" content="删除" placement="top">
+      <button
+        class="menu-btn menu-btn-danger"
+        @click="handleDelete"
+      >
+        <Trash2 :size="16" />
+      </button>
+    </el-tooltip>
   </div>
 </template>
 

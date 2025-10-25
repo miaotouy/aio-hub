@@ -223,6 +223,19 @@
               <el-icon><WarningFilled /></el-icon>
               {{ regexError }}
             </div>
+            <!-- Rust 兼容性提示 -->
+            <div v-if="rustValidation && !rustValidation.isValid" class="rust-error-hint">
+              <el-icon><WarningFilled /></el-icon>
+              <span>Rust 后端不兼容: {{ rustValidation.errorMessage }}</span>
+            </div>
+            <div v-else-if="rustValidation && rustValidation.warning" class="rust-warning-hint">
+              <el-icon><WarningFilled /></el-icon>
+              <span>{{ rustValidation.warning }}</span>
+            </div>
+            <div v-else-if="rustValidation && rustValidation.isValid" class="rust-success-hint">
+              <el-icon><CircleCheck /></el-icon>
+              <span>Rust 后端兼容 ✓</span>
+            </div>
             <div class="quick-patterns">
               <div class="quick-patterns-label">快捷规则:</div>
               <div class="quick-patterns-list">
@@ -297,6 +310,7 @@ import {
   Download,
   WarningFilled,
   Search,
+  CircleCheck,
 } from "@element-plus/icons-vue";
 import { VueDraggableNext } from "vue-draggable-next";
 import { open as openFile, save as saveFile } from "@tauri-apps/plugin-dialog";
@@ -306,14 +320,25 @@ import type { RegexPreset } from "./types";
 import debounce from "lodash/debounce";
 import { createModuleLogger } from "@utils/logger";
 import { parseRegexPattern } from "./engine";
+import { invoke } from "@tauri-apps/api/core";
 
 const store = usePresetStore();
 const logger = createModuleLogger("PresetManager");
+
+// Rust 验证结果类型
+interface RegexValidation {
+  isValid: boolean;
+  errorMessage?: string;
+  parsedPattern?: string;
+  parsedFlags?: string;
+  warning?: string;
+}
 
 // ===== 状态 =====
 const selectedRuleId = ref<string | null>(null);
 const testInput = ref("示例文本：Hello World 123\n测试正则匹配功能");
 const regexError = ref<string | null>(null);
+const rustValidation = ref<RegexValidation | null>(null); // Rust 验证结果
 const matchCount = ref<number | null>(null);
 const localRules = ref<any[]>([]); // 本地规则列表副本，用于 v-model
 const searchKeyword = ref(""); // 搜索关键词
@@ -729,11 +754,43 @@ const onRulesReordered = () => {
   store.reorderRules(store.activePresetId, localRules.value);
 };
 
+// Rust 兼容性验证（防抖）
+const validateRustCompatibility = debounce(async () => {
+  if (!selectedRule.value?.regex) {
+    rustValidation.value = null;
+    return;
+  }
+
+  try {
+    const result = await invoke<RegexValidation>("validate_regex_pattern", {
+      regex: selectedRule.value.regex,
+    });
+    rustValidation.value = result;
+    
+    if (!result.isValid) {
+      logger.warn("正则表达式 Rust 兼容性检测失败", {
+        regex: selectedRule.value.regex,
+        error: result.errorMessage,
+      });
+    } else if (result.warning) {
+      logger.debug("正则表达式 Rust 兼容性警告", {
+        regex: selectedRule.value.regex,
+        warning: result.warning,
+      });
+    }
+  } catch (error: any) {
+    logger.error("调用 Rust 验证命令失败", { error: error.message });
+    rustValidation.value = null;
+  }
+}, 300);
+
 // 规则编辑时的防抖保存
 const onRuleEdit = debounce(() => {
   if (store.activePresetId) {
     store.touchPreset(store.activePresetId);
   }
+  // 同时触发 Rust 兼容性验证
+  validateRustCompatibility();
 }, 500);
 
 // 获取规则在原始列表中的索引（用于删除操作）
@@ -1048,6 +1105,45 @@ function escapeRegex(str: string): string {
   color: var(--error-color);
   font-size: 12px;
   margin-top: 4px;
+}
+
+.rust-error-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #f56c6c;
+  font-size: 12px;
+  margin-top: 4px;
+  padding: 8px;
+  background-color: color-mix(in srgb, #f56c6c 10%, transparent);
+  border-left: 3px solid #f56c6c;
+  border-radius: 4px;
+}
+
+.rust-warning-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #e6a23c;
+  font-size: 12px;
+  margin-top: 4px;
+  padding: 8px;
+  background-color: color-mix(in srgb, #e6a23c 10%, transparent);
+  border-left: 3px solid #e6a23c;
+  border-radius: 4px;
+}
+
+.rust-success-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #67c23a;
+  font-size: 12px;
+  margin-top: 4px;
+  padding: 8px;
+  background-color: color-mix(in srgb, #67c23a 10%, transparent);
+  border-left: 3px solid #67c23a;
+  border-radius: 4px;
 }
 
 .quick-patterns {

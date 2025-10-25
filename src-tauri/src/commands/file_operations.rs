@@ -93,14 +93,31 @@ fn parse_regex_pattern(pattern: &str) -> Result<(String, String), String> {
             let pattern_part = &pattern[1..end_pos + 1];
             let flags_part = &pattern[end_pos + 2..];
             
-            // 验证 flags 只包含合法字符
+            // 过滤并验证 flags
+            let mut valid_flags = String::new();
+            let mut has_g_flag = false;
+            
             for c in flags_part.chars() {
-                if !"imsuxU".contains(c) {
-                    return Err(format!("无效的正则标志: {}", c));
+                if c == 'g' {
+                    // JavaScript 的 g 标志在 Rust 中不需要（replace_all 已是全局替换）
+                    has_g_flag = true;
+                } else if "imsuxU".contains(c) {
+                    valid_flags.push(c);
+                } else {
+                    return Err(format!("无效的正则标志: {} - Rust 后端不支持该语法", c));
                 }
             }
             
-            return Ok((pattern_part.to_string(), flags_part.to_string()));
+            // 如果原本有 g 标志但被过滤，返回处理后的标志和提示
+            if has_g_flag && !flags_part.chars().all(|c| c == 'g') {
+                // 有其他有效标志，仅过滤 g
+                return Ok((pattern_part.to_string(), valid_flags));
+            } else if has_g_flag {
+                // 只有 g 标志，使用默认的 m 标志
+                return Ok((pattern_part.to_string(), "m".to_string()));
+            }
+            
+            return Ok((pattern_part.to_string(), valid_flags));
         }
     }
     
@@ -890,6 +907,74 @@ pub async fn delete_file_to_trash(file_path: String) -> Result<String, String> {
         .map_err(|e| format!("移入回收站失败: {}", e))?;
     
     Ok(format!("文件已移入回收站: {}", file_path))
+}
+
+// 正则验证结果
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegexValidation {
+    pub is_valid: bool,
+    pub error_message: Option<String>,
+    pub parsed_pattern: Option<String>,
+    pub parsed_flags: Option<String>,
+    pub warning: Option<String>,
+}
+
+// Tauri 命令：验证正则表达式的 Rust 兼容性
+#[tauri::command]
+pub fn validate_regex_pattern(regex: String) -> RegexValidation {
+    // 解析正则表达式
+    let (pattern, flags) = match parse_regex_pattern(&regex) {
+        Ok(result) => result,
+        Err(e) => {
+            return RegexValidation {
+                is_valid: false,
+                error_message: Some(e),
+                parsed_pattern: None,
+                parsed_flags: None,
+                warning: None,
+            };
+        }
+    };
+    
+    // 检查是否有被过滤的 g 标志
+    let has_g_warning = regex.contains("/g") && !flags.contains('g');
+    
+    // 尝试编译正则表达式
+    match build_regex_with_flags(&pattern, &flags) {
+        Ok(_) => {
+            RegexValidation {
+                is_valid: true,
+                error_message: None,
+                parsed_pattern: Some(pattern),
+                parsed_flags: Some(flags.clone()),
+                warning: if has_g_warning {
+                    Some("JavaScript 的 g 标志在 Rust 中不需要（replace_all 已是全局替换），已自动过滤".to_string())
+                } else {
+                    None
+                },
+            }
+        }
+        Err(e) => {
+            // 检查是否是常见的不支持特性
+            let error_str = e.to_string();
+            let error_message = if error_str.contains("look-around") || error_str.contains("look-ahead") || error_str.contains("look-behind") {
+                format!("Rust 正则引擎不支持前瞻/后瞻断言 (?=...) (?!...) (?<=...) (?<!...)：{}", e)
+            } else if error_str.contains("backreference") {
+                format!("Rust 正则引擎不支持反向引用 \\1 \\2 等：{}", e)
+            } else {
+                format!("无效的正则表达式：{}", e)
+            };
+            
+            RegexValidation {
+                is_valid: false,
+                error_message: Some(error_message),
+                parsed_pattern: Some(pattern),
+                parsed_flags: Some(flags),
+                warning: None,
+            }
+        }
+    }
 }
 
 // Tauri 命令：从应用数据目录复制文件

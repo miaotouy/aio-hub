@@ -50,6 +50,7 @@ use commands::{
     // OCR相关
     native_ocr,
     process_files_with_regex,
+    validate_regex_pattern,
     read_file_as_base64,
     save_uploaded_file,
     copy_file_to_app_data,
@@ -163,6 +164,7 @@ pub fn run() {
             get_latest_operation_log,
             get_all_operation_logs,
             process_files_with_regex,
+            validate_regex_pattern,
             generate_directory_tree,
             is_directory,
             read_file_as_base64,

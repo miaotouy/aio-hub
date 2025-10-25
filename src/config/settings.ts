@@ -27,6 +27,8 @@ export const settingsModules: SettingsModule[] = [
   {
     id: "tools",
     title: "工具模块",
+    component: defineAsyncComponent(() => import("../views/components/ToolsSettings.vue")),
+    minHeight: "auto",
   },
   {
     id: "log-settings",

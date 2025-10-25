@@ -36,7 +36,7 @@ const handleGoBack = () => {
   router.back();
 };
 
-// 从路径提取工具ID
+// 从路径提取工具ID（用于初始化工具可见性）
 const getToolIdFromPath = (path: string): string => {
   // 从 /regex-apply 转换为 regexApply
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -629,13 +629,19 @@ onUnmounted(() => {
               v-model:log-to-console="settings.logToConsole"
               v-model:log-buffer-size="settings.logBufferSize"
             />
+            <!-- 工具模块配置组件需要特殊处理，传递 v-model 绑定 -->
+            <component
+              v-else-if="module.id === 'tools'"
+              :is="module.component"
+              v-model:tools-visible="settings.toolsVisible"
+            />
             <!-- 其他动态组件 -->
             <component v-else :is="module.component" />
           </section>
 
           <!-- 静态模块 -->
           <!-- 通用设置 -->
-          <section v-if="module.id === 'general'" id="general" class="settings-section">
+          <section v-else-if="module.id === 'general'" id="general" class="settings-section">
             <h2 class="section-title">通用设置</h2>
 
             <div class="setting-item">
@@ -709,68 +715,6 @@ onUnmounted(() => {
                 <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
                 <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
               </div>
-            </div>
-          </section>
-
-          <!-- 工具模块设置 -->
-          <section v-if="module.id === 'tools'" id="tools" class="settings-section">
-            <h2 class="section-title">工具模块</h2>
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>工具模块显示</span>
-                <el-tooltip content="选择要在主页显示的工具模块" placement="top">
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-              </div>
-            </div>
-
-            <div class="tools-list">
-              <div v-for="tool in toolsConfig" :key="tool.path" class="tool-item">
-                <el-checkbox
-                  v-if="settings.toolsVisible"
-                  v-model="settings.toolsVisible[getToolIdFromPath(tool.path)]"
-                >
-                  <div class="tool-checkbox-content">
-                    <el-icon class="tool-icon">
-                      <component :is="tool.icon" />
-                    </el-icon>
-                    <div class="tool-info">
-                      <span class="tool-name">{{ tool.name }}</span>
-                      <span v-if="tool.description" class="tool-description">{{
-                        tool.description
-                      }}</span>
-                    </div>
-                  </div>
-                </el-checkbox>
-              </div>
-            </div>
-
-            <el-divider />
-
-            <div class="batch-actions">
-              <el-button
-                size="small"
-                @click="
-                  Object.keys(settings.toolsVisible || {}).forEach(
-                    (k) => (settings.toolsVisible![k] = true)
-                  )
-                "
-              >
-                全选
-              </el-button>
-              <el-button
-                size="small"
-                @click="
-                  Object.keys(settings.toolsVisible || {}).forEach(
-                    (k) => (settings.toolsVisible![k] = false)
-                  )
-                "
-              >
-                全不选
-              </el-button>
             </div>
           </section>
         </template>
@@ -1008,78 +952,6 @@ onUnmounted(() => {
 .info-icon {
   color: var(--text-color-secondary);
   cursor: help;
-}
-
-.tools-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.tool-item {
-  padding: 8px;
-  overflow: hidden;
-}
-
-/* 覆盖 element-plus checkbox 样式 */
-.tool-item :deep(.el-checkbox) {
-  height: auto;
-  align-items: flex-start;
-}
-
-.tool-item :deep(.el-checkbox__label) {
-  white-space: normal;
-  padding-left: 8px;
-  width: 100%;
-}
-
-.tool-checkbox-content {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-}
-
-.tool-icon {
-  font-size: 20px;
-  color: var(--primary-color);
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.tool-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-}
-
-.tool-name {
-  font-size: 14px;
-  color: var(--text-color);
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tool-description {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  line-height: 1.4;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  hyphens: auto;
-}
-
-/* 批量操作按钮 */
-.batch-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
 }
 
 /* 配置管理按钮组 */

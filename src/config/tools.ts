@@ -14,6 +14,7 @@ import RichTextRendererIcon from '../components/icons/RichTextRendererIcon.vue';
 import ConnectorIcon from '../components/icons/ConnectorIcon.vue';
 import GitBranchIcon from '../components/icons/GitBranchIcon.vue';
 import OcrIcon from '../components/icons/OcrIcon.vue';
+import SymlinkMoverIcon from '../components/icons/SymlinkMoverIcon.vue';
 import TextDiffIcon from '../components/icons/TextDiffIcon.vue';
 
 export interface ToolConfig {
@@ -88,7 +89,7 @@ export const toolsConfig: ToolConfig[] = [
   {
     name: '符号链接搬家工具',
     path: '/symlink-mover',
-    icon: markRaw(Rank),
+    icon: markRaw(SymlinkMoverIcon),
     component: () => import('../tools/SymlinkMover.vue'),
     description: '支持拖拽的文件批量移动和符号链接创建工具',
     category: '文件管理'

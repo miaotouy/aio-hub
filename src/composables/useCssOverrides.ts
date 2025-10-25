@@ -27,6 +27,7 @@ export function useCssOverrides() {
     enabled: false,
     basedOnPresetId: null,
     customContent: '',
+    pureCustomContent: '',
     userPresets: [],
     selectedPresetId: null,
   });
@@ -108,7 +109,24 @@ export function useCssOverrides() {
       const appSettings = loadAppSettings();
       if (appSettings.cssOverride) {
         userSettings.value = { ...appSettings.cssOverride };
-        editorContent.value = userSettings.value.customContent;
+
+        // Backward compatibility: migrate old customContent to pureCustomContent
+        if (typeof userSettings.value.pureCustomContent === 'undefined') {
+          if (userSettings.value.basedOnPresetId === null) {
+            userSettings.value.pureCustomContent = userSettings.value.customContent;
+            userSettings.value.customContent = ''; // Clear old field if it was pure custom
+          } else {
+            userSettings.value.pureCustomContent = ''; // Initialize for preset-based users
+          }
+        }
+
+        // Load correct content into editor
+        if (userSettings.value.basedOnPresetId === null) {
+          editorContent.value = userSettings.value.pureCustomContent || '';
+        } else {
+          editorContent.value = userSettings.value.customContent;
+        }
+        
         moduleLogger.info('用户 CSS 配置加载成功', {
           enabled: userSettings.value.enabled,
           basedOnPresetId: userSettings.value.basedOnPresetId,
@@ -128,7 +146,13 @@ export function useCssOverrides() {
       saveStatus.value = 'saving';
       
       // 更新 userSettings
-      userSettings.value.customContent = editorContent.value;
+      if (userSettings.value.basedOnPresetId === null) {
+        // 纯自定义模式
+        userSettings.value.pureCustomContent = editorContent.value;
+      } else {
+        // 基于预设模式
+        userSettings.value.customContent = editorContent.value;
+      }
       
       // 保存到 appSettings（使用防抖）
       updateAppSettings({
@@ -182,6 +206,13 @@ export function useCssOverrides() {
   function selectCustom() {
     userSettings.value.selectedPresetId = null;
     isPreviewMode.value = false;
+
+    // 恢复编辑器内容为当前激活的配置
+    if (userSettings.value.basedOnPresetId === null) {
+      editorContent.value = userSettings.value.pureCustomContent || '';
+    } else {
+      editorContent.value = userSettings.value.customContent;
+    }
     
     moduleLogger.info('已选中纯自定义');
   }
@@ -193,6 +224,7 @@ export function useCssOverrides() {
     if (userSettings.value.selectedPresetId === null) {
       // 应用纯自定义
       userSettings.value.basedOnPresetId = null;
+      editorContent.value = userSettings.value.pureCustomContent || '';
       isPreviewMode.value = false;
       moduleLogger.info('已应用纯自定义');
       customMessage.success('已切换到纯自定义模式');

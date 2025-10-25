@@ -18,7 +18,8 @@ export interface CssPreset {
 export interface UserCssSettings {
   enabled: boolean; // 是否启用自定义 CSS
   basedOnPresetId: string | null; // 基于哪个预设的 ID，null 表示纯自定义
-  customContent: string; // 用户的自定义 CSS 内容
+  customContent: string; // 用户的自定义 CSS 内容（基于预设修改时）
+  pureCustomContent?: string; // 纯自定义模式下的 CSS 内容
   userPresets: CssPreset[]; // 用户自定义的预设列表
   selectedPresetId: string | null; // 当前选中但未应用的预设 ID
 }

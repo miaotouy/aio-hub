@@ -31,6 +31,7 @@ interface Emits {
   (e: "edit-message", nodeId: string, newContent: string): void;
   (e: "abort-node", nodeId: string): void;
   (e: "create-branch", nodeId: string): void;
+  (e: "analyze-context", nodeId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -206,6 +207,7 @@ const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
 const handleEditMessage = (nodeId: string, newContent: string) => emit("edit-message", nodeId, newContent);
 const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
 const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
+const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
 
 onMounted(() => {
   logger.info("ChatArea mounted", {
@@ -281,6 +283,7 @@ onMounted(() => {
           @edit-message="handleEditMessage"
           @abort-node="handleAbortNode"
           @create-branch="handleCreateBranch"
+          @analyze-context="handleAnalyzeContext"
         />
 
         <!-- 输入框 -->

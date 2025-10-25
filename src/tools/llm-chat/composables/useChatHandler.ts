@@ -24,6 +24,60 @@ interface LlmContextData {
   }>;
 }
 
+/**
+ * 上下文预览分析结果
+ */
+export interface ContextPreviewData {
+  /** 系统提示部分 */
+  systemPrompt?: {
+    content: string;
+    charCount: number;
+    source: 'agent_preset';
+  };
+  /** 预设消息部分 */
+  presetMessages: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    charCount: number;
+    source: 'agent_preset';
+    index: number;
+  }>;
+  /** 会话历史部分 */
+  chatHistory: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    charCount: number;
+    source: 'session_history';
+    nodeId: string;
+    index: number;
+    /** 节点所使用的智能体名称（快照） */
+    agentName?: string;
+    /** 节点所使用的智能体图标（快照） */
+    agentIcon?: string;
+  }>;
+  /** 最终构建的消息列表（用于原始请求展示） */
+  finalMessages: Array<{
+    role: 'user' | 'assistant';
+    content: string | LlmMessageContent[];
+  }>;
+  /** 统计信息 */
+  statistics: {
+    totalCharCount: number;
+    systemPromptCharCount: number;
+    presetMessagesCharCount: number;
+    chatHistoryCharCount: number;
+    messageCount: number;
+  };
+  /** Agent 信息 */
+  agentInfo: {
+    id: string;
+    name?: string;
+    icon?: string;
+    profileId: string;
+    modelId: string;
+  };
+}
+
 export function useChatHandler() {
   /**
    * 构建 LLM 上下文
@@ -551,8 +605,146 @@ export function useChatHandler() {
     }
   };
 
+  /**
+   * 获取指定节点的上下文预览数据（用于上下文分析器）
+   * @param session 当前会话
+   * @param targetNodeId 目标节点 ID
+   * @returns 详细的上下文分析数据，如果无法获取则返回 null
+   */
+  const getLlmContextForPreview = (
+    session: ChatSession,
+    targetNodeId: string
+  ): ContextPreviewData | null => {
+    const agentStore = useAgentStore();
+    const nodeManager = useNodeManager();
+
+    // 获取目标节点
+    const targetNode = session.nodes[targetNodeId];
+    if (!targetNode) {
+      logger.warn('获取上下文预览失败：节点不存在', { targetNodeId });
+      return null;
+    }
+
+    // 获取到目标节点的完整路径
+    const nodePath = nodeManager.getNodePath(session, targetNodeId);
+
+    // 尝试从节点的 metadata 中获取 agentId，如果没有则使用当前选中的 agent
+    let agentId = targetNode.metadata?.agentId || agentStore.currentAgentId;
+    // 如果目标节点是用户消息，尝试从其子节点（助手消息）中获取 agentId
+    if (!agentId && targetNode.role === 'user' && targetNode.childrenIds.length > 0) {
+      const firstChild = session.nodes[targetNode.childrenIds[0]];
+      agentId = firstChild?.metadata?.agentId || null;
+    }
+
+    if (!agentId) {
+      logger.warn('获取上下文预览失败：无法确定使用的 Agent', { targetNodeId });
+      return null;
+    }
+
+    // 获取 Agent 配置
+    const agentConfig = agentStore.getAgentConfig(agentId, {
+      parameterOverrides: session.parameterOverrides,
+    });
+
+    if (!agentConfig) {
+      logger.warn('获取上下文预览失败：无法获取 Agent 配置', { agentId });
+      return null;
+    }
+
+    // 获取 Agent 信息
+    const agent = agentStore.getAgentById(agentId);
+
+    // 使用现有的 buildLlmContext 函数构建上下文
+    const { systemPrompt, messages } = buildLlmContext(
+      nodePath,
+      agentConfig,
+      '' // currentUserMessage 参数已不使用
+    );
+
+    // 处理预设消息
+    const presetMessages = agentConfig.presetMessages || [];
+    const enabledPresets = presetMessages.filter((msg: any) => msg.isEnabled !== false);
+
+    // 提取系统提示部分
+    const systemPromptData = systemPrompt
+      ? {
+          content: systemPrompt,
+          charCount: systemPrompt.length,
+          source: 'agent_preset' as const,
+        }
+      : undefined;
+
+    // 提取预设对话部分（非系统消息）
+    const presetMessagesData = enabledPresets
+      .filter((msg: any) => msg.role !== 'system' && msg.type !== 'chat_history')
+      .map((msg: any, index: number) => {
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        return {
+          role: msg.role as 'user' | 'assistant',
+          content,
+          charCount: content.length,
+          source: 'agent_preset' as const,
+          index,
+        };
+      });
+
+    // 从节点路径中提取会话历史（排除系统消息和禁用节点）
+    const chatHistoryData = nodePath
+      .filter((node) => node.isEnabled !== false)
+      .filter((node) => node.role !== 'system')
+      .filter((node) => node.role === 'user' || node.role === 'assistant')
+      .map((node, index) => {
+        const content = typeof node.content === 'string' ? node.content : JSON.stringify(node.content);
+        return {
+          role: node.role as 'user' | 'assistant',
+          content,
+          charCount: content.length,
+          source: 'session_history' as const,
+          nodeId: node.id,
+          index,
+        };
+      });
+
+    // 计算统计信息
+    const systemPromptCharCount = systemPromptData?.charCount || 0;
+    const presetMessagesCharCount = presetMessagesData.reduce((sum, msg) => sum + msg.charCount, 0);
+    const chatHistoryCharCount = chatHistoryData.reduce((sum, msg) => sum + msg.charCount, 0);
+    const totalCharCount = systemPromptCharCount + presetMessagesCharCount + chatHistoryCharCount;
+
+    const result: ContextPreviewData = {
+      systemPrompt: systemPromptData,
+      presetMessages: presetMessagesData,
+      chatHistory: chatHistoryData,
+      finalMessages: messages,
+      statistics: {
+        totalCharCount,
+        systemPromptCharCount,
+        presetMessagesCharCount,
+        chatHistoryCharCount,
+        messageCount: messages.length,
+      },
+      agentInfo: {
+        id: agentId,
+        name: agent?.name,
+        icon: agent?.icon,
+        profileId: agentConfig.profileId,
+        modelId: agentConfig.modelId,
+      },
+    };
+
+    logger.debug('🔍 生成上下文预览数据', {
+      targetNodeId,
+      agentId,
+      totalCharCount,
+      messageCount: messages.length,
+    });
+
+    return result;
+  };
+
   return {
     sendMessage,
     regenerateFromNode,
+    getLlmContextForPreview,
   };
 }

@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   XCircle,
+  BarChart3,
 } from 'lucide-vue-next';
 import type { ChatMessageNode } from '../../types';
 import { useLlmChatStore } from '../../store';
@@ -23,7 +24,6 @@ interface Props {
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
 }
-
 interface Emits {
   (e: 'copy'): void;
   (e: 'edit'): void;
@@ -33,6 +33,7 @@ interface Emits {
   (e: 'toggle-enabled'): void;
   (e: 'switch', direction: 'prev' | 'next'): void;
   (e: 'abort'): void;
+  (e: 'analyze-context'): void;
 }
 
 const props = defineProps<Props>();
@@ -94,6 +95,13 @@ const handleAbort = () => {
   });
   emit('abort');
 };
+const handleAnalyzeContext = () => {
+  console.log('[MessageMenubar] 上下文分析按钮点击', {
+    nodeId: props.message.id,
+    role: props.message.role
+  });
+  emit('analyze-context');
+};
 </script>
 
 <template>
@@ -131,6 +139,15 @@ const handleAbort = () => {
     >
       <Check v-if="copied" :size="16" />
       <Copy v-else :size="16" />
+    </button>
+
+    <!-- 上下文分析 -->
+    <button
+      class="menu-btn"
+      @click="handleAnalyzeContext"
+      title="上下文分析"
+    >
+      <BarChart3 :size="16" />
     </button>
 
     <!-- 终止生成（仅在生成中显示） -->

@@ -9,6 +9,7 @@ import ChatArea from "./components/ChatArea.vue";
 import SessionsSidebar from "./components/sidebar/SessionsSidebar.vue";
 import LeftSidebar from "./components/sidebar/LeftSidebar.vue";
 import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
+import ContextAnalyzerDialog from "./components/context-analyzer/ContextAnalyzerDialog.vue";
 import { createModuleLogger } from "@utils/logger";
 
 const logger = createModuleLogger("LlmChat");
@@ -205,7 +206,6 @@ const handleCreateBranch = (nodeId: string) => {
     store.createBranch(nodeId);
   }
 };
-
 // 处理中止单个节点的生成
 const handleAbortNode = (nodeId: string) => {
   if (isInDetachedToolWindow) {
@@ -214,6 +214,17 @@ const handleAbortNode = (nodeId: string) => {
   } else {
     store.abortNodeGeneration(nodeId);
   }
+};
+
+// 上下文分析对话框状态
+const showContextAnalyzer = ref(false);
+const analyzingNodeId = ref<string | null>(null);
+
+// 处理打开上下文分析器
+const handleAnalyzeContext = (nodeId: string) => {
+  logger.info('打开上下文分析器', { nodeId });
+  analyzingNodeId.value = nodeId;
+  showContextAnalyzer.value = true;
 };
 
 // 处理新建会话
@@ -314,6 +325,7 @@ const handleRenameSession = (data: { sessionId: string; newName: string }) => {
           @edit-message="handleEditMessage"
           @abort-node="handleAbortNode"
           @create-branch="handleCreateBranch"
+          @analyze-context="handleAnalyzeContext"
         />
 
         <!-- 分离后的占位提示 -->
@@ -384,6 +396,13 @@ const handleRenameSession = (data: { sessionId: string; newName: string }) => {
         </div>
       </div>
     </div>
+
+    <!-- 上下文分析对话框 -->
+    <ContextAnalyzerDialog
+      v-model:visible="showContextAnalyzer"
+      :node-id="analyzingNodeId"
+      :session="store.currentSession"
+    />
   </div>
 </template>
 

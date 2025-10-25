@@ -21,6 +21,7 @@ interface Emits {
   (e: 'copy'): void;
   (e: 'abort'): void;
   (e: 'create-branch'): void;
+  (e: 'analyze-context'): void;
 }
 
 const props = defineProps<Props>();
@@ -93,9 +94,10 @@ defineExpose({
       @delete="emit('delete')"
       @regenerate="emit('regenerate')"
       @toggle-enabled="emit('toggle-enabled')"
-      @switch="(direction) => emit('switch-sibling', direction)"
+      @switch="(direction: 'prev' | 'next') => emit('switch-sibling', direction)"
       @abort="emit('abort')"
       @create-branch="emit('create-branch')"
+      @analyze-context="emit('analyze-context')"
     />
   </div>
 </template>

@@ -16,6 +16,7 @@ interface Emits {
   (e: 'edit-message', nodeId: string, newContent: string): void;
   (e: 'abort-node', nodeId: string): void;
   (e: 'create-branch', nodeId: string): void;
+  (e: 'analyze-context', nodeId: string): void;
 }
 
 const props = defineProps<Props>();
@@ -62,14 +63,15 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           :is-sending="isSending"
           :siblings="getMessageSiblings(message.id).siblings"
           :current-sibling-index="getMessageSiblings(message.id).currentIndex"
-          @delete="emit('delete-message', message.id)"
+          @delete-message="emit('delete-message', message.id)"
           @regenerate="emit('regenerate', message.id)"
-          @switch-sibling="(direction) => emit('switch-sibling', message.id, direction)"
+          @switch-sibling="(direction: 'prev' | 'next') => emit('switch-sibling', message.id, direction)"
           @toggle-enabled="emit('toggle-enabled', message.id)"
-          @edit="(newContent) => emit('edit-message', message.id, newContent)"
+          @edit="(newContent: string) => emit('edit-message', message.id, newContent)"
           @copy="() => {}"
           @abort="emit('abort-node', message.id)"
           @create-branch="emit('create-branch', message.id)"
+          @analyze-context="emit('analyze-context', message.id)"
         />
       </div>
     </template>

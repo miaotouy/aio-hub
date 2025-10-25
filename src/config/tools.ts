@@ -40,7 +40,7 @@ export const toolsConfig: ToolConfig[] = [
     name: 'AI作图信息查看器',
     path: '/media-info-reader',
     icon: markRaw(PictureFilled),
-    component: () => import('../tools/MediaInfoReader.vue'),
+    component: () => import('../tools/media-info-reader/MediaInfoReader.vue'),
     description: '读取AI生成图片的元数据(WebUI/ComfyUI)及角色卡片信息',
     category: 'AI 工具'
   },
@@ -65,7 +65,7 @@ export const toolsConfig: ToolConfig[] = [
     name: '文本差异对比',
     path: '/text-diff',
     icon: markRaw(TextDiffIcon),
-    component: () => import('../tools/TextDiff.vue'),
+    component: () => import('../tools/text-diff/TextDiff.vue'),
     description: '对比文本文件的差异',
     category: '文本处理'
   },
@@ -73,7 +73,7 @@ export const toolsConfig: ToolConfig[] = [
     name: 'JSON 格式化',
     path: '/json-formatter',
     icon: markRaw(Brush),
-    component: () => import('../tools/JsonFormatter.vue'),
+    component: () => import('../tools/json-formatter/JsonFormatter.vue'),
     description: '格式化和美化JSON数据',
     category: '文本处理'
   },
@@ -81,7 +81,7 @@ export const toolsConfig: ToolConfig[] = [
     name: '代码格式化',
     path: '/code-formatter',
     icon: markRaw(Setting),
-    component: () => import('../tools/CodeFormatter.vue'),
+    component: () => import('../tools/code-formatter/CodeFormatter.vue'),
     description: '格式化各种编程语言代码',
     category: '文本处理'
   },
@@ -90,7 +90,7 @@ export const toolsConfig: ToolConfig[] = [
     name: '符号链接搬家工具',
     path: '/symlink-mover',
     icon: markRaw(SymlinkMoverIcon),
-    component: () => import('../tools/SymlinkMover.vue'),
+    component: () => import('../tools/symlink-mover/SymlinkMover.vue'),
     description: '支持拖拽的文件批量移动和符号链接创建工具',
     category: '文件管理'
   },

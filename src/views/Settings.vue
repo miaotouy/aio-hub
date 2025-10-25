@@ -20,10 +20,9 @@ import LogSettings from "./components/LogSettings.vue";
 import { useTheme } from "../composables/useTheme";
 import { useLogConfig } from "../composables/useLogConfig";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { writeFile } from "@tauri-apps/plugin-fs";
+import { appDataDir } from "@tauri-apps/api/path";
 import { openPath } from "@tauri-apps/plugin-opener";
-import type { ConfigExport } from "../types/config-export";
 
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
@@ -199,19 +198,18 @@ const handleReset = async () => {
 const handleOpenConfigDir = async () => {
   try {
     const appDir = await appDataDir();
-    const configDir = await join(appDir, "app-settings");
 
     // 使用 TypeScript API
     try {
-      await openPath(configDir);
+      await openPath(appDir);
     } catch (openError) {
       // 备用方案：复制路径到剪贴板
       logger.warn("无法直接打开目录，尝试复制路径", openError);
 
       const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
-      await writeText(configDir);
+      await writeText(appDir);
 
-      ElMessageBox.alert(`无法自动打开目录，路径已复制到剪贴板：\n${configDir}`, "提示", {
+      ElMessageBox.alert(`无法自动打开目录，路径已复制到剪贴板：\n${appDir}`, "提示", {
         confirmButtonText: "确定",
         type: "info",
       });
@@ -227,22 +225,35 @@ const handleExportConfig = async () => {
   try {
     const filePath = await save({
       title: "导出配置",
-      defaultPath: `all-in-one-tools-config-${new Date().toISOString().split("T")[0]}.json`,
+      defaultPath: `AIO-Tools-Backup-${new Date().toISOString().split("T")[0]}.zip`,
       filters: [
         {
-          name: "JSON 配置文件",
-          extensions: ["json"],
+          name: "ZIP 压缩包",
+          extensions: ["zip"],
         },
       ],
     });
 
     if (filePath) {
-      // 调用后端命令导出所有模块的配置
-      const configData = await invoke<ConfigExport>("export_all_configs");
-      const configContent = JSON.stringify(configData, null, 2);
-      await writeTextFile(filePath, configContent);
+      // 调用后端命令导出所有模块的配置到 ZIP（返回二进制数据）
+      const zipData = await invoke<number[]>("export_all_configs_to_zip");
+      
+      // 将二进制数据转换为 Uint8Array
+      const zipBuffer = new Uint8Array(zipData);
+      
+      // 直接写入到用户选择的位置
+      await writeFile(filePath, zipBuffer);
+      
       customMessage.success("配置导出成功");
-      logger.info("配置已导出", { filePath, configData });
+      logger.info("配置已导出", { filePath });
+
+      // 导出成功后打开文件所在目录（使用后端命令绕过路径限制）
+      try {
+        await invoke("open_file_directory", { filePath });
+      } catch (openError) {
+        // 打开目录失败时静默处理，不影响主流程
+        logger.warn("无法打开导出目录", openError);
+      }
     }
   } catch (error) {
     logger.error("导出配置失败", error);
@@ -258,8 +269,8 @@ const handleImportConfig = async () => {
       multiple: false,
       filters: [
         {
-          name: "JSON 配置文件",
-          extensions: ["json"],
+          name: "ZIP 压缩包",
+          extensions: ["zip"],
         },
       ],
     });
@@ -267,9 +278,6 @@ const handleImportConfig = async () => {
     if (!filePath) {
       return;
     }
-
-    // 读取配置文件内容
-    const configContent = await readTextFile(filePath as string);
 
     // 让用户选择导入模式
     let mergeMode = false;
@@ -297,9 +305,9 @@ const handleImportConfig = async () => {
       }
     }
 
-    // 调用后端命令导入所有模块的配置
-    const result = await invoke<string>("import_all_configs", {
-      configJson: configContent,
+    // 调用后端命令从 ZIP 导入所有模块的配置
+    const result = await invoke<string>("import_all_configs_from_zip", {
+      zipFilePath: filePath as string,
       merge: mergeMode,
     });
 

@@ -977,6 +977,49 @@ pub fn validate_regex_pattern(regex: String) -> RegexValidation {
     }
 }
 
+// Tauri 命令：打开文件所在目录
+#[tauri::command]
+pub fn open_file_directory(file_path: String) -> Result<String, String> {
+    let path = PathBuf::from(&file_path);
+    
+    // 获取文件所在目录
+    let dir = if path.is_file() {
+        path.parent()
+            .ok_or_else(|| "无法获取文件所在目录".to_string())?
+    } else if path.is_dir() {
+        &path
+    } else {
+        return Err(format!("路径不存在: {}", file_path));
+    };
+    
+    // 使用系统命令打开目录
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| format!("打开目录失败: {}", e))?;
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| format!("打开目录失败: {}", e))?;
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| format!("打开目录失败: {}", e))?;
+    }
+    
+    Ok(format!("已打开目录: {}", dir.display()))
+}
+
 // Tauri 命令：从应用数据目录复制文件
 #[tauri::command]
 pub async fn copy_file_to_app_data(

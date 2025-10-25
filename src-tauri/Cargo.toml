@@ -55,6 +55,8 @@ tokio-util = "0.7" # 取消令牌
 trash = "5.2" # 安全删除到回收站
 lazy_static = "1.4" # 全局静态变量
 nanoid = "0.4.0" # 生成唯一ID
+zip = { version = "2.2", default-features = false, features = ["deflate"] } # ZIP 压缩
+walkdir = "2" # 递归目录遍历
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

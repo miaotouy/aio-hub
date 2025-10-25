@@ -26,7 +26,8 @@ use commands::{
     clear_all_window_configs,
     get_saved_window_labels,
     // 配置管理相关
-    export_all_configs,
+    export_all_configs_to_zip,
+    import_all_configs_from_zip,
     focus_window,
     generate_directory_tree,
     get_all_operation_logs,
@@ -43,7 +44,6 @@ use commands::{
     // Git分析器相关
     git_load_repository,
     git_revert,
-    import_all_configs,
     is_directory,
     list_config_files,
     move_and_link,
@@ -55,6 +55,7 @@ use commands::{
     save_uploaded_file,
     copy_file_to_app_data,
     delete_file_to_trash,
+    open_file_directory,
     set_window_position,
     start_clipboard_monitor,
     // LLM代理相关
@@ -171,6 +172,7 @@ pub fn run() {
             save_uploaded_file,
             copy_file_to_app_data,
             delete_file_to_trash,
+            open_file_directory,
             validate_file_for_link,
             // 目录清理命令
             analyze_directory_for_cleanup,
@@ -216,9 +218,9 @@ pub fn run() {
             // 窗口导航命令
             navigate_main_window_to_settings,
             // 配置管理命令
-            export_all_configs,
-            import_all_configs,
-            list_config_files
+            list_config_files,
+            export_all_configs_to_zip,
+            import_all_configs_from_zip
         ])
         // 设置应用
         .setup(|app| {

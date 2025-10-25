@@ -30,44 +30,84 @@
         </div>
 
         <div class="preset-actions">
-          <el-button :icon="Plus" @click="handleCreatePreset" size="small">新建</el-button>
-          <el-button
-            :icon="CopyDocument"
-            @click="handleDuplicatePreset"
-            size="small"
-            :disabled="!store.activePresetId"
-            >复制</el-button
+          <el-tooltip content="创建一个新的正则预设" placement="top">
+            <el-button :icon="Plus" @click="handleCreatePreset" size="small">新建</el-button>
+          </el-tooltip>
+          <el-tooltip
+            :content="!store.activePresetId ? '请先选择一个预设' : '复制当前预设'"
+            placement="top"
           >
-          <el-button @click="handleRenamePreset" size="small" :disabled="!store.activePresetId"
-            >重命名</el-button
+            <span>
+              <el-button
+                :icon="CopyDocument"
+                @click="handleDuplicatePreset"
+                size="small"
+                :disabled="!store.activePresetId"
+                >复制</el-button
+              >
+            </span>
+          </el-tooltip>
+          <el-tooltip
+            :content="!store.activePresetId ? '请先选择一个预设' : '重命名当前预设'"
+            placement="top"
           >
-          <el-button
-            :icon="Delete"
-            @click="handleDeletePreset"
-            size="small"
-            :disabled="!store.activePresetId || store.presets.length <= 1"
-            >删除</el-button
+            <span>
+              <el-button @click="handleRenamePreset" size="small" :disabled="!store.activePresetId"
+                >重命名</el-button
+              >
+            </span>
+          </el-tooltip>
+          <el-tooltip
+            :content="
+              !store.activePresetId
+                ? '请先选择一个预设'
+                : store.presets.length <= 1
+                  ? '至少需要保留一个预设'
+                  : '删除当前预设'
+            "
+            placement="top"
           >
+            <span>
+              <el-button
+                :icon="Delete"
+                @click="handleDeletePreset"
+                size="small"
+                :disabled="!store.activePresetId || store.presets.length <= 1"
+                >删除</el-button
+              >
+            </span>
+          </el-tooltip>
         </div>
 
         <div class="preset-io-actions">
-          <el-button @click="importPreset" size="small" style="width: 100%">
-            <el-icon><Upload /></el-icon>
-            从文件导入
-          </el-button>
-          <el-button @click="importFromClipboard" size="small" style="width: 100%">
-            <el-icon><DocumentCopy /></el-icon>
-            从剪贴板导入
-          </el-button>
-          <el-button
-            @click="exportCurrentPreset"
-            size="small"
-            style="width: 100%"
-            :disabled="!store.activePresetId"
+          <el-tooltip content="从 JSON 文件导入预设或规则" placement="top">
+            <el-button @click="importPreset" size="small" style="width: 100%">
+              <el-icon><Upload /></el-icon>
+              从文件导入
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="从剪贴板粘贴 JSON 内容导入" placement="top">
+            <el-button @click="importFromClipboard" size="small" style="width: 100%">
+              <el-icon><DocumentCopy /></el-icon>
+              从剪贴板导入
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
+            :content="!store.activePresetId ? '请先选择一个预设' : '将当前预设导出为 JSON 文件'"
+            placement="top"
           >
-            <el-icon><Download /></el-icon>
-            导出预设
-          </el-button>
+            <span style="width: 100%">
+              <el-button
+                @click="exportCurrentPreset"
+                size="small"
+                style="width: 100%"
+                :disabled="!store.activePresetId"
+              >
+                <el-icon><Download /></el-icon>
+                导出预设
+              </el-button>
+            </span>
+          </el-tooltip>
         </div>
       </div>
 
@@ -77,9 +117,11 @@
           <span class="section-title"
             >规则列表 ({{ filteredRules.length }}/{{ currentRules.length }})</span
           >
-          <el-button :icon="Plus" @click="handleAddRule" type="primary" size="small"
-            >添加规则</el-button
-          >
+          <el-tooltip content="添加一条新的正则规则" placement="top">
+            <el-button :icon="Plus" @click="handleAddRule" type="primary" size="small"
+              >添加规则</el-button
+            >
+          </el-tooltip>
         </div>
 
         <!-- 搜索框 -->
@@ -113,26 +155,32 @@
                 :class="{ active: selectedRuleId === rule.id, disabled: !rule.enabled }"
                 @click="selectRule(rule.id)"
               >
-                <el-icon class="rule-drag-handle"><Rank /></el-icon>
-                <el-checkbox
-                  v-model="rule.enabled"
-                  @change="onRuleEnabledChange(rule.id)"
-                  @click.stop
-                />
+                <el-tooltip content="拖动以调整规则顺序" placement="top">
+                  <el-icon class="rule-drag-handle"><Rank /></el-icon>
+                </el-tooltip>
+                <el-tooltip :content="rule.enabled ? '点击禁用此规则' : '点击启用此规则'" placement="top">
+                  <el-checkbox
+                    v-model="rule.enabled"
+                    @change="onRuleEnabledChange(rule.id)"
+                    @click.stop
+                  />
+                </el-tooltip>
                 <div class="rule-content">
                   <div class="rule-name">{{ rule.name || rule.regex || "(未命名规则)" }}</div>
                   <div class="rule-preview">
                     {{ rule.regex || "(空正则)" }} → {{ rule.replacement || "(空替换)" }}
                   </div>
                 </div>
-                <el-button
-                  :icon="Delete"
-                  @click.stop="handleRemoveRule(getOriginalIndex(rule.id))"
-                  text
-                  circle
-                  size="small"
-                  class="rule-delete-btn"
-                />
+                <el-tooltip content="删除此规则" placement="top">
+                  <el-button
+                    :icon="Delete"
+                    @click.stop="handleRemoveRule(getOriginalIndex(rule.id))"
+                    text
+                    circle
+                    size="small"
+                    class="rule-delete-btn"
+                  />
+                </el-tooltip>
               </div>
             </VueDraggableNext>
           </el-scrollbar>
@@ -164,6 +212,7 @@
           <div class="editor-field">
             <label>正则表达式</label>
             <el-input
+              ref="regexInputRef"
               v-model="selectedRule.regex"
               type="textarea"
               :rows="3"
@@ -173,6 +222,25 @@
             <div v-if="regexError" class="error-hint">
               <el-icon><WarningFilled /></el-icon>
               {{ regexError }}
+            </div>
+            <div class="quick-patterns">
+              <div class="quick-patterns-label">快捷规则:</div>
+              <div class="quick-patterns-list">
+                <el-tooltip
+                  v-for="pattern in quickPatterns"
+                  :key="pattern.value"
+                  :content="pattern.desc"
+                  placement="top"
+                >
+                  <el-tag
+                    class="quick-pattern-tag"
+                    size="small"
+                    @click="insertPattern(pattern.value)"
+                  >
+                    {{ pattern.label }}
+                  </el-tag>
+                </el-tooltip>
+              </div>
             </div>
           </div>
 
@@ -249,6 +317,29 @@ const regexError = ref<string | null>(null);
 const matchCount = ref<number | null>(null);
 const localRules = ref<any[]>([]); // 本地规则列表副本，用于 v-model
 const searchKeyword = ref(""); // 搜索关键词
+const regexInputRef = ref<any>(null); // 正则输入框的引用
+
+// 快捷常用规则列表
+const quickPatterns = [
+  { label: '数字', value: '\\d+', desc: '匹配一个或多个数字' },
+  { label: '字母', value: '[a-zA-Z]+', desc: '匹配一个或多个字母' },
+  { label: '中文', value: '[\\u4e00-\\u9fa5]+', desc: '匹配一个或多个中文字符' },
+  { label: '空白', value: '\\s+', desc: '匹配一个或多个空白字符' },
+  { label: '邮箱', value: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}', desc: '匹配邮箱地址' },
+  { label: 'URL', value: 'https?://[^\\s]+', desc: '匹配 HTTP/HTTPS URL' },
+  { label: 'IP地址', value: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b', desc: '匹配 IPv4 地址' },
+  { label: '手机号', value: '1[3-9]\\d{9}', desc: '匹配中国大陆手机号' },
+  { label: '日期', value: '\\d{4}-\\d{2}-\\d{2}', desc: '匹配 YYYY-MM-DD 格式日期' },
+  { label: '时间', value: '\\d{2}:\\d{2}(:\\d{2})?', desc: '匹配 HH:MM 或 HH:MM:SS 格式时间' },
+  { label: 'HTML标签', value: '<[^>]+>', desc: '匹配 HTML 标签' },
+  { label: '空行', value: '^\\s*$', desc: '匹配空行或只包含空白的行' },
+  { label: '引号内(双)', value: '"([^"]*)"', desc: '匹配双引号之间的内容（不含引号），捕获组$1为内容' },
+  { label: '引号内(单)', value: "'([^']*)'", desc: '匹配单引号之间的内容（不含引号），捕获组$1为内容' },
+  { label: '标记间(不含)', value: '(?<=START)(.*?)(?=END)', desc: '匹配 START 和 END 之间的内容（不含标记），需手动替换 START/END' },
+  { label: '标记间(包含)', value: 'START(.*?)END', desc: '匹配 START 和 END 之间的内容（包含标记），需手动替换 START/END' },
+  { label: '跨行区间(含标记)', value: '/START.*?END/gs', desc: '匹配 START 到 END 的所有内容（跨行），需手动替换 START/END' },
+  { label: 'UUID', value: '[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', desc: '匹配 UUID' },
+];
 
 // ===== 计算属性 =====
 const currentRules = computed(() => store.activePreset?.rules || []);
@@ -650,6 +741,37 @@ const getOriginalIndex = (ruleId: string): number => {
   return localRules.value.findIndex((r) => r.id === ruleId);
 };
 
+// 插入快捷规则到光标位置
+const insertPattern = (pattern: string) => {
+  if (!selectedRule.value) return;
+  
+  const textarea = regexInputRef.value?.$el?.querySelector('textarea');
+  if (!textarea) {
+    // 如果无法获取 textarea，直接追加到末尾
+    selectedRule.value.regex = (selectedRule.value.regex || '') + pattern;
+    onRuleEdit();
+    return;
+  }
+
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const currentValue = selectedRule.value.regex || '';
+  
+  // 在光标位置插入规则
+  const newValue = currentValue.substring(0, start) + pattern + currentValue.substring(end);
+  selectedRule.value.regex = newValue;
+  
+  // 触发保存
+  onRuleEdit();
+  
+  // 设置新的光标位置（插入内容之后）
+  setTimeout(() => {
+    const newPos = start + pattern.length;
+    textarea.focus();
+    textarea.setSelectionRange(newPos, newPos);
+  }, 0);
+};
+
 // ===== 工具函数 =====
 function escapeHtml(text: string): string {
   const map: Record<string, string> = {
@@ -926,6 +1048,48 @@ function escapeRegex(str: string): string {
   color: var(--error-color);
   font-size: 12px;
   margin-top: 4px;
+}
+
+.quick-patterns {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: var(--container-bg);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.quick-patterns-label {
+  font-size: 12px;
+  color: var(--text-color-light);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.quick-patterns-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+:deep(.quick-pattern-tag.el-tag) {
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent) !important;
+  border-color: var(--primary-color) !important;
+  color: var(--primary-color) !important;
+}
+
+:deep(.quick-pattern-tag.el-tag:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
+}
+
+:deep(.quick-pattern-tag.el-tag:active) {
+  transform: translateY(0);
+  opacity: 0.8;
+  background-color: color-mix(in srgb, var(--primary-color) 35%, transparent) !important;
 }
 
 .preview-output {

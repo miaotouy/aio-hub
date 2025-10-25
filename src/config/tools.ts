@@ -26,13 +26,14 @@ export interface ToolConfig {
 }
 
 export const toolsConfig: ToolConfig[] = [
+  // AI 工具
   {
-    name: '正则批量替换',
-    path: '/regex-apply',
-    icon: markRaw(MagicStick),
-    component: () => import('../tools/regex-applier/RegexApplier.vue'),
-    description: '使用正则表达式批量处理文本或文件',
-    category: '文本处理'
+    name: 'LLM 对话',
+    path: '/llm-chat',
+    icon: markRaw(ChatDotRound),
+    component: () => import('../tools/llm-chat/LlmChat.vue'),
+    description: '与 LLM 进行多轮对话，支持流式响应和会话管理',
+    category: 'AI 工具'
   },
   {
     name: 'AI作图信息查看器',
@@ -41,6 +42,23 @@ export const toolsConfig: ToolConfig[] = [
     component: () => import('../tools/MediaInfoReader.vue'),
     description: '读取AI生成图片的元数据(WebUI/ComfyUI)及角色卡片信息',
     category: 'AI 工具'
+  },
+  {
+    name: '智能 OCR',
+    path: '/smart-ocr',
+    icon: markRaw(OcrIcon),
+    component: () => import('../tools/smart-ocr/SmartOcr.vue'),
+    description: '智能OCR文字识别工具，支持多引擎和智能切图',
+    category: 'AI 工具'
+  },
+  // 文本处理
+  {
+    name: '正则批量替换',
+    path: '/regex-apply',
+    icon: markRaw(MagicStick),
+    component: () => import('../tools/regex-applier/RegexApplier.vue'),
+    description: '使用正则表达式批量处理文本或文件',
+    category: '文本处理'
   },
   {
     name: '文本差异对比',
@@ -66,6 +84,7 @@ export const toolsConfig: ToolConfig[] = [
     description: '格式化各种编程语言代码',
     category: '文本处理'
   },
+  // 文件管理
   {
     name: '符号链接搬家工具',
     path: '/symlink-mover',
@@ -90,6 +109,7 @@ export const toolsConfig: ToolConfig[] = [
     description: '智能清理过时的缓存和存档，支持按规则、日期和大小过滤',
     category: '文件管理'
   },
+  // 开发工具
   {
     name: 'API 测试工具',
     path: '/api-tester',
@@ -113,22 +133,6 @@ export const toolsConfig: ToolConfig[] = [
     component: () => import('../tools/git-analyzer/GitAnalyzer.vue'),
     description: 'Git提交记录分析和可视化处理工具',
     category: '开发工具'
-  },
-  {
-    name: '智能 OCR',
-    path: '/smart-ocr',
-    icon: markRaw(OcrIcon),
-    component: () => import('../tools/smart-ocr/SmartOcr.vue'),
-    description: '智能OCR文字识别工具，支持多引擎和智能切图',
-    category: 'AI 工具'
-  },
-  {
-    name: 'LLM 对话',
-    path: '/llm-chat',
-    icon: markRaw(ChatDotRound),
-    component: () => import('../tools/llm-chat/LlmChat.vue'),
-    description: '与 LLM 进行多轮对话，支持流式响应和会话管理',
-    category: 'AI 工具'
   },
   {
     name: '富文本渲染测试',

@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import { useTheme } from "@composables/useTheme";
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import { EditorState, Compartment } from "@codemirror/state";
@@ -45,7 +46,10 @@ import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { css } from "@codemirror/lang-css";
-import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+import { foldGutter, foldKeymap } from "@codemirror/language";
+import { githubLight } from "@uiw/codemirror-theme-github";
+import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
+
 const props = withDefaults(defineProps<{
   modelValue: string;
   language?: "json" | "markdown" | "javascript" | "css" | "text" | string;
@@ -67,6 +71,7 @@ const editorView = shallowRef<EditorView | null>(null);
 const editableCompartment = new Compartment();
 const lineNumbersCompartment = new Compartment();
 const foldGutterCompartment = new Compartment();
+const themeCompartment = new Compartment();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 
 // Monaco Editor 相关状态
@@ -150,6 +155,10 @@ const handleMonacoBlur = () => {
   wrapperRef.value?.classList.remove("is-focused");
 };
 
+// 主题切换
+const { isDark } = useTheme();
+const cmTheme = computed(() => isDark.value ? tokyoNight : githubLight);
+
 // 监听 Monaco 值变化并同步到父组件
 watch(monacoValue, (newVal) => {
   if (props.editorType === 'monaco' && newVal !== props.modelValue) {
@@ -161,7 +170,7 @@ onMounted(() => {
   if (props.editorType !== 'codemirror' || !editorContainerRef.value) return;
 
   const extensions = [
-    syntaxHighlighting(defaultHighlightStyle),
+    themeCompartment.of(cmTheme.value),
     // 基础主题 - 完全适配全局 CSS 变量
     EditorView.theme({
       "&": {
@@ -395,6 +404,14 @@ watch(
   }
 );
 
+watch(cmTheme, (newTheme) => {
+  if (props.editorType === 'codemirror' && editorView.value) {
+    editorView.value.dispatch({
+      effects: themeCompartment.reconfigure(newTheme),
+    });
+  }
+});
+
 // 暴露一些有用的方法（统一 CodeMirror 和 Monaco 的 API）
 const getContent = (): string => {
   if (props.editorType === 'codemirror') {
@@ -495,34 +512,6 @@ defineExpose({
 :deep(.cm-scroller) {
   touch-action: auto;
   background-color: var(--input-bg);
-}
-
-/* 确保语法高亮颜色适配主题 */
-:deep(.cm-keyword) {
-  color: var(--primary-color);
-  font-weight: bold;
-}
-
-:deep(.cm-string) {
-  color: var(--text-color);
-  opacity: 0.8;
-}
-
-:deep(.cm-comment) {
-  color: var(--text-color-light);
-  font-style: italic;
-}
-
-:deep(.cm-number) {
-  color: var(--primary-hover-color);
-}
-
-:deep(.cm-operator) {
-  color: var(--text-color);
-}
-
-:deep(.cm-punctuation) {
-  color: var(--text-color-light);
 }
 
 /* 确保折叠和装订线适配主题 */

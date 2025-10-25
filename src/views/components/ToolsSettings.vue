@@ -2,7 +2,7 @@
 import { InfoFilled, Rank } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "@/config/tools";
 import { VueDraggableNext } from "vue-draggable-next";
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted } from "vue";
 import { updateAppSettings, loadAppSettings } from "@/utils/appSettings";
 import { customMessage } from "@/utils/customMessage";
 

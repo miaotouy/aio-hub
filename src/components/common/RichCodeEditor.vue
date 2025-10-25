@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import { ref, onMounted, onUnmounted, watch, shallowRef, computed, nextTick } from "vue";
 import { useTheme } from "@composables/useTheme";
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
 import type { editor as MonacoEditor } from 'monaco-editor';
@@ -159,15 +159,12 @@ const handleMonacoBlur = () => {
 const { isDark } = useTheme();
 const cmTheme = computed(() => isDark.value ? tokyoNight : githubLight);
 
-// 监听 Monaco 值变化并同步到父组件
-watch(monacoValue, (newVal) => {
-  if (props.editorType === 'monaco' && newVal !== props.modelValue) {
-    emit("update:modelValue", newVal);
-  }
-});
+// CodeMirror 初始化和销毁
+const initCodeMirror = () => {
+  if (!editorContainerRef.value) return;
 
-onMounted(() => {
-  if (props.editorType !== 'codemirror' || !editorContainerRef.value) return;
+  // 如果已有实例，先销毁
+  destroyCodeMirror();
 
   const extensions = [
     themeCompartment.of(cmTheme.value),
@@ -355,13 +352,34 @@ onMounted(() => {
   });
   
   editorView.value = view;
+};
+
+const destroyCodeMirror = () => {
+  if (editorView.value) {
+    editorView.value.destroy();
+    editorView.value = null;
+  }
+};
+
+// 监听 Monaco 值变化并同步到父组件
+watch(monacoValue, (newVal) => {
+  if (props.editorType === 'monaco' && newVal !== props.modelValue) {
+    emit("update:modelValue", newVal);
+  }
+});
+
+onMounted(() => {
+  if (props.editorType === 'codemirror') {
+    initCodeMirror();
+  }
 });
 
 onUnmounted(() => {
-  editorView.value?.destroy();
+  destroyCodeMirror();
+  // Monaco 编辑器由组件库自动处理销毁
 });
 
-// 监听 modelValue 变化
+// 监听 modelValue 变化 (双向绑定)
 watch(
   () => props.modelValue,
   (newVal) => {
@@ -403,6 +421,18 @@ watch(
     // Monaco 通过 computed options 自动响应
   }
 );
+
+// 监听编辑器类型切换
+watch(() => props.editorType, (newType, oldType) => {
+  if (newType === 'codemirror' && oldType === 'monaco') {
+    nextTick(() => {
+      initCodeMirror();
+    });
+  } else if (newType === 'monaco' && oldType === 'codemirror') {
+    destroyCodeMirror();
+  }
+});
+
 
 watch(cmTheme, (newTheme) => {
   if (props.editorType === 'codemirror' && editorView.value) {

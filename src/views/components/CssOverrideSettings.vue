@@ -25,6 +25,7 @@ const {
 } = useCssOverrides();
 
 const showAddDialog = ref(false);
+const editorType = ref<'monaco' | 'codemirror'>('monaco');
 
 // 保存状态的图标和文字
 const saveStatusInfo = computed(() => {
@@ -244,6 +245,7 @@ function isPresetSelected(presetId: string | null): boolean {
             </span>
           </div>
           <div class="section-actions">
+            <el-segmented v-model="editorType" :options="['monaco', 'codemirror']" size="small" />
             <el-button
               v-if="canRestore"
               size="small"
@@ -269,7 +271,7 @@ function isPresetSelected(presetId: string | null): boolean {
             language="css"
             :line-numbers="true"
             :readonly="isPreviewMode"
-            editor-type="monaco"
+            :editor-type="editorType"
           />
         </div>
 
@@ -570,7 +572,7 @@ function isPresetSelected(presetId: string | null): boolean {
 
 .section-header .header-left {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
 }
 
@@ -581,6 +583,7 @@ function isPresetSelected(presetId: string | null): boolean {
 
 .section-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 

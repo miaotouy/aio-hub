@@ -63,6 +63,7 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
+    "@babel/runtime": "^7.28.4",
     "@iconify-json/ep": "^1.2.2",
     "@tauri-apps/cli": "^2",
     "@types/dompurify": "^3.2.0",

@@ -62,7 +62,7 @@
     <!-- 筛选器 -->
     <div class="filters">
       <el-row :gutter="12">
-        <el-col :span="6">
+        <el-col :span="5">
           <el-input
             v-model="searchQuery"
             placeholder="搜索提交信息..."
@@ -76,7 +76,7 @@
             </template>
           </el-input>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="6">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
@@ -91,7 +91,7 @@
           />
         </el-col>
         <div style="width: 20px"></div>
-        <el-col :span="5">
+        <el-col :span="3">
           <el-input
             v-model="authorFilter"
             placeholder="作者筛选"
@@ -99,11 +99,37 @@
             @input="$emit('filter-commits')"
           />
         </el-col>
-        <el-col :span="2">
+        <el-col :span="4">
+          <el-select
+            v-model="commitTypeFilter"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="提交类型"
+            clearable
+            @change="$emit('filter-commits')"
+            style="width: 100%"
+          >
+            <el-option label="feat (新功能)" value="feat" />
+            <el-option label="fix (修复)" value="fix" />
+            <el-option label="docs (文档)" value="docs" />
+            <el-option label="style (样式)" value="style" />
+            <el-option label="refactor (重构)" value="refactor" />
+            <el-option label="perf (性能)" value="perf" />
+            <el-option label="test (测试)" value="test" />
+            <el-option label="chore (杂项)" value="chore" />
+            <el-option label="build (构建)" value="build" />
+            <el-option label="ci (CI)" value="ci" />
+            <el-option label="revert (回退)" value="revert" />
+            <el-option label="other (其他)" value="other" />
+          </el-select>
+        </el-col>
+        <el-col :span="1">
           <el-checkbox v-model="reverseOrder" @change="$emit('filter-commits')">
-            倒序排列
+            倒序
           </el-checkbox>
         </el-col>
+        <div style="width: 10px"></div>
         <el-col :span="2">
           <el-button @click="$emit('clear-filters')" :icon="Refresh"> 清除 </el-button>
         </el-col>
@@ -184,6 +210,7 @@ interface Props {
   dateRange: Date[] | null;
   authorFilter: string;
   reverseOrder: boolean;
+  commitTypeFilter: string[];
   statistics: {
     totalCommits: number;
     contributors: number;
@@ -203,6 +230,7 @@ const emit = defineEmits<{
   "update:dateRange": [value: Date[] | null];
   "update:authorFilter": [value: string];
   "update:reverseOrder": [value: boolean];
+  "update:commitTypeFilter": [value: string[]];
   "select-directory": [];
   "load-repository": [];
   "branch-change": [branch: string];
@@ -219,6 +247,7 @@ const searchQuery = defineModel<string>("searchQuery", { required: true });
 const dateRange = defineModel<Date[] | null>("dateRange", { required: true });
 const authorFilter = defineModel<string>("authorFilter", { required: true });
 const reverseOrder = defineModel<boolean>("reverseOrder", { required: true });
+const commitTypeFilter = defineModel<string[]>("commitTypeFilter", { required: true });
 
 function handlePathDrop(paths: string[]) {
   emit("update:repoPath", paths[0]);

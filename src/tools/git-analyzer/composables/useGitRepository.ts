@@ -23,6 +23,7 @@ export function useGitRepository() {
   const dateRange = ref<[Date, Date] | null>(null)
   const authorFilter = ref('')
   const reverseOrder = ref(false)
+  const commitTypeFilter = ref<string[]>([])
 
   // 分页状态
   const currentPage = ref(1)
@@ -257,6 +258,21 @@ export function useGitRepository() {
       })
     }
 
+    // 提交类型筛选
+    if (commitTypeFilter.value.length > 0) {
+      filtered = filtered.filter((c) => {
+        const message = c.message.trim()
+        // 提取提交类型 (格式: type: message 或 type(scope): message)
+        const match = message.match(/^(\w+)(\(.+?\))?:/)
+        if (match) {
+          const type = match[1].toLowerCase()
+          return commitTypeFilter.value.includes(type)
+        }
+        // 如果没有匹配到类型，当选择了 "other" 时显示
+        return commitTypeFilter.value.includes('other')
+      })
+    }
+
     // 倒序排列
     if (reverseOrder.value) {
       filtered = [...filtered].reverse()
@@ -266,12 +282,14 @@ export function useGitRepository() {
     currentPage.value = 1
   }
 
+
   // 方法 - 清除筛选
   function clearFilters() {
     searchQuery.value = ''
     dateRange.value = null
     authorFilter.value = ''
     reverseOrder.value = false
+    commitTypeFilter.value = []
     // 重新应用筛选（此时只会应用范围选择）
     filterCommits()
     currentPage.value = 1
@@ -304,6 +322,7 @@ export function useGitRepository() {
     dateRange,
     authorFilter,
     reverseOrder,
+    commitTypeFilter,
     currentPage,
     pageSize,
 

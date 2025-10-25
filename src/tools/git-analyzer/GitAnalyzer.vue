@@ -23,6 +23,7 @@
           v-model:date-range="dateRange"
           v-model:author-filter="authorFilter"
           v-model:reverse-order="reverseOrder"
+          v-model:commit-type-filter="commitTypeFilter"
           :loading="loading"
           :branches="branches"
           :commits="commits"
@@ -118,6 +119,7 @@ const {
   dateRange,
   authorFilter,
   reverseOrder,
+  commitTypeFilter,
   currentPage,
   pageSize,
   // 计算属性
@@ -207,6 +209,7 @@ async function loadConfig() {
     searchQuery.value = loadedConfig.searchQuery;
     authorFilter.value = loadedConfig.authorFilter;
     reverseOrder.value = loadedConfig.reverseOrder;
+    commitTypeFilter.value = loadedConfig.commitTypeFilter;
 
     // 恢复日期范围（需要将字符串转换为 Date 对象）
     if (loadedConfig.dateRange) {
@@ -236,6 +239,7 @@ function saveCurrentConfig() {
     authorFilter: authorFilter.value,
     commitRange: commitRange.value,
     reverseOrder: reverseOrder.value,
+    commitTypeFilter: commitTypeFilter.value,
   };
 
   debouncedSaveConfig(updatedConfig);
@@ -254,6 +258,7 @@ watch(
     authorFilter,
     commitRange,
     reverseOrder,
+    commitTypeFilter,
   ],
   () => {
     saveCurrentConfig();

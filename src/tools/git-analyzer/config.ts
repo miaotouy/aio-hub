@@ -18,6 +18,7 @@ export interface GitAnalyzerConfig {
   authorFilter: string
   commitRange: [number, number]
   reverseOrder: boolean
+  commitTypeFilter: string[]
   
   // 导出配置
   exportConfig: {
@@ -55,6 +56,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
     authorFilter: '',
     commitRange: [0, 0],
     reverseOrder: false,
+    commitTypeFilter: [],
     
     // 导出配置
     exportConfig: {

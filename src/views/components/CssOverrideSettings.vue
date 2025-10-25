@@ -266,9 +266,10 @@ function isPresetSelected(presetId: string | null): boolean {
         <div class="editor-wrapper">
           <RichCodeEditor
             v-model="displayContent"
-            language="text"
+            language="css"
             :line-numbers="true"
             :readonly="isPreviewMode"
+            editor-type="monaco"
           />
         </div>
 

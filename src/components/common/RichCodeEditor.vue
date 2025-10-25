@@ -44,11 +44,11 @@ import {
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
-import { foldGutter, foldKeymap } from "@codemirror/language";
-
+import { css } from "@codemirror/lang-css";
+import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 const props = withDefaults(defineProps<{
   modelValue: string;
-  language?: "json" | "markdown" | "javascript" | "text" | string;
+  language?: "json" | "markdown" | "javascript" | "css" | "text" | string;
   readOnly?: boolean;
   lineNumbers?: boolean;
   editorType?: 'codemirror' | 'monaco';
@@ -97,7 +97,6 @@ const monacoOptions = computed<MonacoEditor.IStandaloneEditorConstructionOptions
 
 // Monaco 主题（根据 CSS 变量动态生成）
 const monacoTheme = ref('vs-dark');
-
 // Monaco 语言映射
 const getMonacoLanguage = () => {
   if (!props.language) return 'plaintext';
@@ -111,6 +110,8 @@ const getMonacoLanguage = () => {
     case 'markdown':
     case 'md':
       return 'markdown';
+    case 'css':
+      return 'css';
     case 'text':
       return 'plaintext';
     default:
@@ -160,6 +161,7 @@ onMounted(() => {
   if (props.editorType !== 'codemirror' || !editorContainerRef.value) return;
 
   const extensions = [
+    syntaxHighlighting(defaultHighlightStyle),
     // 基础主题 - 完全适配全局 CSS 变量
     EditorView.theme({
       "&": {
@@ -324,6 +326,9 @@ onMounted(() => {
       case "markdown":
       case "md":
         extensions.push(markdown());
+        break;
+      case "css":
+        extensions.push(css());
         break;
       default:
         break;

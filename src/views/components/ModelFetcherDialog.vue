@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import type { LlmModelInfo } from '../../types/llm-profiles';
 import { useModelMetadata } from '../../composables/useModelMetadata';
+import { MODEL_CAPABILITIES } from '../../config/model-capabilities';
 import DynamicIcon from '../../components/common/DynamicIcon.vue';
 
 const props = defineProps<{
@@ -12,7 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits(['update:visible', 'add-models']);
 
-const { getDisplayIconPath, getIconPath, getModelGroup } = useModelMetadata();
+const { getDisplayIconPath, getIconPath, getModelGroup, getMatchedProperties } = useModelMetadata();
 
 const searchQuery = ref('');
 const selectedModels = ref<LlmModelInfo[]>([]);
@@ -150,6 +151,24 @@ const formatModelName = (modelId: string): string => {
   
   return name;
 };
+
+// 获取模型能力
+const getModelCapabilities = (model: LlmModelInfo) => {
+  // 优先使用模型自身的能力配置
+  if (model.capabilities) {
+    return model.capabilities;
+  }
+  
+  // 否则使用元数据规则匹配的能力
+  const matchedProps = getMatchedProperties(model.id, model.provider);
+  return matchedProps?.capabilities || {};
+};
+
+// 获取激活的能力列表
+const getActiveCapabilities = (model: LlmModelInfo) => {
+  const capabilities = getModelCapabilities(model);
+  return MODEL_CAPABILITIES.filter(cap => capabilities[cap.key]);
+};
 </script>
 
 <template>
@@ -195,7 +214,22 @@ const formatModelName = (modelId: string): string => {
                 <DynamicIcon v-if="getModelIcon(model)" :src="getModelIcon(model)!" class="model-icon" :alt="model.name" />
                 <div v-else class="model-icon-placeholder" />
                 <div class="model-info">
-                  <div class="model-name">{{ formatModelName(model.id) }}</div>
+                  <div class="model-name-row">
+                    <span class="model-name">{{ formatModelName(model.id) }}</span>
+                    <div v-if="getActiveCapabilities(model).length > 0" class="model-capabilities">
+                      <el-tooltip
+                        v-for="cap in getActiveCapabilities(model)"
+                        :key="cap.key"
+                        :content="cap.description"
+                        placement="top"
+                        effect="dark"
+                      >
+                        <el-icon :style="{ color: cap.color }" class="capability-icon">
+                          <component :is="cap.icon" />
+                        </el-icon>
+                      </el-tooltip>
+                    </div>
+                  </div>
                   <div class="model-id">{{ model.id }}</div>
                 </div>
                 <div class="model-status">
@@ -355,13 +389,38 @@ const formatModelName = (modelId: string): string => {
 }
 .model-info {
   flex-grow: 1;
+  min-width: 0;
+}
+.model-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 .model-name {
   font-size: 14px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.model-capabilities {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.capability-icon {
+  font-size: 16px;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+.capability-icon:hover {
+  opacity: 1;
 }
 .model-id {
   font-size: 12px;
   color: var(--text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .model-status {
   margin-left: 16px;

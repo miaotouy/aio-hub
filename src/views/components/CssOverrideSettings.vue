@@ -1,21 +1,30 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useCssOverrides } from '@/composables/useCssOverrides';
 import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
-import { DocumentCopy, Refresh, Delete, Check, Loading, Edit } from '@element-plus/icons-vue';
+import AddCssPresetDialog from './AddCssPresetDialog.vue';
+import { DocumentCopy, Refresh, Delete, Check, Loading, Edit, Plus, Position, QuestionFilled } from '@element-plus/icons-vue';
+import { ElMessageBox } from 'element-plus';
 
 const {
-  presets,
-  editorContent,
+  builtInPresets,
+  displayContent,
+  isPreviewMode,
   saveStatus,
   isEnabled,
   currentPreset,
   canRestore,
+  userSettings,
   selectPreset,
+  selectCustom,
+  applySelectedPreset,
+  addUserPreset,
+  deleteUserPreset,
   restoreToPreset,
-  switchToCustom,
   clearContent,
 } = useCssOverrides();
+
+const showAddDialog = ref(false);
 
 // 保存状态的图标和文字
 const saveStatusInfo = computed(() => {
@@ -30,6 +39,53 @@ const saveStatusInfo = computed(() => {
       return { icon: null, text: '', class: '' };
   }
 });
+
+// 处理预设选择
+function handlePresetSelect(presetId: string | null) {
+  if (presetId === null) {
+    // 选择"纯自定义"
+    selectCustom();
+  } else {
+    selectPreset(presetId);
+  }
+}
+
+// 处理应用预设
+function handleApplyPreset() {
+  applySelectedPreset();
+}
+
+// 处理添加预设
+function handleAddPreset(name: string) {
+  addUserPreset(name);
+}
+
+// 处理删除预设
+function handleDeletePreset(presetId: string) {
+  ElMessageBox.confirm(
+    '确定要删除这个预设吗？此操作不可恢复。',
+    '确认删除',
+    {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    }
+  ).then(() => {
+    deleteUserPreset(presetId);
+  }).catch(() => {
+    // 取消删除
+  });
+}
+
+// 判断预设是否正在使用
+function isPresetActive(presetId: string | null): boolean {
+  return userSettings.value.basedOnPresetId === presetId;
+}
+
+// 判断预设是否被选中
+function isPresetSelected(presetId: string | null): boolean {
+  return userSettings.value.selectedPresetId === presetId;
+}
 </script>
 
 <template>
@@ -41,6 +97,16 @@ const saveStatusInfo = computed(() => {
         <span class="header-subtitle">自定义应用的全局样式</span>
       </div>
       <div class="header-right">
+        <el-button
+          type="primary"
+          :icon="Position"
+          :disabled="
+            userSettings.selectedPresetId === userSettings.basedOnPresetId
+          "
+          @click="handleApplyPreset"
+        >
+          应用选中的预设
+        </el-button>
         <div class="save-status" :class="saveStatusInfo.class">
           <el-icon v-if="saveStatusInfo.icon" :class="{ rotating: saveStatus === 'saving' }">
             <component :is="saveStatusInfo.icon" />
@@ -56,110 +122,186 @@ const saveStatusInfo = computed(() => {
       </div>
     </div>
 
-    <!-- 预设模板 -->
-    <div class="presets-section">
-      <div class="section-header">
-        <h4>预设模板</h4>
-        <span class="section-subtitle">快速应用内置样式主题</span>
-      </div>
-      <div class="presets-grid">
-        <!-- 纯自定义选项 -->
-        <div
-          class="preset-card custom-card"
-          :class="{ active: !currentPreset }"
-          @click="switchToCustom"
-        >
-          <div class="preset-header">
-            <el-icon><Edit /></el-icon>
-            <span class="preset-name">纯自定义</span>
-            <el-tag
-              v-if="!currentPreset"
-              size="small"
-              type="success"
-              effect="plain"
-            >
-              使用中
-            </el-tag>
-          </div>
-          <div class="preset-desc">完全自定义样式，不基于任何预设</div>
+    <!-- 主内容区 -->
+    <div class="main-content">
+      <!-- 左侧预设列表 -->
+      <div class="presets-sidebar">
+        <div class="sidebar-header">
+          <h4>预设模板</h4>
+          <el-button
+            type="primary"
+            :icon="Plus"
+            size="small"
+            @click="showAddDialog = true"
+          >
+            添加
+          </el-button>
         </div>
 
-        <!-- 内置预设列表 -->
-        <div
-          v-for="preset in presets"
-          :key="preset.id"
-          class="preset-card"
-          :class="{ active: currentPreset?.id === preset.id }"
-          @click="selectPreset(preset.id)"
-        >
-          <div class="preset-header">
-            <el-icon><DocumentCopy /></el-icon>
-            <span class="preset-name">{{ preset.name }}</span>
-            <el-tag
-              v-if="currentPreset?.id === preset.id"
-              size="small"
-              type="success"
-              effect="plain"
+        <div class="sidebar-content">
+          <!-- 纯自定义选项 -->
+          <div
+            class="preset-item custom-item"
+            :class="{
+              selected: isPresetSelected(null),
+              active: isPresetActive(null),
+            }"
+            @click="handlePresetSelect(null)"
+          >
+            <div class="preset-info">
+              <el-icon><Edit /></el-icon>
+              <span class="preset-name">纯自定义</span>
+            </div>
+            <span
+              v-if="isPresetActive(null)"
+              class="active-badge"
             >
               使用中
-            </el-tag>
+            </span>
           </div>
-          <div class="preset-desc">{{ preset.description }}</div>
+
+          <!-- 内置预设分组 -->
+          <div class="preset-group">
+            <div class="group-title">内置预设</div>
+            <div
+              v-for="preset in builtInPresets"
+              :key="preset.id"
+              class="preset-item"
+              :class="{
+                selected: isPresetSelected(preset.id),
+                active: isPresetActive(preset.id),
+              }"
+              @click="handlePresetSelect(preset.id)"
+            >
+              <div class="preset-info">
+                <el-icon><DocumentCopy /></el-icon>
+                <div class="preset-text">
+                  <span class="preset-name">{{ preset.name }}</span>
+                  <span class="preset-desc">{{ preset.description }}</span>
+                </div>
+              </div>
+              <span
+                v-if="isPresetActive(preset.id)"
+                class="active-badge"
+              >
+                使用中
+              </span>
+            </div>
+          </div>
+
+          <!-- 用户预设分组 -->
+          <div v-if="userSettings.userPresets.length > 0" class="preset-group">
+            <div class="group-title">我的预设</div>
+            <div
+              v-for="preset in userSettings.userPresets"
+              :key="preset.id"
+              class="preset-item user-preset"
+              :class="{
+                selected: isPresetSelected(preset.id),
+                active: isPresetActive(preset.id),
+              }"
+              @click="handlePresetSelect(preset.id)"
+            >
+              <div class="preset-info">
+                <el-icon><DocumentCopy /></el-icon>
+                <div class="preset-text">
+                  <span class="preset-name">{{ preset.name }}</span>
+                  <span class="preset-desc">{{ preset.description }}</span>
+                </div>
+              </div>
+              <div class="preset-actions">
+                <span
+                  v-if="isPresetActive(preset.id)"
+                  class="active-badge"
+                >
+                  使用中
+                </span>
+                <el-button
+                  size="small"
+                  type="danger"
+                  :icon="Delete"
+                  text
+                  @click.stop="handleDeletePreset(preset.id)"
+                />
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- 右侧编辑器 -->
+      <div class="editor-section">
+        <div class="section-header">
+          <div class="header-left">
+            <h4>自定义 CSS</h4>
+            <span class="section-subtitle">
+              <template v-if="isPreviewMode">
+                <el-tag type="info" size="small">预览模式</el-tag>
+              </template>
+              <template v-else>
+                {{ currentPreset ? `基于预设：${currentPreset.name}` : '完全自定义' }}
+              </template>
+            </span>
+          </div>
+          <div class="section-actions">
+            <el-button
+              v-if="canRestore"
+              size="small"
+              :icon="Refresh"
+              @click="restoreToPreset"
+            >
+              还原到预设
+            </el-button>
+            <el-button
+              v-if="displayContent.trim() && !isPreviewMode"
+              size="small"
+              :icon="Delete"
+              @click="clearContent"
+            >
+              清空
+            </el-button>
+          </div>
+        </div>
+
+        <div class="editor-wrapper">
+          <RichCodeEditor
+            v-model="displayContent"
+            language="text"
+            :line-numbers="true"
+            :readonly="isPreviewMode"
+          />
+        </div>
+
+        <!-- 说明提示（折叠面板） -->
+        <el-collapse class="info-collapse">
+          <el-collapse-item>
+            <template #title>
+              <div class="collapse-title">
+                <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                <strong>使用提示</strong>
+              </div>
+            </template>
+            <div class="alert-content">
+              <ul>
+                <li>自定义 CSS 会在启用时立即应用到整个应用</li>
+                <li>编辑器支持自动保存，修改后会在 500ms 后自动保存</li>
+                <li>可以使用 CSS 变量来适配主题，如 <code>var(--primary-color)</code></li>
+                <li>选择预设后会进入预览模式（只读），点击"应用选中的预设"按钮才会应用</li>
+                <li>预览模式下无法编辑，应用后即可编辑</li>
+                <li>点击"添加"按钮可以将当前编辑器内容保存为新预设</li>
+                <li>建议谨慎使用 <code>!important</code>，避免影响应用的正常功能</li>
+              </ul>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
       </div>
     </div>
 
-    <!-- CSS 编辑器 -->
-    <div class="editor-section">
-      <div class="section-header">
-        <div class="header-left">
-          <h4>自定义 CSS</h4>
-          <span class="section-subtitle">
-            {{ currentPreset ? `基于预设：${currentPreset.name}` : '完全自定义' }}
-          </span>
-        </div>
-        <div class="section-actions">
-          <el-button
-            v-if="canRestore"
-            size="small"
-            :icon="Refresh"
-            @click="restoreToPreset"
-          >
-            还原到预设
-          </el-button>
-          <el-button
-            v-if="editorContent.trim()"
-            size="small"
-            :icon="Delete"
-            @click="clearContent"
-          >
-            清空
-          </el-button>
-        </div>
-      </div>
-
-      <div class="editor-wrapper">
-        <RichCodeEditor
-          v-model="editorContent"
-          language="text"
-          :line-numbers="true"
-        />
-      </div>
-
-      <!-- 说明提示 -->
-      <div class="info-alert">
-        <div class="alert-content">
-          <div>💡 <strong>提示：</strong></div>
-          <ul>
-            <li>自定义 CSS 会在启用时立即应用到整个应用</li>
-            <li>编辑器支持自动保存，修改后会在 500ms 后自动保存</li>
-            <li>可以使用 CSS 变量来适配主题，如 <code>var(--primary-color)</code></li>
-            <li>选择预设后，可以在编辑器中继续修改，还原按钮可以恢复到预设原始内容</li>
-            <li>建议谨慎使用 <code>!important</code>，避免影响应用的正常功能</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+    <!-- 添加预设对话框 -->
+    <AddCssPresetDialog
+      v-model:visible="showAddDialog"
+      @confirm="handleAddPreset"
+    />
   </div>
 </template>
 
@@ -167,10 +309,10 @@ const saveStatusInfo = computed(() => {
 .css-override-settings {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   padding: 0 24px 24px;
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 /* 顶部控制栏 */
@@ -182,6 +324,7 @@ const saveStatusInfo = computed(() => {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .header-left h3 {
@@ -208,24 +351,28 @@ const saveStatusInfo = computed(() => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  padding: 4px 12px;
+  padding: 6px 12px;
   border-radius: 4px;
+  border: 1px solid transparent;
   transition: all 0.3s ease;
 }
 
 .status-saved {
   color: var(--el-color-success);
-  background: var(--el-color-success-light-9);
+  background: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  border-color: var(--el-color-success);
 }
 
 .status-saving {
   color: var(--el-color-info);
-  background: var(--el-color-info-light-9);
+  background: color-mix(in srgb, var(--el-color-info) 10%, transparent);
+  border-color: var(--el-color-info);
 }
 
 .status-unsaved {
   color: var(--el-color-warning);
-  background: var(--el-color-warning-light-9);
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  border-color: var(--el-color-warning);
 }
 
 .rotating {
@@ -241,12 +388,176 @@ const saveStatusInfo = computed(() => {
   }
 }
 
-/* 通用区块样式 */
+/* 主内容区 */
+.main-content {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  background: var(--card-bg);
+  overflow: hidden;
+}
+
+/* 左侧预设列表 */
+.presets-sidebar {
+  width: 300px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* 预设项 */
+.preset-item {
+  padding: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  border: 2px solid transparent;
+}
+
+.preset-item:hover {
+  background: var(--bg-color);
+}
+
+.preset-item.selected {
+  background: rgba(var(--primary-color-rgb), 0.1);
+  border-color: var(--primary-color);
+}
+
+.preset-item.active {
+  background: rgba(var(--primary-color-rgb), 0.15);
+}
+
+.preset-item.custom-item {
+  border-style: dashed;
+}
+
+.preset-item.custom-item.selected {
+  border-style: solid;
+}
+
+.preset-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.preset-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.preset-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 预设分组 */
+.preset-group {
+  margin-top: 12px;
+}
+
+.preset-group:first-child {
+  margin-top: 0;
+}
+
+.group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 8px 12px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 使用中徽章 */
+.active-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  border: 1px solid var(--el-color-success);
+  color: var(--el-color-success);
+  white-space: nowrap;
+}
+
+/* 右侧编辑器 */
+.editor-section {
+  flex: 1;
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .section-header h4 {
@@ -272,93 +583,34 @@ const saveStatusInfo = computed(() => {
   gap: 8px;
 }
 
-/* 预设模板 */
-.presets-section {
-  background: var(--card-bg);
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.presets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 12px;
-}
-
-.preset-card {
-  padding: 16px;
-  border: 2px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: var(--bg-color);
-}
-
-.preset-card:hover {
-  border-color: var(--primary-color);
-  background: var(--hover-bg);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.preset-card.active {
-  border-color: var(--primary-color);
-  background: var(--primary-color-light-9, rgba(64, 158, 255, 0.1));
-}
-
-.preset-card.custom-card {
-  border-style: dashed;
-}
-
-.preset-card.custom-card.active {
-  border-style: solid;
-}
-
-.preset-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.preset-name {
-  flex: 1;
-}
-
-.preset-desc {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-/* 编辑器区域 */
-.editor-section {
-  background: var(--card-bg);
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
 .editor-wrapper {
-  height: 400px;
+  flex: 1;
   margin-bottom: 16px;
   border-radius: 4px;
   overflow: hidden;
+  min-height: 0;
 }
 
-/* 提示框 */
-.info-alert {
-  padding: 12px 16px;
-  background: var(--card-bg);
+/* 提示折叠面板 */
+.info-collapse {
+  flex-shrink: 0;
   border: 1px solid var(--border-color);
   border-radius: 6px;
+  background: var(--card-bg);
 }
 
-.alert-content strong {
+.collapse-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  font-size: 14px;
   color: var(--text-primary);
+}
+
+.help-icon {
+  color: var(--el-color-primary);
+  font-size: 16px;
 }
 
 .alert-content ul {
@@ -385,15 +637,15 @@ const saveStatusInfo = computed(() => {
 
 /* 响应式 */
 @media (max-width: 1200px) {
-  .presets-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  .presets-sidebar {
+    width: 250px;
   }
 }
 
 @media (max-width: 768px) {
   .css-override-settings {
     padding: 0 16px 16px;
-    gap: 16px;
+    gap: 12px;
   }
 
   .header-section {
@@ -407,8 +659,13 @@ const saveStatusInfo = computed(() => {
     justify-content: space-between;
   }
 
-  .presets-grid {
-    grid-template-columns: 1fr;
+  .main-content {
+    flex-direction: column;
+  }
+
+  .presets-sidebar {
+    width: 100%;
+    max-height: 300px;
   }
 
   .section-header {
@@ -421,10 +678,6 @@ const saveStatusInfo = computed(() => {
     width: 100%;
     flex-wrap: wrap;
   }
-
-  .editor-wrapper {
-    height: 300px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -433,13 +686,9 @@ const saveStatusInfo = computed(() => {
   }
 
   .header-section,
-  .presets-section,
+  .presets-sidebar,
   .editor-section {
     padding: 16px;
-  }
-
-  .editor-wrapper {
-    height: 250px;
   }
 }
 </style>

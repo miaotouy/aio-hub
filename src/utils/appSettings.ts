@@ -75,6 +75,8 @@ export const defaultAppSettings: AppSettings = {
     enabled: false,
     basedOnPresetId: null,
     customContent: "",
+    userPresets: [],
+    selectedPresetId: null,
   },
 };
 

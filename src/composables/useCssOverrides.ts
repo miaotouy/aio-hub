@@ -18,7 +18,7 @@ export function useCssOverrides() {
   /**
    * 内置预设列表
    */
-  const presets = ref<CssPreset[]>(builtInCssPresets);
+  const builtInPresets = ref<CssPreset[]>(builtInCssPresets);
 
   /**
    * 用户的 CSS 配置
@@ -27,7 +27,17 @@ export function useCssOverrides() {
     enabled: false,
     basedOnPresetId: null,
     customContent: '',
+    userPresets: [],
+    selectedPresetId: null,
   });
+
+  /**
+   * 合并后的所有预设列表（内置 + 用户自定义）
+   */
+  const allPresets = computed(() => [
+    ...builtInPresets.value,
+    ...userSettings.value.userPresets,
+  ]);
 
   /**
    * 编辑器当前内容（与编辑器双向绑定）
@@ -35,9 +45,31 @@ export function useCssOverrides() {
   const editorContent = ref<string>('');
 
   /**
+   * 预览内容（选中预设时的预览）
+   */
+  const previewContent = ref<string>('');
+
+  /**
+   * 是否处于预览模式
+   */
+  const isPreviewMode = ref<boolean>(false);
+
+  /**
    * 保存状态
    */
   const saveStatus = ref<'unsaved' | 'saving' | 'saved'>('saved');
+
+  /**
+   * 显示的内容（预览模式显示预览内容，否则显示编辑器内容）
+   */
+  const displayContent = computed({
+    get: () => isPreviewMode.value ? previewContent.value : editorContent.value,
+    set: (value: string) => {
+      if (!isPreviewMode.value) {
+        editorContent.value = value;
+      }
+    },
+  });
 
   /**
    * CSS 是否已启用
@@ -117,26 +149,129 @@ export function useCssOverrides() {
   }
 
   /**
-   * 选择一个预设
+   * 根据 ID 获取预设（从所有预设中查找）
+   */
+  function getPreset(presetId: string): CssPreset | undefined {
+    return allPresets.value.find((preset) => preset.id === presetId);
+  }
+
+  /**
+   * 选择一个预设（仅选中，不应用，进入预览模式）
    */
   function selectPreset(presetId: string) {
-    const preset = getPresetById(presetId);
+    const preset = getPreset(presetId);
     if (!preset) {
       moduleLogger.warn('预设不存在', { presetId });
       customMessage.warning('预设不存在');
       return;
     }
 
-    // 加载预设内容到编辑器
-    editorContent.value = preset.content;
-    userSettings.value.basedOnPresetId = presetId;
+    userSettings.value.selectedPresetId = presetId;
+    previewContent.value = preset.content;
+    isPreviewMode.value = true;
     
-    moduleLogger.info('已选择预设', {
+    moduleLogger.info('已选中预设（预览模式）', {
       presetId,
+      presetName: preset.name,
+    });
+  }
+
+  /**
+   * 选择纯自定义（退出预览模式）
+   */
+  function selectCustom() {
+    userSettings.value.selectedPresetId = null;
+    isPreviewMode.value = false;
+    
+    moduleLogger.info('已选中纯自定义');
+  }
+
+  /**
+   * 应用选中的预设
+   */
+  function applySelectedPreset() {
+    if (userSettings.value.selectedPresetId === null) {
+      // 应用纯自定义
+      userSettings.value.basedOnPresetId = null;
+      isPreviewMode.value = false;
+      moduleLogger.info('已应用纯自定义');
+      customMessage.success('已切换到纯自定义模式');
+      return;
+    }
+
+    const preset = getPreset(userSettings.value.selectedPresetId);
+    if (!preset) {
+      moduleLogger.warn('预设不存在', { presetId: userSettings.value.selectedPresetId });
+      customMessage.warning('预设不存在');
+      return;
+    }
+
+    // 将预览内容应用到编辑器
+    editorContent.value = previewContent.value;
+    userSettings.value.basedOnPresetId = userSettings.value.selectedPresetId;
+    isPreviewMode.value = false;
+    
+    moduleLogger.info('已应用预设', {
+      presetId: preset.id,
       presetName: preset.name,
     });
     
     customMessage.success(`已应用预设：${preset.name}`);
+  }
+
+  /**
+   * 添加用户自定义预设
+   */
+  function addUserPreset(name: string) {
+    const id = `user-${Date.now()}`;
+    const newPreset: CssPreset = {
+      id,
+      name,
+      description: '用户自定义预设',
+      content: editorContent.value,
+    };
+
+    userSettings.value.userPresets.push(newPreset);
+    userSettings.value.basedOnPresetId = id;
+    userSettings.value.selectedPresetId = id;
+    
+    moduleLogger.info('已添加用户预设', {
+      presetId: id,
+      presetName: name,
+    });
+    
+    customMessage.success(`已添加预设：${name}`);
+  }
+
+  /**
+   * 删除用户自定义预设
+   */
+  function deleteUserPreset(presetId: string) {
+    const index = userSettings.value.userPresets.findIndex((p) => p.id === presetId);
+    if (index === -1) {
+      customMessage.warning('预设不存在');
+      return;
+    }
+
+    const preset = userSettings.value.userPresets[index];
+    userSettings.value.userPresets.splice(index, 1);
+
+    // 如果删除的是当前基于的预设，切换到自定义模式
+    if (userSettings.value.basedOnPresetId === presetId) {
+      userSettings.value.basedOnPresetId = null;
+    }
+
+    // 如果删除的是当前选中的预设，清空选中
+    if (userSettings.value.selectedPresetId === presetId) {
+      userSettings.value.selectedPresetId = null;
+    }
+    
+    moduleLogger.info('已删除用户预设', {
+      presetId,
+      presetName: preset.name,
+    });
+    
+    customMessage.success(`已删除预设：${preset.name}`);
   }
 
   /**
@@ -158,10 +293,12 @@ export function useCssOverrides() {
   }
 
   /**
-   * 切换到自定义模式（不基于任何预设）
+   * 切换到自定义模式（不基于任何预设，退出预览模式）
    */
   function switchToCustom() {
     userSettings.value.basedOnPresetId = null;
+    userSettings.value.selectedPresetId = null;
+    isPreviewMode.value = false;
     moduleLogger.info('已切换到自定义模式');
   }
 
@@ -260,9 +397,12 @@ export function useCssOverrides() {
 
   return {
     // 状态
-    presets,
+    builtInPresets,
+    allPresets,
     userSettings,
     editorContent,
+    displayContent,
+    isPreviewMode,
     saveStatus,
     isEnabled,
     currentPreset,
@@ -272,6 +412,10 @@ export function useCssOverrides() {
     loadSettings,
     saveSettings,
     selectPreset,
+    selectCustom,
+    applySelectedPreset,
+    addUserPreset,
+    deleteUserPreset,
     restoreToPreset,
     switchToCustom,
     clearContent,

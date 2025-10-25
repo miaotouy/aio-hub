@@ -543,6 +543,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      capabilities: {
+        vision: true, // GPT-4o, GPT-4 Turbo 等支持视觉
+        toolUse: true, // 支持函数调用
+      },
     },
     priority: 20,
     enabled: true,
@@ -555,6 +559,9 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      capabilities: {
+        reasoning: true, // o1 系列支持推理模式
+      },
     },
     priority: 20,
     enabled: true,
@@ -567,6 +574,9 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      capabilities: {
+        reasoning: true, // o3 系列支持推理模式
+      },
     },
     priority: 20,
     enabled: true,
@@ -593,6 +603,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/claude-color.svg`,
       group: "Claude",
+      capabilities: {
+        vision: true, // Claude 3+ 支持视觉
+        thinking: true, // Claude 支持思考模式
+        toolUse: true, // 支持工具调用
+      },
     },
     priority: 20,
     enabled: true,
@@ -607,6 +622,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
       group: "Gemini",
+      capabilities: {
+        vision: true, // Gemini 支持视觉
+        thinking: true, // Gemini 2.0+ 支持思考模式
+        toolUse: true, // 支持函数调用
+        codeExecution: true, // 支持代码执行
+      },
     },
     priority: 20,
     enabled: true,
@@ -633,6 +654,9 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
       group: "DeepSeek",
+      capabilities: {
+        reasoning: true, // DeepSeek 支持推理模式
+      },
     },
     priority: 20,
     enabled: true,

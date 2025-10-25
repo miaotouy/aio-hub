@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { InfoFilled } from "@element-plus/icons-vue";
+import { InfoFilled, MagicStick } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "../../types/llm-profiles";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
 import { MODEL_CAPABILITIES } from "../../config/model-capabilities";
+import { getMatchedModelProperties } from "../../config/model-metadata";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
 
 const props = defineProps<{
@@ -100,6 +101,58 @@ const openModelIconSelector = () => {
   showPresetIconDialog.value = true;
 };
 
+// 应用预设配置
+const applyPreset = () => {
+  const modelId = modelEditForm.value.id.trim();
+  if (!modelId) {
+    customMessage.warning("请先输入模型 ID");
+    return;
+  }
+
+  // 从预设中获取匹配的元数据
+  const properties = getMatchedModelProperties(modelId, modelEditForm.value.provider);
+  
+  if (!properties) {
+    customMessage.info("未找到匹配的预设配置");
+    return;
+  }
+
+  let appliedCount = 0;
+
+  // 应用分组
+  if (properties.group && !modelEditForm.value.group) {
+    modelEditForm.value.group = properties.group;
+    appliedCount++;
+  }
+
+  // 应用图标
+  if (properties.icon && !modelEditForm.value.icon) {
+    modelEditForm.value.icon = properties.icon;
+    appliedCount++;
+  }
+
+  // 应用能力
+  if (properties.capabilities) {
+    modelEditForm.value.capabilities = {
+      ...modelEditForm.value.capabilities,
+      ...properties.capabilities,
+    };
+    appliedCount++;
+  }
+
+  // 如果没有名称，使用模型 ID 作为名称
+  if (!modelEditForm.value.name) {
+    modelEditForm.value.name = modelId;
+    appliedCount++;
+  }
+
+  if (appliedCount > 0) {
+    customMessage.success(`已应用预设配置（${appliedCount} 项）`);
+  } else {
+    customMessage.info("所有字段已有值，未覆盖");
+  }
+};
+
 const dialogTitle = computed(() => {
   return props.isEditing ? "编辑模型" : "添加模型";
 });
@@ -167,7 +220,14 @@ const applyOutputPreset = (value: number) => {
         <el-divider content-position="left">基本信息</el-divider>
 
         <el-form-item label="模型 ID">
-          <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o" />
+          <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o">
+            <template #append>
+              <el-button :icon="MagicStick" @click="applyPreset" title="根据模型 ID 自动应用预设配置">
+                应用预设
+              </el-button>
+            </template>
+          </el-input>
+          <div class="form-hint">输入模型 ID 后可点击"应用预设"自动填充名称、分组、图标和能力</div>
         </el-form-item>
 
         <el-form-item label="显示名称">

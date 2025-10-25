@@ -23,8 +23,8 @@ export interface ModelMetadataProperties {
   /** 分组名称 */
   group?: string;
   
-  /** 模型能力标签（如：['视觉', '代码', '长文本']） */
-  capabilities?: string[];
+  /** 模型能力（与 LlmModelInfo.capabilities 结构相同） */
+  capabilities?: import('./llm-profiles').ModelCapabilities;
   
   /** 上下文长度（token 数） */
   contextLength?: number;

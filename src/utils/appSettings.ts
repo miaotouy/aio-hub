@@ -5,6 +5,7 @@
 
 import { createConfigManager } from "./configManager";
 import { logger } from "./logger";
+import type { UserCssSettings } from "@/types/css-override";
 
 export interface AppSettings {
   sidebarCollapsed: boolean;
@@ -33,6 +34,9 @@ export interface AppSettings {
 
   // 关于信息
   version?: string;
+
+  // CSS 覆盖配置
+  cssOverride?: UserCssSettings;
 }
 
 // 默认设置
@@ -66,6 +70,12 @@ export const defaultAppSettings: AppSettings = {
   logToConsole: true, // 默认启用控制台日志
   logBufferSize: 1000, // 默认缓冲区大小
   version: "1.0.0",
+  // 默认 CSS 覆盖配置
+  cssOverride: {
+    enabled: false,
+    basedOnPresetId: null,
+    customContent: "",
+  },
 };
 
 // 创建应用设置管理器实例

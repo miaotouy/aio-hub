@@ -7,6 +7,7 @@
 
 import type { ModelMetadataRule, ModelMetadataProperties } from "../types/model-metadata";
 import { createModuleLogger } from "@utils/logger";
+import { merge } from "lodash-es";
 import { PRESET_ICONS_DIR } from "./preset-icons";
 
 // 创建模块日志器
@@ -22,6 +23,21 @@ export { PRESET_ICONS_DIR, PRESET_ICONS } from "./preset-icons";
  * 当前主要包含图标和分组信息，未来可以扩展更多属性如能力、价格等。
  */
 export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
+  // === 能力自动匹配 (优先级 5) ===
+  {
+    id: "capability-vision-vl",
+    matchType: "modelPrefix",
+    matchValue: "vl",
+    properties: {
+      capabilities: {
+        vision: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为所有包含 'vl' 的模型自动添加视觉能力。这是一个非独占规则，会与其他规则合并。",
+  },
+
   // === Provider 级别匹配（优先级 10） ===
   // 主流国际 AI 服务商
   {
@@ -1334,18 +1350,36 @@ export function getMatchedModelProperties(
   provider?: string,
   rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
 ): ModelMetadataProperties | undefined {
-  // 过滤启用的规则并按优先级排序
-  const enabledRules = rules
+  // 1. 过滤启用的规则并按优先级排序
+  const sortedEnabledRules = rules
     .filter((r) => r.enabled !== false)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
-  for (const rule of enabledRules) {
-    if (testRuleMatch(rule, modelId, provider)) {
-      return rule.properties;
-    }
+  // 2. 找出所有匹配的规则
+  let matchedRules = sortedEnabledRules.filter((rule) => testRuleMatch(rule, modelId, provider));
+
+  // 如果没有匹配的规则，直接返回
+  if (matchedRules.length === 0) {
+    return undefined;
   }
 
-  return undefined;
+  // 3. 处理独占规则 (exclusive)
+  // 找到优先级最高的独占规则
+  const highestExclusiveRule = matchedRules.find((r) => r.exclusive === true);
+
+  if (highestExclusiveRule) {
+    const exclusivePriority = highestExclusiveRule.priority || 0;
+    // 只保留优先级大于等于独占规则的匹配项
+    matchedRules = matchedRules.filter((r) => (r.priority || 0) >= exclusivePriority);
+  }
+
+  // 4. 按优先级从低到高合并属性
+  // 需要反转数组，以便低优先级的先被合并
+  const finalProperties = matchedRules
+    .reverse()
+    .reduce((acc, rule) => merge(acc, rule.properties), {} as ModelMetadataProperties);
+
+  return finalProperties;
 }
 
 /**

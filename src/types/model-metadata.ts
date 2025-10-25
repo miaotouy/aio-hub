@@ -101,7 +101,14 @@ export interface ModelMetadataRule {
   
   /** 是否使用正则表达式匹配（仅对 model、modelPrefix 有效） */
   useRegex?: boolean;
-  
+
+  /**
+   * 是否为独占规则
+   * 如果为 true，则匹配到此规则时，将忽略所有优先级低于此规则的匹配项。
+   * 默认为 false。
+   */
+  exclusive?: boolean;
+
   /** 备注说明 */
   description?: string;
 }

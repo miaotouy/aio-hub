@@ -1,6 +1,6 @@
 [package]
 name = "aiotools"
-version = "0.1.8-alpha.2"
+version = "0.1.8-alpha.3"
 description = "All-in-One Tools - 综合工具箱应用"
 authors = ["miaotouy"]
 edition = "2021"

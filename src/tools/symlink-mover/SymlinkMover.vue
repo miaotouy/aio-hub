@@ -15,8 +15,8 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import InfoCard from "../components/common/InfoCard.vue";
-import DropZone from "../components/common/DropZone.vue";
+import InfoCard from "../../components/common/InfoCard.vue";
+import DropZone from "../../components/common/DropZone.vue";
 import { createModuleLogger } from "@utils/logger";
 
 // 日志记录器

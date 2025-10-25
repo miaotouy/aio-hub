@@ -102,7 +102,7 @@ import {
 } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
-import RichCodeEditor from '../components/common/RichCodeEditor.vue';
+import RichCodeEditor from '../../components/common/RichCodeEditor.vue';
 import { createModuleLogger } from '@utils/logger';
 
 // 创建模块日志记录器

@@ -58,7 +58,7 @@ import { customMessage } from '@/utils/customMessage';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import * as exifr from 'exifr';
-import InfoCard from '../components/common/InfoCard.vue';
+import InfoCard from '../../components/common/InfoCard.vue';
 import { createModuleLogger } from '@utils/logger';
 
 const logger = createModuleLogger('MediaInfoReader');

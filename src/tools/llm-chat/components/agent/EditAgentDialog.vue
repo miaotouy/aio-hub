@@ -6,6 +6,7 @@ import AgentPresetEditor from './AgentPresetEditor.vue';
 import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
 import BaseDialog from '@/components/common/BaseDialog.vue';
 import IconPresetSelector from '@/components/common/IconPresetSelector.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import { PRESET_ICONS, PRESET_ICONS_DIR } from '@/config/preset-icons';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -232,16 +233,14 @@ const clearIcon = () => {
             class="icon-input"
           >
             <template #prepend>
-              <div class="icon-preview">
-                <img
-                  v-if="editForm.icon && (editForm.icon.startsWith('/') || editForm.icon.startsWith('appdata://') || editForm.icon.startsWith('http'))"
-                  :src="editForm.icon.startsWith('appdata://') ? editForm.icon.replace('appdata://', '/') : editForm.icon"
-                  alt="图标预览"
-                  class="preview-image"
-                  @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-                />
-                <span v-else class="preview-emoji">{{ editForm.icon || '🤖' }}</span>
-              </div>
+              <Avatar
+                :src="editForm.icon || '🤖'"
+                alt="图标预览"
+                :size="32"
+                shape="square"
+                :radius="4"
+                :border="false"
+              />
             </template>
             <template #append>
               <el-button-group>
@@ -346,26 +345,6 @@ const clearIcon = () => {
 
 .icon-input {
   width: 100%;
-}
-
-.icon-preview {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.preview-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.preview-emoji {
-  font-size: 24px;
-  line-height: 1;
 }
 
 .form-hint {

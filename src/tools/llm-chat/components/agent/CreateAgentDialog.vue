@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useAgentPresets } from '@/composables/useAgentPresets';
+import Avatar from '@/components/common/Avatar.vue';
 import type { AgentPreset } from '../../types';
 
 // Emits
@@ -85,16 +86,13 @@ const getCategoryLabel = (category: string | 'all') => {
               class="preset-card"
               @click="handleCreateFromPreset(preset)"
             >
-              <div class="preset-icon">
-                <img
-                  v-if="preset.icon && (preset.icon.startsWith('/') || preset.icon.startsWith('appdata://') || preset.icon.startsWith('http'))"
-                  :src="preset.icon.startsWith('appdata://') ? preset.icon.replace('appdata://', '/') : preset.icon"
-                  :alt="preset.name"
-                  class="preset-icon-image"
-                  @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-                />
-                <span v-else class="preset-icon-emoji">{{ preset.icon }}</span>
-              </div>
+              <Avatar
+                :src="preset.icon"
+                :alt="preset.name"
+                :size="40"
+                shape="square"
+                :radius="6"
+              />
               <div class="preset-info">
                 <div class="preset-name">{{ preset.name }}</div>
                 <el-tooltip :content="preset.description" placement="top" :show-after="500">
@@ -199,28 +197,7 @@ const getCategoryLabel = (category: string | 'all') => {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
-.preset-icon {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  overflow: hidden;
-  font-size: 24px;
-}
 
-.preset-icon-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.preset-icon-emoji {
-  font-size: 24px;
-  line-height: 1;
-}
 .preset-info {
   flex: 1;
   min-width: 0;

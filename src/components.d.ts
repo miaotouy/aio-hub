@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    Avatar: typeof import('./components/common/Avatar.vue')['default']
     BaseDialog: typeof import('./components/common/BaseDialog.vue')['default']
     ComponentHeader: typeof import('./components/ComponentHeader.vue')['default']
     ConnectorIcon: typeof import('./components/icons/ConnectorIcon.vue')['default']

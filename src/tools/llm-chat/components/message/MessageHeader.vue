@@ -5,6 +5,7 @@ import type { ChatMessageNode } from '../../types';
 import { useAgentStore } from '../../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useModelMetadata } from '@/composables/useModelMetadata';
+import Avatar from '@/components/common/Avatar.vue';
 
 interface Props {
   message: ChatMessageNode;
@@ -104,16 +105,13 @@ const shouldShowSubtitle = computed(() => {
 <template>
   <div class="message-header">
     <div class="header-left">
-      <div class="message-icon">
-        <img
-          v-if="displayIcon && (displayIcon.startsWith('/') || displayIcon.startsWith('appdata://') || displayIcon.startsWith('http'))"
-          :src="displayIcon.startsWith('appdata://') ? displayIcon.replace('appdata://', '/') : displayIcon"
-          :alt="displayName"
-          class="icon-image"
-          @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-        />
-        <span v-else class="icon-emoji">{{ displayIcon }}</span>
-      </div>
+      <Avatar
+        :src="displayIcon"
+        :alt="displayName"
+        :size="40"
+        shape="square"
+        :radius="6"
+      />
       <div class="message-info">
         <span class="message-name">{{ displayName }}</span>
         <div v-if="shouldShowSubtitle && agentProfileInfo" class="message-subtitle">
@@ -168,30 +166,6 @@ const shouldShowSubtitle = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.message-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  border-radius: 6px;
-  background-color: var(--container-bg);
-  border: 1px solid var(--border-color);
-}
-
-.icon-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.icon-emoji {
-  font-size: 20px;
-  line-height: 1;
 }
 
 .message-info {

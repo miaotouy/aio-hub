@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import type { ChatSession } from "../../types";
 import { Plus, Delete, Search, MoreFilled, Edit } from "@element-plus/icons-vue";
+import Avatar from '@/components/common/Avatar.vue';
 
 interface Props {
   sessions: ChatSession[];
@@ -170,16 +171,13 @@ const handleMenuCommand = (command: 'delete' | 'rename', session: ChatSession) =
         <div class="session-content">
           <div class="session-title">
             <el-tooltip v-if="getSessionDisplayAgent(session)" :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`" placement="top" :show-after="500">
-              <div class="agent-icon">
-                <img
-                  v-if="getSessionDisplayAgent(session)?.icon?.startsWith('/') || getSessionDisplayAgent(session)?.icon?.startsWith('appdata://') || getSessionDisplayAgent(session)?.icon?.startsWith('http')"
-                  :src="getSessionDisplayAgent(session)?.icon?.startsWith('appdata://') ? getSessionDisplayAgent(session)?.icon?.replace('appdata://', '/') : getSessionDisplayAgent(session)?.icon"
-                  :alt="getSessionDisplayAgent(session)?.name"
-                  class="icon-image"
-                  @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-                />
-                <span v-else class="icon-emoji">{{ getSessionDisplayAgent(session)?.icon }}</span>
-              </div>
+              <Avatar
+                :src="getSessionDisplayAgent(session)?.icon || ''"
+                :alt="getSessionDisplayAgent(session)?.name"
+                :size="20"
+                shape="square"
+                :radius="4"
+              />
             </el-tooltip>
             <span class="title-text">{{ session.name }}</span>
           </div>
@@ -325,30 +323,6 @@ const handleMenuCommand = (command: 'delete' | 'rename', session: ChatSession) =
   align-items: center;
   gap: 6px;
   overflow: hidden;
-}
-
-.agent-icon {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  border-radius: 4px;
-  background-color: var(--container-bg);
-  border: 1px solid var(--border-color);
-}
-
-.icon-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.icon-emoji {
-  font-size: 14px;
-  line-height: 1;
 }
 
 .title-text {

@@ -8,16 +8,14 @@
         </div>
       </template>
       <div class="agent-info">
-        <div v-if="contextData.agentInfo.icon" class="agent-avatar">
-          <img
-            v-if="contextData.agentInfo.icon && (contextData.agentInfo.icon.startsWith('/') || contextData.agentInfo.icon.startsWith('appdata://') || contextData.agentInfo.icon.startsWith('http'))"
-            :src="contextData.agentInfo.icon.startsWith('appdata://') ? contextData.agentInfo.icon.replace('appdata://', '/') : contextData.agentInfo.icon"
-            alt="Agent Icon"
-            class="avatar-image"
-            @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-          />
-          <span v-else class="avatar-emoji">{{ contextData.agentInfo.icon }}</span>
-        </div>
+        <Avatar
+          v-if="contextData.agentInfo.icon"
+          :src="contextData.agentInfo.icon"
+          alt="Agent Icon"
+          :size="96"
+          shape="square"
+          :radius="8"
+        />
         <div class="agent-details">
           <div class="info-item">
             <span class="label">名称:</span>
@@ -97,19 +95,22 @@
           <template #header>
             <div class="message-card-header">
               <div class="message-title">
-                <div v-if="msg.role === 'user'" class="message-icon">
-                  <span class="icon-emoji">👤</span>
-                </div>
-                <div v-else class="message-icon">
-                  <img
-                    v-if="contextData.agentInfo.icon && (contextData.agentInfo.icon.startsWith('/') || contextData.agentInfo.icon.startsWith('appdata://') || contextData.agentInfo.icon.startsWith('http'))"
-                    :src="contextData.agentInfo.icon.startsWith('appdata://') ? contextData.agentInfo.icon.replace('appdata://', '/') : contextData.agentInfo.icon"
-                    alt="Agent Icon"
-                    class="icon-image"
-                    @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-                  />
-                  <span v-else class="icon-emoji">{{ contextData.agentInfo.icon || '🤖' }}</span>
-                </div>
+                <Avatar
+                  v-if="msg.role === 'user'"
+                  src="👤"
+                  alt="User"
+                  :size="24"
+                  shape="square"
+                  :radius="4"
+                />
+                <Avatar
+                  v-else
+                  :src="contextData.agentInfo.icon || '🤖'"
+                  alt="Agent Icon"
+                  :size="24"
+                  shape="square"
+                  :radius="4"
+                />
                 <span class="message-role-name">
                   {{ msg.role === 'user' ? '用户' : (contextData.agentInfo.name || '助手') }} #{{ index + 1 }}
                 </span>
@@ -142,19 +143,22 @@
           <template #header>
             <div class="message-card-header">
               <div class="message-title">
-                <div v-if="msg.role === 'user'" class="message-icon">
-                  <span class="icon-emoji">👤</span>
-                </div>
-                <div v-else class="message-icon">
-                  <img
-                    v-if="msg.agentIcon && (msg.agentIcon.startsWith('/') || msg.agentIcon.startsWith('appdata://') || msg.agentIcon.startsWith('http'))"
-                    :src="msg.agentIcon.startsWith('appdata://') ? msg.agentIcon.replace('appdata://', '/') : msg.agentIcon"
-                    alt="Agent Icon"
-                    class="icon-image"
-                    @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-                  />
-                  <span v-else class="icon-emoji">{{ msg.agentIcon || '🤖' }}</span>
-                </div>
+                <Avatar
+                  v-if="msg.role === 'user'"
+                  src="👤"
+                  alt="User"
+                  :size="24"
+                  shape="square"
+                  :radius="4"
+                />
+                <Avatar
+                  v-else
+                  :src="msg.agentIcon || '🤖'"
+                  alt="Agent Icon"
+                  :size="24"
+                  shape="square"
+                  :radius="4"
+                />
                 <span class="message-role-name">
                   {{ msg.role === 'user' ? '用户' : (msg.agentName || '助手') }} #{{ index + 1 }}
                 </span>
@@ -172,6 +176,7 @@
 </template>
 <script setup lang="ts">
 import InfoCard from '@/components/common/InfoCard.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import type { ContextPreviewData } from '../../composables/useChatHandler';
 
 defineProps<{
@@ -203,29 +208,6 @@ defineProps<{
   flex-direction: row;
   gap: 16px;
   align-items: stretch;
-}
-
-.agent-avatar {
-  flex-shrink: 0;
-  width: 96px;
-  height: 96px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: var(--el-fill-color-light);
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-emoji {
-  font-size: 48px;
-  line-height: 1;
 }
 
 .agent-details {
@@ -346,17 +328,6 @@ defineProps<{
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.message-icon {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  border-radius: 4px;
 }
 
 .message-role-name {

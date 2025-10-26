@@ -11,6 +11,8 @@
  */
 
 import type { LlmMessageContent, LlmRequestOptions } from "./common";
+import type { LlmProfile, LlmModelInfo } from "../types/llm-profiles";
+import { getProviderTypeInfo } from "../config/llm-providers";
 
 /**
  * 解析后的消息内容结构
@@ -356,4 +358,160 @@ export function inferMediaMimeType(base64Data?: string, fileExt?: string): strin
 export function buildBase64DataUrl(base64Data: string, mimeType?: string): string {
   const finalMimeType = mimeType || inferImageMimeType(base64Data);
   return `data:${finalMimeType};base64,${base64Data}`;
+}
+
+/**
+ * 根据 Profile 和 Model 配置智能过滤 LLM 参数
+ *
+ * 双重过滤策略：
+ * 1. 根据 Provider 的 supportedParameters 过滤（API 层面支持）
+ * 2. 根据 Model 的 capabilities 过滤（模型能力层面支持）
+ *
+ * @param options - 完整的 LLM 请求选项
+ * @param profile - LLM Profile 配置
+ * @param model - 模型信息（可选，如果提供则进行更精确的过滤）
+ * @returns 过滤后的参数对象
+ */
+export function filterParametersByCapabilities(
+  options: LlmRequestOptions,
+  profile: LlmProfile,
+  model?: LlmModelInfo
+): Partial<LlmRequestOptions> {
+  const providerInfo = getProviderTypeInfo(profile.type);
+  const supported = providerInfo?.supportedParameters;
+  const capabilities = model?.capabilities;
+  
+  const filtered: Partial<LlmRequestOptions> = {};
+
+  // 核心参数始终保留
+  filtered.modelId = options.modelId;
+  filtered.messages = options.messages;
+  filtered.systemPrompt = options.systemPrompt;
+  filtered.stream = options.stream;
+  filtered.onStream = options.onStream;
+  filtered.onReasoningStream = options.onReasoningStream;
+  filtered.signal = options.signal;
+  filtered.maxRetries = options.maxRetries;
+  filtered.timeout = options.timeout;
+
+  // 如果没有 provider 配置，保守策略：保留所有参数
+  if (!supported) {
+    return { ...options };
+  }
+
+  // ===== 基础采样参数（大多数 provider 都支持） =====
+  if (supported.temperature && options.temperature !== undefined) {
+    filtered.temperature = options.temperature;
+  }
+  if (supported.maxTokens && options.maxTokens !== undefined) {
+    filtered.maxTokens = options.maxTokens;
+  }
+  if (supported.topP && options.topP !== undefined) {
+    filtered.topP = options.topP;
+  }
+  if (supported.topK && options.topK !== undefined) {
+    filtered.topK = options.topK;
+  }
+  if (supported.frequencyPenalty && options.frequencyPenalty !== undefined) {
+    filtered.frequencyPenalty = options.frequencyPenalty;
+  }
+  if (supported.presencePenalty && options.presencePenalty !== undefined) {
+    filtered.presencePenalty = options.presencePenalty;
+  }
+  if (supported.seed && options.seed !== undefined) {
+    filtered.seed = options.seed;
+  }
+  if (supported.stop && options.stop !== undefined) {
+    filtered.stop = options.stop;
+  }
+
+  // ===== 高级参数 =====
+  if (supported.maxCompletionTokens && options.maxCompletionTokens !== undefined) {
+    filtered.maxCompletionTokens = options.maxCompletionTokens;
+  }
+  if (supported.logprobs && options.logprobs !== undefined) {
+    filtered.logprobs = options.logprobs;
+  }
+  if (supported.topLogprobs && options.topLogprobs !== undefined) {
+    filtered.topLogprobs = options.topLogprobs;
+  }
+  if (supported.responseFormat && options.responseFormat !== undefined) {
+    filtered.responseFormat = options.responseFormat;
+  }
+
+  // ===== 工具调用（需要同时检查 provider 支持和模型能力） =====
+  const supportsTools = supported.tools && (!capabilities || capabilities.toolUse);
+  if (supportsTools && options.tools !== undefined) {
+    filtered.tools = options.tools;
+  }
+  if (supportsTools && supported.toolChoice && options.toolChoice !== undefined) {
+    filtered.toolChoice = options.toolChoice;
+  }
+  if (supportsTools && supported.parallelToolCalls && options.parallelToolCalls !== undefined) {
+    filtered.parallelToolCalls = options.parallelToolCalls;
+  }
+
+  // ===== 推理模式（o系列模型） =====
+  const supportsReasoning = supported.reasoningEffort && (!capabilities || capabilities.reasoning);
+  if (supportsReasoning && options.reasoningEffort !== undefined) {
+    filtered.reasoningEffort = options.reasoningEffort;
+  }
+
+  // ===== 网络搜索 =====
+  const supportsWebSearch = supported.webSearch && (!capabilities || capabilities.webSearch);
+  if (supportsWebSearch && options.webSearchOptions !== undefined) {
+    filtered.webSearchOptions = options.webSearchOptions;
+  }
+
+  // ===== 多模态输出 =====
+  if (supported.modalities && options.modalities !== undefined) {
+    filtered.modalities = options.modalities;
+  }
+  if (supported.audio && options.audio !== undefined) {
+    filtered.audio = options.audio;
+  }
+  if (supported.prediction && options.prediction !== undefined) {
+    filtered.prediction = options.prediction;
+  }
+
+  // ===== Provider 特有参数 =====
+  
+  // OpenAI 特有参数
+  if (profile.type === 'openai' || profile.type === 'openai-responses') {
+    if (options.n !== undefined) filtered.n = options.n;
+    if (options.logitBias !== undefined) filtered.logitBias = options.logitBias;
+    if (options.store !== undefined) filtered.store = options.store;
+    if (options.user !== undefined) filtered.user = options.user;
+    if (options.serviceTier !== undefined) filtered.serviceTier = options.serviceTier;
+    if (options.streamOptions !== undefined) filtered.streamOptions = options.streamOptions;
+    if (options.metadata !== undefined) filtered.metadata = options.metadata;
+  }
+
+  // Claude 特有参数
+  if (profile.type === 'claude') {
+    // Thinking 模式（需要模型支持）
+    const supportsThinking = supported.thinking && (!capabilities || capabilities.thinking);
+    if (supportsThinking && options.thinking !== undefined) {
+      filtered.thinking = options.thinking;
+    }
+    if (options.stopSequences !== undefined) filtered.stopSequences = options.stopSequences;
+    if (options.claudeMetadata !== undefined) filtered.claudeMetadata = options.claudeMetadata;
+  }
+
+  // Gemini/VertexAI 特有参数
+  if (profile.type === 'gemini' || profile.type === 'vertexai') {
+    // Gemini 的 thinking 是通过 thinkingConfig 参数控制的
+    const supportsThinking = supported.thinkingConfig && (!capabilities || capabilities.thinking);
+    if (supportsThinking && options.thinking !== undefined) {
+      // Gemini 使用不同的参数名，这里可能需要转换
+      // 具体实现在各 API 模块中处理
+    }
+    // 代码执行
+    const supportsCodeExecution = supported.codeExecution && (!capabilities || capabilities.codeExecution);
+    if (supportsCodeExecution) {
+      // 代码执行相关参数在 gemini.ts 中处理
+    }
+  }
+
+  return filtered;
 }

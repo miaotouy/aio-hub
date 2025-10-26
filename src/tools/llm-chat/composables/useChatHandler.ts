@@ -512,17 +512,50 @@ export function useChatHandler() {
       });
 
       // 发送请求（支持流式）
+      // 传递所有配置的参数，让用户的设置真正生效
       const response = await sendRequest({
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
         messages,
         systemPrompt,
+        // 基础采样参数
         temperature: agentConfig.parameters.temperature,
         maxTokens: agentConfig.parameters.maxTokens,
         topP: agentConfig.parameters.topP,
         topK: agentConfig.parameters.topK,
         frequencyPenalty: agentConfig.parameters.frequencyPenalty,
         presencePenalty: agentConfig.parameters.presencePenalty,
+        seed: agentConfig.parameters.seed,
+        stop: agentConfig.parameters.stop,
+        // 高级参数
+        n: agentConfig.parameters.n,
+        logprobs: agentConfig.parameters.logprobs,
+        topLogprobs: agentConfig.parameters.topLogprobs,
+        maxCompletionTokens: agentConfig.parameters.maxCompletionTokens,
+        reasoningEffort: agentConfig.parameters.reasoningEffort,
+        logitBias: agentConfig.parameters.logitBias,
+        store: agentConfig.parameters.store,
+        user: agentConfig.parameters.user,
+        serviceTier: agentConfig.parameters.serviceTier,
+        // 响应格式
+        responseFormat: agentConfig.parameters.responseFormat,
+        // 工具调用
+        tools: agentConfig.parameters.tools,
+        toolChoice: agentConfig.parameters.toolChoice,
+        parallelToolCalls: agentConfig.parameters.parallelToolCalls,
+        // 多模态输出
+        modalities: agentConfig.parameters.modalities,
+        audio: agentConfig.parameters.audio,
+        prediction: agentConfig.parameters.prediction,
+        // 特殊功能
+        webSearchOptions: agentConfig.parameters.webSearchOptions,
+        streamOptions: agentConfig.parameters.streamOptions,
+        metadata: agentConfig.parameters.metadata,
+        // Claude 特有参数
+        thinking: agentConfig.parameters.thinking,
+        stopSequences: agentConfig.parameters.stopSequences,
+        claudeMetadata: agentConfig.parameters.claudeMetadata,
+        // 流式响应
         stream: true,
         signal: abortController.signal,
         onStream: (chunk: string) => {
@@ -686,17 +719,51 @@ export function useChatHandler() {
           })),
         });
 
+      // 发送请求（支持流式）
+      // 传递所有配置的参数，让用户的设置真正生效
       const response = await sendRequest({
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
         messages,
         systemPrompt,
+        // 基础采样参数
         temperature: agentConfig.parameters.temperature,
         maxTokens: agentConfig.parameters.maxTokens,
         topP: agentConfig.parameters.topP,
         topK: agentConfig.parameters.topK,
         frequencyPenalty: agentConfig.parameters.frequencyPenalty,
         presencePenalty: agentConfig.parameters.presencePenalty,
+        seed: agentConfig.parameters.seed,
+        stop: agentConfig.parameters.stop,
+        // 高级参数
+        n: agentConfig.parameters.n,
+        logprobs: agentConfig.parameters.logprobs,
+        topLogprobs: agentConfig.parameters.topLogprobs,
+        maxCompletionTokens: agentConfig.parameters.maxCompletionTokens,
+        reasoningEffort: agentConfig.parameters.reasoningEffort,
+        logitBias: agentConfig.parameters.logitBias,
+        store: agentConfig.parameters.store,
+        user: agentConfig.parameters.user,
+        serviceTier: agentConfig.parameters.serviceTier,
+        // 响应格式
+        responseFormat: agentConfig.parameters.responseFormat,
+        // 工具调用
+        tools: agentConfig.parameters.tools,
+        toolChoice: agentConfig.parameters.toolChoice,
+        parallelToolCalls: agentConfig.parameters.parallelToolCalls,
+        // 多模态输出
+        modalities: agentConfig.parameters.modalities,
+        audio: agentConfig.parameters.audio,
+        prediction: agentConfig.parameters.prediction,
+        // 特殊功能
+        webSearchOptions: agentConfig.parameters.webSearchOptions,
+        streamOptions: agentConfig.parameters.streamOptions,
+        metadata: agentConfig.parameters.metadata,
+        // Claude 特有参数
+        thinking: agentConfig.parameters.thinking,
+        stopSequences: agentConfig.parameters.stopSequences,
+        claudeMetadata: agentConfig.parameters.claudeMetadata,
+        // 流式响应
         stream: true,
         signal: abortController.signal,
         onStream: (chunk: string) => {

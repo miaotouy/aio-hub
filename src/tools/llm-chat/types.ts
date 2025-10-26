@@ -77,43 +77,43 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: {
-     /** 生成此消息时使用的 Agent ID */
-     agentId?: string;
-     /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */
-     agentName?: string;
-     /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
-     agentIcon?: string;
-     /** 生成此消息时使用的用户档案 ID */
-     userProfileId?: string;
-     /** 生成此消息时使用的用户档案名称（快照） */
-     userProfileName?: string;
-     /** 生成此消息时使用的用户档案图标（快照） */
-     userProfileIcon?: string;
-     /** 生成此消息时使用的 Profile ID */
-     profileId?: string;
-     /** 生成此消息时使用的模型 ID */
-     modelId?: string;
-     /** 使用的模型名称（显示用） */
-     modelName?: string;
-     /** 是否被截断 */
-     isTruncated?: boolean;
-     /** 错误信息 */
-     error?: string;
-     /** 如果这是一个摘要节点，记录它总结了哪些节点的ID */
-     summarizedFrom?: string[];
-     /** Token 使用情况 */
-     usage?: {
-       promptTokens: number;
-       completionTokens: number;
-       totalTokens: number;
-     };
-     /** 推理内容（DeepSeek reasoning 模式） */
-     reasoningContent?: string;
-     /** 推理开始时间戳 */
-     reasoningStartTime?: number;
-     /** 推理结束时间戳 */
-     reasoningEndTime?: number;
-   };
+    /** 生成此消息时使用的 Agent ID */
+    agentId?: string;
+    /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */
+    agentName?: string;
+    /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
+    agentIcon?: string;
+    /** 生成此消息时使用的用户档案 ID */
+    userProfileId?: string;
+    /** 生成此消息时使用的用户档案名称（快照） */
+    userProfileName?: string;
+    /** 生成此消息时使用的用户档案图标（快照） */
+    userProfileIcon?: string;
+    /** 生成此消息时使用的 Profile ID */
+    profileId?: string;
+    /** 生成此消息时使用的模型 ID */
+    modelId?: string;
+    /** 使用的模型名称（显示用） */
+    modelName?: string;
+    /** 是否被截断 */
+    isTruncated?: boolean;
+    /** 错误信息 */
+    error?: string;
+    /** 如果这是一个摘要节点，记录它总结了哪些节点的ID */
+    summarizedFrom?: string[];
+    /** Token 使用情况 */
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    /** 推理内容（DeepSeek reasoning 模式） */
+    reasoningContent?: string;
+    /** 推理开始时间戳 */
+    reasoningStartTime?: number;
+    /** 推理结束时间戳 */
+    reasoningEndTime?: number;
+  };
 }
 
 /**
@@ -176,58 +176,179 @@ export interface ChatSession {
 
 /**
  * LLM 参数配置
+ * 支持大多数 LLM API 的通用参数
  */
 export interface LlmParameters {
+  // ===== 基础采样参数 =====
+  /** 温度，控制输出的随机性（0-2） */
   temperature: number;
+  /** 单次响应的最大 token 数量 */
   maxTokens: number;
+  /** Top-p 采样参数（0-1） */
   topP?: number;
+  /** Top-k 采样参数 */
   topK?: number;
+  /** 频率惩罚（-2.0 到 2.0） */
   frequencyPenalty?: number;
+  /** 存在惩罚（-2.0 到 2.0） */
   presencePenalty?: number;
+  /** 随机种子，用于确定性采样 */
+  seed?: number;
+  /** 停止序列 */
+  stop?: string | string[];
+
+  // ===== 高级参数 =====
+  /** 生成的响应数量 */
+  n?: number;
+  /** 是否返回 logprobs */
+  logprobs?: boolean;
+  /** 返回的 top logprobs 数量（0-20） */
+  topLogprobs?: number;
+  /** 补全中可生成的最大标记数（替代 maxTokens，优先级更高） */
+  maxCompletionTokens?: number;
+  /** o系列模型的推理工作约束 */
+  reasoningEffort?: "low" | "medium" | "high";
+  /** 标记偏差配置 */
+  logitBias?: Record<string, number>;
+  /** 是否存储输出用于模型蒸馏 */
+  store?: boolean;
+  /** 用户标识符 */
+  user?: string;
+  /** 服务层级 */
+  serviceTier?: "auto" | "default" | "flex";
+
+  // ===== 响应格式 =====
+  /** 响应格式配置 */
+  responseFormat?: {
+    type: "text" | "json_object" | "json_schema";
+    json_schema?: {
+      name: string;
+      schema: Record<string, any>;
+      strict?: boolean;
+    };
+  };
+
+  // ===== 工具调用 =====
+  /** 工具列表（函数调用） */
+  tools?: Array<{
+    type: "function";
+    function: {
+      name: string;
+      description?: string;
+      parameters?: Record<string, any>;
+      strict?: boolean;
+    };
+  }>;
+  /** 工具选择策略 */
+  toolChoice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+  /** 是否启用并行工具调用 */
+  parallelToolCalls?: boolean;
+
+  // ===== 多模态输出 =====
+  /** 输出模态类型 */
+  modalities?: Array<"text" | "audio">;
+  /** 音频输出参数 */
+  audio?: {
+    voice:
+      | "alloy"
+      | "ash"
+      | "ballad"
+      | "coral"
+      | "echo"
+      | "fable"
+      | "nova"
+      | "onyx"
+      | "sage"
+      | "shimmer";
+    format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
+  };
+  /** 预测输出配置 */
+  prediction?: {
+    type: "content";
+    content:
+      | string
+      | Array<{
+          type: "text";
+          text: string;
+        }>;
+  };
+
+  // ===== 特殊功能 =====
+  /** 网络搜索选项 */
+  webSearchOptions?: {
+    searchContextSize?: "low" | "medium" | "high";
+    userLocation?: {
+      approximate: {
+        city?: string;
+        country?: string;
+        region?: string;
+        timezone?: string;
+        type: "approximate";
+      };
+    };
+  };
+  /** 流式选项 */
+  streamOptions?: {
+    includeUsage?: boolean;
+  };
+  /** 元数据键值对 */
+  metadata?: Record<string, string>;
+
+  // ===== Claude 特有参数 =====
+  /** Claude: Thinking 模式配置 */
+  thinking?: {
+    type: "enabled" | "disabled";
+    budget_tokens?: number;
+  };
+  /** Claude: 停止序列（与 stop 类似，但 Claude 专用） */
+  stopSequences?: string[];
+  /** Claude: 元数据（用户ID等） */
+  claudeMetadata?: {
+    user_id?: string;
+  };
 }
 
 /**
- /**
   * 用户档案 (User Profile)
   * 定义用户在对话中扮演的角色
   */
- export interface UserProfile {
-   /**
-    * 档案的唯一标识符
-    */
-   id: string;
- 
-   /**
-    * 档案名称
-    */
-   name: string;
- 
-   /**
-    * 档案图标（emoji 或图标路径）
-    */
-   icon?: string;
- 
-   /**
-    * 档案内容（描述性文本）
-    */
-   content: string;
- 
-   /**
-    * 是否启用（默认为 true）
-    * 禁用的档案在选择列表中不显示
-    */
-   enabled?: boolean;
- 
-   /**
-    * 创建时间
-    */
-   createdAt: string;
- 
-   /**
-    * 最后使用时间
-    */
-   lastUsedAt?: string;
- }
+export interface UserProfile {
+  /**
+   * 档案的唯一标识符
+   */
+  id: string;
+
+  /**
+   * 档案名称
+   */
+  name: string;
+
+  /**
+   * 档案图标（emoji 或图标路径）
+   */
+  icon?: string;
+
+  /**
+   * 档案内容（描述性文本）
+   */
+  content: string;
+
+  /**
+   * 是否启用（默认为 true）
+   * 禁用的档案在选择列表中不显示
+   */
+  enabled?: boolean;
+
+  /**
+   * 创建时间
+   */
+  createdAt: string;
+
+  /**
+   * 最后使用时间
+   */
+  lastUsedAt?: string;
+}
 /**
  * 智能体（Agent）- 包含完整的对话预设配置
  *

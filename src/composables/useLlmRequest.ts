@@ -12,6 +12,7 @@ import { callGeminiApi } from "../llm-apis/gemini";
 import { callClaudeApi } from "../llm-apis/claude";
 import { callCohereApi } from "../llm-apis/cohere";
 import { callVertexAiApi } from "../llm-apis/vertexai";
+import { filterParametersByCapabilities } from "../llm-apis/request-builder";
 import type { LlmProfile } from "../types/llm-profiles";
 
 const logger = createModuleLogger("LlmRequest");
@@ -65,26 +66,34 @@ export function useLlmRequest() {
         modelId: options.modelId,
       });
 
+      // 根据 Provider 和 Model 能力智能过滤参数
+      const filteredOptions = filterParametersByCapabilities(options, profile, model) as LlmRequestOptions;
+      
+      logger.debug("参数过滤完成", {
+        originalParams: Object.keys(options).length,
+        filteredParams: Object.keys(filteredOptions).length,
+      });
+
       // 根据提供商类型调用对应的 API
       let response: LlmResponse;
       switch (profile.type) {
         case "openai":
-          response = await callOpenAiCompatibleApi(profile, options);
+          response = await callOpenAiCompatibleApi(profile, filteredOptions);
           break;
         case "openai-responses":
-          response = await callOpenAiResponsesApi(profile, options);
+          response = await callOpenAiResponsesApi(profile, filteredOptions);
           break;
         case "gemini":
-          response = await callGeminiApi(profile, options);
+          response = await callGeminiApi(profile, filteredOptions);
           break;
         case "claude":
-          response = await callClaudeApi(profile, options);
+          response = await callClaudeApi(profile, filteredOptions);
           break;
         case "cohere":
-          response = await callCohereApi(profile, options);
+          response = await callCohereApi(profile, filteredOptions);
           break;
         case "vertexai":
-          response = await callVertexAiApi(profile, options);
+          response = await callVertexAiApi(profile, filteredOptions);
           break;
         default:
           const error = new Error(`不支持的提供商类型: ${profile.type}`);

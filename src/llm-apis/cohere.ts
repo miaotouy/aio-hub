@@ -78,6 +78,51 @@ export const callCohereApi = async (
     temperature: commonParams.temperature ?? 0.5,
   };
 
+  // 添加通用参数
+  if (commonParams.topP !== undefined) {
+    body.p = commonParams.topP;
+  }
+  if (commonParams.topK !== undefined) {
+    body.k = commonParams.topK;
+  }
+  if (commonParams.frequencyPenalty !== undefined) {
+    body.frequency_penalty = commonParams.frequencyPenalty;
+  }
+  if (commonParams.presencePenalty !== undefined) {
+    body.presence_penalty = commonParams.presencePenalty;
+  }
+  if (commonParams.seed !== undefined) {
+    body.seed = commonParams.seed;
+  }
+  if (commonParams.stop !== undefined) {
+    body.stop_sequences = Array.isArray(commonParams.stop)
+      ? commonParams.stop
+      : [commonParams.stop];
+  }
+
+  // 工具支持
+  if (options.tools && options.tools.length > 0) {
+    body.tools = options.tools.map(tool => ({
+      type: 'function',
+      function: {
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: tool.function.parameters,
+      },
+    }));
+  }
+
+  if (options.toolChoice) {
+    if (typeof options.toolChoice === 'string') {
+      body.tool_choice = { type: options.toolChoice };
+    } else if (options.toolChoice.type === 'function') {
+      body.tool_choice = {
+        type: 'function',
+        function: { name: options.toolChoice.function.name },
+      };
+    }
+  }
+
   // 构建请求头
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

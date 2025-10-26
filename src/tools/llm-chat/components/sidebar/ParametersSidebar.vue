@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, computed } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import AgentPresetEditor from "../agent/AgentPresetEditor.vue";
 import EditAgentDialog from "../agent/EditAgentDialog.vue";
+import ModelParametersEditor from "../agent/ModelParametersEditor.vue";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatMessageNode } from "../../types";
+import type { ChatMessageNode, LlmParameters } from "../../types";
 import { Edit } from "@element-plus/icons-vue";
 
 const agentStore = useAgentStore();
-const { enabledProfiles, getSupportedParameters } = useLlmProfiles();
+const { enabledProfiles } = useLlmProfiles();
 
 // 获取当前智能体（从 store 读取）
 const currentAgent = computed(() => {
@@ -26,6 +27,19 @@ const currentProfile = computed(() => {
 
 // 获取当前渠道类型
 const currentProviderType = computed(() => currentProfile.value?.type);
+
+// 获取当前选中的模型
+const currentModel = computed(() => {
+  if (!currentProfile.value || !currentAgent.value) return null;
+  return currentProfile.value.models.find((m) => m.id === currentAgent.value!.modelId);
+});
+
+// 获取模型的上下文窗口限制
+const contextLengthLimit = computed(() => {
+  const contextLength = currentModel.value?.tokenLimits?.contextLength;
+  // 如果为 0 或 undefined，返回 undefined 表示不限制
+  return contextLength && contextLength > 0 ? contextLength : undefined;
+});
 
 // 当前选中的模型组合值
 const selectedModelCombo = computed({
@@ -43,144 +57,28 @@ const selectedModelCombo = computed({
   },
 });
 
-// 本地状态 - 直接从 Agent 读取
-const localTemp = ref(currentAgent.value?.parameters.temperature ?? 0.7);
-const localMaxTokens = ref(currentAgent.value?.parameters.maxTokens ?? 4096);
-
-// 监听 Agent 变化同步到本地
-watch(
-  () => currentAgent.value?.parameters.temperature,
-  (val) => {
-    if (val !== undefined) localTemp.value = val;
-  }
-);
-
-watch(
-  () => currentAgent.value?.parameters.maxTokens,
-  (val) => {
-    if (val !== undefined) localMaxTokens.value = val;
-  }
-);
-
-// 更新参数 - 直接保存到 Agent
-const updateTemperature = () => {
-  if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, {
-    parameters: {
-      ...currentAgent.value.parameters,
-      temperature: localTemp.value,
-    },
-  });
-};
-
-const updateMaxTokens = () => {
-  if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, {
-    parameters: {
-      ...currentAgent.value.parameters,
-      maxTokens: localMaxTokens.value,
-    },
-  });
-};
-
-// 根据渠道类型获取支持的参数
-const supportedParameters = computed(() => {
-  const type = currentProviderType.value;
-  if (!type) {
-    // 默认支持基本参数
-    return {
-      temperature: true,
-      maxTokens: true,
+// 模型参数的双向绑定
+const modelParameters = computed<LlmParameters>({
+  get: () => {
+    return currentAgent.value?.parameters ?? {
+      temperature: 0.7,
+      maxTokens: 4096,
     };
-  }
-  return getSupportedParameters(type);
+  },
+  set: (value: LlmParameters) => {
+    if (!currentAgent.value || !agentStore.currentAgentId) return;
+    agentStore.updateAgent(agentStore.currentAgentId, {
+      parameters: value,
+    });
+  },
 });
 
-// 扩展的本地状态 - 直接从 Agent 读取
-const localTopP = ref(currentAgent.value?.parameters.topP ?? 0.9);
-const localTopK = ref(currentAgent.value?.parameters.topK ?? 40);
-const localFrequencyPenalty = ref(currentAgent.value?.parameters.frequencyPenalty ?? 0);
-const localPresencePenalty = ref(currentAgent.value?.parameters.presencePenalty ?? 0);
-
-// 监听 Agent 变化同步到本地
-watch(
-  () => currentAgent.value?.parameters.topP,
-  (val) => {
-    if (val !== undefined) localTopP.value = val;
-  }
-);
-
-watch(
-  () => currentAgent.value?.parameters.topK,
-  (val) => {
-    if (val !== undefined) localTopK.value = val;
-  }
-);
-
-watch(
-  () => currentAgent.value?.parameters.frequencyPenalty,
-  (val) => {
-    if (val !== undefined) localFrequencyPenalty.value = val;
-  }
-);
-
-watch(
-  () => currentAgent.value?.parameters.presencePenalty,
-  (val) => {
-    if (val !== undefined) localPresencePenalty.value = val;
-  }
-);
-
-// 更新扩展参数 - 直接保存到 Agent
-const updateTopP = () => {
-  if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, {
-    parameters: {
-      ...currentAgent.value.parameters,
-      topP: localTopP.value,
-    },
-  });
-};
-
-const updateTopK = () => {
-  if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, {
-    parameters: {
-      ...currentAgent.value.parameters,
-      topK: localTopK.value,
-    },
-  });
-};
-
-const updateFrequencyPenalty = () => {
-  if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, {
-    parameters: {
-      ...currentAgent.value.parameters,
-      frequencyPenalty: localFrequencyPenalty.value,
-    },
-  });
-};
-
-const updatePresencePenalty = () => {
-  if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, {
-    parameters: {
-      ...currentAgent.value.parameters,
-      presencePenalty: localPresencePenalty.value,
-    },
-  });
-};
-
 // 折叠状态管理
-const modelParamsSectionExpanded = ref(true);
 const presetMessagesSectionExpanded = ref(true);
 
 // 切换分组展开/折叠状态
-const toggleSection = (section: "modelParams" | "presetMessages") => {
-  if (section === "modelParams") {
-    modelParamsSectionExpanded.value = !modelParamsSectionExpanded.value;
-  } else if (section === "presetMessages") {
+const toggleSection = (section: "presetMessages") => {
+  if (section === "presetMessages") {
     presetMessagesSectionExpanded.value = !presetMessagesSectionExpanded.value;
   }
 };
@@ -271,143 +169,12 @@ const handleSaveEdit = (data: any) => {
           <LlmModelSelector v-model="selectedModelCombo" />
         </div>
 
-        <!-- 模型参数分组 -->
-        <div class="param-section">
-          <div
-            class="param-section-header clickable"
-            @click="toggleSection('modelParams')"
-            :title="modelParamsSectionExpanded ? '点击折叠' : '点击展开'"
-          >
-            <span class="param-section-title">🎛️ 模型参数</span>
-            <span class="collapse-icon">{{ modelParamsSectionExpanded ? "▼" : "▶" }}</span>
-          </div>
-
-          <div class="param-section-content" :class="{ collapsed: !modelParamsSectionExpanded }">
-            <!-- Temperature -->
-            <div v-if="supportedParameters.temperature" class="param-group">
-              <label class="param-label">
-                <span>Temperature</span>
-                <span class="param-value">{{ localTemp.toFixed(2) }}</span>
-              </label>
-              <input
-                v-model.number="localTemp"
-                type="range"
-                min="0"
-                max="2"
-                step="0.01"
-                class="param-slider"
-                @change="updateTemperature"
-              />
-              <div class="param-desc">
-                控制输出的随机性。默认:
-                {{ currentAgent.parameters.temperature?.toFixed(2) ?? "0.70" }}
-              </div>
-            </div>
-
-            <!-- Max Tokens -->
-            <div v-if="supportedParameters.maxTokens" class="param-group">
-              <label class="param-label">
-                <span>Max Tokens</span>
-                <span class="param-value">{{ localMaxTokens }}</span>
-              </label>
-              <input
-                v-model.number="localMaxTokens"
-                type="range"
-                min="256"
-                max="32768"
-                step="256"
-                class="param-slider"
-                @change="updateMaxTokens"
-              />
-              <div class="param-desc">
-                单次响应的最大 token 数量。默认: {{ currentAgent.parameters.maxTokens ?? 4096 }}
-              </div>
-            </div>
-
-            <!-- Top P -->
-            <div v-if="supportedParameters.topP" class="param-group">
-              <label class="param-label">
-                <span>Top P</span>
-                <span class="param-value">{{ localTopP.toFixed(2) }}</span>
-              </label>
-              <input
-                v-model.number="localTopP"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                class="param-slider"
-                @change="updateTopP"
-              />
-              <div class="param-desc">
-                核采样概率，控制候选词的多样性。默认:
-                {{ currentAgent.parameters.topP?.toFixed(2) ?? "0.90" }}
-              </div>
-            </div>
-
-            <!-- Top K -->
-            <div v-if="supportedParameters.topK" class="param-group">
-              <label class="param-label">
-                <span>Top K</span>
-                <span class="param-value">{{ localTopK }}</span>
-              </label>
-              <input
-                v-model.number="localTopK"
-                type="range"
-                min="1"
-                max="100"
-                step="1"
-                class="param-slider"
-                @change="updateTopK"
-              />
-              <div class="param-desc">
-                保留概率最高的 K 个候选词。默认: {{ currentAgent.parameters.topK ?? 40 }}
-              </div>
-            </div>
-
-            <!-- Frequency Penalty -->
-            <div v-if="supportedParameters.frequencyPenalty" class="param-group">
-              <label class="param-label">
-                <span>Frequency Penalty</span>
-                <span class="param-value">{{ localFrequencyPenalty.toFixed(2) }}</span>
-              </label>
-              <input
-                v-model.number="localFrequencyPenalty"
-                type="range"
-                min="-2"
-                max="2"
-                step="0.01"
-                class="param-slider"
-                @change="updateFrequencyPenalty"
-              />
-              <div class="param-desc">
-                降低重复词汇的出现频率。默认:
-                {{ currentAgent.parameters.frequencyPenalty?.toFixed(2) ?? "0.00" }}
-              </div>
-            </div>
-
-            <!-- Presence Penalty -->
-            <div v-if="supportedParameters.presencePenalty" class="param-group">
-              <label class="param-label">
-                <span>Presence Penalty</span>
-                <span class="param-value">{{ localPresencePenalty.toFixed(2) }}</span>
-              </label>
-              <input
-                v-model.number="localPresencePenalty"
-                type="range"
-                min="-2"
-                max="2"
-                step="0.01"
-                class="param-slider"
-                @change="updatePresencePenalty"
-              />
-              <div class="param-desc">
-                鼓励模型谈论新话题。默认:
-                {{ currentAgent.parameters.presencePenalty?.toFixed(2) ?? "0.00" }}
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- 模型参数 - 使用独立组件 -->
+        <ModelParametersEditor
+          v-model="modelParameters"
+          :provider-type="currentProviderType"
+          :context-length-limit="contextLengthLimit"
+        />
 
         <!-- 预设消息分组 -->
         <div class="param-section">

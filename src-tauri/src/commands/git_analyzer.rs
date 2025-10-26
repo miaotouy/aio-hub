@@ -1,6 +1,26 @@
+//! Git 仓库分析工具
+//!
+//! 本模块主要使用 git2-rs 库来与 Git 仓库交互，避免对系统 git 命令的依赖。
+//!
+//! ## 已迁移到 git2 的功能
+//! - 分支列表获取 (`get_branches`)
+//! - 提交记录获取 (`get_commits`, `get_commits_with_skip`)
+//! - 提交详情获取 (`git_get_commit_detail`)
+//! - 提交标签获取 (`get_commit_tags`)
+//! - 提交统计信息 (`get_commit_stats`)
+//! - 文件变更列表 (`get_commit_files`)
+//! - 提交总数统计 (`get_total_commits`)
+//!
+//! ## 保留 Command 调用的功能及原因
+//! - `git_cherry_pick`: Cherry-pick 涉及工作区修改和复杂的冲突处理，使用 git2 实现较复杂
+//! - `git_revert`: Revert 同样涉及工作区修改和冲突处理
+//! - `git_format_log`: 支持用户自定义格式模板，git2 难以灵活实现
+
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use tauri::Emitter;
+use git2::{Repository, BranchType, Oid};
+use chrono::TimeZone;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -258,83 +278,67 @@ pub async fn git_load_commits_with_files(
 #[tauri::command]
 pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitCommit, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
-
-    // 仅输出结构化字段，并使用 \x1e 将头部与完整消息分隔，避免换行干扰
-    // 头部字段: hash, author, email, date, subject, parents
-    let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     
-    let output = cmd
-        .arg("-C")
-        .arg(repo_path)
-        .arg("show")
-        .arg("-s") // 只显示提交信息，不包含 diff
-        .arg("--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%P%x1e%B")
-        .arg(&hash)
-        .output()
-        .map_err(|e| format!("Failed to get commit detail: {}", e))?;
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
-
-    let output_str = String::from_utf8_lossy(&output.stdout);
-
-    // 分离头部与完整消息
-    let mut sections = output_str.splitn(2, '\x1e');
-    let header = sections.next().unwrap_or("");
-    let full_message_raw = sections.next().unwrap_or("").trim();
-
-    // 解析头部字段（不包含 body）
-    let header_parts: Vec<&str> = header.split('\x1f').collect();
-    if header_parts.len() < 5 {
-        return Err(format!(
-            "Invalid git output format (header fields): expected >=5 parts, got {}. Raw: {:?}",
-            header_parts.len(),
-            header
-        ));
-    }
-
-    let hash_str = header_parts.get(0).unwrap_or(&"").to_string();
-    let author = header_parts.get(1).unwrap_or(&"").to_string();
-    let email = header_parts.get(2).unwrap_or(&"").to_string();
-    let date = header_parts.get(3).unwrap_or(&"").to_string();
-    let subject = header_parts.get(4).unwrap_or(&"").to_string();
-    let parents_str = header_parts.get(5).unwrap_or(&"").trim();
-
-    // 解析父提交
-    let parents: Vec<String> = if parents_str.is_empty() {
-        Vec::new()
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    
+    let oid = Oid::from_str(&hash)
+        .map_err(|e| format!("Invalid commit hash: {}", e))?;
+    
+    let commit = repo.find_commit(oid)
+        .map_err(|e| format!("Failed to find commit {}: {}", hash, e))?;
+    
+    // 获取作者信息
+    let author = commit.author();
+    let author_name = author.name().unwrap_or("Unknown").to_string();
+    let author_email = author.email().unwrap_or("").to_string();
+    
+    // 获取时间（转换为 ISO 8601 格式）
+    let time = commit.time();
+    let offset = chrono::FixedOffset::east_opt(time.offset_minutes() * 60)
+        .ok_or_else(|| "Invalid timezone offset".to_string())?;
+    let datetime_with_tz = offset.timestamp_opt(time.seconds(), 0)
+        .single()
+        .ok_or_else(|| "Invalid timestamp".to_string())?;
+    let date_str = datetime_with_tz.to_rfc3339();
+    
+    // 获取提交消息
+    let message = commit.message().unwrap_or("").to_string();
+    let (subject, body) = if let Some(pos) = message.find('\n') {
+        let subject = message[..pos].trim().to_string();
+        let body = message[pos+1..].trim().to_string();
+        (subject, body)
     } else {
-        parents_str.split_whitespace().map(|s| s.to_string()).collect()
+        (message.trim().to_string(), String::new())
     };
-
-    let mut commit = GitCommit {
-        hash: hash_str.clone(),
-        author,
-        email,
-        date,
+    
+    // 获取父提交
+    let parents: Vec<String> = commit.parents()
+        .map(|p| p.id().to_string())
+        .collect();
+    
+    // 获取 tags
+    let tags = get_commit_tags_git2(&repo, oid).unwrap_or_default();
+    
+    // 获取 stats 和 files
+    let (stats, files) = get_commit_diff_info(&repo, &commit)?;
+    
+    Ok(GitCommit {
+        hash: oid.to_string(),
+        author: author_name,
+        email: author_email,
+        date: date_str,
         message: subject.clone(),
-        full_message: if full_message_raw.is_empty() {
-            subject.clone()
+        full_message: if body.is_empty() {
+            subject
         } else {
-            full_message_raw.to_string()
+            format!("{}\n\n{}", subject, body)
         },
         parents,
-        tags: get_commit_tags(repo_path, &hash)?,
-        stats: None,
-        files: None,
-    };
-
-    // 独立获取文件与统计，避免与格式输出混淆
-    let files = get_commit_files(repo_path, &hash)?;
-    commit.files = Some(files);
-    if let Ok(stats) = get_commit_stats(repo_path, &hash) {
-        commit.stats = Some(stats);
-    }
-
-    Ok(commit)
+        tags,
+        stats: Some(stats),
+        files: Some(files),
+    })
 }
 
 #[tauri::command]
@@ -487,52 +491,47 @@ pub async fn git_format_log(path: String, template: String, limit: usize) -> Res
 }
 
 // 辅助函数
-
 fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {
-    let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
     
-    let output = cmd
-        .arg("-C")
-        .arg(repo_path)
-        .arg("branch")
-        .arg("-a")
-        .output()
-        .map_err(|e| format!("Failed to get branches: {}", e))?;
-    
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
-    
-    let output_str = String::from_utf8_lossy(&output.stdout);
     let mut branches = Vec::new();
     
-    for line in output_str.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
+    // 获取当前分支
+    let head = repo.head().ok();
+    let current_branch = head.as_ref().and_then(|h| h.shorthand()).map(|s| s.to_string());
+    
+    // 获取本地分支
+    let local_branches = repo.branches(Some(BranchType::Local))
+        .map_err(|e| format!("Failed to get local branches: {}", e))?;
+    
+    for branch_result in local_branches {
+        let (branch, _) = branch_result.map_err(|e| format!("Failed to read branch: {}", e))?;
+        if let Some(name) = branch.name().map_err(|e| format!("Invalid branch name: {}", e))? {
+            let is_current = current_branch.as_ref().map(|c| c == name).unwrap_or(false);
+            branches.push(GitBranch {
+                name: name.to_string(),
+                current: is_current,
+                remote: false,
+            });
         }
-        
-        let current = line.starts_with('*');
-        let name = if current {
-            line[2..].trim()
-        } else {
-            line.trim()
-        };
-        
-        let remote = name.starts_with("remotes/");
-        let clean_name = if remote {
-            name.strip_prefix("remotes/origin/").unwrap_or(name)
-        } else {
-            name
-        };
-        
-        branches.push(GitBranch {
-            name: clean_name.to_string(),
-            current,
-            remote,
-        });
+    }
+    
+    // 获取远程分支
+    let remote_branches = repo.branches(Some(BranchType::Remote))
+        .map_err(|e| format!("Failed to get remote branches: {}", e))?;
+    
+    for branch_result in remote_branches {
+        let (branch, _) = branch_result.map_err(|e| format!("Failed to read branch: {}", e))?;
+        if let Some(name) = branch.name().map_err(|e| format!("Invalid branch name: {}", e))? {
+            // 移除 "origin/" 前缀
+            let clean_name = name.strip_prefix("origin/").unwrap_or(name);
+            branches.push(GitBranch {
+                name: clean_name.to_string(),
+                current: false,
+                remote: true,
+            });
+        }
     }
     
     Ok(branches)
@@ -543,246 +542,319 @@ fn get_commits(repo_path: &str, branch: Option<&str>, limit: usize, include_file
 }
 
 fn get_commits_with_skip(repo_path: &str, branch: Option<&str>, skip: usize, limit: usize, include_files: bool) -> Result<Vec<GitCommit>, String> {
-    let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
     
-    cmd.arg("-C").arg(repo_path).arg("log");
-
-    if let Some(branch) = branch {
-        cmd.arg(branch);
-    }
-
-    cmd.arg("--pretty=format:%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1f%P%x1f")
-        .arg("-z");
+    // 获取起始提交的 OID
+    let start_oid = if let Some(branch_name) = branch {
+        // 尝试查找分支
+        let reference = repo.find_reference(&format!("refs/heads/{}", branch_name))
+            .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{}", branch_name)))
+            .or_else(|_| repo.find_reference(branch_name))
+            .map_err(|e| format!("Failed to find branch '{}': {}", branch_name, e))?;
+        
+        reference.target()
+            .ok_or_else(|| format!("Branch '{}' has no target", branch_name))?
+    } else {
+        // 使用 HEAD
+        repo.head()
+            .map_err(|e| format!("Failed to get HEAD: {}", e))?
+            .target()
+            .ok_or_else(|| "HEAD has no target".to_string())?
+    };
     
-    // 添加 skip 和 limit 参数
-    if skip > 0 {
-        cmd.arg(format!("--skip={}", skip));
-    }
-    cmd.arg(format!("-n{}", limit));
-
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to get commits: {}", e))?;
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
-
-    let output_str = String::from_utf8_lossy(&output.stdout);
+    // 创建 revwalk
+    let mut revwalk = repo.revwalk()
+        .map_err(|e| format!("Failed to create revwalk: {}", e))?;
+    
+    revwalk.push(start_oid)
+        .map_err(|e| format!("Failed to push starting commit: {}", e))?;
+    
+    // 设置排序方式（按时间倒序）
+    revwalk.set_sorting(git2::Sort::TIME)
+        .map_err(|e| format!("Failed to set sorting: {}", e))?;
+    
     let mut commits = Vec::new();
-
-    for commit_str in output_str.split('\0') {
-        if commit_str.is_empty() {
+    let mut count = 0;
+    
+    for oid_result in revwalk {
+        let oid = oid_result.map_err(|e| format!("Failed to read commit OID: {}", e))?;
+        
+        // 跳过前面的提交
+        if count < skip {
+            count += 1;
             continue;
         }
-        let parts: Vec<&str> = commit_str.split('\x1f').collect();
-        // 7 fields + 1 empty string from trailing separator = 8 parts
-        if parts.len() < 8 {
-            continue;
+        
+        // 如果已经达到 limit，停止
+        if commits.len() >= limit {
+            break;
         }
-
-        let hash = parts[0].to_string();
-        let tags = get_commit_tags(repo_path, &hash).unwrap_or_default();
-        let subject = parts.get(4).unwrap_or(&"").to_string();
-        let body = parts.get(5).unwrap_or(&"").trim().to_string();
-        let parents_str = parts.get(6).unwrap_or(&"").trim();
-
-        let files = if include_files {
-            get_commit_files(repo_path, &hash).ok()
+        
+        let commit = repo.find_commit(oid)
+            .map_err(|e| format!("Failed to find commit {}: {}", oid, e))?;
+        
+        // 获取作者信息
+        let author = commit.author();
+        let author_name = author.name().unwrap_or("Unknown").to_string();
+        let author_email = author.email().unwrap_or("").to_string();
+        
+        // 获取时间（转换为 ISO 8601 格式）
+        let time = commit.time();
+        let offset = chrono::FixedOffset::east_opt(time.offset_minutes() * 60)
+            .ok_or_else(|| "Invalid timezone offset".to_string())?;
+        let datetime_with_tz = offset.timestamp_opt(time.seconds(), 0)
+            .single()
+            .ok_or_else(|| "Invalid timestamp".to_string())?;
+        let date_str = datetime_with_tz.to_rfc3339();
+        
+        // 获取提交消息
+        let message = commit.message().unwrap_or("").to_string();
+        let (subject, body) = if let Some(pos) = message.find('\n') {
+            let subject = message[..pos].trim().to_string();
+            let body = message[pos+1..].trim().to_string();
+            (subject, body)
         } else {
-            None
+            (message.trim().to_string(), String::new())
         };
-
+        
+        // 获取父提交
+        let parents: Vec<String> = commit.parents()
+            .map(|p| p.id().to_string())
+            .collect();
+        
+        let hash = oid.to_string();
+        
+        // 获取 tags
+        let tags = get_commit_tags_git2(&repo, oid).unwrap_or_default();
+        
+        // 获取 stats 和 files
+        let (stats, files) = if include_files {
+            let (s, f) = get_commit_diff_info(&repo, &commit)?;
+            (Some(s), Some(f))
+        } else {
+            let s = get_commit_stats_git2(&repo, &commit).ok();
+            (s, None)
+        };
+        
         commits.push(GitCommit {
-            hash: hash.clone(),
-            author: parts.get(1).unwrap_or(&"").to_string(),
-            email: parts.get(2).unwrap_or(&"").to_string(),
-            date: parts.get(3).unwrap_or(&"").to_string(),
+            hash,
+            author: author_name,
+            email: author_email,
+            date: date_str,
             message: subject.clone(),
-            full_message: if body.is_empty() { subject } else { format!("{}\n\n{}", subject, body) },
-            parents: parents_str.split_whitespace().map(|s| s.to_string()).collect(),
+            full_message: if body.is_empty() {
+                subject
+            } else {
+                format!("{}\n\n{}", subject, body)
+            },
+            parents,
             tags,
-            stats: get_commit_stats(repo_path, &hash).ok(),
+            stats,
             files,
         });
+        
+        count += 1;
     }
-
+    
     Ok(commits)
 }
 
-fn get_commit_tags(repo_path: &str, hash: &str) -> Result<Vec<String>, String> {
-    let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+// git2 版本的获取 tags
+fn get_commit_tags_git2(repo: &Repository, oid: Oid) -> Result<Vec<String>, String> {
+    let mut tags = Vec::new();
     
-    let output = cmd
-        .arg("-C")
-        .arg(repo_path)
-        .arg("tag")
-        .arg("--points-at")
-        .arg(hash)
-        .output()
-        .map_err(|e| format!("Failed to get tags: {}", e))?;
-    
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
-    
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    Ok(output_str
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(|s| s.to_string())
-        .collect())
-}
-
-fn get_commit_stats(repo_path: &str, hash: &str) -> Result<CommitStats, String> {
-    let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-    
-    let output = cmd
-        .arg("-C")
-        .arg(repo_path)
-        .arg("show")
-        .arg("--stat")
-        .arg("--format=")
-        .arg(hash)
-        .output()
-        .map_err(|e| format!("Failed to get stats: {}", e))?;
-    
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
-    
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    parse_commit_stats(&output_str).ok_or_else(|| "Failed to parse stats".to_string())
-}
-
-fn parse_commit_stats(output: &str) -> Option<CommitStats> {
-    let lines: Vec<&str> = output.lines().collect();
-    let last_line = lines.last()?;
-    
-    // 解析类似 "3 files changed, 10 insertions(+), 5 deletions(-)" 的格式
-    let parts: Vec<&str> = last_line.split(',').collect();
-    if parts.is_empty() {
-        return None;
-    }
-    
-    let files = parts[0]
-        .split_whitespace()
-        .next()?
-        .parse::<u32>()
-        .ok()?;
-    
-    let additions = if parts.len() > 1 {
-        parts[1]
-            .split_whitespace()
-            .next()?
-            .parse::<u32>()
-            .unwrap_or(0)
-    } else {
-        0
-    };
-    
-    let deletions = if parts.len() > 2 {
-        parts[2]
-            .split_whitespace()
-            .next()?
-            .parse::<u32>()
-            .unwrap_or(0)
-    } else {
-        0
-    };
-    
-    Some(CommitStats {
-        additions,
-        deletions,
-        files,
-    })
-}
-
-fn get_commit_files(repo_path: &str, hash: &str) -> Result<Vec<FileChange>, String> {
-    let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-    
-    let output = cmd
-        .arg("-C")
-        .arg(repo_path)
-        .arg("show")
-        .arg("--numstat")
-        .arg("--format=")
-        .arg(hash)
-        .output()
-        .map_err(|e| format!("Failed to get files: {}", e))?;
-    
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
-    
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    let mut files = Vec::new();
-    
-    for line in output_str.lines() {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 3 {
-            continue;
+    repo.tag_foreach(|tag_oid, name| {
+        // name 是 refs/tags/xxx 格式
+        if let Some(tag_name) = name.strip_prefix(b"refs/tags/") {
+            // 尝试解析标签
+            if let Ok(tag_obj) = repo.find_object(tag_oid, None) {
+                // 检查是否是轻量标签
+                if tag_obj.id() == oid {
+                    if let Ok(name_str) = std::str::from_utf8(tag_name) {
+                        tags.push(name_str.to_string());
+                    } else if let Some(tag) = tag_obj.as_tag() {
+                        // 附注标签
+                        let target_oid = tag.target_id();
+                        if target_oid == oid {
+                            if let Ok(name_str) = std::str::from_utf8(tag_name) {
+                                tags.push(name_str.to_string());
+                            }
+                        }
+                    }
+                }
+            }
         }
-        
-        let additions = parts[0].parse::<u32>().unwrap_or(0);
-        let deletions = parts[1].parse::<u32>().unwrap_or(0);
-        let path = parts[2].to_string();
-        
-        // 判断文件状态
-        let status = if additions > 0 && deletions == 0 {
-            "A".to_string()
-        } else if additions == 0 && deletions > 0 {
-            "D".to_string()
-        } else {
-            "M".to_string()
-        };
-        
-        files.push(FileChange {
-            path,
-            status,
-            additions,
-            deletions,
-        });
+        true // 继续迭代
+    }).map_err(|e| format!("Failed to iterate tags: {}", e))?;
+    
+    Ok(tags)
+}
+
+// 保留旧版本的 get_commit_tags 用于向后兼容
+#[allow(dead_code)]
+fn get_commit_tags(repo_path: &str, hash: &str) -> Result<Vec<String>, String> {
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let oid = Oid::from_str(hash)
+        .map_err(|e| format!("Invalid commit hash: {}", e))?;
+    get_commit_tags_git2(&repo, oid)
+}
+
+// git2 版本的获取 commit stats
+fn get_commit_stats_git2(repo: &Repository, commit: &git2::Commit) -> Result<CommitStats, String> {
+    let (stats, _) = get_commit_diff_info(repo, commit)?;
+    Ok(stats)
+}
+
+// 获取提交的 diff 信息（stats 和 files）
+fn get_commit_diff_info(repo: &Repository, commit: &git2::Commit) -> Result<(CommitStats, Vec<FileChange>), String> {
+    let a = if commit.parents().len() > 0 {
+        let parent = commit.parent(0).map_err(|e| format!("Failed to get parent: {}", e))?;
+        Some(parent.tree().map_err(|e| format!("Failed to get parent tree: {}", e))?)
+    } else {
+        None
+    };
+    
+    let b = commit.tree().map_err(|e| format!("Failed to get commit tree: {}", e))?;
+    
+    let diff = repo.diff_tree_to_tree(a.as_ref(), Some(&b), None)
+        .map_err(|e| format!("Failed to create diff: {}", e))?;
+    
+    let stats = diff.stats().map_err(|e| format!("Failed to get diff stats: {}", e))?;
+    
+    let commit_stats = CommitStats {
+        additions: stats.insertions() as u32,
+        deletions: stats.deletions() as u32,
+        files: stats.files_changed() as u32,
+    };
+    
+    let mut files = Vec::new();
+    diff.foreach(
+        &mut |delta, _| {
+            let status = match delta.status() {
+                git2::Delta::Added => "A",
+                git2::Delta::Deleted => "D",
+                git2::Delta::Modified => "M",
+                git2::Delta::Renamed => "R",
+                git2::Delta::Copied => "C",
+                git2::Delta::Typechange => "T",
+                _ => "U",
+            };
+            
+            if let Some(path) = delta.new_file().path() {
+                if let Some(path_str) = path.to_str() {
+                    files.push(FileChange {
+                        path: path_str.to_string(),
+                        status: status.to_string(),
+                        additions: 0, // 将在 line callback 中更新
+                        deletions: 0,
+                    });
+                }
+            }
+            true
+        },
+        None,
+        None,
+        None,
+    ).map_err(|e| format!("Failed to foreach diff: {}", e))?;
+    
+    // 获取每个文件的详细统计
+    let mut file_stats: std::collections::HashMap<String, (u32, u32)> = std::collections::HashMap::new();
+    
+    // 先收集所有文件路径
+    diff.foreach(
+        &mut |delta, _| {
+            if let Some(path) = delta.new_file().path() {
+                if let Some(path_str) = path.to_str() {
+                    file_stats.insert(path_str.to_string(), (0, 0));
+                }
+            }
+            true
+        },
+        None,
+        None,
+        None,
+    ).map_err(|e| format!("Failed to collect file paths: {}", e))?;
+    
+    // 然后统计每个文件的行变更
+    diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
+        if let Some(path) = delta.new_file().path() {
+            if let Some(path_str) = path.to_str() {
+                if let Some(entry) = file_stats.get_mut(path_str) {
+                    match line.origin() {
+                        '+' => entry.0 += 1,
+                        '-' => entry.1 += 1,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        true
+    }).map_err(|e| format!("Failed to get line stats: {}", e))?;
+    
+    // 更新文件的增删统计
+    for file in &mut files {
+        if let Some((adds, dels)) = file_stats.get(&file.path) {
+            file.additions = *adds;
+            file.deletions = *dels;
+        }
     }
     
+    Ok((commit_stats, files))
+}
+
+// 保留旧版本的函数用于向后兼容
+#[allow(dead_code)]
+fn get_commit_stats(repo_path: &str, hash: &str) -> Result<CommitStats, String> {
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let oid = Oid::from_str(hash)
+        .map_err(|e| format!("Invalid commit hash: {}", e))?;
+    let commit = repo.find_commit(oid)
+        .map_err(|e| format!("Failed to find commit: {}", e))?;
+    get_commit_stats_git2(&repo, &commit)
+}
+
+// 保留旧版本的函数用于向后兼容
+#[allow(dead_code)]
+fn get_commit_files(repo_path: &str, hash: &str) -> Result<Vec<FileChange>, String> {
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let oid = Oid::from_str(hash)
+        .map_err(|e| format!("Invalid commit hash: {}", e))?;
+    let commit = repo.find_commit(oid)
+        .map_err(|e| format!("Failed to find commit: {}", e))?;
+    let (_, files) = get_commit_diff_info(&repo, &commit)?;
     Ok(files)
 }
 
 fn get_total_commits(repo_path: &str, branch: Option<&str>) -> Result<usize, String> {
-    let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
     
-    cmd.arg("-C")
-        .arg(repo_path)
-        .arg("rev-list")
-        .arg("--count");
-    
-    if let Some(b) = branch {
-        cmd.arg(b);
+    // 获取起始提交的 OID
+    let start_oid = if let Some(branch_name) = branch {
+        let reference = repo.find_reference(&format!("refs/heads/{}", branch_name))
+            .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{}", branch_name)))
+            .or_else(|_| repo.find_reference(branch_name))
+            .map_err(|e| format!("Failed to find branch '{}': {}", branch_name, e))?;
+        
+        reference.target()
+            .ok_or_else(|| format!("Branch '{}' has no target", branch_name))?
     } else {
-        cmd.arg("HEAD");
-    }
+        repo.head()
+            .map_err(|e| format!("Failed to get HEAD: {}", e))?
+            .target()
+            .ok_or_else(|| "HEAD has no target".to_string())?
+    };
     
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to get commit count: {}", e))?;
+    // 创建 revwalk 并计数
+    let mut revwalk = repo.revwalk()
+        .map_err(|e| format!("Failed to create revwalk: {}", e))?;
     
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
+    revwalk.push(start_oid)
+        .map_err(|e| format!("Failed to push starting commit: {}", e))?;
     
-    let count_str = String::from_utf8_lossy(&output.stdout);
-    count_str
-        .trim()
-        .parse::<usize>()
-        .map_err(|e| format!("Failed to parse commit count: {}", e))
+    Ok(revwalk.count())
 }

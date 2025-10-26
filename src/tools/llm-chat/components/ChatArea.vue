@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, toRef, withDefaults, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { ElTooltip } from "element-plus";
 import type { ChatMessageNode, UserProfile } from "../types";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
@@ -303,21 +304,22 @@ onMounted(() => {
       </div>
 
       <!-- 用户档案信息（右对齐） -->
-      <div
-        v-if="effectiveUserProfile"
-        class="user-profile-info"
-        @click="handleEditUserProfile"
-        title="点击编辑用户档案"
-      >
-        <span class="profile-name">{{ effectiveUserProfile.name }}</span>
-        <Avatar
-          :src="effectiveUserProfile.icon || '👤'"
-          :alt="effectiveUserProfile.name"
-          :size="28"
-          shape="square"
-          :radius="4"
-        />
-      </div>
+      <el-tooltip content="点击编辑用户档案" placement="bottom">
+        <div
+          v-if="effectiveUserProfile"
+          class="user-profile-info"
+          @click="handleEditUserProfile"
+        >
+          <span class="profile-name">{{ effectiveUserProfile.name }}</span>
+          <Avatar
+            :src="effectiveUserProfile.icon || '👤'"
+            :alt="effectiveUserProfile.name"
+            :size="28"
+            shape="square"
+            :radius="4"
+          />
+        </div>
+      </el-tooltip>
     </div>
 
     <!-- 主内容区 -->
@@ -351,12 +353,13 @@ onMounted(() => {
     </div>
 
     <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
-    <div
-      v-if="props.isDetached"
-      class="resize-handle"
-      @mousedown="handleResizeStart"
-      title="拖拽调整窗口大小"
-    />
+    <el-tooltip content="拖拽调整窗口大小" placement="left">
+      <div
+        v-if="props.isDetached"
+        class="resize-handle"
+        @mousedown="handleResizeStart"
+      />
+    </el-tooltip>
 
     <!-- 编辑用户档案对话框 -->
     <EditUserProfileDialog
@@ -448,11 +451,12 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-app-region: no-drag; /* 允许点击 */
+  border: 1px solid transparent; /* 初始透明边框，让 hover 时有渐入效果 */
 }
 
 .user-profile-info:hover {
-  background-color: var(--el-fill-color-light);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  border: 1px solid var(--primary-color);
 }
 
 .user-profile-info:active {
@@ -484,6 +488,17 @@ onMounted(() => {
   height: 20px;
   object-fit: contain;
   flex-shrink: 0;
+}
+
+/* 头像悬停放大效果 */
+.agent-info .avatar-container,
+.user-profile-info .avatar-container {
+  transition: transform 0.2s ease-in-out;
+}
+
+.agent-info .avatar-container:hover,
+.user-profile-info .avatar-container:hover {
+  transform: scale(1.6);
 }
 
 /* flex 容器通用样式 */

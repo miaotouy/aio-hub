@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "aiotools"
-version = "0.1.8-alpha.3"
+version = "0.1.8-alpha.4"
 dependencies = [
  "anyhow",
  "async-stream",

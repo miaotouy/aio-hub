@@ -31,7 +31,6 @@ declare module 'vue' {
     IEpQuestionFilled: typeof import('~icons/ep/question-filled')['default']
     IEpRank: typeof import('~icons/ep/rank')['default']
     IEpScissor: typeof import('~icons/ep/scissor')['default']
-    IEpSearch: typeof import('~icons/ep/search')['default']
     IEpSetting: typeof import('~icons/ep/setting')['default']
     IEpTools: typeof import('~icons/ep/tools')['default']
     ImageViewer: typeof import('./components/common/ImageViewer.vue')['default']

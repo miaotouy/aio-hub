@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Minus, CopyDocument, Close, House, Setting, Sunny, Moon } from '@element-plus/icons-vue';
+import { Minus, CopyDocument, Close, House, Setting, Sunny, Moon, User } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toolsConfig } from '../config/tools';
 import iconImage from '../assets/icon.png';
@@ -10,6 +10,8 @@ import { createModuleLogger } from '@utils/logger';
 import { platform } from '@tauri-apps/plugin-os';
 import { useTheme } from '../composables/useTheme';
 import SystemThemeIcon from './icons/SystemThemeIcon.vue';
+import { useUserProfileStore } from '@/tools/llm-chat/userProfileStore';
+import Avatar from '@/components/common/Avatar.vue';
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -22,6 +24,7 @@ const logger = createModuleLogger('TitleBar');
 
 const router = useRouter();
 const { currentTheme, applyTheme } = useTheme();
+const userProfileStore = useUserProfileStore();
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
@@ -198,6 +201,19 @@ const handleThemeChange = (theme: 'auto' | 'light' | 'dark') => {
   applyTheme(theme);
   updateAppSettings({ theme });
 };
+
+// 用户档案选择处理
+const handleProfileSelect = (profileId: string | null) => {
+  userProfileStore.selectGlobalProfile(profileId);
+  if (profileId) {
+    userProfileStore.updateLastUsed(profileId);
+  }
+};
+
+// 导航到档案管理页面
+const goToProfileSettings = () => {
+  router.push('/settings?section=user-profiles');
+};
 </script>
 
 <template>
@@ -218,6 +234,62 @@ const handleThemeChange = (theme: 'auto' | 'light' | 'dark') => {
       
       <!-- 右侧控制区域 -->
       <div class="right-controls">
+        <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
+        <el-dropdown
+          v-if="isMainWindow"
+          trigger="hover"
+          @command="handleProfileSelect"
+          placement="bottom"
+        >
+          <button
+            class="control-btn profile-btn"
+            :title="userProfileStore.globalProfile ? `用户档案: ${userProfileStore.globalProfile.name}` : '选择用户档案'"
+          >
+            <!-- 如果有选中档案，使用 Avatar（有头像显示头像，无头像显示首字母） -->
+            <Avatar
+              v-if="userProfileStore.globalProfile"
+              :src="userProfileStore.globalProfile.icon || ''"
+              :alt="userProfileStore.globalProfile.name"
+              :size="20"
+              shape="square"
+              :radius="4"
+            />
+            <!-- 完全没有档案时显示 User 图标 -->
+            <el-icon v-else><User /></el-icon>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                :command="null"
+                :class="{ 'is-active': !userProfileStore.globalProfileId }"
+              >
+                <span>无（不使用）</span>
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-for="profile in userProfileStore.enabledProfiles"
+                :key="profile.id"
+                :command="profile.id"
+                :class="{ 'is-active': userProfileStore.globalProfileId === profile.id }"
+              >
+                <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
+                <Avatar
+                  :src="profile.icon || ''"
+                  :alt="profile.name"
+                  :size="20"
+                  shape="square"
+                  :radius="4"
+                  style="margin-right: 8px;"
+                />
+                <span>{{ profile.name }}</span>
+              </el-dropdown-item>
+              <el-dropdown-item divided @click="goToProfileSettings">
+                <el-icon><Setting /></el-icon>
+                <span>管理用户档案</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
         <!-- 主题切换下拉菜单（仅主窗口显示） -->
         <el-dropdown
           v-if="isMainWindow"
@@ -454,7 +526,7 @@ const handleThemeChange = (theme: 'auto' | 'light' | 'dark') => {
 :deep(.el-dropdown-menu__item) {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 :deep(.el-dropdown-menu__item.is-active) {
@@ -466,10 +538,13 @@ const handleThemeChange = (theme: 'auto' | 'light' | 'dark') => {
   font-size: 16px;
 }
 
-/* 移除主题切换按钮在悬停和聚焦时的背景和轮廓 */
+/* 移除主题切换按钮和用户档案按钮在悬停和聚焦时的背景和轮廓 */
 .control-btn.theme-btn:hover,
 .control-btn.theme-btn:focus,
-.control-btn.theme-btn:focus-visible {
+.control-btn.theme-btn:focus-visible,
+.control-btn.profile-btn:hover,
+.control-btn.profile-btn:focus,
+.control-btn.profile-btn:focus-visible {
   background-color: transparent;
   outline: none;
 }

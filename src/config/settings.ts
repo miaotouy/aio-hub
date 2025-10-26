@@ -49,6 +49,12 @@ export const settingsModules: SettingsModule[] = [
     minHeight: "500px",
   },
   {
+    id: "user-profiles",
+    title: "用户档案管理",
+    component: defineAsyncComponent(() => import("../views/components/UserProfileSettings.vue")),
+    minHeight: "600px",
+  },
+  {
     id: "model-icons",
     title: "模型图标配置",
     component: defineAsyncComponent(() => import("../views/components/ModelIconSettings.vue")),

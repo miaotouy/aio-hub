@@ -62,9 +62,7 @@
               </div>
 
               <!-- 文本 -->
-              <div class="message-text-compact placeholder-text">
-                💬 聊天历史插入位置
-              </div>
+              <div class="message-text-compact placeholder-text">💬 聊天历史插入位置</div>
 
               <!-- 操作按钮 -->
               <div class="message-actions-compact">
@@ -93,11 +91,7 @@
               <div class="message-content">
                 <!-- 角色标签 -->
                 <div class="message-role">
-                  <el-tag
-                    type="warning"
-                    size="small"
-                    effect="plain"
-                  >
+                  <el-tag type="warning" size="small" effect="plain">
                     <el-icon style="margin-right: 4px">
                       <ChatDotRound />
                     </el-icon>
@@ -106,9 +100,79 @@
                 </div>
 
                 <!-- 消息文本预览 -->
-                <div class="message-text placeholder-text">
-                  实际的聊天历史将在此处插入
+                <div class="message-text placeholder-text">实际的聊天历史将在此处插入</div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="message-actions">
+                <el-switch
+                  v-model="element.isEnabled"
+                  :active-value="true"
+                  :inactive-value="false"
+                  size="small"
+                  @change="handleToggleEnabled(index)"
+                />
+              </div>
+            </div>
+
+            <!-- 用户档案占位符 - 紧凑模式 -->
+            <div
+              v-else-if="element.type === 'user_profile' && props.compact"
+              class="message-card message-card-compact user-profile-placeholder-compact"
+              :class="{ disabled: element.isEnabled === false }"
+            >
+              <!-- 拖拽手柄 -->
+              <div class="drag-handle">
+                <el-icon><Rank /></el-icon>
+              </div>
+
+              <!-- 用户档案图标 -->
+              <div class="role-icon">
+                <el-icon color="var(--el-color-primary)">
+                  <User />
+                </el-icon>
+              </div>
+
+              <!-- 文本 -->
+              <div class="message-text-compact placeholder-text">👤 用户档案插入位置</div>
+
+              <!-- 操作按钮 -->
+              <div class="message-actions-compact">
+                <el-switch
+                  v-model="element.isEnabled"
+                  :active-value="true"
+                  :inactive-value="false"
+                  size="small"
+                  @change="handleToggleEnabled(index)"
+                />
+              </div>
+            </div>
+
+            <!-- 用户档案占位符 - 正常模式 -->
+            <div
+              v-else-if="element.type === 'user_profile'"
+              class="message-card user-profile-placeholder"
+              :class="{ disabled: element.isEnabled === false }"
+            >
+              <!-- 拖拽手柄 -->
+              <div class="drag-handle">
+                <el-icon><Rank /></el-icon>
+              </div>
+
+              <!-- 消息内容 -->
+              <div class="message-content">
+                <!-- 角色标签 -->
+                <div class="message-role">
+                  <el-tag type="primary" size="small" effect="plain">
+                    <el-icon style="margin-right: 4px">
+                      <User />
+                    </el-icon>
+                    用户档案占位符
+                  </el-tag>
                 </div>
+
+                <!-- 消息文本预览 -->
+                <div class="message-text placeholder-text">当前生效的用户档案内容将在此处插入</div>
               </div>
 
               <!-- 操作按钮 -->
@@ -156,22 +220,14 @@
                   size="small"
                   @change="handleToggleEnabled(index)"
                 />
-                <el-button
-                  link
-                  size="small"
-                  @click="handleEditMessage(index)"
-                >
+                <el-button link size="small" @click="handleEditMessage(index)">
                   <el-icon><Edit /></el-icon>
                 </el-button>
               </div>
             </div>
 
             <!-- 普通预设消息 - 正常模式 -->
-            <div
-              v-else
-              class="message-card"
-              :class="{ disabled: element.isEnabled === false }"
-            >
+            <div v-else class="message-card" :class="{ disabled: element.isEnabled === false }">
               <!-- 拖拽手柄 -->
               <div class="drag-handle">
                 <el-icon><Rank /></el-icon>
@@ -181,11 +237,7 @@
               <div class="message-content">
                 <!-- 角色标签 -->
                 <div class="message-role">
-                  <el-tag
-                    :type="getRoleTagType(element.role)"
-                    size="small"
-                    effect="plain"
-                  >
+                  <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
                     <el-icon style="margin-right: 4px">
                       <component :is="getRoleIcon(element.role)" />
                     </el-icon>
@@ -208,19 +260,10 @@
                   size="small"
                   @change="handleToggleEnabled(index)"
                 />
-                <el-button
-                  link
-                  size="small"
-                  @click="handleEditMessage(index)"
-                >
+                <el-button link size="small" @click="handleEditMessage(index)">
                   <el-icon><Edit /></el-icon>
                 </el-button>
-                <el-button
-                  link
-                  size="small"
-                  type="danger"
-                  @click="handleDeleteMessage(index)"
-                >
+                <el-button link size="small" type="danger" @click="handleDeleteMessage(index)">
                   <el-icon><Delete /></el-icon>
                 </el-button>
               </div>
@@ -231,9 +274,7 @@
         <!-- 空状态 -->
         <div v-if="localMessages.length === 0" class="empty-state">
           <el-empty description="暂无预设消息，点击上方按钮添加">
-            <el-button type="primary" @click="handleAddMessage">
-              添加第一条消息
-            </el-button>
+            <el-button type="primary" @click="handleAddMessage"> 添加第一条消息 </el-button>
           </el-empty>
         </div>
       </div>
@@ -249,36 +290,36 @@
     >
       <template #content>
         <el-form :model="editForm" label-width="80px">
-        <el-form-item label="角色">
-          <el-radio-group v-model="editForm.role">
-            <el-radio value="system">
-              <el-icon style="margin-right: 4px"><ChatDotRound /></el-icon>
-              System
-            </el-radio>
-            <el-radio value="user">
-              <el-icon style="margin-right: 4px"><User /></el-icon>
-              User
-            </el-radio>
-            <el-radio value="assistant">
-              <el-icon style="margin-right: 4px"><Service /></el-icon>
-              Assistant
-            </el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="内容">
-          <el-input
-            v-model="editForm.content"
-            type="textarea"
-            :rows="16"
-            placeholder="请输入消息内容..."
-          />
+          <el-form-item label="角色">
+            <el-radio-group v-model="editForm.role">
+              <el-radio value="system">
+                <el-icon style="margin-right: 4px"><ChatDotRound /></el-icon>
+                System
+              </el-radio>
+              <el-radio value="user">
+                <el-icon style="margin-right: 4px"><User /></el-icon>
+                User
+              </el-radio>
+              <el-radio value="assistant">
+                <el-icon style="margin-right: 4px"><Service /></el-icon>
+                Assistant
+              </el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="内容">
+            <el-input
+              v-model="editForm.content"
+              type="textarea"
+              :rows="16"
+              placeholder="请输入消息内容..."
+            />
           </el-form-item>
         </el-form>
       </template>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleSaveMessage">
-          {{ isEditMode ? '保存' : '添加' }}
+          {{ isEditMode ? "保存" : "添加" }}
         </el-button>
       </template>
     </BaseDialog>
@@ -295,9 +336,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { VueDraggableNext } from 'vue-draggable-next';
-import type { ChatMessageNode, MessageRole } from '../../types';
+import { ref, computed, watch } from "vue";
+import { VueDraggableNext } from "vue-draggable-next";
+import type { ChatMessageNode, MessageRole } from "../../types";
 import {
   QuestionFilled,
   Download,
@@ -309,8 +350,8 @@ import {
   ChatDotRound,
   User,
   Service,
-} from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+} from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 
 interface Props {
   modelValue?: ChatMessageNode[];
@@ -320,12 +361,12 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: ChatMessageNode[]): void;
+  (e: "update:modelValue", value: ChatMessageNode[]): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => [],
-  height: '500px',
+  height: "500px",
   compact: false,
 });
 
@@ -339,8 +380,8 @@ const editDialogVisible = ref(false);
 const isEditMode = ref(false);
 const editingIndex = ref(-1);
 const editForm = ref({
-  role: 'system' as MessageRole,
-  content: '',
+  role: "system" as MessageRole,
+  content: "",
 });
 
 // 文件导入
@@ -354,37 +395,62 @@ const containerHeight = computed(() => props.height);
 watch(
   () => props.modelValue,
   (newValue) => {
-    // 确保所有消息都有唯一ID，并且存在历史消息占位符
-    const CHAT_HISTORY_PLACEHOLDER_ID = 'chat-history-placeholder';
-    
+    // 确保所有消息都有唯一ID，并且存在必要的占位符
+    const CHAT_HISTORY_PLACEHOLDER_ID = "chat-history-placeholder";
+    const USER_PROFILE_PLACEHOLDER_ID = "user-profile-placeholder";
+
     // 从外部获取消息列表
     let existingMessages = [...(newValue || [])];
-    
+
     // 检查是否已存在历史消息占位符
-    const hasHistoryPlaceholder = existingMessages.some((msg) => msg.type === 'chat_history');
-    
-    // 如果不存在，创建一个
+    const hasHistoryPlaceholder = existingMessages.some((msg) => msg.type === "chat_history");
+
+    // 检查是否已存在用户档案占位符
+    const hasUserProfilePlaceholder = existingMessages.some((msg) => msg.type === "user_profile");
+
+    let needsSync = false;
+
+    // 如果不存在用户档案占位符，创建一个（添加到开头）
+    if (!hasUserProfilePlaceholder) {
+      const userProfilePlaceholder: ChatMessageNode = {
+        id: USER_PROFILE_PLACEHOLDER_ID,
+        parentId: null,
+        childrenIds: [],
+        role: "system",
+        content: "用户档案",
+        type: "user_profile",
+        status: "complete",
+        isEnabled: true,
+        timestamp: new Date().toISOString(),
+      };
+      // 将用户档案占位符添加到列表开头
+      existingMessages = [userProfilePlaceholder, ...existingMessages];
+      needsSync = true;
+    }
+
+    // 如果不存在历史消息占位符，创建一个（添加到末尾）
     if (!hasHistoryPlaceholder) {
       const historyPlaceholder: ChatMessageNode = {
         id: CHAT_HISTORY_PLACEHOLDER_ID,
         parentId: null,
         childrenIds: [],
-        role: 'system',
-        content: '聊天历史',
-        type: 'chat_history',
-        status: 'complete',
+        role: "system",
+        content: "聊天历史",
+        type: "chat_history",
+        status: "complete",
         isEnabled: true,
         timestamp: new Date().toISOString(),
       };
-      // 将占位符添加到列表末尾，这样聊天记录默认会被插入到底部
+      // 将历史占位符添加到列表末尾
       existingMessages = [...existingMessages, historyPlaceholder];
+      needsSync = true;
     }
-    
+
     localMessages.value = existingMessages;
-    
+
     // 如果我们添加了占位符，同步到外部
-    if (!hasHistoryPlaceholder && existingMessages.length > 0) {
-      emit('update:modelValue', existingMessages);
+    if (needsSync && existingMessages.length > 0) {
+      emit("update:modelValue", existingMessages);
     }
   },
   { immediate: true, deep: true }
@@ -396,22 +462,22 @@ function onDragStart() {
 
 // 拖拽结束事件 - 同步到外部
 function onDragEnd() {
-  emit('update:modelValue', localMessages.value);
+  emit("update:modelValue", localMessages.value);
 }
 
 // 同步到外部的辅助函数
 function syncToParent() {
-  emit('update:modelValue', localMessages.value);
+  emit("update:modelValue", localMessages.value);
 }
 
 /**
  * 获取角色标签类型
  */
-function getRoleTagType(role: MessageRole): 'success' | 'primary' | 'info' {
-  const typeMap: Record<MessageRole, 'success' | 'primary' | 'info'> = {
-    system: 'info',
-    user: 'primary',
-    assistant: 'success',
+function getRoleTagType(role: MessageRole): "success" | "primary" | "info" {
+  const typeMap: Record<MessageRole, "success" | "primary" | "info"> = {
+    system: "info",
+    user: "primary",
+    assistant: "success",
   };
   return typeMap[role];
 }
@@ -433,9 +499,9 @@ function getRoleIcon(role: MessageRole) {
  */
 function getRoleLabel(role: MessageRole): string {
   const labelMap: Record<MessageRole, string> = {
-    system: 'System',
-    user: 'User',
-    assistant: 'Assistant',
+    system: "System",
+    user: "User",
+    assistant: "Assistant",
   };
   return labelMap[role];
 }
@@ -445,9 +511,9 @@ function getRoleLabel(role: MessageRole): string {
  */
 function getRoleColor(role: MessageRole): string {
   const colorMap: Record<MessageRole, string> = {
-    system: 'var(--el-color-info)',
-    user: 'var(--el-color-primary)',
-    assistant: 'var(--el-color-success)',
+    system: "var(--el-color-info)",
+    user: "var(--el-color-primary)",
+    assistant: "var(--el-color-success)",
   };
   return colorMap[role];
 }
@@ -457,7 +523,7 @@ function getRoleColor(role: MessageRole): string {
  */
 function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  return text.substring(0, maxLength) + "...";
 }
 
 /**
@@ -466,8 +532,8 @@ function truncateText(text: string, maxLength: number): string {
 function handleAddMessage() {
   isEditMode.value = false;
   editForm.value = {
-    role: 'system',
-    content: '',
+    role: "system",
+    content: "",
   };
   editDialogVisible.value = true;
 }
@@ -477,13 +543,17 @@ function handleAddMessage() {
  */
 function handleEditMessage(index: number) {
   const message = localMessages.value[index];
-  
-  // 不允许编辑历史消息占位符
-  if (message.type === 'chat_history') {
-    ElMessage.warning('历史消息占位符不可编辑');
+
+  // 不允许编辑历史消息占位符和用户档案占位符
+  if (message.type === "chat_history") {
+    ElMessage.warning("历史消息占位符不可编辑");
     return;
   }
-  
+  if (message.type === "user_profile") {
+    ElMessage.warning("用户档案占位符不可编辑");
+    return;
+  }
+
   isEditMode.value = true;
   editingIndex.value = index;
   editForm.value = {
@@ -498,7 +568,7 @@ function handleEditMessage(index: number) {
  */
 function handleSaveMessage() {
   if (!editForm.value.content.trim()) {
-    ElMessage.warning('消息内容不能为空');
+    ElMessage.warning("消息内容不能为空");
     return;
   }
 
@@ -515,8 +585,8 @@ function handleSaveMessage() {
       childrenIds: [],
       content: editForm.value.content,
       role: editForm.value.role,
-      status: 'complete',
-      type: 'message', // 明确标记为普通消息
+      status: "complete",
+      type: "message", // 明确标记为普通消息
       isEnabled: true,
       timestamp: new Date().toISOString(),
     };
@@ -532,24 +602,24 @@ function handleSaveMessage() {
  */
 async function handleDeleteMessage(index: number) {
   const message = localMessages.value[index];
-  
-  // 不允许删除历史消息占位符
-  if (message.type === 'chat_history') {
-    ElMessage.warning('历史消息占位符不可删除');
+
+  // 不允许删除历史消息占位符和用户档案占位符
+  if (message.type === "chat_history") {
+    ElMessage.warning("历史消息占位符不可删除");
     return;
   }
-  
+  if (message.type === "user_profile") {
+    ElMessage.warning("用户档案占位符不可删除");
+    return;
+  }
+
   try {
-    await ElMessageBox.confirm(
-      '确定要删除这条预设消息吗？',
-      '确认删除',
-      {
-        type: 'warning',
-      }
-    );
+    await ElMessageBox.confirm("确定要删除这条预设消息吗？", "确认删除", {
+      type: "warning",
+    });
     localMessages.value.splice(index, 1);
     syncToParent();
-    ElMessage.success('删除成功');
+    ElMessage.success("删除成功");
   } catch {
     // 用户取消
   }
@@ -563,26 +633,25 @@ function handleToggleEnabled(_index: number) {
   syncToParent();
 }
 
-
 /**
  * 导出预设消息
  */
 function handleExport() {
   if (localMessages.value.length === 0) {
-    ElMessage.warning('没有可导出的预设消息');
+    ElMessage.warning("没有可导出的预设消息");
     return;
   }
 
   const dataStr = JSON.stringify(localMessages.value, null, 2);
-  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  const dataBlob = new Blob([dataStr], { type: "application/json" });
   const url = URL.createObjectURL(dataBlob);
-  const link = document.createElement('a');
+  const link = document.createElement("a");
   link.href = url;
-  link.download = `preset-messages-${new Date().toISOString().split('T')[0]}.json`;
+  link.download = `preset-messages-${new Date().toISOString().split("T")[0]}.json`;
   link.click();
   URL.revokeObjectURL(url);
 
-  ElMessage.success('导出成功');
+  ElMessage.success("导出成功");
 }
 
 /**
@@ -606,18 +675,18 @@ async function handleFileSelected(event: Event) {
 
     // 简单验证
     if (!Array.isArray(imported)) {
-      throw new Error('文件格式不正确');
+      throw new Error("文件格式不正确");
     }
 
     localMessages.value = imported;
     syncToParent();
-    ElMessage.success('导入成功');
+    ElMessage.success("导入成功");
   } catch (error) {
-    ElMessage.error('导入失败：文件格式不正确');
-    console.error('Import error:', error);
+    ElMessage.error("导入失败：文件格式不正确");
+    console.error("Import error:", error);
   } finally {
     // 清空 input，允许重复导入同一文件
-    target.value = '';
+    target.value = "";
   }
 }
 </script>
@@ -692,13 +761,14 @@ async function handleFileSelected(event: Event) {
 }
 
 .message-card.history-placeholder {
-  background: var(--el-color-warning-light-9);
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
   border-color: var(--el-color-warning-light-5);
   border-style: dashed;
 }
 
 .message-card.history-placeholder:hover {
   border-color: var(--el-color-warning);
+  background: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
 }
 
 .placeholder-text {
@@ -830,21 +900,49 @@ async function handleFileSelected(event: Event) {
   min-height: 100px;
   font-size: 13px;
 }
-
 /* 紧凑模式下的历史消息占位符 */
 .history-placeholder-compact {
-  background: var(--el-color-warning-light-9);
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
   border-color: var(--el-color-warning-light-5);
   border-style: dashed;
 }
 
 .history-placeholder-compact:hover {
   border-color: var(--el-color-warning);
-  background: var(--el-color-warning-light-8);
+  background: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
 }
 
 .history-placeholder-compact .placeholder-text {
   color: var(--el-color-warning-dark-2);
+  font-weight: 500;
+}
+
+/* 用户档案占位符样式 - 正常模式 */
+.message-card.user-profile-placeholder {
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border-color: var(--el-color-primary-light-5);
+  border-style: dashed;
+}
+
+.message-card.user-profile-placeholder:hover {
+  border-color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
+/* 用户档案占位符样式 - 紧凑模式 */
+.user-profile-placeholder-compact {
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border-color: var(--el-color-primary-light-5);
+  border-style: dashed;
+}
+
+.user-profile-placeholder-compact:hover {
+  border-color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
+.user-profile-placeholder-compact .placeholder-text {
+  color: var(--el-color-primary-dark-2);
   font-weight: 500;
 }
 </style>

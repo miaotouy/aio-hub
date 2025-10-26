@@ -16,13 +16,17 @@
  * - SESSIONS: 同步完整的会话列表（包括每个会话的完整消息树），让分离窗口能切换会话
  * - CURRENT_SESSION_ID: 同步当前激活的会话ID
  * - PARAMETERS: 同步运行时参数（如 isSending 状态）
+ * - USER_PROFILES: 同步用户档案列表
+ * - GLOBAL_PROFILE_ID: 同步全局用户档案ID
  */
 export type LlmChatStateKey =
   | 'chat-agents'           // 智能体列表（完整）
   | 'chat-current-agent-id' // 当前选中的智能体ID（全局）
   | 'chat-sessions'         // 会话列表（完整，包含所有消息树）
   | 'chat-current-session-id'  // 当前会话ID
-  | 'chat-parameters';      // 参数配置
+  | 'chat-parameters'       // 参数配置
+  | 'chat-user-profiles'    // 用户档案列表（完整）
+  | 'chat-global-profile-id'; // 全局用户档案ID
 
 /**
  * LLM Chat 状态键常量
@@ -35,6 +39,8 @@ export const CHAT_STATE_KEYS = {
   SESSIONS: 'chat-sessions' as const,
   CURRENT_SESSION_ID: 'chat-current-session-id' as const,
   PARAMETERS: 'chat-parameters' as const,
+  USER_PROFILES: 'chat-user-profiles' as const,
+  GLOBAL_PROFILE_ID: 'chat-global-profile-id' as const,
 } as const;
 
 /**

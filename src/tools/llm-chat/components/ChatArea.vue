@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, toRef, withDefaults, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import type { ChatMessageNode } from "../types";
+import type { ChatMessageNode, UserProfile } from "../types";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
@@ -9,6 +9,7 @@ import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
 import MessageInput from "./MessageInput.vue";
+import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 
 const logger = createModuleLogger("ChatArea");
 
@@ -47,10 +48,13 @@ const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 
 // 获取智能体和模型信息
 import { useAgentStore } from "../agentStore";
+import { useUserProfileStore } from "../userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import Avatar from '@/components/common/Avatar.vue';
+import DynamicIcon from '@/components/common/DynamicIcon.vue';
 const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 
@@ -74,6 +78,19 @@ const currentModel = computed(() => {
 const modelIcon = computed(() => {
   if (!currentModel.value) return null;
   return getModelIcon(currentModel.value);
+});
+
+// 当前生效的用户档案（智能体绑定 > 全局配置）
+const effectiveUserProfile = computed(() => {
+  if (!currentAgent.value) return null;
+  
+  // 优先使用智能体绑定的档案
+  if (currentAgent.value.userProfileId) {
+    return userProfileStore.getProfileById(currentAgent.value.userProfileId);
+  }
+  
+  // 否则使用全局档案
+  return userProfileStore.globalProfile;
 });
 
 // ===== 拖拽与分离功能 =====
@@ -122,6 +139,26 @@ const handleDragStart = (e: MouseEvent) => {
     handleOffsetX,
     handleOffsetY,
   });
+};
+
+// ===== 用户档案编辑 =====
+const showEditProfileDialog = ref(false);
+
+const handleEditUserProfile = () => {
+  if (effectiveUserProfile.value) {
+    logger.info("打开用户档案编辑对话框", { profileId: effectiveUserProfile.value.id });
+    showEditProfileDialog.value = true;
+  } else {
+    logger.warn("无法编辑用户档案：未找到有效的用户档案");
+  }
+};
+
+const handleSaveUserProfile = (updates: Partial<Omit<UserProfile, 'id' | 'createdAt'>>) => {
+  if (effectiveUserProfile.value) {
+    logger.info("保存用户档案", { profileId: effectiveUserProfile.value.id, updates });
+    userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
+  }
+  showEditProfileDialog.value = false;
 };
 
 // ===== 窗口大小调整功能 =====
@@ -264,6 +301,23 @@ onMounted(() => {
           <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
         </div>
       </div>
+
+      <!-- 用户档案信息（右对齐） -->
+      <div
+        v-if="effectiveUserProfile"
+        class="user-profile-info"
+        @click="handleEditUserProfile"
+        title="点击编辑用户档案"
+      >
+        <span class="profile-name">{{ effectiveUserProfile.name }}</span>
+        <Avatar
+          :src="effectiveUserProfile.icon || '👤'"
+          :alt="effectiveUserProfile.name"
+          :size="28"
+          shape="square"
+          :radius="4"
+        />
+      </div>
     </div>
 
     <!-- 主内容区 -->
@@ -302,6 +356,14 @@ onMounted(() => {
       class="resize-handle"
       @mousedown="handleResizeStart"
       title="拖拽调整窗口大小"
+    />
+
+    <!-- 编辑用户档案对话框 -->
+    <EditUserProfileDialog
+      :visible="showEditProfileDialog"
+      :profile="effectiveUserProfile || null"
+      @update:visible="showEditProfileDialog = $event"
+      @save="handleSaveUserProfile"
     />
   </div>
 </template>
@@ -369,18 +431,49 @@ onMounted(() => {
   min-width: 0;
 }
 
+/* 信息展示区域通用样式 */
 .agent-info,
-.model-info {
+.model-info,
+.user-profile-info {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.agent-name {
+.user-profile-info {
+  padding: 4px 16px;
+  border-radius: 4px;
+  margin-left: auto; /* 右对齐 */
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag; /* 允许点击 */
+}
+
+.user-profile-info:hover {
+  background-color: var(--el-fill-color-light);
+  transform: translateY(-1px);
+}
+
+.user-profile-info:active {
+  background-color: var(--el-fill-color);
+  transform: translateY(0);
+}
+
+/* 名称文本通用样式 */
+.agent-name,
+.profile-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-name {
+  font-size: 13px;
+  color: var(--text-color-light);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -393,18 +486,11 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.model-name {
-  font-size: 13px;
-  color: var(--text-color-light);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.main-content {
+/* flex 容器通用样式 */
+.main-content,
+.chat-content {
   display: flex;
   flex: 1;
-  /* padding: 12px; */ /* 由 MessageList 和 MessageInput 自己管理 */
   min-width: 0;
   min-height: 0;
 }
@@ -419,17 +505,10 @@ onMounted(() => {
   border-radius: 8px;
 }
 
-/* 分离模式下，手柄也可以用于拖动窗口 */
-.chat-area-container.detached-mode .detachable-handle {
-  cursor: move;
-}
+/* 分离模式下手柄光标样式已统一为 move，无需重复定义 */
 
 .chat-content {
-  flex: 1;
-  display: flex;
   flex-direction: column;
-  min-width: 0;
-  min-height: 0;
   padding: 0 12px 12px; /* 左右和底部保留边距 */
   /* overflow: hidden; */ /* 解除限制，让 MessageList 可以滚动 */
 }

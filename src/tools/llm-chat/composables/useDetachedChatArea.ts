@@ -14,23 +14,26 @@ import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
+import { useUserProfileStore } from '../userProfileStore';
 import { useLlmChatUiState } from './useLlmChatUiState';
 import { createModuleLogger } from '@/utils/logger';
-import type { ChatAgent, ChatSession } from '../types';
+import type { ChatAgent, ChatSession, UserProfile } from '../types';
 import { CHAT_STATE_KEYS, createChatSyncConfig } from '../types/sync';
 
 const logger = createModuleLogger('DetachedChatArea');
-
 export function useDetachedChatArea() {
   const bus = useWindowSyncBus();
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
+  const userProfileStore = useUserProfileStore();
 
   // 1. 创建本地 ref 用于接收同步数据
   const syncedAgents = ref<ChatAgent[]>([]);
   const syncedCurrentAgentId = ref<string | null>(null);
   const syncedSessions = ref<ChatSession[]>([]);
   const syncedCurrentSessionId = ref<string | null>(null);
+  const syncedUserProfiles = ref<UserProfile[]>([]);
+  const syncedGlobalProfileId = ref<string | null>(null);
   const syncedParameters = ref({
     isSending: false,
     disabled: true,
@@ -62,6 +65,16 @@ export function useDetachedChatArea() {
     autoPush: false,
   });
 
+  useStateSyncEngine(syncedUserProfiles, {
+    ...createChatSyncConfig(CHAT_STATE_KEYS.USER_PROFILES),
+    autoPush: false,
+  });
+
+  useStateSyncEngine(syncedGlobalProfileId, {
+    ...createChatSyncConfig(CHAT_STATE_KEYS.GLOBAL_PROFILE_ID),
+    autoPush: false,
+  });
+
   // 3. 监听同步数据的变化，并填充到 Pinia Store
   watch(syncedAgents, (newAgents) => {
     if (newAgents && newAgents.length > 0) {
@@ -90,6 +103,18 @@ export function useDetachedChatArea() {
       logger.info('接收到 currentSessionId 同步数据，更新到 Store', { sessionId: newId });
       store.currentSessionId = newId;
     }
+  });
+
+  watch(syncedUserProfiles, (newProfiles) => {
+    if (newProfiles && newProfiles.length > 0) {
+      logger.info('接收到 userProfiles 同步数据，更新到 Store', { count: newProfiles.length });
+      userProfileStore.profiles = newProfiles;
+    }
+  }, { deep: true });
+
+  watch(syncedGlobalProfileId, (newId) => {
+    logger.info('接收到 globalProfileId 同步数据，更新到 Store', { profileId: newId });
+    userProfileStore.globalProfileId = newId;
   });
 
   logger.info('分离的 ChatArea 同步引擎已初始化，将完整状态填充到 Store');

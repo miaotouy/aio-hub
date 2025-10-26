@@ -76,6 +76,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       options?: {
         description?: string;
         icon?: string;
+        userProfileId?: string | null;
         presetMessages?: ChatMessageNode[];
         parameters?: Partial<LlmParameters>;
       }
@@ -90,6 +91,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         icon: options?.icon,
         profileId,
         modelId,
+        userProfileId: options?.userProfileId ?? null,
         presetMessages: options?.presetMessages,
         parameters: {
           temperature: options?.parameters?.temperature ?? 0.7,

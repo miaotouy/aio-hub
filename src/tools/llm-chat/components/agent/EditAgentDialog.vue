@@ -11,6 +11,7 @@ import { PRESET_ICONS, PRESET_ICONS_DIR } from '@/config/preset-icons';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Picture, Upload, RefreshLeft } from '@element-plus/icons-vue';
+import { useUserProfileStore } from '../../userProfileStore';
 
 interface Props {
   visible: boolean;
@@ -27,7 +28,6 @@ interface Props {
     maxTokens?: number;
   } | null;
 }
-
 interface Emits {
   (e: 'update:visible', value: boolean): void;
   (e: 'save', data: {
@@ -36,6 +36,7 @@ interface Emits {
     icon: string;
     profileId: string;
     modelId: string;
+    userProfileId: string | null;
     presetMessages: ChatMessageNode[];
     parameters: {
       temperature: number;
@@ -51,6 +52,9 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
+// 用户档案 Store
+const userProfileStore = useUserProfileStore();
+
 // 预设图标对话框
 const showPresetIconDialog = ref(false);
 
@@ -65,6 +69,7 @@ const editForm = reactive({
   profileId: '',
   modelId: '',
   modelCombo: '', // 用于 LlmModelSelector 的组合值 (profileId:modelId)
+  userProfileId: null as string | null, // 绑定的用户档案 ID
   presetMessages: [] as ChatMessageNode[],
   temperature: 0.7,
   maxTokens: 4096,
@@ -87,8 +92,9 @@ const loadFormData = () => {
     editForm.profileId = props.agent.profileId;
     editForm.modelId = props.agent.modelId;
     editForm.modelCombo = `${props.agent.profileId}:${props.agent.modelId}`;
-    editForm.presetMessages = props.agent.presetMessages 
-      ? JSON.parse(JSON.stringify(props.agent.presetMessages)) 
+    editForm.userProfileId = props.agent.userProfileId || null;
+    editForm.presetMessages = props.agent.presetMessages
+      ? JSON.parse(JSON.stringify(props.agent.presetMessages))
       : [];
     editForm.temperature = props.agent.parameters.temperature;
     editForm.maxTokens = props.agent.parameters.maxTokens;
@@ -102,7 +108,8 @@ const loadFormData = () => {
     editForm.modelCombo = props.initialData.profileId && props.initialData.modelId
       ? `${props.initialData.profileId}:${props.initialData.modelId}`
       : '';
-    editForm.presetMessages = props.initialData.presetMessages 
+    editForm.userProfileId = null;
+    editForm.presetMessages = props.initialData.presetMessages
       ? JSON.parse(JSON.stringify(props.initialData.presetMessages))
       : [];
     editForm.temperature = props.initialData.temperature ?? 0.7;
@@ -144,6 +151,7 @@ const handleSave = () => {
     icon: editForm.icon,
     profileId: editForm.profileId,
     modelId: editForm.modelId,
+    userProfileId: editForm.userProfileId,
     presetMessages: editForm.presetMessages,
     parameters: {
       temperature: editForm.temperature,
@@ -277,6 +285,39 @@ const clearIcon = () => {
           v-model="editForm.modelCombo"
           @update:model-value="handleModelComboChange"
         />
+      </el-form-item>
+
+      <!-- 用户档案绑定 -->
+      <el-form-item label="用户档案">
+        <el-select
+          v-model="editForm.userProfileId"
+          placeholder="选择用户档案（可选）"
+          clearable
+          style="width: 100%"
+        >
+          <el-option :value="null" label="无（使用全局设置）" />
+          <el-option
+            v-for="profile in userProfileStore.enabledProfiles"
+            :key="profile.id"
+            :value="profile.id"
+            :label="profile.name"
+          >
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <Avatar
+                v-if="profile.icon"
+                :src="profile.icon"
+                :alt="profile.name"
+                :size="20"
+                shape="square"
+                :radius="4"
+              />
+              <span>{{ profile.name }}</span>
+            </div>
+          </el-option>
+        </el-select>
+        <div class="form-hint">
+          如果设置，则覆盖全局默认的用户档案
+        </div>
       </el-form-item>
 
       <!-- 预设消息编辑器 -->

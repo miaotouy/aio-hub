@@ -176,6 +176,7 @@ const handleSaveAgent = (data: {
   icon: string;
   profileId: string;
   modelId: string;
+  userProfileId: string | null;
   presetMessages: ChatMessageNode[];
   parameters: {
     temperature: number;
@@ -191,6 +192,7 @@ const handleSaveAgent = (data: {
     const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, {
       description: data.description,
       icon: data.icon,
+      userProfileId: data.userProfileId,
       presetMessages: data.presetMessages,
       parameters: data.parameters,
     });

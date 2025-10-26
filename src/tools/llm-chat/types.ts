@@ -16,8 +16,9 @@ export type MessageStatus = "generating" | "complete" | "error";
  * 消息类型
  * - message: 普通消息
  * - chat_history: 历史消息占位符（用于标记实际会话消息的插入位置）
+ * - user_profile: 用户档案占位符（用于标记用户档案内容的插入位置）
  */
-export type MessageType = "message" | "chat_history";
+export type MessageType = "message" | "chat_history" | "user_profile";
 
 /**
  * 消息节点（树形结构）
@@ -76,37 +77,43 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: {
-    /** 生成此消息时使用的 Agent ID */
-    agentId?: string;
-    /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */
-    agentName?: string;
-    /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
-    agentIcon?: string;
-    /** 生成此消息时使用的 Profile ID */
-    profileId?: string;
-    /** 生成此消息时使用的模型 ID */
-    modelId?: string;
-    /** 使用的模型名称（显示用） */
-    modelName?: string;
-    /** 是否被截断 */
-    isTruncated?: boolean;
-    /** 错误信息 */
-    error?: string;
-    /** 如果这是一个摘要节点，记录它总结了哪些节点的ID */
-    summarizedFrom?: string[];
-    /** Token 使用情况 */
-    usage?: {
-      promptTokens: number;
-      completionTokens: number;
-      totalTokens: number;
-    };
-    /** 推理内容（DeepSeek reasoning 模式） */
-    reasoningContent?: string;
-    /** 推理开始时间戳 */
-    reasoningStartTime?: number;
-    /** 推理结束时间戳 */
-    reasoningEndTime?: number;
-  };
+     /** 生成此消息时使用的 Agent ID */
+     agentId?: string;
+     /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */
+     agentName?: string;
+     /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
+     agentIcon?: string;
+     /** 生成此消息时使用的用户档案 ID */
+     userProfileId?: string;
+     /** 生成此消息时使用的用户档案名称（快照） */
+     userProfileName?: string;
+     /** 生成此消息时使用的用户档案图标（快照） */
+     userProfileIcon?: string;
+     /** 生成此消息时使用的 Profile ID */
+     profileId?: string;
+     /** 生成此消息时使用的模型 ID */
+     modelId?: string;
+     /** 使用的模型名称（显示用） */
+     modelName?: string;
+     /** 是否被截断 */
+     isTruncated?: boolean;
+     /** 错误信息 */
+     error?: string;
+     /** 如果这是一个摘要节点，记录它总结了哪些节点的ID */
+     summarizedFrom?: string[];
+     /** Token 使用情况 */
+     usage?: {
+       promptTokens: number;
+       completionTokens: number;
+       totalTokens: number;
+     };
+     /** 推理内容（DeepSeek reasoning 模式） */
+     reasoningContent?: string;
+     /** 推理开始时间戳 */
+     reasoningStartTime?: number;
+     /** 推理结束时间戳 */
+     reasoningEndTime?: number;
+   };
 }
 
 /**
@@ -180,6 +187,48 @@ export interface LlmParameters {
 }
 
 /**
+ /**
+  * 用户档案 (User Profile)
+  * 定义用户在对话中扮演的角色
+  */
+ export interface UserProfile {
+   /**
+    * 档案的唯一标识符
+    */
+   id: string;
+ 
+   /**
+    * 档案名称
+    */
+   name: string;
+ 
+   /**
+    * 档案图标（emoji 或图标路径）
+    */
+   icon?: string;
+ 
+   /**
+    * 档案内容（描述性文本）
+    */
+   content: string;
+ 
+   /**
+    * 是否启用（默认为 true）
+    * 禁用的档案在选择列表中不显示
+    */
+   enabled?: boolean;
+ 
+   /**
+    * 创建时间
+    */
+   createdAt: string;
+ 
+   /**
+    * 最后使用时间
+    */
+   lastUsedAt?: string;
+ }
+/**
  * 智能体（Agent）- 包含完整的对话预设配置
  *
  * 智能体是模型、系统提示词、参数等配置的集合，
@@ -216,6 +265,12 @@ export interface ChatAgent {
    * 使用的模型 ID
    */
   modelId: string;
+
+  /**
+   * 绑定的用户档案 ID（可选）
+   * 如果设置，则覆盖全局默认的用户档案
+   */
+  userProfileId?: string | null;
 
   /**
    * 预设消息序列

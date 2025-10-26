@@ -2,6 +2,7 @@
 import { onMounted, computed, ref, onUnmounted } from "vue";
 import { useLlmChatStore } from "./store";
 import { useAgentStore } from "./agentStore";
+import { useUserProfileStore } from "./userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatUiState } from "./composables/useLlmChatUiState";
@@ -15,6 +16,7 @@ import { createModuleLogger } from "@utils/logger";
 const logger = createModuleLogger("LlmChat");
 const store = useLlmChatStore();
 const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
 const bus = useWindowSyncBus();
 
 // 检测当前窗口类型
@@ -97,7 +99,7 @@ const { isDetached } = useDetachedManager();
 // 对话区域是否已分离的状态
 const isChatAreaDetached = computed(() => isDetached("chat-area"));
 
-// 组件挂载时加载会话和智能体
+// 组件挂载时加载会话、智能体和用户档案
 onMounted(async () => {
   // 加载UI状态
   await loadUiState();
@@ -106,11 +108,13 @@ onMounted(async () => {
   startWatching();
   
   await agentStore.loadAgents();
+  await userProfileStore.loadProfiles();
   await store.loadSessions();
 
   logger.info("LLM Chat 模块已加载", {
     sessionCount: store.sessions.length,
     agentCount: agentStore.agents.length,
+    profileCount: userProfileStore.profiles.length,
   });
 
   // 如果没有会话且有选中的智能体，创建一个新会话

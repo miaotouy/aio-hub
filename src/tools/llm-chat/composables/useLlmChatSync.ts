@@ -6,6 +6,7 @@
 import { computed, toRef, type Ref } from 'vue';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
+import { useUserProfileStore } from '../userProfileStore';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { createModuleLogger } from '@/utils/logger';
@@ -13,10 +14,10 @@ import type { LlmChatStateKey } from '../types/sync';
 import { CHAT_STATE_KEYS, createChatSyncConfig } from '../types/sync';
 
 const logger = createModuleLogger('LlmChatSync');
-
 export function useLlmChatSync() {
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
+  const userProfileStore = useUserProfileStore();
   const bus = useWindowSyncBus();
 
   // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
@@ -26,6 +27,8 @@ export function useLlmChatSync() {
   const currentAgentId = toRef(agentStore, 'currentAgentId');
   const allSessions = toRef(store, 'sessions');
   const currentSessionId = toRef(store, 'currentSessionId');
+  const userProfiles = toRef(userProfileStore, 'profiles');
+  const globalProfileId = toRef(userProfileStore, 'globalProfileId');
   const chatParameters = computed(() => {
     return {
       isSending: store.isSending,
@@ -51,6 +54,10 @@ export function useLlmChatSync() {
   createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
   // 同步运行时参数
   createStateEngine(chatParameters, CHAT_STATE_KEYS.PARAMETERS);
+  // 同步用户档案列表
+  createStateEngine(userProfiles, CHAT_STATE_KEYS.USER_PROFILES);
+  // 同步全局用户档案ID
+  createStateEngine(globalProfileId, CHAT_STATE_KEYS.GLOBAL_PROFILE_ID);
 
   logger.info('LLM Chat 同步引擎已初始化');
 

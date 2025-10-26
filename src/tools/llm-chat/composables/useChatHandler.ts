@@ -6,6 +6,7 @@
 import type { ChatSession, ChatMessageNode } from '../types';
 import type { LlmMessageContent } from '@/llm-apis/common';
 import { useAgentStore } from '../agentStore';
+import { useUserProfileStore } from '../userProfileStore';
 import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
@@ -82,11 +83,13 @@ export function useChatHandler() {
   /**
    * 构建 LLM 上下文
    * 从活动路径和智能体配置中提取系统提示、对话历史和当前消息
+   * @param effectiveUserProfile 当前生效的用户档案（可选）
    */
   const buildLlmContext = (
     activePath: ChatMessageNode[],
     agentConfig: any,
-    _currentUserMessage: string
+    _currentUserMessage: string,
+    effectiveUserProfile?: { id: string; name: string; content: string } | null
   ): LlmContextData => {
     // 过滤出有效的对话上下文（排除禁用节点和系统节点）
     const llmContext = activePath
@@ -104,9 +107,61 @@ export function useChatHandler() {
 
     // 提取 system 消息并合并为 systemPrompt
     const systemMessages = enabledPresets
-      .filter((msg: any) => msg.role === 'system')
+      .filter((msg: any) => msg.role === 'system' && msg.type !== 'user_profile')
       .map((msg: any) => msg.content);
-    const systemPrompt = systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined;
+    
+    // 查找用户档案占位符
+    const userProfilePlaceholderIndex = enabledPresets.findIndex(
+      (msg: any) => msg.type === 'user_profile'
+    );
+    
+    // 处理用户档案
+    let systemPrompt: string | undefined;
+    if (effectiveUserProfile) {
+      const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.content}`;
+      
+      if (userProfilePlaceholderIndex !== -1) {
+        // 如果找到用户档案占位符，则在占位符位置插入（作为 system 消息的一部分）
+        const systemsBeforePlaceholder = enabledPresets
+          .slice(0, userProfilePlaceholderIndex)
+          .filter((msg: any) => msg.role === 'system' && msg.type !== 'user_profile')
+          .map((msg: any) => msg.content);
+        
+        const systemsAfterPlaceholder = enabledPresets
+          .slice(userProfilePlaceholderIndex + 1)
+          .filter((msg: any) => msg.role === 'system' && msg.type !== 'user_profile' && msg.type !== 'chat_history')
+          .map((msg: any) => msg.content);
+        
+        const systemParts = [
+          ...systemsBeforePlaceholder,
+          userProfilePrompt,
+          ...systemsAfterPlaceholder,
+        ].filter(Boolean);
+        
+        systemPrompt = systemParts.length > 0 ? systemParts.join('\n\n') : undefined;
+        
+        logger.debug('使用用户档案占位符注入用户档案', {
+          profileId: effectiveUserProfile.id,
+          profileName: effectiveUserProfile.name,
+          placeholderIndex: userProfilePlaceholderIndex,
+          systemPartsCount: systemParts.length,
+        });
+      } else {
+        // 如果没有占位符，添加到系统提示末尾（保持原有逻辑）
+        const baseSystemPrompt = systemMessages.length > 0 ? systemMessages.join('\n\n') : '';
+        systemPrompt = baseSystemPrompt
+          ? `${baseSystemPrompt}\n\n${userProfilePrompt}`
+          : userProfilePrompt;
+        
+        logger.debug('注入用户档案到系统提示末尾（无占位符）', {
+          profileId: effectiveUserProfile.id,
+          profileName: effectiveUserProfile.name,
+          contentLength: effectiveUserProfile.content.length,
+        });
+      }
+    } else {
+      systemPrompt = systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined;
+    }
 
     // 会话上下文（完整历史，不再单独处理最后一条）
     const sessionContext = llmContext;
@@ -128,7 +183,7 @@ export function useChatHandler() {
         content: string | LlmMessageContent[];
       }> = enabledPresets
         .slice(0, chatHistoryPlaceholderIndex)
-        .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+        .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
         .map((msg: any) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
@@ -139,7 +194,7 @@ export function useChatHandler() {
         content: string | LlmMessageContent[];
       }> = enabledPresets
         .slice(chatHistoryPlaceholderIndex + 1)
-        .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+        .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
         .map((msg: any) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
@@ -163,7 +218,7 @@ export function useChatHandler() {
         role: 'user' | 'assistant';
         content: string | LlmMessageContent[];
       }> = enabledPresets
-        .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+        .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
         .map((msg: any) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
@@ -356,6 +411,33 @@ export function useChatHandler() {
       throw new Error('无法获取智能体配置');
     }
 
+    // 确定生效的用户档案（智能体绑定 > 全局配置）
+    const userProfileStore = useUserProfileStore();
+    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null = null;
+    
+    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (currentAgent?.userProfileId) {
+      // 智能体有绑定的用户档案
+      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
+      if (profile) {
+        effectiveUserProfile = profile;
+        logger.debug('使用智能体绑定的用户档案', {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
+      }
+    } else if (userProfileStore.globalProfileId) {
+      // 使用全局用户档案
+      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
+      if (profile) {
+        effectiveUserProfile = profile;
+        logger.debug('使用全局用户档案', {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
+      }
+    }
+    
     // 使用节点管理器创建消息对
     const nodeManager = useNodeManager();
     const { userNode, assistantNode } = nodeManager.createMessagePair(session, content, session.activeLeafId);
@@ -365,8 +447,18 @@ export function useChatHandler() {
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
 
-    // 获取当前智能体信息
-    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
+    // 在用户消息节点中保存用户档案快照
+    if (effectiveUserProfile) {
+      userNode.metadata = {
+        ...userNode.metadata,
+        userProfileId: effectiveUserProfile.id,
+        userProfileName: effectiveUserProfile.name,
+        userProfileIcon: effectiveUserProfile.icon,
+      };
+      
+      // 更新档案的最后使用时间
+      userProfileStore.updateLastUsed(effectiveUserProfile.id);
+    }
 
     // 在生成开始时就设置基本的 metadata（包括 Agent 名称和图标的快照）
     assistantNode.metadata = {
@@ -396,7 +488,8 @@ export function useChatHandler() {
       const { systemPrompt, messages } = buildLlmContext(
         pathWithNewMessage,
         agentConfig,
-        content  // 这个参数现在不再使用，但保留以兼容函数签名
+        content,  // 这个参数现在不再使用，但保留以兼容函数签名
+        effectiveUserProfile  // 传递当前生效的用户档案
       );
 
       logger.info('📤 发送 LLM 请求', {
@@ -521,6 +614,33 @@ export function useChatHandler() {
       modelName: model?.name || model?.id,
     };
 
+    // 确定生效的用户档案（智能体绑定 > 全局配置）
+    // 注意：从用户消息创建新分支时，使用**当前最新**的用户档案配置，而非历史快照
+    const userProfileStore = useUserProfileStore();
+    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null = null;
+    
+    if (currentAgent?.userProfileId) {
+      // 智能体有绑定的用户档案
+      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
+      if (profile) {
+        effectiveUserProfile = profile;
+        logger.debug('重新生成时使用智能体绑定的用户档案（最新配置）', {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
+      }
+    } else if (userProfileStore.globalProfileId) {
+      // 使用全局用户档案
+      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
+      if (profile) {
+        effectiveUserProfile = profile;
+        logger.debug('重新生成时使用全局用户档案（最新配置）', {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
+      }
+    }
+
     // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
@@ -539,7 +659,8 @@ export function useChatHandler() {
         const { systemPrompt, messages } = buildLlmContext(
           pathToUserNode, // 使用包含用户消息的完整路径
           agentConfig,
-          userNode.content  // 这个参数不再使用，但保留以兼容函数签名
+          userNode.content,  // 这个参数不再使用，但保留以兼容函数签名
+          effectiveUserProfile  // 传递当前最新的用户档案
         );
   
         logger.info('🔄 从节点重新生成', {

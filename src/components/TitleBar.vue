@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Minus, CopyDocument, Close, House, Setting } from '@element-plus/icons-vue';
+import { Minus, CopyDocument, Close, House, Setting, Sunny, Moon } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toolsConfig } from '../config/tools';
 import iconImage from '../assets/icon.png';
-import { loadAppSettingsAsync, type AppSettings } from '@utils/appSettings';
+import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from '@utils/appSettings';
 import { createModuleLogger } from '@utils/logger';
 import { platform } from '@tauri-apps/plugin-os';
+import { useTheme } from '../composables/useTheme';
+import SystemThemeIcon from './icons/SystemThemeIcon.vue';
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -19,6 +21,7 @@ const props = defineProps<{
 const logger = createModuleLogger('TitleBar');
 
 const router = useRouter();
+const { currentTheme, applyTheme } = useTheme();
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
@@ -167,6 +170,34 @@ const closeWindow = async () => {
 const goToSettings = () => {
   router.push('/settings');
 };
+
+// 获取当前主题图标
+const getThemeIcon = computed(() => {
+  if (currentTheme.value === "auto") {
+    return SystemThemeIcon;
+  } else if (currentTheme.value === "light") {
+    return Sunny;
+  } else {
+    return Moon;
+  }
+});
+
+// 获取主题提示文本
+const getThemeTooltip = computed(() => {
+  if (currentTheme.value === "auto") {
+    return "主题：跟随系统";
+  } else if (currentTheme.value === "light") {
+    return "主题：浅色";
+  } else {
+    return "主题：深色";
+  }
+});
+
+// 主题切换处理
+const handleThemeChange = (theme: 'auto' | 'light' | 'dark') => {
+  applyTheme(theme);
+  updateAppSettings({ theme });
+};
 </script>
 
 <template>
@@ -187,41 +218,88 @@ const goToSettings = () => {
       
       <!-- 右侧控制区域 -->
       <div class="right-controls">
-        <!-- 设置按钮（仅主窗口显示） -->
-        <button
+        <!-- 主题切换下拉菜单（仅主窗口显示） -->
+        <el-dropdown
           v-if="isMainWindow"
-          class="control-btn settings-btn"
-          @click="goToSettings"
-          title="设置"
+          trigger="hover"
+          @command="handleThemeChange"
+          placement="bottom"
         >
-          <el-icon><Setting /></el-icon>
-        </button>
+          <button
+            class="control-btn theme-btn"
+            :title="getThemeTooltip"
+          >
+            <el-icon><component :is="getThemeIcon" /></el-icon>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                command="auto"
+                :class="{ 'is-active': currentTheme === 'auto' }"
+              >
+                <el-icon><SystemThemeIcon /></el-icon>
+                <span>跟随系统</span>
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="light"
+                :class="{ 'is-active': currentTheme === 'light' }"
+              >
+                <el-icon><Sunny /></el-icon>
+                <span>浅色</span>
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="dark"
+                :class="{ 'is-active': currentTheme === 'dark' }"
+              >
+                <el-icon><Moon /></el-icon>
+                <span>深色</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        
+        <!-- 设置按钮（仅主窗口显示） -->
+        <template v-if="isMainWindow">
+          <el-tooltip content="设置" placement="bottom">
+            <button
+              class="control-btn settings-btn"
+              @click="goToSettings"
+            >
+              <el-icon><Setting /></el-icon>
+            </button>
+          </el-tooltip>
+        </template>
         
         <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
         <template v-if="!isMacOS">
-          <button
-            class="control-btn minimize-btn"
-            @click="minimizeWindow"
-            title="最小化"
-          >
-            <el-icon><Minus /></el-icon>
-          </button>
-        <button
-          class="control-btn maximize-btn"
-          @click="toggleMaximize"
-          :title="isMaximized ? '还原' : '最大化'"
-        >
-          <el-icon>
-            <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
-          </el-icon>
-        </button>
-          <button
-            class="control-btn close-btn"
-            @click="closeWindow"
-            :title="isMainWindow && settings?.trayEnabled ? '隐藏到托盘' : '关闭'"
-          >
-            <el-icon><Close /></el-icon>
-          </button>
+          <el-tooltip content="最小化" placement="bottom">
+            <button
+              class="control-btn minimize-btn"
+              @click="minimizeWindow"
+            >
+              <el-icon><Minus /></el-icon>
+            </button>
+          </el-tooltip>
+          
+          <el-tooltip :content="isMaximized ? '还原' : '最大化'" placement="bottom">
+            <button
+              class="control-btn maximize-btn"
+              @click="toggleMaximize"
+            >
+              <el-icon>
+                <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
+              </el-icon>
+            </button>
+          </el-tooltip>
+          
+          <el-tooltip :content="isMainWindow && settings?.trayEnabled ? '隐藏到托盘' : '关闭'" placement="bottom">
+            <button
+              class="control-btn close-btn"
+              @click="closeWindow"
+            >
+              <el-icon><Close /></el-icon>
+            </button>
+          </el-tooltip>
         </template>
       </div>
     </div>
@@ -370,5 +448,29 @@ const goToSettings = () => {
 .title-bar {
   backdrop-filter: blur(10px);
   background: rgba(var(--sidebar-bg-rgb), 0.9);
+}
+
+/* 下拉菜单项样式 */
+:deep(.el-dropdown-menu__item) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:deep(.el-dropdown-menu__item.is-active) {
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+
+:deep(.el-dropdown-menu__item .el-icon) {
+  font-size: 16px;
+}
+
+/* 移除主题切换按钮在悬停和聚焦时的背景和轮廓 */
+.control-btn.theme-btn:hover,
+.control-btn.theme-btn:focus,
+.control-btn.theme-btn:focus-visible {
+  background-color: transparent;
+  outline: none;
 }
 </style>

@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Sunny, Moon, Expand, Fold } from "@element-plus/icons-vue";
+import { Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "../config/tools";
 import { useDetachable } from "../composables/useDetachable";
-import { useTheme } from "../composables/useTheme";
-import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
 
 // Props
 interface Props {
@@ -23,35 +21,12 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const route = useRoute();
-const { currentTheme, toggleTheme } = useTheme();
 const { startDetaching } = useDetachable();
 
 // 内部状态与 props 同步
 const isCollapsed = computed({
   get: () => props.collapsed,
   set: (value) => emit("update:collapsed", value),
-});
-
-// 获取当前主题图标
-const getThemeIcon = computed(() => {
-  if (currentTheme.value === "auto") {
-    return SystemThemeIcon;
-  } else if (currentTheme.value === "light") {
-    return Sunny;
-  } else {
-    return Moon;
-  }
-});
-
-// 获取主题提示文本
-const getThemeTooltip = computed(() => {
-  if (currentTheme.value === "auto") {
-    return "主题：跟随系统";
-  } else if (currentTheme.value === "light") {
-    return "主题：浅色";
-  } else {
-    return "主题：深色";
-  }
 });
 
 // 从路径提取工具ID
@@ -108,23 +83,9 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
     <!-- 上部分：标题和导航 -->
     <div class="sidebar-top">
       <!-- 侧边栏头部：根据isCollapsed显示不同内容 -->
-      <div v-if="!isCollapsed" class="sidebar-header">
-        <div class="header-text-wrapper">
-          <h2 class="sidebar-title">AIO工具箱</h2>
-        </div>
-        <el-tooltip effect="dark" :content="getThemeTooltip" placement="bottom" :hide-after="0">
-          <el-icon class="theme-icon" @click="toggleTheme">
-            <component :is="getThemeIcon" />
-          </el-icon>
-        </el-tooltip>
+      <div class="sidebar-header" :class="{ 'is-collapsed': isCollapsed }">
+        <h2 v-if="!isCollapsed" class="sidebar-title">AIO工具箱</h2>
       </div>
-      <el-tooltip v-else effect="dark" :content="getThemeTooltip" placement="right" :hide-after="0">
-        <div class="sidebar-header-collapsed" @click="toggleTheme">
-          <el-icon class="theme-icon-only">
-            <component :is="getThemeIcon" />
-          </el-icon>
-        </div>
-      </el-tooltip>
 
       <el-menu
         :default-active="route.path"
@@ -205,33 +166,11 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
   height: 40px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   user-select: none;
   padding: 0 20px;
   box-sizing: border-box;
   overflow-x: hidden;
-}
-
-.sidebar-header .header-text-wrapper {
-  display: flex;
-  align-items: center;
-  flex-grow: 1;
-  justify-content: center;
-  overflow-x: hidden;
-}
-
-.sidebar-header .theme-icon {
-  font-size: 20px;
-  color: var(--sidebar-text);
-  transition: all 0.3s ease;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-}
-
-.sidebar-header .theme-icon:hover {
-  color: var(--primary-color);
-  background-color: rgba(var(--primary-color-rgb), 0.1);
 }
 
 .sidebar-title {
@@ -244,28 +183,9 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
   transition: opacity 0.3s ease;
 }
 
-/* 收起状态下头部样式 */
-.sidebar-header-collapsed {
-  margin-bottom: 30px;
-  height: 40px;
-  display: flex;
-  align-items: center;
+/* 收起状态下的头部样式 */
+.sidebar-header.is-collapsed {
   justify-content: center;
-  cursor: pointer;
-  user-select: none;
-  padding: 0 20px;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-.sidebar-header-collapsed .theme-icon-only {
-  font-size: 20px;
-  color: var(--sidebar-text);
-  transition: color 0.3s ease;
-}
-
-.sidebar-header-collapsed .theme-icon-only:hover {
-  color: var(--primary-color);
 }
 
 .el-menu-vertical-demo {

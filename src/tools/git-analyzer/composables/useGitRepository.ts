@@ -86,6 +86,32 @@ export function useGitRepository() {
     return filteredCommits.value.slice(start, end);
   });
 
+  // 方法 - 单独加载分支列表
+  async function loadBranches() {
+    const currentRepoPath = repoPath.value || ".";
+    
+    try {
+      const branchList = await invoke<GitBranch[]>("git_get_branches", {
+        path: currentRepoPath,
+      });
+      
+      branches.value = branchList;
+      
+      // 设置当前分支
+      const currentBranchInfo = branchList.find((b) => b.current);
+      if (currentBranchInfo) {
+        selectedBranch.value = currentBranchInfo.name;
+      }
+      
+      logger.info(`成功加载 ${branchList.length} 个分支`);
+      return true;
+    } catch (error) {
+      logger.error("加载分支列表失败", error as Error);
+      customMessage.error(`加载分支失败: ${error}`);
+      return false;
+    }
+  }
+
   // 方法 - 选择目录
   async function selectDirectory() {
     try {
@@ -457,6 +483,7 @@ export function useGitRepository() {
 
     // 方法
     selectDirectory,
+    loadBranches,
     loadRepository,
     refreshRepository,
     onBranchChange,

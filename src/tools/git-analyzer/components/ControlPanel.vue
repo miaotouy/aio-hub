@@ -43,6 +43,7 @@
             v-model="selectedBranch"
             placeholder="选择分支"
             @change="$emit('branch-change', $event)"
+            @visible-change="handleBranchDropdownVisibleChange"
             style="width: 100%"
           >
             <el-option
@@ -251,7 +252,7 @@ interface Props {
   };
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "update:repoPath": [value: string];
@@ -265,6 +266,7 @@ const emit = defineEmits<{
   "update:reverseOrder": [value: boolean];
   "update:commitTypeFilter": [value: string[]];
   "select-directory": [];
+  "load-branches": [];
   "load-repository": [];
   "branch-change": [branch: string];
   "filter-commits": [];
@@ -286,6 +288,14 @@ const commitTypeFilter = defineModel<string[]>("commitTypeFilter", { required: t
 function handlePathDrop(paths: string[]) {
   emit("update:repoPath", paths[0]);
   emit("load-repository");
+}
+
+// 处理分支下拉框展开事件
+function handleBranchDropdownVisibleChange(visible: boolean) {
+  // 当下拉框展开且分支列表为空时，触发加载分支
+  if (visible && props.branches.length === 0) {
+    emit("load-branches");
+  }
 }
 </script>
 

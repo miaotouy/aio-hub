@@ -31,6 +31,7 @@
           :progress="progress"
           :statistics="statistics"
           @select-directory="selectDirectory"
+          @load-branches="loadBranches"
           @load-repository="loadRepository"
           @branch-change="onBranchChange"
           @filter-commits="filterCommits"
@@ -131,6 +132,7 @@ const {
   paginatedCommits,
   // 方法
   selectDirectory,
+  loadBranches,
   loadRepository: loadRepo,
   refreshRepository: refreshRepo,
   onBranchChange: switchBranch,

@@ -9,6 +9,7 @@ export interface GitAnalyzerConfig {
   repoPath: string
   selectedBranch: string
   limitCount: number
+  batchSize: number
   activeTab: string
   pageSize: number
   
@@ -47,6 +48,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
     repoPath: '',
     selectedBranch: 'main',
     limitCount: 100,
+    batchSize: 20,
     activeTab: 'list',
     pageSize: 20,
     

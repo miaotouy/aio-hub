@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use tauri::Emitter;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GitCommit {
     pub hash: String,
     pub author: String,
@@ -18,14 +19,14 @@ pub struct GitCommit {
     pub files: Option<Vec<FileChange>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CommitStats {
     pub additions: u32,
     pub deletions: u32,
     pub files: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileChange {
     pub path: String,
     pub status: String,
@@ -33,7 +34,7 @@ pub struct FileChange {
     pub deletions: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitBranch {
     pub name: String,
     pub current: bool,
@@ -44,6 +45,23 @@ pub struct GitBranch {
 pub struct RepositoryInfo {
     pub branches: Vec<GitBranch>,
     pub commits: Vec<GitCommit>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum GitProgressEvent {
+    Start {
+        total: usize,
+        branches: Vec<GitBranch>,
+    },
+    Data {
+        commits: Vec<GitCommit>,
+        loaded: usize,
+    },
+    End,
+    Error {
+        message: String
+    },
 }
 
 #[tauri::command]
@@ -57,6 +75,89 @@ pub async fn git_load_repository(path: String, limit: usize) -> Result<Repositor
     let commits = get_commits(repo_path, None, limit, false)?;
     
     Ok(RepositoryInfo { branches, commits })
+}
+
+#[tauri::command]
+pub async fn git_load_repository_stream(
+    window: tauri::Window,
+    path: String,
+    limit: usize,
+    batch_size: Option<usize>,
+) -> Result<(), String> {
+    let repo_path = if path.is_empty() {
+        ".".to_string()
+    } else {
+        path.clone()
+    };
+
+    // 在后台启动加载任务
+    tokio::spawn(async move {
+        // 获取分支列表
+        let branches = match get_branches(&repo_path) {
+            Ok(b) => b,
+            Err(e) => {
+                let _ = window.emit("git-progress", GitProgressEvent::Error {
+                    message: format!("获取分支失败: {}", e),
+                });
+                return;
+            }
+        };
+
+        // 获取总提交数
+        let total = match get_total_commits(&repo_path, None) {
+            Ok(t) => t.min(limit),
+            Err(e) => {
+                let _ = window.emit("git-progress", GitProgressEvent::Error {
+                    message: format!("获取提交总数失败: {}", e),
+                });
+                return;
+            }
+        };
+
+        // 发送开始事件
+        let _ = window.emit("git-progress", GitProgressEvent::Start {
+            total,
+            branches: branches.clone(),
+        });
+
+        // 流式加载提交记录 - 使用配置的批次大小或默认值
+        let batch_size = batch_size.unwrap_or(200);
+        let mut loaded = 0;
+
+        while loaded < limit {
+            let batch_limit = batch_size.min(limit - loaded);
+            
+            match get_commits_with_skip(&repo_path, None, loaded, batch_limit, false) {
+                Ok(commits) => {
+                    if commits.is_empty() {
+                        break;
+                    }
+                    
+                    loaded += commits.len();
+                    
+                    let _ = window.emit("git-progress", GitProgressEvent::Data {
+                        commits,
+                        loaded,
+                    });
+                    
+                    if loaded >= limit {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    let _ = window.emit("git-progress", GitProgressEvent::Error {
+                        message: format!("加载提交失败: {}", e),
+                    });
+                    return;
+                }
+            }
+        }
+
+        // 发送完成事件
+        let _ = window.emit("git-progress", GitProgressEvent::End);
+    });
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -78,6 +179,70 @@ pub async fn git_get_incremental_commits(
 ) -> Result<Vec<GitCommit>, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
     get_commits_with_skip(repo_path, branch.as_deref(), skip, limit, false)
+}
+
+#[tauri::command]
+pub async fn git_load_incremental_stream(
+    window: tauri::Window,
+    path: String,
+    branch: Option<String>,
+    skip: usize,
+    limit: usize,
+    batch_size: Option<usize>,
+) -> Result<(), String> {
+    let repo_path = if path.is_empty() {
+        ".".to_string()
+    } else {
+        path.clone()
+    };
+
+    // 在后台启动增量加载任务
+    tokio::spawn(async move {
+        // 发送开始事件（增量加载不需要获取分支）
+        let _ = window.emit("git-progress", GitProgressEvent::Start {
+            total: skip + limit,
+            branches: vec![],
+        });
+
+        // 流式加载增量提交记录
+        let batch_size = batch_size.unwrap_or(200);
+        let mut loaded = skip; // 从已加载的数量开始
+
+        while loaded < skip + limit {
+            let current_skip = loaded;
+            let batch_limit = batch_size.min(skip + limit - loaded);
+            
+            match get_commits_with_skip(&repo_path, branch.as_deref(), current_skip, batch_limit, false) {
+                Ok(commits) => {
+                    if commits.is_empty() {
+                        break;
+                    }
+                    
+                    loaded += commits.len();
+                    
+                    let _ = window.emit("git-progress", GitProgressEvent::Data {
+                        commits,
+                        loaded,
+                    });
+                    
+                    if loaded >= skip + limit {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    let _ = window.emit("git-progress", GitProgressEvent::Error {
+                        message: format!("加载增量提交失败: {}", e),
+                    });
+                    return;
+                }
+            }
+        }
+
+        // 发送完成事件
+        let _ = window.emit("git-progress", GitProgressEvent::End);
+    });
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -589,4 +754,35 @@ fn get_commit_files(repo_path: &str, hash: &str) -> Result<Vec<FileChange>, Stri
     }
     
     Ok(files)
+}
+
+fn get_total_commits(repo_path: &str, branch: Option<&str>) -> Result<usize, String> {
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    
+    cmd.arg("-C")
+        .arg(repo_path)
+        .arg("rev-list")
+        .arg("--count");
+    
+    if let Some(b) = branch {
+        cmd.arg(b);
+    } else {
+        cmd.arg("HEAD");
+    }
+    
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to get commit count: {}", e))?;
+    
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+    
+    let count_str = String::from_utf8_lossy(&output.stdout);
+    count_str
+        .trim()
+        .parse::<usize>()
+        .map_err(|e| format!("Failed to parse commit count: {}", e))
 }

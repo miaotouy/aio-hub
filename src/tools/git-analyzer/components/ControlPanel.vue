@@ -1,5 +1,19 @@
 <template>
   <div class="control-panel">
+    <!-- 加载进度条 -->
+    <div v-if="progress.loading" class="progress-container">
+      <el-progress
+        :percentage="progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : 0"
+        :status="progress.loaded === progress.total ? 'success' : undefined"
+      >
+        <template #default="{ percentage }">
+          <span class="progress-text">
+            正在加载... {{ progress.loaded }} / {{ progress.total }} ({{ percentage }}%)
+          </span>
+        </template>
+      </el-progress>
+    </div>
+    
     <!-- 工具栏 -->
     <div class="toolbar">
       <el-row :gutter="12" align="middle">
@@ -24,7 +38,7 @@
             </div>
           </DropZone>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="4">
           <el-select
             v-model="selectedBranch"
             placeholder="选择分支"
@@ -44,9 +58,21 @@
             <el-input-number
               v-model="limitCount"
               :min="10"
-              :max="5000"
+              :max="15000"
               :step="10"
               placeholder="显示条数"
+              style="width: 100%"
+            />
+          </el-tooltip>
+        </el-col>
+        <el-col :span="3">
+          <el-tooltip content="设置流式加载时的批次大小，较大的批次可以减少更新频率" placement="top">
+            <el-input-number
+              v-model="batchSize"
+              :min="5"
+              :max="500"
+              :step="5"
+              placeholder="批次大小"
               style="width: 100%"
             />
           </el-tooltip>
@@ -205,12 +231,18 @@ interface Props {
   branches: GitBranch[];
   commits: GitCommit[];
   limitCount: number;
+  batchSize: number;
   commitRange: [number, number];
   searchQuery: string;
   dateRange: Date[] | null;
   authorFilter: string;
   reverseOrder: boolean;
   commitTypeFilter: string[];
+  progress: {
+    loading: boolean;
+    loaded: number;
+    total: number;
+  };
   statistics: {
     totalCommits: number;
     contributors: number;
@@ -225,6 +257,7 @@ const emit = defineEmits<{
   "update:repoPath": [value: string];
   "update:selectedBranch": [value: string];
   "update:limitCount": [value: number];
+  "update:batchSize": [value: number];
   "update:commitRange": [value: [number, number]];
   "update:searchQuery": [value: string];
   "update:dateRange": [value: Date[] | null];
@@ -242,6 +275,7 @@ const emit = defineEmits<{
 const repoPath = defineModel<string>("repoPath", { required: true });
 const selectedBranch = defineModel<string>("selectedBranch", { required: true });
 const limitCount = defineModel<number>("limitCount", { required: true });
+const batchSize = defineModel<number>("batchSize", { required: true });
 const commitRange = defineModel<[number, number]>("commitRange", { required: true });
 const searchQuery = defineModel<string>("searchQuery", { required: true });
 const dateRange = defineModel<Date[] | null>("dateRange", { required: true });
@@ -261,6 +295,31 @@ function handlePathDrop(paths: string[]) {
   flex-direction: column;
   gap: 10px;
   flex-shrink: 0;
+}
+
+.progress-container {
+  padding: 12px 16px;
+  background: var(--card-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color-light);
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.progress-text {
+  font-size: 13px;
+  color: var(--text-color);
+  font-weight: 500;
 }
 
 .toolbar {

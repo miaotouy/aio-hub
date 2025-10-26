@@ -18,6 +18,7 @@
           v-model:repo-path="repoPath"
           v-model:selected-branch="selectedBranch"
           v-model:limit-count="limitCount"
+          v-model:batch-size="batchSize"
           v-model:commit-range="commitRange"
           v-model:search-query="searchQuery"
           v-model:date-range="dateRange"
@@ -27,6 +28,7 @@
           :loading="loading"
           :branches="branches"
           :commits="commits"
+          :progress="progress"
           :statistics="statistics"
           @select-directory="selectDirectory"
           @load-repository="loadRepository"
@@ -114,6 +116,7 @@ const {
   commits,
   filteredCommits,
   limitCount,
+  batchSize,
   commitRange,
   searchQuery,
   dateRange,
@@ -122,6 +125,7 @@ const {
   commitTypeFilter,
   currentPage,
   pageSize,
+  progress,
   // 计算属性
   statistics,
   paginatedCommits,
@@ -204,6 +208,7 @@ async function loadConfig() {
     repoPath.value = loadedConfig.repoPath;
     selectedBranch.value = loadedConfig.selectedBranch;
     limitCount.value = loadedConfig.limitCount;
+    batchSize.value = loadedConfig.batchSize;
     activeTab.value = loadedConfig.activeTab;
     pageSize.value = loadedConfig.pageSize;
     searchQuery.value = loadedConfig.searchQuery;
@@ -230,6 +235,7 @@ function saveCurrentConfig() {
     repoPath: repoPath.value,
     selectedBranch: selectedBranch.value,
     limitCount: limitCount.value,
+    batchSize: batchSize.value,
     activeTab: activeTab.value,
     pageSize: pageSize.value,
     searchQuery: searchQuery.value,
@@ -251,6 +257,7 @@ watch(
     repoPath,
     selectedBranch,
     limitCount,
+    batchSize,
     activeTab,
     pageSize,
     searchQuery,

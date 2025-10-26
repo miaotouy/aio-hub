@@ -22,7 +22,6 @@ import { useLogConfig } from "../composables/useLogConfig";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
-import { openPath } from "@tauri-apps/plugin-opener";
 
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
@@ -199,9 +198,9 @@ const handleOpenConfigDir = async () => {
   try {
     const appDir = await appDataDir();
 
-    // 使用 TypeScript API
+    // 使用后端命令打开目录
     try {
-      await openPath(appDir);
+      await invoke("open_file_directory", { filePath: appDir });
     } catch (openError) {
       // 备用方案：复制路径到剪贴板
       logger.warn("无法直接打开目录，尝试复制路径", openError);

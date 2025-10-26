@@ -113,8 +113,11 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         @click="toggleSection('basic')"
         :title="basicParamsExpanded ? '点击折叠' : '点击展开'"
       >
-        <span class="param-section-title">🎯 基础参数</span>
-        <span class="collapse-icon">{{ basicParamsExpanded ? "▼" : "▶" }}</span>
+        <div class="section-title-wrapper">
+          <i-ep-setting class="section-icon" />
+          <span class="param-section-title">基础参数</span>
+        </div>
+        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: basicParamsExpanded }" />
       </div>
 
       <div class="param-section-content" :class="{ collapsed: !basicParamsExpanded }">
@@ -122,16 +125,24 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.temperature" class="param-group">
           <label class="param-label">
             <span>Temperature</span>
-            <span class="param-value">{{ localParams.temperature.toFixed(2) }}</span>
+            <el-input-number
+              :model-value="localParams.temperature"
+              @update:model-value="updateParameter('temperature', $event)"
+              :min="0"
+              :max="2"
+              :step="0.01"
+              :precision="2"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.temperature"
-            @input="updateParameter('temperature', Number(($event.target as HTMLInputElement).value))"
-            type="range"
-            min="0"
-            max="2"
-            step="0.01"
-            class="param-slider"
+          <el-slider
+            :model-value="localParams.temperature"
+            @update:model-value="updateParameter('temperature', $event)"
+            :min="0"
+            :max="2"
+            :step="0.01"
+            :show-tooltip="false"
           />
           <div class="param-desc">控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。</div>
         </div>
@@ -140,16 +151,23 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.maxTokens" class="param-group">
           <label class="param-label">
             <span>Max Tokens</span>
-            <span class="param-value">{{ localParams.maxTokens }}</span>
+            <el-input-number
+              :model-value="localParams.maxTokens"
+              @update:model-value="updateParameter('maxTokens', $event)"
+              :min="256"
+              :max="maxTokensLimit"
+              :step="256"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.maxTokens"
-            @input="updateParameter('maxTokens', Number(($event.target as HTMLInputElement).value))"
-            type="range"
-            min="256"
+          <el-slider
+            :model-value="localParams.maxTokens"
+            @update:model-value="updateParameter('maxTokens', $event)"
+            :min="256"
             :max="maxTokensLimit"
-            step="256"
-            class="param-slider"
+            :step="256"
+            :show-tooltip="false"
           />
           <div class="param-desc">
             单次响应的最大 token 数量。
@@ -161,16 +179,24 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.topP" class="param-group">
           <label class="param-label">
             <span>Top P</span>
-            <span class="param-value">{{ (localParams.topP ?? 0.9).toFixed(2) }}</span>
+            <el-input-number
+              :model-value="localParams.topP ?? 0.9"
+              @update:model-value="updateParameter('topP', $event)"
+              :min="0"
+              :max="1"
+              :step="0.01"
+              :precision="2"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.topP ?? 0.9"
-            @input="updateParameter('topP', Number(($event.target as HTMLInputElement).value))"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            class="param-slider"
+          <el-slider
+            :model-value="localParams.topP ?? 0.9"
+            @update:model-value="updateParameter('topP', $event)"
+            :min="0"
+            :max="1"
+            :step="0.01"
+            :show-tooltip="false"
           />
           <div class="param-desc">核采样概率（0-1）。控制候选词的多样性。</div>
         </div>
@@ -179,16 +205,23 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.topK" class="param-group">
           <label class="param-label">
             <span>Top K</span>
-            <span class="param-value">{{ localParams.topK ?? 40 }}</span>
+            <el-input-number
+              :model-value="localParams.topK ?? 40"
+              @update:model-value="updateParameter('topK', $event)"
+              :min="1"
+              :max="100"
+              :step="1"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.topK ?? 40"
-            @input="updateParameter('topK', Number(($event.target as HTMLInputElement).value))"
-            type="range"
-            min="1"
-            max="100"
-            step="1"
-            class="param-slider"
+          <el-slider
+            :model-value="localParams.topK ?? 40"
+            @update:model-value="updateParameter('topK', $event)"
+            :min="1"
+            :max="100"
+            :step="1"
+            :show-tooltip="false"
           />
           <div class="param-desc">保留概率最高的 K 个候选词。</div>
         </div>
@@ -197,16 +230,24 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.frequencyPenalty" class="param-group">
           <label class="param-label">
             <span>Frequency Penalty</span>
-            <span class="param-value">{{ (localParams.frequencyPenalty ?? 0).toFixed(2) }}</span>
+            <el-input-number
+              :model-value="localParams.frequencyPenalty ?? 0"
+              @update:model-value="updateParameter('frequencyPenalty', $event)"
+              :min="-2"
+              :max="2"
+              :step="0.01"
+              :precision="2"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.frequencyPenalty ?? 0"
-            @input="updateParameter('frequencyPenalty', Number(($event.target as HTMLInputElement).value))"
-            type="range"
-            min="-2"
-            max="2"
-            step="0.01"
-            class="param-slider"
+          <el-slider
+            :model-value="localParams.frequencyPenalty ?? 0"
+            @update:model-value="updateParameter('frequencyPenalty', $event)"
+            :min="-2"
+            :max="2"
+            :step="0.01"
+            :show-tooltip="false"
           />
           <div class="param-desc">降低重复词汇的出现频率（-2.0 到 2.0）。</div>
         </div>
@@ -215,16 +256,24 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.presencePenalty" class="param-group">
           <label class="param-label">
             <span>Presence Penalty</span>
-            <span class="param-value">{{ (localParams.presencePenalty ?? 0).toFixed(2) }}</span>
+            <el-input-number
+              :model-value="localParams.presencePenalty ?? 0"
+              @update:model-value="updateParameter('presencePenalty', $event)"
+              :min="-2"
+              :max="2"
+              :step="0.01"
+              :precision="2"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.presencePenalty ?? 0"
-            @input="updateParameter('presencePenalty', Number(($event.target as HTMLInputElement).value))"
-            type="range"
-            min="-2"
-            max="2"
-            step="0.01"
-            class="param-slider"
+          <el-slider
+            :model-value="localParams.presencePenalty ?? 0"
+            @update:model-value="updateParameter('presencePenalty', $event)"
+            :min="-2"
+            :max="2"
+            :step="0.01"
+            :show-tooltip="false"
           />
           <div class="param-desc">鼓励模型谈论新话题（-2.0 到 2.0）。</div>
         </div>
@@ -238,8 +287,11 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         @click="toggleSection('advanced')"
         :title="advancedParamsExpanded ? '点击折叠' : '点击展开'"
       >
-        <span class="param-section-title">⚙️ 高级参数</span>
-        <span class="collapse-icon">{{ advancedParamsExpanded ? "▼" : "▶" }}</span>
+        <div class="section-title-wrapper">
+          <i-ep-tools class="section-icon" />
+          <span class="param-section-title">高级参数</span>
+        </div>
+        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: advancedParamsExpanded }" />
       </div>
 
       <div class="param-section-content" :class="{ collapsed: !advancedParamsExpanded }">
@@ -247,29 +299,26 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.seed" class="param-group">
           <label class="param-label">
             <span>Seed</span>
-            <span class="param-value">{{ localParams.seed ?? '未设置' }}</span>
+            <el-input-number
+              :model-value="localParams.seed ?? undefined"
+              @update:model-value="updateParameter('seed', $event || undefined)"
+              placeholder="随机"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.seed ?? ''"
-            @input="updateParameter('seed', ($event.target as HTMLInputElement).value ? Number(($event.target as HTMLInputElement).value) : undefined)"
-            type="number"
-            placeholder="留空表示随机"
-            class="param-input"
-          />
           <div class="param-desc">随机种子，用于确定性采样。设置相同的种子可以获得相同的输出。</div>
         </div>
 
         <!-- Stop Sequences -->
         <div v-if="supportedParameters.stop" class="param-group">
-          <label class="param-label">
+          <label class="param-label param-label-single">
             <span>Stop Sequences</span>
           </label>
-          <input
-            :value="Array.isArray(localParams.stop) ? localParams.stop.join(', ') : (localParams.stop ?? '')"
-            @input="updateParameter('stop', ($event.target as HTMLInputElement).value ? ($event.target as HTMLInputElement).value.split(',').map(s => s.trim()) : undefined)"
-            type="text"
+          <el-input
+            :model-value="Array.isArray(localParams.stop) ? localParams.stop.join(', ') : (localParams.stop ?? '')"
+            @update:model-value="updateParameter('stop', $event ? $event.split(',').map((s: string) => s.trim()) : undefined)"
             placeholder="用逗号分隔多个序列"
-            class="param-input"
           />
           <div class="param-desc">停止序列，模型遇到这些文本时会停止生成。</div>
         </div>
@@ -278,17 +327,16 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.maxCompletionTokens" class="param-group">
           <label class="param-label">
             <span>Max Completion Tokens</span>
-            <span class="param-value">{{ localParams.maxCompletionTokens ?? '未设置' }}</span>
+            <el-input-number
+              :model-value="localParams.maxCompletionTokens ?? undefined"
+              @update:model-value="updateParameter('maxCompletionTokens', $event || undefined)"
+              :min="1"
+              :max="128000"
+              placeholder="默认"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.maxCompletionTokens ?? ''"
-            @input="updateParameter('maxCompletionTokens', ($event.target as HTMLInputElement).value ? Number(($event.target as HTMLInputElement).value) : undefined)"
-            type="number"
-            min="1"
-            max="128000"
-            placeholder="留空使用 Max Tokens"
-            class="param-input"
-          />
           <div class="param-desc">补全中可生成的最大标记数。优先级高于 Max Tokens。</div>
         </div>
 
@@ -296,17 +344,18 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.reasoningEffort" class="param-group">
           <label class="param-label">
             <span>Reasoning Effort</span>
+            <el-select
+              :model-value="localParams.reasoningEffort ?? ''"
+              @update:model-value="updateParameter('reasoningEffort', $event || undefined)"
+              placeholder="默认"
+              style="width: 130px"
+            >
+              <el-option label="默认" value="" />
+              <el-option label="Low（低）" value="low" />
+              <el-option label="Medium（中）" value="medium" />
+              <el-option label="High（高）" value="high" />
+            </el-select>
           </label>
-          <select
-            :value="localParams.reasoningEffort ?? ''"
-            @change="updateParameter('reasoningEffort', ($event.target as HTMLSelectElement).value as any || undefined)"
-            class="param-select"
-          >
-            <option value="">默认</option>
-            <option value="low">Low（低）</option>
-            <option value="medium">Medium（中）</option>
-            <option value="high">High（高）</option>
-          </select>
           <div class="param-desc">推理工作约束（OpenAI o1 系列模型）。</div>
         </div>
 
@@ -314,11 +363,9 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.logprobs" class="param-group">
           <label class="param-label">
             <span>Logprobs</span>
-            <input
-              type="checkbox"
-              :checked="localParams.logprobs ?? false"
-              @change="updateParameter('logprobs', ($event.target as HTMLInputElement).checked)"
-              class="param-checkbox"
+            <el-switch
+              :model-value="localParams.logprobs ?? false"
+              @update:model-value="updateParameter('logprobs', $event)"
             />
           </label>
           <div class="param-desc">是否返回 logprobs（对数概率）。</div>
@@ -328,16 +375,23 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.topLogprobs && localParams.logprobs" class="param-group">
           <label class="param-label">
             <span>Top Logprobs</span>
-            <span class="param-value">{{ localParams.topLogprobs ?? 0 }}</span>
+            <el-input-number
+              :model-value="localParams.topLogprobs ?? 0"
+              @update:model-value="updateParameter('topLogprobs', $event)"
+              :min="0"
+              :max="20"
+              :step="1"
+              :controls="false"
+              class="param-input"
+            />
           </label>
-          <input
-            :value="localParams.topLogprobs ?? 0"
-            @input="updateParameter('topLogprobs', Number(($event.target as HTMLInputElement).value))"
-            type="range"
-            min="0"
-            max="20"
-            step="1"
-            class="param-slider"
+          <el-slider
+            :model-value="localParams.topLogprobs ?? 0"
+            @update:model-value="updateParameter('topLogprobs', $event)"
+            :min="0"
+            :max="20"
+            :step="1"
+            :show-tooltip="false"
           />
           <div class="param-desc">返回的 top logprobs 数量（0-20）。</div>
         </div>
@@ -351,8 +405,11 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         @click="toggleSection('special')"
         :title="specialFeaturesExpanded ? '点击折叠' : '点击展开'"
       >
-        <span class="param-section-title">✨ 特殊功能</span>
-        <span class="collapse-icon">{{ specialFeaturesExpanded ? "▼" : "▶" }}</span>
+        <div class="section-title-wrapper">
+          <i-ep-magic-stick class="section-icon" />
+          <span class="param-section-title">特殊功能</span>
+        </div>
+        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: specialFeaturesExpanded }" />
       </div>
 
       <div class="param-section-content" :class="{ collapsed: !specialFeaturesExpanded }">
@@ -360,11 +417,9 @@ watch(() => props.contextLengthLimit, (newLimit) => {
         <div v-if="supportedParameters.thinking" class="param-group">
           <label class="param-label">
             <span>Thinking Mode (Claude)</span>
-            <input
-              type="checkbox"
-              :checked="localParams.thinking?.type === 'enabled'"
-              @change="updateParameter('thinking', ($event.target as HTMLInputElement).checked ? { type: 'enabled' } : { type: 'disabled' })"
-              class="param-checkbox"
+            <el-switch
+              :model-value="localParams.thinking?.type === 'enabled'"
+              @update:model-value="updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })"
             />
           </label>
           <div class="param-desc">启用 Claude 的思考模式，模型会先思考再回答。</div>
@@ -396,10 +451,28 @@ watch(() => props.contextLengthLimit, (newLimit) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color-light);
-  border-radius: 6px;
-  transition: all 0.2s;
+  padding: 10px 14px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-color) 3%, transparent),
+    color-mix(in srgb, var(--primary-color) 1%, transparent)
+  );
+  border: 1px solid var(--border-color-light);
+  border-radius: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.param-section-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary-color);
+  opacity: 0;
+  transition: opacity 0.25s;
 }
 
 .param-section-header.clickable {
@@ -408,20 +481,67 @@ watch(() => props.contextLengthLimit, (newLimit) => {
 }
 
 .param-section-header.clickable:hover {
-  background-color: var(--container-bg);
-  border-bottom-color: var(--primary-color);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-color) 8%, transparent),
+    color-mix(in srgb, var(--primary-color) 4%, transparent)
+  );
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  transform: translateY(-1px);
+}
+
+.param-section-header.clickable:hover::before {
+  opacity: 1;
+}
+
+.param-section-header.clickable:active {
+  transform: translateY(0);
+}
+
+.section-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.section-icon {
+  font-size: 16px;
+  color: var(--primary-color);
+  transition: transform 0.25s;
+  flex-shrink: 0;
+}
+
+.param-section-header:hover .section-icon {
+  transform: scale(1.1);
 }
 
 .param-section-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-color-secondary);
+  color: var(--text-color);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .collapse-icon {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-color-light);
-  transition: transform 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.collapse-icon.expanded {
+  transform: rotate(180deg);
+  color: var(--primary-color);
+}
+
+.param-section-header:hover .collapse-icon {
+  color: var(--primary-color);
 }
 
 .param-section-content {
@@ -452,75 +572,45 @@ watch(() => props.contextLengthLimit, (newLimit) => {
   color: var(--text-color);
 }
 
+.param-label-single {
+  justify-content: flex-start;
+}
+
 .param-value {
   font-family: "Consolas", "Monaco", monospace;
   color: var(--primary-color);
   font-size: 12px;
 }
 
-.param-slider {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
-  background: var(--container-bg);
-  border: 1px solid var(--border-color);
+.param-input {
+  width: 100px !important;
 }
 
-.param-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.param-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-}
-
-.param-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.param-slider::-moz-range-thumb:hover {
-  transform: scale(1.2);
-}
-
-.param-input,
-.param-select {
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 13px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+/* Element Plus 组件样式调整 */
+:deep(.el-slider__runway) {
   background-color: var(--container-bg);
-  color: var(--text-color);
-  transition: border-color 0.2s;
+  border: 1px solid var(--border-color);
 }
 
-.param-input:focus,
-.param-select:focus {
-  outline: none;
+:deep(.el-slider__bar) {
+  background-color: var(--primary-color);
+}
+
+:deep(.el-slider__button) {
   border-color: var(--primary-color);
+  background-color: var(--primary-color);
 }
 
-.param-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  accent-color: var(--primary-color);
+:deep(.el-select .el-input__wrapper) {
+  background-color: var(--container-bg);
+}
+
+:deep(.el-switch__core) {
+  background-color: var(--border-color);
+}
+
+:deep(.el-switch.is-checked .el-switch__core) {
+  background-color: var(--primary-color);
 }
 
 .param-desc {
@@ -538,5 +628,10 @@ watch(() => props.contextLengthLimit, (newLimit) => {
   font-size: 12px;
   color: var(--text-color-light);
   line-height: 1.5;
+}
+
+/* 修复部分输入框 placeholder 居中的问题 */
+:deep(.el-input__inner) {
+  text-align: left;
 }
 </style>

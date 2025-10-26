@@ -183,8 +183,11 @@ const handleSaveEdit = (data: any) => {
             @click="toggleSection('presetMessages')"
             :title="presetMessagesSectionExpanded ? '点击折叠' : '点击展开'"
           >
-            <span class="param-section-title">💬 预设消息</span>
-            <span class="collapse-icon">{{ presetMessagesSectionExpanded ? "▼" : "▶" }}</span>
+            <div class="section-title-wrapper">
+              <i-ep-chat-line-round class="section-icon" />
+              <span class="param-section-title">预设消息</span>
+            </div>
+            <i-ep-arrow-down class="collapse-icon" :class="{ expanded: presetMessagesSectionExpanded }" />
           </div>
 
           <div class="param-section-content" :class="{ collapsed: !presetMessagesSectionExpanded }">
@@ -328,10 +331,28 @@ const handleSaveEdit = (data: any) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color-light);
-  border-radius: 6px;
-  transition: all 0.2s;
+  padding: 10px 14px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-color) 3%, transparent),
+    color-mix(in srgb, var(--primary-color) 1%, transparent)
+  );
+  border: 1px solid var(--border-color-light);
+  border-radius: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.param-section-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary-color);
+  opacity: 0;
+  transition: opacity 0.25s;
 }
 
 .param-section-header.clickable {
@@ -340,20 +361,67 @@ const handleSaveEdit = (data: any) => {
 }
 
 .param-section-header.clickable:hover {
-  background-color: var(--container-bg);
-  border-bottom-color: var(--primary-color);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-color) 8%, transparent),
+    color-mix(in srgb, var(--primary-color) 4%, transparent)
+  );
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  transform: translateY(-1px);
+}
+
+.param-section-header.clickable:hover::before {
+  opacity: 1;
+}
+
+.param-section-header.clickable:active {
+  transform: translateY(0);
+}
+
+.section-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.section-icon {
+  font-size: 16px;
+  color: var(--primary-color);
+  transition: transform 0.25s;
+  flex-shrink: 0;
+}
+
+.param-section-header:hover .section-icon {
+  transform: scale(1.1);
 }
 
 .param-section-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-color-secondary);
+  color: var(--text-color);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .collapse-icon {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-color-light);
-  transition: transform 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.collapse-icon.expanded {
+  transform: rotate(180deg);
+  color: var(--primary-color);
+}
+
+.param-section-header:hover .collapse-icon {
+  color: var(--primary-color);
 }
 
 .param-section-content {

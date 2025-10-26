@@ -255,6 +255,19 @@ export function useSessionManager() {
   };
 
   /**
+   * 更新当前会话 ID（轻量级持久化）
+   */
+  const updateCurrentSessionId = async (currentSessionId: string | null): Promise<void> => {
+    const { updateCurrentSessionId: updateCurrentSessionIdInStorage } = useChatStorage();
+    try {
+      await updateCurrentSessionIdInStorage(currentSessionId);
+      logger.debug('当前会话 ID 已持久化', { currentSessionId });
+    } catch (error) {
+      logger.error('持久化当前会话 ID 失败', error as Error, { currentSessionId });
+    }
+  };
+
+  /**
    * 清空所有会话
    */
   const clearAllSessions = (): void => {
@@ -268,6 +281,7 @@ export function useSessionManager() {
     loadSessions,
     persistSession,  // 新增：单会话保存
     persistSessions, // 批量保存
+    updateCurrentSessionId, // 新增：更新当前会话ID
     updateSessionDisplayAgent,
     exportSessionAsMarkdown,
     clearAllSessions,

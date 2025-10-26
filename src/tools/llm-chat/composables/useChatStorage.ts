@@ -65,6 +65,13 @@ export function useChatStorage() {
   };
 
   /**
+   * 更新当前会话 ID
+   */
+  const updateCurrentSessionId = async (currentSessionId: string | null): Promise<void> => {
+    return separatedStorage.updateCurrentSessionId(currentSessionId);
+  };
+
+  /**
    * 创建防抖保存函数
    */
   const createDebouncedSave = (delay: number = 500) => {
@@ -76,6 +83,7 @@ export function useChatStorage() {
     saveSessions,
     persistSession, // 新增：单会话保存
     deleteSession,
+    updateCurrentSessionId, // 新增：更新当前会话ID
     loadSession,
     saveSession,
     createDebouncedSave,

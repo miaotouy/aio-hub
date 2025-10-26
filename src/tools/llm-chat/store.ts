@@ -164,6 +164,11 @@ export const useLlmChatStore = defineStore("llmChat", {
       }
 
       this.currentSessionId = sessionId;
+      
+      // 持久化当前会话 ID
+      const sessionManager = useSessionManager();
+      sessionManager.updateCurrentSessionId(sessionId);
+      
       logger.info("切换会话", { sessionId, sessionName: session.name });
     },
 

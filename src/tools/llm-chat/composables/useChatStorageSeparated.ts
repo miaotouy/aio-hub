@@ -433,6 +433,21 @@ export function useChatStorageSeparated() {
   }
 
   /**
+   * 更新当前会话 ID（轻量级操作，只更新索引）
+   */
+  async function updateCurrentSessionId(currentSessionId: string | null): Promise<void> {
+    try {
+      const index = await loadIndex();
+      index.currentSessionId = currentSessionId;
+      await saveIndex(index);
+      logger.debug('当前会话 ID 已更新', { currentSessionId });
+    } catch (error) {
+      logger.error('更新当前会话 ID 失败', error as Error, { currentSessionId });
+      throw error;
+    }
+  }
+
+  /**
    * 创建防抖保存函数
    */
   function createDebouncedSave(delay: number = 500) {
@@ -459,6 +474,7 @@ export function useChatStorageSeparated() {
     saveSessions,
     persistSession, // 新增：单会话保存
     deleteSession,
+    updateCurrentSessionId, // 新增：更新当前会话ID
     createDebouncedSave,
     loadSession,
     saveSession,

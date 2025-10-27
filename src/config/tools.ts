@@ -32,7 +32,7 @@ export const toolsConfig: ToolConfig[] = [
     path: '/llm-chat',
     icon: markRaw(ChatDotRound),
     component: () => import('../tools/llm-chat/LlmChat.vue'),
-    description: '与 LLM 进行多轮对话，支持流式响应和会话管理',
+    description: '树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析',
     category: 'AI 工具'
   },
   {
@@ -40,7 +40,7 @@ export const toolsConfig: ToolConfig[] = [
     path: '/media-info-reader',
     icon: markRaw(PictureFilled),
     component: () => import('../tools/media-info-reader/MediaInfoReader.vue'),
-    description: '读取AI生成图片的元数据(WebUI/ComfyUI)及角色卡片信息',
+    description: '读取AI生成图片的元数据(WebUI/ComfyUI)及ST角色卡片信息',
     category: 'AI 工具'
   },
   {

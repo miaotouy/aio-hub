@@ -4,6 +4,7 @@ import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
 import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
 import DragIndicator from "./views/DragIndicator.vue";
 import ElementPlus from "element-plus";
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
 import router from "./router"; // 从 ./router/index.ts 导入
@@ -146,7 +147,7 @@ logger.info("选择根组件", {
 const app = createApp(rootComponent);
 const pinia = createPinia(); // 创建 Pinia 实例
 
-app.use(ElementPlus);
+app.use(ElementPlus, { locale: zhCn });
 app.use(router);
 app.use(pinia); // 注册 Pinia
 

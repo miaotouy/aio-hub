@@ -288,37 +288,82 @@ export function useChatHandler() {
       .filter((node) => node.role === 'user' || node.role === 'assistant')
       .map(async (node) => {
         let content: string | LlmMessageContent[] = node.content;
-
+    
         // 如果节点有附件，构建多模态消息
         if (node.attachments && node.attachments.length > 0) {
+          logger.info('📎 检测到节点包含附件', {
+            nodeId: node.id,
+            role: node.role,
+            attachmentCount: node.attachments.length,
+            attachments: node.attachments.map(a => ({
+              id: a.id,
+              name: a.name,
+              type: a.type,
+              mimeType: a.mimeType,
+              importStatus: a.importStatus,
+            })),
+          });
+    
           const messageContents: LlmMessageContent[] = [];
-
+    
           // 添加文本内容（如果有）
           if (node.content && node.content.trim() !== '') {
             messageContents.push({
               type: 'text',
               text: node.content,
             });
+            logger.debug('添加文本内容到消息', {
+              nodeId: node.id,
+              textLength: node.content.length,
+            });
           }
-
+    
           // 转换附件
           for (const asset of node.attachments) {
+            logger.debug('开始转换附件', {
+              nodeId: node.id,
+              assetId: asset.id,
+              assetName: asset.name,
+              assetType: asset.type,
+              importStatus: asset.importStatus,
+            });
+    
             const attachmentContent = await assetToMessageContent(asset);
             if (attachmentContent) {
               messageContents.push(attachmentContent);
+              logger.info('✅ 附件转换成功', {
+                nodeId: node.id,
+                assetId: asset.id,
+                assetName: asset.name,
+                contentType: attachmentContent.type,
+              });
+            } else {
+              logger.warn('⚠️ 附件转换失败或跳过', {
+                nodeId: node.id,
+                assetId: asset.id,
+                assetName: asset.name,
+                assetType: asset.type,
+              });
             }
           }
-
+    
           content = messageContents;
-
-          logger.debug('构建多模态消息', {
+    
+          logger.info('📦 多模态消息构建完成', {
             nodeId: node.id,
             role: node.role,
-            attachmentCount: node.attachments.length,
-            messagePartsCount: messageContents.length,
+            originalAttachmentCount: node.attachments.length,
+            finalMessagePartsCount: messageContents.length,
+            hasTextContent: node.content && node.content.trim() !== '',
+          });
+        } else {
+          logger.debug('节点无附件，使用纯文本内容', {
+            nodeId: node.id,
+            role: node.role,
+            contentLength: node.content.length,
           });
         }
-
+    
         return {
           role: node.role as 'user' | 'assistant',
           content,
@@ -725,6 +770,15 @@ export function useChatHandler() {
 
     // 重新获取包含新用户消息的完整路径
     const pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
+    
+    // 确保 pathWithNewMessage 中的 userNode 包含附件，以防 getNodePath 返回的是旧的或不完整的快照
+    // userNode 是 pathWithNewMessage 的最后一个元素
+    const pathUserNode = pathWithNewMessage[pathWithNewMessage.length - 1];
+    if (pathUserNode.id === userNode.id && attachments && attachments.length > 0) {
+      // 强制将附件添加到路径中的节点对象上，确保 buildLlmContext 能读取到
+      pathUserNode.attachments = attachments;
+      logger.debug('强制同步附件到路径节点', { nodeId: pathUserNode.id, count: attachments.length });
+    }
 
     // 创建节点级别的 AbortController
     const abortController = new AbortController();

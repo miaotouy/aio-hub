@@ -84,3 +84,6 @@
 
 - **文件交互**:
   - `useFileDrop` 提供了文件拖拽到应用窗口的功能。
+  - `useFileInteraction` 统一处理文件的拖放和粘贴交互，支持自动转换为 Asset 或直接处理文件对象。
+  - `useChatFileInteraction` 专门用于聊天附件场景，自动将粘贴的文件转换为 Asset。
+  - `useImageFileInteraction` 专门用于图片上传场景，只接受图片文件。

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { ChevronRight, ChevronDown, Copy, Check } from "lucide-vue-next";
-import { invoke } from "@tauri-apps/api/core";
 import type { ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
@@ -9,7 +8,7 @@ import { createModuleLogger } from "@/utils/logger";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import { useAttachmentManager } from "../../composables/useAttachmentManager";
-import { useFileDrop } from "@/composables/useFileDrop";
+import { useChatFileInteraction } from "@/composables/useFileInteraction";
 
 const logger = createModuleLogger("MessageContent");
 
@@ -145,90 +144,35 @@ const cancelEdit = () => {
 };
 
 // 处理附件移除
+// 处理附件移除
 const handleRemoveAttachment = (asset: Asset) => {
   attachmentManager.removeAttachment(asset);
 };
 
-// 文件拖拽支持
-const { isDraggingOver } = useFileDrop({
+// 统一的文件交互处理（拖放 + 粘贴）
+const { isDraggingOver } = useChatFileInteraction({
   element: editAreaRef,
-  onDrop: async (paths: string[]) => {
+  onPaths: async (paths: string[]) => {
     if (!props.isEditing) return;
     await attachmentManager.addAttachments(paths);
   },
-});
-
-// 处理粘贴事件（支持粘贴图片）
-const handlePaste = async (e: ClipboardEvent) => {
-  if (!props.isEditing) return;
-  
-  const items = e.clipboardData?.items;
-  if (!items) return;
-  
-  const imageFiles: File[] = [];
-  
-  // 遍历剪贴板项目，查找图片
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    
-    if (item.type.startsWith('image/')) {
-      e.preventDefault(); // 阻止默认粘贴行为
-      
-      const file = item.getAsFile();
-      if (file) {
-        imageFiles.push(file);
-      }
-    }
-  }
-  
-  if (imageFiles.length === 0) return;
-  
-  logger.info('编辑模式粘贴图片', { count: imageFiles.length });
-  
-  // 处理粘贴的图片
-  try {
+  onAssets: async (assets) => {
+    if (!props.isEditing) return;
+    logger.info('编辑模式粘贴文件', { count: assets.length });
     let successCount = 0;
-    
-    for (const file of imageFiles) {
-      // 读取文件为 ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      
-      // 生成文件名
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const extension = file.type.split('/')[1] || 'png';
-      const filename = `pasted-image-${timestamp}.${extension}`;
-      
-      // 调用后端 API 导入图片
-      const asset = await invoke<Asset>('import_asset_from_bytes', {
-        bytes: Array.from(bytes),
-        originalName: filename,
-        options: {
-          generateThumbnail: true,
-          enableDeduplication: true,
-          origin: {
-            type: 'clipboard',
-            source: 'clipboard',
-          },
-        },
-      });
-      
-      // 使用 addAsset 方法添加资产
+    for (const asset of assets) {
       if (attachmentManager.addAsset(asset)) {
         successCount++;
-        logger.info('编辑模式粘贴图片成功', { filename, assetId: asset.id });
       }
     }
-    
     if (successCount > 0) {
-      customMessage.success(`已粘贴 ${successCount} 张图片`);
+      const message = successCount === 1
+        ? `已粘贴文件: ${assets[0].name}`
+        : `已粘贴 ${successCount} 个文件`;
+      customMessage.success(message);
     }
-  } catch (error) {
-    logger.error('编辑模式粘贴图片失败', error);
-    customMessage.error('粘贴图片失败');
-  }
-};
-
+  },
+});
 // 复制错误信息
 const copyError = async () => {
   if (!props.message.metadata?.error) return;
@@ -330,7 +274,6 @@ watch(
         placeholder="编辑消息内容、拖入或粘贴文件..."
         @keydown.ctrl.enter="saveEdit"
         @keydown.esc="cancelEdit"
-        @paste="handlePaste"
       />
 
       <!-- 操作按钮 -->

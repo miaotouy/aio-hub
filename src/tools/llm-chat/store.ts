@@ -442,24 +442,24 @@ export const useLlmChatStore = defineStore("llmChat", {
     },
 
     /**
-     * 编辑消息（原地修改内容）
-     */
-    editMessage(nodeId: string, newContent: string): void {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("编辑消息失败：没有活动会话");
-        return;
-      }
-
-      const branchManager = useBranchManager();
-      const success = branchManager.editMessage(session, nodeId, newContent);
-
-      if (success) {
-        const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.currentSessionId);
-      }
-    },
-
+     /**
+      * 编辑消息（原地修改内容和附件）
+      */
+     editMessage(nodeId: string, newContent: string, attachments?: Asset[]): void {
+       const session = this.currentSession;
+       if (!session) {
+         logger.warn("编辑消息失败：没有活动会话");
+         return;
+       }
+ 
+       const branchManager = useBranchManager();
+       const success = branchManager.editMessage(session, nodeId, newContent, attachments);
+ 
+       if (success) {
+         const sessionManager = useSessionManager();
+         sessionManager.persistSession(session, this.currentSessionId);
+       }
+     },
     /**
      * 创建分支（创建源节点的兄弟节点，复制内容）
      */

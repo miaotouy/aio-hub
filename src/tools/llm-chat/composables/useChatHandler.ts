@@ -12,6 +12,7 @@ import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { createModuleLogger } from '@/utils/logger';
+import { invoke } from '@tauri-apps/api/core';
 
 const logger = createModuleLogger('llm-chat/chat-handler');
 
@@ -82,25 +83,144 @@ export interface ContextPreviewData {
 
 export function useChatHandler() {
   /**
+   * 将 Asset 的二进制数据转换为 base64
+   * @param assetPath 资源相对路径
+   * @returns base64 编码的字符串
+   */
+  const convertAssetToBase64 = async (assetPath: string): Promise<string> => {
+    // 读取二进制数据
+    const binaryData = await invoke<number[]>('get_asset_binary', {
+      relativePath: assetPath,
+    });
+
+    // 转换为 Uint8Array
+    const uint8Array = new Uint8Array(binaryData);
+
+    // 转换为 base64（使用分块处理避免调用栈溢出）
+    let base64 = '';
+    const chunkSize = 0x8000; // 32KB chunks
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      base64 += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    return btoa(base64);
+  };
+
+  /**
+   * 将 Asset 转换为 LlmMessageContent
+   * 支持图片和文档类型
+   */
+  const assetToMessageContent = async (asset: Asset): Promise<LlmMessageContent | null> => {
+    try {
+      // 处理图片类型
+      if (asset.type === 'image') {
+        const base64 = await convertAssetToBase64(asset.path);
+
+        logger.debug('图片附件转换为 base64', {
+          assetId: asset.id,
+          assetName: asset.name,
+          mimeType: asset.mimeType,
+          base64Length: base64.length,
+        });
+
+        return {
+          type: 'image',
+          imageBase64: base64,
+        };
+      }
+
+      // 处理文档类型
+      if (asset.type === 'document') {
+        const base64 = await convertAssetToBase64(asset.path);
+
+        logger.debug('文档附件转换完成', {
+          assetId: asset.id,
+          assetName: asset.name,
+          mimeType: asset.mimeType,
+        });
+
+        return {
+          type: 'document',
+          documentSource: {
+            type: 'base64',
+            media_type: asset.mimeType,
+            data: base64,
+          },
+        };
+      }
+
+      // 暂不支持的类型
+      logger.warn('跳过不支持的附件类型', {
+        assetType: asset.type,
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return null;
+    } catch (error) {
+      logger.error('附件转换失败', error as Error, {
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return null;
+    }
+  };
+
+  /**
    * 构建 LLM 上下文
    * 从活动路径和智能体配置中提取系统提示、对话历史和当前消息
    * @param effectiveUserProfile 当前生效的用户档案（可选）
    */
-  const buildLlmContext = (
+  const buildLlmContext = async (
     activePath: ChatMessageNode[],
     agentConfig: any,
     _currentUserMessage: string,
     effectiveUserProfile?: { id: string; name: string; content: string } | null
-  ): LlmContextData => {
+  ): Promise<LlmContextData> => {
     // 过滤出有效的对话上下文（排除禁用节点和系统节点）
-    const llmContext = activePath
+    const llmContextPromises = activePath
       .filter((node) => node.isEnabled !== false)
       .filter((node) => node.role !== 'system')
       .filter((node) => node.role === 'user' || node.role === 'assistant')
-      .map((node) => ({
-        role: node.role as 'user' | 'assistant',
-        content: node.content,
-      }));
+      .map(async (node) => {
+        let content: string | LlmMessageContent[] = node.content;
+
+        // 如果节点有附件，构建多模态消息
+        if (node.attachments && node.attachments.length > 0) {
+          const messageContents: LlmMessageContent[] = [];
+
+          // 添加文本内容（如果有）
+          if (node.content && node.content.trim() !== '') {
+            messageContents.push({
+              type: 'text',
+              text: node.content,
+            });
+          }
+
+          // 转换附件
+          for (const asset of node.attachments) {
+            const attachmentContent = await assetToMessageContent(asset);
+            if (attachmentContent) {
+              messageContents.push(attachmentContent);
+            }
+          }
+
+          content = messageContents;
+
+          logger.debug('构建多模态消息', {
+            nodeId: node.id,
+            role: node.role,
+            attachmentCount: node.attachments.length,
+            messagePartsCount: messageContents.length,
+          });
+        }
+
+        return {
+          role: node.role as 'user' | 'assistant',
+          content,
+        };
+      });
+
+    const llmContext = await Promise.all(llmContextPromises);
 
     // 处理预设消息
     const presetMessages = agentConfig.presetMessages || [];
@@ -445,11 +565,13 @@ export function useChatHandler() {
     const { userNode, assistantNode } = nodeManager.createMessagePair(session, content, session.activeLeafId);
     
     // 如果有附件，保存到用户消息节点
+    // 重要：直接修改 session.nodes 中的节点，确保状态同步
     if (attachments && attachments.length > 0) {
-      userNode.attachments = attachments;
+      session.nodes[userNode.id].attachments = attachments;
       logger.info('添加附件到用户消息', {
         messageId: userNode.id,
         attachmentCount: attachments.length,
+        attachments: attachments.map(a => ({ id: a.id, name: a.name, type: a.type })),
       });
     }
 
@@ -496,7 +618,7 @@ export function useChatHandler() {
       const { sendRequest } = useLlmRequest();
 
       // 构建 LLM 上下文（activePath 现在包含了新创建的用户消息）
-      const { systemPrompt, messages } = buildLlmContext(
+      const { systemPrompt, messages } = await buildLlmContext(
         pathWithNewMessage,
         agentConfig,
         content,  // 这个参数现在不再使用，但保留以兼容函数签名
@@ -700,7 +822,7 @@ export function useChatHandler() {
         // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
         const pathToUserNode = nodeManager.getNodePath(session, userNode.id);
 
-        const { systemPrompt, messages } = buildLlmContext(
+        const { systemPrompt, messages } = await buildLlmContext(
           pathToUserNode, // 使用包含用户消息的完整路径
           agentConfig,
           userNode.content,  // 这个参数不再使用，但保留以兼容函数签名
@@ -810,10 +932,10 @@ export function useChatHandler() {
    * @param targetNodeId 目标节点 ID
    * @returns 详细的上下文分析数据，如果无法获取则返回 null
    */
-  const getLlmContextForPreview = (
+  const getLlmContextForPreview = async (
     session: ChatSession,
     targetNodeId: string
-  ): ContextPreviewData | null => {
+  ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
 
@@ -854,7 +976,7 @@ export function useChatHandler() {
     const agent = agentStore.getAgentById(agentId);
 
     // 使用现有的 buildLlmContext 函数构建上下文
-    const { systemPrompt, messages } = buildLlmContext(
+    const { systemPrompt, messages } = await buildLlmContext(
       nodePath,
       agentConfig,
       '' // currentUserMessage 参数已不使用

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import type { ChatMessageNode } from '../../types';
+import type { Asset } from '@/types/asset-management';
 import { useLlmChatStore } from '../../store';
 import ChatMessage from './ChatMessage.vue';
 
@@ -13,7 +14,7 @@ interface Emits {
   (e: 'regenerate', messageId: string): void;
   (e: 'switch-sibling', nodeId: string, direction: 'prev' | 'next'): void;
   (e: 'toggle-enabled', nodeId: string): void;
-  (e: 'edit-message', nodeId: string, newContent: string): void;
+  (e: 'edit-message', nodeId: string, newContent: string, attachments?: Asset[]): void;
   (e: 'abort-node', nodeId: string): void;
   (e: 'create-branch', nodeId: string): void;
   (e: 'analyze-context', nodeId: string): void;
@@ -67,7 +68,7 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           @regenerate="emit('regenerate', message.id)"
           @switch-sibling="(direction: 'prev' | 'next') => emit('switch-sibling', message.id, direction)"
           @toggle-enabled="emit('toggle-enabled', message.id)"
-          @edit="(newContent: string) => emit('edit-message', message.id, newContent)"
+          @edit="(newContent: string, attachments?: Asset[]) => emit('edit-message', message.id, newContent, attachments)"
           @copy="() => {}"
           @abort="emit('abort-node', message.id)"
           @create-branch="emit('create-branch', message.id)"

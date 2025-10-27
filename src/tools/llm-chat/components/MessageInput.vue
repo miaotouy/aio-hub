@@ -33,12 +33,8 @@ const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const inputAreaRef = ref<HTMLDivElement>();
 
-// 附件管理
-const attachmentManager = useAttachmentManager({
-  maxCount: 20,
-  maxFileSize: 50 * 1024 * 1024, // 50MB
-  generateThumbnail: true,
-});
+// 附件管理（使用默认配置）
+const attachmentManager = useAttachmentManager();
 
 // 文件拖拽（使用 toRef 确保响应式）
 const { isDraggingOver } = useFileDrop({

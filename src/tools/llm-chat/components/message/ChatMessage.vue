@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { ChatMessageNode } from '../../types';
+import type { Asset } from '@/types/asset-management';
 import MessageHeader from './MessageHeader.vue';
 import MessageContent from './MessageContent.vue';
 import MessageMenubar from './MessageMenubar.vue';
@@ -17,7 +18,7 @@ interface Emits {
   (e: 'regenerate'): void;
   (e: 'switch-sibling', direction: 'prev' | 'next'): void;
   (e: 'toggle-enabled'): void;
-  (e: 'edit', newContent: string): void;
+  (e: 'edit', newContent: string, attachments?: Asset[]): void;
   (e: 'copy'): void;
   (e: 'abort'): void;
   (e: 'create-branch'): void;
@@ -39,8 +40,8 @@ const startEdit = () => {
 };
 
 // 保存编辑
-const saveEdit = (newContent: string) => {
-  emit('edit', newContent);
+const saveEdit = (newContent: string, attachments?: Asset[]) => {
+  emit('edit', newContent, attachments);
   isEditing.value = false;
 };
 

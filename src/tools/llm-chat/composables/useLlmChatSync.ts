@@ -62,7 +62,7 @@ const globalProfileId = toRef(userProfileStore, 'globalProfileId');
     switch (action) {
       case 'send-message':
         // 不要 await，立即返回，防止请求超时
-        store.sendMessage(params.content);
+        store.sendMessage(params.content, params.attachments);
         return Promise.resolve();
       case 'abort-sending':
         store.abortSending();
@@ -81,7 +81,7 @@ const globalProfileId = toRef(userProfileStore, 'globalProfileId');
         store.toggleNodeEnabled(params.nodeId);
         return Promise.resolve();
       case 'edit-message':
-        store.editMessage(params.nodeId, params.newContent);
+        store.editMessage(params.nodeId, params.newContent, params.attachments);
         return Promise.resolve();
       case 'create-branch':
         store.createBranch(params.nodeId);

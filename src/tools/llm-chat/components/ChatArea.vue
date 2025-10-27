@@ -3,6 +3,7 @@ import { ref, computed, toRef, withDefaults, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip } from "element-plus";
 import type { ChatMessageNode, UserProfile } from "../types";
+import type { Asset } from "@/types/asset-management";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
@@ -30,7 +31,7 @@ interface Emits {
   (e: "regenerate", messageId: string): void;
   (e: "switch-sibling", nodeId: string, direction: 'prev' | 'next'): void;
   (e: "toggle-enabled", nodeId: string): void;
-  (e: "edit-message", nodeId: string, newContent: string): void;
+  (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
   (e: "abort-node", nodeId: string): void;
   (e: "create-branch", nodeId: string): void;
   (e: "analyze-context", nodeId: string): void;
@@ -243,7 +244,8 @@ const handleDeleteMessage = (messageId: string) => emit("delete-message", messag
 const handleRegenerate = (messageId: string) => emit("regenerate", messageId);
 const handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => emit("switch-sibling", nodeId, direction);
 const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
-const handleEditMessage = (nodeId: string, newContent: string) => emit("edit-message", nodeId, newContent);
+const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) =>
+  emit("edit-message", nodeId, newContent, attachments);
 const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
 const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);

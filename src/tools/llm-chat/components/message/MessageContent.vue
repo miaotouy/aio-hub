@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { ChevronRight, ChevronDown, Copy, Check } from "lucide-vue-next";
+import { invoke } from "@tauri-apps/api/core";
 import type { ChatMessageNode } from "../../types";
+import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleLogger } from "@/utils/logger";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import AttachmentCard from "../AttachmentCard.vue";
+import { useAttachmentManager } from "../../composables/useAttachmentManager";
+import { useFileDrop } from "@/composables/useFileDrop";
+
+const logger = createModuleLogger("MessageContent");
 
 interface Props {
   message: ChatMessageNode;
@@ -12,7 +19,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: "save-edit", newContent: string): void;
+  (e: "save-edit", newContent: string, attachments?: Asset[]): void;
   (e: "cancel-edit"): void;
 }
 
@@ -21,10 +28,14 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<Emits>();
 
-// 是否有附件
+// 附件管理器 - 用于编辑模式（使用默认配置）
+const attachmentManager = useAttachmentManager();
+
+// 是否有附件 - 非编辑模式显示原始附件
 const hasAttachments = computed(() => {
   return props.message.attachments && props.message.attachments.length > 0;
 });
+
 
 // 推理内容展开状态
 const isReasoningExpanded = ref(false);
@@ -97,22 +108,125 @@ const toggleReasoning = () => {
   isReasoningExpanded.value = !isReasoningExpanded.value;
 };
 
-// 当进入编辑模式时，初始化编辑内容
+// 编辑区域引用
+const editAreaRef = ref<HTMLElement | undefined>(undefined);
+
+// 当进入编辑模式时，初始化编辑内容和附件
 const initEditMode = () => {
   editingContent.value = props.message.content;
+  
+  // 清空附件管理器
+  attachmentManager.clearAttachments();
+  
+  // 加载现有附件
+  if (props.message.attachments && props.message.attachments.length > 0) {
+    props.message.attachments.forEach((asset) => {
+      attachmentManager.addAsset(asset);
+    });
+  }
 };
 
 // 保存编辑
 const saveEdit = () => {
   if (editingContent.value.trim()) {
-    emit("save-edit", editingContent.value);
+    // 传递文本内容和附件列表
+    const attachments = attachmentManager.attachments.value.length > 0
+      ? attachmentManager.attachments.value
+      : undefined;
+    emit("save-edit", editingContent.value, attachments);
   }
 };
 
 // 取消编辑
 const cancelEdit = () => {
   editingContent.value = "";
+  attachmentManager.clearAttachments();
   emit("cancel-edit");
+};
+
+// 处理附件移除
+const handleRemoveAttachment = (asset: Asset) => {
+  attachmentManager.removeAttachment(asset);
+};
+
+// 文件拖拽支持
+const { isDraggingOver } = useFileDrop({
+  element: editAreaRef,
+  onDrop: async (paths: string[]) => {
+    if (!props.isEditing) return;
+    await attachmentManager.addAttachments(paths);
+  },
+});
+
+// 处理粘贴事件（支持粘贴图片）
+const handlePaste = async (e: ClipboardEvent) => {
+  if (!props.isEditing) return;
+  
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  
+  const imageFiles: File[] = [];
+  
+  // 遍历剪贴板项目，查找图片
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    
+    if (item.type.startsWith('image/')) {
+      e.preventDefault(); // 阻止默认粘贴行为
+      
+      const file = item.getAsFile();
+      if (file) {
+        imageFiles.push(file);
+      }
+    }
+  }
+  
+  if (imageFiles.length === 0) return;
+  
+  logger.info('编辑模式粘贴图片', { count: imageFiles.length });
+  
+  // 处理粘贴的图片
+  try {
+    let successCount = 0;
+    
+    for (const file of imageFiles) {
+      // 读取文件为 ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      
+      // 生成文件名
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const extension = file.type.split('/')[1] || 'png';
+      const filename = `pasted-image-${timestamp}.${extension}`;
+      
+      // 调用后端 API 导入图片
+      const asset = await invoke<Asset>('import_asset_from_bytes', {
+        bytes: Array.from(bytes),
+        originalName: filename,
+        options: {
+          generateThumbnail: true,
+          enableDeduplication: true,
+          origin: {
+            type: 'clipboard',
+            source: 'clipboard',
+          },
+        },
+      });
+      
+      // 使用 addAsset 方法添加资产
+      if (attachmentManager.addAsset(asset)) {
+        successCount++;
+        logger.info('编辑模式粘贴图片成功', { filename, assetId: asset.id });
+      }
+    }
+    
+    if (successCount > 0) {
+      customMessage.success(`已粘贴 ${successCount} 张图片`);
+    }
+  } catch (error) {
+    logger.error('编辑模式粘贴图片失败', error);
+    customMessage.error('粘贴图片失败');
+  }
 };
 
 // 复制错误信息
@@ -134,12 +248,14 @@ const copyError = async () => {
 };
 
 // 监听编辑模式变化
-import { watch } from "vue";
 watch(
   () => props.isEditing,
   (newVal) => {
     if (newVal) {
       initEditMode();
+    } else {
+      // 退出编辑模式时清空附件管理器
+      attachmentManager.clearAttachments();
     }
   }
 );
@@ -147,8 +263,8 @@ watch(
 
 <template>
   <div class="message-content">
-    <!-- 附件展示区域 -->
-    <div v-if="hasAttachments" class="attachments-section">
+    <!-- 附件展示区域 - 非编辑模式 -->
+    <div v-if="!isEditing && hasAttachments" class="attachments-section">
       <div class="attachments-list">
         <AttachmentCard
           v-for="attachment in message.attachments"
@@ -187,17 +303,48 @@ watch(
     </div>
 
     <!-- 编辑模式 -->
-    <div v-if="isEditing" class="edit-mode">
+    <div
+      v-if="isEditing"
+      ref="editAreaRef"
+      class="edit-mode"
+      :class="{ 'is-dragging': isDraggingOver }"
+    >
+      <!-- 编辑模式的附件展示 -->
+      <div v-if="attachmentManager.hasAttachments.value" class="attachments-section edit-attachments">
+        <div class="attachments-list">
+          <AttachmentCard
+            v-for="attachment in attachmentManager.attachments.value"
+            :key="attachment.id"
+            :asset="attachment"
+            :removable="true"
+            @remove="handleRemoveAttachment"
+          />
+        </div>
+      </div>
+
+      <!-- 文本编辑区域 -->
       <textarea
         v-model="editingContent"
         class="edit-textarea"
         rows="3"
+        placeholder="编辑消息内容、拖入或粘贴文件..."
         @keydown.ctrl.enter="saveEdit"
         @keydown.esc="cancelEdit"
+        @paste="handlePaste"
       />
+
+      <!-- 操作按钮 -->
       <div class="edit-actions">
-        <button @click="saveEdit" class="edit-btn edit-btn-save">保存 (Ctrl+Enter)</button>
-        <button @click="cancelEdit" class="edit-btn edit-btn-cancel">取消 (Esc)</button>
+        <div class="edit-info">
+          <span v-if="attachmentManager.count.value > 0" class="attachment-count">
+            {{ attachmentManager.count.value }} 个附件
+          </span>
+          <span class="drag-tip">拖拽文件到此区域添加附件</span>
+        </div>
+        <div class="edit-buttons">
+          <button @click="saveEdit" class="edit-btn edit-btn-save">保存 (Ctrl+Enter)</button>
+          <button @click="cancelEdit" class="edit-btn edit-btn-cancel">取消 (Esc)</button>
+        </div>
       </div>
     </div>
 
@@ -359,7 +506,7 @@ watch(
   font-size: 14px;
   line-height: 1.6;
   resize: vertical;
-  min-height: 60px;
+  min-height: 300px;
 }
 
 .edit-textarea:focus {

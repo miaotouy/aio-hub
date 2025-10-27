@@ -192,12 +192,16 @@ const handleToggleEnabled = (nodeId: string) => {
 };
 
 // 处理编辑消息（使用统一方法）
-const handleEditMessage = (nodeId: string, newContent: string) => {
+const handleEditMessage = (nodeId: string, newContent: string, attachments?: any[]) => {
   if (isInDetachedToolWindow) {
-    logger.info('代理编辑消息操作到主窗口', { nodeId, contentLength: newContent.length });
-    bus.requestAction('edit-message', { nodeId, newContent });
+    logger.info('代理编辑消息操作到主窗口', {
+      nodeId,
+      contentLength: newContent.length,
+      attachmentCount: attachments?.length
+    });
+    bus.requestAction('edit-message', { nodeId, newContent, attachments });
   } else {
-    store.editMessage(nodeId, newContent);
+    store.editMessage(nodeId, newContent, attachments);
   }
 };
 

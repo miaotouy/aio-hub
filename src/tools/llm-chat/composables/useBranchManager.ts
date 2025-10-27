@@ -4,6 +4,7 @@
  */
 
 import type { ChatSession, ChatMessageNode } from '../types';
+import type { Asset } from '@/types/asset-management';
 import { useNodeManager } from './useNodeManager';
 import { BranchNavigator } from '../utils/BranchNavigator';
 import { createModuleLogger } from '@/utils/logger';
@@ -64,10 +65,15 @@ export function useBranchManager() {
   };
 
   /**
-   * 编辑消息（原地修改内容）
+   * 编辑消息（原地修改内容和附件）
    * 直接修改节点内容，不创建新节点
    */
-  const editMessage = (session: ChatSession, nodeId: string, newContent: string): boolean => {
+  const editMessage = (
+    session: ChatSession,
+    nodeId: string,
+    newContent: string,
+    attachments?: Asset[]
+  ): boolean => {
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn('编辑消息失败：节点不存在', { sessionId: session.id, nodeId });
@@ -86,6 +92,16 @@ export function useBranchManager() {
 
     // 直接更新节点内容
     node.content = newContent;
+    
+    // 更新附件（如果提供了）
+    if (attachments !== undefined) {
+      if (attachments.length > 0) {
+        node.attachments = attachments;
+      } else {
+        // 如果附件数组为空，删除附件字段
+        delete node.attachments;
+      }
+    }
 
     // 更新时间戳
     session.updatedAt = new Date().toISOString();
@@ -95,6 +111,7 @@ export function useBranchManager() {
       nodeId,
       role: node.role,
       contentLength: newContent.length,
+      attachmentCount: attachments?.length ?? node.attachments?.length ?? 0,
     });
 
     return true;

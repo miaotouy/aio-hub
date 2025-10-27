@@ -105,6 +105,22 @@ class GlobalErrorHandler {
    * 处理错误
    */
   handle(error: any, options: ErrorHandlerOptions = {}): StandardError {
+    // 特殊处理：AbortError 是用户主动取消操作，不应该作为错误处理
+    if (error instanceof Error && error.name === 'AbortError') {
+      const standardError = this.standardizeError(error, {
+        ...options,
+        level: ErrorLevel.INFO,
+      });
+      
+      // 只记录到日志，不显示给用户
+      logger.info('操作已取消', {
+        module: options.module || 'Unknown',
+        context: options.context,
+      });
+      
+      return standardError;
+    }
+
     const standardError = this.standardizeError(error, options);
 
     // 添加到错误队列

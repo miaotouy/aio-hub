@@ -110,10 +110,18 @@ export function useLlmRequest() {
 
       return response;
     } catch (error) {
-      logger.error("LLM 请求失败", error, {
-        profileId: options.profileId,
-        modelId: options.modelId,
-      });
+      // AbortError 是用户主动取消，不应该记录为错误
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.info("LLM 请求已取消", {
+          profileId: options.profileId,
+          modelId: options.modelId,
+        });
+      } else {
+        logger.error("LLM 请求失败", error, {
+          profileId: options.profileId,
+          modelId: options.modelId,
+        });
+      }
       throw error;
     }
   };

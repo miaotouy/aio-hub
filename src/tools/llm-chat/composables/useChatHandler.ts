@@ -880,7 +880,10 @@ export function useChatHandler() {
       });
     } catch (error) {
       handleNodeError(session, assistantNode.id, error, '消息发送');
-      throw error;
+      // AbortError 是用户主动取消，不应该作为错误向上传递
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        throw error;
+      }
     } finally {
       // 清理节点级别的状态
       abortControllers.delete(assistantNode.id);
@@ -1089,7 +1092,10 @@ export function useChatHandler() {
       });
     } catch (error) {
       handleNodeError(session, assistantNode.id, error, '重新生成');
-      throw error;
+      // AbortError 是用户主动取消，不应该作为错误向上传递
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        throw error;
+      }
     } finally {
       // 清理节点级别的状态
       abortControllers.delete(assistantNode.id);

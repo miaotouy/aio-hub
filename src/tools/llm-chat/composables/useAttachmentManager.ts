@@ -221,17 +221,25 @@ export function useAttachmentManager(
         return;
       }
 
-      // 更新 pending 资产为导入完成的资产
-      Object.assign(pendingAsset, {
-        ...importedAsset,
-        importStatus: "complete" as AssetImportStatus,
-      });
-      delete pendingAsset.originalPath;
-
-      logger.info("资产导入完成", {
-        assetId: importedAsset.id,
-        name: importedAsset.name,
-      });
+      // 找到数组中的索引并替换整个对象（触发 Vue 响应式更新）
+      const index = attachments.value.findIndex((a) => a.id === pendingAsset.id);
+      if (index !== -1) {
+        // 创建新对象替换，确保触发响应式更新
+        const updatedAsset = {
+          ...importedAsset,
+          importStatus: "complete" as AssetImportStatus,
+        };
+        // 删除 originalPath 属性（如果存在）
+        delete (updatedAsset as any).originalPath;
+        
+        // 使用数组的 splice 方法替换元素，确保触发响应式
+        attachments.value.splice(index, 1, updatedAsset);
+        
+        logger.info("资产导入完成", {
+          assetId: importedAsset.id,
+          name: importedAsset.name,
+        });
+      }
     } catch (error) {
       logger.error("导入资产失败", error, {
         assetId: pendingAsset.id,

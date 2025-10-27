@@ -96,7 +96,6 @@ impl Default for AssetImportOptions {
         }
     }
 }
-
 /// 检测文件是否为文本文件
 ///
 /// 使用 content_inspector 库检测文件内容，支持：
@@ -104,12 +103,19 @@ impl Default for AssetImportOptions {
 /// - 其他常见文本编码
 /// - 二进制文件识别
 fn is_text_file(path: &Path) -> bool {
-    // 读取文件的前 8KB 用于检测（足够判断大多数情况）
-    match fs::read(path) {
-        Ok(content) => {
-            let sample_size = content.len().min(8192);
-            let sample = &content[..sample_size];
-            matches!(inspect(sample), ContentType::UTF_8 | ContentType::UTF_8_BOM)
+    use std::io::Read;
+    
+    // 只读取文件的前 8KB 用于检测（避免加载大文件到内存）
+    match fs::File::open(path) {
+        Ok(mut file) => {
+            let mut buffer = vec![0; 8192];
+            match file.read(&mut buffer) {
+                Ok(n) => {
+                    buffer.truncate(n);
+                    matches!(inspect(&buffer), ContentType::UTF_8 | ContentType::UTF_8_BOM)
+                }
+                Err(_) => false,
+            }
         }
         Err(_) => false,
     }

@@ -2,6 +2,8 @@
  * LLM Chat 模块的类型定义
  */
 
+import type { Asset } from '@/types/asset-management';
+
 /**
  * 消息角色
  */
@@ -48,6 +50,11 @@ export interface ChatMessageNode {
    * 消息作者的角色
    */
   role: MessageRole;
+
+  /**
+   * 附加到此消息的文件资产列表
+   */
+  attachments?: Asset[];
 
   /**
    * 消息的生成生命周期状态

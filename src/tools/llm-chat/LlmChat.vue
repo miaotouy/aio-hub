@@ -127,17 +127,17 @@ const currentAgentId = computed(() => agentStore.currentAgentId || "");
 
 // 处理发送消息
 // 如果在 detached-tool 窗口中，代理操作回主窗口
-const handleSendMessage = async (content: string) => {
+const handleSendMessage = async (content: string, attachments?: any[]) => {
   if (!store.currentSession) {
     logger.warn("发送消息失败：没有活动会话");
     return;
   }
 
   if (isInDetachedToolWindow) {
-    logger.info('代理发送消息操作到主窗口', { content });
-    await bus.requestAction('send-message', { content });
+    logger.info('代理发送消息操作到主窗口', { content, attachmentCount: attachments?.length });
+    await bus.requestAction('send-message', { content, attachments });
   } else {
-    await store.sendMessage(content);
+    await store.sendMessage(content, attachments);
   }
 };
 

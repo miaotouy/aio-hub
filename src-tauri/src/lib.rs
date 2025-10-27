@@ -59,6 +59,8 @@ use commands::{
     copy_file_to_app_data,
     delete_file_to_trash,
     open_file_directory,
+    path_exists,
+    get_file_metadata,
     set_window_position,
     start_clipboard_monitor,
     // LLM代理相关
@@ -84,7 +86,6 @@ use commands::{
     import_asset_from_path,
     import_asset_from_bytes,
     get_asset_binary,
-    convert_to_asset_protocol,
     ClipboardMonitorState,
 };
 
@@ -183,6 +184,8 @@ pub fn run() {
             delete_file_to_trash,
             open_file_directory,
             validate_file_for_link,
+            path_exists,
+            get_file_metadata,
             // 目录清理命令
             analyze_directory_for_cleanup,
             cleanup_items,
@@ -237,11 +240,11 @@ pub fn run() {
             get_asset_base_path,
             import_asset_from_path,
             import_asset_from_bytes,
-            get_asset_binary,
-            convert_to_asset_protocol
+            get_asset_binary
         ])
         // 设置应用
         .setup(|app| {
+            
             // 创建主窗口
             let mut win_builder = tauri::WebviewWindowBuilder::new(
                 app,

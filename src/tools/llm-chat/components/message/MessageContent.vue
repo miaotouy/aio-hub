@@ -4,6 +4,7 @@ import { ChevronRight, ChevronDown, Copy, Check } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import { customMessage } from "@/utils/customMessage";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import AttachmentCard from "../AttachmentCard.vue";
 
 interface Props {
   message: ChatMessageNode;
@@ -19,6 +20,11 @@ const props = withDefaults(defineProps<Props>(), {
   isEditing: false,
 });
 const emit = defineEmits<Emits>();
+
+// 是否有附件
+const hasAttachments = computed(() => {
+  return props.message.attachments && props.message.attachments.length > 0;
+});
 
 // 推理内容展开状态
 const isReasoningExpanded = ref(false);
@@ -141,6 +147,18 @@ watch(
 
 <template>
   <div class="message-content">
+    <!-- 附件展示区域 -->
+    <div v-if="hasAttachments" class="attachments-section">
+      <div class="attachments-list">
+        <AttachmentCard
+          v-for="attachment in message.attachments"
+          :key="attachment.id"
+          :asset="attachment"
+          :removable="false"
+        />
+      </div>
+    </div>
+
     <!-- 推理内容（DeepSeek reasoning） -->
     <div v-if="message.metadata?.reasoningContent" class="reasoning-section">
       <button
@@ -380,6 +398,40 @@ watch(
 .edit-btn-cancel:hover {
   background-color: var(--hover-bg);
   border-color: var(--primary-color);
+}
+
+/* 附件展示区域样式 */
+.attachments-section {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--container-bg);
+}
+
+.attachments-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.attachments-list::-webkit-scrollbar {
+  height: 6px;
+}
+
+.attachments-list::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-radius: 3px;
+}
+
+.attachments-list::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color);
+  border-radius: 3px;
+}
+
+.attachments-list::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover-color);
 }
 
 /* 推理内容样式 */

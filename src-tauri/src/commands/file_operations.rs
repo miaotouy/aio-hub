@@ -779,6 +779,12 @@ pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, li
     Ok(message)
 }
 
+// Tauri 命令：检查路径是否存在
+#[tauri::command]
+pub fn path_exists(path: String) -> bool {
+    Path::new(&path).exists()
+}
+
 // Tauri 命令：检查路径是否为目录
 #[tauri::command]
 pub fn is_directory(path: String) -> Result<bool, String> {
@@ -787,6 +793,47 @@ pub fn is_directory(path: String) -> Result<bool, String> {
         return Err(format!("路径不存在: {}", path.display()));
     }
     Ok(path.is_dir())
+}
+
+// 文件元数据结构
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMetadata {
+    pub size: u64,
+    pub is_file: bool,
+    pub is_dir: bool,
+    pub modified: Option<u64>,
+    pub created: Option<u64>,
+}
+// Tauri 命令：获取文件元数据
+#[tauri::command]
+pub fn get_file_metadata(path: String) -> Result<FileMetadata, String> {
+    let path = Path::new(&path);
+    
+    if !path.exists() {
+        return Err(format!("路径不存在: {}", path.display()));
+    }
+    
+    let metadata = fs::metadata(path)
+        .map_err(|e| format!("获取文件元数据失败: {}", e))?;
+    
+    let modified = metadata.modified()
+        .ok()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
+    
+    let created = metadata.created()
+        .ok()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
+    
+    Ok(FileMetadata {
+        size: metadata.len(),
+        is_file: metadata.is_file(),
+        is_dir: metadata.is_dir(),
+        modified,
+        created,
+    })
 }
 
 // Tauri 命令：读取文件为base64

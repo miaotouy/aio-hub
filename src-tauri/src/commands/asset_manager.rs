@@ -115,7 +115,7 @@ fn determine_asset_type(mime: &str) -> AssetType {
 }
 
 /// 根据文件扩展名推断 MIME 类型
-fn guess_mime_type(path: &Path) -> String {
+pub fn guess_mime_type(path: &Path) -> String {
     if let Some(ext) = path.extension() {
         let ext_str = ext.to_string_lossy().to_lowercase();
         match ext_str.as_str() {
@@ -203,8 +203,7 @@ fn generate_asset_path(asset_type: &AssetType, original_path: &Path) -> (String,
 
 /// 尝试从配置文件读取自定义资产路径
 ///
-/// 使用 `?` 运算符优雅地处理各种可能失败的步骤，
-/// 任何一步失败都会返回 None，而不是嵌套的 if-let
+/// 使用 `?` 运算符优雅地处理各种可能失败的步骤，任何一步失败都会返回 None
 fn try_get_custom_path_from_config(config_path: &Path) -> Option<String> {
     // 文件不存在就直接返回 None
     if !config_path.exists() {
@@ -487,11 +486,4 @@ pub fn get_asset_binary(
     
     fs::read(&file_path)
         .map_err(|e| format!("读取文件失败: {}", e))
-}
-
-/// 将相对路径转换为 asset:// 协议 URL
-#[tauri::command]
-pub fn convert_to_asset_protocol(relative_path: String) -> Result<String, String> {
-    let encoded = urlencoding::encode(&relative_path).replace("%2F", "/");
-    Ok(format!("asset://{}", encoded))
 }

@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, toRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
+import { useFileDrop } from "@/composables/useFileDrop";
+import { useAttachmentManager } from "@/tools/llm-chat/composables/useAttachmentManager";
+import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
+import AttachmentCard from "./AttachmentCard.vue";
+import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("MessageInput");
 
@@ -15,7 +20,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: "send", content: string): void;
+  (e: "send", content: string, attachments?: Asset[]): void;
   (e: "abort"): void;
 }
 
@@ -26,6 +31,26 @@ const inputText = ref("");
 const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
+const inputAreaRef = ref<HTMLDivElement>();
+
+// 附件管理
+const attachmentManager = useAttachmentManager({
+  maxCount: 20,
+  maxFileSize: 50 * 1024 * 1024, // 50MB
+  generateThumbnail: true,
+});
+
+// 文件拖拽（使用 toRef 确保响应式）
+const { isDraggingOver } = useFileDrop({
+  element: inputAreaRef,
+  multiple: true,
+  onDrop: async (paths) => {
+    logger.info('文件拖拽触发', { paths, disabled: props.disabled });
+    await attachmentManager.addAttachments(paths);
+  },
+  disabled: toRef(props, 'disabled'),
+});
+
 // 处理发送
 const handleSend = () => {
   const content = inputText.value.trim();
@@ -40,11 +65,19 @@ const handleSend = () => {
 
   logger.info('发送消息', {
     contentLength: content.length,
+    attachmentCount: attachmentManager.attachments.value.length,
     isDetached: props.isDetached
   });
   
-  emit("send", content);
+  // 发送消息和附件
+  const attachments = attachmentManager.attachments.value.length > 0
+    ? [...attachmentManager.attachments.value]
+    : undefined;
+  
+  emit("send", content, attachments);
   inputText.value = "";
+  attachmentManager.clearAttachments();
+  
   // 重置文本框高度
   if (textareaRef.value) {
     textareaRef.value.style.height = "auto";
@@ -72,6 +105,76 @@ const autoResize = () => {
   }
 };
 
+// 处理粘贴事件（支持粘贴图片）
+const handlePaste = async (e: ClipboardEvent) => {
+  if (props.disabled) return;
+  
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  
+  const imageFiles: File[] = [];
+  
+  // 遍历剪贴板项目，查找图片
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    
+    if (item.type.startsWith('image/')) {
+      e.preventDefault(); // 阻止默认粘贴行为
+      
+      const file = item.getAsFile();
+      if (file) {
+        imageFiles.push(file);
+      }
+    }
+  }
+  
+  if (imageFiles.length === 0) return;
+  
+  logger.info('粘贴图片', { count: imageFiles.length });
+  
+  // 处理粘贴的图片
+  try {
+    let successCount = 0;
+    
+    for (const file of imageFiles) {
+      // 读取文件为 ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      
+      // 生成文件名
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const extension = file.type.split('/')[1] || 'png';
+      const filename = `pasted-image-${timestamp}.${extension}`;
+      
+      // 调用后端 API 导入图片
+      const asset = await invoke<Asset>('import_asset_from_bytes', {
+        bytes: Array.from(bytes),
+        originalName: filename,
+        options: {
+          generateThumbnail: true,
+          enableDeduplication: true,
+          origin: {
+            type: 'clipboard',
+            source: 'clipboard',
+          },
+        },
+      });
+      
+      // 使用 addAsset 方法添加资产
+      if (attachmentManager.addAsset(asset)) {
+        successCount++;
+        logger.info('粘贴图片成功', { filename, assetId: asset.id });
+      }
+    }
+    
+    if (successCount > 0) {
+      customMessage.success(`已粘贴 ${successCount} 张图片`);
+    }
+  } catch (error) {
+    logger.error('粘贴图片失败', error);
+    customMessage.error('粘贴图片失败');
+  }
+};
 // ===== 拖拽与分离功能 =====
 const { startDetaching } = useDetachable();
 const handleDragStart = (e: MouseEvent) => {
@@ -190,23 +293,48 @@ const handleDetach = async () => {
       />
 
       <!-- 输入内容区 -->
-      <div class="input-content">
+      <div
+        ref="inputAreaRef"
+        class="input-content"
+        :class="{ 'dragging-over': isDraggingOver }"
+      >
+        <!-- 附件展示区 -->
+        <div v-if="attachmentManager.hasAttachments.value" class="attachments-area">
+          <div class="attachments-list">
+            <AttachmentCard
+              v-for="asset in attachmentManager.attachments.value"
+              :key="asset.id"
+              :asset="asset"
+              :removable="true"
+              @remove="attachmentManager.removeAttachment"
+            />
+          </div>
+          <div class="attachments-info">
+            <span class="attachment-count">
+              {{ attachmentManager.count.value }} / {{ 20 }} 个附件
+            </span>
+          </div>
+        </div>
+
         <div class="input-wrapper">
           <textarea
             ref="textareaRef"
             v-model="inputText"
             :disabled="disabled"
             :placeholder="
-              disabled ? '请先创建或选择一个对话' : '输入消息... (Ctrl/Cmd + Enter 发送)'
+              disabled ? '请先创建或选择一个对话' : '输入消息、拖入或粘贴文件... (Ctrl/Cmd + Enter 发送)'
             "
             class="message-textarea"
             rows="1"
             @keydown="handleKeydown"
             @input="autoResize"
+            @paste="handlePaste"
           />
           <div class="input-bottom-bar">
             <div class="tool-actions">
-              <!-- TODO: Add tool buttons here -->
+              <span v-if="attachmentManager.isProcessing.value" class="processing-hint">
+                正在处理文件...
+              </span>
             </div>
             <div class="input-actions">
               <button
@@ -313,9 +441,72 @@ const handleDetach = async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
+  transition: background-color 0.2s;
 }
+
+.input-content.dragging-over {
+  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
+  border-radius: 8px;
+}
+
+.attachments-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--container-bg);
+  border: 1px dashed var(--border-color);
+}
+
+.attachments-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.attachments-list::-webkit-scrollbar {
+  height: 4px;
+}
+
+.attachments-list::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-radius: 2px;
+}
+
+.attachments-list::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color);
+  border-radius: 2px;
+}
+
+.attachments-list::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover-color);
+}
+
+.attachments-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-color-light);
+  padding: 0 4px;
+}
+
+.attachment-count {
+  font-weight: 500;
+}
+
+.processing-hint {
+  font-size: 12px;
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .input-wrapper {
   flex: 1;
   display: flex;

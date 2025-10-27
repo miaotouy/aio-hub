@@ -9,6 +9,7 @@ import { useChatHandler } from "./composables/useChatHandler";
 import { useBranchManager } from "./composables/useBranchManager";
 import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
 
 const logger = createModuleLogger("llm-chat/store");
@@ -254,7 +255,7 @@ export const useLlmChatStore = defineStore("llmChat", {
     /**
      * 发送消息
      */
-    async sendMessage(content: string): Promise<void> {
+    async sendMessage(content: string, attachments?: Asset[]): Promise<void> {
       const session = this.currentSession;
       if (!session) {
         logger.error("发送消息失败：没有活动会话", new Error("No active session"));
@@ -275,7 +276,8 @@ export const useLlmChatStore = defineStore("llmChat", {
           content,
           this.currentActivePath,
           this.abortControllers,
-          this.generatingNodes
+          this.generatingNodes,
+          attachments
         );
 
         // 更新会话显示的智能体

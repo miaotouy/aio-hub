@@ -90,11 +90,26 @@ export interface Asset {
 }
 ```
 
-### 2.2. 使用示例
+### 2.2. 数据结构集成
 
-此 `Asset` 接口可被应用内任何需要引用本地文件的功能模块复用。
+此 `Asset` 接口将被深度集成到应用的核心数据结构中，尤其是在 LLM 聊天模块。
 
-- **LLM 聊天**: `ChatMessage` 接口可以包含一个 `attachments?: Asset[]` 字段。
+- **LLM 聊天**: `ChatMessageNode` 接口 (定义于 `src/tools/llm-chat/types.ts`) 将被扩展，以包含一个附件数组。
+
+  ```typescript
+  // in src/tools/llm-chat/types.ts
+  export interface ChatMessageNode {
+    // ... 其他字段
+    
+    /**
+     * 附加到此消息的文件资产列表。
+     */
+    attachments?: Asset[];
+    
+    // ... 其他字段
+  }
+  ```
+
 - **OCR 记录**: 一个 `OcrRecord` 接口可以包含 `sourceImage: Asset` 和 `resultFile?: Asset` 字段。
 - **其他工具**: 任何处理输入输出文件的工具，都可以用 `Asset` 来追踪其操作历史。
 
@@ -152,21 +167,52 @@ export interface Asset {
 
 ## 5. 通用工作流程 (以 LLM 聊天为例) - 优化版
 
-得益于强大的后端 API，前端的工作流程被极大简化。
+得益于强大的后端 API 和前端的 `useStateSyncEngine`，整个工作流程高度自动化且体验流畅。
 
-### 5.1. 前端流程
+### 5.1. 前端文件处理流程
 
-1.  **捕获**: `useFileDrop` composable 捕获到文件路径列表 `paths: string[]`。
-2.  **处理**: 前端遍历路径列表，为每个 `path` 调用后端命令：
+1.  **捕获**: `useFileDrop` composable 在聊天输入框区域监听到文件拖拽，捕获到文件路径列表 `paths: string[]`。
+2.  **导入**: 前端遍历路径列表，为每个 `path` 调用后端命令：
     ```typescript
     const assets = await Promise.all(
       paths.map((path) => invoke("import_asset_from_path", { originalPath: path }))
     );
     ```
-3.  **状态更新**: 后端直接返回 `Asset[]` 对象数组，前端无需关心文件如何保存、重命名或处理。
-4.  **关联**: 将返回的 `Asset[]` 数组关联到 `ChatMessage` 的 `attachments` 字段上。
-5.  **显示**: 在 UI 中，使用 `convert_to_asset_protocol` 将 `Asset.path` 或 `Asset.thumbnailPath` 转换为 `asset://` URL，并渲染图片或文件链接。
+3.  **状态更新**: 后端处理完文件（查重、复制、生成缩略图等）后，返回 `Asset[]` 对象数组。前端将这些 `Asset` 对象添加到当前草稿消息的 `attachments` 数组中。
 
-## 6. 总结
+### 5.2. 附件展示区 UI 设计
 
-该设计方案提供了一个通用、灵活且强大的应用级资产管理系统。它不仅满足了 LLM 聊天模块当前的需求，更为未来所有与文件交互的功能模块提供了坚实、统一的基础设施，体现了良好的架构前瞻性。
+为了提供良好的交互体验，当用户通过拖拽等方式将文件添加到输入框后，一个专门的附件展示区会出现在输入框上方。
+
+- **位置**: 该区域位于聊天输入框的上方，作为输入区域的一部分。
+- **布局**: 采用水平滚动列表或自适应网格布局，展示每个附件的卡片。
+- **附件卡片**: 每个附件项是一个独立的组件，包含：
+    - **缩略图**: 调用 `convert_to_asset_protocol` 命令，将 `asset.thumbnailPath` (优先) 或 `asset.path` 转换为 `asset://` URL，用于 `<img>` 标签的 `src` 属性。对于非图片文件，显示一个代表文件类型的图标。
+    - **信息**: 简要显示 `asset.name` 和格式化后的 `asset.size`。
+    - **移除按钮**: 一个 "X" 图标按钮，点击后将该 `Asset` 从消息的 `attachments` 数组中移除。
+    - **预览功能**: 点击缩略图可以调用 `useImageViewer` 等全局预览组件，全屏查看图片或文件详情。
+
+### 5.3. 多模态消息发送流程
+
+1.  **检查附件**: 当用户点击发送时，`LlmChatStore` 的 `sendMessage` 方法会检查当前消息节点是否包含 `attachments` 字段且数组不为空。
+2.  **内容转换**: 对于 `type` 为 `image` 的附件，前端会执行以下操作：
+    - 调用 `invoke("get_asset_binary", { relativePath: asset.path })` 获取图片的 `Uint8Array` 数据。
+    - 将 `Uint8Array` 转换为 Base64 字符串。
+3.  **构建消息体**: 根据 `useLlmProfiles` 获取到的模型能力和服务商类型，将文本内容和转换后的图片数据（Base64 字符串 + MIME 类型）组装成符合目标 API（如 Claude, OpenAI GPT-4o）要求的多模态消息结构。
+4.  **发送请求**: 将最终组装好的消息体传递给 `useLlmRequest` 发送。
+
+## 6. 多窗口同步策略
+
+本项目已有的 `useStateSyncEngine` 和 `useWindowSyncBus` 为状态同步提供了完美的解决方案。我们无需为此功能设计新的同步机制，只需将附件集成到现有状态树中即可。
+
+1.  **状态驱动**: `ChatSession` 对象（包含所有 `ChatMessageNode`）是整个聊天工具的核心状态，并已通过 `useStateSyncEngine` 进行管理。
+2.  **自动同步**: 当用户添加或移除附件时，实际上是修改了当前会话中某个 `ChatMessageNode` 的 `attachments` 数组。
+3.  **增量更新**: `useStateSyncEngine` 会自动检测到 `ChatSession` 状态树的变化，计算出精确的 JSON Patch（例如，一个 `add` 或 `remove` 操作作用于 `attachments` 数组）。
+4.  **广播与应用**: 该 Patch 会通过 `useWindowSyncBus` 广播到所有其他窗口。其他窗口的 `useStateSyncEngine` 监听到事件后，会自动将 Patch 应用到它们本地的 `ChatSession` 状态上。
+5.  **UI 刷新**: 由于状态是响应式的（Vue Ref），UI 会自动刷新，从而在所有窗口中同步显示或移除附件卡片。
+
+这种方法充分利用了现有架构，实现了高效、可靠、低耦合的多窗口同步。
+
+## 7. 总结
+
+该设计方案提供了一个通用、灵活且强大的应用级资产管理系统。它不仅满足了 LLM 聊天模块当前的需求，更为未来所有与文件交互的功能模块提供了坚实、统一的基础设施，体现了良好的架构前瞻性。通过与现有状态同步引擎的无缝集成，该方案在实现复杂功能的同时，保持了代码的简洁和可维护性。

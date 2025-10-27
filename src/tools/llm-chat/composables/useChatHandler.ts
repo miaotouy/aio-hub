@@ -5,6 +5,7 @@
 
 import type { ChatSession, ChatMessageNode } from '../types';
 import type { LlmMessageContent } from '@/llm-apis/common';
+import type { Asset } from '@/types/asset-management';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
 import { useNodeManager } from './useNodeManager';
@@ -392,7 +393,8 @@ export function useChatHandler() {
     content: string,
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
-    generatingNodes: Set<string>
+    generatingNodes: Set<string>,
+    attachments?: Asset[]
   ): Promise<void> => {
     const agentStore = useAgentStore();
 
@@ -441,6 +443,15 @@ export function useChatHandler() {
     // 使用节点管理器创建消息对
     const nodeManager = useNodeManager();
     const { userNode, assistantNode } = nodeManager.createMessagePair(session, content, session.activeLeafId);
+    
+    // 如果有附件，保存到用户消息节点
+    if (attachments && attachments.length > 0) {
+      userNode.attachments = attachments;
+      logger.info('添加附件到用户消息', {
+        messageId: userNode.id,
+        attachmentCount: attachments.length,
+      });
+    }
 
     // 获取模型信息用于元数据
     const { getProfileById } = useLlmProfiles();

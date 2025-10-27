@@ -7,6 +7,7 @@ import { defineStore } from "pinia";
 import { useSessionManager } from "./composables/useSessionManager";
 import { useChatHandler } from "./composables/useChatHandler";
 import { useBranchManager } from "./composables/useBranchManager";
+import { BranchNavigator } from "./utils/BranchNavigator";
 import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
@@ -353,6 +354,9 @@ export const useLlmChatStore = defineStore("llmChat", {
 
       // 将活跃叶节点回退到用户消息
       session.activeLeafId = result.newActiveLeafId;
+
+      // 更新路径上所有父节点的选择记忆
+      BranchNavigator.updateSelectionMemory(session, result.newActiveLeafId);
 
       // 重新发送用户消息（会创建新的助手节点作为兄弟分支）
       await this.sendMessage(result.userContent);

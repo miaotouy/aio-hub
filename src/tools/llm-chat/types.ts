@@ -42,6 +42,12 @@ export interface ChatMessageNode {
   childrenIds: string[];
 
   /**
+   * 记住上次选择的子节点ID
+   * 当从其他分支切换回来时，可以恢复到上次查看的位置
+   */
+  lastSelectedChildId?: string;
+
+  /**
    * 消息内容
    */
   content: string;

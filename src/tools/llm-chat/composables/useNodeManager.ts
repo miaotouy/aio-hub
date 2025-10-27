@@ -4,6 +4,7 @@
  */
 
 import type { ChatSession, ChatMessageNode } from '../types';
+import { BranchNavigator } from '../utils/BranchNavigator';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('llm-chat/node-manager');
@@ -174,7 +175,7 @@ export function useNodeManager() {
       // 从用户消息重新生成：用户消息本身就是父节点
       userNode = targetNode;
       parentNodeId = targetNode.id;
-      
+
       logger.info('从用户消息创建重新生成分支', {
         sessionId: session.id,
         userNodeId: targetNode.id,
@@ -265,6 +266,9 @@ export function useNodeManager() {
     session.activeLeafId = nodeId;
     session.updatedAt = new Date().toISOString();
 
+    // 更新路径上所有父节点的选择记忆
+    BranchNavigator.updateSelectionMemory(session, nodeId);
+
     logger.debug('活跃叶节点已更新', {
       sessionId: session.id,
       previousLeafId,
@@ -340,7 +344,7 @@ export function useNodeManager() {
     const collectDescendants = (id: string) => {
       const currentNode = session.nodes[id];
       if (!currentNode) return;
-      
+
       currentNode.childrenIds.forEach(childId => {
         nodesToDelete.add(childId);
         collectDescendants(childId);
@@ -380,12 +384,20 @@ export function useNodeManager() {
           return lastChild ? findDeepestLeaf(lastChild) : n.id;
         };
         session.activeLeafId = findDeepestLeaf(siblingNodes[0]);
+        
+        // 更新路径上所有父节点的选择记忆
+        BranchNavigator.updateSelectionMemory(session, session.activeLeafId);
+        
         logger.info('🗑️ [硬删除] 切换到兄弟节点的最深叶子', {
           newActiveLeafId: session.activeLeafId,
         });
       } else {
         // 没有兄弟节点，回退到父节点
         session.activeLeafId = node.parentId || session.rootNodeId;
+        
+        // 更新路径上所有父节点的选择记忆
+        BranchNavigator.updateSelectionMemory(session, session.activeLeafId);
+        
         logger.info('🗑️ [硬删除] 回退到父节点', {
           newActiveLeafId: session.activeLeafId,
           parentId: node.parentId,
@@ -560,7 +572,7 @@ export function useNodeManager() {
 
     // 转移子节点列表
     toNode.childrenIds = [...fromNode.childrenIds];
-    
+
     // 更新每个子节点的 parentId
     toNode.childrenIds.forEach(childId => {
       const child = session.nodes[childId];

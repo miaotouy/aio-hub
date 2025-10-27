@@ -82,8 +82,8 @@ export class BranchNavigator {
   }
 
   /**
-   * 从某个节点开始，找到其所在分支的叶节点
-   * 策略：优先选择第一个子节点（主干）
+   * 从某个节点开始,找到其所在分支的叶节点
+   * 策略：优先使用上次选择的子节点（lastSelectedChildId），没有则选择第一个子节点
    */
   static findLeafOfBranch(
     session: ChatSession,
@@ -96,9 +96,25 @@ export class BranchNavigator {
       return startNodeId;
     }
 
-    // 沿着第一个子节点一直走到叶子
+    // 沿着记忆的路径或第一个子节点一直走到叶子
     while (current && current.childrenIds.length > 0) {
-      const nextId = current.childrenIds[0];
+      // 优先使用上次选择的子节点
+      let nextId: string;
+      if (current.lastSelectedChildId && current.childrenIds.includes(current.lastSelectedChildId)) {
+        nextId = current.lastSelectedChildId;
+        logger.debug('使用记忆的子节点', {
+          currentId: current.id,
+          selectedChildId: nextId,
+        });
+      } else {
+        // 没有记忆或记忆的子节点已被删除，使用第一个子节点
+        nextId = current.childrenIds[0];
+        logger.debug('使用默认子节点', {
+          currentId: current.id,
+          defaultChildId: nextId,
+        });
+      }
+
       const nextNode = session.nodes[nextId];
       if (!nextNode) {
         logger.warn('查找叶节点中断：子节点不存在', {
@@ -111,6 +127,52 @@ export class BranchNavigator {
     }
 
     return current ? current.id : startNodeId;
+  }
+
+  /**
+   * 更新从根节点到指定叶节点路径上所有父节点的选择记忆
+   * 当切换到新的分支时调用此方法，让沿途的每个父节点都记住走的是哪条路
+   */
+  static updateSelectionMemory(
+    session: ChatSession,
+    leafNodeId: string
+  ): void {
+    const path: string[] = [];
+    let currentId: string | null = leafNodeId;
+
+    // 从叶节点向上收集完整路径
+    while (currentId !== null) {
+      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      if (!node) {
+        logger.warn('更新选择记忆失败：路径中断', { currentId });
+        break;
+      }
+      path.unshift(currentId);
+      currentId = node.parentId;
+    }
+
+    // 从上到下更新每个父节点的 lastSelectedChildId
+    for (let i = 0; i < path.length - 1; i++) {
+      const parentId = path[i];
+      const childId = path[i + 1];
+      const parentNode = session.nodes[parentId];
+
+      if (parentNode) {
+        // 只有当子节点确实存在于父节点的子节点列表中时才更新
+        if (parentNode.childrenIds.includes(childId)) {
+          parentNode.lastSelectedChildId = childId;
+          logger.debug('更新父节点选择记忆', {
+            parentId,
+            selectedChildId: childId,
+          });
+        }
+      }
+    }
+
+    logger.info('选择记忆已更新', {
+      leafNodeId,
+      pathLength: path.length,
+    });
   }
 
   /**

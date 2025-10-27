@@ -53,6 +53,9 @@ export function useBranchManager() {
     if (newLeafId !== session.activeLeafId) {
       session.activeLeafId = newLeafId;
 
+      // 更新路径上所有父节点的选择记忆
+      BranchNavigator.updateSelectionMemory(session, newLeafId);
+
       logger.info('已切换到兄弟分支', {
         sessionId: session.id,
         fromNode: nodeId,
@@ -159,6 +162,9 @@ export function useBranchManager() {
 
     // 切换到新分支
     session.activeLeafId = newNode.id;
+
+    // 更新路径上所有父节点的选择记忆
+    BranchNavigator.updateSelectionMemory(session, newNode.id);
 
     // 更新时间戳
     session.updatedAt = new Date().toISOString();

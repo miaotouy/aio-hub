@@ -7,6 +7,7 @@ import { computed, toRef, type Ref } from 'vue';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
+import { useLlmChatUiState } from './useLlmChatUiState';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { createModuleLogger } from '@/utils/logger';
@@ -18,13 +19,13 @@ export function useLlmChatSync() {
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
+  const { currentAgentId } = useLlmChatUiState();
   const bus = useWindowSyncBus();
 
   // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
   // 这样分离窗口能获得完整的上下文，可以独立工作
   // 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
   const allAgents = toRef(agentStore, 'agents');
-  const currentAgentId = toRef(agentStore, 'currentAgentId');
   const allSessions = toRef(store, 'sessions');
   const currentSessionId = toRef(store, 'currentSessionId');
   const userProfiles = toRef(userProfileStore, 'profiles');

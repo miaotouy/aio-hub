@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tokio::time::sleep;
 
 // ============================================================================
@@ -195,6 +196,19 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
     }
 
     println!("[DRAG] 开始拖拽会话: {}", config.display_name);
+    
+    // 动态注册 ESC 快捷键（仅在拖拽会话期间有效）
+    let app_clone = app.clone();
+    if let Err(e) = app
+        .global_shortcut()
+        .on_shortcut("Escape", move |_app, _shortcut, _event| {
+            cancel_drag_on_esc(app_clone.clone());
+        })
+    {
+        eprintln!("[DRAG] 警告: 无法注册 ESC 快捷键: {}", e);
+    } else {
+        println!("[DRAG] ESC 快捷键已注册");
+    }
 
     // 创建预览窗口，使用固定标签以支持窗口状态记忆
     let preview_label = format!("detached-{}", &config.id);
@@ -237,7 +251,6 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
 
     Ok(())
 }
-
 /// 结束拖拽会话
 #[tauri::command]
 pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
@@ -252,6 +265,13 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
             "[DRAG] 结束拖拽会话: {}, can_detach: {}, 持续时间: {:?}",
             state.config.display_name, state.can_detach, duration
         );
+
+        // 取消注册 ESC 快捷键
+        if let Err(e) = app.global_shortcut().unregister("Escape") {
+            eprintln!("[DRAG] 警告: 取消注册 ESC 快捷键失败: {}", e);
+        } else {
+            println!("[DRAG] ESC 快捷键已取消注册");
+        }
 
         let preview_window_label = state.preview_window_label.clone();
         let should_detach = state.can_detach;
@@ -269,6 +289,38 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         }
     } else {
         Err("没有活动的拖拽会话".to_string())
+    }
+}
+
+/// 取消当前的拖拽会话（由 ESC 快捷键触发）
+/// ESC 是强制取消，无论 can_detach 状态如何都直接关闭窗口
+pub fn cancel_drag_on_esc(app: AppHandle) {
+    // 取出会话状态
+    let session_to_cancel = { DRAG_SESSION.lock().unwrap().take() };
+
+    if let Some(session) = session_to_cancel {
+        println!("[SHORTCUT] ESC 快捷键触发，强制取消拖拽会话");
+
+        let preview_label = session.preview_window_label.clone();
+        
+        // 在异步运行时中执行取消操作
+        tauri::async_runtime::spawn(async move {
+            // 1. 取消注册 ESC 快捷键
+            if let Err(e) = app.global_shortcut().unregister("Escape") {
+                eprintln!("[SHORTCUT] 取消注册 ESC 快捷键失败: {}", e);
+            } else {
+                println!("[SHORTCUT] ESC 快捷键已取消注册");
+            }
+
+            // 2. 强制关闭预览窗口（不管 can_detach 状态）
+            if let Some(window) = app.get_webview_window(&preview_label) {
+                if let Err(e) = window.close() {
+                    eprintln!("[SHORTCUT] 关闭预览窗口失败: {}", e);
+                } else {
+                    println!("[SHORTCUT] 预览窗口已关闭");
+                }
+            }
+        });
     }
 }
 

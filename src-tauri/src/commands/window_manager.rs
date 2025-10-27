@@ -89,50 +89,6 @@ pub fn init_global_mouse_listener() {
                         });
                     }
                 }
-                EventType::KeyPress(key) => {
-                    // println!("[DRAG] 检测到按键按下: {:?}", key);
-                    if matches!(key, rdev::Key::Escape) {
-                        let session_to_cancel = { session_arc.lock().unwrap().take() };
-
-                        if let Some(session) = session_to_cancel {
-                            println!("[DRAG] 检测到 ESC 键按下，取消拖拽会话");
-                            let app_handle = session.app_handle.clone();
-                            let preview_label = session.preview_window_label.clone();
-
-                            thread::spawn(move || {
-                                if let Some(window) = app_handle.get_webview_window(&preview_label)
-                                {
-                                    let _ = window.close();
-                                    println!("[DRAG] 拖拽会话已取消，预览窗口已关闭");
-                                }
-                            });
-                        } else {
-                            println!("[DRAG] ESC 键按下，但没有活动会话");
-                        }
-                    }
-                }
-                EventType::KeyRelease(key) => {
-                    // println!("[DRAG] 检测到按键释放: {:?}", key);
-                    if matches!(key, rdev::Key::Escape) {
-                        let session_to_cancel = { session_arc.lock().unwrap().take() };
-
-                        if let Some(session) = session_to_cancel {
-                            println!("[DRAG] 检测到 ESC 键释放，取消拖拽会话");
-                            let app_handle = session.app_handle.clone();
-                            let preview_label = session.preview_window_label.clone();
-
-                            thread::spawn(move || {
-                                if let Some(window) = app_handle.get_webview_window(&preview_label)
-                                {
-                                    let _ = window.close();
-                                    println!("[DRAG] 拖拽会话已取消，预览窗口已关闭");
-                                }
-                            });
-                        } else {
-                            println!("[DRAG] ESC 键释放，但没有活动会话");
-                        }
-                    }
-                }
                 EventType::MouseMove { x, y } => {
                     // 一次性提取所有需要的数据，然后立即释放锁
                     let update_data = {
@@ -313,6 +269,27 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         }
     } else {
         Err("没有活动的拖拽会话".to_string())
+    }
+}
+
+/// 取消当前的拖拽会话（由 ESC 快捷键触发）
+pub fn cancel_drag_on_esc() {
+    let session_to_cancel = { DRAG_SESSION.lock().unwrap().take() };
+
+    if let Some(session) = session_to_cancel {
+        let preview_label = session.preview_window_label.clone();
+        let app_handle = session.app_handle.clone();
+
+        // 在新线程中关闭窗口，避免阻塞
+        thread::spawn(move || {
+            if let Some(window) = app_handle.get_webview_window(&preview_label) {
+                let _ = window.close();
+                println!("[SHORTCUT] 拖拽会话已取消，预览窗口已关闭");
+            }
+        });
+    } else {
+        // 这个日志是正常的，因为用户可能在没有拖拽时按ESC
+        // println!("[SHORTCUT] ESC 快捷键触发，但没有活动的拖拽会话");
     }
 }
 

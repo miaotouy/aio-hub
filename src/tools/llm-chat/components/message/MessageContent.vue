@@ -214,7 +214,9 @@ watch(
           v-for="attachment in message.attachments"
           :key="attachment.id"
           :asset="attachment"
+          :all-assets="message.attachments"
           :removable="false"
+          size="large"
         />
       </div>
     </div>
@@ -260,7 +262,9 @@ watch(
             v-for="attachment in attachmentManager.attachments.value"
             :key="attachment.id"
             :asset="attachment"
+            :all-assets="attachmentManager.attachments.value"
             :removable="true"
+            size="medium"
             @remove="handleRemoveAttachment"
           />
         </div>
@@ -501,27 +505,9 @@ watch(
 
 .attachments-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-  overflow-x: auto;
   padding: 4px 0;
-}
-
-.attachments-list::-webkit-scrollbar {
-  height: 6px;
-}
-
-.attachments-list::-webkit-scrollbar-track {
-  background: var(--bg-color);
-  border-radius: 3px;
-}
-
-.attachments-list::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 3px;
-}
-
-.attachments-list::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
 }
 
 /* 推理内容样式 */

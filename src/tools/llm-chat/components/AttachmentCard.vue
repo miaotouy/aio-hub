@@ -10,6 +10,9 @@ const logger = createModuleLogger('AttachmentCard');
 interface Props {
   asset: Asset;
   removable?: boolean;
+  size?: 'small' | 'medium' | 'large';
+  /** 所有附件列表，用于图片预览时的图片切换 */
+  allAssets?: Asset[];
 }
 
 interface Emits {
@@ -18,6 +21,7 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   removable: true,
+  size: 'medium',
 });
 
 const emit = defineEmits<Emits>();
@@ -131,28 +135,41 @@ const handlePreview = async () => {
   if (!isImage.value) return;
   
   try {
-    const isPending = props.asset.importStatus === 'pending' || props.asset.importStatus === 'importing';
+    // 获取所有图片类型的附件
+    const allAssets = props.allAssets || [props.asset];
+    const imageAssets = allAssets.filter(asset => asset.type === 'image');
     
-    let bytes: number[];
-    if (isPending) {
-      // 使用原始路径
-      const originalPath = props.asset.originalPath || props.asset.path;
-      bytes = await invoke<number[]>('read_file_binary', {
-        path: originalPath,
-      });
-    } else {
-      // 使用存储路径
-      bytes = await invoke<number[]>('get_asset_binary', {
-        relativePath: props.asset.path,
-      });
+    // 查找当前图片在图片列表中的索引
+    const currentIndex = imageAssets.findIndex(asset => asset.id === props.asset.id);
+    
+    // 为所有图片创建 Blob URL
+    const imageUrls: string[] = [];
+    for (const imageAsset of imageAssets) {
+      const isPending = imageAsset.importStatus === 'pending' || imageAsset.importStatus === 'importing';
+      
+      let bytes: number[];
+      if (isPending) {
+        // 使用原始路径
+        const originalPath = imageAsset.originalPath || imageAsset.path;
+        bytes = await invoke<number[]>('read_file_binary', {
+          path: originalPath,
+        });
+      } else {
+        // 使用存储路径
+        bytes = await invoke<number[]>('get_asset_binary', {
+          relativePath: imageAsset.path,
+        });
+      }
+      
+      // 转换为 Uint8Array 并创建 Blob URL
+      const uint8Array = new Uint8Array(bytes);
+      const blob = new Blob([uint8Array], { type: imageAsset.mimeType });
+      const url = URL.createObjectURL(blob);
+      imageUrls.push(url);
     }
     
-    // 转换为 Uint8Array 并创建 Blob URL
-    const uint8Array = new Uint8Array(bytes);
-    const blob = new Blob([uint8Array], { type: props.asset.mimeType });
-    const url = URL.createObjectURL(blob);
-    
-    showImage(url);
+    // 传递图片数组和当前索引给图片查看器
+    showImage(imageUrls, currentIndex >= 0 ? currentIndex : 0);
   } catch (error) {
     logger.error('打开图片预览失败', error);
   }
@@ -179,11 +196,14 @@ onUnmounted(() => {
 <template>
   <div
     class="attachment-card"
-    :class="{
-      'is-image': isImage,
-      'has-error': loadError || hasImportError,
-      'is-importing': isImporting
-    }"
+    :class="[
+      `size-${size}`,
+      {
+        'is-image': isImage,
+        'has-error': loadError || hasImportError,
+        'is-importing': isImporting
+      }
+    ]"
   >
     <!-- 预览区域 -->
     <div class="attachment-preview" @click="handlePreview">
@@ -217,8 +237,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 信息区域 -->
-    <div class="attachment-info">
+    <!-- 信息区域 - 仅非图片类型显示 -->
+    <div v-if="!isImage" class="attachment-info">
       <div class="attachment-name" :title="asset.name">{{ asset.name }}</div>
       <div class="attachment-meta">
         <span class="attachment-size">{{ formattedSize }}</span>
@@ -235,8 +255,8 @@ onUnmounted(() => {
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
+        width="12"
+        height="12"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -256,13 +276,49 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 90px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   background: var(--bg-color);
   transition: all 0.2s;
   flex-shrink: 0;
+}
+
+/* 尺寸变体 */
+.attachment-card.size-small {
+  width: 40px;
+}
+
+.attachment-card.size-small .attachment-preview {
+  height: 40px;
+}
+
+.attachment-card.size-small .file-icon .icon {
+  font-size: 28px;
+}
+
+.attachment-card.size-medium {
+  width: 80px;
+}
+
+.attachment-card.size-medium .attachment-preview {
+  height: 80px;
+}
+
+.attachment-card.size-medium .file-icon .icon {
+  font-size: 36px;
+}
+
+.attachment-card.size-large {
+  width: 120px;
+}
+
+.attachment-card.size-large .attachment-preview {
+  height: 120px;
+}
+
+.attachment-card.size-large .file-icon .icon {
+  font-size: 48px;
 }
 
 .attachment-card:hover {
@@ -281,12 +337,12 @@ onUnmounted(() => {
 .attachment-preview {
   position: relative;
   width: 100%;
-  height: 90px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--container-bg);
   overflow: hidden;
+  border-radius: 8px;
 }
 
 .attachment-preview.clickable {
@@ -403,10 +459,10 @@ onUnmounted(() => {
 
 .remove-button {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
+  top: -10px;
+  right: -10px;
+  width: 20px;
+  height: 20px;
   border: none;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.6);

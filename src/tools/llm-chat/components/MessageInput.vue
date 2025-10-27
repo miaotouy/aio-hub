@@ -244,13 +244,16 @@ const handleDetach = async () => {
               v-for="asset in attachmentManager.attachments.value"
               :key="asset.id"
               :asset="asset"
+              :all-assets="attachmentManager.attachments.value"
               :removable="true"
+              size="small"
               @remove="attachmentManager.removeAttachment"
             />
           </div>
+          <!-- 附件数量浮动显示 -->
           <div class="attachments-info">
             <span class="attachment-count">
-              {{ attachmentManager.count.value }} / {{ 20 }} 个附件
+              {{ attachmentManager.count.value }} / {{ 20 }}
             </span>
           </div>
         </div>
@@ -388,11 +391,10 @@ const handleDetach = async () => {
   background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
   border-radius: 8px;
 }
-
 .attachments-area {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 8px;
   border-radius: 8px;
   background: var(--container-bg);
@@ -401,40 +403,28 @@ const handleDetach = async () => {
 
 .attachments-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.attachments-list::-webkit-scrollbar {
-  height: 4px;
-}
-
-.attachments-list::-webkit-scrollbar-track {
-  background: var(--bg-color);
-  border-radius: 2px;
-}
-
-.attachments-list::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 2px;
-}
-
-.attachments-list::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
 }
 
 .attachments-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: var(--text-color-light);
-  padding: 0 4px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .attachment-count {
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .processing-hint {

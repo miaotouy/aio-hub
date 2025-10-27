@@ -25,6 +25,7 @@ export type LlmChatStateKey =
   | 'chat-sessions'         // 会话列表（完整，包含所有消息树）
   | 'chat-current-session-id'  // 当前会话ID
   | 'chat-parameters'       // 参数配置
+  | 'chat-is-sending'       // 是否正在发送消息
   | 'chat-user-profiles'    // 用户档案列表（完整）
   | 'chat-global-profile-id'; // 全局用户档案ID
 
@@ -39,6 +40,7 @@ export const CHAT_STATE_KEYS = {
   SESSIONS: 'chat-sessions' as const,
   CURRENT_SESSION_ID: 'chat-current-session-id' as const,
   PARAMETERS: 'chat-parameters' as const,
+  IS_SENDING: 'chat-is-sending' as const,
   USER_PROFILES: 'chat-user-profiles' as const,
   GLOBAL_PROFILE_ID: 'chat-global-profile-id' as const,
 } as const;

@@ -3,7 +3,7 @@
  * 
  * 封装了 LlmChat.vue 与分离窗口之间的所有状态同步和操作代理逻辑
  */
-import { computed, toRef, type Ref } from 'vue';
+import { toRef, type Ref } from 'vue';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
@@ -21,21 +21,15 @@ export function useLlmChatSync() {
   const userProfileStore = useUserProfileStore();
   const { currentAgentId } = useLlmChatUiState();
   const bus = useWindowSyncBus();
-
-  // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
-  // 这样分离窗口能获得完整的上下文，可以独立工作
-  // 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
-  const allAgents = toRef(agentStore, 'agents');
-  const allSessions = toRef(store, 'sessions');
-  const currentSessionId = toRef(store, 'currentSessionId');
-  const userProfiles = toRef(userProfileStore, 'profiles');
-  const globalProfileId = toRef(userProfileStore, 'globalProfileId');
-  const chatParameters = computed(() => {
-    return {
-      isSending: store.isSending,
-      disabled: !store.currentSession,
-    };
-  });
+// 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
+// 这样分离窗口能获得完整的上下文，可以独立工作
+// 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
+const allAgents = toRef(agentStore, 'agents');
+const allSessions = toRef(store, 'sessions');
+const currentSessionId = toRef(store, 'currentSessionId');
+const isSending = toRef(store, 'isSending');
+const userProfiles = toRef(userProfileStore, 'profiles');
+const globalProfileId = toRef(userProfileStore, 'globalProfileId');
 
   // 2. 状态同步引擎实例化
   const stateEngines: Array<{ manualPush: (isFullSync?: boolean, targetWindowLabel?: string) => Promise<void> }> = [];
@@ -53,8 +47,8 @@ export function useLlmChatSync() {
   createStateEngine(allSessions, CHAT_STATE_KEYS.SESSIONS);
   // 同步当前激活的会话ID
   createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
-  // 同步运行时参数
-  createStateEngine(chatParameters, CHAT_STATE_KEYS.PARAMETERS);
+  // 同步发送状态
+  createStateEngine(isSending, CHAT_STATE_KEYS.IS_SENDING);
   // 同步用户档案列表
   createStateEngine(userProfiles, CHAT_STATE_KEYS.USER_PROFILES);
   // 同步全局用户档案ID

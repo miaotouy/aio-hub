@@ -38,7 +38,7 @@ const attachmentManager = useAttachmentManager();
 
 // 统一的文件交互处理（拖放 + 粘贴）
 const { isDraggingOver } = useChatFileInteraction({
-  element: inputAreaRef,
+  element: containerRef,
   onPaths: async (paths) => {
     logger.info('文件拖拽触发', { paths, disabled: props.disabled });
     await attachmentManager.addAttachments(paths);
@@ -216,7 +216,7 @@ const handleDetach = async () => {
 };
 </script>
 <template>
-  <div ref="containerRef" :class="['message-input-container', { 'detached-mode': isDetached }]">
+  <div ref="containerRef" :class="['message-input-container', { 'detached-mode': isDetached, 'dragging-over': isDraggingOver }]">
     <!-- 主内容区 -->
     <div class="main-content">
       <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
@@ -235,7 +235,6 @@ const handleDetach = async () => {
       <div
         ref="inputAreaRef"
         class="input-content"
-        :class="{ 'dragging-over': isDraggingOver }"
       >
         <!-- 附件展示区 -->
         <div v-if="attachmentManager.hasAttachments.value" class="attachments-area">
@@ -341,7 +340,12 @@ const handleDetach = async () => {
   border-radius: 24px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.message-input-container.dragging-over {
+  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
+  border-color: var(--primary-color);
 }
 
 /* 分离模式下组件完全一致，只是添加更强的阴影 */
@@ -384,12 +388,6 @@ const handleDetach = async () => {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  transition: background-color 0.2s;
-}
-
-.input-content.dragging-over {
-  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
-  border-radius: 8px;
 }
 .attachments-area {
   position: relative;

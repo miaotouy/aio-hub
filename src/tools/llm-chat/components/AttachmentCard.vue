@@ -71,23 +71,45 @@ const loadAssetUrl = async () => {
     isLoadingUrl.value = true;
     loadError.value = false;
     
-    // 优先使用缩略图，否则使用原图
-    const path = props.asset.thumbnailPath || props.asset.path;
+    // 判断是否为 pending/importing 状态
+    const isPending = props.asset.importStatus === 'pending' || props.asset.importStatus === 'importing';
     
-    // 获取二进制数据
-    const bytes = await invoke<number[]>('get_asset_binary', {
-      relativePath: path,
-    });
-    
-    // 转换为 Uint8Array
-    const uint8Array = new Uint8Array(bytes);
-    
-    // 创建 Blob
-    const blob = new Blob([uint8Array], { type: props.asset.mimeType });
-    
-    // 创建 Blob URL
-    const url = URL.createObjectURL(blob);
-    assetUrl.value = url;
+    if (isPending) {
+      // 使用原始路径进行预览
+      const originalPath = props.asset.originalPath || props.asset.path;
+      
+      if (!originalPath) {
+        throw new Error('缺少原始路径');
+      }
+      
+      // 读取本地文件
+      const bytes = await invoke<number[]>('read_file_binary', {
+        path: originalPath,
+      });
+      
+      const uint8Array = new Uint8Array(bytes);
+      const blob = new Blob([uint8Array], { type: props.asset.mimeType });
+      const url = URL.createObjectURL(blob);
+      assetUrl.value = url;
+    } else {
+      // 已导入状态，使用存储系统中的路径
+      const path = props.asset.thumbnailPath || props.asset.path;
+      
+      // 获取二进制数据
+      const bytes = await invoke<number[]>('get_asset_binary', {
+        relativePath: path,
+      });
+      
+      // 转换为 Uint8Array
+      const uint8Array = new Uint8Array(bytes);
+      
+      // 创建 Blob
+      const blob = new Blob([uint8Array], { type: props.asset.mimeType });
+      
+      // 创建 Blob URL
+      const url = URL.createObjectURL(blob);
+      assetUrl.value = url;
+    }
   } catch (error) {
     logger.error('加载资产 URL 失败', error, { asset: props.asset });
     loadError.value = true;
@@ -96,15 +118,34 @@ const loadAssetUrl = async () => {
   }
 };
 
+// 是否正在导入
+const isImporting = computed(() =>
+  props.asset.importStatus === 'pending' || props.asset.importStatus === 'importing'
+);
+
+// 是否导入失败
+const hasImportError = computed(() => props.asset.importStatus === 'error');
+
 // 处理点击预览
 const handlePreview = async () => {
   if (!isImage.value) return;
   
   try {
-    // 获取原始图片的二进制数据
-    const bytes = await invoke<number[]>('get_asset_binary', {
-      relativePath: props.asset.path,
-    });
+    const isPending = props.asset.importStatus === 'pending' || props.asset.importStatus === 'importing';
+    
+    let bytes: number[];
+    if (isPending) {
+      // 使用原始路径
+      const originalPath = props.asset.originalPath || props.asset.path;
+      bytes = await invoke<number[]>('read_file_binary', {
+        path: originalPath,
+      });
+    } else {
+      // 使用存储路径
+      bytes = await invoke<number[]>('get_asset_binary', {
+        relativePath: props.asset.path,
+      });
+    }
     
     // 转换为 Uint8Array 并创建 Blob URL
     const uint8Array = new Uint8Array(bytes);
@@ -136,7 +177,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="attachment-card" :class="{ 'is-image': isImage, 'has-error': loadError }">
+  <div
+    class="attachment-card"
+    :class="{
+      'is-image': isImage,
+      'has-error': loadError || hasImportError,
+      'is-importing': isImporting
+    }"
+  >
     <!-- 预览区域 -->
     <div class="attachment-preview" @click="handlePreview">
       <template v-if="isLoadingUrl">
@@ -144,10 +192,10 @@ onUnmounted(() => {
           <div class="spinner"></div>
         </div>
       </template>
-      <template v-else-if="loadError">
+      <template v-else-if="loadError || hasImportError">
         <div class="error-placeholder">
           <span class="icon">⚠️</span>
-          <span class="text">加载失败</span>
+          <span class="text">{{ hasImportError ? '导入失败' : '加载失败' }}</span>
         </div>
       </template>
       <template v-else>
@@ -162,6 +210,11 @@ onUnmounted(() => {
           <span class="icon">{{ fileTypeIcon }}</span>
         </div>
       </template>
+      
+      <!-- 导入状态指示器 -->
+      <div v-if="isImporting" class="import-status-overlay">
+        <div class="import-spinner"></div>
+      </div>
     </div>
 
     <!-- 信息区域 -->
@@ -219,6 +272,10 @@ onUnmounted(() => {
 
 .attachment-card.has-error {
   border-color: var(--error-color);
+}
+
+.attachment-card.is-importing {
+  opacity: 0.8;
 }
 
 .attachment-preview {
@@ -370,5 +427,27 @@ onUnmounted(() => {
 .remove-button:hover {
   background: var(--error-color);
   transform: scale(1.1);
+}
+
+.import-status-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+}
+
+.import-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
 }
 </style>

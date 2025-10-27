@@ -836,6 +836,20 @@ pub fn get_file_metadata(path: String) -> Result<FileMetadata, String> {
     })
 }
 
+// Tauri 命令：读取文件为二进制数据
+#[tauri::command]
+pub fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
+    let file_path = Path::new(&path);
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
+    
+    let bytes = fs::read(file_path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+    
+    Ok(bytes)
+}
+
 // Tauri 命令：读取文件为base64
 #[tauri::command]
 pub fn read_file_as_base64(path: String) -> Result<String, String> {

@@ -83,6 +83,66 @@ export interface ContextPreviewData {
 
 export function useChatHandler() {
   /**
+   * 等待资产导入完成
+   * @param assets 资产数组
+   * @param timeout 超时时间（毫秒），默认 30 秒
+   * @returns 是否所有资产都成功导入
+   */
+  const waitForAssetsImport = async (
+    assets: Asset[],
+    timeout: number = 30000
+  ): Promise<boolean> => {
+    const startTime = Date.now();
+    const pendingAssets = assets.filter(
+      (asset) => asset.importStatus === 'pending' || asset.importStatus === 'importing'
+    );
+
+    if (pendingAssets.length === 0) {
+      return true; // 没有待导入的资产
+    }
+
+    logger.info('等待资产导入完成', {
+      totalAssets: assets.length,
+      pendingCount: pendingAssets.length,
+    });
+
+    // 轮询检查导入状态
+    while (Date.now() - startTime < timeout) {
+      const stillPending = assets.filter(
+        (asset) => asset.importStatus === 'pending' || asset.importStatus === 'importing'
+      );
+
+      if (stillPending.length === 0) {
+        // 检查是否有导入失败的
+        const failedAssets = assets.filter((asset) => asset.importStatus === 'error');
+        if (failedAssets.length > 0) {
+          logger.warn('部分资产导入失败', {
+            failedCount: failedAssets.length,
+            failedAssets: failedAssets.map((a) => ({ id: a.id, name: a.name, error: a.importError })),
+          });
+          // 即使有失败的，也返回 true，让用户决定是否继续
+          return true;
+        }
+
+        logger.info('所有资产导入完成');
+        return true;
+      }
+
+      // 等待 100ms 后再次检查
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    // 超时
+    logger.error('资产导入超时', {
+      timeout,
+      stillPendingCount: assets.filter(
+        (asset) => asset.importStatus === 'pending' || asset.importStatus === 'importing'
+      ).length,
+    });
+    return false;
+  };
+
+  /**
    * 将 Asset 的二进制数据转换为 base64
    * @param assetPath 资源相对路径
    * @returns base64 编码的字符串
@@ -564,9 +624,21 @@ export function useChatHandler() {
     const nodeManager = useNodeManager();
     const { userNode, assistantNode } = nodeManager.createMessagePair(session, content, session.activeLeafId);
     
-    // 如果有附件，保存到用户消息节点
-    // 重要：直接修改 session.nodes 中的节点，确保状态同步
+    // 如果有附件，先等待导入完成
     if (attachments && attachments.length > 0) {
+      logger.info('检查附件导入状态', {
+        attachmentCount: attachments.length,
+        pendingCount: attachments.filter(a => a.importStatus === 'pending' || a.importStatus === 'importing').length,
+      });
+
+      // 等待所有附件导入完成
+      const allImported = await waitForAssetsImport(attachments);
+      if (!allImported) {
+        throw new Error('附件导入超时，请稍后重试');
+      }
+
+      // 保存到用户消息节点
+      // 重要：直接修改 session.nodes 中的节点，确保状态同步
       session.nodes[userNode.id].attachments = attachments;
       logger.info('添加附件到用户消息', {
         messageId: userNode.id,

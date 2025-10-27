@@ -40,10 +40,15 @@ export interface AssetMetadata {
 }
 
 /**
+ * 资产导入状态
+ */
+export type AssetImportStatus = 'pending' | 'importing' | 'complete' | 'error';
+
+/**
  * 代表一个由应用管理的资产文件
- * 
+ *
  * 这是核心数据结构，可被应用内任何需要引用本地文件的功能模块复用。
- * 
+ *
  * 使用示例：
  * - LLM 聊天: `ChatMessage.attachments?: Asset[]`
  * - OCR 记录: `OcrRecord.sourceImage: Asset`
@@ -73,6 +78,9 @@ export interface Asset {
   /**
    * 文件在资产存储根目录中的相对路径
    * 例如: 'images/2025-10/f81d4fae-7dec-11d0-a765-00a0c91e6bf6.png'
+   *
+   * 注意：当 importStatus 为 'pending' 或 'importing' 时，
+   * 这个字段存储的是原始文件的绝对路径，用于立即预览
    */
   path: string;
 
@@ -100,6 +108,26 @@ export interface Asset {
    * 可选的、特定于文件类型的元数据
    */
   metadata?: AssetMetadata;
+
+  /**
+   * 导入状态（可选，默认为 'complete'）
+   * - pending: 待导入（刚拖入，还未开始导入）
+   * - importing: 导入中（正在复制文件、生成缩略图等）
+   * - complete: 导入完成（已成功导入到资产库）
+   * - error: 导入失败
+   */
+  importStatus?: AssetImportStatus;
+
+  /**
+   * 导入错误信息（仅当 importStatus 为 'error' 时）
+   */
+  importError?: string;
+
+  /**
+   * 原始文件路径（仅用于 pending/importing 状态，导入完成后会被清除）
+   * 用于在导入前进行即时预览
+   */
+  originalPath?: string;
 }
 
 /**

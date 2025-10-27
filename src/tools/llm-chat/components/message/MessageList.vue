@@ -64,7 +64,7 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           :is-sending="isSending"
           :siblings="getMessageSiblings(message.id).siblings"
           :current-sibling-index="getMessageSiblings(message.id).currentIndex"
-          @delete-message="emit('delete-message', message.id)"
+          @delete="emit('delete-message', message.id)"
           @regenerate="emit('regenerate', message.id)"
           @switch-sibling="(direction: 'prev' | 'next') => emit('switch-sibling', message.id, direction)"
           @toggle-enabled="emit('toggle-enabled', message.id)"

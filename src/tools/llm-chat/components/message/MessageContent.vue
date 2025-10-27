@@ -223,10 +223,11 @@ watch(
 
     <!-- 推理内容（DeepSeek reasoning） -->
     <div v-if="message.metadata?.reasoningContent" class="reasoning-section">
-      <button
+      <el-button
         @click="toggleReasoning"
         class="reasoning-toggle"
         :class="{ expanded: isReasoningExpanded }"
+        text
       >
         <ChevronRight v-if="!isReasoningExpanded" :size="14" class="toggle-icon" />
         <ChevronDown v-else :size="14" class="toggle-icon" />
@@ -242,7 +243,7 @@ watch(
         >
           {{ formattedReasoningDuration }}
         </span>
-      </button>
+      </el-button>
       <div v-if="isReasoningExpanded" class="reasoning-content">
         <pre class="reasoning-text">{{ message.metadata.reasoningContent }}</pre>
       </div>
@@ -289,8 +290,8 @@ watch(
           <span class="drag-tip">拖拽文件到此区域添加附件</span>
         </div>
         <div class="edit-buttons">
-          <button @click="saveEdit" class="edit-btn edit-btn-save">保存 (Ctrl+Enter)</button>
-          <button @click="cancelEdit" class="edit-btn edit-btn-cancel">取消 (Esc)</button>
+          <el-button @click="saveEdit" type="primary" size="small">保存 (Ctrl+Enter)</el-button>
+          <el-button @click="cancelEdit" size="small">取消 (Esc)</el-button>
         </div>
       </div>
     </div>
@@ -315,15 +316,15 @@ watch(
         </span>
       </div>
       <div v-if="message.metadata?.error" class="error-info">
-        <button
+        <el-button
           @click="copyError"
           class="error-copy-btn"
           :class="{ copied: errorCopied }"
           :title="errorCopied ? '已复制' : '复制错误信息'"
-        >
-          <Check v-if="errorCopied" :size="14" />
-          <Copy v-else :size="14" />
-        </button>
+          :icon="errorCopied ? Check : Copy"
+          size="small"
+          text
+        />
         <span class="error-text"> {{ message.metadata.error }}</span>
       </div>
     </div>
@@ -410,30 +411,8 @@ watch(
   font-size: 14px;
   word-break: break-word;
 }
-
-.error-copy-btn {
-  flex-shrink: 0;
-  padding: 4px;
-  border: 1px solid var(--info-color);
-  border-radius: 4px;
-  background-color: transparent;
-  color: var(--info-color);
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.error-copy-btn:hover {
-  background-color: var(--error-color);
-  color: white;
-}
-
 .error-copy-btn.copied {
-  background-color: var(--success-color, #67c23a);
-  border-color: var(--success-color, #67c23a);
-  color: white;
+  color: var(--success-color, #67c23a);
 }
 
 /* 编辑模式样式 */
@@ -441,6 +420,16 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--container-bg);
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.edit-mode.is-dragging {
+  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
+  border-color: var(--primary-color);
 }
 
 .edit-textarea {
@@ -455,6 +444,7 @@ watch(
   line-height: 1.6;
   resize: vertical;
   min-height: 300px;
+  box-sizing: border-box;
 }
 
 .edit-textarea:focus {
@@ -466,42 +456,38 @@ watch(
 .edit-actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.edit-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background-color: var(--container-bg);
-  color: var(--text-color);
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+.edit-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-color-light);
 }
 
-.edit-btn-save {
-  background-color: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
+.attachment-count {
+  padding: 2px 8px;
+  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
+  border-radius: 12px;
+  color: var(--primary-color);
+  font-weight: 500;
 }
 
-.edit-btn-save:hover {
-  opacity: 0.9;
+.drag-tip {
+  opacity: 0.7;
 }
-
-.edit-btn-cancel:hover {
-  background-color: var(--hover-bg);
-  border-color: var(--primary-color);
+.edit-buttons {
+  display: flex;
+  gap: 8px;
 }
 
 /* 附件展示区域样式 */
 .attachments-section {
   margin-bottom: 12px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background-color: var(--container-bg);
 }
 
 .attachments-list {

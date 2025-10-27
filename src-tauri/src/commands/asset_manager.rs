@@ -201,6 +201,36 @@ fn generate_asset_path(asset_type: &AssetType, original_path: &Path) -> (String,
     (uuid, relative_path)
 }
 
+/// 尝试从配置文件读取自定义资产路径
+///
+/// 使用 `?` 运算符优雅地处理各种可能失败的步骤，
+/// 任何一步失败都会返回 None，而不是嵌套的 if-let
+fn try_get_custom_path_from_config(config_path: &Path) -> Option<String> {
+    // 文件不存在就直接返回 None
+    if !config_path.exists() {
+        return None;
+    }
+    
+    // 读取配置文件内容，失败则返回 None
+    let config_content = fs::read_to_string(config_path).ok()?;
+    
+    // 解析 JSON，失败则返回 None
+    let config: serde_json::Value = serde_json::from_str(&config_content).ok()?;
+    
+    // 链式获取字段值
+    let path_str = config
+        .get("customAssetPath")?  // 获取字段，不存在返回 None
+        .as_str()?                // 转为字符串，类型不对返回 None
+        .to_string();
+    
+    // 过滤空字符串
+    if path_str.is_empty() {
+        None
+    } else {
+        Some(path_str)
+    }
+}
+
 /// 获取资产存储根目录
 #[tauri::command]
 pub fn get_asset_base_path(app: AppHandle) -> Result<String, String> {
@@ -208,7 +238,29 @@ pub fn get_asset_base_path(app: AppHandle) -> Result<String, String> {
         .app_data_dir()
         .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
     
+    let config_path = app_data_dir.join("settings.json");
+    
+    // 尝试从配置文件读取自定义路径
+    if let Some(custom_path_str) = try_get_custom_path_from_config(&config_path) {
+        let custom_dir = PathBuf::from(&custom_path_str);
+        
+        // 如果目录不存在则创建
+        if !custom_dir.exists() {
+            fs::create_dir_all(&custom_dir)
+                .map_err(|e| format!("无法创建自定义资产目录 '{}': {}", custom_path_str, e))?;
+        }
+        
+        return Ok(custom_path_str);
+    }
+    
+    // 使用默认路径
     let assets_dir = app_data_dir.join("assets");
+    
+    // 确保默认目录存在
+    if !assets_dir.exists() {
+        fs::create_dir_all(&assets_dir)
+            .map_err(|e| format!("无法创建默认资产目录: {}", e))?;
+    }
     
     Ok(assets_dir.to_string_lossy().to_string())
 }

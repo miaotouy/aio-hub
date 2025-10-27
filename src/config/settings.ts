@@ -31,6 +31,12 @@ export const settingsModules: SettingsModule[] = [
     minHeight: "auto",
   },
   {
+    id: "asset-management",
+    title: "资产管理",
+    component: defineAsyncComponent(() => import("../views/components/AssetSettings.vue")),
+    minHeight: "auto",
+  },
+  {
     id: "log-settings",
     title: "日志配置",
     component: defineAsyncComponent(() => import("../views/components/LogSettings.vue")),

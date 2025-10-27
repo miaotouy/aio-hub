@@ -37,6 +37,9 @@ export interface AppSettings {
 
   // CSS 覆盖配置
   cssOverride?: UserCssSettings;
+
+  // 资产管理配置
+  customAssetPath?: string; // 自定义资产存储路径
 }
 
 // 默认设置

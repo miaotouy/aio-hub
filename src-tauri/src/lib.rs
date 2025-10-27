@@ -79,6 +79,12 @@ use commands::{
     end_drag_session,
     // 窗口导航命令
     navigate_main_window_to_settings,
+    // 资产管理命令
+    get_asset_base_path,
+    import_asset_from_path,
+    import_asset_from_bytes,
+    get_asset_binary,
+    convert_to_asset_protocol,
     ClipboardMonitorState,
 };
 
@@ -226,7 +232,13 @@ pub fn run() {
             // 配置管理命令
             list_config_files,
             export_all_configs_to_zip,
-            import_all_configs_from_zip
+            import_all_configs_from_zip,
+            // 资产管理命令
+            get_asset_base_path,
+            import_asset_from_path,
+            import_asset_from_bytes,
+            get_asset_binary,
+            convert_to_asset_protocol
         ])
         // 设置应用
         .setup(|app| {

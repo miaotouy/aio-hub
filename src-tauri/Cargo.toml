@@ -58,6 +58,8 @@ lazy_static = "1.4" # 全局静态变量
 nanoid = "0.4.0" # 生成唯一ID
 zip = { version = "2.2", default-features = false, features = ["deflate"] } # ZIP 压缩
 walkdir = "2" # 递归目录遍历
+sha2 = "0.10" # SHA-256 哈希计算
+image = "0.25" # 图片处理
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

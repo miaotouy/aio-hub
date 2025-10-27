@@ -354,6 +354,60 @@ html.dark .el-message--info {
   --el-message-close-color: var(--el-color-info);
 }
 
+/* el-alert 样式修复 - 半透明样式 */
+html.dark .el-alert--success {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  --el-alert-text-color: var(--el-color-success);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-success) 40%, transparent);
+}
+
+html.dark .el-alert--success .el-alert__description,
+html.dark .el-alert--success .el-alert__title {
+  color: var(--el-color-success);
+}
+
+html.dark .el-alert--warning {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  --el-alert-text-color: var(--el-color-warning);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-warning) 40%, transparent);
+}
+
+html.dark .el-alert--warning .el-alert__description,
+html.dark .el-alert--warning .el-alert__title {
+  color: var(--el-color-warning);
+}
+
+html.dark .el-alert--error {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  --el-alert-text-color: var(--el-color-danger);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-danger) 40%, transparent);
+}
+
+html.dark .el-alert--error .el-alert__description,
+html.dark .el-alert--error .el-alert__title {
+  color: var(--el-color-danger);
+}
+
+html.dark .el-alert--info {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  --el-alert-text-color: var(--el-color-info);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
+}
+
+html.dark .el-alert--info .el-alert__description,
+html.dark .el-alert--info .el-alert__title {
+  color: var(--el-color-info);
+}
+
+/* el-alert 关闭按钮样式 */
+html.dark .el-alert__close-btn {
+  color: var(--text-color);
+}
+
+html.dark .el-alert__close-btn:hover {
+  opacity: 0.7;
+}
+
 /* 单色图标在暗色模式下反色 */
 .invert-on-dark {
   filter: invert(1);

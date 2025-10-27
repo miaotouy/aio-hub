@@ -315,7 +315,6 @@ watch(
         </span>
       </div>
       <div v-if="message.metadata?.error" class="error-info">
-        <span class="error-text">⚠️ {{ message.metadata.error }}</span>
         <button
           @click="copyError"
           class="error-copy-btn"
@@ -325,6 +324,7 @@ watch(
           <Check v-if="errorCopied" :size="14" />
           <Copy v-else :size="14" />
         </button>
+        <span class="error-text"> {{ message.metadata.error }}</span>
       </div>
     </div>
   </div>
@@ -407,16 +407,17 @@ watch(
 
 .error-text {
   flex: 1;
+  font-size: 14px;
   word-break: break-word;
 }
 
 .error-copy-btn {
   flex-shrink: 0;
   padding: 4px;
-  border: 1px solid var(--error-color);
+  border: 1px solid var(--info-color);
   border-radius: 4px;
   background-color: transparent;
-  color: var(--error-color);
+  color: var(--info-color);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;

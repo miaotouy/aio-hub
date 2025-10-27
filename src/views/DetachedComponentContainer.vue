@@ -9,6 +9,8 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
 import { createModuleLogger } from "../utils/logger";
 import { getDetachableComponentConfig, loadDetachableComponent } from "../config/detachable-components";
+import { loadAppSettingsAsync } from "../utils/appSettings";
+import { applyThemeColors } from "../utils/themeColors";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import ImageViewer from "../components/common/ImageViewer.vue";
 import { useImageViewer } from "../composables/useImageViewer";
@@ -60,6 +62,27 @@ onMounted(async () => {
   // 初始化分离窗口管理器，以便能正确检测其他组件的分离状态
   const { initialize } = useDetachedManager();
   await initialize();
+
+  // 加载并应用主题色系统
+  try {
+    const settings = await loadAppSettingsAsync();
+    applyThemeColors({
+      primary: settings.themeColor,
+      success: settings.successColor,
+      warning: settings.warningColor,
+      danger: settings.dangerColor,
+      info: settings.infoColor,
+    });
+    logger.info('分离组件窗口主题色已应用', {
+      themeColor: settings.themeColor,
+      successColor: settings.successColor,
+      warningColor: settings.warningColor,
+      dangerColor: settings.dangerColor,
+      infoColor: settings.infoColor,
+    });
+  } catch (error) {
+    logger.warn('应用分离组件窗口主题色失败', { error });
+  }
 
   logger.info("DetachedComponentContainer 挂载", {
     currentPath: route.path,

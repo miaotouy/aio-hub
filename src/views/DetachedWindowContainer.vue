@@ -9,6 +9,8 @@ import { useDetachedManager } from "../composables/useDetachedManager";
 import { useWindowSyncBus } from "../composables/useWindowSyncBus";
 import { useLlmChatStateConsumer } from "../tools/llm-chat/composables/useLlmChatStateConsumer";
 import { createModuleLogger } from "../utils/logger";
+import { loadAppSettingsAsync } from "../utils/appSettings";
+import { applyThemeColors } from "../utils/themeColors";
 import { toolsConfig } from "../config/tools";
 import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
@@ -51,6 +53,27 @@ onMounted(async () => {
   
   // 初始化统一的分离窗口管理器
   await initializeDetachedManager();
+  
+  // 加载并应用主题色系统
+  try {
+    const settings = await loadAppSettingsAsync();
+    applyThemeColors({
+      primary: settings.themeColor,
+      success: settings.successColor,
+      warning: settings.warningColor,
+      danger: settings.dangerColor,
+      info: settings.infoColor,
+    });
+    logger.info('分离窗口主题色已应用', {
+      themeColor: settings.themeColor,
+      successColor: settings.successColor,
+      warningColor: settings.warningColor,
+      dangerColor: settings.dangerColor,
+      infoColor: settings.infoColor,
+    });
+  } catch (error) {
+    logger.warn('应用分离窗口主题色失败', { error });
+  }
   
   // 如果是 llm-chat 工具窗口，启动状态消费者
   // 这确保分离的工具窗口能从主窗口接收完整状态，成为主窗口的副本

@@ -40,8 +40,12 @@ const formattedSize = computed(() => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 });
 
-// 是否为图片类型
+// 是否为图片或视频类型（使用方形卡片）
 const isImage = computed(() => props.asset.type === 'image');
+const isVideo = computed(() => props.asset.type === 'video');
+
+// 是否应该使用长条形式（非图片/视频类型）
+const isBarLayout = computed(() => !isImage.value && !isVideo.value);
 
 // 获取文件后缀名
 const fileExtension = computed(() => {
@@ -200,51 +204,79 @@ onUnmounted(() => {
       `size-${size}`,
       {
         'is-image': isImage,
+        'is-video': isVideo,
+        'is-bar-layout': isBarLayout,
         'has-error': loadError || hasImportError,
         'is-importing': isImporting
       }
     ]"
   >
-    <!-- 预览区域 -->
-    <div class="attachment-preview" @click="handlePreview">
-      <template v-if="isLoadingUrl">
-        <div class="loading-placeholder">
-          <div class="spinner"></div>
+    <!-- 长条布局（非图片/视频类型） -->
+    <template v-if="isBarLayout">
+      <div class="bar-layout-content">
+        <!-- 文件图标区域 -->
+        <div class="bar-icon-area">
+          <template v-if="isLoadingUrl">
+            <div class="spinner-small"></div>
+          </template>
+          <template v-else-if="loadError || hasImportError">
+            <span class="icon-emoji error">⚠️</span>
+          </template>
+          <template v-else>
+            <span class="icon-emoji">{{ fileTypeIcon }}</span>
+          </template>
+          
+          <!-- 导入状态指示器 -->
+          <div v-if="isImporting" class="bar-import-overlay">
+            <div class="import-spinner-small"></div>
+          </div>
         </div>
-      </template>
-      <template v-else-if="loadError || hasImportError">
-        <div class="error-placeholder">
-          <span class="icon">⚠️</span>
-          <span class="text">{{ hasImportError ? '导入失败' : '加载失败' }}</span>
+        
+        <!-- 文件信息区域 -->
+        <div class="bar-info-area">
+          <div class="bar-file-name" :title="asset.name">{{ asset.name }}</div>
+          <div class="bar-file-meta">
+            <span class="bar-file-size">{{ formattedSize }}</span>
+            <span v-if="fileExtension" class="bar-file-ext">{{ fileExtension }}</span>
+          </div>
         </div>
-      </template>
-      <template v-else>
-        <img
-          v-if="isImage && assetUrl"
-          :src="assetUrl"
-          :alt="asset.name"
-          class="preview-image"
-          :class="{ 'clickable': isImage }"
-        />
-        <div v-else class="file-icon">
-          <span class="icon">{{ fileTypeIcon }}</span>
-        </div>
-      </template>
-      
-      <!-- 导入状态指示器 -->
-      <div v-if="isImporting" class="import-status-overlay">
-        <div class="import-spinner"></div>
       </div>
-    </div>
-
-    <!-- 信息区域 - 仅非图片类型显示 -->
-    <div v-if="!isImage" class="attachment-info">
-      <div class="attachment-name" :title="asset.name">{{ asset.name }}</div>
-      <div class="attachment-meta">
-        <span class="attachment-size">{{ formattedSize }}</span>
-        <span v-if="fileExtension" class="attachment-ext">{{ fileExtension }}</span>
+    </template>
+    
+    <!-- 方形卡片布局（图片/视频） -->
+    <template v-else>
+      <!-- 预览区域 -->
+      <div class="attachment-preview" @click="handlePreview">
+        <template v-if="isLoadingUrl">
+          <div class="loading-placeholder">
+            <div class="spinner"></div>
+          </div>
+        </template>
+        <template v-else-if="loadError || hasImportError">
+          <div class="error-placeholder">
+            <span class="icon">⚠️</span>
+            <span class="text">{{ hasImportError ? '导入失败' : '加载失败' }}</span>
+          </div>
+        </template>
+        <template v-else>
+          <img
+            v-if="isImage && assetUrl"
+            :src="assetUrl"
+            :alt="asset.name"
+            class="preview-image"
+            :class="{ 'clickable': isImage }"
+          />
+          <div v-else class="file-icon">
+            <span class="icon">{{ fileTypeIcon }}</span>
+          </div>
+        </template>
+        
+        <!-- 导入状态指示器 -->
+        <div v-if="isImporting" class="import-status-overlay">
+          <div class="import-spinner"></div>
+        </div>
       </div>
-    </div>
+    </template>
 
     <!-- 移除按钮 -->
     <button
@@ -282,6 +314,7 @@ onUnmounted(() => {
   background: var(--bg-color);
   transition: all 0.2s;
   flex-shrink: 0;
+  align-self: flex-start; /* 防止在 flex 容器中被拉伸 */
 }
 
 /* 尺寸变体 */
@@ -501,6 +534,110 @@ onUnmounted(() => {
 .import-spinner {
   width: 20px;
   height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* 长条布局样式 */
+.attachment-card.is-bar-layout {
+  width: fit-content;
+  min-width: 160px;
+  max-width: 400px;
+  background: rgba(0, 0, 0, 0.1);
+  flex-direction: row;
+  padding: 0;
+}
+
+.bar-layout-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bar-icon-area {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.bar-icon-area .icon-emoji {
+  font-size: 24px;
+}
+
+.bar-icon-area .icon-emoji.error {
+  font-size: 20px;
+}
+
+.bar-info-area {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bar-file-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-color-light);
+}
+
+.bar-file-size {
+  flex-shrink: 0;
+}
+
+.bar-file-ext {
+  flex-shrink: 0;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.bar-import-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(1px);
+  border-radius: 6px;
+}
+
+.import-spinner-small {
+  width: 14px;
+  height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-top-color: #fff;
   border-radius: 50%;

@@ -272,27 +272,6 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
     }
 }
 
-/// 取消当前的拖拽会话（由 ESC 快捷键触发）
-pub fn cancel_drag_on_esc() {
-    let session_to_cancel = { DRAG_SESSION.lock().unwrap().take() };
-
-    if let Some(session) = session_to_cancel {
-        let preview_label = session.preview_window_label.clone();
-        let app_handle = session.app_handle.clone();
-
-        // 在新线程中关闭窗口，避免阻塞
-        thread::spawn(move || {
-            if let Some(window) = app_handle.get_webview_window(&preview_label) {
-                let _ = window.close();
-                println!("[SHORTCUT] 拖拽会话已取消，预览窗口已关闭");
-            }
-        });
-    } else {
-        // 这个日志是正常的，因为用户可能在没有拖拽时按ESC
-        // println!("[SHORTCUT] ESC 快捷键触发，但没有活动的拖拽会话");
-    }
-}
-
 /// 统一的窗口分离配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

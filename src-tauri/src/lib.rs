@@ -6,7 +6,6 @@ mod tray;
 // 导入所需的依赖
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
-use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
@@ -90,8 +89,8 @@ use commands::{
     ClipboardMonitorState,
 };
 
-// 导入全局鼠标监听器和ESC取消函数
-use commands::window_manager::{init_global_mouse_listener, cancel_drag_on_esc};
+// 导入全局鼠标监听器
+use commands::window_manager::init_global_mouse_listener;
 
 // 导入事件处理
 use events::handle_window_event;
@@ -156,7 +155,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         // 管理状态
         .manage(ClipboardMonitorState::new())
@@ -308,25 +306,6 @@ pub fn run() {
             main_window
                 .set_skip_taskbar(false)
                 .expect("Failed to set skip taskbar");
-
-            // 注册全局快捷键（如果失败则记录警告但继续运行）
-            if let Err(e) = app_handle
-                .global_shortcut()
-                .register("CmdOrCtrl+Shift+Space")
-            {
-                eprintln!("警告: 无法注册全局快捷键 CmdOrCtrl+Shift+Space: {}", e);
-                eprintln!("程序将继续运行，但全局快捷键功能可能不可用");
-            }
-
-            // 注册 Escape 快捷键用于取消拖拽
-            if let Err(e) = app_handle
-                .global_shortcut()
-                .on_shortcut("Escape", move |_app, _shortcut, _event| {
-                    cancel_drag_on_esc();
-                })
-            {
-                eprintln!("警告: 无法注册 Escape 快捷键: {}", e);
-            }
 
             // 创建系统托盘
             create_system_tray(&app_handle)?;

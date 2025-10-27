@@ -86,6 +86,7 @@ use commands::{
     import_asset_from_path,
     import_asset_from_bytes,
     get_asset_binary,
+    read_text_file,
     ClipboardMonitorState,
 };
 
@@ -241,7 +242,8 @@ pub fn run() {
             get_asset_base_path,
             import_asset_from_path,
             import_asset_from_bytes,
-            get_asset_binary
+            get_asset_binary,
+            read_text_file
         ])
         // 设置应用
         .setup(|app| {

@@ -191,9 +191,54 @@ export function useChatHandler() {
 
       // 处理文档类型
       if (asset.type === 'document') {
+        // 判断是否为纯文本文件
+        const textMimeTypes = [
+          'text/plain',
+          'text/markdown',
+          'text/html',
+          'text/css',
+          'text/javascript',
+          'application/json',
+          'application/xml',
+          'text/xml',
+        ];
+        
+        const isTextFile = textMimeTypes.includes(asset.mimeType) ||
+                          asset.name.match(/\.(txt|md|json|xml|html|css|js|ts|tsx|jsx|py|java|c|cpp|h|hpp|rs|go|rb|php|sh|yaml|yml|toml|ini|conf|log)$/i);
+
+        if (isTextFile) {
+          // 读取文本文件内容
+          try {
+            const textContent = await invoke<string>('read_text_file', {
+              relativePath: asset.path,
+            });
+
+            logger.debug('文本文件附件读取成功', {
+              assetId: asset.id,
+              assetName: asset.name,
+              mimeType: asset.mimeType,
+              contentLength: textContent.length,
+            });
+
+            // 返回格式化的文本内容
+            return {
+              type: 'text',
+              text: `[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\``,
+            };
+          } catch (error) {
+            logger.error('读取文本文件失败，尝试使用 base64', error as Error, {
+              assetId: asset.id,
+              assetName: asset.name,
+            });
+            // 如果读取失败，降级到 base64（用于非文本文档如 PDF）
+          }
+        }
+
+        // 对于非文本文档（如 PDF），使用 base64 编码
+        // 注意：只有 Claude API 支持 document 类型，其他 API 可能会忽略或报错
         const base64 = await convertAssetToBase64(asset.path);
 
-        logger.debug('文档附件转换完成', {
+        logger.debug('文档附件转换为 base64（仅 Claude 支持）', {
           assetId: asset.id,
           assetName: asset.name,
           mimeType: asset.mimeType,

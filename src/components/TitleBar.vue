@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import { Minus, CopyDocument, Close, House, Setting, Sunny, Moon, User } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toolsConfig } from '../config/tools';
@@ -12,6 +13,7 @@ import { useTheme } from '../composables/useTheme';
 import SystemThemeIcon from './icons/SystemThemeIcon.vue';
 import { useUserProfileStore } from '@/tools/llm-chat/userProfileStore';
 import Avatar from '@/components/common/Avatar.vue';
+import { debounce } from 'lodash-es';
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -115,6 +117,23 @@ const checkMaximized = async () => {
   isManualMaximizeChange.value = false;
 };
 
+// 保存窗口配置（带防抖）
+const saveWindowConfig = debounce(async () => {
+  const windowLabel = appWindow.label;
+  
+  // 排除拖拽指示器窗口
+  if (windowLabel.startsWith('drag-indicator')) {
+    return;
+  }
+  
+  try {
+    await invoke('save_window_config', { label: windowLabel });
+    logger.debug(`窗口配置已保存: ${windowLabel}`);
+  } catch (error) {
+    logger.error('保存窗口配置失败', error);
+  }
+}, 500); // 500ms 防抖
+
 // 监听窗口大小变化
 onMounted(async () => {
   // 判断是否为主窗口
@@ -126,9 +145,21 @@ onMounted(async () => {
   
   checkMaximized();
   
+  // 监听窗口移动事件
+  const unlistenMoved = await appWindow.onMoved(() => {
+    saveWindowConfig();
+  });
+  
   // 监听窗口resize事件
-  appWindow.onResized(() => {
+  const unlistenResized = await appWindow.onResized(() => {
     checkMaximized();
+    saveWindowConfig();
+  });
+  
+  // 组件卸载时清理监听器
+  onUnmounted(() => {
+    unlistenMoved();
+    unlistenResized();
   });
   
   // 加载应用设置

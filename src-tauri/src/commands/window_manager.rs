@@ -570,6 +570,11 @@ async fn finalize_window_internal(
         .set_ignore_cursor_events(false)
         .map_err(|e| e.to_string())?;
     window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
+    
+    // 只对工具类型窗口启用阴影，组件类型窗口保持透明无阴影
+    if config.r#type == "tool" {
+        window.set_shadow(true).map_err(|e| e.to_string())?;
+    }
 
     // 通知前端视图更新 (e.g., to hide preview-only elements)
     window

@@ -347,9 +347,20 @@ pub fn run() {
                 else if let Some(app_state) = window.app_handle().try_state::<AppState>() {
                     if let Ok(tray_enabled) = app_state.tray_enabled.lock() {
                         if should_prevent_close(*tray_enabled) {
-                            // 阻止关闭，改为隐藏
-                            api.prevent_close();
-                            let _ = window.hide();
+                            api.prevent_close(); // 阻止默认关闭行为
+
+                            let app_handle = window.app_handle();
+                            let windows = app_handle.webview_windows();
+                            let relevant_window_count = windows.keys().filter(|&label| !label.starts_with("drag-indicator")).count();
+
+                            // 如果有超过一个窗口（即存在分离窗口），则不允许隐藏，而是聚焦主窗口
+                            if relevant_window_count > 1 {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            } else {
+                                // 否则，安全地隐藏窗口
+                                let _ = window.hide();
+                            }
                         }
                     }
                 }

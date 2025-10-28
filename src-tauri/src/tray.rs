@@ -36,8 +36,15 @@ pub fn create_system_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                     }
                 }
                 "hide" => {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.hide();
+                    if let Some(main_window) = app.get_webview_window("main") {
+                        let windows = app.webview_windows();
+                        let relevant_window_count = windows.keys().filter(|&label| !label.starts_with("drag-indicator")).count();
+                        if relevant_window_count > 1 {
+                            let _ = main_window.show();
+                            let _ = main_window.set_focus();
+                        } else {
+                            let _ = main_window.hide();
+                        }
                     }
                 }
                 "quit" => {
@@ -58,7 +65,14 @@ pub fn create_system_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             if window.is_visible().unwrap_or(false) {
-                                let _ = window.hide();
+                                let windows = app.webview_windows();
+                                let relevant_window_count = windows.keys().filter(|&label| !label.starts_with("drag-indicator")).count();
+                                if relevant_window_count > 1 {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                } else {
+                                    let _ = window.hide();
+                                }
                             } else {
                                 let _ = window.show();
                                 let _ = window.set_focus();

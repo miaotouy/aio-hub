@@ -4,6 +4,9 @@ version = "0.1.9-beta.1"
 description = "AIO Hub - 综合枢纽应用"
 authors = ["miaotouy"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/miaotouy/aio-hub"
+homepage = "https://github.com/miaotouy/aio-hub"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

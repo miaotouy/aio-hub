@@ -191,9 +191,6 @@ const { config, saveConfig, resetConfig } = useToolConfig("tool-name", {
 });
 ```
 
-### 主题定制
-
-主题变量定义在 `src/styles/dark/css-vars.css` 中，可以通过修改 CSS 变量来自定义主题。
 
 ## 📝 开发规范
 
@@ -203,10 +200,41 @@ const { config, saveConfig, resetConfig } = useToolConfig("tool-name", {
 - 工具配置使用统一的配置管理器
 - 注释使用中文
 
-## 🤝 贡献
+## 💖 支持项目
 
-欢迎提交 Issue 和 Pull Request！
+如果这个项目对你有帮助，欢迎通过以下方式支持：
+
+- ⭐ 给项目点个 Star
+- 🐛 提交 Bug 报告或功能建议
+- 🔧 贡献代码（欢迎 Pull Request）
+- ☕ [爱发电赞助](https://afdian.com/a/miaotouy) - 支持作者继续开发维护
+
+### 为什么需要你的支持？
+
+AIO Hub 是完全免费的开源项目，作者几乎全职投入开发。你的赞助将帮助：
+- 🚀 持续添加新功能和工具
+- 🐛 及时修复问题和优化性能
+- 📚 完善文档和使用教程
+- 💡 探索更多创新想法
+
+## 🤝 贡献指南
+
+欢迎任何形式的贡献！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
 
 ## 📄 许可证
 
-还没想好
+本项目采用 [MIT License](LICENSE) 开源协议。
+
+这意味着你可以自由地：
+- ✅ 商业使用
+- ✅ 修改源代码
+- ✅ 分发副本
+- ✅ 私人使用
+
+**唯一要求**：在分发时保留原始的版权和许可声明。

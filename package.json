@@ -3,6 +3,21 @@
   "private": true,
   "version": "0.1.9-beta.1",
   "type": "module",
+  "license": "MIT",
+  "author": "miaotouy",
+  "description": "一个基于 Tauri + Vue 3 开发的桌面端枢纽应用，提供多种实用的开发和日常工具",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/miaotouy/aio-hub"
+  },
+  "bugs": {
+    "url": "https://github.com/miaotouy/aio-hub/issues"
+  },
+  "homepage": "https://github.com/miaotouy/aio-hub#readme",
+  "funding": {
+    "type": "individual",
+    "url": "https://afdian.com/a/miaotouy"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",

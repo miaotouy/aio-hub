@@ -4,6 +4,9 @@ import { useRouter, useRoute } from "vue-router";
 import { Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "../config/tools";
 import { useDetachable } from "../composables/useDetachable";
+import { useTheme } from "../composables/useTheme";
+import iconBlack from "../assets/aio-icon-black.svg";
+import iconWhite from "../assets/aio-icon-white.svg";
 
 // Props
 interface Props {
@@ -22,6 +25,8 @@ const emit = defineEmits<{
 const router = useRouter();
 const route = useRoute();
 const { startDetaching } = useDetachable();
+const { isDark } = useTheme();
+const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 
 // 内部状态与 props 同步
 const isCollapsed = computed({
@@ -84,7 +89,8 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
     <div class="sidebar-top">
       <!-- 侧边栏头部：根据isCollapsed显示不同内容 -->
       <div class="sidebar-header" :class="{ 'is-collapsed': isCollapsed }">
-        <h2 v-if="!isCollapsed" class="sidebar-title">AIO工具箱</h2>
+        <img :src="logoSrc" alt="Logo" class="sidebar-logo" />
+        <h2 v-if="!isCollapsed" class="sidebar-title">AIO Hub</h2>
       </div>
 
       <el-menu
@@ -171,6 +177,16 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
   padding: 0 20px;
   box-sizing: border-box;
   overflow-x: hidden;
+}
+
+.sidebar-logo {
+  width: 32px;
+  height: 32px;
+  transition: all 0.3s ease;
+}
+
+.sidebar-header:not(.is-collapsed) .sidebar-logo {
+  margin-right: 12px;
 }
 
 .sidebar-title {

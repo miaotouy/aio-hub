@@ -26,7 +26,7 @@ pub fn create_system_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let _tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
-        .tooltip("AIO工具箱")
+        .tooltip("AIO Hub")
         .on_menu_event(move |app, event| {
             match event.id.as_ref() {
                 "show" => {

@@ -171,7 +171,7 @@ a:hover {
 
 \`\`\`json
 {
-  "name": "all-in-one-tools",
+  "name": "aiohub",
   "private": true,
   "version": "0.1.0",
   "scripts": {
@@ -1463,7 +1463,7 @@ V2 解析器应该能够：
     id: "Agent-Bubble-test",
     name: "智能体气泡测试",
     description: "真实的智能体输出场景",
-    content: `<think>姐姐发来了一个名为\"AIO现状\"的附件，是一个目录树结构，展示了一个名为\"all-in-one-tools\"的项目。
+    content: `<think>姐姐发来了一个名为\"AIO现状\"的附件，是一个目录树结构，展示了一个名为\"aiohub\"的项目。
 
 让我分析一下这个项目的结构：
 
@@ -1502,7 +1502,7 @@ OCR功能涵盖了多家云服务商和本地识别引擎，支持多语言文�
 
 <div style=\"display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid rgba(100, 181, 246, 0.3);\">
   <div style=\"width: 4px; height: 28px; background: linear-gradient(180deg, #64b5f6, #42a5f5); border-radius: 2px;\"></div>
-  <h2 style=\"margin: 0; font-size: 22px; color: #64b5f6; font-weight: 600;\">All-In-One Tools 项目现状分析</h2>
+  <h2 style=\"margin: 0; font-size: 22px; color: #64b5f6; font-weight: 600;\">AIO Hub 项目现状分析</h2>
 </div>
 
 <div style=\"display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px;\">

@@ -1,6 +1,6 @@
 <template>
   <div class="home-page">
-    <span class="title">All In One 工具箱</span>
+    <span class="title">All In One Hub</span>
 
     <!-- 搜索栏 -->
     <div class="search-bar">

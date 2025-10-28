@@ -53,7 +53,7 @@ const currentTool = computed(() => {
   // 特殊页面处理
   if (route.path === '/') {
     return {
-      name: 'AIO工具箱',
+      name: 'AIO Hub',
       icon: House
     };
   } else if (route.path === '/regex-manage') {
@@ -69,7 +69,7 @@ const currentTool = computed(() => {
   }
   
   return {
-    name: 'AIO工具箱',
+    name: 'AIO Hub',
     icon: House
   };
 });

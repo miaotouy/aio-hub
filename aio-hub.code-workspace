@@ -1,0 +1,41 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"typescript.tsdk": "node_modules/typescript/lib",
+		"typescript.enablePromptUseWorkspaceTsdk": true,
+		"editor.tabSize": 2,
+		"editor.insertSpaces": true,
+		"[typescript]": {
+			"editor.tabSize": 2,
+			"editor.insertSpaces": true
+		},
+		"[vue]": {
+			"editor.tabSize": 2,
+			"editor.insertSpaces": true
+		},
+		"[javascript]": {
+			"editor.tabSize": 2,
+			"editor.insertSpaces": true
+		},
+		"[json]": {
+			"editor.tabSize": 2,
+			"editor.insertSpaces": true
+		},
+		"[css]": {
+			"editor.tabSize": 2,
+			"editor.insertSpaces": true
+		},
+		"[scss]": {
+			"editor.tabSize": 2,
+			"editor.insertSpaces": true
+		},
+		"[html]": {
+			"editor.tabSize": 2,
+			"editor.insertSpaces": true
+		}
+	}
+}

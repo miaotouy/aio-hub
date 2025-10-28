@@ -17,7 +17,7 @@
 
 1. **创建时恢复**：窗口创建后，系统会自动查找并应用保存的配置
 2. **关闭时保存**：窗口关闭前，系统会自动保存当前状态
-3. **配置存储**：所有配置保存在 `AppData/com.mty.aiotools/window-configs.json`
+3. **配置存储**：所有配置保存在 `AppData/com.mty.aiohub/window-configs.json`
 
 ### 配置文件格式
 
@@ -168,7 +168,7 @@ onMounted(() => {
    console.log('已保存的窗口:', labels);
    ```
 
-2. 检查配置文件内容：打开 `AppData/com.mty.aiotools/window-configs.json`
+2. 检查配置文件内容：打开 `AppData/com.mty.aiohub/window-configs.json`
 
 3. 查看控制台日志：所有配置操作都会输出 `[WINDOW_CONFIG]` 前缀的日志
 
@@ -178,7 +178,7 @@ onMounted(() => {
 await invoke('clear_all_window_configs');
 ```
 
-或手动删除配置文件：`AppData/com.mty.aiotools/window-configs.json`
+或手动删除配置文件：`AppData/com.mty.aiohub/window-configs.json`
 
 ## 迁移指南
 

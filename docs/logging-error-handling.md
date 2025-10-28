@@ -254,11 +254,11 @@ async function callApi() {
 
 ### 1. 查看日志文件
 
-日志文件位于：`AppData/aiotools/logs/app-YYYY-MM-DD.log`
+日志文件位于：`AppData/aiohub/logs/app-YYYY-MM-DD.log`
 
 在 Windows 上通常是：
 ```
-C:\Users\你的用户名\AppData\Roaming\com.mty.aiotools\logs\
+C:\Users\你的用户名\AppData\Roaming\com.mty.aiohub\logs\
 ```
 
 ### 2. 查看内存中的日志

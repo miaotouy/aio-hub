@@ -254,7 +254,7 @@ pub fn run() {
                 "main",
                 tauri::WebviewUrl::App("index.html".into()),
             )
-            .title("aiotools")
+            .title("AIO Hub")
             .inner_size(1280.0, 768.0)
             .min_inner_size(360.0, 112.0)
             .transparent(true);

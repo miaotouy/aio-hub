@@ -76,7 +76,7 @@ const links = [
   },
   {
     title: "仓库",
-    value: "all-in-one-tools",
+    value: "aiohub",
     icon: markRaw(Link),
   },
   {
@@ -93,10 +93,10 @@ onMounted(async () => {
     appInfo.value.version = await getVersion();
   } catch (error) {
     logger.error("获取应用信息失败", error, {
-      fallbackName: "All-in-One Tools",
+      fallbackName: "AIO Hub",
       fallbackVersion: "1.0.0",
     });
-    appInfo.value.name = "All-in-One Tools";
+    appInfo.value.name = "AIO Hub";
     appInfo.value.version = "1.0.0";
   }
 });
@@ -108,9 +108,9 @@ onMounted(async () => {
     <div class="app-header">
       <img :src="iconColor" alt="App Icon" class="app-icon" />
       <div class="app-info">
-        <h1 class="app-name">{{ appInfo.name || "All-in-One Tools" }}</h1>
+        <h1 class="app-name">{{ appInfo.name || "AIO Hub" }}</h1>
         <p class="app-version">版本 {{ appInfo.version || "1.0.0" }}</p>
-        <p class="app-description">一个功能丰富的桌面端工具集应用</p>
+        <p class="app-description">一个功能丰富的桌面端枢纽应用</p>
       </div>
     </div>
 

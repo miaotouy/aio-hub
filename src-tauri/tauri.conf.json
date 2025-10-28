@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "aiotools",
+  "productName": "AIO Hub",
   "version": "0.1.8-alpha.4",
-  "identifier": "com.mty.aiotools",
+  "identifier": "com.mty.aiohub",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",

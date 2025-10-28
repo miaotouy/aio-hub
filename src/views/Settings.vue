@@ -978,6 +978,10 @@ onUnmounted(() => {
 }
 
 .component-section .section-title {
+  position: sticky;
+  top: 0;
+  background: var(--card-bg);
+  z-index: 1;
   padding: 24px 24px 12px;
   margin: 0;
   flex-shrink: 0;

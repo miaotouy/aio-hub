@@ -4,16 +4,12 @@ import { getName, getVersion } from "@tauri-apps/api/app";
 import { createModuleLogger } from "@utils/logger";
 import iconColor from "@/assets/aio-icon-color.svg";
 import {
-  Monitor,
-  ChatLineRound,
-  Connection,
-  Brush,
-  Tools,
   User,
   Link,
   DocumentCopy,
+  Star,
+  Present,
 } from "@element-plus/icons-vue";
-import OcrIcon from '@components/icons/OcrIcon.vue';
 
 // 创建模块日志记录器
 const logger = createModuleLogger("AboutSettings");
@@ -24,48 +20,6 @@ const appInfo = ref({
   version: "",
 });
 
-// 核心功能特性
-const coreFeatures = [
-  {
-    title: "多窗口支持",
-    description: "工具可拖拽分离为独立浮动窗口，支持多任务布局",
-    icon: markRaw(Monitor),
-  },
-  {
-    title: "树形对话历史",
-    description: "革命性的非线性对话管理，每次重新生成创建新分支",
-    icon: markRaw(ChatLineRound),
-  },
-  {
-    title: "智能 OCR",
-    description: "多引擎支持，智能切图，交互式处理",
-    icon: markRaw(OcrIcon),
-  },
-  {
-    title: "LLM 服务配置",
-    description: "集中管理 API 配置，支持主流服务商",
-    icon: markRaw(Connection),
-  },
-  {
-    title: "全局样式覆盖",
-    description: "内置 CSS 编辑器，深度定制应用外观",
-    icon: markRaw(Brush),
-  },
-  {
-    title: "丰富的工具集",
-    description: "Git 分析、正则应用、目录清理等实用工具",
-    icon: markRaw(Tools),
-  },
-];
-
-// 技术栈
-const techStack = [
-  { name: "Tauri", version: "2.0" },
-  { name: "Vue", version: "3" },
-  { name: "TypeScript", version: "" },
-  { name: "Element Plus", version: "" },
-  { name: "Rust", version: "" },
-];
 
 // 链接
 const links = [
@@ -76,15 +30,37 @@ const links = [
   },
   {
     title: "仓库",
-    value: "aiohub",
+    value: "miaotouy/aio-hub",
     icon: markRaw(Link),
   },
   {
     title: "许可证",
-    value: "还没想好",
+    value: "MIT License",
     icon: markRaw(DocumentCopy),
   },
 ];
+
+// 支持项目
+const supportActions = [
+  {
+    title: "⭐ 给项目点个 Star",
+    description: "在 GitHub 上为项目点亮 Star，这是对作者最大的鼓励",
+    icon: markRaw(Star),
+    action: "https://github.com/miaotouy/aio-hub",
+  },
+  {
+    title: "☕ 爱发电赞助",
+    description: "支持作者继续开发维护，探索更多创新功能",
+    icon: markRaw(Present),
+    action: "https://afdian.com/a/miaotouy",
+    highlighted: true,
+  },
+];
+
+// 打开外部链接
+const openUrl = (url: string) => {
+  window.open(url, "_blank");
+};
 
 // 初始化
 onMounted(async () => {
@@ -110,40 +86,12 @@ onMounted(async () => {
       <div class="app-info">
         <h1 class="app-name">{{ appInfo.name || "AIO Hub" }}</h1>
         <p class="app-version">版本 {{ appInfo.version || "1.0.0" }}</p>
-        <p class="app-description">一个功能丰富的桌面端枢纽应用</p>
-      </div>
-    </div>
-
-    <!-- 核心功能 -->
-    <div class="section">
-      <h2 class="section-title">✨ 核心功能</h2>
-      <div class="features-grid">
-        <div v-for="feature in coreFeatures" :key="feature.title" class="feature-card">
-          <el-icon class="feature-icon" :size="32">
-            <component :is="feature.icon" />
-          </el-icon>
-          <div class="feature-content">
-            <h3 class="feature-title">{{ feature.title }}</h3>
-            <p class="feature-description">{{ feature.description }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 技术栈 -->
-    <div class="section">
-      <h2 class="section-title">🔧 技术栈</h2>
-      <div class="tech-stack">
-        <div v-for="tech in techStack" :key="tech.name" class="tech-item">
-          <span class="tech-name">{{ tech.name }}</span>
-          <span v-if="tech.version" class="tech-version">{{ tech.version }}</span>
-        </div>
+        <p class="app-description">提供多种实用的开发和日常工具，以及高可控性的LLM交互。</p>
       </div>
     </div>
 
     <!-- 项目信息 -->
     <div class="section">
-      <h2 class="section-title">📝 项目信息</h2>
       <div class="project-info">
         <div v-for="link in links" :key="link.title" class="info-item">
           <el-icon class="info-icon" :size="18">
@@ -151,6 +99,38 @@ onMounted(async () => {
           </el-icon>
           <span class="info-label">{{ link.title }}：</span>
           <span class="info-value">{{ link.value }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 支持项目 -->
+    <div class="section">
+      <div class="support-container">
+        <p class="support-description">
+          AIO Hub 是完全免费的开源项目，作者几乎全职投入开发。你的支持将帮助：
+        </p>
+        <ul class="support-benefits">
+          <li>🚀 持续添加新功能和工具</li>
+          <li>🐛 及时修复问题和优化性能</li>
+          <li>📚 完善文档和使用教程</li>
+          <li>💡 探索更多创新想法</li>
+        </ul>
+        <div class="support-actions">
+          <div
+            v-for="action in supportActions"
+            :key="action.title"
+            class="support-action-card"
+            :class="{ highlighted: action.highlighted }"
+            @click="openUrl(action.action)"
+          >
+            <el-icon class="action-icon" :size="28">
+              <component :is="action.icon" />
+            </el-icon>
+            <div class="action-content">
+              <h3 class="action-title">{{ action.title }}</h3>
+              <p class="action-description">{{ action.description }}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -223,84 +203,6 @@ onMounted(async () => {
   color: var(--el-text-color-primary);
 }
 
-/* 功能网格 */
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-
-.feature-card {
-  display: flex;
-  gap: 12px;
-  padding: 16px;
-  background: var(--el-bg-color-overlay);
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color);
-  transition: all 0.3s;
-}
-
-.feature-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: var(--el-color-primary);
-}
-
-.feature-icon {
-  flex-shrink: 0;
-  color: var(--el-color-primary);
-}
-
-.feature-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.feature-title {
-  margin: 0 0 4px 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.feature-description {
-  margin: 0;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-  line-height: 1.5;
-}
-
-/* 技术栈 */
-.tech-stack {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.tech-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: color-mix(in srgb, var(--el-color-primary) 5%, transparent);
-  border: 1px solid var(--el-color-primary);
-  color: var(--el-color-primary);
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.tech-item:hover {
-  background: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
-  border-color: var(--el-color-primary-light-3);
-}
-
-.tech-version {
-  opacity: 0.8;
-  font-size: 12px;
-}
-
 /* 项目信息 */
 .project-info {
   padding: 16px;
@@ -336,6 +238,102 @@ onMounted(async () => {
   font-weight: 500;
 }
 
+/* 支持项目 */
+.support-container {
+  padding: 20px;
+  background: var(--el-bg-color-overlay);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color);
+}
+
+.support-description {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+  line-height: 1.6;
+}
+
+.support-benefits {
+  margin: 0 0 20px 0;
+  padding-left: 20px;
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.support-benefits li {
+  margin-bottom: 4px;
+}
+
+.support-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.support-action-card {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  border: 2px solid var(--el-border-color);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.support-action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: var(--el-color-primary);
+}
+
+.support-action-card.highlighted {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-primary) 10%, transparent),
+    color-mix(in srgb, #ff69b4 8%, transparent)
+  );
+  border-color: var(--el-color-primary);
+}
+
+.support-action-card.highlighted:hover {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-primary) 15%, transparent),
+    color-mix(in srgb, #ff69b4 12%, transparent)
+  );
+  box-shadow: 0 6px 16px rgba(255, 105, 180, 0.2);
+}
+
+.action-icon {
+  flex-shrink: 0;
+  color: var(--el-color-primary);
+}
+
+.support-action-card.highlighted .action-icon {
+  color: #ff69b4;
+}
+
+.action-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.action-title {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.action-description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+}
+
 /* 版权信息 */
 .copyright {
   margin-top: 32px;
@@ -351,21 +349,10 @@ onMounted(async () => {
 }
 
 /* 响应式 */
-/* 大屏优化 (1200px+) */
-@media (min-width: 1200px) {
-  .features-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
 /* 中等屏幕 (768px - 1024px) */
 @media (max-width: 1024px) {
   .about-settings {
     padding: 20px;
-  }
-  
-  .features-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
 }
 
@@ -381,20 +368,16 @@ onMounted(async () => {
     padding: 24px;
     gap: 16px;
   }
-  
+
   .app-icon {
     width: 80px;
     height: 80px;
   }
 
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
-
   .app-name {
     font-size: 24px;
   }
-  
+
   .section-title {
     font-size: 18px;
   }
@@ -405,55 +388,38 @@ onMounted(async () => {
   .about-settings {
     padding: 12px;
   }
-  
+
   .app-header {
     padding: 16px;
     gap: 12px;
   }
-  
+
   .app-icon {
     width: 64px;
     height: 64px;
   }
-  
+
   .app-name {
     font-size: 20px;
   }
-  
+
   .app-version {
     font-size: 14px;
   }
-  
+
   .app-description {
     font-size: 13px;
   }
-  
+
   .section-title {
     font-size: 16px;
     margin-bottom: 12px;
   }
-  
-  .feature-card {
-    padding: 12px;
-  }
-  
-  .feature-icon {
-    font-size: 24px;
-  }
-  
-  .tech-stack {
-    gap: 8px;
-  }
-  
-  .tech-item {
-    padding: 6px 12px;
-    font-size: 13px;
-  }
-  
+
   .project-info {
     padding: 12px;
   }
-  
+
   .info-item {
     font-size: 13px;
     margin-bottom: 12px;

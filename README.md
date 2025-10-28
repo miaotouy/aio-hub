@@ -1,6 +1,34 @@
+<div align="center">
+
+<img src="src/assets/aio-icon-color.png" alt="AIO Hub Logo" width="120" height="120">
+
 # AIO Hub
 
+**一站式桌面工具枢纽 | 开发者的效率利器**
+
 一个基于 Tauri + Vue 3 + TypeScript 开发的桌面端枢纽应用，提供多种实用的开发和日常工具。
+
+
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
+[![Vue](https://img.shields.io/badge/Vue-3.5-green.svg)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
+
+[![Stars](https://img.shields.io/github/stars/miaotouy/aio-hub?style=social)](https://github.com/miaotouy/aio-hub/stargazers)
+[![Forks](https://img.shields.io/github/forks/miaotouy/aio-hub?style=social)](https://github.com/miaotouy/aio-hub/network/members)
+[![Issues](https://img.shields.io/github/issues/miaotouy/aio-hub)](https://github.com/miaotouy/aio-hub/issues)
+
+[![爱发电赞助](https://img.shields.io/badge/爱发电-赞助作者-ff69b4.svg)](https://afdian.com/a/miaotouy)
+
+[✨ 功能特性](#-功能特性) •
+[🚀 快速开始](#-快速开始) •
+[📖 文档](#-开发指南) •
+[💖 支持项目](#-支持项目) •
+[📄 许可证](#-许可证)
+
+---
+
+</div>
 
 ## ✨ 功能特性
 
@@ -8,7 +36,7 @@
 
 #### 窗口管理
 
-- 🪟 **多窗口支持** - 工具可拖拽分离为独立浮动窗口，支持多任务布局。
+- 🖥️ **多窗口支持** - 工具可拖拽分离为独立浮动窗口，支持多任务布局。
 - ✨ **组件级分离** - 核心组件（如对话区域）可被**拖拽出**主窗口，成为独立的、可自由操作的浮动窗口，实现极致的布局自由。
 - 🔗 **跨窗口状态同步** - 先进的多窗口同步架构，确保主窗口与所有分离窗口之间的状态实时同步，操作无缝衔接。
 - 📌 **窗口状态记忆** - 自动记忆并恢复所有窗口的位置与大小。
@@ -87,13 +115,15 @@
 
 ## 🚀 快速开始
 
-### 环境要求
+### 📋 环境要求
 
-- Node.js >= 20
-- Rust >= 1.70
-- Bun 或 npm/yarn/pnpm
+| 工具 | 最低版本 | 推荐版本 |
+|------|---------|---------|
+| Node.js | 20.x | 最新 LTS |
+| Rust | 1.70+ | 最新稳定版 |
+| 包管理器 | - | Bun (推荐) |
 
-### 安装依赖
+### 📦 安装依赖
 
 ```bash
 # 使用 Bun (推荐)
@@ -103,7 +133,7 @@ bun install
 npm install
 ```
 
-### 开发模式
+### 🔨 开发模式
 
 ```bash
 # 启动开发服务器
@@ -113,7 +143,7 @@ bun run tauri dev
 npm run tauri dev
 ```
 
-### 构建应用
+### 📦 构建应用
 
 ```bash
 # 构建生产版本
@@ -122,6 +152,8 @@ bun run tauri build
 # 或
 npm run tauri build
 ```
+
+> **💡 提示**：首次构建可能需要较长时间来下载 Rust 依赖，请耐心等待。
 
 ## 📁 项目结构
 
@@ -162,12 +194,32 @@ aio-hub/
 
 ## 🔧 技术栈
 
-- **前端框架**: Vue 3 + TypeScript
-- **桌面框架**: Tauri
-- **构建工具**: Vite
-- **样式**: CSS + CSS Variables
-- **状态管理**: Composition API + LocalStorage
-- **代码编辑器**: Monaco Editor / CodeMirror (核心组件，在特定工具中支持动态切换)
+<table>
+<tr>
+<td align="center" width="50%">
+
+### 前端技术
+
+- 🎨 **框架**: Vue 3 + TypeScript
+- ⚡ **构建**: Vite
+- 🎨 **样式**: CSS Variables
+- 💾 **状态**: Composition API + Pinia
+- 🖼️ **UI**: Element Plus + Naive UI
+
+</td>
+<td align="center" width="50%">
+
+### 后端 & 工具
+
+- 🦀 **桌面**: Tauri 2.0
+- 📝 **编辑器**: Monaco / CodeMirror
+- 📊 **图表**: ECharts
+- 🎯 **工具**: Prettier, Tesseract.js
+- 🔧 **包管理**: Bun (推荐)
+
+</td>
+</tr>
+</table>
 
 ## 🎯 开发指南
 
@@ -202,16 +254,41 @@ const { config, saveConfig, resetConfig } = useToolConfig("tool-name", {
 
 ## 💖 支持项目
 
+<div align="center">
+
 如果这个项目对你有帮助，欢迎通过以下方式支持：
 
-- ⭐ 给项目点个 Star
-- 🐛 提交 Bug 报告或功能建议
-- 🔧 贡献代码（欢迎 Pull Request）
-- ☕ [爱发电赞助](https://afdian.com/a/miaotouy) - 支持作者继续开发维护
+[![Star](https://img.shields.io/badge/⭐-给项目点个_Star-yellow?style=for-the-badge)](https://github.com/miaotouy/aio-hub)
+[![Sponsor](https://img.shields.io/badge/☕-爱发电赞助-ff69b4?style=for-the-badge)](https://afdian.com/a/miaotouy)
+[![Issues](https://img.shields.io/badge/🐛-提交_Issue-blue?style=for-the-badge)](https://github.com/miaotouy/aio-hub/issues)
+[![PR](https://img.shields.io/badge/🔧-贡献代码-green?style=for-the-badge)](https://github.com/miaotouy/aio-hub/pulls)
 
-### 为什么需要你的支持？
+</div>
 
-AIO Hub 是完全免费的开源项目，作者几乎全职投入开发。你的赞助将帮助：
+### 🌟 为什么需要你的支持？
+
+<table>
+<tr>
+<td width="25%" align="center">
+<b>完全免费</b><br>
+无任何隐藏费用
+</td>
+<td width="25%" align="center">
+<b>全职投入</b><br>
+作者全力开发
+</td>
+<td width="25%" align="center">
+<b>持续更新</b><br>
+不断添加新功能
+</td>
+<td width="25%" align="center">
+<b>社区驱动</b><br>
+听取用户反馈
+</td>
+</tr>
+</table>
+
+你的赞助将帮助：
 - 🚀 持续添加新功能和工具
 - 🐛 及时修复问题和优化性能
 - 📚 完善文档和使用教程
@@ -219,22 +296,53 @@ AIO Hub 是完全免费的开源项目，作者几乎全职投入开发。你的
 
 ## 🤝 贡献指南
 
-欢迎任何形式的贡献！
+<div align="center">
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+**欢迎任何形式的贡献！**
+
+</div>
+
+### 📝 贡献流程
+
+```bash
+# 1. Fork 本仓库并克隆到本地
+git clone https://github.com/YOUR_USERNAME/aio-hub.git
+
+# 2. 创建特性分支
+git checkout -b feature/AmazingFeature
+
+# 3. 提交更改
+git commit -m '✨ Add some AmazingFeature'
+
+# 4. 推送到分支
+git push origin feature/AmazingFeature
+
+# 5. 开启 Pull Request
+```
+
+### 💡 贡献建议
+
+- 🐛 **Bug 修复**: 详细描述问题和复现步骤
+- ✨ **新功能**: 先开 Issue 讨论可行性
+- 📝 **文档**: 帮助完善使用文档和注释
+- 🌍 **国际化**: 支持更多语言
 
 ## 📄 许可证
 
-本项目采用 [MIT License](LICENSE) 开源协议。
+<div align="center">
+
+**本项目采用 [MIT License](LICENSE) 开源协议**
 
 这意味着你可以自由地：
-- ✅ 商业使用
-- ✅ 修改源代码
-- ✅ 分发副本
-- ✅ 私人使用
 
-**唯一要求**：在分发时保留原始的版权和许可声明。
+✅ 商业使用 | ✅ 修改源代码 | ✅ 分发副本 | ✅ 私人使用
+
+**唯一要求**：在分发时保留原始的版权和许可声明
+
+---
+
+<sub>Made with ❤️ by <a href="https://github.com/miaotouy">@miaotouy</a></sub>
+
+<sub>Copyright © 2025 miaotouy. All rights reserved.</sub>
+
+</div>

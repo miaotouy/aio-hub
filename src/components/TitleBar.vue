@@ -5,7 +5,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { Minus, CopyDocument, Close, House, Setting, Sunny, Moon, User } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toolsConfig } from '../config/tools';
-import iconImage from '../assets/icon.png';
+import iconBlack from '../assets/aio-icon-black.svg';
+import iconWhite from '../assets/aio-icon-white.svg';
 import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from '@utils/appSettings';
 import { createModuleLogger } from '@utils/logger';
 import { platform } from '@tauri-apps/plugin-os';
@@ -25,7 +26,7 @@ const props = defineProps<{
 const logger = createModuleLogger('TitleBar');
 
 const router = useRouter();
-const { currentTheme, applyTheme } = useTheme();
+const { currentTheme, applyTheme, isDark } = useTheme();
 const userProfileStore = useUserProfileStore();
 
 const appWindow = getCurrentWindow();
@@ -86,6 +87,8 @@ const useDefaultIcon = computed(() => {
   if (props.icon) return false;
   return route.path === '/' || !toolsConfig.find(tool => tool.path === route.path);
 });
+
+const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 
 // 检查窗口是否最大化
 const checkMaximized = async () => {
@@ -256,7 +259,7 @@ const goToProfileSettings = () => {
       <!-- 中间标题区域 -->
       <div class="title-area">
         <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
-        <img v-if="useDefaultIcon" :src="iconImage" alt="Logo" class="app-logo" />
+        <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" />
         <el-icon v-else class="tool-icon" :size="20">
           <component :is="currentIcon" />
         </el-icon>

@@ -1,4 +1,4 @@
-import { ref, onUnmounted, watch, type Ref } from 'vue'
+import { onUnmounted, watch, type Ref } from 'vue'
 import { useDark } from '@vueuse/core'
 import * as echarts from 'echarts'
 import type { GitCommit } from '../types'
@@ -7,12 +7,17 @@ import { createModuleLogger } from '@utils/logger'
 
 const logger = createModuleLogger('git-analyzer:charts')
 
-export function useCharts(filteredCommits: Ref<GitCommit[]>) {
-  // 图表 DOM 引用
-  const frequencyChart = ref<HTMLDivElement>()
-  const contributorChart = ref<HTMLDivElement>()
-  const heatmapChart = ref<HTMLDivElement>()
+// 定义图表 DOM 引用的类型
+interface ChartRefs {
+  frequencyChart?: HTMLElement
+  contributorChart?: HTMLElement
+  heatmapChart?: HTMLElement
+}
 
+export function useCharts(
+  filteredCommits: Ref<GitCommit[]>,
+  getChartRefs: () => ChartRefs | undefined
+) {
   // ResizeObserver 实例
   let resizeObserver: ResizeObserver | null = null
 
@@ -58,22 +63,24 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
    * 绘制提交频率图表
    */
   function drawFrequencyChart() {
-    if (!frequencyChart.value) return
+    const chartRefs = getChartRefs()
+    const frequencyChartEl = chartRefs?.frequencyChart
+    if (!frequencyChartEl) return
 
     // 检查 DOM 尺寸
-    if (frequencyChart.value.clientWidth === 0 || frequencyChart.value.clientHeight === 0) {
+    if (frequencyChartEl.clientWidth === 0 || frequencyChartEl.clientHeight === 0) {
       logger.warn('图表容器尺寸为零，无法渲染', {
         chart: 'Frequency',
-        width: frequencyChart.value.clientWidth,
-        height: frequencyChart.value.clientHeight,
+        width: frequencyChartEl.clientWidth,
+        height: frequencyChartEl.clientHeight,
       })
       return
     }
 
     // 获取或创建图表实例
-    let chart = echarts.getInstanceByDom(frequencyChart.value)
+    let chart = echarts.getInstanceByDom(frequencyChartEl)
     if (!chart) {
-      chart = echarts.init(frequencyChart.value)
+      chart = echarts.init(frequencyChartEl)
     }
     // 使用统一的数据处理函数
     const timelineData = generateTimelineData(filteredCommits.value)
@@ -162,22 +169,24 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
    * 绘制贡献者统计图表
    */
   function drawContributorChart() {
-    if (!contributorChart.value) return
+    const chartRefs = getChartRefs()
+    const contributorChartEl = chartRefs?.contributorChart
+    if (!contributorChartEl) return
 
     // 检查 DOM 尺寸
-    if (contributorChart.value.clientWidth === 0 || contributorChart.value.clientHeight === 0) {
+    if (contributorChartEl.clientWidth === 0 || contributorChartEl.clientHeight === 0) {
       logger.warn('图表容器尺寸为零，无法渲染', {
         chart: 'Contributor',
-        width: contributorChart.value.clientWidth,
-        height: contributorChart.value.clientHeight,
+        width: contributorChartEl.clientWidth,
+        height: contributorChartEl.clientHeight,
       })
       return
     }
 
     // 获取或创建图表实例
-    let chart = echarts.getInstanceByDom(contributorChart.value)
+    let chart = echarts.getInstanceByDom(contributorChartEl)
     if (!chart) {
-      chart = echarts.init(contributorChart.value)
+      chart = echarts.init(contributorChartEl)
     }
     // 使用统一的数据处理函数
     const contributorStats = getContributorStats(filteredCommits.value)
@@ -238,22 +247,24 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
    * 绘制提交热力图
    */
   function drawHeatmapChart() {
-    if (!heatmapChart.value) return
+    const chartRefs = getChartRefs()
+    const heatmapChartEl = chartRefs?.heatmapChart
+    if (!heatmapChartEl) return
 
     // 检查 DOM 尺寸
-    if (heatmapChart.value.clientWidth === 0 || heatmapChart.value.clientHeight === 0) {
+    if (heatmapChartEl.clientWidth === 0 || heatmapChartEl.clientHeight === 0) {
       logger.warn('图表容器尺寸为零，无法渲染', {
         chart: 'Heatmap',
-        width: heatmapChart.value.clientWidth,
-        height: heatmapChart.value.clientHeight,
+        width: heatmapChartEl.clientWidth,
+        height: heatmapChartEl.clientHeight,
       })
       return
     }
 
     // 获取或创建图表实例
-    let chart = echarts.getInstanceByDom(heatmapChart.value)
+    let chart = echarts.getInstanceByDom(heatmapChartEl)
     if (!chart) {
-      chart = echarts.init(heatmapChart.value)
+      chart = echarts.init(heatmapChartEl)
     }
 
     // 使用统一的数据处理函数
@@ -363,16 +374,17 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
    * 调整图表大小
    */
   function resizeCharts() {
-    if (frequencyChart.value) {
-      const chart = echarts.getInstanceByDom(frequencyChart.value)
+    const chartRefs = getChartRefs()
+    if (chartRefs?.frequencyChart) {
+      const chart = echarts.getInstanceByDom(chartRefs.frequencyChart)
       chart?.resize()
     }
-    if (contributorChart.value) {
-      const chart = echarts.getInstanceByDom(contributorChart.value)
+    if (chartRefs?.contributorChart) {
+      const chart = echarts.getInstanceByDom(chartRefs.contributorChart)
       chart?.resize()
     }
-    if (heatmapChart.value) {
-      const chart = echarts.getInstanceByDom(heatmapChart.value)
+    if (chartRefs?.heatmapChart) {
+      const chart = echarts.getInstanceByDom(chartRefs.heatmapChart)
       chart?.resize()
     }
   }
@@ -397,14 +409,15 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
    * 清理所有图表实例
    */
   function disposeCharts() {
-    if (frequencyChart.value) {
-      echarts.getInstanceByDom(frequencyChart.value)?.dispose()
+    const chartRefs = getChartRefs()
+    if (chartRefs?.frequencyChart) {
+      echarts.getInstanceByDom(chartRefs.frequencyChart)?.dispose()
     }
-    if (contributorChart.value) {
-      echarts.getInstanceByDom(contributorChart.value)?.dispose()
+    if (chartRefs?.contributorChart) {
+      echarts.getInstanceByDom(chartRefs.contributorChart)?.dispose()
     }
-    if (heatmapChart.value) {
-      echarts.getInstanceByDom(heatmapChart.value)?.dispose()
+    if (chartRefs?.heatmapChart) {
+      echarts.getInstanceByDom(chartRefs.heatmapChart)?.dispose()
     }
   }
 
@@ -426,11 +439,6 @@ export function useCharts(filteredCommits: Ref<GitCommit[]>) {
   })
 
   return {
-    // DOM 引用
-    frequencyChart,
-    contributorChart,
-    heatmapChart,
-
     // 方法
     updateCharts,
     resizeCharts,

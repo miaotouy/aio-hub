@@ -143,7 +143,15 @@ const {
 // Charts 视图引用
 const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 
-const { updateCharts, setupResizeObserver } = useCharts(filteredCommits);
+const { updateCharts, setupResizeObserver } = useCharts(filteredCommits, () => {
+  return chartsViewRef.value
+    ? {
+        frequencyChart: chartsViewRef.value.frequencyChart,
+        contributorChart: chartsViewRef.value.contributorChart,
+        heatmapChart: chartsViewRef.value.heatmapChart,
+      }
+    : undefined;
+});
 
 const { selectedCommit, showDetail, selectCommit, copyCommitHash } = useCommitDetail(
   () => repoPath.value

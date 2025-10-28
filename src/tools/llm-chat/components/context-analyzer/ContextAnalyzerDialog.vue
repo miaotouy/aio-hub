@@ -102,7 +102,7 @@ const analyzeContext = async () => {
 
   try {
     const { getLlmContextForPreview } = useChatHandler();
-    const result = getLlmContextForPreview(props.session, props.nodeId);
+    const result = await getLlmContextForPreview(props.session, props.nodeId);
 
     if (!result) {
       error.value = '无法生成上下文预览数据';

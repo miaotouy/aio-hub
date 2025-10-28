@@ -70,5 +70,6 @@ export const settingsModules: SettingsModule[] = [
     id: "about",
     title: "关于",
     component: defineAsyncComponent(() => import("../views/components/AboutSettings.vue")),
+    minHeight: "800px",
   },
 ];

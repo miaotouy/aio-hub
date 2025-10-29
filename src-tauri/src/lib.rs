@@ -302,16 +302,13 @@ pub fn run() {
             // 强制隐藏，以防窗口状态插件恢复其可见性
             let _ = indicator_window.hide();
 
-            // 注册全局快捷键
-            let app_handle = app.handle();
-
             // 确保窗口显示在任务栏
             main_window
                 .set_skip_taskbar(false)
                 .expect("Failed to set skip taskbar");
 
             // 创建系统托盘
-            create_system_tray(&app_handle)?;
+            create_system_tray(app)?;
 
             // 初始化全局鼠标监听器（用于基于 rdev 的拖拽）
             init_global_mouse_listener();

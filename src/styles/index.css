@@ -384,7 +384,7 @@ body.transparent-window #app {
   --el-message-close-color: var(--el-color-info);
 }
 
-/* 强制覆盖 el-tag 的样式 - 确保浅色主题下对比度足够 */
+/* 覆盖 el-tag 的样式 - 确保浅色主题下对比度足够 */
 .el-tag.el-tag--light.el-tag--primary {
   background-color: var(--el-color-primary-light-9);
   color: var(--el-color-primary);

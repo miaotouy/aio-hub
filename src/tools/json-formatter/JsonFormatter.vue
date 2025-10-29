@@ -20,9 +20,9 @@
       <div class="toolbar-center">
         <span class="expand-label">展开层级:</span>
         <el-slider v-model="defaultExpandDepth" :min="1" :max="10" :step="1" :show-tooltip="false"
-          class="expand-slider" @change="formatJson" />
+          class="expand-slider" @change="handleFormatJson" />
         <el-input-number v-model="defaultExpandDepth" :min="1" :max="10" size="small" controls-position="right"
-          class="expand-number" @change="formatJson" />
+          class="expand-number" @change="handleFormatJson" />
       </div>
 
       <div class="toolbar-right">
@@ -56,7 +56,7 @@
           <RichCodeEditor
             v-model="rawJsonInput"
             language="json"
-            @update:modelValue="formatJson"
+            @update:modelValue="handleFormatJson"
             class="input-editor"
           />
         </div>
@@ -98,22 +98,24 @@ import {
   DocumentCopy,
   CopyDocument,
   Delete,
-  Upload // 引入 Upload 图标
+  Upload
 } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
 import RichCodeEditor from '../../components/common/RichCodeEditor.vue';
-import { createModuleLogger } from '@utils/logger';
+import { serviceRegistry } from '@/services/registry';
+import type JsonFormatterService from './jsonFormatter.service';
 
-// 创建模块日志记录器
-const logger = createModuleLogger('JsonFormatter');
+// 获取服务实例
+const jsonFormatterService = serviceRegistry.getService<JsonFormatterService>('json-formatter');
 
+// UI 状态
 const rawJsonInput = ref('');
-const isDragging = ref(false); // 新增拖拽状态
+const isDragging = ref(false);
 const formattedJsonOutput = ref('');
 const parsedJsonData = ref<any>(null);
 const jsonError = ref('');
-const defaultExpandDepth = ref(3); // 默认展开层级
+const defaultExpandDepth = ref(3);
 
 // 计算输出标题
 const outputTitle = computed(() => {
@@ -125,56 +127,8 @@ const outputTitle = computed(() => {
   return '格式化输出';
 });
 
-// 自定义 JSON 序列化器，根据展开层级控制格式
-const customJsonStringify = (obj: any, expandDepth: number, currentDepth: number = 0): string => {
-  if (obj === null) return 'null';
-  if (typeof obj === 'undefined') return 'undefined';
-  if (typeof obj === 'string') return JSON.stringify(obj);
-  if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
-  
-  const indent = '  '.repeat(currentDepth);
-  const nextIndent = '  '.repeat(currentDepth + 1);
-  
-  if (Array.isArray(obj)) {
-    if (obj.length === 0) return '[]';
-    
-    // 如果当前层级超过展开深度，使用紧凑格式（一行显示）
-    if (currentDepth >= expandDepth) {
-      const compactItems = obj.map(item => {
-        if (typeof item === 'object' && item !== null) {
-          return JSON.stringify(item); // 直接序列化为紧凑格式
-        }
-        return customJsonStringify(item, expandDepth, currentDepth + 1);
-      });
-      return `[${compactItems.join(', ')}]`;
-    }
-    
-    const items = obj.map(item =>
-      nextIndent + customJsonStringify(item, expandDepth, currentDepth + 1)
-    );
-    return `[\n${items.join(',\n')}\n${indent}]`;
-  }
-  
-  if (typeof obj === 'object') {
-    const keys = Object.keys(obj);
-    if (keys.length === 0) return '{}';
-    
-    // 如果当前层级超过展开深度，使用紧凑格式（一行显示）
-    if (currentDepth >= expandDepth) {
-      return JSON.stringify(obj); // 直接序列化为紧凑格式
-    }
-    
-    const items = keys.map(key => {
-      const value = customJsonStringify(obj[key], expandDepth, currentDepth + 1);
-      return `${nextIndent}${JSON.stringify(key)}: ${value}`;
-    });
-    return `{\n${items.join(',\n')}\n${indent}}`;
-  }
-  
-  return String(obj);
-};
-
-const formatJson = debounce(() => {
+// 格式化 JSON（调用服务）
+const formatJsonInternal = () => {
   jsonError.value = '';
   if (!rawJsonInput.value.trim()) {
     formattedJsonOutput.value = '';
@@ -182,24 +136,27 @@ const formatJson = debounce(() => {
     return;
   }
 
-  try {
-    const parsed = JSON.parse(rawJsonInput.value);
-    parsedJsonData.value = parsed;
+  const result = jsonFormatterService.formatJson(rawJsonInput.value, {
+    expandDepth: defaultExpandDepth.value,
+  });
 
-    // 使用自定义序列化器，根据展开层级生成格式化输出
-    formattedJsonOutput.value = customJsonStringify(parsed, defaultExpandDepth.value);
-  } catch (e: any) {
-    jsonError.value = `JSON 解析错误: ${e.message}`;
+  if (result.success) {
+    formattedJsonOutput.value = result.formatted;
+    parsedJsonData.value = result.parsed;
+  } else {
+    jsonError.value = result.error || '格式化失败';
     parsedJsonData.value = null;
     formattedJsonOutput.value = '';
   }
-}, 300);
+};
+
+const handleFormatJson = debounce(formatJsonInternal, 300);
 
 const pasteToJson = async () => {
   try {
     const text = await readText();
     rawJsonInput.value = text;
-    formatJson();
+    handleFormatJson();
     customMessage.success('已从剪贴板粘贴内容');
   } catch (error: any) {
     customMessage.error(`粘贴失败: ${error.message}`);
@@ -257,7 +214,7 @@ const onMouseMove = (e: MouseEvent) => {
   let newOutputWidth = initialOutputWidth - dx;
 
   // 限制最小宽度
-  const minWidth = 100; // 调整为合适的值
+  const minWidth = 100;
   if (newInputWidth < minWidth) {
     newInputWidth = minWidth;
     newOutputWidth = containerWidth - minWidth;
@@ -280,19 +237,14 @@ const onMouseUp = () => {
 };
 
 // 拖拽文件处理
-let dragCounter = 0; // 用于跟踪拖拽进入/离开的次数
+let dragCounter = 0;
 
 const handleDragOver = (event: DragEvent) => {
-  logger.debug('拖放事件：dragover', { eventType: 'dragover' });
   event.preventDefault();
   event.stopPropagation();
 };
 
 const handleDragEnter = (event: DragEvent) => {
-  logger.debug('拖放事件：dragenter', {
-    eventType: 'dragenter',
-    dragCounter: dragCounter + 1
-  });
   event.preventDefault();
   event.stopPropagation();
   dragCounter++;
@@ -300,10 +252,6 @@ const handleDragEnter = (event: DragEvent) => {
 };
 
 const handleDragLeave = (event: DragEvent) => {
-  logger.debug('拖放事件：dragleave', {
-    eventType: 'dragleave',
-    dragCounter: dragCounter - 1
-  });
   event.preventDefault();
   event.stopPropagation();
   dragCounter--;
@@ -312,13 +260,8 @@ const handleDragLeave = (event: DragEvent) => {
   }
 };
 
-const handleDrop = (event: DragEvent) => {
+const handleDrop = async (event: DragEvent) => {
   const files = event.dataTransfer?.files;
-  logger.debug('拖放事件：drop', {
-    eventType: 'drop',
-    filesCount: files?.length || 0,
-    fileName: files?.[0]?.name
-  });
   event.preventDefault();
   event.stopPropagation();
   dragCounter = 0;
@@ -326,35 +269,20 @@ const handleDrop = (event: DragEvent) => {
 
   if (files && files.length > 0) {
     const file = files[0];
-    if (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        logger.debug('文件读取成功', {
-          fileName: file.name,
-          contentLength: content.length
-        });
-        rawJsonInput.value = content;
-        formatJson();
-        customMessage.success(`成功读取文件: ${file.name}`);
-      };
-      reader.onerror = (e) => {
-        logger.debug('文件读取失败', {
-          fileName: file.name,
-          error: e.target?.error?.message || '未知错误'
-        });
-        customMessage.error(`读取文件失败: ${file.name} - ${e.target?.error}`);
-      };
-      reader.readAsText(file);
+    const result = await jsonFormatterService.readFile(file);
+    
+    if (result.success) {
+      rawJsonInput.value = result.content;
+      handleFormatJson();
+      customMessage.success(`成功读取文件: ${result.fileName}`);
     } else {
-      customMessage.warning('请拖拽 JSON 或文本文件。');
+      customMessage.error(result.error || '读取文件失败');
     }
-
   }
 };
 
 onMounted(() => {
-  formatJson(); // 初始格式化，以防有默认值
+  handleFormatJson();
 });
 
 onUnmounted(() => {
@@ -368,11 +296,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* 使用100%而不是100vh，避免超出父容器 */
   width: 100%;
-  /* 使用100%而不是100vw，避免超出父容器 */
   overflow: hidden;
-  /* 防止内容溢出产生滚动条 */
   background-color: var(--bg-color);
   box-sizing: border-box;
 }
@@ -386,10 +311,8 @@ onUnmounted(() => {
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  /* 轻微阴影 */
   z-index: 10;
   flex-shrink: 0;
-  /* 不参与伸缩 */
 }
 
 .toolbar-left,
@@ -404,10 +327,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   flex: 1;
-  /* 占据中心剩余空间 */
   justify-content: center;
   max-width: 600px;
-  /* 增加中心区域最大宽度以容纳更多控件 */
 }
 
 .indent-label,
@@ -415,67 +336,52 @@ onUnmounted(() => {
   font-size: 14px;
   color: var(--text-color);
   white-space: nowrap;
-  /* 防止换行 */
 }
 
 .indent-slider,
 .expand-slider {
   width: 100px;
-  /* 调整滑块宽度 */
 }
 
 .indent-number,
 .expand-number {
   width: 70px;
-  /* 调整数字输入框宽度 */
 }
 
 /* 主编辑区域 */
 .editor-container {
   display: flex;
   flex: 1;
-  /* 撑满剩余垂直空间 */
   overflow: hidden;
-  /* 内部滚动，外部不滚动 */
 }
 
 .editor-panel {
   display: flex;
   flex-direction: column;
   flex: 1;
-  /* 初始平分空间 */
   min-width: 100px;
-  /* 面板最小宽度 */
   overflow: hidden;
-  /* 确保内部内容滚动，而不是面板滚动 */
 }
 
 .input-panel {
   border-right: 1px solid var(--border-color);
-  /* 输入面板右侧边框 */
 }
 
 /* 窄屏时的上下布局 */
 @media (max-width: 768px) {
   .editor-container {
     flex-direction: column;
-    /* 垂直布局 */
   }
 
   .input-panel {
     border-right: none;
-    /* 移除右侧边框 */
     border-bottom: 1px solid var(--border-color);
-    /* 添加底部边框 */
   }
 
   .divider {
     width: 100%;
-    /* 垂直分割线宽度设为100% */
     height: 4px;
-    /* 垂直分割线高度 */
     cursor: row-resize;
-    /* 垂直拖拽光标 */
   }
 }
 
@@ -487,7 +393,6 @@ onUnmounted(() => {
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  /* 不参与伸缩 */
 }
 
 .panel-title {
@@ -513,7 +418,6 @@ onUnmounted(() => {
 
 .error-indicator {
   color: #f56c6c;
-  /* 错误提示颜色 */
   display: flex;
   align-items: center;
   gap: 4px;
@@ -521,7 +425,6 @@ onUnmounted(() => {
 
 .success-indicator {
   color: #67c23a;
-  /* 成功提示颜色 */
   display: flex;
   align-items: center;
   gap: 4px;
@@ -529,13 +432,10 @@ onUnmounted(() => {
 
 .editor-content {
   flex: 1;
-  /* 撑满剩余空间 */
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* 隐藏超出部分 */
   position: relative;
-  /* 为拖拽覆盖层设置定位上下文 */
 }
 
 .input-editor,
@@ -561,7 +461,6 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   background-color: rgba(0, 122, 204, 0.2);
-  /* 蓝色半透明背景 */
   border: 2px dashed var(--primary-color);
   border-radius: var(--el-border-radius-base);
   display: flex;
@@ -569,11 +468,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 5;
-  /* 确保在 textarea 上层 */
   color: var(--primary-color);
   font-size: 20px;
   pointer-events: none;
-  /* 允许事件穿透到下层元素 */
 }
 
 .drag-overlay .el-icon {
@@ -588,17 +485,13 @@ onUnmounted(() => {
 
 .divider {
   width: 4px;
-  /* 默认垂直分割线宽度 */
   background-color: var(--border-color);
   cursor: col-resize;
-  /* 左右拖拽光标 */
   flex-shrink: 0;
-  /* 不参与伸缩 */
 }
 
 .divider:hover {
   background-color: var(--primary-color);
-  /* 悬停时改变颜色 */
 }
 
 .error-message {
@@ -607,13 +500,10 @@ onUnmounted(() => {
   gap: 8px;
   padding: 16px;
   color: #f56c6c;
-  /* 错误消息颜色 */
   background-color: rgba(245, 108, 108, 0.1);
-  /* 错误消息背景 */
   border: 1px solid #f56c6c;
   border-radius: var(--el-border-radius-base);
   margin: 16px;
-  /* 外部边距 */
   font-size: 14px;
 }
 
@@ -622,7 +512,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: auto;
-  /* 内部内容滚动 */
   background-color: var(--card-bg);
   box-sizing: border-box;
 }

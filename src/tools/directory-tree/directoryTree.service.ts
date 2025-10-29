@@ -213,6 +213,76 @@ export default class DirectoryTreeService implements ToolService {
   }
 
   /**
+   * 获取服务元数据
+   */
+  public getMetadata() {
+    return {
+      methods: [
+        {
+          name: 'generateTree',
+          description: '根据配置选项生成目录树结构',
+          parameters: [
+            {
+              name: 'options',
+              type: 'GenerateTreeOptions',
+              description: '目录树生成配置选项',
+            },
+          ],
+          returnType: 'Promise<TreeGenerationResult>',
+        },
+        {
+          name: 'selectDirectory',
+          description: '打开目录选择对话框',
+          parameters: [
+            {
+              name: 'title',
+              type: 'string',
+              description: '对话框标题',
+              defaultValue: '选择要分析的目录',
+            },
+          ],
+          returnType: 'Promise<string | null>',
+        },
+        {
+          name: 'exportToFile',
+          description: '将目录树导出到文件',
+          parameters: [
+            {
+              name: 'content',
+              type: 'string',
+              description: '要导出的内容',
+            },
+            {
+              name: 'targetPath',
+              type: 'string',
+              description: '目标路径（用于生成默认文件名）',
+            },
+          ],
+          returnType: 'Promise<void>',
+        },
+        {
+          name: 'loadConfig',
+          description: '从本地存储加载配置',
+          parameters: [],
+          returnType: 'Promise<DirectoryTreeConfig>',
+        },
+        {
+          name: 'saveConfig',
+          description: '保存配置到本地存储',
+          parameters: [
+            {
+              name: 'config',
+              type: 'DirectoryTreeConfig',
+              description: '要保存的配置对象',
+            },
+          ],
+          returnType: 'Promise<void>',
+        },
+      ],
+    };
+  }
+
+  /**
    * 构建元数据头部
    */
   private buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGenerationResult['stats']): string {

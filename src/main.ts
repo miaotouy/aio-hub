@@ -21,6 +21,7 @@ import { createModuleLogger } from "./utils/logger";
 import { loadAppSettingsAsync } from "./utils/appSettings";
 import { initTheme } from "./composables/useTheme";
 import { customMessage } from "./utils/customMessage";
+import { autoRegisterServices } from "./services";
 import packageJson from "../package.json";
 import * as monaco from 'monaco-editor'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
@@ -222,6 +223,7 @@ window.addEventListener("error", (event) => {
     },
   });
 });
+
 // 异步启动函数
 const initializeApp = async () => {
   try {
@@ -233,7 +235,11 @@ const initializeApp = async () => {
     await initTheme();
     logger.info("主题初始化完成");
 
-    // 3. 挂载 Vue 应用
+    // 3. 自动注册所有工具服务
+    await autoRegisterServices();
+    logger.info("工具服务注册完成");
+
+    // 4. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
   } catch (error) {

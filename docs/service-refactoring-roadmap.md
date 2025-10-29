@@ -2,7 +2,7 @@
 
 ## 当前进度
 
-### ✅ 已完成（8/15）
+### ✅ 已完成（9/15）
 
 1. **基础架构** - 服务化核心框架
    - `src/services/types.ts` - 服务接口定义
@@ -41,6 +41,15 @@
 7. **服务监控工具**
    - ✅ `ServiceMonitor.vue` - 可视化服务状态
    - ✅ 支持查看服务元数据和方法签名
+
+8. **SymlinkMover** - 中等复杂度工具（完成）
+   - ✅ 创建 `symlinkMover.service.ts`
+   - ✅ 重构 `SymlinkMover.vue`
+   - ✅ 文件验证逻辑封装
+   - ✅ 文件列表管理（添加、删除、合并）
+   - ✅ 核心操作（移动+链接、仅创建链接）
+   - ✅ 进度监听与日志管理
+   - ✅ 完整的元数据定义
 
 ---
 
@@ -95,14 +104,30 @@
   - ✅ Monaco 编辑器实例管理保留在组件层
   - ✅ 差异导航功能保留在组件层
 
-#### 4. SymlinkMover
+#### 4. SymlinkMover ✅
 - **复杂度：** ⭐⭐
+- **状态：** 已完成
 - **业务逻辑：**
-  - 符号链接管理
+  - 符号链接/硬链接管理
   - 文件/目录移动
-- **改造要点：**
-  - 创建 `symlinkMover.service.ts`
-  - 封装 Tauri 文件操作命令
+  - 进度监听与日志记录
+  - 文件验证（跨设备、目录支持检测）
+- **已实现：**
+  - ✅ `symlinkMover.service.ts` - 核心服务
+  - ✅ `validateFile()`, `validateFiles()` - 文件验证
+  - ✅ `parsePathsToFileItems()`, `mergeFileItems()`, `removeFileByIndex()` - 文件列表管理
+  - ✅ `moveAndLink()`, `createLinksOnly()` - 核心操作
+  - ✅ `startProgressListener()`, `stopProgressListener()` - 进度监听
+  - ✅ `getLatestLog()`, `getAllLogs()` - 原始日志管理
+  - ✅ **高级封装方法（Agent 调用接口）：**
+    - `getLatestOperationSummary()` - 获取格式化的最新操作摘要
+    - `getOperationHistory(limit?)` - 获取格式化的操作历史
+  - ✅ 内部格式化工具（不对外暴露）：`formatBytes()`, `formatDuration()`, `formatTimestamp()` 等
+- **设计亮点：**
+  - 🎯 **分层设计**：内部方法 vs 对外接口明确分离
+  - 🎯 **高级封装**：Agent 调用时一次调用即可获取完整格式化信息
+  - 🎯 **完整类型定义**：新增 `FormattedLogSummary` 接口
+  - 🎯 **元数据优化**：只暴露真正需要对外调用的方法，包含使用示例
 
 ---
 
@@ -164,8 +189,12 @@
 ```typescript
 import type { ToolService } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('services/tool-name');
+const errorHandler = createModuleErrorHandler('services/tool-name');
+
+// ==================== 类型定义 ====================
 
 export interface ToolOptions {
   // 配置选项
@@ -175,31 +204,83 @@ export interface ToolResult {
   // 返回结果
 }
 
+// 格式化的高级结果（用于 Agent 调用）
+export interface FormattedResult {
+  summary: string;
+  details: Record<string, any>;
+}
+
+// ==================== 服务类 ====================
+
 export default class ToolNameService implements ToolService {
   public readonly id = 'tool-name';
   public readonly name = '工具显示名称';
   public readonly description = '工具描述';
 
+  // ==================== 核心业务方法 ====================
+
   /**
    * 核心业务方法
    */
-  public async process(options: ToolOptions): Promise<ToolResult> {
-    logger.info('开始处理', { options });
+  public async process(options: ToolOptions): Promise<ToolResult | null> {
+    logger.info('开始处理', options);
     
-    try {
-      // 业务逻辑
-      const result = await this.doSomething(options);
-      
-      logger.info('处理完成', { result });
-      return result;
-    } catch (error) {
-      logger.error('处理失败', error);
-      throw error;
-    }
+    return await errorHandler.wrapAsync(
+      async () => {
+        const result = await this.doSomething(options);
+        logger.info('处理完成', { result });
+        return result;
+      },
+      {
+        level: ErrorLevel.ERROR,
+        userMessage: '处理失败',
+        context: options,
+      }
+    );
+  }
+
+  // ==================== 高级封装方法（Agent 调用接口）====================
+
+  /**
+   * 获取格式化的处理结果（推荐 Agent 使用）
+   */
+  public async getFormattedResult(options: ToolOptions): Promise<FormattedResult | null> {
+    const result = await this.process(options);
+    if (!result) return null;
+
+    return {
+      summary: this.formatSummary(result),
+      details: this.extractDetails(result),
+    };
+  }
+
+  // ==================== 内部辅助方法 ====================
+
+  /**
+   * 格式化摘要（内部使用，不对外暴露）
+   */
+  private formatSummary(result: ToolResult): string {
+    // 格式化逻辑
+    return '';
   }
 
   /**
-   * 获取服务元数据
+   * 提取详细信息（内部使用，不对外暴露）
+   */
+  private extractDetails(result: ToolResult): Record<string, any> {
+    // 提取逻辑
+    return {};
+  }
+
+  private async doSomething(options: ToolOptions): Promise<ToolResult> {
+    // 私有业务逻辑
+    return {} as ToolResult;
+  }
+
+  // ==================== 元数据 ====================
+
+  /**
+   * 获取服务元数据（仅包含对外公开的高级接口）
    */
   public getMetadata() {
     return {
@@ -221,17 +302,57 @@ export default class ToolNameService implements ToolService {
               ]
             }
           ],
-          returnType: 'Promise<ToolResult>'
+          returnType: 'Promise<ToolResult | null>',
+          example: `
+await service.process({
+  param1: 'value'
+});`
+        },
+        {
+          name: 'getFormattedResult',
+          description: '获取格式化的处理结果（推荐 Agent 使用）',
+          parameters: [
+            {
+              name: 'options',
+              type: 'ToolOptions',
+              description: '处理选项'
+            }
+          ],
+          returnType: 'Promise<FormattedResult | null>',
+          example: `
+const result = await service.getFormattedResult({ param1: 'value' });
+// 返回: { summary, details }`
         }
       ]
     };
   }
-
-  private async doSomething(options: ToolOptions): Promise<any> {
-    // 私有辅助方法
-  }
 }
 ```
+
+### 元数据设计原则 ⭐
+
+在设计 `getMetadata()` 时，应遵循以下原则：
+
+1. **只暴露对外接口**
+   - ❌ 不要包含内部辅助方法（如 `formatBytes()`, `formatTimestamp()`）
+   - ✅ 只暴露真正需要被外部（特别是 Agent）调用的方法
+
+2. **提供高级封装**
+   - ❌ 避免让 Agent 分散调用多个方法来拼接信息
+   - ✅ 提供"一次调用完成"的高级方法（如 `getFormattedResult()`）
+
+3. **清晰的职责边界**
+   - **UI 层方法**：文件列表管理、UI 状态辅助等，保持 public 但不在元数据中暴露
+   - **Agent 调用方法**：核心业务 + 高级封装，在元数据中暴露
+   - **内部方法**：格式化工具、私有逻辑，设为 private
+
+4. **包含使用示例**
+   - 每个对外方法都应包含 `example` 字段
+   - 示例应展示实际调用方式和返回值结构
+
+5. **完整的类型定义**
+   - 为高级封装方法定义专门的返回类型（如 `FormattedLogSummary`）
+   - 类型应该是自解释的，包含所有必要字段
 
 ### 组件重构模板
 
@@ -272,9 +393,16 @@ const handleProcess = async () => {
 - [ ] 创建 `*.service.ts` 文件
 - [ ] 实现 `ToolService` 接口
 - [ ] 定义清晰的输入输出类型
-- [ ] 实现 `getMetadata()` 方法，并且只包含对外暴露方法，不包含内部方法
+- [ ] **设计高级封装方法**（用于 Agent 调用）
+  - [ ] 提供"一次调用完成"的高级接口
+  - [ ] 为高级方法定义专门的返回类型（如 `FormattedResult`）
+- [ ] 实现 `getMetadata()` 方法
+  - [ ] **只包含对外暴露的高级接口**
+  - [ ] **不包含内部辅助方法**（如格式化工具）
+  - [ ] 每个方法包含使用示例（`example` 字段）
+- [ ] 使用统一错误处理（`errorHandler.wrapAsync`）
 - [ ] 添加详细的 JSDoc 注释
-- [ ] 使用模块日志记录器
+- [ ] 使用模块日志记录器（`createModuleLogger`）
 - [ ] 所有业务逻辑从组件移除
 
 ### 组件层

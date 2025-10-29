@@ -2,7 +2,7 @@
 
 ## 当前进度
 
-### ✅ 已完成（5/15）
+### ✅ 已完成（8/15）
 
 1. **基础架构** - 服务化核心框架
    - `src/services/types.ts` - 服务接口定义
@@ -16,11 +16,29 @@
    - ✅ 实现完整的元数据（getMetadata）
    - ✅ 业务逻辑完全从组件剥离
 
-3. **应用集成**
+3. **JsonFormatter** - 简单级工具（完成）
+   - ✅ 创建 `jsonFormatter.service.ts`
+   - ✅ 重构 `JsonFormatter.vue`
+   - ✅ 实现 JSON 解析、格式化、文件读取功能
+   - ✅ 完整的元数据和类型定义
+
+4. **CodeFormatter** - 简单级工具（完成）
+   - ✅ 创建 `codeFormatter.service.ts`
+   - ✅ 重构 `CodeFormatter.vue`
+   - ✅ 支持多语言格式化（Prettier）
+   - ✅ 动态插件加载和语言检测
+
+5. **应用集成**
    - ✅ `main.ts` 中调用自动注册
    - ✅ 服务在应用启动时初始化
 
-4. **服务监控工具**
+6. **TextDiff** - 中等复杂度工具（完成）
+   - ✅ 创建 `textDiff.service.ts`
+   - ✅ 重构 `TextDiff.vue`
+   - ✅ 实现文件操作、补丁生成、剪贴板功能
+   - ✅ Monaco 编辑器管理保留在组件层
+
+7. **服务监控工具**
    - ✅ `ServiceMonitor.vue` - 可视化服务状态
    - ✅ 支持查看服务元数据和方法签名
 
@@ -32,26 +50,28 @@
 
 **特点：** 无复杂状态，纯函数式逻辑，适合快速验证模式
 
-#### 1. JsonFormatter（完成）
+#### 1. JsonFormatter ✅
 - **复杂度：** ⭐
+- **状态：** 已完成
 - **业务逻辑：**
   - JSON 解析与格式化
   - 自定义展开层级
   - 文件拖放读取
-- **改造要点：**
-  - 创建 `jsonFormatter.service.ts`
-  - 方法：`formatJson(text, options)`, `parseJson(text)`
-  - 移除组件内的格式化逻辑
+- **已实现：**
+  - ✅ `jsonFormatter.service.ts` - 核心服务
+  - ✅ `formatJson()`, `parseJson()`, `readFile()` 方法
+  - ✅ 组件重构，业务逻辑完全剥离
 
-#### 2. CodeFormatter（完成）
+#### 2. CodeFormatter ✅
 - **复杂度：** ⭐⭐
+- **状态：** 已完成
 - **业务逻辑：**
   - 多语言代码格式化（Prettier）
   - 语言检测与插件加载
-- **改造要点：**
-  - 创建 `codeFormatter.service.ts`
-  - 方法：`format(code, language, options)`
-  - 处理异步插件加载
+- **已实现：**
+  - ✅ `codeFormatter.service.ts` - 核心服务
+  - ✅ `formatCode()`, `detectLanguage()`, `getSupportedLanguages()` 方法
+  - ✅ 异步插件加载和错误处理
 
 ---
 
@@ -59,16 +79,21 @@
 
 **特点：** 涉及文件系统交互，需要处理异步操作和错误
 
-#### 3. TextDiff（下一个目标）
+#### 3. TextDiff ✅
 - **复杂度：** ⭐⭐⭐
+- **状态：** 已完成
 - **业务逻辑：**
   - 文件对比（Monaco Diff Editor）
   - 文件读写
   - 补丁生成与导出
-- **改造要点：**
-  - 创建 `textDiff.service.ts`
-  - 方法：`loadFile()`, `saveFile()`, `generatePatch()`
-  - 保留 Monaco 编辑器实例管理在组件层
+  - 剪贴板操作
+- **已实现：**
+  - ✅ `textDiff.service.ts` - 核心服务
+  - ✅ `openFile()`, `loadFile()`, `saveFile()` - 文件操作
+  - ✅ `generatePatch()`, `exportPatch()` - 补丁处理
+  - ✅ `copyToClipboard()`, `pasteFromClipboard()` - 剪贴板
+  - ✅ Monaco 编辑器实例管理保留在组件层
+  - ✅ 差异导航功能保留在组件层
 
 #### 4. SymlinkMover
 - **复杂度：** ⭐⭐

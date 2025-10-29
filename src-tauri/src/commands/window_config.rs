@@ -69,6 +69,21 @@ pub fn save_window_config_sync(app: &AppHandle, label: &str) -> Result<(), Strin
         .get_webview_window(label)
         .ok_or_else(|| format!("窗口 '{}' 不存在", label))?;
     
+    // 检查窗口是否最小化
+    let is_minimized = window.is_minimized()
+        .map_err(|e| format!("获取窗口最小化状态失败: {}", e))?;
+    
+    // 检查窗口是否可见
+    let is_visible = window.is_visible()
+        .map_err(|e| format!("获取窗口可见性失败: {}", e))?;
+    
+    // 如果窗口被最小化或隐藏，跳过保存
+    if is_minimized || !is_visible {
+        println!("[WINDOW_CONFIG] 跳过保存窗口配置（窗口处于最小化或隐藏状态）: label={}, minimized={}, visible={}",
+            label, is_minimized, is_visible);
+        return Ok(());
+    }
+    
     // 获取当前窗口状态
     let position = window.outer_position()
         .map_err(|e| format!("获取窗口位置失败: {}", e))?;
@@ -79,12 +94,29 @@ pub fn save_window_config_sync(app: &AppHandle, label: &str) -> Result<(), Strin
     let scale_factor = window.scale_factor()
         .map_err(|e| format!("获取缩放因子失败: {}", e))?;
     
+    // 验证位置是否合理（检测 Windows 的特殊隐藏坐标）
+    // Windows 在隐藏窗口时会使用 -32000 或类似的负数坐标
+    if position.x < -10000 || position.y < -10000 {
+        println!("[WINDOW_CONFIG] 跳过保存窗口配置（检测到异常位置）: label={}, x={}, y={}",
+            label, position.x, position.y);
+        return Ok(());
+    }
+    
+    // 验证尺寸是否合理（避免保存异常小的窗口）
+    let logical_width = size.width as f64 / scale_factor;
+    let logical_height = size.height as f64 / scale_factor;
+    if logical_width < 200.0 || logical_height < 100.0 {
+        println!("[WINDOW_CONFIG] 跳过保存窗口配置（窗口尺寸过小）: label={}, width={:.0}, height={:.0}",
+            label, logical_width, logical_height);
+        return Ok(());
+    }
+    
     // 创建配置对象
     let config = WindowConfig {
         x: position.x,
         y: position.y,
-        width: size.width as f64 / scale_factor,
-        height: size.height as f64 / scale_factor,
+        width: logical_width,
+        height: logical_height,
         maximized,
     };
     
@@ -166,10 +198,9 @@ pub async fn delete_window_config(app: AppHandle, label: String) -> Result<(), S
     Ok(())
 }
 
-/// 清除所有窗口配置
-#[tauri::command]
-pub async fn clear_all_window_configs(app: AppHandle) -> Result<(), String> {
-    let config_path = get_config_file_path(&app)?;
+/// 同步清除所有窗口配置（用于托盘菜单等同步上下文）
+pub fn clear_all_configs_sync(app: &AppHandle) -> Result<(), String> {
+    let config_path = get_config_file_path(app)?;
     
     if config_path.exists() {
         fs::remove_file(&config_path)
@@ -178,6 +209,12 @@ pub async fn clear_all_window_configs(app: AppHandle) -> Result<(), String> {
     }
     
     Ok(())
+}
+
+/// 清除所有窗口配置
+#[tauri::command]
+pub async fn clear_all_window_configs(app: AppHandle) -> Result<(), String> {
+    clear_all_configs_sync(&app)
 }
 
 /// 获取所有已保存的窗口配置标签列表

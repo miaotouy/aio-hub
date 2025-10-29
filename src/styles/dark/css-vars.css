@@ -35,10 +35,7 @@ html.dark {
   --el-fill-color-lighter: var(--container-bg);
   --el-fill-color-blank: transparent;
   --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: var(--primary-hover-color);
-  --el-color-primary-light-5: var(--primary-hover-color);
-  --el-color-primary-light-7: var(--primary-hover-color);
-  --el-color-primary-light-9: var(--primary-hover-color);
+  /* primary light 系列颜色由 themeColors.ts 动态管理，此处不再硬编码 */
   --el-color-danger: var(--error-color);
   --el-color-success: #67c23a;
   --el-color-warning: #e6a23c;

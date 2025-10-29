@@ -22,6 +22,7 @@ import { loadAppSettingsAsync } from "./utils/appSettings";
 import { initTheme } from "./composables/useTheme";
 import { customMessage } from "./utils/customMessage";
 import { autoRegisterServices } from "./services";
+import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
 import * as monaco from 'monaco-editor'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
@@ -75,60 +76,16 @@ if (needsTransparentBackground) {
   document.body.classList.add("transparent-window");
   logger.info(`透明窗口 (${window.location.pathname})：已添加透明背景类`);
 }
-
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
 // 这样可以避免应用启动时的颜色闪烁
 (() => {
-  let cachedThemeColor: string | null = null;
   try {
-    cachedThemeColor = localStorage.getItem("app-theme-color");
+    const cachedThemeColor = localStorage.getItem("app-theme-color");
     if (cachedThemeColor && /^#[0-9A-F]{6}$/i.test(cachedThemeColor)) {
-      const root = document.documentElement;
-
-      // 设置主题色
-      root.style.setProperty("--primary-color", cachedThemeColor);
-
-      // 计算悬停色
-      const hexToRgb = (hex: string) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result
-          ? {
-              r: parseInt(result[1], 16),
-              g: parseInt(result[2], 16),
-              b: parseInt(result[3], 16),
-            }
-          : null;
-      };
-
-      const lightenColor = (hex: string, percent: number) => {
-        const rgb = hexToRgb(hex);
-        if (!rgb) return hex;
-        const r = Math.min(255, Math.floor(rgb.r + (255 - rgb.r) * (percent / 100)));
-        const g = Math.min(255, Math.floor(rgb.g + (255 - rgb.g) * (percent / 100)));
-        const b = Math.min(255, Math.floor(rgb.b + (255 - rgb.b) * (percent / 100)));
-        return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-      };
-
-      const hoverColor = lightenColor(cachedThemeColor, 20);
-      root.style.setProperty("--primary-hover-color", hoverColor);
-
-      const rgb = hexToRgb(cachedThemeColor);
-      if (rgb) {
-        root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
-      }
-
-      // 同步 Element Plus 变量
-      root.style.setProperty("--el-color-primary", cachedThemeColor);
-      root.style.setProperty("--el-color-primary-light-3", hoverColor);
-      root.style.setProperty("--el-color-primary-light-5", hoverColor);
-      root.style.setProperty("--el-color-primary-light-7", hoverColor);
-      root.style.setProperty("--el-color-primary-light-9", hoverColor);
+      applyThemeColors({ primary: cachedThemeColor });
     }
   } catch (error) {
-    logger.warn("应用缓存主题颜色失败", {
-      error,
-      cachedColor: cachedThemeColor,
-    });
+    logger.warn("应用缓存主题颜色失败", { error });
   }
 })();
 

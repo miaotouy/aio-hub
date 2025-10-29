@@ -328,10 +328,8 @@ import {
   List,
   Close,
 } from "@element-plus/icons-vue";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import debounce from "lodash/debounce";
 import { VueDraggableNext } from "vue-draggable-next";
 import InfoCard from "../../components/common/InfoCard.vue";
@@ -339,12 +337,16 @@ import BaseDialog from "../../components/common/BaseDialog.vue";
 import PresetManager from "./PresetManager.vue";
 import { usePresetStore } from "./store";
 import type { LogEntry, RegexPreset } from "./types";
-import { applyRules } from "./engine";
 import { loadAppConfig, createDebouncedSave, type AppConfig } from "./appConfig";
 import { createModuleLogger } from "@utils/logger";
+import { serviceRegistry } from "@/services/registry";
+import type RegexApplierService from "./regexApplier.service";
 
 // 创建模块日志器
 const logger = createModuleLogger("RegexApplier");
+
+// 获取服务实例
+const regexService = serviceRegistry.getService<RegexApplierService>('regex-applier')!;
 
 const store = usePresetStore();
 
@@ -566,7 +568,7 @@ const debouncedProcessText = debounce(() => {
 watch(sourceText, debouncedProcessText);
 watch(selectedPresetIds, debouncedProcessText, { deep: true });
 
-const processText = () => {
+const processText = async () => {
   if (!sourceText.value) {
     resultText.value = "";
     return;
@@ -577,44 +579,31 @@ const processText = () => {
     return;
   }
 
-  let result = sourceText.value;
-  let totalRulesApplied = 0;
+  // 使用服务处理文本
+  const result = await regexService.processText({
+    sourceText: sourceText.value,
+    presetIds: selectedPresetIds.value,
+  });
 
-  // 按顺序应用每个预设
-  for (const presetId of selectedPresetIds.value) {
-    const preset = store.presets.find((p) => p.id === presetId);
-    if (preset) {
-      const enabledRules = preset.rules.filter((r) => r.enabled);
-      const applyResult = applyRules(result, enabledRules);
-      result = applyResult.text;
-      totalRulesApplied += applyResult.appliedRulesCount;
-
-      // 添加日志
-      applyResult.logs.forEach((log) => logs.value.push(log));
-    }
+  if (result) {
+    resultText.value = result.text;
+    // 添加日志
+    result.logs.forEach((log) => logs.value.push(log));
   }
-
-  resultText.value = result;
 };
 
 const pasteToSource = async () => {
-  try {
-    sourceText.value = await readText();
+  const text = await regexService.pasteFromClipboard();
+  if (text !== null) {
+    sourceText.value = text;
     addLog("已从剪贴板粘贴内容到输入框。");
-  } catch (error: any) {
-    customMessage.error(`粘贴失败: ${error.message}`);
-    addLog(`粘贴失败: ${error.message}`, "error");
   }
 };
 
 const copyResult = async () => {
-  try {
-    await writeText(resultText.value);
-    customMessage.success("处理结果已复制到剪贴板！");
+  const success = await regexService.copyToClipboard(resultText.value);
+  if (success) {
     addLog("处理结果已复制到剪贴板。");
-  } catch (error: any) {
-    customMessage.error(`复制失败: ${error.message}`);
-    addLog(`复制失败: ${error.message}`, "error");
   }
 };
 
@@ -624,10 +613,14 @@ const oneClickProcess = async () => {
     return;
   }
   addLog("执行一键处理剪贴板...");
-  await pasteToSource();
-  processText();
-  await copyResult();
-  addLog("一键处理剪贴板完成。");
+  
+  const result = await regexService.oneClickProcess({
+    presetIds: selectedPresetIds.value,
+  });
+  
+  if (result) {
+    addLog(result.summary);
+  }
 };
 
 // ===== 文件模式处理 =====
@@ -907,51 +900,29 @@ const processFiles = async () => {
     return;
   }
 
-  // 收集所有选中预设的启用规则，并附加预设名称信息
-  const allRules = [];
-  for (const presetId of selectedPresetIds.value) {
-    const preset = store.presets.find((p) => p.id === presetId);
-    if (preset) {
-      const enabledRules = preset.rules.filter((r) => r.enabled);
-      // 为每个规则附加预设名称
-      const rulesWithPreset = enabledRules.map((r) => ({
-        ...r,
-        preset_name: preset.name,
-      }));
-      allRules.push(...rulesWithPreset);
-    }
-  }
-
-  if (allRules.length === 0) {
-    customMessage.warning("所选预设中没有启用的规则");
-    return;
-  }
-
   isProcessing.value = true;
   files.value.forEach((file) => (file.status = "processing"));
 
   try {
     const filePaths = files.value.map((file) => file.path);
-    const rulesForBackend = allRules.map((r) => ({
-      regex: r.regex,
-      replacement: r.replacement,
-      name: r.name,
-      preset_name: r.preset_name,
-    }));
+    addLog(`开始处理 ${filePaths.length} 个文件...`);
 
-    addLog(`开始处理 ${filePaths.length} 个文件，应用 ${allRules.length} 条规则...`);
-
-    const result: any = await invoke("process_files_with_regex", {
+    // 使用服务处理文件
+    const result = await regexService.processFiles({
       filePaths,
       outputDir: outputDirectory.value,
-      rules: rulesForBackend,
+      presetIds: selectedPresetIds.value,
       forceTxt: forceTxt.value,
       filenameSuffix: filenameSuffix.value,
     });
 
+    if (!result) {
+      throw new Error("文件处理失败");
+    }
+
     // 添加后端返回的日志
     if (result.logs && Array.isArray(result.logs)) {
-      result.logs.forEach((log: any) => {
+      result.logs.forEach((log) => {
         const logType = log.level === "error" ? "error" : log.level === "warn" ? "warn" : "info";
         addLog(log.message, logType);
       });
@@ -992,7 +963,6 @@ const processFiles = async () => {
       operation: "processFiles",
       fileCount: files.value.length,
       outputDir: outputDirectory.value,
-      ruleCount: allRules.length,
     });
     customMessage.error(`文件处理失败: ${error}`);
     addLog(`文件处理失败: ${error}`, "error");

@@ -144,11 +144,11 @@ export const toolsConfig: ToolConfig[] = [
     category: '开发工具'
   },
   {
-    name: '服务监视器',
+    name: '服务注册表浏览器',
     path: '/service-monitor',
     icon: markRaw(Menu),
     component: () => import('../tools/service-monitor/ServiceMonitor.vue'),
-    description: '可视化查看和管理所有已注册的工具服务及其元数据',
+    description: '可视化查看和浏览所有已注册的工具服务及其元数据',
     category: '开发工具'
   }
 ];

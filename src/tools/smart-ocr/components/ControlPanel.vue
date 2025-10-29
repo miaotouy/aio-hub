@@ -5,6 +5,9 @@ import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
+import type { OcrContext } from "../OcrContext";
+import { useLlmProfiles } from "../../../composables/useLlmProfiles";
+import { useOcrProfiles } from "../../../composables/useOcrProfiles";
 
 // 创建模块日志记录器
 const logger = createModuleLogger("SmartOCR.ControlPanel");
@@ -12,161 +15,151 @@ const logger = createModuleLogger("SmartOCR.ControlPanel");
 // 设置页导航
 const { navigateToSettings } = useSettingsNavigator();
 
-import type {
-  OcrEngineConfig,
-  SlicerConfig,
-  ImageBlock,
-  CutLine,
-  OcrResult,
-  UploadedImage,
-} from "../types";
-import { useImageSlicer } from "../composables/useImageSlicer";
-import { useOcrRunner } from "../composables/useOcrRunner";
-import { useLlmProfiles } from "../../../composables/useLlmProfiles";
-import { useOcrProfiles } from "../../../composables/useOcrProfiles";
-
 const props = defineProps<{
-  engineConfig: OcrEngineConfig;
-  slicerConfig: SlicerConfig;
-  uploadedImages: UploadedImage[];
+  ocrContext: OcrContext;
   selectedImageId: string | null;
-  isProcessing: boolean;
-}>();
-
-const emit = defineEmits<{
-  "update:engineConfig": [config: OcrEngineConfig];
-  "update:slicerConfig": [config: SlicerConfig];
-  sliceComplete: [imageId: string, blocks: ImageBlock[], lines: CutLine[]];
-  sliceImage: [imageId: string];
-  sliceAllImages: [];
-  ocrStart: [];
-  ocrResultUpdate: [results: OcrResult[]];
-  ocrComplete: [];
 }>();
 
 // 使用 composables
-const { sliceImage } = useImageSlicer();
-const { runOcr } = useOcrRunner();
 const { visionProfiles } = useLlmProfiles();
 const { enabledProfiles: ocrProfiles } = useOcrProfiles();
 
-// 辅助函数：更新引擎配置
-function updateEngineConfig(updates: Partial<OcrEngineConfig>) {
-  emit("update:engineConfig", { ...props.engineConfig, ...updates } as OcrEngineConfig);
-}
-
-// 辅助函数：更新切图配置
-function updateSlicerConfig(updates: Partial<SlicerConfig>) {
-  emit("update:slicerConfig", { ...props.slicerConfig, ...updates });
-}
+// 从 Context 获取响应式状态
+const uploadedImages = computed(() => props.ocrContext.uploadedImages.value);
+const isProcessing = computed(() => props.ocrContext.isProcessing.value);
+const engineConfig = computed(() => props.ocrContext.engineConfig.value);
+const slicerConfig = computed(() => props.ocrContext.slicerConfig.value);
 
 // 引擎类型
 const engineType = computed({
-  get: () => props.engineConfig.type,
-  set: (value) => {
-    // 切换引擎类型时，需要触发父组件重新加载对应引擎的完整配置
-    // 不能简单地只更新 type 字段
-    emit("update:engineConfig", { type: value } as OcrEngineConfig);
+  get: () => engineConfig.value.type,
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ type: value } as any);
   },
 });
 
 // Tesseract 语言
 const engineLanguage = computed({
-  get: () => (props.engineConfig.type === "tesseract" ? props.engineConfig.language : ""),
-  set: (value) => updateEngineConfig({ language: value } as any),
+  get: () => (engineConfig.value.type === "tesseract" ? engineConfig.value.language : ""),
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ language: value } as any);
+  },
 });
 
 // VLM 提示词
 const enginePrompt = computed({
-  get: () => (props.engineConfig.type === "vlm" ? props.engineConfig.prompt : ""),
-  set: (value) => updateEngineConfig({ prompt: value } as any),
+  get: () => (engineConfig.value.type === "vlm" ? engineConfig.value.prompt : ""),
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ prompt: value } as any);
+  },
 });
 
 // VLM 温度
 const engineTemperature = computed({
-  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.temperature ?? 0.7) : 0.7),
-  set: (value) => updateEngineConfig({ temperature: value } as any),
+  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.temperature ?? 0.7) : 0.7),
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ temperature: value } as any);
+  },
 });
 
 // VLM 最大 Token
 const engineMaxTokens = computed({
-  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.maxTokens ?? 4096) : 4096),
-  set: (value) => updateEngineConfig({ maxTokens: value } as any),
+  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.maxTokens ?? 4096) : 4096),
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ maxTokens: value } as any);
+  },
 });
 
 // VLM 并发数
 const engineConcurrency = computed({
-  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.concurrency ?? 3) : 3),
-  set: (value) => updateEngineConfig({ concurrency: value } as any),
+  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.concurrency ?? 3) : 3),
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ concurrency: value } as any);
+  },
 });
 
 // VLM 请求延迟
 const engineDelay = computed({
-  get: () => (props.engineConfig.type === "vlm" ? (props.engineConfig.delay ?? 0) : 0),
-  set: (value) => updateEngineConfig({ delay: value } as any),
+  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.delay ?? 0) : 0),
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ delay: value } as any);
+  },
 });
 
 // Cloud OCR 选中的服务
 const cloudActiveProfileId = computed({
-  get: () => (props.engineConfig.type === "cloud" ? props.engineConfig.activeProfileId : ""),
-  set: (value) => updateEngineConfig({ activeProfileId: value } as any),
+  get: () => (engineConfig.value.type === "cloud" ? engineConfig.value.activeProfileId : ""),
+  set: async (value) => {
+    await props.ocrContext.updateEngineConfig({ activeProfileId: value } as any);
+  },
 });
-
 // 切图启用
 const slicerEnabled = computed({
-  get: () => props.slicerConfig.enabled,
-  set: (value) => updateSlicerConfig({ enabled: value }),
+  get: () => slicerConfig.value.enabled,
+  set: (value) => {
+    props.ocrContext.fullConfig.value.slicerConfig.enabled = value;
+  },
 });
 
 // 切图长宽比阈值
 const slicerAspectRatioThreshold = computed({
-  get: () => props.slicerConfig.aspectRatioThreshold,
-  set: (value) => updateSlicerConfig({ aspectRatioThreshold: value }),
+  get: () => slicerConfig.value.aspectRatioThreshold,
+  set: (value) => {
+    props.ocrContext.fullConfig.value.slicerConfig.aspectRatioThreshold = value;
+  },
 });
 
 // 切图空白阈值
 const slicerBlankThreshold = computed({
-  get: () => props.slicerConfig.blankThreshold,
-  set: (value) => updateSlicerConfig({ blankThreshold: value }),
+  get: () => slicerConfig.value.blankThreshold,
+  set: (value) => {
+    props.ocrContext.fullConfig.value.slicerConfig.blankThreshold = value;
+  },
 });
 
 // 切图最小空白高度
 const slicerMinBlankHeight = computed({
-  get: () => props.slicerConfig.minBlankHeight,
-  set: (value) => updateSlicerConfig({ minBlankHeight: value }),
+  get: () => slicerConfig.value.minBlankHeight,
+  set: (value) => {
+    props.ocrContext.fullConfig.value.slicerConfig.minBlankHeight = value;
+  },
 });
 
 // 切图最小切割高度
 const slicerMinCutHeight = computed({
-  get: () => props.slicerConfig.minCutHeight,
-  set: (value) => updateSlicerConfig({ minCutHeight: value }),
+  get: () => slicerConfig.value.minCutHeight,
+  set: (value) => {
+    props.ocrContext.fullConfig.value.slicerConfig.minCutHeight = value;
+  },
 });
 
 // 切割线偏移
 const slicerCutLineOffset = computed({
-  get: () => props.slicerConfig.cutLineOffset,
-  set: (value) => updateSlicerConfig({ cutLineOffset: value }),
+  get: () => slicerConfig.value.cutLineOffset,
+  set: (value) => {
+    props.ocrContext.fullConfig.value.slicerConfig.cutLineOffset = value;
+  },
 });
 
 // 获取选中的图片
 const selectedImage = computed(() => {
   if (!props.selectedImageId) return null;
-  return props.uploadedImages.find((img) => img.id === props.selectedImageId);
+  return uploadedImages.value.find((img) => img.id === props.selectedImageId);
 });
 
 // 当前选中的模型组合值
 const selectedModelCombo = computed({
   get: () => {
-    const config = props.engineConfig;
+    const config = engineConfig.value;
     if (config.type !== "vlm") return "";
     return `${config.profileId}:${config.modelId}`;
   },
-  set: (value: string) => {
+  set: async (value: string) => {
     if (!value) return;
     const [profileId, modelId] = value.split(":");
-    if (props.engineConfig.type === "vlm") {
-      emit("update:engineConfig", {
-        ...props.engineConfig,
+    if (engineConfig.value.type === "vlm") {
+      await props.ocrContext.updateEngineConfig({
+        ...engineConfig.value,
         profileId,
         modelId,
       });
@@ -174,114 +167,7 @@ const selectedModelCombo = computed({
   },
 });
 
-// 注意：不再需要监听引擎类型变化来重新初始化配置
-// 因为父组件（SmartOcr.vue）会通过配置管理器保留各个引擎的配置
-// 切换引擎时只需改变类型，已保存的配置会自动应用
-
-// 单独切图（不执行OCR）
-const handleSliceOnly = async (imageId: string) => {
-  const uploadedImage = props.uploadedImages.find((img) => img.id === imageId);
-  if (!uploadedImage) {
-    customMessage.warning("图片不存在");
-    return;
-  }
-
-  const img = uploadedImage.img;
-
-  // 检查是否需要切图
-  const needSlice =
-    props.slicerConfig.enabled && img.height / img.width > props.slicerConfig.aspectRatioThreshold;
-
-  if (!needSlice) {
-    customMessage.info("当前图片不满足切图条件");
-    return;
-  }
-
-  try {
-    logger.info("开始执行单张图片切图", {
-      imageId,
-      imageName: uploadedImage.name,
-      imageSize: { width: img.width, height: img.height },
-      slicerConfig: props.slicerConfig,
-    });
-
-    // 执行智能切图
-    const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
-    emit("sliceComplete", imageId, sliceResult.blocks, sliceResult.lines);
-
-    logger.info("单张图片切图成功", {
-      imageId,
-      imageName: uploadedImage.name,
-      blocksCount: sliceResult.blocks.length,
-    });
-
-    customMessage.success(`检测到 ${sliceResult.blocks.length} 个图片块`);
-  } catch (error) {
-    logger.error("单张图片切图失败", {
-      imageId,
-      imageName: uploadedImage.name,
-      slicerConfig: props.slicerConfig,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    customMessage.error("切图失败: " + (error as Error).message);
-  }
-};
-
-// 批量切图所有图片
-const handleSliceAll = async () => {
-  if (props.uploadedImages.length === 0) {
-    customMessage.warning("请先上传图片");
-    return;
-  }
-
-  logger.info("开始批量切图所有图片", {
-    totalImages: props.uploadedImages.length,
-    slicerConfig: props.slicerConfig,
-  });
-
-  let slicedCount = 0;
-  const failedImages: string[] = [];
-
-  for (const uploadedImage of props.uploadedImages) {
-    const img = uploadedImage.img;
-    const imageId = uploadedImage.id;
-
-    // 检查是否需要切图
-    const needSlice =
-      props.slicerConfig.enabled &&
-      img.height / img.width > props.slicerConfig.aspectRatioThreshold;
-
-    if (needSlice) {
-      try {
-        const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
-        emit("sliceComplete", imageId, sliceResult.blocks, sliceResult.lines);
-        slicedCount++;
-      } catch (error) {
-        failedImages.push(uploadedImage.name);
-        logger.error("批量切图中单张图片失败", {
-          imageName: uploadedImage.name,
-          imageId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-  }
-
-  logger.info("批量切图完成", {
-    totalImages: props.uploadedImages.length,
-    slicedCount,
-    failedCount: failedImages.length,
-    failedImages: failedImages.length > 0 ? failedImages : undefined,
-  });
-
-  if (slicedCount > 0) {
-    customMessage.success(`成功切图 ${slicedCount} 张图片`);
-  } else {
-    customMessage.info("没有符合切图条件的图片");
-  }
-};
-
-// 开始识别
+// 开始识别当前图片
 const handleStartOcr = async () => {
   if (!selectedImage.value) {
     customMessage.warning("请先上传并选择图片");
@@ -291,193 +177,73 @@ const handleStartOcr = async () => {
   logger.info("开始执行单张图片OCR识别", {
     imageId: selectedImage.value.id,
     imageName: selectedImage.value.name,
-    engineType: props.engineConfig.type,
-    slicerEnabled: props.slicerConfig.enabled,
+    engineType: engineConfig.value.type,
+    slicerEnabled: slicerConfig.value.enabled,
   });
 
-  emit("ocrStart");
-
   try {
-    const img = selectedImage.value.img;
-    const imageId = selectedImage.value.id;
-
-    // 检查是否需要切图
-    const needSlice =
-      props.slicerConfig.enabled &&
-      img.height / img.width > props.slicerConfig.aspectRatioThreshold;
-
-    let blocks: ImageBlock[] = [];
-    let lines: CutLine[] = [];
-
-    if (needSlice) {
-      // 执行智能切图
-      const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
-      blocks = sliceResult.blocks;
-      lines = sliceResult.lines;
-      emit("sliceComplete", imageId, blocks, lines);
-      customMessage.success(`检测到 ${blocks.length} 个图片块`);
-    } else {
-      // 不切图，直接使用整张图片
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0);
-
-      blocks = [
-        {
-          id: "full",
-          imageId,
-          canvas,
-          dataUrl: canvas.toDataURL(),
-          startY: 0,
-          endY: img.height,
-          width: img.width,
-          height: img.height,
-        },
-      ];
-      emit("sliceComplete", imageId, blocks, []);
-    }
-
-    // 执行OCR识别
-    const results = await runOcr(blocks, props.engineConfig, (updatedResults: OcrResult[]) => {
-      emit("ocrResultUpdate", updatedResults);
-    });
-
-    emit("ocrResultUpdate", results);
-    emit("ocrComplete");
-
-    logger.info("单张图片OCR识别完成", {
-      imageId: selectedImage.value.id,
-      imageName: selectedImage.value.name,
-      blocksCount: blocks.length,
-      resultsCount: results.length,
-    });
-
+    await props.ocrContext.runFullOcrProcess({ imageIds: [selectedImage.value.id] });
     customMessage.success("识别完成");
   } catch (error) {
     logger.error("单张图片OCR识别失败", {
       imageId: selectedImage.value?.id,
       imageName: selectedImage.value?.name,
-      engineType: props.engineConfig.type,
-      slicerEnabled: props.slicerConfig.enabled,
+      engineType: engineConfig.value.type,
       error: error instanceof Error ? error.message : String(error),
     });
     customMessage.error("识别失败: " + (error as Error).message);
-    emit("ocrComplete");
   }
 };
 
 // 批量识别所有图片
 const handleBatchOcr = async () => {
-  if (props.uploadedImages.length === 0) {
+  if (uploadedImages.value.length === 0) {
     customMessage.warning("请先上传图片");
     return;
   }
 
   logger.info("开始批量OCR识别所有图片", {
-    totalImages: props.uploadedImages.length,
-    engineType: props.engineConfig.type,
-    slicerEnabled: props.slicerConfig.enabled,
+    totalImages: uploadedImages.value.length,
+    engineType: engineConfig.value.type,
+    slicerEnabled: slicerConfig.value.enabled,
   });
 
-  customMessage.info(`准备批量识别 ${props.uploadedImages.length} 张图片`);
-  emit("ocrStart");
-
-  const allResults: OcrResult[] = []; // 累积所有图片的识别结果
+  customMessage.info(`准备批量识别 ${uploadedImages.value.length} 张图片`);
 
   try {
-    for (const uploadedImage of props.uploadedImages) {
-      const img = uploadedImage.img;
-      const imageId = uploadedImage.id;
-
-      // 检查是否需要切图
-      const needSlice =
-        props.slicerConfig.enabled &&
-        img.height / img.width > props.slicerConfig.aspectRatioThreshold;
-
-      let blocks: ImageBlock[] = [];
-      let lines: CutLine[] = [];
-
-      if (needSlice) {
-        const sliceResult = await sliceImage(img, props.slicerConfig, imageId);
-        blocks = sliceResult.blocks;
-        lines = sliceResult.lines;
-        emit("sliceComplete", imageId, blocks, lines);
-      } else {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0);
-
-        blocks = [
-          {
-            id: "full",
-            imageId,
-            canvas,
-            dataUrl: canvas.toDataURL(),
-            startY: 0,
-            endY: img.height,
-            width: img.width,
-            height: img.height,
-          },
-        ];
-        emit("sliceComplete", imageId, blocks, []);
-      }
-
-      // 执行OCR识别
-      const results = await runOcr(blocks, props.engineConfig, (updatedResults: OcrResult[]) => {
-        // 合并进度更新：保留之前图片的结果 + 当前图片的进度
-        const mergedResults = [...allResults, ...updatedResults];
-        emit("ocrResultUpdate", mergedResults);
-      });
-
-      // 将当前图片的结果添加到累积数组
-      allResults.push(...results);
-      // 发送完整的累积结果
-      emit("ocrResultUpdate", allResults);
+    for (const image of uploadedImages.value) {
+      await props.ocrContext.runFullOcrProcess({ imageIds: [image.id] });
     }
 
-    emit("ocrComplete");
-
     logger.info("批量OCR识别完成", {
-      totalImages: props.uploadedImages.length,
-      totalResults: allResults.length,
-      engineType: props.engineConfig.type,
+      totalImages: uploadedImages.value.length,
+      totalResults: props.ocrContext.ocrResults.value.length,
+      engineType: engineConfig.value.type,
     });
 
     customMessage.success("批量识别完成");
   } catch (error) {
     logger.error("批量OCR识别失败", {
-      totalImages: props.uploadedImages.length,
-      engineType: props.engineConfig.type,
-      processedResults: allResults.length,
+      totalImages: uploadedImages.value.length,
+      engineType: engineConfig.value.type,
       error: error instanceof Error ? error.message : String(error),
     });
     customMessage.error("批量识别失败: " + (error as Error).message);
-    emit("ocrComplete");
   }
 };
 
 // 根据引擎类型跳转到对应设置
 const handleNavigateToSettings = () => {
-  const engineType = props.engineConfig.type;
-  if (engineType === "vlm") {
+  const type = engineConfig.value.type;
+  if (type === "vlm") {
     navigateToSettings("llm-service");
-  } else if (engineType === "cloud") {
+  } else if (type === "cloud") {
     navigateToSettings("ocr-service");
   } else {
     // tesseract 和 native 默认跳转到 VLM 配置（更常用）
     navigateToSettings("llm-service");
   }
 };
-
-// 暴露方法给父组件
-defineExpose({
-  handleSliceOnly,
-  handleSliceAll,
-});
 </script>
 
 <template>

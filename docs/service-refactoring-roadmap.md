@@ -2,7 +2,7 @@
 
 ## 当前进度
 
-### ✅ 已完成（11/15）
+### ✅ 已完成（12/15）
 
 1. **基础架构** - 服务化核心框架
    - `src/services/types.ts` - 服务接口定义
@@ -60,16 +60,30 @@
    - ✅ 在 `src/services/index.ts` 中导出
 
 10. **RegexApplier** - 复杂级工具（完成）
-   - ✅ 创建 `regexApplier.service.ts`
-   - ✅ 重构 `RegexApplier.vue`
-   - ✅ 保留 Pinia store 用于预设管理
-   - ✅ 服务封装文本和文件处理逻辑
-   - ✅ 实现文本处理（`processText`）
-   - ✅ 实现文件批量处理（`processFiles`）
-   - ✅ 实现剪贴板操作（`pasteFromClipboard`, `copyToClipboard`）
-   - ✅ 实现一键处理（`oneClickProcess`）
-   - ✅ 高级封装方法（`getFormattedTextResult`, `getFormattedFileResult`）
-   - ✅ 完整的元数据定义
+
+- ✅ 创建 `regexApplier.service.ts`
+- ✅ 重构 `RegexApplier.vue`
+- ✅ 保留 Pinia store 用于预设管理
+- ✅ 服务封装文本和文件处理逻辑
+- ✅ 实现文本处理（`processText`）
+- ✅ 实现文件批量处理（`processFiles`）
+- ✅ 实现剪贴板操作（`pasteFromClipboard`, `copyToClipboard`）
+- ✅ 实现一键处理（`oneClickProcess`）
+- ✅ 高级封装方法（`getFormattedTextResult`, `getFormattedFileResult`）
+- ✅ 完整的元数据定义
+
+11. **SmartOcr** - 超复杂级工具（完成）
+
+- ✅ 采用新的"上下文模式"架构
+- ✅ 创建 `OcrContext.ts` - 响应式上下文类
+- ✅ 改造 `smartOcr.service.ts` 为无状态工厂
+- ✅ 重构 `SmartOcr.vue` 使用 Context 实例
+- ✅ 优化 composables 结构（拆分引擎实现）
+- ✅ 创建 `useTesseractEngine` - Tesseract OCR 引擎
+- ✅ 创建 `useNativeEngine` - Windows 原生 OCR 引擎
+- ✅ 创建 `useVlmEngine` - 多模态大模型 OCR 引擎
+- ✅ 重构 `useOcrRunner` - 轻量级编排者
+- ✅ 完整的元数据和类型定义
 
 ---
 
@@ -80,6 +94,7 @@
 **特点：** 无复杂状态，纯函数式逻辑，适合快速验证模式
 
 #### 1. JsonFormatter ✅
+
 - **复杂度：** ⭐
 - **状态：** 已完成
 - **业务逻辑：**
@@ -92,6 +107,7 @@
   - ✅ 组件重构，业务逻辑完全剥离
 
 #### 2. CodeFormatter ✅
+
 - **复杂度：** ⭐⭐
 - **状态：** 已完成
 - **业务逻辑：**
@@ -109,6 +125,7 @@
 **特点：** 涉及文件系统交互，需要处理异步操作和错误
 
 #### 3. TextDiff ✅
+
 - **复杂度：** ⭐⭐⭐
 - **状态：** 已完成
 - **业务逻辑：**
@@ -125,6 +142,7 @@
   - ✅ 差异导航功能保留在组件层
 
 #### 4. SymlinkMover ✅
+
 - **复杂度：** ⭐⭐
 - **状态：** 已完成
 - **业务逻辑：**
@@ -156,6 +174,7 @@
 **特点：** 已有 Pinia store，需要决定状态管理策略
 
 #### 5. RegexApplier ✅
+
 - **复杂度：** ⭐⭐⭐⭐
 - **状态：** 已完成
 - **现有架构：**
@@ -184,6 +203,7 @@
   - 🎯 **高级封装**：提供格式化结果方法，便于 Agent 调用
 
 #### 6. ApiTester
+
 - **复杂度：** ⭐⭐⭐⭐
 - **现有架构：**
   - `store.ts` - Profile 管理
@@ -197,22 +217,60 @@
 ### 🔵 待评估工具
 
 #### 7. git-analyzer
+
 - **待分析：** 需要查看具体实现
 - **预估复杂度：** ⭐⭐⭐
 
 #### 8. directory-janitor
+
 - **待分析：** 目录清理工具
 - **预估复杂度：** ⭐⭐
 
 #### 9. media-info-reader
+
 - **待分析：** 媒体信息读取
 - **预估复杂度：** ⭐⭐
 
-#### 10. smart-ocr
-- **复杂度：** ⭐⭐⭐⭐
-- **特殊性：** OCR 服务已在 composables 中
+#### 10. smart-ocr ✅
+
+- **复杂度：** ⭐⭐⭐⭐⭐
+- **状态：** 已完成
+- **现有架构：**
+  - `composables/useOcrRunner.ts` - OCR 引擎编排器
+  - `composables/useTesseractEngine.ts` - Tesseract.js 引擎
+  - `composables/useNativeEngine.ts` - Windows 原生 OCR 引擎
+  - `composables/useVlmEngine.ts` - 多模态大模型引擎
+  - `composables/useCloudOcrRunner.ts` - 云端 OCR 引擎
+  - `composables/useImageSlicer.ts` - 智能图片切割
+  - `config.ts` - 配置管理
+- **改造策略：**
+  - **采用"上下文模式"** - 完美解决状态隔离问题
+  - **无状态 Service** 作为工厂，创建独立的 Context 实例
+  - **响应式 Context** 封装所有业务逻辑和状态
+  - 保留现有 composables 作为底层引擎实现
+- **已实现：**
+  - ✅ `OcrContext.ts` - 响应式上下文类
+    - 封装所有响应式状态（`Ref` 和 `ComputedRef`）
+    - 实现完整的 OCR 业务流程
+    - 图片管理、切割、识别、重试等功能
+  - ✅ `smartOcr.service.ts` - 无状态工厂服务
+    - 只提供 `createContext()` 方法
+    - 每次调用创建独立的 Context 实例
+  - ✅ `SmartOcr.vue` - 组件重构
+    - 通过 Service 创建专属 Context
+    - 直接使用 Context 的响应式状态
+    - UI 与 Agent 调用完全隔离
+  - ✅ 完整的元数据定义
+  - ✅ 响应式状态列表说明
+- **设计亮点：**
+  - 🎯 **上下文模式创新**：完美解决了"响应式状态 vs 状态隔离"的矛盾
+  - 🎯 **UI-Agent 隔离**：UI 和 Agent 各自拥有独立的 Context，互不干扰
+  - 🎯 **响应式友好**：Context 中的所有状态都是 Vue 响应式的，可直接在模板中使用
+  - 🎯 **架构清晰**：Service（工厂）→ Context（实例）→ Composables（引擎）三层分离
+  - 🎯 **可扩展性强**：新增引擎只需添加新的 composable，无需修改 Context
 
 #### 11. llm-chat
+
 - **复杂度：** ⭐⭐⭐⭐⭐
 - **特殊性：** 已有完善的 composables 架构，可能不需要改造
 
@@ -223,12 +281,12 @@
 ### 服务类模板
 
 ```typescript
-import type { ToolService } from '@/services/types';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
+import type { ToolService } from "@/services/types";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('services/tool-name');
-const errorHandler = createModuleErrorHandler('services/tool-name');
+const logger = createModuleLogger("services/tool-name");
+const errorHandler = createModuleErrorHandler("services/tool-name");
 
 // ==================== 类型定义 ====================
 
@@ -249,9 +307,9 @@ export interface FormattedResult {
 // ==================== 服务类 ====================
 
 export default class ToolNameService implements ToolService {
-  public readonly id = 'tool-name';
-  public readonly name = '工具显示名称';
-  public readonly description = '工具描述';
+  public readonly id = "tool-name";
+  public readonly name = "工具显示名称";
+  public readonly description = "工具描述";
 
   // ==================== 核心业务方法 ====================
 
@@ -259,17 +317,17 @@ export default class ToolNameService implements ToolService {
    * 核心业务方法
    */
   public async process(options: ToolOptions): Promise<ToolResult | null> {
-    logger.info('开始处理', options);
-    
+    logger.info("开始处理", options);
+
     return await errorHandler.wrapAsync(
       async () => {
         const result = await this.doSomething(options);
-        logger.info('处理完成', { result });
+        logger.info("处理完成", { result });
         return result;
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '处理失败',
+        userMessage: "处理失败",
         context: options,
       }
     );
@@ -297,7 +355,7 @@ export default class ToolNameService implements ToolService {
    */
   private formatSummary(result: ToolResult): string {
     // 格式化逻辑
-    return '';
+    return "";
   }
 
   /**
@@ -322,44 +380,44 @@ export default class ToolNameService implements ToolService {
     return {
       methods: [
         {
-          name: 'process',
-          description: '核心处理方法',
+          name: "process",
+          description: "核心处理方法",
           parameters: [
             {
-              name: 'options',
-              type: 'ToolOptions',
-              description: '处理选项',
+              name: "options",
+              type: "ToolOptions",
+              description: "处理选项",
               properties: [
                 {
-                  name: 'param1',
-                  type: 'string',
-                  description: '参数说明',
-                }
-              ]
-            }
+                  name: "param1",
+                  type: "string",
+                  description: "参数说明",
+                },
+              ],
+            },
           ],
-          returnType: 'Promise<ToolResult | null>',
+          returnType: "Promise<ToolResult | null>",
           example: `
 await service.process({
   param1: 'value'
-});`
+});`,
         },
         {
-          name: 'getFormattedResult',
-          description: '获取格式化的处理结果（推荐 Agent 使用）',
+          name: "getFormattedResult",
+          description: "获取格式化的处理结果（推荐 Agent 使用）",
           parameters: [
             {
-              name: 'options',
-              type: 'ToolOptions',
-              description: '处理选项'
-            }
+              name: "options",
+              type: "ToolOptions",
+              description: "处理选项",
+            },
           ],
-          returnType: 'Promise<FormattedResult | null>',
+          returnType: "Promise<FormattedResult | null>",
           example: `
 const result = await service.getFormattedResult({ param1: 'value' });
-// 返回: { summary, details }`
-        }
-      ]
+// 返回: { summary, details }`,
+        },
+      ],
     };
   }
 }
@@ -394,21 +452,23 @@ const result = await service.getFormattedResult({ param1: 'value' });
 
 ```vue
 <script setup lang="ts">
-import { serviceRegistry } from '@/services/registry';
-import type ToolNameService from './toolName.service';
+import { serviceRegistry } from "@/services/registry";
+import type ToolNameService from "./toolName.service";
 
 // 获取服务实例
-const toolService = serviceRegistry.getService<typeof ToolNameService>('tool-name');
+const toolService = serviceRegistry.getService<typeof ToolNameService>("tool-name");
 
 // 组件状态（仅 UI 相关）
 const isProcessing = ref(false);
-const result = ref('');
+const result = ref("");
 
 // UI 事件处理
 const handleProcess = async () => {
   isProcessing.value = true;
   try {
-    const output = await toolService.process({ /* options */ });
+    const output = await toolService.process({
+      /* options */
+    });
     result.value = output.data;
   } catch (error) {
     // 错误处理
@@ -426,6 +486,7 @@ const handleProcess = async () => {
 每个工具改造时应确保：
 
 ### Service 层
+
 - [ ] 创建 `*.service.ts` 文件
 - [ ] 实现 `ToolService` 接口
 - [ ] 定义清晰的输入输出类型
@@ -442,16 +503,17 @@ const handleProcess = async () => {
 - [ ] 所有业务逻辑从组件移除
 
 ### 组件层
+
 - [ ] **通过统一执行器 `execute()` 调用服务**
 - [ ] 只保留 UI 状态（loading, error 等）
 - [ ] 移除所有业务逻辑代码
 - [ ] 简化事件处理函数，使其成为 `execute` 的调用者
 
 ### 测试
+
 - [ ] 在服务监控工具中验证服务已注册
 - [ ] 验证所有功能正常工作
 - [ ] 检查错误处理是否正确
-
 
 ---
 
@@ -509,7 +571,7 @@ graph TD
 // 描述一个完整的工具调用请求
 export interface ToolCall<TParams = Record<string, any>> {
   service: string; // 服务 ID，例如 'regex-applier'
-  method: string;  // 要调用的方法名
+  method: string; // 要调用的方法名
   params: TParams; // 传递给方法的参数
 }
 
@@ -527,26 +589,29 @@ export async function execute<TData = any>(call: ToolCall): Promise<ServiceResul
 ### 调用示例 (在组件中)
 
 ```typescript
-import { execute } from '@/services/executor';
+import { execute } from "@/services/executor";
 
 async function handleProcessFiles() {
   const result = await execute({
-    service: 'regex-applier',
-    method: 'processFiles',
-    params: { /* ...从 UI 收集的参数... */ }
+    service: "regex-applier",
+    method: "processFiles",
+    params: {
+      /* ...从 UI 收集的参数... */
+    },
   });
 
   if (result.success) {
     // 更新 UI
-    console.log('处理成功:', result.data);
+    console.log("处理成功:", result.data);
   } else {
     // 显示错误
-    console.error('处理失败:', result.error);
+    console.error("处理失败:", result.error);
   }
 }
 ```
 
 ### 优点
+
 1.  **强解耦**：调用方无需关心服务的具体实例，只需描述“做什么”。
 2.  **一致性**：所有服务调用都遵循相同的模式，返回统一的 `ServiceResult` 结构，简化了调用方的错误处理逻辑。
 3.  **可扩展性**：未来可以在执行器中轻松添加日志、权限校验、性能监控等横切关注点，而无需修改任何服务。

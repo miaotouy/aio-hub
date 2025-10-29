@@ -180,7 +180,9 @@ onMounted(() => {
 /* 右侧面板 */
 .service-detail-panel {
   padding: 16px;
-  overflow-y: auto;
   background: var(--el-bg-color-page);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>

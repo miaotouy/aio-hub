@@ -3,12 +3,12 @@
     <template #header>
       <div class="card-header">
         <span>可用方法</span>
-        <el-tag size="small">{{ methods.length }} 个</el-tag>
+        <el-tag size="small" effect="light" round>{{ methods.length }} 个</el-tag>
       </div>
     </template>
 
     <div class="methods-list">
-      <el-collapse v-model="activeMethodName" accordion>
+      <el-collapse v-model="activeMethodName" accordion class="methods-collapse">
         <el-collapse-item
           v-for="method in methods"
           :key="method.name"
@@ -16,7 +16,7 @@
         >
           <template #title>
             <div class="method-title">
-              <el-tag type="success" size="small">方法</el-tag>
+              <el-tag type="success" size="small" effect="light" round>方法</el-tag>
               <span class="method-name">{{ method.name }}</span>
             </div>
           </template>
@@ -28,14 +28,14 @@
 
             <!-- 参数列表 -->
             <div class="method-section">
-              <h4>参数</h4>
+              <h4 class="section-title">参数</h4>
               <MethodParametersTable :parameters="method.parameters" />
             </div>
 
             <!-- 返回值 -->
             <div class="method-section">
-              <h4>返回值</h4>
-              <el-tag type="primary">{{ method.returnType }}</el-tag>
+              <h4 class="section-title">返回值</h4>
+              <el-tag type="primary" effect="light" round>{{ method.returnType }}</el-tag>
             </div>
           </div>
         </el-collapse-item>
@@ -59,6 +59,15 @@ const activeMethodName = ref<string>('');
 <style scoped>
 .methods-card {
   margin-top: 16px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.el-card__body) {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .card-header {
@@ -69,7 +78,41 @@ const activeMethodName = ref<string>('');
 }
 
 .methods-list {
-  margin-top: 12px;
+  margin: 0; /* 移除外边距，让 collapse 撑满 */
+}
+
+.methods-collapse {
+  /* 移除 collapse 组件的边框 */
+  --el-collapse-border-color: transparent;
+}
+
+:deep(.el-collapse-item__header) {
+  border-bottom-color: var(--el-border-color-lighter);
+  padding: 0 12px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+:deep(.el-collapse-item__header:hover) {
+  background-color: var(--el-fill-color-light);
+}
+
+:deep(.el-collapse-item__header.is-active) {
+  /* 将主题色与背景色混合，生成一个柔和的激活色，适应不同主题 */
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 15%,
+    var(--el-bg-color)
+  );
+  box-sizing: border-box;
+}
+
+:deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+}
+
+:deep(.el-collapse-item__content) {
+  padding: 0;
 }
 
 .method-title {
@@ -77,6 +120,7 @@ const activeMethodName = ref<string>('');
   align-items: center;
   gap: 8px;
   flex: 1;
+  box-sizing: border-box;
 }
 
 .method-name {
@@ -86,23 +130,24 @@ const activeMethodName = ref<string>('');
 }
 
 .method-detail {
-  padding: 12px 0;
+  padding: 16px 16px 8px 16px;
 }
 
 .method-description {
   padding: 8px 12px;
-  background: var(--el-fill-color-light);
+  background-color: var(--el-bg-color-page);
   border-radius: 4px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .method-section {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-.method-section h4 {
-  margin: 0 0 8px 0;
+.section-title {
+  margin: 0 0 10px 0;
   font-size: 14px;
+  font-weight: 600;
   color: var(--el-text-color-regular);
 }
 </style>

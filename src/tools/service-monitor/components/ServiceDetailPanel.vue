@@ -10,7 +10,7 @@
       
       <el-descriptions :column="1" border>
         <el-descriptions-item label="服务 ID">
-          <el-tag type="primary">{{ service.id }}</el-tag>
+          <el-tag type="primary" effect="light" round>{{ service.id }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item v-if="service.name" label="服务名称">
           {{ service.name }}
@@ -19,7 +19,12 @@
           {{ service.description }}
         </el-descriptions-item>
         <el-descriptions-item label="元数据支持">
-          <el-tag :type="hasMetadata ? 'success' : 'info'" size="small">
+          <el-tag
+            :type="hasMetadata ? 'success' : 'info'"
+            size="small"
+            effect="light"
+            round
+          >
             {{ hasMetadata ? '已实现' : '未实现' }}
           </el-tag>
         </el-descriptions-item>
@@ -75,8 +80,10 @@ const metadata = computed<ServiceMetadata | null>(() => {
 
 <style scoped>
 .service-detail {
-  max-width: 1200px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .detail-card {

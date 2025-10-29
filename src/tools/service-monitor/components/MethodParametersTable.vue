@@ -4,32 +4,35 @@
       v-if="parameters && parameters.length > 0"
       :data="parameters"
       size="small"
-      border
       row-key="name"
+      stripe
+      style="width: 100%"
     >
-      <el-table-column type="expand">
+      <el-table-column type="expand" width="40">
         <template #default="{ row }">
           <div v-if="row.properties && row.properties.length > 0" class="nested-properties">
             <div class="properties-header">
               <el-text type="info" size="small">对象属性：</el-text>
             </div>
-            <el-table
-              :data="row.properties"
-              size="small"
-              border
-              class="properties-table"
-            >
+            <el-table :data="row.properties" size="small" class="properties-table">
               <el-table-column prop="name" label="属性名" width="150" />
               <el-table-column prop="type" label="类型" width="200">
                 <template #default="{ row: prop }">
-                  <el-tag size="small" type="warning">{{ prop.type }}</el-tag>
+                  <el-tag size="small" type="warning" effect="light" round>
+                    {{ prop.type }}
+                  </el-tag>
                 </template>
               </el-table-column>
               <el-table-column prop="description" label="描述" />
               <el-table-column prop="defaultValue" label="默认值" width="120">
                 <template #default="{ row: prop }">
-                  <el-tag v-if="prop.defaultValue !== undefined" size="small">
-                    {{ prop.defaultValue }}
+                  <el-tag
+                    v-if="prop.defaultValue !== undefined"
+                    size="small"
+                    effect="light"
+                    round
+                  >
+                    {{ String(prop.defaultValue) }}
                   </el-tag>
                   <span v-else class="no-default">-</span>
                 </template>
@@ -42,14 +45,16 @@
       <el-table-column prop="type" label="类型" width="200">
         <template #default="{ row }">
           <div class="type-cell">
-            <el-tag size="small" type="warning">{{ row.type }}</el-tag>
+            <el-tag size="small" type="warning" effect="light" round>{{ row.type }}</el-tag>
             <el-tag
               v-if="row.properties && row.properties.length > 0"
               size="small"
               type="info"
+              effect="light"
+              round
               class="properties-badge"
             >
-              {{ row.properties.length }} 个属性
+              {{ row.properties.length }} 个
             </el-tag>
           </div>
         </template>
@@ -57,8 +62,8 @@
       <el-table-column prop="description" label="描述" />
       <el-table-column prop="defaultValue" label="默认值" width="120">
         <template #default="{ row }">
-          <el-tag v-if="row.defaultValue !== undefined" size="small">
-            {{ row.defaultValue }}
+          <el-tag v-if="row.defaultValue !== undefined" size="small" effect="light" round>
+            {{ String(row.defaultValue) }}
           </el-tag>
           <span v-else class="no-default">-</span>
         </template>
@@ -77,30 +82,35 @@ defineProps<{
 </script>
 
 <style scoped>
+/* 移除展开单元格的内边距，让嵌套内容可以撑满 */
+:deep(.el-table__expanded-cell) {
+  padding: 0 !important;
+}
+
 .nested-properties {
-  padding: 12px 16px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 4px;
-  margin: 8px 0;
+  padding: 12px 16px 12px 52px; /* 左侧留出对齐空间 */
+  background-color: var(--el-bg-color-page);
 }
 
 .properties-header {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
+/* 嵌套的属性表格，移除边框和背景，使其与父级融合 */
 .properties-table {
-  margin-top: 8px;
+  --el-table-border-color: transparent;
+  --el-table-bg-color: transparent;
+}
+
+/* 覆盖嵌套表格的 hover 背景色，使其更柔和 */
+:deep(.properties-table .el-table__row:hover) {
+  background-color: var(--el-fill-color-lighter) !important;
 }
 
 .type-cell {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.properties-badge {
-  font-size: 11px;
+  align-items: center;
+  gap: 8px;
 }
 
 .no-default {

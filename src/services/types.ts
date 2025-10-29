@@ -4,6 +4,24 @@
  * 所有工具服务都应该实现此接口，以确保统一的服务契约。
  */
 
+export interface MethodParameter {
+  name: string;
+  type: string; // 例如: 'string', 'number', 'GenerateTreeOptions'
+  description?: string;
+  defaultValue?: any;
+}
+
+export interface MethodMetadata {
+  name: string;
+  description?: string;
+  parameters: MethodParameter[];
+  returnType: string; // 例如: 'Promise<string>', 'void'
+}
+
+export interface ServiceMetadata {
+  methods: MethodMetadata[];
+}
+
 export interface ToolService {
   /**
    * 服务的唯一标识符，通常与工具路径对应。
@@ -32,4 +50,10 @@ export interface ToolService {
    * 可用于清理资源，如取消订阅、清除定时器等。
    */
   dispose?(): void;
+
+  /**
+   * 提供服务的元数据，用于服务监控、文档生成和未来的工具调用。
+   * 这是可选的，但强烈推荐实现。
+   */
+  getMetadata?(): ServiceMetadata;
 }

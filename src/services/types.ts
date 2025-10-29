@@ -9,6 +9,8 @@ export interface MethodParameter {
   type: string; // 例如: 'string', 'number', 'GenerateTreeOptions'
   description?: string;
   defaultValue?: any;
+  /** 当 type 为对象类型时，描述对象的属性 */
+  properties?: MethodParameter[];
 }
 
 export interface MethodMetadata {

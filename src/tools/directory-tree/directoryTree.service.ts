@@ -214,6 +214,8 @@ export default class DirectoryTreeService implements ToolService {
 
   /**
    * 获取服务元数据
+   *
+   * 只暴露核心的业务方法，内部辅助方法（如 UI 交互、配置管理）不包含在内。
    */
   public getMetadata() {
     return {
@@ -226,57 +228,53 @@ export default class DirectoryTreeService implements ToolService {
               name: 'options',
               type: 'GenerateTreeOptions',
               description: '目录树生成配置选项',
+              properties: [
+                {
+                  name: 'path',
+                  type: 'string',
+                  description: '要分析的目标目录路径',
+                },
+                {
+                  name: 'showFiles',
+                  type: 'boolean',
+                  description: '是否在树中显示文件（仅显示目录结构则设为 false）',
+                },
+                {
+                  name: 'showHidden',
+                  type: 'boolean',
+                  description: '是否显示隐藏文件和目录',
+                },
+                {
+                  name: 'showSize',
+                  type: 'boolean',
+                  description: '是否显示文件大小信息',
+                },
+                {
+                  name: 'maxDepth',
+                  type: 'number',
+                  description: '目录树的最大深度（0 表示无限制，10 也表示无限制）',
+                },
+                {
+                  name: 'filterMode',
+                  type: "'none' | 'gitignore' | 'custom'",
+                  description: '过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则',
+                },
+                {
+                  name: 'customPattern',
+                  type: 'string',
+                  description: '自定义过滤规则（当 filterMode 为 custom 时使用，支持 glob 模式）',
+                  defaultValue: undefined,
+                },
+                {
+                  name: 'includeMetadata',
+                  type: 'boolean',
+                  description: '是否在输出中包含统计信息和配置元数据',
+                  defaultValue: false,
+                },
+              ],
             },
           ],
           returnType: 'Promise<TreeGenerationResult>',
-        },
-        {
-          name: 'selectDirectory',
-          description: '打开目录选择对话框',
-          parameters: [
-            {
-              name: 'title',
-              type: 'string',
-              description: '对话框标题',
-              defaultValue: '选择要分析的目录',
-            },
-          ],
-          returnType: 'Promise<string | null>',
-        },
-        {
-          name: 'exportToFile',
-          description: '将目录树导出到文件',
-          parameters: [
-            {
-              name: 'content',
-              type: 'string',
-              description: '要导出的内容',
-            },
-            {
-              name: 'targetPath',
-              type: 'string',
-              description: '目标路径（用于生成默认文件名）',
-            },
-          ],
-          returnType: 'Promise<void>',
-        },
-        {
-          name: 'loadConfig',
-          description: '从本地存储加载配置',
-          parameters: [],
-          returnType: 'Promise<DirectoryTreeConfig>',
-        },
-        {
-          name: 'saveConfig',
-          description: '保存配置到本地存储',
-          parameters: [
-            {
-              name: 'config',
-              type: 'DirectoryTreeConfig',
-              description: '要保存的配置对象',
-            },
-          ],
-          returnType: 'Promise<void>',
         },
       ],
     };

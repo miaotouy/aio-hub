@@ -32,7 +32,7 @@
 
 **特点：** 无复杂状态，纯函数式逻辑，适合快速验证模式
 
-#### 1. JsonFormatter（下一个目标）
+#### 1. JsonFormatter（完成）
 - **复杂度：** ⭐
 - **业务逻辑：**
   - JSON 解析与格式化
@@ -43,7 +43,7 @@
   - 方法：`formatJson(text, options)`, `parseJson(text)`
   - 移除组件内的格式化逻辑
 
-#### 2. CodeFormatter
+#### 2. CodeFormatter（完成）
 - **复杂度：** ⭐⭐
 - **业务逻辑：**
   - 多语言代码格式化（Prettier）
@@ -59,7 +59,7 @@
 
 **特点：** 涉及文件系统交互，需要处理异步操作和错误
 
-#### 3. TextDiff
+#### 3. TextDiff（下一个目标）
 - **复杂度：** ⭐⭐⭐
 - **业务逻辑：**
   - 文件对比（Monaco Diff Editor）
@@ -247,7 +247,7 @@ const handleProcess = async () => {
 - [ ] 创建 `*.service.ts` 文件
 - [ ] 实现 `ToolService` 接口
 - [ ] 定义清晰的输入输出类型
-- [ ] 实现 `getMetadata()` 方法
+- [ ] 实现 `getMetadata()` 方法，并且只包含对外暴露方法，不包含内部方法
 - [ ] 添加详细的 JSDoc 注释
 - [ ] 使用模块日志记录器
 - [ ] 所有业务逻辑从组件移除
@@ -263,26 +263,6 @@ const handleProcess = async () => {
 - [ ] 验证所有功能正常工作
 - [ ] 检查错误处理是否正确
 
----
-
-## 下一步行动
-
-### 立即开始：JsonFormatter 改造
-
-**目标：** 建立简单工具的标准改造模板
-
-**步骤：**
-1. 创建 `src/tools/json-formatter/jsonFormatter.service.ts`
-2. 定义接口：`FormatOptions`, `FormatResult`
-3. 实现方法：
-   - `formatJson(text: string, options: FormatOptions): FormatResult`
-   - `parseJson(text: string): any`
-4. 重构 `JsonFormatter.vue`：
-   - 移除 `customJsonStringify` 等逻辑方法
-   - 调用服务方法处理数据
-5. 测试验证
-
-**预计时间：** 30-45 分钟
 
 ---
 

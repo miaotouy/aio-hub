@@ -265,13 +265,13 @@ onMounted(() => {
 
 .service-item:hover {
   border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
 }
 
 .service-item.active {
   border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+  background: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--el-color-primary) 30%, transparent);
 }
 
 .service-item-header {

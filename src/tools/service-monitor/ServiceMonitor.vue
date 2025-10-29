@@ -41,170 +41,17 @@
 
       <!-- 右侧：服务详情 -->
       <el-main class="service-detail-panel">
-        <div v-if="selectedService" class="service-detail">
-          <!-- 基本信息 -->
-          <el-card class="detail-card">
-            <template #header>
-              <div class="card-header">
-                <span>服务信息</span>
-              </div>
-            </template>
-            
-            <el-descriptions :column="1" border>
-              <el-descriptions-item label="服务 ID">
-                <el-tag type="primary">{{ selectedService.id }}</el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item v-if="selectedService.name" label="服务名称">
-                {{ selectedService.name }}
-              </el-descriptions-item>
-              <el-descriptions-item v-if="selectedService.description" label="服务描述">
-                {{ selectedService.description }}
-              </el-descriptions-item>
-              <el-descriptions-item label="元数据支持">
-                <el-tag :type="hasMetadata ? 'success' : 'info'" size="small">
-                  {{ hasMetadata ? '已实现' : '未实现' }}
-                </el-tag>
-              </el-descriptions-item>
-            </el-descriptions>
-          </el-card>
-
-          <!-- 方法列表 -->
-          <el-card v-if="hasMetadata && metadata" class="detail-card methods-card">
-            <template #header>
-              <div class="card-header">
-                <span>可用方法</span>
-                <el-tag size="small">{{ metadata.methods.length }} 个</el-tag>
-              </div>
-            </template>
-
-            <div class="methods-list">
-              <el-collapse v-model="activeMethodNames" accordion>
-                <el-collapse-item
-                  v-for="method in metadata.methods"
-                  :key="method.name"
-                  :name="method.name"
-                >
-                  <template #title>
-                    <div class="method-title">
-                      <el-tag type="success" size="small">方法</el-tag>
-                      <span class="method-name">{{ method.name }}</span>
-                    </div>
-                  </template>
-
-                  <div class="method-detail">
-                    <div v-if="method.description" class="method-description">
-                      <el-text type="info">{{ method.description }}</el-text>
-                    </div>
-
-                    <!-- 参数列表 -->
-                    <div class="method-section">
-                      <h4>参数</h4>
-                      <el-table
-                        v-if="method.parameters.length > 0"
-                        :data="method.parameters"
-                        size="small"
-                        border
-                        row-key="name"
-                      >
-                        <el-table-column type="expand">
-                          <template #default="{ row }">
-                            <div v-if="row.properties && row.properties.length > 0" class="nested-properties">
-                              <div class="properties-header">
-                                <el-text type="info" size="small">对象属性：</el-text>
-                              </div>
-                              <el-table
-                                :data="row.properties"
-                                size="small"
-                                border
-                                class="properties-table"
-                              >
-                                <el-table-column prop="name" label="属性名" width="150" />
-                                <el-table-column prop="type" label="类型" width="200">
-                                  <template #default="{ row: prop }">
-                                    <el-tag size="small" type="warning">{{ prop.type }}</el-tag>
-                                  </template>
-                                </el-table-column>
-                                <el-table-column prop="description" label="描述" />
-                                <el-table-column prop="defaultValue" label="默认值" width="120">
-                                  <template #default="{ row: prop }">
-                                    <el-tag v-if="prop.defaultValue !== undefined" size="small">
-                                      {{ prop.defaultValue }}
-                                    </el-tag>
-                                    <span v-else class="no-default">-</span>
-                                  </template>
-                                </el-table-column>
-                              </el-table>
-                            </div>
-                          </template>
-                        </el-table-column>
-                        <el-table-column prop="name" label="参数名" width="150" />
-                        <el-table-column prop="type" label="类型" width="200">
-                          <template #default="{ row }">
-                            <div class="type-cell">
-                              <el-tag size="small" type="warning">{{ row.type }}</el-tag>
-                              <el-tag
-                                v-if="row.properties && row.properties.length > 0"
-                                size="small"
-                                type="info"
-                                class="properties-badge"
-                              >
-                                {{ row.properties.length }} 个属性
-                              </el-tag>
-                            </div>
-                          </template>
-                        </el-table-column>
-                        <el-table-column prop="description" label="描述" />
-                        <el-table-column prop="defaultValue" label="默认值" width="120">
-                          <template #default="{ row }">
-                            <el-tag v-if="row.defaultValue !== undefined" size="small">
-                              {{ row.defaultValue }}
-                            </el-tag>
-                            <span v-else class="no-default">-</span>
-                          </template>
-                        </el-table-column>
-                      </el-table>
-                      <el-empty v-else description="无参数" :image-size="60" />
-                    </div>
-
-                    <!-- 返回值 -->
-                    <div class="method-section">
-                      <h4>返回值</h4>
-                      <el-tag type="primary">{{ method.returnType }}</el-tag>
-                    </div>
-                  </div>
-                </el-collapse-item>
-              </el-collapse>
-            </div>
-          </el-card>
-
-          <!-- 未实现元数据提示 -->
-          <el-card v-else-if="!hasMetadata" class="detail-card">
-            <el-empty description="该服务尚未实现 getMetadata() 方法" :image-size="100">
-              <template #image>
-                <el-icon :size="100" color="#909399">
-                  <InfoFilled />
-                </el-icon>
-              </template>
-            </el-empty>
-          </el-card>
-        </div>
-
-        <!-- 未选择服务时的提示 -->
-        <el-empty
-          v-else
-          description="请从左侧列表选择一个服务查看详情"
-          :image-size="120"
-        />
+        <ServiceDetailPanel :service="selectedService" />
       </el-main>
     </el-container>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { serviceRegistry } from '@/services/registry';
-import type { ToolService, ServiceMetadata } from '@/services/types';
-import { InfoFilled } from '@element-plus/icons-vue';
+import type { ToolService } from '@/services/types';
+import ServiceDetailPanel from './components/ServiceDetailPanel.vue';
 
 // 服务列表
 const services = ref<ToolService[]>([]);
@@ -212,26 +59,9 @@ const services = ref<ToolService[]>([]);
 // 当前选中的服务
 const selectedService = ref<ToolService | null>(null);
 
-// 展开的方法名称
-const activeMethodNames = ref<string>('');
-
-// 是否有元数据
-const hasMetadata = computed(() => {
-  return selectedService.value?.getMetadata !== undefined;
-});
-
-// 服务元数据
-const metadata = computed<ServiceMetadata | null>(() => {
-  if (!selectedService.value?.getMetadata) {
-    return null;
-  }
-  return selectedService.value.getMetadata();
-});
-
 // 选择服务
 const selectService = (service: ToolService) => {
   selectedService.value = service;
-  activeMethodNames.value = '';
 };
 
 // 加载服务列表
@@ -352,100 +182,5 @@ onMounted(() => {
   padding: 16px;
   overflow-y: auto;
   background: var(--el-bg-color-page);
-}
-
-.service-detail {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.detail-card {
-  margin-bottom: 16px;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-weight: 600;
-}
-
-/* 方法列表 */
-.methods-card {
-  margin-top: 16px;
-}
-
-.methods-list {
-  margin-top: 12px;
-}
-
-.method-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.method-name {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.method-detail {
-  padding: 12px 0;
-}
-
-.method-description {
-  padding: 8px 12px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-  margin-bottom: 16px;
-}
-
-.method-section {
-  margin-bottom: 16px;
-}
-
-.method-section h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  color: var(--el-text-color-regular);
-}
-.no-default {
-  color: var(--el-text-color-placeholder);
-}
-
-/* 类型单元格 */
-.type-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.properties-badge {
-  font-size: 11px;
-}
-
-/* 嵌套属性样式 */
-.nested-properties {
-  padding: 12px 16px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 4px;
-  margin: 8px 0;
-}
-
-.properties-header {
-  margin-bottom: 8px;
-}
-
-.properties-table {
-  margin-top: 8px;
-}
-
-/* 空状态调整 */
-:deep(.el-empty) {
-  padding: 20px;
 }
 </style>

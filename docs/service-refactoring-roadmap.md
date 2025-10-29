@@ -2,7 +2,7 @@
 
 ## 当前进度
 
-### ✅ 已完成（9/15）
+### ✅ 已完成（10/15）
 
 1. **基础架构** - 服务化核心框架
    - `src/services/types.ts` - 服务接口定义
@@ -50,6 +50,14 @@
    - ✅ 核心操作（移动+链接、仅创建链接）
    - ✅ 进度监听与日志管理
    - ✅ 完整的元数据定义
+
+9. **统一服务执行器** - 核心基础设施（完成）
+   - ✅ 创建 `src/services/executor.ts`
+   - ✅ 定义 `ToolCall` 和 `ServiceResult` 核心类型
+   - ✅ 实现 `execute()` 函数 - 统一服务调用入口
+   - ✅ 实现 `executeMany()` 函数 - 批量调用支持
+   - ✅ 集成统一错误处理和日志记录
+   - ✅ 在 `src/services/index.ts` 中导出
 
 ---
 
@@ -406,16 +414,115 @@ const handleProcess = async () => {
 - [ ] 所有业务逻辑从组件移除
 
 ### 组件层
-- [ ] 通过 `serviceRegistry.getService()` 获取服务
+- [ ] **通过统一执行器 `execute()` 调用服务**
 - [ ] 只保留 UI 状态（loading, error 等）
 - [ ] 移除所有业务逻辑代码
-- [ ] 简化事件处理函数
+- [ ] 简化事件处理函数，使其成为 `execute` 的调用者
 
 ### 测试
 - [ ] 在服务监控工具中验证服务已注册
 - [ ] 验证所有功能正常工作
 - [ ] 检查错误处理是否正确
 
+
+---
+
+## 统一服务调用架构：执行器模式
+
+为了给未来的 Agent 调用和工具间协同工作提供一个稳定、统一的入口，我们引入一个轻量级的**统一执行器 (Unified Executor)**。它将作为所有服务调用的唯一通道，实现关注点分离。
+
+**核心理念**：UI 组件和其他服务不直接与目标服务实例交互，而是通过一个统一的 `execute` 函数发起调用。
+
+### 架构图
+
+```mermaid
+graph TD
+    subgraph Callers (调用方)
+        B[UI Component]
+        C[Another Service]
+    end
+
+    subgraph Unified Executor (统一执行器)
+        D{execute(call: ToolCall)}
+        F[1. 查找服务]
+        G[2. 执行方法]
+        H[3. 包装结果]
+    end
+
+    subgraph Service Discovery
+        I[ServiceRegistry]
+    end
+
+    subgraph Services (具体服务)
+        J[RegexApplierService]
+        K[SymlinkMoverService]
+        L[...]
+    end
+
+    B -- Programmatic Call --> D
+    C -- Programmatic Call --> D
+
+    D --> F
+    F -- "getService(id)" --> I
+    I -- return Service Instance --> F
+    F --> G
+    G -- "service.method(params)" --> J
+    G --> H
+
+    H -- 返回 Promise<ServiceResult> --> B
+    H -- 返回 Promise<ServiceResult> --> C
+```
+
+### 核心接口定义
+
+将在 `src/services/executor.ts` (待创建) 中定义以下核心类型：
+
+```typescript
+// 描述一个完整的工具调用请求
+export interface ToolCall<TParams = Record<string, any>> {
+  service: string; // 服务 ID，例如 'regex-applier'
+  method: string;  // 要调用的方法名
+  params: TParams; // 传递给方法的参数
+}
+
+// 标准化的服务返回结果
+export type ServiceResult<TData = any, TError = Error> =
+  | { success: true; data: TData }
+  | { success: false; error: TError };
+
+// 执行器函数签名
+export async function execute<TData = any>(call: ToolCall): Promise<ServiceResult<TData>> {
+  // ... 实现逻辑
+}
+```
+
+### 调用示例 (在组件中)
+
+```typescript
+import { execute } from '@/services/executor';
+
+async function handleProcessFiles() {
+  const result = await execute({
+    service: 'regex-applier',
+    method: 'processFiles',
+    params: { /* ...从 UI 收集的参数... */ }
+  });
+
+  if (result.success) {
+    // 更新 UI
+    console.log('处理成功:', result.data);
+  } else {
+    // 显示错误
+    console.error('处理失败:', result.error);
+  }
+}
+```
+
+### 优点
+1.  **强解耦**：调用方无需关心服务的具体实例，只需描述“做什么”。
+2.  **一致性**：所有服务调用都遵循相同的模式，返回统一的 `ServiceResult` 结构，简化了调用方的错误处理逻辑。
+3.  **可扩展性**：未来可以在执行器中轻松添加日志、权限校验、性能监控等横切关注点，而无需修改任何服务。
+4.  **接口清晰**：为姐姐后续设计的 Agent 解析器层提供了干净、单一的对接点。
 
 ---
 

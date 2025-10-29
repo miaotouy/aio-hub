@@ -69,7 +69,9 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-else description="无参数" :image-size="60" />
+    <div v-else class="no-params-hint">
+      <el-text type="info" size="small">该方法无需参数</el-text>
+    </div>
   </div>
 </template>
 
@@ -115,5 +117,13 @@ defineProps<{
 
 .no-default {
   color: var(--el-text-color-placeholder);
+}
+
+.no-params-hint {
+  font-size: large;
+  padding: 12px 16px;
+  text-align: center;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 4px;
 }
 </style>

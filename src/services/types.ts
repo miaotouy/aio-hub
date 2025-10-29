@@ -18,6 +18,8 @@ export interface MethodMetadata {
   description?: string;
   parameters: MethodParameter[];
   returnType: string; // 例如: 'Promise<string>', 'void'
+  /** 方法调用示例 */
+  example?: string;
 }
 
 export interface ServiceMetadata {

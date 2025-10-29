@@ -37,6 +37,19 @@
               <h4 class="section-title">返回值</h4>
               <el-tag type="primary" effect="light" round>{{ method.returnType }}</el-tag>
             </div>
+
+            <!-- 使用示例 -->
+            <div v-if="method.example" class="method-section">
+              <h4 class="section-title">使用示例</h4>
+              <div class="example-container">
+                <RichCodeEditor
+                  :model-value="method.example.trim()"
+                  language="javascript"
+                  :read-only="true"
+                  :line-numbers="true"
+                />
+              </div>
+            </div>
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -48,6 +61,7 @@
 import { ref } from 'vue';
 import type { MethodMetadata } from '@/services/types';
 import MethodParametersTable from './MethodParametersTable.vue';
+import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
 
 defineProps<{
   methods: MethodMetadata[];
@@ -152,5 +166,12 @@ const activeMethodName = ref<string>('');
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-regular);
+}
+
+.example-container {
+  min-height: 150px;
+  max-height: 400px;
+  border-radius: 4px;
+  overflow: hidden;
 }
 </style>

@@ -68,6 +68,8 @@ const activeMethodName = ref<string>('');
 :deep(.el-card__body) {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .card-header {
@@ -79,6 +81,7 @@ const activeMethodName = ref<string>('');
 
 .methods-list {
   margin: 0; /* 移除外边距，让 collapse 撑满 */
+  padding-right: 8px;
 }
 
 .methods-collapse {

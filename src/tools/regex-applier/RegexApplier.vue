@@ -126,7 +126,10 @@
             <template #header>
               <div class="card-header">
                 <span>输出文本</span>
-                <el-button text @click="copyResult">复制</el-button>
+                <div class="card-actions">
+                  <el-button text @click="copyResult">复制</el-button>
+                  <el-button text type="success" @click="sendResultToChat">发送到聊天</el-button>
+                </div>
               </div>
             </template>
             <el-input
@@ -341,12 +344,16 @@ import { loadAppConfig, createDebouncedSave, type AppConfig } from "./appConfig"
 import { createModuleLogger } from "@utils/logger";
 import { serviceRegistry } from "@/services/registry";
 import type RegexApplierService from "./regexApplier.service";
+import { useSendToChat } from "@/composables/useSendToChat";
 
 // 创建模块日志器
 const logger = createModuleLogger("RegexApplier");
 
 // 获取服务实例
 const regexService = serviceRegistry.getService<RegexApplierService>('regex-applier')!;
+
+// 获取发送到聊天功能
+const { sendToChat } = useSendToChat();
 
 const store = usePresetStore();
 
@@ -605,6 +612,13 @@ const copyResult = async () => {
   if (success) {
     addLog("处理结果已复制到剪贴板。");
   }
+};
+
+const sendResultToChat = () => {
+  sendToChat(resultText.value, {
+    successMessage: '已将处理结果发送到聊天',
+  });
+  addLog("处理结果已发送到聊天输入框。");
 };
 
 const oneClickProcess = async () => {

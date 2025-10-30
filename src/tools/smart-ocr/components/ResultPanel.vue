@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { customMessage } from '@/utils/customMessage';
-import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide } from '@element-plus/icons-vue';
+import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide, ChatDotRound } from '@element-plus/icons-vue';
 import type { OcrResult, UploadedImage, ImageBlock } from '../types';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { createModuleLogger } from '@utils/logger';
+import { useSendToChat } from '@/composables/useSendToChat';
 
 const logger = createModuleLogger('smart-ocr/ResultPanel');
+
+// 获取发送到聊天功能
+const { sendToChat } = useSendToChat();
 
 const props = defineProps<{
   ocrResults: OcrResult[];
@@ -82,6 +86,17 @@ const copyAllText = async () => {
   await copyText(allText.value, '全部结果');
 };
 
+// 发送所有文本到聊天
+const sendAllToChat = () => {
+  if (!allText.value) {
+    customMessage.warning('暂无可发送的内容');
+    return;
+  }
+  sendToChat(allText.value, {
+    successMessage: '已将OCR识别结果发送到聊天',
+  });
+};
+
 // 获取状态图标
 const getStatusIcon = (status: OcrResult['status']) => {
   switch (status) {
@@ -150,6 +165,15 @@ const handleToggleIgnore = (blockId: string) => {
           @click="copyAllText"
         >
           复制全部
+        </el-button>
+        <el-button
+          v-if="allText"
+          size="small"
+          type="success"
+          :icon="ChatDotRound"
+          @click="sendAllToChat"
+        >
+          发送到聊天
         </el-button>
       </div>
     </div>

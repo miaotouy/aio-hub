@@ -38,7 +38,10 @@
           <template #header>
             <div class="card-header">
               <span>输出代码</span>
-              <el-button text @click="copyFormattedCode">复制</el-button>
+              <div class="header-actions">
+                <el-button text @click="copyFormattedCode">复制</el-button>
+                <el-button text type="success" @click="sendToChat">发送到聊天</el-button>
+              </div>
             </div>
           </template>
           <div class="textarea-wrapper">
@@ -66,9 +69,13 @@ import debounce from 'lodash/debounce';
 import { serviceRegistry } from '@/services/registry';
 import type CodeFormatterService from './codeFormatter.service';
 import type { SupportedLanguage } from './codeFormatter.service';
+import { useSendToChat } from '@/composables/useSendToChat';
 
 // 获取服务实例
 const codeFormatterService = serviceRegistry.getService<CodeFormatterService>('code-formatter');
+
+// 获取发送到聊天功能
+const { sendCodeToChat } = useSendToChat();
 
 // UI 状态
 const rawCodeInput = ref('');
@@ -114,6 +121,13 @@ const copyFormattedCode = async () => {
   } catch (error: any) {
     customMessage.error(`复制失败: ${error.message}`);
   }
+};
+
+// 发送到聊天
+const sendToChat = () => {
+  sendCodeToChat(formattedCodeOutput.value, language.value, {
+    successMessage: `已将格式化的 ${language.value} 代码发送到聊天`,
+  });
 };
 
 // 监听语言和输入变化
@@ -194,6 +208,11 @@ watch(rawCodeInput, formatCode);
   font-size: 16px;
   font-weight: bold;
   color: var(--text-color);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .error-message {

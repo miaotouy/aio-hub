@@ -207,34 +207,16 @@
 #### 11. llm-chat
 
 - **复杂度：** ⭐⭐⭐ (采用外观模式后降低)
-- **状态：** `[ ] 计划中`
-- **重新评估 (2025-10-30):** 原始评估是正确的，全面服务化重构的成本很高。但为了满足 Agent 编程交互和工具间协同的需求，我们决定采用一种更轻量的**外观服务 (Facade Service)** 模式。
-- **改造策略：**
-  - **第一步：全局状态管理** - 创建 `useChatInputManager.ts` composable
-    - 管理全局的输入框文本内容和附件列表
-    - 使用单例模式，确保主窗口和分离窗口共享同一份状态
-    - 集成现有的 `useAttachmentManager` 逻辑
-    - 支持状态持久化（localStorage），避免刷新或关闭窗口导致内容丢失
-    - 提供跨窗口同步机制（利用现有的窗口同步基础设施）
-  - **第二步：外观服务** - 创建 `llmChat.service.ts`
-    - 该服务不包含核心业务逻辑，仅作为对外的编程接口
-    - 调用 `useChatInputManager` 来操作输入框状态
-  - **第三步：组件重构** - 更新 `MessageInput.vue`
-    - 移除组件内部的本地 `inputText` 状态
-    - 调用 `useChatInputManager` 获取全局状态
-    - 保持 UI 逻辑不变，仅改变状态来源
-- **核心接口设计** (`llmChat.service.ts`):
-  - `addContentToInput(content: string, position: 'append' | 'prepend' = 'append')`: 向输入框追加或前置内容
-  - `getInputContent(): string`: 获取当前输入框的完整内容，用于其他工具进行预处理
-  - `setInputContent(content: string)`: 完全覆盖输入框的内容，用于写回预处理后的结果
-  - `getAttachments(): Asset[]`: 获取当前附件列表
-  - `addAttachment(asset: Asset)`: 添加附件
-  - `clearInput()`: 清空输入框和附件
-- **附加价值：**
-  - 用户在主窗口和分离窗口之间切换时，输入内容不会丢失
-  - 意外关闭窗口或刷新页面后，可以恢复未发送的内容
-  - 为未来的"草稿自动保存"功能打下基础
-  - 支持工具间协同：其他工具可以将处理结果直接注入到聊天输入框
+- **状态：** `[x] 已完成`
+- **改造总结：**
+  - ✅ 采用"外观服务 (Facade Service)"模式，为 Agent 和其他工具提供稳定的编程接口。
+  - ✅ 创建 `useChatInputManager.ts`，通过单例模式管理全局输入状态（文本、附件）。
+  - ✅ 实现了输入内容的 localStorage 持久化，防止意外关闭或刷新导致内容丢失。
+  - ✅ 集成了跨窗口同步机制，确保主窗口和分离窗口的输入框状态实时一致。
+  - ✅ 创建 `llmChat.service.ts` 作为对外的薄封装，不含业务逻辑，只负责代理调用。
+  - ✅ 重构 `MessageInput.vue`，使其完全依赖 `useChatInputManager` 提供的全局状态。
+  - ✅ 提供了 `addContentToInput`, `setInputContent`, `processContent` 等一系列 Agent 友好的高级接口，并完成了详细的元数据定义。
+  - ✅ **功能推广**: 创建 `useSendToChat.ts` composable，封装统一的发送逻辑，并成功应用于 `JsonFormatter`, `CodeFormatter`, `DirectoryTree`, `RegexApplier`, `SmartOcr`, `GitAnalyzer` 等多个工具，实现了工具间的协同。
 
 ## 改造模板与最佳实践
 

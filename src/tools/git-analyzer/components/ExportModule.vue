@@ -21,6 +21,7 @@
         @refresh="updatePreview"
         @copy="copyToClipboard"
         @download="downloadFile"
+        @send-to-chat="handleSendToChat"
         />
       </div>
     </template>
@@ -42,12 +43,14 @@ import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import type { GitCommit, ExportConfig, RepoStatistics } from '../types'
 import { useReportGenerator } from '../composables/useReportGenerator'
+import { useSendToChat } from '@/composables/useSendToChat'
 import ExportConfiguration from './ExportConfiguration.vue'
 import ExportPreview from './ExportPreview.vue'
 import { createModuleLogger } from '@utils/logger'
 
 // 创建模块日志记录器
 const logger = createModuleLogger('ExportModule')
+const { sendToChat } = useSendToChat()
 
 const props = defineProps<{
   commits: GitCommit[]
@@ -253,6 +256,17 @@ async function downloadFile() {
   URL.revokeObjectURL(url)
 
   customMessage.success(`已下载: ${fileName}`)
+}
+
+// 发送到聊天
+function handleSendToChat() {
+  const format = exportConfig.value.format;
+  const isCodeFormat = ['markdown', 'json', 'html', 'csv', 'text'].includes(format);
+
+  sendToChat(previewContent.value, {
+    format: isCodeFormat ? 'code' : 'plain',
+    language: isCodeFormat ? format : undefined,
+  });
 }
 
 // 导出文件（使用 Tauri 的文件保存对话框）

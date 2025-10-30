@@ -15,6 +15,12 @@
           </el-icon>
           复制
         </el-button>
+        <el-button @click="sendToChat" size="small" type="success" plain>
+          <el-icon>
+            <ChatDotRound />
+          </el-icon>
+          发送到聊天
+        </el-button>
       </div>
 
       <div class="toolbar-center">
@@ -98,16 +104,21 @@ import {
   DocumentCopy,
   CopyDocument,
   Delete,
-  Upload
+  Upload,
+  ChatDotRound
 } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
 import RichCodeEditor from '../../components/common/RichCodeEditor.vue';
 import { serviceRegistry } from '@/services/registry';
 import type JsonFormatterService from './jsonFormatter.service';
+import { useSendToChat } from '@/composables/useSendToChat';
 
 // 获取服务实例
 const jsonFormatterService = serviceRegistry.getService<JsonFormatterService>('json-formatter');
+
+// 获取发送到聊天功能
+const { sendCodeToChat } = useSendToChat();
 
 // UI 状态
 const rawJsonInput = ref('');
@@ -174,6 +185,12 @@ const copyFormattedJson = async () => {
   } catch (error: any) {
     customMessage.error(`复制失败: ${error.message}`);
   }
+};
+
+const sendToChat = () => {
+  sendCodeToChat(formattedJsonOutput.value, 'json', {
+    successMessage: '已将格式化的 JSON 发送到聊天',
+  });
 };
 
 const clearAll = () => {

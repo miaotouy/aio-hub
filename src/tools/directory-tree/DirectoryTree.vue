@@ -123,6 +123,9 @@
             <el-tooltip content="导出为文件" placement="top">
               <el-button :icon="Download" text circle @click="exportToFile" />
             </el-tooltip>
+            <el-tooltip content="发送到聊天" placement="top">
+              <el-button :icon="ChatDotRound" text circle @click="sendTreeToChat" />
+            </el-tooltip>
           </el-button-group>
         </template>
 
@@ -147,6 +150,7 @@ import {
   CopyDocument,
   Download,
   DataAnalysis,
+  ChatDotRound,
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash";
@@ -156,12 +160,16 @@ import { type DirectoryTreeConfig } from "./config";
 import { serviceRegistry } from "@/services";
 import type DirectoryTreeService from "./directoryTree.service";
 import { createModuleLogger } from "@utils/logger";
+import { useSendToChat } from "@/composables/useSendToChat";
 
 // 创建模块日志器
 const logger = createModuleLogger("tools/directory-tree");
 
 // 获取服务实例
 const treeService = serviceRegistry.getService<DirectoryTreeService>('directory-tree');
+
+// 获取发送到聊天功能
+const { sendToChat } = useSendToChat();
 
 // 配置状态
 const targetPath = ref("");
@@ -339,6 +347,15 @@ const exportToFile = async () => {
     logger.error("保存文件失败", error);
     customMessage.error("保存文件失败");
   }
+};
+
+// 发送到聊天
+const sendTreeToChat = () => {
+  sendToChat(treeResult.value, {
+    format: 'code',
+    language: 'text',
+    successMessage: '已将目录树发送到聊天',
+  });
 };
 </script>
 

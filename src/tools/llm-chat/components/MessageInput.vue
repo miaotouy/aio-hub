@@ -63,11 +63,11 @@ const attachmentManager = {
 const { isDraggingOver } = useChatFileInteraction({
   element: containerRef,
   onPaths: async (paths) => {
-    logger.info('文件拖拽触发', { paths, disabled: props.disabled });
+    logger.info("文件拖拽触发", { paths, disabled: props.disabled });
     await inputManager.addAttachments(paths);
   },
   onAssets: async (assets) => {
-    logger.info('文件粘贴触发', { count: assets.length });
+    logger.info("文件粘贴触发", { count: assets.length });
     let successCount = 0;
     for (const asset of assets) {
       if (inputManager.addAsset(asset)) {
@@ -75,43 +75,41 @@ const { isDraggingOver } = useChatFileInteraction({
       }
     }
     if (successCount > 0) {
-      const message = successCount === 1
-        ? `已粘贴文件: ${assets[0].name}`
-        : `已粘贴 ${successCount} 个文件`;
+      const message =
+        successCount === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${successCount} 个文件`;
       customMessage.success(message);
     }
   },
-  disabled: toRef(props, 'disabled'),
+  disabled: toRef(props, "disabled"),
 });
 
 // 处理发送
 const handleSend = () => {
   const content = inputText.value.trim();
   if (!content || props.disabled) {
-    logger.info('发送被阻止', {
+    logger.info("发送被阻止", {
       hasContent: !!content,
       disabled: props.disabled,
-      isDetached: props.isDetached
+      isDetached: props.isDetached,
     });
     return;
   }
 
-  logger.info('发送消息', {
+  logger.info("发送消息", {
     contentLength: content.length,
     attachmentCount: inputManager.attachmentCount.value,
-    isDetached: props.isDetached
+    isDetached: props.isDetached,
   });
-  
+
   // 发送消息和附件
-  const attachments = inputManager.attachmentCount.value > 0
-    ? [...inputManager.attachments.value]
-    : undefined;
-  
+  const attachments =
+    inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
+
   emit("send", content, attachments);
-  
+
   // 清空输入框和附件（使用全局管理器）
   inputManager.clear();
-  
+
   // 重置文本框高度
   if (textareaRef.value) {
     textareaRef.value.style.height = "auto";
@@ -152,30 +150,30 @@ const handleDragStart = (e: MouseEvent) => {
   // 获取拖拽手柄的位置
   const headerEl = headerRef.value?.$el as HTMLElement;
   const headerRect = headerEl?.getBoundingClientRect();
-  
+
   // 计算手柄相对于容器的偏移量
   let handleOffsetX = 0;
   let handleOffsetY = 0;
-  
+
   if (headerRect) {
     // 手柄中心相对于容器左上角的偏移量
-    handleOffsetX = (headerRect.left - rect.left) + headerRect.width / 2;
-    handleOffsetY = (headerRect.top - rect.top) + headerRect.height / 2;
-    
+    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+
     logger.info("拖拽手柄偏移量计算", {
       mouseX: e.screenX,
       mouseY: e.screenY,
       handleOffsetX,
       handleOffsetY,
       headerWidth: headerRect.width,
-      headerHeight: headerRect.height
+      headerHeight: headerRect.height,
     });
   }
 
   startDetaching({
-    id: 'chat-input',
-    displayName: '聊天输入框',
-    type: 'component',
+    id: "chat-input",
+    displayName: "聊天输入框",
+    type: "component",
     width: rect.width + 80,
     height: rect.height + 80,
     mouseX: e.screenX,
@@ -200,19 +198,19 @@ const handleDetach = async () => {
   // 获取手柄位置用于计算偏移量
   const headerEl = headerRef.value?.$el as HTMLElement;
   const headerRect = headerEl?.getBoundingClientRect();
-  
+
   let handleOffsetX = 0;
   let handleOffsetY = 0;
-  
+
   if (headerRect) {
-    handleOffsetX = (headerRect.left - rect.left) + headerRect.width / 2;
-    handleOffsetY = (headerRect.top - rect.top) + headerRect.height / 2;
+    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
   }
 
   const config = {
-    id: 'chat-input',
-    displayName: '聊天输入框',
-    type: 'component' as const,
+    id: "chat-input",
+    displayName: "聊天输入框",
+    type: "component" as const,
     width: rect.width + 80,
     height: rect.height + 80,
     mouseX: window.screenX + rect.left + rect.width / 2,
@@ -224,15 +222,15 @@ const handleDetach = async () => {
   logger.info("通过菜单请求分离窗口", { config });
 
   try {
-    const sessionId = await invoke<string>('begin_detach_session', { config });
+    const sessionId = await invoke<string>("begin_detach_session", { config });
     if (sessionId) {
-      await invoke('finalize_detach_session', {
+      await invoke("finalize_detach_session", {
         sessionId,
         shouldDetach: true,
       });
       logger.info("通过菜单分离窗口成功", { sessionId });
     } else {
-      logger.error('开始分离会话失败，未返回会话 ID');
+      logger.error("开始分离会话失败，未返回会话 ID");
     }
   } catch (error) {
     logger.error("通过菜单分离窗口失败", { error });
@@ -240,7 +238,13 @@ const handleDetach = async () => {
 };
 </script>
 <template>
-  <div ref="containerRef" :class="['message-input-container', { 'detached-mode': isDetached, 'dragging-over': isDraggingOver }]">
+  <div
+    ref="containerRef"
+    :class="[
+      'message-input-container',
+      { 'detached-mode': isDetached, 'dragging-over': isDraggingOver },
+    ]"
+  >
     <!-- 主内容区 -->
     <div class="main-content">
       <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
@@ -256,10 +260,7 @@ const handleDetach = async () => {
       />
 
       <!-- 输入内容区 -->
-      <div
-        ref="inputAreaRef"
-        class="input-content"
-      >
+      <div ref="inputAreaRef" class="input-content">
         <!-- 附件展示区 -->
         <div v-if="attachmentManager.hasAttachments.value" class="attachments-area">
           <div class="attachments-list">
@@ -275,9 +276,7 @@ const handleDetach = async () => {
           </div>
           <!-- 附件数量浮动显示 -->
           <div class="attachments-info">
-            <span class="attachment-count">
-              {{ attachmentManager.count.value }} / {{ 20 }}
-            </span>
+            <span class="attachment-count"> {{ attachmentManager.count.value }} / {{ 20 }} </span>
           </div>
         </div>
 
@@ -287,7 +286,9 @@ const handleDetach = async () => {
             v-model="inputText"
             :disabled="disabled"
             :placeholder="
-              disabled ? '请先创建或选择一个对话' : '输入消息、拖入或粘贴文件... (Ctrl/Cmd + Enter 发送)'
+              disabled
+                ? '请先创建或选择一个对话'
+                : '输入消息、拖入或粘贴文件... (Ctrl/Cmd + Enter 发送)'
             "
             class="message-textarea"
             rows="1"
@@ -300,7 +301,9 @@ const handleDetach = async () => {
                 正在处理文件...
               </span>
               <el-tooltip
-                :content="chatStore.isStreaming ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'"
+                :content="
+                  chatStore.isStreaming ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
+                "
                 placement="top"
               >
                 <button
@@ -377,7 +380,9 @@ const handleDetach = async () => {
   border-radius: 24px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
-  transition: border-color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
 }
 
 .message-input-container.dragging-over {
@@ -550,12 +555,16 @@ const handleDetach = async () => {
 
 /* 打字机图标 "A_" */
 .typewriter-icon {
-  font-family: 'Courier New', monospace;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans",
+    "Droid Sans", "Helvetica Neue", sans-serif;
   font-size: 14px;
   font-weight: 600;
-  letter-spacing: -1px;
+  letter-spacing: -2px;
   color: var(--text-color-secondary);
   transition: all 0.3s ease;
+  position: relative;
+  display: inline-block;
 }
 
 /* 非激活状态：暗淡灰色 */
@@ -578,10 +587,6 @@ const handleDetach = async () => {
   opacity: 1;
 }
 
-.streaming-icon-button.active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.1);
-}
-
 .streaming-icon-button.active:hover:not(:disabled) {
   background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
 }
@@ -589,25 +594,33 @@ const handleDetach = async () => {
 /* 辉光效果 */
 .streaming-icon-button.active .typewriter-icon {
   text-shadow:
-    0 0 8px rgba(var(--primary-color-rgb, 64, 158, 255), 0.5),
-    0 0 12px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
+    0 0 4px rgba(var(--primary-color-rgb, 64, 158, 255), 0.5),
+    0 0 6px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
 }
 
-/* 光标闪烁动画（仅在激活时） */
+/* 光标闪烁动画（仅在激活时） - 半透明轻微闪烁 */
 @keyframes cursor-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+  0%,
+  49% {
+    opacity: 0.5;
+  }
+  50%,
+  100% {
+    opacity: 0.2;
+  }
 }
 
 .streaming-icon-button.active .typewriter-icon::after {
-  content: '';
+  content: "";
   display: inline-block;
-  width: 1px;
+  width: 2px;
   height: 12px;
   background-color: var(--primary-color);
-  margin-left: 1px;
+  margin-left: 0px;
   animation: cursor-blink 1s infinite;
-  vertical-align: text-bottom;
+  vertical-align: baseline;
+  position: relative;
+  bottom: -1px;
 }
 
 .input-actions {

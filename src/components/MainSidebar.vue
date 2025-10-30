@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Expand, Fold } from "@element-plus/icons-vue";
 import { toolsConfig, type ToolConfig } from "../config/tools";
@@ -78,6 +78,48 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
     },
   });
 };
+
+// 滚动遮罩相关
+const menuContainerRef = ref<HTMLElement | null>(null);
+const showTopMask = ref(false);
+const showBottomMask = ref(false);
+
+const updateScrollMasks = () => {
+  if (!menuContainerRef.value) return;
+
+  const { scrollTop, scrollHeight, clientHeight } = menuContainerRef.value;
+
+  // 顶部遮罩：当滚动位置大于5px时显示
+  showTopMask.value = scrollTop > 5;
+
+  // 底部遮罩：当还可以向下滚动超过5px时显示
+  showBottomMask.value = scrollHeight - scrollTop - clientHeight > 5;
+};
+
+const setupScrollListener = () => {
+  if (menuContainerRef.value) {
+    menuContainerRef.value.addEventListener("scroll", updateScrollMasks);
+    // 初始检查
+    nextTick(() => updateScrollMasks());
+  }
+};
+
+const cleanupScrollListener = () => {
+  if (menuContainerRef.value) {
+    menuContainerRef.value.removeEventListener("scroll", updateScrollMasks);
+  }
+};
+
+onMounted(() => {
+  setupScrollListener();
+  // 监听窗口大小变化
+  window.addEventListener("resize", updateScrollMasks);
+});
+
+onUnmounted(() => {
+  cleanupScrollListener();
+  window.removeEventListener("resize", updateScrollMasks);
+});
 </script>
 
 <template>
@@ -93,27 +135,39 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
         <h2 v-if="!isCollapsed" class="sidebar-title">AIO Hub</h2>
       </div>
 
-      <el-menu
-        :default-active="route.path"
-        class="el-menu-vertical-demo"
-        :collapse="isCollapsed"
-        @select="handleSelect"
-      >
-        <el-menu-item index="/">
-          <el-icon><i-ep-home-filled /></el-icon>
-          <template #title>主页</template>
-        </el-menu-item>
-        <el-menu-item
-          v-for="tool in visibleTools"
-          :key="tool.path"
-          :index="tool.path"
-          @mousedown.left="handleDragStart($event, tool)"
-          class="draggable-menu-item"
-        >
-          <el-icon><component :is="tool.icon" /></el-icon>
-          <template #title>{{ tool.name }}</template>
-        </el-menu-item>
-      </el-menu>
+      <!-- 菜单容器包装器 - 用于遮罩定位 -->
+      <div class="menu-wrapper">
+        <!-- 顶部渐变遮罩 -->
+        <div class="scroll-mask scroll-mask-top" :class="{ 'is-visible': showTopMask }"></div>
+        
+        <!-- 菜单滚动容器 -->
+        <div class="menu-container" ref="menuContainerRef">
+          <el-menu
+            :default-active="route.path"
+            class="el-menu-vertical-demo"
+            :collapse="isCollapsed"
+            @select="handleSelect"
+          >
+            <el-menu-item index="/">
+              <el-icon><i-ep-home-filled /></el-icon>
+              <template #title>主页</template>
+            </el-menu-item>
+            <el-menu-item
+              v-for="tool in visibleTools"
+              :key="tool.path"
+              :index="tool.path"
+              @mousedown.left="handleDragStart($event, tool)"
+              class="draggable-menu-item"
+            >
+              <el-icon><component :is="tool.icon" /></el-icon>
+              <template #title>{{ tool.name }}</template>
+            </el-menu-item>
+          </el-menu>
+        </div>
+
+        <!-- 底部渐变遮罩 -->
+        <div class="scroll-mask scroll-mask-bottom" :class="{ 'is-visible': showBottomMask }"></div>
+      </div>
     </div>
 
     <!-- 下部分：收起按钮 -->
@@ -155,7 +209,8 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
   display: flex;
   flex-direction: column;
   padding-top: 20px;
-  overflow-x: hidden;
+  overflow: hidden;
+  position: relative;
 }
 
 .sidebar-bottom {
@@ -204,15 +259,75 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
   justify-content: center;
 }
 
-.el-menu-vertical-demo {
-  border-right: none;
-  background-color: transparent;
-  flex-grow: 1;
+/* 菜单容器包装器 - 用于遮罩定位 */
+.menu-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 菜单滚动容器 */
+.menu-container {
+  height: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 
+/* 隐藏滚动条但保留滚动功能 */
+.menu-container::-webkit-scrollbar {
+  display: none;
+}
+
+.menu-container {
+  -ms-overflow-style: none;  /* IE 和 Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* 滚动渐变遮罩 - 固定在包装器中，不随内容滚动 */
+.scroll-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 30px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10; /* 确保在菜单之上 */
+}
+
+.scroll-mask.is-visible {
+  opacity: 1;
+}
+
+.scroll-mask-top {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--sidebar-bg) 0%,
+    color-mix(in srgb, var(--sidebar-bg) 80%, transparent) 50%,
+    transparent 100%
+  );
+}
+
+.scroll-mask-bottom {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--sidebar-bg) 0%,
+    color-mix(in srgb, var(--sidebar-bg) 80%, transparent) 50%,
+    transparent 100%
+  );
+}
+
+.el-menu-vertical-demo {
+  border-right: none;
+  background-color: transparent;
+  overflow: visible; /* 确保 el-menu 自身不创建滚动条 */
+}
+
 .el-menu-vertical-demo:not(.el-menu--collapse) {
-  width: 240px;
+  /* 移除固定宽度，让其自适应父容器 */
+  width: 100%;
 }
 
 .sidebar-actions {

@@ -1,0 +1,93 @@
+name: 构建和发布
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # 当推送版本标签时触发（如 v0.1.9）
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'windows-latest'
+            target: 'x86_64-pc-windows-msvc'
+            bundles: 'nsis'
+          - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
+            bundles: 'deb,appimage'
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            bundles: 'dmg'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            bundles: 'dmg'
+
+    runs-on: ${{ matrix.platform }}
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: 安装依赖 (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: 安装前端依赖
+        run: bun install
+
+      - name: 构建应用
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'AIO Hub ${{ github.ref_name }}'
+          releaseBody: |
+            ## 🎉 新版本发布
+            
+            ### 变更内容
+            查看完整的 [Changelog](https://github.com/miaotouy/aio-hub/blob/main/CHANGELOG.md)
+            
+            ### 下载说明
+            - **Windows**: 下载 `.exe` 安装程序
+            - **macOS**: 下载 `.dmg` 镜像文件
+            - **Linux**: 下载 `.deb` (Debian/Ubuntu) 或 `.AppImage` (通用)
+            
+            ### 注意事项
+            - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行
+            - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.platform }}-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+          if-no-files-found: warn

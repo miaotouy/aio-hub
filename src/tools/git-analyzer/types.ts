@@ -17,6 +17,7 @@ export interface GitCommit {
   full_message?: string
   parents?: string[]
   tags?: string[]
+  branches?: string[]
   stats?: {
     additions: number
     deletions: number

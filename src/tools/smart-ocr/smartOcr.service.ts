@@ -10,6 +10,9 @@ import type {
 import type { UploadedImage, OcrEngineConfig, SlicerConfig, OcrEngineType } from './types';
 import { defaultSmartOcrConfig } from './config';
 import { invoke } from '@tauri-apps/api/core';
+import { useLlmProfiles } from '@/composables/useLlmProfiles';
+import { useOcrProfiles } from '@/composables/useOcrProfiles';
+import { getTesseractLanguageOptions } from './language-packs';
 
 const logger = createModuleLogger('services/smart-ocr');
 const errorHandler = createModuleErrorHandler('services/smart-ocr');
@@ -391,6 +394,52 @@ export default class SmartOcrService implements ToolService {
   }
 
   /**
+   * [统一方法] 获取指定 OCR 引擎的可用选项列表。
+   * 根据引擎类型，返回不同的可用资源：
+   * - 'vlm': 返回支持视觉的 LLM 模型扁平列表。
+   * - 'cloud': 返回已配置的云 OCR 服务渠道。
+   * - 'tesseract': 返回可用的 Tesseract 语言包。
+   * - 'native': 返回空数组，因为没有可配置选项。
+   */
+  public getEngineAvailableOptions(engineType: OcrEngineType): any[] {
+    switch (engineType) {
+      case 'vlm': {
+        const { visionProfiles } = useLlmProfiles();
+        const models = [];
+        for (const profile of visionProfiles.value) {
+          for (const model of profile.models) {
+            models.push({
+              id: model.id,
+              name: `${profile.name} - ${model.name}`,
+              profileId: profile.id,
+              modelId: model.id,
+            });
+          }
+        }
+        return models;
+      }
+      
+      case 'cloud': {
+        const { enabledProfiles } = useOcrProfiles();
+        return enabledProfiles.value.map(profile => ({
+          id: profile.id,
+          name: profile.name,
+          provider: profile.provider,
+        }));
+      }
+
+      case 'tesseract': {
+        // 动态获取可用的 Tesseract 语言包选项
+        return getTesseractLanguageOptions();
+      }
+
+      case 'native':
+      default:
+        return [];
+    }
+  }
+
+  /**
    * 获取智能切图配置的参数说明
    * 从配置中读取默认值
    */
@@ -560,17 +609,6 @@ if (summary) {
 }`,
         },
         {
-          name: 'createContext',
-          description: '[UI/高级] 创建一个用于复杂、有状态交互的 OCR 上下文实例。',
-          parameters: [],
-          returnType: 'OcrContext',
-          example: `
-// 仅在需要手动控制 OCR 流程的复杂场景下使用
-const context = service.createContext();
-await context.initialize();
-// ... 后续可以调用 context 上的各种方法`,
-        },
-        {
           name: 'getAvailableEngines',
           description: '获取所有可用的 OCR 引擎列表',
           parameters: [],
@@ -602,6 +640,40 @@ console.log(details.parameters);
 //   { name: 'profileId', type: 'string', description: '...', required: true },
 //   { name: 'modelId', type: 'string', description: '...', required: true },
 //   ...
+// ]`,
+        },
+        {
+          name: 'getEngineAvailableOptions',
+          description: '[统一方法] 获取指定 OCR 引擎的可用选项列表。根据引擎类型返回不同资源：VLM 模型扁平列表、云 OCR 渠道、Tesseract 语言包。',
+          parameters: [
+            {
+              name: 'engineType',
+              type: 'OcrEngineType',
+              description: '引擎类型（tesseract | native | vlm | cloud）',
+            },
+          ],
+          returnType: 'any[]',
+          example: `
+// 获取 VLM 引擎的可用模型（扁平列表）
+const vlmOptions = service.getEngineAvailableOptions('vlm');
+console.log(vlmOptions);
+// [
+//   { id: 'gpt-4o', name: 'OpenAI - GPT-4o', profileId: 'llm-profile-xxx', modelId: 'gpt-4o' },
+//   { id: 'gpt-4-vision-preview', name: 'OpenAI - GPT-4 Vision Preview', profileId: 'llm-profile-xxx', modelId: 'gpt-4-vision-preview' },
+//   { id: 'gemini-2.0-flash-exp', name: 'Google - Gemini 2.0 Flash', profileId: 'llm-profile-yyy', modelId: 'gemini-2.0-flash-exp' }
+// ]
+
+// 获取云 OCR 服务的可用渠道
+const cloudOptions = service.getEngineAvailableOptions('cloud');
+// [
+//   { id: 'ocr-profile-xxx', name: '我的百度OCR', provider: 'baidu' }
+// ]
+
+// 获取 Tesseract 的可用语言
+const tesseractOptions = service.getEngineAvailableOptions('tesseract');
+// [
+//   { id: 'chi_sim', name: '简体中文' },
+//   { id: 'eng', name: '英语' }
 // ]`,
         },
         {

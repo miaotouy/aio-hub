@@ -8,6 +8,7 @@ import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
 import type { OcrContext } from "../OcrContext";
 import { useLlmProfiles } from "../../../composables/useLlmProfiles";
 import { useOcrProfiles } from "../../../composables/useOcrProfiles";
+import { getTesseractLanguageOptions } from "../language-packs";
 
 // 创建模块日志记录器
 const logger = createModuleLogger("SmartOCR.ControlPanel");
@@ -23,6 +24,9 @@ const props = defineProps<{
 // 使用 composables
 const { visionProfiles } = useLlmProfiles();
 const { enabledProfiles: ocrProfiles } = useOcrProfiles();
+
+// 动态获取 Tesseract 语言选项
+const tesseractLanguageOptions = computed(() => getTesseractLanguageOptions());
 
 // 从 Context 获取响应式状态
 const uploadedImages = computed(() => props.ocrContext.uploadedImages.value);
@@ -314,12 +318,12 @@ const handleNavigateToSettings = () => {
 
           <el-form-item v-if="engineType === 'tesseract'" label="识别语言">
             <el-select v-model="engineLanguage" style="width: 100%">
-              <el-option label="简体中文+英文" value="chi_sim+eng" />
-              <el-option label="简体中文" value="chi_sim" />
-              <el-option label="英文" value="eng" />
-              <el-option label="繁体中文+英文" value="chi_tra+eng" />
-              <el-option label="日文" value="jpn" />
-              <el-option label="韩文" value="kor" />
+              <el-option
+                v-for="option in tesseractLanguageOptions"
+                :key="option.id"
+                :label="option.name"
+                :value="option.id"
+              />
             </el-select>
           </el-form-item>
 

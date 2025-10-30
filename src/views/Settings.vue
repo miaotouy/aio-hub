@@ -44,7 +44,8 @@ const getToolIdFromPath = (path: string): string => {
 const settings = ref<AppSettings>({
   sidebarCollapsed: false,
   theme: "auto",
-  trayEnabled: false,
+  showTrayIcon: true,
+  minimizeToTray: true,
   themeColor: "#409eff",
   successColor: "#67c23a",
   warningColor: "#e6a23c",
@@ -236,13 +237,13 @@ const handleExportConfig = async () => {
     if (filePath) {
       // 调用后端命令导出所有模块的配置到 ZIP（返回二进制数据）
       const zipData = await invoke<number[]>("export_all_configs_to_zip");
-      
+
       // 将二进制数据转换为 Uint8Array
       const zipBuffer = new Uint8Array(zipData);
-      
+
       // 直接写入到用户选择的位置
       await writeFile(filePath, zipBuffer);
-      
+
       customMessage.success("配置导出成功");
       logger.info("配置已导出", { filePath });
 
@@ -385,9 +386,26 @@ watch(isDark, (newValue) => {
   }
 });
 
-// 监听托盘设置变化
+// 监听托盘图标显示设置变化（实时生效）
 watch(
-  () => settings.value.trayEnabled,
+  () => settings.value.showTrayIcon,
+  async (newValue) => {
+    if (isLoadingFromFile) return;
+
+    try {
+      // 同步到 Rust 后端，动态创建/移除托盘
+      await invoke("set_show_tray_icon", { show: newValue });
+      customMessage.success(newValue ? "托盘图标已显示" : "托盘图标已隐藏");
+    } catch (error) {
+      logger.error("更新托盘图标显示状态失败", error, { show: newValue });
+      customMessage.error("更新托盘图标失败");
+    }
+  }
+);
+
+// 监听最小化到托盘设置变化
+watch(
+  () => settings.value.minimizeToTray,
   async (newValue) => {
     if (isLoadingFromFile) return;
 
@@ -533,10 +551,10 @@ onMounted(async () => {
 
   // 同步托盘设置到后端
   try {
-    await invoke("update_tray_setting", { enabled: settings.value.trayEnabled || false });
+    await invoke("update_tray_setting", { enabled: settings.value.minimizeToTray || false });
   } catch (error) {
     logger.error("初始化系统托盘设置失败", error, {
-      enabled: settings.value.trayEnabled || false,
+      enabled: settings.value.minimizeToTray || false,
     });
   }
 
@@ -653,14 +671,32 @@ onUnmounted(() => {
 
             <div class="setting-item">
               <div class="setting-label">
-                <span>最小化到托盘</span>
-                <el-tooltip content="关闭窗口时最小化到系统托盘而不是退出程序" placement="top">
+                <span>显示托盘图标</span>
+                <el-tooltip content="是否在系统托盘显示应用图标，可实时生效" placement="top">
                   <el-icon class="info-icon">
                     <InfoFilled />
                   </el-icon>
                 </el-tooltip>
               </div>
-              <el-switch v-model="settings.trayEnabled" />
+              <el-switch v-model="settings.showTrayIcon" />
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-label">
+                <span>关闭到托盘</span>
+                <el-tooltip
+                  content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序"
+                  placement="top"
+                >
+                  <el-icon class="info-icon">
+                    <InfoFilled />
+                  </el-icon>
+                </el-tooltip>
+                <span v-if="!settings.showTrayIcon" class="setting-hint warning">
+                  需要先启用【显示托盘图标】
+                </span>
+              </div>
+              <el-switch v-model="settings.minimizeToTray" :disabled="!settings.showTrayIcon" />
             </div>
 
             <div class="setting-item">
@@ -954,6 +990,20 @@ onUnmounted(() => {
   gap: 8px;
   font-size: 14px;
   color: var(--text-color);
+}
+
+.setting-hint {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.setting-hint.warning {
+  color: var(--warning-color, #e6a23c);
+  background-color: rgba(230, 162, 60, 0.1);
+  border: 1px solid rgba(230, 162, 60, 0.3);
 }
 
 .info-icon {

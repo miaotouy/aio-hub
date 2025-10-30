@@ -5,7 +5,7 @@ mod tray;
 
 // 导入所需的依赖
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
@@ -95,12 +95,12 @@ use commands::window_manager::init_global_mouse_listener;
 
 // 导入事件处理
 use events::handle_window_event;
-use tray::{create_system_tray, should_prevent_close};
+use tray::{create_system_tray, build_system_tray, remove_system_tray, should_prevent_close};
 
 // 应用状态管理
 #[derive(Default)]
 pub struct AppState {
-    pub tray_enabled: Mutex<bool>,
+    pub minimize_to_tray: Mutex<bool>,
 }
 
 // 简单的 greet 命令
@@ -116,8 +116,8 @@ fn update_tray_setting(
     window: tauri::Window,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut tray_enabled = state.tray_enabled.lock().map_err(|e| e.to_string())?;
-    *tray_enabled = enabled;
+    let mut minimize_to_tray = state.minimize_to_tray.lock().map_err(|e| e.to_string())?;
+    *minimize_to_tray = enabled;
 
     // 如果禁用托盘，确保窗口可见
     if !enabled {
@@ -130,8 +130,27 @@ fn update_tray_setting(
 // 获取托盘设置命令
 #[tauri::command]
 fn get_tray_setting(state: tauri::State<AppState>) -> Result<bool, String> {
-    let tray_enabled = state.tray_enabled.lock().map_err(|e| e.to_string())?;
-    Ok(*tray_enabled)
+    let minimize_to_tray = state.minimize_to_tray.lock().map_err(|e| e.to_string())?;
+    Ok(*minimize_to_tray)
+}
+
+// 退出应用命令
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+// 动态设置托盘图标显示/隐藏
+#[tauri::command]
+fn set_show_tray_icon(app: tauri::AppHandle, show: bool) -> Result<(), String> {
+    if show {
+        // 创建托盘
+        build_system_tray(&app).map_err(|e| e.to_string())?;
+    } else {
+        // 移除托盘
+        remove_system_tray(&app).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 // 打印当前窗口列表
@@ -167,6 +186,8 @@ pub fn run() {
             greet,
             update_tray_setting,
             get_tray_setting,
+            exit_app,
+            set_show_tray_icon,
             start_clipboard_monitor,
             stop_clipboard_monitor,
             get_clipboard_content_type,
@@ -247,6 +268,35 @@ pub fn run() {
         ])
         // 设置应用
         .setup(|app| {
+            // 读取配置
+            let (show_tray_icon, minimize_to_tray) = {
+                let app_data_dir = app.path().app_data_dir()
+                    .expect("Failed to get app data dir");
+                let settings_path = app_data_dir.join("settings.json");
+                
+                if settings_path.exists() {
+                    if let Ok(contents) = std::fs::read_to_string(&settings_path) {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
+                            let show = json.get("showTrayIcon").and_then(|v| v.as_bool()).unwrap_or(true);
+                            let minimize = json.get("minimizeToTray").and_then(|v| v.as_bool()).unwrap_or(true);
+                            (show, minimize)
+                        } else {
+                            (true, true) // 解析失败，默认启用
+                        }
+                    } else {
+                        (true, true) // 读取失败，默认启用
+                    }
+                } else {
+                    (true, true) // 文件不存在，默认启用
+                }
+            };
+            
+            // 更新应用状态
+            if let Some(state) = app.try_state::<AppState>() {
+                if let Ok(mut minimize_to_tray_state) = state.minimize_to_tray.lock() {
+                    *minimize_to_tray_state = minimize_to_tray;
+                }
+            }
             
             // 创建主窗口
             let mut win_builder = tauri::WebviewWindowBuilder::new(
@@ -307,8 +357,10 @@ pub fn run() {
                 .set_skip_taskbar(false)
                 .expect("Failed to set skip taskbar");
 
-            // 创建系统托盘
-            create_system_tray(app)?;
+            // 只在配置启用时创建系统托盘
+            if show_tray_icon {
+                create_system_tray(app)?;
+            }
 
             // 初始化全局鼠标监听器（用于基于 rdev 的拖拽）
             init_global_mouse_listener();
@@ -342,8 +394,8 @@ pub fn run() {
                 }
                 // 如果是主窗口，处理托盘逻辑
                 else if let Some(app_state) = window.app_handle().try_state::<AppState>() {
-                    if let Ok(tray_enabled) = app_state.tray_enabled.lock() {
-                        if should_prevent_close(*tray_enabled) {
+                    if let Ok(minimize_to_tray) = app_state.minimize_to_tray.lock() {
+                        if should_prevent_close(*minimize_to_tray) {
                             api.prevent_close(); // 阻止默认关闭行为
 
                             let app_handle = window.app_handle();
@@ -358,6 +410,10 @@ pub fn run() {
                                 // 否则，安全地隐藏窗口
                                 let _ = window.hide();
                             }
+                        } else {
+                            // 未启用最小化到托盘，发送关闭确认请求到前端
+                            api.prevent_close(); // 阻止默认关闭行为
+                            let _ = window.emit("request-close-confirmation", ());
                         }
                     }
                 }

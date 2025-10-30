@@ -12,7 +12,8 @@ export interface AppSettings {
   theme?: "light" | "dark" | "auto";
 
   // 通用设置
-  trayEnabled?: boolean;
+  showTrayIcon?: boolean; // 是否显示托盘图标（需要重启）
+  minimizeToTray?: boolean; // 关闭时是否最小化到托盘（实时生效）
   autoAdjustWindowPosition?: boolean; // 新增：是否自动调整窗口位置
 
   // 主题颜色配置
@@ -46,7 +47,8 @@ export interface AppSettings {
 export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
   theme: "auto",
-  trayEnabled: false,
+  showTrayIcon: true, // 默认显示托盘图标
+  minimizeToTray: true, // 默认最小化到托盘
   autoAdjustWindowPosition: true, // 默认开启
   // 默认主题颜色
   themeColor: "#409eff", // 主色调 - Element Plus 蓝色

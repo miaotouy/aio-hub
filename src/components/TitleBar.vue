@@ -194,11 +194,11 @@ const toggleMaximize = async () => {
 };
 
 const closeWindow = async () => {
-  // 如果是主窗口且启用了托盘，隐藏窗口而不是关闭
-  if (isMainWindow.value && settings.value?.trayEnabled) {
+  // 如果是主窗口且启用了最小化到托盘，隐藏窗口而不是关闭
+  if (isMainWindow.value && settings.value?.minimizeToTray) {
     await appWindow.hide();
   } else {
-    // 子窗口或未启用托盘时直接关闭
+    // 子窗口或未启用最小化到托盘时直接关闭
     await appWindow.close();
   }
 };
@@ -398,7 +398,7 @@ const goToProfileSettings = () => {
             </button>
           </el-tooltip>
           
-          <el-tooltip :content="isMainWindow && settings?.trayEnabled ? '隐藏到托盘' : '关闭'" placement="bottom">
+          <el-tooltip :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'" placement="bottom">
             <button
               class="control-btn close-btn"
               @click="closeWindow"

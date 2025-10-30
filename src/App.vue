@@ -2,6 +2,8 @@
 import { ref, onMounted, computed, watch, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { ElMessageBox } from "element-plus";
 import { useWindowSyncBus } from "./composables/useWindowSyncBus";
 import { useDetachedManager } from "./composables/useDetachedManager";
 import {
@@ -86,6 +88,7 @@ if (settings.themeColor) {
 let handleSettingsChange: ((event: Event) => void) | null = null;
 let unlisten: (() => void) | null = null;
 let unlistenDetached: (() => void) | null = null;
+let unlistenCloseConfirmation: (() => void) | null = null;
 
 onMounted(async () => {
   // 优先从缓存加载工具可见性，防止闪烁
@@ -158,6 +161,26 @@ onMounted(async () => {
       }
     }
   });
+
+  // 监听关闭确认请求
+  unlistenCloseConfirmation = await listen("request-close-confirmation", async () => {
+    try {
+      await ElMessageBox.confirm(
+        '确定要退出程序吗？',
+        '退出确认',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      );
+      // 用户确认退出
+      await invoke("exit_app");
+    } catch {
+      // 用户取消退出，不做任何操作
+      logger.info("用户取消退出操作");
+    }
+  });
 });
 
 // 监听路由变化，仅在离开设置页面时更新一次
@@ -187,6 +210,9 @@ onUnmounted(() => {
   }
   if (unlistenDetached) {
     unlistenDetached();
+  }
+  if (unlistenCloseConfirmation) {
+    unlistenCloseConfirmation();
   }
 });
 </script>

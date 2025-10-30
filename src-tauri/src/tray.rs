@@ -1,21 +1,34 @@
 use tauri::{
-    App, Manager,
+    App, AppHandle, Manager,
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     image::Image,
 };
 use crate::commands::window_config;
 
-// 创建系统托盘
+// 托盘 ID 常量
+const TRAY_ID: &str = "main-tray";
+
+// 创建系统托盘（用于应用启动时）
 pub fn create_system_tray(app: &App) -> tauri::Result<()> {
+    build_system_tray(app.handle())
+}
+
+// 动态构建系统托盘
+pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
+    // 检查托盘是否已存在
+    if app_handle.tray_by_id(TRAY_ID).is_some() {
+        return Ok(()); // 已存在，不重复创建
+    }
+    
     // 创建托盘菜单
     let menu = Menu::with_items(
-        app,
+        app_handle,
         &[
-            &MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?,
-            &MenuItem::with_id(app, "hide", "隐藏主窗口", true, None::<&str>)?,
-            &MenuItem::with_id(app, "clear_window_configs", "清除窗口配置", true, None::<&str>)?,
-            &MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, "show", "显示主窗口", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, "hide", "隐藏主窗口", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, "clear_window_configs", "清除窗口配置", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, "quit", "退出", true, None::<&str>)?,
         ],
     )?;
 
@@ -24,8 +37,8 @@ pub fn create_system_tray(app: &App) -> tauri::Result<()> {
     let icon = Image::from_bytes(icon_bytes)
         .expect("Failed to load tray icon");
     
-    // 创建托盘图标
-    let _tray = TrayIconBuilder::new()
+    // 创建托盘图标（带 ID）
+    let _tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .menu(&menu)
         .tooltip("AIO Hub")
@@ -92,8 +105,15 @@ pub fn create_system_tray(app: &App) -> tauri::Result<()> {
                 _ => {}
             }
         })
-        .build(app)?;
+        .build(app_handle)?;
 
+    Ok(())
+}
+
+// 动态移除系统托盘
+pub fn remove_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
+    // remove_tray_by_id 会处理托盘不存在的情况，所以可以直接调用
+    app_handle.remove_tray_by_id(TRAY_ID);
     Ok(())
 }
 

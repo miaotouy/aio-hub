@@ -98,7 +98,8 @@ const getToolIdFromPath = (path: string): string => {
 const settings = ref<AppSettings>({
   sidebarCollapsed: false,
   theme: "auto",
-  trayEnabled: false,
+  showTrayIcon: true,
+  minimizeToTray: true,
   toolsVisible: {},
   toolsOrder: [],
   version: "1.0.0",

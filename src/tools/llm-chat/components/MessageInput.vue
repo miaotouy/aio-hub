@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, toRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { ElTooltip } from "element-plus";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
+import { useLlmChatStore } from "@/tools/llm-chat/store";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
@@ -12,6 +14,16 @@ import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "./AttachmentCard.vue";
 
 const logger = createModuleLogger("MessageInput");
+
+// 获取聊天 store 以访问流式输出开关
+const chatStore = useLlmChatStore();
+
+// 切换流式输出模式
+const toggleStreaming = () => {
+  if (!props.isSending) {
+    chatStore.isStreaming = !chatStore.isStreaming;
+  }
+};
 
 interface Props {
   disabled: boolean;
@@ -287,6 +299,19 @@ const handleDetach = async () => {
               <span v-if="attachmentManager.isProcessing.value" class="processing-hint">
                 正在处理文件...
               </span>
+              <el-tooltip
+                :content="chatStore.isStreaming ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'"
+                placement="top"
+              >
+                <button
+                  class="streaming-icon-button"
+                  :class="{ active: chatStore.isStreaming }"
+                  :disabled="isSending"
+                  @click="toggleStreaming"
+                >
+                  <span class="typewriter-icon">A_</span>
+                </button>
+              </el-tooltip>
             </div>
             <div class="input-actions">
               <button
@@ -498,9 +523,91 @@ const handleDetach = async () => {
 
 .tool-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+  align-items: center;
   color: var(--text-color-light);
-  /* TODO: Style for tool buttons */
+}
+
+/* 流式输出图标按钮 */
+.streaming-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.streaming-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 打字机图标 "A_" */
+.typewriter-icon {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  color: var(--text-color-secondary);
+  transition: all 0.3s ease;
+}
+
+/* 非激活状态：暗淡灰色 */
+.streaming-icon-button:not(.active) .typewriter-icon {
+  color: var(--text-color-secondary);
+  opacity: 0.5;
+}
+
+.streaming-icon-button:not(.active):hover:not(:disabled) {
+  background-color: var(--el-fill-color-light);
+}
+
+.streaming-icon-button:not(.active):hover:not(:disabled) .typewriter-icon {
+  opacity: 0.8;
+}
+
+/* 激活状态：主题色 + 辉光效果 */
+.streaming-icon-button.active .typewriter-icon {
+  color: var(--primary-color);
+  opacity: 1;
+}
+
+.streaming-icon-button.active {
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.1);
+}
+
+.streaming-icon-button.active:hover:not(:disabled) {
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
+}
+
+/* 辉光效果 */
+.streaming-icon-button.active .typewriter-icon {
+  text-shadow:
+    0 0 8px rgba(var(--primary-color-rgb, 64, 158, 255), 0.5),
+    0 0 12px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
+}
+
+/* 光标闪烁动画（仅在激活时） */
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.streaming-icon-button.active .typewriter-icon::after {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  background-color: var(--primary-color);
+  margin-left: 1px;
+  animation: cursor-blink 1s infinite;
+  vertical-align: text-bottom;
 }
 
 .input-actions {

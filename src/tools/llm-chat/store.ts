@@ -28,6 +28,8 @@ interface LlmChatState {
   abortControllers: Map<string, AbortController>;
   /** 正在生成的节点ID集合 */
   generatingNodes: Set<string>;
+  /** 是否启用流式输出 */
+  isStreaming: boolean;
 }
 
 export const useLlmChatStore = defineStore("llmChat", {
@@ -41,6 +43,7 @@ export const useLlmChatStore = defineStore("llmChat", {
     isSending: false,
     abortControllers: new Map(),
     generatingNodes: new Set(),
+    isStreaming: true, // 默认开启流式输出
   }),
 
   getters: {

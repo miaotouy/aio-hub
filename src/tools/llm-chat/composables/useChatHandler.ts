@@ -8,6 +8,7 @@ import type { LlmMessageContent } from '@/llm-apis/common';
 import type { Asset } from '@/types/asset-management';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
+import { useLlmChatStore } from '../store';
 import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
@@ -787,6 +788,7 @@ export function useChatHandler() {
 
     try {
       const { sendRequest } = useLlmRequest();
+      const chatStore = useLlmChatStore();
 
       // 构建 LLM 上下文（activePath 现在包含了新创建的用户消息）
       const { systemPrompt, messages } = await buildLlmContext(
@@ -803,6 +805,7 @@ export function useChatHandler() {
         modelId: agentConfig.modelId,
         totalMessageCount: messages.length,
         systemPromptLength: systemPrompt?.length || 0,
+        isStreaming: chatStore.isStreaming,
       });
 
       logger.debug('📋 发送的完整消息列表', {
@@ -815,7 +818,7 @@ export function useChatHandler() {
         })),
       });
 
-      // 发送请求（支持流式）
+      // 发送请求（根据用户设置决定是否流式）
       // 传递所有配置的参数，让用户的设置真正生效
       const response = await sendRequest({
         profileId: agentConfig.profileId,
@@ -859,15 +862,15 @@ export function useChatHandler() {
         thinking: agentConfig.parameters.thinking,
         stopSequences: agentConfig.parameters.stopSequences,
         claudeMetadata: agentConfig.parameters.claudeMetadata,
-        // 流式响应
-        stream: true,
+        // 流式响应（根据用户设置）
+        stream: chatStore.isStreaming,
         signal: abortController.signal,
-        onStream: (chunk: string) => {
+        onStream: chatStore.isStreaming ? (chunk: string) => {
           handleStreamUpdate(session, assistantNode.id, chunk, false);
-        },
-        onReasoningStream: (chunk: string) => {
+        } : undefined,
+        onReasoningStream: chatStore.isStreaming ? (chunk: string) => {
           handleStreamUpdate(session, assistantNode.id, chunk, true);
-        },
+        } : undefined,
       });
 
       // 完成节点生成
@@ -991,6 +994,7 @@ export function useChatHandler() {
 
     try {
       const { sendRequest } = useLlmRequest();
+      const chatStore = useLlmChatStore();
 
         // 构建 LLM 上下文（使用用户消息的内容）
         // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
@@ -1014,6 +1018,7 @@ export function useChatHandler() {
           modelId: agentConfig.modelId,
           totalMessageCount: messages.length,
           systemPromptLength: systemPrompt?.length || 0,
+          isStreaming: chatStore.isStreaming,
         });
 
         logger.debug('📋 重新生成的完整消息列表', {
@@ -1026,7 +1031,7 @@ export function useChatHandler() {
           })),
         });
 
-      // 发送请求（支持流式）
+      // 发送请求（根据用户设置决定是否流式）
       // 传递所有配置的参数，让用户的设置真正生效
       const response = await sendRequest({
         profileId: agentConfig.profileId,
@@ -1070,15 +1075,15 @@ export function useChatHandler() {
         thinking: agentConfig.parameters.thinking,
         stopSequences: agentConfig.parameters.stopSequences,
         claudeMetadata: agentConfig.parameters.claudeMetadata,
-        // 流式响应
-        stream: true,
+        // 流式响应（根据用户设置）
+        stream: chatStore.isStreaming,
         signal: abortController.signal,
-        onStream: (chunk: string) => {
+        onStream: chatStore.isStreaming ? (chunk: string) => {
           handleStreamUpdate(session, assistantNode.id, chunk, false);
-        },
-        onReasoningStream: (chunk: string) => {
+        } : undefined,
+        onReasoningStream: chatStore.isStreaming ? (chunk: string) => {
           handleStreamUpdate(session, assistantNode.id, chunk, true);
-        },
+        } : undefined,
       });
 
       // 完成节点生成

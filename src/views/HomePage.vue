@@ -1,26 +1,31 @@
 <template>
   <div class="home-page">
-    <span class="title">All In One Hub</span>
+    <!-- 固定的头部区域 -->
+    <div class="header-section">
+      <span class="title">AIO Hub</span>
 
-    <!-- 搜索栏 -->
-    <div class="search-bar">
-      <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
+      </div>
+
+      <!-- 分类标签 -->
+      <div v-if="categories.length > 1" class="category-tabs">
+        <button
+          v-for="category in categories"
+          :key="category"
+          @click="selectedCategory = category"
+          :class="{ active: selectedCategory === category }"
+          class="category-tab"
+        >
+          {{ category }}
+        </button>
+      </div>
     </div>
 
-    <!-- 分类标签 -->
-    <div v-if="categories.length > 1" class="category-tabs">
-      <button
-        v-for="category in categories"
-        :key="category"
-        @click="selectedCategory = category"
-        :class="{ active: selectedCategory === category }"
-        class="category-tab"
-      >
-        {{ category }}
-      </button>
-    </div>
-
-    <div class="tool-grid">
+    <!-- 可滚动的内容区域 -->
+    <div class="content-section">
+      <div class="tool-grid">
       <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
       <component
         :is="isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
@@ -56,17 +61,18 @@
         <div class="tool-name">{{ tool.name }}</div>
         <div class="tool-description">{{ tool.description }}</div>
       </component>
-    </div>
-
-    <!-- 空状态 -->
-    <div v-if="filteredTools.length === 0" class="empty-state">
-      <div class="empty-icon">🔍</div>
-      <div class="empty-text">
-        {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
       </div>
-      <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
-        前往设置页面配置工具
-      </el-button>
+
+      <!-- 空状态 -->
+      <div v-if="filteredTools.length === 0" class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">
+          {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
+        </div>
+        <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
+          前往设置页面配置工具
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -225,17 +231,31 @@ watch(
 .home-page {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  /* 顶部对齐 */
   height: 100%;
   text-align: center;
-  padding: 40px 20px 20px 20px;
-  /* 统一设置内边距：上40px，左右20px，下20px */
   box-sizing: border-box;
-  /* 确保 padding 包含在 height 内 */
-  overflow-y: auto;
-  /* 如果内容超出，允许滚动 */
+  overflow: hidden; /* 防止整体滚动 */
+}
+
+/* 固定头部区域 */
+.header-section {
+  flex-shrink: 0; /* 防止收缩 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 20px 20px;
+  box-sizing: border-box;
+}
+
+/* 可滚动内容区域 */
+.content-section {
+  flex: 1; /* 占据剩余空间 */
+  overflow-y: auto; /* 独立滚动 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 20px 20px 20px;
+  box-sizing: border-box;
 }
 
 .title {

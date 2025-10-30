@@ -6,6 +6,8 @@ import { useUserProfileStore } from "./userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatUiState } from "./composables/useLlmChatUiState";
+import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
+import { CHAT_STATE_KEYS, createChatSyncConfig } from "./types/sync";
 import ChatArea from "./components/ChatArea.vue";
 import SessionsSidebar from "./components/sidebar/SessionsSidebar.vue";
 import LeftSidebar from "./components/sidebar/LeftSidebar.vue";
@@ -250,12 +252,25 @@ const handleSwitchSession = (sessionId: string) => {
 const handleDeleteSession = (sessionId: string) => {
   store.deleteSession(sessionId);
 };
-
 // 处理重命名会话
 const handleRenameSession = (data: { sessionId: string; newName: string }) => {
   store.updateSession(data.sessionId, { name: data.newName });
   logger.info("重命名会话", data);
 };
+
+// ==================== 状态同步到分离窗口 ====================
+// 将关键参数（isSending, disabled）同步到分离的输入框窗口
+const parametersToSync = computed(() => ({
+  isSending: store.isSending,
+  // disabled 状态只取决于有无当前会话
+  disabled: !store.currentSession,
+}));
+
+useStateSyncEngine(parametersToSync, {
+  ...createChatSyncConfig(CHAT_STATE_KEYS.PARAMETERS),
+  // 主窗口只推送，不接收
+  autoPush: true,
+});
 
 </script>
 

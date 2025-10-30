@@ -6,6 +6,7 @@ import {
   Setting,
   Monitor,
   ChatDotRound,
+  Menu,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
@@ -140,6 +141,14 @@ export const toolsConfig: ToolConfig[] = [
     icon: markRaw(RichTextRendererIcon),
     component: () => import('../tools/rich-text-renderer/RichTextRendererTester.vue'),
     description: '测试 Markdown 富文本渲染，支持流式输出模拟',
+    category: '开发工具'
+  },
+  {
+    name: '服务注册表浏览器',
+    path: '/service-monitor',
+    icon: markRaw(Menu),
+    component: () => import('../tools/service-monitor/ServiceMonitor.vue'),
+    description: '可视化查看和浏览所有已注册的工具服务及其元数据',
     category: '开发工具'
   }
 ];

@@ -2,7 +2,7 @@ import { onUnmounted, watch, type Ref } from 'vue'
 import { useDark } from '@vueuse/core'
 import * as echarts from 'echarts'
 import type { GitCommit } from '../types'
-import { getContributorStats, generateTimelineData, generateHeatmapData } from './useGitDataProcessor'
+import { getContributorStats, generateTimelineData, generateHeatmapData } from './useGitProcessor'
 import { createModuleLogger } from '@utils/logger'
 
 const logger = createModuleLogger('git-analyzer:charts')

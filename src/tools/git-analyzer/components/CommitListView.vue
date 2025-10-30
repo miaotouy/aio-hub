@@ -10,13 +10,48 @@
         >
           <el-card @click="$emit('select-commit', commit)" class="commit-card">
             <div class="commit-header">
-              <span class="commit-sequence"
-                >#{{ getOriginalIndex(commit) }}</span
-              >
+              <span class="commit-sequence">#{{ getOriginalIndex(commit) }}</span>
               <el-tag size="small">
                 {{ commit.hash.substring(0, 7) }}
               </el-tag>
-              <span class="commit-author">{{ commit.author }}</span>
+              <!-- 分支数 <= 2 时直接显示，无需 popover -->
+              <span
+                v-if="commit.branches && commit.branches.length > 0 && commit.branches.length <= 2"
+                style="display: inline-flex; gap: 4px; align-items: center"
+              >
+                <el-tag v-for="branch in commit.branches" :key="branch" type="success" size="small">
+                  {{ branch }}
+                </el-tag>
+              </span>
+              <!-- 分支数 > 2 时使用 popover 显示完整列表 -->
+              <el-popover
+                v-else-if="commit.branches && commit.branches.length > 2"
+                placement="top"
+                :show-arrow="false"
+                :width="'auto'"
+              >
+                <template #reference>
+                  <span style="display: inline-flex; gap: 4px; align-items: center">
+                    <el-tag
+                      v-for="branch in commit.branches.slice(0, 2)"
+                      :key="branch"
+                      type="success"
+                      size="small"
+                    >
+                      {{ branch }}
+                    </el-tag>
+                    <el-tag type="info" size="small">
+                      <GitBranch :size="14" style="margin-right: 4px" />
+                      +{{ commit.branches.length - 2 }}
+                    </el-tag>
+                  </span>
+                </template>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 400px">
+                  <el-tag v-for="branch in commit.branches" :key="branch" type="success">
+                    {{ branch }}
+                  </el-tag>
+                </div>
+              </el-popover>
               <el-popover v-if="commit.tags && commit.tags.length > 0" placement="top">
                 <template #reference>
                   <el-tag type="warning" size="small">
@@ -32,6 +67,7 @@
                   </el-tag>
                 </div>
               </el-popover>
+              <span class="commit-author">{{ commit.author }}</span>
             </div>
             <div class="commit-message">{{ commit.message }}</div>
             <div class="commit-stats" v-if="commit.stats">
@@ -60,6 +96,7 @@
 
 <script setup lang="ts">
 import { PriceTag } from "@element-plus/icons-vue";
+import { GitBranch } from "lucide-vue-next";
 import type { GitCommit } from "../types";
 
 interface Props {
@@ -92,7 +129,7 @@ function formatDate(dateStr: string): string {
 
 // 获取提交在原始列表中的索引（从1开始）
 function getOriginalIndex(commit: GitCommit): number {
-  const index = props.commits.findIndex(c => c.hash === commit.hash);
+  const index = props.commits.findIndex((c) => c.hash === commit.hash);
   return index !== -1 ? index + 1 : 0;
 }
 </script>
@@ -175,6 +212,12 @@ function getOriginalIndex(commit: GitCommit): number {
 
 .files {
   color: var(--text-color-light);
+}
+
+:deep(.el-tag--success) {
+  background: rgba(103, 194, 58, 0.1);
+  border-color: rgba(103, 194, 58, 0.3);
+  color: #67c23a;
 }
 
 :deep(.el-tag--warning) {

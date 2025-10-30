@@ -384,7 +384,38 @@ body.transparent-window #app {
   --el-message-close-color: var(--el-color-info);
 }
 
-/* 修复 el-dropdown 悬停时的样式 - 使用半透明背景，亮色模式下文字保持主题色 */
+/* 覆盖 el-tag 的样式 - 确保浅色主题下对比度足够 */
+.el-tag.el-tag--light.el-tag--primary {
+  background-color: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--success {
+  background-color: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+  border-color: var(--el-color-success-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--warning {
+  background-color: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+  border-color: var(--el-color-warning-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--danger {
+  background-color: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+  border-color: var(--el-color-danger-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--info {
+  background-color: var(--el-color-info-light-9);
+  color: var(--el-color-info);
+  border-color: var(--el-color-info-light-7);
+}
+
+/* 修复 el-dropdown 悬停时的样式 - 使用半透明背景,亮色模式下文字保持主题色 */
 .el-dropdown-menu__item:focus,
 .el-dropdown-menu__item:not(.is-disabled):hover {
   background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);

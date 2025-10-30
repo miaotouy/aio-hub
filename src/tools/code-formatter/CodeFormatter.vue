@@ -38,7 +38,10 @@
           <template #header>
             <div class="card-header">
               <span>输出代码</span>
-              <el-button text @click="copyFormattedCode">复制</el-button>
+              <div class="header-actions">
+                <el-button text @click="copyFormattedCode">复制</el-button>
+                <el-button text type="success" @click="sendToChat">发送到聊天</el-button>
+              </div>
             </div>
           </template>
           <div class="textarea-wrapper">
@@ -58,154 +61,76 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch } from 'vue';
 import { customMessage } from '@/utils/customMessage';
-import { WarningFilled } from "@element-plus/icons-vue";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import debounce from "lodash/debounce";
+import { WarningFilled } from '@element-plus/icons-vue';
+import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import debounce from 'lodash/debounce';
+import { serviceRegistry } from '@/services/registry';
+import type CodeFormatterService from './codeFormatter.service';
+import type { SupportedLanguage } from './codeFormatter.service';
+import { useSendToChat } from '@/composables/useSendToChat';
 
-// prettier standalone 版本（浏览器兼容）
-import * as prettier from "prettier/standalone";
-import * as parserBabel from "prettier/plugins/babel";
-import * as parserHtml from "prettier/plugins/html";
-import * as parserCss from "prettier/plugins/postcss";
-import * as parserMarkdown from "prettier/plugins/markdown";
-import * as parserTypeScript from "prettier/plugins/typescript";
-import * as parserEstree from "prettier/plugins/estree";
+// 获取服务实例
+const codeFormatterService = serviceRegistry.getService<CodeFormatterService>('code-formatter');
 
-// prettier community plugins
-// 注意：部分插件可能不支持浏览器环境，需要动态导入或使用替代方案
-// PHP 和 XML 插件改为动态导入，避免模块格式冲突
-let prettierPluginPhp: any = null;
-let prettierPluginXml: any = null;
+// 获取发送到聊天功能
+const { sendCodeToChat } = useSendToChat();
 
-const rawCodeInput = ref("");
-const formattedCodeOutput = ref("");
-const formatError = ref("");
-const language = ref("javascript"); // 默认语言
+// UI 状态
+const rawCodeInput = ref('');
+const formattedCodeOutput = ref('');
+const formatError = ref('');
+const language = ref<SupportedLanguage>('javascript');
 
-const formatCode = debounce(async () => {
-  formatError.value = "";
+// 格式化代码（调用服务）
+const formatCodeInternal = async () => {
+  formatError.value = '';
   if (!rawCodeInput.value) {
-    formattedCodeOutput.value = "";
+    formattedCodeOutput.value = '';
     return;
   }
 
-  try {
-    let plugins: any[] = [];
-    let parser: string;
-    let additionalOptions: any = {};
+  const result = await codeFormatterService.formatCode(
+    rawCodeInput.value,
+    language.value
+  );
 
-    switch (language.value) {
-      // 前端语言
-      case "javascript":
-      case "typescript":
-        plugins.push(parserBabel, parserEstree, parserTypeScript);
-        parser = language.value === "typescript" ? "typescript" : "babel";
-        break;
-      case "json":
-        plugins.push(parserBabel, parserEstree);
-        parser = "json";
-        break;
-      case "html":
-        plugins.push(parserHtml);
-        parser = "html";
-        break;
-      case "css":
-        plugins.push(parserCss);
-        parser = "css";
-        break;
-      case "markdown":
-        plugins.push(parserMarkdown);
-        parser = "markdown";
-        break;
-      case "svelte":
-        // Svelte 插件可能不支持浏览器环境
-        formatError.value = "Svelte 格式化暂不支持（插件不兼容浏览器环境）";
-        formattedCodeOutput.value = rawCodeInput.value;
-        return;
-
-      // 后端语言
-      case "php":
-        // 动态导入 PHP 插件
-        if (!prettierPluginPhp) {
-          try {
-            prettierPluginPhp = await import("@prettier/plugin-php/standalone");
-          } catch (e) {
-            formatError.value = "PHP 格式化插件加载失败";
-            formattedCodeOutput.value = rawCodeInput.value;
-            return;
-          }
-        }
-        plugins.push(prettierPluginPhp);
-        parser = "php";
-        break;
-      case "java":
-        // Java 插件暂不支持浏览器环境
-        formatError.value = "Java 格式化暂不支持（插件不兼容浏览器环境）";
-        formattedCodeOutput.value = rawCodeInput.value;
-        return;
-
-      // 配置/数据语言
-      case "xml":
-        // 动态导入 XML 插件，避免模块格式冲突
-        if (!prettierPluginXml) {
-          try {
-            prettierPluginXml = await import("@prettier/plugin-xml");
-          } catch (e) {
-            formatError.value = "XML 格式化插件加载失败（模块格式不兼容）";
-            formattedCodeOutput.value = rawCodeInput.value;
-            return;
-          }
-        }
-        plugins.push(prettierPluginXml);
-        parser = "xml";
-        additionalOptions.xmlWhitespaceSensitivity = "ignore";
-        break;
-      case "yaml":
-        plugins.push(parserBabel, parserEstree);
-        parser = "yaml";
-        break;
-      case "toml":
-      case "properties":
-      case "sql":
-        // 这些插件可能不支持浏览器环境
-        formatError.value = `${language.value.toUpperCase()} 格式化暂不支持（插件不兼容浏览器环境）`;
-        formattedCodeOutput.value = rawCodeInput.value;
-        return;
-
-      default:
-        formatError.value = `不支持的语言: ${language.value}`;
-        formattedCodeOutput.value = rawCodeInput.value;
-        return;
+  if (result.success) {
+    formattedCodeOutput.value = result.formatted;
+    if (result.warning) {
+      formatError.value = result.warning;
     }
-
-    formattedCodeOutput.value = await prettier.format(rawCodeInput.value, {
-      parser: parser,
-      plugins: plugins,
-      singleQuote: true,
-      trailingComma: "es5",
-      ...additionalOptions,
-    });
-  } catch (e: any) {
-    formatError.value = `格式化错误: ${e.message}`;
-    formattedCodeOutput.value = rawCodeInput.value;
+  } else {
+    formatError.value = result.error || '格式化失败';
+    formattedCodeOutput.value = result.formatted; // 显示原始代码
   }
-}, 500);
+};
 
+const formatCode = debounce(formatCodeInternal, 500);
+
+// 复制格式化后的代码
 const copyFormattedCode = async () => {
   if (!formattedCodeOutput.value) {
-    customMessage.warning("没有可复制的格式化代码。");
+    customMessage.warning('没有可复制的格式化代码');
     return;
   }
   try {
     await writeText(formattedCodeOutput.value);
-    customMessage.success("格式化后的代码已复制到剪贴板！");
+    customMessage.success('格式化后的代码已复制到剪贴板！');
   } catch (error: any) {
     customMessage.error(`复制失败: ${error.message}`);
   }
 };
 
+// 发送到聊天
+const sendToChat = () => {
+  sendCodeToChat(formattedCodeOutput.value, language.value, {
+    successMessage: `已将格式化的 ${language.value} 代码发送到聊天`,
+  });
+};
+
+// 监听语言和输入变化
 watch(language, formatCode, { immediate: true });
 watch(rawCodeInput, formatCode);
 </script>
@@ -283,6 +208,11 @@ watch(rawCodeInput, formatCode);
   font-size: 16px;
   font-weight: bold;
   color: var(--text-color);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .error-message {

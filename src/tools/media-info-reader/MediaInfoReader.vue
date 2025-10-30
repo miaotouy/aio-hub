@@ -2,12 +2,9 @@
   <div class="media-info-reader-container">
     <!-- Drop Area -->
     <div
+      ref="dropAreaRef"
       id="drop-area"
-      :class="{ highlight: isDragging }"
-      @dragenter.prevent.stop="isDragging = true"
-      @dragover.prevent.stop="isDragging = true"
-      @dragleave.prevent.stop="isDragging = false"
-      @drop.prevent.stop="handleDrop"
+      :class="{ highlight: isDraggingOver }"
       @click="openFilePicker"
     >
       <div v-if="!previewSrc" class="upload-controls">
@@ -57,15 +54,19 @@ import { ElButton, ElEmpty } from 'element-plus';
 import { customMessage } from '@/utils/customMessage';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
-import * as exifr from 'exifr';
 import InfoCard from '../../components/common/InfoCard.vue';
 import { createModuleLogger } from '@utils/logger';
+import { useMediaInfoParser } from './composables/useMediaInfoParser';
+import { useFileInteraction } from '@/composables/useFileInteraction';
 
 const logger = createModuleLogger('MediaInfoReader');
 
+// 使用 composable 获取解析功能
+const { parseImageBuffer } = useMediaInfoParser();
+
 const previewSrc = ref('');
-const isDragging = ref(false);
 const activeTab = ref('webui');
+const dropAreaRef = ref<HTMLElement>();
 
 const webuiInfo = ref({ positivePrompt: '', negativePrompt: '', generationInfo: '' });
 const comfyuiWorkflow = ref('');
@@ -82,83 +83,6 @@ const uint8ArrayToBase64 = (bytes: Uint8Array) => {
     binary += String.fromCharCode(bytes[i]);
   }
   return window.btoa(binary);
-};
-
-// Based on: ../../ComfyTavern/apps/backend/src/routes/characterRoutes.ts
-// Note: This is a simplified browser-based implementation.
-const parseCharacterData = async (buffer: Uint8Array | ArrayBuffer): Promise<object | null> => {
-  try {
-    const uint8Buffer = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-
-    // Very basic PNG chunk parsing
-    const dataView = new DataView(uint8Buffer.buffer);
-    // Check for PNG signature
-    if (dataView.getUint32(0) !== 0x89504E47 || dataView.getUint32(4) !== 0x0D0A1A0A) {
-      // Not a PNG or not a valid one
-      return null;
-    }
-
-    let offset = 8;
-    const textChunks: { keyword: string; text: string }[] = [];
-
-    while (offset < uint8Buffer.length) {
-      const length = dataView.getUint32(offset);
-      offset += 4;
-      const type = new TextDecoder().decode(uint8Buffer.subarray(offset, offset + 4));
-      offset += 4;
-
-      if (type === 'tEXt') {
-        const chunkData = uint8Buffer.subarray(offset, offset + length);
-        const nullSeparatorIndex = chunkData.indexOf(0);
-        if (nullSeparatorIndex !== -1) {
-          const keyword = new TextDecoder().decode(chunkData.subarray(0, nullSeparatorIndex));
-          const text = new TextDecoder().decode(chunkData.subarray(nullSeparatorIndex + 1));
-          textChunks.push({ keyword, text });
-        }
-      }
-
-      offset += length; // Move to CRC
-      offset += 4; // Skip CRC
-
-      if (type === 'IEND') {
-        break;
-      }
-    }
-
-    if (textChunks.length === 0) {
-      return null;
-    }
-
-    // Prefer ccv3 (SillyTavern format)
-    const ccv3Chunk = textChunks.find(c => c.keyword === 'ccv3');
-    if (ccv3Chunk) {
-      const jsonStr = new TextDecoder().decode(
-        Uint8Array.from(atob(ccv3Chunk.text), c => c.charCodeAt(0))
-      );
-      return JSON.parse(jsonStr);
-    }
-
-    // Fallback to chara (TavernAI format)
-    const charaChunk = textChunks.find(c => c.keyword === 'chara');
-    if (charaChunk) {
-      const jsonStr = new TextDecoder().decode(
-        Uint8Array.from(atob(charaChunk.text), c => c.charCodeAt(0))
-      );
-      return JSON.parse(jsonStr);
-    }
-
-    return null;
-  } catch (error) {
-    logger.error('解析 PNG 字符数据失败', error);
-    return null;
-  }
-};
-
-const handleDrop = (e: DragEvent) => {
-  isDragging.value = false;
-  if (e.dataTransfer?.files) {
-    handleFiles(e.dataTransfer.files);
-  }
 };
 
 const openFilePicker = async () => {
@@ -187,8 +111,8 @@ const openFilePicker = async () => {
       const base64 = uint8ArrayToBase64(fileArray);
       previewSrc.value = `data:image/${extension};base64,${base64}`;
       
-      // Pass the buffer directly to the parser
-      parseImageInfo(fileArray, path);
+      // 直接使用 composable 解析图片
+      await parseImageFromBuffer(fileArray, path);
     }
   } catch (error) {
     logger.error('打开文件选择器失败', error);
@@ -196,66 +120,25 @@ const openFilePicker = async () => {
   }
 };
 
-const handleFiles = (files: FileList) => {
-  if (files.length === 0) return;
-  const file = files[0];
-  if (!file.type.startsWith('image/')) {
-    customMessage.error('请上传图片文件');
-    return;
-  }
-
-  // For preview
-  const previewReader = new FileReader();
-  previewReader.onload = (e) => {
-    previewSrc.value = e.target?.result as string;
-  };
-  previewReader.readAsDataURL(file);
-
-  // For parsing
-  const parseReader = new FileReader();
-  parseReader.onload = (e) => {
-    const buffer = e.target?.result as ArrayBuffer;
-    if (buffer) {
-      parseImageInfo(new Uint8Array(buffer), file.name);
-    }
-  };
-  parseReader.readAsArrayBuffer(file);
-};
-
-const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer, fileName?: string) => {
+const parseImageFromBuffer = async (buffer: Uint8Array, fileName?: string) => {
   try {
-    const output = await exifr.parse(buffer, true);
-    logger.debug('成功解析图片 EXIF 信息', { fileName, output });
-
-    // Reset info
-    webuiInfo.value = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
-    comfyuiWorkflow.value = '';
-    stCharacterInfo.value = '';
-    fullExifInfo.value = JSON.stringify(output, null, 2);
-
-    // --- ST Character Card Parsing ---
-    const characterCard = await parseCharacterData(buffer);
-    if (characterCard) {
-      stCharacterInfo.value = JSON.stringify(characterCard, null, 2);
-    }
-
-    let parameters = output.parameters || output.userComment;
-    if (parameters) {
-      if (parameters instanceof Uint8Array) {
-        parameters = new TextDecoder().decode(parameters);
-      }
-      webuiInfo.value = parseWebUIInfo(parameters);
-    }
-
-    if (output.workflow) {
-      try {
-        const workflow = JSON.parse(output.workflow);
-        comfyuiWorkflow.value = JSON.stringify(workflow, null, 2);
-      } catch (e) {
-        comfyuiWorkflow.value = output.workflow;
-      }
-    }
+    logger.debug('开始解析图片', { fileName });
     
+    // 直接使用 composable 解析图片 buffer
+    const result = await parseImageBuffer(buffer);
+    
+    webuiInfo.value = result.webuiInfo;
+    comfyuiWorkflow.value = typeof result.comfyuiWorkflow === 'object'
+      ? JSON.stringify(result.comfyuiWorkflow, null, 2)
+      : result.comfyuiWorkflow;
+    stCharacterInfo.value = result.stCharacterInfo
+      ? JSON.stringify(result.stCharacterInfo, null, 2)
+      : '';
+    fullExifInfo.value = result.fullExifInfo
+      ? JSON.stringify(result.fullExifInfo, null, 2)
+      : '';
+    
+    // 自动选择合适的标签页
     if (webuiInfo.value.positivePrompt) {
       activeTab.value = 'webui';
     } else if (comfyuiWorkflow.value) {
@@ -265,6 +148,8 @@ const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer, fileName?: strin
     } else {
       activeTab.value = 'full';
     }
+    
+    logger.debug('图片解析成功', { fileName });
   } catch (error) {
     logger.error('解析图片信息失败', error, { fileName });
     customMessage.error('解析图片信息失败');
@@ -279,32 +164,60 @@ const parseImageInfo = async (buffer: Uint8Array | ArrayBuffer, fileName?: strin
   }
 };
 
-const parseWebUIInfo = (parameters: string) => {
-  const parts = parameters.split('Negative prompt:');
-  const positivePrompt = parts[0].trim();
-  const rest = parts[1] || '';
+// 处理拖放的文件路径
+const handlePaths = async (paths: string[]) => {
+  if (paths.length === 0) return;
+  const path = paths[0];
   
-  const fields = ["Steps", "Sampler", "CFG scale", "Seed", "Size", "Model", "VAE hash", "VAE", "TI hashes", "Version", "Hashes"];
-  const regex = new RegExp(`(${fields.join('|')}):\\s*(.*?)\\s*(?=(${fields.join('|')}:|$))`, 'g');
-
-  const genInfoObject: { [key: string]: string } = {};
-  let match;
-  while ((match = regex.exec(rest)) !== null) {
-    const key = match[1].trim();
-    const value = match[2].trim().replace(/,$/, '');
-    genInfoObject[key] = value;
+  try {
+    const fileArray = await readFile(path);
+    
+    // Generate preview from buffer
+    const extension = path.split('.').pop()?.toLowerCase() || 'png';
+    const base64 = uint8ArrayToBase64(fileArray);
+    previewSrc.value = `data:image/${extension};base64,${base64}`;
+    
+    // 解析图片
+    await parseImageFromBuffer(fileArray, path);
+  } catch (error) {
+    logger.error('读取拖放的文件失败', error, { path });
+    customMessage.error('读取文件失败');
   }
-
-  const generationInfo = Object.entries(genInfoObject)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join('\n');
-  
-  const negativePromptRegex = new RegExp(`^([\\s\\S]*?)(?=(${fields.join('|')}):)`);
-  const negativeMatch = rest.match(negativePromptRegex);
-  const negativePrompt = negativeMatch ? negativeMatch[1].trim() : rest.trim();
-
-  return { positivePrompt, negativePrompt, generationInfo };
 };
+
+// 处理粘贴的文件对象
+const handleFiles = async (files: File[]) => {
+  if (files.length === 0) return;
+  const file = files[0];
+
+  // For preview
+  const previewReader = new FileReader();
+  previewReader.onload = (e) => {
+    previewSrc.value = e.target?.result as string;
+  };
+  previewReader.readAsDataURL(file);
+
+  // For parsing
+  const parseReader = new FileReader();
+  parseReader.onload = async (e) => {
+    const buffer = e.target?.result as ArrayBuffer;
+    if (buffer) {
+      await parseImageFromBuffer(new Uint8Array(buffer), file.name);
+    }
+  };
+  parseReader.readAsArrayBuffer(file);
+};
+
+// 使用文件拖放交互 composable（仅接受图片文件）
+const { isDraggingOver } = useFileInteraction({
+  element: dropAreaRef,
+  onPaths: handlePaths,  // 处理拖放（路径）
+  onFiles: handleFiles,   // 处理粘贴（File 对象）
+  multiple: false,
+  imageOnly: true,
+  accept: ['.png', '.jpg', '.jpeg', '.webp'],
+  showPasteMessage: false, // 不显示粘贴消息，因为我们有自己的消息处理
+});
 </script>
 
 <style scoped>

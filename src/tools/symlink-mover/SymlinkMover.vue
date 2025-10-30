@@ -12,64 +12,23 @@ import {
   Close,
   View,
 } from "@element-plus/icons-vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import InfoCard from "../../components/common/InfoCard.vue";
 import DropZone from "../../components/common/DropZone.vue";
-import { createModuleLogger } from "@utils/logger";
+import BaseDialog from "../../components/common/BaseDialog.vue";
+import { serviceRegistry } from "@/services/registry";
+import type SymlinkMoverService from "./symlinkMover.service";
+import type { FileItem, OperationLog } from "./symlinkMover.service";
 
-// 日志记录器
-const logger = createModuleLogger("SymlinkMover");
+// 获取服务实例
+const symlinkMoverService = serviceRegistry.getService<InstanceType<typeof SymlinkMoverService>>("symlink-mover");
 
-// 操作日志类型
-interface OperationLog {
-  timestamp: number;
-  operationType: string;
-  linkType: string;
-  sourceCount: number;
-  successCount: number;
-  errorCount: number;
-  errors: string[];
-  durationMs: number;
-  targetDirectory: string;
-  sourcePaths: string[];
-  totalSize: number;
-  processedFiles: string[];
-}
-
-// 进度事件类型
-interface CopyProgress {
-  currentFile: string;
-  copiedBytes: number;
-  totalBytes: number;
-  progressPercentage: number;
-}
-
-// --- 类型定义 ---
-interface FileItem {
-  path: string;
-  name: string;
-  status: "pending" | "processing" | "success" | "error";
-  error?: string;
-  isDirectory?: boolean;
-  isCrossDevice?: boolean;
-  warning?: string;
-}
-
-// 验证结果类型
-interface FileValidation {
-  isDirectory: boolean;
-  isCrossDevice: boolean;
-  exists: boolean;
-}
-
-// --- 响应式状态 ---
+// --- UI 状态（仅保留 UI 相关状态）---
 const sourcePathInput = ref(""); // 用于手动输入源文件路径
 const sourceFiles = ref<FileItem[]>([]);
 const targetDirectory = ref("");
 const linkType = ref<"symlink" | "link">("symlink");
-const operationMode = ref<"move" | "link-only">("move"); // 新增：操作模式
+const operationMode = ref<"move" | "link-only">("move");
 const isProcessing = ref(false);
 
 // 进度相关状态
@@ -79,9 +38,6 @@ const currentFile = ref("");
 const copiedBytes = ref(0);
 const totalBytes = ref(0);
 
-// 事件监听器
-let progressUnlisten: UnlistenFn | null = null;
-
 // 操作日志相关
 const latestLog = ref<OperationLog | null>(null);
 const showLogDialog = ref(false);
@@ -90,9 +46,8 @@ const tickerKey = ref(0); // 用于触发动画
 
 // --- 生命周期钩子 ---
 onMounted(async () => {
-  // 监听进度事件
-  progressUnlisten = await listen<CopyProgress>("copy-progress", (event) => {
-    const progress = event.payload;
+  // 通过服务启动进度监听
+  await symlinkMoverService.startProgressListener((progress) => {
     currentFile.value = progress.currentFile;
     currentProgress.value = progress.progressPercentage;
     copiedBytes.value = progress.copiedBytes;
@@ -111,76 +66,25 @@ onMounted(async () => {
   });
 });
 
-onUnmounted(() => {
-  // 清理事件监听
-  if (progressUnlisten) {
-    progressUnlisten();
-  }
+onUnmounted(async () => {
+  // 通过服务停止进度监听
+  await symlinkMoverService.stopProgressListener();
 });
 
-// --- 日志相关方法 ---
+// --- UI 事件处理方法 ---
 const loadLatestLog = async () => {
-  try {
-    const log = await invoke<OperationLog | null>("get_latest_operation_log");
-    latestLog.value = log;
-  } catch (error) {
-    logger.error("加载最新日志失败", error);
-  }
+  // 服务层已经处理错误，直接获取结果
+  latestLog.value = await symlinkMoverService.getLatestLog();
 };
 
 const loadAllLogs = async () => {
-  try {
-    const logs = await invoke<OperationLog[]>("get_all_operation_logs");
-    allLogs.value = logs.reverse(); // 最新的在前面
-  } catch (error) {
-    logger.error("加载所有日志失败", error);
-    customMessage.error("加载日志失败");
-  }
+  // 服务层已经处理错误，直接获取结果（失败时返回空数组）
+  allLogs.value = await symlinkMoverService.getAllLogs();
 };
 
 const openLogDialog = async () => {
   await loadAllLogs();
   showLogDialog.value = true;
-};
-
-const formatTimestamp = (timestamp: number): string => {
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-};
-
-const formatDuration = (ms: number): string => {
-  if (ms < 1000) {
-    return `${ms}ms`;
-  } else if (ms < 60000) {
-    return `${(ms / 1000).toFixed(2)}s`;
-  } else {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = ((ms % 60000) / 1000).toFixed(0);
-    return `${minutes}m ${seconds}s`;
-  }
-};
-
-const getOperationTypeLabel = (type: string): string => {
-  return type === "move" ? "搬家模式" : "仅创建链接";
-};
-
-const getLinkTypeLabel = (type: string): string => {
-  return type === "symlink" ? "符号链接" : "硬链接";
-};
-
-// 格式化日志为滚动文字
-const formatLogTicker = (log: OperationLog): string => {
-  const opType = getOperationTypeLabel(log.operationType);
-  const linkType = getLinkTypeLabel(log.linkType);
-  const status = log.errorCount > 0 ? "部分成功" : "成功";
-  return `${opType} · ${linkType} · ${status} ${log.successCount}/${log.sourceCount} · ${formatBytes(log.totalSize)} · ${formatDuration(log.durationMs)}`;
 };
 
 // --- 拖放处理 ---
@@ -201,36 +105,13 @@ const validateFiles = async () => {
     return;
   }
 
-  for (const file of sourceFiles.value) {
-    try {
-      const validation = await invoke<FileValidation>(
-        "validate_file_for_link",
-        {
-          sourcePath: file.path,
-          targetDir: targetDirectory.value,
-          linkType: linkType.value,
-        }
-      );
-
-      file.isDirectory = validation.isDirectory;
-      file.isCrossDevice = validation.isCrossDevice;
-
-      // 硬链接的限制检查
-      if (linkType.value === "link" && operationMode.value === "link-only") {
-        if (validation.isDirectory) {
-          file.warning = "硬链接不支持目录";
-        } else if (validation.isCrossDevice) {
-          file.warning = "硬链接不支持跨分区/跨盘";
-        } else {
-          file.warning = undefined;
-        }
-      } else {
-        file.warning = undefined;
-      }
-    } catch (error) {
-      logger.error("验证文件失败", error, { path: file.path });
-    }
-  }
+  // 服务层已经处理错误，直接获取结果
+  sourceFiles.value = await symlinkMoverService.validateFiles(
+    sourceFiles.value,
+    targetDirectory.value,
+    linkType.value,
+    operationMode.value
+  );
 };
 
 // 监听目标目录和链接类型变化，触发验证
@@ -249,25 +130,20 @@ const addSourcePathFromInput = () => {
 };
 
 const addSourceFiles = (paths: string[]) => {
-  const newFiles: FileItem[] = paths.map((path) => {
-    const name = path.split(/[/\\]/).pop() || path;
-    return { path, name, status: "pending" };
-  });
+  const newFiles = symlinkMoverService.parsePathsToFileItems(paths);
+  const mergedFiles = symlinkMoverService.mergeFileItems(sourceFiles.value, newFiles);
+  const addedCount = mergedFiles.length - sourceFiles.value.length;
 
-  // 避免重复添加
-  const uniqueNewFiles = newFiles.filter(
-    (nf) => !sourceFiles.value.some((sf) => sf.path === nf.path)
-  );
-  if (uniqueNewFiles.length > 0) {
-    sourceFiles.value.push(...uniqueNewFiles);
-    customMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
+  if (addedCount > 0) {
+    sourceFiles.value = mergedFiles;
+    customMessage.success(`已添加 ${addedCount} 个文件/文件夹`);
     // 添加文件后触发验证
     validateFiles();
   }
 };
 
 const removeFile = (index: number) => {
-  sourceFiles.value.splice(index, 1);
+  sourceFiles.value = symlinkMoverService.removeFileByIndex(sourceFiles.value, index);
 };
 
 const clearFiles = () => {
@@ -288,64 +164,47 @@ const clearFiles = () => {
 
 // --- 文件/目录选择 ---
 const selectSourceFiles = async () => {
-  try {
-    const selected = await open({
-      multiple: true,
-      title: "选择要搬家的文件",
-    });
-    if (Array.isArray(selected) && selected.length > 0) {
-      addSourceFiles(selected);
-    } else if (typeof selected === "string") {
-      addSourceFiles([selected]);
-    }
-  } catch (error) {
-    logger.error("选择文件失败", error, { operation: "selectFiles" });
-    customMessage.error("选择文件失败");
+  const selected = await open({
+    multiple: true,
+    title: "选择要搬家的文件",
+  });
+  if (Array.isArray(selected) && selected.length > 0) {
+    addSourceFiles(selected);
+  } else if (typeof selected === "string") {
+    addSourceFiles([selected]);
   }
 };
 
 const selectSourceFolders = async () => {
-  try {
-    const selected = await open({
-      multiple: true,
-      directory: true,
-      title: "选择要搬家的文件夹",
-    });
-    if (Array.isArray(selected) && selected.length > 0) {
-      addSourceFiles(selected);
-    } else if (typeof selected === "string") {
-      addSourceFiles([selected]);
-    }
-  } catch (error) {
-    logger.error("选择文件夹失败", error, { operation: "selectFolders" });
-    customMessage.error("选择文件夹失败");
+  const selected = await open({
+    multiple: true,
+    directory: true,
+    title: "选择要搬家的文件夹",
+  });
+  if (Array.isArray(selected) && selected.length > 0) {
+    addSourceFiles(selected);
+  } else if (typeof selected === "string") {
+    addSourceFiles([selected]);
   }
 };
 
 const selectTargetDirectory = async () => {
-  try {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "选择目标目录",
-    });
-    if (typeof selected === "string") {
-      targetDirectory.value = selected;
-    }
-  } catch (error) {
-    logger.error("选择目标目录失败", error, { operation: "selectTargetDirectory" });
-    customMessage.error("选择目录失败");
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: "选择目标目录",
+  });
+  if (typeof selected === "string") {
+    targetDirectory.value = selected;
   }
 };
 
 // --- 取消操作 ---
 const cancelOperation = async () => {
-  try {
-    await invoke("cancel_move_operation");
+  // 服务层已经处理错误
+  const success = await symlinkMoverService.cancelOperation();
+  if (success) {
     customMessage.info("正在取消操作...");
-  } catch (error) {
-    logger.error("取消操作失败", error);
-    customMessage.error("取消操作失败");
   }
 };
 
@@ -370,75 +229,59 @@ const executeMoveAndLink = async () => {
   isProcessing.value = true;
   sourceFiles.value.forEach((file) => (file.status = "processing"));
 
-  try {
-    const sourcePaths = sourceFiles.value.map((file) => file.path);
+  const sourcePaths = sourceFiles.value.map((file) => file.path);
+  let result: string | null;
 
-    if (operationMode.value === "move") {
-      // 搬家模式：移动文件并创建链接
-      const result: string = await invoke("move_and_link", {
-        sourcePaths,
-        targetDir: targetDirectory.value,
-        linkType: linkType.value,
-      });
-
-      // 检查结果是否包含错误信息或取消信息
-      if (result.includes("已被用户取消")) {
-        customMessage.warning(result);
-        sourceFiles.value.forEach((file) => {
-          if (file.status === "processing") {
-            file.status = "pending";
-          }
-        });
-      } else if (result.includes("个错误")) {
-        customMessage.error(result);
-        // 解析错误信息，更新文件状态
-        sourceFiles.value.forEach((file) => {
-          if (file.status === "processing") {
-            file.status = "error";
-            file.error = "处理失败，请查看错误详情";
-          }
-        });
-      } else {
-        customMessage.success(result || "文件处理完成");
-        sourceFiles.value.forEach((file) => (file.status = "success"));
-      }
-    } else {
-      // 仅创建链接模式：只在目标位置创建链接
-      const result: string = await invoke("create_links_only", {
-        sourcePaths,
-        targetDir: targetDirectory.value,
-        linkType: linkType.value,
-      });
-
-      // 检查结果是否包含错误信息
-      if (result.includes("个错误")) {
-        customMessage.error(result);
-        sourceFiles.value.forEach((file) => {
-          if (file.status === "processing") {
-            file.status = "error";
-            file.error = "处理失败，请查看错误详情";
-          }
-        });
-      } else {
-        customMessage.success(result || "链接创建完成");
-        sourceFiles.value.forEach((file) => (file.status = "success"));
-      }
-    }
-  } catch (error: any) {
-    logger.error("文件处理失败", error, {
-      operation: operationMode.value,
-      sourcePaths: sourceFiles.value.map((f) => f.path),
-      targetDirectory: targetDirectory.value,
+  if (operationMode.value === "move") {
+    // 搬家模式：移动文件并创建链接
+    result = await symlinkMoverService.moveAndLink({
+      sourcePaths,
+      targetDir: targetDirectory.value,
       linkType: linkType.value,
     });
-    customMessage.error(`文件处理失败: ${error}`);
+  } else {
+    // 仅创建链接模式
+    result = await symlinkMoverService.createLinksOnly({
+      sourcePaths,
+      targetDir: targetDirectory.value,
+      linkType: linkType.value,
+    });
+  }
+
+  // 如果服务返回 null，表示操作失败（已由 errorHandler 处理）
+  if (result === null) {
     sourceFiles.value.forEach((file) => {
       if (file.status === "processing") {
         file.status = "error";
-        file.error = error.toString();
+        file.error = "处理失败";
       }
     });
-  } finally {
+  } else {
+    // 检查结果是否包含错误信息或取消信息
+    if (result.includes("已被用户取消")) {
+      customMessage.warning(result);
+      sourceFiles.value.forEach((file) => {
+        if (file.status === "processing") {
+          file.status = "pending";
+        }
+      });
+    } else if (result.includes("个错误")) {
+      // Rust 后端返回的错误信息，手动显示
+      customMessage.error(result);
+      sourceFiles.value.forEach((file) => {
+        if (file.status === "processing") {
+          file.status = "error";
+          file.error = "处理失败，请查看错误详情";
+        }
+      });
+    } else {
+      customMessage.success(result || "操作完成");
+      sourceFiles.value.forEach((file) => (file.status = "success"));
+    }
+  }
+
+  // 重置进度和重新加载日志
+  {
     isProcessing.value = false;
     // 隐藏进度条
     setTimeout(() => {
@@ -447,15 +290,6 @@ const executeMoveAndLink = async () => {
     // 重新加载最新日志
     await loadLatestLog();
   }
-};
-
-// 格式化字节数
-const formatBytes = (bytes: number): string => {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
 };
 </script>
 
@@ -597,7 +431,7 @@ const formatBytes = (bytes: number): string => {
           <div class="progress-info">
             <div class="progress-file">{{ currentFile }}</div>
             <div class="progress-stats">
-              {{ formatBytes(copiedBytes) }} / {{ formatBytes(totalBytes) }}
+              {{ symlinkMoverService.formatBytes(copiedBytes) }} / {{ symlinkMoverService.formatBytes(totalBytes) }}
             </div>
           </div>
           <el-progress :percentage="currentProgress" :status="isProcessing ? undefined : 'success'"
@@ -609,7 +443,7 @@ const formatBytes = (bytes: number): string => {
           <div v-if="latestLog" class="log-ticker">
             <div class="log-ticker-content">
               <div class="log-ticker-message" :key="tickerKey">
-                {{ formatLogTicker(latestLog) }}
+                {{ symlinkMoverService.formatLogTicker(latestLog) }}
               </div>
             </div>
             <el-button :icon="View" text size="small" @click="openLogDialog" class="log-ticker-btn">
@@ -647,20 +481,20 @@ const formatBytes = (bytes: number): string => {
             <div class="log-item-header">
               <div class="log-item-title">
                 <el-tag :type="log.errorCount > 0 ? 'warning' : 'success'" size="small">
-                  {{ getOperationTypeLabel(log.operationType) }}
+                  {{ symlinkMoverService.getOperationTypeLabel(log.operationType) }}
                 </el-tag>
-                <span class="log-item-time">{{ formatTimestamp(log.timestamp) }}</span>
+                <span class="log-item-time">{{ symlinkMoverService.formatTimestamp(log.timestamp) }}</span>
               </div>
               <div class="log-item-meta">
-                <span>{{ getLinkTypeLabel(log.linkType) }}</span>
-                <span>耗时: {{ formatDuration(log.durationMs) }}</span>
+                <span>{{ symlinkMoverService.getLinkTypeLabel(log.linkType) }}</span>
+                <span>耗时: {{ symlinkMoverService.formatDuration(log.durationMs) }}</span>
               </div>
             </div>
             <div class="log-item-stats">
               <span>处理: {{ log.sourceCount }} 个</span>
               <span class="success-text">成功: {{ log.successCount }}</span>
               <span v-if="log.errorCount > 0" class="error-text">失败: {{ log.errorCount }}</span>
-              <span>大小: {{ formatBytes(log.totalSize) }}</span>
+              <span>大小: {{ symlinkMoverService.formatBytes(log.totalSize) }}</span>
             </div>
             <div class="log-item-details">
               <div class="detail-item">

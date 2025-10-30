@@ -35,6 +35,7 @@ pub struct GitCommit {
     pub full_message: String,
     pub parents: Vec<String>,
     pub tags: Vec<String>,
+    pub branches: Vec<String>,
     pub stats: Option<CommitStats>,
     pub files: Option<Vec<FileChange>>,
 }
@@ -322,9 +323,11 @@ pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitComm
     let parents: Vec<String> = commit.parents()
         .map(|p| p.id().to_string())
         .collect();
-    
     // 获取 tags
     let tags = get_commit_tags_git2(&repo, oid).unwrap_or_default();
+    
+    // 获取 branches
+    let branches = get_commit_branches(&repo, oid).unwrap_or_default();
     
     // 获取 stats 和 files
     let (stats, files) = get_commit_diff_info(&repo, &commit)?;
@@ -342,6 +345,7 @@ pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitComm
         },
         parents,
         tags,
+        branches,
         stats: Some(stats),
         files: Some(files),
     })
@@ -634,6 +638,9 @@ fn get_commits_with_skip(repo_path: &str, branch: Option<&str>, skip: usize, lim
         // 获取 tags
         let tags = get_commit_tags_git2(&repo, oid).unwrap_or_default();
         
+        // 获取 branches
+        let branches = get_commit_branches(&repo, oid).unwrap_or_default();
+        
         // 获取 stats 和 files
         let (stats, files) = if include_files {
             let (s, f) = get_commit_diff_info(&repo, &commit)?;
@@ -656,6 +663,7 @@ fn get_commits_with_skip(repo_path: &str, branch: Option<&str>, skip: usize, lim
             },
             parents,
             tags,
+            branches,
             stats,
             files,
         });
@@ -664,6 +672,112 @@ fn get_commits_with_skip(repo_path: &str, branch: Option<&str>, skip: usize, lim
     }
     
     Ok(commits)
+}
+
+// 获取提交最相关的分支
+// 使用启发式规则推断该提交最可能创建于哪个分支
+fn get_commit_branches(repo: &Repository, commit_oid: Oid) -> Result<Vec<String>, String> {
+    // 收集所有包含该提交的分支
+    let mut all_branches: Vec<(String, bool)> = Vec::new(); // (分支名, 是否远程)
+    
+    // 检查本地分支
+    let local_branches = repo.branches(Some(BranchType::Local))
+        .map_err(|e| format!("Failed to get local branches: {}", e))?;
+    
+    for branch_result in local_branches {
+        let (branch, _) = branch_result.map_err(|e| format!("Failed to read branch: {}", e))?;
+        if let Some(name) = branch.name().map_err(|e| format!("Invalid branch name: {}", e))? {
+            if let Ok(branch_commit) = branch.get().peel_to_commit() {
+                let branch_oid = branch_commit.id();
+                if branch_oid == commit_oid || repo.graph_descendant_of(branch_oid, commit_oid).unwrap_or(false) {
+                    all_branches.push((name.to_string(), false));
+                }
+            }
+        }
+    }
+    
+    // 检查远程分支
+    let remote_branches = repo.branches(Some(BranchType::Remote))
+        .map_err(|e| format!("Failed to get remote branches: {}", e))?;
+    
+    for branch_result in remote_branches {
+        let (branch, _) = branch_result.map_err(|e| format!("Failed to read branch: {}", e))?;
+        if let Some(name) = branch.name().map_err(|e| format!("Invalid branch name: {}", e))? {
+            if let Ok(branch_commit) = branch.get().peel_to_commit() {
+                let branch_oid = branch_commit.id();
+                if branch_oid == commit_oid || repo.graph_descendant_of(branch_oid, commit_oid).unwrap_or(false) {
+                    all_branches.push((name.to_string(), true));
+                }
+            }
+        }
+    }
+    
+    // 如果只有 0-2 个分支，直接返回
+    if all_branches.len() <= 2 {
+        return Ok(all_branches.into_iter().map(|(name, _)| name).collect());
+    }
+    
+    // 启发式规则：智能筛选最相关的分支
+    let filtered = filter_most_relevant_branches(all_branches);
+    Ok(filtered)
+}
+
+// 启发式规则：筛选最相关的分支
+fn filter_most_relevant_branches(all_branches: Vec<(String, bool)>) -> Vec<String> {
+    // 主干分支列表（优先级从低到高）
+    let main_branch_patterns = [
+        "origin/HEAD",
+        "origin/master",
+        "origin/main",
+        "master",
+        "main",
+        "origin/develop",
+        "origin/dev",
+        "develop",
+        "dev",
+    ];
+    
+    // 1. 优先查找功能分支（非主干分支）
+    let feature_branches: Vec<_> = all_branches.iter()
+        .filter(|(name, _)| {
+            // 排除主干分支
+            !main_branch_patterns.iter().any(|pattern| {
+                name == pattern || name.ends_with(pattern)
+            })
+        })
+        .collect();
+    
+    if !feature_branches.is_empty() {
+        // 2. 在功能分支中，优先选择本地分支
+        if let Some((name, _)) = feature_branches.iter().find(|(_, is_remote)| !is_remote) {
+            return vec![name.clone()];
+        }
+        
+        // 3. 如果没有本地功能分支，选择远程功能分支
+        // 优先选择最长的分支名（通常更具体，如 feature/login > feature）
+        let mut sorted_features = feature_branches.clone();
+        sorted_features.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        
+        // 最多返回2个最相关的功能分支
+        return sorted_features.iter()
+            .take(2)
+            .map(|(name, _)| name.clone())
+            .collect();
+    }
+    
+    // 4. 如果都是主干分支，按优先级返回（develop > main > master）
+    for pattern in main_branch_patterns.iter().rev() {
+        if let Some((name, _)) = all_branches.iter()
+            .find(|(name, _)| name == pattern || name.ends_with(pattern)) {
+            return vec![name.clone()];
+        }
+    }
+    
+    // 5. 兜底：返回前2个分支
+    all_branches.into_iter()
+        .take(2)
+        .map(|(name, _)| name)
+        .collect()
 }
 
 // git2 版本的获取 tags

@@ -35,10 +35,7 @@ html.dark {
   --el-fill-color-lighter: var(--container-bg);
   --el-fill-color-blank: transparent;
   --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: var(--primary-hover-color);
-  --el-color-primary-light-5: var(--primary-hover-color);
-  --el-color-primary-light-7: var(--primary-hover-color);
-  --el-color-primary-light-9: var(--primary-hover-color);
+  /* primary light 系列颜色由 themeColors.ts 动态管理，此处不再硬编码 */
   --el-color-danger: var(--error-color);
   --el-color-success: #67c23a;
   --el-color-warning: #e6a23c;
@@ -51,7 +48,7 @@ html.dark {
   --el-button-hover-border-color: var(--primary-hover-color);
 }
 
-/* 强制覆盖 el-button 的悬停样式 */
+/* 覆盖 el-button 的悬停样式 */
 html.dark .el-button:hover {
   color: #ffffff;
 }
@@ -60,44 +57,50 @@ html.dark .el-button:focus {
   color: #ffffff;
 }
 
-/* 强制覆盖 el-tag 的样式 - 确保文字在有色背景上清晰可见 */
+/* 覆盖 el-tag 的样式 - 使用半透明背景使其在暗色模式下更暗 */
 html.dark .el-tag {
-  color: #ffffff;
   border-color: transparent;
 }
 
 html.dark .el-tag.el-tag--primary {
-  background-color: var(--primary-color);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  color: var(--el-color-primary);
+  border-color: color-mix(in srgb, var(--el-color-primary) 40%, transparent);
 }
 
 html.dark .el-tag.el-tag--success {
-  background-color: var(--el-color-success);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--el-color-success) 20%, transparent);
+  color: var(--el-color-success);
+  border-color: color-mix(in srgb, var(--el-color-success) 40%, transparent);
 }
 
 html.dark .el-tag.el-tag--warning {
-  background-color: var(--el-color-warning);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
+  color: var(--el-color-warning);
+  border-color: color-mix(in srgb, var(--el-color-warning) 40%, transparent);
 }
 
 html.dark .el-tag.el-tag--danger {
-  background-color: var(--el-color-danger);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--el-color-danger) 20%, transparent);
+  color: var(--el-color-danger);
+  border-color: color-mix(in srgb, var(--el-color-danger) 40%, transparent);
 }
 
 html.dark .el-tag.el-tag--info {
-  background-color: var(--el-color-info);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--el-color-info) 20%, transparent);
+  color: var(--el-color-info);
+  border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
 }
 
 /* el-tag 关闭按钮样式 */
 html.dark .el-tag .el-tag__close {
-  color: #ffffff;
+  color: currentColor;
+  opacity: 0.8;
 }
 
 html.dark .el-tag .el-tag__close:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 /* 按钮半透明高亮样式 - 暗色主题（使用动态颜色变量） */

@@ -11,7 +11,7 @@ import {
   getContributorStats,
   generateTimelineData,
   generateChartData,
-} from "./useGitDataProcessor";
+} from "./useGitProcessor";
 import { generateHTML } from "../utils/htmlGenerator";
 
 interface ReportGeneratorOptions {
@@ -181,6 +181,11 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           lines.push(`**提交信息**: ${commit.message}`);
         }
 
+        if (commit.branches && commit.branches.length > 0) {
+          lines.push("");
+          lines.push(`**分支**: ${commit.branches.join(", ")}`);
+        }
+
         if (cfg.includeTags && commit.tags && commit.tags.length > 0) {
           lines.push("");
           lines.push(`**标签**: ${commit.tags.join(", ")}`);
@@ -248,6 +253,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         ...(cfg.includeFullMessage && commit.full_message
           ? { full_message: commit.full_message }
           : {}),
+        ...(commit.branches && commit.branches.length > 0 ? { branches: commit.branches } : {}),
         ...(cfg.includeTags && commit.tags ? { tags: commit.tags } : {}),
         ...(cfg.includeStats && commit.stats ? { stats: commit.stats } : {}),
         ...(cfg.includeFiles && commit.files ? { files: commit.files } : {}),
@@ -279,6 +285,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       if (cfg.includeStats) {
         headers.push("Additions", "Deletions", "Files Changed");
       }
+      headers.push("Branches");
       if (cfg.includeTags) {
         headers.push("Tags");
       }
@@ -305,6 +312,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           row.push(String(commit.stats.deletions));
           row.push(String(commit.stats.files));
         }
+
+        row.push(commit.branches && commit.branches.length > 0 ? `"${commit.branches.join(", ")}"` : "");
 
         if (cfg.includeTags) {
           row.push(commit.tags ? `"${commit.tags.join(", ")}"` : "");
@@ -427,6 +436,10 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           lines.push(
             `变更: +${commit.stats.additions} -${commit.stats.deletions} (${commit.stats.files} 文件)`
           );
+        }
+
+        if (commit.branches && commit.branches.length > 0) {
+          lines.push(`分支: ${commit.branches.join(", ")}`);
         }
 
         if (cfg.includeTags && commit.tags && commit.tags.length > 0) {

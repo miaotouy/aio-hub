@@ -190,17 +190,15 @@ import {
   Download,
   Document,
 } from "@element-plus/icons-vue";
-import { createModuleLogger } from "@utils/logger";
 import type { editor } from "monaco-editor";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { customMessage } from '@/utils/customMessage';
-import { createTwoFilesPatch } from "diff";
 import { useFileDrop } from "@composables/useFileDrop";
 import { useTheme } from "@composables/useTheme";
+import { serviceRegistry } from '@/services/registry';
+import type TextDiffService from './textDiff.service';
 
-const logger = createModuleLogger("TextDiff");
+// 获取服务实例
+const textDiffService = serviceRegistry.getService<TextDiffService>('text-diff');
 
 // 主题
 const { isDark } = useTheme();
@@ -276,8 +274,6 @@ const handleEditorMounted = (editorInstance: any) => {
 
   // 初始化差异计数
   updateDiffCount();
-
-  logger.info("差异编辑器已挂载");
 };
 
 // 更新差异计数
@@ -292,10 +288,7 @@ const updateDiffCount = () => {
     const lineChanges = diffEditor.value.getLineChanges() || [];
     totalDiffs.value = lineChanges.length;
     currentDiffIndex.value = 0;
-
-    logger.debug(`差异计数更新: ${totalDiffs.value} 处`);
   } catch (error) {
-    logger.error("更新差异计数失败", error);
     totalDiffs.value = 0;
   }
 };
@@ -311,9 +304,8 @@ const goToPreviousDiff = () => {
     } else {
       currentDiffIndex.value = totalDiffs.value - 1;
     }
-    logger.debug(`导航到上一处差异: ${currentDiffIndex.value + 1}/${totalDiffs.value}`);
   } catch (error) {
-    logger.error("导航到上一处差异失败", error);
+    // 忽略导航错误
   }
 };
 
@@ -328,9 +320,8 @@ const goToNextDiff = () => {
     } else {
       currentDiffIndex.value = 0;
     }
-    logger.debug(`导航到下一处差异: ${currentDiffIndex.value + 1}/${totalDiffs.value}`);
   } catch (error) {
-    logger.error("导航到下一处差异失败", error);
+    // 忽略导航错误
   }
 };
 
@@ -338,7 +329,6 @@ const goToNextDiff = () => {
 const clearAll = () => {
   textA.value = "";
   textB.value = "";
-  logger.info("已清空所有文本");
 };
 
 // 交换左右文本
@@ -346,7 +336,6 @@ const swapTexts = () => {
   const temp = textA.value;
   textA.value = textB.value;
   textB.value = temp;
-  logger.info("已交换左右文本");
 };
 
 // 监听文本变化，更新差异计数
@@ -369,330 +358,221 @@ watch([ignoreWhitespace, ignoreCaseInDiffComputing], () => {
 
 // ====== 文件操作功能 ======
 
-// 从文件扩展名推断语言
-const inferLanguage = (filePath: string): string => {
-  const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase();
-  const langMap: Record<string, string> = {
-    ".js": "javascript",
-    ".jsx": "javascript",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".json": "json",
-    ".html": "html",
-    ".htm": "html",
-    ".css": "css",
-    ".scss": "css",
-    ".less": "css",
-    ".py": "python",
-    ".java": "java",
-    ".cpp": "cpp",
-    ".cc": "cpp",
-    ".cxx": "cpp",
-    ".c": "cpp",
-    ".h": "cpp",
-    ".hpp": "cpp",
-    ".md": "markdown",
-    ".txt": "plaintext",
-  };
-  return langMap[ext] || "plaintext";
-};
+// ====== 文件操作功能 ======
 
-// 打开文件
+// 打开文件（调用服务）
 const openFile = async (side: "left" | "right") => {
-  try {
-    const filePath = await open({
-      multiple: false,
-      title: `打开文件到${side === "left" ? "左侧" : "右侧"}`,
-    });
+  const result = await textDiffService.openFile(side);
 
-    if (!filePath) return;
-
-    const content = await readTextFile(filePath as string);
-
-    // 检查大文件
-    if (content.length > 10 * 1024 * 1024) {
-      await customMessage.warning("文件较大（>10MB），可能影响性能");
-    }
-
-    // 检测二进制文件
-    if (content.includes("\0")) {
-      customMessage.error("不支持二进制文件");
-      return;
-    }
-
-    const fileName = (filePath as string).split(/[/\\]/).pop() || "";
-
+  if (result.success) {
     if (side === "left") {
-      textA.value = content;
-      leftFilePath.value = filePath as string;
-      leftFileName.value = fileName;
+      textA.value = result.content;
+      leftFilePath.value = result.filePath;
+      leftFileName.value = result.fileName;
     } else {
-      textB.value = content;
-      rightFilePath.value = filePath as string;
-      rightFileName.value = fileName;
+      textB.value = result.content;
+      rightFilePath.value = result.filePath;
+      rightFileName.value = result.fileName;
     }
 
     // 自动推断语言
-    language.value = inferLanguage(filePath as string);
+    language.value = result.language;
 
-    customMessage.success(`已加载: ${fileName}`);
-    logger.info(`文件已加载到${side}侧`, { path: filePath, size: content.length });
-  } catch (error: any) {
-    logger.error("打开文件失败", error);
-    customMessage.error(`打开文件失败: ${error}`);
+    // 检查大文件
+    if (result.content.length > 10 * 1024 * 1024) {
+      customMessage.warning("文件较大（>10MB），可能影响性能");
+    }
+
+    customMessage.success(`已加载: ${result.fileName}`);
+  } else if (result.error && result.error !== '用户取消操作') {
+    customMessage.error(result.error);
   }
 };
 
-// 保存文件
+// 保存文件（调用服务）
 const saveFile = async (side: "left" | "right" | "both") => {
-  try {
-    if (side === "both") {
-      await saveFile("left");
-      await saveFile("right");
-      return;
-    }
+  if (side === "both") {
+    await saveFile("left");
+    await saveFile("right");
+    return;
+  }
 
-    const content = side === "left" ? textA.value : textB.value;
-    const currentName = side === "left" ? leftFileName.value : rightFileName.value;
+  const content = side === "left" ? textA.value : textB.value;
+  const currentName = side === "left" ? leftFileName.value : rightFileName.value;
 
-    if (!content) {
-      customMessage.warning(`${side === "left" ? "左侧" : "右侧"}内容为空`);
-      return;
-    }
+  if (!content) {
+    customMessage.warning(`${side === "left" ? "左侧" : "右侧"}内容为空`);
+    return;
+  }
 
-    const filePath = await save({
-      defaultPath: currentName || "untitled.txt",
-      title: `保存${side === "left" ? "左侧" : "右侧"}文件`,
-    });
+  const result = await textDiffService.saveFile(content, currentName || "untitled.txt", side);
 
-    if (!filePath) return;
-
-    await writeTextFile(filePath, content);
-
-    const fileName = filePath.split(/[/\\]/).pop() || "";
+  if (result.success) {
     if (side === "left") {
-      leftFilePath.value = filePath;
-      leftFileName.value = fileName;
+      leftFilePath.value = result.filePath;
+      leftFileName.value = result.fileName;
     } else {
-      rightFilePath.value = filePath;
-      rightFileName.value = fileName;
+      rightFilePath.value = result.filePath;
+      rightFileName.value = result.fileName;
     }
 
-    customMessage.success(`已保存: ${fileName}`);
-    logger.info(`文件已保存`, { path: filePath, size: content.length });
-  } catch (error: any) {
-    logger.error("保存文件失败", error);
-    customMessage.error(`保存失败: ${error}`);
+    customMessage.success(`已保存: ${result.fileName}`);
+  } else if (result.error && result.error !== '用户取消操作') {
+    customMessage.error(result.error);
   }
 };
-
 // 处理文件拖放
 const handleFileDrop = async (paths: string[], side: "left" | "right") => {
-  try {
-    if (paths.length === 0) return;
+  if (paths.length === 0) return;
 
-    // 如果拖入两个文件，分配到左右
-    if (paths.length === 2) {
-      const [path1, path2] = paths.sort();
-      await loadFileToSide(path1, "left");
-      await loadFileToSide(path2, "right");
-      return;
-    }
+  // 如果拖入两个文件，分配到左右
+  if (paths.length === 2) {
+    const [path1, path2] = paths.sort();
+    await loadFileToSide(path1, "left");
+    await loadFileToSide(path2, "right");
+    return;
+  }
 
-    // 单文件：优先填充空侧，否则填充目标侧
-    if (paths.length === 1) {
-      if (!textA.value && side === "left") {
-        await loadFileToSide(paths[0], "left");
-      } else if (!textB.value && side === "right") {
-        await loadFileToSide(paths[0], "right");
-      } else if (!textA.value) {
-        await loadFileToSide(paths[0], "left");
-      } else if (!textB.value) {
-        await loadFileToSide(paths[0], "right");
-      } else {
-        await loadFileToSide(paths[0], side);
-      }
+  // 单文件：优先填充空侧，否则填充目标侧
+  if (paths.length === 1) {
+    if (!textA.value && side === "left") {
+      await loadFileToSide(paths[0], "left");
+    } else if (!textB.value && side === "right") {
+      await loadFileToSide(paths[0], "right");
+    } else if (!textA.value) {
+      await loadFileToSide(paths[0], "left");
+    } else if (!textB.value) {
+      await loadFileToSide(paths[0], "right");
+    } else {
+      await loadFileToSide(paths[0], side);
     }
-  } catch (error: any) {
-    logger.error("处理拖放文件失败", error);
-    customMessage.error(`处理失败: ${error}`);
   }
 };
 
-// 加载文件到指定侧
+// 加载文件到指定侧（调用服务）
 const loadFileToSide = async (filePath: string, side: "left" | "right") => {
-  try {
-    const content = await readTextFile(filePath);
+  const result = await textDiffService.loadFile(filePath);
 
-    if (content.length > 10 * 1024 * 1024) {
-      await customMessage.warning("文件较大（>10MB），可能影响性能");
-    }
-
-    if (content.includes("\0")) {
-      customMessage.error("不支持二进制文件");
-      return;
-    }
-
-    const fileName = filePath.split(/[/\\]/).pop() || "";
-
+  if (result.success) {
     if (side === "left") {
-      textA.value = content;
-      leftFilePath.value = filePath;
-      leftFileName.value = fileName;
+      textA.value = result.content;
+      leftFilePath.value = result.filePath;
+      leftFileName.value = result.fileName;
     } else {
-      textB.value = content;
-      rightFilePath.value = filePath;
-      rightFileName.value = fileName;
+      textB.value = result.content;
+      rightFilePath.value = result.filePath;
+      rightFileName.value = result.fileName;
     }
 
-    language.value = inferLanguage(filePath);
+    language.value = result.language;
 
-    logger.info(`文件已加载到${side}侧`, { path: filePath });
-  } catch (error: any) {
-    logger.error("加载文件失败", error);
-    throw error;
+    // 检查大文件
+    if (result.content.length > 10 * 1024 * 1024) {
+      customMessage.warning("文件较大（>10MB），可能影响性能");
+    }
+  } else {
+    customMessage.error(result.error || '加载文件失败');
   }
 };
 
 // ====== 剪贴板操作 ======
 
-// 复制到剪贴板
+// 复制到剪贴板（调用服务）
 const copyToClipboard = async (type: "left" | "right" | "patch") => {
-  try {
-    let content = "";
+  let content = "";
+  let label = "";
 
-    if (type === "left") {
-      content = textA.value;
-      if (!content) {
-        customMessage.warning("左侧内容为空");
-        return;
-      }
-    } else if (type === "right") {
-      content = textB.value;
-      if (!content) {
-        customMessage.warning("右侧内容为空");
-        return;
-      }
-    } else if (type === "patch") {
-      content = generateUnifiedPatch();
-      if (!content) {
-        customMessage.warning("无法生成补丁：两侧内容相同或为空");
-        return;
-      }
-    }
-
-    await writeText(content);
-
-    const label = type === "left" ? "左侧内容" : type === "right" ? "右侧内容" : "补丁";
-    customMessage.success(`已复制${label}到剪贴板`);
-    logger.info(`已复制${label}到剪贴板`, { length: content.length });
-  } catch (error: any) {
-    logger.error("复制到剪贴板失败", error);
-    customMessage.error(`复制失败: ${error}`);
-  }
-};
-
-// 从剪贴板粘贴
-const pasteFromClipboard = async (side: "left" | "right") => {
-  try {
-    const content = await readText();
-
+  if (type === "left") {
+    content = textA.value;
+    label = "左侧内容";
     if (!content) {
-      customMessage.warning("剪贴板为空");
+      customMessage.warning("左侧内容为空");
+      return;
+    }
+  } else if (type === "right") {
+    content = textB.value;
+    label = "右侧内容";
+    if (!content) {
+      customMessage.warning("右侧内容为空");
+      return;
+    }
+  } else if (type === "patch") {
+    const patchResult = textDiffService.generatePatch(textA.value, textB.value, {
+      oldFileName: leftFileName.value,
+      newFileName: rightFileName.value,
+      ignoreWhitespace: ignoreWhitespace.value,
+    });
+
+    if (!patchResult.success) {
+      customMessage.warning(patchResult.error || "无法生成补丁");
       return;
     }
 
+    content = patchResult.patch;
+    label = "补丁";
+  }
+
+  const result = await textDiffService.copyToClipboard(content);
+
+  if (result.success) {
+    customMessage.success(`已复制${label}到剪贴板`);
+  } else {
+    customMessage.error(result.error || '复制失败');
+  }
+};
+
+// 从剪贴板粘贴（调用服务）
+const pasteFromClipboard = async (side: "left" | "right") => {
+  const result = await textDiffService.pasteFromClipboard();
+
+  if (result.success) {
     if (side === "left") {
-      textA.value = content;
+      textA.value = result.content;
       leftFilePath.value = "";
       leftFileName.value = "";
     } else {
-      textB.value = content;
+      textB.value = result.content;
       rightFilePath.value = "";
       rightFileName.value = "";
     }
 
     customMessage.success(`已粘贴到${side === "left" ? "左侧" : "右侧"}`);
-    logger.info(`已从剪贴板粘贴到${side}侧`, { length: content.length });
-  } catch (error: any) {
-    logger.error("从剪贴板粘贴失败", error);
-    customMessage.error(`粘贴失败: ${error}`);
+  } else {
+    customMessage.error(result.error || '粘贴失败');
   }
 };
 
 // ====== 补丁生成与导出 ======
 
-// 生成统一 diff 补丁
-const generateUnifiedPatch = (): string => {
-  const oldText = textA.value;
-  const newText = textB.value;
-
-  if (!oldText && !newText) return "";
-
-  // 处理行尾空白（如果需要忽略）
-  let processedOld = oldText;
-  let processedNew = newText;
-
-  if (ignoreWhitespace.value) {
-    processedOld = oldText
-      .split("\n")
-      .map((line) => line.trimEnd())
-      .join("\n");
-    processedNew = newText
-      .split("\n")
-      .map((line) => line.trimEnd())
-      .join("\n");
-  }
-
-  const oldFileName = leftFileName.value || "original";
-  const newFileName = rightFileName.value || "modified";
-
-  const patch = createTwoFilesPatch(oldFileName, newFileName, processedOld, processedNew, "", "", {
-    context: 3,
+// 导出补丁文件（调用服务）
+const exportPatch = async () => {
+  // 生成补丁
+  const patchResult = textDiffService.generatePatch(textA.value, textB.value, {
+    oldFileName: leftFileName.value,
+    newFileName: rightFileName.value,
+    ignoreWhitespace: ignoreWhitespace.value,
   });
 
-  return patch;
-};
+  if (!patchResult.success) {
+    customMessage.warning(patchResult.error || "无法生成补丁");
+    return;
+  }
 
-// 导出补丁文件
-const exportPatch = async () => {
-  try {
-    const patch = generateUnifiedPatch();
+  // 生成默认文件名
+  let defaultName = "diff.patch";
+  if (leftFileName.value && rightFileName.value) {
+    const leftBase = leftFileName.value.replace(/\.[^.]+$/, "");
+    const rightBase = rightFileName.value.replace(/\.[^.]+$/, "");
+    defaultName = `${leftBase}_vs_${rightBase}.patch`;
+  }
 
-    if (!patch) {
-      customMessage.warning("无法生成补丁：两侧内容相同或为空");
-      return;
-    }
+  // 导出补丁
+  const exportResult = await textDiffService.exportPatch(patchResult.patch, defaultName);
 
-    // 生成默认文件名
-    let defaultName = "diff.patch";
-    if (leftFileName.value && rightFileName.value) {
-      const leftBase = leftFileName.value.replace(/\.[^.]+$/, "");
-      const rightBase = rightFileName.value.replace(/\.[^.]+$/, "");
-      defaultName = `${leftBase}_vs_${rightBase}.patch`;
-    }
-
-    const filePath = await save({
-      defaultPath: defaultName,
-      title: "导出补丁文件",
-      filters: [
-        {
-          name: "Patch 文件",
-          extensions: ["patch", "diff"],
-        },
-      ],
-    });
-
-    if (!filePath) return;
-
-    await writeTextFile(filePath, patch);
-
-    const fileName = filePath.split(/[/\\]/).pop() || "";
-    customMessage.success(`补丁已导出: ${fileName}`);
-    logger.info("补丁已导出", { path: filePath, size: patch.length });
-  } catch (error: any) {
-    logger.error("导出补丁失败", error);
-    customMessage.error(`导出失败: ${error}`);
+  if (exportResult.success) {
+    customMessage.success(`补丁已导出: ${exportResult.fileName}`);
+  } else if (exportResult.error && exportResult.error !== '用户取消操作') {
+    customMessage.error(exportResult.error);
   }
 };
 

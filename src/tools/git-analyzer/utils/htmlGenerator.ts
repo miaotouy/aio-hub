@@ -485,6 +485,11 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       </p>`;
       }
 
+      if (commit.branches && commit.branches.length > 0) {
+        html += `
+      <p><strong>分支:</strong> ${commit.branches.map((b) => escapeHtml(b)).join(", ")}</p>`;
+      }
+
       if (config.includeTags && commit.tags && commit.tags.length > 0) {
         html += `
       <p><strong>标签:</strong> ${commit.tags.map((t) => escapeHtml(t)).join(", ")}</p>`;

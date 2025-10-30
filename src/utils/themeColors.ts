@@ -58,60 +58,72 @@ export const applyThemeColors = (colors: {
 }) => {
   const root = document.documentElement;
   
-  // 根据当前主题选择颜色调整函数
-  // 暗色模式下使用 darkenColor（让颜色更暗），亮色模式下使用 lightenColor（让颜色更浅）
-  const adjustColor = isDark.value ? darkenColor : lightenColor;
+  // 派生颜色始终通过 lightenColor 生成，以确保色相一致
+  const adjustColor = lightenColor;
 
   // 应用主色调
   if (colors.primary && /^#[0-9A-F]{6}$/i.test(colors.primary)) {
     root.style.setProperty("--primary-color", colors.primary);
-    const hoverColor = adjustColor(colors.primary, 20);
-    root.style.setProperty("--primary-hover-color", hoverColor);
     const rgb = hexToRgb(colors.primary);
     if (rgb) {
       root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
     }
     root.style.setProperty("--el-color-primary", colors.primary);
-    root.style.setProperty("--el-color-primary-light-3", adjustColor(colors.primary, 30));
-    root.style.setProperty("--el-color-primary-light-5", adjustColor(colors.primary, 50));
-    root.style.setProperty("--el-color-primary-light-7", adjustColor(colors.primary, 70));
-    root.style.setProperty("--el-color-primary-light-9", adjustColor(colors.primary, 90));
+    for (let i = 1; i <= 9; i++) {
+      root.style.setProperty(
+        `--el-color-primary-light-${i}`,
+        adjustColor(colors.primary, i * 10)
+      );
+    }
+
+    // hover 颜色根据当前主题模式调整
+    const hoverAdjustFn = isDark.value ? lightenColor : darkenColor;
+    const hoverColor = hoverAdjustFn(colors.primary, 20);
+    root.style.setProperty("--primary-hover-color", hoverColor);
   }
 
   // 应用成功色
   if (colors.success && /^#[0-9A-F]{6}$/i.test(colors.success)) {
     root.style.setProperty("--el-color-success", colors.success);
-    root.style.setProperty("--el-color-success-light-3", adjustColor(colors.success, 30));
-    root.style.setProperty("--el-color-success-light-5", adjustColor(colors.success, 50));
-    root.style.setProperty("--el-color-success-light-7", adjustColor(colors.success, 70));
-    root.style.setProperty("--el-color-success-light-9", adjustColor(colors.success, 90));
+    for (let i = 1; i <= 9; i++) {
+      root.style.setProperty(
+        `--el-color-success-light-${i}`,
+        adjustColor(colors.success, i * 10)
+      );
+    }
   }
 
   // 应用警告色
   if (colors.warning && /^#[0-9A-F]{6}$/i.test(colors.warning)) {
     root.style.setProperty("--el-color-warning", colors.warning);
-    root.style.setProperty("--el-color-warning-light-3", adjustColor(colors.warning, 30));
-    root.style.setProperty("--el-color-warning-light-5", adjustColor(colors.warning, 50));
-    root.style.setProperty("--el-color-warning-light-7", adjustColor(colors.warning, 70));
-    root.style.setProperty("--el-color-warning-light-9", adjustColor(colors.warning, 90));
+    for (let i = 1; i <= 9; i++) {
+      root.style.setProperty(
+        `--el-color-warning-light-${i}`,
+        adjustColor(colors.warning, i * 10)
+      );
+    }
   }
 
   // 应用危险色
   if (colors.danger && /^#[0-9A-F]{6}$/i.test(colors.danger)) {
     root.style.setProperty("--el-color-danger", colors.danger);
-    root.style.setProperty("--el-color-danger-light-3", adjustColor(colors.danger, 30));
-    root.style.setProperty("--el-color-danger-light-5", adjustColor(colors.danger, 50));
-    root.style.setProperty("--el-color-danger-light-7", adjustColor(colors.danger, 70));
-    root.style.setProperty("--el-color-danger-light-9", adjustColor(colors.danger, 90));
+    for (let i = 1; i <= 9; i++) {
+      root.style.setProperty(
+        `--el-color-danger-light-${i}`,
+        adjustColor(colors.danger, i * 10)
+      );
+    }
   }
 
   // 应用信息色
   if (colors.info && /^#[0-9A-F]{6}$/i.test(colors.info)) {
     root.style.setProperty("--el-color-info", colors.info);
-    root.style.setProperty("--el-color-info-light-3", adjustColor(colors.info, 30));
-    root.style.setProperty("--el-color-info-light-5", adjustColor(colors.info, 50));
-    root.style.setProperty("--el-color-info-light-7", adjustColor(colors.info, 70));
-    root.style.setProperty("--el-color-info-light-9", adjustColor(colors.info, 90));
+    for (let i = 1; i <= 9; i++) {
+      root.style.setProperty(
+        `--el-color-info-light-${i}`,
+        adjustColor(colors.info, i * 10)
+      );
+    }
   }
 
   // 缓存到 localStorage 以避免下次启动时的闪烁

@@ -4,12 +4,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
-import { useAttachmentManager } from "@/tools/llm-chat/composables/useAttachmentManager";
+import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
+import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "./AttachmentCard.vue";
-import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("MessageInput");
 
@@ -27,27 +27,38 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const inputText = ref("");
 const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const inputAreaRef = ref<HTMLDivElement>();
 
-// 附件管理（使用默认配置）
-const attachmentManager = useAttachmentManager();
+// 使用全局输入管理器（替代本地状态）
+const inputManager = useChatInputManager();
+const inputText = inputManager.inputText; // 全局响应式状态
+const attachmentManager = {
+  attachments: inputManager.attachments,
+  isProcessing: inputManager.isProcessingAttachments,
+  hasAttachments: inputManager.hasAttachments,
+  count: inputManager.attachmentCount,
+  isFull: inputManager.isAttachmentsFull,
+  addAttachments: inputManager.addAttachments,
+  addAsset: inputManager.addAsset,
+  removeAttachment: (asset: Asset) => inputManager.removeAttachment(asset.id),
+  clearAttachments: inputManager.clearAttachments,
+};
 
 // 统一的文件交互处理（拖放 + 粘贴）
 const { isDraggingOver } = useChatFileInteraction({
   element: containerRef,
   onPaths: async (paths) => {
     logger.info('文件拖拽触发', { paths, disabled: props.disabled });
-    await attachmentManager.addAttachments(paths);
+    await inputManager.addAttachments(paths);
   },
   onAssets: async (assets) => {
     logger.info('文件粘贴触发', { count: assets.length });
     let successCount = 0;
     for (const asset of assets) {
-      if (attachmentManager.addAsset(asset)) {
+      if (inputManager.addAsset(asset)) {
         successCount++;
       }
     }
@@ -75,18 +86,19 @@ const handleSend = () => {
 
   logger.info('发送消息', {
     contentLength: content.length,
-    attachmentCount: attachmentManager.attachments.value.length,
+    attachmentCount: inputManager.attachmentCount.value,
     isDetached: props.isDetached
   });
   
   // 发送消息和附件
-  const attachments = attachmentManager.attachments.value.length > 0
-    ? [...attachmentManager.attachments.value]
+  const attachments = inputManager.attachmentCount.value > 0
+    ? [...inputManager.attachments.value]
     : undefined;
   
   emit("send", content, attachments);
-  inputText.value = "";
-  attachmentManager.clearAttachments();
+  
+  // 清空输入框和附件（使用全局管理器）
+  inputManager.clear();
   
   // 重置文本框高度
   if (textareaRef.value) {

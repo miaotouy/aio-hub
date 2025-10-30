@@ -22,10 +22,24 @@
           selectedCommit.full_message || selectedCommit.message
         }}</el-text>
       </el-descriptions-item>
-      <el-descriptions-item label="父提交" v-if="selectedCommit.parents">
+      <el-descriptions-item label="父提交" v-if="selectedCommit.parents && selectedCommit.parents.length > 0">
         <el-space>
           <el-tag v-for="parent in selectedCommit.parents" :key="parent">
             {{ parent.substring(0, 7) }}
+          </el-tag>
+        </el-space>
+      </el-descriptions-item>
+      <el-descriptions-item label="分支" v-if="selectedCommit.branches && selectedCommit.branches.length > 0">
+        <el-space>
+          <el-tag v-for="branch in selectedCommit.branches" :key="branch" type="success">
+            {{ branch }}
+          </el-tag>
+        </el-space>
+      </el-descriptions-item>
+      <el-descriptions-item label="标签" v-if="selectedCommit.tags && selectedCommit.tags.length > 0">
+        <el-space>
+          <el-tag v-for="tag in selectedCommit.tags" :key="tag" type="warning">
+            {{ tag }}
           </el-tag>
         </el-space>
       </el-descriptions-item>

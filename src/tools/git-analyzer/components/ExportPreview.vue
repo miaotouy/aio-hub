@@ -10,6 +10,7 @@
           刷新预览
         </el-button>
         <el-button size="small" @click="$emit('copy')" :icon="CopyDocument"> 复制 </el-button>
+        <el-button size="small" type="success" @click="$emit('sendToChat')" :icon="ChatDotRound"> 发送到聊天 </el-button>
         <el-button size="small" @click="$emit('download')" :icon="Download"> 下载 </el-button>
       </el-button-group>
     </div>
@@ -23,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { CopyDocument, Download, RefreshRight } from '@element-plus/icons-vue'
+import { CopyDocument, Download, RefreshRight, ChatDotRound } from '@element-plus/icons-vue'
 
 defineProps<{
   content: string
@@ -36,6 +37,7 @@ defineEmits<{
   refresh: []
   copy: []
   download: []
+  sendToChat: []
 }>()
 </script>
 

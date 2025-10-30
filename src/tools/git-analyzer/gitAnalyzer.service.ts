@@ -2,7 +2,7 @@ import type { ToolService } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { GitAnalyzerContext } from "./GitAnalyzerContext";
-import { fetchBranches, fetchBranchCommits } from "./composables/useGitLoader";
+import { fetchBranches, fetchBranchCommits, fetchCommitDetail } from "./composables/useGitLoader";
 import { getContributorStats } from "./composables/useGitProcessor";
 import type { GitCommit, RepoStatistics } from "./types";
 
@@ -89,6 +89,16 @@ export interface GetAuthorCommitsOptions {
   includeTags?: boolean;
   /** （可选）是否包含代码统计，默认 false */
   includeStats?: boolean;
+}
+
+/**
+ * 获取指定提交选项
+ */
+export interface GetCommitDetailOptions {
+  /** Git 仓库路径 */
+  path: string;
+  /** 提交哈希值 */
+  hash: string;
 }
 
 // ==================== 服务类 ====================
@@ -351,6 +361,29 @@ export default class GitAnalyzerService implements ToolService {
   }
 
   /**
+   * [Agent Friendly] 获取指定提交的详细信息
+   */
+  public async getCommitDetail(
+    options: GetCommitDetailOptions
+  ): Promise<GitCommit | null> {
+    const { path, hash } = options;
+    logger.info("获取提交详情 (Agent 调用)", { path, hash });
+
+    return await errorHandler.wrapAsync(
+      async () => {
+        const commit = await fetchCommitDetail(path, hash);
+        logger.info(`成功获取提交 ${hash} 的详情`);
+        return commit;
+      },
+      {
+        level: ErrorLevel.ERROR,
+        userMessage: "获取提交详情失败",
+        context: options,
+      }
+    );
+  }
+
+  /**
    * 获取仓库的分支列表
    */
   public async getBranchList(path: string): Promise<string[] | null> {
@@ -592,6 +625,48 @@ if (commits) {
       console.log(\`  变更: +\${c.stats.additions} -\${c.stats.deletions}\`);
     }
   });
+}`,
+        },
+        {
+          name: "getCommitDetail",
+          description: "[Agent 调用] 获取指定提交的详细信息，包含完整的提交消息、文件变更列表、代码统计和标签信息",
+          parameters: [
+            {
+              name: "options",
+              type: "GetCommitDetailOptions",
+              description: "查询选项",
+              properties: [
+                {
+                  name: "path",
+                  type: "string",
+                  description: "Git 仓库路径",
+                },
+                {
+                  name: "hash",
+                  type: "string",
+                  description: "提交哈希值（完整或短格式均可）",
+                },
+              ],
+            },
+          ],
+          returnType: "Promise<GitCommit | null>",
+          example: `
+const commit = await service.getCommitDetail({
+  path: '/path/to/repo',
+  hash: 'abc1234' // 或完整哈希 'abc1234567890...'
+});
+
+if (commit) {
+  console.log(commit.hash);        // "abc1234567890..."
+  console.log(commit.author);      // "Alice"
+  console.log(commit.email);       // "alice@example.com"
+  console.log(commit.date);        // "2024-01-15T14:30:00+08:00"
+  console.log(commit.message);     // "Fix bug in user service"
+  console.log(commit.full_message); // 完整提交消息（包含正文）
+  console.log(commit.parents);     // ["parent1", "parent2"]
+  console.log(commit.tags);        // ["v1.0.0", "release"]
+  console.log(commit.stats);       // { additions: 10, deletions: 5, files: 3 }
+  console.log(commit.files);       // [{ path: "src/user.ts", status: "M", additions: 5, deletions: 2 }, ...]
 }`,
         },
         {

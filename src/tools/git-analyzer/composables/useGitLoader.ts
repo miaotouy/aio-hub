@@ -88,6 +88,28 @@ export async function fetchBranchCommits(
 }
 
 /**
+ * 获取指定提交的详细信息
+ */
+export async function fetchCommitDetail(
+  path: string,
+  hash: string
+): Promise<GitCommit> {
+  logger.info("获取提交详情", { path, hash });
+  
+  try {
+    const commit = await invoke<GitCommit>("git_get_commit_detail", {
+      path,
+      hash,
+    });
+    logger.info(`成功获取提交 ${hash} 的详情`);
+    return commit;
+  } catch (error) {
+    logger.error("获取提交详情失败", error as Error, { path, hash });
+    throw error;
+  }
+}
+
+/**
  * 流式加载仓库数据
  * 通过事件监听逐步获取数据
  */

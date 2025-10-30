@@ -42,6 +42,7 @@ export interface ExportConfig {
   includeFullMessage: boolean
   includeFiles: boolean
   includeTags: boolean
+  includeBranches: boolean
   includeStats: boolean
   htmlTheme: 'light' | 'dark' | 'auto'
 }

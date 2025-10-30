@@ -85,6 +85,7 @@ const exportConfig = ref<ExportConfig>({
   includeFullMessage: false,
   includeFiles: false,
   includeTags: true,
+  includeBranches: true,
   includeStats: true,
   htmlTheme: 'light',
 })

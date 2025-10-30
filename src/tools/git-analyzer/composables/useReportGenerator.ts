@@ -181,7 +181,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           lines.push(`**提交信息**: ${commit.message}`);
         }
 
-        if (commit.branches && commit.branches.length > 0) {
+        if (cfg.includeBranches && commit.branches && commit.branches.length > 0) {
           lines.push("");
           lines.push(`**分支**: ${commit.branches.join(", ")}`);
         }
@@ -253,7 +253,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         ...(cfg.includeFullMessage && commit.full_message
           ? { full_message: commit.full_message }
           : {}),
-        ...(commit.branches && commit.branches.length > 0 ? { branches: commit.branches } : {}),
+        ...(cfg.includeBranches && commit.branches && commit.branches.length > 0 ? { branches: commit.branches } : {}),
         ...(cfg.includeTags && commit.tags ? { tags: commit.tags } : {}),
         ...(cfg.includeStats && commit.stats ? { stats: commit.stats } : {}),
         ...(cfg.includeFiles && commit.files ? { files: commit.files } : {}),
@@ -285,7 +285,9 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       if (cfg.includeStats) {
         headers.push("Additions", "Deletions", "Files Changed");
       }
-      headers.push("Branches");
+      if (cfg.includeBranches) {
+        headers.push("Branches");
+      }
       if (cfg.includeTags) {
         headers.push("Tags");
       }
@@ -313,7 +315,9 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           row.push(String(commit.stats.files));
         }
 
-        row.push(commit.branches && commit.branches.length > 0 ? `"${commit.branches.join(", ")}"` : "");
+        if (cfg.includeBranches) {
+          row.push(commit.branches && commit.branches.length > 0 ? `"${commit.branches.join(", ")}"` : "");
+        }
 
         if (cfg.includeTags) {
           row.push(commit.tags ? `"${commit.tags.join(", ")}"` : "");
@@ -438,7 +442,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           );
         }
 
-        if (commit.branches && commit.branches.length > 0) {
+        if (cfg.includeBranches && commit.branches && commit.branches.length > 0) {
           lines.push(`分支: ${commit.branches.join(", ")}`);
         }
 

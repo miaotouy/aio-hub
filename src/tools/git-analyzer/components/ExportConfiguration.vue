@@ -79,6 +79,7 @@
       <el-checkbox v-model="config.includeFullMessage"> 包含完整提交消息 </el-checkbox>
       <el-checkbox v-model="config.includeFiles"> 包含文件变更列表 </el-checkbox>
       <el-checkbox v-model="config.includeTags"> 包含标签信息 </el-checkbox>
+      <el-checkbox v-model="config.includeBranches"> 包含分支信息 </el-checkbox>
       <el-checkbox v-model="config.includeStats"> 包含代码统计 </el-checkbox>
     </el-form-item>
   </el-form>

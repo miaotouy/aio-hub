@@ -485,7 +485,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       </p>`;
       }
 
-      if (commit.branches && commit.branches.length > 0) {
+      if (config.includeBranches && commit.branches && commit.branches.length > 0) {
         html += `
       <p><strong>分支:</strong> ${commit.branches.map((b) => escapeHtml(b)).join(", ")}</p>`;
       }

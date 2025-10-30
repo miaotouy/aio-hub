@@ -89,192 +89,90 @@
 
 ## 改造优先级分级
 
-### 🟢 简单级（纯文本处理，优先改造）
+> **核心指导思想 (2025-10-30 更新):** 服务化改造的核心目标是**识别并封装可复用的核心能力**，使其能被其他工具或未来的 AI Agent 以编程方式调用。优先级将依据“对 Agent 的战略价值”和“能力的可复用性”进行动态调整，而不仅仅是评估技术改造的复杂度。
 
-**特点：** 无复杂状态，纯函数式逻辑，适合快速验证模式
+### 🌟 Agent 核心能力 (优先改造)
 
-#### 1. JsonFormatter ✅
+**特点：** 为 Agent 提供强大的、可编程的上下文感知和项目操作能力，是实现高级自动化功能的基础。
 
-- **复杂度：** ⭐
-- **状态：** 已完成
-- **业务逻辑：**
-  - JSON 解析与格式化
-  - 自定义展开层级
-  - 文件拖放读取
-- **已实现：**
-  - ✅ `jsonFormatter.service.ts` - 核心服务
-  - ✅ `formatJson()`, `parseJson()`, `readFile()` 方法
-  - ✅ 组件重构，业务逻辑完全剥离
+#### 1. git-analyzer
 
-#### 2. CodeFormatter ✅
+- **复杂度：** ⭐⭐⭐⭐
+- **状态：** `[ ] 待改造`
+- **服务化价值：** **极高**。为 Agent 提供强大的代码库洞察能力，例如查询提交历史、分析贡献者、获取分支状态等。是实现代码智能分析、自动化报告等高级功能的基础。
+- **初步分析：**
+  - 现有架构基于 `composables` (`useGitRepository`, `useGitDataProcessor` 等)，逻辑内聚性好，为服务化改造提供了良好基础。
+  - 核心逻辑不依赖 Vue，易于剥离。
+- **改造策略：**
+  - 创建 `gitAnalyzer.service.ts`。
+  - 将 `composables` 目录下的核心 Git 操作、数据处理和报告生成逻辑迁移至 Service。
+  - 设计并暴露高级、原子化的方法，如 `analyzeRepository(path)`, `getCommitHistory(options)`, `getBranchList()`, `getContributorStats()` 等。
+  - 组件 `GitAnalyzer.vue` 将通过 `executor` 调用新服务，自身仅保留 UI 逻辑。
 
-- **复杂度：** ⭐⭐
-- **状态：** 已完成
-- **业务逻辑：**
-  - 多语言代码格式化（Prettier）
-  - 语言检测与插件加载
-- **已实现：**
-  - ✅ `codeFormatter.service.ts` - 核心服务
-  - ✅ `formatCode()`, `detectLanguage()`, `getSupportedLanguages()` 方法
-  - ✅ 异步插件加载和错误处理
+---
+
+### 🟢 简单级（纯文本处理）
+
+**特点：** 无复杂状态，纯函数式逻辑，已完成。
+
+#### 2. JsonFormatter ✅ (已完成)
+#### 3. CodeFormatter ✅ (已完成)
 
 ---
 
 ### 🟡 中等复杂度（文件操作）
 
-**特点：** 涉及文件系统交互，需要处理异步操作和错误
+**特点：** 涉及文件系统交互，需要处理异步操作和错误。
 
-#### 3. TextDiff ✅
+#### 4. TextDiff ✅ (已完成)
+#### 5. SymlinkMover ✅ (已完成)
 
-- **复杂度：** ⭐⭐⭐
-- **状态：** 已完成
-- **业务逻辑：**
-  - 文件对比（Monaco Diff Editor）
-  - 文件读写
-  - 补丁生成与导出
-  - 剪贴板操作
-- **已实现：**
-  - ✅ `textDiff.service.ts` - 核心服务
-  - ✅ `openFile()`, `loadFile()`, `saveFile()` - 文件操作
-  - ✅ `generatePatch()`, `exportPatch()` - 补丁处理
-  - ✅ `copyToClipboard()`, `pasteFromClipboard()` - 剪贴板
-  - ✅ Monaco 编辑器实例管理保留在组件层
-  - ✅ 差异导航功能保留在组件层
-
-#### 4. SymlinkMover ✅
+#### 6. directory-janitor
 
 - **复杂度：** ⭐⭐
-- **状态：** 已完成
-- **业务逻辑：**
-  - 符号链接/硬链接管理
-  - 文件/目录移动
-  - 进度监听与日志记录
-  - 文件验证（跨设备、目录支持检测）
-- **已实现：**
-  - ✅ `symlinkMover.service.ts` - 核心服务
-  - ✅ `validateFile()`, `validateFiles()` - 文件验证
-  - ✅ `parsePathsToFileItems()`, `mergeFileItems()`, `removeFileByIndex()` - 文件列表管理
-  - ✅ `moveAndLink()`, `createLinksOnly()` - 核心操作
-  - ✅ `startProgressListener()`, `stopProgressListener()` - 进度监听
-  - ✅ `getLatestLog()`, `getAllLogs()` - 原始日志管理
-  - ✅ **高级封装方法（Agent 调用接口）：**
-    - `getLatestOperationSummary()` - 获取格式化的最新操作摘要
-    - `getOperationHistory(limit?)` - 获取格式化的操作历史
-  - ✅ 内部格式化工具（不对外暴露）：`formatBytes()`, `formatDuration()`, `formatTimestamp()` 等
-- **设计亮点：**
-  - 🎯 **分层设计**：内部方法 vs 对外接口明确分离
-  - 🎯 **高级封装**：Agent 调用时一次调用即可获取完整格式化信息
-  - 🎯 **完整类型定义**：新增 `FormattedLogSummary` 接口
-  - 🎯 **元数据优化**：只暴露真正需要对外调用的方法，包含使用示例
+- **状态：** `[ ] 待改造`
+- **服务化价值：** **较高**。允许 Agent 以编程方式执行清理任务，例如“使用'临时文件'规则集清理下载文件夹”。
+- **改造策略：**
+  - 创建 `directoryJanitor.service.ts`。
+  - 将 `utils.ts` 和组件中的文件扫描、规则匹配、文件操作逻辑迁移至 Service。
+  - 暴露 `scan(path, ruleset)`, `clean(path, ruleset)` 等核心方法。
+
+#### 7. media-info-reader
+
+- **复杂度：** ⭐⭐
+- **状态：** `[ ] 待改造`
+- **服务化价值：** **中等**。可以为其他服务或 Agent 提供读取媒体文件元数据（如时长、分辨率、编码格式）的原子能力。
+- **改造策略：**
+  - 创建 `mediaInfoReader.service.ts`。
+  - 封装底层媒体信息读取逻辑。
+  - 暴露 `getMetadata(filePath)` 等方法。
 
 ---
 
 ### 🔴 复杂级（状态管理整合）
 
-**特点：** 已有 Pinia store，需要决定状态管理策略
+**特点：** 通常与 Pinia store 紧密耦合，或具有复杂的内部状态。
 
-#### 5. RegexApplier ✅
-
-- **复杂度：** ⭐⭐⭐⭐
-- **状态：** 已完成
-- **现有架构：**
-  - `store.ts` - Pinia 预设管理
-  - `engine.ts` - 规则应用引擎
-  - `appConfig.ts` - 应用配置
-- **改造策略：**
-  - **保留 Pinia store** 用于预设管理（共享状态）
-  - **创建 Service** 封装文件处理逻辑
-  - 方法：`processText()`, `processFiles()`
-  - Service 可以调用 store，但不依赖 Vue 实例
-- **已实现：**
-  - ✅ `regexApplier.service.ts` - 核心服务
-  - ✅ `processText()` - 文本处理
-  - ✅ `processFiles()` - 文件批量处理
-  - ✅ `pasteFromClipboard()`, `copyToClipboard()` - 剪贴板操作
-  - ✅ `oneClickProcess()` - 一键处理流程
-  - ✅ `getFormattedTextResult()`, `getFormattedFileResult()` - 高级封装
-  - ✅ `getPresets()`, `getPresetById()` - 预设列表和详情查询
-  - ✅ `validateRegex()` - 正则表达式验证
-  - ✅ 完整的类型定义和元数据
-  - ✅ 组件重构，业务逻辑完全剥离
-- **设计亮点：**
-  - 🎯 **状态管理协作**：服务与 Pinia store 完美配合，store 管理预设，service 处理业务
-  - 🎯 **分层清晰**：UI 层只负责交互，业务逻辑完全在服务层
-  - 🎯 **高级封装**：提供格式化结果方法，便于 Agent 调用
-
-#### 6. ApiTester
-
-- **复杂度：** ⭐⭐⭐⭐
-- **现有架构：**
-  - `store.ts` - Profile 管理
-  - `types.ts` - 类型定义
-- **改造策略：**
-  - 保留 Pinia 用于 profile 状态
-  - Service 封装 HTTP 请求逻辑
+#### 8. RegexApplier ✅ (已完成)
+#### 9. smart-ocr ✅ (已完成)
 
 ---
 
-### 🔵 待评估工具
+### 🔵 低优先级 (重新评估)
 
-#### 7. git-analyzer
+**特点：** 服务化带来的直接价值有限，或已有更合适的替代方案。
 
-- **待分析：** 需要查看具体实现
-- **预估复杂度：** ⭐⭐⭐
+#### 10. ApiTester
 
-#### 8. directory-janitor
-
-- **待分析：** 目录清理工具
-- **预估复杂度：** ⭐⭐
-
-#### 9. media-info-reader
-
-- **待分析：** 媒体信息读取
-- **预估复杂度：** ⭐⭐
-
-#### 10. smart-ocr ✅
-
-- **复杂度：** ⭐⭐⭐⭐⭐
-- **状态：** 已完成
-- **现有架构：**
-  - `composables/useOcrRunner.ts` - OCR 引擎编排器
-  - `composables/useTesseractEngine.ts` - Tesseract.js 引擎
-  - `composables/useNativeEngine.ts` - Windows 原生 OCR 引擎
-  - `composables/useVlmEngine.ts` - 多模态大模型引擎
-  - `composables/useCloudOcrRunner.ts` - 云端 OCR 引擎
-  - `composables/useImageSlicer.ts` - 智能图片切割
-  - `config.ts` - 配置管理
-- **改造策略：**
-  - **采用"上下文模式"** - 完美解决状态隔离问题
-  - **无状态 Service** 作为工厂，创建独立的 Context 实例
-  - **响应式 Context** 封装所有业务逻辑和状态
-  - 保留现有 composables 作为底层引擎实现
-- **已实现：**
-  - ✅ `OcrContext.ts` - 响应式上下文类
-    - 封装所有响应式状态（`Ref` 和 `ComputedRef`）
-    - 实现完整的 OCR 业务流程
-    - 图片管理、切割、识别、重试等功能
-  - ✅ `smartOcr.service.ts` - 无状态工厂服务
-    - 只提供 `createContext()` 方法
-    - 每次调用创建独立的 Context 实例
-  - ✅ `SmartOcr.vue` - 组件重构
-    - 通过 Service 创建专属 Context
-    - 直接使用 Context 的响应式状态
-    - UI 与 Agent 调用完全隔离
-  - ✅ 完整的元数据定义
-  - ✅ 响应式状态列表说明
-- **设计亮点：**
-  - 🎯 **上下文模式创新**：完美解决了"响应式状态 vs 状态隔离"的矛盾
-  - 🎯 **UI-Agent 隔离**：UI 和 Agent 各自拥有独立的 Context，互不干扰
-  - 🎯 **响应式友好**：Context 中的所有状态都是 Vue 响应式的，可直接在模板中使用
-  - 🎯 **架构清晰**：Service（工厂）→ Context（实例）→ Composables（引擎）三层分离
-  - 🎯 **可扩展性强**：新增引擎只需添加新的 composable，无需修改 Context
+- **复杂度：** ⭐⭐⭐⭐
+- **状态：** `[ ] 暂缓`
+- **重新评估：** 核心价值在于其 UI，作为一个独立的 HTTP 客户端工具。其他服务若需发送 HTTP 请求，直接调用底层的 `fetch` 或封装的 `apiRequest` 更为直接高效。几乎不存在一个服务需要调用 `ApiTester` 服务来完成自身逻辑的场景，因此服务化价值较低。
 
 #### 11. llm-chat
 
 - **复杂度：** ⭐⭐⭐⭐⭐
-- **特殊性：** 已有完善的 composables 架构，可能不需要改造
-
----
+- **状态：** `[ ] 暂缓`
+- **重新评估：** 已拥有非常完善和独立的 `composables` 架构，其本身就是一个高度内聚的功能单元。在当前阶段，强行将其改造为服务模式的收益不明确，可能破坏其现有设计的优雅性。
 
 ## 改造模板与最佳实践
 

@@ -238,26 +238,31 @@ export default class DirectoryTreeService implements ToolService {
                   name: 'showFiles',
                   type: 'boolean',
                   description: '是否在树中显示文件（仅显示目录结构则设为 false）',
+                  defaultValue: true,
                 },
                 {
                   name: 'showHidden',
                   type: 'boolean',
                   description: '是否显示隐藏文件和目录',
+                  defaultValue: false,
                 },
                 {
                   name: 'showSize',
                   type: 'boolean',
                   description: '是否显示文件大小信息',
+                  defaultValue: false,
                 },
                 {
                   name: 'maxDepth',
                   type: 'number',
                   description: '目录树的最大深度（0 表示无限制，10 也表示无限制）',
+                  defaultValue: 5,
                 },
                 {
                   name: 'filterMode',
                   type: "'none' | 'gitignore' | 'custom'",
                   description: '过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则',
+                  defaultValue: 'none',
                 },
                 {
                   name: 'customPattern',

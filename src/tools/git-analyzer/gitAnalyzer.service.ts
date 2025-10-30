@@ -207,7 +207,7 @@ export default class GitAnalyzerService implements ToolService {
             }
             case 'timestamp':
               return String(new Date(date).getTime());
-            default:
+            defaultValue:
               return date;
           }
         };
@@ -318,7 +318,7 @@ export default class GitAnalyzerService implements ToolService {
             }
             case 'timestamp':
               return String(new Date(date).getTime());
-            default:
+            defaultValue:
               return date;
           }
         };
@@ -442,62 +442,72 @@ export default class GitAnalyzerService implements ToolService {
                 {
                   name: "branch",
                   type: "string",
-                  description: "（可选）指定分析的分支，默认为当前分支",
+                  description: "（可选）指定分析的分支",
                   optional: true,
+                  defaultValue: "当前分支或 'main'",
                 },
                 {
                   name: "limit",
                   type: "number",
-                  description: "（可选）限制分析的提交数量，默认 100",
+                  description: "（可选）限制分析的提交数量",
                   optional: true,
+                  defaultValue: 100,
                 },
                 {
                   name: "dateFormat",
                   type: "'iso' | 'local' | 'relative' | 'timestamp'",
-                  description: "（可选）日期格式，默认 'iso'",
+                  description: "（可选）日期格式",
                   optional: true,
+                  defaultValue: "iso",
                 },
                 {
                   name: "includes",
                   type: "Array<'statistics' | 'commits' | 'contributors' | 'timeline' | 'charts'>",
-                  description: "（可选）包含的内容类型，默认 ['statistics', 'commits', 'contributors']",
+                  description: "（可选）包含的内容类型",
                   optional: true,
+                  defaultValue: "['statistics', 'commits', 'contributors']",
                 },
                 {
                   name: "includeAuthor",
                   type: "boolean",
-                  description: "（可选）是否包含作者信息，默认 true",
+                  description: "（可选）是否包含作者信息",
                   optional: true,
+                  defaultValue: true,
                 },
                 {
                   name: "includeEmail",
                   type: "boolean",
-                  description: "（可选）是否包含作者邮箱，默认 false",
+                  description: "（可选）是否包含作者邮箱",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeFullMessage",
                   type: "boolean",
-                  description: "（可选）是否包含完整提交消息，默认 false",
+                  description: "（可选）是否包含完整提交消息",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeFiles",
                   type: "boolean",
-                  description: "（可选）是否包含文件变更列表，默认 false",
+                  description: "（可选）是否包含文件变更列表",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeTags",
                   type: "boolean",
-                  description: "（可选）是否包含标签信息，默认 false",
+                  description: "（可选）是否包含标签信息",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeStats",
                   type: "boolean",
-                  description: "（可选）是否包含代码统计，默认 false",
+                  description: "（可选）是否包含代码统计",
                   optional: true,
+                  defaultValue: false,
                 },
               ],
             },
@@ -556,48 +566,56 @@ if (analysis) {
                   type: "string",
                   description: "（可选）指定分支",
                   optional: true,
+                  defaultValue: "当前分支或 'main'",
                 },
                 {
                   name: "limit",
                   type: "number",
                   description: "（可选）限制提交数量",
                   optional: true,
+                  defaultValue: 100,
                 },
                 {
                   name: "dateFormat",
                   type: "'iso' | 'local' | 'relative' | 'timestamp'",
-                  description: "（可选）日期格式，默认 'iso'",
+                  description: "（可选）日期格式",
                   optional: true,
+                  defaultValue: "iso",
                 },
                 {
                   name: "includeEmail",
                   type: "boolean",
-                  description: "（可选）是否包含作者邮箱，默认 false",
+                  description: "（可选）是否包含作者邮箱",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeFullMessage",
                   type: "boolean",
-                  description: "（可选）是否包含完整提交消息，默认 false",
+                  description: "（可选）是否包含完整提交消息",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeFiles",
                   type: "boolean",
-                  description: "（可选）是否包含文件变更列表，默认 false",
+                  description: "（可选）是否包含文件变更列表",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeTags",
                   type: "boolean",
-                  description: "（可选）是否包含标签信息，默认 false",
+                  description: "（可选）是否包含标签信息",
                   optional: true,
+                  defaultValue: false,
                 },
                 {
                   name: "includeStats",
                   type: "boolean",
-                  description: "（可选）是否包含代码统计，默认 false",
+                  description: "（可选）是否包含代码统计",
                   optional: true,
+                  defaultValue: false,
                 },
               ],
             },

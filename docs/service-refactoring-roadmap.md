@@ -2,7 +2,7 @@
 
 ## 当前进度
 
-### ✅ 已完成（14/15）
+### ✅ 已完成（15/15）
 
 1. **基础架构** - 服务化核心框架
    - `src/services/types.ts` - 服务接口定义
@@ -167,15 +167,21 @@
   - ✅ 重构 `DirectoryJanitor.vue` 使用 Context 驱动
   - ✅ 完整的元数据定义
 
-#### 7. media-info-reader
+#### 7. AI Image Metadata Reader (media-info-reader) ✅ (已完成)
 
-- **复杂度：** ⭐⭐
-- **状态：** `[ ] 待改造`
-- **服务化价值：** **中等**。可以为其他服务或 Agent 提供读取媒体文件元数据（如时长、分辨率、编码格式）的原子能力。
-- **改造策略：**
-  - 创建 `mediaInfoReader.service.ts`。
-  - 封装底层媒体信息读取逻辑。
-  - 暴露 `getMetadata(filePath)` 等方法。
+- **复杂度：** ⭐⭐⭐
+- **状态：** `[x] 已完成`
+- **服务化价值：** **极高**。为 Agent 提供了理解 AI 生成图片（Stable Diffusion, ComfyUI）背后参数的核心能力。Agent 可以通过此服务读取图片的 Prompt、模型、采样器等关键信息，用于分析、复现或学习。
+- **改造总结：**
+  - ✅ 创建 `useMediaInfoParser.ts` composable - 封装核心解析逻辑（纯函数）
+  - ✅ 创建 `mediaInfoReader.service.ts` - 无状态服务层，作为薄层入口
+  - ✅ 封装了 `exifr` 和自定义的 PNG `tEXt` 区块解析逻辑
+  - ✅ 实现对 Stable Diffusion WebUI、ComfyUI、SillyTavern 角色卡的元数据提取
+  - ✅ 提供 Agent 友好的高级接口：
+    - ✅ `readImageMetadata(filePath)` - 从文件路径读取并解析
+    - ✅ `parseImageBuffer(buffer)` - 从内存 buffer 直接解析
+  - ✅ 重构 `MediaInfoReader.vue` 直接使用 composable（未采用 Context 模式，因复杂度较低）
+  - ✅ 完整的元数据定义和类型导出
 
 ---
 

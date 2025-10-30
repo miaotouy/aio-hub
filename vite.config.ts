@@ -26,6 +26,9 @@ export default defineConfig(async () => ({
     },
   },
 
+  // 将 .gz 文件标记为资源文件
+  assetsInclude: ['**/*.gz'],
+
   plugins: [
     VueDevTools(),
     vue(),

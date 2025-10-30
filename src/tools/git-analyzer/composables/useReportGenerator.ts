@@ -11,7 +11,7 @@ import {
   getContributorStats,
   generateTimelineData,
   generateChartData,
-} from "./useGitDataProcessor";
+} from "./useGitProcessor";
 import { generateHTML } from "../utils/htmlGenerator";
 
 interface ReportGeneratorOptions {

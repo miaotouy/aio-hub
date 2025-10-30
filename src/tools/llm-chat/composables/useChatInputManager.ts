@@ -37,6 +37,7 @@ const STORAGE_KEY = "llm-chat-input-draft";
  */
 interface ChatInputDraft {
   text: string;
+  attachments: Asset[];
   timestamp: number;
 }
 
@@ -48,7 +49,10 @@ class ChatInputManager {
   public inputText: Ref<string> = ref("");
 
   // 用于跨窗口同步的状态对象（可写的 ref）
-  public syncState: Ref<{ text: string }> = ref({ text: "" });
+  public syncState: Ref<{ text: string; attachments: Asset[] }> = ref({
+    text: "",
+    attachments: [],
+  });
 
   // 附件管理器实例
   public attachmentManager: UseAttachmentManagerReturn;
@@ -66,7 +70,7 @@ class ChatInputManager {
   private stateVersion = 0;
 
   // 上次同步的值
-  private lastSyncedValue: { text: string } = { text: "" };
+  private lastSyncedValue: { text: string; attachments: Asset[] } = { text: "", attachments: [] };
 
   // 防抖推送计时器
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -84,30 +88,74 @@ class ChatInputManager {
     // 从 localStorage 恢复状态
     this.restoreFromStorage();
 
-    // 初始化同步状态
-    this.syncState.value = { text: this.inputText.value };
-    this.lastSyncedValue = { text: this.inputText.value };
+    // 初始化同步状态（从 attachmentManager 获取当前附件）
+    this.syncState.value = {
+      text: this.inputText.value,
+      attachments: [...this.attachmentManager.attachments.value],
+    };
+    this.lastSyncedValue = {
+      text: this.inputText.value,
+      attachments: [...this.attachmentManager.attachments.value],
+    };
 
     // 监听输入框文本变化，同步到 syncState（用于跨窗口同步）
     watch(this.inputText, (newText) => {
       if (!this.isApplyingSyncState) {
-        this.syncState.value = { text: newText };
+        this.syncState.value = {
+          text: newText,
+          attachments: [...this.attachmentManager.attachments.value],
+        };
         // 防抖推送到其他窗口
         this.debouncedPushState();
       }
       this.debouncedSaveToStorage();
     });
 
-    // 监听 syncState 变化，同步回 inputText（来自其他窗口的更新）
+    // 监听附件变化，同步到 syncState 和 localStorage
+    watch(
+      () => this.attachmentManager.attachments.value,
+      (newAttachments) => {
+        if (!this.isApplyingSyncState) {
+          this.syncState.value = {
+            text: this.inputText.value,
+            attachments: [...newAttachments],
+          };
+          // 防抖推送到其他窗口
+          this.debouncedPushState();
+          // 附件变化也需要保存到 localStorage
+          this.debouncedSaveToStorage();
+        }
+      },
+      { deep: true }
+    );
+
+    // 监听 syncState 变化，同步回 inputText 和附件（来自其他窗口的更新）
     watch(
       this.syncState,
       (newState) => {
+        this.isApplyingSyncState = true;
+
+        // 同步文本
         if (newState.text !== this.inputText.value) {
-          this.isApplyingSyncState = true;
           this.inputText.value = newState.text;
           logger.debug("从同步状态更新输入框", { textLength: newState.text.length });
-          this.isApplyingSyncState = false;
         }
+
+        // 同步附件
+        if (
+          JSON.stringify(newState.attachments) !==
+          JSON.stringify(this.attachmentManager.attachments.value)
+        ) {
+          // 清空现有附件
+          this.attachmentManager.clearAttachments();
+          // 添加新附件
+          if (newState.attachments.length > 0) {
+            this.attachmentManager.addAssets(newState.attachments);
+            logger.debug("从同步状态更新附件", { count: newState.attachments.length });
+          }
+        }
+
+        this.isApplyingSyncState = false;
       },
       { deep: true }
     );
@@ -126,14 +174,22 @@ class ChatInputManager {
       this.isApplyingSyncState = true;
       try {
         if (payload.isFull) {
-          this.syncState.value = payload.data as { text: string };
-          logger.info("已应用全量输入状态", { version: payload.version });
+          this.syncState.value = payload.data as { text: string; attachments: Asset[] };
+          logger.info("已应用全量输入状态", {
+            version: payload.version,
+            textLength: this.syncState.value.text.length,
+            attachmentCount: this.syncState.value.attachments.length,
+          });
         } else {
           this.syncState.value = applyPatches(
             this.syncState.value,
             payload.patches as JsonPatchOperation[]
           );
-          logger.info("已应用增量输入状态", { version: payload.version });
+          logger.info("已应用增量输入状态", {
+            version: payload.version,
+            textLength: this.syncState.value.text.length,
+            attachmentCount: this.syncState.value.attachments.length,
+          });
         }
         this.stateVersion = payload.version;
         this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
@@ -212,6 +268,7 @@ class ChatInputManager {
     }
     logger.info("ChatInputManager 已清理");
   }
+
   /**
    * 从 localStorage 恢复状态
    */
@@ -221,10 +278,21 @@ class ChatInputManager {
       if (stored) {
         const draft: ChatInputDraft = JSON.parse(stored);
         this.inputText.value = draft.text || "";
-        logger.info("从 localStorage 恢复输入状态", {
-          textLength: this.inputText.value.length,
-          timestamp: draft.timestamp,
-        });
+        
+        // 恢复附件列表
+        if (draft.attachments && Array.isArray(draft.attachments)) {
+          this.attachmentManager.addAssets(draft.attachments);
+          logger.info("从 localStorage 恢复输入状态（含附件）", {
+            textLength: this.inputText.value.length,
+            attachmentCount: draft.attachments.length,
+            timestamp: draft.timestamp,
+          });
+        } else {
+          logger.info("从 localStorage 恢复输入状态", {
+            textLength: this.inputText.value.length,
+            timestamp: draft.timestamp,
+          });
+        }
       }
     } catch (error) {
       logger.error("恢复输入状态失败", error);
@@ -251,11 +319,13 @@ class ChatInputManager {
     try {
       const draft: ChatInputDraft = {
         text: this.inputText.value,
+        attachments: [...this.attachmentManager.attachments.value],
         timestamp: Date.now(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
       logger.debug("保存输入状态到 localStorage", {
         textLength: this.inputText.value.length,
+        attachmentCount: this.attachmentManager.attachments.value.length,
       });
     } catch (error) {
       logger.error("保存输入状态失败", error);
@@ -352,6 +422,7 @@ class ChatInputManager {
     return this.attachmentManager.attachments.value;
   }
 }
+
 /**
  * 使用聊天输入管理器（Composable）
  *

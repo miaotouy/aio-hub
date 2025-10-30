@@ -144,13 +144,15 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
     return assets
   }
 
-  // 处理粘贴事件
-  const handlePaste = async (e: ClipboardEvent) => {
+  // 处理粘贴事件（使用 EventListener 兼容的签名）
+  const handlePaste = async (e: Event) => {
+    // 类型断言为 ClipboardEvent
+    const clipboardEvent = e as ClipboardEvent
     // 检查是否禁用
     if (typeof dropOptions.disabled === 'boolean' && dropOptions.disabled) return
     if (typeof dropOptions.disabled === 'object' && dropOptions.disabled.value) return
     
-    const items = e.clipboardData?.items
+    const items = clipboardEvent.clipboardData?.items
     if (!items) return
     
     const pastedFiles: File[] = []
@@ -176,7 +178,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
     
     // 阻止默认粘贴行为
     if (preventDefaultOnPaste) {
-      e.preventDefault()
+      clipboardEvent.preventDefault()
     }
     
     logger.info('粘贴文件', {
@@ -248,16 +250,33 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
     return options.element.value || null
   }
 
+  // 记录当前监听器绑定的元素（用于清理）
+  let currentListenerTarget: HTMLElement | Document | null = null
+
   // 设置粘贴事件监听
   const setupPasteListener = () => {
     if (!enablePaste) return
     
+    // 先清理旧的监听器
+    cleanupPasteListener()
+    
     const targetElement = getTargetElement()
     if (targetElement) {
       targetElement.addEventListener('paste', handlePaste)
-    } else {
-      // 如果没有指定元素，监听全局粘贴事件
+      currentListenerTarget = targetElement
+      logger.debug('在指定元素上设置粘贴监听器', {
+        element: targetElement.tagName,
+        id: targetElement.id,
+        className: targetElement.className
+      })
+    } else if (!options.element) {
+      // 只有明确没有指定 element 选项时，才使用全局监听
       document.addEventListener('paste', handlePaste)
+      currentListenerTarget = document
+      logger.debug('在 document 上设置全局粘贴监听器')
+    } else {
+      // 指定了 element 但元素还不存在，先不设置监听器
+      logger.debug('目标元素尚未就绪，跳过粘贴监听器设置')
     }
   }
 
@@ -265,11 +284,12 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   const cleanupPasteListener = () => {
     if (!enablePaste) return
     
-    const targetElement = getTargetElement()
-    if (targetElement) {
-      targetElement.removeEventListener('paste', handlePaste)
-    } else {
-      document.removeEventListener('paste', handlePaste)
+    if (currentListenerTarget) {
+      currentListenerTarget.removeEventListener('paste', handlePaste)
+      logger.debug('清理粘贴监听器', {
+        target: currentListenerTarget === document ? 'document' : 'element'
+      })
+      currentListenerTarget = null
     }
   }
 

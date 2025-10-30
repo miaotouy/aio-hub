@@ -16,6 +16,26 @@
             </div>
             <el-table :data="row.properties" size="small" class="properties-table">
               <el-table-column prop="name" label="属性名" width="150" />
+              <el-table-column label="必填" width="80" align="center">
+                <template #default="{ row: prop }">
+                  <el-tag
+                    v-if="prop.required !== false"
+                    size="small"
+                    type="danger"
+                    effect="plain"
+                  >
+                    必填
+                  </el-tag>
+                  <el-tag
+                    v-else
+                    size="small"
+                    type="info"
+                    effect="plain"
+                  >
+                    可选
+                  </el-tag>
+                </template>
+              </el-table-column>
               <el-table-column prop="type" label="类型" width="200">
                 <template #default="{ row: prop }">
                   <el-tag size="small" type="warning" effect="light" round>
@@ -42,6 +62,26 @@
         </template>
       </el-table-column>
       <el-table-column prop="name" label="参数名" width="150" />
+      <el-table-column label="必填" width="80" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.required !== false"
+            size="small"
+            type="danger"
+            effect="plain"
+          >
+            必填
+          </el-tag>
+          <el-tag
+            v-else
+            size="small"
+            type="info"
+            effect="plain"
+          >
+            可选
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="type" label="类型" width="200">
         <template #default="{ row }">
           <div class="type-cell">

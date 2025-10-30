@@ -8,6 +8,8 @@ export interface MethodParameter {
   name: string;
   type: string; // 例如: 'string', 'number', 'GenerateTreeOptions'
   description?: string;
+  /** 是否为必填参数，默认为 true */
+  required?: boolean;
   defaultValue?: any;
   /** 当 type 为对象类型时，描述对象的属性 */
   properties?: MethodParameter[];

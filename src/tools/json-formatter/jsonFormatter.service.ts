@@ -298,22 +298,26 @@ export default class JsonFormatterService implements ToolService {
               name: 'text',
               type: 'string',
               description: '要格式化的 JSON 字符串',
+              required: true,
             },
             {
               name: 'options',
               type: 'FormatOptions',
               description: '格式化选项',
+              required: false,
               properties: [
                 {
                   name: 'expandDepth',
                   type: 'number',
                   description: '展开层级深度（1-10），默认 3',
+                  required: false,
                   defaultValue: 3,
                 },
                 {
                   name: 'indentSize',
                   type: 'number',
                   description: '每层缩进空格数，默认 2',
+                  required: false,
                   defaultValue: 2,
                 },
               ],

@@ -127,12 +127,13 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import InfoCard from "../../../components/common/InfoCard.vue";
 import DropZone from "../../../components/common/DropZone.vue";
 import { builtInPresets, type CleanupPreset } from "../presets";
-import { resolveEnvPath } from "../utils";
 import { createModuleLogger } from "@utils/logger";
+import type { DirectoryJanitorContext } from "../DirectoryJanitorContext";
 
 const logger = createModuleLogger("tools/directory-janitor/ConfigPanel");
 
 interface Props {
+  context: DirectoryJanitorContext;
   scanPath: string;
   namePattern: string;
   minAgeDays?: number;
@@ -192,37 +193,24 @@ watch(
   () => props.maxDepth,
   (value) => (localMaxDepth.value = value)
 );
-
 // 应用预设
 const handlePresetChange = async (presetId?: string) => {
   if (!presetId) {
     return;
   }
-
   const preset = presets.value.find((p) => p.id === presetId);
   if (!preset) {
     logger.warn("未找到预设", { presetId });
     return;
   }
 
-  // 解析环境变量并应用预设配置
-  const resolvedPath = await resolveEnvPath(preset.scanPath);
-  localScanPath.value = resolvedPath;
-  localNamePattern.value = preset.namePattern;
-  localMinAgeDays.value = preset.minAgeDays;
-  localMinSizeMB.value = preset.minSizeMB;
-  localMaxDepth.value = preset.maxDepth;
-
-  logger.info("已应用预设", {
-    preset: preset.name,
-    originalPath: preset.scanPath,
-    resolvedPath,
-  });
-
-  if (!preset.scanPath) {
-    customMessage.info(`已应用预设: ${preset.name}，请选择扫描路径`);
-  } else {
-    customMessage.success(`已应用预设: ${preset.name}`);
+  const result = await props.context.applyPreset(preset);
+  if (result) {
+    if (result.needSelectPath) {
+      customMessage.info(`已应用预设: ${result.presetName}，请选择扫描路径`);
+    } else {
+      customMessage.success(`已应用预设: ${result.presetName}`);
+    }
   }
 };
 

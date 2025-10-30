@@ -17,9 +17,9 @@
     </div>
 
     <template #headerExtra>
-      <div v-if="items.length > 0" class="header-actions">
+      <div v-if="filteredItems.length > 0" class="header-actions">
         <el-tag type="info" size="large">
-          {{ selectedItems.length }} / {{ items.length }} 项
+          {{ selectedItems.length }} / {{ filteredItems.length }} 项
         </el-tag>
         <el-tag type="warning" size="large">
           {{ formatBytes(selectedSize) }}
@@ -45,7 +45,7 @@
       </el-empty>
     </div>
 
-    <div v-else-if="items.length === 0" class="empty-state">
+    <div v-else-if="filteredItems.length === 0 && !hasActiveFilters" class="empty-state">
       <el-empty description="未找到符合条件的项目">
         <template #image>
           <el-icon :size="64">
@@ -88,7 +88,7 @@
             size="small"
             style="width: 150px"
           />
-          <el-button size="small" @click="clearFilters" :disabled="!hasActiveFilters">
+          <el-button size="small" @click="clearFilters" :disabled="!props.hasActiveFilters">
             清除筛选
           </el-button>
         </div>
@@ -99,10 +99,10 @@
           全选
         </el-checkbox>
         <div class="stats-info">
-          <span>显示: {{ filteredItems.length }} / {{ allItems.length }} 项</span>
-          <span>总大小: {{ formatBytes(filteredStatistics.totalSize) }}</span>
-          <span>目录: {{ filteredStatistics.totalDirs }}</span>
-          <span>文件: {{ filteredStatistics.totalFiles }}</span>
+          <span>显示: {{ filteredItems.length }} / {{ allItemsCount }} 项</span>
+          <span>总大小: {{ formatBytes(props.filteredStatistics.totalSize) }}</span>
+          <span>目录: {{ props.filteredStatistics.totalDirs }}</span>
+          <span>文件: {{ props.filteredStatistics.totalFiles }}</span>
         </div>
       </div>
 
@@ -149,12 +149,14 @@ import { formatBytes, formatAge, formatCurrentPath } from "../utils";
 import type { ItemInfo, DirectoryScanProgress, Statistics } from "../types";
 
 interface Props {
-  items: ItemInfo[];
-  allItems: ItemInfo[];
+  filteredItems: ItemInfo[];
+  allItemsCount: number;
   selectedPaths: Set<string>;
   hasAnalyzed: boolean;
   showProgress: boolean;
   scanProgress: DirectoryScanProgress | null;
+  filteredStatistics: Statistics;
+  hasActiveFilters: boolean;
   filterNamePattern: string;
   filterMinAgeDays?: number;
   filterMinSizeMB?: number;
@@ -176,11 +178,12 @@ const localFilterNamePattern = ref(props.filterNamePattern);
 const localFilterMinAgeDays = ref(props.filterMinAgeDays);
 const localFilterMinSizeMB = ref(props.filterMinSizeMB);
 
-// 同步筛选状态
+// 同步筛选状态到父组件（Context）
 watch(localFilterNamePattern, (value) => emit("update:filterNamePattern", value));
 watch(localFilterMinAgeDays, (value) => emit("update:filterMinAgeDays", value));
 watch(localFilterMinSizeMB, (value) => emit("update:filterMinSizeMB", value));
 
+// 同步父组件（Context）状态到本地
 watch(
   () => props.filterNamePattern,
   (value) => (localFilterNamePattern.value = value)
@@ -194,63 +197,16 @@ watch(
   (value) => (localFilterMinSizeMB.value = value)
 );
 
-// 计算过滤后的项目
-const filteredItems = computed(() => {
-  let filtered = props.allItems;
-
-  // 名称筛选
-  if (localFilterNamePattern.value) {
-    const pattern = localFilterNamePattern.value.toLowerCase();
-    filtered = filtered.filter(
-      (item: ItemInfo) =>
-        item.name.toLowerCase().includes(pattern) || item.path.toLowerCase().includes(pattern)
-    );
-  }
-
-  // 年龄筛选
-  if (localFilterMinAgeDays.value !== undefined && localFilterMinAgeDays.value > 0) {
-    const minTimestamp = Math.floor(Date.now() / 1000) - localFilterMinAgeDays.value * 86400;
-    filtered = filtered.filter((item: ItemInfo) => item.modified < minTimestamp);
-  }
-
-  // 大小筛选
-  if (localFilterMinSizeMB.value !== undefined && localFilterMinSizeMB.value > 0) {
-    const minSize = localFilterMinSizeMB.value * 1024 * 1024;
-    filtered = filtered.filter((item: ItemInfo) => item.size >= minSize);
-  }
-
-  return filtered;
-});
-
-// 筛选后的统计信息
-const filteredStatistics = computed(
-  (): Statistics => ({
-    totalItems: filteredItems.value.length,
-    totalSize: filteredItems.value.reduce((sum: number, item: ItemInfo) => sum + item.size, 0),
-    totalDirs: filteredItems.value.filter((item: ItemInfo) => item.isDir).length,
-    totalFiles: filteredItems.value.filter((item: ItemInfo) => !item.isDir).length,
-  })
-);
-
-// 是否有激活的筛选条件
-const hasActiveFilters = computed(() => {
-  return !!(
-    localFilterNamePattern.value ||
-    localFilterMinAgeDays.value ||
-    localFilterMinSizeMB.value
-  );
-});
-
-// 清除筛选条件
+// 清除筛选条件（通过 emit 通知 Context）
 const clearFilters = () => {
-  localFilterNamePattern.value = "";
-  localFilterMinAgeDays.value = undefined;
-  localFilterMinSizeMB.value = undefined;
+  emit("update:filterNamePattern", "");
+  emit("update:filterMinAgeDays", undefined);
+  emit("update:filterMinSizeMB", undefined);
 };
 
 // 选中的项目
 const selectedItems = computed(() =>
-  filteredItems.value.filter((item: ItemInfo) => props.selectedPaths.has(item.path))
+  props.filteredItems.filter((item: ItemInfo) => props.selectedPaths.has(item.path))
 );
 
 const selectedSize = computed(() =>
@@ -260,7 +216,7 @@ const selectedSize = computed(() =>
 // 全选状态
 const selectAll = ref(false);
 const isIndeterminate = computed(
-  () => props.selectedPaths.size > 0 && props.selectedPaths.size < filteredItems.value.length
+  () => props.selectedPaths.size > 0 && props.selectedPaths.size < props.filteredItems.length
 );
 
 // 切换项目选择
@@ -278,7 +234,7 @@ const toggleItem = (item: ItemInfo) => {
 const handleSelectAll = (checked: boolean) => {
   const newSet = new Set(props.selectedPaths);
   if (checked) {
-    filteredItems.value.forEach((item) => newSet.add(item.path));
+    props.filteredItems.forEach((item) => newSet.add(item.path));
   } else {
     newSet.clear();
   }
@@ -287,10 +243,13 @@ const handleSelectAll = (checked: boolean) => {
 
 // 监听选择变化更新全选状态
 watch(
-  () => props.selectedPaths,
+  () => [props.selectedPaths, props.filteredItems],
   () => {
-    selectAll.value =
-      props.selectedPaths.size === filteredItems.value.length && filteredItems.value.length > 0;
+    if (props.filteredItems.length === 0) {
+      selectAll.value = false;
+      return;
+    }
+    selectAll.value = props.selectedPaths.size === props.filteredItems.length;
   },
   { deep: true }
 );

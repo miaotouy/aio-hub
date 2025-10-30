@@ -2,7 +2,7 @@
 
 ## 当前进度
 
-### ✅ 已完成（13/15）
+### ✅ 已完成（14/15）
 
 1. **基础架构** - 服务化核心框架
    - `src/services/types.ts` - 服务接口定义
@@ -98,6 +98,20 @@
 - ✅ 更新辅助 composables（`useCharts.ts`, `useReportGenerator.ts`）
 - ✅ 完整的元数据定义
 
+13. **DirectoryJanitor** - 中等复杂度工具（完成）
+
+- ✅ 采用"上下文模式"架构
+- ✅ 创建 `DirectoryJanitorContext.ts` - 管理所有响应式状态和业务编排
+- ✅ 创建 `directoryJanitor.service.ts` - 无状态服务层
+- ✅ 实现 Agent 友好的高级接口：
+  - ✅ `scanDirectory()` - 扫描目录并返回格式化结果
+  - ✅ `cleanupItems()` - 清理指定的文件和目录
+  - ✅ `scanAndCleanup()` - 一步到位的扫描并清理
+- ✅ 重构 `DirectoryJanitor.vue` 使用 Context 实例驱动 UI
+- ✅ 重构 `ConfigPanel.vue` 和 `ResultPanel.vue` 适配新架构
+- ✅ 服务元数据只暴露高级接口
+- ✅ 完整的类型定义和错误处理
+
 ---
 
 ## 改造优先级分级
@@ -140,15 +154,18 @@
 #### 4. TextDiff ✅ (已完成)
 #### 5. SymlinkMover ✅ (已完成)
 
-#### 6. directory-janitor
+#### 6. directory-janitor ✅ (已完成)
 
 - **复杂度：** ⭐⭐
-- **状态：** `[ ] 待改造`
-- **服务化价值：** **较高**。允许 Agent 以编程方式执行清理任务，例如“使用'临时文件'规则集清理下载文件夹”。
-- **改造策略：**
-  - 创建 `directoryJanitor.service.ts`。
-  - 将 `utils.ts` 和组件中的文件扫描、规则匹配、文件操作逻辑迁移至 Service。
-  - 暴露 `scan(path, ruleset)`, `clean(path, ruleset)` 等核心方法。
+- **状态：** `[x] 已完成`
+- **服务化价值：** **较高**。允许 Agent 以编程方式执行清理任务，例如"使用'临时文件'规则集清理下载文件夹"。
+- **改造总结：**
+  - ✅ 采用"上下文模式"架构
+  - ✅ 创建 `DirectoryJanitorContext.ts` 管理响应式状态和业务编排
+  - ✅ 创建 `directoryJanitor.service.ts` 无状态服务层
+  - ✅ 实现 `scanDirectory()`, `cleanupItems()`, `scanAndCleanup()` 高级接口
+  - ✅ 重构 `DirectoryJanitor.vue` 使用 Context 驱动
+  - ✅ 完整的元数据定义
 
 #### 7. media-info-reader
 

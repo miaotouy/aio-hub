@@ -27,8 +27,12 @@ export interface UseAttachmentManagerReturn {
   addAttachments: (paths: string[]) => Promise<void>;
   /** 直接添加已导入的资产 */
   addAsset: (asset: Asset) => boolean;
+  /** 批量添加 Asset 对象 */
+  addAssets: (assets: Asset[]) => number;
   /** 移除附件 */
   removeAttachment: (asset: Asset) => void;
+  /** 通过 ID 移除附件 */
+  removeAttachmentById: (assetId: string) => void;
   /** 清空附件 */
   clearAttachments: () => void;
   /** 附件数量 */
@@ -328,6 +332,18 @@ export function useAttachmentManager(
   };
 
   /**
+   * 通过 ID 移除附件
+   */
+  const removeAttachmentById = (assetId: string): void => {
+    const index = attachments.value.findIndex((a) => a.id === assetId);
+    if (index !== -1) {
+      const assetName = attachments.value[index].name;
+      attachments.value.splice(index, 1);
+      logger.info("通过 ID 移除附件", { assetId, name: assetName });
+    }
+  };
+
+  /**
    * 直接添加已导入的资产
    */
   const addAsset = (asset: Asset): boolean => {
@@ -356,6 +372,24 @@ export function useAttachmentManager(
   };
 
   /**
+   * 批量添加 Asset 对象
+   * @returns 成功添加的数量
+   */
+  const addAssets = (assetsToAdd: Asset[]): number => {
+    let addedCount = 0;
+    for (const asset of assetsToAdd) {
+      if (addAsset(asset)) {
+        addedCount++;
+      }
+      if (isFull.value) {
+        logger.warn("附件已满，停止批量添加");
+        break;
+      }
+    }
+    return addedCount;
+  };
+
+  /**
    * 清空附件
    */
   const clearAttachments = (): void => {
@@ -369,7 +403,9 @@ export function useAttachmentManager(
     isProcessing: isProcessing as Readonly<typeof isProcessing>,
     addAttachments,
     addAsset,
+    addAssets,
     removeAttachment,
+    removeAttachmentById,
     clearAttachments,
     count,
     hasAttachments,

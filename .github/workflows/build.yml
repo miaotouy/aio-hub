@@ -48,12 +48,13 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev
 
       - name: 安装依赖 (macOS)
         if: matrix.platform == 'macos-latest'
         run: |
-          brew install libgit2
+          brew install openssl libgit2
+          echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
 
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2

@@ -112,6 +112,48 @@ class PluginManager {
     }
     return undefined;
   }
+
+  /**
+   * 从 ZIP 文件安装插件
+   * @param zipPath ZIP 文件路径
+   * @returns 安装结果
+   */
+  async installPluginFromZip(zipPath: string): Promise<{
+    pluginId: string;
+    pluginName: string;
+    version: string;
+    installPath: string;
+  }> {
+    logger.info(`开始从 ZIP 文件安装插件: ${zipPath}`);
+
+    try {
+      // 调用后端命令安装插件
+      const { invoke } = await import('@tauri-apps/api/core');
+      const result = await invoke<{
+        pluginId: string;
+        pluginName: string;
+        version: string;
+        installPath: string;
+      }>('install_plugin_from_zip', { zipPath });
+
+      logger.info(`插件安装成功`, result);
+
+      // 重新加载插件
+      if (this.loader) {
+        const loadResult = await this.loader.loadAll();
+        
+        // 注册新加载的插件
+        if (loadResult.plugins.length > 0) {
+          await serviceRegistry.register(...loadResult.plugins);
+        }
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`从 ZIP 安装插件失败`, error);
+      throw error;
+    }
+  }
 }
 
 // 导出单例实例

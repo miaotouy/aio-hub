@@ -12,6 +12,8 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use std::time::SystemTime;
 use lazy_static::lazy_static;
+use std::io::{Read, Write};
+use zip::ZipArchive;
 
 // 进度事件结构体
 #[derive(Clone, Serialize)]
@@ -1176,4 +1178,167 @@ pub async fn uninstall_plugin(
         .map_err(|e| format!("移入回收站失败: {}", e))?;
     
     Ok(format!("插件 {} 已移入回收站", plugin_id))
+}
+
+// 插件安装结果
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallResult {
+    pub plugin_id: String,
+    pub plugin_name: String,
+    pub version: String,
+    pub install_path: String,
+}
+
+// Tauri 命令：从 ZIP 文件安装插件
+#[tauri::command]
+pub async fn install_plugin_from_zip(
+    app: AppHandle,
+    zip_path: String,
+) -> Result<PluginInstallResult, String> {
+    use tauri::Manager;
+    
+    let zip_file_path = PathBuf::from(&zip_path);
+    
+    // 检查 ZIP 文件是否存在
+    if !zip_file_path.exists() {
+        return Err(format!("ZIP 文件不存在: {}", zip_path));
+    }
+    
+    if !zip_file_path.is_file() {
+        return Err(format!("路径不是文件: {}", zip_path));
+    }
+    
+    // 打开 ZIP 文件
+    let file = fs::File::open(&zip_file_path)
+        .map_err(|e| format!("无法打开 ZIP 文件: {}", e))?;
+    
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| format!("无法读取 ZIP 文件: {}", e))?;
+    
+    // 查找并读取 manifest.json
+    let manifest_content = {
+        let mut manifest_found = false;
+        let mut content = String::new();
+        
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)
+                .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+            
+            let file_name = file.name().to_string();
+            
+            // 检查是否是根目录下的 manifest.json
+            if file_name == "manifest.json" || file_name.ends_with("/manifest.json") {
+                // 确保不是嵌套目录中的 manifest.json
+                let parts: Vec<&str> = file_name.split('/').collect();
+                if parts.len() <= 2 {  // 允许 "manifest.json" 或 "folder/manifest.json"
+                    file.read_to_string(&mut content)
+                        .map_err(|e| format!("读取 manifest.json 失败: {}", e))?;
+                    manifest_found = true;
+                    break;
+                }
+            }
+        }
+        
+        if !manifest_found {
+            return Err("ZIP 文件中未找到 manifest.json".to_string());
+        }
+        
+        content
+    };
+    
+    // 解析 manifest.json
+    let manifest: serde_json::Value = serde_json::from_str(&manifest_content)
+        .map_err(|e| format!("解析 manifest.json 失败: {}", e))?;
+    
+    // 验证必需字段
+    let plugin_id = manifest.get("id")
+        .and_then(|v| v.as_str())
+        .ok_or("manifest.json 缺少 id 字段")?
+        .to_string();
+    
+    let plugin_name = manifest.get("name")
+        .and_then(|v| v.as_str())
+        .ok_or("manifest.json 缺少 name 字段")?
+        .to_string();
+    
+    let version = manifest.get("version")
+        .and_then(|v| v.as_str())
+        .ok_or("manifest.json 缺少 version 字段")?
+        .to_string();
+    
+    // 安全性验证：plugin_id 不应包含路径分隔符
+    if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
+        return Err(format!("非法的插件 ID: {}", plugin_id));
+    }
+    
+    // 获取应用数据目录
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    
+    // 构建插件安装目录
+    let plugins_root = app_data_dir.join("plugins");
+    let install_dir = plugins_root.join(&plugin_id);
+    
+    // 检查插件是否已安装
+    if install_dir.exists() {
+        return Err(format!("插件 {} 已安装，请先卸载", plugin_id));
+    }
+    
+    // 创建插件目录
+    fs::create_dir_all(&install_dir)
+        .map_err(|e| format!("创建插件目录失败: {}", e))?;
+    
+    // 重新打开 ZIP 文件进行解压
+    let file = fs::File::open(&zip_file_path)
+        .map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
+    
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
+    
+    // 解压所有文件
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)
+            .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+        
+        let file_path = file.name().to_string();
+        
+        // 跳过目录和隐藏文件
+        if file_path.ends_with('/') || file_path.starts_with('.') || file_path.contains("/.") {
+            continue;
+        }
+        
+        // 构建目标文件路径
+        let target_path = install_dir.join(&file_path);
+        
+        // 安全性检查：确保解压路径在安装目录下
+        if !target_path.starts_with(&install_dir) {
+            return Err(format!("ZIP 文件包含非法路径: {}", file_path));
+        }
+        
+        // 创建父目录
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建目录失败: {}", e))?;
+        }
+        
+        // 解压文件
+        let mut target_file = fs::File::create(&target_path)
+            .map_err(|e| format!("创建文件失败: {}", e))?;
+        
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)
+            .map_err(|e| format!("读取文件内容失败: {}", e))?;
+        
+        target_file.write_all(&buffer)
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+    }
+    
+    Ok(PluginInstallResult {
+        plugin_id,
+        plugin_name,
+        version,
+        install_path: install_dir.to_string_lossy().to_string(),
+    })
 }

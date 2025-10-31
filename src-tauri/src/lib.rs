@@ -89,6 +89,7 @@ use commands::{
     read_text_file,
     // 插件管理命令
     uninstall_plugin,
+    install_plugin_from_zip,
     // Sidecar 插件命令
     execute_sidecar,
     ClipboardMonitorState,
@@ -271,6 +272,7 @@ pub fn run() {
             read_text_file,
             // 插件管理命令
             uninstall_plugin,
+            install_plugin_from_zip,
             // Sidecar 插件命令
             execute_sidecar
         ])

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { Refresh, Upload } from '@element-plus/icons-vue';
 import PluginCard from './components/PluginCard.vue';
 import { pluginManager } from '@/services/plugin-manager';
 import type { PluginProxy } from '@/services/plugin-types';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
+import { open } from '@tauri-apps/plugin-dialog';
 
 const logger = createModuleLogger('PluginManager/InstalledPlugins');
 
@@ -143,6 +144,52 @@ async function uninstallPlugin(plugin: PluginProxy) {
   }
 }
 
+/**
+ * 导入插件
+ */
+async function importPlugin() {
+  try {
+    // 打开文件选择对话框
+    const selected = await open({
+      multiple: false,
+      filters: [{
+        name: '插件包',
+        extensions: ['zip']
+      }],
+      title: '选择插件 ZIP 文件'
+    });
+
+    if (!selected || typeof selected !== 'string') {
+      return;
+    }
+
+    logger.info('选择的插件文件', { path: selected });
+
+    // 显示加载状态
+    loading.value = true;
+
+    try {
+      // 调用插件管理器安装插件
+      const result = await pluginManager.installPluginFromZip(selected);
+      
+      customMessage.success(`插件"${result.pluginName}"安装成功！`);
+      logger.info('插件安装成功', result);
+      
+      // 刷新插件列表
+      await loadPlugins();
+    } catch (error) {
+      logger.error('安装插件失败', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      customMessage.error(`安装失败: ${errorMsg}`);
+    } finally {
+      loading.value = false;
+    }
+  } catch (error) {
+    logger.error('打开文件对话框失败', error);
+    customMessage.error('无法打开文件选择对话框');
+  }
+}
+
 // 暴露方法供父组件调用
 defineExpose({
   loadPlugins,
@@ -165,6 +212,15 @@ onMounted(() => {
         :prefix-icon="'Search'"
         class="search-input"
       />
+      <el-button
+        :icon="Upload"
+        @click="importPlugin"
+        title="从 ZIP 文件导入插件"
+        :loading="loading"
+        class="import-btn"
+      >
+        导入
+      </el-button>
       <el-button
         :icon="Refresh"
         circle
@@ -228,6 +284,10 @@ onMounted(() => {
 
 .search-input {
   flex: 1;
+}
+
+.import-btn {
+  flex-shrink: 0;
 }
 
 .refresh-btn {

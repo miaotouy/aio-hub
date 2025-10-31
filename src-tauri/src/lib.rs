@@ -331,26 +331,6 @@ pub fn run() {
                     eprintln!("[WINDOW_CONFIG] 应用主窗口配置失败: {}", e);
                 }
             });
-            
-            // 预加载拖拽指示器窗口
-            let indicator_window = tauri::WebviewWindowBuilder::new(
-                app,
-                "drag-indicator",
-                tauri::WebviewUrl::App("/drag-indicator".into()),
-            )
-            .title("拖拽指示器")
-            .inner_size(1.0, 1.0) // 初始尺寸设为最小，避免闪烁
-            .decorations(false)
-            .transparent(true)
-            .shadow(false) // 移除窗口阴影（实现完全透明效果）
-            .resizable(false)
-            .skip_taskbar(true)
-            .always_on_top(true)
-            .visible(false) // 初始时隐藏
-            .build()?;
-
-            // 强制隐藏，以防窗口状态插件恢复其可见性
-            let _ = indicator_window.hide();
 
             // 确保窗口显示在任务栏
             main_window
@@ -376,15 +356,13 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let window_label = window.label().to_string();
                 
-                // 在关闭前同步保存窗口配置（排除拖拽指示器）
-                if !window_label.starts_with("drag-indicator") {
-                    if let Err(e) = commands::window_config::save_window_config_sync(window.app_handle(), &window_label) {
-                        eprintln!("[WINDOW_CONFIG] 保存窗口配置失败: {}", e);
-                    }
+                // 在关闭前同步保存窗口配置
+                if let Err(e) = commands::window_config::save_window_config_sync(window.app_handle(), &window_label) {
+                    eprintln!("[WINDOW_CONFIG] 保存窗口配置失败: {}", e);
                 }
 
                 // 如果关闭的是分离窗口（非主窗口），调用统一的关闭命令
-                if window_label != "main" && !window_label.starts_with("drag-indicator") {
+                if window_label != "main" {
                     let app_handle = window.app_handle().clone();
                     tauri::async_runtime::spawn(async move {
                         if let Err(e) = commands::close_detached_window(app_handle, window_label).await {
@@ -400,7 +378,7 @@ pub fn run() {
 
                             let app_handle = window.app_handle();
                             let windows = app_handle.webview_windows();
-                            let relevant_window_count = windows.keys().filter(|&label| !label.starts_with("drag-indicator")).count();
+                            let relevant_window_count = windows.keys().count();
 
                             // 如果有超过一个窗口（即存在分离窗口），则不允许隐藏，而是聚焦主窗口
                             if relevant_window_count > 1 {

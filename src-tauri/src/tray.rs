@@ -53,7 +53,7 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
                 "hide" => {
                     if let Some(main_window) = app_handle.get_webview_window("main") {
                         let windows = app_handle.webview_windows();
-                        let relevant_window_count = windows.keys().filter(|&label| !label.starts_with("drag-indicator")).count();
+                        let relevant_window_count = windows.keys().count();
                         if relevant_window_count > 1 {
                             let _ = main_window.show();
                             let _ = main_window.set_focus();
@@ -88,7 +88,7 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
                         if let Some(window) = app.get_webview_window("main") {
                             if window.is_visible().unwrap_or(false) {
                                 let windows = app.webview_windows();
-                                let relevant_window_count = windows.keys().filter(|&label| !label.starts_with("drag-indicator")).count();
+                                let relevant_window_count = windows.keys().count();
                                 if relevant_window_count > 1 {
                                     let _ = window.show();
                                     let _ = window.set_focus();

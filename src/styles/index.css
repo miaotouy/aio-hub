@@ -33,7 +33,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 拖拽指示器窗口和分离组件窗口需要完全透明的背景 */
+/* 分离组件窗口需要完全透明的背景 */
 html.transparent-window,
 body.transparent-window {
   background-color: transparent;

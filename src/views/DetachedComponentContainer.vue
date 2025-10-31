@@ -217,7 +217,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* 参考 DragIndicator 的透明实现 */
+/* 分离组件容器 - 透明背景实现 */
 .detached-component-container {
   width: 100%;
   height: 100%;

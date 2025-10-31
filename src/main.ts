@@ -2,7 +2,6 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
 import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
-import DragIndicator from "./views/DragIndicator.vue";
 import ElementPlus from "element-plus";
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import "element-plus/dist/index.css";
@@ -52,10 +51,6 @@ self.MonacoEnvironment = {
 monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true)
 
 const logger = createModuleLogger("Main");
-// 检查是否为拖拽指示器窗口（完全透明、无布局）
-const isDragIndicator = () => {
-  return window.location.pathname === "/drag-indicator";
-};
 
 // 检查是否为独立工具窗口（需要标题栏和标准布局）
 const isDetachedWindow = () => {
@@ -68,9 +63,7 @@ const isDetachedComponentLoader = () => {
 };
 
 // 为所有需要透明背景的窗口添加类名
-const transparentPaths = ["/drag-indicator"];
-const needsTransparentBackground =
-  transparentPaths.includes(window.location.pathname) || isDetachedComponentLoader();
+const needsTransparentBackground = isDetachedComponentLoader();
 if (needsTransparentBackground) {
   document.documentElement.classList.add("transparent-window");
   document.body.classList.add("transparent-window");
@@ -91,7 +84,6 @@ if (needsTransparentBackground) {
 
 // 根据窗口类型选择根组件
 const rootComponent = (() => {
-  if (isDragIndicator()) return DragIndicator;
   if (isDetachedWindow()) return DetachedWindowContainer;
   if (isDetachedComponentLoader()) return DetachedComponentContainer;
   return App;

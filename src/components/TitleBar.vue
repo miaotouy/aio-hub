@@ -124,11 +124,6 @@ const checkMaximized = async () => {
 const saveWindowConfig = debounce(async () => {
   const windowLabel = appWindow.label;
   
-  // 排除拖拽指示器窗口
-  if (windowLabel.startsWith('drag-indicator')) {
-    return;
-  }
-  
   try {
     await invoke('save_window_config', { label: windowLabel });
     logger.debug(`窗口配置已保存: ${windowLabel}`);

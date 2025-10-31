@@ -35,8 +35,7 @@ const isSpecialRoute = computed(() => {
   // 使用路径匹配判断是否为分离窗口或特殊路由
   return (
     path.startsWith("/detached-window/") ||
-    path.startsWith("/detached-component/") ||
-    path === "/drag-indicator"
+    path.startsWith("/detached-component/")
   );
 });
 

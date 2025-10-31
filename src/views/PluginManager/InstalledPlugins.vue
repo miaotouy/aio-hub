@@ -23,6 +23,9 @@ const plugins = ref<PluginProxy[]>([]);
 // 加载状态
 const loading = ref(false);
 
+// 当前选中的插件 ID
+const selectedPluginId = ref<string | null>(null);
+
 // 过滤后的插件列表
 const filteredPlugins = computed(() => {
   if (!searchText.value.trim()) {
@@ -74,17 +77,19 @@ async function togglePlugin(plugin: PluginProxy) {
 }
 
 /**
- * 选择插件以查看详情
+ * 选择插件
  */
-function selectPluginForDetail(plugin: PluginProxy) {
+function selectPlugin(plugin: PluginProxy) {
+  selectedPluginId.value = plugin.id;
   emit('select-plugin', plugin, 'detail');
-  logger.debug('选择插件查看详情', { pluginId: plugin.id, pluginName: plugin.name });
+  logger.debug('选择插件', { pluginId: plugin.id, pluginName: plugin.name });
 }
 
 /**
  * 选择插件以查看设置
  */
 function selectPluginForSettings(plugin: PluginProxy) {
+  selectedPluginId.value = plugin.id;
   emit('select-plugin', plugin, 'settings');
   logger.debug('选择插件查看设置', { pluginId: plugin.id, pluginName: plugin.name });
 }
@@ -162,8 +167,9 @@ onMounted(() => {
         v-for="plugin in filteredPlugins"
         :key="plugin.id"
         :plugin="plugin"
+        :selected="selectedPluginId === plugin.id"
+        @select="selectPlugin(plugin)"
         @toggle="togglePlugin(plugin)"
-        @detail="selectPluginForDetail(plugin)"
         @settings="selectPluginForSettings(plugin)"
         @uninstall="uninstallPlugin(plugin)"
       />

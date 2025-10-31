@@ -1,25 +1,30 @@
 <script setup lang="ts">
-import { Delete, Setting, InfoFilled } from "@element-plus/icons-vue";
+import { Delete, Setting } from "@element-plus/icons-vue";
 import type { PluginProxy } from "@/services/plugin-types";
 
 // Props
 interface Props {
   plugin: PluginProxy;
+  selected?: boolean;
 }
 
 defineProps<Props>();
 
 // Emits
 const emit = defineEmits<{
+  select: [];
   toggle: [];
-  detail: [];
   settings: [];
   uninstall: [];
 }>();
 </script>
 
 <template>
-  <div class="plugin-card">
+  <div
+    class="plugin-card"
+    :class="{ 'selected': selected }"
+    @click="emit('select')"
+  >
   <!-- 左侧：图标 + 开关 -->
   <div class="plugin-left">
     <div class="plugin-icon">📦</div>
@@ -49,11 +54,7 @@ const emit = defineEmits<{
       </div>
 
       <!-- 操作按钮 -->
-      <div class="plugin-actions">
-        <el-button :icon="InfoFilled" size="small" text @click="emit('detail')">
-          详情
-        </el-button>
-        
+      <div class="plugin-actions" @click.stop>
         <el-button
           v-if="plugin.manifest.settingsSchema"
           :icon="Setting"
@@ -100,11 +101,18 @@ const emit = defineEmits<{
   border: 1px solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .plugin-card:hover {
   border-color: var(--primary-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.plugin-card.selected {
+  border-color: var(--primary-color);
+  background-color: var(--primary-color-light-9);
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
 }
 
 .plugin-left {

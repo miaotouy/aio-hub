@@ -14,6 +14,39 @@ import type { ToolService, MethodMetadata } from './types';
 export type PluginType = 'javascript' | 'sidecar';
 
 /**
+ * 配置项类型
+ */
+export type SettingsPropertyType = 'string' | 'number' | 'boolean';
+
+/**
+ * 配置项定义
+ */
+export interface SettingsProperty {
+  /** 配置项类型 */
+  type: SettingsPropertyType;
+  /** 默认值 */
+  default: string | number | boolean;
+  /** 显示标签 */
+  label: string;
+  /** 详细描述 */
+  description?: string;
+  /** 是否为敏感信息（如密码、API Key） */
+  secret?: boolean;
+  /** 可选值列表（用于下拉选择） */
+  enum?: string[];
+}
+
+/**
+ * 插件配置模式
+ */
+export interface SettingsSchema {
+  /** 配置模式版本 */
+  version: string;
+  /** 配置项定义 */
+  properties: Record<string, SettingsProperty>;
+}
+
+/**
  * 平台标识符 (OS-架构)
  */
 export type PlatformKey = 'win32-x64' | 'win32-arm64' | 'darwin-x64' | 'darwin-arm64' | 'linux-x64' | 'linux-arm64';
@@ -59,6 +92,9 @@ export interface PluginManifest {
   
   /** 暴露的方法列表 */
   methods: MethodMetadata[];
+  
+  /** 配置模式 (可选) */
+  settingsSchema?: SettingsSchema;
   
   /** 权限声明 (未来功能) */
   permissions?: string[];

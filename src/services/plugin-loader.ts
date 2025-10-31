@@ -10,6 +10,7 @@ import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExpor
 import { createJsPluginProxy } from './js-plugin-adapter';
 import type { JsPluginAdapter } from './js-plugin-adapter';
 import { createModuleLogger } from '@/utils/logger';
+import { pluginConfigService } from './plugin-config.service';
 
 const logger = createModuleLogger('services/plugin-loader');
 
@@ -118,6 +119,14 @@ export class PluginLoader {
 
           // 启用插件
           await proxy.enable();
+
+          // 初始化插件配置
+          try {
+            await pluginConfigService.initPluginConfig(manifest);
+          } catch (error) {
+            logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
+            // 配置初始化失败不应阻止插件加载
+          }
 
           logger.info(`成功加载开发插件: ${manifest.id}`, {
             name: manifest.name,
@@ -258,6 +267,14 @@ export class PluginLoader {
 
       // 启用插件
       await proxy.enable();
+
+      // 初始化插件配置
+      try {
+        await pluginConfigService.initPluginConfig(manifest);
+      } catch (error) {
+        logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
+        // 配置初始化失败不应阻止插件加载
+      }
 
       logger.info(`成功加载生产插件: ${manifest.id}`, {
         name: manifest.name,

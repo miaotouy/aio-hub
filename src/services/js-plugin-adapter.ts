@@ -7,6 +7,7 @@
 import type { ServiceMetadata } from "./types";
 import type { PluginProxy, PluginManifest, JsPluginExport } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
+import { pluginConfigService } from "./plugin-config.service";
 
 const logger = createModuleLogger("services/js-plugin-adapter");
 
@@ -121,7 +122,13 @@ export class JsPluginAdapter implements PluginProxy {
     logger.debug(`调用插件方法: ${this.id}.${methodName}`, { params });
 
     try {
-      return method(params);
+      // 创建插件上下文，注入配置 API
+      const context = {
+        settings: pluginConfigService.createPluginSettingsAPI(this.manifest.id),
+      };
+
+      // 将 context 注入到参数中
+      return method({ ...params, context });
     } catch (error) {
       logger.error(`插件方法调用失败: ${this.id}.${methodName}`, error);
       throw error;

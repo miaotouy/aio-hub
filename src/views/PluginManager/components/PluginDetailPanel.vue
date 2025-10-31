@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { Delete, Switch } from '@element-plus/icons-vue';
 import type { PluginProxy } from '@/services/plugin-types';
 import PluginSettingsPanel from './PluginSettingsPanel.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
 import { readTextFile, exists } from '@tauri-apps/plugin-fs';
@@ -161,7 +162,13 @@ watch(
       <!-- 顶部：插件头部信息 -->
       <div class="header-section">
         <div class="plugin-header">
-          <div class="plugin-icon">📦</div>
+          <Avatar
+            :src="plugin.manifest.icon || '📦'"
+            :size="64"
+            :alt="plugin.name"
+            shape="square"
+            :radius="12"
+          />
           <div class="plugin-info">
             <div class="title-row">
               <h1 class="plugin-name">{{ plugin.name }}</h1>
@@ -375,15 +382,6 @@ watch(
   padding: 24px 32px 20px;
 }
 
-.plugin-icon {
-  font-size: 64px;
-  flex-shrink: 0;
-  width: 64px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 .plugin-info {
   flex: 1;
@@ -769,12 +767,6 @@ watch(
   .plugin-header {
     flex-direction: column;
     gap: 16px;
-  }
-  
-  .plugin-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
   }
   
   .plugin-name {

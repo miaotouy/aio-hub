@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Delete, Setting } from "@element-plus/icons-vue";
 import type { PluginProxy } from "@/services/plugin-types";
+import Avatar from "@/components/common/Avatar.vue";
 
 // Props
 interface Props {
@@ -27,7 +28,13 @@ const emit = defineEmits<{
   >
   <!-- 左侧：图标 + 开关 -->
   <div class="plugin-left">
-    <div class="plugin-icon">📦</div>
+    <Avatar
+      :src="plugin.manifest.icon || '📦'"
+      :size="40"
+      :alt="plugin.name"
+      shape="square"
+      :radius="8"
+    />
     <div class="plugin-toggle">
       <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="right">
         <el-switch :model-value="plugin.enabled" @change="emit('toggle')" />
@@ -123,10 +130,6 @@ const emit = defineEmits<{
   flex-shrink: 0;
 }
 
-.plugin-icon {
-  font-size: 32px;
-  line-height: 1;
-}
 
 .plugin-content {
   flex: 1;

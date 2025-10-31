@@ -87,6 +87,8 @@ use commands::{
     import_asset_from_bytes,
     get_asset_binary,
     read_text_file,
+    // 插件管理命令
+    uninstall_plugin,
     ClipboardMonitorState,
 };
 
@@ -264,7 +266,9 @@ pub fn run() {
             import_asset_from_path,
             import_asset_from_bytes,
             get_asset_binary,
-            read_text_file
+            read_text_file,
+            // 插件管理命令
+            uninstall_plugin
         ])
         // 设置应用
         .setup(|app| {

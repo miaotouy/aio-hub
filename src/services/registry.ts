@@ -98,6 +98,34 @@ class ServiceRegistry {
   }
 
   /**
+   * 注销单个服务
+   * @param id 要注销的服务 ID
+   * @returns 如果服务存在并成功注销则返回 true
+   */
+  public async unregister(id: string): Promise<boolean> {
+    const service = this.services.get(id);
+    if (!service) {
+      logger.warn(`尝试注销不存在的服务: ${id}`);
+      return false;
+    }
+
+    try {
+      // 如果服务有清理方法，先执行清理
+      if (service.dispose) {
+        await service.dispose();
+        logger.debug(`服务 "${id}" 已清理`);
+      }
+
+      this.services.delete(id);
+      logger.info(`服务 "${id}" 已注销`);
+      return true;
+    } catch (error) {
+      logger.error(`注销服务 "${id}" 时出错`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 清理所有服务并重置注册表
    */
   public async dispose(): Promise<void> {

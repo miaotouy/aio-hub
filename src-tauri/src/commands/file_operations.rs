@@ -1138,3 +1138,42 @@ pub async fn copy_file_to_app_data(
     
     Ok(relative_path.to_string_lossy().to_string())
 }
+
+// Tauri 命令：删除插件目录到回收站
+#[tauri::command]
+pub async fn uninstall_plugin(
+    app: AppHandle,
+    plugin_id: String,
+) -> Result<String, String> {
+    use tauri::Manager;
+    
+    // 安全性验证：plugin_id 不应包含路径分隔符
+    if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
+        return Err(format!("非法的插件 ID: {}", plugin_id));
+    }
+    
+    // 获取应用数据目录
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    
+    // 构建插件目录路径
+    let plugins_root = app_data_dir.join("plugins");
+    let plugin_dir = plugins_root.join(&plugin_id);
+    
+    // 安全性验证：确保目标路径在 plugins 目录下
+    if !plugin_dir.starts_with(&plugins_root) {
+        return Err(format!("路径安全检查失败: {}", plugin_id));
+    }
+    
+    // 检查插件目录是否存在
+    if !plugin_dir.exists() {
+        return Err(format!("插件目录不存在: {}", plugin_id));
+    }
+    
+    // 使用 trash crate 移到回收站
+    trash::delete(&plugin_dir)
+        .map_err(|e| format!("移入回收站失败: {}", e))?;
+    
+    Ok(format!("插件 {} 已移入回收站", plugin_id))
+}

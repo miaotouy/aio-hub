@@ -1,18 +1,18 @@
 /**
  * JavaScript 插件适配器
- * 
+ *
  * 将 JS 插件包装成符合 ToolService 接口的代理对象
  */
 
-import type { ServiceMetadata } from './types';
-import type { PluginProxy, PluginManifest, JsPluginExport } from './plugin-types';
-import { createModuleLogger } from '@/utils/logger';
+import type { ServiceMetadata } from "./types";
+import type { PluginProxy, PluginManifest, JsPluginExport } from "./plugin-types";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('services/js-plugin-adapter');
+const logger = createModuleLogger("services/js-plugin-adapter");
 
 /**
  * JS 插件适配器类
- * 
+ *
  * 将一个 JS 插件模块包装成 ToolService 接口
  */
 export class JsPluginAdapter implements PluginProxy {
@@ -20,17 +20,20 @@ export class JsPluginAdapter implements PluginProxy {
   public readonly name: string;
   public readonly description: string;
   public readonly manifest: PluginManifest;
+  public readonly devMode: boolean;
   public enabled: boolean = false;
 
   private pluginExport: JsPluginExport | null = null;
 
-  constructor(manifest: PluginManifest) {
+  constructor(manifest: PluginManifest, devMode: boolean = false) {
     this.manifest = manifest;
-    this.id = manifest.id;
+    // 开发模式下为 ID 添加后缀，避免与生产版本冲突
+    this.id = devMode ? `${manifest.id}-dev` : manifest.id;
     this.name = manifest.name;
     this.description = manifest.description;
+    this.devMode = devMode;
 
-    logger.debug(`创建 JS 插件适配器: ${this.id}`);
+    logger.debug(`创建 JS 插件适配器: ${this.id}`, { devMode });
   }
 
   /**
@@ -111,7 +114,7 @@ export class JsPluginAdapter implements PluginProxy {
     }
 
     const method = this.pluginExport[methodName];
-    if (typeof method !== 'function') {
+    if (typeof method !== "function") {
       throw new Error(`插件 ${this.id} 不存在方法: ${methodName}`);
     }
 
@@ -128,14 +131,18 @@ export class JsPluginAdapter implements PluginProxy {
 
 /**
  * 创建插件代理
- * 
+ *
  * 使用 Proxy 动态拦截方法调用，使得插件适配器可以响应任意方法
- * 
+ *
  * @param manifest - 插件清单
+ * @param devMode - 是否为开发模式插件
  * @returns 插件代理对象
  */
-export function createJsPluginProxy(manifest: PluginManifest): PluginProxy {
-  const adapter = new JsPluginAdapter(manifest);
+export function createJsPluginProxy(
+  manifest: PluginManifest,
+  devMode: boolean = false
+): PluginProxy {
+  const adapter = new JsPluginAdapter(manifest, devMode);
 
   // 使用 Proxy 拦截所有属性访问
   return new Proxy(adapter, {
@@ -147,9 +154,9 @@ export function createJsPluginProxy(manifest: PluginManifest): PluginProxy {
 
       // 否则，返回一个函数，该函数会调用插件的对应方法
       const propStr = String(prop);
-      
+
       // 检查是否是 manifest 中声明的方法
-      const hasMethod = target.manifest.methods.some(m => m.name === propStr);
+      const hasMethod = target.manifest.methods.some((m) => m.name === propStr);
       if (!hasMethod) {
         return undefined;
       }

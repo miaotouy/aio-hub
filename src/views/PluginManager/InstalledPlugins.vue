@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { Delete, Switch } from '@element-plus/icons-vue';
-import { serviceRegistry } from '@/services/registry';
+import { pluginManager } from '@/services/plugin-manager';
 import type { PluginProxy } from '@/services/plugin-types';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
@@ -33,23 +33,12 @@ const filteredPlugins = computed(() => {
 });
 
 /**
- * 判断一个服务是否为插件
- */
-function isPlugin(service: any): service is PluginProxy {
-  return 'manifest' in service && 'enabled' in service;
-}
-
-/**
  * 加载已安装的插件列表
  */
 async function loadPlugins() {
   loading.value = true;
   try {
-    const allServices = serviceRegistry.getAllServices();
-    
-    // 过滤出插件（通过检查是否有 manifest 属性）
-    plugins.value = allServices.filter(isPlugin);
-    
+    plugins.value = pluginManager.getInstalledPlugins();
     logger.info('已加载插件列表', { count: plugins.value.length });
   } catch (error) {
     logger.error('加载插件列表失败', error);
@@ -85,28 +74,37 @@ async function togglePlugin(plugin: PluginProxy) {
 async function uninstallPlugin(plugin: PluginProxy) {
   try {
     await ElMessageBox.confirm(
-      `确定要卸载插件"${plugin.name}"吗？此操作不可撤销。`,
+      `确定要卸载插件"${plugin.name}"吗？插件文件将被移入回收站。`,
       '卸载插件',
       {
-        confirmButtonText: '确定',
+        confirmButtonText: '确定卸载',
         cancelButtonText: '取消',
         type: 'warning',
       }
     );
 
-    // TODO: 实现实际的卸载逻辑
-    // 1. 从注册表移除
-    // 2. 调用后端删除文件
-    // 3. 刷新列表
+    // 显示加载状态
+    loading.value = true;
     
-    customMessage.info('卸载功能正在开发中...');
-    logger.warn('卸载功能尚未实现', { pluginId: plugin.id });
-    
+    try {
+      // 调用插件管理器执行卸载
+      await pluginManager.uninstallPlugin(plugin.id);
+      
+      customMessage.success(`插件"${plugin.name}"已成功卸载，文件已移入回收站`);
+      logger.info('插件卸载成功', { pluginId: plugin.id, pluginName: plugin.name });
+      
+      // 刷新插件列表
+      await loadPlugins();
+    } catch (error) {
+      logger.error('卸载插件失败', error, { pluginId: plugin.id });
+      customMessage.error(`卸载失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      loading.value = false;
+    }
   } catch (error) {
     // 用户取消操作
     if (error !== 'cancel') {
-      logger.error('卸载插件失败', error, { pluginId: plugin.id });
-      customMessage.error('卸载失败');
+      logger.error('卸载确认失败', error);
     }
   }
 }
@@ -153,6 +151,10 @@ onMounted(() => {
               <span class="plugin-version">v{{ plugin.manifest.version }}</span>
               <span class="plugin-separator">·</span>
               <span class="plugin-author">{{ plugin.manifest.author }}</span>
+              <template v-if="plugin.devMode">
+                <span class="plugin-separator">·</span>
+                <el-tag type="info" size="small" effect="plain">开发模式</el-tag>
+              </template>
             </div>
           </div>
           <div class="plugin-actions">
@@ -177,7 +179,23 @@ onMounted(() => {
               {{ plugin.manifest.type === 'javascript' ? 'JS 插件' : 'Sidecar 插件' }}
             </el-tag>
           </div>
+          <el-tooltip
+            v-if="plugin.devMode"
+            content="开发模式插件无法卸载，请手动删除源码目录"
+            placement="top"
+          >
+            <el-button
+              :icon="Delete"
+              size="small"
+              type="danger"
+              text
+              disabled
+            >
+              卸载
+            </el-button>
+          </el-tooltip>
           <el-button
+            v-else
             :icon="Delete"
             size="small"
             type="danger"

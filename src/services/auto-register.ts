@@ -1,6 +1,6 @@
 import { serviceRegistry } from './registry';
 import type { ToolService } from './types';
-import { createPluginLoader } from './plugin-loader';
+import { pluginManager } from './plugin-manager';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('services/auto-register');
@@ -90,28 +90,11 @@ export async function autoRegisterServices(): Promise<void> {
     // 加载插件
     logger.info('开始加载插件');
     try {
-      const pluginLoader = await createPluginLoader();
-      const pluginResult = await pluginLoader.loadAll();
-
-      logger.info('插件加载完成', {
-        loaded: pluginResult.plugins.length,
-        failed: pluginResult.failed.length,
-      });
-
-      // 将插件注册到 ServiceRegistry
-      if (pluginResult.plugins.length > 0) {
-        await serviceRegistry.register(...pluginResult.plugins);
-        logger.info(`已将 ${pluginResult.plugins.length} 个插件注册到服务注册表`);
-      }
-
-      if (pluginResult.failed.length > 0) {
-        logger.warn('部分插件加载失败', {
-          failed: pluginResult.failed.map(f => ({
-            id: f.id,
-            error: f.error.message,
-          })),
-        });
-      }
+      await pluginManager.initialize();
+      await pluginManager.loadAllPlugins();
+      
+      const loadedPlugins = pluginManager.getInstalledPlugins();
+      logger.info(`已加载 ${loadedPlugins.length} 个插件`);
     } catch (error) {
       logger.error('插件加载过程中发生错误', error);
       // 插件加载失败不应阻止应用启动

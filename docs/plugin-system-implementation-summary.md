@@ -112,11 +112,11 @@ if (result.success) {
 - [ ] 实现进程通信协议
 - [ ] 创建示例 Sidecar 插件
 
-### ⏸️ 阶段三：插件管理 UI
-- [ ] 创建"扩展"页面
-- [ ] 已安装插件列表
-- [ ] 启用/禁用功能
-- [ ] 卸载功能
+### ✅ 阶段三：插件管理 UI
+- [x] 创建"扩展"页面
+- [x] 已安装插件列表
+- [x] 启用/禁用功能
+- [x] 卸载功能（支持移入回收站）
 
 ### ⏸️ 阶段四：插件市场
 - [ ] 实现插件索引拉取
@@ -137,7 +137,17 @@ if (result.success) {
 - `src/services/plugin-types.ts` - 类型定义
 - `src/services/js-plugin-adapter.ts` - JS 插件适配器
 - `src/services/plugin-loader.ts` - 插件加载器
+- `src/services/plugin-manager.ts` - 插件管理器（新增）
+- `src/services/registry.ts` - 服务注册表（扩展）
 - `src/services/auto-register.ts` - 服务注册集成
+- `src-tauri/src/commands/file_operations.rs` - 后端卸载命令
+
+### UI 组件
+- `src/views/PluginManager/PluginManager.vue` - 插件管理主页
+- `src/views/PluginManager/InstalledPlugins.vue` - 已安装插件列表
+- `src/views/PluginManager/PluginMarket.vue` - 插件市场（占位）
+- `src/components/MainSidebar.vue` - 侧边栏（包含扩展入口）
+- `src/router/index.ts` - 路由配置
 
 ### 示例插件
 - `plugins/example-text-processor/manifest.json` - 插件清单

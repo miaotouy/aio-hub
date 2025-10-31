@@ -77,7 +77,7 @@ export interface JsPluginExport {
 
 /**
  * 插件代理接口
- * 
+ *
  * 将插件包装成符合 ToolService 接口的代理对象
  */
 export interface PluginProxy extends ToolService {
@@ -85,6 +85,8 @@ export interface PluginProxy extends ToolService {
   manifest: PluginManifest;
   /** 插件是否已启用 */
   enabled: boolean;
+  /** 是否为开发模式插件 */
+  devMode: boolean;
   /** 启用插件 */
   enable(): Promise<void>;
   /** 禁用插件 */

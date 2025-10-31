@@ -11,7 +11,7 @@ const logger = createModuleLogger('PluginManager/InstalledPlugins');
 
 // Emits
 const emit = defineEmits<{
-  'select-plugin': [plugin: PluginProxy, initialTab?: string];
+  'select-plugin': [plugin: PluginProxy | null, initialTab?: string];
 }>();
 
 // 搜索关键词
@@ -77,12 +77,19 @@ async function togglePlugin(plugin: PluginProxy) {
 }
 
 /**
- * 选择插件
+ * 选择插件（支持点击已选中项取消选中）
  */
 function selectPlugin(plugin: PluginProxy) {
-  selectedPluginId.value = plugin.id;
-  emit('select-plugin', plugin, 'detail');
-  logger.debug('选择插件', { pluginId: plugin.id, pluginName: plugin.name });
+  // 如果点击的是当前已选中的插件，则取消选中
+  if (selectedPluginId.value === plugin.id) {
+    selectedPluginId.value = null;
+    emit('select-plugin', null);
+    logger.debug('取消选择插件', { pluginId: plugin.id, pluginName: plugin.name });
+  } else {
+    selectedPluginId.value = plugin.id;
+    emit('select-plugin', plugin, 'detail');
+    logger.debug('选择插件', { pluginId: plugin.id, pluginName: plugin.name });
+  }
 }
 
 /**

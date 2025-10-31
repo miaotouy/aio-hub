@@ -4,7 +4,6 @@ import { ElMessageBox } from 'element-plus';
 import InstalledPlugins from './InstalledPlugins.vue';
 import PluginMarket from './PluginMarket.vue';
 import PluginDetailPanel from './components/PluginDetailPanel.vue';
-import SidebarToggleIcon from '@/components/icons/SidebarToggleIcon.vue';
 import type { PluginProxy } from '@/services/plugin-types';
 import { pluginManager } from '@/services/plugin-manager';
 import { customMessage } from '@/utils/customMessage';
@@ -66,11 +65,18 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', handleMouseUp);
 });
 
-// 处理插件选择 - 显示详情
-const handlePluginSelect = (plugin: PluginProxy, tab: string = 'detail') => {
-  selectedPlugin.value = plugin;
-  initialTab.value = tab;
-  isPanelCollapsed.value = false;
+// 处理插件选择 - 显示详情（支持取消选中）
+const handlePluginSelect = (plugin: PluginProxy | null, tab: string = 'detail') => {
+  if (plugin === null) {
+    // 取消选中，折叠面板
+    selectedPlugin.value = null;
+    isPanelCollapsed.value = true;
+  } else {
+    // 选中插件，展开面板
+    selectedPlugin.value = plugin;
+    initialTab.value = tab;
+    isPanelCollapsed.value = false;
+  }
 };
 
 // 切换插件启用状态
@@ -138,23 +144,6 @@ const handleUninstallPlugin = async () => {
             <PluginMarket />
           </el-tab-pane>
         </el-tabs>
-
-        <!-- 面板折叠时的展开按钮 -->
-        <div
-          v-if="isPanelCollapsed && selectedPlugin"
-          class="expand-button"
-          @click="isPanelCollapsed = false"
-        >
-          <SidebarToggleIcon class="expand-icon trapezoid" flip />
-          <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <polyline
-              points="15 18 9 12 15 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
       </div>
 
       <!-- 右侧面板 -->
@@ -163,19 +152,6 @@ const handleUninstallPlugin = async () => {
         class="side-panel"
         :style="{ width: `${panelWidthPercent}%` }"
       >
-        <!-- 折叠按钮 -->
-        <div class="collapse-button" @click="isPanelCollapsed = true">
-          <SidebarToggleIcon class="collapse-icon trapezoid" flip />
-          <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <polyline
-              points="9 18 15 12 9 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-
         <!-- 拖拽分隔条 -->
         <div
           class="resize-handle"
@@ -277,71 +253,5 @@ const handleUninstallPlugin = async () => {
 .resize-handle:hover,
 .resize-handle.dragging {
   background-color: var(--primary-color);
-}
-
-/* 折叠按钮 */
-.collapse-button {
-  position: absolute;
-  top: 50%;
-  left: -20px;
-  width: 32px;
-  height: 100px;
-  cursor: pointer;
-  z-index: 100;
-  color: var(--border-color);
-  transition: color 0.3s;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.collapse-button:hover {
-  color: color-mix(in srgb, var(--primary-color) 40%, transparent);
-}
-
-.collapse-icon {
-  width: 40px;
-  height: 40px;
-  display: block;
-  position: absolute;
-}
-
-.arrow-icon {
-  width: 12px;
-  height: 12px;
-  position: absolute;
-  z-index: 1;
-  transition: transform 0.3s;
-  color: var(--text-color-light);
-  stroke: var(--text-color-light);
-}
-
-/* 展开按钮 */
-.expand-button {
-  position: absolute;
-  top: 50%;
-  right: -12px;
-  width: 32px;
-  height: 100px;
-  cursor: pointer;
-  z-index: 100;
-  color: var(--border-color);
-  transition: color 0.3s;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.expand-button:hover {
-  color: color-mix(in srgb, var(--primary-color) 40%, transparent);
-}
-
-.expand-icon {
-  width: 40px;
-  height: 40px;
-  display: block;
-  position: absolute;
 }
 </style>

@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
-import { Delete, Switch } from '@element-plus/icons-vue';
+import { Delete, Switch, Setting } from '@element-plus/icons-vue';
 import { pluginManager } from '@/services/plugin-manager';
 import type { PluginProxy } from '@/services/plugin-types';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('PluginManager/InstalledPlugins');
+
+// Emits
+const emit = defineEmits<{
+  'select-plugin': [plugin: PluginProxy];
+}>();
 
 // 搜索关键词
 const searchText = ref('');
@@ -66,6 +71,14 @@ async function togglePlugin(plugin: PluginProxy) {
     logger.error('切换插件状态失败', error, { pluginId: plugin.id });
     customMessage.error(`操作失败: ${error instanceof Error ? error.message : '未知错误'}`);
   }
+}
+
+/**
+ * 选择插件以查看设置
+ */
+function selectPluginForSettings(plugin: PluginProxy) {
+  emit('select-plugin', plugin);
+  logger.debug('选择插件查看设置', { pluginId: plugin.id, pluginName: plugin.name });
 }
 
 /**
@@ -179,31 +192,44 @@ onMounted(() => {
               {{ plugin.manifest.type === 'javascript' ? 'JS 插件' : 'Sidecar 插件' }}
             </el-tag>
           </div>
-          <el-tooltip
-            v-if="plugin.devMode"
-            content="开发模式插件无法卸载，请手动删除源码目录"
-            placement="top"
-          >
+          <div class="plugin-footer-actions">
+            <!-- 设置按钮：仅对有配置的插件显示 -->
             <el-button
+              v-if="plugin.manifest.settingsSchema"
+              :icon="Setting"
+              size="small"
+              text
+              @click="selectPluginForSettings(plugin)"
+            >
+              设置
+            </el-button>
+            <!-- 卸载按钮 -->
+            <el-tooltip
+              v-if="plugin.devMode"
+              content="开发模式插件无法卸载，请手动删除源码目录"
+              placement="top"
+            >
+              <el-button
+                :icon="Delete"
+                size="small"
+                type="danger"
+                text
+                disabled
+              >
+                卸载
+              </el-button>
+            </el-tooltip>
+            <el-button
+              v-else
               :icon="Delete"
               size="small"
               type="danger"
               text
-              disabled
+              @click="uninstallPlugin(plugin)"
             >
               卸载
             </el-button>
-          </el-tooltip>
-          <el-button
-            v-else
-            :icon="Delete"
-            size="small"
-            type="danger"
-            text
-            @click="uninstallPlugin(plugin)"
-          >
-            卸载
-          </el-button>
+          </div>
         </div>
       </el-card>
     </div>
@@ -323,6 +349,12 @@ onMounted(() => {
 .plugin-type {
   display: flex;
   gap: 8px;
+}
+
+.plugin-footer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .empty-hint {

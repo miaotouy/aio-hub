@@ -60,29 +60,45 @@ async function loadReadme() {
   readmeHtml.value = '';
 
   try {
-    // 构建 README 文件路径
-    let readmePath: string;
+    let content: string;
     
     if (props.plugin.devMode) {
-      // 开发模式：直接从项目源码路径读取
-      readmePath = props.plugin.installPath + '/README.md';
+      // 开发模式：使用 fetch 从 Vite 开发服务器读取
+      const readmePath = props.plugin.installPath + '/README.md';
+      logger.debug('开发模式：从 Vite 加载 README', { path: readmePath });
+      
+      try {
+        const response = await fetch(readmePath);
+        if (!response.ok) {
+          if (response.status === 404) {
+            logger.info('README 文件不存在');
+            readmeHtml.value = '<p class="no-readme">此插件暂无 README 文档</p>';
+            return;
+          }
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        content = await response.text();
+      } catch (error) {
+        logger.warn('README 文件读取失败', { error });
+        readmeHtml.value = '<p class="no-readme">此插件暂无 README 文档</p>';
+        return;
+      }
     } else {
-      // 生产模式：从安装目录读取
-      readmePath = await path.join(props.plugin.installPath, 'README.md');
+      // 生产模式：使用 Tauri fs API 读取
+      const readmePath = await path.join(props.plugin.installPath, 'README.md');
+      logger.debug('生产模式：从文件系统加载 README', { path: readmePath });
+      
+      // 检查文件是否存在
+      const fileExists = await exists(readmePath);
+      if (!fileExists) {
+        logger.info('README 文件不存在');
+        readmeHtml.value = '<p class="no-readme">此插件暂无 README 文档</p>';
+        return;
+      }
+
+      // 读取文件内容
+      content = await readTextFile(readmePath);
     }
-
-    logger.debug('尝试加载 README', { path: readmePath });
-
-    // 检查文件是否存在
-    const fileExists = await exists(readmePath);
-    if (!fileExists) {
-      logger.info('README 文件不存在');
-      readmeHtml.value = '<p class="no-readme">此插件暂无 README 文档</p>';
-      return;
-    }
-
-    // 读取文件内容
-    const content = await readTextFile(readmePath);
     
     // 渲染 Markdown
     const rendered = md.render(content);
@@ -99,7 +115,6 @@ async function loadReadme() {
     loadingReadme.value = false;
   }
 }
-
 // 监听插件变化
 watch(() => props.plugin, () => {
   loadReadme();

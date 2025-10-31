@@ -1,21 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import { ElMessageBox } from 'element-plus';
 import InstalledPlugins from './InstalledPlugins.vue';
 import PluginMarket from './PluginMarket.vue';
-import PluginSettingsPanel from './components/PluginSettingsPanel.vue';
 import PluginDetailPanel from './components/PluginDetailPanel.vue';
 import SidebarToggleIcon from '@/components/icons/SidebarToggleIcon.vue';
 import type { PluginProxy } from '@/services/plugin-types';
+import { pluginManager } from '@/services/plugin-manager';
+import { customMessage } from '@/utils/customMessage';
 
 // 当前激活的标签页
 const activeTab = ref<'installed' | 'market'>('installed');
 
 // 右侧面板状态
-type PanelMode = 'detail' | 'settings';
 const isPanelCollapsed = ref(true);
-const panelWidth = ref(400);
-const panelMode = ref<PanelMode>('detail');
+const panelWidth = ref(800);
 const selectedPlugin = ref<PluginProxy | null>(null);
+const initialTab = ref<string>('detail');
 
 // 拖拽状态
 const isDragging = ref(false);
@@ -59,16 +60,59 @@ onUnmounted(() => {
 });
 
 // 处理插件选择 - 显示详情
-const handlePluginSelect = (plugin: PluginProxy) => {
+const handlePluginSelect = (plugin: PluginProxy, tab: string = 'detail') => {
   selectedPlugin.value = plugin;
-  panelMode.value = 'detail';
+  initialTab.value = tab;
   isPanelCollapsed.value = false;
 };
 
-// 切换到设置模式
-const switchToSettings = () => {
-  if (selectedPlugin.value?.manifest.settingsSchema) {
-    panelMode.value = 'settings';
+// 切换插件启用状态
+const handleTogglePlugin = async () => {
+  if (!selectedPlugin.value) return;
+  
+  try {
+    if (selectedPlugin.value.enabled) {
+      selectedPlugin.value.disable();
+      customMessage.success(`已禁用插件: ${selectedPlugin.value.name}`);
+    } else {
+      await selectedPlugin.value.enable();
+      customMessage.success(`已启用插件: ${selectedPlugin.value.name}`);
+    }
+  } catch (error) {
+    customMessage.error(`操作失败: ${error instanceof Error ? error.message : '未知错误'}`);
+  }
+};
+
+// 卸载插件
+const handleUninstallPlugin = async () => {
+  if (!selectedPlugin.value) return;
+  
+  const plugin = selectedPlugin.value;
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要卸载插件"${plugin.name}"吗？插件文件将被移入回收站。`,
+      '卸载插件',
+      {
+        confirmButtonText: '确定卸载',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    // 调用插件管理器执行卸载
+    await pluginManager.uninstallPlugin(plugin.id);
+    
+    customMessage.success(`插件"${plugin.name}"已成功卸载，文件已移入回收站`);
+    
+    // 清除选中状态
+    selectedPlugin.value = null;
+    isPanelCollapsed.value = true;
+  } catch (error) {
+    // 用户取消操作
+    if (error !== 'cancel') {
+      customMessage.error(`卸载失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
   }
 };
 </script>
@@ -133,34 +177,13 @@ const switchToSettings = () => {
         ></div>
 
         <div class="panel-content">
-          <!-- 面板头部：切换详情/设置 -->
-          <div v-if="selectedPlugin" class="panel-header">
-            <el-segmented
-              v-model="panelMode"
-              :options="[
-                { label: '详情', value: 'detail' },
-                {
-                  label: '设置',
-                  value: 'settings',
-                  disabled: !selectedPlugin.manifest.settingsSchema
-                }
-              ]"
-              size="small"
-            />
-          </div>
-
-          <!-- 详情面板 -->
-          <div v-if="panelMode === 'detail'" class="panel-body">
-            <PluginDetailPanel
-              :plugin="selectedPlugin"
-              @settings="switchToSettings"
-            />
-          </div>
-
-          <!-- 设置面板 -->
-          <div v-else class="panel-body">
-            <PluginSettingsPanel :plugin="selectedPlugin" />
-          </div>
+          <PluginDetailPanel
+            v-if="selectedPlugin"
+            :plugin="selectedPlugin"
+            :initial-tab="initialTab"
+            @toggle="handleTogglePlugin"
+            @uninstall="handleUninstallPlugin"
+          />
         </div>
       </div>
     </div>
@@ -229,21 +252,6 @@ const switchToSettings = () => {
   flex-direction: column;
   position: relative;
   padding-left: 8px;
-}
-
-.panel-header {
-  flex-shrink: 0;
-  padding: 16px 16px 12px;
-  border-bottom: 1px solid var(--border-color);
-  background-color: var(--card-bg);
-  border-radius: 8px 8px 0 0;
-}
-
-.panel-body {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 /* 拖拽分隔条 */

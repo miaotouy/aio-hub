@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Delete, Setting } from "@element-plus/icons-vue";
+import { Delete, Setting, InfoFilled } from "@element-plus/icons-vue";
 import type { PluginProxy } from "@/services/plugin-types";
 
 // Props
@@ -12,6 +12,7 @@ defineProps<Props>();
 // Emits
 const emit = defineEmits<{
   toggle: [];
+  detail: [];
   settings: [];
   uninstall: [];
 }>();
@@ -47,6 +48,20 @@ const emit = defineEmits<{
 
     <!-- 右侧：操作按钮 -->
     <div class="plugin-actions">
+      <el-button :icon="InfoFilled" size="small" text @click="emit('detail')">
+        详情
+      </el-button>
+      
+      <el-button
+        v-if="plugin.manifest.settingsSchema"
+        :icon="Setting"
+        size="small"
+        text
+        @click="emit('settings')"
+      >
+        设置
+      </el-button>
+
       <el-tooltip
         v-if="plugin.devMode"
         content="开发模式插件无法卸载，请手动删除源码目录"
@@ -56,15 +71,6 @@ const emit = defineEmits<{
       </el-tooltip>
       <el-button v-else :icon="Delete" size="small" type="danger" text @click="emit('uninstall')">
         卸载
-      </el-button>
-      <el-button
-        v-if="plugin.manifest.settingsSchema"
-        :icon="Setting"
-        size="small"
-        text
-        @click="emit('settings')"
-      >
-        设置
       </el-button>
 
       <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="top">

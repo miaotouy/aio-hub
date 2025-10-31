@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Delete, Switch, Setting } from '@element-plus/icons-vue';
+import { Delete, Switch } from '@element-plus/icons-vue';
 import type { PluginProxy } from '@/services/plugin-types';
+import PluginSettingsPanel from './PluginSettingsPanel.vue';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
 import { readTextFile, exists } from '@tauri-apps/plugin-fs';
@@ -20,6 +21,7 @@ const md = new MarkdownIt({
 // Props
 interface Props {
   plugin: PluginProxy | null;
+  initialTab?: string;
 }
 
 const props = defineProps<Props>();
@@ -27,9 +29,11 @@ const props = defineProps<Props>();
 // Emits
 const emit = defineEmits<{
   'toggle': [];
-  'settings': [];
   'uninstall': [];
 }>();
+
+// 内部 tab 状态
+const activeContentTab = ref('detail');
 
 // README 内容
 const readmeHtml = ref<string>('');
@@ -116,9 +120,33 @@ async function loadReadme() {
   }
 }
 // 监听插件变化
-watch(() => props.plugin, () => {
-  loadReadme();
-}, { immediate: true });
+watch(
+  () => props.plugin,
+  (newPlugin) => {
+    loadReadme();
+    // 如果新插件没有设置项，或者当前 tab 是设置但插件变了，则切回详情
+    if (activeContentTab.value === 'settings' && !newPlugin?.manifest.settingsSchema) {
+      activeContentTab.value = 'detail';
+    }
+  },
+  { immediate: true, deep: true }
+);
+
+// 监听 initialTab 变化
+watch(
+  () => props.initialTab,
+  (newTab) => {
+    if (newTab) {
+      // 如果是设置 tab，但插件没有设置项，则忽略
+      if (newTab === 'settings' && !props.plugin?.manifest.settingsSchema) {
+        activeContentTab.value = 'detail';
+      } else {
+        activeContentTab.value = newTab;
+      }
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -177,14 +205,6 @@ watch(() => props.plugin, () => {
             {{ plugin.enabled ? '禁用插件' : '启用插件' }}
           </el-button>
 
-          <el-button
-            v-if="plugin.manifest.settingsSchema"
-            :icon="Setting"
-            @click="emit('settings')"
-          >
-            插件设置
-          </el-button>
-
           <el-tooltip
             v-if="plugin.devMode"
             content="开发模式插件无法卸载，请手动删除源码目录"
@@ -209,60 +229,76 @@ watch(() => props.plugin, () => {
         </div>
       </div>
 
-      <!-- 主内容区域 -->
-      <div class="content-section">
-        <div class="main-content">
-          <!-- README -->
-          <div class="readme-area">
-            <div v-if="loadingReadme" class="loading-state">
-              <el-icon class="is-loading"><i class="ep-loading" /></el-icon>
-              <span>加载 README...</span>
+      <!-- 内容切换区域 -->
+      <el-tabs v-model="activeContentTab" class="content-tabs">
+        <!-- 详情 Tab -->
+        <el-tab-pane label="详情" name="detail">
+          <div class="content-section">
+            <div class="main-content">
+              <!-- README -->
+              <div class="readme-area">
+                <div v-if="loadingReadme" class="loading-state">
+                  <el-icon class="is-loading"><i class="ep-loading" /></el-icon>
+                  <span>加载 README...</span>
+                </div>
+                <div
+                  v-else
+                  class="readme-content markdown-body"
+                  v-html="readmeHtml"
+                ></div>
+              </div>
             </div>
-            <div
-              v-else
-              class="readme-content markdown-body"
-              v-html="readmeHtml"
-            ></div>
-          </div>
-        </div>
 
-        <!-- 右侧信息栏 -->
-        <div class="info-sidebar">
-          <div class="info-section">
-            <h3 class="section-title">插件信息</h3>
-            <div class="info-list">
-              <div class="info-item">
-                <span class="label">插件 ID</span>
-                <span class="value">{{ plugin.id }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">版本</span>
-                <span class="value">{{ plugin.manifest.version }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">作者</span>
-                <span class="value">{{ plugin.manifest.author }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">类型</span>
-                <span class="value">{{ pluginTypeText }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">主机版本</span>
-                <span class="value">{{ plugin.manifest.host.appVersion }}</span>
-              </div>
-              <div v-if="!plugin.devMode" class="info-item">
-                <span class="label">安装路径</span>
-                <span class="value path">{{ plugin.installPath }}</span>
-              </div>
-              <div v-else class="info-item">
-                <span class="label">源码路径</span>
-                <span class="value path">{{ plugin.installPath }}</span>
+            <!-- 右侧信息栏 -->
+            <div class="info-sidebar">
+              <div class="info-section">
+                <h3 class="section-title">插件信息</h3>
+                <div class="info-list">
+                  <div class="info-item">
+                    <span class="label">插件 ID</span>
+                    <span class="value">{{ plugin.id }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="label">版本</span>
+                    <span class="value">{{ plugin.manifest.version }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="label">作者</span>
+                    <span class="value">{{ plugin.manifest.author }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="label">类型</span>
+                    <span class="value">{{ pluginTypeText }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="label">主机版本</span>
+                    <span class="value">{{ plugin.manifest.host.appVersion }}</span>
+                  </div>
+                  <div v-if="!plugin.devMode" class="info-item">
+                    <span class="label">安装路径</span>
+                    <span class="value path">{{ plugin.installPath }}</span>
+                  </div>
+                  <div v-else class="info-item">
+                    <span class="label">源码路径</span>
+                    <span class="value path">{{ plugin.installPath }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </el-tab-pane>
+
+        <!-- 设置 Tab -->
+        <el-tab-pane
+          v-if="plugin.manifest.settingsSchema"
+          label="设置"
+          name="settings"
+        >
+          <div class="settings-panel-container">
+            <PluginSettingsPanel :plugin="plugin" />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 </template>
@@ -272,13 +308,44 @@ watch(() => props.plugin, () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   /* 启用容器查询 */
   container-type: inline-size;
   container-name: detail-panel;
+}
+
+/* ========== Tab 样式 ========== */
+.content-tabs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.content-tabs :deep(.el-tabs__header) {
+  padding: 0 32px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.content-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+}
+
+.content-tabs :deep(.el-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-panel-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
 }
 
 .empty-state {
@@ -300,7 +367,6 @@ watch(() => props.plugin, () => {
 .header-section {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-color);
 }
 
 .plugin-header {
@@ -418,6 +484,16 @@ watch(() => props.plugin, () => {
   color: var(--text-color);
   font-size: 14px;
   line-height: 1.6;
+  background-color: transparent;
+}
+
+.readme-content :deep(h1),
+.readme-content :deep(h2),
+.readme-content :deep(h3),
+.readme-content :deep(h4),
+.readme-content :deep(h5),
+.readme-content :deep(h6) {
+  color: var(--text-color);
 }
 
 .readme-content :deep(h1) {
@@ -456,6 +532,7 @@ watch(() => props.plugin, () => {
 .readme-content :deep(p) {
   margin-top: 0;
   margin-bottom: 16px;
+  color: var(--text-color);
 }
 
 .readme-content :deep(a) {
@@ -468,15 +545,17 @@ watch(() => props.plugin, () => {
 }
 
 .readme-content :deep(code) {
-  background-color: var(--bg-color);
+  background-color: rgba(127, 127, 127, 0.15);
   border-radius: 3px;
   padding: 2px 6px;
   font-size: 0.9em;
   font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--text-color);
 }
 
 .readme-content :deep(pre) {
-  background-color: var(--bg-color);
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 16px;
   overflow-x: auto;
@@ -486,6 +565,7 @@ watch(() => props.plugin, () => {
 .readme-content :deep(pre code) {
   background-color: transparent;
   padding: 0;
+  color: inherit;
 }
 
 .readme-content :deep(ul),
@@ -497,6 +577,7 @@ watch(() => props.plugin, () => {
 
 .readme-content :deep(li) {
   margin-bottom: 4px;
+  color: var(--text-color);
 }
 
 .readme-content :deep(blockquote) {
@@ -504,6 +585,9 @@ watch(() => props.plugin, () => {
   padding-left: 16px;
   color: var(--text-color-secondary);
   margin: 0 0 16px 0;
+  background-color: rgba(127, 127, 127, 0.05);
+  padding: 8px 16px;
+  border-radius: 4px;
 }
 
 .readme-content :deep(table) {
@@ -520,12 +604,23 @@ watch(() => props.plugin, () => {
 
 .readme-content :deep(table th) {
   font-weight: 600;
-  background-color: var(--bg-color);
+  background-color: rgba(127, 127, 127, 0.1);
+}
+
+.readme-content :deep(table td) {
+  background-color: rgba(127, 127, 127, 0.03);
+}
+
+.readme-content :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 24px 0;
 }
 
 .readme-content :deep(img) {
   max-width: 100%;
   height: auto;
+  border-radius: 4px;
 }
 
 .readme-content :deep(.no-readme),
@@ -541,7 +636,6 @@ watch(() => props.plugin, () => {
   width: 280px;
   flex-shrink: 0;
   border-left: 1px solid var(--border-color);
-  background-color: var(--bg-color);
   overflow-y: auto;
   padding: 24px 20px;
 }

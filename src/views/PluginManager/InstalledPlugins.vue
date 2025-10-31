@@ -11,7 +11,7 @@ const logger = createModuleLogger('PluginManager/InstalledPlugins');
 
 // Emits
 const emit = defineEmits<{
-  'select-plugin': [plugin: PluginProxy];
+  'select-plugin': [plugin: PluginProxy, initialTab?: string];
 }>();
 
 // 搜索关键词
@@ -74,10 +74,18 @@ async function togglePlugin(plugin: PluginProxy) {
 }
 
 /**
+ * 选择插件以查看详情
+ */
+function selectPluginForDetail(plugin: PluginProxy) {
+  emit('select-plugin', plugin, 'detail');
+  logger.debug('选择插件查看详情', { pluginId: plugin.id, pluginName: plugin.name });
+}
+
+/**
  * 选择插件以查看设置
  */
 function selectPluginForSettings(plugin: PluginProxy) {
-  emit('select-plugin', plugin);
+  emit('select-plugin', plugin, 'settings');
   logger.debug('选择插件查看设置', { pluginId: plugin.id, pluginName: plugin.name });
 }
 
@@ -155,6 +163,7 @@ onMounted(() => {
         :key="plugin.id"
         :plugin="plugin"
         @toggle="togglePlugin(plugin)"
+        @detail="selectPluginForDetail(plugin)"
         @settings="selectPluginForSettings(plugin)"
         @uninstall="uninstallPlugin(plugin)"
       />

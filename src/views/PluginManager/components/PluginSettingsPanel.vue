@@ -209,10 +209,6 @@ watch(() => props.plugin, (newPlugin) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
 }
 
 .empty-state {

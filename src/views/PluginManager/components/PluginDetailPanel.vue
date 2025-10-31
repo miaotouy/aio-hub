@@ -708,6 +708,10 @@ watch(
   background: var(--text-color-secondary);
 }
 
+:deep.el-button+.el-button {
+    margin-left: 0px;
+}
+
 /* ========== 响应式设计 - 使用容器查询 ========== */
 /* 中等宽度：缩小侧边栏 */
 @container detail-panel (max-width: 1200px) {
@@ -761,7 +765,7 @@ watch(
 }
 
 /* 极小宽度：简化头部布局 */
-@container detail-panel (max-width: 500px) {
+@container detail-panel (max-width: 400px) {
   .plugin-header {
     flex-direction: column;
     gap: 16px;

@@ -20,63 +20,73 @@ const emit = defineEmits<{
 
 <template>
   <div class="plugin-card">
-    <!-- 左侧：图标和主要信息 -->
-    <div class="plugin-main">
-      <div class="plugin-icon">📦</div>
-      <div class="plugin-info">
-        <div class="plugin-name-line">
-          <h3 class="plugin-name">{{ plugin.name }}</h3>
-          <div class="plugin-badges">
-            <el-tag
-              :type="plugin.manifest.type === 'javascript' ? 'success' : 'warning'"
-              size="small"
-              effect="plain"
-            >
-              {{ plugin.manifest.type === "javascript" ? "JS" : "Sidecar" }}
-            </el-tag>
-            <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain"> Dev </el-tag>
-          </div>
-        </div>
-        <div class="plugin-meta">
-          <span class="plugin-version">v{{ plugin.manifest.version }}</span>
-          <span class="plugin-separator">·</span>
-          <span class="plugin-author">{{ plugin.manifest.author }}</span>
-        </div>
-        <p class="plugin-description">{{ plugin.description }}</p>
-      </div>
-    </div>
-
-    <!-- 右侧：操作按钮 -->
-    <div class="plugin-actions">
-      <el-button :icon="InfoFilled" size="small" text @click="emit('detail')">
-        详情
-      </el-button>
-      
-      <el-button
-        v-if="plugin.manifest.settingsSchema"
-        :icon="Setting"
-        size="small"
-        text
-        @click="emit('settings')"
-      >
-        设置
-      </el-button>
-
-      <el-tooltip
-        v-if="plugin.devMode"
-        content="开发模式插件无法卸载，请手动删除源码目录"
-        placement="top"
-      >
-        <el-button :icon="Delete" size="small" type="danger" text disabled> 卸载 </el-button>
-      </el-tooltip>
-      <el-button v-else :icon="Delete" size="small" type="danger" text @click="emit('uninstall')">
-        卸载
-      </el-button>
-
-      <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="top">
+  <!-- 左侧：图标 + 开关 -->
+  <div class="plugin-left">
+    <div class="plugin-icon">📦</div>
+    <div class="plugin-toggle">
+      <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="right">
         <el-switch :model-value="plugin.enabled" @change="emit('toggle')" />
       </el-tooltip>
     </div>
+  </div>
+
+  <!-- 主内容区 -->
+  <div class="plugin-content">
+    <!-- 第一行：名字 + 徽章 + 操作按钮（可换行） -->
+    <div class="plugin-top">
+      <div class="plugin-name-badges">
+        <h3 class="plugin-name">{{ plugin.name }}</h3>
+        <div class="plugin-badges">
+          <el-tag
+            :type="plugin.manifest.type === 'javascript' ? 'success' : 'warning'"
+            size="small"
+            effect="plain"
+          >
+            {{ plugin.manifest.type === "javascript" ? "JS" : "Sidecar" }}
+          </el-tag>
+          <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain"> Dev </el-tag>
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="plugin-actions">
+        <el-button :icon="InfoFilled" size="small" text @click="emit('detail')">
+          详情
+        </el-button>
+        
+        <el-button
+          v-if="plugin.manifest.settingsSchema"
+          :icon="Setting"
+          size="small"
+          text
+          @click="emit('settings')"
+        >
+          设置
+        </el-button>
+
+        <el-tooltip
+          v-if="plugin.devMode"
+          content="开发模式插件无法卸载，请手动删除源码目录"
+          placement="top"
+        >
+          <el-button :icon="Delete" size="small" type="danger" text disabled> 卸载 </el-button>
+        </el-tooltip>
+        <el-button v-else :icon="Delete" size="small" type="danger" text @click="emit('uninstall')">
+          卸载
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 元信息 -->
+    <div class="plugin-meta">
+      <span class="plugin-version">v{{ plugin.manifest.version }}</span>
+      <span class="plugin-separator">·</span>
+      <span class="plugin-author">{{ plugin.manifest.author }}</span>
+    </div>
+
+    <!-- 描述 -->
+    <p class="plugin-description">{{ plugin.description }}</p>
+  </div>
   </div>
 </template>
 
@@ -84,8 +94,7 @@ const emit = defineEmits<{
 .plugin-card {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   padding: 12px 16px;
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -98,29 +107,40 @@ const emit = defineEmits<{
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-.plugin-main {
-  flex: 1;
+.plugin-left {
   display: flex;
-  gap: 12px;
-  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .plugin-icon {
   font-size: 32px;
-  flex-shrink: 0;
   line-height: 1;
 }
 
-.plugin-info {
+.plugin-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.plugin-name-line {
+.plugin-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.plugin-name-badges {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
+  flex: 1;
+  min-width: 200px;
 }
 
 .plugin-name {
@@ -139,13 +159,19 @@ const emit = defineEmits<{
   flex-shrink: 0;
 }
 
+.plugin-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
 .plugin-meta {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   color: var(--text-color-secondary);
-  margin-bottom: 6px;
 }
 
 .plugin-version {
@@ -168,10 +194,12 @@ const emit = defineEmits<{
   overflow: hidden;
 }
 
-.plugin-actions {
-  flex-shrink: 0;
+.plugin-toggle {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  justify-content: center;
+}
+
+:deep.el-button+.el-button {
+    margin-left: 0px;
 }
 </style>

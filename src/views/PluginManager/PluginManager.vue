@@ -14,20 +14,20 @@ const activeTab = ref<'installed' | 'market'>('installed');
 
 // 右侧面板状态
 const isPanelCollapsed = ref(true);
-const panelWidth = ref(800);
+const panelWidthPercent = ref(50); // 使用百分比存储（默认50%）
 const selectedPlugin = ref<PluginProxy | null>(null);
 const initialTab = ref<string>('detail');
 
 // 拖拽状态
 const isDragging = ref(false);
 const dragStartX = ref(0);
-const dragStartWidth = ref(0);
+const dragStartPercent = ref(0);
 
 // 拖拽处理
 const handleDragStart = (e: MouseEvent) => {
   isDragging.value = true;
   dragStartX.value = e.clientX;
-  dragStartWidth.value = panelWidth.value;
+  dragStartPercent.value = panelWidthPercent.value;
   e.preventDefault();
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
@@ -36,9 +36,16 @@ const handleDragStart = (e: MouseEvent) => {
 const handleMouseMove = (e: MouseEvent) => {
   if (isDragging.value) {
     const delta = e.clientX - dragStartX.value;
-    const newWidth = dragStartWidth.value - delta; // 右侧边栏向左移动时宽度增加
-    if (newWidth >= 300 && newWidth <= 800) {
-      panelWidth.value = newWidth;
+    // 将像素差值转换为百分比差值
+    const deltaPercent = (delta / window.innerWidth) * 100;
+    const newPercent = dragStartPercent.value - deltaPercent;
+    
+    // 计算最小百分比（确保至少300px）
+    const minPercent = Math.max(20, (300 / window.innerWidth) * 100);
+    const maxPercent = 70;
+    
+    if (newPercent >= minPercent && newPercent <= maxPercent) {
+      panelWidthPercent.value = newPercent;
     }
   }
 };
@@ -154,7 +161,7 @@ const handleUninstallPlugin = async () => {
       <div
         v-if="!isPanelCollapsed"
         class="side-panel"
-        :style="{ width: `${panelWidth}px` }"
+        :style="{ width: `${panelWidthPercent}%` }"
       >
         <!-- 折叠按钮 -->
         <div class="collapse-button" @click="isPanelCollapsed = true">
@@ -195,7 +202,7 @@ const handleUninstallPlugin = async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 10px;
   box-sizing: border-box;
   overflow: hidden;
 }

@@ -210,7 +210,7 @@ const emit = defineEmits<{
   justify-content: center;
 }
 
-:deep.el-button+.el-button {
+:deep(.el-button) {
     margin-left: 0px;
 }
 </style>

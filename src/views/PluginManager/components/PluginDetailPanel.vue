@@ -706,7 +706,7 @@ watch(
   background: var(--text-color-secondary);
 }
 
-:deep.el-button+.el-button {
+:deep(.el-button) {
     margin-left: 0px;
 }
 

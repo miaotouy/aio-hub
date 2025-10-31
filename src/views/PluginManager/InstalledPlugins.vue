@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
+import { Refresh } from '@element-plus/icons-vue';
 import PluginCard from './components/PluginCard.vue';
 import { pluginManager } from '@/services/plugin-manager';
 import type { PluginProxy } from '@/services/plugin-types';
@@ -142,6 +143,11 @@ async function uninstallPlugin(plugin: PluginProxy) {
   }
 }
 
+// 暴露方法供父组件调用
+defineExpose({
+  loadPlugins,
+});
+
 // 初始化
 onMounted(() => {
   loadPlugins();
@@ -157,6 +163,15 @@ onMounted(() => {
         placeholder="搜索插件..."
         clearable
         :prefix-icon="'Search'"
+        class="search-input"
+      />
+      <el-button
+        :icon="Refresh"
+        circle
+        @click="loadPlugins"
+        title="刷新插件列表"
+        :loading="loading"
+        class="refresh-btn"
       />
     </div>
 
@@ -201,10 +216,34 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-x: hidden;
 }
 
 .search-bar {
   flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1;
+}
+
+.refresh-btn {
+  flex-shrink: 0;
+  transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.refresh-btn:not(.is-loading):hover {
+  transform: rotate(180deg);
+  background-color: var(--el-fill-color-light) !important;
+  border-color: var(--el-border-color-hover) !important;
+}
+
+.refresh-btn:not(.is-loading):active {
+  background-color: var(--el-fill-color) !important;
+  border-color: var(--el-border-color) !important;
 }
 
 .loading-container {

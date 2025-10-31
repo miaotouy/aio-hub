@@ -407,16 +407,25 @@ async fn create_preview_window_internal(
         )
     };
 
-    let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .title("Preview")
         .inner_size(config.width, config.height)
         .decorations(false)
-        .transparent(true)
         .shadow(false)
         .skip_taskbar(true)
-        .visible(false)
-        .build()
-        .map_err(|e| e.to_string())?;
+        .visible(false);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let window = builder.build().map_err(|e| e.to_string())?;
 
     window
         .set_ignore_cursor_events(true)
@@ -686,15 +695,23 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         return Ok(());
     }
 
-    let _window =
-        WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
-            .title(&config.title)
-            .inner_size(config.width, config.height)
-            .min_inner_size(400.0, 300.0)
-            .decorations(false)
-            .transparent(true)
-            .build()
-            .map_err(|e| e.to_string())?;
+    let mut builder = WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
+        .title(&config.title)
+        .inner_size(config.width, config.height)
+        .min_inner_size(400.0, 300.0)
+        .decorations(false);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let _window = builder.build().map_err(|e| e.to_string())?;
 
     let detachable_config = DetachableConfig {
         id: config.label.clone(),

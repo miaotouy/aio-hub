@@ -306,8 +306,7 @@ pub fn run() {
             )
             .title("AIO Hub")
             .inner_size(1280.0, 768.0)
-            .min_inner_size(360.0, 112.0)
-            .transparent(true);
+            .min_inner_size(360.0, 112.0);
 
             // 根据不同平台应用不同的窗口样式
             #[cfg(target_os = "macos")]
@@ -319,7 +318,9 @@ pub fn run() {
 
             #[cfg(not(target_os = "macos"))]
             {
-                win_builder = win_builder.decorations(false);
+                win_builder = win_builder
+                    .decorations(false)
+                    .transparent(true);
             }
 
             let main_window = win_builder.build()?;

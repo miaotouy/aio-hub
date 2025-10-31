@@ -5,6 +5,7 @@ use std::time::Instant;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use fs_extra;
+#[cfg(windows)]
 use std::path::Component;
 use tokio_util::sync::CancellationToken;
 use std::sync::{Arc, Mutex};

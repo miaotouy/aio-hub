@@ -107,8 +107,11 @@ export class PluginLoader {
             continue;
           }
 
+          // 开发模式下的安装路径
+          const devInstallPath = pluginPath.replace('/index.ts', '');
+
           // 创建插件代理（标记为开发模式）
-          const proxy = createJsPluginProxy(manifest, true);
+          const proxy = createJsPluginProxy(manifest, devInstallPath, true);
 
           // 加载插件模块
           const pluginModule = await pluginModules[pluginPath]();
@@ -250,7 +253,7 @@ export class PluginLoader {
       const jsContent = await readTextFile(entryPath);
 
       // 创建插件代理（标记为生产模式）
-      const proxy = createJsPluginProxy(manifest, false);
+      const proxy = createJsPluginProxy(manifest, pluginPath, false);
 
       // 使用 Function 构造器在隔离作用域中执行插件代码
       // 注意：这不是完全的沙箱，仅用于简单的插件执行

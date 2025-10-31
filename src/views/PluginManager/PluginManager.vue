@@ -3,15 +3,18 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import InstalledPlugins from './InstalledPlugins.vue';
 import PluginMarket from './PluginMarket.vue';
 import PluginSettingsPanel from './components/PluginSettingsPanel.vue';
+import PluginDetailPanel from './components/PluginDetailPanel.vue';
 import SidebarToggleIcon from '@/components/icons/SidebarToggleIcon.vue';
 import type { PluginProxy } from '@/services/plugin-types';
 
 // 当前激活的标签页
 const activeTab = ref<'installed' | 'market'>('installed');
 
-// 右侧配置面板状态
-const isSettingsPanelCollapsed = ref(true);
-const settingsPanelWidth = ref(400);
+// 右侧面板状态
+type PanelMode = 'detail' | 'settings';
+const isPanelCollapsed = ref(true);
+const panelWidth = ref(400);
+const panelMode = ref<PanelMode>('detail');
 const selectedPlugin = ref<PluginProxy | null>(null);
 
 // 拖拽状态
@@ -23,7 +26,7 @@ const dragStartWidth = ref(0);
 const handleDragStart = (e: MouseEvent) => {
   isDragging.value = true;
   dragStartX.value = e.clientX;
-  dragStartWidth.value = settingsPanelWidth.value;
+  dragStartWidth.value = panelWidth.value;
   e.preventDefault();
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
@@ -34,7 +37,7 @@ const handleMouseMove = (e: MouseEvent) => {
     const delta = e.clientX - dragStartX.value;
     const newWidth = dragStartWidth.value - delta; // 右侧边栏向左移动时宽度增加
     if (newWidth >= 300 && newWidth <= 800) {
-      settingsPanelWidth.value = newWidth;
+      panelWidth.value = newWidth;
     }
   }
 };
@@ -55,12 +58,17 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', handleMouseUp);
 });
 
-// 处理插件选择
+// 处理插件选择 - 显示详情
 const handlePluginSelect = (plugin: PluginProxy) => {
   selectedPlugin.value = plugin;
-  // 如果插件有配置，自动展开配置面板
-  if (plugin.manifest.settingsSchema) {
-    isSettingsPanelCollapsed.value = false;
+  panelMode.value = 'detail';
+  isPanelCollapsed.value = false;
+};
+
+// 切换到设置模式
+const switchToSettings = () => {
+  if (selectedPlugin.value?.manifest.settingsSchema) {
+    panelMode.value = 'settings';
   }
 };
 </script>
@@ -70,11 +78,6 @@ const handlePluginSelect = (plugin: PluginProxy) => {
     <div class="plugin-manager-container">
       <!-- 主内容区域 -->
       <div class="main-content">
-        <div class="plugin-manager-header">
-          <h1 class="page-title">扩展中心</h1>
-          <p class="page-description">管理和安装插件以扩展应用功能</p>
-        </div>
-
         <el-tabs v-model="activeTab" class="plugin-tabs">
           <el-tab-pane label="已安装" name="installed">
             <InstalledPlugins @select-plugin="handlePluginSelect" />
@@ -85,11 +88,11 @@ const handlePluginSelect = (plugin: PluginProxy) => {
           </el-tab-pane>
         </el-tabs>
 
-        <!-- 配置面板折叠时的展开按钮 -->
+        <!-- 面板折叠时的展开按钮 -->
         <div
-          v-if="isSettingsPanelCollapsed && selectedPlugin?.manifest.settingsSchema"
+          v-if="isPanelCollapsed && selectedPlugin"
           class="expand-button"
-          @click="isSettingsPanelCollapsed = false"
+          @click="isPanelCollapsed = false"
         >
           <SidebarToggleIcon class="expand-icon trapezoid" flip />
           <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -103,14 +106,14 @@ const handlePluginSelect = (plugin: PluginProxy) => {
         </div>
       </div>
 
-      <!-- 右侧配置面板 -->
+      <!-- 右侧面板 -->
       <div
-        v-if="!isSettingsPanelCollapsed"
-        class="settings-panel"
-        :style="{ width: `${settingsPanelWidth}px` }"
+        v-if="!isPanelCollapsed"
+        class="side-panel"
+        :style="{ width: `${panelWidth}px` }"
       >
         <!-- 折叠按钮 -->
-        <div class="collapse-button" @click="isSettingsPanelCollapsed = true">
+        <div class="collapse-button" @click="isPanelCollapsed = true">
           <SidebarToggleIcon class="collapse-icon trapezoid" flip />
           <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <polyline
@@ -130,7 +133,34 @@ const handlePluginSelect = (plugin: PluginProxy) => {
         ></div>
 
         <div class="panel-content">
-          <PluginSettingsPanel :plugin="selectedPlugin" />
+          <!-- 面板头部：切换详情/设置 -->
+          <div v-if="selectedPlugin" class="panel-header">
+            <el-segmented
+              v-model="panelMode"
+              :options="[
+                { label: '详情', value: 'detail' },
+                {
+                  label: '设置',
+                  value: 'settings',
+                  disabled: !selectedPlugin.manifest.settingsSchema
+                }
+              ]"
+              size="small"
+            />
+          </div>
+
+          <!-- 详情面板 -->
+          <div v-if="panelMode === 'detail'" class="panel-body">
+            <PluginDetailPanel
+              :plugin="selectedPlugin"
+              @settings="switchToSettings"
+            />
+          </div>
+
+          <!-- 设置面板 -->
+          <div v-else class="panel-body">
+            <PluginSettingsPanel :plugin="selectedPlugin" />
+          </div>
         </div>
       </div>
     </div>
@@ -164,24 +194,6 @@ const handlePluginSelect = (plugin: PluginProxy) => {
   position: relative;
 }
 
-.plugin-manager-header {
-  flex-shrink: 0;
-  margin-bottom: 20px;
-}
-
-.page-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--text-color);
-  margin: 0 0 8px 0;
-}
-
-.page-description {
-  font-size: 14px;
-  color: var(--text-color-secondary);
-  margin: 0;
-}
-
 .plugin-tabs {
   flex: 1;
   display: flex;
@@ -200,16 +212,34 @@ const handlePluginSelect = (plugin: PluginProxy) => {
   overflow-y: auto;
 }
 
-/* 右侧配置面板 */
-.settings-panel {
+/* 右侧面板 */
+.side-panel {
   height: 100%;
   flex-shrink: 0;
   position: relative;
   display: flex;
+  flex-direction: column;
   margin-left: 20px;
 }
 
 .panel-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 8px;
+}
+
+.panel-header {
+  flex-shrink: 0;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  border-radius: 8px 8px 0 0;
+}
+
+.panel-body {
   flex: 1;
   overflow: hidden;
   display: flex;

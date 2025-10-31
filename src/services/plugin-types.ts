@@ -119,6 +119,8 @@ export interface JsPluginExport {
 export interface PluginProxy extends ToolService {
   /** 插件清单 */
   manifest: PluginManifest;
+  /** 插件安装路径 */
+  installPath: string;
   /** 插件是否已启用 */
   enabled: boolean;
   /** 是否为开发模式插件 */

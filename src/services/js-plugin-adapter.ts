@@ -21,20 +21,22 @@ export class JsPluginAdapter implements PluginProxy {
   public readonly name: string;
   public readonly description: string;
   public readonly manifest: PluginManifest;
+  public readonly installPath: string;
   public readonly devMode: boolean;
   public enabled: boolean = false;
 
   private pluginExport: JsPluginExport | null = null;
 
-  constructor(manifest: PluginManifest, devMode: boolean = false) {
+  constructor(manifest: PluginManifest, installPath: string, devMode: boolean = false) {
     this.manifest = manifest;
+    this.installPath = installPath;
     // 开发模式下为 ID 添加后缀，避免与生产版本冲突
     this.id = devMode ? `${manifest.id}-dev` : manifest.id;
     this.name = manifest.name;
     this.description = manifest.description;
     this.devMode = devMode;
 
-    logger.debug(`创建 JS 插件适配器: ${this.id}`, { devMode });
+    logger.debug(`创建 JS 插件适配器: ${this.id}`, { devMode, installPath });
   }
 
   /**
@@ -147,9 +149,10 @@ export class JsPluginAdapter implements PluginProxy {
  */
 export function createJsPluginProxy(
   manifest: PluginManifest,
+  installPath: string,
   devMode: boolean = false
 ): PluginProxy {
-  const adapter = new JsPluginAdapter(manifest, devMode);
+  const adapter = new JsPluginAdapter(manifest, installPath, devMode);
 
   // 使用 Proxy 拦截所有属性访问
   return new Proxy(adapter, {

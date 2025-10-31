@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Expand, Fold } from "@element-plus/icons-vue";
+import { Puzzle } from "lucide-vue-next";
 import { toolsConfig, type ToolConfig } from "../config/tools";
 import { useDetachable } from "../composables/useDetachable";
 import { useTheme } from "../composables/useTheme";
@@ -151,6 +152,10 @@ onUnmounted(() => {
             <el-menu-item index="/">
               <el-icon><i-ep-home-filled /></el-icon>
               <template #title>主页</template>
+            </el-menu-item>
+            <el-menu-item index="/extensions">
+              <el-icon><Puzzle :size="18" /></el-icon>
+              <template #title>扩展</template>
             </el-menu-item>
             <el-menu-item
               v-for="tool in visibleTools"

@@ -56,7 +56,7 @@ export class PluginLoader {
     logger.info('开发模式：从源码目录加载插件', { dir: this.devPluginsDir });
 
     const result: PluginLoadResult = {
-      loaded: 0,
+      plugins: [],
       failed: [],
     };
 
@@ -107,7 +107,8 @@ export class PluginLoader {
             version: manifest.version,
           });
 
-          result.loaded++;
+          // 将插件代理添加到结果列表
+          result.plugins.push(proxy);
         } catch (error) {
           logger.error(`加载开发插件失败: ${pluginId}`, error);
           result.failed.push({
@@ -122,7 +123,7 @@ export class PluginLoader {
     }
 
     logger.info('开发插件加载完成', {
-      loaded: result.loaded,
+      loaded: result.plugins.length,
       failed: result.failed.length,
     });
 
@@ -136,7 +137,7 @@ export class PluginLoader {
     logger.info('生产模式：从安装目录加载插件', { dir: this.prodPluginsDir });
 
     const result: PluginLoadResult = {
-      loaded: 0,
+      plugins: [],
       failed: [],
     };
 
@@ -183,9 +184,10 @@ export class PluginLoader {
           }
 
           // 加载 JS 插件
-          await this.loadProdJsPlugin(manifest, pluginPath);
-
-          result.loaded++;
+          const proxy = await this.loadProdJsPlugin(manifest, pluginPath);
+          if (proxy) {
+            result.plugins.push(proxy);
+          }
         } catch (error) {
           logger.error(`加载生产插件失败: ${pluginId}`, error);
           result.failed.push({
@@ -200,7 +202,7 @@ export class PluginLoader {
     }
 
     logger.info('生产插件加载完成', {
-      loaded: result.loaded,
+      loaded: result.plugins.length,
       failed: result.failed.length,
     });
 
@@ -210,7 +212,7 @@ export class PluginLoader {
   /**
    * 加载生产环境下的 JS 插件
    */
-  private async loadProdJsPlugin(manifest: PluginManifest, pluginPath: string): Promise<void> {
+  private async loadProdJsPlugin(manifest: PluginManifest, pluginPath: string): Promise<import('./plugin-types').PluginProxy | null> {
     if (!manifest.main) {
       throw new Error('JS 插件缺少 main 字段');
     }
@@ -241,6 +243,8 @@ export class PluginLoader {
       name: manifest.name,
       version: manifest.version,
     });
+    
+    return null;
   }
 
   /**

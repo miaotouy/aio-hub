@@ -94,9 +94,15 @@ export async function autoRegisterServices(): Promise<void> {
       const pluginResult = await pluginLoader.loadAll();
 
       logger.info('插件加载完成', {
-        loaded: pluginResult.loaded,
+        loaded: pluginResult.plugins.length,
         failed: pluginResult.failed.length,
       });
+
+      // 将插件注册到 ServiceRegistry
+      if (pluginResult.plugins.length > 0) {
+        await serviceRegistry.register(...pluginResult.plugins);
+        logger.info(`已将 ${pluginResult.plugins.length} 个插件注册到服务注册表`);
+      }
 
       if (pluginResult.failed.length > 0) {
         logger.warn('部分插件加载失败', {

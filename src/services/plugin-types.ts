@@ -161,8 +161,8 @@ export interface PluginLoadOptions {
  * 插件加载结果
  */
 export interface PluginLoadResult {
-  /** 成功加载的插件数量 */
-  loaded: number;
+  /** 成功加载的插件代理列表 */
+  plugins: PluginProxy[];
   /** 加载失败的插件列表 */
   failed: Array<{
     id: string;

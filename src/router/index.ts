@@ -27,6 +27,11 @@ const routes: Array<RouteRecordRaw> = [
   // 动态生成的工具路由
   ...toolRoutes,
   {
+    path: "/extensions",
+    name: "Extensions",
+    component: () => import("../views/PluginManager/PluginManager.vue"),
+  },
+  {
     path: "/settings",
     name: "Settings",
     component: () => import("../views/Settings.vue"),

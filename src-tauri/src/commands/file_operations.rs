@@ -1180,6 +1180,18 @@ pub async fn uninstall_plugin(
     Ok(format!("插件 {} 已移入回收站", plugin_id))
 }
 
+// 插件安装进度事件
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallProgress {
+    pub current_file: String,
+    pub processed_files: usize,
+    pub total_files: usize,
+    pub progress_percentage: f64,
+    pub current_bytes: u64,
+    pub total_bytes: u64,
+}
+
 // 插件安装结果
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1285,7 +1297,6 @@ pub async fn install_plugin_from_zip(
     if install_dir.exists() {
         return Err(format!("插件 {} 已安装，请先卸载", plugin_id));
     }
-    
     // 创建插件目录
     fs::create_dir_all(&install_dir)
         .map_err(|e| format!("创建插件目录失败: {}", e))?;
@@ -1297,7 +1308,34 @@ pub async fn install_plugin_from_zip(
     let mut archive = ZipArchive::new(file)
         .map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
     
-    // 解压所有文件
+    // 统计总文件数和总字节数（用于进度计算）
+    let mut total_files = 0usize;
+    let mut total_bytes = 0u64;
+    for i in 0..archive.len() {
+        let file = archive.by_index(i)
+            .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+        let file_path = file.name().to_string();
+        
+        // 跳过目录和隐藏文件
+        if file_path.ends_with('/') || file_path.starts_with('.') || file_path.contains("/.") {
+            continue;
+        }
+        
+        total_files += 1;
+        total_bytes += file.size();
+    }
+    
+    // 重新打开 ZIP 进行实际解压
+    let file = fs::File::open(&zip_file_path)
+        .map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
+    
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
+    
+    // 解压所有文件并发送进度
+    let mut processed_files = 0usize;
+    let mut processed_bytes = 0u64;
+    
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)
             .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
@@ -1308,6 +1346,8 @@ pub async fn install_plugin_from_zip(
         if file_path.ends_with('/') || file_path.starts_with('.') || file_path.contains("/.") {
             continue;
         }
+        
+        let file_size = file.size();
         
         // 构建目标文件路径
         let target_path = install_dir.join(&file_path);
@@ -1333,6 +1373,28 @@ pub async fn install_plugin_from_zip(
         
         target_file.write_all(&buffer)
             .map_err(|e| format!("写入文件失败: {}", e))?;
+        
+        // 更新进度
+        processed_files += 1;
+        processed_bytes += file_size;
+        
+        let progress_percentage = if total_files > 0 {
+            (processed_files as f64 / total_files as f64) * 100.0
+        } else {
+            0.0
+        };
+        
+        // 发送进度事件
+        let progress = PluginInstallProgress {
+            current_file: file_path.clone(),
+            processed_files,
+            total_files,
+            progress_percentage,
+            current_bytes: processed_bytes,
+            total_bytes,
+        };
+        
+        let _ = app.emit("plugin-install-progress", progress);
     }
     
     Ok(PluginInstallResult {

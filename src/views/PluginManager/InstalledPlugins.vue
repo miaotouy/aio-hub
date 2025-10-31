@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { Refresh, Upload } from '@element-plus/icons-vue';
 import PluginCard from './components/PluginCard.vue';
@@ -8,8 +8,23 @@ import type { PluginProxy } from '@/services/plugin-types';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
 import { open } from '@tauri-apps/plugin-dialog';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 const logger = createModuleLogger('PluginManager/InstalledPlugins');
+
+// 安装进度相关状态
+interface InstallProgress {
+  currentFile: string;
+  processedFiles: number;
+  totalFiles: number;
+  progressPercentage: number;
+  currentBytes: number;
+  totalBytes: number;
+}
+
+const installProgress = ref<InstallProgress | null>(null);
+const isInstalling = ref(false);
+let progressUnlisten: UnlistenFn | null = null;
 
 // Emits
 const emit = defineEmits<{
@@ -165,8 +180,16 @@ async function importPlugin() {
 
     logger.info('选择的插件文件', { path: selected });
 
-    // 显示加载状态
+    // 设置安装状态
     loading.value = true;
+    isInstalling.value = true;
+    installProgress.value = null;
+
+    // 监听安装进度事件
+    progressUnlisten = await listen<InstallProgress>('plugin-install-progress', (event) => {
+      installProgress.value = event.payload;
+      logger.debug('安装进度', event.payload);
+    });
 
     try {
       // 调用插件管理器安装插件
@@ -182,7 +205,15 @@ async function importPlugin() {
       const errorMsg = error instanceof Error ? error.message : String(error);
       customMessage.error(`安装失败: ${errorMsg}`);
     } finally {
+      // 清理进度监听器
+      if (progressUnlisten) {
+        progressUnlisten();
+        progressUnlisten = null;
+      }
+      
       loading.value = false;
+      isInstalling.value = false;
+      installProgress.value = null;
     }
   } catch (error) {
     logger.error('打开文件对话框失败', error);
@@ -198,6 +229,13 @@ defineExpose({
 // 初始化
 onMounted(() => {
   loadPlugins();
+});
+
+// 清理
+onUnmounted(() => {
+  if (progressUnlisten) {
+    progressUnlisten();
+  }
 });
 </script>
 
@@ -231,8 +269,33 @@ onMounted(() => {
       />
     </div>
 
+    <!-- 安装进度 -->
+    <div v-if="isInstalling && installProgress" class="install-progress-container">
+      <div class="progress-header">
+        <el-icon class="is-loading" :size="24">
+          <i-ep-loading />
+        </el-icon>
+        <span class="progress-title">正在安装插件...</span>
+      </div>
+      <div class="progress-info">
+        <div class="progress-file">
+          当前文件: {{ installProgress.currentFile }}
+        </div>
+        <div class="progress-stats">
+          {{ installProgress.processedFiles }} / {{ installProgress.totalFiles }} 个文件
+          ({{ (installProgress.currentBytes / 1024 / 1024).toFixed(2) }} MB /
+          {{ (installProgress.totalBytes / 1024 / 1024).toFixed(2) }} MB)
+        </div>
+      </div>
+      <el-progress
+        :percentage="Math.round(installProgress.progressPercentage)"
+        :stroke-width="8"
+        :show-text="true"
+      />
+    </div>
+
     <!-- 加载状态 -->
-    <div v-if="loading" class="loading-container">
+    <div v-else-if="loading" class="loading-container">
       <el-icon class="is-loading" :size="32">
         <i-ep-loading />
       </el-icon>
@@ -347,5 +410,43 @@ onMounted(() => {
 
 .plugins-list::-webkit-scrollbar-thumb:hover {
   background: var(--text-color-secondary);
+}
+
+/* 安装进度样式 */
+.install-progress-container {
+  padding: 24px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.progress-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.progress-info {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+}
+
+.progress-file {
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.progress-stats {
+  font-size: 12px;
+  opacity: 0.8;
 }
 </style>

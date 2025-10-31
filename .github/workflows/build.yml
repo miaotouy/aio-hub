@@ -53,8 +53,8 @@ jobs:
       - name: 安装依赖 (macOS)
         if: matrix.platform == 'macos-latest'
         run: |
-          brew install openssl libgit2
-          echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
+          # 不需要安装 openssl 和 libgit2，使用 vendored 特性
+          echo "使用 vendored OpenSSL 和 libgit2"
 
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2

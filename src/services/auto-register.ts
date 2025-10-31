@@ -1,5 +1,6 @@
 import { serviceRegistry } from './registry';
 import type { ToolService } from './types';
+import { createPluginLoader } from './plugin-loader';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('services/auto-register');
@@ -84,6 +85,30 @@ export async function autoRegisterServices(): Promise<void> {
       logger.warn(`有 ${failedModules.length} 个服务模块加载失败`, {
         failed: failedModules.map(m => m.path)
       });
+    }
+
+    // 加载插件
+    logger.info('开始加载插件');
+    try {
+      const pluginLoader = await createPluginLoader();
+      const pluginResult = await pluginLoader.loadAll();
+
+      logger.info('插件加载完成', {
+        loaded: pluginResult.loaded,
+        failed: pluginResult.failed.length,
+      });
+
+      if (pluginResult.failed.length > 0) {
+        logger.warn('部分插件加载失败', {
+          failed: pluginResult.failed.map(f => ({
+            id: f.id,
+            error: f.error.message,
+          })),
+        });
+      }
+    } catch (error) {
+      logger.error('插件加载过程中发生错误', error);
+      // 插件加载失败不应阻止应用启动
     }
 
     // 输出注册摘要

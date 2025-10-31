@@ -41,6 +41,9 @@ export interface AppSettings {
 
   // 资产管理配置
   customAssetPath?: string; // 自定义资产存储路径
+
+  // 插件管理器配置
+  pluginManagerPanelWidth?: number; // 插件管理器右侧面板宽度（百分比）
 }
 
 // 默认设置
@@ -83,6 +86,8 @@ export const defaultAppSettings: AppSettings = {
     userPresets: [],
     selectedPresetId: null,
   },
+  // 插件管理器默认配置
+  pluginManagerPanelWidth: 50, // 默认 50%
 };
 
 // 创建应用设置管理器实例

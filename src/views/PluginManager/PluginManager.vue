@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import InstalledPlugins from './InstalledPlugins.vue';
 import PluginMarket from './PluginMarket.vue';
@@ -7,15 +7,23 @@ import PluginDetailPanel from './components/PluginDetailPanel.vue';
 import type { PluginProxy } from '@/services/plugin-types';
 import { pluginManager } from '@/services/plugin-manager';
 import { customMessage } from '@/utils/customMessage';
+import { loadAppSettings, updateAppSettings } from '@/utils/appSettings';
 
 // 当前激活的标签页
 const activeTab = ref<'installed' | 'market'>('installed');
 
 // 右侧面板状态
 const isPanelCollapsed = ref(true);
-const panelWidthPercent = ref(50); // 使用百分比存储（默认50%）
+// 从设置中加载面板宽度
+const settings = loadAppSettings();
+const panelWidthPercent = ref(settings.pluginManagerPanelWidth || 50); // 使用百分比存储（默认50%）
 const selectedPlugin = ref<PluginProxy | null>(null);
 const initialTab = ref<string>('detail');
+
+// 监听面板宽度变化，保存到设置
+watch(panelWidthPercent, (newWidth) => {
+  updateAppSettings({ pluginManagerPanelWidth: newWidth });
+});
 
 // 拖拽状态
 const isDragging = ref(false);

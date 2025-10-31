@@ -9,6 +9,7 @@ import { readTextFile, readDir, exists } from '@tauri-apps/plugin-fs';
 import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport } from './plugin-types';
 import { createJsPluginProxy } from './js-plugin-adapter';
 import type { JsPluginAdapter } from './js-plugin-adapter';
+import { createSidecarPluginProxy } from './sidecar-plugin-adapter';
 import { createModuleLogger } from '@/utils/logger';
 import { pluginConfigService } from './plugin-config.service';
 
@@ -207,16 +208,21 @@ export class PluginLoader {
           const manifestContent = await readTextFile(manifestPath);
           const manifest: PluginManifest = JSON.parse(manifestContent);
 
-          // 目前只支持 JS 插件
-          if (manifest.type !== 'javascript') {
-            logger.info(`跳过 Sidecar 插件（暂未实现）: ${pluginId}`);
-            continue;
-          }
-
-          // 加载 JS 插件
-          const proxy = await this.loadProdJsPlugin(manifest, pluginPath);
-          if (proxy) {
-            result.plugins.push(proxy);
+          // 根据插件类型加载
+          if (manifest.type === 'javascript') {
+            // 加载 JS 插件
+            const proxy = await this.loadProdJsPlugin(manifest, pluginPath);
+            if (proxy) {
+              result.plugins.push(proxy);
+            }
+          } else if (manifest.type === 'sidecar') {
+            // 加载 Sidecar 插件
+            const proxy = await this.loadProdSidecarPlugin(manifest, pluginPath);
+            if (proxy) {
+              result.plugins.push(proxy);
+            }
+          } else {
+            logger.warn(`未知的插件类型: ${manifest.type}`, { pluginId });
           }
         } catch (error) {
           logger.error(`加载生产插件失败: ${pluginId}`, error);
@@ -288,6 +294,38 @@ export class PluginLoader {
       return proxy;
     } catch (error) {
       logger.error(`加载生产插件失败: ${manifest.id}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 加载生产环境下的 Sidecar 插件
+   */
+  private async loadProdSidecarPlugin(manifest: PluginManifest, pluginPath: string): Promise<import('./plugin-types').PluginProxy | null> {
+    try {
+      // 创建 Sidecar 插件代理（标记为生产模式）
+      const proxy = createSidecarPluginProxy(manifest, pluginPath, false);
+
+      // 启用插件
+      await proxy.enable();
+
+      // 初始化插件配置
+      try {
+        await pluginConfigService.initPluginConfig(manifest);
+      } catch (error) {
+        logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
+        // 配置初始化失败不应阻止插件加载
+      }
+
+      logger.info(`成功加载 Sidecar 插件: ${manifest.id}`, {
+        name: manifest.name,
+        version: manifest.version,
+        devMode: false,
+      });
+
+      return proxy;
+    } catch (error) {
+      logger.error(`加载 Sidecar 插件失败: ${manifest.id}`, error);
       throw error;
     }
   }

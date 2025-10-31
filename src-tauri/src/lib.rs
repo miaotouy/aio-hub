@@ -89,6 +89,8 @@ use commands::{
     read_text_file,
     // 插件管理命令
     uninstall_plugin,
+    // Sidecar 插件命令
+    execute_sidecar,
     ClipboardMonitorState,
 };
 
@@ -268,7 +270,9 @@ pub fn run() {
             get_asset_binary,
             read_text_file,
             // 插件管理命令
-            uninstall_plugin
+            uninstall_plugin,
+            // Sidecar 插件命令
+            execute_sidecar
         ])
         // 设置应用
         .setup(|app| {

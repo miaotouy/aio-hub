@@ -355,18 +355,11 @@ onUnmounted(() => {
 
 .refresh-btn {
   flex-shrink: 0;
-  transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+  transition: transform 0.3s ease;
 }
 
 .refresh-btn:not(.is-loading):hover {
   transform: rotate(180deg);
-  background-color: var(--el-fill-color-light) !important;
-  border-color: var(--el-border-color-hover) !important;
-}
-
-.refresh-btn:not(.is-loading):active {
-  background-color: var(--el-fill-color) !important;
-  border-color: var(--el-border-color) !important;
 }
 
 .loading-container {

@@ -43,18 +43,25 @@ html.dark {
 
   /* 按钮相关变量 - 修复悬停时文字颜色问题 */
   --el-button-text-color: var(--text-color);
-  --el-button-hover-text-color: #ffffff;  /* 悬停时文字为白色 */
-  --el-button-hover-bg-color: var(--primary-hover-color);
-  --el-button-hover-border-color: var(--primary-hover-color);
+  --el-button-hover-text-color: var(--el-color-primary-light-3);  /* 悬停时文字为主色调浅色版本 */
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+  --el-button-hover-border-color: var(--el-color-primary);
+}
+
+/* 覆盖默认 el-button (无 type) 的样式变量 */
+html.dark .el-button {
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+  --el-button-hover-border-color: var(--el-color-primary);
+  --el-button-hover-text-color: var(--el-color-primary-light-3);
 }
 
 /* 覆盖 el-button 的悬停样式 */
 html.dark .el-button:hover {
-  color: #ffffff;
+  color: var(--el-color-primary-light-3);
 }
 
 html.dark .el-button:focus {
-  color: #ffffff;
+  color: var(--el-color-primary-light-3);
 }
 
 /* 覆盖 el-tag 的样式 - 使用半透明背景使其在暗色模式下更暗 */

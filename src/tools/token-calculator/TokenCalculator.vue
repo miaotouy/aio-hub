@@ -1,35 +1,37 @@
 <template>
   <div class="token-calculator-container">
-    <!-- 顶部工具栏 -->
-    <ToolBar
-      v-model:selected-model-id="selectedModelId"
-      :available-models="availableModels"
-      @paste="pasteText"
-      @copy="copyText"
-      @clear="clearAll"
-    />
-
-    <!-- 主内容区域 -->
-    <div class="content-container" ref="contentContainer">
-      <!-- 左侧输入区 -->
-      <InputPanel
-        ref="inputPanel"
-        v-model:input-text="inputText"
-        @update:input-text="handleInputChange"
+    <div class="main-wrapper">
+      <!-- 顶部工具栏 -->
+      <ToolBar
+        v-model:selected-model-id="selectedModelId"
+        :available-models="availableModels"
+        @paste="pasteText"
+        @copy="copyText"
+        @clear="clearAll"
       />
 
-      <!-- 分割线 -->
-      <div class="divider" @mousedown="startResize"></div>
+      <!-- 主内容区域 -->
+      <div class="content-container" ref="contentContainer">
+        <!-- 左侧输入区 -->
+        <InputPanel
+          ref="inputPanel"
+          v-model:input-text="inputText"
+          @update:input-text="handleInputChange"
+        />
 
-      <!-- 右侧结果区 -->
-      <ResultPanel
-        ref="resultPanel"
-        :is-calculating="isCalculating"
-        :calculation-result="calculationResult"
-        :tokenized-text="tokenizedText"
-        :character-count="inputText.length"
-        :get-token-color="getTokenColor"
-      />
+        <!-- 分割线 -->
+        <div class="divider" @mousedown="startResize"></div>
+
+        <!-- 右侧结果区 -->
+        <ResultPanel
+          ref="resultPanel"
+          :is-calculating="isCalculating"
+          :calculation-result="calculationResult"
+          :tokenized-text="tokenizedText"
+          :character-count="inputText.length"
+          :get-token-color="getTokenColor"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -114,6 +116,20 @@ const copyText = async () => {
   width: 100%;
   overflow: hidden;
   background-color: var(--bg-color);
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+/* 主包裹容器 - 统一的圆角大框 */
+.main-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  background-color: var(--card-bg);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-sizing: border-box;
 }
 
 /* 主内容区域 */
@@ -121,6 +137,7 @@ const copyText = async () => {
   display: flex;
   flex: 1;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* 分割线 */
@@ -138,6 +155,14 @@ const copyText = async () => {
 
 /* 响应式布局 */
 @media (max-width: 768px) {
+  .token-calculator-container {
+    padding: 8px;
+  }
+
+  .main-wrapper {
+    border-radius: 8px;
+  }
+
   .content-container {
     flex-direction: column;
   }

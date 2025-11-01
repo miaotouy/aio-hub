@@ -65,12 +65,13 @@ defineEmits<Emits>();
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
-  background-color: var(--card-bg);
+  padding: 14px 20px;
+  background-color: transparent;
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-radius: 12px 12px 0 0;
   z-index: 10;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .toolbar-left,
@@ -78,6 +79,7 @@ defineEmits<Emits>();
   display: flex;
   align-items: center;
   gap: 8px;
+  box-sizing: border-box;
 }
 
 .model-option {

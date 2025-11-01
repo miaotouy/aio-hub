@@ -78,16 +78,17 @@ defineProps<Props>();
   flex: 1;
   min-width: 100px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  padding: 12px 20px;
+  background-color: transparent;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .panel-title {
@@ -107,7 +108,8 @@ defineProps<Props>();
 .panel-content {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 /* 统计信息区域 */
@@ -116,14 +118,22 @@ defineProps<Props>();
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
+  box-sizing: border-box;
 }
 
 .stat-card {
-  background-color: var(--card-bg);
+  background-color: rgba(var(--primary-color-rgb), 0.05);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 14px;
   text-align: center;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.stat-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .stat-label {
@@ -156,39 +166,41 @@ defineProps<Props>();
 
 /* 可视化区域 */
 .visualization-section {
-  background-color: var(--card-bg);
+  background-color: rgba(var(--primary-color-rgb), 0.03);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 10px;
+  padding: 18px;
+  box-sizing: border-box;
 }
 
 .section-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-color);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .token-blocks {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 3px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
   line-height: 1.8;
 }
 
 .token-block {
-  padding: 2px 4px;
-  border-radius: 3px;
+  padding: 3px 6px;
+  border-radius: 4px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   cursor: default;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .token-block:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
   z-index: 1;
 }
 

@@ -36,17 +36,17 @@ defineEmits<Emits>();
   flex: 1;
   min-width: 100px;
   overflow: hidden;
-  border-right: 1px solid var(--border-color);
+  box-sizing: border-box;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  padding: 12px 20px;
+  background-color: transparent;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .panel-title {
@@ -59,18 +59,21 @@ defineEmits<Emits>();
   font-size: 12px;
   color: var(--text-color-light);
   background-color: var(--border-color-light);
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 
 .panel-content {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .input-textarea {
   height: 100%;
+  box-sizing: border-box;
 }
 
 .input-textarea :deep(.el-textarea__inner) {
@@ -79,5 +82,6 @@ defineEmits<Emits>();
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
   line-height: 1.6;
+  box-sizing: border-box;
 }
 </style>

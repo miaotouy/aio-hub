@@ -1,0 +1,151 @@
+<template>
+  <div class="token-calculator-container">
+    <!-- 顶部工具栏 -->
+    <ToolBar
+      v-model:selected-model-id="selectedModelId"
+      :available-models="availableModels"
+      @paste="pasteText"
+      @copy="copyText"
+      @clear="clearAll"
+    />
+
+    <!-- 主内容区域 -->
+    <div class="content-container" ref="contentContainer">
+      <!-- 左侧输入区 -->
+      <InputPanel
+        ref="inputPanel"
+        v-model:input-text="inputText"
+        @update:input-text="handleInputChange"
+      />
+
+      <!-- 分割线 -->
+      <div class="divider" @mousedown="startResize"></div>
+
+      <!-- 右侧结果区 -->
+      <ResultPanel
+        ref="resultPanel"
+        :is-calculating="isCalculating"
+        :calculation-result="calculationResult"
+        :tokenized-text="tokenizedText"
+        :character-count="inputText.length"
+        :get-token-color="getTokenColor"
+      />
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue';
+import { customMessage } from '@/utils/customMessage';
+import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { useTokenCalculator } from '@/composables/useTokenCalculator';
+import { usePanelResize } from './composables/usePanelResize';
+import ToolBar from './components/ToolBar.vue';
+import InputPanel from './components/InputPanel.vue';
+import ResultPanel from './components/ResultPanel.vue';
+
+// 使用 composable
+const {
+  inputText,
+  selectedModelId,
+  isCalculating,
+  calculationResult,
+  tokenizedText,
+  availableModels,
+  handleInputChange,
+  setInputText,
+  clearAll,
+  getTokenColor,
+  initializeDefaultModel,
+} = useTokenCalculator();
+
+// DOM 引用
+const contentContainer = ref<HTMLElement | null>(null);
+const inputPanel = ref<HTMLElement | null>(null);
+const resultPanel = ref<HTMLElement | null>(null);
+
+// 使用面板调整大小 composable
+const { startResize, cleanup } = usePanelResize({
+  contentContainer,
+  inputPanel,
+  resultPanel,
+});
+
+// 初始化
+onMounted(() => {
+  initializeDefaultModel();
+});
+
+onUnmounted(() => {
+  cleanup();
+});
+
+// 粘贴文本
+const pasteText = async () => {
+  try {
+    const text = await readText();
+    setInputText(text);
+    customMessage.success('已从剪贴板粘贴内容');
+  } catch (error: any) {
+    customMessage.error(`粘贴失败: ${error.message}`);
+  }
+};
+
+// 复制文本
+const copyText = async () => {
+  if (!inputText.value) {
+    customMessage.warning('没有可复制的内容');
+    return;
+  }
+  try {
+    await writeText(inputText.value);
+    customMessage.success('已复制到剪贴板');
+  } catch (error: any) {
+    customMessage.error(`复制失败: ${error.message}`);
+  }
+};
+</script>
+
+<style scoped>
+.token-calculator-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--bg-color);
+}
+
+/* 主内容区域 */
+.content-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 分割线 */
+.divider {
+  width: 4px;
+  background-color: var(--border-color);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+
+.divider:hover {
+  background-color: var(--primary-color);
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  .content-container {
+    flex-direction: column;
+  }
+
+  .divider {
+    width: 100%;
+    height: 4px;
+    cursor: row-resize;
+  }
+}
+</style>

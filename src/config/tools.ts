@@ -16,6 +16,7 @@ import GitBranchIcon from '../components/icons/GitBranchIcon.vue';
 import OcrIcon from '../components/icons/OcrIcon.vue';
 import SymlinkMoverIcon from '../components/icons/SymlinkMoverIcon.vue';
 import TextDiffIcon from '../components/icons/TextDiffIcon.vue';
+import TokenCalculatorIcon from '../components/icons/TokenCalculatorIcon.vue';
 
 export interface ToolConfig {
   name: string;
@@ -149,6 +150,14 @@ export const toolsConfig: ToolConfig[] = [
     icon: markRaw(Menu),
     component: () => import('../tools/service-monitor/ServiceMonitor.vue'),
     description: '可视化查看和浏览所有已注册的工具服务及其元数据',
+    category: '开发工具'
+  },
+  {
+    name: 'Token 计算器',
+    path: '/token-calculator',
+    icon: markRaw(TokenCalculatorIcon),
+    component: () => import('../tools/token-calculator/TokenCalculator.vue'),
+    description: '计算文本的 Token 数量，支持多种 LLM 分词器',
     category: '开发工具'
   }
 ];

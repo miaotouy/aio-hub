@@ -50,5 +50,6 @@ declare module 'vue' {
     SystemThemeIcon: typeof import('./components/icons/SystemThemeIcon.vue')['default']
     TextDiffIcon: typeof import('./components/icons/TextDiffIcon.vue')['default']
     TitleBar: typeof import('./components/TitleBar.vue')['default']
+    TokenCalculatorIcon: typeof import('./components/icons/TokenCalculatorIcon.vue')['default']
   }
 }

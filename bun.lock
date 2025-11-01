@@ -10,6 +10,14 @@
         "@codemirror/lang-markdown": "^6.3.3",
         "@codemirror/view": "^6.38.1",
         "@guolao/vue-monaco-editor": "^1.5.5",
+        "@lenml/tokenizer-claude": "^3.7.2",
+        "@lenml/tokenizer-deepseek_v3": "^3.7.2",
+        "@lenml/tokenizer-gemini": "^3.7.2",
+        "@lenml/tokenizer-gpt4": "^3.7.2",
+        "@lenml/tokenizer-gpt4o": "^3.7.2",
+        "@lenml/tokenizer-llama3_1": "^3.7.2",
+        "@lenml/tokenizer-qwen2_5": "^3.7.2",
+        "@lenml/tokenizers": "^3.7.2",
         "@prettier/plugin-php": "^0.24.0",
         "@prettier/plugin-xml": "^3.4.2",
         "@rigstech/codemirror-vscodesearch": "^1.0.4",
@@ -254,6 +262,22 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.29", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-uw6guiW/gcAGPDhLmd77/6lW8QLeiV5RUTsAX46Db6oLhGaVj4lhnPwb184s1bkc8kdVg/+h988dro8GRDpmYQ=="],
 
     "@juggle/resize-observer": ["@juggle/resize-observer@3.4.0", "", {}, "sha512-dfLbk+PwWvFzSxwk3n5ySL0hfBog779o8h68wK/7/APo/7cgyWp5jcXockbxdk5kFRkbeXWm4Fbi9FrdN381sA=="],
+
+    "@lenml/tokenizer-claude": ["@lenml/tokenizer-claude@3.7.2", "", { "dependencies": { "@lenml/tokenizers": "^3.7.2" } }, "sha512-1e5R8F5dBT6dY7zPFanZfrcS7rAHtdcv6r7jDAIvsBXvhkWXuWsASNoOV27LHUJYpXm4bgM8tXq4e/FpO+ecbg=="],
+
+    "@lenml/tokenizer-deepseek_v3": ["@lenml/tokenizer-deepseek_v3@3.7.2", "", { "dependencies": { "@lenml/tokenizers": "^3.7.2" } }, "sha512-Bc7IzlrCh5i8DY8HTNx7eWgW5c+h2TACiG/mzFrB3B8h+7Seylo4Z/JMNrI48g+uMfVEdaiE0nykgBSCJARu7Q=="],
+
+    "@lenml/tokenizer-gemini": ["@lenml/tokenizer-gemini@3.7.2", "", { "dependencies": { "@lenml/tokenizers": "^3.7.2" } }, "sha512-sdSfXqjGSZWRHtf4toMcjzpBm/tOPPAtUQ5arTx4neQ2nzHUtJQJyHkoiB9KRyEfvVjW6WtQU+WbvU9glsFT2g=="],
+
+    "@lenml/tokenizer-gpt4": ["@lenml/tokenizer-gpt4@3.7.2", "", { "dependencies": { "@lenml/tokenizers": "^3.7.2" } }, "sha512-Sd2PxvCTfyAh9lqlDvhvC+EAbOj8zd6s3dFHVu97gSnWqe8Mf5P0f7DUb0YHiNU6Gpv3QYVQWYrFkdqD/huhYg=="],
+
+    "@lenml/tokenizer-gpt4o": ["@lenml/tokenizer-gpt4o@3.7.2", "", { "dependencies": { "@lenml/tokenizers": "^3.7.2" } }, "sha512-ieVk9K5Sjltx0UYtWqY+MowVsngbwgAk3BIS2nFT66mjj7Jt3Bn2J0ytNV8yIk1itE/kltNR0gJhGiKFr75hGw=="],
+
+    "@lenml/tokenizer-llama3_1": ["@lenml/tokenizer-llama3_1@3.7.2", "", { "dependencies": { "@lenml/tokenizers": "^3.7.2" } }, "sha512-t4znctvShSQXR7vNoeZcxQ6p06ZrDZsxnx+JxGonc0Yuo4iupvXpIZNs0PeITu83Yws+9sD1jfu9DG5tWjozhg=="],
+
+    "@lenml/tokenizer-qwen2_5": ["@lenml/tokenizer-qwen2_5@3.7.2", "", { "dependencies": { "@lenml/tokenizers": "^3.7.2" } }, "sha512-6hbFsuKfOU7pncR3qQqvhOAcDboqWTZOTob9jv4sJZjXhc8X05r4pretlPeyC2UeLU/ayFDU6rl5dd/BDDUsFg=="],
+
+    "@lenml/tokenizers": ["@lenml/tokenizers@3.7.2", "", {}, "sha512-tuap9T7Q80Czor8NHzxjlLNvxEX8MgFINzsBTV+lq1v7G+78YR3ZvBhmLsPHtgqExB4Q4kCJH6dhXOYWSLdHLw=="],
 
     "@lezer/common": ["@lezer/common@1.2.3", "", {}, "sha512-w7ojc8ejBqr2REPsWxJjrMFsA/ysDCFICn8zEOR9mrqzOu2amhITYuLD8ag6XZf0CFXDrhKqw7+tW8cX66NaDA=="],
 

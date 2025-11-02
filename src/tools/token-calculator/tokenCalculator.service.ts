@@ -62,6 +62,12 @@ class TokenCalculatorService implements ToolService {
     'llama3_1': () => import('@lenml/tokenizer-llama3_1'),
     'deepseek_v3': () => import('@lenml/tokenizer-deepseek_v3'),
     'qwen2_5': () => import('@lenml/tokenizer-qwen2_5'),
+    // 新增分词器
+    'qwen3': () => import('@lenml/tokenizer-qwen3'),
+    'gemma3': () => import('@lenml/tokenizer-gemma3'),
+    'llama3_2': () => import('@lenml/tokenizer-llama3_2'),
+    'gptoss': () => import('@lenml/tokenizer-gptoss'),
+    'minicpm_v4_5': () => import('@lenml/tokenizer-minicpm_v4_5'),
   };
 
   /** 模型匹配规则和加载器映射（只包含已安装的 tokenizer） */
@@ -324,11 +330,16 @@ class TokenCalculatorService implements ToolService {
     return [
       { name: 'gpt4o', description: 'GPT-4o, GPT-5, o1, o3 系列' },
       { name: 'gpt4', description: 'GPT-4 系列（不包括 4o）' },
+      { name: 'gptoss', description: 'GPT-OSS 开源权重模型系列' },
       { name: 'claude', description: 'Claude 全系列' },
       { name: 'gemini', description: 'Gemini, Gemma, Veo 系列' },
-      { name: 'llama3_1', description: 'Llama 全系列' },
+      { name: 'gemma3', description: 'Gemma 3 系列' },
+      { name: 'llama3_1', description: 'Llama 3.1 系列' },
+      { name: 'llama3_2', description: 'Llama 3.2 系列' },
       { name: 'deepseek_v3', description: 'DeepSeek 全系列（V3, R1 等）' },
-      { name: 'qwen2_5', description: 'Qwen 全系列（2.x, 3.x, QwQ）' },
+      { name: 'qwen2_5', description: 'Qwen 2.5 系列' },
+      { name: 'qwen3', description: 'Qwen 3 系列' },
+      { name: 'minicpm_v4_5', description: 'MiniCPM v4.5 系列' },
     ];
   }
 

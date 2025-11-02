@@ -606,7 +606,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
-      tokenizer: "gpt4o", // 开源权重模型使用 o200k_base 编码
+      tokenizer: "gptoss", // GPT-OSS 使用专用分词器
     },
     priority: 25,
     enabled: true,
@@ -823,6 +823,19 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "Gemini 系列模型",
   },
   {
+    id: "model-prefix-gemma3",
+    matchType: "modelPrefix",
+    matchValue: "gemma3",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/gemma-color.svg`,
+      group: "Gemma",
+      tokenizer: "gemma3", // Gemma3 使用最新分词器
+    },
+    priority: 25, // 更高优先级以优先匹配 Gemma3
+    enabled: true,
+    description: "Gemma 3 系列模型",
+  },
+  {
     id: "model-prefix-gemma",
     matchType: "modelPrefix",
     matchValue: "gemma-",
@@ -912,13 +925,26 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
 
   // 通义千问系列模型
   {
+    id: "model-prefix-qwen3",
+    matchType: "modelPrefix",
+    matchValue: "qwen3",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      group: "Qwen",
+      tokenizer: "qwen3", // Qwen3 使用最新分词器
+    },
+    priority: 25, // 更高优先级以优先匹配 Qwen3
+    enabled: true,
+    description: "通义千问 Qwen3 系列模型",
+  },
+  {
     id: "model-prefix-qwen",
     matchType: "modelPrefix",
     matchValue: "qwen",
     properties: {
       icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
       group: "Qwen",
-      tokenizer: "qwen2_5", // Qwen 系列使用专用分词器
+      tokenizer: "qwen2_5", // Qwen 系列使用 2.5 分词器
     },
     priority: 20,
     enabled: true,
@@ -931,7 +957,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
       group: "Qwen",
-      tokenizer: "qwen2_5", // QwQ 使用 Qwen 分词器
+      tokenizer: "qwen2_5", // QwQ 使用 Qwen 2.5 分词器
     },
     priority: 20,
     enabled: true,
@@ -1056,6 +1082,21 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "InternLM 系列模型图标",
   },
 
+  // MiniCPM 系列模型
+  {
+    id: "model-prefix-minicpm",
+    matchType: "modelPrefix",
+    matchValue: "minicpm",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/minicpm-color.svg`,
+      group: "MiniCPM",
+      tokenizer: "minicpm_v4_5", // MiniCPM 使用专用分词器
+    },
+    priority: 20,
+    enabled: true,
+    description: "MiniCPM 系列模型（面壁智能）",
+  },
+
   // Skywork 系列模型
   {
     id: "model-prefix-skywork",
@@ -1116,6 +1157,20 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
 
   // Meta 系列模型
   {
+    id: "model-prefix-llama3_2",
+    matchType: "modelPrefix",
+    matchValue: "llama-?3[._-]?2",
+    useRegex: true,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
+      group: "Meta",
+      tokenizer: "llama3_2", // Llama 3.2 使用专用分词器
+    },
+    priority: 25, // 更高优先级以优先匹配 Llama 3.2
+    enabled: true,
+    description: "Llama 3.2 系列模型",
+  },
+  {
     id: "model-prefix-llama",
     matchType: "modelPrefix",
     matchValue: "(?<!o)llama[1-9-]",
@@ -1123,7 +1178,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
       group: "Meta",
-      tokenizer: "llama3_1", // Llama 系列使用专用分词器
+      tokenizer: "llama3_1", // Llama 系列使用 3.1 分词器
     },
     priority: 20,
     enabled: true,

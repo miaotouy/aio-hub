@@ -38,6 +38,9 @@
       <template #header>
         <div class="card-header">
           <span>上下文统计</span>
+          <el-tag v-if="contextData.statistics.tokenizerName" size="small" type="info">
+            {{ contextData.statistics.isEstimated ? '估算' : '精确' }} - {{ contextData.statistics.tokenizerName }}
+          </el-tag>
         </div>
       </template>
       <div class="stats-grid">
@@ -45,21 +48,60 @@
           <div class="stat-label">总消息数</div>
           <div class="stat-value">{{ contextData.statistics.messageCount }}</div>
         </div>
-        <div class="stat-item">
+        <div v-if="contextData.statistics.totalTokenCount !== undefined" class="stat-item primary">
+          <div class="stat-label">总 Token 数</div>
+          <div class="stat-value">
+            {{ contextData.statistics.totalTokenCount.toLocaleString() }}
+            <span class="char-count">
+              {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
+            </span>
+          </div>
+        </div>
+        <div v-else class="stat-item">
           <div class="stat-label">总字符数</div>
           <div class="stat-value">{{ contextData.statistics.totalCharCount.toLocaleString() }}</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">系统提示</div>
-          <div class="stat-value">{{ contextData.statistics.systemPromptCharCount.toLocaleString() }}</div>
+          <div class="stat-value">
+            <template v-if="contextData.statistics.systemPromptTokenCount !== undefined">
+              {{ contextData.statistics.systemPromptTokenCount.toLocaleString() }} tokens
+              <span class="char-count">
+                {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
+              </span>
+            </template>
+            <template v-else>
+              {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
+            </template>
+          </div>
         </div>
         <div class="stat-item">
           <div class="stat-label">预设消息</div>
-          <div class="stat-value">{{ contextData.statistics.presetMessagesCharCount.toLocaleString() }}</div>
+          <div class="stat-value">
+            <template v-if="contextData.statistics.presetMessagesTokenCount !== undefined">
+              {{ contextData.statistics.presetMessagesTokenCount.toLocaleString() }} tokens
+              <span class="char-count">
+                {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
+              </span>
+            </template>
+            <template v-else>
+              {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
+            </template>
+          </div>
         </div>
         <div class="stat-item">
           <div class="stat-label">会话历史</div>
-          <div class="stat-value">{{ contextData.statistics.chatHistoryCharCount.toLocaleString() }}</div>
+          <div class="stat-value">
+            <template v-if="contextData.statistics.chatHistoryTokenCount !== undefined">
+              {{ contextData.statistics.chatHistoryTokenCount.toLocaleString() }} tokens
+              <span class="char-count">
+                {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
+              </span>
+            </template>
+            <template v-else>
+              {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
+            </template>
+          </div>
         </div>
       </div>
     </el-card>
@@ -71,9 +113,14 @@
       :content="contextData.systemPrompt.content"
     >
       <template #headerExtra>
-        <el-tag size="small" type="info">
-          {{ contextData.systemPrompt.charCount }} 字符
-        </el-tag>
+        <div class="header-tags">
+          <el-tag v-if="contextData.systemPrompt.tokenCount !== undefined" size="small" type="success">
+            {{ contextData.systemPrompt.tokenCount }} tokens
+          </el-tag>
+          <el-tag size="small" type="info">
+            {{ contextData.systemPrompt.charCount }} 字符
+          </el-tag>
+        </div>
       </template>
     </InfoCard>
 
@@ -81,9 +128,14 @@
     <div v-if="contextData.presetMessages.length > 0" class="section">
       <div class="section-title">
         <span>预设对话</span>
-        <el-tag size="small" type="warning">
-          {{ contextData.presetMessages.length }} 条消息
-        </el-tag>
+        <div class="header-tags">
+          <el-tag size="small" type="warning">
+            {{ contextData.presetMessages.length }} 条消息
+          </el-tag>
+          <el-tag v-if="contextData.statistics.presetMessagesTokenCount !== undefined" size="small" type="success">
+            {{ contextData.statistics.presetMessagesTokenCount.toLocaleString() }} tokens
+          </el-tag>
+        </div>
       </div>
       <div class="messages-list">
         <el-card
@@ -115,9 +167,14 @@
                   {{ msg.role === 'user' ? '用户' : (contextData.agentInfo.name || '助手') }} #{{ index + 1 }}
                 </span>
               </div>
-              <el-tag size="small" type="warning">
-                {{ msg.charCount }} 字符
-              </el-tag>
+              <div class="header-tags">
+                <el-tag v-if="msg.tokenCount !== undefined" size="small" type="success">
+                  {{ msg.tokenCount }} tokens
+                </el-tag>
+                <el-tag size="small" type="info">
+                  {{ msg.charCount }} 字符
+                </el-tag>
+              </div>
             </div>
           </template>
           <div class="message-content">{{ msg.content }}</div>
@@ -129,9 +186,14 @@
     <div v-if="contextData.chatHistory.length > 0" class="section">
       <div class="section-title">
         <span>会话历史</span>
-        <el-tag size="small" type="success">
-          {{ contextData.chatHistory.length }} 条消息
-        </el-tag>
+        <div class="header-tags">
+          <el-tag size="small" type="success">
+            {{ contextData.chatHistory.length }} 条消息
+          </el-tag>
+          <el-tag v-if="contextData.statistics.chatHistoryTokenCount !== undefined" size="small" type="success">
+            {{ contextData.statistics.chatHistoryTokenCount.toLocaleString() }} tokens
+          </el-tag>
+        </div>
       </div>
       <div class="messages-list">
         <el-card
@@ -163,9 +225,14 @@
                   {{ msg.role === 'user' ? '用户' : (msg.agentName || '助手') }} #{{ index + 1 }}
                 </span>
               </div>
-              <el-tag size="small" type="success">
-                {{ msg.charCount }} 字符
-              </el-tag>
+              <div class="header-tags">
+                <el-tag v-if="msg.tokenCount !== undefined" size="small" type="success">
+                  {{ msg.tokenCount }} tokens
+                </el-tag>
+                <el-tag size="small" type="info">
+                  {{ msg.charCount }} 字符
+                </el-tag>
+              </div>
             </div>
           </template>
           <div class="message-content">{{ msg.content }}</div>
@@ -201,6 +268,16 @@ defineProps<{
 .card-header {
   font-weight: bold;
   color: var(--el-text-color-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-tags {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .agent-info {
@@ -286,6 +363,21 @@ defineProps<{
   font-size: 20px;
   font-weight: bold;
   color: var(--el-color-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-item.primary .stat-value {
+  color: var(--el-color-success);
+}
+
+.char-count {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--el-text-color-secondary);
+  margin-top: 2px;
 }
 
 .section {

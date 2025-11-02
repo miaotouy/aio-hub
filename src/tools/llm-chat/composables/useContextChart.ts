@@ -1,4 +1,4 @@
-import { ref, onUnmounted, watch } from 'vue';
+import { ref, onUnmounted, watch, type Ref } from 'vue';
 import { useDark } from '@vueuse/core';
 import * as echarts from 'echarts';
 import type { ContextPreviewData } from './useChatHandler';
@@ -6,7 +6,9 @@ import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('llm-chat/context-chart');
 
-export function useContextChart(contextData: ContextPreviewData) {
+export type ChartMode = 'token' | 'char';
+
+export function useContextChart(contextData: ContextPreviewData, mode: Ref<ChartMode> = ref('token')) {
   // 图表 DOM 引用
   const chartRef = ref<HTMLDivElement>();
 
@@ -59,12 +61,20 @@ export function useContextChart(contextData: ContextPreviewData) {
 
     const colors = getThemeColors();
     const stats = contextData.statistics;
+    const isTokenMode = mode.value === 'token';
+    const unit = isTokenMode ? 'tokens' : '字符';
 
-    // 准备数据（按上下文构建顺序）
+    // 准备数据（按上下文构建顺序）- 根据模式选择数据源
     const categories = ['上下文内容构成'];
-    const systemPromptData = stats.systemPromptCharCount > 0 ? [stats.systemPromptCharCount] : [0];
-    const presetMessagesData = stats.presetMessagesCharCount > 0 ? [stats.presetMessagesCharCount] : [0];
-    const chatHistoryData = stats.chatHistoryCharCount > 0 ? [stats.chatHistoryCharCount] : [0];
+    const systemPromptData = isTokenMode
+      ? (stats.systemPromptTokenCount && stats.systemPromptTokenCount > 0 ? [stats.systemPromptTokenCount] : [0])
+      : (stats.systemPromptCharCount > 0 ? [stats.systemPromptCharCount] : [0]);
+    const presetMessagesData = isTokenMode
+      ? (stats.presetMessagesTokenCount && stats.presetMessagesTokenCount > 0 ? [stats.presetMessagesTokenCount] : [0])
+      : (stats.presetMessagesCharCount > 0 ? [stats.presetMessagesCharCount] : [0]);
+    const chatHistoryData = isTokenMode
+      ? (stats.chatHistoryTokenCount && stats.chatHistoryTokenCount > 0 ? [stats.chatHistoryTokenCount] : [0])
+      : (stats.chatHistoryCharCount > 0 ? [stats.chatHistoryCharCount] : [0]);
 
     // 计算每个系列在堆叠中的位置，用于正确设置圆角
     // 使用主题色：系统提示(蓝色)、预设消息(橙色)、会话历史(绿色)
@@ -102,7 +112,7 @@ export function useContextChart(contextData: ContextPreviewData) {
         color: colors.textColor,
       },
       title: {
-        text: '上下文内容分布',
+        text: `上下文内容分布 (${isTokenMode ? 'Token' : '字符'}占比)`,
         left: 'center',
         top: 20,
         textStyle: {
@@ -127,9 +137,9 @@ export function useContextChart(contextData: ContextPreviewData) {
             // 使用纯色的自定义marker（从seriesData中获取原始颜色）
             const seriesColor = seriesData.find(s => s.name === item.seriesName)?.color || item.color;
             const customMarker = `<span style="display:inline-block;margin-right:4px;border-radius:50%;width:10px;height:10px;background-color:${seriesColor};"></span>`;
-            result += `${customMarker}${item.seriesName}: ${item.value.toLocaleString()} 字符 (${percent}%)<br/>`;
+            result += `${customMarker}${item.seriesName}: ${item.value.toLocaleString()} ${unit} (${percent}%)<br/>`;
           });
-          result += `<strong>总计: ${total.toLocaleString()} 字符</strong>`;
+          result += `<strong>总计: ${total.toLocaleString()} ${unit}</strong>`;
           return result;
         },
         backgroundColor: colors.containerBg,
@@ -313,6 +323,11 @@ export function useContextChart(contextData: ContextPreviewData) {
     setTimeout(() => {
       drawChart();
     }, 50);
+  });
+
+  // 监听模式变化，重新绘制图表
+  watch(mode, () => {
+    drawChart();
   });
 
   // 组件卸载时清理

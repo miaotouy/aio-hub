@@ -39,6 +39,7 @@ export interface ContextPreviewData {
   systemPrompt?: {
     content: string;
     charCount: number;
+    tokenCount?: number;
     source: 'agent_preset';
   };
   /** 预设消息部分 */
@@ -46,6 +47,7 @@ export interface ContextPreviewData {
     role: 'user' | 'assistant';
     content: string;
     charCount: number;
+    tokenCount?: number;
     source: 'agent_preset';
     index: number;
   }>;
@@ -54,6 +56,7 @@ export interface ContextPreviewData {
     role: 'user' | 'assistant';
     content: string;
     charCount: number;
+    tokenCount?: number;
     source: 'session_history';
     nodeId: string;
     index: number;
@@ -74,6 +77,12 @@ export interface ContextPreviewData {
     presetMessagesCharCount: number;
     chatHistoryCharCount: number;
     messageCount: number;
+    totalTokenCount?: number;
+    systemPromptTokenCount?: number;
+    presetMessagesTokenCount?: number;
+    chatHistoryTokenCount?: number;
+    isEstimated?: boolean;
+    tokenizerName?: string;
   };
   /** Agent 信息 */
   agentInfo: {
@@ -1305,51 +1314,112 @@ export function useChatHandler() {
     const presetMessages = agentConfig.presetMessages || [];
     const enabledPresets = presetMessages.filter((msg: any) => msg.isEnabled !== false);
 
+    // 计算 Token 数（使用 tokenCalculatorService）
+    let systemPromptTokenCount = 0;
+    let presetMessagesTokenCount = 0;
+    let chatHistoryTokenCount = 0;
+    let isEstimated = false;
+    let tokenizerName = '';
+
     // 提取系统提示部分
-    const systemPromptData = systemPrompt
-      ? {
+    let systemPromptData: ContextPreviewData['systemPrompt'];
+    if (systemPrompt) {
+      try {
+        const tokenResult = await tokenCalculatorService.calculateTokens(systemPrompt, agentConfig.modelId);
+        systemPromptTokenCount = tokenResult.count;
+        isEstimated = tokenResult.isEstimated ?? false;
+        tokenizerName = tokenResult.tokenizerName;
+        
+        systemPromptData = {
+          content: systemPrompt,
+          charCount: systemPrompt.length,
+          tokenCount: tokenResult.count,
+          source: 'agent_preset' as const,
+        };
+      } catch (error) {
+        logger.warn('计算系统提示 token 失败', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        systemPromptData = {
           content: systemPrompt,
           charCount: systemPrompt.length,
           source: 'agent_preset' as const,
-        }
-      : undefined;
+        };
+      }
+    }
 
     // 提取预设对话部分（非系统消息）
-    const presetMessagesData = enabledPresets
-      .filter((msg: any) => msg.role !== 'system' && msg.type !== 'chat_history')
-      .map((msg: any, index: number) => {
-        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-        return {
-          role: msg.role as 'user' | 'assistant',
-          content,
-          charCount: content.length,
-          source: 'agent_preset' as const,
-          index,
-        };
-      });
+    const presetMessagesData = await Promise.all(
+      enabledPresets
+        .filter((msg: any) => msg.role !== 'system' && msg.type !== 'chat_history')
+        .map(async (msg: any, index: number) => {
+          const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+          let tokenCount: number | undefined;
+          
+          try {
+            const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
+            tokenCount = tokenResult.count;
+            presetMessagesTokenCount += tokenResult.count;
+            if (tokenResult.isEstimated) isEstimated = true;
+          } catch (error) {
+            logger.warn('计算预设消息 token 失败', {
+              index,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          
+          return {
+            role: msg.role as 'user' | 'assistant',
+            content,
+            charCount: content.length,
+            tokenCount,
+            source: 'agent_preset' as const,
+            index,
+          };
+        })
+    );
 
     // 从节点路径中提取会话历史（排除系统消息和禁用节点）
-    const chatHistoryData = nodePath
-      .filter((node) => node.isEnabled !== false)
-      .filter((node) => node.role !== 'system')
-      .filter((node) => node.role === 'user' || node.role === 'assistant')
-      .map((node, index) => {
-        const content = typeof node.content === 'string' ? node.content : JSON.stringify(node.content);
-        return {
-          role: node.role as 'user' | 'assistant',
-          content,
-          charCount: content.length,
-          source: 'session_history' as const,
-          nodeId: node.id,
-          index,
-        };
-      });
+    const chatHistoryData = await Promise.all(
+      nodePath
+        .filter((node) => node.isEnabled !== false)
+        .filter((node) => node.role !== 'system')
+        .filter((node) => node.role === 'user' || node.role === 'assistant')
+        .map(async (node, index) => {
+          const content = typeof node.content === 'string' ? node.content : JSON.stringify(node.content);
+          let tokenCount: number | undefined;
+          
+          try {
+            const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
+            tokenCount = tokenResult.count;
+            chatHistoryTokenCount += tokenResult.count;
+            if (tokenResult.isEstimated) isEstimated = true;
+          } catch (error) {
+            logger.warn('计算会话历史 token 失败', {
+              nodeId: node.id,
+              index,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          
+          return {
+            role: node.role as 'user' | 'assistant',
+            content,
+            charCount: content.length,
+            tokenCount,
+            source: 'session_history' as const,
+            nodeId: node.id,
+            index,
+          };
+        })
+    );
 
     // 计算统计信息
     const systemPromptCharCount = systemPromptData?.charCount || 0;
     const presetMessagesCharCount = presetMessagesData.reduce((sum, msg) => sum + msg.charCount, 0);
     const chatHistoryCharCount = chatHistoryData.reduce((sum, msg) => sum + msg.charCount, 0);
     const totalCharCount = systemPromptCharCount + presetMessagesCharCount + chatHistoryCharCount;
+    const totalTokenCount = systemPromptTokenCount + presetMessagesTokenCount + chatHistoryTokenCount;
 
     const result: ContextPreviewData = {
       systemPrompt: systemPromptData,
@@ -1362,6 +1432,12 @@ export function useChatHandler() {
         presetMessagesCharCount,
         chatHistoryCharCount,
         messageCount: messages.length,
+        totalTokenCount,
+        systemPromptTokenCount,
+        presetMessagesTokenCount,
+        chatHistoryTokenCount,
+        isEstimated,
+        tokenizerName,
       },
       agentInfo: {
         id: agentId,
@@ -1376,7 +1452,10 @@ export function useChatHandler() {
       targetNodeId,
       agentId,
       totalCharCount,
+      totalTokenCount,
       messageCount: messages.length,
+      isEstimated,
+      tokenizerName,
     });
 
     return result;

@@ -8,19 +8,33 @@
         show-icon
       >
         <template #default>
-          以下图表展示了上下文各部分内容的字符数占比分布。
+          <span>
+            {{ chartMode === 'token'
+              ? '以下图表展示了上下文各部分内容的 Token 占比分布。'
+              : '以下图表展示了上下文各部分内容的字符数占比分布。'
+            }}
+          </span>
         </template>
       </el-alert>
     </div>
 
     <div ref="chartContainerRef" class="chart-container">
+      <el-radio-group v-model="chartMode" size="small" class="mode-switch">
+        <el-radio-button value="token">Token 占比</el-radio-button>
+        <el-radio-button value="char">字符数占比</el-radio-button>
+      </el-radio-group>
       <div ref="chartRef" class="chart"></div>
     </div>
 
     <div class="stats-detail">
       <el-card shadow="never">
         <template #header>
-          <div class="card-header">详细统计</div>
+          <div class="card-header">
+            <span>详细统计</span>
+            <el-tag v-if="contextData.statistics.tokenizerName" size="small" type="info">
+              {{ contextData.statistics.isEstimated ? '估算' : '精确' }} - {{ contextData.statistics.tokenizerName }}
+            </el-tag>
+          </div>
         </template>
         <div class="stats-table">
           <div class="stats-row">
@@ -29,10 +43,21 @@
               系统提示
             </span>
             <span class="stats-value">
-              {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
-              <span class="stats-percent">
-                ({{ getPercentage(contextData.statistics.systemPromptCharCount) }}%)
-              </span>
+              <template v-if="contextData.statistics.systemPromptTokenCount !== undefined">
+                {{ contextData.statistics.systemPromptTokenCount.toLocaleString() }} tokens
+                <span class="stats-percent">
+                  ({{ getTokenPercentage(contextData.statistics.systemPromptTokenCount) }}%)
+                </span>
+                <span class="char-info">
+                  {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
+                </span>
+              </template>
+              <template v-else>
+                {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
+                <span class="stats-percent">
+                  ({{ getPercentage(contextData.statistics.systemPromptCharCount) }}%)
+                </span>
+              </template>
             </span>
           </div>
           <div class="stats-row">
@@ -41,10 +66,21 @@
               预设消息
             </span>
             <span class="stats-value">
-              {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
-              <span class="stats-percent">
-                ({{ getPercentage(contextData.statistics.presetMessagesCharCount) }}%)
-              </span>
+              <template v-if="contextData.statistics.presetMessagesTokenCount !== undefined">
+                {{ contextData.statistics.presetMessagesTokenCount.toLocaleString() }} tokens
+                <span class="stats-percent">
+                  ({{ getTokenPercentage(contextData.statistics.presetMessagesTokenCount) }}%)
+                </span>
+                <span class="char-info">
+                  {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
+                </span>
+              </template>
+              <template v-else>
+                {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
+                <span class="stats-percent">
+                  ({{ getPercentage(contextData.statistics.presetMessagesCharCount) }}%)
+                </span>
+              </template>
             </span>
           </div>
           <div class="stats-row">
@@ -53,16 +89,35 @@
               会话历史
             </span>
             <span class="stats-value">
-              {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
-              <span class="stats-percent">
-                ({{ getPercentage(contextData.statistics.chatHistoryCharCount) }}%)
-              </span>
+              <template v-if="contextData.statistics.chatHistoryTokenCount !== undefined">
+                {{ contextData.statistics.chatHistoryTokenCount.toLocaleString() }} tokens
+                <span class="stats-percent">
+                  ({{ getTokenPercentage(contextData.statistics.chatHistoryTokenCount) }}%)
+                </span>
+                <span class="char-info">
+                  {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
+                </span>
+              </template>
+              <template v-else>
+                {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
+                <span class="stats-percent">
+                  ({{ getPercentage(contextData.statistics.chatHistoryCharCount) }}%)
+                </span>
+              </template>
             </span>
           </div>
           <div class="stats-row total">
             <span class="stats-label">总计</span>
             <span class="stats-value">
-              {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
+              <template v-if="contextData.statistics.totalTokenCount !== undefined">
+                {{ contextData.statistics.totalTokenCount.toLocaleString() }} tokens
+                <span class="char-total">
+                  {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
+                </span>
+              </template>
+              <template v-else>
+                {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
+              </template>
             </span>
           </div>
         </div>
@@ -73,14 +128,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue';
-import { useContextChart } from '../../composables/useContextChart';
+import { useContextChart, type ChartMode } from '../../composables/useContextChart';
 import type { ContextPreviewData } from '../../composables/useChatHandler';
 
 const props = defineProps<{
   contextData: ContextPreviewData;
 }>();
 
-const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(props.contextData);
+// 图表模式：token 或 char
+const chartMode = ref<ChartMode>('token');
+
+const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(props.contextData, chartMode);
 
 // 图表容器的父元素引用
 const chartContainerRef = ref<HTMLDivElement>();
@@ -95,10 +153,17 @@ const themeColors = computed(() => {
   };
 });
 
-// 计算百分比
+// 计算字符数百分比
 const getPercentage = (value: number): string => {
   const total = props.contextData.statistics.totalCharCount;
   if (total === 0) return '0.0';
+  return ((value / total) * 100).toFixed(1);
+};
+
+// 计算 token 百分比
+const getTokenPercentage = (value: number): string => {
+  const total = props.contextData.statistics.totalTokenCount;
+  if (!total || total === 0) return '0.0';
   return ((value / total) * 100).toFixed(1);
 };
 
@@ -133,6 +198,15 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+.mode-switch {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  background-color: var(--el-bg-color-overlay);
+  border-radius: 4px;
+}
+
 .chart-container {
   flex: 1;
   min-height: 300px;
@@ -155,6 +229,10 @@ onMounted(() => {
 .card-header {
   font-weight: bold;
   color: var(--el-text-color-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 .stats-table {
@@ -200,5 +278,17 @@ onMounted(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   margin-left: 4px;
+}
+
+.char-info {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.char-total {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  margin-left: 8px;
 }
 </style>

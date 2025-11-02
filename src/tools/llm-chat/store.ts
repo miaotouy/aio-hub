@@ -124,12 +124,18 @@ export const useLlmChatStore = defineStore("llmChat", {
       // 取最后 N 条预设消息
       const displayPresets = presetsBeforePlaceholder.slice(-agent.displayPresetCount);
 
-      // 给预设消息添加特殊标记，用于 UI 区分
+      // 给预设消息添加特殊标记和智能体信息，用于 UI 显示
       const markedPresets = displayPresets.map((msg: ChatMessageNode) => ({
         ...msg,
         metadata: {
           ...msg.metadata,
           isPresetDisplay: true, // 标记这是用于显示的预设消息
+          agentId: agent.id,
+          agentName: agent.name,
+          agentIcon: agent.icon,
+          profileId: agent.profileId,
+          modelId: agent.modelId,
+          // modelName 会在 MessageHeader 中从 model 对象获取，这里不需要设置
         },
       }));
 

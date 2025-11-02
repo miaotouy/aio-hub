@@ -3,10 +3,12 @@ import { computed } from 'vue';
 import { Loader2 } from 'lucide-vue-next';
 import type { ChatMessageNode } from '../../types';
 import { useAgentStore } from '../../agentStore';
+import { useUserProfileStore } from '../../userProfileStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useModelMetadata } from '@/composables/useModelMetadata';
 import { useChatSettings } from '../../composables/useChatSettings';
 import Avatar from '@/components/common/Avatar.vue';
+import DynamicIcon from '@/components/common/DynamicIcon.vue';
 
 interface Props {
   message: ChatMessageNode;
@@ -15,6 +17,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 const { settings } = useChatSettings();
@@ -75,9 +78,30 @@ const formatTime = (timestamp: string) => {
   });
 };
 
+// 获取当前生效的用户档案（用于兼容旧消息）
+const effectiveUserProfile = computed(() => {
+  // 优先使用智能体绑定的用户档案
+  if (agent.value?.userProfileId) {
+    const profile = userProfileStore.getProfileById(agent.value.userProfileId);
+    if (profile) return profile;
+  }
+  
+  // 回退到全局用户档案
+  return userProfileStore.globalProfile;
+});
+
 // 根据角色决定显示的名称和图标
 const displayName = computed(() => {
   if (props.message.role === 'user') {
+    // 优先使用消息元数据中的用户档案快照
+    if (props.message.metadata?.userProfileName) {
+      return props.message.metadata.userProfileName;
+    }
+    // 回退到当前生效的用户档案
+    if (effectiveUserProfile.value) {
+      return effectiveUserProfile.value.name;
+    }
+    // 最后使用默认值
     return '你';
   } else if (props.message.role === 'assistant') {
     // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）
@@ -89,6 +113,15 @@ const displayName = computed(() => {
 
 const displayIcon = computed(() => {
   if (props.message.role === 'user') {
+    // 优先使用消息元数据中的用户档案快照
+    if (props.message.metadata?.userProfileIcon) {
+      return props.message.metadata.userProfileIcon;
+    }
+    // 回退到当前生效的用户档案
+    if (effectiveUserProfile.value?.icon) {
+      return effectiveUserProfile.value.icon;
+    }
+    // 最后使用默认值
     return '👤';
   } else if (props.message.role === 'assistant') {
     // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）

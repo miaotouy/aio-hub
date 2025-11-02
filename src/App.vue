@@ -17,6 +17,7 @@ import TitleBar from "./components/TitleBar.vue";
 import MainSidebar from "./components/MainSidebar.vue";
 import SyncServiceProvider from "./components/SyncServiceProvider.vue";
 import ImageViewer from "./components/common/ImageViewer.vue";
+import ModelSelectDialog from "./components/common/ModelSelectDialog.vue";
 import { useImageViewer } from "./composables/useImageViewer";
 
 const logger = createModuleLogger("App");
@@ -229,6 +230,9 @@ onUnmounted(() => {
     @close="imageViewer.hide()"
     @change="(index) => imageViewer.state.value.currentIndex = index"
   />
+  
+  <!-- 全局模型选择弹窗 -->
+  <ModelSelectDialog />
   
   <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
   <TitleBar v-if="!isSpecialRoute" />

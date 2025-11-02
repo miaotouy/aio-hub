@@ -57,6 +57,7 @@ import { useUserProfileStore } from "../userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useChatSettings } from "../composables/useChatSettings";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import Avatar from '@/components/common/Avatar.vue';
 import DynamicIcon from '@/components/common/DynamicIcon.vue';
 const agentStore = useAgentStore();
@@ -64,6 +65,7 @@ const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 const { loadSettings } = useChatSettings();
+const { open: openModelSelectDialog } = useModelSelectDialog();
 
 // 当前智能体信息
 const currentAgent = computed(() => {
@@ -163,6 +165,44 @@ const handleEditAgent = () => {
     showEditAgentDialog.value = true;
   } else {
     logger.warn("无法编辑智能体：未找到当前智能体");
+  }
+};
+
+const handleSelectModel = async () => {
+  if (!currentAgent.value) {
+    logger.warn("无法选择模型：未找到当前智能体");
+    return;
+  }
+
+  logger.info("打开模型选择弹窗");
+  
+  // 构造当前选中的模型信息
+  let currentSelection = null;
+  if (currentModel.value) {
+    const profile = getProfileById(currentAgent.value.profileId);
+    if (profile) {
+      currentSelection = {
+        profile,
+        model: currentModel.value,
+      };
+    }
+  }
+  
+  const result = await openModelSelectDialog(currentSelection);
+  
+  if (result) {
+    logger.info("用户选择了新模型", {
+      profile: result.profile.name,
+      model: result.model.name,
+    });
+    
+    // 更新智能体的 profileId 和 modelId
+    agentStore.updateAgent(currentAgent.value.id, {
+      profileId: result.profile.id,
+      modelId: result.model.id,
+    });
+  } else {
+    logger.info("用户取消了模型选择");
   }
 };
 
@@ -353,15 +393,21 @@ onMounted(async () => {
             <span class="agent-name">{{ currentAgent.name }}</span>
           </div>
         </el-tooltip>
-        <div v-if="currentModel" class="model-info">
-          <DynamicIcon
-            v-if="modelIcon"
-            :src="modelIcon"
-            class="model-icon"
-            :alt="currentModel.name || currentModel.id"
-          />
-          <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
-        </div>
+        <el-tooltip content="点击选择模型" placement="bottom">
+          <div
+            v-if="currentModel"
+            class="model-info clickable"
+            @click="handleSelectModel"
+          >
+            <DynamicIcon
+              v-if="modelIcon"
+              :src="modelIcon"
+              class="model-icon"
+              :alt="currentModel.name || currentModel.id"
+            />
+            <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
+          </div>
+        </el-tooltip>
       </div>
 
       <!-- 用户档案信息（右对齐） -->
@@ -531,6 +577,7 @@ onMounted(async () => {
 
 /* 可点击的信息区域样式 */
 .agent-info.clickable,
+.model-info.clickable,
 .user-profile-info {
   padding: 4px 16px;
   border-radius: 4px;
@@ -545,12 +592,14 @@ onMounted(async () => {
 }
 
 .agent-info.clickable:hover,
+.model-info.clickable:hover,
 .user-profile-info:hover {
   transform: translateY(-2px);
   border: 1px solid var(--primary-color);
 }
 
 .agent-info.clickable:active,
+.model-info.clickable:active,
 .user-profile-info:active {
   background-color: var(--el-fill-color);
   transform: translateY(0);

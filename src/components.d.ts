@@ -39,6 +39,7 @@ declare module 'vue' {
     InfoCard: typeof import('./components/common/InfoCard.vue')['default']
     LlmModelSelector: typeof import('./components/common/LlmModelSelector.vue')['default']
     MainSidebar: typeof import('./components/MainSidebar.vue')['default']
+    ModelSelectDialog: typeof import('./components/common/ModelSelectDialog.vue')['default']
     OcrIcon: typeof import('./components/icons/OcrIcon.vue')['default']
     RichCodeEditor: typeof import('./components/common/RichCodeEditor.vue')['default']
     RichTextRendererIcon: typeof import('./components/icons/RichTextRendererIcon.vue')['default']

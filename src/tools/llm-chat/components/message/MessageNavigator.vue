@@ -110,28 +110,38 @@ const handleMouseLeave = () => {
       @mouseleave="handleMouseLeave"
     >
       <!-- 到顶按钮 -->
-      <div
-        class="nav-button nav-button-jump"
-        :class="{ disabled: !canScrollUp }"
-        :title="canScrollUp ? '跳转到顶部' : '已在顶部'"
-        @click="handleScrollToTop"
+      <el-tooltip
+        :content="canScrollUp ? '跳转到顶部' : '已在顶部'"
+        placement="right"
+        :show-after="300"
       >
-        <el-icon :size="14" style="transform: rotate(90deg)">
-          <DArrowLeft />
-        </el-icon>
-      </div>
+        <div
+          class="nav-button nav-button-jump"
+          :class="{ disabled: !canScrollUp }"
+          @click="handleScrollToTop"
+        >
+          <el-icon :size="14" style="transform: rotate(90deg)">
+            <DArrowLeft />
+          </el-icon>
+        </div>
+      </el-tooltip>
 
       <!-- 向上按钮 -->
-      <div
-        class="nav-button"
-        :class="{ disabled: !canScrollUp }"
-        :title="canScrollUp ? '上一条消息 (↑)' : '已在顶部'"
-        @click="handleScrollToPrev"
+      <el-tooltip
+        :content="canScrollUp ? '上一条消息 (↑)' : '已在顶部'"
+        placement="right"
+        :show-after="300"
       >
-        <el-icon :size="14">
-          <ArrowUp />
-        </el-icon>
-      </div>
+        <div
+          class="nav-button"
+          :class="{ disabled: !canScrollUp }"
+          @click="handleScrollToPrev"
+        >
+          <el-icon :size="14">
+            <ArrowUp />
+          </el-icon>
+        </div>
+      </el-tooltip>
 
       <!-- 刻度指示器 -->
       <div class="progress-track">
@@ -149,30 +159,40 @@ const handleMouseLeave = () => {
       </div>
 
       <!-- 向下按钮 -->
-      <div
-        class="nav-button"
-        :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
-        :title="canScrollDown ? '下一条消息 (↓)' : '已在底部'"
-        @click="handleScrollToNext"
+      <el-tooltip
+        :content="canScrollDown ? '下一条消息 (↓)' : '已在底部'"
+        placement="right"
+        :show-after="300"
       >
-        <el-icon :size="14">
-          <ArrowDown />
-        </el-icon>
-        <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
-      </div>
+        <div
+          class="nav-button"
+          :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
+          @click="handleScrollToNext"
+        >
+          <el-icon :size="14">
+            <ArrowDown />
+          </el-icon>
+          <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
+        </div>
+      </el-tooltip>
 
       <!-- 到底按钮 -->
-      <div
-        class="nav-button nav-button-jump"
-        :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
-        :title="canScrollDown ? '跳转到底部' : '已在底部'"
-        @click="handleScrollToBottom"
+      <el-tooltip
+        :content="canScrollDown ? '跳转到底部' : '已在底部'"
+        placement="right"
+        :show-after="300"
       >
-        <el-icon :size="14" style="transform: rotate(90deg)">
-          <DArrowRight />
-        </el-icon>
-        <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
-      </div>
+        <div
+          class="nav-button nav-button-jump"
+          :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
+          @click="handleScrollToBottom"
+        >
+          <el-icon :size="14" style="transform: rotate(90deg)">
+            <DArrowRight />
+          </el-icon>
+          <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
+        </div>
+      </el-tooltip>
     </div>
   </Transition>
 </template>

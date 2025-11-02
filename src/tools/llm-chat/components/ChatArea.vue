@@ -390,6 +390,29 @@ const handleScrollToNext = () => {
 const handleScrollToPrev = () => {
   messageListRef.value?.scrollToPrev();
 };
+// ===== 键盘导航 =====
+const handleKeyDown = (e: KeyboardEvent) => {
+  // 检查焦点是否在输入框或其他可编辑元素上
+  const target = e.target as HTMLElement;
+  const isEditableElement =
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable;
+
+  // 如果焦点在可编辑元素上，不拦截键盘事件
+  if (isEditableElement) {
+    return;
+  }
+
+  // 只处理上下箭头键
+  if (e.key === "ArrowUp") {
+    e.preventDefault(); // 阻止默认的缓慢滚动
+    handleScrollToPrev();
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault(); // 阻止默认的缓慢滚动
+    handleScrollToNext();
+  }
+};
 
 onMounted(async () => {
   // 加载聊天设置
@@ -412,7 +435,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div ref="containerRef" :class="['chat-area-container', { 'detached-mode': isDetached }]">
+  <div
+    ref="containerRef"
+    :class="['chat-area-container', { 'detached-mode': isDetached }]"
+    tabindex="0"
+    @keydown="handleKeyDown"
+  >
     <!-- 头部区域 -->
     <div class="chat-header">
       <!-- 拖拽手柄 -->

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useScroll, useThrottleFn } from '@vueuse/core';
-import { ArrowUp, ArrowDown } from '@element-plus/icons-vue';
+import { computed, ref, watchEffect } from "vue";
+import { useScroll, useThrottleFn, useResizeObserver } from "@vueuse/core";
+import { ArrowUp, ArrowDown } from "@element-plus/icons-vue";
 
 interface Props {
   /** 滚动容器的引用 */
@@ -13,9 +13,9 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'scroll-to-bottom'): void;
-  (e: 'scroll-to-next'): void;
-  (e: 'scroll-to-prev'): void;
+  (e: "scroll-to-bottom"): void;
+  (e: "scroll-to-next"): void;
+  (e: "scroll-to-prev"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,20 +24,43 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-// 使用 useScroll 追踪滚动状态
-const { arrivedState } = useScroll(
+// 使用 useScroll 追踪滚动状态，获取响应式的 y 值
+const { arrivedState, y } = useScroll(
   computed(() => props.scrollElement),
   {
     offset: { top: 50, bottom: 50 },
   }
 );
 
-// 当前滚动位置的百分比（0-100）
+// 追踪容器尺寸变化（响应式）
+const scrollHeight = ref(0);
+const clientHeight = ref(0);
+
+// 使用 ResizeObserver 监听容器尺寸变化
+useResizeObserver(
+  computed(() => props.scrollElement),
+  () => {
+    if (props.scrollElement) {
+      scrollHeight.value = props.scrollElement.scrollHeight;
+      clientHeight.value = props.scrollElement.clientHeight;
+    }
+  }
+);
+
+// 监听元素变化，初始化和更新尺寸
+watchEffect(() => {
+  if (props.scrollElement) {
+    scrollHeight.value = props.scrollElement.scrollHeight;
+    clientHeight.value = props.scrollElement.clientHeight;
+  }
+});
+
+// 当前滚动位置的百分比（0-100），使用响应式值
 const scrollPercentage = computed(() => {
-  if (!props.scrollElement) return 0;
-  const { scrollTop, scrollHeight, clientHeight } = props.scrollElement;
-  if (scrollHeight <= clientHeight) return 100;
-  return Math.round((scrollTop / (scrollHeight - clientHeight)) * 100);
+  if (!props.scrollElement || scrollHeight.value <= clientHeight.value) return 100;
+  const maxScroll = scrollHeight.value - clientHeight.value;
+  if (maxScroll <= 0) return 100;
+  return Math.round((y.value / maxScroll) * 100);
 });
 
 // 估算当前可见的消息索引（基于滚动百分比）
@@ -56,14 +79,33 @@ const canScrollUp = computed(() => !arrivedState.top);
 const canScrollDown = computed(() => !arrivedState.bottom);
 
 // 节流的滚动处理
-const handleScrollToBottom = useThrottleFn(() => emit('scroll-to-bottom'), 300);
-const handleScrollToNext = useThrottleFn(() => emit('scroll-to-next'), 200);
-const handleScrollToPrev = useThrottleFn(() => emit('scroll-to-prev'), 200);
+const handleScrollToBottom = useThrottleFn(() => emit("scroll-to-bottom"), 300);
+const handleScrollToNext = useThrottleFn(() => emit("scroll-to-next"), 200);
+const handleScrollToPrev = useThrottleFn(() => emit("scroll-to-prev"), 200);
+
+// 响应式展开/收起状态
+const isExpanded = ref(false);
+
+// 鼠标进入时展开
+const handleMouseEnter = () => {
+  isExpanded.value = true;
+};
+
+// 鼠标离开时收起
+const handleMouseLeave = () => {
+  isExpanded.value = false;
+};
 </script>
 
 <template>
   <Transition name="slide-left">
-    <div v-if="showNavigator" class="message-navigator">
+    <div
+      v-if="showNavigator"
+      class="message-navigator"
+      :class="{ 'is-expanded': isExpanded }"
+      @mouseenter="handleMouseEnter"
+      @mouseleave="handleMouseLeave"
+    >
       <!-- 向上按钮 -->
       <div
         class="nav-button"
@@ -110,25 +152,51 @@ const handleScrollToPrev = useThrottleFn(() => emit('scroll-to-prev'), 200);
 <style scoped>
 .message-navigator {
   position: absolute;
-  left: 10px;
+  left: -50px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 20;
-  
+
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
   padding: 8px 6px;
-  
+
   background: var(--el-bg-color);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  
+
   user-select: none;
   backdrop-filter: blur(8px);
   background: color-mix(in srgb, var(--el-bg-color) 90%, transparent);
+
+  /* 平滑过渡 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 收起状态半透明 */
+  opacity: 0.5;
+}
+
+/* 触发范围的伪元素 */
+.message-navigator::before {
+  content: "";
+  position: absolute;
+  top: -60px;
+  bottom: -60px;
+  left: -10px;
+  right: -100px;
+  z-index: -1;
+  pointer-events: auto;
+  /* 调试用：取消注释可以看到触发区域 */
+  /* background: rgba(255, 0, 0, 0.1); */
+}
+
+/* 展开状态 */
+.message-navigator.is-expanded {
+  left: 10px;
+  opacity: 1;
 }
 
 /* 导航按钮 */
@@ -175,7 +243,8 @@ const handleScrollToPrev = useThrottleFn(() => emit('scroll-to-prev'), 200);
 }
 
 @keyframes pulse-dot {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -193,6 +262,15 @@ const handleScrollToPrev = useThrottleFn(() => emit('scroll-to-prev'), 200);
   background: var(--el-fill-color);
   border-radius: 1.5px;
   overflow: visible;
+
+  /* 收起状态时向右偏移 */
+  transform: translateX(45px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 展开状态时进度条回到正常位置 */
+.message-navigator.is-expanded .progress-track {
+  transform: translateX(0);
 }
 
 .progress-bar {
@@ -233,7 +311,8 @@ const handleScrollToPrev = useThrottleFn(() => emit('scroll-to-prev'), 200);
 }
 
 @keyframes pulse-indicator {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }

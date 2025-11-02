@@ -1,26 +1,25 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue';
-import { useVirtualizer } from '@tanstack/vue-virtual';
-import type { ChatMessageNode } from '../../types';
-import type { Asset } from '@/types/asset-management';
-import { useLlmChatStore } from '../../store';
-import { useChatSettings } from '../../composables/useChatSettings';
-import ChatMessage from './ChatMessage.vue';
-import MessageNavigator from './MessageNavigator.vue';
+import { ref, watch, nextTick, computed } from "vue";
+import { useVirtualizer } from "@tanstack/vue-virtual";
+import type { ChatMessageNode } from "../../types";
+import type { Asset } from "@/types/asset-management";
+import { useLlmChatStore } from "../../store";
+import { useChatSettings } from "../../composables/useChatSettings";
+import ChatMessage from "./ChatMessage.vue";
 
 interface Props {
   messages: ChatMessageNode[];
   isSending: boolean;
 }
 interface Emits {
-  (e: 'delete-message', messageId: string): void;
-  (e: 'regenerate', messageId: string): void;
-  (e: 'switch-sibling', nodeId: string, direction: 'prev' | 'next'): void;
-  (e: 'toggle-enabled', nodeId: string): void;
-  (e: 'edit-message', nodeId: string, newContent: string, attachments?: Asset[]): void;
-  (e: 'abort-node', nodeId: string): void;
-  (e: 'create-branch', nodeId: string): void;
-  (e: 'analyze-context', nodeId: string): void;
+  (e: "delete-message", messageId: string): void;
+  (e: "regenerate", messageId: string): void;
+  (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
+  (e: "toggle-enabled", nodeId: string): void;
+  (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
+  (e: "abort-node", nodeId: string): void;
+  (e: "create-branch", nodeId: string): void;
+  (e: "analyze-context", nodeId: string): void;
 }
 
 const props = defineProps<Props>();
@@ -33,7 +32,7 @@ const { settings } = useChatSettings();
 const getMessageSiblings = (messageId: string) => {
   const siblings = store.getSiblings(messageId);
   // 找到在当前活动路径上的兄弟节点（而不是传入的 messageId 自己）
-  const currentIndex = siblings.findIndex(s => store.isNodeInActivePath(s.id));
+  const currentIndex = siblings.findIndex((s) => store.isNodeInActivePath(s.id));
   return {
     siblings,
     currentIndex,
@@ -42,6 +41,9 @@ const getMessageSiblings = (messageId: string) => {
 
 // 虚拟滚动容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
+
+// 暴露滚动容器供外部使用（如 MessageNavigator）
+const getScrollElement = () => messagesContainer.value;
 
 // 消息数量（响应式）
 const messageCount = computed(() => props.messages.length);
@@ -52,7 +54,7 @@ const virtualizer = useVirtualizer({
     return messageCount.value;
   },
   getScrollElement: () => messagesContainer.value,
-  estimateSize: () => 200, // 预估每条消息的高度为 200px
+  estimateSize: () => 160, // 预估每条消息的高度
   overscan: 5, // 预渲染可视区域外的 5 条消息，提升滚动流畅度
 });
 
@@ -64,10 +66,6 @@ const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 // 自动滚动到底部
 const scrollToBottom = () => {
-  if (!settings.value.uiPreferences.autoScroll) {
-    return;
-  }
-  
   nextTick(() => {
     if (messagesContainer.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
@@ -75,28 +73,15 @@ const scrollToBottom = () => {
   });
 };
 
-// 追踪是否有新消息（用于显示徽章）
-const hasNewMessages = ref(false);
-const previousMessageCount = ref(props.messages.length);
-
-// 监听消息变化
-watch(() => props.messages.length, (newCount) => {
-  // 如果消息增加了，标记有新消息
-  if (newCount > previousMessageCount.value) {
-    // 检查是否在底部附近，如果不在则显示新消息提示
-    if (messagesContainer.value) {
-      const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-      if (!isNearBottom) {
-        hasNewMessages.value = true;
-      }
+// 监听消息变化，自动滚动
+watch(
+  () => props.messages.length,
+  () => {
+    if (settings.value.uiPreferences.autoScroll) {
+      scrollToBottom();
     }
   }
-  previousMessageCount.value = newCount;
-  
-  // 自动滚动
-  scrollToBottom();
-});
+);
 
 // 滚动到顶部
 const scrollToTop = () => {
@@ -105,18 +90,12 @@ const scrollToTop = () => {
   }
 };
 
-// 手动滚动到底部时清除新消息标记
-const handleScrollToBottom = () => {
-  hasNewMessages.value = false;
-  scrollToBottom();
-};
-
 // 滚动到下一条消息
 const scrollToNext = () => {
   if (!messagesContainer.value) return;
   const container = messagesContainer.value;
   const scrollAmount = Math.min(container.clientHeight * 0.8, 500); // 滚动80%的视口高度或500px
-  container.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+  container.scrollBy({ top: scrollAmount, behavior: "smooth" });
 };
 
 // 滚动到上一条消息
@@ -124,15 +103,16 @@ const scrollToPrev = () => {
   if (!messagesContainer.value) return;
   const container = messagesContainer.value;
   const scrollAmount = Math.min(container.clientHeight * 0.8, 500);
-  container.scrollBy({ top: -scrollAmount, behavior: 'smooth' });
+  container.scrollBy({ top: -scrollAmount, behavior: "smooth" });
 };
 
-// 暴露滚动方法供外部调用
+// 暴露滚动方法和容器引用供外部调用
 defineExpose({
-  scrollToBottom: handleScrollToBottom,
+  scrollToBottom,
   scrollToTop,
   scrollToNext,
   scrollToPrev,
+  getScrollElement,
 });
 </script>
 
@@ -170,12 +150,20 @@ defineExpose({
               :message="messages[virtualItem.index]"
               :is-sending="isSending"
               :siblings="getMessageSiblings(messages[virtualItem.index].id).siblings"
-              :current-sibling-index="getMessageSiblings(messages[virtualItem.index].id).currentIndex"
+              :current-sibling-index="
+                getMessageSiblings(messages[virtualItem.index].id).currentIndex
+              "
               @delete="emit('delete-message', messages[virtualItem.index].id)"
               @regenerate="emit('regenerate', messages[virtualItem.index].id)"
-              @switch-sibling="(direction: 'prev' | 'next') => emit('switch-sibling', messages[virtualItem.index].id, direction)"
+              @switch-sibling="
+                (direction: 'prev' | 'next') =>
+                  emit('switch-sibling', messages[virtualItem.index].id, direction)
+              "
               @toggle-enabled="emit('toggle-enabled', messages[virtualItem.index].id)"
-              @edit="(newContent: string, attachments?: Asset[]) => emit('edit-message', messages[virtualItem.index].id, newContent, attachments)"
+              @edit="
+                (newContent: string, attachments?: Asset[]) =>
+                  emit('edit-message', messages[virtualItem.index].id, newContent, attachments)
+              "
               @copy="() => {}"
               @abort="emit('abort-node', messages[virtualItem.index].id)"
               @create-branch="emit('create-branch', messages[virtualItem.index].id)"
@@ -185,16 +173,6 @@ defineExpose({
         </div>
       </div>
     </div>
-
-    <!-- 消息导航器 -->
-    <MessageNavigator
-      :scroll-element="messagesContainer"
-      :message-count="messages.length"
-      :has-new-messages="hasNewMessages"
-      @scroll-to-bottom="handleScrollToBottom"
-      @scroll-to-next="scrollToNext"
-      @scroll-to-prev="scrollToPrev"
-    />
   </div>
 </template>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, toRef, withDefaults, onMounted } from "vue";
+import { ref, computed, toRef, withDefaults, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip } from "element-plus";
 import type { ChatMessageNode, UserProfile } from "../types";
@@ -11,6 +11,7 @@ import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
 import MessageInput from "./MessageInput.vue";
+import MessageNavigator from "./message/MessageNavigator.vue";
 import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
@@ -32,7 +33,7 @@ interface Emits {
   (e: "abort"): void;
   (e: "delete-message", messageId: string): void;
   (e: "regenerate", messageId: string): void;
-  (e: "switch-sibling", nodeId: string, direction: 'prev' | 'next'): void;
+  (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
   (e: "toggle-enabled", nodeId: string): void;
   (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
   (e: "abort-node", nodeId: string): void;
@@ -50,6 +51,7 @@ const emit = defineEmits<Emits>();
 
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
+const messageListRef = ref<InstanceType<typeof MessageList>>();
 
 // 获取智能体和模型信息
 import { useAgentStore } from "../agentStore";
@@ -58,8 +60,8 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useChatSettings } from "../composables/useChatSettings";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import Avatar from '@/components/common/Avatar.vue';
-import DynamicIcon from '@/components/common/DynamicIcon.vue';
+import Avatar from "@/components/common/Avatar.vue";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
@@ -92,12 +94,12 @@ const modelIcon = computed(() => {
 // 当前生效的用户档案（智能体绑定 > 全局配置）
 const effectiveUserProfile = computed(() => {
   if (!currentAgent.value) return null;
-  
+
   // 优先使用智能体绑定的档案
   if (currentAgent.value.userProfileId) {
     return userProfileStore.getProfileById(currentAgent.value.userProfileId);
   }
-  
+
   // 否则使用全局档案
   return userProfileStore.globalProfile;
 });
@@ -175,7 +177,7 @@ const handleSelectModel = async () => {
   }
 
   logger.info("打开模型选择弹窗");
-  
+
   // 构造当前选中的模型信息
   let currentSelection = null;
   if (currentModel.value) {
@@ -187,15 +189,15 @@ const handleSelectModel = async () => {
       };
     }
   }
-  
+
   const result = await openModelSelectDialog(currentSelection);
-  
+
   if (result) {
     logger.info("用户选择了新模型", {
       profile: result.profile.name,
       model: result.model.name,
     });
-    
+
     // 更新智能体的 profileId 和 modelId
     agentStore.updateAgent(currentAgent.value.id, {
       profileId: result.profile.id,
@@ -244,7 +246,7 @@ const handleEditUserProfile = () => {
   }
 };
 
-const handleSaveUserProfile = (updates: Partial<Omit<UserProfile, 'id' | 'createdAt'>>) => {
+const handleSaveUserProfile = (updates: Partial<Omit<UserProfile, "id" | "createdAt">>) => {
   if (effectiveUserProfile.value) {
     logger.info("保存用户档案", { profileId: effectiveUserProfile.value.id, updates });
     userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
@@ -327,11 +329,13 @@ const finalDisabled = toRef(props, "disabled");
 const finalCurrentAgentId = toRef(props, "currentAgentId");
 const finalCurrentModelId = toRef(props, "currentModelId");
 
-const handleSendMessage = (content: string, attachments?: Asset[]) => emit("send", content, attachments);
+const handleSendMessage = (content: string, attachments?: Asset[]) =>
+  emit("send", content, attachments);
 const handleAbort = () => emit("abort");
 const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
 const handleRegenerate = (messageId: string) => emit("regenerate", messageId);
-const handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => emit("switch-sibling", nodeId, direction);
+const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") =>
+  emit("switch-sibling", nodeId, direction);
 const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) =>
   emit("edit-message", nodeId, newContent, attachments);
@@ -339,11 +343,54 @@ const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
 const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
 
+// ===== MessageNavigator 相关 =====
+// 获取滚动容器引用
+const scrollElement = computed(() => {
+  return messageListRef.value?.getScrollElement() ?? null;
+});
+
+// 追踪是否有新消息
+const hasNewMessages = ref(false);
+const previousMessageCount = ref(props.messages?.length ?? 0);
+
+// 监听消息变化以更新新消息标记
+watch(
+  () => props.messages?.length ?? 0,
+  (newCount) => {
+    if (newCount > previousMessageCount.value) {
+      // 检查是否在底部附近
+      const element = scrollElement.value;
+      if (element) {
+        const { scrollTop, scrollHeight, clientHeight } = element;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        if (!isNearBottom) {
+          hasNewMessages.value = true;
+        }
+      }
+    }
+    previousMessageCount.value = newCount;
+  }
+);
+
+// 导航器事件处理
+const handleScrollToBottom = () => {
+  hasNewMessages.value = false;
+  messageListRef.value?.scrollToBottom();
+};
+
+const handleScrollToNext = () => {
+  messageListRef.value?.scrollToNext();
+};
+
+const handleScrollToPrev = () => {
+  messageListRef.value?.scrollToPrev();
+};
+
 onMounted(async () => {
   // 加载聊天设置
   await loadSettings();
-  logger.info('聊天设置已加载');
-  
+  logger.info("聊天设置已加载");
+
   logger.info("ChatArea mounted", {
     props: {
       messages: props.messages?.length,
@@ -378,11 +425,7 @@ onMounted(async () => {
       <!-- 智能体和模型信息 -->
       <div class="agent-model-info">
         <el-tooltip content="点击编辑智能体" placement="bottom">
-          <div
-            v-if="currentAgent"
-            class="agent-info clickable"
-            @click="handleEditAgent"
-          >
+          <div v-if="currentAgent" class="agent-info clickable" @click="handleEditAgent">
             <Avatar
               :src="currentAgent.icon || '🤖'"
               :alt="currentAgent.name"
@@ -394,11 +437,7 @@ onMounted(async () => {
           </div>
         </el-tooltip>
         <el-tooltip content="点击选择模型" placement="bottom">
-          <div
-            v-if="currentModel"
-            class="model-info clickable"
-            @click="handleSelectModel"
-          >
+          <div v-if="currentModel" class="model-info clickable" @click="handleSelectModel">
             <DynamicIcon
               v-if="modelIcon"
               :src="modelIcon"
@@ -412,11 +451,7 @@ onMounted(async () => {
 
       <!-- 用户档案信息（右对齐） -->
       <el-tooltip content="点击编辑用户档案" placement="bottom">
-        <div
-          v-if="effectiveUserProfile"
-          class="user-profile-info"
-          @click="handleEditUserProfile"
-        >
+        <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
           <span class="profile-name">{{ effectiveUserProfile.name }}</span>
           <Avatar
             :src="effectiveUserProfile.icon || '👤'"
@@ -444,6 +479,7 @@ onMounted(async () => {
       <div class="chat-content">
         <!-- 消息列表 -->
         <MessageList
+          ref="messageListRef"
           :messages="finalMessages"
           :is-sending="finalIsSending"
           @delete-message="handleDeleteMessage"
@@ -454,6 +490,16 @@ onMounted(async () => {
           @abort-node="handleAbortNode"
           @create-branch="handleCreateBranch"
           @analyze-context="handleAnalyzeContext"
+        />
+
+        <!-- 消息导航器 -->
+        <MessageNavigator
+          :scroll-element="scrollElement"
+          :message-count="finalMessages.length"
+          :has-new-messages="hasNewMessages"
+          @scroll-to-bottom="handleScrollToBottom"
+          @scroll-to-next="handleScrollToNext"
+          @scroll-to-prev="handleScrollToPrev"
         />
 
         <!-- 输入框 -->
@@ -470,11 +516,7 @@ onMounted(async () => {
 
     <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
     <el-tooltip content="拖拽调整窗口大小" placement="left">
-      <div
-        v-if="props.isDetached"
-        class="resize-handle"
-        @mousedown="handleResizeStart"
-      />
+      <div v-if="props.isDetached" class="resize-handle" @mousedown="handleResizeStart" />
     </el-tooltip>
 
     <!-- 编辑智能体对话框 -->
@@ -495,10 +537,7 @@ onMounted(async () => {
     />
 
     <!-- 聊天设置对话框 -->
-    <ChatSettingsDialog
-      :visible="showChatSettings"
-      @update:visible="showChatSettings = $event"
-    />
+    <ChatSettingsDialog :visible="showChatSettings" @update:visible="showChatSettings = $event" />
   </div>
 </template>
 
@@ -534,14 +573,10 @@ onMounted(async () => {
   padding: 12px 12px 24px; /* 增加底部内边距给遮罩留空间 */
   min-height: 64px; /* 增加高度 */
   /* --card-bg-rgb is defined in css-vars.css */
-  background-color: rgba(var(--card-bg-rgb), 0.75); /* 半透明背景 */
+  background-color: rgba(var(--card-bg-rgb), 0.3); /* 半透明背景 */
   backdrop-filter: blur(8px); /* 模糊滤镜 */
   mask-image: linear-gradient(to bottom, black 60%, transparent 100%); /* 底部虚化遮罩 */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    black 60%,
-    transparent 100%
-  );
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
 }
 
 /* 分离模式下，整个头部区域可以拖拽窗口 */

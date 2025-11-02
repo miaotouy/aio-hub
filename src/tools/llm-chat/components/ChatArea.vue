@@ -12,6 +12,7 @@ import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
 import MessageInput from "./MessageInput.vue";
 import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
+import EditAgentDialog from "./agent/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import { Setting } from "@element-plus/icons-vue";
 
@@ -150,8 +151,49 @@ const handleDragStart = (e: MouseEvent) => {
 // ===== 用户档案编辑 =====
 const showEditProfileDialog = ref(false);
 
+// ===== 智能体编辑 =====
+const showEditAgentDialog = ref(false);
+
 // ===== 聊天设置 =====
 const showChatSettings = ref(false);
+
+const handleEditAgent = () => {
+  if (currentAgent.value) {
+    logger.info("打开智能体编辑对话框", { agentId: currentAgent.value.id });
+    showEditAgentDialog.value = true;
+  } else {
+    logger.warn("无法编辑智能体：未找到当前智能体");
+  }
+};
+
+const handleSaveAgent = (data: {
+  name: string;
+  description: string;
+  icon: string;
+  profileId: string;
+  modelId: string;
+  userProfileId: string | null;
+  presetMessages: ChatMessageNode[];
+  parameters: {
+    temperature: number;
+    maxTokens: number;
+  };
+}) => {
+  if (currentAgent.value) {
+    logger.info("保存智能体", { agentId: currentAgent.value.id, data });
+    agentStore.updateAgent(currentAgent.value.id, {
+      name: data.name,
+      description: data.description,
+      icon: data.icon,
+      profileId: data.profileId,
+      modelId: data.modelId,
+      userProfileId: data.userProfileId,
+      presetMessages: data.presetMessages,
+      parameters: data.parameters,
+    });
+  }
+  showEditAgentDialog.value = false;
+};
 
 const handleEditUserProfile = () => {
   if (effectiveUserProfile.value) {
@@ -295,16 +337,22 @@ onMounted(async () => {
 
       <!-- 智能体和模型信息 -->
       <div class="agent-model-info">
-        <div v-if="currentAgent" class="agent-info">
-          <Avatar
-            :src="currentAgent.icon || '🤖'"
-            :alt="currentAgent.name"
-            :size="28"
-            shape="square"
-            :radius="6"
-          />
-          <span class="agent-name">{{ currentAgent.name }}</span>
-        </div>
+        <el-tooltip content="点击编辑智能体" placement="bottom">
+          <div
+            v-if="currentAgent"
+            class="agent-info clickable"
+            @click="handleEditAgent"
+          >
+            <Avatar
+              :src="currentAgent.icon || '🤖'"
+              :alt="currentAgent.name"
+              :size="28"
+              shape="square"
+              :radius="6"
+            />
+            <span class="agent-name">{{ currentAgent.name }}</span>
+          </div>
+        </el-tooltip>
         <div v-if="currentModel" class="model-info">
           <DynamicIcon
             v-if="modelIcon"
@@ -382,6 +430,15 @@ onMounted(async () => {
         @mousedown="handleResizeStart"
       />
     </el-tooltip>
+
+    <!-- 编辑智能体对话框 -->
+    <EditAgentDialog
+      :visible="showEditAgentDialog"
+      mode="edit"
+      :agent="currentAgent"
+      @update:visible="showEditAgentDialog = $event"
+      @save="handleSaveAgent"
+    />
 
     <!-- 编辑用户档案对话框 -->
     <EditUserProfileDialog
@@ -472,21 +529,28 @@ onMounted(async () => {
   min-width: 0;
 }
 
+/* 可点击的信息区域样式 */
+.agent-info.clickable,
 .user-profile-info {
   padding: 4px 16px;
   border-radius: 4px;
-  margin-left: auto; /* 右对齐 */
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-app-region: no-drag; /* 允许点击 */
   border: 1px solid transparent; /* 初始透明边框，让 hover 时有渐入效果 */
 }
 
+.user-profile-info {
+  margin-left: auto; /* 右对齐 */
+}
+
+.agent-info.clickable:hover,
 .user-profile-info:hover {
   transform: translateY(-2px);
   border: 1px solid var(--primary-color);
 }
 
+.agent-info.clickable:active,
 .user-profile-info:active {
   background-color: var(--el-fill-color);
   transform: translateY(0);

@@ -1,5 +1,5 @@
 <template>
-  <div class="input-panel">
+  <div ref="rootEl" class="input-panel">
     <div class="panel-header">
       <span class="panel-title">输入文本</span>
       <div class="char-count">{{ inputText.length }} 字符</div>
@@ -17,6 +17,8 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+
 interface Props {
   inputText: string;
 }
@@ -27,6 +29,10 @@ interface Emits {
 
 defineProps<Props>();
 defineEmits<Emits>();
+
+// 暴露根元素引用
+const rootEl = ref<HTMLElement | null>(null);
+defineExpose({ rootEl });
 </script>
 
 <style scoped>

@@ -8,8 +8,8 @@ import { loadTokenCalculatorConfig, updateTokenCalculatorConfig } from '../confi
 
 interface PanelResizeOptions {
   contentContainer: Ref<HTMLElement | null>;
-  inputPanel: Ref<HTMLElement | null>;
-  resultPanel: Ref<HTMLElement | null>;
+  inputPanel: Ref<{ rootEl: HTMLElement | null } | null>;
+  resultPanel: Ref<{ rootEl: HTMLElement | null } | null>;
 }
 
 export function usePanelResize(options: PanelResizeOptions) {
@@ -18,17 +18,34 @@ export function usePanelResize(options: PanelResizeOptions) {
   // 面板宽度（百分比）
   const inputPanelWidthPercent = ref(50);
 
+  // 拖拽状态
+  const isDragging = ref(false);
+  const dragStartX = ref(0);
+  const dragStartPercent = ref(0);
+
+  /**
+   * 初始化面板宽度
+   */
+  const initializePanelWidth = () => {
+    const inputEl = inputPanel.value?.rootEl;
+    const resultEl = resultPanel.value?.rootEl;
+    if (inputEl && resultEl) {
+      const resultPercent = 100 - inputPanelWidthPercent.value;
+      inputEl.style.flexBasis = `${inputPanelWidthPercent.value}%`;
+      inputEl.style.flexGrow = '0';
+      inputEl.style.flexShrink = '0';
+      resultEl.style.flexBasis = `${resultPercent}%`;
+      resultEl.style.flexGrow = '0';
+      resultEl.style.flexShrink = '0';
+    }
+  };
+
   // 加载配置
   onMounted(async () => {
     const config = await loadTokenCalculatorConfig();
     inputPanelWidthPercent.value = config.inputPanelWidthPercent;
     initializePanelWidth();
   });
-
-  // 拖拽状态
-  const isDragging = ref(false);
-  const dragStartX = ref(0);
-  const dragStartPercent = ref(0);
 
   /**
    * 开始调整大小
@@ -67,16 +84,17 @@ export function usePanelResize(options: PanelResizeOptions) {
       inputPanelWidthPercent.value = newPercent;
       
       // 应用新宽度
-      if (inputPanel.value && resultPanel.value) {
+      const inputEl = inputPanel.value?.rootEl;
+      const resultEl = resultPanel.value?.rootEl;
+      if (inputEl && resultEl) {
         const resultPercent = 100 - newPercent;
-        inputPanel.value.style.flexBasis = `${newPercent}%`;
-        inputPanel.value.style.flexGrow = '0';
-        inputPanel.value.style.flexShrink = '0';
-        resultPanel.value.style.flexBasis = `${resultPercent}%`;
-        resultPanel.value.style.flexGrow = '0';
-        resultPanel.value.style.flexShrink = '0';
+        inputEl.style.flexBasis = `${newPercent}%`;
+        inputEl.style.flexGrow = '0';
+        inputEl.style.flexShrink = '0';
+        resultEl.style.flexBasis = `${resultPercent}%`;
+        resultEl.style.flexGrow = '0';
+        resultEl.style.flexShrink = '0';
       }
-
     }
   };
 
@@ -101,19 +119,6 @@ export function usePanelResize(options: PanelResizeOptions) {
   const cleanup = () => {
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mouseup', onMouseUp);
-  };
-
-  // 初始化面板宽度
-  const initializePanelWidth = () => {
-    if (inputPanel.value && resultPanel.value) {
-      const resultPercent = 100 - inputPanelWidthPercent.value;
-      inputPanel.value.style.flexBasis = `${inputPanelWidthPercent.value}%`;
-      inputPanel.value.style.flexGrow = '0';
-      inputPanel.value.style.flexShrink = '0';
-      resultPanel.value.style.flexBasis = `${resultPercent}%`;
-      resultPanel.value.style.flexGrow = '0';
-      resultPanel.value.style.flexShrink = '0';
-    }
   };
 
   return {

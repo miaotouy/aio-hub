@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, type Ref } from 'vue';
 import { customMessage } from '@/utils/customMessage';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { useTokenCalculator } from '@/composables/useTokenCalculator';
@@ -67,14 +67,14 @@ const {
 
 // DOM 引用
 const contentContainer = ref<HTMLElement | null>(null);
-const inputPanel = ref<HTMLElement | null>(null);
-const resultPanel = ref<HTMLElement | null>(null);
+const inputPanel = ref<InstanceType<typeof InputPanel> | null>(null);
+const resultPanel = ref<InstanceType<typeof ResultPanel> | null>(null);
 
 // 使用面板调整大小 composable
 const { startResize, cleanup, isDragging, initializePanelWidth } = usePanelResize({
   contentContainer,
-  inputPanel,
-  resultPanel,
+  inputPanel: inputPanel as Ref<{ rootEl: HTMLElement | null } | null>,
+  resultPanel: resultPanel as Ref<{ rootEl: HTMLElement | null } | null>,
 });
 
 // 初始化

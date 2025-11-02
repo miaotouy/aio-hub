@@ -1,5 +1,5 @@
 <template>
-  <div class="result-panel">
+  <div ref="rootEl" class="result-panel">
     <div class="panel-header">
       <span class="panel-title">Token 分析</span>
       <div v-if="isCalculating" class="calculating-indicator">
@@ -57,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { Loading, WarningFilled } from '@element-plus/icons-vue';
 import type { TokenCalculationResult, TokenBlock } from '@/composables/useTokenCalculator';
 
@@ -69,6 +70,10 @@ interface Props {
 }
 
 defineProps<Props>();
+
+// 暴露根元素引用
+const rootEl = ref<HTMLElement | null>(null);
+defineExpose({ rootEl });
 </script>
 
 <style scoped>

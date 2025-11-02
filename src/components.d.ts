@@ -29,7 +29,6 @@ declare module 'vue' {
     IEpLoading: typeof import('~icons/ep/loading')['default']
     IEpMagicStick: typeof import('~icons/ep/magic-stick')['default']
     IEpMenu: typeof import('~icons/ep/menu')['default']
-    IEpOperation: typeof import('~icons/ep/operation')['default']
     IEpPlus: typeof import('~icons/ep/plus')['default']
     IEpQuestionFilled: typeof import('~icons/ep/question-filled')['default']
     IEpRank: typeof import('~icons/ep/rank')['default']

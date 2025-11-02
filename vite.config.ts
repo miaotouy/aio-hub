@@ -9,7 +9,7 @@ import { fileURLToPath, URL } from "node:url";
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig({
   // 路径别名配置
   resolve: {
     alias: {
@@ -30,7 +30,8 @@ export default defineConfig(async () => ({
   assetsInclude: ['**/*.gz'],
 
   plugins: [
-    VueDevTools(),
+    // 生产环境禁用 VueDevTools
+    process.env.NODE_ENV !== 'production' && VueDevTools(),
     vue(),
     Components({
       resolvers: [
@@ -45,7 +46,7 @@ export default defineConfig(async () => ({
       autoInstall: true,
       compiler: "vue3",
     }),
-  ],
+  ].filter(Boolean),
 
   // 优化依赖配置
   optimizeDeps: {
@@ -58,9 +59,51 @@ export default defineConfig(async () => ({
 
   // 构建配置
   build: {
+    // 增加 chunk 大小警告阈值到 1000 KiB
+    chunkSizeWarningLimit: 1000,
+    
+    // 禁用 source map 以减少内存消耗
+    sourcemap: false,
+    
+    // 减少 minify 选项以降低内存使用
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        passes: 1, // 减少压缩次数
+      },
+      format: {
+        comments: false, // 移除注释
+      },
+    },
+    
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true,
+    },
+    
+    // 优化代码分割，减少内存消耗
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // 将大型依赖单独打包
+          'vendor-vue': ['vue', 'vue-router', 'pinia'],
+          'vendor-element': ['element-plus'],
+          'vendor-editor': ['codemirror', '@guolao/vue-monaco-editor'],
+          'vendor-prettier': ['prettier', '@prettier/plugin-php', '@prettier/plugin-xml'],
+          'vendor-tokenizers': [
+            '@lenml/tokenizers',
+            '@lenml/tokenizer-claude',
+            '@lenml/tokenizer-deepseek_v3',
+            '@lenml/tokenizer-gemini',
+            '@lenml/tokenizer-gpt4',
+            '@lenml/tokenizer-gpt4o',
+            '@lenml/tokenizer-llama3_2',
+            '@lenml/tokenizer-qwen3',
+          ],
+        },
+      },
     },
   },
 
@@ -85,4 +128,4 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-}));
+});

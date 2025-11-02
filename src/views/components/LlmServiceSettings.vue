@@ -473,7 +473,7 @@ const showCustomHeadersDialog = ref(false);
       <template #content>
         <IconPresetSelector
         :icons="PRESET_ICONS"
-        :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
+        :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
         show-search
         show-categories
         @select="selectPresetIcon"

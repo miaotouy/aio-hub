@@ -622,7 +622,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
-      tokenizer: "gptoss", // GPT-OSS 使用专用分词器
+      tokenizer: "gpt4o", // GPT-OSS 使用 gpt4o 分词器
     },
     priority: 25,
     enabled: true,
@@ -873,7 +873,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/gemma-color.svg`,
       group: "Gemma",
-      tokenizer: "gemma3", // Gemma3 使用最新分词器
+      tokenizer: "gemini", // Gemma3 使用 gemini 分词器
     },
     priority: 25, // 更高优先级以优先匹配 Gemma3
     enabled: true,
@@ -988,7 +988,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
       group: "Qwen",
-      tokenizer: "qwen2_5", // Qwen 系列使用 2.5 分词器
+      tokenizer: "qwen3", // Qwen 系列使用 qwen3 分词器
     },
     priority: 20,
     enabled: true,
@@ -1001,7 +1001,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
       group: "Qwen",
-      tokenizer: "qwen2_5", // QwQ 使用 Qwen 2.5 分词器
+      tokenizer: "qwen3", // QwQ 使用 qwen3 分词器
     },
     priority: 20,
     enabled: true,
@@ -1089,7 +1089,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/yi-color.svg`,
       group: "Yi",
-      tokenizer: "llama3_1", // Yi 系列基于 Llama 架构
+      tokenizer: "llama3_2", // Yi 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1104,7 +1104,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
       group: "Baichuan",
-      tokenizer: "llama3_1", // 百川系列基于 Llama 架构
+      tokenizer: "llama3_2", // 百川系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1119,7 +1119,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/internlm-color.svg`,
       group: "InternLM",
-      tokenizer: "llama3_1", // InternLM 系列基于 Llama 架构
+      tokenizer: "llama3_2", // InternLM 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1134,7 +1134,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/minicpm-color.svg`,
       group: "MiniCPM",
-      tokenizer: "minicpm_v4_5", // MiniCPM 使用专用分词器
+      tokenizer: "llama3_2", // MiniCPM 使用 llama3_2 分词器
     },
     priority: 20,
     enabled: true,
@@ -1222,7 +1222,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
       group: "Meta",
-      tokenizer: "llama3_1", // Llama 系列使用 3.1 分词器
+      tokenizer: "llama3_2", // Llama 系列使用 llama3_2 分词器
     },
     priority: 20,
     enabled: true,
@@ -1237,7 +1237,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
       group: "Mistral",
-      tokenizer: "llama3_1", // Mistral 系列基于 Llama 架构
+      tokenizer: "llama3_2", // Mistral 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1250,7 +1250,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
       group: "Mistral",
-      tokenizer: "llama3_1", // Mixtral 系列基于 Llama 架构
+      tokenizer: "llama3_2", // Mixtral 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1293,7 +1293,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
       group: "AI21",
-      tokenizer: "llama3_1", // Jamba 系列基于混合架构，使用 Llama 分词器
+      tokenizer: "llama3_2", // Jamba 系列基于混合架构，使用 llama3_2 分词器
     },
     priority: 20,
     enabled: true,

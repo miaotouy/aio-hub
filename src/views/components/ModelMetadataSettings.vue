@@ -1,7 +1,7 @@
 <template>
-  <div class="model-icon-settings">
+  <div class="model-metadata-settings">
     <div class="settings-header">
-      <h2>模型图标配置</h2>
+      <h2>模型元数据配置</h2>
       <div class="header-actions">
         <button @click="showPresets = true" class="btn-secondary">查看预设</button>
         <button @click="handleImport" class="btn-secondary">导入配置</button>
@@ -192,7 +192,7 @@
     </BaseDialog>
 
     <!-- 编辑对话框 -->
-    <ModelIconConfigEditor
+    <ModelMetadataConfigEditor
       v-model="editingConfig"
       :is-new="isNewConfig"
       @save="handleSave"
@@ -209,7 +209,7 @@ import { customMessage } from "@/utils/customMessage";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelMetadata } from "../../composables/useModelMetadata";
 import type { ModelMetadataRule, MetadataMatchType } from "../../types/model-metadata";
-import ModelIconConfigEditor from "./ModelIconConfigEditor.vue";
+import ModelMetadataConfigEditor from "./ModelMetadataConfigEditor.vue";
 import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
 import { PRESET_ICONS_DIR } from "../../config/preset-icons";
 import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
@@ -497,7 +497,7 @@ function getPageNumbers(): number[] {
 </script>
 
 <style scoped>
-.model-icon-settings {
+.model-metadata-settings {
   display: flex;
   flex-direction: column;
   padding: 1.5rem;

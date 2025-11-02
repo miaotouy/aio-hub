@@ -140,7 +140,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const logger = createModuleLogger("ModelIconConfigEditor");
+const logger = createModuleLogger("ModelMetadataConfigEditor");
 
 const localConfig = computed({
   get: () => props.modelValue || {},

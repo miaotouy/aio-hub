@@ -30,7 +30,7 @@ export function useSettingsNavigator() {
    * - 'tools': 工具模块
    * - 'ocr-service': 云端 OCR 服务
    * - 'llm-service': LLM 服务配置
-   * - 'model-icons': 模型图标配置
+   * - 'model-metadata': 模型元数据配置
    * - 'about': 关于
    */
   const navigateToSettings = async (sectionId: string) => {

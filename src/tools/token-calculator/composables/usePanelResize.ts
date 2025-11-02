@@ -3,7 +3,8 @@
  * 处理分割线拖拽逻辑
  */
 
-import type { Ref } from 'vue';
+import { ref, onMounted, type Ref } from 'vue';
+import { loadTokenCalculatorConfig, updateTokenCalculatorConfig } from '../config';
 
 interface PanelResizeOptions {
   contentContainer: Ref<HTMLElement | null>;
@@ -14,21 +15,35 @@ interface PanelResizeOptions {
 export function usePanelResize(options: PanelResizeOptions) {
   const { contentContainer, inputPanel, resultPanel } = options;
 
-  let isResizing = false;
-  let startX = 0;
-  let initialInputWidth = 0;
-  let initialResultWidth = 0;
+  // 面板宽度（百分比）
+  const inputPanelWidthPercent = ref(50);
+
+  // 加载配置
+  onMounted(async () => {
+    const config = await loadTokenCalculatorConfig();
+    inputPanelWidthPercent.value = config.inputPanelWidthPercent;
+    initializePanelWidth();
+  });
+
+  // 拖拽状态
+  const isDragging = ref(false);
+  const dragStartX = ref(0);
+  const dragStartPercent = ref(0);
 
   /**
    * 开始调整大小
    */
   const startResize = (e: MouseEvent) => {
-    isResizing = true;
-    startX = e.clientX;
-    if (inputPanel.value && resultPanel.value) {
-      initialInputWidth = inputPanel.value.offsetWidth;
-      initialResultWidth = resultPanel.value.offsetWidth;
-    }
+    if (!contentContainer.value) return;
+
+    isDragging.value = true;
+    dragStartX.value = e.clientX;
+    dragStartPercent.value = inputPanelWidthPercent.value;
+    
+    e.preventDefault();
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
@@ -37,37 +52,47 @@ export function usePanelResize(options: PanelResizeOptions) {
    * 鼠标移动处理
    */
   const onMouseMove = (e: MouseEvent) => {
-    if (!isResizing || !contentContainer.value || !inputPanel.value || !resultPanel.value) return;
+    if (!isDragging.value || !contentContainer.value) return;
 
-    const dx = e.clientX - startX;
-    const containerWidth = contentContainer.value.offsetWidth;
+    const delta = e.clientX - dragStartX.value;
+    // 将像素差值转换为百分比差值
+    const deltaPercent = (delta / contentContainer.value.offsetWidth) * 100;
+    const newPercent = dragStartPercent.value + deltaPercent;
 
-    let newInputWidth = initialInputWidth + dx;
-    let newResultWidth = initialResultWidth - dx;
+    // 限制最小和最大百分比
+    const minPercent = 20;
+    const maxPercent = 80;
 
-    const minWidth = 100;
-    if (newInputWidth < minWidth) {
-      newInputWidth = minWidth;
-      newResultWidth = containerWidth - minWidth;
+    if (newPercent >= minPercent && newPercent <= maxPercent) {
+      inputPanelWidthPercent.value = newPercent;
+      
+      // 应用新宽度
+      if (inputPanel.value && resultPanel.value) {
+        const resultPercent = 100 - newPercent;
+        inputPanel.value.style.flexBasis = `${newPercent}%`;
+        inputPanel.value.style.flexGrow = '0';
+        inputPanel.value.style.flexShrink = '0';
+        resultPanel.value.style.flexBasis = `${resultPercent}%`;
+        resultPanel.value.style.flexGrow = '0';
+        resultPanel.value.style.flexShrink = '0';
+      }
+
     }
-    if (newResultWidth < minWidth) {
-      newResultWidth = minWidth;
-      newInputWidth = containerWidth - minWidth;
-    }
-
-    inputPanel.value.style.flexBasis = `${newInputWidth}px`;
-    inputPanel.value.style.flexGrow = '0';
-    resultPanel.value.style.flexBasis = `${newResultWidth}px`;
-    resultPanel.value.style.flexGrow = '0';
   };
 
   /**
    * 鼠标释放处理
    */
   const onMouseUp = () => {
-    isResizing = false;
+    isDragging.value = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mouseup', onMouseUp);
+    
+    // 拖拽结束时保存配置
+    updateTokenCalculatorConfig({ inputPanelWidthPercent: inputPanelWidthPercent.value });
   };
 
   /**
@@ -78,8 +103,23 @@ export function usePanelResize(options: PanelResizeOptions) {
     document.removeEventListener('mouseup', onMouseUp);
   };
 
+  // 初始化面板宽度
+  const initializePanelWidth = () => {
+    if (inputPanel.value && resultPanel.value) {
+      const resultPercent = 100 - inputPanelWidthPercent.value;
+      inputPanel.value.style.flexBasis = `${inputPanelWidthPercent.value}%`;
+      inputPanel.value.style.flexGrow = '0';
+      inputPanel.value.style.flexShrink = '0';
+      resultPanel.value.style.flexBasis = `${resultPercent}%`;
+      resultPanel.value.style.flexGrow = '0';
+      resultPanel.value.style.flexShrink = '0';
+    }
+  };
+
   return {
     startResize,
     cleanup,
+    initializePanelWidth,
+    isDragging,
   };
 }

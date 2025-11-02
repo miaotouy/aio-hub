@@ -20,7 +20,11 @@
         />
 
         <!-- 分割线 -->
-        <div class="divider" @mousedown="startResize"></div>
+        <div
+          class="divider"
+          @mousedown="startResize"
+          :class="{ dragging: isDragging }"
+        ></div>
 
         <!-- 右侧结果区 -->
         <ResultPanel
@@ -67,7 +71,7 @@ const inputPanel = ref<HTMLElement | null>(null);
 const resultPanel = ref<HTMLElement | null>(null);
 
 // 使用面板调整大小 composable
-const { startResize, cleanup } = usePanelResize({
+const { startResize, cleanup, isDragging, initializePanelWidth } = usePanelResize({
   contentContainer,
   inputPanel,
   resultPanel,
@@ -76,6 +80,10 @@ const { startResize, cleanup } = usePanelResize({
 // 初始化
 onMounted(() => {
   initializeDefaultModel();
+  // 初始化面板宽度需要在下一个 tick，确保 DOM 已挂载
+  setTimeout(() => {
+    initializePanelWidth();
+  }, 0);
 });
 
 onUnmounted(() => {
@@ -143,14 +151,29 @@ const copyText = async () => {
 /* 分割线 */
 .divider {
   width: 4px;
-  background-color: var(--border-color);
+  background-color: transparent;
   cursor: col-resize;
   flex-shrink: 0;
   transition: background-color 0.2s;
+  position: relative;
 }
 
-.divider:hover {
+.divider::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--border-color);
+  transform: translateX(-50%);
+  transition: background-color 0.2s;
+}
+
+.divider:hover::before,
+.divider.dragging::before {
   background-color: var(--primary-color);
+  width: 2px;
 }
 
 /* 响应式布局 */

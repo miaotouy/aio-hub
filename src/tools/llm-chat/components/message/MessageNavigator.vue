@@ -60,7 +60,8 @@ const scrollPercentage = computed(() => {
   if (!props.scrollElement || scrollHeight.value <= clientHeight.value) return 100;
   const maxScroll = scrollHeight.value - clientHeight.value;
   if (maxScroll <= 0) return 100;
-  return Math.round((y.value / maxScroll) * 100);
+  // 限制百分比在 0-100 范围内，防止进度条溢出
+  return Math.min(100, Math.max(0, Math.round((y.value / maxScroll) * 100)));
 });
 
 // 估算当前可见的消息索引（基于滚动百分比）

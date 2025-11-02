@@ -137,6 +137,11 @@ defineExpose({
           v-for="virtualItem in virtualItems"
           :key="messages[virtualItem.index].id"
           :data-index="virtualItem.index"
+          :ref="
+            (el) => {
+              if (el) virtualizer.measureElement(el as HTMLElement);
+            }
+          "
           :style="{
             position: 'absolute',
             top: 0,

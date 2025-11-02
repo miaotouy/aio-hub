@@ -4,6 +4,7 @@
  */
 
 import { getMatchedModelProperties } from '@/config/model-metadata';
+import type { VisionTokenCost } from '@/types/llm-profiles';
 
 // 使用 any 类型暂时绕过类型导出问题
 type PreTrainedTokenizer = any;
@@ -434,6 +435,86 @@ class TokenCalculatorEngine {
    */
   getCacheSize(): number {
     return this.tokenizerCache.size;
+  }
+
+  /**
+   * 计算图片的 Token 数量
+   * @param width - 图片宽度（像素）
+   * @param height - 图片高度（像素）
+   * @param visionTokenCost - 视觉 Token 计费规则
+   * @returns Token 数量
+   */
+  calculateImageTokens(
+    width: number,
+    height: number,
+    visionTokenCost: VisionTokenCost
+  ): number {
+    const { calculationMethod, parameters } = visionTokenCost;
+
+    switch (calculationMethod) {
+      case 'fixed':
+        // 固定成本：每张图片固定 token 数
+        return parameters.costPerImage || 0;
+
+      case 'openai_tile':
+        // OpenAI 瓦片计算法
+        return this.calculateOpenAITileTokens(width, height, parameters);
+
+      case 'claude_3':
+        // Claude 3：使用预估值（实际值由 API 返回）
+        return parameters.costPerImage || 0;
+
+      default:
+        console.warn(`Unknown vision token calculation method: ${calculationMethod}`);
+        return 0;
+    }
+  }
+
+  /**
+   * OpenAI 图片 Token 计算（瓦片法）
+   *
+   * 算法说明：
+   * 1. 图片首先被缩放以适应 2048x2048 的正方形，保持宽高比
+   * 2. 然后图片的最短边被缩放至 768px
+   * 3. 计算需要多少个 512px 的瓦片来覆盖图片
+   * 4. 每个瓦片消耗 170 tokens，加上固定的 85 tokens 基础成本
+   *
+   * 参考：https://platform.openai.com/docs/guides/vision
+   */
+  private calculateOpenAITileTokens(
+    width: number,
+    height: number,
+    parameters: VisionTokenCost['parameters']
+  ): number {
+    const baseCost = parameters.baseCost || 85;
+    const tileCost = parameters.tileCost || 170;
+    const tileSize = parameters.tileSize || 512;
+
+    // 步骤 1: 缩放至 2048x2048 内，保持宽高比
+    let scaledWidth = width;
+    let scaledHeight = height;
+    
+    if (width > 2048 || height > 2048) {
+      const scale = Math.min(2048 / width, 2048 / height);
+      scaledWidth = Math.floor(width * scale);
+      scaledHeight = Math.floor(height * scale);
+    }
+
+    // 步骤 2: 将最短边缩放至 768px
+    const shortestSide = Math.min(scaledWidth, scaledHeight);
+    if (shortestSide > 768) {
+      const scale = 768 / shortestSide;
+      scaledWidth = Math.floor(scaledWidth * scale);
+      scaledHeight = Math.floor(scaledHeight * scale);
+    }
+
+    // 步骤 3: 计算需要多少个 512px 瓦片
+    const tilesX = Math.ceil(scaledWidth / tileSize);
+    const tilesY = Math.ceil(scaledHeight / tileSize);
+    const totalTiles = tilesX * tilesY;
+
+    // 步骤 4: 计算总成本
+    return baseCost + (totalTiles * tileCost);
   }
 }
 

@@ -307,13 +307,18 @@ watch(
     </template>
 
     <!-- 元数据 -->
-    <div v-if="message.metadata?.usage || message.metadata?.error" class="message-meta">
+    <div v-if="message.metadata?.usage || message.metadata?.contentTokens !== undefined || message.metadata?.error" class="message-meta">
+      <!-- API 返回的完整 Usage 信息（助手消息） -->
       <div v-if="message.metadata?.usage" class="usage-info">
         <span>Token: {{ message.metadata.usage.totalTokens }}</span>
         <span class="usage-detail">
           (输入: {{ message.metadata.usage.promptTokens }}, 输出:
           {{ message.metadata.usage.completionTokens }})
         </span>
+      </div>
+      <!-- 本地计算的单条消息 Token（用户消息） -->
+      <div v-else-if="message.metadata?.contentTokens !== undefined" class="usage-info">
+        <span>本条消息: {{ message.metadata.contentTokens.toLocaleString('en-US') }} tokens</span>
       </div>
       <div v-if="message.metadata?.error" class="error-info">
         <el-button

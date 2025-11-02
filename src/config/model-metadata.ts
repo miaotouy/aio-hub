@@ -563,6 +563,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        visionTokenCost: {
+          calculationMethod: "openai_tile",
+          parameters: {
+            baseCost: 85,
+            tileCost: 170,
+            tileSize: 512,
+          },
+        },
       },
     },
     priority: 25, // 更高优先级，优先匹配 gpt-4o
@@ -580,6 +588,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        visionTokenCost: {
+          calculationMethod: "openai_tile",
+          parameters: {
+            baseCost: 85,
+            tileCost: 170,
+            tileSize: 512,
+          },
+        },
       },
     },
     priority: 25,
@@ -649,6 +665,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        visionTokenCost: {
+          calculationMethod: "openai_tile",
+          parameters: {
+            baseCost: 85,
+            tileCost: 170,
+            tileSize: 512,
+          },
+        },
       },
     },
     priority: 25, // 更高优先级以优先匹配 gpt-4.1
@@ -666,6 +690,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true, // GPT-4 Turbo 等支持视觉
         toolUse: true,
+        visionTokenCost: {
+          calculationMethod: "openai_tile",
+          parameters: {
+            baseCost: 85,
+            tileCost: 170,
+            tileSize: 512,
+          },
+        },
       },
     },
     priority: 20,
@@ -795,6 +827,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         thinking: true,
         toolUse: true,
+        visionTokenCost: {
+          calculationMethod: "claude_3",
+          parameters: {
+            costPerImage: 1000, // 预估值，实际由 API 返回
+          },
+        },
       },
     },
     priority: 20,
@@ -816,6 +854,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         thinking: true,
         toolUse: true,
         codeExecution: true,
+        visionTokenCost: {
+          calculationMethod: "fixed",
+          parameters: {
+            costPerImage: 258, // Gemini 官方文档的预估值
+          },
+        },
       },
     },
     priority: 20,

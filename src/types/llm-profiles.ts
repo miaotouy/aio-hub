@@ -65,11 +65,49 @@ export interface ProviderTypeInfo {
 }
 
 /**
+ * 视觉 Token 计费规则
+ */
+export interface VisionTokenCost {
+  /**
+   * 计算方法
+   * - 'fixed': 固定成本（每张图片固定 token 数）
+   * - 'openai_tile': OpenAI 的瓦片计算法（基础成本 + 瓦片数 × 瓦片成本）
+   * - 'claude_3': Claude 3 的动态计算（API 会返回实际值，这里作为预估）
+   */
+  calculationMethod: 'fixed' | 'openai_tile' | 'claude_3';
+  
+  /**
+   * 计算参数
+   * 根据不同的 calculationMethod 使用不同的参数：
+   * - 'fixed': 使用 costPerImage
+   * - 'openai_tile': 使用 baseCost, tileCost, tileSize
+   * - 'claude_3': 使用 costPerImage (作为预估，实际值由 API 返回)
+   */
+  parameters: {
+    /** 固定成本（每张图片的 token 数） */
+    costPerImage?: number;
+    
+    /** 基础成本（例如 OpenAI 的固定 85 tokens） */
+    baseCost?: number;
+    
+    /** 每个瓦片的成本（例如 OpenAI 的 170 tokens per tile） */
+    tileCost?: number;
+    
+    /** 瓦片大小（像素，例如 512x512） */
+    tileSize?: number;
+  };
+}
+
+/**
  * 模型能力标识
  */
 export interface ModelCapabilities {
   /** 是否支持视觉输入（VLM） */
   vision?: boolean;
+  
+  /** 视觉 Token 计费规则（仅当 vision 为 true 时有效） */
+  visionTokenCost?: VisionTokenCost;
+  
   /** 是否支持联网搜索 */
   webSearch?: boolean;
   /** 是否支持工具调用/函数调用 */

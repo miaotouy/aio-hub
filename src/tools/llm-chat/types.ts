@@ -114,12 +114,18 @@ export interface ChatMessageNode {
     error?: string;
     /** 如果这是一个摘要节点，记录它总结了哪些节点的ID */
     summarizedFrom?: string[];
-    /** Token 使用情况 */
+    /** Token 使用情况（API 返回的完整请求统计） */
     usage?: {
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
     };
+    /**
+     * 单条消息内容的 Token 数量（本地计算）
+     * - 对于用户消息：本地计算的文本 + 附件 token 总数
+     * - 对于助手消息：直接使用 API 返回的 completionTokens
+     */
+    contentTokens?: number;
     /** 推理内容（DeepSeek reasoning 模式） */
     reasoningContent?: string;
     /** 推理开始时间戳 */

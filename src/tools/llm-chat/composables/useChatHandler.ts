@@ -14,6 +14,7 @@ import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { createModuleLogger } from '@/utils/logger';
 import { invoke } from '@tauri-apps/api/core';
+import { tokenCalculatorService } from '@/tools/token-calculator/tokenCalculator.service';
 
 const logger = createModuleLogger('llm-chat/chat-handler');
 
@@ -597,11 +598,23 @@ export function useChatHandler() {
       responseReasoningContent: response.reasoningContent,
     });
 
+    // 使用 API 返回的 completionTokens 作为助手消息的 contentTokens
+    const contentTokens = response.usage?.completionTokens;
+
     finalNode.metadata = {
       ...finalNode.metadata,
       usage: response.usage,
+      contentTokens,
       reasoningContent: response.reasoningContent || existingReasoningContent,
     };
+
+    if (contentTokens !== undefined) {
+      logger.debug('助手消息 token 记录完成', {
+        nodeId,
+        contentTokens,
+        totalUsage: response.usage,
+      });
+    }
 
     // 如果有推理内容和开始时间，恢复时间戳
     if (finalNode.metadata.reasoningContent && existingReasoningStartTime) {
@@ -754,6 +767,30 @@ export function useChatHandler() {
       
       // 更新档案的最后使用时间
       userProfileStore.updateLastUsed(effectiveUserProfile.id);
+    }
+
+    // 计算用户消息的 token 数（包括文本和附件）
+    try {
+      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+        content,
+        agentConfig.modelId,
+        attachments
+      );
+      session.nodes[userNode.id].metadata = {
+        ...session.nodes[userNode.id].metadata,
+        contentTokens: tokenResult.count,
+      };
+      logger.debug('用户消息 token 计算完成', {
+        messageId: userNode.id,
+        tokens: tokenResult.count,
+        isEstimated: tokenResult.isEstimated,
+        tokenizerName: tokenResult.tokenizerName,
+      });
+    } catch (error) {
+      logger.warn('计算用户消息 token 失败', {
+        messageId: userNode.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     // 在生成开始时就设置基本的 metadata（包括 Agent 名称和图标的快照）

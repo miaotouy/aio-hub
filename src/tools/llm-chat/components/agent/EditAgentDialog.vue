@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import { reactive, watch, ref } from 'vue';
-import { customMessage } from '@/utils/customMessage';
-import type { ChatAgent, ChatMessageNode } from '../../types';
-import AgentPresetEditor from './AgentPresetEditor.vue';
-import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import IconPresetSelector from '@/components/common/IconPresetSelector.vue';
-import Avatar from '@/components/common/Avatar.vue';
-import { PRESET_ICONS, PRESET_ICONS_DIR } from '@/config/preset-icons';
-import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
-import { Picture, Upload, RefreshLeft } from '@element-plus/icons-vue';
-import { useUserProfileStore } from '../../userProfileStore';
-import { useImageViewer } from '@/composables/useImageViewer';
+import { reactive, watch, ref } from "vue";
+import { customMessage } from "@/utils/customMessage";
+import type { ChatAgent, ChatMessageNode } from "../../types";
+import AgentPresetEditor from "./AgentPresetEditor.vue";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
+import Avatar from "@/components/common/Avatar.vue";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import { Picture, Upload, RefreshLeft } from "@element-plus/icons-vue";
+import { useUserProfileStore } from "../../userProfileStore";
+import { useImageViewer } from "@/composables/useImageViewer";
 
 interface Props {
   visible: boolean;
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   agent?: ChatAgent | null;
   initialData?: {
     name?: string;
@@ -25,25 +25,26 @@ interface Props {
     profileId?: string;
     modelId?: string;
     presetMessages?: ChatMessageNode[];
-    temperature?: number;
-    maxTokens?: number;
   } | null;
 }
 interface Emits {
-  (e: 'update:visible', value: boolean): void;
-  (e: 'save', data: {
-    name: string;
-    description: string;
-    icon: string;
-    profileId: string;
-    modelId: string;
-    userProfileId: string | null;
-    presetMessages: ChatMessageNode[];
-    parameters: {
-      temperature: number;
-      maxTokens: number;
-    };
-  }): void;
+  (e: "update:visible", value: boolean): void;
+  (
+    e: "save",
+    data: {
+      name: string;
+      description: string;
+      icon: string;
+      profileId: string;
+      modelId: string;
+      userProfileId: string | null;
+      presetMessages: ChatMessageNode[];
+      parameters: {
+        temperature: number;
+        maxTokens: number;
+      };
+    }
+  ): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -67,32 +68,33 @@ const isUploadingImage = ref(false);
 
 // 编辑表单
 const editForm = reactive({
-  name: '',
-  description: '',
-  icon: '🤖',
-  profileId: '',
-  modelId: '',
-  modelCombo: '', // 用于 LlmModelSelector 的组合值 (profileId:modelId)
+  name: "",
+  description: "",
+  icon: "🤖",
+  profileId: "",
+  modelId: "",
+  modelCombo: "", // 用于 LlmModelSelector 的组合值 (profileId:modelId)
   userProfileId: null as string | null, // 绑定的用户档案 ID
   presetMessages: [] as ChatMessageNode[],
-  temperature: 0.7,
-  maxTokens: 4096,
 });
 
 // 监听对话框打开，加载数据
-watch(() => props.visible, (newVisible) => {
-  if (newVisible) {
-    loadFormData();
+watch(
+  () => props.visible,
+  (newVisible) => {
+    if (newVisible) {
+      loadFormData();
+    }
   }
-});
+);
 
 // 加载表单数据
 const loadFormData = () => {
-  if (props.mode === 'edit' && props.agent) {
+  if (props.mode === "edit" && props.agent) {
     // 编辑模式：加载现有智能体数据
     editForm.name = props.agent.name;
-    editForm.description = props.agent.description || '';
-    editForm.icon = props.agent.icon || '🤖';
+    editForm.description = props.agent.description || "";
+    editForm.icon = props.agent.icon || "🤖";
     editForm.profileId = props.agent.profileId;
     editForm.modelId = props.agent.modelId;
     editForm.modelCombo = `${props.agent.profileId}:${props.agent.modelId}`;
@@ -100,31 +102,28 @@ const loadFormData = () => {
     editForm.presetMessages = props.agent.presetMessages
       ? JSON.parse(JSON.stringify(props.agent.presetMessages))
       : [];
-    editForm.temperature = props.agent.parameters.temperature;
-    editForm.maxTokens = props.agent.parameters.maxTokens;
-  } else if (props.mode === 'create' && props.initialData) {
+  } else if (props.mode === "create" && props.initialData) {
     // 创建模式：使用初始数据
-    editForm.name = props.initialData.name || '';
-    editForm.description = props.initialData.description || '';
-    editForm.icon = props.initialData.icon || '🤖';
-    editForm.profileId = props.initialData.profileId || '';
-    editForm.modelId = props.initialData.modelId || '';
-    editForm.modelCombo = props.initialData.profileId && props.initialData.modelId
-      ? `${props.initialData.profileId}:${props.initialData.modelId}`
-      : '';
+    editForm.name = props.initialData.name || "";
+    editForm.description = props.initialData.description || "";
+    editForm.icon = props.initialData.icon || "🤖";
+    editForm.profileId = props.initialData.profileId || "";
+    editForm.modelId = props.initialData.modelId || "";
+    editForm.modelCombo =
+      props.initialData.profileId && props.initialData.modelId
+        ? `${props.initialData.profileId}:${props.initialData.modelId}`
+        : "";
     editForm.userProfileId = null;
     editForm.presetMessages = props.initialData.presetMessages
       ? JSON.parse(JSON.stringify(props.initialData.presetMessages))
       : [];
-    editForm.temperature = props.initialData.temperature ?? 0.7;
-    editForm.maxTokens = props.initialData.maxTokens ?? 4096;
   }
 };
 
 // 监听 modelCombo 的变化，拆分为 profileId 和 modelId
 const handleModelComboChange = (value: string) => {
   if (value) {
-    const [profileId, modelId] = value.split(':');
+    const [profileId, modelId] = value.split(":");
     editForm.profileId = profileId;
     editForm.modelId = modelId;
     editForm.modelCombo = value;
@@ -133,23 +132,29 @@ const handleModelComboChange = (value: string) => {
 
 // 关闭对话框
 const handleClose = () => {
-  emit('update:visible', false);
+  emit("update:visible", false);
 };
 
 // 保存智能体
 const handleSave = () => {
   if (!editForm.name.trim()) {
-    customMessage.warning('智能体名称不能为空');
+    customMessage.warning("智能体名称不能为空");
     return;
   }
 
   if (!editForm.profileId || !editForm.modelId) {
-    customMessage.warning('请选择模型');
+    customMessage.warning("请选择模型");
     return;
   }
 
   // 触发保存事件
-  emit('save', {
+  // 参数保留原有值（编辑模式）或使用默认值（创建模式）
+  const parameters =
+    props.mode === "edit" && props.agent
+      ? props.agent.parameters
+      : { temperature: 0.7, maxTokens: 4096 };
+
+  emit("save", {
     name: editForm.name,
     description: editForm.description,
     icon: editForm.icon,
@@ -157,10 +162,7 @@ const handleSave = () => {
     modelId: editForm.modelId,
     userProfileId: editForm.userProfileId,
     presetMessages: editForm.presetMessages,
-    parameters: {
-      temperature: editForm.temperature,
-      maxTokens: editForm.maxTokens,
-    },
+    parameters,
   });
 
   handleClose();
@@ -176,7 +178,7 @@ const selectPresetIcon = (icon: any) => {
   const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
   editForm.icon = iconPath;
   showPresetIconDialog.value = false;
-  customMessage.success('已选择预设图标');
+  customMessage.success("已选择预设图标");
 };
 
 // 上传自定义图像
@@ -185,10 +187,12 @@ const uploadCustomImage = async () => {
     // 打开文件选择对话框
     const selected = await open({
       multiple: false,
-      filters: [{
-        name: '图像文件',
-        extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico']
-      }]
+      filters: [
+        {
+          name: "图像文件",
+          extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"],
+        },
+      ],
     });
 
     if (!selected) return;
@@ -196,20 +200,20 @@ const uploadCustomImage = async () => {
     isUploadingImage.value = true;
 
     // 从路径中提取文件名
-    const fileName = selected.split(/[/\\]/).pop() || 'agent-icon.png';
-    
+    const fileName = selected.split(/[/\\]/).pop() || "agent-icon.png";
+
     // 将文件保存到应用数据目录
-    const savedPath = await invoke<string>('copy_file_to_app_data', {
+    const savedPath = await invoke<string>("copy_file_to_app_data", {
       sourcePath: selected,
-      subdirectory: 'agent-icons',
-      newFilename: `${Date.now()}-${fileName}`
+      subdirectory: "agent-icons",
+      newFilename: `${Date.now()}-${fileName}`,
     });
 
     // 使用相对路径（应用会自动解析为应用数据目录下的路径）
     editForm.icon = `appdata://${savedPath}`;
-    customMessage.success('图像上传成功');
+    customMessage.success("图像上传成功");
   } catch (error) {
-    console.error('上传图像失败:', error);
+    console.error("上传图像失败:", error);
     customMessage.error(`上传图像失败: ${error}`);
   } finally {
     isUploadingImage.value = false;
@@ -218,15 +222,15 @@ const uploadCustomImage = async () => {
 
 // 清除图标
 const clearIcon = () => {
-  editForm.icon = '🤖';
-  customMessage.info('已重置为默认图标');
+  editForm.icon = "🤖";
+  customMessage.info("已重置为默认图标");
 };
 
 // 点击图标放大查看
 const handleIconClick = () => {
-  const icon = editForm.icon || '🤖';
+  const icon = editForm.icon || "🤖";
   // 只有当图标是图片路径时才打开查看器（不是 emoji）
-  if (icon.includes('/') || icon.startsWith('appdata://')) {
+  if (icon.includes("/") || icon.startsWith("appdata://")) {
     imageViewer.show(icon);
   }
 };
@@ -255,7 +259,11 @@ const handleIconClick = () => {
           >
             <template #prepend>
               <el-tooltip
-                :content="(editForm.icon.includes('/') || editForm.icon.startsWith('appdata://')) ? '点击放大查看' : ''"
+                :content="
+                  editForm.icon.includes('/') || editForm.icon.startsWith('appdata://')
+                    ? '点击放大查看'
+                    : ''
+                "
                 :disabled="!(editForm.icon.includes('/') || editForm.icon.startsWith('appdata://'))"
                 placement="top"
               >
@@ -266,7 +274,10 @@ const handleIconClick = () => {
                   shape="square"
                   :radius="4"
                   :border="false"
-                  :class="{ 'clickable-avatar': editForm.icon.includes('/') || editForm.icon.startsWith('appdata://') }"
+                  :class="{
+                    'clickable-avatar':
+                      editForm.icon.includes('/') || editForm.icon.startsWith('appdata://'),
+                  }"
                   @click="handleIconClick"
                 />
               </el-tooltip>
@@ -276,7 +287,11 @@ const handleIconClick = () => {
                 <el-button @click="openPresetIconSelector" title="选择预设图标">
                   <el-icon><Picture /></el-icon>
                 </el-button>
-                <el-button @click="uploadCustomImage" :loading="isUploadingImage" title="上传自定义图像">
+                <el-button
+                  @click="uploadCustomImage"
+                  :loading="isUploadingImage"
+                  title="上传自定义图像"
+                >
                   <el-icon><Upload /></el-icon>
                 </el-button>
                 <el-button @click="clearIcon" title="重置为默认">
@@ -286,9 +301,7 @@ const handleIconClick = () => {
             </template>
           </el-input>
         </div>
-        <div class="form-hint">
-          可以输入 emoji、从预设选择、上传图像或输入绝对路径
-        </div>
+        <div class="form-hint">可以输入 emoji、从预设选择、上传图像或输入绝对路径</div>
       </el-form-item>
 
       <el-form-item label="描述">
@@ -323,7 +336,7 @@ const handleIconClick = () => {
             :value="profile.id"
             :label="profile.name"
           >
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px">
               <Avatar
                 v-if="profile.icon"
                 :src="profile.icon"
@@ -336,45 +349,19 @@ const handleIconClick = () => {
             </div>
           </el-option>
         </el-select>
-        <div class="form-hint">
-          如果设置，则覆盖全局默认的用户档案
-        </div>
+        <div class="form-hint">如果设置，则覆盖全局默认的用户档案</div>
       </el-form-item>
 
       <!-- 预设消息编辑器 -->
       <el-form-item label="预设消息">
-        <AgentPresetEditor
-          v-model="editForm.presetMessages"
-          height="300px"
-        />
-      </el-form-item>
-
-      <!-- 参数配置 -->
-      <el-form-item label="Temperature">
-        <el-slider
-          v-model="editForm.temperature"
-          :min="0"
-          :max="2"
-          :step="0.1"
-          show-input
-          :input-size="'small'"
-        />
-      </el-form-item>
-
-      <el-form-item label="Max Tokens">
-        <el-input-number
-          v-model="editForm.maxTokens"
-          :min="1"
-          :max="100000"
-          :step="100"
-        />
+        <AgentPresetEditor v-model="editForm.presetMessages" height="300px" />
       </el-form-item>
     </el-form>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
       <el-button type="primary" @click="handleSave">
-        {{ mode === 'edit' ? '保存' : '创建' }}
+        {{ mode === "edit" ? "保存" : "创建" }}
       </el-button>
     </template>
 

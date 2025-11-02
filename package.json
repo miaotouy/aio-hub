@@ -48,6 +48,7 @@
     "@prettier/plugin-php": "^0.24.0",
     "@prettier/plugin-xml": "^3.4.2",
     "@rigstech/codemirror-vscodesearch": "^1.0.4",
+    "@tanstack/vue-virtual": "^3.13.12",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
     "@tauri-apps/plugin-dialog": "^2",

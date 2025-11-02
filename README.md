@@ -217,7 +217,7 @@ aio-hub/
 - ⚡ **构建**: Vite
 - 🎨 **样式**: CSS Variables
 - 💾 **状态**: Composition API + Pinia
-- 🖼️ **UI**: Element Plus + Naive UI
+- 🖼️ **UI**: Element Plus
 
 </td>
 <td align="center" width="50%">

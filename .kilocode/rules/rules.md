@@ -14,7 +14,7 @@
 ### 1.1. 前端技术栈
 
 - **核心框架**: Vue 3 + Vite
-- **UI 框架**: Element Plus + Naive UI (混合使用)
+- **UI 框架**: Element Plus
 - **状态管理**: Pinia
 - **核心工具**: VueUse, Lodash-es
 - **代码编辑**: CodeMirror, Monaco Editor

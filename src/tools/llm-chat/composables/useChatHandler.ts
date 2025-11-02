@@ -573,6 +573,78 @@ export function useChatHandler() {
   };
 
   /**
+   * 检查并修复 API 返回的 usage 信息
+   * 如果 usage 不可靠（全为 0 但有内容），则使用本地计算
+   */
+  const validateAndFixUsage = async (
+    response: any,
+    modelId: string,
+    systemPrompt: string | undefined,
+    messages: Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>
+  ): Promise<void> => {
+    // 检查 usage 是否可靠
+    const hasContent = response.content && response.content.trim() !== '';
+    const usageIsZero =
+      !response.usage ||
+      (response.usage.totalTokens === 0) ||
+      (response.usage.promptTokens === 0 && response.usage.completionTokens === 0);
+
+    if (usageIsZero && hasContent) {
+      logger.warn('检测到 API 返回的 usage 信息不可靠（全为 0 但有内容），使用本地计算', {
+        originalUsage: response.usage,
+        contentLength: response.content.length,
+        modelId,
+      });
+
+      try {
+        // 计算 completionTokens（助手回复）
+        const completionResult = await tokenCalculatorService.calculateTokens(
+          response.content,
+          modelId
+        );
+
+        // 计算 promptTokens（系统提示 + 对话历史）
+        let promptText = systemPrompt || '';
+        for (const msg of messages) {
+          if (typeof msg.content === 'string') {
+            promptText += (promptText ? '\n' : '') + msg.content;
+          } else {
+            // 对于多模态内容，只计算文本部分
+            for (const part of msg.content) {
+              if (part.type === 'text' && part.text) {
+                promptText += (promptText ? '\n' : '') + part.text;
+              }
+            }
+          }
+        }
+
+        const promptResult = await tokenCalculatorService.calculateTokens(
+          promptText,
+          modelId
+        );
+
+        // 更新 response 的 usage
+        response.usage = {
+          promptTokens: promptResult.count,
+          completionTokens: completionResult.count,
+          totalTokens: promptResult.count + completionResult.count,
+        };
+
+        logger.info('✅ 本地 token 计算完成', {
+          calculatedUsage: response.usage,
+          promptIsEstimated: promptResult.isEstimated,
+          completionIsEstimated: completionResult.isEstimated,
+          tokenizerName: completionResult.tokenizerName,
+        });
+      } catch (error) {
+        logger.error('本地 token 计算失败，保留原始 usage', error as Error, {
+          modelId,
+        });
+      }
+    }
+  };
+
+  /**
    * 完成节点生成（更新最终状态和元数据）
    */
   const finalizeNode = (
@@ -912,6 +984,9 @@ export function useChatHandler() {
         } : undefined,
       });
 
+      // 验证并修复 usage 信息（如果不可靠则使用本地计算）
+      await validateAndFixUsage(response, agentConfig.modelId, systemPrompt, messages);
+
       // 完成节点生成
       finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId);
 
@@ -1144,6 +1219,9 @@ export function useChatHandler() {
           handleStreamUpdate(session, assistantNode.id, chunk, true);
         } : undefined,
       });
+
+      // 验证并修复 usage 信息（如果不可靠则使用本地计算）
+      await validateAndFixUsage(response, agentConfig.modelId, systemPrompt, messages);
 
       // 完成节点生成
       finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId);

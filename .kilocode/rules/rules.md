@@ -1,4 +1,3 @@
-
 # AIO Hub
 
 **一站式桌面AI工具枢纽 | 开发者的效率利器**
@@ -74,6 +73,22 @@
 - **核心功能**: 自动为消息提示框添加 `offset`，防止其被自定义的无边框标题栏遮挡。
 - **使用方法**: 调用方式与 `ElMessage` 完全一致，例如 `customMessage.success('操作成功')`。在项目中应优先使用 `customMessage` 而不是直接使用 `ElMessage`。
 
+### 3.2. 通用 UI 组件
+
+项目在 `src/components/common/` 目录下封装了一系列可复用的通用组件，详细使用方法请参考各组件的示例文档：
+
+- **BaseDialog** - 解决 Element Plus Dialog 样式问题的干净对话框组件，支持精确高度控制和 bare 模式。详见 [`BaseDialog-example.md`](../../src/components/common/BaseDialog-example.md)
+- **Avatar** - 通用头像组件，自动识别图片/Emoji/文字，支持 `appdata://` 路径。详见 [`Avatar-example.md`](../../src/components/common/Avatar-example.md)
+- **RichCodeEditor** - 双引擎代码编辑器（CodeMirror/Monaco），自动适配主题。详见 [`RichCodeEditor-example.md`](../../src/components/common/RichCodeEditor-example.md)
+- **LlmModelSelector** - LLM 模型选择器，支持按能力筛选和分组显示。
+- **ModelSelectDialog** - 模型搜索对话框，提供可视化的模型选择界面。
+- **ImageViewer** - 基于 Viewer.js 的图片查看器组件，支持缩放、旋转等操作。
+- **DropZone** - 文件拖放区域组件，支持文件类型过滤和自定义验证。
+- **IconPresetSelector** - 图标预设选择器，支持搜索和分类过滤。详见 [`README.md`](../../src/components/common/README.md)
+- **DynamicIcon** - 动态图标加载组件，支持 SVG/图片/Emoji。
+- **DetachPreviewHint** - 可分离窗口的预览提示组件。
+- **InfoCard** - 信息卡片组件，用于展示结构化信息。
+
 ## 4. 核心特性与 Composables
 
 项目通过 Vue Composables 实现了许多核心功能的高度复用。
@@ -82,13 +97,24 @@
   - `useLlmProfiles` 和 `useOcrProfiles` 负责管理用户的服务配置（如 API Key、模型偏好等）。
   - `useLlmRequest` 封装了向 LLM 发起请求的核心逻辑。
   - `useModelMetadata` 管理着不同 LLM 模型的元数据和能力信息。
+  - `useModelSelectDialog` 提供全局的模型选择对话框功能。
+
+- **资产管理**:
+  - `useAssetManager` 提供统一的资产管理接口，支持文件导入、读取和协议转换等功能。
 
 - **主题与样式**:
   - `useTheme` 负责应用整体主题（明/暗）的切换和管理。
-  - `useIconColorAnalyzer` 用于分析图标颜色，可能用于动态调整 UI 元素以匹配图标。
+  - `useThemeAwareIcon` 用于图标的主题自适应处理。
 
 - **文件交互**:
   - `useFileDrop` 提供了文件拖拽到应用窗口的功能。
   - `useFileInteraction` 统一处理文件的拖放和粘贴交互，支持自动转换为 Asset 或直接处理文件对象。
   - `useChatFileInteraction` 专门用于聊天附件场景，自动将粘贴的文件转换为 Asset。
   - `useImageFileInteraction` 专门用于图片上传场景，只接受图片文件。
+
+- **窗口管理**:
+  - `useDetachable` 统一处理可分离组件/工具的拖拽逻辑，支持将组件拖拽为独立窗口。
+  - `useDetachedManager` 管理分离窗口的生命周期和状态同步。
+
+- **UI 交互**:
+  - `useImageViewer` 提供全局的图片查看功能，支持缩放、旋转等操作。

@@ -30,6 +30,8 @@ export interface ChatSettings {
     fontSize: number;
     /** 消息行高 */
     lineHeight: number;
+    /** 是否显示消息导航器 */
+    showMessageNavigator: boolean;
   };
   /** 消息管理设置 */
   messageManagement: {
@@ -77,6 +79,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     autoScroll: true,
     fontSize: 14,
     lineHeight: 1.6,
+    showMessageNavigator: true,
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

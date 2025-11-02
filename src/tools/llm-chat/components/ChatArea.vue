@@ -66,7 +66,7 @@ const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
-const { loadSettings } = useChatSettings();
+const { loadSettings, settings } = useChatSettings();
 const { open: openModelSelectDialog } = useModelSelectDialog();
 
 // 当前智能体信息
@@ -499,6 +499,7 @@ onMounted(async () => {
 
         <!-- 消息导航器 -->
         <MessageNavigator
+          v-if="settings.uiPreferences.showMessageNavigator"
           :scroll-element="scrollElement"
           :message-count="finalMessages.length"
           :has-new-messages="hasNewMessages"

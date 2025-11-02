@@ -37,6 +37,11 @@
             <div class="form-hint">新消息出现时自动滚动到底部</div>
           </el-form-item>
 
+          <el-form-item label="显示消息导航器">
+            <el-switch v-model="localSettings.uiPreferences.showMessageNavigator" />
+            <div class="form-hint">在聊天区域左侧显示消息导航器</div>
+          </el-form-item>
+
           <el-form-item label="字体大小">
             <el-slider
               v-model="localSettings.uiPreferences.fontSize"
@@ -252,6 +257,7 @@ const localSettings = ref<ChatSettings>({
     autoScroll: true,
     fontSize: 14,
     lineHeight: 1.6,
+    showMessageNavigator: true,
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

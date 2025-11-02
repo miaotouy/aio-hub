@@ -234,7 +234,7 @@ const handleDelete = (agent: ChatAgent) => {
         clearable
         size="small"
       />
-      <el-select v-model="agentSortBy" size="small" style="width: 120px">
+      <el-select v-model="agentSortBy" size="small" style="width: 160px">
         <el-option label="最近使用" value="lastUsed" />
         <el-option label="按名称" value="name" />
         <el-option label="创建时间" value="createdAt" />

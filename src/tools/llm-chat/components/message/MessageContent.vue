@@ -225,11 +225,10 @@ watch(
 
     <!-- 推理内容（DeepSeek reasoning） -->
     <div v-if="message.metadata?.reasoningContent" class="reasoning-section">
-      <el-button
+      <button
         @click="toggleReasoning"
         class="reasoning-toggle"
         :class="{ expanded: isReasoningExpanded }"
-        text
       >
         <ChevronRight v-if="!isReasoningExpanded" :size="14" class="toggle-icon" />
         <ChevronDown v-else :size="14" class="toggle-icon" />
@@ -245,7 +244,7 @@ watch(
         >
           {{ formattedReasoningDuration }}
         </span>
-      </el-button>
+      </button>
       <div v-if="isReasoningExpanded" class="reasoning-content">
         <pre class="reasoning-text">{{ message.metadata.reasoningContent }}</pre>
       </div>

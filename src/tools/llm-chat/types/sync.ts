@@ -28,7 +28,8 @@ export type LlmChatStateKey =
   | 'chat-is-sending'       // 是否正在发送消息
   | 'chat-user-profiles'    // 用户档案列表（完整）
   | 'chat-global-profile-id' // 全局用户档案ID
-  | 'chat-input-state';     // 输入框状态（文本内容）
+  | 'chat-input-state'      // 输入框状态（文本内容）
+  | 'chat-settings';        // 聊天设置（UI偏好、快捷键等）
 
 /**
  * LLM Chat 状态键常量
@@ -45,6 +46,7 @@ export const CHAT_STATE_KEYS = {
   USER_PROFILES: 'chat-user-profiles' as const,
   GLOBAL_PROFILE_ID: 'chat-global-profile-id' as const,
   INPUT_STATE: 'chat-input-state' as const,
+  SETTINGS: 'chat-settings' as const,
 } as const;
 
 /**

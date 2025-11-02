@@ -8,6 +8,7 @@ import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
 import { useLlmChatUiState } from './useLlmChatUiState';
+import { useChatSettings } from './useChatSettings';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { createModuleLogger } from '@/utils/logger';
@@ -20,6 +21,7 @@ export function useLlmChatSync() {
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
   const { currentAgentId } = useLlmChatUiState();
+  const { settings } = useChatSettings();
   const bus = useWindowSyncBus();
 // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
 // 这样分离窗口能获得完整的上下文，可以独立工作
@@ -53,6 +55,8 @@ const globalProfileId = toRef(userProfileStore, 'globalProfileId');
   createStateEngine(userProfiles, CHAT_STATE_KEYS.USER_PROFILES);
   // 同步全局用户档案ID
   createStateEngine(globalProfileId, CHAT_STATE_KEYS.GLOBAL_PROFILE_ID);
+  // 同步聊天设置（UI偏好、快捷键等）
+  createStateEngine(settings, CHAT_STATE_KEYS.SETTINGS);
 
   logger.info('LLM Chat 同步引擎已初始化');
 

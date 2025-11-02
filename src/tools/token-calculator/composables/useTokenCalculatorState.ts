@@ -7,8 +7,8 @@ import { ref, computed, watch } from 'vue';
 import debounce from 'lodash-es/debounce';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { useLlmProfiles } from './useLlmProfiles';
-import { tokenCalculatorService, type TokenCalculationResult } from '@/tools/token-calculator/tokenCalculator.service';
+import { useLlmProfiles } from '../../../composables/useLlmProfiles';
+import { tokenCalculatorEngine, type TokenCalculationResult } from './useTokenCalculator';
 
 const logger = createModuleLogger('composables/token-calculator');
 const errorHandler = createModuleErrorHandler('composables/token-calculator');
@@ -31,8 +31,8 @@ export interface AvailableModel {
   provider?: string;
 }
 
-// 重新导出 service 中的类型，方便统一从 composable 导入
-export type { TokenCalculationResult } from '@/tools/token-calculator/tokenCalculator.service';
+// 重新导出 engine 中的类型，方便统一从 composable 导入
+export type { TokenCalculationResult } from './useTokenCalculator';
 
 /**
  * Token 计算器 Composable
@@ -78,7 +78,7 @@ export function useTokenCalculator() {
   const availableModels = computed(() => {
     // 如果是分词器模式，返回分词器列表
     if (calculationMode.value === 'tokenizer') {
-      const tokenizers = tokenCalculatorService.getAvailableTokenizers();
+      const tokenizers = tokenCalculatorEngine.getAvailableTokenizers();
       return tokenizers.map(t => ({
         id: t.name,
         name: t.description,
@@ -123,13 +123,13 @@ export function useTokenCalculator() {
       let tokenizerResult;
       
       if (calculationMode.value === 'tokenizer') {
-        tokenizerResult = await tokenCalculatorService.getTokenizedText(
+        tokenizerResult = await tokenCalculatorEngine.getTokenizedText(
           text,
           selectedModelId.value,
           true // 使用分词器名称
         );
       } else {
-        tokenizerResult = await tokenCalculatorService.getTokenizedText(
+        tokenizerResult = await tokenCalculatorEngine.getTokenizedText(
           text,
           selectedModelId.value,
           false // 使用模型 ID
@@ -210,12 +210,12 @@ export function useTokenCalculator() {
         
         // 根据模式选择不同的计算方法
         if (calculationMode.value === 'tokenizer') {
-          result = await tokenCalculatorService.calculateTokensByTokenizer(
+          result = await tokenCalculatorEngine.calculateTokensByTokenizer(
             inputText.value,
             selectedModelId.value
           );
         } else {
-          result = await tokenCalculatorService.calculateTokens(
+          result = await tokenCalculatorEngine.calculateTokens(
             inputText.value,
             selectedModelId.value
           );

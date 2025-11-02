@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import { DocumentCopy, CopyDocument, Delete } from '@element-plus/icons-vue';
-import type { AvailableModel, CalculationMode } from '@/composables/useTokenCalculator';
+import type { AvailableModel, CalculationMode } from '@/tools/token-calculator/composables/useTokenCalculatorState';
 
 interface Props {
   calculationMode: CalculationMode;

@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Loading, WarningFilled } from '@element-plus/icons-vue';
-import type { TokenCalculationResult, TokenBlock } from '@/composables/useTokenCalculator';
+import type { TokenCalculationResult, TokenBlock } from '@/tools/token-calculator/composables/useTokenCalculatorState';
 
 interface Props {
   isCalculating: boolean;

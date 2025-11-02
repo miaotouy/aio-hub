@@ -46,7 +46,7 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue';
 import { customMessage } from '@/utils/customMessage';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { useTokenCalculator } from '@/composables/useTokenCalculator';
+import { useTokenCalculator } from '@/tools/token-calculator/composables/useTokenCalculatorState';
 import { usePanelResize } from './composables/usePanelResize';
 import ToolBar from './components/ToolBar.vue';
 import InputPanel from './components/InputPanel.vue';

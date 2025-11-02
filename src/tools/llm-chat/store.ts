@@ -58,6 +58,7 @@ export const useLlmChatStore = defineStore("llmChat", {
      * 当前活动路径（UI 渲染数据源）
      * 注意：不过滤 isEnabled 状态，返回完整路径
      * 符合设计原则：activeLeafId 决定"看哪条分支"
+     * 过滤掉技术性的根节点（session.rootNodeId），因为它仅作为树结构的根使用，不应显示在 UI 中
      */
     currentActivePath(): ChatMessageNode[] {
       const session = this.currentSession;
@@ -78,7 +79,8 @@ export const useLlmChatStore = defineStore("llmChat", {
         currentId = node.parentId;
       }
 
-      return path;
+      // 过滤掉技术性的根节点（它是空的系统消息，仅用于构建树结构）
+      return path.filter((node) => node.id !== session.rootNodeId);
     },
 
     /**

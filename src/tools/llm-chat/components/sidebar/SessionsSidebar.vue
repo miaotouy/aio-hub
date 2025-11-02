@@ -2,11 +2,19 @@
 import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import type { ChatSession } from "../../types";
-import { Plus, Delete, Search, MoreFilled, Edit, MagicStick } from "@element-plus/icons-vue";
-import Avatar from '@/components/common/Avatar.vue';
-import { useTopicNamer } from '../../composables/useTopicNamer';
-import { useSessionManager } from '../../composables/useSessionManager';
-import { customMessage } from '@/utils/customMessage';
+import {
+  Plus,
+  Delete,
+  Search,
+  MoreFilled,
+  Edit,
+  MagicStick,
+  Operation,
+} from "@element-plus/icons-vue";
+import Avatar from "@/components/common/Avatar.vue";
+import { useTopicNamer } from "../../composables/useTopicNamer";
+import { useSessionManager } from "../../composables/useSessionManager";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   sessions: ChatSession[];
@@ -29,6 +37,16 @@ const searchQuery = ref("");
 const { generateTopicName, isGenerating } = useTopicNamer();
 const { persistSession } = useSessionManager();
 
+// 排序和筛选相关状态
+type SortBy = "updatedAt" | "createdAt" | "messageCount" | "name";
+type SortOrder = "desc" | "asc";
+type TimeFilter = "all" | "today" | "week" | "month" | "older";
+
+const sortBy = ref<SortBy>("updatedAt");
+const sortOrder = ref<SortOrder>("desc");
+const filterAgent = ref<string>("all"); // 'all' 或特定的 agentId
+const filterTime = ref<TimeFilter>("all");
+
 // 重命名相关状态
 const renameDialogVisible = ref(false);
 const renamingSession = ref<ChatSession | null>(null);
@@ -45,21 +63,114 @@ const handleQuickNewSession = () => {
   emit("new-session", { agentId });
 };
 
-// 按更新时间倒序排列
-const sortedSessions = computed(() => {
-  return [...props.sessions].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+// 计算可用的智能体列表（用于筛选）
+const availableAgents = computed(() => {
+  const agentIds = new Set<string>();
+  props.sessions.forEach((session) => {
+    if (session.displayAgentId) {
+      agentIds.add(session.displayAgentId);
+    }
+  });
+  return Array.from(agentIds)
+    .map((id) => agentStore.getAgentById(id))
+    .filter((agent): agent is NonNullable<typeof agent> => agent !== null);
+});
+
+// 时间筛选逻辑
+const filterByTime = (sessions: ChatSession[]) => {
+  if (filterTime.value === "all") return sessions;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  return sessions.filter((session) => {
+    const updatedAt = new Date(session.updatedAt);
+    switch (filterTime.value) {
+      case "today":
+        return updatedAt >= today;
+      case "week":
+        return updatedAt >= weekAgo && updatedAt < today;
+      case "month":
+        return updatedAt >= monthAgo && updatedAt < weekAgo;
+      case "older":
+        return updatedAt < monthAgo;
+      default:
+        return true;
+    }
+  });
+};
+
+// 智能体筛选逻辑
+const filterByAgent = (sessions: ChatSession[]) => {
+  if (filterAgent.value === "all") return sessions;
+  return sessions.filter((session) => session.displayAgentId === filterAgent.value);
+};
+
+// 排序逻辑
+const sortSessions = (sessions: ChatSession[]) => {
+  return [...sessions].sort((a, b) => {
+    let comparison = 0;
+
+    switch (sortBy.value) {
+      case "updatedAt":
+        comparison = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        break;
+      case "createdAt":
+        comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        break;
+      case "messageCount":
+        comparison = getMessageCount(b) - getMessageCount(a);
+        break;
+      case "name":
+        comparison = a.name.localeCompare(b.name, "zh-CN");
+        break;
+    }
+
+    return sortOrder.value === "desc" ? comparison : -comparison;
+  });
+};
+
+// 合并所有筛选和排序
+const filteredSessions = computed(() => {
+  let sessions = props.sessions;
+
+  // 1. 搜索过滤
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    sessions = sessions.filter((session) => session.name.toLowerCase().includes(query));
+  }
+
+  // 2. 智能体筛选
+  sessions = filterByAgent(sessions);
+
+  // 3. 时间筛选
+  sessions = filterByTime(sessions);
+
+  // 4. 排序
+  sessions = sortSessions(sessions);
+
+  return sessions;
+});
+
+// 检查是否有活动的筛选
+const hasActiveFilters = computed(() => {
+  return (
+    sortBy.value !== "updatedAt" ||
+    sortOrder.value !== "desc" ||
+    filterAgent.value !== "all" ||
+    filterTime.value !== "all"
   );
 });
 
-// 搜索过滤
-const filteredSessions = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return sortedSessions.value;
-  }
-  const query = searchQuery.value.toLowerCase();
-  return sortedSessions.value.filter((session) => session.name.toLowerCase().includes(query));
-});
+// 重置筛选
+const resetFilters = () => {
+  sortBy.value = "updatedAt";
+  sortOrder.value = "desc";
+  filterAgent.value = "all";
+  filterTime.value = "all";
+};
 
 // 格式化日期
 const formatDate = (timestamp: string) => {
@@ -109,23 +220,23 @@ const openRenameDialog = (session: ChatSession) => {
 // 确认重命名
 const confirmRename = () => {
   if (!renamingSession.value) return;
-  
+
   const trimmedName = newSessionName.value.trim();
   if (!trimmedName) {
     alert("会话名称不能为空");
     return;
   }
-  
+
   if (trimmedName === renamingSession.value.name) {
     renameDialogVisible.value = false;
     return;
   }
-  
+
   emit("rename", {
     sessionId: renamingSession.value.id,
     newName: trimmedName,
   });
-  
+
   renameDialogVisible.value = false;
   renamingSession.value = null;
   newSessionName.value = "";
@@ -144,10 +255,10 @@ const handleGenerateName = async (session: ChatSession) => {
     const result = await generateTopicName(session, (updatedSession, currentSessionId) => {
       persistSession(updatedSession, currentSessionId);
     });
-    
+
     if (result) {
       customMessage.success(`标题已生成：${result}`);
-      emit('session-updated');
+      emit("session-updated");
     }
   } catch (error) {
     // 错误已由 useTopicNamer 内部处理
@@ -155,13 +266,38 @@ const handleGenerateName = async (session: ChatSession) => {
 };
 
 // 处理菜单命令
-const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', session: ChatSession) => {
-  if (command === 'delete') {
+const handleMenuCommand = (
+  command: "delete" | "rename" | "generate-name",
+  session: ChatSession
+) => {
+  if (command === "delete") {
     confirmDelete(session);
-  } else if (command === 'rename') {
+  } else if (command === "rename") {
     openRenameDialog(session);
-  } else if (command === 'generate-name') {
+  } else if (command === "generate-name") {
     handleGenerateName(session);
+  }
+};
+
+// 处理筛选菜单命令
+const handleFilterCommand = (command: string) => {
+  if (command === "reset") {
+    resetFilters();
+    return;
+  }
+
+  const [type, value] = command.split(":");
+
+  switch (type) {
+    case "sort":
+      sortBy.value = value as SortBy;
+      break;
+    case "time":
+      filterTime.value = value as TimeFilter;
+      break;
+    case "agent":
+      filterAgent.value = value;
+      break;
   }
 };
 </script>
@@ -171,6 +307,89 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
     <div class="sessions-sidebar-header">
       <div class="header-top">
         <el-input v-model="searchQuery" placeholder="搜索会话..." :prefix-icon="Search" clearable />
+        <el-dropdown trigger="click" @command="handleFilterCommand">
+          <el-button
+            :icon="Operation"
+            circle
+            title="排序与筛选"
+            :type="hasActiveFilters ? 'primary' : undefined"
+          />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item divided disabled>排序方式</el-dropdown-item>
+              <el-dropdown-item
+                :class="{ 'is-active': sortBy === 'updatedAt' }"
+                command="sort:updatedAt"
+              >
+                最近更新
+              </el-dropdown-item>
+              <el-dropdown-item
+                :class="{ 'is-active': sortBy === 'createdAt' }"
+                command="sort:createdAt"
+              >
+                创建时间
+              </el-dropdown-item>
+              <el-dropdown-item
+                :class="{ 'is-active': sortBy === 'messageCount' }"
+                command="sort:messageCount"
+              >
+                消息数量
+              </el-dropdown-item>
+              <el-dropdown-item :class="{ 'is-active': sortBy === 'name' }" command="sort:name">
+                名称 (A-Z)
+              </el-dropdown-item>
+
+              <el-dropdown-item divided disabled>时间范围</el-dropdown-item>
+              <el-dropdown-item :class="{ 'is-active': filterTime === 'all' }" command="time:all">
+                全部
+              </el-dropdown-item>
+              <el-dropdown-item
+                :class="{ 'is-active': filterTime === 'today' }"
+                command="time:today"
+              >
+                今天
+              </el-dropdown-item>
+              <el-dropdown-item :class="{ 'is-active': filterTime === 'week' }" command="time:week">
+                本周
+              </el-dropdown-item>
+              <el-dropdown-item
+                :class="{ 'is-active': filterTime === 'month' }"
+                command="time:month"
+              >
+                本月
+              </el-dropdown-item>
+              <el-dropdown-item
+                :class="{ 'is-active': filterTime === 'older' }"
+                command="time:older"
+              >
+                更早
+              </el-dropdown-item>
+
+              <el-dropdown-item v-if="availableAgents.length > 0" divided disabled>
+                智能体
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-if="availableAgents.length > 0"
+                :class="{ 'is-active': filterAgent === 'all' }"
+                command="agent:all"
+              >
+                全部
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-for="agent in availableAgents"
+                :key="agent.id"
+                :class="{ 'is-active': filterAgent === agent.id }"
+                :command="`agent:${agent.id}`"
+              >
+                {{ agent.name }}
+              </el-dropdown-item>
+
+              <el-dropdown-item v-if="hasActiveFilters" divided command="reset">
+                重置筛选
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button :icon="Plus" @click="handleQuickNewSession" title="新建对话" circle />
       </div>
     </div>
@@ -194,7 +413,12 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
       >
         <div class="session-content">
           <div class="session-title">
-            <el-tooltip v-if="getSessionDisplayAgent(session)" :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`" placement="top" :show-after="500">
+            <el-tooltip
+              v-if="getSessionDisplayAgent(session)"
+              :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`"
+              placement="top"
+              :show-after="500"
+            >
               <Avatar
                 :src="getSessionDisplayAgent(session)?.icon || ''"
                 :alt="getSessionDisplayAgent(session)?.name"
@@ -203,9 +427,7 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
                 :radius="4"
               />
             </el-tooltip>
-            <span
-              :class="['title-text', { 'generating': isGenerating(session.id) }]"
-            >
+            <span :class="['title-text', { generating: isGenerating(session.id) }]">
               {{ session.name }}
             </span>
           </div>
@@ -218,13 +440,7 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
               @click.stop
               class="menu-dropdown"
             >
-              <el-button
-                :icon="MoreFilled"
-                size="small"
-                text
-                class="btn-menu"
-                title="更多操作"
-              />
+              <el-button :icon="MoreFilled" size="small" text class="btn-menu" title="更多操作" />
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item
@@ -232,14 +448,10 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
                     :icon="MagicStick"
                     :disabled="isGenerating(session.id)"
                   >
-                    {{ isGenerating(session.id) ? '生成中...' : '生成标题' }}
+                    {{ isGenerating(session.id) ? "生成中..." : "生成标题" }}
                   </el-dropdown-item>
-                  <el-dropdown-item command="rename" :icon="Edit">
-                    重命名
-                  </el-dropdown-item>
-                  <el-dropdown-item command="delete" :icon="Delete">
-                    删除会话
-                  </el-dropdown-item>
+                  <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
+                  <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -249,12 +461,7 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
     </div>
 
     <!-- 重命名对话框 -->
-    <el-dialog
-      v-model="renameDialogVisible"
-      title="重命名会话"
-      width="400px"
-      @close="cancelRename"
-    >
+    <el-dialog v-model="renameDialogVisible" title="重命名会话" width="400px" @close="cancelRename">
       <el-input
         v-model="newSessionName"
         placeholder="请输入新的会话名称"
@@ -294,7 +501,7 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
 
 .session-count {
   margin: 0;
-  padding: 8px 0;
+  padding: 4px 0;
   font-size: 12px;
   color: var(--text-color-light);
   text-align: center;
@@ -401,7 +608,8 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
 }
 
 @keyframes pulse-border {
-  0%, 100% {
+  0%,
+  100% {
     border-color: var(--border-color);
   }
   50% {
@@ -453,5 +661,11 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
 
 .sessions-list::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover-color);
+}
+
+/* 筛选菜单活动项样式 */
+:deep(.el-dropdown-menu__item.is-active) {
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.1);
 }
 </style>

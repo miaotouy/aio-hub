@@ -344,6 +344,62 @@ class TokenCalculatorService implements ToolService {
   }
 
   /**
+   * 获取分词后的文本数组（用于可视化）
+   * @param text - 要分词的文本
+   * @param identifier - 模型ID或分词器名称
+   * @param useTokenizerName - 是否使用分词器名称（true）还是模型ID（false）
+   * @returns 包含分词结果的对象，如果无法分词则返回 null
+   */
+  async getTokenizedText(
+    text: string,
+    identifier: string,
+    useTokenizerName: boolean = false
+  ): Promise<{ tokens: string[] } | null> {
+    if (!text) {
+      return { tokens: [] };
+    }
+
+    let tokenizer: PreTrainedTokenizer | null = null;
+
+    // 根据标识符类型获取 tokenizer
+    if (useTokenizerName) {
+      tokenizer = await this.getTokenizerByName(identifier);
+    } else {
+      tokenizer = await this.getTokenizer(identifier);
+    }
+
+    if (!tokenizer) {
+      return null;
+    }
+
+    try {
+      // 编码文本获取 token IDs
+      const encoded = tokenizer.encode(text, undefined, {
+        add_special_tokens: true,
+      });
+
+      // 解码每个 token ID 获取文本
+      const tokens: string[] = [];
+      for (const tokenId of encoded) {
+        try {
+          const decoded = tokenizer.decode([tokenId], {
+            skip_special_tokens: false,
+          });
+          tokens.push(decoded);
+        } catch (error) {
+          // 如果某个 token 无法解码，使用占位符
+          tokens.push(`[Token ${tokenId}]`);
+        }
+      }
+
+      return { tokens };
+    } catch (error) {
+      console.error('Failed to tokenize text:', error);
+      return null;
+    }
+  }
+
+  /**
    * 清除所有缓存的 tokenizer 实例
    */
   clearCache(): void {

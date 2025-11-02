@@ -68,6 +68,9 @@ export function useTokenCalculator() {
   /** Token 可视化数据 */
   const tokenizedText = ref<TokenBlock[]>([]);
 
+  /** 最大显示 Token 数量 */
+  const maxDisplayTokens = ref(5000);
+
   // ==================== 计算属性 ====================
 
   /** 可用模型列表 */
@@ -104,23 +107,85 @@ export function useTokenCalculator() {
   // ==================== Token 计算 ====================
 
   /**
-   * 生成简单的分词可视化数据
+   * 生成真实的分词可视化数据
+   * 使用实际的 tokenizer 进行分词，与 Token 计算保持一致
    */
   const generateTokenizedText = async (): Promise<void> => {
     const text = inputText.value;
+    
+    if (!text) {
+      tokenizedText.value = [];
+      return;
+    }
+
+    try {
+      // 尝试使用真实的 tokenizer 获取分词结果
+      let tokenizerResult;
+      
+      if (calculationMode.value === 'tokenizer') {
+        tokenizerResult = await tokenCalculatorService.getTokenizedText(
+          text,
+          selectedModelId.value,
+          true // 使用分词器名称
+        );
+      } else {
+        tokenizerResult = await tokenCalculatorService.getTokenizedText(
+          text,
+          selectedModelId.value,
+          false // 使用模型 ID
+        );
+      }
+
+      if (tokenizerResult && tokenizerResult.tokens) {
+        // 使用真实的分词结果
+        const tokens: TokenBlock[] = tokenizerResult.tokens.map((tokenText: string, index: number) => ({
+          text: tokenText,
+          index,
+        }));
+        
+        // 根据用户设置限制显示数量
+        if (tokens.length > maxDisplayTokens.value) {
+          tokenizedText.value = tokens.slice(0, maxDisplayTokens.value);
+          logger.warn(`分词数量过多 (${tokens.length})，仅显示前 ${maxDisplayTokens.value} 个`);
+        } else {
+          tokenizedText.value = tokens;
+        }
+      } else {
+        // 如果无法获取真实分词结果，使用简单分词作为回退
+        logger.warn('无法获取真实分词结果，使用简单分词');
+        await generateSimpleTokenizedText(text);
+      }
+    } catch (error) {
+      // 出错时使用简单分词作为回退
+      logger.error('分词可视化失败，使用简单分词', error);
+      await generateSimpleTokenizedText(text);
+    }
+  };
+
+  /**
+   * 简单分词（回退方案）
+   * 按空格和标点符号分割
+   */
+  const generateSimpleTokenizedText = async (text: string): Promise<void> => {
     const tokens: TokenBlock[] = [];
     
     // 简单按空格和标点分词作为演示
-    const words = text.split(/(\s+|[.,!?;:"'()])/);
+    const words = text.split(/(\s+|[.,!?;:"'()（）。，！？；：""''《》【】])/);
     let index = 0;
     
     for (const word of words) {
-      if (word) {
+      if (word && word.trim()) {
         tokens.push({ text: word, index: index++ });
       }
     }
     
-    tokenizedText.value = tokens.slice(0, 500); // 限制显示数量
+    // 根据用户设置限制显示数量
+    if (tokens.length > maxDisplayTokens.value) {
+      tokenizedText.value = tokens.slice(0, maxDisplayTokens.value);
+      logger.warn(`简单分词数量过多 (${tokens.length})，仅显示前 ${maxDisplayTokens.value} 个`);
+    } else {
+      tokenizedText.value = tokens;
+    }
   };
 
   /**
@@ -178,7 +243,7 @@ export function useTokenCalculator() {
     );
 
     isCalculating.value = false;
-  }, 300);
+  }, 600);
 
   // ==================== 文本操作 ====================
 
@@ -262,6 +327,16 @@ export function useTokenCalculator() {
   });
 
   /**
+   * 监听最大显示数量变化，重新生成可视化
+   */
+  watch(maxDisplayTokens, () => {
+    if (inputText.value) {
+      generateTokenizedText();
+      logger.info('更新最大显示数量', { maxDisplayTokens: maxDisplayTokens.value });
+    }
+  });
+
+  /**
    * 初始化默认模型
    */
   const initializeDefaultModel = (): void => {
@@ -284,6 +359,7 @@ export function useTokenCalculator() {
     isCalculating,
     calculationResult,
     tokenizedText,
+    maxDisplayTokens,
     
     // 计算属性
     availableModels,

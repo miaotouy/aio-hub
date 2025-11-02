@@ -33,6 +33,22 @@
     </div>
 
     <div class="toolbar-right">
+      <div class="display-limit-control">
+        <span class="control-label">显示上限:</span>
+        <el-select
+          :model-value="maxDisplayTokens"
+          @update:model-value="$emit('update:maxDisplayTokens', $event)"
+          size="small"
+          style="width: 120px"
+        >
+          <el-option :value="1000" label="1,000" />
+          <el-option :value="2000" label="2,000" />
+          <el-option :value="5000" label="5,000" />
+          <el-option :value="10000" label="10,000" />
+          <el-option :value="20000" label="20,000" />
+          <el-option :value="50000" label="50,000" />
+        </el-select>
+      </div>
       <el-button @click="$emit('paste')" size="small" type="primary">
         <el-icon><DocumentCopy /></el-icon>
         粘贴
@@ -57,11 +73,13 @@ interface Props {
   calculationMode: CalculationMode;
   selectedModelId: string;
   availableModels: AvailableModel[];
+  maxDisplayTokens: number;
 }
 
 interface Emits {
   (e: 'update:calculationMode', value: CalculationMode): void;
   (e: 'update:selectedModelId', value: string): void;
+  (e: 'update:maxDisplayTokens', value: number): void;
   (e: 'paste'): void;
   (e: 'copy'): void;
   (e: 'clear'): void;
@@ -104,5 +122,19 @@ defineEmits<Emits>();
   font-size: 12px;
   color: var(--text-color-light);
   margin-left: 8px;
+}
+
+.display-limit-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-right: 1px solid var(--border-color);
+}
+
+.control-label {
+  font-size: 13px;
+  color: var(--text-color);
+  white-space: nowrap;
 }
 </style>

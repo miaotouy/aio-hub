@@ -36,7 +36,13 @@
 
       <!-- Token 可视化区域 -->
       <div class="visualization-section">
-        <div class="section-title">Token 分块可视化</div>
+        <div class="section-header">
+          <div class="section-title">Token 分块可视化</div>
+          <div v-if="tokenizedText.length > 0 && calculationResult.count > tokenizedText.length" class="truncation-notice">
+            <el-icon><WarningFilled /></el-icon>
+            显示 {{ tokenizedText.length }} / {{ calculationResult.count }} 个 Token
+          </div>
+        </div>
         <div v-if="tokenizedText.length > 0" class="token-blocks">
           <span
             v-for="(token, index) in tokenizedText"
@@ -185,12 +191,27 @@ defineExpose({ rootEl });
   overflow: hidden;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
 .section-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-color);
-  margin-bottom: 14px;
-  flex-shrink: 0;
+}
+
+.truncation-notice {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #f59e0b;
+  font-weight: 500;
 }
 
 .token-blocks {

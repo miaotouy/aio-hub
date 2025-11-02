@@ -5,6 +5,7 @@
       <ToolBar
         v-model:calculation-mode="calculationMode"
         v-model:selected-model-id="selectedModelId"
+        v-model:max-display-tokens="maxDisplayTokens"
         :available-models="availableModels"
         @paste="pasteText"
         @copy="copyText"
@@ -59,6 +60,7 @@ const {
   isCalculating,
   calculationResult,
   tokenizedText,
+  maxDisplayTokens,
   availableModels,
   handleInputChange,
   setInputText,

@@ -82,8 +82,8 @@ const { startResize, cleanup, isDragging, initializePanelWidth } = usePanelResiz
 });
 
 // 初始化
-onMounted(() => {
-  initializeDefaultModel();
+onMounted(async () => {
+  await initializeDefaultModel();
   // 初始化面板宽度需要在下一个 tick，确保 DOM 已挂载
   setTimeout(() => {
     initializePanelWidth();

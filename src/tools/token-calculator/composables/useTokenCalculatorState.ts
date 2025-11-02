@@ -9,6 +9,12 @@ import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { useLlmProfiles } from '../../../composables/useLlmProfiles';
 import { tokenCalculatorEngine, type TokenCalculationResult } from './useTokenCalculator';
+import { getMatchedModelProperties } from '@/config/model-metadata';
+import {
+  loadTokenCalculatorConfig,
+  createDebouncedSave,
+  type TokenCalculatorConfig
+} from '../config';
 
 const logger = createModuleLogger('composables/token-calculator');
 const errorHandler = createModuleErrorHandler('composables/token-calculator');
@@ -53,7 +59,7 @@ export function useTokenCalculator() {
   const calculationMode = ref<CalculationMode>('model');
 
   /** 选中的模型 ID 或分词器名称 */
-  const selectedModelId = ref('gpt-4o');
+  const selectedModelId = ref('');
 
   /** 是否正在计算 */
   const isCalculating = ref(false);
@@ -70,6 +76,60 @@ export function useTokenCalculator() {
 
   /** 最大显示 Token 数量 */
   const maxDisplayTokens = ref(5000);
+
+  /** 配置是否已加载 */
+  const configLoaded = ref(false);
+
+  // ==================== 配置持久化 ====================
+
+  /** 防抖保存配置 */
+  const debouncedSaveConfig = createDebouncedSave();
+
+  /**
+   * 保存当前配置
+   */
+  const saveCurrentConfig = (): void => {
+    if (!configLoaded.value) {
+      return; // 配置未加载完成时不保存
+    }
+
+    const config: TokenCalculatorConfig = {
+      inputPanelWidthPercent: 50, // 这个值由 usePanelResize 管理
+      calculationMode: calculationMode.value,
+      selectedModelId: selectedModelId.value,
+      maxDisplayTokens: maxDisplayTokens.value,
+      version: '1.0.0'
+    };
+
+    debouncedSaveConfig(config);
+    logger.info('配置已保存', config);
+  };
+
+  /**
+   * 加载保存的配置
+   */
+  const loadConfig = async (): Promise<void> => {
+    try {
+      const config = await loadTokenCalculatorConfig();
+      
+      // 恢复配置
+      if (config.calculationMode) {
+        calculationMode.value = config.calculationMode;
+      }
+      if (config.selectedModelId) {
+        selectedModelId.value = config.selectedModelId;
+      }
+      if (config.maxDisplayTokens) {
+        maxDisplayTokens.value = config.maxDisplayTokens;
+      }
+
+      configLoaded.value = true;
+      logger.info('配置加载成功', config);
+    } catch (error) {
+      logger.error('加载配置失败', error);
+      configLoaded.value = true; // 即使失败也标记为已加载，使用默认值
+    }
+  };
 
   // ==================== 计算属性 ====================
 
@@ -92,10 +152,15 @@ export function useTokenCalculator() {
     profiles.value.forEach(profile => {
       if (profile.enabled && profile.models) {
         profile.models.forEach(model => {
+          // 尝试从元数据获取分词器名称作为标识
+          const metadata = getMatchedModelProperties(model.id, model.provider);
+          const tokenizerName = metadata?.tokenizer;
+          
           models.push({
             id: model.id,
             name: model.name,
-            provider: model.provider || profile.name,
+            // 优先显示分词器名称，否则显示渠道名称
+            provider: tokenizerName || profile.name,
           });
         });
       }
@@ -308,6 +373,8 @@ export function useTokenCalculator() {
     }
     // 重新计算
     calculateTokens();
+    // 保存配置
+    saveCurrentConfig();
     logger.info('切换计算模式', { mode: newMode });
   });
 
@@ -324,6 +391,10 @@ export function useTokenCalculator() {
         to: newId
       });
     }
+    // 保存配置
+    if (configLoaded.value) {
+      saveCurrentConfig();
+    }
   });
 
   /**
@@ -334,20 +405,51 @@ export function useTokenCalculator() {
       generateTokenizedText();
       logger.info('更新最大显示数量', { maxDisplayTokens: maxDisplayTokens.value });
     }
+    // 保存配置
+    saveCurrentConfig();
   });
 
   /**
    * 初始化默认模型
    */
-  const initializeDefaultModel = (): void => {
+  const initializeDefaultModel = async (): Promise<void> => {
+    // 首先加载配置
+    await loadConfig();
+
+    // 如果配置中有保存的模型ID，先尝试验证它是否仍然可用
+    if (selectedModelId.value && availableModels.value.length > 0) {
+      const modelExists = availableModels.value.some(m => m.id === selectedModelId.value);
+      if (modelExists) {
+        logger.info('使用配置中保存的模型', { modelId: selectedModelId.value });
+        return;
+      } else {
+        logger.warn('配置中的模型不再可用，将选择默认模型', { savedModelId: selectedModelId.value });
+      }
+    }
+
+    // 如果没有保存的模型或保存的模型不可用，选择第一个可用模型
     if (availableModels.value.length > 0) {
       const firstModel = availableModels.value[0];
       if (firstModel) {
         selectedModelId.value = firstModel.id;
+        logger.info('Token 计算器初始化完成', { defaultModel: firstModel.id });
       }
     }
-    logger.info('Token 计算器初始化完成');
   };
+  
+  /**
+   * 监听模型列表变化，自动初始化默认模型
+   */
+  watch(availableModels, (models) => {
+    // 当模型列表加载完成且还没有选中模型时，自动选择第一个
+    if (models.length > 0 && !selectedModelId.value) {
+      const firstModel = models[0];
+      if (firstModel) {
+        selectedModelId.value = firstModel.id;
+        logger.info('自动选择默认模型', { modelId: firstModel.id, modelName: firstModel.name });
+      }
+    }
+  }, { immediate: true });
 
   // ==================== 返回 ====================
 

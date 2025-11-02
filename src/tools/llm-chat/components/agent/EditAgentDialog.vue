@@ -12,6 +12,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Picture, Upload, RefreshLeft } from '@element-plus/icons-vue';
 import { useUserProfileStore } from '../../userProfileStore';
+import { useImageViewer } from '@/composables/useImageViewer';
 
 interface Props {
   visible: boolean;
@@ -54,6 +55,9 @@ const emit = defineEmits<Emits>();
 
 // 用户档案 Store
 const userProfileStore = useUserProfileStore();
+
+// 图片查看器
+const imageViewer = useImageViewer();
 
 // 预设图标对话框
 const showPresetIconDialog = ref(false);
@@ -217,6 +221,15 @@ const clearIcon = () => {
   editForm.icon = '🤖';
   customMessage.info('已重置为默认图标');
 };
+
+// 点击图标放大查看
+const handleIconClick = () => {
+  const icon = editForm.icon || '🤖';
+  // 只有当图标是图片路径时才打开查看器（不是 emoji）
+  if (icon.includes('/') || icon.startsWith('appdata://')) {
+    imageViewer.show(icon);
+  }
+};
 </script>
 <template>
   <BaseDialog
@@ -241,14 +254,22 @@ const clearIcon = () => {
             class="icon-input"
           >
             <template #prepend>
-              <Avatar
-                :src="editForm.icon || '🤖'"
-                alt="图标预览"
-                :size="32"
-                shape="square"
-                :radius="4"
-                :border="false"
-              />
+              <el-tooltip
+                :content="(editForm.icon.includes('/') || editForm.icon.startsWith('appdata://')) ? '点击放大查看' : ''"
+                :disabled="!(editForm.icon.includes('/') || editForm.icon.startsWith('appdata://'))"
+                placement="top"
+              >
+                <Avatar
+                  :src="editForm.icon || '🤖'"
+                  alt="图标预览"
+                  :size="32"
+                  shape="square"
+                  :radius="4"
+                  :border="false"
+                  :class="{ 'clickable-avatar': editForm.icon.includes('/') || editForm.icon.startsWith('appdata://') }"
+                  @click="handleIconClick"
+                />
+              </el-tooltip>
             </template>
             <template #append>
               <el-button-group>
@@ -392,5 +413,15 @@ const clearIcon = () => {
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 8px;
+}
+
+/* 可点击的头像 */
+.clickable-avatar {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.clickable-avatar:hover {
+  opacity: 0.8;
 }
 </style>

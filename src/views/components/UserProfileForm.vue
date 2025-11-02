@@ -19,14 +19,22 @@
           @input="handleInput"
         >
           <template #prepend>
-            <Avatar
-              :src="formData.icon || ''"
-              :alt="formData.name"
-              :size="32"
-              shape="square"
-              :radius="4"
-              :border="false"
-            />
+            <el-tooltip
+              :content="(formData.icon && (formData.icon.includes('/') || formData.icon.startsWith('appdata://'))) ? '点击放大查看' : ''"
+              :disabled="!(formData.icon && (formData.icon.includes('/') || formData.icon.startsWith('appdata://')))"
+              placement="top"
+            >
+              <Avatar
+                :src="formData.icon || ''"
+                :alt="formData.name"
+                :size="32"
+                shape="square"
+                :radius="4"
+                :border="false"
+                :class="{ 'clickable-avatar': formData.icon && (formData.icon.includes('/') || formData.icon.startsWith('appdata://')) }"
+                @click="handleIconClick"
+              />
+            </el-tooltip>
           </template>
           <template #append>
             <el-button-group>
@@ -116,6 +124,7 @@ import { PRESET_ICONS, PRESET_ICONS_DIR } from '@/config/preset-icons';
 import { customMessage } from '@/utils/customMessage';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { useImageViewer } from '@/composables/useImageViewer';
 
 interface UserProfileFormData {
   name: string;
@@ -165,6 +174,9 @@ const formData = ref<UserProfileFormData>({ ...props.modelValue });
 watch(() => props.modelValue, (newValue) => {
   formData.value = { ...newValue };
 }, { deep: true });
+
+// 图片查看器
+const imageViewer = useImageViewer();
 
 // 预设图标对话框
 const showPresetIconDialog = ref(false);
@@ -242,6 +254,15 @@ const formatDateTime = (dateStr?: string) => {
   const date = new Date(dateStr);
   return date.toLocaleString('zh-CN');
 };
+
+// 点击头像放大查看
+const handleIconClick = () => {
+  const icon = formData.value.icon;
+  // 只有当头像是图片路径时才打开查看器（不是 emoji）
+  if (icon && (icon.includes('/') || icon.startsWith('appdata://'))) {
+    imageViewer.show(icon);
+  }
+};
 </script>
 
 <style scoped>
@@ -265,5 +286,15 @@ const formatDateTime = (dateStr?: string) => {
 
 .icon-input {
   width: 100%;
+}
+
+/* 可点击的头像 */
+.clickable-avatar {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.clickable-avatar:hover {
+  opacity: 0.8;
 }
 </style>

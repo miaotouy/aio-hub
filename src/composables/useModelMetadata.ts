@@ -260,6 +260,51 @@ export function useModelMetadata() {
   }
 
   /**
+   * 合并最新的内置配置
+   * 保留所有用户自定义的规则，同时添加内置配置中新增的规则
+   */
+  async function mergeWithDefaults(): Promise<{ added: number; updated: number }> {
+    try {
+      const now = new Date().toISOString();
+      const currentRules = [...rules.value];
+      
+      // 创建当前规则的 ID 映射
+      const currentRuleIds = new Set(currentRules.map((r) => r.id));
+      
+      let addedCount = 0;
+      let updatedCount = 0;
+      
+      // 遍历所有默认规则
+      for (const defaultRule of DEFAULT_METADATA_RULES) {
+        if (!currentRuleIds.has(defaultRule.id)) {
+          // 如果是新规则，添加到列表
+          currentRules.push({
+            ...defaultRule,
+            createdAt: now,
+          });
+          addedCount++;
+        }
+        // 如果规则已存在，我们不做任何修改，以保护用户配置
+        // 可选：如果需要更新描述等非关键字段，可以在这里添加逻辑
+      }
+      
+      rules.value = currentRules;
+      await saveRules();
+      
+      logger.info("useModelMetadata", "合并内置配置完成", {
+        added: addedCount,
+        updated: updatedCount,
+        total: rules.value.length,
+      });
+      
+      return { added: addedCount, updated: updatedCount };
+    } catch (error) {
+      logger.error("useModelMetadata", "合并内置配置失败", error);
+      throw error;
+    }
+  }
+
+  /**
    * 获取匹配模型的元数据规则
    * @param modelId 模型 ID
    * @param provider 提供商
@@ -477,6 +522,7 @@ export function useModelMetadata() {
     deleteRule,
     toggleRule,
     resetToDefaults,
+    mergeWithDefaults,
     exportRules,
     importRules,
     sortByPriority,

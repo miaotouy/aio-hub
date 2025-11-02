@@ -6,6 +6,7 @@
         <button @click="showPresets = true" class="btn-secondary">查看预设</button>
         <button @click="handleImport" class="btn-secondary">导入配置</button>
         <button @click="handleExport" class="btn-secondary">导出配置</button>
+        <button @click="handleMerge" class="btn-secondary">合并最新配置</button>
         <button @click="handleReset" class="btn-warning">重置为默认</button>
         <button @click="handleAdd" class="btn-primary">添加配置</button>
       </div>
@@ -229,6 +230,7 @@ const {
   deleteRule: deleteConfig,
   toggleRule: toggleConfig,
   resetToDefaults,
+  mergeWithDefaults,
   exportRules: exportConfigs,
   importRules: importConfigs,
 } = useModelMetadata();
@@ -393,6 +395,7 @@ function closeEditor() {
   editingConfig.value = null;
   isNewConfig.value = false;
 }
+
 // 处理重置
 async function handleReset() {
   try {
@@ -408,6 +411,31 @@ async function handleReset() {
     }
   } catch {
     customMessage.info("操作已取消");
+  }
+}
+
+// 处理合并最新内置配置
+async function handleMerge() {
+  try {
+    await ElMessageBox.confirm(
+      "此操作将保留您的所有自定义配置，同时添加最新内置配置中的新规则。是否继续？",
+      "合并配置",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "info",
+      }
+    );
+    const result = await mergeWithDefaults();
+    if (result.added > 0) {
+      customMessage.success(`成功合并！新增了 ${result.added} 个内置规则`);
+    } else {
+      customMessage.info("没有发现新的内置规则需要添加");
+    }
+  } catch (error) {
+    if (error !== "cancel") {
+      customMessage.error("合并配置失败");
+    }
   }
 }
 

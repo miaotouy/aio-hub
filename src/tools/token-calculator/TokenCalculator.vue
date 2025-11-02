@@ -3,6 +3,7 @@
     <div class="main-wrapper">
       <!-- 顶部工具栏 -->
       <ToolBar
+        v-model:calculation-mode="calculationMode"
         v-model:selected-model-id="selectedModelId"
         :available-models="availableModels"
         @paste="pasteText"
@@ -53,6 +54,7 @@ import ResultPanel from './components/ResultPanel.vue';
 // 使用 composable
 const {
   inputText,
+  calculationMode,
   selectedModelId,
   isCalculating,
   calculationResult,

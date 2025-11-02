@@ -20,6 +20,9 @@ export interface ModelMetadataProperties {
   /** 图标路径（相对于 public 目录或绝对路径） */
   icon?: string;
   
+  /** 使用的分词器名称（用于 Token 计算） */
+  tokenizer?: string;
+  
   /** 分组名称 */
   group?: string;
   

@@ -3,7 +3,7 @@
  * 提供 Token 计算的核心业务逻辑和响应式状态管理
  */
 
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import debounce from 'lodash-es/debounce';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
@@ -15,13 +15,16 @@ const errorHandler = createModuleErrorHandler('composables/token-calculator');
 
 // ==================== 类型定义 ====================
 
+/** 计算模式 */
+export type CalculationMode = 'model' | 'tokenizer';
+
 /** Token 块（用于可视化） */
 export interface TokenBlock {
   text: string;
   index: number;
 }
 
-/** 可用的模型 */
+/** 可用的模型或分词器 */
 export interface AvailableModel {
   id: string;
   name: string;
@@ -46,7 +49,10 @@ export function useTokenCalculator() {
   /** 输入文本 */
   const inputText = ref('');
 
-  /** 选中的模型 ID */
+  /** 计算模式 */
+  const calculationMode = ref<CalculationMode>('model');
+
+  /** 选中的模型 ID 或分词器名称 */
   const selectedModelId = ref('gpt-4o');
 
   /** 是否正在计算 */
@@ -67,6 +73,17 @@ export function useTokenCalculator() {
   /** 可用模型列表 */
   const { profiles } = useLlmProfiles();
   const availableModels = computed(() => {
+    // 如果是分词器模式，返回分词器列表
+    if (calculationMode.value === 'tokenizer') {
+      const tokenizers = tokenCalculatorService.getAvailableTokenizers();
+      return tokenizers.map(t => ({
+        id: t.name,
+        name: t.description,
+        provider: '分词器',
+      }));
+    }
+
+    // 否则返回模型列表
     const models: AvailableModel[] = [];
     
     profiles.value.forEach(profile => {
@@ -124,15 +141,26 @@ export function useTokenCalculator() {
       async () => {
         isCalculating.value = true;
         
-        const result = await tokenCalculatorService.calculateTokens(
-          inputText.value,
-          selectedModelId.value
-        );
+        let result: TokenCalculationResult;
+        
+        // 根据模式选择不同的计算方法
+        if (calculationMode.value === 'tokenizer') {
+          result = await tokenCalculatorService.calculateTokensByTokenizer(
+            inputText.value,
+            selectedModelId.value
+          );
+        } else {
+          result = await tokenCalculatorService.calculateTokens(
+            inputText.value,
+            selectedModelId.value
+          );
+        }
         
         calculationResult.value = result;
         await generateTokenizedText();
         
         logger.info('Token 计算完成', {
+          mode: calculationMode.value,
           count: result.count,
           tokenizerName: result.tokenizerName,
           isEstimated: result.isEstimated,
@@ -143,6 +171,7 @@ export function useTokenCalculator() {
         userMessage: 'Token 计算失败',
         context: {
           textLength: inputText.value.length,
+          mode: calculationMode.value,
           modelId: selectedModelId.value,
         },
       }
@@ -199,6 +228,24 @@ export function useTokenCalculator() {
     return colors[index % colors.length];
   };
 
+  // ==================== 监听器 ====================
+
+  /**
+   * 监听计算模式变化，自动重置选择并重新计算
+   */
+  watch(calculationMode, (newMode) => {
+    // 切换模式时重置选择为第一个可用项
+    if (availableModels.value.length > 0) {
+      const firstItem = availableModels.value[0];
+      if (firstItem) {
+        selectedModelId.value = firstItem.id;
+      }
+    }
+    // 重新计算
+    calculateTokens();
+    logger.info('切换计算模式', { mode: newMode });
+  });
+
   /**
    * 初始化默认模型
    */
@@ -217,6 +264,7 @@ export function useTokenCalculator() {
   return {
     // 状态
     inputText,
+    calculationMode,
     selectedModelId,
     isCalculating,
     calculationResult,

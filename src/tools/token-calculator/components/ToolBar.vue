@@ -1,10 +1,19 @@
 <template>
   <div class="toolbar">
     <div class="toolbar-left">
+      <el-radio-group
+        :model-value="calculationMode"
+        @update:model-value="$emit('update:calculationMode', $event)"
+        size="small"
+      >
+        <el-radio-button value="model">按模型</el-radio-button>
+        <el-radio-button value="tokenizer">按分词器</el-radio-button>
+      </el-radio-group>
+      
       <el-select
         :model-value="selectedModelId"
         @update:model-value="$emit('update:selectedModelId', $event)"
-        placeholder="选择模型"
+        :placeholder="calculationMode === 'model' ? '选择模型' : '选择分词器'"
         size="small"
         filterable
         style="width: 250px"
@@ -42,14 +51,16 @@
 
 <script setup lang="ts">
 import { DocumentCopy, CopyDocument, Delete } from '@element-plus/icons-vue';
-import type { AvailableModel } from '@/composables/useTokenCalculator';
+import type { AvailableModel, CalculationMode } from '@/composables/useTokenCalculator';
 
 interface Props {
+  calculationMode: CalculationMode;
   selectedModelId: string;
   availableModels: AvailableModel[];
 }
 
 interface Emits {
+  (e: 'update:calculationMode', value: CalculationMode): void;
   (e: 'update:selectedModelId', value: string): void;
   (e: 'paste'): void;
   (e: 'copy'): void;

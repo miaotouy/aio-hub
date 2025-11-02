@@ -78,6 +78,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         icon?: string;
         userProfileId?: string | null;
         presetMessages?: ChatMessageNode[];
+        displayPresetCount?: number;
         parameters?: Partial<LlmParameters>;
       }
     ): string {

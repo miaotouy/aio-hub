@@ -39,6 +39,7 @@ interface Emits {
       modelId: string;
       userProfileId: string | null;
       presetMessages: ChatMessageNode[];
+      displayPresetCount: number;
       parameters: {
         temperature: number;
         maxTokens: number;
@@ -76,6 +77,7 @@ const editForm = reactive({
   modelCombo: "", // 用于 LlmModelSelector 的组合值 (profileId:modelId)
   userProfileId: null as string | null, // 绑定的用户档案 ID
   presetMessages: [] as ChatMessageNode[],
+  displayPresetCount: 0, // 显示的预设消息数量
 });
 
 // 监听对话框打开，加载数据
@@ -102,6 +104,7 @@ const loadFormData = () => {
     editForm.presetMessages = props.agent.presetMessages
       ? JSON.parse(JSON.stringify(props.agent.presetMessages))
       : [];
+    editForm.displayPresetCount = props.agent.displayPresetCount || 0;
   } else if (props.mode === "create" && props.initialData) {
     // 创建模式：使用初始数据
     editForm.name = props.initialData.name || "";
@@ -117,6 +120,7 @@ const loadFormData = () => {
     editForm.presetMessages = props.initialData.presetMessages
       ? JSON.parse(JSON.stringify(props.initialData.presetMessages))
       : [];
+    editForm.displayPresetCount = 0;
   }
 };
 
@@ -162,6 +166,7 @@ const handleSave = () => {
     modelId: editForm.modelId,
     userProfileId: editForm.userProfileId,
     presetMessages: editForm.presetMessages,
+    displayPresetCount: editForm.displayPresetCount,
     parameters,
   });
 
@@ -352,11 +357,33 @@ const handleIconClick = () => {
         <div class="form-hint">如果设置，则覆盖全局默认的用户档案</div>
       </el-form-item>
 
-      <!-- 预设消息编辑器 -->
-      <el-form-item label="预设消息">
-        <AgentPresetEditor v-model="editForm.presetMessages" height="300px" />
+      <!-- 显示预设消息数量 -->
+      <el-form-item label="显示数量">
+        <div class="slider-input-group">
+          <el-slider
+            v-model="editForm.displayPresetCount"
+            :min="0"
+            :max="16"
+            :step="1"
+            :show-tooltip="false"
+          />
+          <el-input-number
+            v-model="editForm.displayPresetCount"
+            :min="0"
+            :max="16"
+            :step="1"
+            controls-position="right"
+          />
+        </div>
+        <div class="form-hint">
+          在聊天界面显示的预设消息数量（0 表示不显示）。这些消息会作为开场白显示在聊天列表顶部。
+        </div>
       </el-form-item>
     </el-form>
+    <!-- 预设消息编辑器 -->
+    <el-form-item label="预设消息">
+      <AgentPresetEditor v-model="editForm.presetMessages" height="300px" />
+    </el-form-item>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
@@ -410,5 +437,21 @@ const handleIconClick = () => {
 
 .clickable-avatar:hover {
   opacity: 0.8;
+}
+
+/* 滑块+数字输入框组合 */
+.slider-input-group {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+}
+
+.slider-input-group .el-slider {
+  flex: 1;
+}
+
+.slider-input-group .el-input-number {
+  width: 120px;
 }
 </style>

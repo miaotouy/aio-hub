@@ -132,6 +132,8 @@ export interface ChatMessageNode {
     reasoningStartTime?: number;
     /** 推理结束时间戳 */
     reasoningEndTime?: number;
+    /** 是否为预设消息的显示副本（用于 UI 区分） */
+    isPresetDisplay?: boolean;
   };
 }
 
@@ -419,10 +421,23 @@ export interface ChatAgent {
    * 支持插入系统消息、用户示例、助手回答等，实现 Few-shot、角色扮演等高级功能。
    *
    * 特殊占位符：
-   * - 可以包含一个特殊的 role='placeholder' 节点，标记【实际会话消息】的插入位置
+   * - 可以包含一个特殊的 type='chat_history' 节点，标记【实际会话消息】的插入位置
    * - 如果没有占位符，则默认将实际会话追加在预设消息之后
    */
   presetMessages?: ChatMessageNode[];
+
+  /**
+   * 在聊天界面显示的预设消息数量
+   *
+   * 从 chat_history 占位符位置开始，向前倒数 N 条预设消息显示在聊天列表中。
+   * 这些消息作为开场白展示，类似于角色卡的问候语。
+   *
+   * - 0 或 undefined: 不显示任何预设消息（默认）
+   * - N > 0: 显示倒数 N 条预设消息
+   *
+   * 注意：只会显示 chat_history 占位符之前的 user/assistant 消息，不包括 system 消息
+   */
+  displayPresetCount?: number;
 
   /**
    * 参数配置
@@ -472,6 +487,12 @@ export interface AgentPreset {
    * 通常包含系统提示词和示例对话
    */
   presetMessages: ChatMessageNode[];
+
+  /**
+   * 在聊天界面显示的预设消息数量
+   * 从 chat_history 占位符位置开始，向前倒数 N 条预设消息显示在聊天列表中
+   */
+  displayPresetCount?: number;
 
   /**
    * 默认的模型参数

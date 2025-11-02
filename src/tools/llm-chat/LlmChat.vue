@@ -330,7 +330,7 @@ useStateSyncEngine(parametersToSync, {
         <!-- ChatArea 组件 - 仅在未分离时显示 -->
         <ChatArea
           v-if="!isChatAreaDetached"
-          :messages="store.currentActivePath"
+          :messages="store.currentActivePathWithPresets"
           :is-sending="store.isSending"
           :disabled="!store.currentSession"
           :current-agent-id="currentAgentId"

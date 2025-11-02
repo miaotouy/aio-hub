@@ -33,6 +33,7 @@ const isEditing = ref(false);
 
 // 计算属性
 const isDisabled = computed(() => props.message.isEnabled === false);
+const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
 
 // 开始编辑
 const startEdit = () => {
@@ -71,7 +72,7 @@ defineExpose({
     :class="[
       'chat-message',
       `message-${message.role}`,
-      { 'is-disabled': isDisabled }
+      { 'is-disabled': isDisabled, 'is-preset-display': isPresetDisplay }
     ]"
   >
     <MessageHeader :message="message" />

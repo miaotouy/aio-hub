@@ -8,6 +8,7 @@ import { useSessionManager } from "./composables/useSessionManager";
 import { useChatHandler } from "./composables/useChatHandler";
 import { useBranchManager } from "./composables/useBranchManager";
 import { BranchNavigator } from "./utils/BranchNavigator";
+import { useAgentStore } from "./agentStore";
 import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
@@ -78,6 +79,60 @@ export const useLlmChatStore = defineStore("llmChat", {
       }
 
       return path;
+    },
+
+    /**
+     * 带预设消息的活动路径（用于 UI 显示）
+     * 根据当前智能体的 displayPresetCount 配置，在实际会话消息前插入预设消息
+     */
+    currentActivePathWithPresets(): ChatMessageNode[] {
+      const session = this.currentSession;
+      if (!session) return [];
+
+      // 获取当前智能体配置
+      const agentStore = useAgentStore();
+      
+      if (!agentStore.currentAgentId) {
+        return this.currentActivePath;
+      }
+
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (!agent || !agent.presetMessages || !agent.displayPresetCount || agent.displayPresetCount <= 0) {
+        return this.currentActivePath;
+      }
+
+      // 找到 chat_history 占位符的位置
+      const chatHistoryIndex = agent.presetMessages.findIndex(
+        (msg: ChatMessageNode) => msg.type === 'chat_history'
+      );
+
+      if (chatHistoryIndex === -1) {
+        // 没有占位符，不显示预设消息
+        return this.currentActivePath;
+      }
+
+      // 提取占位符之前的 user/assistant 消息（不包括 system 消息）
+      const presetsBeforePlaceholder = agent.presetMessages
+        .slice(0, chatHistoryIndex)
+        .filter((msg: ChatMessageNode) =>
+          (msg.role === 'user' || msg.role === 'assistant') &&
+          msg.isEnabled !== false
+        );
+
+      // 取最后 N 条预设消息
+      const displayPresets = presetsBeforePlaceholder.slice(-agent.displayPresetCount);
+
+      // 给预设消息添加特殊标记，用于 UI 区分
+      const markedPresets = displayPresets.map((msg: ChatMessageNode) => ({
+        ...msg,
+        metadata: {
+          ...msg.metadata,
+          isPresetDisplay: true, // 标记这是用于显示的预设消息
+        },
+      }));
+
+      // 合并预设消息和实际会话消息
+      return [...markedPresets, ...this.currentActivePath];
     },
 
     /**

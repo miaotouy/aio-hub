@@ -216,6 +216,7 @@ const handleSaveAgent = (data: {
   modelId: string;
   userProfileId: string | null;
   presetMessages: ChatMessageNode[];
+  displayPresetCount: number;
   parameters: {
     temperature: number;
     maxTokens: number;
@@ -231,6 +232,7 @@ const handleSaveAgent = (data: {
       modelId: data.modelId,
       userProfileId: data.userProfileId,
       presetMessages: data.presetMessages,
+      displayPresetCount: data.displayPresetCount,
       parameters: data.parameters,
     });
   }

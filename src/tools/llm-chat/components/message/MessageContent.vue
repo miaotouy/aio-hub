@@ -5,12 +5,14 @@ import type { ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import { useChatSettings } from "../../composables/useChatSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import { useAttachmentManager } from "../../composables/useAttachmentManager";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 
 const logger = createModuleLogger("MessageContent");
+const { settings } = useChatSettings();
 
 interface Props {
   message: ChatMessageNode;
@@ -307,9 +309,9 @@ watch(
     </template>
 
     <!-- 元数据 -->
-    <div v-if="message.metadata?.usage || message.metadata?.contentTokens !== undefined || message.metadata?.error" class="message-meta">
+    <div v-if="(settings.uiPreferences.showTokenCount && (message.metadata?.usage || message.metadata?.contentTokens !== undefined)) || message.metadata?.error" class="message-meta">
       <!-- API 返回的完整 Usage 信息（助手消息） -->
-      <div v-if="message.metadata?.usage" class="usage-info">
+      <div v-if="settings.uiPreferences.showTokenCount && message.metadata?.usage" class="usage-info">
         <span>Token: {{ message.metadata.usage.totalTokens }}</span>
         <span class="usage-detail">
           (输入: {{ message.metadata.usage.promptTokens }}, 输出:
@@ -317,7 +319,7 @@ watch(
         </span>
       </div>
       <!-- 本地计算的单条消息 Token（用户消息） -->
-      <div v-else-if="message.metadata?.contentTokens !== undefined" class="usage-info">
+      <div v-else-if="settings.uiPreferences.showTokenCount && message.metadata?.contentTokens !== undefined" class="usage-info">
         <span>本条消息: {{ message.metadata.contentTokens.toLocaleString('en-US') }} tokens</span>
       </div>
       <div v-if="message.metadata?.error" class="error-info">
@@ -339,6 +341,14 @@ watch(
 <style scoped>
 .message-content {
   margin: 8px 0;
+  font-size: v-bind('settings.uiPreferences.fontSize + "px"');
+  line-height: v-bind('settings.uiPreferences.lineHeight');
+}
+
+/* 使用深度选择器强制 RichTextRenderer 继承字体设置 */
+.message-content :deep(.rich-text-renderer) {
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .message-text {
@@ -347,8 +357,6 @@ watch(
   word-wrap: break-word;
   color: var(--text-color);
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.6;
 }
 
 .streaming-indicator {

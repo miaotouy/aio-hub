@@ -5,6 +5,7 @@ import type { ChatMessageNode } from '../../types';
 import { useAgentStore } from '../../agentStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useModelMetadata } from '@/composables/useModelMetadata';
+import { useChatSettings } from '../../composables/useChatSettings';
 import Avatar from '@/components/common/Avatar.vue';
 
 interface Props {
@@ -16,6 +17,7 @@ const props = defineProps<Props>();
 const agentStore = useAgentStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
+const { settings } = useChatSettings();
 
 // 获取消息关联的智能体信息
 const agent = computed(() => {
@@ -96,9 +98,11 @@ const displayIcon = computed(() => {
   }
 });
 
-// 检查是否应该显示副标题
+// 检查是否应该显示副标题（基于设置和数据可用性）
 const shouldShowSubtitle = computed(() => {
-  return props.message.role === 'assistant' && !!agentProfileInfo.value;
+  return settings.value.uiPreferences.showModelInfo &&
+         props.message.role === 'assistant' &&
+         !!agentProfileInfo.value;
 });
 </script>
 
@@ -149,7 +153,7 @@ const shouldShowSubtitle = computed(() => {
       <span class="generating-text">生成中</span>
     </div>
     
-    <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+    <span v-if="settings.uiPreferences.showTimestamp" class="message-time">{{ formatTime(message.timestamp) }}</span>
   </div>
 </template>
 

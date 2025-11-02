@@ -3,6 +3,7 @@ import { ref, watch, nextTick } from 'vue';
 import type { ChatMessageNode } from '../../types';
 import type { Asset } from '@/types/asset-management';
 import { useLlmChatStore } from '../../store';
+import { useChatSettings } from '../../composables/useChatSettings';
 import ChatMessage from './ChatMessage.vue';
 
 interface Props {
@@ -24,6 +25,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
+const { settings } = useChatSettings();
 
 // 为每条消息计算兄弟节点信息
 const getMessageSiblings = (messageId: string) => {
@@ -40,6 +42,10 @@ const messagesContainer = ref<HTMLElement>();
 
 // 自动滚动到底部
 const scrollToBottom = () => {
+  if (!settings.value.uiPreferences.autoScroll) {
+    return;
+  }
+  
   nextTick(() => {
     if (messagesContainer.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;

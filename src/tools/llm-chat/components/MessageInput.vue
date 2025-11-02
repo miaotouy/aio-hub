@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef } from "vue";
+import { ref, toRef, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip } from "element-plus";
 import { useDetachable } from "@/composables/useDetachable";
@@ -7,6 +7,7 @@ import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
 import { useLlmChatStore } from "@/tools/llm-chat/store";
+import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
@@ -17,6 +18,7 @@ const logger = createModuleLogger("MessageInput");
 
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
+const { settings } = useChatSettings();
 
 // 切换流式输出模式
 const toggleStreaming = () => {
@@ -120,14 +122,36 @@ const handleSend = () => {
 const handleAbort = () => {
   emit("abort");
 };
-// 处理键盘事件
+// 处理键盘事件（根据设置动态处理）
 const handleKeydown = (e: KeyboardEvent) => {
-  // Ctrl/Cmd + Enter 发送
-  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-    e.preventDefault();
-    handleSend();
+  const sendKey = settings.value.shortcuts.send;
+  
+  // 检查是否按下发送快捷键
+  if (sendKey === 'ctrl+enter') {
+    // Ctrl/Cmd + Enter 发送
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleSend();
+    }
+  } else if (sendKey === 'enter') {
+    // 单独 Enter 发送，Shift + Enter 换行
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   }
 };
+
+// 计算 placeholder 文本（根据快捷键设置动态显示）
+const placeholderText = computed(() => {
+  if (props.disabled) {
+    return '请先创建或选择一个对话';
+  }
+  
+  const sendKey = settings.value.shortcuts.send;
+  const sendHint = sendKey === 'ctrl+enter' ? 'Ctrl/Cmd + Enter 发送' : 'Enter 发送, Shift + Enter 换行';
+  return `输入消息、拖入或粘贴文件... (${sendHint})`;
+});
 
 // 自动调整文本框高度
 const autoResize = () => {
@@ -285,11 +309,7 @@ const handleDetach = async () => {
             ref="textareaRef"
             v-model="inputText"
             :disabled="disabled"
-            :placeholder="
-              disabled
-                ? '请先创建或选择一个对话'
-                : '输入消息、拖入或粘贴文件... (Ctrl/Cmd + Enter 发送)'
-            "
+            :placeholder="placeholderText"
             class="message-textarea"
             rows="1"
             @keydown="handleKeydown"

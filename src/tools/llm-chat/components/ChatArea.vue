@@ -12,6 +12,8 @@ import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
 import MessageInput from "./MessageInput.vue";
 import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
+import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
+import { Setting } from "@element-plus/icons-vue";
 
 const logger = createModuleLogger("ChatArea");
 
@@ -53,12 +55,14 @@ import { useAgentStore } from "../agentStore";
 import { useUserProfileStore } from "../userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
+import { useChatSettings } from "../composables/useChatSettings";
 import Avatar from '@/components/common/Avatar.vue';
 import DynamicIcon from '@/components/common/DynamicIcon.vue';
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
+const { loadSettings } = useChatSettings();
 
 // 当前智能体信息
 const currentAgent = computed(() => {
@@ -145,6 +149,9 @@ const handleDragStart = (e: MouseEvent) => {
 
 // ===== 用户档案编辑 =====
 const showEditProfileDialog = ref(false);
+
+// ===== 聊天设置 =====
+const showChatSettings = ref(false);
 
 const handleEditUserProfile = () => {
   if (effectiveUserProfile.value) {
@@ -250,7 +257,11 @@ const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
 const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载聊天设置
+  await loadSettings();
+  logger.info('聊天设置已加载');
+  
   logger.info("ChatArea mounted", {
     props: {
       messages: props.messages?.length,
@@ -322,6 +333,15 @@ onMounted(() => {
           />
         </div>
       </el-tooltip>
+
+      <!-- 设置按钮 -->
+      <el-tooltip content="聊天设置" placement="bottom">
+        <div class="settings-button" @click="showChatSettings = true">
+          <el-icon :size="18">
+            <Setting />
+          </el-icon>
+        </div>
+      </el-tooltip>
     </div>
 
     <!-- 主内容区 -->
@@ -369,6 +389,12 @@ onMounted(() => {
       :profile="effectiveUserProfile || null"
       @update:visible="showEditProfileDialog = $event"
       @save="handleSaveUserProfile"
+    />
+
+    <!-- 聊天设置对话框 -->
+    <ChatSettingsDialog
+      :visible="showChatSettings"
+      @update:visible="showChatSettings = $event"
     />
   </div>
 </template>
@@ -462,6 +488,32 @@ onMounted(() => {
 }
 
 .user-profile-info:active {
+  background-color: var(--el-fill-color);
+  transform: translateY(0);
+}
+
+/* 设置按钮 */
+.settings-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+  color: var(--text-color-secondary);
+}
+
+.settings-button:hover {
+  background-color: var(--el-fill-color-light);
+  color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.settings-button:active {
   background-color: var(--el-fill-color);
   transform: translateY(0);
 }

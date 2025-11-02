@@ -327,6 +327,17 @@ export interface LlmParameters {
   claudeMetadata?: {
     user_id?: string;
   };
+
+  // ===== 上下文管理 =====
+  /** 上下文管理配置 */
+  contextManagement?: {
+    /** 是否启用最大上下文限制 */
+    enabled: boolean;
+    /** 最大上下文 Token 数（0 表示不限制，使用模型的默认上限） */
+    maxContextTokens: number;
+    /** 截断消息时保留的字符数（让消息有简略开头，避免完全被削去） */
+    retainedCharacters: number;
+  };
 }
 
 /**

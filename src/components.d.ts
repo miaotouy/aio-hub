@@ -23,6 +23,7 @@ declare module 'vue' {
     IEpArrowRight: typeof import('~icons/ep/arrow-right')['default']
     IEpChatLineRound: typeof import('~icons/ep/chat-line-round')['default']
     IEpCheck: typeof import('~icons/ep/check')['default']
+    IEpDocument: typeof import('~icons/ep/document')['default']
     IEpFullScreen: typeof import('~icons/ep/full-screen')['default']
     IEpHomeFilled: typeof import('~icons/ep/home-filled')['default']
     IEpLoading: typeof import('~icons/ep/loading')['default']

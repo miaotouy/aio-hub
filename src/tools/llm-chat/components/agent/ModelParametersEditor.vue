@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import type { LlmParameters } from '../../types';
-import type { ProviderType, LlmParameterSupport } from '@/types/llm-profiles';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { useLlmChatUiState } from '../../composables/useLlmChatUiState';
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import type { LlmParameters } from "../../types";
+import type { ProviderType, LlmParameterSupport } from "@/types/llm-profiles";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
+import { useLlmChatStore } from "../../store";
+import { useChatHandler } from "../../composables/useChatHandler";
+import type { ContextPreviewData } from "../../composables/useChatHandler";
 
 /**
  * 模型参数编辑器组件
@@ -23,7 +26,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: LlmParameters): void;
+  (e: "update:modelValue", value: LlmParameters): void;
 }>();
 
 const { getSupportedParameters } = useLlmProfiles();
@@ -43,9 +46,13 @@ const supportedParameters = computed<LlmParameterSupport>(() => {
 const localParams = ref<LlmParameters>({ ...props.modelValue });
 
 // 监听外部值变化
-watch(() => props.modelValue, (newVal) => {
-  localParams.value = { ...newVal };
-}, { deep: true });
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    localParams.value = { ...newVal };
+  },
+  { deep: true }
+);
 
 // 更新参数的通用方法
 const updateParameter = <K extends keyof LlmParameters>(key: K, value: LlmParameters[K]) => {
@@ -53,42 +60,113 @@ const updateParameter = <K extends keyof LlmParameters>(key: K, value: LlmParame
     ...localParams.value,
     [key]: value,
   };
-  emit('update:modelValue', localParams.value);
+  emit("update:modelValue", localParams.value);
 };
 // 折叠状态管理 - 使用 useLlmChatUiState
-const {
-  basicParamsExpanded,
-  advancedParamsExpanded,
-  specialFeaturesExpanded
-} = useLlmChatUiState();
+const { basicParamsExpanded, advancedParamsExpanded, specialFeaturesExpanded } =
+  useLlmChatUiState();
+
+// 上下文管理折叠状态（局部状态）
+const contextManagementExpanded = ref(true);
+
+// 上下文统计数据
+const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
+const isLoadingStats = ref(false);
+
+// 获取当前会话的上下文统计
+const loadContextStats = async () => {
+  const chatStore = useLlmChatStore();
+  const session = chatStore.currentSession;
+
+  if (!session || !session.activeLeafId) {
+    contextStats.value = null;
+    return;
+  }
+
+  isLoadingStats.value = true;
+  try {
+    const { getLlmContextForPreview } = useChatHandler();
+    const previewData = await getLlmContextForPreview(session, session.activeLeafId);
+
+    if (previewData) {
+      contextStats.value = previewData.statistics;
+    }
+  } catch (error) {
+    console.warn("获取上下文统计失败", error);
+    contextStats.value = null;
+  } finally {
+    isLoadingStats.value = false;
+  }
+};
+
+// 定时刷新上下文统计（每5秒）
+let refreshTimer: NodeJS.Timeout | null = null;
+
+onMounted(() => {
+  loadContextStats();
+  // 设置定时刷新
+  refreshTimer = setInterval(() => {
+    loadContextStats();
+  }, 5000);
+});
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+});
+
+// 监听会话变化，重新加载统计
+const chatStore = useLlmChatStore();
+watch(
+  () => chatStore.currentSessionId,
+  () => {
+    loadContextStats();
+  }
+);
+
+// 监听活跃叶节点变化
+watch(
+  () => chatStore.currentSession?.activeLeafId,
+  () => {
+    loadContextStats();
+  }
+);
 
 // 切换折叠状态
-const toggleSection = (section: 'basic' | 'advanced' | 'special') => {
-  if (section === 'basic') {
+const toggleSection = (section: "basic" | "advanced" | "special" | "context") => {
+  if (section === "basic") {
     basicParamsExpanded.value = !basicParamsExpanded.value;
-  } else if (section === 'advanced') {
+  } else if (section === "advanced") {
     advancedParamsExpanded.value = !advancedParamsExpanded.value;
-  } else if (section === 'special') {
+  } else if (section === "special") {
     specialFeaturesExpanded.value = !specialFeaturesExpanded.value;
+  } else if (section === "context") {
+    contextManagementExpanded.value = !contextManagementExpanded.value;
   }
 };
 
 // 检查是否有高级参数
 const hasAdvancedParams = computed(() => {
-  return supportedParameters.value.seed ||
+  return (
+    supportedParameters.value.seed ||
     supportedParameters.value.stop ||
     supportedParameters.value.maxCompletionTokens ||
     supportedParameters.value.reasoningEffort ||
     supportedParameters.value.logprobs ||
-    supportedParameters.value.topLogprobs;
+    supportedParameters.value.topLogprobs
+  );
 });
 
 // 检查是否有特殊功能
 const hasSpecialFeatures = computed(() => {
-  return supportedParameters.value.thinking ||
+  return (
+    supportedParameters.value.thinking ||
     supportedParameters.value.webSearch ||
     supportedParameters.value.tools ||
-    supportedParameters.value.responseFormat;
+    supportedParameters.value.responseFormat
+  );
 });
 
 // 计算 maxTokens 滑块的最大值
@@ -98,12 +176,27 @@ const maxTokensLimit = computed(() => {
 });
 
 // 监听上下文限制变化，自动调整 maxTokens 值
-watch(() => props.contextLengthLimit, (newLimit) => {
-  if (newLimit && localParams.value.maxTokens > newLimit) {
-    // 如果当前值超过了新的限制，自动调整到最大值
-    updateParameter('maxTokens', newLimit);
+watch(
+  () => props.contextLengthLimit,
+  (newLimit) => {
+    if (newLimit && localParams.value.maxTokens > newLimit) {
+      // 如果当前值超过了新的限制，自动调整到最大值
+      updateParameter("maxTokens", newLimit);
+    }
+
+    // 同时检查上下文管理的 maxContextTokens 是否超限
+    if (
+      newLimit &&
+      localParams.value.contextManagement?.maxContextTokens &&
+      localParams.value.contextManagement.maxContextTokens > newLimit
+    ) {
+      updateParameter("contextManagement", {
+        ...localParams.value.contextManagement,
+        maxContextTokens: newLimit,
+      });
+    }
   }
-});
+);
 </script>
 
 <template>
@@ -146,7 +239,9 @@ watch(() => props.contextLengthLimit, (newLimit) => {
             :step="0.01"
             :show-tooltip="false"
           />
-          <div class="param-desc">控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。</div>
+          <div class="param-desc">
+            控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。
+          </div>
         </div>
 
         <!-- Max Tokens -->
@@ -173,7 +268,9 @@ watch(() => props.contextLengthLimit, (newLimit) => {
           />
           <div class="param-desc">
             单次响应的最大 token 数量。
-            <span v-if="contextLengthLimit" class="limit-hint">（受模型上下文窗口限制: {{ contextLengthLimit.toLocaleString() }}）</span>
+            <span v-if="contextLengthLimit" class="limit-hint"
+              >（受模型上下文窗口限制: {{ contextLengthLimit.toLocaleString() }}）</span
+            >
           </div>
         </div>
 
@@ -318,8 +415,17 @@ watch(() => props.contextLengthLimit, (newLimit) => {
             <span>Stop Sequences</span>
           </label>
           <el-input
-            :model-value="Array.isArray(localParams.stop) ? localParams.stop.join(', ') : (localParams.stop ?? '')"
-            @update:model-value="updateParameter('stop', $event ? $event.split(',').map((s: string) => s.trim()) : undefined)"
+            :model-value="
+              Array.isArray(localParams.stop)
+                ? localParams.stop.join(', ')
+                : (localParams.stop ?? '')
+            "
+            @update:model-value="
+              updateParameter(
+                'stop',
+                $event ? $event.split(',').map((s: string) => s.trim()) : undefined
+              )
+            "
             placeholder="用逗号分隔多个序列"
           />
           <div class="param-desc">停止序列，模型遇到这些文本时会停止生成。</div>
@@ -400,6 +506,226 @@ watch(() => props.contextLengthLimit, (newLimit) => {
       </div>
     </div>
 
+    <!-- 上下文管理分组 -->
+    <div class="param-section">
+      <div
+        class="param-section-header clickable"
+        @click="toggleSection('context')"
+        :title="contextManagementExpanded ? '点击折叠' : '点击展开'"
+      >
+        <div class="section-title-wrapper">
+          <i-ep-document class="section-icon" />
+          <span class="param-section-title">上下文管理</span>
+        </div>
+        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: contextManagementExpanded }" />
+      </div>
+
+      <div class="param-section-content" :class="{ collapsed: !contextManagementExpanded }">
+        <!-- 当前上下文统计 -->
+        <div v-if="contextStats" class="context-stats-card">
+          <div class="stats-title">
+            <span>当前上下文使用情况</span>
+            <el-tag v-if="contextStats.tokenizerName" size="small" type="info">
+              {{ contextStats.isEstimated ? "估算" : "精确" }} - {{ contextStats.tokenizerName }}
+            </el-tag>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item primary">
+              <div class="stat-label">总计</div>
+              <div class="stat-value">
+                <template v-if="contextStats.totalTokenCount !== undefined">
+                  {{ contextStats.totalTokenCount.toLocaleString() }} tokens
+                  <span class="char-hint"
+                    >{{ contextStats.totalCharCount.toLocaleString() }} 字符</span
+                  >
+                </template>
+                <template v-else>
+                  {{ contextStats.totalCharCount.toLocaleString() }} 字符
+                </template>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">系统提示</div>
+              <div class="stat-value">
+                <template v-if="contextStats.systemPromptTokenCount !== undefined">
+                  {{ contextStats.systemPromptTokenCount.toLocaleString() }} tokens
+                </template>
+                <template v-else>
+                  {{ contextStats.systemPromptCharCount.toLocaleString() }} 字符
+                </template>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">预设消息</div>
+              <div class="stat-value">
+                <template v-if="contextStats.presetMessagesTokenCount !== undefined">
+                  {{ contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
+                </template>
+                <template v-else>
+                  {{ contextStats.presetMessagesCharCount.toLocaleString() }} 字符
+                </template>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">会话历史</div>
+              <div class="stat-value">
+                <template v-if="contextStats.chatHistoryTokenCount !== undefined">
+                  {{ contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
+                </template>
+                <template v-else>
+                  {{ contextStats.chatHistoryCharCount.toLocaleString() }} 字符
+                </template>
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="
+              localParams.contextManagement?.enabled &&
+              localParams.contextManagement.maxContextTokens > 0
+            "
+            class="usage-bar"
+          >
+            <div class="usage-label">
+              <span>使用率</span>
+              <span class="usage-percent">
+                {{
+                  contextStats.totalTokenCount !== undefined
+                    ? Math.round(
+                        (contextStats.totalTokenCount /
+                          localParams.contextManagement.maxContextTokens) *
+                          100
+                      )
+                    : 0
+                }}%
+              </span>
+            </div>
+            <el-progress
+              :percentage="
+                contextStats.totalTokenCount !== undefined
+                  ? Math.min(
+                      100,
+                      Math.round(
+                        (contextStats.totalTokenCount /
+                          localParams.contextManagement.maxContextTokens) *
+                          100
+                      )
+                    )
+                  : 0
+              "
+              :color="
+                contextStats.totalTokenCount !== undefined &&
+                contextStats.totalTokenCount > localParams.contextManagement.maxContextTokens
+                  ? '#F56C6C'
+                  : contextStats.totalTokenCount !== undefined &&
+                      contextStats.totalTokenCount >
+                        localParams.contextManagement.maxContextTokens * 0.8
+                    ? '#E6A23C'
+                    : '#67C23A'
+              "
+              :show-text="false"
+            />
+          </div>
+        </div>
+
+        <!-- 启用上下文限制 -->
+        <div class="param-group">
+          <label class="param-label">
+            <span>启用上下文限制</span>
+            <el-switch
+              :model-value="localParams.contextManagement?.enabled ?? false"
+              @update:model-value="
+                updateParameter('contextManagement', {
+                  enabled: $event,
+                  maxContextTokens: localParams.contextManagement?.maxContextTokens ?? 4096,
+                  retainedCharacters: localParams.contextManagement?.retainedCharacters ?? 200,
+                })
+              "
+            />
+          </label>
+          <div class="param-desc">
+            启用后，会在发送前截断过长的会话历史，防止超出模型上下文窗口。
+          </div>
+        </div>
+
+        <!-- 最大上下文 Token 数 -->
+        <div v-if="localParams.contextManagement?.enabled" class="param-group">
+          <label class="param-label">
+            <span>最大上下文 Token 数</span>
+            <el-input-number
+              :model-value="localParams.contextManagement?.maxContextTokens ?? 4096"
+              @update:model-value="
+                updateParameter('contextManagement', {
+                  ...localParams.contextManagement!,
+                  maxContextTokens: $event || 0,
+                })
+              "
+              :min="0"
+              :max="contextLengthLimit || 1000000"
+              :step="512"
+              :controls="false"
+              class="param-input"
+            />
+          </label>
+          <el-slider
+            :model-value="localParams.contextManagement?.maxContextTokens ?? 4096"
+            @update:model-value="
+              updateParameter('contextManagement', {
+                ...localParams.contextManagement!,
+                maxContextTokens: $event,
+              })
+            "
+            :min="0"
+            :max="Math.min(contextLengthLimit || 256000, 256000)"
+            :step="512"
+            :show-tooltip="false"
+          />
+          <div class="param-desc">
+            会话历史的最大 Token 数量（0 = 不限制，使用模型默认上限）。
+            <span v-if="contextLengthLimit" class="limit-hint">
+              （当前模型上限: {{ contextLengthLimit.toLocaleString() }}）
+            </span>
+          </div>
+        </div>
+
+        <!-- 截断保留字符数 -->
+        <div v-if="localParams.contextManagement?.enabled" class="param-group">
+          <label class="param-label">
+            <span>截断保留字符数</span>
+            <el-input-number
+              :model-value="localParams.contextManagement?.retainedCharacters ?? 200"
+              @update:model-value="
+                updateParameter('contextManagement', {
+                  ...localParams.contextManagement!,
+                  retainedCharacters: $event || 0,
+                })
+              "
+              :min="0"
+              :max="300"
+              :step="10"
+              :controls="false"
+              class="param-input"
+            />
+          </label>
+          <el-slider
+            :model-value="localParams.contextManagement?.retainedCharacters ?? 200"
+            @update:model-value="
+              updateParameter('contextManagement', {
+                ...localParams.contextManagement!,
+                retainedCharacters: $event,
+              })
+            "
+            :min="0"
+            :max="300"
+            :step="10"
+            :show-tooltip="false"
+          />
+          <div class="param-desc">
+            截断消息时保留的开头字符数。0 表示完全删除，推荐 100-200 让消息保留简略开头。
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 特殊功能分组 -->
     <div v-if="hasSpecialFeatures" class="param-section">
       <div
@@ -421,7 +747,9 @@ watch(() => props.contextLengthLimit, (newLimit) => {
             <span>Thinking Mode (Claude)</span>
             <el-switch
               :model-value="localParams.thinking?.type === 'enabled'"
-              @update:model-value="updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })"
+              @update:model-value="
+                updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })
+              "
             />
           </label>
           <div class="param-desc">启用 Claude 的思考模式，模型会先思考再回答。</div>
@@ -454,7 +782,8 @@ watch(() => props.contextLengthLimit, (newLimit) => {
   align-items: center;
   margin-bottom: 12px;
   padding: 10px 14px;
-  background: linear-gradient(135deg,
+  background: linear-gradient(
+    135deg,
     color-mix(in srgb, var(--primary-color) 3%, transparent),
     color-mix(in srgb, var(--primary-color) 1%, transparent)
   );
@@ -466,7 +795,7 @@ watch(() => props.contextLengthLimit, (newLimit) => {
 }
 
 .param-section-header::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0;
@@ -483,7 +812,8 @@ watch(() => props.contextLengthLimit, (newLimit) => {
 }
 
 .param-section-header.clickable:hover {
-  background: linear-gradient(135deg,
+  background: linear-gradient(
+    135deg,
     color-mix(in srgb, var(--primary-color) 8%, transparent),
     color-mix(in srgb, var(--primary-color) 4%, transparent)
   );
@@ -555,6 +885,100 @@ watch(() => props.contextLengthLimit, (newLimit) => {
   opacity: 1;
 }
 
+/* 上下文统计卡片 */
+.context-stats-card {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary-color) 2%, transparent),
+    color-mix(in srgb, var(--primary-color) 1%, transparent)
+  );
+  border: 1px solid var(--border-color-light);
+  border-radius: 8px;
+}
+
+.stats-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-item {
+  padding: 10px;
+  background-color: var(--container-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border-color-light);
+}
+
+.stat-item.primary {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-success) 8%, transparent),
+    color-mix(in srgb, var(--el-color-success) 4%, transparent)
+  );
+  border-color: var(--el-color-success);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-item.primary .stat-value {
+  font-size: 16px;
+  color: var(--el-color-success);
+}
+
+.char-hint {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-color-secondary);
+}
+
+.usage-bar {
+  margin-top: 12px;
+}
+
+.usage-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-color-secondary);
+}
+
+.usage-percent {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.limit-hint {
+  color: var(--text-color-secondary);
+  font-size: 11px;
+}
 .param-section-content.collapsed {
   max-height: 0;
   opacity: 0;

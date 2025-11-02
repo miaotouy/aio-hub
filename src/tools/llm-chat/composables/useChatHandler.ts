@@ -284,6 +284,176 @@ export function useChatHandler() {
   };
 
   /**
+   * 应用上下文 Token 限制，截断会话历史
+   */
+  const applyContextLimit = async (
+    sessionContext: Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>,
+    systemPrompt: string | undefined,
+    presetMessages: Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>,
+    contextManagement: { enabled: boolean; maxContextTokens: number; retainedCharacters: number },
+    modelId: string
+  ): Promise<Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>> => {
+    const { maxContextTokens, retainedCharacters } = contextManagement;
+
+    // 计算系统提示的 token 数
+    let systemPromptTokens = 0;
+    if (systemPrompt) {
+      try {
+        const result = await tokenCalculatorService.calculateTokens(systemPrompt, modelId);
+        systemPromptTokens = result.count;
+      } catch (error) {
+        logger.warn('计算系统提示 token 失败', { error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+
+    // 计算预设消息的 token 数（并行计算）
+    const presetTokenResults = await Promise.all(
+      presetMessages.map(async (msg) => {
+        try {
+          const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+          const result = await tokenCalculatorService.calculateTokens(content, modelId);
+          return result.count;
+        } catch (error) {
+          logger.warn('计算预设消息 token 失败', { error: error instanceof Error ? error.message : String(error) });
+          return 0;
+        }
+      })
+    );
+    const presetMessagesTokens = presetTokenResults.reduce((sum, count) => sum + count, 0);
+
+    // 计算可用于会话历史的 token 数量
+    const availableTokens = maxContextTokens - systemPromptTokens - presetMessagesTokens;
+
+    logger.info('📊 上下文限制检查', {
+      maxContextTokens,
+      systemPromptTokens,
+      presetMessagesTokens,
+      availableTokens,
+      sessionMessageCount: sessionContext.length,
+    });
+
+    if (availableTokens <= 0) {
+      logger.warn('⚠️ 预设消息和系统提示已超出最大上下文限制，会话历史将被完全截断', {
+        systemPromptTokens,
+        presetMessagesTokens,
+        maxContextTokens,
+      });
+      return [];
+    }
+
+    // 计算每条会话消息的 token 数
+    const messagesWithTokens = await Promise.all(
+      sessionContext.map(async (msg, index) => {
+        let tokenCount = 0;
+        try {
+          let content = '';
+          if (typeof msg.content === 'string') {
+            content = msg.content;
+          } else {
+            // 对于多模态内容，只计算文本部分的 token
+            for (const part of msg.content) {
+              if (part.type === 'text' && part.text) {
+                content += part.text;
+              }
+            }
+          }
+          const result = await tokenCalculatorService.calculateTokens(content, modelId);
+          tokenCount = result.count;
+        } catch (error) {
+          logger.warn('计算消息 token 失败', {
+            index,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+        return {
+          ...msg,
+          tokenCount,
+          index,
+        };
+      })
+    );
+
+    // 从最新的消息开始保留，直到达到 token 限制
+    let totalTokens = 0;
+    const keptIndices = new Set<number>();
+    const truncatedIndices = new Set<number>();
+
+    // 从后往前（最新到最旧）遍历消息
+    for (let i = messagesWithTokens.length - 1; i >= 0; i--) {
+      const msg = messagesWithTokens[i];
+      if (totalTokens + msg.tokenCount <= availableTokens) {
+        totalTokens += msg.tokenCount;
+        keptIndices.add(i);
+      } else {
+        truncatedIndices.add(i);
+      }
+    }
+
+    logger.info('✂️ 上下文截断结果', {
+      totalMessages: sessionContext.length,
+      keptMessages: keptIndices.size,
+      truncatedMessages: truncatedIndices.size,
+      usedTokens: totalTokens,
+      availableTokens,
+    });
+
+    // 构建结果：对于被截断的消息，保留指定的字符数
+    const result = messagesWithTokens.map((msg, index) => {
+      if (keptIndices.has(index)) {
+        // 完整保留
+        return {
+          role: msg.role,
+          content: msg.content,
+        };
+      } else {
+        // 截断处理
+        let truncatedContent: string | LlmMessageContent[];
+        
+        if (typeof msg.content === 'string') {
+          // 纯文本消息
+          if (retainedCharacters > 0 && msg.content.length > retainedCharacters) {
+            truncatedContent = msg.content.substring(0, retainedCharacters) + '...[已截断]';
+          } else if (retainedCharacters > 0) {
+            truncatedContent = msg.content + '[已截断]';
+          } else {
+            truncatedContent = '[消息已截断]';
+          }
+        } else {
+          // 多模态消息：保留结构，但截断文本部分
+          truncatedContent = msg.content.map(part => {
+            if (part.type === 'text' && part.text) {
+              let text = part.text;
+              if (retainedCharacters > 0 && text.length > retainedCharacters) {
+                text = text.substring(0, retainedCharacters) + '...[已截断]';
+              } else if (retainedCharacters > 0) {
+                text = text + '[已截断]';
+              } else {
+                text = '[消息已截断]';
+              }
+              return { ...part, text };
+            }
+            return part;
+          });
+        }
+
+        logger.debug('截断消息', {
+          index,
+          role: msg.role,
+          originalLength: typeof msg.content === 'string' ? msg.content.length : 'multimodal',
+          retainedCharacters,
+        });
+
+        return {
+          role: msg.role,
+          content: truncatedContent,
+        };
+      }
+    });
+
+    return result;
+  };
+
+  /**
    * 构建 LLM 上下文
    * 从活动路径和智能体配置中提取系统提示、对话历史和当前消息
    * @param effectiveUserProfile 当前生效的用户档案（可选）
@@ -448,12 +618,41 @@ export function useChatHandler() {
     }
 
     // 会话上下文（完整历史，不再单独处理最后一条）
-    const sessionContext = llmContext;
+    let sessionContext = llmContext;
 
     // 查找历史消息占位符
     const chatHistoryPlaceholderIndex = enabledPresets.findIndex(
       (msg: any) => msg.type === 'chat_history'
     );
+
+    // 准备预设对话（用于 token 计算）
+    const presetConversation: Array<{
+      role: 'user' | 'assistant';
+      content: string | LlmMessageContent[];
+    }> = enabledPresets
+      .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
+      .map((msg: any) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      }));
+
+    // 应用上下文 Token 限制（如果启用）
+    if (agentConfig.parameters.contextManagement?.enabled &&
+        agentConfig.parameters.contextManagement.maxContextTokens > 0) {
+      logger.info('🔍 开始应用上下文限制', {
+        enabled: agentConfig.parameters.contextManagement.enabled,
+        maxContextTokens: agentConfig.parameters.contextManagement.maxContextTokens,
+        retainedCharacters: agentConfig.parameters.contextManagement.retainedCharacters,
+      });
+
+      sessionContext = await applyContextLimit(
+        sessionContext,
+        systemPrompt,
+        presetConversation,
+        agentConfig.parameters.contextManagement,
+        agentConfig.modelId
+      );
+    }
 
     let messages: Array<{
       role: 'user' | 'assistant';
@@ -498,16 +697,6 @@ export function useChatHandler() {
       });
     } else {
       // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后
-      const presetConversation: Array<{
-        role: 'user' | 'assistant';
-        content: string | LlmMessageContent[];
-      }> = enabledPresets
-        .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
-        .map((msg: any) => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        }));
-
       messages = [
         ...presetConversation,
         ...sessionContext,

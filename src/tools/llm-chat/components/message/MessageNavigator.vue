@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from "vue";
 import { useScroll, useThrottleFn, useResizeObserver } from "@vueuse/core";
-import { ArrowUp, ArrowDown } from "@element-plus/icons-vue";
+import { ArrowUp, ArrowDown, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 
 interface Props {
   /** 滚动容器的引用 */
@@ -13,6 +13,7 @@ interface Props {
 }
 
 interface Emits {
+  (e: "scroll-to-top"): void;
   (e: "scroll-to-bottom"): void;
   (e: "scroll-to-next"): void;
   (e: "scroll-to-prev"): void;
@@ -80,6 +81,7 @@ const canScrollUp = computed(() => !arrivedState.top);
 const canScrollDown = computed(() => !arrivedState.bottom);
 
 // 节流的滚动处理
+const handleScrollToTop = useThrottleFn(() => emit("scroll-to-top"), 300);
 const handleScrollToBottom = useThrottleFn(() => emit("scroll-to-bottom"), 300);
 const handleScrollToNext = useThrottleFn(() => emit("scroll-to-next"), 200);
 const handleScrollToPrev = useThrottleFn(() => emit("scroll-to-prev"), 200);
@@ -107,6 +109,18 @@ const handleMouseLeave = () => {
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
     >
+      <!-- 到顶按钮 -->
+      <div
+        class="nav-button nav-button-jump"
+        :class="{ disabled: !canScrollUp }"
+        :title="canScrollUp ? '跳转到顶部' : '已在顶部'"
+        @click="handleScrollToTop"
+      >
+        <el-icon :size="14" style="transform: rotate(90deg)">
+          <DArrowLeft />
+        </el-icon>
+      </div>
+
       <!-- 向上按钮 -->
       <div
         class="nav-button"
@@ -139,10 +153,23 @@ const handleMouseLeave = () => {
         class="nav-button"
         :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
         :title="canScrollDown ? '下一条消息 (↓)' : '已在底部'"
-        @click="canScrollDown ? handleScrollToNext() : handleScrollToBottom()"
+        @click="handleScrollToNext"
       >
         <el-icon :size="14">
           <ArrowDown />
+        </el-icon>
+        <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
+      </div>
+
+      <!-- 到底按钮 -->
+      <div
+        class="nav-button nav-button-jump"
+        :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
+        :title="canScrollDown ? '跳转到底部' : '已在底部'"
+        @click="handleScrollToBottom"
+      >
+        <el-icon :size="14" style="transform: rotate(90deg)">
+          <DArrowRight />
         </el-icon>
         <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
       </div>
@@ -228,6 +255,18 @@ const handleMouseLeave = () => {
 .nav-button.disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* 跳转按钮样式 */
+.nav-button-jump {
+  background: var(--el-fill-color);
+  border: 1px solid var(--el-border-color-light);
+}
+
+.nav-button-jump:hover:not(.disabled) {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
 }
 
 /* 新消息圆点 */

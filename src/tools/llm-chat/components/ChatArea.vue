@@ -373,6 +373,11 @@ watch(
 );
 
 // 导航器事件处理
+const handleScrollToTop = () => {
+  hasNewMessages.value = false;
+  messageListRef.value?.scrollToTop();
+};
+
 const handleScrollToBottom = () => {
   hasNewMessages.value = false;
   messageListRef.value?.scrollToBottom();
@@ -497,6 +502,7 @@ onMounted(async () => {
           :scroll-element="scrollElement"
           :message-count="finalMessages.length"
           :has-new-messages="hasNewMessages"
+          @scroll-to-top="handleScrollToTop"
           @scroll-to-bottom="handleScrollToBottom"
           @scroll-to-next="handleScrollToNext"
           @scroll-to-prev="handleScrollToPrev"

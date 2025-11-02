@@ -168,6 +168,12 @@ export const useLlmChatStore = defineStore("llmChat", {
         const session = state.sessions.find((s) => s.id === state.currentSessionId);
         if (!session) return [];
 
+        // 预设消息（带 preset- 前缀的 ID）不在会话节点树中，返回空数组
+        if (nodeId.startsWith('preset-')) {
+          logger.warn('尝试获取预设消息的兄弟节点', { nodeId });
+          return [];
+        }
+
         const { getSiblings } = useBranchManager();
         return getSiblings(session, nodeId);
       },
@@ -513,23 +519,50 @@ export const useLlmChatStore = defineStore("llmChat", {
 
     /**
      /**
-      * 编辑消息（原地修改内容和附件）
-      */
-     editMessage(nodeId: string, newContent: string, attachments?: Asset[]): void {
-       const session = this.currentSession;
-       if (!session) {
-         logger.warn("编辑消息失败：没有活动会话");
-         return;
-       }
- 
-       const branchManager = useBranchManager();
-       const success = branchManager.editMessage(session, nodeId, newContent, attachments);
- 
-       if (success) {
-         const sessionManager = useSessionManager();
-         sessionManager.persistSession(session, this.currentSessionId);
-       }
-     },
+       * 编辑消息（原地修改内容和附件）
+       * 对于预设消息，会反向保存到智能体配置
+       */
+      editMessage(nodeId: string, newContent: string, attachments?: Asset[]): void {
+        const session = this.currentSession;
+        if (!session) {
+          logger.warn("编辑消息失败：没有活动会话");
+          return;
+        }
+  
+        // 检查是否是预设消息（通过 ID 前缀识别）
+        if (nodeId.startsWith('preset-')) {
+          // 预设消息：反向保存到智能体配置
+          const agentStore = useAgentStore();
+          if (!agentStore.currentAgentId) {
+            logger.warn("编辑预设消息失败：没有当前智能体");
+            return;
+          }
+          
+          const success = agentStore.updatePresetMessage(
+            agentStore.currentAgentId,
+            nodeId,
+            newContent
+          );
+          
+          if (success) {
+            logger.info("预设消息已更新并保存到智能体配置", {
+              agentId: agentStore.currentAgentId,
+              nodeId,
+              contentLength: newContent.length,
+            });
+          }
+          return;
+        }
+        
+        // 普通消息：使用原有逻辑
+        const branchManager = useBranchManager();
+        const success = branchManager.editMessage(session, nodeId, newContent, attachments);
+  
+        if (success) {
+          const sessionManager = useSessionManager();
+          sessionManager.persistSession(session, this.currentSessionId);
+        }
+      },
     /**
      * 创建分支（创建源节点的兄弟节点，复制内容）
      */
@@ -568,6 +601,7 @@ export const useLlmChatStore = defineStore("llmChat", {
 
     /**
      * 切换节点启用状态
+     * 对于预设消息，会反向保存到智能体配置
      */
     toggleNodeEnabled(nodeId: string): void {
       const session = this.currentSession;
@@ -576,6 +610,30 @@ export const useLlmChatStore = defineStore("llmChat", {
         return;
       }
 
+      // 检查是否是预设消息（通过 ID 前缀识别）
+      if (nodeId.startsWith('preset-')) {
+        // 预设消息：反向保存到智能体配置
+        const agentStore = useAgentStore();
+        if (!agentStore.currentAgentId) {
+          logger.warn("切换预设消息状态失败：没有当前智能体");
+          return;
+        }
+        
+        const success = agentStore.togglePresetMessageEnabled(
+          agentStore.currentAgentId,
+          nodeId
+        );
+        
+        if (success) {
+          logger.info("预设消息启用状态已切换并保存到智能体配置", {
+            agentId: agentStore.currentAgentId,
+            nodeId,
+          });
+        }
+        return;
+      }
+
+      // 普通消息：使用原有逻辑
       const branchManager = useBranchManager();
       const success = branchManager.toggleNodeEnabled(session, nodeId);
 

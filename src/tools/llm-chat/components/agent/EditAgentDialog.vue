@@ -382,7 +382,11 @@ const handleIconClick = () => {
     </el-form>
     <!-- 预设消息编辑器 -->
     <el-form-item label="预设消息">
-      <AgentPresetEditor v-model="editForm.presetMessages" height="300px" />
+      <AgentPresetEditor
+        v-model="editForm.presetMessages"
+        :model-id="editForm.modelId"
+        height="300px"
+      />
     </el-form-item>
 
     <template #footer>

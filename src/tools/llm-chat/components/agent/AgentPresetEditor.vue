@@ -7,6 +7,17 @@
         <el-tooltip content="预设消息将作为所有对话的上下文基础" placement="top">
           <el-icon><QuestionFilled /></el-icon>
         </el-tooltip>
+        <!-- Token 统计 -->
+        <div v-if="props.modelId && totalTokens > 0" class="token-info">
+          <el-tag size="small" type="info" effect="plain">
+            <template v-if="isCalculatingTokens">
+              计算中...
+            </template>
+            <template v-else>
+              总计: {{ totalTokens }} tokens
+            </template>
+          </el-tag>
+        </div>
       </div>
       <div class="header-actions">
         <el-button size="small" @click="handleExport">
@@ -211,6 +222,14 @@
                 {{ truncateText(element.content, 60) }}
               </div>
 
+              <!-- Token 信息（紧凑模式） -->
+              <div
+                v-if="props.modelId && messageTokens.has(element.id)"
+                class="token-compact"
+              >
+                {{ messageTokens.get(element.id) }}
+              </div>
+
               <!-- 操作按钮 -->
               <div class="message-actions-compact" @click.stop>
                 <el-switch
@@ -235,13 +254,23 @@
 
               <!-- 消息内容 -->
               <div class="message-content">
-                <!-- 角色标签 -->
+                <!-- 角色标签和 Token 信息 -->
                 <div class="message-role">
                   <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
                     <el-icon style="margin-right: 4px">
                       <component :is="getRoleIcon(element.role)" />
                     </el-icon>
                     {{ getRoleLabel(element.role) }}
+                  </el-tag>
+                  <!-- Token 数量 -->
+                  <el-tag
+                    v-if="props.modelId && messageTokens.has(element.id)"
+                    size="small"
+                    type="info"
+                    effect="plain"
+                    class="token-tag"
+                  >
+                    {{ messageTokens.get(element.id) }} tokens
                   </el-tag>
                 </div>
 
@@ -352,12 +381,15 @@ import {
   Service,
 } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 
 interface Props {
   modelValue?: ChatMessageNode[];
   height?: string;
   /** 紧凑模式：只显示一行，隐藏头部操作栏 */
   compact?: boolean;
+  /** 模型ID，用于 token 计算 */
+  modelId?: string;
 }
 
 interface Emits {
@@ -368,6 +400,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: () => [],
   height: "500px",
   compact: false,
+  modelId: "",
 });
 
 const emit = defineEmits<Emits>();
@@ -386,6 +419,70 @@ const editForm = ref({
 
 // 文件导入
 const importFileInput = ref<HTMLInputElement | null>(null);
+
+// Token 计算
+const messageTokens = ref<Map<string, number>>(new Map());
+const isCalculatingTokens = ref(false);
+
+// 计算所有消息的 token 数量，并保存到 metadata
+const calculateAllTokens = async () => {
+  if (!props.modelId) return;
+  
+  isCalculatingTokens.value = true;
+  const newTokens = new Map<string, number>();
+  let hasChanges = false;
+  
+  for (const message of localMessages.value) {
+    // 跳过占位符
+    if (message.type === "chat_history" || message.type === "user_profile") {
+      continue;
+    }
+    
+    try {
+      const result = await tokenCalculatorEngine.calculateTokens(message.content, props.modelId);
+      newTokens.set(message.id, result.count);
+      
+      // 同步更新到消息的 metadata（如果值有变化或不存在）
+      if (!message.metadata) {
+        message.metadata = {};
+      }
+      if (message.metadata.contentTokens !== result.count) {
+        message.metadata.contentTokens = result.count;
+        hasChanges = true;
+      }
+    } catch (error) {
+      console.error(`Failed to calculate tokens for message ${message.id}:`, error);
+    }
+  }
+  
+  messageTokens.value = newTokens;
+  isCalculatingTokens.value = false;
+  
+  // 如果有变化，同步到父组件
+  if (hasChanges) {
+    syncToParent();
+  }
+};
+
+// 计算总 token 数
+const totalTokens = computed(() => {
+  let total = 0;
+  for (const count of messageTokens.value.values()) {
+    total += count;
+  }
+  return total;
+});
+
+// 监听消息变化，重新计算 token
+watch(
+  () => [localMessages.value, props.modelId] as const,
+  async () => {
+    if (props.modelId) {
+      await calculateAllTokens();
+    }
+  },
+  { deep: true }
+);
 
 // 容器高度
 // 容器高度
@@ -566,7 +663,7 @@ function handleEditMessage(index: number) {
 /**
  * 保存消息
  */
-function handleSaveMessage() {
+async function handleSaveMessage() {
   if (!editForm.value.content.trim()) {
     ElMessage.warning("消息内容不能为空");
     return;
@@ -577,6 +674,19 @@ function handleSaveMessage() {
     const message = localMessages.value[editingIndex.value];
     message.role = editForm.value.role;
     message.content = editForm.value.content;
+    
+    // 如果有模型ID，重新计算 token
+    if (props.modelId) {
+      try {
+        const result = await tokenCalculatorEngine.calculateTokens(editForm.value.content, props.modelId);
+        if (!message.metadata) {
+          message.metadata = {};
+        }
+        message.metadata.contentTokens = result.count;
+      } catch (error) {
+        console.error(`Failed to calculate tokens for edited message:`, error);
+      }
+    }
   } else {
     // 添加模式：创建新消息
     const newMessage: ChatMessageNode = {
@@ -590,6 +700,19 @@ function handleSaveMessage() {
       isEnabled: true,
       timestamp: new Date().toISOString(),
     };
+    
+    // 如果有模型ID，计算并保存 token
+    if (props.modelId) {
+      try {
+        const result = await tokenCalculatorEngine.calculateTokens(editForm.value.content, props.modelId);
+        newMessage.metadata = {
+          contentTokens: result.count
+        };
+      } catch (error) {
+        console.error(`Failed to calculate tokens for new message:`, error);
+      }
+    }
+    
     localMessages.value.push(newMessage);
   }
 
@@ -714,6 +837,10 @@ async function handleFileSelected(event: Event) {
   font-weight: 600;
 }
 
+.token-info {
+  margin-left: 12px;
+}
+
 .header-actions {
   display: flex;
   gap: 8px;
@@ -811,7 +938,15 @@ async function handleFileSelected(event: Event) {
 }
 
 .message-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.token-tag {
+  font-variant-numeric: tabular-nums;
 }
 
 .message-text {
@@ -886,6 +1021,16 @@ async function handleFileSelected(event: Event) {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.4;
+}
+
+.token-compact {
+  font-size: 11px;
+  color: var(--el-color-info);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .message-actions-compact {

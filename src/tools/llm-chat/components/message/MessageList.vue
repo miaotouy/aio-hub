@@ -30,6 +30,16 @@ const { settings } = useChatSettings();
 
 // 为每条消息计算兄弟节点信息
 const getMessageSiblings = (messageId: string) => {
+  const message = props.messages.find(m => m.id === messageId);
+  
+  // 预设消息不在会话节点树中，返回只包含自己的特殊结构（不显示分支导航）
+  if (message?.metadata?.isPresetDisplay) {
+    return {
+      siblings: [message],
+      currentIndex: 0,
+    };
+  }
+  
   const siblings = store.getSiblings(messageId);
   // 找到在当前活动路径上的兄弟节点（而不是传入的 messageId 自己）
   const currentIndex = siblings.findIndex((s) => store.isNodeInActivePath(s.id));

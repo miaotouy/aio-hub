@@ -49,6 +49,7 @@ const isDisabled = computed(() => props.message.isEnabled === false);
 const isUserMessage = computed(() => props.message.role === 'user');
 const isAssistantMessage = computed(() => props.message.role === 'assistant');
 const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
+const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
 
 // 复制消息
 const copyMessage = async () => {
@@ -174,8 +175,12 @@ const handleAnalyzeContext = () => {
       </button>
     </el-tooltip>
 
-    <!-- 创建分支（用户和助手消息都可以，生成中不可创建） -->
-    <el-tooltip v-if="(isUserMessage || isAssistantMessage) && !isGenerating" content="创建分支" placement="top">
+    <!-- 创建分支（用户和助手消息都可以，生成中不可创建，预设消息不可创建分支） -->
+    <el-tooltip
+      v-if="(isUserMessage || isAssistantMessage) && !isGenerating && !isPresetDisplay"
+      content="创建分支"
+      placement="top"
+    >
       <button
         class="menu-btn"
         @click="handleCreateBranch"
@@ -183,16 +188,44 @@ const handleAnalyzeContext = () => {
         <GitFork :size="16" />
       </button>
     </el-tooltip>
-
-    <!-- 重新生成（用户和助手消息都可以，不禁用以支持并行生成） -->
+    
+    <!-- 预设消息的提示（需要等预设系统树化后才能支持分支） -->
     <el-tooltip
-      v-if="isUserMessage || isAssistantMessage"
+      v-if="(isUserMessage || isAssistantMessage) && !isGenerating && isPresetDisplay"
+      content="预设消息暂不支持创建分支，需等预设系统树化后才能对接"
+      placement="top"
+    >
+      <button
+        class="menu-btn menu-btn-disabled"
+        disabled
+      >
+        <GitFork :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 重新生成（用户和助手消息都可以，不禁用以支持并行生成，预设消息不可重新生成） -->
+    <el-tooltip
+      v-if="(isUserMessage || isAssistantMessage) && !isPresetDisplay"
       :content="isUserMessage ? '重新生成回复' : '重新生成'"
       placement="top"
     >
       <button
         class="menu-btn"
         @click="handleRegenerate"
+      >
+        <RefreshCw :size="16" />
+      </button>
+    </el-tooltip>
+    
+    <!-- 预设消息的提示（预设内容不参与重试） -->
+    <el-tooltip
+      v-if="(isUserMessage || isAssistantMessage) && isPresetDisplay"
+      content="预设消息不参与重试"
+      placement="top"
+    >
+      <button
+        class="menu-btn menu-btn-disabled"
+        disabled
       >
         <RefreshCw :size="16" />
       </button>
@@ -214,11 +247,29 @@ const handleAnalyzeContext = () => {
       </button>
     </el-tooltip>
 
-    <!-- 删除（生成中不可删除） -->
-    <el-tooltip v-if="!isGenerating" content="删除" placement="top">
+    <!-- 删除（生成中不可删除，预设消息也不可删除） -->
+    <el-tooltip
+      v-if="!isGenerating && !isPresetDisplay"
+      content="删除"
+      placement="top"
+    >
       <button
         class="menu-btn menu-btn-danger"
         @click="handleDelete"
+      >
+        <Trash2 :size="16" />
+      </button>
+    </el-tooltip>
+    
+    <!-- 预设消息的提示（需要到预设编辑中删除） -->
+    <el-tooltip
+      v-if="!isGenerating && isPresetDisplay"
+      content="预设消息需要在智能体设置中编辑或删除"
+      placement="top"
+    >
+      <button
+        class="menu-btn menu-btn-disabled"
+        disabled
       >
         <Trash2 :size="16" />
       </button>

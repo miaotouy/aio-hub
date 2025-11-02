@@ -223,6 +223,72 @@ export const useAgentStore = defineStore('llmChatAgent', {
     },
 
     /**
+     * 更新智能体的预设消息内容
+     */
+    updatePresetMessage(agentId: string, presetNodeId: string, newContent: string): boolean {
+      const agent = this.agents.find(a => a.id === agentId);
+      if (!agent || !agent.presetMessages) {
+        logger.warn('更新预设消息失败：智能体或预设消息不存在', { agentId, presetNodeId });
+        return false;
+      }
+
+      // 查找并更新预设消息
+      const presetMessage = agent.presetMessages.find(msg => msg.id === presetNodeId);
+      if (!presetMessage) {
+        logger.warn('更新预设消息失败：预设节点不存在', { agentId, presetNodeId });
+        return false;
+      }
+
+      // 更新内容
+      presetMessage.content = newContent;
+      
+      // 持久化智能体
+      this.persistAgent(agent);
+      
+      logger.info('预设消息已更新', {
+        agentId,
+        presetNodeId,
+        role: presetMessage.role,
+        contentLength: newContent.length,
+      });
+
+      return true;
+    },
+
+    /**
+     * 切换预设消息的启用状态
+     */
+    togglePresetMessageEnabled(agentId: string, presetNodeId: string): boolean {
+      const agent = this.agents.find(a => a.id === agentId);
+      if (!agent || !agent.presetMessages) {
+        logger.warn('切换预设消息状态失败：智能体或预设消息不存在', { agentId, presetNodeId });
+        return false;
+      }
+
+      // 查找预设消息
+      const presetMessage = agent.presetMessages.find(msg => msg.id === presetNodeId);
+      if (!presetMessage) {
+        logger.warn('切换预设消息状态失败：预设节点不存在', { agentId, presetNodeId });
+        return false;
+      }
+
+      // 切换启用状态
+      presetMessage.isEnabled = !(presetMessage.isEnabled ?? true);
+      
+      // 持久化智能体
+      this.persistAgent(agent);
+      
+      logger.info('预设消息启用状态已切换', {
+        agentId,
+        presetNodeId,
+        role: presetMessage.role,
+        isEnabled: presetMessage.isEnabled,
+      });
+
+      return true;
+    },
+
+    /**
      * 持久化单个智能体到文件（仅保存指定智能体）
      */
     persistAgent(agent: ChatAgent): void {

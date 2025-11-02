@@ -593,6 +593,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      tokenizer: "gpt4o", // 图像生成模型使用 o200k_base 编码
     },
     priority: 25,
     enabled: true,
@@ -618,7 +619,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
-      tokenizer: "gpt4o",
+      tokenizer: "gpt4o", // 音频模型使用 o200k_base 编码
     },
     priority: 25,
     enabled: true,
@@ -631,7 +632,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
-      tokenizer: "gpt4o",
+      tokenizer: "gpt4o", // 实时模型使用 o200k_base 编码
     },
     priority: 25,
     enabled: true,
@@ -861,6 +862,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
       group: "Zhipu",
+      tokenizer: "gpt4", // GLM 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -873,6 +875,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
       group: "Zhipu",
+      tokenizer: "gpt4", // ChatGLM 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -887,6 +890,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/moonshot.svg`,
       group: "moonshot",
+      tokenizer: "gpt4", // Moonshot 使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -899,6 +903,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/kimi-color.svg`,
       group: "Kimi",
+      tokenizer: "gpt4", // Kimi 使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -941,6 +946,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/doubao-color.svg`,
       group: "ByteDance",
+      tokenizer: "gpt4", // 豆包系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -955,6 +961,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/hunyuan-color.svg`,
       group: "Tencent",
+      tokenizer: "gpt4", // 混元系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -969,6 +976,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/wenxin-color.svg`,
       group: "Baidu",
+      tokenizer: "gpt4", // ERNIE 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -983,6 +991,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
       group: "MiniMax",
+      tokenizer: "gpt4", // ABAB 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -995,6 +1004,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
       group: "MiniMax",
+      tokenizer: "gpt4", // MiniMax 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -1009,6 +1019,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/yi-color.svg`,
       group: "Yi",
+      tokenizer: "llama3_1", // Yi 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1023,6 +1034,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
       group: "Baichuan",
+      tokenizer: "llama3_1", // 百川系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1037,6 +1049,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/internlm-color.svg`,
       group: "InternLM",
+      tokenizer: "llama3_1", // InternLM 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1051,6 +1064,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/skywork-color.svg`,
       group: "Skywork",
+      tokenizer: "gpt4", // Skywork 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -1065,6 +1079,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/rwkv-color.svg`,
       group: "RWKV",
+      tokenizer: "gpt4", // RWKV 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -1079,6 +1094,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/grok.svg`,
       group: "xAI",
+      tokenizer: "gpt4", // Grok 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -1091,6 +1107,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/xai.svg`,
       group: "xAI",
+      tokenizer: "gpt4", // xAI Imagine 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -1121,6 +1138,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
       group: "Mistral",
+      tokenizer: "llama3_1", // Mistral 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1133,6 +1151,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
       group: "Mistral",
+      tokenizer: "llama3_1", // Mixtral 系列基于 Llama 架构
     },
     priority: 20,
     enabled: true,
@@ -1147,6 +1166,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
       group: "Cohere",
+      tokenizer: "gpt4", // Command 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -1159,6 +1179,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
       group: "Cohere",
+      tokenizer: "gpt4", // Aya 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,
@@ -1173,6 +1194,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
       group: "AI21",
+      tokenizer: "llama3_1", // Jamba 系列基于混合架构，使用 Llama 分词器
     },
     priority: 20,
     enabled: true,
@@ -1187,6 +1209,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
       group: "Microsoft",
+      tokenizer: "gpt4", // Phi 系列使用类似 GPT-4 的分词器
     },
     priority: 20,
     enabled: true,

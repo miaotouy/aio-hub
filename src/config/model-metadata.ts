@@ -550,23 +550,142 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "OpenRouter 提供商图标",
   },
 
-  // === Model Prefix 级别匹配（优先级 20） ===
-  // OpenAI 系列模型
+  // === Model Prefix 级别匹配（优先级 20-25） ===
+  // OpenAI 系列模型 - 按优先级细分不同编码
   {
-    id: "model-prefix-gpt",
+    id: "model-prefix-gpt-4o",
     matchType: "modelPrefix",
-    matchValue: "gpt-",
+    matchValue: "gpt-4o",
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      tokenizer: "gpt4o", // 使用 o200k_base 编码
       capabilities: {
-        vision: true, // GPT-4o, GPT-4 Turbo 等支持视觉
-        toolUse: true, // 支持函数调用
+        vision: true,
+        toolUse: true,
+      },
+    },
+    priority: 25, // 更高优先级，优先匹配 gpt-4o
+    enabled: true,
+    description: "GPT-4o 系列模型（使用 o200k_base 编码）",
+  },
+  {
+    id: "model-prefix-gpt-5",
+    matchType: "modelPrefix",
+    matchValue: "gpt-5",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // GPT-5 使用 o200k_base 编码
+      capabilities: {
+        vision: true,
+        toolUse: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "GPT-5 系列模型（使用 o200k_base 编码）",
+  },
+  {
+    id: "model-prefix-gpt-image",
+    matchType: "modelPrefix",
+    matchValue: "gpt-image",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 25,
+    enabled: true,
+    description: "GPT Image 系列图像生成模型",
+  },
+  {
+    id: "model-prefix-gpt-oss",
+    matchType: "modelPrefix",
+    matchValue: "gpt-oss",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // 开源权重模型使用 o200k_base 编码
+    },
+    priority: 25,
+    enabled: true,
+    description: "GPT OSS 开源权重模型系列",
+  },
+  {
+    id: "model-prefix-gpt-audio",
+    matchType: "modelPrefix",
+    matchValue: "gpt-audio",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o",
+    },
+    priority: 25,
+    enabled: true,
+    description: "GPT Audio 音频处理模型系列",
+  },
+  {
+    id: "model-prefix-gpt-realtime",
+    matchType: "modelPrefix",
+    matchValue: "gpt-realtime",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o",
+    },
+    priority: 25,
+    enabled: true,
+    description: "GPT Realtime 实时模型系列",
+  },
+  {
+    id: "model-prefix-gpt-4.1",
+    matchType: "modelPrefix",
+    matchValue: "gpt-4.1",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // GPT-4.1 使用 o200k_base 编码
+      capabilities: {
+        vision: true,
+        toolUse: true,
+      },
+    },
+    priority: 25, // 更高优先级以优先匹配 gpt-4.1
+    enabled: true,
+    description: "GPT-4.1 系列模型（最智能的非推理模型）",
+  },
+  {
+    id: "model-prefix-gpt-4",
+    matchType: "modelPrefix",
+    matchValue: "gpt-4",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4", // 使用 cl100k_base 编码
+      capabilities: {
+        vision: true, // GPT-4 Turbo 等支持视觉
+        toolUse: true,
       },
     },
     priority: 20,
     enabled: true,
-    description: "GPT 系列模型图标",
+    description: "GPT-4 系列模型（使用 cl100k_base 编码）",
+  },
+  {
+    id: "model-prefix-gpt-3.5",
+    matchType: "modelPrefix",
+    matchValue: "gpt-3.5",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4", // GPT-3.5-turbo 使用 cl100k_base 编码
+      capabilities: {
+        toolUse: true,
+      },
+    },
+    priority: 20,
+    enabled: true,
+    description: "GPT-3.5 系列模型（使用 cl100k_base 编码）",
   },
   {
     id: "model-prefix-o1",
@@ -575,13 +694,62 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      tokenizer: "gpt4o", // o1 系列使用 o200k_base 编码
       capabilities: {
-        reasoning: true, // o1 系列支持推理模式
+        reasoning: true,
       },
     },
-    priority: 20,
+    priority: 25,
     enabled: true,
-    description: "o1 系列模型图标",
+    description: "o1 系列模型（使用 o200k_base 编码）",
+  },
+  {
+    id: "model-prefix-o4-mini",
+    matchType: "modelPrefix",
+    matchValue: "o4-mini",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // o4-mini 使用 o200k_base 编码
+      capabilities: {
+        reasoning: true,
+      },
+    },
+    priority: 26, // 最高优先级以优先匹配 o4-mini
+    enabled: true,
+    description: "o4-mini 快速经济推理模型",
+  },
+  {
+    id: "model-prefix-o3-pro",
+    matchType: "modelPrefix",
+    matchValue: "o3-pro",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o",
+      capabilities: {
+        reasoning: true,
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description: "o3-pro 带有更多计算的 o3 版本",
+  },
+  {
+    id: "model-prefix-o3-mini",
+    matchType: "modelPrefix",
+    matchValue: "o3-mini",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o",
+      capabilities: {
+        reasoning: true,
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description: "o3-mini 小型推理模型",
   },
   {
     id: "model-prefix-o3",
@@ -590,13 +758,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      tokenizer: "gpt4o", // o3 系列使用 o200k_base 编码
       capabilities: {
-        reasoning: true, // o3 系列支持推理模式
+        reasoning: true,
       },
     },
-    priority: 20,
+    priority: 25,
     enabled: true,
-    description: "o3 系列模型图标",
+    description: "o3 系列推理模型（使用 o200k_base 编码）",
   },
   {
     id: "model-prefix-chatgpt",
@@ -605,10 +774,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
+      tokenizer: "gpt4o", // ChatGPT 系列使用 o200k_base 编码
     },
     priority: 20,
     enabled: true,
-    description: "ChatGPT 系列模型图标",
+    description: "ChatGPT 系列模型（使用 o200k_base 编码）",
   },
 
   // Anthropic 系列模型
@@ -619,15 +789,16 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/claude-color.svg`,
       group: "Claude",
+      tokenizer: "claude", // Claude 系列使用专用分词器
       capabilities: {
-        vision: true, // Claude 3+ 支持视觉
-        thinking: true, // Claude 支持思考模式
-        toolUse: true, // 支持工具调用
+        vision: true,
+        thinking: true,
+        toolUse: true,
       },
     },
     priority: 20,
     enabled: true,
-    description: "Claude 系列模型图标",
+    description: "Claude 系列模型",
   },
 
   // Google 系列模型
@@ -638,16 +809,17 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
       group: "Gemini",
+      tokenizer: "gemini", // Gemini 系列使用专用分词器
       capabilities: {
-        vision: true, // Gemini 支持视觉
-        thinking: true, // Gemini 2.0+ 支持思考模式
-        toolUse: true, // 支持函数调用
-        codeExecution: true, // 支持代码执行
+        vision: true,
+        thinking: true,
+        toolUse: true,
+        codeExecution: true,
       },
     },
     priority: 20,
     enabled: true,
-    description: "Gemini 系列模型图标",
+    description: "Gemini 系列模型",
   },
   {
     id: "model-prefix-gemma",
@@ -656,10 +828,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/gemma-color.svg`,
       group: "Gemma",
+      tokenizer: "gemini", // Gemma 使用与 Gemini 相同的分词器
     },
     priority: 20,
     enabled: true,
-    description: "Gemma 系列模型图标",
+    description: "Gemma 系列模型",
   },
 
   // DeepSeek 系列模型
@@ -670,13 +843,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
       group: "DeepSeek",
+      tokenizer: "deepseek_v3", // DeepSeek 系列使用专用分词器
       capabilities: {
-        reasoning: true, // DeepSeek 支持推理模式
+        reasoning: true,
       },
     },
     priority: 20,
     enabled: true,
-    description: "DeepSeek 系列模型图标",
+    description: "DeepSeek 系列模型",
   },
 
   // 智谱 AI 系列模型
@@ -739,10 +913,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
       group: "Qwen",
+      tokenizer: "qwen2_5", // Qwen 系列使用专用分词器
     },
     priority: 20,
     enabled: true,
-    description: "通义千问系列模型图标",
+    description: "通义千问系列模型",
   },
   {
     id: "model-prefix-qwq",
@@ -751,10 +926,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
       group: "Qwen",
+      tokenizer: "qwen2_5", // QwQ 使用 Qwen 分词器
     },
     priority: 20,
     enabled: true,
-    description: "通义千问 QwQ 系列模型图标",
+    description: "通义千问 QwQ 系列模型",
   },
 
   // 字节跳动豆包系列模型
@@ -930,10 +1106,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
       group: "Meta",
+      tokenizer: "llama3_1", // Llama 系列使用专用分词器
     },
     priority: 20,
     enabled: true,
-    description: "Llama 系列模型图标",
+    description: "Llama 系列模型",
   },
 
   // Mistral 系列模型
@@ -1214,7 +1391,119 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "FishAudio 系列模型图标",
   },
 
-  // === 特定模型匹配（优先级 30） ===
+  // === 特定模型匹配（优先级 30+） ===
+  // OpenAI 专用模型
+  {
+    id: "model-dall-e",
+    matchType: "modelPrefix",
+    matchValue: "dall-e",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "DALL·E 图像生成模型",
+  },
+  {
+    id: "model-whisper",
+    matchType: "modelPrefix",
+    matchValue: "whisper",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "Whisper 语音识别模型",
+  },
+  {
+    id: "model-tts",
+    matchType: "modelPrefix",
+    matchValue: "tts-",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "TTS 文本转语音模型",
+  },
+  {
+    id: "model-text-embedding",
+    matchType: "modelPrefix",
+    matchValue: "text-embedding",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "Text Embedding 嵌入模型",
+  },
+  {
+    id: "model-text-moderation",
+    matchType: "modelPrefix",
+    matchValue: "text-moderation|omni-moderation",
+    useRegex: true,
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "内容审核模型",
+  },
+  {
+    id: "model-computer-use",
+    matchType: "modelPrefix",
+    matchValue: "computer-use",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "Computer Use 计算机使用工具专用模型",
+  },
+  {
+    id: "model-codex",
+    matchType: "modelPrefix",
+    matchValue: "codex",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o",
+    },
+    priority: 30,
+    enabled: true,
+    description: "Codex 代码模型系列",
+  },
+  {
+    id: "model-babbage",
+    matchType: "modelPrefix",
+    matchValue: "babbage",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "Babbage 系列模型（已弃用）",
+  },
+  {
+    id: "model-davinci",
+    matchType: "modelPrefix",
+    matchValue: "davinci",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      group: "OpenAI",
+    },
+    priority: 30,
+    enabled: true,
+    description: "Davinci 系列模型（已弃用）",
+  },
+
   // OpenAI Sora 视频生成
   {
     id: "model-sora",
@@ -1226,7 +1515,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 30,
     enabled: true,
-    description: "Sora 视频生成模型图标",
+    description: "Sora 视频生成模型",
   },
 
   // 快手可灵视频生成

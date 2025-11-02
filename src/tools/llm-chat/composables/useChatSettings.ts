@@ -47,12 +47,29 @@ export interface ChatSettings {
     /** 换行快捷键（与发送互补） */
     newLine: 'enter' | 'shift+enter';
   };
+  /** 话题命名设置 */
+  topicNaming: {
+    /** 是否启用话题命名 */
+    enabled: boolean;
+    /** 使用的模型标识符（格式: profileId:modelId） */
+    modelIdentifier: string;
+    /** 命名提示词 */
+    prompt: string;
+    /** 温度参数 */
+    temperature: number;
+    /** 输出上限（token） */
+    maxTokens: number;
+    /** 自动触发的消息数量阈值 */
+    autoTriggerThreshold: number;
+    /** 命名时携带的上下文消息数量 */
+    contextMessageCount: number;
+  };
 }
 
 /**
  * 默认设置
  */
-const DEFAULT_SETTINGS: ChatSettings = {
+export const DEFAULT_SETTINGS: ChatSettings = {
   uiPreferences: {
     showTimestamp: false,
     showTokenCount: true,
@@ -69,6 +86,15 @@ const DEFAULT_SETTINGS: ChatSettings = {
   shortcuts: {
     send: 'ctrl+enter',
     newLine: 'enter',
+  },
+  topicNaming: {
+    enabled: false,
+    modelIdentifier: '', // 需要用户配置
+    prompt: '快给我为以下对话生成一个简短、精准的标题，不要使用任何标点符号，直接输出标题文本：\n<---------->\n{context}\n</---------->',
+    temperature: 0.7,
+    maxTokens: 30,
+    autoTriggerThreshold: 3, // 当会话中有 3 条用户消息时自动触发
+    contextMessageCount: 6, // 使用最近 6 条消息作为上下文
   },
 };
 
@@ -95,6 +121,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       shortcuts: {
         ...defaultConfig.shortcuts,
         ...(loadedConfig.shortcuts || {}),
+      },
+      topicNaming: {
+        ...defaultConfig.topicNaming,
+        ...(loadedConfig.topicNaming || {}),
       },
     };
   },
@@ -168,6 +198,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       shortcuts: {
         ...settings.value.shortcuts,
         ...(updates.shortcuts || {}),
+      },
+      topicNaming: {
+        ...settings.value.topicNaming,
+        ...(updates.topicNaming || {}),
       },
     };
     await saveSettings();

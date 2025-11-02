@@ -107,6 +107,94 @@
             </div>
           </el-form-item>
         </div>
+
+        <el-divider />
+
+        <!-- 话题命名设置 -->
+        <div class="settings-section">
+          <div class="section-title">
+            <el-icon><ChatDotRound /></el-icon>
+            <span>话题命名</span>
+          </div>
+
+          <el-form-item label="启用话题命名">
+            <el-switch v-model="localSettings.topicNaming.enabled" />
+            <div class="form-hint">自动或手动为会话生成标题</div>
+          </el-form-item>
+
+          <template v-if="localSettings.topicNaming.enabled">
+            <el-form-item label="命名模型">
+              <LlmModelSelector v-model="localSettings.topicNaming.modelIdentifier" />
+              <div class="form-hint">用于生成会话标题的 LLM 模型</div>
+            </el-form-item>
+
+            <el-form-item label="命名提示词">
+              <div class="prompt-input-wrapper">
+                <el-input
+                  v-model="localSettings.topicNaming.prompt"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="输入用于生成标题的提示词"
+                />
+                <el-button
+                  @click="handleResetPrompt"
+                  size="small"
+                  class="reset-prompt-btn"
+                  title="重置为默认提示词"
+                >
+                  <el-icon><RefreshLeft /></el-icon>
+                  重置
+                </el-button>
+              </div>
+              <div class="form-hint">
+                使用 <code>{context}</code> 占位符来指定对话内容的位置。<br>
+                例如：<code>请为以下对话生成标题：\n\n{context}</code><br>
+                如不使用占位符，对话内容将自动追加到提示词末尾。
+              </div>
+            </el-form-item>
+
+            <el-form-item label="温度">
+              <el-slider
+                v-model="localSettings.topicNaming.temperature"
+                :min="0"
+                :max="1"
+                :step="0.1"
+                :show-tooltip="true"
+              />
+              <div class="form-hint">当前: {{ localSettings.topicNaming.temperature }}</div>
+            </el-form-item>
+
+            <el-form-item label="输出上限">
+              <el-input-number
+                v-model="localSettings.topicNaming.maxTokens"
+                :min="10"
+                :max="200"
+                :step="10"
+              />
+              <div class="form-hint">生成标题的最大 token 数</div>
+            </el-form-item>
+
+            <el-form-item label="自动触发阈值">
+              <el-input-number
+                v-model="localSettings.topicNaming.autoTriggerThreshold"
+                :min="1"
+                :max="10"
+                :step="1"
+              />
+              <div class="form-hint">当会话中用户消息数量达到此值时，自动生成标题</div>
+            </el-form-item>
+
+            <el-form-item label="上下文消息数">
+              <el-input-number
+                v-model="localSettings.topicNaming.contextMessageCount"
+                :min="2"
+                :max="20"
+                :step="2"
+              />
+              <div class="form-hint">生成标题时引用的最近消息数量</div>
+            </el-form-item>
+          </template>
+        </div>
       </el-form>
       </div>
     </template>
@@ -133,10 +221,11 @@
 import { ref, watch, nextTick } from 'vue';
 import { useDebounceFn } from '@vueuse/core';
 import { ElMessageBox } from 'element-plus';
-import { Setting, Delete, Tickets, RefreshLeft, Loading } from '@element-plus/icons-vue';
+import { Setting, Delete, Tickets, RefreshLeft, Loading, ChatDotRound } from '@element-plus/icons-vue';
 import BaseDialog from '@/components/common/BaseDialog.vue';
+import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
 import { customMessage } from '@/utils/customMessage';
-import { useChatSettings, type ChatSettings } from '../../composables/useChatSettings';
+import { useChatSettings, type ChatSettings, DEFAULT_SETTINGS } from '../../composables/useChatSettings';
 import { createModuleLogger } from '@utils/logger';
 
 const logger = createModuleLogger('ChatSettingsDialog');
@@ -172,6 +261,15 @@ const localSettings = ref<ChatSettings>({
   shortcuts: {
     send: 'ctrl+enter',
     newLine: 'enter',
+  },
+  topicNaming: {
+    enabled: false,
+    modelIdentifier: '',
+    prompt: '请为这段对话生成一个简短、精准的标题，不要使用任何标点符号，直接输出标题文本：',
+    temperature: 0.7,
+    maxTokens: 30,
+    autoTriggerThreshold: 3,
+    contextMessageCount: 6,
   },
 });
 
@@ -266,6 +364,12 @@ const handleReset = async () => {
   }
 };
 
+// 重置命名提示词为默认值
+const handleResetPrompt = () => {
+  localSettings.value.topicNaming.prompt = DEFAULT_SETTINGS.topicNaming.prompt;
+  customMessage.success('已重置为默认提示词');
+};
+
 // 对话框关闭时重置状态
 const handleClosed = () => {
   isSaving.value = false;
@@ -342,5 +446,22 @@ const handleClosed = () => {
 /* 滑块样式调整 */
 :deep(.el-slider) {
   margin-right: 12px;
+}
+
+/* 命名提示词输入框包装器 */
+.prompt-input-wrapper {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.prompt-input-wrapper :deep(.el-textarea) {
+  flex: 1;
+}
+
+.reset-prompt-btn {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 </style>

@@ -15,6 +15,8 @@ import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { createModuleLogger } from '@/utils/logger';
 import { invoke } from '@tauri-apps/api/core';
 import { tokenCalculatorService } from '@/tools/token-calculator/tokenCalculator.service';
+import { useTopicNamer } from './useTopicNamer';
+import { useSessionManager } from './useSessionManager';
 
 const logger = createModuleLogger('llm-chat/chat-handler');
 
@@ -918,6 +920,26 @@ export function useChatHandler() {
         messageLength: response.content.length,
         usage: response.usage,
       });
+
+      // 检查是否需要自动生成标题
+      const { shouldAutoName, generateTopicName } = useTopicNamer();
+      if (shouldAutoName(session)) {
+        logger.info('触发自动生成标题', {
+          sessionId: session.id,
+          sessionName: session.name,
+        });
+        
+        // 异步生成标题，不阻塞主流程
+        const sessionManager = useSessionManager();
+        generateTopicName(session, (updatedSession, currentSessionId) => {
+          sessionManager.persistSession(updatedSession, currentSessionId);
+        }).catch((error) => {
+          logger.warn('自动生成标题失败', {
+            sessionId: session.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
     } catch (error) {
       handleNodeError(session, assistantNode.id, error, '消息发送');
       // AbortError 是用户主动取消，不应该作为错误向上传递

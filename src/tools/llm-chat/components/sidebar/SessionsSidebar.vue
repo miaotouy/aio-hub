@@ -2,8 +2,11 @@
 import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import type { ChatSession } from "../../types";
-import { Plus, Delete, Search, MoreFilled, Edit } from "@element-plus/icons-vue";
+import { Plus, Delete, Search, MoreFilled, Edit, MagicStick } from "@element-plus/icons-vue";
 import Avatar from '@/components/common/Avatar.vue';
+import { useTopicNamer } from '../../composables/useTopicNamer';
+import { useSessionManager } from '../../composables/useSessionManager';
+import { customMessage } from '@/utils/customMessage';
 
 interface Props {
   sessions: ChatSession[];
@@ -15,6 +18,7 @@ interface Emits {
   (e: "delete", sessionId: string): void;
   (e: "new-session", data: { agentId: string; name?: string }): void;
   (e: "rename", data: { sessionId: string; newName: string }): void;
+  (e: "session-updated"): void;
 }
 
 const props = defineProps<Props>();
@@ -22,6 +26,8 @@ const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
 const searchQuery = ref("");
+const { generateTopicName, isGenerating } = useTopicNamer();
+const { persistSession } = useSessionManager();
 
 // 重命名相关状态
 const renameDialogVisible = ref(false);
@@ -132,12 +138,30 @@ const cancelRename = () => {
   newSessionName.value = "";
 };
 
+// 生成标题
+const handleGenerateName = async (session: ChatSession) => {
+  try {
+    const result = await generateTopicName(session, (updatedSession, currentSessionId) => {
+      persistSession(updatedSession, currentSessionId);
+    });
+    
+    if (result) {
+      customMessage.success(`标题已生成：${result}`);
+      emit('session-updated');
+    }
+  } catch (error) {
+    // 错误已由 useTopicNamer 内部处理
+  }
+};
+
 // 处理菜单命令
-const handleMenuCommand = (command: 'delete' | 'rename', session: ChatSession) => {
+const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', session: ChatSession) => {
   if (command === 'delete') {
     confirmDelete(session);
   } else if (command === 'rename') {
     openRenameDialog(session);
+  } else if (command === 'generate-name') {
+    handleGenerateName(session);
   }
 };
 </script>
@@ -199,6 +223,13 @@ const handleMenuCommand = (command: 'delete' | 'rename', session: ChatSession) =
               />
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item
+                    command="generate-name"
+                    :icon="MagicStick"
+                    :disabled="isGenerating(session.id)"
+                  >
+                    {{ isGenerating(session.id) ? '生成中...' : '生成标题' }}
+                  </el-dropdown-item>
                   <el-dropdown-item command="rename" :icon="Edit">
                     重命名
                   </el-dropdown-item>

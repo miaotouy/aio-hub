@@ -390,6 +390,8 @@ interface Props {
   compact?: boolean;
   /** 模型ID，用于 token 计算 */
   modelId?: string;
+  /** Agent 名称，用于导出文件名 */
+  agentName?: string;
 }
 
 interface Emits {
@@ -401,6 +403,7 @@ const props = withDefaults(defineProps<Props>(), {
   height: "500px",
   compact: false,
   modelId: "",
+  agentName: "",
 });
 
 const emit = defineEmits<Emits>();
@@ -770,7 +773,12 @@ function handleExport() {
   const url = URL.createObjectURL(dataBlob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `preset-messages-${new Date().toISOString().split("T")[0]}.json`;
+  
+  // 使用 agent 名称和日期作为文件名
+  const agentNamePart = props.agentName ? `${props.agentName}-` : "";
+  const datePart = new Date().toISOString().split("T")[0];
+  link.download = `${agentNamePart}preset-messages-${datePart}.json`;
+  
   link.click();
   URL.revokeObjectURL(url);
 

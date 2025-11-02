@@ -14,6 +14,17 @@
       "timestamp": "2025-01-01T00:00:00.000Z"
     },
     {
+      "id": "user-profile-placeholder",
+      "parentId": null,
+      "childrenIds": [],
+      "role": "system",
+      "content": "用户档案",
+      "type": "user_profile",
+      "status": "complete",
+      "isEnabled": true,
+      "timestamp": "2025-01-01T00:00:00.500Z"
+    },
+    {
       "id": "gintoki-user-2",
       "parentId": "gintoki-asst-1",
       "childrenIds": ["gintoki-asst-2"],
@@ -72,6 +83,17 @@
       "status": "complete",
       "isEnabled": true,
       "timestamp": "2025-01-01T00:00:02.000Z"
+    },
+    {
+      "id": "chat-history-placeholder",
+      "parentId": null,
+      "childrenIds": [],
+      "role": "system",
+      "content": "聊天历史",
+      "type": "chat_history",
+      "status": "complete",
+      "isEnabled": true,
+      "timestamp": "2025-01-01T00:00:07.000Z"
     }
   ],
   "parameters": {

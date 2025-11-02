@@ -385,6 +385,7 @@ const handleIconClick = () => {
       <AgentPresetEditor
         v-model="editForm.presetMessages"
         :model-id="editForm.modelId"
+        :agent-name="editForm.name"
         height="300px"
       />
     </el-form-item>

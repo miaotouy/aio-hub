@@ -151,6 +151,7 @@ export function useModelMetadata() {
         ...rule,
         id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         enabled: rule.enabled !== false,
+        createdAt: new Date().toISOString(),
       };
 
       // 验证图标路径（如果有）
@@ -244,7 +245,12 @@ export function useModelMetadata() {
    */
   async function resetToDefaults(): Promise<boolean> {
     try {
-      rules.value = [...DEFAULT_METADATA_RULES];
+      const now = new Date().toISOString();
+      // 为默认规则添加 createdAt 字段
+      rules.value = DEFAULT_METADATA_RULES.map((rule) => ({
+        ...rule,
+        createdAt: now,
+      }));
       await saveRules();
       return true;
     } catch (error) {

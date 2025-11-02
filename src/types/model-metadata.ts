@@ -114,6 +114,9 @@ export interface ModelMetadataRule {
 
   /** 备注说明 */
   description?: string;
+
+  /** 创建时间（ISO 8601 格式） */
+  createdAt?: string;
 }
 
 /**

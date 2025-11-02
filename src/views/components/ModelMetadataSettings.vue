@@ -36,6 +36,7 @@
           <option value="priority">按优先级排序</option>
           <option value="type">按类型排序</option>
           <option value="name">按名称排序</option>
+          <option value="createdAt">按创建时间排序</option>
         </select>
 
         <select v-model="filterEnabled" @change="resetPage" class="filter-select">
@@ -110,6 +111,10 @@
                 {{ config.description }}
               </div>
               <div class="config-path">{{ config.properties?.icon }}</div>
+            </div>
+
+            <div v-if="config.createdAt" class="config-created-date" :title="`创建于 ${formatDateTime(config.createdAt)}`">
+              {{ formatDate(config.createdAt) }}
             </div>
 
             <div class="config-actions">
@@ -234,7 +239,7 @@ const isNewConfig = ref(false);
 
 // 搜索和过滤
 const searchText = ref("");
-const sortBy = ref<"priority" | "type" | "name">("priority");
+const sortBy = ref<"priority" | "type" | "name" | "createdAt">("priority");
 const filterEnabled = ref<"all" | "enabled" | "disabled">("all");
 const currentPage = ref(1);
 const pageSize = ref(12);
@@ -265,7 +270,6 @@ const filteredConfigs = computed(() => {
 
   return result;
 });
-
 // 排序后的配置列表
 const sortedConfigs = computed(() => {
   const result = [...filteredConfigs.value];
@@ -277,6 +281,12 @@ const sortedConfigs = computed(() => {
       return result.sort((a, b) => a.matchType.localeCompare(b.matchType));
     case "name":
       return result.sort((a, b) => a.matchValue.localeCompare(b.matchValue));
+    case "createdAt":
+      return result.sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA; // 降序：新的在前
+      });
     default:
       return result;
   }
@@ -457,6 +467,43 @@ function getDisplayIconPath(iconPath: string): string {
 
   // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
   return iconPath;
+}
+
+// 格式化日期（简短格式）
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+  if (diffInDays === 0) {
+    return '今天';
+  } else if (diffInDays === 1) {
+    return '昨天';
+  } else if (diffInDays < 7) {
+    return `${diffInDays}天前`;
+  } else if (diffInDays < 30) {
+    const weeks = Math.floor(diffInDays / 7);
+    return `${weeks}周前`;
+  } else if (diffInDays < 365) {
+    const months = Math.floor(diffInDays / 30);
+    return `${months}月前`;
+  } else {
+    const years = Math.floor(diffInDays / 365);
+    return `${years}年前`;
+  }
+}
+
+// 格式化日期（完整格式，用于 title）
+function formatDateTime(dateString: string): string {
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 // 获取页码数组（用于分页显示）
@@ -657,6 +704,13 @@ function getPageNumbers(): number[] {
   word-break: break-all;
 }
 
+.configs-list.grid-view .config-created-date {
+  grid-area: actions;
+  justify-self: start;
+  align-self: center;
+  margin-right: auto;
+}
+
 .configs-list.grid-view .config-actions {
   grid-area: actions;
   display: flex;
@@ -799,6 +853,13 @@ function getPageNumbers(): number[] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.config-created-date {
+  font-size: 0.75rem;
+  color: var(--text-color-light);
+  white-space: nowrap;
+  opacity: 0.7;
 }
 
 .config-actions {

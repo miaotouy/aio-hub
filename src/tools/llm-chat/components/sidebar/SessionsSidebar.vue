@@ -203,7 +203,11 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
                 :radius="4"
               />
             </el-tooltip>
-            <span class="title-text">{{ session.name }}</span>
+            <span
+              :class="['title-text', { 'generating': isGenerating(session.id) }]"
+            >
+              {{ session.name }}
+            </span>
           </div>
           <div class="session-info">
             <span class="message-count">{{ getMessageCount(session) }} 条</span>
@@ -362,6 +366,48 @@ const handleMenuCommand = (command: 'delete' | 'rename' | 'generate-name', sessi
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+  position: relative;
+}
+
+/* 生成中的标题 - 扫光动画 */
+.title-text.generating {
+  background: linear-gradient(
+    90deg,
+    var(--text-color) 0%,
+    var(--text-color) 40%,
+    var(--primary-color) 50%,
+    var(--text-color) 60%,
+    var(--text-color) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 为生成中的会话项添加微妙的脉动效果 */
+.session-item:has(.title-text.generating) {
+  animation: pulse-border 2s infinite ease-in-out;
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: var(--border-color);
+  }
+  50% {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.3);
+  }
 }
 
 .session-info {

@@ -2,6 +2,7 @@
 import { ref, computed } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import AgentPresetEditor from "../agent/AgentPresetEditor.vue";
 import EditAgentDialog from "../agent/EditAgentDialog.vue";
@@ -72,14 +73,13 @@ const modelParameters = computed<LlmParameters>({
     });
   },
 });
-
-// 折叠状态管理
-const presetMessagesSectionExpanded = ref(true);
+// 折叠状态管理 - 使用 useLlmChatUiState
+const { presetMessagesExpanded } = useLlmChatUiState();
 
 // 切换分组展开/折叠状态
 const toggleSection = (section: "presetMessages") => {
   if (section === "presetMessages") {
-    presetMessagesSectionExpanded.value = !presetMessagesSectionExpanded.value;
+    presetMessagesExpanded.value = !presetMessagesExpanded.value;
   }
 };
 
@@ -181,16 +181,16 @@ const handleSaveEdit = (data: any) => {
           <div
             class="param-section-header clickable"
             @click="toggleSection('presetMessages')"
-            :title="presetMessagesSectionExpanded ? '点击折叠' : '点击展开'"
+            :title="presetMessagesExpanded ? '点击折叠' : '点击展开'"
           >
             <div class="section-title-wrapper">
               <i-ep-chat-line-round class="section-icon" />
               <span class="param-section-title">预设消息</span>
             </div>
-            <i-ep-arrow-down class="collapse-icon" :class="{ expanded: presetMessagesSectionExpanded }" />
+            <i-ep-arrow-down class="collapse-icon" :class="{ expanded: presetMessagesExpanded }" />
           </div>
 
-          <div class="param-section-content" :class="{ collapsed: !presetMessagesSectionExpanded }">
+          <div class="param-section-content" :class="{ collapsed: !presetMessagesExpanded }">
             <div class="preset-messages-compact">
               <AgentPresetEditor v-model="presetMessages" :compact="true" height="400px" />
             </div>

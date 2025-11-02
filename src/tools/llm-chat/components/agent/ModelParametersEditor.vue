@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import type { LlmParameters } from '../../types';
 import type { ProviderType, LlmParameterSupport } from '@/types/llm-profiles';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
+import { useLlmChatUiState } from '../../composables/useLlmChatUiState';
 
 /**
  * 模型参数编辑器组件
@@ -54,11 +55,12 @@ const updateParameter = <K extends keyof LlmParameters>(key: K, value: LlmParame
   };
   emit('update:modelValue', localParams.value);
 };
-
-// 折叠状态管理
-const basicParamsExpanded = ref(true);
-const advancedParamsExpanded = ref(false);
-const specialFeaturesExpanded = ref(false);
+// 折叠状态管理 - 使用 useLlmChatUiState
+const {
+  basicParamsExpanded,
+  advancedParamsExpanded,
+  specialFeaturesExpanded
+} = useLlmChatUiState();
 
 // 切换折叠状态
 const toggleSection = (section: 'basic' | 'advanced' | 'special') => {

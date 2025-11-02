@@ -26,6 +26,14 @@ export interface LlmChatUiState {
   // 当前选中的智能体 ID
   currentAgentId: string | null;
   
+  // ParametersSidebar 折叠状态
+  presetMessagesExpanded: boolean;
+  
+  // ModelParametersEditor 折叠状态
+  basicParamsExpanded: boolean;
+  advancedParamsExpanded: boolean;
+  specialFeaturesExpanded: boolean;
+  
   // 配置版本
   version?: string;
 }
@@ -39,6 +47,10 @@ const defaultUiState: LlmChatUiState = {
   leftSidebarActiveTab: 'agents',
   agentSortBy: 'lastUsed',
   currentAgentId: null,
+  presetMessagesExpanded: true,
+  basicParamsExpanded: true,
+  advancedParamsExpanded: false,
+  specialFeaturesExpanded: false,
   version: '1.0.0',
 };
 
@@ -61,6 +73,10 @@ const rightSidebarWidth = ref(defaultUiState.rightSidebarWidth);
 const leftSidebarActiveTab = ref<'agents' | 'parameters'>(defaultUiState.leftSidebarActiveTab);
 const agentSortBy = ref<'lastUsed' | 'name' | 'createdAt'>(defaultUiState.agentSortBy);
 const currentAgentId = ref<string | null>(defaultUiState.currentAgentId);
+const presetMessagesExpanded = ref(defaultUiState.presetMessagesExpanded);
+const basicParamsExpanded = ref(defaultUiState.basicParamsExpanded);
+const advancedParamsExpanded = ref(defaultUiState.advancedParamsExpanded);
+const specialFeaturesExpanded = ref(defaultUiState.specialFeaturesExpanded);
 
 // 是否已初始化
 let isInitialized = false;
@@ -84,6 +100,10 @@ export function useLlmChatUiState() {
       leftSidebarActiveTab.value = state.leftSidebarActiveTab;
       agentSortBy.value = state.agentSortBy;
       currentAgentId.value = state.currentAgentId ?? null;
+      presetMessagesExpanded.value = state.presetMessagesExpanded;
+      basicParamsExpanded.value = state.basicParamsExpanded;
+      advancedParamsExpanded.value = state.advancedParamsExpanded;
+      specialFeaturesExpanded.value = state.specialFeaturesExpanded;
       
       isInitialized = true;
       logger.info('UI状态加载成功', state);
@@ -111,6 +131,10 @@ export function useLlmChatUiState() {
       leftSidebarActiveTab: leftSidebarActiveTab.value,
       agentSortBy: agentSortBy.value,
       currentAgentId: currentAgentId.value,
+      presetMessagesExpanded: presetMessagesExpanded.value,
+      basicParamsExpanded: basicParamsExpanded.value,
+      advancedParamsExpanded: advancedParamsExpanded.value,
+      specialFeaturesExpanded: specialFeaturesExpanded.value,
     };
     
     debouncedSave(state);
@@ -123,7 +147,19 @@ export function useLlmChatUiState() {
   const startWatching = () => {
     // 监听所有UI状态变化
     watch(
-      [isLeftSidebarCollapsed, isRightSidebarCollapsed, leftSidebarWidth, rightSidebarWidth, leftSidebarActiveTab, agentSortBy, currentAgentId],
+      [
+        isLeftSidebarCollapsed,
+        isRightSidebarCollapsed,
+        leftSidebarWidth,
+        rightSidebarWidth,
+        leftSidebarActiveTab,
+        agentSortBy,
+        currentAgentId,
+        presetMessagesExpanded,
+        basicParamsExpanded,
+        advancedParamsExpanded,
+        specialFeaturesExpanded,
+      ],
       () => {
         saveUiState();
       }
@@ -146,6 +182,10 @@ export function useLlmChatUiState() {
       leftSidebarActiveTab.value = defaultUiState.leftSidebarActiveTab;
       agentSortBy.value = defaultUiState.agentSortBy;
       currentAgentId.value = defaultUiState.currentAgentId;
+      presetMessagesExpanded.value = defaultUiState.presetMessagesExpanded;
+      basicParamsExpanded.value = defaultUiState.basicParamsExpanded;
+      advancedParamsExpanded.value = defaultUiState.advancedParamsExpanded;
+      specialFeaturesExpanded.value = defaultUiState.specialFeaturesExpanded;
       
       logger.info('UI状态已重置');
     } catch (error) {
@@ -162,6 +202,10 @@ export function useLlmChatUiState() {
     leftSidebarActiveTab,
     agentSortBy,
     currentAgentId,
+    presetMessagesExpanded,
+    basicParamsExpanded,
+    advancedParamsExpanded,
+    specialFeaturesExpanded,
     
     // 方法
     loadUiState,

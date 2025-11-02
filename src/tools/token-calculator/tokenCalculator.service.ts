@@ -238,7 +238,7 @@ class TokenCalculatorService implements ToolService {
       }
 
       try {
-        const encoded = tokenizer.encode(text, null, {
+        const encoded = tokenizer.encode(text, undefined, {
           add_special_tokens: true,
         });
         return {
@@ -303,7 +303,7 @@ class TokenCalculatorService implements ToolService {
 
     if (tokenizer) {
       try {
-        const encoded = tokenizer.encode(text, null, {
+        const encoded = tokenizer.encode(text, undefined, {
           add_special_tokens: true,
         });
         return {

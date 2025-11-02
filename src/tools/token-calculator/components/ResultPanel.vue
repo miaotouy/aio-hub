@@ -112,9 +112,11 @@ defineExpose({ rootEl });
 
 .panel-content {
   flex: 1;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   padding: 20px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* 统计信息区域 */
@@ -124,6 +126,7 @@ defineExpose({ rootEl });
   gap: 12px;
   margin-bottom: 20px;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .stat-card {
@@ -155,7 +158,7 @@ defineExpose({ rootEl });
 }
 
 .stat-value.tokenizer-name {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--text-color);
 }
 
@@ -176,6 +179,10 @@ defineExpose({ rootEl });
   border-radius: 10px;
   padding: 18px;
   box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .section-title {
@@ -183,6 +190,7 @@ defineExpose({ rootEl });
   font-weight: 600;
   color: var(--text-color);
   margin-bottom: 14px;
+  flex-shrink: 0;
 }
 
 .token-blocks {
@@ -192,6 +200,11 @@ defineExpose({ rootEl });
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
   line-height: 1.8;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-content: flex-start;
+  padding-right: 4px;
 }
 
 .token-block {

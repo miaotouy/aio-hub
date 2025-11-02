@@ -247,6 +247,21 @@ export function useTokenCalculator() {
   });
 
   /**
+   * 监听选中模型/分词器变化，自动重新计算
+   */
+  watch(selectedModelId, (newId, oldId) => {
+    // 只有在真正切换了模型时才重新计算（避免初始化时重复计算）
+    if (oldId && newId !== oldId && inputText.value) {
+      calculateTokens();
+      logger.info('切换模型/分词器', {
+        mode: calculationMode.value,
+        from: oldId,
+        to: newId
+      });
+    }
+  });
+
+  /**
    * 初始化默认模型
    */
   const initializeDefaultModel = (): void => {

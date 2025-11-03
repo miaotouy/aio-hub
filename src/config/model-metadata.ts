@@ -563,6 +563,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        document: true, // 支持文档（通过 OpenAI Responses API 的 file_data/file_url/file_id）
+        documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
         visionTokenCost: {
           calculationMethod: "openai_tile",
           parameters: {
@@ -571,11 +573,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
             tileSize: 512,
           },
         },
+        documentTokenCost: {
+          calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
+        },
       },
     },
     priority: 25, // 更高优先级，优先匹配 gpt-4o
     enabled: true,
-    description: "GPT-4o 系列模型（使用 o200k_base 编码）",
+    description: "GPT-4o 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-5",
@@ -588,6 +593,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        document: true,
+        documentFormat: 'openai_file',
         visionTokenCost: {
           calculationMethod: "openai_tile",
           parameters: {
@@ -596,11 +603,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
             tileSize: 512,
           },
         },
+        documentTokenCost: {
+          calculationMethod: "dynamic",
+        },
       },
     },
     priority: 25,
     enabled: true,
-    description: "GPT-5 系列模型（使用 o200k_base 编码）",
+    description: "GPT-5 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-image",
@@ -665,6 +675,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        document: true, // 支持文档（通过 OpenAI Responses API）
+        documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
         visionTokenCost: {
           calculationMethod: "openai_tile",
           parameters: {
@@ -673,11 +685,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
             tileSize: 512,
           },
         },
+        documentTokenCost: {
+          calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
+        },
       },
     },
     priority: 25, // 更高优先级以优先匹配 gpt-4.1
     enabled: true,
-    description: "GPT-4.1 系列模型（最智能的非推理模型）",
+    description: "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-4",
@@ -730,11 +745,17 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       tokenizer: "gpt4o", // o1 系列使用 o200k_base 编码
       capabilities: {
         reasoning: true,
+        vision: true, // o1 支持视觉输入
+        document: true, // 支持文档（通过 OpenAI Responses API）
+        documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
+        documentTokenCost: {
+          calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
+        },
       },
     },
     priority: 25,
     enabled: true,
-    description: "o1 系列模型（使用 o200k_base 编码）",
+    description: "o1 系列推理模型（使用 o200k_base 编码，支持推理、视觉和文档处理）",
   },
   {
     id: "model-prefix-o4-mini",
@@ -827,17 +848,21 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         thinking: true,
         toolUse: true,
+        document: true, // 支持 PDF 文档（通过 document 类型 + base64）
         visionTokenCost: {
           calculationMethod: "claude_3",
           parameters: {
             costPerImage: 1000, // 预估值，实际由 API 返回
           },
         },
+        documentTokenCost: {
+          calculationMethod: "dynamic", // Claude API 会返回实际 token 消耗
+        },
       },
     },
     priority: 20,
     enabled: true,
-    description: "Claude 系列模型",
+    description: "Claude 系列模型（支持视觉、思考模式、工具调用和文档处理）",
   },
 
   // Google 系列模型
@@ -854,17 +879,22 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         thinking: true,
         toolUse: true,
         codeExecution: true,
+        document: true, // 支持 PDF 文档（inline_data 方式，最多 3600 页）
         visionTokenCost: {
           calculationMethod: "fixed",
           parameters: {
             costPerImage: 258, // Gemini 官方文档的预估值
           },
         },
+        documentTokenCost: {
+          calculationMethod: "per_page",
+          tokensPerPage: 258, // Gemini 官方文档：每页 258 tokens
+        },
       },
     },
     priority: 20,
     enabled: true,
-    description: "Gemini 系列模型",
+    description: "Gemini 系列模型（支持视觉、思考模式、工具调用、代码执行和文档处理，最多 3600 页）",
   },
   {
     id: "model-prefix-gemma3",

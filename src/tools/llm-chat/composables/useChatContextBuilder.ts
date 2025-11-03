@@ -5,6 +5,7 @@
 
 import type { ChatSession, ChatMessageNode, ContextPostProcessRule } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import type { ModelCapabilities } from "@/types/llm-profiles";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
 import { useChatAssetProcessor } from "./useChatAssetProcessor";
@@ -268,12 +269,14 @@ export function useChatContextBuilder() {
    * 构建 LLM 上下文
    * 从活动路径和智能体配置中提取系统提示、对话历史和当前消息
    * @param effectiveUserProfile 当前生效的用户档案（可选）
+   * @param capabilities 模型能力（可选，用于智能附件处理）
    */
   const buildLlmContext = async (
     activePath: ChatMessageNode[],
     agentConfig: any,
     _currentUserMessage: string,
-    effectiveUserProfile?: { id: string; name: string; content: string } | null
+    effectiveUserProfile?: { id: string; name: string; content: string } | null,
+    capabilities?: ModelCapabilities
   ): Promise<LlmContextData> => {
     // 过滤出有效的对话上下文（排除禁用节点和系统节点）
     const llmContextPromises = activePath
@@ -312,7 +315,7 @@ export function useChatContextBuilder() {
             });
           }
 
-          // 转换附件
+          // 转换附件（传递模型能力信息以实现智能处理）
           for (const asset of node.attachments) {
             logger.debug("开始转换附件", {
               nodeId: node.id,
@@ -320,9 +323,15 @@ export function useChatContextBuilder() {
               assetName: asset.name,
               assetType: asset.type,
               importStatus: asset.importStatus,
+              modelCapabilities: capabilities
+                ? {
+                    vision: capabilities.vision,
+                    document: capabilities.document,
+                  }
+                : undefined,
             });
 
-            const attachmentContent = await assetToMessageContent(asset);
+            const attachmentContent = await assetToMessageContent(asset, capabilities);
             if (attachmentContent) {
               messageContents.push(attachmentContent);
               logger.info("✅ 附件转换成功", {

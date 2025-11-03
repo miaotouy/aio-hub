@@ -5,6 +5,7 @@
 
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import type { ModelCapabilities } from "@/types/llm-profiles";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -102,8 +103,13 @@ export function useChatAssetProcessor() {
   /**
    * 将 Asset 转换为 LlmMessageContent
    * 支持图片和文档类型
+   * @param asset 要转换的资产
+   * @param capabilities 模型能力（可选，用于智能文档格式选择）
    */
-  const assetToMessageContent = async (asset: Asset): Promise<LlmMessageContent | null> => {
+  const assetToMessageContent = async (
+    asset: Asset,
+    capabilities?: ModelCapabilities
+  ): Promise<LlmMessageContent | null> => {
     try {
       // 处理图片类型
       if (asset.type === "image") {
@@ -170,24 +176,47 @@ export function useChatAssetProcessor() {
           }
         }
 
-        // 对于非文本文档（如 PDF），使用 base64 编码
-        // 注意：只有 Claude API 支持 document 类型，其他 API 可能会忽略或报错
+        // 对于非文本文档（如 PDF）：根据模型能力选择合适的格式
         const base64 = await convertAssetToBase64(asset.path);
+        
+        // 根据模型的文档格式生成对应的内容
+        const documentFormat = capabilities?.documentFormat || 'base64';
+        
+        if (documentFormat === 'openai_file') {
+          // OpenAI Responses 格式：使用 file_data（base64 data URL）
+          logger.debug("文档附件转换为 OpenAI Responses 格式", {
+            assetId: asset.id,
+            assetName: asset.name,
+            mimeType: asset.mimeType,
+            format: "file_data (base64 data URL)",
+          });
 
-        logger.debug("文档附件转换为 base64（仅 Claude 支持）", {
-          assetId: asset.id,
-          assetName: asset.name,
-          mimeType: asset.mimeType,
-        });
+          return {
+            type: "document",
+            documentSource: {
+              type: "file_data",
+              filename: asset.name,
+              file_data: `data:${asset.mimeType};base64,${base64}`,
+            },
+          };
+        } else {
+          // Claude/Gemini 格式：使用 base64（默认格式，也作为兜底方案）
+          logger.debug("文档附件转换为 base64 格式", {
+            assetId: asset.id,
+            assetName: asset.name,
+            mimeType: asset.mimeType,
+            format: capabilities?.documentFormat || "base64 (default)",
+          });
 
-        return {
-          type: "document",
-          documentSource: {
-            type: "base64",
-            media_type: asset.mimeType,
-            data: base64,
-          },
-        };
+          return {
+            type: "document",
+            documentSource: {
+              type: "base64",
+              media_type: asset.mimeType,
+              data: base64,
+            },
+          };
+        }
       }
 
       // 暂不支持的类型

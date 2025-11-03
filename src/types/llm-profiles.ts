@@ -132,6 +132,43 @@ export interface ModelCapabilities {
   embedding?: boolean;
   /** 是否支持重排（Rerank） */
   rerank?: boolean;
+  
+  /**
+   * 文档处理能力
+   * - true: 支持原生文档格式
+   * - false 或 undefined: 不支持，需要提取为文本或提示用户
+   *
+   * 支持的模型示例：
+   * - Claude (Anthropic): 支持 PDF 通过 document 类型 + base64
+   * - Gemini: 支持 PDF 通过 inline_data，最多 3600 页
+   * - GPT-4o/GPT-5 (OpenAI Responses): 支持 PDF 通过 file_url/file_id/file_data
+   */
+  document?: boolean;
+  
+  /**
+   * 文档格式（仅当 document 为 true 时有效）
+   * 指定该模型使用的文档传输格式
+   *
+   * - 'base64': Claude/Gemini 格式，直接在消息中嵌入 base64 编码的文档
+   * - 'openai_file': OpenAI Responses 格式，支持 file_url/file_id/file_data 三种方式
+   */
+  documentFormat?: 'base64' | 'openai_file';
+  
+  /**
+   * 文档 Token 计费规则（仅当 document 为 true 时有效）
+   * 用于计算 PDF 等文档的 token 消耗
+   */
+  documentTokenCost?: {
+    /**
+     * 计算方法
+     * - 'per_page': 按页计算（如 Gemini: 258 tokens/page）
+     * - 'dynamic': 动态计算（API 返回实际值）
+     */
+    calculationMethod: 'per_page' | 'dynamic';
+    
+    /** 每页的 token 数（仅当 calculationMethod 为 'per_page' 时使用） */
+    tokensPerPage?: number;
+  };
 }
 
 /**

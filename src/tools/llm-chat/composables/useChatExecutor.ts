@@ -106,6 +106,9 @@ export function useChatExecutor() {
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
+    
+    // 提取模型能力（用于智能附件处理）
+    const capabilities = model?.capabilities;
 
     // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
     assistantNode.metadata = {
@@ -125,12 +128,13 @@ export function useChatExecutor() {
     try {
       const { sendRequest } = useLlmRequest();
 
-      // 构建 LLM 上下文
+      // 构建 LLM 上下文（传递模型能力以实现智能附件处理）
       let { messages } = await buildLlmContext(
         pathToUserNode,
         agentConfig,
         userNode.content,
-        effectiveUserProfile
+        effectiveUserProfile,
+        capabilities
       );
 
       // 应用上下文后处理管道

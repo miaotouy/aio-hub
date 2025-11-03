@@ -64,6 +64,34 @@ export const callOpenAiResponsesApi = async (
         });
       }
 
+      // 处理文档附件（PDF 等）
+      for (const documentPart of parsed.documentParts) {
+        const source = documentPart.source;
+        
+        if (source.type === "file_url") {
+          // 外部 URL 方式
+          contentArray.push({
+            type: "input_file",
+            file_url: source.file_url,
+          });
+        } else if (source.type === "file_id") {
+          // 已上传的文件 ID
+          contentArray.push({
+            type: "input_file",
+            file_id: source.file_id,
+          });
+        } else if (source.type === "file_data") {
+          // base64 data URL 方式（当前使用的）
+          contentArray.push({
+            type: "input_file",
+            filename: source.filename,
+            file_data: source.file_data,
+          });
+        }
+        // base64 格式（Claude/Gemini）不应该出现在 OpenAI Responses API 中
+        // 如果出现，说明配置错误，跳过
+      }
+
       messages.push({
         role: msg.role,
         content: contentArray,

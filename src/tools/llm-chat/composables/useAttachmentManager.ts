@@ -4,6 +4,8 @@ import type { Asset, AssetImportStatus } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { nanoid } from "nanoid";
+import { useAgentStore } from "../agentStore";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 
 const logger = createModuleLogger("AttachmentManager");
 
@@ -59,6 +61,10 @@ export function useAttachmentManager(
 
   const attachments = ref<Asset[]>([]);
   const isProcessing = ref(false);
+  
+  // 在顶层初始化 composables，避免在嵌套函数中调用导致状态获取问题
+  const agentStore = useAgentStore();
+  const { getProfileById } = useLlmProfiles();
 
   // 计算属性
   const count = computed(() => attachments.value.length);
@@ -109,6 +115,7 @@ export function useAttachmentManager(
       return false;
     }
   };
+
   /**
    * 从文件路径推断 MIME 类型
    */
@@ -152,6 +159,78 @@ export function useAttachmentManager(
   };
 
   /**
+   * 检查模型对附件类型的支持情况
+   * @returns 返回警告信息，如果支持则返回 null
+   */
+  const checkModelCapability = (assetType: Asset["type"]): string | null => {
+    // 如果没有选中的 Agent，跳过检查
+    if (!agentStore.currentAgentId) {
+      logger.debug("未选中 Agent，跳过能力检查");
+      return null;
+    }
+
+    const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId);
+    if (!agentConfig) {
+      logger.debug("无法获取 Agent 配置，跳过能力检查");
+      return null;
+    }
+
+    // 获取模型能力
+    const profile = getProfileById(agentConfig.profileId);
+    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
+    const capabilities = model?.capabilities;
+
+    logger.debug("检查模型能力", {
+      assetType,
+      modelId: agentConfig.modelId,
+      modelName: model?.name,
+      hasCapabilities: !!capabilities,
+      visionSupport: capabilities?.vision,
+      documentSupport: capabilities?.document,
+    });
+
+    // 无配置视为不支持（安全默认）
+    if (!capabilities) {
+      logger.info("模型未配置能力信息，视为不支持该附件类型", {
+        assetType,
+        modelName: model?.name || agentConfig.modelId,
+      });
+      
+      if (assetType === "image") {
+        return `当前模型「${model?.name || agentConfig.modelId}」未配置视觉能力，可能不支持图片输入。建议切换至支持视觉的模型（如 GPT-4o、Claude、Gemini）。`;
+      }
+      
+      if (assetType === "document") {
+        return `当前模型「${model?.name || agentConfig.modelId}」未配置文档处理能力，可能不支持文档输入。建议切换至支持文档的模型（如 GPT-4o、Claude、Gemini）。`;
+      }
+      
+      // 其他类型（音频、视频等）目前不检查
+      return null;
+    }
+
+    // 检查图片支持
+    if (assetType === "image" && !capabilities.vision) {
+      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持图片输入。建议切换至支持视觉的模型（如 GPT-4o、Claude、Gemini）。`;
+      logger.info("检测到不支持的附件类型：图片", {
+        modelName: model?.name || agentConfig.modelId,
+      });
+      return warning;
+    }
+
+    // 检查文档支持
+    if (assetType === "document" && !capabilities.document) {
+      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持文档输入。建议切换至支持文档的模型（如 GPT-4o、Claude、Gemini）。`;
+      logger.info("检测到不支持的附件类型：文档", {
+        modelName: model?.name || agentConfig.modelId,
+      });
+      return warning;
+    }
+
+    logger.debug("模型支持该附件类型", { assetType });
+    return null;
+  };
+
+  /**
    * 创建待导入的占位 Asset 对象
    * 用于立即显示预览，不阻塞 UI
    */
@@ -161,9 +240,11 @@ export function useAttachmentManager(
       const metadata = await invoke<{ size: number }>("get_file_metadata", { path });
       const fileName = path.split(/[/\\]/).pop() || "unknown";
 
+      const assetType = inferAssetType(path);
+
       const pendingAsset: Asset = {
         id: nanoid(), // 临时 ID
-        type: inferAssetType(path),
+        type: assetType,
         mimeType: inferMimeType(path),
         name: fileName,
         path: path, // 暂时存储原始路径用于预览
@@ -310,6 +391,20 @@ export function useAttachmentManager(
       totalCount: attachments.value.length,
     });
 
+    // 检查模型能力并显示警告（不阻止添加）
+    const uniqueWarnings = new Set<string>();
+    for (const asset of pendingAssets) {
+      const warning = checkModelCapability(asset.type);
+      if (warning) {
+        uniqueWarnings.add(warning);
+      }
+    }
+
+    // 显示去重后的警告
+    for (const warning of uniqueWarnings) {
+      customMessage.warning(warning);
+    }
+
     // 第二阶段：异步导入到存储系统（不阻塞 UI）
     // 并行导入所有资产
     const importPromises = pendingAssets.map((asset) => importPendingAsset(asset));
@@ -368,6 +463,21 @@ export function useAttachmentManager(
 
     attachments.value.push(asset);
     logger.info("添加资产", { assetId: asset.id, name: asset.name });
+
+    // 检查模型能力并显示警告（不阻止添加）
+    const warning = checkModelCapability(asset.type);
+    logger.debug("能力检查结果", {
+      assetId: asset.id,
+      assetType: asset.type,
+      hasWarning: !!warning,
+      warning: warning || "无警告",
+    });
+    
+    if (warning) {
+      logger.info("显示模型能力警告", { warning });
+      customMessage.warning(warning);
+    }
+
     return true;
   };
 

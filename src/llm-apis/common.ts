@@ -24,8 +24,30 @@ export interface LlmMessageContent {
   toolResultId?: string;
   toolResultContent?: string | LlmMessageContent[];
   isError?: boolean;
-  // 文档
-  documentSource?: Record<string, any>;
+  // 文档 - 支持多种格式
+  documentSource?:
+    | {
+        // Claude/Gemini 格式：base64 编码
+        type: "base64";
+        media_type: string;
+        data: string;
+      }
+    | {
+        // OpenAI Responses 格式：file_url
+        type: "file_url";
+        file_url: string;
+      }
+    | {
+        // OpenAI Responses 格式：file_id（需先上传到 Files API）
+        type: "file_id";
+        file_id: string;
+      }
+    | {
+        // OpenAI Responses 格式：file_data（base64 data URL）
+        type: "file_data";
+        filename: string;
+        file_data: string; // data:application/pdf;base64,xxx
+      };
 }
 
 /**

@@ -1,13 +1,29 @@
 <template>
   <div class="asset-grid-view">
-    <div class="grid-container">
-      <div
-        v-for="asset in assets"
+    <div v-for="group in groupedAssets" :key="group.month" class="month-group">
+      <div class="month-header">
+        <h3 class="month-title">{{ group.label }}</h3>
+        <span class="asset-count">{{ group.assets.length }} 个文件</span>
+      </div>
+      <div class="grid-container">
+        <div
+        v-for="asset in group.assets"
         :key="asset.id"
         :data-asset-id="asset.id"
-        :class="['asset-card', { 'is-duplicate': props.duplicateHashes.has(asset.id) }]"
-        @click="handleSelect(asset)"
+        :class="[
+          'asset-card',
+          { 'is-duplicate': props.duplicateHashes.has(asset.id) },
+          { 'is-selected': props.selectedIds.has(asset.id) }
+        ]"
+        @click="emit('selection-change', asset, $event)"
       >
+        <!-- 复选框 -->
+        <el-checkbox
+          :model-value="props.selectedIds.has(asset.id)"
+          class="selection-checkbox"
+          size="large"
+          @click.stop="emit('selection-change', asset, $event)"
+        />
         <!-- 缩略图或图标 -->
         <div class="asset-preview">
           <template v-if="asset.type === 'image'">
@@ -63,28 +79,39 @@
             </template>
           </el-dropdown>
         </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { MoreFilled, View, Delete } from '@element-plus/icons-vue';
 import type { Asset } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 
-interface Props {
+interface GroupedAssets {
+  month: string;
+  label: string;
   assets: Asset[];
+}
+
+interface Props {
+  groupedAssets: GroupedAssets[];
   duplicateHashes?: Set<string>;
+  selectedIds?: Set<string>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   duplicateHashes: () => new Set(),
+  selectedIds: () => new Set(),
 });
 
 const emit = defineEmits<{
   select: [asset: Asset];
   delete: [assetId: string];
+  'selection-change': [asset: Asset, event: MouseEvent];
 }>();
 
 // 存储每个资产的 URL
@@ -106,13 +133,15 @@ const loadAssetUrls = async () => {
     assetUrls.value.clear();
     
     // 为所有图片资产生成 URL
-    for (const asset of props.assets) {
-      if (asset.type === 'image') {
-        try {
-          const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
-          assetUrls.value.set(asset.id, url);
-        } catch (error) {
-          console.error('生成资产 URL 失败:', asset.id, error);
+    for (const group of props.groupedAssets) {
+      for (const asset of group.assets) {
+        if (asset.type === 'image') {
+          try {
+            const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+            assetUrls.value.set(asset.id, url);
+          } catch (error) {
+            console.error('生成资产 URL 失败:', asset.id, error);
+          }
         }
       }
     }
@@ -122,9 +151,9 @@ const loadAssetUrls = async () => {
 };
 
 // 监听资产列表变化
-watch(() => props.assets, () => {
+watch(() => props.groupedAssets, () => {
   loadAssetUrls();
-}, { immediate: true });
+}, { immediate: true, deep: true });
 
 // 处理图片加载错误
 const handleImageError = (asset: Asset) => {
@@ -166,23 +195,38 @@ const formatFileSize = (bytes: number) => {
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s;
-  background-color: var(--el-bg-color);
+  background-color: var(--card-bg);
+  user-select: none;
 }
 
 .asset-card:hover {
-  border-color: var(--el-color-primary);
+  border-color: var(--primary-color);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
+}
+.asset-card:hover .selection-checkbox {
+  opacity: 1;
+}
+
+.asset-card.is-selected {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 30%, transparent);
+}
+.asset-card.is-selected:hover {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 40%, transparent);
+}
+.asset-card.is-selected .selection-checkbox {
+  opacity: 1;
 }
 
 .asset-card.is-duplicate {
   border-color: var(--el-color-warning);
-  background-color: var(--el-color-warning-light-9);
+  background-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
 }
 
 .asset-preview {
@@ -191,7 +235,7 @@ const formatFileSize = (bytes: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--el-fill-color-light);
+  background-color: var(--container-bg);
   overflow: hidden;
 }
 
@@ -246,6 +290,16 @@ const formatFileSize = (bytes: number) => {
   opacity: 1;
 }
 
+.selection-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: all;
+}
+
 .loading-placeholder {
   width: 100%;
   height: 100%;
@@ -268,5 +322,32 @@ const formatFileSize = (bytes: number) => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.month-group {
+  margin-bottom: 24px;
+}
+
+.month-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px 12px 4px;
+  border-bottom: 1px solid var(--el-border-color-light);
+  margin-bottom: 16px;
+  border-radius: 4px;
+  background-color: var(--sidebar-bg);
+}
+
+.month-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin: 0;
+}
+
+.asset-count {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 </style>

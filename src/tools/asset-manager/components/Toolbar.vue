@@ -2,14 +2,6 @@
   <div class="asset-toolbar">
     <!-- 左侧操作区 -->
     <div class="toolbar-left">
-      <el-button type="primary" @click="handleImportFiles">
-        <el-icon><FolderOpened /></el-icon>
-        导入文件
-      </el-button>
-      <el-button @click="handleImportFromClipboard">
-        <el-icon><DocumentCopy /></el-icon>
-        从剪贴板导入
-      </el-button>
       <el-button @click="handleRebuildIndex">
         <el-icon><Refresh /></el-icon>
         重建索引
@@ -18,6 +10,21 @@
         <el-icon><CopyDocument /></el-icon>
         查找重复
       </el-button>
+      <el-button v-if="props.hasDuplicates" type="warning" plain @click="emit('selectDuplicates')">
+        <el-icon><Finished /></el-icon>
+        选中多余副本
+      </el-button>
+      <template v-if="props.selectedCount > 0">
+        <el-divider direction="vertical" />
+        <el-button type="danger" plain @click="emit('deleteSelected')">
+          <el-icon><Delete /></el-icon>
+          删除选中 ({{ props.selectedCount }})
+        </el-button>
+        <el-button @click="emit('clearSelection')">
+          <el-icon><Close /></el-icon>
+          取消选择
+        </el-button>
+      </template>
     </div>
 
     <!-- 中间搜索区 -->
@@ -67,31 +74,38 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import {
-  FolderOpened,
-  DocumentCopy,
   Search,
   Grid,
   List,
   Refresh,
   CopyDocument,
+  Delete,
+  Close,
+  Finished,
 } from '@element-plus/icons-vue';
 
 interface Props {
   viewMode: 'grid' | 'list';
   searchQuery: string;
   sortBy: 'name' | 'date' | 'size';
+  selectedCount?: number;
+  hasDuplicates?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  selectedCount: 0,
+  hasDuplicates: false,
+});
 
 const emit = defineEmits<{
   'update:viewMode': [value: 'grid' | 'list'];
   'update:searchQuery': [value: string];
   'update:sortBy': [value: 'name' | 'date' | 'size'];
-  'importFiles': [];
-  'importFromClipboard': [];
   'rebuildIndex': [];
   'findDuplicates': [];
+  'selectDuplicates': [];
+  'clearSelection': [];
+  'deleteSelected': [];
 }>();
 
 // 内部状态
@@ -125,14 +139,6 @@ const handleSortChange = (value: 'name' | 'date' | 'size') => {
   emit('update:sortBy', value);
 };
 
-const handleImportFiles = () => {
-  emit('importFiles');
-};
-
-const handleImportFromClipboard = () => {
-  emit('importFromClipboard');
-};
-
 const handleRebuildIndex = () => {
   emit('rebuildIndex');
 };
@@ -148,7 +154,7 @@ const handleFindDuplicates = () => {
   align-items: center;
   gap: 16px;
   padding: 12px 16px;
-  background-color: var(--el-bg-color);
+  background-color: var(--sidebar-bg);
   border-bottom: 1px solid var(--el-border-color);
   box-sizing: border-box;
 }

@@ -334,6 +334,38 @@ const applyOutputPreset = (value: number) => {
           </div>
         </div>
 
+        <!-- 默认后处理规则 -->
+        <el-divider content-position="left">默认配置</el-divider>
+
+        <el-form-item label="默认后处理规则">
+          <el-select
+            v-model="modelEditForm.defaultPostProcessingRules"
+            multiple
+            placeholder="选择该模型的默认后处理规则"
+            style="width: 100%"
+          >
+            <el-option
+              label="合并 System 消息到头部"
+              value="merge-system-to-head"
+            />
+            <el-option
+              label="合并连续相同角色"
+              value="merge-consecutive-roles"
+            />
+            <el-option
+              label="转换 System 为 User"
+              value="convert-system-to-user"
+            />
+            <el-option
+              label="确保角色交替"
+              value="ensure-alternating-roles"
+            />
+          </el-select>
+          <div class="form-hint">
+            该模型的默认后处理规则。这些规则会与智能体配置的规则合并使用。
+          </div>
+        </el-form-item>
+
         <!-- 价格信息 -->
         <el-divider content-position="left">价格配置</el-divider>
 

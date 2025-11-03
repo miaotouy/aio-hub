@@ -2,6 +2,8 @@
  * LLM 服务配置相关的类型定义
  */
 
+import type { ContextPostProcessRule } from '@/tools/llm-chat/types';
+
 /**
  * LLM 服务提供商类型
  * 决定了请求体的格式
@@ -222,6 +224,21 @@ export interface LlmModelInfo {
    * 用于在 UI 中显示模型的特性和用途说明
    */
   description?: string;
+  /**
+   * 默认的上下文后处理规则类型列表（可选）
+   * 该模型默认启用的消息处理规则
+   *
+   * 规则合并策略：
+   * - 智能体配置的规则优先级更高
+   * - 如果智能体已配置某类型的规则，则不使用模型的默认规则
+   * - 如果智能体未配置该类型规则，则会自动应用模型的默认规则
+   *
+   * 示例：
+   * - 模型默认规则：['merge-system-to-head', 'convert-system-to-user']
+   * - 智能体规则：['merge-system-to-head'] (自定义了 separator)
+   * - 最终生效：智能体的 merge-system-to-head（保留自定义配置）+ 模型的 convert-system-to-user
+   */
+  defaultPostProcessingRules?: Array<ContextPostProcessRule['type']>;
 }
 
 /**

@@ -68,6 +68,91 @@ const { basicParamsExpanded, advancedParamsExpanded, specialFeaturesExpanded } =
 
 // 上下文管理折叠状态（局部状态）
 const contextManagementExpanded = ref(true);
+// 上下文后处理折叠状态（局部状态）
+const postProcessingExpanded = ref(true);
+
+// 可用的后处理规则定义
+const availableRules = [
+  {
+    type: 'merge-system-to-head' as const,
+    name: '合并 System 消息到头部',
+    description: '将所有 system 角色的消息合并为一条，并放在消息列表的最开头',
+    supportsSeparator: true,
+  },
+  {
+    type: 'merge-consecutive-roles' as const,
+    name: '合并连续相同角色',
+    description: '合并连续出现的相同角色消息（如两个 user 消息相邻）',
+    supportsSeparator: true,
+  },
+  {
+    type: 'convert-system-to-user' as const,
+    name: '转换 System 为 User',
+    description: '将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）',
+    supportsSeparator: false,
+  },
+  {
+    type: 'ensure-alternating-roles' as const,
+    name: '确保角色交替',
+    description: '强制实现 user 和 assistant 的严格交替对话模式',
+    supportsSeparator: false,
+  },
+];
+
+// 检查规则是否启用
+const isRuleEnabled = (ruleType: string) => {
+  const rules = localParams.value.contextPostProcessing?.rules || [];
+  return rules.some((r) => r.type === ruleType && r.enabled);
+};
+
+// 获取规则的分隔符
+const getRuleSeparator = (ruleType: string) => {
+  const rules = localParams.value.contextPostProcessing?.rules || [];
+  const rule = rules.find((r) => r.type === ruleType);
+  return rule?.separator || '';
+};
+
+// 切换规则启用状态
+const toggleRule = (ruleType: string, enabled: boolean) => {
+  const currentRules = localParams.value.contextPostProcessing?.rules || [];
+  
+  if (enabled) {
+    // 添加规则（如果不存在）
+    const exists = currentRules.some((r) => r.type === ruleType);
+    if (!exists) {
+      const newRules = [
+        ...currentRules,
+        {
+          type: ruleType as any,
+          enabled: true,
+          separator: '\n\n---\n\n',
+        },
+      ];
+      updateParameter('contextPostProcessing', { rules: newRules });
+    } else {
+      // 更新现有规则
+      const newRules = currentRules.map((r) =>
+        r.type === ruleType ? { ...r, enabled: true } : r
+      );
+      updateParameter('contextPostProcessing', { rules: newRules });
+    }
+  } else {
+    // 禁用规则
+    const newRules = currentRules.map((r) =>
+      r.type === ruleType ? { ...r, enabled: false } : r
+    );
+    updateParameter('contextPostProcessing', { rules: newRules });
+  }
+};
+
+// 更新规则分隔符
+const updateRuleSeparator = (ruleType: string, separator: string) => {
+  const currentRules = localParams.value.contextPostProcessing?.rules || [];
+  const newRules = currentRules.map((r) =>
+    r.type === ruleType ? { ...r, separator } : r
+  );
+  updateParameter('contextPostProcessing', { rules: newRules });
+};
 
 // 上下文统计数据
 const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
@@ -135,7 +220,7 @@ watch(
 );
 
 // 切换折叠状态
-const toggleSection = (section: "basic" | "advanced" | "special" | "context") => {
+const toggleSection = (section: "basic" | "advanced" | "special" | "context" | "postProcessing") => {
   if (section === "basic") {
     basicParamsExpanded.value = !basicParamsExpanded.value;
   } else if (section === "advanced") {
@@ -144,6 +229,8 @@ const toggleSection = (section: "basic" | "advanced" | "special" | "context") =>
     specialFeaturesExpanded.value = !specialFeaturesExpanded.value;
   } else if (section === "context") {
     contextManagementExpanded.value = !contextManagementExpanded.value;
+  } else if (section === "postProcessing") {
+    postProcessingExpanded.value = !postProcessingExpanded.value;
   }
 };
 
@@ -725,41 +812,99 @@ watch(
         </div>
       </div>
     </div>
+<!-- 上下文后处理管道分组 -->
+<div class="param-section">
+  <div
+    class="param-section-header clickable"
+    @click="toggleSection('postProcessing')"
+    :title="postProcessingExpanded ? '点击折叠' : '点击展开'"
+  >
+    <div class="section-title-wrapper">
+      <i-ep-connection class="section-icon" />
+      <span class="param-section-title">上下文后处理</span>
+    </div>
+    <i-ep-arrow-down class="collapse-icon" :class="{ expanded: postProcessingExpanded }" />
+  </div>
 
-    <!-- 特殊功能分组 -->
-    <div v-if="hasSpecialFeatures" class="param-section">
+  <div class="param-section-content" :class="{ collapsed: !postProcessingExpanded }">
+    <div class="param-desc" style="margin-bottom: 16px">
+      配置消息发送前的后处理规则，用于调整消息格式以适配不同模型的要求。规则按顺序执行。
+    </div>
+
+    <!-- 规则列表 -->
+    <div class="post-process-rules">
       <div
-        class="param-section-header clickable"
-        @click="toggleSection('special')"
-        :title="specialFeaturesExpanded ? '点击折叠' : '点击展开'"
+        v-for="rule in availableRules"
+        :key="rule.type"
+        class="rule-item"
+        :class="{ enabled: isRuleEnabled(rule.type) }"
       >
-        <div class="section-title-wrapper">
-          <i-ep-magic-stick class="section-icon" />
-          <span class="param-section-title">特殊功能</span>
+        <div class="rule-header">
+          <el-checkbox
+            :model-value="isRuleEnabled(rule.type)"
+            @update:model-value="toggleRule(rule.type, $event)"
+          >
+            <span class="rule-name">{{ rule.name }}</span>
+          </el-checkbox>
         </div>
-        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: specialFeaturesExpanded }" />
-      </div>
-
-      <div class="param-section-content" :class="{ collapsed: !specialFeaturesExpanded }">
-        <!-- Claude Thinking Mode -->
-        <div v-if="supportedParameters.thinking" class="param-group">
-          <label class="param-label">
-            <span>Thinking Mode (Claude)</span>
-            <el-switch
-              :model-value="localParams.thinking?.type === 'enabled'"
-              @update:model-value="
-                updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })
-              "
-            />
-          </label>
-          <div class="param-desc">启用 Claude 的思考模式，模型会先思考再回答。</div>
-        </div>
-
-        <div class="param-hint">
-          其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。
+        <div class="rule-desc">{{ rule.description }}</div>
+        
+        <!-- 分隔符配置（仅对需要合并的规则显示） -->
+        <div
+          v-if="isRuleEnabled(rule.type) && rule.supportsSeparator"
+          class="rule-separator"
+        >
+          <label class="separator-label">合并分隔符：</label>
+          <el-input
+            :model-value="getRuleSeparator(rule.type)"
+            @update:model-value="updateRuleSeparator(rule.type, $event)"
+            placeholder="默认: \n\n---\n\n"
+            size="small"
+          />
         </div>
       </div>
     </div>
+
+    <div class="param-hint">
+      <strong>提示：</strong>规则将按照上述顺序依次执行。建议顺序：先合并 system 消息 → 合并连续角色 → 转换角色类型 → 确保交替。
+    </div>
+  </div>
+</div>
+
+<!-- 特殊功能分组 -->
+<div v-if="hasSpecialFeatures" class="param-section">
+  <div
+    class="param-section-header clickable"
+    @click="toggleSection('special')"
+    :title="specialFeaturesExpanded ? '点击折叠' : '点击展开'"
+  >
+    <div class="section-title-wrapper">
+      <i-ep-magic-stick class="section-icon" />
+      <span class="param-section-title">特殊功能</span>
+    </div>
+    <i-ep-arrow-down class="collapse-icon" :class="{ expanded: specialFeaturesExpanded }" />
+  </div>
+
+  <div class="param-section-content" :class="{ collapsed: !specialFeaturesExpanded }">
+    <!-- Claude Thinking Mode -->
+    <div v-if="supportedParameters.thinking" class="param-group">
+      <label class="param-label">
+        <span>Thinking Mode (Claude)</span>
+        <el-switch
+          :model-value="localParams.thinking?.type === 'enabled'"
+          @update:model-value="
+            updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })
+          "
+        />
+      </label>
+      <div class="param-desc">启用 Claude 的思考模式，模型会先思考再回答。</div>
+    </div>
+
+    <div class="param-hint">
+      其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。
+    </div>
+  </div>
+</div>
   </div>
 </template>
 
@@ -1059,5 +1204,75 @@ watch(
 /* 修复部分输入框 placeholder 居中的问题 */
 :deep(.el-input__inner) {
   text-align: left;
+}
+
+/* 上下文后处理规则样式 */
+.post-process-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rule-item {
+  padding: 12px;
+  background-color: var(--container-bg);
+  border: 1px solid var(--border-color-light);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.rule-item.enabled {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-success) 4%, transparent),
+    color-mix(in srgb, var(--el-color-success) 2%, transparent)
+  );
+  border-color: var(--el-color-success);
+}
+
+.rule-item:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.rule-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.rule-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.rule-desc {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  line-height: 1.4;
+  margin-left: 24px;
+  margin-top: 4px;
+}
+
+.rule-separator {
+  margin-top: 10px;
+  margin-left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.separator-label {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.rule-separator :deep(.el-input) {
+  flex: 1;
+  max-width: 300px;
 }
 </style>

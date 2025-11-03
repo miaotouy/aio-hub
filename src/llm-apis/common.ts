@@ -34,14 +34,13 @@ export interface LlmMessageContent {
 export interface LlmRequestOptions {
   profileId: string;
   modelId: string;
-  /** 完整的消息列表（包括 role 和 content） */
+  /** 完整的消息列表（包括 role 和 content），现已支持 system 角色 */
   messages: Array<{
-    role: 'user' | 'assistant';
+    role: 'system' | 'user' | 'assistant';
     content: string | LlmMessageContent[];
   }>;
   maxTokens?: number;
   temperature?: number;
-  systemPrompt?: string;
   /** 是否启用流式响应 */
   stream?: boolean;
   /** 流式响应回调 */

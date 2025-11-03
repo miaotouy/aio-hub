@@ -196,6 +196,27 @@ export interface ChatSession {
 }
 
 /**
+ * 上下文后处理规则
+ */
+export interface ContextPostProcessRule {
+  /** 规则类型 */
+  type:
+    | 'merge-system-to-head'      // 合并所有 system 消息到列表头部
+    | 'merge-consecutive-roles'   // 合并连续相同角色的消息
+    | 'ensure-alternating-roles'  // 确保 user/assistant 角色交替
+    | 'convert-system-to-user';   // 将 system 角色转换为 user 角色
+  
+  /** 是否启用此规则 */
+  enabled: boolean;
+
+  /**
+   * 合并消息时使用的分隔符
+   * @default "\n\n---\n\n"
+   */
+  separator?: string;
+}
+
+/**
  * LLM 参数配置
  * 支持大多数 LLM API 的通用参数
  */
@@ -337,6 +358,16 @@ export interface LlmParameters {
     maxContextTokens: number;
     /** 截断消息时保留的字符数（让消息有简略开头，避免完全被削去） */
     retainedCharacters: number;
+  };
+
+  // ===== 上下文后处理管道 =====
+  /**
+   * 上下文后处理管道配置
+   * 按数组顺序依次执行规则，对最终发送给 LLM 的消息列表进行格式转换
+   */
+  contextPostProcessing?: {
+    /** 处理规则列表，按顺序执行 */
+    rules: ContextPostProcessRule[];
   };
 }
 

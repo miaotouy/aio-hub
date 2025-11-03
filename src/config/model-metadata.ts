@@ -1090,6 +1090,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/yi-color.svg`,
       group: "Yi",
       tokenizer: "llama3_2", // Yi 系列基于 Llama 架构
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1105,6 +1106,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
       group: "Baichuan",
       tokenizer: "llama3_2", // 百川系列基于 Llama 架构
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1120,6 +1122,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/internlm-color.svg`,
       group: "InternLM",
       tokenizer: "llama3_2", // InternLM 系列基于 Llama 架构
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1135,6 +1138,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/minicpm-color.svg`,
       group: "MiniCPM",
       tokenizer: "llama3_2", // MiniCPM 使用 llama3_2 分词器
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1209,6 +1213,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
       group: "Meta",
       tokenizer: "llama3_2", // Llama 3.2 使用专用分词器
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 25, // 更高优先级以优先匹配 Llama 3.2
     enabled: true,
@@ -1223,6 +1228,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
       group: "Meta",
       tokenizer: "llama3_2", // Llama 系列使用 llama3_2 分词器
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1238,6 +1244,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
       group: "Mistral",
       tokenizer: "llama3_2", // Mistral 系列基于 Llama 架构
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1251,6 +1258,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
       group: "Mistral",
       tokenizer: "llama3_2", // Mixtral 系列基于 Llama 架构
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1266,6 +1274,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
       group: "Cohere",
       tokenizer: "gpt4", // Command 系列使用类似 GPT-4 的分词器
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,
@@ -1294,6 +1303,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
       group: "AI21",
       tokenizer: "llama3_2", // Jamba 系列基于混合架构，使用 llama3_2 分词器
+      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
     },
     priority: 20,
     enabled: true,

@@ -3,30 +3,31 @@
  * 负责核心聊天逻辑：发送消息、重新生成、流式响应处理
  */
 
-import type { ChatSession, ChatMessageNode } from '../types';
-import type { LlmMessageContent } from '@/llm-apis/common';
-import type { Asset } from '@/types/asset-management';
-import { useAgentStore } from '../agentStore';
-import { useUserProfileStore } from '../userProfileStore';
-import { useLlmChatStore } from '../store';
-import { useNodeManager } from './useNodeManager';
-import { useLlmRequest } from '@/composables/useLlmRequest';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { createModuleLogger } from '@/utils/logger';
-import { invoke } from '@tauri-apps/api/core';
-import { tokenCalculatorService } from '@/tools/token-calculator/tokenCalculator.service';
-import { useTopicNamer } from './useTopicNamer';
-import { useSessionManager } from './useSessionManager';
+import type { ChatSession, ChatMessageNode } from "../types";
+import type { LlmMessageContent } from "@/llm-apis/common";
+import type { Asset } from "@/types/asset-management";
+import { useAgentStore } from "../agentStore";
+import { useUserProfileStore } from "../userProfileStore";
+import { useLlmChatStore } from "../store";
+import { useNodeManager } from "./useNodeManager";
+import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { createModuleLogger } from "@/utils/logger";
+import { invoke } from "@tauri-apps/api/core";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
+import { useTopicNamer } from "./useTopicNamer";
+import { useSessionManager } from "./useSessionManager";
+import { useMessageProcessor } from "./useMessageProcessor";
 
-const logger = createModuleLogger('llm-chat/chat-handler');
+const logger = createModuleLogger("llm-chat/chat-handler");
 
 /**
  * LLM 上下文构建结果
+ * 现在返回统一的消息列表，可包含 system, user, assistant 角色
  */
 interface LlmContextData {
-  systemPrompt?: string;
   messages: Array<{
-    role: 'user' | 'assistant';
+    role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
   }>;
 }
@@ -40,24 +41,24 @@ export interface ContextPreviewData {
     content: string;
     charCount: number;
     tokenCount?: number;
-    source: 'agent_preset';
+    source: "agent_preset";
   };
   /** 预设消息部分 */
   presetMessages: Array<{
-    role: 'user' | 'assistant';
+    role: "user" | "assistant";
     content: string;
     charCount: number;
     tokenCount?: number;
-    source: 'agent_preset';
+    source: "agent_preset";
     index: number;
   }>;
   /** 会话历史部分 */
   chatHistory: Array<{
-    role: 'user' | 'assistant';
+    role: "user" | "assistant";
     content: string;
     charCount: number;
     tokenCount?: number;
-    source: 'session_history';
+    source: "session_history";
     nodeId: string;
     index: number;
     /** 节点所使用的智能体名称（快照） */
@@ -67,7 +68,7 @@ export interface ContextPreviewData {
   }>;
   /** 最终构建的消息列表（用于原始请求展示） */
   finalMessages: Array<{
-    role: 'user' | 'assistant';
+    role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
   }>;
   /** 统计信息 */
@@ -107,14 +108,14 @@ export function useChatHandler() {
   ): Promise<boolean> => {
     const startTime = Date.now();
     const pendingAssets = assets.filter(
-      (asset) => asset.importStatus === 'pending' || asset.importStatus === 'importing'
+      (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
     );
 
     if (pendingAssets.length === 0) {
       return true; // 没有待导入的资产
     }
 
-    logger.info('等待资产导入完成', {
+    logger.info("等待资产导入完成", {
       totalAssets: assets.length,
       pendingCount: pendingAssets.length,
     });
@@ -122,22 +123,26 @@ export function useChatHandler() {
     // 轮询检查导入状态
     while (Date.now() - startTime < timeout) {
       const stillPending = assets.filter(
-        (asset) => asset.importStatus === 'pending' || asset.importStatus === 'importing'
+        (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
       );
 
       if (stillPending.length === 0) {
         // 检查是否有导入失败的
-        const failedAssets = assets.filter((asset) => asset.importStatus === 'error');
+        const failedAssets = assets.filter((asset) => asset.importStatus === "error");
         if (failedAssets.length > 0) {
-          logger.warn('部分资产导入失败', {
+          logger.warn("部分资产导入失败", {
             failedCount: failedAssets.length,
-            failedAssets: failedAssets.map((a) => ({ id: a.id, name: a.name, error: a.importError })),
+            failedAssets: failedAssets.map((a) => ({
+              id: a.id,
+              name: a.name,
+              error: a.importError,
+            })),
           });
           // 即使有失败的，也返回 true，让用户决定是否继续
           return true;
         }
 
-        logger.info('所有资产导入完成');
+        logger.info("所有资产导入完成");
         return true;
       }
 
@@ -146,10 +151,10 @@ export function useChatHandler() {
     }
 
     // 超时
-    logger.error('资产导入超时', {
+    logger.error("资产导入超时", {
       timeout,
       stillPendingCount: assets.filter(
-        (asset) => asset.importStatus === 'pending' || asset.importStatus === 'importing'
+        (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
       ).length,
     });
     return false;
@@ -162,7 +167,7 @@ export function useChatHandler() {
    */
   const convertAssetToBase64 = async (assetPath: string): Promise<string> => {
     // 读取二进制数据
-    const binaryData = await invoke<number[]>('get_asset_binary', {
+    const binaryData = await invoke<number[]>("get_asset_binary", {
       relativePath: assetPath,
     });
 
@@ -170,7 +175,7 @@ export function useChatHandler() {
     const uint8Array = new Uint8Array(binaryData);
 
     // 转换为 base64（使用分块处理避免调用栈溢出）
-    let base64 = '';
+    let base64 = "";
     const chunkSize = 0x8000; // 32KB chunks
     for (let i = 0; i < uint8Array.length; i += chunkSize) {
       const chunk = uint8Array.subarray(i, i + chunkSize);
@@ -186,10 +191,10 @@ export function useChatHandler() {
   const assetToMessageContent = async (asset: Asset): Promise<LlmMessageContent | null> => {
     try {
       // 处理图片类型
-      if (asset.type === 'image') {
+      if (asset.type === "image") {
         const base64 = await convertAssetToBase64(asset.path);
 
-        logger.debug('图片附件转换为 base64', {
+        logger.debug("图片附件转换为 base64", {
           assetId: asset.id,
           assetName: asset.name,
           mimeType: asset.mimeType,
@@ -197,36 +202,39 @@ export function useChatHandler() {
         });
 
         return {
-          type: 'image',
+          type: "image",
           imageBase64: base64,
         };
       }
 
       // 处理文档类型
-      if (asset.type === 'document') {
+      if (asset.type === "document") {
         // 判断是否为纯文本文件
         const textMimeTypes = [
-          'text/plain',
-          'text/markdown',
-          'text/html',
-          'text/css',
-          'text/javascript',
-          'application/json',
-          'application/xml',
-          'text/xml',
+          "text/plain",
+          "text/markdown",
+          "text/html",
+          "text/css",
+          "text/javascript",
+          "application/json",
+          "application/xml",
+          "text/xml",
         ];
-        
-        const isTextFile = textMimeTypes.includes(asset.mimeType) ||
-                          asset.name.match(/\.(txt|md|json|xml|html|css|js|ts|tsx|jsx|py|java|c|cpp|h|hpp|rs|go|rb|php|sh|yaml|yml|toml|ini|conf|log)$/i);
+
+        const isTextFile =
+          textMimeTypes.includes(asset.mimeType) ||
+          asset.name.match(
+            /\.(txt|md|json|xml|html|css|js|ts|tsx|jsx|py|java|c|cpp|h|hpp|rs|go|rb|php|sh|yaml|yml|toml|ini|conf|log)$/i
+          );
 
         if (isTextFile) {
           // 读取文本文件内容
           try {
-            const textContent = await invoke<string>('read_text_file', {
+            const textContent = await invoke<string>("read_text_file", {
               relativePath: asset.path,
             });
 
-            logger.debug('文本文件附件读取成功', {
+            logger.debug("文本文件附件读取成功", {
               assetId: asset.id,
               assetName: asset.name,
               mimeType: asset.mimeType,
@@ -235,11 +243,11 @@ export function useChatHandler() {
 
             // 返回格式化的文本内容
             return {
-              type: 'text',
+              type: "text",
               text: `[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\``,
             };
           } catch (error) {
-            logger.error('读取文本文件失败，尝试使用 base64', error as Error, {
+            logger.error("读取文本文件失败，尝试使用 base64", error as Error, {
               assetId: asset.id,
               assetName: asset.name,
             });
@@ -251,16 +259,16 @@ export function useChatHandler() {
         // 注意：只有 Claude API 支持 document 类型，其他 API 可能会忽略或报错
         const base64 = await convertAssetToBase64(asset.path);
 
-        logger.debug('文档附件转换为 base64（仅 Claude 支持）', {
+        logger.debug("文档附件转换为 base64（仅 Claude 支持）", {
           assetId: asset.id,
           assetName: asset.name,
           mimeType: asset.mimeType,
         });
 
         return {
-          type: 'document',
+          type: "document",
           documentSource: {
-            type: 'base64',
+            type: "base64",
             media_type: asset.mimeType,
             data: base64,
           },
@@ -268,14 +276,14 @@ export function useChatHandler() {
       }
 
       // 暂不支持的类型
-      logger.warn('跳过不支持的附件类型', {
+      logger.warn("跳过不支持的附件类型", {
         assetType: asset.type,
         assetId: asset.id,
         assetName: asset.name,
       });
       return null;
     } catch (error) {
-      logger.error('附件转换失败', error as Error, {
+      logger.error("附件转换失败", error as Error, {
         assetId: asset.id,
         assetName: asset.name,
       });
@@ -287,22 +295,24 @@ export function useChatHandler() {
    * 应用上下文 Token 限制，截断会话历史
    */
   const applyContextLimit = async (
-    sessionContext: Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>,
-    systemPrompt: string | undefined,
-    presetMessages: Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>,
+    sessionContext: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>,
+    systemMessages: Array<{ role: "system"; content: string }>,
+    presetMessages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>,
     contextManagement: { enabled: boolean; maxContextTokens: number; retainedCharacters: number },
     modelId: string
-  ): Promise<Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>> => {
+  ): Promise<Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>> => {
     const { maxContextTokens, retainedCharacters } = contextManagement;
 
-    // 计算系统提示的 token 数
+    // 计算系统消息的 token 数
     let systemPromptTokens = 0;
-    if (systemPrompt) {
+    for (const sysMsg of systemMessages) {
       try {
-        const result = await tokenCalculatorService.calculateTokens(systemPrompt, modelId);
-        systemPromptTokens = result.count;
+        const result = await tokenCalculatorService.calculateTokens(sysMsg.content, modelId);
+        systemPromptTokens += result.count;
       } catch (error) {
-        logger.warn('计算系统提示 token 失败', { error: error instanceof Error ? error.message : String(error) });
+        logger.warn("计算系统消息 token 失败", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -310,11 +320,14 @@ export function useChatHandler() {
     const presetTokenResults = await Promise.all(
       presetMessages.map(async (msg) => {
         try {
-          const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+          const content =
+            typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
           const result = await tokenCalculatorService.calculateTokens(content, modelId);
           return result.count;
         } catch (error) {
-          logger.warn('计算预设消息 token 失败', { error: error instanceof Error ? error.message : String(error) });
+          logger.warn("计算预设消息 token 失败", {
+            error: error instanceof Error ? error.message : String(error),
+          });
           return 0;
         }
       })
@@ -324,7 +337,7 @@ export function useChatHandler() {
     // 计算可用于会话历史的 token 数量
     const availableTokens = maxContextTokens - systemPromptTokens - presetMessagesTokens;
 
-    logger.info('📊 上下文限制检查', {
+    logger.info("📊 上下文限制检查", {
       maxContextTokens,
       systemPromptTokens,
       presetMessagesTokens,
@@ -333,7 +346,7 @@ export function useChatHandler() {
     });
 
     if (availableTokens <= 0) {
-      logger.warn('⚠️ 预设消息和系统提示已超出最大上下文限制，会话历史将被完全截断', {
+      logger.warn("⚠️ 预设消息和系统提示已超出最大上下文限制，会话历史将被完全截断", {
         systemPromptTokens,
         presetMessagesTokens,
         maxContextTokens,
@@ -346,13 +359,13 @@ export function useChatHandler() {
       sessionContext.map(async (msg, index) => {
         let tokenCount = 0;
         try {
-          let content = '';
-          if (typeof msg.content === 'string') {
+          let content = "";
+          if (typeof msg.content === "string") {
             content = msg.content;
           } else {
             // 对于多模态内容，只计算文本部分的 token
             for (const part of msg.content) {
-              if (part.type === 'text' && part.text) {
+              if (part.type === "text" && part.text) {
                 content += part.text;
               }
             }
@@ -360,9 +373,9 @@ export function useChatHandler() {
           const result = await tokenCalculatorService.calculateTokens(content, modelId);
           tokenCount = result.count;
         } catch (error) {
-          logger.warn('计算消息 token 失败', {
+          logger.warn("计算消息 token 失败", {
             index,
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
           });
         }
         return {
@@ -389,7 +402,7 @@ export function useChatHandler() {
       }
     }
 
-    logger.info('✂️ 上下文截断结果', {
+    logger.info("✂️ 上下文截断结果", {
       totalMessages: sessionContext.length,
       keptMessages: keptIndices.size,
       truncatedMessages: truncatedIndices.size,
@@ -408,27 +421,27 @@ export function useChatHandler() {
       } else {
         // 截断处理
         let truncatedContent: string | LlmMessageContent[];
-        
-        if (typeof msg.content === 'string') {
+
+        if (typeof msg.content === "string") {
           // 纯文本消息
           if (retainedCharacters > 0 && msg.content.length > retainedCharacters) {
-            truncatedContent = msg.content.substring(0, retainedCharacters) + '...[已截断]';
+            truncatedContent = msg.content.substring(0, retainedCharacters) + "...[已截断]";
           } else if (retainedCharacters > 0) {
-            truncatedContent = msg.content + '[已截断]';
+            truncatedContent = msg.content + "[已截断]";
           } else {
-            truncatedContent = '[消息已截断]';
+            truncatedContent = "[消息已截断]";
           }
         } else {
           // 多模态消息：保留结构，但截断文本部分
-          truncatedContent = msg.content.map(part => {
-            if (part.type === 'text' && part.text) {
+          truncatedContent = msg.content.map((part) => {
+            if (part.type === "text" && part.text) {
               let text = part.text;
               if (retainedCharacters > 0 && text.length > retainedCharacters) {
-                text = text.substring(0, retainedCharacters) + '...[已截断]';
+                text = text.substring(0, retainedCharacters) + "...[已截断]";
               } else if (retainedCharacters > 0) {
-                text = text + '[已截断]';
+                text = text + "[已截断]";
               } else {
-                text = '[消息已截断]';
+                text = "[消息已截断]";
               }
               return { ...part, text };
             }
@@ -436,10 +449,10 @@ export function useChatHandler() {
           });
         }
 
-        logger.debug('截断消息', {
+        logger.debug("截断消息", {
           index,
           role: msg.role,
-          originalLength: typeof msg.content === 'string' ? msg.content.length : 'multimodal',
+          originalLength: typeof msg.content === "string" ? msg.content.length : "multimodal",
           retainedCharacters,
         });
 
@@ -467,18 +480,18 @@ export function useChatHandler() {
     // 过滤出有效的对话上下文（排除禁用节点和系统节点）
     const llmContextPromises = activePath
       .filter((node) => node.isEnabled !== false)
-      .filter((node) => node.role !== 'system')
-      .filter((node) => node.role === 'user' || node.role === 'assistant')
+      .filter((node) => node.role !== "system")
+      .filter((node) => node.role === "user" || node.role === "assistant")
       .map(async (node) => {
         let content: string | LlmMessageContent[] = node.content;
-    
+
         // 如果节点有附件，构建多模态消息
         if (node.attachments && node.attachments.length > 0) {
-          logger.info('📎 检测到节点包含附件', {
+          logger.info("📎 检测到节点包含附件", {
             nodeId: node.id,
             role: node.role,
             attachmentCount: node.attachments.length,
-            attachments: node.attachments.map(a => ({
+            attachments: node.attachments.map((a) => ({
               id: a.id,
               name: a.name,
               type: a.type,
@@ -486,42 +499,42 @@ export function useChatHandler() {
               importStatus: a.importStatus,
             })),
           });
-    
+
           const messageContents: LlmMessageContent[] = [];
-    
+
           // 添加文本内容（如果有）
-          if (node.content && node.content.trim() !== '') {
+          if (node.content && node.content.trim() !== "") {
             messageContents.push({
-              type: 'text',
+              type: "text",
               text: node.content,
             });
-            logger.debug('添加文本内容到消息', {
+            logger.debug("添加文本内容到消息", {
               nodeId: node.id,
               textLength: node.content.length,
             });
           }
-    
+
           // 转换附件
           for (const asset of node.attachments) {
-            logger.debug('开始转换附件', {
+            logger.debug("开始转换附件", {
               nodeId: node.id,
               assetId: asset.id,
               assetName: asset.name,
               assetType: asset.type,
               importStatus: asset.importStatus,
             });
-    
+
             const attachmentContent = await assetToMessageContent(asset);
             if (attachmentContent) {
               messageContents.push(attachmentContent);
-              logger.info('✅ 附件转换成功', {
+              logger.info("✅ 附件转换成功", {
                 nodeId: node.id,
                 assetId: asset.id,
                 assetName: asset.name,
                 contentType: attachmentContent.type,
               });
             } else {
-              logger.warn('⚠️ 附件转换失败或跳过', {
+              logger.warn("⚠️ 附件转换失败或跳过", {
                 nodeId: node.id,
                 assetId: asset.id,
                 assetName: asset.name,
@@ -529,26 +542,26 @@ export function useChatHandler() {
               });
             }
           }
-    
+
           content = messageContents;
-    
-          logger.info('📦 多模态消息构建完成', {
+
+          logger.info("📦 多模态消息构建完成", {
             nodeId: node.id,
             role: node.role,
             originalAttachmentCount: node.attachments.length,
             finalMessagePartsCount: messageContents.length,
-            hasTextContent: node.content && node.content.trim() !== '',
+            hasTextContent: node.content && node.content.trim() !== "",
           });
         } else {
-          logger.debug('节点无附件，使用纯文本内容', {
+          logger.debug("节点无附件，使用纯文本内容", {
             nodeId: node.id,
             role: node.role,
             contentLength: node.content.length,
           });
         }
-    
+
         return {
-          role: node.role as 'user' | 'assistant',
+          role: node.role as "user" | "assistant",
           content,
         };
       });
@@ -559,87 +572,93 @@ export function useChatHandler() {
     const presetMessages = agentConfig.presetMessages || [];
     const enabledPresets = presetMessages.filter((msg: any) => msg.isEnabled !== false);
 
-    // 提取 system 消息并合并为 systemPrompt
-    const systemMessages = enabledPresets
-      .filter((msg: any) => msg.role === 'system' && msg.type !== 'user_profile')
-      .map((msg: any) => msg.content);
-    
+    // 构建 system 消息列表（包括用户档案）
+    const systemMessagesList: Array<{
+      role: "system";
+      content: string;
+    }> = [];
+
     // 查找用户档案占位符
     const userProfilePlaceholderIndex = enabledPresets.findIndex(
-      (msg: any) => msg.type === 'user_profile'
+      (msg: any) => msg.type === "user_profile"
     );
-    
-    // 处理用户档案
-    let systemPrompt: string | undefined;
-    if (effectiveUserProfile) {
-      const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.content}`;
-      
-      if (userProfilePlaceholderIndex !== -1) {
-        // 如果找到用户档案占位符，则在占位符位置插入（作为 system 消息的一部分）
-        const systemsBeforePlaceholder = enabledPresets
-          .slice(0, userProfilePlaceholderIndex)
-          .filter((msg: any) => msg.role === 'system' && msg.type !== 'user_profile')
-          .map((msg: any) => msg.content);
-        
-        const systemsAfterPlaceholder = enabledPresets
-          .slice(userProfilePlaceholderIndex + 1)
-          .filter((msg: any) => msg.role === 'system' && msg.type !== 'user_profile' && msg.type !== 'chat_history')
-          .map((msg: any) => msg.content);
-        
-        const systemParts = [
-          ...systemsBeforePlaceholder,
-          userProfilePrompt,
-          ...systemsAfterPlaceholder,
-        ].filter(Boolean);
-        
-        systemPrompt = systemParts.length > 0 ? systemParts.join('\n\n') : undefined;
-        
-        logger.debug('使用用户档案占位符注入用户档案', {
-          profileId: effectiveUserProfile.id,
-          profileName: effectiveUserProfile.name,
-          placeholderIndex: userProfilePlaceholderIndex,
-          systemPartsCount: systemParts.length,
-        });
-      } else {
-        // 如果没有占位符，添加到系统提示末尾（保持原有逻辑）
-        const baseSystemPrompt = systemMessages.length > 0 ? systemMessages.join('\n\n') : '';
-        systemPrompt = baseSystemPrompt
-          ? `${baseSystemPrompt}\n\n${userProfilePrompt}`
-          : userProfilePrompt;
-        
-        logger.debug('注入用户档案到系统提示末尾（无占位符）', {
-          profileId: effectiveUserProfile.id,
-          profileName: effectiveUserProfile.name,
-          contentLength: effectiveUserProfile.content.length,
+
+    // 收集所有 system 消息
+    for (let i = 0; i < enabledPresets.length; i++) {
+      const msg = enabledPresets[i];
+
+      // 跳过用户档案占位符本身
+      if (msg.type === "user_profile") {
+        // 如果有用户档案，在此位置插入
+        if (effectiveUserProfile) {
+          const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.content}`;
+          systemMessagesList.push({
+            role: "system",
+            content: userProfilePrompt,
+          });
+
+          logger.debug("在占位符位置注入用户档案", {
+            profileId: effectiveUserProfile.id,
+            profileName: effectiveUserProfile.name,
+            position: i,
+          });
+        }
+        continue;
+      }
+
+      // 收集普通 system 消息
+      if (msg.role === "system" && msg.type !== "chat_history") {
+        systemMessagesList.push({
+          role: "system",
+          content: msg.content,
         });
       }
-    } else {
-      systemPrompt = systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined;
     }
 
+    // 如果没有用户档案占位符，但有用户档案，则追加到 system 消息末尾
+    if (userProfilePlaceholderIndex === -1 && effectiveUserProfile) {
+      const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.content}`;
+      systemMessagesList.push({
+        role: "system",
+        content: userProfilePrompt,
+      });
+
+      logger.debug("追加用户档案到 system 消息末尾（无占位符）", {
+        profileId: effectiveUserProfile.id,
+        profileName: effectiveUserProfile.name,
+      });
+    }
+
+    // 会话上下文（完整历史，不再单独处理最后一条）
     // 会话上下文（完整历史，不再单独处理最后一条）
     let sessionContext = llmContext;
 
     // 查找历史消息占位符
     const chatHistoryPlaceholderIndex = enabledPresets.findIndex(
-      (msg: any) => msg.type === 'chat_history'
+      (msg: any) => msg.type === "chat_history"
     );
 
-    // 准备预设对话（用于 token 计算）
+    // 准备预设对话（用于 token 计算，不包括 system）
     const presetConversation: Array<{
-      role: 'user' | 'assistant';
+      role: "user" | "assistant";
       content: string | LlmMessageContent[];
     }> = enabledPresets
-      .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
+      .filter(
+        (msg: any) =>
+          (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
+      )
       .map((msg: any) => ({
-        role: msg.role as 'user' | 'assistant',
+        role: msg.role as "user" | "assistant",
         content: msg.content,
       }));
 
     // 应用上下文 Token 限制（如果启用）
-    if (agentConfig.parameters.contextManagement?.enabled &&
-        agentConfig.parameters.contextManagement.maxContextTokens > 0) {
-      logger.info('🔍 开始应用上下文限制', {
+    // 注意：上下文限制目前不考虑 system 消息，只截断会话历史
+    if (
+      agentConfig.parameters.contextManagement?.enabled &&
+      agentConfig.parameters.contextManagement.maxContextTokens > 0
+    ) {
+      logger.info("🔍 开始应用上下文限制", {
         enabled: agentConfig.parameters.contextManagement.enabled,
         maxContextTokens: agentConfig.parameters.contextManagement.maxContextTokens,
         retainedCharacters: agentConfig.parameters.contextManagement.retainedCharacters,
@@ -647,80 +666,98 @@ export function useChatHandler() {
 
       sessionContext = await applyContextLimit(
         sessionContext,
-        systemPrompt,
+        systemMessagesList,
         presetConversation,
         agentConfig.parameters.contextManagement,
         agentConfig.modelId
       );
     }
 
-    let messages: Array<{
-      role: 'user' | 'assistant';
+    // 构建最终的 user/assistant 消息列表
+    let userAssistantMessages: Array<{
+      role: "user" | "assistant";
       content: string | LlmMessageContent[];
     }>;
 
     if (chatHistoryPlaceholderIndex !== -1) {
       // 如果找到占位符，将会话上下文插入到占位符位置
       const presetsBeforePlaceholder: Array<{
-        role: 'user' | 'assistant';
+        role: "user" | "assistant";
         content: string | LlmMessageContent[];
       }> = enabledPresets
         .slice(0, chatHistoryPlaceholderIndex)
-        .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
+        .filter(
+          (msg: any) =>
+            (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
+        )
         .map((msg: any) => ({
-          role: msg.role as 'user' | 'assistant',
+          role: msg.role as "user" | "assistant",
           content: msg.content,
         }));
 
       const presetsAfterPlaceholder: Array<{
-        role: 'user' | 'assistant';
+        role: "user" | "assistant";
         content: string | LlmMessageContent[];
       }> = enabledPresets
         .slice(chatHistoryPlaceholderIndex + 1)
-        .filter((msg: any) => (msg.role === 'user' || msg.role === 'assistant') && msg.type !== 'user_profile')
+        .filter(
+          (msg: any) =>
+            (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
+        )
         .map((msg: any) => ({
-          role: msg.role as 'user' | 'assistant',
+          role: msg.role as "user" | "assistant",
           content: msg.content,
         }));
 
-      messages = [
+      userAssistantMessages = [
         ...presetsBeforePlaceholder,
         ...sessionContext,
         ...presetsAfterPlaceholder,
       ];
 
-      logger.debug('使用历史消息占位符构建上下文', {
+      logger.debug("使用历史消息占位符构建上下文", {
         presetsBeforeCount: presetsBeforePlaceholder.length,
         sessionContextCount: sessionContext.length,
         presetsAfterCount: presetsAfterPlaceholder.length,
-        totalMessages: messages.length,
+        totalUserAssistantMessages: userAssistantMessages.length,
       });
     } else {
       // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后
-      messages = [
-        ...presetConversation,
-        ...sessionContext,
-      ];
+      userAssistantMessages = [...presetConversation, ...sessionContext];
     }
 
+    // 合并 system 消息和 user/assistant 消息，构建统一的消息列表
+    const messages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string | LlmMessageContent[];
+    }> = [...systemMessagesList, ...userAssistantMessages];
+
     // 详细的 debug 日志，展示最终构建的消息
-    logger.debug('🔍 构建 LLM 上下文完成', {
-      systemPromptLength: systemPrompt?.length || 0,
+    logger.debug("🔍 构建 LLM 上下文完成", {
+      systemMessageCount: systemMessagesList.length,
+      userAssistantMessageCount: userAssistantMessages.length,
       totalMessages: messages.length,
       messages: messages.map((msg, index) => ({
         index,
         role: msg.role,
         contentType: typeof msg.content,
-        contentPreview: typeof msg.content === 'string'
-          ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
-          : `[${msg.content.length} parts]`,
-        contentLength: typeof msg.content === 'string'
-          ? msg.content.length
-          : msg.content.reduce((sum, part) => sum + (typeof part === 'object' && 'text' in part && part.text ? part.text.length : 0), 0),
+        contentPreview:
+          typeof msg.content === "string"
+            ? msg.content.substring(0, 100) + (msg.content.length > 100 ? "..." : "")
+            : `[${msg.content.length} parts]`,
+        contentLength:
+          typeof msg.content === "string"
+            ? msg.content.length
+            : msg.content.reduce(
+                (sum, part) =>
+                  sum +
+                  (typeof part === "object" && "text" in part && part.text ? part.text.length : 0),
+                0
+              ),
       })),
     });
 
-    return { systemPrompt, messages };
+    return { messages };
   };
 
   /**
@@ -741,9 +778,9 @@ export function useChatHandler() {
         node.metadata = {};
       }
       if (!node.metadata.reasoningContent) {
-        node.metadata.reasoningContent = '';
+        node.metadata.reasoningContent = "";
         node.metadata.reasoningStartTime = Date.now();
-        logger.info('🕐 推理开始时间已记录', {
+        logger.info("🕐 推理开始时间已记录", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
         });
@@ -753,13 +790,13 @@ export function useChatHandler() {
       // 正文内容流式更新
       // 如果这是第一次接收正文内容，且之前有推理内容但还没记录结束时间
       if (
-        node.content === '' &&
+        node.content === "" &&
         node.metadata?.reasoningContent &&
         node.metadata?.reasoningStartTime &&
         !node.metadata?.reasoningEndTime
       ) {
         node.metadata.reasoningEndTime = Date.now();
-        logger.info('🕐 推理结束时间已记录（正文开始）', {
+        logger.info("🕐 推理结束时间已记录（正文开始）", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
           endTime: node.metadata.reasoningEndTime,
@@ -777,18 +814,20 @@ export function useChatHandler() {
   const validateAndFixUsage = async (
     response: any,
     modelId: string,
-    systemPrompt: string | undefined,
-    messages: Array<{ role: 'user' | 'assistant'; content: string | LlmMessageContent[] }>
+    messages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string | LlmMessageContent[];
+    }>
   ): Promise<void> => {
     // 检查 usage 是否可靠
-    const hasContent = response.content && response.content.trim() !== '';
+    const hasContent = response.content && response.content.trim() !== "";
     const usageIsZero =
       !response.usage ||
-      (response.usage.totalTokens === 0) ||
+      response.usage.totalTokens === 0 ||
       (response.usage.promptTokens === 0 && response.usage.completionTokens === 0);
 
     if (usageIsZero && hasContent) {
-      logger.warn('检测到 API 返回的 usage 信息不可靠（全为 0 但有内容），使用本地计算', {
+      logger.warn("检测到 API 返回的 usage 信息不可靠（全为 0 但有内容），使用本地计算", {
         originalUsage: response.usage,
         contentLength: response.content.length,
         modelId,
@@ -801,25 +840,22 @@ export function useChatHandler() {
           modelId
         );
 
-        // 计算 promptTokens（系统提示 + 对话历史）
-        let promptText = systemPrompt || '';
+        // 计算 promptTokens（所有消息）
+        let promptText = "";
         for (const msg of messages) {
-          if (typeof msg.content === 'string') {
-            promptText += (promptText ? '\n' : '') + msg.content;
+          if (typeof msg.content === "string") {
+            promptText += (promptText ? "\n" : "") + msg.content;
           } else {
             // 对于多模态内容，只计算文本部分
             for (const part of msg.content) {
-              if (part.type === 'text' && part.text) {
-                promptText += (promptText ? '\n' : '') + part.text;
+              if (part.type === "text" && part.text) {
+                promptText += (promptText ? "\n" : "") + part.text;
               }
             }
           }
         }
 
-        const promptResult = await tokenCalculatorService.calculateTokens(
-          promptText,
-          modelId
-        );
+        const promptResult = await tokenCalculatorService.calculateTokens(promptText, modelId);
 
         // 更新 response 的 usage
         response.usage = {
@@ -828,14 +864,14 @@ export function useChatHandler() {
           totalTokens: promptResult.count + completionResult.count,
         };
 
-        logger.info('✅ 本地 token 计算完成', {
+        logger.info("✅ 本地 token 计算完成", {
           calculatedUsage: response.usage,
           promptIsEstimated: promptResult.isEstimated,
           completionIsEstimated: completionResult.isEstimated,
           tokenizerName: completionResult.tokenizerName,
         });
       } catch (error) {
-        logger.error('本地 token 计算失败，保留原始 usage', error as Error, {
+        logger.error("本地 token 计算失败，保留原始 usage", error as Error, {
           modelId,
         });
       }
@@ -855,14 +891,14 @@ export function useChatHandler() {
     if (!finalNode) return;
 
     finalNode.content = response.content;
-    finalNode.status = 'complete';
+    finalNode.status = "complete";
 
     // 保留流式更新时设置的推理内容和时间戳
     const existingReasoningContent = finalNode.metadata?.reasoningContent;
     const existingReasoningStartTime = finalNode.metadata?.reasoningStartTime;
     const existingReasoningEndTime = finalNode.metadata?.reasoningEndTime;
 
-    logger.info('📊 更新最终元数据前', {
+    logger.info("📊 更新最终元数据前", {
       nodeId,
       hasExistingReasoning: !!existingReasoningContent,
       existingStartTime: existingReasoningStartTime,
@@ -881,7 +917,7 @@ export function useChatHandler() {
     };
 
     if (contentTokens !== undefined) {
-      logger.debug('助手消息 token 记录完成', {
+      logger.debug("助手消息 token 记录完成", {
         nodeId,
         contentTokens,
         totalUsage: response.usage,
@@ -896,7 +932,7 @@ export function useChatHandler() {
       } else {
         finalNode.metadata.reasoningEndTime = Date.now();
       }
-      logger.info('🕐 推理时间戳已保存', {
+      logger.info("🕐 推理时间戳已保存", {
         nodeId,
         startTime: finalNode.metadata.reasoningStartTime,
         endTime: finalNode.metadata.reasoningEndTime,
@@ -924,15 +960,15 @@ export function useChatHandler() {
     const errorNode = session.nodes[nodeId];
     if (!errorNode) return;
 
-    if (error instanceof Error && error.name === 'AbortError') {
-      errorNode.status = 'error';
+    if (error instanceof Error && error.name === "AbortError") {
+      errorNode.status = "error";
       errorNode.metadata = {
         ...errorNode.metadata,
-        error: '已取消',
+        error: "已取消",
       };
       logger.info(`${context}已取消`, { nodeId });
     } else {
-      errorNode.status = 'error';
+      errorNode.status = "error";
       errorNode.metadata = {
         ...errorNode.metadata,
         error: error instanceof Error ? error.message : String(error),
@@ -956,8 +992,8 @@ export function useChatHandler() {
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
-      logger.error('发送消息失败：没有选中智能体', new Error('No agent selected'));
-      throw new Error('请先选择一个智能体');
+      logger.error("发送消息失败：没有选中智能体", new Error("No agent selected"));
+      throw new Error("请先选择一个智能体");
     }
 
     const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, {
@@ -965,21 +1001,22 @@ export function useChatHandler() {
     });
 
     if (!agentConfig) {
-      logger.error('发送消息失败：无法获取智能体配置', new Error('Agent config not found'));
-      throw new Error('无法获取智能体配置');
+      logger.error("发送消息失败：无法获取智能体配置", new Error("Agent config not found"));
+      throw new Error("无法获取智能体配置");
     }
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）
     const userProfileStore = useUserProfileStore();
-    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null = null;
-    
+    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null =
+      null;
+
     const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
     if (currentAgent?.userProfileId) {
       // 智能体有绑定的用户档案
       const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
       if (profile) {
         effectiveUserProfile = profile;
-        logger.debug('使用智能体绑定的用户档案', {
+        logger.debug("使用智能体绑定的用户档案", {
           profileId: profile.id,
           profileName: profile.name,
         });
@@ -989,37 +1026,43 @@ export function useChatHandler() {
       const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
       if (profile) {
         effectiveUserProfile = profile;
-        logger.debug('使用全局用户档案', {
+        logger.debug("使用全局用户档案", {
           profileId: profile.id,
           profileName: profile.name,
         });
       }
     }
-    
+
     // 使用节点管理器创建消息对
     const nodeManager = useNodeManager();
-    const { userNode, assistantNode } = nodeManager.createMessagePair(session, content, session.activeLeafId);
-    
+    const { userNode, assistantNode } = nodeManager.createMessagePair(
+      session,
+      content,
+      session.activeLeafId
+    );
+
     // 如果有附件，先等待导入完成
     if (attachments && attachments.length > 0) {
-      logger.info('检查附件导入状态', {
+      logger.info("检查附件导入状态", {
         attachmentCount: attachments.length,
-        pendingCount: attachments.filter(a => a.importStatus === 'pending' || a.importStatus === 'importing').length,
+        pendingCount: attachments.filter(
+          (a) => a.importStatus === "pending" || a.importStatus === "importing"
+        ).length,
       });
 
       // 等待所有附件导入完成
       const allImported = await waitForAssetsImport(attachments);
       if (!allImported) {
-        throw new Error('附件导入超时，请稍后重试');
+        throw new Error("附件导入超时，请稍后重试");
       }
 
       // 保存到用户消息节点
       // 重要：直接修改 session.nodes 中的节点，确保状态同步
       session.nodes[userNode.id].attachments = attachments;
-      logger.info('添加附件到用户消息', {
+      logger.info("添加附件到用户消息", {
         messageId: userNode.id,
         attachmentCount: attachments.length,
-        attachments: attachments.map(a => ({ id: a.id, name: a.name, type: a.type })),
+        attachments: attachments.map((a) => ({ id: a.id, name: a.name, type: a.type })),
       });
     }
 
@@ -1036,7 +1079,7 @@ export function useChatHandler() {
         userProfileName: effectiveUserProfile.name,
         userProfileIcon: effectiveUserProfile.icon,
       };
-      
+
       // 更新档案的最后使用时间
       userProfileStore.updateLastUsed(effectiveUserProfile.id);
     }
@@ -1052,14 +1095,14 @@ export function useChatHandler() {
         ...session.nodes[userNode.id].metadata,
         contentTokens: tokenResult.count,
       };
-      logger.debug('用户消息 token 计算完成', {
+      logger.debug("用户消息 token 计算完成", {
         messageId: userNode.id,
         tokens: tokenResult.count,
         isEstimated: tokenResult.isEstimated,
         tokenizerName: tokenResult.tokenizerName,
       });
     } catch (error) {
-      logger.warn('计算用户消息 token 失败', {
+      logger.warn("计算用户消息 token 失败", {
         messageId: userNode.id,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -1080,14 +1123,17 @@ export function useChatHandler() {
 
     // 重新获取包含新用户消息的完整路径
     const pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
-    
+
     // 确保 pathWithNewMessage 中的 userNode 包含附件，以防 getNodePath 返回的是旧的或不完整的快照
     // userNode 是 pathWithNewMessage 的最后一个元素
     const pathUserNode = pathWithNewMessage[pathWithNewMessage.length - 1];
     if (pathUserNode.id === userNode.id && attachments && attachments.length > 0) {
       // 强制将附件添加到路径中的节点对象上，确保 buildLlmContext 能读取到
       pathUserNode.attachments = attachments;
-      logger.debug('强制同步附件到路径节点', { nodeId: pathUserNode.id, count: attachments.length });
+      logger.debug("强制同步附件到路径节点", {
+        nodeId: pathUserNode.id,
+        count: attachments.length,
+      });
     }
 
     // 创建节点级别的 AbortController
@@ -1100,30 +1146,61 @@ export function useChatHandler() {
       const chatStore = useLlmChatStore();
 
       // 构建 LLM 上下文（activePath 现在包含了新创建的用户消息）
-      const { systemPrompt, messages } = await buildLlmContext(
+      let { messages } = await buildLlmContext(
         pathWithNewMessage,
         agentConfig,
-        content,  // 这个参数现在不再使用，但保留以兼容函数签名
-        effectiveUserProfile  // 传递当前生效的用户档案
+        content, // 这个参数现在不再使用，但保留以兼容函数签名
+        effectiveUserProfile // 传递当前生效的用户档案
       );
 
-      logger.info('📤 发送 LLM 请求', {
+      // 应用上下文后处理管道
+      // 合并模型的默认规则和智能体的规则
+      const modelDefaultRules = model?.defaultPostProcessingRules || [];
+      const agentRules = agentConfig.parameters.contextPostProcessing?.rules || [];
+
+      // 将模型默认规则类型转换为规则对象
+      const modelRulesObjects = modelDefaultRules.map((type) => ({
+        type,
+        enabled: true,
+      }));
+
+      // 合并规则：智能体的规则优先，如果智能体已配置某类型规则，则不使用模型的默认规则
+      const agentRuleTypes = new Set(agentRules.map((r) => r.type));
+      const mergedRules = [
+        ...agentRules,
+        ...modelRulesObjects.filter((r) => !agentRuleTypes.has(r.type)),
+      ];
+
+      if (mergedRules.length > 0) {
+        const { applyProcessingPipeline } = useMessageProcessor();
+        messages = applyProcessingPipeline(messages, mergedRules);
+
+        logger.debug("应用后处理规则", {
+          modelDefaultRulesCount: modelDefaultRules.length,
+          agentRulesCount: agentRules.length,
+          mergedRulesCount: mergedRules.length,
+          mergedRules: mergedRules.map((r) => ({ type: r.type, enabled: r.enabled })),
+        });
+      }
+
+      logger.info("📤 发送 LLM 请求", {
         sessionId: session.id,
         agentId: agentStore.currentAgentId,
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
         totalMessageCount: messages.length,
-        systemPromptLength: systemPrompt?.length || 0,
+        systemMessageCount: messages.filter((m) => m.role === "system").length,
         isStreaming: chatStore.isStreaming,
       });
 
-      logger.debug('📋 发送的完整消息列表', {
+      logger.debug("📋 发送的完整消息列表", {
         messages: messages.map((msg, index) => ({
           index,
           role: msg.role,
-          contentPreview: typeof msg.content === 'string'
-            ? msg.content.substring(0, 200)
-            : JSON.stringify(msg.content).substring(0, 200),
+          contentPreview:
+            typeof msg.content === "string"
+              ? msg.content.substring(0, 200)
+              : JSON.stringify(msg.content).substring(0, 200),
         })),
       });
 
@@ -1133,7 +1210,6 @@ export function useChatHandler() {
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
         messages,
-        systemPrompt,
         // 基础采样参数
         temperature: agentConfig.parameters.temperature,
         maxTokens: agentConfig.parameters.maxTokens,
@@ -1174,21 +1250,25 @@ export function useChatHandler() {
         // 流式响应（根据用户设置）
         stream: chatStore.isStreaming,
         signal: abortController.signal,
-        onStream: chatStore.isStreaming ? (chunk: string) => {
-          handleStreamUpdate(session, assistantNode.id, chunk, false);
-        } : undefined,
-        onReasoningStream: chatStore.isStreaming ? (chunk: string) => {
-          handleStreamUpdate(session, assistantNode.id, chunk, true);
-        } : undefined,
+        onStream: chatStore.isStreaming
+          ? (chunk: string) => {
+              handleStreamUpdate(session, assistantNode.id, chunk, false);
+            }
+          : undefined,
+        onReasoningStream: chatStore.isStreaming
+          ? (chunk: string) => {
+              handleStreamUpdate(session, assistantNode.id, chunk, true);
+            }
+          : undefined,
       });
 
       // 验证并修复 usage 信息（如果不可靠则使用本地计算）
-      await validateAndFixUsage(response, agentConfig.modelId, systemPrompt, messages);
+      await validateAndFixUsage(response, agentConfig.modelId, messages);
 
       // 完成节点生成
       finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId);
 
-      logger.info('消息发送成功', {
+      logger.info("消息发送成功", {
         sessionId: session.id,
         messageLength: response.content.length,
         usage: response.usage,
@@ -1197,26 +1277,26 @@ export function useChatHandler() {
       // 检查是否需要自动生成标题
       const { shouldAutoName, generateTopicName } = useTopicNamer();
       if (shouldAutoName(session)) {
-        logger.info('触发自动生成标题', {
+        logger.info("触发自动生成标题", {
           sessionId: session.id,
           sessionName: session.name,
         });
-        
+
         // 异步生成标题，不阻塞主流程
         const sessionManager = useSessionManager();
         generateTopicName(session, (updatedSession, currentSessionId) => {
           sessionManager.persistSession(updatedSession, currentSessionId);
         }).catch((error) => {
-          logger.warn('自动生成标题失败', {
+          logger.warn("自动生成标题失败", {
             sessionId: session.id,
             error: error instanceof Error ? error.message : String(error),
           });
         });
       }
     } catch (error) {
-      handleNodeError(session, assistantNode.id, error, '消息发送');
+      handleNodeError(session, assistantNode.id, error, "消息发送");
       // AbortError 是用户主动取消，不应该作为错误向上传递
-      if (!(error instanceof Error && error.name === 'AbortError')) {
+      if (!(error instanceof Error && error.name === "AbortError")) {
         throw error;
       }
     } finally {
@@ -1240,7 +1320,7 @@ export function useChatHandler() {
     // 定位目标节点
     const targetNode = session.nodes[nodeId];
     if (!targetNode) {
-      logger.warn('重新生成失败：目标节点不存在', { sessionId: session.id, nodeId });
+      logger.warn("重新生成失败：目标节点不存在", { sessionId: session.id, nodeId });
       return;
     }
 
@@ -1248,7 +1328,7 @@ export function useChatHandler() {
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
-      logger.error('重新生成失败：没有选中智能体', new Error('No agent selected'));
+      logger.error("重新生成失败：没有选中智能体", new Error("No agent selected"));
       return;
     }
 
@@ -1257,7 +1337,7 @@ export function useChatHandler() {
     });
 
     if (!agentConfig) {
-      logger.error('重新生成失败：无法获取智能体配置', new Error('Agent config not found'));
+      logger.error("重新生成失败：无法获取智能体配置", new Error("Agent config not found"));
       return;
     }
 
@@ -1292,14 +1372,15 @@ export function useChatHandler() {
     // 确定生效的用户档案（智能体绑定 > 全局配置）
     // 注意：从用户消息创建新分支时，使用**当前最新**的用户档案配置，而非历史快照
     const userProfileStore = useUserProfileStore();
-    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null = null;
-    
+    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null =
+      null;
+
     if (currentAgent?.userProfileId) {
       // 智能体有绑定的用户档案
       const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
       if (profile) {
         effectiveUserProfile = profile;
-        logger.debug('重新生成时使用智能体绑定的用户档案（最新配置）', {
+        logger.debug("重新生成时使用智能体绑定的用户档案（最新配置）", {
           profileId: profile.id,
           profileName: profile.name,
         });
@@ -1309,7 +1390,7 @@ export function useChatHandler() {
       const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
       if (profile) {
         effectiveUserProfile = profile;
-        logger.debug('重新生成时使用全局用户档案（最新配置）', {
+        logger.debug("重新生成时使用全局用户档案（最新配置）", {
           profileId: profile.id,
           profileName: profile.name,
         });
@@ -1328,40 +1409,71 @@ export function useChatHandler() {
       const { sendRequest } = useLlmRequest();
       const chatStore = useLlmChatStore();
 
-        // 构建 LLM 上下文（使用用户消息的内容）
-        // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
-        const pathToUserNode = nodeManager.getNodePath(session, userNode.id);
+      // 构建 LLM 上下文（使用用户消息的内容）
+      // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
+      const pathToUserNode = nodeManager.getNodePath(session, userNode.id);
 
-        const { systemPrompt, messages } = await buildLlmContext(
-          pathToUserNode, // 使用包含用户消息的完整路径
-          agentConfig,
-          userNode.content,  // 这个参数不再使用，但保留以兼容函数签名
-          effectiveUserProfile  // 传递当前最新的用户档案
-        );
-  
-        logger.info('🔄 从节点重新生成', {
-          sessionId: session.id,
-          targetNodeId: nodeId,
-          targetRole: targetNode.role,
-          userNodeId: userNode.id,
-          newNodeId: assistantNode.id,
-          agentId: agentStore.currentAgentId,
-          profileId: agentConfig.profileId,
-          modelId: agentConfig.modelId,
-          totalMessageCount: messages.length,
-          systemPromptLength: systemPrompt?.length || 0,
-          isStreaming: chatStore.isStreaming,
+      let { messages } = await buildLlmContext(
+        pathToUserNode, // 使用包含用户消息的完整路径
+        agentConfig,
+        userNode.content, // 这个参数不再使用，但保留以兼容函数签名
+        effectiveUserProfile // 传递当前最新的用户档案
+      );
+
+      // 应用上下文后处理管道
+      // 合并模型的默认规则和智能体的规则
+      const modelDefaultRules = model?.defaultPostProcessingRules || [];
+      const agentRules = agentConfig.parameters.contextPostProcessing?.rules || [];
+
+      // 将模型默认规则类型转换为规则对象
+      const modelRulesObjects = modelDefaultRules.map((type) => ({
+        type,
+        enabled: true,
+      }));
+
+      // 合并规则：智能体的规则优先，如果智能体已配置某类型规则，则不使用模型的默认规则
+      const agentRuleTypes = new Set(agentRules.map((r) => r.type));
+      const mergedRules = [
+        ...agentRules,
+        ...modelRulesObjects.filter((r) => !agentRuleTypes.has(r.type)),
+      ];
+
+      if (mergedRules.length > 0) {
+        const { applyProcessingPipeline } = useMessageProcessor();
+        messages = applyProcessingPipeline(messages, mergedRules);
+
+        logger.debug("应用后处理规则（重新生成）", {
+          modelDefaultRulesCount: modelDefaultRules.length,
+          agentRulesCount: agentRules.length,
+          mergedRulesCount: mergedRules.length,
+          mergedRules: mergedRules.map((r) => ({ type: r.type, enabled: r.enabled })),
         });
+      }
 
-        logger.debug('📋 重新生成的完整消息列表', {
-          messages: messages.map((msg, index) => ({
-            index,
-            role: msg.role,
-            contentPreview: typeof msg.content === 'string'
+      logger.info("🔄 从节点重新生成", {
+        sessionId: session.id,
+        targetNodeId: nodeId,
+        targetRole: targetNode.role,
+        userNodeId: userNode.id,
+        newNodeId: assistantNode.id,
+        agentId: agentStore.currentAgentId,
+        profileId: agentConfig.profileId,
+        modelId: agentConfig.modelId,
+        totalMessageCount: messages.length,
+        systemMessageCount: messages.filter((m) => m.role === "system").length,
+        isStreaming: chatStore.isStreaming,
+      });
+
+      logger.debug("📋 重新生成的完整消息列表", {
+        messages: messages.map((msg, index) => ({
+          index,
+          role: msg.role,
+          contentPreview:
+            typeof msg.content === "string"
               ? msg.content.substring(0, 200)
               : JSON.stringify(msg.content).substring(0, 200),
-          })),
-        });
+        })),
+      });
 
       // 发送请求（根据用户设置决定是否流式）
       // 传递所有配置的参数，让用户的设置真正生效
@@ -1369,7 +1481,6 @@ export function useChatHandler() {
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
         messages,
-        systemPrompt,
         // 基础采样参数
         temperature: agentConfig.parameters.temperature,
         maxTokens: agentConfig.parameters.maxTokens,
@@ -1410,30 +1521,34 @@ export function useChatHandler() {
         // 流式响应（根据用户设置）
         stream: chatStore.isStreaming,
         signal: abortController.signal,
-        onStream: chatStore.isStreaming ? (chunk: string) => {
-          handleStreamUpdate(session, assistantNode.id, chunk, false);
-        } : undefined,
-        onReasoningStream: chatStore.isStreaming ? (chunk: string) => {
-          handleStreamUpdate(session, assistantNode.id, chunk, true);
-        } : undefined,
+        onStream: chatStore.isStreaming
+          ? (chunk: string) => {
+              handleStreamUpdate(session, assistantNode.id, chunk, false);
+            }
+          : undefined,
+        onReasoningStream: chatStore.isStreaming
+          ? (chunk: string) => {
+              handleStreamUpdate(session, assistantNode.id, chunk, true);
+            }
+          : undefined,
       });
 
       // 验证并修复 usage 信息（如果不可靠则使用本地计算）
-      await validateAndFixUsage(response, agentConfig.modelId, systemPrompt, messages);
+      await validateAndFixUsage(response, agentConfig.modelId, messages);
 
       // 完成节点生成
       finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId);
 
-      logger.info('从节点重新生成成功', {
+      logger.info("从节点重新生成成功", {
         sessionId: session.id,
         newNodeId: assistantNode.id,
         messageLength: response.content.length,
         usage: response.usage,
       });
     } catch (error) {
-      handleNodeError(session, assistantNode.id, error, '重新生成');
+      handleNodeError(session, assistantNode.id, error, "重新生成");
       // AbortError 是用户主动取消，不应该作为错误向上传递
-      if (!(error instanceof Error && error.name === 'AbortError')) {
+      if (!(error instanceof Error && error.name === "AbortError")) {
         throw error;
       }
     } finally {
@@ -1459,7 +1574,7 @@ export function useChatHandler() {
     // 获取目标节点
     const targetNode = session.nodes[targetNodeId];
     if (!targetNode) {
-      logger.warn('获取上下文预览失败：节点不存在', { targetNodeId });
+      logger.warn("获取上下文预览失败：节点不存在", { targetNodeId });
       return null;
     }
 
@@ -1469,13 +1584,13 @@ export function useChatHandler() {
     // 尝试从节点的 metadata 中获取 agentId，如果没有则使用当前选中的 agent
     let agentId = targetNode.metadata?.agentId || agentStore.currentAgentId;
     // 如果目标节点是用户消息，尝试从其子节点（助手消息）中获取 agentId
-    if (!agentId && targetNode.role === 'user' && targetNode.childrenIds.length > 0) {
+    if (!agentId && targetNode.role === "user" && targetNode.childrenIds.length > 0) {
       const firstChild = session.nodes[targetNode.childrenIds[0]];
       agentId = firstChild?.metadata?.agentId || null;
     }
 
     if (!agentId) {
-      logger.warn('获取上下文预览失败：无法确定使用的 Agent', { targetNodeId });
+      logger.warn("获取上下文预览失败：无法确定使用的 Agent", { targetNodeId });
       return null;
     }
 
@@ -1485,7 +1600,7 @@ export function useChatHandler() {
     });
 
     if (!agentConfig) {
-      logger.warn('获取上下文预览失败：无法获取 Agent 配置', { agentId });
+      logger.warn("获取上下文预览失败：无法获取 Agent 配置", { agentId });
       return null;
     }
 
@@ -1493,11 +1608,45 @@ export function useChatHandler() {
     const agent = agentStore.getAgentById(agentId);
 
     // 使用现有的 buildLlmContext 函数构建上下文
-    const { systemPrompt, messages } = await buildLlmContext(
+    let { messages } = await buildLlmContext(
       nodePath,
       agentConfig,
-      '' // currentUserMessage 参数已不使用
+      "" // currentUserMessage 参数已不使用
     );
+    // 应用上下文后处理管道（用于预览真实发送的内容）
+    // 获取模型信息
+    const { getProfileById } = useLlmProfiles();
+    const profile = getProfileById(agentConfig.profileId);
+    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
+
+    // 合并模型的默认规则和智能体的规则
+    const modelDefaultRules = model?.defaultPostProcessingRules || [];
+    const agentRules = agentConfig.parameters.contextPostProcessing?.rules || [];
+
+    // 将模型默认规则类型转换为规则对象
+    const modelRulesObjects = modelDefaultRules.map((type) => ({
+      type,
+      enabled: true,
+    }));
+
+    // 合并规则：智能体的规则优先，如果智能体已配置某类型规则，则不使用模型的默认规则
+    const agentRuleTypes = new Set(agentRules.map((r) => r.type));
+    const mergedRules = [
+      ...agentRules,
+      ...modelRulesObjects.filter((r) => !agentRuleTypes.has(r.type)),
+    ];
+
+    if (mergedRules.length > 0) {
+      const { applyProcessingPipeline } = useMessageProcessor();
+      messages = applyProcessingPipeline(messages, mergedRules);
+
+      logger.debug("应用后处理规则（预览）", {
+        modelDefaultRulesCount: modelDefaultRules.length,
+        agentRulesCount: agentRules.length,
+        mergedRulesCount: mergedRules.length,
+        mergedRules: mergedRules.map((r) => ({ type: r.type, enabled: r.enabled })),
+      });
+    }
 
     // 处理预设消息
     const presetMessages = agentConfig.presetMessages || [];
@@ -1508,31 +1657,40 @@ export function useChatHandler() {
     let presetMessagesTokenCount = 0;
     let chatHistoryTokenCount = 0;
     let isEstimated = false;
-    let tokenizerName = '';
+    let tokenizerName = "";
 
-    // 提取系统提示部分
-    let systemPromptData: ContextPreviewData['systemPrompt'];
-    if (systemPrompt) {
+    // 提取系统消息部分（从最终消息列表中）
+    let systemPromptData: ContextPreviewData["systemPrompt"];
+    const systemMessages = messages.filter((m) => m.role === "system");
+    if (systemMessages.length > 0) {
+      // 合并所有 system 消息的内容
+      const combinedSystemContent = systemMessages
+        .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+        .join("\n\n");
+
       try {
-        const tokenResult = await tokenCalculatorService.calculateTokens(systemPrompt, agentConfig.modelId);
+        const tokenResult = await tokenCalculatorService.calculateTokens(
+          combinedSystemContent,
+          agentConfig.modelId
+        );
         systemPromptTokenCount = tokenResult.count;
         isEstimated = tokenResult.isEstimated ?? false;
         tokenizerName = tokenResult.tokenizerName;
-        
+
         systemPromptData = {
-          content: systemPrompt,
-          charCount: systemPrompt.length,
+          content: combinedSystemContent,
+          charCount: combinedSystemContent.length,
           tokenCount: tokenResult.count,
-          source: 'agent_preset' as const,
+          source: "agent_preset" as const,
         };
       } catch (error) {
-        logger.warn('计算系统提示 token 失败', {
+        logger.warn("计算系统消息 token 失败", {
           error: error instanceof Error ? error.message : String(error),
         });
         systemPromptData = {
-          content: systemPrompt,
-          charCount: systemPrompt.length,
-          source: 'agent_preset' as const,
+          content: combinedSystemContent,
+          charCount: combinedSystemContent.length,
+          source: "agent_preset" as const,
         };
       }
     }
@@ -1540,29 +1698,33 @@ export function useChatHandler() {
     // 提取预设对话部分（非系统消息）
     const presetMessagesData = await Promise.all(
       enabledPresets
-        .filter((msg: any) => msg.role !== 'system' && msg.type !== 'chat_history')
+        .filter((msg: any) => msg.role !== "system" && msg.type !== "chat_history")
         .map(async (msg: any, index: number) => {
-          const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+          const content =
+            typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
           let tokenCount: number | undefined;
-          
+
           try {
-            const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
+            const tokenResult = await tokenCalculatorService.calculateTokens(
+              content,
+              agentConfig.modelId
+            );
             tokenCount = tokenResult.count;
             presetMessagesTokenCount += tokenResult.count;
             if (tokenResult.isEstimated) isEstimated = true;
           } catch (error) {
-            logger.warn('计算预设消息 token 失败', {
+            logger.warn("计算预设消息 token 失败", {
               index,
               error: error instanceof Error ? error.message : String(error),
             });
           }
-          
+
           return {
-            role: msg.role as 'user' | 'assistant',
+            role: msg.role as "user" | "assistant",
             content,
             charCount: content.length,
             tokenCount,
-            source: 'agent_preset' as const,
+            source: "agent_preset" as const,
             index,
           };
         })
@@ -1572,31 +1734,35 @@ export function useChatHandler() {
     const chatHistoryData = await Promise.all(
       nodePath
         .filter((node) => node.isEnabled !== false)
-        .filter((node) => node.role !== 'system')
-        .filter((node) => node.role === 'user' || node.role === 'assistant')
+        .filter((node) => node.role !== "system")
+        .filter((node) => node.role === "user" || node.role === "assistant")
         .map(async (node, index) => {
-          const content = typeof node.content === 'string' ? node.content : JSON.stringify(node.content);
+          const content =
+            typeof node.content === "string" ? node.content : JSON.stringify(node.content);
           let tokenCount: number | undefined;
-          
+
           try {
-            const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
+            const tokenResult = await tokenCalculatorService.calculateTokens(
+              content,
+              agentConfig.modelId
+            );
             tokenCount = tokenResult.count;
             chatHistoryTokenCount += tokenResult.count;
             if (tokenResult.isEstimated) isEstimated = true;
           } catch (error) {
-            logger.warn('计算会话历史 token 失败', {
+            logger.warn("计算会话历史 token 失败", {
               nodeId: node.id,
               index,
               error: error instanceof Error ? error.message : String(error),
             });
           }
-          
+
           return {
-            role: node.role as 'user' | 'assistant',
+            role: node.role as "user" | "assistant",
             content,
             charCount: content.length,
             tokenCount,
-            source: 'session_history' as const,
+            source: "session_history" as const,
             nodeId: node.id,
             index,
           };
@@ -1608,7 +1774,8 @@ export function useChatHandler() {
     const presetMessagesCharCount = presetMessagesData.reduce((sum, msg) => sum + msg.charCount, 0);
     const chatHistoryCharCount = chatHistoryData.reduce((sum, msg) => sum + msg.charCount, 0);
     const totalCharCount = systemPromptCharCount + presetMessagesCharCount + chatHistoryCharCount;
-    const totalTokenCount = systemPromptTokenCount + presetMessagesTokenCount + chatHistoryTokenCount;
+    const totalTokenCount =
+      systemPromptTokenCount + presetMessagesTokenCount + chatHistoryTokenCount;
 
     const result: ContextPreviewData = {
       systemPrompt: systemPromptData,
@@ -1637,7 +1804,7 @@ export function useChatHandler() {
       },
     };
 
-    logger.debug('🔍 生成上下文预览数据', {
+    logger.debug("🔍 生成上下文预览数据", {
       targetNodeId,
       agentId,
       totalCharCount,

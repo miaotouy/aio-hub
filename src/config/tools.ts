@@ -2,13 +2,13 @@ import { markRaw, Component } from 'vue';
 import {
   MagicStick,
   PictureFilled,
-  Brush,
   Setting,
   Monitor,
   ChatDotRound,
   Menu,
   FolderOpened,
 } from '@element-plus/icons-vue';
+import { Braces, FlaskConical } from 'lucide-vue-next';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
 import RichTextRendererIcon from '../components/icons/RichTextRendererIcon.vue';
@@ -74,7 +74,7 @@ export const toolsConfig: ToolConfig[] = [
   {
     name: 'JSON 格式化',
     path: '/json-formatter',
-    icon: markRaw(Brush),
+    icon: markRaw(Braces),
     component: () => import('../tools/json-formatter/JsonFormatter.vue'),
     description: '格式化和美化JSON数据',
     category: '文本处理'
@@ -167,6 +167,14 @@ export const toolsConfig: ToolConfig[] = [
     icon: markRaw(TokenCalculatorIcon),
     component: () => import('../tools/token-calculator/TokenCalculator.vue'),
     description: '计算文本的 Token 数量，支持多种 LLM 分词器',
+    category: '开发工具'
+  },
+  {
+    name: '组件测试器',
+    path: '/component-tester',
+    icon: markRaw(FlaskConical),
+    component: () => import('../tools/component-tester/ComponentTester.vue'),
+    description: '测试和展示各种 UI 组件、Element Plus 元素、消息提示和主题色板',
     category: '开发工具'
   }
 ];

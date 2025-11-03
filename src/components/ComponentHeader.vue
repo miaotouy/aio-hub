@@ -50,6 +50,21 @@ const positionClasses = computed(() => ({
   collapsed: isCollapsed.value,
 }));
 
+const tooltipPlacement = computed(() => {
+  switch (props.position) {
+    case "top":
+      return "bottom";
+    case "bottom":
+      return "top";
+    case "left":
+      return "right";
+    case "right":
+      return "left";
+    default:
+      return "bottom";
+  }
+});
+
 const dragTooltip = computed(() => {
   return props.dragMode === "window" ? "拖拽以移动窗口" : "拖拽以分离，可在独立窗口打开";
 });
@@ -125,7 +140,7 @@ const handleMenuReattach = async () => {
     <!-- Drag and Title Area -->
     <el-tooltip
       :content="dragTooltip"
-      placement="top"
+      :placement="tooltipPlacement"
       :show-arrow="false"
       :offset="10"
       :enterable="false"
@@ -150,7 +165,7 @@ const handleMenuReattach = async () => {
       <template v-if="collapsible">
         <el-tooltip
           :content="isCollapsed ? '展开' : '收起'"
-          placement="top"
+          :placement="tooltipPlacement"
           :show-arrow="false"
           :offset="10"
           :enterable="false"
@@ -193,7 +208,7 @@ const handleMenuReattach = async () => {
       <div class="menu-container">
         <el-tooltip
           content="菜单"
-          placement="top"
+          :placement="tooltipPlacement"
           :show-arrow="false"
           :offset="10"
           :enterable="false"
@@ -210,7 +225,7 @@ const handleMenuReattach = async () => {
             <template v-if="dragMode === 'window'">
               <el-tooltip
                 content="回归主窗口"
-                placement="top"
+                :placement="tooltipPlacement"
                 :show-arrow="false"
                 :offset="10"
                 :enterable="false"
@@ -234,7 +249,7 @@ const handleMenuReattach = async () => {
               </el-tooltip>
               <el-tooltip
                 :content="isPinned ? '取消置顶' : '置顶窗口'"
-                placement="top"
+                :placement="tooltipPlacement"
                 :show-arrow="false"
                 :offset="10"
                 :enterable="false"
@@ -262,7 +277,7 @@ const handleMenuReattach = async () => {
             <template v-else>
               <el-tooltip
                 content="在独立窗口打开"
-                placement="top"
+                :placement="tooltipPlacement"
                 :show-arrow="false"
                 :offset="10"
                 :enterable="false"

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { ref, computed } from 'vue';
 import type {
   Asset,
@@ -62,13 +62,27 @@ export const assetManagerEngine = {
   },
 
   /**
-   * 将资产路径转换为 asset:// 协议 URL
-   */
-  convertToAssetProtocol: (relativePath: string): string => {
-    const encoded = encodeURIComponent(relativePath).replace(/%2F/g, '/');
-    return `asset://${encoded}`;
-  },
-
+   /**
+    * 将资产路径转换为可用的 URL（同步版本）
+    * @param relativePath 相对于资产根目录的路径
+    * @param basePath 资产根目录的绝对路径（必需）
+    */
+   convertToAssetProtocol: (relativePath: string, basePath: string): string => {
+     try {
+       // 标准化路径分隔符为反斜杠（Windows）
+       const normalizedBase = basePath.replace(/\//g, '\\');
+       const normalizedRelative = relativePath.replace(/\//g, '\\');
+       
+       // 拼接完整路径
+       const fullPath = `${normalizedBase}\\${normalizedRelative}`;
+       
+       // 使用 Tauri v2 的 convertFileSrc
+       return convertFileSrc(fullPath, 'asset');
+     } catch (error) {
+       console.error('转换资产 URL 失败:', error, relativePath);
+       return '';
+     }
+   },
   /**
    * 获取资产的显示 URL (异步获取 Blob URL)
    */

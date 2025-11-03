@@ -91,7 +91,7 @@
 import { View, Delete } from '@element-plus/icons-vue';
 import type { Asset, AssetType, AssetOrigin } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
-import { ref, watch, onUnmounted } from 'vue';
+import { ref, watch } from 'vue';
 
 interface Props {
   assets: Asset[];
@@ -104,66 +104,49 @@ const emit = defineEmits<{
   delete: [assetId: string];
 }>();
 
-// 存储每个资产的 Blob URL
+// 存储每个资产的 URL
 const assetUrls = ref<Map<string, string>>(new Map());
-const loadingUrls = ref<Set<string>>(new Set());
+const basePath = ref<string>('');
+const isLoadingUrls = ref(false);
 
-// 加载单个资产的 Blob URL
-const loadAssetUrl = async (asset: Asset) => {
-  if (asset.type !== 'image') return;
-  if (assetUrls.value.has(asset.id)) return;
-  if (loadingUrls.value.has(asset.id)) return;
-  
+// 加载资产 URL
+const loadAssetUrls = async () => {
   try {
-    loadingUrls.value.add(asset.id);
-    const url = await assetManagerEngine.getAssetUrl(asset, true);
-    assetUrls.value.set(asset.id, url);
-  } catch (error) {
-    console.error('加载资产 URL 失败:', error, asset);
+    isLoadingUrls.value = true;
+    
+    // 获取基础路径（只需获取一次）
+    if (!basePath.value) {
+      basePath.value = await assetManagerEngine.getAssetBasePath();
+    }
+    
+    // 清空旧的 URL
+    assetUrls.value.clear();
+    
+    // 为所有图片资产生成 URL
+    for (const asset of props.assets) {
+      if (asset.type === 'image') {
+        try {
+          const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+          assetUrls.value.set(asset.id, url);
+        } catch (error) {
+          console.error('生成资产 URL 失败:', asset.id, error);
+        }
+      }
+    }
   } finally {
-    loadingUrls.value.delete(asset.id);
+    isLoadingUrls.value = false;
   }
 };
 
-// 获取资产的 URL（从缓存中）
+// 获取资产的 URL
 const getAssetUrl = (asset: Asset): string => {
   return assetUrls.value.get(asset.id) || '';
 };
 
-// 监听资产列表变化，加载新的图片 URL
-watch(
-  () => props.assets,
-  (newAssets) => {
-    // 加载新资产的 URL
-    newAssets.forEach(asset => {
-      if (asset.type === 'image') {
-        loadAssetUrl(asset);
-      }
-    });
-    
-    // 清理不再需要的 URL
-    const currentAssetIds = new Set(newAssets.map(a => a.id));
-    assetUrls.value.forEach((url, id) => {
-      if (!currentAssetIds.has(id)) {
-        if (url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
-        assetUrls.value.delete(id);
-      }
-    });
-  },
-  { immediate: true }
-);
-
-// 清理所有 Blob URLs
-onUnmounted(() => {
-  assetUrls.value.forEach(url => {
-    if (url.startsWith('blob:')) {
-      URL.revokeObjectURL(url);
-    }
-  });
-  assetUrls.value.clear();
-});
+// 监听资产列表变化
+watch(() => props.assets, () => {
+  loadAssetUrls();
+}, { immediate: true });
 
 const handleRowClick = (asset: Asset) => {
   emit('select', asset);

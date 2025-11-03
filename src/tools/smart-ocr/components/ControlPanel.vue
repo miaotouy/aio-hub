@@ -215,9 +215,10 @@ const handleBatchOcr = async () => {
   customMessage.info(`准备批量识别 ${uploadedImages.value.length} 张图片`);
 
   try {
-    for (const image of uploadedImages.value) {
-      await props.ocrContext.runFullOcrProcess({ imageIds: [image.id] });
-    }
+    // 一次性处理所有图片，避免结果被覆盖
+    await props.ocrContext.runFullOcrProcess({
+      imageIds: uploadedImages.value.map(img => img.id)
+    });
 
     logger.info("批量OCR识别完成", {
       totalImages: uploadedImages.value.length,

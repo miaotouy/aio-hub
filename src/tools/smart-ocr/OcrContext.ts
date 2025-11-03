@@ -327,7 +327,6 @@ export class OcrContext {
     const result = await errorHandler.wrapAsync(
       async () => {
         this.isProcessing.value = true;
-        this.ocrResults.value = [];
 
         // 确定要处理的图片
         const imagesToProcess = options.imageIds
@@ -337,6 +336,14 @@ export class OcrContext {
         if (imagesToProcess.length === 0) {
           throw new Error('没有可处理的图片');
         }
+
+        // 收集要处理的图片ID集合
+        const imageIdsToProcess = new Set(imagesToProcess.map(img => img.id));
+        
+        // 清除要处理的图片的旧结果，保留其他图片的结果
+        this.ocrResults.value = this.ocrResults.value.filter(
+          r => !imageIdsToProcess.has(r.imageId)
+        );
 
         // 收集所有图片的块
         const allBlocks: ImageBlock[] = [];
@@ -358,11 +365,24 @@ export class OcrContext {
           engineType: this.fullConfig.value.currentEngineType,
         });
 
-        // 执行 OCR 识别
+        // 执行 OCR 识别，并实时更新结果
         const { runOcr } = useOcrRunner();
-        const results = await runOcr(allBlocks, this.engineConfig.value, onProgress);
+        const results = await runOcr(allBlocks, this.engineConfig.value, (progressResults) => {
+          // 合并进度结果到现有结果中
+          const existingResults = this.ocrResults.value.filter(
+            r => !imageIdsToProcess.has(r.imageId)
+          );
+          this.ocrResults.value = [...existingResults, ...progressResults];
+          
+          // 调用外部传入的进度回调
+          onProgress?.(this.ocrResults.value);
+        });
 
-        this.ocrResults.value = results;
+        // 最终更新：合并结果
+        const existingResults = this.ocrResults.value.filter(
+          r => !imageIdsToProcess.has(r.imageId)
+        );
+        this.ocrResults.value = [...existingResults, ...results];
         this.isProcessing.value = false;
 
         return results;

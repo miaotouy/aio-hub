@@ -295,6 +295,7 @@ const handleToggleIgnore = (blockId: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  box-sizing: border-box;
 }
 
 .panel-header {
@@ -314,8 +315,13 @@ const handleToggleIgnore = (blockId: string) => {
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px;
   align-items: center;
+}
+
+:deep(.el-button) {
+    margin-left: 2px;
 }
 
 .panel-content {
@@ -376,18 +382,20 @@ const handleToggleIgnore = (blockId: string) => {
 .result-item.is-ignored {
   opacity: 0.5;
 }
-
 .result-header {
   padding: 12px;
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 8px;
+  box-sizing: border-box;
 }
 
 .header-left {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }

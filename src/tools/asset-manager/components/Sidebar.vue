@@ -113,6 +113,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   'update:selectedType': [value: AssetType | 'all'];
   'update:selectedOrigin': [value: AssetOrigin['type'] | 'all'];
+  'update:showDuplicatesOnly': [value: boolean];
 }>();
 
 // 内部状态

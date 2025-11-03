@@ -165,3 +165,31 @@ export interface AssetManagerConfig {
    */
   thumbnailMaxSize?: number;
 }
+
+/**
+ * 重复文件信息
+ */
+export interface DuplicateFileInfo {
+  /** 文件哈希值 */
+  hash: string;
+  /** 重复文件的相对路径列表 */
+  files: string[];
+  /** 文件总大小（单个文件大小） */
+  size: number;
+  /** 重复文件数量 */
+  count: number;
+}
+
+/**
+ * 重复文件检测结果
+ */
+export interface DuplicateFilesResult {
+  /** 重复文件组列表 */
+  duplicates: DuplicateFileInfo[];
+  /** 总共的重复文件组数 */
+  totalGroups: number;
+  /** 总共的重复文件数 */
+  totalFiles: number;
+  /** 可节省的空间（字节） */
+  wastedSpace: number;
+}

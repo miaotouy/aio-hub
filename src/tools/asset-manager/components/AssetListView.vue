@@ -3,6 +3,7 @@
     <el-table
       :data="assets"
       style="width: 100%"
+      :row-class-name="getRowClassName"
       @row-click="handleRowClick"
     >
       <!-- 文件类型图标 -->
@@ -24,7 +25,12 @@
       <!-- 文件名 -->
       <el-table-column prop="name" label="文件名" min-width="200">
         <template #default="{ row }">
-          <div class="file-name">{{ row.name }}</div>
+          <div class="file-name">
+            {{ row.name }}
+            <el-tag v-if="props.duplicateHashes.has(row.id)" size="small" type="warning" effect="plain">
+              重复
+            </el-tag>
+          </div>
         </template>
       </el-table-column>
 
@@ -95,9 +101,12 @@ import { ref, watch } from 'vue';
 
 interface Props {
   assets: Asset[];
+  duplicateHashes?: Set<string>;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  duplicateHashes: () => new Set(),
+});
 
 const emit = defineEmits<{
   select: [asset: Asset];
@@ -198,6 +207,10 @@ const formatDate = (isoString: string): string => {
     minute: '2-digit',
   });
 };
+
+const getRowClassName = ({ row }: { row: Asset }) => {
+  return props.duplicateHashes.has(row.id) ? 'duplicate-row' : '';
+};
 </script>
 
 <style scoped>
@@ -228,6 +241,9 @@ const formatDate = (isoString: string): string => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .text-secondary {
@@ -240,5 +256,13 @@ const formatDate = (isoString: string): string => {
 
 :deep(.el-table__row:hover) {
   background-color: var(--el-fill-color-light);
+}
+
+:deep(.el-table__row.duplicate-row) {
+  background-color: var(--el-color-warning-light-9);
+}
+
+:deep(.el-table__row.duplicate-row:hover) {
+  background-color: var(--el-color-warning-light-8);
 }
 </style>

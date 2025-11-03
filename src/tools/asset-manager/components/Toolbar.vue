@@ -14,6 +14,10 @@
         <el-icon><Refresh /></el-icon>
         重建索引
       </el-button>
+      <el-button @click="handleFindDuplicates">
+        <el-icon><CopyDocument /></el-icon>
+        查找重复
+      </el-button>
     </div>
 
     <!-- 中间搜索区 -->
@@ -69,6 +73,7 @@ import {
   Grid,
   List,
   Refresh,
+  CopyDocument,
 } from '@element-plus/icons-vue';
 
 interface Props {
@@ -86,6 +91,7 @@ const emit = defineEmits<{
   'importFiles': [];
   'importFromClipboard': [];
   'rebuildIndex': [];
+  'findDuplicates': [];
 }>();
 
 // 内部状态
@@ -129,6 +135,10 @@ const handleImportFromClipboard = () => {
 
 const handleRebuildIndex = () => {
   emit('rebuildIndex');
+};
+
+const handleFindDuplicates = () => {
+  emit('findDuplicates');
 };
 </script>
 

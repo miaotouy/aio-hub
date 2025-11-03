@@ -8,6 +8,7 @@
       @import-files="handleImportFiles"
       @import-from-clipboard="handleImportFromClipboard"
       @rebuild-index="handleRebuildIndex"
+      @find-duplicates="handleFindDuplicates"
     />
 
     <!-- 主体区域 -->
@@ -17,6 +18,7 @@
         <Sidebar
           v-model:selected-type="selectedType"
           v-model:selected-origin="selectedOrigin"
+          v-model:show-duplicates-only="showDuplicatesOnly"
           :total-assets="totalAssets"
           :total-size="totalSize"
           :type-counts="typeCounts"
@@ -52,6 +54,7 @@
           <AssetGridView
             v-if="viewMode === 'grid'"
             :assets="filteredAndSortedAssets"
+            :duplicate-hashes="duplicateHashes"
             @select="handleSelectAsset"
             @delete="handleDeleteAsset"
           />
@@ -60,6 +63,7 @@
           <AssetListView
             v-else
             :assets="filteredAndSortedAssets"
+            :duplicate-hashes="duplicateHashes"
             @select="handleSelectAsset"
             @delete="handleDeleteAsset"
           />
@@ -71,11 +75,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { Loading } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { customMessage } from '@/utils/customMessage';
-import type { Asset, AssetType, AssetOrigin } from '@/types/asset-management';
+import type { Asset, AssetType, AssetOrigin, DuplicateFilesResult } from '@/types/asset-management';
 import Toolbar from './components/Toolbar.vue';
 import Sidebar from './components/Sidebar.vue';
 import AssetGridView from './components/AssetGridView.vue';
@@ -97,8 +102,11 @@ const {
   importAssetFromClipboard,
   searchAssets,
   removeAsset,
-  rebuildHashIndex,
 } = useAssetManager();
+
+// 重复文件相关状态
+const duplicateHashes = ref<Set<string>>(new Set());
+const duplicateResult = ref<DuplicateFilesResult | null>(null);
 
 // 组件挂载时加载资产列表
 onMounted(async () => {
@@ -111,6 +119,7 @@ const searchQuery = ref('');
 const sortBy = ref<'name' | 'date' | 'size'>('date');
 const selectedType = ref<AssetType | 'all'>('all');
 const selectedOrigin = ref<AssetOrigin['type'] | 'all'>('all');
+const showDuplicatesOnly = ref(false);
 
 // 计算各类型资产数量
 const typeCounts = computed(() => ({
@@ -138,6 +147,11 @@ const filteredAndSortedAssets = computed(() => {
   // 搜索过滤
   if (searchQuery.value.trim()) {
     result = searchAssets(searchQuery.value);
+  }
+
+  // 只显示重复文件
+  if (showDuplicatesOnly.value) {
+    result = result.filter(asset => duplicateHashes.value.has(asset.id));
   }
 
   // 排序
@@ -179,6 +193,9 @@ const handleDeleteAsset = (assetId: string) => {
   removeAsset(assetId);
 };
 
+/**
+ * 重建哈希索引 (工具特定功能)
+ */
 const handleRebuildIndex = async () => {
   try {
     await ElMessageBox.confirm(
@@ -191,12 +208,51 @@ const handleRebuildIndex = async () => {
       }
     );
 
-    const result = await rebuildHashIndex();
+    const result = await invoke<string>('rebuild_hash_index');
     customMessage.success(result);
   } catch (err) {
     if (err !== 'cancel') {
       console.error('重建索引失败:', err);
     }
+  }
+};
+
+/**
+ * 查找重复文件 (工具特定功能)
+ */
+const handleFindDuplicates = async () => {
+  try {
+    const result = await invoke<DuplicateFilesResult>('find_duplicate_files');
+    duplicateResult.value = result;
+    
+    // 构建重复文件哈希集合
+    const hashSet = new Set<string>();
+    result.duplicates.forEach(group => {
+      group.files.forEach(filePath => {
+        // 从路径中提取文件名（UUID）
+        const fileName = filePath.split('/').pop() || '';
+        const uuid = fileName.split('.')[0];
+        hashSet.add(uuid);
+      });
+    });
+    duplicateHashes.value = hashSet;
+    
+    // 显示结果
+    if (result.totalGroups === 0) {
+      customMessage.success('未发现重复文件');
+    } else {
+      const wastedSpaceMB = (result.wastedSpace / (1024 * 1024)).toFixed(2);
+      await ElMessageBox.alert(
+        `发现 ${result.totalGroups} 组重复文件，共 ${result.totalFiles} 个文件，可节省 ${wastedSpaceMB} MB 空间。\n\n重复文件已在列表中标记。`,
+        '重复文件检测结果',
+        {
+          confirmButtonText: '确定',
+          type: 'info',
+        }
+      );
+    }
+  } catch (err) {
+    console.error('查找重复文件失败:', err);
   }
 };
 </script>

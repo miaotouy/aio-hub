@@ -148,13 +148,6 @@ export const assetManagerEngine = {
     return await invoke<Asset[]>('list_all_assets');
   },
 
-  /**
-   * 重建哈希索引
-   * 扫描所有已有文件并建立去重索引
-   */
-  rebuildHashIndex: async (): Promise<string> => {
-    return await invoke<string>('rebuild_hash_index');
-  }
 };
 
 /**
@@ -323,18 +316,6 @@ export function useAssetManager() {
     }
   };
 
-  /**
-   * 重建哈希索引
-   */
-  const rebuildHashIndex = async (): Promise<string> => {
-    try {
-      const promise = assetManagerEngine.rebuildHashIndex();
-      return await withLoading(promise);
-    } catch (err) {
-      handleError(err, '重建索引失败');
-      return Promise.reject(err);
-    }
-  };
 
   // --- 计算属性 ---
   const imageAssets = computed(() => getAssetsByType('image'));
@@ -387,8 +368,7 @@ export function useAssetManager() {
     getAssetsByOrigin,
     searchAssets,
     clearAssets,
-    removeAsset,
-    rebuildHashIndex
+    removeAsset
   };
 }
 

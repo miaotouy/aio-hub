@@ -5,7 +5,7 @@
         v-for="asset in assets"
         :key="asset.id"
         :data-asset-id="asset.id"
-        class="asset-card"
+        :class="['asset-card', { 'is-duplicate': props.duplicateHashes.has(asset.id) }]"
         @click="handleSelect(asset)"
       >
         <!-- 缩略图或图标 -->
@@ -34,6 +34,9 @@
         <div class="asset-info">
           <div class="asset-name" :title="asset.name">
             {{ asset.name }}
+            <el-tag v-if="props.duplicateHashes.has(asset.id)" size="small" type="warning" effect="plain">
+              重复
+            </el-tag>
           </div>
           <div class="asset-meta">
             <span class="asset-size">{{ formatFileSize(asset.size) }}</span>
@@ -72,9 +75,12 @@ import { assetManagerEngine } from '@/composables/useAssetManager';
 
 interface Props {
   assets: Asset[];
+  duplicateHashes?: Set<string>;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  duplicateHashes: () => new Set(),
+});
 
 const emit = defineEmits<{
   select: [asset: Asset];
@@ -174,6 +180,11 @@ const formatFileSize = (bytes: number) => {
   transform: translateY(-2px);
 }
 
+.asset-card.is-duplicate {
+  border-color: var(--el-color-warning);
+  background-color: var(--el-color-warning-light-9);
+}
+
 .asset-preview {
   width: 100%;
   aspect-ratio: 1;
@@ -207,6 +218,9 @@ const formatFileSize = (bytes: number) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .asset-meta {

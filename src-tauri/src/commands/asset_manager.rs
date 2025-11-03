@@ -568,11 +568,11 @@ pub async fn import_asset_from_bytes(
 }
 
 /// 月度哈希索引结构
-/// 存储格式: { "sha256_hash": "uuid.ext" }
+/// 存储格式: { "sha256_hash": ["uuid1.ext", "uuid2.ext"] }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct MonthHashIndex {
     #[serde(flatten)]
-    entries: HashMap<String, String>,
+    entries: HashMap<String, Vec<String>>,
 }
 
 impl MonthHashIndex {
@@ -607,12 +607,12 @@ impl MonthHashIndex {
             .map_err(|e| format!("写入索引文件失败: {}", e))
     }
 
-    fn get(&self, hash: &str) -> Option<&String> {
+    fn get(&self, hash: &str) -> Option<&Vec<String>> {
         self.entries.get(hash)
     }
 
     fn insert(&mut self, hash: String, filename: String) {
-        self.entries.insert(hash, filename);
+        self.entries.entry(hash).or_default().push(filename);
     }
 }
 
@@ -646,12 +646,14 @@ fn check_duplicate_in_current_month(
     let index = MonthHashIndex::from_file(&index_path)?;
     
     // 查询索引
-    if let Some(filename) = index.get(file_hash) {
-        let file_path = month_dir.join(filename);
-        
-        // 验证文件是否仍然存在
-        if file_path.exists() {
-            return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
+    if let Some(filenames) = index.get(file_hash) {
+        if let Some(filename) = filenames.first() {
+            let file_path = month_dir.join(filename);
+            
+            // 验证文件是否仍然存在
+            if file_path.exists() {
+                return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
+            }
         }
     }
     
@@ -771,6 +773,11 @@ pub fn list_all_assets(app: AppHandle) -> Result<Vec<Asset>, String> {
                     continue;
                 }
 
+                // 跳过索引文件
+                if file_path.file_name() == Some(".index.json".as_ref()) {
+                    continue;
+                }
+
                 if let Ok(asset) = build_asset_from_path(&file_path, &base_dir) {
                     assets.push(asset);
                 }
@@ -865,7 +872,6 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
     let asset_type_dirs = ["images", "audio", "videos", "documents", "other"];
     
     let mut total_processed = 0;
-    let mut total_indexed = 0;
     let mut errors = Vec::new();
     
     for type_dir_str in &asset_type_dirs {
@@ -881,9 +887,9 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
                 continue;
             }
             
-            // 为当前月份目录创建或更新索引
+            // 为当前月份目录创建全新的索引
             let index_path = year_month_path.join(".index.json");
-            let mut index = MonthHashIndex::from_file(&index_path)?;
+            let mut new_index = MonthHashIndex::new();
             
             // 遍历该月份目录下的所有文件
             for file_entry in fs::read_dir(&year_month_path).map_err(|e| e.to_string())?.flatten() {
@@ -901,12 +907,7 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
                     Ok(hash) => {
                         if let Some(filename) = file_path.file_name() {
                             let filename_str = filename.to_string_lossy().to_string();
-                            
-                            // 检查索引中是否已存在该哈希值
-                            if !index.entries.contains_key(&hash) {
-                                index.insert(hash, filename_str);
-                                total_indexed += 1;
-                            }
+                            new_index.insert(hash, filename_str);
                         }
                     }
                     Err(e) => {
@@ -919,8 +920,8 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
                 }
             }
             
-            // 保存更新后的索引
-            if let Err(e) = index.save(&index_path) {
+            // 保存全新的索引
+            if let Err(e) = new_index.save(&index_path) {
                 errors.push(format!("保存索引文件 {} 失败: {}", index_path.display(), e));
             }
         }
@@ -928,8 +929,8 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
     
     // 构建结果消息
     let mut result = format!(
-        "索引重建完成！共处理 {} 个文件，新增 {} 条索引记录。",
-        total_processed, total_indexed
+        "索引重建完成！共处理和索引了 {} 个文件。",
+        total_processed
     );
     
     if !errors.is_empty() {
@@ -943,4 +944,136 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
     }
     
     Ok(result)
+}
+
+
+/// 重复文件信息
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateFileInfo {
+    /// 文件哈希值
+    pub hash: String,
+    /// 重复文件的相对路径列表
+    pub files: Vec<String>,
+    /// 文件总大小（单个文件大小）
+    pub size: u64,
+    /// 重复文件数量
+    pub count: usize,
+}
+
+/// 重复文件检测结果
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateFilesResult {
+    /// 重复文件组列表
+    pub duplicates: Vec<DuplicateFileInfo>,
+    /// 总共的重复文件组数
+    pub total_groups: usize,
+    /// 总共的重复文件数
+    pub total_files: usize,
+    /// 可节省的空间（字节）
+    pub wasted_space: u64,
+}
+
+/// 查找所有重复的文件
+/// 
+/// 直接从索引文件读取哈希值，找出具有相同哈希值的文件组
+#[tauri::command]
+pub async fn find_duplicate_files(app: AppHandle) -> Result<DuplicateFilesResult, String> {
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    
+    let asset_type_dirs = ["images", "audio", "videos", "documents", "other"];
+    
+    // 使用 HashMap 存储哈希值到文件路径列表的映射
+    // HashMap<hash, Vec<(relative_path, type_dir, year_month, filename)>>
+    let mut hash_map: HashMap<String, Vec<(String, String, String, String)>> = HashMap::new();
+    
+    for type_dir_str in &asset_type_dirs {
+        let type_dir = base_dir.join(type_dir_str);
+        if !type_dir.exists() || !type_dir.is_dir() {
+            continue;
+        }
+        
+        // 遍历年-月目录
+        for year_month_entry in fs::read_dir(&type_dir).map_err(|e| e.to_string())?.flatten() {
+            let year_month_path = year_month_entry.path();
+            if !year_month_path.is_dir() {
+                continue;
+            }
+            
+            let year_month = year_month_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            
+            // 读取该月份的索引文件
+            let index_path = year_month_path.join(".index.json");
+            if !index_path.exists() {
+                continue;
+            }
+            
+            let index = MonthHashIndex::from_file(&index_path)?;
+            
+            // 遍历索引中的每个条目
+            for (hash, filenames) in index.entries.iter() {
+                for filename in filenames {
+                    let relative_path = format!("{}/{}/{}", type_dir_str, year_month, filename);
+                    
+                    hash_map.entry(hash.clone())
+                        .or_default()
+                        .push((
+                            relative_path,
+                            type_dir_str.to_string(),
+                            year_month.clone(),
+                            filename.clone(),
+                        ));
+                }
+            }
+        }
+    }
+    
+    // 筛选出重复的文件组（哈希值对应的文件数 > 1）
+    let mut duplicates = Vec::new();
+    let mut total_files = 0;
+    let mut wasted_space = 0u64;
+    
+    for (hash, files_info) in hash_map.iter() {
+        if files_info.len() > 1 {
+            // 获取第一个文件的大小作为参考
+            let first_file = &files_info[0];
+            let first_file_path = base_dir
+                .join(&first_file.1)
+                .join(&first_file.2)
+                .join(&first_file.3);
+            
+            let file_size = first_file_path.metadata()
+                .map(|m| m.len())
+                .unwrap_or(0);
+            
+            let count = files_info.len();
+            
+            // 计算浪费的空间（重复文件数 - 1）* 文件大小
+            wasted_space += file_size * (count as u64 - 1);
+            total_files += count;
+            
+            duplicates.push(DuplicateFileInfo {
+                hash: hash.clone(),
+                files: files_info.iter().map(|(path, _, _, _)| path.clone()).collect(),
+                size: file_size,
+                count,
+            });
+        }
+    }
+    
+    // 按重复文件数量降序排序
+    duplicates.sort_by(|a, b| b.count.cmp(&a.count));
+    
+    Ok(DuplicateFilesResult {
+        total_groups: duplicates.len(),
+        total_files,
+        wasted_space,
+        duplicates,
+    })
 }

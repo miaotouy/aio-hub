@@ -160,7 +160,7 @@ const { updateCharts, setupResizeObserver } = useCharts(filteredCommits, () => {
     : undefined;
 });
 
-const { selectedCommit, showDetail, selectCommit, copyCommitHash } = useCommitDetail(
+const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } = useCommitDetail(
   () => repoPath.value
 );
 
@@ -184,10 +184,11 @@ async function refreshRepository() {
   }
 }
 
-// 包装 onBranchChange 以在成功后更新图表
+// 包装 onBranchChange 以在成功后更新图表和清空缓存
 async function onBranchChange(branch: string) {
   const success = await switchBranch(branch);
   if (success) {
+    clearCache(); // 切换分支时清空缓存
     updateCharts();
   }
 }
@@ -267,6 +268,10 @@ function saveCurrentConfig() {
 
   debouncedSaveConfig(updatedConfig);
 }
+// 监听仓库路径变化，清空缓存
+watch(repoPath, () => {
+  clearCache(); // 切换仓库时清空缓存
+});
 
 // 监听配置变化并自动保存
 watch(

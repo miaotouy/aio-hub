@@ -44,6 +44,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { GitCommit, ExportConfig, RepoStatistics } from '../types'
 import { useReportGenerator } from '../composables/useReportGenerator'
 import { useSendToChat } from '@/composables/useSendToChat'
+import { commitCache } from '../composables/useCommitCache'
 import ExportConfiguration from './ExportConfiguration.vue'
 import ExportPreview from './ExportPreview.vue'
 import { createModuleLogger } from '@utils/logger'
@@ -66,13 +67,16 @@ const emit = defineEmits<{
   close: []
   'update:exportConfig': [config: ExportConfig]
 }>()
-
 const visible = defineModel<boolean>('visible', { required: true })
 const generating = ref(false)
 const exporting = ref(false)
 const previewContent = ref('')
-const commitsWithFiles = ref<GitCommit[]>([])
 const loadingFiles = ref(false)
+
+// 获取当前缓存的文件数据（从统一缓存服务）
+const commitsWithFiles = computed(() => {
+  return commitCache.getBatchCommits(props.repoPath, props.branch) || []
+})
 
 const exportConfig = ref<ExportConfig>({
   format: 'markdown',
@@ -141,7 +145,17 @@ function getCommitsToExport(): GitCommit[] {
 // 加载带文件信息的提交列表
 async function loadCommitsWithFiles() {
   if (!exportConfig.value.includeFiles) {
-    commitsWithFiles.value = []
+    return
+  }
+  
+  // 检查统一缓存
+  const cached = commitCache.getBatchCommits(props.repoPath, props.branch)
+  if (cached && cached.length > 0) {
+    logger.debug('使用缓存的文件信息', {
+      repoPath: props.repoPath,
+      branch: props.branch,
+      cachedCount: cached.length
+    })
     return
   }
 
@@ -154,7 +168,8 @@ async function loadCommitsWithFiles() {
       limit: props.commits.length,
     })
 
-    commitsWithFiles.value = commits
+    // 保存到统一缓存（会同时更新单个提交详情缓存）
+    commitCache.setBatchCommits(props.repoPath, props.branch, commits)
     customMessage.success('已加载文件变更信息')
   } catch (error) {
     logger.error('加载文件变更信息失败', error, {
@@ -164,7 +179,6 @@ async function loadCommitsWithFiles() {
       includeFiles: exportConfig.value.includeFiles,
     })
     customMessage.error('加载文件信息失败')
-    commitsWithFiles.value = []
   } finally {
     loadingFiles.value = false
   }
@@ -172,13 +186,14 @@ async function loadCommitsWithFiles() {
 
 // 获取合并后的提交数据（优先使用带文件信息的版本）
 function getMergedCommits(commits: GitCommit[]): GitCommit[] {
-  if (!exportConfig.value.includeFiles || commitsWithFiles.value.length === 0) {
+  const cached = commitsWithFiles.value
+  if (!exportConfig.value.includeFiles || cached.length === 0) {
     return commits
   }
 
   // 创建一个 hash -> commit 的映射
   const filesMap = new Map<string, GitCommit>()
-  commitsWithFiles.value.forEach((c) => filesMap.set(c.hash, c))
+  cached.forEach((c) => filesMap.set(c.hash, c))
 
   // 合并数据
   return commits.map((commit) => {
@@ -335,8 +350,8 @@ watch(
         exportConfig.value = { ...exportConfig.value, ...props.initialConfig }
       }
 
-      // 如果勾选了包含文件变更列表，且未加载过，则加载文件信息
-      if (exportConfig.value.includeFiles && commitsWithFiles.value.length === 0) {
+      // 如果勾选了包含文件变更列表，则尝试加载文件信息（会自动检查缓存）
+      if (exportConfig.value.includeFiles) {
         await loadCommitsWithFiles()
       }
 
@@ -349,9 +364,19 @@ watch(
 watch(
   () => exportConfig.value.includeFiles,
   async (includeFiles) => {
-    if (includeFiles && visible.value && commitsWithFiles.value.length === 0) {
+    if (includeFiles && visible.value) {
       await loadCommitsWithFiles()
       updatePreview()
+    }
+  }
+)
+
+// 监听仓库路径和分支变化，清空对应缓存
+watch(
+  [() => props.repoPath, () => props.branch],
+  ([newPath, newBranch], [oldPath, oldBranch]) => {
+    if (newPath !== oldPath || newBranch !== oldBranch) {
+      commitCache.clearBatchCache(oldPath, oldBranch)
     }
   }
 )

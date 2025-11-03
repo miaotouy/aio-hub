@@ -3,6 +3,7 @@ import { customMessage } from '@/utils/customMessage'
 import { invoke } from '@tauri-apps/api/core'
 import type { GitCommit } from '../types'
 import { createModuleLogger } from '@utils/logger'
+import { commitCache } from './useCommitCache'
 
 const logger = createModuleLogger('git-analyzer:useCommitDetail')
 
@@ -17,7 +18,16 @@ export function useCommitDetail(repoPath: () => string) {
   function selectCommit(commit: GitCommit) {
     selectedCommit.value = commit
     showDetail.value = true
-    loadCommitDetail(commit.hash)
+    
+    // 检查统一缓存
+    const cached = commitCache.getCommitDetail(commit.hash)
+    if (cached) {
+      logger.debug('使用缓存的 commit 详细信息', { sha: commit.hash.substring(0, 8) })
+      selectedCommit.value = cached
+    } else {
+      // 缓存未命中，从后端加载
+      loadCommitDetail(commit.hash)
+    }
   }
 
   /**
@@ -36,6 +46,9 @@ export function useCommitDetail(repoPath: () => string) {
         date: detail.date,
         message: detail.message.substring(0, 100),
       })
+      
+      // 更新统一缓存
+      commitCache.setCommitDetail(hash, detail)
       selectedCommit.value = detail
     } catch (error) {
       customMessage.error(`加载提交详情失败: ${error}`)
@@ -66,6 +79,13 @@ export function useCommitDetail(repoPath: () => string) {
     return new Date(date).toLocaleString('zh-CN')
   }
 
+  /**
+   * 清空缓存（在切换仓库或分支时调用）
+   */
+  function clearCache() {
+    commitCache.clearDetailCache()
+  }
+
   return {
     // 状态
     selectedCommit,
@@ -77,5 +97,6 @@ export function useCommitDetail(repoPath: () => string) {
     copyCommitHash,
     formatDate,
     formatFullDate,
+    clearCache,
   }
 }

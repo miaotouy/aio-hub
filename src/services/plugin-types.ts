@@ -9,6 +9,18 @@ import type { ToolService, MethodMetadata } from './types';
 // ==================== 插件清单类型 ====================
 
 /**
+ * 插件 UI 配置
+ */
+export interface PluginUiConfig {
+  /** 显示名称, 如果不提供则使用插件主名称 */
+  displayName?: string;
+  /** UI 组件入口文件 (相对于插件根目录的路径) */
+  component: string;
+  /** 图标 (未来支持) */
+  icon?: string;
+}
+
+/**
  * 插件类型
  */
 export type PluginType = 'javascript' | 'sidecar';
@@ -97,6 +109,9 @@ export interface PluginManifest {
   
   /** 配置模式 (可选) */
   settingsSchema?: SettingsSchema;
+  
+  /** UI 配置 (可选) */
+  ui?: PluginUiConfig;
   
   /** 权限声明 (未来功能) */
   permissions?: string[];

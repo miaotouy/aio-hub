@@ -1,22 +1,30 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import { toolsConfig } from "../config/tools";
+import { watch } from "vue";
+import { useToolsStore } from "@/stores/tools";
+import type { ToolConfig } from "@/config/tools";
 
-// 从 toolsConfig 动态生成工具路由
-const toolRoutes: RouteRecordRaw[] = toolsConfig.map((tool) => {
-  // 将路径转换为驼峰命名作为路由名称
-  // 例如：/regex-apply -> RegexApply
-  const routeName = tool.path
+/**
+ * 将工具路径转换为路由名称
+ * 例如：/regex-apply -> RegexApply
+ */
+function pathToRouteName(path: string): string {
+  return path
     .substring(1) // 移除开头的 /
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('');
+}
 
+/**
+ * 为工具创建路由配置
+ */
+function createToolRoute(tool: ToolConfig): RouteRecordRaw {
   return {
     path: tool.path,
-    name: routeName,
+    name: pathToRouteName(tool.path),
     component: tool.component,
   };
-});
+}
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -24,8 +32,7 @@ const routes: Array<RouteRecordRaw> = [
     name: "Home",
     component: () => import("../views/HomePage.vue"),
   },
-  // 动态生成的工具路由
-  ...toolRoutes,
+  // 工具路由将在 router 创建后动态添加
   {
     path: "/extensions",
     name: "Extensions",
@@ -54,5 +61,66 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
 });
+
+// 跟踪已添加的路由，避免重复添加
+const addedRoutes = new Set<string>();
+
+/**
+ * 添加工具路由
+ */
+function addToolRoute(tool: ToolConfig) {
+  if (!addedRoutes.has(tool.path)) {
+    const route = createToolRoute(tool);
+    router.addRoute(route);
+    addedRoutes.add(tool.path);
+  }
+}
+
+/**
+ * 移除工具路由
+ */
+function removeToolRoute(toolPath: string) {
+  if (addedRoutes.has(toolPath)) {
+    const routeName = pathToRouteName(toolPath);
+    router.removeRoute(routeName);
+    addedRoutes.delete(toolPath);
+  }
+}
+
+/**
+ * 初始化动态工具路由
+ * 必须在 Pinia 初始化后调用
+ */
+export function initDynamicRoutes() {
+  const toolsStore = useToolsStore();
+  
+  // 初始化：为所有现有工具添加路由
+  toolsStore.tools.forEach(addToolRoute);
+
+  // 监听工具列表变化，动态更新路由
+  watch(
+    () => toolsStore.tools,
+    (newTools, oldTools) => {
+      // 找出新增的工具
+      const oldPaths = new Set(oldTools?.map(t => t.path) || []);
+      const newPaths = new Set(newTools.map(t => t.path));
+      
+      // 添加新工具的路由
+      newTools.forEach(tool => {
+        if (!oldPaths.has(tool.path)) {
+          addToolRoute(tool);
+        }
+      });
+      
+      // 移除已删除工具的路由
+      oldTools?.forEach(tool => {
+        if (!newPaths.has(tool.path)) {
+          removeToolRoute(tool.path);
+        }
+      });
+    },
+    { deep: true }
+  );
+}
 
 export default router;

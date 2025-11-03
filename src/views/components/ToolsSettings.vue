@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { InfoFilled, Rank } from "@element-plus/icons-vue";
-import { toolsConfig, type ToolConfig } from "@/config/tools";
+import type { ToolConfig } from "@/config/tools";
+import { useToolsStore } from "@/stores/tools";
 import { VueDraggableNext } from "vue-draggable-next";
 import { ref, onMounted } from "vue";
 import { updateAppSettings, loadAppSettings } from "@/utils/appSettings";
@@ -10,8 +11,8 @@ import { customMessage } from "@/utils/customMessage";
 interface ToolsVisible {
   [key: string]: boolean;
 }
-
 const toolsVisible = defineModel<ToolsVisible>("toolsVisible", { required: true });
+const toolsStore = useToolsStore();
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -26,7 +27,7 @@ const initializeTools = (): ToolConfig[] => {
 
   // 创建一个工具路径到配置的映射
   const toolMap = new Map<string, ToolConfig>();
-  toolsConfig.forEach(tool => {
+  toolsStore.tools.forEach(tool => {
     toolMap.set(tool.path, tool);
   });
 
@@ -91,7 +92,7 @@ const resetOrder = () => {
     // 清除保存的顺序设置
     updateAppSettings({ toolsOrder: [] });
     // 重置为原始顺序
-    sortedTools.value = [...toolsConfig];
+    sortedTools.value = [...toolsStore.tools];
     customMessage.success("工具顺序已重置为默认");
   } catch (error) {
     console.error("重置工具顺序失败:", error);

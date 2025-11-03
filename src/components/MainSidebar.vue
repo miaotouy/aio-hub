@@ -3,7 +3,8 @@ import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Expand, Fold } from "@element-plus/icons-vue";
 import { Puzzle } from "lucide-vue-next";
-import { toolsConfig, type ToolConfig } from "../config/tools";
+import type { ToolConfig } from "../config/tools";
+import { useToolsStore } from "@/stores/tools";
 import { useDetachable } from "../composables/useDetachable";
 import { useTheme } from "../composables/useTheme";
 import iconBlack from "../assets/aio-icon-black.svg";
@@ -25,6 +26,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const route = useRoute();
+const toolsStore = useToolsStore();
 const { startDetaching } = useDetachable();
 const { isDark } = useTheme();
 const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
@@ -43,11 +45,11 @@ const getToolIdFromPath = (path: string): string => {
 // 计算可见的工具列表
 const visibleTools = computed(() => {
   const baseTools = props.toolsVisible
-    ? toolsConfig.filter((tool) => {
+    ? toolsStore.tools.filter((tool) => {
         const toolId = getToolIdFromPath(tool.path);
         return props.toolsVisible[toolId] !== false;
       })
-    : toolsConfig;
+    : toolsStore.tools;
 
   // 过滤掉已分离的工具
   return baseTools.filter((tool) => !props.isDetached(getToolIdFromPath(tool.path)));

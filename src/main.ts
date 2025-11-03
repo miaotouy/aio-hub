@@ -6,7 +6,7 @@ import ElementPlus from "element-plus";
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
-import router from "./router"; // 从 ./router/index.ts 导入
+import router, { initDynamicRoutes } from "./router"; // 从 ./router/index.ts 导入
 import "./styles/index.css"; // 导入全局样式（已包含暗色模式样式）
 import "viewerjs/dist/viewer.css"; // 导入 viewerjs 样式
 import { invoke } from "@tauri-apps/api/core";
@@ -97,8 +97,11 @@ const app = createApp(rootComponent);
 const pinia = createPinia(); // 创建 Pinia 实例
 
 app.use(ElementPlus, { locale: zhCn });
+app.use(pinia); // 注册 Pinia（必须在 router 之前，因为路由可能需要使用 store）
 app.use(router);
-app.use(pinia); // 注册 Pinia
+
+// 初始化动态路由（必须在 Pinia 注册后）
+initDynamicRoutes();
 
 // 全局注册 customMessage，这样在所有组件中都可以使用
 app.config.globalProperties.$message = customMessage;

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import type { LlmParameters } from "../../types";
 import type { ProviderType, LlmParameterSupport } from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { useLlmChatStore } from "../../store";
+import { useAgentStore } from "../../agentStore";
 import { useChatHandler } from "../../composables/useChatHandler";
 import type { ContextPreviewData } from "../../composables/useChatHandler";
 
@@ -184,26 +185,19 @@ const loadContextStats = async () => {
   }
 };
 
-// 定时刷新上下文统计（每5秒）
-let refreshTimer: NodeJS.Timeout | null = null;
+// Store 引用（在 setup 顶层）
+const chatStore = useLlmChatStore();
+const agentStore = useAgentStore();
 
+// 用于跟踪消息生成状态
+let previousGeneratingCount = 0;
+
+// 初始加载统计
 onMounted(() => {
   loadContextStats();
-  // 设置定时刷新
-  refreshTimer = setInterval(() => {
-    loadContextStats();
-  }, 5000);
-});
-
-onUnmounted(() => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
 });
 
 // 监听会话变化，重新加载统计
-const chatStore = useLlmChatStore();
 watch(
   () => chatStore.currentSessionId,
   () => {
@@ -216,6 +210,68 @@ watch(
   () => chatStore.currentSession?.activeLeafId,
   () => {
     loadContextStats();
+  }
+);
+
+// 监听上下文管理参数变化，重新计算统计
+watch(
+  () => localParams.value.contextManagement,
+  () => {
+    // 延迟执行，避免频繁更新
+    setTimeout(() => {
+      loadContextStats();
+    }, 300);
+  },
+  { deep: true }
+);
+
+// 监听上下文后处理规则变化，重新计算统计
+watch(
+  () => localParams.value.contextPostProcessing,
+  () => {
+    // 延迟执行，避免频繁更新
+    setTimeout(() => {
+      loadContextStats();
+    }, 300);
+  },
+  { deep: true }
+);
+
+// 监听消息生成完成，重新计算统计
+// 当 generatingNodes 从有值变为空时，说明所有消息都生成完成了
+watch(
+  () => chatStore.generatingNodes.size,
+  (newSize) => {
+    // 只在从生成中变为完成时刷新（size 从 > 0 变为 0）
+    if (previousGeneratingCount > 0 && newSize === 0) {
+      loadContextStats();
+    }
+    previousGeneratingCount = newSize;
+  }
+);
+
+// 监听智能体预设消息变化，重新计算统计
+watch(
+  () => {
+    if (!agentStore.currentAgentId) return null;
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    return agent?.presetMessages;
+  },
+  () => {
+    loadContextStats();
+  },
+  { deep: true }
+);
+
+// 监听会话中消息的编辑/删除等操作（通过 updatedAt 时间戳）
+// 但排除新消息生成时的更新（因为已经在上面的 generatingNodes 监听中处理）
+watch(
+  () => chatStore.currentSession?.updatedAt,
+  (newTime, oldTime) => {
+    // 只在非生成状态时才刷新（避免发送消息时立即刷新）
+    if (chatStore.generatingNodes.size === 0 && newTime !== oldTime) {
+      loadContextStats();
+    }
   }
 );
 

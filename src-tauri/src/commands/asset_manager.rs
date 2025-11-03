@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -376,16 +377,25 @@ pub async fn import_asset_from_path(
     let mime_type = guess_mime_type(&source_path);
     let asset_type = determine_asset_type(&mime_type, Some(&source_path));
     
+    let base_path = get_asset_base_path(app.clone())?;
+    let base_dir = PathBuf::from(&base_path);
+    
+    // 计算文件哈希（如果启用去重）并检查是否重复
     let file_hash = if opts.enable_deduplication {
-        Some(calculate_file_hash(&source_path)?)
+        let hash = calculate_file_hash(&source_path)?;
+        
+        // 检查当月目录中是否已存在相同哈希的文件（使用索引）
+        if let Some(existing_asset) = check_duplicate_in_current_month(&base_dir, &asset_type, &hash)? {
+            // 找到重复文件，直接返回已有的 Asset
+            return Ok(existing_asset);
+        }
+        
+        Some(hash)
     } else {
         None
     };
     
     let (uuid, relative_path) = generate_asset_path(&asset_type, &source_path);
-    
-    let base_path = get_asset_base_path(app.clone())?;
-    let base_dir = PathBuf::from(&base_path);
     let target_path = base_dir.join(&relative_path);
     
     if let Some(parent) = target_path.parent() {
@@ -406,7 +416,7 @@ pub async fn import_asset_from_path(
         width: None,
         height: None,
         duration: None,
-        sha256: file_hash,
+        sha256: file_hash.clone(),
     };
     
     if matches!(asset_type, AssetType::Image) {
@@ -428,17 +438,30 @@ pub async fn import_asset_from_path(
     }));
     
     let asset = Asset {
-        id: uuid,
-        asset_type,
+        id: uuid.clone(),
+        asset_type: asset_type.clone(),
         mime_type,
         name: original_name,
-        path: relative_path,
+        path: relative_path.clone(),
         thumbnail_path,
         size: file_size,
         created_at: Utc::now().to_rfc3339(),
         origin,
         metadata: Some(asset_metadata),
     };
+    
+    // 更新月度索引（如果启用去重且有哈希值）
+    if let Some(hash) = file_hash {
+        let filename = target_path.file_name()
+            .ok_or("无法获取文件名")?
+            .to_string_lossy()
+            .to_string();
+        
+        if let Err(e) = update_month_index(&base_dir, &asset_type, &hash, &filename) {
+            // 索引更新失败不影响导入结果，只记录错误
+            eprintln!("更新月度索引失败: {}", e);
+        }
+    }
     
     Ok(asset)
 }
@@ -457,18 +480,27 @@ pub async fn import_asset_from_bytes(
     let mime_type = guess_mime_type(&temp_path);
     let asset_type = determine_asset_type(&mime_type, None);
     
+    let base_path = get_asset_base_path(app.clone())?;
+    let base_dir = PathBuf::from(&base_path);
+    
+    // 计算文件哈希（如果启用去重）并检查是否重复
     let file_hash = if opts.enable_deduplication {
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
-        Some(format!("{:x}", hasher.finalize()))
+        let hash = format!("{:x}", hasher.finalize());
+        
+        // 检查当月目录中是否已存在相同哈希的文件（使用索引）
+        if let Some(existing_asset) = check_duplicate_in_current_month(&base_dir, &asset_type, &hash)? {
+            // 找到重复文件，直接返回已有的 Asset
+            return Ok(existing_asset);
+        }
+        
+        Some(hash)
     } else {
         None
     };
     
     let (uuid, relative_path) = generate_asset_path(&asset_type, &temp_path);
-    
-    let base_path = get_asset_base_path(app.clone())?;
-    let base_dir = PathBuf::from(&base_path);
     let target_path = base_dir.join(&relative_path);
     
     if let Some(parent) = target_path.parent() {
@@ -485,7 +517,7 @@ pub async fn import_asset_from_bytes(
         width: None,
         height: None,
         duration: None,
-        sha256: file_hash,
+        sha256: file_hash.clone(),
     };
     
     if matches!(asset_type, AssetType::Image) {
@@ -507,11 +539,11 @@ pub async fn import_asset_from_bytes(
     }));
     
     let asset = Asset {
-        id: uuid,
-        asset_type,
+        id: uuid.clone(),
+        asset_type: asset_type.clone(),
         mime_type,
         name: original_name,
-        path: relative_path,
+        path: relative_path.clone(),
         thumbnail_path,
         size: file_size,
         created_at: Utc::now().to_rfc3339(),
@@ -519,7 +551,144 @@ pub async fn import_asset_from_bytes(
         metadata: Some(asset_metadata),
     };
     
+    // 更新月度索引（如果启用去重且有哈希值）
+    if let Some(hash) = file_hash {
+        let filename = target_path.file_name()
+            .ok_or("无法获取文件名")?
+            .to_string_lossy()
+            .to_string();
+        
+        if let Err(e) = update_month_index(&base_dir, &asset_type, &hash, &filename) {
+            // 索引更新失败不影响导入结果，只记录错误
+            eprintln!("更新月度索引失败: {}", e);
+        }
+    }
+    
     Ok(asset)
+}
+
+/// 月度哈希索引结构
+/// 存储格式: { "sha256_hash": "uuid.ext" }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MonthHashIndex {
+    #[serde(flatten)]
+    entries: HashMap<String, String>,
+}
+
+impl MonthHashIndex {
+    fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+
+    fn from_file(index_path: &Path) -> Result<Self, String> {
+        if !index_path.exists() {
+            return Ok(Self::new());
+        }
+
+        let content = fs::read_to_string(index_path)
+            .map_err(|e| format!("读取索引文件失败: {}", e))?;
+        
+        serde_json::from_str(&content)
+            .map_err(|e| format!("解析索引文件失败: {}", e))
+    }
+
+    fn save(&self, index_path: &Path) -> Result<(), String> {
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| format!("序列化索引失败: {}", e))?;
+        
+        if let Some(parent) = index_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建索引目录失败: {}", e))?;
+        }
+
+        fs::write(index_path, content)
+            .map_err(|e| format!("写入索引文件失败: {}", e))
+    }
+
+    fn get(&self, hash: &str) -> Option<&String> {
+        self.entries.get(hash)
+    }
+
+    fn insert(&mut self, hash: String, filename: String) {
+        self.entries.insert(hash, filename);
+    }
+}
+
+/// 检查当月目录中是否已存在相同哈希的文件（使用索引优化）
+/// 返回已存在的 Asset 信息（如果找到）
+fn check_duplicate_in_current_month(
+    base_dir: &Path,
+    asset_type: &AssetType,
+    file_hash: &str,
+) -> Result<Option<Asset>, String> {
+    let now = Utc::now();
+    let year_month = now.format("%Y-%m").to_string();
+    
+    let type_dir = match asset_type {
+        AssetType::Image => "images",
+        AssetType::Audio => "audio",
+        AssetType::Video => "videos",
+        AssetType::Document => "documents",
+        AssetType::Other => "other",
+    };
+    
+    let month_dir = base_dir.join(type_dir).join(&year_month);
+    
+    // 如果目录不存在，说明没有重复
+    if !month_dir.exists() {
+        return Ok(None);
+    }
+    
+    // 读取索引文件
+    let index_path = month_dir.join(".index.json");
+    let index = MonthHashIndex::from_file(&index_path)?;
+    
+    // 查询索引
+    if let Some(filename) = index.get(file_hash) {
+        let file_path = month_dir.join(filename);
+        
+        // 验证文件是否仍然存在
+        if file_path.exists() {
+            return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
+        }
+    }
+    
+    Ok(None)
+}
+
+/// 更新月度哈希索引
+fn update_month_index(
+    base_dir: &Path,
+    asset_type: &AssetType,
+    file_hash: &str,
+    filename: &str,
+) -> Result<(), String> {
+    let now = Utc::now();
+    let year_month = now.format("%Y-%m").to_string();
+    
+    let type_dir = match asset_type {
+        AssetType::Image => "images",
+        AssetType::Audio => "audio",
+        AssetType::Video => "videos",
+        AssetType::Document => "documents",
+        AssetType::Other => "other",
+    };
+    
+    let month_dir = base_dir.join(type_dir).join(&year_month);
+    let index_path = month_dir.join(".index.json");
+    
+    // 读取现有索引
+    let mut index = MonthHashIndex::from_file(&index_path)?;
+    
+    // 添加新条目
+    index.insert(file_hash.to_string(), filename.to_string());
+    
+    // 保存索引
+    index.save(&index_path)?;
+    
+    Ok(())
 }
 
 /// 生成缩略图

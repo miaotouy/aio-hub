@@ -386,7 +386,6 @@ export function filterParametersByCapabilities(
   // 核心参数始终保留
   filtered.modelId = options.modelId;
   filtered.messages = options.messages;
-  filtered.systemPrompt = options.systemPrompt;
   filtered.stream = options.stream;
   filtered.onStream = options.onStream;
   filtered.onReasoningStream = options.onReasoningStream;

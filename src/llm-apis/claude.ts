@@ -418,8 +418,15 @@ export const callClaudeApi = async (
 ): Promise<LlmResponse> => {
   const url = buildLlmApiUrl(profile.baseUrl, "claude", "messages");
 
+  // 从 messages 中提取 system 消息
+  const systemMessages = options.messages.filter(m => m.role === 'system');
+  const userAssistantMessages = options.messages.filter(m => m.role !== 'system') as Array<{
+    role: 'user' | 'assistant';
+    content: string | LlmMessageContent[];
+  }>;
+
   // 构建消息
-  const messages = convertToClaudeMessages(options.messages);
+  const messages = convertToClaudeMessages(userAssistantMessages);
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);
@@ -442,9 +449,13 @@ export const callClaudeApi = async (
     body.top_p = commonParams.topP;
   }
 
-  // 添加 Claude 特有参数
-  if (options.systemPrompt) {
-    body.system = options.systemPrompt;
+  // 添加 Claude 特有参数 - 从 messages 中提取的 system 消息
+  if (systemMessages.length > 0) {
+    // 合并所有 system 消息的内容
+    const systemContent = systemMessages
+      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+      .join('\n\n');
+    body.system = systemContent;
   }
   if (options.stopSequences && options.stopSequences.length > 0) {
     body.stop_sequences = options.stopSequences;

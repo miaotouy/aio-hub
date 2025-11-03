@@ -1,5 +1,5 @@
 import type { LlmProfile } from "../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "./common";
+import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream } from "@utils/sse-parser";
@@ -32,11 +32,18 @@ export const callOpenAiResponsesApi = async (
     Object.assign(headers, profile.customHeaders);
   }
 
+  // 从 messages 中提取 system 消息
+  const systemMessages = options.messages.filter(m => m.role === 'system');
+  const userAssistantMessages = options.messages.filter(m => m.role !== 'system') as Array<{
+    role: 'user' | 'assistant';
+    content: string | LlmMessageContent[];
+  }>;
+
   // 构建输入内容 - Responses API 使用多轮对话格式
   const messages: any[] = [];
 
-  // 转换所有消息
-  for (const msg of options.messages) {
+  // 转换 user 和 assistant 消息
+  for (const msg of userAssistantMessages) {
     if (typeof msg.content === "string") {
       messages.push({
         role: msg.role,
@@ -81,9 +88,13 @@ export const callOpenAiResponsesApi = async (
     temperature: commonParams.temperature ?? 1.0,
   };
 
-  // 添加系统指令（如果有）
-  if (options.systemPrompt) {
-    body.instructions = options.systemPrompt;
+  // 添加系统指令 - 从 messages 中提取的 system 消息
+  if (systemMessages.length > 0) {
+    // 合并所有 system 消息的内容
+    const systemContent = systemMessages
+      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+      .join('\n\n');
+    body.instructions = systemContent;
   }
 
   // 添加通用参数

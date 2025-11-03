@@ -27,12 +27,7 @@ export const callCohereApi = async (
   // 构建 messages 数组（V2 API 格式）
   const messages = [];
 
-  // 添加系统提示
-  if (options.systemPrompt) {
-    messages.push({ role: "system", content: options.systemPrompt });
-  }
-
-  // 转换所有消息
+  // 直接转换所有消息（包括 system 角色）
   for (const msg of options.messages) {
     if (typeof msg.content === "string") {
       messages.push({

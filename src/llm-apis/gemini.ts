@@ -243,11 +243,17 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
 
 /**
  * 构建多轮对话的 contents
+ * 注意：system 消息会被单独提取到 systemInstruction，不包含在 contents 中
  */
-function buildGeminiContents(options: LlmRequestOptions): GeminiContent[] {
+function buildGeminiContents(
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string | LlmMessageContent[] }>
+): GeminiContent[] {
   const contents: GeminiContent[] = [];
 
-  for (const msg of options.messages) {
+  // 过滤掉 system 消息，只处理 user 和 assistant
+  for (const msg of messages) {
+    if (msg.role === 'system') continue;
+
     const parts =
       typeof msg.content === "string" ? [{ text: msg.content }] : buildGeminiParts(msg.content);
 
@@ -475,16 +481,23 @@ export const callGeminiApi = async (
   const baseUrl = buildLlmApiUrl(profile.baseUrl, "gemini", endpoint);
   const url = `${baseUrl}?key=${apiKey}${options.stream ? "&alt=sse" : ""}`;
 
+  // 从 messages 中提取 system 消息
+  const systemMessages = options.messages.filter(m => m.role === 'system');
+
   // 构建请求体
   const body: GeminiRequest = {
-    contents: buildGeminiContents(options),
+    contents: buildGeminiContents(options.messages),
     generationConfig: buildGeminiGenerationConfig(options),
   };
 
-  // 添加系统指令
-  if (options.systemPrompt) {
+  // 添加系统指令 - 从 messages 中提取的 system 消息
+  if (systemMessages.length > 0) {
+    // 合并所有 system 消息的内容
+    const systemContent = systemMessages
+      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+      .join('\n\n');
     body.systemInstruction = {
-      parts: [{ text: options.systemPrompt }],
+      parts: [{ text: systemContent }],
     };
   }
 

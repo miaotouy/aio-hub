@@ -41,10 +41,9 @@ const formattedJson = computed(() => {
     messages: props.contextData.finalMessages,
   };
 
-  // 如果有系统提示，添加到请求体中
-  if (props.contextData.systemPrompt) {
-    requestBody.system = props.contextData.systemPrompt.content;
-  }
+  // 注意：不再单独添加 system 字段
+  // finalMessages 已经包含了所有处理后的消息（包括 system 角色）
+  // 这是经过上下文后处理管道处理后的最终消息列表
 
   // 格式化为带缩进的 JSON
   return JSON.stringify(requestBody, null, 2);

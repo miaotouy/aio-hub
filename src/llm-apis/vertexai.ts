@@ -175,11 +175,17 @@ function buildVertexAiParts(messages: LlmMessageContent[]): VertexAiPart[] {
 
 /**
  * 构建多轮对话 Contents（Gemini 格式）
+ * 注意：system 消息会被单独提取到 systemInstruction，不包含在 contents 中
  */
-function buildVertexAiContents(options: LlmRequestOptions): VertexAiContent[] {
+function buildVertexAiContents(
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string | LlmMessageContent[] }>
+): VertexAiContent[] {
   const contents: VertexAiContent[] = [];
 
-  for (const msg of options.messages) {
+  // 过滤掉 system 消息，只处理 user 和 assistant
+  for (const msg of messages) {
+    if (msg.role === 'system') continue;
+
     const parts =
       typeof msg.content === "string" ? [{ text: msg.content }] : buildVertexAiParts(msg.content);
 
@@ -235,13 +241,16 @@ function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToolConfig
 
 /**
  * 构建 Claude 格式的消息（Anthropic Publisher）
+ * 注意：system 消息会被单独提取，不包含在 messages 中
  */
 function buildClaudeMessages(
-  messages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string | LlmMessageContent[] }>
 ): VertexAiClaudeRequest["messages"] {
   const claudeMessages: VertexAiClaudeRequest["messages"] = [];
 
+  // 过滤掉 system 消息
   for (const msg of messages) {
+    if (msg.role === 'system') continue;
     if (typeof msg.content === "string") {
       claudeMessages.push({
         role: msg.role,
@@ -287,9 +296,12 @@ async function callVertexAiGemini(
 ): Promise<LlmResponse> {
   const commonParams = extractCommonParameters(options);
 
+  // 从 messages 中提取 system 消息
+  const systemMessages = options.messages.filter(m => m.role === 'system');
+
   // 构建请求体
   const body: VertexAiGeminiRequest = {
-    contents: buildVertexAiContents(options),
+    contents: buildVertexAiContents(options.messages),
     generationConfig: {
       maxOutputTokens: commonParams.maxTokens || 8192,
       temperature: commonParams.temperature ?? 1.0,
@@ -303,10 +315,14 @@ async function callVertexAiGemini(
     },
   };
 
-  // 系统指令
-  if (options.systemPrompt) {
+  // 系统指令 - 从 messages 中提取的 system 消息
+  if (systemMessages.length > 0) {
+    // 合并所有 system 消息的内容
+    const systemContent = systemMessages
+      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+      .join('\n\n');
     body.systemInstruction = {
-      parts: [{ text: options.systemPrompt }],
+      parts: [{ text: systemContent }],
     };
   }
 
@@ -505,6 +521,9 @@ async function callVertexAiClaude(
 ): Promise<LlmResponse> {
   const commonParams = extractCommonParameters(options);
 
+  // 从 messages 中提取 system 消息
+  const systemMessages = options.messages.filter(m => m.role === 'system');
+
   // 构建请求体
   const body: VertexAiClaudeRequest = {
     anthropic_version: "vertex-2023-10-16",
@@ -523,9 +542,13 @@ async function callVertexAiClaude(
     body.top_p = commonParams.topP;
   }
 
-  // 系统提示
-  if (options.systemPrompt) {
-    body.system = options.systemPrompt;
+  // 系统提示 - 从 messages 中提取的 system 消息
+  if (systemMessages.length > 0) {
+    // 合并所有 system 消息的内容
+    const systemContent = systemMessages
+      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+      .join('\n\n');
+    body.system = systemContent;
   }
 
   // 停止序列

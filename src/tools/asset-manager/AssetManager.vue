@@ -7,6 +7,7 @@
       v-model:sort-by="sortBy"
       @import-files="handleImportFiles"
       @import-from-clipboard="handleImportFromClipboard"
+      @rebuild-index="handleRebuildIndex"
     />
 
     <!-- 主体区域 -->
@@ -71,7 +72,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { Loading } from '@element-plus/icons-vue';
+import { ElMessageBox } from 'element-plus';
 import { useAssetManager } from '@/composables/useAssetManager';
+import { customMessage } from '@/utils/customMessage';
 import type { Asset, AssetType, AssetOrigin } from '@/types/asset-management';
 import Toolbar from './components/Toolbar.vue';
 import Sidebar from './components/Sidebar.vue';
@@ -94,6 +97,7 @@ const {
   importAssetFromClipboard,
   searchAssets,
   removeAsset,
+  rebuildHashIndex,
 } = useAssetManager();
 
 // 组件挂载时加载资产列表
@@ -173,6 +177,27 @@ const handleSelectAsset = (asset: Asset) => {
 
 const handleDeleteAsset = (assetId: string) => {
   removeAsset(assetId);
+};
+
+const handleRebuildIndex = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '重建索引将扫描所有已有文件并建立哈希索引，这可能需要一些时间。是否继续？',
+      '确认重建索引',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    const result = await rebuildHashIndex();
+    customMessage.success(result);
+  } catch (err) {
+    if (err !== 'cancel') {
+      console.error('重建索引失败:', err);
+    }
+  }
 };
 </script>
 

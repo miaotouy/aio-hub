@@ -10,6 +10,10 @@
         <el-icon><DocumentCopy /></el-icon>
         从剪贴板导入
       </el-button>
+      <el-button @click="handleRebuildIndex">
+        <el-icon><Refresh /></el-icon>
+        重建索引
+      </el-button>
     </div>
 
     <!-- 中间搜索区 -->
@@ -64,6 +68,7 @@ import {
   Search,
   Grid,
   List,
+  Refresh,
 } from '@element-plus/icons-vue';
 
 interface Props {
@@ -80,6 +85,7 @@ const emit = defineEmits<{
   'update:sortBy': [value: 'name' | 'date' | 'size'];
   'importFiles': [];
   'importFromClipboard': [];
+  'rebuildIndex': [];
 }>();
 
 // 内部状态
@@ -119,6 +125,10 @@ const handleImportFiles = () => {
 
 const handleImportFromClipboard = () => {
   emit('importFromClipboard');
+};
+
+const handleRebuildIndex = () => {
+  emit('rebuildIndex');
 };
 </script>
 

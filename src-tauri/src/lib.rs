@@ -88,6 +88,7 @@ use commands::{
     get_asset_binary,
     read_text_file,
     list_all_assets,
+    rebuild_hash_index,
     // 插件管理命令
     uninstall_plugin,
     install_plugin_from_zip,
@@ -272,6 +273,7 @@ pub fn run() {
             get_asset_binary,
             read_text_file,
             list_all_assets,
+            rebuild_hash_index,
             // 插件管理命令
             uninstall_plugin,
             install_plugin_from_zip,

@@ -844,3 +844,103 @@ pub fn read_text_file(
     fs::read_to_string(&file_path)
         .map_err(|e| format!("读取文本文件失败: {}", e))
 }
+
+/// 重建索引进度信息
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RebuildIndexProgress {
+    pub current: usize,
+    pub total: usize,
+    pub current_type: String,
+}
+
+/// 为所有已存在的资产文件重建哈希索引
+/// 
+/// 该函数会扫描所有资产目录，计算每个文件的哈希值，并更新对应月份的索引文件
+#[tauri::command]
+pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    
+    let asset_type_dirs = ["images", "audio", "videos", "documents", "other"];
+    
+    let mut total_processed = 0;
+    let mut total_indexed = 0;
+    let mut errors = Vec::new();
+    
+    for type_dir_str in &asset_type_dirs {
+        let type_dir = base_dir.join(type_dir_str);
+        if !type_dir.exists() || !type_dir.is_dir() {
+            continue;
+        }
+        
+        // 遍历年-月目录
+        for year_month_entry in fs::read_dir(&type_dir).map_err(|e| e.to_string())?.flatten() {
+            let year_month_path = year_month_entry.path();
+            if !year_month_path.is_dir() {
+                continue;
+            }
+            
+            // 为当前月份目录创建或更新索引
+            let index_path = year_month_path.join(".index.json");
+            let mut index = MonthHashIndex::from_file(&index_path)?;
+            
+            // 遍历该月份目录下的所有文件
+            for file_entry in fs::read_dir(&year_month_path).map_err(|e| e.to_string())?.flatten() {
+                let file_path = file_entry.path();
+                
+                // 跳过索引文件本身和非文件项
+                if !file_path.is_file() || file_path.file_name() == Some(".index.json".as_ref()) {
+                    continue;
+                }
+                
+                total_processed += 1;
+                
+                // 计算文件哈希
+                match calculate_file_hash(&file_path) {
+                    Ok(hash) => {
+                        if let Some(filename) = file_path.file_name() {
+                            let filename_str = filename.to_string_lossy().to_string();
+                            
+                            // 检查索引中是否已存在该哈希值
+                            if !index.entries.contains_key(&hash) {
+                                index.insert(hash, filename_str);
+                                total_indexed += 1;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        errors.push(format!(
+                            "计算文件 {} 的哈希失败: {}",
+                            file_path.display(),
+                            e
+                        ));
+                    }
+                }
+            }
+            
+            // 保存更新后的索引
+            if let Err(e) = index.save(&index_path) {
+                errors.push(format!("保存索引文件 {} 失败: {}", index_path.display(), e));
+            }
+        }
+    }
+    
+    // 构建结果消息
+    let mut result = format!(
+        "索引重建完成！共处理 {} 个文件，新增 {} 条索引记录。",
+        total_processed, total_indexed
+    );
+    
+    if !errors.is_empty() {
+        result.push_str(&format!("\n\n遇到 {} 个错误：\n", errors.len()));
+        for (i, error) in errors.iter().take(10).enumerate() {
+            result.push_str(&format!("{}. {}\n", i + 1, error));
+        }
+        if errors.len() > 10 {
+            result.push_str(&format!("... 以及其他 {} 个错误\n", errors.len() - 10));
+        }
+    }
+    
+    Ok(result)
+}

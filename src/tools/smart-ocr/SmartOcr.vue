@@ -167,6 +167,12 @@ const handleToggleIgnore = (blockId: string) => {
   const result = ocrResults.value.find((r) => r.blockId === blockId);
   customMessage.success(result?.ignored ? '已忽略该块' : '已取消忽略');
 };
+
+// 处理文本更新
+const handleUpdateText = (blockId: string, text: string) => {
+  ocrContext.updateBlockText(blockId, text);
+  log.info('更新块文本', { blockId, textLength: text.length });
+};
 </script>
 
 <template>
@@ -291,6 +297,7 @@ const handleToggleIgnore = (blockId: string) => {
             :image-blocks-map="imageBlocksMap"
             @retry-block="handleRetryBlock"
             @toggle-ignore="handleToggleIgnore"
+            @update-text="handleUpdateText"
           />
         </div>
       </div>

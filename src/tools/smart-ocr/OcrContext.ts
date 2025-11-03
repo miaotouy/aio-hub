@@ -477,6 +477,17 @@ export class OcrContext {
     }
   }
 
+  /**
+   * 更新块的文本内容
+   */
+  public updateBlockText(blockId: string, text: string): void {
+    const result = this.ocrResults.value.find((r) => r.blockId === blockId);
+    if (result) {
+      result.text = text;
+      logger.info('更新块文本', { blockId, textLength: text.length });
+    }
+  }
+
   // ==================== 高级封装方法（Agent 调用接口）====================
 
   /**

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { customMessage } from '@/utils/customMessage';
-import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide, ChatDotRound, ArrowDown, ArrowRight } from '@element-plus/icons-vue';
+import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide, ChatDotRound, ArrowDown, ArrowRight, Edit, Check, Close } from '@element-plus/icons-vue';
 import type { OcrResult, UploadedImage, ImageBlock } from '../types';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { createModuleLogger } from '@utils/logger';
@@ -16,6 +16,10 @@ const { sendToChat } = useSendToChat();
 const collapsedGroups = ref<Set<string>>(new Set());
 const collapsedBlocks = ref<Set<string>>(new Set());
 
+// 编辑状态管理
+const editingBlockId = ref<string | null>(null);
+const editingText = ref<string>('');
+
 const props = defineProps<{
   ocrResults: OcrResult[];
   isProcessing: boolean;
@@ -26,6 +30,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   retryBlock: [blockId: string];
   toggleIgnore: [blockId: string];
+  updateText: [blockId: string, text: string];
 }>();
 
 // 按图片分组结果
@@ -180,6 +185,41 @@ const isGroupCollapsed = (imageId: string) => {
 const isBlockCollapsed = (blockId: string) => {
   return collapsedBlocks.value.has(blockId);
 };
+
+// 开始编辑
+const startEdit = (blockId: string, currentText: string) => {
+  editingBlockId.value = blockId;
+  editingText.value = currentText;
+  logger.info('开始编辑文本', { blockId, textLength: currentText.length });
+};
+
+// 保存编辑
+const saveEdit = () => {
+  if (editingBlockId.value) {
+    const blockId = editingBlockId.value;
+    const newText = editingText.value;
+    
+    emit('updateText', blockId, newText);
+    
+    editingBlockId.value = null;
+    editingText.value = '';
+    
+    customMessage.success('文本已更新');
+    logger.info('保存编辑', { blockId, textLength: newText.length });
+  }
+};
+
+// 取消编辑
+const cancelEdit = () => {
+  editingBlockId.value = null;
+  editingText.value = '';
+  logger.info('取消编辑');
+};
+
+// 检查是否正在编辑
+const isEditing = (blockId: string) => {
+  return editingBlockId.value === blockId;
+};
 </script>
 
 <template>
@@ -280,7 +320,15 @@ const isBlockCollapsed = (blockId: string) => {
                       {{ result.ignored ? '取消忽略' : '忽略' }}
                     </el-button>
                     <el-button
-                      v-if="result.status === 'success' && result.text"
+                      v-if="result.status === 'success' && !isEditing(result.blockId)"
+                      size="small"
+                      :icon="Edit"
+                      @click="startEdit(result.blockId, result.text)"
+                    >
+                      编辑
+                    </el-button>
+                    <el-button
+                      v-if="result.status === 'success' && result.text && !isEditing(result.blockId)"
                       size="small"
                       :icon="CopyDocument"
                       @click="copyText(result.text)"
@@ -305,14 +353,47 @@ const isBlockCollapsed = (blockId: string) => {
                   </template>
                   
                   <template v-else-if="result.status === 'success'">
-                    <div class="text-content">
-                      <pre>{{ result.text || '(无文本)' }}</pre>
-                    </div>
-                    <div v-if="result.confidence" class="confidence">
-                      <el-text size="small" type="info">
-                        置信度: {{ (result.confidence * 100).toFixed(1) }}%
-                      </el-text>
-                    </div>
+                    <!-- 编辑模式 -->
+                    <template v-if="isEditing(result.blockId)">
+                      <div class="edit-container">
+                        <el-input
+                          v-model="editingText"
+                          type="textarea"
+                          :rows="8"
+                          placeholder="请输入文本内容"
+                          class="edit-textarea"
+                        />
+                        <div class="edit-actions">
+                          <el-button
+                            size="small"
+                            type="primary"
+                            :icon="Check"
+                            @click="saveEdit"
+                          >
+                            保存
+                          </el-button>
+                          <el-button
+                            size="small"
+                            :icon="Close"
+                            @click="cancelEdit"
+                          >
+                            取消
+                          </el-button>
+                        </div>
+                      </div>
+                    </template>
+                    
+                    <!-- 显示模式 -->
+                    <template v-else>
+                      <div class="text-content">
+                        <pre>{{ result.text || '(无文本)' }}</pre>
+                      </div>
+                      <div v-if="result.confidence" class="confidence">
+                        <el-text size="small" type="info">
+                          置信度: {{ (result.confidence * 100).toFixed(1) }}%
+                        </el-text>
+                      </div>
+                    </template>
                   </template>
                   
                   <template v-else>
@@ -508,6 +589,29 @@ const isBlockCollapsed = (blockId: string) => {
 
 .confidence {
   text-align: right;
+}
+
+.edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-textarea {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+}
+
+.edit-textarea :deep(textarea) {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .is-loading {

@@ -269,7 +269,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
+import { lightenColor, darkenColor } from '@/utils/themeColors';
+import { useDark } from '@vueuse/core';
+
+const isDark = useDark();
 
 interface ColorMap {
   [key: string]: string;
@@ -356,41 +360,38 @@ const colors = ref<ColorMap>({
   mask: '',
   maskExtra: '',
 });
-
 const getCSSVariable = (name: string): string => {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 };
 
 const loadColors = () => {
-  // 主题色
-  colors.value.primary = getCSSVariable('--el-color-primary');
-  for (let i = 1; i <= 9; i++) {
-    colors.value[`primaryLight${i}`] = getCSSVariable(`--el-color-primary-light-${i}`);
-  }
+  const loadColorFamily = (name: 'primary' | 'success' | 'warning' | 'danger' | 'info') => {
+    const mainColor = getCSSVariable(`--el-color-${name}`);
+    if (!mainColor) return;
 
-  // 成功色
-  colors.value.success = getCSSVariable('--el-color-success');
-  for (let i = 1; i <= 9; i++) {
-    colors.value[`successLight${i}`] = getCSSVariable(`--el-color-success-light-${i}`);
-  }
+    colors.value[name] = mainColor;
 
-  // 警告色
-  colors.value.warning = getCSSVariable('--el-color-warning');
-  for (let i = 1; i <= 9; i++) {
-    colors.value[`warningLight${i}`] = getCSSVariable(`--el-color-warning-light-${i}`);
-  }
+    for (let i = 1; i <= 9; i++) {
+      const lightColorKey = `${name}Light${i}`;
+      let lightColor = getCSSVariable(`--el-color-${name}-light-${i}`);
 
-  // 危险色
-  colors.value.danger = getCSSVariable('--el-color-danger');
-  for (let i = 1; i <= 9; i++) {
-    colors.value[`dangerLight${i}`] = getCSSVariable(`--el-color-danger-light-${i}`);
-  }
+      // 如果 CSS 变量不存在，则动态生成
+      if (!lightColor) {
+        // 在暗色模式下，light 变体实际上是变暗的（向黑色混合）
+        // 在明亮模式下，light 变体是变亮的（向白色混合）
+        const adjustFn = isDark.value ? darkenColor : lightenColor;
+        lightColor = adjustFn(mainColor, i * 10);
+      }
+      colors.value[lightColorKey] = lightColor;
+    }
+  };
 
-  // 信息色
-  colors.value.info = getCSSVariable('--el-color-info');
-  for (let i = 1; i <= 9; i++) {
-    colors.value[`infoLight${i}`] = getCSSVariable(`--el-color-info-light-${i}`);
-  }
+  // 加载所有颜色族
+  loadColorFamily('primary');
+  loadColorFamily('success');
+  loadColorFamily('warning');
+  loadColorFamily('danger');
+  loadColorFamily('info');
 
   // 文本颜色
   colors.value.textPrimary = getCSSVariable('--el-text-color-primary');
@@ -425,11 +426,21 @@ const loadColors = () => {
 onMounted(() => {
   loadColors();
 });
+
+// 监听主题变化，重新加载颜色
+watch(isDark, async () => {
+  // 等待 DOM 更新
+  await nextTick();
+  // 使用 requestAnimationFrame 确保 CSS 变量已经更新
+  requestAnimationFrame(() => {
+    loadColors();
+  });
+});
 </script>
 
 <style scoped>
 .theme-color-palette {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
@@ -467,9 +478,9 @@ onMounted(() => {
 }
 
 .color-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .color-grid {

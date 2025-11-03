@@ -24,10 +24,46 @@ function example() {
     <div class="section">
       <h2 class="section-title">按钮</h2>
       <div class="button-group">
-        <button>普通按钮</button>
-        <button disabled>禁用按钮</button>
+        <button>默认按钮</button>
         <button class="primary">主要按钮</button>
+        <button class="success">成功按钮</button>
+        <button class="info">信息按钮</button>
+        <button class="warning">警告按钮</button>
         <button class="danger">危险按钮</button>
+      </div>
+      <div class="button-group">
+        <button class="plain">朴素按钮</button>
+        <button class="primary plain">主要按钮</button>
+        <button class="success plain">成功按钮</button>
+        <button class="info plain">信息按钮</button>
+        <button class="warning plain">警告按钮</button>
+        <button class="danger plain">危险按钮</button>
+      </div>
+      <div class="button-group">
+        <button class="round">圆角按钮</button>
+        <button class="primary round">主要按钮</button>
+        <button class="success round">成功按钮</button>
+        <button class="info round">信息按钮</button>
+        <button class="warning round">警告按钮</button>
+        <button class="danger round">危险按钮</button>
+      </div>
+      <div class="button-group">
+        <button class="text">文本按钮</button>
+        <button class="primary text">主要按钮</button>
+        <button class="success text">成功按钮</button>
+        <button class="info text">信息按钮</button>
+        <button class="warning text">警告按钮</button>
+        <button class="danger text">危险按钮</button>
+      </div>
+      <div class="button-group">
+        <button disabled>禁用按钮</button>
+        <button class="primary" disabled>主要按钮</button>
+        <button class="success" disabled>成功按钮</button>
+      </div>
+      <div class="button-group">
+        <button class="large">大型按钮</button>
+        <button>默认按钮</button>
+        <button class="small">小型按钮</button>
       </div>
     </div>
 
@@ -56,7 +92,10 @@ function example() {
         </label>
         <label>
           颜色选择:
-          <input type="color" />
+          <div class="color-picker-wrapper">
+            <input type="color" v-model="selectedColor" class="color-picker" />
+            <span class="color-value">{{ selectedColor }}</span>
+          </div>
         </label>
         <label>
           文件选择:
@@ -200,7 +239,10 @@ function example() {
 </template>
 
 <script setup lang="ts">
-// 原生元素展示，无需额外逻辑
+import { ref } from 'vue'
+
+// 颜色选择器的值
+const selectedColor = ref('#409eff')
 </script>
 
 <style scoped>
@@ -274,6 +316,11 @@ pre code {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.button-group + .button-group {
+  margin-top: 12px;
 }
 
 button {
@@ -286,9 +333,9 @@ button {
   transition: all 0.3s;
 }
 
-button:hover:not(:disabled) {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
+button:hover:not(:disabled):not(.primary):not(.success):not(.info):not(.warning):not(.danger):not(.text) {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-border-color-hover);
 }
 
 button:disabled {
@@ -296,24 +343,176 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* 按钮颜色变体 */
 button.primary {
-  background-color: var(--el-color-primary);
-  color: white;
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  color: var(--el-color-primary);
   border-color: var(--el-color-primary);
 }
 
 button.primary:hover:not(:disabled) {
-  opacity: 0.8;
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
+button.success {
+  background-color: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  color: var(--el-color-success);
+  border-color: var(--el-color-success);
+}
+
+button.success:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-success) 20%, transparent);
+}
+
+button.info {
+  background-color: color-mix(in srgb, var(--el-color-info) 10%, transparent);
+  color: var(--el-color-info);
+  border-color: var(--el-color-info);
+}
+
+button.info:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-info) 20%, transparent);
+}
+
+button.warning {
+  background-color: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  color: var(--el-color-warning);
+  border-color: var(--el-color-warning);
+}
+
+button.warning:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
 }
 
 button.danger {
-  background-color: var(--el-color-danger);
-  color: white;
+  background-color: color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+  color: var(--el-color-danger);
   border-color: var(--el-color-danger);
 }
 
 button.danger:hover:not(:disabled) {
-  opacity: 0.8;
+  background-color: color-mix(in srgb, var(--el-color-danger) 20%, transparent);
+}
+
+/* 朴素按钮 */
+button.plain {
+  background-color: transparent;
+}
+
+button.plain:hover:not(:disabled) {
+  background-color: var(--el-fill-color-light);
+}
+
+button.primary.plain {
+  background-color: transparent;
+}
+
+button.primary.plain:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+}
+
+button.success.plain:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+}
+
+button.info.plain:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-info) 10%, transparent);
+}
+
+button.warning.plain:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+}
+
+button.danger.plain:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+}
+
+/* 圆角按钮 */
+button.round {
+  border-radius: 20px;
+}
+
+/* 文本按钮 */
+button.text {
+  border-color: transparent;
+  background-color: transparent;
+  padding: 8px 12px;
+}
+
+button.text:hover:not(:disabled) {
+  background-color: var(--el-fill-color-light);
+}
+
+button.primary.text {
+  color: var(--el-color-primary);
+}
+
+button.success.text {
+  color: var(--el-color-success);
+}
+
+button.info.text {
+  color: var(--el-color-info);
+}
+
+button.warning.text {
+  color: var(--el-color-warning);
+}
+
+button.danger.text {
+  color: var(--el-color-danger);
+}
+
+/* 尺寸变体 */
+button.large {
+  padding: 12px 20px;
+  font-size: 16px;
+}
+
+button.small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* 暗色模式下的按钮样式 */
+html.dark button.primary {
+  background-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+}
+
+html.dark button.primary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
+}
+
+html.dark button.success {
+  background-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+}
+
+html.dark button.success:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-success) 25%, transparent);
+}
+
+html.dark button.info {
+  background-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+}
+
+html.dark button.info:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-info) 25%, transparent);
+}
+
+html.dark button.warning {
+  background-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+}
+
+html.dark button.warning:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-warning) 25%, transparent);
+}
+
+html.dark button.danger {
+  background-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+}
+
+html.dark button.danger:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--el-color-danger) 25%, transparent);
 }
 
 /* 输入框样式 */
@@ -367,6 +566,44 @@ input:disabled, select:disabled, textarea:disabled {
 input[type="checkbox"], input[type="radio"] {
   width: auto;
   margin: 0;
+}
+
+/* 颜色选择器 */
+.color-picker-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+input[type="color"].color-picker {
+  width: 60px;
+  height: 36px;
+  padding: 0;
+  border: 2px solid var(--el-border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+input[type="color"].color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+input[type="color"].color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+input[type="color"].color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+.color-value {
+  font-family: 'Courier New', monospace;
+  color: var(--el-text-color-regular);
+  user-select: all;
+  font-size: 14px;
+  flex: 1;
 }
 
 /* 列表样式 */

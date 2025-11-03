@@ -58,8 +58,8 @@ export const applyThemeColors = (colors: {
 }) => {
   const root = document.documentElement;
   
-  // 派生颜色始终通过 lightenColor 生成，以确保色相一致
-  const adjustColor = lightenColor;
+  // 派生颜色根据主题模式调整：亮色模式变亮，暗色模式变暗
+  const adjustColor = isDark.value ? darkenColor : lightenColor;
 
   // 应用主色调
   if (colors.primary && /^#[0-9A-F]{6}$/i.test(colors.primary)) {

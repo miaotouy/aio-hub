@@ -118,8 +118,16 @@ body.transparent-window #app {
 }
 
 /* 调整 Element Plus 组件的位置，避免被自定义标题栏遮挡 */
-.el-notification {
-  top: 52px; /* 标题栏高度32px + 额外间距20px */
+/* 只对顶部通知设置 top 偏移 */
+.el-notification.top-right,
+.el-notification.top-left {
+  top: 52px !important; /* 标题栏高度32px + 额外间距20px */
+}
+
+/* 底部通知保持默认 bottom 定位 */
+.el-notification.bottom-right,
+.el-notification.bottom-left {
+  bottom: 20px !important;
 }
 
 .el-message {

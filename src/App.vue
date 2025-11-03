@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessageBox } from "element-plus";
+import { useDark } from "@vueuse/core";
 import { useWindowSyncBus } from "./composables/useWindowSyncBus";
 import { useDetachedManager } from "./composables/useDetachedManager";
 import {
@@ -26,6 +27,7 @@ const route = useRoute();
 const router = useRouter();
 const { isDetached, initialize } = useDetachedManager();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
+const isDark = useDark(); // 监听主题模式
 
 // 全局图片查看器
 const imageViewer = useImageViewer();
@@ -50,6 +52,20 @@ const appSettings = ref<AppSettings>({
 // 监听 isCollapsed 变化并保存
 watch(isCollapsed, (newVal) => {
   updateAppSettingsAsync({ sidebarCollapsed: newVal });
+});
+
+// 监听主题模式切换，重新应用颜色变体
+watch(isDark, () => {
+  logger.info("主题模式切换，重新应用颜色");
+  if (appSettings.value.themeColor) {
+    applyThemeColors({
+      primary: appSettings.value.themeColor,
+      success: appSettings.value.successColor,
+      warning: appSettings.value.warningColor,
+      danger: appSettings.value.dangerColor,
+      info: appSettings.value.infoColor,
+    });
+  }
 });
 
 // 缓存工具可见性配置

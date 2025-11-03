@@ -5,6 +5,7 @@
       v-model:view-mode="viewMode"
       v-model:search-query="searchQuery"
       v-model:sort-by="sortBy"
+      v-model:group-by="groupBy"
       :selected-count="selectedCount"
       :has-duplicates="!!(duplicateResult && duplicateResult.totalGroups > 0)"
       @rebuild-index="handleRebuildIndex"
@@ -52,7 +53,7 @@
           <AssetGroup
             v-for="group in groupedAssets"
             :key="group.month"
-            :month="group.month"
+            :group-key="group.month"
             :label="group.label"
             :assets="group.assets"
             :view-mode="viewMode"
@@ -77,7 +78,7 @@ import { Loading } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { customMessage } from '@/utils/customMessage';
-import type { Asset, AssetType, AssetOrigin, DuplicateFilesResult } from '@/types/asset-management';
+import type { Asset, AssetType, AssetOrigin, DuplicateFilesResult, AssetGroupBy } from '@/types/asset-management';
 import Toolbar from './components/Toolbar.vue';
 import Sidebar from './components/Sidebar.vue';
 import AssetGroup from './components/AssetGroup.vue';
@@ -112,6 +113,7 @@ onMounted(async () => {
 const viewMode = ref<'grid' | 'list'>('grid');
 const searchQuery = ref('');
 const sortBy = ref<'name' | 'date' | 'size'>('date');
+const groupBy = ref<AssetGroupBy>('month');
 const selectedType = ref<AssetType | 'all'>('all');
 const selectedOrigin = ref<AssetOrigin['type'] | 'all'>('all');
 const showDuplicatesOnly = ref(false);
@@ -316,22 +318,85 @@ const handleSelectRedundantDuplicates = () => {
 
 // --- 分组逻辑 ---
 const groupedAssets = computed(() => {
+  const assets = filteredAndSortedAssets.value;
+  
+  // 不分组模式
+  if (groupBy.value === 'none') {
+    return [{
+      month: 'all',
+      label: '全部资产',
+      assets: assets
+    }];
+  }
+  
   const groups: { [key: string]: Asset[] } = {};
   
-  filteredAndSortedAssets.value.forEach(asset => {
-    const month = asset.createdAt.substring(0, 7); // YYYY-MM
-    if (!groups[month]) {
-      groups[month] = [];
+  // 根据不同的分组方式
+  assets.forEach(asset => {
+    let groupKey: string;
+    
+    switch (groupBy.value) {
+      case 'month':
+        groupKey = asset.createdAt.substring(0, 7); // YYYY-MM
+        break;
+      case 'type':
+        groupKey = asset.type;
+        break;
+      case 'origin':
+        groupKey = asset.origin?.type || 'unknown';
+        break;
+      default:
+        groupKey = 'all';
     }
-    groups[month].push(asset);
+    
+    if (!groups[groupKey]) {
+      groups[groupKey] = [];
+    }
+    groups[groupKey].push(asset);
   });
 
+  // 生成分组标签
   return Object.entries(groups)
-    .sort(([monthA], [monthB]) => monthB.localeCompare(monthA))
-    .map(([month, assets]) => {
-      const date = new Date(`${month}-01`);
-      const label = date.toLocaleString('zh-CN', { month: 'long', year: 'numeric' });
-      return { month, label, assets };
+    .sort(([keyA], [keyB]) => {
+      // 按月份分组时降序排列
+      if (groupBy.value === 'month') {
+        return keyB.localeCompare(keyA);
+      }
+      // 其他分组按字母顺序
+      return keyA.localeCompare(keyB);
+    })
+    .map(([key, assets]) => {
+      let label: string;
+      
+      switch (groupBy.value) {
+        case 'month':
+          const date = new Date(`${key}-01`);
+          label = date.toLocaleString('zh-CN', { month: 'long', year: 'numeric' });
+          break;
+        case 'type':
+          const typeLabels: Record<AssetType, string> = {
+            image: '图片',
+            video: '视频',
+            audio: '音频',
+            document: '文档',
+            other: '其他'
+          };
+          label = typeLabels[key as AssetType] || key;
+          break;
+        case 'origin':
+          const originLabels: Record<string, string> = {
+            local: '本地文件',
+            clipboard: '剪贴板',
+            network: '网络',
+            unknown: '未知来源'
+          };
+          label = originLabels[key] || key;
+          break;
+        default:
+          label = key;
+      }
+      
+      return { month: key, label, assets };
     });
 });
 

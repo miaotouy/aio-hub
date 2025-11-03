@@ -49,7 +49,7 @@ import AssetGridView from './AssetGridView.vue';
 import AssetListView from './AssetListView.vue';
 
 interface Props {
-  month: string;
+  groupKey: string;
   label: string;
   assets: Asset[];
   viewMode: 'grid' | 'list';

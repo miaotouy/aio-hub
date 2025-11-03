@@ -193,3 +193,8 @@ export interface DuplicateFilesResult {
   /** 可节省的空间（字节） */
   wastedSpace: number;
 }
+
+/**
+ * 资产分组方式
+ */
+export type AssetGroupBy = 'month' | 'type' | 'origin' | 'none';

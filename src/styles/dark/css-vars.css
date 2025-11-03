@@ -205,6 +205,12 @@ html.dark .el-radio.is-disabled.is-checked .el-radio__inner {
 }
 
 /* Element Plus 单选按钮按钮样式 - 暗色主题 */
+html.dark .el-radio-button {
+  --el-radio-button-checked-bg-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  --el-radio-button-checked-text-color: var(--primary-color);
+  --el-radio-button-checked-border-color: var(--primary-color);
+}
+
 html.dark .el-radio-button__inner {
   background-color: var(--card-bg);
   border-color: var(--border-color);
@@ -223,7 +229,7 @@ html.dark .el-radio-button__original-radio:checked + .el-radio-button__inner {
 }
 
 html.dark .el-radio-button__original-radio:checked + .el-radio-button__inner:hover {
-  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
+  background-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
 }
 
 html.dark .el-radio-button.is-disabled .el-radio-button__inner {

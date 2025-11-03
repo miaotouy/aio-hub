@@ -161,6 +161,12 @@ body.transparent-window #app {
 }
 
 /* Element Plus 全局主题适配 - 单选按钮按钮样式 */
+.el-radio-button {
+  --el-radio-button-checked-bg-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  --el-radio-button-checked-text-color: var(--primary-color);
+  --el-radio-button-checked-border-color: var(--primary-color);
+}
+
 .el-radio-button__inner {
   background-color: var(--card-bg);
   border-color: var(--border-color);
@@ -179,7 +185,7 @@ body.transparent-window #app {
 }
 
 .el-radio-button__original-radio:checked + .el-radio-button__inner:hover {
-  background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
+  background-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 
 .el-radio-button.is-disabled .el-radio-button__inner {

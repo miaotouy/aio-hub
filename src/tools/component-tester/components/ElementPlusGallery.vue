@@ -127,7 +127,8 @@
       <div class="date-demo">
         <el-date-picker v-model="dateValue" type="date" placeholder="选择日期" />
         <el-date-picker v-model="dateValue" type="datetime" placeholder="选择日期时间" />
-        <el-date-picker v-model="dateRangeValue" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" />
+        <el-date-picker v-model="dateRangeValue" type="daterange" range-separator="至" start-placeholder="开始日期"
+          end-placeholder="结束日期" />
       </div>
     </div>
 
@@ -232,22 +233,26 @@
     <div class="section">
       <h2 class="section-title">时间线 Timeline</h2>
       <el-timeline>
-        <el-timeline-item timestamp="2024/1/1" placement="top">
-          <el-card>
-            <h4>更新 Github 模板</h4>
-            <p>提交于 2024/1/1 20:46</p>
-          </el-card>
-        </el-timeline-item>
-        <el-timeline-item timestamp="2024/1/2" placement="top">
-          <el-card>
-            <h4>更新 Github 模板</h4>
-            <p>提交于 2024/1/2 21:03</p>
-          </el-card>
-        </el-timeline-item>
-        <el-timeline-item timestamp="2024/1/3" placement="top">
-          <el-card>
-            <h4>更新 Github 模板</h4>
-            <p>提交于 2024/1/3 21:18</p>
+        <el-timeline-item v-for="event in timelineEvents" :key="event.id" :timestamp="event.timestamp"
+          :type="event.type" :color="event.color" :size="event.size" :hollow="event.hollow" placement="top">
+          <el-card :class="['timeline-card', { clickable: event.clickable }]">
+            <div class="timeline-header">
+              <span class="timeline-sequence">#{{ event.id }}</span>
+              <el-tag :type="event.tagType" size="small">{{ event.category }}</el-tag>
+              <el-tag v-if="event.branch" type="success" size="small">
+                {{ event.branch }}
+              </el-tag>
+              <span class="timeline-author">{{ event.author }}</span>
+            </div>
+            <div class="timeline-title">{{ event.title }}</div>
+            <div class="timeline-description">{{ event.description }}</div>
+            <div v-if="event.stats" class="timeline-stats">
+              <el-space size="small">
+                <span class="stat-item additions">+{{ event.stats.additions }}</span>
+                <span class="stat-item deletions">-{{ event.stats.deletions }}</span>
+                <span class="stat-item files">{{ event.stats.files }} 个文件</span>
+              </el-space>
+            </div>
           </el-card>
         </el-timeline-item>
       </el-timeline>
@@ -265,13 +270,8 @@
     <div class="section">
       <h2 class="section-title">分页 Pagination</h2>
       <div class="pagination-demo">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 30, 40]"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="100"
-        />
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 30, 40]"
+          layout="total, sizes, prev, pager, next, jumper" :total="100" />
       </div>
     </div>
 
@@ -483,6 +483,110 @@ const treeData = ref([
     ],
   },
 ]);
+
+// 时间线数据（参考 git-analyzer 的设计）
+const timelineEvents = ref([
+  {
+    id: 1,
+    timestamp: '2024-01-15 10:30',
+    type: 'primary',
+    color: '#409eff',
+    size: 'large',
+    hollow: false,
+    category: 'Feature',
+    tagType: 'success',
+    branch: 'main',
+    author: '张三',
+    title: '添加新功能模块',
+    description: '实现了用户管理系统的核心功能',
+    clickable: true,
+    stats: {
+      additions: 156,
+      deletions: 23,
+      files: 8,
+    },
+  },
+  {
+    id: 2,
+    timestamp: '2024-01-14 16:45',
+    type: 'success',
+    color: '#67c23a',
+    size: 'normal',
+    hollow: false,
+    category: 'Fix',
+    tagType: 'warning',
+    branch: 'develop',
+    author: '李四',
+    title: '修复登录Bug',
+    description: '解决了登录页面在某些情况下无法正常跳转的问题',
+    clickable: true,
+    stats: {
+      additions: 12,
+      deletions: 8,
+      files: 3,
+    },
+  },
+  {
+    id: 3,
+    timestamp: '2024-01-13 14:20',
+    type: 'warning',
+    color: '#e6a23c',
+    size: 'normal',
+    hollow: false,
+    category: 'Docs',
+    tagType: 'info',
+    branch: 'main',
+    author: '王五',
+    title: '更新文档',
+    description: '完善了 API 接口文档和使用说明',
+    clickable: true,
+    stats: {
+      additions: 45,
+      deletions: 12,
+      files: 5,
+    },
+  },
+  {
+    id: 4,
+    timestamp: '2024-01-12 09:15',
+    type: 'danger',
+    color: '#f56c6c',
+    size: 'normal',
+    hollow: true,
+    category: 'Refactor',
+    tagType: '',
+    branch: 'refactor',
+    author: '赵六',
+    title: '代码重构',
+    description: '优化了数据处理层的代码结构',
+    clickable: true,
+    stats: {
+      additions: 89,
+      deletions: 134,
+      files: 12,
+    },
+  },
+  {
+    id: 5,
+    timestamp: '2024-01-11 11:30',
+    type: 'info',
+    color: '#909399',
+    size: 'normal',
+    hollow: false,
+    category: 'Test',
+    tagType: 'info',
+    branch: 'test',
+    author: '孙七',
+    title: '添加单元测试',
+    description: '为核心模块添加了完整的单元测试覆盖',
+    clickable: false,
+    stats: {
+      additions: 234,
+      deletions: 0,
+      files: 15,
+    },
+  },
+]);
 </script>
 
 <style scoped>
@@ -574,5 +678,83 @@ const treeData = ref([
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* 时间线样式 - 参考 git-analyzer */
+.timeline-card {
+  transition: all 0.3s;
+}
+
+.timeline-card.clickable {
+  cursor: pointer;
+}
+
+.timeline-card.clickable:hover {
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.timeline-sequence {
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--el-color-primary);
+}
+
+.timeline-author {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.timeline-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 6px;
+}
+
+.timeline-description {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.timeline-stats {
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.stat-item {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-light);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-weight: 500;
+}
+
+.stat-item.additions {
+  color: var(--el-color-success);
+  background: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--el-color-success) 30%, transparent);
+}
+
+.stat-item.deletions {
+  color: var(--el-color-danger);
+  background: color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--el-color-danger) 30%, transparent);
+}
+
+.stat-item.files {
+  color: var(--el-text-color-secondary);
 }
 </style>

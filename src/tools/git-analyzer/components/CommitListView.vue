@@ -214,23 +214,4 @@ function getOriginalIndex(commit: GitCommit): number {
   color: var(--text-color-light);
 }
 
-:deep(.el-tag--success) {
-  background: rgba(103, 194, 58, 0.1);
-  border-color: rgba(103, 194, 58, 0.3);
-  color: #67c23a;
-}
-
-:deep(.el-tag--warning) {
-  background: rgba(230, 162, 60, 0.1);
-  border-color: rgba(230, 162, 60, 0.3);
-  color: #e6a23c;
-}
-
-:deep(.el-pagination) {
-  display: flex;
-}
-
-:deep(.el-loading-mask) {
-  background-color: rgba(0, 0, 0, 0.5);
-}
 </style>

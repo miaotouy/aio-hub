@@ -7,6 +7,7 @@ import {
   Monitor,
   ChatDotRound,
   Menu,
+  FolderOpened,
 } from '@element-plus/icons-vue';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
@@ -87,6 +88,14 @@ export const toolsConfig: ToolConfig[] = [
     category: '文本处理'
   },
   // 文件管理
+  {
+    name: '资产管理器',
+    path: '/asset-manager',
+    icon: markRaw(FolderOpened),
+    component: () => import('../tools/asset-manager/AssetManager.vue'),
+    description: '可视化管理应用内导入的所有资产，支持搜索、筛选和预览',
+    category: '文件管理'
+  },
   {
     name: '符号链接搬家工具',
     path: '/symlink-mover',

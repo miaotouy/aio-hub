@@ -575,6 +575,78 @@ pub fn get_asset_binary(
         .map_err(|e| format!("读取文件失败: {}", e))
 }
 
+/// 列出所有已导入的资产
+#[tauri::command]
+pub fn list_all_assets(app: AppHandle) -> Result<Vec<Asset>, String> {
+    let base_path_str = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path_str);
+    let mut assets = Vec::new();
+
+    let asset_types = ["images", "audio", "videos", "documents", "other"];
+
+    for type_dir_str in &asset_types {
+        let type_dir = base_dir.join(type_dir_str);
+        if !type_dir.exists() || !type_dir.is_dir() {
+            continue;
+        }
+
+        for year_month_entry in fs::read_dir(&type_dir).map_err(|e| e.to_string())?.flatten() {
+            let year_month_path = year_month_entry.path();
+            if !year_month_path.is_dir() {
+                continue;
+            }
+
+            for file_entry in fs::read_dir(&year_month_path).map_err(|e| e.to_string())?.flatten() {
+                let file_path = file_entry.path();
+                if !file_path.is_file() {
+                    continue;
+                }
+
+                if let Ok(asset) = build_asset_from_path(&file_path, &base_dir) {
+                    assets.push(asset);
+                }
+            }
+        }
+    }
+
+    Ok(assets)
+}
+
+/// 从文件路径构建 Asset 对象
+fn build_asset_from_path(file_path: &Path, base_dir: &Path) -> Result<Asset, String> {
+    let metadata = file_path.metadata().map_err(|e| e.to_string())?;
+    let relative_path = file_path.strip_prefix(base_dir).map_err(|e| e.to_string())?;
+    
+    let mime_type = guess_mime_type(file_path);
+    let asset_type = determine_asset_type(&mime_type, Some(file_path));
+
+    let uuid = file_path.file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or("无法解析文件名")?
+        .to_string();
+
+    let file_hash = calculate_file_hash(file_path).ok();
+    
+    let asset_metadata = AssetMetadata {
+        width: None,
+        height: None,
+        duration: None,
+        sha256: file_hash,
+    };
+
+    Ok(Asset {
+        id: uuid,
+        asset_type,
+        mime_type,
+        name: file_path.file_name().unwrap().to_string_lossy().to_string(),
+        path: relative_path.to_string_lossy().replace("\\", "/"),
+        thumbnail_path: None, // TODO: 检查缩略图是否存在
+        size: metadata.len(),
+        created_at: metadata.created().map(|t| chrono::DateTime::<Utc>::from(t).to_rfc3339()).unwrap_or_default(),
+        origin: None, // 无法从文件系统确定来源
+        metadata: Some(asset_metadata),
+    })
+}
 /// 根据相对路径读取文本文件内容
 ///
 /// 该函数会自动检测文件是否为文本文件，并尝试以 UTF-8 编码读取

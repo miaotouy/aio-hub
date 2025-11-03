@@ -3,13 +3,13 @@
     <!-- 左侧：配置面板 -->
     <div class="config-panel">
       <ConfigPanel
-        :context="context"
-        v-model:scan-path="context.scanPath.value"
-        v-model:name-pattern="context.namePattern.value"
-        v-model:min-age-days="context.minAgeDays.value"
-        v-model:min-size-m-b="context.minSizeMB.value"
-        v-model:max-depth="context.maxDepth.value"
-        :is-analyzing="context.isAnalyzing.value"
+        v-model:scan-path="state.scanPath.value"
+        v-model:name-pattern="state.namePattern.value"
+        v-model:min-age-days="state.minAgeDays.value"
+        v-model:min-size-m-b="state.minSizeMB.value"
+        v-model:max-depth="state.maxDepth.value"
+        :is-analyzing="state.isAnalyzing.value"
+        :apply-preset="runner.applyPreset"
         @analyze="analyzePath"
       />
     </div>
@@ -17,17 +17,17 @@
     <!-- 右侧：结果面板 -->
     <div class="result-panel">
       <ResultPanel
-        :filtered-items="context.filteredItems.value"
-        :all-items-count="context.allItems.value.length"
-        :filtered-statistics="context.filteredStatistics.value"
-        :has-active-filters="context.hasActiveFilters.value"
-        v-model:selected-paths="context.selectedPaths.value"
-        v-model:filter-name-pattern="context.filterNamePattern.value"
-        v-model:filter-min-age-days="context.filterMinAgeDays.value"
-        v-model:filter-min-size-m-b="context.filterMinSizeMB.value"
-        :has-analyzed="context.hasAnalyzed.value"
-        :show-progress="context.showProgress.value"
-        :scan-progress="context.scanProgress.value"
+        :filtered-items="state.filteredItems.value"
+        :all-items-count="state.allItems.value.length"
+        :filtered-statistics="state.filteredStatistics.value"
+        :has-active-filters="state.hasActiveFilters.value"
+        v-model:selected-paths="state.selectedPaths.value"
+        v-model:filter-name-pattern="state.filterNamePattern.value"
+        v-model:filter-min-age-days="state.filterMinAgeDays.value"
+        v-model:filter-min-size-m-b="state.filterMinSizeMB.value"
+        :has-analyzed="state.hasAnalyzed.value"
+        :show-progress="state.showProgress.value"
+        :scan-progress="state.scanProgress.value"
         @cleanup="executeCleanup"
       />
     </div>
@@ -37,23 +37,25 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue";
 import { ElMessageBox } from "element-plus";
-import { serviceRegistry } from "@/services/registry";
 import ConfigPanel from "./components/ConfigPanel.vue";
 import ResultPanel from "./components/ResultPanel.vue";
 import { createModuleLogger } from "@utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import { formatBytes } from "./utils";
-import DirectoryJanitorService from "./directoryJanitor.service";
+import { useDirectoryJanitorState } from "./composables/useDirectoryJanitorState";
+import { useDirectoryJanitorRunner } from "./composables/useDirectoryJanitorRunner";
 
 const logger = createModuleLogger("tools/directory-janitor");
 
-// 获取服务实例并创建 Context
-const service = serviceRegistry.getService<DirectoryJanitorService>("directory-janitor");
-const context = service.createContext();
+// 使用状态管理 composable
+const state = useDirectoryJanitorState();
+
+// 使用业务逻辑 composable
+const runner = useDirectoryJanitorRunner();
 
 // 分析路径
 const analyzePath = async () => {
-  const result = await context.analyzePath();
+  const result = await runner.analyzePath();
   if (result) {
     customMessage.success(
       `找到 ${result.statistics.totalItems} 项，共 ${formatBytes(result.statistics.totalSize)}`
@@ -63,7 +65,7 @@ const analyzePath = async () => {
 
 // 执行清理
 const executeCleanup = async (pathsToClean: string[]) => {
-  const result = await context.cleanupItems(pathsToClean);
+  const result = await runner.cleanupItems(pathsToClean);
   
   if (!result) {
     return;
@@ -76,20 +78,20 @@ const executeCleanup = async (pathsToClean: string[]) => {
       { type: "warning" }
     );
   } else {
-    // customMessage 已在 context 中处理
+    // customMessage 已在 runner 中处理
   }
 };
 
-// 组件挂载时初始化 Context
+// 组件挂载时初始化
 onMounted(async () => {
-  await context.initialize();
-  logger.info("DirectoryJanitor 组件已挂载，Context 已初始化");
+  await runner.initialize();
+  logger.info("DirectoryJanitor 组件已挂载");
 });
 
-// 组件卸载时清理 Context
+// 组件卸载时清理
 onUnmounted(async () => {
-  await context.dispose();
-  logger.info("DirectoryJanitor 组件已卸载，Context 已清理");
+  await runner.dispose();
+  logger.info("DirectoryJanitor 组件已卸载");
 });
 </script>
 

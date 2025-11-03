@@ -1,8 +1,7 @@
 import type { ToolService } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { DirectoryJanitorContext } from './DirectoryJanitorContext';
-import type { ScanOptions, FormattedScanResult } from './DirectoryJanitorContext';
+import { useDirectoryJanitorRunner, type ScanOptions, type FormattedScanResult } from './composables/useDirectoryJanitorRunner';
 import { formatBytes } from './utils';
 
 const logger = createModuleLogger('services/directory-janitor');
@@ -43,32 +42,18 @@ export interface FormattedCleanupResult {
 
 /**
  * 目录清道夫服务
- * 
- * 提供两种调用模式：
- * 1. Agent/外部调用：通过高级封装方法（如 `scanDirectory`、`cleanupItems`）实现无状态、一次性调用。
- * 2. UI 调用：通过 `createContext()` 获取有状态、响应式的 DirectoryJanitorContext 实例，用于复杂交互。
+ *
+ * 提供无状态的目录扫描和清理接口：
+ * 1. `scanDirectory`: 扫描目录并返回符合条件的文件和目录列表
+ * 2. `cleanupItems`: 清理指定的文件和目录（移动到回收站）
+ * 3. `scanAndCleanup`: 扫描并清理 - 一步到位
+ *
+ * UI 层通过 useDirectoryJanitorState 和 useDirectoryJanitorRunner composables 管理状态和业务逻辑
  */
 export default class DirectoryJanitorService implements ToolService {
   public readonly id = 'directory-janitor';
   public readonly name = '目录清道夫';
   public readonly description = '扫描和清理目录中的过期文件和大文件';
-
-  // ==================== 私有辅助方法 ====================
-
-  /**
-   * 使用临时 Context 执行操作
-   */
-  private async withContext<T>(
-    fn: (context: DirectoryJanitorContext) => Promise<T>
-  ): Promise<T> {
-    const context = this.createContext();
-    await context.initialize();
-    try {
-      return await fn(context);
-    } finally {
-      await context.dispose();
-    }
-  }
 
   // ==================== 高级封装方法 (Agent 调用接口) ====================
 
@@ -84,12 +69,16 @@ export default class DirectoryJanitorService implements ToolService {
 
     return await errorHandler.wrapAsync(
       async () => {
-        return await this.withContext(async (context) => {
+        // 创建临时的 runner
+        const runner = useDirectoryJanitorRunner();
+        await runner.initialize();
+
+        try {
           // 执行扫描
-          await context.analyzePath(scanOptions);
+          await runner.analyzePath(scanOptions);
 
           // 返回格式化结果
-          const result = context.getFormattedScanResult();
+          const result = runner.getFormattedScanResult();
           
           logger.info('扫描目录完成', {
             summary: result.summary,
@@ -108,7 +97,9 @@ export default class DirectoryJanitorService implements ToolService {
           }
 
           return result;
-        });
+        } finally {
+          await runner.dispose();
+        }
       },
       {
         level: ErrorLevel.ERROR,
@@ -132,9 +123,13 @@ export default class DirectoryJanitorService implements ToolService {
 
     return await errorHandler.wrapAsync(
       async () => {
-        return await this.withContext(async (context) => {
+        // 创建临时的 runner
+        const runner = useDirectoryJanitorRunner();
+        await runner.initialize();
+
+        try {
           // 执行清理
-          const result = await context.cleanupItems(paths);
+          const result = await runner.cleanupItems(paths);
           
           if (!result) {
             return null;
@@ -160,7 +155,9 @@ export default class DirectoryJanitorService implements ToolService {
               errors: result.errors,
             },
           };
-        });
+        } finally {
+          await runner.dispose();
+        }
       },
       {
         level: ErrorLevel.ERROR,
@@ -184,12 +181,16 @@ export default class DirectoryJanitorService implements ToolService {
 
     return await errorHandler.wrapAsync(
       async () => {
-        return await this.withContext(async (context) => {
+        // 创建临时的 runner
+        const runner = useDirectoryJanitorRunner();
+        await runner.initialize();
+
+        try {
           // 执行扫描
-          await context.analyzePath(scanOptions);
+          await runner.analyzePath(scanOptions);
 
           // 获取扫描结果
-          const scanResult = context.getFormattedScanResult();
+          const scanResult = runner.getFormattedScanResult();
 
           // 如果没有找到项目，直接返回
           if (scanResult.details.totalItems === 0) {
@@ -208,8 +209,8 @@ export default class DirectoryJanitorService implements ToolService {
           }
 
           // 清理所有找到的项目
-          const paths = context.filteredItems.value.map((item) => item.path);
-          const cleanupRawResult = await context.cleanupItems(paths);
+          const paths = scanResult.details.items.map((item) => item.path);
+          const cleanupRawResult = await runner.cleanupItems(paths);
 
           if (!cleanupRawResult) {
             return null;
@@ -239,7 +240,9 @@ export default class DirectoryJanitorService implements ToolService {
             scanResult,
             cleanupResult,
           };
-        });
+        } finally {
+          await runner.dispose();
+        }
       },
       {
         level: ErrorLevel.ERROR,
@@ -247,20 +250,6 @@ export default class DirectoryJanitorService implements ToolService {
         context: scanOptions,
       }
     );
-  }
-
-  // ==================== UI/高级使用方法 ====================
-
-  /**
-   * [UI Facing] 创建一个新的目录清道夫上下文实例
-   * 
-   * 每个上下文实例都是独立的，拥有自己的响应式状态。
-   * 主要供 UI 组件在挂载时创建，并在整个生命周期中使用。
-   */
-  public createContext(): DirectoryJanitorContext {
-    const context = new DirectoryJanitorContext();
-    logger.info('创建新的 DirectoryJanitorContext 实例');
-    return context;
   }
 
   // ==================== 元数据 ====================

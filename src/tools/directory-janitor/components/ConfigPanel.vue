@@ -128,18 +128,17 @@ import InfoCard from "../../../components/common/InfoCard.vue";
 import DropZone from "../../../components/common/DropZone.vue";
 import { builtInPresets, type CleanupPreset } from "../presets";
 import { createModuleLogger } from "@utils/logger";
-import type { DirectoryJanitorContext } from "../DirectoryJanitorContext";
 
 const logger = createModuleLogger("tools/directory-janitor/ConfigPanel");
 
 interface Props {
-  context: DirectoryJanitorContext;
   scanPath: string;
   namePattern: string;
   minAgeDays?: number;
   minSizeMB?: number;
   maxDepth: number;
   isAnalyzing: boolean;
+  applyPreset: (preset: CleanupPreset) => Promise<any>;
 }
 
 interface Emits {
@@ -204,7 +203,7 @@ const handlePresetChange = async (presetId?: string) => {
     return;
   }
 
-  const result = await props.context.applyPreset(preset);
+  const result = await props.applyPreset(preset);
   if (result) {
     if (result.needSelectPath) {
       customMessage.info(`已应用预设: ${result.presetName}，请选择扫描路径`);

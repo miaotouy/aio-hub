@@ -7,6 +7,7 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import AgentPresetEditor from "../agent/AgentPresetEditor.vue";
 import EditAgentDialog from "../agent/EditAgentDialog.vue";
 import ModelParametersEditor from "../agent/ModelParametersEditor.vue";
+import ConfigSection from "../common/ConfigSection.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatMessageNode, LlmParameters } from "../../types";
 import { Edit } from "@element-plus/icons-vue";
@@ -75,13 +76,6 @@ const modelParameters = computed<LlmParameters>({
 });
 // 折叠状态管理 - 使用 useLlmChatUiState
 const { presetMessagesExpanded } = useLlmChatUiState();
-
-// 切换分组展开/折叠状态
-const toggleSection = (section: "presetMessages") => {
-  if (section === "presetMessages") {
-    presetMessagesExpanded.value = !presetMessagesExpanded.value;
-  }
-};
 
 // 预设消息的双向绑定
 const presetMessages = computed<ChatMessageNode[]>({
@@ -177,25 +171,11 @@ const handleSaveEdit = (data: any) => {
         />
 
         <!-- 预设消息分组 -->
-        <div class="param-section">
-          <div
-            class="param-section-header clickable"
-            @click="toggleSection('presetMessages')"
-            :title="presetMessagesExpanded ? '点击折叠' : '点击展开'"
-          >
-            <div class="section-title-wrapper">
-              <i-ep-chat-line-round class="section-icon" />
-              <span class="param-section-title">预设消息</span>
-            </div>
-            <i-ep-arrow-down class="collapse-icon" :class="{ expanded: presetMessagesExpanded }" />
+        <ConfigSection title="预设消息" :icon="'i-ep-chat-line-round'" v-model:expanded="presetMessagesExpanded">
+          <div class="preset-messages-compact">
+            <AgentPresetEditor v-model="presetMessages" :compact="true" height="400px" />
           </div>
-
-          <div class="param-section-content" :class="{ collapsed: !presetMessagesExpanded }">
-            <div class="preset-messages-compact">
-              <AgentPresetEditor v-model="presetMessages" :compact="true" height="400px" />
-            </div>
-          </div>
-        </div>
+        </ConfigSection>
 
         <!-- TODO: 会话临时调整功能 -->
         <!-- 未来将在输入框工具区添加一个图标入口，打开小弹窗用于临时调整模型和参数 -->
@@ -320,122 +300,6 @@ const handleSaveEdit = (data: any) => {
 
 .parameters-form {
   padding: 16px;
-}
-
-.param-section {
-  margin-bottom: 16px;
-}
-
-.param-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 10px 14px;
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--primary-color) 3%, transparent),
-    color-mix(in srgb, var(--primary-color) 1%, transparent)
-  );
-  border: 1px solid var(--border-color-light);
-  border-radius: 8px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.param-section-header::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--primary-color);
-  opacity: 0;
-  transition: opacity 0.25s;
-}
-
-.param-section-header.clickable {
-  cursor: pointer;
-  user-select: none;
-}
-
-.param-section-header.clickable:hover {
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--primary-color) 8%, transparent),
-    color-mix(in srgb, var(--primary-color) 4%, transparent)
-  );
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 15%, transparent);
-  transform: translateY(-1px);
-}
-
-.param-section-header.clickable:hover::before {
-  opacity: 1;
-}
-
-.param-section-header.clickable:active {
-  transform: translateY(0);
-}
-
-.section-title-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.section-icon {
-  font-size: 16px;
-  color: var(--primary-color);
-  transition: transform 0.25s;
-  flex-shrink: 0;
-}
-
-.param-section-header:hover .section-icon {
-  transform: scale(1.1);
-}
-
-.param-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-color);
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.collapse-icon {
-  font-size: 14px;
-  color: var(--text-color-light);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-}
-
-.collapse-icon.expanded {
-  transform: rotate(180deg);
-  color: var(--primary-color);
-}
-
-.param-section-header:hover .collapse-icon {
-  color: var(--primary-color);
-}
-
-.param-section-content {
-  max-height: 2000px;
-  overflow: hidden;
-  transition:
-    max-height 0.3s ease-in-out,
-    opacity 0.3s ease-in-out;
-  opacity: 1;
-}
-
-.param-section-content.collapsed {
-  max-height: 0;
-  opacity: 0;
 }
 
 .param-group {

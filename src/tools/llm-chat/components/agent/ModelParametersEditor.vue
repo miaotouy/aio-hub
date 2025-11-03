@@ -8,6 +8,7 @@ import { useLlmChatStore } from "../../store";
 import { useAgentStore } from "../../agentStore";
 import { useChatHandler } from "../../composables/useChatHandler";
 import type { ContextPreviewData } from "../../composables/useChatHandler";
+import ConfigSection from "../common/ConfigSection.vue";
 
 /**
  * 模型参数编辑器组件
@@ -75,27 +76,27 @@ const postProcessingExpanded = ref(true);
 // 可用的后处理规则定义
 const availableRules = [
   {
-    type: 'merge-system-to-head' as const,
-    name: '合并 System 消息到头部',
-    description: '将所有 system 角色的消息合并为一条，并放在消息列表的最开头',
+    type: "merge-system-to-head" as const,
+    name: "合并 System 消息到头部",
+    description: "将所有 system 角色的消息合并为一条，并放在消息列表的最开头",
     supportsSeparator: true,
   },
   {
-    type: 'merge-consecutive-roles' as const,
-    name: '合并连续相同角色',
-    description: '合并连续出现的相同角色消息（如两个 user 消息相邻）',
+    type: "merge-consecutive-roles" as const,
+    name: "合并连续相同角色",
+    description: "合并连续出现的相同角色消息（如两个 user 消息相邻）",
     supportsSeparator: true,
   },
   {
-    type: 'convert-system-to-user' as const,
-    name: '转换 System 为 User',
-    description: '将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）',
+    type: "convert-system-to-user" as const,
+    name: "转换 System 为 User",
+    description: "将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）",
     supportsSeparator: false,
   },
   {
-    type: 'ensure-alternating-roles' as const,
-    name: '确保角色交替',
-    description: '强制实现 user 和 assistant 的严格交替对话模式',
+    type: "ensure-alternating-roles" as const,
+    name: "确保角色交替",
+    description: "强制实现 user 和 assistant 的严格交替对话模式",
     supportsSeparator: false,
   },
 ];
@@ -110,13 +111,13 @@ const isRuleEnabled = (ruleType: string) => {
 const getRuleSeparator = (ruleType: string) => {
   const rules = localParams.value.contextPostProcessing?.rules || [];
   const rule = rules.find((r) => r.type === ruleType);
-  return rule?.separator || '';
+  return rule?.separator || "";
 };
 
 // 切换规则启用状态
 const toggleRule = (ruleType: string, enabled: boolean) => {
   const currentRules = localParams.value.contextPostProcessing?.rules || [];
-  
+
   if (enabled) {
     // 添加规则（如果不存在）
     const exists = currentRules.some((r) => r.type === ruleType);
@@ -126,33 +127,27 @@ const toggleRule = (ruleType: string, enabled: boolean) => {
         {
           type: ruleType as any,
           enabled: true,
-          separator: '\n\n---\n\n',
+          separator: "\n\n---\n\n",
         },
       ];
-      updateParameter('contextPostProcessing', { rules: newRules });
+      updateParameter("contextPostProcessing", { rules: newRules });
     } else {
       // 更新现有规则
-      const newRules = currentRules.map((r) =>
-        r.type === ruleType ? { ...r, enabled: true } : r
-      );
-      updateParameter('contextPostProcessing', { rules: newRules });
+      const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, enabled: true } : r));
+      updateParameter("contextPostProcessing", { rules: newRules });
     }
   } else {
     // 禁用规则
-    const newRules = currentRules.map((r) =>
-      r.type === ruleType ? { ...r, enabled: false } : r
-    );
-    updateParameter('contextPostProcessing', { rules: newRules });
+    const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, enabled: false } : r));
+    updateParameter("contextPostProcessing", { rules: newRules });
   }
 };
 
 // 更新规则分隔符
 const updateRuleSeparator = (ruleType: string, separator: string) => {
   const currentRules = localParams.value.contextPostProcessing?.rules || [];
-  const newRules = currentRules.map((r) =>
-    r.type === ruleType ? { ...r, separator } : r
-  );
-  updateParameter('contextPostProcessing', { rules: newRules });
+  const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, separator } : r));
+  updateParameter("contextPostProcessing", { rules: newRules });
 };
 
 // 上下文统计数据
@@ -275,21 +270,6 @@ watch(
   }
 );
 
-// 切换折叠状态
-const toggleSection = (section: "basic" | "advanced" | "special" | "context" | "postProcessing") => {
-  if (section === "basic") {
-    basicParamsExpanded.value = !basicParamsExpanded.value;
-  } else if (section === "advanced") {
-    advancedParamsExpanded.value = !advancedParamsExpanded.value;
-  } else if (section === "special") {
-    specialFeaturesExpanded.value = !specialFeaturesExpanded.value;
-  } else if (section === "context") {
-    contextManagementExpanded.value = !contextManagementExpanded.value;
-  } else if (section === "postProcessing") {
-    postProcessingExpanded.value = !postProcessingExpanded.value;
-  }
-};
-
 // 检查是否有高级参数
 const hasAdvancedParams = computed(() => {
   return (
@@ -345,622 +325,563 @@ watch(
 <template>
   <div class="model-parameters-editor" :class="{ compact }">
     <!-- 基础参数分组 -->
-    <div class="param-section">
-      <div
-        class="param-section-header clickable"
-        @click="toggleSection('basic')"
-        :title="basicParamsExpanded ? '点击折叠' : '点击展开'"
-      >
-        <div class="section-title-wrapper">
-          <i-ep-setting class="section-icon" />
-          <span class="param-section-title">基础参数</span>
-        </div>
-        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: basicParamsExpanded }" />
-      </div>
-
-      <div class="param-section-content" :class="{ collapsed: !basicParamsExpanded }">
-        <!-- Temperature -->
-        <div v-if="supportedParameters.temperature" class="param-group">
-          <label class="param-label">
-            <span>Temperature</span>
-            <el-input-number
-              :model-value="localParams.temperature"
-              @update:model-value="updateParameter('temperature', $event)"
-              :min="0"
-              :max="2"
-              :step="0.01"
-              :precision="2"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+    <ConfigSection title="基础参数" :icon="'i-ep-setting'" v-model:expanded="basicParamsExpanded">
+      <!-- Temperature -->
+      <div v-if="supportedParameters.temperature" class="param-group">
+        <label class="param-label">
+          <span>Temperature</span>
+          <el-input-number
             :model-value="localParams.temperature"
             @update:model-value="updateParameter('temperature', $event)"
             :min="0"
             :max="2"
             :step="0.01"
-            :show-tooltip="false"
+            :precision="2"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">
-            控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。
-          </div>
+        </label>
+        <el-slider
+          :model-value="localParams.temperature"
+          @update:model-value="updateParameter('temperature', $event)"
+          :min="0"
+          :max="2"
+          :step="0.01"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">
+          控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。
         </div>
+      </div>
 
-        <!-- Max Tokens -->
-        <div v-if="supportedParameters.maxTokens" class="param-group">
-          <label class="param-label">
-            <span>Max Tokens</span>
-            <el-input-number
-              :model-value="localParams.maxTokens"
-              @update:model-value="updateParameter('maxTokens', $event)"
-              :min="256"
-              :max="maxTokensLimit"
-              :step="256"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- Max Tokens -->
+      <div v-if="supportedParameters.maxTokens" class="param-group">
+        <label class="param-label">
+          <span>Max Tokens</span>
+          <el-input-number
             :model-value="localParams.maxTokens"
             @update:model-value="updateParameter('maxTokens', $event)"
             :min="256"
             :max="maxTokensLimit"
             :step="256"
-            :show-tooltip="false"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">
-            单次响应的最大 token 数量。
-            <span v-if="contextLengthLimit" class="limit-hint"
-              >（受模型上下文窗口限制: {{ contextLengthLimit.toLocaleString() }}）</span
-            >
-          </div>
+        </label>
+        <el-slider
+          :model-value="localParams.maxTokens"
+          @update:model-value="updateParameter('maxTokens', $event)"
+          :min="256"
+          :max="maxTokensLimit"
+          :step="256"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">
+          单次响应的最大 token 数量。
+          <span v-if="contextLengthLimit" class="limit-hint"
+            >（受模型上下文窗口限制: {{ contextLengthLimit.toLocaleString() }}）</span
+          >
         </div>
+      </div>
 
-        <!-- Top P -->
-        <div v-if="supportedParameters.topP" class="param-group">
-          <label class="param-label">
-            <span>Top P</span>
-            <el-input-number
-              :model-value="localParams.topP ?? 0.9"
-              @update:model-value="updateParameter('topP', $event)"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              :precision="2"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- Top P -->
+      <div v-if="supportedParameters.topP" class="param-group">
+        <label class="param-label">
+          <span>Top P</span>
+          <el-input-number
             :model-value="localParams.topP ?? 0.9"
             @update:model-value="updateParameter('topP', $event)"
             :min="0"
             :max="1"
             :step="0.01"
-            :show-tooltip="false"
+            :precision="2"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">核采样概率（0-1）。控制候选词的多样性。</div>
-        </div>
+        </label>
+        <el-slider
+          :model-value="localParams.topP ?? 0.9"
+          @update:model-value="updateParameter('topP', $event)"
+          :min="0"
+          :max="1"
+          :step="0.01"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">核采样概率（0-1）。控制候选词的多样性。</div>
+      </div>
 
-        <!-- Top K -->
-        <div v-if="supportedParameters.topK" class="param-group">
-          <label class="param-label">
-            <span>Top K</span>
-            <el-input-number
-              :model-value="localParams.topK ?? 40"
-              @update:model-value="updateParameter('topK', $event)"
-              :min="1"
-              :max="100"
-              :step="1"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- Top K -->
+      <div v-if="supportedParameters.topK" class="param-group">
+        <label class="param-label">
+          <span>Top K</span>
+          <el-input-number
             :model-value="localParams.topK ?? 40"
             @update:model-value="updateParameter('topK', $event)"
             :min="1"
             :max="100"
             :step="1"
-            :show-tooltip="false"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">保留概率最高的 K 个候选词。</div>
-        </div>
+        </label>
+        <el-slider
+          :model-value="localParams.topK ?? 40"
+          @update:model-value="updateParameter('topK', $event)"
+          :min="1"
+          :max="100"
+          :step="1"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">保留概率最高的 K 个候选词。</div>
+      </div>
 
-        <!-- Frequency Penalty -->
-        <div v-if="supportedParameters.frequencyPenalty" class="param-group">
-          <label class="param-label">
-            <span>Frequency Penalty</span>
-            <el-input-number
-              :model-value="localParams.frequencyPenalty ?? 0"
-              @update:model-value="updateParameter('frequencyPenalty', $event)"
-              :min="-2"
-              :max="2"
-              :step="0.01"
-              :precision="2"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- Frequency Penalty -->
+      <div v-if="supportedParameters.frequencyPenalty" class="param-group">
+        <label class="param-label">
+          <span>Frequency Penalty</span>
+          <el-input-number
             :model-value="localParams.frequencyPenalty ?? 0"
             @update:model-value="updateParameter('frequencyPenalty', $event)"
             :min="-2"
             :max="2"
             :step="0.01"
-            :show-tooltip="false"
+            :precision="2"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">降低重复词汇的出现频率（-2.0 到 2.0）。</div>
-        </div>
+        </label>
+        <el-slider
+          :model-value="localParams.frequencyPenalty ?? 0"
+          @update:model-value="updateParameter('frequencyPenalty', $event)"
+          :min="-2"
+          :max="2"
+          :step="0.01"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">降低重复词汇的出现频率（-2.0 到 2.0）。</div>
+      </div>
 
-        <!-- Presence Penalty -->
-        <div v-if="supportedParameters.presencePenalty" class="param-group">
-          <label class="param-label">
-            <span>Presence Penalty</span>
-            <el-input-number
-              :model-value="localParams.presencePenalty ?? 0"
-              @update:model-value="updateParameter('presencePenalty', $event)"
-              :min="-2"
-              :max="2"
-              :step="0.01"
-              :precision="2"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- Presence Penalty -->
+      <div v-if="supportedParameters.presencePenalty" class="param-group">
+        <label class="param-label">
+          <span>Presence Penalty</span>
+          <el-input-number
             :model-value="localParams.presencePenalty ?? 0"
             @update:model-value="updateParameter('presencePenalty', $event)"
             :min="-2"
             :max="2"
             :step="0.01"
-            :show-tooltip="false"
+            :precision="2"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">鼓励模型谈论新话题（-2.0 到 2.0）。</div>
-        </div>
+        </label>
+        <el-slider
+          :model-value="localParams.presencePenalty ?? 0"
+          @update:model-value="updateParameter('presencePenalty', $event)"
+          :min="-2"
+          :max="2"
+          :step="0.01"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">鼓励模型谈论新话题（-2.0 到 2.0）。</div>
       </div>
-    </div>
+    </ConfigSection>
 
     <!-- 高级参数分组 -->
-    <div v-if="hasAdvancedParams" class="param-section">
-      <div
-        class="param-section-header clickable"
-        @click="toggleSection('advanced')"
-        :title="advancedParamsExpanded ? '点击折叠' : '点击展开'"
-      >
-        <div class="section-title-wrapper">
-          <i-ep-tools class="section-icon" />
-          <span class="param-section-title">高级参数</span>
-        </div>
-        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: advancedParamsExpanded }" />
+    <ConfigSection
+      v-if="hasAdvancedParams"
+      title="高级参数"
+      :icon="'i-ep-tools'"
+      v-model:expanded="advancedParamsExpanded"
+    >
+      <!-- Seed -->
+      <div v-if="supportedParameters.seed" class="param-group">
+        <label class="param-label">
+          <span>Seed</span>
+          <el-input-number
+            :model-value="localParams.seed ?? undefined"
+            @update:model-value="updateParameter('seed', $event || undefined)"
+            placeholder="随机"
+            :controls="false"
+            class="param-input"
+          />
+        </label>
+        <div class="param-desc">随机种子，用于确定性采样。设置相同的种子可以获得相同的输出。</div>
       </div>
 
-      <div class="param-section-content" :class="{ collapsed: !advancedParamsExpanded }">
-        <!-- Seed -->
-        <div v-if="supportedParameters.seed" class="param-group">
-          <label class="param-label">
-            <span>Seed</span>
-            <el-input-number
-              :model-value="localParams.seed ?? undefined"
-              @update:model-value="updateParameter('seed', $event || undefined)"
-              placeholder="随机"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <div class="param-desc">随机种子，用于确定性采样。设置相同的种子可以获得相同的输出。</div>
-        </div>
+      <!-- Stop Sequences -->
+      <div v-if="supportedParameters.stop" class="param-group">
+        <label class="param-label param-label-single">
+          <span>Stop Sequences</span>
+        </label>
+        <el-input
+          :model-value="
+            Array.isArray(localParams.stop) ? localParams.stop.join(', ') : (localParams.stop ?? '')
+          "
+          @update:model-value="
+            updateParameter(
+              'stop',
+              $event ? $event.split(',').map((s: string) => s.trim()) : undefined
+            )
+          "
+          placeholder="用逗号分隔多个序列"
+        />
+        <div class="param-desc">停止序列，模型遇到这些文本时会停止生成。</div>
+      </div>
 
-        <!-- Stop Sequences -->
-        <div v-if="supportedParameters.stop" class="param-group">
-          <label class="param-label param-label-single">
-            <span>Stop Sequences</span>
-          </label>
-          <el-input
-            :model-value="
-              Array.isArray(localParams.stop)
-                ? localParams.stop.join(', ')
-                : (localParams.stop ?? '')
-            "
-            @update:model-value="
-              updateParameter(
-                'stop',
-                $event ? $event.split(',').map((s: string) => s.trim()) : undefined
-              )
-            "
-            placeholder="用逗号分隔多个序列"
+      <!-- Max Completion Tokens -->
+      <div v-if="supportedParameters.maxCompletionTokens" class="param-group">
+        <label class="param-label">
+          <span>Max Completion Tokens</span>
+          <el-input-number
+            :model-value="localParams.maxCompletionTokens ?? undefined"
+            @update:model-value="updateParameter('maxCompletionTokens', $event || undefined)"
+            :min="1"
+            :max="128000"
+            placeholder="默认"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">停止序列，模型遇到这些文本时会停止生成。</div>
-        </div>
+        </label>
+        <div class="param-desc">补全中可生成的最大标记数。优先级高于 Max Tokens。</div>
+      </div>
 
-        <!-- Max Completion Tokens -->
-        <div v-if="supportedParameters.maxCompletionTokens" class="param-group">
-          <label class="param-label">
-            <span>Max Completion Tokens</span>
-            <el-input-number
-              :model-value="localParams.maxCompletionTokens ?? undefined"
-              @update:model-value="updateParameter('maxCompletionTokens', $event || undefined)"
-              :min="1"
-              :max="128000"
-              placeholder="默认"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <div class="param-desc">补全中可生成的最大标记数。优先级高于 Max Tokens。</div>
-        </div>
+      <!-- Reasoning Effort -->
+      <div v-if="supportedParameters.reasoningEffort" class="param-group">
+        <label class="param-label">
+          <span>Reasoning Effort</span>
+          <el-select
+            :model-value="localParams.reasoningEffort ?? ''"
+            @update:model-value="updateParameter('reasoningEffort', $event || undefined)"
+            placeholder="默认"
+            style="width: 130px"
+          >
+            <el-option label="默认" value="" />
+            <el-option label="Low（低）" value="low" />
+            <el-option label="Medium（中）" value="medium" />
+            <el-option label="High（高）" value="high" />
+          </el-select>
+        </label>
+        <div class="param-desc">推理工作约束（OpenAI o1 系列模型）。</div>
+      </div>
 
-        <!-- Reasoning Effort -->
-        <div v-if="supportedParameters.reasoningEffort" class="param-group">
-          <label class="param-label">
-            <span>Reasoning Effort</span>
-            <el-select
-              :model-value="localParams.reasoningEffort ?? ''"
-              @update:model-value="updateParameter('reasoningEffort', $event || undefined)"
-              placeholder="默认"
-              style="width: 130px"
-            >
-              <el-option label="默认" value="" />
-              <el-option label="Low（低）" value="low" />
-              <el-option label="Medium（中）" value="medium" />
-              <el-option label="High（高）" value="high" />
-            </el-select>
-          </label>
-          <div class="param-desc">推理工作约束（OpenAI o1 系列模型）。</div>
-        </div>
+      <!-- Logprobs -->
+      <div v-if="supportedParameters.logprobs" class="param-group">
+        <label class="param-label">
+          <span>Logprobs</span>
+          <el-switch
+            :model-value="localParams.logprobs ?? false"
+            @update:model-value="updateParameter('logprobs', $event)"
+          />
+        </label>
+        <div class="param-desc">是否返回 logprobs（对数概率）。</div>
+      </div>
 
-        <!-- Logprobs -->
-        <div v-if="supportedParameters.logprobs" class="param-group">
-          <label class="param-label">
-            <span>Logprobs</span>
-            <el-switch
-              :model-value="localParams.logprobs ?? false"
-              @update:model-value="updateParameter('logprobs', $event)"
-            />
-          </label>
-          <div class="param-desc">是否返回 logprobs（对数概率）。</div>
-        </div>
-
-        <!-- Top Logprobs -->
-        <div v-if="supportedParameters.topLogprobs && localParams.logprobs" class="param-group">
-          <label class="param-label">
-            <span>Top Logprobs</span>
-            <el-input-number
-              :model-value="localParams.topLogprobs ?? 0"
-              @update:model-value="updateParameter('topLogprobs', $event)"
-              :min="0"
-              :max="20"
-              :step="1"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- Top Logprobs -->
+      <div v-if="supportedParameters.topLogprobs && localParams.logprobs" class="param-group">
+        <label class="param-label">
+          <span>Top Logprobs</span>
+          <el-input-number
             :model-value="localParams.topLogprobs ?? 0"
             @update:model-value="updateParameter('topLogprobs', $event)"
             :min="0"
             :max="20"
             :step="1"
-            :show-tooltip="false"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">返回的 top logprobs 数量（0-20）。</div>
-        </div>
+        </label>
+        <el-slider
+          :model-value="localParams.topLogprobs ?? 0"
+          @update:model-value="updateParameter('topLogprobs', $event)"
+          :min="0"
+          :max="20"
+          :step="1"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">返回的 top logprobs 数量（0-20）。</div>
       </div>
-    </div>
+    </ConfigSection>
 
     <!-- 上下文管理分组 -->
-    <div class="param-section">
-      <div
-        class="param-section-header clickable"
-        @click="toggleSection('context')"
-        :title="contextManagementExpanded ? '点击折叠' : '点击展开'"
-      >
-        <div class="section-title-wrapper">
-          <i-ep-document class="section-icon" />
-          <span class="param-section-title">上下文管理</span>
+    <ConfigSection
+      title="上下文管理"
+      :icon="'i-ep-document'"
+      v-model:expanded="contextManagementExpanded"
+    >
+      <!-- 当前上下文统计 -->
+      <div v-if="contextStats" class="context-stats-card">
+        <div class="stats-title">
+          <span>当前上下文使用情况</span>
+          <el-tag v-if="contextStats.tokenizerName" size="small" type="info">
+            {{ contextStats.isEstimated ? "估算" : "精确" }} - {{ contextStats.tokenizerName }}
+          </el-tag>
         </div>
-        <i-ep-arrow-down class="collapse-icon" :class="{ expanded: contextManagementExpanded }" />
-      </div>
-
-      <div class="param-section-content" :class="{ collapsed: !contextManagementExpanded }">
-        <!-- 当前上下文统计 -->
-        <div v-if="contextStats" class="context-stats-card">
-          <div class="stats-title">
-            <span>当前上下文使用情况</span>
-            <el-tag v-if="contextStats.tokenizerName" size="small" type="info">
-              {{ contextStats.isEstimated ? "估算" : "精确" }} - {{ contextStats.tokenizerName }}
-            </el-tag>
-          </div>
-          <div class="stats-grid">
-            <div class="stat-item primary">
-              <div class="stat-label">总计</div>
-              <div class="stat-value">
-                <template v-if="contextStats.totalTokenCount !== undefined">
-                  {{ contextStats.totalTokenCount.toLocaleString() }} tokens
-                  <span class="char-hint"
-                    >{{ contextStats.totalCharCount.toLocaleString() }} 字符</span
-                  >
-                </template>
-                <template v-else>
-                  {{ contextStats.totalCharCount.toLocaleString() }} 字符
-                </template>
-              </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">系统提示</div>
-              <div class="stat-value">
-                <template v-if="contextStats.systemPromptTokenCount !== undefined">
-                  {{ contextStats.systemPromptTokenCount.toLocaleString() }} tokens
-                </template>
-                <template v-else>
-                  {{ contextStats.systemPromptCharCount.toLocaleString() }} 字符
-                </template>
-              </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">预设消息</div>
-              <div class="stat-value">
-                <template v-if="contextStats.presetMessagesTokenCount !== undefined">
-                  {{ contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
-                </template>
-                <template v-else>
-                  {{ contextStats.presetMessagesCharCount.toLocaleString() }} 字符
-                </template>
-              </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">会话历史</div>
-              <div class="stat-value">
-                <template v-if="contextStats.chatHistoryTokenCount !== undefined">
-                  {{ contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
-                </template>
-                <template v-else>
-                  {{ contextStats.chatHistoryCharCount.toLocaleString() }} 字符
-                </template>
-              </div>
+        <div class="stats-grid">
+          <div class="stat-item primary">
+            <div class="stat-label">总计</div>
+            <div class="stat-value">
+              <template v-if="contextStats.totalTokenCount !== undefined">
+                {{ contextStats.totalTokenCount.toLocaleString() }} tokens
+                <span class="char-hint"
+                  >{{ contextStats.totalCharCount.toLocaleString() }} 字符</span
+                >
+              </template>
+              <template v-else> {{ contextStats.totalCharCount.toLocaleString() }} 字符 </template>
             </div>
           </div>
-          <div
-            v-if="
-              localParams.contextManagement?.enabled &&
-              localParams.contextManagement.maxContextTokens > 0
-            "
-            class="usage-bar"
-          >
-            <div class="usage-label">
-              <span>使用率</span>
-              <span class="usage-percent">
-                {{
-                  contextStats.totalTokenCount !== undefined
-                    ? Math.round(
-                        (contextStats.totalTokenCount /
-                          localParams.contextManagement.maxContextTokens) *
-                          100
-                      )
-                    : 0
-                }}%
-              </span>
+          <div class="stat-item">
+            <div class="stat-label">系统提示</div>
+            <div class="stat-value">
+              <template v-if="contextStats.systemPromptTokenCount !== undefined">
+                {{ contextStats.systemPromptTokenCount.toLocaleString() }} tokens
+              </template>
+              <template v-else>
+                {{ contextStats.systemPromptCharCount.toLocaleString() }} 字符
+              </template>
             </div>
-            <el-progress
-              :percentage="
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">预设消息</div>
+            <div class="stat-value">
+              <template v-if="contextStats.presetMessagesTokenCount !== undefined">
+                {{ contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
+              </template>
+              <template v-else>
+                {{ contextStats.presetMessagesCharCount.toLocaleString() }} 字符
+              </template>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">会话历史</div>
+            <div class="stat-value">
+              <template v-if="contextStats.chatHistoryTokenCount !== undefined">
+                {{ contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
+              </template>
+              <template v-else>
+                {{ contextStats.chatHistoryCharCount.toLocaleString() }} 字符
+              </template>
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="
+            localParams.contextManagement?.enabled &&
+            localParams.contextManagement.maxContextTokens > 0
+          "
+          class="usage-bar"
+        >
+          <div class="usage-label">
+            <span>使用率</span>
+            <span class="usage-percent">
+              {{
                 contextStats.totalTokenCount !== undefined
-                  ? Math.min(
-                      100,
-                      Math.round(
-                        (contextStats.totalTokenCount /
-                          localParams.contextManagement.maxContextTokens) *
-                          100
-                      )
+                  ? Math.round(
+                      (contextStats.totalTokenCount /
+                        localParams.contextManagement.maxContextTokens) *
+                        100
                     )
                   : 0
-              "
-              :color="
-                contextStats.totalTokenCount !== undefined &&
-                contextStats.totalTokenCount > localParams.contextManagement.maxContextTokens
-                  ? '#F56C6C'
-                  : contextStats.totalTokenCount !== undefined &&
-                      contextStats.totalTokenCount >
-                        localParams.contextManagement.maxContextTokens * 0.8
-                    ? '#E6A23C'
-                    : '#67C23A'
-              "
-              :show-text="false"
-            />
+              }}%
+            </span>
           </div>
+          <el-progress
+            :percentage="
+              contextStats.totalTokenCount !== undefined
+                ? Math.min(
+                    100,
+                    Math.round(
+                      (contextStats.totalTokenCount /
+                        localParams.contextManagement.maxContextTokens) *
+                        100
+                    )
+                  )
+                : 0
+            "
+            :color="
+              contextStats.totalTokenCount !== undefined &&
+              contextStats.totalTokenCount > localParams.contextManagement.maxContextTokens
+                ? '#F56C6C'
+                : contextStats.totalTokenCount !== undefined &&
+                    contextStats.totalTokenCount >
+                      localParams.contextManagement.maxContextTokens * 0.8
+                  ? '#E6A23C'
+                  : '#67C23A'
+            "
+            :show-text="false"
+          />
         </div>
+      </div>
 
-        <!-- 启用上下文限制 -->
-        <div class="param-group">
-          <label class="param-label">
-            <span>启用上下文限制</span>
-            <el-switch
-              :model-value="localParams.contextManagement?.enabled ?? false"
-              @update:model-value="
-                updateParameter('contextManagement', {
-                  enabled: $event,
-                  maxContextTokens: localParams.contextManagement?.maxContextTokens ?? 4096,
-                  retainedCharacters: localParams.contextManagement?.retainedCharacters ?? 200,
-                })
-              "
-            />
-          </label>
-          <div class="param-desc">
-            启用后，会在发送前截断过长的会话历史，防止超出模型上下文窗口。
-          </div>
-        </div>
+      <!-- 启用上下文限制 -->
+      <div class="param-group">
+        <label class="param-label">
+          <span>启用上下文限制</span>
+          <el-switch
+            :model-value="localParams.contextManagement?.enabled ?? false"
+            @update:model-value="
+              updateParameter('contextManagement', {
+                enabled: $event,
+                maxContextTokens: localParams.contextManagement?.maxContextTokens ?? 4096,
+                retainedCharacters: localParams.contextManagement?.retainedCharacters ?? 200,
+              })
+            "
+          />
+        </label>
+        <div class="param-desc">启用后，会在发送前截断过长的会话历史，防止超出模型上下文窗口。</div>
+      </div>
 
-        <!-- 最大上下文 Token 数 -->
-        <div v-if="localParams.contextManagement?.enabled" class="param-group">
-          <label class="param-label">
-            <span>最大上下文 Token 数</span>
-            <el-input-number
-              :model-value="localParams.contextManagement?.maxContextTokens ?? 4096"
-              @update:model-value="
-                updateParameter('contextManagement', {
-                  ...localParams.contextManagement!,
-                  maxContextTokens: $event || 0,
-                })
-              "
-              :min="0"
-              :max="contextLengthLimit || 1000000"
-              :step="512"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- 最大上下文 Token 数 -->
+      <div v-if="localParams.contextManagement?.enabled" class="param-group">
+        <label class="param-label">
+          <span>最大上下文 Token 数</span>
+          <el-input-number
             :model-value="localParams.contextManagement?.maxContextTokens ?? 4096"
             @update:model-value="
               updateParameter('contextManagement', {
                 ...localParams.contextManagement!,
-                maxContextTokens: $event,
+                maxContextTokens: $event || 0,
               })
             "
             :min="0"
-            :max="Math.min(contextLengthLimit || 256000, 256000)"
+            :max="contextLengthLimit || 1000000"
             :step="512"
-            :show-tooltip="false"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">
-            会话历史的最大 Token 数量（0 = 不限制，使用模型默认上限）。
-            <span v-if="contextLengthLimit" class="limit-hint">
-              （当前模型上限: {{ contextLengthLimit.toLocaleString() }}）
-            </span>
-          </div>
+        </label>
+        <el-slider
+          :model-value="localParams.contextManagement?.maxContextTokens ?? 4096"
+          @update:model-value="
+            updateParameter('contextManagement', {
+              ...localParams.contextManagement!,
+              maxContextTokens: $event,
+            })
+          "
+          :min="0"
+          :max="Math.min(contextLengthLimit || 256000, 256000)"
+          :step="512"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">
+          会话历史的最大 Token 数量（0 = 不限制，使用模型默认上限）。
+          <span v-if="contextLengthLimit" class="limit-hint">
+            （当前模型上限: {{ contextLengthLimit.toLocaleString() }}）
+          </span>
         </div>
+      </div>
 
-        <!-- 截断保留字符数 -->
-        <div v-if="localParams.contextManagement?.enabled" class="param-group">
-          <label class="param-label">
-            <span>截断保留字符数</span>
-            <el-input-number
-              :model-value="localParams.contextManagement?.retainedCharacters ?? 200"
-              @update:model-value="
-                updateParameter('contextManagement', {
-                  ...localParams.contextManagement!,
-                  retainedCharacters: $event || 0,
-                })
-              "
-              :min="0"
-              :max="300"
-              :step="10"
-              :controls="false"
-              class="param-input"
-            />
-          </label>
-          <el-slider
+      <!-- 截断保留字符数 -->
+      <div v-if="localParams.contextManagement?.enabled" class="param-group">
+        <label class="param-label">
+          <span>截断保留字符数</span>
+          <el-input-number
             :model-value="localParams.contextManagement?.retainedCharacters ?? 200"
             @update:model-value="
               updateParameter('contextManagement', {
                 ...localParams.contextManagement!,
-                retainedCharacters: $event,
+                retainedCharacters: $event || 0,
               })
             "
             :min="0"
             :max="300"
             :step="10"
-            :show-tooltip="false"
+            :controls="false"
+            class="param-input"
           />
-          <div class="param-desc">
-            截断消息时保留的开头字符数。0 表示完全删除，推荐 100-200 让消息保留简略开头。
+        </label>
+        <el-slider
+          :model-value="localParams.contextManagement?.retainedCharacters ?? 200"
+          @update:model-value="
+            updateParameter('contextManagement', {
+              ...localParams.contextManagement!,
+              retainedCharacters: $event,
+            })
+          "
+          :min="0"
+          :max="300"
+          :step="10"
+          :show-tooltip="false"
+        />
+        <div class="param-desc">
+          截断消息时保留的开头字符数。0 表示完全删除，推荐 100-200 让消息保留简略开头。
+        </div>
+      </div>
+    </ConfigSection>
+
+    <!-- 上下文后处理管道分组 -->
+    <ConfigSection
+      title="上下文后处理"
+      :icon="'i-ep-connection'"
+      v-model:expanded="postProcessingExpanded"
+    >
+      <div class="param-desc" style="margin-bottom: 16px">
+        配置消息发送前的后处理规则，用于调整消息格式以适配不同模型的要求。规则按顺序执行。
+      </div>
+
+      <!-- 规则列表 -->
+      <div class="post-process-rules">
+        <div
+          v-for="rule in availableRules"
+          :key="rule.type"
+          class="rule-item"
+          :class="{ enabled: isRuleEnabled(rule.type) }"
+        >
+          <div class="rule-header">
+            <el-checkbox
+              :model-value="isRuleEnabled(rule.type)"
+              @update:model-value="toggleRule(rule.type, $event)"
+            >
+              <span class="rule-name">{{ rule.name }}</span>
+            </el-checkbox>
+          </div>
+          <div class="rule-desc">{{ rule.description }}</div>
+
+          <!-- 分隔符配置（仅对需要合并的规则显示） -->
+          <div v-if="isRuleEnabled(rule.type) && rule.supportsSeparator" class="rule-separator">
+            <label class="separator-label">合并分隔符：</label>
+            <el-input
+              :model-value="getRuleSeparator(rule.type)"
+              @update:model-value="updateRuleSeparator(rule.type, $event)"
+              placeholder="默认: \n\n---\n\n"
+              size="small"
+            />
           </div>
         </div>
       </div>
-    </div>
-<!-- 上下文后处理管道分组 -->
-<div class="param-section">
-  <div
-    class="param-section-header clickable"
-    @click="toggleSection('postProcessing')"
-    :title="postProcessingExpanded ? '点击折叠' : '点击展开'"
-  >
-    <div class="section-title-wrapper">
-      <i-ep-connection class="section-icon" />
-      <span class="param-section-title">上下文后处理</span>
-    </div>
-    <i-ep-arrow-down class="collapse-icon" :class="{ expanded: postProcessingExpanded }" />
-  </div>
 
-  <div class="param-section-content" :class="{ collapsed: !postProcessingExpanded }">
-    <div class="param-desc" style="margin-bottom: 16px">
-      配置消息发送前的后处理规则，用于调整消息格式以适配不同模型的要求。规则按顺序执行。
-    </div>
-
-    <!-- 规则列表 -->
-    <div class="post-process-rules">
-      <div
-        v-for="rule in availableRules"
-        :key="rule.type"
-        class="rule-item"
-        :class="{ enabled: isRuleEnabled(rule.type) }"
-      >
-        <div class="rule-header">
-          <el-checkbox
-            :model-value="isRuleEnabled(rule.type)"
-            @update:model-value="toggleRule(rule.type, $event)"
-          >
-            <span class="rule-name">{{ rule.name }}</span>
-          </el-checkbox>
-        </div>
-        <div class="rule-desc">{{ rule.description }}</div>
-        
-        <!-- 分隔符配置（仅对需要合并的规则显示） -->
-        <div
-          v-if="isRuleEnabled(rule.type) && rule.supportsSeparator"
-          class="rule-separator"
-        >
-          <label class="separator-label">合并分隔符：</label>
-          <el-input
-            :model-value="getRuleSeparator(rule.type)"
-            @update:model-value="updateRuleSeparator(rule.type, $event)"
-            placeholder="默认: \n\n---\n\n"
-            size="small"
-          />
-        </div>
+      <div class="param-hint">
+        <strong>提示：</strong>规则将按照上述顺序依次执行。建议顺序：先合并 system 消息 →
+        合并连续角色 → 转换角色类型 → 确保交替。
       </div>
-    </div>
+    </ConfigSection>
 
-    <div class="param-hint">
-      <strong>提示：</strong>规则将按照上述顺序依次执行。建议顺序：先合并 system 消息 → 合并连续角色 → 转换角色类型 → 确保交替。
-    </div>
-  </div>
-</div>
+    <!-- 特殊功能分组 -->
+    <ConfigSection
+      v-if="hasSpecialFeatures"
+      title="特殊功能"
+      :icon="'i-ep-magic-stick'"
+      v-model:expanded="specialFeaturesExpanded"
+    >
+      <!-- Claude Thinking Mode -->
+      <div v-if="supportedParameters.thinking" class="param-group">
+        <label class="param-label">
+          <span>Thinking Mode (Claude)</span>
+          <el-switch
+            :model-value="localParams.thinking?.type === 'enabled'"
+            @update:model-value="
+              updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })
+            "
+          />
+        </label>
+        <div class="param-desc">启用 Claude 的思考模式，模型会先思考再回答。</div>
+      </div>
 
-<!-- 特殊功能分组 -->
-<div v-if="hasSpecialFeatures" class="param-section">
-  <div
-    class="param-section-header clickable"
-    @click="toggleSection('special')"
-    :title="specialFeaturesExpanded ? '点击折叠' : '点击展开'"
-  >
-    <div class="section-title-wrapper">
-      <i-ep-magic-stick class="section-icon" />
-      <span class="param-section-title">特殊功能</span>
-    </div>
-    <i-ep-arrow-down class="collapse-icon" :class="{ expanded: specialFeaturesExpanded }" />
-  </div>
-
-  <div class="param-section-content" :class="{ collapsed: !specialFeaturesExpanded }">
-    <!-- Claude Thinking Mode -->
-    <div v-if="supportedParameters.thinking" class="param-group">
-      <label class="param-label">
-        <span>Thinking Mode (Claude)</span>
-        <el-switch
-          :model-value="localParams.thinking?.type === 'enabled'"
-          @update:model-value="
-            updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })
-          "
-        />
-      </label>
-      <div class="param-desc">启用 Claude 的思考模式，模型会先思考再回答。</div>
-    </div>
-
-    <div class="param-hint">
-      其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。
-    </div>
-  </div>
-</div>
+      <div class="param-hint">
+        其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。
+      </div>
+    </ConfigSection>
   </div>
 </template>
 
@@ -968,122 +889,8 @@ watch(
 .model-parameters-editor {
   width: 100%;
 }
-
 .model-parameters-editor.compact {
   font-size: 12px;
-}
-
-.param-section {
-  margin-bottom: 16px;
-}
-
-.param-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding: 10px 14px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--primary-color) 3%, transparent),
-    color-mix(in srgb, var(--primary-color) 1%, transparent)
-  );
-  border: 1px solid var(--border-color-light);
-  border-radius: 8px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.param-section-header::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--primary-color);
-  opacity: 0;
-  transition: opacity 0.25s;
-}
-
-.param-section-header.clickable {
-  cursor: pointer;
-  user-select: none;
-}
-
-.param-section-header.clickable:hover {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--primary-color) 8%, transparent),
-    color-mix(in srgb, var(--primary-color) 4%, transparent)
-  );
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 15%, transparent);
-  transform: translateY(-1px);
-}
-
-.param-section-header.clickable:hover::before {
-  opacity: 1;
-}
-
-.param-section-header.clickable:active {
-  transform: translateY(0);
-}
-
-.section-title-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.section-icon {
-  font-size: 16px;
-  color: var(--primary-color);
-  transition: transform 0.25s;
-  flex-shrink: 0;
-}
-
-.param-section-header:hover .section-icon {
-  transform: scale(1.1);
-}
-
-.param-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-color);
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.collapse-icon {
-  font-size: 14px;
-  color: var(--text-color-light);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-}
-
-.collapse-icon.expanded {
-  transform: rotate(180deg);
-  color: var(--primary-color);
-}
-
-.param-section-header:hover .collapse-icon {
-  color: var(--primary-color);
-}
-
-.param-section-content {
-  max-height: 2000px;
-  overflow: hidden;
-  transition:
-    max-height 0.3s ease-in-out,
-    opacity 0.3s ease-in-out;
-  opacity: 1;
 }
 
 /* 上下文统计卡片 */
@@ -1179,10 +986,6 @@ watch(
 .limit-hint {
   color: var(--text-color-secondary);
   font-size: 11px;
-}
-.param-section-content.collapsed {
-  max-height: 0;
-  opacity: 0;
 }
 
 .param-group {

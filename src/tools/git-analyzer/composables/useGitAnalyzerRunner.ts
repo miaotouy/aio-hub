@@ -119,7 +119,13 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
             // 全量加载：直接累积
             context.commits.value = [...context.commits.value, ...event.commits];
           }
-          context.filteredCommits.value = context.commits.value;
+          
+          // 实时更新 commitRange 以反映当前已加载的数据
+          context.commitRange.value = [0, context.commits.value.length];
+          
+          // 应用筛选条件，而不是直接赋值
+          filterCommits();
+          
           context.progress.value.loaded = event.loaded || 0;
           
           logger.debug(

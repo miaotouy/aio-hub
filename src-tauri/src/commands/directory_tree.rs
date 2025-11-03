@@ -278,15 +278,11 @@ pub async fn generate_directory_tree(
     let use_gitignore = ignore_patterns.iter()
         .any(|p| p == "__USE_GITIGNORE__");
     
-    // 准备自定义模式（如果使用）
-    let custom_patterns: Vec<IgnoreRule> = if !use_gitignore {
-        ignore_patterns.iter()
-            .filter(|pattern| !pattern.is_empty() && pattern != &"__USE_GITIGNORE__")
-            .filter_map(|pattern| glob_to_regex(pattern))
-            .collect()
-    } else {
-        Vec::new()
-    };
+    // 准备自定义模式（无论是否使用 gitignore，都可以有自定义规则）
+    let custom_patterns: Vec<IgnoreRule> = ignore_patterns.iter()
+        .filter(|pattern| !pattern.is_empty() && pattern != &"__USE_GITIGNORE__")
+        .filter_map(|pattern| glob_to_regex(pattern))
+        .collect();
     
     let mut result = String::new();
     let mut stats = TreeStats::new();
@@ -318,7 +314,7 @@ pub async fn generate_directory_tree(
             show_files,
             show_hidden,
             max_depth: if max_depth == 0 { "无限制".to_string() } else { max_depth.to_string() },
-            filter_count: if use_gitignore { 0 } else { custom_patterns.len() },
+            filter_count: custom_patterns.len(),
         },
     })
 }
@@ -343,15 +339,20 @@ fn generate_tree_recursive(
         return Ok(());
     }
     
-    // 如果使用 gitignore 模式，动态收集当前目录及其父目录的规则
-    let ignore_patterns: Vec<IgnoreRule> = if use_gitignore {
-        collect_gitignore_patterns(dir, root)
+    // 合并 gitignore 规则和自定义规则
+    let mut ignore_patterns: Vec<IgnoreRule> = Vec::new();
+    
+    // 如果使用 gitignore 模式，先收集 gitignore 规则
+    if use_gitignore {
+        let gitignore_rules: Vec<IgnoreRule> = collect_gitignore_patterns(dir, root)
             .iter()
             .filter_map(|pattern| glob_to_regex(pattern))
-            .collect()
-    } else {
-        custom_patterns.to_vec()
-    };
+            .collect();
+        ignore_patterns.extend(gitignore_rules);
+    }
+    
+    // 然后添加自定义规则（无论是否使用 gitignore）
+    ignore_patterns.extend(custom_patterns.iter().cloned());
     
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;

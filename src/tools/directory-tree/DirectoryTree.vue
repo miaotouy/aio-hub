@@ -43,10 +43,11 @@
               <el-option label="无过滤" value="none" />
               <el-option label="应用 .gitignore" value="gitignore" />
               <el-option label="自定义规则" value="custom" />
+              <el-option label="同时使用两者" value="both" />
             </el-select>
 
             <el-input
-              v-if="filterMode === 'custom'"
+              v-if="filterMode === 'custom' || filterMode === 'both'"
               v-model="customPattern"
               type="textarea"
               :rows="5"
@@ -176,7 +177,7 @@ const targetPath = ref("");
 const showFiles = ref(true);
 const showHidden = ref(false);
 const showSize = ref(false);
-const filterMode = ref<"none" | "gitignore" | "custom">("none");
+const filterMode = ref<"none" | "gitignore" | "custom" | "both">("none");
 const customPattern = ref("");
 const maxDepth = ref(5);
 const autoGenerateOnDrop = ref(true); // 拖拽后自动生成

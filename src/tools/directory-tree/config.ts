@@ -14,7 +14,7 @@ export interface DirectoryTreeConfig {
   /** 自定义过滤规则 */
   customPatterns: string;
   /** 上次使用的过滤模式 */
-  lastFilterMode: 'none' | 'gitignore' | 'custom';
+  lastFilterMode: 'none' | 'gitignore' | 'custom' | 'both';
   /** 上次使用的目标路径 */
   lastTargetPath: string;
   /** 上次的显示选项 */

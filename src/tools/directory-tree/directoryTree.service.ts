@@ -22,7 +22,7 @@ export interface GenerateTreeOptions {
   /** 最大深度（0 表示无限制） */
   maxDepth: number;
   /** 过滤模式 */
-  filterMode: 'none' | 'gitignore' | 'custom';
+  filterMode: 'none' | 'gitignore' | 'custom' | 'both';
   /** 自定义过滤规则（当 filterMode 为 'custom' 时使用） */
   customPattern?: string;
   /** 是否在输出中包含元数据 */
@@ -76,6 +76,16 @@ export default class DirectoryTreeService implements ToolService {
           .split('\n')
           .map((line: string) => line.trim())
           .filter((line: string) => line && !line.startsWith('#')); // 过滤空行和注释
+      } else if (options.filterMode === 'both') {
+        // 同时使用 gitignore 和自定义规则
+        ignorePatterns = ['__USE_GITIGNORE__'];
+        if (options.customPattern) {
+          const customPatterns = options.customPattern
+            .split('\n')
+            .map((line: string) => line.trim())
+            .filter((line: string) => line && !line.startsWith('#'));
+          ignorePatterns.push(...customPatterns);
+        }
       }
 
       // 调用 Rust 后端生成目录树
@@ -265,8 +275,8 @@ export default class DirectoryTreeService implements ToolService {
                 },
                 {
                   name: 'filterMode',
-                  type: "'none' | 'gitignore' | 'custom'",
-                  description: '过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则',
+                  type: "'none' | 'gitignore' | 'custom' | 'both'",
+                  description: '过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则，both-同时使用两者',
                   required: false,
                   defaultValue: 'none',
                 },
@@ -317,10 +327,12 @@ export default class DirectoryTreeService implements ToolService {
           ? '使用 .gitignore'
           : options.filterMode === 'custom'
             ? '自定义规则'
-            : '无'
+            : options.filterMode === 'both'
+              ? '同时使用 .gitignore 和自定义规则'
+              : '无'
       }`,
       `- 最大深度: ${options.maxDepth === 10 ? '无限制' : options.maxDepth}`,
-      options.filterMode === 'custom' && options.customPattern?.trim()
+      (options.filterMode === 'custom' || options.filterMode === 'both') && options.customPattern?.trim()
         ? `- 自定义规则:\n${options.customPattern
             .split('\n')
             .filter((l: string) => l.trim())

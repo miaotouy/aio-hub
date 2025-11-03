@@ -1,7 +1,6 @@
 import type { ToolService } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
-import { GitAnalyzerContext } from "./GitAnalyzerContext";
 import { fetchBranches, fetchBranchCommits, fetchCommitDetail } from "./composables/useGitLoader";
 import { getContributorStats } from "./composables/useGitProcessor";
 import type { GitCommit, RepoStatistics } from "./types";
@@ -106,9 +105,13 @@ export interface GetCommitDetailOptions {
 /**
  * Git 仓库分析服务
  *
- * 提供两种调用模式：
- * 1. Agent/外部调用：通过高级封装方法（如 `getFormattedAnalysis`）实现无状态、一次性调用。
- * 2. UI 调用：通过 `createContext()` 获取有状态、响应式的 GitAnalyzerContext 实例，用于复杂交互。
+ * 提供无状态的 Git 仓库分析接口：
+ * 1. `getFormattedAnalysis`: 获取仓库的格式化分析摘要
+ * 2. `getAuthorCommits`: 获取指定作者的提交记录
+ * 3. `getCommitDetail`: 获取指定提交的详细信息
+ * 4. `getBranchList`: 获取仓库的分支列表
+ *
+ * UI 层通过 useGitAnalyzerState 和 useGitAnalyzerRunner composables 管理状态和业务逻辑
  */
 export default class GitAnalyzerService implements ToolService {
   public readonly id = "git-analyzer";
@@ -400,20 +403,6 @@ export default class GitAnalyzerService implements ToolService {
         context: { path },
       }
     );
-  }
-
-  // ==================== UI/高级使用方法 ====================
-
-  /**
-   * [UI Facing] 创建一个新的 Git 分析器上下文实例
-   *
-   * 每个上下文实例都是独立的，拥有自己的响应式状态。
-   * 主要供 UI 组件在挂载时创建，并在整个生命周期中使用。
-   */
-  public createContext(): GitAnalyzerContext {
-    const context = new GitAnalyzerContext();
-    logger.info("创建新的 GitAnalyzerContext 实例");
-    return context;
   }
 
   // ==================== 元数据 ====================

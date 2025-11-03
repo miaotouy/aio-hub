@@ -96,8 +96,7 @@ import CommitListView from "./components/CommitListView.vue";
 import ChartsView from "./components/ChartsView.vue";
 import CommitDetailDialog from "./components/CommitDetailDialog.vue";
 import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config";
-import { serviceRegistry } from "@/services/registry";
-import type GitAnalyzerService from "./gitAnalyzer.service";
+import { useGitAnalyzerState } from "./composables/useGitAnalyzerState";
 import { useGitAnalyzerRunner } from "./composables/useGitAnalyzerRunner";
 import { useCharts } from "./composables/useCharts";
 import { useCommitDetail } from "./composables/useCommitDetail";
@@ -109,22 +108,7 @@ const logger = createModuleLogger("GitAnalyzer");
 // 配置状态
 const config = ref<GitAnalyzerConfig | null>(null);
 
-// 获取服务实例并创建上下文
-const gitAnalyzerService = serviceRegistry.getService<GitAnalyzerService>("git-analyzer");
-const context = gitAnalyzerService.createContext();
-
-// 使用运行器（业务编排层）
-const {
-  selectDirectory,
-  loadBranches,
-  loadRepository: loadRepo,
-  refreshRepository: refreshRepo,
-  onBranchChange: switchBranch,
-  filterCommits: doFilter,
-  clearFilters,
-} = useGitAnalyzerRunner(context);
-
-// 从上下文中解构状态
+// 使用状态管理 composable
 const {
   loading,
   repoPath,
@@ -145,7 +129,18 @@ const {
   progress,
   statistics,
   paginatedCommits,
-} = context;
+} = useGitAnalyzerState();
+
+// 使用运行器（业务编排层）
+const {
+  selectDirectory,
+  loadBranches,
+  loadRepository: loadRepo,
+  refreshRepository: refreshRepo,
+  onBranchChange: switchBranch,
+  filterCommits: doFilter,
+  clearFilters,
+} = useGitAnalyzerRunner();
 
 // Charts 视图引用
 const chartsViewRef = ref<InstanceType<typeof ChartsView>>();

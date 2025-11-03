@@ -1,6 +1,5 @@
 import { customMessage } from "@/utils/customMessage";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import type { GitAnalyzerContext } from "../GitAnalyzerContext";
 import type { GitProgressEvent } from "./useGitLoader";
 import {
   fetchBranches,
@@ -9,6 +8,7 @@ import {
   streamIncrementalLoad,
 } from "./useGitLoader";
 import { filterCommits as processFilter } from "./useGitProcessor";
+import { useGitAnalyzerState } from "./useGitAnalyzerState";
 import { createModuleLogger } from "@utils/logger";
 
 const logger = createModuleLogger("GitAnalyzerRunner");
@@ -16,8 +16,12 @@ const logger = createModuleLogger("GitAnalyzerRunner");
 /**
  * Git 分析器业务编排器
  * 负责协调数据获取和状态更新
+ *
+ * 采用去中心化组合模式，直接从 useGitAnalyzerState 获取状态
  */
-export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
+export function useGitAnalyzerRunner() {
+  // 获取状态
+  const state = useGitAnalyzerState();
   // ==================== 目录选择 ====================
 
   /**
@@ -31,7 +35,7 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
         title: "选择 Git 仓库目录",
       });
       if (typeof selected === "string") {
-        context.repoPath.value = selected;
+        state.repoPath.value = selected;
         customMessage.success(`已选择目录: ${selected}`);
       }
     } catch (error) {
@@ -46,16 +50,16 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
    * 加载分支列表
    */
   async function loadBranches() {
-    const currentRepoPath = context.repoPath.value || ".";
+    const currentRepoPath = state.repoPath.value || ".";
 
     try {
       const branchList = await fetchBranches(currentRepoPath);
-      context.branches.value = branchList;
+      state.branches.value = branchList;
 
       // 设置当前分支
       const currentBranchInfo = branchList.find((b) => b.current);
       if (currentBranchInfo) {
-        context.selectedBranch.value = currentBranchInfo.name;
+        state.selectedBranch.value = currentBranchInfo.name;
       }
 
       return true;
@@ -69,17 +73,17 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
    * 切换分支
    */
   async function onBranchChange(branch: string) {
-    context.loading.value = true;
+    state.loading.value = true;
     try {
       const result = await fetchBranchCommits(
-        context.repoPath.value || ".",
+        state.repoPath.value || ".",
         branch,
-        context.limitCount.value
+        state.limitCount.value
       );
 
-      context.commits.value = result;
-      context.filteredCommits.value = result;
-      context.commitRange.value = [0, result.length];
+      state.commits.value = result;
+      state.filteredCommits.value = result;
+      state.commitRange.value = [0, result.length];
 
       customMessage.success(`切换到分支: ${branch}`);
       return true;
@@ -87,7 +91,7 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
       customMessage.error(`切换分支失败: ${error}`);
       return false;
     } finally {
-      context.loading.value = false;
+      state.loading.value = false;
     }
   }
 
@@ -99,12 +103,12 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
   function handleProgressEvent(event: GitProgressEvent, isIncremental: boolean, initialCount: number) {
     switch (event.type) {
       case "start":
-        context.progress.value.total = event.total || context.limitCount.value;
+        state.progress.value.total = event.total || state.limitCount.value;
         if (event.branches) {
-          context.branches.value = event.branches;
+          state.branches.value = event.branches;
           const currentBranchInfo = event.branches.find((b) => b.current);
           if (currentBranchInfo) {
-            context.selectedBranch.value = currentBranchInfo.name;
+            state.selectedBranch.value = currentBranchInfo.name;
           }
         }
         logger.info(`开始${isIncremental ? '增量' : ''}流式加载，目标总数 ${event.total}`);
@@ -114,46 +118,46 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
         if (event.commits) {
           if (isIncremental) {
             // 增量加载：累积新提交
-            context.commits.value = [...context.commits.value, ...event.commits];
+            state.commits.value = [...state.commits.value, ...event.commits];
           } else {
             // 全量加载：直接累积
-            context.commits.value = [...context.commits.value, ...event.commits];
+            state.commits.value = [...state.commits.value, ...event.commits];
           }
           
           // 实时更新 commitRange 以反映当前已加载的数据
-          context.commitRange.value = [0, context.commits.value.length];
+          state.commitRange.value = [0, state.commits.value.length];
           
           // 应用筛选条件，而不是直接赋值
           filterCommits();
           
-          context.progress.value.loaded = event.loaded || 0;
+          state.progress.value.loaded = event.loaded || 0;
           
           logger.debug(
-            `加载进度: ${event.loaded} / ${context.progress.value.total}`
+            `加载进度: ${event.loaded} / ${state.progress.value.total}`
           );
         }
         break;
 
       case "end":
-        context.progress.value.loading = false;
-        context.loading.value = false;
-        context.commitRange.value = [0, context.commits.value.length];
+        state.progress.value.loading = false;
+        state.loading.value = false;
+        state.commitRange.value = [0, state.commits.value.length];
 
         if (isIncremental) {
-          context.lastLoadedLimit.value = context.limitCount.value;
-          const newCount = context.commits.value.length - initialCount;
-          customMessage.success(`增量加载了 ${newCount} 条新提交记录，当前共 ${context.commits.value.length} 条`);
+          state.lastLoadedLimit.value = state.limitCount.value;
+          const newCount = state.commits.value.length - initialCount;
+          customMessage.success(`增量加载了 ${newCount} 条新提交记录，当前共 ${state.commits.value.length} 条`);
         } else {
-          context.lastLoadedRepo.value = context.repoPath.value || ".";
-          context.lastLoadedBranch.value = context.selectedBranch.value;
-          context.lastLoadedLimit.value = context.limitCount.value;
-          customMessage.success(`流式加载完成，共 ${context.commits.value.length} 条提交记录`);
+          state.lastLoadedRepo.value = state.repoPath.value || ".";
+          state.lastLoadedBranch.value = state.selectedBranch.value;
+          state.lastLoadedLimit.value = state.limitCount.value;
+          customMessage.success(`流式加载完成，共 ${state.commits.value.length} 条提交记录`);
         }
         break;
 
       case "error":
-        context.progress.value.loading = false;
-        context.loading.value = false;
+        state.progress.value.loading = false;
+        state.loading.value = false;
         customMessage.error(`${isIncremental ? '增量' : ''}加载失败: ${event.message}`);
         logger.error(`${isIncremental ? '增量' : ''}加载失败`, new Error(event.message || "Unknown error"));
         break;
@@ -164,26 +168,26 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
    * 加载仓库（支持增量加载）
    */
   async function loadRepository() {
-    const currentRepoPath = context.repoPath.value || ".";
-    const currentBranch = context.selectedBranch.value;
+    const currentRepoPath = state.repoPath.value || ".";
+    const currentBranch = state.selectedBranch.value;
 
     // 检查是否可以进行增量加载
-    const isSameRepo = context.lastLoadedRepo.value === currentRepoPath;
-    const isSameBranch = context.lastLoadedBranch.value === currentBranch;
+    const isSameRepo = state.lastLoadedRepo.value === currentRepoPath;
+    const isSameBranch = state.lastLoadedBranch.value === currentBranch;
     const isIncrementalLoad =
-      isSameRepo && isSameBranch && context.limitCount.value > context.lastLoadedLimit.value;
+      isSameRepo && isSameBranch && state.limitCount.value > state.lastLoadedLimit.value;
 
     if (isIncrementalLoad) {
       // 增量加载
-      const skip = context.lastLoadedLimit.value;
-      const newLimit = context.limitCount.value - context.lastLoadedLimit.value;
-      const initialCommitCount = context.commits.value.length;
+      const skip = state.lastLoadedLimit.value;
+      const newLimit = state.limitCount.value - state.lastLoadedLimit.value;
+      const initialCommitCount = state.commits.value.length;
 
-      context.loading.value = true;
-      context.progress.value = {
+      state.loading.value = true;
+      state.progress.value = {
         loading: true,
         loaded: skip,
-        total: context.limitCount.value,
+        total: state.limitCount.value,
       };
 
       try {
@@ -193,23 +197,23 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
             branch: currentBranch,
             skip,
             limit: newLimit,
-            batchSize: context.batchSize.value,
+            batchSize: state.batchSize.value,
           },
           (event) => handleProgressEvent(event, true, initialCommitCount)
         );
         return true;
       } catch (error) {
-        context.progress.value.loading = false;
-        context.loading.value = false;
+        state.progress.value.loading = false;
+        state.loading.value = false;
         customMessage.error(`增量加载失败: ${error}`);
         return false;
       }
     }
 
     // 全量加载
-    context.resetCommits();
-    context.loading.value = true;
-    context.progress.value = {
+    state.resetCommits();
+    state.loading.value = true;
+    state.progress.value = {
       loading: true,
       loaded: 0,
       total: 0,
@@ -219,15 +223,15 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
       await streamLoadRepository(
         {
           path: currentRepoPath,
-          limit: context.limitCount.value,
-          batchSize: context.batchSize.value,
+          limit: state.limitCount.value,
+          batchSize: state.batchSize.value,
         },
         (event) => handleProgressEvent(event, false, 0)
       );
       return true;
     } catch (error) {
-      context.progress.value.loading = false;
-      context.loading.value = false;
+      state.progress.value.loading = false;
+      state.loading.value = false;
       customMessage.error(`加载仓库失败: ${error}`);
       return false;
     }
@@ -247,29 +251,29 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
    */
   function filterCommits() {
     // 首先根据范围选择器从原始列表中切片
-    const rangedCommits = context.commits.value.slice(
-      context.commitRange.value[0],
-      context.commitRange.value[1]
+    const rangedCommits = state.commits.value.slice(
+      state.commitRange.value[0],
+      state.commitRange.value[1]
     );
 
     // 应用筛选
     const filtered = processFilter(rangedCommits, {
-      searchQuery: context.searchQuery.value,
-      authorFilter: context.authorFilter.value,
-      dateRange: context.dateRange.value,
-      commitTypeFilter: context.commitTypeFilter.value,
-      reverseOrder: context.reverseOrder.value,
+      searchQuery: state.searchQuery.value,
+      authorFilter: state.authorFilter.value,
+      dateRange: state.dateRange.value,
+      commitTypeFilter: state.commitTypeFilter.value,
+      reverseOrder: state.reverseOrder.value,
     });
 
-    context.filteredCommits.value = filtered;
-    context.currentPage.value = 1;
+    state.filteredCommits.value = filtered;
+    state.currentPage.value = 1;
   }
 
   /**
    * 清除筛选条件
    */
   function clearFilters() {
-    context.resetFilters();
+    state.resetFilters();
     // 重新应用筛选（此时只会应用范围选择）
     filterCommits();
   }
@@ -281,7 +285,7 @@ export function useGitAnalyzerRunner(context: GitAnalyzerContext) {
    */
   function handlePathDrop(paths: string[]) {
     if (paths.length > 0) {
-      context.repoPath.value = paths[0];
+      state.repoPath.value = paths[0];
       customMessage.success(`已设置 Git 仓库路径: ${paths[0]}`);
 
       // 自动加载仓库

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { customMessage } from '@/utils/customMessage';
-import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide, ChatDotRound } from '@element-plus/icons-vue';
+import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide, ChatDotRound, ArrowDown, ArrowRight } from '@element-plus/icons-vue';
 import type { OcrResult, UploadedImage, ImageBlock } from '../types';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { createModuleLogger } from '@utils/logger';
@@ -11,6 +11,10 @@ const logger = createModuleLogger('smart-ocr/ResultPanel');
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
+
+// 折叠状态管理
+const collapsedGroups = ref<Set<string>>(new Set());
+const collapsedBlocks = ref<Set<string>>(new Set());
 
 const props = defineProps<{
   ocrResults: OcrResult[];
@@ -148,6 +152,34 @@ const handleRetry = (blockId: string) => {
 const handleToggleIgnore = (blockId: string) => {
   emit('toggleIgnore', blockId);
 };
+
+// 切换图片组折叠状态
+const toggleGroupCollapse = (imageId: string) => {
+  if (collapsedGroups.value.has(imageId)) {
+    collapsedGroups.value.delete(imageId);
+  } else {
+    collapsedGroups.value.add(imageId);
+  }
+};
+
+// 切换块折叠状态
+const toggleBlockCollapse = (blockId: string) => {
+  if (collapsedBlocks.value.has(blockId)) {
+    collapsedBlocks.value.delete(blockId);
+  } else {
+    collapsedBlocks.value.add(blockId);
+  }
+};
+
+// 检查图片组是否折叠
+const isGroupCollapsed = (imageId: string) => {
+  return collapsedGroups.value.has(imageId);
+};
+
+// 检查块是否折叠
+const isBlockCollapsed = (blockId: string) => {
+  return collapsedBlocks.value.has(blockId);
+};
 </script>
 
 <template>
@@ -193,24 +225,32 @@ const handleToggleIgnore = (blockId: string) => {
             :key="imageId"
             class="image-group"
           >
-            <div class="group-header">
-              <el-text class="group-title" type="primary" size="large">
-                {{ getImageName(imageId) }}
-              </el-text>
+            <div class="group-header" @click="toggleGroupCollapse(imageId)">
+              <div class="group-header-left">
+                <el-icon class="collapse-icon">
+                  <component :is="isGroupCollapsed(imageId) ? ArrowRight : ArrowDown" />
+                </el-icon>
+                <el-text class="group-title" type="primary" size="large">
+                  {{ getImageName(imageId) }}
+                </el-text>
+              </div>
               <el-tag size="small">
                 {{ results.filter(r => r.status === 'success').length }} / {{ results.length }}
               </el-tag>
             </div>
             
-            <div class="group-content">
+            <div v-show="!isGroupCollapsed(imageId)" class="group-content">
               <div
                 v-for="result in results"
                 :key="result.blockId"
                 class="result-item"
                 :class="{ 'is-ignored': result.ignored }"
               >
-                <div class="result-header">
+                <div class="result-header" @click="toggleBlockCollapse(result.blockId)">
                   <div class="header-left">
+                    <el-icon class="collapse-icon">
+                      <component :is="isBlockCollapsed(result.blockId) ? ArrowRight : ArrowDown" />
+                    </el-icon>
                     <el-tag size="small">块 {{ getBlockIndex(imageId, result.blockId) }}</el-tag>
                     <el-tag
                       :type="getStatusType(result.status)"
@@ -221,7 +261,7 @@ const handleToggleIgnore = (blockId: string) => {
                     </el-tag>
                     <el-tag v-if="result.ignored" size="small" type="info">已忽略</el-tag>
                   </div>
-                  <div class="header-actions">
+                  <div class="header-actions" @click.stop>
                     <el-button
                       v-if="result.status === 'error' || result.status === 'success'"
                       size="small"
@@ -250,7 +290,7 @@ const handleToggleIgnore = (blockId: string) => {
                   </div>
                 </div>
                 
-                <div class="result-content">
+                <div v-show="!isBlockCollapsed(result.blockId)" class="result-content">
                   <template v-if="result.status === 'processing'">
                     <div class="loading-state">
                       <el-icon class="is-loading"><Loading /></el-icon>
@@ -357,6 +397,24 @@ const handleToggleIgnore = (blockId: string) => {
   background-color: var(--card-bg);
   border-radius: 6px;
   border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.group-header:hover {
+  background-color: var(--bg-color);
+}
+
+.group-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapse-icon {
+  transition: transform 0.2s;
+  flex-shrink: 0;
 }
 
 .group-title {
@@ -369,6 +427,8 @@ const handleToggleIgnore = (blockId: string) => {
   flex-direction: column;
   gap: 12px;
   padding-left: 8px;
+  transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 .result-item {
@@ -391,6 +451,13 @@ const handleToggleIgnore = (blockId: string) => {
   align-items: flex-start;
   gap: 8px;
   box-sizing: border-box;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.result-header:hover {
+  background-color: var(--bg-color);
 }
 
 .header-left {
@@ -402,6 +469,8 @@ const handleToggleIgnore = (blockId: string) => {
 
 .result-content {
   padding: 16px;
+  transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 .loading-state,

@@ -142,7 +142,7 @@ export function useChatContextBuilder() {
       presetMessagesTokens,
       availableTokens,
       sessionMessageCount: sessionContext.length,
-    });
+    }, true);
 
     if (availableTokens <= 0) {
       logger.warn("⚠️ 预设消息和系统提示已超出最大上下文限制，会话历史将被完全截断", {
@@ -207,7 +207,7 @@ export function useChatContextBuilder() {
       truncatedMessages: truncatedIndices.size,
       usedTokens: totalTokens,
       availableTokens,
-    });
+    }, true);
 
     // 构建结果：对于被截断的消息，保留指定的字符数
     const result = messagesWithTokens.map((msg, index) => {
@@ -299,7 +299,7 @@ export function useChatContextBuilder() {
               mimeType: a.mimeType,
               importStatus: a.importStatus,
             })),
-          });
+          }, true);
 
           const messageContents: LlmMessageContent[] = [];
 
@@ -358,7 +358,7 @@ export function useChatContextBuilder() {
             originalAttachmentCount: node.attachments.length,
             finalMessagePartsCount: messageContents.length,
             hasTextContent: node.content && node.content.trim() !== "",
-          });
+          }, true);
         } else {
           logger.debug("节点无附件，使用纯文本内容", {
             nodeId: node.id,
@@ -526,7 +526,7 @@ export function useChatContextBuilder() {
         sessionContextCount: sessionContext.length,
         presetsAfterCount: presetsAfterPlaceholder.length,
         totalUserAssistantMessages: userAssistantMessages.length,
-      });
+      }, true);
     } else {
       // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后
       userAssistantMessages = [...presetConversation, ...sessionContext];
@@ -561,7 +561,7 @@ export function useChatContextBuilder() {
                 0
               ),
       })),
-    });
+    }, true);
 
     return { messages };
   };
@@ -660,7 +660,7 @@ export function useChatContextBuilder() {
         agentRulesCount: agentRules.length,
         mergedRulesCount: mergedRules.length,
         mergedRules: mergedRules.map((r: any) => ({ type: r.type, enabled: r.enabled })),
-      });
+      }, true);
     }
 
     // 处理预设消息
@@ -827,7 +827,7 @@ export function useChatContextBuilder() {
       messageCount: messages.length,
       isEstimated,
       tokenizerName,
-    });
+    }, true);
 
     return result;
   };

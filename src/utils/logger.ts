@@ -20,6 +20,7 @@ export interface LogEntry {
   message: string;
   data?: any;
   stack?: string;
+  collapsed?: boolean; // 是否在控制台中折叠显示
 }
 
 class Logger {
@@ -120,21 +121,45 @@ class Logger {
 
     return log;
   }
+/**
+ * 写入日志
+ */
+private async writeLog(entry: LogEntry) {
+  // 添加到缓冲区
+  this.logBuffer.push(entry);
 
-  /**
-   * 写入日志
-   */
-  private async writeLog(entry: LogEntry) {
-    // 添加到缓冲区
-    this.logBuffer.push(entry);
+  // 保持缓冲区大小
+  if (this.logBuffer.length > this.maxBufferSize) {
+    this.logBuffer.shift();
+  }
 
-    // 保持缓冲区大小
-    if (this.logBuffer.length > this.maxBufferSize) {
-      this.logBuffer.shift();
-    }
-
-    // 输出到控制台（如果启用）
-    if (this.logToConsole) {
+  // 输出到控制台（如果启用）
+  if (this.logToConsole) {
+    if (entry.collapsed) {
+      // 使用折叠组显示
+      const levelStr = LogLevel[entry.level];
+      const groupTitle = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
+      
+      // 根据日志级别选择合适的控制台方法
+      const consoleMethod = this.getConsoleMethod(entry.level);
+      consoleMethod(groupTitle);
+      console.groupCollapsed('详细信息');
+      
+      if (entry.data) {
+        try {
+          console.log('数据:', entry.data);
+        } catch (error) {
+          console.log('数据: [无法序列化]');
+        }
+      }
+      
+      if (entry.stack) {
+        console.log('堆栈:', entry.stack);
+      }
+      
+      console.groupEnd();
+    } else {
+      // 原有的非折叠逻辑
       const consoleMsg = this.formatLogEntry(entry);
       switch (entry.level) {
         case LogLevel.DEBUG:
@@ -151,18 +176,37 @@ class Logger {
           break;
       }
     }
+  }
 
-    // 写入文件（异步，不阻塞）
-    if (this.logToFile && this.isInitialized && this.logFilePath) {
-      try {
-        const logLine = this.formatLogEntry(entry) + "\n";
-        await writeTextFile(this.logFilePath, logLine, { append: true });
-      } catch (error) {
-        // 写入失败不影响主流程
-        console.error("写入日志文件失败:", error);
-      }
+  // 写入文件（异步，不阻塞）
+  if (this.logToFile && this.isInitialized && this.logFilePath) {
+    try {
+      const logLine = this.formatLogEntry(entry) + "\n";
+      await writeTextFile(this.logFilePath, logLine, { append: true });
+    } catch (error) {
+      // 写入失败不影响主流程
+      console.error("写入日志文件失败:", error);
     }
   }
+}
+
+/**
+ * 根据日志级别获取对应的控制台方法
+ */
+private getConsoleMethod(level: LogLevel): typeof console.log {
+  switch (level) {
+    case LogLevel.DEBUG:
+      return console.debug.bind(console);
+    case LogLevel.INFO:
+      return console.info.bind(console);
+    case LogLevel.WARN:
+      return console.warn.bind(console);
+    case LogLevel.ERROR:
+      return console.error.bind(console);
+    default:
+      return console.log.bind(console);
+  }
+}
 
   /**
    * 创建日志条目
@@ -172,7 +216,8 @@ class Logger {
     module: string,
     message: string,
     data?: any,
-    error?: Error
+    error?: Error,
+    collapsed?: boolean
   ): LogEntry {
     return {
       timestamp: new Date().toISOString(),
@@ -181,42 +226,43 @@ class Logger {
       message,
       data,
       stack: error?.stack,
+      collapsed,
     };
   }
 
   /**
    * Debug 日志
    */
-  debug(module: string, message: string, data?: any) {
+  debug(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.DEBUG) {
-      this.writeLog(this.createEntry(LogLevel.DEBUG, module, message, data));
+      this.writeLog(this.createEntry(LogLevel.DEBUG, module, message, data, undefined, collapsed));
     }
   }
 
   /**
    * Info 日志
    */
-  info(module: string, message: string, data?: any) {
+  info(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.INFO) {
-      this.writeLog(this.createEntry(LogLevel.INFO, module, message, data));
+      this.writeLog(this.createEntry(LogLevel.INFO, module, message, data, undefined, collapsed));
     }
   }
 
   /**
    * Warning 日志
    */
-  warn(module: string, message: string, data?: any) {
+  warn(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.WARN) {
-      this.writeLog(this.createEntry(LogLevel.WARN, module, message, data));
+      this.writeLog(this.createEntry(LogLevel.WARN, module, message, data, undefined, collapsed));
     }
   }
 
   /**
    * Error 日志
    */
-  error(module: string, message: string, error?: Error | any, data?: any) {
+  error(module: string, message: string, error?: Error | any, data?: any, collapsed?: boolean) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
-    this.writeLog(this.createEntry(LogLevel.ERROR, module, message, data, errorObj));
+    this.writeLog(this.createEntry(LogLevel.ERROR, module, message, data, errorObj, collapsed));
   }
 
   /**
@@ -253,10 +299,13 @@ export const logger = new Logger();
 // 便捷的模块日志创建器
 export function createModuleLogger(moduleName: string) {
   return {
-    debug: (message: string, data?: any) => logger.debug(moduleName, message, data),
-    info: (message: string, data?: any) => logger.info(moduleName, message, data),
-    warn: (message: string, data?: any) => logger.warn(moduleName, message, data),
-    error: (message: string, error?: Error | any, data?: any) =>
-      logger.error(moduleName, message, error, data),
+    debug: (message: string, data?: any, collapsed?: boolean) =>
+      logger.debug(moduleName, message, data, collapsed),
+    info: (message: string, data?: any, collapsed?: boolean) =>
+      logger.info(moduleName, message, data, collapsed),
+    warn: (message: string, data?: any, collapsed?: boolean) =>
+      logger.warn(moduleName, message, data, collapsed),
+    error: (message: string, error?: Error | any, data?: any, collapsed?: boolean) =>
+      logger.error(moduleName, message, error, data, collapsed),
   };
 }

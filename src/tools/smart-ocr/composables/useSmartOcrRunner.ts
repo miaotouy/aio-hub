@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { useSmartOcrStore } from '../smartOcr.store';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import type {
@@ -6,21 +6,18 @@ import type {
   ImageBlock,
   OcrResult,
   SlicerConfig,
-  CutLine,
   UploadedImage,
 } from '../types';
 import type { SmartOcrConfig } from '../config';
 import {
   loadSmartOcrConfig,
   saveSmartOcrConfig,
-  getCurrentEngineConfig,
-  defaultSmartOcrConfig,
 } from '../config';
 import { useImageSlicer } from './useImageSlicer';
 import { useOcrRunner } from './useOcrRunner';
 
-const logger = createModuleLogger('use-smart-ocr');
-const errorHandler = createModuleErrorHandler('use-smart-ocr');
+const logger = createModuleLogger('use-smart-ocr-runner');
+const errorHandler = createModuleErrorHandler('use-smart-ocr-runner');
 
 // ==================== 类型定义 ====================
 
@@ -55,39 +52,13 @@ export interface FormattedOcrSummary {
 // ==================== Composable ====================
 
 /**
- * Smart OCR UI 状态管理 Composable
+ * Smart OCR 业务逻辑编排器
  * 
- * 为 UI 层提供所有需要的响应式状态和方法。
- * 这是一个完全独立的、符合 Vue Composition API 范式的状态管理器。
+ * 负责所有异步操作和复杂业务流程，调用 Store 的 actions 来更新状态。
+ * 不持有任何自身的响应式状态。
  */
-export function useSmartOcr() {
-  // ==================== 响应式状态 ====================
-
-  /** 完整配置 */
-  const fullConfig = ref<SmartOcrConfig>({ ...defaultSmartOcrConfig });
-
-  /** 已上传的图片列表 */
-  const uploadedImages = ref<UploadedImage[]>([]);
-
-  /** 图片切割线映射表 */
-  const cutLinesMap = ref<Map<string, CutLine[]>>(new Map());
-
-  /** 图片切割块映射表 */
-  const imageBlocksMap = ref<Map<string, ImageBlock[]>>(new Map());
-
-  /** OCR 识别结果列表 */
-  const ocrResults = ref<OcrResult[]>([]);
-
-  /** 是否正在处理中 */
-  const isProcessing = ref<boolean>(false);
-
-  // ==================== 计算属性 ====================
-
-  /** 当前引擎配置 */
-  const engineConfig = computed(() => getCurrentEngineConfig(fullConfig.value));
-
-  /** 切图配置 */
-  const slicerConfig = computed(() => fullConfig.value.slicerConfig);
+export function useSmartOcrRunner() {
+  const store = useSmartOcrStore();
 
   // ==================== 初始化与配置管理 ====================
 
@@ -97,9 +68,10 @@ export function useSmartOcr() {
   async function initialize(): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
-        fullConfig.value = await loadSmartOcrConfig();
-        logger.info('useSmartOcr 初始化完成', {
-          engineType: fullConfig.value.currentEngineType,
+        const config = await loadSmartOcrConfig();
+        store.setFullConfig(config);
+        logger.info('SmartOcr Runner 初始化完成', {
+          engineType: config.currentEngineType,
         });
       },
       {
@@ -120,14 +92,16 @@ export function useSmartOcr() {
         // 检查是否只是切换引擎类型
         const isTypeSwitch = Object.keys(newConfig).length === 1 && 'type' in newConfig;
 
+        let updatedFullConfig: SmartOcrConfig;
+
         if (isTypeSwitch) {
-          fullConfig.value = {
-            ...fullConfig.value,
+          updatedFullConfig = {
+            ...store.fullConfig,
             currentEngineType: type,
           };
         } else {
           // 更新当前引擎的配置
-          const newEngineConfigs = { ...fullConfig.value.engineConfigs };
+          const newEngineConfigs = { ...store.fullConfig.engineConfigs };
 
           // 根据引擎类型更新对应的配置
           switch (type) {
@@ -157,14 +131,15 @@ export function useSmartOcr() {
               break;
           }
 
-          fullConfig.value = {
-            ...fullConfig.value,
+          updatedFullConfig = {
+            ...store.fullConfig,
             currentEngineType: type,
             engineConfigs: newEngineConfigs,
           };
         }
 
-        await saveSmartOcrConfig(fullConfig.value);
+        store.setFullConfig(updatedFullConfig);
+        await saveSmartOcrConfig(updatedFullConfig);
         logger.info('引擎配置已更新', { engineType: type });
       },
       {
@@ -181,11 +156,12 @@ export function useSmartOcr() {
   async function updateSlicerConfig(config: SlicerConfig): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
-        fullConfig.value = {
-          ...fullConfig.value,
+        const updatedFullConfig = {
+          ...store.fullConfig,
           slicerConfig: config,
         };
-        await saveSmartOcrConfig(fullConfig.value);
+        store.setFullConfig(updatedFullConfig);
+        await saveSmartOcrConfig(updatedFullConfig);
         logger.info('切图配置已更新', config);
       },
       {
@@ -202,7 +178,7 @@ export function useSmartOcr() {
    * 添加上传的图片
    */
   function addImages(images: UploadedImage[]): void {
-    uploadedImages.value.push(...images);
+    store.addImages(images);
     logger.info('添加图片', { count: images.length });
   }
 
@@ -210,23 +186,14 @@ export function useSmartOcr() {
    * 删除图片
    */
   function removeImage(imageId: string): void {
-    const index = uploadedImages.value.findIndex((img) => img.id === imageId);
-    if (index !== -1) {
-      uploadedImages.value.splice(index, 1);
-      cutLinesMap.value.delete(imageId);
-      imageBlocksMap.value.delete(imageId);
-      logger.info('删除图片', { imageId });
-    }
+    store.removeImage(imageId);
   }
 
   /**
    * 清除所有图片
    */
   function clearAllImages(): void {
-    uploadedImages.value = [];
-    cutLinesMap.value.clear();
-    imageBlocksMap.value.clear();
-    ocrResults.value = [];
+    store.reset();
     logger.info('清除所有图片');
   }
 
@@ -237,20 +204,20 @@ export function useSmartOcr() {
    */
   async function sliceImage(imageId: string): Promise<{
     blocks: ImageBlock[];
-    lines: CutLine[];
+    lines: any[];
   } | null> {
     return await errorHandler.wrapAsync(
       async () => {
-        const image = uploadedImages.value.find((img) => img.id === imageId);
+        const image = store.uploadedImages.find((img) => img.id === imageId);
         if (!image) {
           throw new Error('图片不存在');
         }
 
         const { sliceImage: slice } = useImageSlicer();
-        const result = await slice(image.img, slicerConfig.value, imageId);
+        const result = await slice(image.img, store.slicerConfig, imageId);
 
-        imageBlocksMap.value.set(imageId, result.blocks);
-        cutLinesMap.value.set(imageId, result.lines);
+        store.updateImageBlocks(imageId, result.blocks);
+        store.updateCutLines(imageId, result.lines);
 
         logger.info('图片切割完成', {
           imageId,
@@ -276,18 +243,18 @@ export function useSmartOcr() {
       async () => {
         const { sliceImage: slice } = useImageSlicer();
 
-        for (const image of uploadedImages.value) {
+        for (const image of store.uploadedImages) {
           const result = await slice(
             image.img,
-            slicerConfig.value,
+            store.slicerConfig,
             image.id
           );
-          imageBlocksMap.value.set(image.id, result.blocks);
-          cutLinesMap.value.set(image.id, result.lines);
+          store.updateImageBlocks(image.id, result.blocks);
+          store.updateCutLines(image.id, result.lines);
         }
 
         logger.info('所有图片切割完成', {
-          totalImages: uploadedImages.value.length,
+          totalImages: store.uploadedImages.length,
         });
       },
       {
@@ -308,12 +275,12 @@ export function useSmartOcr() {
   ): Promise<OcrResult[]> {
     const result = await errorHandler.wrapAsync(
       async () => {
-        isProcessing.value = true;
+        store.setProcessing(true);
 
         // 确定要处理的图片
         const imagesToProcess = options.imageIds
-          ? uploadedImages.value.filter((img) => options.imageIds!.includes(img.id))
-          : uploadedImages.value;
+          ? store.uploadedImages.filter((img) => options.imageIds!.includes(img.id))
+          : store.uploadedImages;
 
         if (imagesToProcess.length === 0) {
           throw new Error('没有可处理的图片');
@@ -322,15 +289,13 @@ export function useSmartOcr() {
         // 收集要处理的图片ID集合
         const imageIdsToProcess = new Set(imagesToProcess.map(img => img.id));
         
-        // 清除要处理的图片的旧结果，保留其他图片的结果
-        ocrResults.value = ocrResults.value.filter(
-          r => !imageIdsToProcess.has(r.imageId)
-        );
+        // 清除要处理的图片的旧结果
+        store.clearOcrResults(Array.from(imageIdsToProcess));
 
         // 收集所有图片的块
         const allBlocks: ImageBlock[] = [];
         for (const image of imagesToProcess) {
-          let blocks = imageBlocksMap.value.get(image.id);
+          let blocks = store.imageBlocksMap.get(image.id);
 
           // 如果图片还没有切割，先切割
           if (!blocks) {
@@ -344,28 +309,22 @@ export function useSmartOcr() {
         logger.info('开始 OCR 识别流程', {
           imagesCount: imagesToProcess.length,
           blocksCount: allBlocks.length,
-          engineType: fullConfig.value.currentEngineType,
+          engineType: store.fullConfig.currentEngineType,
         });
 
         // 执行 OCR 识别，并实时更新结果
         const { runOcr } = useOcrRunner();
-        const results = await runOcr(allBlocks, engineConfig.value, (progressResults: OcrResult[]) => {
+        const results = await runOcr(allBlocks, store.engineConfig, (progressResults: OcrResult[]) => {
           // 合并进度结果到现有结果中
-          const existingResults = ocrResults.value.filter(
-            r => !imageIdsToProcess.has(r.imageId)
-          );
-          ocrResults.value = [...existingResults, ...progressResults];
+          store.updateOcrResults(progressResults);
           
           // 调用外部传入的进度回调
-          onProgress?.(ocrResults.value);
+          onProgress?.(store.ocrResults);
         });
 
         // 最终更新：合并结果
-        const existingResults = ocrResults.value.filter(
-          r => !imageIdsToProcess.has(r.imageId)
-        );
-        ocrResults.value = [...existingResults, ...results];
-        isProcessing.value = false;
+        store.updateOcrResults(results);
+        store.setProcessing(false);
 
         return results;
       },
@@ -377,7 +336,7 @@ export function useSmartOcr() {
     );
 
     // 确保处理状态被重置
-    isProcessing.value = false;
+    store.setProcessing(false);
     return result || [];
   }
 
@@ -390,15 +349,15 @@ export function useSmartOcr() {
   ): Promise<OcrResult | null> {
     return await errorHandler.wrapAsync(
       async () => {
-        const resultIndex = ocrResults.value.findIndex((r) => r.blockId === options.blockId);
+        const resultIndex = store.ocrResults.findIndex((r) => r.blockId === options.blockId);
         if (resultIndex === -1) {
           throw new Error('未找到对应的识别结果');
         }
 
-        const result = ocrResults.value[resultIndex];
+        const result = store.ocrResults[resultIndex];
         const imageId = result.imageId;
 
-        const blocks = imageBlocksMap.value.get(imageId);
+        const blocks = store.imageBlocksMap.get(imageId);
         if (!blocks) {
           throw new Error('未找到对应的图片块');
         }
@@ -409,36 +368,39 @@ export function useSmartOcr() {
         }
 
         // 更新状态为处理中
-        ocrResults.value[resultIndex].status = 'processing';
-        ocrResults.value[resultIndex].error = undefined;
-        onProgress?.(ocrResults.value[resultIndex]);
+        const updatingResult = { ...result, status: 'processing' as const, error: undefined };
+        store.updateOcrResults([updatingResult]);
+        onProgress?.(updatingResult);
 
         // 重新识别这个块
         const { runOcr } = useOcrRunner();
         const singleBlockResults = await runOcr(
           [block],
-          engineConfig.value,
+          store.engineConfig,
           (updatedResults: OcrResult[]) => {
             if (updatedResults.length > 0) {
-              ocrResults.value[resultIndex] = {
+              const newResult = {
                 ...updatedResults[0],
                 imageId,
               };
-              onProgress?.(ocrResults.value[resultIndex]);
+              store.updateOcrResults([newResult]);
+              onProgress?.(newResult);
             }
           }
         );
 
         // 最终更新
         if (singleBlockResults.length > 0) {
-          ocrResults.value[resultIndex] = {
+          const finalResult = {
             ...singleBlockResults[0],
             imageId,
           };
+          store.updateOcrResults([finalResult]);
+          logger.info('重试识别完成', { blockId: options.blockId });
+          return finalResult;
         }
 
-        logger.info('重试识别完成', { blockId: options.blockId });
-        return ocrResults.value[resultIndex];
+        return null;
       },
       {
         level: ErrorLevel.ERROR,
@@ -452,9 +414,9 @@ export function useSmartOcr() {
    * 切换块的忽略状态
    */
   function toggleBlockIgnore(blockId: string): void {
-    const result = ocrResults.value.find((r) => r.blockId === blockId);
+    store.toggleBlockIgnore(blockId);
+    const result = store.ocrResults.find((r) => r.blockId === blockId);
     if (result) {
-      result.ignored = !result.ignored;
       logger.info('切换忽略状态', { blockId, ignored: result.ignored });
     }
   }
@@ -463,11 +425,8 @@ export function useSmartOcr() {
    * 更新块的文本内容
    */
   function updateBlockText(blockId: string, text: string): void {
-    const result = ocrResults.value.find((r) => r.blockId === blockId);
-    if (result) {
-      result.text = text;
-      logger.info('更新块文本', { blockId, textLength: text.length });
-    }
+    store.updateBlockText(blockId, text);
+    logger.info('更新块文本', { blockId, textLength: text.length });
   }
 
   // ==================== 结果格式化 ====================
@@ -476,11 +435,11 @@ export function useSmartOcr() {
    * 获取格式化的 OCR 结果摘要
    */
   function getFormattedOcrSummary(): FormattedOcrSummary {
-    const totalImages = uploadedImages.value.length;
-    const totalBlocks = ocrResults.value.length;
-    const successBlocks = ocrResults.value.filter((r) => r.status === 'success').length;
-    const errorBlocks = ocrResults.value.filter((r) => r.status === 'error').length;
-    const ignoredBlocks = ocrResults.value.filter((r) => r.ignored).length;
+    const totalImages = store.uploadedImages.length;
+    const totalBlocks = store.ocrResults.length;
+    const successBlocks = store.ocrResults.filter((r) => r.status === 'success').length;
+    const errorBlocks = store.ocrResults.filter((r) => r.status === 'error').length;
+    const ignoredBlocks = store.ocrResults.filter((r) => r.ignored).length;
 
     const summary = `OCR 识别完成: ${successBlocks}/${totalBlocks} 块成功识别${
       errorBlocks > 0 ? `，${errorBlocks} 块失败` : ''
@@ -494,8 +453,8 @@ export function useSmartOcr() {
         successBlocks,
         errorBlocks,
         ignoredBlocks,
-        engineType: fullConfig.value.currentEngineType,
-        results: ocrResults.value.map((r) => ({
+        engineType: store.fullConfig.currentEngineType,
+        results: store.ocrResults.map((r) => ({
           blockId: r.blockId,
           imageId: r.imageId,
           text: r.text,
@@ -510,16 +469,6 @@ export function useSmartOcr() {
   // ==================== 返回接口 ====================
 
   return {
-    // 状态
-    fullConfig,
-    uploadedImages,
-    cutLinesMap,
-    imageBlocksMap,
-    ocrResults,
-    isProcessing,
-    engineConfig,
-    slicerConfig,
-    
     // 方法
     initialize,
     updateEngineConfig,

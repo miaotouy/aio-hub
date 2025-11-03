@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { customMessage } from '@/utils/customMessage';
 import ControlPanel from './components/ControlPanel.vue';
 import PreviewPanel from './components/PreviewPanel.vue';
@@ -7,13 +8,15 @@ import ResultPanel from './components/ResultPanel.vue';
 import SidebarToggleIcon from '@/components/icons/SidebarToggleIcon.vue';
 import type { UploadedImage } from './types';
 import { useSmartOcrUiState } from './composables/useSmartOcrUiState';
-import { useSmartOcr } from './composables/useSmartOcr';
+import { useSmartOcrStore } from './smartOcr.store';
+import { useSmartOcrRunner } from './composables/useSmartOcrRunner';
 import { createModuleLogger } from '@utils/logger';
 
 // 创建模块日志记录器
 const log = createModuleLogger('SmartOCR');
 
-// 使用 Smart OCR Composable
+// 1. 获取 store 和响应式状态
+const store = useSmartOcrStore();
 const {
   uploadedImages,
   imageBlocksMap,
@@ -23,10 +26,13 @@ const {
   fullConfig,
   engineConfig,
   slicerConfig,
+} = storeToRefs(store);
+
+// 2. 获取业务方法
+const {
   initialize,
   addImages,
   removeImage,
-  clearAllImages,
   sliceImage,
   sliceAllImages,
   retryBlock,
@@ -34,7 +40,7 @@ const {
   updateBlockText,
   updateEngineConfig,
   runFullOcrProcess,
-} = useSmartOcr();
+} = useSmartOcrRunner();
 
 // UI状态持久化
 const {
@@ -106,10 +112,10 @@ onMounted(async () => {
   await loadUiState();
   startWatching();
 
-  // 初始化 OCR Composable（加载配置）
+  // 初始化 OCR（加载配置）
   await initialize();
   
-  log.info('SmartOCR 组件已挂载，Composable 已初始化');
+  log.info('SmartOCR 组件已挂载，Store 和 Runner 已初始化');
 
   // 注册鼠标事件监听
   document.addEventListener('mousemove', handleMouseMove);
@@ -143,7 +149,7 @@ const handleImageRemove = (imageId: string) => {
 
 // 处理清除所有图片
 const handleClearAllImages = () => {
-  clearAllImages();
+  store.reset();
   selectedImageId.value = null;
   customMessage.success('已清除所有图片');
 };

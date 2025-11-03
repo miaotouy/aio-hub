@@ -28,6 +28,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   updateEngineConfig: [config: OcrEngineConfig];
+  updateSlicerConfig: [config: Partial<SlicerConfig>];
   runFullOcrProcess: [options: { imageIds?: string[] }];
 }>();
 
@@ -107,11 +108,12 @@ const cloudActiveProfileId = computed({
     emit('updateEngineConfig', { activeProfileId: value } as any);
   },
 });
+
 // 切图启用
 const slicerEnabled = computed({
   get: () => slicerConfig.value.enabled,
   set: (value) => {
-    props.fullConfig.slicerConfig.enabled = value;
+    emit('updateSlicerConfig', { enabled: value });
   },
 });
 
@@ -119,7 +121,7 @@ const slicerEnabled = computed({
 const slicerAspectRatioThreshold = computed({
   get: () => slicerConfig.value.aspectRatioThreshold,
   set: (value) => {
-    props.fullConfig.slicerConfig.aspectRatioThreshold = value;
+    emit('updateSlicerConfig', { aspectRatioThreshold: value });
   },
 });
 
@@ -127,7 +129,7 @@ const slicerAspectRatioThreshold = computed({
 const slicerBlankThreshold = computed({
   get: () => slicerConfig.value.blankThreshold,
   set: (value) => {
-    props.fullConfig.slicerConfig.blankThreshold = value;
+    emit('updateSlicerConfig', { blankThreshold: value });
   },
 });
 
@@ -135,7 +137,7 @@ const slicerBlankThreshold = computed({
 const slicerMinBlankHeight = computed({
   get: () => slicerConfig.value.minBlankHeight,
   set: (value) => {
-    props.fullConfig.slicerConfig.minBlankHeight = value;
+    emit('updateSlicerConfig', { minBlankHeight: value });
   },
 });
 
@@ -143,7 +145,7 @@ const slicerMinBlankHeight = computed({
 const slicerMinCutHeight = computed({
   get: () => slicerConfig.value.minCutHeight,
   set: (value) => {
-    props.fullConfig.slicerConfig.minCutHeight = value;
+    emit('updateSlicerConfig', { minCutHeight: value });
   },
 });
 
@@ -151,7 +153,7 @@ const slicerMinCutHeight = computed({
 const slicerCutLineOffset = computed({
   get: () => slicerConfig.value.cutLineOffset,
   set: (value) => {
-    props.fullConfig.slicerConfig.cutLineOffset = value;
+    emit('updateSlicerConfig', { cutLineOffset: value });
   },
 });
 

@@ -1,12 +1,7 @@
 <template>
   <div class="asset-list-view">
-    <div v-for="group in groupedAssets" :key="group.month" class="month-group">
-      <div class="month-header">
-        <h3 class="month-title">{{ group.label }}</h3>
-        <span class="asset-count">{{ group.assets.length }} 个文件</span>
-      </div>
-      <el-table
-        :data="group.assets"
+    <el-table
+      :data="assets"
         style="width: 100%"
         :row-class-name="getRowClassName"
         @row-click="(row: Asset, _column: any, event: MouseEvent) => emit('selection-change', row, event)"
@@ -106,7 +101,6 @@
         </template>
       </el-table-column>
     </el-table>
-    </div>
   </div>
 </template>
 
@@ -116,19 +110,14 @@ import type { Asset, AssetType, AssetOrigin } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 import { ref, watch } from 'vue';
 
-interface GroupedAssets {
-  month: string;
-  label: string;
-  assets: Asset[];
-}
-
 interface Props {
-  groupedAssets: GroupedAssets[];
+  assets: Asset[];
   duplicateHashes?: Set<string>;
   selectedIds?: Set<string>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  assets: () => [],
   duplicateHashes: () => new Set(),
   selectedIds: () => new Set(),
 });
@@ -158,15 +147,13 @@ const loadAssetUrls = async () => {
     assetUrls.value.clear();
     
     // 为所有图片资产生成 URL
-    for (const group of props.groupedAssets) {
-      for (const asset of group.assets) {
-        if (asset.type === 'image') {
-          try {
-            const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
-            assetUrls.value.set(asset.id, url);
-          } catch (error) {
-            console.error('生成资产 URL 失败:', asset.id, error);
-          }
+    for (const asset of props.assets) {
+      if (asset.type === 'image') {
+        try {
+          const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+          assetUrls.value.set(asset.id, url);
+        } catch (error) {
+          console.error('生成资产 URL 失败:', asset.id, error);
         }
       }
     }
@@ -181,7 +168,7 @@ const getAssetUrl = (asset: Asset): string => {
 };
 
 // 监听资产列表变化
-watch(() => props.groupedAssets, () => {
+watch(() => props.assets, () => {
   loadAssetUrls();
 }, { immediate: true, deep: true });
 
@@ -305,31 +292,5 @@ const getRowClassName = ({ row }: { row: Asset }) => {
 
 :deep(.el-table__row.selected-row:hover .el-table__cell) {
   background-color: color-mix(in srgb, var(--primary-color) 30%, transparent) !important;
-}
-
-.month-group {
-  margin-bottom: 24px;
-}
-
-.month-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 0 4px 12px 4px;
-  margin-bottom: 8px;
-  border-radius: 4px;
-  background-color: var(--sidebar-bg);
-}
-
-.month-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin: 0;
-}
-
-.asset-count {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
 }
 </style>

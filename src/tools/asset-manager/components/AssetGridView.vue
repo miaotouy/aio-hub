@@ -1,13 +1,8 @@
 <template>
   <div class="asset-grid-view">
-    <div v-for="group in groupedAssets" :key="group.month" class="month-group">
-      <div class="month-header">
-        <h3 class="month-title">{{ group.label }}</h3>
-        <span class="asset-count">{{ group.assets.length }} 个文件</span>
-      </div>
-      <div class="grid-container">
-        <div
-        v-for="asset in group.assets"
+    <div class="grid-container">
+      <div
+        v-for="asset in assets"
         :key="asset.id"
         :data-asset-id="asset.id"
         :class="[
@@ -79,7 +74,6 @@
             </template>
           </el-dropdown>
         </div>
-        </div>
       </div>
     </div>
   </div>
@@ -91,19 +85,14 @@ import { MoreFilled, View, Delete } from '@element-plus/icons-vue';
 import type { Asset } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 
-interface GroupedAssets {
-  month: string;
-  label: string;
-  assets: Asset[];
-}
-
 interface Props {
-  groupedAssets: GroupedAssets[];
+  assets: Asset[];
   duplicateHashes?: Set<string>;
   selectedIds?: Set<string>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  assets: () => [],
   duplicateHashes: () => new Set(),
   selectedIds: () => new Set(),
 });
@@ -133,15 +122,13 @@ const loadAssetUrls = async () => {
     assetUrls.value.clear();
     
     // 为所有图片资产生成 URL
-    for (const group of props.groupedAssets) {
-      for (const asset of group.assets) {
-        if (asset.type === 'image') {
-          try {
-            const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
-            assetUrls.value.set(asset.id, url);
-          } catch (error) {
-            console.error('生成资产 URL 失败:', asset.id, error);
-          }
+    for (const asset of props.assets) {
+      if (asset.type === 'image') {
+        try {
+          const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+          assetUrls.value.set(asset.id, url);
+        } catch (error) {
+          console.error('生成资产 URL 失败:', asset.id, error);
         }
       }
     }
@@ -151,7 +138,7 @@ const loadAssetUrls = async () => {
 };
 
 // 监听资产列表变化
-watch(() => props.groupedAssets, () => {
+watch(() => props.assets, () => {
   loadAssetUrls();
 }, { immediate: true, deep: true });
 
@@ -322,32 +309,5 @@ const formatFileSize = (bytes: number) => {
   to {
     transform: rotate(360deg);
   }
-}
-
-.month-group {
-  margin-bottom: 24px;
-}
-
-.month-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 0 4px 12px 4px;
-  border-bottom: 1px solid var(--el-border-color-light);
-  margin-bottom: 16px;
-  border-radius: 4px;
-  background-color: var(--sidebar-bg);
-}
-
-.month-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin: 0;
-}
-
-.asset-count {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
 }
 </style>

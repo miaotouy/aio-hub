@@ -47,28 +47,22 @@
           description="还没有任何资产"
         />
 
-        <!-- 视图切换 -->
+        <!-- 资产分组视图 -->
         <template v-else>
-          <!-- 网格视图 -->
-          <AssetGridView
-            v-if="viewMode === 'grid'"
-            :grouped-assets="groupedAssets"
+          <AssetGroup
+            v-for="group in groupedAssets"
+            :key="group.month"
+            :month="group.month"
+            :label="group.label"
+            :assets="group.assets"
+            :view-mode="viewMode"
             :duplicate-hashes="duplicateHashes"
             :selected-ids="selectedAssetIds"
             @selection-change="handleAssetSelection"
             @select="handleSelectAsset"
             @delete="handleDeleteAsset"
-          />
-
-          <!-- 列表视图 -->
-          <AssetListView
-            v-else
-            :grouped-assets="groupedAssets"
-            :duplicate-hashes="duplicateHashes"
-            :selected-ids="selectedAssetIds"
-            @selection-change="handleAssetSelection"
-            @select="handleSelectAsset"
-            @delete="handleDeleteAsset"
+            @select-all="handleSelectAll"
+            @deselect-all="handleDeselectAll"
           />
         </template>
       </el-main>
@@ -86,8 +80,7 @@ import { customMessage } from '@/utils/customMessage';
 import type { Asset, AssetType, AssetOrigin, DuplicateFilesResult } from '@/types/asset-management';
 import Toolbar from './components/Toolbar.vue';
 import Sidebar from './components/Sidebar.vue';
-import AssetGridView from './components/AssetGridView.vue';
-import AssetListView from './components/AssetListView.vue';
+import AssetGroup from './components/AssetGroup.vue';
 
 // 使用资产管理器
 const {
@@ -268,6 +261,18 @@ const handleDeleteSelected = async () => {
 const clearSelection = () => {
   selectedAssetIds.value.clear();
   lastSelectedAssetId.value = null;
+};
+
+const handleSelectAll = (assetIds: string[]) => {
+  const currentIds = new Set(selectedAssetIds.value);
+  assetIds.forEach(id => currentIds.add(id));
+  selectedAssetIds.value = currentIds;
+};
+
+const handleDeselectAll = (assetIds: string[]) => {
+  const currentIds = new Set(selectedAssetIds.value);
+  assetIds.forEach(id => currentIds.delete(id));
+  selectedAssetIds.value = currentIds;
 };
 
 const handleSelectRedundantDuplicates = () => {

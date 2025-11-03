@@ -1,21 +1,39 @@
 import type { ToolService } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { OcrContext } from './OcrContext';
-import type {
-  FullOcrProcessOptions,
-  RetryBlockOptions,
-  FormattedOcrSummary,
-} from './OcrContext';
-import type { UploadedImage, OcrEngineConfig, SlicerConfig, OcrEngineType } from './types';
-import { defaultSmartOcrConfig } from './config';
+import type { UploadedImage, OcrEngineConfig, SlicerConfig, OcrEngineType, ImageBlock, OcrResult } from './types';
+import { defaultSmartOcrConfig, loadSmartOcrConfig, getCurrentEngineConfig } from './config';
 import { invoke } from '@tauri-apps/api/core';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useOcrProfiles } from '@/composables/useOcrProfiles';
 import { getTesseractLanguageOptions } from './language-packs';
+import { useImageSlicer } from './composables/useImageSlicer';
+import { useOcrRunner } from './composables/useOcrRunner';
 
 const logger = createModuleLogger('services/smart-ocr');
 const errorHandler = createModuleErrorHandler('services/smart-ocr');
+
+// ==================== 类型定义 ====================
+
+export interface FormattedOcrSummary {
+  summary: string;
+  details: {
+    totalImages: number;
+    totalBlocks: number;
+    successBlocks: number;
+    errorBlocks: number;
+    ignoredBlocks: number;
+    engineType: string;
+    results: Array<{
+      blockId: string;
+      imageId: string;
+      text: string;
+      status: string;
+      ignored?: boolean;
+      error?: string;
+    }>;
+  };
+}
 
 // ==================== Agent 调用接口类型 ====================
 
@@ -41,10 +59,11 @@ export interface ProcessImagesFromPathsOptions {
 
 /**
  * SmartOcr 服务
- * 
- * 提供两种调用模式：
- * 1. Agent/外部调用：通过高级封装的 `processImagesFromPaths` 方法，实现无状态、一次性调用。
- * 2. UI 调用：通过 `createContext` 方法获取一个有状态、响应式的 OcrContext 实例，用于复杂交互。
+ *
+ * 提供无状态的 OCR 处理接口：
+ * 1. `processImages`: 处理图片对象列表，适用于应用内部调用
+ * 2. `processImagesFromPaths`: 从文件路径处理图片，适用于 Agent 或外部调用
+ * 3. 查询接口：获取可用引擎、参数说明等元数据
  */
 export default class SmartOcrService implements ToolService {
   public readonly id = 'smart-ocr';
@@ -56,7 +75,7 @@ export default class SmartOcrService implements ToolService {
   /**
    * [推荐] 直接处理图片对象列表并返回识别摘要。
    * 适用于应用内部调用，图片对象已经准备好的场景。
-   * 它在内部处理 OcrContext 的创建、配置、执行和销毁的完整生命周期。
+   * 使用纯逻辑函数，无状态处理。
    */
   public async processImages(
     options: ProcessImagesOptions
@@ -67,38 +86,66 @@ export default class SmartOcrService implements ToolService {
 
     return await errorHandler.wrapAsync(
       async () => {
-        // 1. 创建并初始化临时的 Context
-        const context = this.createContext();
-        await context.initialize();
+        // 1. 加载配置
+        let config = await loadSmartOcrConfig();
 
         // 2. 应用配置覆盖（如果提供）
-        if (options.engineConfig) {
-          const newEngineConfig = {
-            ...context.engineConfig.value,
-            ...options.engineConfig,
-          } as OcrEngineConfig;
-          await context.updateEngineConfig(newEngineConfig);
+        if (options.engineConfig || options.slicerConfig) {
+          config = {
+            ...config,
+            ...(options.slicerConfig && { slicerConfig: { ...config.slicerConfig, ...options.slicerConfig } }),
+          };
+
+          // 处理引擎配置覆盖
+          if (options.engineConfig) {
+            const currentEngine = getCurrentEngineConfig(config);
+            const mergedEngineConfig = {
+              ...currentEngine,
+              ...options.engineConfig,
+            } as OcrEngineConfig;
+
+            // 更新配置中的引擎设置
+            const engineType = mergedEngineConfig.type;
+            config = {
+              ...config,
+              currentEngineType: engineType,
+              engineConfigs: {
+                ...config.engineConfigs,
+                [engineType]: mergedEngineConfig,
+              },
+            };
+          }
         }
-        if (options.slicerConfig) {
-          await context.updateSlicerConfig({
-            ...context.slicerConfig.value,
-            ...options.slicerConfig,
-          });
+
+        // 3. 执行完整的 OCR 流程 - 直接使用 composables
+        const engineConfig = getCurrentEngineConfig(config);
+        const slicerConfig = config.slicerConfig;
+
+        // 批量切割图片
+        const { sliceImage } = useImageSlicer();
+        const sliceResults = new Map<string, { blocks: ImageBlock[]; lines: any[] }>();
+        for (const image of options.images) {
+          const result = await sliceImage(image.img, slicerConfig, image.id);
+          sliceResults.set(image.id, result);
         }
 
-        // 3. 添加图片到上下文
-        context.addImages(options.images);
+        // 收集所有图片块
+        const allBlocks: ImageBlock[] = [];
+        for (const result of sliceResults.values()) {
+          allBlocks.push(...result.blocks);
+        }
 
-        // 4. 执行完整的 OCR 流程
-        await context.runFullOcrProcess();
+        // 执行 OCR 识别
+        const { runOcr } = useOcrRunner();
+        const results = await runOcr(allBlocks, engineConfig);
 
-        // 5. 返回格式化结果
-        const summary = context.getFormattedOcrSummary();
+        // 格式化结果
+        const summary = this.formatOcrSummary(options.images, results, config.currentEngineType);
+
         logger.info('处理图片对象完成', {
           summary: summary.summary,
         });
 
-        // 临时的 context 会在此方法结束后被垃圾回收
         return summary;
       },
       {
@@ -108,11 +155,10 @@ export default class SmartOcrService implements ToolService {
       }
     );
   }
-
   /**
    * [Agent Friendly] 从文件路径识别图片文字并返回摘要。
    * 这是一个高级封装方法，为 Agent 和外部调用者设计。
-   * 它在内部处理 OcrContext 的创建、配置、执行和销毁的完整生命周期。
+   * 使用纯逻辑函数，无状态处理。
    */
   public async processImagesFromPaths(
     options: ProcessImagesFromPathsOptions
@@ -123,44 +169,19 @@ export default class SmartOcrService implements ToolService {
 
     return await errorHandler.wrapAsync(
       async () => {
-        // 1. 创建并初始化临时的 Context
-        const context = this.createContext();
-        await context.initialize();
-
-        // 2. 应用配置覆盖（如果提供）
-        if (options.engineConfig) {
-          const newEngineConfig = {
-            ...context.engineConfig.value,
-            ...options.engineConfig,
-          } as OcrEngineConfig; // 强制类型转换，因为我们相信合并后的结果是有效的
-          await context.updateEngineConfig(newEngineConfig);
-        }
-        if (options.slicerConfig) {
-          await context.updateSlicerConfig({
-            ...context.slicerConfig.value,
-            ...options.slicerConfig,
-          });
-        }
-
-        // 3. 将文件路径转换为 UploadedImage 对象
+        // 1. 将文件路径转换为 UploadedImage 对象
         const uploadedImages: UploadedImage[] = [];
         for (const path of options.imagePaths) {
           const uploadedImage = await this.pathToUploadedImage(path);
           uploadedImages.push(uploadedImage);
         }
-        context.addImages(uploadedImages);
 
-        // 4. 执行完整的 OCR 流程
-        await context.runFullOcrProcess();
-
-        // 5. 返回格式化结果
-        const summary = context.getFormattedOcrSummary();
-        logger.info('从文件路径处理图片完成', {
-          summary: summary.summary,
+        // 2. 调用 processImages 方法（复用逻辑）
+        return await this.processImages({
+          images: uploadedImages,
+          engineConfig: options.engineConfig,
+          slicerConfig: options.slicerConfig,
         });
-
-        // 临时的 context 会在此方法结束后被垃圾回收
-        return summary;
       },
       {
         level: ErrorLevel.ERROR,
@@ -170,23 +191,45 @@ export default class SmartOcrService implements ToolService {
     );
   }
 
-  // ==================== UI/高级使用方法 ====================
+  // ==================== 内部辅助方法 ====================
 
   /**
-   * [UI Facing] 创建一个新的 OCR 上下文实例。
-   * 
-   * 每个上下文实例都是独立的，拥有自己的响应式状态。
-   * 主要供 UI 组件在挂载时创建，并在整个生命周期中使用。
-   * 
-   * @returns 新的 OcrContext 实例
+   * 格式化 OCR 结果为摘要
    */
-  public createContext(): OcrContext {
-    const context = new OcrContext();
-    logger.info('创建新的 OcrContext 实例');
-    return context;
-  }
+  private formatOcrSummary(
+    images: UploadedImage[],
+    results: OcrResult[],
+    engineType: string
+  ): FormattedOcrSummary {
+    const totalImages = images.length;
+    const totalBlocks = results.length;
+    const successBlocks = results.filter((r) => r.status === 'success').length;
+    const errorBlocks = results.filter((r) => r.status === 'error').length;
+    const ignoredBlocks = results.filter((r) => r.ignored).length;
 
-  // ==================== 内部辅助方法 ====================
+    const summary = `OCR 识别完成: ${successBlocks}/${totalBlocks} 块成功识别${errorBlocks > 0 ? `，${errorBlocks} 块失败` : ''
+      }${ignoredBlocks > 0 ? `，${ignoredBlocks} 块被忽略` : ''}`;
+
+    return {
+      summary,
+      details: {
+        totalImages,
+        totalBlocks,
+        successBlocks,
+        errorBlocks,
+        ignoredBlocks,
+        engineType,
+        results: results.map((r) => ({
+          blockId: r.blockId,
+          imageId: r.imageId,
+          text: r.text,
+          status: r.status,
+          ignored: r.ignored,
+          error: r.error,
+        })),
+      },
+    };
+  }
 
   /**
    * 内部辅助方法：将文件路径转换为 UploadedImage 对象。
@@ -201,11 +244,11 @@ export default class SmartOcrService implements ToolService {
     const id = `img-${Date.now()}-${Math.random()}`;
     const img = new Image();
     const dataUrl = URL.createObjectURL(file);
-    
+
     return new Promise((resolve, reject) => {
       img.onload = () => {
         // 注意：理想情况下应在图片处理完后调用 URL.revokeObjectURL(dataUrl) 释放内存。
-        // 由于 context 是临时的，在操作完成后会被垃圾回收，浏览器会自动处理。
+        // 由于图片对象在 OCR 流程中短暂使用后即可释放，浏览器会自动处理。
         resolve({ id, name, file, img, size: file.size, dataUrl });
       };
       img.onerror = (err) => {
@@ -229,7 +272,7 @@ export default class SmartOcrService implements ToolService {
     isAvailable: boolean;
   }> {
     const configs = defaultSmartOcrConfig.engineConfigs;
-    
+
     return [
       {
         type: 'tesseract',
@@ -276,7 +319,7 @@ export default class SmartOcrService implements ToolService {
     }>;
   } {
     const configs = defaultSmartOcrConfig.engineConfigs;
-    
+
     switch (engineType) {
       case 'tesseract': {
         const config = configs.tesseract;
@@ -418,7 +461,7 @@ export default class SmartOcrService implements ToolService {
         }
         return models;
       }
-      
+
       case 'cloud': {
         const { enabledProfiles } = useOcrProfiles();
         return enabledProfiles.value.map(profile => ({
@@ -456,7 +499,7 @@ export default class SmartOcrService implements ToolService {
     }>;
   } {
     const config = defaultSmartOcrConfig.slicerConfig;
-    
+
     return {
       name: '智能切图配置',
       description: '自动检测图片中的空白区域并切割成多个块，提高 OCR 识别效率',
@@ -698,7 +741,3 @@ console.log(slicerDetails.parameters);
     };
   }
 }
-
-// ==================== 类型导出 ====================
-
-export type { FullOcrProcessOptions, RetryBlockOptions, FormattedOcrSummary };

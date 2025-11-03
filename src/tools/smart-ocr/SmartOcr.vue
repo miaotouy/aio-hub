@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { serviceRegistry } from '@/services/registry';
-import type SmartOcrService from './smartOcr.service';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { customMessage } from '@/utils/customMessage';
 import ControlPanel from './components/ControlPanel.vue';
 import PreviewPanel from './components/PreviewPanel.vue';
@@ -9,16 +7,34 @@ import ResultPanel from './components/ResultPanel.vue';
 import SidebarToggleIcon from '@/components/icons/SidebarToggleIcon.vue';
 import type { UploadedImage } from './types';
 import { useSmartOcrUiState } from './composables/useSmartOcrUiState';
+import { useSmartOcr } from './composables/useSmartOcr';
 import { createModuleLogger } from '@utils/logger';
 
 // 创建模块日志记录器
 const log = createModuleLogger('SmartOCR');
 
-// 获取服务实例
-const ocrService = serviceRegistry.getService<InstanceType<typeof SmartOcrService>>('smart-ocr');
-
-// 创建 OCR 上下文实例（UI 专用）- 立即创建确保事件处理器可用
-const ocrContext = ocrService.createContext();
+// 使用 Smart OCR Composable
+const {
+  uploadedImages,
+  imageBlocksMap,
+  cutLinesMap,
+  ocrResults,
+  isProcessing,
+  fullConfig,
+  engineConfig,
+  slicerConfig,
+  initialize,
+  addImages,
+  removeImage,
+  clearAllImages,
+  sliceImage,
+  sliceAllImages,
+  retryBlock,
+  toggleBlockIgnore,
+  updateBlockText,
+  updateEngineConfig,
+  runFullOcrProcess,
+} = useSmartOcr();
 
 // UI状态持久化
 const {
@@ -41,13 +57,6 @@ const selectedImageId = ref<string | null>(null);
 
 // ControlPanel 组件引用（保留用于未来可能需要的方法调用）
 const controlPanelRef = ref<InstanceType<typeof ControlPanel>>();
-
-// 响应式状态（直接从 context 获取）
-const uploadedImages = computed(() => ocrContext.uploadedImages.value);
-const imageBlocksMap = computed(() => ocrContext.imageBlocksMap.value);
-const cutLinesMap = computed(() => ocrContext.cutLinesMap.value);
-const ocrResults = computed(() => ocrContext.ocrResults.value);
-const isProcessing = computed(() => ocrContext.isProcessing.value);
 
 // 拖拽处理
 const handleLeftDragStart = (e: MouseEvent) => {
@@ -97,10 +106,10 @@ onMounted(async () => {
   await loadUiState();
   startWatching();
 
-  // 初始化 OCR 上下文（加载配置）
-  await ocrContext.initialize();
+  // 初始化 OCR Composable（加载配置）
+  await initialize();
   
-  log.info('SmartOCR 组件已挂载，Context 已初始化');
+  log.info('SmartOCR 组件已挂载，Composable 已初始化');
 
   // 注册鼠标事件监听
   document.addEventListener('mousemove', handleMouseMove);
@@ -115,7 +124,7 @@ onUnmounted(() => {
 
 // 处理图片上传
 const handleImagesUpload = (images: UploadedImage[]) => {
-  ocrContext.addImages(images);
+  addImages(images);
   // 自动选中第一张新上传的图片
   if (images.length > 0 && !selectedImageId.value) {
     selectedImageId.value = images[0].id;
@@ -124,7 +133,7 @@ const handleImagesUpload = (images: UploadedImage[]) => {
 
 // 处理图片删除
 const handleImageRemove = (imageId: string) => {
-  ocrContext.removeImage(imageId);
+  removeImage(imageId);
   
   // 如果删除的是当前选中的图片，选中下一张
   if (selectedImageId.value === imageId) {
@@ -134,7 +143,7 @@ const handleImageRemove = (imageId: string) => {
 
 // 处理清除所有图片
 const handleClearAllImages = () => {
-  ocrContext.clearAllImages();
+  clearAllImages();
   selectedImageId.value = null;
   customMessage.success('已清除所有图片');
 };
@@ -147,30 +156,30 @@ const handleImageSelect = (imageId: string) => {
 
 // 处理单个图片切图
 const handleSliceImage = async (imageId: string) => {
-  await ocrContext.sliceImage(imageId);
+  await sliceImage(imageId);
 };
 
 // 处理批量切图
 const handleSliceAllImages = async () => {
-  await ocrContext.sliceAllImages();
+  await sliceAllImages();
 };
 
 // 处理重试单个块
 const handleRetryBlock = async (blockId: string) => {
-  await ocrContext.retryBlock({ blockId });
+  await retryBlock({ blockId });
   customMessage.success('重试完成');
 };
 
 // 处理切换忽略状态
 const handleToggleIgnore = (blockId: string) => {
-  ocrContext.toggleBlockIgnore(blockId);
-  const result = ocrResults.value.find((r) => r.blockId === blockId);
+  toggleBlockIgnore(blockId);
+  const result = ocrResults.value.find((r: any) => r.blockId === blockId);
   customMessage.success(result?.ignored ? '已忽略该块' : '已取消忽略');
 };
 
 // 处理文本更新
 const handleUpdateText = (blockId: string, text: string) => {
-  ocrContext.updateBlockText(blockId, text);
+  updateBlockText(blockId, text);
   log.info('更新块文本', { blockId, textLength: text.length });
 };
 </script>
@@ -187,8 +196,14 @@ const handleUpdateText = (blockId: string, text: string) => {
         <div class="panel-content">
           <ControlPanel
             ref="controlPanelRef"
-            :ocr-context="ocrContext"
             :selected-image-id="selectedImageId"
+            :uploaded-images="uploadedImages"
+            :is-processing="isProcessing"
+            :engine-config="engineConfig"
+            :slicer-config="slicerConfig"
+            :full-config="fullConfig"
+            @update-engine-config="updateEngineConfig"
+            @run-full-ocr-process="runFullOcrProcess"
           />
         </div>
 

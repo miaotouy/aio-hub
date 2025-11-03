@@ -5,7 +5,8 @@ import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
-import type { OcrContext } from "../OcrContext";
+import type { UploadedImage, OcrEngineConfig, SlicerConfig } from "../types";
+import type { SmartOcrConfig } from "../config";
 import { useLlmProfiles } from "../../../composables/useLlmProfiles";
 import { useOcrProfiles } from "../../../composables/useOcrProfiles";
 import { getTesseractLanguageOptions } from "../language-packs";
@@ -17,8 +18,17 @@ const logger = createModuleLogger("SmartOCR.ControlPanel");
 const { navigateToSettings } = useSettingsNavigator();
 
 const props = defineProps<{
-  ocrContext: OcrContext;
   selectedImageId: string | null;
+  uploadedImages: UploadedImage[];
+  isProcessing: boolean;
+  engineConfig: OcrEngineConfig;
+  slicerConfig: SlicerConfig;
+  fullConfig: SmartOcrConfig;
+}>();
+
+const emit = defineEmits<{
+  updateEngineConfig: [config: OcrEngineConfig];
+  runFullOcrProcess: [options: { imageIds?: string[] }];
 }>();
 
 // 使用 composables
@@ -28,17 +38,17 @@ const { enabledProfiles: ocrProfiles } = useOcrProfiles();
 // 动态获取 Tesseract 语言选项
 const tesseractLanguageOptions = computed(() => getTesseractLanguageOptions());
 
-// 从 Context 获取响应式状态
-const uploadedImages = computed(() => props.ocrContext.uploadedImages.value);
-const isProcessing = computed(() => props.ocrContext.isProcessing.value);
-const engineConfig = computed(() => props.ocrContext.engineConfig.value);
-const slicerConfig = computed(() => props.ocrContext.slicerConfig.value);
+// 从 props 获取响应式状态
+const uploadedImages = computed(() => props.uploadedImages);
+const isProcessing = computed(() => props.isProcessing);
+const engineConfig = computed(() => props.engineConfig);
+const slicerConfig = computed(() => props.slicerConfig);
 
 // 引擎类型
 const engineType = computed({
   get: () => engineConfig.value.type,
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ type: value } as any);
+    emit('updateEngineConfig', { type: value } as any);
   },
 });
 
@@ -46,7 +56,7 @@ const engineType = computed({
 const engineLanguage = computed({
   get: () => (engineConfig.value.type === "tesseract" ? engineConfig.value.language : ""),
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ language: value } as any);
+    emit('updateEngineConfig', { language: value } as any);
   },
 });
 
@@ -54,7 +64,7 @@ const engineLanguage = computed({
 const enginePrompt = computed({
   get: () => (engineConfig.value.type === "vlm" ? engineConfig.value.prompt : ""),
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ prompt: value } as any);
+    emit('updateEngineConfig', { prompt: value } as any);
   },
 });
 
@@ -62,7 +72,7 @@ const enginePrompt = computed({
 const engineTemperature = computed({
   get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.temperature ?? 0.7) : 0.7),
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ temperature: value } as any);
+    emit('updateEngineConfig', { temperature: value } as any);
   },
 });
 
@@ -70,7 +80,7 @@ const engineTemperature = computed({
 const engineMaxTokens = computed({
   get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.maxTokens ?? 4096) : 4096),
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ maxTokens: value } as any);
+    emit('updateEngineConfig', { maxTokens: value } as any);
   },
 });
 
@@ -78,7 +88,7 @@ const engineMaxTokens = computed({
 const engineConcurrency = computed({
   get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.concurrency ?? 3) : 3),
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ concurrency: value } as any);
+    emit('updateEngineConfig', { concurrency: value } as any);
   },
 });
 
@@ -86,7 +96,7 @@ const engineConcurrency = computed({
 const engineDelay = computed({
   get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.delay ?? 0) : 0),
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ delay: value } as any);
+    emit('updateEngineConfig', { delay: value } as any);
   },
 });
 
@@ -94,14 +104,14 @@ const engineDelay = computed({
 const cloudActiveProfileId = computed({
   get: () => (engineConfig.value.type === "cloud" ? engineConfig.value.activeProfileId : ""),
   set: async (value) => {
-    await props.ocrContext.updateEngineConfig({ activeProfileId: value } as any);
+    emit('updateEngineConfig', { activeProfileId: value } as any);
   },
 });
 // 切图启用
 const slicerEnabled = computed({
   get: () => slicerConfig.value.enabled,
   set: (value) => {
-    props.ocrContext.fullConfig.value.slicerConfig.enabled = value;
+    props.fullConfig.slicerConfig.enabled = value;
   },
 });
 
@@ -109,7 +119,7 @@ const slicerEnabled = computed({
 const slicerAspectRatioThreshold = computed({
   get: () => slicerConfig.value.aspectRatioThreshold,
   set: (value) => {
-    props.ocrContext.fullConfig.value.slicerConfig.aspectRatioThreshold = value;
+    props.fullConfig.slicerConfig.aspectRatioThreshold = value;
   },
 });
 
@@ -117,7 +127,7 @@ const slicerAspectRatioThreshold = computed({
 const slicerBlankThreshold = computed({
   get: () => slicerConfig.value.blankThreshold,
   set: (value) => {
-    props.ocrContext.fullConfig.value.slicerConfig.blankThreshold = value;
+    props.fullConfig.slicerConfig.blankThreshold = value;
   },
 });
 
@@ -125,7 +135,7 @@ const slicerBlankThreshold = computed({
 const slicerMinBlankHeight = computed({
   get: () => slicerConfig.value.minBlankHeight,
   set: (value) => {
-    props.ocrContext.fullConfig.value.slicerConfig.minBlankHeight = value;
+    props.fullConfig.slicerConfig.minBlankHeight = value;
   },
 });
 
@@ -133,7 +143,7 @@ const slicerMinBlankHeight = computed({
 const slicerMinCutHeight = computed({
   get: () => slicerConfig.value.minCutHeight,
   set: (value) => {
-    props.ocrContext.fullConfig.value.slicerConfig.minCutHeight = value;
+    props.fullConfig.slicerConfig.minCutHeight = value;
   },
 });
 
@@ -141,7 +151,7 @@ const slicerMinCutHeight = computed({
 const slicerCutLineOffset = computed({
   get: () => slicerConfig.value.cutLineOffset,
   set: (value) => {
-    props.ocrContext.fullConfig.value.slicerConfig.cutLineOffset = value;
+    props.fullConfig.slicerConfig.cutLineOffset = value;
   },
 });
 
@@ -162,7 +172,7 @@ const selectedModelCombo = computed({
     if (!value) return;
     const [profileId, modelId] = value.split(":");
     if (engineConfig.value.type === "vlm") {
-      await props.ocrContext.updateEngineConfig({
+      emit('updateEngineConfig', {
         ...engineConfig.value,
         profileId,
         modelId,
@@ -186,7 +196,7 @@ const handleStartOcr = async () => {
   });
 
   try {
-    await props.ocrContext.runFullOcrProcess({ imageIds: [selectedImage.value.id] });
+    emit('runFullOcrProcess', { imageIds: [selectedImage.value.id] });
     customMessage.success("识别完成");
   } catch (error) {
     logger.error("单张图片OCR识别失败", {
@@ -216,13 +226,12 @@ const handleBatchOcr = async () => {
 
   try {
     // 一次性处理所有图片，避免结果被覆盖
-    await props.ocrContext.runFullOcrProcess({
+    emit('runFullOcrProcess', {
       imageIds: uploadedImages.value.map(img => img.id)
     });
 
     logger.info("批量OCR识别完成", {
       totalImages: uploadedImages.value.length,
-      totalResults: props.ocrContext.ocrResults.value.length,
       engineType: engineConfig.value.type,
     });
 

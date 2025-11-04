@@ -266,20 +266,22 @@ onUnmounted(() => {
 
     <el-container>
       <el-main class="main-content">
-        <router-view v-slot="{ Component }">
-          <keep-alive :exclude="['Settings']">
-            <Suspense>
-              <component :is="Component" />
-              <template #fallback>
-                <div class="loading-container">
-                  <el-icon class="is-loading" :size="32">
-                    <Loading />
-                  </el-icon>
-                  <p>加载中...</p>
-                </div>
-              </template>
-            </Suspense>
-          </keep-alive>
+        <router-view v-slot="{ Component, route }">
+          <Suspense>
+            <template #default>
+              <keep-alive :exclude="['Settings']">
+                <component :is="Component" :key="route.path" />
+              </keep-alive>
+            </template>
+            <template #fallback>
+              <div class="loading-container">
+                <el-icon class="is-loading" :size="32">
+                  <Loading />
+                </el-icon>
+                <p>加载中...</p>
+              </div>
+            </template>
+          </Suspense>
         </router-view>
       </el-main>
     </el-container>

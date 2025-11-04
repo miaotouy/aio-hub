@@ -119,7 +119,7 @@ const handleAnalyzeContext = () => {
 
 // 定义导出选项接口
 interface ExportOptions {
-  format: "markdown" | "json";
+  format: "markdown" | "json" | "raw";
   includePreset: boolean;
   includeUserProfile: boolean;
   includeAgentInfo: boolean;
@@ -156,7 +156,27 @@ const handleExportBranch = async (options: ExportOptions) => {
     let fileExtension: string;
     let filterName: string;
 
-    if (options.format === "json") {
+    if (options.format === "raw") {
+      // Raw 格式：导出原始节点数据
+      const branchNodes: Record<string, ChatMessageNode> = {};
+      let currentId: string | null = props.message.id;
+
+      while (currentId !== null) {
+        const node: ChatMessageNode | undefined = session.nodes[currentId];
+        if (node) {
+          branchNodes[currentId] = node;
+        }
+        currentId = node ? node.parentId : null;
+      }
+
+      const rawBranchData = {
+        ...session,
+        nodes: branchNodes,
+      };
+      content = JSON.stringify(rawBranchData, null, 2);
+      fileExtension = "json";
+      filterName = "JSON";
+    } else if (options.format === "json") {
       const jsonData = exportBranchAsJson(
         session,
         props.message.id,

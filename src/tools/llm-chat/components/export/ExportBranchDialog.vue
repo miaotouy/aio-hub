@@ -15,8 +15,8 @@
             <span class="summary-value">
               <Avatar
                 v-if="currentAgent?.icon"
-                :src="currentAgent.icon"
-                :alt="currentAgent.name"
+                :src="currentAgent.icon!"
+                :alt="currentAgent.name!"
                 :size="24"
                 shape="square"
                 :radius="4"
@@ -45,6 +45,7 @@
             <el-radio-group v-model="exportFormat" class="format-group">
               <el-radio-button value="markdown">Markdown</el-radio-button>
               <el-radio-button value="json">JSON</el-radio-button>
+              <el-radio-button value="raw">Raw (JSON)</el-radio-button>
             </el-radio-group>
           </div>
 
@@ -131,7 +132,7 @@ interface Props {
 }
 
 interface ExportOptions {
-  format: "markdown" | "json";
+  format: "markdown" | "json" | "raw";
   includePreset: boolean;
   mergePresetIntoMessages: boolean;
   includeUserProfile: boolean;
@@ -160,7 +161,7 @@ const localVisible = computed({
 });
 
 // 导出格式
-const exportFormat = ref<"markdown" | "json">("markdown");
+const exportFormat = ref<"markdown" | "json" | "raw">("markdown");
 
 // 细粒度的导出选项
 const includePreset = ref(false);
@@ -229,7 +230,24 @@ const previewContent = computed(() => {
     includeErrors: includeErrors.value,
   };
 
-  if (exportFormat.value === "json") {
+  if (exportFormat.value === "raw") {
+    const branchNodes: Record<string, ChatMessageNode> = {};
+    let currentId: string | null = props.messageId;
+
+    while (currentId !== null) {
+      const node: ChatMessageNode | undefined = props.session.nodes[currentId];
+      if (node) {
+        branchNodes[currentId] = node;
+      }
+      currentId = node ? node.parentId : null;
+    }
+
+    const rawBranchData = {
+      ...props.session,
+      nodes: branchNodes,
+    };
+    return JSON.stringify(rawBranchData, null, 2);
+  } else if (exportFormat.value === "json") {
     const jsonData = exportBranchAsJson(
       props.session,
       props.messageId,
@@ -253,7 +271,9 @@ const previewContent = computed(() => {
 const previewStats = computed(() => {
   const lines = previewContent.value.split("\n").length;
   const chars = previewContent.value.length;
-  if (exportFormat.value === "json") {
+  if (exportFormat.value === "raw") {
+    return `${lines} 行 · ${chars} 字符 · Raw JSON 格式`;
+  } else if (exportFormat.value === "json") {
     return `${lines} 行 · ${chars} 字符 · JSON 格式`;
   }
   return `${lines} 行 · ${chars} 字符 · Markdown 格式`;

@@ -38,6 +38,7 @@
             <el-radio-group v-model="exportFormat" class="format-group">
               <el-radio-button value="markdown">Markdown (树状)</el-radio-button>
               <el-radio-button value="json">JSON</el-radio-button>
+              <el-radio-button value="raw">Raw (JSON)</el-radio-button>
             </el-radio-group>
           </div>
 
@@ -106,7 +107,7 @@ interface Props {
 }
 
 interface ExportOptions {
-  format: "markdown" | "json";
+  format: "markdown" | "json" | "raw";
   includeUserProfile: boolean;
   includeAgentInfo: boolean;
   includeModelInfo: boolean;
@@ -128,7 +129,7 @@ const localVisible = computed({
 });
 
 // 导出格式
-const exportFormat = ref<"markdown" | "json">("markdown");
+const exportFormat = ref<"markdown" | "json" | "raw">("markdown");
 
 // 细粒度的导出选项
 const includeUserProfile = ref(true);
@@ -180,7 +181,9 @@ const previewContent = computed(() => {
     includeErrors: includeErrors.value,
   };
 
-  if (exportFormat.value === "json") {
+  if (exportFormat.value === "raw") {
+    return JSON.stringify(props.session, null, 2);
+  } else if (exportFormat.value === "json") {
     // 简化的 JSON 导出（包含完整节点树）
     const jsonData = {
       session: {
@@ -204,7 +207,9 @@ const previewContent = computed(() => {
 const previewStats = computed(() => {
   const lines = previewContent.value.split("\n").length;
   const chars = previewContent.value.length;
-  if (exportFormat.value === "json") {
+  if (exportFormat.value === "raw") {
+    return `${lines} 行 · ${chars} 字符 · Raw JSON 格式`;
+  } else if (exportFormat.value === "json") {
     return `${lines} 行 · ${chars} 字符 · JSON 格式`;
   }
   return `${lines} 行 · ${chars} 字符 · Markdown 格式`;
@@ -221,7 +226,8 @@ const handleExport = async () => {
 
     // 生成默认文件名
     const timestamp = new Date().toISOString().split("T")[0];
-    const extension = exportFormat.value === "json" ? "json" : "md";
+    const isJson = exportFormat.value === "json" || exportFormat.value === "raw";
+    const extension = isJson ? "json" : "md";
     const defaultFileName = `${props.session.name}-${timestamp}.${extension}`;
 
     // 打开保存对话框
@@ -229,7 +235,7 @@ const handleExport = async () => {
       defaultPath: defaultFileName,
       filters: [
         {
-          name: exportFormat.value === "json" ? "JSON 文件" : "Markdown 文件",
+          name: isJson ? "JSON 文件" : "Markdown 文件",
           extensions: [extension],
         },
       ],

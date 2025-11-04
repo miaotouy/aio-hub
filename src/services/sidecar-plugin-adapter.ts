@@ -30,6 +30,7 @@ interface SidecarExecuteRequest {
   executable_path: string;
   args: string[];
   input?: string;
+  dev_mode: boolean;
 }
 
 /**
@@ -207,6 +208,7 @@ export class SidecarPluginAdapter implements PluginProxy {
       executable_path: executablePath,
       args,
       input: JSON.stringify(inputData),
+      dev_mode: this.devMode,
     };
 
     // 返回一个 Promise，监听事件并解析结果

@@ -19,6 +19,8 @@ pub struct SidecarExecuteRequest {
     pub args: Vec<String>,
     /// 输入数据（JSON 字符串）
     pub input: Option<String>,
+    /// 是否为开发模式
+    pub dev_mode: bool,
 }
 
 /// Sidecar 进程输出事件
@@ -42,16 +44,32 @@ pub async fn execute_sidecar(
     request: SidecarExecuteRequest,
 ) -> Result<String, String> {
     println!(
-        "[SIDECAR] 开始执行插件: {}, 可执行文件: {}",
-        request.plugin_id, request.executable_path
+        "[SIDECAR] 开始执行插件: {}, 可执行文件: {}, 开发模式: {}",
+        request.plugin_id, request.executable_path, request.dev_mode
     );
 
     // 获取插件目录
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
-    let plugin_dir = app_data_dir.join("plugins").join(&request.plugin_id);
+    let plugin_dir = if request.dev_mode {
+        // 开发模式：从项目源码目录查找
+        // 去掉插件 ID 的 -dev 后缀
+        let original_id = request.plugin_id.trim_end_matches("-dev");
+        let current_dir = std::env::current_dir()
+            .map_err(|e| format!("获取当前目录失败: {}", e))?;
+        
+        // Tauri 开发模式下 current_dir 是 src-tauri/，需要获取父目录（项目根目录）
+        let workspace_dir = current_dir
+            .parent()
+            .ok_or_else(|| "无法获取项目根目录".to_string())?;
+        
+        workspace_dir.join("plugins").join(format!("example-{}", original_id))
+    } else {
+        // 生产模式：从 appDataDir 查找
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+        app_data_dir.join("plugins").join(&request.plugin_id)
+    };
 
     // 构建可执行文件完整路径
     let executable_full_path = plugin_dir.join(&request.executable_path);

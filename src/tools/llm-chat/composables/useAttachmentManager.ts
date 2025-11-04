@@ -6,6 +6,7 @@ import { createModuleLogger } from "@utils/logger";
 import { nanoid } from "nanoid";
 import { useAgentStore } from "../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { detectFileType, isTextFile as checkIsTextFile } from "@/utils/fileTypeDetector";
 
 const logger = createModuleLogger("AttachmentManager");
 
@@ -117,74 +118,6 @@ export function useAttachmentManager(
   };
 
   /**
-   * 从文件路径推断 MIME 类型
-   */
-  const inferMimeType = (path: string): string => {
-    const ext = path.substring(path.lastIndexOf(".")).toLowerCase();
-    const mimeMap: Record<string, string> = {
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".png": "image/png",
-      ".gif": "image/gif",
-      ".webp": "image/webp",
-      ".svg": "image/svg+xml",
-      ".bmp": "image/bmp",
-      ".pdf": "application/pdf",
-      ".doc": "application/msword",
-      ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      ".txt": "text/plain",
-      ".mp3": "audio/mpeg",
-      ".wav": "audio/wav",
-      ".mp4": "video/mp4",
-      ".webm": "video/webm",
-    };
-    return mimeMap[ext] || "application/octet-stream";
-  };
-
-  /**
-   * 从文件路径推断资产类型
-   */
-  const inferAssetType = (path: string): Asset["type"] => {
-    const ext = path.substring(path.lastIndexOf(".")).toLowerCase();
-    const imageExts = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"];
-    const audioExts = [".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"];
-    const videoExts = [".mp4", ".webm", ".avi", ".mov", ".mkv"];
-    const docExts = [".pdf", ".doc", ".docx", ".txt", ".md"];
-
-    if (imageExts.includes(ext)) return "image";
-    if (audioExts.includes(ext)) return "audio";
-    if (videoExts.includes(ext)) return "video";
-    if (docExts.includes(ext)) return "document";
-    return "other";
-  };
-
-  /**
-   * 判断文件是否为纯文本文件
-   * 这些文件会被直接读取为文本插入到消息中，不需要特殊的文档处理能力
-   */
-  const isTextFile = (fileName: string, mimeType?: string): boolean => {
-    const textMimeTypes = [
-      "text/plain",
-      "text/markdown",
-      "text/html",
-      "text/css",
-      "text/javascript",
-      "application/json",
-      "application/xml",
-      "text/xml",
-    ];
-
-    // 检查 MIME 类型
-    if (mimeType && textMimeTypes.includes(mimeType)) {
-      return true;
-    }
-
-    // 检查文件扩展名
-    const textExtensions = /\.(txt|md|json|xml|html|css|js|ts|tsx|jsx|py|java|c|cpp|h|hpp|rs|go|rb|php|sh|yaml|yml|toml|ini|conf|log)$/i;
-    return textExtensions.test(fileName);
-  };
-
-  /**
    * 检查模型对附件类型的支持情况
    * @returns 返回警告信息，如果支持则返回 null
    */
@@ -192,7 +125,7 @@ export function useAttachmentManager(
     const assetType = asset.type;
     
     // 如果是文本文件，不需要检查文档能力（会被直接插入为文本）
-    if (assetType === "document" && isTextFile(asset.name, asset.mimeType)) {
+    if (assetType === "document" && checkIsTextFile(asset.name, asset.mimeType)) {
       logger.debug("文本文件不需要文档处理能力", {
         assetName: asset.name,
         mimeType: asset.mimeType,
@@ -280,12 +213,13 @@ export function useAttachmentManager(
       const metadata = await invoke<{ size: number }>("get_file_metadata", { path });
       const fileName = path.split(/[/\\]/).pop() || "unknown";
 
-      const assetType = inferAssetType(path);
+      // 使用新的文件类型检测工具
+      const { mimeType, assetType } = await detectFileType(path, fileName);
 
       const pendingAsset: Asset = {
         id: nanoid(), // 临时 ID
         type: assetType,
-        mimeType: inferMimeType(path),
+        mimeType,
         name: fileName,
         path: path, // 暂时存储原始路径用于预览
         size: metadata.size,

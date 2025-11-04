@@ -7,6 +7,7 @@ import { useFileDrop } from '../../../composables/useFileDrop';
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@utils/logger';
 import { useImageViewer } from '@/composables/useImageViewer';
+import { detectFileType } from '@/utils/fileTypeDetector';
 
 const props = defineProps<{
   uploadedImages: UploadedImage[];
@@ -47,23 +48,14 @@ const { isDraggingOver: isTauriDragging } = useFileDrop({
     const files: File[] = [];
     for (const path of paths) {
       try {
-        // 使用 Tauri 命令读取文件为 base64
-        const base64Data = await invoke<string>('read_file_as_base64', { path });
-        
         // 获取文件名
         const fileName = path.split(/[/\\]/).pop() || 'image';
         
-        // 根据文件扩展名推断 MIME 类型
-        const ext = fileName.toLowerCase().split('.').pop() || '';
-        const mimeTypes: Record<string, string> = {
-          'jpg': 'image/jpeg',
-          'jpeg': 'image/jpeg',
-          'png': 'image/png',
-          'gif': 'image/gif',
-          'bmp': 'image/bmp',
-          'webp': 'image/webp'
-        };
-        const mimeType = mimeTypes[ext] || 'image/jpeg';
+        // 使用新的文件类型检测工具获取 MIME 类型
+        const { mimeType } = await detectFileType(path, fileName);
+        
+        // 使用 Tauri 命令读取文件为 base64
+        const base64Data = await invoke<string>('read_file_as_base64', { path });
         
         // 将 base64 转换为 Blob
         const byteCharacters = atob(base64Data);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef, computed, watch } from "vue";
+import { ref, toRef, computed, watch, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip } from "element-plus";
 import { useDetachable } from "@/composables/useDetachable";
@@ -9,9 +9,11 @@ import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputMa
 import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import { useChatHandler } from "@/tools/llm-chat/composables/useChatHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
+import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
@@ -28,6 +30,10 @@ const { settings } = useChatSettings();
 const tokenCount = ref<number>(0);
 const isCalculatingTokens = ref(false);
 const tokenEstimated = ref(false);
+
+// 历史上下文统计
+const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
+const isLoadingContextStats = ref(false);
 
 // 切换流式输出模式
 const toggleStreaming = () => {
@@ -325,13 +331,67 @@ watch(
   { deep: true }
 );
 
+// 加载历史上下文统计
+const loadContextStats = async () => {
+  const session = chatStore.currentSession;
+  if (!session || !session.activeLeafId) {
+    contextStats.value = null;
+    return;
+  }
+
+  isLoadingContextStats.value = true;
+  try {
+    const { getLlmContextForPreview } = useChatHandler();
+    const previewData = await getLlmContextForPreview(
+      session,
+      session.activeLeafId,
+      agentStore.currentAgentId ?? undefined
+    );
+
+    if (previewData) {
+      contextStats.value = previewData.statistics;
+    }
+  } catch (error) {
+    logger.warn("获取历史上下文统计失败", error);
+    contextStats.value = null;
+  } finally {
+    isLoadingContextStats.value = false;
+  }
+};
+
 // 监听当前会话变化（切换会话时重新计算）
 watch(
   () => chatStore.currentSessionId,
   () => {
     debouncedCalculateTokens();
+    loadContextStats();
   }
 );
+
+// 监听活跃叶节点变化
+watch(
+  () => chatStore.currentSession?.activeLeafId,
+  () => {
+    loadContextStats();
+  }
+);
+
+// 监听消息生成完成
+let previousGeneratingCount = 0;
+watch(
+  () => chatStore.generatingNodes.size,
+  (newSize) => {
+    if (previousGeneratingCount > 0 && newSize === 0) {
+      loadContextStats();
+    }
+    previousGeneratingCount = newSize;
+  }
+);
+
+// 初始加载
+onMounted(() => {
+  loadContextStats();
+});
 
 // 处理从菜单打开独立窗口
 const handleDetach = async () => {
@@ -442,34 +502,6 @@ const handleDetach = async () => {
               <span v-if="attachmentManager.isProcessing.value" class="processing-hint">
                 正在处理文件...
               </span>
-              <!-- Token 计数显示 -->
-              <el-tooltip
-                v-if="tokenCount > 0 || isCalculatingTokens"
-                :content="tokenEstimated ? 'Token 数量（估算值）' : 'Token 数量'"
-                placement="top"
-              >
-                <span class="token-count">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    style="margin-right: 4px"
-                  >
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                  </svg>
-                  <span v-if="isCalculatingTokens">计算中...</span>
-                  <span v-else>
-                    {{ tokenCount.toLocaleString() }}{{ tokenEstimated ? '~' : '' }}
-                  </span>
-                </span>
-              </el-tooltip>
               <el-tooltip
                 :content="
                   chatStore.isStreaming ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
@@ -487,6 +519,78 @@ const handleDetach = async () => {
               </el-tooltip>
             </div>
             <div class="input-actions">
+              <!-- 历史上下文统计 -->
+              <el-tooltip
+                v-if="contextStats && contextStats.totalTokenCount !== undefined"
+                placement="top"
+              >
+                <template #content>
+                  <div style="text-align: left; line-height: 1.6;">
+                    <div style="font-weight: 600; margin-bottom: 4px;">历史上下文统计</div>
+                    <div style="font-size: 12px;">
+                      <div>总计: {{ contextStats.totalTokenCount.toLocaleString() }} tokens</div>
+                      <div v-if="contextStats.systemPromptTokenCount">
+                        系统提示: {{ contextStats.systemPromptTokenCount.toLocaleString() }} tokens
+                      </div>
+                      <div v-if="contextStats.presetMessagesTokenCount">
+                        预设消息: {{ contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
+                      </div>
+                      <div v-if="contextStats.chatHistoryTokenCount">
+                        会话历史: {{ contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
+                      </div>
+                      <div v-if="contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8;">
+                        {{ contextStats.isEstimated ? '估算' : '精确' }} - {{ contextStats.tokenizerName }}
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <span class="token-count context-total">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="margin-right: 4px"
+                  >
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                  </svg>
+                  <span>{{ contextStats.totalTokenCount.toLocaleString() }}{{ contextStats.isEstimated ? '~' : '' }}</span>
+                </span>
+              </el-tooltip>
+              <!-- 当前输入 Token 计数显示 -->
+              <el-tooltip
+                v-if="tokenCount > 0 || isCalculatingTokens"
+                :content="tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
+                placement="top"
+              >
+                <span class="token-count input-tokens">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="margin-right: 4px"
+                  >
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                  </svg>
+                  <span v-if="isCalculatingTokens">...</span>
+                  <span v-else>
+                    {{ tokenCount.toLocaleString() }}{{ tokenEstimated ? '~' : '' }}
+                  </span>
+                </span>
+              </el-tooltip>
               <button
                 v-if="!isSending"
                 @click="handleSend"
@@ -655,10 +759,35 @@ const handleDetach = async () => {
   background: var(--el-fill-color-light);
   font-variant-numeric: tabular-nums;
   user-select: none;
+  cursor: help;
 }
 
 .token-count svg {
   flex-shrink: 0;
+}
+
+/* 历史上下文统计样式 */
+.token-count.context-total {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-primary) 10%, transparent),
+    color-mix(in srgb, var(--el-color-primary) 5%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 30%, transparent);
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+
+/* 当前输入 token 样式 */
+.token-count.input-tokens {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-success) 10%, transparent),
+    color-mix(in srgb, var(--el-color-success) 5%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--el-color-success) 30%, transparent);
+  color: var(--el-color-success);
+  font-weight: 500;
 }
 
 .input-wrapper {
@@ -811,6 +940,7 @@ const handleDetach = async () => {
 
 .input-actions {
   display: flex;
+  gap: 8px;
 }
 
 .btn-send,

@@ -1,10 +1,10 @@
-# LLM Chat: 架构与开发者指南
+# LLM Chat: 架构与开发者指南 (v2)
 
 本文档旨在深入解析 `llm-chat` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
 ## 1. 核心概念
 
-`llm-chat` 的核心设计围绕三大概念构建：**树状对话历史**、**会话 (Session)** 和 **智能体 (Agent)**。
+`llm-chat` 的核心设计围绕多个关键概念构建，这些概念共同实现了一个功能强大且可扩展的对话系统。
 
 ### 1.1. 树状对话历史 (Tree-based Conversation History)
 
@@ -16,6 +16,7 @@
   - **非破坏性操作**: 重新生成 (Regenerate) 或编辑 (Edit) 不会覆盖旧消息，而是会创建新的兄弟节点或子节点，形成新的**分支 (Branch)**。
   - **多路径探索**: 用户可以轻松地在不同的对话分支之间切换，探索和比较模型的不同回答。
   - **完整的上下文追溯**: 保证了任何对话路径的上下文都是完整且可追溯的。
+- **分支记忆**: 系统会通过 `lastSelectedChildId` 属性记住用户在每个父节点上的最后选择，当返回父分支时，会自动导航到用户上次查看的路径，优化了复杂分支场景下的导航体验。
 
 ```mermaid
 graph TD
@@ -55,299 +56,244 @@ graph TD
 
 ### 1.2. 会话 (ChatSession)
 
-`ChatSession` 是一个独立的对话容器，它封装了一棵完整的消息树。
+`ChatSession` 是一个独立的对话容器，它封装了一棵完整的消息树和相关元数据。
 
 - **`nodes`**: 一个以 `nodeId` 为键的字典，存储了该会话中所有的 `ChatMessageNode`。
 - **`rootNodeId`**: 树的根节点 ID。
-- **`activeLeafId`**: **极其重要的属性**。它指向当前对话分支的**叶子节点**，决定了UI上显示哪一条对话路径。用户的任何新消息都会从 `activeLeafId` 指向的节点延续下去。
+- **`activeLeafId`**: **极其重要的属性**。它指向当前对话分支的**叶子节点**，决定了UI上显示哪一条对话路径。
+- **话题命名**: 支持基于 LLM 的自动或手动为会话生成标题，便于用户识别和管理。
 
 ### 1.3. 智能体 (ChatAgent)
 
-`ChatAgent` 是一个可复用的、封装了特定配置的"对话角色"。
+`ChatAgent` 是一个可复用的、封装了特定配置的"对话角色"。它更像一个**配置预设**，而非一个独立的实体。
 
-- **配置集合**: 它整合了 LLM Profile (API密钥等)、模型ID、预设消息串和模型参数（如温度、最大Token数）。
-- **与会话解耦**: 会话与智能体是松散耦合的。一个会话在创建时会关联一个智能体，但用户可以随时在全局切换智能体，这会影响**所有会话**的**后续**消息生成。每条助手消息的元数据 (`metadata`) 中会记录生成它时所使用的智能体信息。
-- **用户档案绑定**: 智能体可以绑定特定的用户档案 (`userProfileId`)，用于在上下文中插入用户身份信息，实现个性化对话。
+- **配置集合**: 它整合了 LLM Profile (API密钥等)、模型ID、预设消息串和模型参数。
+- **与会话解耦**: 会话与智能体是松散耦合的。一个会话在创建时会关联一个智能体，但用户可以随时通过全局模型选择器更换模型。每条助手消息的元数据 (`metadata`) 中会记录生成它时所使用的智能体信息。
+- **用户档案绑定**: 智能体可以绑定特定的用户档案 (`userProfileId`)，用于在上下文中插入用户身份信息。
 
 ### 1.4. 用户档案 (UserProfile)
 
 用户档案是一个可复用的用户身份描述，用于在对话中插入用户的背景信息、角色设定等。
 
-- **核心概念**: 用户档案包含用户的描述性文本（如职业、兴趣、技能等），在构建 LLM 上下文时会被插入到对话中。
-- **全局与智能体级别**: 既可以设置全局默认档案，也可以在智能体中绑定特定档案。智能体级别的绑定优先级更高。
+- **核心概念**: 包含用户的描述性文本，在构建 LLM 上下文时会被插入到对话中。
+- **全局与智能体级别**: 既可以设置全局默认档案，也可以在智能体中绑定特定档案（优先级更高）。
 - **灵活插入**: 通过预设消息中的 `user_profile` 占位符，可以精确控制档案内容的插入位置。
-- **存储架构**: 采用与智能体相同的分离式存储策略，索引文件 + 独立档案文件。
 
 ### 1.5. 附件系统 (Attachments)
 
-附件系统允许用户在消息中添加文件（图片、文档等），实现多模态对话。
+附件系统允许用户在消息中添加文件，实现多模态对话。
 
 - **基于 Asset 管理**: 使用统一的 Asset 管理系统进行文件存储和去重。
-- **优化的加载流程**:
-  - **立即预览**: 文件添加后立即显示预览（pending 状态）
-  - **异步导入**: 在后台异步导入到存储系统，不阻塞 UI
-  - **状态追踪**: 支持 pending、importing、complete、error 四种导入状态
-- **智能去重**: 基于文件 SHA256 自动检测和移除重复文件。
-- **多文件类型支持**: 支持图片、音频、视频、文档等多种文件类型。
+- **智能文件检测**: 除了扩展名，还使用文件魔数 (magic number) 进行内容检测，能更准确地识别文件类型。
+- **多类型支持**:
+  - **图片**: 支持多图预览切换。
+  - **视频**: 支持视频文件预览。
+  - **文本**: 纯文本文件会直接读取内容，而非转为 base64，提高效率。
+  - **其他**: 对非预览类型的文件，采用紧凑的长条布局显示。
+- **响应式布局**: 附件列表采用响应式网格布局，适配不同尺寸。
 
-#### 1.3.1. 预设消息串机制
+### 1.6. 全局输入管理 (Global Input Management)
 
-与传统的单一 System Prompt 不同，`ChatAgent.presetMessages` 是一个完整的消息序列，支持更灵活的 Prompt Engineering：
+- **`useChatInputManager`**: 这是一个全局单例 Composable，统一管理聊天输入框的状态（文本和附件）。
+- **跨窗口同步**: 确保主窗口和分离窗口的输入内容实时同步。
+- **草稿持久化**: 未发送的输入内容（包括附件）会自动保存到 `localStorage`，在应用重启后可以恢复，防止意外丢失。
+- **外观服务**: 通过 `llmChat.service.ts` 提供一个轻量级的外观，为其他工具（如 Agent）提供一个稳定的编程接口来与输入框交互。
 
-- **多条消息**：可以包含多条 `system`、`user`、`assistant` 消息
-- **Few-shot 示例**：通过预设的 user-assistant 对话对来引导模型风格
-- **动态控制**：每条消息可独立启用/禁用（`isEnabled` 属性）
+### 1.7. 上下文管理与截断 (Context Management)
 
-**特殊占位符类型**：
+- **显式控制**: 用户可以在智能体参数中精细配置上下文管理策略。
+- **Token 限制**: 可设置上下文最大 Token 数。
+- **智能截断**: 当上下文超出限制时，系统会从最新的消息开始，保留尽可能多的对话历史，并对被截断的旧消息保留部分字符作为摘要。
+- **实时预览**: UI 会实时显示当前上下文的 Token 统计信息和使用率。
 
-1. **`chat_history` 占位符**: 标记实际会话历史的插入位置
-2. **`user_profile` 占位符**: 标记用户档案内容的插入位置
+### 1.8. 高性能UI (Performant UI)
 
-```typescript
-// 上下文构建逻辑（简化）
-const messages = [];
+- **虚拟滚动**: 消息列表采用 `@tanstack/vue-virtual` 实现虚拟滚动，即使在有数千条消息的会话中也能保持流畅的滚动性能。
+- **消息导航器**: 配备了消息导航器 (`MessageNavigator`)，提供滚动进度、消息计数、快速跳转（到顶部/底部）和新消息提示功能。
 
-// 1. 处理预设消息（按顺序）
-for (const preset of presets) {
-  if (preset.type === "chat_history") {
-    // 插入实际会话历史
-    messages.push(...sessionContext);
-  } else if (preset.type === "user_profile") {
-    // 插入用户档案内容
-    if (userProfile) {
-      messages.push({
-        role: "system",
-        content: `# 用户档案\n\n${userProfile.content}`,
-      });
-    }
-  } else {
-    // 普通预设消息
-    if (preset.isEnabled !== false) {
-      messages.push(preset);
-    }
-  }
-}
+### 1.9. 上下文分析器 (Context Analyzer)
 
-// 2. 如果没有 chat_history 占位符，追加会话历史
-if (!hasHistoryPlaceholder) {
-  messages.push(...sessionContext);
-}
-```
+上下文分析器是一个强大的调试和优化工具，用于可视化和分析任意消息节点的完整 LLM 请求上下文。
 
-这允许实现诸如"后置指令"、"用户档案前置"等高级用法。详见 `AgentPresetEditor.vue` 和 `useChatHandler.ts` 中的实现。
+- **核心功能**:
+  - **完整上下文预览**: 重建指定消息节点实际发送给 LLM 时的完整请求上下文，包括预设消息、用户档案、对话历史和附件内容。
+  - **智能体推断**: 自动从消息节点的元数据推断该消息使用的智能体配置，确保预览的上下文与实际发送时完全一致。
+  - **多维度展示**: 提供三种视图模式，从不同角度理解上下文结构。
+
+- **三大视图**:
+  - **结构化视图 (`StructuredView`)**: 以结构化的方式展示消息列表，清晰呈现角色、内容和附件信息，便于理解对话流程。
+  - **原始请求视图 (`RawRequestView`)**: 显示发送给 LLM API 的原始 JSON 请求体，用于调试和验证 API 调用格式。
+  - **内容分析视图 (`AnalysisChartView`)**: 提供可视化的统计信息，包括：
+    - 消息数量统计（按角色分类）
+    - Token 使用量分析
+    - 字符数统计
+    - 附件类型分布
+
+- **使用场景**:
+  - 调试上下文截断问题
+  - 优化 Token 使用效率
+  - 验证预设消息和档案是否正确注入
+  - 检查附件转换结果
+  - 分析不同智能体配置的实际效果
+  - 排查消息后处理规则的应用结果
+
+- **技术实现**:
+  - 通过 `useChatHandler.getLlmContextForPreview()` 获取预览数据
+  - 返回 `ContextPreviewData` 类型，包含完整的消息列表和统计信息
+  - 支持异步加载，带有友好的加载状态和错误提示
 
 ## 2. 架构概览
 
 本模块遵循关注点分离的原则，将状态、逻辑和视图清晰地分开。
 
-- **State (Pinia Stores)**:
-  - `useLlmChatStore` (`store.ts`): 管理所有会话 (`sessions`)、当前会话ID (`currentSessionId`) 以及全局加载状态 (`isSending`)。
-  - `useAgentStore` (`agentStore.ts`): 管理所有可用的智能体 (`agents`)。
-  - `useUserProfileStore` (`userProfileStore.ts`): 管理用户档案 (`profiles`) 和全局档案选择 (`globalProfileId`)。
+- **State (Pinia Stores & Singletons)**:
+  - `useLlmChatStore`: 管理所有会话 (`sessions`)、当前会话ID (`currentSessionId`)。
+  - `useAgentStore`: 管理所有可用的智能体 (`agents`)。
+  - `useUserProfileStore`: 管理用户档案 (`profiles`)。
+  - `useChatInputManager` (Singleton): 全局统一管理输入框的文本和附件状态。
+  - `useLlmChatUiState` (Store): 集中管理并持久化UI状态，如参数编辑器的折叠状态。
 - **Logic (Composables)**:
-  - 位于 `composables/` 目录下，封装了所有核心业务逻辑，如节点操作、分支管理、API请求、附件管理等。这是模块的大脑。
-  - `useAttachmentManager`: 专门负责消息附件的管理，提供文件添加、移除、验证等功能。
+  - 位于 `composables/` 目录下，封装了所有核心业务逻辑。这是模块的大脑。
 - **View (Vue Components)**:
-  - 位于 `components/` 目录下，负责UI渲染和用户交互。`LlmChat.vue` 是主入口，整合了各个子组件。
-  - `AttachmentCard.vue`: 附件卡片组件，用于展示和管理单个附件。
+  - 位于 `components/` 目录下，负责UI渲染和用户交互。`LlmChat.vue` 是主入口。
+- **Service (Facade)**:
+  - `llmChat.service.ts`: 提供一个轻量级的外观服务，封装内部实现，为外部工具提供稳定的交互接口。
 
 ## 3. 数据流：发送一条新消息
 
-通过 Mermaid 序列图可以清晰地看到发送消息的完整流程。
-
 ```mermaid
 sequenceDiagram
-    participant UI (LlmChat.vue)
-    participant Store (useLlmChatStore)
+    participant UI (MessageInput.vue)
+    participant InputMgr (useChatInputManager)
     participant Handler (useChatHandler)
     participant NodeMgr (useNodeManager)
     participant LlmAPI (useLlmRequest)
 
-    UI->>Store: 用户输入，调用 `sendMessage(content)`
-    Store->>Handler: 调用 `sendMessage()`
-    Handler->>NodeMgr: 调用 `createMessagePair(content)` 创建用户和助手节点
+    UI->>InputMgr: 用户输入文本/添加附件
+    UI->>Handler: 用户点击发送，调用 `sendMessage()`
+    Handler->>InputMgr: 获取当前输入文本和附件
+    Handler->>NodeMgr: 调用 `createMessagePair()` 创建用户和助手节点
     NodeMgr-->>Handler: 返回 `userNode` 和 `assistantNode`
-    Handler->>NodeMgr: 调用 `updateActiveLeaf(assistantNode.id)` 更新活动叶节点
+    Handler->>NodeMgr: 调用 `updateActiveLeaf()` 更新活动叶节点
 
     Handler->>Handler: `buildLlmContext()` 构建请求上下文
-    Note right of Handler: 包含预设消息和当前活动路径
+    Note right of Handler: 包含预设、档案、附件、截断历史
 
-    Handler->>LlmAPI: 调用 `sendRequest()` 发起流式请求
+    Handler->>LlmAPI: 调用 `sendRequest()` 发起流式/非流式请求
+    Note right of LlmAPI: 根据用户设置选择模式
     LlmAPI-->>Handler: onStream(chunk) 回调
     Handler->>NodeMgr: (循环) 更新 `assistantNode.content`
 
-    LlmAPI-->>Handler: 请求结束，返回最终结果 `response`
+    LlmAPI-->>Handler: 请求结束，返回最终结果
     Handler->>NodeMgr: 调用 `finalizeNode()` 更新节点状态和元数据
-    Handler->>Store: (通过引用) 更新会话状态
-    Store-->>UI: 响应式更新，UI显示完整消息
+    Handler->>InputMgr: 清空输入框内容
 ```
 
 ## 4. 核心逻辑 (Composables)
 
-Composables 是 `llm-chat` 功能的核心，它们各司其职，共同构成了强大的树状对话管理系统。
-
 ### 4.1. 树形对话管理
 
-- **`useNodeManager`**: **树的底层操作者**。它提供原子级别的、与业务无关的节点操作功能，如 `createNode`、`addNodeToSession`、`hardDeleteNode` (级联删除子树)、`getNodePath` 等。它只关心节点和它们之间的父子关系。
+- **`useNodeManager`**: **树的底层操作者**。提供原子级别的节点操作功能（创建、删除、获取路径等）。
+- **`useBranchManager`**: **用户的直接交互层**。基于 `useNodeManager`，提供面向用户操作的高级功能（切换分支、编辑消息、创建分支等）。
 
-- **`useBranchManager`**: **用户的直接交互层**。它基于 `useNodeManager`，提供面向用户操作的高级功能。例如：
-  - `switchToSiblingBranch`: 在不同分支间切换。
-  - `editMessage`: 原地修改消息内容。
-  - `createBranch`: 从现有消息创建新的分支。
-  - `deleteMessage`: 调用 `hardDeleteNode` 删除整个分支。
+### 4.2. 对话处理核心
 
-- **`useChatHandler`**: **对话流程的协调者**。它负责处理 `sendMessage` 和 `regenerateFromNode` 的完整逻辑，包括：
-  - 调用 `useNodeManager` 创建新节点。
-  - 调用 `buildLlmContext` 准备发送给 API 的消息列表（包含附件处理和用户档案插入）。
-  - 调用 `useLlmRequest` 发起 API 请求并处理流式响应。
-  - 在请求结束后更新节点状态。
+- **`useChatHandler`**: **对话流程的协调者**。负责处理 `sendMessage` 的完整逻辑，包括构建上下文、调用LLM API、处理响应和更新节点。此外，还提供 `getLlmContextForPreview()` 函数用于上下文分析器，该函数能够：
+  - 重建任意消息节点的完整请求上下文
+  - 自动从消息元数据推断使用的智能体配置
+  - 返回包含消息列表和统计信息的 `ContextPreviewData`
 
-### 4.2. 附件管理
+### 4.3. 上下文构建与处理
 
-- **`useAttachmentManager`**: **附件的完整管理者**。提供附件的添加、移除、验证等功能：
-  - **优化的添加流程**: 立即创建 pending 状态的 Asset 用于预览，异步导入到存储系统。
-  - **智能去重**: 基于 SHA256 哈希值自动检测和移除重复文件。
-  - **状态追踪**: 支持 `pending`、`importing`、`complete`、`error` 四种导入状态。
-  - **文件验证**: 检查文件大小、类型、是否存在等。
-  - **类型推断**: 自动推断文件的 MIME 类型和 Asset 类型（image/audio/video/document）。
+- **`useChatContextBuilder`**: **上下文构建引擎**。负责从活动路径和智能体配置中构建发送给 LLM 的消息列表，包括：
+  - 预设消息处理和占位符替换（`chat_history` 和 `user_profile`）
+  - 用户档案内容注入
+  - 附件转换为多模态内容
+  - 上下文 Token 限制和智能截断
+  - 调用后处理管道转换消息格式
 
-### 4.3. 数据持久化
+- **`useMessageProcessor`**: **消息后处理管道**。实现可扩展的消息处理规则系统，用于在发送给 LLM 前转换消息格式。支持的规则包括：
+  - `merge-system-to-head`: 合并所有 system 消息到列表头部
+  - `merge-consecutive-roles`: 合并连续相同角色的消息
+  - `ensure-alternating-roles`: 确保 user/assistant 角色交替（插入占位符）
+  - `convert-system-to-user`: 将 system 角色转换为 user 角色
+
+  **规则来源**：
+  - 模型默认规则：在模型元数据中定义 (`defaultPostProcessingRules`)
+  - 智能体自定义规则：在智能体参数中配置 (`contextPostProcessing.rules`)
+  - 合并策略：智能体规则优先，模型规则作为补充
+
+- **`useChatAssetProcessor`**: **附件处理器**。负责将 Asset 转换为 LLM 可接受的消息内容：
+  - 等待资产导入完成
+  - 图片转换为 base64
+  - 智能文档格式选择（根据模型能力选择 `base64` 或 `openai_file` 格式）
+  - 文本文件直接读取内容而非转为 base64
+  - 获取文本附件内容用于 Token 计算
+
+### 4.4. 附件与输入管理
+
+- **`useAttachmentManager`**: **附件的完整管理者**。负责附件的添加、移除、验证、去重和状态追踪。
+- **`useChatInputManager`**: **全局输入状态管理器**。处理输入框文本和附件的跨窗口同步与持久化。
+
+### 4.5. 会话与工具
 
 - **`useSessionManager`**: **会话的生命周期管理者**。负责会话的创建、加载、删除和持久化。
-
-- **`useChatStorage` / `useChatStorageSeparated`**: **会话数据的持久化层**。负责将会话数据写入本地文件系统。
-
-- **`useAgentStorage` / `useAgentStorageSeparated`**: **智能体数据的持久化层**。负责将智能体数据写入本地文件系统。
-
-- **`useUserProfileStorage`**: **用户档案的持久化层**。采用与智能体相同的分离式存储策略：
-  - 索引文件 (`user-profiles-index.json`) 存储档案元数据列表。
-  - 每个档案独立存储为单独的 JSON 文件 (`user-profiles/{profileId}.json`)。
-  - 支持单档案保存 (`persistProfile`) 和批量保存 (`saveProfiles`)。
-  - 自动同步索引，发现新增或删除的档案文件。
+- **`useTopicNamer`**: **话题命名器**。封装了调用 LLM 为会话生成标题的逻辑。
+- **`useModelSelectDialog`**: **全局模型选择器**。提供一个基于 Promise 的异步流程，让用户可以在任何地方触发模型选择。
 
 ## 5. 数据持久化
 
-为了性能和数据安全，本模块采用**分离式存储策略**。
+为了性能和数据安全，本模块采用**分离式存储策略**，将索引和数据文件分开存储。
 
-### 5.1. 会话存储 (`useChatStorageSeparated`)
+- **会话存储 (`useChatStorageSeparated`)**:
+  - **索引文件**: `sessions/index.json` 存储会话元信息列表和 `currentSessionId`。
+  - **会话文件**: 每个会话的完整数据存储为 `sessions/session-[id].json`。
+  - **加载过程**: 启动时先读索引以快速展示列表，点击会话时再异步加载完整数据。
 
-- **索引文件**: 在 `sessions` 目录下有一个 `index.json` 文件，它存储了所有会话的元信息列表（如 `id`, `name`, `updatedAt`）和 `currentSessionId`。
-- **会话文件**: 每个会话的完整数据（包含所有 `nodes`）被存储为一个独立的 `session-[id].json` 文件。
-- **加载过程**: 应用启动时，首先读取 `index.json` 以快速展示会话列表，当用户点击某个会话时，再异步加载对应的 `session-[id].json` 文件。
-- **保存过程**: 对会话的任何修改（如发送消息、切换分支）都会触发对相应 `session-[id].json` 文件的保存，并更新 `index.json` 中的 `updatedAt` 时间戳。
+- **智能体存储 (`useAgentStorageSeparated`)**:
+  - **索引文件**: `agents-index.json` 存储所有智能体的元信息。
+  - **智能体文件**: 每个智能体存储为 `agents/{agentId}.json`。
 
-### 5.2. 智能体存储 (`useAgentStorageSeparated`)
+- **用户档案存储 (`useUserProfileStorage`)**:
+  - 采用与智能体相同的分离式存储架构，包含索引文件 (`user-profiles-index.json`) 和独立的档案文件 (`user-profiles/{profileId}.json`)。
 
-- **索引文件**: `agents-index.json` 存储所有智能体的元信息列表。
-- **智能体文件**: 每个智能体存储为独立的 `agents/{agentId}.json` 文件。
-- **优势**: 修改单个智能体只需要写入该智能体的文件，不需要重写整个列表。
-
-### 5.3. 用户档案存储 (`useUserProfileStorage`)
-
-采用与智能体相同的分离式存储架构：
-
-- **索引文件**: `user-profiles-index.json` 存储：
-  - 所有档案的元信息列表（`id`、`name`、`icon`、`createdAt`、`lastUsedAt`、`enabled`）
-  - 全局档案选择 (`globalProfileId`)
-  - 版本号 (`version`)
-
-- **档案文件**: 每个档案存储为独立的 `user-profiles/{profileId}.json` 文件，包含完整的档案数据。
-
-- **智能同步**:
-  - 启动时自动扫描档案目录，发现新增文件并加载元数据到索引。
-  - 自动移除索引中已删除文件的记录。
-  - 保持索引与文件系统的一致性。
-
-- **优化的保存策略**:
-  - 单档案保存 (`persistProfile`): 推荐方式，只写入修改的档案文件。
-  - 批量保存 (`saveProfiles`): 用于初始化或大规模操作。
-  - 内容比较：保存前检查内容是否真的改变，避免不必要的磁盘 I/O。
-
-### 5.4. 附件存储
-
-附件通过统一的 Asset 管理系统进行存储：
-
-- **集中存储**: 所有附件存储在 `assets/` 目录下。
-- **自动去重**: 基于 SHA256 哈希值进行去重，相同文件只存储一份。
-- **缩略图**: 图片类型自动生成缩略图，存储在 `assets/thumbnails/` 目录。
-- **元数据**: Asset 对象包含文件的所有元信息（大小、类型、MIME、路径等）。
+- **UI状态存储 (`useLlmChatUiState`)**:
+  - 将UI相关的状态（如折叠面板的开关状态）集中管理，并持久化到本地存储，确保用户习惯得以保留。
 
 ## 6. 关键类型定义 (`types.ts`)
 
-### 6.1. 核心消息类型
+- **`ChatMessageNode`**: 树的基本构建块。
+  - `id`, `parentId`, `childrenIds`: 定义树结构。
+  - `role`, `content`, `status`: 消息基本信息。
+  - `attachments`: `Asset[]`，支持多模态对话。
+  - `isEnabled`: 布尔标记，用于在构建上下文时临时"禁用"某条消息。
+  - `lastSelectedChildId`: 用于实现分支导航记忆。
+  - `metadata`: 存储额外信息，如使用的模型、Token用量、错误信息等。
 
-- **`MessageType`**: 消息类型枚举
-  - `"message"`: 普通消息（默认）
-  - `"chat_history"`: 历史消息占位符，标记实际会话消息的插入位置
-  - `"user_profile"`: 用户档案占位符，标记用户档案内容的插入位置
+- **`ChatSession`**: 对话的容器。
+  - `nodes`: `Record<string, ChatMessageNode>`，快速访问所有节点。
+  - `activeLeafId`: 决定当前对话的"视图"，是分支切换的核心。
 
-- **`ChatMessageNode`**: 树的基本构建块
-  - `id`, `parentId`, `childrenIds`: 定义了树的结构。
-  - `role`, `content`, `status`: 消息的基本信息。
-  - `attachments`: 附加到此消息的文件资产列表（`Asset[]`），支持多模态对话。
-  - `isEnabled`: 一个布尔标记，用于在构建 LLM 上下文时临时"禁用"或"启用"某条消息，是实现复杂上下文控制的关键。
-  - `type`: 消息类型（可选，默认为 `"message"`）。
-  - `metadata`: 存储额外信息，如使用的模型、Token用量、错误信息、用户档案信息等：
-    - `agentId`, `agentName`, `agentIcon`: 生成此消息时使用的智能体信息（快照）
-    - `userProfileId`, `userProfileName`, `userProfileIcon`: 生成此消息时使用的用户档案信息（快照）
-    - `profileId`, `modelId`, `modelName`: 使用的 LLM Profile 和模型信息
-    - `usage`: Token 使用情况统计
-    - `error`: 错误信息
-    - `reasoningContent`: 推理内容（DeepSeek reasoning 模式）
+- **`ChatAgent`**: 可复用的配置模板。
+  - `presetMessages`: 一个 `ChatMessageNode` 数组，定义了系统提示、角色扮演示例等。其中可包含 `type: 'chat_history'` 和 `type: 'user_profile'` 占位符节点。
+  - `parameters`: LLM 参数配置，包含：
+    - `contextManagement`: 上下文管理配置（启用状态、最大 Token 数、截断保留字符数）
+    - `contextPostProcessing`: 后处理规则配置（`rules` 数组，每个规则包含 `type`、`enabled`、`separator` 等字段）
 
-### 6.2. 会话与智能体
+- **`ContextPostProcessRule`**: 后处理规则定义。
+  - `type`: 规则类型（merge-system-to-head / merge-consecutive-roles / ensure-alternating-roles / convert-system-to-user）
+  - `enabled`: 是否启用该规则
+  - `separator`: 消息合并时使用的分隔符（可选，默认为 `\n\n---\n\n`）
 
-- **`ChatSession`**: 对话的容器
-  - `nodes`: `Record<string, ChatMessageNode>`，提供了对所有节点的快速随机访问。
-  - `activeLeafId`: 决定了当前对话的"视图"，是实现分支切换的核心。
-  - `displayAgentId`: 用于 UI 展示的智能体 ID（当前活动路径最新助手消息所使用的智能体）。
-  - `parameterOverrides`: 会话级别的参数覆盖（可选），用于临时微调智能体的参数。
+- **`ContextPreviewData`**: 上下文预览数据类型，用于上下文分析器。
+  - `messages`: LLM 格式的消息列表数组
+  - `statistics`: 统计信息对象，包含：
+    - `messageCount`: 消息总数
+    - `totalCharCount`: 总字符数
+    - `estimatedTokens`: 估计的 Token 数量
+    - `messagesByRole`: 按角色分类的消息计数
+    - `attachmentTypes`: 附件类型统计
 
-- **`ChatAgent`**: 可复用的配置模板
-  - `profileId`, `modelId`: 使用的 LLM Profile 和模型。
-  - `userProfileId`: 绑定的用户档案 ID（可选），如果设置则覆盖全局默认档案。
-  - `presetMessages`: 一个 `ChatMessageNode` 数组，定义了智能体的系统提示、角色扮演示例等。其中可以包含：
-    - `type: 'chat_history'` 节点：标记实际对话历史的插入位置
-    - `type: 'user_profile'` 节点：标记用户档案内容的插入位置
-  - `parameters`: LLM 参数配置（温度、最大 Token 等）。
+## 7. 未来展望
 
-### 6.3. 用户档案
-
-- **`UserProfile`**: 用户身份描述
-  - `id`: 档案的唯一标识符
-  - `name`: 档案名称
-  - `icon`: 档案图标（emoji 或图标路径）
-  - `content`: 档案内容（描述性文本，如职业、技能、偏好等）
-  - `enabled`: 是否启用（默认为 true），禁用的档案在选择列表中不显示
-  - `createdAt`: 创建时间
-  - `lastUsedAt`: 最后使用时间
-
-### 6.4. 附件相关
-
-附件基于统一的 `Asset` 类型（定义在 `@/types/asset-management.ts`）：
-
-- **`Asset`**: 资产对象
-  - `id`: 资产唯一标识符
-  - `type`: 资产类型（image/audio/video/document/other）
-  - `mimeType`: MIME 类型
-  - `name`: 文件名
-  - `path`: 存储路径（相对于 assets 目录）
-  - `thumbnailPath`: 缩略图路径（可选）
-  - `size`: 文件大小（字节）
-  - `importStatus`: 导入状态（pending/importing/complete/error）
-  - `originalPath`: 原始文件路径（仅在导入过程中使用）
-  - `metadata`: 额外元数据（SHA256、尺寸、时长等）
-
-## 7. 未来展望：与工具生态的融合
-
-`llm-chat` 的未来发展将深度依赖于整个 AIO Hub 的工具生态系统。通过 `TODO.md` 中规划的**工具结构重构**和 **Function Calling** 能力，聊天模块将不再是一个孤立的功能，而是成为整个应用的智能中枢。
-
-### 7.1. 设计原则
-
-在实现工具调用时，将遵循以下核心原则：
-
-- **工具的人性化优先**：所有可供 LLM 调用的工具，首先必须是为人类用户设计、易于直接操作的。这确保了工具的透明性和可用性，避免其沦为 AI 专用的“黑盒”。
-- **离线可用性**：工具的设计将优先考虑离线运行的能力，确保在没有网络连接的情况下，核心功能依然可靠。
-- **无缝融合**：工具调用的结果（如 API 测试返回的数据、Git 分析生成的图表）能以结构化的方式无缝地融入对话上下文，为用户提供更丰富、更动态的交互体验。
-
-这种设计哲学旨在实现 AI 智能与人类创造力之间的平衡，让 `llm-chat` 成为一个真正强大且可信赖的助手。
+`llm-chat` 的未来发展将深度依赖于整个 AIO Hub 的工具生态系统。通过 Function Calling 能力，聊天模块将不再是一个孤立的功能，而是成为整个应用的智能中枢，实现 AI 智能与人类创造力之间的平衡。

@@ -102,7 +102,7 @@ export function useChatExecutor() {
       }
     }
 
-    // 获取模型信息用于元数据
+    // 获取模型信息（用于智能附件处理）
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
@@ -110,15 +110,8 @@ export function useChatExecutor() {
     // 提取模型能力（用于智能附件处理）
     const capabilities = model?.capabilities;
 
-    // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
-    assistantNode.metadata = {
-      agentId: agentStore.currentAgentId,
-      agentName: currentAgent?.name,
-      agentIcon: currentAgent?.icon,
-      profileId: agentConfig.profileId,
-      modelId: agentConfig.modelId,
-      modelName: model?.name || model?.id,
-    };
+    // 注意：助手节点的基本 metadata 已在 useChatHandler 中提前设置
+    // 这里只需要获取模型能力用于上下文构建
 
     // 创建节点级别的 AbortController
     const abortController = new AbortController();

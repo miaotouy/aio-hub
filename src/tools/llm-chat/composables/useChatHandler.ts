@@ -117,6 +117,29 @@ export function useChatHandler() {
     // 计算用户消息的 token 数（包括文本和附件）
     await calculateUserMessageTokens(userNode, session, content, agentConfig.modelId, attachments);
 
+    // 获取模型信息用于元数据（提前设置，确保即时显示）
+    const { getProfileById } = useLlmProfiles();
+    const profile = getProfileById(agentConfig.profileId);
+    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
+
+    // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
+    // 直接修改 session.nodes 中的节点，确保响应式更新
+    session.nodes[assistantNode.id].metadata = {
+      agentId: agentStore.currentAgentId,
+      agentName: currentAgent?.name,
+      agentIcon: currentAgent?.icon,
+      profileId: agentConfig.profileId,
+      modelId: agentConfig.modelId,
+      modelName: model?.name || model?.id,
+    };
+
+    logger.debug('已设置助手节点元数据', {
+      nodeId: assistantNode.id,
+      agentId: agentStore.currentAgentId,
+      agentName: currentAgent?.name,
+      modelId: agentConfig.modelId,
+    });
+
     // 执行 LLM 请求
     await executeRequest({
       session,
@@ -179,6 +202,23 @@ export function useChatHandler() {
     // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
     const pathToUserNode = nodeManager.getNodePath(session, userNode.id);
 
+    // 获取模型信息用于元数据（提前设置，确保即时显示）
+    const { getProfileById } = useLlmProfiles();
+    const profile = getProfileById(agentConfig.profileId);
+    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
+    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
+
+    // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
+    // 直接修改 session.nodes 中的节点，确保响应式更新
+    session.nodes[assistantNode.id].metadata = {
+      agentId: agentStore.currentAgentId,
+      agentName: currentAgent?.name,
+      agentIcon: currentAgent?.icon,
+      profileId: agentConfig.profileId,
+      modelId: agentConfig.modelId,
+      modelName: model?.name || model?.id,
+    };
+
     logger.info("🔄 从节点重新生成", {
       sessionId: session.id,
       targetNodeId: nodeId,
@@ -187,6 +227,13 @@ export function useChatHandler() {
       newNodeId: assistantNode.id,
       agentId: agentStore.currentAgentId,
       profileId: agentConfig.profileId,
+      modelId: agentConfig.modelId,
+    });
+
+    logger.debug('已设置助手节点元数据', {
+      nodeId: assistantNode.id,
+      agentId: agentStore.currentAgentId,
+      agentName: currentAgent?.name,
       modelId: agentConfig.modelId,
     });
 

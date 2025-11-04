@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessageBox } from "element-plus";
+import { Loading } from '@element-plus/icons-vue';
 import { useDark } from "@vueuse/core";
 import { useWindowSyncBus } from "./composables/useWindowSyncBus";
 import { useDetachedManager } from "./composables/useDetachedManager";
@@ -267,7 +268,17 @@ onUnmounted(() => {
       <el-main class="main-content">
         <router-view v-slot="{ Component }">
           <keep-alive :exclude="['Settings']">
-            <component :is="Component" />
+            <Suspense>
+              <component :is="Component" />
+              <template #fallback>
+                <div class="loading-container">
+                  <el-icon class="is-loading" :size="32">
+                    <Loading />
+                  </el-icon>
+                  <p>加载中...</p>
+                </div>
+              </template>
+            </Suspense>
           </keep-alive>
         </router-view>
       </el-main>
@@ -332,5 +343,22 @@ body {
   padding: 20px;
   width: 100%;
   height: 100%;
+}
+
+/* 组件加载状态样式 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--text-color);
+}
+
+.loading-container p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-color-secondary);
 }
 </style>

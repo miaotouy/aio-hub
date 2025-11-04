@@ -166,7 +166,14 @@ onUnmounted(() => {
               @mousedown.left="handleDragStart($event, tool)"
               class="draggable-menu-item"
             >
-              <el-icon><component :is="tool.icon" /></el-icon>
+              <!-- 插件图标直接渲染，不用 el-icon 包裹 -->
+              <component
+                v-if="tool.path.startsWith('/plugin-')"
+                :is="tool.icon"
+                class="plugin-icon-wrapper"
+              />
+              <!-- 普通图标用 el-icon 包裹 -->
+              <el-icon v-else><component :is="tool.icon" /></el-icon>
               <template #title>{{ tool.name }}</template>
             </el-menu-item>
           </el-menu>
@@ -412,5 +419,16 @@ onUnmounted(() => {
 /* 修复收起时菜单图标不居中的问题 */
 .el-menu--collapse .el-menu-item > div {
   justify-content: center;
+}
+
+/* 插件图标样式 - 模拟 el-icon 的布局 */
+.plugin-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  font-size: inherit;
+  vertical-align: middle;
 }
 </style>

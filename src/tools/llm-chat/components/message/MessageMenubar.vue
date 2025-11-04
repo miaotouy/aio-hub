@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { ElMessageBox, ElTooltip } from 'element-plus';
+import { ref, computed } from "vue";
+import { ElMessageBox, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
 import {
   Copy,
   Edit,
@@ -14,9 +14,17 @@ import {
   ChevronRight,
   XCircle,
   BarChart3,
-} from 'lucide-vue-next';
-import type { ChatMessageNode } from '../../types';
-import { useLlmChatStore } from '../../store';
+  Menu,
+  Download,
+} from "lucide-vue-next";
+import type { ChatMessageNode } from "../../types";
+import { useLlmChatStore } from "../../store";
+import { useAgentStore } from "../../agentStore";
+import { useSessionManager } from "../../composables/useSessionManager";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { customMessage } from "@/utils/customMessage";
+import ExportBranchDialog from "./ExportBranchDialog.vue";
 
 interface Props {
   message: ChatMessageNode;
@@ -25,16 +33,18 @@ interface Props {
   currentSiblingIndex: number;
 }
 interface Emits {
-  (e: 'copy'): void;
-  (e: 'edit'): void;
-  (e: 'create-branch'): void;
-  (e: 'delete'): void;
-  (e: 'regenerate'): void;
-  (e: 'toggle-enabled'): void;
-  (e: 'switch', direction: 'prev' | 'next'): void;
-  (e: 'abort'): void;
-  (e: 'analyze-context'): void;
+  (e: "copy"): void;
+  (e: "edit"): void;
+  (e: "create-branch"): void;
+  (e: "delete"): void;
+  (e: "regenerate"): void;
+  (e: "toggle-enabled"): void;
+  (e: "switch", direction: "prev" | "next"): void;
+  (e: "abort"): void;
+  (e: "analyze-context"): void;
 }
+
+const agentStore = useAgentStore();
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
@@ -44,10 +54,13 @@ const store = useLlmChatStore();
 // 复制状态
 const copied = ref(false);
 
+// 导出对话框
+const showExportDialog = ref(false);
+
 // 计算属性
 const isDisabled = computed(() => props.message.isEnabled === false);
-const isUserMessage = computed(() => props.message.role === 'user');
-const isAssistantMessage = computed(() => props.message.role === 'assistant');
+const isUserMessage = computed(() => props.message.role === "user");
+const isAssistantMessage = computed(() => props.message.role === "assistant");
 const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
 const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
 
@@ -55,54 +68,169 @@ const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay =
 const copyMessage = async () => {
   try {
     await navigator.clipboard.writeText(props.message.content);
-    emit('copy');
+    emit("copy");
     copied.value = true;
     setTimeout(() => {
       copied.value = false;
     }, 2000);
   } catch (error) {
-    console.error('复制失败', error);
+    console.error("复制失败", error);
   }
 };
 // 其他操作
-const handleEdit = () => emit('edit');
-const handleCreateBranch = () => emit('create-branch');
+const handleEdit = () => emit("edit");
+const handleCreateBranch = () => emit("create-branch");
 const handleDelete = async () => {
   // 硬删除需要二次确认
   try {
     await ElMessageBox.confirm(
-      '删除后将无法恢复，且所有分支回复也会被删除。',
-      '确定要永久删除这条消息吗？',
+      "删除后将无法恢复，且所有分支回复也会被删除。",
+      "确定要永久删除这条消息吗？",
       {
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
+        confirmButtonText: "确定删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        confirmButtonClass: "el-button--danger",
       }
     );
     // 用户确认后才执行删除
-    emit('delete');
+    emit("delete");
   } catch {
     // 用户取消，不做任何操作
   }
 };
-const handleRegenerate = () => emit('regenerate');
-const handleToggleEnabled = () => emit('toggle-enabled');
+const handleRegenerate = () => emit("regenerate");
+const handleToggleEnabled = () => emit("toggle-enabled");
 const handleAbort = () => {
-  console.log('[MessageMenubar] 停止按钮点击', {
+  console.log("[MessageMenubar] 停止按钮点击", {
     nodeId: props.message.id,
     role: props.message.role,
-    isGenerating: isGenerating.value
+    isGenerating: isGenerating.value,
   });
-  emit('abort');
+  emit("abort");
 };
 const handleAnalyzeContext = () => {
-  console.log('[MessageMenubar] 上下文分析按钮点击', {
+  console.log("[MessageMenubar] 上下文分析按钮点击", {
     nodeId: props.message.id,
-    role: props.message.role
+    role: props.message.role,
   });
-  emit('analyze-context');
+  emit("analyze-context");
 };
+
+// 定义导出选项接口
+interface ExportOptions {
+  format: "markdown" | "json";
+  includePreset: boolean;
+  includeUserProfile: boolean;
+  includeAgentInfo: boolean;
+  includeModelInfo: boolean;
+  includeTokenUsage: boolean;
+  includeAttachments: boolean;
+  includeErrors: boolean;
+}
+
+// 处理导出分支
+const handleExportBranch = async (options: ExportOptions) => {
+  try {
+    const session = store.currentSession;
+    if (!session) {
+      customMessage.error("没有活动会话");
+      return;
+    }
+
+    // 获取预设消息（如果需要）
+    let presetMessages: ChatMessageNode[] = [];
+    if (options.includePreset && agentStore.currentAgentId) {
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (agent?.presetMessages) {
+        presetMessages = agent.presetMessages.filter(
+          (msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history"
+        );
+      }
+    }
+
+    // 导出分支
+    const { exportBranchAsMarkdown, exportBranchAsJson } = useSessionManager();
+    
+    let content: string;
+    let fileExtension: string;
+    let filterName: string;
+
+    if (options.format === "json") {
+      const jsonData = exportBranchAsJson(
+        session,
+        props.message.id,
+        options.includePreset,
+        presetMessages,
+        {
+          includeUserProfile: options.includeUserProfile,
+          includeAgentInfo: options.includeAgentInfo,
+          includeModelInfo: options.includeModelInfo,
+          includeTokenUsage: options.includeTokenUsage,
+          includeAttachments: options.includeAttachments,
+          includeErrors: options.includeErrors,
+        }
+      );
+      content = JSON.stringify(jsonData, null, 2);
+      fileExtension = "json";
+      filterName = "JSON";
+    } else {
+      content = exportBranchAsMarkdown(
+        session,
+        props.message.id,
+        options.includePreset,
+        presetMessages,
+        {
+          includeUserProfile: options.includeUserProfile,
+          includeAgentInfo: options.includeAgentInfo,
+          includeModelInfo: options.includeModelInfo,
+          includeTokenUsage: options.includeTokenUsage,
+          includeAttachments: options.includeAttachments,
+          includeErrors: options.includeErrors,
+        }
+      );
+      fileExtension = "md";
+      filterName = "Markdown";
+    }
+
+    // 保存文件
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").split("T")[0];
+    const defaultName = `${session.name}-分支-${timestamp}.${fileExtension}`;
+
+    const filePath = await save({
+      defaultPath: defaultName,
+      filters: [
+        {
+          name: filterName,
+          extensions: [fileExtension],
+        },
+      ],
+    });
+
+    if (filePath) {
+      await writeTextFile(filePath, content);
+      customMessage.success("分支导出成功");
+    }
+  } catch (error) {
+    console.error("导出分支失败", error);
+    customMessage.error("导出失败：" + (error instanceof Error ? error.message : String(error)));
+  }
+};
+
+// 获取当前预设消息列表
+const currentPresetMessages = computed(() => {
+  if (!agentStore.currentAgentId) return [];
+  const agent = agentStore.getAgentById(agentStore.currentAgentId);
+  if (!agent?.presetMessages) return [];
+  return agent.presetMessages.filter(
+    (msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history"
+  );
+});
+
+// 计算预设消息数量
+const presetCount = computed(() => {
+  return currentPresetMessages.value.length;
+});
 </script>
 
 <template>
@@ -118,9 +246,7 @@ const handleAnalyzeContext = () => {
           <ChevronLeft :size="16" />
         </button>
       </el-tooltip>
-      <div class="branch-indicator">
-        {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
-      </div>
+      <div class="branch-indicator">{{ currentSiblingIndex + 1 }} / {{ siblings.length }}</div>
       <el-tooltip content="下一个版本" placement="top">
         <button
           class="menu-btn"
@@ -133,44 +259,52 @@ const handleAnalyzeContext = () => {
     </div>
     <div v-if="siblings.length > 1" class="separator"></div>
 
+    <!-- 更多菜单 -->
+    <el-tooltip content="更多" placement="top">
+      <el-dropdown trigger="click" placement="top">
+        <button class="menu-btn">
+          <Menu :size="16" />
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="handleAnalyzeContext">
+              <div class="dropdown-item-content">
+                <BarChart3 :size="16" />
+                <span>上下文分析</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item @click="showExportDialog = true">
+              <div class="dropdown-item-content">
+                <Download :size="16" />
+                <span>导出分支</span>
+              </div>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </el-tooltip>
     <!-- 复制 -->
     <el-tooltip content="复制" placement="top">
-      <button
-        class="menu-btn"
-        :class="{ 'menu-btn-active': copied }"
-        @click="copyMessage"
-      >
+      <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click="copyMessage">
         <Check v-if="copied" :size="16" />
         <Copy v-else :size="16" />
       </button>
     </el-tooltip>
 
-    <!-- 上下文分析 -->
-    <el-tooltip content="上下文分析" placement="top">
-      <button
-        class="menu-btn"
-        @click="handleAnalyzeContext"
-      >
-        <BarChart3 :size="16" />
-      </button>
-    </el-tooltip>
-
     <!-- 终止生成（仅在生成中显示） -->
     <el-tooltip v-if="isGenerating" content="终止生成" placement="top">
-      <button
-        class="menu-btn menu-btn-abort"
-        @click="handleAbort"
-      >
+      <button class="menu-btn menu-btn-abort" @click="handleAbort">
         <XCircle :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 编辑（用户和助手消息都可以，生成中不可编辑） -->
-    <el-tooltip v-if="(isUserMessage || isAssistantMessage) && !isGenerating" content="编辑" placement="top">
-      <button
-        class="menu-btn"
-        @click="handleEdit"
-      >
+    <el-tooltip
+      v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+      content="编辑"
+      placement="top"
+    >
+      <button class="menu-btn" @click="handleEdit">
         <Edit :size="16" />
       </button>
     </el-tooltip>
@@ -181,24 +315,18 @@ const handleAnalyzeContext = () => {
       content="创建分支"
       placement="top"
     >
-      <button
-        class="menu-btn"
-        @click="handleCreateBranch"
-      >
+      <button class="menu-btn" @click="handleCreateBranch">
         <GitFork :size="16" />
       </button>
     </el-tooltip>
-    
+
     <!-- 预设消息的提示（需要等预设系统树化后才能支持分支） -->
     <el-tooltip
       v-if="(isUserMessage || isAssistantMessage) && !isGenerating && isPresetDisplay"
       content="预设消息暂不支持创建分支，需等预设系统树化后才能对接"
       placement="top"
     >
-      <button
-        class="menu-btn menu-btn-disabled"
-        disabled
-      >
+      <button class="menu-btn menu-btn-disabled" disabled>
         <GitFork :size="16" />
       </button>
     </el-tooltip>
@@ -209,24 +337,18 @@ const handleAnalyzeContext = () => {
       :content="isUserMessage ? '重新生成回复' : '重新生成'"
       placement="top"
     >
-      <button
-        class="menu-btn"
-        @click="handleRegenerate"
-      >
+      <button class="menu-btn" @click="handleRegenerate">
         <RefreshCw :size="16" />
       </button>
     </el-tooltip>
-    
+
     <!-- 预设消息的提示（预设内容不参与重试） -->
     <el-tooltip
       v-if="(isUserMessage || isAssistantMessage) && isPresetDisplay"
       content="预设消息不参与重试"
       placement="top"
     >
-      <button
-        class="menu-btn menu-btn-disabled"
-        disabled
-      >
+      <button class="menu-btn menu-btn-disabled" disabled>
         <RefreshCw :size="16" />
       </button>
     </el-tooltip>
@@ -248,32 +370,32 @@ const handleAnalyzeContext = () => {
     </el-tooltip>
 
     <!-- 删除（生成中不可删除，预设消息也不可删除） -->
-    <el-tooltip
-      v-if="!isGenerating && !isPresetDisplay"
-      content="删除"
-      placement="top"
-    >
-      <button
-        class="menu-btn menu-btn-danger"
-        @click="handleDelete"
-      >
+    <el-tooltip v-if="!isGenerating && !isPresetDisplay" content="删除" placement="top">
+      <button class="menu-btn menu-btn-danger" @click="handleDelete">
         <Trash2 :size="16" />
       </button>
     </el-tooltip>
-    
+
     <!-- 预设消息的提示（需要到预设编辑中删除） -->
     <el-tooltip
       v-if="!isGenerating && isPresetDisplay"
       content="预设消息需要在智能体设置中编辑或删除"
       placement="top"
     >
-      <button
-        class="menu-btn menu-btn-disabled"
-        disabled
-      >
+      <button class="menu-btn menu-btn-disabled" disabled>
         <Trash2 :size="16" />
       </button>
     </el-tooltip>
+
+    <!-- 导出对话框 -->
+    <ExportBranchDialog
+      v-model:visible="showExportDialog"
+      :preset-count="presetCount"
+      :session="store.currentSession"
+      :message-id="props.message.id"
+      :preset-messages="currentPresetMessages"
+      @export="handleExportBranch"
+    />
   </div>
 </template>
 
@@ -372,5 +494,11 @@ const handleAnalyzeContext = () => {
 
 .menu-btn-abort:hover {
   opacity: 0.8;
+}
+
+.dropdown-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

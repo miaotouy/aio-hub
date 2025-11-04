@@ -13,6 +13,7 @@ import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -288,6 +289,124 @@ export const useLlmChatStore = defineStore("llmChat", {
 
       this.sessions = sessions;
       this.currentSessionId = currentSessionId;
+
+      // 补充缺失的 token 元数据
+      await this.fillMissingTokenMetadata();
+    },
+
+    /**
+     * 补充会话中缺失的 token 元数据
+     * 在加载会话后调用，计算并保存缺失的 contentTokens
+     */
+    async fillMissingTokenMetadata(): Promise<void> {
+      let updatedCount = 0;
+      const sessionsToSave: ChatSession[] = [];
+
+      for (const session of this.sessions) {
+        let sessionUpdated = false;
+
+        for (const [nodeId, node] of Object.entries(session.nodes)) {
+          // 跳过没有内容的节点（如根节点）
+          if (!node.content) continue;
+
+          // 跳过已经有 contentTokens 的节点
+          if (node.metadata?.contentTokens !== undefined) continue;
+
+          // 需要模型 ID 来计算 token
+          let modelId: string | undefined;
+
+          if (node.role === 'assistant' && node.metadata?.modelId) {
+            // 助手消息：使用其自己的模型
+            modelId = node.metadata.modelId;
+          } else if (node.role === 'user') {
+            // 用户消息：查找会话中任意助手消息的模型
+            // 优先使用当前活动路径上的助手消息
+            let currentId: string | null = session.activeLeafId;
+            while (currentId !== null) {
+              const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
+              if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
+                modelId = pathNode.metadata.modelId;
+                break;
+              }
+              currentId = pathNode?.parentId ?? null;
+            }
+
+            // 如果活动路径上没有，则查找整个会话
+            if (!modelId) {
+              for (const n of Object.values(session.nodes)) {
+                if (n.role === 'assistant' && n.metadata?.modelId) {
+                  modelId = n.metadata.modelId;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!modelId) {
+            // 无法确定模型，跳过
+            logger.debug('无法确定模型ID，跳过token计算', {
+              sessionId: session.id,
+              nodeId,
+              role: node.role,
+            });
+            continue;
+          }
+
+          try {
+            // 计算消息的 token（包括文本和附件）
+            const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+              node.content,
+              modelId,
+              node.attachments
+            );
+
+            // 更新节点的 metadata
+            if (!node.metadata) {
+              node.metadata = {};
+            }
+            node.metadata.contentTokens = tokenResult.count;
+
+            updatedCount++;
+            sessionUpdated = true;
+
+            logger.debug('补充缺失的 token 元数据', {
+              sessionId: session.id,
+              nodeId,
+              role: node.role,
+              tokens: tokenResult.count,
+              isEstimated: tokenResult.isEstimated,
+              hasAttachments: !!node.attachments && node.attachments.length > 0,
+              attachmentCount: node.attachments?.length || 0,
+            });
+          } catch (error) {
+            logger.warn('计算 token 失败', {
+              sessionId: session.id,
+              nodeId,
+              role: node.role,
+              hasAttachments: !!node.attachments && node.attachments.length > 0,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
+        // 记录需要保存的会话
+        if (sessionUpdated) {
+          sessionsToSave.push(session);
+        }
+      }
+
+      // 批量保存更新的会话
+      if (sessionsToSave.length > 0) {
+        const sessionManager = useSessionManager();
+        for (const session of sessionsToSave) {
+          sessionManager.persistSession(session, this.currentSessionId);
+        }
+
+        logger.info('补充 token 元数据完成', {
+          totalUpdated: updatedCount,
+          sessionsUpdated: sessionsToSave.length,
+        });
+      }
     },
 
     /**

@@ -40,19 +40,33 @@
 - **ES Modules** - 组件必须是编译后的 ESM 格式
 - **Tauri API** - 用于与后端通信
 
-### 重要约束
+### 开发模式支持
 
-⚠️ **插件 UI 组件必须是编译后的 JavaScript 文件（.js 或 .mjs）**
+✅ **开发模式现已支持直接使用 .vue 单文件组件！**
 
-不能直接使用 `.vue` 单文件组件，因为：
-- 插件位于外部目录，Vite 无法处理
-- 需要通过 `convertFileSrc` API 动态加载
-- 浏览器不支持直接执行 `.vue` 文件
+在开发模式下（`npm run dev`），插件可以：
+- 直接使用 `.vue` 单文件组件，无需手动编译
+- 享受 Vite 提供的 HMR（热模块替换）
+- 使用完整的 Vue SFC 特性（`<template>`、`<script setup>`、`<style scoped>`）
+
+### 生产模式约束
+
+⚠️ **生产模式下插件 UI 组件仍需编译为 JavaScript 文件（.js 或 .mjs）**
+
+原因：
+- 生产环境的插件位于用户的 appData 目录
+- 无法通过 Vite 动态编译
+- 需要通过 `convertFileSrc` API 加载
 
 ### 开发工具链
 
-你需要一个构建流程将 `.vue` 文件编译为 ESM JS：
+**开发模式**：
+- ✅ 直接使用 `.vue` 文件
+- ✅ 无需构建工具
+- ✅ 自动 HMR
 
+**生产模式**：
+- 需要构建流程将 `.vue` 编译为 `.js`
 - **推荐方案**: 使用 `vite` + `@vitejs/plugin-vue`
 - **备选方案**: 使用 Vue 3 的 `h()` 渲染函数手写组件
 
@@ -96,48 +110,33 @@
 
 ## UI 组件开发
 
-### 方式一：使用 h() 渲染函数（推荐用于简单组件）
+### 🎯 方式一：Vue 单文件组件（推荐，仅开发模式）
 
-这是最直接的方式，无需构建工具：
-
-```javascript
-// MyComponent.js
-import { ref, h } from 'vue';
-
-export default {
-  name: 'MyComponent',
-  setup() {
-    const count = ref(0);
-    const increment = () => count.value++;
-
-    return () => h('div', { class: 'my-component' }, [
-      h('h2', null, 'My Plugin'),
-      h('p', null, `Count: ${count.value}`),
-      h('button', { onClick: increment }, 'Increment')
-    ]);
-  }
-};
-```
-
-### 方式二：编译 .vue 文件（推荐用于复杂组件）
-
-#### 步骤 1: 创建 Vue 组件
+**适用场景**：开发模式下快速开发和调试
 
 ```vue
-<!-- src/MyComponent.vue -->
+<!-- MyComponent.vue -->
 <template>
   <div class="my-component">
-    <h2>My Plugin</h2>
-    <p>Count: {{ count }}</p>
-    <button @click="increment">Increment</button>
+    <el-card shadow="never">
+      <h2>My Plugin</h2>
+      <p>Count: {{ count }}</p>
+      <el-button @click="increment">Increment</el-button>
+    </el-card>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
+import { ElCard, ElButton } from 'element-plus';
+import { execute } from '@/services/executor';
+import { customMessage } from '@/utils/customMessage';
 
 const count = ref(0);
-const increment = () => count.value++;
+const increment = () => {
+  count.value++;
+  customMessage.success('计数增加！');
+};
 </script>
 
 <style scoped>
@@ -147,7 +146,54 @@ const increment = () => count.value++;
 </style>
 ```
 
-#### 步骤 2: 创建 Vite 配置
+**manifest.json 配置**：
+```json
+{
+  "ui": {
+    "displayName": "My Plugin",
+    "component": "MyComponent.vue",
+    "icon": "🎨"
+  }
+}
+```
+
+**优势**：
+- ✅ 直接使用 `<template>` 语法，开发体验好
+- ✅ 支持 `<script setup>` 和 TypeScript
+- ✅ 支持 `<style scoped>` 样式隔离
+- ✅ 享受 Vite HMR，修改即时生效
+- ✅ 可使用 Element Plus、VueUse 等库
+- ✅ 可导入主应用的 composables 和工具函数
+
+### 方式二：手写 h() 渲染函数（跨模式兼容）
+
+**适用场景**：需要同时支持开发和生产模式，或组件逻辑简单
+
+```javascript
+// MyComponent.js
+import { ref, h } from 'vue';
+import { ElCard, ElButton } from 'element-plus';
+
+export default {
+  name: 'MyComponent',
+  setup() {
+    const count = ref(0);
+    const increment = () => count.value++;
+
+    return () => h(ElCard, { shadow: 'never' }, () => [
+      h('h2', null, 'My Plugin'),
+      h('p', null, `Count: ${count.value}`),
+      h(ElButton, { onClick: increment }, () => 'Increment')
+    ]);
+  }
+};
+```
+
+### 方式三：编译 .vue 为 .js（生产环境）
+
+**适用场景**：准备发布生产环境插件
+
+#### 步骤 1: 创建 Vite 配置
 
 ```javascript
 // vite.config.js
@@ -164,10 +210,11 @@ export default defineConfig({
       formats: ['es']
     },
     rollupOptions: {
-      external: ['vue', '@tauri-apps/api/core'],
+      external: ['vue', 'element-plus', '@tauri-apps/api/core'],
       output: {
         globals: {
-          vue: 'Vue'
+          vue: 'Vue',
+          'element-plus': 'ElementPlus'
         }
       }
     }
@@ -175,14 +222,14 @@ export default defineConfig({
 });
 ```
 
-#### 步骤 3: 构建组件
+#### 步骤 2: 构建组件
 
 ```bash
 npm install -D vite @vitejs/plugin-vue
 npm run build
 ```
 
-输出文件 `dist/MyComponent.js` 即可在插件中使用。
+输出文件 `dist/MyComponent.js` 可在生产环境使用。
 
 ### 与后端交互
 
@@ -199,27 +246,54 @@ const result = await invoke('call_service_method', {
 });
 ```
 
-### 使用应用提供的 Composables
+### 使用应用提供的 Composables 和组件
 
-插件组件可以使用应用提供的所有 composables：
+插件可以直接导入使用主应用的资源：
 
-```javascript
+**Vue SFC 方式**：
+```vue
+<template>
+  <div>
+    <el-button @click="handleClick">点击</el-button>
+  </div>
+</template>
+
+<script setup>
+import { ElButton } from 'element-plus';
 import { useTheme } from '@/composables/useTheme';
 import { useAssetManager } from '@/composables/useAssetManager';
+import { customMessage } from '@/utils/customMessage';
+import { execute } from '@/services/executor';
+
+const { currentTheme } = useTheme();
+const assetManager = useAssetManager();
+
+const handleClick = async () => {
+  customMessage.success('操作成功！');
+  console.log('Current theme:', currentTheme.value);
+};
+</script>
+```
+
+**h() 函数方式**：
+```javascript
+import { h } from 'vue';
+import { ElButton } from 'element-plus';
+import { useTheme } from '@/composables/useTheme';
 import { customMessage } from '@/utils/customMessage';
 
 export default {
   setup() {
     const { currentTheme } = useTheme();
-    const assetManager = useAssetManager();
     
-    // 使用主题
-    console.log('Current theme:', currentTheme.value);
+    const handleClick = () => {
+      customMessage.success('操作成功！');
+      console.log('Current theme:', currentTheme.value);
+    };
     
-    // 显示消息
-    customMessage.success('操作成功！');
-    
-    return () => h('div', null, 'Hello');
+    return () => h('div', null, [
+      h(ElButton, { onClick: handleClick }, () => '点击')
+    ]);
   }
 };
 ```
@@ -299,12 +373,24 @@ your-plugin/
 
 开发时，将插件放入主应用的 `/plugins/` 目录：
 
+**使用 .vue 文件（开发模式）**：
+```
+your-app/
+└── plugins/
+    └── example-hello-world/    # 你的插件
+        ├── manifest.json       # 插件清单
+        ├── index.ts            # 后端逻辑（TypeScript）
+        ├── HelloWorld.vue      # UI 组件（.vue 文件）
+        └── README.md           # 说明文档
+```
+
+**使用 .js 文件（生产/兼容模式）**：
 ```
 your-app/
 └── plugins/
     └── hello-world/        # 你的插件
         ├── manifest.json   # 插件清单
-        ├── index.ts        # 后端逻辑（TypeScript）
+        ├── index.js        # 后端逻辑（编译后）
         ├── HelloWorld.js   # UI 组件（编译后）
         └── README.md       # 说明文档
 ```
@@ -460,9 +546,11 @@ export default {
 
 ## 常见问题
 
-### Q: 为什么不支持 .vue 文件？
+### Q: 开发模式和生产模式的区别？
 
-A: 插件位于外部目录，Vite 的构建系统无法处理。必须使用编译后的 JavaScript。
+A:
+- **开发模式**：支持直接使用 `.vue` 文件，享受 Vite HMR，无需手动编译
+- **生产模式**：需要预先将 `.vue` 编译为 `.js` 文件，因为生产环境无法动态编译
 
 ### Q: 如何访问主应用的功能？
 
@@ -486,7 +574,28 @@ A: 是的，插件工具自动支持窗口分离，与内置工具行为一致�
 
 ### Q: 如何更新插件 UI？
 
-A: 修改组件文件后，重新加载应用即可。开发模式下支持热重载。
+A:
+- **开发模式**：修改 `.vue` 文件后自动热重载（HMR），无需刷新
+- **生产模式**：需要重新安装插件或重启应用
+
+### Q: .vue 文件找不到模块怎么办？
+
+A: 这是正常的 TypeScript 提示。在开发模式下，主应用会提供这些模块：
+```vue
+<script setup>
+// 这些导入在运行时是有效的
+import { execute } from '@/services/executor';  // ✅ 主应用提供
+import { customMessage } from '@/utils/customMessage';  // ✅ 主应用提供
+import { ElButton } from 'element-plus';  // ✅ 主应用提供
+</script>
+```
+
+### Q: 推荐使用哪种开发方式？
+
+A:
+- **开发阶段**：优先使用 `.vue` 文件，开发体验最好
+- **发布阶段**：编译为 `.js` 文件，确保跨环境兼容性
+- **简单组件**：可以直接手写 `h()` 函数，无需编译
 
 ---
 

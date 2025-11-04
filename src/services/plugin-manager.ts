@@ -99,11 +99,11 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
 /**
  * 为插件创建组件加载函数
  *
- * 插件组件必须是编译后的 ESM 格式 JS 文件（.js 或 .mjs）
- * 插件开发者需要在构建时将 .vue 文件编译为 JS
+ * 开发模式：支持 .vue 文件，通过 Vite 的 import.meta.glob 动态导入，享受 HMR
+ * 生产模式：仅支持编译后的 .js/.mjs 文件，通过 convertFileSrc 加载
  *
  * @param pluginPath 插件安装路径（开发模式为 Vite 虚拟路径，生产模式为文件系统绝对路径）
- * @param componentFile 组件文件相对于插件根目录的路径（例如 "dist/MyComponent.js"）
+ * @param componentFile 组件文件相对于插件根目录的路径（例如 "MyComponent.vue" 或 "dist/MyComponent.js"）
  */
 function createPluginComponentLoader(pluginPath: string, componentFile: string) {
   // 判断是否为开发模式插件（路径以 /plugins/ 开头）
@@ -111,19 +111,38 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
   
   return async () => {
     try {
-      let componentUrl: string;
-      
       if (isDevMode) {
-        // 开发模式：直接使用 Vite 路径拼接
-        componentUrl = `${pluginPath}/${componentFile}`;
+        // 开发模式：从 window.__PLUGIN_COMPONENTS__ 获取组件加载器
+        const componentPath = `${pluginPath}/${componentFile}`;
         
         logger.info('加载开发模式插件组件', {
           pluginPath,
           componentFile,
-          componentUrl
+          componentPath
         });
+        
+        // 检查组件是否已被 glob 扫描
+        if (!window.__PLUGIN_COMPONENTS__) {
+          throw new Error('插件组件注册表未初始化');
+        }
+        
+        const componentLoader = window.__PLUGIN_COMPONENTS__.get(componentPath);
+        if (!componentLoader) {
+          throw new Error(`未找到插件组件: ${componentPath}\n可用组件: ${Array.from(window.__PLUGIN_COMPONENTS__.keys()).join(', ')}`);
+        }
+        
+        // 使用 Vite 的动态导入（享受 HMR）
+        const module = await componentLoader();
+        
+        if (!module.default) {
+          throw new Error(`插件组件 ${componentFile} 必须有默认导出`);
+        }
+        
+        logger.info('插件组件加载成功（开发模式，支持 HMR）', { componentFile });
+        
+        return module.default;
       } else {
-        // 生产模式：使用 convertFileSrc
+        // 生产模式：使用 convertFileSrc（保持原有逻辑）
         const { convertFileSrc } = await import('@tauri-apps/api/core');
         const { join } = await import('@tauri-apps/api/path');
         
@@ -139,22 +158,21 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
         // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
         // 'plugin' 作为协议名称，确保与其他资源区分
         // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
-        componentUrl = convertFileSrc(componentPath.replace(/\\/g, '/'), 'plugin');
+        const componentUrl = convertFileSrc(componentPath.replace(/\\/g, '/'), 'plugin');
         
         logger.info('插件组件 URL 已生成', { componentUrl });
+        
+        // 动态导入 ESM 模块
+        const module = await import(/* @vite-ignore */ componentUrl);
+        
+        if (!module.default) {
+          throw new Error(`插件组件 ${componentFile} 必须有默认导出`);
+        }
+        
+        logger.info('插件组件加载成功（生产模式）', { componentFile });
+        
+        return module.default;
       }
-      
-      // 动态导入 ESM 模块
-      // 插件必须导出一个默认的 Vue 组件
-      const module = await import(/* @vite-ignore */ componentUrl);
-      
-      if (!module.default) {
-        throw new Error(`插件组件 ${componentFile} 必须有默认导出`);
-      }
-      
-      logger.info('插件组件加载成功', { componentFile });
-      
-      return module.default;
     } catch (error) {
       logger.error('插件组件加载失败', {
         pluginPath,

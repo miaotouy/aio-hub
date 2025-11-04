@@ -1,8 +1,15 @@
 /**
  * 插件加载器
- * 
+ *
  * 负责从文件系统加载插件，支持开发模式和生产模式
  */
+
+// 扩展 Window 接口以支持插件组件缓存
+declare global {
+  interface Window {
+    __PLUGIN_COMPONENTS__?: Map<string, () => Promise<{ default: any }>>;
+  }
+}
 
 import { path } from '@tauri-apps/api';
 import { readTextFile, readDir, exists } from '@tauri-apps/plugin-fs';
@@ -89,6 +96,29 @@ export class PluginLoader {
       const manifestModules = import.meta.glob<{
         default: PluginManifest;
       }>('/plugins/*/manifest.json', { eager: false });
+
+      // 扫描所有插件的 Vue 组件（支持 .vue 和 .js/.mjs）
+      const componentModules = import.meta.glob<{
+        default: any;
+      }>('/plugins/*/*.{vue,js,mjs}', { eager: false });
+
+      // 存储组件加载器，供 plugin-manager 使用
+      if (!window.__PLUGIN_COMPONENTS__) {
+        window.__PLUGIN_COMPONENTS__ = new Map();
+      }
+
+      // 注册所有发现的组件
+      for (const [path, loader] of Object.entries(componentModules)) {
+        // 排除 index.ts/js 和 manifest.json
+        if (path.includes('/index.') || path.includes('/manifest.json')) {
+          continue;
+        }
+        window.__PLUGIN_COMPONENTS__.set(path, loader);
+      }
+
+      logger.info(`发现 ${window.__PLUGIN_COMPONENTS__.size} 个插件组件`, {
+        components: Array.from(window.__PLUGIN_COMPONENTS__.keys())
+      });
 
       const pluginPaths = Object.keys(pluginModules);
       logger.info(`发现 ${pluginPaths.length} 个开发插件`, { paths: pluginPaths });

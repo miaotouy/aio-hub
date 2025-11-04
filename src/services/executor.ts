@@ -69,7 +69,26 @@ export async function execute<TData = any>(
 
   try {
     // 1. 查找服务实例
-    const serviceInstance = serviceRegistry.getService(serviceId);
+    // 开发模式下，如果找不到原始 ID 的服务，自动尝试 -dev 后缀
+    let serviceInstance;
+    try {
+      serviceInstance = serviceRegistry.getService(serviceId);
+    } catch (error) {
+      // 在开发模式下，尝试添加 -dev 后缀
+      if (import.meta.env.DEV) {
+        const devServiceId = `${serviceId}-dev`;
+        logger.debug(`服务 "${serviceId}" 未找到，尝试开发模式 ID: ${devServiceId}`);
+        try {
+          serviceInstance = serviceRegistry.getService(devServiceId);
+          logger.info(`使用开发模式服务: ${devServiceId}`);
+        } catch {
+          // 仍然找不到，抛出原始错误
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
     
     if (!serviceInstance) {
       throw new Error(`服务未找到: ${serviceId}`);

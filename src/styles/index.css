@@ -860,3 +860,8 @@ html.dark .el-dropdown-menu__item:not(.is-disabled):hover {
   background-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
   color: #ffffff;
 }
+
+/* 去除el-button自带的间距，修复按钮布局无法对齐的问题 */
+:deep(.el-button) {
+  margin-left: 0px;
+}

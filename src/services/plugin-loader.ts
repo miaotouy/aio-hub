@@ -13,7 +13,7 @@ declare global {
 
 import { path } from '@tauri-apps/api';
 import { readTextFile, readDir, exists } from '@tauri-apps/plugin-fs';
-import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport } from './plugin-types';
+import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport, PluginProxy } from './plugin-types';
 import { createJsPluginProxy } from './js-plugin-adapter';
 import type { JsPluginAdapter } from './js-plugin-adapter';
 import { createSidecarPluginProxy } from './sidecar-plugin-adapter';
@@ -89,14 +89,16 @@ export class PluginLoader {
 
     try {
       // 使用 Vite 的 import.meta.glob 扫描插件目录
+      // 基于 manifest.json 来发现所有插件（包括 JS 和 Sidecar）
+      const manifestModules = import.meta.glob<{
+        default: PluginManifest;
+      }>('/plugins/*/manifest.json', { eager: false });
+
+      // 扫描 JS 插件的入口文件
       const pluginModules = import.meta.glob<{
         default: JsPluginExport;
         manifest: PluginManifest;
       }>('/plugins/*/index.ts', { eager: false });
-
-      const manifestModules = import.meta.glob<{
-        default: PluginManifest;
-      }>('/plugins/*/manifest.json', { eager: false });
 
       // 扫描所有插件的 Vue 组件（支持 .vue 和 .js/.mjs）
       const componentModules = import.meta.glob<{
@@ -121,36 +123,50 @@ export class PluginLoader {
         components: Array.from(window.__PLUGIN_COMPONENTS__.keys())
       });
 
-      const pluginPaths = Object.keys(pluginModules);
-      logger.info(`发现 ${pluginPaths.length} 个开发插件`, { paths: pluginPaths });
+      // 使用 manifest.json 作为插件发现的基础
+      const manifestPaths = Object.keys(manifestModules);
+      logger.info(`发现 ${manifestPaths.length} 个开发插件`, { paths: manifestPaths });
 
       // 加载每个插件
-      for (const pluginPath of pluginPaths) {
-        const pluginId = this.extractPluginIdFromPath(pluginPath);
-        const manifestPath = pluginPath.replace('/index.ts', '/manifest.json');
+      for (const manifestPath of manifestPaths) {
+        const pluginId = this.extractPluginIdFromPath(manifestPath);
 
         try {
           // 加载 manifest
           const manifestModule = await manifestModules[manifestPath]();
           const manifest = manifestModule.default;
 
-          if (manifest.type !== 'javascript') {
-            logger.warn(`开发模式下跳过非 JS 插件: ${pluginId}`);
+          // 开发模式下的安装路径（去掉 /manifest.json）
+          const devInstallPath = manifestPath.replace('/manifest.json', '');
+
+          let proxy: PluginProxy;
+
+          // 根据插件类型选择不同的加载方式
+          if (manifest.type === 'javascript') {
+            // 加载 JS 插件
+            const pluginModulePath = manifestPath.replace('/manifest.json', '/index.ts');
+            
+            // 检查 index.ts 是否存在
+            if (!pluginModules[pluginModulePath]) {
+              logger.error(`JS 插件缺少 index.ts: ${pluginId}`);
+              throw new Error(`JS 插件必须包含 index.ts 文件`);
+            }
+
+            proxy = createJsPluginProxy(manifest, devInstallPath, true);
+
+            // 加载插件模块
+            const pluginModule = await pluginModules[pluginModulePath]();
+            const pluginExport = pluginModule.default;
+
+            // 设置插件导出对象
+            (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
+          } else if (manifest.type === 'sidecar') {
+            // 加载 Sidecar 插件
+            proxy = createSidecarPluginProxy(manifest, devInstallPath, true);
+          } else {
+            logger.warn(`开发模式下跳过未知类型的插件: ${pluginId}, type: ${manifest.type}`);
             continue;
           }
-
-          // 开发模式下的安装路径
-          const devInstallPath = pluginPath.replace('/index.ts', '');
-
-          // 创建插件代理（标记为开发模式）
-          const proxy = createJsPluginProxy(manifest, devInstallPath, true);
-
-          // 加载插件模块
-          const pluginModule = await pluginModules[pluginPath]();
-          const pluginExport = pluginModule.default;
-
-          // 设置插件导出对象
-          (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
 
           // 根据持久化状态决定是否启用插件
           const shouldEnable = await pluginStateService.isEnabled(manifest.id);
@@ -180,7 +196,7 @@ export class PluginLoader {
           logger.error(`加载开发插件失败: ${pluginId}`, error);
           result.failed.push({
             id: pluginId,
-            path: pluginPath,
+            path: manifestPath,
             error: error instanceof Error ? error : new Error(String(error)),
           });
         }

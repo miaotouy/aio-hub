@@ -97,11 +97,7 @@ const app = createApp(rootComponent);
 const pinia = createPinia(); // 创建 Pinia 实例
 
 app.use(ElementPlus, { locale: zhCn });
-app.use(pinia); // 注册 Pinia（必须在 router 之前，因为路由可能需要使用 store）
-app.use(router);
-
-// 初始化动态路由（必须在 Pinia 注册后）
-initDynamicRoutes();
+app.use(pinia); // 注册 Pinia（必须在所有依赖它的模块之前）
 
 // 全局注册 customMessage，这样在所有组件中都可以使用
 app.config.globalProperties.$message = customMessage;
@@ -190,7 +186,15 @@ const initializeApp = async () => {
     await autoRegisterServices();
     logger.info("工具服务注册完成");
 
-    // 4. 挂载 Vue 应用
+    // 4. 初始化动态路由（必须在 Pinia 注册后，且在服务注册后）
+    initDynamicRoutes();
+    logger.info("动态路由初始化完成");
+
+    // 5. 注册 Router（必须在动态路由初始化之后，这样插件路由才能被识别）
+    app.use(router);
+    logger.info("Router 注册完成");
+
+    // 6. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
   } catch (error) {

@@ -11,7 +11,7 @@ import { useLlmChatStateConsumer } from "../tools/llm-chat/composables/useLlmCha
 import { createModuleLogger } from "../utils/logger";
 import { loadAppSettingsAsync } from "../utils/appSettings";
 import { applyThemeColors } from "../utils/themeColors";
-import { toolsConfig } from "../config/tools";
+import { useToolsStore } from "../stores/tools";
 import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import SyncServiceProvider from "../components/SyncServiceProvider.vue";
@@ -25,12 +25,13 @@ const imageViewer = useImageViewer();
 const route = useRoute();
 const { currentTheme } = useTheme();
 const { initialize: initializeDetachedManager } = useDetachedManager();
+const toolsStore = useToolsStore();
 
 // 从路由参数获取工具路径
 const toolPath = computed(() => `/${route.params.toolPath as string}`);
 
-// 从工具配置中查找对应的工具
-const toolConfig = computed(() => toolsConfig.find((t) => t.path === toolPath.value));
+// 从工具配置中查找对应的工具（支持内置工具和插件工具）
+const toolConfig = computed(() => toolsStore.tools.find((t) => t.path === toolPath.value));
 
 // 工具标题
 const toolTitle = computed(() => toolConfig.value?.name || "工具窗口");

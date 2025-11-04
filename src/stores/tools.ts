@@ -2,10 +2,11 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { ToolConfig } from '@/config/tools';
 import { toolsConfig as initialTools } from '@/config/tools';
-import { cloneDeep } from 'lodash-es';
 
 export const useToolsStore = defineStore('tools', () => {
-  const tools = ref<ToolConfig[]>(cloneDeep(initialTools));
+  // 使用浅拷贝以保留图标的 markRaw 状态
+  // lodash-es 的 cloneDeep 会破坏 markRaw
+  const tools = ref<ToolConfig[]>(initialTools.map(t => ({ ...t })));
 
   /**
    * Adds a new tool to the store.

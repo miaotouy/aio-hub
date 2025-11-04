@@ -14,9 +14,14 @@ import type { ToolService, MethodMetadata } from './types';
 export interface PluginUiConfig {
   /** 显示名称, 如果不提供则使用插件主名称 */
   displayName?: string;
-  /** UI 组件入口文件 (相对于插件根目录的路径) */
+  /** UI 组件入口文件 (相对于插件根目录的路径，需为编译后的 ESM JS 文件) */
   component: string;
-  /** 图标 (未来支持) */
+  /**
+   * 图标配置
+   * - Emoji: 单个 emoji 字符 (例如 "🎨")
+   * - SVG 路径: 相对于插件根目录的 SVG 文件路径 (例如 "icon.svg")
+   * - 图片路径: 相对于插件根目录的图片文件路径 (例如 "icon.png")
+   */
   icon?: string;
 }
 

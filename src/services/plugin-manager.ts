@@ -9,28 +9,167 @@ import { createPluginLoader, PluginLoader } from './plugin-loader';
 import type { PluginProxy } from './plugin-types';
 import { useToolsStore } from '@/stores/tools';
 import type { ToolConfig } from '@/config/tools';
-import { markRaw } from 'vue';
+import { markRaw, h, type Component } from 'vue';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('services/plugin-manager');
 
 /**
+ * 检查字符串是否为单个 Emoji
+ */
+function isEmoji(str: string): boolean {
+  // 简单判断：长度较短且包含 emoji 范围的 Unicode
+  const emojiRegex = /^[\p{Emoji}\p{Emoji_Component}]+$/u;
+  return str.length <= 4 && emojiRegex.test(str);
+}
+
+/**
+ * 为插件创建图标组件
+ *
+ * @param pluginPath 插件安装路径（开发模式为 Vite 虚拟路径，生产模式为文件系统绝对路径）
+ * @param iconConfig 图标配置（可以是 Emoji、SVG 路径或图片路径）
+ */
+async function createPluginIcon(pluginPath: string, iconConfig?: string): Promise<Component> {
+  if (!iconConfig) {
+    // 默认插件图标
+    return markRaw({
+      template: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>',
+    });
+  }
+
+  // 判断是否为 Emoji
+  if (isEmoji(iconConfig)) {
+    return markRaw({
+      setup() {
+        return () => h('span', { style: 'font-size: 1.2em' }, iconConfig);
+      },
+    });
+  }
+
+  // 处理文件路径（SVG 或图片）
+  const isDevMode = pluginPath.startsWith('/plugins/');
+  
+  try {
+    let iconUrl: string;
+    
+    if (isDevMode) {
+      // 开发模式：直接使用 Vite 路径
+      iconUrl = `${pluginPath}/${iconConfig}`;
+    } else {
+      // 生产模式：使用 convertFileSrc
+      const { convertFileSrc } = await import('@tauri-apps/api/core');
+      const { join } = await import('@tauri-apps/api/path');
+      
+      const iconPath = await join(pluginPath, iconConfig);
+      // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
+      iconUrl = convertFileSrc(iconPath.replace(/\\/g, '/'), 'plugin');
+    }
+    
+    // 判断是 SVG 还是图片
+    if (iconConfig.toLowerCase().endsWith('.svg')) {
+      // SVG 图标：直接嵌入
+      return markRaw({
+        setup() {
+          return () => h('img', {
+            src: iconUrl,
+            style: 'width: 1em; height: 1em; display: block;',
+          });
+        },
+      });
+    } else {
+      // 其他图片格式
+      return markRaw({
+        setup() {
+          return () => h('img', {
+            src: iconUrl,
+            style: 'width: 1.2em; height: 1.2em; border-radius: 2px; display: block;',
+          });
+        },
+      });
+    }
+  } catch (error) {
+    logger.error('创建插件图标失败', { pluginPath, iconConfig, error });
+    // 返回默认图标
+    return markRaw({
+      template: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>',
+    });
+  }
+}
+
+/**
  * 为插件创建组件加载函数
- * 由于插件位于外部目录，需要特殊处理
+ *
+ * 插件组件必须是编译后的 ESM 格式 JS 文件（.js 或 .mjs）
+ * 插件开发者需要在构建时将 .vue 文件编译为 JS
+ *
+ * @param pluginPath 插件安装路径（开发模式为 Vite 虚拟路径，生产模式为文件系统绝对路径）
+ * @param componentFile 组件文件相对于插件根目录的路径（例如 "dist/MyComponent.js"）
  */
 function createPluginComponentLoader(pluginPath: string, componentFile: string) {
+  // 判断是否为开发模式插件（路径以 /plugins/ 开头）
+  const isDevMode = pluginPath.startsWith('/plugins/');
+  
   return async () => {
-    // TODO: 实现动态加载外部插件组件的逻辑
-    // 这需要使用 Tauri 的 convertFileSrc API 或其他方案
-    logger.warn(`插件组件动态加载暂未实现: ${pluginPath}/${componentFile}`);
-    throw new Error('插件UI组件加载功能尚未实现');
+    try {
+      let componentUrl: string;
+      
+      if (isDevMode) {
+        // 开发模式：直接使用 Vite 路径拼接
+        componentUrl = `${pluginPath}/${componentFile}`;
+        
+        logger.info('加载开发模式插件组件', {
+          pluginPath,
+          componentFile,
+          componentUrl
+        });
+      } else {
+        // 生产模式：使用 convertFileSrc
+        const { convertFileSrc } = await import('@tauri-apps/api/core');
+        const { join } = await import('@tauri-apps/api/path');
+        
+        // 构建组件的完整路径
+        const componentPath = await join(pluginPath, componentFile);
+        
+        logger.info('加载生产模式插件组件', {
+          pluginPath,
+          componentFile,
+          fullPath: componentPath
+        });
+        
+        // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
+        // 'plugin' 作为协议名称，确保与其他资源区分
+        // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
+        componentUrl = convertFileSrc(componentPath.replace(/\\/g, '/'), 'plugin');
+        
+        logger.info('插件组件 URL 已生成', { componentUrl });
+      }
+      
+      // 动态导入 ESM 模块
+      // 插件必须导出一个默认的 Vue 组件
+      const module = await import(/* @vite-ignore */ componentUrl);
+      
+      if (!module.default) {
+        throw new Error(`插件组件 ${componentFile} 必须有默认导出`);
+      }
+      
+      logger.info('插件组件加载成功', { componentFile });
+      
+      return module.default;
+    } catch (error) {
+      logger.error('插件组件加载失败', {
+        pluginPath,
+        componentFile,
+        error
+      });
+      throw new Error(`加载插件组件失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 }
 
 /**
  * 从插件代理注册UI到工具store
  */
-function registerPluginUi(plugin: PluginProxy): void {
+async function registerPluginUi(plugin: PluginProxy): Promise<void> {
   const { manifest, installPath } = plugin;
   
   if (!manifest.ui) {
@@ -39,14 +178,14 @@ function registerPluginUi(plugin: PluginProxy): void {
 
   const toolsStore = useToolsStore();
   
+  // 创建插件图标
+  const icon = await createPluginIcon(installPath, manifest.ui.icon);
+  
   // 构造 ToolConfig 对象
   const toolConfig: ToolConfig = {
     name: manifest.ui.displayName || manifest.name,
     path: `/plugin-${manifest.id}`,
-    icon: markRaw({
-      // 临时使用一个占位图标，后续可以支持自定义图标
-      template: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>',
-    }),
+    icon,
     component: createPluginComponentLoader(installPath, manifest.ui.component),
     description: manifest.description,
     category: '插件工具',
@@ -57,6 +196,7 @@ function registerPluginUi(plugin: PluginProxy): void {
   logger.info(`插件UI已注册: ${manifest.id}`, {
     name: toolConfig.name,
     path: toolConfig.path,
+    hasCustomIcon: !!manifest.ui.icon,
   });
 }
 
@@ -107,14 +247,14 @@ class PluginManager {
     if (result.plugins.length > 0) {
       await serviceRegistry.register(...result.plugins);
       
-      // 注册插件UI
-      result.plugins.forEach(plugin => {
+      // 注册插件UI（异步）
+      for (const plugin of result.plugins) {
         try {
-          registerPluginUi(plugin);
+          await registerPluginUi(plugin);
         } catch (error) {
           logger.error(`注册插件UI失败: ${plugin.manifest.id}`, error);
         }
-      });
+      }
     }
 
     if (result.failed.length > 0) {
@@ -223,14 +363,14 @@ class PluginManager {
         if (loadResult.plugins.length > 0) {
           await serviceRegistry.register(...loadResult.plugins);
           
-          // 注册插件UI
-          loadResult.plugins.forEach(plugin => {
+          // 注册插件UI（异步）
+          for (const plugin of loadResult.plugins) {
             try {
-              registerPluginUi(plugin);
+              await registerPluginUi(plugin);
             } catch (error) {
               logger.error(`注册插件UI失败: ${plugin.manifest.id}`, error);
             }
-          });
+          }
         }
       }
 

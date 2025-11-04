@@ -14,6 +14,18 @@
       @delete-selected="handleDeleteSelected"
       @clear-selection="clearSelection"
     />
+    
+    <!-- 重建索引进度条 -->
+    <div v-if="rebuildProgress.total > 0" class="progress-container">
+      <el-progress
+        :percentage="Math.round((rebuildProgress.current / rebuildProgress.total) * 100)"
+        :stroke-width="12"
+        striped
+        striped-flow
+      >
+        <span>重建索引: {{ rebuildProgress.current }} / {{ rebuildProgress.total }} ({{ rebuildProgress.currentType }})</span>
+      </el-progress>
+    </div>
 
     <!-- 主体区域 -->
     <el-container class="main-container">
@@ -97,7 +109,10 @@ const {
   otherAssets,
   loadAssets,
   searchAssets,
-  removeAsset,
+  deleteAsset,
+  deleteMultipleAssets,
+  rebuildHashIndex,
+  rebuildProgress,
 } = useAssetManager();
 
 // 重复文件相关状态
@@ -172,12 +187,27 @@ const handleSelectAsset = (asset: Asset) => {
   // TODO: 实现资产预览
   console.log('选中资产:', asset);
 };
-
-const handleDeleteAsset = (assetId: string) => {
-  removeAsset(assetId);
-  // 从选中项中移除
-  if (selectedAssetIds.value.has(assetId)) {
-    selectedAssetIds.value.delete(assetId);
+const handleDeleteAsset = async (assetId: string) => {
+  try {
+    await deleteAsset(assetId);
+    
+    // 从选中项中移除
+    if (selectedAssetIds.value.has(assetId)) {
+      selectedAssetIds.value.delete(assetId);
+    }
+    
+    // 从重复文件哈希集合中移除
+    duplicateHashes.value.delete(assetId);
+    
+    // 如果这是重复文件组的一部分，需要检查是否还有其他重复文件
+    // 如果组内只剩一个文件，应该将其从 duplicateHashes 中移除
+    if (duplicateResult.value) {
+      updateDuplicateHashesAfterDeletion();
+    }
+    
+    customMessage.success('已成功删除资产');
+  } catch (err) {
+    console.error('删除资产失败:', err);
   }
 };
 
@@ -243,8 +273,14 @@ const handleDeleteSelected = async () => {
 
     // 批量删除所有选中的资产
     const idsToDelete = Array.from(selectedAssetIds.value);
-    for (const id of idsToDelete) {
-      removeAsset(id);
+    await deleteMultipleAssets(idsToDelete);
+    
+    // 从重复文件哈希集合中移除
+    idsToDelete.forEach(id => duplicateHashes.value.delete(id));
+    
+    // 更新重复文件状态
+    if (duplicateResult.value) {
+      updateDuplicateHashesAfterDeletion();
     }
     
     // 清空选择
@@ -415,13 +451,41 @@ const handleRebuildIndex = async () => {
       }
     );
 
-    const result = await invoke<string>('rebuild_hash_index');
+    const result = await rebuildHashIndex();
     customMessage.success(result);
   } catch (err) {
     if (err !== 'cancel') {
       console.error('重建索引失败:', err);
     }
   }
+};
+
+/**
+ * 更新删除后的重复文件哈希集合
+ * 检查每个重复文件组，如果组内只剩一个文件，将其从哈希集合中移除
+ */
+const updateDuplicateHashesAfterDeletion = () => {
+  if (!duplicateResult.value) return;
+  
+  const currentAssetIds = new Set(assets.value.map(a => a.id));
+  const newHashSet = new Set<string>();
+  
+  duplicateResult.value.duplicates.forEach(group => {
+    // 提取当前仍存在的文件
+    const existingFiles = group.files
+      .map(filePath => {
+        const fileName = filePath.split('/').pop() || '';
+        return fileName.split('.')[0];
+      })
+      .filter(id => currentAssetIds.has(id));
+    
+    // 只有当组内还有多个文件时才标记为重复
+    if (existingFiles.length > 1) {
+      existingFiles.forEach(id => newHashSet.add(id));
+    }
+  });
+  
+  duplicateHashes.value = newHashSet;
 };
 
 /**
@@ -465,6 +529,14 @@ const handleFindDuplicates = async () => {
 </script>
 
 <style scoped>
+.progress-container {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+.progress-container span {
+  font-size: 12px;
+}
+
 .asset-manager-container {
   height: 100%;
   display: flex;

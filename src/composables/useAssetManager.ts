@@ -1,5 +1,6 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import { ref, computed } from 'vue';
+import { listen } from '@tauri-apps/api/event';
+import { ref, computed, onUnmounted } from 'vue';
 import type {
   Asset,
   AssetImportOptions,
@@ -148,6 +149,12 @@ export const assetManagerEngine = {
     return await invoke<Asset[]>('list_all_assets');
   },
 
+  /**
+   * 重建哈希索引
+   */
+  rebuildHashIndex: async (): Promise<string> => {
+    return await invoke<string>('rebuild_hash_index');
+  },
 };
 
 /**
@@ -161,6 +168,8 @@ export function useAssetManager() {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   const assets = ref<Asset[]>([]);
+  const rebuildProgress = ref({ current: 0, total: 0, currentType: '' });
+  let unlistenRebuildProgress: (() => void) | null = null;
 
   // --- 方法 ---
 
@@ -307,7 +316,83 @@ export function useAssetManager() {
   };
 
   /**
-   * 移除指定资产
+   * 重建哈希索引
+   */
+  const rebuildHashIndex = async (): Promise<string> => {
+    // 开始监听进度事件
+    if (!unlistenRebuildProgress) {
+      const unlisten = await listen<{ current: number; total: number; currentType: string }>(
+        'rebuild-index-progress',
+        (event) => {
+          rebuildProgress.value = event.payload;
+        }
+      );
+      unlistenRebuildProgress = unlisten;
+    }
+
+    rebuildProgress.value = { current: 0, total: 0, currentType: 'starting...' };
+    try {
+      const promise = assetManagerEngine.rebuildHashIndex();
+      const result = await withLoading(promise);
+      return result;
+    } catch (err) {
+      return handleError(err, '重建索引失败');
+    } finally {
+      // 停止监听并重置进度
+      if (unlistenRebuildProgress) {
+        unlistenRebuildProgress();
+        unlistenRebuildProgress = null;
+      }
+      rebuildProgress.value = { current: 0, total: 0, currentType: '' };
+    }
+  };
+
+  // 组件卸载时确保取消监听
+  onUnmounted(() => {
+    if (unlistenRebuildProgress) {
+      unlistenRebuildProgress();
+    }
+  });
+
+  /**
+   * 删除指定资产（移动到回收站）
+   */
+  const deleteAsset = async (assetId: string): Promise<void> => {
+    try {
+      // 找到对应的资产
+      const asset = assets.value.find(a => a.id === assetId);
+      if (!asset) {
+        throw new Error('资产不存在');
+      }
+
+      // 调用后端删除命令
+      await invoke('delete_asset', {
+        assetId: asset.id,
+        relativePath: asset.path
+      });
+
+      // 从本地列表中移除
+      const index = assets.value.findIndex(a => a.id === assetId);
+      if (index !== -1) {
+        assets.value.splice(index, 1);
+      }
+    } catch (err) {
+      handleError(err, '删除资产失败');
+    }
+  };
+
+  /**
+   * 批量删除资产
+   */
+  const deleteMultipleAssets = async (assetIds: string[]): Promise<void> => {
+    await withLoading(
+      Promise.all(assetIds.map(id => deleteAsset(id)))
+    );
+  };
+
+  /**
+   * 移除指定资产（仅从本地列表移除，不删除文件）
+   * @deprecated 请使用 deleteAsset 代替
    */
   const removeAsset = (assetId: string): void => {
     const index = assets.value.findIndex(asset => asset.id === assetId);
@@ -338,6 +423,7 @@ export function useAssetManager() {
     isLoading,
     error,
     assets,
+    rebuildProgress,
 
     // 计算属性
     imageAssets,
@@ -368,7 +454,10 @@ export function useAssetManager() {
     getAssetsByOrigin,
     searchAssets,
     clearAssets,
-    removeAsset
+    deleteAsset,
+    deleteMultipleAssets,
+    removeAsset,
+    rebuildHashIndex,
   };
 }
 

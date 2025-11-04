@@ -90,6 +90,7 @@ use commands::{
     list_all_assets,
     rebuild_hash_index,
     find_duplicate_files,
+    delete_asset,
     // 插件管理命令
     uninstall_plugin,
     install_plugin_from_zip,
@@ -276,6 +277,7 @@ pub fn run() {
             list_all_assets,
             rebuild_hash_index,
             find_duplicate_files,
+            delete_asset,
             // 插件管理命令
             uninstall_plugin,
             install_plugin_from_zip,

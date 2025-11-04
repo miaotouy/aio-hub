@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
@@ -862,16 +862,41 @@ pub struct RebuildIndexProgress {
 }
 
 /// 为所有已存在的资产文件重建哈希索引
-/// 
+///
 /// 该函数会扫描所有资产目录，计算每个文件的哈希值，并更新对应月份的索引文件
+/// 同时通过事件系统向前端报告进度
 #[tauri::command]
 pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
-    let base_path = get_asset_base_path(app)?;
+    let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
     
     let asset_type_dirs = ["images", "audio", "videos", "documents", "other"];
     
-    let mut total_processed = 0;
+    // 第一步：统计总文件数
+    let mut total_files = 0usize;
+    for type_dir_str in &asset_type_dirs {
+        let type_dir = base_dir.join(type_dir_str);
+        if !type_dir.exists() || !type_dir.is_dir() {
+            continue;
+        }
+        
+        for year_month_entry in fs::read_dir(&type_dir).map_err(|e| e.to_string())?.flatten() {
+            let year_month_path = year_month_entry.path();
+            if !year_month_path.is_dir() {
+                continue;
+            }
+            
+            for file_entry in fs::read_dir(&year_month_path).map_err(|e| e.to_string())?.flatten() {
+                let file_path = file_entry.path();
+                if file_path.is_file() && file_path.file_name() != Some(".index.json".as_ref()) {
+                    total_files += 1;
+                }
+            }
+        }
+    }
+    
+    // 第二步：处理文件并报告进度
+    let mut current_processed = 0usize;
     let mut errors = Vec::new();
     
     for type_dir_str in &asset_type_dirs {
@@ -900,7 +925,15 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
                     continue;
                 }
                 
-                total_processed += 1;
+                current_processed += 1;
+                
+                // 发送进度事件
+                let progress = RebuildIndexProgress {
+                    current: current_processed,
+                    total: total_files,
+                    current_type: type_dir_str.to_string(),
+                };
+                let _ = app.emit("rebuild-index-progress", &progress);
                 
                 // 计算文件哈希
                 match calculate_file_hash(&file_path) {
@@ -930,7 +963,7 @@ pub async fn rebuild_hash_index(app: AppHandle) -> Result<String, String> {
     // 构建结果消息
     let mut result = format!(
         "索引重建完成！共处理和索引了 {} 个文件。",
-        total_processed
+        current_processed
     );
     
     if !errors.is_empty() {
@@ -975,8 +1008,80 @@ pub struct DuplicateFilesResult {
     pub wasted_space: u64,
 }
 
+/// 删除资产文件（移动到回收站）
+///
+/// 该函数会：
+/// 1. 将文件移动到系统回收站
+/// 2. 删除缩略图（如果存在）
+/// 3. 从哈希索引中移除该文件
+#[tauri::command]
+pub async fn delete_asset(
+    app: AppHandle,
+    asset_id: String,
+    relative_path: String,
+) -> Result<(), String> {
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    let file_path = base_dir.join(&relative_path);
+    
+    // 安全检查
+    if !file_path.starts_with(&base_dir) {
+        return Err("非法的文件路径".to_string());
+    }
+    
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", relative_path));
+    }
+    
+    // 1. 移动文件到回收站
+    trash::delete(&file_path)
+        .map_err(|e| format!("删除文件失败: {}", e))?;
+    
+    // 2. 删除缩略图（如果存在）
+    let thumbnail_path = base_dir.join(format!(".thumbnails/{}.jpg", asset_id));
+    if thumbnail_path.exists() {
+        let _ = trash::delete(&thumbnail_path); // 缩略图删除失败不影响主流程
+    }
+    
+    // 3. 从索引中移除该文件
+    if let Some(parent_dir) = file_path.parent() {
+        let index_path = parent_dir.join(".index.json");
+        
+        if index_path.exists() {
+            // 读取索引
+            if let Ok(mut index) = MonthHashIndex::from_file(&index_path) {
+                // 获取文件名
+                if let Some(filename) = file_path.file_name() {
+                    let filename_str = filename.to_string_lossy().to_string();
+                    
+                    // 遍历索引，移除该文件
+                    let mut entries_to_remove = Vec::new();
+                    for (hash, filenames) in index.entries.iter_mut() {
+                        filenames.retain(|f| f != &filename_str);
+                        
+                        // 如果该哈希下没有文件了，标记删除
+                        if filenames.is_empty() {
+                            entries_to_remove.push(hash.clone());
+                        }
+                    }
+                    
+                    // 移除空的哈希条目
+                    for hash in entries_to_remove {
+                        index.entries.remove(&hash);
+                    }
+                    
+                    // 保存更新后的索引
+                    let _ = index.save(&index_path); // 索引保存失败不影响主流程
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
 /// 查找所有重复的文件
-/// 
+///
 /// 直接从索引文件读取哈希值，找出具有相同哈希值的文件组
 #[tauri::command]
 pub async fn find_duplicate_files(app: AppHandle) -> Result<DuplicateFilesResult, String> {

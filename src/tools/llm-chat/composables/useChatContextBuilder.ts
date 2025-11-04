@@ -574,6 +574,7 @@ export function useChatContextBuilder() {
    * @param nodeManager Node Manager 实例
    * @param getProfileById LLM Profile 获取函数
    * @param applyProcessingPipeline 后处理管道应用函数
+   * @param agentId 使用的 Agent ID（如果提供则直接使用，否则从节点推断）
    * @returns 详细的上下文分析数据，如果无法获取则返回 null
    */
   const getLlmContextForPreview = async (
@@ -585,7 +586,8 @@ export function useChatContextBuilder() {
     applyProcessingPipeline?: (
       messages: ProcessableMessage[],
       rules: ContextPostProcessRule[]
-    ) => ProcessableMessage[]
+    ) => ProcessableMessage[],
+    agentId?: string
   ): Promise<ContextPreviewData | null> => {
     // 获取目标节点
     const targetNode = session.nodes[targetNodeId];
@@ -597,213 +599,177 @@ export function useChatContextBuilder() {
     // 获取到目标节点的完整路径
     const nodePath = nodeManager.getNodePath(session, targetNodeId);
 
-    // 尝试从节点的 metadata 中获取 agentId，如果没有则使用当前选中的 agent
-    let agentId = targetNode.metadata?.agentId || agentStore.currentAgentId;
-    // 如果目标节点是用户消息，尝试从其子节点（助手消息）中获取 agentId
-    if (!agentId && targetNode.role === "user" && targetNode.childrenIds.length > 0) {
-      const firstChild = session.nodes[targetNode.childrenIds[0]];
-      agentId = firstChild?.metadata?.agentId || null;
+    // 确定使用的 Agent ID
+    let effectiveAgentId: string | null;
+    if (agentId) {
+      // 如果提供了 agentId 参数，直接使用
+      effectiveAgentId = agentId;
+      logger.debug("使用提供的 Agent ID", { agentId });
+    } else {
+      // 否则从节点 metadata 中推断
+      effectiveAgentId = targetNode.metadata?.agentId || agentStore.currentAgentId;
+      // 如果目标节点是用户消息，尝试从其子节点（助手消息）中获取 agentId
+      if (!effectiveAgentId && targetNode.role === "user" && targetNode.childrenIds.length > 0) {
+        const firstChild = session.nodes[targetNode.childrenIds[0]];
+        effectiveAgentId = firstChild?.metadata?.agentId || null;
+      }
+      logger.debug("从节点推断 Agent ID", {
+        targetNodeId,
+        inferredAgentId: effectiveAgentId,
+        source: targetNode.metadata?.agentId ? 'node_metadata' : 'current_agent'
+      });
     }
 
-    if (!agentId) {
-      logger.warn("获取上下文预览失败：无法确定使用的 Agent", { targetNodeId });
-      return null;
+    // 如果没有 Agent，警告并继续处理（只计算会话历史）
+    if (!effectiveAgentId) {
+      logger.warn("⚠️ 无法确定 Agent，将只计算会话历史（不包含智能体预设）", {
+        targetNodeId,
+        providedAgentId: agentId
+      });
     }
 
-    // 获取 Agent 配置
-    const agentConfig = agentStore.getAgentConfig(agentId, {
-      parameterOverrides: session.parameterOverrides,
-    });
+    // 尝试获取 Agent 配置
+    let agentConfig: any = null;
+    let agent: any = null;
+    let model: any = null;
 
-    if (!agentConfig) {
-      logger.warn("获取上下文预览失败：无法获取 Agent 配置", { agentId });
-      return null;
+    if (effectiveAgentId) {
+      agentConfig = agentStore.getAgentConfig(effectiveAgentId, {
+        parameterOverrides: session.parameterOverrides,
+      });
+
+      if (!agentConfig) {
+        logger.warn("⚠️ 无法获取 Agent 配置，将只计算会话历史", { agentId: effectiveAgentId });
+      } else {
+        agent = agentStore.getAgentById(effectiveAgentId);
+        const profile = getProfileById(agentConfig.profileId);
+        model = profile?.models.find((m: any) => m.id === agentConfig.modelId);
+      }
     }
 
-    // 获取 Agent 信息
-    const agent = agentStore.getAgentById(agentId);
+    // 构建消息列表
+    let messages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string | LlmMessageContent[];
+    }> = [];
 
-    // 使用现有的 buildLlmContext 函数构建上下文
-    let { messages } = await buildLlmContext(
-      nodePath,
-      agentConfig,
-      "" // currentUserMessage 参数已不使用
-    );
+    if (agentConfig) {
+      // 有 Agent 配置时，使用完整的上下文构建
+      const contextData = await buildLlmContext(
+        nodePath,
+        agentConfig,
+        "" // currentUserMessage 参数已不使用
+      );
+      messages = contextData.messages;
 
-    // 应用上下文后处理管道（用于预览真实发送的内容）
-    // 获取模型信息
-    const profile = getProfileById(agentConfig.profileId);
-    const model = profile?.models.find((m: any) => m.id === agentConfig.modelId);
+      // 应用上下文后处理管道（用于预览真实发送的内容）
+      const modelDefaultRules = model?.defaultPostProcessingRules || [];
+      const agentRules = agentConfig.parameters.contextPostProcessing?.rules || [];
 
-    // 合并模型的默认规则和智能体的规则
-    const modelDefaultRules = model?.defaultPostProcessingRules || [];
-    const agentRules = agentConfig.parameters.contextPostProcessing?.rules || [];
+      const modelRulesObjects = modelDefaultRules.map((type: string) => ({ type, enabled: true }));
+      const agentRuleTypes = new Set(agentRules.map((r: any) => r.type));
+      const mergedRules = [
+        ...agentRules,
+        ...modelRulesObjects.filter((r: any) => !agentRuleTypes.has(r.type)),
+      ];
 
-    // 将模型默认规则类型转换为规则对象
-    const modelRulesObjects = modelDefaultRules.map((type: string) => ({
-      type,
-      enabled: true,
-    }));
-
-    // 合并规则：智能体的规则优先，如果智能体已配置某类型规则，则不使用模型的默认规则
-    const agentRuleTypes = new Set(agentRules.map((r: any) => r.type));
-    const mergedRules = [
-      ...agentRules,
-      ...modelRulesObjects.filter((r: any) => !agentRuleTypes.has(r.type)),
-    ];
-
-    if (mergedRules.length > 0 && applyProcessingPipeline) {
-      messages = applyProcessingPipeline(messages, mergedRules);
-
-      logger.debug("应用后处理规则（预览）", {
-        modelDefaultRulesCount: modelDefaultRules.length,
-        agentRulesCount: agentRules.length,
-        mergedRulesCount: mergedRules.length,
-        mergedRules: mergedRules.map((r: any) => ({ type: r.type, enabled: r.enabled })),
-      }, true);
+      if (mergedRules.length > 0 && applyProcessingPipeline) {
+        messages = applyProcessingPipeline(messages, mergedRules);
+        logger.debug("应用后处理规则（预览）", { mergedRulesCount: mergedRules.length }, true);
+      }
+    } else {
+      // 没有 Agent 配置时，只构建包含附件的会话历史消息
+      logger.info("📝 仅构建会话历史消息（无 Agent 预设）");
+      messages = await Promise.all(nodePath
+        .filter((node: ChatMessageNode) => node.isEnabled !== false && (node.role === 'user' || node.role === 'assistant'))
+        .map(async (node: ChatMessageNode) => {
+          let content: string | LlmMessageContent[] = node.content;
+          if (node.attachments && node.attachments.length > 0) {
+            const messageContents: LlmMessageContent[] = [];
+            if (node.content && node.content.trim() !== "") {
+              messageContents.push({ type: "text", text: node.content });
+            }
+            for (const asset of node.attachments) {
+              // 在没有模型信息时，capabilities 为 undefined，assetToMessageContent 会做降级处理
+              const attachmentContent = await assetToMessageContent(asset, undefined);
+              if (attachmentContent) messageContents.push(attachmentContent);
+            }
+            content = messageContents;
+          }
+          return { role: node.role as "user" | "assistant", content };
+        }));
     }
 
-    // 处理预设消息
-    const presetMessages = agentConfig.presetMessages || [];
-    const enabledPresets = presetMessages.filter((msg: any) => msg.isEnabled !== false);
-
-    // 计算 Token 数（使用 tokenCalculatorService）
+    // 计算 Token 数
     let systemPromptTokenCount = 0;
     let presetMessagesTokenCount = 0;
     let chatHistoryTokenCount = 0;
     let isEstimated = false;
     let tokenizerName = "";
 
-    // 提取系统消息部分（从最终消息列表中）
+    // 提取系统消息部分（仅当有 Agent 配置时）
     let systemPromptData: ContextPreviewData["systemPrompt"];
-    const systemMessages = messages.filter((m) => m.role === "system");
-    if (systemMessages.length > 0) {
-      // 合并所有 system 消息的内容
-      const combinedSystemContent = systemMessages
-        .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
-        .join("\n\n");
-
-      try {
-        const tokenResult = await tokenCalculatorService.calculateTokens(
-          combinedSystemContent,
-          agentConfig.modelId
-        );
-        systemPromptTokenCount = tokenResult.count;
-        isEstimated = tokenResult.isEstimated ?? false;
-        tokenizerName = tokenResult.tokenizerName;
-
-        systemPromptData = {
-          content: combinedSystemContent,
-          charCount: combinedSystemContent.length,
-          tokenCount: tokenResult.count,
-          source: "agent_preset" as const,
-        };
-      } catch (error) {
-        logger.warn("计算系统消息 token 失败", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        systemPromptData = {
-          content: combinedSystemContent,
-          charCount: combinedSystemContent.length,
-          source: "agent_preset" as const,
-        };
+    if (agentConfig) {
+      const systemMessages = messages.filter((m) => m.role === "system");
+      if (systemMessages.length > 0) {
+        const combinedSystemContent = systemMessages.map((m) => typeof m.content === "string" ? m.content : JSON.stringify(m.content)).join("\n\n");
+        try {
+          const tokenResult = await tokenCalculatorService.calculateTokens(combinedSystemContent, agentConfig.modelId);
+          systemPromptTokenCount = tokenResult.count;
+          isEstimated = tokenResult.isEstimated ?? false;
+          tokenizerName = tokenResult.tokenizerName;
+          systemPromptData = { content: combinedSystemContent, charCount: combinedSystemContent.length, tokenCount: tokenResult.count, source: "agent_preset" };
+        } catch (error) {
+          logger.warn("计算系统消息 token 失败", { error: error instanceof Error ? error.message : String(error) });
+          systemPromptData = { content: combinedSystemContent, charCount: combinedSystemContent.length, source: "agent_preset" };
+        }
       }
     }
 
-    // 提取预设对话部分（非系统消息）
-    const presetMessagesData = await Promise.all(
-      enabledPresets
-        .filter((msg: any) => msg.role !== "system" && msg.type !== "chat_history")
+    // 提取预设对话部分（仅当有 Agent 配置时）
+    const presetMessagesData: ContextPreviewData["presetMessages"] = agentConfig ? await Promise.all(
+      (agentConfig.presetMessages || []).filter((msg: any) => msg.isEnabled !== false && msg.role !== "system" && msg.type !== "chat_history")
         .map(async (msg: any, index: number) => {
-          const content =
-            typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+          const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
           let tokenCount: number | undefined;
-
           try {
-            const tokenResult = await tokenCalculatorService.calculateTokens(
-              content,
-              agentConfig.modelId
-            );
+            const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
             tokenCount = tokenResult.count;
             presetMessagesTokenCount += tokenResult.count;
             if (tokenResult.isEstimated) isEstimated = true;
           } catch (error) {
-            logger.warn("计算预设消息 token 失败", {
-              index,
-              error: error instanceof Error ? error.message : String(error),
-            });
+            logger.warn("计算预设消息 token 失败", { index, error: error instanceof Error ? error.message : String(error) });
           }
-
-          return {
-            role: msg.role as "user" | "assistant",
-            content,
-            charCount: content.length,
-            tokenCount,
-            source: "agent_preset" as const,
-            index,
-          };
+          return { role: msg.role, content, charCount: content.length, tokenCount, source: "agent_preset", index };
         })
-    );
+    ) : [];
 
-    // 从节点路径中提取会话历史（排除系统消息和禁用节点）
+    // 从节点路径中提取会话历史
     const chatHistoryData = await Promise.all(
       nodePath
-        .filter((node: ChatMessageNode) => node.isEnabled !== false)
-        .filter((node: ChatMessageNode) => node.role !== "system")
-        .filter((node: ChatMessageNode) => node.role === "user" || node.role === "assistant")
+        .filter((node: ChatMessageNode) => node.isEnabled !== false && (node.role === 'user' || node.role === 'assistant'))
         .map(async (node: ChatMessageNode, index: number) => {
-          let content =
-            typeof node.content === "string" ? node.content : JSON.stringify(node.content);
-          
-          // 如果是用户消息且有文本附件，需要将文本附件内容合并进来
+          let content = typeof node.content === "string" ? node.content : JSON.stringify(node.content);
           if (node.role === "user" && node.attachments && node.attachments.length > 0) {
             const { getTextAttachmentsContent } = useChatAssetProcessor();
             const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-            if (textAttachmentsContent) {
-              content = `${content}\n\n${textAttachmentsContent}`;
-            }
+            if (textAttachmentsContent) content = `${content}\n\n${textAttachmentsContent}`;
           }
           
           let tokenCount: number | undefined;
-
-          try {
-            // 对于用户消息，使用 calculateMessageTokens 以包含图片附件的 token
-            if (node.role === "user" && node.attachments && node.attachments.length > 0) {
-              const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-                content,
-                agentConfig.modelId,
-                node.attachments
-              );
+          if (agentConfig) { // 只有在有 Agent 配置时才计算 token
+            try {
+              const tokenResult = (node.role === "user" && node.attachments && node.attachments.length > 0)
+                ? await tokenCalculatorService.calculateMessageTokens(content, agentConfig.modelId, node.attachments)
+                : await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
               tokenCount = tokenResult.count;
               chatHistoryTokenCount += tokenResult.count;
               if (tokenResult.isEstimated) isEstimated = true;
-            } else {
-              // 其他消息使用普通计算
-              const tokenResult = await tokenCalculatorService.calculateTokens(
-                content,
-                agentConfig.modelId
-              );
-              tokenCount = tokenResult.count;
-              chatHistoryTokenCount += tokenResult.count;
-              if (tokenResult.isEstimated) isEstimated = true;
+            } catch (error) {
+              logger.warn("计算会话历史 token 失败", { nodeId: node.id, index, error: error instanceof Error ? error.message : String(error) });
             }
-          } catch (error) {
-            logger.warn("计算会话历史 token 失败", {
-              nodeId: node.id,
-              index,
-              error: error instanceof Error ? error.message : String(error),
-            });
           }
-
-          return {
-            role: node.role as "user" | "assistant",
-            content,
-            charCount: content.length,
-            tokenCount,
-            source: "session_history" as const,
-            nodeId: node.id,
-            index,
-          };
+          return { role: node.role, content, charCount: content.length, tokenCount, source: "session_history", nodeId: node.id, index };
         })
     );
 
@@ -812,8 +778,7 @@ export function useChatContextBuilder() {
     const presetMessagesCharCount = presetMessagesData.reduce((sum, msg) => sum + msg.charCount, 0);
     const chatHistoryCharCount = chatHistoryData.reduce((sum, msg) => sum + msg.charCount, 0);
     const totalCharCount = systemPromptCharCount + presetMessagesCharCount + chatHistoryCharCount;
-    const totalTokenCount =
-      systemPromptTokenCount + presetMessagesTokenCount + chatHistoryTokenCount;
+    const totalTokenCount = systemPromptTokenCount + presetMessagesTokenCount + chatHistoryTokenCount;
 
     const result: ContextPreviewData = {
       systemPrompt: systemPromptData,
@@ -826,30 +791,30 @@ export function useChatContextBuilder() {
         presetMessagesCharCount,
         chatHistoryCharCount,
         messageCount: messages.length,
-        totalTokenCount,
-        systemPromptTokenCount,
-        presetMessagesTokenCount,
-        chatHistoryTokenCount,
-        isEstimated,
-        tokenizerName,
+        totalTokenCount: agentConfig ? totalTokenCount : undefined,
+        systemPromptTokenCount: agentConfig ? systemPromptTokenCount : undefined,
+        presetMessagesTokenCount: agentConfig ? presetMessagesTokenCount : undefined,
+        chatHistoryTokenCount: agentConfig ? chatHistoryTokenCount : undefined,
+        isEstimated: agentConfig ? isEstimated : undefined,
+        tokenizerName: agentConfig ? tokenizerName : undefined,
       },
       agentInfo: {
-        id: agentId,
+        id: effectiveAgentId ?? '',
         name: agent?.name,
         icon: agent?.icon,
-        profileId: agentConfig.profileId,
-        modelId: agentConfig.modelId,
+        profileId: agentConfig?.profileId ?? '',
+        modelId: agentConfig?.modelId ?? '',
       },
     };
 
     logger.debug("🔍 生成上下文预览数据", {
       targetNodeId,
-      agentId,
+      agentId: effectiveAgentId,
+      providedAgentId: agentId,
+      hasAgentConfig: !!agentConfig,
       totalCharCount,
-      totalTokenCount,
+      totalTokenCount: agentConfig ? totalTokenCount : 'N/A (无 Agent)',
       messageCount: messages.length,
-      isEstimated,
-      tokenizerName,
     }, true);
 
     return result;

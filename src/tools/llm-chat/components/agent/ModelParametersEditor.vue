@@ -167,7 +167,13 @@ const loadContextStats = async () => {
   isLoadingStats.value = true;
   try {
     const { getLlmContextForPreview } = useChatHandler();
-    const previewData = await getLlmContextForPreview(session, session.activeLeafId);
+    // 传入当前选中的智能体 ID，让上下文构建器使用它来计算统计数据。
+    // 如果 currentAgentId 为空，getLlmContextForPreview 内部会处理这种情况，只计算会话历史。
+    const previewData = await getLlmContextForPreview(
+      session,
+      session.activeLeafId,
+      agentStore.currentAgentId // 明确传递当前选中的 agentId
+    );
 
     if (previewData) {
       contextStats.value = previewData.statistics;

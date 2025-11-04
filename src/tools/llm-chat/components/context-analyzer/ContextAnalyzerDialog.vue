@@ -102,6 +102,8 @@ const analyzeContext = async () => {
 
   try {
     const { getLlmContextForPreview } = useChatHandler();
+    // 注意：这里不传递 agentId 参数，让函数自动从消息节点推断智能体
+    // 这样可以显示该消息实际发送时使用的智能体配置
     const result = await getLlmContextForPreview(props.session, props.nodeId);
 
     if (!result) {

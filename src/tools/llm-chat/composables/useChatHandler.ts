@@ -252,11 +252,13 @@ export function useChatHandler() {
    * 获取指定节点的上下文预览数据（用于上下文分析器）
    * @param session 当前会话
    * @param targetNodeId 目标节点 ID
+   * @param agentId 要使用的 Agent ID (可选)
    * @returns 详细的上下文分析数据，如果无法获取则返回 null
    */
   const getContextPreview = async (
     session: ChatSession,
-    targetNodeId: string
+    targetNodeId: string,
+    agentId?: string
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -269,7 +271,8 @@ export function useChatHandler() {
       agentStore,
       nodeManager,
       getProfileById,
-      applyProcessingPipeline
+      applyProcessingPipeline,
+      agentId
     );
   };
 

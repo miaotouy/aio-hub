@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef, computed } from "vue";
+import { ref, toRef, computed, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip } from "element-plus";
 import { useDetachable } from "@/composables/useDetachable";
@@ -7,8 +7,11 @@ import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
 import { useLlmChatStore } from "@/tools/llm-chat/store";
+import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
 import type { Asset } from "@/types/asset-management";
+import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
@@ -18,7 +21,13 @@ const logger = createModuleLogger("MessageInput");
 
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
+const agentStore = useAgentStore();
 const { settings } = useChatSettings();
+
+// Token 计数相关
+const tokenCount = ref<number>(0);
+const isCalculatingTokens = ref(false);
+const tokenEstimated = ref(false);
 
 // 切换流式输出模式
 const toggleStreaming = () => {
@@ -211,6 +220,119 @@ const handleDragStart = (e: MouseEvent) => {
 const { createResizeHandler } = useWindowResize();
 const handleResizeStart = createResizeHandler("SouthEast");
 
+// 计算当前输入的 token 数量
+const calculateInputTokens = async () => {
+  // 如果没有文本且没有附件，重置 token 计数
+  if (!inputText.value.trim() && inputManager.attachmentCount.value === 0) {
+    tokenCount.value = 0;
+    tokenEstimated.value = false;
+    return;
+  }
+
+  // 获取当前会话的模型 ID
+  const session = chatStore.currentSession;
+  if (!session) {
+    tokenCount.value = 0;
+    return;
+  }
+
+  // 查找当前会话使用的模型 ID
+  let modelId: string | undefined;
+
+  // 尝试从活动路径的助手消息中获取模型 ID
+  let currentId: string | null = session.activeLeafId;
+  while (currentId !== null) {
+    const node: ChatMessageNode | undefined = session.nodes[currentId];
+    if (node?.role === 'assistant' && node.metadata?.modelId) {
+      modelId = node.metadata.modelId;
+      break;
+    }
+    currentId = node?.parentId ?? null;
+  }
+
+  // 如果活动路径上没有，查找整个会话中的任意助手消息
+  if (!modelId) {
+    for (const node of Object.values(session.nodes)) {
+      if (node.role === 'assistant' && node.metadata?.modelId) {
+        modelId = node.metadata.modelId;
+        break;
+      }
+    }
+  }
+
+  // 如果还是没有模型 ID，尝试使用会话的 displayAgentId
+  if (!modelId && session.displayAgentId) {
+    const agent = agentStore.getAgentById(session.displayAgentId);
+    if (agent?.modelId) {
+      modelId = agent.modelId;
+    }
+  }
+
+  // 最后尝试使用当前选中的智能体
+  if (!modelId && agentStore.currentAgentId) {
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (agent?.modelId) {
+      modelId = agent.modelId;
+    }
+  }
+
+  if (!modelId) {
+    logger.warn("无法确定模型 ID，无法计算 token");
+    tokenCount.value = 0;
+    return;
+  }
+
+  isCalculatingTokens.value = true;
+  try {
+    const result = await tokenCalculatorService.calculateMessageTokens(
+      inputText.value,
+      modelId,
+      inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined
+    );
+    tokenCount.value = result.count;
+    tokenEstimated.value = result.isEstimated ?? false;
+  } catch (error) {
+    logger.error("计算 token 失败", error);
+    tokenCount.value = 0;
+    tokenEstimated.value = false;
+  } finally {
+    isCalculatingTokens.value = false;
+  }
+};
+
+// 防抖计算 token
+let tokenCalcTimer: ReturnType<typeof setTimeout> | null = null;
+const debouncedCalculateTokens = () => {
+  if (tokenCalcTimer) {
+    clearTimeout(tokenCalcTimer);
+  }
+  tokenCalcTimer = setTimeout(() => {
+    calculateInputTokens();
+  }, 300);
+};
+
+// 监听输入文本变化
+watch(inputText, () => {
+  debouncedCalculateTokens();
+});
+
+// 监听附件变化
+watch(
+  () => inputManager.attachments.value,
+  () => {
+    debouncedCalculateTokens();
+  },
+  { deep: true }
+);
+
+// 监听当前会话变化（切换会话时重新计算）
+watch(
+  () => chatStore.currentSessionId,
+  () => {
+    debouncedCalculateTokens();
+  }
+);
+
 // 处理从菜单打开独立窗口
 const handleDetach = async () => {
   const rect = containerRef.value?.getBoundingClientRect();
@@ -320,6 +442,34 @@ const handleDetach = async () => {
               <span v-if="attachmentManager.isProcessing.value" class="processing-hint">
                 正在处理文件...
               </span>
+              <!-- Token 计数显示 -->
+              <el-tooltip
+                v-if="tokenCount > 0 || isCalculatingTokens"
+                :content="tokenEstimated ? 'Token 数量（估算值）' : 'Token 数量'"
+                placement="top"
+              >
+                <span class="token-count">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="margin-right: 4px"
+                  >
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                  </svg>
+                  <span v-if="isCalculatingTokens">计算中...</span>
+                  <span v-else>
+                    {{ tokenCount.toLocaleString() }}{{ tokenEstimated ? '~' : '' }}
+                  </span>
+                </span>
+              </el-tooltip>
               <el-tooltip
                 :content="
                   chatStore.isStreaming ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
@@ -493,6 +643,22 @@ const handleDetach = async () => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.token-count {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  display: flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.token-count svg {
+  flex-shrink: 0;
 }
 
 .input-wrapper {

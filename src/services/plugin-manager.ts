@@ -270,10 +270,15 @@ class PluginManager {
     if (result.plugins.length > 0) {
       await serviceRegistry.register(...result.plugins);
       
-      // 注册插件UI（异步）
+      // 注册插件UI（仅为启用的插件注册）
       for (const plugin of result.plugins) {
         try {
-          await registerPluginUi(plugin);
+          // 只为启用的插件注册 UI
+          if (plugin.enabled) {
+            await registerPluginUi(plugin);
+          } else {
+            logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
+          }
         } catch (error) {
           logger.error(`注册插件UI失败: ${plugin.manifest.id}`, error);
         }
@@ -386,10 +391,15 @@ class PluginManager {
         if (loadResult.plugins.length > 0) {
           await serviceRegistry.register(...loadResult.plugins);
           
-          // 注册插件UI（异步）
+          // 注册插件UI（仅为启用的插件注册）
           for (const plugin of loadResult.plugins) {
             try {
-              await registerPluginUi(plugin);
+              // 只为启用的插件注册 UI
+              if (plugin.enabled) {
+                await registerPluginUi(plugin);
+              } else {
+                logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
+              }
             } catch (error) {
               logger.error(`注册插件UI失败: ${plugin.manifest.id}`, error);
             }

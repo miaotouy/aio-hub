@@ -79,15 +79,35 @@ async function loadPlugins() {
 async function togglePlugin(plugin: PluginProxy) {
   try {
     if (plugin.enabled) {
+      // 禁用插件
       plugin.disable();
       // 保存禁用状态
       await pluginStateService.setEnabled(plugin.manifest.id, false);
+      // 移除插件 UI（如果有）
+      if (plugin.manifest.ui) {
+        const { useToolsStore } = await import('@/stores/tools');
+        const toolsStore = useToolsStore();
+        const toolPath = `/plugin-${plugin.manifest.id}`;
+        toolsStore.removeTool(toolPath);
+        logger.info('已移除插件 UI', { pluginId: plugin.id, toolPath });
+      }
       customMessage.success(`已禁用插件: ${plugin.name}`);
       logger.info('插件已禁用', { pluginId: plugin.id });
     } else {
+      // 启用插件
       await plugin.enable();
       // 保存启用状态
       await pluginStateService.setEnabled(plugin.manifest.id, true);
+      // 重新注册插件 UI（如果有）
+      if (plugin.manifest.ui) {
+        try {
+          // 调用插件管理器重新加载所有插件（会自动注册启用的插件 UI）
+          await pluginManager.loadAllPlugins();
+          logger.info('已重新注册插件 UI', { pluginId: plugin.id });
+        } catch (error) {
+          logger.error('重新注册插件 UI 失败', error, { pluginId: plugin.id });
+        }
+      }
       customMessage.success(`已启用插件: ${plugin.name}`);
       logger.info('插件已启用', { pluginId: plugin.id });
     }

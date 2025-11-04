@@ -214,6 +214,26 @@ watch(
   }
 );
 
+// 监听智能体切换（模型可能改变，需要重新计算上下文统计）
+watch(
+  () => agentStore.currentAgentId,
+  () => {
+    loadContextStats();
+  }
+);
+
+// 监听智能体模型变化（用户在智能体内更换模型）
+watch(
+  () => {
+    if (!agentStore.currentAgentId) return null;
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    return agent?.modelId;
+  },
+  () => {
+    loadContextStats();
+  }
+);
+
 // 监听上下文管理参数变化，重新计算统计
 watch(
   () => localParams.value.contextManagement,

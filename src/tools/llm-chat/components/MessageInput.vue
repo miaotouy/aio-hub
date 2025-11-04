@@ -376,6 +376,28 @@ watch(
   }
 );
 
+// 监听智能体切换（模型可能改变，需要重新计算 token）
+watch(
+  () => agentStore.currentAgentId,
+  () => {
+    debouncedCalculateTokens();
+    loadContextStats();
+  }
+);
+
+// 监听智能体模型变化（用户在智能体内更换模型）
+watch(
+  () => {
+    if (!agentStore.currentAgentId) return null;
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    return agent?.modelId;
+  },
+  () => {
+    debouncedCalculateTokens();
+    loadContextStats();
+  }
+);
+
 // 监听消息生成完成
 let previousGeneratingCount = 0;
 watch(

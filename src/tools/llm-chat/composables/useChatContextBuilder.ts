@@ -752,18 +752,41 @@ export function useChatContextBuilder() {
         .filter((node: ChatMessageNode) => node.role !== "system")
         .filter((node: ChatMessageNode) => node.role === "user" || node.role === "assistant")
         .map(async (node: ChatMessageNode, index: number) => {
-          const content =
+          let content =
             typeof node.content === "string" ? node.content : JSON.stringify(node.content);
+          
+          // 如果是用户消息且有文本附件，需要将文本附件内容合并进来
+          if (node.role === "user" && node.attachments && node.attachments.length > 0) {
+            const { getTextAttachmentsContent } = useChatAssetProcessor();
+            const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
+            if (textAttachmentsContent) {
+              content = `${content}\n\n${textAttachmentsContent}`;
+            }
+          }
+          
           let tokenCount: number | undefined;
 
           try {
-            const tokenResult = await tokenCalculatorService.calculateTokens(
-              content,
-              agentConfig.modelId
-            );
-            tokenCount = tokenResult.count;
-            chatHistoryTokenCount += tokenResult.count;
-            if (tokenResult.isEstimated) isEstimated = true;
+            // 对于用户消息，使用 calculateMessageTokens 以包含图片附件的 token
+            if (node.role === "user" && node.attachments && node.attachments.length > 0) {
+              const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+                content,
+                agentConfig.modelId,
+                node.attachments
+              );
+              tokenCount = tokenResult.count;
+              chatHistoryTokenCount += tokenResult.count;
+              if (tokenResult.isEstimated) isEstimated = true;
+            } else {
+              // 其他消息使用普通计算
+              const tokenResult = await tokenCalculatorService.calculateTokens(
+                content,
+                agentConfig.modelId
+              );
+              tokenCount = tokenResult.count;
+              chatHistoryTokenCount += tokenResult.count;
+              if (tokenResult.isEstimated) isEstimated = true;
+            }
           } catch (error) {
             logger.warn("计算会话历史 token 失败", {
               nodeId: node.id,

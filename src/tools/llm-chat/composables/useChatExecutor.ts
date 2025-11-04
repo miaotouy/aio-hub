@@ -347,8 +347,18 @@ export function useChatExecutor() {
     attachments?: Asset[]
   ): Promise<void> => {
     try {
+      // 获取文本附件的内容并合并到消息文本中
+      const { getTextAttachmentsContent } = useChatAssetProcessor();
+      const textAttachmentsContent = await getTextAttachmentsContent(attachments);
+      
+      // 合并原始内容和文本附件内容
+      const fullContent = textAttachmentsContent
+        ? `${content}\n\n${textAttachmentsContent}`
+        : content;
+      
+      // 使用完整内容计算 token
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-        content,
+        fullContent,
         modelId,
         attachments
       );
@@ -361,6 +371,8 @@ export function useChatExecutor() {
         tokens: tokenResult.count,
         isEstimated: tokenResult.isEstimated,
         tokenizerName: tokenResult.tokenizerName,
+        hasTextAttachments: !!textAttachmentsContent,
+        textAttachmentsLength: textAttachmentsContent?.length || 0,
       });
     } catch (error) {
       logger.warn("计算用户消息 token 失败", {

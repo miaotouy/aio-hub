@@ -8,6 +8,7 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
+import { isTextFile } from "@/utils/fileTypeDetector";
 
 const logger = createModuleLogger("llm-chat/asset-processor");
 
@@ -130,25 +131,10 @@ export function useChatAssetProcessor() {
 
       // 处理文档类型
       if (asset.type === "document") {
-        // 判断是否为纯文本文件
-        const textMimeTypes = [
-          "text/plain",
-          "text/markdown",
-          "text/html",
-          "text/css",
-          "text/javascript",
-          "application/json",
-          "application/xml",
-          "text/xml",
-        ];
+        // 使用统一的文本文件判断工具
+        const isText = isTextFile(asset.name, asset.mimeType);
 
-        const isTextFile =
-          textMimeTypes.includes(asset.mimeType) ||
-          asset.name.match(
-            /\.(txt|md|json|xml|html|css|js|ts|tsx|jsx|py|java|c|cpp|h|hpp|rs|go|rb|php|sh|yaml|yml|toml|ini|conf|log)$/i
-          );
-
-        if (isTextFile) {
+        if (isText) {
           // 读取文本文件内容
           try {
             const textContent = await invoke<string>("read_text_file", {
@@ -235,9 +221,58 @@ export function useChatAssetProcessor() {
     }
   };
 
+  /**
+   * 获取文本附件的完整内容（用于 Token 计算）
+   * @param attachments 附件列表
+   * @returns 所有文本附件的合并内容
+   */
+  const getTextAttachmentsContent = async (attachments?: Asset[]): Promise<string> => {
+    if (!attachments || attachments.length === 0) {
+      return "";
+    }
+
+    const textContents: string[] = [];
+
+    for (const asset of attachments) {
+      // 只处理文档类型
+      if (asset.type !== "document") {
+        continue;
+      }
+
+      // 使用统一的文本文件判断工具
+      const isText = isTextFile(asset.name, asset.mimeType);
+
+      if (isText) {
+        try {
+          const textContent = await invoke<string>("read_text_file", {
+            relativePath: asset.path,
+          });
+
+          // 使用与 assetToMessageContent 相同的格式
+          textContents.push(`[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\``);
+
+          logger.debug("读取文本附件内容用于 Token 计算", {
+            assetId: asset.id,
+            assetName: asset.name,
+            contentLength: textContent.length,
+          });
+        } catch (error) {
+          logger.warn("读取文本附件失败", {
+            assetId: asset.id,
+            assetName: asset.name,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+
+    return textContents.join("\n\n");
+  };
+
   return {
     waitForAssetsImport,
     convertAssetToBase64,
     assetToMessageContent,
+    getTextAttachmentsContent,
   };
 }

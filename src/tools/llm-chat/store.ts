@@ -295,6 +295,104 @@ export const useLlmChatStore = defineStore("llmChat", {
     },
 
     /**
+     * 重新计算单个节点的 token
+     * 在编辑消息后调用
+     */
+    async recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
+      const node = session.nodes[nodeId];
+      if (!node || !node.content) {
+        return;
+      }
+
+      // 只处理用户消息和助手消息
+      if (node.role !== 'user' && node.role !== 'assistant') {
+        return;
+      }
+
+      // 确定模型 ID
+      let modelId: string | undefined;
+
+      if (node.role === 'assistant' && node.metadata?.modelId) {
+        // 助手消息：使用其自己的模型
+        modelId = node.metadata.modelId;
+      } else if (node.role === 'user') {
+        // 用户消息：查找会话中任意助手消息的模型
+        // 优先使用当前活动路径上的助手消息
+        let currentId: string | null = session.activeLeafId;
+        while (currentId !== null) {
+          const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
+          if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
+            modelId = pathNode.metadata.modelId;
+            break;
+          }
+          currentId = pathNode?.parentId ?? null;
+        }
+
+        // 如果活动路径上没有，则查找整个会话
+        if (!modelId) {
+          for (const n of Object.values(session.nodes)) {
+            if (n.role === 'assistant' && n.metadata?.modelId) {
+              modelId = n.metadata.modelId;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!modelId) {
+        logger.warn('无法确定模型ID，跳过token重新计算', {
+          sessionId: session.id,
+          nodeId,
+          role: node.role,
+        });
+        return;
+      }
+
+      try {
+        // 如果是用户消息且有文本附件，需要合并文本附件内容
+        let fullContent = node.content;
+        if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
+          const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
+          const { getTextAttachmentsContent } = useChatAssetProcessor();
+          const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
+          if (textAttachmentsContent) {
+            fullContent = `${node.content}\n\n${textAttachmentsContent}`;
+          }
+        }
+
+        // 计算消息的 token（包括文本和附件）
+        const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+          fullContent,
+          modelId,
+          node.attachments
+        );
+
+        // 更新节点的 metadata
+        if (!node.metadata) {
+          node.metadata = {};
+        }
+        node.metadata.contentTokens = tokenResult.count;
+
+        logger.debug('重新计算消息 token', {
+          sessionId: session.id,
+          nodeId,
+          role: node.role,
+          tokens: tokenResult.count,
+          isEstimated: tokenResult.isEstimated,
+          hasAttachments: !!node.attachments && node.attachments.length > 0,
+          attachmentCount: node.attachments?.length || 0,
+        });
+      } catch (error) {
+        logger.warn('重新计算 token 失败', {
+          sessionId: session.id,
+          nodeId,
+          role: node.role,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+
+    /**
      * 补充会话中缺失的 token 元数据
      * 在加载会话后调用，计算并保存缺失的 contentTokens
      */
@@ -353,9 +451,20 @@ export const useLlmChatStore = defineStore("llmChat", {
           }
 
           try {
+            // 如果是用户消息且有文本附件，需要合并文本附件内容
+            let fullContent = node.content;
+            if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
+              const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
+              const { getTextAttachmentsContent } = useChatAssetProcessor();
+              const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
+              if (textAttachmentsContent) {
+                fullContent = `${node.content}\n\n${textAttachmentsContent}`;
+              }
+            }
+
             // 计算消息的 token（包括文本和附件）
             const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-              node.content,
+              fullContent,
               modelId,
               node.attachments
             );
@@ -641,7 +750,7 @@ export const useLlmChatStore = defineStore("llmChat", {
        * 编辑消息（原地修改内容和附件）
        * 对于预设消息，会反向保存到智能体配置
        */
-      editMessage(nodeId: string, newContent: string, attachments?: Asset[]): void {
+      async editMessage(nodeId: string, newContent: string, attachments?: Asset[]): Promise<void> {
         const session = this.currentSession;
         if (!session) {
           logger.warn("编辑消息失败：没有活动会话");
@@ -678,6 +787,9 @@ export const useLlmChatStore = defineStore("llmChat", {
         const success = branchManager.editMessage(session, nodeId, newContent, attachments);
   
         if (success) {
+          // 重新计算编辑后消息的 token
+          await this.recalculateNodeTokens(session, nodeId);
+          
           const sessionManager = useSessionManager();
           sessionManager.persistSession(session, this.currentSessionId);
         }

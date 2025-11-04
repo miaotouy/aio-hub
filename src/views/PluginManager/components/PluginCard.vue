@@ -21,80 +21,83 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div
-    class="plugin-card"
-    :class="{ 'selected': selected }"
-    @click="emit('select')"
-  >
-  <!-- 左侧：图标 + 开关 -->
-  <div class="plugin-left">
-    <Avatar
-      :src="plugin.manifest.icon || '📦'"
-      :size="40"
-      :alt="plugin.name"
-      shape="square"
-      :radius="8"
-    />
-    <div class="plugin-toggle">
-      <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="right">
-        <el-switch :model-value="plugin.enabled" @change="emit('toggle')" />
-      </el-tooltip>
+  <div class="plugin-card" :class="{ selected: selected }" @click="emit('select')">
+    <!-- 左侧：图标 + 开关 -->
+    <div class="plugin-left">
+      <Avatar
+        :src="plugin.manifest.icon || '📦'"
+        :size="40"
+        :alt="plugin.name"
+        shape="square"
+        :radius="8"
+      />
+      <div class="plugin-toggle" @click.stop>
+        <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="right">
+          <el-switch :model-value="plugin.enabled" @change="emit('toggle')" />
+        </el-tooltip>
+      </div>
     </div>
-  </div>
 
-  <!-- 主内容区 -->
-  <div class="plugin-content">
-    <!-- 第一行：名字 + 徽章 + 操作按钮（可换行） -->
-    <div class="plugin-top">
-      <div class="plugin-name-badges">
-        <h3 class="plugin-name">{{ plugin.name }}</h3>
-        <div class="plugin-badges">
-          <el-tag
-            :type="plugin.manifest.type === 'javascript' ? 'success' : 'warning'"
+    <!-- 主内容区 -->
+    <div class="plugin-content">
+      <!-- 第一行：名字 + 徽章 + 操作按钮（可换行） -->
+      <div class="plugin-top">
+        <div class="plugin-name-badges">
+          <h3 class="plugin-name">{{ plugin.name }}</h3>
+          <div class="plugin-badges">
+            <el-tag
+              :type="plugin.manifest.type === 'javascript' ? 'success' : 'warning'"
+              size="small"
+              effect="plain"
+            >
+              {{ plugin.manifest.type === "javascript" ? "JS" : "Sidecar" }}
+            </el-tag>
+            <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain"> Dev </el-tag>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="plugin-actions" @click.stop>
+          <el-button
+            v-if="plugin.manifest.settingsSchema"
+            :icon="Setting"
             size="small"
-            effect="plain"
+            text
+            @click="emit('settings')"
           >
-            {{ plugin.manifest.type === "javascript" ? "JS" : "Sidecar" }}
-          </el-tag>
-          <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain"> Dev </el-tag>
+            设置
+          </el-button>
+
+          <el-tooltip
+            v-if="plugin.devMode"
+            content="开发模式插件无法卸载，请手动删除源码目录"
+            placement="top"
+          >
+            <el-button :icon="Delete" size="small" type="danger" text disabled> 卸载 </el-button>
+          </el-tooltip>
+          <el-button
+            v-else
+            :icon="Delete"
+            size="small"
+            type="danger"
+            text
+            @click="emit('uninstall')"
+          >
+            卸载
+          </el-button>
         </div>
       </div>
 
-      <!-- 操作按钮 -->
-      <div class="plugin-actions" @click.stop>
-        <el-button
-          v-if="plugin.manifest.settingsSchema"
-          :icon="Setting"
-          size="small"
-          text
-          @click="emit('settings')"
-        >
-          设置
-        </el-button>
-
-        <el-tooltip
-          v-if="plugin.devMode"
-          content="开发模式插件无法卸载，请手动删除源码目录"
-          placement="top"
-        >
-          <el-button :icon="Delete" size="small" type="danger" text disabled> 卸载 </el-button>
-        </el-tooltip>
-        <el-button v-else :icon="Delete" size="small" type="danger" text @click="emit('uninstall')">
-          卸载
-        </el-button>
+      <!-- 元信息 -->
+      <div class="plugin-meta">
+        <span class="plugin-version">v{{ plugin.manifest.version }}</span>
+        <span class="plugin-separator">·</span>
+        <span class="plugin-author">{{ plugin.manifest.author }}</span>
       </div>
-    </div>
 
-    <!-- 元信息 -->
-    <div class="plugin-meta">
-      <span class="plugin-version">v{{ plugin.manifest.version }}</span>
-      <span class="plugin-separator">·</span>
-      <span class="plugin-author">{{ plugin.manifest.author }}</span>
+      <!-- 描述 -->
+      <p class="plugin-description" @click.stop>{{ plugin.description }}</p>
     </div>
-
-    <!-- 描述 -->
-    <p class="plugin-description">{{ plugin.description }}</p>
-  </div>
   </div>
 </template>
 
@@ -129,7 +132,6 @@ const emit = defineEmits<{
   gap: 8px;
   flex-shrink: 0;
 }
-
 
 .plugin-content {
   flex: 1;
@@ -211,6 +213,6 @@ const emit = defineEmits<{
 }
 
 :deep(.el-button) {
-    margin-left: 0px;
+  margin-left: 0px;
 }
 </style>

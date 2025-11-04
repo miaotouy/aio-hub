@@ -172,7 +172,7 @@ const loadContextStats = async () => {
     const previewData = await getLlmContextForPreview(
       session,
       session.activeLeafId,
-      agentStore.currentAgentId // 明确传递当前选中的 agentId
+      agentStore.currentAgentId ?? undefined // 明确传递当前选中的 agentId
     );
 
     if (previewData) {

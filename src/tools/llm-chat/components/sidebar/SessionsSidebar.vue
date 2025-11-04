@@ -15,7 +15,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import { useTopicNamer } from "../../composables/useTopicNamer";
 import { useSessionManager } from "../../composables/useSessionManager";
 import { customMessage } from "@/utils/customMessage";
-import ExportSessionDialog from "../message/ExportSessionDialog.vue";
+import ExportSessionDialog from "../export/ExportSessionDialog.vue";
 
 interface Props {
   sessions: ChatSession[];

@@ -12,7 +12,7 @@
         <div class="export-summary">
           <div class="summary-item summary-item-full">
             <span class="summary-label">会话名称:</span>
-            <span class="summary-value">{{ session?.name || '未命名' }}</span>
+            <span class="summary-value">{{ session?.name || "未命名" }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">创建时间:</span>
@@ -33,10 +33,6 @@
         </div>
 
         <div class="export-options">
-          <div class="options-header">
-            <h4>导出选项</h4>
-          </div>
-
           <div class="options-section">
             <div class="section-title">导出格式</div>
             <el-radio-group v-model="exportFormat" class="format-group">
@@ -99,7 +95,7 @@ import { ref, computed } from "vue";
 import { ElCheckbox, ElButton, ElRadioGroup, ElRadioButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { ChatSession } from "../../types";
-import { useSessionManager } from "../../composables/useSessionManager";
+import { useExportManager } from "../../composables/useExportManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
@@ -174,7 +170,7 @@ const previewContent = computed(() => {
     return "暂无会话数据";
   }
 
-  const { exportSessionAsMarkdownTree } = useSessionManager();
+  const { exportSessionAsMarkdownTree } = useExportManager();
   const options: Partial<ExportOptions> = {
     includeUserProfile: includeUserProfile.value,
     includeAgentInfo: includeAgentInfo.value,

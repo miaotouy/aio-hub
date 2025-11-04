@@ -22,7 +22,7 @@
                 :radius="4"
                 :border="false"
               />
-              <span class="agent-name">{{ currentAgent?.name || '未知' }}</span>
+              <span class="agent-name">{{ currentAgent?.name || "未知" }}</span>
             </span>
           </div>
           <div class="summary-item" v-if="modelInfo">
@@ -40,10 +40,6 @@
         </div>
 
         <div class="export-options">
-          <div class="options-header">
-            <h4>导出选项</h4>
-          </div>
-
           <div class="options-section">
             <div class="section-title">导出格式</div>
             <el-radio-group v-model="exportFormat" class="format-group">
@@ -67,9 +63,7 @@
                 class="option-checkbox"
                 :disabled="!includePreset"
               >
-                <span class="option-label">
-                  合并预设到消息列表
-                </span>
+                <span class="option-label"> 合并预设到消息列表 </span>
               </el-checkbox>
 
               <el-checkbox v-model="includeUserProfile" class="option-checkbox">
@@ -124,7 +118,7 @@ import { ElCheckbox, ElButton, ElRadioGroup, ElRadioButton } from "element-plus"
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import type { ChatSession, ChatMessageNode } from "../../types";
-import { useSessionManager } from "../../composables/useSessionManager";
+import { useExportManager } from "../../composables/useExportManager";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 
@@ -200,10 +194,10 @@ const modelInfo = computed(() => {
 // 计算分支路径中的消息数量
 const branchMessageCount = computed(() => {
   if (!props.session) return 0;
-  
+
   let count = 0;
   let currentId: string | null = props.messageId;
-  
+
   while (currentId !== null) {
     const node: ChatMessageNode | undefined = props.session.nodes[currentId];
     if (!node) break;
@@ -212,7 +206,7 @@ const branchMessageCount = computed(() => {
     }
     currentId = node.parentId;
   }
-  
+
   return count;
 });
 
@@ -222,7 +216,7 @@ const previewContent = computed(() => {
     return "暂无会话数据";
   }
 
-  const { exportBranchAsMarkdown, exportBranchAsJson } = useSessionManager();
+  const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
   const options: ExportOptions = {
     format: exportFormat.value,
     includePreset: includePreset.value,

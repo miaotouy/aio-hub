@@ -24,7 +24,7 @@ import { useSessionManager } from "../../composables/useSessionManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
-import ExportBranchDialog from "./ExportBranchDialog.vue";
+import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 
 interface Props {
   message: ChatMessageNode;

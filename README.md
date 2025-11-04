@@ -22,6 +22,7 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/miaotouy/aio-hub)
 
 [✨ 功能特性](#-功能特性) •
+[📥 下载安装](#-下载安装) •
 [🚀 快速开始](#-快速开始) •
 [📖 文档](#-开发指南) •
 [💖 支持项目](#-支持项目) •
@@ -126,6 +127,35 @@
 - 📝 **文本/JSON 对比** - Monaco Editor 驱动，支持语法高亮和 patch 导出
 - ✨ **代码格式化** - 基于 Prettier，支持多语言
 - 🖼️ **AI 图片元信息** - 读取 SD WebUI、ComfyUI 等生成的图片元数据
+
+## 📥 下载安装
+
+### 🎯 推荐方式：下载发行版
+
+<div align="center">
+
+**无需配置开发环境，开箱即用！**
+
+[![下载最新版本](https://img.shields.io/github/v/release/miaotouy/aio-hub?style=for-the-badge&logo=github&label=下载最新版本)](https://github.com/miaotouy/aio-hub/releases/latest)
+
+</div>
+
+前往 [Releases 页面](https://github.com/miaotouy/aio-hub/releases) 下载适合你操作系统的安装包：
+
+| 平台 | 文件格式 | 说明 |
+|------|---------|------|
+| 🪟 **Windows** | `.exe` 安装程序 | NSIS 安装程序，支持自动安装 |
+| 🍎 **macOS** | `.dmg` 镜像文件 | 提供 ARM64 (Apple Silicon) 和 x64 (Intel) 两个版本 |
+| 🐧 **Linux** | `.deb` / `.AppImage` | deb 适用于 Debian/Ubuntu；AppImage 为通用格式，无需安装 |
+
+> **💡 安装提示**:
+> - **Windows**: 首次运行可能会提示 SmartScreen 警告，点击"更多信息"→"仍要运行"即可
+> - **macOS**: 首次打开可能需要在"系统偏好设置"→"安全性与隐私"中允许运行
+> - **Linux**: 使用 AppImage 前需先添加执行权限：`chmod +x *.AppImage`
+
+### 🔧 从源码构建
+
+如果你想参与开发或需要最新功能，可以从源码构建：
 
 ## 🚀 快速开始
 

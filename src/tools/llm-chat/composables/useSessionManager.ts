@@ -651,6 +651,183 @@ export function useSessionManager() {
   };
 
   /**
+   * 导出完整会话为 Markdown 树状格式（包含所有分支）
+   * @param session 会话
+   * @param options 导出选项
+   */
+  const exportSessionAsMarkdownTree = (
+    session: ChatSession,
+    options: ExportOptions = {}
+  ): string => {
+    // 设置默认值
+    const {
+      includeUserProfile = true,
+      includeAgentInfo = true,
+      includeModelInfo = true,
+      includeTokenUsage = true,
+      includeAttachments = true,
+      includeErrors = true,
+    } = options;
+
+    // 获取必要的 composables
+    const { getProfileById } = useLlmProfiles();
+
+    const lines: string[] = [
+      `# ${session.name} - 完整会话导出`,
+      "",
+      `导出时间：${new Date().toLocaleString("zh-CN")}`,
+      `创建时间：${new Date(session.createdAt).toLocaleString("zh-CN")}`,
+      `更新时间：${new Date(session.updatedAt).toLocaleString("zh-CN")}`,
+      "",
+      "---",
+      "",
+    ];
+
+    // 统计节点数量（排除根节点）
+    const totalNodes = Object.keys(session.nodes).length - 1;
+    lines.push(`**总消息数**: ${totalNodes} 条`);
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+
+    /**
+     * 递归遍历节点树，生成 Markdown 列表
+     * @param nodeId 当前节点 ID
+     * @param depth 当前深度（用于缩进）
+     */
+    const traverseNode = (nodeId: string, depth: number = 0): void => {
+      const node = session.nodes[nodeId];
+      if (!node) return;
+
+      // 跳过系统根节点（不显示）
+      if (node.id === session.rootNodeId) {
+        // 直接遍历根节点的子节点
+        node.childrenIds.forEach((childId) => {
+          traverseNode(childId, depth);
+        });
+        return;
+      }
+
+      // 生成缩进（每层 2 个空格）
+      const indent = "  ".repeat(depth);
+
+      // 格式化时间和状态
+      const time = new Date(node.timestamp).toLocaleTimeString("zh-CN");
+      const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
+
+      // 根据角色确定图标和名称
+      let roleIcon = "";
+      let roleName = "";
+
+      if (node.role === "user") {
+        const userName = includeUserProfile && node.metadata?.userProfileName
+          ? node.metadata.userProfileName
+          : "用户";
+        const userIcon = includeUserProfile && node.metadata?.userProfileIcon && isEmoji(node.metadata.userProfileIcon)
+          ? node.metadata.userProfileIcon
+          : "👤";
+        roleIcon = userIcon;
+        roleName = userName;
+      } else if (node.role === "assistant") {
+        const agentName = includeAgentInfo && node.metadata?.agentName
+          ? node.metadata.agentName
+          : "助手";
+        const agentIcon = includeAgentInfo && node.metadata?.agentIcon && isEmoji(node.metadata.agentIcon)
+          ? node.metadata.agentIcon
+          : "🤖";
+        roleIcon = agentIcon;
+        roleName = agentName;
+      } else {
+        roleIcon = "⚙️";
+        roleName = "系统";
+      }
+
+      // 添加消息标题（使用列表项）
+      lines.push(`${indent}- **${roleIcon} ${roleName}** (${time})${enabledStatus}`);
+
+      // 添加元数据（缩进）
+      const metaIndent = indent + "  ";
+      
+      if (node.role === "assistant" && node.metadata) {
+        if (includeModelInfo) {
+          if (node.metadata.profileId && node.metadata.modelId) {
+            const profile = getProfileById(node.metadata.profileId);
+            if (profile) {
+              const model = profile.models.find((m) => m.id === node.metadata!.modelId);
+              if (model) {
+                const modelName = node.metadata.modelName || model.name || model.id;
+                lines.push(`${metaIndent}*模型: ${modelName} | 渠道: ${profile.name}*`);
+              }
+            }
+          } else if (node.metadata.modelName) {
+            lines.push(`${metaIndent}*模型: ${node.metadata.modelName}*`);
+          }
+        }
+      }
+
+      // 添加消息内容（需要适当缩进和换行处理）
+      const contentLines = node.content.split("\n");
+      contentLines.forEach((line, index) => {
+        if (index === 0 && line.trim()) {
+          lines.push(`${metaIndent}${line}`);
+        } else if (line.trim()) {
+          lines.push(`${metaIndent}${line}`);
+        } else {
+          lines.push("");
+        }
+      });
+
+      // 添加附件信息
+      if (includeAttachments && node.attachments && node.attachments.length > 0) {
+        lines.push(`${metaIndent}*附件: ${node.attachments.map(a => a.name).join(", ")}*`);
+      }
+
+      // 添加 Token 使用信息
+      if (includeTokenUsage && node.metadata?.usage) {
+        const usage = node.metadata.usage;
+        lines.push(
+          `${metaIndent}*Token: ${usage.totalTokens} (输入: ${usage.promptTokens}, 输出: ${usage.completionTokens})*`
+        );
+      }
+
+      // 添加错误信息
+      if (includeErrors && node.metadata?.error) {
+        lines.push(`${metaIndent}*错误: ${node.metadata.error}*`);
+      }
+
+      lines.push(""); // 消息之间添加空行
+
+      // 递归遍历子节点
+      if (node.childrenIds && node.childrenIds.length > 0) {
+        // 如果有多个子节点，说明有分支
+        if (node.childrenIds.length > 1) {
+          lines.push(`${indent}  *[分支点 - ${node.childrenIds.length} 个分支]*`);
+          lines.push("");
+        }
+
+        node.childrenIds.forEach((childId, index) => {
+          // 为每个分支添加标记（如果有多个分支）
+          if (node.childrenIds.length > 1) {
+            lines.push(`${indent}  **分支 ${index + 1}:**`);
+            lines.push("");
+          }
+          traverseNode(childId, depth + 1);
+        });
+      }
+    };
+
+    // 从根节点开始遍历
+    traverseNode(session.rootNodeId, 0);
+
+    logger.info("导出完整会话为 Markdown 树", {
+      sessionId: session.id,
+      totalNodes,
+    });
+
+    return lines.join("\n");
+  };
+
+  /**
    * 更新当前会话 ID（轻量级持久化）
    */
   const updateCurrentSessionId = async (currentSessionId: string | null): Promise<void> => {
@@ -680,6 +857,7 @@ export function useSessionManager() {
     updateCurrentSessionId, // 新增：更新当前会话ID
     updateSessionDisplayAgent,
     exportSessionAsMarkdown,
+    exportSessionAsMarkdownTree, // 新增：导出完整会话树
     exportBranchAsMarkdown,
     exportBranchAsJson,
     clearAllSessions,

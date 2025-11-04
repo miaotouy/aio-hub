@@ -15,6 +15,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import { useTopicNamer } from "../../composables/useTopicNamer";
 import { useSessionManager } from "../../composables/useSessionManager";
 import { customMessage } from "@/utils/customMessage";
+import ExportSessionDialog from "../message/ExportSessionDialog.vue";
 
 interface Props {
   sessions: ChatSession[];
@@ -51,6 +52,10 @@ const filterTime = ref<TimeFilter>("all");
 const renameDialogVisible = ref(false);
 const renamingSession = ref<ChatSession | null>(null);
 const newSessionName = ref("");
+
+// 导出会话相关状态
+const exportSessionDialogVisible = ref(false);
+const sessionToExport = ref<ChatSession | null>(null);
 
 // 快速新建会话
 const handleQuickNewSession = () => {
@@ -265,9 +270,15 @@ const handleGenerateName = async (session: ChatSession) => {
   }
 };
 
+// 打开导出会话对话框
+const openExportDialog = (session: ChatSession) => {
+  sessionToExport.value = session;
+  exportSessionDialogVisible.value = true;
+};
+
 // 处理菜单命令
 const handleMenuCommand = (
-  command: "delete" | "rename" | "generate-name",
+  command: "delete" | "rename" | "generate-name" | "export",
   session: ChatSession
 ) => {
   if (command === "delete") {
@@ -276,6 +287,8 @@ const handleMenuCommand = (
     openRenameDialog(session);
   } else if (command === "generate-name") {
     handleGenerateName(session);
+  } else if (command === "export") {
+    openExportDialog(session);
   }
 };
 
@@ -451,6 +464,7 @@ const handleFilterCommand = (command: string) => {
                     {{ isGenerating(session.id) ? "生成中..." : "生成标题" }}
                   </el-dropdown-item>
                   <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
+                  <el-dropdown-item command="export" :icon="Operation"> 导出会话 </el-dropdown-item>
                   <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -475,6 +489,12 @@ const handleFilterCommand = (command: string) => {
         <el-button type="primary" @click="confirmRename">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 导出会话对话框 -->
+    <ExportSessionDialog
+      v-model:visible="exportSessionDialogVisible"
+      :session="sessionToExport"
+    />
   </div>
 </template>
 

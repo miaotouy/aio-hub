@@ -50,7 +50,13 @@ export function useGitAnalyzerRunner() {
    * 加载分支列表
    */
   async function loadBranches() {
-    const currentRepoPath = state.repoPath.value || ".";
+    const currentRepoPath = state.repoPath.value;
+    
+    // 必须提供路径
+    if (!currentRepoPath) {
+      customMessage.warning('请先输入或选择 Git 仓库路径');
+      return false;
+    }
 
     try {
       const branchList = await fetchBranches(currentRepoPath);
@@ -73,10 +79,17 @@ export function useGitAnalyzerRunner() {
    * 切换分支
    */
   async function onBranchChange(branch: string) {
+    const currentRepoPath = state.repoPath.value;
+    
+    if (!currentRepoPath) {
+      customMessage.warning('请先输入或选择 Git 仓库路径');
+      return false;
+    }
+    
     state.loading.value = true;
     try {
       const result = await fetchBranchCommits(
-        state.repoPath.value || ".",
+        currentRepoPath,
         branch,
         state.limitCount.value
       );
@@ -148,7 +161,7 @@ export function useGitAnalyzerRunner() {
           const newCount = state.commits.value.length - initialCount;
           customMessage.success(`增量加载了 ${newCount} 条新提交记录，当前共 ${state.commits.value.length} 条`);
         } else {
-          state.lastLoadedRepo.value = state.repoPath.value || ".";
+          state.lastLoadedRepo.value = state.repoPath.value;
           state.lastLoadedBranch.value = state.selectedBranch.value;
           state.lastLoadedLimit.value = state.limitCount.value;
           customMessage.success(`流式加载完成，共 ${state.commits.value.length} 条提交记录`);
@@ -168,7 +181,14 @@ export function useGitAnalyzerRunner() {
    * 加载仓库（支持增量加载）
    */
   async function loadRepository() {
-    const currentRepoPath = state.repoPath.value || ".";
+    const currentRepoPath = state.repoPath.value;
+    
+    // 必须提供路径
+    if (!currentRepoPath) {
+      customMessage.warning('请先输入或选择 Git 仓库路径');
+      return false;
+    }
+    
     const currentBranch = state.selectedBranch.value;
 
     // 检查是否可以进行增量加载

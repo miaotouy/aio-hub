@@ -30,7 +30,7 @@
             <div class="path-input-group">
               <el-input
                 v-model="repoPath"
-                placeholder="仓库路径（支持拖拽，留空使用当前目录）"
+                placeholder="请输入或选择 Git 仓库路径（支持拖拽）"
                 clearable
                 @keyup.enter="$emit('load-repository')"
               />

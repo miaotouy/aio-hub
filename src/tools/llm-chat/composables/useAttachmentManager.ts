@@ -159,10 +159,47 @@ export function useAttachmentManager(
   };
 
   /**
+   * 判断文件是否为纯文本文件
+   * 这些文件会被直接读取为文本插入到消息中，不需要特殊的文档处理能力
+   */
+  const isTextFile = (fileName: string, mimeType?: string): boolean => {
+    const textMimeTypes = [
+      "text/plain",
+      "text/markdown",
+      "text/html",
+      "text/css",
+      "text/javascript",
+      "application/json",
+      "application/xml",
+      "text/xml",
+    ];
+
+    // 检查 MIME 类型
+    if (mimeType && textMimeTypes.includes(mimeType)) {
+      return true;
+    }
+
+    // 检查文件扩展名
+    const textExtensions = /\.(txt|md|json|xml|html|css|js|ts|tsx|jsx|py|java|c|cpp|h|hpp|rs|go|rb|php|sh|yaml|yml|toml|ini|conf|log)$/i;
+    return textExtensions.test(fileName);
+  };
+
+  /**
    * 检查模型对附件类型的支持情况
    * @returns 返回警告信息，如果支持则返回 null
    */
-  const checkModelCapability = (assetType: Asset["type"]): string | null => {
+  const checkModelCapability = (asset: Asset): string | null => {
+    const assetType = asset.type;
+    
+    // 如果是文本文件，不需要检查文档能力（会被直接插入为文本）
+    if (assetType === "document" && isTextFile(asset.name, asset.mimeType)) {
+      logger.debug("文本文件不需要文档处理能力", {
+        assetName: asset.name,
+        mimeType: asset.mimeType,
+      });
+      return null;
+    }
+    
     // 如果没有选中的 Agent，跳过检查
     if (!agentStore.currentAgentId) {
       logger.debug("未选中 Agent，跳过能力检查");
@@ -182,6 +219,7 @@ export function useAttachmentManager(
 
     logger.debug("检查模型能力", {
       assetType,
+      assetName: asset.name,
       modelId: agentConfig.modelId,
       modelName: model?.name,
       hasCapabilities: !!capabilities,
@@ -193,6 +231,7 @@ export function useAttachmentManager(
     if (!capabilities) {
       logger.info("模型未配置能力信息，视为不支持该附件类型", {
         assetType,
+        assetName: asset.name,
         modelName: model?.name || agentConfig.modelId,
       });
       
@@ -217,11 +256,12 @@ export function useAttachmentManager(
       return warning;
     }
 
-    // 检查文档支持
+    // 检查文档支持（只检查非文本的文档，如 PDF）
     if (assetType === "document" && !capabilities.document) {
       const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持文档输入。建议切换至支持文档的模型（如 GPT-4o、Claude、Gemini）。`;
       logger.info("检测到不支持的附件类型：文档", {
         modelName: model?.name || agentConfig.modelId,
+        assetName: asset.name,
       });
       return warning;
     }
@@ -394,7 +434,7 @@ export function useAttachmentManager(
     // 检查模型能力并显示警告（不阻止添加）
     const uniqueWarnings = new Set<string>();
     for (const asset of pendingAssets) {
-      const warning = checkModelCapability(asset.type);
+      const warning = checkModelCapability(asset);
       if (warning) {
         uniqueWarnings.add(warning);
       }
@@ -465,7 +505,7 @@ export function useAttachmentManager(
     logger.info("添加资产", { assetId: asset.id, name: asset.name });
 
     // 检查模型能力并显示警告（不阻止添加）
-    const warning = checkModelCapability(asset.type);
+    const warning = checkModelCapability(asset);
     logger.debug("能力检查结果", {
       assetId: asset.id,
       assetType: asset.type,

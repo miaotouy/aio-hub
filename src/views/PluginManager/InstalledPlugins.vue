@@ -7,6 +7,7 @@ import { pluginManager } from '@/services/plugin-manager';
 import type { PluginProxy } from '@/services/plugin-types';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
+import { pluginStateService } from '@/services/plugin-state.service';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
@@ -72,7 +73,6 @@ async function loadPlugins() {
     loading.value = false;
   }
 }
-
 /**
  * 切换插件启用/禁用状态
  */
@@ -80,10 +80,14 @@ async function togglePlugin(plugin: PluginProxy) {
   try {
     if (plugin.enabled) {
       plugin.disable();
+      // 保存禁用状态
+      await pluginStateService.setEnabled(plugin.manifest.id, false);
       customMessage.success(`已禁用插件: ${plugin.name}`);
       logger.info('插件已禁用', { pluginId: plugin.id });
     } else {
       await plugin.enable();
+      // 保存启用状态
+      await pluginStateService.setEnabled(plugin.manifest.id, true);
       customMessage.success(`已启用插件: ${plugin.name}`);
       logger.info('插件已启用', { pluginId: plugin.id });
     }

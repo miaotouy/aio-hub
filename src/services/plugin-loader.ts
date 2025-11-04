@@ -19,6 +19,7 @@ import type { JsPluginAdapter } from './js-plugin-adapter';
 import { createSidecarPluginProxy } from './sidecar-plugin-adapter';
 import { createModuleLogger } from '@/utils/logger';
 import { pluginConfigService } from './plugin-config.service';
+import { pluginStateService } from './plugin-state.service';
 
 const logger = createModuleLogger('services/plugin-loader');
 
@@ -151,8 +152,13 @@ export class PluginLoader {
           // 设置插件导出对象
           (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
 
-          // 启用插件
-          await proxy.enable();
+          // 根据持久化状态决定是否启用插件
+          const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+          if (shouldEnable) {
+            await proxy.enable();
+          } else {
+            logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+          }
 
           // 初始化插件配置
           try {
@@ -304,8 +310,13 @@ export class PluginLoader {
       // 设置插件导出对象
       (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
 
-      // 启用插件
-      await proxy.enable();
+      // 根据持久化状态决定是否启用插件
+      const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+      if (shouldEnable) {
+        await proxy.enable();
+      } else {
+        logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+      }
 
       // 初始化插件配置
       try {
@@ -336,8 +347,13 @@ export class PluginLoader {
       // 创建 Sidecar 插件代理（标记为生产模式）
       const proxy = createSidecarPluginProxy(manifest, pluginPath, false);
 
-      // 启用插件
-      await proxy.enable();
+      // 根据持久化状态决定是否启用插件
+      const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+      if (shouldEnable) {
+        await proxy.enable();
+      } else {
+        logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+      }
 
       // 初始化插件配置
       try {

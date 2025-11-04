@@ -11,6 +11,7 @@ import { useToolsStore } from '@/stores/tools';
 import type { ToolConfig } from '@/config/tools';
 import { markRaw, h, type Component } from 'vue';
 import { createModuleLogger } from '@/utils/logger';
+import { pluginStateService } from './plugin-state.service';
 
 const logger = createModuleLogger('services/plugin-manager');
 
@@ -247,6 +248,10 @@ class PluginManager {
     }
 
     logger.info('初始化插件管理器');
+    
+    // 初始化插件状态服务
+    await pluginStateService.initialize();
+    
     this.loader = await createPluginLoader();
     this.initialized = true;
   }

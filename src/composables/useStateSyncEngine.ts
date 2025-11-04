@@ -61,7 +61,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
 
     if (shouldForceFullSync) {
       payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
-      logger.info('执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
+      logger.debug('执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
     } else {
       const patches = calculateDiff(lastSyncedValue, newValue);
       if (patches.length === 0) {
@@ -71,10 +71,10 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       
       if (shouldUseDelta(patches, newValue, deltaThreshold)) {
         payload = { stateType: stateKey, version: newVersion, isFull: false, patches };
-        logger.info('执行增量同步', { stateKey, version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
+        logger.debug('执行增量同步', { stateKey, version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
       } else {
         payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
-        logger.info('增量过大，执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
+        logger.debug('增量过大，执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
       }
     }
 
@@ -106,10 +106,10 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     try {
       if (payload.isFull) {
         state.value = payload.data;
-        logger.info('已应用全量状态', { stateKey, version: payload.version });
+        logger.debug('已应用全量状态', { stateKey, version: payload.version });
       } else {
         state.value = applyPatches(state.value, payload.patches as JsonPatchOperation[]);
-        logger.info('已应用增量状态', { stateKey, version: payload.version });
+        logger.debug('已应用增量状态', { stateKey, version: payload.version });
       }
       stateVersion.value = payload.version;
       lastSyncedValue = safeDeepClone(state.value);

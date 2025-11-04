@@ -117,9 +117,19 @@
           恢复默认
         </el-button>
         <div class="footer-actions">
-          <span v-if="isSaving" class="auto-save-indicator">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            自动保存中...
+          <span class="auto-save-indicator" :class="saveStatus">
+            <template v-if="saveStatus === 'saving'">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>自动保存中...</span>
+            </template>
+            <template v-else-if="saveStatus === 'success' && lastSaveTime">
+              <el-icon><SuccessFilled /></el-icon>
+              <span>已于 {{ lastSaveTime }} 保存</span>
+            </template>
+            <template v-else-if="saveStatus === 'error'">
+              <el-icon><CircleClose /></el-icon>
+              <span>保存失败</span>
+            </template>
           </span>
           <el-button @click="handleClose">关闭</el-button>
         </div>
@@ -133,7 +143,7 @@ import { ref, watch, nextTick, computed, shallowRef, type Component } from 'vue'
 import { useDebounceFn } from '@vueuse/core';
 import { ElMessageBox, ElRadio, ElSwitch, ElSlider, ElInputNumber, ElInput, ElRadioGroup } from 'element-plus';
 import { get, set } from 'lodash-es';
-import { RefreshLeft, Loading, Search } from '@element-plus/icons-vue';
+import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from '@element-plus/icons-vue';
 
 import BaseDialog from '@/components/common/BaseDialog.vue';
 import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
@@ -164,8 +174,9 @@ const { settings, loadSettings, updateSettings, resetSettings, isLoaded } = useC
 
 const localSettings = ref<ChatSettings>(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
 
-const isSaving = ref(false);
 const isLoadingSettings = ref(false);
+const saveStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle');
+const lastSaveTime = ref('');
 
 const loadLocalSettings = async () => {
   isLoadingSettings.value = true;
@@ -185,6 +196,7 @@ watch(
   () => props.visible,
   async (visible) => {
     if (visible) {
+      saveStatus.value = 'idle';
       await loadLocalSettings();
     }
   },
@@ -201,20 +213,34 @@ watch(
 const autoSave = useDebounceFn(async () => {
   if (isLoadingSettings.value) return;
   try {
-    isSaving.value = true;
+    saveStatus.value = 'saving';
     await updateSettings(localSettings.value);
     logger.info('设置已自动保存');
+    saveStatus.value = 'success';
+    lastSaveTime.value = new Date().toLocaleTimeString();
   } catch (error) {
     logger.error('自动保存设置失败', error as Error);
     customMessage.error('自动保存设置失败');
-  } finally {
-    isSaving.value = false;
+    saveStatus.value = 'error';
   }
 }, 500);
 
-watch(() => localSettings.value, autoSave, { deep: true });
+watch(
+  localSettings,
+  () => {
+    if (isLoadingSettings.value) return;
+    // 当用户编辑时，如果之前有保存成功或失败的状态，则清除，以表示“未保存的更改”
+    if (saveStatus.value === 'success' || saveStatus.value === 'error') {
+      saveStatus.value = 'idle';
+    }
+    autoSave();
+  },
+  { deep: true }
+);
 
 const handleClose = () => {
+  // HACK: 类型系统未能正确推断出 flush 方法，使用 any 绕过检查
+  (autoSave as any).flush();
   emit('update:visible', false);
 };
 
@@ -239,7 +265,7 @@ const handleResetPrompt = () => {
 };
 
 const handleClosed = () => {
-  isSaving.value = false;
+  saveStatus.value = 'idle';
 };
 
 // --- Config-driven rendering ---
@@ -423,6 +449,17 @@ const handleSearchSelect = (item: Record<string, any>) => {
   gap: 6px;
   font-size: 13px;
   color: var(--text-color-secondary);
+  transition: color 0.3s ease;
+  min-width: 160px;
+  justify-content: flex-start;
+}
+
+.auto-save-indicator.success {
+  color: var(--el-color-success);
+}
+
+.auto-save-indicator.error {
+  color: var(--el-color-error);
 }
 
 .auto-save-indicator .el-icon {

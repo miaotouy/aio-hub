@@ -24,197 +24,88 @@
         </el-autocomplete>
       </div>
       <div class="settings-content" ref="scrollContainerRef">
-        <!-- UI 偏好设置 -->
         <el-form :model="localSettings" label-width="120px" label-position="left">
-          <div class="settings-section">
-            <div class="section-title">
-              <el-icon><Setting /></el-icon>
-              <span>界面偏好</span>
-            </div>
-
-            <el-form-item label="显示时间戳" data-setting-id="showTimestamp">
-              <el-switch v-model="localSettings.uiPreferences.showTimestamp" />
-              <div class="form-hint">在消息中显示发送时间</div>
-            </el-form-item>
-
-            <el-form-item label="显示 Token 统计" data-setting-id="showTokenCount">
-              <el-switch v-model="localSettings.uiPreferences.showTokenCount" />
-              <div class="form-hint">显示消息的 Token 使用情况</div>
-            </el-form-item>
-
-            <el-form-item label="显示模型信息" data-setting-id="showModelInfo">
-              <el-switch v-model="localSettings.uiPreferences.showModelInfo" />
-              <div class="form-hint">在消息中显示使用的模型</div>
-            </el-form-item>
-
-            <el-form-item label="自动滚动" data-setting-id="autoScroll">
-              <el-switch v-model="localSettings.uiPreferences.autoScroll" />
-              <div class="form-hint">新消息出现时自动滚动到底部</div>
-            </el-form-item>
-
-            <el-form-item label="显示消息导航器" data-setting-id="showMessageNavigator">
-              <el-switch v-model="localSettings.uiPreferences.showMessageNavigator" />
-              <div class="form-hint">在聊天区域左侧显示消息导航器</div>
-            </el-form-item>
-
-            <el-form-item label="字体大小" data-setting-id="fontSize">
-              <el-slider
-                v-model="localSettings.uiPreferences.fontSize"
-                :min="12"
-                :max="20"
-                :step="1"
-                :show-tooltip="true"
-                :format-tooltip="(val: number) => `${val}px`"
-              />
-              <div class="form-hint">当前: {{ localSettings.uiPreferences.fontSize }}px</div>
-            </el-form-item>
-
-            <el-form-item label="行高" data-setting-id="lineHeight">
-              <el-slider
-                v-model="localSettings.uiPreferences.lineHeight"
-                :min="1.2"
-                :max="2.0"
-                :step="0.1"
-                :show-tooltip="true"
-              />
-              <div class="form-hint">当前: {{ localSettings.uiPreferences.lineHeight }}</div>
-            </el-form-item>
-          </div>
-
-          <el-divider />
-
-          <!-- 消息管理设置 -->
-          <div class="settings-section">
-            <div class="section-title">
-              <el-icon><Delete /></el-icon>
-              <span>消息管理</span>
-            </div>
-
-            <el-form-item label="删除消息确认" data-setting-id="confirmBeforeDeleteMessage">
-              <el-switch v-model="localSettings.messageManagement.confirmBeforeDeleteMessage" />
-              <div class="form-hint">删除单条消息前显示确认对话框</div>
-            </el-form-item>
-
-            <el-form-item label="删除会话确认" data-setting-id="confirmBeforeDeleteSession">
-              <el-switch v-model="localSettings.messageManagement.confirmBeforeDeleteSession" />
-              <div class="form-hint">删除整个会话前显示确认对话框</div>
-            </el-form-item>
-
-            <el-form-item label="清空所有确认" data-setting-id="confirmBeforeClearAll">
-              <el-switch v-model="localSettings.messageManagement.confirmBeforeClearAll" />
-              <div class="form-hint">清空所有会话前显示确认对话框</div>
-            </el-form-item>
-          </div>
-
-          <el-divider />
-
-          <!-- 快捷键设置 -->
-          <div class="settings-section">
-            <div class="section-title">
-              <el-icon><Tickets /></el-icon>
-              <span>快捷键</span>
-            </div>
-
-            <el-form-item label="发送消息" data-setting-id="sendShortcut">
-              <el-radio-group v-model="localSettings.shortcuts.send">
-                <el-radio value="ctrl+enter">Ctrl/Cmd + Enter</el-radio>
-                <el-radio value="enter">Enter</el-radio>
-              </el-radio-group>
-              <div class="form-hint">
-                换行键将自动设置为 {{
-                  localSettings.shortcuts.send === 'ctrl+enter' ? 'Enter' : 'Shift + Enter'
-                }}
+          <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
+            <div class="settings-section">
+              <div class="section-title">
+                <el-icon><component :is="section.icon" /></el-icon>
+                <span>{{ section.title }}</span>
               </div>
-            </el-form-item>
-          </div>
 
-          <el-divider />
+              <template v-for="item in section.items" :key="item.id">
+                <el-form-item
+                  v-if="!item.visible || item.visible(localSettings)"
+                  :label="renderHint(item.label)"
+                  :data-setting-id="item.id"
+                >
+                  <!-- Block layout (default) -->
+                  <template v-if="item.layout !== 'inline'">
+                    <div class="setting-item-content">
+                      <!-- Standard Component -->
+                      <component
+                        v-if="item.component !== 'SliderWithInput'"
+                        :is="resolveComponent(item.component)"
+                        :class="getComponentClass(item)"
+                        :model-value="get(localSettings, item.modelPath)"
+                        @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                        v-bind="item.props"
+                      >
+                        <!-- RadioGroup options -->
+                        <template v-if="item.component === 'ElRadioGroup' && item.options">
+                          <el-radio
+                            v-for="option in item.options"
+                            :key="option.value.toString()"
+                            :value="option.value"
+                          >
+                            {{ option.label }}
+                          </el-radio>
+                        </template>
+                      </component>
+                      <!-- SliderWithInput Custom Composite Component -->
+                      <div v-if="item.component === 'SliderWithInput'" class="slider-with-input">
+                        <el-slider
+                          :model-value="get(localSettings, item.modelPath)"
+                          @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                          v-bind="item.props"
+                          class="slider-part"
+                        />
+                        <el-input-number
+                          :model-value="get(localSettings, item.modelPath)"
+                          @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                          v-bind="item.props"
+                          class="input-part"
+                          :controls="true"
+                        />
+                      </div>
+                      <div
+                        v-if="item.slots?.append"
+                        class="append-slot"
+                        @click="handleComponentClick(item.id)"
+                      >
+                        <component :is="item.slots.append" />
+                      </div>
+                    </div>
+                    <div v-if="item.hint" class="form-hint" v-html="renderHint(item.hint)"></div>
+                  </template>
 
-          <!-- 话题命名设置 -->
-          <div class="settings-section">
-            <div class="section-title">
-              <el-icon><ChatDotRound /></el-icon>
-              <span>话题命名</span>
+                  <!-- Inline layout -->
+                  <template v-else>
+                    <div class="setting-item-content-inline">
+                      <component
+                        :is="resolveComponent(item.component)"
+                        :class="getComponentClass(item)"
+                        :model-value="get(localSettings, item.modelPath)"
+                        @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                        v-bind="item.props"
+                      />
+                      <div v-if="item.hint" class="form-hint-inline" v-html="renderHint(item.hint)"></div>
+                    </div>
+                  </template>
+                </el-form-item>
+              </template>
             </div>
-
-            <el-form-item label="启用话题命名" data-setting-id="topicNamingEnabled">
-              <el-switch v-model="localSettings.topicNaming.enabled" />
-              <div class="form-hint">自动或手动为会话生成标题</div>
-            </el-form-item>
-
-            <template v-if="localSettings.topicNaming.enabled">
-              <el-form-item label="命名模型" data-setting-id="topicNamingModel">
-                <LlmModelSelector v-model="localSettings.topicNaming.modelIdentifier" />
-                <div class="form-hint">用于生成会话标题的 LLM 模型</div>
-              </el-form-item>
-
-              <el-form-item label="命名提示词" data-setting-id="topicNamingPrompt">
-                <div class="prompt-input-wrapper">
-                  <el-input
-                    v-model="localSettings.topicNaming.prompt"
-                    type="textarea"
-                    :rows="4"
-                    placeholder="输入用于生成标题的提示词"
-                  />
-                  <el-button
-                    @click="handleResetPrompt"
-                    size="small"
-                    class="reset-prompt-btn"
-                    title="重置为默认提示词"
-                  >
-                    <el-icon><RefreshLeft /></el-icon>
-                    重置
-                  </el-button>
-                </div>
-                <div class="form-hint">
-                  使用 <code>{context}</code> 占位符来指定对话内容的位置。<br />
-                  例如：<code>请为以下对话生成标题：\n\n{context}</code><br />
-                  如不使用占位符，对话内容将自动追加到提示词末尾。
-                </div>
-              </el-form-item>
-
-              <el-form-item label="温度" data-setting-id="topicNamingTemperature">
-                <el-slider
-                  v-model="localSettings.topicNaming.temperature"
-                  :min="0"
-                  :max="1"
-                  :step="0.1"
-                  :show-tooltip="true"
-                />
-                <div class="form-hint">当前: {{ localSettings.topicNaming.temperature }}</div>
-              </el-form-item>
-
-              <el-form-item label="输出上限" data-setting-id="topicNamingMaxTokens">
-                <el-input-number
-                  v-model="localSettings.topicNaming.maxTokens"
-                  :min="10"
-                  :max="200"
-                  :step="10"
-                />
-                <div class="form-hint">生成标题的最大 token 数</div>
-              </el-form-item>
-
-              <el-form-item label="自动触发阈值" data-setting-id="topicNamingAutoTriggerThreshold">
-                <el-input-number
-                  v-model="localSettings.topicNaming.autoTriggerThreshold"
-                  :min="1"
-                  :max="10"
-                  :step="1"
-                />
-                <div class="form-hint">当会话中用户消息数量达到此值时，自动生成标题</div>
-              </el-form-item>
-
-              <el-form-item label="上下文消息数" data-setting-id="topicNamingContextMessageCount">
-                <el-input-number
-                  v-model="localSettings.topicNaming.contextMessageCount"
-                  :min="2"
-                  :max="20"
-                  :step="2"
-                />
-                <div class="form-hint">生成标题时引用的最近消息数量</div>
-              </el-form-item>
-            </template>
-          </div>
+            <el-divider v-if="sectionIndex < settingsConfig.length - 1" />
+          </template>
         </el-form>
       </div>
     </template>
@@ -238,23 +129,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue';
+import { ref, watch, nextTick, computed, shallowRef, type Component } from 'vue';
 import { useDebounceFn } from '@vueuse/core';
-import { ElMessageBox } from 'element-plus';
-import {
-  Setting,
-  Delete,
-  Tickets,
-  RefreshLeft,
-  Loading,
-  ChatDotRound,
-  Search
-} from '@element-plus/icons-vue';
+import { ElMessageBox, ElRadio, ElSwitch, ElSlider, ElInputNumber, ElInput, ElRadioGroup } from 'element-plus';
+import { get, set } from 'lodash-es';
+import { RefreshLeft, Loading, Search } from '@element-plus/icons-vue';
+
 import BaseDialog from '@/components/common/BaseDialog.vue';
 import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
 import { customMessage } from '@/utils/customMessage';
-import { useChatSettings, type ChatSettings, DEFAULT_SETTINGS } from '../../composables/useChatSettings';
+import {
+  useChatSettings,
+  type ChatSettings,
+  DEFAULT_SETTINGS,
+} from '../../composables/useChatSettings';
 import { createModuleLogger } from '@utils/logger';
+import { settingsConfig } from './settingsConfig';
+import type { SettingComponent, SettingItem } from './settings-types';
 
 const logger = createModuleLogger('ChatSettingsDialog');
 
@@ -271,60 +162,25 @@ const emit = defineEmits<Emits>();
 
 const { settings, loadSettings, updateSettings, resetSettings, isLoaded } = useChatSettings();
 
-// 本地编辑的设置副本
-const localSettings = ref<ChatSettings>({
-  uiPreferences: {
-    showTimestamp: false,
-    showTokenCount: true,
-    showModelInfo: true,
-    autoScroll: true,
-    fontSize: 14,
-    lineHeight: 1.6,
-    showMessageNavigator: true,
-  },
-  messageManagement: {
-    confirmBeforeDeleteMessage: false,
-    confirmBeforeDeleteSession: true,
-    confirmBeforeClearAll: true,
-  },
-  shortcuts: {
-    send: 'ctrl+enter',
-    newLine: 'enter',
-  },
-  topicNaming: {
-    enabled: false,
-    modelIdentifier: '',
-    prompt: '请为这段对话生成一个简短、精准的标题，不要使用任何标点符号，直接输出标题文本：',
-    temperature: 0.7,
-    maxTokens: 30,
-    autoTriggerThreshold: 3,
-    contextMessageCount: 6,
-  },
-});
+const localSettings = ref<ChatSettings>(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
 
-// 保存状态
 const isSaving = ref(false);
-// 是否正在加载设置（用于避免在初始加载时触发自动保存）
 const isLoadingSettings = ref(false);
 
-// 加载设置
 const loadLocalSettings = async () => {
   isLoadingSettings.value = true;
   try {
     if (!isLoaded.value) {
       await loadSettings();
     }
-    // 深拷贝设置
     localSettings.value = JSON.parse(JSON.stringify(settings.value));
     logger.info('加载本地设置', { settings: localSettings.value });
   } finally {
-    // 等待下一个 tick 后才允许自动保存，确保初始加载不会触发保存
     await nextTick();
     isLoadingSettings.value = false;
   }
 };
 
-// 当对话框打开时加载设置
 watch(
   () => props.visible,
   async (visible) => {
@@ -335,7 +191,6 @@ watch(
   { immediate: true }
 );
 
-// 自动更新换行快捷键（不触发自动保存）
 watch(
   () => localSettings.value.shortcuts.send,
   (sendKey) => {
@@ -343,13 +198,8 @@ watch(
   }
 );
 
-// 自动保存函数（带防抖）
 const autoSave = useDebounceFn(async () => {
-  // 如果正在加载设置，不触发保存
-  if (isLoadingSettings.value) {
-    return;
-  }
-  
+  if (isLoadingSettings.value) return;
   try {
     isSaving.value = true;
     await updateSettings(localSettings.value);
@@ -360,23 +210,14 @@ const autoSave = useDebounceFn(async () => {
   } finally {
     isSaving.value = false;
   }
-}, 500); // 500ms 防抖
+}, 500);
 
-// 监听设置变化，自动保存
-watch(
-  () => localSettings.value,
-  () => {
-    autoSave();
-  },
-  { deep: true }
-);
+watch(() => localSettings.value, autoSave, { deep: true });
 
-// 关闭对话框
 const handleClose = () => {
   emit('update:visible', false);
 };
 
-// 恢复默认
 const handleReset = async () => {
   try {
     await ElMessageBox.confirm('确定要恢复默认设置吗？', '确认', {
@@ -384,27 +225,70 @@ const handleReset = async () => {
       cancelButtonText: '取消',
       type: 'warning',
     });
-    
     await resetSettings();
     await loadLocalSettings();
     customMessage.success('已恢复默认设置');
   } catch {
-    // 用户取消
+    // User cancelled
   }
 };
 
-// 重置命名提示词为默认值
 const handleResetPrompt = () => {
-  localSettings.value.topicNaming.prompt = DEFAULT_SETTINGS.topicNaming.prompt;
+  set(localSettings.value, 'topicNaming.prompt', DEFAULT_SETTINGS.topicNaming.prompt);
   customMessage.success('已重置为默认提示词');
 };
 
-// 对话框关闭时重置状态
 const handleClosed = () => {
   isSaving.value = false;
 };
 
-// 搜索功能
+// --- Config-driven rendering ---
+const componentMap: Record<string, Component> = {
+  ElSwitch,
+  ElSlider,
+  ElRadioGroup,
+  ElInputNumber,
+  ElInput,
+  LlmModelSelector,
+};
+
+const resolveComponent = (componentName: SettingComponent | Component) => {
+  if (typeof componentName === 'string') {
+    return componentMap[componentName] || componentName;
+  }
+  return shallowRef(componentName);
+};
+
+const renderHint = (hint: string) => {
+  return hint.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
+    try {
+      // eslint-disable-next-line no-new-func
+      return new Function('localSettings', `return ${expression}`)(localSettings.value);
+    } catch (e) {
+      return `{{ ${expression} }}`; // Return original on error
+    }
+  });
+};
+
+const getComponentClass = (item: SettingItem) => {
+  const classes: string[] = [];
+  if (
+    item.component === 'ElSlider' ||
+    (item.component === 'ElInput' && item.props?.type === 'textarea') ||
+    item.component === 'SliderWithInput'
+  ) {
+    classes.push('full-width');
+  }
+  return classes;
+};
+
+const handleComponentClick = (itemId: string) => {
+  if (itemId === 'prompt') {
+    handleResetPrompt();
+  }
+};
+
+// --- Search functionality ---
 const scrollContainerRef = ref<HTMLElement | null>(null);
 const searchQuery = ref('');
 
@@ -412,86 +296,19 @@ interface SearchIndexItem {
   id: string;
   label: string;
   keywords: string;
-  value: string; // for autocomplete
+  value: string;
 }
 
-const searchIndex = computed<SearchIndexItem[]>(() => [
-  // UI Preferences
-  { id: 'showTimestamp', label: '显示时间戳', keywords: 'ui time date 消息 发送时间', value: '显示时间戳' },
-  { id: 'showTokenCount', label: '显示 Token 统计', keywords: 'ui token usage 统计', value: '显示 Token 统计' },
-  { id: 'showModelInfo', label: '显示模型信息', keywords: 'ui model name 模型', value: '显示模型信息' },
-  { id: 'autoScroll', label: '自动滚动', keywords: 'ui scroll 滚动', value: '自动滚动' },
-  {
-    id: 'showMessageNavigator',
-    label: '显示消息导航器',
-    keywords: 'ui navigator 导航',
-    value: '显示消息导航器'
-  },
-  { id: 'fontSize', label: '字体大小', keywords: 'ui font size 字体', value: '字体大小' },
-  { id: 'lineHeight', label: '行高', keywords: 'ui line height 行高', value: '行高' },
-
-  // Message Management
-  {
-    id: 'confirmBeforeDeleteMessage',
-    label: '删除消息确认',
-    keywords: 'delete message 删除 消息 确认',
-    value: '删除消息确认'
-  },
-  {
-    id: 'confirmBeforeDeleteSession',
-    label: '删除会话确认',
-    keywords: 'delete session 删除 会话 确认',
-    value: '删除会话确认'
-  },
-  {
-    id: 'confirmBeforeClearAll',
-    label: '清空所有确认',
-    keywords: 'clear all 清空 确认',
-    value: '清空所有确认'
-  },
-
-  // Shortcuts
-  { id: 'sendShortcut', label: '发送消息', keywords: 'shortcut keybinding 发送 快捷键', value: '发送消息快捷键' },
-
-  // Topic Naming
-  {
-    id: 'topicNamingEnabled',
-    label: '启用话题命名',
-    keywords: 'topic naming title 话题 命名',
-    value: '启用话题命名'
-  },
-  { id: 'topicNamingModel', label: '命名模型', keywords: 'topic naming model 话题 命名 模型', value: '命名模型' },
-  {
-    id: 'topicNamingPrompt',
-    label: '命名提示词',
-    keywords: 'topic naming prompt 话题 命名 提示词',
-    value: '命名提示词'
-  },
-  {
-    id: 'topicNamingTemperature',
-    label: '温度',
-    keywords: 'topic naming temperature 话题 命名 温度',
-    value: '温度 (话题命名)'
-  },
-  {
-    id: 'topicNamingMaxTokens',
-    label: '输出上限',
-    keywords: 'topic naming max tokens 话题 命名 token',
-    value: '输出上限 (话题命名)'
-  },
-  {
-    id: 'topicNamingAutoTriggerThreshold',
-    label: '自动触发阈值',
-    keywords: 'topic naming trigger threshold 话题 命名 自动',
-    value: '自动触发阈值'
-  },
-  {
-    id: 'topicNamingContextMessageCount',
-    label: '上下文消息数',
-    keywords: 'topic naming context message 话题 命名 上下文',
-    value: '上下文消息数'
-  }
-]);
+const searchIndex = computed<SearchIndexItem[]>(() =>
+  settingsConfig.flatMap((section) =>
+    section.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      keywords: item.keywords,
+      value: `${section.title} > ${item.label}`,
+    }))
+  )
+);
 
 const querySearch = (queryString: string, cb: (results: SearchIndexItem[]) => void) => {
   const results = queryString
@@ -499,7 +316,9 @@ const querySearch = (queryString: string, cb: (results: SearchIndexItem[]) => vo
         const query = queryString.toLowerCase().trim();
         if (!query) return false;
         return (
-          item.label.toLowerCase().includes(query) || item.keywords.toLowerCase().includes(query)
+          item.label.toLowerCase().includes(query) ||
+          item.keywords.toLowerCase().includes(query) ||
+          item.value.toLowerCase().includes(query)
         );
       })
     : [];
@@ -516,14 +335,12 @@ const handleSearchSelect = (item: Record<string, any>) => {
   if (targetElement) {
     targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    // Highlight effect
     targetElement.classList.add('highlight');
     setTimeout(() => {
       targetElement.classList.remove('highlight');
-    }, 1500); // Highlight for 1.5 seconds
+    }, 1500);
   }
 
-  // Clear search query after selection
   nextTick(() => {
     searchQuery.value = '';
   });
@@ -540,7 +357,7 @@ const handleSearchSelect = (item: Record<string, any>) => {
 }
 
 .settings-content {
-  max-height: calc(70vh - 60px); /* 减去搜索框的高度 */
+  max-height: calc(70vh - 60px);
   overflow-y: auto;
   padding-right: 8px;
   scroll-behavior: smooth;
@@ -580,6 +397,13 @@ const handleSearchSelect = (item: Record<string, any>) => {
   line-height: 1.4;
 }
 
+.form-hint-inline {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  line-height: 1.4;
+  margin-left: 12px;
+}
+
 .settings-footer-content {
   display: flex;
   justify-content: space-between;
@@ -605,7 +429,6 @@ const handleSearchSelect = (item: Record<string, any>) => {
   font-size: 14px;
 }
 
-/* Element Plus 表单项间距调整 */
 :deep(.el-form-item) {
   margin-bottom: 20px;
 }
@@ -614,29 +437,51 @@ const handleSearchSelect = (item: Record<string, any>) => {
   font-weight: 500;
 }
 
-/* 滑块样式调整 */
 :deep(.el-slider) {
   margin-right: 12px;
 }
 
-/* 命名提示词输入框包装器 */
-.prompt-input-wrapper {
+.slider-with-input {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.slider-with-input .slider-part {
+  flex: 1;
+  margin-right: 0;
+}
+
+.slider-with-input .input-part {
+  width: 140px;
+}
+
+.slider-with-input .input-part :deep(input) {
+  text-align: center;
+}
+
+.setting-item-content {
   display: flex;
   width: 100%;
   gap: 8px;
   align-items: flex-start;
 }
 
-.prompt-input-wrapper :deep(.el-textarea) {
+.setting-item-content-inline {
+  display: flex;
+  align-items: center;
+}
+
+.setting-item-content > :deep(.full-width) {
   flex: 1;
 }
 
-.reset-prompt-btn {
+.append-slot {
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-/* 搜索建议 popper */
 :global(.settings-search-popper) {
   width: 400px !important;
 }

@@ -83,8 +83,13 @@ export default defineConfig({
       transformMixedEsModules: true,
     },
     
-    // 优化代码分割，减少内存消耗
+    // 优化代码分割,减少内存消耗
     rollupOptions: {
+      // 外部化 macOS 专用依赖和插件构建脚本
+      external: [
+        'fsevents',
+        /^.*\/plugins\/.*\/(build\.js|vite\.config\.js|package\.json|Cargo\.toml|.*\.rs)$/,
+      ],
       output: {
         manualChunks: {
           // 将大型依赖单独打包

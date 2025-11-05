@@ -105,6 +105,20 @@ const pluginTypeInfo = computed(() => {
         <span class="plugin-author">{{ plugin.manifest.author }}</span>
       </div>
 
+      <!-- 标签 -->
+      <div v-if="plugin.manifest.tags && plugin.manifest.tags.length > 0" class="plugin-tags">
+        <el-tag
+          v-for="tag in plugin.manifest.tags"
+          :key="tag"
+          size="small"
+          effect="plain"
+          type="info"
+          class="tag-item"
+        >
+          {{ tag }}
+        </el-tag>
+      </div>
+
       <!-- 描述 -->
       <p class="plugin-description" @click.stop>{{ plugin.description }}</p>
     </div>
@@ -203,6 +217,20 @@ const pluginTypeInfo = computed(() => {
 
 .plugin-separator {
   color: var(--border-color);
+}
+
+.plugin-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.tag-item {
+  font-size: 11px;
+  padding: 0 6px;
+  height: 20px;
+  line-height: 20px;
 }
 
 .plugin-description {

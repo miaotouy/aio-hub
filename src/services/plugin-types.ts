@@ -111,6 +111,8 @@ export interface PluginManifest {
   author: string;
   /** 插件图标（可以是emoji、图片URL或appdata://路径） */
   icon?: string;
+  /** 标签列表，用于分类和搜索 */
+  tags?: string[];
   /** 主机要求 */
   host: {
     /** 应用版本要求 (semver) */

@@ -51,11 +51,20 @@ const filteredPlugins = computed(() => {
   }
 
   const search = searchText.value.toLowerCase();
-  return plugins.value.filter(plugin =>
-    plugin.name?.toLowerCase().includes(search) ||
-    plugin.description?.toLowerCase().includes(search) ||
-    plugin.manifest.author?.toLowerCase().includes(search)
-  );
+  return plugins.value.filter(plugin => {
+    // 搜索名称、描述、作者
+    const matchesBasic =
+      plugin.name?.toLowerCase().includes(search) ||
+      plugin.description?.toLowerCase().includes(search) ||
+      plugin.manifest.author?.toLowerCase().includes(search);
+    
+    // 搜索标签
+    const matchesTags = plugin.manifest.tags?.some(tag =>
+      tag.toLowerCase().includes(search)
+    );
+    
+    return matchesBasic || matchesTags;
+  });
 });
 
 /**

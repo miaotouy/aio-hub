@@ -289,6 +289,21 @@ watch(
                     <span class="label">源码路径</span>
                     <span class="value path">{{ plugin.installPath }}</span>
                   </div>
+                  <div v-if="plugin.manifest.tags && plugin.manifest.tags.length > 0" class="info-item">
+                    <span class="label">标签</span>
+                    <div class="tag-list">
+                      <el-tag
+                        v-for="tag in plugin.manifest.tags"
+                        :key="tag"
+                        size="small"
+                        effect="plain"
+                        type="info"
+                        class="info-tag-item"
+                      >
+                        {{ tag }}
+                      </el-tag>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -432,6 +447,20 @@ watch(
 .version,
 .plugin-id {
   font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tags-row .tag-item {
+  font-size: 11px;
+  padding: 0 8px;
+  height: 20px;
+  line-height: 20px;
 }
 
 .description {
@@ -643,7 +672,7 @@ watch(
 }
 
 .section-title {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-color-secondary);
   margin: 0 0 16px 0;
@@ -682,6 +711,19 @@ watch(
   font-family: 'Consolas', 'Monaco', monospace;
   color: var(--text-color-secondary);
   word-break: break-all;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.info-tag-item {
+  font-size: 10px;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 18px;
 }
 
 /* ========== 滚动条样式 ========== */

@@ -177,9 +177,11 @@ export class NativePluginAdapter implements PluginProxy {
 
       // 调用后端命令
       const result = await invoke<string>('call_native_plugin_method', {
-        pluginId: this.manifest.id,
-        methodName,
-        payload: JSON.stringify(inputData),
+        request: {
+          plugin_id: this.manifest.id,
+          method_name: methodName,
+          payload: JSON.stringify(inputData),
+        },
       });
 
       // 尝试解析为 JSON，如果失败则返回原始字符串

@@ -56,7 +56,7 @@
     </div>
 
     <!-- 空状态：未开始分析 -->
-    <div v-else-if="!hasAnalyzed" class="empty-state">
+    <div v-if="!hasAnalyzed && !showProgress && !isCleaning" class="empty-state">
       <el-empty description="配置过滤条件并点击分析按钮">
         <template #image>
           <el-icon :size="64">
@@ -66,7 +66,8 @@
       </el-empty>
     </div>
 
-    <div v-else-if="filteredItems.length === 0 && !hasActiveFilters" class="empty-state">
+    <!-- 空状态：未找到结果 -->
+    <div v-else-if="filteredItems.length === 0 && !hasActiveFilters && !showProgress && !isCleaning" class="empty-state">
       <el-empty description="未找到符合条件的项目">
         <template #image>
           <el-icon :size="64">
@@ -76,7 +77,8 @@
       </el-empty>
     </div>
 
-    <div v-else class="result-content">
+    <!-- 结果列表 -->
+    <div v-if="hasAnalyzed && (filteredItems.length > 0 || hasActiveFilters)" class="result-content">
       <!-- 二次筛选区域 -->
       <div class="result-filters">
         <div class="filter-row">
@@ -93,22 +95,30 @@
               </el-icon>
             </template>
           </el-input>
-          <el-input-number
-            v-model="localFilterMinAgeDays"
-            :min="0"
-            placeholder="最小天数"
-            controls-position="right"
-            size="small"
-            style="width: 140px"
-          />
-          <el-input-number
-            v-model="localFilterMinSizeMB"
-            :min="0"
-            placeholder="最小大小(MB)"
-            controls-position="right"
-            size="small"
-            style="width: 150px"
-          />
+          
+          <div class="filter-item">
+            <span class="filter-label">最小天数</span>
+            <el-input-number
+              v-model="localFilterMinAgeDays"
+              :min="0"
+              placeholder="天数"
+              controls-position="right"
+              size="small"
+              style="width: 100px"
+            />
+          </div>
+          
+          <div class="filter-item">
+            <span class="filter-label">最小大小</span>
+            <el-input-number
+              v-model="localFilterMinSizeMB"
+              :min="0"
+              placeholder="MB"
+              controls-position="right"
+              size="small"
+              style="width: 100px"
+            />
+          </div>
           <el-button size="small" @click="clearFilters" :disabled="!props.hasActiveFilters">
             清除筛选
           </el-button>
@@ -352,13 +362,24 @@ const handleConfirmCleanup = async () => {
 .result-filters {
   padding: 12px;
   border-bottom: 1px solid var(--el-border-color-lighter);
-  background-color: var(--container-bg);
 }
 
 .filter-row {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 13px;
+  color: var(--text-color-light);
+  white-space: nowrap;
 }
 
 .items-scrollbar {

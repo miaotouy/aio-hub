@@ -39,11 +39,16 @@
     <div v-if="isCleaning" class="progress-section cleanup-progress">
       <div class="progress-header">
         <span class="progress-title">正在清理...</span>
-        <span v-if="cleanupProgress" class="progress-stats">
-          进度: {{ cleanupProgress.processedCount }} / {{ cleanupProgress.totalCount }}
-          <span v-if="cleanupProgress.successCount > 0">| 成功: {{ cleanupProgress.successCount }}</span>
-          <span v-if="cleanupProgress.errorCount > 0" class="error-count">| 失败: {{ cleanupProgress.errorCount }}</span>
-        </span>
+        <div class="progress-header-right">
+          <span v-if="cleanupProgress" class="progress-stats">
+            进度: {{ cleanupProgress.processedCount }} / {{ cleanupProgress.totalCount }}
+            <span v-if="cleanupProgress.successCount > 0">| 成功: {{ cleanupProgress.successCount }}</span>
+            <span v-if="cleanupProgress.errorCount > 0" class="error-count">| 失败: {{ cleanupProgress.errorCount }}</span>
+          </span>
+          <el-button type="danger" size="small" @click="handleStopCleanup">
+            停止清理
+          </el-button>
+        </div>
       </div>
 
       <div v-if="cleanupProgress" class="progress-details">
@@ -201,6 +206,7 @@ interface Emits {
   (e: "update:filterMinAgeDays", value: number | undefined): void;
   (e: "update:filterMinSizeMB", value: number | undefined): void;
   (e: "cleanup", paths: string[]): void;
+  (e: "stopCleanup"): void;
 }
 
 const props = defineProps<Props>();
@@ -309,6 +315,11 @@ const handleConfirmCleanup = async () => {
   } catch {
     // 用户取消
   }
+};
+
+// 停止清理
+const handleStopCleanup = () => {
+  emit("stopCleanup");
 };
 </script>
 
@@ -466,6 +477,12 @@ const handleConfirmCleanup = async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.progress-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .progress-title {

@@ -14,6 +14,7 @@ use commands::{
     analyze_directory_for_cleanup,
     cleanup_items,
     stop_directory_scan,
+    stop_directory_cleanup,
     cancel_move_operation,
     create_links_only,
     // 窗口管理相关
@@ -191,6 +192,7 @@ pub fn run() {
         .manage(ClipboardMonitorState::new())
         .manage(commands::native_plugin::NativePluginState::default())
         .manage(commands::directory_janitor::ScanCancellation::new())
+        .manage(commands::directory_janitor::CleanupCancellation::new())
         .manage(AppState::default())
         .manage(Arc::new(CancellationToken::new()))
         // 注册命令处理器
@@ -225,6 +227,7 @@ pub fn run() {
             analyze_directory_for_cleanup,
             cleanup_items,
             stop_directory_scan,
+            stop_directory_cleanup,
             // LLM代理命令
             start_llm_proxy,
             stop_llm_proxy,

@@ -39,6 +39,37 @@ impl Default for ScanCancellation {
     }
 }
 
+// 全局清理取消标志
+pub struct CleanupCancellation {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl CleanupCancellation {
+    pub fn new() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    pub fn reset(&self) {
+        self.cancelled.store(false, Ordering::SeqCst);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+}
+
+impl Default for CleanupCancellation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // 项目信息结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -330,7 +361,11 @@ pub async fn analyze_directory_for_cleanup(
 pub async fn cleanup_items(
     paths: Vec<String>,
     window: tauri::Window,
+    cancellation: State<'_, CleanupCancellation>,
 ) -> Result<CleanupResult, String> {
+    // 重置取消标志
+    cancellation.reset();
+    
     // 定义清理进度事件结构
     #[derive(Clone, serde::Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -349,6 +384,12 @@ pub async fn cleanup_items(
     let total_items = paths.len();
     
     for (index, path_str) in paths.iter().enumerate() {
+        // 检查是否已取消
+        if cancellation.is_cancelled() {
+            errors.push("清理已被用户取消".to_string());
+            break;
+        }
+        
         let path = PathBuf::from(path_str);
         
         // 发送清理进度事件
@@ -401,6 +442,13 @@ pub async fn cleanup_items(
 // Tauri 命令：停止当前扫描
 #[tauri::command]
 pub async fn stop_directory_scan(cancellation: State<'_, ScanCancellation>) -> Result<(), String> {
+    cancellation.cancel();
+    Ok(())
+}
+
+// Tauri 命令：停止当前清理
+#[tauri::command]
+pub async fn stop_directory_cleanup(cancellation: State<'_, CleanupCancellation>) -> Result<(), String> {
     cancellation.cancel();
     Ok(())
 }

@@ -32,6 +32,7 @@
         :is-cleaning="store.isCleaning"
         :cleanup-progress="store.cleanupProgress"
         @cleanup="executeCleanup"
+        @stop-cleanup="stopCleanup"
       />
     </div>
   </div>
@@ -64,7 +65,6 @@ const analyzePath = async () => {
     );
   }
 };
-
 // 停止扫描
 const stopScan = async () => {
   try {
@@ -78,6 +78,21 @@ const stopScan = async () => {
   } catch (error) {
     logger.error('停止扫描失败', error);
     customMessage.error('停止扫描失败');
+  }
+};
+
+// 停止清理
+const stopCleanup = async () => {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('stop_directory_cleanup');
+    store.isCleaning = false;
+    store.cleanupProgress = null;
+    customMessage.success('已停止清理');
+    logger.info('用户手动停止清理');
+  } catch (error) {
+    logger.error('停止清理失败', error);
+    customMessage.error('停止清理失败');
   }
 };
 

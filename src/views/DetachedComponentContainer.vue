@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, type Component, watch, Suspense } from "vue";
+import { ref, shallowRef, onMounted, type Component, watch } from "vue";
 import { Loading } from '@element-plus/icons-vue';
 import { useRoute } from "vue-router";
 import { useWindowSyncBus } from "../composables/useWindowSyncBus";

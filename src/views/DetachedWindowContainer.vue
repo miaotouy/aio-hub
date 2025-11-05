@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, defineAsyncComponent, type Component, watch, Suspense } from "vue";
+import { computed, onMounted, ref, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
 import { Loading } from '@element-plus/icons-vue';
 import { useRoute } from "vue-router";
 import { listen } from "@tauri-apps/api/event";

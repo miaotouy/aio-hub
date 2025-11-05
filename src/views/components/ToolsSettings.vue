@@ -58,6 +58,17 @@ const orderBeforeDrag = ref<string[]>([]);
 // 组件挂载时初始化
 onMounted(() => {
   sortedTools.value = initializeTools();
+  
+  // 确保所有工具都有明确的可见性值
+  // 对于未设置的工具，默认设置为 true（显示）
+  if (toolsVisible.value) {
+    sortedTools.value.forEach(tool => {
+      const toolId = getToolIdFromPath(tool.path);
+      if (toolsVisible.value![toolId] === undefined) {
+        toolsVisible.value![toolId] = true;
+      }
+    });
+  }
 });
 
 // 拖拽开始时记录当前顺序
@@ -99,6 +110,13 @@ const resetOrder = () => {
     customMessage.error("重置工具顺序失败");
   }
 };
+
+// 判断工具图标是否为插件图标
+// 插件图标通过 createPluginIcon 创建，都有 setup 函数
+// 而内置图标（Element Plus 图标等）没有 setup 函数
+const isPluginIcon = (tool: ToolConfig) => {
+  return tool.icon && typeof tool.icon === 'object' && 'setup' in tool.icon;
+};
 </script>
 
 <template>
@@ -111,6 +129,30 @@ const resetOrder = () => {
             <InfoFilled />
           </el-icon>
         </el-tooltip>
+      </div>
+      <div class="batch-actions">
+        <el-button
+          size="small"
+          @click="
+            Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = true))
+          "
+        >
+          全选
+        </el-button>
+        <el-button
+          size="small"
+          @click="
+            Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = false))
+          "
+        >
+          全不选
+        </el-button>
+        <el-button
+          size="small"
+          @click="resetOrder"
+        >
+          重置顺序
+        </el-button>
       </div>
     </div>
 
@@ -131,7 +173,14 @@ const resetOrder = () => {
             <el-icon class="drag-handle">
               <Rank />
             </el-icon>
-            <el-icon class="tool-icon">
+            <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
+            <component
+              v-if="isPluginIcon(tool)"
+              :is="tool.icon"
+              class="plugin-icon-wrapper"
+            />
+            <!-- 普通图标用 el-icon 包裹 -->
+            <el-icon v-else class="tool-icon">
               <component :is="tool.icon" />
             </el-icon>
             <div class="tool-info">
@@ -144,33 +193,6 @@ const resetOrder = () => {
         </el-checkbox>
       </div>
     </VueDraggableNext>
-
-    <el-divider />
-
-    <div class="batch-actions">
-      <el-button
-        size="small"
-        @click="
-          Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = true))
-        "
-      >
-        全选
-      </el-button>
-      <el-button
-        size="small"
-        @click="
-          Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = false))
-        "
-      >
-        全不选
-      </el-button>
-      <el-button
-        size="small"
-        @click="resetOrder"
-      >
-        重置顺序
-      </el-button>
-    </div>
   </div>
 </template>
 
@@ -261,6 +283,19 @@ const resetOrder = () => {
 
 .tool-icon {
   font-size: 20px;
+  color: var(--primary-color);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* 插件图标样式 - 模拟 el-icon 的布局 */
+.plugin-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 20px; /* 让 Emoji 图标尺寸正确 */
   color: var(--primary-color);
   margin-top: 2px;
   flex-shrink: 0;

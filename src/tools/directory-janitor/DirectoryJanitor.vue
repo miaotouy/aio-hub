@@ -3,31 +3,32 @@
     <!-- 左侧：配置面板 -->
     <div class="config-panel">
       <ConfigPanel
-        v-model:scan-path="state.scanPath.value"
-        v-model:name-pattern="state.namePattern.value"
-        v-model:min-age-days="state.minAgeDays.value"
-        v-model:min-size-m-b="state.minSizeMB.value"
-        v-model:max-depth="state.maxDepth.value"
-        :is-analyzing="state.isAnalyzing.value"
+        v-model:scan-path="store.scanPath"
+        v-model:name-pattern="store.namePattern"
+        v-model:min-age-days="store.minAgeDays"
+        v-model:min-size-m-b="store.minSizeMB"
+        v-model:max-depth="store.maxDepth"
+        :is-analyzing="store.isAnalyzing"
         :apply-preset="runner.applyPreset"
         @analyze="analyzePath"
+        @stop="stopScan"
       />
     </div>
 
     <!-- 右侧：结果面板 -->
     <div class="result-panel">
       <ResultPanel
-        :filtered-items="state.filteredItems.value"
-        :all-items-count="state.allItems.value.length"
-        :filtered-statistics="state.filteredStatistics.value"
-        :has-active-filters="state.hasActiveFilters.value"
-        v-model:selected-paths="state.selectedPaths.value"
-        v-model:filter-name-pattern="state.filterNamePattern.value"
-        v-model:filter-min-age-days="state.filterMinAgeDays.value"
-        v-model:filter-min-size-m-b="state.filterMinSizeMB.value"
-        :has-analyzed="state.hasAnalyzed.value"
-        :show-progress="state.showProgress.value"
-        :scan-progress="state.scanProgress.value"
+        :filtered-items="store.filteredItems"
+        :all-items-count="store.allItems.length"
+        :filtered-statistics="store.filteredStatistics"
+        :has-active-filters="store.hasActiveFilters"
+        v-model:selected-paths="store.selectedPaths"
+        v-model:filter-name-pattern="store.filterNamePattern"
+        v-model:filter-min-age-days="store.filterMinAgeDays"
+        v-model:filter-min-size-m-b="store.filterMinSizeMB"
+        :has-analyzed="store.hasAnalyzed"
+        :show-progress="store.showProgress"
+        :scan-progress="store.scanProgress"
         @cleanup="executeCleanup"
       />
     </div>
@@ -42,17 +43,16 @@ import ResultPanel from "./components/ResultPanel.vue";
 import { createModuleLogger } from "@utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import { formatBytes } from "./utils";
-import { useDirectoryJanitorState } from "./composables/useDirectoryJanitorState";
+import { useDirectoryJanitorStore } from "./store";
 import { useDirectoryJanitorRunner } from "./composables/useDirectoryJanitorRunner";
 
 const logger = createModuleLogger("tools/directory-janitor");
 
-// 使用状态管理 composable
-const state = useDirectoryJanitorState();
+// 使用 Pinia store
+const store = useDirectoryJanitorStore();
 
 // 使用业务逻辑 composable
 const runner = useDirectoryJanitorRunner();
-
 // 分析路径
 const analyzePath = async () => {
   const result = await runner.analyzePath();
@@ -60,6 +60,22 @@ const analyzePath = async () => {
     customMessage.success(
       `找到 ${result.statistics.totalItems} 项，共 ${formatBytes(result.statistics.totalSize)}`
     );
+  }
+};
+
+// 停止扫描
+const stopScan = async () => {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('stop_directory_scan');
+    store.isAnalyzing = false;
+    store.showProgress = false;
+    store.scanProgress = null;
+    customMessage.success('已停止扫描');
+    logger.info('用户手动停止扫描');
+  } catch (error) {
+    logger.error('停止扫描失败', error);
+    customMessage.error('停止扫描失败');
   }
 };
 

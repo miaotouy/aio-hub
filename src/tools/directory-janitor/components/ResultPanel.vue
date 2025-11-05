@@ -1,23 +1,7 @@
 <template>
   <InfoCard title="扫描结果" class="result-card">
-    <!-- 扫描进度 -->
-    <div v-if="showProgress" class="progress-section">
-      <div class="progress-header">
-        <span class="progress-title">正在扫描...</span>
-        <span v-if="scanProgress" class="progress-stats">
-          已扫描: {{ scanProgress.scannedCount }} 项
-          <span v-if="scanProgress.foundItems > 0">| 找到: {{ scanProgress.foundItems }} 项</span>
-        </span>
-      </div>
-
-      <div v-if="scanProgress" class="progress-details">
-        <div class="current-path">当前: {{ formatCurrentPath(scanProgress.currentPath) }}</div>
-        <div class="depth-info">深度: {{ scanProgress.currentDepth }} 层</div>
-      </div>
-    </div>
-
     <template #headerExtra>
-      <div v-if="filteredItems.length > 0" class="header-actions">
+      <div v-if="filteredItems.length > 0 && !showProgress" class="header-actions">
         <el-tag type="info" size="large">
           {{ selectedItems.length }} / {{ filteredItems.length }} 项
         </el-tag>
@@ -35,7 +19,24 @@
       </div>
     </template>
 
-    <div v-if="!hasAnalyzed" class="empty-state">
+    <!-- 扫描进度 -->
+    <div v-if="showProgress" class="progress-section">
+      <div class="progress-header">
+        <span class="progress-title">正在扫描...</span>
+        <span v-if="scanProgress" class="progress-stats">
+          已扫描: {{ scanProgress.scannedCount }} 项
+          <span v-if="scanProgress.foundItems > 0">| 找到: {{ scanProgress.foundItems }} 项</span>
+        </span>
+      </div>
+
+      <div v-if="scanProgress" class="progress-details">
+        <div class="current-path">当前: {{ formatCurrentPath(scanProgress.currentPath) }}</div>
+        <div class="depth-info">深度: {{ scanProgress.currentDepth }} 层</div>
+      </div>
+    </div>
+
+    <!-- 空状态：未开始分析 -->
+    <div v-else-if="!hasAnalyzed" class="empty-state">
       <el-empty description="配置过滤条件并点击分析按钮">
         <template #image>
           <el-icon :size="64">

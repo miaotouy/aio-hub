@@ -3,7 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { formatBytes, resolveEnvPath } from '../utils';
-import { useDirectoryJanitorState } from './useDirectoryJanitorState';
+import { useDirectoryJanitorStore } from '../store';
 import type { AnalysisResult, CleanupResult } from '../types';
 import type { CleanupPreset } from '../presets';
 
@@ -35,8 +35,8 @@ export interface FormattedScanResult {
  * 负责协调扫描、清理等业务操作
  */
 export function useDirectoryJanitorRunner() {
-  // 获取状态
-  const state = useDirectoryJanitorState();
+  // 获取 Pinia store
+  const store = useDirectoryJanitorStore();
 
   // 事件监听器
   let progressUnlistener: (() => void) | null = null;
@@ -53,8 +53,8 @@ export function useDirectoryJanitorRunner() {
         progressUnlistener = await window.listen(
           'directory-scan-progress',
           (event: any) => {
-            state.scanProgress.value = event.payload;
-            logger.debug('扫描进度更新', state.scanProgress.value);
+            store.scanProgress = event.payload;
+            logger.debug('扫描进度更新', store.scanProgress);
           }
         );
         logger.info('DirectoryJanitor 初始化完成');
@@ -92,11 +92,11 @@ export function useDirectoryJanitorRunner() {
         // 解析环境变量
         const resolvedPath = await resolveEnvPath(preset.scanPath);
         
-        state.scanPath.value = resolvedPath;
-        state.namePattern.value = preset.namePattern;
-        state.minAgeDays.value = preset.minAgeDays;
-        state.minSizeMB.value = preset.minSizeMB;
-        state.maxDepth.value = preset.maxDepth;
+        store.scanPath = resolvedPath;
+        store.namePattern = preset.namePattern;
+        store.minAgeDays = preset.minAgeDays;
+        store.minSizeMB = preset.minSizeMB;
+        store.maxDepth = preset.maxDepth;
 
         logger.info('已应用预设', {
           preset: preset.name,
@@ -126,22 +126,22 @@ export function useDirectoryJanitorRunner() {
   async function analyzePath(options?: Partial<ScanOptions>): Promise<AnalysisResult | null> {
     return await errorHandler.wrapAsync(
       async () => {
-        // 合并参数：优先使用传入的 options，否则使用实例状态
+        // 合并参数：优先使用传入的 options，否则使用 store 状态
         const scanOptions: ScanOptions = {
-          path: options?.path ?? state.scanPath.value,
-          namePattern: options?.namePattern ?? state.namePattern.value,
-          minAgeDays: options?.minAgeDays ?? state.minAgeDays.value,
-          minSizeMB: options?.minSizeMB ?? state.minSizeMB.value,
-          maxDepth: options?.maxDepth ?? state.maxDepth.value,
+          path: options?.path ?? store.scanPath,
+          namePattern: options?.namePattern ?? store.namePattern,
+          minAgeDays: options?.minAgeDays ?? store.minAgeDays,
+          minSizeMB: options?.minSizeMB ?? store.minSizeMB,
+          maxDepth: options?.maxDepth ?? store.maxDepth,
         };
 
         if (!scanOptions.path) {
           throw new Error('扫描路径不能为空');
         }
 
-        state.isAnalyzing.value = true;
-        state.showProgress.value = true;
-        state.scanProgress.value = null;
+        store.isAnalyzing = true;
+        store.showProgress = true;
+        store.scanProgress = null;
 
         try {
           const result: AnalysisResult = await invoke('analyze_directory_for_cleanup', {
@@ -153,12 +153,12 @@ export function useDirectoryJanitorRunner() {
             window: getCurrentWindow(),
           });
 
-          state.allItems.value = result.items;
-          state.selectedPaths.value.clear();
-          state.hasAnalyzed.value = true;
+          store.allItems = result.items;
+          store.selectedPaths = new Set();
+          store.hasAnalyzed = true;
 
           // 清除之前的二次筛选条件
-          state.clearFilters();
+          store.clearFilters();
 
           logger.info('目录分析完成', {
             path: scanOptions.path,
@@ -168,9 +168,9 @@ export function useDirectoryJanitorRunner() {
 
           return result;
         } finally {
-          state.isAnalyzing.value = false;
-          state.showProgress.value = false;
-          state.scanProgress.value = null;
+          store.isAnalyzing = false;
+          store.showProgress = false;
+          store.scanProgress = null;
         }
       },
       {
@@ -200,10 +200,10 @@ export function useDirectoryJanitorRunner() {
         });
 
         // 从列表中移除成功清理的项目
-        state.allItems.value = state.allItems.value.filter(
+        store.allItems = store.allItems.filter(
           (item) => !paths.includes(item.path) || result.errors.some((e) => e.includes(item.path))
         );
-        state.selectedPaths.value.clear();
+        store.selectedPaths = new Set();
 
         return result;
       },
@@ -219,7 +219,7 @@ export function useDirectoryJanitorRunner() {
    * 清理选中的项目
    */
   async function cleanupSelected(): Promise<CleanupResult | null> {
-    const pathsToClean = Array.from(state.selectedPaths.value);
+    const pathsToClean = Array.from(store.selectedPaths);
     if (pathsToClean.length === 0) {
       throw new Error('请先选择要清理的项目');
     }
@@ -233,26 +233,26 @@ export function useDirectoryJanitorRunner() {
    * 切换项目选择
    */
   function toggleItem(path: string): void {
-    const newSet = new Set(state.selectedPaths.value);
+    const newSet = new Set(store.selectedPaths);
     if (newSet.has(path)) {
       newSet.delete(path);
     } else {
       newSet.add(path);
     }
-    state.selectedPaths.value = newSet;
+    store.selectedPaths = newSet;
   }
 
   /**
    * 全选/取消全选
    */
   function selectAll(checked: boolean): void {
-    const newSet = new Set(state.selectedPaths.value);
+    const newSet = new Set(store.selectedPaths);
     if (checked) {
-      state.filteredItems.value.forEach((item) => newSet.add(item.path));
+      store.filteredItems.forEach((item) => newSet.add(item.path));
     } else {
       newSet.clear();
     }
-    state.selectedPaths.value = newSet;
+    store.selectedPaths = newSet;
   }
 
   // ==================== 高级封装方法 ====================
@@ -261,7 +261,7 @@ export function useDirectoryJanitorRunner() {
    * 获取格式化的扫描结果
    */
   function getFormattedScanResult(): FormattedScanResult {
-    const stats = state.filteredStatistics.value;
+    const stats = store.filteredStatistics;
     const summary = `扫描完成: 找到 ${stats.totalItems} 项（${stats.totalDirs} 个目录，${stats.totalFiles} 个文件），共 ${formatBytes(stats.totalSize)}`;
 
     return {
@@ -271,7 +271,7 @@ export function useDirectoryJanitorRunner() {
         totalSize: stats.totalSize,
         totalDirs: stats.totalDirs,
         totalFiles: stats.totalFiles,
-        items: state.filteredItems.value,
+        items: store.filteredItems,
       },
     };
   }

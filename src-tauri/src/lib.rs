@@ -12,8 +12,9 @@ use tokio_util::sync::CancellationToken;
 use commands::{
     // 目录清理相关
     analyze_directory_for_cleanup,
-    cancel_move_operation,
     cleanup_items,
+    stop_directory_scan,
+    cancel_move_operation,
     create_links_only,
     // 窗口管理相关
     create_tool_window,
@@ -189,6 +190,7 @@ pub fn run() {
         // 管理状态
         .manage(ClipboardMonitorState::new())
         .manage(commands::native_plugin::NativePluginState::default())
+        .manage(commands::directory_janitor::ScanCancellation::new())
         .manage(AppState::default())
         .manage(Arc::new(CancellationToken::new()))
         // 注册命令处理器
@@ -222,6 +224,7 @@ pub fn run() {
             // 目录清理命令
             analyze_directory_for_cleanup,
             cleanup_items,
+            stop_directory_scan,
             // LLM代理命令
             start_llm_proxy,
             stop_llm_proxy,

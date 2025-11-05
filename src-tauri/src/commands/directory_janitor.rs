@@ -1,10 +1,43 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use regex::Regex;
-use tauri::Emitter;
+use tauri::{Emitter, State};
 use crate::events::DirectoryScanProgress;
+
+// 全局扫描取消标志
+pub struct ScanCancellation {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl ScanCancellation {
+    pub fn new() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    pub fn reset(&self) {
+        self.cancelled.store(false, Ordering::SeqCst);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+}
+
+impl Default for ScanCancellation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // 项目信息结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,7 +145,12 @@ fn analyze_directory_recursive(
     items: &mut Vec<ItemInfo>,
     window: Option<&tauri::Window>,
     scanned_count: &mut usize,
+    cancellation: &ScanCancellation,
 ) -> Result<(), String> {
+    // 检查是否已取消
+    if cancellation.is_cancelled() {
+        return Err("扫描已被用户取消".to_string());
+    }
     // 检查深度限制
     if let Some(max_depth) = criteria.max_depth {
         if current_depth >= max_depth {
@@ -205,7 +243,7 @@ fn analyze_directory_recursive(
         
         // 如果是目录，递归处理（无论是否匹配，都要递归扫描子目录）
         if is_dir {
-            analyze_directory_recursive(&path, root, criteria, current_depth + 1, items, window, scanned_count)?;
+            analyze_directory_recursive(&path, root, criteria, current_depth + 1, items, window, scanned_count, cancellation)?;
         }
     }
     
@@ -221,7 +259,10 @@ pub async fn analyze_directory_for_cleanup(
     min_size_mb: Option<u64>,
     max_depth: Option<usize>,
     window: tauri::Window,
+    cancellation: State<'_, ScanCancellation>,
 ) -> Result<AnalysisResult, String> {
+    // 重置取消标志
+    cancellation.reset();
     let root_path = PathBuf::from(&path);
     
     if !root_path.exists() {
@@ -254,7 +295,7 @@ pub async fn analyze_directory_for_cleanup(
         eprintln!("发送开始扫描事件失败: {}", e);
     }
     
-    analyze_directory_recursive(&root_path, &root_path, &criteria, 0, &mut items, Some(&window), &mut scanned_count)?;
+    analyze_directory_recursive(&root_path, &root_path, &criteria, 0, &mut items, Some(&window), &mut scanned_count, &cancellation)?;
     
     // 发送扫描完成事件
     let end_progress = DirectoryScanProgress {
@@ -327,4 +368,11 @@ pub async fn cleanup_items(paths: Vec<String>) -> Result<CleanupResult, String> 
         freed_space,
         errors,
     })
+}
+
+// Tauri 命令：停止当前扫描
+#[tauri::command]
+pub async fn stop_directory_scan(cancellation: State<'_, ScanCancellation>) -> Result<(), String> {
+    cancellation.cancel();
+    Ok(())
 }

@@ -104,9 +104,9 @@
 
     <div class="button-footer">
       <el-button
+        v-if="!isAnalyzing"
         type="primary"
         @click="emitAnalyze"
-        :loading="isAnalyzing"
         :disabled="!localScanPath"
         class="analyze-btn"
       >
@@ -115,6 +115,17 @@
         </el-icon>
         开始分析
       </el-button>
+      <el-button
+        v-else
+        type="warning"
+        @click="emitStop"
+        class="analyze-btn"
+      >
+        <el-icon style="padding-right: 5px">
+          <CloseBold />
+        </el-icon>
+        停止扫描
+      </el-button>
     </div>
   </InfoCard>
 </template>
@@ -122,7 +133,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { customMessage } from '@/utils/customMessage';
-import { FolderOpened, Search, Filter } from "@element-plus/icons-vue";
+import { FolderOpened, Search, Filter, CloseBold } from "@element-plus/icons-vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import InfoCard from "../../../components/common/InfoCard.vue";
 import DropZone from "../../../components/common/DropZone.vue";
@@ -148,6 +159,7 @@ interface Emits {
   (e: "update:minSizeMB", value: number | undefined): void;
   (e: "update:maxDepth", value: number): void;
   (e: "analyze"): void;
+  (e: "stop"): void;
 }
 
 const props = defineProps<Props>();
@@ -205,11 +217,20 @@ const handlePresetChange = async (presetId?: string) => {
 
   const result = await props.applyPreset(preset);
   if (result) {
+    // 应用预设配置到本地状态
+    localScanPath.value = result.resolvedPath;
+    localNamePattern.value = preset.namePattern ?? "";
+    localMinAgeDays.value = preset.minAgeDays;
+    localMinSizeMB.value = preset.minSizeMB;
+    localMaxDepth.value = preset.maxDepth ?? 10;
+
     if (result.needSelectPath) {
       customMessage.info(`已应用预设: ${result.presetName}，请选择扫描路径`);
     } else {
       customMessage.success(`已应用预设: ${result.presetName}`);
     }
+    // 重置选择，以便可以再次选择相同的预设
+    selectedPresetId.value = undefined;
   }
 };
 
@@ -241,6 +262,11 @@ const selectDirectory = async () => {
 // 触发分析
 const emitAnalyze = () => {
   emit("analyze");
+};
+
+// 触发停止
+const emitStop = () => {
+  emit("stop");
 };
 </script>
 

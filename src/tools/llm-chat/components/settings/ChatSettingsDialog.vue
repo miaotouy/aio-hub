@@ -47,7 +47,9 @@
                         :is="resolveComponent(item.component)"
                         :class="getComponentClass(item)"
                         :model-value="get(localSettings, item.modelPath)"
-                        @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                        @update:model-value="
+                          (value: any) => set(localSettings, item.modelPath, value)
+                        "
                         v-bind="item.props"
                       >
                         <!-- RadioGroup options -->
@@ -65,13 +67,17 @@
                       <div v-if="item.component === 'SliderWithInput'" class="slider-with-input">
                         <el-slider
                           :model-value="get(localSettings, item.modelPath)"
-                          @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                          @update:model-value="
+                            (value: any) => set(localSettings, item.modelPath, value)
+                          "
                           v-bind="item.props"
                           class="slider-part"
                         />
                         <el-input-number
                           :model-value="get(localSettings, item.modelPath)"
-                          @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                          @update:model-value="
+                            (value: any) => set(localSettings, item.modelPath, value)
+                          "
                           v-bind="item.props"
                           class="input-part"
                           :controls="true"
@@ -95,10 +101,16 @@
                         :is="resolveComponent(item.component)"
                         :class="getComponentClass(item)"
                         :model-value="get(localSettings, item.modelPath)"
-                        @update:model-value="(value: any) => set(localSettings, item.modelPath, value)"
+                        @update:model-value="
+                          (value: any) => set(localSettings, item.modelPath, value)
+                        "
                         v-bind="item.props"
                       />
-                      <div v-if="item.hint" class="form-hint-inline" v-html="renderHint(item.hint)"></div>
+                      <div
+                        v-if="item.hint"
+                        class="form-hint-inline"
+                        v-html="renderHint(item.hint)"
+                      ></div>
                     </div>
                   </template>
                 </el-form-item>
@@ -139,32 +151,40 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, shallowRef, type Component } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
-import { ElMessageBox, ElRadio, ElSwitch, ElSlider, ElInputNumber, ElInput, ElRadioGroup } from 'element-plus';
-import { get, set } from 'lodash-es';
-import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from '@element-plus/icons-vue';
+import { ref, watch, nextTick, computed, shallowRef, type Component } from "vue";
+import { useDebounceFn } from "@vueuse/core";
+import {
+  ElMessageBox,
+  ElRadio,
+  ElSwitch,
+  ElSlider,
+  ElInputNumber,
+  ElInput,
+  ElRadioGroup,
+} from "element-plus";
+import { get, set } from "lodash-es";
+import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
 
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import LlmModelSelector from '@/components/common/LlmModelSelector.vue';
-import { customMessage } from '@/utils/customMessage';
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { customMessage } from "@/utils/customMessage";
 import {
   useChatSettings,
   type ChatSettings,
   DEFAULT_SETTINGS,
-} from '../../composables/useChatSettings';
-import { createModuleLogger } from '@utils/logger';
-import { settingsConfig } from './settingsConfig';
-import type { SettingComponent, SettingItem } from './settings-types';
+} from "../../composables/useChatSettings";
+import { createModuleLogger } from "@utils/logger";
+import { settingsConfig } from "./settingsConfig";
+import type { SettingComponent, SettingItem } from "./settings-types";
 
-const logger = createModuleLogger('ChatSettingsDialog');
+const logger = createModuleLogger("ChatSettingsDialog");
 
 interface Props {
   visible: boolean;
 }
 
 interface Emits {
-  (e: 'update:visible', value: boolean): void;
+  (e: "update:visible", value: boolean): void;
 }
 
 const props = defineProps<Props>();
@@ -175,8 +195,8 @@ const { settings, loadSettings, updateSettings, resetSettings, isLoaded } = useC
 const localSettings = ref<ChatSettings>(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
 
 const isLoadingSettings = ref(false);
-const saveStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle');
-const lastSaveTime = ref('');
+const saveStatus = ref<"idle" | "saving" | "success" | "error">("idle");
+const lastSaveTime = ref("");
 
 const loadLocalSettings = async () => {
   isLoadingSettings.value = true;
@@ -185,7 +205,7 @@ const loadLocalSettings = async () => {
       await loadSettings();
     }
     localSettings.value = JSON.parse(JSON.stringify(settings.value));
-    logger.info('加载本地设置', { settings: localSettings.value });
+    logger.info("加载本地设置", { settings: localSettings.value });
   } finally {
     await nextTick();
     isLoadingSettings.value = false;
@@ -196,7 +216,7 @@ watch(
   () => props.visible,
   async (visible) => {
     if (visible) {
-      saveStatus.value = 'idle';
+      saveStatus.value = "idle";
       await loadLocalSettings();
     }
   },
@@ -206,22 +226,22 @@ watch(
 watch(
   () => localSettings.value.shortcuts.send,
   (sendKey) => {
-    localSettings.value.shortcuts.newLine = sendKey === 'ctrl+enter' ? 'enter' : 'shift+enter';
+    localSettings.value.shortcuts.newLine = sendKey === "ctrl+enter" ? "enter" : "shift+enter";
   }
 );
 
 const autoSave = useDebounceFn(async () => {
   if (isLoadingSettings.value) return;
   try {
-    saveStatus.value = 'saving';
+    saveStatus.value = "saving";
     await updateSettings(localSettings.value);
-    logger.info('设置已自动保存');
-    saveStatus.value = 'success';
+    logger.info("设置已自动保存");
+    saveStatus.value = "success";
     lastSaveTime.value = new Date().toLocaleTimeString();
   } catch (error) {
-    logger.error('自动保存设置失败', error as Error);
-    customMessage.error('自动保存设置失败');
-    saveStatus.value = 'error';
+    logger.error("自动保存设置失败", error as Error);
+    customMessage.error("自动保存设置失败");
+    saveStatus.value = "error";
   }
 }, 500);
 
@@ -230,8 +250,8 @@ watch(
   () => {
     if (isLoadingSettings.value) return;
     // 当用户编辑时，如果之前有保存成功或失败的状态，则清除，以表示“未保存的更改”
-    if (saveStatus.value === 'success' || saveStatus.value === 'error') {
-      saveStatus.value = 'idle';
+    if (saveStatus.value === "success" || saveStatus.value === "error") {
+      saveStatus.value = "idle";
     }
     autoSave();
   },
@@ -241,31 +261,31 @@ watch(
 const handleClose = () => {
   // HACK: 类型系统未能正确推断出 flush 方法，使用 any 绕过检查
   (autoSave as any).flush();
-  emit('update:visible', false);
+  emit("update:visible", false);
 };
 
 const handleReset = async () => {
   try {
-    await ElMessageBox.confirm('确定要恢复默认设置吗？', '确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
+    await ElMessageBox.confirm("确定要恢复默认设置吗？", "确认", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
     });
     await resetSettings();
     await loadLocalSettings();
-    customMessage.success('已恢复默认设置');
+    customMessage.success("已恢复默认设置");
   } catch {
     // User cancelled
   }
 };
 
 const handleResetPrompt = () => {
-  set(localSettings.value, 'topicNaming.prompt', DEFAULT_SETTINGS.topicNaming.prompt);
-  customMessage.success('已重置为默认提示词');
+  set(localSettings.value, "topicNaming.prompt", DEFAULT_SETTINGS.topicNaming.prompt);
+  customMessage.success("已重置为默认提示词");
 };
 
 const handleClosed = () => {
-  saveStatus.value = 'idle';
+  saveStatus.value = "idle";
 };
 
 // --- Config-driven rendering ---
@@ -279,7 +299,7 @@ const componentMap: Record<string, Component> = {
 };
 
 const resolveComponent = (componentName: SettingComponent | Component) => {
-  if (typeof componentName === 'string') {
+  if (typeof componentName === "string") {
     return componentMap[componentName] || componentName;
   }
   return shallowRef(componentName);
@@ -289,7 +309,7 @@ const renderHint = (hint: string) => {
   return hint.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
     try {
       // eslint-disable-next-line no-new-func
-      return new Function('localSettings', `return ${expression}`)(localSettings.value);
+      return new Function("localSettings", `return ${expression}`)(localSettings.value);
     } catch (e) {
       return `{{ ${expression} }}`; // Return original on error
     }
@@ -299,24 +319,24 @@ const renderHint = (hint: string) => {
 const getComponentClass = (item: SettingItem) => {
   const classes: string[] = [];
   if (
-    item.component === 'ElSlider' ||
-    (item.component === 'ElInput' && item.props?.type === 'textarea') ||
-    item.component === 'SliderWithInput'
+    item.component === "ElSlider" ||
+    (item.component === "ElInput" && item.props?.type === "textarea") ||
+    item.component === "SliderWithInput"
   ) {
-    classes.push('full-width');
+    classes.push("full-width");
   }
   return classes;
 };
 
 const handleComponentClick = (itemId: string) => {
-  if (itemId === 'prompt') {
+  if (itemId === "prompt") {
     handleResetPrompt();
   }
 };
 
 // --- Search functionality ---
 const scrollContainerRef = ref<HTMLElement | null>(null);
-const searchQuery = ref('');
+const searchQuery = ref("");
 
 interface SearchIndexItem {
   id: string;
@@ -359,16 +379,16 @@ const handleSearchSelect = (item: Record<string, any>) => {
   ) as HTMLElement;
 
   if (targetElement) {
-    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
 
-    targetElement.classList.add('highlight');
+    targetElement.classList.add("highlight");
     setTimeout(() => {
-      targetElement.classList.remove('highlight');
+      targetElement.classList.remove("highlight");
     }, 1500);
   }
 
   nextTick(() => {
-    searchQuery.value = '';
+    searchQuery.value = "";
   });
 };
 </script>

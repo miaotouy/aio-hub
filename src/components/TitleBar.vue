@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted } from 'vue';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { invoke } from '@tauri-apps/api/core';
-import { Minus, CopyDocument, Close, House, Setting, Sunny, Moon, User } from '@element-plus/icons-vue';
-import { useRoute, useRouter } from 'vue-router';
-import { toolsConfig } from '../config/tools';
-import iconBlack from '../assets/aio-icon-black.svg';
-import iconWhite from '../assets/aio-icon-white.svg';
-import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from '@utils/appSettings';
-import { createModuleLogger } from '@utils/logger';
-import { platform } from '@tauri-apps/plugin-os';
-import { useTheme } from '../composables/useTheme';
-import SystemThemeIcon from './icons/SystemThemeIcon.vue';
-import { useUserProfileStore } from '@/tools/llm-chat/userProfileStore';
-import Avatar from '@/components/common/Avatar.vue';
-import { debounce } from 'lodash-es';
+import { ref, onMounted, computed, onUnmounted } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  Minus,
+  CopyDocument,
+  Close,
+  House,
+  Setting,
+  Sunny,
+  Moon,
+  User,
+} from "@element-plus/icons-vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToolsStore } from "@/stores/tools";
+import iconBlack from "../assets/aio-icon-black.svg";
+import iconWhite from "../assets/aio-icon-white.svg";
+import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from "@utils/appSettings";
+import { createModuleLogger } from "@utils/logger";
+import { platform } from "@tauri-apps/plugin-os";
+import { useTheme } from "../composables/useTheme";
+import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
+import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
+import Avatar from "@/components/common/Avatar.vue";
+import { debounce } from "lodash-es";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -23,9 +32,10 @@ const props = defineProps<{
 }>();
 
 // 创建模块日志记录器
-const logger = createModuleLogger('TitleBar');
+const logger = createModuleLogger("TitleBar");
 
 const router = useRouter();
+const toolsStore = useToolsStore();
 const { currentTheme, applyTheme, isDark } = useTheme();
 const userProfileStore = useUserProfileStore();
 
@@ -44,36 +54,36 @@ const cleanupFunctions = ref<(() => void)[]>([]);
 
 // 获取当前页面的工具配置
 const currentTool = computed(() => {
-  // 根据当前路由路径匹配工具配置
-  const tool = toolsConfig.find(tool => tool.path === route.path);
+  // 优先从 toolsStore 中查找（包括动态加载的插件）
+  const tool = toolsStore.tools.find((tool) => tool.path === route.path);
   if (tool) {
     return {
       name: tool.name,
-      icon: tool.icon
+      icon: tool.icon,
     };
   }
-  
+
   // 特殊页面处理
-  if (route.path === '/') {
+  if (route.path === "/") {
     return {
-      name: 'AIO Hub',
-      icon: House
+      name: "AIO Hub",
+      icon: House,
     };
-  } else if (route.path === '/regex-manage') {
+  } else if (route.path === "/regex-manage") {
     return {
-      name: '正则预设管理',
-      icon: Setting
+      name: "正则预设管理",
+      icon: Setting,
     };
-  } else if (route.path === '/settings') {
+  } else if (route.path === "/settings") {
     return {
-      name: '设置',
-      icon: Setting
+      name: "设置",
+      icon: Setting,
     };
   }
-  
+
   return {
-    name: 'AIO Hub',
-    icon: House
+    name: "AIO Hub",
+    icon: House,
   };
 });
 
@@ -88,7 +98,15 @@ const currentIcon = computed(() => props.icon || currentTool.value.icon);
 // 如果传入了 icon prop，则不使用默认图标
 const useDefaultIcon = computed(() => {
   if (props.icon) return false;
-  return route.path === '/' || !toolsConfig.find(tool => tool.path === route.path);
+  return route.path === "/" || !toolsStore.tools.find((tool) => tool.path === route.path);
+});
+
+// 判断当前图标是否为插件图标
+// 插件图标通过 createPluginIcon 建，都有 setup 函数
+// 而内置图标（Element Plus 图标等）没有 setup 函数
+const isPluginIcon = computed(() => {
+  const icon = currentIcon.value;
+  return icon && typeof icon === "object" && "setup" in icon;
 });
 
 const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
@@ -97,28 +115,28 @@ const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 const checkMaximized = async () => {
   const previousState = isMaximized.value;
   const currentState = await appWindow.isMaximized();
-  
+
   // 如果状态发生变化，记录日志
   if (previousState !== currentState) {
-    const changeType = isManualMaximizeChange.value ? '[手动操作]' : '[自动变更]';
+    const changeType = isManualMaximizeChange.value ? "[手动操作]" : "[自动变更]";
     const windowLabel = appWindow.label;
-    
-    logger.debug('窗口最大化状态变化', {
+
+    logger.debug("窗口最大化状态变化", {
       window: windowLabel,
       timestamp: new Date().toISOString(),
       from: previousState,
       to: currentState,
       type: changeType,
-      stackTrace: new Error().stack
+      stackTrace: new Error().stack,
     });
-    
+
     console.log(
       `[${new Date().toISOString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`
     );
   }
-  
+
   isMaximized.value = currentState;
-  
+
   // 重置手动操作标志
   isManualMaximizeChange.value = false;
 };
@@ -126,49 +144,49 @@ const checkMaximized = async () => {
 // 保存窗口配置（带防抖）
 const saveWindowConfig = debounce(async () => {
   const windowLabel = appWindow.label;
-  
+
   try {
-    await invoke('save_window_config', { label: windowLabel });
+    await invoke("save_window_config", { label: windowLabel });
     logger.debug(`窗口配置已保存: ${windowLabel}`);
   } catch (error) {
-    logger.error('保存窗口配置失败', error);
+    logger.error("保存窗口配置失败", error);
   }
 }, 500); // 500ms 防抖
 
 // 监听窗口大小变化
 onMounted(async () => {
   // 判断是否为主窗口
-  isMainWindow.value = appWindow.label === 'main';
-  
+  isMainWindow.value = appWindow.label === "main";
+
   // 检测操作系统
   const currentPlatform = platform();
-  isMacOS.value = currentPlatform === 'macos';
-  
+  isMacOS.value = currentPlatform === "macos";
+
   checkMaximized();
-  
+
   // 监听窗口移动事件
   const unlistenMoved = await appWindow.onMoved(() => {
     saveWindowConfig();
   });
-  
+
   // 监听窗口resize事件
   const unlistenResized = await appWindow.onResized(() => {
     checkMaximized();
     saveWindowConfig();
   });
-  
+
   // 将清理函数存储到 ref 中
   cleanupFunctions.value.push(unlistenMoved, unlistenResized);
-  
+
   // 加载应用设置
   try {
     settings.value = await loadAppSettingsAsync();
   } catch (error) {
-    logger.error('加载应用设置失败', error);
+    logger.error("加载应用设置失败", error);
   }
-  
+
   // 监听设置变化事件
-  window.addEventListener('app-settings-changed', (event: any) => {
+  window.addEventListener("app-settings-changed", (event: any) => {
     settings.value = event.detail;
   });
 });
@@ -176,7 +194,7 @@ onMounted(async () => {
 // 在 setup 顶层注册 onUnmounted（必须在同步执行期间调用）
 onUnmounted(() => {
   // 清理所有监听器
-  cleanupFunctions.value.forEach(cleanup => cleanup());
+  cleanupFunctions.value.forEach((cleanup) => cleanup());
 });
 
 // 窗口控制函数
@@ -187,9 +205,9 @@ const minimizeWindow = () => {
 const toggleMaximize = async () => {
   // 标记为手动操作
   isManualMaximizeChange.value = true;
-  
+
   await appWindow.toggleMaximize();
-  
+
   // toggleMaximize 会触发 onResized 事件，进而调用 checkMaximized
   // 所以这里不需要再次设置 isMaximized.value
 };
@@ -206,7 +224,7 @@ const closeWindow = async () => {
 
 // 导航到设置页面
 const goToSettings = () => {
-  router.push('/settings');
+  router.push("/settings");
 };
 
 // 获取当前主题图标
@@ -232,7 +250,7 @@ const getThemeTooltip = computed(() => {
 });
 
 // 主题切换处理
-const handleThemeChange = (theme: 'auto' | 'light' | 'dark') => {
+const handleThemeChange = (theme: "auto" | "light" | "dark") => {
   applyTheme(theme);
   updateAppSettings({ theme });
 };
@@ -247,26 +265,29 @@ const handleProfileSelect = (profileId: string | null) => {
 
 // 导航到档案管理页面
 const goToProfileSettings = () => {
-  router.push('/settings?section=user-profiles');
+  router.push("/settings?section=user-profiles");
 };
 </script>
 
 <template>
-  <div class="title-bar" :class="{ 'macos': isMacOS }" data-tauri-drag-region>
+  <div class="title-bar" :class="{ macos: isMacOS }" data-tauri-drag-region>
     <div class="title-bar-content">
       <!-- 左侧占位区域（macOS 需要为原生控件留出空间） -->
-      <div class="left-controls" :class="{ 'macos': isMacOS }"></div>
-      
+      <div class="left-controls" :class="{ macos: isMacOS }"></div>
+
       <!-- 中间标题区域 -->
       <div class="title-area">
         <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
         <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" />
+        <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
+        <component v-else-if="isPluginIcon" :is="currentIcon" class="plugin-icon-wrapper" />
+        <!-- 普通图标用 el-icon 包裹 -->
         <el-icon v-else class="tool-icon" :size="20">
           <component :is="currentIcon" />
         </el-icon>
         <span class="app-title">{{ currentToolName }}</span>
       </div>
-      
+
       <!-- 右侧控制区域 -->
       <div class="right-controls">
         <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
@@ -278,7 +299,11 @@ const goToProfileSettings = () => {
         >
           <button
             class="control-btn profile-btn"
-            :title="userProfileStore.globalProfile ? `用户档案: ${userProfileStore.globalProfile.name}` : '选择用户档案'"
+            :title="
+              userProfileStore.globalProfile
+                ? `用户档案: ${userProfileStore.globalProfile.name}`
+                : '选择用户档案'
+            "
           >
             <!-- 如果有选中档案，使用 Avatar（有头像显示头像，无头像显示首字母） -->
             <Avatar
@@ -313,7 +338,7 @@ const goToProfileSettings = () => {
                   :size="20"
                   shape="square"
                   :radius="4"
-                  style="margin-right: 8px;"
+                  style="margin-right: 8px"
                 />
                 <span>{{ profile.name }}</span>
               </el-dropdown-item>
@@ -332,78 +357,57 @@ const goToProfileSettings = () => {
           @command="handleThemeChange"
           placement="bottom"
         >
-          <button
-            class="control-btn theme-btn"
-            :title="getThemeTooltip"
-          >
+          <button class="control-btn theme-btn" :title="getThemeTooltip">
             <el-icon><component :is="getThemeIcon" /></el-icon>
           </button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item
-                command="auto"
-                :class="{ 'is-active': currentTheme === 'auto' }"
-              >
+              <el-dropdown-item command="auto" :class="{ 'is-active': currentTheme === 'auto' }">
                 <el-icon><SystemThemeIcon /></el-icon>
                 <span>跟随系统</span>
               </el-dropdown-item>
-              <el-dropdown-item
-                command="light"
-                :class="{ 'is-active': currentTheme === 'light' }"
-              >
+              <el-dropdown-item command="light" :class="{ 'is-active': currentTheme === 'light' }">
                 <el-icon><Sunny /></el-icon>
                 <span>浅色</span>
               </el-dropdown-item>
-              <el-dropdown-item
-                command="dark"
-                :class="{ 'is-active': currentTheme === 'dark' }"
-              >
+              <el-dropdown-item command="dark" :class="{ 'is-active': currentTheme === 'dark' }">
                 <el-icon><Moon /></el-icon>
                 <span>深色</span>
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        
+
         <!-- 设置按钮（仅主窗口显示） -->
         <template v-if="isMainWindow">
           <el-tooltip content="设置" placement="bottom">
-            <button
-              class="control-btn settings-btn"
-              @click="goToSettings"
-            >
+            <button class="control-btn settings-btn" @click="goToSettings">
               <el-icon><Setting /></el-icon>
             </button>
           </el-tooltip>
         </template>
-        
+
         <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
         <template v-if="!isMacOS">
           <el-tooltip content="最小化" placement="bottom">
-            <button
-              class="control-btn minimize-btn"
-              @click="minimizeWindow"
-            >
+            <button class="control-btn minimize-btn" @click="minimizeWindow">
               <el-icon><Minus /></el-icon>
             </button>
           </el-tooltip>
-          
+
           <el-tooltip :content="isMaximized ? '还原' : '最大化'" placement="bottom">
-            <button
-              class="control-btn maximize-btn"
-              @click="toggleMaximize"
-            >
+            <button class="control-btn maximize-btn" @click="toggleMaximize">
               <el-icon>
                 <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
               </el-icon>
             </button>
           </el-tooltip>
-          
-          <el-tooltip :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'" placement="bottom">
-            <button
-              class="control-btn close-btn"
-              @click="closeWindow"
-            >
+
+          <el-tooltip
+            :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'"
+            placement="bottom"
+          >
+            <button class="control-btn close-btn" @click="closeWindow">
               <el-icon><Close /></el-icon>
             </button>
           </el-tooltip>
@@ -477,6 +481,17 @@ const goToProfileSettings = () => {
   flex-shrink: 0;
 }
 
+/* 插件图标样式 - 模拟 el-icon 的布局 */
+.plugin-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 20px; /* 让 Emoji 图标尺寸正确 */
+  vertical-align: middle;
+}
+
 .app-title {
   font-size: 16px;
   color: var(--sidebar-text);
@@ -541,11 +556,11 @@ const goToProfileSettings = () => {
   .title-bar {
     background: linear-gradient(180deg, #f0f0f0 0%, #e8e8e8 100%);
   }
-  
+
   .control-btn {
     color: #333;
   }
-  
+
   .control-btn:hover {
     background-color: rgba(0, 0, 0, 0.08);
   }

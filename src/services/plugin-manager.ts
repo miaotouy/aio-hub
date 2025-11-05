@@ -107,14 +107,14 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
  * @param componentFile 组件文件相对于插件根目录的路径（例如 "MyComponent.vue" 或 "dist/MyComponent.js"）
  */
 function createPluginComponentLoader(pluginPath: string, componentFile: string) {
-  // 判断是否为开发模式插件（路径以 /plugins/ 开头）
-  const isDevMode = pluginPath.startsWith('/plugins/');
+  // 判断是否为开发模式插件（路径以 plugins/ 开头）
+  const isDevMode = pluginPath.startsWith('plugins/');
   
   return async () => {
     try {
       if (isDevMode) {
         // 开发模式：从 window.__PLUGIN_COMPONENTS__ 获取组件加载器
-        const componentPath = `${pluginPath}/${componentFile}`;
+        const componentPath = `/${pluginPath}/${componentFile}`;
         
         logger.info('加载开发模式插件组件', {
           pluginPath,

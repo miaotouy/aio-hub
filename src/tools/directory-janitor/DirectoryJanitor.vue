@@ -29,6 +29,8 @@
         :has-analyzed="store.hasAnalyzed"
         :show-progress="store.showProgress"
         :scan-progress="store.scanProgress"
+        :is-cleaning="store.isCleaning"
+        :cleanup-progress="store.cleanupProgress"
         @cleanup="executeCleanup"
       />
     </div>

@@ -327,14 +327,42 @@ pub async fn analyze_directory_for_cleanup(
 
 // Tauri 命令：清理选定的项目（移入回收站）
 #[tauri::command]
-pub async fn cleanup_items(paths: Vec<String>) -> Result<CleanupResult, String> {
+pub async fn cleanup_items(
+    paths: Vec<String>,
+    window: tauri::Window,
+) -> Result<CleanupResult, String> {
+    // 定义清理进度事件结构
+    #[derive(Clone, serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CleanupProgress {
+        current_item: String,
+        processed_count: usize,
+        total_count: usize,
+        success_count: usize,
+        error_count: usize,
+    }
+    
     let mut success_count = 0;
     let mut error_count = 0;
     let mut freed_space = 0u64;
     let mut errors = Vec::new();
+    let total_items = paths.len();
     
-    for path_str in paths {
-        let path = PathBuf::from(&path_str);
+    for (index, path_str) in paths.iter().enumerate() {
+        let path = PathBuf::from(path_str);
+        
+        // 发送清理进度事件
+        let progress = CleanupProgress {
+            current_item: path_str.clone(),
+            processed_count: index + 1,
+            total_count: total_items,
+            success_count,
+            error_count,
+        };
+        
+        if let Err(e) = window.emit("directory-cleanup-progress", progress) {
+            eprintln!("发送清理进度事件失败: {}", e);
+        }
         
         if !path.exists() {
             errors.push(format!("路径不存在: {}", path_str));

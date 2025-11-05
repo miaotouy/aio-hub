@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { ItemInfo, DirectoryScanProgress, Statistics } from './types';
+import type { ItemInfo, DirectoryScanProgress, DirectoryCleanupProgress, Statistics } from './types';
 
 /**
  * 目录清道夫 Pinia Store
@@ -29,6 +29,8 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
   const isAnalyzing = ref(false);
   const showProgress = ref(false);
   const scanProgress = ref<DirectoryScanProgress | null>(null);
+  const isCleaning = ref(false);
+  const cleanupProgress = ref<DirectoryCleanupProgress | null>(null);
 
   // ==================== 计算属性 ====================
 
@@ -146,6 +148,8 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
     isAnalyzing,
     showProgress,
     scanProgress,
+    isCleaning,
+    cleanupProgress,
 
     // 计算属性
     filteredItems,

@@ -35,6 +35,26 @@
       </div>
     </div>
 
+    <!-- 清理进度 -->
+    <div v-if="isCleaning" class="progress-section cleanup-progress">
+      <div class="progress-header">
+        <span class="progress-title">正在清理...</span>
+        <span v-if="cleanupProgress" class="progress-stats">
+          进度: {{ cleanupProgress.processedCount }} / {{ cleanupProgress.totalCount }}
+          <span v-if="cleanupProgress.successCount > 0">| 成功: {{ cleanupProgress.successCount }}</span>
+          <span v-if="cleanupProgress.errorCount > 0" class="error-count">| 失败: {{ cleanupProgress.errorCount }}</span>
+        </span>
+      </div>
+
+      <div v-if="cleanupProgress" class="progress-details">
+        <div class="current-path">当前: {{ formatCurrentPath(cleanupProgress.currentItem) }}</div>
+        <el-progress
+          :percentage="Math.round((cleanupProgress.processedCount / cleanupProgress.totalCount) * 100)"
+          :status="cleanupProgress.errorCount > 0 ? 'exception' : undefined"
+        />
+      </div>
+    </div>
+
     <!-- 空状态：未开始分析 -->
     <div v-else-if="!hasAnalyzed" class="empty-state">
       <el-empty description="配置过滤条件并点击分析按钮">
@@ -147,7 +167,7 @@ import {
 } from "@element-plus/icons-vue";
 import InfoCard from "../../../components/common/InfoCard.vue";
 import { formatBytes, formatAge, formatCurrentPath } from "../utils";
-import type { ItemInfo, DirectoryScanProgress, Statistics } from "../types";
+import type { ItemInfo, DirectoryScanProgress, DirectoryCleanupProgress, Statistics } from "../types";
 
 interface Props {
   filteredItems: ItemInfo[];
@@ -156,6 +176,8 @@ interface Props {
   hasAnalyzed: boolean;
   showProgress: boolean;
   scanProgress: DirectoryScanProgress | null;
+  isCleaning: boolean;
+  cleanupProgress: DirectoryCleanupProgress | null;
   filteredStatistics: Statistics;
   hasActiveFilters: boolean;
   filterNamePattern: string;
@@ -450,5 +472,14 @@ const handleConfirmCleanup = async () => {
 
 .depth-info {
   color: var(--text-color-lighter);
+}
+
+.cleanup-progress {
+  border-color: var(--el-color-primary);
+  background-color: color-mix(in srgb, var(--el-color-primary) 5%, var(--container-bg));
+}
+
+.error-count {
+  color: var(--el-color-error);
 }
 </style>

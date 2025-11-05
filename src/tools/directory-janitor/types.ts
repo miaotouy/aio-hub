@@ -41,6 +41,15 @@ export interface DirectoryScanProgress {
   foundItems: number;
 }
 
+/** 目录清理进度 */
+export interface DirectoryCleanupProgress {
+  currentItem: string;
+  processedCount: number;
+  totalCount: number;
+  successCount: number;
+  errorCount: number;
+}
+
 /** 配置状态 */
 export interface ScanConfig {
   scanPath: string;

@@ -39,7 +39,8 @@ export function useDirectoryJanitorRunner() {
   const store = useDirectoryJanitorStore();
 
   // 事件监听器
-  let progressUnlistener: (() => void) | null = null;
+  let scanProgressUnlistener: (() => void) | null = null;
+  let cleanupProgressUnlistener: (() => void) | null = null;
 
   // ==================== 初始化与清理 ====================
 
@@ -50,13 +51,25 @@ export function useDirectoryJanitorRunner() {
     await errorHandler.wrapAsync(
       async () => {
         const window = getCurrentWindow();
-        progressUnlistener = await window.listen(
+        
+        // 监听扫描进度
+        scanProgressUnlistener = await window.listen(
           'directory-scan-progress',
           (event: any) => {
             store.scanProgress = event.payload;
             logger.debug('扫描进度更新', store.scanProgress);
           }
         );
+        
+        // 监听清理进度
+        cleanupProgressUnlistener = await window.listen(
+          'directory-cleanup-progress',
+          (event: any) => {
+            store.cleanupProgress = event.payload;
+            logger.debug('清理进度更新', store.cleanupProgress);
+          }
+        );
+        
         logger.info('DirectoryJanitor 初始化完成');
       },
       {
@@ -70,9 +83,13 @@ export function useDirectoryJanitorRunner() {
    * 清理资源
    */
   async function dispose(): Promise<void> {
-    if (progressUnlistener) {
-      progressUnlistener();
-      progressUnlistener = null;
+    if (scanProgressUnlistener) {
+      scanProgressUnlistener();
+      scanProgressUnlistener = null;
+    }
+    if (cleanupProgressUnlistener) {
+      cleanupProgressUnlistener();
+      cleanupProgressUnlistener = null;
     }
     logger.info('DirectoryJanitor 已清理');
   }
@@ -189,23 +206,32 @@ export function useDirectoryJanitorRunner() {
   async function cleanupItems(paths: string[]): Promise<CleanupResult | null> {
     return await errorHandler.wrapAsync(
       async () => {
-        const result: CleanupResult = await invoke('cleanup_items', {
-          paths,
-        });
+        store.isCleaning = true;
+        store.cleanupProgress = null;
 
-        logger.info('清理完成', {
-          successCount: result.successCount,
-          errorCount: result.errorCount,
-          freedSpace: result.freedSpace,
-        });
+        try {
+          const result: CleanupResult = await invoke('cleanup_items', {
+            paths,
+            window: getCurrentWindow(),
+          });
 
-        // 从列表中移除成功清理的项目
-        store.allItems = store.allItems.filter(
-          (item) => !paths.includes(item.path) || result.errors.some((e) => e.includes(item.path))
-        );
-        store.selectedPaths = new Set();
+          logger.info('清理完成', {
+            successCount: result.successCount,
+            errorCount: result.errorCount,
+            freedSpace: result.freedSpace,
+          });
 
-        return result;
+          // 从列表中移除成功清理的项目
+          store.allItems = store.allItems.filter(
+            (item) => !paths.includes(item.path) || result.errors.some((e) => e.includes(item.path))
+          );
+          store.selectedPaths = new Set();
+
+          return result;
+        } finally {
+          store.isCleaning = false;
+          store.cleanupProgress = null;
+        }
       },
       {
         level: ErrorLevel.ERROR,

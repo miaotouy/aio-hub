@@ -19,37 +19,37 @@
     <div class="filter-section">
       <h3 class="section-title">文件类型</h3>
       <el-radio-group v-model="internalSelectedType" @change="handleTypeChange">
-        <el-radio label="all" class="filter-radio">
+        <el-radio value="all" class="filter-radio">
           <div class="radio-content">
             <span>全部</span>
             <span class="count">{{ totalAssets }}</span>
           </div>
         </el-radio>
-        <el-radio label="image" class="filter-radio">
+        <el-radio value="image" class="filter-radio">
           <div class="radio-content">
             <span>📷 图片</span>
             <span class="count">{{ typeCounts.image }}</span>
           </div>
         </el-radio>
-        <el-radio label="video" class="filter-radio">
+        <el-radio value="video" class="filter-radio">
           <div class="radio-content">
             <span>🎬 视频</span>
             <span class="count">{{ typeCounts.video }}</span>
           </div>
         </el-radio>
-        <el-radio label="audio" class="filter-radio">
+        <el-radio value="audio" class="filter-radio">
           <div class="radio-content">
             <span>🎵 音频</span>
             <span class="count">{{ typeCounts.audio }}</span>
           </div>
         </el-radio>
-        <el-radio label="document" class="filter-radio">
+        <el-radio value="document" class="filter-radio">
           <div class="radio-content">
             <span>📄 文档</span>
             <span class="count">{{ typeCounts.document }}</span>
           </div>
         </el-radio>
-        <el-radio label="other" class="filter-radio">
+        <el-radio value="other" class="filter-radio">
           <div class="radio-content">
             <span>📎 其他</span>
             <span class="count">{{ typeCounts.other }}</span>
@@ -64,22 +64,22 @@
     <div class="filter-section">
       <h3 class="section-title">文件来源</h3>
       <el-radio-group v-model="internalSelectedOrigin" @change="handleOriginChange">
-        <el-radio label="all" class="filter-radio">
+        <el-radio value="all" class="filter-radio">
           <div class="radio-content">
             <span>全部</span>
           </div>
         </el-radio>
-        <el-radio label="local" class="filter-radio">
+        <el-radio value="local" class="filter-radio">
           <div class="radio-content">
             <span>💾 本地导入</span>
           </div>
         </el-radio>
-        <el-radio label="clipboard" class="filter-radio">
+        <el-radio value="clipboard" class="filter-radio">
           <div class="radio-content">
             <span>📋 剪贴板</span>
           </div>
         </el-radio>
-        <el-radio label="network" class="filter-radio">
+        <el-radio value="network" class="filter-radio">
           <div class="radio-content">
             <span>🌐 网络</span>
           </div>

@@ -94,12 +94,12 @@
         @change="handleViewModeChange"
       >
         <el-tooltip content="网格视图" placement="bottom">
-          <el-radio-button label="grid">
+          <el-radio-button value="grid">
             <el-icon><Grid /></el-icon>
           </el-radio-button>
         </el-tooltip>
         <el-tooltip content="列表视图" placement="bottom">
-          <el-radio-button label="list">
+          <el-radio-button value="list">
             <el-icon><List /></el-icon>
           </el-radio-button>
         </el-tooltip>

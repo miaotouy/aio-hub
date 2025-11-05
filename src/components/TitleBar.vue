@@ -39,6 +39,9 @@ const settings = ref<AppSettings | null>(null);
 // 用于区分手动和自动的最大化状态变更
 const isManualMaximizeChange = ref(false);
 
+// 存储清理函数（在 setup 顶层定义，以便在 onUnmounted 中使用）
+const cleanupFunctions = ref<(() => void)[]>([]);
+
 // 获取当前页面的工具配置
 const currentTool = computed(() => {
   // 根据当前路由路径匹配工具配置
@@ -154,11 +157,8 @@ onMounted(async () => {
     saveWindowConfig();
   });
   
-  // 组件卸载时清理监听器
-  onUnmounted(() => {
-    unlistenMoved();
-    unlistenResized();
-  });
+  // 将清理函数存储到 ref 中
+  cleanupFunctions.value.push(unlistenMoved, unlistenResized);
   
   // 加载应用设置
   try {
@@ -171,6 +171,12 @@ onMounted(async () => {
   window.addEventListener('app-settings-changed', (event: any) => {
     settings.value = event.detail;
   });
+});
+
+// 在 setup 顶层注册 onUnmounted（必须在同步执行期间调用）
+onUnmounted(() => {
+  // 清理所有监听器
+  cleanupFunctions.value.forEach(cleanup => cleanup());
 });
 
 // 窗口控制函数

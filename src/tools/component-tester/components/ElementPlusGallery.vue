@@ -93,14 +93,14 @@
       <h2 class="section-title">单选框 Radio</h2>
       <div class="radio-demo">
         <el-radio-group v-model="radioValue">
-          <el-radio label="1">选项1</el-radio>
-          <el-radio label="2">选项2</el-radio>
-          <el-radio label="3">选项3</el-radio>
+          <el-radio value="1">选项1</el-radio>
+          <el-radio value="2">选项2</el-radio>
+          <el-radio value="3">选项3</el-radio>
         </el-radio-group>
         <el-radio-group v-model="radioValue">
-          <el-radio-button label="1">选项1</el-radio-button>
-          <el-radio-button label="2">选项2</el-radio-button>
-          <el-radio-button label="3">选项3</el-radio-button>
+          <el-radio-button value="1">选项1</el-radio-button>
+          <el-radio-button value="2">选项2</el-radio-button>
+          <el-radio-button value="3">选项3</el-radio-button>
         </el-radio-group>
       </div>
     </div>

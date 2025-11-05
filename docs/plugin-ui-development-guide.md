@@ -1,8 +1,7 @@
 # 插件 UI 开发指南
 
 **版本:** 2.0  
-**最后更新:** 2025-11-03  
-**作者:** 咕咕
+**最后更新:** 2025-11-05
 
 ## 目录
 
@@ -36,7 +35,7 @@
 
 ### 技术栈
 
-- **Vue 3** - 使用 Composition API
+- **Vue 3** - 使用 Composition API (非必要但推荐)
 - **ES Modules** - 组件必须是编译后的 ESM 格式
 - **Tauri API** - 用于与后端通信
 
@@ -44,7 +43,7 @@
 
 ✅ **开发模式现已支持直接使用 .vue 单文件组件！**
 
-在开发模式下（`npm run dev`），插件可以：
+在开发模式下（`bun run dev`），插件可以：
 - 直接使用 `.vue` 单文件组件，无需手动编译
 - 享受 Vite 提供的 HMR（热模块替换）
 - 使用完整的 Vue SFC 特性（`<template>`、`<script setup>`、`<style scoped>`）
@@ -108,196 +107,146 @@
 
 ---
 
+---
+
 ## UI 组件开发
 
-### 🎯 方式一：Vue 单文件组件（推荐，仅开发模式）
+无论插件的后端类型（JavaScript, Native, Sidecar）是什么，UI 的开发方式都是统一的。核心技术栈是 **Vue 3**，开发体验由主应用的 **Vite** 服务器驱动。
 
-**适用场景**：开发模式下快速开发和调试
+### 核心开发模式：使用 Vue 单文件组件
+
+这是开发插件 UI 的 **唯一推荐方式**。
+
+- **简单插件**: 可以只有一个入口 `.vue` 文件。
+- **复杂插件**: 可以将 UI 拆分成多个组件，放在 `components/` 目录下，由一个主入口 `.vue` 文件导入和组织。
+
+Vite 会自动处理组件之间的依赖关系，无论你的项目结构如何。
+
+#### 示例：`HelloWorld.vue`
 
 ```vue
-<!-- MyComponent.vue -->
 <template>
-  <div class="my-component">
+  <div class="container">
     <el-card shadow="never">
-      <h2>My Plugin</h2>
-      <p>Count: {{ count }}</p>
-      <el-button @click="increment">Increment</el-button>
+      <h2>🎉 Hello World 插件</h2>
+      <el-input v-model="name" placeholder="输入你的名字" />
+      <el-button @click="doGreet" :loading="isLoading">打招呼</el-button>
+      <p v-if="greeting" class="greeting">{{ greeting }}</p>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ElCard, ElButton } from 'element-plus';
+import { ElCard, ElInput, ElButton } from 'element-plus';
 import { execute } from '@/services/executor';
 import { customMessage } from '@/utils/customMessage';
 
-const count = ref(0);
-const increment = () => {
-  count.value++;
-  customMessage.success('计数增加！');
-};
+const name = ref('');
+const greeting = ref('');
+const isLoading = ref(false);
+
+async function doGreet() {
+  if (!name.value) {
+    customMessage.warning('请输入名字！');
+    return;
+  }
+  isLoading.value = true;
+  // 调用插件自身的 "greet" 方法
+  const result = await execute({
+    service: 'example-hello-world', // 插件自身 ID
+    method: 'greet',
+    params: { name: name.value },
+  });
+  isLoading.value = false;
+
+  if (result.success) {
+    greeting.value = result.data;
+  } else {
+    customMessage.error(`调用失败: ${result.error}`);
+  }
+}
 </script>
 
 <style scoped>
-.my-component {
-  padding: 20px;
-}
+/* ... 样式 ... */
 </style>
 ```
 
-**manifest.json 配置**：
+#### `manifest.json` 配置
+
+只需将 `component` 字段指向你的入口 Vue 组件即可。
+
 ```json
 {
   "ui": {
-    "displayName": "My Plugin",
-    "component": "MyComponent.vue",
-    "icon": "🎨"
+    "displayName": "Hello World",
+    "component": "HelloWorld.vue",
+    "icon": "🎉"
   }
 }
 ```
 
-**优势**：
-- ✅ 直接使用 `<template>` 语法，开发体验好
-- ✅ 支持 `<script setup>` 和 TypeScript
-- ✅ 支持 `<style scoped>` 样式隔离
-- ✅ 享受 Vite HMR，修改即时生效
-- ✅ 可使用 Element Plus、VueUse 等库
-- ✅ 可导入主应用的 composables 和工具函数
+### 发布生产包：编译 UI
 
-### 方式二：手写 h() 渲染函数（跨模式兼容）
+虽然开发时可以直接使用 `.vue` 文件，但在 **发布插件** 时，必须将 UI 编译成 `.js` 文件。
 
-**适用场景**：需要同时支持开发和生产模式，或组件逻辑简单
+- **原因**: 生产环境下的插件位于用户数据目录，无法依赖主应用的 Vite 开发服务器进行实时编译。
+- **工具**: 使用 Vite 进行库模式 (`lib mode`) 构建。
 
-```javascript
-// MyComponent.js
-import { ref, h } from 'vue';
-import { ElCard, ElButton } from 'element-plus';
+#### 独立构建流程
 
-export default {
-  name: 'MyComponent',
-  setup() {
-    const count = ref(0);
-    const increment = () => count.value++;
+对于需要编译后端（如 Sidecar/Native 插件）或具有复杂前端资源的插件，推荐在插件目录内建立独立的构建流程。这确保了插件可以独立构建和分发。
 
-    return () => h(ElCard, { shadow: 'never' }, () => [
-      h('h2', null, 'My Plugin'),
-      h('p', null, `Count: ${count.value}`),
-      h(ElButton, { onClick: increment }, () => 'Increment')
-    ]);
-  }
-};
-```
+1.  **添加 `package.json`**: 用于管理 `vite`, `@vitejs/plugin-vue` 等前端构建相关的开发依赖。
+2.  **创建 `vite.config.js`**: 配置 Vite 的库模式 (`lib mode`) 构建。核心是 **外部化 (externalize)** 所有由主应用提供的依赖（如 `vue`, `element-plus`, 以及路径别名 `/@/`），这能极大减小打包体积，避免重复加载。
+3.  **创建构建脚本 (可选)**: 使用 `build.js` 或 `build.bat` 等脚本，可以一键完成所有构建任务，例如：
+    -   编译 Rust 后端 (对于 Sidecar/Native 插件)。
+    -   编译 Vue 前端。
+    -   将所有产物（后端可执行文件、前端 JS、`manifest.json` 等）整合到 `dist` 目录，方便打包和分发。
 
-### 方式三：编译 .vue 为 .js（生产环境）
+**最佳实践参考: `plugins/example-file-hasher/`**
 
-**适用场景**：准备发布生产环境插件
+`example-file-hasher` 是一个完美的 "Sidecar + Vue UI" 插件范例，它完整地展示了：
+-   独立的 `package.json` 和 `vite.config.js`。
+-   使用 `build.js` 统一构建 Rust 后端和 Vue 前端。
+-   将复杂的 UI 拆分为多个子组件。
+-   最终如何配置 `manifest.json` 以指向编译后的 `.js` 组件。
+### 与插件后端及主应用交互
 
-#### 步骤 1: 创建 Vite 配置
+#### 调用插件自身方法
 
-```javascript
-// vite.config.js
-import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
+使用项目统一的 `execute` 函数，可以方便地调用插件在 `manifest.json` 中定义的任何方法。
 
-export default defineConfig({
-  plugins: [vue()],
-  build: {
-    lib: {
-      entry: './src/MyComponent.vue',
-      name: 'MyComponent',
-      fileName: 'MyComponent',
-      formats: ['es']
-    },
-    rollupOptions: {
-      external: ['vue', 'element-plus', '@tauri-apps/api/core'],
-      output: {
-        globals: {
-          vue: 'Vue',
-          'element-plus': 'ElementPlus'
-        }
-      }
-    }
-  }
-});
-```
-
-#### 步骤 2: 构建组件
-
-```bash
-npm install -D vite @vitejs/plugin-vue
-npm run build
-```
-
-输出文件 `dist/MyComponent.js` 可在生产环境使用。
-
-### 与后端交互
-
-使用 Tauri 的 `invoke` API 调用插件方法：
-
-```javascript
-import { invoke } from '@tauri-apps/api/core';
-
-// 调用插件方法
-const result = await invoke('call_service_method', {
-  serviceId: 'your-plugin-id',
-  methodName: 'yourMethod',
-  args: [arg1, arg2]
-});
-```
-
-### 使用应用提供的 Composables 和组件
-
-插件可以直接导入使用主应用的资源：
-
-**Vue SFC 方式**：
-```vue
-<template>
-  <div>
-    <el-button @click="handleClick">点击</el-button>
-  </div>
-</template>
-
-<script setup>
-import { ElButton } from 'element-plus';
-import { useTheme } from '@/composables/useTheme';
-import { useAssetManager } from '@/composables/useAssetManager';
-import { customMessage } from '@/utils/customMessage';
+```typescript
 import { execute } from '@/services/executor';
 
-const { currentTheme } = useTheme();
-const assetManager = useAssetManager();
-
-const handleClick = async () => {
-  customMessage.success('操作成功！');
-  console.log('Current theme:', currentTheme.value);
-};
-</script>
+// 假设 serviceId 是 'my-plugin', 方法是 'myMethod'
+const result = await execute({
+  service: 'my-plugin',
+  method: 'myMethod',
+  params: { /* ... */ }
+});
 ```
 
-**h() 函数方式**：
-```javascript
-import { h } from 'vue';
-import { ElButton } from 'element-plus';
+#### 使用主应用的 Composables 和工具
+
+插件 UI 可以无缝接入主应用提供的所有前端能力，就像内置工具一样。
+
+```typescript
+// ✅ 复用主应用的 Composables
 import { useTheme } from '@/composables/useTheme';
+// ✅ 复用主应用的工具函数
 import { customMessage } from '@/utils/customMessage';
+// ✅ 复用主应用的 UI 组件
+import { ElButton } from 'element-plus';
 
-export default {
-  setup() {
-    const { currentTheme } = useTheme();
-    
-    const handleClick = () => {
-      customMessage.success('操作成功！');
-      console.log('Current theme:', currentTheme.value);
-    };
-    
-    return () => h('div', null, [
-      h(ElButton, { onClick: handleClick }, () => '点击')
-    ]);
-  }
-};
+const { currentTheme } = useTheme();
+
+function showMessage() {
+  customMessage.info(`当前主题是: ${currentTheme.value}`);
+}
 ```
-
 ---
 
 ## 图标配置
@@ -358,124 +307,104 @@ your-plugin/
 
 ## 完整示例
 
-### 官方示例插件仓库
+我们提供了多个开源的示例插件仓库，覆盖了从简单到复杂的不同场景。开发者可以克隆这些仓库来学习，或者将其作为自己插件的模板。
 
-我们提供了一个独立的示例插件仓库供参考：
+### 示例 1：`aiohub-plugin-example-hello-world` (入门)
 
-**仓库地址**: [待创建 - aio-hub-plugin-hello-world]
+**这是学习插件 UI 开发的起点，演示了最简单的纯前端插件。**
 
-开发者可以：
-1. Clone 该仓库作为插件开发模板
-2. 参考其中的完整实现
-3. 根据需求修改和扩展
+- **仓库地址**: [https://github.com/miaotouy/aiohub-plugin-example-hello-world](https://github.com/miaotouy/aiohub-plugin-example-hello-world)
+- **类型**: JavaScript 插件 (纯前端)
+- **特点**:
+    - **极简配置**: `manifest.json` 直接指向 `.vue` 文件，无需构建流程。
+    - **核心交互**: 演示了如何在 UI (`HelloWorld.vue`) 中调用插件自身的 `greet` 方法。
+    - **快速上手**: 适合理解插件 UI 的基本工作流程。
 
-### 本地开发测试
+#### `HelloWorld.vue` 示例代码
+```vue
+<template>
+  <div class="container">
+    <el-card shadow="never">
+      <h2>🎉 Hello World 插件</h2>
+      <el-input v-model="name" placeholder="输入你的名字" />
+      <el-button @click="doGreet" :loading="isLoading">打招呼</el-button>
+      <p v-if="greeting" class="greeting">{{ greeting }}</p>
+    </el-card>
+  </div>
+</template>
 
-开发时，将插件放入主应用的 `/plugins/` 目录：
+<script setup lang="ts">
+import { ref } from 'vue';
+import { ElCard, ElInput, ElButton } from 'element-plus';
+import { execute } from '@/services/executor';
+import { customMessage } from '@/utils/customMessage';
 
-**使用 .vue 文件（开发模式）**：
-```
-your-app/
-└── plugins/
-    └── example-hello-world/    # 你的插件
-        ├── manifest.json       # 插件清单
-        ├── index.ts            # 后端逻辑（TypeScript）
-        ├── HelloWorld.vue      # UI 组件（.vue 文件）
-        └── README.md           # 说明文档
-```
+const name = ref('');
+const greeting = ref('');
+const isLoading = ref(false);
 
-**使用 .js 文件（生产/兼容模式）**：
-```
-your-app/
-└── plugins/
-    └── hello-world/        # 你的插件
-        ├── manifest.json   # 插件清单
-        ├── index.js        # 后端逻辑（编译后）
-        ├── HelloWorld.js   # UI 组件（编译后）
-        └── README.md       # 说明文档
-```
+async function doGreet() {
+  if (!name.value) {
+    customMessage.warning('请输入名字！');
+    return;
+  }
+  isLoading.value = true;
+  const result = await execute({
+    service: 'example-hello-world', // 插件自身 ID
+    method: 'greet',
+    params: { name: name.value },
+  });
+  isLoading.value = false;
 
-**注意**: `/plugins/` 目录已在 `.gitignore` 中，不会提交到主仓库。
-
-### manifest.json
-
-```json
-{
-  "id": "hello-world",
-  "name": "Hello World 插件",
-  "version": "1.0.0",
-  "description": "示例插件",
-  "author": "咕咕",
-  "host": {
-    "appVersion": ">=0.1.0"
-  },
-  "type": "javascript",
-  "main": "index.js",
-  "methods": [
-    {
-      "name": "greet",
-      "displayName": "打招呼",
-      "description": "返回问候消息",
-      "parameters": [
-        {
-          "name": "name",
-          "type": "string",
-          "description": "名字"
-        }
-      ],
-      "returnType": "string"
-    }
-  ],
-  "ui": {
-    "displayName": "Hello World",
-    "component": "HelloWorld.js",
-    "icon": "🎉"
+  if (result.success) {
+    greeting.value = result.data;
+  } else {
+    customMessage.error(`调用失败: ${result.error}`);
   }
 }
+</script>
+
+<style scoped>
+.container {
+  padding: 20px;
+}
+.greeting {
+  margin-top: 15px;
+  font-weight: bold;
+}
+</style>
 ```
 
-### index.js
+### 示例 2：`aiohub-plugin-example-file-hasher` (进阶)
 
-```javascript
-export default {
-  greet(name) {
-    return `你好，${name}！欢迎使用插件系统 🎉`;
-  }
-};
+**这是一个包含独立构建流程的最佳实践范例，展示了如何开发一个可供分发的生产级插件。**
+
+- **仓库地址**: [https://github.com/miaotouy/aiohub-plugin-example-file-hasher](https://github.com/miaotouy/aiohub-plugin-example-file-hasher)
+- **类型**: Sidecar 插件 (Rust 后端 + Vue 前端)
+- **特点**:
+    - **独立构建**: 包含 `package.json`, `vite.config.js` 和 `build.js`，演示了如何为生产环境编译 UI。
+    - **复杂 UI**: 展示了如何将 UI 拆分为多个子组件 (`components/` 目录)。
+    - **前后端协作**: 演示了 Vue UI 如何与 Rust Sidecar 后端进行交互。
+    - **生产就绪**: 是发布独立插件的绝佳模板。
+
+### 本地开发与测试
+
+要在本地开发和测试插件（无论是克隆的示例还是你自己创建的），流程很简单：
+
+1.  将完整的插件项目文件夹（例如，克隆下来的 `aiohub-plugin-example-hello-world`）放入主应用的 `/plugins/` 目录中。
+2.  启动主应用 (`bun run dev`)。
+
+AIO Hub 会自动检测并加载 `/plugins/` 目录下的所有插件，并提供热重载支持。这个目录是你的本地开发沙盒，它已被 `.gitignore` 忽略，不会影响主仓库。
+
 ```
-
-### HelloWorld.js
-
-```javascript
-import { ref, h } from 'vue';
-
-export default {
-  setup() {
-    const name = ref('');
-    const greeting = ref('');
-
-    const greet = async () => {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke('call_service_method', {
-        serviceId: 'hello-world',
-        methodName: 'greet',
-        args: [name.value]
-      });
-      greeting.value = result;
-    };
-
-    return () => h('div', { style: { padding: '20px' } }, [
-      h('h2', null, '🎉 Hello World'),
-      h('input', {
-        value: name.value,
-        onInput: (e) => { name.value = e.target.value; },
-        placeholder: '输入名字'
-      }),
-      h('button', { onClick: greet }, '打招呼'),
-      greeting.value ? h('p', null, greeting.value) : null
-    ]);
-  }
-};
+your-app/
+└── plugins/  <-- 本地开发沙盒 (被 .gitignore 忽略)
+    ├── aiohub-plugin-example-hello-world/    # 克隆的插件仓库
+    │   ├── manifest.json
+    │   └── ...
+    └── my-awesome-plugin/                    # 你自己的插件
+        ├── manifest.json
+        └── ...
 ```
 
 ---
@@ -485,7 +414,7 @@ export default {
 ### 开发模式测试
 
 1. 将插件放在主应用的 `/plugins/` 目录
-2. 启动应用（`npm run dev`）
+2. 启动应用（`bun run dev`）
 3. 插件会自动加载并支持热重载
 4. 在侧边栏查看插件工具
 5. 点击进入测试功能
@@ -601,10 +530,7 @@ A:
 
 ## 相关文档
 
-- [插件系统设计文档](./plugin-system-design.md)
 - [插件开发指南](./plugin-development-guide.md)
-- [插件 UI 集成计划](./plugin-ui-integration-plan.md)
-- [插件 UI 集成实施总结](./plugin-ui-integration-phase2-summary.md)
 
 ---
 

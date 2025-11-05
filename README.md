@@ -386,6 +386,16 @@ git push origin feature/AmazingFeature
 - 📝 **文档**: 帮助完善使用文档和注释
 - 🌍 **国际化**: 支持更多语言
 
+## Star History
+
+<a href="https://www.star-history.com/#miaotouy/aio-hub&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=miaotouy/aio-hub&type=date&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=miaotouy/aio-hub&type=date&legend=bottom-right" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=miaotouy/aio-hub&type=date&legend=bottom-right" />
+ </picture>
+</a>
+
 ## 📄 许可证
 
 <div align="center">
@@ -400,7 +410,6 @@ git push origin feature/AmazingFeature
 
 ---
 
-<sub>Made with ❤️ by <a href="https://github.com/miaotouy">@miaotouy</a></sub>
 
 <sub>Copyright © 2025 miaotouy. All rights reserved.</sub>
 

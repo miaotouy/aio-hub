@@ -4,7 +4,7 @@ import type { ToolConfig } from "@/config/tools";
 import { useToolsStore } from "@/stores/tools";
 import { VueDraggableNext } from "vue-draggable-next";
 import { ref, onMounted } from "vue";
-import { updateAppSettings, loadAppSettings } from "@/utils/appSettings";
+import { updateAppSettings } from "@/utils/appSettings";
 import { customMessage } from "@/utils/customMessage";
 
 // 定义 props 和 emits
@@ -20,36 +20,8 @@ const getToolIdFromPath = (path: string): string => {
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
-// 初始化工具列表的函数
-const initializeTools = (): ToolConfig[] => {
-  const settings = loadAppSettings();
-  const order = settings.toolsOrder || [];
-
-  // 创建一个工具路径到配置的映射
-  const toolMap = new Map<string, ToolConfig>();
-  toolsStore.tools.forEach(tool => {
-    toolMap.set(tool.path, tool);
-  });
-
-  // 按照保存的顺序排列工具
-  const orderedTools: ToolConfig[] = [];
-  order.forEach(path => {
-    const tool = toolMap.get(path);
-    if (tool) {
-      orderedTools.push(tool);
-      toolMap.delete(path); // 从映射中移除已处理的工具
-    }
-  });
-
-  // 将剩余的（新添加的）工具添加到末尾
-  toolMap.forEach(tool => {
-    orderedTools.push(tool);
-  });
-
-  return orderedTools;
-};
-
 // 可排序的工具列表（使用 ref 而不是 computed）
+// 初始化时从 store 的 orderedTools 获取，确保与侧边栏顺序一致
 const sortedTools = ref<ToolConfig[]>([]);
 
 // 用于记录拖拽前的顺序
@@ -57,7 +29,8 @@ const orderBeforeDrag = ref<string[]>([]);
 
 // 组件挂载时初始化
 onMounted(() => {
-  sortedTools.value = initializeTools();
+  // 从 store 获取排序后的工具列表
+  sortedTools.value = [...toolsStore.orderedTools];
   
   // 确保所有工具都有明确的可见性值
   // 对于未设置的工具，默认设置为 true（显示）
@@ -90,6 +63,8 @@ const onDragEnd = () => {
   
   try {
     updateAppSettings({ toolsOrder: newOrder });
+    // 同步更新 store 中的顺序状态，使其他组件立即响应
+    toolsStore.updateOrder(newOrder);
     customMessage.success("工具顺序已更新");
   } catch (error) {
     console.error("保存工具顺序失败:", error);
@@ -102,8 +77,10 @@ const resetOrder = () => {
   try {
     // 清除保存的顺序设置
     updateAppSettings({ toolsOrder: [] });
-    // 重置为原始顺序
-    sortedTools.value = [...toolsStore.tools];
+    // 同步更新 store 中的顺序状态
+    toolsStore.updateOrder([]);
+    // 重置为原始顺序（此时 store 的 orderedTools 会自动返回未排序的列表）
+    sortedTools.value = [...toolsStore.orderedTools];
     customMessage.success("工具顺序已重置为默认");
   } catch (error) {
     console.error("重置工具顺序失败:", error);

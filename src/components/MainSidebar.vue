@@ -45,11 +45,11 @@ const getToolIdFromPath = (path: string): string => {
 // 计算可见的工具列表
 const visibleTools = computed(() => {
   const baseTools = props.toolsVisible
-    ? toolsStore.tools.filter((tool) => {
+    ? toolsStore.orderedTools.filter((tool) => {
         const toolId = getToolIdFromPath(tool.path);
         return props.toolsVisible[toolId] !== false;
       })
-    : toolsStore.tools;
+    : toolsStore.orderedTools;
 
   // 过滤掉已分离的工具
   return baseTools.filter((tool) => !props.isDetached(getToolIdFromPath(tool.path)));

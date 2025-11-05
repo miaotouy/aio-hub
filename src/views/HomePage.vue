@@ -55,7 +55,14 @@
           </template>
         </el-dropdown>
 
-        <el-icon :size="48">
+        <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
+        <component
+          v-if="tool.path.startsWith('/plugin-')"
+          :is="tool.icon"
+          class="plugin-icon-large"
+        />
+        <!-- 普通图标用 el-icon 包裹 -->
+        <el-icon v-else :size="48">
           <component :is="tool.icon" />
         </el-icon>
         <div class="tool-name">{{ tool.name }}</div>
@@ -80,12 +87,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { toolsConfig } from "../config/tools";
 import { loadAppSettingsAsync, type AppSettings } from "../utils/appSettings";
 import { useDetachedManager } from "../composables/useDetachedManager";
+import { useToolsStore } from "@/stores/tools";
 import { customMessage } from '@/utils/customMessage';
 
 const router = useRouter();
+const toolsStore = useToolsStore();
 const { isDetached, focusWindow, closeWindow, initialize } = useDetachedManager();
 
 // 搜索文本
@@ -110,11 +118,10 @@ const settings = ref<AppSettings>({
   toolsOrder: [],
   version: "1.0.0",
 });
-
 // 获取所有分类
 const categories = computed(() => {
   const cats = new Set<string>(["全部"]);
-  toolsConfig.forEach((tool) => {
+  toolsStore.orderedTools.forEach((tool) => {
     if (tool.category) {
       cats.add(tool.category);
     }
@@ -125,11 +132,11 @@ const categories = computed(() => {
 // 计算可见的工具列表（包括已分离的工具，用于显示）
 const visibleTools = computed(() => {
   if (!settings.value.toolsVisible) {
-    // 如果没有配置，显示所有工具
-    return toolsConfig;
+    // 如果没有配置，显示所有工具（使用排序后的列表）
+    return toolsStore.orderedTools;
   }
 
-  return toolsConfig.filter((tool) => {
+  return toolsStore.orderedTools.filter((tool) => {
     const toolId = getToolIdFromPath(tool.path);
     // 默认显示未配置的工具
     return settings.value.toolsVisible![toolId] !== false;
@@ -453,5 +460,18 @@ watch(
 .detached-badge .el-icon {
   font-size: 16px;
   margin: 0;
+}
+
+/* 插件图标样式 - 大尺寸 */
+.plugin-icon-large {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  line-height: 1; /* 确保行高不会影响尺寸 */
+  min-width: 48px; /* 保证占位 */
+  min-height: 48px;
+  margin-bottom: 15px;
+  color: var(--primary-color);
 }
 </style>

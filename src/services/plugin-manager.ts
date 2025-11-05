@@ -42,7 +42,8 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
   if (isEmoji(iconConfig)) {
     return markRaw({
       setup() {
-        return () => h('span', { style: 'font-size: 1.2em' }, iconConfig);
+        // 移除硬编码的 font-size，让 CSS 来控制
+        return () => h('span', iconConfig);
       },
     });
   }

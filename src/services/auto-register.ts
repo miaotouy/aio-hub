@@ -115,6 +115,7 @@ export async function autoRegisterServices(): Promise<void> {
     // 所有工具和服务加载完成后，标记 tools store 为就绪状态
     // 这对于分离窗口正确加载插件至关重要
     const toolsStore = useToolsStore();
+    toolsStore.initializeOrder(); // 初始化工具顺序
     toolsStore.setReady();
     logger.info('Tools store 已标记为就绪状态');
 

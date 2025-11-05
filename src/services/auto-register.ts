@@ -2,6 +2,7 @@ import { serviceRegistry } from './registry';
 import type { ToolService } from './types';
 import { pluginManager } from './plugin-manager';
 import { createModuleLogger } from '@/utils/logger';
+import { useToolsStore } from '@/stores/tools';
 
 const logger = createModuleLogger('services/auto-register');
 
@@ -110,6 +111,12 @@ export async function autoRegisterServices(): Promise<void> {
         description: s.description || '(无描述)'
       }))
     });
+
+    // 所有工具和服务加载完成后，标记 tools store 为就绪状态
+    // 这对于分离窗口正确加载插件至关重要
+    const toolsStore = useToolsStore();
+    toolsStore.setReady();
+    logger.info('Tools store 已标记为就绪状态');
 
   } catch (error) {
     logger.error('自动注册服务过程中发生严重错误', error);

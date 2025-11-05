@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, type Component, watch } from "vue";
+import { ref, shallowRef, onMounted, type Component, watch, Suspense } from "vue";
+import { Loading } from '@element-plus/icons-vue';
 import { useRoute } from "vue-router";
 import { useWindowSyncBus } from "../composables/useWindowSyncBus";
 import { useDetachedManager } from "../composables/useDetachedManager";
@@ -195,12 +196,19 @@ onMounted(async () => {
     
     <!-- 组件渲染区域 -->
     <div class="component-wrapper">
-      <component
-        v-if="componentToRender"
-        :is="componentToRender"
-        v-bind="componentProps"
-        v-on="componentEventListeners"
-      />
+      <Suspense v-if="componentToRender">
+        <component
+          :is="componentToRender"
+          v-bind="componentProps"
+          v-on="componentEventListeners"
+        />
+        <template #fallback>
+          <div class="loading-message">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <p>组件加载中...</p>
+          </div>
+        </template>
+      </Suspense>
       <div v-else class="error-message">
         <h2>组件加载失败</h2>
         <p v-if="route.query.componentId">
@@ -254,6 +262,21 @@ onMounted(async () => {
   flex-direction: column;
   pointer-events: auto;
   /* 组件本身可以接收鼠标事件 */
+}
+
+/* 加载消息 */
+.loading-message {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  color: var(--text-color);
+}
+
+.loading-message .el-icon {
+  font-size: 32px;
 }
 
 /* 错误消息 */

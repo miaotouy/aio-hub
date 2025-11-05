@@ -7,6 +7,14 @@ export const useToolsStore = defineStore('tools', () => {
   // 使用浅拷贝以保留图标的 markRaw 状态
   // lodash-es 的 cloneDeep 会破坏 markRaw
   const tools = ref<ToolConfig[]>(initialTools.map(t => ({ ...t })));
+  const isReady = ref(false); // 新增状态，标记工具是否已加载完成
+
+  /**
+   * 将工具加载状态设置为就绪
+   */
+  function setReady() {
+    isReady.value = true;
+  }
 
   /**
    * Adds a new tool to the store.
@@ -31,6 +39,8 @@ export const useToolsStore = defineStore('tools', () => {
 
   return {
     tools,
+    isReady,
+    setReady,
     addTool,
     removeTool,
   };

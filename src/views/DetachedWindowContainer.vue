@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, defineAsyncComponent, type Component } from "vue";
+import { computed, onMounted, ref, shallowRef, defineAsyncComponent, type Component, watch, Suspense } from "vue";
+import { Loading } from '@element-plus/icons-vue';
 import { useRoute } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -82,20 +83,31 @@ onMounted(async () => {
     logger.info('启动 LLM Chat 状态消费者（作为主窗口的副本）');
     useLlmChatStateConsumer();
   }
-  
-  const config = toolConfig.value;
 
-  if (config) {
-    try {
-      logger.info("加载工具组件", { toolPath: toolPath.value, toolName: config.name });
-      // 使用 toolsConfig 中定义的组件导入函数
-      toolComponent.value = defineAsyncComponent(config.component);
-    } catch (error) {
-      logger.error("加载工具组件失败", { error, toolPath: toolPath.value });
-    }
-  } else {
-    logger.error("未找到工具配置", { toolPath: toolPath.value });
-  }
+  // 监听 tools store 的就绪状态
+  // 分离窗口需要等待主窗口的插件加载完成后才能正确渲染插件 UI
+  watch(
+    () => toolsStore.isReady,
+    (isReady) => {
+      if (isReady) {
+        logger.info('Tools store 已就绪，开始加载工具组件');
+        const config = toolConfig.value;
+        if (config) {
+          try {
+            logger.info("加载工具组件", { toolPath: toolPath.value, toolName: config.name });
+            toolComponent.value = defineAsyncComponent(config.component);
+          } catch (error) {
+            logger.error("加载工具组件失败", { error, toolPath: toolPath.value });
+          }
+        } else {
+          logger.error("未找到工具配置", { toolPath: toolPath.value });
+        }
+      } else {
+        logger.info('等待 Tools store 就绪...');
+      }
+    },
+    { immediate: true }
+  );
 
   // 检查窗口是否已经固定（用于刷新时恢复状态）
   const checkIfFinalized = async () => {
@@ -158,7 +170,15 @@ onMounted(async () => {
     <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
 
     <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
-      <component v-if="toolComponent" :is="toolComponent" />
+      <Suspense v-if="toolComponent">
+        <component :is="toolComponent" />
+        <template #fallback>
+          <div class="loading-message">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <p>组件加载中...</p>
+          </div>
+        </template>
+      </Suspense>
       <div v-else class="loading-message">
         <p>加载中...</p>
       </div>
@@ -202,9 +222,15 @@ onMounted(async () => {
 
 .loading-message {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 12px;
   height: 100%;
   color: var(--text-color);
+}
+
+.loading-message .el-icon {
+  font-size: 32px;
 }
 </style>

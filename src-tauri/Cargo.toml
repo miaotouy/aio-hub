@@ -66,6 +66,7 @@ image = "0.25" # 图片处理
 content_inspector = "0.2" # 文本/二进制内容检测
 infer = "0.16" # 文件类型自动检测（基于魔数）
 libloading = "0.8" # 动态库加载
+scopeguard = "1.2.0"
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

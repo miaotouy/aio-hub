@@ -84,6 +84,15 @@ export interface SidecarConfig {
 export interface NativeConfig {
   /** 按平台指定动态库文件路径 */
   library: Partial<Record<PlatformKey, string>>;
+  /**
+   * 是否支持运行时安全重载
+   *
+   * 如果为 true，插件管理器将允许在不重启应用的情况下禁用和重新启用插件。
+   * 这要求插件本身是无状态的，或者能够正确处理资源的清理和重新初始化。
+   *
+   * @default false
+   */
+  reloadable?: boolean;
 }
 
 /**

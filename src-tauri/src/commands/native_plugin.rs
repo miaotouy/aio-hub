@@ -7,7 +7,10 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 use tauri::{AppHandle, State};
 
 /// 原生插件调用函数类型
@@ -16,10 +19,18 @@ type CallFunction = unsafe extern "C" fn(*const c_char, *const c_char) -> *mut c
 /// 原生插件释放字符串函数类型
 type FreeStringFunction = unsafe extern "C" fn(*mut c_char);
 
+/// 插件元数据
+#[derive(Clone)]
+struct PluginMetadata {
+    library: Arc<Library>,
+    reloadable: bool,
+    ref_count: Arc<AtomicUsize>,
+}
+
 /// 全局原生插件状态
 pub struct NativePluginState {
     /// 已加载的插件库
-    plugins: Arc<Mutex<HashMap<String, Library>>>,
+    plugins: Arc<Mutex<HashMap<String, PluginMetadata>>>,
 }
 
 impl Default for NativePluginState {
@@ -49,6 +60,7 @@ pub async fn load_native_plugin(
     _app: AppHandle,
     plugin_id: String,
     library_path: String,
+    reloadable: bool,
     state: State<'_, NativePluginState>,
 ) -> Result<(), String> {
     println!(
@@ -104,13 +116,20 @@ pub async fn load_native_plugin(
     println!("[NATIVE] 最终加载路径: {:?}", absolute_path);
 
     // 加载动态库
-    let library = unsafe { Library::new(&absolute_path) }
-        .map_err(|e| format!("加载动态库失败: {}", e))?;
+    let library = Arc::new(
+        unsafe { Library::new(&absolute_path) }
+            .map_err(|e| format!("加载动态库失败: {}", e))?
+    );
 
     // 存储插件库
     {
         let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
-        plugins.insert(plugin_id.clone(), library);
+        let metadata = PluginMetadata {
+            library,
+            reloadable,
+            ref_count: Arc::new(AtomicUsize::new(0)),
+        };
+        plugins.insert(plugin_id.clone(), metadata);
     }
 
     println!("[NATIVE] 插件 {} 加载成功", plugin_id);
@@ -125,16 +144,39 @@ pub async fn unload_native_plugin(
     plugin_id: String,
     state: State<'_, NativePluginState>,
 ) -> Result<(), String> {
-    println!("[NATIVE] 开始卸载插件: {}", plugin_id);
+    println!("[NATIVE] 请求卸载插件: {}", plugin_id);
 
-    // 从内存中移除插件库
-    {
+    let plugin_to_unload = {
         let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
-        plugins.remove(&plugin_id);
-    }
+        if let Some(metadata) = plugins.get(&plugin_id) {
+            if !metadata.reloadable {
+                return Err(format!("插件 {} 不支持运行时卸载，请重启应用", plugin_id));
+            }
+        }
+        plugins.remove(&plugin_id)
+    };
 
-    println!("[NATIVE] 插件 {} 卸载成功", plugin_id);
-    Ok(())
+    if let Some(metadata) = plugin_to_unload {
+        // 等待引用计数归零
+        let timeout = std::time::Duration::from_secs(5);
+        let start = std::time::Instant::now();
+        while metadata.ref_count.load(Ordering::SeqCst) > 0 {
+            if start.elapsed() > timeout {
+                // 如果超时，需要将插件重新插回，因为它仍在被使用
+                let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
+                plugins.insert(plugin_id.clone(), metadata);
+                return Err(format!("卸载超时: 插件 {} 仍在使用中", plugin_id));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        
+        // 引用计数为 0，可以安全 drop (卸载)
+        drop(metadata);
+        println!("[NATIVE] 插件 {} 已安全卸载", plugin_id);
+        Ok(())
+    } else {
+        Err(format!("插件 {} 未找到或已卸载", plugin_id))
+    }
 }
 
 /// 调用原生插件方法
@@ -150,22 +192,29 @@ pub async fn call_native_plugin_method(
         request.plugin_id, request.method_name
     );
 
-    // 获取插件库
-    let plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
-    let library = plugins
-        .get(&request.plugin_id)
-        .ok_or_else(|| format!("插件 {} 未加载", request.plugin_id))?;
+    // 获取插件并增加引用计数
+    let metadata = {
+        let plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
+        plugins.get(&request.plugin_id).cloned().ok_or_else(|| format!("插件 {} 未加载", request.plugin_id))?
+    };
+
+    metadata.ref_count.fetch_add(1, Ordering::SeqCst);
+
+    // 使用 scopeguard 确保引用计数总是能被减少
+    let _guard = scopeguard::guard((), |_| {
+        metadata.ref_count.fetch_sub(1, Ordering::SeqCst);
+    });
 
     // 获取 call 函数
     let call: Symbol<CallFunction> = unsafe {
-        library
+        metadata.library
             .get(b"call\0")
             .map_err(|e| format!("获取 call 函数失败: {}", e))?
     };
 
     // 获取 free_string 函数（可选）
     let free_string: Result<Symbol<FreeStringFunction>, _> = unsafe {
-        library.get(b"free_string\0")
+        metadata.library.get(b"free_string\0")
     };
 
     // 准备参数
@@ -188,19 +237,13 @@ pub async fn call_native_plugin_method(
         .to_string();
 
     // 释放返回的字符串内存
-    match free_string {
-        Ok(free_func) => {
-            unsafe { free_func(result_ptr) };
-            println!("[NATIVE] 已使用插件提供的 free_string 函数释放内存");
-        }
-        Err(_) => {
-            // 如果插件没有提供 free_string 函数，使用 Rust 的方式释放
-            // 注意：这只有在插件使用 CString::new().into_raw() 返回时才安全
-            // 其他情况下可能导致内存泄漏或崩溃
-            println!("[NATIVE] 警告：插件未提供 free_string 函数，可能存在内存泄漏");
-        }
+    if let Ok(free_func) = free_string {
+        unsafe { free_func(result_ptr) };
+        println!("[NATIVE] 已使用插件提供的 free_string 函数释放内存");
+    } else {
+        println!("[NATIVE] 警告：插件未提供 free_string 函数，可能存在内存泄漏");
     }
 
-    println!("[NATIVE] 插件方法调用成功，结果: {}", result_str);
+    println!("[NATIVE] 插件方法调用成功");
     Ok(result_str)
 }

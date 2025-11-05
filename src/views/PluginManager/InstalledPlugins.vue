@@ -79,6 +79,23 @@ async function loadPlugins() {
 async function togglePlugin(plugin: PluginProxy) {
   try {
     if (plugin.enabled) {
+      // 对不可重载的原生插件进行特殊处理
+      if (plugin.manifest.type === 'native' && !plugin.manifest.native?.reloadable) {
+        try {
+          await ElMessageBox.confirm(
+            '此原生插件不支持运行时卸载。禁用后可能不会完全释放资源，建议重启应用以确保稳定性。',
+            '需要重启',
+            {
+              confirmButtonText: '仍然禁用',
+              cancelButtonText: '取消',
+              type: 'warning',
+            }
+          );
+        } catch {
+          return; // 用户取消操作
+        }
+      }
+
       // 禁用插件
       plugin.disable();
       // 保存禁用状态

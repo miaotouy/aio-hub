@@ -54,6 +54,7 @@ dependencies = [
  "rdev",
  "regex",
  "reqwest",
+ "scopeguard",
  "serde",
  "serde_json",
  "sha2",

@@ -26,48 +26,45 @@
     <!-- 可滚动的内容区域 -->
     <div class="content-section">
       <div class="tool-grid">
-      <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
-      <component
-        :is="isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
-        v-for="tool in filteredTools"
-        :key="tool.path"
-        :to="isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
-        :class="[
-          'tool-card',
-          { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) },
-        ]"
-        @click="handleToolClick(tool.path)"
-      >
-        <!-- 已分离徽章（带下拉菜单） -->
-        <el-dropdown
-          v-if="isDetached(getToolIdFromPath(tool.path))"
-          class="detached-badge-dropdown"
-          trigger="hover"
-          @command="(command: string) => handleDropdownCommand(command, tool.path)"
-        >
-          <div class="detached-badge" @click.stop>
-            <el-icon><i-ep-full-screen /></el-icon>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-
-        <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
+        <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
         <component
-          v-if="tool.path.startsWith('/plugin-')"
-          :is="tool.icon"
-          class="plugin-icon-large"
-        />
-        <!-- 普通图标用 el-icon 包裹 -->
-        <el-icon v-else :size="48">
-          <component :is="tool.icon" />
-        </el-icon>
-        <div class="tool-name">{{ tool.name }}</div>
-        <div class="tool-description">{{ tool.description }}</div>
-      </component>
+          :is="isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
+          v-for="tool in filteredTools"
+          :key="tool.path"
+          :to="isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
+          :class="['tool-card', { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) }]"
+          @click="handleToolClick(tool.path)"
+        >
+          <!-- 已分离徽章（带下拉菜单） -->
+          <el-dropdown
+            v-if="isDetached(getToolIdFromPath(tool.path))"
+            class="detached-badge-dropdown"
+            trigger="hover"
+            @command="(command: string) => handleDropdownCommand(command, tool.path)"
+          >
+            <div class="detached-badge" @click.stop>
+              <el-icon><i-ep-full-screen /></el-icon>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
+          <component
+            v-if="tool.path.startsWith('/plugin-')"
+            :is="tool.icon"
+            class="plugin-icon-large"
+          />
+          <!-- 普通图标用 el-icon 包裹 -->
+          <el-icon v-else :size="48">
+            <component :is="tool.icon" />
+          </el-icon>
+          <div class="tool-name">{{ tool.name }}</div>
+          <div class="tool-description">{{ tool.description }}</div>
+        </component>
       </div>
 
       <!-- 空状态 -->
@@ -76,7 +73,11 @@
         <div class="empty-text">
           {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
         </div>
-        <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
+        <el-button
+          v-if="visibleTools.length === 0"
+          type="primary"
+          @click="router.push('/settings')"
+        >
           前往设置页面配置工具
         </el-button>
       </div>
@@ -90,7 +91,7 @@ import { useRouter } from "vue-router";
 import { loadAppSettingsAsync, type AppSettings } from "../utils/appSettings";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
-import { customMessage } from '@/utils/customMessage';
+import { customMessage } from "@/utils/customMessage";
 
 const router = useRouter();
 const toolsStore = useToolsStore();
@@ -294,7 +295,8 @@ watch(
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  /* 顶部对齐，保证图标和名字位置一致 */
   text-decoration: none;
   /* 移除 router-link 下划线 */
   color: var(--text-color);
@@ -323,12 +325,19 @@ watch(
   margin-bottom: 8px;
   color: var(--text-color);
 }
-
 .tool-description {
   font-size: 0.9em;
   color: var(--text-color-light);
   text-align: center;
   line-height: 1.5;
+  /* 固定高度为3行，超出部分省略 */
+  display: -webkit-box;
+  line-clamp: 3;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: calc(1.5em * 3); /* 确保至少占据3行高度 */
 }
 
 /* 搜索栏 */

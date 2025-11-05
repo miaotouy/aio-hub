@@ -61,7 +61,7 @@ pub async fn execute_sidecar(
             .parent()
             .ok_or_else(|| "无法获取项目根目录".to_string())?;
         
-        workspace_dir.join("plugins").join(format!("example-{}", original_id))
+        workspace_dir.join("plugins").join(original_id)
     } else {
         // 生产模式：从 appDataDir 查找
         let app_data_dir = app

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 /// 原生插件调用函数类型
 type CallFunction = unsafe extern "C" fn(*const c_char, *const c_char) -> *mut c_char;
@@ -46,6 +46,7 @@ pub struct NativePluginCallRequest {
 /// 将动态库加载到内存中，并与插件 ID 关联
 #[tauri::command]
 pub async fn load_native_plugin(
+    _app: AppHandle,
     plugin_id: String,
     library_path: String,
     state: State<'_, NativePluginState>,
@@ -65,10 +66,45 @@ pub async fn load_native_plugin(
         }
     }
 
+    // 在开发模式下，library_path 是相对于项目根目录的
+    // 我们需要获取项目根目录来构建绝对路径
+    #[cfg(debug_assertions)]
+    let absolute_path = {
+        // 参照 sidecar_plugin.rs 的实现
+        // Tauri 开发模式下 current_dir 是 src-tauri，需要获取父目录（项目根目录）
+        let current_dir = std::env::current_dir()
+            .map_err(|e| format!("获取当前目录失败: {}", e))?;
+        let workspace_dir = current_dir
+            .parent()
+            .ok_or_else(|| "无法获取项目根目录".to_string())?;
+        
+        let full_path = workspace_dir.join(&library_path);
+        println!("[NATIVE] 开发模式，项目根目录: {:?}", workspace_dir);
+        println!("[NATIVE] 拼接后的路径: {:?}", full_path);
+        
+        // 验证文件是否存在
+        if !full_path.exists() {
+            return Err(format!("插件文件不存在: {:?}", full_path));
+        }
+        
+        full_path
+    };
+
+    // 在生产模式下，library_path 应该是绝对路径
+    #[cfg(not(debug_assertions))]
+    let absolute_path = {
+        use std::path::Path;
+        let path = Path::new(&library_path);
+        if !path.exists() {
+            return Err(format!("插件文件不存在: {:?}", path));
+        }
+        path.to_path_buf()
+    };
+
+    println!("[NATIVE] 最终加载路径: {:?}", absolute_path);
+
     // 加载动态库
-    // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
-    let normalized_path = library_path.replace('\\', "/");
-    let library = unsafe { Library::new(&normalized_path) }
+    let library = unsafe { Library::new(&absolute_path) }
         .map_err(|e| format!("加载动态库失败: {}", e))?;
 
     // 存储插件库

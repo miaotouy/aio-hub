@@ -137,8 +137,10 @@ export class PluginLoader {
           const manifestModule = await manifestModules[manifestPath]();
           const manifest = manifestModule.default;
 
-          // 开发模式下的安装路径（去掉 /manifest.json）
-          const devInstallPath = manifestPath.replace('/manifest.json', '');
+          // 开发模式下的安装路径（去掉 /manifest.json 和开头的 /）
+          const devInstallPath = manifestPath.startsWith('/')
+            ? manifestPath.substring(1).replace('/manifest.json', '')
+            : manifestPath.replace('/manifest.json', '');
 
           let proxy: PluginProxy;
 

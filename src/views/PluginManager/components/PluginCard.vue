@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { Delete, Setting } from "@element-plus/icons-vue";
 import type { PluginProxy } from "@/services/plugin-types";
 import Avatar from "@/components/common/Avatar.vue";
@@ -9,7 +10,7 @@ interface Props {
   selected?: boolean;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 // Emits
 const emit = defineEmits<{
@@ -18,6 +19,19 @@ const emit = defineEmits<{
   settings: [];
   uninstall: [];
 }>();
+
+const pluginTypeInfo = computed(() => {
+  switch (props.plugin.manifest.type) {
+    case "javascript":
+      return { text: "JS", type: "success" as const };
+    case "sidecar":
+      return { text: "Sidecar", type: "warning" as const };
+    case "native":
+      return { text: "Native", type: "info" as const };
+    default:
+      return { text: props.plugin.manifest.type, type: "info" as const };
+  }
+});
 </script>
 
 <template>
@@ -45,12 +59,8 @@ const emit = defineEmits<{
         <div class="plugin-name-badges">
           <h3 class="plugin-name">{{ plugin.name }}</h3>
           <div class="plugin-badges">
-            <el-tag
-              :type="plugin.manifest.type === 'javascript' ? 'success' : 'warning'"
-              size="small"
-              effect="plain"
-            >
-              {{ plugin.manifest.type === "javascript" ? "JS" : "Sidecar" }}
+            <el-tag :type="pluginTypeInfo.type" size="small" effect="plain">
+              {{ pluginTypeInfo.text }}
             </el-tag>
             <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain"> Dev </el-tag>
           </div>

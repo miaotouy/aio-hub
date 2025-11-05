@@ -96,9 +96,9 @@ use commands::{
     install_plugin_from_zip,
     // Sidecar 插件命令
     execute_sidecar,
+    // 状态
     ClipboardMonitorState,
 };
-
 // 导入全局鼠标监听器
 use commands::window_manager::init_global_mouse_listener;
 
@@ -188,6 +188,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         // 管理状态
         .manage(ClipboardMonitorState::new())
+        .manage(commands::native_plugin::NativePluginState::default())
         .manage(AppState::default())
         .manage(Arc::new(CancellationToken::new()))
         // 注册命令处理器
@@ -282,7 +283,11 @@ pub fn run() {
             uninstall_plugin,
             install_plugin_from_zip,
             // Sidecar 插件命令
-            execute_sidecar
+            execute_sidecar,
+            // 原生插件命令
+            commands::native_plugin::load_native_plugin,
+            commands::native_plugin::unload_native_plugin,
+            commands::native_plugin::call_native_plugin_method
         ])
         // 设置应用
         .setup(|app| {

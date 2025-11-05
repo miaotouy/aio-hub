@@ -17,6 +17,7 @@ import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExpor
 import { createJsPluginProxy } from './js-plugin-adapter';
 import type { JsPluginAdapter } from './js-plugin-adapter';
 import { createSidecarPluginProxy } from './sidecar-plugin-adapter';
+import { createNativePluginProxy } from './native-plugin-adapter';
 import { createModuleLogger } from '@/utils/logger';
 import { pluginConfigService } from './plugin-config.service';
 import { pluginStateService } from './plugin-state.service';
@@ -163,6 +164,9 @@ export class PluginLoader {
           } else if (manifest.type === 'sidecar') {
             // 加载 Sidecar 插件
             proxy = createSidecarPluginProxy(manifest, devInstallPath, true);
+          } else if (manifest.type === 'native') {
+            // 加载原生插件
+            proxy = createNativePluginProxy(manifest, devInstallPath, true);
           } else {
             logger.warn(`开发模式下跳过未知类型的插件: ${pluginId}, type: ${manifest.type}`);
             continue;
@@ -270,6 +274,12 @@ export class PluginLoader {
           } else if (manifest.type === 'sidecar') {
             // 加载 Sidecar 插件
             const proxy = await this.loadProdSidecarPlugin(manifest, pluginPath);
+            if (proxy) {
+              result.plugins.push(proxy);
+            }
+          } else if (manifest.type === 'native') {
+            // 加载原生插件
+            const proxy = await this.loadProdNativePlugin(manifest, pluginPath);
             if (proxy) {
               result.plugins.push(proxy);
             }
@@ -388,6 +398,43 @@ export class PluginLoader {
       return proxy;
     } catch (error) {
       logger.error(`加载 Sidecar 插件失败: ${manifest.id}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 加载生产环境下的原生插件
+   */
+  private async loadProdNativePlugin(manifest: PluginManifest, pluginPath: string): Promise<import('./plugin-types').PluginProxy | null> {
+    try {
+      // 创建原生插件代理（标记为生产模式）
+      const proxy = createNativePluginProxy(manifest, pluginPath, false);
+
+      // 根据持久化状态决定是否启用插件
+      const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+      if (shouldEnable) {
+        await proxy.enable();
+      } else {
+        logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+      }
+
+      // 初始化插件配置
+      try {
+        await pluginConfigService.initPluginConfig(manifest);
+      } catch (error) {
+        logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
+        // 配置初始化失败不应阻止插件加载
+      }
+
+      logger.info(`成功加载原生插件: ${manifest.id}`, {
+        name: manifest.name,
+        version: manifest.version,
+        devMode: false,
+      });
+
+      return proxy;
+    } catch (error) {
+      logger.error(`加载原生插件失败: ${manifest.id}`, error);
       throw error;
     }
   }

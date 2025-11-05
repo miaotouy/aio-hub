@@ -28,7 +28,7 @@ export interface PluginUiConfig {
 /**
  * 插件类型
  */
-export type PluginType = 'javascript' | 'sidecar';
+export type PluginType = 'javascript' | 'sidecar' | 'native';
 
 /**
  * 配置项类型
@@ -79,6 +79,14 @@ export interface SidecarConfig {
 }
 
 /**
+ * 原生插件配置
+ */
+export interface NativeConfig {
+  /** 按平台指定动态库文件路径 */
+  library: Partial<Record<PlatformKey, string>>;
+}
+
+/**
  * 插件清单 (manifest.json)
  */
 export interface PluginManifest {
@@ -108,6 +116,9 @@ export interface PluginManifest {
   
   /** Sidecar 配置 (type='sidecar' 时必需) */
   sidecar?: SidecarConfig;
+  
+  /** 原生插件配置 (type='native' 时必需) */
+  native?: NativeConfig;
   
   /** 暴露的方法列表 */
   methods: MethodMetadata[];

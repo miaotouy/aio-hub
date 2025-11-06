@@ -23,6 +23,30 @@
           </template>
         </el-autocomplete>
       </div>
+      
+      <!-- 快速导航标签页 -->
+      <div class="settings-tabs">
+        <el-tabs
+          v-model="activeTab"
+          type="card"
+          @tab-click="handleTabClick"
+          class="navigation-tabs"
+        >
+          <el-tab-pane
+            v-for="section in settingsConfig"
+            :key="section.title"
+            :label="section.title"
+            :name="section.title"
+          >
+            <template #label>
+              <div class="tab-label">
+                <el-icon><component :is="section.icon" /></el-icon>
+                <span>{{ section.title }}</span>
+              </div>
+            </template>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
       <div class="settings-content" ref="scrollContainerRef">
         <el-form :model="localSettings" label-width="120px" label-position="left">
           <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
@@ -151,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, shallowRef, type Component } from "vue";
+import { ref, watch, nextTick, computed, shallowRef, type Component, onUnmounted } from "vue";
 import { useDebounceFn } from "@vueuse/core";
 import {
   ElMessageBox,
@@ -161,6 +185,8 @@ import {
   ElInputNumber,
   ElInput,
   ElRadioGroup,
+  ElTabs,
+  ElTabPane,
 } from "element-plus";
 import { get, set } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
@@ -212,16 +238,6 @@ const loadLocalSettings = async () => {
   }
 };
 
-watch(
-  () => props.visible,
-  async (visible) => {
-    if (visible) {
-      saveStatus.value = "idle";
-      await loadLocalSettings();
-    }
-  },
-  { immediate: true }
-);
 
 watch(
   () => localSettings.value.shortcuts.send,
@@ -295,6 +311,8 @@ const componentMap: Record<string, Component> = {
   ElRadioGroup,
   ElInputNumber,
   ElInput,
+  ElTabs,
+  ElTabPane,
   LlmModelSelector,
 };
 
@@ -337,6 +355,42 @@ const handleComponentClick = (itemId: string) => {
 // --- Search functionality ---
 const scrollContainerRef = ref<HTMLElement | null>(null);
 const searchQuery = ref("");
+
+// --- Tab navigation functionality ---
+const activeTab = ref("");
+let isClickingTab = false;
+
+const handleTabClick = (tab: any) => {
+  if (!scrollContainerRef.value) return;
+  
+  const sectionTitle = tab.props.name;
+  
+  const allSections = scrollContainerRef.value.querySelectorAll('.settings-section');
+  let targetSection: HTMLElement | null = null;
+  
+  for (const section of allSections) {
+    const titleElement = section.querySelector('.section-title span');
+    if (titleElement && titleElement.textContent === sectionTitle) {
+      targetSection = section as HTMLElement;
+      break;
+    }
+  }
+  
+  if (targetSection) {
+    isClickingTab = true;
+    targetSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    
+    targetSection.classList.add("section-highlight");
+    setTimeout(() => {
+      targetSection.classList.remove("section-highlight");
+    }, 1500);
+
+    // 等待滚动结束后再恢复滚动监听
+    setTimeout(() => {
+      isClickingTab = false;
+    }, 1000); // 1s 的延迟应该足够平滑滚动完成
+  }
+};
 
 interface SearchIndexItem {
   id: string;
@@ -393,6 +447,71 @@ const handleSearchSelect = (item: Record<string, any>) => {
     searchQuery.value = "";
   });
 };
+
+// --- 滚动监听功能 ---
+let scrollObserver: IntersectionObserver | null = null;
+
+const removeScrollListener = () => {
+  if (scrollObserver) {
+    scrollObserver.disconnect();
+    scrollObserver = null;
+  }
+};
+
+const addScrollListener = () => {
+  if (!scrollContainerRef.value) return;
+  
+  removeScrollListener();
+  
+  const sections = scrollContainerRef.value.querySelectorAll('.settings-section');
+  const sectionElements = Array.from(sections) as HTMLElement[];
+  
+  const options = {
+    root: scrollContainerRef.value,
+    rootMargin: '-30% 0px -60% 0px',
+    threshold: 0
+  };
+  
+  scrollObserver = new IntersectionObserver((entries) => {
+    if (isClickingTab) return;
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const sectionElement = entry.target as HTMLElement;
+        const titleElement = sectionElement.querySelector('.section-title span');
+        if (titleElement && titleElement.textContent) {
+          activeTab.value = titleElement.textContent;
+        }
+      }
+    });
+  }, options);
+  
+  sectionElements.forEach(section => {
+    scrollObserver!.observe(section);
+  });
+};
+
+onUnmounted(() => {
+  removeScrollListener();
+});
+
+watch(
+  () => props.visible,
+  async (visible) => {
+    if (visible) {
+      saveStatus.value = "idle";
+      await loadLocalSettings();
+      if (settingsConfig.length > 0) {
+        activeTab.value = settingsConfig[0].title;
+      }
+      nextTick(() => {
+        addScrollListener();
+      });
+    } else {
+      removeScrollListener();
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>
@@ -544,5 +663,72 @@ const handleSearchSelect = (item: Record<string, any>) => {
 :global(.settings-search-popper) {
   width: 60vw !important;
   max-width: 800px;
+}
+
+/* 标签页容器样式 */
+.settings-tabs {
+  padding: 0 8px 16px;
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+/* 导航标签样式 */
+.navigation-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.navigation-tabs :deep(.el-tabs__nav-wrap::after) {
+  display: none;
+}
+
+.navigation-tabs :deep(.el-tabs__item) {
+  padding: 8px 16px;
+  height: auto;
+  line-height: 1.5;
+}
+
+.navigation-tabs :deep(.el-tabs__item:hover) {
+  color: var(--el-color-primary);
+}
+
+.navigation-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-8);
+  border-radius: 4px 4px 0 0;
+}
+
+/* 标签标题样式 */
+.tab-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.tab-label .el-icon {
+  font-size: 16px;
+}
+
+/* Section 高亮动画 */
+.settings-section.section-highlight {
+  animation: highlightSection 1.5s ease-out;
+}
+
+@keyframes highlightSection {
+  0% {
+    background-color: transparent;
+  }
+  30% {
+    background-color: var(--el-color-primary-light-9);
+    border-radius: 8px;
+    padding: 8px;
+    margin: -8px;
+  }
+  100% {
+    background-color: transparent;
+    border-radius: 8px;
+    padding: 8px;
+    margin: -8px;
+  }
 }
 </style>

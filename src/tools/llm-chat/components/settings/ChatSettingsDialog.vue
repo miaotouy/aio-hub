@@ -347,12 +347,14 @@ interface SearchIndexItem {
 
 const searchIndex = computed<SearchIndexItem[]>(() =>
   settingsConfig.flatMap((section) =>
-    section.items.map((item) => ({
-      id: item.id.toString(),
-      label: item.label,
-      keywords: item.keywords,
-      value: `${section.title} > ${item.label}`,
-    }))
+    section.items
+      .filter((item) => !item.visible || item.visible(localSettings.value))
+      .map((item) => ({
+        id: item.id.toString(),
+        label: item.label,
+        keywords: item.keywords,
+        value: renderHint(`${section.title} > ${item.label}`),
+      }))
   )
 );
 
@@ -540,6 +542,7 @@ const handleSearchSelect = (item: Record<string, any>) => {
 }
 
 :global(.settings-search-popper) {
-  width: 400px !important;
+  width: 60vw !important;
+  max-width: 800px;
 }
 </style>

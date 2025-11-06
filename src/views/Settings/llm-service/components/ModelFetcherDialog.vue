@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { LlmModelInfo } from '../../types/llm-profiles';
-import { useModelMetadata } from '../../composables/useModelMetadata';
-import { MODEL_CAPABILITIES } from '../../config/model-capabilities';
-import DynamicIcon from '../../components/common/DynamicIcon.vue';
+import type { LlmModelInfo } from '@/types/llm-profiles';
+import { useModelMetadata } from '@/composables/useModelMetadata';
+import { MODEL_CAPABILITIES } from '@/config/model-capabilities';
+import DynamicIcon from '@/components/common/DynamicIcon.vue';
 
 const props = defineProps<{
   models: LlmModelInfo[];
@@ -68,13 +68,13 @@ const isModelExisting = (modelId: string) => {
 
 // 检查模型是否已选择
 const isModelSelected = (model: LlmModelInfo) => {
-  return selectedModels.value.some((m) => m.id === model.id);
+  return selectedModels.value.some((m: LlmModelInfo) => m.id === model.id);
 };
 
 // 切换单个模型的选择状态
 const toggleModelSelection = (model: LlmModelInfo) => {
   if (isModelExisting(model.id)) return;
-  const index = selectedModels.value.findIndex((m) => m.id === model.id);
+  const index = selectedModels.value.findIndex((m: LlmModelInfo) => m.id === model.id);
   if (index > -1) {
     selectedModels.value.splice(index, 1);
   } else {
@@ -88,7 +88,7 @@ const toggleGroupSelection = (groupModels: LlmModelInfo[]) => {
   if (allSelected) {
     // 全部取消选择
     selectedModels.value = selectedModels.value.filter(
-      (sm) => !groupModels.some((gm) => gm.id === sm.id)
+      (sm: LlmModelInfo) => !groupModels.some((gm) => gm.id === sm.id)
     );
   } else {
     // 全部添加
@@ -112,7 +112,7 @@ const isGroupExpanded = (groupName: string): boolean => {
 
 const handleConfirm = () => {
   // 对选中的模型进行处理，使用格式化后的名称
-  const modelsToAdd = selectedModels.value.map(model => ({
+  const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => ({
     ...model,
     name: formatModelName(model.id)
   }));
@@ -167,7 +167,7 @@ const getModelCapabilities = (model: LlmModelInfo) => {
 // 获取激活的能力列表
 const getActiveCapabilities = (model: LlmModelInfo) => {
   const capabilities = getModelCapabilities(model);
-  return MODEL_CAPABILITIES.filter(cap => capabilities[cap.key]);
+  return MODEL_CAPABILITIES.filter(cap => capabilities[cap.key as keyof typeof capabilities]);
 };
 </script>
 

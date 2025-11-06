@@ -2,9 +2,9 @@
 import { ref, watch } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { OcrApiRequest } from "../../types/ocr-profiles";
-import type { Variable } from "../../tools/api-tester/types";
-import { createModuleLogger } from "@utils/logger";
+import type { OcrApiRequest } from "@/types/ocr-profiles";
+import type { Variable } from "@/tools/api-tester/types";
+import { createModuleLogger } from "@/utils/logger";
 
 interface Props {
   modelValue: OcrApiRequest;
@@ -205,9 +205,9 @@ function getDisplayIconPath(iconPath: string): string {
             style="width: 200px"
             @update:model-value="
               (newKey: string) => {
-                if (newKey !== key) {
+                if (newKey !== String(key)) {
                   localValue.headers[newKey] = value;
-                  delete localValue.headers[key];
+                  delete localValue.headers[String(key)];
                 }
               }
             "

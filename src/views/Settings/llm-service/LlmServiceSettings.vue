@@ -2,22 +2,22 @@
 import { ref, computed, watch } from "vue";
 import { ElMessageBox, ElLoading } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
-import ProfileSidebar from "./ProfileSidebar.vue";
-import ProfileEditor from "./ProfileEditor.vue";
-import ModelList from "./ModelList.vue";
-import ModelFetcherDialog from "./ModelFetcherDialog.vue";
-import ModelEditDialog from "./ModelEditDialog.vue";
-import CreateProfileDialog from "./CreateProfileDialog.vue";
-import CustomHeadersEditor from "./CustomHeadersEditor.vue";
-import { useLlmProfiles } from "../../composables/useLlmProfiles";
-import { providerTypes } from "../../config/llm-providers";
-import type { LlmProfile, LlmModelInfo, ProviderType } from "../../types/llm-profiles";
-import type { LlmPreset } from "../../config/llm-providers";
-import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@utils/llm-api-url";
-import { useModelMetadata } from "../../composables/useModelMetadata";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
-import { fetchModelsFromApi } from "../../llm-apis/model-fetcher";
-import DynamicIcon from "../../components/common/DynamicIcon.vue";
+import ProfileSidebar from "../shared/ProfileSidebar.vue";
+import ProfileEditor from "../shared/ProfileEditor.vue";
+import ModelList from "./components/ModelList.vue";
+import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
+import ModelEditDialog from "./components/ModelEditDialog.vue";
+import CreateProfileDialog from "./components/CreateProfileDialog.vue";
+import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { providerTypes } from "@/config/llm-providers";
+import type { LlmProfile, LlmModelInfo, ProviderType } from "@/types/llm-profiles";
+import type { LlmPreset } from "@/config/llm-providers";
+import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@/utils/llm-api-url";
+import { useModelMetadata } from "@/composables/useModelMetadata";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
+import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useLlmProfiles();
@@ -440,7 +440,7 @@ const showCustomHeadersDialog = ref(false);
                 @delete-group="deleteModelGroup"
                 @clear="clearAllModels"
                 @fetch="fetchModels"
-                @update:expand-state="(state) => (editForm.modelGroupsExpandState = state)"
+                @update:expand-state="(state: any) => (editForm.modelGroupsExpandState = state)"
               />
             </div>
           </el-form-item>

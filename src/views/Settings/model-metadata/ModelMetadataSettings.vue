@@ -213,13 +213,13 @@ import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { useModelMetadata } from "../../composables/useModelMetadata";
-import type { ModelMetadataRule, MetadataMatchType } from "../../types/model-metadata";
-import ModelMetadataConfigEditor from "./ModelMetadataConfigEditor.vue";
-import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
-import { PRESET_ICONS_DIR } from "../../config/preset-icons";
+import { useModelMetadata } from "../../../composables/useModelMetadata";
+import type { ModelMetadataRule, MetadataMatchType } from "../../../types/model-metadata";
+import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
+import IconPresetSelector from "../../../components/common/IconPresetSelector.vue";
+import { PRESET_ICONS_DIR } from "../../../config/preset-icons";
 import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
-import DynamicIcon from "../../components/common/DynamicIcon.vue";
+import DynamicIcon from "../../../components/common/DynamicIcon.vue";
 
 const {
   rules: configs,

@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { useCssOverrides } from '@/composables/useCssOverrides';
 import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
-import AddCssPresetDialog from './AddCssPresetDialog.vue';
+import AddCssPresetDialog from './components/AddCssPresetDialog.vue';
 import { DocumentCopy, Refresh, Delete, Check, Loading, Edit, Plus, Position, QuestionFilled } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 

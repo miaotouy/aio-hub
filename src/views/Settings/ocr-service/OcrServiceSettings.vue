@@ -2,13 +2,13 @@
 import { ref, computed, watch } from "vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
-import ProfileSidebar from "./ProfileSidebar.vue";
-import ProfileEditor from "./ProfileEditor.vue";
-import CustomOcrRequestEditor from "./CustomOcrRequestEditor.vue";
-import { useOcrProfiles } from "../../composables/useOcrProfiles";
-import { ocrProviderTypes, ocrPresets } from "../../config/ocr-providers";
-import type { OcrProfile, OcrProviderType, OcrApiRequest } from "../../types/ocr-profiles";
-import type { OcrPreset } from "../../config/ocr-providers";
+import ProfileSidebar from "../shared/ProfileSidebar.vue";
+import ProfileEditor from "../shared/ProfileEditor.vue";
+import CustomOcrRequestEditor from "./components/CustomOcrRequestEditor.vue";
+import { useOcrProfiles } from "@composables/useOcrProfiles";
+import { ocrProviderTypes, ocrPresets } from "@config/ocr-providers";
+import type { OcrProfile, OcrProviderType, OcrApiRequest } from "../../../types/ocr-profiles";
+import type { OcrPreset } from "@config/ocr-providers";
 
 const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
   useOcrProfiles();

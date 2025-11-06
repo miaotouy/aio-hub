@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { llmPresets, providerTypes } from "../../config/llm-providers";
-import type { LlmPreset } from "../../config/llm-providers";
-import type { ProviderType } from "../../types/llm-profiles";
-import { useModelMetadata } from "../../composables/useModelMetadata";
-import DynamicIcon from "../../components/common/DynamicIcon.vue";
+import { llmPresets, providerTypes } from "@/config/llm-providers";
+import type { LlmPreset } from "@/config/llm-providers";
+import type { ProviderType } from "@/types/llm-profiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 // Props
 interface Props {
@@ -30,7 +30,7 @@ const selectedProviderType = ref<ProviderType | "all">("all");
 // 提供商分类（从实际预设中提取）
 const providerCategories = computed<Array<ProviderType | "all">>(() => {
   const types = new Set<ProviderType>();
-  llmPresets.forEach((p) => types.add(p.type));
+  llmPresets.forEach((p: LlmPreset) => types.add(p.type));
   return ["all" as const, ...Array.from(types)];
 });
 
@@ -39,7 +39,7 @@ const filteredPresets = computed(() => {
   if (selectedProviderType.value === "all") {
     return llmPresets;
   }
-  return llmPresets.filter((p) => p.type === selectedProviderType.value);
+  return llmPresets.filter((p: LlmPreset) => p.type === selectedProviderType.value);
 });
 
 // 从预设创建配置
@@ -62,7 +62,7 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
 
 // 获取提供商类型信息
 const getProviderInfo = (type: ProviderType) => {
-  return providerTypes.find((p) => p.type === type);
+  return providerTypes.find((p: { type: ProviderType }) => p.type === type);
 };
 
 // 获取分类显示名称

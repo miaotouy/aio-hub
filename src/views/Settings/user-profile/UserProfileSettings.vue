@@ -86,10 +86,10 @@ import { customMessage } from "@/utils/customMessage";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 import type { UserProfile } from "@/tools/llm-chat/types";
 import Avatar from "@/components/common/Avatar.vue";
-import ProfileSidebar from "./ProfileSidebar.vue";
-import ProfileEditor from "./ProfileEditor.vue";
-import CreateUserProfileDialog from './CreateUserProfileDialog.vue';
-import UserProfileForm from './UserProfileForm.vue';
+import ProfileSidebar from "../shared/ProfileSidebar.vue";
+import ProfileEditor from "../shared/ProfileEditor.vue";
+import CreateUserProfileDialog from "./components/CreateUserProfileDialog.vue";
+import UserProfileForm from "./components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("UserProfileSettings");

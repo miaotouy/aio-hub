@@ -2,11 +2,11 @@
 import { ref, computed, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { InfoFilled, MagicStick } from "@element-plus/icons-vue";
-import type { LlmModelInfo } from "../../types/llm-profiles";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "../../config/preset-icons";
-import { MODEL_CAPABILITIES } from "../../config/model-capabilities";
-import { getMatchedModelProperties } from "../../config/model-metadata";
-import IconPresetSelector from "../../components/common/IconPresetSelector.vue";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
+import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
+import { getMatchedModelProperties } from "@/config/model-metadata";
+import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 
 const props = defineProps<{
   visible: boolean;

@@ -122,8 +122,8 @@
 import { computed } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { ModelMetadataRule } from "../../types/model-metadata";
-import { createModuleLogger } from "@utils/logger";
+import type { ModelMetadataRule } from "@/types/model-metadata";
+import { createModuleLogger } from "@/utils/logger";
 
 interface Props {
   modelValue: Partial<ModelMetadataRule> | null;

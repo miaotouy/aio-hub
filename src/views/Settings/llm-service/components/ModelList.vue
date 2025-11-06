@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Plus, Delete, Edit, ArrowRight } from "@element-plus/icons-vue";
-import type { LlmModelInfo } from "../../types/llm-profiles";
-import { useModelMetadata } from "../../composables/useModelMetadata";
-import { MODEL_CAPABILITIES } from "../../config/model-capabilities";
-import DynamicIcon from "../../components/common/DynamicIcon.vue";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
+import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 interface Props {
   models: LlmModelInfo[];

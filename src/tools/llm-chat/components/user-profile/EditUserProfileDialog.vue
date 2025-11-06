@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import UserProfileForm from "@/views/components/UserProfileForm.vue";
+import UserProfileForm from "@/views/Settings/user-profile/components/UserProfileForm.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { UserProfile } from "../../types";
 

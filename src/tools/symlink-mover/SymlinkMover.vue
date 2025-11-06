@@ -13,9 +13,9 @@ import {
   View,
 } from "@element-plus/icons-vue";
 import { open } from "@tauri-apps/plugin-dialog";
-import InfoCard from "../../components/common/InfoCard.vue";
-import DropZone from "../../components/common/DropZone.vue";
-import BaseDialog from "../../components/common/BaseDialog.vue";
+import InfoCard from "@components/common/InfoCard.vue";
+import DropZone from "@components/common/DropZone.vue";
+import BaseDialog from "@components/common/BaseDialog.vue";
 import { serviceRegistry } from "@/services/registry";
 import type SymlinkMoverService from "./symlinkMover.service";
 import type { FileItem, OperationLog } from "./symlinkMover.service";

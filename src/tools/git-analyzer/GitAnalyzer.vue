@@ -89,7 +89,7 @@
 import { ref, watch, nextTick, onMounted } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { Refresh, Upload } from "@element-plus/icons-vue";
-import InfoCard from "../../components/common/InfoCard.vue";
+import InfoCard from "@components/common/InfoCard.vue";
 import ExportModule from "./components/ExportModule.vue";
 import ControlPanel from "./components/ControlPanel.vue";
 import CommitListView from "./components/CommitListView.vue";

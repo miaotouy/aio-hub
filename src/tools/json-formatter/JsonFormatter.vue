@@ -109,7 +109,7 @@ import {
 } from '@element-plus/icons-vue';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
-import RichCodeEditor from '../../components/common/RichCodeEditor.vue';
+import RichCodeEditor from '@components/common/RichCodeEditor.vue';
 import { serviceRegistry } from '@/services/registry';
 import type JsonFormatterService from './jsonFormatter.service';
 import { useSendToChat } from '@/composables/useSendToChat';

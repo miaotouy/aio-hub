@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
 import { toRefs, ref } from "vue";
-import { useThemeAwareIcon } from "../../composables/useThemeAwareIcon";
+import { useThemeAwareIcon } from "@composables/useThemeAwareIcon";
 
 const props = defineProps({
   src: {

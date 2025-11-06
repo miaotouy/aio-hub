@@ -86,7 +86,7 @@
                       <div
                         v-if="item.slots?.append"
                         class="append-slot"
-                        @click="handleComponentClick(item.id)"
+                        @click="handleComponentClick(item.id as string)"
                       >
                         <component :is="item.slots.append" />
                       </div>
@@ -348,7 +348,7 @@ interface SearchIndexItem {
 const searchIndex = computed<SearchIndexItem[]>(() =>
   settingsConfig.flatMap((section) =>
     section.items.map((item) => ({
-      id: item.id,
+      id: item.id.toString(),
       label: item.label,
       keywords: item.keywords,
       value: `${section.title} > ${item.label}`,

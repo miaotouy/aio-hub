@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { customMessage } from '@/utils/customMessage';
 import { Upload, Delete, Picture, Scissor, Plus } from '@element-plus/icons-vue';
 import type { ImageBlock, CutLine, UploadedImage } from '../types';
-import { useFileDrop } from '../../../composables/useFileDrop';
+import { useFileDrop } from '@composables/useFileDrop';
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@utils/logger';
 import { useImageViewer } from '@/composables/useImageViewer';

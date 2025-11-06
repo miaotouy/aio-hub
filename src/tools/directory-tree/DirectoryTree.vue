@@ -155,8 +155,8 @@ import {
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash";
-import InfoCard from "../../components/common/InfoCard.vue";
-import DropZone from "../../components/common/DropZone.vue";
+import InfoCard from "@components/common/InfoCard.vue";
+import DropZone from "@components/common/DropZone.vue";
 import { type DirectoryTreeConfig } from "./config";
 import { serviceRegistry } from "@/services";
 import type DirectoryTreeService from "./directoryTree.service";

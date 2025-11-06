@@ -7,8 +7,8 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
 import type { UploadedImage, OcrEngineConfig, SlicerConfig } from "../types";
 import type { SmartOcrConfig } from "../config";
-import { useLlmProfiles } from "../../../composables/useLlmProfiles";
-import { useOcrProfiles } from "../../../composables/useOcrProfiles";
+import { useLlmProfiles } from "@composables/useLlmProfiles";
+import { useOcrProfiles } from "@composables/useOcrProfiles";
 import { getTesseractLanguageOptions } from "../language-packs";
 
 // 创建模块日志记录器

@@ -135,8 +135,8 @@ import { ref, watch } from "vue";
 import { customMessage } from '@/utils/customMessage';
 import { FolderOpened, Search, Filter, CloseBold } from "@element-plus/icons-vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import InfoCard from "../../../components/common/InfoCard.vue";
-import DropZone from "../../../components/common/DropZone.vue";
+import InfoCard from "@components/common/InfoCard.vue";
+import DropZone from "@components/common/DropZone.vue";
 import { builtInPresets, type CleanupPreset } from "../presets";
 import { createModuleLogger } from "@utils/logger";
 

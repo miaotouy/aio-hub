@@ -7,7 +7,7 @@ import { ref, computed, watch } from 'vue';
 import debounce from 'lodash-es/debounce';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { useLlmProfiles } from '../../../composables/useLlmProfiles';
+import { useLlmProfiles } from '@composables/useLlmProfiles';
 import { tokenCalculatorEngine, type TokenCalculationResult } from './useTokenCalculator';
 import { getMatchedModelProperties } from '@/config/model-metadata';
 import {

@@ -54,7 +54,7 @@ import { ElButton, ElEmpty } from 'element-plus';
 import { customMessage } from '@/utils/customMessage';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
-import InfoCard from '../../components/common/InfoCard.vue';
+import InfoCard from '@components/common/InfoCard.vue';
 import { createModuleLogger } from '@utils/logger';
 import { useMediaInfoParser } from './composables/useMediaInfoParser';
 import { useFileInteraction } from '@/composables/useFileInteraction';

@@ -180,7 +180,7 @@ import {
   Folder,
   Document,
 } from "@element-plus/icons-vue";
-import InfoCard from "../../../components/common/InfoCard.vue";
+import InfoCard from "@components/common/InfoCard.vue";
 import { formatBytes, formatAge, formatCurrentPath } from "../utils";
 import type { ItemInfo, DirectoryScanProgress, DirectoryCleanupProgress, Statistics } from "../types";
 

@@ -4,51 +4,54 @@
     @update:visible="(val) => emit('update:visible', val)"
     title="聊天设置"
     width="80vw"
+    height="calc(100vh - 100px)"
     :close-on-backdrop-click="false"
+    dialog-class="chat-settings-dialog"
     @close="handleClosed"
   >
     <template #content>
-      <div class="settings-header">
-        <el-autocomplete
-          v-model="searchQuery"
-          :fetch-suggestions="querySearch"
-          placeholder="搜索设置项"
-          clearable
-          class="search-input"
-          @select="handleSearchSelect"
-          popper-class="settings-search-popper"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-autocomplete>
-      </div>
-      
-      <!-- 快速导航标签页 -->
-      <div class="settings-tabs">
-        <el-tabs
-          v-model="activeTab"
-          type="card"
-          @tab-click="handleTabClick"
-          class="navigation-tabs"
-        >
-          <el-tab-pane
-            v-for="section in settingsConfig"
-            :key="section.title"
-            :label="section.title"
-            :name="section.title"
+      <div class="settings-container">
+        <div class="settings-header">
+          <el-autocomplete
+            v-model="searchQuery"
+            :fetch-suggestions="querySearch"
+            placeholder="搜索设置项"
+            clearable
+            class="search-input"
+            @select="handleSearchSelect"
+            popper-class="settings-search-popper"
           >
-            <template #label>
-              <div class="tab-label">
-                <el-icon><component :is="section.icon" /></el-icon>
-                <span>{{ section.title }}</span>
-              </div>
+            <template #prefix>
+              <el-icon><Search /></el-icon>
             </template>
-          </el-tab-pane>
-        </el-tabs>
-      </div>
-      <div class="settings-content" ref="scrollContainerRef">
-        <el-form :model="localSettings" label-width="120px" label-position="left">
+          </el-autocomplete>
+        </div>
+        
+        <!-- 快速导航标签页 -->
+        <div class="settings-tabs">
+          <el-tabs
+            v-model="activeTab"
+            type="card"
+            @tab-click="handleTabClick"
+            class="navigation-tabs"
+          >
+            <el-tab-pane
+              v-for="section in settingsConfig"
+              :key="section.title"
+              :label="section.title"
+              :name="section.title"
+            >
+              <template #label>
+                <div class="tab-label">
+                  <el-icon><component :is="section.icon" /></el-icon>
+                  <span>{{ section.title }}</span>
+                </div>
+              </template>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+        <div class="settings-content" ref="scrollContainerRef">
+          <el-form :model="localSettings" label-width="120px" label-position="left">
           <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
             <div class="settings-section">
               <div class="section-title">
@@ -61,6 +64,7 @@
                   v-if="!item.visible || item.visible(localSettings)"
                   :label="renderHint(item.label)"
                   :data-setting-id="item.id"
+                  style="padding-left: 26px;"
                 >
                   <!-- Block layout (default) -->
                   <template v-if="item.layout !== 'inline'">
@@ -143,6 +147,7 @@
             <el-divider v-if="sectionIndex < settingsConfig.length - 1" />
           </template>
         </el-form>
+      </div>
       </div>
     </template>
 
@@ -515,19 +520,36 @@ watch(
 </script>
 
 <style scoped>
+/* 主容器使用 flex 布局 */
+.settings-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0; /* 防止 flex 子元素溢出 */
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
 .settings-header {
-  padding: 0 8px 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0; /* 固定高度，不收缩 */
 }
 
 .search-input {
   width: 100%;
 }
 
+.settings-tabs {
+  border-bottom: 1px solid var(--el-border-color-light);
+  flex-shrink: 0; /* 固定高度，不收缩 */
+}
+
 .settings-content {
-  max-height: calc(70vh - 60px);
+  flex: 1; /* 占据剩余空间 */
   overflow-y: auto;
-  padding-right: 8px;
+  padding-right: 24px;
   scroll-behavior: smooth;
+  min-height: 0; /* 确保滚动条正常工作 */
 }
 
 :deep(.el-form-item.highlight) {
@@ -546,9 +568,10 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-color);
+  margin-top: 16px;
   margin-bottom: 16px;
 }
 
@@ -665,12 +688,6 @@ watch(
   max-width: 800px;
 }
 
-/* 标签页容器样式 */
-.settings-tabs {
-  padding: 0 8px 16px;
-  border-bottom: 1px solid var(--el-border-color-light);
-}
-
 /* 导航标签样式 */
 .navigation-tabs :deep(.el-tabs__header) {
   margin-bottom: 0;
@@ -730,5 +747,52 @@ watch(
     padding: 8px;
     margin: -8px;
   }
+}
+
+/* 为较小屏幕优化 */
+@media (max-height: 900px) {
+  :global(.chat-settings-dialog) {
+    /* 在小屏幕上提供更多空间 */
+    --el-dialog-padding-primary: 12px;
+  }
+  
+  .settings-header {
+    padding: 0 8px 12px;
+  }
+  
+  .settings-tabs {
+    padding: 0 8px 12px;
+  }
+  
+  :deep(.el-form-item) {
+    margin-bottom: 16px;
+  }
+  
+  .settings-section {
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-height: 768px) {
+  .section-title {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  
+  :deep(.el-form-item) {
+    margin-bottom: 14px;
+  }
+  
+  .form-hint {
+    margin-top: 2px;
+  }
+}
+
+/* 确保对话框内容不溢出 */
+:global(.chat-settings-dialog .el-dialog__body) {
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 </style>

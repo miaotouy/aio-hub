@@ -101,6 +101,9 @@ use commands::{
     execute_sidecar,
     // 状态
     ClipboardMonitorState,
+    // 窗口特效命令
+    apply_window_effect,
+    list_directory_images
 };
 // 导入全局鼠标监听器
 use commands::window_manager::init_global_mouse_listener;
@@ -295,7 +298,10 @@ pub fn run() {
             // 原生插件命令
             commands::native_plugin::load_native_plugin,
             commands::native_plugin::unload_native_plugin,
-            commands::native_plugin::call_native_plugin_method
+            commands::native_plugin::call_native_plugin_method,
+            // 窗口特效命令
+            apply_window_effect,
+            list_directory_images
         ])
         // 设置应用
         .setup(|app| {

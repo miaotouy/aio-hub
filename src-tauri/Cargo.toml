@@ -67,6 +67,9 @@ content_inspector = "0.2" # 文本/二进制内容检测
 infer = "0.16" # 文件类型自动检测（基于魔数）
 libloading = "0.8" # 动态库加载
 scopeguard = "1.2.0"
+# 窗口特效依赖
+window-vibrancy = "0.5"
+raw-window-handle = "0.6"
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

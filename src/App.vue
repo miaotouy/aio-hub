@@ -21,8 +21,13 @@ import SyncServiceProvider from "./components/SyncServiceProvider.vue";
 import ImageViewer from "./components/common/ImageViewer.vue";
 import ModelSelectDialog from "./components/common/ModelSelectDialog.vue";
 import { useImageViewer } from "./composables/useImageViewer";
+import { useTheme } from "@/composables/useTheme";
+import { initThemeAppearance } from "./composables/useThemeAppearance";
 
 const logger = createModuleLogger("App");
+
+// 初始化主题，必须在其他操作之前
+useTheme();
 
 const route = useRoute();
 const router = useRouter();
@@ -127,6 +132,9 @@ onMounted(async () => {
 
   // 初始加载设置
   await loadSettings();
+  
+  // 初始化主题外观
+  await initThemeAppearance();
 
   // 监听设置变化事件（来自设置页面）- 这是主要的同步机制
   handleSettingsChange = (event: Event) => {

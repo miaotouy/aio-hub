@@ -1,7 +1,11 @@
+/* 导入主题外观增强样式 */
+@import './theme-appearance.css';
 /* 亮色主题变量 */
 :root {
   --bg-color: #f4f4f4;
+  --bg-color-rgb: 244, 244, 244;
   --container-bg: #fff;
+  --container-bg-rgb: 255, 255, 255;
   --text-color: #333;
   --text-color-light: #666;
   --border-color: #ddd;
@@ -13,11 +17,14 @@
   --info-color: #909399;
   --error-color: #f56c6c;
   --input-bg: #fff;
+  --input-bg-rgb: 255, 255, 255;
   --sidebar-bg: #f0f2f5;
   --sidebar-bg-rgb: 240, 242, 245; /* RGB值用于透明度 */
   --sidebar-text: #303133;
   --header-bg: #ffffff;
+  --header-bg-rgb: 255, 255, 255;
   --card-bg: #ffffff; /* 新增卡片背景色 */
+  --card-bg-rgb: 255, 255, 255;
   --border-color-light: #eee; /* 新增浅色边框 */
   --scrollbar-thumb-color: #c1c1c1;
   --scrollbar-thumb-hover-color: #a8a8a8;
@@ -54,7 +61,9 @@
 /* 暗色主题变量 */
 html.dark {
   --bg-color: #1a1a1a;  /* 主背景色 - 深灰黑 */
+  --bg-color-rgb: 26, 26, 26;
   --container-bg: #242424;  /* 容器背景色 - 比主背景稍亮 */
+  --container-bg-rgb: 36, 36, 36;
   --text-color: #e5e5e5;  /* 主文字颜色 */
   --text-color-light: #a8a8a8;  /* 次要文字颜色 */
   --border-color: #3a3a3a;  /* 主边框颜色 */
@@ -63,11 +72,14 @@ html.dark {
   --primary-hover-color: #66b1ff;  /* 主色调悬停色 */
   --error-color: #ff6b6b;  /* 错误色 */
   --input-bg: #1f1f1f;  /* 输入框背景色 */
+  --input-bg-rgb: 31, 31, 31;
   --sidebar-bg: #242424;  /* 侧边栏背景色 */
   --sidebar-bg-rgb: 36, 36, 36;  /* 侧边栏背景RGB值用于透明度 */
   --sidebar-text: #e5e5e5;  /* 侧边栏文字色 */
   --header-bg: #2a2a2a;  /* 头部背景色 */
+  --header-bg-rgb: 42, 42, 42;
   --card-bg: #2a2a2a;  /* 卡片背景色 */
+  --card-bg-rgb: 42, 42, 42;
   --scrollbar-thumb-color: #555;  /* 滚动条颜色 */
   --scrollbar-thumb-hover-color: #777;  /* 滚动条悬停色 */
 }

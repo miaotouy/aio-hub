@@ -1,5 +1,5 @@
 <template>
-  <el-card shadow="never" class="info-card">
+  <el-card shadow="never" :class="['info-card', { 'glass-card': appearanceSettings?.enableUiBlur }]">
       <template #header>
         <div class="card-header">
           <span>{{ title }}</span>
@@ -23,9 +23,12 @@ import { customMessage } from '@/utils/customMessage';
 import { CopyDocument } from '@element-plus/icons-vue';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { createModuleLogger } from '@utils/logger';
+import { useThemeAppearance } from '@/composables/useThemeAppearance';
 
 // 创建日志实例
 const logger = createModuleLogger('InfoCard');
+
+const { appearanceSettings } = useThemeAppearance();
 
 const props = defineProps({
   title: {

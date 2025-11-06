@@ -12,6 +12,7 @@ pub mod config_manager;
 pub mod asset_manager;
 pub mod sidecar_plugin;
 pub mod native_plugin;
+pub mod window_effects;
 
 // 重新导出所有命令
 pub use clipboard::*;
@@ -26,5 +27,6 @@ pub use window_config::*;
 pub use config_manager::*;
 pub use asset_manager::*;
 pub use sidecar_plugin::*;
+pub use window_effects::*;
 // pub use native_plugin::*; // 不重新导出 native_plugin 的所有内容。
 // native_plugin 模块包含特殊的管理函数，在 lib.rs 中通过其完全限定路径 (crate::commands::native_plugin::*) 进行精确调用，以避免与标准命令混淆。

@@ -1,0 +1,142 @@
+/**
+ * 主题外观增强样式
+ * 包含壁纸、透明度、模糊效果等相关的 CSS 变量和类
+ */
+
+:root {
+  /* --- 核心变量 (由 JS 动态更新) --- */
+  --ui-base-opacity: 0.85;
+  --ui-blur: 15px;
+  --wallpaper-image: none;
+  --wallpaper-opacity: 1;
+  --window-bg-opacity: 1;
+  --card-bg-rgb: 255, 255, 255; /* 默认亮色主题的卡片背景 RGB */
+
+  /* --- 派生变量 (分层透明度系统) --- */
+  /* L2: 侧边栏 */
+  --opacity-l2-sidebar: calc(var(--ui-base-opacity) + 0.1);
+  /* L3: 主内容区背景 */
+  --opacity-l3-content: var(--ui-base-opacity);
+  /* L4: 卡片 */
+  --opacity-l4-card: calc(var(--ui-base-opacity) + 0.05);
+  /* L5: 弹窗、覆盖层 */
+  --opacity-l5-overlay: calc(var(--ui-base-opacity) + 0.15);
+}
+
+html.dark {
+  --card-bg-rgb: 42, 42, 42; /* 暗色主题的卡片背景 RGB */
+}
+
+/* ========================================================================== */
+/* 全局背景和壁纸
+/* ========================================================================== */
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: var(--wallpaper-image);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  opacity: var(--wallpaper-opacity);
+  z-index: -2; /* 确保在所有内容之下 */
+}
+
+/* 应用窗口本身的背景色，当启用窗口特效时，它需要是半透明的 */
+html, body {
+  background-color: rgba(var(--bg-color-rgb), var(--window-bg-opacity));
+}
+
+/* ========================================================================== */
+/* 可复用工具类
+/* ========================================================================== */
+
+/**
+ * 通用毛玻璃效果
+ * 将这个类应用到需要模糊背景的组件上
+ */
+.glass-effect {
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+}
+
+/**
+ * 卡片毛玻璃效果
+ * 专为卡片类组件设计，使用 L4 透明度
+ */
+.glass-card {
+  background-color: rgba(var(--card-bg-rgb), var(--opacity-l4-card)) !important;
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+}
+
+/**
+ * 侧边栏毛玻璃效果
+ * 专为侧边栏设计，使用 L2 透明度
+ */
+.glass-sidebar {
+  background-color: rgba(var(--sidebar-bg-rgb, var(--card-bg-rgb)), var(--opacity-l2-sidebar)) !important;
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+}
+
+/**
+ * 弹窗/覆盖层毛玻璃效果
+ * 专为 Dialog, Popover, Dropdown 等设计，使用 L5 透明度
+ */
+.glass-overlay {
+  background-color: rgba(var(--card-bg-rgb), var(--opacity-l5-overlay)) !important;
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+}
+
+/* ========================================================================== */
+/* Element Plus 组件覆盖 (示例)
+/* ========================================================================== */
+
+/*
+ * 要让 Element Plus 组件透明，通常需要覆盖它们的 `background-color`。
+ * 使用 `!important` 可能是必要的，因为 Element Plus 的样式优先级可能很高。
+ * 
+ * 下面的示例展示了如何修改 el-card 和 el-dialog。
+ * 实际应用中，可能需要根据需要调整更多组件。
+ */
+
+/*
+.el-card.is-always-shadow,
+.el-card.is-hover-shadow:focus,
+.el-card.is-hover-shadow:hover {
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.el-card {
+  border: none !important;
+  background-color: transparent !important;
+}
+
+.el-card > .el-card__body {
+  @apply glass-card;
+  border-radius: var(--el-card-border-radius, 4px);
+}
+
+.el-dialog {
+  @apply glass-overlay;
+  border-radius: var(--el-dialog-border-radius, 8px);
+}
+
+.el-dialog .el-dialog__header {
+  background-color: transparent !important;
+}
+
+.el-dialog .el-dialog__body {
+  background-color: transparent !important;
+}
+
+.el-dialog .el-dialog__footer {
+  background-color: transparent !important;
+}
+*/

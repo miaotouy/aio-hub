@@ -7,6 +7,7 @@ import type { ToolConfig } from "../config/tools";
 import { useToolsStore } from "@/stores/tools";
 import { useDetachable } from "../composables/useDetachable";
 import { useTheme } from "../composables/useTheme";
+import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import iconBlack from "../assets/aio-icon-black.svg";
 import iconWhite from "../assets/aio-icon-white.svg";
 
@@ -29,6 +30,7 @@ const route = useRoute();
 const toolsStore = useToolsStore();
 const { startDetaching } = useDetachable();
 const { isDark } = useTheme();
+const { appearanceSettings } = useThemeAppearance();
 const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 
 // 内部状态与 props 同步
@@ -128,7 +130,7 @@ onUnmounted(() => {
 <template>
   <el-aside
     :width="isCollapsed ? '64px' : '220px'"
-    :class="['main-sidebar', { 'is-collapsed': isCollapsed }]"
+    :class="['main-sidebar', { 'is-collapsed': isCollapsed, 'glass-sidebar': appearanceSettings?.enableUiBlur }]"
   >
     <!-- 上部分：标题和导航 -->
     <div class="sidebar-top">

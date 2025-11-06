@@ -23,6 +23,13 @@
     }
   },
   "plugins": {
+    "window": {
+      "all": true
+    },
+    "shell": {
+      "all": false,
+      "open": true
+    },
     "fs": {
       "requireLiteralLeadingDot": false
     }

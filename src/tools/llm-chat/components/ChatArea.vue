@@ -62,12 +62,14 @@ import { useChatSettings } from "../composables/useChatSettings";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { useThemeAppearance } from "@/composables/useThemeAppearance";
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 const { loadSettings, settings } = useChatSettings();
 const { open: openModelSelectDialog } = useModelSelectDialog();
+const { appearanceSettings } = useThemeAppearance();
 
 // 当前智能体信息
 const currentAgent = computed(() => {
@@ -439,7 +441,7 @@ onMounted(async () => {
 <template>
   <div
     ref="containerRef"
-    :class="['chat-area-container', { 'detached-mode': isDetached }]"
+    :class="['chat-area-container', { 'detached-mode': isDetached, 'glass-card': appearanceSettings?.enableUiBlur }]"
     tabindex="0"
     @keydown="handleKeyDown"
   >

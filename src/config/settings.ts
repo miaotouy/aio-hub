@@ -19,6 +19,12 @@ export const settingsModules: SettingsModule[] = [
     minHeight: "auto",
   },
   {
+    id: "theme-appearance",
+    title: "主题外观",
+    component: defineAsyncComponent(() => import("../views/Settings/general/ThemeAppearanceSettings.vue")),
+    minHeight: "auto",
+  },
+  {
     id: "css-override",
     title: "CSS 样式覆盖",
     component: defineAsyncComponent(() => import("../views/Settings/css/CssOverrideSettings.vue")),

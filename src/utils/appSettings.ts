@@ -7,6 +7,38 @@ import { createConfigManager } from "./configManager";
 import { logger } from "./logger";
 import type { UserCssSettings } from "@/types/css-override";
 
+// 壁纸模式类型
+export type WallpaperMode = 'static' | 'slideshow';
+
+// 窗口特效类型（根据不同操作系统支持）
+export type WindowEffect = 'none' | 'blur' | 'acrylic' | 'mica' | 'vibrancy';
+
+// 外观设置接口
+export interface AppearanceSettings {
+  // --- 壁纸设置 ---
+  wallpaperMode: WallpaperMode;                // 壁纸模式：静态或轮播
+  wallpaperPath: string;                       // 单张图片路径 或 包含多张图片的目录路径
+  wallpaperSlideshowInterval: number;          // 轮播间隔（分钟）
+  wallpaperOpacity: number;                    // 壁纸透明度 (0.0 - 1.0)
+  
+  // --- UI 层特效 (应用内) ---
+  enableUiBlur: boolean;                       // 是否启用 UI 元素模糊 (backdrop-filter)
+  uiBaseOpacity: number;                       // UI 基础不透明度 (0.0 - 1.0)
+  uiBlurIntensity: number;                     // UI 模糊强度 (px)
+  
+  // --- 分层透明度微调 ---
+  layerOpacityOffsets?: {                      // 各层级相对于基础值的偏移量
+    sidebar?: number;                         // 侧边栏透明度偏移 (-0.2 ~ 0.2)
+    content?: number;                         // 内容区透明度偏移
+    card?: number;                            // 卡片透明度偏移
+    overlay?: number;                         // 弹窗透明度偏移
+  };
+  
+  // --- 窗口层特效 (OS级) ---
+  windowEffect: WindowEffect;                  // 窗口背景特效类型
+  windowBackgroundOpacity: number;             // 窗口背景色不透明度（用于透出桌面）
+}
+
 export interface AppSettings {
   sidebarCollapsed: boolean;
   theme?: "light" | "dark" | "auto";
@@ -44,7 +76,36 @@ export interface AppSettings {
 
   // 插件管理器配置
   pluginManagerPanelWidth?: number; // 插件管理器右侧面板宽度（百分比）
+  
+  // 外观设置
+  appearance?: AppearanceSettings;
 }
+
+// 默认外观设置
+export const defaultAppearanceSettings: AppearanceSettings = {
+  // 壁纸设置
+  wallpaperMode: 'static',
+  wallpaperPath: '', // 默认为空，使用纯色主题背景
+  wallpaperSlideshowInterval: 30, // 30分钟切换
+  wallpaperOpacity: 1.0, // 默认完全不透明
+  
+  // UI 特效
+  enableUiBlur: true,
+  uiBaseOpacity: 0.85, // 稍微不透明一点，保证可读性
+  uiBlurIntensity: 15, // 15px 模糊
+  
+  // 分层透明度微调（默认不设置，使用自动计算的值）
+  layerOpacityOffsets: {
+    sidebar: 0.1,    // 侧边栏略厚一些
+    content: 0,      // 内容区使用基准值
+    card: 0.05,      // 卡片略厚
+    overlay: 0.15,   // 弹窗最不透明
+  },
+  
+  // 窗口特效
+  windowEffect: 'none',
+  windowBackgroundOpacity: 1.0, // 默认不透明
+};
 
 // 默认设置
 export const defaultAppSettings: AppSettings = {
@@ -88,10 +149,12 @@ export const defaultAppSettings: AppSettings = {
   },
   // 插件管理器默认配置
   pluginManagerPanelWidth: 50, // 默认 50%
+  // 外观设置
+  appearance: defaultAppearanceSettings,
 };
 
 // 创建应用设置管理器实例
-const appSettingsManager = createConfigManager<AppSettings>({
+export const appSettingsManager = createConfigManager<AppSettings>({
   moduleName: "app-settings",
   fileName: "settings.json",
   version: "1.0.0",
@@ -102,11 +165,23 @@ const appSettingsManager = createConfigManager<AppSettings>({
       ...defaultConfig.toolsVisible,
       ...loadedConfig.toolsVisible,
     };
+    
+    // 深度合并 appearance 对象
+    const mergedAppearance = loadedConfig.appearance ? {
+      ...defaultConfig.appearance,
+      ...loadedConfig.appearance,
+      // 深度合并 layerOpacityOffsets
+      layerOpacityOffsets: {
+        ...defaultConfig.appearance?.layerOpacityOffsets,
+        ...loadedConfig.appearance?.layerOpacityOffsets,
+      },
+    } : defaultConfig.appearance;
 
     return {
       ...defaultConfig,
       ...loadedConfig,
       toolsVisible: mergedToolsVisible,
+      appearance: mergedAppearance,
     };
   },
 });

@@ -22,7 +22,7 @@ import ImageViewer from "./components/common/ImageViewer.vue";
 import ModelSelectDialog from "./components/common/ModelSelectDialog.vue";
 import { useImageViewer } from "./composables/useImageViewer";
 import { useTheme } from "@/composables/useTheme";
-import { initThemeAppearance } from "./composables/useThemeAppearance";
+import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
 
 const logger = createModuleLogger("App");
 
@@ -224,7 +224,10 @@ watch(
 
 // 清理事件监听器
 onUnmounted(() => {
-  // 移除事件监听器
+  // 清理主题外观资源
+  cleanupThemeAppearance();
+  
+  // 清理事件监听器
   if (handleSettingsChange) {
     window.removeEventListener("app-settings-changed", handleSettingsChange);
   }

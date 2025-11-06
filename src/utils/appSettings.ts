@@ -37,9 +37,7 @@ export interface AppearanceSettings {
   // --- 窗口层特效 (OS级) ---
   windowEffect: WindowEffect;                  // 窗口背景特效类型
   windowBackgroundOpacity: number;             // 窗口背景色不透明度（用于透出桌面）
-  
-  // --- 背景色设置 ---
-  backgroundColorOpacity: number;              // 应用背景色不透明度 (0.0 - 1.0)
+  backgroundColorOpacity?: number;             // 背景色不透明度（用于 CSS 变量）
 }
 
 export interface AppSettings {

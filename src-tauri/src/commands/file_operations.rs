@@ -64,6 +64,7 @@ pub struct NativeConfig {
 #[serde(rename_all = "camelCase")]
 pub struct HostRequirements {
     pub app_version: String,
+    pub api_version: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

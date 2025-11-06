@@ -53,6 +53,9 @@ const showPreflightDialog = ref(false);
 const preflightResult = ref<PreflightResult | null>(null);
 const preflightLoading = ref(false);
 
+// 当前主应用的插件 API 版本
+const HOST_PLUGIN_API_VERSION = 1;
+
 // 插件列表容器 ref（用于拖放）
 const pluginsListRef = ref<HTMLElement>();
 
@@ -237,6 +240,12 @@ async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
     let installType: InstallType;
     let existingVersion: string | undefined;
     const conflicts: string[] = [];
+
+    // 1. 检查 API 版本兼容性
+    const requiredApiVersion = manifest.host.apiVersion;
+    if (requiredApiVersion && requiredApiVersion > HOST_PLUGIN_API_VERSION) {
+      conflicts.push(`插件需要的 API 版本 (v${requiredApiVersion}) 高于当前应用支持的版本 (v${HOST_PLUGIN_API_VERSION})。请先升级主应用。`);
+    }
     
     if (existingPlugin) {
       existingVersion = existingPlugin.manifest.version;
@@ -265,8 +274,10 @@ async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
       installType = 'new';
     }
     
-    // TODO: 可以在这里添加更多冲突检测逻辑
-    // 例如：检查依赖、权限要求等
+    // 如果存在任何冲突，则将安装类型强制设置为 'conflict'
+    if (conflicts.length > 0) {
+      installType = 'conflict';
+    }
     
     return {
       zipPath,
@@ -325,7 +336,8 @@ async function handlePreflightConfirm(result: PreflightResult) {
     // 如果是升级/降级/重新安装，先卸载旧版本
     if (result.installType !== 'new') {
       logger.info('卸载旧版本插件', { pluginId: result.manifest.id });
-      await pluginManager.uninstallPlugin(result.manifest.id);
+      // 传入 true 以进行静默卸载，不显示确认弹窗
+      await pluginManager.uninstallPlugin(result.manifest.id, true);
     }
     
     // 调用插件管理器安装插件

@@ -117,6 +117,8 @@ export interface PluginManifest {
   host: {
     /** 应用版本要求 (semver) */
     appVersion: string;
+    /** 插件 API 版本要求 (整数) */
+    apiVersion?: number;
   };
   
   /** 插件类型 */
@@ -214,6 +216,8 @@ export interface MarketPluginEntry {
   /** 主机要求 */
   host: {
     appVersion: string;
+    /** 插件 API 版本要求 (整数) */
+    apiVersion?: number;
   };
 }
 

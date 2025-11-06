@@ -158,8 +158,11 @@ function handleCancel() {
                 {{ tag }}
               </ElTag>
             </ElDescriptionsItem>
-            <ElDescriptionsItem label="应用版本要求" :span="2">
-              {{ preflightResult.manifest.host.appVersion }}
+            <ElDescriptionsItem label="应用版本要求" :span="1">
+              {{ preflightResult.manifest.host.appVersion || '未指定' }}
+            </ElDescriptionsItem>
+            <ElDescriptionsItem label="API 版本要求" :span="1">
+              {{ preflightResult.manifest.host.apiVersion || '未指定' }}
             </ElDescriptionsItem>
             <ElDescriptionsItem v-if="preflightResult.manifest.ui" label="提供 UI" :span="2">
               <ElTag type="success" size="small">是</ElTag>

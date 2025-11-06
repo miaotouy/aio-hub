@@ -387,25 +387,24 @@ async function doGreet() {
     - **前后端协作**: 演示了 Vue UI 如何与 Rust Sidecar 后端进行交互。
     - **生产就绪**: 是发布独立插件的绝佳模板。
 
+### 示例 3：`aiohub-plugin-example-native` (进阶)
+
+**这是一个原生插件的示例，其 UI 部分与 File Hasher 类似，也使用了独立的构建流程。**
+
+- **仓库地址**: [https://github.com/miaotouy/aiohub-plugin-example-native](https://github.com/miaotouy/aiohub-plugin-example-native)
+- **类型**: 原生插件 (Rust 后端 + Vue 前端)
+- **特点**:
+    - **独立构建**: 同样包含 `package.json`, `vite.config.js` 和 `build.js`。
+    - **原生后端**: 演示了 UI 如何与高性能的原生 Rust 模块进行交互。
+
 ### 本地开发与测试
 
 要在本地开发和测试插件（无论是克隆的示例还是你自己创建的），流程很简单：
 
-1.  将完整的插件项目文件夹（例如，克隆下来的 `aiohub-plugin-example-hello-world`）放入主应用的 `/plugins/` 目录中。
+1.  将完整的插件项目文件夹（例如，从 GitHub 克隆下来的 `aiohub-plugin-example-hello-world`）放入主应用的 `/plugins/` 目录中。
 2.  启动主应用 (`bun run dev`)。
 
 AIO Hub 会自动检测并加载 `/plugins/` 目录下的所有插件，并提供热重载支持。这个目录是你的本地开发沙盒，它已被 `.gitignore` 忽略，不会影响主仓库。
-
-```
-your-app/
-└── plugins/  <-- 本地开发沙盒 (被 .gitignore 忽略)
-    ├── aiohub-plugin-example-hello-world/    # 克隆的插件仓库
-    │   ├── manifest.json
-    │   └── ...
-    └── my-awesome-plugin/                    # 你自己的插件
-        ├── manifest.json
-        └── ...
-```
 
 ---
 

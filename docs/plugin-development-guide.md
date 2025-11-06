@@ -416,13 +416,29 @@ my-plugin.zip
 - 按平台智能分发
 - 一键安装和更新
 
-## 示例插件
+## 示例插件仓库
 
-项目内置了三种类型的插件示例，可供参考：
+我们提供了多个开源的示例插件仓库，覆盖了从简单到复杂的不同场景。开发者可以克隆这些仓库来学习，或者将其作为自己插件的模板。
 
-- **JavaScript 插件**: `plugins/example-text-processor/`
-- **原生插件**: `plugins/native-example/`
-- **Sidecar 插件**: `plugins/example-file-hasher/`
+### JavaScript 插件 (纯逻辑) - `example-text-processor`
+
+- **仓库地址**: [aiohub-plugin-example-text-processor](https://github.com/miaotouy/aiohub-plugin-example-text-processor)
+- **描述**: 演示了最基础的 JavaScript 插件，只包含后端逻辑，没有 UI。适合学习插件的基本结构和方法定义。
+
+### JavaScript 插件 (带 UI) - `example-hello-world`
+
+- **仓库地址**: [aiohub-plugin-example-hello-world](https://github.com/miaotouy/aiohub-plugin-example-hello-world)
+- **描述**: 演示了带 Vue UI 的 JavaScript 插件。这是学习 UI 集成的最佳起点，展示了 UI 如何与插件后端方法交互。
+
+### Sidecar 插件 (Rust 后端 + Vue UI) - `example-file-hasher`
+
+- **仓库地址**: [aiohub-plugin-example-file-hasher](https://github.com/miaotouy/aiohub-plugin-example-file-hasher)
+- **描述**: 一个功能完整的 Sidecar 插件，使用 Rust 处理文件哈希计算，并提供 Vue UI 进行交互。展示了独立构建流程、前后端通信等进阶用法。
+
+### 原生插件 (Rust) - `native-example`
+
+- **仓库地址**: [aiohub-plugin-example-native](https://github.com/miaotouy/aiohub-plugin-example-native)
+- **描述**: 演示了如何使用 Rust 创建高性能的原生插件。代码示例遵循了与 AIO Hub 主进程交互所需的 ABI 契约。
 
 ## 注意事项
 

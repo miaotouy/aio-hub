@@ -96,6 +96,7 @@ use commands::{
     // 插件管理命令
     uninstall_plugin,
     install_plugin_from_zip,
+    preflight_plugin_zip,
     // Sidecar 插件命令
     execute_sidecar,
     // 状态
@@ -288,6 +289,7 @@ pub fn run() {
             // 插件管理命令
             uninstall_plugin,
             install_plugin_from_zip,
+            preflight_plugin_zip,
             // Sidecar 插件命令
             execute_sidecar,
             // 原生插件命令

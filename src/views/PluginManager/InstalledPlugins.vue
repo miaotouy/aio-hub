@@ -3,13 +3,17 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { Refresh, Upload } from '@element-plus/icons-vue';
 import PluginCard from './components/PluginCard.vue';
+import PluginInstallDialog, { type PreflightResult, type InstallType } from './components/PluginInstallDialog.vue';
 import { pluginManager } from '@/services/plugin-manager';
-import type { PluginProxy } from '@/services/plugin-types';
+import type { PluginProxy, PluginManifest } from '@/services/plugin-types';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
 import { pluginStateService } from '@/services/plugin-state.service';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { useFileDrop } from '@/composables/useFileDrop';
+import { compareVersions } from 'compare-versions';
 
 const logger = createModuleLogger('PluginManager/InstalledPlugins');
 
@@ -43,6 +47,14 @@ const loading = ref(false);
 
 // 当前选中的插件 ID
 const selectedPluginId = ref<string | null>(null);
+
+// 预检对话框状态
+const showPreflightDialog = ref(false);
+const preflightResult = ref<PreflightResult | null>(null);
+const preflightLoading = ref(false);
+
+// 插件列表容器 ref（用于拖放）
+const pluginsListRef = ref<HTMLElement>();
 
 // 过滤后的插件列表
 const filteredPlugins = computed(() => {
@@ -210,6 +222,147 @@ async function uninstallPlugin(plugin: PluginProxy) {
 }
 
 /**
+ * 执行插件预检
+ */
+async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
+  try {
+    // 调用后端预检命令（这个命令需要在 Rust 端实现）
+    const manifest = await invoke<PluginManifest>('preflight_plugin_zip', { zipPath });
+    
+    logger.info('插件预检成功', { pluginId: manifest.id, version: manifest.version });
+    
+    // 检查与现有插件的关系
+    const existingPlugin = pluginManager.getPlugin(manifest.id);
+    
+    let installType: InstallType;
+    let existingVersion: string | undefined;
+    const conflicts: string[] = [];
+    
+    if (existingPlugin) {
+      existingVersion = existingPlugin.manifest.version;
+      
+      try {
+        const comparison = compareVersions(manifest.version, existingVersion);
+        if (comparison > 0) {
+          installType = 'upgrade';
+        } else if (comparison < 0) {
+          installType = 'downgrade';
+        } else {
+          installType = 'reinstall';
+        }
+      } catch (error) {
+        // 版本比较失败，可能是非标准版本号
+        logger.warn('版本比较失败', { error, newVersion: manifest.version, oldVersion: existingVersion });
+        if (manifest.version === existingVersion) {
+          installType = 'reinstall';
+        } else {
+          // 无法确定升级还是降级，标记为冲突
+          installType = 'conflict';
+          conflicts.push(`无法比较版本号: ${manifest.version} vs ${existingVersion}`);
+        }
+      }
+    } else {
+      installType = 'new';
+    }
+    
+    // TODO: 可以在这里添加更多冲突检测逻辑
+    // 例如：检查依赖、权限要求等
+    
+    return {
+      zipPath,
+      manifest,
+      installType,
+      existingVersion,
+      conflicts: conflicts.length > 0 ? conflicts : undefined,
+    };
+  } catch (error) {
+    logger.error('插件预检失败', error, { zipPath });
+    throw error;
+  }
+}
+
+/**
+ * 开始预检流程
+ */
+async function startPreflightFlow(zipPath: string) {
+  try {
+    preflightLoading.value = true;
+    showPreflightDialog.value = true;
+    
+    const result = await preflightPlugin(zipPath);
+    preflightResult.value = result;
+  } catch (error) {
+    logger.error('预检失败', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    customMessage.error(`预检失败: ${errorMsg}`);
+    showPreflightDialog.value = false;
+  } finally {
+    preflightLoading.value = false;
+  }
+}
+
+/**
+ * 处理预检确认
+ */
+async function handlePreflightConfirm(result: PreflightResult) {
+  logger.info('用户确认安装', { pluginId: result.manifest.id });
+  
+  // 关闭预检对话框
+  showPreflightDialog.value = false;
+  
+  // 设置安装状态
+  loading.value = true;
+  isInstalling.value = true;
+  installProgress.value = null;
+  
+  // 监听安装进度事件
+  progressUnlisten = await listen<InstallProgress>('plugin-install-progress', (event) => {
+    installProgress.value = event.payload;
+    logger.debug('安装进度', event.payload);
+  });
+  
+  try {
+    // 如果是升级/降级/重新安装，先卸载旧版本
+    if (result.installType !== 'new') {
+      logger.info('卸载旧版本插件', { pluginId: result.manifest.id });
+      await pluginManager.uninstallPlugin(result.manifest.id);
+    }
+    
+    // 调用插件管理器安装插件
+    const installResult = await pluginManager.installPluginFromZip(result.zipPath);
+    
+    customMessage.success(`插件"${installResult.pluginName}"安装成功！`);
+    logger.info('插件安装成功', installResult);
+    
+    // 刷新插件列表
+    await loadPlugins();
+  } catch (error) {
+    logger.error('安装插件失败', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    customMessage.error(`安装失败: ${errorMsg}`);
+  } finally {
+    // 清理进度监听器
+    if (progressUnlisten) {
+      progressUnlisten();
+      progressUnlisten = null;
+    }
+    
+    loading.value = false;
+    isInstalling.value = false;
+    installProgress.value = null;
+    preflightResult.value = null;
+  }
+}
+
+/**
+ * 处理预检取消
+ */
+function handlePreflightCancel() {
+  logger.info('用户取消安装');
+  preflightResult.value = null;
+}
+
+/**
  * 导入插件
  */
 async function importPlugin() {
@@ -229,47 +382,37 @@ async function importPlugin() {
     }
 
     logger.info('选择的插件文件', { path: selected });
-
-    // 设置安装状态
-    loading.value = true;
-    isInstalling.value = true;
-    installProgress.value = null;
-
-    // 监听安装进度事件
-    progressUnlisten = await listen<InstallProgress>('plugin-install-progress', (event) => {
-      installProgress.value = event.payload;
-      logger.debug('安装进度', event.payload);
-    });
-
-    try {
-      // 调用插件管理器安装插件
-      const result = await pluginManager.installPluginFromZip(selected);
-      
-      customMessage.success(`插件"${result.pluginName}"安装成功！`);
-      logger.info('插件安装成功', result);
-      
-      // 刷新插件列表
-      await loadPlugins();
-    } catch (error) {
-      logger.error('安装插件失败', error);
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      customMessage.error(`安装失败: ${errorMsg}`);
-    } finally {
-      // 清理进度监听器
-      if (progressUnlisten) {
-        progressUnlisten();
-        progressUnlisten = null;
-      }
-      
-      loading.value = false;
-      isInstalling.value = false;
-      installProgress.value = null;
-    }
+    
+    // 使用预检流程
+    await startPreflightFlow(selected);
   } catch (error) {
     logger.error('打开文件对话框失败', error);
     customMessage.error('无法打开文件选择对话框');
   }
 }
+
+/**
+ * 处理拖放的插件文件
+ */
+async function handleDroppedPlugin(paths: string[]) {
+  if (paths.length === 0) return;
+  
+  const zipPath = paths[0];
+  logger.info('拖放插件文件', { path: zipPath });
+  
+  // 使用预检流程
+  await startPreflightFlow(zipPath);
+}
+
+// 设置拖放功能
+const { isDraggingOver } = useFileDrop({
+  element: pluginsListRef,
+  accept: ['.zip'],
+  fileOnly: true,
+  multiple: false,
+  onDrop: handleDroppedPlugin,
+  disabled: computed(() => loading.value || isInstalling.value),
+});
 
 // 暴露方法供父组件调用
 defineExpose({
@@ -353,7 +496,18 @@ onUnmounted(() => {
     </div>
 
     <!-- 插件列表 -->
-    <div v-else-if="filteredPlugins.length > 0" class="plugins-list">
+    <div
+      v-else-if="filteredPlugins.length > 0"
+      ref="pluginsListRef"
+      class="plugins-list"
+      :class="{ 'drop-zone-active': isDraggingOver }"
+    >
+      <div v-if="isDraggingOver" class="drop-hint">
+        <el-icon :size="48" class="drop-icon">
+          <i-ep-upload />
+        </el-icon>
+        <p class="drop-text">释放以安装插件</p>
+      </div>
       <PluginCard
         v-for="plugin in filteredPlugins"
         :key="plugin.id"
@@ -369,13 +523,34 @@ onUnmounted(() => {
     <!-- 空状态 -->
     <el-empty
       v-else
+      ref="pluginsListRef"
       :description="searchText ? '未找到匹配的插件' : '暂无已安装的插件'"
       :image-size="120"
+      :class="{ 'drop-zone-active': isDraggingOver }"
+      class="empty-drop-zone"
     >
       <template v-if="!searchText" #default>
-        <p class="empty-hint">前往"发现"标签页浏览并安装插件</p>
+        <div v-if="isDraggingOver" class="drop-hint">
+          <el-icon :size="48" class="drop-icon">
+            <i-ep-upload />
+          </el-icon>
+          <p class="drop-text">释放以安装插件</p>
+        </div>
+        <div v-else>
+          <p class="empty-hint">前往"发现"标签页浏览并安装插件</p>
+          <p class="empty-hint-secondary">或将插件 ZIP 文件拖放到此处</p>
+        </div>
       </template>
     </el-empty>
+
+    <!-- 预检对话框 -->
+    <PluginInstallDialog
+      v-model:visible="showPreflightDialog"
+      :preflight-result="preflightResult"
+      :loading="preflightLoading"
+      @confirm="handlePreflightConfirm"
+      @cancel="handlePreflightCancel"
+    />
   </div>
 </template>
 
@@ -491,5 +666,54 @@ onUnmounted(() => {
 .progress-stats {
   font-size: 12px;
   opacity: 0.8;
+}
+
+/* 拖放区域样式 */
+.plugins-list,
+.empty-drop-zone {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.drop-zone-active {
+  background: var(--el-fill-color-light);
+  border: 2px dashed var(--el-color-primary);
+  border-radius: 8px;
+}
+
+.drop-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  text-align: center;
+  pointer-events: none;
+  background: var(--el-bg-color);
+  padding: 32px 48px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.drop-icon {
+  color: var(--el-color-primary);
+  margin-bottom: 12px;
+}
+
+.drop-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin: 0;
+}
+
+.empty-hint-secondary {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-placeholder);
+}
+
+.empty-drop-zone {
+  min-height: 200px;
 }
 </style>

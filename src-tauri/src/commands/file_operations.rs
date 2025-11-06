@@ -14,6 +14,88 @@ use std::time::SystemTime;
 use lazy_static::lazy_static;
 use std::io::{Read, Write};
 use zip::ZipArchive;
+use serde_json::Value;
+
+// ==================== 插件清单类型 ====================
+// 注意：这些结构体是根据 TypeScript 定义手动转换的，用于 manifest.json 的反序列化
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginUiConfig {
+    pub display_name: Option<String>,
+    pub component: String,
+    pub icon: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsProperty {
+    #[serde(rename = "type")]
+    pub property_type: String,
+    pub default: Value,
+    pub label: String,
+    pub description: Option<String>,
+    pub secret: Option<bool>,
+    pub r#enum: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsSchema {
+    pub version: String,
+    pub properties: HashMap<String, SettingsProperty>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SidecarConfig {
+    pub executable: HashMap<String, String>,
+    pub args: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeConfig {
+    pub library: HashMap<String, String>,
+    pub reloadable: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HostRequirements {
+    pub app_version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MethodMetadata {
+    pub name: String,
+    pub description: Option<String>,
+    pub parameters: Option<Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginManifest {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub author: String,
+    pub icon: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub host: HostRequirements,
+    #[serde(rename = "type")]
+    pub plugin_type: String,
+    pub main: Option<String>,
+    pub sidecar: Option<SidecarConfig>,
+    pub native: Option<NativeConfig>,
+    pub methods: Vec<MethodMetadata>,
+    pub settings_schema: Option<SettingsSchema>,
+    pub ui: Option<PluginUiConfig>,
+    pub permissions: Option<Vec<String>>,
+}
+
 
 // 进度事件结构体
 #[derive(Clone, Serialize)]
@@ -1403,4 +1485,88 @@ pub async fn install_plugin_from_zip(
         version,
         install_path: install_dir.to_string_lossy().to_string(),
     })
+}
+
+// Tauri 命令：插件安装预检
+#[tauri::command]
+pub async fn preflight_plugin_zip(
+    zip_path: String,
+) -> Result<PluginManifest, String> {
+    let zip_file_path = PathBuf::from(&zip_path);
+    
+    // 检查 ZIP 文件是否存在
+    if !zip_file_path.exists() {
+        return Err(format!("ZIP 文件不存在: {}", zip_path));
+    }
+    
+    if !zip_file_path.is_file() {
+        return Err(format!("路径不是文件: {}", zip_path));
+    }
+    
+    // 打开 ZIP 文件
+    let file = fs::File::open(&zip_file_path)
+        .map_err(|e| format!("无法打开 ZIP 文件: {}", e))?;
+    
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| format!("无法读取 ZIP 文件: {}", e))?;
+    
+    // 查找并读取 manifest.json
+    let manifest_content = {
+        let mut manifest_found = false;
+        let mut content = String::new();
+        
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)
+                .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+            
+            let file_name = file.name().to_string();
+            
+            // 检查是否是根目录下的 manifest.json
+            if file_name == "manifest.json" || file_name.ends_with("/manifest.json") {
+                // 确保不是嵌套目录中的 manifest.json
+                let parts: Vec<&str> = file_name.split('/').collect();
+                if parts.len() <= 2 {  // 允许 "manifest.json" 或 "folder/manifest.json"
+                    file.read_to_string(&mut content)
+                        .map_err(|e| format!("读取 manifest.json 失败: {}", e))?;
+                    manifest_found = true;
+                    break;
+                }
+            }
+        }
+        
+        if !manifest_found {
+            return Err("ZIP 文件中未找到 manifest.json".to_string());
+        }
+        
+        content
+    };
+    
+    // 解析 manifest.json
+    let manifest_value: serde_json::Value = serde_json::from_str(&manifest_content)
+        .map_err(|e| format!("解析 manifest.json 失败: {}", e))?;
+
+    // 验证必需字段
+    if manifest_value.get("id").and_then(|v| v.as_str()).is_none() {
+        return Err("manifest.json 缺少 id 字段".to_string());
+    }
+    
+    if manifest_value.get("name").and_then(|v| v.as_str()).is_none() {
+        return Err("manifest.json 缺少 name 字段".to_string());
+    }
+    
+    if manifest_value.get("version").and_then(|v| v.as_str()).is_none() {
+        return Err("manifest.json 缺少 version 字段".to_string());
+    }
+    
+    // 安全性验证：plugin_id 不应包含路径分隔符
+    let plugin_id = manifest_value.get("id").unwrap().as_str().unwrap();
+    if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
+        return Err(format!("非法的插件 ID: {}", plugin_id));
+    }
+    
+    // 将 serde_json::Value 转换为 PluginManifest 类型
+    let plugin_manifest: PluginManifest = serde_json::from_value(manifest_value)
+        .map_err(|e| format!("转换 manifest 类型失败: {}", e))?;
+    
+    Ok(plugin_manifest)
 }

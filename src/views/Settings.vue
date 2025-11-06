@@ -771,7 +771,6 @@ onUnmounted(() => {
   height: 100%;
   overflow: hidden;
   /* 由右侧内容滚动 */
-  padding: 20px;
   background: var(--bg-color);
   box-sizing: border-box;
 }

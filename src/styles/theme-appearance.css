@@ -10,6 +10,7 @@
   --wallpaper-image: none;
   --wallpaper-opacity: 1;
   --window-bg-opacity: 1;
+  --bg-color-opacity: 1; /* 应用背景色不透明度 */
   --card-bg-rgb: 255, 255, 255; /* 默认亮色主题的卡片背景 RGB */
 
   /* --- 派生变量 (分层透明度系统) --- */
@@ -48,7 +49,7 @@ body::before {
 
 /* 应用窗口本身的背景色，当启用窗口特效时，它需要是半透明的 */
 html, body {
-  background-color: rgba(var(--bg-color-rgb), var(--window-bg-opacity));
+  background-color: rgba(var(--bg-color-rgb), var(--bg-color-opacity));
 }
 
 /* ========================================================================== */

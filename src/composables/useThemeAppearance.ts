@@ -37,6 +37,9 @@ function _updateCssVariables(settings: AppearanceSettings) {
   root.style.setProperty('--content-opacity', calculateOpacity(offsets.content));
   root.style.setProperty('--card-opacity', calculateOpacity(offsets.card));
   root.style.setProperty('--overlay-opacity', calculateOpacity(offsets.overlay));
+  
+  // 设置背景色不透明度
+  root.style.setProperty('--bg-color-opacity', String(settings.backgroundColorOpacity || 1));
 }
 
 function _stopSlideshow() {

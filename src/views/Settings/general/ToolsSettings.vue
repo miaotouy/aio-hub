@@ -35,12 +35,24 @@ onMounted(() => {
   // 确保所有工具都有明确的可见性值
   // 对于未设置的工具，默认设置为 true（显示）
   if (toolsVisible.value) {
-    sortedTools.value.forEach(tool => {
+    // 检查是否有未定义的工具
+    const hasUndefined = sortedTools.value.some(tool => {
       const toolId = getToolIdFromPath(tool.path);
-      if (toolsVisible.value![toolId] === undefined) {
-        toolsVisible.value![toolId] = true;
-      }
+      return toolsVisible.value![toolId] === undefined;
     });
+    
+    // 如果有未定义的工具，创建新对象以触发响应式更新
+    if (hasUndefined) {
+      const updated = { ...toolsVisible.value };
+      sortedTools.value.forEach(tool => {
+        const toolId = getToolIdFromPath(tool.path);
+        if (updated[toolId] === undefined) {
+          updated[toolId] = true;
+        }
+      });
+      // 通过赋值新对象来触发 defineModel 的更新
+      toolsVisible.value = updated;
+    }
   }
 });
 

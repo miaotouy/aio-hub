@@ -11,10 +11,10 @@ import {
   type AppSettings,
 } from "@utils/appSettings";
 import { applyThemeColors } from "@utils/themeColors";
-import { toolsConfig } from "../config/tools";
 import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
+import { useToolsStore } from "@/stores/tools";
 import ThemeColorSettings from "./Settings/general/ThemeColorSettings.vue";
 import LogSettings from "./Settings/general/LogSettings.vue";
 import { useTheme } from "../composables/useTheme";
@@ -26,6 +26,7 @@ import { appDataDir } from "@tauri-apps/api/path";
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
 const { applyLogConfig, watchLogConfig } = useLogConfig();
+const toolsStore = useToolsStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -516,13 +517,13 @@ onMounted(async () => {
   // 异步加载设置
   const loadedSettings = await loadAppSettingsAsync();
 
-  // 确保 toolsVisible 包含所有工具
+  // 确保 toolsVisible 包含所有工具（包括动态加载的插件）
   if (!loadedSettings.toolsVisible) {
     loadedSettings.toolsVisible = {};
   }
 
-  // 为每个工具设置默认可见状态
-  toolsConfig.forEach((tool) => {
+  // 为每个工具设置默认可见状态（使用 toolsStore.orderedTools 包括插件）
+  toolsStore.orderedTools.forEach((tool) => {
     const toolId = getToolIdFromPath(tool.path);
     if (loadedSettings.toolsVisible![toolId] === undefined) {
       loadedSettings.toolsVisible![toolId] = true;

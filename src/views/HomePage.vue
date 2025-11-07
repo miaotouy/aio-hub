@@ -139,8 +139,9 @@ const visibleTools = computed(() => {
 
   return toolsStore.orderedTools.filter((tool) => {
     const toolId = getToolIdFromPath(tool.path);
-    // 默认显示未配置的工具
-    return settings.value.toolsVisible![toolId] !== false;
+    // 明确处理 undefined：默认显示（true）
+    const isVisible = settings.value.toolsVisible![toolId];
+    return isVisible !== false;
   });
 });
 

@@ -49,7 +49,9 @@ const visibleTools = computed(() => {
   const baseTools = props.toolsVisible
     ? toolsStore.orderedTools.filter((tool) => {
         const toolId = getToolIdFromPath(tool.path);
-        return props.toolsVisible[toolId] !== false;
+        // 明确处理 undefined：默认显示（true）
+        const isVisible = props.toolsVisible[toolId];
+        return isVisible !== false;
       })
     : toolsStore.orderedTools;
 

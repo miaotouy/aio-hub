@@ -309,49 +309,13 @@
       </div>
     </div>
 
-    <!-- 编辑对话框 -->
-    <BaseDialog
-      :visible="editDialogVisible"
-      @update:visible="editDialogVisible = $event"
-      :title="isEditMode ? '编辑消息' : '添加消息'"
-      width="800px"
-      height="auto"
-    >
-      <template #content>
-        <el-form :model="editForm" label-width="80px">
-          <el-form-item label="角色">
-            <el-radio-group v-model="editForm.role">
-              <el-radio value="system">
-                <el-icon style="margin-right: 4px"><ChatDotRound /></el-icon>
-                System
-              </el-radio>
-              <el-radio value="user">
-                <el-icon style="margin-right: 4px"><User /></el-icon>
-                User
-              </el-radio>
-              <el-radio value="assistant">
-                <el-icon style="margin-right: 4px"><Service /></el-icon>
-                Assistant
-              </el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="内容">
-            <el-input
-              v-model="editForm.content"
-              type="textarea"
-              :rows="16"
-              placeholder="请输入消息内容..."
-            />
-          </el-form-item>
-        </el-form>
-      </template>
-      <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveMessage">
-          {{ isEditMode ? "保存" : "添加" }}
-        </el-button>
-      </template>
-    </BaseDialog>
+    <!-- 消息编辑器 -->
+    <PresetMessageEditor
+      v-model:visible="editDialogVisible"
+      :is-edit-mode="isEditMode"
+      :initial-form="editForm"
+      @save="handleSaveMessage"
+    />
 
     <!-- 导入文件选择器 -->
     <input
@@ -382,6 +346,7 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
+import PresetMessageEditor from "./PresetMessageEditor.vue";
 
 interface Props {
   modelValue?: ChatMessageNode[];
@@ -664,24 +629,19 @@ function handleEditMessage(index: number) {
 }
 
 /**
- * 保存消息
+ * 保存消息（从子组件接收数据）
  */
-async function handleSaveMessage() {
-  if (!editForm.value.content.trim()) {
-    ElMessage.warning("消息内容不能为空");
-    return;
-  }
-
+async function handleSaveMessage(form: { role: MessageRole; content: string }) {
   if (isEditMode.value) {
     // 编辑模式：更新现有消息
     const message = localMessages.value[editingIndex.value];
-    message.role = editForm.value.role;
-    message.content = editForm.value.content;
+    message.role = form.role;
+    message.content = form.content;
     
     // 如果有模型ID，重新计算 token
     if (props.modelId) {
       try {
-        const result = await tokenCalculatorEngine.calculateTokens(editForm.value.content, props.modelId);
+        const result = await tokenCalculatorEngine.calculateTokens(form.content, props.modelId);
         if (!message.metadata) {
           message.metadata = {};
         }
@@ -696,8 +656,8 @@ async function handleSaveMessage() {
       id: `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       parentId: null,
       childrenIds: [],
-      content: editForm.value.content,
-      role: editForm.value.role,
+      content: form.content,
+      role: form.role,
       status: "complete",
       type: "message", // 明确标记为普通消息
       isEnabled: true,
@@ -707,7 +667,7 @@ async function handleSaveMessage() {
     // 如果有模型ID，计算并保存 token
     if (props.modelId) {
       try {
-        const result = await tokenCalculatorEngine.calculateTokens(editForm.value.content, props.modelId);
+        const result = await tokenCalculatorEngine.calculateTokens(form.content, props.modelId);
         newMessage.metadata = {
           contentTokens: result.count
         };
@@ -1098,4 +1058,5 @@ async function handleFileSelected(event: Event) {
   color: var(--el-color-primary-dark-2);
   font-weight: 500;
 }
+
 </style>

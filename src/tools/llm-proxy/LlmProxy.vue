@@ -55,19 +55,26 @@
         <div class="form-row">
           <div class="form-group target-group">
             <label>目标API地址：</label>
-            <input 
-              v-model="config.target_url" 
-              type="text" 
-              placeholder="https://api.openai.com" 
-              class="target-input" 
+            <input
+              v-model="config.target_url"
+              type="text"
+              placeholder="https://api.openai.com"
+              class="target-input"
             />
-            <button 
-              v-if="isRunning" 
-              @click="handleUpdateTargetUrl" 
+            <button
+              v-if="isRunning"
+              @click="handleUpdateTargetUrl"
               class="btn-update"
               :disabled="!config.target_url || config.target_url === currentTargetUrl || isLoading"
             >
               更新地址
+            </button>
+            <button
+              @click="showHeaderDialog = true"
+              class="btn-secondary"
+              title="配置请求头覆盖规则"
+            >
+              ⚙️ 请求头设置
             </button>
           </div>
         </div>
@@ -122,18 +129,28 @@
     />
 
     <!-- 详情面板组件 -->
-    <RecordDetail 
-      :record="selectedRecord" 
-      :maskApiKeys="maskApiKeys" 
-      @close="selectRecord(null)" 
+    <RecordDetail
+      :record="selectedRecord"
+      :maskApiKeys="maskApiKeys"
+      @close="selectRecord(null)"
+    />
+
+    <!-- 请求头覆盖配置弹窗 -->
+    <HeaderOverrideDialog
+      v-model="showHeaderDialog"
+      :rules="config.header_override_rules"
+      @save="handleSaveHeaderRules"
     />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useProxyManager } from './composables/useProxyManager';
 import RecordsList from './components/RecordsList.vue';
 import RecordDetail from './components/RecordDetail.vue';
+import HeaderOverrideDialog from './components/HeaderOverrideDialog.vue';
+import type { HeaderOverrideRule } from './types';
 
 // 使用代理管理器
 const {
@@ -163,6 +180,9 @@ const {
   getRecordStats,
   clearError
 } = useProxyManager();
+
+// 弹窗状态
+const showHeaderDialog = ref(false);
 
 // 事件处理器
 async function handleStartProxy() {
@@ -194,6 +214,11 @@ async function handleUpdateTargetUrl() {
 
 function handleClearRecords() {
   clearRecords();
+}
+
+function handleSaveHeaderRules(rules: HeaderOverrideRule[]) {
+  config.value.header_override_rules = rules;
+  // 配置会通过 watch 自动保存
 }
 </script>
 

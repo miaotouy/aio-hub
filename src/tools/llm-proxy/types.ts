@@ -1,8 +1,16 @@
 // LLM 代理相关类型定义
 
+export interface HeaderOverrideRule {
+  id: string;
+  enabled: boolean;
+  key: string;
+  value: string;
+}
+
 export interface ProxyConfig {
   port: number;
   target_url: string;
+  header_override_rules: HeaderOverrideRule[];
 }
 
 export interface ProxyStatus {

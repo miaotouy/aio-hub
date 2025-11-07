@@ -28,7 +28,8 @@ export function useProxyManager() {
   const currentTargetUrl = ref('');
   const config = ref<ProxyConfig>({
     port: 8999,
-    target_url: 'https://api.openai.com'
+    target_url: 'https://api.openai.com',
+    header_override_rules: []
   });
   
   // UI 状态

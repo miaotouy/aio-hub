@@ -27,12 +27,17 @@ pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
 pub static TARGET_URL: Lazy<Arc<Mutex<String>>> =
     Lazy::new(|| Arc::new(Mutex::new(String::new())));
 
+// 全局请求头覆盖规则
+pub static HEADER_OVERRIDE_RULES: Lazy<Arc<Mutex<Vec<HeaderOverrideRule>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+
 #[derive(Default)]
 pub struct ProxyServiceState {
     is_running: bool,
     shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
     port: u16,
     target_url: String,
+    header_override_rules: Vec<HeaderOverrideRule>,
 }
 
 // 请求记录结构
@@ -67,11 +72,22 @@ pub struct StreamUpdate {
     pub is_complete: bool,
 }
 
+// 请求头覆盖规则
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeaderOverrideRule {
+    pub id: String,
+    pub enabled: bool,
+    pub key: String,
+    pub value: String,
+}
+
 // 代理配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyConfig {
     pub port: u16,
     pub target_url: String,
+    #[serde(default)]
+    pub header_override_rules: Vec<HeaderOverrideRule>,
 }
 
 // 启动代理服务
@@ -93,11 +109,17 @@ pub async fn start_llm_proxy(
     state.shutdown_tx = Some(shutdown_tx);
     state.port = config.port;
     state.target_url = config.target_url.clone();
+    state.header_override_rules = config.header_override_rules.clone();
 
     // 更新全局目标URL
     let mut global_target = TARGET_URL.lock().await;
     *global_target = config.target_url.clone();
     drop(global_target);
+
+    // 更新全局请求头覆盖规则
+    let mut global_rules = HEADER_OVERRIDE_RULES.lock().await;
+    *global_rules = config.header_override_rules.clone();
+    drop(global_rules);
 
     let port = config.port;
     let window_clone = window.clone();
@@ -156,10 +178,15 @@ pub async fn stop_llm_proxy() -> Result<String, String> {
     state.is_running = false;
     state.port = 0;
     state.target_url.clear();
+    state.header_override_rules.clear();
 
     // 清空全局目标URL
     let mut global_target = TARGET_URL.lock().await;
     global_target.clear();
+
+    // 清空全局请求头覆盖规则
+    let mut global_rules = HEADER_OVERRIDE_RULES.lock().await;
+    global_rules.clear();
 
     Ok("代理服务已停止".to_string())
 }
@@ -284,19 +311,39 @@ async fn proxy_handler(
         }
     };
 
-    // 复制请求头
+    // 获取请求头覆盖规则
+    let override_rules = HEADER_OVERRIDE_RULES.lock().await.clone();
+    
+    // 收集需要覆盖的请求头键（转换为小写用于比较）
+    let mut override_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for rule in override_rules.iter() {
+        if rule.enabled {
+            override_keys.insert(rule.key.to_lowercase());
+        }
+    }
+    
+    // 复制请求头（排除被覆盖的）
     for (name, value) in headers.iter() {
         let name_str = name.as_str().to_lowercase();
         // 跳过可能导致问题的头，但保留accept-encoding以告诉服务器我们支持压缩
         if name_str != "host" &&
            name_str != "content-length" &&
-           name_str != "connection" {
+           name_str != "connection" &&
+           !override_keys.contains(&name_str) {  // 跳过要被覆盖的请求头
             if let Ok(v) = value.to_str() {
                 // 不要传递accept-encoding，让reqwest自己处理
                 if name_str != "accept-encoding" {
                     req_builder = req_builder.header(name.as_str(), v);
                 }
             }
+        }
+    }
+    
+    // 应用请求头覆盖规则
+    for rule in override_rules.iter() {
+        if rule.enabled && !rule.key.is_empty() && !rule.value.is_empty() {
+            eprintln!("[代理] 应用请求头覆盖: {} = {}", rule.key, rule.value);
+            req_builder = req_builder.header(&rule.key, &rule.value);
         }
     }
 

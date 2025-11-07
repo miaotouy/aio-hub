@@ -1,5 +1,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { createModuleLogger } from '@utils/logger';
+import { customMessage } from '@utils/customMessage';
 import {
   startProxyService,
   stopProxyService,
@@ -143,6 +144,8 @@ export function useProxyManager() {
       logger.info('代理目标地址更新成功', {
         newTargetUrl: config.value.target_url
       });
+
+      customMessage.success('代理目标地址已更新');
 
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新失败';

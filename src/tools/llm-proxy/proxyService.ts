@@ -62,7 +62,7 @@ export async function getProxyServiceStatus(): Promise<ProxyStatus> {
 export async function updateProxyTarget(targetUrl: string): Promise<string> {
   try {
     logger.info('更新代理目标地址', { targetUrl });
-    const result = await invoke('update_proxy_target', { target_url: targetUrl });
+    const result = await invoke('update_proxy_target', { targetUrl });
     logger.info('代理目标地址更新成功', { result });
     return result as string;
   } catch (error) {

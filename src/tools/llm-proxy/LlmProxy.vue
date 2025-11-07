@@ -24,31 +24,29 @@
               max="65535" 
               class="port-input" 
             />
-            <button 
-              v-if="!isRunning" 
-              @click="handleStartProxy" 
-              class="btn-primary"
-              :disabled="!canStartProxy || isLoading"
+            <el-button
+              v-if="!isRunning"
+              @click="handleStartProxy"
+              type="primary"
+              :disabled="!canStartProxy"
+              :loading="isLoading"
             >
-              <span v-if="isLoading">启动中...</span>
-              <span v-else>启动代理</span>
-            </button>
-            <button 
-              v-else 
-              @click="handleStopProxy" 
-              class="btn-danger"
-              :disabled="isLoading"
+              启动代理
+            </el-button>
+            <el-button
+              v-else
+              @click="handleStopProxy"
+              type="danger"
+              :loading="isLoading"
             >
-              <span v-if="isLoading">停止中...</span>
-              <span v-else>停止代理</span>
-            </button>
-            <button 
-              @click="handleClearRecords" 
-              class="btn-secondary" 
+              停止代理
+            </el-button>
+            <el-button
+              @click="handleClearRecords"
               :disabled="records.length === 0"
             >
               清空记录
-            </button>
+            </el-button>
           </div>
         </div>
         
@@ -63,21 +61,22 @@
               style="flex: 1;"
               @select="handleSelect"
             />
-            <button
+            <el-button
               v-if="isRunning"
               @click="handleUpdateTargetUrl"
-              class="btn-update"
-              :disabled="!config.target_url || config.target_url === currentTargetUrl || isLoading"
+              type="primary"
+              :disabled="!config.target_url || config.target_url === currentTargetUrl"
+              :loading="isLoading"
             >
               更新地址
-            </button>
-            <button
+            </el-button>
+            <el-button
               @click="showHeaderDialog = true"
-              class="btn-secondary"
               title="配置请求头覆盖规则"
+              :icon="Setting"
             >
-              ⚙️ 请求头设置
-            </button>
+              请求头设置
+            </el-button>
           </div>
         </div>
         
@@ -153,8 +152,9 @@ import RecordsList from './components/RecordsList.vue';
 import RecordDetail from './components/RecordDetail.vue';
 import HeaderOverrideDialog from './components/HeaderOverrideDialog.vue';
 import type { HeaderOverrideRule } from './types';
-
-// 使用代理管理器
+import { Setting } from '@element-plus/icons-vue';
+ 
+ // 使用代理管理器
 const {
   // 状态
   isRunning,
@@ -364,58 +364,6 @@ const handleSelect = (item: any) => {
   cursor: not-allowed;
 }
 
-button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: opacity 0.2s;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--primary-color);
-  color: #ffffff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover-color);
-}
-
-.btn-danger {
-  background: var(--error-color);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--error-color);
-  opacity: 0.9;
-}
-
-.btn-secondary {
-  background: var(--card-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--container-bg);
-  border-color: var(--border-color-light);
-}
-
-.btn-update {
-  background: var(--primary-color);
-  color: #ffffff;
-}
-
-.btn-update:hover:not(:disabled) {
-  background: var(--primary-hover-color);
-}
 
 .status-info {
   display: flex;

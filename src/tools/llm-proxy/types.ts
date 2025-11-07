@@ -56,6 +56,7 @@ export interface LlmProxySettings {
   searchQuery: string;
   filterStatus: string;
   maskApiKeys?: boolean;
+  targetUrlHistory?: string[]; // 目标地址历史记录
   version?: string;
 }
 

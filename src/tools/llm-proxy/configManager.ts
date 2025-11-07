@@ -9,11 +9,17 @@ function createDefaultSettings(): LlmProxySettings {
   return {
     config: {
       port: 8999,
-      target_url: 'https://api.openai.com'
+      target_url: 'https://api.openai.com',
+      header_override_rules: []
     },
     searchQuery: '',
     filterStatus: '',
     maskApiKeys: true,
+    targetUrlHistory: [
+      'https://api.openai.com',
+      'https://api.anthropic.com',
+      'https://generativelanguage.googleapis.com'
+    ],
     version: '1.0.0'
   };
 }
@@ -94,7 +100,8 @@ export async function resetSettings(): Promise<LlmProxySettings> {
 export function getDefaultProxyConfig(): ProxyConfig {
   return {
     port: 8999,
-    target_url: 'https://api.openai.com'
+    target_url: 'https://api.openai.com',
+    header_override_rules: []
   };
 }
 
@@ -136,5 +143,48 @@ export function mergeSettings(base: LlmProxySettings, updates: Partial<LlmProxyS
       ...base.config,
       ...(updates.config || {})
     }
+  };
+}
+
+/**
+ * 添加目标地址到历史记录
+ * @param settings 当前设置
+ * @param url 要添加的 URL
+ * @param maxHistory 最大历史记录数，默认 10
+ */
+export function addToTargetUrlHistory(
+  settings: LlmProxySettings,
+  url: string,
+  maxHistory: number = 10
+): LlmProxySettings {
+  // 初始化历史记录（如果不存在）
+  const history = settings.targetUrlHistory || [];
+  
+  // 移除重复项（如果存在）
+  const filteredHistory = history.filter(item => item !== url);
+  
+  // 将新 URL 添加到开头
+  const newHistory = [url, ...filteredHistory];
+  
+  // 限制历史记录数量
+  const limitedHistory = newHistory.slice(0, maxHistory);
+  
+  return {
+    ...settings,
+    targetUrlHistory: limitedHistory
+  };
+}
+
+/**
+ * 从历史记录中移除指定的 URL
+ */
+export function removeFromTargetUrlHistory(
+  settings: LlmProxySettings,
+  url: string
+): LlmProxySettings {
+  const history = settings.targetUrlHistory || [];
+  return {
+    ...settings,
+    targetUrlHistory: history.filter(item => item !== url)
   };
 }

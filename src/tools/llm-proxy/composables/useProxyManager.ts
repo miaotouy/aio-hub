@@ -13,7 +13,11 @@ import {
 } from '../proxyService';
 import { useRecordManager } from '../recordManager';
 import { useStreamProcessor } from '../streamProcessor';
-import { loadSettings, saveSettings, validateProxyConfig } from '../configManager';
+import {
+  loadSettings,
+  saveSettings,
+  validateProxyConfig
+} from '../configManager';
 import { maskSensitiveData, copyToClipboard } from '../utils';
 import type { ProxyConfig, LlmProxySettings } from '../types';
 
@@ -36,6 +40,7 @@ export function useProxyManager() {
   const maskApiKeys = ref(true);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
+  const targetUrlHistory = ref<string[]>([]);
 
   // 获取各个管理器实例
   const recordManager = useRecordManager();
@@ -85,6 +90,9 @@ export function useProxyManager() {
       await startProxyService(config.value);
       isRunning.value = true;
       currentTargetUrl.value = config.value.target_url;
+
+      // 添加到历史记录
+      addUrlToHistory(config.value.target_url);
 
       // 设置事件监听器
       await setupEventListeners();
@@ -141,6 +149,9 @@ export function useProxyManager() {
 
       await updateProxyTarget(config.value.target_url);
       currentTargetUrl.value = config.value.target_url;
+
+      // 添加到历史记录
+      addUrlToHistory(config.value.target_url);
 
       logger.info('代理目标地址更新成功', {
         newTargetUrl: config.value.target_url
@@ -238,10 +249,12 @@ export function useProxyManager() {
         filterStatus: settings.filterStatus
       });
       maskApiKeys.value = settings.maskApiKeys ?? true;
+      targetUrlHistory.value = settings.targetUrlHistory || [];
 
       logger.info('配置加载成功', {
         port: settings.config.port,
-        targetUrl: settings.config.target_url
+        targetUrl: settings.config.target_url,
+        historyCount: targetUrlHistory.value.length
       });
 
     } catch (err) {
@@ -256,7 +269,8 @@ export function useProxyManager() {
         config: config.value,
         searchQuery: recordManager.getFilterOptions().searchQuery,
         filterStatus: recordManager.getFilterOptions().filterStatus,
-        maskApiKeys: maskApiKeys.value
+        maskApiKeys: maskApiKeys.value,
+        targetUrlHistory: targetUrlHistory.value
       };
 
       await saveSettings(settings);
@@ -279,6 +293,22 @@ export function useProxyManager() {
     }
   }
 
+  // 历史记录管理
+  function addUrlToHistory(url: string) {
+    if (!url || !url.trim()) return;
+
+    const history = [...targetUrlHistory.value];
+    const index = history.indexOf(url);
+
+    if (index !== -1) {
+      history.splice(index, 1);
+    }
+
+    history.unshift(url);
+    targetUrlHistory.value = history.slice(0, 10);
+    logger.debug('已添加到历史记录', { url });
+  }
+
   // 清理功能
   function clearRecords() {
     recordManager.clearAllRecords();
@@ -287,7 +317,7 @@ export function useProxyManager() {
   }
 
   // 监听配置变化并自动保存
-  watch([config, maskApiKeys], () => {
+  watch([config, maskApiKeys, targetUrlHistory], () => {
     saveConfig().catch(err => {
       logger.error('自动保存配置失败', err);
     });
@@ -319,6 +349,7 @@ export function useProxyManager() {
     maskApiKeys,
     isLoading,
     error,
+    targetUrlHistory,
     
     // 计算属性
     proxyStatus,

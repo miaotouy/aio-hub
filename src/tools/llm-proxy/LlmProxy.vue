@@ -55,11 +55,13 @@
         <div class="form-row">
           <div class="form-group target-group">
             <label>目标API地址：</label>
-            <input
+            <el-autocomplete
               v-model="config.target_url"
-              type="text"
+              :fetch-suggestions="querySearch"
               placeholder="https://api.openai.com"
               class="target-input"
+              style="flex: 1;"
+              @select="handleSelect"
             />
             <button
               v-if="isRunning"
@@ -161,6 +163,7 @@ const {
   maskApiKeys,
   isLoading,
   error,
+  targetUrlHistory,
   
   // 计算属性
   canStartProxy,
@@ -220,6 +223,23 @@ function handleSaveHeaderRules(rules: HeaderOverrideRule[]) {
   config.value.header_override_rules = rules;
   // 配置会通过 watch 自动保存
 }
+
+const querySearch = (queryString: string, cb: any) => {
+  const results = queryString
+    ? targetUrlHistory.value.filter(createFilter(queryString))
+    : targetUrlHistory.value;
+  cb(results.map(url => ({ value: url })));
+};
+
+const createFilter = (queryString: string) => {
+  return (url: string) => {
+    return url.toLowerCase().indexOf(queryString.toLowerCase()) === 0;
+  };
+};
+
+const handleSelect = (item: any) => {
+  config.value.target_url = item.value;
+};
 </script>
 
 <style scoped>
@@ -336,11 +356,6 @@ function handleSaveHeaderRules(rules: HeaderOverrideRule[]) {
 
 .target-input {
   flex: 1;
-  padding: 8px 12px;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  border-radius: 4px;
 }
 
 .port-input:disabled,

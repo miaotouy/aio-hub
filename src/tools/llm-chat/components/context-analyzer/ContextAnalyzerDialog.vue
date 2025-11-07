@@ -17,22 +17,25 @@
         <el-icon class="error-icon" :size="32"><WarningFilled /></el-icon>
         <p>{{ error }}</p>
       </div>
+<div v-else-if="contextData" class="analyzer-content">
+  <el-tabs v-model="activeTab" class="analyzer-tabs">
+    <el-tab-pane label="结构化视图" name="structured">
+      <StructuredView :context-data="contextData" />
+    </el-tab-pane>
 
-      <div v-else-if="contextData" class="analyzer-content">
-        <el-tabs v-model="activeTab" class="analyzer-tabs">
-          <el-tab-pane label="结构化视图" name="structured">
-            <StructuredView :context-data="contextData" />
-          </el-tab-pane>
+    <el-tab-pane label="原始请求" name="raw">
+      <RawRequestView :context-data="contextData" />
+    </el-tab-pane>
 
-          <el-tab-pane label="原始请求" name="raw">
-            <RawRequestView :context-data="contextData" />
-          </el-tab-pane>
+    <el-tab-pane label="内容分析" name="analysis">
+      <AnalysisChartView :context-data="contextData" />
+    </el-tab-pane>
 
-          <el-tab-pane label="内容分析" name="analysis">
-            <AnalysisChartView :context-data="contextData" />
-          </el-tab-pane>
-        </el-tabs>
-      </div>
+    <el-tab-pane label="宏调试" name="macro">
+      <MacroDebugView :context-data="contextData" />
+    </el-tab-pane>
+  </el-tabs>
+</div>
     </template>
 
     <template #footer>
@@ -48,6 +51,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue';
 import StructuredView from './StructuredView.vue';
 import RawRequestView from './RawRequestView.vue';
 import AnalysisChartView from './AnalysisChartView.vue';
+import MacroDebugView from './MacroDebugView.vue';
 import { useChatHandler, type ContextPreviewData } from '../../composables/useChatHandler';
 import type { ChatSession } from '../../types';
 import { createModuleLogger } from '@/utils/logger';
@@ -69,7 +73,7 @@ const localVisible = computed({
   set: (value) => emit('update:visible', value),
 });
 
-const activeTab = ref<'structured' | 'raw' | 'analysis'>('structured');
+const activeTab = ref<'structured' | 'raw' | 'analysis' | 'macro'>('structured');
 const loading = ref(false);
 const error = ref<string | null>(null);
 const contextData = ref<ContextPreviewData | null>(null);

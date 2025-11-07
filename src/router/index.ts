@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
 import { watch } from "vue";
 import { useToolsStore } from "@/stores/tools";
-import type { ToolConfig } from "@/config/tools";
+import type { ToolConfig } from "@/services/types";
 
 /**
  * 将工具路径转换为路由名称

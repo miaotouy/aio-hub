@@ -263,7 +263,7 @@ aio-hub/
 - ⚡ **构建**: Vite
 - 🎨 **样式**: CSS Variables
 - 💾 **状态**: Composition API + Pinia
-- 🖼️ **UI**: Element Plus
+- 🖼️ **UI**: Element Plus + 原生样式组合
 
 </td>
 <td align="center" width="50%">
@@ -286,7 +286,7 @@ aio-hub/
 
 1. 在 `src/tools/` 目录下创建新的工具文件夹
 2. 实现工具组件（参考现有工具的结构）
-3. 在 `src/config/tools.ts` 中注册新工具
+3. 在 `src/stores/tools.ts` 中注册新工具
 4. 在 `src/router/index.ts` 中添加路由
 5. （可选）在 `src-tauri/src/commands/` 中添加后端命令
 

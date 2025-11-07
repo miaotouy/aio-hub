@@ -28,6 +28,17 @@ export interface ServiceMetadata {
   methods: MethodMetadata[];
 }
 
+import type { Component } from 'vue';
+
+export interface ToolConfig {
+  name: string;
+  path: string;
+  icon: Component;
+  component: () => Promise<any>; // 组件动态导入函数
+  description?: string;
+  category?: string;
+}
+
 export interface ToolService {
   /**
    * 服务的唯一标识符，通常与工具路径对应。

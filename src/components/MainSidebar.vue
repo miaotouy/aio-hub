@@ -3,7 +3,7 @@ import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Expand, Fold } from "@element-plus/icons-vue";
 import { Puzzle } from "lucide-vue-next";
-import type { ToolConfig } from "../config/tools";
+import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
 import { useDetachable } from "../composables/useDetachable";
 import { useTheme } from "../composables/useTheme";

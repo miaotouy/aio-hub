@@ -8,7 +8,7 @@ import { serviceRegistry } from "./registry";
 import { createPluginLoader, PluginLoader } from "./plugin-loader";
 import type { PluginProxy } from "./plugin-types";
 import { useToolsStore } from "@/stores/tools";
-import type { ToolConfig } from "@/config/tools";
+import type { ToolConfig } from "@/services/types";
 import { markRaw, h, type Component } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { pluginStateService } from "./plugin-state.service";

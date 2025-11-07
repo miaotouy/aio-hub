@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { InfoFilled, Rank } from "@element-plus/icons-vue";
-import type { ToolConfig } from "@/config/tools";
+import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
 import { VueDraggableNext } from "vue-draggable-next";
 import { ref, onMounted } from "vue";

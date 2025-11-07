@@ -51,11 +51,11 @@
   --el-color-warning: var(--warning-color);
   --el-color-info: var(--info-color);
 
-  /* 按钮相关变量 */
+  /* 按钮相关变量 - 默认按钮使用中性色悬停 */
   --el-button-text-color: var(--text-color);
-  --el-button-hover-text-color: var(--el-color-primary-light-3);
-  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
-  --el-button-hover-border-color: var(--el-color-primary);
+  --el-button-hover-text-color: var(--text-color);
+  --el-button-hover-bg-color: var(--el-fill-color-light);
+  --el-button-hover-border-color: var(--el-border-color-hover);
 }
 
 /* 暗色主题变量 */
@@ -583,20 +583,11 @@ body.transparent-window #app {
 
 /* ==================== 暗色模式特有样式覆盖 ==================== */
 
-/* 覆盖默认 el-button (无 type) 的样式变量 */
+/* 覆盖默认 el-button (无 type) 的样式变量 - 使用中性色 */
 html.dark .el-button {
-  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
-  --el-button-hover-border-color: var(--el-color-primary);
-  --el-button-hover-text-color: var(--el-color-primary-light-3);
-}
-
-/* 覆盖 el-button 的悬停样式 */
-html.dark .el-button:hover {
-  color: var(--el-color-primary-light-3);
-}
-
-html.dark .el-button:focus {
-  color: var(--el-color-primary-light-3);
+  --el-button-hover-bg-color: var(--el-fill-color-light);
+  --el-button-hover-border-color: var(--el-border-color-hover);
+  --el-button-hover-text-color: var(--text-color);
 }
 
 /* 覆盖 el-tag 的样式 - 使用半透明背景使其在暗色模式下更暗 */

@@ -8,8 +8,73 @@ import { useAgentStorageSeparated as useAgentStorage } from './composables/useAg
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import { createModuleLogger } from '@utils/logger';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { assetManagerEngine } from '@/composables/useAssetManager';
+import { customMessage } from '@/utils/customMessage';
 
 const logger = createModuleLogger('llm-chat/agentStore');
+
+// ===== 导入导出相关类型定义 =====
+
+/**
+ * 可导出的 Agent 数据结构（不包含本地元数据）
+ */
+export interface ExportableAgent {
+  name: string;
+  description?: string;
+  icon?: string;
+  modelId: string;
+  userProfileId?: string | null;
+  presetMessages?: ChatMessageNode[];
+  displayPresetCount?: number;
+  parameters: LlmParameters;
+}
+
+/**
+ * 导出文件格式
+ */
+export interface AgentExportFile {
+  version: number;
+  type: 'AIO_Agent_Export';
+  agents: ExportableAgent[];
+}
+
+/**
+ * 导入预检结果
+ */
+export interface AgentImportPreflightResult {
+  /** 解析出的可导出 Agent 列表 */
+  agents: ExportableAgent[];
+  /** 资源文件映射 { relativePath: ArrayBuffer } */
+  assets: Record<string, ArrayBuffer>;
+  /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
+  unmatchedModels: Array<{ agentIndex: number; agentName: string; modelId: string }>;
+  /** 名称冲突的 Agent { agentIndex: number, agentName: string } */
+  nameConflicts: Array<{ agentIndex: number; agentName: string }>;
+}
+
+/**
+ * 确认导入时的 Agent 解决方案
+ */
+export interface ResolvedAgentToImport extends ExportableAgent {
+  /** 最终选择的 profileId */
+  finalProfileId: string;
+  /** 最终选择的 modelId */
+  finalModelId: string;
+  /** 是否覆盖同名 Agent */
+  overwriteExisting: boolean;
+  /** 新的名称（如果重命名） */
+  newName?: string;
+}
+
+/**
+ * 确认导入的参数
+ */
+export interface ConfirmImportParams {
+  resolvedAgents: ResolvedAgentToImport[];
+  assets: Record<string, ArrayBuffer>;
+}
 
 interface AgentStoreState {
   /** 所有智能体列表 */
@@ -459,6 +524,236 @@ export const useAgentStore = defineStore('llmChatAgent', {
         presetMessages: agent.presetMessages ?? [],
         parameters,
       };
+    },
+
+    /**
+     * ===== 导入导出功能 =====
+     */
+
+    /**
+     * 导出选定的智能体
+     * @param agentIds 要导出的智能体 ID 数组
+     * @param options 导出选项
+     */
+    async exportAgents(agentIds: string[], options: { includeAssets: boolean }): Promise<void> {
+      try {
+        logger.info('开始导出智能体', { agentIds, options });
+        const agentsToExport = this.agents.filter(agent => agentIds.includes(agent.id));
+        if (agentsToExport.length === 0) {
+          customMessage.warning('没有选择要导出的智能体');
+          return;
+        }
+
+        const zip = new JSZip();
+        const assetsFolder = zip.folder('assets');
+        const exportableAgents: ExportableAgent[] = [];
+
+        for (const agent of agentsToExport) {
+          const exportableAgent: ExportableAgent = {
+            name: agent.name,
+            description: agent.description,
+            icon: agent.icon, // 可能会被后续逻辑替换
+            modelId: agent.modelId,
+            userProfileId: agent.userProfileId,
+            presetMessages: agent.presetMessages,
+            displayPresetCount: agent.displayPresetCount,
+            parameters: agent.parameters,
+          };
+
+          // 处理图标资产
+          if (options.includeAssets && agent.icon) {
+            if (agent.icon.startsWith('appdata://')) {
+              const relativePath = agent.icon.replace('appdata://', '');
+              try {
+                const iconBinary = await assetManagerEngine.getAssetBinary(relativePath);
+                const originalName = relativePath.split('/').pop() || 'icon.png';
+                const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${originalName}`;
+                assetsFolder?.file(uniqueFileName, iconBinary);
+                exportableAgent.icon = `assets/${uniqueFileName}`;
+              } catch (error) {
+                logger.warn('导出图标失败，将使用原始路径', { agentId: agent.id, iconPath: agent.icon, error });
+                // 如果失败，保留原始路径，但记录错误
+              }
+            }
+            // 网络图片或 Emoji 不需要处理
+          }
+          
+          exportableAgents.push(exportableAgent);
+        }
+
+        // 创建 agent.json
+        const exportData: AgentExportFile = {
+          version: 1,
+          type: 'AIO_Agent_Export',
+          agents: exportableAgents,
+        };
+        zip.file('agent.json', JSON.stringify(exportData, null, 2));
+
+        // 生成并下载 ZIP 文件
+        const content = await zip.generateAsync({ type: 'blob' });
+
+        // 根据导出的 Agent 数量生成更友好的文件名
+        const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').trim();
+        let baseName = 'agents_export';
+        const count = agentsToExport.length;
+
+        if (count === 1) {
+          baseName = sanitizeFilename(agentsToExport[0].name);
+        } else if (count > 1 && count <= 3) {
+          baseName = agentsToExport.map(a => sanitizeFilename(a.name)).join(' & ');
+        } else if (count > 3) {
+          baseName = `${agentsToExport.slice(0, 2).map(a => sanitizeFilename(a.name)).join(' & ')}_等${count}个智能体`;
+        }
+        const fileName = `${baseName}.agent.zip`;
+        saveAs(content, fileName);
+
+        logger.info('智能体导出成功', { count: agentsToExport.length, fileName });
+        customMessage.success(`成功导出 ${agentsToExport.length} 个智能体`);
+      } catch (error) {
+        logger.error('导出智能体失败', error as Error, { agentIds });
+        customMessage.error(`导出失败: ${error}`);
+      }
+    },
+
+    /**
+     * 预检导入文件
+     * @param file 导入的文件
+     * @returns 预检结果
+     */
+    async preflightImportAgents(file: File): Promise<AgentImportPreflightResult> {
+      try {
+        logger.info('开始预检导入文件', { fileName: file.name, size: file.size });
+        
+        const assets: Record<string, ArrayBuffer> = {};
+        let agentExportFile: AgentExportFile;
+
+        if (file.name.endsWith('.zip')) {
+          const zip = new JSZip();
+          const zipContent = await zip.loadAsync(file);
+          
+          // 读取 agent.json
+          const agentJsonFile = zipContent.file('agent.json');
+          if (!agentJsonFile) {
+            throw new Error('ZIP 文件中未找到 agent.json');
+          }
+          const agentJsonText = await agentJsonFile.async('text');
+          agentExportFile = JSON.parse(agentJsonText);
+
+          // 读取所有资产文件
+          const assetFiles = zipContent.file(/^assets\/.*/);
+          for (const assetFile of assetFiles) {
+            if (!assetFile.dir) {
+              const binary = await assetFile.async('arraybuffer');
+              assets[assetFile.name] = binary;
+            }
+          }
+        } else if (file.name.endsWith('.json')) {
+          const jsonText = await file.text();
+          agentExportFile = JSON.parse(jsonText);
+        } else {
+          throw new Error('不支持的文件格式，请选择 .agent.zip 或 .agent.json 文件');
+        }
+
+        if (agentExportFile.type !== 'AIO_Agent_Export') {
+          throw new Error('无效的智能体导出文件');
+        }
+
+        // 检测冲突和模型匹配情况
+        const { enabledProfiles } = useLlmProfiles();
+        const allModelIds = enabledProfiles.value.flatMap(p => p.models.map(m => m.id));
+        const existingAgentNames = this.agents.map(a => a.name);
+
+        const nameConflicts: AgentImportPreflightResult['nameConflicts'] = [];
+        const unmatchedModels: AgentImportPreflightResult['unmatchedModels'] = [];
+
+        agentExportFile.agents.forEach((agent, index) => {
+          if (existingAgentNames.includes(agent.name)) {
+            nameConflicts.push({ agentIndex: index, agentName: agent.name });
+          }
+          if (!allModelIds.includes(agent.modelId)) {
+            unmatchedModels.push({ agentIndex: index, agentName: agent.name, modelId: agent.modelId });
+          }
+        });
+
+        const result: AgentImportPreflightResult = {
+          agents: agentExportFile.agents,
+          assets,
+          nameConflicts,
+          unmatchedModels,
+        };
+
+        logger.info('预检导入完成', {
+          totalAgents: result.agents.length,
+          conflicts: result.nameConflicts.length,
+          unmatched: result.unmatchedModels.length,
+        });
+
+        return result;
+      } catch (error) {
+        logger.error('预检导入失败', error as Error, { fileName: file.name });
+        customMessage.error(`预检失败: ${error}`);
+        throw error;
+      }
+    },
+
+    /**
+     * 确认导入智能体
+     * @param params 导入参数，包含已解决冲突的 Agent 列表和资产
+     */
+    async confirmImportAgents(params: ConfirmImportParams): Promise<void> {
+      try {
+        logger.info('开始确认导入智能体', { agentCount: params.resolvedAgents.length });
+
+        // 先导入所有资产，并建立映射关系
+        const assetPathMapping: Record<string, string> = {};
+        for (const [relativePath, binary] of Object.entries(params.assets)) {
+          try {
+            const originalName = relativePath.split('/').pop() || 'asset';
+            const asset = await assetManagerEngine.importAssetFromBytes(binary, originalName);
+            assetPathMapping[relativePath] = `appdata://${asset.path}`;
+          } catch (error) {
+            logger.warn('导入资产失败', { relativePath, error });
+          }
+        }
+
+        // 创建智能体
+        for (const resolvedAgent of params.resolvedAgents) {
+          // 替换图标路径
+          let finalIcon = resolvedAgent.icon;
+          if (finalIcon && finalIcon.startsWith('assets/')) {
+            finalIcon = assetPathMapping[finalIcon] || resolvedAgent.icon; // 回退到原始路径
+          }
+
+          // 如果是覆盖模式，先删除旧的
+          if (resolvedAgent.overwriteExisting) {
+            const existingAgent = this.agents.find(a => a.name === resolvedAgent.name);
+            if (existingAgent) {
+              await this.deleteAgent(existingAgent.id);
+            }
+          }
+          
+          const agentName = resolvedAgent.newName || resolvedAgent.name;
+          const newAgentId = this.createAgent(
+            agentName,
+            resolvedAgent.finalProfileId,
+            resolvedAgent.finalModelId,
+            {
+              description: resolvedAgent.description,
+              icon: finalIcon,
+              userProfileId: resolvedAgent.userProfileId,
+              presetMessages: resolvedAgent.presetMessages,
+              displayPresetCount: resolvedAgent.displayPresetCount,
+              parameters: resolvedAgent.parameters,
+            }
+          );
+          logger.info('智能体已导入', { agentId: newAgentId, agentName });
+        }
+
+        customMessage.success(`成功导入 ${params.resolvedAgents.length} 个智能体`);
+      } catch (error) {
+        logger.error('确认导入失败', error as Error);
+        customMessage.error(`导入失败: ${error}`);
+      }
     },
   },
 });

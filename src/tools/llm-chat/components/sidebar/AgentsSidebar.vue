@@ -3,13 +3,15 @@ import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
-import { Plus, Edit, Delete, MoreFilled, Search } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, MoreFilled, Search, Download, Upload } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode } from "../../types";
 import CreateAgentDialog from "../agent/CreateAgentDialog.vue";
 import EditAgentDialog from "../agent/EditAgentDialog.vue";
 import type { AgentPreset } from "../../types";
+import ExportAgentDialog from "../export/ExportAgentDialog.vue";
+import ImportAgentDialog from "../export/ImportAgentDialog.vue";
 
 const agentStore = useAgentStore();
 
@@ -78,6 +80,59 @@ const editDialogVisible = ref(false); // 编辑/创建对话框
 const editDialogMode = ref<"create" | "edit">("create");
 const editingAgent = ref<ChatAgent | null>(null);
 const editDialogInitialData = ref<any>(null);
+
+// 导入导出对话框状态
+const exportDialogVisible = ref(false);
+const importDialogVisible = ref(false);
+const importPreflightResult = ref<any>(null);
+const importLoading = ref(false);
+
+// 导出相关
+const handleExportAgents = (agentIds: string[], options: { includeAssets: boolean }) => {
+  agentStore.exportAgents(agentIds, options);
+};
+
+// 导入相关
+const handleImportFromFile = async () => {
+  try {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.agent.zip,.agent.json';
+    input.onchange = async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      importLoading.value = true;
+      try {
+        const result = await agentStore.preflightImportAgents(file);
+        importPreflightResult.value = result;
+        importDialogVisible.value = true;
+      } catch (error) {
+        // preflightImportAgents 内部已经处理了错误提示
+      } finally {
+        importLoading.value = false;
+      }
+    };
+    input.click();
+  } catch (error) {
+    customMessage.error(`打开文件选择器失败: ${error}`);
+  }
+};
+
+const handleConfirmImport = (resolvedAgents: any[]) => {
+  if (!importPreflightResult.value) return;
+  agentStore.confirmImportAgents({
+    resolvedAgents,
+    assets: importPreflightResult.value.assets,
+  });
+  importDialogVisible.value = false;
+  importPreflightResult.value = null;
+};
+
+const handleCancelImport = () => {
+  importDialogVisible.value = false;
+  importPreflightResult.value = null;
+};
 
 // 打开创建智能体选择对话框
 const handleOpenCreateDialog = () => {
@@ -239,6 +294,22 @@ const handleDelete = (agent: ChatAgent) => {
         <el-option label="按名称" value="name" />
         <el-option label="创建时间" value="createdAt" />
       </el-select>
+      <!-- 更多操作下拉菜单 -->
+      <el-dropdown trigger="click" style="margin-left: auto;">
+        <el-button text circle :icon="MoreFilled" />
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="handleImportFromFile">
+              <el-icon><Upload /></el-icon>
+              导入智能体...
+            </el-dropdown-item>
+            <el-dropdown-item @click="exportDialogVisible = true">
+              <el-icon><Download /></el-icon>
+              批量导出智能体...
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
 
     <div class="agents-list">
@@ -296,6 +367,10 @@ const handleDelete = (agent: ChatAgent) => {
                   <el-icon><Edit /></el-icon>
                   编辑
                 </el-dropdown-item>
+                <el-dropdown-item @click="handleExportAgents([agent.id], { includeAssets: true })">
+                  <el-icon><Download /></el-icon>
+                  导出此智能体
+                </el-dropdown-item>
                 <el-dropdown-item @click="handleDelete(agent)" divided>
                   <el-icon><Delete /></el-icon>
                   删除
@@ -328,6 +403,21 @@ const handleDelete = (agent: ChatAgent) => {
       :agent="editingAgent"
       :initial-data="editDialogInitialData"
       @save="handleSaveAgent"
+    />
+
+    <!-- 导出对话框 -->
+    <ExportAgentDialog
+      v-model:visible="exportDialogVisible"
+      @export="handleExportAgents"
+    />
+
+    <!-- 导入对话框 -->
+    <ImportAgentDialog
+      v-model:visible="importDialogVisible"
+      :preflight-result="importPreflightResult"
+      :loading="importLoading"
+      @confirm="handleConfirmImport"
+      @cancel="handleCancelImport"
     />
   </div>
 </template>

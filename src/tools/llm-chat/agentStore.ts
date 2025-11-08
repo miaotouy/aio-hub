@@ -4,7 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { useAgentStorage } from './composables/useAgentStorage';
+import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import { createModuleLogger } from '@utils/logger';

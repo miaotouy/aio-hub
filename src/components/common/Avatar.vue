@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { acquireBlobUrl, releaseBlobUrl } from "@/utils/avatarImageCache";
 
 interface Props {
   /** 头像源：可以是图片 URL、appdata:// 路径、emoji 或其他字符 */
@@ -31,6 +31,7 @@ const props = withDefaults(defineProps<Props>(), {
 const imageLoadFailed = ref(false);
 const processedSrc = ref("");
 const isSrcReady = ref(false); // 新增状态，控制图片是否准备好渲染
+const managedSrc = ref<string | null>(null); // 追踪被管理的 blob url 的源路径
 
 // 判断是否为图片路径
 const isImagePath = computed(() => {
@@ -47,16 +48,14 @@ const isImagePath = computed(() => {
 });
 
 // 异步处理路径转换
-const updateProcessedSrc = async () => {
+const processSrc = async () => {
   isSrcReady.value = false;
   imageLoadFailed.value = false;
-
-  if (processedSrc.value.startsWith("blob:")) {
-    URL.revokeObjectURL(processedSrc.value);
-  }
   processedSrc.value = "";
+  managedSrc.value = null; // 重置管理状态
 
   if (!props.src) {
+    isSrcReady.value = true;
     return;
   }
 
@@ -67,20 +66,16 @@ const updateProcessedSrc = async () => {
     return;
   }
 
-  // appdata:// 协议 - 转换为 Blob URL
+  // appdata:// 协议 - 使用缓存获取 Blob URL
   if (props.src.startsWith("appdata://")) {
-    try {
-      const relativePath = props.src.substring(10).replace(/\\/g, "/");
-      const bytes = await invoke<number[]>("get_asset_binary", { relativePath });
-      const uint8Array = new Uint8Array(bytes);
-      const blob = new Blob([uint8Array]);
-      processedSrc.value = URL.createObjectURL(blob);
-    } catch (error) {
-      console.error(`[Avatar] Failed to load asset from appdata:// path: ${props.src}`, error);
+    const blobUrl = await acquireBlobUrl(props.src);
+    if (blobUrl) {
+      processedSrc.value = blobUrl;
+      managedSrc.value = props.src; // 标记为已管理
+    } else {
       imageLoadFailed.value = true;
-    } finally {
-      isSrcReady.value = true;
     }
+    isSrcReady.value = true;
     return;
   }
 
@@ -88,22 +83,26 @@ const updateProcessedSrc = async () => {
   isSrcReady.value = true;
 };
 
-// 组件卸载前，释放 Blob URL
-onBeforeUnmount(() => {
-  if (processedSrc.value.startsWith("blob:")) {
-    URL.revokeObjectURL(processedSrc.value);
-  }
-});
-
-// 监听 src 变化
+// 监听器现在会处理旧值的清理
 watch(
   () => props.src,
-  () => {
-    imageLoadFailed.value = false; // 重置加载失败状态
-    updateProcessedSrc();
+  (_newSrc, oldSrc) => {
+    // 如果旧的 src 是我们管理的 appdata:// 路径，则释放它
+    if (oldSrc && oldSrc.startsWith("appdata://")) {
+      releaseBlobUrl(oldSrc);
+    }
+    processSrc();
   },
   { immediate: true }
 );
+
+// onBeforeUnmount 进行最终清理
+onBeforeUnmount(() => {
+  if (managedSrc.value) {
+    releaseBlobUrl(managedSrc.value);
+    managedSrc.value = null;
+  }
+});
 
 // 判断是否为 emoji（简单判断：单个字符或包含 emoji Unicode 范围）
 const isEmoji = computed(() => {

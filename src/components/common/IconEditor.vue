@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
@@ -9,7 +9,6 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Picture, Upload, RefreshLeft } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { assetManagerEngine } from "@/composables/useAssetManager";
-import { invoke } from "@tauri-apps/api/core";
 
 interface Props {
   modelValue: string;
@@ -86,30 +85,31 @@ const clearIcon = () => {
   customMessage.info("已重置为默认图标");
 };
 
+// 检查图标是否为可点击的图片路径
+const sanitizedModelValue = computed(() => {
+  if (!props.modelValue) return "";
+  // 移除开头和结尾多余的空格和引号
+  return props.modelValue.trim().replace(/^"|"$/g, "").trim();
+});
+
+const isImagePath = computed(() => {
+  return (
+    sanitizedModelValue.value &&
+    (sanitizedModelValue.value.startsWith("/") ||
+      sanitizedModelValue.value.startsWith("appdata://") ||
+      sanitizedModelValue.value.startsWith("http://") ||
+      sanitizedModelValue.value.startsWith("https://") ||
+      sanitizedModelValue.value.startsWith("data:") ||
+      /^[A-Za-z]:[\\/]/.test(sanitizedModelValue.value) || // Windows 绝对路径（支持正反斜杠）
+      sanitizedModelValue.value.startsWith("\\\\")) // UNC 路径
+  );
+});
+
 // 点击图标放大查看
-const handleIconClick = async () => {
-  const icon = props.modelValue || "🤖";
+const handleIconClick = () => {
   // 只有当图标是图片路径时才打开查看器（不是 emoji）
-  if (icon.includes("/") || icon.startsWith("appdata://")) {
-    let imageUrl = icon;
-
-    // 如果是 appdata 协议，则转换为 Blob URL 以便查看器显示
-    if (icon.startsWith("appdata://")) {
-      try {
-        const relativePath = icon.substring(10);
-        const bytes = await invoke<number[]>("get_asset_binary", { relativePath });
-        const uint8Array = new Uint8Array(bytes);
-        // MIME type is not critical here as browsers can often infer it.
-        const blob = new Blob([uint8Array]);
-        imageUrl = URL.createObjectURL(blob);
-      } catch (error) {
-        console.error("创建图片预览 URL 失败:", error);
-        customMessage.error("无法创建图片预览");
-        return;
-      }
-    }
-
-    imageViewer.show(imageUrl);
+  if (isImagePath.value) {
+    imageViewer.show(sanitizedModelValue.value);
   }
 };
 </script>
@@ -118,10 +118,8 @@ const handleIconClick = async () => {
   <div class="icon-editor-layout">
     <div class="icon-preview-container">
       <el-tooltip
-        :content="
-          modelValue.includes('/') || modelValue.startsWith('appdata://') ? '点击放大查看' : ''
-        "
-        :disabled="!(modelValue.includes('/') || modelValue.startsWith('appdata://'))"
+        :content="isImagePath ? '点击放大查看' : ''"
+        :disabled="!isImagePath"
         placement="top"
       >
         <Avatar
@@ -131,10 +129,7 @@ const handleIconClick = async () => {
           shape="square"
           :radius="8"
           :border="false"
-          :class="{
-            'clickable-avatar':
-              modelValue.includes('/') || modelValue.startsWith('appdata://'),
-          }"
+          :class="{ 'clickable-avatar': isImagePath }"
           @click="handleIconClick"
         />
       </el-tooltip>

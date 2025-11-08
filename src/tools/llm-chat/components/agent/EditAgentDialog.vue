@@ -176,6 +176,7 @@ const handleSave = () => {
 
       <el-form-item label="图标">
         <IconEditor v-model="editForm.icon" />
+        <div class="form-hint">可以输入 emoji、从预设选择、上传图像或输入绝对路径</div>
       </el-form-item>
 
       <el-form-item label="描述">

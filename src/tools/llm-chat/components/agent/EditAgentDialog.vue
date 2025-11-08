@@ -1,19 +1,13 @@
 <script setup lang="ts">
-import { reactive, watch, ref } from "vue";
+import { reactive, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode } from "../../types";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
-import { open } from "@tauri-apps/plugin-dialog";
-import { Picture, Upload, RefreshLeft } from "@element-plus/icons-vue";
 import { useUserProfileStore } from "../../userProfileStore";
-import { useImageViewer } from "@/composables/useImageViewer";
-import { assetManagerEngine } from "@/composables/useAssetManager";
-import { invoke } from "@tauri-apps/api/core";
+import IconEditor from "@/components/common/IconEditor.vue";
 
 interface Props {
   visible: boolean;
@@ -58,15 +52,6 @@ const emit = defineEmits<Emits>();
 
 // 用户档案 Store
 const userProfileStore = useUserProfileStore();
-
-// 图片查看器
-const imageViewer = useImageViewer();
-
-// 预设图标对话框
-const showPresetIconDialog = ref(false);
-
-// 图像上传中状态
-const isUploadingImage = ref(false);
 
 // 编辑表单
 const editForm = reactive({
@@ -173,89 +158,6 @@ const handleSave = () => {
 
   handleClose();
 };
-
-// 打开预设图标选择器
-const openPresetIconSelector = () => {
-  showPresetIconDialog.value = true;
-};
-
-// 选择预设图标
-const selectPresetIcon = (icon: any) => {
-  const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
-  editForm.icon = iconPath;
-  showPresetIconDialog.value = false;
-  customMessage.success("已选择预设图标");
-};
-
-// 上传自定义图像
-// 上传自定义图像
-const uploadCustomImage = async () => {
-  try {
-    // 打开文件选择对话框
-    const selectedPath = await open({
-      multiple: false,
-      filters: [
-        {
-          name: "图像文件",
-          extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"],
-        },
-      ],
-    });
-
-    if (!selectedPath) return;
-
-    isUploadingImage.value = true;
-
-    // 直接使用 assetManagerEngine 从路径导入资产
-    const asset = await assetManagerEngine.importAssetFromPath(selectedPath, {
-      origin: { type: "local", source: `agent-editor:${editForm.name}` },
-      enableDeduplication: true,
-      subfolder: "agent-icons", // 指定子目录
-      generateThumbnail: false, // 头像不需要缩略图，保持原图
-    });
-
-    // 使用 assetManager 返回的规范化 appdata:// 路径
-    editForm.icon = `appdata://${asset.path}`;
-    customMessage.success("图像上传成功");
-  } catch (error) {
-    console.error("上传图像失败:", error);
-    customMessage.error(`上传图像失败: ${error}`);
-  } finally {
-    isUploadingImage.value = false;
-  }
-};
-// 清除图标
-const clearIcon = () => {
-  editForm.icon = "🤖";
-  customMessage.info("已重置为默认图标");
-};
-
-// 点击图标放大查看
-const handleIconClick = async () => {
-  const icon = editForm.icon || "🤖";
-  // 只有当图标是图片路径时才打开查看器（不是 emoji）
-  if (icon.includes("/") || icon.startsWith("appdata://")) {
-    let imageUrl = icon;
-
-    // 如果是 appdata 协议，则转换为 Blob URL 以便查看器显示
-    if (icon.startsWith("appdata://")) {
-      try {
-        const relativePath = icon.substring(10);
-        const bytes = await invoke<number[]>("get_asset_binary", { relativePath });
-        const uint8Array = new Uint8Array(bytes);
-        // MIME type is not critical here as browsers can often infer it.
-        const blob = new Blob([uint8Array]);
-        imageUrl = URL.createObjectURL(blob);
-      } catch (error) {
-        console.error("创建图片预览 URL 失败:", error);
-        customMessage.error("无法创建图片预览");
-        return;
-      }
-    }
-
-    imageViewer.show(imageUrl);
-  }
-};
 </script>
 <template>
   <BaseDialog
@@ -273,63 +175,7 @@ const handleIconClick = async () => {
       </el-form-item>
 
       <el-form-item label="图标">
-        <div class="icon-input-group">
-          <el-input
-            v-model="editForm.icon"
-            placeholder="输入 emoji、路径或选择图像"
-            class="icon-input"
-          >
-            <template #prepend>
-              <el-tooltip
-                :content="
-                  editForm.icon.includes('/') || editForm.icon.startsWith('appdata://')
-                    ? '点击放大查看'
-                    : ''
-                "
-                :disabled="!(editForm.icon.includes('/') || editForm.icon.startsWith('appdata://'))"
-                placement="top"
-              >
-                <Avatar
-                  :src="editForm.icon || '🤖'"
-                  alt="图标预览"
-                  :size="32"
-                  shape="square"
-                  :radius="4"
-                  :border="false"
-                  :class="{
-                    'clickable-avatar':
-                      editForm.icon.includes('/') || editForm.icon.startsWith('appdata://'),
-                  }"
-                  @click="handleIconClick"
-                />
-              </el-tooltip>
-            </template>
-            <template #append>
-              <el-button-group>
-                <el-button @click="openPresetIconSelector" title="选择预设图标">
-                  <el-icon>
-                    <Picture />
-                  </el-icon>
-                </el-button>
-                <el-button
-                  @click="uploadCustomImage"
-                  :loading="isUploadingImage"
-                  title="上传自定义图像"
-                >
-                  <el-icon>
-                    <Upload />
-                  </el-icon>
-                </el-button>
-                <el-button @click="clearIcon" title="重置为默认">
-                  <el-icon>
-                    <RefreshLeft />
-                  </el-icon>
-                </el-button>
-              </el-button-group>
-            </template>
-          </el-input>
-        </div>
-        <div class="form-hint">可以输入 emoji、从预设选择、上传图像或输入绝对路径</div>
+        <IconEditor v-model="editForm.icon" />
       </el-form-item>
 
       <el-form-item label="描述">
@@ -419,52 +265,14 @@ const handleIconClick = async () => {
         {{ mode === "edit" ? "保存" : "创建" }}
       </el-button>
     </template>
-
-    <!-- 预设图标选择对话框 -->
-    <BaseDialog
-      :visible="showPresetIconDialog"
-      @update:visible="showPresetIconDialog = $event"
-      title="选择预设图标"
-      width="80%"
-      height="70vh"
-    >
-      <template #content>
-        <IconPresetSelector
-          :icons="PRESET_ICONS"
-          :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
-          show-search
-          show-categories
-          @select="selectPresetIcon"
-        />
-      </template>
-    </BaseDialog>
   </BaseDialog>
 </template>
 
 <style scoped>
-/* Icon input group */
-.icon-input-group {
-  width: 100%;
-}
-
-.icon-input {
-  width: 100%;
-}
-
 .form-hint {
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 8px;
-}
-
-/* 可点击的头像 */
-.clickable-avatar {
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.clickable-avatar:hover {
-  opacity: 0.8;
 }
 
 /* 滑块+数字输入框组合 */

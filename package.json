@@ -23,7 +23,10 @@
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 vue-tsc --noEmit && cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev"
+    "tauri:dev": "tauri dev",
+    "check": "bun run check:frontend; bun run check:backend",
+    "check:frontend": "vue-tsc --noEmit",
+    "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings; cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",

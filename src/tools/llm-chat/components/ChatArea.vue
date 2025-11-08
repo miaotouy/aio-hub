@@ -514,32 +514,35 @@ onMounted(async () => {
     <div class="main-content">
       <!-- 对话内容区 -->
       <div class="chat-content">
-        <!-- 消息列表 -->
-        <MessageList
-          ref="messageListRef"
-          :messages="finalMessages"
-          :is-sending="finalIsSending"
-          @delete-message="handleDeleteMessage"
-          @regenerate="handleRegenerate"
-          @switch-sibling="handleSwitchSibling"
-          @toggle-enabled="handleToggleEnabled"
-          @edit-message="handleEditMessage"
-          @abort-node="handleAbortNode"
-          @create-branch="handleCreateBranch"
-          @analyze-context="handleAnalyzeContext"
-        />
+        <!-- 消息列表容器 - 用于弹性布局 -->
+        <div class="message-list-wrapper">
+          <!-- 消息列表 -->
+          <MessageList
+            ref="messageListRef"
+            :messages="finalMessages"
+            :is-sending="finalIsSending"
+            @delete-message="handleDeleteMessage"
+            @regenerate="handleRegenerate"
+            @switch-sibling="handleSwitchSibling"
+            @toggle-enabled="handleToggleEnabled"
+            @edit-message="handleEditMessage"
+            @abort-node="handleAbortNode"
+            @create-branch="handleCreateBranch"
+            @analyze-context="handleAnalyzeContext"
+          />
 
-        <!-- 消息导航器 -->
-        <MessageNavigator
-          v-if="settings.uiPreferences.showMessageNavigator"
-          :scroll-element="scrollElement"
-          :message-count="finalMessages.length"
-          :has-new-messages="hasNewMessages"
-          @scroll-to-top="handleScrollToTop"
-          @scroll-to-bottom="handleScrollToBottom"
-          @scroll-to-next="handleScrollToNext"
-          @scroll-to-prev="handleScrollToPrev"
-        />
+          <!-- 消息导航器 -->
+          <MessageNavigator
+            v-if="settings.uiPreferences.showMessageNavigator"
+            :scroll-element="scrollElement"
+            :message-count="finalMessages.length"
+            :has-new-messages="hasNewMessages"
+            @scroll-to-top="handleScrollToTop"
+            @scroll-to-bottom="handleScrollToBottom"
+            @scroll-to-next="handleScrollToNext"
+            @scroll-to-prev="handleScrollToPrev"
+          />
+        </div>
 
         <!-- 输入框 -->
         <MessageInput
@@ -751,6 +754,15 @@ onMounted(async () => {
   min-height: 0;
 }
 
+/* 消息列表容器 - 弹性增长，占据所有剩余空间 */
+.message-list-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* 关键：弹性增长，占据所有剩余空间 */
+  min-height: 0;
+  overflow: hidden; /* 防止内容溢出 */
+}
+
 /* 分离手柄的特定样式 */
 .detachable-handle {
   flex-shrink: 0;
@@ -797,5 +809,6 @@ onMounted(async () => {
 .chat-message-input {
   margin-left: 8px;
   margin-right: 8px;
+  flex-shrink: 0; /* 关键：防止输入框被压缩 */
 }
 </style>

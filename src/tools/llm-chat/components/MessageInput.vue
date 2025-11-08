@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef, computed, watch, onMounted } from "vue";
+import { ref, toRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip } from "element-plus";
 import { MagicStick } from "@element-plus/icons-vue";
@@ -177,10 +177,77 @@ const placeholderText = computed(() => {
 // 自动调整文本框高度
 const autoResize = () => {
   if (textareaRef.value) {
+    // 重置高度以获取正确的 scrollHeight
     textareaRef.value.style.height = "auto";
-    textareaRef.value.style.height = textareaRef.value.scrollHeight + "px";
+    // 设置最小高度为当前内容高度，但不小于最小限制
+    const newHeight = Math.max(40, textareaRef.value.scrollHeight);
+    textareaRef.value.style.height = newHeight + "px";
   }
 };
+
+// 拖拽调整大小相关状态
+const isResizing = ref(false);
+const startY = ref(0);
+const startHeight = ref(0);
+
+// 拖拽开始处理 - 输入框高度调整
+const handleInputResizeStart = (e: MouseEvent) => {
+  isResizing.value = true;
+  startY.value = e.clientY;
+  
+  if (textareaRef.value) {
+    startHeight.value = textareaRef.value.offsetHeight;
+  }
+  
+  // 阻止默认行为和文本选择
+  e.preventDefault();
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+  
+  // 添加全局事件监听
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+};
+
+// 鼠标移动处理
+const handleMouseMove = (e: MouseEvent) => {
+  if (!isResizing.value || !textareaRef.value) return;
+  
+  // 计算高度差值
+  const deltaY = startY.value - e.clientY;
+  const newHeight = startHeight.value + deltaY;
+  
+  // 限制最小和最大高度
+  const minHeight = 40;
+  const maxHeight = props.isDetached ? window.innerHeight * 0.8 : 400;
+  const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+  
+  // 直接设置 DOM 样式以获得最佳性能
+  textareaRef.value.style.height = finalHeight + 'px';
+};
+
+// 鼠标释放处理
+const handleMouseUp = () => {
+  isResizing.value = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
+  // 移除全局事件监听
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', handleMouseUp);
+};
+
+// 双击手柄重置高度
+const handleResizeDoubleClick = () => {
+  autoResize();
+};
+
+// 组件卸载时清理事件监听
+onUnmounted(() => {
+  if (isResizing.value) {
+    handleMouseUp();
+  }
+});
 // ===== 拖拽与分离功能 =====
 const { startDetaching } = useDetachable();
 const handleDragStart = (e: MouseEvent) => {
@@ -230,7 +297,7 @@ const handleDragStart = (e: MouseEvent) => {
 
 // ===== 窗口大小调整功能 =====
 const { createResizeHandler } = useWindowResize();
-const handleResizeStart = createResizeHandler("SouthEast");
+const handleWindowResizeStart = createResizeHandler("SouthEast");
 
 // 计算当前输入的 token 数量
 const calculateInputTokens = async () => {
@@ -512,6 +579,14 @@ const handleDetach = async () => {
       { 'detached-mode': isDetached, 'dragging-over': isDraggingOver },
     ]"
   >
+    <!-- 拖拽手柄 -->
+    <div
+      class="resize-handle"
+      @mousedown="handleInputResizeStart"
+      @dblclick="handleResizeDoubleClick"
+      title="拖拽调整高度（双击重置）"
+    ></div>
+    
     <!-- 主内容区 -->
     <div class="main-content">
       <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
@@ -716,9 +791,9 @@ const handleDetach = async () => {
 
     <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
     <div
-      v-if="isDetached"
-      class="resize-handle"
-      @mousedown="handleResizeStart"
+      v-if="props.isDetached"
+      class="resize-handle se-resize"
+      @mousedown="handleWindowResizeStart"
       title="拖拽调整窗口大小"
     />
   </div>
@@ -731,6 +806,7 @@ const handleDetach = async () => {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
+  padding-top: 8px; /* 为拖拽手柄留出空间 */
   border-radius: 24px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
@@ -882,6 +958,7 @@ const handleDetach = async () => {
   border-color: var(--primary-color);
 }
 .message-textarea {
+  box-sizing: border-box; /* 确保 height 属性包含 padding 和 border */
   padding: 10px 14px;
   font-size: 14px;
   line-height: 1.6;
@@ -1083,11 +1160,35 @@ const handleDetach = async () => {
   background: var(--scrollbar-thumb-hover-color);
 }
 
-/* 右下角调整大小手柄 */
+/* 拖拽调整大小手柄 - 位于顶部 */
 .resize-handle {
+  position: absolute;
+  top: -3px; /* 向上偏移，与父容器上边框重合 */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 94%;
+  height: 6px; /* 创建一个足够灵敏的拖拽热区 */
+  cursor: row-resize; /* 提示用户此处可拖拽 */
+  z-index: 1; /* 确保在最上层 */
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
+}
+
+.resize-handle:active {
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.4);
+}
+
+/* 右下角调整大小手柄 - 仅在分离模式下显示 */
+.message-input-container.detached-mode .resize-handle.se-resize {
   position: absolute;
   bottom: 0;
   right: 0;
+  top: auto;
+  left: auto;
   width: 16px;
   height: 16px;
   cursor: se-resize;
@@ -1099,12 +1200,12 @@ const handleDetach = async () => {
   z-index: 10;
 }
 
-.resize-handle:hover {
+.message-input-container.detached-mode .resize-handle.se-resize:hover {
   opacity: 1;
   background: linear-gradient(135deg, transparent 50%, var(--primary-hover-color) 50%);
 }
 
-.resize-handle:active {
+.message-input-container.detached-mode .resize-handle.se-resize:active {
   opacity: 1;
   background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
 }

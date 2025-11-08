@@ -1,13 +1,13 @@
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { ref, computed, onUnmounted } from 'vue';
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { ref, computed, onUnmounted } from "vue";
 import type {
   Asset,
   AssetImportOptions,
   AssetType,
   AssetOrigin,
-  AssetMetadata
-} from '@/types/asset-management';
+  AssetMetadata,
+} from "@/types/asset-management";
 
 /**
  * 资产管理核心引擎
@@ -20,7 +20,7 @@ export const assetManagerEngine = {
    * 获取资产存储根目录
    */
   getAssetBasePath: async (): Promise<string> => {
-    return await invoke<string>('get_asset_base_path');
+    return await invoke<string>("get_asset_base_path");
   },
 
   /**
@@ -30,9 +30,9 @@ export const assetManagerEngine = {
     originalPath: string,
     options?: AssetImportOptions
   ): Promise<Asset> => {
-    return await invoke<Asset>('import_asset_from_path', {
+    return await invoke<Asset>("import_asset_from_path", {
       originalPath,
-      options
+      options,
     });
   },
 
@@ -45,10 +45,10 @@ export const assetManagerEngine = {
     options?: AssetImportOptions
   ): Promise<Asset> => {
     const uint8Array = new Uint8Array(bytes);
-    return await invoke<Asset>('import_asset_from_bytes', {
+    return await invoke<Asset>("import_asset_from_bytes", {
       bytes: Array.from(uint8Array),
       originalName,
-      options
+      options,
     });
   },
 
@@ -56,57 +56,56 @@ export const assetManagerEngine = {
    * 获取资产的二进制数据
    */
   getAssetBinary: async (relativePath: string): Promise<ArrayBuffer> => {
-    const bytes = await invoke<number[]>('get_asset_binary', {
-      relativePath
+    const bytes = await invoke<number[]>("get_asset_binary", {
+      relativePath,
     });
     return new Uint8Array(bytes).buffer;
   },
 
   /**
-   /**
-    * 将资产路径转换为可用的 URL（同步版本）
-    * @param relativePath 相对于资产根目录的路径
-    * @param basePath 资产根目录的绝对路径（必需）
-    */
-   convertToAssetProtocol: (relativePath: string, basePath: string): string => {
-     try {
-       // 标准化路径分隔符为反斜杠（Windows）
-       const normalizedBase = basePath.replace(/\//g, '\\');
-       const normalizedRelative = relativePath.replace(/\//g, '\\');
-       
-       // 拼接完整路径
-       const fullPath = `${normalizedBase}\\${normalizedRelative}`;
-       
-       // 使用 Tauri v2 的 convertFileSrc
-       return convertFileSrc(fullPath, 'asset');
-     } catch (error) {
-       console.error('转换资产 URL 失败:', error, relativePath);
-       return '';
-     }
-   },
+   * 将资产路径转换为可用的 URL（同步版本）
+   * @param relativePath 相对于资产根目录的路径
+   * @param basePath 资产根目录的绝对路径（必需）
+   */
+  convertToAssetProtocol: (relativePath: string, basePath: string): string => {
+    try {
+      // 标准化路径分隔符为反斜杠（Windows）
+      const normalizedBase = basePath.replace(/\//g, "\\");
+      const normalizedRelative = relativePath.replace(/\//g, "\\");
+
+      // 拼接完整路径
+      const fullPath = `${normalizedBase}\\${normalizedRelative}`;
+
+      // 使用 Tauri v2 的 convertFileSrc
+      return convertFileSrc(fullPath, "asset");
+    } catch (error) {
+      console.error("转换资产 URL 失败:", error, relativePath);
+      return "";
+    }
+  },
   /**
    * 获取资产的显示 URL (异步获取 Blob URL)
    */
   getAssetUrl: async (asset: Asset, useThumbnail = false): Promise<string> => {
     try {
       const path = useThumbnail && asset.thumbnailPath ? asset.thumbnailPath : asset.path;
-      
+
       // 获取二进制数据
-      const bytes = await invoke<number[]>('get_asset_binary', {
+      const bytes = await invoke<number[]>("get_asset_binary", {
         relativePath: path,
       });
-      
+
       // 转换为 Uint8Array
       const uint8Array = new Uint8Array(bytes);
-      
+
       // 创建 Blob
       const blob = new Blob([uint8Array], { type: asset.mimeType });
-      
+
       // 创建 Blob URL
       return URL.createObjectURL(blob);
     } catch (error) {
-      console.error('获取资产 URL 失败:', error, asset);
-      return '';
+      console.error("获取资产 URL 失败:", error, asset);
+      return "";
     }
   },
 
@@ -115,16 +114,16 @@ export const assetManagerEngine = {
    */
   getAssetIcon: (asset: Asset): string => {
     switch (asset.type) {
-      case 'image':
-        return '🖼️'; // 对于图片，返回 emoji，URL 由调用方单独获取
-      case 'audio':
-        return '🎵';
-      case 'video':
-        return '🎬';
-      case 'document':
-        return '📄';
+      case "image":
+        return "🖼️"; // 对于图片，返回 emoji，URL 由调用方单独获取
+      case "audio":
+        return "🎵";
+      case "video":
+        return "🎬";
+      case "document":
+        return "📄";
       default:
-        return '📎';
+        return "📎";
     }
   },
 
@@ -132,7 +131,7 @@ export const assetManagerEngine = {
    * 格式化文件大小
    */
   formatFileSize: (bytes: number): string => {
-    const units = ['B', 'KB', 'MB', 'GB'];
+    const units = ["B", "KB", "MB", "GB"];
     let size = bytes;
     let unitIndex = 0;
     while (size >= 1024 && unitIndex < units.length - 1) {
@@ -146,14 +145,14 @@ export const assetManagerEngine = {
    * 列出所有已导入的资产
    */
   listAllAssets: async (): Promise<Asset[]> => {
-    return await invoke<Asset[]>('list_all_assets');
+    return await invoke<Asset[]>("list_all_assets");
   },
 
   /**
    * 重建哈希索引
    */
   rebuildHashIndex: async (): Promise<string> => {
-    return await invoke<string>('rebuild_hash_index');
+    return await invoke<string>("rebuild_hash_index");
   },
 };
 
@@ -168,7 +167,7 @@ export function useAssetManager() {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   const assets = ref<Asset[]>([]);
-  const rebuildProgress = ref({ current: 0, total: 0, currentType: '' });
+  const rebuildProgress = ref({ current: 0, total: 0, currentType: "" });
   let unlistenRebuildProgress: (() => void) | null = null;
 
   // --- 方法 ---
@@ -202,7 +201,7 @@ export function useAssetManager() {
       assets.value.push(asset);
       return asset;
     } catch (err) {
-      handleError(err, '导入资产失败');
+      handleError(err, "导入资产失败");
       // @ts-ignore
       return Promise.reject(err);
     }
@@ -215,9 +214,7 @@ export function useAssetManager() {
     paths: string[],
     options?: AssetImportOptions
   ): Promise<Asset[]> => {
-    return await withLoading(
-      Promise.all(paths.map(path => importAssetFromPath(path, options)))
-    );
+    return await withLoading(Promise.all(paths.map((path) => importAssetFromPath(path, options))));
   };
 
   /**
@@ -234,7 +231,7 @@ export function useAssetManager() {
       assets.value.push(asset);
       return asset;
     } catch (err) {
-      handleError(err, '导入字节数据失败');
+      handleError(err, "导入字节数据失败");
       // @ts-ignore
       return Promise.reject(err);
     }
@@ -243,29 +240,27 @@ export function useAssetManager() {
   /**
    * 从剪贴板导入图片
    */
-  const importAssetFromClipboard = async (
-    options?: AssetImportOptions
-  ): Promise<Asset> => {
+  const importAssetFromClipboard = async (options?: AssetImportOptions): Promise<Asset> => {
     try {
       const clipboardItems = await navigator.clipboard.read();
       for (const item of clipboardItems) {
         for (const type of item.types) {
-          if (type.startsWith('image/')) {
+          if (type.startsWith("image/")) {
             const blob = await item.getType(type);
             const arrayBuffer = await blob.arrayBuffer();
-            const extension = type.split('/')[1] || 'png';
+            const extension = type.split("/")[1] || "png";
             const fileName = `clipboard-image-${Date.now()}.${extension}`;
             const importOptions: AssetImportOptions = {
               ...options,
-              origin: { type: 'clipboard', source: 'clipboard' }
+              origin: { type: "clipboard", source: "clipboard" },
             };
             return await importAssetFromBytes(arrayBuffer, fileName, importOptions);
           }
         }
       }
-      throw new Error('剪贴板中没有找到图片');
+      throw new Error("剪贴板中没有找到图片");
     } catch (err) {
-      return handleError(err, '从剪贴板导入失败');
+      return handleError(err, "从剪贴板导入失败");
     }
   };
 
@@ -273,14 +268,14 @@ export function useAssetManager() {
    * 根据类型过滤资产
    */
   const getAssetsByType = (type: AssetType): Asset[] => {
-    return assets.value.filter(asset => asset.type === type);
+    return assets.value.filter((asset) => asset.type === type);
   };
 
   /**
    * 根据来源过滤资产
    */
-  const getAssetsByOrigin = (originType: AssetOrigin['type']): Asset[] => {
-    return assets.value.filter(asset => asset.origin?.type === originType);
+  const getAssetsByOrigin = (originType: AssetOrigin["type"]): Asset[] => {
+    return assets.value.filter((asset) => asset.origin?.type === originType);
   };
 
   /**
@@ -289,9 +284,10 @@ export function useAssetManager() {
   const searchAssets = (query: string): Asset[] => {
     if (!query.trim()) return assets.value;
     const lowerQuery = query.toLowerCase();
-    return assets.value.filter(asset =>
-      asset.name.toLowerCase().includes(lowerQuery) ||
-      asset.mimeType.toLowerCase().includes(lowerQuery)
+    return assets.value.filter(
+      (asset) =>
+        asset.name.toLowerCase().includes(lowerQuery) ||
+        asset.mimeType.toLowerCase().includes(lowerQuery)
     );
   };
 
@@ -311,7 +307,7 @@ export function useAssetManager() {
       const loadedAssets = await withLoading(promise);
       assets.value = loadedAssets;
     } catch (err) {
-      handleError(err, '加载资产列表失败');
+      handleError(err, "加载资产列表失败");
     }
   };
 
@@ -322,7 +318,7 @@ export function useAssetManager() {
     // 开始监听进度事件
     if (!unlistenRebuildProgress) {
       const unlisten = await listen<{ current: number; total: number; currentType: string }>(
-        'rebuild-index-progress',
+        "rebuild-index-progress",
         (event) => {
           rebuildProgress.value = event.payload;
         }
@@ -330,20 +326,20 @@ export function useAssetManager() {
       unlistenRebuildProgress = unlisten;
     }
 
-    rebuildProgress.value = { current: 0, total: 0, currentType: 'starting...' };
+    rebuildProgress.value = { current: 0, total: 0, currentType: "starting..." };
     try {
       const promise = assetManagerEngine.rebuildHashIndex();
       const result = await withLoading(promise);
       return result;
     } catch (err) {
-      return handleError(err, '重建索引失败');
+      return handleError(err, "重建索引失败");
     } finally {
       // 停止监听并重置进度
       if (unlistenRebuildProgress) {
         unlistenRebuildProgress();
         unlistenRebuildProgress = null;
       }
-      rebuildProgress.value = { current: 0, total: 0, currentType: '' };
+      rebuildProgress.value = { current: 0, total: 0, currentType: "" };
     }
   };
 
@@ -360,24 +356,24 @@ export function useAssetManager() {
   const deleteAsset = async (assetId: string): Promise<void> => {
     try {
       // 找到对应的资产
-      const asset = assets.value.find(a => a.id === assetId);
+      const asset = assets.value.find((a) => a.id === assetId);
       if (!asset) {
-        throw new Error('资产不存在');
+        throw new Error("资产不存在");
       }
 
       // 调用后端删除命令
-      await invoke('delete_asset', {
+      await invoke("delete_asset", {
         assetId: asset.id,
-        relativePath: asset.path
+        relativePath: asset.path,
       });
 
       // 从本地列表中移除
-      const index = assets.value.findIndex(a => a.id === assetId);
+      const index = assets.value.findIndex((a) => a.id === assetId);
       if (index !== -1) {
         assets.value.splice(index, 1);
       }
     } catch (err) {
-      handleError(err, '删除资产失败');
+      handleError(err, "删除资产失败");
     }
   };
 
@@ -385,9 +381,7 @@ export function useAssetManager() {
    * 批量删除资产
    */
   const deleteMultipleAssets = async (assetIds: string[]): Promise<void> => {
-    await withLoading(
-      Promise.all(assetIds.map(id => deleteAsset(id)))
-    );
+    await withLoading(Promise.all(assetIds.map((id) => deleteAsset(id))));
   };
 
   /**
@@ -395,28 +389,25 @@ export function useAssetManager() {
    * @deprecated 请使用 deleteAsset 代替
    */
   const removeAsset = (assetId: string): void => {
-    const index = assets.value.findIndex(asset => asset.id === assetId);
+    const index = assets.value.findIndex((asset) => asset.id === assetId);
     if (index !== -1) {
       assets.value.splice(index, 1);
     }
   };
 
-
   // --- 计算属性 ---
-  const imageAssets = computed(() => getAssetsByType('image'));
-  const videoAssets = computed(() => getAssetsByType('video'));
-  const audioAssets = computed(() => getAssetsByType('audio'));
-  const documentAssets = computed(() => getAssetsByType('document'));
-  const otherAssets = computed(() => getAssetsByType('other'));
+  const imageAssets = computed(() => getAssetsByType("image"));
+  const videoAssets = computed(() => getAssetsByType("video"));
+  const audioAssets = computed(() => getAssetsByType("audio"));
+  const documentAssets = computed(() => getAssetsByType("document"));
+  const otherAssets = computed(() => getAssetsByType("other"));
 
-  const localAssets = computed(() => getAssetsByOrigin('local'));
-  const clipboardAssets = computed(() => getAssetsByOrigin('clipboard'));
-  const networkAssets = computed(() => getAssetsByOrigin('network'));
+  const localAssets = computed(() => getAssetsByOrigin("local"));
+  const clipboardAssets = computed(() => getAssetsByOrigin("clipboard"));
+  const networkAssets = computed(() => getAssetsByOrigin("network"));
 
   const totalAssets = computed(() => assets.value.length);
-  const totalSize = computed(() =>
-    assets.value.reduce((sum, asset) => sum + asset.size, 0)
-  );
+  const totalSize = computed(() => assets.value.reduce((sum, asset) => sum + asset.size, 0));
 
   return {
     // 状态
@@ -469,8 +460,19 @@ export const assetUtils = {
    * 检查文件是否为支持的图片格式
    */
   isImageFile: (fileName: string): boolean => {
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'avif'];
-    const ext = fileName.split('.').pop()?.toLowerCase();
+    const imageExtensions = [
+      "jpg",
+      "jpeg",
+      "png",
+      "gif",
+      "webp",
+      "svg",
+      "bmp",
+      "ico",
+      "tiff",
+      "avif",
+    ];
+    const ext = fileName.split(".").pop()?.toLowerCase();
     return ext ? imageExtensions.includes(ext) : false;
   },
 
@@ -478,8 +480,8 @@ export const assetUtils = {
    * 检查文件是否为支持的音频格式
    */
   isAudioFile: (fileName: string): boolean => {
-    const audioExtensions = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'];
-    const ext = fileName.split('.').pop()?.toLowerCase();
+    const audioExtensions = ["mp3", "wav", "ogg", "flac", "aac", "m4a"];
+    const ext = fileName.split(".").pop()?.toLowerCase();
     return ext ? audioExtensions.includes(ext) : false;
   },
 
@@ -487,8 +489,8 @@ export const assetUtils = {
    * 检查文件是否为支持的视频格式
    */
   isVideoFile: (fileName: string): boolean => {
-    const videoExtensions = ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'];
-    const ext = fileName.split('.').pop()?.toLowerCase();
+    const videoExtensions = ["mp4", "webm", "avi", "mov", "mkv", "flv"];
+    const ext = fileName.split(".").pop()?.toLowerCase();
     return ext ? videoExtensions.includes(ext) : false;
   },
 
@@ -496,8 +498,24 @@ export const assetUtils = {
    * 检查文件是否为支持的文档格式
    */
   isDocumentFile: (fileName: string): boolean => {
-    const documentExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts'];
-    const ext = fileName.split('.').pop()?.toLowerCase();
+    const documentExtensions = [
+      "pdf",
+      "doc",
+      "docx",
+      "xls",
+      "xlsx",
+      "ppt",
+      "pptx",
+      "txt",
+      "md",
+      "json",
+      "xml",
+      "html",
+      "css",
+      "js",
+      "ts",
+    ];
+    const ext = fileName.split(".").pop()?.toLowerCase();
     return ext ? documentExtensions.includes(ext) : false;
   },
 
@@ -505,11 +523,11 @@ export const assetUtils = {
    * 根据文件名推断资产类型
    */
   inferAssetType: (fileName: string): AssetType => {
-    if (assetUtils.isImageFile(fileName)) return 'image';
-    if (assetUtils.isAudioFile(fileName)) return 'audio';
-    if (assetUtils.isVideoFile(fileName)) return 'video';
-    if (assetUtils.isDocumentFile(fileName)) return 'document';
-    return 'other';
+    if (assetUtils.isImageFile(fileName)) return "image";
+    if (assetUtils.isAudioFile(fileName)) return "audio";
+    if (assetUtils.isVideoFile(fileName)) return "video";
+    if (assetUtils.isDocumentFile(fileName)) return "document";
+    return "other";
   },
 
   /**
@@ -519,9 +537,9 @@ export const assetUtils = {
     return {
       generateThumbnail: true,
       enableDeduplication: true,
-      ...overrides
+      ...overrides,
     };
-  }
+  },
 };
 
 export type { Asset, AssetImportOptions, AssetType, AssetOrigin, AssetMetadata };

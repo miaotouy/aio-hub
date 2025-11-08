@@ -148,6 +148,11 @@ export interface AssetImportOptions {
    * 自定义来源信息
    */
   origin?: AssetOrigin;
+
+  /**
+   * 指定一个子目录来存储资产，而不是按类型和日期
+   */
+  subfolder?: string;
 }
 
 /**

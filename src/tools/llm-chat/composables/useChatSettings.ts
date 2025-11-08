@@ -4,13 +4,13 @@
  * 注意：流式输出开关已在 MessageInput 工具栏，代码主题跟随全局，LLM 参数跟随智能体
  */
 
-import { ref } from 'vue';
-import { createConfigManager } from '@/utils/configManager';
-import { createModuleLogger } from '@utils/logger';
-import { createModuleErrorHandler } from '@utils/errorHandler';
+import { ref } from "vue";
+import { createConfigManager } from "@/utils/configManager";
+import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 
-const logger = createModuleLogger('useChatSettings');
-const moduleErrorHandler = createModuleErrorHandler('useChatSettings');
+const logger = createModuleLogger("useChatSettings");
+const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
 
 /**
  * 聊天设置接口
@@ -18,6 +18,8 @@ const moduleErrorHandler = createModuleErrorHandler('useChatSettings');
 export interface ChatSettings {
   /** UI 偏好设置 */
   uiPreferences: {
+    /** 是否启用流式输出 */
+    isStreaming: boolean;
     /** 是否显示消息时间戳 */
     showTimestamp: boolean;
     /** 是否显示 Token 统计 */
@@ -45,9 +47,9 @@ export interface ChatSettings {
   /** 快捷键设置 */
   shortcuts: {
     /** 发送消息快捷键 */
-    send: 'ctrl+enter' | 'enter';
+    send: "ctrl+enter" | "enter";
     /** 换行快捷键（与发送互补） */
-    newLine: 'enter' | 'shift+enter';
+    newLine: "enter" | "shift+enter";
   };
   /** 话题命名设置 */
   topicNaming: {
@@ -73,6 +75,7 @@ export interface ChatSettings {
  */
 export const DEFAULT_SETTINGS: ChatSettings = {
   uiPreferences: {
+    isStreaming: true, // 默认开启流式输出
     showTimestamp: false,
     showTokenCount: true,
     showModelInfo: true,
@@ -87,13 +90,14 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     confirmBeforeClearAll: true,
   },
   shortcuts: {
-    send: 'ctrl+enter',
-    newLine: 'enter',
+    send: "ctrl+enter",
+    newLine: "enter",
   },
   topicNaming: {
     enabled: false,
-    modelIdentifier: '', // 需要用户配置
-    prompt: '快给我为以下对话生成一个简短、精准的标题，不要使用任何标点符号，直接输出标题文本：\n<---------->\n{context}\n</---------->',
+    modelIdentifier: "", // 需要用户配置
+    prompt:
+      "快给我为以下对话生成一个简短、精准的标题，不要使用任何标点符号，直接输出标题文本：\n<---------->\n{context}\n</---------->",
     temperature: 0.7,
     maxTokens: 30,
     autoTriggerThreshold: 3, // 当会话中有 3 条用户消息时自动触发
@@ -105,9 +109,9 @@ export const DEFAULT_SETTINGS: ChatSettings = {
  * 创建聊天设置配置管理器
  */
 const settingsManager = createConfigManager<ChatSettings>({
-  moduleName: 'llm-chat',
-  fileName: 'chat-settings.json',
-  version: '1.0.0',
+  moduleName: "llm-chat",
+  fileName: "chat-settings.json",
+  version: "1.0.0",
   createDefault: () => ({ ...DEFAULT_SETTINGS }),
   mergeConfig: (defaultConfig, loadedConfig) => {
     return {
@@ -141,17 +145,17 @@ const isLoaded = ref(false);
  */
 async function loadSettings(): Promise<void> {
   if (isLoaded.value) {
-    logger.info('设置已加载，跳过重复加载');
+    logger.info("设置已加载，跳过重复加载");
     return;
   }
 
   try {
     settings.value = await settingsManager.load();
     isLoaded.value = true;
-    logger.info('聊天设置加载成功', { settings: settings.value });
+    logger.info("聊天设置加载成功", { settings: settings.value });
   } catch (error) {
-    moduleErrorHandler.warn(error, '加载聊天设置失败，使用默认设置', {
-      action: 'loadSettings',
+    moduleErrorHandler.warn(error, "加载聊天设置失败，使用默认设置", {
+      action: "loadSettings",
     });
     settings.value = { ...DEFAULT_SETTINGS };
     isLoaded.value = true;
@@ -165,10 +169,10 @@ async function loadSettings(): Promise<void> {
 async function saveSettings(): Promise<void> {
   try {
     await settingsManager.save(settings.value);
-    logger.info('聊天设置保存成功');
+    logger.info("聊天设置保存成功");
   } catch (error) {
-    moduleErrorHandler.error(error, '保存聊天设置失败', {
-      action: 'saveSettings',
+    moduleErrorHandler.error(error, "保存聊天设置失败", {
+      action: "saveSettings",
     });
     throw error;
   }
@@ -179,7 +183,7 @@ async function saveSettings(): Promise<void> {
 async function resetSettings(): Promise<void> {
   settings.value = { ...DEFAULT_SETTINGS };
   await saveSettings();
-  logger.info('聊天设置已重置为默认值');
+  logger.info("聊天设置已重置为默认值");
 }
 
 /**
@@ -208,10 +212,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       },
     };
     await saveSettings();
-    logger.info('聊天设置已更新', { updates });
+    logger.info("聊天设置已更新", { updates });
   } catch (error) {
-    moduleErrorHandler.error(error, '更新聊天设置失败', {
-      action: 'updateSettings',
+    moduleErrorHandler.error(error, "更新聊天设置失败", {
+      action: "updateSettings",
       updates,
     });
     throw error;

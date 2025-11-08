@@ -27,7 +27,12 @@ const logger = createModuleLogger("MessageInput");
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
-const { settings } = useChatSettings();
+const { settings, updateSettings, isLoaded: settingsLoaded } = useChatSettings();
+
+// 计算流式输出状态，在设置加载前默认为 false（非流式）
+const isStreamingEnabled = computed(() => {
+  return settingsLoaded.value ? settings.value.uiPreferences.isStreaming : false;
+});
 
 // Token 计数相关
 const tokenCount = ref<number>(0);
@@ -41,7 +46,12 @@ const isLoadingContextStats = ref(false);
 // 切换流式输出模式
 const toggleStreaming = () => {
   if (!props.isSending) {
-    chatStore.isStreaming = !chatStore.isStreaming;
+    updateSettings({
+      uiPreferences: {
+        ...settings.value.uiPreferences,
+        isStreaming: !isStreamingEnabled.value,
+      },
+    });
   }
 };
 
@@ -662,13 +672,15 @@ const handleDetach = async () => {
               </span>
               <el-tooltip
                 :content="
-                  chatStore.isStreaming ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
+                  isStreamingEnabled
+                    ? '流式输出：实时显示生成内容'
+                    : '非流式输出：等待完整响应'
                 "
                 placement="top"
               >
                 <button
                   class="streaming-icon-button"
-                  :class="{ active: chatStore.isStreaming }"
+                  :class="{ active: isStreamingEnabled }"
                   :disabled="isSending"
                   @click="toggleStreaming"
                 >

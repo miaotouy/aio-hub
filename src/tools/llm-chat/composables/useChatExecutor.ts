@@ -7,7 +7,7 @@ import type { ChatSession, ChatMessageNode } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useAgentStore } from "../agentStore";
 import { useUserProfileStore } from "../userProfileStore";
-import { useLlmChatStore } from "../store";
+import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
@@ -57,7 +57,7 @@ export function useChatExecutor() {
     generatingNodes,
   }: ExecuteRequestParams): Promise<void> => {
     const agentStore = useAgentStore();
-    const chatStore = useLlmChatStore();
+    const { settings } = useChatSettings();
 
     // 获取当前 Agent 配置
     if (!agentStore.currentAgentId) {
@@ -167,7 +167,7 @@ export function useChatExecutor() {
         modelId: agentConfig.modelId,
         totalMessageCount: messages.length,
         systemMessageCount: messages.filter((m) => m.role === "system").length,
-        isStreaming: chatStore.isStreaming,
+        isStreaming: settings.value.uiPreferences.isStreaming,
       });
 
       logger.debug("📋 发送的完整消息列表", {
@@ -225,14 +225,14 @@ export function useChatExecutor() {
         stopSequences: agentConfig.parameters.stopSequences,
         claudeMetadata: agentConfig.parameters.claudeMetadata,
         // 流式响应（根据用户设置）
-        stream: chatStore.isStreaming,
+        stream: settings.value.uiPreferences.isStreaming,
         signal: abortController.signal,
-        onStream: chatStore.isStreaming
+        onStream: settings.value.uiPreferences.isStreaming
           ? (chunk: string) => {
               handleStreamUpdate(session, assistantNode.id, chunk, false);
             }
           : undefined,
-        onReasoningStream: chatStore.isStreaming
+        onReasoningStream: settings.value.uiPreferences.isStreaming
           ? (chunk: string) => {
               handleStreamUpdate(session, assistantNode.id, chunk, true);
             }

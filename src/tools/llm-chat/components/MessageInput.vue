@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, toRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { ElTooltip } from "element-plus";
+import { ElTooltip, ElPopover } from "element-plus";
 import { MagicStick } from "@element-plus/icons-vue";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
@@ -66,6 +66,7 @@ const inputAreaRef = ref<HTMLDivElement>();
 
 // 宏选择器状态
 const macroSelectorVisible = ref(false);
+const isExpanded = ref(false);
 
 // 使用全局输入管理器（替代本地状态）
 const inputManager = useChatInputManager();
@@ -132,6 +133,7 @@ const handleSend = () => {
 
   // 清空输入框和附件（使用全局管理器）
   inputManager.clear();
+  isExpanded.value = false;
 
   // 重置文本框高度
   if (textareaRef.value) {
@@ -143,6 +145,23 @@ const handleSend = () => {
 const handleAbort = () => {
   emit("abort");
 };
+
+const toggleExpand = () => {
+  if (props.isDetached) return;
+
+  isExpanded.value = !isExpanded.value;
+  if (textareaRef.value) {
+    if (isExpanded.value) {
+      // 展开
+      textareaRef.value.style.height = "70vh";
+    } else {
+      // 收起
+      textareaRef.value.style.removeProperty("height");
+      autoResize();
+    }
+  }
+};
+
 // 处理键盘事件（根据设置动态处理）
 const handleKeydown = (e: KeyboardEvent) => {
   const sendKey = settings.value.shortcuts.send;
@@ -176,6 +195,7 @@ const placeholderText = computed(() => {
 
 // 自动调整文本框高度
 const autoResize = () => {
+  if (isExpanded.value) return;
   if (textareaRef.value) {
     // 重置高度以获取正确的 scrollHeight
     textareaRef.value.style.height = "auto";
@@ -192,6 +212,7 @@ const startHeight = ref(0);
 
 // 拖拽开始处理 - 输入框高度调整
 const handleInputResizeStart = (e: MouseEvent) => {
+  isExpanded.value = false;
   isResizing.value = true;
   startY.value = e.clientY;
   
@@ -219,7 +240,7 @@ const handleMouseMove = (e: MouseEvent) => {
   
   // 限制最小和最大高度
   const minHeight = 40;
-  const maxHeight = props.isDetached ? window.innerHeight * 0.8 : 400;
+  const maxHeight = props.isDetached ? window.innerHeight * 0.8 : window.innerHeight * 0.8;
   const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
   
   // 直接设置 DOM 样式以获得最佳性能
@@ -239,6 +260,7 @@ const handleMouseUp = () => {
 
 // 双击手柄重置高度
 const handleResizeDoubleClick = () => {
+  isExpanded.value = false;
   autoResize();
 };
 
@@ -672,6 +694,48 @@ const handleDetach = async () => {
                 </template>
                 <MacroSelector @insert="handleInsertMacro" />
               </el-popover>
+              <el-tooltip
+                v-if="!props.isDetached"
+                :content="isExpanded ? '收起输入框' : '展开输入框'"
+                placement="top"
+              >
+                <button
+                  class="expand-toggle-button"
+                  :class="{ active: isExpanded }"
+                  @click="toggleExpand"
+                >
+                  <svg
+                    v-if="!isExpanded"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+                    />
+                  </svg>
+                  <svg
+                    v-else
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
+                    />
+                  </svg>
+                </button>
+              </el-tooltip>
             </div>
             <div class="input-actions">
               <!-- 历史上下文统计 -->
@@ -969,7 +1033,7 @@ const handleDetach = async () => {
   overflow-y: auto;
   font-family: inherit;
   min-height: 40px; /* 最小高度约1-2行 */
-  max-height: 200px; /* 默认最大高度约8行 */
+  max-height: 70vh; /* 默认最大高度约8行 */
 }
 
 /* 分离模式下取消最大高度限制 */
@@ -1237,6 +1301,36 @@ const handleDetach = async () => {
 }
 
 .macro-icon-button.active {
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
+  color: var(--primary-color);
+}
+
+.expand-toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-color-secondary);
+  font-size: 16px;
+}
+
+.expand-toggle-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.expand-toggle-button:not(.active):hover:not(:disabled) {
+  background-color: var(--el-fill-color-light);
+  color: var(--text-color-primary);
+}
+
+.expand-toggle-button.active {
   background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
   color: var(--primary-color);
 }

@@ -1100,6 +1100,7 @@ const handleDetach = async () => {
   color: var(--text-color-secondary);
   transition: all 0.3s ease;
   position: relative;
+  top: -1.5px; /* 微调垂直对齐 */
   display: inline-block;
 }
 

@@ -18,10 +18,22 @@ export async function acquireBlobUrl(src: string): Promise<string | null> {
   }
 
   try {
-    const relativePath = src.substring(10).replace(/\\/g, "/");
-    const bytes = await invoke<number[]>("get_asset_binary", {
-      relativePath,
-    });
+    let bytes: number[];
+
+    if (src.startsWith("appdata://")) {
+      // 处理 appdata:// 协议，调用专用的资产读取命令
+      const relativePath = src.substring(10).replace(/\\/g, "/");
+      bytes = await invoke<number[]>("get_asset_binary", {
+        relativePath,
+      });
+    } else {
+      // 处理本地绝对路径（例如 C:\... 或 \\...）
+      // 调用通用的二进制文件读取命令
+      bytes = await invoke<number[]>("read_file_binary", {
+        path: src,
+      });
+    }
+
     const uint8Array = new Uint8Array(bytes);
     const blob = new Blob([uint8Array]);
     const blobUrl = URL.createObjectURL(blob);

@@ -33,17 +33,23 @@ const processedSrc = ref("");
 const isSrcReady = ref(false); // 新增状态，控制图片是否准备好渲染
 const managedSrc = ref<string | null>(null); // 追踪被管理的 blob url 的源路径
 
+const sanitizedSrc = computed(() => {
+  if (!props.src) return "";
+  // 移除开头和结尾多余的空格和引号
+  return props.src.trim().replace(/^"|"$/g, "").trim();
+});
+
 // 判断是否为图片路径
 const isImagePath = computed(() => {
   return (
-    props.src &&
-    (props.src.startsWith("/") ||
-      props.src.startsWith("appdata://") ||
-      props.src.startsWith("http://") ||
-      props.src.startsWith("https://") ||
-      props.src.startsWith("data:") ||
-      /^[A-Za-z]:[\/\\]/.test(props.src) || // Windows 绝对路径（支持正反斜杠）
-      props.src.startsWith("\\\\")) // UNC 路径
+    sanitizedSrc.value &&
+    (sanitizedSrc.value.startsWith("/") ||
+      sanitizedSrc.value.startsWith("appdata://") ||
+      sanitizedSrc.value.startsWith("http://") ||
+      sanitizedSrc.value.startsWith("https://") ||
+      sanitizedSrc.value.startsWith("data:") ||
+      /^[A-Za-z]:[\/\\]/.test(sanitizedSrc.value) || // Windows 绝对路径（支持正反斜杠）
+      sanitizedSrc.value.startsWith("\\\\")) // UNC 路径
   );
 });
 
@@ -54,25 +60,36 @@ const processSrc = async () => {
   processedSrc.value = "";
   managedSrc.value = null; // 重置管理状态
 
-  if (!props.src) {
+  if (!sanitizedSrc.value) {
     isSrcReady.value = true;
     return;
   }
 
   // HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
-  if (props.src.startsWith("http") || props.src.startsWith("data:") || props.src.startsWith("/")) {
-    processedSrc.value = props.src;
+  if (
+    sanitizedSrc.value.startsWith("http") ||
+    sanitizedSrc.value.startsWith("data:") ||
+    sanitizedSrc.value.startsWith("/")
+  ) {
+    processedSrc.value = sanitizedSrc.value;
     isSrcReady.value = true;
     return;
   }
 
-  // appdata:// 协议 - 使用缓存获取 Blob URL
-  if (props.src.startsWith("appdata://")) {
-    const blobUrl = await acquireBlobUrl(props.src);
+  // appdata:// 协议或本地绝对路径 - 使用缓存获取 Blob URL
+  if (
+    sanitizedSrc.value.startsWith("appdata://") ||
+    /^[A-Za-z]:[\/\\]/.test(sanitizedSrc.value) || // Windows 绝对路径
+    sanitizedSrc.value.startsWith("\\\\") // UNC 路径
+  ) {
+    const blobUrl = await acquireBlobUrl(sanitizedSrc.value);
     if (blobUrl) {
       processedSrc.value = blobUrl;
-      managedSrc.value = props.src; // 标记为已管理
+      managedSrc.value = sanitizedSrc.value; // 标记为已管理
     } else {
+      console.error(
+        `[Avatar Debug] FAILED: Could not acquire blob url for src: ${sanitizedSrc.value}`
+      );
       imageLoadFailed.value = true;
     }
     isSrcReady.value = true;
@@ -85,10 +102,15 @@ const processSrc = async () => {
 
 // 监听器现在会处理旧值的清理
 watch(
-  () => props.src,
+  sanitizedSrc,
   (_newSrc, oldSrc) => {
-    // 如果旧的 src 是我们管理的 appdata:// 路径，则释放它
-    if (oldSrc && oldSrc.startsWith("appdata://")) {
+    // 如果旧的 src 是我们管理的 appdata:// 或本地路径，则释放它
+    if (
+      oldSrc &&
+      (oldSrc.startsWith("appdata://") ||
+        /^[A-Za-z]:[\/\\]/.test(oldSrc) ||
+        oldSrc.startsWith("\\\\"))
+    ) {
       releaseBlobUrl(oldSrc);
     }
     processSrc();
@@ -106,18 +128,18 @@ onBeforeUnmount(() => {
 
 // 判断是否为 emoji（简单判断：单个字符或包含 emoji Unicode 范围）
 const isEmoji = computed(() => {
-  if (!props.src || isImagePath.value) return false;
+  if (!sanitizedSrc.value || isImagePath.value) return false;
   // 简单的 emoji 检测：长度较短且包含非 ASCII 字符
   return (
-    props.src.length <= 4 &&
-    /[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(props.src)
+    sanitizedSrc.value.length <= 4 &&
+    /[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(sanitizedSrc.value)
   );
 });
 
 // 获取 fallback 文字（取 alt 的首字符或 src 的首字符）
 const fallbackText = computed(() => {
   if (props.alt) return props.alt.charAt(0).toUpperCase();
-  if (props.src && !isImagePath.value) return props.src.charAt(0).toUpperCase();
+  if (sanitizedSrc.value && !isImagePath.value) return sanitizedSrc.value.charAt(0).toUpperCase();
   return "?";
 });
 
@@ -166,7 +188,7 @@ const handleImageError = (event: Event) => {
     />
     <!-- Emoji 模式 -->
     <span v-else-if="isEmoji" class="avatar-emoji" :style="{ fontSize: emojiFontSize }">
-      {{ src }}
+      {{ sanitizedSrc }}
     </span>
     <!-- Fallback 模式 -->
     <span v-else class="avatar-fallback" :style="{ fontSize: fallbackFontSize }">

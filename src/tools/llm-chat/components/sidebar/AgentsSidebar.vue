@@ -12,6 +12,7 @@ import EditAgentDialog from "../agent/EditAgentDialog.vue";
 import type { AgentPreset } from "../../types";
 import ExportAgentDialog from "../export/ExportAgentDialog.vue";
 import ImportAgentDialog from "../export/ImportAgentDialog.vue";
+import Avatar from "@/components/common/Avatar.vue";
 
 const agentStore = useAgentStore();
 
@@ -329,25 +330,11 @@ const handleDelete = (agent: ChatAgent) => {
         :class="['agent-item', { selected: isAgentSelected(agent.id) }]"
         @click="selectAgent(agent.id)"
       >
-        <div class="agent-icon">
-          <img
-            v-if="
-              agent.icon &&
-              (agent.icon.startsWith('/') ||
-                agent.icon.startsWith('appdata://') ||
-                agent.icon.startsWith('http'))
-            "
-            :src="
-              agent.icon.startsWith('appdata://')
-                ? agent.icon.replace('appdata://', '/')
-                : agent.icon
-            "
-            :alt="agent.name"
-            class="agent-icon-image"
-            @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-          />
-          <span v-else class="agent-icon-emoji">{{ agent.icon || "🙄" }}</span>
-        </div>
+        <Avatar
+          :src="agent.icon || '🙄'"
+          :alt="agent.name"
+          :class="['agent-icon', { selected: isAgentSelected(agent.id) }]"
+        />
         <div class="agent-info">
           <div class="agent-name">{{ agent.name }}</div>
           <!-- 只在选中时显示详细信息 -->
@@ -518,35 +505,19 @@ const handleDelete = (agent: ChatAgent) => {
 }
 
 .agent-icon {
-  font-size: 24px;
   width: 32px;
   height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
   border-radius: 6px;
   transition: all 0.2s;
+  font-size: 24px;
 }
 
-.agent-item.selected .agent-icon {
+.agent-icon.selected {
   width: 48px;
   height: 48px;
   font-size: 32px;
   border-radius: 8px;
-  border-color: rgba(var(--primary-color-rgb), 0.3);
-}
-
-.agent-icon-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.agent-icon-emoji {
-  font-size: 24px;
-  line-height: 1;
 }
 
 .agent-info {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 
 interface Props {
   /** 头像源：可以是图片 URL、appdata:// 路径、emoji 或其他字符 */
@@ -28,6 +29,23 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const imageLoadFailed = ref(false);
+const processedSrc = ref('');
+
+// 缓存资产基础路径
+let assetBasePath: string | null = null;
+
+// 获取资产基础路径
+const getAssetBasePath = async (): Promise<string> => {
+  if (!assetBasePath) {
+    try {
+      assetBasePath = await invoke<string>('get_asset_base_path');
+    } catch (error) {
+      console.error('[Avatar] 获取资产基础路径失败:', error);
+      assetBasePath = '';
+    }
+  }
+  return assetBasePath;
+};
 
 // 判断是否为图片路径
 const isImagePath = computed(() => {
@@ -36,18 +54,64 @@ const isImagePath = computed(() => {
     props.src.startsWith('appdata://') ||
     props.src.startsWith('http://') ||
     props.src.startsWith('https://') ||
-    props.src.startsWith('data:')
+    props.src.startsWith('data:') ||
+    /^[A-Za-z]:[\/\\]/.test(props.src) ||  // Windows 绝对路径（支持正反斜杠）
+    props.src.startsWith('\\\\')  // UNC 路径
   );
 });
 
-// 处理 appdata:// 路径
-const processedSrc = computed(() => {
-  if (!props.src) return '';
-  if (props.src.startsWith('appdata://')) {
-    return props.src.replace('appdata://', '/');
+// 异步处理路径转换
+const updateProcessedSrc = async () => {
+  if (!props.src) {
+    processedSrc.value = '';
+    return;
   }
-  return props.src;
-});
+
+  // HTTP/HTTPS URL - 直接使用
+  if (props.src.startsWith('http://') || props.src.startsWith('https://')) {
+    processedSrc.value = props.src;
+    return;
+  }
+  
+  // Base64 数据 - 直接使用
+  if (props.src.startsWith('data:')) {
+    processedSrc.value = props.src;
+    return;
+  }
+  
+  // appdata:// 协议 - 转换为完整路径
+  if (props.src.startsWith('appdata://')) {
+    const relativePath = props.src.substring(10); // 移除 appdata:// 前缀
+    const basePath = await getAssetBasePath();
+    if (basePath) {
+      // 规范化相对路径：移除前导斜杠，统一使用正斜杠
+      const normalizedRelativePath = relativePath.replace(/^[\/\\]+/, '').replace(/\\/g, '/');
+      // 规范化基础路径：统一使用正斜杠
+      const normalizedBasePath = basePath.replace(/\\/g, '/');
+      // 拼接完整路径
+      const fullPath = `${normalizedBasePath}/${normalizedRelativePath}`;
+      processedSrc.value = convertFileSrc(fullPath);
+    } else {
+      processedSrc.value = '';
+    }
+    return;
+  }
+  
+  // Windows 绝对路径（支持反斜杠和正斜杠，以及 UNC 路径）
+  if (/^[A-Za-z]:[\/\\]/.test(props.src) || props.src.startsWith('\\\\')) {
+    processedSrc.value = convertFileSrc(props.src);
+    return;
+  }
+  
+  // 其他路径 - 直接使用
+  processedSrc.value = props.src;
+};
+
+// 监听 src 变化
+watch(() => props.src, () => {
+  imageLoadFailed.value = false; // 重置加载失败状态
+  updateProcessedSrc();
+}, { immediate: true });
 
 // 判断是否为 emoji（简单判断：单个字符或包含 emoji Unicode 范围）
 const isEmoji = computed(() => {

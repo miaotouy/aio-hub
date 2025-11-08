@@ -14,6 +14,7 @@ import LeftSidebar from "./components/sidebar/LeftSidebar.vue";
 import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
 import ContextAnalyzerDialog from "./components/context-analyzer/ContextAnalyzerDialog.vue";
 import { createModuleLogger } from "@utils/logger";
+import { initializeMacroEngine } from "./macro-engine";
 
 const logger = createModuleLogger("LlmChat");
 const store = useLlmChatStore();
@@ -103,6 +104,9 @@ const isChatAreaDetached = computed(() => isDetached("chat-area"));
 
 // 组件挂载时加载会话、智能体和用户档案
 onMounted(async () => {
+  // 初始化宏引擎（全局一次）
+  initializeMacroEngine();
+  
   // 加载UI状态
   await loadUiState();
   

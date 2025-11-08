@@ -4,7 +4,7 @@
     @update:visible="handleVisibleChange"
     title="编辑用户档案"
     width="80%"
-    style="max-width: 800px"
+    maxWidth="1200px"
   >
     <template #content>
       <UserProfileForm

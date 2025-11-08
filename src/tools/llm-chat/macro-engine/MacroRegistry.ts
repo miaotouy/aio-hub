@@ -3,6 +3,7 @@
  * 管理所有可用宏的注册、查询和元数据
  */
 
+import { reactive } from 'vue';
 import type { MacroContext } from './MacroContext';
 import { createModuleLogger } from '@/utils/logger';
 
@@ -61,7 +62,7 @@ export interface MacroDefinition {
  */
 export class MacroRegistry {
   private static instance: MacroRegistry;
-  private macros: Map<string, MacroDefinition> = new Map();
+  private macros: Map<string, MacroDefinition> = reactive(new Map());
 
   private constructor() {}
 

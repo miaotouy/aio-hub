@@ -26,11 +26,22 @@
         </el-form-item>
         <el-form-item label="内容">
           <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <MacroSelector
+            <div style="display: flex; justify-content: flex-start; align-items: center;">
+              <el-popover
                 v-model:visible="macroSelectorVisible"
-                @insert="handleInsertMacro"
-              />
+                placement="bottom-start"
+                :width="400"
+                trigger="click"
+                popper-class="macro-selector-popover"
+              >
+                <template #reference>
+                  <el-button size="small" :type="macroSelectorVisible ? 'primary' : 'default'" plain>
+                    <el-icon style="margin-right: 4px;"><MagicStick /></el-icon>
+                    插入宏
+                  </el-button>
+                </template>
+                <MacroSelector @insert="handleInsertMacro" />
+              </el-popover>
             </div>
             <el-input
               ref="contentInputRef"
@@ -59,6 +70,7 @@ import {
   ChatDotRound,
   User,
   Service,
+  MagicStick,
 } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import type { MacroDefinition } from "../../macro-engine";
@@ -144,6 +156,9 @@ function handleInsertMacro(macro: MacroDefinition) {
 
   // 更新内容
   form.value.content = newContent;
+
+  // 关闭弹窗
+  macroSelectorVisible.value = false;
 
   // 设置新的光标位置
   setTimeout(() => {

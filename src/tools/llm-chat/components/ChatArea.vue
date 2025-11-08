@@ -461,8 +461,8 @@ onMounted(async () => {
 
       <!-- 智能体和模型信息 -->
       <div class="agent-model-info">
-        <el-tooltip content="点击编辑智能体" placement="bottom">
-          <div v-if="currentAgent" class="agent-info clickable" @click="handleEditAgent">
+        <div v-if="currentAgent" class="agent-info clickable" @click="handleEditAgent">
+          <el-tooltip content="点击编辑智能体" placement="bottom">
             <Avatar
               :src="currentAgent.icon || '🤖'"
               :alt="currentAgent.name"
@@ -470,26 +470,26 @@ onMounted(async () => {
               shape="square"
               :radius="6"
             />
-            <span class="agent-name">{{ currentAgent.name }}</span>
-          </div>
-        </el-tooltip>
-        <el-tooltip content="点击选择模型" placement="bottom">
-          <div v-if="currentModel" class="model-info clickable" @click="handleSelectModel">
+          </el-tooltip>
+          <span class="agent-name">{{ currentAgent.name }}</span>
+        </div>
+        <div v-if="currentModel" class="model-info clickable" @click="handleSelectModel">
+          <el-tooltip content="点击选择模型" placement="bottom">
             <DynamicIcon
               v-if="modelIcon"
               :src="modelIcon"
               class="model-icon"
               :alt="currentModel.name || currentModel.id"
             />
-            <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
-          </div>
-        </el-tooltip>
+          </el-tooltip>
+          <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
+        </div>
       </div>
 
       <!-- 用户档案信息（右对齐） -->
-      <el-tooltip content="点击编辑用户档案" placement="bottom">
-        <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
-          <span class="profile-name">{{ effectiveUserProfile.name }}</span>
+      <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
+        <span class="profile-name">{{ effectiveUserProfile.name }}</span>
+        <el-tooltip content="点击编辑用户档案" placement="bottom">
           <Avatar
             :src="effectiveUserProfile.icon || '👤'"
             :alt="effectiveUserProfile.name"
@@ -497,8 +497,8 @@ onMounted(async () => {
             shape="square"
             :radius="4"
           />
-        </div>
-      </el-tooltip>
+        </el-tooltip>
+      </div>
 
       <!-- 设置按钮 -->
       <el-tooltip content="聊天设置" placement="bottom">

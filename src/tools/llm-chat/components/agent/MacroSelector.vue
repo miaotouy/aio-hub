@@ -1,24 +1,5 @@
 <template>
-  <el-popover
-    :visible="visible"
-    @update:visible="$emit('update:visible', $event)"
-    placement="bottom-start"
-    :width="400"
-    trigger="click"
-    popper-class="macro-selector-popover"
-  >
-    <template #reference>
-      <el-button
-        size="small"
-        :type="visible ? 'primary' : 'default'"
-        plain
-      >
-        <el-icon style="margin-right: 4px;"><MagicStick /></el-icon>
-        插入宏
-      </el-button>
-    </template>
-
-    <div class="macro-selector">
+  <div class="macro-selector">
       <div class="macro-selector-header">
         <span class="title">可用宏列表</span>
         <el-input
@@ -112,35 +93,23 @@
         >
           未找到匹配的宏
         </div>
-      </div>
     </div>
-  </el-popover>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { MagicStick, Search, Plus } from "@element-plus/icons-vue";
-import { MacroRegistry, type MacroDefinition, initializeMacroEngine } from "../../macro-engine";
-
-interface Props {
-  visible: boolean;
-}
+import { ref, computed } from "vue";
+import { Search, Plus } from "@element-plus/icons-vue";
+import { MacroRegistry, type MacroDefinition } from "../../macro-engine";
 
 interface Emits {
-  (e: "update:visible", value: boolean): void;
   (e: "insert", macro: MacroDefinition): void;
 }
 
-defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 // 搜索文本
 const searchText = ref("");
-
-// 初始化宏引擎
-onMounted(() => {
-  initializeMacroEngine();
-});
 
 // 获取所有宏并按类型分组
 const groupedMacros = computed(() => {
@@ -192,7 +161,6 @@ function formatMacroName(name: string): string {
  */
 function handleInsertMacro(macro: MacroDefinition) {
   emit("insert", macro);
-  emit("update:visible", false);
 }
 </script>
 
@@ -286,13 +254,5 @@ function handleInsertMacro(macro: MacroDefinition) {
   padding: 40px 20px;
   color: var(--el-text-color-secondary);
   font-size: 14px;
-}
-
-</style>
-
-<style>
-/* 全局样式：调整 popover 样式 */
-.macro-selector-popover {
-  padding: 16px !important;
 }
 </style>

@@ -2,6 +2,7 @@
 import { ref, toRef, computed, watch, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip } from "element-plus";
+import { MagicStick } from "@element-plus/icons-vue";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -18,6 +19,8 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "./AttachmentCard.vue";
+import MacroSelector from "./agent/MacroSelector.vue";
+import type { MacroDefinition } from "../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
 
@@ -60,6 +63,9 @@ const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const inputAreaRef = ref<HTMLDivElement>();
+
+// 宏选择器状态
+const macroSelectorVisible = ref(false);
 
 // 使用全局输入管理器（替代本地状态）
 const inputManager = useChatInputManager();
@@ -414,6 +420,39 @@ watch(
 onMounted(() => {
   loadContextStats();
 });
+/**
+ * 插入宏到光标位置
+ */
+function handleInsertMacro(macro: MacroDefinition) {
+  const textarea = textareaRef.value;
+  if (!textarea) return;
+
+  // 获取当前光标位置
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+
+  // 要插入的文本
+  const insertText = macro.example || `{{${macro.name}}}`;
+
+  // 拼接新内容
+  const newContent =
+    inputText.value.substring(0, start) +
+    insertText +
+    inputText.value.substring(end);
+
+  // 更新内容
+  inputText.value = newContent;
+
+  // 关闭弹窗
+  macroSelectorVisible.value = false;
+
+  // 设置新的光标位置
+  setTimeout(() => {
+    textarea.focus();
+    const newCursorPos = start + insertText.length;
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+  }, 0);
+}
 
 // 处理从菜单打开独立窗口
 const handleDetach = async () => {
@@ -539,6 +578,25 @@ const handleDetach = async () => {
                   <span class="typewriter-icon">A_</span>
                 </button>
               </el-tooltip>
+              <!-- 宏选择器按钮 -->
+              <el-popover
+                v-model:visible="macroSelectorVisible"
+                placement="bottom-start"
+                :width="400"
+                trigger="click"
+                popper-class="macro-selector-popover"
+              >
+                <template #reference>
+                  <button
+                    class="macro-icon-button"
+                    :class="{ active: macroSelectorVisible }"
+                    :title="macroSelectorVisible ? '' : '插入宏变量'"
+                  >
+                    <el-icon><MagicStick /></el-icon>
+                  </button>
+                </template>
+                <MacroSelector @insert="handleInsertMacro" />
+              </el-popover>
             </div>
             <div class="input-actions">
               <!-- 历史上下文统计 -->
@@ -1049,5 +1107,36 @@ const handleDetach = async () => {
 .resize-handle:active {
   opacity: 1;
   background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
+}
+
+/* 宏选择器图标按钮样式 - 与工具栏按钮保持一致 */
+.macro-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-color-secondary);
+  font-size: 16px;
+}
+
+.macro-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.macro-icon-button:not(.active):hover:not(:disabled) {
+  background-color: var(--el-fill-color-light);
+  color: var(--text-color-primary);
+}
+
+.macro-icon-button.active {
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
+  color: var(--primary-color);
 }
 </style>

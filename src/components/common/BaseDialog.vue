@@ -70,6 +70,7 @@ const props = withDefaults(defineProps<{
   visible: boolean;
   title?: string;
   width?: string;
+  maxWidth?: string;
   height?: string;
   showCloseButton?: boolean;
   closeOnBackdropClick?: boolean;
@@ -109,11 +110,19 @@ const dialogStyles = computed(() => {
     // 如果是像素值、百分比、vh等，直接使用
     if (/^\d+(px|%|vh|vw|rem|em)$/.test(props.width)) {
       styles.width = props.width;
-      styles.maxWidth = props.width;
+      // 如果没有指定 maxWidth，则使用 width 作为 maxWidth
+      if (!props.maxWidth) {
+        styles.maxWidth = props.width;
+      }
     } else {
       // 否则当作最大宽度
       styles.maxWidth = props.width;
     }
+  }
+  
+  // 处理最大宽度（优先级高于 width 推导的 maxWidth）
+  if (props.maxWidth) {
+    styles.maxWidth = props.maxWidth;
   }
   
   // 处理高度

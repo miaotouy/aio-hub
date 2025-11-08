@@ -334,7 +334,7 @@ const handleIconClick = () => {
           clearable
           style="width: 100%"
         >
-          <el-option :value="null" label="无（使用全局设置）" />
+          <el-option value="" label="无（使用全局设置）" />
           <el-option
             v-for="profile in userProfileStore.enabledProfiles"
             :key="profile.id"

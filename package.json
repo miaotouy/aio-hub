@@ -18,6 +18,9 @@
     "type": "individual",
     "url": "https://afdian.com/a/miaotouy"
   },
+  "workspaces": [
+    "plugins/*"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 vue-tsc --noEmit && cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build",

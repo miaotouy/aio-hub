@@ -10,6 +10,17 @@ import type { UserCssSettings } from "@/types/css-override";
 // 壁纸模式类型
 export type WallpaperMode = 'static' | 'slideshow';
 
+// 壁纸填充模式
+export type WallpaperFit = 'cover' | 'contain' | 'fill' | 'tile';
+
+// 拼贴模式的详细选项
+export interface WallpaperTileOptions {
+  scale?: number;        // 缩放比例 (e.g., 1.0)
+  flipHorizontal?: boolean; // 水平翻转
+  flipVertical?: boolean;   // 垂直翻转
+  rotation?: number;     // 旋转角度 (0-360)
+}
+
 // 窗口特效类型（根据不同操作系统支持）
 export type WindowEffect = 'none' | 'blur' | 'acrylic' | 'mica' | 'vibrancy';
 
@@ -22,6 +33,8 @@ export interface AppearanceSettings {
   wallpaperSlideshowPath: string;              // 目录轮播的目录路径
   wallpaperSlideshowInterval: number;          // 轮播间隔（分钟）
   wallpaperOpacity: number;                    // 壁纸透明度 (0.0 - 1.0)
+  wallpaperFit: WallpaperFit;                  // 壁纸填充模式
+  wallpaperTileOptions?: WallpaperTileOptions; // 拼贴模式的详细选项
   
   // --- UI 层特效 (应用内) ---
   enableUiBlur: boolean;                       // 是否启用 UI 元素模糊 (backdrop-filter)
@@ -95,6 +108,13 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   wallpaperSlideshowPath: '', // 目录轮播路径
   wallpaperSlideshowInterval: 30, // 30分钟切换
   wallpaperOpacity: 0.3, // 默认调低一点，避免喧宾夺主
+  wallpaperFit: 'cover', // 默认覆盖模式
+  wallpaperTileOptions: {
+    scale: 1.0,
+    flipHorizontal: false,
+    flipVertical: false,
+    rotation: 0,
+  },
   
   // UI 特效
   enableUiBlur: true,
@@ -187,6 +207,11 @@ export const appSettingsManager = createConfigManager<AppSettings>({
         ...defaultConfig.appearance?.layerOpacityOffsets,
         ...loadedConfig.appearance?.layerOpacityOffsets,
       },
+      // 深度合并 wallpaperTileOptions
+      wallpaperTileOptions: {
+        ...(defaultConfig.appearance?.wallpaperTileOptions ?? {}),
+        ...(loadedConfig.appearance?.wallpaperTileOptions ?? {}),
+      }
     } : defaultConfig.appearance;
 
     return {

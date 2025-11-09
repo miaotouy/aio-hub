@@ -37,6 +37,31 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty('--wallpaper-url', `url('${currentWallpaper.value}')`);
     root.style.setProperty('--wallpaper-opacity', String(settings.wallpaperOpacity));
     root.style.setProperty('--bg-color', 'transparent');
+
+    // --- Wallpaper Fit & Tile ---
+    const fit = settings.wallpaperFit ?? 'cover';
+    const tileOptions = {
+      ...defaultAppearanceSettings.wallpaperTileOptions,
+      ...settings.wallpaperTileOptions
+    };
+
+    const wallpaperSizeMap: Record<string, string> = {
+      cover: 'cover',
+      contain: 'contain',
+      fill: '100% 100%',
+      // For tile, scale is used to determine the size of one tile relative to the container.
+      tile: `${(tileOptions.scale ?? 1.0) * 100}%`
+    };
+
+    root.style.setProperty('--wallpaper-size', wallpaperSizeMap[fit]);
+    root.style.setProperty('--wallpaper-repeat', fit === 'tile' ? 'repeat' : 'no-repeat');
+    
+    // For tile mode transforms, these variables can be used by a pseudo-element.
+    const scaleX = tileOptions.flipHorizontal ? -1 : 1;
+    const scaleY = tileOptions.flipVertical ? -1 : 1;
+    const rotation = tileOptions.rotation ?? 0;
+    root.style.setProperty('--wallpaper-tile-transform', `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg)`);
+
   } else {
     root.style.setProperty('--wallpaper-url', 'none');
     root.style.setProperty('--wallpaper-opacity', '0');

@@ -11,7 +11,7 @@
         </template>
         <el-form label-position="top">
           <el-form-item label="壁纸预览">
-            <div class="wallpaper-preview" :style="{ backgroundImage: `url(${currentWallpaper})` }">
+            <div class="wallpaper-preview" :style="wallpaperPreviewStyle">
               <div v-if="!currentWallpaper || !enableWallpaper" class="empty-state">
                 <el-icon><Picture /></el-icon>
                 <span>{{ enableWallpaper ? "无壁纸" : "壁纸已禁用" }}</span>
@@ -57,6 +57,37 @@
                 </template>
               </el-input>
             </el-form-item>
+
+            <el-form-item label="填充模式">
+              <el-radio-group v-model="wallpaperFit">
+                <el-radio-button value="cover">覆盖</el-radio-button>
+                <el-radio-button value="contain">包含</el-radio-button>
+                <el-radio-button value="fill">拉伸</el-radio-button>
+                <el-radio-button value="tile">平铺</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+
+            <!-- 拼贴模式专属选项 -->
+            <div v-if="wallpaperFit === 'tile'" class="tile-options">
+              <el-form-item label="拼贴缩放">
+                <el-slider v-model="wallpaperTileScale" :min="0.1" :max="3" :step="0.05" />
+              </el-form-item>
+              <el-form-item label="拼贴旋转">
+                <el-slider v-model="wallpaperTileRotation" :min="0" :max="360" :step="1" />
+              </el-form-item>
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="水平翻转">
+                    <el-switch v-model="wallpaperTileFlipHorizontal" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="垂直翻转">
+                    <el-switch v-model="wallpaperTileFlipVertical" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
 
             <div class="button-group">
               <el-button @click="confirmClearWallpaper" type="danger" plain>清除壁纸</el-button>
@@ -133,6 +164,7 @@ import { computed } from "vue";
 import { Picture } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
+import type { WallpaperFit } from "@/utils/appSettings";
 
 const {
   appearanceSettings,
@@ -188,6 +220,39 @@ const wallpaperSlideshowPath = computed({
   set: (val) => updateAppearanceSetting({ wallpaperSlideshowPath: val }),
 });
 
+const wallpaperFit = computed({
+  get: () => appearanceSettings.value.wallpaperFit,
+  set: (val: WallpaperFit) => updateAppearanceSetting({ wallpaperFit: val }),
+});
+
+const wallpaperTileScale = computed({
+  get: () => appearanceSettings.value.wallpaperTileOptions?.scale ?? 1.0,
+  set: (val) => updateAppearanceSetting({
+    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, scale: val }
+  }, { debounceUi: true }),
+});
+
+const wallpaperTileRotation = computed({
+  get: () => appearanceSettings.value.wallpaperTileOptions?.rotation ?? 0,
+  set: (val) => updateAppearanceSetting({
+    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, rotation: val }
+  }, { debounceUi: true }),
+});
+
+const wallpaperTileFlipHorizontal = computed({
+  get: () => appearanceSettings.value.wallpaperTileOptions?.flipHorizontal ?? false,
+  set: (val) => updateAppearanceSetting({
+    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, flipHorizontal: val }
+  }),
+});
+
+const wallpaperTileFlipVertical = computed({
+  get: () => appearanceSettings.value.wallpaperTileOptions?.flipVertical ?? false,
+  set: (val) => updateAppearanceSetting({
+    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, flipVertical: val }
+  }),
+});
+
 const wallpaperOpacity = computed({
   get: () => appearanceSettings.value.wallpaperOpacity,
   set: (val) => updateAppearanceSetting({ wallpaperOpacity: val }, { debounceUi: true }),
@@ -227,6 +292,31 @@ const editorOpacity = computed({
   get: () => appearanceSettings.value.editorOpacity,
   set: (val) => updateAppearanceSetting({ editorOpacity: val }, { debounceUi: true }),
 });
+
+const wallpaperPreviewStyle = computed(() => {
+  const baseStyle: Record<string, string> = {
+    backgroundImage: `url(${currentWallpaper.value})`,
+    backgroundPosition: 'center',
+  };
+
+  const fit = wallpaperFit.value;
+  if (fit === 'tile') {
+    const scale = wallpaperTileScale.value;
+    baseStyle.backgroundSize = `${scale * 100}%`;
+    baseStyle.backgroundRepeat = 'repeat';
+    // 预览中不展示 transform，因为它会应用到整个 div，效果不对
+  } else {
+    const sizeMap: Record<string, string> = {
+      cover: 'cover',
+      contain: 'contain',
+      fill: '100% 100%',
+    };
+    baseStyle.backgroundSize = sizeMap[fit] ?? 'cover';
+    baseStyle.backgroundRepeat = 'no-repeat';
+  }
+  
+  return baseStyle;
+});
 </script>
 
 <style scoped>
@@ -264,8 +354,6 @@ const editorOpacity = computed({
   height: 320px;
   border-radius: 8px;
   border: 1px dashed var(--border-color);
-  background-size: cover;
-  background-position: center;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -282,6 +370,13 @@ const editorOpacity = computed({
 
 .empty-state .el-icon {
   font-size: 32px;
+}
+
+.tile-options {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 20px 20px 0 20px;
+  margin-bottom: 18px;
 }
 
 .button-group {

@@ -22,6 +22,7 @@
 import { ref, onMounted, onUnmounted, watch, shallowRef, computed, nextTick } from "vue";
 import { useTheme } from "@composables/useTheme";
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import * as monaco from 'monaco-editor';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import { EditorState, Compartment } from "@codemirror/state";
 import {
@@ -129,7 +130,6 @@ const handleMonacoMount = (editor: MonacoEditor.IStandaloneCodeEditor) => {
   monacoEditorInstance.value = editor;
   
   // 定义自定义主题以适配全局 CSS 变量
-  const monaco = (window as any).monaco;
   if (monaco) {
     monaco.editor.defineTheme('custom-theme', {
       base: 'vs-dark',

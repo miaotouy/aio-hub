@@ -179,7 +179,7 @@ onBeforeUnmount(() => {
 .base-dialog-backdrop {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: rgba(var(--backdrop-bg-rgb), 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -207,10 +207,11 @@ onBeforeUnmount(() => {
 
 /* 样式模式 */
 .dialog-styled {
-  background-color: var(--el-bg-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--el-border-color);
+  border: 1px solid var(--border-color);
 }
 
 /* 无样式模式 */
@@ -241,7 +242,7 @@ onBeforeUnmount(() => {
 }
 
 .dialog-header.with-border {
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .dialog-title {
@@ -299,7 +300,7 @@ onBeforeUnmount(() => {
 }
 
 .dialog-footer.with-border {
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--border-color);
 }
 
 /* 滚动条样式 */

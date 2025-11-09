@@ -26,6 +26,7 @@
   --header-bg-rgb: 255, 255, 255;
   --card-bg: #ffffff; /* 新增卡片背景色 */
   --card-bg-rgb: 255, 255, 255;
+  --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
   --border-color-light: #eee; /* 新增浅色边框 */
   --scrollbar-thumb-color: #c1c1c1;
   --scrollbar-thumb-hover-color: #a8a8a8;
@@ -82,6 +83,7 @@ html.dark {
   --header-bg-rgb: 42, 42, 42;
   --card-bg: #2a2a2a;  /* 卡片背景色 */
   --card-bg-rgb: 42, 42, 42;
+  --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
   --scrollbar-thumb-color: #555;  /* 滚动条颜色 */
   --scrollbar-thumb-hover-color: #777;  /* 滚动条悬停色 */
 }

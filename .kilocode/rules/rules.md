@@ -118,3 +118,46 @@
 
 - **UI 交互**:
   - `useImageViewer` 提供全局的图片查看功能，支持缩放、旋转等操作。
+
+## 5. 主题外观系统 (Theme Appearance)
+
+项目包含一个强大的主题外观系统，允许用户动态调整应用的透明度、模糊等视觉效果。核心逻辑封装在 `src/composables/useThemeAppearance.ts` 中。
+
+#### 核心机制
+
+该系统通过在 `<html>` 根元素上动态设置 CSS 自定义属性 (CSS Variables) 来工作。所有组件都应优先使用这些变量来定义背景、边框等样式，以确保与用户设置保持一致。
+
+#### 如何适配新组件
+
+要使你的组件支持动态主题外观，请遵循以下原则：
+
+1.  **背景**: 根据组件的角色，使用对应的背景变量。这些变量已经包含了基于用户设置的透明度。
+    *   **卡片/面板**: `background-color: var(--card-bg);`
+    *   **输入框**: `background-color: var(--input-bg);`
+    *   **侧边栏**: `background-color: var(--sidebar-bg);`
+    *   **对话框/遮罩层**: `background-color: var(--container-bg);`
+
+2.  **模糊效果 (Glassmorphism)**: 如果希望组件拥有毛玻璃效果，请添加 `backdrop-filter` 属性。模糊强度由用户设置动态控制。
+    *   `backdrop-filter: blur(var(--ui-blur));`
+
+3.  **边框**: 边框颜色已经预设了透明度，可以直接使用 `--border-color` 变量。
+    *   `border: 1px solid var(--border-color);`
+
+4.  **代码编辑器**: 对于代码编辑区域（如 CodeMirror/Monaco），应使用特定变量以匹配用户设置：
+    *   `background-color: var(--vscode-editor-background);`
+
+#### 示例
+
+一个正确适配主题的卡片组件样式可能如下：
+
+```css
+.my-custom-card {
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-light); /* 复用 Element Plus 的阴影 */
+}
+```
+
+通过遵循这些规范，可以确保所有 UI 元素都能响应设置中的“界面质感”调整，提供统一、高度可定制的用户体验。

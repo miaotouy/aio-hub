@@ -144,13 +144,24 @@ const fallbackText = computed(() => {
 });
 
 // 容器样式
-const containerStyle = computed(() => ({
-  width: `${props.size}px`,
-  height: `${props.size}px`,
-  borderRadius: props.shape === "circle" ? "50%" : `${props.radius}px`,
-  backgroundColor: props.backgroundColor || "var(--container-bg)",
-  border: props.border ? "1px solid var(--border-color)" : "none",
-}));
+const containerStyle = computed(() => {
+  const style: Record<string, any> = {
+    width: `${props.size}px`,
+    height: `${props.size}px`,
+    borderRadius: props.shape === "circle" ? "50%" : `${props.radius}px`,
+    border: props.border ? "1px solid var(--border-color)" : "none",
+  };
+
+  // 仅在提供了 backgroundColor Prop 或处于 fallback/emoji 状态时设置背景色
+  // 这样，对于没有提供 backgroundColor 的图片（尤其是透明 GIF），容器背景将保持透明
+  if (props.backgroundColor) {
+    style.backgroundColor = props.backgroundColor;
+  } else if (!isImagePath.value || imageLoadFailed.value) {
+    style.backgroundColor = "var(--container-bg)";
+  }
+
+  return style;
+});
 
 // Emoji 字体大小（约为容器的一半）
 const emojiFontSize = computed(() => `${Math.floor(props.size * 0.5)}px`);

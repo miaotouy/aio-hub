@@ -95,19 +95,11 @@ export function useChatHandler() {
       const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
       if (profile) {
         effectiveUserProfile = profile;
-        logger.debug("使用智能体绑定的用户档案", {
-          profileId: profile.id,
-          profileName: profile.name,
-        });
       }
     } else if (userProfileStore.globalProfileId) {
       const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
       if (profile) {
         effectiveUserProfile = profile;
-        logger.debug("使用全局用户档案", {
-          profileId: profile.id,
-          profileName: profile.name,
-        });
       }
     }
 
@@ -116,7 +108,6 @@ export function useChatHandler() {
 
     // 计算用户消息的 token 数（包括文本和附件）
     await calculateUserMessageTokens(userNode, session, content, agentConfig.modelId, attachments);
-
     // 获取模型信息用于元数据（提前设置，确保即时显示）
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);
@@ -128,12 +119,13 @@ export function useChatHandler() {
       agentId: agentStore.currentAgentId,
       agentName: currentAgent?.name,
       agentIcon: currentAgent?.icon,
+      agentIconMode: currentAgent?.iconMode,
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,
     };
 
-    logger.debug('已设置助手节点元数据', {
+    logger.debug("已设置助手节点元数据", {
       nodeId: assistantNode.id,
       agentId: agentStore.currentAgentId,
       agentName: currentAgent?.name,
@@ -214,6 +206,7 @@ export function useChatHandler() {
       agentId: agentStore.currentAgentId,
       agentName: currentAgent?.name,
       agentIcon: currentAgent?.icon,
+      agentIconMode: currentAgent?.iconMode,
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,
@@ -230,7 +223,7 @@ export function useChatHandler() {
       modelId: agentConfig.modelId,
     });
 
-    logger.debug('已设置助手节点元数据', {
+    logger.debug("已设置助手节点元数据", {
       nodeId: assistantNode.id,
       agentId: agentStore.currentAgentId,
       agentName: currentAgent?.name,

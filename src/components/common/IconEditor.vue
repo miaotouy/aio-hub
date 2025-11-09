@@ -6,9 +6,8 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Picture, Upload, RefreshLeft } from "@element-plus/icons-vue";
+import { Star, Upload, RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
-import { assetManagerEngine } from "@/composables/useAssetManager";
 import { invoke } from "@tauri-apps/api/core";
 import { extname } from "@tauri-apps/api/path";
 
@@ -19,15 +18,25 @@ interface Props {
   entityId?: string;
   /** 在 'upload' 模式下必须提供，用于确定上传目录 */
   profileType?: "agent" | "user";
+  /** 是否显示模式切换开关 */
+  showModeSwitch?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), {
   mode: "path",
   entityId: "",
   profileType: "agent",
+  showModeSwitch: false,
 });
+
+export interface IconUpdatePayload {
+  value: string;
+  source: "input" | "upload" | "preset" | "clear" | "mode-switch";
+}
 
 interface Emits {
   (e: "update:modelValue", value: string): void;
+  (e: "update:icon", payload: IconUpdatePayload): void;
+  (e: "update:mode", mode: "path" | "upload"): void;
 }
 const emit = defineEmits<Emits>();
 
@@ -48,9 +57,28 @@ const openPresetIconSelector = () => {
 // 选择预设图标
 const selectPresetIcon = (icon: any) => {
   const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
-  emit("update:modelValue", iconPath);
+  emit("update:icon", { value: iconPath, source: "preset" });
   showPresetIconDialog.value = false;
   customMessage.success("已选择预设图标");
+};
+
+// 选择本地图像 (路径模式)
+const selectLocalImage = async () => {
+  try {
+    const selectedPath = await open({
+      multiple: false,
+      filters: [
+        { name: "图像文件", extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"] },
+      ],
+    });
+
+    if (selectedPath && typeof selectedPath === "string") {
+      emit("update:icon", { value: selectedPath, source: "input" });
+    }
+  } catch (error) {
+    console.error("选择本地图像失败:", error);
+    customMessage.error(`选择本地图像失败: ${error}`);
+  }
 };
 
 // 上传自定义图像
@@ -71,7 +99,6 @@ const uploadCustomImage = async () => {
       // **上传模式：与 assets 解耦**
       if (!props.entityId) {
         customMessage.error("上传失败：缺少 entityId");
-        isUploadingImage.value = false;
         return;
       }
 
@@ -85,7 +112,6 @@ const uploadCustomImage = async () => {
         subdirectory = `llm-chat/user-profiles/${props.entityId}`;
       } else {
         customMessage.error(`上传失败：未知的 profileType '${props.profileType}'`);
-        isUploadingImage.value = false;
         return;
       }
 
@@ -96,18 +122,8 @@ const uploadCustomImage = async () => {
       });
 
       // v-model 只存储文件名
-      emit("update:modelValue", newFilename);
+      emit("update:icon", { value: newFilename, source: "upload" });
       customMessage.success("专属头像上传成功");
-    } else {
-      // **路径模式：保留原有逻辑，使用 assetManager**
-      const asset = await assetManagerEngine.importAssetFromPath(selectedPath, {
-        origin: { type: "local", source: `icon-editor` },
-        enableDeduplication: true,
-        subfolder: "user-icons",
-        generateThumbnail: false,
-      });
-      emit("update:modelValue", `appdata://${asset.path}`);
-      customMessage.success("图像上传成功");
     }
   } catch (error) {
     console.error("上传图像失败:", error);
@@ -120,7 +136,7 @@ const uploadCustomImage = async () => {
 // 清除图标
 const clearIcon = () => {
   // 在 upload 模式下，也应该有一个默认值，但暂时先统一处理
-  emit("update:modelValue", "🤖");
+  emit("update:icon", { value: "🤖", source: "clear" });
   customMessage.info("已重置为默认图标");
 };
 
@@ -164,7 +180,7 @@ const handleIconClick = () => {
         <Avatar
           :src="modelValue || '🤖'"
           alt="图标预览"
-          :size="96"
+          :size="128"
           shape="square"
           :radius="8"
           :border="false"
@@ -174,29 +190,51 @@ const handleIconClick = () => {
       </el-tooltip>
     </div>
     <div class="icon-controls-container">
+      <div v-if="showModeSwitch" class="mode-switch-container">
+        <div class="switch-hint-wrapper">
+          <el-switch
+            :model-value="mode"
+            active-value="upload"
+            inactive-value="path"
+            active-text="上传专属头像"
+            inactive-text="输入路径/Emoji"
+            @change="$emit('update:mode', $event as 'path' | 'upload')"
+          />
+          <div class="form-hint">
+            {{
+              mode === "upload"
+                ? "上传的头像将与实体绑定存储，推荐用于自定义、非公开的头像。"
+                : "引用外部路径或输入Emoji，适合使用网络图片或预设图标。"
+            }}
+          </div>
+        </div>
+      </div>
+
       <!-- 路径模式：显示输入框和完整按钮组 -->
       <template v-if="mode === 'path'">
         <el-input
           :model-value="modelValue"
-          @update:model-value="$emit('update:modelValue', $event)"
+          @update:model-value="$emit('update:icon', { value: $event, source: 'input' })"
           placeholder="输入 emoji、路径或选择图像"
           class="icon-input"
         >
           <template #append>
             <el-button-group>
-              <el-button @click="openPresetIconSelector" title="选择预设图标">
-                <el-icon><Picture /></el-icon>
-              </el-button>
-              <el-button
-                @click="uploadCustomImage"
-                :loading="isUploadingImage"
-                title="上传自定义图像"
-              >
-                <el-icon><Upload /></el-icon>
-              </el-button>
-              <el-button @click="clearIcon" title="重置为默认">
-                <el-icon><RefreshLeft /></el-icon>
-              </el-button>
+              <el-tooltip content="选择预设图标" placement="top">
+                <el-button @click="openPresetIconSelector">
+                  <el-icon><Star /></el-icon>
+                </el-button>
+              </el-tooltip>
+              <el-tooltip content="选择本地图像" placement="top">
+                <el-button @click="selectLocalImage">
+                  <el-icon><FolderOpened /></el-icon>
+                </el-button>
+              </el-tooltip>
+              <el-tooltip content="重置为默认" placement="top">
+                <el-button @click="clearIcon">
+                  <el-icon><RefreshLeft /></el-icon>
+                </el-button>
+              </el-tooltip>
             </el-button-group>
           </template>
         </el-input>
@@ -206,19 +244,21 @@ const handleIconClick = () => {
       <!-- 上传模式：只显示上传和重置按钮 -->
       <template v-else-if="mode === 'upload'">
         <div class="upload-mode-controls">
-          <el-button
-            @click="uploadCustomImage"
-            :loading="isUploadingImage"
-            type="primary"
-            :icon="Upload"
-          >
-            上传专属头像
-          </el-button>
-          <el-button @click="clearIcon" :icon="RefreshLeft"> 重置 </el-button>
+          <el-tooltip content="上传专属头像，将与该智能体绑定存储" placement="top">
+            <el-button
+              @click="uploadCustomImage"
+              :loading="isUploadingImage"
+              type="primary"
+              :icon="Upload"
+            >
+              上传专属头像
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="重置为默认图标" placement="top">
+            <el-button @click="clearIcon" :icon="RefreshLeft"> 重置 </el-button>
+          </el-tooltip>
         </div>
-        <div class="form-hint">
-          上传的头像将与该智能体绑定存储，删除智能体时会一并清除。
-        </div>
+        <div class="form-hint">上传的头像将与该智能体绑定存储，删除智能体时会一并清除。</div>
       </template>
     </div>
   </div>
@@ -260,6 +300,24 @@ const handleIconClick = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.mode-switch-container {
+  flex: 1;
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.switch-hint-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.switch-hint-wrapper .form-hint {
+  margin-top: 0;
+  flex: 1;
 }
 
 .upload-mode-controls {

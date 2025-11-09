@@ -20,7 +20,7 @@
       >
         <template #item="{ profile }">
           <Avatar
-            :src="getAvatarSrc(profile)"
+            :src="getAvatarSrc(profile) || '👤'"
             :alt="profile.name"
             :size="40"
             class="profile-icon"
@@ -47,7 +47,7 @@
         <template #header-actions>
           <Avatar
             v-if="editForm.icon"
-            :src="editForm.icon"
+            :src="getAvatarSrc(editForm) || ''"
             :alt="editForm.name"
             :size="32"
             class="profile-editor-icon"
@@ -92,6 +92,7 @@ import ProfileEditor from "../shared/ProfileEditor.vue";
 import CreateUserProfileDialog from "./components/CreateUserProfileDialog.vue";
 import UserProfileForm from "./components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
+import { useResolvedAvatar } from '@/tools/llm-chat/composables/useResolvedAvatar';
 
 const logger = createModuleLogger("UserProfileSettings");
 const userProfileStore = useUserProfileStore();
@@ -125,18 +126,8 @@ const profiles = computed(() => {
   }));
 });
 
-// 根据 profile.icon 解析最终的头像路径
-const getAvatarSrc = (profile: { id: string; icon?: string }) => {
-  const icon = profile.icon?.trim();
-  if (!icon) return '👤';
-
-  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
-  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
-    return `appdata://llm-chat/user-profiles/${profile.id}/${icon}`;
-  }
-
-  // 否则，直接返回原始值（可能是完整路径、emoji等）
-  return icon;
+const getAvatarSrc = (profile: UserProfile) => {
+  return useResolvedAvatar(ref(profile), 'user-profile').value;
 };
 
 // 计算当前选中的档案

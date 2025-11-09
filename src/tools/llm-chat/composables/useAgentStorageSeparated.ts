@@ -138,7 +138,19 @@ export function useAgentStorageSeparated() {
     try {
       await ensureAgentDir(agent.id); // 确保智能体目录存在
       const agentPath = await getAgentConfigPath(agent.id);
-      const newContent = JSON.stringify(agent, null, 2);
+
+      // 在序列化之前，处理 icon 路径
+      // 仅当 iconMode 为 'builtin' 时，才将其从完整的 appdata 路径转换回相对文件名
+      const agentToSave = JSON.parse(JSON.stringify(agent)); // 深拷贝以避免修改内存状态
+      if (agentToSave.iconMode === 'builtin') {
+        const icon = agentToSave.icon?.trim();
+        const selfAssetPathPrefix = `appdata://llm-chat/agents/${agent.id}/`;
+        if (icon && icon.startsWith(selfAssetPathPrefix)) {
+          agentToSave.icon = icon.substring(selfAssetPathPrefix.length);
+        }
+      }
+
+      const newContent = JSON.stringify(agentToSave, null, 2);
 
       // 如果不是强制写入，先检查内容是否真的改变了
       if (!forceWrite) {

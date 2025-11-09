@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { reactive, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatAgent, ChatMessageNode } from "../../types";
+import type { ChatAgent, ChatMessageNode, IconMode } from "../../types";
+import type { IconUpdatePayload } from "@/components/common/IconEditor.vue";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { useUserProfileStore } from "../../userProfileStore";
 import IconEditor from "@/components/common/IconEditor.vue";
+import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
+import { ref } from "vue";
 
 interface Props {
   visible: boolean;
@@ -30,6 +33,7 @@ interface Emits {
       name: string;
       description: string;
       icon: string;
+      iconMode: IconMode;
       profileId: string;
       modelId: string;
       userProfileId: string | null;
@@ -58,6 +62,7 @@ const editForm = reactive({
   name: "",
   description: "",
   icon: "🤖",
+  iconMode: "path" as IconMode,
   profileId: "",
   modelId: "",
   modelCombo: "", // 用于 LlmModelSelector 的组合值 (profileId:modelId)
@@ -83,6 +88,7 @@ const loadFormData = () => {
     editForm.name = props.agent.name;
     editForm.description = props.agent.description || "";
     editForm.icon = props.agent.icon || "🤖";
+    editForm.iconMode = props.agent.iconMode || "path";
     editForm.profileId = props.agent.profileId;
     editForm.modelId = props.agent.modelId;
     editForm.modelCombo = `${props.agent.profileId}:${props.agent.modelId}`;
@@ -96,6 +102,7 @@ const loadFormData = () => {
     editForm.name = props.initialData.name || "";
     editForm.description = props.initialData.description || "";
     editForm.icon = props.initialData.icon || "🤖";
+    editForm.iconMode = "path"; // 创建模式总是 path
     editForm.profileId = props.initialData.profileId || "";
     editForm.modelId = props.initialData.modelId || "";
     editForm.modelCombo =
@@ -117,6 +124,15 @@ const handleModelComboChange = (value: string) => {
     editForm.profileId = profileId;
     editForm.modelId = modelId;
     editForm.modelCombo = value;
+  }
+};
+const handleIconUpdate = (payload: IconUpdatePayload) => {
+  editForm.icon = payload.value;
+  if (payload.source === "upload") {
+    editForm.iconMode = "builtin";
+  } else {
+    // input, preset, clear 都应视为 path 模式
+    editForm.iconMode = "path";
   }
 };
 
@@ -148,6 +164,7 @@ const handleSave = () => {
     name: editForm.name,
     description: editForm.description,
     icon: editForm.icon,
+    iconMode: editForm.iconMode,
     profileId: editForm.profileId,
     modelId: editForm.modelId,
     userProfileId: editForm.userProfileId,
@@ -157,20 +174,6 @@ const handleSave = () => {
   });
 
   handleClose();
-};
-
-// 根据 profile.icon 解析最终的头像路径
-const getAvatarSrcForUserProfile = (profile: { id: string; icon?: string }) => {
-  const icon = profile.icon?.trim();
-  if (!icon) return "👤";
-
-  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
-  if (icon.includes(".") && !icon.includes("/") && !icon.includes("\\")) {
-    return `appdata://llm-chat/user-profiles/${profile.id}/${icon}`;
-  }
-
-  // 否则，直接返回原始值（可能是完整路径、emoji等）
-  return icon;
 };
 </script>
 <template>
@@ -190,14 +193,18 @@ const getAvatarSrcForUserProfile = (profile: { id: string; icon?: string }) => {
 
       <el-form-item label="图标">
         <IconEditor
-          v-model="editForm.icon"
-          :mode="mode === 'edit' ? 'upload' : 'path'"
+          :model-value="editForm.icon"
+          @update:icon="handleIconUpdate"
+          :mode="editForm.iconMode === 'builtin' ? 'upload' : 'path'"
           :entity-id="agent?.id"
           profile-type="agent"
+          show-mode-switch
+          @update:mode="
+            (newMode) => {
+              editForm.iconMode = newMode === 'upload' ? 'builtin' : 'path';
+            }
+          "
         />
-        <div v-if="mode === 'create'" class="form-hint">
-          创建后可在编辑页面为智能体上传专属头像
-        </div>
       </el-form-item>
 
       <el-form-item label="描述">
@@ -235,7 +242,7 @@ const getAvatarSrcForUserProfile = (profile: { id: string; icon?: string }) => {
             <div style="display: flex; align-items: center; gap: 8px">
               <Avatar
                 v-if="profile.icon"
-                :src="getAvatarSrcForUserProfile(profile)"
+                :src="useResolvedAvatar(ref(profile), 'user-profile').value || ''"
                 :alt="profile.name"
                 :size="20"
                 shape="square"

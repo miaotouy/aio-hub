@@ -9,6 +9,7 @@ import { useModelMetadata } from '@/composables/useModelMetadata';
 import { useChatSettings } from '../../composables/useChatSettings';
 import Avatar from '@/components/common/Avatar.vue';
 import DynamicIcon from '@/components/common/DynamicIcon.vue';
+import { useResolvedAvatar } from '../../composables/useResolvedAvatar';
 
 interface Props {
   message: ChatMessageNode;
@@ -111,24 +112,47 @@ const displayName = computed(() => {
   }
 });
 
+// 根据消息角色和元数据，决定使用哪个对象来解析头像
+const userAvatarTarget = computed(() => {
+  const { metadata } = props.message;
+  // 优先使用消息快照
+  if (metadata?.userProfileIcon && metadata.userProfileId) {
+    return {
+      id: metadata.userProfileId,
+      icon: metadata.userProfileIcon,
+      iconMode: metadata.userProfileIconMode,
+    };
+  }
+  // 回退到当前生效的用户档案
+  return effectiveUserProfile.value;
+});
+const assistantAvatarTarget = computed(() => {
+  const { metadata } = props.message;
+  // 优先使用消息快照
+  if (metadata?.agentIcon && metadata.agentId) {
+    return {
+      id: metadata.agentId,
+      icon: metadata.agentIcon,
+      iconMode: metadata.agentIconMode,
+    };
+  }
+  // 回退到当前 Agent
+  return agent.value;
+});
+
+// 使用 useResolvedAvatar 解析最终的头像路径
+const userAvatarSrc = useResolvedAvatar(userAvatarTarget, 'user-profile');
+const assistantAvatarSrc = useResolvedAvatar(assistantAvatarTarget, 'agent');
+
+// 根据角色选择最终要显示的图标
 const displayIcon = computed(() => {
   if (props.message.role === 'user') {
-    // 优先使用消息元数据中的用户档案快照
-    if (props.message.metadata?.userProfileIcon) {
-      return props.message.metadata.userProfileIcon;
-    }
-    // 回退到当前生效的用户档案
-    if (effectiveUserProfile.value?.icon) {
-      return effectiveUserProfile.value.icon;
-    }
-    // 最后使用默认值
-    return '👤';
-  } else if (props.message.role === 'assistant') {
-    // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）
-    return props.message.metadata?.agentIcon || agent.value?.icon || '🤖';
-  } else {
-    return '⚙️';
+    return userAvatarSrc.value;
   }
+  if (props.message.role === 'assistant') {
+    return assistantAvatarSrc.value;
+  }
+  return '⚙️'; // 系统消息
 });
 
 // 检查是否应该显示副标题（基于设置和数据可用性）
@@ -143,7 +167,7 @@ const shouldShowSubtitle = computed(() => {
   <div class="message-header">
     <div class="header-left">
       <Avatar
-        :src="displayIcon"
+        :src="displayIcon || ''"
         :alt="displayName"
         :size="40"
         shape="square"

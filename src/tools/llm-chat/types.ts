@@ -23,6 +23,13 @@ export type MessageStatus = "generating" | "complete" | "error";
 export type MessageType = "message" | "chat_history" | "user_profile";
 
 /**
+ * 头像模式
+ * - path: icon 字段是一个完整的路径或 emoji
+ * - builtin: icon 字段是内置于 Agent/Profile 目录下的相对文件名
+ */
+export type IconMode = "path" | "builtin";
+
+/**
  * 消息节点（树形结构）
  */
 export interface ChatMessageNode {
@@ -96,12 +103,16 @@ export interface ChatMessageNode {
     agentName?: string;
     /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
     agentIcon?: string;
+    /** Agent 图标模式快照 */
+    agentIconMode?: IconMode;
     /** 生成此消息时使用的用户档案 ID */
     userProfileId?: string;
     /** 生成此消息时使用的用户档案名称（快照） */
     userProfileName?: string;
     /** 生成此消息时使用的用户档案图标（快照） */
     userProfileIcon?: string;
+    /** 用户档案图标模式快照 */
+    userProfileIconMode?: IconMode;
     /** 生成此消息时使用的 Profile ID */
     profileId?: string;
     /** 生成此消息时使用的模型 ID */
@@ -126,6 +137,10 @@ export interface ChatMessageNode {
      * - 对于助手消息：直接使用 API 返回的 completionTokens
      */
     contentTokens?: number;
+    /** 本地计算的 Token 总数 */
+    tokenCount?: number;
+    /** Token 数是否为估算值 */
+    tokenCountEstimated?: boolean;
     /** 推理内容（DeepSeek reasoning 模式） */
     reasoningContent?: string;
     /** 推理开始时间戳 */
@@ -387,9 +402,15 @@ export interface UserProfile {
   name: string;
 
   /**
-   * 档案图标（emoji 或图标路径）
+   * 档案图标（emoji、图标路径或相对文件名）
    */
   icon?: string;
+
+  /**
+   * 图标模式
+   * @default 'path'
+   */
+  iconMode?: IconMode;
 
   /**
    * 档案内容（描述性文本）
@@ -436,9 +457,15 @@ export interface ChatAgent {
   description?: string;
 
   /**
-   * 智能体图标（emoji 或图标路径）
+   * 智能体图标（emoji、图标路径或相对文件名）
    */
   icon?: string;
+
+  /**
+   * 图标模式
+   * @default 'path'
+   */
+  iconMode?: IconMode;
 
   /**
    * 使用的 Profile ID

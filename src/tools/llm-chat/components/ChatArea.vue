@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, toRef, withDefaults, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { ElTooltip } from "element-plus";
+import { ElTooltip, ElIcon } from "element-plus";
 import type { ChatMessageNode, UserProfile } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useDetachable } from "@/composables/useDetachable";
@@ -63,6 +63,7 @@ import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
+import { useResolvedAvatar } from "../composables/useResolvedAvatar";
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
@@ -77,15 +78,7 @@ const currentAgent = computed(() => {
   return agentStore.getAgentById(finalCurrentAgentId.value);
 });
 
-const agentAvatarSrc = computed(() => {
-  const agent = currentAgent.value;
-  if (!agent || !agent.icon) return '🤖';
-  const icon = agent.icon.trim();
-  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
-    return `appdata://llm-chat/agents/${agent.id}/${icon}`;
-  }
-  return icon;
-});
+const agentAvatarSrc = useResolvedAvatar(currentAgent, 'agent');
 
 // 当前模型信息
 const currentModel = computed(() => {
@@ -116,17 +109,7 @@ const effectiveUserProfile = computed(() => {
   return userProfileStore.globalProfile;
 });
 
-const userProfileAvatarSrc = computed(() => {
-  const profile = effectiveUserProfile.value;
-  if (!profile || !profile.icon) return '👤';
-  const icon = profile.icon.trim();
-  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
-  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
-    return `appdata://llm-chat/user-profiles/${profile.id}/${icon}`;
-  }
-  // 否则，直接返回原始值（可能是完整路径、emoji等）
-  return icon;
-});
+const userProfileAvatarSrc = useResolvedAvatar(effectiveUserProfile, 'user-profile');
 
 // ===== 拖拽与分离功能 =====
 const { detachedComponents } = useDetachedManager();
@@ -486,7 +469,7 @@ onMounted(async () => {
         <div v-if="currentAgent" class="agent-info clickable" @click="handleEditAgent">
           <el-tooltip content="点击编辑智能体" placement="bottom">
             <Avatar
-              :src="agentAvatarSrc"
+              :src="agentAvatarSrc || ''"
               :alt="currentAgent.name"
               :size="28"
               shape="square"
@@ -513,7 +496,7 @@ onMounted(async () => {
         <span class="profile-name">{{ effectiveUserProfile.name }}</span>
         <el-tooltip content="点击编辑用户档案" placement="bottom">
           <Avatar
-            :src="userProfileAvatarSrc"
+            :src="userProfileAvatarSrc || ''"
             :alt="effectiveUserProfile.name"
             :size="28"
             shape="square"

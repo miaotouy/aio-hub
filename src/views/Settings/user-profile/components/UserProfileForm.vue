@@ -12,14 +12,20 @@
 
     <el-form-item label="头像">
       <IconEditor
-        v-model="iconValue"
-        mode="upload"
+        :model-value="formData.icon || ''"
+        @update:icon="handleIconUpdate"
+        :mode="formData.iconMode === 'builtin' ? 'upload' : 'path'"
         :entity-id="profileId"
         profile-type="user"
+        show-mode-switch
+        @update:mode="
+          (newMode) => {
+            formData.iconMode = newMode === 'upload' ? 'builtin' : 'path';
+            handleInput();
+          }
+        "
       />
-      <div class="form-hint">
-        上传的头像将与该档案绑定存储，删除档案时会一并清除。
-      </div>
+      <div class="form-hint">上传的头像将与该档案绑定存储，删除档案时会一并清除。</div>
     </el-form-item>
 
     <el-form-item label="描述" :required="required">
@@ -32,9 +38,7 @@
         show-word-limit
         @input="handleInput"
       />
-      <div class="form-hint">
-        此描述将作为用户角色在对话中的身份信息
-      </div>
+      <div class="form-hint">此描述将作为用户角色在对话中的身份信息</div>
     </el-form-item>
 
     <!-- 可选的元数据显示 -->
@@ -53,13 +57,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import IconEditor from '@/components/common/IconEditor.vue';
+import { ref, watch } from "vue";
+import IconEditor from "@/components/common/IconEditor.vue";
+
+import type { IconMode } from "@/tools/llm-chat/types";
+import type { IconUpdatePayload } from "@/components/common/IconEditor.vue";
 
 interface UserProfileFormData {
   id?: string; // 允许ID传入
   name: string;
   icon?: string;
+  iconMode?: IconMode;
   content: string;
   createdAt?: string;
   lastUsedAt?: string;
@@ -92,42 +100,47 @@ const props = withDefaults(defineProps<Props>(), {
   showMetadata: false,
   required: false,
   descriptionRows: 12,
-  iconPlaceholder: '输入 emoji、路径或选择图像（可选）',
-  iconHint: '可以输入 emoji、从预设选择、上传图像或输入绝对路径',
+  iconPlaceholder: "输入 emoji、路径或选择图像（可选）",
+  iconHint: "可以输入 emoji、从预设选择、上传图像或输入绝对路径",
   profileId: undefined,
 });
 
 const emit = defineEmits<{
-  'update:modelValue': [value: UserProfileFormData];
+  "update:modelValue": [value: UserProfileFormData];
 }>();
 
 // 内部表单数据
 const formData = ref<UserProfileFormData>({ ...props.modelValue });
 
 // 监听外部数据变化
-watch(() => props.modelValue, (newValue) => {
-  formData.value = { ...newValue };
-}, { deep: true });
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    formData.value = { ...newValue };
+  },
+  { deep: true }
+);
 
 // 处理输入变化
 const handleInput = () => {
-  emit('update:modelValue', { ...formData.value });
+  emit("update:modelValue", { ...formData.value });
 };
 
-// 创建一个 computed 属性来安全地处理可能为 undefined 的 icon
-const iconValue = computed({
-  get: () => formData.value.icon || '',
-  set: (value) => {
-    formData.value.icon = value;
-    handleInput();
+const handleIconUpdate = (payload: IconUpdatePayload) => {
+  formData.value.icon = payload.value;
+  if (payload.source === "upload") {
+    formData.value.iconMode = "builtin";
+  } else {
+    formData.value.iconMode = "path";
   }
-});
+  handleInput();
+};
 
 // 格式化日期时间（完整格式）
 const formatDateTime = (dateStr?: string) => {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   const date = new Date(dateStr);
-  return date.toLocaleString('zh-CN');
+  return date.toLocaleString("zh-CN");
 };
 </script>
 

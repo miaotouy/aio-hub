@@ -13,6 +13,7 @@ import type { AgentPreset } from "../../types";
 import ExportAgentDialog from "../export/ExportAgentDialog.vue";
 import ImportAgentDialog from "../export/ImportAgentDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
+import { useResolvedAvatar } from '../../composables/useResolvedAvatar';
 
 const agentStore = useAgentStore();
 
@@ -258,18 +259,8 @@ const handleSaveAgent = (data: {
   }
 };
 
-// 根据 agent.icon 解析最终的头像路径
 const getAvatarSrc = (agent: ChatAgent) => {
-  const icon = agent.icon?.trim();
-  if (!icon) return '🤖';
-
-  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
-  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
-    return `appdata://llm-chat/agents/${agent.id}/${icon}`;
-  }
-  
-  // 否则，直接返回原始值（可能是完整路径、emoji等）
-  return icon;
+  return useResolvedAvatar(ref(agent), 'agent').value;
 };
 
 // 删除智能体
@@ -345,7 +336,7 @@ const handleDelete = (agent: ChatAgent) => {
         @click="selectAgent(agent.id)"
       >
         <Avatar
-          :src="getAvatarSrc(agent)"
+          :src="getAvatarSrc(agent) || ''"
           :alt="agent.name"
           :class="['agent-icon', { selected: isAgentSelected(agent.id) }]"
         />

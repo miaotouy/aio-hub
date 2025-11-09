@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed, ref, onUnmounted } from "vue";
+import { onMounted, computed, ref, onUnmounted, nextTick } from "vue";
 import { useLlmChatStore } from "./store";
 import { useAgentStore } from "./agentStore";
 import { useUserProfileStore } from "./userProfileStore";
@@ -17,6 +17,7 @@ import { createModuleLogger } from "@utils/logger";
 import { initializeMacroEngine } from "./macro-engine";
 
 const logger = createModuleLogger("LlmChat");
+const isLoading = ref(true);
 const store = useLlmChatStore();
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
@@ -104,28 +105,37 @@ const isChatAreaDetached = computed(() => isDetached("chat-area"));
 
 // 组件挂载时加载会话、智能体和用户档案
 onMounted(async () => {
-  // 初始化宏引擎（全局一次）
-  initializeMacroEngine();
-  
-  // 加载UI状态
-  await loadUiState();
-  
-  // 启动UI状态自动保存
-  startWatching();
-  
-  await agentStore.loadAgents();
-  await userProfileStore.loadProfiles();
-  await store.loadSessions();
+  isLoading.value = true;
+  try {
+    // 初始化宏引擎（全局一次）
+    initializeMacroEngine();
 
-  logger.info("LLM Chat 模块已加载", {
-    sessionCount: store.sessions.length,
-    agentCount: agentStore.agents.length,
-    profileCount: userProfileStore.profiles.length,
-  });
+    // 加载UI状态
+    await loadUiState();
 
-  // 如果没有会话且有选中的智能体，创建一个新会话
-  if (store.sessions.length === 0 && agentStore.currentAgentId) {
-    handleNewSession({ agentId: agentStore.currentAgentId });
+    // 启动UI状态自动保存
+    startWatching();
+
+    await agentStore.loadAgents();
+    await userProfileStore.loadProfiles();
+    await store.loadSessions();
+
+    logger.info("LLM Chat 模块已加载", {
+      sessionCount: store.sessions.length,
+      agentCount: agentStore.agents.length,
+      profileCount: userProfileStore.profiles.length,
+    });
+
+    // 如果没有会话且有选中的智能体，创建一个新会话
+    if (store.sessions.length === 0 && agentStore.currentAgentId) {
+      handleNewSession({ agentId: agentStore.currentAgentId });
+    }
+  } catch (error) {
+    logger.error("初始化LLM Chat模块失败", error);
+  } finally {
+    // 使用 nextTick 确保在 DOM 更新后再隐藏骨架屏
+    await nextTick();
+    isLoading.value = false;
   }
 });
 // 当前选中的智能体ID（独立于会话）
@@ -281,147 +291,215 @@ useStateSyncEngine(parametersToSync, {
 <template>
   <div class="llm-chat-wrapper">
     <div class="llm-chat-container">
-      <!-- 左侧边栏 -->
-      <div
-        v-if="!isLeftSidebarCollapsed"
-        class="sidebar left-sidebar"
-        :style="{ width: `${leftSidebarWidth}px` }"
-      >
-        <div class="sidebar-content">
-          <LeftSidebar />
-        </div>
-
-        <!-- 拖拽分隔条 -->
+      <!-- Skeleton Loader -->
+      <template v-if="isLoading">
+        <!-- Left Sidebar Skeleton -->
         <div
-          class="resize-handle right-handle"
-          @mousedown="handleLeftDragStart"
-          :class="{ dragging: isDraggingLeft }"
-        ></div>
-
-        <!-- 折叠按钮 -->
-        <div class="collapse-button left-collapse" @click="isLeftSidebarCollapsed = true">
-          <SidebarToggleIcon class="collapse-icon trapezoid" />
-          <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <polyline
-              points="15 18 9 12 15 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-      </div>
-
-      <!-- 中间内容区 -->
-      <div class="main-content">
-        <!-- 左侧边栏折叠时的展开按钮 -->
-        <div
-          v-if="isLeftSidebarCollapsed"
-          class="expand-button left-expand"
-          @click="isLeftSidebarCollapsed = false"
+          v-if="!isLeftSidebarCollapsed"
+          class="sidebar left-sidebar skeleton-sidebar"
+          :style="{ width: `${leftSidebarWidth}px` }"
         >
-          <SidebarToggleIcon class="expand-icon trapezoid" />
-          <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <polyline
-              points="9 18 15 12 9 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-
-        <!-- ChatArea 组件 - 仅在未分离时显示 -->
-        <ChatArea
-          v-if="!isChatAreaDetached"
-          :messages="store.currentActivePathWithPresets"
-          :is-sending="store.isSending"
-          :disabled="!store.currentSession"
-          :current-agent-id="currentAgentId"
-          :current-model-id="
-            agentStore.currentAgentId
-              ? agentStore.getAgentById(agentStore.currentAgentId)?.modelId
-              : undefined
-          "
-          @send="handleSendMessage"
-          @abort="handleAbortSending"
-          @delete-message="handleDeleteMessage"
-          @regenerate="handleRegenerate"
-          @switch-sibling="handleSwitchSibling"
-          @toggle-enabled="handleToggleEnabled"
-          @edit-message="handleEditMessage"
-          @abort-node="handleAbortNode"
-          @create-branch="handleCreateBranch"
-          @analyze-context="handleAnalyzeContext"
-        />
-
-        <!-- 分离后的占位提示 -->
-        <div v-else class="detached-placeholder">
-          <div class="placeholder-content">
-            <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
-              <path d="M9 3v18M3 9h18M3 15h6M15 15h6" stroke-width="2" />
-            </svg>
-            <h3 class="placeholder-title">对话区域已分离</h3>
-            <p class="placeholder-description">对话区域已在独立窗口中打开</p>
+          <div class="sidebar-content">
+            <el-skeleton :rows="15" animated />
           </div>
         </div>
 
-        <!-- 右侧边栏折叠时的展开按钮 -->
+        <!-- Main Content Skeleton -->
+        <div class="main-content">
+          <div class="chat-area-container-skeleton">
+            <el-skeleton animated>
+              <template #template>
+                <div class="skeleton-header">
+                  <el-skeleton-item variant="circle" style="width: 28px; height: 28px; flex-shrink: 0" />
+                  <el-skeleton-item variant="text" style="height: 20px; width: 30%; margin-left: 12px" />
+                  <el-skeleton-item variant="text" style="height: 20px; width: 25%; margin-left: 16px" />
+                  <el-skeleton-item
+                    variant="circle"
+                    style="width: 28px; height: 28px; margin-left: auto; flex-shrink: 0"
+                  />
+                </div>
+                <div class="skeleton-body">
+                  <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
+                </div>
+                <div class="skeleton-input">
+                  <el-skeleton-item variant="rect" style="height: 50px; width: 100%; border-radius: 8px" />
+                </div>
+              </template>
+            </el-skeleton>
+          </div>
+        </div>
+
+        <!-- Right Sidebar Skeleton -->
         <div
-          v-if="isRightSidebarCollapsed"
-          class="expand-button right-expand"
-          @click="isRightSidebarCollapsed = false"
+          v-if="!isRightSidebarCollapsed"
+          class="sidebar right-sidebar skeleton-sidebar"
+          :style="{ width: `${rightSidebarWidth}px` }"
         >
-          <SidebarToggleIcon class="expand-icon trapezoid" flip />
-          <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <polyline
-              points="15 18 9 12 15 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <div class="sidebar-content">
+            <el-skeleton :rows="15" animated />
+          </div>
         </div>
-      </div>
+      </template>
 
-      <!-- 右侧边栏 -->
-      <div
-        v-if="!isRightSidebarCollapsed"
-        class="sidebar right-sidebar"
-        :style="{ width: `${rightSidebarWidth}px` }"
-      >
-        <!-- 折叠按钮 -->
-        <div class="collapse-button right-collapse" @click="isRightSidebarCollapsed = true">
-          <SidebarToggleIcon class="collapse-icon trapezoid" flip />
-          <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <polyline
-              points="9 18 15 12 9 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-
-        <!-- 拖拽分隔条 -->
+      <!-- Actual Content -->
+      <template v-else>
+        <!-- 左侧边栏 -->
         <div
-          class="resize-handle left-handle"
-          @mousedown="handleRightDragStart"
-          :class="{ dragging: isDraggingRight }"
-        ></div>
+          v-if="!isLeftSidebarCollapsed"
+          class="sidebar left-sidebar"
+          :style="{ width: `${leftSidebarWidth}px` }"
+        >
+          <div class="sidebar-content">
+            <LeftSidebar />
+          </div>
 
-        <div class="sidebar-content">
-          <SessionsSidebar
-            :sessions="store.sessions"
-            :current-session-id="store.currentSessionId"
-            @switch="handleSwitchSession"
-            @delete="handleDeleteSession"
-            @new-session="handleNewSession"
-            @rename="handleRenameSession"
-          />
+          <!-- 拖拽分隔条 -->
+          <div
+            class="resize-handle right-handle"
+            @mousedown="handleLeftDragStart"
+            :class="{ dragging: isDraggingLeft }"
+          ></div>
+
+          <!-- 折叠按钮 -->
+          <div class="collapse-button left-collapse" @click="isLeftSidebarCollapsed = true">
+            <SidebarToggleIcon class="collapse-icon trapezoid" />
+            <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polyline
+                points="15 18 9 12 15 6"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
         </div>
-      </div>
+
+        <!-- 中间内容区 -->
+        <div class="main-content">
+          <!-- 左侧边栏折叠时的展开按钮 -->
+          <div
+            v-if="isLeftSidebarCollapsed"
+            class="expand-button left-expand"
+            @click="isLeftSidebarCollapsed = false"
+          >
+            <SidebarToggleIcon class="expand-icon trapezoid" />
+            <svg
+              class="arrow-icon expanded"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
+              <polyline
+                points="9 18 15 12 9 6"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+
+          <!-- ChatArea 组件 - 仅在未分离时显示 -->
+          <ChatArea
+            v-if="!isChatAreaDetached"
+            :messages="store.currentActivePathWithPresets"
+            :is-sending="store.isSending"
+            :disabled="!store.currentSession"
+            :current-agent-id="currentAgentId"
+            :current-model-id="
+              agentStore.currentAgentId
+                ? agentStore.getAgentById(agentStore.currentAgentId)?.modelId
+                : undefined
+            "
+            @send="handleSendMessage"
+            @abort="handleAbortSending"
+            @delete-message="handleDeleteMessage"
+            @regenerate="handleRegenerate"
+            @switch-sibling="handleSwitchSibling"
+            @toggle-enabled="handleToggleEnabled"
+            @edit-message="handleEditMessage"
+            @abort-node="handleAbortNode"
+            @create-branch="handleCreateBranch"
+            @analyze-context="handleAnalyzeContext"
+          />
+
+          <!-- 分离后的占位提示 -->
+          <div v-else class="detached-placeholder">
+            <div class="placeholder-content">
+              <svg
+                class="placeholder-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
+                <path d="M9 3v18M3 9h18M3 15h6M15 15h6" stroke-width="2" />
+              </svg>
+              <h3 class="placeholder-title">对话区域已分离</h3>
+              <p class="placeholder-description">对话区域已在独立窗口中打开</p>
+            </div>
+          </div>
+
+          <!-- 右侧边栏折叠时的展开按钮 -->
+          <div
+            v-if="isRightSidebarCollapsed"
+            class="expand-button right-expand"
+            @click="isRightSidebarCollapsed = false"
+          >
+            <SidebarToggleIcon class="expand-icon trapezoid" flip />
+            <svg
+              class="arrow-icon expanded"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
+              <polyline
+                points="15 18 9 12 15 6"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
+
+        <!-- 右侧边栏 -->
+        <div
+          v-if="!isRightSidebarCollapsed"
+          class="sidebar right-sidebar"
+          :style="{ width: `${rightSidebarWidth}px` }"
+        >
+          <!-- 折叠按钮 -->
+          <div class="collapse-button right-collapse" @click="isRightSidebarCollapsed = true">
+            <SidebarToggleIcon class="collapse-icon trapezoid" flip />
+            <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polyline
+                points="9 18 15 12 9 6"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+
+          <!-- 拖拽分隔条 -->
+          <div
+            class="resize-handle left-handle"
+            @mousedown="handleRightDragStart"
+            :class="{ dragging: isDraggingRight }"
+          ></div>
+
+          <div class="sidebar-content">
+            <SessionsSidebar
+              :sessions="store.sessions"
+              :current-session-id="store.currentSessionId"
+              @switch="handleSwitchSession"
+              @delete="handleDeleteSession"
+              @new-session="handleNewSession"
+              @rename="handleRenameSession"
+            />
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- 上下文分析对话框 -->

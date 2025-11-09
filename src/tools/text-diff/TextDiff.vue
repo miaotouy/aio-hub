@@ -266,11 +266,21 @@ const handleEditorMounted = (editorInstance: any) => {
   diffEditor.value = editorInstance as editor.IStandaloneDiffEditor;
 
   // 创建差异导航器
-  if (diffEditor.value && (window as any).monaco) {
-    const monaco = (window as any).monaco;
-    diffNavigator.value = monaco.editor.createDiffNavigator(diffEditor.value, {
-      followsCaret: true,
-      ignoreCharChanges: true,
+  // Monaco Editor 的 DiffNavigator 需要通过全局 monaco 对象访问
+  if (diffEditor.value) {
+    // 等待 monaco 加载完成后再创建 navigator
+    nextTick(() => {
+      const monacoGlobal = (window as any).monaco;
+      if (monacoGlobal?.editor?.createDiffNavigator && diffEditor.value) {
+        try {
+          diffNavigator.value = monacoGlobal.editor.createDiffNavigator(diffEditor.value, {
+            followsCaret: true,
+            ignoreCharChanges: true,
+          });
+        } catch (error) {
+          console.warn('创建 diff navigator 失败:', error);
+        }
+      }
     });
   }
 

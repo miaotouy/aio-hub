@@ -158,6 +158,20 @@ const handleSave = () => {
 
   handleClose();
 };
+
+// 根据 profile.icon 解析最终的头像路径
+const getAvatarSrcForUserProfile = (profile: { id: string; icon?: string }) => {
+  const icon = profile.icon?.trim();
+  if (!icon) return "👤";
+
+  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
+  if (icon.includes(".") && !icon.includes("/") && !icon.includes("\\")) {
+    return `appdata://llm-chat/user-profiles/${profile.id}/${icon}`;
+  }
+
+  // 否则，直接返回原始值（可能是完整路径、emoji等）
+  return icon;
+};
 </script>
 <template>
   <BaseDialog
@@ -175,8 +189,15 @@ const handleSave = () => {
       </el-form-item>
 
       <el-form-item label="图标">
-        <IconEditor v-model="editForm.icon" />
-        <div class="form-hint">可以输入 emoji、从预设选择、上传图像或输入绝对路径</div>
+        <IconEditor
+          v-model="editForm.icon"
+          :mode="mode === 'edit' ? 'upload' : 'path'"
+          :entity-id="agent?.id"
+          profile-type="agent"
+        />
+        <div v-if="mode === 'create'" class="form-hint">
+          创建后可在编辑页面为智能体上传专属头像
+        </div>
       </el-form-item>
 
       <el-form-item label="描述">
@@ -214,7 +235,7 @@ const handleSave = () => {
             <div style="display: flex; align-items: center; gap: 8px">
               <Avatar
                 v-if="profile.icon"
-                :src="profile.icon"
+                :src="getAvatarSrcForUserProfile(profile)"
                 :alt="profile.name"
                 :size="20"
                 shape="square"

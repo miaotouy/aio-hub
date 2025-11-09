@@ -2,11 +2,11 @@
  * 用户档案分离式文件存储
  * 参考智能体的存储方案：
  * - 使用 ConfigManager 管理索引文件（user-profiles-index.json）
- * - 每个用户档案存储为独立文件（user-profiles/{profileId}.json）
+ * - 每个用户档案存储为一个独立目录（user-profiles/{profileId}/），包含 profile.json 和相关资源
  */
 
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { appDataDir, join, extname } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import { createConfigManager } from '@/utils/configManager';
 import type { UserProfile } from '../types';
@@ -71,13 +71,21 @@ export interface UserProfileSettings {
  */
 export function useUserProfileStorage() {
   /**
-   * 获取用户档案文件路径
+   * 获取用户档案目录路径
    */
-  async function getProfilePath(profileId: string): Promise<string> {
+  async function getProfileDirPath(profileId: string): Promise<string> {
     const appDir = await appDataDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
-    return join(profilesDir, `${profileId}.json`);
+    return join(profilesDir, profileId);
+  }
+
+  /**
+   * 获取用户档案配置文件路径
+   */
+  async function getProfileConfigPath(profileId: string): Promise<string> {
+    const profileDir = await getProfileDirPath(profileId);
+    return join(profileDir, `profile.json`);
   }
 
   /**
@@ -99,11 +107,11 @@ export function useUserProfileStorage() {
    */
   async function loadProfile(profileId: string): Promise<UserProfile | null> {
     try {
-      const profilePath = await getProfilePath(profileId);
+      const profilePath = await getProfileConfigPath(profileId);
       const profileExists = await exists(profilePath);
-      
+
       if (!profileExists) {
-        logger.warn('用户档案文件不存在', { profileId });
+        logger.warn('用户档案配置文件不存在', { profileId, path: profilePath });
         return null;
       }
 
@@ -119,17 +127,14 @@ export function useUserProfileStorage() {
   }
 
   /**
-   * 确保 user-profiles 子目录存在
+   * 确保用户档案目录存在
    */
-  async function ensureProfilesDir(): Promise<void> {
-    const appDir = await appDataDir();
-    const moduleDir = await join(appDir, MODULE_NAME);
-    const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
-    
-    if (!await exists(profilesDir)) {
+  async function ensureProfileDir(profileId: string): Promise<void> {
+    const profileDir = await getProfileDirPath(profileId);
+    if (!(await exists(profileDir))) {
       const { mkdir } = await import('@tauri-apps/plugin-fs');
-      await mkdir(profilesDir, { recursive: true });
-      logger.debug('创建 user-profiles 目录', { profilesDir });
+      await mkdir(profileDir, { recursive: true });
+      logger.debug('创建用户档案目录', { profileDir });
     }
   }
 
@@ -138,11 +143,10 @@ export function useUserProfileStorage() {
    */
   async function saveProfile(profile: UserProfile, forceWrite: boolean = false): Promise<void> {
     try {
-      await indexManager.ensureModuleDir();
-      await ensureProfilesDir();
-      const profilePath = await getProfilePath(profile.id);
+      await ensureProfileDir(profile.id); // 确保用户档案目录存在
+      const profilePath = await getProfileConfigPath(profile.id);
       const newContent = JSON.stringify(profile, null, 2);
-      
+
       // 如果不是强制写入，先检查内容是否真的改变了
       if (!forceWrite) {
         const fileExists = await exists(profilePath);
@@ -173,20 +177,22 @@ export function useUserProfileStorage() {
   }
 
   /**
-   * 删除单个用户档案文件（移入回收站）
+   * 删除单个用户档案目录（移入回收站）
    */
-  async function deleteProfileFile(profileId: string): Promise<void> {
+  async function deleteProfileDirectory(profileId: string): Promise<void> {
     try {
-      const profilePath = await getProfilePath(profileId);
-      const profileExists = await exists(profilePath);
-      if (profileExists) {
-        await invoke<string>('delete_file_to_trash', { filePath: profilePath });
-        logger.info('用户档案文件已移入回收站', { profileId, path: profilePath });
+      const profileDir = await getProfileDirPath(profileId);
+      const relativePath = (await join(MODULE_NAME, PROFILES_SUBDIR, profileId)).replace(/\\/g, '/');
+
+      const dirExists = await exists(profileDir);
+      if (dirExists) {
+        await invoke<string>('delete_directory_in_app_data', { relativePath });
+        logger.info('用户档案目录已移入回收站', { profileId, path: profileDir });
       } else {
-        logger.warn('用户档案文件不存在，跳过删除', { profileId, path: profilePath });
+        logger.warn('用户档案目录不存在，跳过删除', { profileId, path: profileDir });
       }
     } catch (error) {
-      logger.error('删除用户档案文件失败', error as Error, { profileId });
+      logger.error('删除用户档案目录失败', error as Error, { profileId });
       throw error;
     }
   }
@@ -207,9 +213,10 @@ export function useUserProfileStorage() {
       }
 
       const entries = await readDir(profilesDir);
+      // 过滤出目录项，目录名即为 profileId
       const profileIds = entries
-        .filter(entry => entry.name?.endsWith('.json'))
-        .map(entry => entry.name!.replace('.json', ''));
+        .filter(entry => entry.isDirectory && entry.name)
+        .map(entry => entry.name!);
       
       logger.debug('扫描用户档案目录完成', { count: profileIds.length });
       return profileIds;
@@ -274,12 +281,88 @@ export function useUserProfileStorage() {
   }
 
   /**
+   * 执行从 v1 (文件) 到 v2 (目录) 的数据迁移
+   */
+  async function runMigration(): Promise<void> {
+    const { readDir } = await import('@tauri-apps/plugin-fs');
+    const appDir = await appDataDir();
+    const moduleDir = await join(appDir, MODULE_NAME);
+    const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
+
+    if (!(await exists(profilesDir))) {
+      return; // 目录不存在，无需迁移
+    }
+
+    const entries = await readDir(profilesDir);
+    const oldJsonFiles = entries.filter(entry => entry.name?.endsWith('.json') && !entry.isDirectory);
+
+    if (oldJsonFiles.length === 0) {
+      return; // 没有旧格式文件，无需迁移
+    }
+
+    logger.info(`检测到 ${oldJsonFiles.length} 个旧版用户档案文件，开始迁移...`);
+
+    for (const fileEntry of oldJsonFiles) {
+      const oldPath = await join(profilesDir, fileEntry.name!);
+      const profileId = fileEntry.name!.replace('.json', '');
+
+      try {
+        const newConfigPath = await getProfileConfigPath(profileId);
+
+        // 1. 确保新目录存在
+        await ensureProfileDir(profileId);
+
+        // 2. 读取旧文件内容
+        const content = await readTextFile(oldPath);
+        const profile: UserProfile = JSON.parse(content);
+
+        // 3. 处理头像
+        if (profile.icon && profile.icon.startsWith('appdata://')) {
+          const assetRelativePath = profile.icon.substring(10);
+          const assetFullPath = await join(appDir, assetRelativePath);
+
+          if (await exists(assetFullPath)) {
+            const extension = await extname(assetFullPath);
+            const newAvatarName = `avatar.${extension}`;
+
+            // 复制头像到新目录
+            await invoke("copy_file_to_app_data", {
+              sourcePath: assetFullPath,
+              subdirectory: await join(MODULE_NAME, PROFILES_SUBDIR, profileId),
+              newFilename: newAvatarName,
+            });
+
+            // 更新 profile 对象中的 icon 字段
+            profile.icon = newAvatarName;
+            logger.debug('用户档案头像已迁移', { profileId, oldIcon: profile.icon, newIcon: newAvatarName });
+          }
+        }
+
+        // 4. 写入新的 profile.json
+        await writeTextFile(newConfigPath, JSON.stringify(profile, null, 2));
+
+        // 5. 删除旧的 .json 文件
+        await invoke('delete_file_to_trash', { filePath: oldPath });
+
+        logger.info(`用户档案 ${profileId} 迁移成功`);
+
+      } catch (error) {
+        logger.error(`迁移用户档案 ${profileId} 失败`, error as Error, { oldPath });
+      }
+    }
+    logger.info('用户档案数据迁移完成');
+  }
+
+  /**
    * 加载所有用户档案
    */
   const loadProfiles = async (): Promise<UserProfile[]> => {
     try {
       logger.debug('开始加载所有用户档案');
       
+      // 在加载前执行数据迁移
+      await runMigration();
+
       // 1. 加载索引
       let index = await loadIndex();
       
@@ -372,13 +455,13 @@ export function useUserProfileStorage() {
   };
 
   /**
-   * 删除用户档案（同时删除文件和索引）
+   * 删除用户档案（同时删除目录和索引）
    */
   const deleteProfile = async (profileId: string): Promise<void> => {
     try {
-      // 1. 删除档案文件
-      await deleteProfileFile(profileId);
-      
+      // 1. 删除档案目录
+      await deleteProfileDirectory(profileId);
+
       // 2. 从索引中移除
       const index = await loadIndex();
       index.profiles = index.profiles.filter(item => item.id !== profileId);

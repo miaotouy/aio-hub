@@ -11,9 +11,14 @@
     </el-form-item>
 
     <el-form-item label="头像">
-      <IconEditor v-model="formData.icon" @update:model-value="handleInput" />
+      <IconEditor
+        v-model="iconValue"
+        mode="upload"
+        :entity-id="profileId"
+        profile-type="user"
+      />
       <div class="form-hint">
-        {{ iconHint }}
+        上传的头像将与该档案绑定存储，删除档案时会一并清除。
       </div>
     </el-form-item>
 
@@ -48,12 +53,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import IconEditor from '@/components/common/IconEditor.vue';
 
 interface UserProfileFormData {
+  id?: string; // 允许ID传入
   name: string;
-  icon: string;
+  icon?: string;
   content: string;
   createdAt?: string;
   lastUsedAt?: string;
@@ -62,6 +68,8 @@ interface UserProfileFormData {
 interface Props {
   /** 表单数据 */
   modelValue: UserProfileFormData;
+  /** 档案ID，用于上传头像等操作 */
+  profileId?: string;
   /** 是否显示上传按钮 */
   showUpload?: boolean;
   /** 是否显示清除按钮 */
@@ -85,7 +93,8 @@ const props = withDefaults(defineProps<Props>(), {
   required: false,
   descriptionRows: 12,
   iconPlaceholder: '输入 emoji、路径或选择图像（可选）',
-  iconHint: '可以输入 emoji、从预设选择、上传图像或输入绝对路径'
+  iconHint: '可以输入 emoji、从预设选择、上传图像或输入绝对路径',
+  profileId: undefined,
 });
 
 const emit = defineEmits<{
@@ -104,6 +113,15 @@ watch(() => props.modelValue, (newValue) => {
 const handleInput = () => {
   emit('update:modelValue', { ...formData.value });
 };
+
+// 创建一个 computed 属性来安全地处理可能为 undefined 的 icon
+const iconValue = computed({
+  get: () => formData.value.icon || '',
+  set: (value) => {
+    formData.value.icon = value;
+    handleInput();
+  }
+});
 
 // 格式化日期时间（完整格式）
 const formatDateTime = (dateStr?: string) => {

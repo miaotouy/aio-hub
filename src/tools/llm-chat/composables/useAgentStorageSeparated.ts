@@ -4,7 +4,7 @@
  */
 
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { appDataDir, join, extname } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import { createConfigManager } from '@/utils/configManager';
 import type { ChatAgent } from '../types';
@@ -64,13 +64,21 @@ const indexManager = createConfigManager<AgentsIndex>({
  */
 export function useAgentStorageSeparated() {
   /**
-   * 获取智能体文件路径
+   * 获取智能体目录路径
    */
-  async function getAgentPath(agentId: string): Promise<string> {
+  async function getAgentDirPath(agentId: string): Promise<string> {
     const appDir = await appDataDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const agentsDir = await join(moduleDir, AGENTS_SUBDIR);
-    return join(agentsDir, `${agentId}.json`);
+    return join(agentsDir, agentId);
+  }
+
+  /**
+   * 获取智能体配置文件路径
+   */
+  async function getAgentConfigPath(agentId: string): Promise<string> {
+    const agentDir = await getAgentDirPath(agentId);
+    return join(agentDir, `agent.json`);
   }
 
   /**
@@ -92,11 +100,11 @@ export function useAgentStorageSeparated() {
    */
   async function loadAgent(agentId: string): Promise<ChatAgent | null> {
     try {
-      const agentPath = await getAgentPath(agentId);
+      const agentPath = await getAgentConfigPath(agentId);
       const agentExists = await exists(agentPath);
       
       if (!agentExists) {
-        logger.warn('智能体文件不存在', { agentId });
+        logger.warn('智能体配置文件不存在', { agentId, path: agentPath });
         return null;
       }
 
@@ -112,17 +120,14 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 确保 agents 子目录存在
+   * 确保智能体目录存在
    */
-  async function ensureAgentsDir(): Promise<void> {
-    const appDir = await appDataDir();
-    const moduleDir = await join(appDir, MODULE_NAME);
-    const agentsDir = await join(moduleDir, AGENTS_SUBDIR);
-    
-    if (!await exists(agentsDir)) {
+  async function ensureAgentDir(agentId: string): Promise<void> {
+    const agentDir = await getAgentDirPath(agentId);
+    if (!await exists(agentDir)) {
       const { mkdir } = await import('@tauri-apps/plugin-fs');
-      await mkdir(agentsDir, { recursive: true });
-      logger.debug('创建 agents 目录', { agentsDir });
+      await mkdir(agentDir, { recursive: true });
+      logger.debug('创建智能体目录', { agentDir });
     }
   }
 
@@ -131,11 +136,10 @@ export function useAgentStorageSeparated() {
    */
   async function saveAgent(agent: ChatAgent, forceWrite: boolean = false): Promise<void> {
     try {
-      await indexManager.ensureModuleDir(); // 使用 ConfigManager 确保模块目录存在
-      await ensureAgentsDir(); // 确保 agents 子目录存在
-      const agentPath = await getAgentPath(agent.id);
+      await ensureAgentDir(agent.id); // 确保智能体目录存在
+      const agentPath = await getAgentConfigPath(agent.id);
       const newContent = JSON.stringify(agent, null, 2);
-      
+
       // 如果不是强制写入，先检查内容是否真的改变了
       if (!forceWrite) {
         const fileExists = await exists(agentPath);
@@ -153,7 +157,7 @@ export function useAgentStorageSeparated() {
           }
         }
       }
-      
+
       await writeTextFile(agentPath, newContent);
       
       logger.debug('智能体保存成功', {
@@ -167,21 +171,22 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 删除单个智能体文件（移入回收站）
+   * 删除单个智能体目录（移入回收站）
    */
-  async function deleteAgentFile(agentId: string): Promise<void> {
+  async function deleteAgentDirectory(agentId: string): Promise<void> {
     try {
-      const agentPath = await getAgentPath(agentId);
-      const agentExists = await exists(agentPath);
-      if (agentExists) {
-        // 使用回收站删除而不是直接删除
-        await invoke<string>('delete_file_to_trash', { filePath: agentPath });
-        logger.info('智能体文件已移入回收站', { agentId, path: agentPath });
+      const agentDir = await getAgentDirPath(agentId);
+      const relativePath = (await join(MODULE_NAME, AGENTS_SUBDIR, agentId)).replace(/\\/g, '/');
+
+      const dirExists = await exists(agentDir);
+      if (dirExists) {
+        await invoke<string>('delete_directory_in_app_data', { relativePath });
+        logger.info('智能体目录已移入回收站', { agentId, path: agentDir });
       } else {
-        logger.warn('智能体文件不存在，跳过删除', { agentId, path: agentPath });
+        logger.warn('智能体目录不存在，跳过删除', { agentId, path: agentDir });
       }
     } catch (error) {
-      logger.error('删除智能体文件失败', error as Error, { agentId });
+      logger.error('删除智能体目录失败', error as Error, { agentId });
       throw error;
     }
   }
@@ -202,9 +207,10 @@ export function useAgentStorageSeparated() {
       }
 
       const entries = await readDir(agentsDir);
+      // 过滤出目录项，目录名即为 agentId
       const agentIds = entries
-        .filter(entry => entry.name?.endsWith('.json'))
-        .map(entry => entry.name!.replace('.json', ''));
+        .filter(entry => entry.isDirectory && entry.name)
+        .map(entry => entry.name!);
       
       logger.debug('扫描智能体目录完成', { count: agentIds.length });
       return agentIds;
@@ -271,45 +277,121 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 加载所有智能体（兼容接口）
-   */
-  async function loadAgents(): Promise<ChatAgent[]> {
-    try {
-      logger.debug('开始加载所有智能体');
-      
-      // 1. 加载索引
-      let index = await loadIndex();
-      
-      // 2. 同步索引（自动发现新文件并加载其元数据）
-      const syncedItems = await syncIndex(index);
-      
-      // 3. 并行加载所有智能体的完整数据
-      const agentPromises = syncedItems.map(item => loadAgent(item.id));
-      const agentResults = await Promise.all(agentPromises);
-      
-      // 4. 过滤掉加载失败的智能体
-      const agents = agentResults.filter((a): a is ChatAgent => a !== null);
-      
-      // 5. 如果索引被同步过，保存更新后的索引
-      const validItems = agents.map(a => createIndexItem(a));
-      if (syncedItems.length !== index.agents.length ||
-          !syncedItems.every((item, i) => item.id === index.agents[i]?.id)) {
-        index.agents = validItems;
-        await saveIndex(index);
-      }
-
-      logger.info('所有智能体加载成功', {
-        agentCount: agents.length,
-        currentAgentId: index.currentAgentId
-      });
-      
-      return agents;
-    } catch (error) {
-      logger.error('加载所有智能体失败', error as Error);
-      return [];
-    }
-  }
-
+   /**
+    * 执行从 v1 (文件) 到 v2 (目录) 的数据迁移
+    */
+   async function runMigration(): Promise<void> {
+     const { readDir } = await import('@tauri-apps/plugin-fs');
+     const appDir = await appDataDir();
+     const moduleDir = await join(appDir, MODULE_NAME);
+     const agentsDir = await join(moduleDir, AGENTS_SUBDIR);
+ 
+     if (!await exists(agentsDir)) {
+       return; // 目录不存在，无需迁移
+     }
+ 
+     const entries = await readDir(agentsDir);
+     const oldJsonFiles = entries.filter(entry => entry.name?.endsWith('.json') && !entry.isDirectory);
+ 
+     if (oldJsonFiles.length === 0) {
+       return; // 没有旧格式文件，无需迁移
+     }
+ 
+     logger.info(`检测到 ${oldJsonFiles.length} 个旧版智能体文件，开始迁移...`);
+ 
+     for (const fileEntry of oldJsonFiles) {
+       const oldPath = await join(agentsDir, fileEntry.name!);
+       const agentId = fileEntry.name!.replace('.json', '');
+       
+       try {
+         const newConfigPath = await getAgentConfigPath(agentId);
+ 
+         // 1. 确保新目录存在
+         await ensureAgentDir(agentId);
+ 
+         // 2. 读取旧文件内容
+         const content = await readTextFile(oldPath);
+         const agent: ChatAgent = JSON.parse(content);
+ 
+         // 3. 处理头像
+         if (agent.icon && agent.icon.startsWith('appdata://')) {
+           const assetRelativePath = agent.icon.substring(10);
+           const assetFullPath = await join(appDir, assetRelativePath);
+ 
+           if (await exists(assetFullPath)) {
+             const extension = await extname(assetFullPath);
+             const newAvatarName = `avatar.${extension}`;
+             
+             // 复制头像到新目录
+             await invoke("copy_file_to_app_data", {
+               sourcePath: assetFullPath,
+               subdirectory: await join(MODULE_NAME, AGENTS_SUBDIR, agentId),
+               newFilename: newAvatarName,
+             });
+ 
+             // 更新 agent 对象中的 icon 字段
+             agent.icon = newAvatarName;
+             logger.debug('智能体头像已迁移', { agentId, oldIcon: agent.icon, newIcon: newAvatarName });
+           }
+         }
+         
+         // 4. 写入新的 agent.json
+         await writeTextFile(newConfigPath, JSON.stringify(agent, null, 2));
+ 
+         // 5. 删除旧的 .json 文件
+         await invoke('delete_file_to_trash', { filePath: oldPath });
+ 
+         logger.info(`智能体 ${agentId} 迁移成功`);
+ 
+       } catch (error) {
+         logger.error(`迁移智能体 ${agentId} 失败`, error as Error, { oldPath });
+       }
+     }
+     logger.info('智能体数据迁移完成');
+   }
+ 
+   /**
+    * 加载所有智能体（兼容接口）
+    */
+   async function loadAgents(): Promise<ChatAgent[]> {
+     try {
+       logger.debug('开始加载所有智能体');
+       
+       // 在加载前执行数据迁移
+       await runMigration();
+ 
+       // 1. 加载索引
+       let index = await loadIndex();
+       
+       // 2. 同步索引（自动发现新文件并加载其元数据）
+       const syncedItems = await syncIndex(index);
+       
+       // 3. 并行加载所有智能体的完整数据
+       const agentPromises = syncedItems.map(item => loadAgent(item.id));
+       const agentResults = await Promise.all(agentPromises);
+       
+       // 4. 过滤掉加载失败的智能体
+       const agents = agentResults.filter((a): a is ChatAgent => a !== null);
+       
+       // 5. 如果索引被同步过，保存更新后的索引
+       const validItems = agents.map(a => createIndexItem(a));
+       if (syncedItems.length !== index.agents.length ||
+           !syncedItems.every((item, i) => item.id === index.agents[i]?.id)) {
+         index.agents = validItems;
+         await saveIndex(index);
+       }
+ 
+       logger.info('所有智能体加载成功', {
+         agentCount: agents.length,
+         currentAgentId: index.currentAgentId
+       });
+       
+       return agents;
+     } catch (error) {
+       logger.error('加载所有智能体失败', error as Error);
+       return [];
+     }
+   }
   /**
    * 保存单个智能体并更新索引
    */
@@ -371,12 +453,12 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 删除智能体（同时删除文件和索引）
+   * 删除智能体（同时删除目录和索引）
    */
   async function deleteAgent(agentId: string): Promise<void> {
     try {
-      // 1. 删除智能体文件
-      await deleteAgentFile(agentId);
+      // 1. 删除智能体目录
+      await deleteAgentDirectory(agentId);
       
       // 2. 从索引中移除
       const index = await loadIndex();

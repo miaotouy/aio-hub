@@ -9,11 +9,22 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Picture, Upload, RefreshLeft } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { assetManagerEngine } from "@/composables/useAssetManager";
+import { invoke } from "@tauri-apps/api/core";
+import { extname } from "@tauri-apps/api/path";
 
 interface Props {
   modelValue: string;
+  mode?: "path" | "upload";
+  /** 在 'upload' 模式下必须提供，用于确定上传目录 */
+  entityId?: string;
+  /** 在 'upload' 模式下必须提供，用于确定上传目录 */
+  profileType?: "agent" | "user";
 }
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  mode: "path",
+  entityId: "",
+  profileType: "agent",
+});
 
 interface Emits {
   (e: "update:modelValue", value: string): void;
@@ -45,14 +56,10 @@ const selectPresetIcon = (icon: any) => {
 // 上传自定义图像
 const uploadCustomImage = async () => {
   try {
-    // 打开文件选择对话框
     const selectedPath = await open({
       multiple: false,
       filters: [
-        {
-          name: "图像文件",
-          extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"],
-        },
+        { name: "图像文件", extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"] },
       ],
     });
 
@@ -60,17 +67,48 @@ const uploadCustomImage = async () => {
 
     isUploadingImage.value = true;
 
-    // 直接使用 assetManagerEngine 从路径导入资产
-    const asset = await assetManagerEngine.importAssetFromPath(selectedPath, {
-      origin: { type: "local", source: `icon-editor` },
-      enableDeduplication: true,
-      subfolder: "user-icons", // 通用图标目录
-      generateThumbnail: false,
-    });
+    if (props.mode === "upload") {
+      // **上传模式：与 assets 解耦**
+      if (!props.entityId) {
+        customMessage.error("上传失败：缺少 entityId");
+        isUploadingImage.value = false;
+        return;
+      }
 
-    // 使用 assetManager 返回的规范化 appdata:// 路径
-    emit("update:modelValue", `appdata://${asset.path}`);
-    customMessage.success("图像上传成功");
+      const extension = await extname(selectedPath);
+      const newFilename = `avatar${extension ? `.${extension.slice(1)}` : ""}`;
+
+      let subdirectory = "";
+      if (props.profileType === "agent") {
+        subdirectory = `llm-chat/agents/${props.entityId}`;
+      } else if (props.profileType === "user") {
+        subdirectory = `llm-chat/user-profiles/${props.entityId}`;
+      } else {
+        customMessage.error(`上传失败：未知的 profileType '${props.profileType}'`);
+        isUploadingImage.value = false;
+        return;
+      }
+
+      await invoke("copy_file_to_app_data", {
+        sourcePath: selectedPath,
+        subdirectory,
+        newFilename,
+      });
+
+      // v-model 只存储文件名
+      emit("update:modelValue", newFilename);
+      customMessage.success("专属头像上传成功");
+    } else {
+      // **路径模式：保留原有逻辑，使用 assetManager**
+      const asset = await assetManagerEngine.importAssetFromPath(selectedPath, {
+        origin: { type: "local", source: `icon-editor` },
+        enableDeduplication: true,
+        subfolder: "user-icons",
+        generateThumbnail: false,
+      });
+      emit("update:modelValue", `appdata://${asset.path}`);
+      customMessage.success("图像上传成功");
+    }
   } catch (error) {
     console.error("上传图像失败:", error);
     customMessage.error(`上传图像失败: ${error}`);
@@ -81,6 +119,7 @@ const uploadCustomImage = async () => {
 
 // 清除图标
 const clearIcon = () => {
+  // 在 upload 模式下，也应该有一个默认值，但暂时先统一处理
   emit("update:modelValue", "🤖");
   customMessage.info("已重置为默认图标");
 };
@@ -135,37 +174,52 @@ const handleIconClick = () => {
       </el-tooltip>
     </div>
     <div class="icon-controls-container">
-      <el-input
-        :model-value="modelValue"
-        @update:model-value="$emit('update:modelValue', $event)"
-        placeholder="输入 emoji、路径或选择图像"
-        class="icon-input"
-      >
-        <template #append>
-          <el-button-group>
-            <el-button @click="openPresetIconSelector" title="选择预设图标">
-              <el-icon>
-                <Picture />
-              </el-icon>
-            </el-button>
-            <el-button
-              @click="uploadCustomImage"
-              :loading="isUploadingImage"
-              title="上传自定义图像"
-            >
-              <el-icon>
-                <Upload />
-              </el-icon>
-            </el-button>
-            <el-button @click="clearIcon" title="重置为默认">
-              <el-icon>
-                <RefreshLeft />
-              </el-icon>
-            </el-button>
-          </el-button-group>
-        </template>
-      </el-input>
-      <div class="form-hint">可以输入 emoji、从预设选择、上传图像或输入绝对路径</div>
+      <!-- 路径模式：显示输入框和完整按钮组 -->
+      <template v-if="mode === 'path'">
+        <el-input
+          :model-value="modelValue"
+          @update:model-value="$emit('update:modelValue', $event)"
+          placeholder="输入 emoji、路径或选择图像"
+          class="icon-input"
+        >
+          <template #append>
+            <el-button-group>
+              <el-button @click="openPresetIconSelector" title="选择预设图标">
+                <el-icon><Picture /></el-icon>
+              </el-button>
+              <el-button
+                @click="uploadCustomImage"
+                :loading="isUploadingImage"
+                title="上传自定义图像"
+              >
+                <el-icon><Upload /></el-icon>
+              </el-button>
+              <el-button @click="clearIcon" title="重置为默认">
+                <el-icon><RefreshLeft /></el-icon>
+              </el-button>
+            </el-button-group>
+          </template>
+        </el-input>
+        <div class="form-hint">可以输入 emoji、从预设选择、上传图像或输入绝对路径</div>
+      </template>
+
+      <!-- 上传模式：只显示上传和重置按钮 -->
+      <template v-else-if="mode === 'upload'">
+        <div class="upload-mode-controls">
+          <el-button
+            @click="uploadCustomImage"
+            :loading="isUploadingImage"
+            type="primary"
+            :icon="Upload"
+          >
+            上传专属头像
+          </el-button>
+          <el-button @click="clearIcon" :icon="RefreshLeft"> 重置 </el-button>
+        </div>
+        <div class="form-hint">
+          上传的头像将与该智能体绑定存储，删除智能体时会一并清除。
+        </div>
+      </template>
     </div>
   </div>
 
@@ -206,6 +260,11 @@ const handleIconClick = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.upload-mode-controls {
+  display: flex;
+  gap: 12px;
 }
 
 .icon-input {

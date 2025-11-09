@@ -77,6 +77,16 @@ const currentAgent = computed(() => {
   return agentStore.getAgentById(finalCurrentAgentId.value);
 });
 
+const agentAvatarSrc = computed(() => {
+  const agent = currentAgent.value;
+  if (!agent || !agent.icon) return '🤖';
+  const icon = agent.icon.trim();
+  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
+    return `appdata://llm-chat/agents/${agent.id}/${icon}`;
+  }
+  return icon;
+});
+
 // 当前模型信息
 const currentModel = computed(() => {
   if (!currentAgent.value) return null;
@@ -104,6 +114,18 @@ const effectiveUserProfile = computed(() => {
 
   // 否则使用全局档案
   return userProfileStore.globalProfile;
+});
+
+const userProfileAvatarSrc = computed(() => {
+  const profile = effectiveUserProfile.value;
+  if (!profile || !profile.icon) return '👤';
+  const icon = profile.icon.trim();
+  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
+  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
+    return `appdata://llm-chat/user-profiles/${profile.id}/${icon}`;
+  }
+  // 否则，直接返回原始值（可能是完整路径、emoji等）
+  return icon;
 });
 
 // ===== 拖拽与分离功能 =====
@@ -464,7 +486,7 @@ onMounted(async () => {
         <div v-if="currentAgent" class="agent-info clickable" @click="handleEditAgent">
           <el-tooltip content="点击编辑智能体" placement="bottom">
             <Avatar
-              :src="currentAgent.icon || '🤖'"
+              :src="agentAvatarSrc"
               :alt="currentAgent.name"
               :size="28"
               shape="square"
@@ -491,7 +513,7 @@ onMounted(async () => {
         <span class="profile-name">{{ effectiveUserProfile.name }}</span>
         <el-tooltip content="点击编辑用户档案" placement="bottom">
           <Avatar
-            :src="effectiveUserProfile.icon || '👤'"
+            :src="userProfileAvatarSrc"
             :alt="effectiveUserProfile.name"
             :size="28"
             shape="square"

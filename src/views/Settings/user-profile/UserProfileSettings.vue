@@ -20,7 +20,7 @@
       >
         <template #item="{ profile }">
           <Avatar
-            :src="profile.icon || ''"
+            :src="getAvatarSrc(profile)"
             :alt="profile.name"
             :size="40"
             class="profile-icon"
@@ -56,6 +56,7 @@
 
         <UserProfileForm
           v-model="editForm"
+          :profile-id="editForm.id"
           :show-upload="true"
           :show-clear="true"
           :show-metadata="true"
@@ -111,6 +112,7 @@ const selectedProfileId = ref<string | null>(null);
 const editForm = ref<UserProfile>({
   id: "",
   name: "",
+  icon: "",
   content: "",
   createdAt: "",
 });
@@ -122,6 +124,20 @@ const profiles = computed(() => {
     enabled: profile.enabled ?? true, // 使用档案自己的启用状态，默认为 true
   }));
 });
+
+// 根据 profile.icon 解析最终的头像路径
+const getAvatarSrc = (profile: { id: string; icon?: string }) => {
+  const icon = profile.icon?.trim();
+  if (!icon) return '👤';
+
+  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
+  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
+    return `appdata://llm-chat/user-profiles/${profile.id}/${icon}`;
+  }
+
+  // 否则，直接返回原始值（可能是完整路径、emoji等）
+  return icon;
+};
 
 // 计算当前选中的档案
 const selectedProfile = computed(() => {
@@ -135,6 +151,9 @@ const selectProfile = (profileId: string) => {
   const profile = userProfileStore.profiles.find((p) => p.id === profileId);
   if (profile) {
     editForm.value = JSON.parse(JSON.stringify(profile));
+    if (!editForm.value.icon) {
+      editForm.value.icon = "";
+    }
   }
 };
 

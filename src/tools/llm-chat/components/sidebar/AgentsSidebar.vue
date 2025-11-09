@@ -258,6 +258,20 @@ const handleSaveAgent = (data: {
   }
 };
 
+// 根据 agent.icon 解析最终的头像路径
+const getAvatarSrc = (agent: ChatAgent) => {
+  const icon = agent.icon?.trim();
+  if (!icon) return '🤖';
+
+  // 如果 icon 看起来像一个文件名（包含.且不含/或\），则拼接路径
+  if (icon.includes('.') && !icon.includes('/') && !icon.includes('\\')) {
+    return `appdata://llm-chat/agents/${agent.id}/${icon}`;
+  }
+  
+  // 否则，直接返回原始值（可能是完整路径、emoji等）
+  return icon;
+};
+
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
   ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？文件将被移入回收站。`, "确认删除", {
@@ -331,7 +345,7 @@ const handleDelete = (agent: ChatAgent) => {
         @click="selectAgent(agent.id)"
       >
         <Avatar
-          :src="agent.icon || '🙄'"
+          :src="getAvatarSrc(agent)"
           :alt="agent.name"
           :class="['agent-icon', { selected: isAgentSelected(agent.id) }]"
         />

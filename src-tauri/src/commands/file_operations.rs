@@ -9,7 +9,7 @@ use fs_extra;
 use std::path::Component;
 use tokio_util::sync::CancellationToken;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use std::time::SystemTime;
 use lazy_static::lazy_static;
 use std::io::{Read, Write};
@@ -1570,4 +1570,59 @@ pub async fn preflight_plugin_zip(
         .map_err(|e| format!("转换 manifest 类型失败: {}", e))?;
     
     Ok(plugin_manifest)
+}
+
+// Tauri 命令：读取应用数据目录下的二进制文件
+#[tauri::command]
+pub fn read_app_data_file_binary(app: AppHandle, relative_path: String) -> Result<Vec<u8>, String> {
+    // 获取应用数据目录
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+
+    // 构建完整路径
+    let full_path = app_data_dir.join(&relative_path);
+
+    // 安全性检查：确保路径仍在 app_data_dir 内
+    if !full_path.starts_with(&app_data_dir) {
+        return Err("不允许访问应用数据目录之外的路径".to_string());
+    }
+
+    if !full_path.exists() {
+        return Err(format!("文件不存在: {}", full_path.display()));
+    }
+    
+    let bytes = fs::read(&full_path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+    
+    Ok(bytes)
+}
+
+// Tauri 命令：删除应用数据目录下的整个目录（移入回收站）
+#[tauri::command]
+pub async fn delete_directory_in_app_data(app: AppHandle, relative_path: String) -> Result<String, String> {
+    // 获取应用数据目录
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+
+    // 构建完整路径
+    let full_path = app_data_dir.join(&relative_path);
+
+    // 安全性检查
+    if !full_path.starts_with(&app_data_dir) {
+        return Err("不允许删除应用数据目录之外的目录".to_string());
+    }
+    if !full_path.exists() {
+        return Err(format!("目录不存在: {}", full_path.display()));
+    }
+    if !full_path.is_dir() {
+        return Err(format!("路径不是一个目录: {}", full_path.display()));
+    }
+
+    // 使用 trash crate 移到回收站
+    trash::delete(&full_path)
+        .map_err(|e| format!("移入回收站失败: {}", e))?;
+    
+    Ok(format!("目录已移入回收站: {}", full_path.display()))
 }

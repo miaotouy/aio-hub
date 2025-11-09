@@ -73,6 +73,20 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty('--card-bg', `rgba(${cardBgRgb}, ${cardOpacityValue})`);
   }
 
+  // --header-bg 的透明度也需要同步
+  const headerBgRgb = getComputedStyle(root).getPropertyValue('--header-bg-rgb').trim();
+  if (headerBgRgb) {
+    // Header 可以看作是一种卡片/面板，因此使用卡片透明度
+    root.style.setProperty('--header-bg', `rgba(${headerBgRgb}, ${cardOpacityValue})`);
+  }
+
+  // --input-bg 的透明度也需要同步
+  const inputBgRgb = getComputedStyle(root).getPropertyValue('--input-bg-rgb').trim();
+  if (inputBgRgb) {
+    // 输入框通常在卡片上，因此可以共享卡片的透明度
+    root.style.setProperty('--input-bg', `rgba(${inputBgRgb}, ${cardOpacityValue})`);
+  }
+
   const overlayOpacityValue = calculateOpacity(offsets.overlay);
   root.style.setProperty('--overlay-opacity', overlayOpacityValue);
 

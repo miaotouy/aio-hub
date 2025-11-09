@@ -165,7 +165,7 @@ body.transparent-window #app {
 
 .el-input__inner,
 .el-textarea__inner {
-  background-color: var(--input-bg);
+  background-color: transparent;
   color: var(--text-color);
   border-color: var(--border-color);
 }

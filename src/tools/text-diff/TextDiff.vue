@@ -741,6 +741,7 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
 .diff-editor {
   flex: 1;
   min-height: 400px;
-  height: 100%;
+  height: 100%;  
+  background: transparent;
 }
 </style>

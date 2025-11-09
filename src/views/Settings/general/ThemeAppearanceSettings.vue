@@ -1,106 +1,142 @@
 <template>
   <div class="theme-appearance-settings">
-    <el-form label-position="top">
-      <!-- 壁纸管理 -->
-      <el-divider>壁纸管理</el-divider>
-      <el-form-item label="壁纸预览">
-        <div class="wallpaper-preview" :style="{ backgroundImage: `url(${currentWallpaper})` }">
-          <div v-if="!currentWallpaper" class="empty-state">
-            <el-icon><Picture /></el-icon>
-            <span>无壁纸</span>
-          </div>
-        </div>
-      </el-form-item>
+    <div class="settings-grid">
+      <!-- Left Column: Wallpaper Management -->
+      <el-card shadow="never">
+        <template #header>
+          <span>壁纸管理</span>
+        </template>
+        <el-form label-position="top">
+          <el-form-item label="壁纸预览">
+            <div
+              class="wallpaper-preview"
+              :style="{ backgroundImage: `url(${currentWallpaper})` }"
+            >
+              <div v-if="!currentWallpaper" class="empty-state">
+                <el-icon><Picture /></el-icon>
+                <span>无壁纸</span>
+              </div>
+            </div>
+          </el-form-item>
 
-      <el-form-item label="壁纸模式">
-        <el-radio-group v-model="wallpaperMode">
-          <el-radio-button value="static">静态壁纸</el-radio-button>
-          <el-radio-button value="slideshow">目录轮播</el-radio-button>
-        </el-radio-group>
-      </el-form-item>
+          <el-row :gutter="20">
+            <el-col :md="12" :span="24">
+              <el-form-item label="壁纸模式">
+                <el-radio-group v-model="wallpaperMode">
+                  <el-radio-button value="static">静态壁纸</el-radio-button>
+                  <el-radio-button value="slideshow">目录轮播</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col :md="12" :span="24">
+              <el-form-item
+                v-if="wallpaperMode === 'slideshow'"
+                label="轮播间隔（分钟）"
+              >
+                <el-input-number
+                  v-model="wallpaperSlideshowInterval"
+                  :min="1"
+                  :max="1440"
+                  class="full-width"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-      <el-form-item>
-        <div class="button-group">
-          <el-button @click="selectWallpaper" :disabled="wallpaperMode !== 'static'">
-            选择图片
-          </el-button>
-          <el-button
-            @click="selectWallpaperDirectory"
-            :disabled="wallpaperMode !== 'slideshow'"
-          >
-            选择目录
-          </el-button>
-          <el-button @click="clearWallpaper" type="danger" plain>清除壁纸</el-button>
-        </div>
-      </el-form-item>
+          <el-form-item>
+            <div class="button-group">
+              <el-button
+                @click="selectWallpaper"
+                :disabled="wallpaperMode !== 'static'"
+              >
+                选择图片
+              </el-button>
+              <el-button
+                @click="selectWallpaperDirectory"
+                :disabled="wallpaperMode !== 'slideshow'"
+              >
+                选择目录
+              </el-button>
+              <el-button @click="clearWallpaper" type="danger" plain
+                >清除壁纸</el-button
+              >
+            </div>
+          </el-form-item>
 
-      <el-form-item v-if="wallpaperMode === 'slideshow'" label="轮播间隔（分钟）">
-        <el-input-number
-          v-model="wallpaperSlideshowInterval"
-          :min="1"
-          :max="1440"
-        />
-      </el-form-item>
+          <el-form-item label="壁纸不透明度">
+            <el-slider
+              v-model="wallpaperOpacity"
+              :min="0.1"
+              :max="1"
+              :step="0.05"
+            />
+          </el-form-item>
+        </el-form>
+      </el-card>
 
-      <el-form-item label="壁纸不透明度">
-        <el-slider
-          v-model="wallpaperOpacity"
-          :min="0.1"
-          :max="1"
-          :step="0.05"
-        />
-      </el-form-item>
+      <!-- Right Column: UI and Window Effects -->
+      <div class="right-column-content">
+        <el-card shadow="never">
+          <template #header>
+            <span>界面质感</span>
+          </template>
+          <el-form label-position="top">
+            <el-form-item label="启用 UI 模糊效果">
+              <el-switch v-model="enableUiBlur" />
+            </el-form-item>
 
-      <!-- 界面质感 -->
-      <el-divider>界面质感</el-divider>
-      <el-form-item label="启用 UI 模糊效果">
-        <el-switch v-model="enableUiBlur" />
-      </el-form-item>
+            <el-form-item label="UI 基础不透明度">
+              <el-slider
+                v-model="uiBaseOpacity"
+                :min="0.1"
+                :max="1"
+                :step="0.05"
+              />
+            </el-form-item>
 
-      <el-form-item label="UI 基础不透明度">
-        <el-slider
-          v-model="uiBaseOpacity"
-          :min="0.1"
-          :max="1"
-          :step="0.05"
-        />
-      </el-form-item>
+            <el-form-item label="UI 模糊强度 (px)">
+              <el-slider
+                v-model="uiBlurIntensity"
+                :min="0"
+                :max="50"
+                :step="1"
+              />
+            </el-form-item>
+          </el-form>
+        </el-card>
 
-      <el-form-item label="UI 模糊强度 (px)">
-        <el-slider
-          v-model="uiBlurIntensity"
-          :min="0"
-          :max="50"
-          :step="1"
-        />
-      </el-form-item>
+        <el-card shadow="never">
+          <template #header>
+            <span>窗口特效 (实验性)</span>
+          </template>
+          <el-form label-position="top">
+            <el-form-item label="窗口背景特效">
+              <el-select v-model="windowEffect" class="full-width">
+                <el-option label="无" value="none" />
+                <el-option label="模糊 (Blur)" value="blur" />
+                <el-option label="亚克力 (Acrylic)" value="acrylic" />
+                <el-option label="云母 (Mica)" value="mica" />
+              </el-select>
+              <p class="form-item-description">
+                需要重启应用生效。此功能依赖操作系统支持 (Windows 11, macOS)。
+              </p>
+            </el-form-item>
 
-      <!-- 窗口特效 -->
-      <el-divider>窗口特效 (实验性)</el-divider>
-      <el-form-item label="窗口背景特效">
-        <el-select v-model="windowEffect">
-          <el-option label="无" value="none" />
-          <el-option label="模糊 (Blur)" value="blur" />
-          <el-option label="亚克力 (Acrylic)" value="acrylic" />
-          <el-option label="云母 (Mica)" value="mica" />
-        </el-select>
-        <p class="form-item-description">
-          需要重启应用生效。此功能依赖操作系统支持 (Windows 11, macOS)。
-        </p>
-      </el-form-item>
-
-      <el-form-item label="窗口背景不透明度">
-        <el-slider
-          v-model="windowBackgroundOpacity"
-          :min="0.1"
-          :max="1"
-          :step="0.05"
-        />
-        <p class="form-item-description">
-          降低此值以透出桌面或窗口后的内容。仅在窗口特效启用时有效。
-        </p>
-      </el-form-item>
-    </el-form>
+            <el-form-item label="窗口背景不透明度">
+              <el-slider
+                v-model="windowBackgroundOpacity"
+                :min="0.1"
+                :max="1"
+                :step="0.05"
+              />
+              <p class="form-item-description">
+                降低此值以透出桌面或窗口后的内容。仅在窗口特效启用时有效。
+              </p>
+            </el-form-item>
+          </el-form>
+        </el-card>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -163,7 +199,24 @@ const windowBackgroundOpacity = computed({
 <style scoped>
 .theme-appearance-settings {
   padding: 20px;
-  max-width: 600px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 1199px) {
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.right-column-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .wallpaper-preview {
@@ -201,5 +254,15 @@ const windowBackgroundOpacity = computed({
   color: var(--text-color-light);
   margin-top: 4px;
   line-height: 1.4;
+}
+
+.full-width {
+  width: 100%;
+}
+
+:deep(.el-card__header) {
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 500;
 }
 </style>

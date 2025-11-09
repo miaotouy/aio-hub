@@ -92,6 +92,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
   (e: 'close'): void;
+  (e: 'open'): void;
 }>();
 
 const slots = useSlots();
@@ -135,6 +136,7 @@ const dialogStyles = computed(() => {
 
 watch(() => props.visible, (newValue) => {
   if (newValue) {
+    emit('open');
     // 对话框打开时，可能需要递增 z-index（如果有多个对话框）
     // 这里简化处理，直接使用传入的 zIndex
     dynamicZIndex.value = props.zIndex;

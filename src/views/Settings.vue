@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { InfoFilled, ArrowLeft } from "@element-plus/icons-vue";
+import { ArrowLeft } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import {
@@ -15,13 +15,8 @@ import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
 import { useToolsStore } from "@/stores/tools";
-import ThemeColorSettings from "./Settings/general/ThemeColorSettings.vue";
-import LogSettings from "./Settings/general/LogSettings.vue";
 import { useTheme } from "../composables/useTheme";
 import { useLogConfig } from "../composables/useLogConfig";
-import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
-import { appDataDir } from "@tauri-apps/api/path";
 
 const logger = createModuleLogger("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
@@ -196,123 +191,10 @@ const handleReset = async () => {
     }
   }
 };
-// 打开配置文件目录
-const handleOpenConfigDir = async () => {
+
+// 在导入配置成功后重新加载设置
+const onConfigImported = async (resultMessage: string) => {
   try {
-    const appDir = await appDataDir();
-
-    // 使用后端命令打开目录
-    try {
-      await invoke("open_file_directory", { filePath: appDir });
-    } catch (openError) {
-      // 备用方案：复制路径到剪贴板
-      logger.warn("无法直接打开目录，尝试复制路径", openError);
-
-      const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
-      await writeText(appDir);
-
-      ElMessageBox.alert(`无法自动打开目录，路径已复制到剪贴板：\n${appDir}`, "提示", {
-        confirmButtonText: "确定",
-        type: "info",
-      });
-    }
-  } catch (error) {
-    logger.error("获取配置目录路径失败", error);
-    customMessage.error("无法访问配置目录");
-  }
-};
-
-// 导出配置
-const handleExportConfig = async () => {
-  try {
-    const filePath = await save({
-      title: "导出配置",
-      defaultPath: `AIO-Tools-Backup-${new Date().toISOString().split("T")[0]}.zip`,
-      filters: [
-        {
-          name: "ZIP 压缩包",
-          extensions: ["zip"],
-        },
-      ],
-    });
-
-    if (filePath) {
-      // 调用后端命令导出所有模块的配置到 ZIP（返回二进制数据）
-      const zipData = await invoke<number[]>("export_all_configs_to_zip");
-
-      // 将二进制数据转换为 Uint8Array
-      const zipBuffer = new Uint8Array(zipData);
-
-      // 直接写入到用户选择的位置
-      await writeFile(filePath, zipBuffer);
-
-      customMessage.success("配置导出成功");
-      logger.info("配置已导出", { filePath });
-
-      // 导出成功后打开文件所在目录（使用后端命令绕过路径限制）
-      try {
-        await invoke("open_file_directory", { filePath });
-      } catch (openError) {
-        // 打开目录失败时静默处理，不影响主流程
-        logger.warn("无法打开导出目录", openError);
-      }
-    }
-  } catch (error) {
-    logger.error("导出配置失败", error);
-    customMessage.error("导出配置失败");
-  }
-};
-
-// 导入配置
-const handleImportConfig = async () => {
-  try {
-    const filePath = await openDialog({
-      title: "导入配置",
-      multiple: false,
-      filters: [
-        {
-          name: "ZIP 压缩包",
-          extensions: ["zip"],
-        },
-      ],
-    });
-
-    if (!filePath) {
-      return;
-    }
-
-    // 让用户选择导入模式
-    let mergeMode = false;
-    try {
-      await ElMessageBox({
-        title: "选择导入模式",
-        message:
-          "请选择如何导入配置：\n\n• 合并导入：保留现有配置，仅更新导入文件中存在的项\n• 覆盖导入：完全替换为导入文件中的配置",
-        showCancelButton: true,
-        confirmButtonText: "合并导入",
-        cancelButtonText: "覆盖导入",
-        distinguishCancelAndClose: true,
-        closeOnClickModal: false,
-        type: "info",
-      });
-      // 用户选择了"合并导入"
-      mergeMode = true;
-    } catch (action) {
-      if (action === "cancel") {
-        // 用户选择了"覆盖导入"
-        mergeMode = false;
-      } else {
-        // 用户关闭了对话框，取消操作
-        return;
-      }
-    }
-
-    // 调用后端命令从 ZIP 导入所有模块的配置
-    const result = await invoke<string>("import_all_configs_from_zip", {
-      zipFilePath: filePath as string,
-      merge: mergeMode,
-    });
-
     // 重新加载应用设置以反映变化
     isLoadingFromFile = true;
     const loadedSettings = await loadAppSettingsAsync();
@@ -338,36 +220,10 @@ const handleImportConfig = async () => {
       );
     }, 100);
 
-    customMessage.success(result);
-    logger.info("配置已导入", { result, mergeMode });
+    customMessage.success(resultMessage);
   } catch (error) {
-    if (error !== "cancel") {
-      logger.error("导入配置失败", error);
-      customMessage.error("导入配置失败");
-    }
-  }
-};
-
-// 清除窗口状态
-const handleClearWindowState = async () => {
-  try {
-    await ElMessageBox.confirm(
-      "确定要清除所有窗口的位置和大小记忆吗？下次打开窗口时将恢复默认位置。",
-      "清除窗口状态",
-      {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      }
-    );
-
-    await invoke("clear_window_state");
-    customMessage.success("窗口状态已清除");
-  } catch (error) {
-    if (error !== "cancel") {
-      logger.error("清除窗口状态失败", error);
-      customMessage.error("清除窗口状态失败");
-    }
+    logger.error("导入配置后刷新设置失败", error);
+    customMessage.error("刷新设置失败");
   }
 };
 
@@ -662,128 +518,49 @@ onUnmounted(() => {
               :style="{ minHeight: module.minHeight || 'auto' }"
             >
               <h2 class="section-title">{{ module.title }}</h2>
-              <!-- 主题色配置组件需要特殊处理，传递 v-model 绑定 -->
-              <ThemeColorSettings
-                v-if="module.id === 'theme-colors'"
+              <!-- 根据模块 ID 动态绑定 v-model -->
+
+              <!-- 通用设置 -->
+              <component
+                v-if="module.id === 'general'"
+                :is="module.component"
+                v-model:show-tray-icon="settings.showTrayIcon"
+                v-model:minimize-to-tray="settings.minimizeToTray"
+                v-model:theme="settings.theme"
+                v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
+                @config-imported="onConfigImported"
+              />
+
+              <!-- 主题色配置 -->
+              <component
+                v-else-if="module.id === 'theme-colors'"
+                :is="module.component"
                 v-model:theme-color="settings.themeColor"
                 v-model:success-color="settings.successColor"
                 v-model:warning-color="settings.warningColor"
                 v-model:danger-color="settings.dangerColor"
                 v-model:info-color="settings.infoColor"
               />
-              <!-- 日志配置组件需要特殊处理，传递 v-model 绑定 -->
-              <LogSettings
+
+              <!-- 日志配置 -->
+              <component
                 v-else-if="module.id === 'log-settings'"
+                :is="module.component"
                 v-model:log-level="settings.logLevel"
                 v-model:log-to-file="settings.logToFile"
                 v-model:log-to-console="settings.logToConsole"
                 v-model:log-buffer-size="settings.logBufferSize"
               />
-              <!-- 工具模块配置组件需要特殊处理，传递 v-model 绑定 -->
+
+              <!-- 工具模块配置 -->
               <component
                 v-else-if="module.id === 'tools'"
                 :is="module.component"
                 v-model:tools-visible="settings.toolsVisible"
               />
+
               <!-- 其他动态组件 -->
               <component v-else :is="module.component" />
-            </section>
-
-            <!-- 静态模块 -->
-            <!-- 通用设置 -->
-            <section v-else-if="module.id === 'general'" id="general" class="settings-section">
-              <h2 class="section-title">通用设置</h2>
-
-              <div class="setting-item">
-                <div class="setting-label">
-                  <span>显示托盘图标</span>
-                  <el-tooltip content="是否在系统托盘显示应用图标，可实时生效" placement="top">
-                    <el-icon class="info-icon">
-                      <InfoFilled />
-                    </el-icon>
-                  </el-tooltip>
-                </div>
-                <el-switch v-model="settings.showTrayIcon" />
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-label">
-                  <span>关闭到托盘</span>
-                  <el-tooltip
-                    content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序"
-                    placement="top"
-                  >
-                    <el-icon class="info-icon">
-                      <InfoFilled />
-                    </el-icon>
-                  </el-tooltip>
-                  <span v-if="!settings.showTrayIcon" class="setting-hint warning">
-                    需要先启用【显示托盘图标】
-                  </span>
-                </div>
-                <el-switch v-model="settings.minimizeToTray" :disabled="!settings.showTrayIcon" />
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-label">
-                  <span>主题设置</span>
-                  <el-tooltip content="选择应用的主题模式" placement="top">
-                    <el-icon class="info-icon">
-                      <InfoFilled />
-                    </el-icon>
-                  </el-tooltip>
-                </div>
-                <el-radio-group v-model="settings.theme">
-                  <el-radio-button value="auto">跟随系统</el-radio-button>
-                  <el-radio-button value="light">浅色</el-radio-button>
-                  <el-radio-button value="dark">深色</el-radio-button>
-                </el-radio-group>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-label">
-                  <span>窗口位置记忆</span>
-                  <el-tooltip content="清除所有窗口的位置和大小记忆，恢复默认状态" placement="top">
-                    <el-icon class="info-icon">
-                      <InfoFilled />
-                    </el-icon>
-                  </el-tooltip>
-                </div>
-                <el-button @click="handleClearWindowState" size="small"> 清除窗口状态 </el-button>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-label">
-                  <span>自动调整窗口位置</span>
-                  <el-tooltip
-                    content="当工具窗口移动到屏幕外时，自动将其拉回可见区域"
-                    placement="top"
-                  >
-                    <el-icon class="info-icon">
-                      <InfoFilled />
-                    </el-icon>
-                  </el-tooltip>
-                </div>
-                <el-switch v-model="settings.autoAdjustWindowPosition" />
-              </div>
-
-              <el-divider />
-
-              <div class="setting-item">
-                <div class="setting-label">
-                  <span>配置管理</span>
-                  <el-tooltip content="打开配置文件目录、导出或导入配置文件" placement="top">
-                    <el-icon class="info-icon">
-                      <InfoFilled />
-                    </el-icon>
-                  </el-tooltip>
-                </div>
-                <div class="config-actions">
-                  <el-button @click="handleOpenConfigDir" size="small"> 打开配置目录 </el-button>
-                  <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
-                  <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
-                </div>
-              </div>
             </section>
           </template>
         </div>

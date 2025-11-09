@@ -11,6 +11,8 @@ export const settingsModules: SettingsModule[] = [
   {
     id: "general",
     title: "通用设置",
+    component: defineAsyncComponent(() => import("../views/Settings/general/GeneralSettings.vue")),
+    minHeight: "auto",
   },
   {
     id: "theme-colors",

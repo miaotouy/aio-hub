@@ -4,73 +4,64 @@
       <!-- Left Column: Wallpaper Management -->
       <el-card shadow="never">
         <template #header>
-          <span>壁纸管理</span>
+          <div class="card-header">
+            <span>壁纸管理</span>
+            <el-switch v-model="enableWallpaper" />
+          </div>
         </template>
         <el-form label-position="top">
           <el-form-item label="壁纸预览">
-            <div
-              class="wallpaper-preview"
-              :style="{ backgroundImage: `url(${currentWallpaper})` }"
-            >
-              <div v-if="!currentWallpaper" class="empty-state">
+            <div class="wallpaper-preview" :style="{ backgroundImage: `url(${currentWallpaper})` }">
+              <div v-if="!currentWallpaper || !enableWallpaper" class="empty-state">
                 <el-icon><Picture /></el-icon>
-                <span>无壁纸</span>
+                <span>{{ enableWallpaper ? "无壁纸" : "壁纸已禁用" }}</span>
               </div>
             </div>
           </el-form-item>
 
-          <el-row :gutter="20">
-            <el-col :md="12" :span="24">
-              <el-form-item label="壁纸模式">
-                <el-radio-group v-model="wallpaperMode">
-                  <el-radio-button value="static">静态壁纸</el-radio-button>
-                  <el-radio-button value="slideshow">目录轮播</el-radio-button>
-                </el-radio-group>
-              </el-form-item>
-            </el-col>
-            <el-col :md="12" :span="24">
-              <el-form-item
-                v-if="wallpaperMode === 'slideshow'"
-                label="轮播间隔（分钟）"
-              >
-                <el-input-number
-                  v-model="wallpaperSlideshowInterval"
-                  :min="1"
-                  :max="1440"
-                  class="full-width"
-                />
-              </el-form-item>
-            </el-col>
-          </el-row>
+          <!-- 壁纸设置组 -->
+          <div v-if="enableWallpaper" class="wallpaper-controls">
+            <el-row :gutter="20">
+              <el-col :md="12" :span="24">
+                <el-form-item label="壁纸模式">
+                  <el-radio-group v-model="wallpaperMode">
+                    <el-radio-button value="static">静态壁纸</el-radio-button>
+                    <el-radio-button value="slideshow">目录轮播</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
+              </el-col>
+              <el-col :md="12" :span="24">
+                <el-form-item v-if="wallpaperMode === 'slideshow'" label="轮播间隔（分钟）">
+                  <el-input-number
+                    v-model="wallpaperSlideshowInterval"
+                    :min="1"
+                    :max="1440"
+                    class="full-width"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
 
-          <el-form-item>
+            <el-form-item v-if="wallpaperMode === 'static'" label="图片路径">
+              <el-input v-model="wallpaperPath" placeholder="输入图片路径或选择文件">
+                <template #append>
+                  <el-button @click="selectWallpaper">选择图片</el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+
+            <el-form-item v-if="wallpaperMode === 'slideshow'" label="目录路径">
+              <el-input v-model="wallpaperSlideshowPath" placeholder="输入目录路径或选择目录">
+                <template #append>
+                  <el-button @click="selectWallpaperDirectory">选择目录</el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+
             <div class="button-group">
-              <el-button
-                @click="selectWallpaper"
-                :disabled="wallpaperMode !== 'static'"
-              >
-                选择图片
-              </el-button>
-              <el-button
-                @click="selectWallpaperDirectory"
-                :disabled="wallpaperMode !== 'slideshow'"
-              >
-                选择目录
-              </el-button>
-              <el-button @click="clearWallpaper" type="danger" plain
-                >清除壁纸</el-button
-              >
+              <el-button @click="confirmClearWallpaper" type="danger" plain>清除壁纸</el-button>
             </div>
-          </el-form-item>
-
-          <el-form-item label="壁纸不透明度">
-            <el-slider
-              v-model="wallpaperOpacity"
-              :min="0.1"
-              :max="1"
-              :step="0.05"
-            />
-          </el-form-item>
+          </div>
         </el-form>
       </el-card>
 
@@ -81,26 +72,20 @@
             <span>界面质感</span>
           </template>
           <el-form label-position="top">
+            <el-form-item label="UI 基础不透明度">
+              <el-slider v-model="uiBaseOpacity" :min="0.1" :max="1" :step="0.05" />
+            </el-form-item>
+
+            <el-form-item v-if="enableWallpaper" label="壁纸不透明度">
+              <el-slider v-model="wallpaperOpacity" :min="0.1" :max="1" :step="0.05" />
+            </el-form-item>
+
             <el-form-item label="启用 UI 模糊效果">
               <el-switch v-model="enableUiBlur" />
             </el-form-item>
 
-            <el-form-item label="UI 基础不透明度">
-              <el-slider
-                v-model="uiBaseOpacity"
-                :min="0.1"
-                :max="1"
-                :step="0.05"
-              />
-            </el-form-item>
-
             <el-form-item label="UI 模糊强度 (px)">
-              <el-slider
-                v-model="uiBlurIntensity"
-                :min="0"
-                :max="50"
-                :step="1"
-              />
+              <el-slider v-model="uiBlurIntensity" :min="0" :max="50" :step="1" />
             </el-form-item>
           </el-form>
         </el-card>
@@ -123,12 +108,7 @@
             </el-form-item>
 
             <el-form-item label="窗口背景不透明度">
-              <el-slider
-                v-model="windowBackgroundOpacity"
-                :min="0.1"
-                :max="1"
-                :step="0.05"
-              />
+              <el-slider v-model="windowBackgroundOpacity" :min="0.1" :max="1" :step="0.05" />
               <p class="form-item-description">
                 降低此值以透出桌面或窗口后的内容。仅在窗口特效启用时有效。
               </p>
@@ -143,6 +123,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Picture } from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
 const {
@@ -154,49 +135,90 @@ const {
   clearWallpaper,
 } = useThemeAppearance();
 
+// 确认清除壁纸
+const confirmClearWallpaper = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要清除当前壁纸吗？此操作不可恢复。',
+      '确认清除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+    // 用户确认后执行清除操作
+    await clearWallpaper();
+  } catch {
+    // 用户取消操作，不做任何处理
+  }
+};
+
 // 使用 computed 进行双向绑定
+const enableWallpaper = computed({
+  get: () => appearanceSettings.value.enableWallpaper,
+  set: (val) => updateAppearanceSetting({ enableWallpaper: val }),
+});
+
 const wallpaperMode = computed({
   get: () => appearanceSettings.value.wallpaperMode,
-  set: (val) => updateAppearanceSetting({ wallpaperMode: val })
+  set: (val) => updateAppearanceSetting({ wallpaperMode: val }),
 });
 
 const wallpaperSlideshowInterval = computed({
   get: () => appearanceSettings.value.wallpaperSlideshowInterval,
-  set: (val) => updateAppearanceSetting({ wallpaperSlideshowInterval: val })
+  set: (val) => updateAppearanceSetting({ wallpaperSlideshowInterval: val }),
+});
+
+const wallpaperPath = computed({
+  get: () => appearanceSettings.value.wallpaperPath,
+  set: (val) => updateAppearanceSetting({ wallpaperPath: val }),
+});
+
+const wallpaperSlideshowPath = computed({
+  get: () => appearanceSettings.value.wallpaperSlideshowPath,
+  set: (val) => updateAppearanceSetting({ wallpaperSlideshowPath: val }),
 });
 
 const wallpaperOpacity = computed({
   get: () => appearanceSettings.value.wallpaperOpacity,
-  set: (val) => updateAppearanceSetting({ wallpaperOpacity: val })
+  set: (val) => updateAppearanceSetting({ wallpaperOpacity: val }),
 });
 
 const enableUiBlur = computed({
   get: () => appearanceSettings.value.enableUiBlur,
-  set: (val) => updateAppearanceSetting({ enableUiBlur: val })
+  set: (val) => updateAppearanceSetting({ enableUiBlur: val }),
 });
 
 const uiBaseOpacity = computed({
   get: () => appearanceSettings.value.uiBaseOpacity,
-  set: (val) => updateAppearanceSetting({ uiBaseOpacity: val })
+  set: (val) => updateAppearanceSetting({ uiBaseOpacity: val }),
 });
 
 const uiBlurIntensity = computed({
   get: () => appearanceSettings.value.uiBlurIntensity,
-  set: (val) => updateAppearanceSetting({ uiBlurIntensity: val })
+  set: (val) => updateAppearanceSetting({ uiBlurIntensity: val }),
 });
 
 const windowEffect = computed({
   get: () => appearanceSettings.value.windowEffect,
-  set: (val) => updateAppearanceSetting({ windowEffect: val })
+  set: (val) => updateAppearanceSetting({ windowEffect: val }),
 });
 
 const windowBackgroundOpacity = computed({
   get: () => appearanceSettings.value.windowBackgroundOpacity,
-  set: (val) => updateAppearanceSetting({ windowBackgroundOpacity: val })
+  set: (val) => updateAppearanceSetting({ windowBackgroundOpacity: val }),
 });
 </script>
 
 <style scoped>
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
 .theme-appearance-settings {
   padding: 20px;
 }
@@ -221,7 +243,7 @@ const windowBackgroundOpacity = computed({
 
 .wallpaper-preview {
   width: 100%;
-  height: 150px;
+  height: 320px;
   border-radius: 8px;
   border: 1px dashed var(--border-color);
   background-size: cover;
@@ -247,6 +269,11 @@ const windowBackgroundOpacity = computed({
 .button-group {
   display: flex;
   gap: 12px;
+  margin-bottom: 18px; /* 与 el-form-item 的默认 bottom-margin 对齐 */
+}
+
+.control-margin-top {
+  margin-top: 18px;
 }
 
 .form-item-description {

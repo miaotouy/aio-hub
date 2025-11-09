@@ -16,8 +16,10 @@ export type WindowEffect = 'none' | 'blur' | 'acrylic' | 'mica' | 'vibrancy';
 // 外观设置接口
 export interface AppearanceSettings {
   // --- 壁纸设置 ---
+  enableWallpaper: boolean;                    // 是否启用壁纸
   wallpaperMode: WallpaperMode;                // 壁纸模式：静态或轮播
-  wallpaperPath: string;                       // 单张图片路径 或 包含多张图片的目录路径
+  wallpaperPath: string;                       // 静态壁纸的图片路径
+  wallpaperSlideshowPath: string;              // 目录轮播的目录路径
   wallpaperSlideshowInterval: number;          // 轮播间隔（分钟）
   wallpaperOpacity: number;                    // 壁纸透明度 (0.0 - 1.0)
   
@@ -85,10 +87,12 @@ export interface AppSettings {
 // 默认外观设置
 export const defaultAppearanceSettings: AppearanceSettings = {
   // 壁纸设置
+  enableWallpaper: true, // 默认启用壁纸
   wallpaperMode: 'static',
   wallpaperPath: '', // 默认为空，使用纯色主题背景
+  wallpaperSlideshowPath: '', // 目录轮播路径
   wallpaperSlideshowInterval: 30, // 30分钟切换
-  wallpaperOpacity: 1.0, // 默认完全不透明
+  wallpaperOpacity: 0.3, // 默认调低一点，避免喧宾夺主
   
   // UI 特效
   enableUiBlur: true,

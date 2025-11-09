@@ -20,7 +20,7 @@ export const settingsModules: SettingsModule[] = [
   },
   {
     id: "theme-appearance",
-    title: "主题外观",
+    title: "主题壁纸外观",
     component: defineAsyncComponent(() => import("../views/Settings/general/ThemeAppearanceSettings.vue")),
     minHeight: "auto",
   },

@@ -28,8 +28,13 @@ let isInitialized = false; // 防止多次初始化
 function _updateCssVariables(settings: AppearanceSettings) {
   const root = document.documentElement;
 
-  root.style.setProperty('--wallpaper-url', `url('${currentWallpaper.value}')`);
-  root.style.setProperty('--wallpaper-opacity', String(settings.wallpaperOpacity));
+  if (settings.enableWallpaper && currentWallpaper.value) {
+    root.style.setProperty('--wallpaper-url', `url('${currentWallpaper.value}')`);
+    root.style.setProperty('--wallpaper-opacity', String(settings.wallpaperOpacity));
+  } else {
+    root.style.setProperty('--wallpaper-url', 'none');
+    root.style.setProperty('--wallpaper-opacity', '0');
+  }
   
   root.style.setProperty('--ui-blur', `${settings.uiBlurIntensity}px`);
   
@@ -61,10 +66,15 @@ function _stopSlideshow() {
 
 async function _startSlideshow(settings: AppearanceSettings) {
   _stopSlideshow();
-  const { wallpaperPath, wallpaperSlideshowInterval } = settings;
+  const { wallpaperSlideshowPath, wallpaperSlideshowInterval } = settings;
+  
+  if (!wallpaperSlideshowPath) {
+    logger.warn('幻灯片目录路径为空，无法启动');
+    return;
+  }
   
   try {
-    wallpaperList = await invoke<string[]>('list_directory_images', { directory: wallpaperPath });
+    wallpaperList = await invoke<string[]>('list_directory_images', { directory: wallpaperSlideshowPath });
     
     if (wallpaperList.length > 0) {
       logger.info('幻灯片已启动', { 
@@ -95,39 +105,47 @@ async function _startSlideshow(settings: AppearanceSettings) {
         slideshowTimer = window.setInterval(playNext, wallpaperSlideshowInterval * 60 * 1000);
       }
     } else {
-      logger.warn('幻灯片目录为空', { path: wallpaperPath });
+      logger.warn('幻灯片目录为空', { path: wallpaperSlideshowPath });
     }
   } catch (error) {
     errorHandler.error(error, '启动幻灯片失败', {
       operation: '启动幻灯片',
-      path: wallpaperPath
+      path: wallpaperSlideshowPath
     });
   }
 }
 
 async function _updateWallpaper(settings: AppearanceSettings) {
-  if (settings.wallpaperPath) {
-    if (settings.wallpaperMode === 'static') {
-      _stopSlideshow();
-      try {
-        logger.info('加载静态壁纸', { path: settings.wallpaperPath });
-        const asset = await assetManagerEngine.importAssetFromPath(settings.wallpaperPath);
-        currentWallpaper.value = await assetManagerEngine.getAssetUrl(asset);
-        logger.info('静态壁纸加载成功');
-      } catch (error) {
-        errorHandler.error(error, '加载静态壁纸失败', {
-          operation: '加载静态壁纸',
-          path: settings.wallpaperPath
-        });
-        currentWallpaper.value = '';
-      }
-    } else if (settings.wallpaperMode === 'slideshow') {
-      await _startSlideshow(settings);
-    }
-  } else {
+  // 如果禁用了壁纸，则直接清除并返回
+  if (!settings.enableWallpaper) {
     currentWallpaper.value = '';
     _stopSlideshow();
-    logger.info('壁纸已清除');
+    logger.info('壁纸已禁用，清除壁纸');
+    _updateCssVariables(settings); // 确保 CSS 变量被更新
+    return;
+  }
+
+  _stopSlideshow(); // 默认先停止旧的轮播
+
+  if (settings.wallpaperMode === 'static' && settings.wallpaperPath) {
+    try {
+      logger.info('加载静态壁纸', { path: settings.wallpaperPath });
+      const asset = await assetManagerEngine.importAssetFromPath(settings.wallpaperPath);
+      currentWallpaper.value = await assetManagerEngine.getAssetUrl(asset);
+      logger.info('静态壁纸加载成功');
+    } catch (error) {
+      errorHandler.error(error, '加载静态壁纸失败', {
+        operation: '加载静态壁纸',
+        path: settings.wallpaperPath
+      });
+      currentWallpaper.value = '';
+    }
+  } else if (settings.wallpaperMode === 'slideshow' && settings.wallpaperSlideshowPath) {
+    await _startSlideshow(settings);
+  } else {
+    // 如果当前模式没有设置路径，则清除壁纸
+    currentWallpaper.value = '';
+    logger.info('当前壁纸模式无有效路径，壁纸已清除');
   }
   _updateCssVariables(settings);
 }
@@ -182,8 +200,10 @@ export async function initThemeAppearance() {
       _updateCssVariables(newSettings);
       
       const old = oldSettings || defaultAppearanceSettings;
-      if (newSettings.wallpaperMode !== old.wallpaperMode || 
+      if (newSettings.enableWallpaper !== old.enableWallpaper ||
+          newSettings.wallpaperMode !== old.wallpaperMode ||
           newSettings.wallpaperPath !== old.wallpaperPath ||
+          newSettings.wallpaperSlideshowPath !== old.wallpaperSlideshowPath ||
           newSettings.wallpaperSlideshowInterval !== old.wallpaperSlideshowInterval) {
         await _updateWallpaper(newSettings);
       }
@@ -279,9 +299,9 @@ export function useThemeAppearance() {
       });
       
       if (typeof selected === 'string') {
-        await updateAppearanceSetting({ 
-          wallpaperPath: selected, 
-          wallpaperMode: 'slideshow' 
+        await updateAppearanceSetting({
+          wallpaperSlideshowPath: selected,
+          wallpaperMode: 'slideshow'
         });
         logger.info('壁纸目录已选择', { path: selected });
       }
@@ -297,7 +317,12 @@ export function useThemeAppearance() {
    */
   const clearWallpaper = async () => {
     try {
-      await updateAppearanceSetting({ wallpaperPath: '' });
+      // 清除两个路径以确保完全干净
+      await updateAppearanceSetting({
+        wallpaperPath: '',
+        wallpaperSlideshowPath: '',
+        enableWallpaper: true
+      });
       logger.info('壁纸已清除');
     } catch (error) {
       errorHandler.error(error, '清除壁纸失败', {

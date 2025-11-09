@@ -384,8 +384,26 @@ body {
 
 /* 为透明窗口添加背景 */
 #app {
+  position: relative;
+  z-index: 0;
   background: var(--bg-color);
   min-height: 100vh;
+}
+
+/* 壁纸层 */
+#app::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: var(--wallpaper-url);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--wallpaper-opacity);
+  z-index: -1; /* 确保在所有内容之后 */
+  transition: opacity 0.3s ease;
 }
 
 /* 独立窗口模式样式 */

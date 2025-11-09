@@ -87,6 +87,10 @@
             <el-form-item label="UI 模糊强度 (px)">
               <el-slider v-model="uiBlurIntensity" :min="0" :max="50" :step="1" />
             </el-form-item>
+
+            <el-form-item label="边线不透明度">
+              <el-slider v-model="borderOpacity" :min="0" :max="1" :step="0.05" />
+            </el-form-item>
           </el-form>
         </el-card>
 
@@ -198,6 +202,11 @@ const uiBaseOpacity = computed({
 const uiBlurIntensity = computed({
   get: () => appearanceSettings.value.uiBlurIntensity,
   set: (val) => updateAppearanceSetting({ uiBlurIntensity: val }, { debounceUi: true }),
+});
+
+const borderOpacity = computed({
+  get: () => appearanceSettings.value.borderOpacity,
+  set: (val) => updateAppearanceSetting({ borderOpacity: val }, { debounceUi: true }),
 });
 
 const windowEffect = computed({

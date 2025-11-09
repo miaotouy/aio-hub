@@ -66,6 +66,9 @@ function _updateCssVariables(settings: AppearanceSettings) {
   }
 
   root.style.setProperty('--overlay-opacity', calculateOpacity(offsets.overlay));
+
+  // 设置边框不透明度
+  root.style.setProperty('--border-opacity', String(settings.borderOpacity));
   
   // 设置背景色不透明度
   root.style.setProperty('--bg-color-opacity', String(settings.backgroundColorOpacity || 1));

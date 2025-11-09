@@ -10,6 +10,7 @@
   --wallpaper-opacity: 1;
   --window-bg-opacity: 1;
   --bg-color-opacity: 1; /* 应用背景色不透明度 */
+  --border-opacity: 0.9; /* 边线不透明度 */
   --card-bg-rgb: 255, 255, 255; /* 默认亮色主题的卡片背景 RGB */
 
   /*

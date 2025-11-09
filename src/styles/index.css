@@ -8,7 +8,8 @@
   --container-bg-rgb: 255, 255, 255;
   --text-color: #333;
   --text-color-light: #666;
-  --border-color: #ddd;
+  --border-color-rgb: 221, 221, 221;
+  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
   --primary-color: #409eff; /* Element Plus primary color */
   --primary-hover-color: #66b1ff;
   --success-color: #67c23a;
@@ -66,7 +67,8 @@ html.dark {
   --container-bg-rgb: 36, 36, 36;
   --text-color: #e5e5e5;  /* 主文字颜色 */
   --text-color-light: #a8a8a8;  /* 次要文字颜色 */
-  --border-color: #3a3a3a;  /* 主边框颜色 */
+  --border-color-rgb: 58, 58, 58;
+  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
   --border-color-light: #2f2f2f;  /* 浅边框颜色 */
   --primary-color: #409eff;  /* 主色调 - 保持 Element Plus 蓝色 */
   --primary-hover-color: #66b1ff;  /* 主色调悬停色 */

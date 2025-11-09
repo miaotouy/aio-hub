@@ -18,6 +18,8 @@
     现在完全由 useThemeAppearance.ts 动态计算并注入，
     以确保与 UI 设置实时同步。
   */
+  --vscode-editor-background: var(--bg-color) !important;
+  --vscode-editorGutter-background: var(--sidebar-bg) !important;
 }
 
 html.dark {
@@ -89,4 +91,39 @@ html, body {
   background-color: rgba(var(--container-bg-rgb), var(--overlay-opacity)) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
+}
+
+/* ========================================================================== */
+/* 编辑器主题覆盖
+/* ========================================================================== */
+/*
+  Monaco Editor 会动态创建 style 标签并插入到 head 中，其优先级非常高。
+  为了覆盖这些由 JS 动态插入的内联样式，我们需要使用更高特异性的选择器，
+  并确保这些规则在全局样式表中，以便在组件加载后依然生效。
+*/
+
+/* 核心：覆盖编辑器默认的、不透明的背景色 */
+.monaco-editor .monaco-editor-background,
+.monaco-editor .lines-content {
+  background-color: var(--vscode-editor-background) !important;
+}
+
+/* 覆盖行号区域 (gutter) 的背景色 */
+.monaco-editor .margin,
+.monaco-editor .gutter-container {
+  background-color: var(--vscode-editorGutter-background) !important;
+}
+
+/* 针对 Diff Editor 的特殊覆盖 */
+.monaco-diff-editor .monaco-editor .lines-content {
+  background-color: var(--vscode-editor-background) !important;
+}
+
+:deep(.text-diff-container) {
+  /* 
+    直接覆盖 Monaco 的核心背景变量。
+    使用 !important 是为了确保我们的定义能战胜 Monaco 内部的所有定义。
+    这里可以直接设为 transparent，或者你想要的 rgba 半透明色。
+  */
+  --vscode-editor-background: transparent !important;
 }

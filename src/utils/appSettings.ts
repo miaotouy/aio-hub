@@ -28,6 +28,7 @@ export interface AppearanceSettings {
   uiBaseOpacity: number;                       // UI 基础不透明度 (0.0 - 1.0)
   uiBlurIntensity: number;                     // UI 模糊强度 (px)
   borderOpacity: number;                       // 边线不透明度 (0.0 - 1.0)
+  editorOpacity?: number;                      // 编辑器/代码区不透明度
   
   // --- 分层透明度微调 ---
   layerOpacityOffsets?: {                      // 各层级相对于基础值的偏移量
@@ -100,6 +101,7 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   uiBaseOpacity: 0.85, // 稍微不透明一点，保证可读性
   uiBlurIntensity: 15, // 15px 模糊
   borderOpacity: 0.5, // 默认半透明
+  editorOpacity: 0.9, // 编辑器/代码区不透明度
   
   // 分层透明度微调（默认不设置，使用自动计算的值）
   layerOpacityOffsets: {

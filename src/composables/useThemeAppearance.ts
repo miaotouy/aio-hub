@@ -85,6 +85,12 @@ function _updateCssVariables(settings: AppearanceSettings) {
   if (inputBgRgb) {
     // 输入框通常在卡片上，因此可以共享卡片的透明度
     root.style.setProperty('--input-bg', `rgba(${inputBgRgb}, ${cardOpacityValue})`);
+    
+    // 根据 editorOpacity 更新编辑器相关颜色
+    const editorOpacityValue = settings.editorOpacity ?? 0.9;
+    const editorRgba = `rgba(${inputBgRgb}, ${editorOpacityValue})`;
+    root.style.setProperty('--vscode-editor-background', editorRgba);
+    root.style.setProperty('--vscode-editorGutter-background', editorRgba);
   }
 
   const overlayOpacityValue = calculateOpacity(offsets.overlay);

@@ -91,6 +91,10 @@
             <el-form-item label="边线不透明度">
               <el-slider v-model="borderOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
+
+            <el-form-item label="编辑器/代码区不透明度">
+              <el-slider v-model="editorOpacity" :min="0.1" :max="1" :step="0.05" />
+            </el-form-item>
           </el-form>
         </el-card>
 
@@ -217,6 +221,11 @@ const windowEffect = computed({
 const windowBackgroundOpacity = computed({
   get: () => appearanceSettings.value.windowBackgroundOpacity,
   set: (val) => updateAppearanceSetting({ windowBackgroundOpacity: val }, { debounceUi: true }),
+});
+
+const editorOpacity = computed({
+  get: () => appearanceSettings.value.editorOpacity,
+  set: (val) => updateAppearanceSetting({ editorOpacity: val }, { debounceUi: true }),
 });
 </script>
 

@@ -1,8 +1,20 @@
 <template>
   <div class="rich-code-editor-wrapper" ref="wrapperRef">
+    <!-- Monaco Diff Editor -->
+    <vue-monaco-diff-editor
+      v-if="props.diff"
+      :original="props.original"
+      :modified="props.modified"
+      :language="getMonacoLanguage()"
+      :options="monacoDiffOptions"
+      :theme="monacoTheme"
+      class="monaco-editor-container"
+      @mount="handleMonacoDiffMount"
+      @update:original="(value: string) => emit('update:original', value)"
+      @update:modified="(value: string) => emit('update:modified', value)"
+    />
     <!-- CodeMirror 编辑器 -->
-    <div v-if="props.editorType === 'codemirror'" ref="editorContainerRef" class="editor-container"></div>
-    
+    <div v-else-if="props.editorType === 'codemirror'" ref="editorContainerRef" class="editor-container"></div>
     <!-- Monaco 编辑器 -->
     <vue-monaco-editor
       v-else-if="props.editorType === 'monaco'"
@@ -21,8 +33,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, shallowRef, computed, nextTick } from "vue";
 import { useTheme } from "@composables/useTheme";
-import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
-import * as monaco from 'monaco-editor';
+import { VueMonacoEditor, VueMonacoDiffEditor } from '@guolao/vue-monaco-editor';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import { EditorState, Compartment } from "@codemirror/state";
 import {
@@ -52,19 +63,31 @@ import { githubLight } from "@uiw/codemirror-theme-github";
 import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
 
 const props = withDefaults(defineProps<{
-  modelValue: string;
+  modelValue?: string;
+  original?: string;
+  modified?: string;
+  diff?: boolean;
   language?: "json" | "markdown" | "javascript" | "css" | "text" | string;
   readOnly?: boolean;
   lineNumbers?: boolean;
   editorType?: 'codemirror' | 'monaco';
+  options?: MonacoEditor.IStandaloneDiffEditorConstructionOptions | MonacoEditor.IStandaloneEditorConstructionOptions;
 }>(), {
+  modelValue: '',
+  original: '',
+  modified: '',
+  diff: false,
   editorType: 'codemirror',
   lineNumbers: true,
   readOnly: false,
+  options: () => ({}),
 });
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
+  (e: "update:original", value: string): void;
+  (e: "update:modified", value: string): void;
+  (e: "mount", editor: MonacoEditor.IStandaloneCodeEditor | EditorView | MonacoEditor.IStandaloneDiffEditor): void;
 }>();
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
@@ -77,6 +100,7 @@ const wrapperRef = ref<HTMLDivElement | null>(null);
 
 // Monaco Editor 相关状态
 const monacoEditorInstance = shallowRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+const monacoDiffEditorInstance = shallowRef<MonacoEditor.IStandaloneDiffEditor | null>(null);
 const monacoValue = ref(props.modelValue);
 
 // Monaco Editor 配置
@@ -99,10 +123,18 @@ const monacoOptions = computed<MonacoEditor.IStandaloneEditorConstructionOptions
   folding: true,
   foldingStrategy: 'indentation',
   showFoldingControls: 'always',
+  ...(props.options as MonacoEditor.IStandaloneEditorConstructionOptions),
 }));
 
-// Monaco 主题（根据 CSS 变量动态生成）
-const monacoTheme = ref('vs-dark');
+// Monaco Diff Editor 配置
+const monacoDiffOptions = computed<MonacoEditor.IStandaloneDiffEditorConstructionOptions>(() => ({
+  readOnly: props.readOnly ?? false,
+  lineNumbers: (props.lineNumbers ?? true) ? 'on' : 'off',
+  automaticLayout: true,
+  fontSize: 14,
+  scrollBeyondLastLine: false,
+  ...(props.options as MonacoEditor.IStandaloneDiffEditorConstructionOptions),
+}));
 // Monaco 语言映射
 const getMonacoLanguage = () => {
   if (!props.language) return 'plaintext';
@@ -128,23 +160,12 @@ const getMonacoLanguage = () => {
 // Monaco Editor 事件处理
 const handleMonacoMount = (editor: MonacoEditor.IStandaloneCodeEditor) => {
   monacoEditorInstance.value = editor;
-  
-  // 定义自定义主题以适配全局 CSS 变量
-  if (monaco) {
-    monaco.editor.defineTheme('custom-theme', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [],
-      colors: {
-        'editor.background': '#00000000', // 透明背景，使用外层的背景色
-        'editor.foreground': '#d4d4d4',
-        'editor.lineHighlightBackground': '#2a2a2a',
-        'editorLineNumber.foreground': '#858585',
-        'editorGutter.background': '#00000000',
-      }
-    });
-    monaco.editor.setTheme('custom-theme');
-  }
+  emit('mount', editor);
+};
+
+const handleMonacoDiffMount = (editor: MonacoEditor.IStandaloneDiffEditor) => {
+  monacoDiffEditorInstance.value = editor;
+  emit('mount', editor);
 };
 
 const handleMonacoFocus = () => {
@@ -158,6 +179,7 @@ const handleMonacoBlur = () => {
 // 主题切换
 const { isDark } = useTheme();
 const cmTheme = computed(() => isDark.value ? tokyoNight : githubLight);
+const monacoTheme = computed(() => isDark.value ? 'vs-dark' : 'vs');
 
 // CodeMirror 初始化和销毁
 const initCodeMirror = () => {
@@ -363,13 +385,13 @@ const destroyCodeMirror = () => {
 
 // 监听 Monaco 值变化并同步到父组件
 watch(monacoValue, (newVal) => {
-  if (props.editorType === 'monaco' && newVal !== props.modelValue) {
+  if (!props.diff && props.editorType === 'monaco' && newVal !== props.modelValue) {
     emit("update:modelValue", newVal);
   }
 });
 
 onMounted(() => {
-  if (props.editorType === 'codemirror') {
+  if (!props.diff && props.editorType === 'codemirror') {
     initCodeMirror();
   }
 });
@@ -383,6 +405,7 @@ onUnmounted(() => {
 watch(
   () => props.modelValue,
   (newVal) => {
+    if (props.diff) return;
     if (props.editorType === 'codemirror') {
       if (editorView.value && newVal !== editorView.value.state.doc.toString()) {
         editorView.value.dispatch({
@@ -401,6 +424,7 @@ watch(
 watch(
   () => props.readOnly,
   (isReadOnly) => {
+    if (props.diff) return;
     if (props.editorType === 'codemirror' && editorView.value) {
       editorView.value.dispatch({
         effects: editableCompartment.reconfigure(EditorView.editable.of(!(isReadOnly ?? false))),
@@ -413,6 +437,7 @@ watch(
 watch(
   () => props.lineNumbers,
   (show) => {
+    if (props.diff) return;
     if (props.editorType === 'codemirror' && editorView.value) {
       editorView.value.dispatch({
         effects: lineNumbersCompartment.reconfigure(show ?? true ? lineNumbers() : []),
@@ -424,6 +449,7 @@ watch(
 
 // 监听编辑器类型切换
 watch(() => props.editorType, (newType, oldType) => {
+  if (props.diff) return;
   if (newType === 'codemirror' && oldType === 'monaco') {
     nextTick(() => {
       initCodeMirror();
@@ -435,7 +461,7 @@ watch(() => props.editorType, (newType, oldType) => {
 
 
 watch(cmTheme, (newTheme) => {
-  if (props.editorType === 'codemirror' && editorView.value) {
+  if (!props.diff && props.editorType === 'codemirror' && editorView.value) {
     editorView.value.dispatch({
       effects: themeCompartment.reconfigure(newTheme),
     });
@@ -452,6 +478,10 @@ const getContent = (): string => {
 };
 
 const setContent = (newContent: string): void => {
+  if (props.diff) {
+    console.warn("`setContent` is not supported in diff mode. Use `original` and `modified` props.");
+    return;
+  }
   if (props.editorType === 'codemirror') {
     if (editorView.value) {
       editorView.value.dispatch({
@@ -479,6 +509,7 @@ defineExpose({
   focusEditor,
   editorView,
   monacoEditorInstance,
+  monacoDiffEditorInstance,
 });
 </script>
 

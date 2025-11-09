@@ -163,15 +163,19 @@
           </div>
         </div>
 
-        <!-- Monaco 编辑器 -->
-        <vue-monaco-diff-editor
-          v-model:original="textA"
-          v-model:modified="textB"
+        <!-- RichCodeEditor for Diff -->
+        <RichCodeEditor
+          ref="richCodeEditorRef"
+          :diff="true"
+          :original="textA"
+          :modified="textB"
           :language="language"
           :options="editorOptions"
-          :theme="monacoTheme"
+          editor-type="monaco"
           class="diff-editor"
-          @editor-mounted="handleEditorMounted"
+          @update:original="textA = $event"
+          @update:modified="textB = $event"
+          @mount="handleEditorMounted"
         />
       </div>
     </el-card>
@@ -180,7 +184,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, shallowRef } from "vue";
-import { VueMonacoDiffEditor } from "@guolao/vue-monaco-editor";
+import RichCodeEditor from "@components/common/RichCodeEditor.vue";
 import {
   ArrowUp,
   ArrowDown,
@@ -193,15 +197,14 @@ import {
 import type { editor } from "monaco-editor";
 import { customMessage } from '@/utils/customMessage';
 import { useFileDrop } from "@composables/useFileDrop";
-import { useTheme } from "@composables/useTheme";
 import { serviceRegistry } from '@/services/registry';
 import type TextDiffService from './textDiff.service';
 
 // 获取服务实例
 const textDiffService = serviceRegistry.getService<TextDiffService>('text-diff');
 
-// 主题
-const { isDark } = useTheme();
+// 编辑器引用
+const richCodeEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 
 // 文本内容
 const textA = ref("");
@@ -231,9 +234,6 @@ const totalDiffs = ref(0);
 const diffEditor = shallowRef<editor.IStandaloneDiffEditor | null>(null);
 const diffNavigator = shallowRef<any>(null);
 
-// Monaco 主题（根据亮暗主题动态切换）
-const monacoTheme = computed(() => isDark.value ? "vs-dark" : "vs");
-
 // 编辑器配置（计算属性）
 const editorOptions = computed(() => ({
   readOnly: false,
@@ -261,7 +261,9 @@ const canNavigate = computed(() => totalDiffs.value > 0);
 
 // 编辑器挂载处理
 const handleEditorMounted = (editorInstance: any) => {
-  diffEditor.value = editorInstance.getDiffEditor();
+  // RichCodeEditor 的 @mount 事件返回的是一个联合类型。
+  // 在这个组件中，我们确定它是一个 diff 编辑器，所以这里进行类型断言。
+  diffEditor.value = editorInstance as editor.IStandaloneDiffEditor;
 
   // 创建差异导航器
   if (diffEditor.value && (window as any).monaco) {

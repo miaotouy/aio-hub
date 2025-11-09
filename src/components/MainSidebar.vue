@@ -88,19 +88,21 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
 
 // 滚动遮罩相关
 const menuContainerRef = ref<HTMLElement | null>(null);
-const showTopMask = ref(false);
-const showBottomMask = ref(false);
 
 const updateScrollMasks = () => {
   if (!menuContainerRef.value) return;
-
-  const { scrollTop, scrollHeight, clientHeight } = menuContainerRef.value;
+  const el = menuContainerRef.value;
+  const { scrollTop, scrollHeight, clientHeight } = el;
 
   // 顶部遮罩：当滚动位置大于5px时显示
-  showTopMask.value = scrollTop > 5;
+  const showTopMask = scrollTop > 5;
 
   // 底部遮罩：当还可以向下滚动超过5px时显示
-  showBottomMask.value = scrollHeight - scrollTop - clientHeight > 5;
+  const showBottomMask = scrollHeight - scrollTop - clientHeight > 5;
+
+  // 使用 CSS 变量控制 mask-image 的渐变，实现真正的透明效果
+  el.style.setProperty("--top-mask-active", showTopMask ? "0" : "1");
+  el.style.setProperty("--bottom-mask-active", showBottomMask ? "0" : "1");
 };
 
 const setupScrollListener = () => {
@@ -144,9 +146,6 @@ onUnmounted(() => {
 
       <!-- 菜单容器包装器 - 用于遮罩定位 -->
       <div class="menu-wrapper">
-        <!-- 顶部渐变遮罩 -->
-        <div class="scroll-mask scroll-mask-top" :class="{ 'is-visible': showTopMask }"></div>
-        
         <!-- 菜单滚动容器 -->
         <div class="menu-container" ref="menuContainerRef">
           <el-menu
@@ -182,9 +181,6 @@ onUnmounted(() => {
             </el-menu-item>
           </el-menu>
         </div>
-
-        <!-- 底部渐变遮罩 -->
-        <div class="scroll-mask scroll-mask-bottom" :class="{ 'is-visible': showBottomMask }"></div>
       </div>
     </div>
 
@@ -289,6 +285,23 @@ onUnmounted(() => {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+
+  /* 使用 mask-image 实现顶部和底部的渐变遮罩，以支持半透明背景 */
+  --mask-height: 30px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, var(--top-mask-active, 1)) 0%,
+    black var(--mask-height),
+    black calc(100% - var(--mask-height)),
+    rgba(0, 0, 0, var(--bottom-mask-active, 1)) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, var(--top-mask-active, 1)) 0%,
+    black var(--mask-height),
+    black calc(100% - var(--mask-height)),
+    rgba(0, 0, 0, var(--bottom-mask-active, 1)) 100%
+  );
 }
 
 /* 隐藏滚动条但保留滚动功能 */
@@ -299,42 +312,6 @@ onUnmounted(() => {
 .menu-container {
   -ms-overflow-style: none;  /* IE 和 Edge */
   scrollbar-width: none;  /* Firefox */
-}
-
-/* 滚动渐变遮罩 - 固定在包装器中，不随内容滚动 */
-.scroll-mask {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 30px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 10; /* 确保在菜单之上 */
-}
-
-.scroll-mask.is-visible {
-  opacity: 1;
-}
-
-.scroll-mask-top {
-  top: 0;
-  background: linear-gradient(
-    to bottom,
-    var(--sidebar-bg) 0%,
-    color-mix(in srgb, var(--sidebar-bg) 80%, transparent) 50%,
-    transparent 100%
-  );
-}
-
-.scroll-mask-bottom {
-  bottom: 0;
-  background: linear-gradient(
-    to top,
-    var(--sidebar-bg) 0%,
-    color-mix(in srgb, var(--sidebar-bg) 80%, transparent) 50%,
-    transparent 100%
-  );
 }
 
 .el-menu-vertical-demo {

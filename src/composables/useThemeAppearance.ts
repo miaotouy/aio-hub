@@ -31,9 +31,12 @@ function _updateCssVariables(settings: AppearanceSettings) {
   if (settings.enableWallpaper && currentWallpaper.value) {
     root.style.setProperty('--wallpaper-url', `url('${currentWallpaper.value}')`);
     root.style.setProperty('--wallpaper-opacity', String(settings.wallpaperOpacity));
+    root.style.setProperty('--bg-color', 'transparent');
   } else {
     root.style.setProperty('--wallpaper-url', 'none');
     root.style.setProperty('--wallpaper-opacity', '0');
+    // 恢复为原始背景色
+    root.style.removeProperty('--bg-color');
   }
   
   root.style.setProperty('--ui-blur', `${settings.uiBlurIntensity}px`);
@@ -45,7 +48,17 @@ function _updateCssVariables(settings: AppearanceSettings) {
 
   root.style.setProperty('--sidebar-opacity', calculateOpacity(offsets.sidebar));
   root.style.setProperty('--content-opacity', calculateOpacity(offsets.content));
-  root.style.setProperty('--card-opacity', calculateOpacity(offsets.card));
+
+  const cardOpacityValue = calculateOpacity(offsets.card);
+  root.style.setProperty('--card-opacity', cardOpacityValue);
+
+  // --card-bg的透明度要跟随UI透明度设置
+  // 读取在 index.css 中已经为亮/暗模式定义好的 --card-bg-rgb 变量
+  const cardBgRgb = getComputedStyle(root).getPropertyValue('--card-bg-rgb').trim();
+  if (cardBgRgb) {
+    root.style.setProperty('--card-bg', `rgba(${cardBgRgb}, ${cardOpacityValue})`);
+  }
+
   root.style.setProperty('--overlay-opacity', calculateOpacity(offsets.overlay));
   
   // 设置背景色不透明度

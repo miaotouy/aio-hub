@@ -32,6 +32,8 @@ export interface AppearanceSettings {
   wallpaperPath: string;                       // 静态壁纸的图片路径
   wallpaperSlideshowPath: string;              // 目录轮播的目录路径
   wallpaperSlideshowInterval: number;          // 轮播间隔（分钟）
+  wallpaperSlideshowShuffle?: boolean;         // 是否随机播放
+  wallpaperSlideshowCurrentIndex?: number;     // 当前播放索引
   wallpaperOpacity: number;                    // 壁纸透明度 (0.0 - 1.0)
   wallpaperFit: WallpaperFit;                  // 壁纸填充模式
   wallpaperTileOptions?: WallpaperTileOptions; // 拼贴模式的详细选项
@@ -107,6 +109,8 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   wallpaperPath: '', // 默认为空，使用纯色主题背景
   wallpaperSlideshowPath: '', // 目录轮播路径
   wallpaperSlideshowInterval: 30, // 30分钟切换
+  wallpaperSlideshowShuffle: false, // 默认不随机
+  wallpaperSlideshowCurrentIndex: 0, // 默认从第一张开始
   wallpaperOpacity: 0.3, // 默认调低一点，避免喧宾夺主
   wallpaperFit: 'cover', // 默认覆盖模式
   wallpaperTileOptions: {

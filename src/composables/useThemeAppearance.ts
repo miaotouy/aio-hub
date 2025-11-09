@@ -1,13 +1,13 @@
 import { ref, computed, watch } from 'vue';
 import debounce from 'lodash-es/debounce';
+import shuffle from 'lodash-es/shuffle';
 import {
   appSettingsManager,
   type AppearanceSettings,
   type WindowEffect,
   defaultAppearanceSettings
 } from '@/utils/appSettings';
-import { assetManagerEngine } from '@/composables/useAssetManager';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
@@ -23,13 +23,61 @@ const debouncedCssUpdate = debounce((settings: AppearanceSettings) => {
 // 这些是运行时 UI 状态，不持久化
 const appearanceSettings = ref<AppearanceSettings>(defaultAppearanceSettings);
 const currentWallpaper = ref<string>('');
+const isSlideshowPaused = ref(false); // 新增：幻灯片是否暂停
+
 let slideshowTimer: number | null = null;
-let wallpaperList: string[] = [];
-let currentWallpaperIndex = -1;
+const wallpaperList = ref<string[]>([]); // 原始顺序列表
+const shuffledList = ref<string[]>([]); // 打乱后的列表
 let isInitialized = false; // 防止多次初始化
 let themeObserver: MutationObserver | null = null;
 
-// --- 私有函数 ---
+// --- 模块级函数 ---
+
+// 自动保存设置的防抖函数
+const debouncedSave = debounce(async (settingsToSave: AppearanceSettings) => {
+  try {
+    const currentFullSettings = await appSettingsManager.load();
+    await appSettingsManager.save({
+      ...currentFullSettings,
+      appearance: settingsToSave
+    });
+    logger.info('外观设置已自动保存');
+  } catch (error) {
+    errorHandler.error(error, '自动保存外观设置失败', {
+      operation: '自动保存外观设置'
+    });
+  }
+}, 400);
+
+/**
+ * 更新外观设置的核心函数
+ * @param updates - 要更新的设置
+ * @param options - 包含 debounceUi 标志的选项，用于对 UI 更新进行防抖
+ */
+const updateAppearanceSetting = (
+  updates: Partial<AppearanceSettings>,
+  options: { debounceUi?: boolean } = {}
+) => {
+  const newAppearance = {
+    ...appearanceSettings.value,
+    ...updates
+  };
+  
+  // 立即更新 ref 以触发 vue 的响应式系统（但不一定会更新 CSS）
+  appearanceSettings.value = newAppearance;
+
+  // 根据选项决定是立即更新 CSS 还是防抖更新
+  if (options.debounceUi) {
+    debouncedCssUpdate(newAppearance);
+  } else {
+    debouncedCssUpdate.cancel(); // 取消任何待定的防抖调用
+    _updateCssVariables(newAppearance);
+  }
+
+  // 安排一个防抖的保存操作
+  debouncedSave(newAppearance);
+};
+
 
 function _updateCssVariables(settings: AppearanceSettings) {
   const root = document.documentElement;
@@ -142,54 +190,79 @@ function _stopSlideshow() {
   if (slideshowTimer) {
     clearInterval(slideshowTimer);
     slideshowTimer = null;
-    logger.info('幻灯片已停止');
+    logger.info('幻灯片定时器已停止');
   }
-  wallpaperList = [];
-  currentWallpaperIndex = -1;
+}
+
+function _switchToWallpaper(index: number, settings: AppearanceSettings) {
+  const list = settings.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+  if (index < 0 || index >= list.length) {
+    logger.warn(`无效的壁纸索引: ${index}`);
+    return;
+  }
+
+  const imagePath = list[index];
+  try {
+    currentWallpaper.value = convertFileSrc(imagePath);
+    _updateCssVariables(settings);
+
+    // 更新并保存当前索引
+    if (appearanceSettings.value.wallpaperSlideshowCurrentIndex !== index) {
+      // 直接调用模块级的更新函数，避免递归调用
+      updateAppearanceSetting({ wallpaperSlideshowCurrentIndex: index });
+    }
+    logger.debug('幻灯片切换', { index, path: imagePath });
+  } catch (error) {
+    errorHandler.warn(error, `转换壁纸路径失败: ${imagePath}`, {
+      operation: '转换壁纸路径',
+      path: imagePath
+    });
+  }
 }
 
 async function _startSlideshow(settings: AppearanceSettings) {
   _stopSlideshow();
-  const { wallpaperSlideshowPath, wallpaperSlideshowInterval } = settings;
+  const { wallpaperSlideshowPath, wallpaperSlideshowInterval, wallpaperSlideshowShuffle } = settings;
   
   if (!wallpaperSlideshowPath) {
     logger.warn('幻灯片目录路径为空，无法启动');
+    wallpaperList.value = [];
+    shuffledList.value = [];
     return;
   }
   
   try {
-    wallpaperList = await invoke<string[]>('list_directory_images', { directory: wallpaperSlideshowPath });
+    wallpaperList.value = await invoke<string[]>('list_directory_images', { directory: wallpaperSlideshowPath });
     
-    if (wallpaperList.length > 0) {
-      logger.info('幻灯片已启动', { 
-        imageCount: wallpaperList.length, 
-        interval: wallpaperSlideshowInterval 
+    if (wallpaperList.value.length > 0) {
+      shuffledList.value = shuffle(wallpaperList.value); // 总是预先生成随机列表
+      
+      logger.info('幻灯片已启动', {
+        imageCount: wallpaperList.value.length,
+        interval: wallpaperSlideshowInterval,
+        shuffle: wallpaperSlideshowShuffle
       });
       
-      const playNext = async () => {
-        currentWallpaperIndex = (currentWallpaperIndex + 1) % wallpaperList.length;
-        const imagePath = wallpaperList[currentWallpaperIndex];
-        
-        try {
-          const asset = await assetManagerEngine.importAssetFromPath(imagePath);
-          currentWallpaper.value = await assetManagerEngine.getAssetUrl(asset);
-          _updateCssVariables(settings);
-          logger.debug('幻灯片切换', { index: currentWallpaperIndex, path: imagePath });
-        } catch (error) {
-          errorHandler.warn(error, `加载幻灯片图片失败: ${imagePath}`, {
-            operation: '加载幻灯片图片',
-            path: imagePath
-          });
-        }
+      const playNext = () => {
+        if (isSlideshowPaused.value) return;
+        const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+        const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
+        const nextIndex = (currentIndex + 1) % list.length;
+        _switchToWallpaper(nextIndex, appearanceSettings.value);
       };
-      
-      await playNext(); // 立即播放第一张
-      
+
+      // 恢复到上次的索引
+      const initialIndex = settings.wallpaperSlideshowCurrentIndex ?? 0;
+      _switchToWallpaper(initialIndex, settings);
+
+      // 启动定时器
       if (wallpaperSlideshowInterval > 0) {
         slideshowTimer = window.setInterval(playNext, wallpaperSlideshowInterval * 60 * 1000);
       }
     } else {
       logger.warn('幻灯片目录为空', { path: wallpaperSlideshowPath });
+      wallpaperList.value = [];
+      shuffledList.value = [];
     }
   } catch (error) {
     errorHandler.error(error, '启动幻灯片失败', {
@@ -214,21 +287,26 @@ async function _updateWallpaper(settings: AppearanceSettings) {
   if (settings.wallpaperMode === 'static' && settings.wallpaperPath) {
     try {
       logger.info('加载静态壁纸', { path: settings.wallpaperPath });
-      const asset = await assetManagerEngine.importAssetFromPath(settings.wallpaperPath);
-      currentWallpaper.value = await assetManagerEngine.getAssetUrl(asset);
+      wallpaperList.value = []; // 清空列表
+      shuffledList.value = [];
+      currentWallpaper.value = convertFileSrc(settings.wallpaperPath);
       logger.info('静态壁纸加载成功');
     } catch (error) {
-      errorHandler.error(error, '加载静态壁纸失败', {
-        operation: '加载静态壁纸',
+      errorHandler.error(error, '转换静态壁纸路径失败', {
+        operation: '转换静态壁纸路径',
         path: settings.wallpaperPath
       });
       currentWallpaper.value = '';
     }
   } else if (settings.wallpaperMode === 'slideshow' && settings.wallpaperSlideshowPath) {
+    // 切换到轮播模式时，立即清除当前壁纸，防止显示旧的静态壁纸
+    currentWallpaper.value = '';
     await _startSlideshow(settings);
   } else {
     // 如果当前模式没有设置路径，则清除壁纸
     currentWallpaper.value = '';
+    wallpaperList.value = [];
+    shuffledList.value = [];
     logger.info('当前壁纸模式无有效路径，壁纸已清除');
   }
   _updateCssVariables(settings);
@@ -331,51 +409,6 @@ export function cleanupThemeAppearance() {
  * Composable：供组件使用的主题外观接口
  */
 export function useThemeAppearance() {
-  // 自动保存设置的防抖函数
-  const debouncedSave = debounce(async (settingsToSave: AppearanceSettings) => {
-    try {
-      const currentFullSettings = await appSettingsManager.load();
-      await appSettingsManager.save({
-        ...currentFullSettings,
-        appearance: settingsToSave
-      });
-      logger.info('外观设置已自动保存');
-    } catch (error) {
-      errorHandler.error(error, '自动保存外观设置失败', {
-        operation: '自动保存外观设置'
-      });
-    }
-  }, 400);
-
-  /**
-   * 更新外观设置
-   * @param updates - 要更新的设置
-   * @param options - 包含 debounceUi 标志的选项，用于对 UI 更新进行防抖
-   */
-  const updateAppearanceSetting = (
-    updates: Partial<AppearanceSettings>,
-    options: { debounceUi?: boolean } = {}
-  ) => {
-    const newAppearance = {
-      ...appearanceSettings.value,
-      ...updates
-    };
-    
-    // 立即更新 ref 以触发 vue 的响应式系统（但不一定会更新 CSS）
-    appearanceSettings.value = newAppearance;
-
-    // 根据选项决定是立即更新 CSS 还是防抖更新
-    if (options.debounceUi) {
-      debouncedCssUpdate(newAppearance);
-    } else {
-      debouncedCssUpdate.cancel(); // 取消任何待定的防抖调用
-      _updateCssVariables(newAppearance);
-    }
-
-    // 安排一个防抖的保存操作
-    debouncedSave(newAppearance);
-  };
-
   /**
    * 选择壁纸图片
    */
@@ -388,7 +421,7 @@ export function useThemeAppearance() {
       });
       
       if (typeof selected === 'string') {
-        await updateAppearanceSetting({ 
+        updateAppearanceSetting({ 
           wallpaperPath: selected, 
           wallpaperMode: 'static' 
         });
@@ -413,9 +446,10 @@ export function useThemeAppearance() {
       });
       
       if (typeof selected === 'string') {
-        await updateAppearanceSetting({
+        updateAppearanceSetting({
           wallpaperSlideshowPath: selected,
-          wallpaperMode: 'slideshow'
+          wallpaperMode: 'slideshow',
+          wallpaperSlideshowCurrentIndex: 0 // 重置索引
         });
         logger.info('壁纸目录已选择', { path: selected });
       }
@@ -429,13 +463,14 @@ export function useThemeAppearance() {
   /**
    * 清除壁纸
    */
-  const clearWallpaper = async () => {
+  const clearWallpaper = () => {
     try {
       // 清除两个路径以确保完全干净
-      await updateAppearanceSetting({
+      updateAppearanceSetting({
         wallpaperPath: '',
         wallpaperSlideshowPath: '',
-        enableWallpaper: true
+        enableWallpaper: true,
+        wallpaperSlideshowCurrentIndex: 0,
       });
       logger.info('壁纸已清除');
     } catch (error) {
@@ -444,13 +479,87 @@ export function useThemeAppearance() {
       });
     }
   };
+
+  // --- 新增幻灯片控制函数 ---
+  const playNextWallpaper = () => {
+    const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+    if (list.length === 0) return;
+    const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
+    const nextIndex = (currentIndex + 1) % list.length;
+    _switchToWallpaper(nextIndex, appearanceSettings.value);
+  };
+
+  const playPreviousWallpaper = () => {
+    const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+    if (list.length === 0) return;
+    const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
+    const prevIndex = (currentIndex - 1 + list.length) % list.length;
+    _switchToWallpaper(prevIndex, appearanceSettings.value);
+  };
+  
+  const switchToWallpaper = (index: number) => {
+    _switchToWallpaper(index, appearanceSettings.value);
+  };
+
+  const toggleSlideshowPlayback = () => {
+    isSlideshowPaused.value = !isSlideshowPaused.value;
+    logger.info(`幻灯片播放已 ${isSlideshowPaused.value ? '暂停' : '恢复'}`);
+  };
+
+  const toggleShuffle = () => {
+    const currentShuffle = appearanceSettings.value.wallpaperSlideshowShuffle ?? false;
+    const newShuffle = !currentShuffle;
+
+    // 智能切换：保持当前图片不变
+    const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
+    const currentList = currentShuffle ? shuffledList.value : wallpaperList.value;
+    const currentImagePath = currentList[currentIndex];
+
+    const newList = newShuffle ? shuffledList.value : wallpaperList.value;
+    const newIndex = newList.indexOf(currentImagePath);
+    
+    updateAppearanceSetting({
+      wallpaperSlideshowShuffle: newShuffle,
+      wallpaperSlideshowCurrentIndex: newIndex >= 0 ? newIndex : 0
+    });
+    logger.info(`随机播放已 ${newShuffle ? '开启' : '关闭'}`);
+  };
+
+  const reshuffle = () => {
+    if (wallpaperList.value.length > 0) {
+      shuffledList.value = shuffle(wallpaperList.value);
+      // 保持在列表头部
+      _switchToWallpaper(0, appearanceSettings.value);
+      logger.info('壁纸列表已重新洗牌');
+    }
+  };
+  
+  const refreshWallpaperList = async () => {
+    await _startSlideshow(appearanceSettings.value);
+    logger.info('壁纸列表已刷新');
+  };
   
   return {
     appearanceSettings: computed(() => appearanceSettings.value),
     currentWallpaper: computed(() => currentWallpaper.value),
+    currentWallpaperList: computed(() =>
+      appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value
+    ),
+    isSlideshowPaused: computed(() => isSlideshowPaused.value),
+    isShuffleEnabled: computed(() => appearanceSettings.value.wallpaperSlideshowShuffle ?? false),
+    
     updateAppearanceSetting,
     selectWallpaper,
     selectWallpaperDirectory,
     clearWallpaper,
+    
+    // Slideshow controls
+    playNextWallpaper,
+    playPreviousWallpaper,
+    switchToWallpaper,
+    toggleSlideshowPlayback,
+    toggleShuffle,
+    reshuffle,
+    refreshWallpaperList,
   };
 }

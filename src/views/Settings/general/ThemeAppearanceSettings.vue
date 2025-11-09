@@ -10,14 +10,99 @@
           </div>
         </template>
         <el-form label-position="top">
-          <el-form-item label="壁纸预览">
-            <div class="wallpaper-preview" :style="wallpaperPreviewStyle">
-              <div v-if="!currentWallpaper || !enableWallpaper" class="empty-state">
-                <el-icon><Picture /></el-icon>
-                <span>{{ enableWallpaper ? "无壁纸" : "壁纸已禁用" }}</span>
+          <div style="width: 100%" ref="wallpaperCardRef">
+            <div class="wallpaper-preview-wrapper">
+              <label class="custom-form-label">壁纸预览</label>
+              <!-- Static Mode -->
+              <div
+                v-show="wallpaperMode === 'static'"
+                class="wallpaper-preview"
+                :style="wallpaperPreviewStyle"
+              >
+                <div v-if="!currentWallpaper || !enableWallpaper" class="empty-state">
+                  <el-icon><Picture /></el-icon>
+                  <span>{{ enableWallpaper ? "无壁纸" : "壁纸已禁用" }}</span>
+                </div>
+              </div>
+
+              <!-- Slideshow Mode -->
+              <div v-show="wallpaperMode === 'slideshow'">
+                <!-- Container for Preview and Thumbnails -->
+                <div class="wallpaper-preview-container" :class="{ 'wide-layout': isWideLayout }">
+                  <div class="wallpaper-preview" :style="wallpaperPreviewStyle">
+                    <div v-if="!currentWallpaper || !enableWallpaper" class="empty-state">
+                      <el-icon><Picture /></el-icon>
+                      <span>{{ enableWallpaper ? "无壁纸" : "壁纸已禁用" }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Thumbnails -->
+                  <div v-if="currentWallpaperList.length > 0" class="thumbnail-wrapper">
+                    <div class="thumbnail-container" ref="thumbnailContainerRef">
+                      <div
+                        v-for="image in visibleThumbnails"
+                        :key="image.path"
+                        :class="['thumbnail-item', { active: image.isActive }]"
+                        @click="switchToWallpaper(image.originalIndex)"
+                        :ref="(el) => (thumbnailRefs[image.originalIndex] = el as HTMLElement)"
+                      >
+                        <img :src="image.url" class="thumbnail-image" loading="lazy" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Slideshow Controls (now separate) -->
+                <div v-if="currentWallpaperList.length > 0" class="slideshow-controls-container">
+                  <div class="slideshow-controls">
+                    <el-button
+                      :icon="RefreshLeft"
+                      circle
+                      @click="refreshWallpaperList"
+                      title="刷新列表"
+                    />
+                    <el-button
+                      :icon="ArrowLeft"
+                      circle
+                      @click="playPreviousWallpaper"
+                      title="上一张"
+                    />
+                    <el-button
+                      :icon="isSlideshowPaused ? VideoPlay : VideoPause"
+                      circle
+                      @click="toggleSlideshowPlayback"
+                      :title="isSlideshowPaused ? '继续播放' : '暂停播放'"
+                    />
+                    <el-button
+                      :icon="ArrowRight"
+                      circle
+                      @click="playNextWallpaper"
+                      title="下一张"
+                    />
+                    <el-tooltip
+                      :content="isShuffleEnabled ? '顺序播放' : '随机播放'"
+                      placement="top"
+                    >
+                      <el-button
+                        :icon="Sort"
+                        circle
+                        @click="toggleShuffle"
+                        :type="isShuffleEnabled ? 'primary' : ''"
+                      />
+                    </el-tooltip>
+                    <el-tooltip content="重新洗牌" placement="top">
+                      <el-button
+                        :icon="MagicStick"
+                        circle
+                        @click="reshuffle"
+                        :disabled="!isShuffleEnabled"
+                      />
+                    </el-tooltip>
+                  </div>
+                </div>
               </div>
             </div>
-          </el-form-item>
+          </div>
 
           <!-- 壁纸设置组 -->
           <div v-if="enableWallpaper" class="wallpaper-controls">
@@ -160,33 +245,117 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { Picture } from "@element-plus/icons-vue";
+import { computed, ref, watch, nextTick, onMounted } from "vue";
+import { useElementSize } from "@vueuse/core";
+import {
+  Picture,
+  ArrowLeft,
+  ArrowRight,
+  VideoPause,
+  VideoPlay,
+  Sort,
+  MagicStick,
+  RefreshLeft,
+} from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import type { WallpaperFit } from "@/utils/appSettings";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 const {
   appearanceSettings,
   currentWallpaper,
+  currentWallpaperList,
+  isSlideshowPaused,
+  isShuffleEnabled,
   updateAppearanceSetting,
   selectWallpaper,
   selectWallpaperDirectory,
   clearWallpaper,
+  playNextWallpaper,
+  playPreviousWallpaper,
+  switchToWallpaper,
+  toggleSlideshowPlayback,
+  toggleShuffle,
+  reshuffle,
+  refreshWallpaperList,
 } = useThemeAppearance();
+
+// --- Lifecycle Hooks ---
+onMounted(() => {
+  // If starting in slideshow mode, refresh the list to populate thumbnails
+  if (wallpaperMode.value === "slideshow") {
+    refreshWallpaperList();
+  }
+});
+
+// --- Responsive Layout ---
+// 监听整个壁纸设置卡片的宽度，而不是内部某个 div 的宽度。
+// 这样可以避免因内部布局变化（isWideLayout 切换）导致宽度变化，从而产生的无限循环/闪烁问题。
+const wallpaperCardRef = ref(null);
+const { width: cardWidth } = useElementSize(wallpaperCardRef);
+// 当卡片宽度足够时，切换到宽屏布局（缩略图在右侧）。
+// 用户反馈在 400px 时可以触发，这里设置为 450px 作为一个稳定的阈值。
+const isWideLayout = computed(() => cardWidth.value >= 500);
+
+// --- Thumbnail Logic ---
+const thumbnailContainerRef = ref<HTMLElement | null>(null);
+const thumbnailRefs = ref<Record<number, HTMLElement>>({});
+const MAX_VISIBLE_THUMBNAILS = 5; // 奇数以保证当前项居中
+
+const currentIndex = computed(() => appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0);
+
+const visibleThumbnails = computed(() => {
+  const list = currentWallpaperList.value;
+  if (list.length === 0) return [];
+
+  const total = list.length;
+  const half = Math.floor(MAX_VISIBLE_THUMBNAILS / 2);
+  let start = Math.max(0, currentIndex.value - half);
+  let end = Math.min(total, start + MAX_VISIBLE_THUMBNAILS);
+
+  if (end - start < MAX_VISIBLE_THUMBNAILS) {
+    start = Math.max(0, end - MAX_VISIBLE_THUMBNAILS);
+  }
+
+  const thumbnails = [];
+  for (let i = start; i < end; i++) {
+    const originalIndex = i;
+    const path = list[originalIndex];
+    thumbnails.push({
+      path,
+      url: convertFileSrc(path), // 使用 Tauri API 同步转换路径
+      originalIndex,
+      isActive: originalIndex === currentIndex.value,
+    });
+  }
+  return thumbnails;
+});
+
+watch(
+  currentIndex,
+  async (newIndex) => {
+    await nextTick();
+    const activeThumbnail = thumbnailRefs.value[newIndex];
+    if (activeThumbnail && thumbnailContainerRef.value) {
+      activeThumbnail.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  },
+  { flush: "post" }
+);
 
 // 确认清除壁纸
 const confirmClearWallpaper = async () => {
   try {
-    await ElMessageBox.confirm(
-      '确定要清除当前壁纸吗？此操作不可恢复。',
-      '确认清除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
+    await ElMessageBox.confirm("确定要清除当前壁纸吗？此操作不可恢复。", "确认清除", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
     // 用户确认后执行清除操作
     await clearWallpaper();
   } catch {
@@ -203,6 +372,14 @@ const enableWallpaper = computed({
 const wallpaperMode = computed({
   get: () => appearanceSettings.value.wallpaperMode,
   set: (val) => updateAppearanceSetting({ wallpaperMode: val }),
+});
+
+// 在壁纸模式切换到 'slideshow' 时，主动刷新壁纸列表
+watch(wallpaperMode, async (newMode) => {
+  if (newMode === "slideshow") {
+    await nextTick(); // 等待 DOM 更新
+    refreshWallpaperList();
+  }
 });
 
 const wallpaperSlideshowInterval = computed({
@@ -227,30 +404,43 @@ const wallpaperFit = computed({
 
 const wallpaperTileScale = computed({
   get: () => appearanceSettings.value.wallpaperTileOptions?.scale ?? 1.0,
-  set: (val) => updateAppearanceSetting({
-    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, scale: val }
-  }, { debounceUi: true }),
+  set: (val) =>
+    updateAppearanceSetting(
+      {
+        wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, scale: val },
+      },
+      { debounceUi: true }
+    ),
 });
 
 const wallpaperTileRotation = computed({
   get: () => appearanceSettings.value.wallpaperTileOptions?.rotation ?? 0,
-  set: (val) => updateAppearanceSetting({
-    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, rotation: val }
-  }, { debounceUi: true }),
+  set: (val) =>
+    updateAppearanceSetting(
+      {
+        wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, rotation: val },
+      },
+      { debounceUi: true }
+    ),
 });
 
 const wallpaperTileFlipHorizontal = computed({
   get: () => appearanceSettings.value.wallpaperTileOptions?.flipHorizontal ?? false,
-  set: (val) => updateAppearanceSetting({
-    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, flipHorizontal: val }
-  }),
+  set: (val) =>
+    updateAppearanceSetting({
+      wallpaperTileOptions: {
+        ...appearanceSettings.value.wallpaperTileOptions,
+        flipHorizontal: val,
+      },
+    }),
 });
 
 const wallpaperTileFlipVertical = computed({
   get: () => appearanceSettings.value.wallpaperTileOptions?.flipVertical ?? false,
-  set: (val) => updateAppearanceSetting({
-    wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, flipVertical: val }
-  }),
+  set: (val) =>
+    updateAppearanceSetting({
+      wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, flipVertical: val },
+    }),
 });
 
 const wallpaperOpacity = computed({
@@ -294,27 +484,32 @@ const editorOpacity = computed({
 });
 
 const wallpaperPreviewStyle = computed(() => {
+  // currentWallpaper 已经是一个转换后的 asset URL 或空字符串
+  const imageUrl = currentWallpaper.value;
+
   const baseStyle: Record<string, string> = {
-    backgroundImage: `url(${currentWallpaper.value})`,
-    backgroundPosition: 'center',
+    // 在 url() 中使用引号以处理路径中的特殊字符 (如括号)
+    // 如果 URL 为空，则将背景设置为 none
+    backgroundImage: imageUrl ? `url("${imageUrl}")` : "none",
+    backgroundPosition: "center",
   };
 
   const fit = wallpaperFit.value;
-  if (fit === 'tile') {
+  if (fit === "tile") {
     const scale = wallpaperTileScale.value;
     baseStyle.backgroundSize = `${scale * 100}%`;
-    baseStyle.backgroundRepeat = 'repeat';
+    baseStyle.backgroundRepeat = "repeat";
     // 预览中不展示 transform，因为它会应用到整个 div，效果不对
   } else {
     const sizeMap: Record<string, string> = {
-      cover: 'cover',
-      contain: 'contain',
-      fill: '100% 100%',
+      cover: "cover",
+      contain: "contain",
+      fill: "100% 100%",
     };
-    baseStyle.backgroundSize = sizeMap[fit] ?? 'cover';
-    baseStyle.backgroundRepeat = 'no-repeat';
+    baseStyle.backgroundSize = sizeMap[fit] ?? "cover";
+    baseStyle.backgroundRepeat = "no-repeat";
   }
-  
+
   return baseStyle;
 });
 </script>
@@ -349,9 +544,20 @@ const wallpaperPreviewStyle = computed(() => {
   gap: 20px;
 }
 
+.wallpaper-preview-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%; /* Ensure it takes full width */
+}
+
 .wallpaper-preview {
   width: 100%;
-  height: 320px;
+  /* In narrow mode, aspect-ratio is better than fixed height */
+  aspect-ratio: 16 / 9;
+  height: auto;
+  min-height: 200px;
+  max-height: 400px;
   border-radius: 8px;
   border: 1px dashed var(--border-color);
   display: flex;
@@ -359,6 +565,68 @@ const wallpaperPreviewStyle = computed(() => {
   align-items: center;
   color: var(--text-color-light);
   background-color: var(--card-bg);
+  transition: all 0.3s ease;
+  flex-shrink: 0; /* Prevent shrinking in column layout */
+}
+
+.slideshow-controls-container {
+  margin-top: 12px;
+  background-color: var(--card-bg);
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.slideshow-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+}
+
+.thumbnail-wrapper {
+  overflow: hidden; /* For rounded corners on container */
+  background-color: var(--card-bg);
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.thumbnail-container {
+  display: flex;
+  gap: 8px;
+  overflow-x: hidden; /* Prevent horizontal scrollbar */
+  padding: 4px;
+}
+
+.thumbnail-item {
+  width: 80px;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  flex-shrink: 1; /* Allow shrinking */
+  transition:
+    border-color 0.3s ease,
+    transform 0.2s ease;
+  overflow: hidden;
+}
+
+.thumbnail-item.active {
+  border-color: var(--el-color-primary);
+}
+
+.thumbnail-item:hover {
+  transform: scale(1.05);
+}
+
+.thumbnail-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
 }
 
 .empty-state {
@@ -385,15 +653,61 @@ const wallpaperPreviewStyle = computed(() => {
   margin-bottom: 18px; /* 与 el-form-item 的默认 bottom-margin 对齐 */
 }
 
-.control-margin-top {
-  margin-top: 18px;
-}
-
 .form-item-description {
   font-size: 12px;
   color: var(--text-color-light);
   margin-top: 4px;
   line-height: 1.4;
+}
+
+.wallpaper-preview-wrapper {
+  margin-bottom: 22px;
+}
+
+.custom-form-label {
+  color: var(--el-text-color-regular);
+  font-size: var(--el-form-label-font-size);
+  line-height: 22px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* --- Wide Layout Styles --- */
+.wallpaper-preview-container.wide-layout {
+  flex-direction: row;
+  align-items: stretch; /* Make items same height */
+  gap: 12px;
+}
+
+.wallpaper-preview-container.wide-layout .wallpaper-preview {
+  flex: 1 1 0; /* Grow and shrink, basis 0 */
+  min-width: 0; /* Crucial for shrinking */
+  height: auto; /* Let flexbox control the height */
+  max-height: none;
+  aspect-ratio: auto; /* Prevent aspect ratio from restricting width */
+}
+
+.wallpaper-preview-container.wide-layout .thumbnail-wrapper {
+  flex: 0 0 120px; /* Don't grow, don't shrink, basis 120px */
+  width: 120px;
+  height: auto; /* Match height of preview */
+  display: flex;
+  flex-direction: column;
+}
+
+.wallpaper-preview-container.wide-layout .thumbnail-container {
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+  padding-right: 4px;
+  flex: 1;
+  min-height: 0;
+}
+
+.wallpaper-preview-container.wide-layout .thumbnail-item {
+  width: 100%;
+  height: 60px;
 }
 
 .full-width {

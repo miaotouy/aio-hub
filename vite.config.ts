@@ -34,7 +34,9 @@ export default defineConfig({
     // 生产环境禁用 VueDevTools
     process.env.NODE_ENV !== 'production' && VueDevTools(),
     vue(),
-    (monacoEditorPlugin as any).default({}),
+    (monacoEditorPlugin as any).default({
+      language: 'zh-hans'
+    }),
     Components({
       resolvers: [
         IconsResolver({

@@ -52,8 +52,16 @@ function _updateCssVariables(settings: AppearanceSettings) {
   
   const calculateOpacity = (offset = 0) => Math.max(0.1, Math.min(1.0, baseOpacity + offset)).toFixed(2);
 
-  root.style.setProperty('--sidebar-opacity', calculateOpacity(offsets.sidebar));
-  root.style.setProperty('--content-opacity', calculateOpacity(offsets.content));
+  const sidebarOpacityValue = calculateOpacity(offsets.sidebar);
+  root.style.setProperty('--sidebar-opacity', sidebarOpacityValue);
+  // --sidebar-bg 的透明度也需要同步
+  const sidebarBgRgb = getComputedStyle(root).getPropertyValue('--sidebar-bg-rgb').trim();
+  if (sidebarBgRgb) {
+    root.style.setProperty('--sidebar-bg', `rgba(${sidebarBgRgb}, ${sidebarOpacityValue})`);
+  }
+
+  const contentOpacityValue = calculateOpacity(offsets.content);
+  root.style.setProperty('--content-opacity', contentOpacityValue);
 
   const cardOpacityValue = calculateOpacity(offsets.card);
   root.style.setProperty('--card-opacity', cardOpacityValue);
@@ -65,7 +73,15 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty('--card-bg', `rgba(${cardBgRgb}, ${cardOpacityValue})`);
   }
 
-  root.style.setProperty('--overlay-opacity', calculateOpacity(offsets.overlay));
+  const overlayOpacityValue = calculateOpacity(offsets.overlay);
+  root.style.setProperty('--overlay-opacity', overlayOpacityValue);
+
+  // --container-bg 的透明度也需要同步
+  const containerBgRgb = getComputedStyle(root).getPropertyValue('--container-bg-rgb').trim();
+  if (containerBgRgb) {
+    // 容器/覆盖层 使用 overlay 的透明度
+    root.style.setProperty('--container-bg', `rgba(${containerBgRgb}, ${overlayOpacityValue})`);
+  }
 
   // 设置边框不透明度
   root.style.setProperty('--border-opacity', String(settings.borderOpacity));

@@ -86,7 +86,7 @@ html, body {
  * 专为 Dialog, Popover, Dropdown 等设计，使用由 JS 注入的 --overlay-opacity 变量
  */
 .glass-overlay {
-  background-color: rgba(var(--card-bg-rgb), var(--overlay-opacity)) !important;
+  background-color: rgba(var(--container-bg-rgb), var(--overlay-opacity)) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }

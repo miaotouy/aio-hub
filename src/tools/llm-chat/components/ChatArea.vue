@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, toRef, withDefaults, onMounted, watch } from "vue";
+import { ref, computed, toRef, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip, ElIcon } from "element-plus";
 import type { ChatMessageNode, UserProfile } from "../types";

@@ -5,7 +5,6 @@
 
 :root {
   /* --- 核心变量 (由 JS 动态更新) --- */
-  --ui-base-opacity: 0.85;
   --ui-blur: 15px;
   --wallpaper-image: none;
   --wallpaper-opacity: 1;
@@ -13,15 +12,11 @@
   --bg-color-opacity: 1; /* 应用背景色不透明度 */
   --card-bg-rgb: 255, 255, 255; /* 默认亮色主题的卡片背景 RGB */
 
-  /* --- 派生变量 (分层透明度系统) --- */
-  /* L2: 侧边栏 */
-  --opacity-l2-sidebar: calc(var(--ui-base-opacity) + 0.1);
-  /* L3: 主内容区背景 */
-  --opacity-l3-content: var(--ui-base-opacity);
-  /* L4: 卡片 */
-  --opacity-l4-card: calc(var(--ui-base-opacity) + 0.05);
-  /* L5: 弹窗、覆盖层 */
-  --opacity-l5-overlay: calc(var(--ui-base-opacity) + 0.15);
+  /*
+    透明度变量 (如 --card-opacity, --sidebar-opacity 等)
+    现在完全由 useThemeAppearance.ts 动态计算并注入，
+    以确保与 UI 设置实时同步。
+  */
 }
 
 html.dark {
@@ -67,30 +62,30 @@ html, body {
 
 /**
  * 卡片毛玻璃效果
- * 专为卡片类组件设计，使用 L4 透明度
+ * 专为卡片类组件设计，使用由 JS 注入的 --card-opacity 变量
  */
 .glass-card {
-  background-color: rgba(var(--card-bg-rgb), var(--opacity-l4-card)) !important;
+  background-color: rgba(var(--card-bg-rgb), var(--card-opacity)) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }
 
 /**
  * 侧边栏毛玻璃效果
- * 专为侧边栏设计，使用 L2 透明度
+ * 专为侧边栏设计，使用由 JS 注入的 --sidebar-opacity 变量
  */
 .glass-sidebar {
-  background-color: rgba(var(--sidebar-bg-rgb, var(--card-bg-rgb)), var(--opacity-l2-sidebar)) !important;
+  background-color: rgba(var(--sidebar-bg-rgb, var(--card-bg-rgb)), var(--sidebar-opacity)) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }
 
 /**
  * 弹窗/覆盖层毛玻璃效果
- * 专为 Dialog, Popover, Dropdown 等设计，使用 L5 透明度
+ * 专为 Dialog, Popover, Dropdown 等设计，使用由 JS 注入的 --overlay-opacity 变量
  */
 .glass-overlay {
-  background-color: rgba(var(--card-bg-rgb), var(--opacity-l5-overlay)) !important;
+  background-color: rgba(var(--card-bg-rgb), var(--overlay-opacity)) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }

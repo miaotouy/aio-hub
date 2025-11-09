@@ -1,4 +1,5 @@
 import { ref, computed, watch } from 'vue';
+import debounce from 'lodash-es/debounce';
 import {
   appSettingsManager,
   type AppearanceSettings,
@@ -14,6 +15,10 @@ import { createModuleErrorHandler } from '@/utils/errorHandler';
 // --- 模块级状态 (Singleton-like pattern) ---
 const logger = createModuleLogger('ThemeAppearance');
 const errorHandler = createModuleErrorHandler('ThemeAppearance');
+
+const debouncedCssUpdate = debounce((settings: AppearanceSettings) => {
+  _updateCssVariables(settings);
+}, 50, { leading: false, trailing: true });
 
 // 这些是运行时 UI 状态，不持久化
 const appearanceSettings = ref<AppearanceSettings>(defaultAppearanceSettings);
@@ -39,7 +44,8 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.removeProperty('--bg-color');
   }
   
-  root.style.setProperty('--ui-blur', `${settings.uiBlurIntensity}px`);
+  const blurValue = settings.enableUiBlur ? `${settings.uiBlurIntensity}px` : '0px';
+  root.style.setProperty('--ui-blur', blurValue);
   
   const baseOpacity = settings.uiBaseOpacity;
   const offsets = settings.layerOpacityOffsets || {};
@@ -210,8 +216,6 @@ export async function initThemeAppearance() {
       
       logger.debug('外观设置变化', { newSettings, oldSettings });
       
-      _updateCssVariables(newSettings);
-      
       const old = oldSettings || defaultAppearanceSettings;
       if (newSettings.enableWallpaper !== old.enableWallpaper ||
           newSettings.wallpaperMode !== old.wallpaperMode ||
@@ -248,31 +252,49 @@ export function cleanupThemeAppearance() {
  * Composable：供组件使用的主题外观接口
  */
 export function useThemeAppearance() {
+  // 自动保存设置的防抖函数
+  const debouncedSave = debounce(async (settingsToSave: AppearanceSettings) => {
+    try {
+      const currentFullSettings = await appSettingsManager.load();
+      await appSettingsManager.save({
+        ...currentFullSettings,
+        appearance: settingsToSave
+      });
+      logger.info('外观设置已自动保存');
+    } catch (error) {
+      errorHandler.error(error, '自动保存外观设置失败', {
+        operation: '自动保存外观设置'
+      });
+    }
+  }, 400);
+
   /**
    * 更新外观设置
+   * @param updates - 要更新的设置
+   * @param options - 包含 debounceUi 标志的选项，用于对 UI 更新进行防抖
    */
-  const updateAppearanceSetting = async (updates: Partial<AppearanceSettings>) => {
-    try {
-      const current = await appSettingsManager.load();
-      const newAppearance = {
-        ...(current.appearance || defaultAppearanceSettings),
-        ...updates
-      };
-      
-      await appSettingsManager.save({
-        ...current,
-        appearance: newAppearance
-      });
-      
-      appearanceSettings.value = newAppearance;
-      logger.info('外观设置已更新', { updates });
-    } catch (error) {
-      errorHandler.error(error, '更新外观设置失败', {
-        operation: '更新外观设置',
-        updates
-      });
-      throw error;
+  const updateAppearanceSetting = (
+    updates: Partial<AppearanceSettings>,
+    options: { debounceUi?: boolean } = {}
+  ) => {
+    const newAppearance = {
+      ...appearanceSettings.value,
+      ...updates
+    };
+    
+    // 立即更新 ref 以触发 vue 的响应式系统（但不一定会更新 CSS）
+    appearanceSettings.value = newAppearance;
+
+    // 根据选项决定是立即更新 CSS 还是防抖更新
+    if (options.debounceUi) {
+      debouncedCssUpdate(newAppearance);
+    } else {
+      debouncedCssUpdate.cancel(); // 取消任何待定的防抖调用
+      _updateCssVariables(newAppearance);
     }
+
+    // 安排一个防抖的保存操作
+    debouncedSave(newAppearance);
   };
 
   /**

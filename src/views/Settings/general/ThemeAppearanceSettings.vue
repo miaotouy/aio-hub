@@ -2,7 +2,7 @@
   <div class="theme-appearance-settings">
     <div class="settings-grid">
       <!-- Left Column: Wallpaper Management -->
-      <el-card shadow="never">
+      <el-card shadow="never" :class="{ 'glass-card': enableUiBlur }">
         <template #header>
           <div class="card-header">
             <span>壁纸管理</span>
@@ -67,7 +67,7 @@
 
       <!-- Right Column: UI and Window Effects -->
       <div class="right-column-content">
-        <el-card shadow="never">
+        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur }">
           <template #header>
             <span>界面质感</span>
           </template>
@@ -90,7 +90,7 @@
           </el-form>
         </el-card>
 
-        <el-card shadow="never">
+        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur }">
           <template #header>
             <span>窗口特效 (实验性)</span>
           </template>
@@ -182,7 +182,7 @@ const wallpaperSlideshowPath = computed({
 
 const wallpaperOpacity = computed({
   get: () => appearanceSettings.value.wallpaperOpacity,
-  set: (val) => updateAppearanceSetting({ wallpaperOpacity: val }),
+  set: (val) => updateAppearanceSetting({ wallpaperOpacity: val }, { debounceUi: true }),
 });
 
 const enableUiBlur = computed({
@@ -192,12 +192,12 @@ const enableUiBlur = computed({
 
 const uiBaseOpacity = computed({
   get: () => appearanceSettings.value.uiBaseOpacity,
-  set: (val) => updateAppearanceSetting({ uiBaseOpacity: val }),
+  set: (val) => updateAppearanceSetting({ uiBaseOpacity: val }, { debounceUi: true }),
 });
 
 const uiBlurIntensity = computed({
   get: () => appearanceSettings.value.uiBlurIntensity,
-  set: (val) => updateAppearanceSetting({ uiBlurIntensity: val }),
+  set: (val) => updateAppearanceSetting({ uiBlurIntensity: val }, { debounceUi: true }),
 });
 
 const windowEffect = computed({
@@ -207,7 +207,7 @@ const windowEffect = computed({
 
 const windowBackgroundOpacity = computed({
   get: () => appearanceSettings.value.windowBackgroundOpacity,
-  set: (val) => updateAppearanceSetting({ windowBackgroundOpacity: val }),
+  set: (val) => updateAppearanceSetting({ windowBackgroundOpacity: val }, { debounceUi: true }),
 });
 </script>
 

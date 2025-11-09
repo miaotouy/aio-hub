@@ -12,7 +12,6 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src ipc: http://ipc.localhost https://ipc.localhost ws: wss:; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost; media-src 'self' asset: http://asset.localhost https://asset.localhost; font-src 'self' data:; style-src 'self' 'unsafe-inline'",
       "assetProtocol": {
         "enable": true,
         "scope": {

@@ -646,6 +646,7 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  background: transparent;
 }
 
 .diff-editor-card :deep(.el-card__body) {

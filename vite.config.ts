@@ -56,7 +56,6 @@ export default defineConfig({
       "prettier",
       "@prettier/plugin-php",
       "@prettier/plugin-xml",
-      "monaco-editor",
     ],
   },
 

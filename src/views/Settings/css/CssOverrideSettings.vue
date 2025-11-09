@@ -396,7 +396,7 @@ function isPresetSelected(presetId: string | null): boolean {
   display: flex;
   gap: 16px;
   flex: 1;
-  background: var(--card-bg);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -593,6 +593,7 @@ function isPresetSelected(presetId: string | null): boolean {
   border-radius: 4px;
   overflow: hidden;
   min-height: 0;
+  background: transparent;
 }
 
 /* 提示折叠面板 */

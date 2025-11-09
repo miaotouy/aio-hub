@@ -27,6 +27,7 @@ let slideshowTimer: number | null = null;
 let wallpaperList: string[] = [];
 let currentWallpaperIndex = -1;
 let isInitialized = false; // 防止多次初始化
+let themeObserver: MutationObserver | null = null;
 
 // --- 私有函数 ---
 
@@ -294,6 +295,16 @@ export async function initThemeAppearance() {
       }
     }, { deep: true });
     
+    // 监听根元素 class 的变化（例如主题切换），并重新应用 CSS 变量
+    themeObserver = new MutationObserver(() => {
+      logger.debug('Theme class changed on root element, re-applying appearance CSS variables.');
+      _updateCssVariables(appearanceSettings.value);
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    
     logger.info('主题外观初始化完成');
   } catch (error) {
     errorHandler.error(error, '初始化主题外观失败', {
@@ -308,6 +319,10 @@ export async function initThemeAppearance() {
  */
 export function cleanupThemeAppearance() {
   _stopSlideshow();
+  if (themeObserver) {
+    themeObserver.disconnect();
+    themeObserver = null;
+  }
   isInitialized = false;
   logger.info('主题外观资源已清理');
 }

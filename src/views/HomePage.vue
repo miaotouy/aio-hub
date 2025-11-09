@@ -1,92 +1,116 @@
 <template>
   <div class="home-page">
-    <!-- 固定的头部区域 -->
-    <div class="header-section">
-      <span class="title">AIO Hub</span>
-
-      <!-- 搜索栏 -->
-      <div class="search-bar">
-        <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
-      </div>
-
-      <!-- 分类标签 -->
-      <div v-if="categories.length > 1" class="category-tabs">
-        <button
-          v-for="category in categories"
-          :key="category"
-          @click="selectedCategory = category"
-          :class="{ active: selectedCategory === category }"
-          class="category-tab"
-        >
-          {{ category }}
-        </button>
-      </div>
-    </div>
-
-    <!-- 可滚动的内容区域 -->
-    <div class="content-section">
-      <div class="tool-grid">
-        <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
-        <component
-          :is="isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
-          v-for="tool in filteredTools"
-          :key="tool.path"
-          :to="isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
-          :class="['tool-card', { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) }]"
-          @click="handleToolClick(tool.path)"
-        >
-          <!-- 已分离徽章（带下拉菜单） -->
-          <el-dropdown
-            v-if="isDetached(getToolIdFromPath(tool.path))"
-            class="detached-badge-dropdown"
-            trigger="hover"
-            @command="(command: string) => handleDropdownCommand(command, tool.path)"
-          >
-            <div class="detached-badge" @click.stop>
-              <el-icon><i-ep-full-screen /></el-icon>
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-
-          <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
-          <component
-            v-if="tool.path.startsWith('/plugin-')"
-            :is="tool.icon"
-            class="plugin-icon-large"
-          />
-          <!-- 普通图标用 el-icon 包裹 -->
-          <el-icon v-else :size="48">
-            <component :is="tool.icon" />
-          </el-icon>
-          <div class="tool-name">{{ tool.name }}</div>
-          <div class="tool-description">{{ tool.description }}</div>
-        </component>
-      </div>
-
-      <!-- 空状态 -->
-      <div v-if="filteredTools.length === 0" class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <div class="empty-text">
-          {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
+    <!-- 骨架屏 -->
+    <template v-if="isLoading">
+      <div class="home-skeleton">
+        <!-- Header Skeleton -->
+        <div class="header-section">
+          <el-skeleton-item variant="text" style="width: 150px; height: 40px; margin-bottom: 20px" />
+          <el-skeleton-item variant="rect" style="width: 100%; max-width: 600px; height: 40px" />
         </div>
-        <el-button
-          v-if="visibleTools.length === 0"
-          type="primary"
-          @click="router.push('/settings')"
-        >
-          前往设置页面配置工具
-        </el-button>
+        <!-- Grid Skeleton -->
+        <div class="content-section">
+          <div class="tool-grid">
+            <el-skeleton v-for="i in 8" :key="i" style="height: 200px" animated>
+              <template #template>
+                <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
+              </template>
+            </el-skeleton>
+          </div>
+        </div>
       </div>
-    </div>
+    </template>
+
+    <!-- 实际内容 -->
+    <template v-else>
+      <!-- 固定的头部区域 -->
+      <div class="header-section">
+        <span class="title">AIO Hub</span>
+
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+          <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
+        </div>
+
+        <!-- 分类标签 -->
+        <div v-if="categories.length > 1" class="category-tabs">
+          <button
+            v-for="category in categories"
+            :key="category"
+            @click="selectedCategory = category"
+            :class="{ active: selectedCategory === category }"
+            class="category-tab"
+          >
+            {{ category }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 可滚动的内容区域 -->
+      <div class="content-section">
+        <div class="tool-grid">
+          <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
+          <component
+            :is="isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
+            v-for="tool in filteredTools"
+            :key="tool.path"
+            :to="isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
+            :class="['tool-card', { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) }]"
+            @click="handleToolClick(tool.path)"
+          >
+            <!-- 已分离徽章（带下拉菜单） -->
+            <el-dropdown
+              v-if="isDetached(getToolIdFromPath(tool.path))"
+              class="detached-badge-dropdown"
+              trigger="hover"
+              @command="(command: string) => handleDropdownCommand(command, tool.path)"
+            >
+              <div class="detached-badge" @click.stop>
+                <el-icon><i-ep-full-screen /></el-icon>
+              </div>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+
+            <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
+            <component
+              v-if="tool.path.startsWith('/plugin-')"
+              :is="tool.icon"
+              class="plugin-icon-large"
+            />
+            <!-- 普通图标用 el-icon 包裹 -->
+            <el-icon v-else :size="48">
+              <component :is="tool.icon" />
+            </el-icon>
+            <div class="tool-name">{{ tool.name }}</div>
+            <div class="tool-description">{{ tool.description }}</div>
+          </component>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-if="filteredTools.length === 0" class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-text">
+            {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
+          </div>
+          <el-button
+            v-if="visibleTools.length === 0"
+            type="primary"
+            @click="router.push('/settings')"
+          >
+            前往设置页面配置工具
+          </el-button>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { loadAppSettingsAsync, type AppSettings } from "../utils/appSettings";
 import { useDetachedManager } from "../composables/useDetachedManager";
@@ -97,6 +121,7 @@ const router = useRouter();
 const toolsStore = useToolsStore();
 const { isDetached, focusWindow, closeWindow, initialize } = useDetachedManager();
 
+const isLoading = ref(true);
 // 搜索文本
 const searchText = ref("");
 
@@ -201,23 +226,29 @@ const handleStorageChange = async () => {
 };
 
 onMounted(async () => {
-  // 优先从缓存加载工具可见性，防止闪烁
+  isLoading.value = true;
   try {
-    const cachedToolsVisible = localStorage.getItem("app-tools-visible");
-    if (cachedToolsVisible) {
-      settings.value.toolsVisible = JSON.parse(cachedToolsVisible);
+    // 优先从缓存加载工具可见性，防止闪烁
+    try {
+      const cachedToolsVisible = localStorage.getItem("app-tools-visible");
+      if (cachedToolsVisible) {
+        settings.value.toolsVisible = JSON.parse(cachedToolsVisible);
+      }
+    } catch (error) {
+      // 忽略错误，后续会从文件加载
     }
-  } catch (error) {
-    // 忽略错误，后续会从文件加载
+
+    // 初始化统一的分离窗口管理器
+    await initialize();
+
+    // 初始化时加载设置
+    settings.value = await loadAppSettingsAsync();
+    // 监听storage事件，以便在设置页面保存后实时更新
+    window.addEventListener("storage", handleStorageChange);
+  } finally {
+    await nextTick();
+    isLoading.value = false;
   }
-
-  // 初始化统一的分离窗口管理器
-  await initialize();
-
-  // 初始化时加载设置
-  settings.value = await loadAppSettingsAsync();
-  // 监听storage事件，以便在设置页面保存后实时更新
-  window.addEventListener("storage", handleStorageChange);
 });
 
 // 组件卸载时清理
@@ -237,6 +268,13 @@ watch(
 </script>
 
 <style scoped>
+.home-skeleton {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .home-page {
   display: flex;
   flex-direction: column;

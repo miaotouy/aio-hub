@@ -29,6 +29,7 @@ const { applyLogConfig, watchLogConfig } = useLogConfig();
 const toolsStore = useToolsStore();
 const route = useRoute();
 const router = useRouter();
+const isLoading = ref(true);
 
 // 返回上一页
 const handleGoBack = () => {
@@ -509,79 +510,84 @@ watch(
 // 存储事件处理函数的引用
 let handleSettingsChange: ((event: Event) => void) | null = null;
 
-// 初始化
 onMounted(async () => {
-  // 标记正在加载
-  isLoadingFromFile = true;
-
-  // 异步加载设置
-  const loadedSettings = await loadAppSettingsAsync();
-
-  // 确保 toolsVisible 包含所有工具（包括动态加载的插件）
-  if (!loadedSettings.toolsVisible) {
-    loadedSettings.toolsVisible = {};
-  }
-
-  // 为每个工具设置默认可见状态（使用 toolsStore.orderedTools 包括插件）
-  toolsStore.orderedTools.forEach((tool) => {
-    const toolId = getToolIdFromPath(tool.path);
-    if (loadedSettings.toolsVisible![toolId] === undefined) {
-      loadedSettings.toolsVisible![toolId] = true;
-    }
-  });
-
-  settings.value = loadedSettings;
-
-  // 应用日志配置
-  applyLogConfig(settings.value);
-
-  // 监听日志配置变化
-  watchLogConfig(settings.value);
-
-  // 应用主题（使用统一的主题管理）
-  applyThemeFromComposable(settings.value.theme || "auto");
-
-  // 应用主题色系统
-  applyThemeColors({
-    primary: settings.value.themeColor,
-    success: settings.value.successColor,
-    warning: settings.value.warningColor,
-    danger: settings.value.dangerColor,
-    info: settings.value.infoColor,
-  });
-
-  // 同步托盘设置到后端
+  isLoading.value = true;
   try {
-    await invoke("update_tray_setting", { enabled: settings.value.minimizeToTray || false });
-  } catch (error) {
-    logger.error("初始化系统托盘设置失败", error, {
-      enabled: settings.value.minimizeToTray || false,
-    });
-  }
+    // 标记正在加载
+    isLoadingFromFile = true;
 
-  // 监听来自侧边栏的设置变化事件
-  handleSettingsChange = (event: Event) => {
-    const customEvent = event as CustomEvent<AppSettings>;
-    if (customEvent.detail && customEvent.detail.theme) {
-      // 更新本地设置但不触发保存（因为侧边栏已经保存了）
-      isLoadingFromFile = true;
-      settings.value.theme = customEvent.detail.theme;
-      // 主题已经由 useTheme 统一管理，这里只需要同步本地状态
-      setTimeout(() => {
-        isLoadingFromFile = false;
-      }, 100);
+    // 异步加载设置
+    const loadedSettings = await loadAppSettingsAsync();
+
+    // 确保 toolsVisible 包含所有工具（包括动态加载的插件）
+    if (!loadedSettings.toolsVisible) {
+      loadedSettings.toolsVisible = {};
     }
-  };
 
-  window.addEventListener("app-settings-changed", handleSettingsChange);
+    // 为每个工具设置默认可见状态（使用 toolsStore.orderedTools 包括插件）
+    toolsStore.orderedTools.forEach((tool) => {
+      const toolId = getToolIdFromPath(tool.path);
+      if (loadedSettings.toolsVisible![toolId] === undefined) {
+        loadedSettings.toolsVisible![toolId] = true;
+      }
+    });
 
-  // 加载完成后，允许触发事件
-  setTimeout(() => {
-    isLoadingFromFile = false;
-  }, 100);
+    settings.value = loadedSettings;
 
-  // 检查初始路由参数，可能需要跳转到特定区域
-  checkRouteAndScroll(route.query);
+    // 应用日志配置
+    applyLogConfig(settings.value);
+
+    // 监听日志配置变化
+    watchLogConfig(settings.value);
+
+    // 应用主题（使用统一的主题管理）
+    applyThemeFromComposable(settings.value.theme || "auto");
+
+    // 应用主题色系统
+    applyThemeColors({
+      primary: settings.value.themeColor,
+      success: settings.value.successColor,
+      warning: settings.value.warningColor,
+      danger: settings.value.dangerColor,
+      info: settings.value.infoColor,
+    });
+
+    // 同步托盘设置到后端
+    try {
+      await invoke("update_tray_setting", { enabled: settings.value.minimizeToTray || false });
+    } catch (error) {
+      logger.error("初始化系统托盘设置失败", error, {
+        enabled: settings.value.minimizeToTray || false,
+      });
+    }
+
+    // 监听来自侧边栏的设置变化事件
+    handleSettingsChange = (event: Event) => {
+      const customEvent = event as CustomEvent<AppSettings>;
+      if (customEvent.detail && customEvent.detail.theme) {
+        // 更新本地设置但不触发保存（因为侧边栏已经保存了）
+        isLoadingFromFile = true;
+        settings.value.theme = customEvent.detail.theme;
+        // 主题已经由 useTheme 统一管理，这里只需要同步本地状态
+        setTimeout(() => {
+          isLoadingFromFile = false;
+        }, 100);
+      }
+    };
+
+    window.addEventListener("app-settings-changed", handleSettingsChange);
+
+    // 加载完成后，允许触发事件
+    setTimeout(() => {
+      isLoadingFromFile = false;
+    }, 100);
+
+    // 检查初始路由参数，可能需要跳转到特定区域
+    checkRouteAndScroll(route.query);
+  } finally {
+    await nextTick();
+    isLoading.value = false;
+  }
 });
 
 // 监听路由查询参数变化，支持页面内导航
@@ -603,166 +609,185 @@ onUnmounted(() => {
 <template>
   <div class="settings-page">
     <div class="settings-wrapper">
-      <!-- 左侧导航 -->
-      <aside class="settings-nav">
-        <button class="back-button" @click="handleGoBack">
-          <el-icon><ArrowLeft /></el-icon>
-          <span>返回</span>
-        </button>
-        <h1 class="nav-title">设置</h1>
-        <div class="nav-menu">
-          <button
-            v-for="module in settingsModules"
-            :key="module.id"
-            class="nav-menu-item"
-            :class="{ active: activeSection === module.id }"
-            @click="handleSelect(module.id)"
-          >
-            {{ module.title }}
+      <!-- 骨架屏 -->
+      <template v-if="isLoading">
+        <!-- Nav Skeleton -->
+        <aside class="settings-nav">
+          <el-skeleton animated>
+            <template #template>
+              <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
+            </template>
+          </el-skeleton>
+        </aside>
+        <!-- Content Skeleton -->
+        <div class="settings-content">
+          <el-skeleton :rows="15" animated />
+        </div>
+      </template>
+
+      <!-- 实际内容 -->
+      <template v-else>
+        <!-- 左侧导航 -->
+        <aside class="settings-nav">
+          <button class="back-button" @click="handleGoBack">
+            <el-icon><ArrowLeft /></el-icon>
+            <span>返回</span>
           </button>
+          <h1 class="nav-title">设置</h1>
+          <div class="nav-menu">
+            <button
+              v-for="module in settingsModules"
+              :key="module.id"
+              class="nav-menu-item"
+              :class="{ active: activeSection === module.id }"
+              @click="handleSelect(module.id)"
+            >
+              {{ module.title }}
+            </button>
+          </div>
+
+          <div class="nav-actions">
+            <el-button @click="handleReset" type="danger" plain> 重置所有设置 </el-button>
+          </div>
+        </aside>
+
+        <!-- 右侧内容 -->
+        <div class="settings-content" ref="contentRef" @scroll="handleScroll">
+          <template v-for="module in settingsModules" :key="module.id">
+            <!-- 动态组件模块 -->
+            <section
+              v-if="module.component"
+              :id="module.id"
+              class="settings-section component-section"
+              :style="{ minHeight: module.minHeight || 'auto' }"
+            >
+              <h2 class="section-title">{{ module.title }}</h2>
+              <!-- 主题色配置组件需要特殊处理，传递 v-model 绑定 -->
+              <ThemeColorSettings
+                v-if="module.id === 'theme-colors'"
+                v-model:theme-color="settings.themeColor"
+                v-model:success-color="settings.successColor"
+                v-model:warning-color="settings.warningColor"
+                v-model:danger-color="settings.dangerColor"
+                v-model:info-color="settings.infoColor"
+              />
+              <!-- 日志配置组件需要特殊处理，传递 v-model 绑定 -->
+              <LogSettings
+                v-else-if="module.id === 'log-settings'"
+                v-model:log-level="settings.logLevel"
+                v-model:log-to-file="settings.logToFile"
+                v-model:log-to-console="settings.logToConsole"
+                v-model:log-buffer-size="settings.logBufferSize"
+              />
+              <!-- 工具模块配置组件需要特殊处理，传递 v-model 绑定 -->
+              <component
+                v-else-if="module.id === 'tools'"
+                :is="module.component"
+                v-model:tools-visible="settings.toolsVisible"
+              />
+              <!-- 其他动态组件 -->
+              <component v-else :is="module.component" />
+            </section>
+
+            <!-- 静态模块 -->
+            <!-- 通用设置 -->
+            <section v-else-if="module.id === 'general'" id="general" class="settings-section">
+              <h2 class="section-title">通用设置</h2>
+
+              <div class="setting-item">
+                <div class="setting-label">
+                  <span>显示托盘图标</span>
+                  <el-tooltip content="是否在系统托盘显示应用图标，可实时生效" placement="top">
+                    <el-icon class="info-icon">
+                      <InfoFilled />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
+                <el-switch v-model="settings.showTrayIcon" />
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-label">
+                  <span>关闭到托盘</span>
+                  <el-tooltip
+                    content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序"
+                    placement="top"
+                  >
+                    <el-icon class="info-icon">
+                      <InfoFilled />
+                    </el-icon>
+                  </el-tooltip>
+                  <span v-if="!settings.showTrayIcon" class="setting-hint warning">
+                    需要先启用【显示托盘图标】
+                  </span>
+                </div>
+                <el-switch v-model="settings.minimizeToTray" :disabled="!settings.showTrayIcon" />
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-label">
+                  <span>主题设置</span>
+                  <el-tooltip content="选择应用的主题模式" placement="top">
+                    <el-icon class="info-icon">
+                      <InfoFilled />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
+                <el-radio-group v-model="settings.theme">
+                  <el-radio-button value="auto">跟随系统</el-radio-button>
+                  <el-radio-button value="light">浅色</el-radio-button>
+                  <el-radio-button value="dark">深色</el-radio-button>
+                </el-radio-group>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-label">
+                  <span>窗口位置记忆</span>
+                  <el-tooltip content="清除所有窗口的位置和大小记忆，恢复默认状态" placement="top">
+                    <el-icon class="info-icon">
+                      <InfoFilled />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
+                <el-button @click="handleClearWindowState" size="small"> 清除窗口状态 </el-button>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-label">
+                  <span>自动调整窗口位置</span>
+                  <el-tooltip
+                    content="当工具窗口移动到屏幕外时，自动将其拉回可见区域"
+                    placement="top"
+                  >
+                    <el-icon class="info-icon">
+                      <InfoFilled />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
+                <el-switch v-model="settings.autoAdjustWindowPosition" />
+              </div>
+
+              <el-divider />
+
+              <div class="setting-item">
+                <div class="setting-label">
+                  <span>配置管理</span>
+                  <el-tooltip content="打开配置文件目录、导出或导入配置文件" placement="top">
+                    <el-icon class="info-icon">
+                      <InfoFilled />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
+                <div class="config-actions">
+                  <el-button @click="handleOpenConfigDir" size="small"> 打开配置目录 </el-button>
+                  <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
+                  <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
+                </div>
+              </div>
+            </section>
+          </template>
         </div>
-
-        <div class="nav-actions">
-          <el-button @click="handleReset" type="danger" plain> 重置所有设置 </el-button>
-        </div>
-      </aside>
-
-      <!-- 右侧内容 -->
-      <div class="settings-content" ref="contentRef" @scroll="handleScroll">
-        <template v-for="module in settingsModules" :key="module.id">
-          <!-- 动态组件模块 -->
-          <section
-            v-if="module.component"
-            :id="module.id"
-            class="settings-section component-section"
-            :style="{ minHeight: module.minHeight || 'auto' }"
-          >
-            <h2 class="section-title">{{ module.title }}</h2>
-            <!-- 主题色配置组件需要特殊处理，传递 v-model 绑定 -->
-            <ThemeColorSettings
-              v-if="module.id === 'theme-colors'"
-              v-model:theme-color="settings.themeColor"
-              v-model:success-color="settings.successColor"
-              v-model:warning-color="settings.warningColor"
-              v-model:danger-color="settings.dangerColor"
-              v-model:info-color="settings.infoColor"
-            />
-            <!-- 日志配置组件需要特殊处理，传递 v-model 绑定 -->
-            <LogSettings
-              v-else-if="module.id === 'log-settings'"
-              v-model:log-level="settings.logLevel"
-              v-model:log-to-file="settings.logToFile"
-              v-model:log-to-console="settings.logToConsole"
-              v-model:log-buffer-size="settings.logBufferSize"
-            />
-            <!-- 工具模块配置组件需要特殊处理，传递 v-model 绑定 -->
-            <component
-              v-else-if="module.id === 'tools'"
-              :is="module.component"
-              v-model:tools-visible="settings.toolsVisible"
-            />
-            <!-- 其他动态组件 -->
-            <component v-else :is="module.component" />
-          </section>
-
-          <!-- 静态模块 -->
-          <!-- 通用设置 -->
-          <section v-else-if="module.id === 'general'" id="general" class="settings-section">
-            <h2 class="section-title">通用设置</h2>
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>显示托盘图标</span>
-                <el-tooltip content="是否在系统托盘显示应用图标，可实时生效" placement="top">
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-              </div>
-              <el-switch v-model="settings.showTrayIcon" />
-            </div>
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>关闭到托盘</span>
-                <el-tooltip
-                  content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序"
-                  placement="top"
-                >
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-                <span v-if="!settings.showTrayIcon" class="setting-hint warning">
-                  需要先启用【显示托盘图标】
-                </span>
-              </div>
-              <el-switch v-model="settings.minimizeToTray" :disabled="!settings.showTrayIcon" />
-            </div>
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>主题设置</span>
-                <el-tooltip content="选择应用的主题模式" placement="top">
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-              </div>
-              <el-radio-group v-model="settings.theme">
-                <el-radio-button value="auto">跟随系统</el-radio-button>
-                <el-radio-button value="light">浅色</el-radio-button>
-                <el-radio-button value="dark">深色</el-radio-button>
-              </el-radio-group>
-            </div>
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>窗口位置记忆</span>
-                <el-tooltip content="清除所有窗口的位置和大小记忆，恢复默认状态" placement="top">
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-              </div>
-              <el-button @click="handleClearWindowState" size="small"> 清除窗口状态 </el-button>
-            </div>
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>自动调整窗口位置</span>
-                <el-tooltip
-                  content="当工具窗口移动到屏幕外时，自动将其拉回可见区域"
-                  placement="top"
-                >
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-              </div>
-              <el-switch v-model="settings.autoAdjustWindowPosition" />
-            </div>
-
-            <el-divider />
-
-            <div class="setting-item">
-              <div class="setting-label">
-                <span>配置管理</span>
-                <el-tooltip content="打开配置文件目录、导出或导入配置文件" placement="top">
-                  <el-icon class="info-icon">
-                    <InfoFilled />
-                  </el-icon>
-                </el-tooltip>
-              </div>
-              <div class="config-actions">
-                <el-button @click="handleOpenConfigDir" size="small"> 打开配置目录 </el-button>
-                <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
-                <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
-              </div>
-            </div>
-          </section>
-        </template>
-      </div>
+      </template>
     </div>
   </div>
 </template>

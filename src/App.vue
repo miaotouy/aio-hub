@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, onUnmounted } from "vue";
+import { ref, onMounted, computed, watch, onUnmounted, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -25,6 +25,7 @@ import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
 
 const logger = createModuleLogger("App");
+const isLoading = ref(true); // 控制骨架屏显示
 
 // 初始化主题，必须在其他操作之前
 useTheme();
@@ -113,28 +114,36 @@ let unlistenDetached: (() => void) | null = null;
 let unlistenCloseConfirmation: (() => void) | null = null;
 
 onMounted(async () => {
-  // 优先从缓存加载工具可见性，防止闪烁
+  isLoading.value = true;
   try {
-    const cachedToolsVisible = localStorage.getItem("app-tools-visible");
-    if (cachedToolsVisible) {
-      appSettings.value.toolsVisible = JSON.parse(cachedToolsVisible);
+    // 优先从缓存加载工具可见性，防止闪烁
+    try {
+      const cachedToolsVisible = localStorage.getItem("app-tools-visible");
+      if (cachedToolsVisible) {
+        appSettings.value.toolsVisible = JSON.parse(cachedToolsVisible);
+      }
+    } catch (error) {
+      logger.warn("加载工具可见性缓存失败", { error });
     }
+
+    // 初始化跨窗口通信总线
+    const { initializeSyncBus } = useWindowSyncBus();
+    initializeSyncBus();
+
+    // 初始化统一的分离窗口管理器
+    await initialize();
+
+    // 初始加载设置
+    await loadSettings();
+
+    // 初始化主题外观
+    await initThemeAppearance();
   } catch (error) {
-    logger.warn("加载工具可见性缓存失败", { error });
+    logger.error("App 初始化失败", error);
+  } finally {
+    await nextTick();
+    isLoading.value = false;
   }
-
-  // 初始化跨窗口通信总线
-  const { initializeSyncBus } = useWindowSyncBus();
-  initializeSyncBus();
-
-  // 初始化统一的分离窗口管理器
-  await initialize();
-
-  // 初始加载设置
-  await loadSettings();
-  
-  // 初始化主题外观
-  await initThemeAppearance();
 
   // 监听设置变化事件（来自设置页面）- 这是主要的同步机制
   handleSettingsChange = (event: Event) => {
@@ -267,35 +276,63 @@ onUnmounted(() => {
 
   <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
   <el-container :class="['common-layout', { 'no-titlebar': isSpecialRoute }]">
-    <!-- 侧边栏 - 仅在非特殊路由显示 -->
-    <MainSidebar
-      v-if="!isSpecialRoute"
-      v-model:collapsed="isCollapsed"
-      :tools-visible="appSettings.toolsVisible || {}"
-      :is-detached="isDetached"
-    />
+    <!-- 骨架屏 -->
+    <template v-if="isLoading">
+      <div class="app-skeleton">
+        <!-- Sidebar Skeleton -->
+        <el-skeleton
+          v-if="!isCollapsed && !isSpecialRoute"
+          class="sidebar-skeleton"
+          :style="{ width: isCollapsed ? '64px' : '200px' }"
+          animated
+        >
+          <template #template>
+            <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
+          </template>
+        </el-skeleton>
+        <!-- Main Content Skeleton -->
+        <div class="main-content-skeleton">
+          <el-skeleton animated>
+            <template #template>
+              <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
+            </template>
+          </el-skeleton>
+        </div>
+      </div>
+    </template>
 
-    <el-container>
-      <el-main class="main-content">
-        <router-view v-slot="{ Component, route }">
-          <Suspense>
-            <template #default>
-              <keep-alive :exclude="['Settings']">
-                <component :is="Component" :key="route.path" />
-              </keep-alive>
-            </template>
-            <template #fallback>
-              <div class="loading-container">
-                <el-icon class="is-loading" :size="32">
-                  <Loading />
-                </el-icon>
-                <p>加载中...</p>
-              </div>
-            </template>
-          </Suspense>
-        </router-view>
-      </el-main>
-    </el-container>
+    <!-- 实际内容 -->
+    <template v-else>
+      <!-- 侧边栏 - 仅在非特殊路由显示 -->
+      <MainSidebar
+        v-if="!isSpecialRoute"
+        v-model:collapsed="isCollapsed"
+        :tools-visible="appSettings.toolsVisible || {}"
+        :is-detached="isDetached"
+      />
+
+      <el-container>
+        <el-main class="main-content">
+          <router-view v-slot="{ Component, route }">
+            <Suspense>
+              <template #default>
+                <keep-alive :exclude="['Settings']">
+                  <component :is="Component" :key="route.path" />
+                </keep-alive>
+              </template>
+              <template #fallback>
+                <div class="loading-container">
+                  <el-icon class="is-loading" :size="32">
+                    <Loading />
+                  </el-icon>
+                  <p>加载中...</p>
+                </div>
+              </template>
+            </Suspense>
+          </router-view>
+        </el-main>
+      </el-container>
+    </template>
   </el-container>
 </template>
 
@@ -373,5 +410,23 @@ body {
   margin: 0;
   font-size: 14px;
   color: var(--text-color-secondary);
+}
+
+/* 骨架屏样式 */
+.app-skeleton {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar-skeleton {
+  flex-shrink: 0;
+  padding: 0;
+  transition: width 0.3s ease;
+}
+
+.main-content-skeleton {
+  flex-grow: 1;
+  padding: 0;
 }
 </style>

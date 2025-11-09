@@ -1,121 +1,118 @@
 <template>
-  <div v-if="modelValue" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>{{ isNew ? "添加配置" : "编辑配置" }}</h3>
-        <button @click="$emit('close')" class="btn-close">✕</button>
+  <BaseDialog
+    v-model:visible="isDialogVisible"
+    :title="isNew ? '添加配置' : '编辑配置'"
+    width="800px"
+    height="90vh"
+    @close="$emit('close')"
+  >
+    <div v-if="localConfig" class="config-editor-body">
+      <div class="form-group">
+        <label>匹配类型</label>
+        <select v-model="localConfig.matchType">
+          <option value="provider">Provider (提供商)</option>
+          <option value="model">Model (精确模型)</option>
+          <option value="modelPrefix">Model Prefix (模型前缀)</option>
+          <option value="modelGroup">Model Group (模型分组)</option>
+        </select>
       </div>
 
-      <div class="modal-body">
-        <div class="form-group">
-          <label>匹配类型</label>
-          <select v-model="localConfig.matchType">
-            <option value="provider">Provider (提供商)</option>
-            <option value="model">Model (精确模型)</option>
-            <option value="modelPrefix">Model Prefix (模型前缀)</option>
-            <option value="modelGroup">Model Group (模型分组)</option>
-          </select>
-        </div>
+      <div class="form-group">
+        <label>匹配值</label>
+        <input
+          v-model="localConfig.matchValue"
+          type="text"
+          :placeholder="
+            localConfig.useRegex
+              ? '例如: ^o[1-4](-.*)?$, gpt-(4|3\\.5)'
+              : '例如: openai, gpt-, claude-opus-4'
+          "
+        />
+      </div>
 
-        <div class="form-group">
-          <label>匹配值</label>
+      <div class="form-group checkbox-group">
+        <label>
           <input
-            v-model="localConfig.matchValue"
-            type="text"
-            :placeholder="
-              localConfig.useRegex
-                ? '例如: ^o[1-4](-.*)?$, gpt-(4|3\\.5)'
-                : '例如: openai, gpt-, claude-opus-4'
+            v-model="localConfig.useRegex"
+            type="checkbox"
+            :disabled="
+              localConfig.matchType === 'provider' || localConfig.matchType === 'modelGroup'
             "
           />
-        </div>
-
-        <div class="form-group checkbox-group">
-          <label>
-            <input
-              v-model="localConfig.useRegex"
-              type="checkbox"
-              :disabled="
-                localConfig.matchType === 'provider' || localConfig.matchType === 'modelGroup'
-              "
-            />
-            使用正则表达式匹配
-            <small
-              v-if="localConfig.matchType === 'provider' || localConfig.matchType === 'modelGroup'"
-            >
-              （此匹配类型不支持正则）
-            </small>
-          </label>
-          <small v-if="localConfig.useRegex">
-            启用后，匹配值将作为正则表达式进行匹配。例如：^o[1-4] 可匹配 o1、o2、o3、o4 开头的模型
+          使用正则表达式匹配
+          <small
+            v-if="localConfig.matchType === 'provider' || localConfig.matchType === 'modelGroup'"
+          >
+            （此匹配类型不支持正则）
           </small>
-        </div>
-
-        <div class="form-group">
-          <label>图标路径</label>
-          <div class="input-with-actions">
-            <input
-              v-model="localConfig.properties!.icon"
-              type="text"
-              placeholder="例如: /model-icons/openai.svg"
-            />
-            <button @click="handleSelectFile" class="btn-action">选择文件</button>
-            <button @click="$emit('open-presets')" class="btn-action">选择预设</button>
-          </div>
-          <small>支持相对路径或绝对路径，推荐使用预设图标</small>
-        </div>
-
-        <div class="form-group">
-          <label>优先级</label>
-          <input
-            v-model.number="localConfig.priority"
-            type="number"
-            min="0"
-            max="100"
-            placeholder="0-100，数字越大优先级越高"
-          />
-        </div>
-
-        <div class="form-group">
-          <label>分组名称</label>
-          <input
-            v-model="localConfig.properties!.group"
-            type="text"
-            placeholder="在模型列表中显示的分组名称（可选）"
-          />
-          <small>
-            设置后，匹配此规则的模型将显示在指定分组中，优先级高于模型自身的 group 属性
-          </small>
-        </div>
-
-        <div class="form-group">
-          <label>描述</label>
-          <input v-model="localConfig.description" type="text" placeholder="配置说明（可选）" />
-        </div>
-
-        <div class="form-group checkbox-group">
-          <label>
-            <input v-model="localConfig.enabled" type="checkbox" />
-            启用此配置
-          </label>
-        </div>
-
-        <div v-if="localConfig.properties?.icon" class="icon-preview">
-          <h4>图标预览</h4>
-          <img
-            :src="getDisplayIconPath(localConfig.properties.icon)"
-            alt="预览"
-            @error="handleImageError"
-          />
-        </div>
+        </label>
+        <small v-if="localConfig.useRegex">
+          启用后，匹配值将作为正则表达式进行匹配。例如：^o[1-4] 可匹配 o1、o2、o3、o4 开头的模型
+        </small>
       </div>
 
-      <div class="modal-footer">
-        <button @click="$emit('close')" class="btn-secondary">取消</button>
-        <button @click="handleSave" class="btn-primary">保存</button>
+      <div class="form-group">
+        <label>图标路径</label>
+        <div class="input-with-actions">
+          <input
+            v-model="localConfig.properties!.icon"
+            type="text"
+            placeholder="例如: /model-icons/openai.svg"
+          />
+          <button @click="handleSelectFile" class="btn-action">选择文件</button>
+          <button @click="$emit('open-presets')" class="btn-action">选择预设</button>
+        </div>
+        <small>支持相对路径或绝对路径，推荐使用预设图标</small>
+      </div>
+
+      <div class="form-group">
+        <label>优先级</label>
+        <input
+          v-model.number="localConfig.priority"
+          type="number"
+          min="0"
+          max="100"
+          placeholder="0-100，数字越大优先级越高"
+        />
+      </div>
+
+      <div class="form-group">
+        <label>分组名称</label>
+        <input
+          v-model="localConfig.properties!.group"
+          type="text"
+          placeholder="在模型列表中显示的分组名称（可选）"
+        />
+        <small> 设置后，匹配此规则的模型将显示在指定分组中，优先级高于模型自身的 group 属性 </small>
+      </div>
+
+      <div class="form-group">
+        <label>描述</label>
+        <input v-model="localConfig.description" type="text" placeholder="配置说明（可选）" />
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label>
+          <input v-model="localConfig.enabled" type="checkbox" />
+          启用此配置
+        </label>
+      </div>
+
+      <div v-if="localConfig.properties?.icon" class="icon-preview">
+        <h4>图标预览</h4>
+        <DynamicIcon
+          :src="getDisplayIconPath(localConfig.properties.icon)"
+          alt="预览"
+          @error="handleImageError"
+        />
       </div>
     </div>
-  </div>
+
+    <template #footer>
+      <button @click="$emit('close')" class="btn-secondary">取消</button>
+      <button @click="handleSave" class="btn-primary">保存</button>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
@@ -124,6 +121,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ModelMetadataRule } from "@/types/model-metadata";
 import { createModuleLogger } from "@/utils/logger";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 interface Props {
   modelValue: Partial<ModelMetadataRule> | null;
@@ -142,21 +141,31 @@ const emit = defineEmits<Emits>();
 
 const logger = createModuleLogger("ModelMetadataConfigEditor");
 
+const isDialogVisible = computed({
+  get: () => !!props.modelValue,
+  set: (value) => {
+    if (!value) {
+      emit("update:modelValue", null);
+      emit("close");
+    }
+  },
+});
+
 const localConfig = computed({
-  get: () => props.modelValue || {},
+  get: () => props.modelValue,
   set: (value) => emit("update:modelValue", value),
 });
 
 function handleSave() {
-  if (!props.modelValue) return;
+  if (!localConfig.value) return;
 
   // 验证必填字段
-  if (!props.modelValue.matchValue || !props.modelValue.properties?.icon) {
+  if (!localConfig.value.matchValue || !localConfig.value.properties?.icon) {
     alert("请填写匹配值和图标路径");
     return;
   }
 
-  emit("save", props.modelValue);
+  emit("save", localConfig.value);
 }
 
 function handleImageError(e: Event) {
@@ -213,70 +222,8 @@ function getDisplayIconPath(iconPath: string): string {
 </script>
 
 <style scoped>
-/* 模态框 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--container-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.btn-close {
-  background: transparent;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--text-color);
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-}
-
-.btn-close:hover {
-  color: var(--error-color);
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-color);
+.config-editor-body {
+  padding: 0 0.5rem;
 }
 
 /* 表单 */

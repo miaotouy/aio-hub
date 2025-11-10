@@ -7,6 +7,7 @@
   --container-bg: #fff;
   --container-bg-rgb: 255, 255, 255;
   --text-color: #333;
+  --text-color-rgb: 51, 51, 51;
   --text-color-light: #666;
   --border-color-rgb: 221, 221, 221;
   --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
@@ -74,6 +75,7 @@ html.dark {
   --container-bg: #242424; /* 容器背景色 - 比主背景稍亮 */
   --container-bg-rgb: 36, 36, 36;
   --text-color: #e5e5e5; /* 主文字颜色 */
+  --text-color-rgb: 229, 229, 229;
   --text-color-light: #a8a8a8; /* 次要文字颜色 */
   --border-color-rgb: 58, 58, 58;
   --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
@@ -929,4 +931,108 @@ html.dark .el-dropdown-menu__item:not(.is-disabled):hover {
 /* 去除el-button自带的间距，修复按钮布局无法对齐的问题 */
 :deep(.el-button) {
   margin-left: 0px;
+}
+
+/* ========================================================================== */
+/* 原生 HTML 元素主题适配
+/* ========================================================================== */
+
+/* --- 表单元素 --- */
+input:not([type='button']):not([type='submit']):not([type='reset']):not([type='image']):not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  background-color: rgba(var(--input-bg-rgb), var(--card-opacity, 0.85));
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+}
+
+/* --- 代码块和引用 --- */
+pre,
+blockquote {
+  background-color: rgba(var(--card-bg-rgb), var(--card-opacity, 0.7));
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+blockquote {
+  border-left: 4px solid var(--primary-color);
+}
+
+code {
+  background-color: rgba(var(--text-color-rgb), 0.1);
+  border-radius: 3px;
+}
+
+pre code {
+  background-color: transparent;
+}
+
+/* --- 范围滑块 (Range Input) --- */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgb(var(--border-color-rgb)); /* 使用实色轨道以确保在模糊背景下可见 */
+  border-radius: 5px;
+  outline: none;
+  padding: 0;
+  margin: 10px 0;
+  border: none;
+  /* 清除继承的背景效果 */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--primary-color);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 3px solid var(--card-bg);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--primary-color);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 3px solid var(--card-bg);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+/* --- 文件选择按钮 --- */
+input[type='file'] {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+}
+
+input[type='file']::file-selector-button {
+  padding: 8px 16px;
+  margin-right: 12px;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+input[type='file']::file-selector-button:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+html.dark input[type='file']::file-selector-button {
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+html.dark input[type='file']::file-selector-button:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
 }

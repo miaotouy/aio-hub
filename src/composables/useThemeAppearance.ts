@@ -495,12 +495,12 @@ export async function initThemeAppearance() {
       // 初始化设置
       await _updateWallpaper(settings.appearance);
       _updateCssVariables(settings.appearance);
-        // 总是应用窗口特效设置，即使是 'none'
-        await _applyWindowEffect(
-          settings.appearance.windowEffect,
-          settings.appearance.enableWindowEffects ?? true
-        );
-      }
+      // 总是应用窗口特效设置，即使是 'none'
+      await _applyWindowEffect(
+        settings.appearance.windowEffect,
+        settings.appearance.enableWindowEffects ?? true
+      );
+    }
 
     // 监听设置变化并更新 UI
     watch(
@@ -691,11 +691,27 @@ export function useThemeAppearance() {
   };
 
   const reshuffle = () => {
+    // 按钮的 disabled 状态保证了 isShuffleEnabled (wallpaperSlideshowShuffle) 为 true
     if (wallpaperList.value.length > 0) {
+      const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
+      // 索引越界是可能的，例如在文件列表更改后。添加一个保护。
+      if (currentIndex >= shuffledList.value.length) {
+        shuffledList.value = shuffle(wallpaperList.value);
+        _switchToWallpaper(0, appearanceSettings.value);
+        logger.info("壁纸列表已重新洗牌（检测到索引越界）");
+        return;
+      }
+      const currentImagePath = shuffledList.value[currentIndex];
+
+      // 重新洗牌
       shuffledList.value = shuffle(wallpaperList.value);
-      // 保持在列表头部
-      _switchToWallpaper(0, appearanceSettings.value);
-      logger.info("壁纸列表已重新洗牌");
+
+      // 在新列表中找到旧壁纸的位置
+      const newIndex = shuffledList.value.indexOf(currentImagePath);
+
+      // 切换到该位置，如果找不到（例如图片被删除），则切换到列表头部
+      _switchToWallpaper(newIndex >= 0 ? newIndex : 0, appearanceSettings.value);
+      logger.info("壁纸列表已重新洗牌，并保持当前壁纸");
     }
   };
 

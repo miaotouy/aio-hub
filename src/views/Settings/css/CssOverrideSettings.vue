@@ -313,7 +313,7 @@ function isPresetSelected(presetId: string | null): boolean {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 0 24px 24px;
+  padding:24px;
   height: 100%;
   overflow: hidden;
 }
@@ -328,6 +328,7 @@ function isPresetSelected(presetId: string | null): boolean {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   flex-shrink: 0;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .header-left h3 {
@@ -410,6 +411,7 @@ function isPresetSelected(presetId: string | null): boolean {
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .sidebar-header {
@@ -553,6 +555,7 @@ function isPresetSelected(presetId: string | null): boolean {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .section-header {

@@ -58,7 +58,7 @@ defineEmits<{
   align-items: center;
   padding: 12px;
   background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
   font-weight: 500;
   flex-shrink: 0; /* 防止头部收缩 */
 }

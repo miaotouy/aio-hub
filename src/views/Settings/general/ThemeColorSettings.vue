@@ -375,6 +375,9 @@ const getSelectedPresetColor = (type: ColorType) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .color-config-header {

@@ -295,19 +295,21 @@ const handleImportConfig = async () => {
 
 <style scoped>
 .general-settings {
-  padding: 0 24px 24px;
-  /* 顶部 padding 由父组件的 sticky title 提供，这里只加左右和底部 */
+  padding: 24px;
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  padding: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
+  margin-bottom: 12px;
 }
 
 .setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .setting-label {

@@ -636,6 +636,7 @@ onUnmounted(() => {
 .settings-nav {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   padding: 16px;
   position: sticky;
@@ -788,12 +789,6 @@ onUnmounted(() => {
   background: var(--text-color-secondary);
 }
 
-/* 旧容器保留但未使用 */
-.settings-container {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
 .page-title {
   font-size: 28px;
   font-weight: 600;
@@ -814,8 +809,10 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-color);
-  margin: 0 0 20px 0;
+  margin: 0 0 12px 0;
   padding-bottom: 12px;
+  border-radius: 8px 8px 0 0;
+  backdrop-filter: blur(var(--ui-blur));
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -827,7 +824,7 @@ onUnmounted(() => {
 }
 
 .setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .setting-label {
@@ -866,7 +863,7 @@ onUnmounted(() => {
 
 /* 动态组件 section 特殊样式 */
 .component-section {
-  padding: 0;
+  padding: 0; /* 子组件自己控制 */
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -874,12 +871,7 @@ onUnmounted(() => {
 }
 
 .component-section .section-title {
-  position: sticky;
-  top: 0;
-  background: var(--card-bg);
-  z-index: 1;
-  padding: 24px 24px 12px;
+  padding: 12px;
   margin: 0;
-  flex-shrink: 0;
 }
 </style>

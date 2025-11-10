@@ -41,10 +41,6 @@ const { currentTheme, applyTheme, isDark } = useTheme();
 const { appearanceSettings } = useThemeAppearance();
 const userProfileStore = useUserProfileStore();
 
-const isGlassEffectActive = computed(() =>
-  appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
-);
-
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
 const isMainWindow = ref(false); // 判断是否为主窗口
@@ -309,7 +305,6 @@ const goToProfileSettings = () => {
           trigger="hover"
           @command="handleProfileSelect"
           placement="bottom"
-          :popper-class="isGlassEffectActive ? 'glass-overlay' : ''"
         >
           <button
             class="control-btn profile-btn"
@@ -370,7 +365,6 @@ const goToProfileSettings = () => {
           trigger="hover"
           @command="handleThemeChange"
           placement="bottom"
-          :popper-class="isGlassEffectActive ? 'glass-overlay' : ''"
         >
           <button class="control-btn theme-btn" :title="getThemeTooltip">
             <el-icon><component :is="getThemeIcon" /></el-icon>

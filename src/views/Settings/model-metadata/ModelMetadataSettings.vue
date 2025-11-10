@@ -3,12 +3,12 @@
     <div class="settings-header">
       <h2>模型元数据配置</h2>
       <div class="header-actions">
-        <button @click="showPresets = true" class="btn-secondary">查看预设</button>
-        <button @click="handleImport" class="btn-secondary">导入配置</button>
-        <button @click="handleExport" class="btn-secondary">导出配置</button>
-        <button @click="handleMerge" class="btn-secondary">合并最新配置</button>
-        <button @click="handleReset" class="btn-warning">重置为默认</button>
-        <button @click="handleAdd" class="btn-primary">添加配置</button>
+        <el-button @click="showPresets = true">查看预设</el-button>
+        <el-button @click="handleImport">导入配置</el-button>
+        <el-button @click="handleExport">导出配置</el-button>
+        <el-button @click="handleMerge">合并最新配置</el-button>
+        <el-button @click="handleReset" type="warning">重置为默认</el-button>
+        <el-button @click="handleAdd" type="primary">添加配置</el-button>
       </div>
     </div>
 
@@ -23,35 +23,27 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="search-box">
-        <input
+        <el-input
           v-model="searchText"
           @input="resetPage"
-          type="text"
           placeholder="搜索配置（匹配值、类型、分组、描述）..."
-          class="search-input"
+          clearable
         />
       </div>
 
       <div class="toolbar-controls">
-        <select v-model="sortBy" class="sort-select">
-          <option value="priority">按优先级排序</option>
-          <option value="type">按类型排序</option>
-          <option value="name">按名称排序</option>
-          <option value="createdAt">按创建时间排序</option>
-        </select>
+        <el-select v-model="sortBy" placeholder="排序方式">
+          <el-option label="按优先级排序" value="priority" />
+          <el-option label="按类型排序" value="type" />
+          <el-option label="按名称排序" value="name" />
+          <el-option label="按创建时间排序" value="createdAt" />
+        </el-select>
 
-        <select v-model="filterEnabled" @change="resetPage" class="filter-select">
-          <option value="all">全部状态</option>
-          <option value="enabled">仅启用</option>
-          <option value="disabled">仅禁用</option>
-        </select>
-
-        <select v-model.number="pageSize" @change="resetPage" class="pagesize-select">
-          <option :value="12">12 项/页</option>
-          <option :value="24">24 项/页</option>
-          <option :value="48">48 项/页</option>
-          <option :value="96">96 项/页</option>
-        </select>
+        <el-select v-model="filterEnabled" @change="resetPage" placeholder="筛选状态">
+          <el-option label="全部状态" value="all" />
+          <el-option label="仅启用" value="enabled" />
+          <el-option label="仅禁用" value="disabled" />
+        </el-select>
 
         <el-button-group class="view-toggle">
           <el-button
@@ -119,59 +111,51 @@
             </div>
 
             <div class="config-actions">
-              <button
+              <el-button
+                text
+                circle
                 @click="toggleConfig(config.id)"
-                class="btn-icon"
                 :title="config.enabled === false ? '启用' : '禁用'"
               >
                 <el-icon
                   ><Select v-if="config.enabled !== false" />
                   <Close v-else />
                 </el-icon>
-              </button>
-              <button @click="handleEdit(config)" class="btn-icon" title="编辑">
+              </el-button>
+              <el-button text circle @click="handleEdit(config)" title="编辑">
                 <el-icon>
                   <Edit />
                 </el-icon>
-              </button>
-              <button @click="handleDelete(config.id)" class="btn-icon btn-danger" title="删除">
+              </el-button>
+              <el-button
+                text
+                circle
+                type="danger"
+                @click="handleDelete(config.id)"
+                title="删除"
+              >
                 <el-icon>
                   <Delete />
                 </el-icon>
-              </button>
+              </el-button>
             </div>
           </div>
         </div>
       </div>
 
       <!-- 固定分页 -->
-      <div v-if="totalPages > 1" class="pagination">
-        <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="page-btn">
-          ← 上一页
-        </button>
-
-        <div class="page-numbers">
-          <button
-            v-for="page in getPageNumbers()"
-            :key="page"
-            @click="page > 0 && goToPage(page)"
-            :class="{ active: page === currentPage, ellipsis: page < 0 }"
-            :disabled="page < 0"
-            class="page-number"
-          >
-            {{ page > 0 ? page : "..." }}
-          </button>
-        </div>
-
-        <button
-          @click="goToPage(currentPage + 1)"
-          :disabled="currentPage === totalPages"
-          class="page-btn"
-        >
-          下一页 →
-        </button>
-
-        <div class="page-info">{{ currentPage }} / {{ totalPages }}</div>
+      <div class="pagination-container">
+        <el-pagination
+          v-if="sortedConfigs.length > 0"
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[12, 24, 48, 96]"
+          :total="sortedConfigs.length"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          hide-on-single-page
+          @size-change="resetPage"
+        />
       </div>
     </div>
 
@@ -181,7 +165,7 @@
       <div class="empty-text">
         {{ searchText ? "未找到匹配的配置" : "暂无配置" }}
       </div>
-      <button v-if="!searchText" @click="handleAdd" class="btn-primary">添加第一个配置</button>
+      <el-button v-if="!searchText" @click="handleAdd" type="primary">添加第一个配置</el-button>
     </div>
 
     <!-- 预设图标对话框 -->
@@ -295,8 +279,6 @@ const sortedConfigs = computed(() => {
 });
 
 // 分页
-const totalPages = computed(() => Math.ceil(sortedConfigs.value.length / pageSize.value));
-
 const paginatedConfigs = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
@@ -306,12 +288,6 @@ const paginatedConfigs = computed(() => {
 // 重置到第一页（当搜索或过滤改变时）
 function resetPage() {
   currentPage.value = 1;
-}
-
-function goToPage(page: number) {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page;
-  }
 }
 
 // 获取匹配类型标签
@@ -533,42 +509,6 @@ function formatDateTime(dateString: string): string {
   const seconds = String(date.getSeconds()).padStart(2, '0');
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
-
-// 获取页码数组（用于分页显示）
-function getPageNumbers(): number[] {
-  const pages: number[] = [];
-  const total = totalPages.value;
-  const current = currentPage.value;
-
-  if (total <= 7) {
-    // 总页数<=7，显示所有页码
-    for (let i = 1; i <= total; i++) {
-      pages.push(i);
-    }
-  } else {
-    // 总页数>7，智能显示页码
-    if (current <= 4) {
-      // 当前页靠前
-      for (let i = 1; i <= 5; i++) pages.push(i);
-      pages.push(-1); // -1 表示省略号
-      pages.push(total);
-    } else if (current >= total - 3) {
-      // 当前页靠后
-      pages.push(1);
-      pages.push(-1);
-      for (let i = total - 4; i <= total; i++) pages.push(i);
-    } else {
-      // 当前页在中间
-      pages.push(1);
-      pages.push(-1);
-      for (let i = current - 1; i <= current + 1; i++) pages.push(i);
-      pages.push(-1);
-      pages.push(total);
-    }
-  }
-
-  return pages;
-}
 </script>
 
 <style scoped>
@@ -584,8 +524,14 @@ function getPageNumbers(): number[] {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
   flex-shrink: 0;
+  padding: 8px;
+  background: var(--container-bg);
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .settings-header h2 {
@@ -596,6 +542,8 @@ function getPageNumbers(): number[] {
 .header-actions {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .settings-stats {
@@ -607,6 +555,8 @@ function getPageNumbers(): number[] {
   border-radius: 4px;
   font-size: 0.9rem;
   flex-shrink: 0;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 工具栏 */
@@ -616,26 +566,15 @@ function getPageNumbers(): number[] {
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
   flex-shrink: 0;
+  padding: 0.75rem;
+  background: var(--container-bg);
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .search-box {
   flex: 1;
   min-width: 200px;
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: var(--input-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--primary-color);
 }
 
 .toolbar-controls {
@@ -645,23 +584,8 @@ function getPageNumbers(): number[] {
   flex-wrap: wrap;
 }
 
-.sort-select,
-.filter-select,
-.pagesize-select {
-  padding: 0.5rem;
-  background: var(--input-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.sort-select:focus,
-.filter-select:focus,
-.pagesize-select:focus {
-  outline: none;
-  border-color: var(--primary-color);
+.el-select {
+  width: 150px;
 }
 
 /* 配置列表容器 */
@@ -703,6 +627,7 @@ function getPageNumbers(): number[] {
   border-radius: 12px;
   transition: all 0.2s;
   align-items: center;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .configs-list.grid-view .config-icon {
@@ -896,131 +821,20 @@ function getPageNumbers(): number[] {
   flex-shrink: 0;
 }
 
+.config-actions .el-button {
+  margin: 0;
+}
+
 /* 分页样式 */
-.pagination {
+.pagination-container {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 0.75rem;
   padding: 1rem 0;
-  border-radius: 4px;
   margin-top: 0.5rem;
   flex-shrink: 0;
   border-top: 1px solid var(--border-color);
   background: var(--container-bg);
-}
-
-.page-btn {
-  padding: 0.5rem 1rem;
-  background: var(--card-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.page-btn:hover:not(:disabled) {
-  background: var(--border-color);
-  border-color: var(--primary-color);
-}
-
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.page-numbers {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-
-.page-number {
-  min-width: 2.5rem;
-  height: 2.5rem;
-  padding: 0.5rem;
-  background: var(--input-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-number:hover:not(:disabled):not(.ellipsis) {
-  background: var(--card-bg);
-  border-color: var(--primary-color);
-}
-
-.page-number.active {
-  background: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-  font-weight: 600;
-}
-
-.page-number.ellipsis {
-  background: transparent;
-  border: none;
-  cursor: default;
-  color: var(--text-color-light);
-}
-
-.page-number:disabled {
-  cursor: not-allowed;
-}
-
-.page-info {
-  padding: 0.5rem 1rem;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 0.85rem;
-  color: var(--text-color-light);
-  white-space: nowrap;
-}
-
-/* 按钮样式 */
-.btn-icon {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.btn-icon {
-  padding: 0;
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 1.1rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  line-height: 1;
-  color: var(--text-color-light);
-  border-radius: 4px;
-}
-
-.btn-icon:hover {
-  background: var(--input-bg);
-  color: var(--text-color);
-  border-color: var(--primary-color);
-}
-
-.btn-icon.btn-danger:hover {
-  background: #ef4444;
-  color: white;
-  border-color: #ef4444;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 </style>

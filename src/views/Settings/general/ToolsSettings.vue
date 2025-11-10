@@ -187,18 +187,20 @@ const isPluginIcon = (tool: ToolConfig) => {
 
 <style scoped>
 .tools-settings {
-  padding: 0 24px 24px;
+  padding: 24px;
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  padding: 12px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .setting-label {
@@ -224,6 +226,8 @@ const isPluginIcon = (tool: ToolConfig) => {
 .tool-item {
   padding: 8px;
   overflow: hidden;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 拖拽手柄样式 */
@@ -321,6 +325,5 @@ const isPluginIcon = (tool: ToolConfig) => {
 .batch-actions {
   display: flex;
   gap: 8px;
-  margin-top: 16px;
 }
 </style>

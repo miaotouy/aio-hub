@@ -183,11 +183,14 @@ onMounted(() => {
 
 <style scoped>
 .asset-settings {
-  padding: 0 24px 24px;
+  padding: 24px 24px;
 }
 
 .setting-group {
   margin-bottom: 24px;
+  padding: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .group-title {
@@ -212,7 +215,7 @@ onMounted(() => {
 }
 
 .setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .setting-label {

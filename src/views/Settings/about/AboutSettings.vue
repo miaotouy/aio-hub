@@ -159,6 +159,7 @@ onMounted(async () => {
   border-radius: 12px;
   margin-bottom: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .app-icon {
@@ -194,6 +195,7 @@ onMounted(async () => {
 /* 区块 */
 .section {
   margin-bottom: 24px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .section-title {

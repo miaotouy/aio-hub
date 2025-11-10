@@ -299,7 +299,7 @@ watch(
 }
 
 .table-row {
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s;
 }
 

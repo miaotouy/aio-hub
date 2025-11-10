@@ -299,7 +299,7 @@ watch(internalLogBufferSize, (newValue) => {
     <div class="log-stats">
       <h3 class="stats-title">日志统计</h3>
       <div class="stats-grid">
-        <div class="stat-item">
+        <div class="stat-item total">
           <div class="stat-value">{{ logStats.totalLogs }}</div>
           <div class="stat-label">总计</div>
         </div>
@@ -363,11 +363,14 @@ watch(internalLogBufferSize, (newValue) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .setting-label {
@@ -406,22 +409,28 @@ watch(internalLogBufferSize, (newValue) => {
   border-radius: 8px;
   background: var(--bg-color-page);
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
+  border-left: 4px solid var(--border-color);
+}
+
+.stat-item.total {
+  border-left-color: var(--el-color-primary);
 }
 
 .stat-item.debug {
-  border-left: 4px solid #909399;
+  border-left-color: var(--el-color-info);
 }
 
 .stat-item.info {
-  border-left: 4px solid #409eff;
+  border-left-color: var(--el-color-success);
 }
 
 .stat-item.warn {
-  border-left: 4px solid #e6a23c;
+  border-left-color: var(--el-color-warning);
 }
 
 .stat-item.error {
-  border-left: 4px solid #f56c6c;
+  border-left-color: var(--el-color-danger);
 }
 
 .stat-value {
@@ -439,10 +448,13 @@ watch(internalLogBufferSize, (newValue) => {
 
 .log-actions {
   margin: 20px 0;
+  padding: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .actions-title {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-color);
   margin: 0 0 16px 0;
@@ -460,6 +472,7 @@ watch(internalLogBufferSize, (newValue) => {
   background: var(--bg-color-page);
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .file-path {

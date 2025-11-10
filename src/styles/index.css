@@ -591,6 +591,30 @@ body.transparent-window #app {
   border-right-color: var(--container-bg);
 }
 
+/* ========================================================================== */
+/* 全局悬浮组件毛玻璃效果适配
+/* ========================================================================== */
+/*
+  为 Element Plus 的悬浮组件（如 Tooltip, Select, Dropdown）应用毛玻璃效果。
+  这些样式依赖于 useThemeAppearance composable 动态注入的 CSS 变量。
+  当 UI 特效关闭时，--ui-blur 会变为 0px，--overlay-opacity 会变为 1，效果自动消失。
+*/
+.el-tooltip__popper,
+.el-select-dropdown,
+.el-dropdown__popper {
+  background-color: rgba(var(--container-bg-rgb), var(--overlay-opacity)) !important;
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--el-box-shadow-light);
+}
+
+/* 修复在毛玻璃效果下，select下拉菜单选项的悬停样式，使其也为半透明 */
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
 /* viewerjs 图片查看器避开标题栏 */
 .viewer-container {
   top: 32px !important; /* 标题栏高度 */

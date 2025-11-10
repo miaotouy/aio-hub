@@ -8,56 +8,82 @@ import { logger } from "./logger";
 import type { UserCssSettings } from "@/types/css-override";
 
 // 壁纸模式类型
-export type WallpaperMode = 'static' | 'slideshow';
+export type WallpaperMode = "static" | "slideshow";
 
 // 壁纸填充模式
-export type WallpaperFit = 'cover' | 'contain' | 'fill' | 'tile';
+export type WallpaperFit = "cover" | "contain" | "fill" | "tile";
 
 // 拼贴模式的详细选项
 export interface WallpaperTileOptions {
-  scale?: number;        // 缩放比例 (e.g., 1.0)
+  scale?: number; // 缩放比例 (e.g., 1.0)
   flipHorizontal?: boolean; // 水平翻转
-  flipVertical?: boolean;   // 垂直翻转
-  rotation?: number;     // 旋转角度 (0-360)
+  flipVertical?: boolean; // 垂直翻转
+  rotation?: number; // 旋转角度 (0-360)
 }
 
 // 窗口特效类型（根据不同操作系统支持）
-export type WindowEffect = 'none' | 'blur' | 'acrylic' | 'mica' | 'vibrancy';
+export type WindowEffect = "none" | "blur" | "acrylic" | "mica" | "vibrancy";
+
+// 定义颜色混合模式的类型
+export type BlendMode =
+  | "normal"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "darken"
+  | "lighten"
+  | "color-dodge"
+  | "color-burn"
+  | "hard-light"
+  | "soft-light"
+  | "difference"
+  | "exclusion"
+  | "hue"
+  | "saturation"
+  | "color"
+  | "luminosity";
 
 // 外观设置接口
 export interface AppearanceSettings {
   // --- 壁纸设置 ---
-  enableWallpaper: boolean;                    // 是否启用壁纸
-  wallpaperMode: WallpaperMode;                // 壁纸模式：静态或轮播
-  wallpaperPath: string;                       // 静态壁纸的图片路径
-  wallpaperSlideshowPath: string;              // 目录轮播的目录路径
-  wallpaperSlideshowInterval: number;          // 轮播间隔（分钟）
-  wallpaperSlideshowShuffle?: boolean;         // 是否随机播放
-  wallpaperSlideshowCurrentIndex?: number;     // 当前播放索引
-  wallpaperOpacity: number;                    // 壁纸透明度 (0.0 - 1.0)
-  wallpaperFit: WallpaperFit;                  // 壁纸填充模式
+  enableWallpaper: boolean; // 是否启用壁纸
+  wallpaperMode: WallpaperMode; // 壁纸模式：静态或轮播
+  wallpaperPath: string; // 静态壁纸的图片路径
+  wallpaperSlideshowPath: string; // 目录轮播的目录路径
+  wallpaperSlideshowInterval: number; // 轮播间隔（分钟）
+  wallpaperSlideshowShuffle?: boolean; // 是否随机播放
+  wallpaperSlideshowCurrentIndex?: number; // 当前播放索引
+  wallpaperOpacity: number; // 壁纸透明度 (0.0 - 1.0)
+  wallpaperFit: WallpaperFit; // 壁纸填充模式
   wallpaperTileOptions?: WallpaperTileOptions; // 拼贴模式的详细选项
-  
+
   // --- UI 层特效 (应用内) ---
-  enableUiEffects: boolean;                    // 是否启用界面质感特效
-  enableUiBlur: boolean;                       // 是否启用 UI 元素模糊 (backdrop-filter)
-  uiBaseOpacity: number;                       // UI 基础不透明度 (0.0 - 1.0)
-  uiBlurIntensity: number;                     // UI 模糊强度 (px)
-  borderOpacity: number;                       // 边线不透明度 (0.0 - 1.0)
-  editorOpacity?: number;                      // 编辑器/代码区不透明度
-  
+  enableUiEffects: boolean; // 是否启用界面质感特效
+  enableUiBlur: boolean; // 是否启用 UI 元素模糊 (backdrop-filter)
+  uiBaseOpacity: number; // UI 基础不透明度 (0.0 - 1.0)
+  uiBlurIntensity: number; // UI 模糊强度 (px)
+  borderOpacity: number; // 边线不透明度 (0.0 - 1.0)
+  editorOpacity?: number; // 编辑器/代码区不透明度
+
   // --- 分层透明度微调 ---
-  layerOpacityOffsets?: {                      // 各层级相对于基础值的偏移量
-    sidebar?: number;                         // 侧边栏透明度偏移 (-0.2 ~ 0.2)
-    content?: number;                         // 内容区透明度偏移
-    card?: number;                            // 卡片透明度偏移
-    overlay?: number;                         // 弹窗透明度偏移
+  layerOpacityOffsets?: {
+    // 各层级相对于基础值的偏移量
+    sidebar?: number; // 侧边栏透明度偏移 (-0.2 ~ 0.2)
+    content?: number; // 内容区透明度偏移
+    card?: number; // 卡片透明度偏移
+    overlay?: number; // 弹窗透明度偏移
   };
-  
+
   // --- 窗口层特效 (OS级) ---
-  windowEffect: WindowEffect;                  // 窗口背景特效类型
-  windowBackgroundOpacity: number;             // 窗口背景色不透明度（用于透出桌面）
-  backgroundColorOpacity?: number;             // 背景色不透明度（用于 CSS 变量）
+  windowEffect: WindowEffect; // 窗口背景特效类型
+  windowBackgroundOpacity: number; // 窗口背景色不透明度（用于透出桌面）
+  backgroundColorOpacity?: number; // 背景色不透明度（用于 CSS 变量）
+
+  // --- 背景色叠加 ---
+  backgroundColorOverlayEnabled?: boolean; // 是否启用背景色叠加
+  backgroundColorOverlayColor?: string; // 叠加颜色 (HEX)
+  backgroundColorOverlayOpacity?: number; // 叠加不透明度 (0-1)
+  backgroundColorOverlayBlendMode?: BlendMode; // 混合模式
 }
 
 export interface AppSettings {
@@ -97,7 +123,7 @@ export interface AppSettings {
 
   // 插件管理器配置
   pluginManagerPanelWidth?: number; // 插件管理器右侧面板宽度（百分比）
-  
+
   // 外观设置
   appearance?: AppearanceSettings;
 }
@@ -106,21 +132,21 @@ export interface AppSettings {
 export const defaultAppearanceSettings: AppearanceSettings = {
   // 壁纸设置
   enableWallpaper: true, // 默认启用壁纸
-  wallpaperMode: 'static',
-  wallpaperPath: '', // 默认为空，使用纯色主题背景
-  wallpaperSlideshowPath: '', // 目录轮播路径
+  wallpaperMode: "static",
+  wallpaperPath: "", // 默认为空，使用纯色主题背景
+  wallpaperSlideshowPath: "", // 目录轮播路径
   wallpaperSlideshowInterval: 30, // 30分钟切换
   wallpaperSlideshowShuffle: false, // 默认不随机
   wallpaperSlideshowCurrentIndex: 0, // 默认从第一张开始
   wallpaperOpacity: 0.3, // 默认调低一点，避免喧宾夺主
-  wallpaperFit: 'cover', // 默认覆盖模式
+  wallpaperFit: "cover", // 默认覆盖模式
   wallpaperTileOptions: {
     scale: 1.0,
     flipHorizontal: false,
     flipVertical: false,
     rotation: 0,
   },
-  
+
   // UI 特效
   enableUiEffects: true, // 默认开启
   enableUiBlur: true,
@@ -128,21 +154,27 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   uiBlurIntensity: 15, // 15px 模糊
   borderOpacity: 0.5, // 默认半透明
   editorOpacity: 0.9, // 编辑器/代码区不透明度
-  
+
   // 分层透明度微调（默认不设置，使用自动计算的值）
   layerOpacityOffsets: {
-    sidebar: 0.1,    // 侧边栏略厚一些
-    content: 0,      // 内容区使用基准值
-    card: 0.05,      // 卡片略厚
-    overlay: 0.15,   // 弹窗最不透明
+    sidebar: 0.1, // 侧边栏略厚一些
+    content: 0, // 内容区使用基准值
+    card: 0.05, // 卡片略厚
+    overlay: 0.15, // 弹窗最不透明
   },
-  
+
   // 窗口特效
-  windowEffect: 'none',
+  windowEffect: "none",
   windowBackgroundOpacity: 1.0, // 默认不透明
-  
+
   // 背景色设置
   backgroundColorOpacity: 1.0, // 默认完全不透明
+
+  // 背景色叠加
+  backgroundColorOverlayEnabled: false,
+  backgroundColorOverlayColor: "#409eff", // 默认使用主题色
+  backgroundColorOverlayOpacity: 0.3,
+  backgroundColorOverlayBlendMode: "overlay",
 };
 
 // 默认设置
@@ -203,22 +235,24 @@ export const appSettingsManager = createConfigManager<AppSettings>({
       ...defaultConfig.toolsVisible,
       ...loadedConfig.toolsVisible,
     };
-    
+
     // 深度合并 appearance 对象
-    const mergedAppearance = loadedConfig.appearance ? {
-      ...defaultConfig.appearance,
-      ...loadedConfig.appearance,
-      // 深度合并 layerOpacityOffsets
-      layerOpacityOffsets: {
-        ...defaultConfig.appearance?.layerOpacityOffsets,
-        ...loadedConfig.appearance?.layerOpacityOffsets,
-      },
-      // 深度合并 wallpaperTileOptions
-      wallpaperTileOptions: {
-        ...(defaultConfig.appearance?.wallpaperTileOptions ?? {}),
-        ...(loadedConfig.appearance?.wallpaperTileOptions ?? {}),
-      }
-    } : defaultConfig.appearance;
+    const mergedAppearance = loadedConfig.appearance
+      ? {
+          ...defaultConfig.appearance,
+          ...loadedConfig.appearance,
+          // 深度合并 layerOpacityOffsets
+          layerOpacityOffsets: {
+            ...defaultConfig.appearance?.layerOpacityOffsets,
+            ...loadedConfig.appearance?.layerOpacityOffsets,
+          },
+          // 深度合并 wallpaperTileOptions
+          wallpaperTileOptions: {
+            ...(defaultConfig.appearance?.wallpaperTileOptions ?? {}),
+            ...(loadedConfig.appearance?.wallpaperTileOptions ?? {}),
+          },
+        }
+      : defaultConfig.appearance;
 
     return {
       ...defaultConfig,

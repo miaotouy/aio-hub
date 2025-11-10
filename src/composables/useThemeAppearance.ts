@@ -1,28 +1,105 @@
-import { ref, computed, watch } from 'vue';
-import debounce from 'lodash-es/debounce';
-import shuffle from 'lodash-es/shuffle';
+import { ref, computed, watch } from "vue";
+import debounce from "lodash-es/debounce";
+import shuffle from "lodash-es/shuffle";
 import {
   appSettingsManager,
   type AppearanceSettings,
   type WindowEffect,
-  defaultAppearanceSettings
-} from '@/utils/appSettings';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+  type BlendMode,
+  defaultAppearanceSettings,
+} from "@/utils/appSettings";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-// --- 模块级状态 (Singleton-like pattern) ---
-const logger = createModuleLogger('ThemeAppearance');
-const errorHandler = createModuleErrorHandler('ThemeAppearance');
+// --- 颜色混合工具 ---
 
-const debouncedCssUpdate = debounce((settings: AppearanceSettings) => {
-  _updateCssVariables(settings);
-}, 50, { leading: false, trailing: true });
+type RGB = { r: number; g: number; b: number };
+
+/**
+ * 将 HEX 颜色字符串转换为 RGB 对象。
+ */
+function hexToRgb(hex: string): RGB | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
+}
+
+/**
+ * 将指定的混合模式应用于两种 RGB 颜色。
+ * @param base - 基础颜色 {r, g, b}。
+ * @param active - 要混合的活动颜色 {r, g, b}。
+ * @param opacity - 活动颜色的不透明度。
+ * @param mode - 混合模式。
+ * @returns 混合后的结果颜色 {r, g, b}。
+ */
+function applyBlendMode(base: RGB, active: RGB, opacity: number, mode: BlendMode): RGB {
+  const blend = (b: number, a: number): number => {
+    switch (mode) {
+      case "multiply":
+        return (b * a) / 255;
+      case "screen":
+        return 255 - ((255 - b) * (255 - a)) / 255;
+      case "overlay":
+        return b < 128 ? (2 * b * a) / 255 : 255 - (2 * (255 - b) * (255 - a)) / 255;
+      case "darken":
+        return Math.min(b, a);
+      case "lighten":
+        return Math.max(b, a);
+      case "color-dodge":
+        return a === 255 ? 255 : Math.min(255, (b * 255) / (255 - a));
+      case "color-burn":
+        return a === 0 ? 0 : Math.max(0, 255 - ((255 - b) * 255) / a);
+      case "hard-light":
+        return a < 128 ? (2 * b * a) / 255 : 255 - (2 * (255 - b) * (255 - a)) / 255;
+      case "soft-light":
+        return a < 128
+          ? b - (1 - 2 * (a / 255)) * b * (1 - b / 255)
+          : b +
+              (2 * (a / 255) - 1) *
+                ((b < 64 ? ((16 * b - 12) * b + 4) * b : Math.sqrt(b * 255)) - b);
+      case "difference":
+        return Math.abs(b - a);
+      case "exclusion":
+        return b + a - (2 * b * a) / 255;
+      default:
+        return a; // 'normal' 混合模式
+    }
+  };
+
+  const blendedR = blend(base.r, active.r);
+  const blendedG = blend(base.g, active.g);
+  const blendedB = blend(base.b, active.b);
+
+  // 与不透明度混合
+  const r = Math.round(base.r * (1 - opacity) + blendedR * opacity);
+  const g = Math.round(base.g * (1 - opacity) + blendedG * opacity);
+  const b = Math.round(base.b * (1 - opacity) + blendedB * opacity);
+
+  return { r, g, b };
+}
+
+// --- 模块级状态 (单例模式) ---
+const logger = createModuleLogger("ThemeAppearance");
+const errorHandler = createModuleErrorHandler("ThemeAppearance");
+
+const debouncedCssUpdate = debounce(
+  (settings: AppearanceSettings) => {
+    _updateCssVariables(settings);
+  },
+  50,
+  { leading: false, trailing: true }
+);
 
 // 这些是运行时 UI 状态，不持久化
 const appearanceSettings = ref<AppearanceSettings>(defaultAppearanceSettings);
-const currentWallpaper = ref<string>('');
+const currentWallpaper = ref<string>("");
 const isSlideshowPaused = ref(false); // 新增：幻灯片是否暂停
 
 let slideshowTimer: number | null = null;
@@ -39,12 +116,12 @@ const debouncedSave = debounce(async (settingsToSave: AppearanceSettings) => {
     const currentFullSettings = await appSettingsManager.load();
     await appSettingsManager.save({
       ...currentFullSettings,
-      appearance: settingsToSave
+      appearance: settingsToSave,
     });
-    logger.info('外观设置已自动保存');
+    logger.info("外观设置已自动保存");
   } catch (error) {
-    errorHandler.error(error, '自动保存外观设置失败', {
-      operation: '自动保存外观设置'
+    errorHandler.error(error, "自动保存外观设置失败", {
+      operation: "自动保存外观设置",
     });
   }
 }, 400);
@@ -60,9 +137,9 @@ const updateAppearanceSetting = (
 ) => {
   const newAppearance = {
     ...appearanceSettings.value,
-    ...updates
+    ...updates,
   };
-  
+
   // 立即更新 ref 以触发 vue 的响应式系统（但不一定会更新 CSS）
   appearanceSettings.value = newAppearance;
 
@@ -78,50 +155,51 @@ const updateAppearanceSetting = (
   debouncedSave(newAppearance);
 };
 
-
 function _updateCssVariables(settings: AppearanceSettings) {
   const root = document.documentElement;
 
   if (settings.enableWallpaper && currentWallpaper.value) {
-    root.style.setProperty('--wallpaper-url', `url('${currentWallpaper.value}')`);
-    root.style.setProperty('--wallpaper-opacity', String(settings.wallpaperOpacity));
-    root.style.setProperty('--bg-color', 'transparent');
+    root.style.setProperty("--wallpaper-url", `url('${currentWallpaper.value}')`);
+    root.style.setProperty("--wallpaper-opacity", String(settings.wallpaperOpacity));
+    root.style.setProperty("--bg-color", "transparent");
 
-    // --- Wallpaper Fit & Tile ---
-    const fit = settings.wallpaperFit ?? 'cover';
+    // --- 壁纸适应与平铺模式 ---
+    const fit = settings.wallpaperFit ?? "cover";
     const tileOptions = {
       ...defaultAppearanceSettings.wallpaperTileOptions,
-      ...settings.wallpaperTileOptions
+      ...settings.wallpaperTileOptions,
     };
 
     const wallpaperSizeMap: Record<string, string> = {
-      cover: 'cover',
-      contain: 'contain',
-      fill: '100% 100%',
-      // For tile, scale is used to determine the size of one tile relative to the container.
-      tile: `${(tileOptions.scale ?? 1.0) * 100}%`
+      cover: "cover",
+      contain: "contain",
+      fill: "100% 100%",
+      // 对于平铺模式，scale 用于确定单个平铺相对于容器的大小。
+      tile: `${(tileOptions.scale ?? 1.0) * 100}%`,
     };
 
-    root.style.setProperty('--wallpaper-size', wallpaperSizeMap[fit]);
-    root.style.setProperty('--wallpaper-repeat', fit === 'tile' ? 'repeat' : 'no-repeat');
-    
-    // For tile mode transforms, these variables can be used by a pseudo-element.
+    root.style.setProperty("--wallpaper-size", wallpaperSizeMap[fit]);
+    root.style.setProperty("--wallpaper-repeat", fit === "tile" ? "repeat" : "no-repeat");
+
+    // 对于平铺模式的变换，这些变量可以被伪元素使用。
     const scaleX = tileOptions.flipHorizontal ? -1 : 1;
     const scaleY = tileOptions.flipVertical ? -1 : 1;
     const rotation = tileOptions.rotation ?? 0;
-    root.style.setProperty('--wallpaper-tile-transform', `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg)`);
-
+    root.style.setProperty(
+      "--wallpaper-tile-transform",
+      `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg)`
+    );
   } else {
-    root.style.setProperty('--wallpaper-url', 'none');
-    root.style.setProperty('--wallpaper-opacity', '0');
+    root.style.setProperty("--wallpaper-url", "none");
+    root.style.setProperty("--wallpaper-opacity", "0");
     // 恢复为原始背景色
-    root.style.removeProperty('--bg-color');
+    root.style.removeProperty("--bg-color");
   }
-  
-  // --- UI Effects Logic ---
+
+  // --- UI 特效逻辑 ---
   if (settings.enableUiEffects) {
-    const blurValue = settings.enableUiBlur ? `${settings.uiBlurIntensity}px` : '0px';
-    root.style.setProperty('--ui-blur', blurValue);
+    const blurValue = settings.enableUiBlur ? `${settings.uiBlurIntensity}px` : "0px";
+    root.style.setProperty("--ui-blur", blurValue);
 
     const baseOpacity = settings.uiBaseOpacity;
     const offsets = settings.layerOpacityOffsets || {};
@@ -129,74 +207,110 @@ function _updateCssVariables(settings: AppearanceSettings) {
     const calculateOpacity = (offset = 0) =>
       Math.max(0.1, Math.min(1.0, baseOpacity + offset)).toFixed(2);
 
+    // --- 背景色叠加逻辑 ---
+    const overlayEnabled = settings.backgroundColorOverlayEnabled ?? false;
+    const overlayColorHex = settings.backgroundColorOverlayColor ?? "#000000";
+    const overlayOpacity = settings.backgroundColorOverlayOpacity ?? 0;
+    const blendMode = settings.backgroundColorOverlayBlendMode ?? "normal";
+    const overlayColorRgb = hexToRgb(overlayColorHex);
+
+    /**
+     * 计算并设置元素的最终背景色，考虑了颜色叠加
+     * @param element - 'sidebar' | 'card' | 'header' | 'input' | 'container'
+     * @param opacityValue - 最终的透明度
+     */
+    const setElementBackground = (
+      element: "sidebar" | "card" | "header" | "input" | "container",
+      opacityValue: string | number
+    ) => {
+      // 决定使用哪个基础 RGB 变量
+      let baseRgbVar = "";
+      switch (element) {
+        case "sidebar":
+          baseRgbVar = "--sidebar-bg-rgb";
+          break;
+        case "container":
+          baseRgbVar = "--container-bg-rgb";
+          break;
+        case "card":
+        case "header":
+        case "input":
+        default:
+          baseRgbVar = "--card-bg-rgb";
+          break;
+      }
+
+      const finalBgVar = `--${element}-bg`;
+      const baseRgbString = getComputedStyle(root).getPropertyValue(baseRgbVar).trim();
+
+      if (baseRgbString) {
+        const [r, g, b] = baseRgbString.split(",").map(Number);
+        let finalRgb: RGB = { r, g, b };
+
+        if (overlayEnabled && overlayColorRgb) {
+          finalRgb = applyBlendMode(finalRgb, overlayColorRgb, overlayOpacity, blendMode);
+        }
+
+        root.style.setProperty(
+          finalBgVar,
+          `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${opacityValue})`
+        );
+
+        // 特殊处理编辑器背景
+        if (element === "input") {
+          const editorOpacityValue = settings.editorOpacity ?? 0.9;
+          const editorRgba = `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${editorOpacityValue})`;
+          root.style.setProperty("--vscode-editor-background", editorRgba);
+          root.style.setProperty("--vscode-editorGutter-background", editorRgba);
+        }
+      }
+    };
+
     const sidebarOpacityValue = calculateOpacity(offsets.sidebar);
-    root.style.setProperty('--sidebar-opacity', sidebarOpacityValue);
-    const sidebarBgRgb = getComputedStyle(root).getPropertyValue('--sidebar-bg-rgb').trim();
-    if (sidebarBgRgb) {
-      root.style.setProperty('--sidebar-bg', `rgba(${sidebarBgRgb}, ${sidebarOpacityValue})`);
-    }
+    root.style.setProperty("--sidebar-opacity", sidebarOpacityValue);
+    setElementBackground("sidebar", sidebarOpacityValue);
 
     const contentOpacityValue = calculateOpacity(offsets.content);
-    root.style.setProperty('--content-opacity', contentOpacityValue);
+    root.style.setProperty("--content-opacity", contentOpacityValue);
 
     const cardOpacityValue = calculateOpacity(offsets.card);
-    root.style.setProperty('--card-opacity', cardOpacityValue);
-
-    const cardBgRgb = getComputedStyle(root).getPropertyValue('--card-bg-rgb').trim();
-    if (cardBgRgb) {
-      root.style.setProperty('--card-bg', `rgba(${cardBgRgb}, ${cardOpacityValue})`);
-    }
-
-    const headerBgRgb = getComputedStyle(root).getPropertyValue('--header-bg-rgb').trim();
-    if (headerBgRgb) {
-      root.style.setProperty('--header-bg', `rgba(${headerBgRgb}, ${cardOpacityValue})`);
-    }
-
-    const inputBgRgb = getComputedStyle(root).getPropertyValue('--input-bg-rgb').trim();
-    if (inputBgRgb) {
-      root.style.setProperty('--input-bg', `rgba(${inputBgRgb}, ${cardOpacityValue})`);
-      const editorOpacityValue = settings.editorOpacity ?? 0.9;
-      const editorRgba = `rgba(${inputBgRgb}, ${editorOpacityValue})`;
-      root.style.setProperty('--vscode-editor-background', editorRgba);
-      root.style.setProperty('--vscode-editorGutter-background', editorRgba);
-    }
+    root.style.setProperty("--card-opacity", cardOpacityValue);
+    setElementBackground("card", cardOpacityValue);
+    setElementBackground("header", cardOpacityValue);
+    setElementBackground("input", cardOpacityValue);
 
     const overlayOpacityValue = calculateOpacity(offsets.overlay);
-    root.style.setProperty('--overlay-opacity', overlayOpacityValue);
+    root.style.setProperty("--overlay-opacity", overlayOpacityValue);
+    setElementBackground("container", overlayOpacityValue);
 
-    const containerBgRgb = getComputedStyle(root).getPropertyValue('--container-bg-rgb').trim();
-    if (containerBgRgb) {
-      root.style.setProperty('--container-bg', `rgba(${containerBgRgb}, ${overlayOpacityValue})`);
-    }
-
-    root.style.setProperty('--border-opacity', String(settings.borderOpacity));
-    root.style.setProperty('--bg-color-opacity', String(settings.backgroundColorOpacity || 1));
+    root.style.setProperty("--border-opacity", String(settings.borderOpacity));
+    root.style.setProperty("--bg-color-opacity", String(settings.backgroundColorOpacity || 1));
   } else {
     // 禁用UI特效，恢复默认不透明样式
-    root.style.setProperty('--ui-blur', '0px');
-    root.style.removeProperty('--sidebar-bg');
-    root.style.removeProperty('--card-bg');
-    root.style.removeProperty('--header-bg');
-    root.style.removeProperty('--input-bg');
-    root.style.removeProperty('--vscode-editor-background');
-    root.style.removeProperty('--vscode-editorGutter-background');
-    root.style.removeProperty('--container-bg');
-    root.style.setProperty('--sidebar-opacity', '1');
-    root.style.setProperty('--content-opacity', '1');
-    root.style.setProperty('--card-opacity', '1');
-    root.style.setProperty('--overlay-opacity', '1');
-    root.style.setProperty('--border-opacity', '1');
-    root.style.setProperty('--bg-color-opacity', '1');
+    root.style.setProperty("--ui-blur", "0px");
+    root.style.removeProperty("--sidebar-bg");
+    root.style.removeProperty("--card-bg");
+    root.style.removeProperty("--header-bg");
+    root.style.removeProperty("--input-bg");
+    root.style.removeProperty("--vscode-editor-background");
+    root.style.removeProperty("--vscode-editorGutter-background");
+    root.style.removeProperty("--container-bg");
+    root.style.setProperty("--sidebar-opacity", "1");
+    root.style.setProperty("--content-opacity", "1");
+    root.style.setProperty("--card-opacity", "1");
+    root.style.setProperty("--overlay-opacity", "1");
+    root.style.setProperty("--border-opacity", "1");
+    root.style.setProperty("--bg-color-opacity", "1");
   }
-  
-  logger.debug('CSS 变量已更新', { settings });
+
+  logger.debug("CSS 变量已更新", { settings });
 }
 
 function _stopSlideshow() {
   if (slideshowTimer) {
     clearInterval(slideshowTimer);
     slideshowTimer = null;
-    logger.info('幻灯片定时器已停止');
+    logger.info("幻灯片定时器已停止");
   }
 }
 
@@ -217,41 +331,46 @@ function _switchToWallpaper(index: number, settings: AppearanceSettings) {
       // 直接调用模块级的更新函数，避免递归调用
       updateAppearanceSetting({ wallpaperSlideshowCurrentIndex: index });
     }
-    logger.debug('幻灯片切换', { index, path: imagePath });
+    logger.debug("幻灯片切换", { index, path: imagePath });
   } catch (error) {
     errorHandler.warn(error, `转换壁纸路径失败: ${imagePath}`, {
-      operation: '转换壁纸路径',
-      path: imagePath
+      operation: "转换壁纸路径",
+      path: imagePath,
     });
   }
 }
 
 async function _startSlideshow(settings: AppearanceSettings) {
   _stopSlideshow();
-  const { wallpaperSlideshowPath, wallpaperSlideshowInterval, wallpaperSlideshowShuffle } = settings;
-  
+  const { wallpaperSlideshowPath, wallpaperSlideshowInterval, wallpaperSlideshowShuffle } =
+    settings;
+
   if (!wallpaperSlideshowPath) {
-    logger.warn('幻灯片目录路径为空，无法启动');
+    logger.warn("幻灯片目录路径为空，无法启动");
     wallpaperList.value = [];
     shuffledList.value = [];
     return;
   }
-  
+
   try {
-    wallpaperList.value = await invoke<string[]>('list_directory_images', { directory: wallpaperSlideshowPath });
-    
+    wallpaperList.value = await invoke<string[]>("list_directory_images", {
+      directory: wallpaperSlideshowPath,
+    });
+
     if (wallpaperList.value.length > 0) {
       shuffledList.value = shuffle(wallpaperList.value); // 总是预先生成随机列表
-      
-      logger.info('幻灯片已启动', {
+
+      logger.info("幻灯片已启动", {
         imageCount: wallpaperList.value.length,
         interval: wallpaperSlideshowInterval,
-        shuffle: wallpaperSlideshowShuffle
+        shuffle: wallpaperSlideshowShuffle,
       });
-      
+
       const playNext = () => {
         if (isSlideshowPaused.value) return;
-        const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+        const list = appearanceSettings.value.wallpaperSlideshowShuffle
+          ? shuffledList.value
+          : wallpaperList.value;
         const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
         const nextIndex = (currentIndex + 1) % list.length;
         _switchToWallpaper(nextIndex, appearanceSettings.value);
@@ -266,14 +385,14 @@ async function _startSlideshow(settings: AppearanceSettings) {
         slideshowTimer = window.setInterval(playNext, wallpaperSlideshowInterval * 60 * 1000);
       }
     } else {
-      logger.warn('幻灯片目录为空', { path: wallpaperSlideshowPath });
+      logger.warn("幻灯片目录为空", { path: wallpaperSlideshowPath });
       wallpaperList.value = [];
       shuffledList.value = [];
     }
   } catch (error) {
-    errorHandler.error(error, '启动幻灯片失败', {
-      operation: '启动幻灯片',
-      path: wallpaperSlideshowPath
+    errorHandler.error(error, "启动幻灯片失败", {
+      operation: "启动幻灯片",
+      path: wallpaperSlideshowPath,
     });
   }
 }
@@ -281,51 +400,51 @@ async function _startSlideshow(settings: AppearanceSettings) {
 async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: AppearanceSettings) {
   _stopSlideshow(); // 默认先停止旧的轮播
 
-  // Check if mode changed from static to slideshow to prevent flicker
+  // 检查模式是否从静态切换到幻灯片以防止闪烁
   const modeJustSwitchedToSlideshow =
     oldSettings &&
-    settings.wallpaperMode === 'slideshow' &&
-    oldSettings.wallpaperMode !== 'slideshow';
+    settings.wallpaperMode === "slideshow" &&
+    oldSettings.wallpaperMode !== "slideshow";
 
-  if (settings.wallpaperMode === 'static' && settings.wallpaperPath) {
+  if (settings.wallpaperMode === "static" && settings.wallpaperPath) {
     try {
-      logger.info('加载静态壁纸', { path: settings.wallpaperPath });
+      logger.info("加载静态壁纸", { path: settings.wallpaperPath });
       wallpaperList.value = []; // 清空列表
       shuffledList.value = [];
       currentWallpaper.value = convertFileSrc(settings.wallpaperPath);
-      logger.info('静态壁纸加载成功');
+      logger.info("静态壁纸加载成功");
     } catch (error) {
-      errorHandler.error(error, '转换静态壁纸路径失败', {
-        operation: '转换静态壁纸路径',
-        path: settings.wallpaperPath
+      errorHandler.error(error, "转换静态壁纸路径失败", {
+        operation: "转换静态壁纸路径",
+        path: settings.wallpaperPath,
       });
-      currentWallpaper.value = '';
+      currentWallpaper.value = "";
     }
-  } else if (settings.wallpaperMode === 'slideshow' && settings.wallpaperSlideshowPath) {
+  } else if (settings.wallpaperMode === "slideshow" && settings.wallpaperSlideshowPath) {
     // 切换到轮播模式时，立即清除当前壁纸，防止显示旧的静态壁纸
-    // Only clear if we just switched to slideshow mode.
+    // 仅在刚刚切换到幻灯片模式时清除。
     if (modeJustSwitchedToSlideshow) {
-      currentWallpaper.value = '';
+      currentWallpaper.value = "";
     }
     await _startSlideshow(settings);
   } else {
     // 如果当前模式没有设置路径，则清除壁纸
-    currentWallpaper.value = '';
+    currentWallpaper.value = "";
     wallpaperList.value = [];
     shuffledList.value = [];
-    logger.info('当前壁纸模式无有效路径，壁纸已清除');
+    logger.info("当前壁纸模式无有效路径，壁纸已清除");
   }
   _updateCssVariables(settings);
 }
 
 async function _applyWindowEffect(effect: WindowEffect) {
   try {
-    await invoke('apply_window_effect', { effect });
-    logger.info('窗口特效已应用', { effect });
+    await invoke("apply_window_effect", { effect });
+    logger.info("窗口特效已应用", { effect });
   } catch (error) {
     errorHandler.warn(error, `应用窗口特效失败: ${effect}`, {
-      operation: '应用窗口特效',
-      effect
+      operation: "应用窗口特效",
+      effect,
     });
   }
 }
@@ -338,7 +457,7 @@ async function _applyWindowEffect(effect: WindowEffect) {
  */
 export async function initThemeAppearance() {
   if (isInitialized) {
-    logger.warn('主题外观已经初始化，跳过重复初始化');
+    logger.warn("主题外观已经初始化，跳过重复初始化");
     return;
   }
   isInitialized = true;
@@ -348,51 +467,57 @@ export async function initThemeAppearance() {
     const settings = await appSettingsManager.load();
     if (settings.appearance) {
       appearanceSettings.value = settings.appearance;
-      logger.info('外观设置已加载', settings.appearance);
-      
+      logger.info("外观设置已加载", settings.appearance);
+
       // 初始化设置
       await _updateWallpaper(settings.appearance);
       _updateCssVariables(settings.appearance);
-      
-      if (settings.appearance.windowEffect !== 'none') {
+
+      if (settings.appearance.windowEffect !== "none") {
         await _applyWindowEffect(settings.appearance.windowEffect);
       }
     }
 
     // 监听设置变化并更新 UI
-    watch(appearanceSettings, async (newSettings, oldSettings) => {
-      if (!newSettings) return;
-      
-      logger.debug('外观设置变化', { newSettings, oldSettings });
-      
-      const old = oldSettings || defaultAppearanceSettings;
-      if (newSettings.enableWallpaper !== old.enableWallpaper ||
+    watch(
+      appearanceSettings,
+      async (newSettings, oldSettings) => {
+        if (!newSettings) return;
+
+        logger.debug("外观设置变化", { newSettings, oldSettings });
+
+        const old = oldSettings || defaultAppearanceSettings;
+        if (
+          newSettings.enableWallpaper !== old.enableWallpaper ||
           newSettings.wallpaperMode !== old.wallpaperMode ||
           newSettings.wallpaperPath !== old.wallpaperPath ||
           newSettings.wallpaperSlideshowPath !== old.wallpaperSlideshowPath ||
-          newSettings.wallpaperSlideshowInterval !== old.wallpaperSlideshowInterval) {
-        await _updateWallpaper(newSettings, old);
-      }
-      
-      if (newSettings.windowEffect !== old.windowEffect) {
-        await _applyWindowEffect(newSettings.windowEffect);
-      }
-    }, { deep: true });
-    
+          newSettings.wallpaperSlideshowInterval !== old.wallpaperSlideshowInterval
+        ) {
+          await _updateWallpaper(newSettings, old);
+        }
+
+        if (newSettings.windowEffect !== old.windowEffect) {
+          await _applyWindowEffect(newSettings.windowEffect);
+        }
+      },
+      { deep: true }
+    );
+
     // 监听根元素 class 的变化（例如主题切换），并重新应用 CSS 变量
     themeObserver = new MutationObserver(() => {
-      logger.debug('Theme class changed on root element, re-applying appearance CSS variables.');
+      logger.debug("根元素上的主题类已更改，正在重新应用外观 CSS 变量");
       _updateCssVariables(appearanceSettings.value);
     });
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['class']
+      attributeFilter: ["class"],
     });
-    
-    logger.info('主题外观初始化完成');
+
+    logger.info("主题外观初始化完成");
   } catch (error) {
-    errorHandler.error(error, '初始化主题外观失败', {
-      operation: '初始化主题外观'
+    errorHandler.error(error, "初始化主题外观失败", {
+      operation: "初始化主题外观",
     });
   }
 }
@@ -408,7 +533,7 @@ export function cleanupThemeAppearance() {
     themeObserver = null;
   }
   isInitialized = false;
-  logger.info('主题外观资源已清理');
+  logger.info("主题外观资源已清理");
 }
 
 /**
@@ -423,19 +548,19 @@ export function useThemeAppearance() {
       const selected = await open({
         multiple: false,
         title: "选择壁纸图片",
-        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif'] }],
+        filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "avif"] }],
       });
-      
-      if (typeof selected === 'string') {
-        updateAppearanceSetting({ 
-          wallpaperPath: selected, 
-          wallpaperMode: 'static' 
+
+      if (typeof selected === "string") {
+        updateAppearanceSetting({
+          wallpaperPath: selected,
+          wallpaperMode: "static",
         });
-        logger.info('壁纸已选择', { path: selected });
+        logger.info("壁纸已选择", { path: selected });
       }
     } catch (error) {
-      errorHandler.error(error, '选择壁纸失败', {
-        operation: '选择壁纸'
+      errorHandler.error(error, "选择壁纸失败", {
+        operation: "选择壁纸",
       });
     }
   };
@@ -450,18 +575,18 @@ export function useThemeAppearance() {
         multiple: false,
         title: "选择壁纸目录",
       });
-      
-      if (typeof selected === 'string') {
+
+      if (typeof selected === "string") {
         updateAppearanceSetting({
           wallpaperSlideshowPath: selected,
-          wallpaperMode: 'slideshow',
-          wallpaperSlideshowCurrentIndex: 0 // 重置索引
+          wallpaperMode: "slideshow",
+          wallpaperSlideshowCurrentIndex: 0, // 重置索引
         });
-        logger.info('壁纸目录已选择', { path: selected });
+        logger.info("壁纸目录已选择", { path: selected });
       }
     } catch (error) {
-      errorHandler.error(error, '选择壁纸目录失败', {
-        operation: '选择壁纸目录'
+      errorHandler.error(error, "选择壁纸目录失败", {
+        operation: "选择壁纸目录",
       });
     }
   };
@@ -473,22 +598,24 @@ export function useThemeAppearance() {
     try {
       // 清除两个路径以确保完全干净
       updateAppearanceSetting({
-        wallpaperPath: '',
-        wallpaperSlideshowPath: '',
+        wallpaperPath: "",
+        wallpaperSlideshowPath: "",
         enableWallpaper: true,
         wallpaperSlideshowCurrentIndex: 0,
       });
-      logger.info('壁纸已清除');
+      logger.info("壁纸已清除");
     } catch (error) {
-      errorHandler.error(error, '清除壁纸失败', {
-        operation: '清除壁纸'
+      errorHandler.error(error, "清除壁纸失败", {
+        operation: "清除壁纸",
       });
     }
   };
 
-  // --- 新增幻灯片控制函数 ---
+  // --- 幻灯片控制函数 ---
   const playNextWallpaper = () => {
-    const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+    const list = appearanceSettings.value.wallpaperSlideshowShuffle
+      ? shuffledList.value
+      : wallpaperList.value;
     if (list.length === 0) return;
     const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
     const nextIndex = (currentIndex + 1) % list.length;
@@ -496,20 +623,22 @@ export function useThemeAppearance() {
   };
 
   const playPreviousWallpaper = () => {
-    const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+    const list = appearanceSettings.value.wallpaperSlideshowShuffle
+      ? shuffledList.value
+      : wallpaperList.value;
     if (list.length === 0) return;
     const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
     const prevIndex = (currentIndex - 1 + list.length) % list.length;
     _switchToWallpaper(prevIndex, appearanceSettings.value);
   };
-  
+
   const switchToWallpaper = (index: number) => {
     _switchToWallpaper(index, appearanceSettings.value);
   };
 
   const toggleSlideshowPlayback = () => {
     isSlideshowPaused.value = !isSlideshowPaused.value;
-    logger.info(`幻灯片播放已 ${isSlideshowPaused.value ? '暂停' : '恢复'}`);
+    logger.info(`幻灯片播放已 ${isSlideshowPaused.value ? "暂停" : "恢复"}`);
   };
 
   const toggleShuffle = () => {
@@ -523,12 +652,12 @@ export function useThemeAppearance() {
 
     const newList = newShuffle ? shuffledList.value : wallpaperList.value;
     const newIndex = newList.indexOf(currentImagePath);
-    
+
     updateAppearanceSetting({
       wallpaperSlideshowShuffle: newShuffle,
-      wallpaperSlideshowCurrentIndex: newIndex >= 0 ? newIndex : 0
+      wallpaperSlideshowCurrentIndex: newIndex >= 0 ? newIndex : 0,
     });
-    logger.info(`随机播放已 ${newShuffle ? '开启' : '关闭'}`);
+    logger.info(`随机播放已 ${newShuffle ? "开启" : "关闭"}`);
   };
 
   const reshuffle = () => {
@@ -536,15 +665,15 @@ export function useThemeAppearance() {
       shuffledList.value = shuffle(wallpaperList.value);
       // 保持在列表头部
       _switchToWallpaper(0, appearanceSettings.value);
-      logger.info('壁纸列表已重新洗牌');
+      logger.info("壁纸列表已重新洗牌");
     }
   };
-  
+
   const refreshWallpaperList = async () => {
     await _startSlideshow(appearanceSettings.value);
-    logger.info('壁纸列表已刷新');
+    logger.info("壁纸列表已刷新");
   };
-  
+
   return {
     appearanceSettings: computed(() => appearanceSettings.value),
     currentWallpaper: computed(() => currentWallpaper.value),
@@ -553,13 +682,13 @@ export function useThemeAppearance() {
     ),
     isSlideshowPaused: computed(() => isSlideshowPaused.value),
     isShuffleEnabled: computed(() => appearanceSettings.value.wallpaperSlideshowShuffle ?? false),
-    
+
     updateAppearanceSetting,
     selectWallpaper,
     selectWallpaperDirectory,
     clearWallpaper,
-    
-    // Slideshow controls
+
+    // 幻灯片控制
     playNextWallpaper,
     playPreviousWallpaper,
     switchToWallpaper,

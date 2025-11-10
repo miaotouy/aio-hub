@@ -1,7 +1,7 @@
 <template>
   <div class="theme-appearance-settings">
     <div class="settings-grid">
-      <!-- Left Column: Wallpaper Management -->
+      <!-- 左列：壁纸管理 -->
       <el-card shadow="never" :class="{ 'glass-card': enableUiBlur }">
         <template #header>
           <div class="card-header">
@@ -13,7 +13,7 @@
           <div style="width: 100%" ref="wallpaperCardRef">
             <div class="wallpaper-preview-wrapper">
               <label class="custom-form-label">壁纸预览</label>
-              <!-- Static Mode -->
+              <!-- 静态模式 -->
               <div
                 v-show="wallpaperMode === 'static'"
                 class="wallpaper-preview"
@@ -25,9 +25,9 @@
                 </div>
               </div>
 
-              <!-- Slideshow Mode -->
+              <!-- 轮播模式 -->
               <div v-show="wallpaperMode === 'slideshow'">
-                <!-- Container for Preview and Thumbnails -->
+                <!-- 预览和缩略图容器 -->
                 <div class="wallpaper-preview-container" :class="{ 'wide-layout': isWideLayout }">
                   <div class="wallpaper-preview" :style="wallpaperPreviewStyle">
                     <div v-if="!currentWallpaper" class="empty-state">
@@ -36,7 +36,7 @@
                     </div>
                   </div>
 
-                  <!-- Thumbnails -->
+                  <!-- 缩略图 -->
                   <div v-if="currentWallpaperList.length > 0" class="thumbnail-wrapper">
                     <div class="thumbnail-container" ref="thumbnailContainerRef">
                       <div
@@ -52,7 +52,7 @@
                   </div>
                 </div>
 
-                <!-- Slideshow Controls (now separate) -->
+                <!-- 轮播控制（现在是分离的） -->
                 <div v-if="currentWallpaperList.length > 0" class="slideshow-controls-container">
                   <div class="slideshow-controls">
                     <el-button
@@ -181,7 +181,7 @@
         </el-form>
       </el-card>
 
-      <!-- Right Column: UI and Window Effects -->
+      <!-- 右列：UI 和窗口特效 -->
       <div class="right-column-content">
         <el-card shadow="never" :class="{ 'glass-card': enableUiBlur && enableUiEffects }">
           <template #header>
@@ -195,17 +195,73 @@
               <el-slider v-model="uiBaseOpacity" :min="0.1" :max="1" :step="0.05" />
             </el-form-item>
 
+            <!-- 背景色叠加 -->
+            <div class="setting-group-divider">
+              <el-divider>
+                <div class="divider-content" style="background-color: transparent">
+                  <el-switch v-model="backgroundColorOverlayEnabled" size="small" />
+                  <span>背景色叠加</span>
+                </div>
+              </el-divider>
+            </div>
+
+            <div
+              class="color-overlay-group"
+              :class="{ 'is-disabled': !backgroundColorOverlayEnabled }"
+            >
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="叠加颜色">
+                    <div class="color-picker-with-input">
+                      <el-color-picker v-model="backgroundColorOverlayColor" />
+                      <el-input v-model="backgroundColorOverlayColor" placeholder="颜色值" />
+                      <el-tooltip content="吸管 (ESC 取消)" placement="top">
+                        <el-button :icon="Pipette" circle @click="openEyeDropper" />
+                      </el-tooltip>
+                    </div>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="混合模式">
+                    <el-select v-model="backgroundColorOverlayBlendMode" class="full-width">
+                      <el-option
+                        v-for="mode in blendModes"
+                        :key="mode"
+                        :label="mode"
+                        :value="mode"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-form-item label="叠加不透明度">
+                <el-slider v-model="backgroundColorOverlayOpacity" :min="0" :max="1" :step="0.05" />
+              </el-form-item>
+            </div>
+
+            <el-divider />
+
             <el-form-item label="壁纸不透明度">
               <el-slider v-model="wallpaperOpacity" :min="0.1" :max="1" :step="0.05" />
             </el-form-item>
 
-            <el-form-item label="启用 UI 模糊效果">
-              <el-switch v-model="enableUiBlur" />
-            </el-form-item>
+            <!-- UI 模糊效果 -->
+            <div class="setting-group-divider">
+              <el-divider>
+                <div class="divider-content">
+                  <el-switch v-model="enableUiBlur" size="small" />
+                  <span>UI 模糊 (毛玻璃)</span>
+                </div>
+              </el-divider>
+            </div>
 
-            <el-form-item label="UI 模糊强度 (px)">
-              <el-slider v-model="uiBlurIntensity" :min="0" :max="50" :step="1" />
-            </el-form-item>
+            <div class="blur-group" :class="{ 'is-disabled': !enableUiBlur }">
+              <el-form-item label="UI 模糊强度 (px)">
+                <el-slider v-model="uiBlurIntensity" :min="0" :max="50" :step="1" />
+              </el-form-item>
+            </div>
+
+            <el-divider />
 
             <el-form-item label="边线不透明度">
               <el-slider v-model="borderOpacity" :min="0" :max="1" :step="0.05" />
@@ -250,6 +306,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted } from "vue";
 import { useElementSize } from "@vueuse/core";
+import { Pipette } from "lucide-vue-next";
 import {
   Picture,
   ArrowLeft,
@@ -262,7 +319,7 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
-import type { WallpaperFit } from "@/utils/appSettings";
+import type { WallpaperFit, BlendMode } from "@/utils/appSettings";
 import { convertFileSrc } from "@tauri-apps/api/core";
 
 const {
@@ -284,15 +341,34 @@ const {
   refreshWallpaperList,
 } = useThemeAppearance();
 
-// --- Lifecycle Hooks ---
+const blendModes: BlendMode[] = [
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+];
+
+// --- 生命周期钩子 ---
 onMounted(() => {
-  // If starting in slideshow mode, refresh the list to populate thumbnails
+  // 如果以轮播模式启动，刷新列表以填充缩略图
   if (wallpaperMode.value === "slideshow") {
     refreshWallpaperList();
   }
 });
 
-// --- Responsive Layout ---
+// --- 响应式布局 ---
 // 监听整个壁纸设置卡片的宽度，而不是内部某个 div 的宽度。
 // 这样可以避免因内部布局变化（isWideLayout 切换）导致宽度变化，从而产生的无限循环/闪烁问题。
 const wallpaperCardRef = ref(null);
@@ -301,7 +377,7 @@ const { width: cardWidth } = useElementSize(wallpaperCardRef);
 // 用户反馈在 400px 时可以触发，这里设置为 450px 作为一个稳定的阈值。
 const isWideLayout = computed(() => cardWidth.value >= 500);
 
-// --- Thumbnail Logic ---
+// --- 缩略图逻辑 ---
 const thumbnailContainerRef = ref<HTMLElement | null>(null);
 const thumbnailRefs = ref<Record<number, HTMLElement>>({});
 const MAX_VISIBLE_THUMBNAILS = 5; // 奇数以保证当前项居中
@@ -363,6 +439,29 @@ const confirmClearWallpaper = async () => {
     await clearWallpaper();
   } catch {
     // 用户取消操作，不做任何处理
+  }
+};
+
+// 吸管功能
+const openEyeDropper = async () => {
+  // EyeDropper API 不是标准窗口类型定义的一部分。
+  // 我们将其转换为 `any` 类型来访问它。
+  const global = window as any;
+  if (!("EyeDropper" in global)) {
+    console.warn("当前环境不支持 EyeDropper API。");
+    // 你可以在这里使用 `ElMessage` 来通知用户。
+    // 例如：ElMessage.warning('吸管功能不受支持。');
+    return;
+  }
+
+  try {
+    const eyeDropper = new global.EyeDropper();
+    const result = await eyeDropper.open();
+    // v-model 是一个计算属性，所以我们使用它的 .value 来触发 setter。
+    backgroundColorOverlayColor.value = result.sRGBHex;
+  } catch (error) {
+    // 如果用户取消操作（例如按 Esc），则会执行此代码块。
+    console.info("吸管选择已取消。");
   }
 };
 
@@ -491,6 +590,28 @@ const editorOpacity = computed({
   set: (val) => updateAppearanceSetting({ editorOpacity: val }, { debounceUi: true }),
 });
 
+// --- 背景色叠加 ---
+const backgroundColorOverlayEnabled = computed({
+  get: () => appearanceSettings.value.backgroundColorOverlayEnabled ?? false,
+  set: (val) => updateAppearanceSetting({ backgroundColorOverlayEnabled: val }),
+});
+
+const backgroundColorOverlayColor = computed({
+  get: () => appearanceSettings.value.backgroundColorOverlayColor ?? "#409eff",
+  set: (val) => updateAppearanceSetting({ backgroundColorOverlayColor: val }),
+});
+
+const backgroundColorOverlayOpacity = computed({
+  get: () => appearanceSettings.value.backgroundColorOverlayOpacity ?? 0.3,
+  set: (val) =>
+    updateAppearanceSetting({ backgroundColorOverlayOpacity: val }, { debounceUi: true }),
+});
+
+const backgroundColorOverlayBlendMode = computed({
+  get: () => appearanceSettings.value.backgroundColorOverlayBlendMode ?? "overlay",
+  set: (val: BlendMode) => updateAppearanceSetting({ backgroundColorOverlayBlendMode: val }),
+});
+
 const wallpaperPreviewStyle = computed(() => {
   // currentWallpaper 已经是一个转换后的 asset URL 或空字符串
   const imageUrl = currentWallpaper.value;
@@ -530,6 +651,40 @@ const wallpaperPreviewStyle = computed(() => {
   width: 100%;
 }
 
+.setting-group-divider {
+  margin: 12px 0;
+}
+
+.setting-group-divider .el-divider__text {
+  padding: 0 12px;
+  border: none;
+}
+
+:deep(.el-divider__text) {
+  background-color: transparent;
+}
+
+.divider-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.color-overlay-group {
+  transition: all 0.3s ease;
+}
+
+.color-overlay-group.is-disabled,
+.blur-group.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.blur-group {
+  transition: all 0.3s ease;
+}
+
 .theme-appearance-settings {
   padding: 20px;
 }
@@ -556,12 +711,12 @@ const wallpaperPreviewStyle = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 100%; /* Ensure it takes full width */
+  width: 100%; /* 确保占据全宽 */
 }
 
 .wallpaper-preview {
   width: 100%;
-  /* In narrow mode, aspect-ratio is better than fixed height */
+  /* 在窄模式下，aspect-ratio 比固定高度更好 */
   aspect-ratio: 16 / 9;
   height: auto;
   min-height: 200px;
@@ -574,7 +729,7 @@ const wallpaperPreviewStyle = computed(() => {
   color: var(--text-color-light);
   background-color: var(--card-bg);
   transition: all 0.3s ease;
-  flex-shrink: 0; /* Prevent shrinking in column layout */
+  flex-shrink: 0; /* 防止在列布局中收缩 */
 }
 
 .slideshow-controls-container {
@@ -590,11 +745,11 @@ const wallpaperPreviewStyle = computed(() => {
   justify-content: center;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+  flex-wrap: wrap; /* 允许控件在较小的屏幕上换行 */
 }
 
 .thumbnail-wrapper {
-  overflow: hidden; /* For rounded corners on container */
+  overflow: hidden; /* 用于容器的圆角 */
   background-color: var(--card-bg);
   padding: 8px;
   border-radius: 8px;
@@ -604,7 +759,7 @@ const wallpaperPreviewStyle = computed(() => {
 .thumbnail-container {
   display: flex;
   gap: 8px;
-  overflow-x: hidden; /* Prevent horizontal scrollbar */
+  overflow-x: hidden; /* 防止水平滚动条 */
   padding: 4px;
 }
 
@@ -615,7 +770,7 @@ const wallpaperPreviewStyle = computed(() => {
   border-radius: 4px;
   cursor: pointer;
   border: 2px solid transparent;
-  flex-shrink: 1; /* Allow shrinking */
+  flex-shrink: 1; /* 允许收缩 */
   transition:
     border-color 0.3s ease,
     transform 0.2s ease;
@@ -680,25 +835,25 @@ const wallpaperPreviewStyle = computed(() => {
   display: block;
 }
 
-/* --- Wide Layout Styles --- */
+/* --- 宽屏布局样式 --- */
 .wallpaper-preview-container.wide-layout {
   flex-direction: row;
-  align-items: stretch; /* Make items same height */
+  align-items: stretch; /* 使项目具有相同高度 */
   gap: 12px;
 }
 
 .wallpaper-preview-container.wide-layout .wallpaper-preview {
-  flex: 1 1 0; /* Grow and shrink, basis 0 */
-  min-width: 0; /* Crucial for shrinking */
-  height: auto; /* Let flexbox control the height */
+  flex: 1 1 0; /* 可增长和收缩，基础值为 0 */
+  min-width: 0; /* 收缩的关键 */
+  height: auto; /* 让 flexbox 控制高度 */
   max-height: none;
-  aspect-ratio: auto; /* Prevent aspect ratio from restricting width */
+  aspect-ratio: auto; /* 防止宽高比限制宽度 */
 }
 
 .wallpaper-preview-container.wide-layout .thumbnail-wrapper {
-  flex: 0 0 120px; /* Don't grow, don't shrink, basis 120px */
+  flex: 0 0 120px; /* 不增长，不收缩，基础值为 120px */
   width: 120px;
-  height: auto; /* Match height of preview */
+  height: auto; /* 匹配预览的高度 */
   display: flex;
   flex-direction: column;
 }
@@ -726,5 +881,17 @@ const wallpaperPreviewStyle = computed(() => {
   padding: 12px 20px;
   font-size: 16px;
   font-weight: 500;
+}
+
+.color-picker-with-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.color-picker-with-input .el-input {
+  /* 让输入字段占据剩余空间 */
+  flex: 1;
 }
 </style>

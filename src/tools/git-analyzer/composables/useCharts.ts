@@ -16,7 +16,8 @@ interface ChartRefs {
 
 export function useCharts(
   filteredCommits: Ref<GitCommit[]>,
-  getChartRefs: () => ChartRefs | undefined
+  getChartRefs: () => ChartRefs | undefined,
+  isChartVisible: Ref<boolean>
 ) {
   // ResizeObserver 实例
   let resizeObserver: ResizeObserver | null = null
@@ -365,6 +366,9 @@ export function useCharts(
    * 更新所有图表
    */
   function updateCharts() {
+    if (!isChartVisible.value) {
+      return
+    }
     drawFrequencyChart()
     drawContributorChart()
     drawHeatmapChart()

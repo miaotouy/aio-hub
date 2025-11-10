@@ -37,6 +37,39 @@ const progress = ref({
 
 // ==================== 计算属性 ====================
 
+const hasActiveFilters = computed(() => {
+  return !!(
+    searchQuery.value ||
+    dateRange.value ||
+    authorFilter.value ||
+    commitTypeFilter.value.length > 0
+  );
+});
+
+const filterSummary = computed(() => {
+  const parts: string[] = [];
+  if (searchQuery.value) {
+    parts.push(`关键词: "${searchQuery.value}"`);
+  }
+  if (authorFilter.value) {
+    parts.push(`作者: "${authorFilter.value}"`);
+  }
+  if (dateRange.value) {
+    const [start, end] = dateRange.value;
+    // 格式化日期为 YYYY-MM-DD
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    parts.push(`日期: ${formatDate(start)} 至 ${formatDate(end)}`);
+  }
+  if (commitTypeFilter.value.length > 0) {
+    parts.push(`类型: ${commitTypeFilter.value.join(', ')}`);
+  }
+
+  if (parts.length === 0) {
+    return '当前未应用任何筛选条件。';
+  }
+  return `已应用的筛选条件: ${parts.join('; ')}。`;
+});
+
 const statistics = computed<RepoStatistics>(() => {
   const commitsValue = filteredCommits.value;
   if (commitsValue.length === 0) {
@@ -126,6 +159,8 @@ export function useGitAnalyzerState() {
     // 计算属性
     statistics,
     paginatedCommits,
+    hasActiveFilters,
+    filterSummary,
     
     // 方法
     resetProgress,

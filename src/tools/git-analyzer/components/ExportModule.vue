@@ -42,6 +42,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import type { GitCommit, ExportConfig, RepoStatistics } from '../types'
+import { useGitAnalyzerState } from '../composables/useGitAnalyzerState'
 import { useReportGenerator } from '../composables/useReportGenerator'
 import { useSendToChat } from '@/composables/useSendToChat'
 import { commitCache } from '../composables/useCommitCache'
@@ -91,6 +92,7 @@ const exportConfig = ref<ExportConfig>({
   includeTags: true,
   includeBranches: true,
   includeStats: true,
+  includeFilterInfo: true,
   htmlTheme: 'light',
 })
 
@@ -204,6 +206,8 @@ function getMergedCommits(commits: GitCommit[]): GitCommit[] {
     return commit
   })
 }
+// 从 state 中获取筛选信息
+const { filterSummary, hasActiveFilters } = useGitAnalyzerState()
 
 // 初始化报告生成器
 const reportGenerator = useReportGenerator({
@@ -213,6 +217,8 @@ const reportGenerator = useReportGenerator({
   statistics: props.statistics,
   commits: props.commits,
   getCommitsToExport,
+  filterSummary,
+  hasActiveFilters,
 })
 
 // 更新预览

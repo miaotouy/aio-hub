@@ -25,6 +25,8 @@
           v-model:author-filter="authorFilter"
           v-model:reverse-order="reverseOrder"
           v-model:commit-type-filter="commitTypeFilter"
+          :has-active-filters="hasActiveFilters"
+          :filter-summary="filterSummary"
           :loading="loading"
           :branches="branches"
           :commits="commits"
@@ -86,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from "vue";
+import { ref, watch, nextTick, onMounted, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { Refresh, Upload } from "@element-plus/icons-vue";
 import InfoCard from "@components/common/InfoCard.vue";
@@ -129,6 +131,8 @@ const {
   progress,
   statistics,
   paginatedCommits,
+  hasActiveFilters,
+  filterSummary,
 } = useGitAnalyzerState();
 
 // 使用运行器（业务编排层）
@@ -145,53 +149,52 @@ const {
 // Charts 视图引用
 const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 
-const { updateCharts, setupResizeObserver } = useCharts(filteredCommits, () => {
-  return chartsViewRef.value
-    ? {
-        frequencyChart: chartsViewRef.value.frequencyChart,
-        contributorChart: chartsViewRef.value.contributorChart,
-        heatmapChart: chartsViewRef.value.heatmapChart,
-      }
-    : undefined;
-});
+// 本地状态
+const activeTab = ref("list");
+const showExport = ref(false);
+
+// 计算图表视图是否可见
+const isChartTabActive = computed(() => activeTab.value === "chart");
+
+const { updateCharts, setupResizeObserver } = useCharts(
+  filteredCommits,
+  () => {
+    return chartsViewRef.value
+      ? {
+          frequencyChart: chartsViewRef.value.frequencyChart,
+          contributorChart: chartsViewRef.value.contributorChart,
+          heatmapChart: chartsViewRef.value.heatmapChart,
+        }
+      : undefined;
+  },
+  isChartTabActive
+);
 
 const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } = useCommitDetail(
   () => repoPath.value
 );
 
-// 本地状态
-const activeTab = ref("list");
-const showExport = ref(false);
-
-// 包装 loadRepository 以在成功后更新图表（增量加载）
+// 包装 loadRepository
 async function loadRepository() {
-  const success = await loadRepo();
-  if (success) {
-    updateCharts();
-  }
+  await loadRepo();
 }
 
-// 包装 refreshRepository 以在成功后更新图表（全量刷新）
+// 包装 refreshRepository
 async function refreshRepository() {
-  const success = await refreshRepo();
-  if (success) {
-    updateCharts();
-  }
+  await refreshRepo();
 }
 
-// 包装 onBranchChange 以在成功后更新图表和清空缓存
+// 包装 onBranchChange 以清空缓存
 async function onBranchChange(branch: string) {
   const success = await switchBranch(branch);
   if (success) {
     clearCache(); // 切换分支时清空缓存
-    updateCharts();
   }
 }
 
-// 包装 filterCommits 以在筛选后更新图表
+// 包装 filterCommits
 function filterCommits() {
   doFilter();
-  updateCharts();
 }
 
 // 显示导出对话框
@@ -290,12 +293,17 @@ watch(
   { deep: true }
 );
 
-// 监听标签页切换
-watch(activeTab, () => {
-  if (activeTab.value === "chart") {
-    nextTick(() => {
-      updateCharts();
-    });
+// 监听筛选后的 commits 变化，如果图表可见则更新
+watch(filteredCommits, () => {
+  if (isChartTabActive.value) {
+    nextTick(updateCharts);
+  }
+});
+
+// 监听标签页切换，如果切换到图表页，则更新图表
+watch(activeTab, (newTab) => {
+  if (newTab === "chart") {
+    nextTick(updateCharts);
   }
 });
 

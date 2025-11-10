@@ -81,6 +81,7 @@
       <el-checkbox v-model="config.includeTags"> 包含标签信息 </el-checkbox>
       <el-checkbox v-model="config.includeBranches"> 包含分支信息 </el-checkbox>
       <el-checkbox v-model="config.includeStats"> 包含代码统计 </el-checkbox>
+      <el-checkbox v-model="config.includeFilterInfo"> 包含筛选摘要 </el-checkbox>
     </el-form-item>
   </el-form>
 </template>

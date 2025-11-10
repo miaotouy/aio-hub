@@ -270,6 +270,9 @@ export function useGitAnalyzerRunner() {
    * 应用筛选条件
    */
   function filterCommits() {
+    if (state.hasActiveFilters.value) {
+      logger.info(`应用筛选`, state.filterSummary.value);
+    }
     // 首先根据范围选择器从原始列表中切片
     const rangedCommits = state.commits.value.slice(
       state.commitRange.value[0],

@@ -21,10 +21,12 @@ interface ReportGeneratorOptions {
   statistics: RepoStatistics;
   commits: GitCommit[];
   getCommitsToExport: () => GitCommit[];
+  filterSummary: Ref<string>;
+  hasActiveFilters: Ref<boolean>;
 }
 
 export function useReportGenerator(options: ReportGeneratorOptions) {
-  const { config, repoPath, branch, getCommitsToExport } = options;
+  const { config, repoPath, branch, getCommitsToExport, filterSummary, hasActiveFilters } = options;
 
   /**
    * 根据实际导出的提交列表计算统计信息
@@ -68,6 +70,14 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     lines.push(`**分支**: ${branch.value}`);
     lines.push(`**生成时间**: ${new Date().toLocaleString("zh-CN")}`);
     lines.push("");
+
+    // 筛选信息
+    if (cfg.includeFilterInfo && hasActiveFilters.value) {
+      lines.push("## 🔍 筛选条件");
+      lines.push("");
+      lines.push(filterSummary.value);
+      lines.push("");
+    }
 
     // 统计信息
     if (cfg.includes.includes("statistics")) {
@@ -229,6 +239,10 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       statistics: statistics,
     };
 
+    if (config.value.includeFilterInfo && hasActiveFilters.value) {
+      data.filterInfo = filterSummary.value;
+    }
+
     const cfg = config.value;
 
     if (cfg.includes.includes("contributors")) {
@@ -347,6 +361,14 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     lines.push(`分支: ${branch.value}`);
     lines.push(`生成时间: ${new Date().toLocaleString("zh-CN")}`);
     lines.push("");
+
+    if (cfg.includeFilterInfo && hasActiveFilters.value) {
+      lines.push("-".repeat(40));
+      lines.push("筛选条件");
+      lines.push("-".repeat(40));
+      lines.push(filterSummary.value);
+      lines.push("");
+    }
 
     if (cfg.includes.includes("statistics")) {
       lines.push("-".repeat(40));
@@ -483,6 +505,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       escapeHtml,
       generateTimelineData,
       generateChartData,
+      filterSummary: filterSummary.value,
+      hasActiveFilters: hasActiveFilters.value,
     });
   }
 

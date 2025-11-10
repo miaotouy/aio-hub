@@ -163,6 +163,12 @@
       </el-row>
     </div>
 
+    <!-- 筛选信息提示 -->
+    <div v-if="hasActiveFilters" class="filter-summary">
+      <el-icon><InfoFilled /></el-icon>
+      <span>{{ filterSummary }}</span>
+    </div>
+
     <!-- 范围选择器 -->
     <div class="range-selector" v-if="commits.length > 0">
       <el-row :gutter="16" align="middle">
@@ -221,11 +227,13 @@
 </template>
 
 <script setup lang="ts">
-import { Search, Refresh, FolderOpened } from "@element-plus/icons-vue";
+import { Search, Refresh, FolderOpened, InfoFilled } from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
 import type { GitCommit, GitBranch } from "../types";
 
 interface Props {
+  hasActiveFilters: boolean;
+  filterSummary: string;
   loading: boolean;
   repoPath: string;
   selectedBranch: string;
@@ -305,6 +313,19 @@ function handleBranchDropdownVisibleChange(visible: boolean) {
   flex-direction: column;
   gap: 10px;
   flex-shrink: 0;
+}
+
+.filter-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--el-color-primary-light-7) 50%, transparent);
+  border-radius: 6px;
+  color: var(--el-color-primary);
+  font-size: 13px;
+  animation: fadeIn 0.3s ease-in;
 }
 
 .progress-container {

@@ -34,6 +34,7 @@ export interface GitAnalyzerConfig {
     includeFiles: boolean
     includeTags: boolean
     includeStats: boolean
+    includeFilterInfo: boolean
     htmlTheme: 'light' | 'dark' | 'auto'
   }
 }
@@ -73,6 +74,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
       includeFiles: false,
       includeTags: true,
       includeStats: true,
+      includeFilterInfo: true,
       htmlTheme: 'light'
     }
   }

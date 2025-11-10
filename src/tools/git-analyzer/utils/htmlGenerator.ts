@@ -21,6 +21,8 @@ interface HtmlGeneratorOptions {
     contributors: Array<{ name: string; count: number }>;
     heatmap: Array<{ day: number; hour: number; count: number }>;
   };
+  filterSummary: string;
+  hasActiveFilters: boolean;
 }
 
 /**
@@ -38,6 +40,8 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     escapeHtml,
     generateTimelineData,
     generateChartData,
+    filterSummary,
+    hasActiveFilters,
   } = options;
 
   // 生成独特的 CSS 类前缀，避免样式污染
@@ -287,6 +291,11 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       <p><strong>仓库路径:</strong> ${repoPath || "当前目录"}</p>
       <p><strong>分支:</strong> ${branch}</p>
       <p><strong>生成时间:</strong> ${new Date().toLocaleString("zh-CN")}</p>
+      ${
+        config.includeFilterInfo && hasActiveFilters
+          ? `<p><strong>筛选条件:</strong> ${escapeHtml(filterSummary)}</p>`
+          : ""
+      }
     </div>`;
 
   // 统计信息

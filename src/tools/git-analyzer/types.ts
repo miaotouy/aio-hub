@@ -44,6 +44,7 @@ export interface ExportConfig {
   includeTags: boolean
   includeBranches: boolean
   includeStats: boolean
+  includeFilterInfo: boolean
   htmlTheme: 'light' | 'dark' | 'auto'
 }
 

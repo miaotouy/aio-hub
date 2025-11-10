@@ -132,7 +132,7 @@ export interface AppSettings {
 // 默认外观设置
 export const defaultAppearanceSettings: AppearanceSettings = {
   // 壁纸设置
-  enableWallpaper: true, // 默认启用壁纸
+  enableWallpaper: false, // 默认关闭壁纸
   wallpaperMode: "static",
   wallpaperPath: "", // 默认为空，使用纯色主题背景
   wallpaperSlideshowPath: "", // 目录轮播路径
@@ -149,7 +149,7 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   },
 
   // UI 特效
-  enableUiEffects: true, // 默认开启
+  enableUiEffects: false, // 默认关闭
   enableUiBlur: true,
   uiBaseOpacity: 0.85, // 稍微不透明一点，保证可读性
   uiBlurIntensity: 15, // 15px 模糊
@@ -165,7 +165,7 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   },
 
   // 窗口特效
-  enableWindowEffects: true, // 默认开启
+  enableWindowEffects: false, // 默认关闭
   windowEffect: "none",
   windowBackgroundOpacity: 1.0, // 默认不透明
 

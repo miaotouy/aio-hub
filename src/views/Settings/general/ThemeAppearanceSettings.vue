@@ -19,9 +19,9 @@
                 class="wallpaper-preview"
                 :style="wallpaperPreviewStyle"
               >
-                <div v-if="!currentWallpaper || !enableWallpaper" class="empty-state">
+                <div v-if="!currentWallpaper" class="empty-state">
                   <el-icon><Picture /></el-icon>
-                  <span>{{ enableWallpaper ? "无壁纸" : "壁纸已禁用" }}</span>
+                  <span>无壁纸</span>
                 </div>
               </div>
 
@@ -30,9 +30,9 @@
                 <!-- Container for Preview and Thumbnails -->
                 <div class="wallpaper-preview-container" :class="{ 'wide-layout': isWideLayout }">
                   <div class="wallpaper-preview" :style="wallpaperPreviewStyle">
-                    <div v-if="!currentWallpaper || !enableWallpaper" class="empty-state">
+                    <div v-if="!currentWallpaper" class="empty-state">
                       <el-icon><Picture /></el-icon>
-                      <span>{{ enableWallpaper ? "无壁纸" : "壁纸已禁用" }}</span>
+                      <span>无壁纸</span>
                     </div>
                   </div>
 
@@ -105,7 +105,7 @@
           </div>
 
           <!-- 壁纸设置组 -->
-          <div v-if="enableWallpaper" class="wallpaper-controls">
+          <div class="wallpaper-controls">
             <el-row :gutter="20">
               <el-col :md="12" :span="24">
                 <el-form-item label="壁纸模式">
@@ -195,7 +195,7 @@
               <el-slider v-model="uiBaseOpacity" :min="0.1" :max="1" :step="0.05" />
             </el-form-item>
 
-            <el-form-item v-if="enableWallpaper" label="壁纸不透明度">
+            <el-form-item label="壁纸不透明度">
               <el-slider v-model="wallpaperOpacity" :min="0.1" :max="1" :step="0.05" />
             </el-form-item>
 

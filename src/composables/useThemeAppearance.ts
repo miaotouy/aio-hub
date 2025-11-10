@@ -262,7 +262,7 @@ async function _startSlideshow(settings: AppearanceSettings) {
       _switchToWallpaper(initialIndex, settings);
 
       // 启动定时器
-      if (wallpaperSlideshowInterval > 0) {
+      if (settings.enableWallpaper && wallpaperSlideshowInterval > 0) {
         slideshowTimer = window.setInterval(playNext, wallpaperSlideshowInterval * 60 * 1000);
       }
     } else {
@@ -278,17 +278,14 @@ async function _startSlideshow(settings: AppearanceSettings) {
   }
 }
 
-async function _updateWallpaper(settings: AppearanceSettings) {
-  // 如果禁用了壁纸，则直接清除并返回
-  if (!settings.enableWallpaper) {
-    currentWallpaper.value = '';
-    _stopSlideshow();
-    logger.info('壁纸已禁用，清除壁纸');
-    _updateCssVariables(settings); // 确保 CSS 变量被更新
-    return;
-  }
-
+async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: AppearanceSettings) {
   _stopSlideshow(); // 默认先停止旧的轮播
+
+  // Check if mode changed from static to slideshow to prevent flicker
+  const modeJustSwitchedToSlideshow =
+    oldSettings &&
+    settings.wallpaperMode === 'slideshow' &&
+    oldSettings.wallpaperMode !== 'slideshow';
 
   if (settings.wallpaperMode === 'static' && settings.wallpaperPath) {
     try {
@@ -306,7 +303,10 @@ async function _updateWallpaper(settings: AppearanceSettings) {
     }
   } else if (settings.wallpaperMode === 'slideshow' && settings.wallpaperSlideshowPath) {
     // 切换到轮播模式时，立即清除当前壁纸，防止显示旧的静态壁纸
-    currentWallpaper.value = '';
+    // Only clear if we just switched to slideshow mode.
+    if (modeJustSwitchedToSlideshow) {
+      currentWallpaper.value = '';
+    }
     await _startSlideshow(settings);
   } else {
     // 如果当前模式没有设置路径，则清除壁纸
@@ -371,7 +371,7 @@ export async function initThemeAppearance() {
           newSettings.wallpaperPath !== old.wallpaperPath ||
           newSettings.wallpaperSlideshowPath !== old.wallpaperSlideshowPath ||
           newSettings.wallpaperSlideshowInterval !== old.wallpaperSlideshowInterval) {
-        await _updateWallpaper(newSettings);
+        await _updateWallpaper(newSettings, old);
       }
       
       if (newSettings.windowEffect !== old.windowEffect) {

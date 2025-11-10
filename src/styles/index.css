@@ -28,8 +28,15 @@
   --card-bg-rgb: 255, 255, 255;
   --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
   --border-color-light: #eee; /* 新增浅色边框 */
-  --scrollbar-thumb-color: #c1c1c1;
-  --scrollbar-thumb-hover-color: #a8a8a8;
+  --scrollbar-thumb-color-rgb: 193, 193, 193;
+  --scrollbar-thumb-hover-color-rgb: 168, 168, 168;
+  --scrollbar-thumb-opacity: 0.5;
+  --scrollbar-thumb-hover-opacity: 0.7;
+  --scrollbar-thumb-color: rgba(var(--scrollbar-thumb-color-rgb), var(--scrollbar-thumb-opacity));
+  --scrollbar-thumb-hover-color: rgba(
+    var(--scrollbar-thumb-hover-color-rgb),
+    var(--scrollbar-thumb-hover-opacity)
+  );
 
   /* Element Plus 兼容变量 - 映射到我们的主题变量 */
   --el-bg-color: var(--bg-color);
@@ -84,8 +91,8 @@ html.dark {
   --card-bg: #2a2a2a; /* 卡片背景色 */
   --card-bg-rgb: 42, 42, 42;
   --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
-  --scrollbar-thumb-color: #555; /* 滚动条颜色 */
-  --scrollbar-thumb-hover-color: #777; /* 滚动条悬停色 */
+  --scrollbar-thumb-color-rgb: 85, 85, 85;
+  --scrollbar-thumb-hover-color-rgb: 119, 119, 119;
 
   /* Element Plus 兼容变量 - 映射到我们的主题变量 */
   --el-bg-color: var(--bg-color);
@@ -144,7 +151,7 @@ body.transparent-window #app {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-color); /* 轨道颜色 */
+  background: var(--scrollbar-track-color, var(--bg-color)); /* 轨道颜色, 可由 JS 控制 */
   border-radius: 10px;
 }
 

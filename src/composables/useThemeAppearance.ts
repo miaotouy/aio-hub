@@ -285,6 +285,16 @@ function _updateCssVariables(settings: AppearanceSettings) {
 
     root.style.setProperty("--border-opacity", String(settings.borderOpacity));
     root.style.setProperty("--bg-color-opacity", String(settings.backgroundColorOpacity || 1));
+
+    // --- 滚动条颜色 ---
+    root.style.setProperty("--scrollbar-thumb-opacity", String(settings.borderOpacity * 0.6));
+    root.style.setProperty("--scrollbar-thumb-hover-opacity", String(settings.borderOpacity * 0.8));
+    const trackBaseRgb =
+      getComputedStyle(root).getPropertyValue("--container-bg-rgb").trim() ||
+      getComputedStyle(root).getPropertyValue("--card-bg-rgb").trim();
+    if (trackBaseRgb) {
+      root.style.setProperty("--scrollbar-track-color", `rgba(${trackBaseRgb}, 0.1)`);
+    }
   } else {
     // 禁用UI特效，恢复默认不透明样式
     root.style.setProperty("--ui-blur", "0px");
@@ -301,6 +311,9 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty("--overlay-opacity", "1");
     root.style.setProperty("--border-opacity", "1");
     root.style.setProperty("--bg-color-opacity", "1");
+    root.style.removeProperty("--scrollbar-thumb-opacity");
+    root.style.removeProperty("--scrollbar-thumb-hover-opacity");
+    root.style.removeProperty("--scrollbar-track-color");
   }
 
   logger.debug("CSS 变量已更新", { settings });

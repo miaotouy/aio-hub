@@ -273,11 +273,14 @@
           </el-form>
         </el-card>
 
-        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur }">
+        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur && enableWindowEffects }">
           <template #header>
-            <span>窗口特效 (实验性)</span>
+            <div class="card-header">
+              <span>窗口特效 (实验性)</span>
+              <el-switch v-model="enableWindowEffects" />
+            </div>
           </template>
-          <el-form label-position="top">
+          <el-form label-position="top" :disabled="!enableWindowEffects">
             <el-form-item label="窗口背景特效">
               <el-select v-model="windowEffect" class="full-width">
                 <el-option label="无" value="none" />
@@ -588,6 +591,11 @@ const windowBackgroundOpacity = computed({
 const editorOpacity = computed({
   get: () => appearanceSettings.value.editorOpacity,
   set: (val) => updateAppearanceSetting({ editorOpacity: val }, { debounceUi: true }),
+});
+
+const enableWindowEffects = computed({
+  get: () => appearanceSettings.value.enableWindowEffects ?? true,
+  set: (val) => updateAppearanceSetting({ enableWindowEffects: val }),
 });
 
 // --- 背景色叠加 ---

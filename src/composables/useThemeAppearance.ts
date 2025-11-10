@@ -158,11 +158,16 @@ const updateAppearanceSetting = (
 function _updateCssVariables(settings: AppearanceSettings) {
   const root = document.documentElement;
 
-  // 设置窗口背景不透明度，无论其他 UI 特效是否启用
-  root.style.setProperty(
-    "--window-bg-opacity",
-    String(settings.windowBackgroundOpacity ?? defaultAppearanceSettings.windowBackgroundOpacity)
-  );
+  // 根据开关状态设置窗口背景不透明度
+  if (settings.enableWindowEffects) {
+    root.style.setProperty(
+      "--window-bg-opacity",
+      String(settings.windowBackgroundOpacity ?? defaultAppearanceSettings.windowBackgroundOpacity)
+    );
+  } else {
+    // 关闭特效时，窗口恢复不透明
+    root.style.setProperty("--window-bg-opacity", "1");
+  }
 
   if (settings.enableWallpaper && currentWallpaper.value) {
     root.style.setProperty("--wallpaper-url", `url('${currentWallpaper.value}')`);
@@ -454,14 +459,15 @@ async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: Appe
   _updateCssVariables(settings);
 }
 
-async function _applyWindowEffect(effect: WindowEffect) {
+async function _applyWindowEffect(effect: WindowEffect, enabled: boolean) {
+  const finalEffect = enabled ? effect : "none";
   try {
-    await invoke("apply_window_effect", { effect });
-    logger.info("窗口特效已应用", { effect });
+    await invoke("apply_window_effect", { effect: finalEffect });
+    logger.info("窗口特效已应用", { effect: finalEffect });
   } catch (error) {
-    errorHandler.warn(error, `应用窗口特效失败: ${effect}`, {
+    errorHandler.warn(error, `应用窗口特效失败: ${finalEffect}`, {
       operation: "应用窗口特效",
-      effect,
+      effect: finalEffect,
     });
   }
 }
@@ -489,11 +495,12 @@ export async function initThemeAppearance() {
       // 初始化设置
       await _updateWallpaper(settings.appearance);
       _updateCssVariables(settings.appearance);
-
-      if (settings.appearance.windowEffect !== "none") {
-        await _applyWindowEffect(settings.appearance.windowEffect);
+        // 总是应用窗口特效设置，即使是 'none'
+        await _applyWindowEffect(
+          settings.appearance.windowEffect,
+          settings.appearance.enableWindowEffects ?? true
+        );
       }
-    }
 
     // 监听设置变化并更新 UI
     watch(
@@ -514,8 +521,14 @@ export async function initThemeAppearance() {
           await _updateWallpaper(newSettings, old);
         }
 
-        if (newSettings.windowEffect !== old.windowEffect) {
-          await _applyWindowEffect(newSettings.windowEffect);
+        if (
+          newSettings.windowEffect !== old.windowEffect ||
+          (newSettings.enableWindowEffects ?? true) !== (old.enableWindowEffects ?? true)
+        ) {
+          await _applyWindowEffect(
+            newSettings.windowEffect,
+            newSettings.enableWindowEffects ?? true
+          );
         }
       },
       { deep: true }

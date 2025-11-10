@@ -370,12 +370,17 @@ watch(
 watch(
   () => exportConfig.value.includeFiles,
   async (includeFiles) => {
-    if (includeFiles && visible.value) {
-      await loadCommitsWithFiles()
-      updatePreview()
+    if (!visible.value) return;
+
+    // 仅在勾选时加载数据
+    if (includeFiles) {
+      await loadCommitsWithFiles();
     }
-  }
-)
+    
+    // 无论勾选还是取消，都更新预览
+    updatePreview();
+  },
+);
 
 // 监听仓库路径和分支变化，清空对应缓存
 watch(

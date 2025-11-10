@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted, nextTick } from "vue";
+import { ref, onMounted, watch, onUnmounted, nextTick, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import { ArrowLeft } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -89,6 +90,26 @@ const throttle = (func: Function, delay: number) => {
   };
 };
 
+// --- 虚拟滚动设置 ---
+const moduleCount = computed(() => settingsModules.length);
+
+const virtualizer = useVirtualizer({
+  get count() {
+    return moduleCount.value;
+  },
+  getScrollElement: () => contentRef.value,
+  estimateSize: (index) => {
+    const minHeight = settingsModules[index].minHeight;
+    // 确保返回数字类型
+    return typeof minHeight === 'string' ? parseInt(minHeight) || 400 : minHeight || 400;
+  },
+  overscan: 2,
+});
+
+const virtualItems = computed(() => virtualizer.value.getVirtualItems());
+const totalSize = computed(() => virtualizer.value.getTotalSize());
+// --- 虚拟滚动设置 END ---
+
 // 处理滚动事件，反向匹配导航
 const handleScroll = throttle(() => {
   if (isScrollingProgrammatically.value) return;
@@ -96,49 +117,47 @@ const handleScroll = throttle(() => {
   const container = contentRef.value;
   if (!container) return;
 
-  const sections = settingsModules.map((m) => m.id);
-  const containerHeight = container.clientHeight;
+  const visibleItems = virtualizer.value.getVirtualItems();
+  if (visibleItems.length === 0) return;
 
-  // 查找当前在视口中最靠近顶部的 section
-  let currentSection = sections[0];
+  const containerRect = container.getBoundingClientRect();
+  const threshold = containerRect.top + container.clientHeight * 0.3;
 
-  for (const sectionId of sections) {
-    const element = container.querySelector<HTMLElement>(`#${sectionId}`);
+  // 查找最后一个顶部在阈值之上的项
+  let currentSectionId = settingsModules[visibleItems[0].index].id;
+
+  for (const virtualItem of visibleItems) {
+    // data-index 是我们在模板中为每个虚拟项设置的
+    const element = container.querySelector<HTMLElement>(`[data-index='${virtualItem.index}']`);
     if (element) {
       const rect = element.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const relativeTop = rect.top - containerRect.top;
-
-      // 如果 section 顶部在视口上半部分，认为它是当前 section
-      if (relativeTop <= containerHeight * 0.3) {
-        currentSection = sectionId;
+      if (rect.top <= threshold) {
+        currentSectionId = settingsModules[virtualItem.index].id;
+      } else {
+        break; // 后面的项肯定更低
       }
     }
   }
 
   // 更新激活状态
-  if (activeSection.value !== currentSection) {
-    activeSection.value = currentSection;
+  if (activeSection.value !== currentSectionId) {
+    activeSection.value = currentSectionId;
   }
 }, 200); // 200ms 节流延迟
 
 const scrollToSection = (id: string) => {
   isScrollingProgrammatically.value = true;
   activeSection.value = id;
-  const container = contentRef.value;
-  if (!container) return;
-  const target = container.querySelector<HTMLElement>(`#${id}`);
-  if (target) {
-    const containerTop = container.getBoundingClientRect().top;
-    const targetTop = target.getBoundingClientRect().top;
-    const offset = targetTop - containerTop + container.scrollTop - 8;
-    container.scrollTo({ top: offset, behavior: "smooth" });
 
-    // 滚动完成后重置标记
-    setTimeout(() => {
-      isScrollingProgrammatically.value = false;
-    }, 500);
+  const index = settingsModules.findIndex((m) => m.id === id);
+  if (index !== -1) {
+    virtualizer.value.scrollToIndex(index, { align: "start" });
   }
+
+  // 滚动完成后重置标记
+  setTimeout(() => {
+    isScrollingProgrammatically.value = false;
+  }, 500); // 预留足够时间让滚动完成
 };
 
 const handleSelect = (key: string) => {
@@ -509,60 +528,85 @@ onUnmounted(() => {
 
         <!-- 右侧内容 -->
         <div class="settings-content" ref="contentRef" @scroll="handleScroll">
-          <template v-for="module in settingsModules" :key="module.id">
-            <!-- 动态组件模块 -->
-            <section
-              v-if="module.component"
-              :id="module.id"
-              class="settings-section component-section"
-              :style="{ minHeight: module.minHeight || 'auto' }"
+          <!-- 虚拟滚动容器 -->
+          <div
+            :style="{
+              height: `${totalSize}px`,
+              width: '100%',
+              position: 'relative',
+            }"
+          >
+            <!-- 仅渲染可见的虚拟项 -->
+            <div
+              v-for="virtualItem in virtualItems"
+              :key="settingsModules[virtualItem.index].id"
+              :data-index="virtualItem.index"
+              :ref="
+                (el) => {
+                  if (el) virtualizer.measureElement(el as HTMLElement);
+                }
+              "
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`,
+              }"
             >
-              <h2 class="section-title">{{ module.title }}</h2>
-              <!-- 根据模块 ID 动态绑定 v-model -->
+              <!-- 动态组件模块 -->
+              <section
+                v-if="settingsModules[virtualItem.index].component"
+                :id="settingsModules[virtualItem.index].id"
+                class="settings-section component-section"
+                :style="{ minHeight: settingsModules[virtualItem.index].minHeight || 'auto' }"
+              >
+                <h2 class="section-title">{{ settingsModules[virtualItem.index].title }}</h2>
 
-              <!-- 通用设置 -->
-              <component
-                v-if="module.id === 'general'"
-                :is="module.component"
-                v-model:show-tray-icon="settings.showTrayIcon"
-                v-model:minimize-to-tray="settings.minimizeToTray"
-                v-model:theme="settings.theme"
-                v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
-                @config-imported="onConfigImported"
-              />
+                <!-- 通用设置 -->
+                <component
+                  v-if="settingsModules[virtualItem.index].id === 'general'"
+                  :is="settingsModules[virtualItem.index].component"
+                  v-model:show-tray-icon="settings.showTrayIcon"
+                  v-model:minimize-to-tray="settings.minimizeToTray"
+                  v-model:theme="settings.theme"
+                  v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
+                  @config-imported="onConfigImported"
+                />
 
-              <!-- 主题色配置 -->
-              <component
-                v-else-if="module.id === 'theme-colors'"
-                :is="module.component"
-                v-model:theme-color="settings.themeColor"
-                v-model:success-color="settings.successColor"
-                v-model:warning-color="settings.warningColor"
-                v-model:danger-color="settings.dangerColor"
-                v-model:info-color="settings.infoColor"
-              />
+                <!-- 主题色配置 -->
+                <component
+                  v-else-if="settingsModules[virtualItem.index].id === 'theme-colors'"
+                  :is="settingsModules[virtualItem.index].component"
+                  v-model:theme-color="settings.themeColor"
+                  v-model:success-color="settings.successColor"
+                  v-model:warning-color="settings.warningColor"
+                  v-model:danger-color="settings.dangerColor"
+                  v-model:info-color="settings.infoColor"
+                />
 
-              <!-- 日志配置 -->
-              <component
-                v-else-if="module.id === 'log-settings'"
-                :is="module.component"
-                v-model:log-level="settings.logLevel"
-                v-model:log-to-file="settings.logToFile"
-                v-model:log-to-console="settings.logToConsole"
-                v-model:log-buffer-size="settings.logBufferSize"
-              />
+                <!-- 日志配置 -->
+                <component
+                  v-else-if="settingsModules[virtualItem.index].id === 'log-settings'"
+                  :is="settingsModules[virtualItem.index].component"
+                  v-model:log-level="settings.logLevel"
+                  v-model:log-to-file="settings.logToFile"
+                  v-model:log-to-console="settings.logToConsole"
+                  v-model:log-buffer-size="settings.logBufferSize"
+                />
 
-              <!-- 工具模块配置 -->
-              <component
-                v-else-if="module.id === 'tools'"
-                :is="module.component"
-                v-model:tools-visible="settings.toolsVisible"
-              />
+                <!-- 工具模块配置 -->
+                <component
+                  v-else-if="settingsModules[virtualItem.index].id === 'tools'"
+                  :is="settingsModules[virtualItem.index].component"
+                  v-model:tools-visible="settings.toolsVisible"
+                />
 
-              <!-- 其他动态组件 -->
-              <component v-else :is="module.component" />
-            </section>
-          </template>
+                <!-- 其他动态组件 -->
+                <component v-else :is="settingsModules[virtualItem.index].component" />
+              </section>
+            </div>
+          </div>
         </div>
       </template>
     </div>

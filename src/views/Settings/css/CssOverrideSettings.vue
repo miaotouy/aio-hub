@@ -593,6 +593,7 @@ function isPresetSelected(presetId: string | null): boolean {
   border-radius: 4px;
   overflow: hidden;
   min-height: 0;
+  max-height: 600px; /* 限制编辑器最大高度，防止 Monaco 无限扩展 */
   background: transparent;
 }
 

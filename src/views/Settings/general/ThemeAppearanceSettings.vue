@@ -14,27 +14,38 @@
             <div class="wallpaper-preview-wrapper">
               <label class="custom-form-label">壁纸预览</label>
               <!-- 静态模式 -->
-              <div
-                v-show="wallpaperMode === 'static'"
-                class="wallpaper-preview"
-                :style="wallpaperPreviewStyle"
-              >
-                <div v-if="!currentWallpaper" class="empty-state">
-                  <el-icon><Picture /></el-icon>
-                  <span>无壁纸</span>
+              <el-tooltip content="点击查看大图" placement="bottom" :disabled="!currentWallpaper">
+                <div
+                  v-show="wallpaperMode === 'static'"
+                  class="wallpaper-preview"
+                  :class="{ 'is-clickable': currentWallpaper }"
+                  :style="wallpaperPreviewStyle"
+                  @click="showWallpaperPreview"
+                >
+                  <div v-if="!currentWallpaper" class="empty-state">
+                    <el-icon><Picture /></el-icon>
+                    <span>无壁纸</span>
+                  </div>
                 </div>
-              </div>
+              </el-tooltip>
 
               <!-- 轮播模式 -->
               <div v-show="wallpaperMode === 'slideshow'">
                 <!-- 预览和缩略图容器 -->
                 <div class="wallpaper-preview-container" :class="{ 'wide-layout': isWideLayout }">
-                  <div class="wallpaper-preview" :style="wallpaperPreviewStyle">
-                    <div v-if="!currentWallpaper" class="empty-state">
-                      <el-icon><Picture /></el-icon>
-                      <span>无壁纸</span>
+                  <el-tooltip content="点击查看大图" placement="bottom" :disabled="!currentWallpaper">
+                    <div
+                      class="wallpaper-preview"
+                      :class="{ 'is-clickable': currentWallpaper }"
+                      :style="wallpaperPreviewStyle"
+                      @click="showWallpaperPreview"
+                    >
+                      <div v-if="!currentWallpaper" class="empty-state">
+                        <el-icon><Picture /></el-icon>
+                        <span>无壁纸</span>
+                      </div>
                     </div>
-                  </div>
+                  </el-tooltip>
 
                   <!-- 缩略图 -->
                   <div v-if="currentWallpaperList.length > 0" class="thumbnail-wrapper">
@@ -310,6 +321,7 @@
 import { computed, ref, watch, nextTick, onMounted } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { Pipette } from "lucide-vue-next";
+import { useImageViewer } from "@/composables/useImageViewer";
 import {
   Picture,
   ArrowLeft,
@@ -343,6 +355,26 @@ const {
   reshuffle,
   refreshWallpaperList,
 } = useThemeAppearance();
+
+const imageViewer = useImageViewer();
+
+const showWallpaperPreview = () => {
+  if (!currentWallpaper.value) return;
+
+  if (wallpaperMode.value === "static") {
+    // 使用原始路径，而不是转换后的 URL
+    if (appearanceSettings.value.wallpaperPath) {
+      imageViewer.show(appearanceSettings.value.wallpaperPath);
+    }
+  } else {
+    // currentWallpaperList 已经是原始路径列表
+    // 仅显示当前图片以避免性能问题
+    const currentImage = currentWallpaperList.value[currentIndex.value];
+    if (currentImage) {
+      imageViewer.show(currentImage);
+    }
+  }
+};
 
 const blendModes: BlendMode[] = [
   "normal",
@@ -720,6 +752,10 @@ const wallpaperPreviewStyle = computed(() => {
   flex-direction: column;
   gap: 12px;
   width: 100%; /* 确保占据全宽 */
+}
+
+.wallpaper-preview.is-clickable {
+  cursor: pointer;
 }
 
 .wallpaper-preview {

@@ -1,5 +1,5 @@
 /* 导入主题外观增强样式 */
-@import './theme-appearance.css';
+@import "./theme-appearance.css";
 /* 亮色主题变量 */
 :root {
   --bg-color: #f4f4f4;
@@ -62,30 +62,52 @@
 
 /* 暗色主题变量 */
 html.dark {
-  --bg-color: #1a1a1a;  /* 主背景色 - 深灰黑 */
+  --bg-color: #1a1a1a; /* 主背景色 - 深灰黑 */
   --bg-color-rgb: 26, 26, 26;
-  --container-bg: #242424;  /* 容器背景色 - 比主背景稍亮 */
+  --container-bg: #242424; /* 容器背景色 - 比主背景稍亮 */
   --container-bg-rgb: 36, 36, 36;
-  --text-color: #e5e5e5;  /* 主文字颜色 */
-  --text-color-light: #a8a8a8;  /* 次要文字颜色 */
+  --text-color: #e5e5e5; /* 主文字颜色 */
+  --text-color-light: #a8a8a8; /* 次要文字颜色 */
   --border-color-rgb: 58, 58, 58;
   --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
-  --border-color-light: #2f2f2f;  /* 浅边框颜色 */
-  --primary-color: #409eff;  /* 主色调 - 保持 Element Plus 蓝色 */
-  --primary-hover-color: #66b1ff;  /* 主色调悬停色 */
-  --error-color: #ff6b6b;  /* 错误色 */
-  --input-bg: #1f1f1f;  /* 输入框背景色 */
+  --border-color-light: #2f2f2f; /* 浅边框颜色 */
+  --primary-color: #409eff; /* 主色调 - 保持 Element Plus 蓝色 */
+  --primary-hover-color: #66b1ff; /* 主色调悬停色 */
+  --error-color: #ff6b6b; /* 错误色 */
+  --input-bg: #1f1f1f; /* 输入框背景色 */
   --input-bg-rgb: 31, 31, 31;
-  --sidebar-bg: #242424;  /* 侧边栏背景色 */
-  --sidebar-bg-rgb: 36, 36, 36;  /* 侧边栏背景RGB值用于透明度 */
-  --sidebar-text: #e5e5e5;  /* 侧边栏文字色 */
-  --header-bg: #2a2a2a;  /* 头部背景色 */
+  --sidebar-bg: #242424; /* 侧边栏背景色 */
+  --sidebar-bg-rgb: 36, 36, 36; /* 侧边栏背景RGB值用于透明度 */
+  --sidebar-text: #e5e5e5; /* 侧边栏文字色 */
+  --header-bg: #2a2a2a; /* 头部背景色 */
   --header-bg-rgb: 42, 42, 42;
-  --card-bg: #2a2a2a;  /* 卡片背景色 */
+  --card-bg: #2a2a2a; /* 卡片背景色 */
   --card-bg-rgb: 42, 42, 42;
   --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
-  --scrollbar-thumb-color: #555;  /* 滚动条颜色 */
-  --scrollbar-thumb-hover-color: #777;  /* 滚动条悬停色 */
+  --scrollbar-thumb-color: #555; /* 滚动条颜色 */
+  --scrollbar-thumb-hover-color: #777; /* 滚动条悬停色 */
+
+  /* Element Plus 兼容变量 - 映射到我们的主题变量 */
+  --el-bg-color: var(--bg-color);
+  --el-bg-color-page: var(--bg-color);
+  --el-bg-color-overlay: var(--container-bg);
+  --el-text-color-primary: var(--text-color);
+  --el-text-color-regular: var(--text-color);
+  --el-text-color-secondary: var(--text-color-light);
+  --el-text-color-placeholder: var(--text-color-light);
+  --el-border-color: var(--border-color);
+  --el-border-color-light: var(--border-color-light);
+  --el-border-color-lighter: var(--border-color-light);
+  --el-border-color-extra-light: var(--border-color-light);
+  --el-fill-color: var(--card-bg);
+  --el-fill-color-light: var(--card-bg);
+  --el-fill-color-lighter: var(--container-bg);
+  --el-fill-color-blank: transparent;
+  --el-color-primary: var(--primary-color);
+  --el-color-danger: var(--error-color);
+  --el-color-success: var(--success-color);
+  --el-color-warning: var(--warning-color);
+  --el-color-info: var(--info-color);
 }
 
 body {
@@ -94,7 +116,9 @@ body {
   line-height: 1.6;
   background-color: var(--bg-color);
   color: var(--text-color);
-  transition: background-color 0.1s, color 0.1s;
+  transition:
+    background-color 0.1s,
+    color 0.1s;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -527,36 +551,36 @@ body.transparent-window #app {
 }
 
 /* 箭头方向颜色 - dark 模式 */
-.el-popper.is-dark[data-popper-placement^='top'] .el-popper__arrow::before {
+.el-popper.is-dark[data-popper-placement^="top"] .el-popper__arrow::before {
   border-top-color: var(--container-bg);
 }
 
-.el-popper.is-dark[data-popper-placement^='bottom'] .el-popper__arrow::before {
+.el-popper.is-dark[data-popper-placement^="bottom"] .el-popper__arrow::before {
   border-bottom-color: var(--container-bg);
 }
 
-.el-popper.is-dark[data-popper-placement^='left'] .el-popper__arrow::before {
+.el-popper.is-dark[data-popper-placement^="left"] .el-popper__arrow::before {
   border-left-color: var(--container-bg);
 }
 
-.el-popper.is-dark[data-popper-placement^='right'] .el-popper__arrow::before {
+.el-popper.is-dark[data-popper-placement^="right"] .el-popper__arrow::before {
   border-right-color: var(--container-bg);
 }
 
 /* 箭头方向颜色 - light 模式 */
-.el-popper.is-light[data-popper-placement^='top'] .el-popper__arrow::before {
+.el-popper.is-light[data-popper-placement^="top"] .el-popper__arrow::before {
   border-top-color: var(--container-bg);
 }
 
-.el-popper.is-light[data-popper-placement^='bottom'] .el-popper__arrow::before {
+.el-popper.is-light[data-popper-placement^="bottom"] .el-popper__arrow::before {
   border-bottom-color: var(--container-bg);
 }
 
-.el-popper.is-light[data-popper-placement^='left'] .el-popper__arrow::before {
+.el-popper.is-light[data-popper-placement^="left"] .el-popper__arrow::before {
   border-left-color: var(--container-bg);
 }
 
-.el-popper.is-light[data-popper-placement^='right'] .el-popper__arrow::before {
+.el-popper.is-light[data-popper-placement^="right"] .el-popper__arrow::before {
   border-right-color: var(--container-bg);
 }
 
@@ -850,7 +874,10 @@ html.dark .el-radio-button.is-disabled .el-radio-button__inner {
   cursor: not-allowed;
 }
 
-html.dark .el-radio-button.is-disabled .el-radio-button__original-radio:checked + .el-radio-button__inner {
+html.dark
+  .el-radio-button.is-disabled
+  .el-radio-button__original-radio:checked
+  + .el-radio-button__inner {
   background-color: var(--border-color-light);
   border-color: var(--border-color);
   color: var(--text-color-light);

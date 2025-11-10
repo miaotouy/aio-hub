@@ -4,6 +4,7 @@ import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import Avatar from "@/components/common/Avatar.vue";
 import AgentPresetEditor from "../agent/AgentPresetEditor.vue";
 import EditAgentDialog from "../agent/EditAgentDialog.vue";
 import ModelParametersEditor from "../agent/ModelParametersEditor.vue";
@@ -111,25 +112,14 @@ const handleSaveEdit = (data: any) => {
   <div class="parameters-sidebar-content">
     <div class="section-header">
       <div v-if="currentAgent" class="agent-header">
-        <div class="agent-icon">
-          <img
-            v-if="
-              currentAgent.icon &&
-              (currentAgent.icon.startsWith('/') ||
-                currentAgent.icon.startsWith('appdata://') ||
-                currentAgent.icon.startsWith('http'))
-            "
-            :src="
-              currentAgent.icon.startsWith('appdata://')
-                ? currentAgent.icon.replace('appdata://', '/')
-                : currentAgent.icon
-            "
-            :alt="currentAgent.name"
-            class="icon-image"
-            @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
-          />
-          <span v-else class="icon-emoji">{{ currentAgent.icon || "🤖" }}</span>
-        </div>
+        <Avatar
+          :src="currentAgent.icon || ''"
+          :alt="currentAgent.name"
+          :size="48"
+          shape="square"
+          :radius="8"
+          class="agent-icon"
+        />
         <div class="agent-info">
           <h4>{{ currentAgent.name }}</h4>
           <p v-if="currentAgent.description" class="agent-description">
@@ -265,27 +255,7 @@ const handleSaveEdit = (data: any) => {
 }
 
 .agent-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: var(--container-bg);
-  border: 1px solid var(--border-color);
-}
-
-.icon-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.icon-emoji {
-  font-size: 28px;
-  line-height: 1;
 }
 
 .empty-state {

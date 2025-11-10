@@ -158,7 +158,7 @@ const handleCreateFromBlank = () => {
   editDialogInitialData.value = {
     name: "",
     description: "",
-    icon: "🤖",
+    icon: "",
     profileId: defaultProfile.id,
     modelId: defaultModel.id,
     presetMessages: [

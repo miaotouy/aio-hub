@@ -157,8 +157,8 @@
                 />
                 <Avatar
                   v-else
-                  :src="contextData.agentInfo.icon || '🤖'"
-                  alt="Agent Icon"
+                  :src="contextData.agentInfo.icon || ''"
+                  :alt="contextData.agentInfo.name || '助手'"
                   :size="24"
                   shape="square"
                   :radius="4"
@@ -215,8 +215,8 @@
                 />
                 <Avatar
                   v-else
-                  :src="msg.agentIcon || '🤖'"
-                  alt="Agent Icon"
+                  :src="msg.agentIcon || ''"
+                  :alt="msg.agentName || '助手'"
                   :size="24"
                   shape="square"
                   :radius="4"

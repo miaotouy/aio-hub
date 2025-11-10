@@ -60,7 +60,7 @@ export function useExportManager() {
     currentActivePath.forEach((node: ChatMessageNode) => {
       if (node.role === "system") return; // 跳过系统根节点
 
-      const role = node.role === "user" ? "👤 用户" : "🤖 助手";
+      const role = node.role === "user" ? "用户" : "助手";
       const time = new Date(node.timestamp).toLocaleTimeString("zh-CN");
 
       lines.push(`## ${role} (${time})`);
@@ -158,7 +158,7 @@ export function useExportManager() {
             lines.push(node.content);
             lines.push("");
           } else {
-            const role = node.role === "user" ? "👤 用户" : "🤖 助手";
+            const role = node.role === "user" ? "用户" : "助手";
             lines.push(`### ${role}`);
             lines.push("");
             lines.push(node.content);
@@ -191,9 +191,10 @@ export function useExportManager() {
           : "用户";
         const userIcon = includeUserProfile && node.metadata?.userProfileIcon && isEmoji(node.metadata.userProfileIcon)
           ? node.metadata.userProfileIcon
-          : "👤";
+          : "";
         
-        lines.push(`## ${userIcon} ${userName} (${time})${enabledStatus}`);
+        const userLabel = userIcon ? `${userIcon} ${userName}` : userName;
+        lines.push(`## ${userLabel} (${time})${enabledStatus}`);
         lines.push("");
         
         // 添加用户档案信息（仅在启用时）
@@ -208,9 +209,10 @@ export function useExportManager() {
           : "助手";
         const agentIcon = includeAgentInfo && node.metadata?.agentIcon && isEmoji(node.metadata.agentIcon)
           ? node.metadata.agentIcon
-          : "🤖";
+          : "";
         
-        lines.push(`## ${agentIcon} ${agentName} (${time})${enabledStatus}`);
+        const agentLabel = agentIcon ? `${agentIcon} ${agentName}` : agentName;
+        lines.push(`## ${agentLabel} (${time})${enabledStatus}`);
         lines.push("");
         
         // 添加智能体和模型信息
@@ -528,7 +530,7 @@ export function useExportManager() {
           : "用户";
         const userIcon = includeUserProfile && node.metadata?.userProfileIcon && isEmoji(node.metadata.userProfileIcon)
           ? node.metadata.userProfileIcon
-          : "👤";
+          : "";
         roleIcon = userIcon;
         roleName = userName;
       } else if (node.role === "assistant") {
@@ -537,7 +539,7 @@ export function useExportManager() {
           : "助手";
         const agentIcon = includeAgentInfo && node.metadata?.agentIcon && isEmoji(node.metadata.agentIcon)
           ? node.metadata.agentIcon
-          : "🤖";
+          : "";
         roleIcon = agentIcon;
         roleName = agentName;
       } else {
@@ -546,7 +548,8 @@ export function useExportManager() {
       }
 
       // 添加消息标题（使用列表项）
-      lines.push(`${indent}- **${roleIcon} ${roleName}** (${time})${enabledStatus}`);
+      const roleLabel = roleIcon ? `${roleIcon} ${roleName}` : roleName;
+      lines.push(`${indent}- **${roleLabel}** (${time})${enabledStatus}`);
 
       // 添加元数据（缩进）
       const metaIndent = indent + "  ";

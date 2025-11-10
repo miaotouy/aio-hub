@@ -61,7 +61,7 @@ const userProfileStore = useUserProfileStore();
 const editForm = reactive({
   name: "",
   description: "",
-  icon: "🤖",
+  icon: "",
   iconMode: "path" as IconMode,
   profileId: "",
   modelId: "",
@@ -87,7 +87,7 @@ const loadFormData = () => {
     // 编辑模式：加载现有智能体数据
     editForm.name = props.agent.name;
     editForm.description = props.agent.description || "";
-    editForm.icon = props.agent.icon || "🤖";
+    editForm.icon = props.agent.icon || "";
     editForm.iconMode = props.agent.iconMode || "path";
     editForm.profileId = props.agent.profileId;
     editForm.modelId = props.agent.modelId;
@@ -101,7 +101,7 @@ const loadFormData = () => {
     // 创建模式：使用初始数据
     editForm.name = props.initialData.name || "";
     editForm.description = props.initialData.description || "";
-    editForm.icon = props.initialData.icon || "🤖";
+    editForm.icon = props.initialData.icon || "";
     editForm.iconMode = "path"; // 创建模式总是 path
     editForm.profileId = props.initialData.profileId || "";
     editForm.modelId = props.initialData.modelId || "";
@@ -198,6 +198,7 @@ const handleSave = () => {
           :entity-id="agent?.id"
           profile-type="agent"
           show-mode-switch
+          :name-for-fallback="editForm.name"
           @update:mode="
             (newMode) => {
               editForm.iconMode = newMode === 'upload' ? 'builtin' : 'path';

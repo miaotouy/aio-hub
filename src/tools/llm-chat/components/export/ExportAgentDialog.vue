@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { useAgentStore } from '../../agentStore';
 
 import BaseDialog from '@/components/common/BaseDialog.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import { ElCheckbox, ElCheckboxGroup } from 'element-plus';
 import type { CheckboxValueType } from 'element-plus';
 
@@ -80,7 +81,14 @@ const handleOpen = () => {
               class="agent-checkbox-item"
             >
               <div class="agent-item">
-                <span class="agent-icon">{{ agent.icon || '🤖' }}</span>
+                <Avatar
+                  :src="agent.icon || ''"
+                  :alt="agent.name"
+                  :size="18"
+                  shape="square"
+                  :radius="3"
+                  class="agent-icon-avatar"
+                />
                 <span class="agent-name">{{ agent.name }}</span>
               </div>
             </el-checkbox>
@@ -148,9 +156,8 @@ const handleOpen = () => {
   width: 100%;
 }
 
-.agent-icon {
-  font-size: 18px;
-  line-height: 1;
+.agent-icon-avatar {
+  flex-shrink: 0;
 }
 
 .agent-name {

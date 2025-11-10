@@ -20,12 +20,15 @@ interface Props {
   profileType?: "agent" | "user";
   /** 是否显示模式切换开关 */
   showModeSwitch?: boolean;
+  /** 用于 Avatar 的回退文本 */
+  nameForFallback?: string;
 }
 const props = withDefaults(defineProps<Props>(), {
   mode: "path",
   entityId: "",
   profileType: "agent",
   showModeSwitch: false,
+  nameForFallback: "图标",
 });
 
 export interface IconUpdatePayload {
@@ -135,8 +138,8 @@ const uploadCustomImage = async () => {
 
 // 清除图标
 const clearIcon = () => {
-  // 在 upload 模式下，也应该有一个默认值，但暂时先统一处理
-  emit("update:icon", { value: "🤖", source: "clear" });
+  // 清空图标，让 Avatar 组件自动显示回退文本
+  emit("update:icon", { value: "", source: "clear" });
   customMessage.info("已重置为默认图标");
 };
 
@@ -178,8 +181,8 @@ const handleIconClick = () => {
         placement="top"
       >
         <Avatar
-          :src="modelValue || '🤖'"
-          alt="图标预览"
+          :src="modelValue || ''"
+          :alt="nameForFallback"
           :size="128"
           shape="square"
           :radius="8"

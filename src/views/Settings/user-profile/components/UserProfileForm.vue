@@ -18,6 +18,7 @@
         :entity-id="profileId"
         profile-type="user"
         show-mode-switch
+        :name-for-fallback="formData.name"
         @update:mode="
           (newMode) => {
             formData.iconMode = newMode === 'upload' ? 'builtin' : 'path';

@@ -295,7 +295,6 @@
       title="日志"
       width="800px"
       height="auto"
-      :close-on-backdrop-click="false"
     >
       <template #content>
         <div class="log-dialog-content">

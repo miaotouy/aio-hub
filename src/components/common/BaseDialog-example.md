@@ -215,7 +215,6 @@ const handleConfirm = () => {
     :title="mode === 'edit' ? '编辑智能体' : '创建智能体'"
     width="80%"
     height="85vh"
-    :close-on-backdrop-click="false"
   >
     <el-form :model="form" label-width="100px">
       <el-form-item label="名称">

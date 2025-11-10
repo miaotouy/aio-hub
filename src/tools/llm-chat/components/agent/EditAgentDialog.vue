@@ -183,7 +183,6 @@ const handleSave = () => {
     :title="mode === 'edit' ? '编辑智能体' : '创建智能体'"
     width="80%"
     height="85vh"
-    :close-on-backdrop-click="false"
   >
     <el-form :model="editForm" label-width="100px" label-position="left">
       <!-- 基本信息 -->

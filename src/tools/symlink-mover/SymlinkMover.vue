@@ -21,7 +21,8 @@ import type SymlinkMoverService from "./symlinkMover.service";
 import type { FileItem, OperationLog } from "./symlinkMover.service";
 
 // 获取服务实例
-const symlinkMoverService = serviceRegistry.getService<InstanceType<typeof SymlinkMoverService>>("symlink-mover");
+const symlinkMoverService =
+  serviceRegistry.getService<InstanceType<typeof SymlinkMoverService>>("symlink-mover");
 
 // --- UI 状态（仅保留 UI 相关状态）---
 const sourcePathInput = ref(""); // 用于手动输入源文件路径
@@ -299,10 +300,20 @@ const executeMoveAndLink = async () => {
     <div class="column">
       <InfoCard title="待处理文件" class="full-height-card">
         <template #headerExtra>
-          <el-button :icon="Delete" text circle @click="clearFiles" :disabled="sourceFiles.length === 0" />
+          <el-button
+            :icon="Delete"
+            text
+            circle
+            @click="clearFiles"
+            :disabled="sourceFiles.length === 0"
+          />
         </template>
         <div class="source-controls">
-          <el-input v-model="sourcePathInput" placeholder="输入文件/文件夹路径" @keyup.enter="addSourcePathFromInput" />
+          <el-input
+            v-model="sourcePathInput"
+            placeholder="输入文件/文件夹路径"
+            @keyup.enter="addSourcePathFromInput"
+          />
           <el-tooltip content="选择文件" placement="top">
             <el-button @click="selectSourceFiles" :icon="Document" circle />
           </el-tooltip>
@@ -311,8 +322,13 @@ const executeMoveAndLink = async () => {
           </el-tooltip>
           <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
         </div>
-        <DropZone drop-id="symlink-source" placeholder="将要搬家的文件或文件夹拖拽至此" :icon="FolderAdd" :multiple="true"
-          @drop="handleSourceDrop">
+        <DropZone
+          drop-id="symlink-source"
+          placeholder="将要搬家的文件或文件夹拖拽至此"
+          :icon="FolderAdd"
+          :multiple="true"
+          @drop="handleSourceDrop"
+        >
           <el-scrollbar class="file-list-scrollbar">
             <div v-if="sourceFiles.length === 0" class="empty-state">
               <el-icon>
@@ -321,7 +337,12 @@ const executeMoveAndLink = async () => {
               <p>将要搬家的文件或文件夹拖拽至此</p>
             </div>
             <div v-else class="file-list">
-              <div v-for="(file, index) in sourceFiles" :key="file.path" class="file-item" :class="{ 'has-warning': file.warning }">
+              <div
+                v-for="(file, index) in sourceFiles"
+                :key="file.path"
+                class="file-item"
+                :class="{ 'has-warning': file.warning }"
+              >
                 <el-icon class="file-icon" :class="{ 'warning-icon': file.warning }">
                   <Document />
                 </el-icon>
@@ -335,7 +356,14 @@ const executeMoveAndLink = async () => {
                     {{ file.warning }}
                   </div>
                 </div>
-                <el-button @click="removeFile(index)" :icon="Delete" text circle size="small" class="remove-btn" />
+                <el-button
+                  @click="removeFile(index)"
+                  :icon="Delete"
+                  text
+                  circle
+                  size="small"
+                  class="remove-btn"
+                />
               </div>
             </div>
           </el-scrollbar>
@@ -372,13 +400,23 @@ const executeMoveAndLink = async () => {
         </div>
         <div class="setting-group">
           <label>目标目录</label>
-          <DropZone drop-id="symlink-target" variant="input" :directory-only="true" :multiple="false" hide-content
-            @drop="handleTargetDrop">
+          <DropZone
+            drop-id="symlink-target"
+            variant="input"
+            :directory-only="true"
+            :multiple="false"
+            hide-content
+            @drop="handleTargetDrop"
+          >
             <div class="target-control">
-              <el-input v-model="targetDirectory" :placeholder="operationMode === 'move'
-                  ? '输入、拖拽或点击选择目标目录'
-                  : '输入、拖拽或点击选择链接目录'
-                " />
+              <el-input
+                v-model="targetDirectory"
+                :placeholder="
+                  operationMode === 'move'
+                    ? '输入、拖拽或点击选择目标目录'
+                    : '输入、拖拽或点击选择链接目录'
+                "
+              />
               <el-button @click="selectTargetDirectory" :icon="FolderOpened">选择</el-button>
             </div>
           </DropZone>
@@ -417,7 +455,9 @@ const executeMoveAndLink = async () => {
           </label>
           <el-radio-group v-model="linkType">
             <el-radio-button value="symlink">符号链接</el-radio-button>
-            <el-radio-button value="link" :disabled="operationMode === 'link-only'">硬链接</el-radio-button>
+            <el-radio-button value="link" :disabled="operationMode === 'link-only'"
+              >硬链接</el-radio-button
+            >
           </el-radio-group>
           <div v-if="operationMode === 'link-only' && linkType === 'link'" class="warning-text">
             <el-icon>
@@ -431,11 +471,15 @@ const executeMoveAndLink = async () => {
           <div class="progress-info">
             <div class="progress-file">{{ currentFile }}</div>
             <div class="progress-stats">
-              {{ symlinkMoverService.formatBytes(copiedBytes) }} / {{ symlinkMoverService.formatBytes(totalBytes) }}
+              {{ symlinkMoverService.formatBytes(copiedBytes) }} /
+              {{ symlinkMoverService.formatBytes(totalBytes) }}
             </div>
           </div>
-          <el-progress :percentage="currentProgress" :status="isProcessing ? undefined : 'success'"
-            :stroke-width="12" />
+          <el-progress
+            :percentage="currentProgress"
+            :status="isProcessing ? undefined : 'success'"
+            :stroke-width="12"
+          />
         </div>
 
         <div class="setting-group execute-group">
@@ -450,8 +494,14 @@ const executeMoveAndLink = async () => {
               详情
             </el-button>
           </div>
-          <el-button v-if="!isProcessing" type="primary" @click="executeMoveAndLink"
-            :disabled="sourceFiles.length === 0 || !targetDirectory" class="execute-btn" size="large">
+          <el-button
+            v-if="!isProcessing"
+            type="primary"
+            @click="executeMoveAndLink"
+            :disabled="sourceFiles.length === 0 || !targetDirectory"
+            class="execute-btn"
+            size="large"
+          >
             <el-icon>
               <Rank />
             </el-icon>
@@ -468,7 +518,13 @@ const executeMoveAndLink = async () => {
     </div>
 
     <!-- 日志详情弹窗 -->
-    <BaseDialog :visible="showLogDialog" @update:visible="showLogDialog = $event" title="操作历史记录" width="70%" height="600px" :close-on-backdrop-click="false">
+    <BaseDialog
+      :visible="showLogDialog"
+      @update:visible="showLogDialog = $event"
+      title="操作历史记录"
+      width="70%"
+      height="600px"
+    >
       <template #content>
         <div v-if="allLogs.length === 0" class="empty-logs">
           <el-icon>
@@ -483,7 +539,9 @@ const executeMoveAndLink = async () => {
                 <el-tag :type="log.errorCount > 0 ? 'warning' : 'success'" size="small">
                   {{ symlinkMoverService.getOperationTypeLabel(log.operationType) }}
                 </el-tag>
-                <span class="log-item-time">{{ symlinkMoverService.formatTimestamp(log.timestamp) }}</span>
+                <span class="log-item-time">{{
+                  symlinkMoverService.formatTimestamp(log.timestamp)
+                }}</span>
               </div>
               <div class="log-item-meta">
                 <span>{{ symlinkMoverService.getLinkTypeLabel(log.linkType) }}</span>
@@ -499,7 +557,9 @@ const executeMoveAndLink = async () => {
             <div class="log-item-details">
               <div class="detail-item">
                 <span class="detail-label">目标目录:</span>
-                <span class="detail-value" :title="log.targetDirectory">{{ log.targetDirectory }}</span>
+                <span class="detail-value" :title="log.targetDirectory">{{
+                  log.targetDirectory
+                }}</span>
               </div>
               <div v-if="log.processedFiles && log.processedFiles.length > 0" class="detail-item">
                 <span class="detail-label">成功文件:</span>
@@ -513,7 +573,7 @@ const executeMoveAndLink = async () => {
               </div>
             </div>
           </div>
-          </div>
+        </div>
       </template>
     </BaseDialog>
   </div>
@@ -728,7 +788,11 @@ const executeMoveAndLink = async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: linear-gradient(135deg, var(--container-bg) 0%, color-mix(in srgb, var(--el-color-primary) 5%, transparent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--container-bg) 0%,
+    color-mix(in srgb, var(--el-color-primary) 5%, transparent) 100%
+  );
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
   margin-bottom: 12px;

@@ -12,7 +12,6 @@
   --wallpaper-repeat: no-repeat; /* JS 注入：重复模式 */
   --wallpaper-tile-transform: none; /* JS 注入：拼贴模式的变换 */
   --window-bg-opacity: 1;
-  --bg-color-opacity: 1; /* 应用背景色不透明度 */
   --border-opacity: 0.9; /* 边线不透明度 */
   --card-bg-rgb: 255, 255, 255; /* 默认亮色主题的卡片背景 RGB */
 
@@ -51,11 +50,11 @@ body::before {
   will-change: transform, opacity; /* 性能优化 */
 }
 
-/* 应用窗口本身的背景色，当启用窗口特效时，它需要是半透明的 */
-html, body {
-  background-color: rgba(var(--bg-color-rgb), var(--bg-color-opacity));
+/* 应用窗口本身的背景色 */
+html,
+body {
+  background-color: rgba(var(--bg-color-rgb), var(--window-bg-opacity));
 }
-
 /* ========================================================================== */
 /* 可复用工具类
 /* ========================================================================== */

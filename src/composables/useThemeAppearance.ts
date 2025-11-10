@@ -158,6 +158,12 @@ const updateAppearanceSetting = (
 function _updateCssVariables(settings: AppearanceSettings) {
   const root = document.documentElement;
 
+  // 设置窗口背景不透明度，无论其他 UI 特效是否启用
+  root.style.setProperty(
+    "--window-bg-opacity",
+    String(settings.windowBackgroundOpacity ?? defaultAppearanceSettings.windowBackgroundOpacity)
+  );
+
   if (settings.enableWallpaper && currentWallpaper.value) {
     root.style.setProperty("--wallpaper-url", `url('${currentWallpaper.value}')`);
     root.style.setProperty("--wallpaper-opacity", String(settings.wallpaperOpacity));
@@ -284,7 +290,6 @@ function _updateCssVariables(settings: AppearanceSettings) {
     setElementBackground("container", overlayOpacityValue);
 
     root.style.setProperty("--border-opacity", String(settings.borderOpacity));
-    root.style.setProperty("--bg-color-opacity", String(settings.backgroundColorOpacity || 1));
 
     // --- 滚动条颜色 ---
     root.style.setProperty("--scrollbar-thumb-opacity", String(settings.borderOpacity * 0.6));
@@ -310,7 +315,6 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty("--card-opacity", "1");
     root.style.setProperty("--overlay-opacity", "1");
     root.style.setProperty("--border-opacity", "1");
-    root.style.setProperty("--bg-color-opacity", "1");
     root.style.removeProperty("--scrollbar-thumb-opacity");
     root.style.removeProperty("--scrollbar-thumb-hover-opacity");
     root.style.removeProperty("--scrollbar-track-color");

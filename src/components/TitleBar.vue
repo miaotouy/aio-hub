@@ -569,7 +569,7 @@ const goToProfileSettings = () => {
 /* 为了更好的视觉效果，可以添加毛玻璃效果 */
 .title-bar {
   backdrop-filter: blur(10px);
-  background: rgba(var(--sidebar-bg-rgb), 0.9);
+  background: rgba(var(--sidebar-bg-rgb), var(--window-bg-opacity));
 }
 
 /* 下拉菜单项样式 */

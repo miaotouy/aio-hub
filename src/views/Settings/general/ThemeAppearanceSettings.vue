@@ -192,7 +192,7 @@
           </template>
           <el-form label-position="top" :disabled="!enableUiEffects">
             <el-form-item label="UI 基础不透明度">
-              <el-slider v-model="uiBaseOpacity" :min="0.1" :max="1" :step="0.05" />
+              <el-slider v-model="uiBaseOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
 
             <!-- 背景色叠加 -->
@@ -242,7 +242,7 @@
             <el-divider />
 
             <el-form-item label="壁纸不透明度">
-              <el-slider v-model="wallpaperOpacity" :min="0.1" :max="1" :step="0.05" />
+              <el-slider v-model="wallpaperOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
 
             <!-- UI 模糊效果 -->
@@ -268,7 +268,7 @@
             </el-form-item>
 
             <el-form-item label="编辑器/代码区不透明度">
-              <el-slider v-model="editorOpacity" :min="0.1" :max="1" :step="0.05" />
+              <el-slider v-model="editorOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
           </el-form>
         </el-card>
@@ -286,14 +286,14 @@
                 <el-option label="云母 (Mica)" value="mica" />
               </el-select>
               <p class="form-item-description">
-                需要重启应用生效。此功能依赖操作系统支持 (Windows 11, macOS)。
+                效果即时生效。此功能依赖操作系统支持 (Windows 10+, macOS)。
               </p>
             </el-form-item>
 
             <el-form-item label="窗口背景不透明度">
-              <el-slider v-model="windowBackgroundOpacity" :min="0.1" :max="1" :step="0.05" />
+              <el-slider v-model="windowBackgroundOpacity" :min="0" :max="1" :step="0.05" />
               <p class="form-item-description">
-                降低此值以透出桌面或窗口后的内容。仅在窗口特效启用时有效。
+                降低此值以透出桌面或窗口后的内容。
               </p>
             </el-form-item>
           </el-form>

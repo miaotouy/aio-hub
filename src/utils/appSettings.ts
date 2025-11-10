@@ -39,6 +39,7 @@ export interface AppearanceSettings {
   wallpaperTileOptions?: WallpaperTileOptions; // 拼贴模式的详细选项
   
   // --- UI 层特效 (应用内) ---
+  enableUiEffects: boolean;                    // 是否启用界面质感特效
   enableUiBlur: boolean;                       // 是否启用 UI 元素模糊 (backdrop-filter)
   uiBaseOpacity: number;                       // UI 基础不透明度 (0.0 - 1.0)
   uiBlurIntensity: number;                     // UI 模糊强度 (px)
@@ -121,6 +122,7 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   },
   
   // UI 特效
+  enableUiEffects: true, // 默认开启
   enableUiBlur: true,
   uiBaseOpacity: 0.85, // 稍微不透明一点，保证可读性
   uiBlurIntensity: 15, // 15px 模糊

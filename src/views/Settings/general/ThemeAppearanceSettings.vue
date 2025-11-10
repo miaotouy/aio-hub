@@ -183,11 +183,14 @@
 
       <!-- Right Column: UI and Window Effects -->
       <div class="right-column-content">
-        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur }">
+        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur && enableUiEffects }">
           <template #header>
-            <span>界面质感</span>
+            <div class="card-header">
+              <span>界面质感</span>
+              <el-switch v-model="enableUiEffects" />
+            </div>
           </template>
-          <el-form label-position="top">
+          <el-form label-position="top" :disabled="!enableUiEffects">
             <el-form-item label="UI 基础不透明度">
               <el-slider v-model="uiBaseOpacity" :min="0.1" :max="1" :step="0.05" />
             </el-form-item>
@@ -446,6 +449,11 @@ const wallpaperTileFlipVertical = computed({
 const wallpaperOpacity = computed({
   get: () => appearanceSettings.value.wallpaperOpacity,
   set: (val) => updateAppearanceSetting({ wallpaperOpacity: val }, { debounceUi: true }),
+});
+
+const enableUiEffects = computed({
+  get: () => appearanceSettings.value.enableUiEffects,
+  set: (val) => updateAppearanceSetting({ enableUiEffects: val }),
 });
 
 const enableUiBlur = computed({

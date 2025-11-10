@@ -118,70 +118,76 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.removeProperty('--bg-color');
   }
   
-  const blurValue = settings.enableUiBlur ? `${settings.uiBlurIntensity}px` : '0px';
-  root.style.setProperty('--ui-blur', blurValue);
-  
-  const baseOpacity = settings.uiBaseOpacity;
-  const offsets = settings.layerOpacityOffsets || {};
-  
-  const calculateOpacity = (offset = 0) => Math.max(0.1, Math.min(1.0, baseOpacity + offset)).toFixed(2);
+  // --- UI Effects Logic ---
+  if (settings.enableUiEffects) {
+    const blurValue = settings.enableUiBlur ? `${settings.uiBlurIntensity}px` : '0px';
+    root.style.setProperty('--ui-blur', blurValue);
 
-  const sidebarOpacityValue = calculateOpacity(offsets.sidebar);
-  root.style.setProperty('--sidebar-opacity', sidebarOpacityValue);
-  // --sidebar-bg 的透明度也需要同步
-  const sidebarBgRgb = getComputedStyle(root).getPropertyValue('--sidebar-bg-rgb').trim();
-  if (sidebarBgRgb) {
-    root.style.setProperty('--sidebar-bg', `rgba(${sidebarBgRgb}, ${sidebarOpacityValue})`);
+    const baseOpacity = settings.uiBaseOpacity;
+    const offsets = settings.layerOpacityOffsets || {};
+
+    const calculateOpacity = (offset = 0) =>
+      Math.max(0.1, Math.min(1.0, baseOpacity + offset)).toFixed(2);
+
+    const sidebarOpacityValue = calculateOpacity(offsets.sidebar);
+    root.style.setProperty('--sidebar-opacity', sidebarOpacityValue);
+    const sidebarBgRgb = getComputedStyle(root).getPropertyValue('--sidebar-bg-rgb').trim();
+    if (sidebarBgRgb) {
+      root.style.setProperty('--sidebar-bg', `rgba(${sidebarBgRgb}, ${sidebarOpacityValue})`);
+    }
+
+    const contentOpacityValue = calculateOpacity(offsets.content);
+    root.style.setProperty('--content-opacity', contentOpacityValue);
+
+    const cardOpacityValue = calculateOpacity(offsets.card);
+    root.style.setProperty('--card-opacity', cardOpacityValue);
+
+    const cardBgRgb = getComputedStyle(root).getPropertyValue('--card-bg-rgb').trim();
+    if (cardBgRgb) {
+      root.style.setProperty('--card-bg', `rgba(${cardBgRgb}, ${cardOpacityValue})`);
+    }
+
+    const headerBgRgb = getComputedStyle(root).getPropertyValue('--header-bg-rgb').trim();
+    if (headerBgRgb) {
+      root.style.setProperty('--header-bg', `rgba(${headerBgRgb}, ${cardOpacityValue})`);
+    }
+
+    const inputBgRgb = getComputedStyle(root).getPropertyValue('--input-bg-rgb').trim();
+    if (inputBgRgb) {
+      root.style.setProperty('--input-bg', `rgba(${inputBgRgb}, ${cardOpacityValue})`);
+      const editorOpacityValue = settings.editorOpacity ?? 0.9;
+      const editorRgba = `rgba(${inputBgRgb}, ${editorOpacityValue})`;
+      root.style.setProperty('--vscode-editor-background', editorRgba);
+      root.style.setProperty('--vscode-editorGutter-background', editorRgba);
+    }
+
+    const overlayOpacityValue = calculateOpacity(offsets.overlay);
+    root.style.setProperty('--overlay-opacity', overlayOpacityValue);
+
+    const containerBgRgb = getComputedStyle(root).getPropertyValue('--container-bg-rgb').trim();
+    if (containerBgRgb) {
+      root.style.setProperty('--container-bg', `rgba(${containerBgRgb}, ${overlayOpacityValue})`);
+    }
+
+    root.style.setProperty('--border-opacity', String(settings.borderOpacity));
+    root.style.setProperty('--bg-color-opacity', String(settings.backgroundColorOpacity || 1));
+  } else {
+    // 禁用UI特效，恢复默认不透明样式
+    root.style.setProperty('--ui-blur', '0px');
+    root.style.removeProperty('--sidebar-bg');
+    root.style.removeProperty('--card-bg');
+    root.style.removeProperty('--header-bg');
+    root.style.removeProperty('--input-bg');
+    root.style.removeProperty('--vscode-editor-background');
+    root.style.removeProperty('--vscode-editorGutter-background');
+    root.style.removeProperty('--container-bg');
+    root.style.setProperty('--sidebar-opacity', '1');
+    root.style.setProperty('--content-opacity', '1');
+    root.style.setProperty('--card-opacity', '1');
+    root.style.setProperty('--overlay-opacity', '1');
+    root.style.setProperty('--border-opacity', '1');
+    root.style.setProperty('--bg-color-opacity', '1');
   }
-
-  const contentOpacityValue = calculateOpacity(offsets.content);
-  root.style.setProperty('--content-opacity', contentOpacityValue);
-
-  const cardOpacityValue = calculateOpacity(offsets.card);
-  root.style.setProperty('--card-opacity', cardOpacityValue);
-
-  // --card-bg的透明度要跟随UI透明度设置
-  // 读取在 index.css 中已经为亮/暗模式定义好的 --card-bg-rgb 变量
-  const cardBgRgb = getComputedStyle(root).getPropertyValue('--card-bg-rgb').trim();
-  if (cardBgRgb) {
-    root.style.setProperty('--card-bg', `rgba(${cardBgRgb}, ${cardOpacityValue})`);
-  }
-
-  // --header-bg 的透明度也需要同步
-  const headerBgRgb = getComputedStyle(root).getPropertyValue('--header-bg-rgb').trim();
-  if (headerBgRgb) {
-    // Header 可以看作是一种卡片/面板，因此使用卡片透明度
-    root.style.setProperty('--header-bg', `rgba(${headerBgRgb}, ${cardOpacityValue})`);
-  }
-
-  // --input-bg 的透明度也需要同步
-  const inputBgRgb = getComputedStyle(root).getPropertyValue('--input-bg-rgb').trim();
-  if (inputBgRgb) {
-    // 输入框通常在卡片上，因此可以共享卡片的透明度
-    root.style.setProperty('--input-bg', `rgba(${inputBgRgb}, ${cardOpacityValue})`);
-    
-    // 根据 editorOpacity 更新编辑器相关颜色
-    const editorOpacityValue = settings.editorOpacity ?? 0.9;
-    const editorRgba = `rgba(${inputBgRgb}, ${editorOpacityValue})`;
-    root.style.setProperty('--vscode-editor-background', editorRgba);
-    root.style.setProperty('--vscode-editorGutter-background', editorRgba);
-  }
-
-  const overlayOpacityValue = calculateOpacity(offsets.overlay);
-  root.style.setProperty('--overlay-opacity', overlayOpacityValue);
-
-  // --container-bg 的透明度也需要同步
-  const containerBgRgb = getComputedStyle(root).getPropertyValue('--container-bg-rgb').trim();
-  if (containerBgRgb) {
-    // 容器/覆盖层 使用 overlay 的透明度
-    root.style.setProperty('--container-bg', `rgba(${containerBgRgb}, ${overlayOpacityValue})`);
-  }
-
-  // 设置边框不透明度
-  root.style.setProperty('--border-opacity', String(settings.borderOpacity));
-  
-  // 设置背景色不透明度
-  root.style.setProperty('--bg-color-opacity', String(settings.backgroundColorOpacity || 1));
   
   logger.debug('CSS 变量已更新', { settings });
 }

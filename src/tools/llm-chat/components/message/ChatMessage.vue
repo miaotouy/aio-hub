@@ -110,6 +110,9 @@ defineExpose({
   border-radius: 8px;
   transition: all 0.2s;
   position: relative;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
 }
 
 .chat-message:hover {

@@ -41,6 +41,7 @@ const { leftSidebarActiveTab: activeTab } = useLlmChatUiState();
 
 .sidebar-tabs {
   display: flex;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .tab-btn {

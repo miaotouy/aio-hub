@@ -217,7 +217,7 @@ const handleMouseLeave = () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 
   user-select: none;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--ui-blur));
   background: color-mix(in srgb, var(--el-bg-color) 90%, transparent);
 
   /* 平滑过渡 */

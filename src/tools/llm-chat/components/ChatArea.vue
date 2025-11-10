@@ -70,7 +70,7 @@ const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 const { loadSettings, settings } = useChatSettings();
 const { open: openModelSelectDialog } = useModelSelectDialog();
-const { appearanceSettings } = useThemeAppearance();
+useThemeAppearance(); // 仅调用以确保主题样式被应用
 
 // 当前智能体信息
 const currentAgent = computed(() => {
@@ -446,7 +446,7 @@ onMounted(async () => {
 <template>
   <div
     ref="containerRef"
-    :class="['chat-area-container', { 'detached-mode': isDetached, 'glass-card': appearanceSettings?.enableUiBlur }]"
+    :class="['chat-area-container', { 'detached-mode': isDetached }]"
     tabindex="0"
     @keydown="handleKeyDown"
   >
@@ -619,9 +619,9 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px 12px 24px; /* 增加底部内边距给遮罩留空间 */
   min-height: 64px; /* 增加高度 */
-  /* --card-bg-rgb is defined in css-vars.css */
-  background-color: rgba(var(--card-bg-rgb), 0.3); /* 半透明背景 */
-  backdrop-filter: blur(8px); /* 模糊滤镜 */
+  /* 使用全局主题系统的变量，并添加遮罩 */
+  background-color: var(--card-bg); /* 背景色跟随全局透明度设置 */
+  backdrop-filter: blur(var(--ui-blur)); /* 模糊强度跟随全局设置 */
   mask-image: linear-gradient(to bottom, black 60%, transparent 100%); /* 底部虚化遮罩 */
   -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
 }
@@ -817,3 +817,4 @@ onMounted(async () => {
   flex-shrink: 0; /* 关键：防止输入框被压缩 */
 }
 </style>
+

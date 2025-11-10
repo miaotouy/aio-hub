@@ -886,6 +886,7 @@ const handleDetach = async () => {
   border-radius: 24px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
   transition:
     border-color 0.2s,
     background-color 0.2s;

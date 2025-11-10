@@ -204,7 +204,6 @@ defineExpose({
   flex: 1;
   overflow-y: auto; /* 使用 auto 以支持虚拟滚动 */
   padding: 84px 12px 20px 20px; /* 右边距减去滚动条宽度以保持对称 */
-  clip-path: inset(0); /* 优化滚动渲染 */
 }
 
 .message-wrapper {

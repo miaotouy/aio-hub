@@ -405,9 +405,8 @@ const handleFilterCommand = (command: string) => {
         </el-dropdown>
         <el-button :icon="Plus" @click="handleQuickNewSession" title="新建对话" circle />
       </div>
+      <div class="session-count">{{ filteredSessions.length }} / {{ sessions.length }} 个会话</div>
     </div>
-
-    <div class="session-count">{{ filteredSessions.length }} / {{ sessions.length }} 个会话</div>
     <div class="sessions-list">
       <div v-if="sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
@@ -510,7 +509,9 @@ const handleFilterCommand = (command: string) => {
 .sessions-sidebar-header {
   padding: 12px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .header-top {
@@ -521,7 +522,7 @@ const handleFilterCommand = (command: string) => {
 
 .session-count {
   margin: 0;
-  padding: 4px 0;
+  padding: 0;
   font-size: 12px;
   color: var(--text-color-light);
   text-align: center;
@@ -559,6 +560,7 @@ const handleFilterCommand = (command: string) => {
   cursor: pointer;
   transition: all 0.2s;
   border: 1px solid transparent;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .session-item:hover {

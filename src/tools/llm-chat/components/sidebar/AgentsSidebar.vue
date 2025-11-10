@@ -428,6 +428,7 @@ const handleDelete = (agent: ChatAgent) => {
   gap: 8px;
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .hint {
@@ -447,6 +448,7 @@ const handleDelete = (agent: ChatAgent) => {
   flex-shrink: 0;
   padding: 12px;
   background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .empty-state {
@@ -477,6 +479,7 @@ const handleDelete = (agent: ChatAgent) => {
   border-radius: 6px;
   background-color: var(--container-bg);
   border-left: 3px solid transparent;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .agent-item:hover {

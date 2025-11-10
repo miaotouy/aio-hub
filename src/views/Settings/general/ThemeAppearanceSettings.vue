@@ -2,7 +2,7 @@
   <div class="theme-appearance-settings">
     <div class="settings-grid">
       <!-- 左列：壁纸管理 -->
-      <el-card shadow="never" :class="{ 'glass-card': enableUiBlur }">
+      <el-card shadow="never" :class="{ 'glass-card': isGlassEffectActive }">
         <template #header>
           <div class="card-header">
             <span>壁纸管理</span>
@@ -194,7 +194,7 @@
 
       <!-- 右列：UI 和窗口特效 -->
       <div class="right-column-content">
-        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur && enableUiEffects }">
+        <el-card shadow="never" :class="{ 'glass-card': isGlassEffectActive }">
           <template #header>
             <div class="card-header">
               <span>界面质感</span>
@@ -284,7 +284,7 @@
           </el-form>
         </el-card>
 
-        <el-card shadow="never" :class="{ 'glass-card': enableUiBlur && enableWindowEffects }">
+        <el-card shadow="never" :class="{ 'glass-card': isGlassEffectActive }">
           <template #header>
             <div class="card-header">
               <span>窗口特效 (实验性)</span>
@@ -355,6 +355,10 @@ const {
   reshuffle,
   refreshWallpaperList,
 } = useThemeAppearance();
+
+const isGlassEffectActive = computed(() =>
+  appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
+);
 
 const imageViewer = useImageViewer();
 

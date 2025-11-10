@@ -15,9 +15,10 @@
         :class="[
           props.bare ? 'dialog-bare' : 'dialog-styled',
           props.dialogClass,
-          { 
+          {
             'dialog-enter': showContentTransition,
-            'dialog-leave': !showContentTransition 
+            'dialog-leave': !showContentTransition,
+            'glass-overlay': isGlassEffectActive && !props.bare
           }
         ]"
         :style="dialogStyles"
@@ -65,6 +66,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, useSlots, computed, nextTick } from 'vue';
+import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
 const props = withDefaults(defineProps<{
   visible: boolean;
@@ -98,6 +100,11 @@ const emit = defineEmits<{
 const slots = useSlots();
 const hasFooterSlot = computed(() => !!slots.footer);
 const hasHeaderSlot = computed(() => !!slots.header);
+
+const { appearanceSettings } = useThemeAppearance();
+const isGlassEffectActive = computed(() =>
+  appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
+);
 
 const showContentTransition = ref(false);
 const dynamicZIndex = ref(props.zIndex);
@@ -208,7 +215,6 @@ onBeforeUnmount(() => {
 /* 样式模式 */
 .dialog-styled {
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border-color);

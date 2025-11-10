@@ -20,6 +20,7 @@ import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from "@util
 import { createModuleLogger } from "@utils/logger";
 import { platform } from "@tauri-apps/plugin-os";
 import { useTheme } from "../composables/useTheme";
+import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
@@ -37,7 +38,12 @@ const logger = createModuleLogger("TitleBar");
 const router = useRouter();
 const toolsStore = useToolsStore();
 const { currentTheme, applyTheme, isDark } = useTheme();
+const { appearanceSettings } = useThemeAppearance();
 const userProfileStore = useUserProfileStore();
+
+const isGlassEffectActive = computed(() =>
+  appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
+);
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
@@ -270,7 +276,14 @@ const goToProfileSettings = () => {
 </script>
 
 <template>
-  <div class="title-bar" :class="{ macos: isMacOS }" data-tauri-drag-region>
+  <div
+    class="title-bar"
+    :class="{
+      macos: isMacOS,
+      'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur
+    }"
+    data-tauri-drag-region
+  >
     <div class="title-bar-content">
       <!-- 左侧占位区域（macOS 需要为原生控件留出空间） -->
       <div class="left-controls" :class="{ macos: isMacOS }"></div>
@@ -296,6 +309,7 @@ const goToProfileSettings = () => {
           trigger="hover"
           @command="handleProfileSelect"
           placement="bottom"
+          :popper-class="isGlassEffectActive ? 'glass-overlay' : ''"
         >
           <button
             class="control-btn profile-btn"
@@ -356,6 +370,7 @@ const goToProfileSettings = () => {
           trigger="hover"
           @command="handleThemeChange"
           placement="bottom"
+          :popper-class="isGlassEffectActive ? 'glass-overlay' : ''"
         >
           <button class="control-btn theme-btn" :title="getThemeTooltip">
             <el-icon><component :is="getThemeIcon" /></el-icon>
@@ -566,11 +581,6 @@ const goToProfileSettings = () => {
   }
 }
 
-/* 为了更好的视觉效果，可以添加毛玻璃效果 */
-.title-bar {
-  backdrop-filter: blur(10px);
-  background: rgba(var(--sidebar-bg-rgb), var(--window-bg-opacity));
-}
 
 /* 下拉菜单项样式 */
 :deep(.el-dropdown-menu__item) {

@@ -134,7 +134,7 @@ onUnmounted(() => {
 <template>
   <el-aside
     :width="isCollapsed ? '64px' : '220px'"
-    :class="['main-sidebar', { 'is-collapsed': isCollapsed, 'glass-sidebar': appearanceSettings?.enableUiBlur }]"
+    :class="['main-sidebar', { 'is-collapsed': isCollapsed, 'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur }]"
   >
     <!-- 上部分：标题和导航 -->
     <div class="sidebar-top">

@@ -118,6 +118,9 @@ let cleanupEditor: () => void = () => {};
 let setTheme: (theme: any) => Promise<void> = async () => {};
 let getEditorView: () => any = () => ({ updateOptions: () => {} });
 
+// 滚动事件处理器清理函数
+let cleanupScrollHandler: (() => void) | null = null;
+
 // 复制代码
 const copyCode = async () => {
   try {
@@ -283,9 +286,11 @@ onMounted(async () => {
       themes: [themeLight.default, themeDark.default]
     });
     
+    // 创建空编辑器，然后通过 updateCode 填充内容，
+    // 以此统一初始加载和流式更新的逻辑，规避初始渲染空白的问题。
     await helpers.createEditor(
       editorEl.value,
-      props.content,
+      '', // Start with an empty editor
       monacoLanguage.value
     );
     
@@ -293,6 +298,11 @@ onMounted(async () => {
     cleanupEditor = helpers.cleanupEditor;
     setTheme = helpers.setTheme;
     getEditorView = helpers.getEditorView || getEditorView;
+    
+    // Use updateCode to load the initial content, mimicking the streaming path
+    if (props.content) {
+      updateCode(props.content, monacoLanguage.value);
+    }
     
     // 设置初始字体大小
     const editor = getEditorView();
@@ -302,37 +312,49 @@ onMounted(async () => {
       codeFontSize.value = actualFontSize;
     }
 
-    // Add scroll passthrough handler to fix nested scrolling issue
-    const containerEl = editorEl.value?.parentElement;
-    if (containerEl) {
-      const handleWheel = (event: WheelEvent) => {
-        const el = event.currentTarget as HTMLElement;
-        const { scrollTop, scrollHeight, clientHeight } = el;
+    // 确保编辑器填充容器，移除可能的内联样式干扰
+    await nextTick();
+    if (editorEl.value) {
+      editorEl.value.style.height = '100%';
+      editorEl.value.style.width = '100%';
+      editorEl.value.style.overflow = 'hidden';
+      // 移除可能被 Monaco 设置的 max-height
+      editorEl.value.style.maxHeight = 'none';
+    }
 
+    // 添加滚动穿透处理器以修复嵌套滚动问题
+    const monacoContainer = editorEl.value?.querySelector('.monaco-editor') as HTMLElement;
+    if (monacoContainer) {
+      const handleWheel = (event: WheelEvent) => {
+        const monacoScrollable = monacoContainer.querySelector('.overflow-guard') as HTMLElement;
+        if (!monacoScrollable) return;
+
+        const { scrollTop, scrollHeight, clientHeight } = monacoScrollable;
         const isAtTop = event.deltaY < 0 && scrollTop === 0;
-        // Add a small tolerance for floating point inaccuracies
         const isAtBottom = event.deltaY > 0 && (scrollHeight - scrollTop - clientHeight) < 1;
 
         if (isAtTop || isAtBottom) {
-          // At a scroll boundary, allow parent to scroll.
-          // We prevent Monaco's handler from calling event.preventDefault()
-          // by temporarily overriding it on the event object.
-          const originalPreventDefault = event.preventDefault;
-          event.preventDefault = () => {};
-          // Restore the original method after this event has been processed.
-          setTimeout(() => {
-            event.preventDefault = originalPreventDefault;
-          }, 0);
+          // 在滚动边界时，允许父容器滚动
+          // 不阻止默认行为，让事件冒泡
+          return;
+        } else {
+          // 在内容区域内，阻止事件冒泡防止父容器滚动
+          event.stopPropagation();
         }
       };
 
-      // Listen in the capture phase to intercept before Monaco's listeners.
-      containerEl.addEventListener('wheel', handleWheel, { capture: true });
+      // 在捕获阶段监听，优先于 Monaco 的处理
+      monacoContainer.addEventListener('wheel', handleWheel, { capture: true, passive: true });
 
-      // Cleanup on unmount
-      onUnmounted(() => {
-        containerEl.removeEventListener('wheel', handleWheel, { capture: true });
-      });
+      // 保存清理函数
+      cleanupScrollHandler = () => {
+        monacoContainer.removeEventListener('wheel', handleWheel, { capture: true });
+      };
+    }
+
+    // 强制重新布局以确保尺寸正确
+    if (typeof editor.layout === 'function') {
+      editor.layout();
     }
 
   } catch (error) {
@@ -345,7 +367,13 @@ watch(isDark, async (dark) => {
 });
 
 onUnmounted(() => {
+  // 清理编辑器
   cleanupEditor();
+  // 清理滚动事件监听器
+  if (cleanupScrollHandler) {
+    cleanupScrollHandler();
+    cleanupScrollHandler = null;
+  }
 });
 
 // 内容更新时，仅需要调用 updateCode，高度由 automaticLayout 自动处理

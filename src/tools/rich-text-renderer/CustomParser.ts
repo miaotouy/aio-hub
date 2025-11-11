@@ -38,6 +38,12 @@ export type Token =
 
 class Tokenizer {
   private htmlTagRegex = /^<(\/?)([a-zA-Z0-9]+)\s*([^>]*?)\s*(\/?)>/;
+  
+  // HTML void elements (不需要闭合标签的元素)
+  private voidElements = new Set([
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+    'link', 'meta', 'param', 'source', 'track', 'wbr'
+  ]);
 
   /**
    * 将完整文本转换为令牌序列
@@ -125,9 +131,11 @@ class Tokenizer {
       if (htmlMatch) {
         const rawTag = htmlMatch[0];
         const isClosing = !!htmlMatch[1];
-        const isSelfClosing = !!htmlMatch[4];
         const tagName = htmlMatch[2].toLowerCase();
         const attributes = this.parseAttributes(htmlMatch[3]);
+        
+        // 判断是否是自闭合标签：显式的 /> 或者是 void element
+        const isSelfClosing = !!htmlMatch[4] || this.voidElements.has(tagName);
 
         if (isClosing) {
           tokens.push({ type: 'html_close', tagName, raw: rawTag });
@@ -258,7 +266,10 @@ export class CustomParser {
     const tokenizer = new Tokenizer();
     const tokens = tokenizer.tokenize(text);
     
-    return this.parseBlocks(tokens);
+    const blocks = this.parseBlocks(tokens);
+    
+    // 优化徽章之间的换行
+    return this.optimizeBadgeLineBreaks(blocks);
   }
 
   /**
@@ -411,7 +422,11 @@ export class CustomParser {
       return { node: htmlNode, nextIndex: i };
     }
 
-    // 收集内部令牌（去除纯空白的文本节点）
+    // 判断是块级还是内联 HTML 元素
+    const blockLevelTags = ['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'details', 'summary'];
+    const isBlockLevel = blockLevelTags.includes(tagName);
+
+    // 收集内部令牌
     const contentTokens: Token[] = [];
     let depth = 1;
 
@@ -442,7 +457,13 @@ export class CustomParser {
 
     // 递归解析内部内容
     if (contentTokens.length > 0) {
-      htmlNode.children = this.parseBlocks(contentTokens);
+      // 块级元素：使用块级解析
+      // 内联元素：使用内联解析
+      if (isBlockLevel) {
+        htmlNode.children = this.parseBlocks(contentTokens);
+      } else {
+        htmlNode.children = this.parseInlines(contentTokens);
+      }
     }
 
     return { node: htmlNode, nextIndex: i };
@@ -1321,6 +1342,74 @@ export class CustomParser {
       props: { content },
       meta: { range: { start: 0, end: 0 }, status: 'stable' }
     };
+  }
+
+  /**
+   * 优化连续链接（徽章和导航链接）之间的换行
+   * 检测以 [ 开头的链接（包括图片链接和普通链接），移除它们之间的硬换行
+   */
+  private optimizeBadgeLineBreaks(nodes: AstNode[]): AstNode[] {
+    return nodes.map(node => {
+      // 只处理段落节点
+      if (node.type !== 'paragraph' || !node.children) {
+        // 递归处理子节点
+        if (node.children) {
+          return {
+            ...node,
+            children: this.optimizeBadgeLineBreaks(node.children)
+          };
+        }
+        return node;
+      }
+
+      // 处理段落内的子节点
+      const children = node.children;
+      const optimizedChildren: AstNode[] = [];
+      
+      for (let i = 0; i < children.length; i++) {
+        const current = children[i];
+        const next = children[i + 1];
+        const afterNext = children[i + 2];
+        const afterAfterNext = children[i + 3];
+
+        // 检测是否是链接或图片节点
+        const isLinkLike = (n: AstNode | undefined): boolean => {
+          if (!n) return false;
+          return n.type === 'link' || n.type === 'image';
+        };
+
+        // 模式1：链接 + 硬换行 + 链接
+        if (isLinkLike(current) &&
+            next?.type === 'hard_break' &&
+            isLinkLike(afterNext)) {
+          // 保留当前节点，跳过硬换行
+          optimizedChildren.push(current);
+          i++; // 跳过 hard_break
+          continue;
+        }
+
+        // 模式2：链接 + 短文本分隔符 + 硬换行 + 链接
+        if (isLinkLike(current) &&
+            next?.type === 'text' &&
+            typeof next.props?.content === 'string' &&
+            next.props.content.trim().length <= 3 && // 短分隔符，如 " •"
+            afterNext?.type === 'hard_break' &&
+            isLinkLike(afterAfterNext)) {
+          // 保留当前链接和分隔符，跳过硬换行
+          optimizedChildren.push(current);
+          optimizedChildren.push(next); // 分隔符文本
+          i += 2; // 跳过分隔符和硬换行
+          continue;
+        }
+
+        optimizedChildren.push(current);
+      }
+
+      return {
+        ...node,
+        children: optimizedChildren
+      };
+    });
   }
 
   public reset(): void {

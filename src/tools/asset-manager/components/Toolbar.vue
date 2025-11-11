@@ -1,8 +1,11 @@
 <template>
-  <div class="asset-toolbar">
+  <div ref="toolbarRef" class="asset-toolbar" :class="layoutClass">
     <!-- 左侧操作区 -->
     <div class="toolbar-left">
-      <el-tooltip :content="props.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" placement="bottom">
+      <el-tooltip
+        :content="props.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        placement="bottom"
+      >
         <el-button @click="emit('toggle-sidebar')">
           <el-icon>
             <Expand v-if="props.sidebarCollapsed" />
@@ -14,19 +17,23 @@
       <el-tooltip content="重新扫描并建立资产索引" placement="bottom">
         <el-button @click="handleRebuildIndex">
           <el-icon><Refresh /></el-icon>
-          重建索引
+          <span v-if="layoutMode !== 'compact'">重建索引</span>
         </el-button>
       </el-tooltip>
       <el-tooltip content="扫描并标记重复的资产文件" placement="bottom">
         <el-button @click="handleFindDuplicates">
           <el-icon><CopyDocument /></el-icon>
-          查找重复
+          <span v-if="layoutMode !== 'compact'">查找重复</span>
         </el-button>
       </el-tooltip>
-      <el-tooltip v-if="props.hasDuplicates" content="自动选中重复文件中的多余副本" placement="bottom">
+      <el-tooltip
+        v-if="props.hasDuplicates"
+        content="自动选中重复文件中的多余副本"
+        placement="bottom"
+      >
         <el-button type="warning" plain @click="emit('selectDuplicates')">
           <el-icon><Finished /></el-icon>
-          选中多余副本
+          <span v-if="layoutMode === 'wide'">选中多余副本</span>
         </el-button>
       </el-tooltip>
       <template v-if="props.selectedCount > 0">
@@ -34,13 +41,14 @@
         <el-tooltip content="删除已选中的资产文件" placement="bottom">
           <el-button type="danger" plain @click="emit('deleteSelected')">
             <el-icon><Delete /></el-icon>
-            删除选中 ({{ props.selectedCount }})
+            <span v-if="layoutMode !== 'compact'">删除选中 ({{ props.selectedCount }})</span>
+            <span v-else>({{ props.selectedCount }})</span>
           </el-button>
         </el-tooltip>
         <el-tooltip content="取消当前选择" placement="bottom">
           <el-button @click="emit('clearSelection')">
             <el-icon><Close /></el-icon>
-            取消选择
+            <span v-if="layoutMode === 'wide'">取消选择</span>
           </el-button>
         </el-tooltip>
       </template>
@@ -64,13 +72,13 @@
     <div class="toolbar-right">
       <!-- 分组方式 -->
       <div class="selector-group">
-        <span class="selector-label">分组:</span>
+        <span v-if="layoutMode === 'wide'" class="selector-label">分组:</span>
         <el-tooltip content="选择资产分组方式" placement="bottom">
           <el-select
             v-model="internalGroupBy"
             placeholder="分组方式"
             @change="handleGroupByChange"
-            style="width: 120px"
+            :style="{ width: layoutMode === 'compact' ? '100px' : '120px' }"
           >
             <el-option label="按月份" value="month" />
             <el-option label="按类型" value="type" />
@@ -82,13 +90,13 @@
 
       <!-- 排序方式 -->
       <div class="selector-group">
-        <span class="selector-label">排序:</span>
+        <span v-if="layoutMode === 'wide'" class="selector-label">排序:</span>
         <el-tooltip content="选择资产排序方式" placement="bottom">
           <el-select
             v-model="internalSortBy"
             placeholder="排序方式"
             @change="handleSortChange"
-            style="width: 120px"
+            :style="{ width: layoutMode === 'compact' ? '100px' : '120px' }"
           >
             <el-option label="按时间" value="date" />
             <el-option label="按名称" value="name" />
@@ -98,10 +106,7 @@
       </div>
 
       <!-- 视图切换 -->
-      <el-radio-group
-        v-model="internalViewMode"
-        @change="handleViewModeChange"
-      >
+      <el-radio-group v-model="internalViewMode" @change="handleViewModeChange">
         <el-tooltip content="网格视图" placement="bottom">
           <el-radio-button value="grid">
             <el-icon><Grid /></el-icon>
@@ -118,7 +123,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from "vue";
+import { useElementSize } from "@vueuse/core";
 import {
   Search,
   Grid,
@@ -130,13 +136,13 @@ import {
   Finished,
   Expand,
   Fold,
-} from '@element-plus/icons-vue';
+} from "@element-plus/icons-vue";
 
 interface Props {
-  viewMode: 'grid' | 'list';
+  viewMode: "grid" | "list";
   searchQuery: string;
-  sortBy: 'name' | 'date' | 'size';
-  groupBy: 'month' | 'type' | 'origin' | 'none';
+  sortBy: "name" | "date" | "size";
+  groupBy: "month" | "type" | "origin" | "none";
   selectedCount?: number;
   hasDuplicates?: boolean;
   sidebarCollapsed?: boolean;
@@ -149,17 +155,34 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  'update:viewMode': [value: 'grid' | 'list'];
-  'update:searchQuery': [value: string];
-  'update:sortBy': [value: 'name' | 'date' | 'size'];
-  'update:groupBy': [value: 'month' | 'type' | 'origin' | 'none'];
-  'rebuildIndex': [];
-  'findDuplicates': [];
-  'selectDuplicates': [];
-  'clearSelection': [];
-  'deleteSelected': [];
-  'toggle-sidebar': [];
+  "update:viewMode": [value: "grid" | "list"];
+  "update:searchQuery": [value: string];
+  "update:sortBy": [value: "name" | "date" | "size"];
+  "update:groupBy": [value: "month" | "type" | "origin" | "none"];
+  rebuildIndex: [];
+  findDuplicates: [];
+  selectDuplicates: [];
+  clearSelection: [];
+  deleteSelected: [];
+  "toggle-sidebar": [];
 }>();
+
+// 容器宽度检测
+const toolbarRef = ref<HTMLElement | null>(null);
+const { width: toolbarWidth } = useElementSize(toolbarRef);
+
+// 布局模式：根据容器宽度自动调整
+// wide: > 1100px - 显示所有文字和标签
+// medium: 880-1100px - 隐藏部分标签，保留重要按钮文字
+// compact: < 880px - 只显示图标，隐藏大部分文字
+const layoutMode = computed<"wide" | "medium" | "compact">(() => {
+  if (toolbarWidth.value > 1100) return "wide";
+  if (toolbarWidth.value > 880) return "medium";
+  return "compact";
+});
+
+// 布局 CSS 类
+const layoutClass = computed(() => `layout-${layoutMode.value}`);
 
 // 内部状态
 const internalViewMode = ref(props.viewMode);
@@ -168,45 +191,57 @@ const internalSortBy = ref(props.sortBy);
 const internalGroupBy = ref(props.groupBy);
 
 // 监听 props 变化
-watch(() => props.viewMode, (newVal) => {
-  internalViewMode.value = newVal;
-});
+watch(
+  () => props.viewMode,
+  (newVal) => {
+    internalViewMode.value = newVal;
+  }
+);
 
-watch(() => props.searchQuery, (newVal) => {
-  internalSearchQuery.value = newVal;
-});
+watch(
+  () => props.searchQuery,
+  (newVal) => {
+    internalSearchQuery.value = newVal;
+  }
+);
 
-watch(() => props.sortBy, (newVal) => {
-  internalSortBy.value = newVal;
-});
+watch(
+  () => props.sortBy,
+  (newVal) => {
+    internalSortBy.value = newVal;
+  }
+);
 
-watch(() => props.groupBy, (newVal) => {
-  internalGroupBy.value = newVal;
-});
+watch(
+  () => props.groupBy,
+  (newVal) => {
+    internalGroupBy.value = newVal;
+  }
+);
 
 // 事件处理
-const handleViewModeChange = (value: 'grid' | 'list') => {
-  emit('update:viewMode', value);
+const handleViewModeChange = (value: "grid" | "list") => {
+  emit("update:viewMode", value);
 };
 
 const handleSearchInput = (value: string) => {
-  emit('update:searchQuery', value);
+  emit("update:searchQuery", value);
 };
 
-const handleSortChange = (value: 'name' | 'date' | 'size') => {
-  emit('update:sortBy', value);
+const handleSortChange = (value: "name" | "date" | "size") => {
+  emit("update:sortBy", value);
 };
 
-const handleGroupByChange = (value: 'month' | 'type' | 'origin' | 'none') => {
-  emit('update:groupBy', value);
+const handleGroupByChange = (value: "month" | "type" | "origin" | "none") => {
+  emit("update:groupBy", value);
 };
 
 const handleRebuildIndex = () => {
-  emit('rebuildIndex');
+  emit("rebuildIndex");
 };
 
 const handleFindDuplicates = () => {
-  emit('findDuplicates');
+  emit("findDuplicates");
 };
 </script>
 
@@ -220,11 +255,77 @@ const handleFindDuplicates = () => {
   border-bottom: 1px solid var(--el-border-color);
   box-sizing: border-box;
   backdrop-filter: blur(var(--ui-blur));
+  transition: all 0.3s ease;
+}
+
+/* 宽屏布局 (> 1100px) */
+.asset-toolbar.layout-wide {
+  flex-wrap: nowrap;
+}
+
+.asset-toolbar.layout-wide .toolbar-left {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+.asset-toolbar.layout-wide .toolbar-center {
+  flex: 1;
+  max-width: 400px;
+  min-width: 200px;
+}
+
+.asset-toolbar.layout-wide .toolbar-right {
+  flex-shrink: 0;
+}
+
+/* 中等布局 (800-1100px) */
+.asset-toolbar.layout-medium {
+  flex-wrap: nowrap;
+}
+
+.asset-toolbar.layout-medium .toolbar-left {
+  flex-shrink: 1;
+  flex-wrap: nowrap;
+}
+
+.asset-toolbar.layout-medium .toolbar-center {
+  flex: 1;
+  max-width: 300px;
+  min-width: 150px;
+}
+
+.asset-toolbar.layout-medium .toolbar-right {
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+/* 紧凑布局 (< 800px) */
+.asset-toolbar.layout-compact {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.asset-toolbar.layout-compact .toolbar-left {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+
+.asset-toolbar.layout-compact .toolbar-center {
+  flex: 1 1 100%;
+  max-width: 100%;
+  order: 3;
+}
+
+.asset-toolbar.layout-compact .toolbar-right {
+  flex: 0 1 auto;
+  gap: 6px;
 }
 
 .toolbar-left {
   display: flex;
   gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .toolbar-center {
@@ -236,6 +337,7 @@ const handleFindDuplicates = () => {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: nowrap;
 }
 
 .selector-group {
@@ -248,5 +350,20 @@ const handleFindDuplicates = () => {
   font-size: 14px;
   color: var(--el-text-color-regular);
   white-space: nowrap;
+  transition: opacity 0.3s ease;
+}
+
+/* 按钮内文字过渡效果 */
+.el-button span {
+  transition: all 0.3s ease;
+}
+
+/* 响应式调整间距 */
+.layout-compact .toolbar-left {
+  gap: 4px;
+}
+
+.layout-compact .selector-group {
+  gap: 4px;
 }
 </style>

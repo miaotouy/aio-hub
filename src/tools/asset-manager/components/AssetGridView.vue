@@ -20,7 +20,7 @@
           @click.stop="emit('selection-change', asset, $event)"
         />
         <!-- 缩略图或图标 -->
-        <div class="asset-preview">
+        <div class="asset-preview" @click.stop="handleSelect(asset)">
           <template v-if="asset.type === 'image'">
             <!-- 只有在 URL 准备好时才渲染图片 -->
             <template v-if="assetUrls.has(asset.id)">
@@ -51,28 +51,27 @@
           </div>
           <div class="asset-meta">
             <span class="asset-size">{{ formatFileSize(asset.size) }}</span>
+            <!-- 操作按钮 -->
+            <div class="asset-actions" @click.stop>
+              <el-dropdown trigger="click">
+                <el-button text circle size="small">
+                  <el-icon><MoreFilled /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="handleSelect(asset)">
+                      <el-icon><View /></el-icon>
+                      预览
+                    </el-dropdown-item>
+                    <el-dropdown-item @click="handleDelete(asset.id)">
+                      <el-icon><Delete /></el-icon>
+                      删除
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </div>
-        </div>
-
-        <!-- 操作按钮 -->
-        <div class="asset-actions" @click.stop>
-          <el-dropdown trigger="click">
-            <el-button text circle size="small">
-              <el-icon><MoreFilled /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="handleSelect(asset)">
-                  <el-icon><View /></el-icon>
-                  预览
-                </el-dropdown-item>
-                <el-dropdown-item @click="handleDelete(asset.id)">
-                  <el-icon><Delete /></el-icon>
-                  删除
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
         </div>
       </div>
     </div>
@@ -203,6 +202,9 @@ const formatFileSize = (bytes: number) => {
 .asset-info {
   padding: 12px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .asset-name {
@@ -221,7 +223,7 @@ const formatFileSize = (bytes: number) => {
 .asset-meta {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .asset-size {
@@ -230,9 +232,6 @@ const formatFileSize = (bytes: number) => {
 }
 
 .asset-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
   opacity: 0;
   transition: opacity 0.2s;
 }

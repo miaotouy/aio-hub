@@ -28,7 +28,7 @@ async function readFileHeader(filePath: string): Promise<Uint8Array | null> {
  * 扩展的 MIME 类型映射表
  * 参考 Rust 后端的完整列表，包含更多文件类型
  */
-const MIME_TYPE_MAP: Record<string, string> = {
+export const MIME_TYPE_MAP: Record<string, string> = {
   // 图片
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -210,6 +210,8 @@ function getExtension(fileName: string): string {
  */
 function inferMimeTypeFromExtension(fileName: string): string {
   const ext = getExtension(fileName);
+  // 优先使用自定义的扩展映射，因为它可能包含更具体的类型（如 text/x-vue）
+  // 最后是通用二进制流
   return MIME_TYPE_MAP[ext] || "application/octet-stream";
 }
 
@@ -240,8 +242,51 @@ export function determineAssetType(mimeType: string): Asset["type"] {
 }
 
 /**
+ * 从 Buffer 检测文件的 MIME 类型
+ * @param buffer - 文件内容的 Uint8Array
+ * @param fileNameHint - 可选的文件名，用于扩展名后备检测
+ * @returns MIME 类型字符串
+ */
+export async function detectMimeTypeFromBuffer(
+  buffer: Uint8Array,
+  fileNameHint?: string
+): Promise<string> {
+  // 1. 尝试使用 file-type 库通过魔数检测
+  try {
+    const fileType = await fileTypeFromBuffer(buffer.slice(0, 4100));
+    if (fileType) {
+      return fileType.mime;
+    }
+  } catch (error) {
+    console.warn("file-type from buffer 检测失败，使用后备方案:", error);
+  }
+
+  // 2. 后备方案：基于文件名提示的扩展名推断
+  if (fileNameHint) {
+    return inferMimeTypeFromExtension(fileNameHint);
+  }
+
+  return "application/octet-stream";
+}
+
+/**
+ * 基于扩展名或 MIME 类型提示推断 MIME 类型
+ * @param hint - 文件名、扩展名或完整的 MIME 类型
+ */
+export function inferMimeTypeFromHint(hint: string): string | null {
+  if (!hint) return null;
+  // 检查是否已经是有效的 MIME 类型
+  const normalizedHint = hint.trim().toLowerCase();
+  if (normalizedHint.includes('/')) {
+    return normalizedHint;
+  }
+  // 否则，尝试从扩展名推断
+  return inferMimeTypeFromExtension(normalizedHint);
+}
+
+/**
  * 检测文件的 MIME 类型
- * 
+ *
  * @param filePath - 文件路径（用于读取文件头部）
  * @param fileName - 文件名（用于扩展名后备检测）
  * @returns MIME 类型字符串
@@ -250,20 +295,12 @@ export async function detectMimeType(
   filePath: string,
   fileName: string
 ): Promise<string> {
-  // 1. 尝试使用 file-type 库通过魔数检测
   const fileHeader = await readFileHeader(filePath);
   if (fileHeader) {
-    try {
-      const fileType = await fileTypeFromBuffer(fileHeader);
-      if (fileType) {
-        return fileType.mime;
-      }
-    } catch (error) {
-      console.warn("file-type 检测失败，使用扩展名后备方案:", error);
-    }
+    // 复用 buffer 检测逻辑
+    return await detectMimeTypeFromBuffer(fileHeader, fileName);
   }
-
-  // 2. 后备方案：基于扩展名推断
+  // 读取文件头部失败时的后备方案
   return inferMimeTypeFromExtension(fileName);
 }
 

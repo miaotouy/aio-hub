@@ -15,6 +15,7 @@ declare module 'vue' {
     DetachPreviewHint: typeof import('./components/common/DetachPreviewHint.vue')['default']
     DirectoryJanitorIcon: typeof import('./components/icons/DirectoryJanitorIcon.vue')['default']
     DirectoryTreeIcon: typeof import('./components/icons/DirectoryTreeIcon.vue')['default']
+    DocumentViewer: typeof import('./components/common/DocumentViewer.vue')['default']
     DropZone: typeof import('./components/common/DropZone.vue')['default']
     DynamicIcon: typeof import('./components/common/DynamicIcon.vue')['default']
     GitBranchIcon: typeof import('./components/icons/GitBranchIcon.vue')['default']

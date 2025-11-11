@@ -19,6 +19,10 @@
         <el-tab-pane label="主题色板" name="colors">
           <ThemeColorPalette />
         </el-tab-pane>
+        
+        <el-tab-pane label="文档查看器" name="document-viewer">
+          <DocumentViewerTester />
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -31,6 +35,7 @@ import NativeElements from './components/NativeElements.vue';
 import ElementPlusGallery from './components/ElementPlusGallery.vue';
 import MessagingTest from './components/MessagingTest.vue';
 import ThemeColorPalette from './components/ThemeColorPalette.vue';
+import DocumentViewerTester from './components/DocumentViewerTester.vue';
 
 const activeTab = ref('native');
 </script>

@@ -91,7 +91,14 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         return;
       }
       
-      const detectedMime = await detectMimeTypeFromBuffer(buffer, hint);
+      let detectedMime: string;
+      // 优先基于文件扩展名判断 Markdown，避免内容嗅探误判
+      if (options.fileName?.toLowerCase().endsWith('.md') || options.fileName?.toLowerCase().endsWith('.markdown')) {
+        detectedMime = 'text/markdown';
+        logger.debug(`[DocumentViewer] Forced markdown mode for file: ${options.fileName}`);
+      } else {
+        detectedMime = await detectMimeTypeFromBuffer(buffer, hint);
+      }
       mimeType.value = detectedMime;
       
       const detectedLanguage = mapMimeToLanguage(detectedMime) || 'plaintext';

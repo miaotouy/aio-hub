@@ -530,8 +530,11 @@ defineExpose({
     这里我们不能直接使用 var(--vscode-editor-background)，因为它已经被污染了。
     我们根据 useThemeAppearance 的逻辑重新构建正确的背景色，并使用 --code-block-opacity 变量来同步设置。
   */
-  --vscode-editor-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.1)) !important;
-  --vscode-editorGutter-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3)) !important;
+  --vscode-editor-background: rgba(var(--container-bg-rgb), var(--code-block-opacity, 0.2)) !important;
+  --vscode-editorGutter-background: rgba(var(--container-bg-rgb), var(--code-block-opacity, 0.3)) !important;
+  --vscode-editorStickyScrollGutter-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3)) !important;
+  --vscode-editorStickyScroll-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3)) !important;
+  --vscode-editorStickyScroll-shadow: rgba(var(--card-bg-rgb), 0.5) !important;
 }
 
 :deep(.monaco-editor .monaco-editor-background),

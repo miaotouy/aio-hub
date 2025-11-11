@@ -31,6 +31,16 @@
           <Plus :size="14" />
         </button>
         
+        <!-- 换行切换按钮 -->
+        <button
+          class="action-btn"
+          :class="{ 'action-btn-active': wordWrapEnabled }"
+          @click="toggleWordWrap"
+          :title="wordWrapEnabled ? '禁用换行' : '启用换行'"
+        >
+          <WrapText :size="14" />
+        </button>
+        
         <!-- 复制按钮 -->
         <button
           class="action-btn"
@@ -62,7 +72,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import { Copy, Check, Maximize2, Minimize2, Plus, Minus, RotateCcw } from 'lucide-vue-next';
+import { Copy, Check, Maximize2, Minimize2, Plus, Minus, RotateCcw, WrapText } from 'lucide-vue-next';
 import { useTheme } from '@composables/useTheme';
 import { customMessage } from '@/utils/customMessage';
 // 动态导入，避免类型检查时就报错
@@ -82,6 +92,9 @@ const copied = ref(false);
 
 // 展开状态
 const isExpanded = ref(false);
+
+// 换行状态
+const wordWrapEnabled = ref(true);
 
 // 字体大小控制
 const codeFontMin = 10;
@@ -120,6 +133,9 @@ let getEditorView: () => any = () => ({ updateOptions: () => {} });
 
 // 滚动事件处理器清理函数
 let cleanupScrollHandler: (() => void) | null = null;
+
+// ResizeObserver 清理函数
+let cleanupResizeObserver: (() => void) | null = null;
 
 // 复制代码
 const copyCode = async () => {
@@ -232,6 +248,39 @@ const updateEditorFontSize = (size: number) => {
     }
   } catch (error) {
     console.error('[CodeBlockNode] 更新字体大小失败:', error);
+  }
+};
+
+// 切换换行
+const toggleWordWrap = () => {
+  wordWrapEnabled.value = !wordWrapEnabled.value;
+  try {
+    const editor = getEditorView();
+    if (editor && typeof editor.updateOptions === 'function') {
+      editor.updateOptions({
+        wordWrap: wordWrapEnabled.value ? 'off' : 'on'
+      });
+      // 换行状态改变后需要重新计算高度和布局
+      nextTick(() => {
+        const h = computeContentHeight();
+        if (h && h > 0 && editorEl.value) {
+          editorEl.value.style.height = `${h}px`;
+          
+          // 如果是展开状态，同步更新容器的 max-height
+          const container = editorEl.value.parentElement;
+          if (isExpanded.value && container) {
+            container.style.maxHeight = `${h}px`;
+          }
+        }
+        
+        // 触发重新布局
+        if (typeof editor.layout === 'function') {
+          editor.layout();
+        }
+      });
+    }
+  } catch (error) {
+    console.error('[CodeBlockNode] 切换换行失败:', error);
   }
 };
 
@@ -361,6 +410,26 @@ onMounted(async () => {
       editor.layout();
     }
 
+    // 添加 ResizeObserver 监听容器宽度变化
+    const container = editorEl.value?.parentElement;
+    if (container) {
+      const resizeObserver = new ResizeObserver(() => {
+        const editor = getEditorView();
+        if (editor && typeof editor.layout === 'function') {
+          // 使用 requestAnimationFrame 避免频繁触发
+          requestAnimationFrame(() => {
+            editor.layout();
+          });
+        }
+      });
+      
+      resizeObserver.observe(container);
+      
+      cleanupResizeObserver = () => {
+        resizeObserver.disconnect();
+      };
+    }
+
   } catch (error) {
     console.error('[CodeBlockNode] Failed to initialize Monaco editor via stream-monaco:', error);
   }
@@ -377,6 +446,11 @@ onUnmounted(() => {
   if (cleanupScrollHandler) {
     cleanupScrollHandler();
     cleanupScrollHandler = null;
+  }
+  // 清理 ResizeObserver
+  if (cleanupResizeObserver) {
+    cleanupResizeObserver();
+    cleanupResizeObserver = null;
   }
 });
 

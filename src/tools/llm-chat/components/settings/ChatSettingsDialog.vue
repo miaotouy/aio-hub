@@ -206,7 +206,6 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, shallowRef, type Component, onUnmounted } from "vue";
-import { useDebounceFn } from "@vueuse/core";
 import {
   ElMessageBox,
   ElRadio,
@@ -221,7 +220,7 @@ import {
   ElOption,
   ElTag,
 } from "element-plus";
-import { get, set } from "lodash-es";
+import { get, set, debounce } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -279,7 +278,7 @@ watch(
   }
 );
 
-const autoSave = useDebounceFn(async () => {
+const autoSave = debounce(async () => {
   if (isLoadingSettings.value) return;
   try {
     saveStatus.value = "saving";
@@ -308,8 +307,7 @@ watch(
 );
 
 const handleClose = () => {
-  // HACK: 类型系统未能正确推断出 flush 方法，使用 any 绕过检查
-  (autoSave as any).flush();
+  autoSave.flush();
   emit("update:visible", false);
 };
 
@@ -525,6 +523,7 @@ const addScrollListener = () => {
 };
 
 onUnmounted(() => {
+  autoSave.cancel();
   removeScrollListener();
 });
 

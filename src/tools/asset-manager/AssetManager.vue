@@ -86,6 +86,23 @@
         </div>
       </el-main>
     </el-container>
+    
+    <!-- 文档预览弹窗 -->
+    <BaseDialog
+      v-model:visible="isPreviewDialogVisible"
+      :title="selectedAssetForPreview?.name"
+      width="80vw"
+      height="80vh"
+      content-class="document-preview-content"
+    >
+      <DocumentViewer
+        v-if="selectedAssetForPreview"
+        :key="selectedAssetForPreview.id"
+        :file-path="selectedAssetForPreview.path"
+        :file-name="selectedAssetForPreview.name"
+        :file-type-hint="selectedAssetForPreview.mimeType"
+      />
+    </BaseDialog>
   </div>
 </template>
 
@@ -103,6 +120,8 @@ import { debounce } from 'lodash-es';
 import Toolbar from './components/Toolbar.vue';
 import Sidebar from './components/Sidebar.vue';
 import AssetGroup from './components/AssetGroup.vue';
+import BaseDialog from '@/components/common/BaseDialog.vue';
+import DocumentViewer from '@/components/common/DocumentViewer.vue';
 // 使用资产管理器
 const {
   assets,
@@ -129,6 +148,8 @@ const groupBy = ref<AssetGroupBy>('month');
 const selectedAssetIds = ref<Set<string>>(new Set());
 const lastSelectedAssetId = ref<string | null>(null);
 const isSidebarCollapsed = ref(false);
+const isPreviewDialogVisible = ref(false);
+const selectedAssetForPreview = ref<Asset | null>(null);
 
 // 分页与筛选请求载荷
 const listPayload = reactive({
@@ -205,6 +226,9 @@ const handleSelectAsset = async (asset: Asset) => {
   if (asset.type === 'image') {
     const url = await assetManagerEngine.getAssetUrl(asset);
     imageViewer.show(url);
+  } else if (asset.type === 'document') {
+    selectedAssetForPreview.value = asset;
+    isPreviewDialogVisible.value = true;
   } else {
     customMessage.info('该文件类型暂不支持预览');
   }
@@ -607,5 +631,16 @@ const handleFindDuplicates = async () => {
   padding: 16px;
   gap: 8px;
   color: var(--el-text-color-secondary);
+}
+
+.document-preview-content {
+  height: 100%;
+  display: flex;
+}
+
+.document-preview-content .document-viewer {
+  flex-grow: 1;
+  border: none; /* 移除 DocumentViewer 自身的边框，因为它已经在 Dialog 内部 */
+  border-radius: 0;
 }
 </style>

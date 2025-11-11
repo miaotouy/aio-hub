@@ -145,6 +145,7 @@ function toggleViewMode() {
   border-radius: 6px;
   overflow: hidden;
   background-color: var(--vscode-editor-background);
+  box-sizing: border-box;
 }
 
 /* 工具栏样式 */

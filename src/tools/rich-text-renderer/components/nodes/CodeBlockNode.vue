@@ -94,7 +94,7 @@ const copied = ref(false);
 const isExpanded = ref(false);
 
 // 换行状态
-const wordWrapEnabled = ref(true);
+const wordWrapEnabled = ref(false);
 
 // 字体大小控制
 const codeFontMin = 10;
@@ -258,7 +258,7 @@ const toggleWordWrap = () => {
     const editor = getEditorView();
     if (editor && typeof editor.updateOptions === 'function') {
       editor.updateOptions({
-        wordWrap: wordWrapEnabled.value ? 'off' : 'on'
+        wordWrap: wordWrapEnabled.value ? 'on' : 'off'
       });
       // 换行状态改变后需要重新计算高度和布局
       nextTick(() => {
@@ -317,7 +317,7 @@ onMounted(async () => {
         horizontal: 'auto' as const,
         handleMouseWheel: true,
       },
-      wordWrap: 'on' as const,
+      wordWrap: 'off' as const,
       wrappingIndent: 'same' as const,
       folding: true,
       // 禁用自动布局，使用固定高度

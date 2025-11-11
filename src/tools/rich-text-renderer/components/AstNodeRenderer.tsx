@@ -18,6 +18,7 @@ import EmNode from "./nodes/EmNode.vue";
 import StrikethroughNode from "./nodes/StrikethroughNode.vue";
 import InlineCodeNode from "./nodes/InlineCodeNode.vue";
 import LinkNode from "./nodes/LinkNode.vue";
+import ImageNode from "./nodes/ImageNode.vue";
 import HardBreakNode from "./nodes/HardBreakNode.vue";
 import HtmlInlineNode from "./nodes/HtmlInlineNode.vue";
 import GenericHtmlNode from "./nodes/GenericHtmlNode.vue";
@@ -46,6 +47,7 @@ const componentMap: Record<string, any> = {
   strikethrough: StrikethroughNode,
   inline_code: InlineCodeNode,
   link: LinkNode,
+  image: ImageNode,
   hard_break: HardBreakNode,
   html_inline: HtmlInlineNode,
   generic_html: GenericHtmlNode,

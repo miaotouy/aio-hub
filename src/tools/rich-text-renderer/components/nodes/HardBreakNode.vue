@@ -1,11 +1,9 @@
 <template>
-  <br />
+  <br :data-node-id="nodeId" :data-node-status="$attrs['data-node-status']" />
 </template>
 
 <script setup lang="ts">
-import type { HardBreakNode } from '@/tools/rich-text-renderer/types';
-
 defineProps<{
-  node: HardBreakNode;
+  nodeId: string;
 }>();
 </script>

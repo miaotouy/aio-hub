@@ -23,6 +23,7 @@ export type Token =
   | { type: 'em_delimiter'; marker: '*' | '_'; raw: string }
   | { type: 'code_delimiter'; marker: '`'; raw: string }
   | { type: 'strikethrough_delimiter'; marker: '~~'; raw: string }
+  | { type: 'image_marker'; raw: string }
   | { type: 'link_text_open'; raw: string }
   | { type: 'link_text_close'; raw: string }
   | { type: 'link_url_open'; raw: string }
@@ -175,6 +176,13 @@ class Tokenizer {
         atLineStart = false;
         continue;
       }
+      // 图片标记 ![
+      if (remaining.startsWith('![')) {
+        tokens.push({ type: 'image_marker', raw: '!' });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
       if (remaining.startsWith('[')) {
         tokens.push({ type: 'link_text_open', raw: '[' });
         i += 1;
@@ -201,7 +209,7 @@ class Tokenizer {
       }
 
       // 普通文本
-      const specialChars = /<|`|\*|_|~|\[|\]|\(|\)|#|>|\n/;
+      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n/;
       const nextSpecialIndex = remaining.search(specialChars);
       
       const textContent = nextSpecialIndex === -1
@@ -676,34 +684,133 @@ export class CustomParser {
         continue;
       }
 
-      // 链接
-      if (token.type === 'link_text_open') {
+      // 图片 ![alt](url)
+      if (token.type === 'image_marker') {
         flushText();
         i++;
 
-        const linkTextTokens: Token[] = [];
-        while (i < tokens.length) {
-          const t = tokens[i];
-          if (t.type === 'link_text_close') {
-            i++;
-            break;
-          }
-          linkTextTokens.push(t);
-          i++;
-        }
+        // 检查后面是否跟着 [
+        if (i < tokens.length && tokens[i].type === 'link_text_open') {
+          i++; // 跳过 [
 
-        let href = '';
-        if (i < tokens.length && tokens[i].type === 'link_url_open') {
-          i++;
-
+          // 收集 alt 文本
+          let alt = '';
           while (i < tokens.length) {
             const t = tokens[i];
-            if (t.type === 'link_url_close') {
+            if (t.type === 'link_text_close') {
               i++;
               break;
             }
             if (t.type === 'text') {
-              href += t.content;
+              alt += t.content;
+            }
+            i++;
+          }
+
+          // 收集 URL
+          let src = '';
+          let title = '';
+          if (i < tokens.length && tokens[i].type === 'link_url_open') {
+            i++;
+
+            while (i < tokens.length) {
+              const t = tokens[i];
+              if (t.type === 'link_url_close') {
+                i++;
+                break;
+              }
+              if (t.type === 'text') {
+                // 支持 title：(url "title")
+                const parts = t.content.match(/^([^\s]+)(?:\s+"([^"]+)")?$/);
+                if (parts) {
+                  src += parts[1];
+                  if (parts[2]) {
+                    title = parts[2];
+                  }
+                } else {
+                  src += t.content;
+                }
+              }
+              i++;
+            }
+          }
+
+          nodes.push({
+            id: '',
+            type: 'image',
+            props: { src, alt, title },
+            meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          });
+          continue;
+        } else {
+          // 不是图片语法，按普通文本处理
+          accumulatedText += '!';
+          continue;
+        }
+      }
+
+      // 链接 [text](url)
+      if (token.type === 'link_text_open') {
+        flushText();
+        i++;
+
+        // 收集链接文本，支持嵌套的括号（如图片）
+        const linkTextTokens: Token[] = [];
+        let bracketDepth = 1; // 已经遇到了一个 [
+        
+        while (i < tokens.length && bracketDepth > 0) {
+          const t = tokens[i];
+          
+          if (t.type === 'link_text_open') {
+            bracketDepth++;
+            linkTextTokens.push(t);
+          } else if (t.type === 'link_text_close') {
+            bracketDepth--;
+            if (bracketDepth === 0) {
+              i++; // 跳过最外层的 ]
+              break;
+            }
+            linkTextTokens.push(t);
+          } else {
+            linkTextTokens.push(t);
+          }
+          i++;
+        }
+
+        // 收集 URL
+        let href = '';
+        let title = '';
+        if (i < tokens.length && tokens[i].type === 'link_url_open') {
+          i++;
+          
+          let parenDepth = 1; // 已经遇到了一个 (
+          
+          while (i < tokens.length && parenDepth > 0) {
+            const t = tokens[i];
+            
+            if (t.type === 'link_url_open') {
+              parenDepth++;
+              if (parenDepth > 1) {
+                href += '(';
+              }
+            } else if (t.type === 'link_url_close') {
+              parenDepth--;
+              if (parenDepth === 0) {
+                i++; // 跳过最外层的 )
+                break;
+              }
+              href += ')';
+            } else if (t.type === 'text') {
+              // 支持 title：(url "title")
+              const parts = t.content.match(/^([^\s]+)(?:\s+"([^"]+)")?$/);
+              if (parts) {
+                href += parts[1];
+                if (parts[2]) {
+                  title = parts[2];
+                }
+              } else {
+                href += t.content;
+              }
             }
             i++;
           }
@@ -712,7 +819,7 @@ export class CustomParser {
         nodes.push({
           id: '',
           type: 'link',
-          props: { href, title: '' },
+          props: { href, title },
           children: this.parseInlines(linkTextTokens),
           meta: { range: { start: 0, end: 0 }, status: 'stable' }
         });

@@ -183,6 +183,7 @@ function toggleViewMode() {
 
 .code-viewer {
   height: 100%;
+  box-sizing: border-box;
 }
 
 /* Markdown 预览样式 */

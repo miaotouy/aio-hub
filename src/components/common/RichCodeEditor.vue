@@ -54,20 +54,17 @@ import {
   closeBrackets,
   closeBracketsKeymap,
 } from "@codemirror/autocomplete";
-import { javascript } from "@codemirror/lang-javascript";
-import { json } from "@codemirror/lang-json";
-import { markdown } from "@codemirror/lang-markdown";
-import { css } from "@codemirror/lang-css";
 import { foldGutter, foldKeymap } from "@codemirror/language";
 import { githubLight } from "@uiw/codemirror-theme-github";
 import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
+import { getMonacoLanguageId, getCodeMirrorLanguage } from "@/utils/codeLanguages";
 
 const props = withDefaults(defineProps<{
   modelValue?: string;
   original?: string;
   modified?: string;
   diff?: boolean;
-  language?: "json" | "markdown" | "javascript" | "css" | "text" | string;
+  language?: string;
   readOnly?: boolean;
   lineNumbers?: boolean;
   editorType?: 'codemirror' | 'monaco';
@@ -137,24 +134,7 @@ const monacoDiffOptions = computed<MonacoEditor.IStandaloneDiffEditorConstructio
 }));
 // Monaco 语言映射
 const getMonacoLanguage = () => {
-  if (!props.language) return 'plaintext';
-  const lang = props.language.toLowerCase();
-  switch (lang) {
-    case 'javascript':
-    case 'js':
-      return 'javascript';
-    case 'json':
-      return 'json';
-    case 'markdown':
-    case 'md':
-      return 'markdown';
-    case 'css':
-      return 'css';
-    case 'text':
-      return 'plaintext';
-    default:
-      return lang;
-  }
+  return getMonacoLanguageId(props.language);
 };
 
 // Monaco Editor 事件处理
@@ -182,7 +162,7 @@ const cmTheme = computed(() => isDark.value ? tokyoNight : githubLight);
 const monacoTheme = computed(() => isDark.value ? 'vs-dark' : 'vs');
 
 // CodeMirror 初始化和销毁
-const initCodeMirror = () => {
+const initCodeMirror = async () => {
   if (!editorContainerRef.value) return;
 
   // 如果已有实例，先销毁
@@ -341,26 +321,10 @@ const initCodeMirror = () => {
     }),
   ];
 
-  // 添加语言支持
-  if (props.language) {
-    switch (props.language.toLowerCase()) {
-      case "javascript":
-      case "js":
-        extensions.push(javascript({ jsx: true }));
-        break;
-      case "json":
-        extensions.push(json());
-        break;
-      case "markdown":
-      case "md":
-        extensions.push(markdown());
-        break;
-      case "css":
-        extensions.push(css());
-        break;
-      default:
-        break;
-    }
+  // 动态加载并添加语言支持
+  const languageExt = await getCodeMirrorLanguage(props.language);
+  if (languageExt) {
+    extensions.push(languageExt);
   }
 
   const startState = EditorState.create({
@@ -390,9 +354,9 @@ watch(monacoValue, (newVal) => {
   }
 });
 
-onMounted(() => {
+onMounted(async () => {
   if (!props.diff && props.editorType === 'codemirror') {
-    initCodeMirror();
+    await initCodeMirror();
   }
 });
 
@@ -451,8 +415,8 @@ watch(
 watch(() => props.editorType, (newType, oldType) => {
   if (props.diff) return;
   if (newType === 'codemirror' && oldType === 'monaco') {
-    nextTick(() => {
-      initCodeMirror();
+    nextTick(async () => {
+      await initCodeMirror();
     });
   } else if (newType === 'monaco' && oldType === 'codemirror') {
     destroyCodeMirror();

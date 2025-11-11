@@ -75,6 +75,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { Copy, Check, Maximize2, Minimize2, Plus, Minus, RotateCcw, WrapText } from 'lucide-vue-next';
 import { useTheme } from '@composables/useTheme';
 import { customMessage } from '@/utils/customMessage';
+import { getMonacoLanguageId } from '@/utils/codeLanguages';
 // 动态导入，避免类型检查时就报错
 type StreamMonacoModule = typeof import('stream-monaco');
 
@@ -109,20 +110,8 @@ const fontBaselineReady = computed(() => {
          typeof b === 'number' && Number.isFinite(b) && b > 0;
 });
 
-// Monaco 编辑器语言映射
-const languageMap: Record<string, string> = {
-  'js': 'javascript',
-  'ts': 'typescript',
-  'py': 'python',
-  'rb': 'ruby',
-  'sh': 'shell',
-  'bash': 'shell',
-  'yml': 'yaml',
-};
-
 const monacoLanguage = computed(() => {
-  if (!props.language) return 'plaintext';
-  return languageMap[props.language] || props.language;
+  return getMonacoLanguageId(props.language);
 });
 
 // stream-monaco helpers - 提供默认空实现

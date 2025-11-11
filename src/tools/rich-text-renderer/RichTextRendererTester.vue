@@ -1,7 +1,7 @@
 <template>
   <div class="rich-text-renderer-tester">
     <!-- 顶部操作栏 -->
-    <el-card shadow="never" class="header-card">
+    <div class="header-bar">
       <div class="header-content">
         <div class="header-left">
           <el-tooltip v-if="!isInputCollapsed" content="折叠输入栏" placement="bottom">
@@ -56,7 +56,7 @@
           </el-tooltip>
         </div>
       </div>
-    </el-card>
+    </div>
 
     <div class="tester-container">
       <!-- 左侧输入栏 -->
@@ -275,7 +275,6 @@ import {
   Loading,
   CopyDocument,
 } from "@element-plus/icons-vue";
-import InfoCard from "@/components/common/InfoCard.vue";
 import RichTextRenderer from "./RichTextRenderer.vue";
 import type { StreamSource } from "./types";
 import { presets } from "./presets";
@@ -704,16 +703,15 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* 顶部卡片 */
-.header-card {
+/* 顶部工具栏 */
+.header-bar {
   margin-bottom: 16px;
   flex-shrink: 0;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-}
-
-.header-card :deep(.el-card__body) {
   padding: 12px 20px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .header-content {

@@ -260,6 +260,7 @@ const handleSelect = (item: any) => {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 20px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .config-panel h2 {

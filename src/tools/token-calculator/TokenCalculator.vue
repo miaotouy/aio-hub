@@ -127,7 +127,6 @@ const copyText = async () => {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background-color: var(--bg-color);
   padding: 6px;
   box-sizing: border-box;
 }
@@ -142,6 +141,7 @@ const copyText = async () => {
   border-radius: 12px;
   border: 1px solid var(--border-color);
   box-sizing: border-box;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 主内容区域 */

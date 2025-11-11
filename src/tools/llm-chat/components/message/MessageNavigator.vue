@@ -280,7 +280,7 @@ const handleMouseLeave = () => {
 /* 跳转按钮样式 */
 .nav-button-jump {
   background: var(--el-fill-color);
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--border-color);
 }
 
 .nav-button-jump:hover:not(.disabled) {

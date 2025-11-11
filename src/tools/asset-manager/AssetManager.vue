@@ -557,6 +557,7 @@ const handleFindDuplicates = async () => {
   background-color: var(--sidebar-bg);
   border-right: 1px solid var(--border-color);
   overflow-y: auto;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .main-view-container {

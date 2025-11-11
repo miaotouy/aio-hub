@@ -1,7 +1,8 @@
 <template>
   <div class="json-formatter-container">
-    <!-- 固定顶栏工具栏 -->
-    <div class="toolbar">
+    <div class="tool-wrapper">
+      <!-- 固定顶栏工具栏 -->
+      <div class="toolbar">
       <div class="toolbar-left">
         <el-button @click="pasteToJson" size="small" type="primary">
           <el-icon>
@@ -92,6 +93,7 @@
           />
         </div>
       </div>
+    </div>
     </div>
   </div>
 </template>
@@ -311,12 +313,21 @@ onUnmounted(() => {
 <style scoped>
 .json-formatter-container {
   display: flex;
-  flex-direction: column;
   height: 100%;
   width: 100%;
-  overflow: hidden;
-  background-color: var(--bg-color);
   box-sizing: border-box;
+  padding: 20px;
+}
+
+.tool-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  overflow: hidden;
 }
 
 /* 固定顶栏工具栏 */
@@ -325,9 +336,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background-color: var(--card-bg);
+  background-color: transparent;
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   z-index: 10;
   flex-shrink: 0;
 }
@@ -370,6 +380,7 @@ onUnmounted(() => {
   display: flex;
   flex: 1;
   overflow: hidden;
+  /* 背景由 .tool-wrapper 提供 */
 }
 
 .editor-panel {
@@ -407,7 +418,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background-color: var(--card-bg);
+  background-color: transparent;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }

@@ -202,7 +202,6 @@ body.transparent-window #app {
 .el-textarea__inner {
   background-color: transparent;
   color: var(--text-color);
-  border-color: var(--border-color);
 }
 
 /* Element Plus 全局主题适配 - 卡片组件 */
@@ -938,19 +937,18 @@ html.dark .el-dropdown-menu__item:not(.is-disabled):hover {
 /* ========================================================================== */
 
 /* --- 表单元素 --- */
+/* 
 input:not([type='button']):not([type='submit']):not([type='reset']):not([type='image']):not([type='checkbox']):not([type='radio']):not([type='range']),
 select,
 textarea {
   background-color: rgba(var(--input-bg-rgb), var(--card-opacity, 0.85));
-  backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
 }
+*/
 
 /* --- 代码块和引用 --- */
 pre,
 blockquote {
   background-color: rgba(var(--card-bg-rgb), var(--card-opacity, 0.7));
-  backdrop-filter: blur(var(--ui-blur));
   border-radius: 4px;
   border: 1px solid var(--border-color);
 }
@@ -969,7 +967,7 @@ pre code {
 }
 
 /* --- 范围滑块 (Range Input) --- */
-input[type='range'] {
+input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
@@ -985,7 +983,7 @@ input[type='range'] {
   -webkit-backdrop-filter: none;
 }
 
-input[type='range']::-webkit-slider-thumb {
+input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 18px;
@@ -997,7 +995,7 @@ input[type='range']::-webkit-slider-thumb {
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
 }
 
-input[type='range']::-moz-range-thumb {
+input[type="range"]::-moz-range-thumb {
   width: 18px;
   height: 18px;
   background: var(--primary-color);
@@ -1008,13 +1006,13 @@ input[type='range']::-moz-range-thumb {
 }
 
 /* --- 文件选择按钮 --- */
-input[type='file'] {
+input[type="file"] {
   background-color: transparent;
   border: none;
   padding: 0;
 }
 
-input[type='file']::file-selector-button {
+input[type="file"]::file-selector-button {
   padding: 8px 16px;
   margin-right: 12px;
   border: 1px solid var(--primary-color);
@@ -1025,14 +1023,14 @@ input[type='file']::file-selector-button {
   transition: all 0.2s;
 }
 
-input[type='file']::file-selector-button:hover {
+input[type="file"]::file-selector-button:hover {
   background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
-html.dark input[type='file']::file-selector-button {
+html.dark input[type="file"]::file-selector-button {
   background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
 }
 
-html.dark input[type='file']::file-selector-button:hover {
+html.dark input[type="file"]::file-selector-button:hover {
   background-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
 }

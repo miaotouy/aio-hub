@@ -254,6 +254,7 @@ watch(
   border-radius: 8px;
   padding: 20px;
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .section-header {
@@ -274,6 +275,7 @@ watch(
   border: 1px solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
+  min-height: 15vh;
 }
 
 .table-header,

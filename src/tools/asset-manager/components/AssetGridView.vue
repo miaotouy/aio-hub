@@ -189,6 +189,7 @@ const formatFileSize = (bytes: number) => {
   transition: all 0.2s;
   background-color: var(--card-bg);
   user-select: none;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .asset-card:hover {

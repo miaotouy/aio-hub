@@ -168,6 +168,7 @@ function getStatusClass(status?: number): string {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .records-header {

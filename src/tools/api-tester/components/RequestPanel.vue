@@ -341,6 +341,7 @@ function previewBody() {
   border-radius: 8px;
   padding: 20px;
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .tabs {

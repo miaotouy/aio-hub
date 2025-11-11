@@ -97,9 +97,10 @@ const handleToggleSelectAll = () => {
   align-items: center;
   justify-content: space-between;
   padding: 12px;
-  border-bottom: 1px solid var(--el-border-color-light);
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 16px;
-  border-radius: 4px;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
   background-color: var(--sidebar-bg);
 }
 

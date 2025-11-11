@@ -81,23 +81,25 @@
       <!-- 操作 -->
       <el-table-column label="操作" width="120" fixed="right">
         <template #default="{ row }">
-          <el-button
-            text
-            type="primary"
-            size="small"
-            @click.stop="handleSelect(row)"
-          >
-            <el-icon><View /></el-icon>
-            预览
-          </el-button>
-          <el-button
-            text
-            type="danger"
-            size="small"
-            @click.stop="handleDelete(row.id)"
-          >
-            <el-icon><Delete /></el-icon>
-          </el-button>
+          <div class="action-buttons" style="display: flex; align-items: center;">
+            <el-button
+              text
+              type="primary"
+              size="small"
+              @click.stop="handleSelect(row)"
+            >
+              <el-icon><View /></el-icon>
+              预览
+            </el-button>
+            <el-button
+              text
+              type="danger"
+              size="small"
+              @click.stop="handleDelete(row.id)"
+            >
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -237,6 +239,9 @@ const getRowClassName = ({ row }: { row: Asset }) => {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
+  background-color: var(--container-bg);
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .type-icon {

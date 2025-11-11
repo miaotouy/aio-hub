@@ -89,8 +89,11 @@ async function handleSend() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--border-color);
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .tester-header h2 {
@@ -151,7 +154,8 @@ async function handleSend() {
   height: 100%;
   background: var(--container-bg);
   border-radius: 8px;
-  border: 2px dashed var(--border-color);
+  border: 1px dashed var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .empty-response p {

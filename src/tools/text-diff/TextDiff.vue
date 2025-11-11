@@ -1,7 +1,7 @@
 <template>
   <div class="text-diff-container">
     <!-- 工具栏 -->
-    <el-card shadow="never" class="toolbar-card">
+    <InfoCard bare class="toolbar-card">
       <div class="toolbar">
         <!-- 语言选择 -->
         <div class="toolbar-group">
@@ -116,7 +116,7 @@
           <el-button size="small" @click="swapTexts">交换</el-button>
         </div>
       </div>
-    </el-card>
+    </InfoCard>
 
     <!-- 文件名显示 -->
     <div v-if="leftFileName || rightFileName" class="file-names">
@@ -137,7 +137,7 @@
     </div>
 
     <!-- Diff 编辑器 - 一体化输入和对比 -->
-    <el-card shadow="never" class="diff-editor-card">
+    <InfoCard bare class="diff-editor-card">
       <div class="editor-container">
         <!-- 左侧拖放区域 -->
         <div
@@ -178,13 +178,14 @@
           @mount="handleEditorMounted"
         />
       </div>
-    </el-card>
+    </InfoCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, shallowRef } from "vue";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
+import InfoCard from "@components/common/InfoCard.vue";
 import {
   ArrowUp,
   ArrowDown,
@@ -617,6 +618,9 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
 
 .toolbar-card {
   flex-shrink: 0;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .toolbar {
@@ -657,6 +661,8 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
   min-height: 0;
   overflow: hidden;
   background: transparent;
+  border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .diff-editor-card :deep(.el-card__body) {
@@ -678,9 +684,11 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  background: var(--el-fill-color-light);
-  border-radius: 6px;
+  background: var(--card-bg);
+  border-radius: 8px;
   font-size: 13px;
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
 }
 
 .file-name {

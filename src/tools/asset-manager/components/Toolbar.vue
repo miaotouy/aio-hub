@@ -205,6 +205,7 @@ const handleFindDuplicates = () => {
   background-color: var(--sidebar-bg);
   border-bottom: 1px solid var(--el-border-color);
   box-sizing: border-box;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .toolbar-left {

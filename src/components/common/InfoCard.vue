@@ -1,6 +1,6 @@
 <template>
-  <el-card shadow="never" :class="['info-card', { 'glass-card': appearanceSettings?.enableUiBlur }]">
-      <template #header>
+  <el-card shadow="never" :class="['info-card', { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare }]">
+      <template v-if="title" #header>
         <div class="card-header">
           <span>{{ title }}</span>
           <div>
@@ -33,7 +33,8 @@ const { appearanceSettings } = useThemeAppearance();
 const props = defineProps({
   title: {
     type: String,
-    required: true,
+    required: false,
+    default: '',
   },
   content: {
     type: String,
@@ -44,9 +45,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  bare: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const { content, title } = toRefs(props);
+const { content, title, bare } = toRefs(props);
 
 const copyContent = async () => {
   if (!content.value) return;
@@ -74,7 +79,7 @@ const copyContent = async () => {
   min-height: 0; /* 关键：允许 flex item 在内容溢出时正确缩小 */
 }
 
-:deep(.el-card__body) {
+.info-card:not(.is-bare) :deep(.el-card__body) {
   flex: 1; /* 让卡片内容区域占满剩余空间 */
   min-height: 0;
   display: flex;

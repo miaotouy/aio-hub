@@ -188,6 +188,7 @@ const {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .detail-header {

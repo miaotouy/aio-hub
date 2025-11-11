@@ -173,38 +173,33 @@ const setAutomaticLayout = (enabled: boolean) => {
 // 切换展开/折叠
 const toggleExpand = async () => {
   isExpanded.value = !isExpanded.value;
-  
+
   const editor = getEditorView();
-  const container = editorEl.value;
+  // 我们要操作的是 .code-editor-container，它是 editorEl 的父元素
+  const container = editorEl.value?.parentElement;
   if (!editor || !container) return;
-  
+
+  // 等待 Vue 更新 DOM，应用/移除 .expanded 类
   await nextTick();
-  
+
   try {
     if (isExpanded.value) {
-      // 展开：启用自动布局，移除高度限制
+      // 展开：启用自动布局，计算内容高度并设置为 max-height 以实现动画
       setAutomaticLayout(true);
-      container.style.maxHeight = 'none';
-      container.style.overflow = 'hidden'; // 保持 overflow hidden
-      
-      // 计算并设置内容高度
       const h = computeContentHeight();
       if (h && h > 0) {
-        container.style.height = `${h}px`;
-      } else {
-        container.style.height = 'auto'; // Fallback
+        container.style.maxHeight = `${h}px`;
       }
     } else {
-      // 收起：禁用自动布局，恢复高度限制
+      // 收起：禁用自动布局，并移除内联的 max-height，让 CSS 类生效
       setAutomaticLayout(false);
-      container.style.maxHeight = '500px';
-      container.style.height = '500px';
-      container.style.overflow = 'hidden'; // 恢复默认值，而不是 'auto'
+      container.style.maxHeight = ''; // 恢复由 CSS 控制
     }
-    
+
     // 触发重新布局
     if (typeof editor.layout === 'function') {
-      editor.layout();
+      // 延迟一小段时间，确保 CSS transition 开始
+      setTimeout(() => editor.layout(), 50);
     }
   } catch (error) {
     console.error('[CodeBlockNode] 切换展开状态失败:', error);
@@ -312,13 +307,22 @@ onMounted(async () => {
       codeFontSize.value = actualFontSize;
     }
 
-    // 确保编辑器填充容器，移除可能的内联样式干扰
+    // 等待 Monaco 渲染完成后再计算高度
+    // 使用 setTimeout 确保 Monaco 有足够时间渲染内容
+    await new Promise(resolve => setTimeout(resolve, 100));
     await nextTick();
+    
     if (editorEl.value) {
-      editorEl.value.style.height = '100%';
+      const h = computeContentHeight();
+      if (h && h > 0) {
+        // 由 JS 精准设置高度，打破 CSS `height: auto` 和 `child-height: 100%` 的循环依赖
+        editorEl.value.style.height = `${h}px`;
+      } else {
+        // 如果计算失败，设置一个合理的默认高度
+        editorEl.value.style.height = '100px';
+      }
       editorEl.value.style.width = '100%';
       editorEl.value.style.overflow = 'hidden';
-      // 移除可能被 Monaco 设置的 max-height
       editorEl.value.style.maxHeight = 'none';
     }
 
@@ -376,9 +380,31 @@ onUnmounted(() => {
   }
 });
 
-// 内容更新时，仅需要调用 updateCode，高度由 automaticLayout 自动处理
-watch(() => props.content, (newContent) => {
+// 内容更新时，需要同步更新编辑器内容和高度
+watch(() => props.content, (newContent, oldContent) => {
+  // 避免在组件初始化时重复执行
+  if (newContent === oldContent) return;
+
   updateCode(newContent, monacoLanguage.value);
+
+  // 使用 nextTick 等待 Monaco 更新 DOM
+  nextTick(() => {
+    const editor = getEditorView();
+    const container = editorEl.value?.parentElement;
+    if (!editor || !container) return;
+
+    const h = computeContentHeight();
+    if (h && h > 0) {
+      // 始终更新 editorEl 的高度以反映最新内容
+      if (editorEl.value) {
+        editorEl.value.style.height = `${h}px`;
+      }
+      // 如果是展开状态，需要同步更新容器的 max-height
+      if (isExpanded.value) {
+        container.style.maxHeight = `${h}px`;
+      }
+    }
+  });
 });
 
 </script>
@@ -462,24 +488,19 @@ watch(() => props.content, (newContent) => {
 }
 
 .code-editor-container {
-  /* Monaco 编辑器容器，固定高度让编辑器自己滚动 */
-  height: 500px;
-  min-height: 100px;
+  /* 容器高度自适应，但最大不超过500px */
+  height: auto;
+  max-height: 500px;
+  min-height: 50px;
   position: relative;
-  transition: height 0.3s ease;
+  /* 过渡效果应用在 max-height 上 */
+  transition: max-height 0.3s ease-in-out;
   /* 容器不需要滚动，让内部 Monaco 处理 */
   overflow: hidden;
 }
 
-.code-editor-container.expanded {
-  /* 展开时高度由JS根据内容计算，移除固定的视窗高度限制 */
-  height: auto;
-  max-height: none;
-}
-
-/* Monaco 编辑器需要填充整个容器 */
+/* Monaco 编辑器容器的 div 高度由 JS 动态设置 */
 .code-editor-container > div {
-  height: 100%;
   width: 100%;
 }
 

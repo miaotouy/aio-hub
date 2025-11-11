@@ -203,7 +203,7 @@ defineExpose({
 .message-list {
   flex: 1;
   overflow-y: auto; /* 使用 auto 以支持虚拟滚动 */
-  padding: 84px 12px 20px 20px; /* 右边距减去滚动条宽度以保持对称 */
+  padding: 84px 20px 20px 28px; /* 左右各增加8px间距 */
 }
 
 .message-wrapper {

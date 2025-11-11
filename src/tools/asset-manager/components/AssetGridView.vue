@@ -23,7 +23,7 @@
         <div class="asset-preview">
           <template v-if="asset.type === 'image'">
             <!-- 只有在 URL 准备好时才渲染图片 -->
-            <template v-if="assetUrls.has(asset.id) && !isLoadingUrls">
+            <template v-if="assetUrls.has(asset.id)">
               <img
                 :src="assetUrls.get(asset.id)"
                 :alt="asset.name"
@@ -80,7 +80,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
 import { MoreFilled, View, Delete } from '@element-plus/icons-vue';
 import type { Asset } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
@@ -89,12 +88,14 @@ interface Props {
   assets: Asset[];
   duplicateHashes?: Set<string>;
   selectedIds?: Set<string>;
+  assetUrls: Map<string, string>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   assets: () => [],
   duplicateHashes: () => new Set(),
   selectedIds: () => new Set(),
+  assetUrls: () => new Map(),
 });
 
 const emit = defineEmits<{
@@ -103,44 +104,6 @@ const emit = defineEmits<{
   'selection-change': [asset: Asset, event: MouseEvent];
 }>();
 
-// 存储每个资产的 URL
-const assetUrls = ref<Map<string, string>>(new Map());
-const basePath = ref<string>('');
-const isLoadingUrls = ref(false);
-
-// 加载资产 URL
-const loadAssetUrls = async () => {
-  try {
-    isLoadingUrls.value = true;
-    
-    // 获取基础路径（只需获取一次）
-    if (!basePath.value) {
-      basePath.value = await assetManagerEngine.getAssetBasePath();
-    }
-    
-    // 清空旧的 URL
-    assetUrls.value.clear();
-    
-    // 为所有图片资产生成 URL
-    for (const asset of props.assets) {
-      if (asset.type === 'image') {
-        try {
-          const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
-          assetUrls.value.set(asset.id, url);
-        } catch (error) {
-          console.error('生成资产 URL 失败:', asset.id, error);
-        }
-      }
-    }
-  } finally {
-    isLoadingUrls.value = false;
-  }
-};
-
-// 监听资产列表变化
-watch(() => props.assets, () => {
-  loadAssetUrls();
-}, { immediate: true, deep: true });
 
 // 处理图片加载错误
 const handleImageError = (asset: Asset) => {

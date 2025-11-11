@@ -15,36 +15,27 @@
         </el-button>
       </div>
     </div>
-    
     <div class="group-content">
-      <!-- 网格视图 -->
-      <AssetGridView
-        v-if="viewMode === 'grid'"
-        :assets="assets"
-        :duplicate-hashes="duplicateHashes"
-        :selected-ids="selectedIds"
-        @selection-change="(asset, event) => emit('selection-change', asset, event)"
-        @select="(asset) => emit('select', asset)"
-        @delete="(assetId) => emit('delete', assetId)"
-      />
-      
-      <!-- 列表视图 -->
-      <AssetListView
-        v-else
-        :assets="assets"
-        :duplicate-hashes="duplicateHashes"
-        :selected-ids="selectedIds"
-        @selection-change="(asset, event) => emit('selection-change', asset, event)"
-        @select="(asset) => emit('select', asset)"
-        @delete="(assetId) => emit('delete', assetId)"
-      />
+      <KeepAlive>
+        <component
+          :is="currentViewComponent"
+          :assets="assets"
+          :duplicate-hashes="duplicateHashes"
+          :selected-ids="selectedIds"
+          :asset-urls="assetUrls"
+          @selection-change="(asset, event) => emit('selection-change', asset, event)"
+          @select="(asset) => emit('select', asset)"
+          @delete="(assetId) => emit('delete', assetId)"
+        />
+      </KeepAlive>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { Asset } from '@/types/asset-management';
+import { assetManagerEngine } from '@/composables/useAssetManager';
 import AssetGridView from './AssetGridView.vue';
 import AssetListView from './AssetListView.vue';
 
@@ -69,6 +60,42 @@ const emit = defineEmits<{
   'select-all': [assetIds: string[]];
   'deselect-all': [assetIds: string[]];
 }>();
+
+// --- 预览 URL 管理 ---
+const assetUrls = ref<Map<string, string>>(new Map());
+const basePath = ref<string>('');
+
+const loadAssetUrls = async () => {
+  if (!basePath.value) {
+    basePath.value = await assetManagerEngine.getAssetBasePath();
+  }
+  
+  const newUrls = new Map<string, string>();
+  for (const asset of props.assets) {
+    if (asset.type === 'image') {
+      try {
+        const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+        newUrls.set(asset.id, url);
+      } catch (error) {
+        console.error('生成资产 URL 失败:', asset.id, error);
+      }
+    }
+  }
+  assetUrls.value = newUrls;
+};
+
+watch(() => props.assets, loadAssetUrls, { immediate: true, deep: true });
+
+
+// --- 视图组件管理 ---
+const viewComponents = {
+  grid: AssetGridView,
+  list: AssetListView,
+};
+const currentViewComponent = computed(() => viewComponents[props.viewMode]);
+
+
+// --- 全选逻辑 ---
 
 // 判断当前分组的所有资产是否全部被选中
 const isAllSelected = computed(() => {

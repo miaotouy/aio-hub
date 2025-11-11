@@ -110,18 +110,19 @@
 import { View, Delete } from '@element-plus/icons-vue';
 import type { Asset, AssetType, AssetOrigin } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
-import { ref, watch } from 'vue';
 
 interface Props {
   assets: Asset[];
   duplicateHashes?: Set<string>;
   selectedIds?: Set<string>;
+  assetUrls: Map<string, string>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   assets: () => [],
   duplicateHashes: () => new Set(),
   selectedIds: () => new Set(),
+  assetUrls: () => new Map(),
 });
 
 const emit = defineEmits<{
@@ -130,50 +131,10 @@ const emit = defineEmits<{
   'selection-change': [asset: Asset, event: MouseEvent];
 }>();
 
-// 存储每个资产的 URL
-const assetUrls = ref<Map<string, string>>(new Map());
-const basePath = ref<string>('');
-const isLoadingUrls = ref(false);
-
-// 加载资产 URL
-const loadAssetUrls = async () => {
-  try {
-    isLoadingUrls.value = true;
-    
-    // 获取基础路径（只需获取一次）
-    if (!basePath.value) {
-      basePath.value = await assetManagerEngine.getAssetBasePath();
-    }
-    
-    // 清空旧的 URL
-    assetUrls.value.clear();
-    
-    // 为所有图片资产生成 URL
-    for (const asset of props.assets) {
-      if (asset.type === 'image') {
-        try {
-          const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
-          assetUrls.value.set(asset.id, url);
-        } catch (error) {
-          console.error('生成资产 URL 失败:', asset.id, error);
-        }
-      }
-    }
-  } finally {
-    isLoadingUrls.value = false;
-  }
-};
-
 // 获取资产的 URL
 const getAssetUrl = (asset: Asset): string => {
-  return assetUrls.value.get(asset.id) || '';
+  return props.assetUrls.get(asset.id) || '';
 };
-
-// 监听资产列表变化
-watch(() => props.assets, () => {
-  loadAssetUrls();
-}, { immediate: true, deep: true });
-
 
 const handleSelect = (asset: Asset) => {
   emit('select', asset);

@@ -203,3 +203,33 @@ export interface DuplicateFilesResult {
  * 资产分组方式
  */
 export type AssetGroupBy = 'month' | 'type' | 'origin' | 'none';
+
+// --- Lazy Loading & Pagination Types ---
+
+export type AssetSortBy = 'date' | 'name' | 'size';
+export type SortOrder = 'asc' | 'desc';
+
+export interface ListAssetsPaginatedPayload {
+  page: number;
+  pageSize: number;
+  sortBy: AssetSortBy;
+  sortOrder: SortOrder;
+  filterType?: AssetType | 'all';
+  filterOrigin?: AssetOriginType | 'all';
+  searchQuery?: string;
+  showDuplicatesOnly?: boolean;
+}
+
+export interface PaginatedAssetsResponse {
+  items: Asset[];
+  totalItems: number;
+  totalPages: number;
+  hasMore: boolean;
+  page: number;
+}
+
+export interface AssetStats {
+  totalAssets: number;
+  totalSize: number;
+  typeCounts: Record<AssetType, number>;
+}

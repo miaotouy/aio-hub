@@ -7,6 +7,9 @@ import type {
   AssetType,
   AssetOrigin,
   AssetMetadata,
+  ListAssetsPaginatedPayload,
+  PaginatedAssetsResponse,
+  AssetStats,
 } from "@/types/asset-management";
 
 /**
@@ -131,17 +134,14 @@ export const assetManagerEngine = {
    * 格式化文件大小
    */
   formatFileSize: (bytes: number): string => {
-    const units = ["B", "KB", "MB", "GB"];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
+    if (bytes === 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${units[i]}`;
   },
 
   /**
+   * @deprecated Use listAssetsPaginated instead.
    * 列出所有已导入的资产
    */
   listAllAssets: async (): Promise<Asset[]> => {
@@ -149,10 +149,33 @@ export const assetManagerEngine = {
   },
 
   /**
-   * 重建哈希索引
+   * 分页、筛选和排序资产
+   */
+  listAssetsPaginated: async (
+    payload: ListAssetsPaginatedPayload
+  ): Promise<PaginatedAssetsResponse> => {
+    return await invoke<PaginatedAssetsResponse>("list_assets_paginated", { payload });
+  },
+
+  /**
+   * 获取资产统计信息
+   */
+  getAssetStats: async (): Promise<AssetStats> => {
+    return await invoke<AssetStats>("get_asset_stats");
+  },
+
+  /**
+   * 重建哈希索引 (用于查重)
    */
   rebuildHashIndex: async (): Promise<string> => {
     return await invoke<string>("rebuild_hash_index");
+  },
+
+  /**
+   * 重建前端查询用的 Catalog 索引
+   */
+  rebuildCatalogIndex: async (): Promise<string> => {
+    return await invoke<string>("rebuild_catalog_index");
   },
 };
 
@@ -165,10 +188,25 @@ export const assetManagerEngine = {
 export function useAssetManager() {
   // 状态管理
   const isLoading = ref(false);
+  const isAppending = ref(false); // 用于加载更多
   const error = ref<string | null>(null);
   const assets = ref<Asset[]>([]);
   const rebuildProgress = ref({ current: 0, total: 0, currentType: "" });
   let unlistenRebuildProgress: (() => void) | null = null;
+  let unlistenCatalogRebuildProgress: (() => void) | null = null;
+
+  // 分页状态
+  const currentPage = ref(1);
+  const totalPages = ref(0);
+  const hasMore = ref(false);
+  const totalItems = ref(0);
+
+  // 统计状态
+  const assetStats = ref<AssetStats>({
+    totalAssets: 0,
+    totalSize: 0,
+    typeCounts: { image: 0, video: 0, audio: 0, document: 0, other: 0 },
+  });
 
   // --- 方法 ---
 
@@ -178,14 +216,77 @@ export function useAssetManager() {
     throw new Error(errorMsg);
   };
 
-  const withLoading = async <T>(promise: Promise<T>): Promise<T> => {
-    isLoading.value = true;
+  const withLoading = async <T>(promise: Promise<T>, append = false): Promise<T> => {
+    if (append) {
+      isAppending.value = true;
+    } else {
+      isLoading.value = true;
+    }
     error.value = null;
     try {
       return await promise;
     } finally {
-      isLoading.value = false;
+      if (append) {
+        isAppending.value = false;
+      } else {
+        isLoading.value = false;
+      }
     }
+  };
+
+  /**
+   * 分页加载资产
+   */
+  const loadAssetsPaginated = async (payload: ListAssetsPaginatedPayload, append = false) => {
+    try {
+      // 准备要发送到后端的载荷
+      const backendPayload: any = { ...payload };
+
+      if (backendPayload.filterType === "all") {
+        delete backendPayload.filterType;
+      }
+      if (backendPayload.filterOrigin === "all") {
+        delete backendPayload.filterOrigin;
+      }
+
+      const promise = assetManagerEngine.listAssetsPaginated(backendPayload);
+      const response = await withLoading(promise, append);
+
+      if (append) {
+        assets.value.push(...response.items);
+      } else {
+        assets.value = response.items;
+      }
+
+      currentPage.value = response.page;
+      totalPages.value = response.totalPages;
+      hasMore.value = response.hasMore;
+      totalItems.value = response.totalItems;
+    } catch (err) {
+      handleError(err, "加载资产列表失败");
+    }
+  };
+
+  /**
+   * 获取资产统计信息
+   */
+  const fetchAssetStats = async () => {
+    try {
+      assetStats.value = await assetManagerEngine.getAssetStats();
+    } catch (err) {
+      handleError(err, "获取资产统计信息失败");
+    }
+  };
+
+  /**
+   * 导入后刷新
+   * @param newAsset
+   */
+  const handlePostImport = async (newAsset: Asset) => {
+    // 导入成功后，重新获取统计信息，并将新资产添加到列表顶部
+    await fetchAssetStats();
+    assets.value.unshift(newAsset);
+    totalItems.value++;
   };
 
   /**
@@ -198,7 +299,7 @@ export function useAssetManager() {
     try {
       const promise = assetManagerEngine.importAssetFromPath(originalPath, options);
       const asset = await withLoading(promise);
-      assets.value.push(asset);
+      await handlePostImport(asset);
       return asset;
     } catch (err) {
       handleError(err, "导入资产失败");
@@ -214,7 +315,26 @@ export function useAssetManager() {
     paths: string[],
     options?: AssetImportOptions
   ): Promise<Asset[]> => {
-    return await withLoading(Promise.all(paths.map((path) => importAssetFromPath(path, options))));
+    // 批量导入时，只在最后刷新一次列表和统计
+    const importedAssets: Asset[] = [];
+    isLoading.value = true;
+    for (const path of paths) {
+      try {
+        const asset = await assetManagerEngine.importAssetFromPath(path, options);
+        importedAssets.push(asset);
+      } catch (err) {
+        console.error(`导入文件 ${path} 失败:`, err);
+      }
+    }
+    isLoading.value = false;
+
+    // 如果有任何文件导入成功，则刷新
+    if (importedAssets.length > 0) {
+      await fetchAssetStats();
+      // 这里可以触发一次列表重载，或者将新文件添加到顶部
+      // 为简单起见，暂时不重载整个列表，依赖用户手动刷新或下次筛选
+    }
+    return importedAssets;
   };
 
   /**
@@ -228,7 +348,7 @@ export function useAssetManager() {
     try {
       const promise = assetManagerEngine.importAssetFromBytes(bytes, originalName, options);
       const asset = await withLoading(promise);
-      assets.value.push(asset);
+      await handlePostImport(asset);
       return asset;
     } catch (err) {
       handleError(err, "导入字节数据失败");
@@ -265,54 +385,41 @@ export function useAssetManager() {
   };
 
   /**
-   * 根据类型过滤资产
+   * 重建前端查询用的 Catalog 索引
    */
-  const getAssetsByType = (type: AssetType): Asset[] => {
-    return assets.value.filter((asset) => asset.type === type);
-  };
+  const rebuildCatalogIndex = async (): Promise<string> => {
+    // 开始监听进度事件
+    if (!unlistenCatalogRebuildProgress) {
+      const unlisten = await listen<{ current: number; total: number; currentType: string }>(
+        "rebuild-catalog-progress",
+        (event) => {
+          rebuildProgress.value = event.payload;
+        }
+      );
+      unlistenCatalogRebuildProgress = unlisten;
+    }
 
-  /**
-   * 根据来源过滤资产
-   */
-  const getAssetsByOrigin = (originType: AssetOrigin["type"]): Asset[] => {
-    return assets.value.filter((asset) => asset.origin?.type === originType);
-  };
-
-  /**
-   * 搜索资产
-   */
-  const searchAssets = (query: string): Asset[] => {
-    if (!query.trim()) return assets.value;
-    const lowerQuery = query.toLowerCase();
-    return assets.value.filter(
-      (asset) =>
-        asset.name.toLowerCase().includes(lowerQuery) ||
-        asset.mimeType.toLowerCase().includes(lowerQuery)
-    );
-  };
-
-  /**
-   * 清空本地资产列表
-   */
-  const clearAssets = (): void => {
-    assets.value = [];
-  };
-
-  /**
-   * 从后端加载所有资产
-   */
-  const loadAssets = async (): Promise<void> => {
+    rebuildProgress.value = { current: 0, total: 0, currentType: "starting..." };
     try {
-      const promise = assetManagerEngine.listAllAssets();
-      const loadedAssets = await withLoading(promise);
-      assets.value = loadedAssets;
+      const promise = assetManagerEngine.rebuildCatalogIndex();
+      const result = await withLoading(promise);
+      await fetchAssetStats(); // 重建后刷新统计信息
+      // 可以在这里触发一次列表刷新
+      return result;
     } catch (err) {
-      handleError(err, "加载资产列表失败");
+      return handleError(err, "重建目录索引失败");
+    } finally {
+      // 停止监听并重置进度
+      if (unlistenCatalogRebuildProgress) {
+        unlistenCatalogRebuildProgress();
+        unlistenCatalogRebuildProgress = null;
+      }
+      rebuildProgress.value = { current: 0, total: 0, currentType: "" };
     }
   };
 
   /**
-   * 重建哈希索引
+   * 重建用于查重的哈希索引
    */
   const rebuildHashIndex = async (): Promise<string> => {
     // 开始监听进度事件
@@ -329,10 +436,9 @@ export function useAssetManager() {
     rebuildProgress.value = { current: 0, total: 0, currentType: "starting..." };
     try {
       const promise = assetManagerEngine.rebuildHashIndex();
-      const result = await withLoading(promise);
-      return result;
+      return await withLoading(promise);
     } catch (err) {
-      return handleError(err, "重建索引失败");
+      return handleError(err, "重建哈希索引失败");
     } finally {
       // 停止监听并重置进度
       if (unlistenRebuildProgress) {
@@ -348,6 +454,9 @@ export function useAssetManager() {
     if (unlistenRebuildProgress) {
       unlistenRebuildProgress();
     }
+    if (unlistenCatalogRebuildProgress) {
+      unlistenCatalogRebuildProgress();
+    }
   });
 
   /**
@@ -355,23 +464,23 @@ export function useAssetManager() {
    */
   const deleteAsset = async (assetId: string): Promise<void> => {
     try {
-      // 找到对应的资产
       const asset = assets.value.find((a) => a.id === assetId);
       if (!asset) {
         throw new Error("资产不存在");
       }
 
-      // 调用后端删除命令
       await invoke("delete_asset", {
         assetId: asset.id,
         relativePath: asset.path,
       });
 
-      // 从本地列表中移除
       const index = assets.value.findIndex((a) => a.id === assetId);
       if (index !== -1) {
         assets.value.splice(index, 1);
       }
+      // 删除后更新统计信息
+      await fetchAssetStats();
+      totalItems.value--;
     } catch (err) {
       handleError(err, "删除资产失败");
     }
@@ -396,35 +505,26 @@ export function useAssetManager() {
   };
 
   // --- 计算属性 ---
-  const imageAssets = computed(() => getAssetsByType("image"));
-  const videoAssets = computed(() => getAssetsByType("video"));
-  const audioAssets = computed(() => getAssetsByType("audio"));
-  const documentAssets = computed(() => getAssetsByType("document"));
-  const otherAssets = computed(() => getAssetsByType("other"));
-
-  const localAssets = computed(() => getAssetsByOrigin("local"));
-  const clipboardAssets = computed(() => getAssetsByOrigin("clipboard"));
-  const networkAssets = computed(() => getAssetsByOrigin("network"));
-
-  const totalAssets = computed(() => assets.value.length);
-  const totalSize = computed(() => assets.value.reduce((sum, asset) => sum + asset.size, 0));
+  // 大部分计算属性已移除，因为筛选和统计由后端处理
+  const totalAssets = computed(() => assetStats.value.totalAssets);
+  const totalSize = computed(() => assetStats.value.totalSize);
 
   return {
     // 状态
     isLoading,
+    isAppending,
     error,
     assets,
     rebuildProgress,
+    assetStats,
+
+    // 分页状态
+    currentPage,
+    totalPages,
+    hasMore,
+    totalItems,
 
     // 计算属性
-    imageAssets,
-    videoAssets,
-    audioAssets,
-    documentAssets,
-    otherAssets,
-    localAssets,
-    clipboardAssets,
-    networkAssets,
     totalAssets,
     totalSize,
 
@@ -436,19 +536,17 @@ export function useAssetManager() {
     formatFileSize: assetManagerEngine.formatFileSize,
 
     // 方法 - 包装了状态管理
-    loadAssets,
+    loadAssetsPaginated,
+    fetchAssetStats,
     importAssetFromPath,
     importMultipleAssets,
     importAssetFromBytes,
     importAssetFromClipboard,
-    getAssetsByType,
-    getAssetsByOrigin,
-    searchAssets,
-    clearAssets,
     deleteAsset,
     deleteMultipleAssets,
-    removeAsset,
+    removeAsset, // 保持 deprecated 方法
     rebuildHashIndex,
+    rebuildCatalogIndex,
   };
 }
 

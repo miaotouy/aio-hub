@@ -95,6 +95,10 @@ use commands::{
     rebuild_hash_index,
     find_duplicate_files,
     delete_asset,
+    // Lazy loading commands
+    list_assets_paginated,
+    get_asset_stats,
+    rebuild_catalog_index,
     // 插件管理命令
     uninstall_plugin,
     install_plugin_from_zip,
@@ -293,6 +297,10 @@ pub fn run() {
             rebuild_hash_index,
             find_duplicate_files,
             delete_asset,
+            // Lazy loading commands
+            list_assets_paginated,
+            get_asset_stats,
+            rebuild_catalog_index,
             // 插件管理命令
             uninstall_plugin,
             install_plugin_from_zip,

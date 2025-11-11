@@ -3,14 +3,69 @@ use content_inspector::{inspect, ContentType};
 use infer;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
+// --- 新增的分页、排序和统计相关结构体 ---
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum AssetSortBy {
+    Date,
+    Name,
+    Size,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SortOrder {
+    Asc,
+    Desc,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListAssetsPaginatedPayload {
+    pub page: u32,
+    pub page_size: u32,
+    pub sort_by: AssetSortBy,
+    pub sort_order: SortOrder,
+    pub filter_type: Option<AssetType>,
+    pub filter_origin: Option<AssetOriginType>,
+    pub search_query: Option<String>,
+    #[serde(default)]
+    pub show_duplicates_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginatedAssetsResponse {
+    /// 当前页的资产列表
+    pub items: Vec<Asset>,
+    /// 符合筛选条件的总资产数
+    pub total_items: u64,
+    /// 总页数
+    pub total_pages: u32,
+    /// 是否有下一页
+    pub has_more: bool,
+    /// 当前页码
+    pub page: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetStats {
+    pub total_assets: u64,
+    pub total_size: u64,
+    pub type_counts: HashMap<AssetType, u64>,
+}
+
+
 /// 资产的来源类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum AssetOriginType {
     Local,
@@ -19,7 +74,7 @@ pub enum AssetOriginType {
 }
 
 /// 资产的通用类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum AssetType {
     Image,
@@ -487,6 +542,12 @@ pub async fn import_asset_from_path(
         }
     }
 
+    // 更新 Catalog 索引
+    let catalog_entry = convert_asset_to_catalog_entry(&asset);
+    if let Err(e) = append_to_catalog(&base_dir, &catalog_entry) {
+        eprintln!("更新 Catalog 索引失败: {}", e);
+    }
+
     Ok(asset)
 }
 
@@ -590,6 +651,12 @@ pub async fn import_asset_from_bytes(
             // 索引更新失败不影响导入结果，只记录错误
             eprintln!("更新月度索引失败: {}", e);
         }
+    }
+
+    // 更新 Catalog 索引
+    let catalog_entry = convert_asset_to_catalog_entry(&asset);
+    if let Err(e) = append_to_catalog(&base_dir, &catalog_entry) {
+        eprintln!("更新 Catalog 索引失败: {}", e);
     }
 
     Ok(asset)
@@ -1118,6 +1185,11 @@ pub async fn delete_asset(
         }
     }
 
+    // 4. 从 Catalog 索引中移除
+    if let Err(e) = remove_from_catalog(&base_dir, &asset_id) {
+        eprintln!("从 Catalog 索引中移除失败: {}", e);
+    }
+
     Ok(())
 }
 
@@ -1224,4 +1296,393 @@ pub async fn find_duplicate_files(app: AppHandle) -> Result<DuplicateFilesResult
         wasted_space,
         duplicates,
     })
+}
+
+// --- 新增的懒加载相关命令 ---
+
+/// Catalog 索引中的单个条目结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogEntry {
+    id: String,
+    path: String,
+    name: String,
+    size: u64,
+    mime_type: String,
+    asset_type: AssetType,
+    created_at: String,
+    origin_type: Option<AssetOriginType>,
+    sha256: Option<String>,
+}
+
+/// 获取 Catalog 索引文件的路径
+fn get_catalog_path(base_dir: &Path) -> Result<PathBuf, String> {
+    let catalog_dir = base_dir.join(".catalog");
+    if !catalog_dir.exists() {
+        fs::create_dir_all(&catalog_dir).map_err(|e| format!("无法创建 Catalog 目录: {}", e))?;
+    }
+    Ok(catalog_dir.join("assets.jsonl"))
+}
+
+/// 将 Asset 转换为 CatalogEntry
+fn convert_asset_to_catalog_entry(asset: &Asset) -> CatalogEntry {
+    CatalogEntry {
+        id: asset.id.clone(),
+        path: asset.path.clone(),
+        name: asset.name.clone(),
+        size: asset.size,
+        mime_type: asset.mime_type.clone(),
+        asset_type: asset.asset_type.clone(),
+        created_at: asset.created_at.clone(),
+        origin_type: asset.origin.as_ref().map(|o| o.origin_type.clone()),
+        sha256: asset.metadata.as_ref().and_then(|m| m.sha256.clone()),
+    }
+}
+
+/// 将 CatalogEntry 转换为 Asset
+fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
+    let thumbnail_relative = format!(".thumbnails/{}.jpg", entry.id);
+    let thumbnail_path = base_dir.join(&thumbnail_relative);
+
+    Asset {
+        id: entry.id,
+        asset_type: entry.asset_type,
+        mime_type: entry.mime_type,
+        name: entry.name,
+        path: entry.path,
+        thumbnail_path: if thumbnail_path.exists() {
+            Some(thumbnail_relative)
+        } else {
+            None
+        },
+        size: entry.size,
+        created_at: entry.created_at,
+        origin: entry.origin_type.map(|ot| AssetOrigin {
+            origin_type: ot,
+            source: "".to_string(), // 注意：从 catalog 无法恢复原始 source，这里留空
+        }),
+        metadata: Some(AssetMetadata {
+            width: None,
+            height: None,
+            duration: None,
+            sha256: entry.sha256,
+        }),
+    }
+}
+
+/// 追加条目到 Catalog 文件
+fn append_to_catalog(base_dir: &Path, entry: &CatalogEntry) -> Result<(), String> {
+    use std::fs::OpenOptions;
+    use std::io::{BufWriter, Write};
+
+    let catalog_path = get_catalog_path(base_dir)?;
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open(catalog_path)
+        .map_err(|e| format!("无法打开 Catalog 文件进行追加: {}", e))?;
+
+    let mut writer = BufWriter::new(file);
+    let line =
+        serde_json::to_string(entry).map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
+    writeln!(writer, "{}", line).map_err(|e| format!("写入 Catalog 文件失败: {}", e))?;
+
+    Ok(())
+}
+
+/// 从 Catalog 文件中移除条目
+fn remove_from_catalog(base_dir: &Path, asset_id_to_delete: &str) -> Result<(), String> {
+    use std::io::{BufRead, BufReader, BufWriter, Write};
+
+    let catalog_path = get_catalog_path(base_dir)?;
+    if !catalog_path.exists() {
+        return Ok(());
+    }
+
+    let temp_catalog_path = catalog_path.with_extension("jsonl.tmp");
+
+    let input_file = fs::File::open(&catalog_path)
+        .map_err(|e| format!("无法打开 Catalog 文件进行读取: {}", e))?;
+    let reader = BufReader::new(input_file);
+
+    let output_file = fs::File::create(&temp_catalog_path)
+        .map_err(|e| format!("无法创建临时 Catalog 文件: {}", e))?;
+    let mut writer = BufWriter::new(output_file);
+
+    for line in reader.lines() {
+        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
+        if line_content.trim().is_empty() {
+            continue;
+        }
+
+        if let Ok(entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
+            if entry.id != asset_id_to_delete {
+                writeln!(writer, "{}", line_content)
+                    .map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
+            }
+        } else {
+            writeln!(writer, "{}", line_content)
+                .map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
+        }
+    }
+
+    writer
+        .flush()
+        .map_err(|e| format!("刷新临时 Catalog 文件缓冲区失败: {}", e))?;
+
+    fs::rename(&temp_catalog_path, &catalog_path)
+        .map_err(|e| format!("重命名临时 Catalog 文件失败: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_assets_paginated(
+    app: AppHandle,
+    payload: ListAssetsPaginatedPayload,
+) -> Result<PaginatedAssetsResponse, String> {
+    use std::io::{BufRead, BufReader};
+
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    let catalog_path = get_catalog_path(&base_dir)?;
+
+    if !catalog_path.exists() {
+        return Ok(PaginatedAssetsResponse {
+            items: vec![],
+            total_items: 0,
+            total_pages: 0,
+            has_more: false,
+            page: payload.page,
+        });
+    }
+
+    let file = fs::File::open(&catalog_path)
+        .map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
+    let reader = BufReader::new(file);
+
+    let mut all_entries = Vec::new();
+    for line in reader.lines() {
+        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
+        if line_content.trim().is_empty() {
+            continue;
+        }
+        let entry: CatalogEntry = serde_json::from_str(&line_content)
+            .map_err(|e| format!("解析 Catalog 条目失败: {}", e))?;
+        all_entries.push(entry);
+    }
+
+    // --- 筛选 ---
+    // 如果需要筛选重复项，首先计算所有哈希值的出现次数
+    let duplicate_hashes: HashSet<String> = if payload.show_duplicates_only {
+        let mut hash_counts = HashMap::new();
+        for entry in &all_entries {
+            if let Some(hash) = &entry.sha256 {
+                if !hash.is_empty() {
+                    *hash_counts.entry(hash.clone()).or_insert(0) += 1;
+                }
+            }
+        }
+        hash_counts
+            .into_iter()
+            .filter(|(_, count)| *count > 1)
+            .map(|(hash, _)| hash)
+            .collect()
+    } else {
+        HashSet::new()
+    };
+
+    let filtered_entries: Vec<CatalogEntry> = all_entries
+        .into_iter()
+        .filter(|entry| {
+            let type_match = payload
+                .filter_type
+                .as_ref()
+                .map_or(true, |t| entry.asset_type == *t);
+
+            let origin_match = payload
+                .filter_origin
+                .as_ref()
+                .map_or(true, |o| entry.origin_type.as_ref() == Some(o));
+            let search_match = match &payload.search_query {
+                Some(query) if !query.is_empty() => {
+                    entry.name.to_lowercase().contains(&query.to_lowercase())
+                }
+                _ => true,
+            };
+
+            let duplicates_match = if payload.show_duplicates_only {
+                entry
+                    .sha256
+                    .as_ref()
+                    .map_or(false, |hash| !hash.is_empty() && duplicate_hashes.contains(hash))
+            } else {
+                true
+            };
+
+            type_match && origin_match && search_match && duplicates_match
+        })
+        .collect();
+
+    // --- 排序 ---
+    let mut sorted_entries = filtered_entries;
+    sorted_entries.sort_by(|a, b| {
+        let ordering = match payload.sort_by {
+            AssetSortBy::Date => b.created_at.cmp(&a.created_at), // 默认降序
+            AssetSortBy::Name => a.name.cmp(&b.name),
+            AssetSortBy::Size => b.size.cmp(&a.size), // 默认降序
+        };
+
+        if matches!(payload.sort_order, SortOrder::Asc) {
+            ordering.reverse()
+        } else {
+            ordering
+        }
+    });
+
+    // --- 分页 ---
+    let total_items = sorted_entries.len() as u64;
+    let page_size = payload.page_size as u64;
+    let total_pages = if total_items == 0 { 0 } else { (total_items + page_size - 1) / page_size } as u32;
+
+    let page_index = payload.page.saturating_sub(1) as u64;
+    let start = page_index * page_size;
+    let end = (start + page_size).min(total_items);
+    
+    let items_for_page = if start < total_items {
+        sorted_entries[start as usize..end as usize]
+            .iter()
+            .map(|entry| convert_entry_to_asset(entry.clone(), &base_dir))
+            .collect()
+    } else {
+        vec![]
+    };
+
+    Ok(PaginatedAssetsResponse {
+        items: items_for_page,
+        total_items,
+        total_pages,
+        has_more: payload.page < total_pages,
+        page: payload.page,
+    })
+}
+
+#[tauri::command]
+pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
+    use std::io::{BufRead, BufReader};
+
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    let catalog_path = get_catalog_path(&base_dir)?;
+
+    if !catalog_path.exists() {
+        return Ok(AssetStats::default());
+    }
+
+    let file = fs::File::open(&catalog_path)
+        .map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
+    let reader = BufReader::new(file);
+
+    let mut stats = AssetStats::default();
+
+    for line in reader.lines() {
+        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
+        if line_content.trim().is_empty() {
+            continue;
+        }
+
+        let entry: CatalogEntry = serde_json::from_str(&line_content)
+            .map_err(|e| format!("解析 Catalog 条目失败: {}", e))?;
+
+        stats.total_assets += 1;
+        stats.total_size += entry.size;
+        *stats.type_counts.entry(entry.asset_type).or_insert(0) += 1;
+    }
+
+    Ok(stats)
+}
+
+#[tauri::command]
+pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
+    use std::io::{BufWriter, Write};
+
+    let base_path = get_asset_base_path(app.clone())?;
+    let base_dir = PathBuf::from(&base_path);
+    let catalog_path = get_catalog_path(&base_dir)?;
+
+    let asset_type_dirs = ["images", "audio", "videos", "documents", "other"];
+    let mut all_file_paths: Vec<(PathBuf, String)> = Vec::new();
+
+    // 第一步：收集所有文件路径并统计总数
+    for type_dir_str in &asset_type_dirs {
+        let type_dir = base_dir.join(type_dir_str);
+        if !type_dir.exists() || !type_dir.is_dir() {
+            continue;
+        }
+
+        if let Ok(year_month_entries) = fs::read_dir(&type_dir) {
+            for year_month_entry in year_month_entries.flatten() {
+                let year_month_path = year_month_entry.path();
+                if !year_month_path.is_dir() {
+                    continue;
+                }
+
+                if let Ok(file_entries) = fs::read_dir(&year_month_path) {
+                    for file_entry in file_entries.flatten() {
+                        let file_path = file_entry.path();
+                        if file_path.is_file() && file_path.file_name() != Some(".index.json".as_ref())
+                        {
+                            all_file_paths.push((file_path, type_dir_str.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let total_files = all_file_paths.len();
+    let mut current_processed = 0;
+
+    // 第二步：处理文件并写入 Catalog，同时报告进度
+    let file = fs::File::create(&catalog_path)
+        .map_err(|e| format!("无法创建 Catalog 文件: {}", e))?;
+    let mut writer = BufWriter::new(file);
+
+    for (file_path, asset_type_str) in all_file_paths.iter() {
+        current_processed += 1;
+
+        if let Ok(asset) = build_asset_from_path(file_path, &base_dir) {
+            let entry = convert_asset_to_catalog_entry(&asset);
+            let line = serde_json::to_string(&entry)
+                .map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
+            if let Err(e) = writeln!(writer, "{}", line) {
+                eprintln!(
+                    "写入 Catalog 文件失败 for {}: {}",
+                    file_path.display(),
+                    e
+                );
+            }
+        }
+
+        // 发送进度事件
+        let progress = RebuildIndexProgress {
+            current: current_processed,
+            total: total_files,
+            current_type: asset_type_str.clone(),
+        };
+        app.emit("rebuild-catalog-progress", &progress)
+            .unwrap_or_else(|e| {
+                eprintln!("Failed to emit rebuild-catalog-progress event: {}", e)
+            });
+    }
+
+    writer
+        .flush()
+        .map_err(|e| format!("刷新 Catalog 文件缓冲区失败: {}", e))?;
+
+    Ok(format!(
+        "目录索引重建完成，共处理 {} 个资产。",
+        total_files
+    ))
 }

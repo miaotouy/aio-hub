@@ -3,16 +3,18 @@
     <!-- 工具栏 -->
     <Toolbar
       v-model:view-mode="viewMode"
-      v-model:search-query="searchQuery"
-      v-model:sort-by="sortBy"
+      v-model:search-query="listPayload.searchQuery"
+      v-model:sort-by="listPayload.sortBy"
       v-model:group-by="groupBy"
       :selected-count="selectedCount"
       :has-duplicates="!!(duplicateResult && duplicateResult.totalGroups > 0)"
+      :sidebar-collapsed="isSidebarCollapsed"
       @rebuild-index="handleRebuildIndex"
       @find-duplicates="handleFindDuplicates"
       @select-duplicates="handleSelectRedundantDuplicates"
       @delete-selected="handleDeleteSelected"
       @clear-selection="clearSelection"
+      @toggle-sidebar="isSidebarCollapsed = !isSidebarCollapsed"
     />
     
     <!-- 重建索引进度条 -->
@@ -30,11 +32,10 @@
     <!-- 主体区域 -->
     <el-container class="main-container">
       <!-- 左侧边栏 -->
-      <el-aside width="200px" class="sidebar-container">
+      <el-aside v-if="!isSidebarCollapsed" width="200px" class="sidebar-container">
         <Sidebar
-          v-model:selected-type="selectedType"
-          v-model:selected-origin="selectedOrigin"
-          v-model:show-duplicates-only="showDuplicatesOnly"
+          v-model:selected-type="listPayload.filterType"
+          v-model:show-duplicates-only="listPayload.showDuplicatesOnly"
           :total-assets="totalAssets"
           :total-size="totalSize"
           :type-counts="typeCounts"
@@ -42,7 +43,7 @@
       </el-aside>
 
       <!-- 主视图区 -->
-      <el-main class="main-view-container">
+      <el-main ref="mainViewContainerRef" class="main-view-container">
         <!-- 加载状态 -->
         <div v-if="isLoading" class="loading-container">
           <el-icon class="is-loading"><Loading /></el-icon>
@@ -56,7 +57,7 @@
 
         <!-- 空状态 -->
         <el-empty
-          v-else-if="filteredAndSortedAssets.length === 0"
+          v-else-if="assets.length === 0"
           description="还没有任何资产"
         />
 
@@ -78,111 +79,126 @@
             @deselect-all="handleDeselectAll"
           />
         </template>
+        <!-- 加载更多 -->
+        <div v-if="isAppending" class="loading-more">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>加载更多...</span>
+        </div>
       </el-main>
     </el-container>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, reactive } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Loading } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAssetManager, assetManagerEngine } from '@/composables/useAssetManager';
 import { useImageViewer } from '@/composables/useImageViewer';
 import { customMessage } from '@/utils/customMessage';
-import type { Asset, AssetType, AssetOrigin, DuplicateFilesResult, AssetGroupBy } from '@/types/asset-management';
+import type { Asset, AssetType, DuplicateFilesResult, AssetGroupBy } from '@/types/asset-management';
+import { useInfiniteScroll } from '@vueuse/core';
+import { debounce } from 'lodash-es';
 import Toolbar from './components/Toolbar.vue';
 import Sidebar from './components/Sidebar.vue';
 import AssetGroup from './components/AssetGroup.vue';
-
 // 使用资产管理器
 const {
   assets,
   isLoading,
+  isAppending,
   error,
-  totalAssets,
-  totalSize,
-  imageAssets,
-  videoAssets,
-  audioAssets,
-  documentAssets,
-  otherAssets,
-  loadAssets,
-  searchAssets,
+  rebuildProgress,
+  assetStats,
+  currentPage,
+  hasMore,
+  loadAssetsPaginated,
+  fetchAssetStats,
   deleteAsset,
   deleteMultipleAssets,
-  rebuildHashIndex,
-  rebuildProgress,
+  rebuildCatalogIndex,
 } = useAssetManager();
 const imageViewer = useImageViewer();
+
+// --- 状态管理 ---
+
+// UI & 筛选状态
+const viewMode = ref<'grid' | 'list'>('grid');
+const groupBy = ref<AssetGroupBy>('month');
+const selectedAssetIds = ref<Set<string>>(new Set());
+const lastSelectedAssetId = ref<string | null>(null);
+const isSidebarCollapsed = ref(false);
+
+// 分页与筛选请求载荷
+const listPayload = reactive({
+  page: 1,
+  pageSize: 50,
+  sortBy: 'date' as 'date' | 'name' | 'size',
+  sortOrder: 'desc' as 'asc' | 'desc',
+  filterType: 'all' as AssetType | 'all',
+  searchQuery: '',
+  showDuplicatesOnly: false,
+});
 
 // 重复文件相关状态
 const duplicateHashes = ref<Set<string>>(new Set());
 const duplicateResult = ref<DuplicateFilesResult | null>(null);
 
-// 组件挂载时加载资产列表
+// --- 数据加载 ---
+
+const fetchData = async (append = false) => {
+  if (!append) {
+    listPayload.page = 1;
+    // 重置滚动条位置
+    const mainView = document.querySelector('.main-view-container');
+    if (mainView) mainView.scrollTop = 0;
+  }
+  await loadAssetsPaginated({ ...listPayload }, append);
+};
+
+// 防抖的搜索触发
+const debouncedFetchData = debounce(() => fetchData(false), 300);
+
+// 组件挂载时加载初始数据
 onMounted(async () => {
-  await loadAssets();
+  await fetchAssetStats();
+  await fetchData();
 });
 
-// UI 状态
-const viewMode = ref<'grid' | 'list'>('grid');
-const searchQuery = ref('');
-const sortBy = ref<'name' | 'date' | 'size'>('date');
-const groupBy = ref<AssetGroupBy>('month');
-const selectedType = ref<AssetType | 'all'>('all');
-const selectedOrigin = ref<AssetOrigin['type'] | 'all'>('all');
-const showDuplicatesOnly = ref(false);
-
-// 计算各类型资产数量
-const typeCounts = computed(() => ({
-  image: imageAssets.value.length,
-  video: videoAssets.value.length,
-  audio: audioAssets.value.length,
-  document: documentAssets.value.length,
-  other: otherAssets.value.length,
-}));
-
-// 过滤和排序资产
-const filteredAndSortedAssets = computed(() => {
-  let result = assets.value;
-
-  // 按类型过滤
-  if (selectedType.value !== 'all') {
-    result = result.filter(asset => asset.type === selectedType.value);
+// 监听筛选和排序条件的变化
+watch(
+  () => [
+    listPayload.sortBy,
+    listPayload.sortOrder,
+    listPayload.filterType,
+    listPayload.showDuplicatesOnly,
+  ],
+  () => {
+    fetchData(false);
   }
+);
+watch(() => listPayload.searchQuery, debouncedFetchData);
 
-  // 按来源过滤
-  if (selectedOrigin.value !== 'all') {
-    result = result.filter(asset => asset.origin?.type === selectedOrigin.value);
-  }
-
-  // 搜索过滤
-  if (searchQuery.value.trim()) {
-    result = searchAssets(searchQuery.value);
-  }
-
-  // 只显示重复文件
-  if (showDuplicatesOnly.value) {
-    result = result.filter(asset => duplicateHashes.value.has(asset.id));
-  }
-
-  // 排序
-  result = [...result].sort((a, b) => {
-    switch (sortBy.value) {
-      case 'name':
-        return a.name.localeCompare(b.name);
-      case 'size':
-        return b.size - a.size;
-      case 'date':
-      default:
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+// --- 无限滚动 ---
+const mainViewContainerRef = ref<HTMLElement | null>(null);
+useInfiniteScroll(
+  mainViewContainerRef,
+  async () => {
+    if (hasMore.value && !isLoading.value && !isAppending.value) {
+      listPayload.page = currentPage.value + 1;
+      await fetchData(true);
     }
-  });
+  },
+  { distance: 200 }
+);
 
-  return result;
-});
+
+// --- 计算属性 ---
+
+const totalAssets = computed(() => assetStats.value.totalAssets);
+const totalSize = computed(() => assetStats.value.totalSize);
+const typeCounts = computed(() => assetStats.value.typeCounts);
 
 // 事件处理
 const handleSelectAsset = async (asset: Asset) => {
@@ -220,10 +236,6 @@ const handleDeleteAsset = async (assetId: string) => {
 // --- 多选逻辑 ---
 
 // 多选状态
-const selectedAssetIds = ref<Set<string>>(new Set());
-const lastSelectedAssetId = ref<string | null>(null);
-
-// 选中项数量
 const selectedCount = computed(() => selectedAssetIds.value.size);
 
 const handleAssetSelection = (asset: Asset, event: MouseEvent) => {
@@ -231,14 +243,14 @@ const handleAssetSelection = (asset: Asset, event: MouseEvent) => {
   const currentIds = new Set(selectedAssetIds.value);
 
   if (event.shiftKey && lastSelectedAssetId.value) {
-    const lastIndex = filteredAndSortedAssets.value.findIndex(a => a.id === lastSelectedAssetId.value);
-    const currentIndex = filteredAndSortedAssets.value.findIndex(a => a.id === assetId);
+    const lastIndex = assets.value.findIndex(a => a.id === lastSelectedAssetId.value);
+    const currentIndex = assets.value.findIndex(a => a.id === assetId);
 
     if (lastIndex !== -1 && currentIndex !== -1) {
       const start = Math.min(lastIndex, currentIndex);
       const end = Math.max(lastIndex, currentIndex);
       for (let i = start; i <= end; i++) {
-        currentIds.add(filteredAndSortedAssets.value[i].id);
+        currentIds.add(assets.value[i].id);
       }
     }
   } else if (event.ctrlKey || event.metaKey) {
@@ -360,21 +372,22 @@ const handleSelectRedundantDuplicates = () => {
 
 // --- 分组逻辑 ---
 const groupedAssets = computed(() => {
-  const assets = filteredAndSortedAssets.value;
+  // 分组逻辑现在直接作用于当前页的资产
+  const currentAssets = assets.value;
   
   // 不分组模式
   if (groupBy.value === 'none') {
     return [{
       month: 'all',
       label: '全部资产',
-      assets: assets
+      assets: currentAssets
     }];
   }
   
   const groups: { [key: string]: Asset[] } = {};
   
   // 根据不同的分组方式
-  assets.forEach(asset => {
+  currentAssets.forEach(asset => {
     let groupKey: string;
     
     switch (groupBy.value) {
@@ -448,7 +461,7 @@ const groupedAssets = computed(() => {
 const handleRebuildIndex = async () => {
   try {
     await ElMessageBox.confirm(
-      '重建索引将扫描所有已有文件并建立哈希索引，这可能需要一些时间。是否继续？',
+      '重建查询索引将扫描所有资产元数据，以优化列表性能。是否继续？',
       '确认重建索引',
       {
         confirmButtonText: '确定',
@@ -457,11 +470,13 @@ const handleRebuildIndex = async () => {
       }
     );
 
-    const result = await rebuildHashIndex();
+    const result = await rebuildCatalogIndex();
     customMessage.success(result);
+    // 重建后刷新列表
+    await fetchData(false);
   } catch (err) {
     if (err !== 'cancel') {
-      console.error('重建索引失败:', err);
+      console.error('重建目录索引失败:', err);
     }
   }
 };
@@ -583,5 +598,14 @@ const handleFindDuplicates = async () => {
 
 .loading-container .el-icon {
   font-size: 32px;
+}
+
+.loading-more {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
 }
 </style>

@@ -2,6 +2,15 @@
   <div class="asset-toolbar">
     <!-- 左侧操作区 -->
     <div class="toolbar-left">
+      <el-tooltip :content="props.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" placement="bottom">
+        <el-button @click="emit('toggle-sidebar')">
+          <el-icon>
+            <Expand v-if="props.sidebarCollapsed" />
+            <Fold v-else />
+          </el-icon>
+        </el-button>
+      </el-tooltip>
+      <el-divider direction="vertical" />
       <el-tooltip content="重新扫描并建立资产索引" placement="bottom">
         <el-button @click="handleRebuildIndex">
           <el-icon><Refresh /></el-icon>
@@ -119,6 +128,8 @@ import {
   Delete,
   Close,
   Finished,
+  Expand,
+  Fold,
 } from '@element-plus/icons-vue';
 
 interface Props {
@@ -128,11 +139,13 @@ interface Props {
   groupBy: 'month' | 'type' | 'origin' | 'none';
   selectedCount?: number;
   hasDuplicates?: boolean;
+  sidebarCollapsed?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selectedCount: 0,
   hasDuplicates: false,
+  sidebarCollapsed: false,
 });
 
 const emit = defineEmits<{
@@ -145,6 +158,7 @@ const emit = defineEmits<{
   'selectDuplicates': [];
   'clearSelection': [];
   'deleteSelected': [];
+  'toggle-sidebar': [];
 }>();
 
 // 内部状态

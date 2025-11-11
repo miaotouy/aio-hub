@@ -58,84 +58,39 @@
       </el-radio-group>
     </div>
 
-    <el-divider />
-
-    <!-- 按来源筛选 -->
-    <div class="filter-section">
-      <h3 class="section-title">文件来源</h3>
-      <el-radio-group v-model="internalSelectedOrigin" @change="handleOriginChange">
-        <el-radio value="all" class="filter-radio">
-          <div class="radio-content">
-            <span>全部</span>
-          </div>
-        </el-radio>
-        <el-radio value="local" class="filter-radio">
-          <div class="radio-content">
-            <span>💾 本地导入</span>
-          </div>
-        </el-radio>
-        <el-radio value="clipboard" class="filter-radio">
-          <div class="radio-content">
-            <span>📋 剪贴板</span>
-          </div>
-        </el-radio>
-        <el-radio value="network" class="filter-radio">
-          <div class="radio-content">
-            <span>🌐 网络</span>
-          </div>
-        </el-radio>
-      </el-radio-group>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { AssetType, AssetOrigin } from '@/types/asset-management';
+import type { AssetType, AssetStats } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 
 interface Props {
   selectedType: AssetType | 'all';
-  selectedOrigin: AssetOrigin['type'] | 'all';
   totalAssets: number;
   totalSize: number;
-  typeCounts: {
-    image: number;
-    video: number;
-    audio: number;
-    document: number;
-    other: number;
-  };
+  typeCounts: AssetStats['typeCounts'];
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
   'update:selectedType': [value: AssetType | 'all'];
-  'update:selectedOrigin': [value: AssetOrigin['type'] | 'all'];
   'update:showDuplicatesOnly': [value: boolean];
 }>();
 
 // 内部状态
 const internalSelectedType = ref(props.selectedType);
-const internalSelectedOrigin = ref(props.selectedOrigin);
 
 // 监听 props 变化
 watch(() => props.selectedType, (newVal) => {
   internalSelectedType.value = newVal;
 });
 
-watch(() => props.selectedOrigin, (newVal) => {
-  internalSelectedOrigin.value = newVal;
-});
-
 // 事件处理
-const handleTypeChange = (value: AssetType | 'all') => {
-  emit('update:selectedType', value);
-};
-
-const handleOriginChange = (value: AssetOrigin['type'] | 'all') => {
-  emit('update:selectedOrigin', value);
+const handleTypeChange = (value: string | number | boolean) => {
+  emit('update:selectedType', value as AssetType | 'all');
 };
 
 // 格式化文件大小

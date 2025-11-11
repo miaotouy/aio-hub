@@ -8,6 +8,7 @@ export type SettingComponent =
   | 'ElSwitch'
   | 'ElSlider'
   | 'ElRadioGroup'
+  | 'ElSelect'
   | 'ElInputNumber'
   | 'ElInput'
   | 'LlmModelSelector'
@@ -20,7 +21,7 @@ export interface SettingItem {
   /**
    * 设置项的唯一标识符，用于 data-setting-id 和搜索定位
    */
-  id: keyof ChatSettings['uiPreferences'] | keyof ChatSettings['messageManagement'] | keyof ChatSettings['shortcuts'] | keyof ChatSettings['topicNaming'];
+  id: string;
   /**
    * 设置项的显示标签
    */
@@ -41,9 +42,14 @@ export interface SettingItem {
    */
   props?: Record<string, any>;
   /**
-   * 对于 ElRadioGroup 等组件，定义其选项
+   * 对于 ElRadioGroup, ElSelect 等组件，定义其选项
    */
-  options?: { label: string; value: string | number | boolean }[];
+  options?: {
+    label: string;
+    value: string | number | boolean;
+    tags?: string[];
+    description?: string;
+  }[];
   /**
    * 设置项的描述性提示文字
    */

@@ -90,6 +90,31 @@
                             {{ option.label }}
                           </el-radio>
                         </template>
+                        <!-- Select options -->
+                        <template v-if="item.component === 'ElSelect' && item.options">
+                          <el-option
+                            v-for="option in item.options"
+                            :key="option.value.toString()"
+                            :label="option.label"
+                            :value="option.value"
+                            :title="option.description"
+                          >
+                            <div class="select-option-with-tags">
+                              <span>{{ option.label }}</span>
+                              <div v-if="option.tags && option.tags.length > 0" class="tags-container">
+                                <el-tag
+                                  v-for="tag in option.tags"
+                                  :key="tag"
+                                  size="small"
+                                  :type="tag === '稳定' ? 'success' : tag === '实验性' ? 'warning' : 'info'"
+                                  class="option-tag"
+                                >
+                                  {{ tag }}
+                                </el-tag>
+                              </div>
+                            </div>
+                          </el-option>
+                        </template>
                       </component>
                       <!-- SliderWithInput Custom Composite Component -->
                       <div v-if="item.component === 'SliderWithInput'" class="slider-with-input">
@@ -192,6 +217,9 @@ import {
   ElRadioGroup,
   ElTabs,
   ElTabPane,
+  ElSelect,
+  ElOption,
+  ElTag,
 } from "element-plus";
 import { get, set } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
@@ -319,6 +347,7 @@ const componentMap: Record<string, Component> = {
   ElTabs,
   ElTabPane,
   LlmModelSelector,
+  ElSelect,
 };
 
 const resolveComponent = (componentName: SettingComponent | Component) => {
@@ -520,6 +549,18 @@ watch(
 </script>
 
 <style scoped>
+.select-option-with-tags {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.tags-container {
+  display: flex;
+  gap: 4px;
+}
+
 /* 主容器使用 flex 布局 */
 .settings-container {
   display: flex;

@@ -299,7 +299,11 @@ watch(
 
     <!-- 正常显示模式 -->
     <template v-else>
-      <RichTextRenderer v-if="message.content" :content="message.content" />
+      <RichTextRenderer
+        v-if="message.content"
+        :content="message.content"
+        :version="settings.uiPreferences.rendererVersion"
+      />
       <div v-if="message.status === 'generating'" class="streaming-indicator">
         <span class="dot"></span>
         <span class="dot"></span>

@@ -233,11 +233,30 @@
                 </el-tooltip>
                 <span>可视化块状态</span>
               </div>
-              <div class="visualizer-toggle">
-                <el-tooltip content="使用新的 V2 解析器（支持复杂 HTML 嵌套）" placement="bottom">
-                  <el-switch v-model="useV2Parser" size="small" />
+              <div class="version-selector">
+                <el-tooltip content="选择渲染器版本进行对比测试" placement="bottom">
+                  <el-select v-model="rendererVersion" size="small" style="width: 180px">
+                    <el-option
+                      v-for="versionMeta in enabledVersions"
+                      :key="versionMeta.version"
+                      :label="versionMeta.name"
+                      :value="versionMeta.version"
+                    >
+                      <div class="version-option">
+                        <span>{{ versionMeta.name }}</span>
+                        <el-tag
+                          v-for="tag in versionMeta.tags"
+                          :key="tag"
+                          size="small"
+                          :type="tag === '稳定' ? 'success' : tag === '实验性' ? 'warning' : 'info'"
+                          style="margin-left: 4px"
+                        >
+                          {{ tag }}
+                        </el-tag>
+                      </div>
+                    </el-option>
+                  </el-select>
                 </el-tooltip>
-                <span>V2 解析器</span>
               </div>
             </div>
           </template>
@@ -252,7 +271,7 @@
               :key="renderKey"
               :content="currentContent"
               :stream-source="streamSource"
-              :use-v2="useV2Parser"
+              :version="rendererVersion"
             />
             <div v-else class="empty-placeholder">
               <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -278,9 +297,11 @@ import {
 import RichTextRenderer from "./RichTextRenderer.vue";
 import type { StreamSource } from "./types";
 import { presets } from "./presets";
-import { useRichTextRendererStore } from "./store";
+import { useRichTextRendererStore, availableVersions } from "./store";
 import { storeToRefs } from "pinia";
+import { computed } from "vue";
 import customMessage from "@/utils/customMessage";
+
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
 const {
@@ -295,8 +316,11 @@ const {
   charsFluctuation,
   autoScroll,
   visualizeBlockStatus,
-  useV2Parser,
+  rendererVersion,
 } = storeToRefs(store);
+
+// 获取可用的渲染器版本列表（过滤掉未启用的）
+const enabledVersions = computed(() => availableVersions.filter((v) => v.enabled));
 
 // 渲染状态
 const isRendering = ref(false);

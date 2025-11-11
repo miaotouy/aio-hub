@@ -4,11 +4,46 @@
 
 import { defineStore } from 'pinia';
 import { ref, reactive, watch } from 'vue';
-import type { TesterConfig } from './types';
+import type { TesterConfig, RendererVersionMeta } from './types';
+import { RendererVersion } from './types';
 import { createConfigManager } from '@/utils/configManager';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('rich-text-renderer/store');
+
+/**
+ * 可用的渲染器版本列表
+ */
+export const availableVersions: RendererVersionMeta[] = [
+  {
+    version: RendererVersion.V1_MARKDOWN_IT,
+    name: 'V1 - Markdown-it',
+    description: '基于 markdown-it 的增量解析器，支持稳定区/待定区分离',
+    enabled: true,
+    tags: ['稳定', '增量'],
+  },
+  {
+    version: RendererVersion.V2_CUSTOM_PARSER,
+    name: 'V2 - Custom Parser',
+    description: '基于 CustomParser 的混合解析器，支持复杂 HTML 嵌套',
+    enabled: true,
+    tags: ['实验性', 'HTML'],
+  },
+  {
+    version: RendererVersion.PURE_MARKDOWN_IT,
+    name: 'Pure Markdown-it',
+    description: '纯 markdown-it 渲染，无增量优化（规划中）',
+    enabled: false,
+    tags: ['规划中'],
+  },
+  {
+    version: RendererVersion.HYBRID_V3,
+    name: 'Hybrid V3',
+    description: '混合策略 V3 版本（规划中）',
+    enabled: false,
+    tags: ['规划中'],
+  },
+];
 
 // 创建配置管理器
 const configManager = createConfigManager<TesterConfig>({
@@ -34,7 +69,7 @@ const configManager = createConfigManager<TesterConfig>({
     inputContent: '',
     autoScroll: true,
     visualizeBlockStatus: false,
-    useV2Parser: false,
+    rendererVersion: RendererVersion.V1_MARKDOWN_IT,
   }),
 });
 
@@ -57,7 +92,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
   });
   const autoScroll = ref(true);
   const visualizeBlockStatus = ref(false);
-  const useV2Parser = ref(false);
+  const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
 
   // 是否已加载配置
   const isConfigLoaded = ref(false);
@@ -86,7 +121,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       charsFluctuation.max = config.charsFluctuation.max;
       autoScroll.value = config.autoScroll;
       visualizeBlockStatus.value = config.visualizeBlockStatus;
-      useV2Parser.value = config.useV2Parser;
+      rendererVersion.value = config.rendererVersion;
 
       isConfigLoaded.value = true;
       logger.info('配置加载成功');
@@ -121,7 +156,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
         },
         autoScroll: autoScroll.value,
         visualizeBlockStatus: visualizeBlockStatus.value,
-        useV2Parser: useV2Parser.value,
+        rendererVersion: rendererVersion.value,
       };
 
       await configManager.save(config);
@@ -161,7 +196,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       },
       autoScroll: autoScroll.value,
       visualizeBlockStatus: visualizeBlockStatus.value,
-      useV2Parser: useV2Parser.value,
+      rendererVersion: rendererVersion.value,
     };
 
     debouncedSave(config);
@@ -184,7 +219,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     charsFluctuation.max = 10;
     autoScroll.value = true;
     visualizeBlockStatus.value = false;
-    useV2Parser.value = false;
+    rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
 
     saveConfig();
   }
@@ -207,7 +242,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       () => charsFluctuation.max,
       autoScroll,
       visualizeBlockStatus,
-      useV2Parser,
+      rendererVersion,
     ],
     () => {
       autoSaveConfig();
@@ -227,7 +262,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     charsFluctuation,
     autoScroll,
     visualizeBlockStatus,
-    useV2Parser,
+    rendererVersion,
     isConfigLoaded,
 
     // Actions

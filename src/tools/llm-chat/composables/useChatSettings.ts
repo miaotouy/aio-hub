@@ -8,6 +8,7 @@ import { ref } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
+import { RendererVersion } from "@/tools/rich-text-renderer/types";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
@@ -34,6 +35,8 @@ export interface ChatSettings {
     lineHeight: number;
     /** 是否显示消息导航器 */
     showMessageNavigator: boolean;
+    /** 消息渲染器版本 */
+    rendererVersion: RendererVersion;
   };
   /** 消息管理设置 */
   messageManagement: {
@@ -83,6 +86,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     fontSize: 14,
     lineHeight: 1.6,
     showMessageNavigator: true,
+    rendererVersion: RendererVersion.V1_MARKDOWN_IT, // 默认使用 V1 渲染器
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

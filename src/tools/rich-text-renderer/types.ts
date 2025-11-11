@@ -401,6 +401,36 @@ export interface StreamSource {
 // ============ 配置管理相关类型 ============
 
 /**
+ * 渲染器版本枚举
+ */
+export enum RendererVersion {
+  /** V1 - 基于 markdown-it 的增量解析器 */
+  V1_MARKDOWN_IT = 'v1-markdown-it',
+  /** V2 - 基于 CustomParser 的混合解析器 */
+  V2_CUSTOM_PARSER = 'v2-custom-parser',
+  /** Pure Markdown-it - 纯 markdown-it 渲染（未来扩展） */
+  PURE_MARKDOWN_IT = 'pure-markdown-it',
+  /** Hybrid V3 - 混合策略 V3（未来扩展） */
+  HYBRID_V3 = 'hybrid-v3',
+}
+
+/**
+ * 渲染器版本元数据
+ */
+export interface RendererVersionMeta {
+  /** 版本标识 */
+  version: RendererVersion;
+  /** 显示名称 */
+  name: string;
+  /** 描述信息 */
+  description: string;
+  /** 是否可用 */
+  enabled: boolean;
+  /** 特性标签 */
+  tags?: string[];
+}
+
+/**
  * 测试页面配置
  */
 export interface TesterConfig {
@@ -434,6 +464,6 @@ export interface TesterConfig {
   autoScroll: boolean;
   /** 是否可视化块状态 */
   visualizeBlockStatus: boolean;
-  /** 是否使用 V2 解析器 */
-  useV2Parser: boolean;
+  /** 当前使用的渲染器版本 */
+  rendererVersion: RendererVersion;
 }

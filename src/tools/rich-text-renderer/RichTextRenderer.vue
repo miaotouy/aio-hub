@@ -11,30 +11,44 @@ import { StreamProcessor } from './StreamProcessor';
 import { StreamProcessorV2 } from './StreamProcessorV2';
 import AstNodeRenderer from './components/AstNodeRenderer.tsx';
 import type { StreamSource } from './types';
+import { RendererVersion } from './types';
 
 const props = withDefaults(defineProps<{
   content?: string;
   streamSource?: StreamSource;
-  useV2?: boolean; // 是否使用 V2 处理器
+  version?: RendererVersion; // 渲染器版本
 }>(), {
-  useV2: false
+  version: RendererVersion.V1_MARKDOWN_IT
 });
 
 const { ast, enqueuePatch } = useMarkdownAst();
 
+/**
+ * 根据版本创建对应的处理器
+ */
+const createProcessor = (version: RendererVersion) => {
+  switch (version) {
+    case RendererVersion.V2_CUSTOM_PARSER:
+      return new StreamProcessorV2({ onPatch: enqueuePatch });
+    case RendererVersion.V1_MARKDOWN_IT:
+    default:
+      return new StreamProcessor({ onPatch: enqueuePatch });
+    // 未来可以在这里添加更多版本的处理器
+    // case RendererVersion.PURE_MARKDOWN_IT:
+    //   return new PureMarkdownItProcessor({ onPatch: enqueuePatch });
+    // case RendererVersion.HYBRID_V3:
+    //   return new HybridV3Processor({ onPatch: enqueuePatch });
+  }
+};
+
 // 根据 props 选择处理器
-const streamProcessor = ref(props.useV2
-  ? new StreamProcessorV2({ onPatch: enqueuePatch })
-  : new StreamProcessor({ onPatch: enqueuePatch })
-);
+const streamProcessor = ref(createProcessor(props.version));
 
 let unsubscribe: (() => void) | null = null;
 
-// 监听 useV2 变化，重新创建处理器
-watch(() => props.useV2, (newUseV2) => {
-  streamProcessor.value = newUseV2
-    ? new StreamProcessorV2({ onPatch: enqueuePatch })
-    : new StreamProcessor({ onPatch: enqueuePatch });
+// 监听版本变化，重新创建处理器
+watch(() => props.version, (newVersion) => {
+  streamProcessor.value = createProcessor(newVersion);
   
   // 如果有内容，重新处理
   if (props.content && !props.streamSource) {

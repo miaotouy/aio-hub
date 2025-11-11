@@ -4,6 +4,7 @@ import { useDocumentViewer } from '@/composables/useDocumentViewer';
 import { createModuleLogger } from '@/utils/logger';
 import RichCodeEditor from './RichCodeEditor.vue';
 import RichTextRenderer from '@/tools/rich-text-renderer/RichTextRenderer.vue';
+import { RendererVersion } from '@/tools/rich-text-renderer/types';
 import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElMessage, ElTooltip, ElRadioGroup, ElRadioButton } from 'element-plus';
 import { useClipboard } from '@vueuse/core';
 import { Copy, Download, Book, Code } from 'lucide-vue-next';
@@ -149,7 +150,7 @@ function toggleViewMode() {
       <RichTextRenderer
         v-else-if="isMarkdown && viewMode === 'preview'"
         :content="decodedContent || undefined"
-        :use-v2="true"
+        :version="RendererVersion.V2_CUSTOM_PARSER"
         class="markdown-preview"
       />
 

@@ -108,19 +108,19 @@ body {
 */
 
 /* 核心：覆盖编辑器默认的、不透明的背景色 */
-.monaco-editor .monaco-editor-background,
-.monaco-editor .lines-content {
+:deep(.monaco-editor .monaco-editor-background),
+:deep(.monaco-editor .lines-content) {
   background-color: var(--vscode-editor-background) !important;
 }
 
 /* 覆盖行号区域 (gutter) 的背景色 */
-.monaco-editor .margin,
-.monaco-editor .gutter-container {
+:deep(.monaco-editor .margin),
+:deep(.monaco-editor .gutter-container) {
   background-color: var(--vscode-editorGutter-background) !important;
 }
 
 /* 针对 Diff Editor 的特殊覆盖 */
-.monaco-diff-editor .monaco-editor .lines-content {
+:deep(.monaco-diff-editor .monaco-editor .lines-content) {
   background-color: var(--vscode-editor-background) !important;
 }
 

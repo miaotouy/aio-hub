@@ -267,13 +267,6 @@ function _updateCssVariables(settings: AppearanceSettings) {
           `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${opacityValue})`
         );
 
-        // 特殊处理编辑器背景
-        if (element === "input") {
-          const editorOpacityValue = settings.editorOpacity ?? 0.9;
-          const editorRgba = `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${editorOpacityValue})`;
-          root.style.setProperty("--vscode-editor-background", editorRgba);
-          root.style.setProperty("--vscode-editorGutter-background", editorRgba);
-        }
       }
     };
 
@@ -295,6 +288,10 @@ function _updateCssVariables(settings: AppearanceSettings) {
     setElementBackground("container", overlayOpacityValue);
 
     root.style.setProperty("--border-opacity", String(settings.borderOpacity));
+    root.style.setProperty(
+      "--code-block-opacity",
+      String(settings.codeBlockOpacity ?? defaultAppearanceSettings.codeBlockOpacity)
+    );
 
     // --- 滚动条颜色 ---
     root.style.setProperty("--scrollbar-thumb-opacity", String(settings.borderOpacity * 0.6));
@@ -320,6 +317,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty("--card-opacity", "1");
     root.style.setProperty("--overlay-opacity", "1");
     root.style.setProperty("--border-opacity", "1");
+    root.style.removeProperty("--code-block-opacity");
     root.style.removeProperty("--scrollbar-thumb-opacity");
     root.style.removeProperty("--scrollbar-thumb-hover-opacity");
     root.style.removeProperty("--scrollbar-track-color");

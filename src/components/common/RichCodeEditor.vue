@@ -522,6 +522,28 @@ defineExpose({
   background: var(--scrollbar-thumb-hover-color) !important;
 }
 
+/* 适配主题外观：使 Monaco 编辑器背景透明 */
+:deep(.monaco-editor) {
+  /*
+    Monaco 的主题会注入一个 .monaco-editor 选择器来覆盖 --vscode-editor-background 变量。
+    我们需要用 Vue 的 scoped style 生成的更高优先级的选择器 ([data-v-xxxx]) 来覆盖回去。
+    这里我们不能直接使用 var(--vscode-editor-background)，因为它已经被污染了。
+    我们根据 useThemeAppearance 的逻辑重新构建正确的背景色，并使用 --code-block-opacity 变量来同步设置。
+  */
+  --vscode-editor-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.1)) !important;
+  --vscode-editorGutter-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3)) !important;
+}
+
+:deep(.monaco-editor .monaco-editor-background),
+:deep(.monaco-editor .overflow-guard),
+:deep(.monaco-editor .lines-content) {
+  background-color: var(--vscode-editor-background) !important;
+}
+
+:deep(.monaco-editor .margin) {
+  background-color: var(--vscode-editorGutter-background) !important;
+}
+
 :deep(.cm-editor) {
   height: 100%;
   width: 100%;

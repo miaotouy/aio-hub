@@ -492,7 +492,7 @@ watch(() => props.content, (newContent, oldContent) => {
   margin: 12px 0;
   border-radius: 6px;
   border: 1px solid var(--border-color);
-  background-color: var(--el-fill-color-lighter);
+  background-color: var(--card-bg);
   /* overflow: hidden 必须保留，以裁剪内部圆角 */
   overflow: hidden;
   display: flex;
@@ -507,8 +507,8 @@ watch(() => props.content, (newContent, oldContent) => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: var(--el-fill-color);
-  border-bottom: 1px solid var(--el-border-color);
+  background-color: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3));
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -569,7 +569,7 @@ watch(() => props.content, (newContent, oldContent) => {
   /* 容器高度自适应，但最大不超过500px */
   height: auto;
   max-height: 500px;
-  min-height: 50px;
+  min-height: 20px;
   position: relative;
   /* 过渡效果应用在 max-height 上 */
   transition: max-height 0.3s ease-in-out;
@@ -584,5 +584,27 @@ watch(() => props.content, (newContent, oldContent) => {
 
 :deep(.monaco-editor) {
   height: 100% !important;
+}
+
+/* 适配主题外观：使 Monaco 编辑器背景透明 */
+:deep(.monaco-editor) {
+  /*
+    Monaco 的主题会注入一个 .monaco-editor 选择器来覆盖 --vscode-editor-background 变量。
+    我们需要用 Vue 的 scoped style 生成的更高优先级的选择器 ([data-v-xxxx]) 来覆盖回去。
+    这里我们不能直接使用 var(--vscode-editor-background)，因为它已经被污染了。
+    我们根据 useThemeAppearance 的逻辑重新构建正确的背景色，并使用 --code-block-opacity 变量来同步设置。
+  */
+  --vscode-editor-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.1)) !important;
+  --vscode-editorGutter-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3)) !important;
+}
+
+:deep(.monaco-editor .monaco-editor-background),
+:deep(.monaco-editor .overflow-guard),
+:deep(.monaco-editor .lines-content) {
+  background-color: var(--vscode-editor-background) !important;
+}
+
+:deep(.monaco-editor .margin) {
+  background-color: var(--vscode-editorGutter-background) !important;
 }
 </style>

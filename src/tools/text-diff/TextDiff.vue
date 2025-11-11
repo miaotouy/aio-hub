@@ -1,7 +1,7 @@
 <template>
   <div class="text-diff-container">
     <!-- 工具栏 -->
-    <InfoCard bare class="toolbar-card">
+    <div class="toolbar-card">
       <div class="toolbar">
         <!-- 语言选择 -->
         <div class="toolbar-group">
@@ -116,7 +116,7 @@
           <el-button size="small" @click="swapTexts">交换</el-button>
         </div>
       </div>
-    </InfoCard>
+    </div>
 
     <!-- 文件名显示 -->
     <div v-if="leftFileName || rightFileName" class="file-names">
@@ -185,7 +185,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, shallowRef } from "vue";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
-import InfoCard from "@components/common/InfoCard.vue";
 import {
   ArrowUp,
   ArrowDown,
@@ -621,6 +620,8 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
   border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
+  padding: 16px;
 }
 
 .toolbar {

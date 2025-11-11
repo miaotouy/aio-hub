@@ -46,21 +46,37 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
     language.value = null;
 
     try {
-      let buffer: Uint8Array | null = null;
       const hint = options.fileTypeHint || options.fileName;
+      let buffer: Uint8Array | null = null;
 
-      if (options.content) {
-        if (typeof options.content === 'string') {
-          buffer = new TextEncoder().encode(options.content);
-        } else {
-          buffer = options.content;
+      if (typeof options.content === 'string') {
+        // 如果内容是字符串，直接使用，并编码以获取原始数据和MIME类型
+        decodedContent.value = options.content;
+        buffer = new TextEncoder().encode(options.content);
+        rawContent.value = buffer;
+        
+        mimeType.value = await detectMimeTypeFromBuffer(buffer, hint);
+        language.value = mapMimeToLanguage(mimeType.value) || 'plaintext';
+        
+        if (buffer.length === 0) {
+          error.value = null;
+          return;
         }
+
+      } else if (options.content instanceof Uint8Array) {
+        // 如果内容是二进制数组
+        buffer = options.content;
       } else if (options.filePath) {
+        // 如果提供了文件路径
         const arrayBuffer = await getAssetBinary(options.filePath);
         buffer = new Uint8Array(arrayBuffer);
       }
 
       if (!buffer) {
+        // 检查是否在字符串路径中已处理
+        if (typeof options.content !== 'string') {
+          decodedContent.value = '';
+        }
         return;
       }
       
@@ -71,23 +87,24 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         mimeType.value = 'text/plain';
         language.value = 'plaintext';
         decodedContent.value = '';
-        error.value = null; // 确保清空之前的错误状态
+        error.value = null;
         return;
       }
-
+      
       const detectedMime = await detectMimeTypeFromBuffer(buffer, hint);
       mimeType.value = detectedMime;
-
-      language.value = mapMimeToLanguage(detectedMime) || 'plaintext';
       
-      // 即使被识别为二进制流，如果它是文本类型，也应该尝试解码
-      if (isTextContent.value || detectedMime === 'application/octet-stream') {
+      const detectedLanguage = mapMimeToLanguage(detectedMime) || 'plaintext';
+      language.value = detectedLanguage;
+
+      logger.debug(`[DocumentViewer] Mime: ${detectedMime}, Lang: ${detectedLanguage}, Hint: ${hint}`);
+      
+      // 只有在 decodedContent 尚未被设置时才解码
+      if (decodedContent.value === null && (isTextContent.value || detectedMime === 'application/octet-stream')) {
         try {
-          // Use TextDecoder with fatal: true to strictly check for UTF-8
           decodedContent.value = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
         } catch (e) {
-          console.warn('UTF-8 decoding failed, falling back to lenient decoder.');
-          // Fallback for non-UTF8 text files
+          logger.warn('UTF-8 decoding failed, falling back to lenient decoder.');
           decodedContent.value = new TextDecoder().decode(buffer);
         }
       }

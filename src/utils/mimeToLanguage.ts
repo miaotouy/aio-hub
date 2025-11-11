@@ -64,6 +64,16 @@ export function mapMimeToLanguage(mimeType: string): string {
     }
   }
 
+  // 3.5. 最后的尝试: 检查子类型本身是否是已知的扩展名
+  const subtype = mainType.split('/')[1];
+  if (subtype) {
+      const potentialLang = subtype.split('+')[0]; // 处理 'svg+xml' -> 'svg'
+      // 检查这个潜在的语言是否是 MIME_TYPE_MAP 中的一个键 (即一个已知的扩展名)
+      if (MIME_TYPE_MAP[potentialLang]) {
+          return languageAlias[potentialLang] || potentialLang;
+      }
+  }
+
   // 4. 如果都找不到，返回 'plaintext'
   return 'plaintext';
 }

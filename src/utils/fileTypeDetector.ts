@@ -263,6 +263,11 @@ export async function detectMimeTypeFromBuffer(
 
   // 2. 后备方案：基于文件名提示的扩展名推断
   if (fileNameHint) {
+    // 提示可能本身就是一个 MIME 类型
+    if (fileNameHint.includes('/')) {
+      return fileNameHint;
+    }
+    // 否则，将其视为文件名并从扩展名推断
     return inferMimeTypeFromExtension(fileNameHint);
   }
 

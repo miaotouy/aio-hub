@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, watchEffect } from 'vue';
 import { useDocumentViewer } from '@/composables/useDocumentViewer';
+import { createModuleLogger } from '@/utils/logger';
 import RichCodeEditor from './RichCodeEditor.vue';
 import RichTextRenderer from '@/tools/rich-text-renderer/RichTextRenderer.vue';
 import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElMessage, ElTooltip, ElRadioGroup, ElRadioButton } from 'element-plus';
@@ -20,6 +21,16 @@ interface DocumentViewerProps {
 const props = withDefaults(defineProps<DocumentViewerProps>(), {
   editorType: 'codemirror',
   showEngineSwitch: false,
+});
+
+const logger = createModuleLogger('DocumentViewer');
+watchEffect(() => {
+  logger.debug('Props received/updated:', {
+    fileName: props.fileName,
+    fileTypeHint: props.fileTypeHint,
+    filePath: props.filePath,
+    contentExists: !!props.content,
+  });
 });
 
 // --- 核心逻辑 (使用 useDocumentViewer) ---
@@ -90,10 +101,10 @@ function toggleViewMode() {
       <div class="actions-right">
         <el-radio-group v-if="props.showEngineSwitch" v-model="currentEditorType" size="small">
           <el-tooltip content="CodeMirror 引擎 (兼容性好, 启动快)">
-            <el-radio-button label="codemirror">CodeMirror</el-radio-button>
+            <el-radio-button value="codemirror">CodeMirror</el-radio-button>
           </el-tooltip>
           <el-tooltip content="Monaco 引擎 (功能更强, 来自 VS Code)">
-            <el-radio-button label="monaco">Monaco</el-radio-button>
+            <el-radio-button value="monaco">Monaco</el-radio-button>
           </el-tooltip>
         </el-radio-group>
 

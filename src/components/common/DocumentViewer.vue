@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { useDocumentViewer } from '@/composables/useDocumentViewer';
 import RichCodeEditor from './RichCodeEditor.vue';
+import RichTextRenderer from '@/tools/rich-text-renderer/RichTextRenderer.vue';
 import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElMessage, ElTooltip } from 'element-plus';
-import MarkdownIt from 'markdown-it';
 import { useClipboard } from '@vueuse/core';
 import { Copy, Download, Book, Code } from 'lucide-vue-next';
 import { saveAs } from 'file-saver';
@@ -29,25 +29,8 @@ const {
   isMarkdown,
 } = useDocumentViewer(props);
 
-// --- 视图逻辑 (来自 DocumentViewer.vue) ---
+// --- 视图逻辑 ---
 const viewMode = ref<'source' | 'preview'>('preview');
-const renderedMarkdown = ref('');
-
-const md = new MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: true,
-});
-
-watch(
-  () => [decodedContent.value, isMarkdown.value, viewMode.value],
-  ([content, isMd, mode]) => {
-    if (typeof content === 'string' && isMd && mode === 'preview') {
-      renderedMarkdown.value = md.render(content);
-    }
-  },
-  { immediate: true }
-);
 
 const showToolbar = computed(() => !isLoading.value && !error.value && decodedContent.value);
 
@@ -129,8 +112,12 @@ function toggleViewMode() {
         />
       </div>
       
-      <div v-else-if="isMarkdown && viewMode === 'preview'" class="markdown-preview" v-html="renderedMarkdown">
-      </div>
+      <RichTextRenderer
+        v-else-if="isMarkdown && viewMode === 'preview'"
+        :content="decodedContent || undefined"
+        :use-v2="true"
+        class="markdown-preview"
+      />
 
       <RichCodeEditor
         v-else-if="decodedContent"
@@ -200,23 +187,6 @@ function toggleViewMode() {
 
 /* Markdown 预览样式 */
 .markdown-preview {
-  padding: 0 16px;
-  :deep(h1), :deep(h2), :deep(h3), :deep(h4), :deep(h5), :deep(h6) {
-    margin-top: 1.2em;
-    margin-bottom: 0.6em;
-    font-weight: 600;
-  }
-  :deep(p) {
-    line-height: 1.6;
-  }
-  :deep(pre) {
-    background-color: var(--card-bg);
-    padding: 1em;
-    border-radius: 4px;
-    overflow-x: auto;
-  }
-  :deep(code) {
-    font-family: var(--font-family-mono);
-  }
+  padding: 16px;
 }
 </style>

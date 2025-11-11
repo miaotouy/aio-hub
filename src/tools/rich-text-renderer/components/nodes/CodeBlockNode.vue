@@ -193,23 +193,27 @@ const toggleExpand = async () => {
   const editor = getEditorView();
   // 我们要操作的是 .code-editor-container，它是 editorEl 的父元素
   const container = editorEl.value?.parentElement;
-  if (!editor || !container) return;
+  if (!editor || !container || !editorEl.value) return;
 
   // 等待 Vue 更新 DOM，应用/移除 .expanded 类
   await nextTick();
 
   try {
+    const contentHeight = computeContentHeight();
+    if (!contentHeight || contentHeight <= 0) return;
+
     if (isExpanded.value) {
-      // 展开：启用自动布局，计算内容高度并设置为 max-height 以实现动画
+      // 展开：启用自动布局，editorEl 和 container 都使用内容高度
       setAutomaticLayout(true);
-      const h = computeContentHeight();
-      if (h && h > 0) {
-        container.style.maxHeight = `${h}px`;
-      }
+      editorEl.value.style.height = `${contentHeight}px`;
+      container.style.maxHeight = `${contentHeight}px`;
     } else {
-      // 收起：禁用自动布局，并移除内联的 max-height，让 CSS 类生效
+      // 收起：禁用自动布局，editorEl 高度限制为 min(内容高度, 500px)
       setAutomaticLayout(false);
-      container.style.maxHeight = ''; // 恢复由 CSS 控制
+      const maxHeightInCollapsed = 500;
+      const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+      editorEl.value.style.height = `${editorHeight}px`;
+      container.style.maxHeight = ''; // 恢复由 CSS 控制（500px）
     }
 
     // 触发重新布局
@@ -262,14 +266,21 @@ const toggleWordWrap = () => {
       });
       // 换行状态改变后需要重新计算高度和布局
       nextTick(() => {
-        const h = computeContentHeight();
-        if (h && h > 0 && editorEl.value) {
-          editorEl.value.style.height = `${h}px`;
-          
-          // 如果是展开状态，同步更新容器的 max-height
+        const contentHeight = computeContentHeight();
+        if (contentHeight && contentHeight > 0 && editorEl.value) {
           const container = editorEl.value.parentElement;
-          if (isExpanded.value && container) {
-            container.style.maxHeight = `${h}px`;
+          
+          if (isExpanded.value) {
+            // 展开状态：使用完整内容高度
+            editorEl.value.style.height = `${contentHeight}px`;
+            if (container) {
+              container.style.maxHeight = `${contentHeight}px`;
+            }
+          } else {
+            // 收起状态：限制为 min(内容高度, 500px)
+            const maxHeightInCollapsed = 500;
+            const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+            editorEl.value.style.height = `${editorHeight}px`;
           }
         }
         
@@ -362,10 +373,12 @@ onMounted(async () => {
     await nextTick();
     
     if (editorEl.value) {
-      const h = computeContentHeight();
-      if (h && h > 0) {
-        // 由 JS 精准设置高度，打破 CSS `height: auto` 和 `child-height: 100%` 的循环依赖
-        editorEl.value.style.height = `${h}px`;
+      const contentHeight = computeContentHeight();
+      if (contentHeight && contentHeight > 0) {
+        // 初始状态是收起的，所以限制高度为 min(内容高度, 500px)
+        const maxHeightInCollapsed = 500;
+        const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+        editorEl.value.style.height = `${editorHeight}px`;
       } else {
         // 如果计算失败，设置一个合理的默认高度
         editorEl.value.style.height = '100px';
@@ -465,17 +478,19 @@ watch(() => props.content, (newContent, oldContent) => {
   nextTick(() => {
     const editor = getEditorView();
     const container = editorEl.value?.parentElement;
-    if (!editor || !container) return;
+    if (!editor || !container || !editorEl.value) return;
 
-    const h = computeContentHeight();
-    if (h && h > 0) {
-      // 始终更新 editorEl 的高度以反映最新内容
-      if (editorEl.value) {
-        editorEl.value.style.height = `${h}px`;
-      }
-      // 如果是展开状态，需要同步更新容器的 max-height
+    const contentHeight = computeContentHeight();
+    if (contentHeight && contentHeight > 0) {
       if (isExpanded.value) {
-        container.style.maxHeight = `${h}px`;
+        // 展开状态：使用完整内容高度
+        editorEl.value.style.height = `${contentHeight}px`;
+        container.style.maxHeight = `${contentHeight}px`;
+      } else {
+        // 收起状态：限制为 min(内容高度, 500px)
+        const maxHeightInCollapsed = 500;
+        const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+        editorEl.value.style.height = `${editorHeight}px`;
       }
     }
   });

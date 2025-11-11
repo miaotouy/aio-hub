@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useDocumentViewer } from '@/composables/useDocumentViewer';
 import RichCodeEditor from './RichCodeEditor.vue';
 import RichTextRenderer from '@/tools/rich-text-renderer/RichTextRenderer.vue';
-import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElMessage, ElTooltip } from 'element-plus';
+import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElMessage, ElTooltip, ElRadioGroup, ElRadioButton } from 'element-plus';
 import { useClipboard } from '@vueuse/core';
 import { Copy, Download, Book, Code } from 'lucide-vue-next';
 import { saveAs } from 'file-saver';
@@ -15,8 +15,12 @@ interface DocumentViewerProps {
   fileName?: string;
   fileTypeHint?: string;
   editorType?: 'codemirror' | 'monaco';
+  showEngineSwitch?: boolean;
 }
-const props = defineProps<DocumentViewerProps>();
+const props = withDefaults(defineProps<DocumentViewerProps>(), {
+  editorType: 'codemirror',
+  showEngineSwitch: false,
+});
 
 // --- 核心逻辑 (使用 useDocumentViewer) ---
 const {
@@ -31,6 +35,16 @@ const {
 
 // --- 视图逻辑 ---
 const viewMode = ref<'source' | 'preview'>('preview');
+const currentEditorType = ref(props.editorType);
+
+watch(
+  () => props.editorType,
+  (newType) => {
+    if (newType) {
+      currentEditorType.value = newType;
+    }
+  }
+);
 
 const showToolbar = computed(() => !isLoading.value && !error.value && decodedContent.value);
 
@@ -74,6 +88,15 @@ function toggleViewMode() {
         <span v-if="fileName" class="file-name">{{ fileName }}</span>
       </div>
       <div class="actions-right">
+        <el-radio-group v-if="props.showEngineSwitch" v-model="currentEditorType" size="small">
+          <el-tooltip content="CodeMirror 引擎 (兼容性好, 启动快)">
+            <el-radio-button label="codemirror">CodeMirror</el-radio-button>
+          </el-tooltip>
+          <el-tooltip content="Monaco 引擎 (功能更强, 来自 VS Code)">
+            <el-radio-button label="monaco">Monaco</el-radio-button>
+          </el-tooltip>
+        </el-radio-group>
+
         <el-button-group>
           <el-tooltip v-if="isMarkdown" content="切换视图">
             <el-button :icon="viewMode === 'preview' ? Code : Book" text @click="toggleViewMode" />
@@ -124,7 +147,7 @@ function toggleViewMode() {
         :model-value="decodedContent"
         :language="editorLanguage"
         :read-only="true"
-        :editor-type="props.editorType"
+        :editor-type="currentEditorType"
         class="code-viewer"
       />
       
@@ -157,6 +180,12 @@ function toggleViewMode() {
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+}
+
+.actions-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .file-name {

@@ -101,6 +101,7 @@
         :file-path="selectedAssetForPreview.path"
         :file-name="selectedAssetForPreview.name"
         :file-type-hint="selectedAssetForPreview.mimeType"
+        :show-engine-switch="true"
       />
     </BaseDialog>
   </div>

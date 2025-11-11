@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ElRadioGroup, ElRadioButton } from 'element-plus';
 import DocumentViewer from '@/components/common/DocumentViewer.vue';
 
 const markdownContent = ref(`
@@ -132,7 +131,6 @@ const jsonContent = ref(JSON.stringify({
   }
 }, null, 2));
 
-const jsonEditorType = ref<'codemirror' | 'monaco'>('codemirror');
 
 const textContent = ref("这是一个用于测试查看器的纯文本文件。");
 
@@ -154,15 +152,12 @@ const binaryContent = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 
       </div>
 
       <div class="test-case">
-        <h3>JSON 源码视图（来自字符串）</h3>
-        <el-radio-group v-model="jsonEditorType" size="small" class="editor-switch">
-          <el-radio-button label="codemirror">CodeMirror</el-radio-button>
-          <el-radio-button label="monaco">Monaco</el-radio-button>
-        </el-radio-group>
+        <h3>JSON 源码视图（带引擎切换）</h3>
         <DocumentViewer
           :content="jsonContent"
           file-name="config.json"
-          :editor-type="jsonEditorType"
+          show-engine-switch
+          editor-type="codemirror"
           class="viewer-instance"
         />
       </div>

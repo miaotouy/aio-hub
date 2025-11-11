@@ -88,7 +88,8 @@ import { ref, computed, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Loading } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
-import { useAssetManager } from '@/composables/useAssetManager';
+import { useAssetManager, assetManagerEngine } from '@/composables/useAssetManager';
+import { useImageViewer } from '@/composables/useImageViewer';
 import { customMessage } from '@/utils/customMessage';
 import type { Asset, AssetType, AssetOrigin, DuplicateFilesResult, AssetGroupBy } from '@/types/asset-management';
 import Toolbar from './components/Toolbar.vue';
@@ -114,6 +115,7 @@ const {
   rebuildHashIndex,
   rebuildProgress,
 } = useAssetManager();
+const imageViewer = useImageViewer();
 
 // 重复文件相关状态
 const duplicateHashes = ref<Set<string>>(new Set());
@@ -183,9 +185,13 @@ const filteredAndSortedAssets = computed(() => {
 });
 
 // 事件处理
-const handleSelectAsset = (asset: Asset) => {
-  // TODO: 实现资产预览
-  console.log('选中资产:', asset);
+const handleSelectAsset = async (asset: Asset) => {
+  if (asset.type === 'image') {
+    const url = await assetManagerEngine.getAssetUrl(asset);
+    imageViewer.show(url);
+  } else {
+    customMessage.info('该文件类型暂不支持预览');
+  }
 };
 const handleDeleteAsset = async (assetId: string) => {
   try {

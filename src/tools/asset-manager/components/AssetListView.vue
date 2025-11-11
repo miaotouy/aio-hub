@@ -7,7 +7,7 @@
         @row-click="(row: Asset, _column: any, event: MouseEvent) => emit('selection-change', row, event)"
       >
         <!-- 复选框列 -->
-        <el-table-column width="55" align="center">
+        <el-table-column width="45" align="center">
         <template #default="{ row }">
           <el-checkbox
             :model-value="props.selectedIds.has(row.id)"

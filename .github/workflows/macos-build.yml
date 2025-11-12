@@ -1,0 +1,101 @@
+name: macOS 测试构建
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            arch: 'arm64'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            arch: 'x64'
+
+    runs-on: ${{ matrix.platform }}
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: 安装依赖 (macOS)
+        run: |
+          # 不需要安装 openssl 和 libgit2，使用 vendored 特性
+          echo "使用 vendored OpenSSL 和 libgit2"
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: 安装前端依赖
+        run: bun install
+
+      - name: 获取版本号
+        id: get-version
+        run: |
+          VERSION=$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+          echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: 构建应用
+        run: |
+          bun run tauri build --target ${{ matrix.target }} --bundles dmg
+
+      - name: 准备构建产物
+        run: |
+          # 创建临时目录用于存放构建文件
+          mkdir -p dist-artifacts
+          
+          # 从 dmg/ 目录中提取 .dmg
+          find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.dmg" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+          
+          # 显示准备好的文件列表
+          echo "准备上传的文件："
+          ls -lh dist-artifacts/
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-hub-${{ steps.get-version.outputs.version }}-macos-${{ matrix.arch }}-dmg
+          path: dist-artifacts/*.dmg
+          if-no-files-found: warn
+          retention-days: 7  # 测试构建保留7天
+
+      - name: 构建摘要
+        run: |
+          echo "## ✅ macOS (${{ matrix.arch }}) 构建成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "- 版本: ${{ steps.get-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 架构: ${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Target: ${{ matrix.target }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 构建产物" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh dist-artifacts/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

@@ -538,14 +538,14 @@ pub async fn import_asset_from_path(
 
         if let Err(e) = update_month_index(&base_dir, &asset_type, &hash, &filename) {
             // 索引更新失败不影响导入结果，只记录错误
-            eprintln!("更新月度索引失败: {}", e);
+            log::error!("更新月度索引失败: {}", e);
         }
     }
 
     // 更新 Catalog 索引
     let catalog_entry = convert_asset_to_catalog_entry(&asset);
     if let Err(e) = append_to_catalog(&base_dir, &catalog_entry) {
-        eprintln!("更新 Catalog 索引失败: {}", e);
+        log::error!("更新 Catalog 索引失败: {}", e);
     }
 
     Ok(asset)
@@ -649,14 +649,14 @@ pub async fn import_asset_from_bytes(
 
         if let Err(e) = update_month_index(&base_dir, &asset_type, &hash, &filename) {
             // 索引更新失败不影响导入结果，只记录错误
-            eprintln!("更新月度索引失败: {}", e);
+            log::error!("更新月度索引失败: {}", e);
         }
     }
 
     // 更新 Catalog 索引
     let catalog_entry = convert_asset_to_catalog_entry(&asset);
     if let Err(e) = append_to_catalog(&base_dir, &catalog_entry) {
-        eprintln!("更新 Catalog 索引失败: {}", e);
+        log::error!("更新 Catalog 索引失败: {}", e);
     }
 
     Ok(asset)
@@ -1187,7 +1187,7 @@ pub async fn delete_asset(
 
     // 4. 从 Catalog 索引中移除
     if let Err(e) = remove_from_catalog(&base_dir, &asset_id) {
-        eprintln!("从 Catalog 索引中移除失败: {}", e);
+        log::error!("从 Catalog 索引中移除失败: {}", e);
     }
 
     Ok(())
@@ -1655,7 +1655,7 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
             let line = serde_json::to_string(&entry)
                 .map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
             if let Err(e) = writeln!(writer, "{}", line) {
-                eprintln!(
+                log::error!(
                     "写入 Catalog 文件失败 for {}: {}",
                     file_path.display(),
                     e
@@ -1671,7 +1671,7 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
         };
         app.emit("rebuild-catalog-progress", &progress)
             .unwrap_or_else(|e| {
-                eprintln!("Failed to emit rebuild-catalog-progress event: {}", e)
+                log::error!("Failed to emit rebuild-catalog-progress event: {}", e)
             });
     }
 

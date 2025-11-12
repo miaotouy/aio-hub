@@ -265,7 +265,7 @@ pub async fn process_files_with_regex(
     
     // 添加日志辅助函数
     let mut add_log = |message: String, level: &str| {
-        println!("{}", message);
+        log::debug!("{}", message);
         logs.push(LogEntry {
             message,
             level: level.to_string(),
@@ -469,8 +469,8 @@ fn process_single_file(
     if text_changed {
         let len_diff = final_len as i64 - original_len as i64;
         let sign = if len_diff >= 0 { "+" } else { "" };
-        println!("    原始长度: {} 字符, 处理后: {} 字符 ({}{})",
-                 original_len, final_len, sign, len_diff);
+        log::debug!("    原始长度: {} 字符, 处理后: {} 字符 ({}{})",
+                    original_len, final_len, sign, len_diff);
     }
     
     Ok(total_matches)

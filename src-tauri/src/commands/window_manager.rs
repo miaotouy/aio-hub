@@ -69,7 +69,7 @@ pub fn init_global_mouse_listener() {
                     };
 
                     if let Some(app_handle) = app_handle_opt {
-                        println!("[DRAG] 检测到全局鼠标释放，尝试结束会话");
+                        log::debug!("[DRAG] 检测到全局鼠标释放，尝试结束会话");
 
                         // 在新线程中创建 Tokio 运行时并执行异步代码
                         thread::spawn(move || {
@@ -85,7 +85,7 @@ pub fn init_global_mouse_listener() {
                                 if let Err(e) = end_drag_session(app_handle).await {
                                     // 只有在错误不是"没有活动会话"时才打印
                                     if !e.contains("没有活动的拖拽会话") {
-                                        eprintln!("[DRAG] 自动结束会话失败: {}", e);
+                                        log::warn!("[DRAG] 自动结束会话失败: {}", e);
                                     }
                                 }
                             });
@@ -163,9 +163,9 @@ pub fn init_global_mouse_listener() {
                 _ => {}
             }
         };
-        println!("[DRAG] 全局鼠标监听器已启动");
+        log::info!("[DRAG] 全局鼠标监听器已启动");
         if let Err(error) = listen(callback) {
-            eprintln!("[DRAG] 全局鼠标监听错误: {:?}", error);
+            log::error!("[DRAG] 全局鼠标监听错误: {:?}", error);
         }
     });
 }
@@ -180,7 +180,7 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
         if let Some(existing_session) = &*session_opt {
             // 如果会话存在超过10秒，就认为它卡住了
             if existing_session.created_at.elapsed() > Duration::from_secs(10) {
-                println!("[DRAG] 检测到卡住的旧会话，强制清理...");
+                log::warn!("[DRAG] 检测到卡住的旧会话，强制清理...");
                 let old_preview_label = existing_session.preview_window_label.clone();
                 let app_clone = app.clone();
 
@@ -193,7 +193,7 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
 
                 // 清理会话
                 *session_opt = None;
-                println!("[DRAG] 旧会话已清理");
+                log::info!("[DRAG] 旧会话已清理");
             } else {
                 // 如果会话还很新，拒绝创建新会话
                 return Err("已存在活动的拖拽会话".to_string());
@@ -201,7 +201,7 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
         }
     }
 
-    println!("[DRAG] 开始拖拽会话: {}", config.display_name);
+    log::info!("[DRAG] 开始拖拽会话: {}", config.display_name);
     
     // 动态注册 ESC 快捷键（仅在拖拽会话期间有效）
     let app_clone = app.clone();
@@ -211,9 +211,9 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
             cancel_drag_on_esc(app_clone.clone());
         })
     {
-        eprintln!("[DRAG] 警告: 无法注册 ESC 快捷键: {}", e);
+        log::warn!("[DRAG] 警告: 无法注册 ESC 快捷键: {}", e);
     } else {
-        println!("[DRAG] ESC 快捷键已注册");
+        log::info!("[DRAG] ESC 快捷键已注册");
     }
 
     // 创建预览窗口，使用固定标签以支持窗口状态记忆
@@ -267,16 +267,16 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
 
     if let Some(state) = session_state {
         let duration = state.created_at.elapsed();
-        println!(
+        log::info!(
             "[DRAG] 结束拖拽会话: {}, can_detach: {}, 持续时间: {:?}",
             state.config.display_name, state.can_detach, duration
         );
 
         // 取消注册 ESC 快捷键
         if let Err(e) = app.global_shortcut().unregister("Escape") {
-            eprintln!("[DRAG] 警告: 取消注册 ESC 快捷键失败: {}", e);
+            log::warn!("[DRAG] 警告: 取消注册 ESC 快捷键失败: {}", e);
         } else {
-            println!("[DRAG] ESC 快捷键已取消注册");
+            log::info!("[DRAG] ESC 快捷键已取消注册");
         }
 
         let preview_window_label = state.preview_window_label.clone();
@@ -305,7 +305,7 @@ pub fn cancel_drag_on_esc(app: AppHandle) {
     let session_to_cancel = { DRAG_SESSION.lock().unwrap().take() };
 
     if let Some(session) = session_to_cancel {
-        println!("[SHORTCUT] ESC 快捷键触发，强制取消拖拽会话");
+        log::info!("[SHORTCUT] ESC 快捷键触发，强制取消拖拽会话");
 
         let preview_label = session.preview_window_label.clone();
         
@@ -313,17 +313,17 @@ pub fn cancel_drag_on_esc(app: AppHandle) {
         tauri::async_runtime::spawn(async move {
             // 1. 取消注册 ESC 快捷键
             if let Err(e) = app.global_shortcut().unregister("Escape") {
-                eprintln!("[SHORTCUT] 取消注册 ESC 快捷键失败: {}", e);
+                log::warn!("[SHORTCUT] 取消注册 ESC 快捷键失败: {}", e);
             } else {
-                println!("[SHORTCUT] ESC 快捷键已取消注册");
+                log::info!("[SHORTCUT] ESC 快捷键已取消注册");
             }
 
             // 2. 强制关闭预览窗口（不管 can_detach 状态）
             if let Some(window) = app.get_webview_window(&preview_label) {
                 if let Err(e) = window.close() {
-                    eprintln!("[SHORTCUT] 关闭预览窗口失败: {}", e);
+                    log::error!("[SHORTCUT] 关闭预览窗口失败: {}", e);
                 } else {
-                    println!("[SHORTCUT] 预览窗口已关闭");
+                    log::info!("[SHORTCUT] 预览窗口已关闭");
                 }
             }
         });
@@ -470,7 +470,7 @@ async fn create_preview_window_internal(
     let window_clone = window.clone();
     let apply_result = crate::commands::window_config::apply_window_config(window_clone).await;
     if let Err(e) = apply_result {
-        eprintln!("[WINDOW_CONFIG] 应用窗口配置失败: {}", e);
+        log::error!("[WINDOW_CONFIG] 应用窗口配置失败: {}", e);
     }
 
     sleep(Duration::from_millis(150)).await;
@@ -489,7 +489,7 @@ pub async fn begin_detach_session(
     let preview_label = format!("detached-{}", &config.id);
     let session_id = preview_label.clone();
 
-    println!(
+    log::info!(
         "[DETACH] 开始按钮分离会话: {}, 类型: {}, ID: {}",
         session_id, config.r#type, config.id
     );
@@ -658,10 +658,10 @@ pub async fn finalize_detach_session(
             .ok_or_else(|| format!("预览窗口 '{}' 不存在", preview_window_label))?;
 
         if should_detach {
-            println!("[DETACH] 会话 {} 已固化", session_id);
+            log::info!("[DETACH] 会话 {} 已固化", session_id);
             finalize_window_internal(&app, &preview_window_label, &session.config).await?;
         } else {
-            println!("[DETACH] 会话 {} 已取消", session_id);
+            log::info!("[DETACH] 会话 {} 已取消", session_id);
             preview_window.close().map_err(|e| e.to_string())?;
         }
         Ok(())
@@ -927,6 +927,6 @@ pub async fn navigate_main_window_to_settings(
         )
         .map_err(|e| format!("发送导航事件失败: {}", e))?;
 
-    println!("[NAVIGATION] 已请求主窗口导航到设置页面: {}", section_id);
+    log::info!("[NAVIGATION] 已请求主窗口导航到设置页面: {}", section_id);
     Ok(())
 }

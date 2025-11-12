@@ -43,7 +43,7 @@ pub async fn execute_sidecar(
     app: AppHandle,
     request: SidecarExecuteRequest,
 ) -> Result<String, String> {
-    println!(
+    log::info!(
         "[SIDECAR] 开始执行插件: {}, 可执行文件: {}, 开发模式: {}",
         request.plugin_id, request.executable_path, request.dev_mode
     );
@@ -81,7 +81,7 @@ pub async fn execute_sidecar(
         ));
     }
 
-    println!(
+    log::info!(
         "[SIDECAR] 可执行文件路径: {}",
         executable_full_path.display()
     );
@@ -96,7 +96,7 @@ pub async fn execute_sidecar(
         .spawn()
         .map_err(|e| format!("启动进程失败: {}", e))?;
 
-    println!("[SIDECAR] 进程已启动，PID: {:?}", child.id());
+    log::info!("[SIDECAR] 进程已启动，PID: {:?}", child.id());
 
     // 获取 stdin, stdout, stderr
     let mut stdin = child
@@ -139,7 +139,7 @@ pub async fn execute_sidecar(
         let mut last_result: Option<String> = None;
 
         while let Ok(Some(line)) = lines.next_line().await {
-            println!("[SIDECAR] stdout: {}", line);
+            log::info!("[SIDECAR] stdout: {}", line);
 
             // 尝试解析为 JSON 事件
             if let Ok(event_data) = serde_json::from_str::<serde_json::Value>(&line) {
@@ -182,7 +182,7 @@ pub async fn execute_sidecar(
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            println!("[SIDECAR] stderr: {}", line);
+            log::info!("[SIDECAR] stderr: {}", line);
 
             let event = SidecarOutputEvent {
                 plugin_id: plugin_id_clone.clone(),
@@ -200,7 +200,7 @@ pub async fn execute_sidecar(
         .await
         .map_err(|e| format!("等待进程结束失败: {}", e))?;
 
-    println!("[SIDECAR] 进程已结束，状态: {:?}", status);
+    log::info!("[SIDECAR] 进程已结束，状态: {:?}", status);
 
     // 等待输出读取完成
     let stdout_result = stdout_handle

@@ -63,7 +63,7 @@ pub async fn load_native_plugin(
     reloadable: bool,
     state: State<'_, NativePluginState>,
 ) -> Result<(), String> {
-    println!(
+    log::info!(
         "[NATIVE] 开始加载插件: {}, 库路径: {}",
         plugin_id, library_path
     );
@@ -72,7 +72,7 @@ pub async fn load_native_plugin(
     {
         let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
         if plugins.contains_key(&plugin_id) {
-            println!("[NATIVE] 插件 {} 已加载，先卸载", plugin_id);
+            log::info!("[NATIVE] 插件 {} 已加载，先卸载", plugin_id);
             // 如果已加载，先卸载
             plugins.remove(&plugin_id);
         }
@@ -91,8 +91,8 @@ pub async fn load_native_plugin(
             .ok_or_else(|| "无法获取项目根目录".to_string())?;
         
         let full_path = workspace_dir.join(&library_path);
-        println!("[NATIVE] 开发模式，项目根目录: {:?}", workspace_dir);
-        println!("[NATIVE] 拼接后的路径: {:?}", full_path);
+        log::debug!("[NATIVE] 开发模式，项目根目录: {:?}", workspace_dir);
+        log::debug!("[NATIVE] 拼接后的路径: {:?}", full_path);
         
         // 验证文件是否存在
         if !full_path.exists() {
@@ -113,7 +113,7 @@ pub async fn load_native_plugin(
         path.to_path_buf()
     };
 
-    println!("[NATIVE] 最终加载路径: {:?}", absolute_path);
+    log::info!("[NATIVE] 最终加载路径: {:?}", absolute_path);
 
     // 加载动态库
     let library = Arc::new(
@@ -132,7 +132,7 @@ pub async fn load_native_plugin(
         plugins.insert(plugin_id.clone(), metadata);
     }
 
-    println!("[NATIVE] 插件 {} 加载成功", plugin_id);
+    log::info!("[NATIVE] 插件 {} 加载成功", plugin_id);
     Ok(())
 }
 
@@ -144,7 +144,7 @@ pub async fn unload_native_plugin(
     plugin_id: String,
     state: State<'_, NativePluginState>,
 ) -> Result<(), String> {
-    println!("[NATIVE] 请求卸载插件: {}", plugin_id);
+    log::info!("[NATIVE] 请求卸载插件: {}", plugin_id);
 
     let plugin_to_unload = {
         let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
@@ -172,7 +172,7 @@ pub async fn unload_native_plugin(
         
         // 引用计数为 0，可以安全 drop (卸载)
         drop(metadata);
-        println!("[NATIVE] 插件 {} 已安全卸载", plugin_id);
+        log::info!("[NATIVE] 插件 {} 已安全卸载", plugin_id);
         Ok(())
     } else {
         Err(format!("插件 {} 未找到或已卸载", plugin_id))
@@ -187,7 +187,7 @@ pub async fn call_native_plugin_method(
     request: NativePluginCallRequest,
     state: State<'_, NativePluginState>,
 ) -> Result<String, String> {
-    println!(
+    log::info!(
         "[NATIVE] 调用插件方法: {}.{}",
         request.plugin_id, request.method_name
     );
@@ -239,11 +239,11 @@ pub async fn call_native_plugin_method(
     // 释放返回的字符串内存
     if let Ok(free_func) = free_string {
         unsafe { free_func(result_ptr) };
-        println!("[NATIVE] 已使用插件提供的 free_string 函数释放内存");
+        log::debug!("[NATIVE] 已使用插件提供的 free_string 函数释放内存");
     } else {
-        println!("[NATIVE] 警告：插件未提供 free_string 函数，可能存在内存泄漏");
+        log::warn!("[NATIVE] 警告：插件未提供 free_string 函数，可能存在内存泄漏");
     }
 
-    println!("[NATIVE] 插件方法调用成功");
+    log::info!("[NATIVE] 插件方法调用成功");
     Ok(result_str)
 }

@@ -7,6 +7,8 @@ mod tray;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tokio_util::sync::CancellationToken;
+use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
+use log::LevelFilter;
 
 // 导入命令模块
 use commands::{
@@ -179,18 +181,36 @@ fn print_window_list(app_handle: &tauri::AppHandle) {
     let windows = app_handle.webview_windows();
     let window_labels: Vec<String> = windows.keys().map(|k| k.to_string()).collect();
     
-    println!("========================================");
-    println!("当前窗口列表 (总数: {})", window_labels.len());
-    println!("========================================");
+    log::info!("========================================");
+    log::info!("当前窗口列表 (总数: {})", window_labels.len());
+    log::info!("========================================");
     for (index, label) in window_labels.iter().enumerate() {
-        println!("  [{}] {}", index + 1, label);
+        log::info!("  [{}] {}", index + 1, label);
     }
-    println!("========================================");
+    log::info!("========================================");
 }
+
+use chrono::Local;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let log_filename = format!("backend-{}", Local::now().format("%Y-%m-%d"));
+
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets() // 清除默认目标
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::Folder {
+                        path: std::path::PathBuf::from("logs"),
+                        file_name: Some(log_filename.into())
+                    }),
+                ])
+                .timezone_strategy(TimezoneStrategy::UseLocal) // 使用本地时区
+                .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
+                .build()
+        )
         // 插件初始化
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -379,7 +399,7 @@ pub fn run() {
             let main_window_clone = main_window.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = apply_window_config(main_window_clone).await {
-                    eprintln!("[WINDOW_CONFIG] 应用主窗口配置失败: {}", e);
+                    log::error!("[WINDOW_CONFIG] 应用主窗口配置失败: {}", e);
                 }
             });
 
@@ -410,7 +430,7 @@ pub fn run() {
                 
                 // 在关闭前同步保存窗口配置
                 if let Err(e) = commands::window_config::save_window_config_sync(window.app_handle(), &window_label) {
-                    eprintln!("[WINDOW_CONFIG] 保存窗口配置失败: {}", e);
+                    log::error!("[WINDOW_CONFIG] 保存窗口配置失败: {}", e);
                 }
 
                 // 如果关闭的是分离窗口（非主窗口），调用统一的关闭命令
@@ -418,7 +438,7 @@ pub fn run() {
                     let app_handle = window.app_handle().clone();
                     tauri::async_runtime::spawn(async move {
                         if let Err(e) = commands::close_detached_window(app_handle, window_label).await {
-                            eprintln!("Error closing detached window: {}", e);
+                            log::error!("Error closing detached window: {}", e);
                         }
                     });
                 }

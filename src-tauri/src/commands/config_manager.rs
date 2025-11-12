@@ -283,7 +283,7 @@ pub async fn import_all_configs_from_zip(
                 }
                 _ => {
                     // 合并失败，直接覆盖
-                    eprintln!("合并配置失败 {}，将直接覆盖", file_name);
+                    log::warn!("合并配置失败 {}，将直接覆盖", file_name);
                     true
                 }
             }

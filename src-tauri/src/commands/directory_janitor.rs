@@ -271,7 +271,7 @@ fn analyze_directory_recursive(
                 };
                 
                 if let Err(e) = window.emit("directory-scan-progress", progress) {
-                    eprintln!("发送进度事件失败: {}", e);
+                    log::error!("发送进度事件失败: {}", e);
                 }
             }
         }
@@ -327,7 +327,7 @@ pub async fn analyze_directory_for_cleanup(
     };
     
     if let Err(e) = window.emit("directory-scan-progress", start_progress) {
-        eprintln!("发送开始扫描事件失败: {}", e);
+        log::error!("发送开始扫描事件失败: {}", e);
     }
     
     let analysis_config = AnalysisConfig {
@@ -346,7 +346,7 @@ pub async fn analyze_directory_for_cleanup(
     };
     
     if let Err(e) = window.emit("directory-scan-progress", end_progress) {
-        eprintln!("发送扫描完成事件失败: {}", e);
+        log::error!("发送扫描完成事件失败: {}", e);
     }
     
     // 计算统计信息
@@ -411,7 +411,7 @@ pub async fn cleanup_items(
         };
         
         if let Err(e) = window.emit("directory-cleanup-progress", progress) {
-            eprintln!("发送清理进度事件失败: {}", e);
+            log::error!("发送清理进度事件失败: {}", e);
         }
         
         if !path.exists() {

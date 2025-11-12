@@ -65,8 +65,8 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
                 "clear_window_configs" => {
                     // 使用同步版本的清除函数
                     match window_config::clear_all_configs_sync(app_handle) {
-                        Ok(_) => println!("[TRAY] 已通过托盘菜单清除所有窗口配置"),
-                        Err(e) => eprintln!("[TRAY] 清除窗口配置失败: {}", e),
+                        Ok(_) => log::info!("[TRAY] 已通过托盘菜单清除所有窗口配置"),
+                        Err(e) => log::error!("[TRAY] 清除窗口配置失败: {}", e),
                     }
                 }
                 "quit" => {

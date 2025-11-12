@@ -143,7 +143,7 @@ pub async fn start_llm_proxy(
             .await
             .expect("Failed to bind port");
 
-        println!("LLM代理服务启动在: http://127.0.0.1:{}", port);
+        log::info!("LLM代理服务启动在: http://127.0.0.1:{}", port);
 
         // 使用hyper服务器运行
         let server = axum::serve(listener, app);
@@ -151,10 +151,10 @@ pub async fn start_llm_proxy(
         // 等待关闭信号或服务结束
         tokio::select! {
             _ = server => {
-                println!("服务器异常终止");
+                log::info!("服务器异常终止");
             }
             _ = shutdown_rx => {
-                println!("收到关闭信号，正在停止代理服务...");
+                log::info!("收到关闭信号，正在停止代理服务...");
             }
         }
     });
@@ -293,7 +293,7 @@ async fn proxy_handler(
         .no_deflate() // 禁用自动deflate解压
         .build()
         .map_err(|e| {
-            eprintln!("创建HTTP客户端失败: {}", e);
+            log::error!("创建HTTP客户端失败: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -306,7 +306,7 @@ async fn proxy_handler(
         "PATCH" => client.patch(&target_url),
         "HEAD" => client.head(&target_url),
         _ => {
-            eprintln!("不支持的HTTP方法: {}", method);
+            log::error!("不支持的HTTP方法: {}", method);
             return Err(StatusCode::METHOD_NOT_ALLOWED);
         }
     };
@@ -342,7 +342,7 @@ async fn proxy_handler(
     // 应用请求头覆盖规则
     for rule in override_rules.iter() {
         if rule.enabled && !rule.key.is_empty() && !rule.value.is_empty() {
-            eprintln!("[代理] 应用请求头覆盖: {} = {}", rule.key, rule.value);
+            log::info!("[代理] 应用请求头覆盖: {} = {}", rule.key, rule.value);
             req_builder = req_builder.header(&rule.key, &rule.value);
         }
     }
@@ -356,7 +356,7 @@ async fn proxy_handler(
     let response = match req_builder.send().await {
         Ok(res) => res,
         Err(e) => {
-            eprintln!("代理请求失败: {}", e);
+            log::error!("代理请求失败: {}", e);
             
             // 发送错误响应事件
             let error_response = ResponseRecord {
@@ -391,7 +391,7 @@ async fn proxy_handler(
             // 检查是否是流式响应
             if name_str == "content-type" && v.contains("text/event-stream") {
                 is_streaming = true;
-                eprintln!("检测到SSE流式响应");
+                log::info!("检测到SSE流式响应");
             }
         }
     }
@@ -399,7 +399,7 @@ async fn proxy_handler(
     // 根据是否是流式响应选择不同的处理方式
     if is_streaming {
         // 处理流式响应
-        eprintln!("开始处理流式响应...");
+        log::info!("开始处理流式响应...");
         
         // 立即发送一个流开始事件，让前端知道流式响应已经开始
         let stream_start = StreamUpdate {
@@ -410,7 +410,7 @@ async fn proxy_handler(
         let _ = window.emit("proxy-stream-update", &stream_start);
         
         // 为流式响应创建一个流
-        eprintln!("响应状态: {}, Content-Length: {:?}, Transfer-Encoding: {:?}",
+        log::info!("响应状态: {}, Content-Length: {:?}, Transfer-Encoding: {:?}",
             status,
             response_headers.get("content-length"),
             response_headers.get("transfer-encoding")
@@ -419,7 +419,7 @@ async fn proxy_handler(
         // 尝试使用不同的流处理方式
         // 对于 SSE，我们需要更直接的流处理
         let stream = response.bytes_stream();
-        eprintln!("[代理] 成功创建字节流");
+        log::debug!("[代理] 成功创建字节流");
         
         // 创建两个独立的任务：一个用于代理转发，一个用于数据收集和分析
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
@@ -448,12 +448,12 @@ async fn proxy_handler(
                 if accumulated_body.len() > MAX_ACCUMULATED_SIZE {
                     let start = accumulated_body.len() - MAX_ACCUMULATED_SIZE;
                     accumulated_body.drain(..start);
-                    eprintln!("[分析器] 累积数据超过10MB，已截断旧数据");
+                    log::warn!("[分析器] 累积数据超过10MB，已截断旧数据");
                 }
                 
                 // 定期报告分析进度
                 if chunk_count % 100 == 0 {
-                    eprintln!("[分析器] 已分析 {} 个数据块，当前块: {} 字节，累积: {} 字节",
+                    log::debug!("[分析器] 已分析 {} 个数据块，当前块: {} 字节，累积: {} 字节",
                         chunk_count, chunk_size, accumulated_body.len());
                 }
                 
@@ -461,7 +461,7 @@ async fn proxy_handler(
                 if let Err(e) = std::str::from_utf8(&accumulated_body) {
                     parse_errors += 1;
                     if parse_errors == 1 || parse_errors % 10 == 0 {
-                        eprintln!("[分析器] UTF-8解析错误 #{} (位置: {})",
+                        log::warn!("[分析器] UTF-8解析错误 #{} (位置: {})",
                             parse_errors, e.valid_up_to());
                     }
                 }
@@ -487,12 +487,12 @@ async fn proxy_handler(
                     
                     // 在第一个块时额外打印日志
                     if chunk_count == 1 {
-                        eprintln!("[分析器] 发送第一个流式更新事件，ID: {}", request_id_for_analysis);
+                        log::debug!("[分析器] 发送第一个流式更新事件，ID: {}", request_id_for_analysis);
                     }
                 }
             }
             
-            eprintln!("[分析器] 数据收集完成：{} 个块，{} 字节，{} 个解析错误",
+            log::info!("[分析器] 数据收集完成：{} 个块，{} 字节，{} 个解析错误",
                 chunk_count, accumulated_body.len(), parse_errors);
             
             // 最终尝试构建响应记录
@@ -501,18 +501,18 @@ async fn proxy_handler(
             } else {
                 match String::from_utf8(accumulated_body.clone()) {
                     Ok(text) => {
-                        eprintln!("[分析器] 成功解析完整响应为UTF-8");
+                        log::debug!("[分析器] 成功解析完整响应为UTF-8");
                         text
                     }
                     Err(e) => {
-                        eprintln!("[分析器] 最终UTF-8解析失败，使用有损转换");
+                        log::warn!("[分析器] 最终UTF-8解析失败，使用有损转换");
                         let valid_up_to = e.utf8_error().valid_up_to();
                         if valid_up_to > 0 {
                             // 尝试保留有效部分
                             let mut truncated = accumulated_body.clone();
                             truncated.truncate(valid_up_to);
                             if let Ok(text) = String::from_utf8(truncated) {
-                                eprintln!("[分析器] 保留了前 {} 字节的有效数据", valid_up_to);
+                                log::debug!("[分析器] 保留了前 {} 字节的有效数据", valid_up_to);
                                 text
                             } else {
                                 String::from_utf8_lossy(&accumulated_body).to_string()
@@ -551,7 +551,7 @@ async fn proxy_handler(
             let mut chunk_count = 0;
             let mut consecutive_errors = 0;
             
-            eprintln!("[代理] 开始转发流式响应...");
+            log::info!("[代理] 开始转发流式响应...");
             
             while let Some(chunk_result) = stream.next().await {
                 match chunk_result {
@@ -564,7 +564,7 @@ async fn proxy_handler(
                         
                         // 简单的进度日志
                         if chunk_count % 100 == 0 {
-                            eprintln!("[代理] 已转发 {} 个数据块", chunk_count);
+                            log::debug!("[代理] 已转发 {} 个数据块", chunk_count);
                         }
                         
                         // 立即转发原始数据块给客户端，不做任何处理
@@ -573,23 +573,23 @@ async fn proxy_handler(
                     Err(e) => {
                         consecutive_errors += 1;
                         // 更详细的错误信息
-                        eprintln!("[代理] 读取源流错误 #{} (块 #{} 后): {:?}",
+                        log::error!("[代理] 读取源流错误 #{} (块 #{} 后): {:?}",
                             consecutive_errors, chunk_count, e);
                         
                         // 检查错误类型
                         let error_str = format!("{:?}", e);
                         if error_str.contains("error decoding response body") {
-                            eprintln!("[代理] 解码错误可能是由于分块传输编码问题");
+                            log::warn!("[代理] 解码错误可能是由于分块传输编码问题");
                             // 对于解码错误，可能是流已经正常结束
                             if chunk_count > 0 {
-                                eprintln!("[代理] 已接收 {} 个块，可能是流正常结束", chunk_count);
+                                log::info!("[代理] 已接收 {} 个块，可能是流正常结束", chunk_count);
                                 break;
                             }
                         }
                         
                         // 源流本身出错才停止
                         if consecutive_errors >= 5 {
-                            eprintln!("[代理] 源流连续错误过多，停止转发");
+                            log::error!("[代理] 源流连续错误过多，停止转发");
                             break;
                         }
                         
@@ -599,7 +599,7 @@ async fn proxy_handler(
                 }
             }
             
-            eprintln!("[代理] 流式转发完成，共转发 {} 个数据块", chunk_count);
+            log::info!("[代理] 流式转发完成，共转发 {} 个数据块", chunk_count);
             
             // 通知分析器流已结束（通过关闭channel）
             drop(tx);
@@ -626,33 +626,33 @@ async fn proxy_handler(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
     } else {
         // 非流式响应，一次性读取
-        eprintln!("处理非流式响应...");
+        log::info!("处理非流式响应...");
         
         let response_body_bytes = response
             .bytes()
             .await
             .map_err(|e| {
-                eprintln!("读取响应体失败: {}", e);
+                log::error!("读取响应体失败: {}", e);
                 StatusCode::BAD_GATEWAY
             })?;
         
         // 打印响应体的前几个字节用于调试
         if !response_body_bytes.is_empty() {
             let preview = &response_body_bytes[..std::cmp::min(20, response_body_bytes.len())];
-            eprintln!("响应体前20字节: {:?}", preview);
+            log::debug!("响应体前20字节: {:?}", preview);
         }
         
         // 尝试将响应体转换为字符串
         let response_body = match String::from_utf8(response_body_bytes.to_vec()) {
             Ok(text) => {
-                eprintln!("成功将响应体转换为UTF-8字符串, 长度: {}", text.len());
+                log::debug!("成功将响应体转换为UTF-8字符串, 长度: {}", text.len());
                 text
             },
             Err(e) => {
-                eprintln!("无法将响应体转换为UTF-8: {}", e);
+                log::warn!("无法将响应体转换为UTF-8: {}", e);
                 // 检查是否是gzip压缩的数据（以1f 8b开头）
                 if response_body_bytes.len() >= 2 && response_body_bytes[0] == 0x1f && response_body_bytes[1] == 0x8b {
-                    eprintln!("检测到gzip压缩数据，尝试手动解压");
+                    log::info!("检测到gzip压缩数据，尝试手动解压");
                     // 手动解压gzip
                     use flate2::read::GzDecoder;
                     use std::io::Read;
@@ -663,11 +663,11 @@ async fn proxy_handler(
                         Ok(_) => {
                             match String::from_utf8(decompressed) {
                                 Ok(text) => {
-                                    eprintln!("手动解压成功，得到UTF-8字符串");
+                                    log::info!("手动解压成功，得到UTF-8字符串");
                                     text
                                 },
                                 Err(_) => {
-                                    eprintln!("解压后仍不是有效的UTF-8");
+                                    log::warn!("解压后仍不是有效的UTF-8");
                                     use base64::Engine;
                                     format!("[Binary data - base64 encoded]: {}",
                                         base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))
@@ -675,7 +675,7 @@ async fn proxy_handler(
                             }
                         },
                         Err(e) => {
-                            eprintln!("手动解压失败: {}", e);
+                            log::error!("手动解压失败: {}", e);
                             use base64::Engine;
                             format!("[Binary data - base64 encoded]: {}",
                                 base64::engine::general_purpose::STANDARD.encode(&response_body_bytes))

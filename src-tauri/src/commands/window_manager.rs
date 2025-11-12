@@ -1,3 +1,5 @@
+// 在 macOS 上禁用 rdev 功能，以避免与辅助功能冲突导致闪退
+#[cfg(not(target_os = "macos"))]
 use rdev::{listen, Event, EventType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,7 +15,7 @@ use tokio::time::sleep;
 // ============================================================================
 
 // ============================================================================
-// 基于 rdev 的拖拽会话管理 (Global Mouse Listener Based Drag Session)
+// 基于 rdev 的拖拽会话管理 (在 macOS 上被禁用)
 // ============================================================================
 
 /// 拖拽会话状态
@@ -53,8 +55,8 @@ const DETACH_THRESHOLD: f64 = 50.0;
 /// 设置为约 8ms，即最高 120Hz 更新频率
 const UPDATE_THROTTLE_MS: u64 = 8;
 
-/// 初始化全局鼠标监听器
-/// 应在应用启动时调用一次
+/// 初始化全局鼠标监听器 (仅在非 macOS 上有效)
+#[cfg(not(target_os = "macos"))]
 pub fn init_global_mouse_listener() {
     thread::spawn(move || {
         let session_arc = DRAG_SESSION.clone();
@@ -155,6 +157,9 @@ pub fn init_global_mouse_listener() {
                         }
                     }
                 }
+                // 在 macOS 上，未处理的键盘事件（特别是修饰键）可能会导致崩溃。
+                // 显式地忽略它们以增加稳定性。
+                EventType::KeyPress(_) | EventType::KeyRelease(_) => {}
                 _ => {}
             }
         };
@@ -165,8 +170,9 @@ pub fn init_global_mouse_listener() {
     });
 }
 
-/// 开始一个基于全局鼠标监听的拖拽会话
+/// 开始一个基于全局鼠标监听的拖拽会话 (仅在非 macOS 上有效)
 #[tauri::command]
+#[cfg(not(target_os = "macos"))]
 pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Result<(), String> {
     // 检查并清理可能卡住的旧会话
     {

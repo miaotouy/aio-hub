@@ -80,8 +80,6 @@ use commands::{
     finalize_detach_session,
     get_all_detached_windows,
     close_detached_window, // 新增：统一的关闭命令
-    // 基于 rdev 的拖拽会话命令
-    start_drag_session,
     end_drag_session,
     // 窗口导航命令
     navigate_main_window_to_settings,
@@ -112,7 +110,9 @@ use commands::{
     list_directory_images
 };
 // 导入全局鼠标监听器
-use commands::window_manager::init_global_mouse_listener;
+// 条件导入：仅在非 macOS 上导入
+#[cfg(not(target_os = "macos"))]
+use commands::{window_manager::init_global_mouse_listener, start_drag_session};
 
 // 导入事件处理
 use events::handle_window_event;
@@ -278,8 +278,6 @@ pub fn run() {
             finalize_detach_session,
             get_all_detached_windows,
             close_detached_window,
-            // 基于 rdev 的拖拽会话命令
-            start_drag_session,
             end_drag_session,
             // 窗口导航命令
             navigate_main_window_to_settings,
@@ -313,7 +311,10 @@ pub fn run() {
             commands::native_plugin::call_native_plugin_method,
             // 窗口特效命令
             apply_window_effect,
-            list_directory_images
+            list_directory_images,
+            // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)
+            #[cfg(not(target_os = "macos"))]
+            start_drag_session
         ])
         // 设置应用
         .setup(|app| {
@@ -392,7 +393,8 @@ pub fn run() {
                 create_system_tray(app)?;
             }
 
-            // 初始化全局鼠标监听器（用于基于 rdev 的拖拽）
+            // 初始化全局鼠标监听器（用于基于 rdev 的拖拽, 仅在非 macOS 上启用）
+            #[cfg(not(target_os = "macos"))]
             init_global_mouse_listener();
 
             Ok(())

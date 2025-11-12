@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
+import { platform } from "@tauri-apps/plugin-os";
 import { createModuleLogger } from "@utils/logger";
 
 const logger = createModuleLogger("ComponentHeader");
@@ -28,10 +29,10 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
-
 const isCollapsed = ref(false);
 const showMenu = ref(false);
 const isPinned = ref(false);
+const isMac = ref(false);
 
 onMounted(async () => {
   // 仅在独立窗口模式下检查置顶状态
@@ -42,6 +43,14 @@ onMounted(async () => {
     } catch (error) {
       logger.error("获取窗口置顶状态失败", { error });
     }
+  }
+
+  // 检查平台以应用特定逻辑
+  try {
+    const plat = await platform();
+    isMac.value = plat === "macos";
+  } catch (error) {
+    logger.error("检查操作系统平台失败", { error });
   }
 });
 
@@ -133,6 +142,19 @@ const handleMenuReattach = async () => {
   closeMenu();
   await handleReattach();
 };
+
+const handleDragInteraction = (event: MouseEvent) => {
+  if (props.dragMode !== "detach") return;
+
+  if (isMac.value) {
+    // 在 macOS 上，禁用 rdev 拖拽，将 mousedown 视为直接分离
+    logger.info("在 macOS 上检测到拖拽交互，触发直接分离。");
+    emit("detach");
+  } else {
+    // 在其他平台上，启动 rdev 拖拽会话
+    emit("mousedown", event);
+  }
+};
 </script>
 
 <template>
@@ -149,7 +171,7 @@ const handleMenuReattach = async () => {
         class="drag-area"
         :class="{ 'window-drag-mode': dragMode === 'window' }"
         :data-tauri-drag-region="dragMode === 'window' ? '' : null"
-        @mousedown="(e) => dragMode === 'detach' && emit('mousedown', e)"
+        @mousedown="handleDragInteraction"
       >
         <slot name="drag-region">
           <div class="drag-handle">

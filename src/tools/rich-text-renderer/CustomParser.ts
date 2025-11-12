@@ -90,7 +90,6 @@ class Tokenizer {
             
             // 收集代码块内容（原始文本，不做任何解析）
             let codeContent = '';
-            let foundClosing = false;
             
             while (i < text.length) {
               // 检查是否遇到闭合的 ```
@@ -101,7 +100,6 @@ class Tokenizer {
                     i++; // 跳过最后一个换行
                   }
                   i += 3; // 跳过 ```
-                  foundClosing = true;
                   break;
                 }
               }

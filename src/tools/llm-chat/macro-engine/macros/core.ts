@@ -21,6 +21,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       example: '{{user}}',
       acceptsArgs: false,
       priority: 100,
+      supported: true,
       execute: (context) => context.userName || 'User',
     },
 
@@ -33,6 +34,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       example: '{{char}}',
       acceptsArgs: false,
       priority: 100,
+      supported: true,
       execute: (context) => context.charName || 'Assistant',
     },
 
@@ -45,6 +47,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       example: '{{persona}}',
       acceptsArgs: false,
       priority: 80,
+      supported: true,
       execute: (context) => context.userProfile || '',
     },
 
@@ -57,42 +60,46 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       example: '{{description}}',
       acceptsArgs: false,
       priority: 70,
+      supported: true,
       execute: (context) => context.charDescription || '',
     },
 
-    // 角色性格
+    // 角色性格（未实现）
     {
       name: 'personality',
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: '角色的性格特征',
+      description: '角色的性格特征（尚未实现）',
       example: '{{personality}}',
       acceptsArgs: false,
       priority: 70,
+      supported: false,
       execute: (context) => context.charPersonality || '',
     },
 
-    // 场景
+    // 场景（未实现）
     {
       name: 'scenario',
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: '当前对话场景',
+      description: '当前对话场景（尚未实现）',
       example: '{{scenario}}',
       acceptsArgs: false,
       priority: 60,
+      supported: false,
       execute: (context) => context.scenario || '',
     },
 
-    // 对话示例
+    // 对话示例（未实现）
     {
       name: 'mesExamples',
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: '角色的对话示例',
+      description: '角色的对话示例（尚未实现）',
       example: '{{mesExamples}}',
       acceptsArgs: false,
       priority: 50,
+      supported: false,
       execute: (context) => context.mesExamples || '',
     },
 
@@ -105,6 +112,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       example: '{{lastMessage}}',
       acceptsArgs: false,
       priority: 90,
+      supported: true,
       execute: (context) => context.lastMessage || '',
     },
 
@@ -117,6 +125,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       example: '{{lastUserMessage}}',
       acceptsArgs: false,
       priority: 85,
+      supported: true,
       execute: (context) => context.lastUserMessage || '',
     },
 
@@ -129,18 +138,20 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       example: '{{lastCharMessage}}',
       acceptsArgs: false,
       priority: 85,
+      supported: true,
       execute: (context) => context.lastCharMessage || '',
     },
 
-    // 当前输入
+    // 当前输入（未实现）
     {
       name: 'input',
       type: MacroType.VALUE,
       phase: MacroPhase.POST_PROCESS,
-      description: '当前输入框中的内容',
+      description: '当前输入框中的内容（尚未实现）',
       example: '{{input}}',
       acceptsArgs: false,
       priority: 75,
+      supported: false,
       execute: (context) => context.input || '',
     },
   ];

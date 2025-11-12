@@ -1,98 +1,84 @@
 <template>
   <div class="macro-selector">
-      <div class="macro-selector-header">
-        <span class="title">可用宏列表</span>
-        <el-input
-          v-model="searchText"
-          placeholder="搜索宏..."
-          size="small"
-          clearable
-          style="width: 200px;"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
+    <div class="macro-selector-header">
+      <span class="title">可用宏列表</span>
+      <el-input
+        v-model="searchText"
+        placeholder="搜索宏..."
+        size="small"
+        clearable
+        style="width: 200px"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+    </div>
+
+    <div class="macro-selector-body">
+      <!-- 值替换类 -->
+      <div v-if="filteredMacros.value && filteredMacros.value.length > 0" class="macro-group">
+        <div class="macro-group-title">值替换</div>
+        <div class="macro-list">
+          <el-tooltip
+            v-for="macro in filteredMacros.value"
+            :key="macro.name"
+            :content="macro.description"
+            placement="right"
+            effect="light"
+          >
+            <div class="macro-item" @click="handleInsertMacro(macro)">
+              <span class="macro-name">{{ formatMacroName(macro.name) }}</span>
+              <el-icon class="insert-icon"><Plus /></el-icon>
+            </div>
+          </el-tooltip>
+        </div>
       </div>
 
-      <div class="macro-selector-body">
-        <!-- 值替换类 -->
-        <div
-          v-if="filteredMacros.value && filteredMacros.value.length > 0"
-          class="macro-group"
-        >
-          <div class="macro-group-title">值替换</div>
-          <div class="macro-list">
-            <el-tooltip
-              v-for="macro in filteredMacros.value"
-              :key="macro.name"
-              :content="macro.description"
-              placement="right"
-              effect="light"
-            >
-              <div class="macro-item" @click="handleInsertMacro(macro)">
-                <span class="macro-name">{{ formatMacroName(macro.name) }}</span>
-                <el-icon class="insert-icon"><Plus /></el-icon>
-              </div>
-            </el-tooltip>
-          </div>
+      <!-- 变量操作类 -->
+      <div v-if="filteredMacros.variable && filteredMacros.variable.length > 0" class="macro-group">
+        <div class="macro-group-title">变量操作</div>
+        <div class="macro-list">
+          <el-tooltip
+            v-for="macro in filteredMacros.variable"
+            :key="macro.name"
+            :content="macro.description"
+            placement="right"
+            effect="light"
+          >
+            <div class="macro-item" @click="handleInsertMacro(macro)">
+              <span class="macro-name">
+                {{ macro.example || formatMacroName(macro.name) }}
+              </span>
+              <el-icon class="insert-icon"><Plus /></el-icon>
+            </div>
+          </el-tooltip>
         </div>
+      </div>
 
-        <!-- 变量操作类 -->
-        <div
-          v-if="filteredMacros.variable && filteredMacros.variable.length > 0"
-          class="macro-group"
-        >
-          <div class="macro-group-title">变量操作</div>
-          <div class="macro-list">
-            <el-tooltip
-              v-for="macro in filteredMacros.variable"
-              :key="macro.name"
-              :content="macro.description"
-              placement="right"
-              effect="light"
-            >
-              <div class="macro-item" @click="handleInsertMacro(macro)">
-                <span class="macro-name">
-                  {{ macro.example || formatMacroName(macro.name) }}
-                </span>
-                <el-icon class="insert-icon"><Plus /></el-icon>
-              </div>
-            </el-tooltip>
-          </div>
+      <!-- 动态函数类 -->
+      <div v-if="filteredMacros.function && filteredMacros.function.length > 0" class="macro-group">
+        <div class="macro-group-title">动态函数</div>
+        <div class="macro-list">
+          <el-tooltip
+            v-for="macro in filteredMacros.function"
+            :key="macro.name"
+            :content="macro.description"
+            placement="right"
+            effect="light"
+          >
+            <div class="macro-item" @click="handleInsertMacro(macro)">
+              <span class="macro-name">
+                {{ macro.example || formatMacroName(macro.name) }}
+              </span>
+              <el-icon class="insert-icon"><Plus /></el-icon>
+            </div>
+          </el-tooltip>
         </div>
+      </div>
 
-        <!-- 动态函数类 -->
-        <div
-          v-if="filteredMacros.function && filteredMacros.function.length > 0"
-          class="macro-group"
-        >
-          <div class="macro-group-title">动态函数</div>
-          <div class="macro-list">
-            <el-tooltip
-              v-for="macro in filteredMacros.function"
-              :key="macro.name"
-              :content="macro.description"
-              placement="right"
-              effect="light"
-            >
-              <div class="macro-item" @click="handleInsertMacro(macro)">
-                <span class="macro-name">
-                  {{ macro.example || formatMacroName(macro.name) }}
-                </span>
-                <el-icon class="insert-icon"><Plus /></el-icon>
-              </div>
-            </el-tooltip>
-          </div>
-        </div>
-
-        <!-- 无结果提示 -->
-        <div
-          v-if="Object.keys(filteredMacros).length === 0"
-          class="no-results"
-        >
-          未找到匹配的宏
-        </div>
+      <!-- 无结果提示 -->
+      <div v-if="Object.keys(filteredMacros).length === 0" class="no-results">未找到匹配的宏</div>
     </div>
   </div>
 </template>
@@ -111,18 +97,24 @@ const emit = defineEmits<Emits>();
 // 搜索文本
 const searchText = ref("");
 
-// 获取所有宏并按类型分组
+// 获取所有宏并按类型分组（只包含已支持的宏）
 const groupedMacros = computed(() => {
   const registry = MacroRegistry.getInstance();
   const macros = registry.getAllMacros();
 
-  return macros.reduce((acc, macro) => {
-    if (!acc[macro.type]) {
-      acc[macro.type] = [];
-    }
-    acc[macro.type].push(macro);
-    return acc;
-  }, {} as Record<string, MacroDefinition[]>);
+  // 只保留 supported 为 true 的宏
+  const supportedMacros = macros.filter((macro) => macro.supported !== false);
+
+  return supportedMacros.reduce(
+    (acc, macro) => {
+      if (!acc[macro.type]) {
+        acc[macro.type] = [];
+      }
+      acc[macro.type].push(macro);
+      return acc;
+    },
+    {} as Record<string, MacroDefinition[]>
+  );
 });
 
 // 过滤宏列表
@@ -227,7 +219,7 @@ function handleInsertMacro(macro: MacroDefinition) {
 }
 
 .macro-item:hover {
-  background-color: var(--el-color-primary-light-9);
+  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 20%, transparent);
   transform: translateX(2px);
 }
 
@@ -236,7 +228,7 @@ function handleInsertMacro(macro: MacroDefinition) {
 }
 
 .macro-name {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 13px;
   color: var(--el-text-color-primary);
   flex: 1;

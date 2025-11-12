@@ -34,6 +34,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       example: '{{random::选项A::选项B::选项C}}',
       acceptsArgs: true,
       priority: 85,
+      supported: true,
       execute: (_context, args) => {
         if (!args || args.length === 0) {
           return '[错误: random 需要至少1个参数]';
@@ -52,6 +53,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       example: '{{pick::选项A::选项B::选项C}}',
       acceptsArgs: true,
       priority: 80,
+      supported: true,
       execute: (context, args) => {
         if (!args || args.length === 0) {
           return '[错误: pick 需要至少1个参数]';
@@ -74,6 +76,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       acceptsArgs: true,
       argCount: 1,
       priority: 75,
+      supported: true,
       execute: (_context, args) => {
         if (!args || args.length === 0) {
           return '[错误: roll 需要1个参数]';
@@ -125,6 +128,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       example: '第一行{{newline}}第二行',
       acceptsArgs: false,
       priority: 100,
+      supported: true,
       execute: () => '\n',
     },
 
@@ -137,6 +141,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       example: '文本{{trim}}文本',
       acceptsArgs: false,
       priority: 95,
+      supported: true,
       execute: () => {
         // trim 的实际处理需要在后处理阶段特殊处理
         // 这里返回一个特殊标记，由后处理器识别并处理
@@ -154,6 +159,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       acceptsArgs: true,
       argCount: 2,
       priority: 70,
+      supported: true,
       execute: (_context, args) => {
         if (!args || args.length < 2) {
           return '[错误: randomInt 需要2个参数]';
@@ -185,6 +191,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       acceptsArgs: true,
       argCount: 2,
       priority: 65,
+      supported: true,
       execute: (_context, args) => {
         if (!args || args.length < 2) {
           return '[错误: repeat 需要2个参数]';

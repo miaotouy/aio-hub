@@ -53,6 +53,8 @@ export interface MacroDefinition {
   argCount?: number;
   /** 优先级（用于自动补全排序） */
   priority?: number;
+  /** 是否已实现（未实现的宏不会在UI中显示） */
+  supported?: boolean;
   /** 执行函数 */
   execute: (context: MacroContext, args?: string[]) => string | Promise<string>;
 }

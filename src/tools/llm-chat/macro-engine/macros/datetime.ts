@@ -46,6 +46,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       example: '{{time}}',
       acceptsArgs: false,
       priority: 90,
+      supported: true,
       execute: () => {
         const now = new Date();
         return formatTime(now);
@@ -61,6 +62,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       example: '{{date}}',
       acceptsArgs: false,
       priority: 90,
+      supported: true,
       execute: () => {
         const now = new Date();
         return formatDate(now);
@@ -76,6 +78,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       example: '{{isotime}}',
       acceptsArgs: false,
       priority: 70,
+      supported: true,
       execute: () => {
         return new Date().toISOString();
       },
@@ -90,6 +93,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       example: '{{timestamp}}',
       acceptsArgs: false,
       priority: 60,
+      supported: true,
       execute: () => {
         return Date.now().toString();
       },
@@ -104,6 +108,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       example: '{{time24}}',
       acceptsArgs: false,
       priority: 85,
+      supported: true,
       execute: () => {
         const now = new Date();
         const hours = now.getHours().toString().padStart(2, '0');
@@ -121,6 +126,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       example: '{{weekday}}',
       acceptsArgs: false,
       priority: 80,
+      supported: true,
       execute: () => {
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const now = new Date();

@@ -137,7 +137,7 @@
     </div>
 
     <!-- Diff 编辑器 - 一体化输入和对比 -->
-    <InfoCard bare class="diff-editor-card">
+    <div class="diff-editor-card">
       <div class="editor-container">
         <!-- 左侧拖放区域 -->
         <div
@@ -178,7 +178,7 @@
           @mount="handleEditorMounted"
         />
       </div>
-    </InfoCard>
+    </div>
   </div>
 </template>
 
@@ -661,17 +661,10 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: transparent;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
-}
-
-.diff-editor-card :deep(.el-card__body) {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0;
 }
 
 .file-names {
@@ -707,8 +700,11 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
 
 .editor-container {
   position: relative;
+  flex: 1;
   display: flex;
-  height: 100%;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .drop-zone {
@@ -759,8 +755,8 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
 
 .diff-editor {
   flex: 1;
-  min-height: 400px;
-  height: 100%;  
+  min-height: 0;
+  width: 100%;
   background: transparent;
 }
 </style>

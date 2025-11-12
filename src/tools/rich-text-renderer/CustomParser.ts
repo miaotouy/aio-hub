@@ -21,7 +21,7 @@ export type Token =
   | { type: 'html_close'; tagName: string; raw: string }
   | { type: 'strong_delimiter'; marker: '**' | '__'; raw: string }
   | { type: 'em_delimiter'; marker: '*' | '_'; raw: string }
-  | { type: 'code_delimiter'; marker: '`'; raw: string }
+  | { type: 'inline_code'; content: string }
   | { type: 'strikethrough_delimiter'; marker: '~~'; raw: string }
   | { type: 'image_marker'; raw: string }
   | { type: 'link_text_open'; raw: string }
@@ -76,13 +76,43 @@ class Tokenizer {
           continue;
         }
         
-        // 代码围栏
+        // 代码围栏 - 立即处理整个代码块
         if (remaining.startsWith('```')) {
-          const match = remaining.match(/^```(\w*)/);
-          if (match) {
-            tokens.push({ type: 'code_fence', language: match[1] || '', raw: match[0] });
-            i += match[0].length;
-            atLineStart = false;
+          const openMatch = remaining.match(/^```(\w*)/);
+          if (openMatch) {
+            const language = openMatch[1] || '';
+            i += openMatch[0].length; // 跳过开始标记
+            
+            // 跳过开始标记后的第一个换行符（如果有）
+            if (i < text.length && text[i] === '\n') {
+              i++;
+            }
+            
+            // 收集代码块内容（原始文本，不做任何解析）
+            let codeContent = '';
+            let foundClosing = false;
+            
+            while (i < text.length) {
+              // 检查是否遇到闭合的 ```
+              if (text[i] === '\n' || i === 0) {
+                const checkRemaining = text.slice(i === 0 ? i : i + 1);
+                if (checkRemaining.startsWith('```')) {
+                  if (i > 0 && text[i] === '\n') {
+                    i++; // 跳过最后一个换行
+                  }
+                  i += 3; // 跳过 ```
+                  foundClosing = true;
+                  break;
+                }
+              }
+              
+              codeContent += text[i];
+              i++;
+            }
+            
+            // 添加代码块 token（包含完整内容）
+            tokens.push({ type: 'code_fence', language, raw: codeContent });
+            atLineStart = true;
             continue;
           }
         }
@@ -178,11 +208,22 @@ class Tokenizer {
         atLineStart = false;
         continue;
       }
+      // 行内代码 - 立即处理完整的代码块
       if (remaining.startsWith('`')) {
-        tokens.push({ type: 'code_delimiter', marker: '`', raw: '`' });
-        i += 1;
-        atLineStart = false;
-        continue;
+        const codeMatch = remaining.match(/^`([^`]*)`/);
+        if (codeMatch) {
+          // 找到了完整的行内代码
+          tokens.push({ type: 'inline_code', content: codeMatch[1] });
+          i += codeMatch[0].length;
+          atLineStart = false;
+          continue;
+        } else {
+          // 没有找到匹配的反引号，按普通文本处理
+          tokens.push({ type: 'text', content: '`' });
+          i += 1;
+          atLineStart = false;
+          continue;
+        }
       }
       // 图片标记 ![
       if (remaining.startsWith('![')) {
@@ -652,30 +693,16 @@ export class CustomParser {
         continue;
       }
 
-      // 行内代码
-      if (token.type === 'code_delimiter') {
+      // 行内代码 - 直接使用分词器处理好的内容
+      if (token.type === 'inline_code') {
         flushText();
-        i++;
-
-        let codeContent = '';
-        while (i < tokens.length) {
-          const t = tokens[i];
-          if (t.type === 'code_delimiter') {
-            i++;
-            break;
-          }
-          if (t.type === 'text') {
-            codeContent += t.content;
-          }
-          i++;
-        }
-
         nodes.push({
           id: '',
           type: 'inline_code',
-          props: { content: codeContent },
+          props: { content: token.content },
           meta: { range: { start: 0, end: 0 }, status: 'stable' }
         });
+        i++;
         continue;
       }
 
@@ -876,44 +903,25 @@ export class CustomParser {
   }
 
   /**
-   * 解析代码块
+   * 解析代码块 - 分词器已经处理好了完整内容
    */
   private parseCodeBlock(tokens: Token[], start: number): { node: AstNode | null; nextIndex: number } {
-    const openFence = tokens[start];
-    if (openFence.type !== 'code_fence') {
+    const fence = tokens[start];
+    if (fence.type !== 'code_fence') {
       return { node: null, nextIndex: start + 1 };
-    }
-
-    const language = openFence.language || '';
-    let i = start + 1;
-    let codeContent = '';
-
-    // 收集代码内容直到遇到闭合围栏
-    while (i < tokens.length) {
-      const t = tokens[i];
-      
-      if (t.type === 'code_fence') {
-        i++; // 跳过闭合围栏
-        break;
-      }
-      
-      if (t.type === 'text') {
-        codeContent += t.content;
-      } else if (t.type === 'newline') {
-        codeContent += '\n'.repeat(t.count);
-      }
-      
-      i++;
     }
 
     return {
       node: {
         id: '',
         type: 'code_block',
-        props: { language, content: codeContent },
+        props: {
+          language: fence.language || '',
+          content: fence.raw // raw 现在包含完整的代码内容
+        },
         meta: { range: { start: 0, end: 0 }, status: 'stable' }
       },
-      nextIndex: i
+      nextIndex: start + 1
     };
   }
 

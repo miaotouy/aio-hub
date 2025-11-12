@@ -18,6 +18,7 @@ interface Props {
 
 interface Emits {
   (e: 'remove', asset: Asset): void;
+  (e: 'preview-document', asset: Asset): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -48,6 +49,9 @@ const isVideo = computed(() => props.asset.type === 'video');
 
 // 是否应该使用长条形式（非图片/视频类型）
 const isBarLayout = computed(() => !isImage.value && !isVideo.value);
+
+// 是否为文档类型（可以点击预览）
+const isDocument = computed(() => props.asset.type === 'document');
 
 // 获取文件后缀名
 const fileExtension = computed(() => {
@@ -127,7 +131,21 @@ const hasImportError = computed(() => props.asset.importStatus === 'error');
 
 // 处理点击预览
 const handlePreview = async () => {
-  if (!isImage.value) return;
+  // 图片类型：打开图片查看器
+  if (isImage.value) {
+    await handleImagePreview();
+    return;
+  }
+  
+  // 文档类型：发出预览事件
+  if (isDocument.value) {
+    emit('preview-document', props.asset);
+    return;
+  }
+};
+
+// 处理图片预览
+const handleImagePreview = async () => {
   
   try {
     // 获取所有图片类型的附件
@@ -164,8 +182,8 @@ const handlePreview = async () => {
       }
     }
     
-    // 传递图片数组和当前索引给图片查看器
-    showImage(imageUrls, currentIndex >= 0 ? currentIndex : 0);
+  // 传递图片数组和当前索引给图片查看器
+  showImage(imageUrls, currentIndex >= 0 ? currentIndex : 0);
   } catch (error) {
     logger.error('打开图片预览失败', error);
   }
@@ -204,6 +222,7 @@ onUnmounted(() => {
         'is-image': isImage,
         'is-video': isVideo,
         'is-bar-layout': isBarLayout,
+        'is-document': isDocument,
         'has-error': loadError || hasImportError,
         'is-importing': isImporting
       }
@@ -211,7 +230,11 @@ onUnmounted(() => {
   >
     <!-- 长条布局（非图片/视频类型） -->
     <template v-if="isBarLayout">
-      <div class="bar-layout-content">
+      <div
+        class="bar-layout-content"
+        :class="{ 'clickable': isDocument }"
+        @click="handlePreview"
+      >
         <!-- 文件图标区域 -->
         <div class="bar-icon-area">
           <template v-if="isLoadingUrl">
@@ -363,6 +386,10 @@ onUnmounted(() => {
 
 .attachment-card.is-importing {
   opacity: 0.8;
+}
+
+.attachment-card.is-document {
+  cursor: pointer;
 }
 
 .attachment-preview {
@@ -552,6 +579,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  transition: background-color 0.2s;
+}
+
+.bar-layout-content.clickable {
+  cursor: pointer;
+}
+
+.bar-layout-content.clickable:hover {
+  background-color: var(--hover-bg);
 }
 
 .bar-icon-area {

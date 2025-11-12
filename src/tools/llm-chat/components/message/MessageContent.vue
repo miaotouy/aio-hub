@@ -10,6 +10,8 @@ import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import { useAttachmentManager } from "../../composables/useAttachmentManager";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
@@ -46,6 +48,10 @@ const editingContent = ref("");
 
 // 错误信息复制状态
 const errorCopied = ref(false);
+
+// 文档预览状态
+const documentPreviewVisible = ref(false);
+const previewingAsset = ref<Asset | null>(null);
 
 // 计算推理用时（毫秒）
 const reasoningDuration = computed(() => {
@@ -146,9 +152,20 @@ const cancelEdit = () => {
 };
 
 // 处理附件移除
-// 处理附件移除
 const handleRemoveAttachment = (asset: Asset) => {
   attachmentManager.removeAttachment(asset);
+};
+
+// 处理文档预览
+const handlePreviewDocument = (asset: Asset) => {
+  previewingAsset.value = asset;
+  documentPreviewVisible.value = true;
+};
+
+// 关闭文档预览
+const closeDocumentPreview = () => {
+  documentPreviewVisible.value = false;
+  previewingAsset.value = null;
 };
 
 // 统一的文件交互处理（拖放 + 粘贴）
@@ -219,6 +236,7 @@ watch(
           :all-assets="message.attachments"
           :removable="false"
           size="large"
+          @preview-document="handlePreviewDocument"
         />
       </div>
     </div>
@@ -268,6 +286,7 @@ watch(
             :removable="true"
             size="medium"
             @remove="handleRemoveAttachment"
+            @preview-document="handlePreviewDocument"
           />
         </div>
       </div>
@@ -338,6 +357,24 @@ watch(
         <span class="error-text"> {{ message.metadata.error }}</span>
       </div>
     </div>
+
+    <!-- 文档预览对话框 -->
+    <BaseDialog
+      :visible="documentPreviewVisible"
+      :title="previewingAsset?.name || '文档预览'"
+      width="80%"
+      height="80vh"
+      @update:visible="documentPreviewVisible = $event"
+      @close="closeDocumentPreview"
+    >
+      <DocumentViewer
+        v-if="previewingAsset"
+        :file-path="previewingAsset.originalPath || previewingAsset.path"
+        :file-name="previewingAsset.name"
+        :file-type-hint="previewingAsset.mimeType"
+        :show-engine-switch="true"
+      />
+    </BaseDialog>
   </div>
 </template>
 

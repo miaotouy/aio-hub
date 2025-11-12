@@ -29,7 +29,10 @@
     "tauri:dev": "tauri dev",
     "check": "bun run check:frontend; bun run check:backend",
     "check:frontend": "vue-tsc --noEmit",
-    "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings; cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
+    "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+    "format": "bun run format:frontend ; bun run format:backend",
+    "format:frontend": "prettier --write . --cache",
+    "format:backend": "cargo fmt --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",

@@ -1,12 +1,7 @@
 <template>
   <div class="structured-view">
     <!-- Agent 信息 -->
-    <el-card shadow="never" class="agent-info-card">
-      <template #header>
-        <div class="card-header">
-          <span>智能体信息</span>
-        </div>
-      </template>
+    <InfoCard title="智能体信息" class="agent-info-card">
       <div class="agent-info">
         <Avatar
           v-if="contextData.agentInfo.icon"
@@ -31,10 +26,10 @@
           </div>
         </div>
       </div>
-    </el-card>
+    </InfoCard>
 
     <!-- 统计信息 -->
-    <el-card shadow="never" class="stats-card">
+    <InfoCard class="stats-card">
       <template #header>
         <div class="card-header">
           <span>上下文统计</span>
@@ -104,7 +99,7 @@
           </div>
         </div>
       </div>
-    </el-card>
+    </InfoCard>
 
     <!-- 系统提示 -->
     <InfoCard
@@ -138,10 +133,9 @@
         </div>
       </div>
       <div class="messages-list">
-        <el-card
+        <InfoCard
           v-for="(msg, index) in contextData.presetMessages"
           :key="index"
-          shadow="never"
           class="message-card"
         >
           <template #header>
@@ -178,7 +172,7 @@
             </div>
           </template>
           <div class="message-content">{{ msg.content }}</div>
-        </el-card>
+        </InfoCard>
       </div>
     </div>
 
@@ -196,10 +190,9 @@
         </div>
       </div>
       <div class="messages-list">
-        <el-card
+        <InfoCard
           v-for="(msg, index) in contextData.chatHistory"
           :key="msg.nodeId"
-          shadow="never"
           class="message-card"
         >
           <template #header>
@@ -236,7 +229,7 @@
             </div>
           </template>
           <div class="message-content">{{ msg.content }}</div>
-        </el-card>
+        </InfoCard>
       </div>
     </div>
   </div>
@@ -257,12 +250,6 @@ defineProps<{
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.agent-info-card,
-.stats-card {
-  border: 1px solid var(--el-border-color);
-  background-color: var(--el-bg-color);
 }
 
 .card-header {
@@ -401,11 +388,6 @@ defineProps<{
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.message-card {
-  border: 1px solid var(--el-border-color);
-  background-color: var(--el-bg-color);
 }
 
 .message-card-header {

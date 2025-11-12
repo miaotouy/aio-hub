@@ -127,18 +127,18 @@ Vite 会自动处理组件之间的依赖关系，无论你的项目结构如何
 ```vue
 <template>
   <div class="container">
-    <el-card shadow="never">
-      <h2>🎉 Hello World 插件</h2>
+    <InfoCard title="🎉 Hello World 插件">
       <el-input v-model="name" placeholder="输入你的名字" />
       <el-button @click="doGreet" :loading="isLoading">打招呼</el-button>
       <p v-if="greeting" class="greeting">{{ greeting }}</p>
-    </el-card>
+    </InfoCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ElCard, ElInput, ElButton } from 'element-plus';
+import { ElInput, ElButton } from 'element-plus';
+import InfoCard from '@/components/common/InfoCard.vue'; // 主应用提供的封装组件
 import { execute } from '@/services/executor';
 import { customMessage } from '@/utils/customMessage';
 
@@ -324,18 +324,18 @@ your-plugin/
 ```vue
 <template>
   <div class="container">
-    <el-card shadow="never">
-      <h2>🎉 Hello World 插件</h2>
+    <InfoCard title="🎉 Hello World 插件">
       <el-input v-model="name" placeholder="输入你的名字" />
       <el-button @click="doGreet" :loading="isLoading">打招呼</el-button>
       <p v-if="greeting" class="greeting">{{ greeting }}</p>
-    </el-card>
+    </InfoCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ElCard, ElInput, ElButton } from 'element-plus';
+import { ElInput, ElButton } from 'element-plus';
+import InfoCard from '@/components/common/InfoCard.vue'; // 主应用提供的封装组件
 import { execute } from '@/services/executor';
 import { customMessage } from '@/utils/customMessage';
 

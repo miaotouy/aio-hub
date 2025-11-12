@@ -2,7 +2,7 @@
   <div class="theme-appearance-settings">
     <div class="settings-grid">
       <!-- 左列：壁纸管理 -->
-      <el-card shadow="never" :class="{ 'glass-card': isGlassEffectActive }">
+      <InfoCard :class="{ 'glass-card': isGlassEffectActive }">
         <template #header>
           <div class="card-header">
             <span>壁纸管理</span>
@@ -190,11 +190,11 @@
             </div>
           </div>
         </el-form>
-      </el-card>
+      </InfoCard>
 
       <!-- 右列：UI 和窗口特效 -->
       <div class="right-column-content">
-        <el-card shadow="never" :class="{ 'glass-card': isGlassEffectActive }">
+        <InfoCard :class="{ 'glass-card': isGlassEffectActive }">
           <template #header>
             <div class="card-header">
               <span>界面质感</span>
@@ -282,9 +282,9 @@
               <el-slider v-model="codeBlockOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
           </el-form>
-        </el-card>
+        </InfoCard>
 
-        <el-card shadow="never" :class="{ 'glass-card': isGlassEffectActive }">
+        <InfoCard :class="{ 'glass-card': isGlassEffectActive }">
           <template #header>
             <div class="card-header">
               <span>窗口特效 (实验性)</span>
@@ -311,7 +311,7 @@
               </p>
             </el-form-item>
           </el-form>
-        </el-card>
+        </InfoCard>
       </div>
     </div>
   </div>
@@ -319,6 +319,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted } from "vue";
+import InfoCard from "@/components/common/InfoCard.vue";
 import { useElementSize } from "@vueuse/core";
 import { Pipette } from "lucide-vue-next";
 import { useImageViewer } from "@/composables/useImageViewer";

@@ -27,7 +27,7 @@
     </div>
 
     <div class="stats-detail">
-      <el-card shadow="never">
+      <InfoCard>
         <template #header>
           <div class="card-header">
             <span>详细统计</span>
@@ -121,13 +121,14 @@
             </span>
           </div>
         </div>
-      </el-card>
+      </InfoCard>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue';
+import InfoCard from '@/components/common/InfoCard.vue';
 import { useContextChart, type ChartMode } from '../../composables/useContextChart';
 import type { ContextPreviewData } from '../../composables/useChatHandler';
 

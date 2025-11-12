@@ -1,5 +1,5 @@
 <template>
-  <el-card class="methods-card">
+  <InfoCard class="methods-card">
     <template #header>
       <div class="card-header">
         <span>可用方法</span>
@@ -54,7 +54,7 @@
         </el-collapse-item>
       </el-collapse>
     </div>
-  </el-card>
+  </InfoCard>
 </template>
 
 <script setup lang="ts">
@@ -62,6 +62,7 @@ import { ref } from 'vue';
 import type { MethodMetadata } from '@/services/types';
 import MethodParametersTable from './MethodParametersTable.vue';
 import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
+import InfoCard from '@/components/common/InfoCard.vue';
 
 defineProps<{
   methods: MethodMetadata[];

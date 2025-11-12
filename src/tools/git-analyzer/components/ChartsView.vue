@@ -2,24 +2,21 @@
   <div class="charts-container">
     <el-row :gutter="12">
       <el-col :span="12">
-        <el-card>
-          <template #header>提交频率</template>
+        <InfoCard title="提交频率">
           <div ref="frequencyChart" class="chart"></div>
-        </el-card>
+        </InfoCard>
       </el-col>
       <el-col :span="12">
-        <el-card>
-          <template #header>贡献者统计</template>
+        <InfoCard title="贡献者统计">
           <div ref="contributorChart" class="chart"></div>
-        </el-card>
+        </InfoCard>
       </el-col>
     </el-row>
     <el-row :gutter="12" style="margin-top: 20px">
       <el-col :span="24">
-        <el-card>
-          <template #header>提交热力图</template>
+        <InfoCard title="提交热力图">
           <div ref="heatmapChart" class="chart"></div>
-        </el-card>
+        </InfoCard>
       </el-col>
     </el-row>
   </div>
@@ -27,6 +24,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import InfoCard from "@/components/common/InfoCard.vue";
 
 // DOM 引用
 const frequencyChart = ref<HTMLElement>();
@@ -54,7 +52,7 @@ defineExpose({
   min-height: 300px;
 }
 
-:deep(.el-card) {
+:deep(.info-card) {
   background: var(--container-bg);
   border-color: var(--border-color-light);
 }

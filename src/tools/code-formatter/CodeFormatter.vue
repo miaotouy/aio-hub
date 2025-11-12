@@ -2,7 +2,7 @@
   <div class="code-formatter-container">
     <el-row :gutter="20" class="input-output-section">
       <el-col :span="12" class="column-wrapper">
-        <el-card shadow="never" class="full-height-card">
+        <InfoCard class="full-height-card">
           <template #header>
             <div class="card-header">
               <span>输入代码</span>
@@ -31,10 +31,10 @@
             <el-input v-model="rawCodeInput" type="textarea" class="full-height-textarea" placeholder="请输入代码..."
               @input="formatCode" />
           </div>
-        </el-card>
+        </InfoCard>
       </el-col>
       <el-col :span="12" class="column-wrapper">
-        <el-card shadow="never" class="full-height-card">
+        <InfoCard class="full-height-card">
           <template #header>
             <div class="card-header">
               <span>输出代码</span>
@@ -54,7 +54,7 @@
             </el-icon>
             {{ formatError }}
           </div>
-        </el-card>
+        </InfoCard>
       </el-col>
     </el-row>
   </div>
@@ -62,6 +62,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import InfoCard from '@/components/common/InfoCard.vue';
 import { customMessage } from '@/utils/customMessage';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
@@ -160,14 +161,8 @@ watch(rawCodeInput, formatCode);
   flex-direction: column;
   padding: 0 10px;
 }
-
 .full-height-card {
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border-color);
-  background-color: var(--card-bg);
-  color: var(--text-color);
 }
 
 .full-height-card :deep(.el-card__header) {
@@ -176,11 +171,10 @@ watch(rawCodeInput, formatCode);
 }
 
 .full-height-card :deep(.el-card__body) {
-  flex: 1;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  overflow: hidden;
+  flex: 1;
 }
 
 .textarea-wrapper {

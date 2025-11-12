@@ -1,7 +1,7 @@
 <template>
   <div class="regex-applier-container">
     <!-- 顶部操作栏 -->
-    <el-card shadow="never" class="box-card header-section">
+    <InfoCard class="box-card header-section" :bare="true">
       <div class="header-content">
         <div class="mode-switch">
           <span class="mode-label">处理模式</span>
@@ -36,10 +36,10 @@
           <el-button type="primary" @click="goToManageRules" :icon="Setting"> 管理规则 </el-button>
         </div>
       </div>
-    </el-card>
+    </InfoCard>
 
     <!-- 预设选择区域 -->
-    <el-card v-show="showPresetSection" shadow="never" class="box-card preset-section">
+    <InfoCard v-show="showPresetSection" class="box-card preset-section">
       <template #header>
         <div class="card-header">
           <span>选择预设 (按顺序应用)</span>
@@ -90,13 +90,13 @@
           </div>
         </VueDraggableNext>
       </div>
-    </el-card>
+    </InfoCard>
 
     <!-- 文本模式界面 -->
     <div v-if="processingMode === 'text'" class="text-mode-container">
       <el-row :gutter="20" class="input-output-section">
         <el-col :span="12">
-          <el-card shadow="never" class="box-card text-card">
+          <InfoCard class="box-card text-card">
             <template #header>
               <div class="card-header">
                 <span>输入文本</span>
@@ -119,10 +119,10 @@
               type="textarea"
               placeholder="请输入待处理的文本..."
             />
-          </el-card>
+          </InfoCard>
         </el-col>
         <el-col :span="12">
-          <el-card shadow="never" class="box-card text-card">
+          <InfoCard class="box-card text-card">
             <template #header>
               <div class="card-header">
                 <span>输出文本</span>
@@ -139,7 +139,7 @@
               placeholder="处理结果将显示在这里..."
               readonly
             />
-          </el-card>
+          </InfoCard>
         </el-col>
       </el-row>
     </div>
@@ -1009,10 +1009,7 @@ const processFiles = async () => {
 
 .box-card {
   margin-bottom: 20px;
-  border: 1px solid var(--border-color);
-  background-color: var(--card-bg);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  color: var(--text-color);
 }
 
 /* 头部区域 */

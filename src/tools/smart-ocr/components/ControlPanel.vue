@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import InfoCard from "@/components/common/InfoCard.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
@@ -270,7 +271,7 @@ const handleNavigateToSettings = () => {
 
     <div class="panel-content">
       <!-- OCR引擎选择 -->
-      <el-card shadow="never" class="section-card">
+      <InfoCard class="section-card">
         <template #header>
           <div class="card-header card-header-with-action">
             <div class="card-header-title">
@@ -478,10 +479,10 @@ const handleNavigateToSettings = () => {
             </el-form-item>
           </template>
         </el-form>
-      </el-card>
+      </InfoCard>
 
       <!-- 智能切图配置 -->
-      <el-card shadow="never" class="section-card">
+      <InfoCard class="section-card">
         <template #header>
           <div class="card-header">
             <el-icon><i-ep-scissor /></el-icon>
@@ -622,7 +623,7 @@ const handleNavigateToSettings = () => {
             </el-form-item>
           </template>
         </el-form>
-      </el-card>
+      </InfoCard>
     </div>
 
     <!-- 操作按钮 - 固定在底部 -->

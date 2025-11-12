@@ -1,13 +1,7 @@
 <template>
   <div v-if="service" class="service-detail">
     <!-- 基本信息 -->
-    <el-card class="detail-card">
-      <template #header>
-        <div class="card-header">
-          <span>服务信息</span>
-        </div>
-      </template>
-      
+    <InfoCard title="服务信息" class="detail-card">
       <el-descriptions :column="1" border>
         <el-descriptions-item label="服务 ID">
           <el-tag type="primary" effect="light" round>{{ service.id }}</el-tag>
@@ -29,13 +23,13 @@
           </el-tag>
         </el-descriptions-item>
       </el-descriptions>
-    </el-card>
+    </InfoCard>
 
     <!-- 方法列表 -->
     <ServiceMethods v-if="hasMetadata && metadata" :methods="metadata.methods" />
 
     <!-- 未实现元数据提示 -->
-    <el-card v-else-if="!hasMetadata" class="detail-card">
+    <InfoCard v-else-if="!hasMetadata" class="detail-card">
       <el-empty description="该服务尚未实现 getMetadata() 方法" :image-size="100">
         <template #image>
           <el-icon :size="100" color="#909399">
@@ -43,7 +37,7 @@
           </el-icon>
         </template>
       </el-empty>
-    </el-card>
+    </InfoCard>
   </div>
 
   <!-- 未选择服务时的提示 -->
@@ -59,6 +53,7 @@ import { computed } from 'vue';
 import type { ToolService, ServiceMetadata } from '@/services/types';
 import { InfoFilled } from '@element-plus/icons-vue';
 import ServiceMethods from './ServiceMethods.vue';
+import InfoCard from '@/components/common/InfoCard.vue';
 
 const props = defineProps<{
   service: ToolService | null;

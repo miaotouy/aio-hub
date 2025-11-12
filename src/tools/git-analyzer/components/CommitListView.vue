@@ -8,7 +8,7 @@
           :timestamp="formatDate(commit.date)"
           placement="top"
         >
-          <el-card @click="$emit('select-commit', commit)" class="commit-card">
+          <InfoCard @click="$emit('select-commit', commit)" class="commit-card">
             <div class="commit-header">
               <span class="commit-sequence">#{{ getOriginalIndex(commit) }}</span>
               <el-tag size="small">
@@ -77,7 +77,7 @@
                 <span class="stat-item files">{{ commit.stats.files }} 文件</span>
               </el-space>
             </div>
-          </el-card>
+          </InfoCard>
         </el-timeline-item>
       </el-timeline>
 
@@ -97,6 +97,7 @@
 <script setup lang="ts">
 import { PriceTag } from "@element-plus/icons-vue";
 import { GitBranch } from "lucide-vue-next";
+import InfoCard from "@/components/common/InfoCard.vue";
 import type { GitCommit } from "../types";
 
 interface Props {
@@ -157,8 +158,8 @@ function getOriginalIndex(commit: GitCommit): number {
   transform: translateY(-2px);
 }
 
-:deep(.el-card) {
-  background: var(--container-bg);
+:deep(.info-card) {
+  background: var(--container-bg) !important;
   border-color: var(--border-color-light);
 }
 

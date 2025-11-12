@@ -197,21 +197,14 @@
     <div class="section">
       <h2 class="section-title">卡片 Card</h2>
       <div class="card-demo">
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>卡片标题</span>
-              <el-button text>操作按钮</el-button>
-            </div>
+        <InfoCard title="卡片标题">
+          <template #headerExtra>
+            <el-button text>操作按钮</el-button>
           </template>
           <div>卡片内容</div>
-        </el-card>
-        <el-card shadow="hover">
-          <div>鼠标悬浮时显示阴影</div>
-        </el-card>
-        <el-card shadow="always">
-          <div>始终显示阴影</div>
-        </el-card>
+        </InfoCard>
+        <InfoCard content="鼠标悬浮时显示阴影" />
+        <InfoCard content="始终显示阴影" />
       </div>
     </div>
 
@@ -235,7 +228,7 @@
       <el-timeline>
         <el-timeline-item v-for="event in timelineEvents" :key="event.id" :timestamp="event.timestamp"
           :type="event.type" :color="event.color" :size="event.size" :hollow="event.hollow" placement="top">
-          <el-card :class="['timeline-card', { clickable: event.clickable }]">
+          <InfoCard :class="['timeline-card', { clickable: event.clickable }]">
             <div class="timeline-header">
               <span class="timeline-sequence">#{{ event.id }}</span>
               <el-tag :type="event.tagType" size="small">{{ event.category }}</el-tag>
@@ -253,7 +246,7 @@
                 <span class="stat-item files">{{ event.stats.files }} 个文件</span>
               </el-space>
             </div>
-          </el-card>
+          </InfoCard>
         </el-timeline-item>
       </el-timeline>
     </div>
@@ -388,6 +381,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import InfoCard from '@/components/common/InfoCard.vue';
 import {
   Search,
   Edit,

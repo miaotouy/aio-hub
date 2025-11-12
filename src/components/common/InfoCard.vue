@@ -1,32 +1,49 @@
 <template>
-  <el-card shadow="never" :class="['info-card', { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare }]">
-      <template v-if="title" #header>
-        <div class="card-header">
+  <el-card
+    shadow="never"
+    :class="['info-card', { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare }]"
+  >
+    <template #header>
+      <slot name="header">
+        <!-- 如果有 title prop，显示默认的 header -->
+        <div v-if="title" class="card-header">
           <span>{{ title }}</span>
           <div>
             <slot name="headerExtra"></slot>
-            <el-button v-if="content" :icon="CopyDocument" text circle @click="copyContent"></el-button>
+            <el-button
+              v-if="content"
+              :icon="CopyDocument"
+              text
+              circle
+              @click="copyContent"
+            ></el-button>
           </div>
         </div>
-      </template>
+        <!-- bare 模式且没有 title 时，将默认插槽内容渲染到 header -->
+        <slot v-else-if="bare"></slot>
+      </slot>
+    </template>
+    <!-- 非 bare 模式下，正常渲染 body -->
+    <template v-if="!bare">
       <slot>
         <pre v-if="isCode && content" class="content-code"><code>{{ content }}</code></pre>
         <div v-else-if="content" class="content-text">{{ content }}</div>
       </slot>
-    </el-card>
+    </template>
+  </el-card>
 </template>
 
 <script setup lang="ts">
-import { toRefs } from 'vue';
-import { ElCard, ElButton } from 'element-plus';
-import { customMessage } from '@/utils/customMessage';
-import { CopyDocument } from '@element-plus/icons-vue';
-import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { createModuleLogger } from '@utils/logger';
-import { useThemeAppearance } from '@/composables/useThemeAppearance';
+import { toRefs } from "vue";
+import { ElCard, ElButton } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
+import { CopyDocument } from "@element-plus/icons-vue";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { createModuleLogger } from "@utils/logger";
+import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
 // 创建日志实例
-const logger = createModuleLogger('InfoCard');
+const logger = createModuleLogger("InfoCard");
 
 const { appearanceSettings } = useThemeAppearance();
 
@@ -34,12 +51,12 @@ const props = defineProps({
   title: {
     type: String,
     required: false,
-    default: '',
+    default: "",
   },
   content: {
     type: String,
     required: false,
-    default: '',
+    default: "",
   },
   isCode: {
     type: Boolean,
@@ -57,13 +74,13 @@ const copyContent = async () => {
   if (!content.value) return;
   try {
     await writeText(content.value);
-    customMessage.success('已复制到剪贴板！');
+    customMessage.success("已复制到剪贴板！");
   } catch (error) {
-    logger.error('复制内容到剪贴板失败', error, {
+    logger.error("复制内容到剪贴板失败", error, {
       title: title.value,
       contentLength: content.value.length,
     });
-    customMessage.error('复制失败');
+    customMessage.error("复制失败");
   }
 };
 </script>
@@ -75,15 +92,21 @@ const copyContent = async () => {
   color: var(--text-color); /* 确保文本颜色与主题一致 */
   display: flex;
   flex-direction: column;
-  flex: 1; /* 让卡片本身在 flex 容器中可伸缩 */
-  min-height: 0; /* 关键：允许 flex item 在内容溢出时正确缩小 */
+  /* 移除了 flex: 1 和 height: 100%，让卡片根据内容自适应高度 */
 }
 
+/* 毛玻璃效果 */
+.info-card.glass-card {
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+/* bare 模式：仅显示头部 */
+.info-card.is-bare :deep(.el-card__body) {
+  display: none;
+}
+
+/* 非 bare 模式：body 正常显示 */
 .info-card:not(.is-bare) :deep(.el-card__body) {
-  flex: 1; /* 让卡片内容区域占满剩余空间 */
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
   padding: 16px; /* 恢复合理的内边距 */
 }
 

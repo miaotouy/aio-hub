@@ -13,12 +13,7 @@
     <div v-else class="macro-debug-content">
       <!-- 宏统计信息 -->
       <div class="macro-stats">
-        <el-card shadow="never">
-          <template #header>
-            <div class="card-header">
-              <span>宏执行统计</span>
-            </div>
-          </template>
+        <InfoCard title="宏执行统计">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="执行的宏数量">
               {{ macroResult?.macroCount || 0 }}
@@ -29,12 +24,12 @@
               </el-tag>
             </el-descriptions-item>
           </el-descriptions>
-        </el-card>
+        </InfoCard>
       </div>
 
       <!-- 各阶段输出 -->
       <div v-if="macroResult?.phaseOutputs" class="phase-outputs">
-        <el-card shadow="never">
+        <InfoCard>
           <template #header>
             <div class="card-header">
               <span>三阶段处理过程</span>
@@ -100,17 +95,12 @@
               </div>
             </el-collapse-item>
           </el-collapse>
-        </el-card>
+        </InfoCard>
       </div>
 
       <!-- 检测到的宏列表 -->
       <div v-if="detectedMacros.length > 0" class="detected-macros">
-        <el-card shadow="never">
-          <template #header>
-            <div class="card-header">
-              <span>检测到的宏</span>
-            </div>
-          </template>
+        <InfoCard title="检测到的宏">
           <el-table :data="detectedMacros" stripe>
             <el-table-column prop="name" label="宏名称" width="150" />
             <el-table-column label="参数" min-width="200">
@@ -128,7 +118,7 @@
             </el-table-column>
             <el-table-column prop="fullMatch" label="完整表达式" min-width="200" />
           </el-table>
-        </el-card>
+        </InfoCard>
       </div>
     </div>
   </div>
@@ -136,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import InfoCard from '@/components/common/InfoCard.vue';
 import { QuestionFilled } from '@element-plus/icons-vue';
 import { MacroProcessor } from '../../macro-engine';
 import type { MacroProcessResult } from '../../macro-engine';
@@ -197,6 +188,7 @@ watch(
   height: 100%;
   overflow-y: auto;
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .macro-debug-content {

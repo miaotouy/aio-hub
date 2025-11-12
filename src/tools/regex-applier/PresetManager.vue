@@ -1,7 +1,7 @@
 <template>
   <div class="preset-rule-manager">
     <!-- 左侧面板：预设选择 + 规则列表 -->
-    <el-card class="left-panel" shadow="never">
+    <InfoCard class="left-panel" :bare="true">
       <!-- 预设管理区域 -->
       <div class="preset-section">
         <div class="preset-header">
@@ -191,10 +191,10 @@
           <el-empty v-else description="无匹配的规则" />
         </div>
       </div>
-    </el-card>
+    </InfoCard>
 
     <!-- 右侧面板：规则编辑 + 实时预览 -->
-    <el-card class="right-panel" shadow="never">
+    <InfoCard class="right-panel" :bare="true">
       <div v-if="selectedRule" class="editor-container">
         <!-- 规则编辑区 -->
         <div class="editor-section">
@@ -292,13 +292,14 @@
 
       <!-- 未选中规则时的提示 -->
       <el-empty v-else description="请从左侧选择一条规则进行编辑和测试" />
-    </el-card>
+    </InfoCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { ElMessageBox } from "element-plus";
+import InfoCard from "@/components/common/InfoCard.vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   Plus,
@@ -862,10 +863,6 @@ function escapeRegex(str: string): string {
   width: 35%;
   min-width: 300px;
   max-width: 500px;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
 }
 
 .left-panel :deep(.el-card__body) {
@@ -1054,8 +1051,6 @@ function escapeRegex(str: string): string {
 /* 右侧面板 */
 .right-panel {
   flex: 1;
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
 }
 
 .right-panel :deep(.el-card__body) {

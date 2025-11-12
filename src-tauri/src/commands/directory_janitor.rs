@@ -146,7 +146,7 @@ fn get_modified_time(path: &Path) -> Result<u64, std::io::Error> {
     let metadata = path.metadata()?;
     let modified = metadata.modified()?;
     let duration = modified.duration_since(SystemTime::UNIX_EPOCH)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     Ok(duration.as_secs())
 }
 
@@ -167,23 +167,27 @@ fn matches_name_pattern(name: &str, pattern: &str) -> bool {
     }
 }
 
+// 递归分析目录的参数结构
+struct AnalysisConfig<'a> {
+    criteria: &'a FilterCriteria,
+    window: Option<&'a tauri::Window>,
+    cancellation: &'a ScanCancellation,
+}
+
 // 递归分析目录
 fn analyze_directory_recursive(
     dir: &Path,
-    root: &Path,
-    criteria: &FilterCriteria,
+    config: &AnalysisConfig,
     current_depth: usize,
     items: &mut Vec<ItemInfo>,
-    window: Option<&tauri::Window>,
     scanned_count: &mut usize,
-    cancellation: &ScanCancellation,
 ) -> Result<(), String> {
     // 检查是否已取消
-    if cancellation.is_cancelled() {
+    if config.cancellation.is_cancelled() {
         return Err("扫描已被用户取消".to_string());
     }
     // 检查深度限制
-    if let Some(max_depth) = criteria.max_depth {
+    if let Some(max_depth) = config.criteria.max_depth {
         if current_depth >= max_depth {
             return Ok(());
         }
@@ -223,21 +227,21 @@ fn analyze_directory_recursive(
         let mut matches = true;
         
         // 名称模式过滤
-        if let Some(ref pattern) = criteria.name_pattern {
+        if let Some(ref pattern) = config.criteria.name_pattern {
             if !pattern.is_empty() {
                 matches = matches && matches_name_pattern(&name, pattern);
             }
         }
         
         // 最小年龄过滤（修改时间早于 N 天前）
-        if let Some(min_age_days) = criteria.min_age_days {
+        if let Some(min_age_days) = config.criteria.min_age_days {
             let age_seconds = current_time.saturating_sub(modified);
             let age_days = age_seconds / 86400; // 86400 秒 = 1 天
             matches = matches && (age_days >= min_age_days as u64);
         }
         
         // 最小大小过滤（大于 N MB）
-        if let Some(min_size_mb) = criteria.min_size_mb {
+        if let Some(min_size_mb) = config.criteria.min_size_mb {
             let size_mb = size / (1024 * 1024);
             matches = matches && (size_mb >= min_size_mb);
         }
@@ -257,8 +261,8 @@ fn analyze_directory_recursive(
         *scanned_count += 1;
         
         // 每扫描 10 个项目发送一次进度事件
-        if let Some(window) = window {
-            if *scanned_count % 10 == 0 {
+        if let Some(window) = config.window {
+            if (*scanned_count).is_multiple_of(10) {
                 let progress = DirectoryScanProgress {
                     current_path: path.to_string_lossy().to_string(),
                     scanned_count: *scanned_count,
@@ -274,7 +278,7 @@ fn analyze_directory_recursive(
         
         // 如果是目录，递归处理（无论是否匹配，都要递归扫描子目录）
         if is_dir {
-            analyze_directory_recursive(&path, root, criteria, current_depth + 1, items, window, scanned_count, cancellation)?;
+            analyze_directory_recursive(&path, config, current_depth + 1, items, scanned_count)?;
         }
     }
     
@@ -326,7 +330,12 @@ pub async fn analyze_directory_for_cleanup(
         eprintln!("发送开始扫描事件失败: {}", e);
     }
     
-    analyze_directory_recursive(&root_path, &root_path, &criteria, 0, &mut items, Some(&window), &mut scanned_count, &cancellation)?;
+    let analysis_config = AnalysisConfig {
+        criteria: &criteria,
+        window: Some(&window),
+        cancellation: &cancellation,
+    };
+    analyze_directory_recursive(&root_path, &analysis_config, 0, &mut items, &mut scanned_count)?;
     
     // 发送扫描完成事件
     let end_progress = DirectoryScanProgress {

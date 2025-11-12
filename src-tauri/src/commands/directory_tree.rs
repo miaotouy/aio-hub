@@ -80,8 +80,8 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
     }
     
     // 检查是否是否定规则
-    let (negated, pattern) = if pattern.starts_with('!') {
-        (true, &pattern[1..])
+    let (negated, pattern) = if let Some(stripped) = pattern.strip_prefix('!') {
+        (true, stripped)
     } else {
         (false, pattern)
     };
@@ -97,8 +97,8 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
             let after_part = parts[1];
             
             // 如果以 / 开头，从根路径匹配
-            if dir_part.starts_with('/') {
-                regex_pattern.push_str(&format!("^{}/", &dir_part[1..]));
+            if let Some(stripped) = dir_part.strip_prefix('/') {
+                regex_pattern.push_str(&format!("^{}/", stripped));
             } else {
                 // 可以匹配任何路径下的该目录
                 regex_pattern.push_str(&format!("(^|.*/){}/", dir_part));
@@ -289,18 +289,22 @@ pub async fn generate_directory_tree(
     
     result.push_str(&format!("{}/\n", root_path.file_name().unwrap_or_default().to_string_lossy()));
     
+    let config = TreeConfig {
+        show_files,
+        show_hidden,
+        show_size,
+        max_depth,
+        use_gitignore,
+        custom_patterns: &custom_patterns,
+    };
+    
     generate_tree_recursive(
         &root_path,
         &root_path,
         &mut result,
         "",
-        show_files,
-        show_hidden,
-        show_size,
-        max_depth,
         0,
-        use_gitignore,
-        &custom_patterns,
+        &config,
         &mut stats
     )?;
     
@@ -319,23 +323,28 @@ pub async fn generate_directory_tree(
     })
 }
 
+// 递归生成目录树参数配置
+struct TreeConfig<'a> {
+    show_files: bool,
+    show_hidden: bool,
+    show_size: bool,
+    max_depth: usize,
+    use_gitignore: bool,
+    custom_patterns: &'a [IgnoreRule],
+}
+
 // 递归生成目录树
 fn generate_tree_recursive(
     root: &Path,
     dir: &Path,
     output: &mut String,
     prefix: &str,
-    show_files: bool,
-    show_hidden: bool,
-    show_size: bool,
-    max_depth: usize,
     current_depth: usize,
-    use_gitignore: bool,
-    custom_patterns: &[IgnoreRule],
+    config: &TreeConfig,
     stats: &mut TreeStats
 ) -> Result<(), String> {
     // 检查深度限制（0 表示无限制）
-    if max_depth > 0 && current_depth >= max_depth {
+    if config.max_depth > 0 && current_depth >= config.max_depth {
         return Ok(());
     }
     
@@ -343,7 +352,7 @@ fn generate_tree_recursive(
     let mut ignore_patterns: Vec<IgnoreRule> = Vec::new();
     
     // 如果使用 gitignore 模式，先收集 gitignore 规则
-    if use_gitignore {
+    if config.use_gitignore {
         let gitignore_rules: Vec<IgnoreRule> = collect_gitignore_patterns(dir, root)
             .iter()
             .filter_map(|pattern| glob_to_regex(pattern))
@@ -352,7 +361,7 @@ fn generate_tree_recursive(
     }
     
     // 然后添加自定义规则（无论是否使用 gitignore）
-    ignore_patterns.extend(custom_patterns.iter().cloned());
+    ignore_patterns.extend(config.custom_patterns.iter().cloned());
     
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;
@@ -389,7 +398,7 @@ fn generate_tree_recursive(
         }
         
         // 检查是否为隐藏文件
-        if !show_hidden && file_name.starts_with('.') {
+        if !config.show_hidden && file_name.starts_with('.') {
             if is_dir {
                 stats.filtered_dirs += 1;
             } else {
@@ -416,7 +425,7 @@ fn generate_tree_recursive(
         }
         
         // 如果不显示文件且当前是文件，跳过
-        if !show_files && path.is_file() {
+        if !config.show_files && path.is_file() {
             stats.filtered_files += 1;
             continue;
         }
@@ -443,18 +452,13 @@ fn generate_tree_recursive(
                 &path,
                 output,
                 &new_prefix,
-                show_files,
-                show_hidden,
-                show_size,
-                max_depth,
                 current_depth + 1,
-                use_gitignore,
-                custom_patterns,
+                config,
                 stats
             )?;
         } else {
             // 如果需要显示文件大小，获取并格式化
-            if show_size {
+            if config.show_size {
                 if let Ok(metadata) = fs::metadata(&path) {
                     let size = metadata.len();
                     let size_str = format_size(size);

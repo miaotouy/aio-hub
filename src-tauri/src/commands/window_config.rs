@@ -148,7 +148,7 @@ pub async fn apply_window_config(window: WebviewWindow) -> Result<bool, String> 
     let app = window.app_handle();
     
     // 加载配置
-    let all_configs = load_all_configs(&app)?;
+    let all_configs = load_all_configs(app)?;
     
     if let Some(config) = all_configs.get(&label) {
         println!("[WINDOW_CONFIG] 应用窗口配置: label={}, x={}, y={}, width={:.0}, height={:.0}, maximized={}", 

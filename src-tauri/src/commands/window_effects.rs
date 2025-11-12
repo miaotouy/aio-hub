@@ -66,7 +66,7 @@ pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<
             }
             #[cfg(not(target_os = "macos"))]
             {
-                return Err(format!("Vibrancy effect is only supported on macOS"));
+                return Err("Vibrancy effect is only supported on macOS".to_string());
             }
         }
         "none" => {
@@ -104,20 +104,18 @@ pub fn list_directory_images(directory: String) -> Result<Vec<String>, String> {
 
     match fs::read_dir(path) {
         Ok(entries) => {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_file() {
-                        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                            if allowed_extensions.contains(&ext.to_lowercase().as_str()) {
-                                // 使用 display() 方法获取路径字符串，并统一转换为正斜杠
-                                // 这样在所有平台上都能正常工作
-                                let path_str = path.display().to_string();
-                                // 在 Windows 上将反斜杠替换为正斜杠，以便前端统一处理
-                                #[cfg(target_os = "windows")]
-                                let path_str = path_str.replace('\\', "/");
-                                images.push(path_str);
-                            }
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                        if allowed_extensions.contains(&ext.to_lowercase().as_str()) {
+                            // 使用 display() 方法获取路径字符串，并统一转换为正斜杠
+                            // 这样在所有平台上都能正常工作
+                            let path_str = path.display().to_string();
+                            // 在 Windows 上将反斜杠替换为正斜杠，以便前端统一处理
+                            #[cfg(target_os = "windows")]
+                            let path_str = path_str.replace('\\', "/");
+                            images.push(path_str);
                         }
                     }
                 }

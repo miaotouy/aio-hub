@@ -820,15 +820,19 @@ pub async fn ensure_window_visible(app: AppHandle, label: String) -> Result<bool
             let monitor_pos = monitor.position();
             let monitor_size = monitor.size();
 
+            let monitor_bounds = ScreenBounds {
+                pos_x: monitor_pos.x,
+                pos_y: monitor_pos.y,
+                width: monitor_size.width,
+                height: monitor_size.height,
+            };
+
             let (clamped_x, clamped_y) = clamp_position_to_screen(
                 logical_x,
                 logical_y,
                 logical_width,
                 logical_height,
-                monitor_pos.x,
-                monitor_pos.y,
-                monitor_size.width,
-                monitor_size.height,
+                &monitor_bounds,
                 scale_factor,
             );
 
@@ -848,36 +852,40 @@ pub async fn ensure_window_visible(app: AppHandle, label: String) -> Result<bool
     }
 }
 
+struct ScreenBounds {
+    pos_x: i32,
+    pos_y: i32,
+    width: u32,
+    height: u32,
+}
+
 fn clamp_position_to_screen(
     x: f64,
     y: f64,
     width: f64,
     _height: f64,
-    monitor_pos_x: i32,
-    monitor_pos_y: i32,
-    monitor_width: u32,
-    monitor_height: u32,
+    monitor: &ScreenBounds,
     scale_factor: f64,
 ) -> (f64, f64) {
     let physical_x = (x * scale_factor) as i32;
     let physical_y = (y * scale_factor) as i32;
     let physical_width = (width * scale_factor) as i32;
 
-    let monitor_right = monitor_pos_x + monitor_width as i32;
-    let monitor_bottom = monitor_pos_y + monitor_height as i32;
+    let monitor_right = monitor.pos_x + monitor.width as i32;
+    let monitor_bottom = monitor.pos_y + monitor.height as i32;
 
     let mut clamped_x = physical_x;
     let mut clamped_y = physical_y;
 
-    if clamped_x + physical_width < monitor_pos_x + 60 {
+    if clamped_x + physical_width < monitor.pos_x + 60 {
         // 至少保留60px可见
-        clamped_x = monitor_pos_x + 60 - physical_width;
+        clamped_x = monitor.pos_x + 60 - physical_width;
     }
     if clamped_x > monitor_right - 60 {
         clamped_x = monitor_right - 60;
     }
-    if clamped_y < monitor_pos_y {
-        clamped_y = monitor_pos_y;
+    if clamped_y < monitor.pos_y {
+        clamped_y = monitor.pos_y;
     }
     if clamped_y > monitor_bottom - 60 {
         clamped_y = monitor_bottom - 60;

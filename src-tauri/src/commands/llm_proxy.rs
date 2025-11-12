@@ -428,7 +428,7 @@ async fn proxy_handler(
         let window_for_analysis = window.clone();
         let request_id_for_analysis = request_id.clone();
         let headers_map_for_analysis = headers_map.clone();
-        let start_time_for_analysis = start_time.clone();
+        let start_time_for_analysis = start_time;
         
         tokio::spawn(async move {
             let mut accumulated_body = Vec::new();
@@ -637,7 +637,7 @@ async fn proxy_handler(
             })?;
         
         // 打印响应体的前几个字节用于调试
-        if response_body_bytes.len() > 0 {
+        if !response_body_bytes.is_empty() {
             let preview = &response_body_bytes[..std::cmp::min(20, response_body_bytes.len())];
             eprintln!("响应体前20字节: {:?}", preview);
         }

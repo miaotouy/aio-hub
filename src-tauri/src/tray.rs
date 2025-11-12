@@ -76,33 +76,30 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
             }
         })
         .on_tray_icon_event(|tray, event| {
-            match event {
-                TrayIconEvent::Click {
+            if let TrayIconEvent::Click {
                     button,
                     button_state,
                     ..
-                } => {
-                    // 左键单击显示/隐藏窗口
-                    if button == MouseButton::Left && button_state == MouseButtonState::Up {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                let windows = app.webview_windows();
-                                let relevant_window_count = windows.keys().count();
-                                if relevant_window_count > 1 {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                } else {
-                                    let _ = window.hide();
-                                }
-                            } else {
+                } = event {
+                // 左键单击显示/隐藏窗口
+                if button == MouseButton::Left && button_state == MouseButtonState::Up {
+                    let app = tray.app_handle();
+                    if let Some(window) = app.get_webview_window("main") {
+                        if window.is_visible().unwrap_or(false) {
+                            let windows = app.webview_windows();
+                            let relevant_window_count = windows.keys().count();
+                            if relevant_window_count > 1 {
                                 let _ = window.show();
                                 let _ = window.set_focus();
+                            } else {
+                                let _ = window.hide();
                             }
+                        } else {
+                            let _ = window.show();
+                            let _ = window.set_focus();
                         }
                     }
                 }
-                _ => {}
             }
         })
         .build(app_handle)?;

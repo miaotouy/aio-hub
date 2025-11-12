@@ -174,9 +174,9 @@ pub struct RegexRule {
 // 解析正则表达式字符串，支持 /pattern/flags 格式
 fn parse_regex_pattern(pattern: &str) -> Result<(String, String), String> {
     // 检查是否是 /pattern/flags 格式
-    if pattern.starts_with('/') {
-        if let Some(end_pos) = pattern[1..].rfind('/') {
-            let pattern_part = &pattern[1..end_pos + 1];
+    if let Some(stripped) = pattern.strip_prefix('/') {
+        if let Some(end_pos) = stripped.rfind('/') {
+            let pattern_part = &stripped[..end_pos];
             let flags_part = &pattern[end_pos + 2..];
             
             // 过滤并验证 flags

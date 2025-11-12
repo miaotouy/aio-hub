@@ -1378,7 +1378,6 @@ fn append_to_catalog(base_dir: &Path, entry: &CatalogEntry) -> Result<(), String
     let catalog_path = get_catalog_path(base_dir)?;
     let file = OpenOptions::new()
         .create(true)
-        .write(true)
         .append(true)
         .open(catalog_path)
         .map_err(|e| format!("无法打开 Catalog 文件进行追加: {}", e))?;
@@ -1499,12 +1498,12 @@ pub async fn list_assets_paginated(
             let type_match = payload
                 .filter_type
                 .as_ref()
-                .map_or(true, |t| entry.asset_type == *t);
+                .is_none_or(|t| entry.asset_type == *t);
 
             let origin_match = payload
                 .filter_origin
                 .as_ref()
-                .map_or(true, |o| entry.origin_type.as_ref() == Some(o));
+                .is_none_or(|o| entry.origin_type.as_ref() == Some(o));
             let search_match = match &payload.search_query {
                 Some(query) if !query.is_empty() => {
                     entry.name.to_lowercase().contains(&query.to_lowercase())
@@ -1516,7 +1515,7 @@ pub async fn list_assets_paginated(
                 entry
                     .sha256
                     .as_ref()
-                    .map_or(false, |hash| !hash.is_empty() && duplicate_hashes.contains(hash))
+                    .is_some_and(|hash| !hash.is_empty() && duplicate_hashes.contains(hash))
             } else {
                 true
             };
@@ -1544,7 +1543,7 @@ pub async fn list_assets_paginated(
     // --- 分页 ---
     let total_items = sorted_entries.len() as u64;
     let page_size = payload.page_size as u64;
-    let total_pages = if total_items == 0 { 0 } else { (total_items + page_size - 1) / page_size } as u32;
+    let total_pages = if total_items == 0 { 0 } else { total_items.div_ceil(page_size) } as u32;
 
     let page_index = payload.page.saturating_sub(1) as u64;
     let start = page_index * page_size;
@@ -1642,15 +1641,14 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
     }
 
     let total_files = all_file_paths.len();
-    let mut current_processed = 0;
 
     // 第二步：处理文件并写入 Catalog，同时报告进度
     let file = fs::File::create(&catalog_path)
         .map_err(|e| format!("无法创建 Catalog 文件: {}", e))?;
     let mut writer = BufWriter::new(file);
 
-    for (file_path, asset_type_str) in all_file_paths.iter() {
-        current_processed += 1;
+    for (current_processed, (file_path, asset_type_str)) in all_file_paths.iter().enumerate() {
+        let current_processed = current_processed + 1;
 
         if let Ok(asset) = build_asset_from_path(file_path, &base_dir) {
             let entry = convert_asset_to_catalog_entry(&asset);

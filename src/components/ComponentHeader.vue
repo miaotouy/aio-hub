@@ -312,7 +312,7 @@ const handleMenuReattach = async () => {
 <style scoped>
 .component-header {
   display: flex;
-  background: rgba(var(--sidebar-bg-rgb), 0.8);
+  background: var(--sidebar-bg);
   backdrop-filter: blur(8px);
   color: var(--text-color);
   user-select: none;

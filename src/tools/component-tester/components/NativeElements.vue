@@ -286,7 +286,7 @@ blockquote {
   margin: 16px 0;
   padding: 12px 16px;
   border-left: 4px solid var(--el-color-primary);
-  background-color: rgba(var(--card-bg-rgb), var(--card-opacity, 0.7));
+  background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   color: var(--el-text-color-regular);
   border-radius: 4px;
@@ -296,7 +296,7 @@ blockquote {
 pre {
   margin: 16px 0;
   padding: 12px;
-  background-color: rgba(var(--card-bg-rgb), var(--card-opacity, 0.7));
+  background-color: var(--code-block-bg, var(--card-bg));
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 4px;
   overflow-x: auto;

@@ -507,7 +507,7 @@ watch(() => props.content, (newContent, oldContent) => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3));
+  background-color: var(--code-block-bg, var(--card-bg));
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -586,19 +586,19 @@ watch(() => props.content, (newContent, oldContent) => {
   height: 100% !important;
 }
 
-/* 适配主题外观：使 Monaco 编辑器背景透明 */
+/* 适配主题外观：使 Monaco 编辑器背景透明，使用经过颜色混合处理的背景变量 */
 :deep(.monaco-editor) {
   /*
     Monaco 的主题会注入一个 .monaco-editor 选择器来覆盖 --vscode-editor-background 变量。
     我们需要用 Vue 的 scoped style 生成的更高优先级的选择器 ([data-v-xxxx]) 来覆盖回去。
     这里我们不能直接使用 var(--vscode-editor-background)，因为它已经被污染了。
-    我们根据 useThemeAppearance 的逻辑重新构建正确的背景色，并使用 --code-block-opacity 变量来同步设置。
+    我们根据 useThemeAppearance 的逻辑重新构建正确的背景色，并使用 --code-block-bg 变量来同步设置。
   */
-  --vscode-editor-background: rgba(var(--container-bg-rgb), var(--code-block-opacity, 0.2)) !important;
-  --vscode-editorGutter-background: rgba(var(--container-bg-rgb), var(--code-block-opacity, 0.3)) !important;
-  --vscode-editorStickyScrollGutter-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3)) !important;
-  --vscode-editorStickyScroll-background: rgba(var(--card-bg-rgb), var(--code-block-opacity, 0.3)) !important;
-  --vscode-editorStickyScroll-shadow: rgba(var(--card-bg-rgb), 0.5) !important;
+  --vscode-editor-background: var(--code-block-bg, var(--container-bg)) !important;
+  --vscode-editorGutter-background: var(--code-block-bg, var(--container-bg)) !important;
+  --vscode-editorStickyScrollGutter-background: var(--code-block-bg, var(--card-bg)) !important;
+  --vscode-editorStickyScroll-background: var(--code-block-bg, var(--card-bg)) !important;
+  --vscode-editorStickyScroll-shadow: var(--code-block-bg, var(--card-bg)) !important;
 }
 
 :deep(.monaco-editor .monaco-editor-background),

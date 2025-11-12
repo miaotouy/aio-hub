@@ -603,7 +603,7 @@ body.transparent-window #app {
 .el-tooltip__popper,
 .el-select-dropdown,
 .el-dropdown__popper {
-  background-color: rgba(var(--container-bg-rgb), var(--overlay-opacity)) !important;
+  background-color: var(--container-bg) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color) !important;
@@ -948,7 +948,7 @@ textarea {
 /* --- 代码块和引用 --- */
 pre,
 blockquote {
-  background-color: rgba(var(--card-bg-rgb), var(--card-opacity, 0.7));
+  background-color: var(--card-bg);
   border-radius: 4px;
   border: 1px solid var(--border-color);
 }

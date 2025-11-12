@@ -50,7 +50,7 @@ body::before {
   will-change: transform, opacity; /* 性能优化 */
 }
 
-/* 应用窗口本身的背景色 */
+/* 应用窗口本身的背景色，使用独立的窗口背景不透明度 */
 html,
 body {
   background-color: rgba(var(--bg-color-rgb), var(--window-bg-opacity));
@@ -67,33 +67,32 @@ body {
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }
-
 /**
  * 卡片毛玻璃效果
- * 专为卡片类组件设计，使用由 JS 注入的 --card-opacity 变量
+ * 专为卡片类组件设计，使用由 JS 注入的 --card-bg 变量（已包含混合后的颜色和透明度）
  */
 .glass-card {
-  background-color: rgba(var(--card-bg-rgb), var(--card-opacity)) !important;
+  background-color: var(--card-bg) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }
 
 /**
  * 侧边栏毛玻璃效果
- * 专为侧边栏设计，使用由 JS 注入的 --sidebar-opacity 变量
+ * 专为侧边栏设计，使用由 JS 注入的 --sidebar-bg 变量（已包含混合后的颜色和透明度）
  */
 .glass-sidebar {
-  background-color: rgba(var(--sidebar-bg-rgb, var(--card-bg-rgb)), var(--sidebar-opacity)) !important;
+  background-color: var(--sidebar-bg) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }
 
 /**
  * 弹窗/覆盖层毛玻璃效果
- * 专为 Dialog, Popover, Dropdown 等设计，使用由 JS 注入的 --overlay-opacity 变量
+ * 专为 Dialog, Popover, Dropdown 等设计，使用由 JS 注入的 --container-bg 变量（已包含混合后的颜色和透明度）
  */
 .glass-overlay {
-  background-color: rgba(var(--container-bg-rgb), var(--overlay-opacity)) !important;
+  background-color: var(--container-bg) !important;
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
 }

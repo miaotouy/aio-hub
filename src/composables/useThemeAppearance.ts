@@ -288,10 +288,27 @@ function _updateCssVariables(settings: AppearanceSettings) {
     setElementBackground("container", overlayOpacityValue);
 
     root.style.setProperty("--border-opacity", String(settings.borderOpacity));
-    root.style.setProperty(
-      "--code-block-opacity",
-      String(settings.codeBlockOpacity ?? defaultAppearanceSettings.codeBlockOpacity)
-    );
+    
+    // 代码块背景：使用独立的透明度设置
+    const codeBlockOpacity = settings.codeBlockOpacity ?? defaultAppearanceSettings.codeBlockOpacity;
+    root.style.setProperty("--code-block-opacity", String(codeBlockOpacity));
+    
+    // 为代码块计算完整的背景色（包含颜色混合）
+    const codeBlockBgVar = "--code-block-bg";
+    const codeBlockBaseRgb = getComputedStyle(root).getPropertyValue("--card-bg-rgb").trim();
+    if (codeBlockBaseRgb) {
+      const [r, g, b] = codeBlockBaseRgb.split(",").map(Number);
+      let finalRgb: RGB = { r, g, b };
+
+      if (overlayEnabled && overlayColorRgb) {
+        finalRgb = applyBlendMode(finalRgb, overlayColorRgb, overlayOpacity, blendMode);
+      }
+
+      root.style.setProperty(
+        codeBlockBgVar,
+        `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${codeBlockOpacity})`
+      );
+    }
 
     // --- 滚动条颜色 ---
     root.style.setProperty("--scrollbar-thumb-opacity", String(settings.borderOpacity * 0.6));
@@ -312,6 +329,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.removeProperty("--vscode-editor-background");
     root.style.removeProperty("--vscode-editorGutter-background");
     root.style.removeProperty("--container-bg");
+    root.style.removeProperty("--code-block-bg");
     root.style.setProperty("--sidebar-opacity", "1");
     root.style.setProperty("--content-opacity", "1");
     root.style.setProperty("--card-opacity", "1");

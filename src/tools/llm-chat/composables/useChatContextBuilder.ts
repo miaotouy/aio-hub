@@ -9,6 +9,8 @@ import type { ModelCapabilities } from "@/types/llm-profiles";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
 import { useChatAssetProcessor } from "./useChatAssetProcessor";
+import { useMacroProcessor } from "./useMacroProcessor";
+import { useAgentStore } from "../agentStore";
 import type { ProcessableMessage } from "./useMessageProcessor";
 
 const logger = createModuleLogger("llm-chat/context-builder");
@@ -89,6 +91,7 @@ export interface ContextPreviewData {
 
 export function useChatContextBuilder() {
   const { assetToMessageContent } = useChatAssetProcessor();
+  const { processMacros, processMacrosBatch } = useMacroProcessor();
 
   /**
    * 应用上下文 Token 限制，截断会话历史
@@ -268,6 +271,7 @@ export function useChatContextBuilder() {
   /**
    * 构建 LLM 上下文
    * 从活动路径和智能体配置中提取系统提示、对话历史和当前消息
+   * @param session 当前会话（用于宏上下文）
    * @param effectiveUserProfile 当前生效的用户档案（可选）
    * @param capabilities 模型能力（可选，用于智能附件处理）
    */
@@ -275,6 +279,7 @@ export function useChatContextBuilder() {
     activePath: ChatMessageNode[],
     agentConfig: any,
     _currentUserMessage: string,
+    session: ChatSession,
     effectiveUserProfile?: { id: string; name: string; content: string } | null,
     capabilities?: ModelCapabilities
   ): Promise<LlmContextData> => {
@@ -379,6 +384,12 @@ export function useChatContextBuilder() {
     const presetMessages = agentConfig.presetMessages || [];
     const enabledPresets = presetMessages.filter((msg: any) => msg.isEnabled !== false);
 
+    // 获取当前智能体信息（用于宏上下文）
+    const agentStoreInstance = useAgentStore();
+    const currentAgent = agentStoreInstance.getAgentById(
+      agentStoreInstance.currentAgentId || ''
+    );
+
     // 构建 system 消息列表（包括用户档案）
     const systemMessagesList: Array<{
       role: "system";
@@ -396,43 +407,65 @@ export function useChatContextBuilder() {
 
       // 跳过用户档案占位符本身
       if (msg.type === "user_profile") {
-        // 如果有用户档案，在此位置插入
+        // 如果有用户档案，在此位置插入（处理宏）
         if (effectiveUserProfile) {
           const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.content}`;
-          systemMessagesList.push({
-            role: "system",
-            content: userProfilePrompt,
+          const processedUserProfile = await processMacros(userProfilePrompt, {
+            session,
+            agent: currentAgent ?? undefined,
+            userProfile: effectiveUserProfile as any,
           });
 
-          logger.debug("在占位符位置注入用户档案", {
+          systemMessagesList.push({
+            role: "system",
+            content: processedUserProfile,
+          });
+
+          logger.debug("在占位符位置注入用户档案（已处理宏）", {
             profileId: effectiveUserProfile.id,
             profileName: effectiveUserProfile.name,
             position: i,
+            originalLength: userProfilePrompt.length,
+            processedLength: processedUserProfile.length,
           });
         }
         continue;
       }
 
-      // 收集普通 system 消息
+      // 收集普通 system 消息（处理宏）
       if (msg.role === "system" && msg.type !== "chat_history") {
+        const processedContent = await processMacros(msg.content, {
+          session,
+          agent: currentAgent ?? undefined,
+          userProfile: effectiveUserProfile as any,
+        });
+
         systemMessagesList.push({
           role: "system",
-          content: msg.content,
+          content: processedContent,
         });
       }
     }
 
-    // 如果没有用户档案占位符，但有用户档案，则追加到 system 消息末尾
+    // 如果没有用户档案占位符，但有用户档案，则追加到 system 消息末尾（处理宏）
     if (userProfilePlaceholderIndex === -1 && effectiveUserProfile) {
       const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.content}`;
-      systemMessagesList.push({
-        role: "system",
-        content: userProfilePrompt,
+      const processedUserProfile = await processMacros(userProfilePrompt, {
+        session,
+        agent: currentAgent ?? undefined,
+        userProfile: effectiveUserProfile as any,
       });
 
-      logger.debug("追加用户档案到 system 消息末尾（无占位符）", {
+      systemMessagesList.push({
+        role: "system",
+        content: processedUserProfile,
+      });
+
+      logger.debug("追加用户档案到 system 消息末尾（无占位符，已处理宏）", {
         profileId: effectiveUserProfile.id,
         profileName: effectiveUserProfile.name,
+        originalLength: userProfilePrompt.length,
+        processedLength: processedUserProfile.length,
       });
     }
 
@@ -445,18 +478,28 @@ export function useChatContextBuilder() {
     );
 
     // 准备预设对话（用于 token 计算，不包括 system）
+    // 需要处理宏
+    const presetConversationRaw = enabledPresets.filter(
+      (msg: any) =>
+        (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
+    );
+
+    const presetConversationContents = await processMacrosBatch(
+      presetConversationRaw.map((msg: any) => msg.content),
+      {
+        session,
+        agent: currentAgent ?? undefined,
+        userProfile: effectiveUserProfile as any,
+      }
+    );
+
     const presetConversation: Array<{
       role: "user" | "assistant";
       content: string | LlmMessageContent[];
-    }> = enabledPresets
-      .filter(
-        (msg: any) =>
-          (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
-      )
-      .map((msg: any) => ({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-      }));
+    }> = presetConversationRaw.map((msg: any, index: number) => ({
+      role: msg.role as "user" | "assistant",
+      content: presetConversationContents[index],
+    }));
 
     // 应用上下文 Token 限制（如果启用）
     // 注意：上下文限制目前不考虑 system 消息，只截断会话历史
@@ -487,33 +530,54 @@ export function useChatContextBuilder() {
 
     if (chatHistoryPlaceholderIndex !== -1) {
       // 如果找到占位符，将会话上下文插入到占位符位置
-      const presetsBeforePlaceholder: Array<{
-        role: "user" | "assistant";
-        content: string | LlmMessageContent[];
-      }> = enabledPresets
+      // 处理占位符前后的预设消息的宏
+      const presetsBeforeRaw = enabledPresets
         .slice(0, chatHistoryPlaceholderIndex)
         .filter(
           (msg: any) =>
             (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
-        )
-        .map((msg: any) => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        }));
+        );
 
-      const presetsAfterPlaceholder: Array<{
-        role: "user" | "assistant";
-        content: string | LlmMessageContent[];
-      }> = enabledPresets
+      const presetsAfterRaw = enabledPresets
         .slice(chatHistoryPlaceholderIndex + 1)
         .filter(
           (msg: any) =>
             (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
-        )
-        .map((msg: any) => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        }));
+        );
+
+      const presetsBeforeContents = await processMacrosBatch(
+        presetsBeforeRaw.map((msg: any) => msg.content),
+        {
+          session,
+          agent: currentAgent ?? undefined,
+          userProfile: effectiveUserProfile as any,
+        }
+      );
+
+      const presetsAfterContents = await processMacrosBatch(
+        presetsAfterRaw.map((msg: any) => msg.content),
+        {
+          session,
+          agent: currentAgent ?? undefined,
+          userProfile: effectiveUserProfile as any,
+        }
+      );
+
+      const presetsBeforePlaceholder: Array<{
+        role: "user" | "assistant";
+        content: string | LlmMessageContent[];
+      }> = presetsBeforeRaw.map((msg: any, index: number) => ({
+        role: msg.role as "user" | "assistant",
+        content: presetsBeforeContents[index],
+      }));
+
+      const presetsAfterPlaceholder: Array<{
+        role: "user" | "assistant";
+        content: string | LlmMessageContent[];
+      }> = presetsAfterRaw.map((msg: any, index: number) => ({
+        role: msg.role as "user" | "assistant",
+        content: presetsAfterContents[index],
+      }));
 
       userAssistantMessages = [
         ...presetsBeforePlaceholder,
@@ -658,7 +722,8 @@ export function useChatContextBuilder() {
       const contextData = await buildLlmContext(
         nodePath,
         agentConfig,
-        "" // currentUserMessage 参数已不使用
+        "", // currentUserMessage 参数已不使用
+        session
       );
       messages = contextData.messages;
 
@@ -727,10 +792,18 @@ export function useChatContextBuilder() {
     }
 
     // 提取预设对话部分（仅当有 Agent 配置时）
+    // 注意：预设消息的内容已经在 buildLlmContext 中处理过宏，这里从 finalMessages 中提取
     const presetMessagesData: ContextPreviewData["presetMessages"] = agentConfig ? await Promise.all(
       (agentConfig.presetMessages || []).filter((msg: any) => msg.isEnabled !== false && msg.role !== "system" && msg.type !== "chat_history")
         .map(async (msg: any, index: number) => {
-          const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+          // 从 finalMessages 中找到对应的消息（已处理宏）
+          // 预设消息在 finalMessages 中紧跟在 system 消息之后
+          const systemMessageCount = messages.filter((m) => m.role === "system").length;
+          const messageInFinal = messages[systemMessageCount + index];
+          const content = messageInFinal
+            ? (typeof messageInFinal.content === "string" ? messageInFinal.content : JSON.stringify(messageInFinal.content))
+            : (typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content));
+          
           let tokenCount: number | undefined;
           try {
             const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);

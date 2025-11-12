@@ -45,12 +45,16 @@ export interface MacroProcessResult {
  */
 export class MacroProcessor {
   private registry: MacroRegistry;
-  
-  /** 宏匹配正则（非贪婪匹配） */
-  private static readonly MACRO_PATTERN = /\{\{([^}]+?)\}\}/g;
 
   constructor(registry?: MacroRegistry) {
     this.registry = registry || MacroRegistry.getInstance();
+  }
+
+  /**
+   * 获取宏匹配正则（每次都创建新的实例以避免 lastIndex 问题）
+   */
+  private static getMacroPattern(): RegExp {
+    return /\{\{([^}]+?)\}\}/g;
   }
 
   /**
@@ -65,9 +69,9 @@ export class MacroProcessor {
     }
   ): Promise<MacroProcessResult> {
     const startTime = Date.now();
-    
-    // 检查是否包含宏
-    const hasMacros = MacroProcessor.MACRO_PATTERN.test(text);
+
+    // 检查是否包含宏（使用简单的字符串检查，避免正则状态问题）
+    const hasMacros = text.includes('{{');
     if (!hasMacros) {
       logger.debug('文本不包含宏，跳过处理');
       return {
@@ -115,8 +119,8 @@ export class MacroProcessor {
     logger.debug('后处理完成', { macroCount: afterPostProcess.count });
 
     const duration = Date.now() - startTime;
-    logger.info('宏处理完成', { 
-      macroCount, 
+    logger.info('宏处理完成', {
+      macroCount,
       duration: `${duration}ms`,
       originalLength: original.length,
       outputLength: current.length,
@@ -150,21 +154,24 @@ export class MacroProcessor {
   ): Promise<{ output: string; count: number }> {
     let output = text;
     let count = 0;
-    
+
     // 获取该阶段的所有宏
     const phaseMacros = this.registry.getMacrosByPhase(phase);
     const macroNames = new Set(phaseMacros.map(m => m.name));
 
-    // 替换该阶段的宏
-    const matches = Array.from(text.matchAll(MacroProcessor.MACRO_PATTERN));
-    
+    // 创建替换映射表，用于批量替换
+    const replacements = new Map<string, string>();
+
+    // 首先收集所有需要替换的宏及其结果（每次创建新的正则实例）
+    const matches = Array.from(text.matchAll(MacroProcessor.getMacroPattern()));
+
     for (const match of matches) {
       const fullMatch = match[0]; // {{xxx}}
       const macroContent = match[1]; // xxx
-      
+
       // 解析宏名称和参数
       const { name, args } = this.parseMacro(macroContent);
-      
+
       // 检查是否属于当前阶段
       if (!macroNames.has(name)) {
         continue;
@@ -176,12 +183,17 @@ export class MacroProcessor {
         continue;
       }
 
+      // 如果这个宏已经处理过（相同的宏文本），跳过
+      if (replacements.has(fullMatch)) {
+        continue;
+      }
+
       try {
         // 执行宏
         const result = await macroDef.execute(context, args);
-        output = output.replace(fullMatch, result);
+        replacements.set(fullMatch, result);
         count++;
-        
+
         logger.debug('宏执行成功', {
           phase,
           name,
@@ -197,6 +209,14 @@ export class MacroProcessor {
         // 保持原始宏不变
       }
     }
+    // 一次性替换所有宏（使用正则全局替换确保替换所有出现）
+    for (const [macro, result] of replacements) {
+      // 转义特殊字符，因为宏中包含 {{}}
+      const escapedMacro = macro.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedMacro, 'g');
+      output = output.replace(regex, result);
+    }
+
 
     return { output, count };
   }
@@ -222,7 +242,7 @@ export class MacroProcessor {
    */
   static validateMacro(macroContent: string): MacroValidationResult {
     const registry = MacroRegistry.getInstance();
-    
+
     // 解析宏
     const { name, args } = MacroProcessor.prototype.parseMacro.call(
       new MacroProcessor(),
@@ -256,7 +276,7 @@ export class MacroProcessor {
           error: `宏 ${name} 需要参数`,
         };
       }
-      
+
       if (macroDef.argCount !== undefined && args.length !== macroDef.argCount) {
         return {
           valid: false,
@@ -277,7 +297,7 @@ export class MacroProcessor {
    * 提取文本中的所有宏
    */
   static extractMacros(text: string): Array<{ name: string; args?: string[]; fullMatch: string }> {
-    const matches = Array.from(text.matchAll(MacroProcessor.MACRO_PATTERN));
+    const matches = Array.from(text.matchAll(MacroProcessor.getMacroPattern()));
     return matches.map(match => {
       const fullMatch = match[0];
       const macroContent = match[1];

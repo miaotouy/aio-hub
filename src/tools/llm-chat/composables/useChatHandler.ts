@@ -21,6 +21,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { useChatExecutor } from "./useChatExecutor";
 import { useChatContextBuilder, type ContextPreviewData } from "./useChatContextBuilder";
 import { useMessageProcessor } from "./useMessageProcessor";
+import { useMacroProcessor } from "./useMacroProcessor";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 
@@ -34,6 +35,7 @@ export function useChatHandler() {
     saveUserProfileSnapshot,
   } = useChatExecutor();
   const { getLlmContextForPreview } = useChatContextBuilder();
+  const { processMacros } = useMacroProcessor();
 
   /**
    * 发送消息
@@ -49,6 +51,10 @@ export function useChatHandler() {
     const agentStore = useAgentStore();
     const userProfileStore = useUserProfileStore();
     const nodeManager = useNodeManager();
+    // 获取当前智能体（在函数开头，以便后续宏处理使用）
+    const currentAgent = agentStore.currentAgentId
+      ? agentStore.getAgentById(agentStore.currentAgentId)
+      : null;
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
@@ -59,16 +65,28 @@ export function useChatHandler() {
     const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, {
       parameterOverrides: session.parameterOverrides,
     });
-
     if (!agentConfig) {
       logger.error("发送消息失败：无法获取智能体配置", new Error("Agent config not found"));
       throw new Error("无法获取智能体配置");
     }
 
-    // 使用节点管理器创建消息对
+    // 处理用户输入中的宏
+    const processedContent = await processMacros(content, {
+      session,
+      agent: currentAgent ?? undefined,
+      input: content,
+    });
+
+    logger.debug("用户消息宏处理", {
+      originalLength: content.length,
+      processedLength: processedContent.length,
+      hasChange: content !== processedContent,
+    });
+
+    // 使用节点管理器创建消息对（使用处理后的内容）
     const { userNode, assistantNode } = nodeManager.createMessagePair(
       session,
-      content,
+      processedContent,
       session.activeLeafId
     );
 
@@ -89,8 +107,6 @@ export function useChatHandler() {
     // 确定生效的用户档案（智能体绑定 > 全局配置）
     let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null =
       null;
-
-    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
     if (currentAgent?.userProfileId) {
       const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
       if (profile) {

@@ -121,13 +121,14 @@ export function useChatExecutor() {
     try {
       const { sendRequest } = useLlmRequest();
 
-      // 构建 LLM 上下文（传递模型能力以实现智能附件处理）
+      // 构建 LLM 上下文（传递会话、用户档案和模型能力）
       let { messages } = await buildLlmContext(
         pathToUserNode,
         agentConfig,
         userNode.content,
-        effectiveUserProfile,
-        capabilities
+        session,              // 会话对象（用于宏上下文）
+        effectiveUserProfile, // 用户档案
+        capabilities          // 模型能力
       );
 
       // 应用上下文后处理管道

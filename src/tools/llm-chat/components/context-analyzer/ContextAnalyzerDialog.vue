@@ -28,7 +28,7 @@
     </el-tab-pane>
 
     <el-tab-pane label="内容分析" name="analysis">
-      <AnalysisChartView :context-data="contextData" />
+      <AnalysisChartView :context-data="contextData" :is-active="activeTab === 'analysis'" />
     </el-tab-pane>
 
     <el-tab-pane label="宏调试" name="macro">

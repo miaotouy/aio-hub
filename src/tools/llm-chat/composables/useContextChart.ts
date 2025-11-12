@@ -149,7 +149,7 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
         },
       },
       legend: {
-        data: ['系统提示', '预设消息', '会话历史'],
+        data: activeSeries.map(item => item.name),
         top: 60,
         textStyle: {
           color: colors.textColor,

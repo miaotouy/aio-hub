@@ -127,13 +127,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed } from 'vue';
+import { ref, onMounted, nextTick, computed, watch } from 'vue';
 import InfoCard from '@/components/common/InfoCard.vue';
 import { useContextChart, type ChartMode } from '../../composables/useContextChart';
 import type { ContextPreviewData } from '../../composables/useChatHandler';
 
 const props = defineProps<{
   contextData: ContextPreviewData;
+  isActive: boolean;
 }>();
 
 // 图表模式：token 或 char
@@ -143,6 +144,9 @@ const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChar
 
 // 图表容器的父元素引用
 const chartContainerRef = ref<HTMLDivElement>();
+
+// 标记图表是否已初始化
+const isChartInitialized = ref(false);
 
 // 获取主题颜色
 const themeColors = computed(() => {
@@ -168,21 +172,42 @@ const getTokenPercentage = (value: number): string => {
   return ((value / total) * 100).toFixed(1);
 };
 
-// 组件挂载后设置观察器
-onMounted(() => {
+// 初始化图表（仅在标签页激活时调用一次）
+const initializeChart = () => {
+  if (isChartInitialized.value) return;
+  
   nextTick(() => {
     // 设置 ResizeObserver 监听容器尺寸变化
     if (chartContainerRef.value) {
       setupResizeObserver(chartContainerRef.value);
     }
     
-    // 尝试立即绘制（如果容器已有尺寸）
+    // 绘制图表
     drawChart();
     
     // 监听窗口大小变化
     window.addEventListener('resize', resizeChart);
+    
+    isChartInitialized.value = true;
   });
+};
+
+// 组件挂载后，如果已经激活则立即初始化
+onMounted(() => {
+  if (props.isActive) {
+    initializeChart();
+  }
 });
+
+// 监听标签页激活状态，首次激活时初始化图表
+watch(
+  () => props.isActive,
+  (isActive) => {
+    if (isActive && !isChartInitialized.value) {
+      initializeChart();
+    }
+  }
+);
 </script>
 
 <style scoped>

@@ -336,6 +336,7 @@ watch(
   /* 启用容器查询 */
   container-type: inline-size;
   container-name: detail-panel;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* ========== Tab 样式 ========== */

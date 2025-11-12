@@ -136,6 +136,7 @@ const pluginTypeInfo = computed(() => {
   border-radius: 8px;
   transition: all 0.2s ease;
   cursor: pointer;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .plugin-card:hover {

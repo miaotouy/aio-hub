@@ -1,14 +1,6 @@
 name: macOS 测试构建
 
 on:
-  push:
-    branches:
-      - main
-      - dev
-  pull_request:
-    branches:
-      - main
-      - dev
   workflow_dispatch:  # 允许手动触发
 
 permissions:

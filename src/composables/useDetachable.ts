@@ -218,8 +218,44 @@ export function useDetachable() {
     }
   });
 
+  /**
+   * 通过点击（而非拖拽）直接分离窗口
+   * 适用于 macOS 等不支持全局鼠标监听的平台
+   * @param config 分离配置
+   */
+  const detachByClick = async (config: Omit<DetachableConfig, 'mouseX' | 'mouseY' | 'handleOffsetX' | 'handleOffsetY'>): Promise<boolean> => {
+    try {
+      console.log('[DETACH] 通过点击分离窗口', config);
+      
+      // 调用 begin_detach_session 命令直接创建分离窗口
+      // 这个命令不依赖 rdev，在所有平台上都可用
+      const fullConfig: DetachableConfig = {
+        ...config,
+        mouseX: 0,
+        mouseY: 0,
+        handleOffsetX: 0,
+        handleOffsetY: 0,
+      };
+      
+      await invoke('begin_detach_session', { config: fullConfig });
+      
+      // 直接固化窗口（因为不需要拖拽判断）
+      await invoke('finalize_detach_session', {
+        sessionId: `detached-${config.id}`,
+        shouldDetach: true
+      });
+      
+      console.log('[DETACH] 窗口已成功分离');
+      return true;
+    } catch (error) {
+      console.error('[DETACH] 分离窗口失败:', error);
+      return false;
+    }
+  };
+
   return {
     isDetaching: isDragging,
     startDetaching: startDragging,
+    detachByClick,
   };
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Expand, Fold } from "@element-plus/icons-vue";
+import { Expand, Fold, Promotion } from "@element-plus/icons-vue";
 import { Puzzle } from "lucide-vue-next";
 import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
@@ -28,7 +28,7 @@ const emit = defineEmits<{
 const router = useRouter();
 const route = useRoute();
 const toolsStore = useToolsStore();
-const { startDetaching } = useDetachable();
+const { startDetaching, detachByClick } = useDetachable();
 const { isDark } = useTheme();
 const { appearanceSettings } = useThemeAppearance();
 const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
@@ -84,6 +84,22 @@ const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
       router.push(tool.path);
     },
   });
+};
+
+const handleDetachByClick = async (tool: ToolConfig) => {
+  const success = await detachByClick({
+    id: getToolIdFromPath(tool.path),
+    displayName: tool.name,
+    type: "tool",
+    width: 900, // TODO: 从工具配置中读取默认尺寸
+    height: 700,
+    metadata: { tool },
+  });
+
+  if (success && route.path === tool.path) {
+    // 如果分离的是当前页面，则导航回主页
+    router.push("/");
+  }
 };
 
 // 滚动遮罩相关
@@ -168,16 +184,36 @@ onUnmounted(() => {
               :index="tool.path"
               @mousedown.left="handleDragStart($event, tool)"
               class="draggable-menu-item"
+              style="padding: 0"
             >
-              <!-- 插件图标直接渲染，不用 el-icon 包裹 -->
-              <component
-                v-if="tool.path.startsWith('/plugin-')"
-                :is="tool.icon"
-                class="plugin-icon-wrapper"
-              />
-              <!-- 普通图标用 el-icon 包裹 -->
-              <el-icon v-else><component :is="tool.icon" /></el-icon>
-              <template #title>{{ tool.name }}</template>
+              <el-dropdown
+                trigger="contextmenu"
+                placement="bottom-start"
+                style="width: 100%; height: 100%"
+              >
+                <span class="menu-item-trigger">
+                  <!-- 插件图标直接渲染，不用 el-icon 包裹 -->
+                  <component
+                    v-if="tool.path.startsWith('/plugin-')"
+                    :is="tool.icon"
+                    class="plugin-icon-wrapper"
+                  />
+                  <!-- 普通图标用 el-icon 包裹 -->
+                  <el-icon v-else><component :is="tool.icon" /></el-icon>
+                  <!-- 手动处理标题，以使其成为触发器的一部分 -->
+                  <template v-if="!isCollapsed">
+                    <span class="menu-item-title-text">{{ tool.name }}</span>
+                  </template>
+                </span>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="handleDetachByClick(tool)">
+                      <el-icon><Promotion /></el-icon>
+                      <span>在新窗口中打开</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </el-menu-item>
           </el-menu>
         </div>
@@ -357,6 +393,29 @@ onUnmounted(() => {
 
 .draggable-menu-item:active {
   opacity: 0.7;
+}
+
+.menu-item-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 20px; /* 模拟 el-menu-item 的内边距 */
+  box-sizing: border-box;
+}
+
+.is-collapsed .menu-item-trigger {
+  justify-content: center;
+  padding: 0;
+}
+
+.menu-item-title-text {
+  margin-left: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* 继承 el-menu-item 的颜色 */
+  color: inherit;
 }
 </style>
 

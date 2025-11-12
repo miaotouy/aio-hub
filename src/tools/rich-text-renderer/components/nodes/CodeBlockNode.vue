@@ -1,8 +1,8 @@
 <template>
   <div class="markdown-code-block">
-    <div v-if="language" class="code-header">
+    <div class="code-header">
       <div class="language-info">
-        <span class="language-tag">{{ language }}</span>
+        <span class="language-tag">{{ language || '文本' }}</span>
       </div>
       <div class="header-actions">
         <!-- 字体大小调整按钮 -->

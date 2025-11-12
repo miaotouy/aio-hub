@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
 import { Loading } from '@element-plus/icons-vue';
 import { useRoute } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
@@ -9,6 +9,7 @@ import { useTheme } from "../composables/useTheme";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { useWindowSyncBus } from "../composables/useWindowSyncBus";
 import { useLlmChatStateConsumer } from "../tools/llm-chat/composables/useLlmChatStateConsumer";
+import { initThemeAppearance, cleanupThemeAppearance } from "../composables/useThemeAppearance";
 import { createModuleLogger } from "../utils/logger";
 import { loadAppSettingsAsync } from "../utils/appSettings";
 import { applyThemeColors } from "../utils/themeColors";
@@ -55,6 +56,13 @@ onMounted(async () => {
   
   // 初始化统一的分离窗口管理器
   await initializeDetachedManager();
+  // 初始化主题外观系统（包括壁纸、透明度、模糊等）
+  try {
+    await initThemeAppearance();
+    logger.info('分离窗口主题外观系统已初始化');
+  } catch (error) {
+    logger.warn('初始化分离窗口主题外观失败', { error });
+  }
   
   // 加载并应用主题色系统
   try {
@@ -146,6 +154,12 @@ onMounted(async () => {
   });
 
   logger.info("DetachedWindowContainer 初始化完成");
+});
+
+// 清理资源
+onUnmounted(() => {
+  cleanupThemeAppearance();
+  logger.info("DetachedWindowContainer 资源已清理");
 });
 </script>
 

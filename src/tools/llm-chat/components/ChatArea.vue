@@ -757,6 +757,7 @@ onMounted(async () => {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  background-color: var(--card-bg);
 }
 
 /* 消息列表容器 - 弹性增长，占据所有剩余空间 */

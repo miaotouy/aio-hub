@@ -494,6 +494,7 @@ watch(isDark, async () => {
   border-radius: 4px;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .color-card:hover {

@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, toRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { ElTooltip, ElPopover } from "element-plus";
-import { MagicStick } from "@element-plus/icons-vue";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -19,7 +17,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "./AttachmentCard.vue";
-import MacroSelector from "./agent/MacroSelector.vue";
+import MessageInputToolbar from "./MessageInputToolbar.vue";
 import type { MacroDefinition } from "../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
@@ -175,15 +173,15 @@ const toggleExpand = () => {
 // 处理键盘事件（根据设置动态处理）
 const handleKeydown = (e: KeyboardEvent) => {
   const sendKey = settings.value.shortcuts.send;
-  
+
   // 检查是否按下发送快捷键
-  if (sendKey === 'ctrl+enter') {
+  if (sendKey === "ctrl+enter") {
     // Ctrl/Cmd + Enter 发送
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
       handleSend();
     }
-  } else if (sendKey === 'enter') {
+  } else if (sendKey === "enter") {
     // 单独 Enter 发送，Shift + Enter 换行
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -195,11 +193,12 @@ const handleKeydown = (e: KeyboardEvent) => {
 // 计算 placeholder 文本（根据快捷键设置动态显示）
 const placeholderText = computed(() => {
   if (props.disabled) {
-    return '请先创建或选择一个对话';
+    return "请先创建或选择一个对话";
   }
-  
+
   const sendKey = settings.value.shortcuts.send;
-  const sendHint = sendKey === 'ctrl+enter' ? 'Ctrl/Cmd + Enter 发送' : 'Enter 发送, Shift + Enter 换行';
+  const sendHint =
+    sendKey === "ctrl+enter" ? "Ctrl/Cmd + Enter 发送" : "Enter 发送, Shift + Enter 换行";
   return `输入消息、拖入或粘贴文件... (${sendHint})`;
 });
 
@@ -225,47 +224,47 @@ const handleInputResizeStart = (e: MouseEvent) => {
   isExpanded.value = false;
   isResizing.value = true;
   startY.value = e.clientY;
-  
+
   if (textareaRef.value) {
     startHeight.value = textareaRef.value.offsetHeight;
   }
-  
+
   // 阻止默认行为和文本选择
   e.preventDefault();
-  document.body.style.cursor = 'row-resize';
-  document.body.style.userSelect = 'none';
-  
+  document.body.style.cursor = "row-resize";
+  document.body.style.userSelect = "none";
+
   // 添加全局事件监听
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener("mousemove", handleMouseMove);
+  document.addEventListener("mouseup", handleMouseUp);
 };
 
 // 鼠标移动处理
 const handleMouseMove = (e: MouseEvent) => {
   if (!isResizing.value || !textareaRef.value) return;
-  
+
   // 计算高度差值
   const deltaY = startY.value - e.clientY;
   const newHeight = startHeight.value + deltaY;
-  
+
   // 限制最小和最大高度
   const minHeight = 40;
   const maxHeight = props.isDetached ? window.innerHeight * 0.8 : window.innerHeight * 0.8;
   const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
-  
+
   // 直接设置 DOM 样式以获得最佳性能
-  textareaRef.value.style.height = finalHeight + 'px';
+  textareaRef.value.style.height = finalHeight + "px";
 };
 
 // 鼠标释放处理
 const handleMouseUp = () => {
   isResizing.value = false;
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+
   // 移除全局事件监听
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', handleMouseUp);
+  document.removeEventListener("mousemove", handleMouseMove);
+  document.removeEventListener("mouseup", handleMouseUp);
 };
 
 // 双击手柄重置高度
@@ -354,7 +353,7 @@ const calculateInputTokens = async () => {
   let currentId: string | null = session.activeLeafId;
   while (currentId !== null) {
     const node: ChatMessageNode | undefined = session.nodes[currentId];
-    if (node?.role === 'assistant' && node.metadata?.modelId) {
+    if (node?.role === "assistant" && node.metadata?.modelId) {
       modelId = node.metadata.modelId;
       break;
     }
@@ -364,7 +363,7 @@ const calculateInputTokens = async () => {
   // 如果活动路径上没有，查找整个会话中的任意助手消息
   if (!modelId) {
     for (const node of Object.values(session.nodes)) {
-      if (node.role === 'assistant' && node.metadata?.modelId) {
+      if (node.role === "assistant" && node.metadata?.modelId) {
         modelId = node.metadata.modelId;
         break;
       }
@@ -535,9 +534,7 @@ function handleInsertMacro(macro: MacroDefinition) {
 
   // 拼接新内容
   const newContent =
-    inputText.value.substring(0, start) +
-    insertText +
-    inputText.value.substring(end);
+    inputText.value.substring(0, start) + insertText + inputText.value.substring(end);
 
   // 更新内容
   inputText.value = newContent;
@@ -618,7 +615,7 @@ const handleDetach = async () => {
       @dblclick="handleResizeDoubleClick"
       title="拖拽调整高度（双击重置）"
     ></div>
-    
+
     <!-- 主内容区 -->
     <div class="main-content">
       <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
@@ -665,202 +662,25 @@ const handleDetach = async () => {
             @keydown="handleKeydown"
             @input="autoResize"
           />
-          <div class="input-bottom-bar">
-            <div class="tool-actions">
-              <span v-if="attachmentManager.isProcessing.value" class="processing-hint">
-                正在处理文件...
-              </span>
-              <el-tooltip
-                :content="
-                  isStreamingEnabled
-                    ? '流式输出：实时显示生成内容'
-                    : '非流式输出：等待完整响应'
-                "
-                placement="top"
-              >
-                <button
-                  class="streaming-icon-button"
-                  :class="{ active: isStreamingEnabled }"
-                  :disabled="isSending"
-                  @click="toggleStreaming"
-                >
-                  <span class="typewriter-icon">A_</span>
-                </button>
-              </el-tooltip>
-              <!-- 宏选择器按钮 -->
-              <el-popover
-                v-model:visible="macroSelectorVisible"
-                placement="bottom-start"
-                :width="400"
-                trigger="click"
-                popper-class="macro-selector-popover"
-              >
-                <template #reference>
-                  <button
-                    class="macro-icon-button"
-                    :class="{ active: macroSelectorVisible }"
-                    :title="macroSelectorVisible ? '' : '插入宏变量'"
-                  >
-                    <el-icon><MagicStick /></el-icon>
-                  </button>
-                </template>
-                <MacroSelector @insert="handleInsertMacro" />
-              </el-popover>
-              <el-tooltip
-                v-if="!props.isDetached"
-                :content="isExpanded ? '收起输入框' : '展开输入框'"
-                placement="top"
-              >
-                <button
-                  class="expand-toggle-button"
-                  :class="{ active: isExpanded }"
-                  @click="toggleExpand"
-                >
-                  <svg
-                    v-if="!isExpanded"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path
-                      d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-                    />
-                  </svg>
-                  <svg
-                    v-else
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path
-                      d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
-                    />
-                  </svg>
-                </button>
-              </el-tooltip>
-            </div>
-            <div class="input-actions">
-              <!-- 历史上下文统计 -->
-              <el-tooltip
-                v-if="contextStats && contextStats.totalTokenCount !== undefined"
-                placement="top"
-              >
-                <template #content>
-                  <div style="text-align: left; line-height: 1.6;">
-                    <div style="font-weight: 600; margin-bottom: 4px;">历史上下文统计</div>
-                    <div style="font-size: 12px;">
-                      <div>总计: {{ contextStats.totalTokenCount.toLocaleString() }} tokens</div>
-                      <div v-if="contextStats.systemPromptTokenCount">
-                        系统提示: {{ contextStats.systemPromptTokenCount.toLocaleString() }} tokens
-                      </div>
-                      <div v-if="contextStats.presetMessagesTokenCount">
-                        预设消息: {{ contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
-                      </div>
-                      <div v-if="contextStats.chatHistoryTokenCount">
-                        会话历史: {{ contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
-                      </div>
-                      <div v-if="contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8;">
-                        {{ contextStats.isEstimated ? '估算' : '精确' }} - {{ contextStats.tokenizerName }}
-                      </div>
-                    </div>
-                  </div>
-                </template>
-                <span class="token-count context-total">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    style="margin-right: 4px"
-                  >
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                  </svg>
-                  <span>{{ contextStats.totalTokenCount.toLocaleString() }}{{ contextStats.isEstimated ? '~' : '' }}</span>
-                </span>
-              </el-tooltip>
-              <!-- 当前输入 Token 计数显示 -->
-              <el-tooltip
-                v-if="tokenCount > 0 || isCalculatingTokens"
-                :content="tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
-                placement="top"
-              >
-                <span class="token-count input-tokens">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    style="margin-right: 4px"
-                  >
-                    <path d="M12 20h9"></path>
-                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                  </svg>
-                  <span v-if="isCalculatingTokens">...</span>
-                  <span v-else>
-                    {{ tokenCount.toLocaleString() }}{{ tokenEstimated ? '~' : '' }}
-                  </span>
-                </span>
-              </el-tooltip>
-              <button
-                v-if="!isSending"
-                @click="handleSend"
-                :disabled="disabled || !inputText.trim()"
-                class="btn-send"
-                title="发送 (Ctrl/Cmd + Enter)"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <line x1="12" y1="19" x2="12" y2="5"></line>
-                  <polyline points="5 12 12 5 19 12"></polyline>
-                </svg>
-              </button>
-              <button v-else @click="handleAbort" class="btn-abort" title="停止生成">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                </svg>
-              </button>
-            </div>
-          </div>
+          <MessageInputToolbar
+            :is-sending="isSending"
+            :disabled="disabled"
+            :is-detached="props.isDetached"
+            :is-expanded="isExpanded"
+            :is-streaming-enabled="isStreamingEnabled"
+            v-model:macro-selector-visible="macroSelectorVisible"
+            :context-stats="contextStats"
+            :token-count="tokenCount"
+            :is-calculating-tokens="isCalculatingTokens"
+            :token-estimated="tokenEstimated"
+            :input-text="inputText"
+            :is-processing-attachments="attachmentManager.isProcessing.value"
+            @toggle-streaming="toggleStreaming"
+            @insert="handleInsertMacro"
+            @toggle-expand="toggleExpand"
+            @send="handleSend"
+            @abort="handleAbort"
+          />
         </div>
       </div>
     </div>
@@ -974,55 +794,6 @@ const handleDetach = async () => {
   font-variant-numeric: tabular-nums;
 }
 
-.processing-hint {
-  font-size: 12px;
-  color: var(--primary-color);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.token-count {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  display: flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-  font-variant-numeric: tabular-nums;
-  user-select: none;
-  cursor: help;
-}
-
-.token-count svg {
-  flex-shrink: 0;
-}
-
-/* 历史上下文统计样式 */
-.token-count.context-total {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-primary) 10%, transparent),
-    color-mix(in srgb, var(--el-color-primary) 5%, transparent)
-  );
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 30%, transparent);
-  color: var(--el-color-primary);
-  font-weight: 500;
-}
-
-/* 当前输入 token 样式 */
-.token-count.input-tokens {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-success) 10%, transparent),
-    color-mix(in srgb, var(--el-color-success) 5%, transparent)
-  );
-  border: 1px solid color-mix(in srgb, var(--el-color-success) 30%, transparent);
-  color: var(--el-color-success);
-  font-weight: 500;
-}
-
 .input-wrapper {
   flex: 1;
   display: flex;
@@ -1067,157 +838,6 @@ const handleDetach = async () => {
 .message-textarea::placeholder {
   color: var(--text-color-light);
 }
-
-.input-bottom-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 8px 4px 12px;
-}
-
-.tool-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  color: var(--text-color-light);
-}
-
-/* 流式输出图标按钮 */
-.streaming-icon-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.streaming-icon-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 打字机图标 "A_" */
-.typewriter-icon {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans",
-    "Droid Sans", "Helvetica Neue", sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -2px;
-  color: var(--text-color-secondary);
-  transition: all 0.3s ease;
-  position: relative;
-  top: -1.5px; /* 微调垂直对齐 */
-  display: inline-block;
-}
-
-/* 非激活状态：暗淡灰色 */
-.streaming-icon-button:not(.active) .typewriter-icon {
-  color: var(--text-color-secondary);
-  opacity: 0.5;
-}
-
-.streaming-icon-button:not(.active):hover:not(:disabled) {
-  background-color: var(--el-fill-color-light);
-}
-
-.streaming-icon-button:not(.active):hover:not(:disabled) .typewriter-icon {
-  opacity: 0.8;
-}
-
-/* 激活状态：主题色 + 辉光效果 */
-.streaming-icon-button.active .typewriter-icon {
-  color: var(--primary-color);
-  opacity: 1;
-}
-
-.streaming-icon-button.active:hover:not(:disabled) {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
-}
-
-/* 辉光效果 */
-.streaming-icon-button.active .typewriter-icon {
-  text-shadow:
-    0 0 4px rgba(var(--primary-color-rgb, 64, 158, 255), 0.5),
-    0 0 6px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
-}
-
-/* 光标闪烁动画（仅在激活时） - 半透明轻微闪烁 */
-@keyframes cursor-blink {
-  0%,
-  49% {
-    opacity: 0.5;
-  }
-  50%,
-  100% {
-    opacity: 0.2;
-  }
-}
-
-.streaming-icon-button.active .typewriter-icon::after {
-  content: "";
-  display: inline-block;
-  width: 2px;
-  height: 12px;
-  background-color: var(--primary-color);
-  margin-left: 0px;
-  animation: cursor-blink 1s infinite;
-  vertical-align: baseline;
-  position: relative;
-  bottom: -1px;
-}
-
-.input-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-send,
-.btn-abort {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-send {
-  background-color: var(--primary-color);
-  color: white;
-}
-
-.btn-send:hover:not(:disabled) {
-  background-color: var(--primary-hover-color);
-  transform: translateY(-1px);
-}
-
-.btn-send:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-abort {
-  background-color: var(--error-color);
-  color: white;
-}
-
-.btn-abort:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-/* .input-hint has been removed */
 
 /* 自定义滚动条 */
 .message-textarea::-webkit-scrollbar {
@@ -1286,66 +906,5 @@ const handleDetach = async () => {
 .message-input-container.detached-mode .resize-handle.se-resize:active {
   opacity: 1;
   background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
-}
-
-/* 宏选择器图标按钮样式 - 与工具栏按钮保持一致 */
-.macro-icon-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  color: var(--text-color-secondary);
-  font-size: 16px;
-}
-
-.macro-icon-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.macro-icon-button:not(.active):hover:not(:disabled) {
-  background-color: var(--el-fill-color-light);
-  color: var(--text-color-primary);
-}
-
-.macro-icon-button.active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
-  color: var(--primary-color);
-}
-
-.expand-toggle-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  color: var(--text-color-secondary);
-  font-size: 16px;
-}
-
-.expand-toggle-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.expand-toggle-button:not(.active):hover:not(:disabled) {
-  background-color: var(--el-fill-color-light);
-  color: var(--text-color-primary);
-}
-
-.expand-toggle-button.active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
-  color: var(--primary-color);
 }
 </style>

@@ -1,74 +1,75 @@
-# LLM Chat 宏处理引擎与 CodeMirror 增强输入功能设计文档和施工步骤
+# LLM Chat 宏处理与高级输入系统设计
 
 ## 1. 概述
 
-本文档为 `llm-chat` 工具设计一个功能完备、可扩展的**宏处理系统**。该系统包含两个核心组件：
+本文档详细介绍了 `llm-chat` 工具的功能核心：一个完备且可扩展的**宏处理系统**。该系统旨在通过动态文本生成，极大地增强用户与大型语言模型（LLM）的交互能力。
 
-- **后端宏处理引擎 (Macro Engine)**：负责解析和执行宏逻辑，支持分阶段处理管道
-- **前端 CodeMirror 扩展 (CM Extension)**：基于项目已有的 CodeMirror 6 基础设施，提供语法高亮、自动补全、悬停提示等专业级编辑体验
+系统由两大组件构成：
+
+- **后端宏处理引擎 (Macro Engine)**：负责解析和执行宏命令，采用分阶段管道化处理，确保宏逻辑的有序和精确执行。
+- **前端高级输入框 (Advanced Input Box)**：基于 TipTap 和 Vue 构建，未来将提供把宏作为可交互“节点”的富文本编辑体验，提升用户创作和使用宏的效率。
 
 ## 2. 架构设计
 
-### 2.1 系统整体架构
+### 2.1. 系统架构
+
+系统整体架构清晰地划分了前端、逻辑层和后端宏引擎，确保了各部分职责单一且高效协作。
 
 ```mermaid
 graph TB
     subgraph "前端层 (UI Layer)"
-        A[MessageInput.vue] --> B[MacroEnabledEditor.vue]
-        C[AgentPresetEditor.vue] --> B
-        B --> D[CodeMirror 6 Instance]
-        D --> E[Custom Macro Language Extension]
+        A[MessageInput.vue]
+        B[textarea]
+        C[MacroSelector.vue]
+        A -- "包含" --> B
+        A -- "通过按钮打开" --> C
     end
 
-    subgraph "扩展层 (Extension Layer)"
-        E --> F[Syntax Highlighting]
-        E --> G[Autocompletion Provider]
-        E --> H[Hover Tooltip Provider]
-        E --> I[Linter/Validator]
+    subgraph "逻辑层 (Composables)"
+        D[useChatHandler.ts] -- "调用" --> E[useMacroProcessor.ts]
+        A -.->|用户发送消息时触发| D
     end
 
-    subgraph "后端层 (Backend Layer)"
-        J[MacroProcessor]
-        K[MacroRegistry]
-        L[MacroContext]
-        J --> K
-        J --> L
+    subgraph "宏引擎 (Macro Engine)"
+        F[MacroProcessor.ts]
+        G[MacroRegistry.ts]
+        H[MacroContext.ts]
+        F -- "使用" --> G
+        F -- "处理" --> H
     end
 
-    G -.->|查询可用宏| K
-    H -.->|查询宏描述| K
-    I -.->|验证宏语法| J
+    E -- "创建" --> H
+    E -- "实例化并调用" --> F
+    C -- "读取宏列表" --> G
 ```
 
-### 2.2 技术栈选择理由
+### 2.2. 核心设计
 
-- **复用现有基础设施**：项目已有成熟的 `RichCodeEditor.vue` 组件封装了 CodeMirror 6
-- **专业级编辑体验**：CodeMirror 6 提供了 VSCode 级别的文本编辑能力
-- **高度可扩展**：通过 Language Support API 可以深度定制宏语言的行为
-- **性能优秀**：CodeMirror 6 的增量解析和虚拟滚动确保大文本下的流畅体验
+为保证系统的性能与稳定性，当前架构采用了一种务实且高效的设计方案：
 
-## 3. 后端：宏处理引擎（保持原设计）
+- **前端输入**：核心输入框采用原生的 `<textarea>` 元素，以实现最佳性能和最广泛的兼容性。
+- **宏的插入**：通过一个独立的 `MacroSelector.vue` 弹出组件，用户可以直观地浏览、搜索并选择宏，然后将其纯文本格式插入到输入框中。
+- **处理时机**：宏的解析与执行发生在**后端处理阶段**。当用户点击发送后，由 `useChatHandler` -> `useMacroProcessor` -> `MacroProcessor` 的链式调用完成处理，避免了前端复杂计算带来的性能开销。
+- **核心连接点**：`useMacroProcessor.ts` 是连接前端用户操作与后端宏引擎的关键桥梁，它负责在处理流程中构建和传递必要的上下文信息。
 
-### 3.1 分阶段执行管道
+## 3. 后端：宏处理引擎
 
-宏处理仍采用三阶段管道设计，确保执行顺序的正确性：
+### 3.1. 分阶段执行管道
 
-1. **阶段一：预处理** - 处理状态变更宏 (`setvar`, `incvar` 等)
-2. **阶段二：内容替换** - 替换静态值 (`{{user}}`, `{{char}}` 等)
-3. **阶段三：后处理** - 执行动态函数 (`{{time}}`, `{{random}}` 等)
+为确保宏命令执行的逻辑正确性和可预测性，引擎采用了三阶段管道设计：
 
-### 3.2 文件结构
+1.  **阶段一：预处理** - 处理状态变更宏，如 `setvar`, `incvar` 等，为后续阶段准备环境。
+2.  **阶段二：内容替换** - 替换上下文中的静态值，如 `{{user}}`, `{{char}}` 等。
+3.  **阶段三：后处理** - 执行需要最终上下文的动态函数，如 `{{time}}`, `{{random}}` 等。
+
+### 3.2. 文件结构
 
 ```
 src/tools/llm-chat/macro-engine/
 ├── index.ts                 # 主入口
-├── MacroProcessor.ts        # 核心处理器
+├── MacroProcessor.ts        # 核心处理器（实现三阶段管道）
 ├── MacroContext.ts          # 上下文定义
 ├── MacroRegistry.ts         # 宏注册中心
-├── pipeline/
-│   ├── PreProcessor.ts      # 阶段一处理器
-│   ├── Substitutor.ts       # 阶段二处理器
-│   └── PostProcessor.ts     # 阶段三处理器
 └── macros/
     ├── core.ts              # 核心宏
     ├── variables.ts         # 变量操作宏
@@ -76,396 +77,128 @@ src/tools/llm-chat/macro-engine/
     └── functions.ts         # 功能性宏
 ```
 
-## 4. 前端：CodeMirror 6 扩展开发
-
-### 4.1 宏语言定义 (Lezer Grammar)
-
-```javascript
-// src/tools/llm-chat/editor/macro-lang/macro.grammar
-@top Program { expression* }
-
-expression {
-  Text |
-  Macro
-}
-
-Macro {
-  SimpleMacro |
-  FunctionMacro
-}
-
-SimpleMacro {
-  "{{" MacroName "}}"
-}
-
-FunctionMacro {
-  "{{" MacroName "::" MacroArgs "}}"
-}
-
-MacroName { identifier }
-MacroArgs { (argument (":" ":" argument)*)? }
-argument { ~[}:]+ }
-
-@tokens {
-  identifier { $[a-zA-Z_]+ }
-  Text { ![{]+ | "{" ![{] }
-}
-```
-
-### 4.2 扩展模块结构
-
-```
-src/tools/llm-chat/editor/
-├── MacroEnabledEditor.vue   # 增强编辑器组件
-├── macro-lang/
-│   ├── index.ts             # Language Support 入口
-│   ├── macro.grammar        # Lezer 语法定义
-│   ├── highlight.ts         # 语法高亮规则
-│   ├── autocomplete.ts      # 自动补全提供器
-│   ├── hover.ts            # 悬停提示提供器
-│   └── lint.ts             # 语法检查器
-└── composables/
-    └── useMacroEditor.ts    # 编辑器逻辑封装
-```
-
-### 4.3 核心功能实现
-
-#### 4.3.1 语法高亮
-
-```typescript
-// highlight.ts
-import { styleTags, tags as t } from "@lezer/highlight";
-
-export const macroHighlighting = styleTags({
-  MacroName: t.function(t.variableName),
-  "{{ }}": t.brace,
-  "::": t.operator,
-  MacroArgs: t.string,
-});
-```
-
-#### 4.3.2 自动补全
-
-```typescript
-// autocomplete.ts
-import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { MacroRegistry } from "@/tools/llm-chat/macro-engine";
-
-export function macroCompletions(context: CompletionContext): CompletionResult | null {
-  const before = context.matchBefore(/\{\{[\w:]*/);
-  if (!before) return null;
-
-  const isFunction = before.text.includes("::");
-  const searchTerm = before.text.slice(2); // 去掉 {{
-
-  // 从 MacroRegistry 获取所有可用宏
-  const macros = MacroRegistry.getInstance().getAllMacros();
-
-  const options = macros
-    .filter((macro) => macro.name.startsWith(searchTerm))
-    .map((macro) => ({
-      label: macro.name,
-      type: macro.type,
-      detail: macro.description,
-      apply: isFunction ? `{{${macro.name}::}}` : `{{${macro.name}}}`,
-      boost: macro.priority || 0,
-    }));
-
-  return {
-    from: before.from,
-    options,
-    validFor: /^[\w:]*$/,
-  };
-}
-```
-
-#### 4.3.3 悬停提示
-
-```typescript
-// hover.ts
-import { hoverTooltip } from "@codemirror/view";
-import { MacroRegistry } from "@/tools/llm-chat/macro-engine";
-
-export const macroHover = hoverTooltip((view, pos, side) => {
-  // 解析当前位置的宏
-  const { from, to, text } = getMacroAt(view.state, pos);
-  if (!text) return null;
-
-  const macroName = extractMacroName(text);
-  const macro = MacroRegistry.getInstance().getMacro(macroName);
-
-  if (!macro) return null;
-
-  return {
-    pos: from,
-    end: to,
-    create: () => {
-      const dom = document.createElement("div");
-      dom.className = "cm-tooltip-macro";
-      dom.innerHTML = `
-        <div class="macro-name">${macro.name}</div>
-        <div class="macro-desc">${macro.description}</div>
-        <div class="macro-example">示例: ${macro.example || "N/A"}</div>
-      `;
-      return { dom };
-    },
-  };
-});
-```
-
-#### 4.3.4 语法检查
-
-```typescript
-// lint.ts
-import { Diagnostic } from "@codemirror/lint";
-import { MacroProcessor } from "@/tools/llm-chat/macro-engine";
-
-export function macroLinter(view: EditorView): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  const doc = view.state.doc;
-
-  // 使用正则查找所有宏
-  const macroPattern = /\{\{([^}]+)\}\}/g;
-  let match;
-
-  while ((match = macroPattern.exec(doc.toString())) !== null) {
-    const [fullMatch, macroContent] = match;
-    const from = match.index;
-    const to = from + fullMatch.length;
-
-    // 验证宏语法
-    const validation = MacroProcessor.validateMacro(macroContent);
-    if (!validation.valid) {
-      diagnostics.push({
-        from,
-        to,
-        severity: "error",
-        message: validation.error,
-        actions: validation.suggestions?.map((suggestion) => ({
-          name: suggestion.label,
-          apply: (view, from, to) => {
-            view.dispatch({
-              changes: { from, to, insert: `{{${suggestion.value}}}` },
-            });
-          },
-        })),
-      });
-    }
-  }
-
-  return diagnostics;
-}
-```
-
-### 4.4 组件封装
-
-```vue
-<!-- MacroEnabledEditor.vue -->
-<template>
-  <div class="macro-editor-wrapper" :class="{ focused: isFocused }">
-    <div ref="editorRef" class="macro-editor"></div>
-
-    <!-- 可选：宏变量面板 -->
-    <div v-if="showVariablePanel" class="variable-panel">
-      <h4>可用变量</h4>
-      <div v-for="variable in availableVariables" :key="variable.name">
-        <span class="var-name">{{ variable.name }}</span>
-        <span class="var-value">{{ variable.value }}</span>
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
-import { EditorView } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
-import { macroLanguage } from "./macro-lang";
-import { useMacroContext } from "@/composables/useMacroContext";
-
-const props = defineProps<{
-  modelValue: string;
-  placeholder?: string;
-  showVariablePanel?: boolean;
-}>();
-
-const emit = defineEmits<{
-  "update:modelValue": [value: string];
-}>();
-
-const editorRef = ref<HTMLDivElement>();
-const isFocused = ref(false);
-let view: EditorView | null = null;
-
-// 获取宏上下文（变量、可用宏等）
-const { availableVariables, availableMacros } = useMacroContext();
-
-onMounted(() => {
-  if (!editorRef.value) return;
-
-  const startState = EditorState.create({
-    doc: props.modelValue,
-    extensions: [
-      macroLanguage({
-        variables: availableVariables.value,
-        macros: availableMacros.value,
-      }),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          emit("update:modelValue", update.state.doc.toString());
-        }
-      }),
-      EditorView.domEventHandlers({
-        focus: () => {
-          isFocused.value = true;
-        },
-        blur: () => {
-          isFocused.value = false;
-        },
-      }),
-    ],
-  });
-
-  view = new EditorView({
-    state: startState,
-    parent: editorRef.value,
-  });
-});
-
-onUnmounted(() => {
-  view?.destroy();
-});
-</script>
-```
-
-## 5. 施工计划（更新版）
-
-### 阶段一：宏引擎核心实现
-
-**目标**：构建完整的后端处理逻辑，为前端提供数据和服务支持
-
-- [ ] 实现 `MacroProcessor` 的三阶段执行管道。
-- [ ] 实现 `MacroRegistry`，用于注册和查询所有可用宏。
-- [ ] 实现基础宏集合（`core`, `datetime`, `variables`）。
-- [ ] 在 `ContextAnalyzerDialog` 中添加宏处理的调试面板，显示各阶段输入输出。
-
-### 阶段二前置：技术预研与原型验证（新增）
-
-**目标**：验证 CodeMirror 6 扩展方案的可行性，降低技术风险
-
-- [ ] 创建最小化 POC (Proof of Concept)，实现 `{{user}}` 的高亮。
-- [ ] 测试 Lezer 解析器对 `{{macro::arg1::arg2}}` 语法的支持。
-- [ ] 验证自动补全在 `{{` 触发时的可行性。
-- [ ] 评估性能：在包含大量文本和宏的文档中，编辑响应是否流畅。
-
-### 阶段二：CodeMirror 扩展开发
-
-**目标**：实现专业级的宏编辑体验，替换现有输入框
-
-#### 步骤 2.1：基础语言支持
-
-- [ ] 编写 `macro.grammar` Lezer 语法文件，定义宏的结构。
-- [ ] 实现语法高亮规则，区分宏名称、分隔符和参数。
-- [ ] 创建 `macroLanguage` 主扩展，并集成到新的 `MacroEnabledEditor.vue` 组件中。
-
-#### 步骤 2.2：交互功能
-
-- [ ] 实现**自动补全** (`autocompletion`)：当用户输入 `{{` 时，从 `MacroRegistry` 获取宏列表并动态展示。
-- [ ] 实现**悬停提示** (`hoverTooltip`)：当鼠标悬停在宏上时，从 `MacroRegistry` 查询并显示该宏的详细描述和用法示例。
-
-#### 步骤 2.3：高级编辑器功能
-
-- [ ] 实现**语法检查** (`linter`)：实时验证宏的拼写和参数数量是否正确，并给出错误提示。
-- [ ] （可选）实现**代码片段** (`snippet`)：对于带参数的宏，补全后自动将光标定位到第一个参数位置。
-
-#### 步骤 2.4：组件集成
-
-- [ ] 完善 `MacroEnabledEditor.vue` 的 props 和 emits，使其可以完全替代原生 `<textarea>`。
-- [ ] 在 `MessageInput.vue` 中集成 `MacroEnabledEditor.vue`。
-- [ ] 在 `AgentPresetEditor.vue` 的对话框中集成 `MacroEnabledEditor.vue`。
-- [ ] 添加配置选项，允许用户在原生输入框和增强编辑器之间切换。
-
-### 阶段三：高级宏与兼容性
-
-**目标**：扩展宏的功能集，并对齐社区标准
-
-- [ ] 实现功能性宏（`random`, `roll`, `trim`, `newline`）。
-- [ ] 实现与角色卡数据相关的宏（`description`, `personality`, `mesExamples`），可能需要扩展现有数据模型。
-- [ ] （可选）集成 Handlebars.js 或类似库，支持 `{{#if}}` 等条件逻辑。
+## 4. 前端：输入与交互实现
+
+### 4.1. 组件构成
+
+- **`MessageInput.vue`**: 核心输入组件，内部封装了标准的 HTML `<textarea>` 元素作为用户输入区。
+- **`MacroSelector.vue`**: 一个弹出式（Popover）组件，通过点击输入框旁的“魔法棒”图标触发，用于展示和选择宏。
+- **`useMacroProcessor.ts`**: 连接前后端的 Composable，在用户发送消息时，它会准备好上下文并调用宏引擎进行处理。
+
+### 4.2. 工作流程
+
+1.  用户在 `MessageInput.vue` 的 `<textarea>` 中输入文本。
+2.  用户点击“魔法棒”图标，`MacroSelector.vue` 弹出。
+3.  `MacroSelector` 从 `MacroRegistry` 中获取所有已注册的宏列表，并分类展示给用户。
+4.  用户点击某个宏，`MessageInput.vue` 会将该宏的示例字符串（如 `{{user}}`）插入到 `<textarea>` 的光标位置。这个过程是纯文本操作，保证了响应速度。
+5.  当用户点击发送按钮时，`useChatHandler` 调用 `useMacroProcessor`。
+6.  `useMacroProcessor` 将完整的、包含宏的文本内容交给后端的 `MacroProcessor.ts` 进行解析和替换。
+7.  最终处理完成的文本被发送给 LLM。
+
+这种方式的优点是实现简单、快速，且性能开销极低，为用户提供了稳定可靠的基础功能。
+
+## 5. 远景规划：高级输入框 (TipTap)
+
+本章节探讨使用 TipTap 作为未来高级输入框的技术方案，以提供更丰富的交互体验。
+
+### 5.1. 为何选择 TipTap?
+
+- **现代技术栈**: 基于强大的 Prosemirror 构建，提供稳健的底层和高度的可扩展性。
+- **Vue 生态集成**: 官方提供完善的 Vue 3 支持，其 `NodeView` 特性允许使用 Vue 组件渲染复杂节点，与项目技术栈高度契合。
+- **“节点”优于“文本”**: 可将宏 (`{{macro}}`) 视为独立的“节点”，轻松实现交互式的“药丸 (Pill)”样式，而非普通文本。
+- **强大扩展生态**: 拥有丰富的官方和社区扩展，可快速实现提及、占位符等高级功能。
+
+### 5.2. 核心实现思路：宏作为自定义节点
+
+将宏实现为一个自定义的 TipTap **Node Extension**。
+
+1.  **定义 `MacroNode`**: 创建一个 `Node` 扩展，用于在文档结构中表示宏。其核心属性为 `atom: true`，确保宏作为一个不可分割的整体。
+2.  **创建 `MacroNodeView.vue`**: 一个 Vue 组件，负责宏在编辑器中的具体外观和交互，如渲染成“药丸”样式、悬停显示描述、提供删除按钮等。
+3.  **使用 `Suggestion` 扩展插入宏**: 利用 TipTap 的 `Suggestion` 扩展实现触发式插入。当用户输入 `{{` 时，弹出宏列表供选择，选中后在编辑器中插入一个 `MacroNode` 节点。
+
+### 5.3. 序列化与集成
+
+- **序列化 (Editor -> Text)**: 提交时，遍历 TipTap 文档树，将 `macro-node` 节点转换回 `{{macro}}` 纯文本格式，交由后端处理。
+- **反序列化 (Text -> Editor)**: 加载时，解析文本中的宏字符串，并将其转换为编辑器能够渲染的 `macro-node` 节点。
+
+## 6. 开发路线图
+
+### 阶段一：宏引擎核心 (已完成)
+
+- [x] 实现 `MacroProcessor` 的三阶段执行管道。
+- [x] 实现 `MacroRegistry` 用于注册和查询宏。
+- [x] 实现基础宏集合 (`core`, `datetime`, `variables`, `functions`)。
+- [x] 在 `ContextAnalyzerDialog` 中添加了宏处理的调试功能。
+
+### 阶段二：前端基础集成 (已完成)
+
+- [x] 使用原生 `<textarea>` 作为输入框。
+- [x] 创建 `MacroSelector.vue` 组件用于手动选择和插入宏。
+- [x] 创建 `useMacroProcessor.ts` 作为连接前端和宏引擎的桥梁。
+
+### 阶段三：高级宏与兼容性 (进行中)
+
+- [ ] 实现与角色卡数据相关的宏 (`description`, `personality` 等)。
+- [ ] 集成 Handlebars.js 或类似库，以支持 `{{#if}}` 等条件逻辑。
 - [ ] 对照 TavernAI 等社区工具的宏列表进行兼容性测试和功能对齐。
 
-### 阶段四：测试、优化与文档
+### 阶段四：高级输入框 (TipTap) 集成 (待规划)
 
-**目标**：确保功能的稳定性、性能和易用性
+- [ ] **技术预研**: 调研 TipTap 自定义节点与 `Suggestion` 插件的最佳实践。
+- [ ] **核心实现**: 定义 `MacroNode` 扩展和 `MacroNodeView.vue` 渲染组件。
+- [ ] **交互实现**: 配置 `Suggestion` 插件，在输入 `{{` 时触发宏建议列表。
+- [ ] **集成与替换**: 开发 `TiptapAdvancedInput.vue` 组件，并替换现有的输入框。
 
-- [ ] **集成测试**：编写端到端的测试用例，模拟用户输入、宏执行和消息发送的完整流程。
-- [ ] **性能测试**：测试在长对话历史（>200条消息）和复杂预设下的宏处理性能。
-- [ ] **UI/UX 优化**：根据内部测试反馈，调整高亮颜色、补全菜单样式、提示信息等。
-- [ ] **编写文档**：
-  - **用户文档**：在应用的帮助中心或 Wiki 中，详细介绍所有可用宏及其用法。
-  - **开发者文档**：说明如何注册一个新的宏，以及 `MacroEnabledEditor` 组件的 API。
+### 阶段五：测试、优化与文档 (待办)
 
+- [ ] **测试**: 编写集成测试和性能测试用例。
+- [ ] **UI/UX 优化**: 根据用户反馈优化宏选择器等组件的交互体验。
+- [ ] **用户文档**: 在帮助中心详细介绍所有可用宏及其用法。
 
-## 参考附录1：酒馆的宏调查
+## 附录：宏参考手册
 
-### 核心流程解析
+### 核心占位符
 
-整个替换过程的核心是 `public/script.js` 文件中的 `substituteParams` 函数。当系统需要生成一段包含占位符的文本时（比如构建发送给 AI 的提示词），就会调用这个函数。
+- `{{user}}`: 当前用户的名字。
+- `{{char}}`: 当前角色的名字。
+- `{{persona}}`: 当前智能体角色的描述。
 
-它的工作流程如下：
+### 酒馆角色卡数据 (提供酒馆导入兼容性)
 
-1.  **环境准备**: `substituteParams` 首先会创建一个“环境”对象。它会把所有当前可用的信息都装进去，包括：
-    *   `{{user}}`: 你的名字 (`name1`)。
-    *   `{{char}}`: 角色的名字 (`name2`)。
-    *   以及角色的详细信息，如 `{{description}}` (描述), `{{personality}}` (性格), `{{scenario}}` (场景) 等。
+**我们自己没有这些字段功能，将来在开发相关导入功能的时候另外处理**
 
-2.  **调用宏处理器**: 准备好环境后，它会调用 `public/scripts/macros.js` 文件里的 `evaluateMacros` 函数，把要处理的文本和准备好的“环境”都交过去。
+- `{{description}}`: 角色描述。
+- `{{personality}}`: 角色性格。
+- `{{scenario}}`: 当前场景。
+- `{{mesExamples}}`: 对话示例。
 
-3.  **分步替换**: `evaluateMacros` 函数是真正的炼金炉。它不会一次性完成所有替换，而是按照预设的顺序分三步进行：
-    *   **第一阶段（预处理宏）**: 首先处理那些需要“计算”或“设置状态”的宏。这包括 `variables.js` 中定义的变量操作宏，如 `{{setvar::...}}` (设置变量), `{{incvar::...}}` (增加变量值) 和 `{{roll...}}` (掷骰子) 等。这一步确保了在替换主要内容之前，所有的变量和状态都已就绪。
-    *   **第二阶段（核心内容宏）**: 接着，它会替换那些代表核心内容的占位符，比如 `{{user}}`, `{{char}}`, `{{personality}}` 等。这些都是从第一步准备好的“环境”中直接取值的。
-    *   **第三阶段（后处理宏）**: 最后，它会处理那些依赖于当前最终状态的宏。例如 `{{time}}` (当前时间), `{{lastMessage}}` (最后一条消息), `{{random::...}}` (从列表中随机选择一项)。这些宏需要在所有其他内容都确定后才能计算出正确的值。
+### 聊天上下文
 
-### 关于 `{{#if ...}}` 的高级用法
+- `{{lastMessage}}`: 聊天中的最后一条消息。
+- `{{lastUserMessage}}`: 你发送的最后一条消息。
+- `{{lastCharMessage}}`: 角色发送的最后一条消息。
+- `{{input}}`: 当前在输入框中输入的文本。
 
-咕咕在 `public/scripts/power-user.js` 文件中确认了，像 `{{#if scenario}}...{{/if}}` 这种带有 `#` 的复杂逻辑，是由一个名为 [Handlebars.js](https://handlebarsjs.com/) 的模板引擎处理的。它允许进行条件判断、循环等高级操作，通常用于“故事模板 (Story String)”中，动态地构建复杂的上下文结构。
+### 实用工具
 
-### 常用占位符列表
+- `{{time}}`: 当前时间 (例如: 10:30 PM)。
+- `{{date}}`: 当前日期 (例如: November 7, 2025)。
+- `{{random::选项A::选项B::选项C}}`: 从提供的选项中随机选择一个。
+- `{{pick::选项A::选项B}}`: 基于聊天内容，从选项中稳定地选择一个。
+- `{{roll 1d20}}`: 掷一个20面的骰子。
 
-这是咕咕为您整理的一些常用内置占位符，就像一本鸟类图鉴：
+### 变量操作
 
-**核心**
-*   `{{user}}`: 你的名字。
-*   `{{char}}`: 当前角色的名字。
-*   `{{persona}}`: 当前启用的角色卡描述。
+- `{{getvar::变量名}}`: 获取一个**当前对话**的局部变量的值。
+- `{{setvar::变量名::值}}`: 设置一个局部变量。
+- `{{incvar::变量名}}`: 将一个局部变量的值加一。
+- `{{getglobalvar::...}}`, `{{setglobalvar::...}}`: 功能同上，但操作的是**全局**变量。
 
-**角色卡数据**
-*   `{{description}}`: 角色描述。
-*   `{{personality}}`: 角色性格。
-*   `{{scenario}}`: 当前场景。
-*   `{{mesExamples}}`: 对话示例。
+### 格式控制
 
-**聊天上下文**
-*   `{{lastMessage}}`: 聊天中的最后一条消息。
-*   `{{lastUserMessage}}`: 你发送的最后一条消息。
-*   `{{lastCharMessage}}`: 角色发送的最后一条消息。
-*   `{{input}}`: 当前在输入框中输入的文本。
+- `{{newline}}`: 插入一个换行符。
+- `{{trim}}`: 移除此宏所在位置之前和之后的所有空白与换行符。
 
-**实用工具**
-*   `{{time}}`: 当前时间 (例如: 10:30 PM)。
-*   `{{date}}`: 当前日期 (例如: November 7, 2025)。
-*   `{{random::选项A::选项B::选项C}}`: 从提供的选项中随机选择一个。
-*   `{{pick::选项A::选项B}}`: 从提供的选项中（基于当前聊天的内容）稳定地选择一个。
-*   `{{roll 1d20}}`: 掷一个20面的骰子。
+### 高级模板逻辑
 
-**变量操作**
-*   `{{getvar::变量名}}`: 获取一个**当前对话**的局部变量的值。
-*   `{{setvar::变量名::值}}`: 设置一个局部变量。
-*   `{{incvar::变量名}}`: 将一个局部变量的值加一。
-*   `{{getglobalvar::...}}`, `{{setglobalvar::...}}`: 功能同上，但操作的是**全局**变量。
-
-**特殊宏**
-*   `{{newline}}`: 插入一个换行符。
-*   `{{trim}}`: 移除此宏所在位置之前和之后的所有换行符，用于清理格式。
-
-总而言之，这套系统通过分层处理和丰富的内置宏，为动态生成文本提供了强大而灵活的能力。
+系统通过集成 [Handlebars.js](https://handlebarsjs.com/) 模板引擎来支持 `{{#if}}` 等高级条件和循环逻辑，以动态构建复杂的文本结构。

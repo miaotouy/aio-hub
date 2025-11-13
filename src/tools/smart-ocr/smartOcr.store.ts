@@ -54,14 +54,16 @@ export const useSmartOcrStore = defineStore('smart-ocr', {
     },
     // 用于替换或添加单个/多个结果
     updateOcrResults(results: OcrResult[]) {
+        const newResults = [...this.ocrResults];
         for (const result of results) {
-            const index = this.ocrResults.findIndex(r => r.blockId === result.blockId);
+            const index = newResults.findIndex(r => r.blockId === result.blockId);
             if (index !== -1) {
-                this.ocrResults[index] = result;
+                newResults[index] = result;
             } else {
-                this.ocrResults.push(result);
+                newResults.push(result);
             }
         }
+        this.ocrResults = newResults;
     },
     clearOcrResults(imageIds?: string[]) {
         if (imageIds && imageIds.length > 0) {
@@ -72,16 +74,22 @@ export const useSmartOcrStore = defineStore('smart-ocr', {
         }
     },
     toggleBlockIgnore(blockId: string) {
-      const result = this.ocrResults.find((r) => r.blockId === blockId);
-      if (result) {
-        result.ignored = !result.ignored;
-      }
+      const newResults = this.ocrResults.map(r => {
+        if (r.blockId === blockId) {
+          return { ...r, ignored: !r.ignored };
+        }
+        return r;
+      });
+      this.ocrResults = newResults;
     },
     updateBlockText(blockId: string, text: string) {
-      const result = this.ocrResults.find((r) => r.blockId === blockId);
-      if (result) {
-        result.text = text;
-      }
+      const newResults = this.ocrResults.map(r => {
+        if (r.blockId === blockId) {
+          return { ...r, text };
+        }
+        return r;
+      });
+      this.ocrResults = newResults;
     },
     reset() {
       this.uploadedImages = [];

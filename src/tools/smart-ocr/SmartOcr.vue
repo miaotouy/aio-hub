@@ -39,6 +39,7 @@ const {
   toggleBlockIgnore,
   updateBlockText,
   updateEngineConfig,
+  updateSlicerConfig,
   runFullOcrProcess,
 } = useSmartOcrRunner();
 
@@ -209,6 +210,7 @@ const handleUpdateText = (blockId: string, text: string) => {
             :slicer-config="slicerConfig"
             :full-config="fullConfig"
             @update-engine-config="updateEngineConfig"
+            @update-slicer-config="updateSlicerConfig"
             @run-full-ocr-process="runFullOcrProcess"
           />
         </div>

@@ -82,87 +82,63 @@ export function useSmartOcrRunner() {
   }
 
   /**
-   * 更新引擎配置
-   */
-  async function updateEngineConfig(newConfig: OcrEngineConfig): Promise<void> {
-    await errorHandler.wrapAsync(
-      async () => {
-        const type = newConfig.type;
-
-        // 检查是否只是切换引擎类型
-        const isTypeSwitch = Object.keys(newConfig).length === 1 && 'type' in newConfig;
-
-        let updatedFullConfig: SmartOcrConfig;
-
-        if (isTypeSwitch) {
-          updatedFullConfig = {
-            ...store.fullConfig,
-            currentEngineType: type,
-          };
-        } else {
-          // 更新当前引擎的配置
-          const newEngineConfigs = { ...store.fullConfig.engineConfigs };
-
-          // 根据引擎类型更新对应的配置
-          switch (type) {
-            case 'tesseract':
-              newEngineConfigs.tesseract = {
-                ...newEngineConfigs.tesseract,
-                ...(newConfig as any),
-              };
-              break;
-            case 'native':
-              newEngineConfigs.native = {
-                ...newEngineConfigs.native,
-                ...(newConfig as any),
-              };
-              break;
-            case 'vlm':
-              newEngineConfigs.vlm = {
-                ...newEngineConfigs.vlm,
-                ...(newConfig as any),
-              };
-              break;
-            case 'cloud':
-              newEngineConfigs.cloud = {
-                ...newEngineConfigs.cloud,
-                ...(newConfig as any),
-              };
-              break;
-          }
-
-          updatedFullConfig = {
-            ...store.fullConfig,
-            currentEngineType: type,
-            engineConfigs: newEngineConfigs,
-          };
-        }
-
-        store.setFullConfig(updatedFullConfig);
-        await saveSmartOcrConfig(updatedFullConfig);
-        logger.info('引擎配置已更新', { engineType: type });
-      },
-      {
-        level: ErrorLevel.ERROR,
-        userMessage: '更新引擎配置失败',
-        context: newConfig,
-      }
-    );
-  }
-
+   /**
+    * 更新引擎配置
+    */
+   async function updateEngineConfig(partialConfig: Partial<OcrEngineConfig>): Promise<void> {
+     await errorHandler.wrapAsync(
+       async () => {
+         const currentConfig = store.fullConfig;
+         
+         // 确定最终的引擎类型
+         const engineType = partialConfig.type || currentConfig.currentEngineType;
+ 
+         // 获取当前该引擎的配置
+         const oldEngineConfig = currentConfig.engineConfigs[engineType];
+ 
+         // 合并新旧配置
+         const newEngineConfig = { ...oldEngineConfig, ...partialConfig };
+ 
+         // 创建新的引擎配置集合
+         const newEngineConfigs = {
+           ...currentConfig.engineConfigs,
+           [engineType]: newEngineConfig,
+         };
+ 
+         // 构建最终的完整配置
+         const updatedFullConfig: SmartOcrConfig = {
+           ...currentConfig,
+           currentEngineType: engineType,
+           engineConfigs: newEngineConfigs,
+         };
+ 
+         store.setFullConfig(updatedFullConfig);
+         await saveSmartOcrConfig(updatedFullConfig);
+         logger.info('引擎配置已更新', { partialConfig });
+       },
+       {
+         level: ErrorLevel.ERROR,
+         userMessage: '更新引擎配置失败',
+         context: partialConfig,
+       }
+     );
+   }
   /**
    * 更新切图配置
    */
-  async function updateSlicerConfig(config: SlicerConfig): Promise<void> {
+  async function updateSlicerConfig(config: Partial<SlicerConfig>): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
         const updatedFullConfig = {
           ...store.fullConfig,
-          slicerConfig: config,
+          slicerConfig: {
+            ...store.fullConfig.slicerConfig,
+            ...config,
+          },
         };
         store.setFullConfig(updatedFullConfig);
         await saveSmartOcrConfig(updatedFullConfig);
-        logger.info('切图配置已更新', config);
+        logger.info('切图配置已更新', { config });
       },
       {
         level: ErrorLevel.ERROR,

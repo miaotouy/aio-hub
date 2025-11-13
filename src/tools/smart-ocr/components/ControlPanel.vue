@@ -28,7 +28,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  updateEngineConfig: [config: OcrEngineConfig];
+  updateEngineConfig: [config: Partial<OcrEngineConfig>];
   updateSlicerConfig: [config: Partial<SlicerConfig>];
   runFullOcrProcess: [options: { imageIds?: string[] }];
 }>();
@@ -47,66 +47,67 @@ const engineConfig = computed(() => props.engineConfig);
 const slicerConfig = computed(() => props.slicerConfig);
 
 // 引擎类型
+// 引擎类型
 const engineType = computed({
-  get: () => engineConfig.value.type,
-  set: async (value) => {
-    emit('updateEngineConfig', { type: value } as any);
+  get: () => engineConfig.value?.type ?? 'native',
+  set: (value) => {
+    // 切换类型时，发送一个仅包含类型的新对象
+    emit('updateEngineConfig', { type: value });
   },
 });
-
 // Tesseract 语言
 const engineLanguage = computed({
-  get: () => (engineConfig.value.type === "tesseract" ? engineConfig.value.language : ""),
-  set: async (value) => {
-    emit('updateEngineConfig', { language: value } as any);
+  get: () => (engineConfig.value?.type === 'tesseract' ? engineConfig.value.language : ''),
+  set: (value) => {
+    emit('updateEngineConfig', { language: value });
   },
 });
 
 // VLM 提示词
 const enginePrompt = computed({
-  get: () => (engineConfig.value.type === "vlm" ? engineConfig.value.prompt : ""),
-  set: async (value) => {
-    emit('updateEngineConfig', { prompt: value } as any);
+  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.prompt : ''),
+  set: (value) => {
+    emit('updateEngineConfig', { prompt: value });
   },
 });
 
 // VLM 温度
 const engineTemperature = computed({
-  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.temperature ?? 0.7) : 0.7),
-  set: async (value) => {
-    emit('updateEngineConfig', { temperature: value } as any);
+  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.temperature ?? 0.7 : 0.7),
+  set: (value) => {
+    emit('updateEngineConfig', { temperature: value });
   },
 });
 
 // VLM 最大 Token
 const engineMaxTokens = computed({
-  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.maxTokens ?? 4096) : 4096),
-  set: async (value) => {
-    emit('updateEngineConfig', { maxTokens: value } as any);
+  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.maxTokens ?? 4096 : 4096),
+  set: (value) => {
+    emit('updateEngineConfig', { maxTokens: value });
   },
 });
 
 // VLM 并发数
 const engineConcurrency = computed({
-  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.concurrency ?? 3) : 3),
-  set: async (value) => {
-    emit('updateEngineConfig', { concurrency: value } as any);
+  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.concurrency ?? 3 : 3),
+  set: (value) => {
+    emit('updateEngineConfig', { concurrency: value });
   },
 });
 
 // VLM 请求延迟
 const engineDelay = computed({
-  get: () => (engineConfig.value.type === "vlm" ? (engineConfig.value.delay ?? 0) : 0),
-  set: async (value) => {
-    emit('updateEngineConfig', { delay: value } as any);
+  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.delay ?? 0 : 0),
+  set: (value) => {
+    emit('updateEngineConfig', { delay: value });
   },
 });
 
 // Cloud OCR 选中的服务
 const cloudActiveProfileId = computed({
-  get: () => (engineConfig.value.type === "cloud" ? engineConfig.value.activeProfileId : ""),
-  set: async (value) => {
-    emit('updateEngineConfig', { activeProfileId: value } as any);
+  get: () => (engineConfig.value?.type === 'cloud' ? engineConfig.value.activeProfileId : ''),
+  set: (value) => {
+    emit('updateEngineConfig', { activeProfileId: value });
   },
 });
 
@@ -168,18 +169,14 @@ const selectedImage = computed(() => {
 const selectedModelCombo = computed({
   get: () => {
     const config = engineConfig.value;
-    if (config.type !== "vlm") return "";
+    if (config?.type !== 'vlm' || !config.profileId || !config.modelId) return '';
     return `${config.profileId}:${config.modelId}`;
   },
-  set: async (value: string) => {
+  set: (value: string) => {
     if (!value) return;
-    const [profileId, modelId] = value.split(":");
-    if (engineConfig.value.type === "vlm") {
-      emit('updateEngineConfig', {
-        ...engineConfig.value,
-        profileId,
-        modelId,
-      });
+    const [profileId, modelId] = value.split(':');
+    if (engineConfig.value?.type === 'vlm') {
+      emit('updateEngineConfig', { profileId, modelId });
     }
   },
 });

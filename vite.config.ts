@@ -4,7 +4,7 @@ import Icons from "unplugin-icons/vite";
 import IconsResolver from "unplugin-icons/resolver";
 import Components from "unplugin-vue-components/vite";
 import VueDevTools from "vite-plugin-vue-devtools";
-import monacoEditorPlugin from 'vite-plugin-monaco-editor';
+import monaco from '@tomjs/vite-plugin-monaco-editor';
 import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -34,8 +34,8 @@ export default defineConfig({
     // 生产环境禁用 VueDevTools
     process.env.NODE_ENV !== 'production' && VueDevTools(),
     vue(),
-    (monacoEditorPlugin as any).default({
-      language: 'zh-hans'
+    monaco({  // 替换旧的 monacoEditorPlugin，直接用 local: true 强制本地打包，避免 CDN
+      local: true,
     }),
     Components({
       resolvers: [

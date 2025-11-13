@@ -16,9 +16,9 @@ import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHan
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
-import AttachmentCard from "./AttachmentCard.vue";
+import AttachmentCard from "../AttachmentCard.vue";
 import MessageInputToolbar from "./MessageInputToolbar.vue";
-import type { MacroDefinition } from "../macro-engine";
+import type { MacroDefinition } from "../../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
 

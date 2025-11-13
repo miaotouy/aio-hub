@@ -10,7 +10,7 @@ import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
-import MessageInput from "./MessageInput.vue";
+import MessageInput from "./message-input/MessageInput.vue";
 import MessageNavigator from "./message/MessageNavigator.vue";
 import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/EditAgentDialog.vue";

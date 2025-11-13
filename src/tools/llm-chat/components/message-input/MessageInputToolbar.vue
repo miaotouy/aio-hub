@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ElTooltip, ElPopover } from "element-plus";
 import { MagicStick } from "@element-plus/icons-vue";
-import MacroSelector from "./agent/MacroSelector.vue";
+import MacroSelector from "../agent/MacroSelector.vue";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
-import type { MacroDefinition } from "../macro-engine";
+import type { MacroDefinition } from "../../macro-engine";
 
 interface Props {
   isSending: boolean;

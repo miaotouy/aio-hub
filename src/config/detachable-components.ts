@@ -76,7 +76,7 @@ export const detachableComponentRegistry: Record<string, DetachableComponentRegi
   },
   // LLM Chat: 消息输入框
   'chat-input': {
-    component: () => import('../tools/llm-chat/components/MessageInput.vue'),
+    component: () => import('../tools/llm-chat/components/message-input/MessageInput.vue'),
     logicHook: useDetachedChatInput,
   },
   // 未来可以在此添加更多可分离的组件

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElTooltip, ElPopover } from "element-plus";
-import { MagicStick } from "@element-plus/icons-vue";
+import { MagicStick, Paperclip } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
 import type { MacroDefinition } from "../../macro-engine";
@@ -29,6 +29,7 @@ const emit = defineEmits<{
   (e: "toggle-expand"): void;
   (e: "send"): void;
   (e: "abort"): void;
+  (e: "trigger-attachment"): void;
 }>();
 
 const onMacroSelectorUpdate = (visible: boolean) => {
@@ -53,6 +54,16 @@ const onMacroSelectorUpdate = (visible: boolean) => {
           @click="emit('toggle-streaming')"
         >
           <span class="typewriter-icon">A_</span>
+        </button>
+      </el-tooltip>
+      <!-- Attachment button -->
+      <el-tooltip content="添加附件" placement="top">
+        <button
+          class="attachment-button"
+          :disabled="props.isSending"
+          @click="emit('trigger-attachment')"
+        >
+          <el-icon><Paperclip /></el-icon>
         </button>
       </el-tooltip>
       <!-- 宏选择器按钮 -->
@@ -436,37 +447,9 @@ const onMacroSelectorUpdate = (visible: boolean) => {
   transform: translateY(-1px);
 }
 
-/* 宏选择器图标按钮样式 - 与工具栏按钮保持一致 */
-.macro-icon-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  color: var(--text-color-secondary);
-  font-size: 16px;
-}
-
-.macro-icon-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.macro-icon-button:not(.active):hover:not(:disabled) {
-  background-color: var(--el-fill-color-light);
-  color: var(--text-color-primary);
-}
-
-.macro-icon-button.active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
-  color: var(--primary-color);
-}
-
+/* 统一工具栏图标按钮样式 */
+.macro-icon-button,
+.attachment-button,
 .expand-toggle-button {
   display: flex;
   align-items: center;
@@ -482,16 +465,21 @@ const onMacroSelectorUpdate = (visible: boolean) => {
   font-size: 16px;
 }
 
+.macro-icon-button:disabled,
+.attachment-button:disabled,
 .expand-toggle-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+.macro-icon-button:not(.active):hover:not(:disabled),
+.attachment-button:hover:not(:disabled),
 .expand-toggle-button:not(.active):hover:not(:disabled) {
   background-color: var(--el-fill-color-light);
   color: var(--text-color-primary);
 }
 
+.macro-icon-button.active,
 .expand-toggle-button.active {
   background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
   color: var(--primary-color);

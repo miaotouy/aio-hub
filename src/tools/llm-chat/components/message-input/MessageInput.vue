@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, toRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -152,6 +153,25 @@ const handleSend = () => {
 // 处理中止
 const handleAbort = () => {
   emit("abort");
+};
+
+const handleTriggerAttachment = async () => {
+  if (props.disabled) return;
+
+  try {
+    const selected = await open({
+      multiple: true,
+      title: "选择附件",
+    });
+
+    if (selected) {
+      const paths = Array.isArray(selected) ? selected : [selected];
+      await inputManager.addAttachments(paths);
+    }
+  } catch (error) {
+    logger.error("打开文件选择对话框失败", error);
+    customMessage.error("选择文件失败");
+  }
 };
 
 const toggleExpand = () => {
@@ -680,6 +700,7 @@ const handleDetach = async () => {
             @toggle-expand="toggleExpand"
             @send="handleSend"
             @abort="handleAbort"
+            @trigger-attachment="handleTriggerAttachment"
           />
         </div>
       </div>

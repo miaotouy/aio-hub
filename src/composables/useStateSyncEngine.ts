@@ -132,12 +132,12 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       },
       { deep: true }
     );
-    logger.info('已启动自动推送', { stateKey, windowType: bus.windowType });
+    logger.debug('已启动自动推送', { stateKey, windowType: bus.windowType });
   }
 
   if (autoReceive) {
     unlistenStateSync = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
-    logger.info('已启动自动接收', { stateKey, windowType: bus.windowType });
+    logger.debug('已启动自动接收', { stateKey, windowType: bus.windowType });
     
     if (requestOnMount && bus.windowType !== 'main') {
       bus.requestSpecificState(stateKey);

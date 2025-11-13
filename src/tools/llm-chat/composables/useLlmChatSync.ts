@@ -58,7 +58,11 @@ const globalProfileId = toRef(userProfileStore, 'globalProfileId');
   // 同步聊天设置（UI偏好、快捷键等）
   createStateEngine(settings, CHAT_STATE_KEYS.SETTINGS);
 
-  logger.info('LLM Chat 同步引擎已初始化');
+  logger.info('LLM Chat 同步引擎已初始化', {
+    windowType: bus.windowType,
+    stateCount: stateEngines.length,
+    states: Object.values(CHAT_STATE_KEYS)
+  });
 
   // 3. 操作代理：监听并处理来自子窗口的请求
   const handleActionRequest = (action: string, params: any): Promise<any> => {

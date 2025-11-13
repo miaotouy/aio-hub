@@ -3,19 +3,20 @@
     <div class="tester-header">
       <h2>API 测试工具</h2>
       <div class="header-actions">
-        <select v-model="selectedPresetId" @change="handlePresetChange" class="preset-selector-compact">
-          <option value="">-- 快速预设 --</option>
-          <option
+        <el-select
+          v-model="selectedPresetId"
+          placeholder="-- 快速预设 --"
+          @change="handlePresetChange"
+          class="preset-selector-compact"
+        >
+          <el-option
             v-for="preset in store.availablePresets"
             :key="preset.id"
+            :label="preset.name"
             :value="preset.id"
-          >
-            {{ preset.name }}
-          </option>
-        </select>
-        <button @click="showProfileManager = true" class="btn-secondary">
-          📁 配置
-        </button>
+          />
+        </el-select>
+        <el-button @click="showProfileManager = true" type="primary"> 配置 </el-button>
       </div>
     </div>
 
@@ -36,7 +37,7 @@
       <div class="right-panel">
         <ResponsePanel v-if="store.lastResponse" />
         <div v-else class="empty-response">
-          <p>👈 配置请求参数后，点击"发送"按钮查看响应结果</p>
+          <p>配置请求参数后，点击"发送"按钮查看响应结果</p>
         </div>
       </div>
     </div>
@@ -47,29 +48,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useApiTesterStore } from './store';
-import UrlBuilder from './components/UrlBuilder.vue';
-import UrlVariableEditor from './components/UrlVariableEditor.vue';
-import RequestPanel from './components/RequestPanel.vue';
-import ResponsePanel from './components/ResponsePanel.vue';
-import ProfileManager from './components/ProfileManager.vue';
+import { ref, onMounted, computed } from "vue";
+import { ElSelect, ElOption, ElButton } from "element-plus";
+import { useApiTesterStore } from "./store";
+import { customMessage } from "@utils/customMessage";
+import UrlBuilder from "./components/UrlBuilder.vue";
+import UrlVariableEditor from "./components/UrlVariableEditor.vue";
+import RequestPanel from "./components/RequestPanel.vue";
+import ResponsePanel from "./components/ResponsePanel.vue";
+import ProfileManager from "./components/ProfileManager.vue";
 
 const store = useApiTesterStore();
-const selectedPresetId = ref('');
+const selectedPresetId = computed({
+  get: () => store.selectedPreset?.id || "",
+  set: (value: string) => {
+    if (value) {
+      store.selectPreset(value);
+    }
+  },
+});
 const showProfileManager = ref(false);
 
 onMounted(() => {
   store.loadProfiles();
 });
 
-function handlePresetChange() {
-  if (selectedPresetId.value) {
-    store.selectPreset(selectedPresetId.value);
+function handlePresetChange(value: string) {
+  if (value) {
+    store.selectPreset(value);
   }
 }
 
 async function handleSend() {
+  if (!store.buildUrl) {
+    customMessage.warning("请输入有效的 API 地址");
+    return;
+  }
   await store.sendRequest();
 }
 </script>
@@ -109,19 +123,7 @@ async function handleSend() {
 }
 
 .preset-selector-compact {
-  padding: 8px 12px;
-  font-size: 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--container-bg);
-  color: var(--text-color);
-  cursor: pointer;
   min-width: 200px;
-}
-
-.preset-selector-compact:focus {
-  outline: none;
-  border-color: var(--primary-color);
 }
 
 /* 工作台布局 */
@@ -163,21 +165,5 @@ async function handleSend() {
   font-size: 16px;
   text-align: center;
   padding: 40px;
-}
-
-/* 按钮样式 */
-.btn-secondary {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  background: var(--primary-color);
-  color: white;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background: var(--primary-hover-color);
 }
 </style>

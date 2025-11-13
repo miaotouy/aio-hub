@@ -2,32 +2,34 @@
   <div class="section response-section">
     <h3>响应结果</h3>
     <div class="response-header">
-      <span
-        class="status-badge"
-        :class="getStatusClass(store.lastResponse!.status)"
-      >
+      <span class="status-badge" :class="getStatusClass(store.lastResponse!.status)">
         {{ store.lastResponse!.status }} {{ store.lastResponse!.statusText }}
       </span>
       <span v-if="store.lastResponse!.isStreaming" class="streaming-badge">
-        {{ store.lastResponse!.isStreamComplete ? '✅ 流式完成' : '📡 流式接收中...' }}
+        {{ store.lastResponse!.isStreamComplete ? "✅ 流式完成" : "📡 流式接收中..." }}
       </span>
       <span class="response-time">⏱️ {{ store.lastResponse!.duration }}ms</span>
-      <span class="response-timestamp">🕒 {{ formatTimestamp(store.lastResponse!.timestamp) }}</span>
-      <button
+      <span class="response-timestamp"
+        >🕒 {{ formatTimestamp(store.lastResponse!.timestamp) }}</span
+      >
+      <el-button
         v-if="store.lastResponse!.isStreaming && !store.lastResponse!.isStreamComplete"
         @click="handleAbort"
-        class="btn-abort"
+        type="danger"
+        size="small"
+        plain
         title="停止接收"
       >
         ⏹️ 停止
-      </button>
-      <button
+      </el-button>
+      <el-button
         class="wrap-toggle"
         @click="wrapText = !wrapText"
         :title="wrapText ? '关闭自动换行' : '开启自动换行'"
+        size="small"
       >
-        {{ wrapText ? '📄 自动换行' : '📜 不换行' }}
-      </button>
+        {{ wrapText ? "📄 自动换行" : "📜 不换行" }}
+      </el-button>
     </div>
 
     <div v-if="store.lastResponse!.error" class="response-error">
@@ -39,14 +41,18 @@
         <span>📦 已接收数据块: {{ store.lastResponse!.streamChunks?.length || 0 }}</span>
         <span>📏 总大小: {{ formatSize(store.lastResponse!.body.length) }}</span>
       </div>
-      <pre :class="{ 'wrap-text': wrapText }" ref="responsePreRef"><code>{{ store.lastResponse!.body }}</code></pre>
+      <pre
+        :class="{ 'wrap-text': wrapText }"
+        ref="responsePreRef"
+      ><code>{{ store.lastResponse!.body }}</code></pre>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
-import { useApiTesterStore } from '../store';
+import { ref, watch, nextTick } from "vue";
+import { ElButton } from "element-plus";
+import { useApiTesterStore } from "../store";
 
 const store = useApiTesterStore();
 const wrapText = ref(false);
@@ -54,14 +60,14 @@ const responsePreRef = ref<HTMLPreElement | null>(null);
 const autoScroll = ref(true);
 
 function getStatusClass(status: number): string {
-  if (status >= 200 && status < 300) return 'status-success';
-  if (status >= 400 && status < 500) return 'status-client-error';
-  if (status >= 500) return 'status-server-error';
-  return 'status-unknown';
+  if (status >= 200 && status < 300) return "status-success";
+  if (status >= 400 && status < 500) return "status-client-error";
+  if (status >= 500) return "status-server-error";
+  return "status-unknown";
 }
 
 function formatTimestamp(timestamp: string): string {
-  return new Date(timestamp).toLocaleString('zh-CN');
+  return new Date(timestamp).toLocaleString("zh-CN");
 }
 
 function formatSize(bytes: number): string {
@@ -97,6 +103,8 @@ watch(
   border: 1px solid var(--border-color);
   height: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .section h3 {
@@ -120,10 +128,22 @@ watch(
   font-size: 14px;
 }
 
-.status-success { background: #49cc90; color: white; }
-.status-client-error { background: #fca130; color: white; }
-.status-server-error { background: #f93e3e; color: white; }
-.status-unknown { background: #999; color: white; }
+.status-success {
+  background: #49cc90;
+  color: white;
+}
+.status-client-error {
+  background: #fca130;
+  color: white;
+}
+.status-server-error {
+  background: #f93e3e;
+  color: white;
+}
+.status-unknown {
+  background: #999;
+  color: white;
+}
 
 .response-time,
 .response-timestamp {
@@ -144,14 +164,15 @@ watch(
   border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: auto;
-  height: 86%;
+  flex: 1; /* 让其填充剩余空间 */
+  min-height: 0; /* 配合 flex: 1 */
   box-sizing: border-box;
 }
 
 .response-body pre {
   margin: 0;
   padding: 16px;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-color);
@@ -171,20 +192,7 @@ watch(
 }
 
 .wrap-toggle {
-  padding: 6px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background: var(--container-bg);
-  color: var(--text-color);
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
   margin-left: auto;
-}
-
-.wrap-toggle:hover {
-  background: var(--input-bg);
-  border-color: var(--primary-color);
 }
 
 .streaming-badge {
@@ -198,29 +206,13 @@ watch(
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
     opacity: 0.6;
   }
-}
-
-.btn-abort {
-  padding: 6px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--error-color);
-  background: rgba(245, 108, 108, 0.1);
-  color: var(--error-color);
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.btn-abort:hover {
-  background: var(--error-color);
-  color: white;
 }
 
 .stream-info {
@@ -231,7 +223,7 @@ watch(
   border-radius: 4px;
   font-size: 13px;
   color: var(--text-color-light);
-  margin-bottom: 12px;
+  margin: 12px;
 }
 
 .stream-info span {

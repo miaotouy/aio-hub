@@ -2,19 +2,24 @@
  * API 测试工具的状态管理
  */
 
-import { defineStore } from 'pinia';
-import type { ApiPreset, RequestProfile, ApiResponse } from './types';
-import { presets } from './presets';
-import { createModuleLogger } from '@utils/logger';
+import { defineStore } from "pinia";
+import type { ApiPreset, RequestProfile, ApiResponse, HttpMethod, Variable } from "./types";
+import { presets } from "./presets";
+import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler, ErrorLevel } from "@utils/errorHandler";
+import { customMessage } from "@utils/customMessage";
 
-// 创建模块日志器
-const logger = createModuleLogger('api-tester/store');
+// 创建模块日志和错误处理器
+const logger = createModuleLogger("api-tester/store");
+const errorHandler = createModuleErrorHandler("api-tester/store");
 
 interface ApiTesterState {
   // 当前选中的预设
   selectedPreset: ApiPreset | null;
   // URL 模板字符串
   urlTemplate: string;
+  // HTTP 方法
+  method: HttpMethod;
   // 当前变量值
   variables: Record<string, string | boolean>;
   // 自定义请求头
@@ -31,13 +36,14 @@ interface ApiTesterState {
   abortController: AbortController | null;
 }
 
-export const useApiTesterStore = defineStore('apiTester', {
+export const useApiTesterStore = defineStore("apiTester", {
   state: (): ApiTesterState => ({
     selectedPreset: null,
-    urlTemplate: '',
+    urlTemplate: "",
+    method: "POST",
     variables: {},
     customHeaders: {},
-    requestBody: '',
+    requestBody: "",
     lastResponse: null,
     isLoading: false,
     savedProfiles: [],
@@ -50,16 +56,19 @@ export const useApiTesterStore = defineStore('apiTester', {
 
     // 构建完整的 URL (替换模板中的变量)
     buildUrl: (state): string => {
-      if (!state.urlTemplate) return '';
-      
+      if (!state.urlTemplate) return "";
+
       let url = state.urlTemplate;
-      
+
       // 替换所有 {{variable}} 占位符
       Object.entries(state.variables).forEach(([key, value]) => {
         const placeholder = `{{${key}}}`;
-        url = url.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
+        url = url.replace(
+          new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+          String(value)
+        );
       });
-      
+
       return url;
     },
 
@@ -74,10 +83,10 @@ export const useApiTesterStore = defineStore('apiTester', {
       const apiKey = state.variables.apiKey as string;
       if (apiKey && state.selectedPreset) {
         // 根据不同的 API 类型设置不同的 Authorization 格式
-        if (state.selectedPreset.id.startsWith('openai')) {
-          headers['Authorization'] = `Bearer ${apiKey}`;
-        } else if (state.selectedPreset.id === 'anthropic-chat') {
-          headers['x-api-key'] = apiKey;
+        if (state.selectedPreset.id.startsWith("openai")) {
+          headers["Authorization"] = `Bearer ${apiKey}`;
+        } else if (state.selectedPreset.id === "anthropic-chat") {
+          headers["x-api-key"] = apiKey;
         }
       }
 
@@ -86,23 +95,23 @@ export const useApiTesterStore = defineStore('apiTester', {
 
     // 构建请求体（替换变量）
     buildBody: (state): string => {
-      if (!state.requestBody) return '';
-      
+      if (!state.requestBody) return "";
+
       let body = state.requestBody;
-      
+
       // 替换所有 {{variable}} 占位符
       Object.entries(state.variables).forEach(([key, value]) => {
         const placeholder = `{{${key}}}`;
-        body = body.replace(new RegExp(placeholder, 'g'), String(value));
+        body = body.replace(new RegExp(placeholder, "g"), String(value));
       });
-      
+
       return body;
     },
 
     // 获取当前配置的摘要信息
     currentProfileSummary: (state): Partial<RequestProfile> | null => {
       if (!state.selectedPreset) return null;
-      
+
       return {
         selectedPresetId: state.selectedPreset.id,
         variables: { ...state.variables },
@@ -115,17 +124,18 @@ export const useApiTesterStore = defineStore('apiTester', {
   actions: {
     // 选择预设
     selectPreset(presetId: string) {
-      const preset = presets.find(p => p.id === presetId);
+      const preset = presets.find((p) => p.id === presetId);
       if (!preset) return;
 
       this.selectedPreset = preset;
-      
+
       // 初始化 URL 模板
       this.urlTemplate = preset.urlTemplate;
-      
+      this.method = preset.method;
+
       // 初始化变量为预设的默认值
       this.variables = {};
-      preset.variables.forEach(variable => {
+      preset.variables.forEach((variable) => {
         this.variables[variable.key] = variable.value;
       });
 
@@ -133,7 +143,7 @@ export const useApiTesterStore = defineStore('apiTester', {
       this.customHeaders = { ...preset.headers };
 
       // 初始化请求体
-      this.requestBody = preset.bodyTemplate || '';
+      this.requestBody = preset.bodyTemplate || "";
 
       // 清空上次响应
       this.lastResponse = null;
@@ -144,8 +154,18 @@ export const useApiTesterStore = defineStore('apiTester', {
       this.urlTemplate = template;
     },
 
+    // 更新 HTTP 方法
+    updateMethod(method: HttpMethod) {
+      this.method = method;
+    },
+
     // 添加变量
-    addVariable(variable: { key: string; value: string | boolean; type: string; description?: string }) {
+    addVariable(variable: {
+      key: string;
+      value: string | boolean;
+      type: string;
+      description?: string;
+    }) {
       this.variables[variable.key] = variable.value;
     },
 
@@ -164,13 +184,45 @@ export const useApiTesterStore = defineStore('apiTester', {
       this.variables = { ...this.variables, ...variables };
     },
 
+    // --- 变量定义操作 ---
+    addVariableDefinition(variable: Variable) {
+      if (!this.selectedPreset) return;
+      this.selectedPreset.variables.push(variable);
+      // 如果新变量有默认值，也更新到当前值中
+      if (variable.value !== undefined) {
+        this.updateVariable(variable.key, variable.value);
+      }
+    },
+
+    updateVariableDefinition(index: number, variable: Variable) {
+      if (!this.selectedPreset || !this.selectedPreset.variables[index]) return;
+
+      const oldKey = this.selectedPreset.variables[index].key;
+      this.selectedPreset.variables[index] = variable;
+
+      // 如果变量名改变，需要处理值的映射
+      if (oldKey !== variable.key) {
+        delete this.variables[oldKey];
+      }
+      this.updateVariable(variable.key, variable.value);
+    },
+
+    removeVariableDefinition(index: number) {
+      if (!this.selectedPreset || !this.selectedPreset.variables[index]) return;
+
+      const keyToRemove = this.selectedPreset.variables[index].key;
+      this.selectedPreset.variables.splice(index, 1);
+      this.removeVariable(keyToRemove);
+    },
+
     // 更新请求头
     updateHeader(key: string, value: string) {
-      if (value) {
-        this.customHeaders[key] = value;
-      } else {
-        delete this.customHeaders[key];
-      }
+      this.customHeaders[key] = value;
+    },
+
+    // 移除请求头
+    removeHeader(key: string) {
+      delete this.customHeaders[key];
     },
 
     // 更新请求体
@@ -180,7 +232,13 @@ export const useApiTesterStore = defineStore('apiTester', {
 
     // 发送请求
     async sendRequest(): Promise<void> {
-      if (!this.selectedPreset || this.isLoading) return;
+      if (this.isLoading) return;
+
+      const url = this.buildUrl;
+      if (!url) {
+        logger.warn("尝试发送请求，但 URL 为空");
+        return;
+      }
 
       this.isLoading = true;
       const startTime = Date.now();
@@ -189,14 +247,13 @@ export const useApiTesterStore = defineStore('apiTester', {
       this.abortController = new AbortController();
 
       try {
-        const url = this.buildUrl;
         const headers = this.buildHeaders;
         const body = this.buildBody;
 
         const response = await fetch(url, {
-          method: this.selectedPreset.method,
+          method: this.method,
           headers,
-          body: this.selectedPreset.method !== 'GET' ? body : undefined,
+          body: this.method !== "GET" ? body : undefined,
           signal: this.abortController.signal,
         });
 
@@ -205,16 +262,19 @@ export const useApiTesterStore = defineStore('apiTester', {
           responseHeaders[key] = value;
         });
 
-        const contentType = response.headers.get('content-type') || '';
-        
+        const contentType = response.headers.get("content-type") || "";
+
         // 检测是否是 SSE 流式响应
-        if (contentType.includes('text/event-stream') || contentType.includes('application/stream')) {
+        if (
+          contentType.includes("text/event-stream") ||
+          contentType.includes("application/stream")
+        ) {
           await this.handleStreamResponse(response, responseHeaders, startTime);
         } else {
           // 普通响应处理
           let responseBody: string;
-          
-          if (contentType.includes('application/json')) {
+
+          if (contentType.includes("application/json")) {
             const json = await response.json();
             responseBody = JSON.stringify(json, null, 2);
           } else {
@@ -231,22 +291,29 @@ export const useApiTesterStore = defineStore('apiTester', {
           };
         }
       } catch (error) {
-        // 如果是中止错误，不显示为错误
-        if (error instanceof Error && error.name === 'AbortError') {
+        // 如果是中止错误，给出明确提示
+        if (error instanceof Error && error.name === "AbortError") {
+          customMessage.info("请求已中止");
           if (this.lastResponse?.isStreaming) {
             this.lastResponse.isStreamComplete = true;
             this.lastResponse.duration = Date.now() - startTime;
           }
         } else {
+          // 其他错误，使用 errorHandler 处理
+          const errorMessage = error instanceof Error ? error.message : String(error);
           this.lastResponse = {
             status: 0,
-            statusText: 'Error',
+            statusText: "Error",
             headers: {},
-            body: '',
+            body: "",
             duration: Date.now() - startTime,
             timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage,
           };
+          errorHandler.handle(error, {
+            userMessage: `请求失败: ${errorMessage}`,
+            level: ErrorLevel.ERROR,
+          });
         }
       } finally {
         this.isLoading = false;
@@ -265,7 +332,7 @@ export const useApiTesterStore = defineStore('apiTester', {
         status: response.status,
         statusText: response.statusText,
         headers: responseHeaders,
-        body: '',
+        body: "",
         duration: 0,
         timestamp: new Date().toISOString(),
         isStreaming: true,
@@ -275,15 +342,15 @@ export const useApiTesterStore = defineStore('apiTester', {
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('无法读取响应流');
+        throw new Error("无法读取响应流");
       }
 
       const decoder = new TextDecoder();
-      
+
       try {
         while (true) {
           const { done, value } = await reader.read();
-          
+
           if (done) {
             this.lastResponse.isStreamComplete = true;
             this.lastResponse.duration = Date.now() - startTime;
@@ -291,14 +358,14 @@ export const useApiTesterStore = defineStore('apiTester', {
           }
 
           const chunk = decoder.decode(value, { stream: true });
-          
+
           // 将数据块添加到响应中
           this.lastResponse.streamChunks!.push(chunk);
           this.lastResponse.body += chunk;
           this.lastResponse.duration = Date.now() - startTime;
         }
       } catch (error) {
-        if (error instanceof Error && error.name !== 'AbortError') {
+        if (error instanceof Error && error.name !== "AbortError") {
           this.lastResponse.error = error.message;
         }
         this.lastResponse.isStreamComplete = true;
@@ -332,14 +399,14 @@ export const useApiTesterStore = defineStore('apiTester', {
       };
 
       this.savedProfiles.push(profile);
-      
+
       // 保存到 localStorage
       this.persistProfiles();
     },
 
     // 加载配置
     loadProfile(profileId: string): void {
-      const profile = this.savedProfiles.find(p => p.id === profileId);
+      const profile = this.savedProfiles.find((p) => p.id === profileId);
       if (!profile) return;
 
       // 先选择对应的预设
@@ -353,7 +420,7 @@ export const useApiTesterStore = defineStore('apiTester', {
 
     // 删除配置
     deleteProfile(profileId: string): void {
-      const index = this.savedProfiles.findIndex(p => p.id === profileId);
+      const index = this.savedProfiles.findIndex((p) => p.id === profileId);
       if (index !== -1) {
         this.savedProfiles.splice(index, 1);
         this.persistProfiles();
@@ -363,14 +430,11 @@ export const useApiTesterStore = defineStore('apiTester', {
     // 持久化配置到 localStorage
     persistProfiles(): void {
       try {
-        localStorage.setItem(
-          'api-tester-profiles',
-          JSON.stringify(this.savedProfiles)
-        );
+        localStorage.setItem("api-tester-profiles", JSON.stringify(this.savedProfiles));
       } catch (error) {
-        logger.error('保存 Profile 配置失败', error, {
-          operation: 'persistProfiles',
-          profilesCount: this.savedProfiles.length
+        logger.error("保存 Profile 配置失败", error, {
+          operation: "persistProfiles",
+          profilesCount: this.savedProfiles.length,
         });
       }
     },
@@ -378,24 +442,30 @@ export const useApiTesterStore = defineStore('apiTester', {
     // 从 localStorage 加载配置
     loadProfiles(): void {
       try {
-        const stored = localStorage.getItem('api-tester-profiles');
+        const stored = localStorage.getItem("api-tester-profiles");
         if (stored) {
           this.savedProfiles = JSON.parse(stored);
         }
       } catch (error) {
-        logger.error('加载 Profile 配置失败', error, {
-          operation: 'loadProfiles'
+        logger.error("加载 Profile 配置失败", error, {
+          operation: "loadProfiles",
         });
+      }
+
+      // 如果没有选中任何预设，则默认选中空白请求
+      if (!this.selectedPreset) {
+        this.selectPreset("custom-request");
       }
     },
 
     // 重置状态
     reset(): void {
       this.selectedPreset = null;
-      this.urlTemplate = '';
+      this.urlTemplate = "";
+      this.method = "POST";
       this.variables = {};
       this.customHeaders = {};
-      this.requestBody = '';
+      this.requestBody = "";
       this.lastResponse = null;
     },
   },

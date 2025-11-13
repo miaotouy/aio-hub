@@ -6,6 +6,18 @@ import type { ApiPreset } from './types';
 
 export const presets: ApiPreset[] = [
   {
+    id: 'custom-request',
+    name: '空白请求',
+    description: '从头开始构建一个自定义 API 请求',
+    urlTemplate: '',
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    bodyTemplate: JSON.stringify({}, null, 2),
+    variables: [],
+  },
+  {
     id: 'openai-chat',
     name: 'OpenAI Chat Completion',
     description: 'OpenAI 和兼容接口（如 DeepSeek、智谱等）的聊天补全 API',

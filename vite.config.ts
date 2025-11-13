@@ -30,6 +30,8 @@ export default defineConfig({
   // 将 .gz 文件标记为资源文件
   assetsInclude: ['**/*.gz'],
 
+  base: './',
+
   plugins: [
     // 生产环境禁用 VueDevTools
     process.env.NODE_ENV !== 'production' && VueDevTools(),

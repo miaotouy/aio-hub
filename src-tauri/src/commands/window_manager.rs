@@ -1,5 +1,4 @@
-// 在 macOS 上禁用 rdev 功能，以避免与辅助功能冲突导致闪退
-#[cfg(not(target_os = "macos"))]
+// rdev 用于全局鼠标监听，但在 macOS 上需要小心使用以避免与辅助功能冲突
 use rdev::{listen, Event, EventType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -55,114 +54,116 @@ const DETACH_THRESHOLD: f64 = 50.0;
 /// 设置为约 8ms，即最高 120Hz 更新频率
 const UPDATE_THROTTLE_MS: u64 = 8;
 
-/// 初始化全局鼠标监听器 (仅在非 macOS 上有效)
-#[cfg(not(target_os = "macos"))]
+/// 初始化全局鼠标监听器
 pub fn init_global_mouse_listener() {
     thread::spawn(move || {
         let session_arc = DRAG_SESSION.clone();
-        let callback = move |event: Event| {
-            match event.event_type {
-                EventType::ButtonRelease(_button) => {
-                    let app_handle_opt = {
-                        let session_opt = session_arc.lock().unwrap();
-                        session_opt.as_ref().map(|s| s.app_handle.clone())
-                    };
 
-                    if let Some(app_handle) = app_handle_opt {
-                        log::debug!("[DRAG] 检测到全局鼠标释放，尝试结束会话");
+        // 提取通用逻辑以避免代码重复
+        let handle_button_release = |session_arc: Arc<Mutex<Option<DragSessionState>>>| {
+            let app_handle_opt = {
+                let session_opt = session_arc.lock().unwrap();
+                session_opt.as_ref().map(|s| s.app_handle.clone())
+            };
 
-                        // 在新线程中创建 Tokio 运行时并执行异步代码
-                        thread::spawn(move || {
-                            let rt = tokio::runtime::Builder::new_current_thread()
-                                .enable_all() // 启用所有功能，包括时间
-                                .build()
-                                .unwrap();
-
-                            rt.block_on(async {
-                                // 等待一小段时间，让前端的 mouseup 先处理
-                                tokio::time::sleep(Duration::from_millis(100)).await;
-                                // 尝试结束会话，如果已经结束则忽略错误
-                                if let Err(e) = end_drag_session(app_handle).await {
-                                    // 只有在错误不是"没有活动会话"时才打印
-                                    if !e.contains("没有活动的拖拽会话") {
-                                        log::warn!("[DRAG] 自动结束会话失败: {}", e);
-                                    }
-                                }
-                            });
-                        });
-                    }
-                }
-                EventType::MouseMove { x, y } => {
-                    // 一次性提取所有需要的数据，然后立即释放锁
-                    let update_data = {
-                        let mut session_opt = session_arc.lock().unwrap();
-                        if let Some(session) = session_opt.as_mut() {
-                            session.current_x = x;
-                            session.current_y = y;
-
-                            let delta_x = x - session.start_x;
-                            let delta_y = y - session.start_y;
-                            let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
-                            // 更新可分离状态
-                            session.can_detach = distance >= DETACH_THRESHOLD;
-
-                            // 节流检查：只有距离上次更新超过阈值时间才执行更新
-                            let now = Instant::now();
-                            let should_update =
-                                now.duration_since(session.last_update_time).as_millis()
-                                    >= UPDATE_THROTTLE_MS as u128;
-
-                            if should_update {
-                                session.last_update_time = now;
-                                Some((
-                                    session.app_handle.clone(),
-                                    session.preview_window_label.clone(),
-                                    session.can_detach,
-                                    session.handle_offset_x,
-                                    session.handle_offset_y,
-                                ))
-                            } else {
-                                None
+            if let Some(app_handle) = app_handle_opt {
+                log::debug!("[DRAG] 检测到全局鼠标释放，尝试结束会话");
+                thread::spawn(move || {
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap();
+                    rt.block_on(async {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        if let Err(e) = end_drag_session(app_handle).await {
+                            if !e.contains("没有活动的拖拽会话") {
+                                log::warn!("[DRAG] 自动结束会话失败: {}", e);
                             }
+                        }
+                    });
+                });
+            }
+        };
+
+        let handle_mouse_move =
+            |session_arc: Arc<Mutex<Option<DragSessionState>>>, x: f64, y: f64| {
+                let update_data = {
+                    let mut session_opt = session_arc.lock().unwrap();
+                    if let Some(session) = session_opt.as_mut() {
+                        session.current_x = x;
+                        session.current_y = y;
+
+                        let delta_x = x - session.start_x;
+                        let delta_y = y - session.start_y;
+                        let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
+                        session.can_detach = distance >= DETACH_THRESHOLD;
+
+                        let now = Instant::now();
+                        let should_update = now.duration_since(session.last_update_time).as_millis()
+                            >= UPDATE_THROTTLE_MS as u128;
+
+                        if should_update {
+                            session.last_update_time = now;
+                            Some((
+                                session.app_handle.clone(),
+                                session.preview_window_label.clone(),
+                                session.can_detach,
+                                session.handle_offset_x,
+                                session.handle_offset_y,
+                            ))
                         } else {
                             None
                         }
-                    };
-                    // 锁已释放
+                    } else {
+                        None
+                    }
+                };
 
-                    // 只有在需要更新时才执行窗口操作
-                    if let Some((
-                        app_handle,
-                        preview_label,
-                        can_detach,
-                        handle_offset_x,
-                        handle_offset_y,
-                    )) = update_data
-                    {
-                        if let Some(window) = app_handle.get_webview_window(&preview_label) {
-                            // rdev 返回的 x, y 已经是物理坐标，不需要再缩放
-                            // 使用手柄偏移量而不是窗口中心
-                            let physical_x = (x - handle_offset_x) as i32;
-                            let physical_y = (y - handle_offset_y) as i32;
+                if let Some((app_handle, preview_label, can_detach, handle_offset_x, handle_offset_y)) =
+                    update_data
+                {
+                    if let Some(window) = app_handle.get_webview_window(&preview_label) {
+                        let physical_x = (x - handle_offset_x) as i32;
+                        let physical_y = (y - handle_offset_y) as i32;
+                        let _ = window.set_position(PhysicalPosition::new(physical_x, physical_y));
+                        let _ = window.emit(
+                            "detach-status-update",
+                            serde_json::json!({ "canDetach": can_detach }),
+                        );
+                    }
+                }
+            };
 
-                            let _ =
-                                window.set_position(PhysicalPosition::new(physical_x, physical_y));
-
-                            // 始终发送状态更新事件，确保预览窗口能及时收到
-                            // 即使状态没有变化，也可能是窗口刚创建错过了之前的事件
-                            let _ = window.emit(
-                                "detach-status-update",
-                                serde_json::json!({ "canDetach": can_detach }),
-                            );
+        // 根据操作系统定义不同的回调
+        let callback = {
+            let session_arc = session_arc.clone();
+            move |event: Event| {
+                #[cfg(target_os = "macos")]
+                {
+                    // 在 macOS 上，采取最严格的策略，只处理鼠标事件
+                    match event.event_type {
+                        EventType::ButtonRelease(_) => handle_button_release(session_arc.clone()),
+                        EventType::MouseMove { x, y } => handle_mouse_move(session_arc.clone(), x, y),
+                        _ => {
+                            // 忽略所有其他事件，特别是键盘事件，以防止崩溃
                         }
                     }
                 }
-                // 在 macOS 上，未处理的键盘事件（特别是修饰键）可能会导致崩溃。
-                // 显式地忽略它们以增加稳定性。
-                EventType::KeyPress(_) | EventType::KeyRelease(_) => {}
-                _ => {}
+                #[cfg(not(target_os = "macos"))]
+                {
+                    // 在其他系统上，可以稍微放宽，但仍然忽略键盘事件
+                    match event.event_type {
+                        EventType::ButtonRelease(_) => handle_button_release(session_arc.clone()),
+                        EventType::MouseMove { x, y } => handle_mouse_move(session_arc.clone(), x, y),
+                        EventType::KeyPress(_) | EventType::KeyRelease(_) => {
+                            // 显式忽略键盘事件
+                        }
+                        _ => {}
+                    }
+                }
             }
         };
+
         log::info!("[DRAG] 全局鼠标监听器已启动");
         if let Err(error) = listen(callback) {
             log::error!("[DRAG] 全局鼠标监听错误: {:?}", error);
@@ -170,9 +171,8 @@ pub fn init_global_mouse_listener() {
     });
 }
 
-/// 开始一个基于全局鼠标监听的拖拽会话 (仅在非 macOS 上有效)
+/// 开始一个基于全局鼠标监听的拖拽会话
 #[tauri::command]
-#[cfg(not(target_os = "macos"))]
 pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Result<(), String> {
     // 检查并清理可能卡住的旧会话
     {

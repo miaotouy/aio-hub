@@ -34,7 +34,7 @@ const userProfiles = toRef(userProfileStore, 'profiles');
 const globalProfileId = toRef(userProfileStore, 'globalProfileId');
 
   // 2. 状态同步引擎实例化
-  const stateEngines: Array<{ manualPush: (isFullSync?: boolean, targetWindowLabel?: string) => Promise<void> }> = [];
+  const stateEngines: Array<{ manualPush: (isFullSync?: boolean, targetWindowLabel?: string, silent?: boolean) => Promise<void> }> = [];
 
   const createStateEngine = <T>(stateSource: Ref<T>, stateKey: LlmChatStateKey) => {
     const engine = useStateSyncEngine(stateSource, createChatSyncConfig(stateKey));
@@ -58,7 +58,11 @@ const globalProfileId = toRef(userProfileStore, 'globalProfileId');
   // 同步聊天设置（UI偏好、快捷键等）
   createStateEngine(settings, CHAT_STATE_KEYS.SETTINGS);
 
-  logger.info('LLM Chat 同步引擎已初始化');
+  logger.info('LLM Chat 同步引擎已初始化', {
+    windowType: bus.windowType,
+    stateCount: stateEngines.length,
+    states: Object.values(CHAT_STATE_KEYS)
+  });
 
   // 3. 操作代理：监听并处理来自子窗口的请求
   const handleActionRequest = (action: string, params: any): Promise<any> => {
@@ -108,20 +112,21 @@ const globalProfileId = toRef(userProfileStore, 'globalProfileId');
 
     // 4. 监听初始状态请求，按需推送全量状态
     bus.onInitialStateRequest((requesterLabel) => {
-      logger.info(`收到来自 ${requesterLabel} 的初始状态请求，开始推送...`);
+      logger.info(`收到来自 ${requesterLabel} 的初始状态请求，开始批量推送...`);
       for (const engine of stateEngines) {
-        // 定向、强制推送全量状态给请求者
-        engine.manualPush(true, requesterLabel);
+        // 定向、强制推送全量状态给请求者（静默模式，避免日志刷屏）
+        engine.manualPush(true, requesterLabel, true);
       }
-      logger.info(`已向 ${requesterLabel} 推送所有初始状态`);
+      logger.info(`已向 ${requesterLabel} 批量推送所有初始状态`);
     });
 
     // 5. 监听重连事件，广播全量状态
     bus.onReconnect(() => {
-      logger.info('主窗口重新获得焦点，向所有子窗口广播最新状态...');
+      logger.info('主窗口重新获得焦点，开始向所有子窗口批量广播最新状态...');
       for (const engine of stateEngines) {
-        engine.manualPush(true); // 广播全量状态
+        engine.manualPush(true, undefined, true); // 广播全量状态（静默模式，避免日志刷屏）
       }
+      logger.info('所有状态批量广播完成');
     });
   } else {
     logger.info('非主窗口，不注册操作处理器（所有操作将代理至主窗口）', { windowType: bus.windowType });

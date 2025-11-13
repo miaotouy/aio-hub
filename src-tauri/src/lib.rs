@@ -9,6 +9,7 @@ use tauri::{Emitter, Manager};
 use tokio_util::sync::CancellationToken;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use log::LevelFilter;
+use dirs_next::data_dir;
 
 // 导入命令模块
 use commands::{
@@ -194,22 +195,28 @@ use chrono::Local;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let log_filename = format!("backend-{}", Local::now().format("%Y-%m-%d"));
+    let context = tauri::generate_context!();
 
-    tauri::Builder::default()
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .clear_targets() // 清除默认目标
-                .targets([
-                    Target::new(TargetKind::Stdout),
-                    Target::new(TargetKind::Folder {
-                        path: std::path::PathBuf::from("logs"),
-                        file_name: Some(log_filename.into())
-                    }),
-                ])
-                .timezone_strategy(TimezoneStrategy::UseLocal) // 使用本地时区
-                .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
-                .build()
+    // Manually construct the path to AppData/Roaming/{bundle_id}/logs
+    let log_dir = data_dir()
+        .map(|p| p.join(&context.config().identifier).join("logs"))
+        .expect("Failed to construct log directory path");
+
+    let log_filename = format!("backend-{}", Local::now().format("%Y-%m-%d"));
+tauri::Builder::default()
+    .plugin(
+        tauri_plugin_log::Builder::new()
+            .clear_targets() // 清除默认目标
+            .targets([
+                Target::new(TargetKind::Stdout),
+                Target::new(TargetKind::Folder {
+                    path: log_dir,
+                    file_name: Some(log_filename.into()),
+                }),
+            ])
+            .timezone_strategy(TimezoneStrategy::UseLocal) // 使用本地时区
+            .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
+            .build()
         )
         // 插件初始化
         .plugin(tauri_plugin_opener::init())
@@ -475,6 +482,6 @@ pub fn run() {
             }
         })
         // 运行应用
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

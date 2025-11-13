@@ -44,40 +44,39 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   let unlistenStateSync: (() => void) | null = null;
   let stopWatching: (() => void) | null = null;
 
-  const pushState = async (isFullSync = false, targetWindowLabel?: string) => {
-    if (!isInitialized) {
-      logger.warn('无法推送状态，因为未初始化', { stateKey });
-      return;
-    }
-
-    const newValue = state.value;
-    const newVersion = VersionGenerator.next();
-    
-    let payload: StateSyncPayload;
-
-    const shouldForceFullSync = isFullSync || !enableDelta ||
-                                newValue === null || newValue === undefined ||
-                                lastSyncedValue === null || lastSyncedValue === undefined;
-
-    if (shouldForceFullSync) {
-      payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
-      logger.debug('执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
-    } else {
-      const patches = calculateDiff(lastSyncedValue, newValue);
-      if (patches.length === 0) {
-        logger.debug('状态无变化，跳过同步', { stateKey });
+    const pushState = async (isFullSync = false, targetWindowLabel?: string, silent = false) => {
+      if (!isInitialized) {
+        logger.warn('无法推送状态，因为未初始化', { stateKey });
         return;
       }
-      
-      if (shouldUseDelta(patches, newValue, deltaThreshold)) {
-        payload = { stateType: stateKey, version: newVersion, isFull: false, patches };
-        logger.debug('执行增量同步', { stateKey, version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
-      } else {
+  
+      const newValue = state.value;
+      const newVersion = VersionGenerator.next();
+  
+      let payload: StateSyncPayload;
+  
+      const shouldForceFullSync = isFullSync || !enableDelta ||
+        newValue === null || newValue === undefined ||
+        lastSyncedValue === null || lastSyncedValue === undefined;
+  
+      if (shouldForceFullSync) {
         payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
-        logger.debug('增量过大，执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
+        if (!silent) logger.debug('执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
+      } else {
+        const patches = calculateDiff(lastSyncedValue, newValue);
+        if (patches.length === 0) {
+          if (!silent) logger.debug('状态无变化，跳过同步', { stateKey });
+          return;
+        }
+  
+        if (shouldUseDelta(patches, newValue, deltaThreshold)) {
+          payload = { stateType: stateKey, version: newVersion, isFull: false, patches };
+          if (!silent) logger.debug('执行增量同步', { stateKey, version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
+        } else {
+          payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
+          if (!silent) logger.debug('增量过大，执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
+        }
       }
-    }
-
     await bus.syncState(
       stateKey,
       payload.isFull ? payload.data : payload.patches,
@@ -133,21 +132,21 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       },
       { deep: true }
     );
-    logger.info('已启动自动推送', { stateKey, windowType: bus.windowType });
+    logger.debug('已启动自动推送', { stateKey, windowType: bus.windowType });
   }
 
   if (autoReceive) {
     unlistenStateSync = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
-    logger.info('已启动自动接收', { stateKey, windowType: bus.windowType });
+    logger.debug('已启动自动接收', { stateKey, windowType: bus.windowType });
     
     if (requestOnMount && bus.windowType !== 'main') {
       bus.requestSpecificState(stateKey);
     }
   }
 
-  const manualPush = (isFullSync = true, targetWindowLabel?: string) => {
+  const manualPush = (isFullSync = true, targetWindowLabel?: string, silent = false) => {
     debouncedPushState.cancel();
-    return pushState(isFullSync, targetWindowLabel);
+    return pushState(isFullSync, targetWindowLabel, silent);
   };
 
   const cleanup = () => {

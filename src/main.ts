@@ -15,8 +15,8 @@ import { ElNotification } from "element-plus";
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia"; // 导入 Pinia
 import { errorHandler, ErrorLevel } from "./utils/errorHandler";
-import { createModuleLogger } from "./utils/logger";
-import { loadAppSettingsAsync } from "./utils/appSettings";
+import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
+import { loadAppSettingsAsync, type AppSettings } from "./utils/appSettings";
 import { initTheme } from "./composables/useTheme";
 import { customMessage } from "./utils/customMessage";
 import { autoRegisterServices } from "./services";
@@ -24,6 +24,43 @@ import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
 
 const logger = createModuleLogger("Main");
+
+/**
+ * 应用日志配置到 logger 实例
+ * 必须在应用初始化早期调用，确保所有日志都使用正确的级别
+ */
+const applyLogConfig = (settings: AppSettings) => {
+  try {
+    // 应用日志级别
+    if (settings.logLevel) {
+      const levelMap: Record<string, LogLevel> = {
+        DEBUG: LogLevel.DEBUG,
+        INFO: LogLevel.INFO,
+        WARN: LogLevel.WARN,
+        ERROR: LogLevel.ERROR,
+      };
+      globalLogger.setLevel(levelMap[settings.logLevel] ?? LogLevel.INFO);
+    }
+    
+    // 应用日志输出配置
+    globalLogger.setLogToFile(settings.logToFile ?? true);
+    globalLogger.setLogToConsole(settings.logToConsole ?? true);
+    
+    // 应用日志缓冲区大小
+    if (settings.logBufferSize) {
+      globalLogger.setLogBufferSize(settings.logBufferSize);
+    }
+    
+    logger.info("日志配置已应用", {
+      level: settings.logLevel,
+      logToFile: settings.logToFile,
+      logToConsole: settings.logToConsole,
+      bufferSize: settings.logBufferSize,
+    });
+  } catch (error) {
+    logger.error("应用日志配置失败", error);
+  }
+};
 
 // 检查是否为独立工具窗口（需要标题栏和标准布局）
 const isDetachedWindow = () => {
@@ -149,26 +186,29 @@ window.addEventListener("error", (event) => {
 const initializeApp = async () => {
   try {
     // 1. 首先异步加载应用设置
-    await loadAppSettingsAsync();
-    logger.info("应用设置初始化完成");
+    const settings = await loadAppSettingsAsync();
+    logger.info("应用设置加载完成");
+    
+    // 2. 立即应用日志配置（必须在其他初始化步骤之前）
+    applyLogConfig(settings);
 
-    // 2. 初始化主题
+    // 3. 初始化主题
     await initTheme();
     logger.info("主题初始化完成");
 
-    // 3. 自动注册所有工具服务
+    // 4. 自动注册所有工具服务
     await autoRegisterServices();
     logger.info("工具服务注册完成");
 
-    // 4. 初始化动态路由（必须在 Pinia 注册后，且在服务注册后）
+    // 5. 初始化动态路由（必须在 Pinia 注册后，且在服务注册后）
     initDynamicRoutes();
     logger.info("动态路由初始化完成");
 
-    // 5. 注册 Router（必须在动态路由初始化之后，这样插件路由才能被识别）
+    // 6. 注册 Router（必须在动态路由初始化之后，这样插件路由才能被识别）
     app.use(router);
     logger.info("Router 注册完成");
 
-    // 6. 挂载 Vue 应用
+    // 7. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
   } catch (error) {

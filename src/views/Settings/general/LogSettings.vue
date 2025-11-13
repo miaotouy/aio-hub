@@ -70,6 +70,12 @@ onMounted(async () => {
   if (props.logToConsole !== undefined) internalLogToConsole.value = props.logToConsole;
   if (props.logBufferSize) internalLogBufferSize.value = props.logBufferSize;
 
+  // 立即应用当前的日志级别设置（确保界面状态和实际运行状态一致）
+  logger.setLevel(LogLevel[internalLogLevel.value as keyof typeof LogLevel]);
+  logger.setLogToFile(internalLogToFile.value);
+  logger.setLogToConsole(internalLogToConsole.value);
+  logger.setLogBufferSize(internalLogBufferSize.value);
+
   // 获取日志统计信息
   updateLogStats();
 

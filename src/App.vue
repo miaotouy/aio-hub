@@ -13,7 +13,7 @@ import {
   updateAppSettingsAsync,
   type AppSettings,
 } from "./utils/appSettings";
-import { createModuleLogger } from "./utils/logger";
+import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
 import { applyThemeColors } from "./utils/themeColors";
 import TitleBar from "./components/TitleBar.vue";
 import MainSidebar from "./components/MainSidebar.vue";
@@ -92,11 +92,37 @@ const camelToKebab = (str: string): string => {
 return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
 };
 
+// 应用日志配置到 logger 实例
+const applyLogConfig = (settings: AppSettings) => {
+  // 应用日志级别
+  if (settings.logLevel) {
+    const levelMap: Record<string, LogLevel> = {
+      DEBUG: LogLevel.DEBUG,
+      INFO: LogLevel.INFO,
+      WARN: LogLevel.WARN,
+      ERROR: LogLevel.ERROR,
+    };
+    globalLogger.setLevel(levelMap[settings.logLevel] ?? LogLevel.INFO);
+  }
+  
+  // 应用日志输出配置
+  globalLogger.setLogToFile(settings.logToFile ?? true);
+  globalLogger.setLogToConsole(settings.logToConsole ?? true);
+  
+  // 应用日志缓冲区大小
+  if (settings.logBufferSize) {
+    globalLogger.setLogBufferSize(settings.logBufferSize);
+  }
+};
+
 // 监听设置变化（用于响应设置页面的更改）
 const loadSettings = async () => {
 const settings = await loadAppSettingsAsync();
 appSettings.value = settings;
 isCollapsed.value = settings.sidebarCollapsed;
+
+// 应用日志配置
+applyLogConfig(settings);
 
 // 主题设置由 useTheme 模块自动加载和应用
 cacheToolsVisible(settings.toolsVisible);
@@ -151,6 +177,9 @@ onMounted(async () => {
     if (customEvent.detail) {
       appSettings.value = customEvent.detail;
       isCollapsed.value = customEvent.detail.sidebarCollapsed;
+
+      // 应用日志配置
+      applyLogConfig(customEvent.detail);
 
       // 主题设置由 useTheme 模块处理
       cacheToolsVisible(customEvent.detail.toolsVisible);

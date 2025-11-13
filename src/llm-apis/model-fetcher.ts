@@ -87,7 +87,12 @@ function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record
       break;
 
     case "gemini":
-      // Gemini 使用 URL 参数传递 API Key，不需要在 header 中
+      // 模型列表获取使用 header 传递 API Key
+      if (apiKey) {
+        headers["x-goog-api-key"] = apiKey;
+      }
+      // 添加 x-goog-api-client header 模拟官方 SDK
+      headers["x-goog-api-client"] = "google-genai-sdk/1.0.1 gl-node/web";
       break;
 
     case "cohere":

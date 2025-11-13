@@ -12,6 +12,7 @@
   "app": {
     "windows": [],
     "security": {
+      "csp": null,
       "assetProtocol": {
         "enable": true,
         "scope": {

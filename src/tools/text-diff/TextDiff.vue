@@ -112,7 +112,19 @@
 
         <!-- 操作按钮 -->
         <div class="toolbar-group">
-          <el-button size="small" @click="clearAll">清空</el-button>
+          <el-dropdown size="small" @command="clearTexts">
+            <el-button size="small">
+              <el-icon><Delete /></el-icon>
+              清空
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="left">清空左侧</el-dropdown-item>
+                <el-dropdown-item command="right">清空右侧</el-dropdown-item>
+                <el-dropdown-item command="all" divided>清空全部</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button size="small" @click="swapTexts">交换</el-button>
         </div>
       </div>
@@ -193,15 +205,16 @@ import {
   DocumentCopy,
   Download,
   Document,
+  Delete,
 } from "@element-plus/icons-vue";
 import type { editor } from "monaco-editor";
-import { customMessage } from '@/utils/customMessage';
+import { customMessage } from "@/utils/customMessage";
 import { useFileDrop } from "@composables/useFileDrop";
-import { serviceRegistry } from '@/services/registry';
-import type TextDiffService from './textDiff.service';
+import { serviceRegistry } from "@/services/registry";
+import type TextDiffService from "./textDiff.service";
 
 // 获取服务实例
-const textDiffService = serviceRegistry.getService<TextDiffService>('text-diff');
+const textDiffService = serviceRegistry.getService<TextDiffService>("text-diff");
 
 // 编辑器引用
 const richCodeEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
@@ -236,7 +249,8 @@ const diffNavigator = shallowRef<any>(null);
 
 // 编辑器配置（计算属性）
 const editorOptions = computed(() => ({
-  readOnly: false,
+  readOnly: false, // 控制右侧（修改后）窗格是否可编辑
+  originalEditable: true, // 允许编辑左侧（原始）窗格
   renderSideBySide: renderSideBySide.value,
   automaticLayout: true,
   fontSize: 14,
@@ -278,7 +292,7 @@ const handleEditorMounted = (editorInstance: any) => {
             ignoreCharChanges: true,
           });
         } catch (error) {
-          console.warn('创建 diff navigator 失败:', error);
+          console.warn("创建 diff navigator 失败:", error);
         }
       }
     });
@@ -337,10 +351,22 @@ const goToNextDiff = () => {
   }
 };
 
-// 清空所有文本
-const clearAll = () => {
-  textA.value = "";
-  textB.value = "";
+// 清空文本
+const clearTexts = (side: "left" | "right" | "all") => {
+  if (side === "left" || side === "all") {
+    textA.value = "";
+    leftFilePath.value = "";
+    leftFileName.value = "";
+    // 直接操作 Monaco 编辑器实例来清空内容,
+    // 因为 RichCodeEditor 可能不会在 prop 更新时自动清空编辑器。
+    diffEditor.value?.getOriginalEditor().setValue("");
+  }
+  if (side === "right" || side === "all") {
+    textB.value = "";
+    rightFilePath.value = "";
+    rightFileName.value = "";
+    diffEditor.value?.getModifiedEditor().setValue("");
+  }
 };
 
 // 交换左右文本
@@ -396,7 +422,7 @@ const openFile = async (side: "left" | "right") => {
     }
 
     customMessage.success(`已加载: ${result.fileName}`);
-  } else if (result.error && result.error !== '用户取消操作') {
+  } else if (result.error && result.error !== "用户取消操作") {
     customMessage.error(result.error);
   }
 };
@@ -429,7 +455,7 @@ const saveFile = async (side: "left" | "right" | "both") => {
     }
 
     customMessage.success(`已保存: ${result.fileName}`);
-  } else if (result.error && result.error !== '用户取消操作') {
+  } else if (result.error && result.error !== "用户取消操作") {
     customMessage.error(result.error);
   }
 };
@@ -483,7 +509,7 @@ const loadFileToSide = async (filePath: string, side: "left" | "right") => {
       customMessage.warning("文件较大（>10MB），可能影响性能");
     }
   } else {
-    customMessage.error(result.error || '加载文件失败');
+    customMessage.error(result.error || "加载文件失败");
   }
 };
 
@@ -529,7 +555,7 @@ const copyToClipboard = async (type: "left" | "right" | "patch") => {
   if (result.success) {
     customMessage.success(`已复制${label}到剪贴板`);
   } else {
-    customMessage.error(result.error || '复制失败');
+    customMessage.error(result.error || "复制失败");
   }
 };
 
@@ -550,7 +576,7 @@ const pasteFromClipboard = async (side: "left" | "right") => {
 
     customMessage.success(`已粘贴到${side === "left" ? "左侧" : "右侧"}`);
   } else {
-    customMessage.error(result.error || '粘贴失败');
+    customMessage.error(result.error || "粘贴失败");
   }
 };
 
@@ -583,7 +609,7 @@ const exportPatch = async () => {
 
   if (exportResult.success) {
     customMessage.success(`补丁已导出: ${exportResult.fileName}`);
-  } else if (exportResult.error && exportResult.error !== '用户取消操作') {
+  } else if (exportResult.error && exportResult.error !== "用户取消操作") {
     customMessage.error(exportResult.error);
   }
 };

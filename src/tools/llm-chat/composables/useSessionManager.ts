@@ -5,7 +5,7 @@
 
 import type { ChatSession, ChatMessageNode } from "../types";
 import { useAgentStore } from "../agentStore";
-import { useChatStorage } from "./useChatStorage";
+import { useChatStorageSeparated as useChatStorage } from "./useChatStorageSeparated";
 import { createModuleLogger } from "@/utils/logger";
 import { useExportManager } from "./useExportManager";
 

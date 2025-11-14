@@ -5,9 +5,12 @@
 
 import { mkdir, exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
+import * as yaml from "js-yaml";
 import { createModuleLogger } from "./logger";
 
 const logger = createModuleLogger("ConfigManager");
+
+export type FileType = "json" | "yaml" | "jsonl";
 
 /**
  * 配置管理器的选项
@@ -15,8 +18,13 @@ const logger = createModuleLogger("ConfigManager");
 export interface ConfigManagerOptions<T> {
   /** 模块目录名 */
   moduleName: string;
-  /** 配置文件名 */
+  /**
+   * 配置文件名。如果未提供，则默认为 `config.[fileType]`。
+   * 例如 `config.json`, `config.yaml`
+   */
   fileName?: string;
+  /** 文件类型 */
+  fileType?: FileType;
   /** 配置版本号 */
   version?: string;
   /** 创建默认配置的函数 */
@@ -33,6 +41,7 @@ export interface ConfigManagerOptions<T> {
 export class ConfigManager<T extends Record<string, any>> {
   private moduleName: string;
   private fileName: string;
+  private fileType: FileType;
   private version: string;
   private createDefault: () => T;
   private mergeConfig?: (defaultConfig: T, loadedConfig: Partial<T>) => T;
@@ -45,7 +54,8 @@ export class ConfigManager<T extends Record<string, any>> {
 
   constructor(options: ConfigManagerOptions<T>) {
     this.moduleName = options.moduleName;
-    this.fileName = options.fileName || "config.json";
+    this.fileType = options.fileType || "json";
+    this.fileName = options.fileName || `config.${this.fileType}`;
     this.version = options.version || "1.0.0";
     this.createDefault = options.createDefault;
     this.mergeConfig = options.mergeConfig;
@@ -127,7 +137,23 @@ export class ConfigManager<T extends Record<string, any>> {
       }
 
       const content = await readTextFile(configPath);
-      const loadedConfig: Partial<T> = JSON.parse(content);
+      let loadedConfig: Partial<T> = {};
+
+      switch (this.fileType) {
+        case "json":
+          loadedConfig = JSON.parse(content);
+          break;
+        case "yaml":
+          loadedConfig = yaml.load(content) as Partial<T>;
+          break;
+        case "jsonl":
+          const lines = content.split("\n").filter((line) => line.trim() !== "");
+          const objects = lines.map((line) => JSON.parse(line));
+          loadedConfig = Object.assign({}, ...objects);
+          break;
+        default:
+          throw new Error(`不支持的文件类型: ${this.fileType}`);
+      }
 
       // 确保配置结构完整，补充缺失的字段
       const defaultConfig = this.createDefault();
@@ -174,8 +200,22 @@ export class ConfigManager<T extends Record<string, any>> {
         version: this.version,
       };
 
-      const jsonContent = JSON.stringify(configWithVersion, null, 2);
-      await writeTextFile(configPath, jsonContent);
+      let content = "";
+      switch (this.fileType) {
+        case "json":
+          content = JSON.stringify(configWithVersion, null, 2);
+          break;
+        case "yaml":
+          content = yaml.dump(configWithVersion);
+          break;
+        case "jsonl":
+          // 对于jsonl，通常是每行一个完整的json对象，这里简化为只保存最新的配置状态
+          content = JSON.stringify(configWithVersion);
+          break;
+        default:
+          throw new Error(`不支持的文件类型: ${this.fileType}`);
+      }
+      await writeTextFile(configPath, content);
 
       // 保存成功时输出简洁日志
       logger.info(`配置保存成功`, { moduleName: this.moduleName });

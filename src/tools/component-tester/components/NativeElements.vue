@@ -12,7 +12,10 @@
 
     <div class="section">
       <h2 class="section-title">文本元素</h2>
-      <p>这是一个普通段落，包含一些 <strong>加粗文本</strong>、<em>斜体文本</em>、<u>下划线文本</u> 和 <del>删除线文本</del>。</p>
+      <p>
+        这是一个普通段落，包含一些 <strong>加粗文本</strong>、<em>斜体文本</em>、<u>下划线文本</u>
+        和 <del>删除线文本</del>。
+      </p>
       <p>这是一个包含 <a href="#">链接</a> 和 <code>行内代码</code> 的段落。</p>
       <blockquote>这是一个引用块，用于展示引用的文本内容。</blockquote>
       <pre><code>// 这是一个代码块
@@ -239,10 +242,10 @@ function example() {
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 
 // 颜色选择器的值
-const selectedColor = ref('#409eff')
+const selectedColor = ref("#409eff");
 </script>
 
 <style scoped>
@@ -254,8 +257,8 @@ const selectedColor = ref('#409eff')
 .section {
   margin-bottom: 32px;
   padding: 20px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   background-color: var(--el-bg-color);
 }
 
@@ -270,7 +273,12 @@ const selectedColor = ref('#409eff')
 }
 
 /* 标题样式 */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 8px 0;
   color: var(--el-text-color-primary);
 }
@@ -307,7 +315,7 @@ code {
   padding: 2px 6px;
   background-color: rgba(var(--text-color-rgb), 0.1);
   border-radius: 3px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 0.9em;
 }
 
@@ -330,15 +338,18 @@ pre code {
 
 button {
   padding: 8px 16px;
-  border: 1px solid var(--el-border-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--el-bg-color);
   color: var(--el-text-color-primary);
   cursor: pointer;
   transition: all 0.3s;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
-button:hover:not(:disabled):not(.primary):not(.success):not(.info):not(.warning):not(.danger):not(.text) {
+button:hover:not(:disabled):not(.primary):not(.success):not(.info):not(.warning):not(.danger):not(
+    .text
+  ) {
   background-color: var(--el-fill-color-light);
   border-color: var(--el-border-color-hover);
 }
@@ -521,7 +532,8 @@ html.dark button.danger:hover:not(:disabled) {
 }
 
 /* 输入框样式 */
-.input-group, .select-group {
+.input-group,
+.select-group {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 16px;
@@ -534,7 +546,8 @@ label {
   color: var(--el-text-color-primary);
   font-size: 14px;
 }
-input:not([type='range']),
+
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
   padding: 8px 12px;
@@ -542,7 +555,8 @@ textarea {
   border-radius: 4px;
   color: var(--el-text-color-primary);
   transition: border-color 0.3s;
-  background-color: var(--el-bg-color); /* Fallback for non-transparent mode */
+  background-color: var(--input-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 input:focus,
@@ -573,12 +587,73 @@ textarea:disabled {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
 }
 
-input[type='checkbox'],
-input[type='radio'] {
-  width: auto;
+input[type="checkbox"],
+input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: var(--input-bg);
+  backdrop-filter: blur(var(--ui-blur));
   margin: 0;
+  font: inherit;
+  color: currentColor;
+  width: 1.15em;
+  height: 1.15em;
+  border: 1px solid var(--border-color);
+  border-radius: 0.25em;
+  transform: translateY(-0.075em);
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0; /* 防止在 flex 布局中被压缩 */
+}
+
+input[type="checkbox"]:hover,
+input[type="radio"]:hover {
+  border-color: var(--el-color-primary);
+}
+
+input[type="checkbox"]::before {
+  content: "";
+  width: 0.65em;
+  height: 0.65em;
+  transform: scale(0);
+  transition: 120ms transform ease-in-out;
+  box-shadow: inset 1em 1em var(--el-color-primary);
+  transform-origin: bottom left;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+input[type="radio"] {
+  border-radius: 50%;
+}
+
+input[type="radio"]::before {
+  content: "";
+  width: 0.65em;
+  height: 0.65em;
+  border-radius: 50%;
+  transform: scale(0);
+  transition: 120ms transform ease-in-out;
+  box-shadow: inset 1em 1em var(--el-color-primary);
+}
+
+input[type="radio"]:checked::before {
+  transform: scale(1);
+}
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--border-color);
 }
 
 /* 颜色选择器 */
@@ -588,31 +663,32 @@ input[type='radio'] {
   gap: 12px;
 }
 
-input[type='color'].color-picker {
+input[type="color"].color-picker {
   width: 60px;
   height: 36px;
   padding: 0;
-  border: 2px solid var(--el-border-color);
+  border: 2px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
+  background-color: transparent;
 }
 
-input[type='color'].color-picker::-webkit-color-swatch-wrapper {
+input[type="color"].color-picker::-webkit-color-swatch-wrapper {
   padding: 0;
 }
 
-input[type='color'].color-picker::-webkit-color-swatch {
+input[type="color"].color-picker::-webkit-color-swatch {
   border: none;
   border-radius: 3px;
 }
 
-input[type='color'].color-picker::-moz-color-swatch {
+input[type="color"].color-picker::-moz-color-swatch {
   border: none;
   border-radius: 3px;
 }
 
 .color-value {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: var(--el-text-color-regular);
   user-select: all;
   font-size: 14px;
@@ -626,7 +702,9 @@ input[type='color'].color-picker::-moz-color-swatch {
   gap: 24px;
 }
 
-ul, ol, dl {
+ul,
+ol,
+dl {
   margin: 8px 0;
   padding-left: 20px;
   color: var(--el-text-color-regular);
@@ -650,18 +728,28 @@ dd {
 /* 表格样式 */
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 16px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
-th, td {
+th,
+td {
   padding: 12px;
   text-align: left;
-  border: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+thead {
+  background-color: rgba(var(--text-color-rgb), 0.05);
 }
 
 th {
-  background-color: var(--el-fill-color);
   color: var(--el-text-color-primary);
   font-weight: 600;
 }
@@ -670,16 +758,27 @@ td {
   color: var(--el-text-color-regular);
 }
 
-tr:hover {
-  background-color: var(--el-fill-color-light);
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr {
+  transition: background-color 0.3s;
+}
+
+tbody tr:hover {
+  background-color: rgba(var(--text-color-rgb), 0.1);
 }
 
 /* 其他元素样式 */
-details {
+details,
+fieldset {
   margin: 12px 0;
   padding: 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 summary {
@@ -688,17 +787,35 @@ summary {
   color: var(--el-text-color-primary);
 }
 
-progress, meter {
+progress,
+meter {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  height: 24px;
+  height: 10px;
   margin: 8px 0;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  overflow: hidden;
 }
 
-fieldset {
-  margin: 16px 0;
-  padding: 16px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+progress::-webkit-progress-bar,
+meter::-webkit-meter-bar {
+  background-color: transparent;
+}
+
+progress::-webkit-progress-value,
+meter::-webkit-meter-optimum-value,
+meter::-webkit-meter-suboptimum-value,
+meter::-webkit-meter-even-less-good-value {
+  background-color: var(--el-color-primary);
+  border-radius: 5px;
+}
+
+progress::-moz-progress-bar {
+  background-color: var(--el-color-primary);
+  border-radius: 5px;
 }
 
 legend {

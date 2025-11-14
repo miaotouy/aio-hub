@@ -1,10 +1,10 @@
-import { serviceRegistry } from './registry';
-import type { ToolService } from './types';
-import { pluginManager } from './plugin-manager';
-import { createModuleLogger } from '@/utils/logger';
-import { useToolsStore } from '@/stores/tools';
+import { serviceRegistry } from "./registry";
+import type { ToolService } from "./types";
+import { pluginManager } from "./plugin-manager";
+import { createModuleLogger } from "@/utils/logger";
+import { useToolsStore } from "@/stores/tools";
 
-const logger = createModuleLogger('services/auto-register');
+const logger = createModuleLogger("services/auto-register");
 
 // 定义模块导出的类型，期望是一个可以 new 的类
 type ServiceModule = {
@@ -13,28 +13,28 @@ type ServiceModule = {
 
 /**
  * 自动发现并注册所有工具服务
- * 
+ *
  * 此函数会扫描 src/tools 目录下所有以 .service.ts 结尾的文件，
  * 动态导入它们，实例化默认导出的服务类，并注册到服务注册表中。
- * 
+ *
  * 约定：
  * - 服务文件必须以 .service.ts 结尾
  * - 服务文件必须默认导出一个实现了 ToolService 接口的类
- * 
+ *
  * @returns Promise，在所有服务注册完成后 resolve
  */
 export async function autoRegisterServices(): Promise<void> {
-  logger.info('开始自动扫描和注册服务');
+  logger.info("开始自动扫描和注册服务");
 
   try {
     // 使用 Vite 的 import.meta.glob 匹配 src/tools/ 目录下所有以 .service.ts 结尾的文件
-    const serviceModules = import.meta.glob<ServiceModule>('../tools/**/*.service.ts');
+    const serviceModules = import.meta.glob<ServiceModule>("../tools/**/*.service.ts");
 
     const modulePaths = Object.keys(serviceModules);
     logger.info(`发现 ${modulePaths.length} 个服务模块文件`, { paths: modulePaths });
 
     if (modulePaths.length === 0) {
-      logger.warn('未发现任何服务模块，请确保服务文件以 .service.ts 结尾');
+      logger.warn("未发现任何服务模块，请确保服务文件以 .service.ts 结尾");
       return;
     }
 
@@ -44,31 +44,26 @@ export async function autoRegisterServices(): Promise<void> {
     // 动态导入并实例化所有服务
     for (const path in serviceModules) {
       try {
-        logger.debug(`正在加载服务模块: ${path}`);
+        // logger.debug(`正在加载服务模块: ${path}`);
         const module = await serviceModules[path]();
         const ServiceClass = module.default;
 
         if (!ServiceClass) {
-          throw new Error('模块未导出默认类');
+          throw new Error("模块未导出默认类");
         }
 
-        if (typeof ServiceClass !== 'function') {
-          throw new Error('默认导出不是一个可实例化的类');
+        if (typeof ServiceClass !== "function") {
+          throw new Error("默认导出不是一个可实例化的类");
         }
 
         const instance = new ServiceClass();
 
         // 验证实例是否实现了 ToolService 接口
         if (!instance.id) {
-          throw new Error('服务实例缺少必需的 id 属性');
+          throw new Error("服务实例缺少必需的 id 属性");
         }
 
         instances.push(instance);
-        logger.debug(`成功加载服务: ${instance.id}`, {
-          path,
-          name: instance.name,
-          description: instance.description
-        });
       } catch (error) {
         logger.error(`加载服务模块失败: ${path}`, error);
         failedModules.push({ path, error });
@@ -77,6 +72,9 @@ export async function autoRegisterServices(): Promise<void> {
 
     // 批量注册所有成功加载的服务
     if (instances.length > 0) {
+      logger.debug("服务加载成功", {
+        loaded: instances.map((i) => ({ id: i.id, name: i.name })),
+      });
       await serviceRegistry.register(...instances);
       logger.info(`自动注册完成，成功注册 ${instances.length} 个服务`);
     }
@@ -84,32 +82,32 @@ export async function autoRegisterServices(): Promise<void> {
     // 报告失败的模块
     if (failedModules.length > 0) {
       logger.warn(`有 ${failedModules.length} 个服务模块加载失败`, {
-        failed: failedModules.map(m => m.path)
+        failed: failedModules.map((m) => m.path),
       });
     }
 
     // 加载插件
-    logger.info('开始加载插件');
+    logger.info("开始加载插件");
     try {
       await pluginManager.initialize();
       await pluginManager.loadAllPlugins();
-      
+
       const loadedPlugins = pluginManager.getInstalledPlugins();
       logger.info(`已加载 ${loadedPlugins.length} 个插件`);
     } catch (error) {
-      logger.error('插件加载过程中发生错误', error);
+      logger.error("插件加载过程中发生错误", error);
       // 插件加载失败不应阻止应用启动
     }
 
     // 输出注册摘要
     const registeredServices = serviceRegistry.getAllServices();
-    logger.info('服务注册摘要', {
+    logger.info("服务注册摘要", {
       总数: registeredServices.length,
-      服务列表: registeredServices.map(s => ({
+      服务列表: registeredServices.map((s) => ({
         id: s.id,
-        name: s.name || '(未命名)',
-        description: s.description || '(无描述)'
-      }))
+        name: s.name || "(未命名)",
+        description: s.description || "(无描述)",
+      })),
     });
 
     // 所有工具和服务加载完成后，标记 tools store 为就绪状态
@@ -117,10 +115,9 @@ export async function autoRegisterServices(): Promise<void> {
     const toolsStore = useToolsStore();
     toolsStore.initializeOrder(); // 初始化工具顺序
     toolsStore.setReady();
-    logger.info('Tools store 已标记为就绪状态');
-
+    logger.info("Tools store 已标记为就绪状态");
   } catch (error) {
-    logger.error('自动注册服务过程中发生严重错误', error);
+    logger.error("自动注册服务过程中发生严重错误", error);
     throw error;
   }
 }

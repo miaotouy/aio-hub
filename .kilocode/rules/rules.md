@@ -13,7 +13,7 @@
 ### 1.1. 前端技术栈
 
 - **核心框架**: Vue 3 + Vite
-- **UI 框架**: Element Plus
+- **UI 框架**: Element Plus + lucide-vue-next
 - **状态管理**: Pinia
 - **核心工具**: VueUse, Lodash-es, ECharts
 - **代码编辑**: CodeMirror, Monaco Editor
@@ -36,33 +36,97 @@
 
 ### 2.1. 错误处理
 
-项目采用统一的全局错误处理机制，定义于 `src/utils/errorHandler.ts`。
+项目采用统一的全局错误处理机制，定义于 `src/utils/errorHandler.ts`。其核心设计是**模块化**和**自动日志记录**。
 
-- **核心理念**: 所有错误都应被捕获并交由 `errorHandler` 单例处理。
-- **模块化**: 使用 `createModuleErrorHandler(moduleName)` 为每个功能模块创建独立的错误处理器。
-- **错误级别**:
-  - `INFO`: 信息，不中断操作。
-  - `WARNING`: 警告，可能影响体验。
-  - `ERROR`: 错误，影响功能但不崩溃。
-  - `CRITICAL`: 严重错误，可能导致应用崩溃。
-- **用户提示**:
-  - `ERROR` 及以下级别默认使用自定义的 `customMessage` (封装 ElMessage) 进行提示。
-  - `CRITICAL` 级别使用 `ElNotification` 进行强提示，且通知不会自动关闭。
-- **使用方式**:
-  - 推荐使用 `wrapAsync` 和 `wrapSync` 函数包装器来自动捕获和处理函数中的异常。
+- **核心规范：必须使用模块化处理器**
+  - 所有模块（如 `services`, `composables`, `stores`）都**必须**使用 `createModuleErrorHandler(moduleName)` 创建独立的错误处理器。这能确保错误来源清晰可追溯。
+  - **禁止**直接导入和使用全局的 `errorHandler` 单例。
+  - **示例**:
+    ```typescript
+    // a/b/c.ts
+    import { createModuleErrorHandler } from "@/utils/errorHandler";
+    const errorHandler = createModuleErrorHandler("a/b/c");
+    ```
+
+- **使用模式一：自动包装 (推荐)**
+  - 使用 `wrapAsync` 和 `wrapSync` 函数可以极大地简化 `try...catch` 样板代码。
+  - **重要**: 包装函数在捕获到错误后会返回 `null`。**调用方必须处理 `null` 返回值**，以避免后续逻辑出错。
+  - **示例**:
+
+    ```typescript
+    const result = await errorHandler.wrapAsync(async () => someApiCall(), {
+      userMessage: "获取数据失败，请重试",
+    });
+
+    if (result === null) {
+      // 错误已被自动处理（提示用户 + 记录日志），此处执行回退逻辑
+      return;
+    }
+    // ...继续处理 result
+    ```
+
+- **使用模式二：手动处理**
+  - 在 `try...catch` 块中，使用模块处理器的快捷方法 `.error()`, `.warn()` 等。
+  - **重要**: `errorHandler` **会自动调用日志系统**。因此，**严禁**在 `catch` 块中同时调用 `logger.error()` 和 `errorHandler.error()`，这会导致日志重复记录。
+  - **示例**:
+
+    ```typescript
+    try {
+      // ...
+    } catch (error) {
+      // 正确：只调用 errorHandler，它会负责提示用户和记录日志
+      errorHandler.error(error, "操作失败", { attachedData: 123 });
+
+      // 错误：重复记录
+      // logger.error('操作失败', error); // 不要这样做！
+    }
+    ```
+
+- **关键选项**
+  - `showToUser: false`: 静默处理错误，只记录日志而不向用户显示任何提示。适用于后台或非关键操作。
+  - `userMessage: '...'`: 自定义向用户显示的消息，覆盖默认生成的友好提示。
+  - `context: { ... }`: 附加的结构化数据，会一并记录到日志中，用于调试。
+  - **特殊规则**: `AbortError` (通常由用户取消操作触发) 会被系统自动降级为 `INFO` 级别并且静默处理，业务代码中**无需**进行额外捕获和处理。
 
 ### 2.2. 日志系统
 
-项目使用统一的日志系统，定义于 `src/utils/logger.ts`。
+项目使用统一的日志系统，定义于 `src/utils/logger.ts`，支持结构化、分级和持久化。
 
-- **核心理念**: 所有重要的操作和错误都应被记录，以便调试和追踪。
-- **模块化**: 使用 `createModuleLogger(moduleName)` 为每个模块创建独立的日志记录器。
-- **日志级别**: `DEBUG`, `INFO`, `WARN`, `ERROR`。
+- **核心规范：必须使用模块化日志**
+  - 所有模块都**必须**使用 `createModuleLogger(moduleName)` 创建独立的日志记录器。
+  - **示例**:
+    ```typescript
+    // a/b/c.ts
+    import { createModuleLogger } from "@/utils/logger";
+    const logger = createModuleLogger("a/b/c");
+    ```
+
+- **日志记录规范**
+  - **结构化日志**: 所有日志方法 (`.info`, `.warn` 等) 的第二个参数用于传递结构化的 `data` 对象。**禁止**将数据通过字符串拼接的方式记录在消息中。
+  - **错误日志**: `.error()` 方法的第二个参数应始终传递原始的 `Error` 对象，以保留完整的堆栈信息用于调试。
+  - **控制台折叠**: 对于包含大量数据的日志，可以传递第三个参数 `collapsed: true`，使其在开发者控制台中默认折叠，保持日志主干清晰。
+  - **示例**:
+
+    ```typescript
+    // 推荐做法
+    logger.info("用户配置已加载", { userId: "abc", theme: "dark" });
+    logger.error("API 请求失败", error, { url: "/api/data" });
+    logger.debug(
+      "组件状态更新",
+      {
+        newState: {
+          /* ... */
+        },
+      },
+      true
+    ); // 折叠显示
+
+    // 不推荐的做法
+    logger.info(`用户 ${userId} 的配置已加载，主题是 ${theme}`);
+    logger.error(`API 请求失败: ${error.message}`);
+    ```
+
 - **日志输出**: 日志会同时输出到开发者控制台和本地日志文件 (`appDataDir/logs/app-YYYY-MM-DD.log`)。
-- **使用规范**:
-  - 业务流程的关键节点使用 `info` 级别。
-  - 潜在问题或非致命异常使用 `warn` 级别。
-  - 在 `errorHandler` 中捕获的错误会自动记录 `error` 级别日志。
 
 ## 3. 自定义组件与封装
 
@@ -133,23 +197,23 @@
 要使你的组件支持动态主题外观，请遵循以下原则：
 
 1.  **背景**: 根据组件的角色，使用对应的背景变量。这些变量已经包含了基于用户设置的透明度。
-    *   **卡片/面板**: `background-color: var(--card-bg);`
-    *   **输入框**: `background-color: var(--input-bg);`
-    *   **侧边栏**: `background-color: var(--sidebar-bg);`
-    *   **对话框/遮罩层**: `background-color: var(--container-bg);`
+    - **卡片/面板**: `background-color: var(--card-bg);`
+    - **输入框**: `background-color: var(--input-bg);`
+    - **侧边栏**: `background-color: var(--sidebar-bg);`
+    - **对话框/遮罩层**: `background-color: var(--container-bg);`
 
 2.  **模糊效果 (Glassmorphism)**: 如果希望组件拥有毛玻璃效果，请添加 `backdrop-filter` 属性。模糊强度由用户设置动态控制。
-    *   `backdrop-filter: blur(var(--ui-blur));`
+    - `backdrop-filter: blur(var(--ui-blur));`
 
 3.  **边框**: 边框颜色已经预设了透明度，可以直接使用 `--border-color` 变量。
-    *   `border: 1px solid var(--border-color);`
+    - `border: 1px solid var(--border-color);`
 
 4.  **代码编辑器**: 对于代码编辑区域（如 CodeMirror/Monaco），应使用特定变量以匹配用户设置：
-    *   `background-color: var(--vscode-editor-background);`
+    - `background-color: var(--vscode-editor-background);`
 
 #### 示例
 
-一个正确适配主题的卡片组件样式可能如下：
+一个正确适配主题的卡片组件样式参考可能如下：
 
 ```css
 .my-custom-card {
@@ -157,8 +221,10 @@
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: var(--el-box-shadow-light); /* 复用 Element Plus 的阴影 */
+  /*box-shadow: var(--el-box-shadow-light); /* 可选，复用 Element Plus 的阴影 */
 }
 ```
+
+通用组件中的已经预先适配过了
 
 通过遵循这些规范，可以确保所有 UI 元素都能响应设置中的“界面质感”调整，提供统一、高度可定制的用户体验。

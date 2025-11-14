@@ -3,22 +3,22 @@
  * 管理所有可用宏的注册、查询和元数据
  */
 
-import { reactive } from 'vue';
-import type { MacroContext } from './MacroContext';
-import { createModuleLogger } from '@/utils/logger';
+import { reactive } from "vue";
+import type { MacroContext } from "./MacroContext";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('llm-chat/macro-registry');
+const logger = createModuleLogger("llm-chat/macro-registry");
 
 /**
  * 宏执行阶段
  */
 export enum MacroPhase {
   /** 预处理阶段：处理状态变更宏（如 setvar, incvar） */
-  PRE_PROCESS = 'pre-process',
+  PRE_PROCESS = "pre-process",
   /** 替换阶段：替换静态值（如 {{user}}, {{char}}） */
-  SUBSTITUTE = 'substitute',
+  SUBSTITUTE = "substitute",
   /** 后处理阶段：执行动态函数（如 {{time}}, {{random}}） */
-  POST_PROCESS = 'post-process',
+  POST_PROCESS = "post-process",
 }
 
 /**
@@ -26,11 +26,11 @@ export enum MacroPhase {
  */
 export enum MacroType {
   /** 简单值替换 */
-  VALUE = 'value',
+  VALUE = "value",
   /** 需要执行的函数 */
-  FUNCTION = 'function',
+  FUNCTION = "function",
   /** 变量操作 */
-  VARIABLE = 'variable',
+  VARIABLE = "variable",
 }
 
 /**
@@ -65,7 +65,6 @@ export interface MacroDefinition {
 export class MacroRegistry {
   private static instance: MacroRegistry;
   private macros: Map<string, MacroDefinition> = reactive(new Map());
-
   private constructor() {}
 
   /**
@@ -83,17 +82,27 @@ export class MacroRegistry {
    */
   register(macro: MacroDefinition): void {
     if (this.macros.has(macro.name)) {
-      logger.warn('宏已存在，将被覆盖', { name: macro.name });
+      logger.warn("宏已存在，将被覆盖", { name: macro.name });
     }
     this.macros.set(macro.name, macro);
-    logger.debug('注册宏', { name: macro.name, type: macro.type, phase: macro.phase });
+    // logger.debug('注册宏', { name: macro.name, type: macro.type, phase: macro.phase });
   }
 
   /**
    * 批量注册宏
    */
   registerMany(macros: MacroDefinition[]): void {
-    macros.forEach(macro => this.register(macro));
+    macros.forEach((macro) => {
+      if (this.macros.has(macro.name)) {
+        logger.warn("宏已存在，将被覆盖", { name: macro.name });
+      }
+      this.macros.set(macro.name, macro);
+    });
+
+    logger.debug("批量注册宏", {
+      count: macros.length,
+      names: macros.map((m) => m.name),
+    });
   }
 
   /**
@@ -114,14 +123,14 @@ export class MacroRegistry {
    * 按阶段获取宏
    */
   getMacrosByPhase(phase: MacroPhase): MacroDefinition[] {
-    return Array.from(this.macros.values()).filter(m => m.phase === phase);
+    return Array.from(this.macros.values()).filter((m) => m.phase === phase);
   }
 
   /**
    * 按类型获取宏
    */
   getMacrosByType(type: MacroType): MacroDefinition[] {
-    return Array.from(this.macros.values()).filter(m => m.type === type);
+    return Array.from(this.macros.values()).filter((m) => m.type === type);
   }
 
   /**
@@ -138,7 +147,7 @@ export class MacroRegistry {
     const existed = this.macros.has(name);
     if (existed) {
       this.macros.delete(name);
-      logger.debug('取消注册宏', { name });
+      logger.debug("取消注册宏", { name });
     }
     return existed;
   }
@@ -148,7 +157,7 @@ export class MacroRegistry {
    */
   clear(): void {
     this.macros.clear();
-    logger.info('清空所有宏注册');
+    logger.info("清空所有宏注册");
   }
 
   /**

@@ -49,12 +49,17 @@ export function useAgentPresets() {
             id,
             ...module.default,
           });
-          logger.debug('加载预设', { id, name: module.default.name });
         }
       }
 
       presets.value = loadedPresets;
       isLoaded.value = true;
+
+      if (loadedPresets.length > 0) {
+        const presetInfo = loadedPresets.map(p => ({ id: p.id, name: p.name }));
+        logger.debug('加载的智能体预设列表', { presets: presetInfo });
+      }
+
       logger.info('智能体预设加载成功', { presetCount: loadedPresets.length });
     } catch (error) {
       logger.error('加载智能体预设失败', error);

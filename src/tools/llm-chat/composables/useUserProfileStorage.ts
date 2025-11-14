@@ -5,17 +5,17 @@
  * - 每个用户档案存储为一个独立目录（user-profiles/{profileId}/），包含 profile.json 和相关资源
  */
 
-import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join, extname } from '@tauri-apps/api/path';
-import { invoke } from '@tauri-apps/api/core';
-import { createConfigManager } from '@/utils/configManager';
-import type { UserProfile } from '../types';
-import { createModuleLogger } from '@/utils/logger';
+import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { appDataDir, join, extname } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
+import { createConfigManager } from "@/utils/configManager";
+import type { UserProfile } from "../types";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('llm-chat/user-profile-storage');
+const logger = createModuleLogger("llm-chat/user-profile-storage");
 
-const MODULE_NAME = 'llm-chat';
-const PROFILES_SUBDIR = 'user-profiles';
+const MODULE_NAME = "llm-chat";
+const PROFILES_SUBDIR = "user-profiles";
 
 /**
  * 用户档案索引项（包含显示所需的元数据）
@@ -43,7 +43,7 @@ interface ProfilesIndex {
  */
 function createDefaultIndex(): ProfilesIndex {
   return {
-    version: '1.0.0',
+    version: "1.0.0",
     globalProfileId: null,
     profiles: [],
   };
@@ -54,8 +54,8 @@ function createDefaultIndex(): ProfilesIndex {
  */
 const indexManager = createConfigManager<ProfilesIndex>({
   moduleName: MODULE_NAME,
-  fileName: 'user-profiles-index.json',
-  version: '1.0.0',
+  fileName: "user-profiles-index.json",
+  version: "1.0.0",
   createDefault: createDefaultIndex,
 });
 
@@ -111,17 +111,17 @@ export function useUserProfileStorage() {
       const profileExists = await exists(profilePath);
 
       if (!profileExists) {
-        logger.warn('用户档案配置文件不存在', { profileId, path: profilePath });
+        logger.warn("用户档案配置文件不存在", { profileId, path: profilePath });
         return null;
       }
 
       const content = await readTextFile(profilePath);
       const profile: UserProfile = JSON.parse(content);
-      
-      logger.debug('用户档案加载成功', { profileId, name: profile.name });
+
+      // logger.debug('用户档案加载成功', { profileId, name: profile.name });
       return profile;
     } catch (error) {
-      logger.error('加载用户档案失败', error as Error, { profileId });
+      logger.error("加载用户档案失败", error as Error, { profileId });
       return null;
     }
   }
@@ -132,9 +132,9 @@ export function useUserProfileStorage() {
   async function ensureProfileDir(profileId: string): Promise<void> {
     const profileDir = await getProfileDirPath(profileId);
     if (!(await exists(profileDir))) {
-      const { mkdir } = await import('@tauri-apps/plugin-fs');
+      const { mkdir } = await import("@tauri-apps/plugin-fs");
       await mkdir(profileDir, { recursive: true });
-      logger.debug('创建用户档案目录', { profileDir });
+      logger.debug("创建用户档案目录", { profileDir });
     }
   }
 
@@ -149,14 +149,14 @@ export function useUserProfileStorage() {
       // 在序列化之前，处理 icon 路径
       // 仅当 iconMode 为 'builtin' 时，才将其从完整的 appdata 路径转换回相对文件名
       const profileToSave = JSON.parse(JSON.stringify(profile)); // 深拷贝以避免修改内存状态
-      if (profileToSave.iconMode === 'builtin') {
+      if (profileToSave.iconMode === "builtin") {
         const icon = profileToSave.icon?.trim();
         const selfAssetPathPrefix = `appdata://llm-chat/user-profiles/${profile.id}/`;
         if (icon && icon.startsWith(selfAssetPathPrefix)) {
           profileToSave.icon = icon.substring(selfAssetPathPrefix.length);
         }
       }
-      
+
       const newContent = JSON.stringify(profileToSave, null, 2);
 
       // 如果不是强制写入，先检查内容是否真的改变了
@@ -167,23 +167,23 @@ export function useUserProfileStorage() {
             const oldContent = await readTextFile(profilePath);
             // 内容相同则跳过写入
             if (oldContent === newContent) {
-              logger.debug('用户档案内容未变化，跳过写入', { profileId: profile.id });
+              logger.debug("用户档案内容未变化，跳过写入", { profileId: profile.id });
               return;
             }
           } catch (readError) {
-            logger.warn('读取现有用户档案文件失败，继续写入', { profileId: profile.id });
+            logger.warn("读取现有用户档案文件失败，继续写入", { profileId: profile.id });
           }
         }
       }
-      
+
       await writeTextFile(profilePath, newContent);
-      
-      logger.debug('用户档案保存成功', {
+
+      logger.debug("用户档案保存成功", {
         profileId: profile.id,
-        name: profile.name
+        name: profile.name,
       });
     } catch (error) {
-      logger.error('保存用户档案失败', error as Error, { profileId: profile.id });
+      logger.error("保存用户档案失败", error as Error, { profileId: profile.id });
       throw error;
     }
   }
@@ -194,17 +194,20 @@ export function useUserProfileStorage() {
   async function deleteProfileDirectory(profileId: string): Promise<void> {
     try {
       const profileDir = await getProfileDirPath(profileId);
-      const relativePath = (await join(MODULE_NAME, PROFILES_SUBDIR, profileId)).replace(/\\/g, '/');
+      const relativePath = (await join(MODULE_NAME, PROFILES_SUBDIR, profileId)).replace(
+        /\\/g,
+        "/"
+      );
 
       const dirExists = await exists(profileDir);
       if (dirExists) {
-        await invoke<string>('delete_directory_in_app_data', { relativePath });
-        logger.info('用户档案目录已移入回收站', { profileId, path: profileDir });
+        await invoke<string>("delete_directory_in_app_data", { relativePath });
+        logger.info("用户档案目录已移入回收站", { profileId, path: profileDir });
       } else {
-        logger.warn('用户档案目录不存在，跳过删除', { profileId, path: profileDir });
+        logger.warn("用户档案目录不存在，跳过删除", { profileId, path: profileDir });
       }
     } catch (error) {
-      logger.error('删除用户档案目录失败', error as Error, { profileId });
+      logger.error("删除用户档案目录失败", error as Error, { profileId });
       throw error;
     }
   }
@@ -214,11 +217,11 @@ export function useUserProfileStorage() {
    */
   async function scanProfileDirectory(): Promise<string[]> {
     try {
-      const { readDir } = await import('@tauri-apps/plugin-fs');
+      const { readDir } = await import("@tauri-apps/plugin-fs");
       const appDir = await appDataDir();
       const moduleDir = await join(appDir, MODULE_NAME);
       const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
-      
+
       const dirExists = await exists(profilesDir);
       if (!dirExists) {
         return [];
@@ -227,13 +230,13 @@ export function useUserProfileStorage() {
       const entries = await readDir(profilesDir);
       // 过滤出目录项，目录名即为 profileId
       const profileIds = entries
-        .filter(entry => entry.isDirectory && entry.name)
-        .map(entry => entry.name!);
-      
-      logger.debug('扫描用户档案目录完成', { count: profileIds.length });
+        .filter((entry) => entry.isDirectory && entry.name)
+        .map((entry) => entry.name!);
+
+      logger.debug("扫描用户档案目录完成", { count: profileIds.length });
       return profileIds;
     } catch (error) {
-      logger.error('扫描用户档案目录失败', error as Error);
+      logger.error("扫描用户档案目录失败", error as Error);
       return [];
     }
   }
@@ -258,14 +261,14 @@ export function useUserProfileStorage() {
   async function syncIndex(index: ProfilesIndex): Promise<ProfileIndexItem[]> {
     // 1. 扫描目录获取所有档案文件 ID
     const fileIds = await scanProfileDirectory();
-    
+
     // 2. 创建 ID 映射
     const fileIdSet = new Set(fileIds);
-    const indexMap = new Map(index.profiles.map(item => [item.id, item]));
-    
+    const indexMap = new Map(index.profiles.map((item) => [item.id, item]));
+
     // 3. 找出新增的文件 ID
-    const newIds = fileIds.filter(id => !indexMap.has(id));
-    
+    const newIds = fileIds.filter((id) => !indexMap.has(id));
+
     // 4. 加载新文件的元数据
     const newItems: ProfileIndexItem[] = [];
     for (const id of newIds) {
@@ -274,21 +277,21 @@ export function useUserProfileStorage() {
         newItems.push(createIndexItem(profile));
       }
     }
-    
+
     // 5. 过滤掉已删除的文件，保持原有顺序
-    const validItems = index.profiles.filter(item => fileIdSet.has(item.id));
-    
+    const validItems = index.profiles.filter((item) => fileIdSet.has(item.id));
+
     // 6. 合并：保持原有顺序，新文件追加在后面
     const syncedItems = [...validItems, ...newItems];
-    
+
     if (newItems.length > 0 || validItems.length !== index.profiles.length) {
-      logger.info('索引已同步', {
+      logger.info("索引已同步", {
         total: syncedItems.length,
         new: newItems.length,
-        removed: index.profiles.length - validItems.length
+        removed: index.profiles.length - validItems.length,
       });
     }
-    
+
     return syncedItems;
   }
 
@@ -296,7 +299,7 @@ export function useUserProfileStorage() {
    * 执行从 v1 (文件) 到 v2 (目录) 的数据迁移
    */
   async function runMigration(): Promise<void> {
-    const { readDir } = await import('@tauri-apps/plugin-fs');
+    const { readDir } = await import("@tauri-apps/plugin-fs");
     const appDir = await appDataDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
@@ -306,7 +309,9 @@ export function useUserProfileStorage() {
     }
 
     const entries = await readDir(profilesDir);
-    const oldJsonFiles = entries.filter(entry => entry.name?.endsWith('.json') && !entry.isDirectory);
+    const oldJsonFiles = entries.filter(
+      (entry) => entry.name?.endsWith(".json") && !entry.isDirectory
+    );
 
     if (oldJsonFiles.length === 0) {
       return; // 没有旧格式文件，无需迁移
@@ -316,7 +321,7 @@ export function useUserProfileStorage() {
 
     for (const fileEntry of oldJsonFiles) {
       const oldPath = await join(profilesDir, fileEntry.name!);
-      const profileId = fileEntry.name!.replace('.json', '');
+      const profileId = fileEntry.name!.replace(".json", "");
 
       try {
         const newConfigPath = await getProfileConfigPath(profileId);
@@ -329,7 +334,7 @@ export function useUserProfileStorage() {
         const profile: UserProfile = JSON.parse(content);
 
         // 3. 处理头像
-        if (profile.icon && profile.icon.startsWith('appdata://')) {
+        if (profile.icon && profile.icon.startsWith("appdata://")) {
           const assetRelativePath = profile.icon.substring(10);
           const assetFullPath = await join(appDir, assetRelativePath);
 
@@ -346,7 +351,11 @@ export function useUserProfileStorage() {
 
             // 更新 profile 对象中的 icon 字段
             profile.icon = newAvatarName;
-            logger.debug('用户档案头像已迁移', { profileId, oldIcon: profile.icon, newIcon: newAvatarName });
+            logger.debug("用户档案头像已迁移", {
+              profileId,
+              oldIcon: profile.icon,
+              newIcon: newAvatarName,
+            });
           }
         }
 
@@ -354,15 +363,14 @@ export function useUserProfileStorage() {
         await writeTextFile(newConfigPath, JSON.stringify(profile, null, 2));
 
         // 5. 删除旧的 .json 文件
-        await invoke('delete_file_to_trash', { filePath: oldPath });
+        await invoke("delete_file_to_trash", { filePath: oldPath });
 
         logger.info(`用户档案 ${profileId} 迁移成功`);
-
       } catch (error) {
         logger.error(`迁移用户档案 ${profileId} 失败`, error as Error, { oldPath });
       }
     }
-    logger.info('用户档案数据迁移完成');
+    logger.info("用户档案数据迁移完成");
   }
 
   /**
@@ -370,40 +378,42 @@ export function useUserProfileStorage() {
    */
   const loadProfiles = async (): Promise<UserProfile[]> => {
     try {
-      logger.debug('开始加载所有用户档案');
-      
+      logger.debug("开始加载所有用户档案");
+
       // 在加载前执行数据迁移
       await runMigration();
 
       // 1. 加载索引
       let index = await loadIndex();
-      
+
       // 2. 同步索引（自动发现新文件并加载其元数据）
       const syncedItems = await syncIndex(index);
-      
+
       // 3. 并行加载所有档案的完整数据
-      const profilePromises = syncedItems.map(item => loadProfile(item.id));
+      const profilePromises = syncedItems.map((item) => loadProfile(item.id));
       const profileResults = await Promise.all(profilePromises);
-      
+
       // 4. 过滤掉加载失败的档案
       const profiles = profileResults.filter((p): p is UserProfile => p !== null);
-      
+
       // 5. 如果索引被同步过，保存更新后的索引
-      const validItems = profiles.map(p => createIndexItem(p));
-      if (syncedItems.length !== index.profiles.length ||
-          !syncedItems.every((item, i) => item.id === index.profiles[i]?.id)) {
+      const validItems = profiles.map((p) => createIndexItem(p));
+      if (
+        syncedItems.length !== index.profiles.length ||
+        !syncedItems.every((item, i) => item.id === index.profiles[i]?.id)
+      ) {
         index.profiles = validItems;
         await saveIndex(index);
       }
 
-      logger.info('所有用户档案加载成功', {
-        profileCount: profiles.length,
-        globalProfileId: index.globalProfileId
+      logger.info(`加载了 ${profiles.length} 个用户档案`, {
+        globalProfileId: index.globalProfileId,
+        profiles: profiles.map((p) => ({ id: p.id, name: p.name })),
       });
-      
+
       return profiles;
     } catch (error) {
-      logger.error('加载所有用户档案失败', error as Error);
+      logger.error("加载所有用户档案失败", error as Error);
       return [];
     }
   };
@@ -413,29 +423,29 @@ export function useUserProfileStorage() {
    */
   const persistProfile = async (profile: UserProfile): Promise<void> => {
     try {
-      logger.debug('保存单个用户档案', { profileId: profile.id });
-      
+      logger.debug("保存单个用户档案", { profileId: profile.id });
+
       // 1. 保存档案文件
       await saveProfile(profile, true); // 强制写入
-      
+
       // 2. 更新索引
       const index = await loadIndex();
-      
+
       // 更新或添加当前档案的索引项
-      const profileIndex = index.profiles.findIndex(p => p.id === profile.id);
+      const profileIndex = index.profiles.findIndex((p) => p.id === profile.id);
       const newIndexItem = createIndexItem(profile);
-      
+
       if (profileIndex >= 0) {
         index.profiles[profileIndex] = newIndexItem;
       } else {
         index.profiles.push(newIndexItem);
       }
-      
+
       await saveIndex(index);
-      
-      logger.debug('单个用户档案保存成功', { profileId: profile.id });
+
+      logger.debug("单个用户档案保存成功", { profileId: profile.id });
     } catch (error) {
-      logger.error('保存单个用户档案失败', error as Error, { profileId: profile.id });
+      logger.error("保存单个用户档案失败", error as Error, { profileId: profile.id });
       throw error;
     }
   };
@@ -445,21 +455,21 @@ export function useUserProfileStorage() {
    */
   const saveProfiles = async (profiles: UserProfile[]): Promise<void> => {
     try {
-      logger.debug('开始批量保存所有用户档案', { profileCount: profiles.length });
-      
+      logger.debug("开始批量保存所有用户档案", { profileCount: profiles.length });
+
       // 1. 并行保存所有档案文件
-      await Promise.all(profiles.map(profile => saveProfile(profile, true)));
-      
+      await Promise.all(profiles.map((profile) => saveProfile(profile, true)));
+
       // 2. 更新索引
       const index = await loadIndex();
-      index.profiles = profiles.map(p => createIndexItem(p));
+      index.profiles = profiles.map((p) => createIndexItem(p));
       await saveIndex(index);
-      
-      logger.info('所有用户档案批量保存成功', {
-        profileCount: profiles.length
+
+      logger.info("所有用户档案批量保存成功", {
+        profileCount: profiles.length,
       });
     } catch (error) {
-      logger.error('批量保存所有用户档案失败', error as Error, {
+      logger.error("批量保存所有用户档案失败", error as Error, {
         profileCount: profiles.length,
       });
       throw error;
@@ -476,18 +486,18 @@ export function useUserProfileStorage() {
 
       // 2. 从索引中移除
       const index = await loadIndex();
-      index.profiles = index.profiles.filter(item => item.id !== profileId);
-      
+      index.profiles = index.profiles.filter((item) => item.id !== profileId);
+
       // 3. 如果删除的是全局档案，清除选择
       if (index.globalProfileId === profileId) {
         index.globalProfileId = null;
       }
-      
+
       await saveIndex(index);
-      
-      logger.info('用户档案已删除', { profileId });
+
+      logger.info("用户档案已删除", { profileId });
     } catch (error) {
-      logger.error('删除用户档案失败', error as Error, { profileId });
+      logger.error("删除用户档案失败", error as Error, { profileId });
       throw error;
     }
   };
@@ -502,7 +512,7 @@ export function useUserProfileStorage() {
         globalProfileId: index.globalProfileId,
       };
     } catch (error) {
-      logger.error('加载用户档案设置失败', error as Error);
+      logger.error("加载用户档案设置失败", error as Error);
       return { globalProfileId: null };
     }
   };
@@ -517,9 +527,9 @@ export function useUserProfileStorage() {
         index.globalProfileId = settings.globalProfileId;
       }
       await saveIndex(index);
-      logger.debug('保存用户档案设置成功', settings);
+      logger.debug("保存用户档案设置成功", settings);
     } catch (error) {
-      logger.error('保存用户档案设置失败', error as Error);
+      logger.error("保存用户档案设置失败", error as Error);
       throw error;
     }
   };
@@ -528,7 +538,7 @@ export function useUserProfileStorage() {
     loadProfiles,
     saveProfiles,
     persistProfile, // 新增：单档案保存
-    deleteProfile,  // 新增：删除档案
+    deleteProfile, // 新增：删除档案
     loadSettings,
     saveSettings,
   };

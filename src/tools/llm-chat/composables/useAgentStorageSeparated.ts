@@ -3,17 +3,17 @@
  * 使用 ConfigManager 管理索引文件，每个智能体存储为独立文件
  */
 
-import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, join, extname } from '@tauri-apps/api/path';
-import { invoke } from '@tauri-apps/api/core';
-import { createConfigManager } from '@/utils/configManager';
-import type { ChatAgent } from '../types';
-import { createModuleLogger } from '@/utils/logger';
+import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { appDataDir, join, extname } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
+import { createConfigManager } from "@/utils/configManager";
+import type { ChatAgent } from "../types";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('llm-chat/agent-storage-separated');
+const logger = createModuleLogger("llm-chat/agent-storage-separated");
 
-const MODULE_NAME = 'llm-chat';
-const AGENTS_SUBDIR = 'agents';
+const MODULE_NAME = "llm-chat";
+const AGENTS_SUBDIR = "agents";
 
 /**
  * 智能体索引项（包含显示所需的元数据）
@@ -43,7 +43,7 @@ interface AgentsIndex {
  */
 function createDefaultIndex(): AgentsIndex {
   return {
-    version: '1.0.0',
+    version: "1.0.0",
     currentAgentId: null,
     agents: [],
   };
@@ -54,8 +54,8 @@ function createDefaultIndex(): AgentsIndex {
  */
 const indexManager = createConfigManager<AgentsIndex>({
   moduleName: MODULE_NAME,
-  fileName: 'agents-index.json',
-  version: '1.0.0',
+  fileName: "agents-index.json",
+  version: "1.0.0",
   debounceDelay: 500,
   createDefault: createDefaultIndex,
 });
@@ -103,19 +103,19 @@ export function useAgentStorageSeparated() {
     try {
       const agentPath = await getAgentConfigPath(agentId);
       const agentExists = await exists(agentPath);
-      
+
       if (!agentExists) {
-        logger.warn('智能体配置文件不存在', { agentId, path: agentPath });
+        logger.warn("智能体配置文件不存在", { agentId, path: agentPath });
         return null;
       }
 
       const content = await readTextFile(agentPath);
       const agent: ChatAgent = JSON.parse(content);
-      
-      logger.debug('智能体加载成功', { agentId, name: agent.name });
+
+      // logger.debug('智能体加载成功', { agentId, name: agent.name });
       return agent;
     } catch (error) {
-      logger.error('加载智能体失败', error as Error, { agentId });
+      logger.error("加载智能体失败", error as Error, { agentId });
       return null;
     }
   }
@@ -125,10 +125,10 @@ export function useAgentStorageSeparated() {
    */
   async function ensureAgentDir(agentId: string): Promise<void> {
     const agentDir = await getAgentDirPath(agentId);
-    if (!await exists(agentDir)) {
-      const { mkdir } = await import('@tauri-apps/plugin-fs');
+    if (!(await exists(agentDir))) {
+      const { mkdir } = await import("@tauri-apps/plugin-fs");
       await mkdir(agentDir, { recursive: true });
-      logger.debug('创建智能体目录', { agentDir });
+      logger.debug("创建智能体目录", { agentDir });
     }
   }
 
@@ -143,7 +143,7 @@ export function useAgentStorageSeparated() {
       // 在序列化之前，处理 icon 路径
       // 仅当 iconMode 为 'builtin' 时，才将其从完整的 appdata 路径转换回相对文件名
       const agentToSave = JSON.parse(JSON.stringify(agent)); // 深拷贝以避免修改内存状态
-      if (agentToSave.iconMode === 'builtin') {
+      if (agentToSave.iconMode === "builtin") {
         const icon = agentToSave.icon?.trim();
         const selfAssetPathPrefix = `appdata://llm-chat/agents/${agent.id}/`;
         if (icon && icon.startsWith(selfAssetPathPrefix)) {
@@ -161,24 +161,24 @@ export function useAgentStorageSeparated() {
             const oldContent = await readTextFile(agentPath);
             // 内容相同则跳过写入
             if (oldContent === newContent) {
-              logger.debug('智能体内容未变化，跳过写入', { agentId: agent.id });
+              logger.debug("智能体内容未变化，跳过写入", { agentId: agent.id });
               return;
             }
           } catch (readError) {
             // 读取失败则继续写入
-            logger.warn('读取现有智能体文件失败，继续写入', { agentId: agent.id });
+            logger.warn("读取现有智能体文件失败，继续写入", { agentId: agent.id });
           }
         }
       }
 
       await writeTextFile(agentPath, newContent);
-      
-      logger.debug('智能体保存成功', {
+
+      logger.debug("智能体保存成功", {
         agentId: agent.id,
-        name: agent.name
+        name: agent.name,
       });
     } catch (error) {
-      logger.error('保存智能体失败', error as Error, { agentId: agent.id });
+      logger.error("保存智能体失败", error as Error, { agentId: agent.id });
       throw error;
     }
   }
@@ -189,17 +189,17 @@ export function useAgentStorageSeparated() {
   async function deleteAgentDirectory(agentId: string): Promise<void> {
     try {
       const agentDir = await getAgentDirPath(agentId);
-      const relativePath = (await join(MODULE_NAME, AGENTS_SUBDIR, agentId)).replace(/\\/g, '/');
+      const relativePath = (await join(MODULE_NAME, AGENTS_SUBDIR, agentId)).replace(/\\/g, "/");
 
       const dirExists = await exists(agentDir);
       if (dirExists) {
-        await invoke<string>('delete_directory_in_app_data', { relativePath });
-        logger.info('智能体目录已移入回收站', { agentId, path: agentDir });
+        await invoke<string>("delete_directory_in_app_data", { relativePath });
+        logger.info("智能体目录已移入回收站", { agentId, path: agentDir });
       } else {
-        logger.warn('智能体目录不存在，跳过删除', { agentId, path: agentDir });
+        logger.warn("智能体目录不存在，跳过删除", { agentId, path: agentDir });
       }
     } catch (error) {
-      logger.error('删除智能体目录失败', error as Error, { agentId });
+      logger.error("删除智能体目录失败", error as Error, { agentId });
       throw error;
     }
   }
@@ -209,11 +209,11 @@ export function useAgentStorageSeparated() {
    */
   async function scanAgentDirectory(): Promise<string[]> {
     try {
-      const { readDir } = await import('@tauri-apps/plugin-fs');
+      const { readDir } = await import("@tauri-apps/plugin-fs");
       const appDir = await appDataDir();
       const moduleDir = await join(appDir, MODULE_NAME);
       const agentsDir = await join(moduleDir, AGENTS_SUBDIR);
-      
+
       const dirExists = await exists(agentsDir);
       if (!dirExists) {
         return [];
@@ -222,13 +222,13 @@ export function useAgentStorageSeparated() {
       const entries = await readDir(agentsDir);
       // 过滤出目录项，目录名即为 agentId
       const agentIds = entries
-        .filter(entry => entry.isDirectory && entry.name)
-        .map(entry => entry.name!);
-      
-      logger.debug('扫描智能体目录完成', { count: agentIds.length });
+        .filter((entry) => entry.isDirectory && entry.name)
+        .map((entry) => entry.name!);
+
+      logger.debug("扫描智能体目录完成", { count: agentIds.length });
       return agentIds;
     } catch (error) {
-      logger.error('扫描智能体目录失败', error as Error);
+      logger.error("扫描智能体目录失败", error as Error);
       return [];
     }
   }
@@ -237,32 +237,32 @@ export function useAgentStorageSeparated() {
    /**
     * 从智能体创建索引项
     */
-   function createIndexItem(agent: ChatAgent): AgentIndexItem {
-     return {
-       id: agent.id,
-       name: agent.name,
-       description: agent.description,
-       icon: agent.icon,
-       profileId: agent.profileId,
-       modelId: agent.modelId,
-       lastUsedAt: agent.lastUsedAt,
-       createdAt: agent.createdAt,
-     };
-   }
+  function createIndexItem(agent: ChatAgent): AgentIndexItem {
+    return {
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      icon: agent.icon,
+      profileId: agent.profileId,
+      modelId: agent.modelId,
+      lastUsedAt: agent.lastUsedAt,
+      createdAt: agent.createdAt,
+    };
+  }
   /**
    * 同步索引：合并索引中的 ID 和目录中的文件，加载新文件的元数据
    */
   async function syncIndex(index: AgentsIndex): Promise<AgentIndexItem[]> {
     // 1. 扫描目录获取所有智能体文件 ID
     const fileIds = await scanAgentDirectory();
-    
+
     // 2. 创建 ID 映射
     const fileIdSet = new Set(fileIds);
-    const indexMap = new Map(index.agents.map(item => [item.id, item]));
-    
+    const indexMap = new Map(index.agents.map((item) => [item.id, item]));
+
     // 3. 找出新增的文件 ID
-    const newIds = fileIds.filter(id => !indexMap.has(id));
-    
+    const newIds = fileIds.filter((id) => !indexMap.has(id));
+
     // 4. 加载新文件的元数据
     const newItems: AgentIndexItem[] = [];
     for (const id of newIds) {
@@ -271,170 +271,174 @@ export function useAgentStorageSeparated() {
         newItems.push(createIndexItem(agent));
       }
     }
-    
+
     // 5. 过滤掉已删除的文件，保持原有顺序
-    const validItems = index.agents.filter(item => fileIdSet.has(item.id));
-    
+    const validItems = index.agents.filter((item) => fileIdSet.has(item.id));
+
     // 6. 合并：保持原有顺序，新文件追加在后面
     const syncedItems = [...validItems, ...newItems];
-    
+
     if (newItems.length > 0 || validItems.length !== index.agents.length) {
-      logger.info('索引已同步', {
+      logger.info("索引已同步", {
         total: syncedItems.length,
         new: newItems.length,
-        removed: index.agents.length - validItems.length
+        removed: index.agents.length - validItems.length,
       });
     }
-    
+
     return syncedItems;
   }
 
   /**
-   /**
-    * 执行从 v1 (文件) 到 v2 (目录) 的数据迁移
-    */
-   async function runMigration(): Promise<void> {
-     const { readDir } = await import('@tauri-apps/plugin-fs');
-     const appDir = await appDataDir();
-     const moduleDir = await join(appDir, MODULE_NAME);
-     const agentsDir = await join(moduleDir, AGENTS_SUBDIR);
- 
-     if (!await exists(agentsDir)) {
-       return; // 目录不存在，无需迁移
-     }
- 
-     const entries = await readDir(agentsDir);
-     const oldJsonFiles = entries.filter(entry => entry.name?.endsWith('.json') && !entry.isDirectory);
- 
-     if (oldJsonFiles.length === 0) {
-       return; // 没有旧格式文件，无需迁移
-     }
- 
-     logger.info(`检测到 ${oldJsonFiles.length} 个旧版智能体文件，开始迁移...`);
- 
-     for (const fileEntry of oldJsonFiles) {
-       const oldPath = await join(agentsDir, fileEntry.name!);
-       const agentId = fileEntry.name!.replace('.json', '');
-       
-       try {
-         const newConfigPath = await getAgentConfigPath(agentId);
- 
-         // 1. 确保新目录存在
-         await ensureAgentDir(agentId);
- 
-         // 2. 读取旧文件内容
-         const content = await readTextFile(oldPath);
-         const agent: ChatAgent = JSON.parse(content);
- 
-         // 3. 处理头像
-         if (agent.icon && agent.icon.startsWith('appdata://')) {
-           const assetRelativePath = agent.icon.substring(10);
-           const assetFullPath = await join(appDir, assetRelativePath);
- 
-           if (await exists(assetFullPath)) {
-             const extension = await extname(assetFullPath);
-             const newAvatarName = `avatar.${extension}`;
-             
-             // 复制头像到新目录
-             await invoke("copy_file_to_app_data", {
-               sourcePath: assetFullPath,
-               subdirectory: await join(MODULE_NAME, AGENTS_SUBDIR, agentId),
-               newFilename: newAvatarName,
-             });
- 
-             // 更新 agent 对象中的 icon 字段
-             agent.icon = newAvatarName;
-             logger.debug('智能体头像已迁移', { agentId, oldIcon: agent.icon, newIcon: newAvatarName });
-           }
-         }
-         
-         // 4. 写入新的 agent.json
-         await writeTextFile(newConfigPath, JSON.stringify(agent, null, 2));
- 
-         // 5. 删除旧的 .json 文件
-         await invoke('delete_file_to_trash', { filePath: oldPath });
- 
-         logger.info(`智能体 ${agentId} 迁移成功`);
- 
-       } catch (error) {
-         logger.error(`迁移智能体 ${agentId} 失败`, error as Error, { oldPath });
-       }
-     }
-     logger.info('智能体数据迁移完成');
-   }
- 
-   /**
-    * 加载所有智能体（兼容接口）
-    */
-   async function loadAgents(): Promise<ChatAgent[]> {
-     try {
-       logger.debug('开始加载所有智能体');
-       
-       // 在加载前执行数据迁移
-       await runMigration();
- 
-       // 1. 加载索引
-       let index = await loadIndex();
-       
-       // 2. 同步索引（自动发现新文件并加载其元数据）
-       const syncedItems = await syncIndex(index);
-       
-       // 3. 并行加载所有智能体的完整数据
-       const agentPromises = syncedItems.map(item => loadAgent(item.id));
-       const agentResults = await Promise.all(agentPromises);
-       
-       // 4. 过滤掉加载失败的智能体
-       const agents = agentResults.filter((a): a is ChatAgent => a !== null);
-       
-       // 5. 如果索引被同步过，保存更新后的索引
-       const validItems = agents.map(a => createIndexItem(a));
-       if (syncedItems.length !== index.agents.length ||
-           !syncedItems.every((item, i) => item.id === index.agents[i]?.id)) {
-         index.agents = validItems;
-         await saveIndex(index);
-       }
- 
-       logger.info('所有智能体加载成功', {
-         agentCount: agents.length,
-         currentAgentId: index.currentAgentId
-       });
-       
-       return agents;
-     } catch (error) {
-       logger.error('加载所有智能体失败', error as Error);
-       return [];
-     }
-   }
+   * 执行从 v1 (文件) 到 v2 (目录) 的数据迁移
+   */
+  async function runMigration(): Promise<void> {
+    const { readDir } = await import("@tauri-apps/plugin-fs");
+    const appDir = await appDataDir();
+    const moduleDir = await join(appDir, MODULE_NAME);
+    const agentsDir = await join(moduleDir, AGENTS_SUBDIR);
+
+    if (!(await exists(agentsDir))) {
+      return; // 目录不存在，无需迁移
+    }
+
+    const entries = await readDir(agentsDir);
+    const oldJsonFiles = entries.filter(
+      (entry) => entry.name?.endsWith(".json") && !entry.isDirectory
+    );
+
+    if (oldJsonFiles.length === 0) {
+      return; // 没有旧格式文件，无需迁移
+    }
+
+    logger.info(`检测到 ${oldJsonFiles.length} 个旧版智能体文件，开始迁移...`);
+
+    for (const fileEntry of oldJsonFiles) {
+      const oldPath = await join(agentsDir, fileEntry.name!);
+      const agentId = fileEntry.name!.replace(".json", "");
+
+      try {
+        const newConfigPath = await getAgentConfigPath(agentId);
+
+        // 1. 确保新目录存在
+        await ensureAgentDir(agentId);
+
+        // 2. 读取旧文件内容
+        const content = await readTextFile(oldPath);
+        const agent: ChatAgent = JSON.parse(content);
+
+        // 3. 处理头像
+        if (agent.icon && agent.icon.startsWith("appdata://")) {
+          const assetRelativePath = agent.icon.substring(10);
+          const assetFullPath = await join(appDir, assetRelativePath);
+
+          if (await exists(assetFullPath)) {
+            const extension = await extname(assetFullPath);
+            const newAvatarName = `avatar.${extension}`;
+
+            // 复制头像到新目录
+            await invoke("copy_file_to_app_data", {
+              sourcePath: assetFullPath,
+              subdirectory: await join(MODULE_NAME, AGENTS_SUBDIR, agentId),
+              newFilename: newAvatarName,
+            });
+
+            // 更新 agent 对象中的 icon 字段
+            agent.icon = newAvatarName;
+            logger.debug("智能体头像已迁移", {
+              agentId,
+              oldIcon: agent.icon,
+              newIcon: newAvatarName,
+            });
+          }
+        }
+
+        // 4. 写入新的 agent.json
+        await writeTextFile(newConfigPath, JSON.stringify(agent, null, 2));
+
+        // 5. 删除旧的 .json 文件
+        await invoke("delete_file_to_trash", { filePath: oldPath });
+
+        logger.info(`智能体 ${agentId} 迁移成功`);
+      } catch (error) {
+        logger.error(`迁移智能体 ${agentId} 失败`, error as Error, { oldPath });
+      }
+    }
+    logger.info("智能体数据迁移完成");
+  }
+
+  /**
+   * 加载所有智能体（兼容接口）
+   */
+  async function loadAgents(): Promise<ChatAgent[]> {
+    try {
+      logger.debug("开始加载所有智能体");
+
+      // 在加载前执行数据迁移
+      await runMigration();
+
+      // 1. 加载索引
+      let index = await loadIndex();
+
+      // 2. 同步索引（自动发现新文件并加载其元数据）
+      const syncedItems = await syncIndex(index);
+
+      // 3. 并行加载所有智能体的完整数据
+      const agentPromises = syncedItems.map((item) => loadAgent(item.id));
+      const agentResults = await Promise.all(agentPromises);
+
+      // 4. 过滤掉加载失败的智能体
+      const agents = agentResults.filter((a): a is ChatAgent => a !== null);
+
+      // 5. 如果索引被同步过，保存更新后的索引
+      const validItems = agents.map((a) => createIndexItem(a));
+      if (
+        syncedItems.length !== index.agents.length ||
+        !syncedItems.every((item, i) => item.id === index.agents[i]?.id)
+      ) {
+        index.agents = validItems;
+        await saveIndex(index);
+      }
+
+      logger.info(`加载了 ${agents.length} 个智能体`, {
+        currentAgentId: index.currentAgentId,
+        agents: agents.map((a) => ({ id: a.id, name: a.name })),
+      });
+
+      return agents;
+    } catch (error) {
+      logger.error("加载所有智能体失败", error as Error);
+      return [];
+    }
+  }
   /**
    * 保存单个智能体并更新索引
    */
-  async function persistAgent(
-    agent: ChatAgent
-  ): Promise<void> {
+  async function persistAgent(agent: ChatAgent): Promise<void> {
     try {
-      logger.debug('保存单个智能体', { agentId: agent.id });
-      
+      logger.debug("保存单个智能体", { agentId: agent.id });
+
       // 1. 保存智能体文件
       await saveAgent(agent, true); // 强制写入
-      
+
       // 2. 更新索引（仅更新元数据，不触碰其他文件）
       const index = await loadIndex();
-      
+
       // 更新或添加当前智能体的索引项
-      const agentIndex = index.agents.findIndex(a => a.id === agent.id);
+      const agentIndex = index.agents.findIndex((a) => a.id === agent.id);
       const newIndexItem = createIndexItem(agent);
-      
+
       if (agentIndex >= 0) {
         index.agents[agentIndex] = newIndexItem;
       } else {
         index.agents.push(newIndexItem);
       }
-      
+
       await saveIndex(index);
-      
-      logger.debug('单个智能体保存成功', { agentId: agent.id });
+
+      logger.debug("单个智能体保存成功", { agentId: agent.id });
     } catch (error) {
-      logger.error('保存单个智能体失败', error as Error, { agentId: agent.id });
+      logger.error("保存单个智能体失败", error as Error, { agentId: agent.id });
       throw error;
     }
   }
@@ -444,21 +448,21 @@ export function useAgentStorageSeparated() {
    */
   async function saveAgents(agents: ChatAgent[]): Promise<void> {
     try {
-      logger.debug('开始批量保存所有智能体', { agentCount: agents.length });
-      
+      logger.debug("开始批量保存所有智能体", { agentCount: agents.length });
+
       // 1. 并行保存所有智能体文件（强制写入）
-      await Promise.all(agents.map(agent => saveAgent(agent, true)));
-      
+      await Promise.all(agents.map((agent) => saveAgent(agent, true)));
+
       // 2. 更新索引（保存元数据）
       const index = await loadIndex();
-      index.agents = agents.map(a => createIndexItem(a));
+      index.agents = agents.map((a) => createIndexItem(a));
       await saveIndex(index);
-      
-      logger.info('所有智能体批量保存成功', {
-        agentCount: agents.length
+
+      logger.info("所有智能体批量保存成功", {
+        agentCount: agents.length,
       });
     } catch (error) {
-      logger.error('批量保存所有智能体失败', error as Error, {
+      logger.error("批量保存所有智能体失败", error as Error, {
         agentCount: agents.length,
       });
       throw error;
@@ -472,21 +476,21 @@ export function useAgentStorageSeparated() {
     try {
       // 1. 删除智能体目录
       await deleteAgentDirectory(agentId);
-      
+
       // 2. 从索引中移除
       const index = await loadIndex();
-      index.agents = index.agents.filter(item => item.id !== agentId);
-      
+      index.agents = index.agents.filter((item) => item.id !== agentId);
+
       // 3. 如果删除的是当前智能体，切换到第一个智能体
       if (index.currentAgentId === agentId) {
         index.currentAgentId = index.agents[0]?.id || null;
       }
-      
+
       await saveIndex(index);
-      
-      logger.info('智能体已删除', { agentId });
+
+      logger.info("智能体已删除", { agentId });
     } catch (error) {
-      logger.error('删除智能体失败', error as Error, { agentId });
+      logger.error("删除智能体失败", error as Error, { agentId });
       throw error;
     }
   }
@@ -499,9 +503,9 @@ export function useAgentStorageSeparated() {
       const index = await loadIndex();
       index.currentAgentId = agentId;
       await saveIndex(index);
-      logger.debug('更新当前智能体', { agentId });
+      logger.debug("更新当前智能体", { agentId });
     } catch (error) {
-      logger.error('更新当前智能体失败', error as Error, { agentId });
+      logger.error("更新当前智能体失败", error as Error, { agentId });
       throw error;
     }
   }
@@ -514,7 +518,7 @@ export function useAgentStorageSeparated() {
       const index = await loadIndex();
       return index.currentAgentId;
     } catch (error) {
-      logger.error('获取当前智能体失败', error as Error);
+      logger.error("获取当前智能体失败", error as Error);
       return null;
     }
   }
@@ -524,18 +528,18 @@ export function useAgentStorageSeparated() {
    */
   function createDebouncedSave(delay: number = 500) {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    
+
     return (agents: ChatAgent[]) => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      
+
       timeoutId = setTimeout(async () => {
         try {
           await saveAgents(agents);
-          logger.debug('防抖保存完成', { delay });
+          logger.debug("防抖保存完成", { delay });
         } catch (error) {
-          logger.error('防抖保存失败', error as Error);
+          logger.error("防抖保存失败", error as Error);
         }
       }, delay);
     };

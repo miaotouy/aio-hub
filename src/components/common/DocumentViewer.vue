@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect } from 'vue';
+import { ref, computed, watch, watchEffect, onMounted } from 'vue';
 import { useDocumentViewer } from '@/composables/useDocumentViewer';
 import { createModuleLogger } from '@/utils/logger';
 import RichCodeEditor from './RichCodeEditor.vue';
@@ -9,6 +9,8 @@ import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElMessage, ElTooltip, ElR
 import { useClipboard } from '@vueuse/core';
 import { Copy, Download, Book, Code } from 'lucide-vue-next';
 import { saveAs } from 'file-saver';
+import { useTheme } from '@/composables/useTheme';
+import { useThemeAppearance } from '@/composables/useThemeAppearance';
 
 // --- 属性定义 ---
 interface DocumentViewerProps {
@@ -43,11 +45,97 @@ const {
   language,
   isTextContent,
   isMarkdown,
+  isHtml,
+  isRenderableHtml,
 } = useDocumentViewer(props);
-
 // --- 视图逻辑 ---
 const viewMode = ref<'source' | 'preview'>('preview');
 const currentEditorType = ref(props.editorType);
+// --- 主题支持 ---
+const { isDark } = useTheme();
+const { appearanceSettings } = useThemeAppearance();
+const themeCssText = ref('');
+
+/**
+ * 从主文档中提取主题相关的 CSS 变量，并生成样式表文本
+ */
+function updateThemeCss() {
+  const styles = getComputedStyle(document.documentElement);
+  const customProps = [];
+  for (let i = 0; i < styles.length; i++) {
+    const propName = styles[i];
+    if (propName.startsWith('--')) {
+      customProps.push(propName);
+    }
+  }
+
+  const rootStyles = customProps
+    .map(prop => `${prop}: ${styles.getPropertyValue(prop)};`)
+    .join('\n');
+
+  const finalCss = `
+    :root {
+      ${rootStyles}
+      color-scheme: ${isDark.value ? 'dark' : 'light'};
+    }
+    body {
+      background-color: var(--vscode-editor-background);
+      color: var(--el-text-color-primary);
+      font-family: var(--el-font-family, sans-serif);
+      padding: 16px;
+      margin: 0;
+      box-sizing: border-box;
+    }
+  `;
+  themeCssText.value = finalCss;
+  logger.debug('Generated theme CSS for iframe');
+}
+
+onMounted(() => {
+  // 等待一小段时间，确保主应用样式已完全计算
+  setTimeout(updateThemeCss, 200);
+});
+
+watch([isDark, appearanceSettings], () => {
+  updateThemeCss();
+}, { deep: true });
+
+// 提取 HTML 标题
+const htmlTitle = computed(() => {
+  if (!isHtml.value || !decodedContent.value) return null;
+  const titleMatch = decodedContent.value.match(/<title[^>]*>(.*?)<\/title>/i);
+  return titleMatch ? titleMatch[1].trim() : null;
+});
+
+// 为 HTML 内容注入主题样式
+const themedHtmlContent = computed(() => {
+  if (!decodedContent.value) return '';
+  if (!isHtml.value) return decodedContent.value;
+
+  const styleTag = `<style>${themeCssText.value}</style>`;
+
+  // 检查是否已有 </head> 标签
+  if (decodedContent.value.includes('</head>')) {
+    // 在 </head> 前插入样式
+    return decodedContent.value.replace('</head>', `${styleTag}</head>`);
+  } else if (decodedContent.value.includes('<head>')) {
+    // 在 <head> 后插入样式
+    return decodedContent.value.replace('<head>', `<head>${styleTag}`);
+  } else if (decodedContent.value.includes('<body>')) {
+    // 在 <body> 前插入 head
+    return decodedContent.value.replace('<body>', `<head>${styleTag}</head><body>`);
+  } else {
+    // 没有 head 和 body 标签, 可能是片段, 包裹起来
+    return `<!DOCTYPE html><html><head>${styleTag}</head><body>${decodedContent.value}</body></html>`;
+  }
+});
+
+// HTML 默认显示源码
+watch(isHtml, (newIsHtml) => {
+  if (newIsHtml) {
+    viewMode.value = 'source';
+  }
+}, { immediate: true });
 
 watch(
   () => props.editorType,
@@ -57,12 +145,14 @@ watch(
     }
   }
 );
-
 const showToolbar = computed(() => !isLoading.value && !error.value && decodedContent.value);
 
+const canPreview = computed(() => isMarkdown.value || isRenderableHtml.value);
+
 const editorLanguage = computed(() => {
-  if (isMarkdown.value && viewMode.value === 'source') {
-    return 'markdown';
+  if (viewMode.value === 'source') {
+    if (isMarkdown.value) return 'markdown';
+    if (isHtml.value) return 'html';
   }
   return language.value || 'plaintext';
 });
@@ -98,6 +188,10 @@ function toggleViewMode() {
     <div v-if="showToolbar" class="document-viewer-toolbar">
       <div class="actions-left">
         <span v-if="fileName" class="file-name">{{ fileName }}</span>
+        <span v-if="htmlTitle" class="html-title">
+          <span class="title-separator">|</span>
+          <span class="title-text">{{ htmlTitle }}</span>
+        </span>
       </div>
       <div class="actions-right">
         <el-radio-group v-if="props.showEngineSwitch" v-model="currentEditorType" size="small">
@@ -110,7 +204,7 @@ function toggleViewMode() {
         </el-radio-group>
 
         <el-button-group>
-          <el-tooltip v-if="isMarkdown" content="切换视图">
+          <el-tooltip v-if="canPreview" content="切换视图">
             <el-button :icon="viewMode === 'preview' ? Code : Book" text @click="toggleViewMode" />
           </el-tooltip>
           <el-tooltip content="复制内容">
@@ -153,6 +247,23 @@ function toggleViewMode() {
         :version="RendererVersion.V2_CUSTOM_PARSER"
         class="markdown-preview"
       />
+
+      <iframe
+        v-else-if="isRenderableHtml && viewMode === 'preview'"
+        :srcdoc="themedHtmlContent"
+        class="html-preview-iframe"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+      ></iframe>
+
+      <div v-else-if="isHtml && !isRenderableHtml && viewMode === 'preview'" class="unrenderable-html-placeholder">
+        <el-alert
+          title="无法直接预览"
+          description="此 HTML 文件可能是一个需要编译的组件模板 (例如 Vue 或 React 组件)，而不是一个独立的网页，因此无法直接预览。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+      </div>
 
       <RichCodeEditor
         v-else-if="decodedContent"
@@ -206,15 +317,34 @@ function toggleViewMode() {
   padding-left: 8px;
 }
 
+.html-title {
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title-separator {
+  color: var(--el-border-color);
+}
+
+.title-text {
+  color: var(--el-text-color-regular);
+  font-weight: 500;
+}
+
 /* 内容区域样式 */
 .content-area {
   flex-grow: 1;
   overflow-y: auto;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .loading-state,
 .binary-placeholder,
-.empty-state {
+.empty-state,
+.unrenderable-html-placeholder {
   padding: 16px;
 }
 
@@ -231,5 +361,15 @@ function toggleViewMode() {
 /* Markdown 预览样式 */
 .markdown-preview {
   padding: 16px;
+  box-sizing: border-box;
+}
+/* HTML 预览样式 */
+.html-preview-iframe {
+  display: block; /* 修复 iframe 底部可能存在的额外空间问题 */
+  width: 100%;
+  height: 100%;
+  border: none;
+  background-color: var(--vscode-editor-background);
+  box-sizing: border-box;
 }
 </style>

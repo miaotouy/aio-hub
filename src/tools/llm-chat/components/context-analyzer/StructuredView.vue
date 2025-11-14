@@ -143,7 +143,7 @@
               <div class="message-title">
                 <Avatar
                   v-if="msg.role === 'user'"
-                  src="👤"
+                  src=""
                   alt="User"
                   :size="24"
                   shape="square"
@@ -200,7 +200,7 @@
               <div class="message-title">
                 <Avatar
                   v-if="msg.role === 'user'"
-                  src="👤"
+                  src=""
                   alt="User"
                   :size="24"
                   shape="square"

@@ -73,7 +73,7 @@
               </div>
 
               <!-- 文本 -->
-              <div class="message-text-compact placeholder-text">💬 聊天历史插入位置</div>
+              <div class="message-text-compact placeholder-text">聊天历史插入位置</div>
 
               <!-- 操作按钮 -->
               <div class="message-actions-compact">
@@ -145,7 +145,7 @@
               </div>
 
               <!-- 文本 -->
-              <div class="message-text-compact placeholder-text">👤 用户档案插入位置</div>
+              <div class="message-text-compact placeholder-text">用户档案插入位置</div>
 
               <!-- 操作按钮 -->
               <div class="message-actions-compact">

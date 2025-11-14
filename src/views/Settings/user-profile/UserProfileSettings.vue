@@ -20,7 +20,7 @@
       >
         <template #item="{ profile }">
           <Avatar
-            :src="getAvatarSrc(profile) || '👤'"
+            :src="getAvatarSrc(profile) || ''"
             :alt="profile.name"
             :size="40"
             class="profile-icon"

@@ -124,14 +124,17 @@ import type {
   AssetType,
   DuplicateFilesResult,
   AssetGroupBy,
+  AssetSortBy,
 } from "@/types/asset-management";
 import { useInfiniteScroll } from "@vueuse/core";
 import { debounce } from "lodash-es";
+import { assetManagerConfigManager, debouncedSaveConfig, createDefaultConfig } from "./config";
 import Toolbar from "./components/Toolbar.vue";
 import Sidebar from "./components/Sidebar.vue";
 import AssetGroup from "./components/AssetGroup.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
+
 // 使用资产管理器
 const {
   assets,
@@ -151,14 +154,15 @@ const {
 const imageViewer = useImageViewer();
 
 // --- 状态管理 ---
+const config = ref(createDefaultConfig());
 
 // UI & 筛选状态
-const viewMode = ref<"grid" | "list">("grid");
-const gridCardSize = ref<"large" | "medium" | "small">("medium");
-const groupBy = ref<AssetGroupBy>("month");
+const viewMode = ref(config.value.viewMode);
+const gridCardSize = ref(config.value.gridCardSize);
+const groupBy = ref<AssetGroupBy>(config.value.groupBy);
 const selectedAssetIds = ref<Set<string>>(new Set());
 const lastSelectedAssetId = ref<string | null>(null);
-const isSidebarCollapsed = ref(false);
+const isSidebarCollapsed = ref(config.value.sidebarCollapsed);
 const isPreviewDialogVisible = ref(false);
 const selectedAssetForPreview = ref<Asset | null>(null);
 
@@ -166,10 +170,10 @@ const selectedAssetForPreview = ref<Asset | null>(null);
 const listPayload = reactive({
   page: 1,
   pageSize: 50,
-  sortBy: "date" as "date" | "name" | "size",
+  sortBy: config.value.sortBy as AssetSortBy,
   sortOrder: "desc" as "asc" | "desc",
   filterType: "all" as AssetType | "all",
-  searchQuery: "",
+  searchQuery: config.value.searchQuery,
   showDuplicatesOnly: false,
 });
 
@@ -194,6 +198,16 @@ const debouncedFetchData = debounce(() => fetchData(false), 300);
 
 // 组件挂载时加载初始数据
 onMounted(async () => {
+  config.value = await assetManagerConfigManager.load();
+
+  // 从加载的配置初始化状态
+  viewMode.value = config.value.viewMode;
+  gridCardSize.value = config.value.gridCardSize;
+  groupBy.value = config.value.groupBy;
+  listPayload.sortBy = config.value.sortBy;
+  listPayload.searchQuery = config.value.searchQuery;
+  isSidebarCollapsed.value = config.value.sidebarCollapsed;
+
   await fetchAssetStats();
   await fetchData();
 });
@@ -211,6 +225,38 @@ watch(
   }
 );
 watch(() => listPayload.searchQuery, debouncedFetchData);
+
+// 监听配置项变化并保存
+watch(viewMode, (value) => {
+  config.value.viewMode = value;
+  debouncedSaveConfig(config.value);
+});
+watch(gridCardSize, (value) => {
+  config.value.gridCardSize = value;
+  debouncedSaveConfig(config.value);
+});
+watch(groupBy, (value) => {
+  config.value.groupBy = value;
+  debouncedSaveConfig(config.value);
+});
+watch(isSidebarCollapsed, (value) => {
+  config.value.sidebarCollapsed = value;
+  debouncedSaveConfig(config.value);
+});
+watch(
+  () => listPayload.sortBy,
+  (value) => {
+    config.value.sortBy = value;
+    debouncedSaveConfig(config.value);
+  }
+);
+watch(
+  () => listPayload.searchQuery,
+  (value) => {
+    config.value.searchQuery = value;
+    debouncedSaveConfig(config.value);
+  }
+);
 
 // --- 无限滚动 ---
 const mainViewContainerRef = ref<HTMLElement | null>(null);

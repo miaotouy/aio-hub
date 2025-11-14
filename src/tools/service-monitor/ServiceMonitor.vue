@@ -132,6 +132,7 @@ onMounted(() => {
   cursor: pointer;
   border: 1px solid var(--el-border-color-lighter);
   background: var(--el-bg-color);
+  backdrop-filter: blur(var(--ui-blur));
   transition: all 0.2s;
 }
 

@@ -625,7 +625,8 @@ body.transparent-window #app {
 .el-slider__runway,
 .el-progress-bar__outer,
 .el-card,
-.el-table{
+.el-table,
+.el-tag{
   background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
 }

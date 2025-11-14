@@ -47,75 +47,90 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
   // 生成独特的 CSS 类前缀，避免样式污染
   const cssPrefix = "git-export-" + Date.now();
 
-  // 根据主题选择生成不同的样式
+  // 生成主题样式（DRY 原则：定义一次，多处使用）
   const getThemeStyles = () => {
-    if (config.htmlTheme === "dark") {
-      return `
-    /* 深色主题 */
-    .${cssPrefix}-root {
-      --bg-primary: #1a1a1a;
-      --bg-secondary: #2d2d2d;
-      --bg-card: #2d2d2d;
-      --text-primary: #e0e0e0;
-      --text-secondary: #b0b0b0;
-      --border-color: #404040;
-      --accent-color: #4a9eff;
-      --success-color: #4caf50;
-      --danger-color: #f44336;
-      --hover-bg: #3a3a3a;
-    }`;
-    } else if (config.htmlTheme === "auto") {
-      return `
-    /* 自动主题 - 浅色模式 */
-    .${cssPrefix}-root {
-      --bg-primary: #f5f5f5;
-      --bg-secondary: #ffffff;
-      --bg-card: #ffffff;
-      --text-primary: #333333;
-      --text-secondary: #7f8c8d;
-      --border-color: #ecf0f1;
-      --accent-color: #3498db;
-      --success-color: #27ae60;
-      --danger-color: #e74c3c;
-      --hover-bg: #f8f9fa;
+    // 主题变量定义
+    const themeVars = {
+      light: {
+        '--bg-primary': '#f5f5f5',
+        '--bg-secondary': '#ffffff',
+        '--bg-card': '#ffffff',
+        '--text-primary': '#333333',
+        '--text-secondary': '#7f8c8d',
+        '--border-color': '#ecf0f1',
+        '--accent-color': '#3498db',
+        '--success-color': '#27ae60',
+        '--danger-color': '#e74c3c',
+        '--hover-bg': '#f8f9fa',
+      },
+      dark: {
+        '--bg-primary': '#1a1a1a',
+        '--bg-secondary': '#2d2d2d',
+        '--bg-card': '#2d2d2d',
+        '--text-primary': '#e0e0e0',
+        '--text-secondary': '#b0b0b0',
+        '--border-color': '#404040',
+        '--accent-color': '#4a9eff',
+        '--success-color': '#4caf50',
+        '--danger-color': '#f44336',
+        '--hover-bg': '#3a3a3a',
+      }
+    };
+
+    // 转换为 CSS 字符串
+    const lightVarsStr = Object.entries(themeVars.light)
+      .map(([key, value]) => `${key}: ${value};`)
+      .join('\n      ');
+    
+    const darkVarsStr = Object.entries(themeVars.dark)
+      .map(([key, value]) => `${key}: ${value};`)
+      .join('\n      ');
+
+    // 基础样式：总是包含浅色和深色两套，让浏览器自动选择
+    let styles = `
+    :root {
+      color-scheme: light dark;
     }
     
-    /* 自动主题 - 深色模式 */
+    /* 默认浅色主题 */
+    .${cssPrefix}-root {
+      ${lightVarsStr}
+    }
+    
+    /* 深色主题（通过媒体查询自动切换） */
     @media (prefers-color-scheme: dark) {
       .${cssPrefix}-root {
-        --bg-primary: #1a1a1a;
-        --bg-secondary: #2d2d2d;
-        --bg-card: #2d2d2d;
-        --text-primary: #e0e0e0;
-        --text-secondary: #b0b0b0;
-        --border-color: #404040;
-        --accent-color: #4a9eff;
-        --success-color: #4caf50;
-        --danger-color: #f44336;
-        --hover-bg: #3a3a3a;
+        ${darkVarsStr}
       }
     }`;
-    } else {
-      // 默认浅色主题
-      return `
-    /* 浅色主题 */
-    .${cssPrefix}-root {
-      --bg-primary: #f5f5f5;
-      --bg-secondary: #ffffff;
-      --bg-card: #ffffff;
-      --text-primary: #333333;
-      --text-secondary: #7f8c8d;
-      --border-color: #ecf0f1;
-      --accent-color: #3498db;
-      --success-color: #27ae60;
-      --danger-color: #e74c3c;
-      --hover-bg: #f8f9fa;
+
+    // 如果用户强制选择了特定主题，添加覆盖规则
+    if (config.htmlTheme === 'dark') {
+      styles += `
+    
+    /* 强制深色主题 */
+    html[data-theme="dark"] .${cssPrefix}-root {
+      ${darkVarsStr}
+    }`;
+    } else if (config.htmlTheme === 'light') {
+      styles += `
+    
+    /* 强制浅色主题 */
+    html[data-theme="light"] .${cssPrefix}-root {
+      ${lightVarsStr}
     }`;
     }
+
+    return styles;
   };
 
+  // 根据主题配置决定是否添加 data-theme 属性
+  const htmlThemeAttr = config.htmlTheme === 'dark' || config.htmlTheme === 'light'
+    ? ` data-theme="${config.htmlTheme}"`
+    : '';
+
   let html = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN"${htmlThemeAttr}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -283,7 +298,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     }
   </style>
 </head>
-<body class="${cssPrefix}-root">
+<body class="${cssPrefix}-root" data-managed-theme="true">
   <div class="${cssPrefix}-container">
     <h1 class="${cssPrefix}-h1">Git 仓库分析报告</h1>
     

@@ -47,9 +47,9 @@
     <!-- HTML 主题选项 -->
     <el-form-item label="HTML 主题" v-if="config.format === 'html'">
       <el-radio-group v-model="config.htmlTheme">
+        <el-radio-button value="auto">跟随系统</el-radio-button>
         <el-radio-button value="light">浅色主题</el-radio-button>
         <el-radio-button value="dark">深色主题</el-radio-button>
-        <el-radio-button value="auto">跟随系统</el-radio-button>
       </el-radio-group>
       <el-tooltip content="导出的 HTML 文件将使用选择的主题配色" placement="top">
         <el-icon style="margin-left: 10px; color: var(--text-color-light)">

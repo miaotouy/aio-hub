@@ -75,7 +75,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
       includeTags: true,
       includeStats: true,
       includeFilterInfo: true,
-      htmlTheme: 'light'
+      htmlTheme: 'auto'
     }
   }
 }

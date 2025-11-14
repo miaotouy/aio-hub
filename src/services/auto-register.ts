@@ -72,19 +72,26 @@ export async function autoRegisterServices(): Promise<void> {
 
     // 批量注册所有成功加载的服务
     if (instances.length > 0) {
-      logger.debug("服务加载成功", {
-        loaded: instances.map((i) => ({ id: i.id, name: i.name })),
-      });
       await serviceRegistry.register(...instances);
-      logger.info(`自动注册完成，成功注册 ${instances.length} 个服务`);
     }
 
-    // 报告失败的模块
-    if (failedModules.length > 0) {
-      logger.warn(`有 ${failedModules.length} 个服务模块加载失败`, {
-        failed: failedModules.map((m) => m.path),
-      });
-    }
+    // 输出服务注册摘要（合并成功和失败）
+    logger.info("服务自动注册完成", {
+      总计: modulePaths.length,
+      成功: instances.length,
+      失败: failedModules.length,
+      成功列表: instances.map((i) => ({
+        id: i.id,
+        name: i.name,
+        description: i.description,
+      })),
+      ...(failedModules.length > 0 && {
+        失败列表: failedModules.map((m) => ({
+          路径: m.path,
+          错误: m.error?.message || String(m.error),
+        })),
+      }),
+    });
 
     // 加载插件
     logger.info("开始加载插件");
@@ -98,17 +105,6 @@ export async function autoRegisterServices(): Promise<void> {
       logger.error("插件加载过程中发生错误", error);
       // 插件加载失败不应阻止应用启动
     }
-
-    // 输出注册摘要
-    const registeredServices = serviceRegistry.getAllServices();
-    logger.info("服务注册摘要", {
-      总数: registeredServices.length,
-      服务列表: registeredServices.map((s) => ({
-        id: s.id,
-        name: s.name || "(未命名)",
-        description: s.description || "(无描述)",
-      })),
-    });
 
     // 所有工具和服务加载完成后，标记 tools store 为就绪状态
     // 这对于分离窗口正确加载插件至关重要

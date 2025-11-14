@@ -1,11 +1,11 @@
-import type { ToolService } from './types';
-import { createModuleLogger } from '@/utils/logger';
+import type { ToolService } from "./types";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('services/registry');
+const logger = createModuleLogger("services/registry");
 
 /**
  * 服务注册表
- * 
+ *
  * 使用服务定位器（Service Locator）模式来管理所有工具服务的生命周期。
  * 提供统一的服务注册、获取和管理能力。
  */
@@ -18,7 +18,7 @@ class ServiceRegistry {
    * @param serviceInstances 要注册的服务实例。
    */
   public async register(...serviceInstances: ToolService[]): Promise<void> {
-    logger.info(`开始注册 ${serviceInstances.length} 个服务`);
+    logger.debug(`开始注册 ${serviceInstances.length} 个服务`);
 
     for (const instance of serviceInstances) {
       try {
@@ -33,10 +33,7 @@ class ServiceRegistry {
         }
 
         this.services.set(instance.id, instance);
-        logger.info(`服务 "${instance.id}" 注册成功`, {
-          name: instance.name,
-          description: instance.description
-        });
+        logger.debug(`服务 "${instance.id}" 注册成功`);
       } catch (error) {
         logger.error(`服务 "${instance.id}" 注册失败`, error);
         throw error;
@@ -44,9 +41,8 @@ class ServiceRegistry {
     }
 
     this.initialized = true;
-    logger.info('所有服务注册完成', {
+    logger.debug("服务注册表处理完成", {
       totalServices: this.services.size,
-      serviceIds: Array.from(this.services.keys())
     });
   }
 
@@ -59,10 +55,8 @@ class ServiceRegistry {
   public getService<T extends ToolService>(id: string): T {
     const service = this.services.get(id);
     if (!service) {
-      const availableServices = Array.from(this.services.keys()).join(', ');
-      throw new Error(
-        `服务 "${id}" 尚未注册。可用的服务: ${availableServices || '无'}`
-      );
+      const availableServices = Array.from(this.services.keys()).join(", ");
+      throw new Error(`服务 "${id}" 尚未注册。可用的服务: ${availableServices || "无"}`);
     }
     return service as T;
   }
@@ -129,7 +123,7 @@ class ServiceRegistry {
    * 清理所有服务并重置注册表
    */
   public async dispose(): Promise<void> {
-    logger.info('开始清理所有服务');
+    logger.info("开始清理所有服务");
 
     for (const [id, service] of this.services.entries()) {
       try {
@@ -144,7 +138,7 @@ class ServiceRegistry {
 
     this.services.clear();
     this.initialized = false;
-    logger.info('所有服务已清理完成');
+    logger.info("所有服务已清理完成");
   }
 }
 

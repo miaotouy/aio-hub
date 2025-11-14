@@ -600,7 +600,6 @@ body.transparent-window #app {
   这些样式依赖于 useThemeAppearance composable 动态注入的 CSS 变量。
   当 UI 特效关闭时，--ui-blur 会变为 0px，--overlay-opacity 会变为 1，效果自动消失。
 */
-.el-tooltip__popper,
 .el-select-dropdown,
 .el-dropdown__popper,
 .el-message-box,
@@ -622,6 +621,7 @@ body.transparent-window #app {
   padding-top: 36px
 }
 
+.el-popper,
 .el-slider__runway,
 .el-progress-bar__outer,
 .el-card,

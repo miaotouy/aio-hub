@@ -9,6 +9,7 @@
 - 📝 **多语言支持**: JavaScript, JSON, Markdown 等
 - ⚙️ **灵活配置**: 支持只读模式、行号显示等配置
 - 🔌 **统一 API**: 两种编辑器提供统一的操作方法
+- 🆚 **差异对比**: 内置 Monaco Diff Editor，轻松对比文本差异
 
 ## 基础用法
 
@@ -53,6 +54,30 @@ const code = ref('console.log("Hello from Monaco!");');
 </script>
 ```
 
+## Diff 模式 (差异对比)
+
+通过设置 `diff` 属性，编辑器将切换到 Monaco Diff Editor 模式，用于展示两个文本版本的差异。
+
+```vue
+<template>
+  <RichCodeEditor
+    :diff="true"
+    :original="originalCode"
+    :modified="modifiedCode"
+    language="javascript"
+    style="height: 400px;"
+  />
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
+
+const originalCode = ref('const a = 1;');
+const modifiedCode = ref('const a = 2;\nconsole.log(a);');
+</script>
+```
+
 ## Props
 
 | 属性 | 类型 | 默认值 | 说明 |
@@ -62,6 +87,10 @@ const code = ref('console.log("Hello from Monaco!");');
 | `readOnly` | `boolean` | `false` | 是否只读 |
 | `lineNumbers` | `boolean` | `true` | 是否显示行号 |
 | `editorType` | `'codemirror' \| 'monaco'` | `'codemirror'` | 编辑器类型 |
+| `diff` | `boolean` | `false` | 是否开启 Diff 模式 |
+| `original` | `string` | `''` | Diff 模式下的原始文本 |
+| `modified` | `string` | `''` | Diff 模式下的修改后文本 |
+| `options` | `object` | `{}` | Monaco Editor 的高级配置项 |
 
 ## 支持的语言
 

@@ -10,6 +10,7 @@
 - ✅ 支持自定义尺寸
 - ✅ 支持 appdata:// 路径自动转换
 - ✅ 完善的错误处理
+- ✅ 支持 Windows/UNC 本地绝对路径
 
 ## 基本用法
 
@@ -25,6 +26,9 @@
   
   <!-- appdata:// 路径 -->
   <Avatar src="appdata://icons/agent.png" alt="智能体" />
+  
+  <!-- 本地绝对路径 -->
+  <Avatar src="C:\Users\User\Pictures\avatar.png" alt="本地" />
 </template>
 
 <script setup lang="ts">
@@ -334,6 +338,8 @@ const agents = [
    - 以 http:// 或 https:// 开头
    - 以 appdata:// 开头
    - 以 data: 开头
+   - Windows 绝对路径 (C:\...)
+   - UNC 路径 (\\...)
    → 是：渲染 <img>
 
 2. 判断 src 是否为 Emoji
@@ -357,11 +363,14 @@ imageLoadFailed = true
 
 ### 路径处理
 
-```
-appdata://icons/agent.png
+```txt
+appdata://icons/agent.png  或  C:\path\to\image.png
   ↓
-/icons/agent.png
+调用 @/utils/avatarImageCache
+  ↓
+blob:http://localhost:1420/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
+- **说明**: 为了安全和高效地加载本地文件（`appdata://` 或绝对路径），组件会通过 `avatarImageCache` 服务将文件路径转换为临时的 Blob URL。这可以避免直接暴露文件系统路径，并利用浏览器缓存机制。
 
 ## 常见问题
 

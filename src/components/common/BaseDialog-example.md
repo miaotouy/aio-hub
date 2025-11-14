@@ -143,7 +143,8 @@ const handleConfirm = () => {
 |------|------|--------|------|
 | modelValue | boolean | false | 是否显示对话框 (v-model) |
 | title | string | - | 对话框标题 |
-| width | string | '600px' | 宽度（支持 px、%、vw 等） |
+| width | string | '600px' | 对话框宽度 |
+| maxWidth | string | - | 对话框最大宽度，默认等于 `width` |
 | height | string | 'auto' | 高度（支持 px、vh、% 等） |
 | showCloseButton | boolean | true | 是否显示关闭按钮 |
 | closeOnBackdropClick | boolean | true | 点击遮罩层是否关闭 |
@@ -157,6 +158,7 @@ const handleConfirm = () => {
 | 事件名 | 参数 | 说明 |
 |--------|------|------|
 | update:modelValue | (value: boolean) | 对话框显示状态变化 |
+| open | - | 对话框打开时触发 |
 | close | - | 对话框关闭时触发 |
 
 ## 插槽

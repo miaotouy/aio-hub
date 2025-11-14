@@ -15,7 +15,7 @@
 - **核心框架**: Vue 3 + Vite
 - **UI 框架**: Element Plus
 - **状态管理**: Pinia
-- **核心工具**: VueUse, Lodash-es
+- **核心工具**: VueUse, Lodash-es, ECharts
 - **代码编辑**: CodeMirror, Monaco Editor
 - **桌面框架**: Tauri 2.0
 - **包管理器**: Bun
@@ -77,17 +77,18 @@
 
 项目在 `src/components/common/` 目录下封装了一系列可复用的通用组件，详细使用方法请参考各组件的示例文档：
 
-- **BaseDialog** - 解决 Element Plus Dialog 样式问题的干净对话框组件，支持精确高度控制和 bare 模式。详见 [`BaseDialog-example.md`](../../src/components/common/BaseDialog-example.md)
-- **Avatar** - 通用头像组件，自动识别图片/Emoji/文字，支持 `appdata://` 路径。详见 [`Avatar-example.md`](../../src/components/common/Avatar-example.md)
-- **RichCodeEditor** - 双引擎代码编辑器（CodeMirror/Monaco），自动适配主题。详见 [`RichCodeEditor-example.md`](../../src/components/common/RichCodeEditor-example.md)
-- **LlmModelSelector** - LLM 模型选择器，支持按能力筛选和分组显示。
-- **ModelSelectDialog** - 模型搜索对话框，提供可视化的模型选择界面。
+- **BaseDialog** - 解决 Element Plus Dialog 样式问题的干净对话框组件，支持精确高度控制和 bare 模式。
+- **Avatar** - 通用头像组件，自动识别图片/Emoji/文字，支持 `appdata://` 路径，支持名字首字回退。
+- **RichCodeEditor** - 双引擎代码编辑器（CodeMirror/Monaco），自动适配主题。
+- **LlmModelSelector** - LLM 模型下拉选择器，支持按能力筛选和分组显示。
+- **ModelSelectDialog** - LLM 模型弹窗，提供可视化的模型选择界面和搜索筛选功能。
 - **ImageViewer** - 基于 Viewer.js 的图片查看器组件，支持缩放、旋转等操作。
 - **DropZone** - 文件拖放区域组件，支持文件类型过滤和自定义验证。
-- **IconPresetSelector** - 图标预设选择器，支持搜索和分类过滤。详见 [`README.md`](../../src/components/common/README.md)
+- **IconPresetSelector** - 图标预设选择器，支持搜索和分类过滤。
 - **DynamicIcon** - 动态图标加载组件，支持 SVG/图片/Emoji。
 - **DetachPreviewHint** - 可分离窗口的预览提示组件。
-- **InfoCard** - 信息卡片组件，用于展示结构化信息。
+- **InfoCard** - 信息卡片组件，el-card的封装，用于展示结构化信息。
+- **DocumentViewer** - 多格式文档预览组件，支持 Markdown 渲染、HTML 页面预览和代码文件预览，提供源码/预览模式切换和双引擎代码编辑器。
 
 ## 4. 核心特性与 Composables
 

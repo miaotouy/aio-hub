@@ -70,10 +70,11 @@ const onMacroSelectorUpdate = (visible: boolean) => {
       <el-popover
         :visible="props.macroSelectorVisible"
         @update:visible="onMacroSelectorUpdate"
-        placement="bottom-start"
+        :placement="props.isDetached ? 'top-start' : 'bottom-start'"
         :width="400"
         trigger="click"
         popper-class="macro-selector-popover"
+        :teleported="!props.isDetached"
       >
         <template #reference>
           <button
@@ -483,5 +484,31 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 .expand-toggle-button.active {
   background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
   color: var(--primary-color);
+}
+</style>
+
+<style>
+/* 宏选择器弹窗样式 - 全局样式以影响 teleported 的 popover */
+.macro-selector-popover {
+  max-height: 70vh !important;
+  overflow: hidden !important;
+}
+
+.macro-selector-popover .el-popover__body {
+  padding: 12px;
+  max-height: calc(70vh - 24px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.macro-selector-popover .macro-selector {
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.macro-selector-popover .macro-selector-body {
+  max-height: calc(70vh - 100px);
+  overflow-y: auto;
 }
 </style>

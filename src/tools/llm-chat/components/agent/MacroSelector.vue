@@ -84,9 +84,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { Search, Plus } from "@element-plus/icons-vue";
-import { MacroRegistry, type MacroDefinition } from "../../macro-engine";
+import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
 
 interface Emits {
   (e: "insert", macro: MacroDefinition): void;
@@ -96,6 +96,17 @@ const emit = defineEmits<Emits>();
 
 // 搜索文本
 const searchText = ref("");
+
+// 确保宏引擎已初始化（支持分离窗口场景）
+onMounted(() => {
+  const registry = MacroRegistry.getInstance();
+  const macros = registry.getAllMacros();
+  
+  // 如果宏列表为空，说明宏引擎未初始化（可能在分离窗口中）
+  if (macros.length === 0) {
+    initializeMacroEngine();
+  }
+});
 
 // 获取所有宏并按类型分组（只包含已支持的宏）
 const groupedMacros = computed(() => {

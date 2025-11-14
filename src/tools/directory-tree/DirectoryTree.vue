@@ -154,7 +154,7 @@ import {
   ChatDotRound,
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { debounce } from "lodash";
+import { debounce } from "lodash-es";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import { type DirectoryTreeConfig } from "./config";
@@ -418,9 +418,11 @@ const sendTreeToChat = () => {
 }
 
 :deep(.result-card .el-card__body) {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  padding: 0;
 }
 
 .config-section {
@@ -476,19 +478,21 @@ const sendTreeToChat = () => {
 .tree-scrollbar {
   flex: 1;
   min-height: 0;
+  box-sizing: border-box;
 }
 
 .tree-content {
   margin: 0;
-  padding: 16px;
+  padding: 8px;
   font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-color);
   background-color: var(--container-bg);
   border-radius: 4px;
-  white-space: pre;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  box-sizing: border-box;
 }
 
 .stats-tooltip {

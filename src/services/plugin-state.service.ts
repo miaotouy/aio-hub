@@ -4,7 +4,7 @@
  * 管理插件的启用/禁用状态持久化
  */
 
-import { ConfigManager } from '@/utils/configManager';
+import { createConfigManager, type ConfigManager } from '@/utils/configManager';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('PluginStateService');
@@ -28,7 +28,7 @@ class PluginStateService {
 
   constructor() {
     // 创建配置管理器
-    this.configManager = new ConfigManager<PluginStatesConfig>({
+    this.configManager = createConfigManager<PluginStatesConfig>({
       moduleName: 'plugin-manager',
       fileName: 'plugin-states.json',
       version: '1.0.0',

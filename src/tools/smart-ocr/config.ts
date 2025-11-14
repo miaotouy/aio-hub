@@ -64,6 +64,7 @@ const smartOcrConfigManager = createConfigManager<SmartOcrConfig>({
   moduleName: 'smart-ocr',
   fileName: 'config.json',
   version: '1.0.0',
+  debounceDelay: 200,
   createDefault: () => defaultSmartOcrConfig,
   mergeConfig: (defaultConfig, loadedConfig) => {
     // 合并当前引擎类型
@@ -141,11 +142,9 @@ export const updateSmartOcrConfig = async (updates: Partial<SmartOcrConfig>): Pr
 };
 
 /**
- * 创建防抖保存函数（200ms 延迟）
+ * 防抖保存函数
  */
-export const createDebouncedSave = () => {
-  return smartOcrConfigManager.createDebouncedSave(200);
-};
+export const debouncedSaveConfig = smartOcrConfigManager.saveDebounced;
 
 /**
  * 根据当前引擎类型获取对应的引擎配置

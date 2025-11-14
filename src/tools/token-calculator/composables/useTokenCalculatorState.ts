@@ -12,7 +12,7 @@ import { tokenCalculatorEngine, type TokenCalculationResult } from './useTokenCa
 import { getMatchedModelProperties } from '@/config/model-metadata';
 import {
   loadTokenCalculatorConfig,
-  createDebouncedSave,
+  debouncedSaveConfig,
   type TokenCalculatorConfig
 } from '../config';
 
@@ -81,9 +81,6 @@ export function useTokenCalculator() {
   const configLoaded = ref(false);
 
   // ==================== 配置持久化 ====================
-
-  /** 防抖保存配置 */
-  const debouncedSaveConfig = createDebouncedSave();
 
   /**
    * 保存当前配置

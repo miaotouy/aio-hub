@@ -56,6 +56,7 @@ const indexManager = createConfigManager<AgentsIndex>({
   moduleName: MODULE_NAME,
   fileName: 'agents-index.json',
   version: '1.0.0',
+  debounceDelay: 500,
   createDefault: createDefaultIndex,
 });
 

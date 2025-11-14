@@ -32,9 +32,6 @@ const configManager = createConfigManager<LlmProxySettings>({
   createDefault: createDefaultSettings
 });
 
-// 创建防抖保存函数
-const debouncedSave = configManager.createDebouncedSave(500);
-
 /**
  * 加载配置
  */
@@ -58,7 +55,7 @@ export async function loadSettings(): Promise<LlmProxySettings> {
  */
 export async function saveSettings(settings: LlmProxySettings): Promise<void> {
   try {
-    debouncedSave(settings);
+    configManager.saveDebounced(settings);
     logger.debug('配置保存请求已提交');
   } catch (error) {
     logger.error('保存配置失败', error);

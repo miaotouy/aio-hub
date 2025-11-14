@@ -36,10 +36,11 @@ const uiStateManager = createConfigManager<SmartOcrUiState>({
   fileName: 'ui-state.json',
   version: '1.0.0',
   createDefault: () => defaultUiState,
+  debounceDelay: 300,
 });
 
 // 创建防抖保存函数
-const debouncedSave = uiStateManager.createDebouncedSave(300);
+const debouncedSave = uiStateManager.saveDebounced;
 
 // 将响应式状态提升到模块级别，使其成为真正的单例
 const isLeftPanelCollapsed = ref(defaultUiState.isLeftPanelCollapsed);

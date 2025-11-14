@@ -71,7 +71,7 @@ function mergePresetsConfig(defaultConfig: PresetsConfig, loadedConfig: Partial<
 /**
  * 创建配置管理器实例
  */
-const configManager: ConfigManager<PresetsConfig> = createConfigManager({
+export const presetsConfigManager: ConfigManager<PresetsConfig> = createConfigManager({
   moduleName: 'regex_applier',
   fileName: 'presets.json',
   version: CONFIG_VERSION,
@@ -84,7 +84,7 @@ const configManager: ConfigManager<PresetsConfig> = createConfigManager({
  * @returns 预设配置
  */
 export async function loadPresets(): Promise<PresetsConfig> {
-  return configManager.load();
+  return presetsConfigManager.load();
 }
 
 /**
@@ -92,7 +92,7 @@ export async function loadPresets(): Promise<PresetsConfig> {
  * @param config 预设配置
  */
 export async function savePresets(config: PresetsConfig): Promise<void> {
-  return configManager.save(config);
+  return presetsConfigManager.save(config);
 }
 
 /**
@@ -165,11 +165,4 @@ export function duplicatePreset(preset: RegexPreset, newName?: string): RegexPre
  */
 export function touchPreset(preset: RegexPreset): void {
   preset.updatedAt = Date.now();
-}
-
-/**
- * 创建防抖保存函数（导出给 store 使用）
- */
-export function createDebouncedPresetsSave(delay: number = 500) {
-  return configManager.createDebouncedSave(delay);
 }

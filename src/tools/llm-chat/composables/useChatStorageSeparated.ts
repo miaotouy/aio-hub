@@ -6,6 +6,7 @@
 import { exists, readTextFile, writeTextFile, remove } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { createConfigManager } from '@/utils/configManager';
+import { debounce } from 'lodash-es';
 import type { ChatSession } from '../types';
 import { createModuleLogger } from '@/utils/logger';
 
@@ -451,22 +452,14 @@ export function useChatStorageSeparated() {
    * 创建防抖保存函数
    */
   function createDebouncedSave(delay: number = 500) {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    
-    return (sessions: ChatSession[], currentSessionId: string | null) => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    return debounce(async (sessions: ChatSession[], currentSessionId: string | null) => {
+      try {
+        await saveSessions(sessions, currentSessionId);
+        logger.debug('防抖保存完成', { delay });
+      } catch (error) {
+        logger.error('防抖保存失败', error as Error);
       }
-      
-      timeoutId = setTimeout(async () => {
-        try {
-          await saveSessions(sessions, currentSessionId);
-          logger.debug('防抖保存完成', { delay });
-        } catch (error) {
-          logger.error('防抖保存失败', error as Error);
-        }
-      }, delay);
-    };
+    }, delay);
   }
 
   return {

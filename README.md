@@ -291,11 +291,18 @@ aio-hub/
 每个工具都可以使用 `configManager` 来管理配置：
 
 ```typescript
-import { useToolConfig } from "@/utils/configManager";
+import { createConfigManager } from "@/utils/configManager";
 
-const { config, saveConfig, resetConfig } = useToolConfig("tool-name", {
-  // 默认配置
+// 定义配置类型、默认值，并创建管理器
+const configManager = createConfigManager({
+  moduleName: "your-tool-name",
+  createDefault: () => ({ settingA: "hello", settingB: 123 }),
 });
+
+// 在工具中加载和保存
+const config = await configManager.load();
+config.settingA = "world";
+configManager.saveDebounced(config); // 使用防抖保存
 ```
 
 ## 📝 开发规范

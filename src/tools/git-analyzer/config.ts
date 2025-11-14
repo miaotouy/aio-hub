@@ -107,4 +107,4 @@ export const gitAnalyzerConfigManager = createConfigManager<GitAnalyzerConfig>({
 /**
  * 保存配置的防抖函数
  */
-export const debouncedSaveConfig = gitAnalyzerConfigManager.createDebouncedSave(500)
+export const debouncedSaveConfig = gitAnalyzerConfigManager.saveDebounced

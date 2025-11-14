@@ -50,6 +50,7 @@ const configManager = createConfigManager<TesterConfig>({
   moduleName: 'rich-text-renderer',
   fileName: 'tester-config.json',
   version: '1.0.0',
+  debounceDelay: 1000,
   createDefault: () => ({
     version: '1.0.0',
     isInputCollapsed: false,
@@ -169,7 +170,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
   /**
    * 创建防抖保存函数
    */
-  const debouncedSave = configManager.createDebouncedSave(1000);
+  const debouncedSave = configManager.saveDebounced;
 
   /**
    * 自动保存配置（防抖）

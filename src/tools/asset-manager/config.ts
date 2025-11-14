@@ -49,4 +49,4 @@ export const assetManagerConfigManager = createConfigManager<AssetManagerConfig>
 /**
  * 保存配置的防抖函数
  */
-export const debouncedSaveConfig = assetManagerConfigManager.createDebouncedSave(500);
+export const debouncedSaveConfig = assetManagerConfigManager.saveDebounced;

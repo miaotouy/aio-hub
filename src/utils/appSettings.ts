@@ -334,15 +334,12 @@ export const resetAppSettingsAsync = async (): Promise<AppSettings> => {
   }
 };
 
-// 创建防抖保存函数（500ms 延迟）
-const debouncedSave = appSettingsManager.createDebouncedSave(500);
-
 /**
  * 防抖保存设置
  */
 export const saveAppSettingsDebounced = (settings: AppSettings): void => {
   cachedSettings = settings;
-  debouncedSave(settings);
+  appSettingsManager.saveDebounced(settings);
 };
 
 // 为了向后兼容，提供同步版本的 API（使用缓存）

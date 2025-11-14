@@ -4,7 +4,7 @@
  * 统一管理所有插件的配置，提供配置的加载、保存、迁移功能
  */
 
-import { ConfigManager } from '@/utils/configManager';
+import { createConfigManager, type ConfigManager } from '@/utils/configManager';
 import { createModuleLogger } from '@/utils/logger';
 import type { PluginManifest, SettingsSchema } from './plugin-types';
 
@@ -60,7 +60,7 @@ class PluginConfigService {
     };
 
     // 创建配置管理器
-    const configManager = new ConfigManager<PluginConfig>({
+    const configManager = createConfigManager<PluginConfig>({
       moduleName: `plugins-config/${id}`,
       fileName: 'config.json',
       version: settingsSchema.version,

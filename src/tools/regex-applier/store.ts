@@ -13,7 +13,7 @@ import {
   createPreset as createNewPreset,
   duplicatePreset as duplicateExistingPreset,
   touchPreset as touchPresetTimestamp,
-  createDebouncedPresetsSave
+  presetsConfigManager
 } from './presets';
 import { createModuleLogger } from '@utils/logger';
 
@@ -52,11 +52,6 @@ export const usePresetStore = defineStore('preset', () => {
   // ===== 内部辅助函数 =====
   
   /**
-   * 创建防抖保存函数
-   */
-  const debouncedSave = createDebouncedPresetsSave(500);
-  
-  /**
    * 保存当前状态到文件
    */
   async function saveCurrentState(): Promise<void> {
@@ -65,7 +60,7 @@ export const usePresetStore = defineStore('preset', () => {
       activePresetId: activePresetId.value,
       version: version.value
     };
-    await debouncedSave(config);
+    presetsConfigManager.saveDebounced(config);
   }
 
   // ===== Actions =====

@@ -62,7 +62,7 @@ function mergeAppConfig(defaultConfig: AppConfig, loadedConfig: Partial<AppConfi
 /**
  * 创建配置管理器实例
  */
-const configManager: ConfigManager<AppConfig> = createConfigManager({
+export const appConfigManager: ConfigManager<AppConfig> = createConfigManager({
   moduleName: 'regex_applier',
   fileName: 'app_config.json',
   version: APP_CONFIG_VERSION,
@@ -74,19 +74,12 @@ const configManager: ConfigManager<AppConfig> = createConfigManager({
  * 加载应用配置
  */
 export async function loadAppConfig(): Promise<AppConfig> {
-  return configManager.load();
+  return appConfigManager.load();
 }
 
 /**
  * 保存应用配置
  */
 export async function saveAppConfig(config: AppConfig): Promise<void> {
-  return configManager.save(config);
-}
-
-/**
- * 创建防抖保存函数
- */
-export function createDebouncedSave(delay: number = 500) {
-  return configManager.createDebouncedSave(delay);
+  return appConfigManager.save(config);
 }

@@ -85,8 +85,6 @@ export const updateTokenCalculatorConfig = async (updates: Partial<TokenCalculat
 };
 
 /**
- * 创建防抖保存函数（500ms 延迟）
+ * 防抖保存函数
  */
-export const createDebouncedSave = () => {
-  return tokenCalculatorConfigManager.createDebouncedSave(500);
-};
+export const debouncedSaveConfig = tokenCalculatorConfigManager.saveDebounced;

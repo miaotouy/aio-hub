@@ -339,7 +339,7 @@ import BaseDialog from "@components/common/BaseDialog.vue";
 import PresetManager from "./PresetManager.vue";
 import { usePresetStore } from "./store";
 import type { LogEntry, RegexPreset } from "./types";
-import { loadAppConfig, createDebouncedSave, type AppConfig } from "./appConfig";
+import { loadAppConfig, appConfigManager, type AppConfig } from "./appConfig";
 import { createModuleLogger } from "@utils/logger";
 import { serviceRegistry } from "@/services/registry";
 import type RegexApplierService from "./regexApplier.service";
@@ -396,7 +396,6 @@ const presetManagerVisible = ref(false);
 
 // 应用配置
 const appConfig = ref<AppConfig | null>(null);
-const debouncedSaveConfig = createDebouncedSave(500);
 
 // 模板引用
 const fileDropArea = ref<HTMLElement | null>(null);
@@ -498,7 +497,7 @@ const saveCurrentConfig = () => {
   };
 
   appConfig.value = config;
-  debouncedSaveConfig(config);
+  appConfigManager.saveDebounced(config);
 };
 
 // 监听设置变化并自动保存

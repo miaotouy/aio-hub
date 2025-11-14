@@ -23,6 +23,8 @@ export interface ConfigManagerOptions<T> {
   createDefault: () => T;
   /** 合并配置的自定义逻辑（可选） */
   mergeConfig?: (defaultConfig: T, loadedConfig: Partial<T>) => T;
+  /** 防抖保存的延迟时间（毫秒） */
+  debounceDelay?: number;
 }
 
 /**
@@ -34,6 +36,12 @@ export class ConfigManager<T extends Record<string, any>> {
   private version: string;
   private createDefault: () => T;
   private mergeConfig?: (defaultConfig: T, loadedConfig: Partial<T>) => T;
+
+  /**
+   * 防抖保存配置。
+   * @param config - 要保存的配置对象。
+   */
+  public saveDebounced: (config: T) => void;
   
   constructor(options: ConfigManagerOptions<T>) {
     this.moduleName = options.moduleName;
@@ -41,6 +49,24 @@ export class ConfigManager<T extends Record<string, any>> {
     this.version = options.version || '1.0.0';
     this.createDefault = options.createDefault;
     this.mergeConfig = options.mergeConfig;
+
+    const delay = options.debounceDelay ?? 500;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    this.saveDebounced = (config: T) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      timeoutId = setTimeout(async () => {
+        try {
+          await this.save(config);
+          logger.debug(`防抖保存完成`, { moduleName: this.moduleName, delay });
+        } catch (error) {
+          logger.error(`防抖保存失败`, error, { moduleName: this.moduleName });
+        }
+      }, delay);
+    };
   }
   
   /**
@@ -183,27 +209,6 @@ export class ConfigManager<T extends Record<string, any>> {
     }
   }
   
-  /**
-   * 创建防抖保存函数
-   */
-  createDebouncedSave(delay: number = 500): (config: T) => void {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    
-    return (config: T) => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      
-      timeoutId = setTimeout(async () => {
-        try {
-          await this.save(config);
-          logger.debug(`防抖保存完成`, { moduleName: this.moduleName, delay });
-        } catch (error) {
-          logger.error(`防抖保存失败`, error, { moduleName: this.moduleName });
-        }
-      }, delay);
-    };
-  }
 }
 
 /**

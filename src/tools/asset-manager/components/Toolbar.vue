@@ -14,28 +14,38 @@
         </el-button>
       </el-tooltip>
       <el-divider direction="vertical" />
-      <el-tooltip content="重新扫描并建立资产索引" placement="bottom">
-        <el-button @click="handleRebuildIndex">
-          <el-icon><Refresh /></el-icon>
-          <span v-if="layoutMode !== 'compact'">重建索引</span>
+      <el-dropdown>
+        <el-button>
+          <el-icon><MoreFilled /></el-icon>
+          <span v-if="layoutMode !== 'compact'">文件操作</span>
         </el-button>
-      </el-tooltip>
-      <el-tooltip content="扫描并标记重复的资产文件" placement="bottom">
-        <el-button @click="handleFindDuplicates">
-          <el-icon><CopyDocument /></el-icon>
-          <span v-if="layoutMode !== 'compact'">查找重复</span>
-        </el-button>
-      </el-tooltip>
-      <el-tooltip
-        v-if="props.hasDuplicates"
-        content="自动选中重复文件中的多余副本"
-        placement="bottom"
-      >
-        <el-button type="warning" plain @click="emit('selectDuplicates')">
-          <el-icon><Finished /></el-icon>
-          <span v-if="layoutMode === 'wide'">选中多余副本</span>
-        </el-button>
-      </el-tooltip>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item :icon="Refresh" @click="handleRebuildIndex">
+              重建索引
+            </el-dropdown-item>
+            <el-dropdown-item
+              v-if="!props.hasDuplicates"
+              :icon="CopyDocument"
+              @click="emit('findDuplicates')"
+            >
+              查找重复文件
+            </el-dropdown-item>
+            <template v-else>
+              <el-dropdown-item :icon="Close" @click="emit('clearDuplicates')">
+                清除重复标记
+              </el-dropdown-item>
+              <el-dropdown-item
+                :icon="Finished"
+                class="warning-item"
+                @click="emit('selectDuplicates')"
+              >
+                自动选中副本
+              </el-dropdown-item>
+            </template>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
       <template v-if="props.selectedCount > 0">
         <el-divider direction="vertical" />
         <el-tooltip content="删除已选中的资产文件" placement="bottom">
@@ -136,6 +146,7 @@ import {
   Finished,
   Expand,
   Fold,
+  MoreFilled,
 } from "@element-plus/icons-vue";
 
 interface Props {
@@ -162,6 +173,7 @@ const emit = defineEmits<{
   rebuildIndex: [];
   findDuplicates: [];
   selectDuplicates: [];
+  clearDuplicates: [];
   clearSelection: [];
   deleteSelected: [];
   "toggle-sidebar": [];
@@ -238,10 +250,6 @@ const handleGroupByChange = (value: "month" | "type" | "origin" | "none") => {
 
 const handleRebuildIndex = () => {
   emit("rebuildIndex");
-};
-
-const handleFindDuplicates = () => {
-  emit("findDuplicates");
 };
 </script>
 
@@ -365,5 +373,14 @@ const handleFindDuplicates = () => {
 
 .layout-compact .selector-group {
   gap: 4px;
+}
+
+:deep(.el-dropdown-menu__item.warning-item) {
+  color: var(--el-color-warning);
+}
+:deep(.el-dropdown-menu__item.warning-item:hover),
+:deep(.el-dropdown-menu__item.warning-item:focus) {
+  background-color: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
 }
 </style>

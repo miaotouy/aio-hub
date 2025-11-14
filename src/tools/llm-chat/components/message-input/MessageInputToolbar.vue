@@ -67,26 +67,26 @@ const onMacroSelectorUpdate = (visible: boolean) => {
         </button>
       </el-tooltip>
       <!-- 宏选择器按钮 -->
-      <el-popover
-        :visible="props.macroSelectorVisible"
-        @update:visible="onMacroSelectorUpdate"
-        :placement="props.isDetached ? 'top-start' : 'bottom-start'"
-        :width="400"
-        trigger="click"
-        popper-class="macro-selector-popover"
-        :teleported="!props.isDetached"
-      >
-        <template #reference>
-          <button
-            class="macro-icon-button"
-            :class="{ active: props.macroSelectorVisible }"
-            :title="props.macroSelectorVisible ? '' : '插入宏变量'"
+      <el-tooltip content="添加宏变量" placement="top">
+        <div>
+          <el-popover
+            :visible="props.macroSelectorVisible"
+            @update:visible="onMacroSelectorUpdate"
+            :placement="props.isDetached ? 'top-start' : 'bottom-start'"
+            :width="400"
+            trigger="click"
+            popper-class="macro-selector-popover"
+            :teleported="!props.isDetached"
           >
-            <el-icon><MagicStick /></el-icon>
-          </button>
-        </template>
-        <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
-      </el-popover>
+            <template #reference>
+              <button class="macro-icon-button" :class="{ active: props.macroSelectorVisible }">
+                <el-icon><MagicStick /></el-icon>
+              </button>
+            </template>
+            <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
+          </el-popover>
+        </div>
+      </el-tooltip>
       <el-tooltip
         v-if="!props.isDetached"
         :content="props.isExpanded ? '收起输入框' : '展开输入框'"
@@ -150,10 +150,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
               <div v-if="props.contextStats.chatHistoryTokenCount">
                 会话历史: {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
               </div>
-              <div
-                v-if="props.contextStats.tokenizerName"
-                style="margin-top: 4px; opacity: 0.8"
-              >
+              <div v-if="props.contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8">
                 {{ props.contextStats.isEstimated ? "估算" : "精确" }} -
                 {{ props.contextStats.tokenizerName }}
               </div>
@@ -337,8 +334,9 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 
 /* 打字机图标 "A_" */
 .typewriter-icon {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
-    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans",
+    "Droid Sans", "Helvetica Neue", sans-serif;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -2px;
@@ -375,7 +373,8 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 
 /* 辉光效果 */
 .streaming-icon-button.active .typewriter-icon {
-  text-shadow: 0 0 4px rgba(var(--primary-color-rgb, 64, 158, 255), 0.5),
+  text-shadow:
+    0 0 4px rgba(var(--primary-color-rgb, 64, 158, 255), 0.5),
     0 0 6px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
 }
 

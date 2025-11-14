@@ -6,6 +6,7 @@ import { useUserProfileStore } from "./userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatUiState } from "./composables/useLlmChatUiState";
+import { useLlmChatSync } from "./composables/useLlmChatSync";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "./types/sync";
 import ChatArea from "./components/ChatArea.vue";
@@ -26,6 +27,9 @@ const bus = useWindowSyncBus();
 // 检测当前窗口类型
 const isInDetachedToolWindow = bus.windowType === 'detached-tool';
 logger.info('LlmChat 窗口类型', { windowType: bus.windowType, isInDetachedToolWindow });
+
+// 初始化状态同步引擎（智能体、会话、设置等）
+useLlmChatSync();
 
 // UI状态持久化
 const {

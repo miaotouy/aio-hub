@@ -562,9 +562,15 @@ onMounted(async () => {
     </div>
 
     <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
-    <el-tooltip content="拖拽调整窗口大小" placement="left">
-      <div v-if="props.isDetached" class="resize-handle" @mousedown="handleResizeStart" />
-    </el-tooltip>
+    <div
+      v-if="props.isDetached"
+      class="window-resize-indicator"
+      @mousedown="handleResizeStart"
+      title="拖拽调整窗口大小"
+    >
+      <div class="indicator-border"></div>
+      <div class="indicator-handle"></div>
+    </div>
 
     <!-- 编辑智能体对话框 -->
     <EditAgentDialog
@@ -787,28 +793,77 @@ onMounted(async () => {
   /* overflow: hidden; */ /* 解除限制，让 MessageList 可以滚动 */
 }
 
-/* 右下角调整大小手柄 */
-.resize-handle {
+/* 右下角调整大小手柄 - 仅在分离模式下显示 */
+.chat-area-container.detached-mode .window-resize-indicator {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 16px;
-  height: 16px;
-  cursor: se-resize;
-  background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
-  opacity: 0.5;
-  transition: opacity 0.2s;
+  top: 0;
+  left: 0;
+  pointer-events: none; /* 整体不接收事件，只有手柄接收 */
   z-index: 10;
 }
 
-.resize-handle:hover {
-  opacity: 1;
-  background: linear-gradient(135deg, transparent 50%, var(--primary-hover-color) 50%);
+/* 与容器同步的边框，但小一圈 */
+.chat-area-container.detached-mode .indicator-border {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  bottom: 6px;
+  left: 6px;
+  border: 1px solid var(--primary-color);
+  border-radius: 10px; /* 比容器的 16px 小 6px */
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
 }
 
-.resize-handle:active {
+/* 右下角弧度线段手柄 */
+.chat-area-container.detached-mode .indicator-handle {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  pointer-events: auto; /* 只有手柄接收鼠标事件 */
+  cursor: se-resize;
+  border-radius: 0 0 10px 0; /* 与边框圆角一致 */
+  overflow: hidden;
+}
+
+/* 弧度线段视觉效果 */
+.chat-area-container.detached-mode .indicator-handle::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--primary-color);
+  border-radius: 0 0 10px 0;
+  border-top: none;
+  border-left: none;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+
+/* Hover 效果 */
+.chat-area-container.detached-mode .indicator-handle:hover::before {
+  opacity: 0.8;
+  border-color: var(--primary-hover-color, var(--primary-color));
+}
+
+.chat-area-container.detached-mode .indicator-handle:hover ~ .indicator-border {
+  opacity: 0.3;
+}
+
+/* Active 效果 */
+.chat-area-container.detached-mode .indicator-handle:active::before {
   opacity: 1;
-  background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
+}
+
+.chat-area-container.detached-mode .indicator-handle:active ~ .indicator-border {
+  opacity: 0.5;
 }
 
 /* MessageInput 两侧边距，增强层次感 */

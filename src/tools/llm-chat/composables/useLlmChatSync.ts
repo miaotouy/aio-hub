@@ -3,7 +3,7 @@
  * 
  * 封装了 LlmChat.vue 与分离窗口之间的所有状态同步和操作代理逻辑
  */
-import { toRef, type Ref } from 'vue';
+import { toRef, type Ref, watch } from 'vue';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
@@ -56,12 +56,25 @@ const globalProfileId = toRef(userProfileStore, 'globalProfileId');
   // 同步全局用户档案ID
   createStateEngine(globalProfileId, CHAT_STATE_KEYS.GLOBAL_PROFILE_ID);
   // 同步聊天设置（UI偏好、快捷键等）
-  createStateEngine(settings, CHAT_STATE_KEYS.SETTINGS);
+  const settingsEngine = useStateSyncEngine(settings, createChatSyncConfig(CHAT_STATE_KEYS.SETTINGS));
+  stateEngines.push(settingsEngine);
+  
+  // 【重要】在非主窗口中，监听同步过来的 settings 变化
+  // 因为 settings 是单例 ref，同步引擎会更新它的值，我们需要确保UI能响应这个变化
+  if (bus.windowType !== 'main') {
+    watch(settings, (newSettings) => {
+      logger.info('分离窗口接收到设置同步', {
+        isStreaming: newSettings.uiPreferences.isStreaming,
+        windowType: bus.windowType
+      });
+    }, { deep: true, immediate: true });
+  }
 
   logger.info('LLM Chat 同步引擎已初始化', {
     windowType: bus.windowType,
     stateCount: stateEngines.length,
-    states: Object.values(CHAT_STATE_KEYS)
+    states: Object.values(CHAT_STATE_KEYS),
+    currentStreamingState: settings.value.uiPreferences.isStreaming
   });
 
   // 3. 操作代理：监听并处理来自子窗口的请求

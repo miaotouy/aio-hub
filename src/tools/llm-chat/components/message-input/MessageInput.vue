@@ -26,7 +26,7 @@ const logger = createModuleLogger("MessageInput");
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
-const { settings, updateSettings, isLoaded: settingsLoaded } = useChatSettings();
+const { settings, updateSettings, isLoaded: settingsLoaded, loadSettings } = useChatSettings();
 
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
@@ -535,7 +535,15 @@ watch(
 );
 
 // 初始加载
-onMounted(() => {
+onMounted(async () => {
+  // 加载聊天设置（确保 isLoaded 标志被设置）
+  if (!settingsLoaded.value) {
+    await loadSettings();
+    logger.info('MessageInput 聊天设置已加载', {
+      isStreaming: settings.value.uiPreferences.isStreaming
+    });
+  }
+  
   loadContextStats();
 });
 /**
@@ -709,10 +717,13 @@ const handleDetach = async () => {
     <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
     <div
       v-if="props.isDetached"
-      class="resize-handle se-resize"
+      class="window-resize-indicator"
       @mousedown="handleWindowResizeStart"
       title="拖拽调整窗口大小"
-    />
+    >
+      <div class="indicator-border"></div>
+      <div class="indicator-handle"></div>
+    </div>
   </div>
 </template>
 
@@ -902,30 +913,75 @@ const handleDetach = async () => {
 }
 
 /* 右下角调整大小手柄 - 仅在分离模式下显示 */
-.message-input-container.detached-mode .resize-handle.se-resize {
+.message-input-container.detached-mode .window-resize-indicator {
   position: absolute;
   bottom: 0;
   right: 0;
-  top: auto;
-  left: auto;
-  width: 16px;
-  height: 16px;
-  cursor: se-resize;
-  /* 创建一个三角形视觉效果 */
-  background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
-  border-radius: 0 0 8px 0;
-  opacity: 0.5;
-  transition: opacity 0.2s;
+  top: 0;
+  left: 0;
+  pointer-events: none; /* 整体不接收事件，只有手柄接收 */
   z-index: 10;
 }
 
-.message-input-container.detached-mode .resize-handle.se-resize:hover {
-  opacity: 1;
-  background: linear-gradient(135deg, transparent 50%, var(--primary-hover-color) 50%);
+/* 与容器同步的边框，但小一圈 */
+.message-input-container.detached-mode .indicator-border {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  bottom: 6px;
+  left: 6px;
+  border: 1px solid var(--primary-color);
+  border-radius: 18px; /* 比容器的 24px 小 6px */
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
 }
 
-.message-input-container.detached-mode .resize-handle.se-resize:active {
+/* 右下角弧度线段手柄 */
+.message-input-container.detached-mode .indicator-handle {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  pointer-events: auto; /* 只有手柄接收鼠标事件 */
+  cursor: se-resize;
+  border-radius: 0 0 18px 0; /* 与边框圆角一致 */
+  overflow: hidden;
+}
+
+/* 弧度线段视觉效果 */
+.message-input-container.detached-mode .indicator-handle::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--primary-color);
+  border-radius: 0 0 18px 0;
+  border-top: none;
+  border-left: none;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+
+/* Hover 效果 */
+.message-input-container.detached-mode .indicator-handle:hover::before {
+  opacity: 0.8;
+  border-color: var(--primary-hover-color, var(--primary-color));
+}
+
+.message-input-container.detached-mode .indicator-handle:hover ~ .indicator-border {
+  opacity: 0.3;
+}
+
+/* Active 效果 */
+.message-input-container.detached-mode .indicator-handle:active::before {
   opacity: 1;
-  background: linear-gradient(135deg, transparent 50%, var(--primary-color) 50%);
+}
+
+.message-input-container.detached-mode .indicator-handle:active ~ .indicator-border {
+  opacity: 0.5;
 }
 </style>

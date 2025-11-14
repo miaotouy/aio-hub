@@ -1,9 +1,8 @@
 <template>
   <BaseDialog
-    :visible="dialogVisible"
+    v-model="dialogVisible"
     title="请求头覆盖设置"
     width="900px"
-    @update:visible="handleVisibleChange"
   >
     <template #content>
       <div class="header-override-dialog">
@@ -119,10 +118,9 @@
 
   <!-- 编辑规则弹窗 -->
   <BaseDialog
-    :visible="editDialogVisible"
+    v-model="editDialogVisible"
     title="编辑请求头规则"
     width="600px"
-    @update:visible="editDialogVisible = $event"
   >
     <template #content>
       <div class="edit-dialog-content">

@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="visible = $event"
+    :modelValue="visible"
+    @update:modelValue="visible = $event"
     title="导出分析报告"
     width="1000px"
     height="85vh"

@@ -360,11 +360,10 @@ watch(
 
     <!-- 文档预览对话框 -->
     <BaseDialog
-      :visible="documentPreviewVisible"
+      v-model="documentPreviewVisible"
       :title="previewingAsset?.name || '文档预览'"
       width="80%"
       height="80vh"
-      @update:visible="documentPreviewVisible = $event"
       @close="closeDocumentPreview"
     >
       <DocumentViewer

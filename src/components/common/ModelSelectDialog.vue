@@ -89,8 +89,7 @@ watch(isDialogVisible, async (visible) => {
 </script>
 
 <template>
-  <BaseDialog :visible="isDialogVisible" title="搜索模型" width="600px" @update:visible="(val) => !val && handleClose()"
-    @close="handleClose">
+  <BaseDialog v-model="isDialogVisible" title="搜索模型" width="600px" @close="handleClose">
     <template #content>
       <div class="model-select-content">
         <el-input v-model="searchQuery" placeholder="搜索模型名称或服务商..." clearable class="search-input" />

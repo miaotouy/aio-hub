@@ -207,8 +207,8 @@ const applyOutputPreset = (value: number) => {
 
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="handleClose"
+    :model-value="visible"
+    @update:model-value="handleClose"
     :title="dialogTitle"
     width="75%"
     height="75vh"
@@ -409,7 +409,7 @@ const applyOutputPreset = (value: number) => {
     </template>
 
     <!-- 预设图标选择对话框 -->
-    <BaseDialog :visible="showPresetIconDialog" @update:visible="showPresetIconDialog = $event" title="选择预设图标" width="80%">
+    <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%">
       <template #content>
         <IconPresetSelector
         :icons="PRESET_ICONS"

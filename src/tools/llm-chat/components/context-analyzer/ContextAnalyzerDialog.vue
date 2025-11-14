@@ -1,6 +1,6 @@
 <template>
   <BaseDialog
-    v-model:visible="localVisible"
+    v-model="localVisible"
     title="上下文分析器"
     width="90%"
     height="85vh"

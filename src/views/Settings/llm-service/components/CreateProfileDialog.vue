@@ -74,8 +74,8 @@ const getCategoryLabel = (category: ProviderType | "all") => {
 
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="(val: boolean) => emit('update:visible', val)"
+    :model-value="visible"
+    @update:model-value="(val: boolean) => emit('update:visible', val)"
     title="选择创建方式"
     width="80%"
     height="75vh"

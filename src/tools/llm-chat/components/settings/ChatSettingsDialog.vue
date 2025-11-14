@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
-    :visible="props.visible"
-    @update:visible="(val) => emit('update:visible', val)"
+    :model-value="props.visible"
+    @update:model-value="(val: any) => emit('update:visible', val)"
     title="聊天设置"
     width="80vw"
     height="calc(100vh - 100px)"

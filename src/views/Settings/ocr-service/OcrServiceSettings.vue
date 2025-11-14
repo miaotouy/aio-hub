@@ -349,7 +349,7 @@ const createDefaultApiRequest = (): OcrApiRequest => {
     </div>
 
     <!-- 预设选择对话框 -->
-    <BaseDialog :visible="showPresetDialog" @update:visible="showPresetDialog = $event" title="选择创建方式" width="600px">
+    <BaseDialog v-model="showPresetDialog" title="选择创建方式" width="600px">
       <template #content>
         <div class="preset-options">
         <div class="preset-section">

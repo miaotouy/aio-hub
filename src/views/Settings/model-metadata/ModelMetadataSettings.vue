@@ -169,7 +169,7 @@
     </div>
 
     <!-- 预设图标对话框 -->
-    <BaseDialog :visible="showPresets" @update:visible="showPresets = $event" title="预设图标" width="80%">
+    <BaseDialog v-model="showPresets" title="预设图标" width="80%">
       <template #content>
         <IconPresetSelector
         :icons="presetIcons"

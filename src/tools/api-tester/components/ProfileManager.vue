@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog v-model:visible="isDialogVisible" title="配置管理" @close="emit('close')">
+  <BaseDialog v-model="isDialogVisible" title="配置管理" @close="emit('close')">
     <div class="profile-manager">
       <div class="profile-save">
         <h4>保存当前配置</h4>

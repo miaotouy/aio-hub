@@ -96,11 +96,11 @@ function handleCancel() {
 
 <template>
   <BaseDialog
-    :visible="visible"
+    :model-value="visible"
     title="插件安装预检"
     width="700px"
     :close-on-backdrop-click="!loading"
-    @update:visible="$emit('update:visible', $event)"
+    @update:model-value="$emit('update:visible', $event)"
   >
     <template #content>
       <div v-if="preflightResult" class="preflight-content">

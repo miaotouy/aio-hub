@@ -23,7 +23,7 @@
 
     <!-- 枚举选项编辑对话框 -->
     <BaseDialog
-      v-model:visible="isEnumEditorVisible"
+      v-model="isEnumEditorVisible"
       :title="`编辑枚举选项 - ${editingEnum?.key}`"
       @confirm="saveEnumOptions"
     >

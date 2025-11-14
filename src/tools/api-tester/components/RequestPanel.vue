@@ -98,7 +98,7 @@
   </div>
 
   <BaseDialog
-    v-model:visible="isPreviewVisible"
+    v-model="isPreviewVisible"
     title="变量替换后的预览"
     width="70vw"
     height="70vh"

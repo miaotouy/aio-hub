@@ -1,6 +1,6 @@
 <template>
   <BaseDialog
-    v-model:visible="localVisible"
+    v-model="localVisible"
     title="导出会话"
     width="1000px"
     height="80vh"

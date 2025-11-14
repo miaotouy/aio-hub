@@ -45,8 +45,8 @@ const getCategoryLabel = (category: string | 'all') => {
 
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="(val: boolean) => emit('update:visible', val)"
+      :modelValue="visible"
+      @update:modelValue="(val: boolean) => emit('update:visible', val)"
     title="创建新智能体"
     width="80%"
     height="75vh"

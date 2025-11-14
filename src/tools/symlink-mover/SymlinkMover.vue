@@ -519,8 +519,7 @@ const executeMoveAndLink = async () => {
 
     <!-- 日志详情弹窗 -->
     <BaseDialog
-      :visible="showLogDialog"
-      @update:visible="showLogDialog = $event"
+      v-model="showLogDialog"
       title="操作历史记录"
       width="70%"
       height="600px"

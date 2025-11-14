@@ -16,7 +16,7 @@
 ```vue
 <template>
   <BaseDialog
-    v-model:visible="dialogVisible"
+    v-model="dialogVisible"
     title="对话框标题"
     width="600px"
     height="auto"
@@ -50,7 +50,7 @@ const handleConfirm = () => {
 ```vue
 <template>
   <BaseDialog
-    v-model:visible="dialogVisible"
+    v-model="dialogVisible"
     title="固定高度对话框"
     width="800px"
     height="80vh"
@@ -70,7 +70,7 @@ const handleConfirm = () => {
 ```vue
 <template>
   <BaseDialog
-    v-model:visible="dialogVisible"
+    v-model="dialogVisible"
     title="响应式对话框"
     width="90%"
     height="calc(100vh - 100px)"
@@ -85,7 +85,7 @@ const handleConfirm = () => {
 ```vue
 <template>
   <BaseDialog
-    v-model:visible="dialogVisible"
+    v-model="dialogVisible"
     :bare="true"
     width="500px"
     :show-close-button="false"
@@ -104,7 +104,7 @@ const handleConfirm = () => {
 
 ```vue
 <template>
-  <BaseDialog v-model:visible="dialogVisible">
+  <BaseDialog v-model="dialogVisible">
     <template #header>
       <div class="custom-header">
         <el-icon><Setting /></el-icon>
@@ -124,7 +124,7 @@ const handleConfirm = () => {
 ```vue
 <template>
   <BaseDialog
-    v-model:visible="dialogVisible"
+    v-model="dialogVisible"
     title="简洁写法"
   >
     <!-- 直接写内容，不用 #content -->
@@ -141,7 +141,7 @@ const handleConfirm = () => {
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| visible | boolean | false | 是否显示对话框 |
+| modelValue | boolean | false | 是否显示对话框 (v-model) |
 | title | string | - | 对话框标题 |
 | width | string | '600px' | 宽度（支持 px、%、vw 等） |
 | height | string | 'auto' | 高度（支持 px、vh、% 等） |
@@ -156,7 +156,7 @@ const handleConfirm = () => {
 
 | 事件名 | 参数 | 说明 |
 |--------|------|------|
-| update:visible | (value: boolean) | 对话框显示状态变化 |
+| update:modelValue | (value: boolean) | 对话框显示状态变化 |
 | close | - | 对话框关闭时触发 |
 
 ## 插槽
@@ -196,7 +196,7 @@ const handleConfirm = () => {
 ```vue
 <!-- ✅ 简洁：真正居中，精确控制 -->
 <BaseDialog 
-  v-model:visible="visible" 
+  v-model="visible"
   width="80%" 
   height="80vh"
 >
@@ -211,7 +211,7 @@ const handleConfirm = () => {
 ```vue
 <template>
   <BaseDialog
-    v-model:visible="visible"
+    v-model="visible"
     :title="mode === 'edit' ? '编辑智能体' : '创建智能体'"
     width="80%"
     height="85vh"

@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="handleVisibleChange"
+    :model-value="visible"
+    @update:model-value="handleVisibleChange"
     title="创建用户档案"
     width="500px"
   >

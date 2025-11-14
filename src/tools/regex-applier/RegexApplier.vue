@@ -276,8 +276,8 @@
 
     <!-- 预设管理弹窗 -->
     <BaseDialog
-      :visible="presetManagerVisible"
-      @update:visible="handlePresetManagerClose"
+      v-model="presetManagerVisible"
+      @close="handlePresetManagerClose"
       title="管理预设规则"
       width="90%"
       height="90%"
@@ -290,8 +290,7 @@
 
     <!-- 日志弹窗 -->
     <BaseDialog
-      :visible="logDialogVisible"
-      @update:visible="logDialogVisible = $event"
+      v-model="logDialogVisible"
       title="日志"
       width="800px"
       height="auto"
@@ -535,7 +534,6 @@ const goToManageRules = () => {
 
 // 处理预设管理器关闭事件
 const handlePresetManagerClose = async () => {
-  presetManagerVisible.value = false;
   // 重新加载预设以获取最新数据
   await store.loadPresets();
   // 更新选中的预设列表（移除已删除的预设）

@@ -95,7 +95,7 @@
 
     <!-- 文档预览弹窗 -->
     <BaseDialog
-      v-model:visible="isPreviewDialogVisible"
+      v-model="isPreviewDialogVisible"
       :title="selectedAssetForPreview?.name"
       width="80vw"
       height="80vh"

@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="visible = $event"
+    :modelValue="visible"
+    @update:modelValue="visible = $event"
     :title="`提交详情: ${selectedCommit?.hash?.substring(0, 7)}`"
     width="800px"
     height="auto"

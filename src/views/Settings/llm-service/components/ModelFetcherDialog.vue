@@ -173,8 +173,8 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
 
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="closeDialog"
+    :model-value="visible"
+    @update:model-value="closeDialog"
     title="从 API 添加模型"
     width="800px"
     height="80vh"

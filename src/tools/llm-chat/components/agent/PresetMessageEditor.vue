@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="$emit('update:visible', $event)"
+    :modelValue="visible"
+    @update:modelValue="$emit('update:visible', $event)"
     :title="isEditMode ? '编辑消息' : '添加消息'"
     width="800px"
     height="auto"

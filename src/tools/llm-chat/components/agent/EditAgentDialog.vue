@@ -178,8 +178,8 @@ const handleSave = () => {
 </script>
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="$emit('update:visible', $event)"
+    :modelValue="visible"
+    @update:modelValue="$emit('update:visible', $event)"
     :title="mode === 'edit' ? '编辑智能体' : '创建智能体'"
     width="80%"
     height="85vh"

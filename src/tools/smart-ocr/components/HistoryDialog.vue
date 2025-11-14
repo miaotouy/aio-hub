@@ -104,7 +104,7 @@ watch(
 </script>
 
 <template>
-  <el-dialog
+  <BaseDialog
     v-model="isDialogVisible"
     title="OCR 历史记录"
     width="60%"
@@ -145,7 +145,7 @@ watch(
         </el-table-column>
       </el-table>
     </div>
-  </el-dialog>
+  </BaseDialog>
 </template>
 
 <style scoped>

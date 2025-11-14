@@ -55,10 +55,11 @@ const handleOpen = () => {
 
 <template>
   <BaseDialog
-    :visible="visible"
+    :model-value="visible"
+    @update:model-value="$emit('update:visible', $event)"
     title="导出智能体"
     width="600px"
-    @update:visible="handleClose"
+    @close="handleClose"
     @open="handleOpen"
   >
     <template #content>

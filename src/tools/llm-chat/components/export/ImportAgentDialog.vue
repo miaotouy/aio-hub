@@ -69,11 +69,11 @@ const handleCancel = () => {
 
 <template>
   <BaseDialog
-    :visible="visible"
+    :model-value="visible"
+    @update:model-value="$emit('update:visible', $event)"
     title="导入智能体预检"
     width="800px"
     :close-on-backdrop-click="!loading"
-    @update:visible="$emit('update:visible', $event)"
   >
     <template #content>
       <div v-if="preflightResult" class="import-dialog-content">

@@ -199,8 +199,8 @@ function handleCancel() {
 
 <template>
   <BaseDialog
-    :visible="visible"
-    @update:visible="emit('update:visible', $event)"
+    :model-value="visible"
+    @update:model-value="emit('update:visible', $event)"
     title="自定义请求头配置"
     width="900px"
     height="80vh"

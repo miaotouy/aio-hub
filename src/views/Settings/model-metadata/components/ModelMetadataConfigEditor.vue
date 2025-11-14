@@ -1,6 +1,6 @@
 <template>
   <BaseDialog
-    v-model:visible="isDialogVisible"
+    v-model="isDialogVisible"
     :title="isNew ? '添加配置' : '编辑配置'"
     width="800px"
     height="90vh"

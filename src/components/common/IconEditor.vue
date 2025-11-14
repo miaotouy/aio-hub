@@ -268,8 +268,7 @@ const handleIconClick = () => {
 
   <!-- 预设图标选择对话框 -->
   <BaseDialog
-    :visible="showPresetIconDialog"
-    @update:visible="showPresetIconDialog = $event"
+    v-model="showPresetIconDialog"
     title="选择预设图标"
     width="80%"
     height="70vh"

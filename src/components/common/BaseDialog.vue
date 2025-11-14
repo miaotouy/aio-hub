@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div
-      v-if="props.visible"
+      v-if="props.modelValue"
       class="base-dialog-backdrop"
       :style="{ zIndex: dynamicZIndex }"
       :class="{ 
@@ -69,7 +69,7 @@ import { ref, watch, onMounted, onBeforeUnmount, useSlots, computed, nextTick } 
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
 const props = withDefaults(defineProps<{
-  visible: boolean;
+  modelValue: boolean;
   title?: string;
   width?: string;
   maxWidth?: string;
@@ -92,7 +92,7 @@ const props = withDefaults(defineProps<{
 });
 
 const emit = defineEmits<{
-  (e: 'update:visible', value: boolean): void;
+  (e: 'update:modelValue', value: boolean): void;
   (e: 'close'): void;
   (e: 'open'): void;
 }>();
@@ -141,7 +141,7 @@ const dialogStyles = computed(() => {
   return styles;
 });
 
-watch(() => props.visible, (newValue) => {
+watch(() => props.modelValue, (newValue) => {
   if (newValue) {
     emit('open');
     // 对话框打开时，可能需要递增 z-index（如果有多个对话框）
@@ -161,13 +161,13 @@ function handleClose() {
   showContentTransition.value = false;
   // 等待退场动画完成
   setTimeout(() => {
-    emit('update:visible', false);
+    emit('update:modelValue', false);
     emit('close');
   }, 300);
 }
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (props.visible && event.key === 'Escape' && props.showCloseButton) {
+  if (props.modelValue && event.key === 'Escape' && props.showCloseButton) {
     handleClose();
   }
 };

@@ -245,7 +245,14 @@ function isPresetSelected(presetId: string | null): boolean {
             </span>
           </div>
           <div class="section-actions">
-            <el-segmented v-model="editorType" :options="['codemirror', 'monaco']" size="small" />
+            <el-radio-group v-model="editorType" size="small">
+              <el-tooltip content="CodeMirror 引擎 (兼容性好, 启动快)">
+                <el-radio-button value="codemirror">CodeMirror</el-radio-button>
+              </el-tooltip>
+              <el-tooltip content="Monaco 引擎 (功能更强, 来自 VS Code)">
+                <el-radio-button value="monaco">Monaco</el-radio-button>
+              </el-tooltip>
+            </el-radio-group>
             <el-button
               v-if="canRestore"
               size="small"
@@ -596,8 +603,9 @@ function isPresetSelected(presetId: string | null): boolean {
   border-radius: 4px;
   overflow: hidden;
   min-height: 0;
-  max-height: 600px; /* 限制编辑器最大高度，防止 Monaco 无限扩展 */
   background: transparent;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 提示折叠面板 */

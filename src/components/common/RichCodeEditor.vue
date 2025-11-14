@@ -140,6 +140,10 @@ const getMonacoLanguage = () => {
 // Monaco Editor 事件处理
 const handleMonacoMount = (editor: MonacoEditor.IStandaloneCodeEditor) => {
   monacoEditorInstance.value = editor;
+  // 确保挂载时设置最新的值，解决初始加载时内容为空的问题
+  if (props.modelValue && editor.getValue() !== props.modelValue) {
+    editor.setValue(props.modelValue);
+  }
   emit('mount', editor);
 };
 

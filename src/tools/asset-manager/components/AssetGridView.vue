@@ -63,7 +63,11 @@
                       <el-icon><View /></el-icon>
                       预览
                     </el-dropdown-item>
-                    <el-dropdown-item @click="handleDelete(asset.id)">
+                    <el-dropdown-item @click="handleShowInFolder(asset.path)">
+                      <el-icon><FolderOpened /></el-icon>
+                      打开所在目录
+                    </el-dropdown-item>
+                    <el-dropdown-item divided @click="handleDelete(asset.id)">
                       <el-icon><Delete /></el-icon>
                       删除
                     </el-dropdown-item>
@@ -79,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { MoreFilled, View, Delete } from '@element-plus/icons-vue';
+import { MoreFilled, View, Delete, FolderOpened } from '@element-plus/icons-vue';
 import type { Asset } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 
@@ -103,6 +107,7 @@ const emit = defineEmits<{
   select: [asset: Asset];
   delete: [assetId: string];
   'selection-change': [asset: Asset, event: MouseEvent];
+  'show-in-folder': [path: string];
 }>();
 
 
@@ -117,6 +122,10 @@ const handleSelect = (asset: Asset) => {
 
 const handleDelete = (assetId: string) => {
   emit('delete', assetId);
+};
+
+const handleShowInFolder = (path: string) => {
+  emit('show-in-folder', path);
 };
 
 const getAssetIcon = (asset: Asset) => {

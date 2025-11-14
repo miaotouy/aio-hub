@@ -79,27 +79,29 @@
       </el-table-column>
 
       <!-- 操作 -->
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="80" fixed="right" align="center">
         <template #default="{ row }">
-          <div class="action-buttons" style="display: flex; align-items: center;">
-            <el-button
-              text
-              type="primary"
-              size="small"
-              @click.stop="handleSelect(row)"
-            >
-              <el-icon><View /></el-icon>
-              预览
+          <el-dropdown trigger="click" @click.stop>
+            <el-button text circle>
+              <el-icon><MoreFilled /></el-icon>
             </el-button>
-            <el-button
-              text
-              type="danger"
-              size="small"
-              @click.stop="handleDelete(row.id)"
-            >
-              <el-icon><Delete /></el-icon>
-            </el-button>
-          </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleSelect(row)">
+                  <el-icon><View /></el-icon>
+                  预览
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleShowInFolder(row.path)">
+                  <el-icon><FolderOpened /></el-icon>
+                  打开所在目录
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="handleDelete(row.id)">
+                  <el-icon><Delete /></el-icon>
+                  删除
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -107,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { View, Delete } from '@element-plus/icons-vue';
+import { View, Delete, MoreFilled, FolderOpened } from '@element-plus/icons-vue';
 import type { Asset, AssetType, AssetOrigin } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 
@@ -129,6 +131,7 @@ const emit = defineEmits<{
   select: [asset: Asset];
   delete: [assetId: string];
   'selection-change': [asset: Asset, event: MouseEvent];
+  'show-in-folder': [path: string];
 }>();
 
 // 获取资产的 URL
@@ -142,6 +145,10 @@ const handleSelect = (asset: Asset) => {
 
 const handleDelete = (assetId: string) => {
   emit('delete', assetId);
+};
+
+const handleShowInFolder = (path: string) => {
+  emit('show-in-folder', path);
 };
 
 const getAssetIcon = (asset: Asset) => {

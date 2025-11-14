@@ -81,6 +81,7 @@
             @selection-change="handleAssetSelection"
             @select="handleSelectAsset"
             @delete="handleDeleteAsset"
+            @show-in-folder="handleShowInFolder"
             @select-all="handleSelectAll"
             @deselect-all="handleDeselectAll"
           />
@@ -116,6 +117,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
@@ -157,6 +159,7 @@ const imageViewer = useImageViewer();
 
 // --- 状态管理 ---
 const config = ref(createDefaultConfig());
+const assetBasePath = ref<string>("");
 
 // UI & 筛选状态
 const viewMode = ref(config.value.viewMode);
@@ -201,6 +204,7 @@ const debouncedFetchData = debounce(() => fetchData(false), 300);
 
 // 组件挂载时加载初始数据
 onMounted(async () => {
+  assetBasePath.value = await assetManagerEngine.getAssetBasePath();
   config.value = await assetManagerConfigManager.load();
 
   // 从加载的配置初始化状态
@@ -303,6 +307,16 @@ const handleSelectAsset = async (asset: Asset) => {
     customMessage.info("该文件类型暂不支持预览");
   }
 };
+const handleShowInFolder = async (path: string) => {
+  try {
+    const absolutePath = await join(assetBasePath.value, path);
+    await invoke("open_file_directory", { filePath: absolutePath });
+  } catch (err) {
+    console.error("打开文件所在目录失败:", err);
+    customMessage.error(`打开文件所在目录失败: ${err}`);
+  }
+};
+
 const handleDeleteAsset = async (assetId: string) => {
   try {
     await deleteAsset(assetId);

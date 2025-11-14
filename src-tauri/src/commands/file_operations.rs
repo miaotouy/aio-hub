@@ -1124,47 +1124,72 @@ pub fn validate_regex_pattern(regex: String) -> RegexValidation {
     }
 }
 
-// Tauri 命令：打开文件所在目录
+// Tauri 命令：在文件管理器中显示文件或目录
 #[tauri::command]
 pub fn open_file_directory(file_path: String) -> Result<String, String> {
     let path = PathBuf::from(&file_path);
-    
-    // 获取文件所在目录
-    let dir = if path.is_file() {
-        path.parent()
-            .ok_or_else(|| "无法获取文件所在目录".to_string())?
-    } else if path.is_dir() {
-        &path
-    } else {
+
+    if !path.exists() {
         return Err(format!("路径不存在: {}", file_path));
-    };
-    
-    // 使用系统命令打开目录
+    }
+
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("explorer")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| format!("打开目录失败: {}", e))?;
+        let path_str = path.to_str().ok_or("路径包含无效的 Unicode 字符")?;
+        if path.is_dir() {
+            // 是目录，直接打开
+            std::process::Command::new("explorer")
+                .arg(path_str)
+                .spawn()
+                .map_err(|e| format!("打开目录失败: {}", e))?;
+        } else {
+            // 是文件，在目录中选中它
+            std::process::Command::new("explorer")
+                .arg(format!("/select,{}", path_str))
+                .spawn()
+                .map_err(|e| format!("打开并选中文件失败: {}", e))?;
+        }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| format!("打开目录失败: {}", e))?;
+        if path.is_dir() {
+            // 是目录，直接打开
+            std::process::Command::new("open")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("打开目录失败: {}", e))?;
+        } else {
+            // 是文件，在 Finder 中显示
+            std::process::Command::new("open")
+                .arg("-R")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("打开并选中文件失败: {}", e))?;
+        }
     }
-    
+
     #[cfg(target_os = "linux")]
     {
-        std::process::Command::new("xdg-open")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| format!("打开目录失败: {}", e))?;
+        // On Linux, there's no standard way to select a file.
+        // We just open the parent directory.
+        let dir_to_open = if path.is_dir() {
+            Some(path.as_path())
+        } else {
+            path.parent()
+        };
+
+        if let Some(dir) = dir_to_open {
+            std::process::Command::new("xdg-open")
+                .arg(dir)
+                .spawn()
+                .map_err(|e| format!("打开目录失败: {}", e))?;
+        } else {
+            return Err("无法获取文件所在目录".to_string());
+        }
     }
     
-    Ok(format!("已打开目录: {}", dir.display()))
+    Ok(format!("已请求在文件管理器中显示: {}", file_path))
 }
 
 // Tauri 命令：从应用数据目录复制文件

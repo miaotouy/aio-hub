@@ -27,6 +27,7 @@
           @selection-change="(asset: Asset, event: MouseEvent) => emit('selection-change', asset, event)"
           @select="(asset) => emit('select', asset)"
           @delete="(assetId) => emit('delete', assetId)"
+          @show-in-folder="(path: string) => emit('show-in-folder', path)"
         />
       </KeepAlive>
     </div>
@@ -61,6 +62,7 @@ const emit = defineEmits<{
   'selection-change': [asset: Asset, event: MouseEvent];
   'select-all': [assetIds: string[]];
   'deselect-all': [assetIds: string[]];
+  'show-in-folder': [path: string];
 }>();
 
 // --- 预览 URL 管理 ---

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import { ElMessageBox, ElAvatar } from "element-plus";
+import { ElMessageBox, ElAvatar, ElIcon } from "element-plus";
+import { Loading } from "@element-plus/icons-vue";
 import { useClipboard } from "@vueuse/core";
 import { useOcrHistory } from "../composables/useOcrHistory";
 import type { OcrHistoryIndexItem } from "../types";
@@ -26,8 +27,14 @@ const { getAssetUrl } = useAssetManager();
 const imageViewer = useImageViewer();
 const { copy, copied } = useClipboard();
 
-const history = ref<OcrHistoryIndexItem[]>([]);
+// 分页相关状态
+const PAGE_SIZE = 20; // 每页加载数量
+const allHistory = ref<OcrHistoryIndexItem[]>([]); // 所有历史记录
+const displayedHistory = ref<OcrHistoryIndexItem[]>([]); // 当前显示的记录
+const currentPage = ref(1);
+const hasMore = ref(true);
 const isLoading = ref(false);
+const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
 
 const isDialogVisible = computed({
@@ -37,14 +44,61 @@ const isDialogVisible = computed({
 
 async function fetchHistory() {
   isLoading.value = true;
+  currentPage.value = 1;
+  displayedHistory.value = [];
   try {
     const index = await loadHistoryIndex();
-    history.value = index.records;
-    await generateThumbnails(history.value);
+    allHistory.value = index.records;
+    hasMore.value = allHistory.value.length > PAGE_SIZE;
+
+    // 加载第一页
+    await loadPage(1);
   } catch (error) {
     logger.error("加载历史记录索引失败", error);
   } finally {
     isLoading.value = false;
+  }
+}
+
+async function loadPage(page: number) {
+  const start = (page - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const pageRecords = allHistory.value.slice(start, end);
+
+  if (pageRecords.length === 0) {
+    hasMore.value = false;
+    return;
+  }
+
+  displayedHistory.value.push(...pageRecords);
+  await generateThumbnails(pageRecords);
+
+  hasMore.value = end < allHistory.value.length;
+  currentPage.value = page;
+}
+
+async function loadMore() {
+  if (!hasMore.value || isLoadingMore.value) return;
+
+  isLoadingMore.value = true;
+  try {
+    await loadPage(currentPage.value + 1);
+  } catch (error) {
+    logger.error("加载更多历史记录失败", error);
+  } finally {
+    isLoadingMore.value = false;
+  }
+}
+
+function handleScroll(event: Event) {
+  const target = event.target as HTMLElement;
+  const scrollTop = target.scrollTop;
+  const scrollHeight = target.scrollHeight;
+  const clientHeight = target.clientHeight;
+
+  // 当滚动到距离底部 100px 时触发加载
+  if (scrollHeight - scrollTop - clientHeight < 100) {
+    loadMore();
   }
 }
 
@@ -115,7 +169,17 @@ async function handleDelete(record: OcrHistoryIndexItem) {
       }
     );
     await deleteRecord(record.id);
-    await fetchHistory(); // 重新加载列表
+
+    // 从所有记录中移除
+    allHistory.value = allHistory.value.filter((r) => r.id !== record.id);
+    // 从显示记录中移除
+    displayedHistory.value = displayedHistory.value.filter((r) => r.id !== record.id);
+    // 移除缩略图
+    delete thumbnailUrls.value[record.id];
+
+    // 更新 hasMore 状态
+    hasMore.value = displayedHistory.value.length < allHistory.value.length;
+
     logger.info("历史记录已删除", { recordId: record.id });
   } catch (error) {
     if (error !== "cancel") {
@@ -162,44 +226,57 @@ watch(
     destroy-on-close
   >
     <div class="history-dialog-content" v-loading="isLoading">
-      <el-table :data="history" height="60vh" empty-text="暂无历史记录">
-        <el-table-column label="预览" width="100">
-          <template #default="{ row }">
-            <el-avatar
-              shape="square"
-              :size="60"
-              :src="thumbnailUrls[row.id]"
-              class="thumbnail-preview"
-              @click="handlePreview(row)"
-            >
-              🖼️
-            </el-avatar>
-          </template>
-        </el-table-column>
-        <el-table-column label="识别内容">
-          <template #default="{ row }">
-            <div class="text-preview">{{ row.textPreview }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="引擎" width="120">
-          <template #default="{ row }">
-            <el-tag>{{ row.engine }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="识别时间" width="180">
-          <template #default="{ row }">
-            <span>{{ format(new Date(row.createdAt), "yyyy-MM-dd HH:mm:ss") }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="$emit('load-record', row.id)">追加</el-button>
-            <el-button size="small" @click="handleCopy(row)">复制</el-button>
-            <el-button size="small" @click="$emit('re-recognize', row.id)">重识别</el-button>
-            <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-wrapper" @scroll="handleScroll">
+        <el-table :data="displayedHistory" height="60vh" empty-text="暂无历史记录">
+          <el-table-column label="预览" width="100">
+            <template #default="{ row }">
+              <el-avatar
+                shape="square"
+                :size="60"
+                :src="thumbnailUrls[row.id]"
+                class="thumbnail-preview"
+                @click="handlePreview(row)"
+              >
+                🖼️
+              </el-avatar>
+            </template>
+          </el-table-column>
+          <el-table-column label="识别内容">
+            <template #default="{ row }">
+              <div class="text-preview">{{ row.textPreview }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="引擎" width="120">
+            <template #default="{ row }">
+              <el-tag>{{ row.engine }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="识别时间" width="180">
+            <template #default="{ row }">
+              <span>{{ format(new Date(row.createdAt), "yyyy-MM-dd HH:mm:ss") }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="280" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="$emit('load-record', row.id)">追加</el-button>
+              <el-button size="small" @click="handleCopy(row)">复制</el-button>
+              <el-button size="small" @click="$emit('re-recognize', row.id)">重识别</el-button>
+              <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 加载更多提示 -->
+        <div v-if="isLoadingMore" class="loading-more">
+          <el-icon class="is-loading">
+            <Loading />
+          </el-icon>
+          <span>加载中...</span>
+        </div>
+        <div v-else-if="!hasMore && displayedHistory.length > 0" class="no-more">
+          已加载全部 {{ allHistory.length }} 条记录
+        </div>
+      </div>
     </div>
   </BaseDialog>
 </template>
@@ -208,6 +285,13 @@ watch(
 .history-dialog-content {
   min-height: 60vh;
 }
+
+.table-wrapper {
+  height: 60vh;
+  overflow-y: auto;
+  position: relative;
+}
+
 .text-preview {
   white-space: pre-wrap;
   word-break: break-all;
@@ -227,5 +311,25 @@ watch(
 
 .thumbnail-preview:hover {
   transform: scale(1.05);
+}
+
+.loading-more,
+.no-more {
+  text-align: center;
+  padding: 16px;
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.no-more {
+  border-top: 1px solid var(--el-border-color-lighter);
+  background-color: var(--el-fill-color-blank);
 }
 </style>

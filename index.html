@@ -2,10 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src ipc: http://ipc.localhost https://ipc.localhost ws: wss: http://tauri.localhost https://* http://* http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost http://tauri.localhost https://*; media-src 'self' asset: http://asset.localhost https://asset.localhost; font-src 'self' data:; worker-src 'self' blob:;" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src ipc: http://ipc.localhost https://ipc.localhost ws: wss: http://tauri.localhost https://* http://* http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost http://tauri.localhost https://*; media-src 'self' asset: http://asset.localhost https://asset.localhost; font-src 'self' data:; worker-src 'self' blob:;"
+    />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + Vue + Typescript App</title>
+    <title>AIO Hub</title>
   </head>
 
   <body>
@@ -22,15 +25,44 @@
           justify-content: center;
           align-items: center;
           background-color: #f0f2f5;
+          flex-direction: column;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
         }
 
-        .spinner {
-          width: 40px;
-          height: 40px;
-          border: 4px solid rgba(0, 0, 0, 0.1);
-          border-left-color: #09f;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+        }
+
+        .logo {
+          width: 80px;
+          height: 80px;
+          animation: spin 2s linear infinite;
+        }
+
+        .logo-dark {
+          display: none;
+        }
+
+        .loading-text {
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+            "微软雅黑", Arial, sans-serif;
+          font-size: 16px;
+          color: #606266;
+        }
+
+        h1 {
+          color: #303133;
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+            "微软雅黑", Arial, sans-serif;
+          font-weight: 600;
+          margin: 0;
         }
 
         @keyframes spin {
@@ -45,13 +77,26 @@
           #app {
             background-color: #1a1a1a;
           }
-          .spinner {
-            border-color: rgba(255, 255, 255, 0.1);
-            border-left-color: #36adff;
+          .logo-light {
+            display: none;
+          }
+          .logo-dark {
+            display: block;
+          }
+          .loading-text {
+            color: #a8abb2;
+          }
+          h1 {
+            color: #e5eaf3;
           }
         }
       </style>
-      <div class="spinner"></div>
+      <div class="loading-container">
+        <img src="/src/assets/aio-icon-black.svg" class="logo logo-light" alt="AIO Hub Logo" />
+        <img src="/src/assets/aio-icon-white.svg" class="logo logo-dark" alt="AIO Hub Logo" />
+        <h1>AIO Hub</h1>
+        <p class="loading-text">正在加载...</p>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

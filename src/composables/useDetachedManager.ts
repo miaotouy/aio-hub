@@ -1,16 +1,16 @@
-import { ref, computed, readonly } from 'vue';
-import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
-import { createModuleLogger } from '@/utils/logger';
-import { getOrCreateInstance } from '@/utils/singleton';
-import { type AppSettings, loadAppSettings } from '@/utils/appSettings';
+import { ref, computed, readonly } from "vue";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { createModuleLogger } from "@/utils/logger";
+import { getOrCreateInstance } from "@/utils/singleton";
+import { type AppSettings, loadAppSettings } from "@/utils/appSettings";
 
-const logger = createModuleLogger('DetachedManager');
+const logger = createModuleLogger("DetachedManager");
 
 export interface DetachedWindow {
   label: string;
   id: string;
-  type: 'tool' | 'component';
+  type: "tool" | "component";
 }
 
 /**
@@ -38,14 +38,14 @@ const useDetachedWindowManager = () => {
     initialized = true;
 
     try {
-      await listen<DetachedWindow>('window-detached', (event) => {
+      await listen<DetachedWindow>("window-detached", (event) => {
         const { label, id, type } = event.payload;
         logger.info(`窗口已分离: ${type} '${id}' (label: ${label})`);
         detachedWindows.value.set(label, { label, id, type });
         detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
       });
 
-      await listen<{ label: string }>('window-attached', (event) => {
+      await listen<{ label: string }>("window-attached", (event) => {
         const { label } = event.payload;
         const detached = detachedWindows.value.get(label);
         if (detached) {
@@ -57,14 +57,14 @@ const useDetachedWindowManager = () => {
       });
 
       // 兼容旧的工具系统事件
-      await listen<string>('tool-detached', (event) => {
+      await listen<string>("tool-detached", (event) => {
         const label = event.payload;
         logger.info(`工具窗口已分离(旧事件): '${label}'`);
-        detachedWindows.value.set(label, { label, id: label, type: 'tool' });
+        detachedWindows.value.set(label, { label, id: label, type: "tool" });
         detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
       });
 
-      await listen<string>('tool-attached', (event) => {
+      await listen<string>("tool-attached", (event) => {
         const label = event.payload;
         logger.info(`工具窗口已重新附着(旧事件): '${label}'`);
         if (detachedWindows.value.delete(label)) {
@@ -73,14 +73,14 @@ const useDetachedWindowManager = () => {
       });
 
       // 兼容旧的组件系统事件
-      await listen<{ label: string; componentId: string }>('component-detached', (event) => {
+      await listen<{ label: string; componentId: string }>("component-detached", (event) => {
         const { label, componentId } = event.payload;
         logger.info(`组件窗口已分离(旧事件): '${componentId}' (label: ${label})`);
-        detachedWindows.value.set(label, { label, id: componentId, type: 'component' });
+        detachedWindows.value.set(label, { label, id: componentId, type: "component" });
         detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
       });
 
-      await listen<{ label: string; componentId: string }>('component-attached', (event) => {
+      await listen<{ label: string; componentId: string }>("component-attached", (event) => {
         const { label } = event.payload;
         logger.info(`组件窗口已重新附着(旧事件): (label: ${label})`);
         if (detachedWindows.value.delete(label)) {
@@ -89,7 +89,7 @@ const useDetachedWindowManager = () => {
       });
 
       // 监听窗口销毁事件，确保状态被清理
-      await listen<{ label: string }>('tauri://destroyed', (event) => {
+      await listen<{ label: string }>("tauri://destroyed", (event) => {
         const { label } = event.payload;
         if (detachedWindows.value.has(label)) {
           const detached = detachedWindows.value.get(label)!;
@@ -101,12 +101,12 @@ const useDetachedWindowManager = () => {
       });
 
       // 从后端获取当前所有已分离的窗口进行初始化
-      const existingWindows = await invoke<DetachedWindow[]>('get_all_detached_windows');
+      const existingWindows = await invoke<DetachedWindow[]>("get_all_detached_windows");
       for (const win of existingWindows) {
         detachedWindows.value.set(win.label, win);
       }
 
-      logger.info('分离窗口管理器初始化完成', {
+      logger.info("分离窗口管理器初始化完成", {
         existing: existingWindows.length,
       });
 
@@ -117,7 +117,7 @@ const useDetachedWindowManager = () => {
       }
 
       // 监听设置变化，动态启停检查器
-      window.addEventListener('app-settings-changed', (event: Event) => {
+      window.addEventListener("app-settings-changed", (event: Event) => {
         const customEvent = event as CustomEvent<AppSettings>;
         if (customEvent.detail.autoAdjustWindowPosition) {
           startPositionCheck();
@@ -125,9 +125,8 @@ const useDetachedWindowManager = () => {
           stopPositionCheck();
         }
       });
-
     } catch (error) {
-      logger.error('初始化分离窗口管理器失败', { error });
+      logger.error("初始化分离窗口管理器失败", error);
     }
   };
 
@@ -139,7 +138,7 @@ const useDetachedWindowManager = () => {
 
     const settings = loadAppSettings();
     if (!settings.autoAdjustWindowPosition) {
-      logger.info('自动调整窗口位置功能已禁用，不启动检查器');
+      logger.info("自动调整窗口位置功能已禁用，不启动检查器");
       return;
     }
 
@@ -152,7 +151,7 @@ const useDetachedWindowManager = () => {
         try {
           const adjusted = await ensureWindowVisible(label);
           if (adjusted) {
-            logger.info('已调整窗口位置', { label });
+            logger.info("已调整窗口位置", { label });
           }
         } catch (error) {
           // 窗口可能已被关闭，忽略错误
@@ -160,7 +159,7 @@ const useDetachedWindowManager = () => {
       }
     }, 30000);
 
-    logger.info('已启动窗口位置定期检查');
+    logger.info("已启动窗口位置定期检查");
   };
 
   /**
@@ -170,7 +169,7 @@ const useDetachedWindowManager = () => {
     if (positionCheckInterval !== null) {
       window.clearInterval(positionCheckInterval);
       positionCheckInterval = null;
-      logger.info('已停止窗口位置定期检查');
+      logger.info("已停止窗口位置定期检查");
     }
   };
 
@@ -179,12 +178,12 @@ const useDetachedWindowManager = () => {
    */
   const createToolWindow = async (config: WindowConfig): Promise<boolean> => {
     try {
-      logger.info('正在创建工具窗口', { config });
-      const result = await invoke<string>('create_tool_window', { config });
-      logger.info('工具窗口创建成功', { result });
+      logger.info("正在创建工具窗口", { config });
+      const result = await invoke<string>("create_tool_window", { config });
+      logger.info("工具窗口创建成功", { result });
       return true;
     } catch (error) {
-      logger.error('创建工具窗口失败', { error, config });
+      logger.error("创建工具窗口失败", error, { config });
       return false;
     }
   };
@@ -194,12 +193,12 @@ const useDetachedWindowManager = () => {
    */
   const focusWindow = async (label: string): Promise<boolean> => {
     try {
-      logger.info('正在聚焦窗口', { label });
-      await invoke('focus_window', { label });
-      logger.info('窗口聚焦成功', { label });
+      logger.info("正在聚焦窗口", { label });
+      await invoke("focus_window", { label });
+      logger.info("窗口聚焦成功", { label });
       return true;
     } catch (error) {
-      logger.error('聚焦窗口失败', { error, label });
+      logger.error("聚焦窗口失败", error, { label });
       return false;
     }
   };
@@ -209,33 +208,50 @@ const useDetachedWindowManager = () => {
    */
   const ensureWindowVisible = async (label: string): Promise<boolean> => {
     try {
-      const adjusted = await invoke<boolean>('ensure_window_visible', { label });
+      const adjusted = await invoke<boolean>("ensure_window_visible", { label });
       if (adjusted) {
-        logger.info('窗口位置已调整到可见区域', { label });
+        logger.info("窗口位置已调整到可见区域", { label });
       }
       return adjusted;
     } catch (error) {
-      logger.error('调整窗口位置失败', { error, label });
+      logger.error("调整窗口位置失败", error, { label });
       return false;
     }
   };
 
   /**
    * 关闭窗口（重新附加）
+   * @param id - 工具或组件的 ID
    */
-  const closeWindow = async (label: string): Promise<boolean> => {
+  const closeWindow = async (id: string): Promise<boolean> => {
+    let labelToClose: string | undefined;
+
+    // 通过 ID 查找窗口的 label
+    for (const window of detachedWindows.value.values()) {
+      if (window.id === id) {
+        labelToClose = window.label;
+        break;
+      }
+    }
+
+    // 如果找不到 label，可能是因为状态不同步，或者传入的直接就是 label
+    // 这种情况下，我们直接尝试使用传入的 id 作为 label
+    if (!labelToClose) {
+      logger.warn(`在管理器中未找到 ID 为 '${id}' 的窗口，将尝试直接使用此 ID 作为 label 关闭。`);
+      labelToClose = id;
+    }
+
     try {
-      logger.info('正在关闭窗口', { label });
+      logger.info("正在关闭窗口", { label: labelToClose, id });
       // 使用新的统一关闭命令
-      await invoke('close_detached_window', { label });
-      logger.info('窗口关闭成功', { label });
+      await invoke("close_detached_window", { label: labelToClose });
+      logger.info("窗口关闭成功", { label: labelToClose });
       return true;
     } catch (error) {
-      logger.error('关闭窗口失败', { error, label });
+      logger.error("关闭窗口失败", error, { label: labelToClose, id });
       return false;
     }
   };
-
   /**
    * 检查指定 ID 的项（工具或组件）是否已分离。
    * @param id - 工具或组件的 ID
@@ -254,7 +270,7 @@ const useDetachedWindowManager = () => {
    * 按类型获取所有已分离窗口的 ID。
    * @param type - 'tool' 或 'component'
    */
-  const getDetachedIdsByType = (type: 'tool' | 'component'): string[] => {
+  const getDetachedIdsByType = (type: "tool" | "component"): string[] => {
     const ids: string[] = [];
     for (const window of detachedWindows.value.values()) {
       if (window.type === type) {
@@ -271,8 +287,8 @@ const useDetachedWindowManager = () => {
     isDetached,
     getDetachedIdsByType,
     detachedWindows: readonly(detachedWindows),
-    detachedTools: computed(() => getDetachedIdsByType('tool')),
-    detachedComponents: computed(() => getDetachedIdsByType('component')),
+    detachedTools: computed(() => getDetachedIdsByType("tool")),
+    detachedComponents: computed(() => getDetachedIdsByType("component")),
     // 窗口操作
     createToolWindow,
     focusWindow,
@@ -284,4 +300,5 @@ const useDetachedWindowManager = () => {
   };
 };
 
-export const useDetachedManager = () => getOrCreateInstance('DetachedManager', useDetachedWindowManager);
+export const useDetachedManager = () =>
+  getOrCreateInstance("DetachedManager", useDetachedWindowManager);

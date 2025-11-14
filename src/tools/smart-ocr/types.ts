@@ -138,3 +138,30 @@ export interface CutLine {
   y: number; // Y坐标
   height: number; // 空白区域高度
 }
+
+/**
+ * OCR 历史记录索引项 (用于列表快速展示)
+ */
+export interface OcrHistoryIndexItem {
+  id: string;
+  assetId: string; // 关联图片的 assetId
+  assetPath: string; // 关联图片的相对路径
+  assetMimeType: string; // 关联图片的MIME类型
+  engine: OcrEngineType;
+  createdAt: string;
+  textPreview: string; // 识别文本的简短预览
+}
+
+/**
+ * OCR 历史记录完整数据
+ */
+export interface OcrHistoryRecord {
+  id: string;
+  assetId: string;
+  assetPath: string; // 关联图片的相对路径
+  assetMimeType: string; // 关联图片的MIME类型
+  engine: OcrEngineType;
+  engineConfig: OcrEngineConfig; // 完整的引擎配置
+  results: OcrResult[]; // 完整的识别结果数组
+  createdAt: string;
+}

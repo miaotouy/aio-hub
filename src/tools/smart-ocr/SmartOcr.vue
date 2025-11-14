@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { customMessage } from '@/utils/customMessage';
 import ControlPanel from './components/ControlPanel.vue';
+import HistoryDialog from './components/HistoryDialog.vue';
 import PreviewPanel from './components/PreviewPanel.vue';
 import ResultPanel from './components/ResultPanel.vue';
 import SidebarToggleIcon from '@/components/icons/SidebarToggleIcon.vue';
@@ -10,7 +11,10 @@ import type { UploadedImage } from './types';
 import { useSmartOcrUiState } from './composables/useSmartOcrUiState';
 import { useSmartOcrStore } from './smartOcr.store';
 import { useSmartOcrRunner } from './composables/useSmartOcrRunner';
+import { useOcrHistory } from './composables/useOcrHistory';
+import { useAssetManager } from '@/composables/useAssetManager';
 import { createModuleLogger } from '@utils/logger';
+import { nanoid } from 'nanoid';
 
 // 创建模块日志记录器
 const log = createModuleLogger('SmartOCR');
@@ -61,6 +65,7 @@ const dragStartWidth = ref(0);
 
 // UI 状态
 const selectedImageId = ref<string | null>(null);
+const isHistoryDialogVisible = ref(false);
 
 // ControlPanel 组件引用（保留用于未来可能需要的方法调用）
 const controlPanelRef = ref<InstanceType<typeof ControlPanel>>();
@@ -189,10 +194,110 @@ const handleUpdateText = (blockId: string, text: string) => {
   updateBlockText(blockId, text);
   log.info('更新块文本', { blockId, textLength: text.length });
 };
+
+// ==================== 历史记录处理 ====================
+
+const { loadFullRecord } = useOcrHistory();
+const { getAssetBinary } = useAssetManager();
+
+const openHistoryDialog = () => {
+  isHistoryDialogVisible.value = true;
+};
+
+/**
+ * 从 File 对象创建 UploadedImage 对象
+ */
+async function createUploadedImageFromFile(file: File): Promise<UploadedImage> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = dataUrl;
+  });
+
+  return {
+    id: nanoid(),
+    file,
+    img,
+    name: file.name,
+    size: file.size,
+    dataUrl,
+  };
+}
+
+const handleLoadRecord = async (recordId: string) => {
+  try {
+    const fullRecord = await loadFullRecord(recordId);
+    if (!fullRecord) {
+      customMessage.error('找不到该历史记录的详细数据');
+      return;
+    }
+
+    const assetBinary = await getAssetBinary(fullRecord.assetPath);
+    const file = new File([assetBinary], fullRecord.id, { type: fullRecord.assetMimeType });
+    
+    const uploadedImage = await createUploadedImageFromFile(file);
+    addImages([uploadedImage]);
+
+    // 关键：将历史结果与新加载的图片关联起来
+    const newResults = fullRecord.results.map(res => ({
+      ...res,
+      imageId: uploadedImage.id, // 将结果中的 imageId 更新为新图片的 ID
+    }));
+    store.updateOcrResults(newResults);
+
+    // 选中新加载的图片
+    selectedImageId.value = uploadedImage.id;
+    isHistoryDialogVisible.value = false;
+    customMessage.success('历史记录已加载');
+  } catch (error) {
+    customMessage.error(`加载历史记录失败: ${error}`);
+    log.error('加载历史记录失败', error, { recordId });
+  }
+};
+
+const handleReRecognize = async (recordId: string) => {
+  try {
+    const fullRecord = await loadFullRecord(recordId);
+    if (!fullRecord) {
+      customMessage.error('找不到该历史记录的详细数据');
+      return;
+    }
+
+    const assetBinary = await getAssetBinary(fullRecord.assetPath);
+    const file = new File([assetBinary], fullRecord.id, { type: fullRecord.assetMimeType });
+
+    const uploadedImage = await createUploadedImageFromFile(file);
+    addImages([uploadedImage]);
+    
+    // 选中新加载的图片
+    selectedImageId.value = uploadedImage.id;
+
+    // 开始识别
+    await runFullOcrProcess({ imageIds: [uploadedImage.id] });
+
+    isHistoryDialogVisible.value = false;
+  } catch (error) {
+    customMessage.error(`重识别失败: ${error}`);
+    log.error('重识别失败', error, { recordId });
+  }
+};
 </script>
 
 <template>
   <div class="smart-ocr-wrapper">
+    <HistoryDialog
+      v-model:visible="isHistoryDialogVisible"
+      @load-record="handleLoadRecord"
+      @re-recognize="handleReRecognize"
+    />
     <div class="smart-ocr-container">
       <!-- 左栏：控制面板 -->
       <div
@@ -212,6 +317,7 @@ const handleUpdateText = (blockId: string, text: string) => {
             @update-engine-config="updateEngineConfig"
             @update-slicer-config="updateSlicerConfig"
             @run-full-ocr-process="runFullOcrProcess"
+            @open-history="openHistoryDialog"
           />
         </div>
 

@@ -11,6 +11,7 @@ import type { SmartOcrConfig } from "../config";
 import { useLlmProfiles } from "@composables/useLlmProfiles";
 import { useOcrProfiles } from "@composables/useOcrProfiles";
 import { getTesseractLanguageOptions } from "../language-packs";
+import { History } from "lucide-vue-next";
 
 // 创建模块日志记录器
 const logger = createModuleLogger("SmartOCR.ControlPanel");
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   updateEngineConfig: [config: Partial<OcrEngineConfig>];
   updateSlicerConfig: [config: Partial<SlicerConfig>];
   runFullOcrProcess: [options: { imageIds?: string[] }];
+  'open-history': [];
 }>();
 
 // 使用 composables
@@ -264,6 +266,9 @@ const handleNavigateToSettings = () => {
   <div class="control-panel">
     <div class="panel-header">
       <h3>控制面板</h3>
+      <el-button circle @click="emit('open-history')" title="历史记录">
+        <History :size="18" />
+      </el-button>
     </div>
 
     <div class="panel-content">
@@ -681,6 +686,9 @@ const handleNavigateToSettings = () => {
 }
 
 .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 20px;
   border-bottom: 1px solid var(--border-color);
 }

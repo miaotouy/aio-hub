@@ -15,6 +15,8 @@ import {
 } from '../config';
 import { useImageSlicer } from './useImageSlicer';
 import { useOcrRunner } from './useOcrRunner';
+import { useOcrHistory } from './useOcrHistory';
+import { useAssetManager } from '@/composables/useAssetManager';
 
 const logger = createModuleLogger('use-smart-ocr-runner');
 const errorHandler = createModuleErrorHandler('use-smart-ocr-runner');
@@ -59,6 +61,52 @@ export interface FormattedOcrSummary {
  */
 export function useSmartOcrRunner() {
   const store = useSmartOcrStore();
+  const { addRecord: addHistoryRecord } = useOcrHistory();
+  const { importAssetFromBytes } = useAssetManager();
+
+  // ==================== 私有辅助函数 ====================
+
+  /**
+   * 为一次成功的 OCR 任务保存历史记录
+   */
+  async function _saveOcrHistory(
+    images: UploadedImage[],
+    results: OcrResult[],
+    engineConfig: OcrEngineConfig
+  ) {
+    logger.info('开始保存 OCR 历史记录', { imageCount: images.length });
+    for (const image of images) {
+      try {
+        const imageResults = results.filter((r) => r.imageId === image.id);
+        if (imageResults.length === 0) continue;
+
+        const asset = await importAssetFromBytes(
+          await image.file.arrayBuffer(),
+          image.file.name,
+          { sourceModule: 'smart-ocr', enableDeduplication: true }
+        );
+
+        await addHistoryRecord(
+          {
+            assetId: asset.id,
+            assetPath: asset.path,
+            assetMimeType: asset.mimeType,
+            engine: engineConfig.type,
+            engineConfig: JSON.parse(JSON.stringify(engineConfig)), // 深拷贝配置
+            results: imageResults,
+            createdAt: new Date().toISOString(),
+          },
+          asset
+        );
+      } catch (error) {
+        errorHandler.handle(error, {
+          level: ErrorLevel.WARNING,
+          userMessage: `保存图片 "${image.name}" 的历史记录失败`,
+          context: { imageId: image.id },
+        });
+      }
+    }
+  }
 
   // ==================== 初始化与配置管理 ====================
 
@@ -300,6 +348,10 @@ export function useSmartOcrRunner() {
 
         // 最终更新：合并结果
         store.updateOcrResults(results);
+
+        // 保存历史记录
+        await _saveOcrHistory(imagesToProcess, results, store.engineConfig);
+
         store.setProcessing(false);
 
         return results;

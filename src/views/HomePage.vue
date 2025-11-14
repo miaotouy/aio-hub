@@ -5,7 +5,10 @@
       <div class="home-skeleton">
         <!-- Header Skeleton -->
         <div class="header-section">
-          <el-skeleton-item variant="text" style="width: 150px; height: 40px; margin-bottom: 20px" />
+          <el-skeleton-item
+            variant="text"
+            style="width: 150px; height: 40px; margin-bottom: 20px"
+          />
           <el-skeleton-item variant="rect" style="width: 100%; max-width: 600px; height: 40px" />
         </div>
         <!-- Grid Skeleton -->
@@ -55,7 +58,10 @@
             v-for="tool in filteredTools"
             :key="tool.path"
             :to="isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
-            :class="['tool-card', { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) }]"
+            :class="[
+              'tool-card',
+              { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) },
+            ]"
             @click="handleToolClick(tool.path)"
           >
             <!-- 已分离徽章（带下拉菜单） -->
@@ -329,6 +335,7 @@ watch(
 .tool-card {
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
   padding: 25px;
   display: flex;
@@ -384,6 +391,7 @@ watch(
   width: 100%;
   max-width: 600px;
   margin-bottom: 1.5rem;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .search-input {
@@ -418,6 +426,7 @@ watch(
   background: var(--card-bg);
   color: var(--text-color);
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.9rem;

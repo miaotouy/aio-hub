@@ -17,7 +17,7 @@
       <el-dropdown>
         <el-button>
           <el-icon><MoreFilled /></el-icon>
-          <span v-if="layoutMode !== 'compact'">文件操作</span>
+          <span>文件操作</span>
         </el-button>
         <template #dropdown>
           <el-dropdown-menu>

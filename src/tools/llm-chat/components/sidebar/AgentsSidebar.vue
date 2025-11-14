@@ -13,7 +13,7 @@ import type { AgentPreset } from "../../types";
 import ExportAgentDialog from "../export/ExportAgentDialog.vue";
 import ImportAgentDialog from "../export/ImportAgentDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { useResolvedAvatar } from '../../composables/useResolvedAvatar';
+import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 
 const agentStore = useAgentStore();
 
@@ -97,9 +97,9 @@ const handleExportAgents = (agentIds: string[], options: { includeAssets: boolea
 // 导入相关
 const handleImportFromFile = async () => {
   try {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.agent.zip,.agent.json';
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".agent.zip,.agent.json";
     input.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
       if (!file) return;
@@ -260,7 +260,7 @@ const handleSaveAgent = (data: {
 };
 
 const getAvatarSrc = (agent: ChatAgent) => {
-  return useResolvedAvatar(ref(agent), 'agent').value;
+  return useResolvedAvatar(ref(agent), "agent").value;
 };
 
 // 删除智能体
@@ -300,22 +300,6 @@ const handleDelete = (agent: ChatAgent) => {
         <el-option label="按名称" value="name" />
         <el-option label="创建时间" value="createdAt" />
       </el-select>
-      <!-- 更多操作下拉菜单 -->
-      <el-dropdown trigger="click" style="margin-left: auto;">
-        <el-button text circle :icon="MoreFilled" />
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item @click="handleImportFromFile">
-              <el-icon><Upload /></el-icon>
-              导入智能体...
-            </el-dropdown-item>
-            <el-dropdown-item @click="exportDialogVisible = true">
-              <el-icon><Download /></el-icon>
-              批量导出智能体...
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
     </div>
 
     <div class="agents-list">
@@ -376,9 +360,25 @@ const handleDelete = (agent: ChatAgent) => {
 
     <!-- 底部常驻添加按钮 -->
     <div class="agents-footer">
-      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus" style="width: 100%">
+      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus">
         添加智能体
       </el-button>
+      <!-- 导入导出下拉菜单 -->
+      <el-dropdown trigger="click">
+        <el-button type="info" :icon="MoreFilled"> </el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="handleImportFromFile">
+              <el-icon><Download /></el-icon>
+              导入智能体...
+            </el-dropdown-item>
+            <el-dropdown-item @click="exportDialogVisible = true">
+              <el-icon><Upload /></el-icon>
+              批量导出智能体...
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
 
     <!-- 创建智能体选择对话框 -->
@@ -398,10 +398,7 @@ const handleDelete = (agent: ChatAgent) => {
     />
 
     <!-- 导出对话框 -->
-    <ExportAgentDialog
-      v-model:visible="exportDialogVisible"
-      @export="handleExportAgents"
-    />
+    <ExportAgentDialog v-model:visible="exportDialogVisible" @export="handleExportAgents" />
 
     <!-- 导入对话框 -->
     <ImportAgentDialog
@@ -449,6 +446,12 @@ const handleDelete = (agent: ChatAgent) => {
   padding: 12px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
+  display: flex;
+  gap: 8px;
+}
+
+.agents-footer .el-button {
+  flex: 1;
 }
 
 .empty-state {

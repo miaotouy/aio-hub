@@ -8,7 +8,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
-import { initThemeAppearance, cleanupThemeAppearance, useThemeAppearance } from "../composables/useThemeAppearance";
+import { initThemeAppearance, cleanupThemeAppearance } from "../composables/useThemeAppearance";
 import { createModuleLogger } from "../utils/logger";
 import { getDetachableComponentConfig, loadDetachableComponent } from "../config/detachable-components";
 import { loadAppSettingsAsync } from "../utils/appSettings";
@@ -65,15 +65,17 @@ onMounted(async () => {
   const { initialize } = useDetachedManager();
   await initialize();
 
-  // 初始化主题外观系统（包括透明度、模糊等，但禁用壁纸）
+  // 初始化主题外观系统（包括透明度、模糊等）
   try {
     await initThemeAppearance();
     logger.info('分离组件窗口主题外观系统已初始化');
     
-    // 组件悬浮窗不使用壁纸背景，禁用壁纸功能
-    const { updateAppearanceSetting } = useThemeAppearance();
-    updateAppearanceSetting({ enableWallpaper: false });
-    logger.info('分离组件窗口壁纸已禁用');
+    // 组件悬浮窗不使用壁纸背景，通过 CSS 覆盖禁用壁纸显示
+    // 不修改持久化设置，避免影响主窗口
+    const root = document.documentElement;
+    root.style.setProperty('--wallpaper-url', 'none');
+    root.style.setProperty('--wallpaper-opacity', '0');
+    logger.info('分离组件窗口壁纸显示已通过 CSS 禁用');
   } catch (error) {
     logger.warn('初始化分离组件窗口主题外观失败', { error });
   }

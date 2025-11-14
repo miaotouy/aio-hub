@@ -3,6 +3,7 @@
     <!-- 工具栏 -->
     <Toolbar
       v-model:view-mode="viewMode"
+      v-model:grid-card-size="gridCardSize"
       v-model:search-query="listPayload.searchQuery"
       v-model:sort-by="listPayload.sortBy"
       v-model:group-by="groupBy"
@@ -72,6 +73,7 @@
             :label="group.label"
             :assets="group.assets"
             :view-mode="viewMode"
+            :grid-card-size="gridCardSize"
             :duplicate-hashes="duplicateHashes"
             :selected-ids="selectedAssetIds"
             @selection-change="handleAssetSelection"
@@ -152,6 +154,7 @@ const imageViewer = useImageViewer();
 
 // UI & 筛选状态
 const viewMode = ref<"grid" | "list">("grid");
+const gridCardSize = ref<"large" | "medium" | "small">("medium");
 const groupBy = ref<AssetGroupBy>("month");
 const selectedAssetIds = ref<Set<string>>(new Set());
 const lastSelectedAssetId = ref<string | null>(null);

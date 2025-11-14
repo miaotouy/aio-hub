@@ -1,6 +1,6 @@
 <template>
   <div class="asset-grid-view">
-    <div class="grid-container">
+    <div :class="['grid-container', `size-${props.gridCardSize}`]">
       <div
         v-for="asset in assets"
         :key="asset.id"
@@ -88,6 +88,7 @@ interface Props {
   duplicateHashes?: Set<string>;
   selectedIds?: Set<string>;
   assetUrls: Map<string, string>;
+  gridCardSize?: 'large' | 'medium' | 'small';
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -95,6 +96,7 @@ const props = withDefaults(defineProps<Props>(), {
   duplicateHashes: () => new Set(),
   selectedIds: () => new Set(),
   assetUrls: () => new Map(),
+  gridCardSize: 'medium',
 });
 
 const emit = defineEmits<{
@@ -138,6 +140,16 @@ const formatFileSize = (bytes: number) => {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 16px;
   padding: 4px;
+}
+
+.grid-container.size-small {
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.grid-container.size-large {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
 }
 
 .asset-card {

@@ -23,7 +23,8 @@
           :duplicate-hashes="duplicateHashes"
           :selected-ids="selectedIds"
           :asset-urls="assetUrls"
-          @selection-change="(asset, event) => emit('selection-change', asset, event)"
+          :grid-card-size="props.gridCardSize"
+          @selection-change="(asset: Asset, event: MouseEvent) => emit('selection-change', asset, event)"
           @select="(asset) => emit('select', asset)"
           @delete="(assetId) => emit('delete', assetId)"
         />
@@ -38,12 +39,12 @@ import type { Asset } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 import AssetGridView from './AssetGridView.vue';
 import AssetListView from './AssetListView.vue';
-
 interface Props {
   groupKey: string;
   label: string;
   assets: Asset[];
   viewMode: 'grid' | 'list';
+  gridCardSize?: 'large' | 'medium' | 'small';
   duplicateHashes?: Set<string>;
   selectedIds?: Set<string>;
 }
@@ -51,6 +52,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   duplicateHashes: () => new Set(),
   selectedIds: () => new Set(),
+  gridCardSize: 'medium',
 });
 
 const emit = defineEmits<{

@@ -128,6 +128,25 @@
           </el-radio-button>
         </el-tooltip>
       </el-radio-group>
+
+      <!-- 网格视图尺寸切换 -->
+      <el-radio-group
+        v-if="internalViewMode === 'grid'"
+        v-model="internalGridCardSize"
+        size="medium"
+        style="margin-left: 8px"
+        @change="handleGridCardSizeChange"
+      >
+        <el-tooltip content="大卡片" placement="bottom">
+          <el-radio-button value="large">大</el-radio-button>
+        </el-tooltip>
+        <el-tooltip content="中卡片" placement="bottom">
+          <el-radio-button value="medium">中</el-radio-button>
+        </el-tooltip>
+        <el-tooltip content="小卡片" placement="bottom">
+          <el-radio-button value="small">小</el-radio-button>
+        </el-tooltip>
+      </el-radio-group>
     </div>
   </div>
 </template>
@@ -154,6 +173,7 @@ interface Props {
   searchQuery: string;
   sortBy: "name" | "date" | "size";
   groupBy: "month" | "type" | "origin" | "none";
+  gridCardSize?: "large" | "medium" | "small";
   selectedCount?: number;
   hasDuplicates?: boolean;
   sidebarCollapsed?: boolean;
@@ -163,6 +183,7 @@ const props = withDefaults(defineProps<Props>(), {
   selectedCount: 0,
   hasDuplicates: false,
   sidebarCollapsed: false,
+  gridCardSize: "medium",
 });
 
 const emit = defineEmits<{
@@ -170,6 +191,7 @@ const emit = defineEmits<{
   "update:searchQuery": [value: string];
   "update:sortBy": [value: "name" | "date" | "size"];
   "update:groupBy": [value: "month" | "type" | "origin" | "none"];
+  "update:gridCardSize": [value: "large" | "medium" | "small"];
   rebuildIndex: [];
   findDuplicates: [];
   selectDuplicates: [];
@@ -201,6 +223,7 @@ const internalViewMode = ref(props.viewMode);
 const internalSearchQuery = ref(props.searchQuery);
 const internalSortBy = ref(props.sortBy);
 const internalGroupBy = ref(props.groupBy);
+const internalGridCardSize = ref(props.gridCardSize);
 
 // 监听 props 变化
 watch(
@@ -231,6 +254,13 @@ watch(
   }
 );
 
+watch(
+  () => props.gridCardSize,
+  (newVal) => {
+    internalGridCardSize.value = newVal;
+  }
+);
+
 // 事件处理
 const handleViewModeChange = (value: "grid" | "list") => {
   emit("update:viewMode", value);
@@ -246,6 +276,10 @@ const handleSortChange = (value: "name" | "date" | "size") => {
 
 const handleGroupByChange = (value: "month" | "type" | "origin" | "none") => {
   emit("update:groupBy", value);
+};
+
+const handleGridCardSizeChange = (value: "large" | "medium" | "small") => {
+  emit("update:gridCardSize", value);
 };
 
 const handleRebuildIndex = () => {

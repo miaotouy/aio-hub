@@ -149,6 +149,42 @@ export const assetManagerEngine = {
   },
 
   /**
+   * 为现有资产添加一个来源
+   */
+  addAssetSource: async (assetId: string, origin: AssetOrigin): Promise<Asset> => {
+    return await invoke<Asset>("add_asset_source", { assetId, origin });
+  },
+
+  /**
+   * 从资产中移除一个来源。如果这是最后一个来源，资产将被删除。
+   * @returns {Promise<{deleted: boolean, asset: Asset | null}>} 返回操作结果，如果资产被删除，asset为null
+   */
+  removeAssetSource: async (
+    assetId: string,
+    sourceModule: string
+  ): Promise<{ deleted: boolean; asset: Asset | null }> => {
+    return await invoke<{ deleted: boolean; asset: Asset | null }>("remove_asset_source", {
+      assetId,
+      sourceModule,
+    });
+  },
+
+  /**
+   * 完全删除资产（移除所有来源并删除文件）
+   */
+  removeAssetCompletely: async (assetId: string): Promise<void> => {
+    return await invoke<void>("remove_asset_completely", { assetId });
+  },
+
+  /**
+   * 批量完全删除资产（移除所有来源并删除文件）
+   * @returns {Promise<string[]>} 返回删除失败的资产 ID 列表
+   */
+  removeAssetsCompletely: async (assetIds: string[]): Promise<string[]> => {
+    return await invoke<string[]>("remove_assets_completely", { assetIds });
+  },
+
+  /**
    * 分页、筛选和排序资产
    */
   listAssetsPaginated: async (
@@ -283,13 +319,22 @@ export function useAssetManager() {
 
   /**
    * 导入后刷新
-   * @param newAsset
+   * @param updatedOrNewAsset
    */
-  const handlePostImport = async (newAsset: Asset) => {
-    // 导入成功后，重新获取统计信息，并将新资产添加到列表顶部
+  const handlePostImport = async (updatedOrNewAsset: Asset) => {
+    // 检查资产是否已存在于列表中
+    const existingAssetIndex = assets.value.findIndex((a) => a.id === updatedOrNewAsset.id);
+
+    if (existingAssetIndex !== -1) {
+      // 如果存在，说明是为现有资产添加了新来源，更新它
+      assets.value.splice(existingAssetIndex, 1, updatedOrNewAsset);
+    } else {
+      // 如果不存在，是新资产，添加到列表顶部
+      assets.value.unshift(updatedOrNewAsset);
+      totalItems.value++;
+    }
+    // 导入成功后，重新获取统计信息
     await fetchAssetStats();
-    assets.value.unshift(newAsset);
-    totalItems.value++;
   };
 
   /**
@@ -467,37 +512,97 @@ export function useAssetManager() {
   });
 
   /**
-   * 删除指定资产（移动到回收站）
+   * 从资产中移除指定来源（供业务模块使用）
+   *
+   * 这是业务模块（如 LLM Chat、Smart OCR）删除附件时应该调用的方法。
+   * 后端会自动判断：如果移除来源后资产没有任何来源在使用，则自动删除物理文件。
+   *
+   * @param assetId 资产 ID
+   * @param sourceModule 来源模块标识（如 'llm-chat', 'smart-ocr'）
+   *
+   * @example
+   * // LLM Chat 删除附件时
+   * await removeSourceFromAsset(attachment.id, 'llm-chat');
    */
-  const deleteAsset = async (assetId: string): Promise<void> => {
+  const removeSourceFromAsset = async (assetId: string, sourceModule: string): Promise<void> => {
     try {
-      const asset = assets.value.find((a) => a.id === assetId);
-      if (!asset) {
-        throw new Error("资产不存在");
-      }
+      const result = await assetManagerEngine.removeAssetSource(assetId, sourceModule);
 
-      await invoke("delete_asset", {
-        assetId: asset.id,
-        relativePath: asset.path,
-      });
+      const index = assets.value.findIndex((a) => a.id === assetId);
+      if (index === -1) return; // Not in the current list, do nothing
+
+      if (result.deleted) {
+        // Asset was fully deleted (no more sources)
+        assets.value.splice(index, 1);
+        totalItems.value--;
+        await fetchAssetStats(); // Update stats
+      } else if (result.asset) {
+        // Asset was updated (source removed, but still has other sources)
+        assets.value.splice(index, 1, result.asset);
+      }
+    } catch (err) {
+      handleError(err, "移除资产来源失败");
+    }
+  };
+
+  /**
+   * 完全删除资产（供资产管理器使用）
+   *
+   * 这个方法会移除所有来源并删除物理文件，主要供资产管理器工具使用。
+   * 业务模块应该使用 removeSourceFromAsset 而不是这个方法。
+   *
+   * @param assetId 资产 ID
+   *
+   * @example
+   * // 资产管理器中删除资产
+   * await deleteAssetCompletely(asset.id);
+   */
+  const deleteAssetCompletely = async (assetId: string): Promise<void> => {
+    try {
+      await assetManagerEngine.removeAssetCompletely(assetId);
 
       const index = assets.value.findIndex((a) => a.id === assetId);
       if (index !== -1) {
         assets.value.splice(index, 1);
+        totalItems.value--;
+        await fetchAssetStats();
       }
-      // 删除后更新统计信息
-      await fetchAssetStats();
-      totalItems.value--;
     } catch (err) {
       handleError(err, "删除资产失败");
     }
   };
 
   /**
-   * 批量删除资产
+   * 批量移除资产来源（供业务模块使用）
+   *
+   * @param assetIds 资产 ID 列表
+   * @param sourceModule 来源模块标识
    */
-  const deleteMultipleAssets = async (assetIds: string[]): Promise<void> => {
-    await withLoading(Promise.all(assetIds.map((id) => deleteAsset(id))));
+  const removeSourceFromAssets = async (assetIds: string[], sourceModule: string): Promise<void> => {
+    await withLoading(Promise.all(assetIds.map((id) => removeSourceFromAsset(id, sourceModule))));
+  };
+
+  /**
+   * 批量完全删除资产（供资产管理器使用）
+   *
+   * @param assetIds 资产 ID 列表
+   * @returns 删除失败的资产 ID 列表
+   */
+  const deleteAssetsCompletely = async (assetIds: string[]): Promise<string[]> => {
+    try {
+      const failedIds = await assetManagerEngine.removeAssetsCompletely(assetIds);
+      
+      // 从本地列表中移除成功删除的资产
+      const successIds = assetIds.filter(id => !failedIds.includes(id));
+      assets.value = assets.value.filter(a => !successIds.includes(a.id));
+      totalItems.value -= successIds.length;
+      
+      await fetchAssetStats();
+      return failedIds;
+    } catch (err) {
+      handleError(err, "批量删除资产失败");
+      return assetIds; // All failed
+    }
   };
 
   /**
@@ -549,9 +654,18 @@ export function useAssetManager() {
     importMultipleAssets,
     importAssetFromBytes,
     importAssetFromClipboard,
-    deleteAsset,
-    deleteMultipleAssets,
-    removeAsset, // 保持 deprecated 方法
+    
+    // 删除方法 - 业务模块应使用 removeSourceFromAsset
+    removeSourceFromAsset,
+    removeSourceFromAssets,
+    
+    // 删除方法 - 资产管理器使用
+    deleteAssetCompletely,
+    deleteAssetsCompletely,
+    
+    // Deprecated 方法
+    removeAsset, // @deprecated 直接操作本地列表，不推荐使用
+    
     rebuildHashIndex,
     rebuildCatalogIndex,
   };

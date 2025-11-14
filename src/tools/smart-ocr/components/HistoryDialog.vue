@@ -60,10 +60,11 @@ async function generateThumbnails(records: OcrHistoryIndexItem[]) {
           mimeType: record.assetMimeType,
           // getAssetUrl 需要的其他字段可以暂时为空
           type: "image" as const,
-          sourceModule: "",
+          sourceModule: "smart-ocr",
           name: "",
           size: 0,
           createdAt: "",
+          origins: [], // 必需字段，用于类型兼容性
         };
         const url = await getAssetUrl(pseudoAsset, true); // true 表示使用缩略图
         if (url) {
@@ -87,10 +88,11 @@ async function handlePreview(record: OcrHistoryIndexItem) {
       path: record.assetPath,
       mimeType: record.assetMimeType,
       type: "image" as const,
-      sourceModule: "",
+      sourceModule: "smart-ocr",
       name: "",
       size: 0,
       createdAt: "",
+      origins: [], // 必需字段，用于类型兼容性
     };
     const fullImageUrl = await getAssetUrl(pseudoAsset, false); // false 表示获取完整图片
     if (fullImageUrl) {

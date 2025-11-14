@@ -51,7 +51,7 @@ const indexManager = createConfigManager<HistoryIndex>({
  * OCR 历史记录 Composable
  */
 export function useOcrHistory() {
-  const { deleteAsset } = useAssetManager();
+  const { removeSourceFromAsset } = useAssetManager();
 
   /**
    * 获取 history 子目录的路径
@@ -175,20 +175,14 @@ export function useOcrHistory() {
       const [recordToDelete] = index.records.splice(recordIndex, 1);
       const { assetId } = recordToDelete;
 
-      // 1. 检查此 asset 是否仍被其他记录引用
-      const isAssetReferenced = index.records.some((r) => r.assetId === assetId);
-
-      // 2. 如果没有其他引用，则删除资产文件
-      if (!isAssetReferenced) {
-        try {
-          await deleteAsset(assetId);
-          logger.info('关联的资产文件已删除', { assetId });
-        } catch (assetError) {
-          logger.error('删除资产文件失败', assetError, { assetId });
-          // 即使资产删除失败，也继续删除记录
-        }
-      } else {
-        logger.info('资产文件被其他记录引用，跳过删除', { assetId });
+      // 1. 从资产中移除 smart-ocr 来源
+      // 如果资产没有其他来源使用，后端会自动删除物理文件
+      try {
+        await removeSourceFromAsset(assetId, 'smart-ocr');
+        logger.info('已从资产移除 smart-ocr 来源', { assetId });
+      } catch (assetError) {
+        logger.error('移除资产来源失败', assetError, { assetId });
+        // 即使资产来源移除失败，也继续删除记录
       }
 
       // 3. 删除记录的 JSON 文件

@@ -100,6 +100,11 @@ use commands::{
     list_assets_paginated,
     get_asset_stats,
     rebuild_catalog_index,
+    // 资产来源管理命令
+    remove_asset_source,
+    add_asset_source,
+    remove_asset_completely,
+    remove_assets_completely,
     // 插件管理命令
     uninstall_plugin,
     install_plugin_from_zip,
@@ -326,6 +331,11 @@ tauri::Builder::default()
             list_assets_paginated,
             get_asset_stats,
             rebuild_catalog_index,
+            // 资产来源管理命令
+            remove_asset_source,
+            add_asset_source,
+            remove_asset_completely,
+            remove_assets_completely,
             // 插件管理命令
             uninstall_plugin,
             install_plugin_from_zip,

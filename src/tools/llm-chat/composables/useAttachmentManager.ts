@@ -225,6 +225,7 @@ export function useAttachmentManager(
         size: metadata.size,
         createdAt: new Date().toISOString(),
         sourceModule: "llm-chat",
+        origins: [], // 待导入状态，暂无来源信息
         importStatus: "pending",
         originalPath: path, // 保存原始路径
       };

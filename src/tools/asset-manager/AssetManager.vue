@@ -151,8 +151,6 @@ const {
   hasMore,
   loadAssetsPaginated,
   fetchAssetStats,
-  deleteAsset,
-  deleteMultipleAssets,
   rebuildCatalogIndex,
 } = useAssetManager();
 const imageViewer = useImageViewer();
@@ -319,7 +317,14 @@ const handleShowInFolder = async (path: string) => {
 
 const handleDeleteAsset = async (assetId: string) => {
   try {
-    await deleteAsset(assetId);
+    // 使用新的批量完全删除命令
+    await invoke('remove_asset_completely', { assetId });
+
+    // 从本地列表中移除
+    const index = assets.value.findIndex(a => a.id === assetId);
+    if (index !== -1) {
+      assets.value.splice(index, 1);
+    }
 
     // 从选中项中移除
     if (selectedAssetIds.value.has(assetId)) {
@@ -330,14 +335,17 @@ const handleDeleteAsset = async (assetId: string) => {
     duplicateHashes.value.delete(assetId);
 
     // 如果这是重复文件组的一部分，需要检查是否还有其他重复文件
-    // 如果组内只剩一个文件，应该将其从 duplicateHashes 中移除
     if (duplicateResult.value) {
       updateDuplicateHashesAfterDeletion();
     }
 
+    // 刷新统计信息
+    await fetchAssetStats();
+
     customMessage.success("已成功删除资产");
   } catch (err) {
     console.error("删除资产失败:", err);
+    customMessage.error(`删除失败: ${err}`);
   }
 };
 
@@ -397,12 +405,18 @@ const handleDeleteSelected = async () => {
       }
     );
 
-    // 批量删除所有选中的资产
+    // 使用新的批量完全删除命令
     const idsToDelete = Array.from(selectedAssetIds.value);
-    await deleteMultipleAssets(idsToDelete);
+    const failedIds = await invoke<string[]>('remove_assets_completely', {
+      assetIds: idsToDelete
+    });
+
+    // 从本地列表中移除成功删除的资产
+    const successIds = idsToDelete.filter(id => !failedIds.includes(id));
+    assets.value = assets.value.filter(a => !successIds.includes(a.id));
 
     // 从重复文件哈希集合中移除
-    idsToDelete.forEach((id) => duplicateHashes.value.delete(id));
+    successIds.forEach((id) => duplicateHashes.value.delete(id));
 
     // 更新重复文件状态
     if (duplicateResult.value) {
@@ -413,11 +427,21 @@ const handleDeleteSelected = async () => {
     selectedAssetIds.value.clear();
     lastSelectedAssetId.value = null;
 
-    customMessage.success(`已成功删除 ${idsToDelete.length} 个资产`);
+    // 刷新统计信息
+    await fetchAssetStats();
+
+    if (failedIds.length === 0) {
+      customMessage.success(`已成功删除 ${successIds.length} 个资产`);
+    } else {
+      customMessage.warning(
+        `已删除 ${successIds.length} 个资产，${failedIds.length} 个失败`
+      );
+    }
   } catch (err) {
     // 用户取消操作
     if (err !== "cancel") {
       console.error("批量删除失败:", err);
+      customMessage.error(`批量删除失败: ${err}`);
     }
   }
 };
@@ -510,7 +534,8 @@ const groupedAssets = computed(() => {
         groupKey = asset.type;
         break;
       case "origin":
-        groupKey = asset.origin?.type || "unknown";
+        // 使用第一个来源作为分组依据
+        groupKey = asset.origins[0]?.type || "unknown";
         break;
       case "source-module":
         groupKey = asset.sourceModule || "unknown";

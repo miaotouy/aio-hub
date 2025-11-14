@@ -110,9 +110,10 @@ export interface Asset {
   createdAt: string;
 
   /**
-   * 资产的来源信息（可选）
+   * 资产的来源信息列表（支持多个来源）
+   * 当相同内容从不同来源导入时，会合并到同一个资产的来源列表中
    */
-  origin?: AssetOrigin;
+  origins: AssetOrigin[];
 
   /**
    * 可选的、特定于文件类型的元数据

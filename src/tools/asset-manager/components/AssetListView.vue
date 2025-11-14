@@ -62,11 +62,27 @@
       </el-table-column>
 
       <!-- 来源 -->
-      <el-table-column label="来源" width="120">
+      <el-table-column label="来源" width="180">
         <template #default="{ row }">
-          <span v-if="row.origin">
-            {{ getOriginLabel(row.origin.type) }}
-          </span>
+          <div v-if="row.origins && row.origins.length > 0" class="origins-cell">
+            <el-tag
+              v-for="(origin, index) in row.origins.slice(0, 2)"
+              :key="index"
+              size="small"
+              type="info"
+              effect="plain"
+            >
+              {{ getOriginLabel(origin.type) }}
+            </el-tag>
+            <el-tag
+              v-if="row.origins.length > 2"
+              size="small"
+              type="info"
+              effect="plain"
+            >
+              +{{ row.origins.length - 2 }}
+            </el-tag>
+          </div>
           <span v-else class="text-secondary">未知</span>
         </template>
       </el-table-column>
@@ -110,7 +126,7 @@
 
 <script setup lang="ts">
 import { View, Delete, MoreFilled, FolderOpened } from '@element-plus/icons-vue';
-import type { Asset, AssetType, AssetOrigin } from '@/types/asset-management';
+import type { Asset, AssetType } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 
 interface Props {
@@ -170,13 +186,13 @@ const getTypeLabel = (type: AssetType): string => {
   return labels[type];
 };
 
-const getOriginLabel = (type: AssetOrigin['type']): string => {
-  const labels: Record<AssetOrigin['type'], string> = {
-    local: '本地导入',
+const getOriginLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    local: '本地',
     clipboard: '剪贴板',
     network: '网络',
   };
-  return labels[type];
+  return labels[type] || type;
 };
 
 const formatDate = (isoString: string): string => {
@@ -240,6 +256,13 @@ const getRowClassName = ({ row }: { row: Asset }) => {
 
 .text-secondary {
   color: var(--el-text-color-secondary);
+}
+
+.origins-cell {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 :deep(.el-table__row) {

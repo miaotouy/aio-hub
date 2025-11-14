@@ -709,7 +709,9 @@ export const useAgentStore = defineStore('llmChatAgent', {
         for (const [relativePath, binary] of Object.entries(params.assets)) {
           try {
             const originalName = relativePath.split('/').pop() || 'asset';
-            const asset = await assetManagerEngine.importAssetFromBytes(binary, originalName);
+            const asset = await assetManagerEngine.importAssetFromBytes(binary, originalName, {
+              sourceModule: 'llm-chat',
+            });
             assetPathMapping[relativePath] = `appdata://${asset.path}`;
           } catch (error) {
             logger.warn('导入资产失败', { relativePath, error });

@@ -35,6 +35,7 @@ pub struct ListAssetsPaginatedPayload {
     pub sort_order: SortOrder,
     pub filter_type: Option<AssetType>,
     pub filter_origin: Option<AssetOriginType>,
+    pub filter_source_module: Option<String>,
     pub search_query: Option<String>,
     #[serde(default)]
     pub show_duplicates_only: bool,
@@ -91,6 +92,7 @@ pub struct AssetOrigin {
     #[serde(rename = "type")]
     pub origin_type: AssetOriginType,
     pub source: String,
+    pub source_module: String,
 }
 
 /// 资产元数据
@@ -106,7 +108,6 @@ pub struct AssetMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
 }
-
 /// 资产对象
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -121,6 +122,7 @@ pub struct Asset {
     pub thumbnail_path: Option<String>,
     pub size: u64,
     pub created_at: String,
+    pub source_module: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<AssetOrigin>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -140,6 +142,9 @@ pub struct AssetImportOptions {
     /// 指定一个子目录来存储资产，而不是按类型和日期
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subfolder: Option<String>,
+    /// 来源模块 ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_module: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -153,6 +158,7 @@ impl Default for AssetImportOptions {
             enable_deduplication: true,
             origin: None,
             subfolder: None,
+            source_module: None,
         }
     }
 }
@@ -508,10 +514,14 @@ pub async fn import_asset_from_path(
         None
     };
 
+    // 确定 source_module
+    let source_module = opts.source_module.clone().unwrap_or_else(|| "unknown".to_string());
+
     let origin = opts.origin.or_else(|| {
         Some(AssetOrigin {
             origin_type: AssetOriginType::Local,
             source: original_path.clone(),
+            source_module: source_module.clone(),
         })
     });
 
@@ -524,6 +534,7 @@ pub async fn import_asset_from_path(
         thumbnail_path,
         size: file_size,
         created_at: Utc::now().to_rfc3339(),
+        source_module,
         origin,
         metadata: Some(asset_metadata),
     };
@@ -619,10 +630,14 @@ pub async fn import_asset_from_bytes(
         None
     };
 
+    // 确定 source_module
+    let source_module = opts.source_module.clone().unwrap_or_else(|| "unknown".to_string());
+
     let origin = opts.origin.or_else(|| {
         Some(AssetOrigin {
             origin_type: AssetOriginType::Clipboard,
             source: "clipboard".to_string(),
+            source_module: source_module.clone(),
         })
     });
 
@@ -635,6 +650,7 @@ pub async fn import_asset_from_bytes(
         thumbnail_path,
         size: file_size,
         created_at: Utc::now().to_rfc3339(),
+        source_module,
         origin,
         metadata: Some(asset_metadata),
     };
@@ -921,6 +937,7 @@ fn build_asset_from_path(file_path: &Path, base_dir: &Path) -> Result<Asset, Str
             .created()
             .map(|t| chrono::DateTime::<Utc>::from(t).to_rfc3339())
             .unwrap_or_default(),
+        source_module: "unknown".to_string(), // 从文件系统重建时无法确定来源模块
         origin: None, // 无法从文件系统确定来源
         metadata: Some(asset_metadata),
     })
@@ -1311,6 +1328,7 @@ struct CatalogEntry {
     mime_type: String,
     asset_type: AssetType,
     created_at: String,
+    source_module: Option<String>,
     origin_type: Option<AssetOriginType>,
     sha256: Option<String>,
 }
@@ -1334,6 +1352,7 @@ fn convert_asset_to_catalog_entry(asset: &Asset) -> CatalogEntry {
         mime_type: asset.mime_type.clone(),
         asset_type: asset.asset_type.clone(),
         created_at: asset.created_at.clone(),
+        source_module: Some(asset.source_module.clone()),
         origin_type: asset.origin.as_ref().map(|o| o.origin_type.clone()),
         sha256: asset.metadata.as_ref().and_then(|m| m.sha256.clone()),
     }
@@ -1343,6 +1362,8 @@ fn convert_asset_to_catalog_entry(asset: &Asset) -> CatalogEntry {
 fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
     let thumbnail_relative = format!(".thumbnails/{}.jpg", entry.id);
     let thumbnail_path = base_dir.join(&thumbnail_relative);
+
+    let source_module = entry.source_module.clone().unwrap_or_else(|| "unknown".to_string());
 
     Asset {
         id: entry.id,
@@ -1357,9 +1378,11 @@ fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
         },
         size: entry.size,
         created_at: entry.created_at,
+        source_module,
         origin: entry.origin_type.map(|ot| AssetOrigin {
             origin_type: ot,
             source: "".to_string(), // 注意：从 catalog 无法恢复原始 source，这里留空
+            source_module: entry.source_module.unwrap_or_else(|| "unknown".to_string()),
         }),
         metadata: Some(AssetMetadata {
             width: None,
@@ -1504,6 +1527,14 @@ pub async fn list_assets_paginated(
                 .filter_origin
                 .as_ref()
                 .is_none_or(|o| entry.origin_type.as_ref() == Some(o));
+
+            let source_module_match = payload
+                .filter_source_module
+                .as_ref()
+                .is_none_or(|module| {
+                    entry.source_module.as_ref().is_some_and(|sm| sm == module)
+                });
+
             let search_match = match &payload.search_query {
                 Some(query) if !query.is_empty() => {
                     entry.name.to_lowercase().contains(&query.to_lowercase())
@@ -1520,7 +1551,7 @@ pub async fn list_assets_paginated(
                 true
             };
 
-            type_match && origin_match && search_match && duplicates_match
+            type_match && origin_match && source_module_match && search_match && duplicates_match
         })
         .collect();
 

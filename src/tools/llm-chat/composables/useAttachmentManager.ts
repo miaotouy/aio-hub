@@ -224,6 +224,7 @@ export function useAttachmentManager(
         path: path, // 暂时存储原始路径用于预览
         size: metadata.size,
         createdAt: new Date().toISOString(),
+        sourceModule: "llm-chat",
         importStatus: "pending",
         originalPath: path, // 保存原始路径
       };
@@ -255,6 +256,7 @@ export function useAttachmentManager(
         options: {
           generateThumbnail,
           enableDeduplication: true,
+          sourceModule: "llm-chat",
         },
       });
 

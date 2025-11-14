@@ -88,11 +88,12 @@
             v-model="internalGroupBy"
             placeholder="分组方式"
             @change="handleGroupByChange"
-            :style="{ width: layoutMode === 'compact' ? '100px' : '120px' }"
+            :style="{ width: layoutMode === 'compact' ? '110px' : '140px' }"
           >
             <el-option label="按月份" value="month" />
             <el-option label="按类型" value="type" />
             <el-option label="按来源" value="origin" />
+            <el-option label="按来源模块" value="source-module" />
             <el-option label="不分组" value="none" />
           </el-select>
         </el-tooltip>
@@ -172,7 +173,7 @@ interface Props {
   viewMode: "grid" | "list";
   searchQuery: string;
   sortBy: "name" | "date" | "size";
-  groupBy: "month" | "type" | "origin" | "none";
+  groupBy: "month" | "type" | "origin" | "source-module" | "none";
   gridCardSize?: "large" | "medium" | "small";
   selectedCount?: number;
   hasDuplicates?: boolean;
@@ -190,7 +191,7 @@ const emit = defineEmits<{
   "update:viewMode": [value: "grid" | "list"];
   "update:searchQuery": [value: string];
   "update:sortBy": [value: "name" | "date" | "size"];
-  "update:groupBy": [value: "month" | "type" | "origin" | "none"];
+  "update:groupBy": [value: "month" | "type" | "origin" | "source-module" | "none"];
   "update:gridCardSize": [value: "large" | "medium" | "small"];
   rebuildIndex: [];
   findDuplicates: [];
@@ -274,7 +275,7 @@ const handleSortChange = (value: "name" | "date" | "size") => {
   emit("update:sortBy", value);
 };
 
-const handleGroupByChange = (value: "month" | "type" | "origin" | "none") => {
+const handleGroupByChange = (value: "month" | "type" | "origin" | "source-module" | "none") => {
   emit("update:groupBy", value);
 };
 

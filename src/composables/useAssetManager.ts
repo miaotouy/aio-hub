@@ -248,6 +248,9 @@ export function useAssetManager() {
       if (backendPayload.filterOrigin === "all") {
         delete backendPayload.filterOrigin;
       }
+      if (backendPayload.filterSourceModule === "all") {
+        delete backendPayload.filterSourceModule;
+      }
 
       const promise = assetManagerEngine.listAssetsPaginated(backendPayload);
       const response = await withLoading(promise, append);
@@ -372,7 +375,11 @@ export function useAssetManager() {
             const fileName = `clipboard-image-${Date.now()}.${extension}`;
             const importOptions: AssetImportOptions = {
               ...options,
-              origin: { type: "clipboard", source: "clipboard" },
+              origin: {
+                type: "clipboard",
+                source: "clipboard",
+                sourceModule: options?.sourceModule || options?.origin?.sourceModule || "unknown",
+              },
             };
             return await importAssetFromBytes(arrayBuffer, fileName, importOptions);
           }

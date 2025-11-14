@@ -38,13 +38,15 @@
     <!-- 主体区域 -->
     <el-container class="main-container">
       <!-- 左侧边栏 -->
-      <el-aside v-if="!isSidebarCollapsed" width="200px" class="sidebar-container">
+      <el-aside v-if="!isSidebarCollapsed" width="220px" class="sidebar-container">
         <Sidebar
           v-model:selected-type="listPayload.filterType"
+          v-model:selected-source-module="listPayload.filterSourceModule"
           v-model:show-duplicates-only="listPayload.showDuplicatesOnly"
           :total-assets="totalAssets"
           :total-size="totalSize"
           :type-counts="typeCounts"
+          :source-module-counts="sourceModuleCounts"
         />
       </el-aside>
 
@@ -173,6 +175,7 @@ const listPayload = reactive({
   sortBy: config.value.sortBy as AssetSortBy,
   sortOrder: "desc" as "asc" | "desc",
   filterType: "all" as AssetType | "all",
+  filterSourceModule: "all" as string | "all",
   searchQuery: config.value.searchQuery,
   showDuplicatesOnly: false,
 });
@@ -218,6 +221,7 @@ watch(
     listPayload.sortBy,
     listPayload.sortOrder,
     listPayload.filterType,
+    listPayload.filterSourceModule,
     listPayload.showDuplicatesOnly,
   ],
   () => {
@@ -276,6 +280,16 @@ useInfiniteScroll(
 const totalAssets = computed(() => assetStats.value.totalAssets);
 const totalSize = computed(() => assetStats.value.totalSize);
 const typeCounts = computed(() => assetStats.value.typeCounts);
+
+// 计算来源模块统计
+const sourceModuleCounts = computed(() => {
+  const counts: Record<string, number> = {};
+  assets.value.forEach((asset) => {
+    const module = asset.sourceModule || 'unknown';
+    counts[module] = (counts[module] || 0) + 1;
+  });
+  return counts;
+});
 
 // 事件处理
 const handleSelectAsset = async (asset: Asset) => {
@@ -484,6 +498,9 @@ const groupedAssets = computed(() => {
       case "origin":
         groupKey = asset.origin?.type || "unknown";
         break;
+      case "source-module":
+        groupKey = asset.sourceModule || "unknown";
+        break;
       default:
         groupKey = "all";
     }
@@ -530,6 +547,15 @@ const groupedAssets = computed(() => {
             unknown: "未知来源",
           };
           label = originLabels[key] || key;
+          break;
+        case "source-module":
+          const moduleLabels: Record<string, string> = {
+            "llm-chat": "💬 LLM 聊天",
+            "smart-ocr": "🔍 智能 OCR",
+            "asset-manager": "📦 资产管理器",
+            unknown: "❓ 未知模块",
+          };
+          label = moduleLabels[key] || key;
           break;
         default:
           label = key;

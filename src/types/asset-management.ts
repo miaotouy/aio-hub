@@ -23,6 +23,8 @@ export interface AssetOrigin {
   type: AssetOriginType;
   /** 原始路径或 URL */
   source: string;
+  /** 来源模块 (e.g., 'llm-chat', 'smart-ocr') */
+  sourceModule: string;
 }
 
 /**
@@ -64,6 +66,14 @@ export interface Asset {
    * 文件的通用类型，用于 UI 快速判断如何展示
    */
   type: AssetType;
+
+  /**
+   * 资产来源的模块标识 (e.g., 'llm-chat', 'smart-ocr')
+   *
+   * 为了便于索引和筛选，此字段直接在 Asset 对象上提供，
+   * 尽管它也存在于 origin 对象中。
+   */
+  sourceModule: string;
 
   /**
    * 文件的 MIME 类型 (例如 'image/jpeg', 'application/pdf')
@@ -150,6 +160,14 @@ export interface AssetImportOptions {
   origin?: AssetOrigin;
 
   /**
+   * 来源模块 ID (e.g., 'llm-chat')
+   *
+   * 如果提供了 origin 对象，此字段将被忽略。
+   * 如果只提供了 sourceModule，将用于构建一个默认的 origin 对象。
+   */
+  sourceModule?: string;
+
+  /**
    * 指定一个子目录来存储资产，而不是按类型和日期
    */
   subfolder?: string;
@@ -202,7 +220,7 @@ export interface DuplicateFilesResult {
 /**
  * 资产分组方式
  */
-export type AssetGroupBy = 'month' | 'type' | 'origin' | 'none';
+export type AssetGroupBy = 'month' | 'type' | 'origin' | 'source-module' | 'none';
 
 // --- Lazy Loading & Pagination Types ---
 
@@ -216,6 +234,7 @@ export interface ListAssetsPaginatedPayload {
   sortOrder: SortOrder;
   filterType?: AssetType | 'all';
   filterOrigin?: AssetOriginType | 'all';
+  filterSourceModule?: string | 'all';
   searchQuery?: string;
   showDuplicatesOnly?: boolean;
 }

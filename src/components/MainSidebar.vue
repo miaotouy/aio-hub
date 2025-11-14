@@ -178,43 +178,51 @@ onUnmounted(() => {
               <el-icon><Puzzle :size="18" /></el-icon>
               <template #title>扩展</template>
             </el-menu-item>
-            <el-menu-item
+            <el-tooltip
               v-for="tool in visibleTools"
               :key="tool.path"
-              :index="tool.path"
-              @mousedown.left="handleDragStart($event, tool)"
-              class="draggable-menu-item"
-              style="padding: 0"
+              effect="dark"
+              :content="tool.name"
+              placement="right"
+              :disabled="!isCollapsed"
+              :hide-after="0"
             >
-              <el-dropdown
-                trigger="contextmenu"
-                placement="bottom-start"
-                style="width: 100%; height: 100%"
+              <el-menu-item
+                :index="tool.path"
+                @mousedown.left="handleDragStart($event, tool)"
+                class="draggable-menu-item"
+                style="padding: 0"
               >
-                <span class="menu-item-trigger">
-                  <!-- 插件图标直接渲染，不用 el-icon 包裹 -->
-                  <component
-                    v-if="tool.path.startsWith('/plugin-')"
-                    :is="tool.icon"
-                    class="plugin-icon-wrapper"
-                  />
-                  <!-- 普通图标用 el-icon 包裹 -->
-                  <el-icon v-else><component :is="tool.icon" /></el-icon>
-                  <!-- 手动处理标题，以使其成为触发器的一部分 -->
-                  <template v-if="!isCollapsed">
-                    <span class="menu-item-title-text">{{ tool.name }}</span>
+                <el-dropdown
+                  trigger="contextmenu"
+                  placement="bottom-start"
+                  style="width: 100%; height: 100%"
+                >
+                  <span class="menu-item-trigger">
+                    <!-- 插件图标直接渲染，不用 el-icon 包裹 -->
+                    <component
+                      v-if="tool.path.startsWith('/plugin-')"
+                      :is="tool.icon"
+                      class="plugin-icon-wrapper"
+                    />
+                    <!-- 普通图标用 el-icon 包裹 -->
+                    <el-icon v-else><component :is="tool.icon" /></el-icon>
+                    <!-- 手动处理标题，以使其成为触发器的一部分 -->
+                    <template v-if="!isCollapsed">
+                      <span class="menu-item-title-text">{{ tool.name }}</span>
+                    </template>
+                  </span>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item @click="handleDetachByClick(tool)">
+                        <el-icon><Promotion /></el-icon>
+                        <span>在新窗口中打开</span>
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
                   </template>
-                </span>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="handleDetachByClick(tool)">
-                      <el-icon><Promotion /></el-icon>
-                      <span>在新窗口中打开</span>
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </el-menu-item>
+                </el-dropdown>
+              </el-menu-item>
+            </el-tooltip>
           </el-menu>
         </div>
       </div>

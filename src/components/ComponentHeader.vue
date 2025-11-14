@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
 import { createModuleLogger } from "@utils/logger";
+import { CornerDownLeft, Pin, ExternalLink, Minus, Plus } from "lucide-vue-next";
 
 const logger = createModuleLogger("ComponentHeader");
 
@@ -193,35 +194,8 @@ const handleDragInteraction = (event: MouseEvent) => {
           :enterable="false"
         >
           <button @click="toggleCollapse" class="action-btn">
-            <svg
-              v-if="!isCollapsed"
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 12h14" />
-            </svg>
-            <svg
-              v-else
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 12h14" />
-              <path d="M12 5v14" />
-            </svg>
+            <Minus v-if="!isCollapsed" :size="16" :stroke-width="2.5" />
+            <Plus v-else :size="16" :stroke-width="2.5" />
           </button>
         </el-tooltip>
       </template>
@@ -253,20 +227,7 @@ const handleDragInteraction = (event: MouseEvent) => {
                 :enterable="false"
               >
                 <button @click="handleMenuReattach" class="action-btn menu-action-btn">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M18 16l-4-4 4-4" />
-                    <path d="M6 8h8a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H6" />
-                  </svg>
+                  <CornerDownLeft :size="16" />
                 </button>
               </el-tooltip>
               <el-tooltip
@@ -276,22 +237,8 @@ const handleDragInteraction = (event: MouseEvent) => {
                 :offset="10"
                 :enterable="false"
               >
-                <button @click="togglePin" class="action-btn menu-action-btn">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M12 22V8" />
-                    <path d="M5 8h14" />
-                    <path d="m12 8-4 4h8l-4-4z" />
-                  </svg>
+                <button @click="togglePin" class="action-btn menu-action-btn" :class="{ 'pinned': isPinned }">
+                  <Pin :size="16" :fill="isPinned ? 'currentColor' : 'none'" />
                 </button>
               </el-tooltip>
             </template>
@@ -305,21 +252,7 @@ const handleDragInteraction = (event: MouseEvent) => {
                 :enterable="false"
               >
                 <button @click="handleMenuDetach" class="action-btn menu-action-btn">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
+                  <ExternalLink :size="16" />
                 </button>
               </el-tooltip>
             </template>
@@ -480,6 +413,16 @@ const handleDragInteraction = (event: MouseEvent) => {
 .close-btn:hover {
   background: rgba(var(--error-color-rgb), 0.1);
   color: var(--error-color);
+}
+
+/* 置顶按钮的激活状态 */
+.action-btn.pinned {
+  background: rgba(var(--primary-color-rgb), 0.15);
+  color: var(--primary-color);
+}
+
+.action-btn.pinned:hover {
+  background: rgba(var(--primary-color-rgb), 0.2);
 }
 
 .action-btn svg {

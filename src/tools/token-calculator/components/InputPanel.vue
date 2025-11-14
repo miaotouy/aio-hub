@@ -2,7 +2,7 @@
   <div ref="rootEl" class="input-panel">
     <div class="panel-header">
       <span class="panel-title">输入文本</span>
-      <div class="char-count">{{ inputText.length }} 字符</div>
+      <el-tag type="info" size="small" effect="plain">{{ inputText.length }} 字符</el-tag>
     </div>
     <div class="panel-content">
       <el-input
@@ -56,24 +56,17 @@ defineExpose({ rootEl });
 }
 
 .panel-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-color);
 }
 
-.char-count {
-  font-size: 12px;
-  color: var(--text-color-light);
-  background-color: var(--border-color-light);
-  padding: 4px 10px;
-  border-radius: 6px;
-  box-sizing: border-box;
-}
 
 .panel-content {
   flex: 1;
   overflow: auto;
   padding: 20px;
+  margin-top: -20px;
   box-sizing: border-box;
 }
 

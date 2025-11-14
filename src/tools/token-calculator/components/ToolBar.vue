@@ -4,7 +4,6 @@
       <el-radio-group
         :model-value="calculationMode"
         @update:model-value="$emit('update:calculationMode', $event)"
-        size="small"
       >
         <el-radio-button value="model">按模型</el-radio-button>
         <el-radio-button value="tokenizer">按分词器</el-radio-button>
@@ -14,7 +13,6 @@
         :model-value="selectedModelId"
         @update:model-value="$emit('update:selectedModelId', $event)"
         :placeholder="calculationMode === 'model' ? '选择模型' : '选择分词器'"
-        size="small"
         filterable
         style="width: 250px"
       >
@@ -38,7 +36,6 @@
         <el-select
           :model-value="maxDisplayTokens"
           @update:model-value="$emit('update:maxDisplayTokens', $event)"
-          size="small"
           style="width: 120px"
         >
           <el-option :value="5000" label="5,000" />
@@ -50,15 +47,15 @@
           <el-option :value="10000000" label="10,000,000" />
         </el-select>
       </div>
-      <el-button @click="$emit('paste')" size="small" type="primary">
+      <el-button @click="$emit('paste')" type="primary">
         <el-icon><DocumentCopy /></el-icon>
         粘贴
       </el-button>
-      <el-button @click="$emit('copy')" size="small">
+      <el-button @click="$emit('copy')">
         <el-icon><CopyDocument /></el-icon>
         复制
       </el-button>
-      <el-button @click="$emit('clear')" size="small" type="danger" plain>
+      <el-button @click="$emit('clear')" type="danger" plain>
         <el-icon><Delete /></el-icon>
         清空
       </el-button>
@@ -98,7 +95,7 @@ defineEmits<Emits>();
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 16px 20px;
   background-color: transparent;
   border-bottom: 1px solid var(--border-color);
   border-radius: 12px 12px 0 0;
@@ -111,7 +108,7 @@ defineEmits<Emits>();
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   box-sizing: border-box;
 }
 
@@ -132,12 +129,12 @@ defineEmits<Emits>();
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
+  padding: 0 16px;
   border-right: 1px solid var(--border-color);
 }
 
 .control-label {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-color);
   white-space: nowrap;
 }

@@ -203,8 +203,8 @@
           </template>
           <div>卡片内容</div>
         </InfoCard>
-        <InfoCard content="鼠标悬浮时显示阴影" />
-        <InfoCard content="始终显示阴影" />
+        <InfoCard content="鼠标悬浮时显示阴影" shadow="hover" />
+        <InfoCard content="始终显示阴影" shadow="always" />
       </div>
     </div>
 
@@ -284,7 +284,7 @@
     <div class="section">
       <h2 class="section-title">对话框 Dialog</h2>
       <el-button @click="dialogVisible = true">打开对话框</el-button>
-      <el-dialog v-model="dialogVisible" title="提示" width="500">
+      <BaseDialog v-model="dialogVisible" title="提示" width="500">
         <span>这是一段信息</span>
         <template #footer>
           <div class="dialog-footer">
@@ -292,7 +292,7 @@
             <el-button type="primary" @click="dialogVisible = false">确定</el-button>
           </div>
         </template>
-      </el-dialog>
+      </BaseDialog>
     </div>
 
     <div class="section">

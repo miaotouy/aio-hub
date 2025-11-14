@@ -602,12 +602,55 @@ body.transparent-window #app {
 */
 .el-tooltip__popper,
 .el-select-dropdown,
-.el-dropdown__popper {
-  background-color: var(--container-bg) !important;
+.el-dropdown__popper,
+.el-message-box,
+.el-popover,
+.el-popconfirm__popper,
+.el-picker-panel,
+.el-cascader-panel,
+.el-autocomplete-suggestion,
+.el-color-dropdown,
+.el-notification,
+.el-drawer {
+  background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color) !important;
-  box-shadow: var(--el-box-shadow-light);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--el-box-shadow-lighter);
+}
+
+.el-drawer{
+  padding-top: 36px
+}
+
+.el-slider__runway,
+.el-progress-bar__outer,
+.el-card,
+.el-table{
+  background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
+}
+.el-message,
+.el-button,
+.el-input,
+.el-textarea,
+.el-select,
+.el-date-editor,
+.el-radio__inner,
+.el-checkbox__inner {
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+/*
+  为 el-radio-group (按钮模式) 应用统一的毛玻璃效果
+  - 将 backdrop-filter 应用于父级，以实现连续的毛玻璃效果
+  - 使用 border-radius 和 overflow: hidden 来裁剪子元素的边角
+*/
+.el-radio-group:has(.el-radio-button),
+.el-checkbox-group:has(.el-checkbox-button) {
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: var(--el-border-radius-base, 4px);
+  overflow: hidden;
+  display: inline-flex; /* 保持原有的布局行为 */
 }
 
 /* 修复在毛玻璃效果下，select下拉菜单选项的悬停样式，使其也为半透明 */

@@ -1,9 +1,13 @@
 <template>
   <el-card
     shadow="never"
-    :class="['info-card', { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare }]"
+    :class="[
+      'info-card',
+      `shadow-${shadow}`,
+      { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare }
+    ]"
   >
-    <template #header>
+    <template v-if="showHeader" #header>
       <slot name="header">
         <!-- 如果有 title prop，显示默认的 header -->
         <div v-if="title" class="card-header">
@@ -34,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { toRefs } from "vue";
+import { toRefs, type PropType, useSlots, computed } from "vue";
 import { ElCard, ElButton } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { CopyDocument } from "@element-plus/icons-vue";
@@ -66,9 +70,23 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  shadow: {
+    type: String as PropType<'never' | 'always' | 'hover'>,
+    default: 'never',
+  },
 });
 
 const { content, title, bare } = toRefs(props);
+
+const slots = useSlots();
+
+const showHeader = computed(() => {
+  // Header should be shown if:
+  // 1. A title is provided.
+  // 2. The 'header' or 'headerExtra' slot is used by the parent.
+  // 3. 'bare' mode is active, as it uses the header area.
+  return !!(props.title || slots.header || slots.headerExtra || props.bare);
+});
 
 const copyContent = async () => {
   if (!content.value) return;
@@ -87,12 +105,23 @@ const copyContent = async () => {
 
 <style scoped>
 .info-card {
+  border-radius: 8px;
   border: 1px solid var(--border-color);
   background-color: var(--card-bg); /* 使用卡片背景色 */
   color: var(--text-color); /* 确保文本颜色与主题一致 */
   display: flex;
   flex-direction: column;
+  box-shadow: none !important; /* 强制覆盖，确保默认无阴影 */
+  transition: box-shadow 0.3s; /* 平滑过渡 */
   /* 移除了 flex: 1 和 height: 100%，让卡片根据内容自适应高度 */
+}
+
+.info-card.shadow-always {
+  box-shadow: var(--el-box-shadow-light) !important;
+}
+
+.info-card.shadow-hover:hover {
+  box-shadow: var(--el-box-shadow-light) !important;
 }
 
 /* 毛玻璃效果 */

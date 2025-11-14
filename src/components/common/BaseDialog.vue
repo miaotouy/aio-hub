@@ -109,33 +109,37 @@ const isGlassEffectActive = computed(() =>
 const showContentTransition = ref(false);
 const dynamicZIndex = ref(props.zIndex);
 
+// 格式化尺寸值，为纯数字添加 'px' 单位
+const formatSize = (value?: string | number): string | undefined => {
+  if (value === undefined || value === null) return undefined;
+  const val = String(value);
+  // 检查字符串是否为纯数字（整数或浮点数）
+  if (/^\d+(\.\d+)?$/.test(val)) {
+    return `${val}px`;
+  }
+  return val;
+};
+
 // 计算对话框样式
 const dialogStyles = computed(() => {
   const styles: Record<string, string> = {};
   
-  // 处理宽度
-  if (props.width) {
-    // 如果是像素值、百分比、vh等，直接使用
-    if (/^\d+(px|%|vh|vw|rem|em)$/.test(props.width)) {
-      styles.width = props.width;
-      // 如果没有指定 maxWidth，则使用 width 作为 maxWidth
-      if (!props.maxWidth) {
-        styles.maxWidth = props.width;
-      }
-    } else {
-      // 否则当作最大宽度
-      styles.maxWidth = props.width;
-    }
+  const formattedWidth = formatSize(props.width);
+  if (formattedWidth) {
+    styles.width = formattedWidth;
   }
   
-  // 处理最大宽度（优先级高于 width 推导的 maxWidth）
-  if (props.maxWidth) {
-    styles.maxWidth = props.maxWidth;
+  const formattedMaxWidth = formatSize(props.maxWidth);
+  if (formattedMaxWidth) {
+    styles.maxWidth = formattedMaxWidth;
+  } else if (formattedWidth) {
+    // 如果没有指定 maxWidth，则使用 width 作为 maxWidth
+    styles.maxWidth = formattedWidth;
   }
   
-  // 处理高度
-  if (props.height && props.height !== 'auto') {
-    styles.height = props.height;
+  const formattedHeight = formatSize(props.height);
+  if (formattedHeight && formattedHeight !== 'auto') {
+    styles.height = formattedHeight;
   }
   
   return styles;

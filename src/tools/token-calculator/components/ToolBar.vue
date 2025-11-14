@@ -9,7 +9,7 @@
         <el-radio-button value="model">按模型</el-radio-button>
         <el-radio-button value="tokenizer">按分词器</el-radio-button>
       </el-radio-group>
-      
+
       <el-select
         :model-value="selectedModelId"
         @update:model-value="$emit('update:selectedModelId', $event)"
@@ -41,12 +41,13 @@
           size="small"
           style="width: 120px"
         >
-          <el-option :value="1000" label="1,000" />
-          <el-option :value="2000" label="2,000" />
           <el-option :value="5000" label="5,000" />
           <el-option :value="10000" label="10,000" />
           <el-option :value="20000" label="20,000" />
           <el-option :value="50000" label="50,000" />
+          <el-option :value="100000" label="100,000" />
+          <el-option :value="1000000" label="1,000,000" />
+          <el-option :value="10000000" label="10,000,000" />
         </el-select>
       </div>
       <el-button @click="$emit('paste')" size="small" type="primary">
@@ -66,8 +67,11 @@
 </template>
 
 <script setup lang="ts">
-import { DocumentCopy, CopyDocument, Delete } from '@element-plus/icons-vue';
-import type { AvailableModel, CalculationMode } from '@/tools/token-calculator/composables/useTokenCalculatorState';
+import { DocumentCopy, CopyDocument, Delete } from "@element-plus/icons-vue";
+import type {
+  AvailableModel,
+  CalculationMode,
+} from "@/tools/token-calculator/composables/useTokenCalculatorState";
 
 interface Props {
   calculationMode: CalculationMode;
@@ -77,12 +81,12 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'update:calculationMode', value: CalculationMode): void;
-  (e: 'update:selectedModelId', value: string): void;
-  (e: 'update:maxDisplayTokens', value: number): void;
-  (e: 'paste'): void;
-  (e: 'copy'): void;
-  (e: 'clear'): void;
+  (e: "update:calculationMode", value: CalculationMode): void;
+  (e: "update:selectedModelId", value: string): void;
+  (e: "update:maxDisplayTokens", value: number): void;
+  (e: "paste"): void;
+  (e: "copy"): void;
+  (e: "clear"): void;
 }
 
 defineProps<Props>();

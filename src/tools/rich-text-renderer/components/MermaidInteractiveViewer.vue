@@ -75,11 +75,23 @@
               <span>PNG</span>
             </button>
           </el-tooltip>
-          <el-tooltip :content="copied ? '已复制' : '复制源码'" placement="bottom">
+          <el-tooltip :content="imageCopied ? '已复制图片' : '复制图片'" placement="bottom">
+            <button
+              class="tool-btn"
+              :class="{ active: imageCopied }"
+              @click="copyImage"
+              :disabled="!!error || viewMode === 'source'"
+            >
+              <Check v-if="imageCopied" :size="16" />
+              <ClipboardCopy v-else :size="16" />
+              <span>{{ imageCopied ? "已复制" : "复制图片" }}</span>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="copied ? '已复制源码' : '复制源码'" placement="bottom">
             <button class="tool-btn" :class="{ active: copied }" @click="copyCode">
               <Check v-if="copied" :size="16" />
               <Copy v-else :size="16" />
-              <span>{{ copied ? "已复制" : "复制" }}</span>
+              <span>{{ copied ? "已复制源码" : "复制源码" }}</span>
             </button>
           </el-tooltip>
         </div>
@@ -147,6 +159,7 @@ import {
   Code,
   Columns,
   Maximize2,
+  ClipboardCopy,
 } from "lucide-vue-next";
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
@@ -176,6 +189,7 @@ const sourceCodeRef = ref<HTMLElement | null>(null);
 
 // 状态
 const copied = ref(false);
+const imageCopied = ref(false);
 const error = ref<string>("");
 const errorDetails = ref<string>("");
 
@@ -347,7 +361,105 @@ const downloadSvg = () => {
   }
 };
 
-// 下载 PNG
+// 复制图片到剪贴板
+const copyImage = async () => {
+  try {
+    if (!mermaidRef.value) return;
+
+    const svg = mermaidRef.value.querySelector("svg");
+    if (!svg) {
+      customMessage.warning("没有可复制的图表");
+      return;
+    }
+
+    const clonedSvg = svg.cloneNode(true) as SVGElement;
+    clonedSvg.style.transform = "";
+    clonedSvg.style.transition = "";
+
+    if (!clonedSvg.getAttribute("viewBox")) {
+      const widthAttr = clonedSvg.getAttribute("width");
+      const heightAttr = clonedSvg.getAttribute("height");
+      const width = widthAttr ? parseFloat(widthAttr) : undefined;
+      const height = heightAttr ? parseFloat(heightAttr) : undefined;
+      if (width && height) {
+        clonedSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      }
+    }
+
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("无法创建 Canvas 上下文");
+
+    const img = new Image();
+    const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgData)}`;
+
+    img.onload = async () => {
+      try {
+        const imgWidth = img.naturalWidth || img.width;
+        const imgHeight = img.naturalHeight || img.height;
+
+        const scale = 16;
+        const padding = 12;
+        const paddedWidth = imgWidth + padding * 2;
+        const paddedHeight = imgHeight + padding * 2;
+
+        canvas.width = paddedWidth * scale;
+        canvas.height = paddedHeight * scale;
+
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+        ctx.fillStyle = isDark.value ? "#1e1e1e" : "#ffffff";
+        ctx.fillRect(0, 0, paddedWidth, paddedHeight);
+
+        ctx.drawImage(img, padding, padding, imgWidth, imgHeight);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            customMessage.error("生成图片失败");
+            return;
+          }
+
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({
+                "image/png": blob,
+              }),
+            ]);
+
+            imageCopied.value = true;
+            customMessage.success("图片已复制到剪贴板");
+            setTimeout(() => {
+              imageCopied.value = false;
+            }, 2000);
+          } catch (err) {
+            logger.error("复制图片到剪贴板失败", err);
+            customMessage.error("复制图片失败，请尝试下载 PNG");
+          }
+        }, "image/png");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "SecurityError") {
+          logger.warn("Canvas 被污染，无法复制图片", err);
+          customMessage.error("图表包含外部资源，无法复制图片，请尝试下载 PNG");
+        } else {
+          throw err;
+        }
+      }
+    };
+
+    img.onerror = (err) => {
+      logger.error("图片加载失败", err);
+      customMessage.error("生成图片失败");
+    };
+
+    img.crossOrigin = "anonymous";
+    img.src = svgDataUrl;
+  } catch (err) {
+    logger.error("复制图片失败", err);
+    customMessage.error("复制图片失败");
+  }
+};
+
 // 下载 PNG
 const downloadPng = async () => {
   try {

@@ -17,10 +17,7 @@
           </el-tag>
           <div class="version-selector">
             <el-tooltip content="选择渲染器版本进行对比测试" placement="bottom">
-              <el-select
-                v-model="rendererVersion"
-                style="width: 260px"
-              >
+              <el-select v-model="rendererVersion" style="width: 260px">
                 <el-option
                   v-for="versionMeta in enabledVersions"
                   :key="versionMeta.version"
@@ -226,7 +223,7 @@
                     <el-input-number
                       v-model="charsFluctuation.max"
                       :min="charsFluctuation.min + 1"
-                      :max="20"
+                      :max="50"
                       :step="1"
                       size="small"
                       controls-position="right"
@@ -267,10 +264,18 @@
                 <el-tag size="small" type="info">
                   {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
                 </el-tag>
-                <el-tag v-if="streamEnabled && renderStats.speed > 0" size="small" :type="isRendering ? 'primary' : 'info'">
+                <el-tag
+                  v-if="streamEnabled && renderStats.speed > 0"
+                  size="small"
+                  :type="isRendering ? 'primary' : 'info'"
+                >
                   {{ renderStats.speed.toFixed(1) }} token/秒
                 </el-tag>
-                <el-tag v-if="renderStats.elapsedTime > 0" size="small" :type="isRendering ? 'warning' : 'info'">
+                <el-tag
+                  v-if="renderStats.elapsedTime > 0"
+                  size="small"
+                  :type="isRendering ? 'warning' : 'info'"
+                >
                   {{ formatElapsedTime(renderStats.elapsedTime) }}
                 </el-tag>
                 <el-tag size="small" type="success"> {{ renderStats.totalChars }} 字符 </el-tag>
@@ -494,14 +499,15 @@ const createStreamSource = (content: string): StreamSource => {
         }
 
         if (fluctuationEnabled.value) {
-          // 波动模式：使用随机延迟和 token 数量
+          // 波动模式：保持目标速度，但让发包节奏和大小产生波动
           let tokenIndex = 0;
           let lastCharIndex = 0;
+          let accumulatedDebt = 0; // 累计的时间偏差（用于速度补偿）
 
           while (tokenIndex < tokens.length) {
             if (signal.aborted) break;
 
-            // 随机 token 数量
+            // 随机 token 数量（在设定范围内波动）
             const randomTokens = Math.floor(
               Math.random() * (charsFluctuation.value.max - charsFluctuation.value.min + 1) +
                 charsFluctuation.value.min
@@ -521,12 +527,23 @@ const createStreamSource = (content: string): StreamSource => {
             renderStats.speed = elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
 
             if (tokenIndex < tokens.length) {
-              // 随机延迟
+              // 理论上应该花费的时间（基于目标速度）
+              const idealDelay = (actualTokens / streamSpeed.value) * 1000;
+
+              // 随机延迟（在波动范围内）
               const randomDelay = Math.floor(
                 Math.random() * (delayFluctuation.value.max - delayFluctuation.value.min + 1) +
                   delayFluctuation.value.min
               );
-              await new Promise((resolve) => setTimeout(resolve, randomDelay));
+
+              // 计算本次实际应该延迟的时间（考虑累计偏差进行补偿）
+              // 如果之前延迟过长，这次就缩短；如果之前过短，这次就延长
+              const compensatedDelay = Math.max(1, randomDelay - accumulatedDebt);
+
+              // 更新累计偏差：实际延迟 - 理想延迟
+              accumulatedDebt += compensatedDelay - idealDelay;
+
+              await new Promise((resolve) => setTimeout(resolve, compensatedDelay));
             }
           }
         } else {

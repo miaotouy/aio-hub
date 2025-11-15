@@ -842,7 +842,7 @@ watch(
       :icon="'i-ep-connection'"
       v-model:expanded="postProcessingExpanded"
     >
-      <div class="param-desc" style="margin-bottom: 16px">
+      <div class="param-hint">
         配置消息发送前的后处理规则，用于调整消息格式以适配不同模型的要求。规则按顺序执行。
       </div>
 
@@ -875,11 +875,6 @@ watch(
             />
           </div>
         </div>
-      </div>
-
-      <div class="param-hint">
-        <strong>提示：</strong>规则将按照上述顺序依次执行。建议顺序：先合并 system 消息 →
-        合并连续角色 → 转换角色类型 → 确保交替。
       </div>
     </ConfigSection>
 
@@ -925,10 +920,11 @@ watch(
   padding: 16px;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--primary-color) 2%, transparent),
-    color-mix(in srgb, var(--primary-color) 1%, transparent)
+    color-mix(in srgb, var(--primary-color) 2%, var(--card-bg)),
+    color-mix(in srgb, var(--primary-color) 1%, var(--card-bg))
   );
-  border: 1px solid var(--border-color-light);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -948,20 +944,21 @@ watch(
   gap: 12px;
   margin-bottom: 12px;
 }
-
 .stat-item {
   padding: 10px;
   background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 6px;
-  border: 1px solid var(--border-color-light);
+  border: 1px solid var(--border-color);
 }
 
 .stat-item.primary {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--el-color-success) 8%, transparent),
-    color-mix(in srgb, var(--el-color-success) 4%, transparent)
+    color-mix(in srgb, var(--el-color-success) 8%, var(--container-bg)),
+    color-mix(in srgb, var(--el-color-success) 4%, var(--container-bg))
   );
+  backdrop-filter: blur(var(--ui-blur));
   border-color: var(--el-color-success);
 }
 
@@ -1015,7 +1012,11 @@ watch(
 }
 
 .param-group {
+  padding: 12px;
   margin-bottom: 20px;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .param-label {
@@ -1077,8 +1078,10 @@ watch(
 }
 
 .param-hint {
+  margin-bottom: 16px;
   padding: 12px;
   background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border: 1px dashed var(--border-color);
   border-radius: 6px;
   font-size: 12px;
@@ -1102,7 +1105,8 @@ watch(
 .rule-item {
   padding: 12px;
   background-color: var(--container-bg);
-  border: 1px solid var(--border-color-light);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s;
 }
@@ -1110,9 +1114,10 @@ watch(
 .rule-item.enabled {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--el-color-success) 4%, transparent),
-    color-mix(in srgb, var(--el-color-success) 2%, transparent)
+    color-mix(in srgb, var(--el-color-success) 4%, var(--container-bg)),
+    color-mix(in srgb, var(--el-color-success) 2%, var(--container-bg))
   );
+  backdrop-filter: blur(var(--ui-blur));
   border-color: var(--el-color-success);
 }
 

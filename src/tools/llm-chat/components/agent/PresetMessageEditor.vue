@@ -3,11 +3,12 @@
     :modelValue="visible"
     @update:modelValue="$emit('update:visible', $event)"
     :title="isEditMode ? '编辑消息' : '添加消息'"
-    width="800px"
+    width="60vw"
     height="auto"
+    :closeOnBackdropClick="false"
   >
     <template #content>
-      <el-form :model="form" label-width="80px">
+      <el-form :model="form" label-width="60px">
         <el-form-item label="角色">
           <el-radio-group v-model="form.role">
             <el-radio value="system">
@@ -47,7 +48,7 @@
               ref="contentInputRef"
               v-model="form.content"
               type="textarea"
-              :rows="16"
+              :rows="24"
               placeholder="请输入消息内容..."
             />
           </div>

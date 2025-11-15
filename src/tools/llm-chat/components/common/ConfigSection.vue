@@ -69,6 +69,7 @@ const toggle = () => {
   );
   border: 1px solid var(--border-color-light);
   border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;

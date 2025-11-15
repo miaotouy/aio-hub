@@ -638,6 +638,7 @@ body.transparent-window #app {
 .el-date-editor,
 .el-radio__inner,
 .el-checkbox__inner {
+  border-radius: 4px;
   backdrop-filter: blur(var(--ui-blur));
 }
 

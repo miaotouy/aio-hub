@@ -10,12 +10,8 @@
         <!-- Token 统计 -->
         <div v-if="props.modelId && totalTokens > 0" class="token-info">
           <el-tag size="small" type="info" effect="plain">
-            <template v-if="isCalculatingTokens">
-              计算中...
-            </template>
-            <template v-else>
-              总计: {{ totalTokens }} tokens
-            </template>
+            <template v-if="isCalculatingTokens"> 计算中... </template>
+            <template v-else> 总计: {{ totalTokens }} tokens </template>
           </el-tag>
         </div>
       </div>
@@ -223,10 +219,7 @@
               </div>
 
               <!-- Token 信息（紧凑模式） -->
-              <div
-                v-if="props.modelId && messageTokens.has(element.id)"
-                class="token-compact"
-              >
+              <div v-if="props.modelId && messageTokens.has(element.id)" class="token-compact">
                 {{ messageTokens.get(element.id) }}
               </div>
 
@@ -395,21 +388,21 @@ const isCalculatingTokens = ref(false);
 // 计算所有消息的 token 数量，并保存到 metadata
 const calculateAllTokens = async () => {
   if (!props.modelId) return;
-  
+
   isCalculatingTokens.value = true;
   const newTokens = new Map<string, number>();
   let hasChanges = false;
-  
+
   for (const message of localMessages.value) {
     // 跳过占位符
     if (message.type === "chat_history" || message.type === "user_profile") {
       continue;
     }
-    
+
     try {
       const result = await tokenCalculatorEngine.calculateTokens(message.content, props.modelId);
       newTokens.set(message.id, result.count);
-      
+
       // 同步更新到消息的 metadata（如果值有变化或不存在）
       if (!message.metadata) {
         message.metadata = {};
@@ -422,10 +415,10 @@ const calculateAllTokens = async () => {
       console.error(`Failed to calculate tokens for message ${message.id}:`, error);
     }
   }
-  
+
   messageTokens.value = newTokens;
   isCalculatingTokens.value = false;
-  
+
   // 如果有变化，同步到父组件
   if (hasChanges) {
     syncToParent();
@@ -637,7 +630,7 @@ async function handleSaveMessage(form: { role: MessageRole; content: string }) {
     const message = localMessages.value[editingIndex.value];
     message.role = form.role;
     message.content = form.content;
-    
+
     // 如果有模型ID，重新计算 token
     if (props.modelId) {
       try {
@@ -663,19 +656,19 @@ async function handleSaveMessage(form: { role: MessageRole; content: string }) {
       isEnabled: true,
       timestamp: new Date().toISOString(),
     };
-    
+
     // 如果有模型ID，计算并保存 token
     if (props.modelId) {
       try {
         const result = await tokenCalculatorEngine.calculateTokens(form.content, props.modelId);
         newMessage.metadata = {
-          contentTokens: result.count
+          contentTokens: result.count,
         };
       } catch (error) {
         console.error(`Failed to calculate tokens for new message:`, error);
       }
     }
-    
+
     localMessages.value.push(newMessage);
   }
 
@@ -733,12 +726,12 @@ function handleExport() {
   const url = URL.createObjectURL(dataBlob);
   const link = document.createElement("a");
   link.href = url;
-  
+
   // 使用 agent 名称和日期作为文件名
   const agentNamePart = props.agentName ? `${props.agentName}-` : "";
   const datePart = new Date().toISOString().split("T")[0];
   link.download = `${agentNamePart}preset-messages-${datePart}.json`;
-  
+
   link.click();
   URL.revokeObjectURL(url);
 
@@ -795,7 +788,10 @@ async function handleFileSelected(event: Event) {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border-bottom: 1px solid var(--border-color);
 }
 
 .header-title {
@@ -841,8 +837,9 @@ async function handleFileSelected(event: Event) {
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s;
 }
@@ -952,8 +949,9 @@ async function handleFileSelected(event: Event) {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   transition: all 0.2s;
   cursor: pointer;
@@ -1059,5 +1057,4 @@ async function handleFileSelected(event: Event) {
   color: var(--el-color-primary-dark-2);
   font-weight: 500;
 }
-
 </style>

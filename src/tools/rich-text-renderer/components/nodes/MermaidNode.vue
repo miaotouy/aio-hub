@@ -5,6 +5,42 @@
         <span class="language-tag">Mermaid</span>
       </div>
       <div class="header-actions">
+        <!-- 缩放控制 -->
+        <button
+          class="action-btn"
+          :disabled="currentScale <= scaleMin"
+          @click="decreaseScale"
+          title="缩小"
+        >
+          <Minus :size="14" />
+        </button>
+        <button
+          class="action-btn"
+          :disabled="currentScale === defaultScale"
+          @click="resetScale"
+          title="重置缩放"
+        >
+          <RotateCcw :size="14" />
+        </button>
+        <button
+          class="action-btn"
+          :disabled="currentScale >= scaleMax"
+          @click="increaseScale"
+          title="放大"
+        >
+          <Plus :size="14" />
+        </button>
+        
+        <!-- 下载按钮 -->
+        <button
+          class="action-btn"
+          @click="downloadSvg"
+          :disabled="!!error"
+          title="下载 SVG"
+        >
+          <Download :size="14" />
+        </button>
+        
         <!-- 复制按钮 -->
         <button
           class="action-btn"
@@ -15,9 +51,19 @@
           <Check v-if="copied" :size="14" />
           <Copy v-else :size="14" />
         </button>
+        
+        <!-- 展开/折叠按钮 -->
+        <button
+          class="action-btn"
+          @click="toggleExpand"
+          :title="isExpanded ? '折叠' : '展开'"
+        >
+          <Minimize2 v-if="isExpanded" :size="14" />
+          <Maximize2 v-else :size="14" />
+        </button>
       </div>
     </div>
-    <div class="mermaid-container" ref="containerRef">
+    <div class="mermaid-container" :class="{ 'expanded': isExpanded }" ref="containerRef">
       <div v-if="error" class="mermaid-error">
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
@@ -32,8 +78,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
-import { Copy, Check } from 'lucide-vue-next';
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { Copy, Check, Plus, Minus, RotateCcw, Download, Maximize2, Minimize2 } from 'lucide-vue-next';
 import { useTheme } from '@composables/useTheme';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
@@ -50,6 +96,14 @@ const containerRef = ref<HTMLElement | null>(null);
 const mermaidRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
 const error = ref<string>('');
+const isExpanded = ref(false);
+
+// 缩放控制
+const scaleMin = 0.5;
+const scaleMax = 2.0;
+const scaleStep = 0.1;
+const defaultScale = 1.0;
+const currentScale = ref(1.0);
 
 let mermaid: any = null;
 let renderCleanup: (() => void) | null = null;
@@ -67,6 +121,73 @@ const copyCode = async () => {
     logger.error('复制失败', err);
     customMessage.error('复制失败');
   }
+};
+
+// 缩放控制
+const increaseScale = () => {
+  const newScale = Math.min(scaleMax, currentScale.value + scaleStep);
+  currentScale.value = Math.round(newScale * 10) / 10;
+  applyScale();
+};
+
+const decreaseScale = () => {
+  const newScale = Math.max(scaleMin, currentScale.value - scaleStep);
+  currentScale.value = Math.round(newScale * 10) / 10;
+  applyScale();
+};
+
+const resetScale = () => {
+  currentScale.value = defaultScale;
+  applyScale();
+};
+
+const applyScale = () => {
+  if (!mermaidRef.value) return;
+  const svg = mermaidRef.value.querySelector('svg');
+  if (svg) {
+    svg.style.transform = `scale(${currentScale.value})`;
+    svg.style.transformOrigin = 'center center';
+  }
+};
+
+// 下载 SVG
+const downloadSvg = () => {
+  try {
+    if (!mermaidRef.value) return;
+    
+    const svg = mermaidRef.value.querySelector('svg');
+    if (!svg) {
+      customMessage.warning('没有可下载的图表');
+      return;
+    }
+    
+    // 克隆 SVG 以移除 transform
+    const clonedSvg = svg.cloneNode(true) as SVGElement;
+    clonedSvg.style.transform = '';
+    
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `mermaid-diagram-${Date.now()}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+    customMessage.success('SVG 已下载');
+  } catch (err) {
+    logger.error('下载失败', err);
+    customMessage.error('下载失败');
+  }
+};
+
+// 展开/折叠
+const toggleExpand = async () => {
+  isExpanded.value = !isExpanded.value;
+  await nextTick();
 };
 
 // 渲染图表
@@ -94,6 +215,10 @@ const renderDiagram = async () => {
     // 插入 SVG
     if (mermaidRef.value) {
       mermaidRef.value.innerHTML = svg;
+      
+      // 应用当前缩放
+      await nextTick();
+      applyScale();
       
       // 保存清理函数
       renderCleanup = () => {
@@ -255,9 +380,15 @@ onBeforeUnmount(() => {
   background-color: var(--code-block-bg, var(--card-bg));
   overflow: auto;
   min-height: 100px;
+  max-height: 500px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: max-height 0.3s ease-in-out;
+}
+
+.mermaid-container.expanded {
+  max-height: none;
 }
 
 .mermaid-svg {
@@ -271,6 +402,7 @@ onBeforeUnmount(() => {
 .mermaid-svg :deep(svg) {
   max-width: 100%;
   height: auto;
+  transition: transform 0.2s ease;
 }
 
 .mermaid-error {

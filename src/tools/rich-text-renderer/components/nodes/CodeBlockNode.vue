@@ -2,82 +2,90 @@
   <div class="markdown-code-block">
     <div class="code-header">
       <div class="language-info">
-        <span class="language-tag">{{ language || '文本' }}</span>
+        <span class="language-tag">{{ language || "文本" }}</span>
       </div>
       <div class="header-actions">
         <!-- 字体大小调整按钮 -->
-        <button
-          class="action-btn"
-          :disabled="codeFontSize <= codeFontMin"
-          @click="decreaseCodeFont"
-          title="减小字体"
-        >
-          <Minus :size="14" />
-        </button>
-        <button
-          class="action-btn"
-          :disabled="!fontBaselineReady || codeFontSize === defaultCodeFontSize"
-          @click="resetCodeFont"
-          title="重置字体大小"
-        >
-          <RotateCcw :size="14" />
-        </button>
-        <button
-          class="action-btn"
-          :disabled="codeFontSize >= codeFontMax"
-          @click="increaseCodeFont"
-          title="增大字体"
-        >
-          <Plus :size="14" />
-        </button>
-        
+        <el-tooltip content="减小字体" :show-after="300">
+          <button
+            class="action-btn"
+            :disabled="codeFontSize <= codeFontMin"
+            @click="decreaseCodeFont"
+          >
+            <Minus :size="14" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="重置字体大小" :show-after="300">
+          <button
+            class="action-btn"
+            :disabled="!fontBaselineReady || codeFontSize === defaultCodeFontSize"
+            @click="resetCodeFont"
+          >
+            <RotateCcw :size="14" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="增大字体" :show-after="300">
+          <button
+            class="action-btn"
+            :disabled="codeFontSize >= codeFontMax"
+            @click="increaseCodeFont"
+          >
+            <Plus :size="14" />
+          </button>
+        </el-tooltip>
+
         <!-- 换行切换按钮 -->
-        <button
-          class="action-btn"
-          :class="{ 'action-btn-active': wordWrapEnabled }"
-          @click="toggleWordWrap"
-          :title="wordWrapEnabled ? '禁用换行' : '启用换行'"
-        >
-          <WrapText :size="14" />
-        </button>
-        
+        <el-tooltip :content="wordWrapEnabled ? '禁用换行' : '启用换行'" :show-after="300">
+          <button
+            class="action-btn"
+            :class="{ 'action-btn-active': wordWrapEnabled }"
+            @click="toggleWordWrap"
+          >
+            <WrapText :size="14" />
+          </button>
+        </el-tooltip>
+
         <!-- 复制按钮 -->
-        <button
-          class="action-btn"
-          :class="{ 'action-btn-active': copied }"
-          @click="copyCode"
-          :title="copied ? '已复制' : '复制代码'"
-        >
-          <Check v-if="copied" :size="14" />
-          <Copy v-else :size="14" />
-        </button>
-        
+        <el-tooltip :content="copied ? '已复制' : '复制代码'" :show-after="300">
+          <button class="action-btn" :class="{ 'action-btn-active': copied }" @click="copyCode">
+            <Check v-if="copied" :size="14" />
+            <Copy v-else :size="14" />
+          </button>
+        </el-tooltip>
+
         <!-- 展开/折叠按钮 -->
-        <button
-          class="action-btn"
-          @click="toggleExpand"
-          :title="isExpanded ? '折叠' : '展开'"
-        >
-          <Minimize2 v-if="isExpanded" :size="14" />
-          <Maximize2 v-else :size="14" />
-        </button>
+        <el-tooltip :content="isExpanded ? '折叠' : '展开'" :show-after="300">
+          <button class="action-btn" @click="toggleExpand">
+            <Minimize2 v-if="isExpanded" :size="14" />
+            <Maximize2 v-else :size="14" />
+          </button>
+        </el-tooltip>
       </div>
     </div>
     <!-- 容器本身负责滚动，而不是 Monaco 编辑器 -->
-    <div class="code-editor-container" :class="{ 'expanded': isExpanded }">
+    <div class="code-editor-container" :class="{ expanded: isExpanded }">
       <div ref="editorEl"></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import { Copy, Check, Maximize2, Minimize2, Plus, Minus, RotateCcw, WrapText } from 'lucide-vue-next';
-import { useTheme } from '@composables/useTheme';
-import { customMessage } from '@/utils/customMessage';
-import { getMonacoLanguageId } from '@/utils/codeLanguages';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import {
+  Copy,
+  Check,
+  Maximize2,
+  Minimize2,
+  Plus,
+  Minus,
+  RotateCcw,
+  WrapText,
+} from "lucide-vue-next";
+import { useTheme } from "@composables/useTheme";
+import { customMessage } from "@/utils/customMessage";
+import { getMonacoLanguageId } from "@/utils/codeLanguages";
 // 动态导入，避免类型检查时就报错
-type StreamMonacoModule = typeof import('stream-monaco');
+type StreamMonacoModule = typeof import("stream-monaco");
 
 const props = defineProps<{
   nodeId: string;
@@ -106,8 +114,14 @@ const codeFontSize = ref<number>(14);
 const fontBaselineReady = computed(() => {
   const a = defaultCodeFontSize.value;
   const b = codeFontSize.value;
-  return typeof a === 'number' && Number.isFinite(a) && a > 0 &&
-         typeof b === 'number' && Number.isFinite(b) && b > 0;
+  return (
+    typeof a === "number" &&
+    Number.isFinite(a) &&
+    a > 0 &&
+    typeof b === "number" &&
+    Number.isFinite(b) &&
+    b > 0
+  );
 });
 
 const monacoLanguage = computed(() => {
@@ -131,13 +145,13 @@ const copyCode = async () => {
   try {
     await navigator.clipboard.writeText(props.content);
     copied.value = true;
-    customMessage.success('代码已复制');
+    customMessage.success("代码已复制");
     setTimeout(() => {
       copied.value = false;
     }, 2000);
   } catch (error) {
-    console.error('[CodeBlockNode] 复制失败:', error);
-    customMessage.error('复制失败');
+    console.error("[CodeBlockNode] 复制失败:", error);
+    customMessage.error("复制失败");
   }
 };
 
@@ -146,13 +160,13 @@ const computeContentHeight = (): number | null => {
   try {
     const editor = getEditorView();
     if (!editor) return null;
-    
+
     // 优先使用 Monaco 的 contentHeight
-    if (typeof editor.getContentHeight === 'function') {
+    if (typeof editor.getContentHeight === "function") {
       const h = editor.getContentHeight();
       if (h > 0) return Math.ceil(h);
     }
-    
+
     // 后备方案：行数 * 行高
     const model = editor.getModel?.();
     const lineCount = model?.getLineCount?.() || 1;
@@ -167,11 +181,11 @@ const computeContentHeight = (): number | null => {
 const setAutomaticLayout = (enabled: boolean) => {
   try {
     const editor = getEditorView();
-    if (editor && typeof editor.updateOptions === 'function') {
+    if (editor && typeof editor.updateOptions === "function") {
       editor.updateOptions({ automaticLayout: enabled });
     }
   } catch (error) {
-    console.error('[CodeBlockNode] 设置 automaticLayout 失败:', error);
+    console.error("[CodeBlockNode] 设置 automaticLayout 失败:", error);
   }
 };
 
@@ -202,16 +216,16 @@ const toggleExpand = async () => {
       const maxHeightInCollapsed = 500;
       const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
       editorEl.value.style.height = `${editorHeight}px`;
-      container.style.maxHeight = ''; // 恢复由 CSS 控制（500px）
+      container.style.maxHeight = ""; // 恢复由 CSS 控制（500px）
     }
 
     // 触发重新布局
-    if (typeof editor.layout === 'function') {
+    if (typeof editor.layout === "function") {
       // 延迟一小段时间，确保 CSS transition 开始
       setTimeout(() => editor.layout(), 50);
     }
   } catch (error) {
-    console.error('[CodeBlockNode] 切换展开状态失败:', error);
+    console.error("[CodeBlockNode] 切换展开状态失败:", error);
   }
 };
 
@@ -236,11 +250,11 @@ const resetCodeFont = () => {
 const updateEditorFontSize = (size: number) => {
   try {
     const editor = getEditorView();
-    if (editor && typeof editor.updateOptions === 'function') {
+    if (editor && typeof editor.updateOptions === "function") {
       editor.updateOptions({ fontSize: size });
     }
   } catch (error) {
-    console.error('[CodeBlockNode] 更新字体大小失败:', error);
+    console.error("[CodeBlockNode] 更新字体大小失败:", error);
   }
 };
 
@@ -249,16 +263,16 @@ const toggleWordWrap = () => {
   wordWrapEnabled.value = !wordWrapEnabled.value;
   try {
     const editor = getEditorView();
-    if (editor && typeof editor.updateOptions === 'function') {
+    if (editor && typeof editor.updateOptions === "function") {
       editor.updateOptions({
-        wordWrap: wordWrapEnabled.value ? 'on' : 'off'
+        wordWrap: wordWrapEnabled.value ? "on" : "off",
       });
       // 换行状态改变后需要重新计算高度和布局
       nextTick(() => {
         const contentHeight = computeContentHeight();
         if (contentHeight && contentHeight > 0 && editorEl.value) {
           const container = editorEl.value.parentElement;
-          
+
           if (isExpanded.value) {
             // 展开状态：使用完整内容高度
             editorEl.value.style.height = `${contentHeight}px`;
@@ -272,15 +286,15 @@ const toggleWordWrap = () => {
             editorEl.value.style.height = `${editorHeight}px`;
           }
         }
-        
+
         // 触发重新布局
-        if (typeof editor.layout === 'function') {
+        if (typeof editor.layout === "function") {
           editor.layout();
         }
       });
     }
   } catch (error) {
-    console.error('[CodeBlockNode] 切换换行失败:', error);
+    console.error("[CodeBlockNode] 切换换行失败:", error);
   }
 };
 
@@ -289,18 +303,18 @@ onMounted(async () => {
 
   try {
     const [sm, themeLight, themeDark] = await Promise.all([
-      import('stream-monaco') as Promise<StreamMonacoModule>,
-      import('shiki/themes/github-light.mjs'),
-      import('shiki/themes/github-dark.mjs')
+      import("stream-monaco") as Promise<StreamMonacoModule>,
+      import("shiki/themes/github-light.mjs"),
+      import("shiki/themes/github-dark.mjs"),
     ]);
 
     // 再次检查，防止在异步加载模块期间组件被卸载
     if (!editorEl.value) return;
 
     const useMonaco = sm.useMonaco;
-    
-    if (typeof useMonaco !== 'function') {
-      console.warn('[CodeBlockNode] stream-monaco is not installed or useMonaco not found.');
+
+    if (typeof useMonaco !== "function") {
+      console.warn("[CodeBlockNode] stream-monaco is not installed or useMonaco not found.");
       return;
     }
 
@@ -309,48 +323,48 @@ onMounted(async () => {
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       fontSize: 13,
-      lineNumbers: 'on' as const,
-      renderLineHighlight: 'none' as const,
+      lineNumbers: "on" as const,
+      renderLineHighlight: "none" as const,
       scrollbar: {
         // 让 Monaco 自己处理滚动
-        vertical: 'auto' as const,
-        horizontal: 'auto' as const,
+        vertical: "auto" as const,
+        horizontal: "auto" as const,
         handleMouseWheel: true,
       },
-      wordWrap: 'off' as const,
-      wrappingIndent: 'same' as const,
+      wordWrap: "off" as const,
+      wrappingIndent: "same" as const,
       folding: true,
       // 禁用自动布局，使用固定高度
       automaticLayout: false,
-      theme: isDark.value ? 'github-dark' : 'github-light',
+      theme: isDark.value ? "github-dark" : "github-light",
     };
-    
+
     const helpers = useMonaco({
       ...editorOptions,
-      themes: [themeLight.default, themeDark.default]
+      themes: [themeLight.default, themeDark.default],
     });
-    
+
     // 创建空编辑器，然后通过 updateCode 填充内容，
     // 以此统一初始加载和流式更新的逻辑，规避初始渲染空白的问题。
     await helpers.createEditor(
       editorEl.value,
-      '', // Start with an empty editor
+      "", // Start with an empty editor
       monacoLanguage.value
     );
-    
+
     updateCode = helpers.updateCode;
     cleanupEditor = helpers.cleanupEditor;
     setTheme = helpers.setTheme;
     getEditorView = helpers.getEditorView || getEditorView;
-    
+
     // Use updateCode to load the initial content, mimicking the streaming path
     if (props.content) {
       updateCode(props.content, monacoLanguage.value);
     }
-    
+
     // 设置初始字体大小
     const editor = getEditorView();
-    if (editor && typeof editor.updateOptions === 'function') {
+    if (editor && typeof editor.updateOptions === "function") {
       const actualFontSize = editorOptions.fontSize || 13;
       defaultCodeFontSize.value = actualFontSize;
       codeFontSize.value = actualFontSize;
@@ -358,9 +372,9 @@ onMounted(async () => {
 
     // 等待 Monaco 渲染完成后再计算高度
     // 使用 setTimeout 确保 Monaco 有足够时间渲染内容
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
     await nextTick();
-    
+
     if (editorEl.value) {
       const contentHeight = computeContentHeight();
       if (contentHeight && contentHeight > 0) {
@@ -370,23 +384,23 @@ onMounted(async () => {
         editorEl.value.style.height = `${editorHeight}px`;
       } else {
         // 如果计算失败，设置一个合理的默认高度
-        editorEl.value.style.height = '100px';
+        editorEl.value.style.height = "100px";
       }
-      editorEl.value.style.width = '100%';
-      editorEl.value.style.overflow = 'hidden';
-      editorEl.value.style.maxHeight = 'none';
+      editorEl.value.style.width = "100%";
+      editorEl.value.style.overflow = "hidden";
+      editorEl.value.style.maxHeight = "none";
     }
 
     // 添加滚动穿透处理器以修复嵌套滚动问题
-    const monacoContainer = editorEl.value?.querySelector('.monaco-editor') as HTMLElement;
+    const monacoContainer = editorEl.value?.querySelector(".monaco-editor") as HTMLElement;
     if (monacoContainer) {
       const handleWheel = (event: WheelEvent) => {
-        const monacoScrollable = monacoContainer.querySelector('.overflow-guard') as HTMLElement;
+        const monacoScrollable = monacoContainer.querySelector(".overflow-guard") as HTMLElement;
         if (!monacoScrollable) return;
 
         const { scrollTop, scrollHeight, clientHeight } = monacoScrollable;
         const isAtTop = event.deltaY < 0 && scrollTop === 0;
-        const isAtBottom = event.deltaY > 0 && (scrollHeight - scrollTop - clientHeight) < 1;
+        const isAtBottom = event.deltaY > 0 && scrollHeight - scrollTop - clientHeight < 1;
 
         if (isAtTop || isAtBottom) {
           // 在滚动边界时，允许父容器滚动
@@ -399,16 +413,16 @@ onMounted(async () => {
       };
 
       // 在捕获阶段监听，优先于 Monaco 的处理
-      monacoContainer.addEventListener('wheel', handleWheel, { capture: true, passive: true });
+      monacoContainer.addEventListener("wheel", handleWheel, { capture: true, passive: true });
 
       // 保存清理函数
       cleanupScrollHandler = () => {
-        monacoContainer.removeEventListener('wheel', handleWheel, { capture: true });
+        monacoContainer.removeEventListener("wheel", handleWheel, { capture: true });
       };
     }
 
     // 强制重新布局以确保尺寸正确
-    if (typeof editor.layout === 'function') {
+    if (typeof editor.layout === "function") {
       editor.layout();
     }
 
@@ -417,28 +431,27 @@ onMounted(async () => {
     if (container) {
       const resizeObserver = new ResizeObserver(() => {
         const editor = getEditorView();
-        if (editor && typeof editor.layout === 'function') {
+        if (editor && typeof editor.layout === "function") {
           // 使用 requestAnimationFrame 避免频繁触发
           requestAnimationFrame(() => {
             editor.layout();
           });
         }
       });
-      
+
       resizeObserver.observe(container);
-      
+
       cleanupResizeObserver = () => {
         resizeObserver.disconnect();
       };
     }
-
   } catch (error) {
-    console.error('[CodeBlockNode] Failed to initialize Monaco editor via stream-monaco:', error);
+    console.error("[CodeBlockNode] Failed to initialize Monaco editor via stream-monaco:", error);
   }
 });
 
 watch(isDark, async (dark) => {
-  await setTheme(dark ? 'github-dark' : 'github-light');
+  await setTheme(dark ? "github-dark" : "github-light");
 });
 
 onUnmounted(() => {
@@ -457,34 +470,36 @@ onUnmounted(() => {
 });
 
 // 内容更新时，需要同步更新编辑器内容和高度
-watch(() => props.content, (newContent, oldContent) => {
-  // 避免在组件初始化时重复执行
-  if (newContent === oldContent) return;
+watch(
+  () => props.content,
+  (newContent, oldContent) => {
+    // 避免在组件初始化时重复执行
+    if (newContent === oldContent) return;
 
-  updateCode(newContent, monacoLanguage.value);
+    updateCode(newContent, monacoLanguage.value);
 
-  // 使用 nextTick 等待 Monaco 更新 DOM
-  nextTick(() => {
-    const editor = getEditorView();
-    const container = editorEl.value?.parentElement;
-    if (!editor || !container || !editorEl.value) return;
+    // 使用 nextTick 等待 Monaco 更新 DOM
+    nextTick(() => {
+      const editor = getEditorView();
+      const container = editorEl.value?.parentElement;
+      if (!editor || !container || !editorEl.value) return;
 
-    const contentHeight = computeContentHeight();
-    if (contentHeight && contentHeight > 0) {
-      if (isExpanded.value) {
-        // 展开状态：使用完整内容高度
-        editorEl.value.style.height = `${contentHeight}px`;
-        container.style.maxHeight = `${contentHeight}px`;
-      } else {
-        // 收起状态：限制为 min(内容高度, 500px)
-        const maxHeightInCollapsed = 500;
-        const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
-        editorEl.value.style.height = `${editorHeight}px`;
+      const contentHeight = computeContentHeight();
+      if (contentHeight && contentHeight > 0) {
+        if (isExpanded.value) {
+          // 展开状态：使用完整内容高度
+          editorEl.value.style.height = `${contentHeight}px`;
+          container.style.maxHeight = `${contentHeight}px`;
+        } else {
+          // 收起状态：限制为 min(内容高度, 500px)
+          const maxHeightInCollapsed = 500;
+          const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+          editorEl.value.style.height = `${editorHeight}px`;
+        }
       }
-    }
-  });
-});
-
+    });
+  }
+);
 </script>
 
 <style scoped>
@@ -543,12 +558,33 @@ watch(() => props.content, (newContent, oldContent) => {
   background-color: transparent;
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background-color: var(--el-fill-color);
+  opacity: 0;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .action-btn:hover:not(:disabled) {
-  background-color: var(--el-fill-color-darker);
   color: var(--el-text-color-primary);
+  transform: translateY(-1px);
+}
+
+.action-btn:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.action-btn:active:not(:disabled) {
+  transform: translateY(0);
+  transition-duration: 0.05s;
 }
 
 .action-btn:disabled {
@@ -561,8 +597,13 @@ watch(() => props.content, (newContent, oldContent) => {
   color: white;
 }
 
-.action-btn-active:hover {
+.action-btn-active::before {
+  display: none;
+}
+
+.action-btn-active:hover:not(:disabled) {
   background-color: var(--el-color-primary-light-3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .code-editor-container {

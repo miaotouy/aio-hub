@@ -5,83 +5,83 @@
       <div class="toolbar-left">
         <!-- 视图模式切换 -->
         <div class="mode-switcher">
-          <button
+          <el-tooltip
             v-for="mode in viewModes"
             :key="mode.value"
-            class="mode-btn"
-            :class="{ active: viewMode === mode.value }"
-            @click="viewMode = mode.value"
-            :title="mode.label"
+            :content="mode.label"
+            placement="bottom"
           >
-            <component :is="mode.icon" :size="16" />
-            <span>{{ mode.label }}</span>
-          </button>
+            <button
+              class="mode-btn"
+              :class="{ active: viewMode === mode.value }"
+              @click="viewMode = mode.value"
+            >
+              <component :is="mode.icon" :size="16" />
+              <span>{{ mode.label }}</span>
+            </button>
+          </el-tooltip>
         </div>
       </div>
 
       <div class="toolbar-right">
         <!-- 缩放控制 -->
         <div class="scale-controls" v-if="viewMode !== 'source'">
-          <button
-            class="tool-btn"
-            :disabled="currentScale <= scaleMin"
-            @click="decreaseScale"
-            title="缩小 (Ctrl + -)"
-          >
-            <Minus :size="16" />
-          </button>
+          <el-tooltip content="缩小 (Ctrl -)" placement="bottom">
+            <button class="tool-btn" :disabled="currentScale <= scaleMin" @click="decreaseScale">
+              <Minus :size="16" />
+            </button>
+          </el-tooltip>
           <span class="scale-value">{{ Math.round(currentScale * 100) }}%</span>
-          <button
-            class="tool-btn"
-            :disabled="currentScale >= scaleMax"
-            @click="increaseScale"
-            title="放大 (Ctrl + +)"
-          >
-            <Plus :size="16" />
-          </button>
-          <button
-            class="tool-btn"
-            :disabled="currentScale === defaultScale && !hasPan"
-            @click="resetTransform"
-            title="重置视图 (Ctrl + 0)"
-          >
-            <RotateCcw :size="16" />
-          </button>
-          <button class="tool-btn" @click="fitToView" title="适应窗口">
-            <Maximize2 :size="16" />
-          </button>
+          <el-tooltip content="放大 (Ctrl +)" placement="bottom">
+            <button class="tool-btn" :disabled="currentScale >= scaleMax" @click="increaseScale">
+              <Plus :size="16" />
+            </button>
+          </el-tooltip>
+          <el-tooltip content="重置视图 (Ctrl 0)" placement="bottom">
+            <button
+              class="tool-btn"
+              :disabled="currentScale === defaultScale && !hasPan"
+              @click="resetTransform"
+            >
+              <RotateCcw :size="16" />
+            </button>
+          </el-tooltip>
+          <el-tooltip content="适应窗口" placement="bottom">
+            <button class="tool-btn" @click="fitToView">
+              <Maximize2 :size="16" />
+            </button>
+          </el-tooltip>
         </div>
 
         <!-- 操作按钮 -->
         <div class="action-buttons">
-          <button
-            class="tool-btn"
-            @click="downloadSvg"
-            :disabled="!!error || viewMode === 'source'"
-            title="下载 SVG"
-          >
-            <Download :size="16" />
-            <span>SVG</span>
-          </button>
-          <button
-            class="tool-btn"
-            @click="downloadPng"
-            :disabled="!!error || viewMode === 'source'"
-            title="下载 PNG"
-          >
-            <ImageIcon :size="16" />
-            <span>PNG</span>
-          </button>
-          <button
-            class="tool-btn"
-            :class="{ active: copied }"
-            @click="copyCode"
-            :title="copied ? '已复制' : '复制源码'"
-          >
-            <Check v-if="copied" :size="16" />
-            <Copy v-else :size="16" />
-            <span>{{ copied ? "已复制" : "复制" }}</span>
-          </button>
+          <el-tooltip content="下载 SVG" placement="bottom">
+            <button
+              class="tool-btn"
+              @click="downloadSvg"
+              :disabled="!!error || viewMode === 'source'"
+            >
+              <Download :size="16" />
+              <span>SVG</span>
+            </button>
+          </el-tooltip>
+          <el-tooltip content="下载 PNG" placement="bottom">
+            <button
+              class="tool-btn"
+              @click="downloadPng"
+              :disabled="!!error || viewMode === 'source'"
+            >
+              <ImageIcon :size="16" />
+              <span>PNG</span>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="copied ? '已复制' : '复制源码'" placement="bottom">
+            <button class="tool-btn" :class="{ active: copied }" @click="copyCode">
+              <Check v-if="copied" :size="16" />
+              <Copy v-else :size="16" />
+              <span>{{ copied ? "已复制" : "复制" }}</span>
+            </button>
+          </el-tooltip>
         </div>
       </div>
     </div>

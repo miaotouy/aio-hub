@@ -6,73 +6,54 @@
       </div>
       <div class="header-actions">
         <!-- 缩放控制 -->
-        <button
-          class="action-btn"
-          :disabled="currentScale <= scaleMin"
-          @click="decreaseScale"
-          title="缩小"
-        >
-          <Minus :size="14" />
-        </button>
-        <button
-          class="action-btn"
-          :disabled="currentScale === defaultScale"
-          @click="resetScale"
-          title="重置缩放"
-        >
-          <RotateCcw :size="14" />
-        </button>
-        <button
-          class="action-btn"
-          :disabled="currentScale >= scaleMax"
-          @click="increaseScale"
-          title="放大"
-        >
-          <Plus :size="14" />
-        </button>
-        
+        <el-tooltip content="缩小" :show-after="300">
+          <button class="action-btn" :disabled="currentScale <= scaleMin" @click="decreaseScale">
+            <Minus :size="14" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="重置缩放" :show-after="300">
+          <button class="action-btn" :disabled="currentScale === defaultScale" @click="resetScale">
+            <RotateCcw :size="14" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="放大" :show-after="300">
+          <button class="action-btn" :disabled="currentScale >= scaleMax" @click="increaseScale">
+            <Plus :size="14" />
+          </button>
+        </el-tooltip>
+
         <!-- 独立查看按钮 -->
-        <button
-          class="action-btn"
-          @click="openViewer"
-          title="在独立窗口中查看"
-        >
-          <ExternalLink :size="14" />
-        </button>
-        
+        <el-tooltip content="在独立窗口中查看" :show-after="300">
+          <button class="action-btn" @click="openViewer">
+            <ExternalLink :size="14" />
+          </button>
+        </el-tooltip>
+
         <!-- 下载按钮 -->
-        <button
-          class="action-btn"
-          @click="downloadSvg"
-          :disabled="!!error"
-          title="下载 SVG"
-        >
-          <Download :size="14" />
-        </button>
-        
+        <el-tooltip content="下载 SVG" :show-after="300">
+          <button class="action-btn" @click="downloadSvg" :disabled="!!error">
+            <Download :size="14" />
+          </button>
+        </el-tooltip>
+
         <!-- 复制按钮 -->
-        <button
-          class="action-btn"
-          :class="{ 'action-btn-active': copied }"
-          @click="copyCode"
-          :title="copied ? '已复制' : '复制代码'"
-        >
-          <Check v-if="copied" :size="14" />
-          <Copy v-else :size="14" />
-        </button>
-        
+        <el-tooltip :content="copied ? '已复制' : '复制代码'" :show-after="300">
+          <button class="action-btn" :class="{ 'action-btn-active': copied }" @click="copyCode">
+            <Check v-if="copied" :size="14" />
+            <Copy v-else :size="14" />
+          </button>
+        </el-tooltip>
+
         <!-- 展开/折叠按钮 -->
-        <button
-          class="action-btn"
-          @click="toggleExpand"
-          :title="isExpanded ? '折叠' : '展开'"
-        >
-          <Minimize2 v-if="isExpanded" :size="14" />
-          <Maximize2 v-else :size="14" />
-        </button>
+        <el-tooltip :content="isExpanded ? '折叠' : '展开'" :show-after="300">
+          <button class="action-btn" @click="toggleExpand">
+            <Minimize2 v-if="isExpanded" :size="14" />
+            <Maximize2 v-else :size="14" />
+          </button>
+        </el-tooltip>
       </div>
     </div>
-    <div class="mermaid-container" :class="{ 'expanded': isExpanded }" ref="containerRef">
+    <div class="mermaid-container" :class="{ expanded: isExpanded }" ref="containerRef">
       <div v-if="error" class="mermaid-error">
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
@@ -84,7 +65,7 @@
       <div v-else ref="mermaidRef" class="mermaid-svg"></div>
     </div>
   </div>
-  
+
   <!-- 交互式查看器对话框 -->
   <BaseDialog
     v-model="showViewer"
@@ -98,14 +79,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import { Copy, Check, Plus, Minus, RotateCcw, Download, Maximize2, Minimize2, ExternalLink } from 'lucide-vue-next';
-import { useTheme } from '@composables/useTheme';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleLogger } from '@/utils/logger';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import MermaidInteractiveViewer from '../MermaidInteractiveViewer.vue';
-const logger = createModuleLogger('MermaidNode');
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import {
+  Copy,
+  Check,
+  Plus,
+  Minus,
+  RotateCcw,
+  Download,
+  Maximize2,
+  Minimize2,
+  ExternalLink,
+} from "lucide-vue-next";
+import { useTheme } from "@composables/useTheme";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleLogger } from "@/utils/logger";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import MermaidInteractiveViewer from "../MermaidInteractiveViewer.vue";
+const logger = createModuleLogger("MermaidNode");
 
 const props = defineProps<{
   nodeId: string;
@@ -116,7 +107,7 @@ const { isDark } = useTheme();
 const containerRef = ref<HTMLElement | null>(null);
 const mermaidRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
-const error = ref<string>('');
+const error = ref<string>("");
 const isExpanded = ref(false);
 const showViewer = ref(false);
 
@@ -135,13 +126,13 @@ const copyCode = async () => {
   try {
     await navigator.clipboard.writeText(props.content);
     copied.value = true;
-    customMessage.success('代码已复制');
+    customMessage.success("代码已复制");
     setTimeout(() => {
       copied.value = false;
     }, 2000);
   } catch (err) {
-    logger.error('复制失败', err);
-    customMessage.error('复制失败');
+    logger.error("复制失败", err);
+    customMessage.error("复制失败");
   }
 };
 
@@ -165,10 +156,10 @@ const resetScale = () => {
 
 const applyScale = () => {
   if (!mermaidRef.value) return;
-  const svg = mermaidRef.value.querySelector('svg');
+  const svg = mermaidRef.value.querySelector("svg");
   if (svg) {
     svg.style.transform = `scale(${currentScale.value})`;
-    svg.style.transformOrigin = 'center center';
+    svg.style.transformOrigin = "center center";
   }
 };
 
@@ -176,33 +167,33 @@ const applyScale = () => {
 const downloadSvg = () => {
   try {
     if (!mermaidRef.value) return;
-    
-    const svg = mermaidRef.value.querySelector('svg');
+
+    const svg = mermaidRef.value.querySelector("svg");
     if (!svg) {
-      customMessage.warning('没有可下载的图表');
+      customMessage.warning("没有可下载的图表");
       return;
     }
-    
+
     // 克隆 SVG 以移除 transform
     const clonedSvg = svg.cloneNode(true) as SVGElement;
-    clonedSvg.style.transform = '';
-    
+    clonedSvg.style.transform = "";
+
     const svgData = new XMLSerializer().serializeToString(clonedSvg);
-    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
+
+    const link = document.createElement("a");
     link.href = url;
     link.download = `mermaid-diagram-${Date.now()}.svg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     URL.revokeObjectURL(url);
-    customMessage.success('SVG 已下载');
+    customMessage.success("SVG 已下载");
   } catch (err) {
-    logger.error('下载失败', err);
-    customMessage.error('下载失败');
+    logger.error("下载失败", err);
+    customMessage.error("下载失败");
   }
 };
 
@@ -222,41 +213,41 @@ const renderDiagram = async () => {
   if (!mermaidRef.value || !mermaid) return;
 
   try {
-    error.value = '';
-    
+    error.value = "";
+
     // 清理之前的渲染
     if (renderCleanup) {
       renderCleanup();
       renderCleanup = null;
     }
-    
+
     // 清空容器
-    mermaidRef.value.innerHTML = '';
-    
+    mermaidRef.value.innerHTML = "";
+
     // 生成唯一 ID
     const id = `mermaid-${props.nodeId}-${Date.now()}`;
-    
+
     // 渲染图表
     const { svg } = await mermaid.render(id, props.content);
-    
+
     // 插入 SVG
     if (mermaidRef.value) {
       mermaidRef.value.innerHTML = svg;
-      
+
       // 应用当前缩放
       await nextTick();
       applyScale();
-      
+
       // 保存清理函数
       renderCleanup = () => {
         if (mermaidRef.value) {
-          mermaidRef.value.innerHTML = '';
+          mermaidRef.value.innerHTML = "";
         }
       };
     }
   } catch (err: any) {
-    logger.error('Mermaid 渲染失败', err);
-    error.value = err?.message || '未知错误';
+    logger.error("Mermaid 渲染失败", err);
+    error.value = err?.message || "未知错误";
   }
 };
 
@@ -264,57 +255,60 @@ const renderDiagram = async () => {
 const initMermaid = async () => {
   try {
     // 动态导入 Mermaid
-    const mermaidModule = await import('mermaid');
+    const mermaidModule = await import("mermaid");
     mermaid = mermaidModule.default;
-    
+
     // 初始化配置
     mermaid.initialize({
       startOnLoad: false,
-      theme: isDark.value ? 'dark' : 'default',
-      securityLevel: 'loose',
-      fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+      theme: isDark.value ? "dark" : "default",
+      securityLevel: "loose",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
       themeVariables: {
-        fontSize: '14px',
+        fontSize: "14px",
       },
     });
-    
+
     // 渲染图表
     await renderDiagram();
   } catch (err) {
-    logger.error('Mermaid 初始化失败', err);
-    error.value = 'Mermaid 库加载失败';
+    logger.error("Mermaid 初始化失败", err);
+    error.value = "Mermaid 库加载失败";
   }
 };
 
 // 监听主题变化
 watch(isDark, async (dark) => {
   if (!mermaid) return;
-  
+
   try {
     // 更新主题配置
     mermaid.initialize({
       startOnLoad: false,
-      theme: dark ? 'dark' : 'default',
-      securityLevel: 'loose',
-      fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+      theme: dark ? "dark" : "default",
+      securityLevel: "loose",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
       themeVariables: {
-        fontSize: '14px',
+        fontSize: "14px",
       },
     });
-    
+
     // 重新渲染
     await renderDiagram();
   } catch (err) {
-    logger.error('主题切换失败', err);
+    logger.error("主题切换失败", err);
   }
 });
 
 // 监听内容变化
-watch(() => props.content, async () => {
-  if (mermaid) {
-    await renderDiagram();
+watch(
+  () => props.content,
+  async () => {
+    if (mermaid) {
+      await renderDiagram();
+    }
   }
-});
+);
 
 onMounted(() => {
   initMermaid();
@@ -380,12 +374,33 @@ onBeforeUnmount(() => {
   background-color: transparent;
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background-color: var(--el-fill-color);
+  opacity: 0;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .action-btn:hover:not(:disabled) {
-  background-color: var(--el-fill-color-darker);
   color: var(--el-text-color-primary);
+  transform: translateY(-1px);
+}
+
+.action-btn:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.action-btn:active:not(:disabled) {
+  transform: translateY(0);
+  transition-duration: 0.05s;
 }
 
 .action-btn:disabled {
@@ -398,8 +413,13 @@ onBeforeUnmount(() => {
   color: white;
 }
 
-.action-btn-active:hover {
+.action-btn-active::before {
+  display: none;
+}
+
+.action-btn-active:hover:not(:disabled) {
   background-color: var(--el-color-primary-light-3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .mermaid-container {
@@ -474,7 +494,7 @@ onBeforeUnmount(() => {
   background-color: var(--el-fill-color);
   border-radius: 4px;
   font-size: 12px;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;

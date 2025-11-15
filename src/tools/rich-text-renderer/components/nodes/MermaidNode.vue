@@ -31,6 +31,15 @@
           <Plus :size="14" />
         </button>
         
+        <!-- 独立查看按钮 -->
+        <button
+          class="action-btn"
+          @click="openViewer"
+          title="在独立窗口中查看"
+        >
+          <ExternalLink :size="14" />
+        </button>
+        
         <!-- 下载按钮 -->
         <button
           class="action-btn"
@@ -75,15 +84,27 @@
       <div v-else ref="mermaidRef" class="mermaid-svg"></div>
     </div>
   </div>
+  
+  <!-- 交互式查看器对话框 -->
+  <BaseDialog
+    v-model="showViewer"
+    title="Mermaid 图表查看器"
+    width="95%"
+    height="85vh"
+    :append-to-body="true"
+  >
+    <MermaidInteractiveViewer :content="content" />
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import { Copy, Check, Plus, Minus, RotateCcw, Download, Maximize2, Minimize2 } from 'lucide-vue-next';
+import { Copy, Check, Plus, Minus, RotateCcw, Download, Maximize2, Minimize2, ExternalLink } from 'lucide-vue-next';
 import { useTheme } from '@composables/useTheme';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
-
+import BaseDialog from '@/components/common/BaseDialog.vue';
+import MermaidInteractiveViewer from '../MermaidInteractiveViewer.vue';
 const logger = createModuleLogger('MermaidNode');
 
 const props = defineProps<{
@@ -97,6 +118,7 @@ const mermaidRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
 const error = ref<string>('');
 const isExpanded = ref(false);
+const showViewer = ref(false);
 
 // 缩放控制
 const scaleMin = 0.5;
@@ -188,6 +210,11 @@ const downloadSvg = () => {
 const toggleExpand = async () => {
   isExpanded.value = !isExpanded.value;
   await nextTick();
+};
+
+// 打开交互式查看器
+const openViewer = () => {
+  showViewer.value = true;
 };
 
 // 渲染图表

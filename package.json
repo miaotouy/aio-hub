@@ -1,7 +1,7 @@
 {
   "name": "aiohub",
   "private": true,
-  "version": "0.3.2-r",
+  "version": "0.3.2-r.1",
   "type": "module",
   "license": "MIT",
   "author": "miaotouy",

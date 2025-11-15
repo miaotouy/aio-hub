@@ -104,6 +104,7 @@
     "lodash-es": "^4.17.21",
     "lucide-vue-next": "^0.546.0",
     "markdown-it": "^14.1.0",
+    "markdown-it-texmath": "^1.0.0",
     "mermaid": "^11.12.1",
     "pinia": "^3.0.3",
     "prettier": "^3.4.2",

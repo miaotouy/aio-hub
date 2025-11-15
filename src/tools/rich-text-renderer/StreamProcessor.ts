@@ -9,6 +9,8 @@
  */
 
 import MarkdownIt from 'markdown-it';
+import texmath from 'markdown-it-texmath';
+import katex from 'katex';
 import type {
   AstNode,
   Patch,
@@ -35,6 +37,8 @@ import type {
   InlineCodeNode,
   LinkNode,
   StrikethroughNode,
+  KatexInlineNode,
+  KatexBlockNode,
 } from './types';
 
 /**
@@ -192,6 +196,13 @@ export class StreamProcessor {
       breaks: true,
       linkify: true,
       typographer: true,
+    });
+    
+    // 使用 texmath 插件添加 KaTeX 数学公式支持
+    this.md.use(texmath, {
+      engine: katex,
+      delimiters: 'dollars', // 使用 $...$ 和 $$...$$ 语法
+      macros: {}
     });
   }
 
@@ -543,6 +554,17 @@ export class StreamProcessor {
           case 'code_inline':
             nodes.push({ id: this.generateNodeId(), type: 'inline_code', props: { content: token.content }, meta: { range: { start: 0, end: 0 } } } as InlineCodeNode);
             break;
+          case 'math_inline':
+          case 'math_inline_double': {
+            // KaTeX 行内公式
+            nodes.push({
+              id: this.generateNodeId(),
+              type: 'katex_inline',
+              props: { content: token.content },
+              meta: { range: { start: 0, end: 0 } }
+            } as KatexInlineNode);
+            break;
+          }
           case 'link_open': {
             const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'link_close');
             const href = token.attrGet('href') || '';
@@ -613,6 +635,16 @@ export class StreamProcessor {
           return llmThinkNode;
         }
         return { id: this.generateNodeId(), type: 'html_block', props: { content: token.content }, meta } as HtmlBlockNode;
+      }
+      case 'math_block':
+      case 'math_block_eqno': {
+        // KaTeX 块级公式
+        return {
+          id: this.generateNodeId(),
+          type: 'katex_block',
+          props: { content: token.content },
+          meta
+        } as KatexBlockNode;
       }
       default:
         return null;

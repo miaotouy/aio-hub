@@ -43,10 +43,10 @@ const renderKatex = () => {
       macros: {}, // 可以在这里定义自定义宏
     });
 
-    logger.debug('KaTeX 公式渲染成功', { 
-      content: props.content, 
-      displayMode: props.displayMode 
-    });
+    // logger.debug('KaTeX 公式渲染成功', { 
+    //   content: props.content, 
+    //   displayMode: props.displayMode 
+    // });
   } catch (error) {
     errorHandler.error(error, 'KaTeX 公式渲染失败', {
       content: props.content,

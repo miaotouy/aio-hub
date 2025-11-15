@@ -2,14 +2,14 @@
  * 富文本渲染器测试工具的状态管理
  */
 
-import { defineStore } from 'pinia';
-import { ref, reactive, watch } from 'vue';
-import type { TesterConfig, RendererVersionMeta, LlmThinkRule } from './types';
-import { RendererVersion } from './types';
-import { createConfigManager } from '@/utils/configManager';
-import { createModuleLogger } from '@/utils/logger';
+import { defineStore } from "pinia";
+import { ref, reactive, watch } from "vue";
+import type { TesterConfig, RendererVersionMeta, LlmThinkRule } from "./types";
+import { RendererVersion } from "./types";
+import { createConfigManager } from "@/utils/configManager";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('rich-text-renderer/store');
+const logger = createModuleLogger("rich-text-renderer/store");
 
 /**
  * 可用的渲染器版本列表
@@ -17,31 +17,31 @@ const logger = createModuleLogger('rich-text-renderer/store');
 export const availableVersions: RendererVersionMeta[] = [
   {
     version: RendererVersion.V1_MARKDOWN_IT,
-    name: 'V1 - Markdown-it',
-    description: '基于 markdown-it 的增量解析器，支持稳定区/待定区分离',
+    name: "V1 - Markdown-it",
+    description: "基于 markdown-it 的增量解析器，支持稳定区/待定区分离",
     enabled: true,
-    tags: ['稳定', '增量'],
+    tags: ["稳定", "增量"],
   },
   {
     version: RendererVersion.V2_CUSTOM_PARSER,
-    name: 'V2 - Custom Parser',
-    description: '基于 CustomParser 的混合解析器，支持复杂 HTML 嵌套',
+    name: "V2 - Custom Parser",
+    description: "基于 CustomParser 的混合解析器，支持复杂 HTML 嵌套",
     enabled: true,
-    tags: ['实验性', 'HTML'],
+    tags: ["实验性", "HTML"],
   },
   {
     version: RendererVersion.PURE_MARKDOWN_IT,
-    name: 'Pure Markdown-it',
-    description: '纯 markdown-it 渲染，无增量优化（规划中）',
+    name: "Pure Markdown-it",
+    description: "纯 markdown-it 渲染，无增量优化（规划中）",
     enabled: false,
-    tags: ['规划中'],
+    tags: ["规划中"],
   },
   {
     version: RendererVersion.HYBRID_V3,
-    name: 'Hybrid V3',
-    description: '混合策略 V3 版本（规划中）',
+    name: "Hybrid V3",
+    description: "混合策略 V3 版本（规划中）",
     enabled: false,
-    tags: ['规划中'],
+    tags: ["规划中"],
   },
 ];
 
@@ -50,31 +50,31 @@ export const availableVersions: RendererVersionMeta[] = [
  */
 export const defaultLlmThinkRules: LlmThinkRule[] = [
   {
-    id: 'standard-think',
-    kind: 'xml_tag',
-    tagName: 'think',
-    displayName: '思考过程',
+    id: "standard-think",
+    kind: "xml_tag",
+    tagName: "think",
+    displayName: "思考过程",
     collapsedByDefault: true,
   },
   {
-    id: 'gugu-think',
-    kind: 'xml_tag',
-    tagName: 'guguthink',
-    displayName: '咕咕的思考',
+    id: "gugu-think",
+    kind: "xml_tag",
+    tagName: "guguthink",
+    displayName: "咕咕的思考",
     collapsedByDefault: false,
   },
 ];
 
 // 创建配置管理器
 const configManager = createConfigManager<TesterConfig>({
-  moduleName: 'rich-text-renderer',
-  fileName: 'tester-config.json',
-  version: '1.0.0',
+  moduleName: "rich-text-renderer",
+  fileName: "tester-config.json",
+  version: "1.0.0",
   debounceDelay: 1000,
   createDefault: () => ({
-    version: '1.0.0',
+    version: "1.0.0",
     isInputCollapsed: false,
-    selectedPreset: '',
+    selectedPreset: "",
     streamEnabled: true,
     streamSpeed: 100,
     initialDelay: 500,
@@ -87,7 +87,7 @@ const configManager = createConfigManager<TesterConfig>({
       min: 1,
       max: 10,
     },
-    inputContent: '',
+    inputContent: "",
     autoScroll: true,
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
@@ -95,11 +95,11 @@ const configManager = createConfigManager<TesterConfig>({
   }),
 });
 
-export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
+export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   // ===== State =====
   const isInputCollapsed = ref(false);
-  const selectedPreset = ref('');
-  const inputContent = ref('');
+  const selectedPreset = ref("");
+  const inputContent = ref("");
   const streamEnabled = ref(true);
   const streamSpeed = ref(100);
   const initialDelay = ref(500);
@@ -127,7 +127,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
    */
   async function loadConfig(): Promise<void> {
     try {
-      logger.info('开始加载配置');
+      logger.info("开始加载配置");
       const config = await configManager.load();
 
       // 应用配置到状态
@@ -140,17 +140,26 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       fluctuationEnabled.value = config.fluctuationEnabled;
       delayFluctuation.min = config.delayFluctuation.min;
       delayFluctuation.max = config.delayFluctuation.max;
-      charsFluctuation.min = config.charsFluctuation.min;
-      charsFluctuation.max = config.charsFluctuation.max;
+
+      // 修正 charsFluctuation 的值，确保在有效范围内（token模式：1-20）
+      charsFluctuation.min = Math.max(1, Math.min(config.charsFluctuation.min, 20));
+      charsFluctuation.max = Math.max(1, Math.min(config.charsFluctuation.max, 20));
+
+      // 确保 min <= max
+      if (charsFluctuation.min > charsFluctuation.max) {
+        charsFluctuation.min = 1;
+        charsFluctuation.max = 10;
+      }
+
       autoScroll.value = config.autoScroll;
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
 
       isConfigLoaded.value = true;
-      logger.info('配置加载成功');
+      logger.info("配置加载成功");
     } catch (error) {
-      logger.error('加载配置失败', error);
+      logger.error("加载配置失败", error);
       // 加载失败时使用默认值（已在 ref 初始化时设置）
       isConfigLoaded.value = true;
     }
@@ -162,7 +171,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
   async function saveConfig(): Promise<void> {
     try {
       const config: TesterConfig = {
-        version: '1.0.0',
+        version: "1.0.0",
         isInputCollapsed: isInputCollapsed.value,
         selectedPreset: selectedPreset.value,
         inputContent: inputContent.value,
@@ -185,9 +194,9 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       };
 
       await configManager.save(config);
-      logger.debug('配置保存成功');
+      logger.debug("配置保存成功");
     } catch (error) {
-      logger.error('保存配置失败', error);
+      logger.error("保存配置失败", error);
     }
   }
 
@@ -203,7 +212,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     if (!isConfigLoaded.value) return;
 
     const config: TesterConfig = {
-      version: '1.0.0',
+      version: "1.0.0",
       isInputCollapsed: isInputCollapsed.value,
       selectedPreset: selectedPreset.value,
       inputContent: inputContent.value,
@@ -233,8 +242,8 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
    */
   function resetConfig(): void {
     isInputCollapsed.value = false;
-    selectedPreset.value = '';
-    inputContent.value = '';
+    selectedPreset.value = "";
+    inputContent.value = "";
     streamEnabled.value = true;
     streamSpeed.value = 100;
     initialDelay.value = 500;
@@ -262,7 +271,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
    * 更新思考规则
    */
   function updateLlmThinkRule(ruleId: string, updates: Partial<LlmThinkRule>): void {
-    const index = llmThinkRules.value.findIndex(r => r.id === ruleId);
+    const index = llmThinkRules.value.findIndex((r) => r.id === ruleId);
     if (index !== -1) {
       llmThinkRules.value[index] = { ...llmThinkRules.value[index], ...updates };
     }
@@ -272,7 +281,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
    * 删除思考规则
    */
   function removeLlmThinkRule(ruleId: string): void {
-    llmThinkRules.value = llmThinkRules.value.filter(r => r.id !== ruleId);
+    llmThinkRules.value = llmThinkRules.value.filter((r) => r.id !== ruleId);
   }
 
   /**
@@ -283,7 +292,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
   }
 
   // ===== 监听状态变化自动保存 =====
-  
+
   // 在配置加载完成后，监听所有状态变化并自动保存
   watch(
     [

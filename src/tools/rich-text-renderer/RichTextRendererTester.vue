@@ -91,6 +91,21 @@
             </div>
 
             <template v-if="streamEnabled">
+              <!-- 分词器选择 -->
+              <div class="control-item">
+                <el-tooltip content="选择用于分词的模型，影响 token 分隔的准确性" placement="right">
+                  <label>分词器</label>
+                </el-tooltip>
+                <el-select v-model="selectedTokenizer" size="small" style="width: 100%">
+                  <el-option
+                    v-for="tokenizer in availableTokenizers"
+                    :key="tokenizer.name"
+                    :label="tokenizer.description"
+                    :value="tokenizer.name"
+                  />
+                </el-select>
+              </div>
+
               <div class="control-item">
                 <el-tooltip content="控制流式输出的速度，数值越大输出越快" placement="right">
                   <label>输出速度</label>
@@ -100,11 +115,11 @@
                     v-model="streamSpeed"
                     :min="1"
                     :max="500"
-                    :step="10"
+                    :step="5"
                     show-input
                     :input-size="'small'"
                   />
-                  <span class="unit">字符/秒</span>
+                  <span class="unit">token/秒</span>
                 </div>
               </div>
 
@@ -116,7 +131,7 @@
                   <el-slider
                     v-model="initialDelay"
                     :min="0"
-                    :max="3000"
+                    :max="2000"
                     :step="100"
                     show-input
                     :input-size="'small'"
@@ -166,8 +181,8 @@
                 </div>
 
                 <div class="control-item">
-                  <el-tooltip content="每次输出的字符数量范围" placement="right">
-                    <label>字符数波动范围</label>
+                  <el-tooltip content="每次输出的 token 数量范围" placement="right">
+                    <label>Token 数波动范围</label>
                   </el-tooltip>
                   <div class="range-inputs">
                     <el-input-number
@@ -182,12 +197,12 @@
                     <el-input-number
                       v-model="charsFluctuation.max"
                       :min="charsFluctuation.min + 1"
-                      :max="50"
+                      :max="20"
                       :step="1"
                       size="small"
                       controls-position="right"
                     />
-                    <span class="unit">字符</span>
+                    <span class="unit">token</span>
                   </div>
                 </div>
               </template>
@@ -219,29 +234,35 @@
         <InfoCard title="渲染预览" class="preview-card">
           <template #headerExtra>
             <div class="preview-header-controls">
-              <div class="render-stats" v-if="renderStats.totalChars > 0">
+              <div class="render-stats" v-if="renderStats.totalTokens > 0">
                 <el-tag size="small" type="info">
-                  {{ renderStats.renderedChars }}/{{ renderStats.totalChars }} 字符
+                  {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
                 </el-tag>
                 <el-tag v-if="streamEnabled && isRendering" size="small" type="primary">
-                  {{ renderStats.speed.toFixed(0) }} 字符/秒
+                  {{ renderStats.speed.toFixed(1) }} token/秒
                 </el-tag>
+                <el-tag size="small" type="success"> {{ renderStats.totalChars }} 字符 </el-tag>
               </div>
               <div class="visualizer-toggle">
-                <el-tooltip content="渲染时自动滚动到底部" placement="bottom">
+                <el-tooltip content="渲染时自动滚动到底部" placement="top">
                   <el-switch v-model="autoScroll" size="small" />
                 </el-tooltip>
                 <span>自动滚动</span>
               </div>
               <div class="visualizer-toggle">
-                <el-tooltip content="可视化稳定区和待定区" placement="bottom">
+                <el-tooltip content="可视化稳定区和待定区" placement="top">
                   <el-switch v-model="visualizeBlockStatus" size="small" />
                 </el-tooltip>
                 <span>可视化块状态</span>
               </div>
               <div class="version-selector">
-                <el-tooltip content="选择渲染器版本进行对比测试" placement="bottom">
-                  <el-select v-model="rendererVersion" size="small" style="width: 180px">
+                <el-tooltip content="选择渲染器版本进行对比测试" placement="top">
+                  <el-select
+                    v-model="rendererVersion"
+                    size="small"
+                    style="width: 180px"
+                    :teleported="false"
+                  >
                     <el-option
                       v-for="versionMeta in enabledVersions"
                       :key="versionMeta.version"
@@ -309,6 +330,7 @@ import { storeToRefs } from "pinia";
 import customMessage from "@/utils/customMessage";
 import LlmThinkRulesEditor from "./components/LlmThinkRulesEditor.vue";
 import InfoCard from "@/components/common/InfoCard.vue";
+import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
@@ -328,6 +350,10 @@ const {
   llmThinkRules,
 } = storeToRefs(store);
 
+// Token 流式控制
+const selectedTokenizer = ref("gpt4o");
+const availableTokenizers = tokenCalculatorEngine.getAvailableTokenizers();
+
 // 获取可用的渲染器版本列表（过滤掉未启用的）
 const enabledVersions = computed(() => availableVersions.filter((v) => v.enabled));
 
@@ -339,7 +365,8 @@ const streamSource = shallowRef<StreamSource | undefined>(undefined);
 // 渲染统计
 const renderStats = reactive({
   totalChars: 0,
-  renderedChars: 0,
+  totalTokens: 0,
+  renderedTokens: 0,
   speed: 0,
   startTime: 0,
 });
@@ -359,7 +386,7 @@ const loadPreset = () => {
   }
 };
 
-// 创建流式数据源
+// 创建流式数据源（基于 token）
 const createStreamSource = (content: string): StreamSource => {
   const subscribers: Array<(chunk: string) => void> = [];
   const completeSubscribers: Array<() => void> = [];
@@ -395,61 +422,116 @@ const createStreamSource = (content: string): StreamSource => {
       if (signal.aborted) return;
     }
 
-    const chars = content.split("");
-
-    renderStats.totalChars = chars.length;
-    renderStats.renderedChars = 0;
+    renderStats.totalChars = content.length;
     renderStats.startTime = Date.now();
 
-    if (fluctuationEnabled.value) {
-      // 波动模式：使用随机延迟和字符数量
-      let i = 0;
-      while (i < chars.length) {
-        if (signal.aborted) break;
+    try {
+      // 使用分词器获取 token 列表
+      const tokenized = await tokenCalculatorEngine.getTokenizedText(
+        content,
+        selectedTokenizer.value,
+        true // 使用分词器名称
+      );
 
-        // 随机字符数量
-        const randomChars = Math.floor(
-          Math.random() * (charsFluctuation.value.max - charsFluctuation.value.min + 1) +
-            charsFluctuation.value.min
-        );
-        const actualChars = Math.min(randomChars, chars.length - i);
+      if (!tokenized || !tokenized.tokens.length) {
+        // 如果分词失败，降级为字符流
+        console.warn("Token分词失败，降级为字符流");
+        const chars = content.split("");
+        renderStats.totalTokens = chars.length;
+        renderStats.renderedTokens = 0;
 
-        const chunk = chars.slice(i, i + actualChars).join("");
-        subscribers.forEach((cb) => cb(chunk));
+        for (let i = 0; i < chars.length; i++) {
+          if (signal.aborted) break;
 
-        i += actualChars;
-        renderStats.renderedChars = i;
-        const elapsed = (Date.now() - renderStats.startTime) / 1000;
-        renderStats.speed = elapsed > 0 ? renderStats.renderedChars / elapsed : 0;
+          subscribers.forEach((cb) => cb(chars[i]));
+          renderStats.renderedTokens = i + 1;
 
-        if (i < chars.length) {
-          // 随机延迟
-          const randomDelay = Math.floor(
-            Math.random() * (delayFluctuation.value.max - delayFluctuation.value.min + 1) +
-              delayFluctuation.value.min
-          );
-          await new Promise((resolve) => setTimeout(resolve, randomDelay));
+          const elapsed = (Date.now() - renderStats.startTime) / 1000;
+          renderStats.speed = elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
+
+          // 固定延迟
+          const delay = 1000 / streamSpeed.value;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      } else {
+        // 使用 token 流式输出（基于字符索引而不是直接拼接token字符串）
+        const tokens = tokenized.tokens;
+        renderStats.totalTokens = tokens.length;
+        renderStats.renderedTokens = 0;
+
+        // 计算每个token对应的字符位置
+        let charIndex = 0;
+        const tokenCharPositions: number[] = [0]; // 每个token开始的字符位置
+
+        for (let i = 0; i < tokens.length; i++) {
+          charIndex += tokens[i].length;
+          tokenCharPositions.push(charIndex);
+        }
+
+        if (fluctuationEnabled.value) {
+          // 波动模式：使用随机延迟和 token 数量
+          let tokenIndex = 0;
+          let lastCharIndex = 0;
+
+          while (tokenIndex < tokens.length) {
+            if (signal.aborted) break;
+
+            // 随机 token 数量
+            const randomTokens = Math.floor(
+              Math.random() * (charsFluctuation.value.max - charsFluctuation.value.min + 1) +
+                charsFluctuation.value.min
+            );
+            const actualTokens = Math.min(randomTokens, tokens.length - tokenIndex);
+
+            // 根据token边界从原文中截取字符
+            const endCharIndex = tokenCharPositions[tokenIndex + actualTokens];
+            const chunk = content.substring(lastCharIndex, endCharIndex);
+            subscribers.forEach((cb) => cb(chunk));
+
+            tokenIndex += actualTokens;
+            lastCharIndex = endCharIndex;
+            renderStats.renderedTokens = tokenIndex;
+
+            const elapsed = (Date.now() - renderStats.startTime) / 1000;
+            renderStats.speed = elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
+
+            if (tokenIndex < tokens.length) {
+              // 随机延迟
+              const randomDelay = Math.floor(
+                Math.random() * (delayFluctuation.value.max - delayFluctuation.value.min + 1) +
+                  delayFluctuation.value.min
+              );
+              await new Promise((resolve) => setTimeout(resolve, randomDelay));
+            }
+          }
+        } else {
+          // 固定模式：使用固定的 token 速度
+          const tokensPerInterval = Math.max(1, Math.floor(streamSpeed.value / 10)); // 每100ms发送的token数
+          const intervalMs = 100;
+
+          let lastCharIndex = 0;
+          for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += tokensPerInterval) {
+            if (signal.aborted) break;
+
+            const actualTokens = Math.min(tokensPerInterval, tokens.length - tokenIndex);
+            const endCharIndex = tokenCharPositions[tokenIndex + actualTokens];
+            const chunk = content.substring(lastCharIndex, endCharIndex);
+            subscribers.forEach((cb) => cb(chunk));
+
+            lastCharIndex = endCharIndex;
+            renderStats.renderedTokens = Math.min(tokenIndex + tokensPerInterval, tokens.length);
+
+            const elapsed = (Date.now() - renderStats.startTime) / 1000;
+            renderStats.speed = elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
+
+            if (tokenIndex + tokensPerInterval < tokens.length) {
+              await new Promise((resolve) => setTimeout(resolve, intervalMs));
+            }
+          }
         }
       }
-    } else {
-      // 固定模式：使用固定速度
-      const charsPerInterval = Math.max(1, Math.floor(streamSpeed.value / 10)); // 每100ms发送的字符数
-      const intervalMs = 100;
-
-      for (let i = 0; i < chars.length; i += charsPerInterval) {
-        if (signal.aborted) break;
-
-        const chunk = chars.slice(i, i + charsPerInterval).join("");
-        subscribers.forEach((cb) => cb(chunk));
-
-        renderStats.renderedChars = Math.min(i + charsPerInterval, chars.length);
-        const elapsed = (Date.now() - renderStats.startTime) / 1000;
-        renderStats.speed = elapsed > 0 ? renderStats.renderedChars / elapsed : 0;
-
-        if (i + charsPerInterval < chars.length) {
-          await new Promise((resolve) => setTimeout(resolve, intervalMs));
-        }
-      }
+    } catch (error) {
+      console.error("流式输出错误:", error);
     }
 
     isRendering.value = false;
@@ -481,7 +563,8 @@ const startRender = () => {
     streamSource.value = undefined;
     currentContent.value = inputContent.value;
     renderStats.totalChars = inputContent.value.length;
-    renderStats.renderedChars = inputContent.value.length;
+    renderStats.totalTokens = 0;
+    renderStats.renderedTokens = 0;
     renderStats.speed = 0;
     isRendering.value = false;
   }
@@ -502,7 +585,8 @@ const clearOutput = () => {
   currentContent.value = "";
   streamSource.value = undefined;
   renderStats.totalChars = 0;
-  renderStats.renderedChars = 0;
+  renderStats.totalTokens = 0;
+  renderStats.renderedTokens = 0;
   renderStats.speed = 0;
 };
 
@@ -593,13 +677,14 @@ const copyComparison = async () => {
   let configInfo = `流式输出: ${streamEnabled.value ? "启用" : "禁用"}`;
 
   if (streamEnabled.value) {
-    configInfo += `\n输出速度: ${streamSpeed.value} 字符/秒`;
+    configInfo += `\n分词器: ${selectedTokenizer.value}`;
+    configInfo += `\n输出速度: ${streamSpeed.value} token/秒`;
     configInfo += `\n初始延迟: ${initialDelay.value} 毫秒`;
     configInfo += `\n波动模式: ${fluctuationEnabled.value ? "启用" : "禁用"}`;
 
     if (fluctuationEnabled.value) {
       configInfo += `\n延迟波动范围: ${delayFluctuation.value.min}~${delayFluctuation.value.max} 毫秒`;
-      configInfo += `\n字符数波动范围: ${charsFluctuation.value.min}~${charsFluctuation.value.max} 字符`;
+      configInfo += `\nToken 数波动范围: ${charsFluctuation.value.min}~${charsFluctuation.value.max} token`;
     }
   }
 
@@ -669,7 +754,7 @@ const scrollToBottom = () => {
 
 // 监听渲染进度，自动滚动
 watch(
-  () => renderStats.renderedChars,
+  () => renderStats.renderedTokens,
   () => {
     if (isRendering.value) {
       scrollToBottom();
@@ -917,6 +1002,11 @@ onMounted(async () => {
 .render-stats {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.version-selector {
+  display: flex;
   align-items: center;
 }
 

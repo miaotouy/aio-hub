@@ -264,7 +264,6 @@
                     v-model="rendererVersion"
                     size="small"
                     style="width: 180px"
-                    :teleported="false"
                   >
                     <el-option
                       v-for="versionMeta in enabledVersions"

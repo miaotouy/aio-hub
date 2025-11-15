@@ -369,12 +369,18 @@ export class CustomParser {
         continue;
       }
 
-      // HTML 块
+      // HTML 块（只处理块级标签）
       if (token.type === 'html_open') {
-        const { node, nextIndex } = this.parseHtmlBlock(tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
+        const blockLevelTags = ['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'details', 'summary', 'p'];
+        const isBlockLevel = blockLevelTags.includes(token.tagName);
+        
+        if (isBlockLevel) {
+          const { node, nextIndex } = this.parseHtmlBlock(tokens, i);
+          if (node) blocks.push(node);
+          i = nextIndex;
+          continue;
+        }
+        // 内联标签，交给段落处理
       }
 
       // 水平线
@@ -437,7 +443,7 @@ export class CustomParser {
   }
 
   /**
-   * 解析 HTML 块
+   * 解析 HTML 块（仅处理块级标签）
    */
   private parseHtmlBlock(tokens: Token[], start: number): { node: GenericHtmlNode | null; nextIndex: number } {
     const openToken = tokens[start];
@@ -462,10 +468,6 @@ export class CustomParser {
     if (isSelfClosing) {
       return { node: htmlNode, nextIndex: i };
     }
-
-    // 判断是块级还是内联 HTML 元素
-    const blockLevelTags = ['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'details', 'summary'];
-    const isBlockLevel = blockLevelTags.includes(tagName);
 
     // 收集内部令牌
     const contentTokens: Token[] = [];
@@ -496,15 +498,9 @@ export class CustomParser {
       i++;
     }
 
-    // 递归解析内部内容
+    // 递归解析内部内容（块级元素使用块级解析）
     if (contentTokens.length > 0) {
-      // 块级元素：使用块级解析
-      // 内联元素：使用内联解析
-      if (isBlockLevel) {
-        htmlNode.children = this.parseBlocks(contentTokens);
-      } else {
-        htmlNode.children = this.parseInlines(contentTokens);
-      }
+      htmlNode.children = this.parseBlocks(contentTokens);
     }
 
     return { node: htmlNode, nextIndex: i };
@@ -516,6 +512,9 @@ export class CustomParser {
   private parseParagraph(tokens: Token[], start: number): { node: ParagraphNode | null; nextIndex: number } {
     const contentTokens: Token[] = [];
     let i = start;
+
+    // 块级 HTML 标签列表
+    const blockLevelTags = ['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'details', 'summary', 'p'];
 
     while (i < tokens.length) {
       const t = tokens[i];
@@ -533,12 +532,20 @@ export class CustomParser {
 
       // 块级标记：遇到这些标记停止段落
       if (t.type === 'heading_marker' ||
-          t.type === 'html_open' ||
           t.type === 'hr_marker' ||
           t.type === 'code_fence' ||
           t.type === 'list_marker' ||
           t.type === 'blockquote_marker') {
         break;
+      }
+
+      // HTML 标签：只有块级标签才停止段落
+      if (t.type === 'html_open') {
+        const isBlockLevel = blockLevelTags.includes(t.tagName);
+        if (isBlockLevel) {
+          break;
+        }
+        // 内联标签继续收集
       }
 
       contentTokens.push(t);

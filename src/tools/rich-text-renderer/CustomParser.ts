@@ -282,7 +282,9 @@ class Tokenizer {
 
   private parseAttributes(attrString: string): Record<string, string> {
     const attributes: Record<string, string> = {};
-    const attrRegex = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
+    // 修复正则：支持属性值中的连字符和其他字符
+    // 匹配: key="value" 或 key='value' 或 key=value (无空格的值)
+    const attrRegex = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
     let match;
     while ((match = attrRegex.exec(attrString)) !== null) {
       const key = match[1];

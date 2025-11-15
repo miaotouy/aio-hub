@@ -946,7 +946,7 @@ $$
     </p>
     <p>
       <label for="password">密码：</label>
-      <input type="password" id="password" name="password" />
+      <input type="password" id="password" name="password" autocomplete="current-password" />
     </p>
     <p>
       <label for="birthday">生日：</label>

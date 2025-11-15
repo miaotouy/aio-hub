@@ -238,8 +238,11 @@
                 <el-tag size="small" type="info">
                   {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
                 </el-tag>
-                <el-tag v-if="streamEnabled && isRendering" size="small" type="primary">
+                <el-tag v-if="streamEnabled && renderStats.speed > 0" size="small" :type="isRendering ? 'primary' : 'info'">
                   {{ renderStats.speed.toFixed(1) }} token/秒
+                </el-tag>
+                <el-tag v-if="renderStats.elapsedTime > 0" size="small" :type="isRendering ? 'warning' : 'info'">
+                  {{ formatElapsedTime(renderStats.elapsedTime) }}
                 </el-tag>
                 <el-tag size="small" type="success"> {{ renderStats.totalChars }} 字符 </el-tag>
               </div>
@@ -369,10 +372,27 @@ const renderStats = reactive({
   renderedTokens: 0,
   speed: 0,
   startTime: 0,
+  elapsedTime: 0,
 });
+
+// 格式化耗时显示
+const formatElapsedTime = (ms: number): string => {
+  if (ms < 1000) {
+    return `${ms}ms`;
+  } else if (ms < 60000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  } else {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = ((ms % 60000) / 1000).toFixed(0);
+    return `${minutes}m ${seconds}s`;
+  }
+};
 
 // 流式渲染控制器
 let streamAbortController: AbortController | null = null;
+
+// 计时器
+let elapsedTimer: number | null = null;
 
 // 渲染 key，用于强制重新挂载组件
 const renderKey = ref(0);
@@ -424,6 +444,12 @@ const createStreamSource = (content: string): StreamSource => {
 
     renderStats.totalChars = content.length;
     renderStats.startTime = Date.now();
+    renderStats.elapsedTime = 0;
+
+    // 启动计时器，每100ms更新一次耗时
+    elapsedTimer = window.setInterval(() => {
+      renderStats.elapsedTime = Date.now() - renderStats.startTime;
+    }, 100);
 
     try {
       // 使用分词器获取 token 列表
@@ -534,6 +560,14 @@ const createStreamSource = (content: string): StreamSource => {
       console.error("流式输出错误:", error);
     }
 
+    // 停止计时器
+    if (elapsedTimer !== null) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+    // 最后更新一次耗时
+    renderStats.elapsedTime = Date.now() - renderStats.startTime;
+
     isRendering.value = false;
     // 通知订阅者流已完成
     completeSubscribers.forEach((cb) => cb());
@@ -576,6 +610,11 @@ const stopRender = () => {
     streamAbortController.abort();
     streamAbortController = null;
   }
+  // 停止计时器
+  if (elapsedTimer !== null) {
+    clearInterval(elapsedTimer);
+    elapsedTimer = null;
+  }
   isRendering.value = false;
 };
 
@@ -588,6 +627,7 @@ const clearOutput = () => {
   renderStats.totalTokens = 0;
   renderStats.renderedTokens = 0;
   renderStats.speed = 0;
+  renderStats.elapsedTime = 0;
 };
 
 // 净化 Markdown 文本为纯文本

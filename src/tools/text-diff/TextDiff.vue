@@ -687,7 +687,6 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));

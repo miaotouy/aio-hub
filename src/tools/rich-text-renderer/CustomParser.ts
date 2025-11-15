@@ -93,6 +93,33 @@ class Tokenizer {
         continue;
       }
 
+      // HTML 标签（无论是否行首都有效，且优先于块级 Markdown 标记）
+      const htmlMatch = remaining.match(this.htmlTagRegex);
+      if (htmlMatch) {
+        const rawTag = htmlMatch[0];
+        const isClosing = !!htmlMatch[1];
+        const tagName = htmlMatch[2].toLowerCase();
+        const attributes = this.parseAttributes(htmlMatch[3]);
+
+        // 判断是否是自闭合标签：显式的 /> 或者是 void element
+        const isSelfClosing = !!htmlMatch[4] || this.voidElements.has(tagName);
+
+        if (isClosing) {
+          tokens.push({ type: "html_close", tagName, raw: rawTag });
+        } else {
+          tokens.push({
+            type: "html_open",
+            tagName,
+            attributes,
+            selfClosing: isSelfClosing,
+            raw: rawTag,
+          });
+        }
+        i += rawTag.length;
+        atLineStart = false;
+        continue;
+      }
+
       // 块级标记（只在行首有效）
       if (atLineStart) {
         // 允许前导空格（0-4个）用于块级元素缩进
@@ -161,8 +188,8 @@ class Tokenizer {
           continue;
         }
 
-        // 水平线
-        const hrMatch = remaining.match(/^(---+|\*\*\*+|___+)\s*$/m);
+        // 水平线 - 必须是独立的一行（只能跟空白字符或换行）
+        const hrMatch = remaining.match(/^(---+|\*\*\*+|___+)(\s*)(?=\n|$)/);
         if (hrMatch) {
           tokens.push({ type: "hr_marker", raw: hrMatch[0] });
           i += hrMatch[0].length;
@@ -193,33 +220,6 @@ class Tokenizer {
             continue;
           }
         }
-      }
-
-      // HTML 标签（无论是否行首都有效）
-      const htmlMatch = remaining.match(this.htmlTagRegex);
-      if (htmlMatch) {
-        const rawTag = htmlMatch[0];
-        const isClosing = !!htmlMatch[1];
-        const tagName = htmlMatch[2].toLowerCase();
-        const attributes = this.parseAttributes(htmlMatch[3]);
-
-        // 判断是否是自闭合标签：显式的 /> 或者是 void element
-        const isSelfClosing = !!htmlMatch[4] || this.voidElements.has(tagName);
-
-        if (isClosing) {
-          tokens.push({ type: "html_close", tagName, raw: rawTag });
-        } else {
-          tokens.push({
-            type: "html_open",
-            tagName,
-            attributes,
-            selfClosing: isSelfClosing,
-            raw: rawTag,
-          });
-        }
-        i += rawTag.length;
-        atLineStart = false;
-        continue;
       }
 
       // Markdown 内联定界符

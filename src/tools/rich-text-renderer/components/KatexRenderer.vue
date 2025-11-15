@@ -70,8 +70,7 @@ watch(() => props.content, () => {
 .katex-block-container {
   margin: 1em 0;
   text-align: center;
-  overflow-x: auto;
-  overflow-y: hidden;
+  /* 不设置 overflow，让内容自然显示 */
 }
 
 .katex-inline-container {

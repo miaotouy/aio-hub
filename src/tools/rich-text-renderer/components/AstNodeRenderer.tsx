@@ -108,14 +108,24 @@ const AstNodeRenderer = defineComponent({
           ? h(AstNodeRenderer, { nodes: node.children })
           : undefined;
 
+        // 为 KaTeX 节点添加 displayMode 属性
+        const componentProps: any = {
+          key: node.id,
+          nodeId: node.id,
+          'data-node-status': node.meta.status,
+          ...node.props,
+        };
+
+        // 根据节点类型设置 displayMode
+        if (node.type === 'katex_block') {
+          componentProps.displayMode = true;
+        } else if (node.type === 'katex_inline') {
+          componentProps.displayMode = false;
+        }
+
         return h(
           NodeComponent,
-          {
-            key: node.id,
-            nodeId: node.id,
-            'data-node-status': node.meta.status,
-            ...node.props,
-          },
+          componentProps,
           children ? () => children : undefined
         );
       });

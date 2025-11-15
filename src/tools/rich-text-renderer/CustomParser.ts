@@ -297,9 +297,32 @@ class Tokenizer {
         }
       }
       
+      // KaTeX 块级公式 $$...$$ (非行首位置的处理)
+      if (remaining.startsWith("$$")) {
+        i += 2; // 跳过开始的 $$
+        
+        // 收集公式内容
+        let formulaContent = "";
+        
+        while (i < text.length) {
+          // 检查是否遇到闭合的 $$
+          if (text[i] === "$" && i + 1 < text.length && text[i + 1] === "$") {
+            // 找到闭合标记，跳过它
+            i += 2;
+            break;
+          }
+          formulaContent += text[i];
+          i++;
+        }
+        
+        // 添加 KaTeX 块级 token
+        tokens.push({ type: "katex_block", content: formulaContent.trim() });
+        atLineStart = false;
+        continue;
+      }
+      
       // KaTeX 行内公式 $...$ - 立即处理完整的公式
-      // 注意：需要确保不是 $$ 开头（那是块级公式）
-      if (remaining.startsWith("$") && !remaining.startsWith("$$")) {
+      if (remaining.startsWith("$")) {
         // 尝试匹配完整的行内公式 $...$
         // 使用非贪婪匹配，并且不跨越换行符
         const formulaMatch = remaining.match(/^\$([^\n$]+?)\$/);

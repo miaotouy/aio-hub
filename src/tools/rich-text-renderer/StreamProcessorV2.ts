@@ -60,10 +60,11 @@ class MarkdownBoundaryDetector {
    * 简化策略：统计开放标签和闭合标签的数量
    * - 跳过自闭合标签（如 <br />）
    * - 跳过常见的空标签（如 <img>, <hr>）
-   * - 跳过配置的 LLM 思考标签（动态）
+   * - 特别处理 LLM 思考标签：如果有未闭合的思考标签，返回 true
    */
   private hasUnclosedHtmlTags(text: string): boolean {
     const tagStack: string[] = [];
+    const thinkTagStack: string[] = [];
     const selfClosingTags = new Set(["br", "hr", "img", "input", "meta", "link"]);
 
     // 匹配所有 HTML 标签
@@ -74,8 +75,22 @@ class MarkdownBoundaryDetector {
       const fullTag = match[0];
       const tagName = match[1].toLowerCase();
 
-      // 忽略配置的 LLM 思考标签
-      if (this.llmThinkTagNames.has(tagName)) continue;
+      // 特别处理 LLM 思考标签
+      if (this.llmThinkTagNames.has(tagName)) {
+        // 跳过自闭合标签
+        if (fullTag.endsWith("/>")) continue;
+
+        if (fullTag.startsWith("</")) {
+          // 闭合标签
+          if (thinkTagStack.length > 0 && thinkTagStack[thinkTagStack.length - 1] === tagName) {
+            thinkTagStack.pop();
+          }
+        } else {
+          // 开放标签
+          thinkTagStack.push(tagName);
+        }
+        continue;
+      }
 
       // 跳过自闭合标签
       if (selfClosingTags.has(tagName)) continue;
@@ -93,8 +108,8 @@ class MarkdownBoundaryDetector {
       }
     }
 
-    // 如果栈不为空，说明有未闭合的标签
-    return tagStack.length > 0;
+    // 如果有未闭合的思考标签或其他标签，说明不安全
+    return tagStack.length > 0 || thinkTagStack.length > 0;
   }
 
   splitByBlockBoundary(text: string): { stable: string; pending: string } {

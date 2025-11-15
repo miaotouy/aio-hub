@@ -15,6 +15,34 @@
             <el-icon class="is-loading"><Loading /></el-icon>
             渲染中...
           </el-tag>
+          <div class="version-selector">
+            <el-tooltip content="选择渲染器版本进行对比测试" placement="bottom">
+              <el-select
+                v-model="rendererVersion"
+                style="width: 200px"
+              >
+                <el-option
+                  v-for="versionMeta in enabledVersions"
+                  :key="versionMeta.version"
+                  :label="versionMeta.name"
+                  :value="versionMeta.version"
+                >
+                  <div class="version-option">
+                    <span>{{ versionMeta.name }}</span>
+                    <el-tag
+                      v-for="tag in versionMeta.tags"
+                      :key="tag"
+                      size="small"
+                      :type="tag === '稳定' ? 'success' : tag === '实验性' ? 'warning' : 'info'"
+                      style="margin-left: 4px"
+                    >
+                      {{ tag }}
+                    </el-tag>
+                  </div>
+                </el-option>
+              </el-select>
+            </el-tooltip>
+          </div>
         </div>
         <div class="header-right">
           <el-tooltip
@@ -257,35 +285,6 @@
                   <el-switch v-model="visualizeBlockStatus" size="small" />
                 </el-tooltip>
                 <span>可视化块状态</span>
-              </div>
-              <div class="version-selector">
-                <el-tooltip content="选择渲染器版本进行对比测试" placement="top">
-                  <el-select
-                    v-model="rendererVersion"
-                    size="small"
-                    style="width: 180px"
-                  >
-                    <el-option
-                      v-for="versionMeta in enabledVersions"
-                      :key="versionMeta.version"
-                      :label="versionMeta.name"
-                      :value="versionMeta.version"
-                    >
-                      <div class="version-option">
-                        <span>{{ versionMeta.name }}</span>
-                        <el-tag
-                          v-for="tag in versionMeta.tags"
-                          :key="tag"
-                          size="small"
-                          :type="tag === '稳定' ? 'success' : tag === '实验性' ? 'warning' : 'info'"
-                          style="margin-left: 4px"
-                        >
-                          {{ tag }}
-                        </el-tag>
-                      </div>
-                    </el-option>
-                  </el-select>
-                </el-tooltip>
               </div>
             </div>
           </template>
@@ -1044,9 +1043,16 @@ onMounted(async () => {
   align-items: center;
 }
 
-.version-selector {
+.header-left .version-selector {
   display: flex;
   align-items: center;
+}
+
+.version-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
 /* 渲染容器 */

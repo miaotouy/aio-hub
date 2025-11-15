@@ -90,7 +90,7 @@ export const settingsConfig: SettingsSection[] = [
             description: v.description,
           })),
         modelPath: "uiPreferences.rendererVersion",
-        hint: "选择消息内容的渲染引擎。将鼠标悬停在选项上可查看详细说明。",
+        hint: "",
         keywords: "ui renderer markdown parser 渲染器 解析器",
       },
     ],

@@ -86,7 +86,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     fontSize: 14,
     lineHeight: 1.6,
     showMessageNavigator: true,
-    rendererVersion: RendererVersion.V1_MARKDOWN_IT, // 默认使用 V1 渲染器
+    rendererVersion: RendererVersion.V2_CUSTOM_PARSER, // 默认使用 V2 渲染器
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

@@ -106,7 +106,7 @@
                                   v-for="tag in option.tags"
                                   :key="tag"
                                   size="small"
-                                  :type="tag === '稳定' ? 'success' : tag === '实验性' ? 'warning' : 'info'"
+                                  :type="tag === '基础' ? 'success' : tag === '高级' ? 'warning' : 'info'"
                                   class="option-tag"
                                 >
                                   {{ tag }}
@@ -145,6 +145,10 @@
                       </div>
                     </div>
                     <div v-if="item.hint" class="form-hint" v-html="renderHint(item.hint)"></div>
+                    <!-- 渲染器详情显示 - 仅显示当前选中的 -->
+                    <div v-if="item.id === 'rendererVersion' && item.options" class="form-hint">
+                      {{ item.options.find((opt: any) => opt.value === get(localSettings, item.modelPath))?.description }}
+                    </div>
                   </template>
 
                   <!-- Inline layout -->

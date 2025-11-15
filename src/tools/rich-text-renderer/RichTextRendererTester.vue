@@ -19,7 +19,7 @@
             <el-tooltip content="选择渲染器版本进行对比测试" placement="bottom">
               <el-select
                 v-model="rendererVersion"
-                style="width: 240px"
+                style="width: 260px"
               >
                 <el-option
                   v-for="versionMeta in enabledVersions"
@@ -34,7 +34,7 @@
                       v-for="tag in versionMeta.tags"
                       :key="tag"
                       size="small"
-                      :type="tag === '稳定' ? 'success' : tag === '实验性' ? 'warning' : 'info'"
+                      :type="tag === '基础' ? 'success' : tag === '高级' ? 'warning' : 'info'"
                       style="margin-left: 4px"
                     >
                       {{ tag }}

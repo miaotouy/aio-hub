@@ -118,6 +118,7 @@ export interface LlmThinkNode extends BaseAstNode {
     displayName: string;        // 用于 UI 显示的名称
     collapsedByDefault: boolean; // 是否默认折叠
     rawContent?: string;        // 原始文本内容，用于查看未渲染的内容
+    isThinking?: boolean;       // 是否正在思考中（用于显示动画效果）
   };
   children: AstNode[];          // 内部可以包含任何 AST 节点
 }

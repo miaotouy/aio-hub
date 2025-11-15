@@ -560,6 +560,7 @@ export class CustomParser {
     // 收集内部令牌，直到找到闭合标签
     const contentTokens: Token[] = [];
     let depth = 1;
+    let isThinking = false; // 标记是否正在思考中（标签未闭合）
 
     while (i < tokens.length && depth > 0) {
       const t = tokens[i];
@@ -578,6 +579,11 @@ export class CustomParser {
         contentTokens.push(t);
       }
       i++;
+    }
+
+    // 如果遍历完所有令牌后 depth 仍大于 0，说明标签未闭合，正在思考中
+    if (depth > 0) {
+      isThinking = true;
     }
 
     // 移除开头的换行符（与代码围栏处理保持一致）
@@ -605,6 +611,7 @@ export class CustomParser {
         displayName,
         collapsedByDefault,
         rawContent,
+        isThinking, // 添加思考中状态
       },
       children,
       meta: { range: { start: 0, end: 0 }, status: "stable" },

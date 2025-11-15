@@ -1,10 +1,16 @@
 <template>
-  <div class="llm-think-node" :class="{ 'is-collapsed': isCollapsed }">
+  <div class="llm-think-node" :class="{ 'is-collapsed': isCollapsed, 'is-thinking': isThinking }">
     <div class="llm-think-header">
       <div class="llm-think-title" @click="toggleCollapse">
         <span class="llm-think-icon">{{ isCollapsed ? '▶' : '▼' }}</span>
-        <span class="llm-think-label">{{ props.displayName }}</span>
-        <span class="llm-think-tag">{{ props.rawTagName }}</span>
+        <span class="llm-think-label">{{ isThinking ? '思考中' : props.displayName }}</span>
+        <el-tag v-if="!isThinking" size="small" type="primary" effect="light">{{ props.rawTagName }}</el-tag>
+        <!-- 思考中指示器 -->
+        <div v-if="isThinking" class="thinking-indicator">
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+        </div>
       </div>
       <div class="header-actions">
         <!-- 切换渲染/原始视图 -->
@@ -40,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { Copy, Check, Code2 } from 'lucide-vue-next';
 import { customMessage } from '@/utils/customMessage';
 
@@ -50,13 +56,17 @@ interface Props {
   displayName: string;
   collapsedByDefault: boolean;
   rawContent?: string; // 原始文本内容
+  isThinking?: boolean; // 是否正在思考中
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  isThinking: false,
+});
 
 const isCollapsed = ref(props.collapsedByDefault);
 const showRaw = ref(false);
 const copied = ref(false);
+const isThinking = computed(() => props.isThinking);
 
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value;
@@ -108,7 +118,7 @@ onMounted(() => {
   justify-content: space-between;
   padding: 8px 12px;
   user-select: none;
-  background: rgba(100, 181, 246, 0.05);
+  background: var(--el-fill-color-lighter);
   transition: background 0.2s ease;
 }
 
@@ -136,14 +146,8 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.llm-think-tag {
-  padding: 2px 8px;
-  font-size: 11px;
+.llm-think-title .el-tag {
   font-family: 'Monaco', 'Consolas', monospace;
-  color: var(--el-color-primary-light-3);
-  background: rgba(100, 181, 246, 0.1);
-  border-radius: 4px;
-  border: 1px solid rgba(100, 181, 246, 0.2);
 }
 
 .header-actions {
@@ -245,14 +249,98 @@ onMounted(() => {
   }
 }
 
-/* 深色模式优化 */
-@media (prefers-color-scheme: dark) {
-  .llm-think-node {
-    background: rgba(255, 255, 255, 0.02);
+/* 思考中状态的扫光特效 */
+.llm-think-node.is-thinking {
+  position: relative;
+  overflow: hidden;
+}
+
+.llm-think-node.is-thinking::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(64, 158, 255, 0.15) 50%,
+    transparent
+  );
+  animation: shimmer 2s infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
   }
-  
-  .llm-think-header {
-    background: rgba(100, 181, 246, 0.03);
+  100% {
+    left: 100%;
   }
+}
+
+/* 思考中指示器 */
+.thinking-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.thinking-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--el-color-primary);
+  animation: thinkingPulse 1.4s infinite ease-in-out;
+}
+
+.thinking-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.thinking-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes thinkingPulse {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* 思考中时的边框呼吸效果 */
+.llm-think-node.is-thinking {
+  animation: breathingBorder 2s infinite;
+}
+
+@keyframes breathingBorder {
+  0%, 100% {
+    border-color: var(--el-color-primary);
+    box-shadow: 0 0 10px rgba(64, 158, 255, 0.2);
+  }
+  50% {
+    border-color: var(--el-color-primary-light-3);
+    box-shadow: 0 0 20px rgba(64, 158, 255, 0.4);
+  }
+}
+
+/* 确保内容在扫光效果之上 */
+.llm-think-node.is-thinking .llm-think-header,
+.llm-think-node.is-thinking .llm-think-content {
+  position: relative;
+  z-index: 2;
 }
 </style>

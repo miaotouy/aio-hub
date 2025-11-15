@@ -12,7 +12,7 @@ defineProps<{
 
 <style scoped>
 .markdown-paragraph {
-  margin: 8px 0;
+  margin: 0;
   line-height: 1.6;
   color: var(--text-color);
   white-space: pre-wrap;

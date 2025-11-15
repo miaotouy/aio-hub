@@ -181,28 +181,46 @@ export class StreamProcessorV2 {
     this.parser.reset();
     const newPendingAst = this.parser.parse(pendingText);
     
-    // 4. 合并当前的完整状态树（旧状态）
+    // 4. 优化：Mermaid 和代码块的流式更新
+    // 如果待定区只有一个节点，且是 mermaid 或 code_block，尝试保留其 ID
+    if (this.pendingAst.length === 1 && newPendingAst.length === 1) {
+      const oldPending = this.pendingAst[0];
+      const newPending = newPendingAst[0];
+      
+      // Mermaid 图表流式更新
+      if (oldPending.type === 'mermaid' && newPending.type === 'mermaid') {
+        newPending.id = oldPending.id;
+      }
+      // 代码块流式更新（语言相同时）
+      else if (oldPending.type === 'code_block' && newPending.type === 'code_block') {
+        if (oldPending.props.language === newPending.props.language) {
+          newPending.id = oldPending.id;
+        }
+      }
+    }
+    
+    // 5. 合并当前的完整状态树（旧状态）
     const currentFullAst = [...this.stableAst, ...this.pendingAst];
     
-    // 5. 合并新的完整状态树（新状态）
+    // 6. 合并新的完整状态树（新状态）
     const newFullAst = [...newStableAst, ...newPendingAst];
     
-    // 6. 在整个旧状态树中为新状态树保留 ID
+    // 7. 在整个旧状态树中为新状态树保留 ID
     this.preserveExistingIds(newFullAst, currentFullAst);
     this.assignIds(newFullAst);
     
-    // 7. 标记节点状态
+    // 8. 标记节点状态
     this.markNodesStatus(newStableAst, 'stable');
     this.markNodesStatus(newPendingAst, 'pending');
     
-    // 8. 对整个树进行一次性 diff
+    // 9. 对整个树进行一次性 diff
     const patches = this.diffAst(currentFullAst, newFullAst);
     
-    // 9. 更新状态
+    // 10. 更新状态
     this.stableAst = newStableAst;
     this.pendingAst = newPendingAst;
     
-    // 10. 发送变更
+    // 11. 发送变更
     if (patches.length > 0) {
       this.onPatch(patches);
     }
@@ -220,6 +238,12 @@ export class StreamProcessorV2 {
     
     // 保留现有节点的 ID
     const currentFullAst = [...this.stableAst, ...this.pendingAst];
+    
+    // 对于 pending 区域中的特殊节点（Mermaid、代码块），优先匹配
+    // 这样可以确保它们在转为 stable 时保持相同的 ID
+    this.preservePendingSpecialNodes(finalAst, this.pendingAst);
+    
+    // 然后进行常规的 ID 保留
     this.preserveExistingIds(finalAst, currentFullAst);
     this.assignIds(finalAst);
     this.markNodesStatus(finalAst, 'stable');
@@ -234,6 +258,46 @@ export class StreamProcessorV2 {
     // 发送变更
     if (patches.length > 0) {
       this.onPatch(patches);
+    }
+  }
+
+  /**
+   * 优先保留待定区中特殊节点的 ID
+   *
+   * 这个方法用于在 finalize 时,确保待定区的 Mermaid/代码块节点
+   * 在转为 stable 时能保持相同的 ID，从而触发正确的状态更新而非节点替换
+   */
+  private preservePendingSpecialNodes(newNodes: AstNode[], pendingNodes: AstNode[]): void {
+    // 从后往前匹配，因为待定区的节点通常在 AST 的末尾
+    const pendingSpecialNodes = pendingNodes.filter(
+      node => node.type === 'mermaid' || node.type === 'code_block'
+    );
+    
+    if (pendingSpecialNodes.length === 0) return;
+    
+    // 从 newNodes 的末尾开始匹配
+    let pendingIndex = pendingSpecialNodes.length - 1;
+    for (let i = newNodes.length - 1; i >= 0 && pendingIndex >= 0; i--) {
+      const newNode = newNodes[i];
+      const pendingNode = pendingSpecialNodes[pendingIndex];
+      
+      // 类型匹配
+      if (newNode.type === pendingNode.type) {
+        // 对于 Mermaid，直接保留 ID（内容可能略有不同）
+        if (newNode.type === 'mermaid') {
+          newNode.id = pendingNode.id;
+          pendingIndex--;
+        }
+        // 对于代码块，语言相同时保留 ID
+        else if (newNode.type === 'code_block') {
+          const newLang = (newNode.props as any).language;
+          const pendingLang = (pendingNode.props as any).language;
+          if (newLang === pendingLang) {
+            newNode.id = pendingNode.id;
+            pendingIndex--;
+          }
+        }
+      }
     }
   }
 
@@ -259,7 +323,21 @@ export class StreamProcessorV2 {
 
   private preserveExistingIds(newNodes: AstNode[], oldNodes: AstNode[]): void {
     const oldNodeMap = new Map<string, AstNode>();
+    
+    // 为 Mermaid 和代码块节点建立特殊的匹配规则
+    const specialTypeMap = new Map<string, AstNode>();
+    
     for (const node of oldNodes) {
+      // 对于 Mermaid 和代码块，使用类型作为唯一标识
+      // 这样即使内容变化也能保留 ID
+      if (node.type === 'mermaid' || node.type === 'code_block') {
+        const specialKey = node.type;
+        if (!specialTypeMap.has(specialKey)) {
+          specialTypeMap.set(specialKey, node);
+        }
+      }
+      
+      // 常规节点使用类型+内容前缀匹配
       const key = `${node.type}:${this.getNodeTextContent(node).substring(0, 20)}`;
       if (!oldNodeMap.has(key)) {
         oldNodeMap.set(key, node);
@@ -267,14 +345,30 @@ export class StreamProcessorV2 {
     }
 
     for (const newNode of newNodes) {
-      const key = `${newNode.type}:${this.getNodeTextContent(newNode).substring(0, 20)}`;
-      if (oldNodeMap.has(key)) {
-        const oldNode = oldNodeMap.get(key)!;
-        newNode.id = oldNode.id;
-        if (newNode.children && oldNode.children) {
-          this.preserveExistingIds(newNode.children, oldNode.children);
+      let matched = false;
+      
+      // 优先使用特殊类型匹配（Mermaid 和代码块）
+      if (newNode.type === 'mermaid' || newNode.type === 'code_block') {
+        const specialKey = newNode.type;
+        if (specialTypeMap.has(specialKey)) {
+          const oldNode = specialTypeMap.get(specialKey)!;
+          newNode.id = oldNode.id;
+          matched = true;
+          specialTypeMap.delete(specialKey); // 一个旧节点只能匹配一次
         }
-        oldNodeMap.delete(key);
+      }
+      
+      // 如果特殊匹配失败，使用常规匹配
+      if (!matched) {
+        const key = `${newNode.type}:${this.getNodeTextContent(newNode).substring(0, 20)}`;
+        if (oldNodeMap.has(key)) {
+          const oldNode = oldNodeMap.get(key)!;
+          newNode.id = oldNode.id;
+          if (newNode.children && oldNode.children) {
+            this.preserveExistingIds(newNode.children, oldNode.children);
+          }
+          oldNodeMap.delete(key); // 一个旧节点只能匹配一次
+        }
       }
     }
   }

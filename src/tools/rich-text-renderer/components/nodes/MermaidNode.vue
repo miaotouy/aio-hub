@@ -54,7 +54,13 @@
       </div>
     </div>
     <div class="mermaid-container" :class="{ expanded: isExpanded }" ref="containerRef">
-      <div v-if="error" class="mermaid-error">
+      <div v-if="nodeStatus === 'pending'" class="mermaid-pending">
+        <div class="pending-icon">
+          <Loader2 class="animate-spin" :size="24" />
+        </div>
+        <div class="pending-text">正在接收图表数据...</div>
+      </div>
+      <div v-else-if="error" class="mermaid-error">
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
         <details class="error-details">
@@ -72,14 +78,18 @@
     title="Mermaid 图表查看器"
     width="95%"
     height="85vh"
-    :append-to-body="true"
   >
     <MermaidInteractiveViewer :content="content" />
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, useAttrs, defineOptions } from "vue";
+
+// 禁用属性继承以避免警告
+defineOptions({
+  inheritAttrs: false
+});
 import {
   Copy,
   Check,
@@ -90,6 +100,7 @@ import {
   Maximize2,
   Minimize2,
   ExternalLink,
+  Loader2,
 } from "lucide-vue-next";
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
@@ -103,6 +114,15 @@ const props = defineProps<{
   content: string;
 }>();
 
+// 获取 attrs 以访问 data-node-status
+const attrs = useAttrs();
+
+// 获取节点状态
+const nodeStatus = computed(() => {
+  const status = attrs['data-node-status'] as 'stable' | 'pending' | undefined;
+  return status || 'stable';
+});
+
 const { isDark } = useTheme();
 const containerRef = ref<HTMLElement | null>(null);
 const mermaidRef = ref<HTMLElement | null>(null);
@@ -110,6 +130,7 @@ const copied = ref(false);
 const error = ref<string>("");
 const isExpanded = ref(false);
 const showViewer = ref(false);
+const isRendering = ref(false);
 
 // 缩放控制
 const scaleMin = 0.5;
@@ -210,10 +231,23 @@ const openViewer = () => {
 
 // 渲染图表
 const renderDiagram = async () => {
-  if (!mermaidRef.value || !mermaid) return;
+  if (!mermaid) return;
+
+  // 如果节点处于 pending 状态，跳过渲染
+  if (nodeStatus.value === 'pending') {
+    return;
+  }
 
   try {
     error.value = "";
+    isRendering.value = true;
+
+    // 等待 DOM 更新，确保 mermaidRef 已经绑定到新的元素
+    await nextTick();
+    
+    if (!mermaidRef.value) {
+      return;
+    }
 
     // 清理之前的渲染
     if (renderCleanup) {
@@ -248,6 +282,8 @@ const renderDiagram = async () => {
   } catch (err: any) {
     logger.error("Mermaid 渲染失败", err);
     error.value = err?.message || "未知错误";
+  } finally {
+    isRendering.value = false;
   }
 };
 
@@ -300,11 +336,18 @@ watch(isDark, async (dark) => {
   }
 });
 
-// 监听内容变化
+// 监听内容和状态变化
 watch(
-  () => props.content,
-  async () => {
-    if (mermaid) {
+  [() => props.content, () => attrs['data-node-status']],
+  async ([newContent, newStatus], [oldContent, oldStatus]) => {
+    if (!mermaid) return;
+    
+    // 只有在从 pending 转为 stable 或内容变化时才重新渲染
+    const shouldRender =
+      (oldStatus === 'pending' && newStatus === 'stable') || // 状态变为稳定
+      (newStatus === 'stable' && newContent !== oldContent); // 内容变化且状态稳定
+    
+    if (shouldRender) {
       await renderDiagram();
     }
   }
@@ -498,5 +541,40 @@ onBeforeUnmount(() => {
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.mermaid-pending {
+  width: 100%;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.pending-icon {
+  color: var(--el-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pending-icon .animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pending-text {
+  font-size: 13px;
 }
 </style>

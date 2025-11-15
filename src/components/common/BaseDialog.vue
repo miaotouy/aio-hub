@@ -88,7 +88,7 @@ const props = withDefaults(defineProps<{
   bare: false,
   dialogClass: '',
   contentClass: '',
-  zIndex: 2000,
+  zIndex: 1999,
 });
 
 const emit = defineEmits<{

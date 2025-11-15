@@ -272,14 +272,15 @@ const goToProfileSettings = () => {
 </script>
 
 <template>
-  <div
-    class="title-bar"
-    :class="{
-      macos: isMacOS,
-      'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur
-    }"
-    data-tauri-drag-region
-  >
+  <Teleport to="body">
+    <div
+      class="title-bar"
+      :class="{
+        macos: isMacOS,
+        'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur
+      }"
+      data-tauri-drag-region
+    >
     <div class="title-bar-content">
       <!-- 左侧占位区域（macOS 需要为原生控件留出空间） -->
       <div class="left-controls" :class="{ macos: isMacOS }"></div>
@@ -423,7 +424,8 @@ const goToProfileSettings = () => {
         </template>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -437,7 +439,7 @@ const goToProfileSettings = () => {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 9999;
+  z-index: var(--z-index-title-bar);
   border-bottom: 1px solid var(--border-color);
   /* 允许拖动窗口 */
   -webkit-app-region: drag;

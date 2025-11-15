@@ -2,6 +2,14 @@
 @import "./theme-appearance.css";
 /* 亮色主题变量 */
 :root {
+  /* z-index 规范 */
+  --z-index-title-bar: 9999; /* 应用顶层标题栏 */
+  --z-index-dialog: 2000; /* 对话框/模态窗口 */
+  --z-index-popover: 2010; /* 弹出框 */
+  --z-index-tooltip: 2020; /* 工具提示 */
+  --z-index-notification: 2030; /* 通知 */
+  --z-index-dropdown: 1990; /* 下拉菜单（低于对话框） */
+
   --bg-color: #f4f4f4;
   --bg-color-rgb: 244, 244, 244;
   --container-bg: #fff;

@@ -9,6 +9,7 @@ import "element-plus/theme-chalk/dark/css-vars.css";
 import router, { initDynamicRoutes } from "./router"; // 从 ./router/index.ts 导入
 import "./styles/index.css"; // 导入全局样式（已包含暗色模式样式）
 import "viewerjs/dist/viewer.css"; // 导入 viewerjs 样式
+import "katex/dist/katex.min.css"; // 导入 KaTeX 样式
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";

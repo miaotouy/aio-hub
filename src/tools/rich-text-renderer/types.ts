@@ -278,6 +278,30 @@ export interface TableCellNode extends BaseAstNode {
 }
 
 /**
+ * KaTeX 行内公式节点
+ * 用于渲染行内数学公式，语法：$...$
+ */
+export interface KatexInlineNode extends BaseAstNode {
+  type: 'katex_inline';
+  props: {
+    content: string;  // LaTeX 公式内容
+  };
+  children?: never;
+}
+
+/**
+ * KaTeX 块级公式节点
+ * 用于渲染块级数学公式，语法：$$...$$
+ */
+export interface KatexBlockNode extends BaseAstNode {
+  type: 'katex_block';
+  props: {
+    content: string;  // LaTeX 公式内容
+  };
+  children?: never;
+}
+
+/**
  * 联合类型:所有支持的 AST 节点类型
  */
 export type AstNode =
@@ -291,6 +315,7 @@ export type AstNode =
   | HtmlInlineNode
   | HardBreakNode
   | GenericHtmlNode // V2 架构新增
+  | KatexInlineNode // KaTeX 行内公式
 
   // 块级节点
   | ParagraphNode
@@ -306,7 +331,8 @@ export type AstNode =
   | HtmlBlockNode
   | TableNode
   | TableRowNode
-  | TableCellNode;
+  | TableCellNode
+  | KatexBlockNode; // KaTeX 块级公式
 // ============ Patch 指令相关类型 ============
 
 /**

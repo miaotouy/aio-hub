@@ -100,6 +100,7 @@
     "js-yaml": "^4.1.1",
     "jsondiffpatch": "^0.7.3",
     "jszip": "^3.10.1",
+    "katex": "^0.16.25",
     "lodash-es": "^4.17.21",
     "lucide-vue-next": "^0.546.0",
     "markdown-it": "^14.1.0",

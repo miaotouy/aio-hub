@@ -36,6 +36,7 @@ import TableNode from "./nodes/TableNode.vue";
 import TableRowNode from "./nodes/TableRowNode.vue";
 import TableCellNode from "./nodes/TableCellNode.vue";
 import LlmThinkNode from "./nodes/LlmThinkNode.vue";
+import KatexRenderer from "./KatexRenderer.vue";
 
 /**
  * 组件映射表
@@ -48,6 +49,7 @@ const componentMap: Record<string, any> = {
   em: EmNode,
   strikethrough: StrikethroughNode,
   inline_code: InlineCodeNode,
+  katex_inline: KatexRenderer,
   link: LinkNode,
   image: ImageNode,
   hard_break: HardBreakNode,
@@ -67,6 +69,7 @@ const componentMap: Record<string, any> = {
   table: TableNode,
   table_row: TableRowNode,
   table_cell: TableCellNode,
+  katex_block: KatexRenderer,
 };
 
 /**

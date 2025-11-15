@@ -46,7 +46,9 @@ export type Token =
   | { type: "blockquote_marker"; raw: string }
   | { type: "list_marker"; ordered: boolean; raw: string }
   | { type: "hr_marker"; raw: string }
-  | { type: "code_fence"; language: string; raw: string };
+  | { type: "code_fence"; language: string; raw: string }
+  | { type: "katex_block"; content: string }
+  | { type: "katex_inline"; content: string };
 
 // ============ 分词器 ============
 
@@ -124,10 +126,34 @@ class Tokenizer {
       if (atLineStart) {
         // 允许前导空格（0-4个）用于块级元素缩进
         // 这符合 Markdown 标准，列表项可以有 0-4 个空格缩进
-        const leadingSpaceMatch = remaining.match(/^( {1,4})(?=[*+\-]|\d+\.|#{1,6}\s|>|```)/);
+        const leadingSpaceMatch = remaining.match(/^( {1,4})(?=[*+\-]|\d+\.|#{1,6}\s|>|```|\$\$)/);
         if (leadingSpaceMatch) {
           // 跳过前导空格，保持 atLineStart 为 true
           i += leadingSpaceMatch[1].length;
+          continue;
+        }
+
+        // KaTeX 块级公式 $$...$$ - 立即处理整个公式块
+        if (remaining.startsWith("$$")) {
+          i += 2; // 跳过开始的 $$
+
+          // 收集公式内容
+          let formulaContent = "";
+          
+          while (i < text.length) {
+            // 检查是否遇到闭合的 $$
+            if (text[i] === "$" && i + 1 < text.length && text[i + 1] === "$") {
+              // 找到闭合标记，跳过它
+              i += 2;
+              break;
+            }
+            formulaContent += text[i];
+            i++;
+          }
+
+          // 添加 KaTeX 块级 token
+          tokens.push({ type: "katex_block", content: formulaContent.trim() });
+          atLineStart = true;
           continue;
         }
 
@@ -270,6 +296,28 @@ class Tokenizer {
           continue;
         }
       }
+      
+      // KaTeX 行内公式 $...$ - 立即处理完整的公式
+      // 注意：需要确保不是 $$ 开头（那是块级公式）
+      if (remaining.startsWith("$") && !remaining.startsWith("$$")) {
+        // 尝试匹配完整的行内公式 $...$
+        // 使用非贪婪匹配，并且不跨越换行符
+        const formulaMatch = remaining.match(/^\$([^\n$]+?)\$/);
+        if (formulaMatch) {
+          // 找到了完整的行内公式
+          tokens.push({ type: "katex_inline", content: formulaMatch[1] });
+          i += formulaMatch[0].length;
+          atLineStart = false;
+          continue;
+        } else {
+          // 没有找到匹配的 $，按普通文本处理
+          tokens.push({ type: "text", content: "$" });
+          i += 1;
+          atLineStart = false;
+          continue;
+        }
+      }
+      
       // 图片标记 ![
       if (remaining.startsWith("![")) {
         tokens.push({ type: "image_marker", raw: "!" });
@@ -303,7 +351,7 @@ class Tokenizer {
       }
 
       // 普通文本
-      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n/;
+      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n|\$/;
       const nextSpecialIndex = remaining.search(specialChars);
 
       const textContent =
@@ -393,6 +441,18 @@ export class CustomParser {
         const { node, nextIndex } = this.parseCodeBlock(tokens, i);
         if (node) blocks.push(node);
         i = nextIndex;
+        continue;
+      }
+
+      // KaTeX 块级公式
+      if (token.type === "katex_block") {
+        blocks.push({
+          id: "",
+          type: "katex_block",
+          props: { content: token.content },
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+        i++;
         continue;
       }
 
@@ -654,6 +714,12 @@ export class CustomParser {
           break;
         case "code_fence":
           text += token.raw;
+          break;
+        case "katex_inline":
+          text += `$${token.content}$`;
+          break;
+        case "katex_block":
+          text += `$$${token.content}$$`;
           break;
       }
     }
@@ -970,6 +1036,19 @@ export class CustomParser {
         nodes.push({
           id: "",
           type: "inline_code",
+          props: { content: token.content },
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+        i++;
+        continue;
+      }
+
+      // KaTeX 行内公式 - 直接使用分词器处理好的内容
+      if (token.type === "katex_inline") {
+        flushText();
+        nodes.push({
+          id: "",
+          type: "katex_inline",
           props: { content: token.content },
           meta: { range: { start: 0, end: 0 }, status: "stable" },
         });

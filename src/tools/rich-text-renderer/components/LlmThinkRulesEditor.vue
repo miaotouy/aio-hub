@@ -7,7 +7,7 @@
 
     <div class="rules-list">
       <el-empty v-if="localRules.length === 0" description="暂无规则，点击上方按钮添加" />
-      
+
       <div v-for="(rule, index) in localRules" :key="rule.id" class="rule-item">
         <div class="rule-content">
           <div class="rule-main">
@@ -19,20 +19,15 @@
               <div class="rule-meta">
                 <el-tag size="small" type="info">{{ rule.id }}</el-tag>
                 <el-tag size="small" :type="rule.collapsedByDefault ? 'warning' : 'success'">
-                  {{ rule.collapsedByDefault ? '默认折叠' : '默认展开' }}
+                  {{ rule.collapsedByDefault ? "默认折叠" : "默认展开" }}
                 </el-tag>
               </div>
             </div>
           </div>
-          
+
           <div class="rule-actions">
             <el-button :icon="Edit" size="small" @click="editRule(index)" />
-            <el-button
-              :icon="Delete"
-              size="small"
-              type="danger"
-              @click="deleteRule(index)"
-            />
+            <el-button :icon="Delete" size="small" type="danger" @click="deleteRule(index)" />
           </div>
         </div>
       </div>
@@ -43,7 +38,7 @@
       v-model="showAddDialog"
       :title="editingIndex === -1 ? '添加思考块规则' : '编辑思考块规则'"
       width="500px"
-      @confirm="saveRule"
+      @close="handleDialogClose"
     >
       <el-form :model="editingRule" label-width="100px" label-position="left">
         <el-form-item label="规则ID">
@@ -73,17 +68,24 @@
           />
         </el-form-item>
       </el-form>
+
+      <template #footer>
+        <el-button @click="handleDialogClose">取消</el-button>
+        <el-button type="primary" @click="saveRule">
+          {{ editingIndex === -1 ? "添加" : "保存" }}
+        </el-button>
+      </template>
     </BaseDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Plus, Edit, Delete } from '@element-plus/icons-vue';
-import { ElMessageBox } from 'element-plus';
-import type { LlmThinkRule } from '../types';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import customMessage from '@/utils/customMessage';
+import { ref, watch } from "vue";
+import { Plus, Edit, Delete } from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
+import type { LlmThinkRule } from "../types";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import customMessage from "@/utils/customMessage";
 
 // Props
 const props = defineProps<{
@@ -92,10 +94,10 @@ const props = defineProps<{
 
 // Emits
 const emit = defineEmits<{
-  'update:modelValue': [rules: LlmThinkRule[]];
+  "update:modelValue": [rules: LlmThinkRule[]];
 }>();
 
- // 本地规则列表（使用独立副本，避免直接修改父级数据）
+// 本地规则列表（使用独立副本，避免直接修改父级数据）
 const localRules = ref<LlmThinkRule[]>([]);
 
 // 同步外部变化到本地
@@ -110,27 +112,30 @@ watch(
 
 // 将本地变更同步回父组件
 function emitRulesUpdate() {
-  emit('update:modelValue', localRules.value.map((rule) => ({ ...rule })));
+  emit(
+    "update:modelValue",
+    localRules.value.map((rule) => ({ ...rule }))
+  );
 }
 
 // 对话框状态
 const showAddDialog = ref(false);
 const editingIndex = ref(-1);
 const editingRule = ref<LlmThinkRule>({
-  id: '',
-  kind: 'xml_tag',
-  tagName: '',
-  displayName: '',
+  id: "",
+  kind: "xml_tag",
+  tagName: "",
+  displayName: "",
   collapsedByDefault: true,
 });
 
 // 重置编辑表单
 function resetEditingRule() {
   editingRule.value = {
-    id: '',
-    kind: 'xml_tag',
-    tagName: '',
-    displayName: '',
+    id: "",
+    kind: "xml_tag",
+    tagName: "",
+    displayName: "",
     collapsedByDefault: true,
   };
   editingIndex.value = -1;
@@ -143,19 +148,25 @@ function editRule(index: number) {
   showAddDialog.value = true;
 }
 
+// 处理对话框关闭（取消按钮或 ESC 键）
+function handleDialogClose() {
+  showAddDialog.value = false;
+  resetEditingRule();
+}
+
 // 保存规则
 function saveRule() {
   // 验证
   if (!editingRule.value.id.trim()) {
-    customMessage.warning('请输入规则ID');
+    customMessage.warning("请输入规则ID");
     return;
   }
   if (!editingRule.value.tagName.trim()) {
-    customMessage.warning('请输入XML标签名');
+    customMessage.warning("请输入XML标签名");
     return;
   }
   if (!editingRule.value.displayName.trim()) {
-    customMessage.warning('请输入显示名称');
+    customMessage.warning("请输入显示名称");
     return;
   }
 
@@ -164,7 +175,7 @@ function saveRule() {
     (r, idx) => r.id === editingRule.value.id && idx !== editingIndex.value
   );
   if (isDuplicate) {
-    customMessage.warning('规则ID已存在，请使用其他ID');
+    customMessage.warning("规则ID已存在，请使用其他ID");
     return;
   }
 
@@ -172,11 +183,11 @@ function saveRule() {
   if (editingIndex.value === -1) {
     // 新增
     localRules.value.push({ ...editingRule.value });
-    customMessage.success('规则添加成功');
+    customMessage.success("规则添加成功");
   } else {
     // 更新
     localRules.value[editingIndex.value] = { ...editingRule.value };
-    customMessage.success('规则更新成功');
+    customMessage.success("规则更新成功");
   }
 
   // 将更新后的规则同步给父组件
@@ -189,32 +200,21 @@ function saveRule() {
 // 删除规则
 function deleteRule(index: number) {
   const rule = localRules.value[index];
-  ElMessageBox.confirm(
-    `确定要删除规则"${rule.displayName}"吗？`,
-    '确认删除',
-    {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning',
-    }
-  )
+  ElMessageBox.confirm(`确定要删除规则"${rule.displayName}"吗？`, "确认删除", {
+    confirmButtonText: "删除",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
     .then(() => {
       localRules.value.splice(index, 1);
       // 将删除后的规则同步给父组件
       emitRulesUpdate();
-      customMessage.success('规则已删除');
+      customMessage.success("规则已删除");
     })
     .catch(() => {
       // 用户取消
     });
 }
-
-// 监听对话框关闭事件
-watch(showAddDialog, (newVal) => {
-  if (!newVal) {
-    resetEditingRule();
-  }
-});
 </script>
 
 <style scoped>
@@ -222,19 +222,29 @@ watch(showAddDialog, (newVal) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  width: 100%;
 }
 
 .rules-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
 }
 
 .rules-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--text-color);
+  color: var(--el-text-color-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .rules-list {
@@ -245,9 +255,10 @@ watch(showAddDialog, (newVal) => {
 
 .rule-item {
   background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 12px;
+  padding: 16px;
   transition: all 0.2s;
 }
 
@@ -260,14 +271,15 @@ watch(showAddDialog, (newVal) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .rule-main {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  min-width: 0;
 }
 
 .rule-tag {
@@ -275,43 +287,50 @@ watch(showAddDialog, (newVal) => {
 }
 
 .rule-tag code {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 13px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   background: var(--input-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--el-color-primary);
+  font-weight: 500;
 }
 
 .rule-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .rule-display-name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-color);
+  color: var(--el-text-color-primary);
+  line-height: 1.4;
 }
 
 .rule-meta {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .rule-actions {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  align-items: center;
 }
 
 .form-tip {
   font-size: 12px;
-  color: var(--text-color-secondary);
+  color: var(--el-text-color-secondary);
   margin-top: 4px;
+  line-height: 1.5;
 }
 </style>

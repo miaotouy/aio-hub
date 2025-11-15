@@ -10,6 +10,7 @@ import ChatMessage from "./ChatMessage.vue";
 interface Props {
   messages: ChatMessageNode[];
   isSending: boolean;
+  llmThinkRules?: import('@/tools/rich-text-renderer/types').LlmThinkRule[];
 }
 interface Emits {
   (e: "delete-message", messageId: string): void;
@@ -168,6 +169,7 @@ defineExpose({
               :current-sibling-index="
                 getMessageSiblings(messages[virtualItem.index].id).currentIndex
               "
+              :llm-think-rules="llmThinkRules"
               @delete="emit('delete-message', messages[virtualItem.index].id)"
               @regenerate="emit('regenerate', messages[virtualItem.index].id)"
               @switch-sibling="

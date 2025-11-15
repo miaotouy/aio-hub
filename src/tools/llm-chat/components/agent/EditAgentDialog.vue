@@ -11,6 +11,8 @@ import { useUserProfileStore } from "../../userProfileStore";
 import IconEditor from "@/components/common/IconEditor.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref } from "vue";
+import LlmThinkRulesEditor from "@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue";
+import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
 
 interface Props {
   visible: boolean;
@@ -43,6 +45,7 @@ interface Emits {
         temperature: number;
         maxTokens: number;
       };
+      llmThinkRules: LlmThinkRule[];
     }
   ): void;
 }
@@ -69,6 +72,7 @@ const editForm = reactive({
   userProfileId: null as string | null, // 绑定的用户档案 ID
   presetMessages: [] as ChatMessageNode[],
   displayPresetCount: 0, // 显示的预设消息数量
+  llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
 });
 
 // 监听对话框打开，加载数据
@@ -97,6 +101,9 @@ const loadFormData = () => {
       ? JSON.parse(JSON.stringify(props.agent.presetMessages))
       : [];
     editForm.displayPresetCount = props.agent.displayPresetCount || 0;
+    editForm.llmThinkRules = props.agent.llmThinkRules
+      ? JSON.parse(JSON.stringify(props.agent.llmThinkRules))
+      : [];
   } else if (props.mode === "create" && props.initialData) {
     // 创建模式：使用初始数据
     editForm.name = props.initialData.name || "";
@@ -114,6 +121,7 @@ const loadFormData = () => {
       ? JSON.parse(JSON.stringify(props.initialData.presetMessages))
       : [];
     editForm.displayPresetCount = 0;
+    editForm.llmThinkRules = [];
   }
 };
 
@@ -171,6 +179,7 @@ const handleSave = () => {
     presetMessages: editForm.presetMessages,
     displayPresetCount: editForm.displayPresetCount,
     parameters,
+    llmThinkRules: editForm.llmThinkRules,
   });
 
   handleClose();
@@ -277,16 +286,25 @@ const handleSave = () => {
           在聊天界面显示的预设消息数量（0 表示不显示）。这些消息会作为开场白显示在聊天列表顶部。
         </div>
       </el-form-item>
+
+      <!-- 预设消息编辑器 -->
+      <el-form-item label="预设消息">
+        <AgentPresetEditor
+          v-model="editForm.presetMessages"
+          :model-id="editForm.modelId"
+          :agent-name="editForm.name"
+          height="300px"
+        />
+      </el-form-item>
+
+      <!-- 思考块规则配置 -->
+      <el-form-item label="思考块规则">
+        <div class="form-hint">
+          配置 LLM 输出中的思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
+        </div>
+        <LlmThinkRulesEditor v-model="editForm.llmThinkRules" />
+      </el-form-item>
     </el-form>
-    <!-- 预设消息编辑器 -->
-    <el-form-item label="预设消息">
-      <AgentPresetEditor
-        v-model="editForm.presetMessages"
-        :model-id="editForm.modelId"
-        :agent-name="editForm.name"
-        height="300px"
-      />
-    </el-form-item>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
@@ -301,7 +319,7 @@ const handleSave = () => {
 .form-hint {
   font-size: 12px;
   color: var(--text-color-secondary);
-  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 /* 滑块+数字输入框组合 */

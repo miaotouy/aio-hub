@@ -19,6 +19,7 @@ const { settings } = useChatSettings();
 interface Props {
   message: ChatMessageNode;
   isEditing?: boolean;
+  llmThinkRules?: import('@/tools/rich-text-renderer/types').LlmThinkRule[];
 }
 
 interface Emits {
@@ -322,6 +323,7 @@ watch(
         v-if="message.content"
         :content="message.content"
         :version="settings.uiPreferences.rendererVersion"
+        :llm-think-rules="llmThinkRules"
       />
       <div v-if="message.status === 'generating'" class="streaming-indicator">
         <span class="dot"></span>

@@ -3,6 +3,7 @@
  */
 
 import type { Asset } from '@/types/asset-management';
+import type { LlmThinkRule } from '@/tools/rich-text-renderer/types';
 
 /**
  * 消息角色
@@ -512,6 +513,12 @@ export interface ChatAgent {
    * 参数配置
    */
   parameters: LlmParameters;
+
+  /**
+   * LLM 思考块规则配置
+   * 用于识别和渲染 LLM 输出中的思考过程（如 Chain of Thought）
+   */
+  llmThinkRules?: LlmThinkRule[];
 
   /**
    * 创建时间

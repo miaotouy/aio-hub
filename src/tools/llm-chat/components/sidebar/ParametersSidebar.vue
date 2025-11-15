@@ -101,9 +101,36 @@ const openEditDialog = () => {
 };
 
 // 保存编辑的智能体
-const handleSaveEdit = (data: any) => {
+const handleSaveEdit = (data: {
+  name: string;
+  description: string;
+  icon: string;
+  iconMode: "path" | "builtin";
+  profileId: string;
+  modelId: string;
+  userProfileId: string | null;
+  presetMessages: ChatMessageNode[];
+  displayPresetCount: number;
+  parameters: {
+    temperature: number;
+    maxTokens: number;
+  };
+  llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
+}) => {
   if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, data);
+  agentStore.updateAgent(agentStore.currentAgentId, {
+    name: data.name,
+    description: data.description,
+    icon: data.icon,
+    iconMode: data.iconMode,
+    profileId: data.profileId,
+    modelId: data.modelId,
+    userProfileId: data.userProfileId,
+    presetMessages: data.presetMessages,
+    displayPresetCount: data.displayPresetCount,
+    parameters: data.parameters,
+    llmThinkRules: data.llmThinkRules,
+  });
   customMessage.success("智能体已更新");
 };
 </script>

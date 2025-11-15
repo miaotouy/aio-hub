@@ -11,6 +11,7 @@ interface Props {
   isSending: boolean;
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
+  llmThinkRules?: import('@/tools/rich-text-renderer/types').LlmThinkRule[];
 }
 
 interface Emits {
@@ -80,6 +81,7 @@ defineExpose({
     <MessageContent
       :message="message"
       :is-editing="isEditing"
+      :llm-think-rules="llmThinkRules"
       @save-edit="saveEdit"
       @cancel-edit="cancelEdit"
     />

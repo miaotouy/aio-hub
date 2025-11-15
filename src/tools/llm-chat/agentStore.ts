@@ -7,6 +7,7 @@ import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
+import type { LlmThinkRule } from '@/tools/rich-text-renderer/types';
 import { createModuleLogger } from '@utils/logger';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -29,6 +30,7 @@ export interface ExportableAgent {
   presetMessages?: ChatMessageNode[];
   displayPresetCount?: number;
   parameters: LlmParameters;
+  llmThinkRules?: LlmThinkRule[];
 }
 
 /**
@@ -145,6 +147,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         presetMessages?: ChatMessageNode[];
         displayPresetCount?: number;
         parameters?: Partial<LlmParameters>;
+        llmThinkRules?: LlmThinkRule[];
       }
     ): string {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -159,6 +162,8 @@ export const useAgentStore = defineStore('llmChatAgent', {
         modelId,
         userProfileId: options?.userProfileId ?? null,
         presetMessages: options?.presetMessages,
+        displayPresetCount: options?.displayPresetCount,
+        llmThinkRules: options?.llmThinkRules,
         parameters: {
           // 基础采样参数
           temperature: options?.parameters?.temperature ?? 0.7,
@@ -558,6 +563,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
             presetMessages: agent.presetMessages,
             displayPresetCount: agent.displayPresetCount,
             parameters: agent.parameters,
+            llmThinkRules: agent.llmThinkRules,
           };
 
           // 处理图标资产
@@ -746,6 +752,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
               presetMessages: resolvedAgent.presetMessages,
               displayPresetCount: resolvedAgent.displayPresetCount,
               parameters: resolvedAgent.parameters,
+              llmThinkRules: resolvedAgent.llmThinkRules,
             }
           );
           logger.info('智能体已导入', { agentId: newAgentId, agentName });

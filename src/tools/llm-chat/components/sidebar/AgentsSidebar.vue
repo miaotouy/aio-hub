@@ -231,18 +231,33 @@ const handleSaveAgent = (data: {
   name: string;
   description: string;
   icon: string;
+  iconMode: "path" | "builtin";
   profileId: string;
   modelId: string;
   userProfileId: string | null;
   presetMessages: ChatMessageNode[];
+  displayPresetCount: number;
   parameters: {
     temperature: number;
     maxTokens: number;
   };
+  llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
 }) => {
   if (editDialogMode.value === "edit" && editingAgent.value) {
     // 更新模式
-    agentStore.updateAgent(editingAgent.value.id, data);
+    agentStore.updateAgent(editingAgent.value.id, {
+      name: data.name,
+      description: data.description,
+      icon: data.icon,
+      iconMode: data.iconMode,
+      profileId: data.profileId,
+      modelId: data.modelId,
+      userProfileId: data.userProfileId,
+      presetMessages: data.presetMessages,
+      displayPresetCount: data.displayPresetCount,
+      parameters: data.parameters,
+      llmThinkRules: data.llmThinkRules,
+    });
     customMessage.success("智能体已更新");
   } else {
     // 创建模式
@@ -251,7 +266,9 @@ const handleSaveAgent = (data: {
       icon: data.icon,
       userProfileId: data.userProfileId,
       presetMessages: data.presetMessages,
+      displayPresetCount: data.displayPresetCount,
       parameters: data.parameters,
+      llmThinkRules: data.llmThinkRules,
     });
     customMessage.success(`智能体 "${data.name}" 创建成功`);
     // 自动选中新创建的智能体

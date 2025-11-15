@@ -219,6 +219,7 @@ const handleSaveAgent = (data: {
   name: string;
   description: string;
   icon: string;
+  iconMode: "path" | "builtin";
   profileId: string;
   modelId: string;
   userProfileId: string | null;
@@ -228,6 +229,7 @@ const handleSaveAgent = (data: {
     temperature: number;
     maxTokens: number;
   };
+  llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
 }) => {
   if (currentAgent.value) {
     logger.info("保存智能体", { agentId: currentAgent.value.id, data });
@@ -235,12 +237,14 @@ const handleSaveAgent = (data: {
       name: data.name,
       description: data.description,
       icon: data.icon,
+      iconMode: data.iconMode,
       profileId: data.profileId,
       modelId: data.modelId,
       userProfileId: data.userProfileId,
       presetMessages: data.presetMessages,
       displayPresetCount: data.displayPresetCount,
       parameters: data.parameters,
+      llmThinkRules: data.llmThinkRules,
     });
   }
   showEditAgentDialog.value = false;
@@ -526,6 +530,7 @@ onMounted(async () => {
             ref="messageListRef"
             :messages="finalMessages"
             :is-sending="finalIsSending"
+            :llm-think-rules="currentAgent?.llmThinkRules"
             @delete-message="handleDeleteMessage"
             @regenerate="handleRegenerate"
             @switch-sibling="handleSwitchSibling"

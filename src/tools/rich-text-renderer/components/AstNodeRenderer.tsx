@@ -26,6 +26,7 @@ import GenericHtmlNode from "./nodes/GenericHtmlNode.vue";
 import ParagraphNode from "./nodes/ParagraphNode.vue";
 import HeadingNode from "./nodes/HeadingNode.vue";
 import CodeBlockNode from "./nodes/CodeBlockNode.vue";
+import MermaidNode from "./nodes/MermaidNode.vue";
 import ListNode from "./nodes/ListNode.vue";
 import ListItemNode from "./nodes/ListItemNode.vue";
 import BlockquoteNode from "./nodes/BlockquoteNode.vue";
@@ -55,6 +56,7 @@ const componentMap: Record<string, any> = {
   paragraph: ParagraphNode,
   heading: HeadingNode,
   code_block: CodeBlockNode,
+  mermaid: MermaidNode,
   list: ListNode,
   list_item: ListItemNode,
   blockquote: BlockquoteNode,

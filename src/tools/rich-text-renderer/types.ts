@@ -96,6 +96,17 @@ export interface CodeBlockNode extends BaseAstNode {
 }
 
 /**
+ * Mermaid 图表节点
+ */
+export interface MermaidNode extends BaseAstNode {
+  type: 'mermaid';
+  props: {
+    content: string;
+  };
+  children?: never;
+}
+
+/**
  * 行内代码节点
  */
 export interface InlineCodeNode extends BaseAstNode {
@@ -268,6 +279,7 @@ export type AstNode =
   | ParagraphNode
   | HeadingNode
   | CodeBlockNode
+  | MermaidNode
   | ListNode
   | ListItemNode
   | ImageNode

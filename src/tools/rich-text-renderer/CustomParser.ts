@@ -909,12 +909,29 @@ export class CustomParser {
       return { node: null, nextIndex: start + 1 };
     }
 
+    const language = fence.language || '';
+    
+    // 如果语言标记为 mermaid，则生成 MermaidNode
+    if (language === 'mermaid') {
+      return {
+        node: {
+          id: '',
+          type: 'mermaid',
+          props: {
+            content: fence.raw
+          },
+          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        },
+        nextIndex: start + 1
+      };
+    }
+
     return {
       node: {
         id: '',
         type: 'code_block',
         props: {
-          language: fence.language || '',
+          language,
           content: fence.raw // raw 现在包含完整的代码内容
         },
         meta: { range: { start: 0, end: 0 }, status: 'stable' }

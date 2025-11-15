@@ -17,6 +17,7 @@ import type {
   ParagraphNode,
   HeadingNode,
   CodeBlockNode,
+  MermaidNode,
   ListNode,
   ListItemNode,
   BlockquoteNode,
@@ -249,6 +250,17 @@ export class StreamProcessor {
       }
     }
 
+    // 1.1 优化：Mermaid 图表流式更新
+    if (
+      oldPending.length === 1 && newPending.length === 1 &&
+      oldPending[0].type === 'mermaid' && newPending[0].type === 'mermaid'
+    ) {
+      const oldNode = oldPending[0] as MermaidNode;
+      const newNode = newPending[0] as MermaidNode;
+      newNode.id = oldNode.id;
+      return this.diffSingleNode(oldNode, newNode);
+    }
+
     // 2. 优化：段落流式更新 (打字机效果)
     if (
       oldPending.length === 1 && newPending.length === 1 &&
@@ -298,6 +310,9 @@ export class StreamProcessor {
     }
     if (node.type === 'code_block') {
       return (node as CodeBlockNode).props.content;
+    }
+    if (node.type === 'mermaid') {
+      return (node as MermaidNode).props.content;
     }
     if (node.type === 'inline_code') {
       return (node as InlineCodeNode).props.content;
@@ -523,7 +538,12 @@ export class StreamProcessor {
       }
       case 'code_block':
       case 'fence': {
-        return { id: this.generateNodeId(), type: 'code_block', props: { language: token.info || undefined, content: token.content }, meta } as CodeBlockNode;
+        const language = token.info || undefined;
+        // 如果语言标记为 mermaid，则生成 MermaidNode
+        if (language === 'mermaid') {
+          return { id: this.generateNodeId(), type: 'mermaid', props: { content: token.content }, meta } as MermaidNode;
+        }
+        return { id: this.generateNodeId(), type: 'code_block', props: { language, content: token.content }, meta } as CodeBlockNode;
       }
       case 'bullet_list_open':
       case 'ordered_list_open': {

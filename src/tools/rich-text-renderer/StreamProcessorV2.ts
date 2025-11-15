@@ -244,6 +244,9 @@ export class StreamProcessorV2 {
     if (node.type === 'code_block') {
       return node.props.content;
     }
+    if (node.type === 'mermaid') {
+      return node.props.content;
+    }
     if (node.type === 'inline_code') {
       return node.props.content;
     }

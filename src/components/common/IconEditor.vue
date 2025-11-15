@@ -11,6 +11,13 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { invoke } from "@tauri-apps/api/core";
 import { extname } from "@tauri-apps/api/path";
 
+/**
+ * 判断一个图标字符串是否像一个内置的文件名
+ */
+function isLikelyFilename(icon: string): boolean {
+  return icon.includes('.') && !icon.includes('/') && !icon.includes('\\');
+}
+
 interface Props {
   modelValue: string;
   mode?: "path" | "upload";
@@ -143,11 +150,29 @@ const clearIcon = () => {
   customMessage.info("已重置为默认图标");
 };
 
+// 解析最终的头像显示路径
+const resolvedAvatarSrc = computed(() => {
+  if (!props.modelValue) return "";
+  
+  const icon = props.modelValue.trim();
+  if (!icon) return "";
+  
+  // 如果是上传模式且提供了 entityId 和 profileType，需要解析为 appdata:// 路径
+  if (props.mode === 'upload' && props.entityId && isLikelyFilename(icon)) {
+    if (props.profileType === 'agent') {
+      return `appdata://llm-chat/agents/${props.entityId}/${icon}`;
+    } else if (props.profileType === 'user') {
+      return `appdata://llm-chat/user-profiles/${props.entityId}/${icon}`;
+    }
+  }
+  
+  // 其他情况直接返回原值（emoji、URL、路径等）
+  return icon;
+});
+
 // 检查图标是否为可点击的图片路径
 const sanitizedModelValue = computed(() => {
-  if (!props.modelValue) return "";
-  // 移除开头和结尾多余的空格和引号
-  return props.modelValue.trim().replace(/^"|"$/g, "").trim();
+  return resolvedAvatarSrc.value.trim().replace(/^"|"$/g, "").trim();
 });
 
 const isImagePath = computed(() => {
@@ -181,7 +206,7 @@ const handleIconClick = () => {
         placement="top"
       >
         <Avatar
-          :src="modelValue || ''"
+          :src="resolvedAvatarSrc"
           :alt="nameForFallback"
           :size="128"
           shape="square"

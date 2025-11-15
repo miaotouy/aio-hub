@@ -117,6 +117,7 @@ export interface LlmThinkNode extends BaseAstNode {
     ruleId: string;             // 命中的规则标识
     displayName: string;        // 用于 UI 显示的名称
     collapsedByDefault: boolean; // 是否默认折叠
+    rawContent?: string;        // 原始文本内容，用于查看未渲染的内容
   };
   children: AstNode[];          // 内部可以包含任何 AST 节点
 }

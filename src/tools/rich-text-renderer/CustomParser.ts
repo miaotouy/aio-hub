@@ -1,8 +1,8 @@
 /**
  * 自定义 Markdown 解析器 (V2架构)
- * 
+ *
  * 核心职责：将完整的 Markdown 文本解析为 AST
- * 
+ *
  * 设计原则：
  * 1. 不处理流式逻辑（由 StreamProcessorV2 处理）
  * 2. 输入：完整的 Markdown 文本
@@ -10,29 +10,43 @@
  * 4. 两级解析：块级 → 内联
  */
 
-import type { AstNode, GenericHtmlNode, TextNode, ParagraphNode, HeadingNode, LlmThinkNode, LlmThinkRule } from './types';
+import type {
+  AstNode,
+  GenericHtmlNode,
+  TextNode,
+  ParagraphNode,
+  HeadingNode,
+  LlmThinkNode,
+  LlmThinkRule,
+} from "./types";
 
 // ============ 令牌定义 ============
 
 export type Token =
-  | { type: 'text'; content: string }
-  | { type: 'newline'; count: number }
-  | { type: 'html_open'; tagName: string; attributes: Record<string, string>; selfClosing: boolean; raw: string }
-  | { type: 'html_close'; tagName: string; raw: string }
-  | { type: 'strong_delimiter'; marker: '**' | '__'; raw: string }
-  | { type: 'em_delimiter'; marker: '*' | '_'; raw: string }
-  | { type: 'inline_code'; content: string }
-  | { type: 'strikethrough_delimiter'; marker: '~~'; raw: string }
-  | { type: 'image_marker'; raw: string }
-  | { type: 'link_text_open'; raw: string }
-  | { type: 'link_text_close'; raw: string }
-  | { type: 'link_url_open'; raw: string }
-  | { type: 'link_url_close'; raw: string }
-  | { type: 'heading_marker'; level: number; raw: string }
-  | { type: 'blockquote_marker'; raw: string }
-  | { type: 'list_marker'; ordered: boolean; raw: string }
-  | { type: 'hr_marker'; raw: string }
-  | { type: 'code_fence'; language: string; raw: string };
+  | { type: "text"; content: string }
+  | { type: "newline"; count: number }
+  | {
+      type: "html_open";
+      tagName: string;
+      attributes: Record<string, string>;
+      selfClosing: boolean;
+      raw: string;
+    }
+  | { type: "html_close"; tagName: string; raw: string }
+  | { type: "strong_delimiter"; marker: "**" | "__"; raw: string }
+  | { type: "em_delimiter"; marker: "*" | "_"; raw: string }
+  | { type: "inline_code"; content: string }
+  | { type: "strikethrough_delimiter"; marker: "~~"; raw: string }
+  | { type: "image_marker"; raw: string }
+  | { type: "link_text_open"; raw: string }
+  | { type: "link_text_close"; raw: string }
+  | { type: "link_url_open"; raw: string }
+  | { type: "link_url_close"; raw: string }
+  | { type: "heading_marker"; level: number; raw: string }
+  | { type: "blockquote_marker"; raw: string }
+  | { type: "list_marker"; ordered: boolean; raw: string }
+  | { type: "hr_marker"; raw: string }
+  | { type: "code_fence"; language: string; raw: string };
 
 // ============ 分词器 ============
 
@@ -40,11 +54,23 @@ class Tokenizer {
   // HTML 标签必须以字母开头，后跟字母、数字、连字符或下划线
   // 拒绝 <100ms> 这类数字开头的非法标签
   private htmlTagRegex = /^<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*([^>]*?)\s*(\/?)>/;
-  
+
   // HTML void elements (不需要闭合标签的元素)
   private voidElements = new Set([
-    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-    'link', 'meta', 'param', 'source', 'track', 'wbr'
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
   ]);
 
   /**
@@ -61,7 +87,7 @@ class Tokenizer {
       // 换行符（优先处理，以更新 atLineStart 状态）
       const newlineMatch = remaining.match(/^(\n+)/);
       if (newlineMatch) {
-        tokens.push({ type: 'newline', count: newlineMatch[1].length });
+        tokens.push({ type: "newline", count: newlineMatch[1].length });
         i += newlineMatch[1].length;
         atLineStart = true;
         continue;
@@ -77,46 +103,46 @@ class Tokenizer {
           i += leadingSpaceMatch[1].length;
           continue;
         }
-        
+
         // 代码围栏 - 立即处理整个代码块
-        if (remaining.startsWith('```')) {
+        if (remaining.startsWith("```")) {
           const openMatch = remaining.match(/^```(\w*)/);
           if (openMatch) {
-            const language = openMatch[1] || '';
+            const language = openMatch[1] || "";
             i += openMatch[0].length; // 跳过开始标记
-            
+
             // 跳过开始标记后的第一个换行符（如果有）
-            if (i < text.length && text[i] === '\n') {
+            if (i < text.length && text[i] === "\n") {
               i++;
             }
-            
+
             // 收集代码块内容（原始文本，不做任何解析）
-            let codeContent = '';
-            
+            let codeContent = "";
+
             while (i < text.length) {
               // 检查是否遇到闭合的 ```，允许前面有最多 3-4 个空格缩进
-              if (text[i] === '\n') {
+              if (text[i] === "\n") {
                 const nextIndex = i + 1;
                 let k = nextIndex;
                 let spaceCount = 0;
                 // 跳过最多 4 个空格（兼容常见 Markdown 缩进习惯）
-                while (k < text.length && text[k] === ' ' && spaceCount < 4) {
+                while (k < text.length && text[k] === " " && spaceCount < 4) {
                   k++;
                   spaceCount++;
                 }
-                if (text.slice(k, k + 3) === '```') {
+                if (text.slice(k, k + 3) === "```") {
                   // 将指针移动到 ``` 之后，结束代码块
                   i = k + 3;
                   break;
                 }
               }
-              
+
               codeContent += text[i];
               i++;
             }
-            
+
             // 添加代码块 token（包含完整内容）
-            tokens.push({ type: 'code_fence', language, raw: codeContent });
+            tokens.push({ type: "code_fence", language, raw: codeContent });
             atLineStart = true;
             continue;
           }
@@ -125,7 +151,11 @@ class Tokenizer {
         // 标题标记
         const headingMatch = remaining.match(/^(#{1,6})\s/);
         if (headingMatch) {
-          tokens.push({ type: 'heading_marker', level: headingMatch[1].length, raw: headingMatch[0] });
+          tokens.push({
+            type: "heading_marker",
+            level: headingMatch[1].length,
+            raw: headingMatch[0],
+          });
           i += headingMatch[0].length;
           atLineStart = false;
           continue;
@@ -134,7 +164,7 @@ class Tokenizer {
         // 水平线
         const hrMatch = remaining.match(/^(---+|\*\*\*+|___+)\s*$/m);
         if (hrMatch) {
-          tokens.push({ type: 'hr_marker', raw: hrMatch[0] });
+          tokens.push({ type: "hr_marker", raw: hrMatch[0] });
           i += hrMatch[0].length;
           atLineStart = false;
           continue;
@@ -143,17 +173,21 @@ class Tokenizer {
         // 列表标记（不包含前导空白）
         const listMatch = remaining.match(/^([*+-]|\d+\.)\s/);
         if (listMatch) {
-          tokens.push({ type: 'list_marker', ordered: /\d+\./.test(listMatch[1]), raw: listMatch[0] });
+          tokens.push({
+            type: "list_marker",
+            ordered: /\d+\./.test(listMatch[1]),
+            raw: listMatch[0],
+          });
           i += listMatch[0].length;
           atLineStart = false;
           continue;
         }
 
         // 引用标记
-        if (remaining.startsWith('> ') || remaining.startsWith('>')) {
+        if (remaining.startsWith("> ") || remaining.startsWith(">")) {
           const match = remaining.match(/^>\s?/);
           if (match) {
-            tokens.push({ type: 'blockquote_marker', raw: match[0] });
+            tokens.push({ type: "blockquote_marker", raw: match[0] });
             i += match[0].length;
             atLineStart = false;
             continue;
@@ -168,14 +202,20 @@ class Tokenizer {
         const isClosing = !!htmlMatch[1];
         const tagName = htmlMatch[2].toLowerCase();
         const attributes = this.parseAttributes(htmlMatch[3]);
-        
+
         // 判断是否是自闭合标签：显式的 /> 或者是 void element
         const isSelfClosing = !!htmlMatch[4] || this.voidElements.has(tagName);
 
         if (isClosing) {
-          tokens.push({ type: 'html_close', tagName, raw: rawTag });
+          tokens.push({ type: "html_close", tagName, raw: rawTag });
         } else {
-          tokens.push({ type: 'html_open', tagName, attributes, selfClosing: isSelfClosing, raw: rawTag });
+          tokens.push({
+            type: "html_open",
+            tagName,
+            attributes,
+            selfClosing: isSelfClosing,
+            raw: rawTag,
+          });
         }
         i += rawTag.length;
         atLineStart = false;
@@ -183,80 +223,80 @@ class Tokenizer {
       }
 
       // Markdown 内联定界符
-      if (remaining.startsWith('~~')) {
-        tokens.push({ type: 'strikethrough_delimiter', marker: '~~', raw: '~~' });
+      if (remaining.startsWith("~~")) {
+        tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
         i += 2;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith('**')) {
-        tokens.push({ type: 'strong_delimiter', marker: '**', raw: '**' });
+      if (remaining.startsWith("**")) {
+        tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
         i += 2;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith('__')) {
-        tokens.push({ type: 'strong_delimiter', marker: '__', raw: '__' });
+      if (remaining.startsWith("__")) {
+        tokens.push({ type: "strong_delimiter", marker: "__", raw: "__" });
         i += 2;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith('*') && !remaining.startsWith('**')) {
-        tokens.push({ type: 'em_delimiter', marker: '*', raw: '*' });
+      if (remaining.startsWith("*") && !remaining.startsWith("**")) {
+        tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
         i += 1;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith('_') && !remaining.startsWith('__')) {
-        tokens.push({ type: 'em_delimiter', marker: '_', raw: '_' });
+      if (remaining.startsWith("_") && !remaining.startsWith("__")) {
+        tokens.push({ type: "em_delimiter", marker: "_", raw: "_" });
         i += 1;
         atLineStart = false;
         continue;
       }
       // 行内代码 - 立即处理完整的代码块
-      if (remaining.startsWith('`')) {
+      if (remaining.startsWith("`")) {
         const codeMatch = remaining.match(/^`([^`]*)`/);
         if (codeMatch) {
           // 找到了完整的行内代码
-          tokens.push({ type: 'inline_code', content: codeMatch[1] });
+          tokens.push({ type: "inline_code", content: codeMatch[1] });
           i += codeMatch[0].length;
           atLineStart = false;
           continue;
         } else {
           // 没有找到匹配的反引号，按普通文本处理
-          tokens.push({ type: 'text', content: '`' });
+          tokens.push({ type: "text", content: "`" });
           i += 1;
           atLineStart = false;
           continue;
         }
       }
       // 图片标记 ![
-      if (remaining.startsWith('![')) {
-        tokens.push({ type: 'image_marker', raw: '!' });
+      if (remaining.startsWith("![")) {
+        tokens.push({ type: "image_marker", raw: "!" });
         i += 1;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith('[')) {
-        tokens.push({ type: 'link_text_open', raw: '[' });
+      if (remaining.startsWith("[")) {
+        tokens.push({ type: "link_text_open", raw: "[" });
         i += 1;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith(']')) {
-        tokens.push({ type: 'link_text_close', raw: ']' });
+      if (remaining.startsWith("]")) {
+        tokens.push({ type: "link_text_close", raw: "]" });
         i += 1;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith('(')) {
-        tokens.push({ type: 'link_url_open', raw: '(' });
+      if (remaining.startsWith("(")) {
+        tokens.push({ type: "link_url_open", raw: "(" });
         i += 1;
         atLineStart = false;
         continue;
       }
-      if (remaining.startsWith(')')) {
-        tokens.push({ type: 'link_url_close', raw: ')' });
+      if (remaining.startsWith(")")) {
+        tokens.push({ type: "link_url_close", raw: ")" });
         i += 1;
         atLineStart = false;
         continue;
@@ -265,15 +305,16 @@ class Tokenizer {
       // 普通文本
       const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n/;
       const nextSpecialIndex = remaining.search(specialChars);
-      
-      const textContent = nextSpecialIndex === -1
-        ? remaining
-        : nextSpecialIndex === 0
-          ? remaining[0]
-          : remaining.substring(0, nextSpecialIndex);
-      
+
+      const textContent =
+        nextSpecialIndex === -1
+          ? remaining
+          : nextSpecialIndex === 0
+            ? remaining[0]
+            : remaining.substring(0, nextSpecialIndex);
+
       if (textContent.length > 0) {
-        tokens.push({ type: 'text', content: textContent });
+        tokens.push({ type: "text", content: textContent });
         i += textContent.length;
         atLineStart = false;
         continue;
@@ -295,7 +336,7 @@ class Tokenizer {
     let match;
     while ((match = attrRegex.exec(attrString)) !== null) {
       const key = match[1];
-      const value = match[2] || match[3] || match[4] || '';
+      const value = match[2] || match[3] || match[4] || "";
       attributes[key] = value;
     }
     return attributes;
@@ -308,7 +349,10 @@ export class CustomParser {
   private llmThinkTagNames: Set<string>;
   private llmThinkRules: LlmThinkRule[];
 
-  constructor(llmThinkTagNames: Set<string> = new Set(['think']), llmThinkRules: LlmThinkRule[] = []) {
+  constructor(
+    llmThinkTagNames: Set<string> = new Set(["think"]),
+    llmThinkRules: LlmThinkRule[] = []
+  ) {
     this.llmThinkTagNames = llmThinkTagNames;
     this.llmThinkRules = llmThinkRules;
   }
@@ -318,12 +362,12 @@ export class CustomParser {
    */
   public parse(text: string): AstNode[] {
     if (!text) return [];
-    
+
     const tokenizer = new Tokenizer();
     const tokens = tokenizer.tokenize(text);
-    
+
     const blocks = this.parseBlocks(tokens);
-    
+
     // 优化徽章之间的换行
     return this.optimizeBadgeLineBreaks(blocks);
   }
@@ -339,13 +383,13 @@ export class CustomParser {
       const token = tokens[i];
 
       // 跳过换行
-      if (token.type === 'newline') {
+      if (token.type === "newline") {
         i++;
         continue;
       }
 
       // 代码块
-      if (token.type === 'code_fence') {
+      if (token.type === "code_fence") {
         const { node, nextIndex } = this.parseCodeBlock(tokens, i);
         if (node) blocks.push(node);
         i = nextIndex;
@@ -353,7 +397,7 @@ export class CustomParser {
       }
 
       // 标题
-      if (token.type === 'heading_marker') {
+      if (token.type === "heading_marker") {
         const { node, nextIndex } = this.parseHeading(tokens, i);
         if (node) blocks.push(node);
         i = nextIndex;
@@ -361,7 +405,7 @@ export class CustomParser {
       }
 
       // 引用块
-      if (token.type === 'blockquote_marker') {
+      if (token.type === "blockquote_marker") {
         const { node, nextIndex } = this.parseBlockquote(tokens, i);
         if (node) blocks.push(node);
         i = nextIndex;
@@ -369,7 +413,7 @@ export class CustomParser {
       }
 
       // 列表
-      if (token.type === 'list_marker') {
+      if (token.type === "list_marker") {
         const { node, nextIndex } = this.parseList(tokens, i);
         if (node) blocks.push(node);
         i = nextIndex;
@@ -385,7 +429,7 @@ export class CustomParser {
       }
 
       // LLM 思考块（优先处理，在 HTML 块之前）
-      if (token.type === 'html_open' && this.llmThinkTagNames.has(token.tagName)) {
+      if (token.type === "html_open" && this.llmThinkTagNames.has(token.tagName)) {
         const { node, nextIndex } = this.parseLlmThinkBlock(tokens, i);
         if (node) blocks.push(node);
         i = nextIndex;
@@ -393,10 +437,33 @@ export class CustomParser {
       }
 
       // HTML 块（只处理块级标签）
-      if (token.type === 'html_open') {
-        const blockLevelTags = ['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'details', 'summary', 'p'];
+      if (token.type === "html_open") {
+        const blockLevelTags = [
+          "div",
+          "section",
+          "article",
+          "aside",
+          "header",
+          "footer",
+          "main",
+          "nav",
+          "blockquote",
+          "pre",
+          "table",
+          "ul",
+          "ol",
+          "li",
+          "dl",
+          "dt",
+          "dd",
+          "figure",
+          "figcaption",
+          "details",
+          "summary",
+          "p",
+        ];
         const isBlockLevel = blockLevelTags.includes(token.tagName);
-        
+
         if (isBlockLevel) {
           const { node, nextIndex } = this.parseHtmlBlock(tokens, i);
           if (node) blocks.push(node);
@@ -407,12 +474,12 @@ export class CustomParser {
       }
 
       // 水平线
-      if (token.type === 'hr_marker') {
+      if (token.type === "hr_marker") {
         blocks.push({
-          id: '',
-          type: 'hr',
+          id: "",
+          type: "hr",
           props: {},
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         i++;
         continue;
@@ -430,9 +497,12 @@ export class CustomParser {
   /**
    * 解析标题
    */
-  private parseHeading(tokens: Token[], start: number): { node: HeadingNode | null; nextIndex: number } {
+  private parseHeading(
+    tokens: Token[],
+    start: number
+  ): { node: HeadingNode | null; nextIndex: number } {
     const marker = tokens[start];
-    if (marker.type !== 'heading_marker') {
+    if (marker.type !== "heading_marker") {
       return { node: null, nextIndex: start + 1 };
     }
 
@@ -441,13 +511,13 @@ export class CustomParser {
 
     // 收集到换行为止
     const contentTokens: Token[] = [];
-    while (i < tokens.length && tokens[i].type !== 'newline') {
+    while (i < tokens.length && tokens[i].type !== "newline") {
       contentTokens.push(tokens[i]);
       i++;
     }
 
     // 跳过换行
-    if (i < tokens.length && tokens[i].type === 'newline') {
+    if (i < tokens.length && tokens[i].type === "newline") {
       i++;
     }
 
@@ -455,29 +525,32 @@ export class CustomParser {
 
     return {
       node: {
-        id: '',
-        type: 'heading',
+        id: "",
+        type: "heading",
         props: { level },
         children,
-        meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
       },
-      nextIndex: i
+      nextIndex: i,
     };
   }
 
   /**
    * 解析 LLM 思考块
    */
-  private parseLlmThinkBlock(tokens: Token[], start: number): { node: LlmThinkNode | null; nextIndex: number } {
+  private parseLlmThinkBlock(
+    tokens: Token[],
+    start: number
+  ): { node: LlmThinkNode | null; nextIndex: number } {
     const openToken = tokens[start];
-    if (openToken.type !== 'html_open') {
+    if (openToken.type !== "html_open") {
       return { node: null, nextIndex: start + 1 };
     }
 
     const tagName = openToken.tagName;
-    
+
     // 查找对应的规则
-    const rule = this.llmThinkRules.find(r => r.tagName === tagName);
+    const rule = this.llmThinkRules.find((r) => r.tagName === tagName);
     const ruleId = rule?.id || `auto-${tagName}`;
     const displayName = rule?.displayName || tagName;
     const collapsedByDefault = rule?.collapsedByDefault ?? true;
@@ -491,10 +564,10 @@ export class CustomParser {
     while (i < tokens.length && depth > 0) {
       const t = tokens[i];
 
-      if (t.type === 'html_open' && t.tagName === tagName && !t.selfClosing) {
+      if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
         depth++;
         contentTokens.push(t);
-      } else if (t.type === 'html_close' && t.tagName === tagName) {
+      } else if (t.type === "html_close" && t.tagName === tagName) {
         depth--;
         if (depth === 0) {
           i++; // 跳过闭合标签
@@ -507,31 +580,87 @@ export class CustomParser {
       i++;
     }
 
+    // 移除开头的换行符（与代码围栏处理保持一致）
+    if (contentTokens.length > 0 && contentTokens[0].type === "newline") {
+      contentTokens.shift();
+    }
+
+    // 移除结尾的换行符
+    while (contentTokens.length > 0 && contentTokens[contentTokens.length - 1].type === "newline") {
+      contentTokens.pop();
+    }
+
+    // 将令牌转换为原始文本内容
+    const rawContent = this.tokensToRawText(contentTokens);
+
     // 将内容解析为块级节点
     const children = contentTokens.length > 0 ? this.parseBlocks(contentTokens) : [];
 
     const llmThinkNode: LlmThinkNode = {
-      id: '',
-      type: 'llm_think',
+      id: "",
+      type: "llm_think",
       props: {
         rawTagName: tagName,
         ruleId,
         displayName,
-        collapsedByDefault
+        collapsedByDefault,
+        rawContent,
       },
       children,
-      meta: { range: { start: 0, end: 0 }, status: 'stable' }
+      meta: { range: { start: 0, end: 0 }, status: "stable" },
     };
 
     return { node: llmThinkNode, nextIndex: i };
   }
 
   /**
+   * 将令牌序列转换回原始文本
+   */
+  private tokensToRawText(tokens: Token[]): string {
+    let text = "";
+    for (const token of tokens) {
+      switch (token.type) {
+        case "text":
+          text += token.content;
+          break;
+        case "newline":
+          text += "\n".repeat(token.count);
+          break;
+        case "html_open":
+        case "html_close":
+        case "strong_delimiter":
+        case "em_delimiter":
+        case "strikethrough_delimiter":
+        case "image_marker":
+        case "link_text_open":
+        case "link_text_close":
+        case "link_url_open":
+        case "link_url_close":
+        case "heading_marker":
+        case "blockquote_marker":
+        case "list_marker":
+        case "hr_marker":
+          text += token.raw;
+          break;
+        case "inline_code":
+          text += `\`${token.content}\``;
+          break;
+        case "code_fence":
+          text += token.raw;
+          break;
+      }
+    }
+    return text;
+  }
+  /**
    * 解析 HTML 块（仅处理块级标签）
    */
-  private parseHtmlBlock(tokens: Token[], start: number): { node: GenericHtmlNode | null; nextIndex: number } {
+  private parseHtmlBlock(
+    tokens: Token[],
+    start: number
+  ): { node: GenericHtmlNode | null; nextIndex: number } {
     const openToken = tokens[start];
-    if (openToken.type !== 'html_open') {
+    if (openToken.type !== "html_open") {
       return { node: null, nextIndex: start + 1 };
     }
 
@@ -542,11 +671,11 @@ export class CustomParser {
     let i = start + 1;
 
     const htmlNode: GenericHtmlNode = {
-      id: '',
-      type: 'generic_html',
+      id: "",
+      type: "generic_html",
       props: { tagName, attributes },
       children: [],
-      meta: { range: { start: 0, end: 0 }, status: 'stable' }
+      meta: { range: { start: 0, end: 0 }, status: "stable" },
     };
 
     if (isSelfClosing) {
@@ -560,10 +689,10 @@ export class CustomParser {
     while (i < tokens.length && depth > 0) {
       const t = tokens[i];
 
-      if (t.type === 'html_open' && t.tagName === tagName && !t.selfClosing) {
+      if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
         depth++;
         contentTokens.push(t);
-      } else if (t.type === 'html_close' && t.tagName === tagName) {
+      } else if (t.type === "html_close" && t.tagName === tagName) {
         depth--;
         if (depth === 0) {
           i++; // 跳过闭合标签
@@ -572,7 +701,7 @@ export class CustomParser {
         contentTokens.push(t);
       } else {
         // 过滤纯空白文本（包括缩进）
-        if (t.type === 'text' && /^\s+$/.test(t.content)) {
+        if (t.type === "text" && /^\s+$/.test(t.content)) {
           // 跳过纯空白
           i++;
           continue;
@@ -593,18 +722,44 @@ export class CustomParser {
   /**
    * 解析段落
    */
-  private parseParagraph(tokens: Token[], start: number): { node: ParagraphNode | null; nextIndex: number } {
+  private parseParagraph(
+    tokens: Token[],
+    start: number
+  ): { node: ParagraphNode | null; nextIndex: number } {
     const contentTokens: Token[] = [];
     let i = start;
 
     // 块级 HTML 标签列表
-    const blockLevelTags = ['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'details', 'summary', 'p'];
+    const blockLevelTags = [
+      "div",
+      "section",
+      "article",
+      "aside",
+      "header",
+      "footer",
+      "main",
+      "nav",
+      "blockquote",
+      "pre",
+      "table",
+      "ul",
+      "ol",
+      "li",
+      "dl",
+      "dt",
+      "dd",
+      "figure",
+      "figcaption",
+      "details",
+      "summary",
+      "p",
+    ];
 
     while (i < tokens.length) {
       const t = tokens[i];
 
       // 块级分隔符：双换行
-      if (t.type === 'newline') {
+      if (t.type === "newline") {
         if (t.count >= 2) {
           break;
         }
@@ -615,16 +770,18 @@ export class CustomParser {
       }
 
       // 块级标记：遇到这些标记停止段落
-      if (t.type === 'heading_marker' ||
-          t.type === 'hr_marker' ||
-          t.type === 'code_fence' ||
-          t.type === 'list_marker' ||
-          t.type === 'blockquote_marker') {
+      if (
+        t.type === "heading_marker" ||
+        t.type === "hr_marker" ||
+        t.type === "code_fence" ||
+        t.type === "list_marker" ||
+        t.type === "blockquote_marker"
+      ) {
         break;
       }
 
       // HTML 标签：只有块级标签才停止段落
-      if (t.type === 'html_open') {
+      if (t.type === "html_open") {
         const isBlockLevel = blockLevelTags.includes(t.tagName);
         if (isBlockLevel) {
           break;
@@ -648,13 +805,13 @@ export class CustomParser {
 
     return {
       node: {
-        id: '',
-        type: 'paragraph',
+        id: "",
+        type: "paragraph",
         props: {},
         children,
-        meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
       },
-      nextIndex: i
+      nextIndex: i,
     };
   }
 
@@ -664,7 +821,7 @@ export class CustomParser {
   private parseInlines(tokens: Token[]): AstNode[] {
     const nodes: AstNode[] = [];
     let i = 0;
-    let accumulatedText = '';
+    let accumulatedText = "";
 
     const flushText = () => {
       if (accumulatedText) {
@@ -672,7 +829,7 @@ export class CustomParser {
         if (accumulatedText.trim().length > 0) {
           nodes.push(this.createTextNode(accumulatedText));
         }
-        accumulatedText = '';
+        accumulatedText = "";
       }
     };
 
@@ -680,16 +837,16 @@ export class CustomParser {
       const token = tokens[i];
 
       // HTML 内联标签
-      if (token.type === 'html_open') {
+      if (token.type === "html_open") {
         flushText();
 
         const tagName = token.tagName;
         const htmlNode: GenericHtmlNode = {
-          id: '',
-          type: 'generic_html',
+          id: "",
+          type: "generic_html",
           props: { tagName, attributes: token.attributes },
           children: [],
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         };
 
         i++;
@@ -706,10 +863,10 @@ export class CustomParser {
         while (i < tokens.length && depth > 0) {
           const t = tokens[i];
 
-          if (t.type === 'html_open' && t.tagName === tagName && !t.selfClosing) {
+          if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
             depth++;
             innerTokens.push(t);
-          } else if (t.type === 'html_close' && t.tagName === tagName) {
+          } else if (t.type === "html_close" && t.tagName === tagName) {
             depth--;
             if (depth === 0) {
               i++;
@@ -718,7 +875,7 @@ export class CustomParser {
             innerTokens.push(t);
           } else {
             // 过滤纯空白文本
-            if (t.type === 'text' && /^\s+$/.test(t.content)) {
+            if (t.type === "text" && /^\s+$/.test(t.content)) {
               i++;
               continue;
             }
@@ -733,14 +890,14 @@ export class CustomParser {
       }
 
       // 加粗
-      if (token.type === 'strong_delimiter') {
+      if (token.type === "strong_delimiter") {
         flushText();
         i++;
 
         const innerTokens: Token[] = [];
         while (i < tokens.length) {
           const t = tokens[i];
-          if (t.type === 'strong_delimiter' && t.marker === token.marker) {
+          if (t.type === "strong_delimiter" && t.marker === token.marker) {
             i++;
             break;
           }
@@ -749,24 +906,24 @@ export class CustomParser {
         }
 
         nodes.push({
-          id: '',
-          type: 'strong',
+          id: "",
+          type: "strong",
           props: {},
           children: this.parseInlines(innerTokens),
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         continue;
       }
 
       // 斜体
-      if (token.type === 'em_delimiter') {
+      if (token.type === "em_delimiter") {
         flushText();
         i++;
 
         const innerTokens: Token[] = [];
         while (i < tokens.length) {
           const t = tokens[i];
-          if (t.type === 'em_delimiter' && t.marker === token.marker) {
+          if (t.type === "em_delimiter" && t.marker === token.marker) {
             i++;
             break;
           }
@@ -775,37 +932,37 @@ export class CustomParser {
         }
 
         nodes.push({
-          id: '',
-          type: 'em',
+          id: "",
+          type: "em",
           props: {},
           children: this.parseInlines(innerTokens),
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         continue;
       }
 
       // 行内代码 - 直接使用分词器处理好的内容
-      if (token.type === 'inline_code') {
+      if (token.type === "inline_code") {
         flushText();
         nodes.push({
-          id: '',
-          type: 'inline_code',
+          id: "",
+          type: "inline_code",
           props: { content: token.content },
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         i++;
         continue;
       }
 
       // 删除线
-      if (token.type === 'strikethrough_delimiter') {
+      if (token.type === "strikethrough_delimiter") {
         flushText();
         i++;
 
         const innerTokens: Token[] = [];
         while (i < tokens.length) {
           const t = tokens[i];
-          if (t.type === 'strikethrough_delimiter') {
+          if (t.type === "strikethrough_delimiter") {
             i++;
             break;
           }
@@ -814,51 +971,51 @@ export class CustomParser {
         }
 
         nodes.push({
-          id: '',
-          type: 'strikethrough',
+          id: "",
+          type: "strikethrough",
           props: {},
           children: this.parseInlines(innerTokens),
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         continue;
       }
 
       // 图片 ![alt](url)
-      if (token.type === 'image_marker') {
+      if (token.type === "image_marker") {
         flushText();
         i++;
 
         // 检查后面是否跟着 [
-        if (i < tokens.length && tokens[i].type === 'link_text_open') {
+        if (i < tokens.length && tokens[i].type === "link_text_open") {
           i++; // 跳过 [
 
           // 收集 alt 文本
-          let alt = '';
+          let alt = "";
           while (i < tokens.length) {
             const t = tokens[i];
-            if (t.type === 'link_text_close') {
+            if (t.type === "link_text_close") {
               i++;
               break;
             }
-            if (t.type === 'text') {
+            if (t.type === "text") {
               alt += t.content;
             }
             i++;
           }
 
           // 收集 URL
-          let src = '';
-          let title = '';
-          if (i < tokens.length && tokens[i].type === 'link_url_open') {
+          let src = "";
+          let title = "";
+          if (i < tokens.length && tokens[i].type === "link_url_open") {
             i++;
 
             while (i < tokens.length) {
               const t = tokens[i];
-              if (t.type === 'link_url_close') {
+              if (t.type === "link_url_close") {
                 i++;
                 break;
               }
-              if (t.type === 'text') {
+              if (t.type === "text") {
                 // 支持 title：(url "title")
                 const parts = t.content.match(/^([^\s]+)(?:\s+"([^"]+)")?$/);
                 if (parts) {
@@ -875,35 +1032,35 @@ export class CustomParser {
           }
 
           nodes.push({
-            id: '',
-            type: 'image',
+            id: "",
+            type: "image",
             props: { src, alt, title },
-            meta: { range: { start: 0, end: 0 }, status: 'stable' }
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
           });
           continue;
         } else {
           // 不是图片语法，按普通文本处理
-          accumulatedText += '!';
+          accumulatedText += "!";
           continue;
         }
       }
 
       // 链接 [text](url)
-      if (token.type === 'link_text_open') {
+      if (token.type === "link_text_open") {
         flushText();
         i++;
 
         // 收集链接文本，支持嵌套的括号（如图片）
         const linkTextTokens: Token[] = [];
         let bracketDepth = 1; // 已经遇到了一个 [
-        
+
         while (i < tokens.length && bracketDepth > 0) {
           const t = tokens[i];
-          
-          if (t.type === 'link_text_open') {
+
+          if (t.type === "link_text_open") {
             bracketDepth++;
             linkTextTokens.push(t);
-          } else if (t.type === 'link_text_close') {
+          } else if (t.type === "link_text_close") {
             bracketDepth--;
             if (bracketDepth === 0) {
               i++; // 跳过最外层的 ]
@@ -917,29 +1074,29 @@ export class CustomParser {
         }
 
         // 收集 URL
-        let href = '';
-        let title = '';
-        if (i < tokens.length && tokens[i].type === 'link_url_open') {
+        let href = "";
+        let title = "";
+        if (i < tokens.length && tokens[i].type === "link_url_open") {
           i++;
-          
+
           let parenDepth = 1; // 已经遇到了一个 (
-          
+
           while (i < tokens.length && parenDepth > 0) {
             const t = tokens[i];
-            
-            if (t.type === 'link_url_open') {
+
+            if (t.type === "link_url_open") {
               parenDepth++;
               if (parenDepth > 1) {
-                href += '(';
+                href += "(";
               }
-            } else if (t.type === 'link_url_close') {
+            } else if (t.type === "link_url_close") {
               parenDepth--;
               if (parenDepth === 0) {
                 i++; // 跳过最外层的 )
                 break;
               }
-              href += ')';
-            } else if (t.type === 'text') {
+              href += ")";
+            } else if (t.type === "text") {
               // 支持 title：(url "title")
               const parts = t.content.match(/^([^\s]+)(?:\s+"([^"]+)")?$/);
               if (parts) {
@@ -956,30 +1113,30 @@ export class CustomParser {
         }
 
         nodes.push({
-          id: '',
-          type: 'link',
+          id: "",
+          type: "link",
           props: { href, title },
           children: this.parseInlines(linkTextTokens),
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         continue;
       }
 
       // 文本
-      if (token.type === 'text') {
+      if (token.type === "text") {
         accumulatedText += token.content;
         i++;
         continue;
       }
 
       // 单换行转为硬换行
-      if (token.type === 'newline' && token.count === 1) {
+      if (token.type === "newline" && token.count === 1) {
         flushText();
         nodes.push({
-          id: '',
-          type: 'hard_break',
+          id: "",
+          type: "hard_break",
           props: {},
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         i++;
         continue;
@@ -996,47 +1153,53 @@ export class CustomParser {
   /**
    * 解析代码块 - 分词器已经处理好了完整内容
    */
-  private parseCodeBlock(tokens: Token[], start: number): { node: AstNode | null; nextIndex: number } {
+  private parseCodeBlock(
+    tokens: Token[],
+    start: number
+  ): { node: AstNode | null; nextIndex: number } {
     const fence = tokens[start];
-    if (fence.type !== 'code_fence') {
+    if (fence.type !== "code_fence") {
       return { node: null, nextIndex: start + 1 };
     }
 
-    const language = fence.language || '';
-    
+    const language = fence.language || "";
+
     // 如果语言标记为 mermaid，则生成 MermaidNode
-    if (language === 'mermaid') {
+    if (language === "mermaid") {
       return {
         node: {
-          id: '',
-          type: 'mermaid',
+          id: "",
+          type: "mermaid",
           props: {
-            content: fence.raw
+            content: fence.raw,
           },
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         },
-        nextIndex: start + 1
+        nextIndex: start + 1,
       };
     }
 
     return {
       node: {
-        id: '',
-        type: 'code_block',
+        id: "",
+        type: "code_block",
         props: {
           language,
-          content: fence.raw // raw 现在包含完整的代码内容
+          content: fence.raw, // raw 现在包含完整的代码内容
         },
-        meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
       },
-      nextIndex: start + 1
+      nextIndex: start + 1,
     };
   }
 
   /**
    * 解析引用块
    */
-  private parseBlockquote(tokens: Token[], start: number): { node: AstNode | null; nextIndex: number } {
+  private parseBlockquote(
+    tokens: Token[],
+    start: number
+  ): { node: AstNode | null; nextIndex: number } {
     let i = start;
     const quoteLines: Token[][] = [];
     let currentLine: Token[] = [];
@@ -1046,15 +1209,17 @@ export class CustomParser {
       const t = tokens[i];
 
       // 遇到非引用标记的行首标记，结束引用
-      if (t.type === 'heading_marker' ||
-          t.type === 'hr_marker' ||
-          t.type === 'code_fence' ||
-          t.type === 'list_marker') {
+      if (
+        t.type === "heading_marker" ||
+        t.type === "hr_marker" ||
+        t.type === "code_fence" ||
+        t.type === "list_marker"
+      ) {
         break;
       }
 
       // 引用标记
-      if (t.type === 'blockquote_marker') {
+      if (t.type === "blockquote_marker") {
         // 保存上一行（如果有）
         if (currentLine.length > 0) {
           quoteLines.push(currentLine);
@@ -1065,18 +1230,18 @@ export class CustomParser {
       }
 
       // 换行
-      if (t.type === 'newline') {
+      if (t.type === "newline") {
         if (currentLine.length > 0) {
           quoteLines.push(currentLine);
           currentLine = [];
         }
-        
+
         // 双换行结束引用
         if (t.count >= 2) {
           i++;
           break;
         }
-        
+
         i++;
         continue;
       }
@@ -1100,7 +1265,7 @@ export class CustomParser {
     for (let j = 0; j < quoteLines.length; j++) {
       allTokens.push(...quoteLines[j]);
       if (j < quoteLines.length - 1) {
-        allTokens.push({ type: 'newline', count: 1 });
+        allTokens.push({ type: "newline", count: 1 });
       }
     }
 
@@ -1108,13 +1273,13 @@ export class CustomParser {
 
     return {
       node: {
-        id: '',
-        type: 'blockquote',
+        id: "",
+        type: "blockquote",
         props: {},
         children,
-        meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
       },
-      nextIndex: i
+      nextIndex: i,
     };
   }
 
@@ -1123,7 +1288,7 @@ export class CustomParser {
    */
   private parseList(tokens: Token[], start: number): { node: AstNode | null; nextIndex: number } {
     const firstMarker = tokens[start];
-    if (firstMarker.type !== 'list_marker') {
+    if (firstMarker.type !== "list_marker") {
       return { node: null, nextIndex: start + 1 };
     }
 
@@ -1135,10 +1300,10 @@ export class CustomParser {
       const t = tokens[i];
 
       // 检查是否是同类型的列表标记
-      if (t.type !== 'list_marker') {
+      if (t.type !== "list_marker") {
         break;
       }
-      
+
       // 不同类型的列表标记，结束当前列表
       if (t.ordered !== ordered) {
         break;
@@ -1152,27 +1317,29 @@ export class CustomParser {
         const tok = tokens[i];
 
         // 遇到新的列表项结束当前项
-        if (tok.type === 'list_marker') {
+        if (tok.type === "list_marker") {
           break;
         }
 
         // 遇到其他块级标记结束当前项
-        if (tok.type === 'heading_marker' ||
-            tok.type === 'html_open' ||
-            tok.type === 'hr_marker' ||
-            tok.type === 'code_fence' ||
-            tok.type === 'blockquote_marker') {
+        if (
+          tok.type === "heading_marker" ||
+          tok.type === "html_open" ||
+          tok.type === "hr_marker" ||
+          tok.type === "code_fence" ||
+          tok.type === "blockquote_marker"
+        ) {
           break;
         }
 
         // 遇到双换行结束当前项
-        if (tok.type === 'newline' && tok.count >= 2) {
+        if (tok.type === "newline" && tok.count >= 2) {
           i++; // 跳过双换行
           break;
         }
 
         // 单换行：继续收集
-        if (tok.type === 'newline') {
+        if (tok.type === "newline") {
           itemTokens.push(tok);
           i++;
           continue;
@@ -1185,15 +1352,15 @@ export class CustomParser {
       if (itemTokens.length > 0) {
         // 列表项内容作为块级元素解析
         const itemChildren = this.parseBlocks(itemTokens);
-        
+
         // 如果解析出了内容
         if (itemChildren.length > 0) {
           items.push({
-            id: '',
-            type: 'list_item',
+            id: "",
+            type: "list_item",
             props: {},
             children: itemChildren,
-            meta: { range: { start: 0, end: 0 }, status: 'stable' }
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
           });
         }
       }
@@ -1205,13 +1372,13 @@ export class CustomParser {
 
     return {
       node: {
-        id: '',
-        type: 'list',
+        id: "",
+        type: "list",
         props: { ordered },
         children: items,
-        meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
       },
-      nextIndex: i
+      nextIndex: i,
     };
   }
 
@@ -1227,18 +1394,18 @@ export class CustomParser {
     // 检查第一行是否包含 |
     while (i < tokens.length) {
       const t = tokens[i];
-      
-      if (t.type === 'newline') {
+
+      if (t.type === "newline") {
         break;
       }
-      
-      if (t.type === 'text') {
+
+      if (t.type === "text") {
         hasContent = true;
-        if (t.content.includes('|')) {
+        if (t.content.includes("|")) {
           hasPipe = true;
         }
       }
-      
+
       i++;
     }
 
@@ -1247,23 +1414,23 @@ export class CustomParser {
     }
 
     // 跳过换行
-    if (i < tokens.length && tokens[i].type === 'newline') {
+    if (i < tokens.length && tokens[i].type === "newline") {
       i++;
     }
 
     // 检查下一行是否是分隔符行
-    let separatorLine = '';
+    let separatorLine = "";
     while (i < tokens.length) {
       const t = tokens[i];
-      
-      if (t.type === 'newline') {
+
+      if (t.type === "newline") {
         break;
       }
-      
-      if (t.type === 'text') {
+
+      if (t.type === "text") {
         separatorLine += t.content;
       }
-      
+
       i++;
     }
 
@@ -1281,42 +1448,42 @@ export class CustomParser {
     // 解析表头
     const headerCells: AstNode[] = [];
     let cellContent: Token[] = [];
-    
+
     while (i < tokens.length) {
       const t = tokens[i];
-      
-      if (t.type === 'newline') {
+
+      if (t.type === "newline") {
         if (cellContent.length > 0) {
           const cellChildren = this.parseInlines(cellContent);
           headerCells.push({
-            id: '',
-            type: 'table_cell',
+            id: "",
+            type: "table_cell",
             props: { isHeader: true },
             children: cellChildren,
-            meta: { range: { start: 0, end: 0 }, status: 'stable' }
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
           });
         }
         i++;
         break;
       }
-      
-      if (t.type === 'text') {
-        const parts = t.content.split('|');
+
+      if (t.type === "text") {
+        const parts = t.content.split("|");
         for (let j = 0; j < parts.length; j++) {
           const part = parts[j].trim();
           if (part) {
-            cellContent.push({ type: 'text', content: part });
+            cellContent.push({ type: "text", content: part });
           }
           if (j < parts.length - 1) {
             // 遇到 | 分隔符，保存当前单元格
             if (cellContent.length > 0) {
               const cellChildren = this.parseInlines(cellContent);
               headerCells.push({
-                id: '',
-                type: 'table_cell',
+                id: "",
+                type: "table_cell",
                 props: { isHeader: true },
                 children: cellChildren,
-                meta: { range: { start: 0, end: 0 }, status: 'stable' }
+                meta: { range: { start: 0, end: 0 }, status: "stable" },
               });
               cellContent = [];
             }
@@ -1325,24 +1492,24 @@ export class CustomParser {
       } else {
         cellContent.push(t);
       }
-      
+
       i++;
     }
 
     if (headerCells.length > 0) {
       rows.push({
-        id: '',
-        type: 'table_row',
+        id: "",
+        type: "table_row",
         props: { isHeader: true },
         children: headerCells,
-        meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
       });
     }
 
     // 跳过分隔符行
     while (i < tokens.length) {
       const t = tokens[i];
-      if (t.type === 'newline') {
+      if (t.type === "newline") {
         i++;
         break;
       }
@@ -1352,21 +1519,23 @@ export class CustomParser {
     // 解析表格内容行
     while (i < tokens.length) {
       const t = tokens[i];
-      
+
       // 空行或非表格行结束表格
-      if (t.type === 'newline' ||
-          t.type === 'heading_marker' ||
-          t.type === 'html_open' ||
-          t.type === 'hr_marker' ||
-          t.type === 'code_fence' ||
-          t.type === 'list_marker' ||
-          t.type === 'blockquote_marker') {
+      if (
+        t.type === "newline" ||
+        t.type === "heading_marker" ||
+        t.type === "html_open" ||
+        t.type === "hr_marker" ||
+        t.type === "code_fence" ||
+        t.type === "list_marker" ||
+        t.type === "blockquote_marker"
+      ) {
         break;
       }
 
       // 检查是否包含 |
       let hasPipe = false;
-      if (t.type === 'text' && t.content.includes('|')) {
+      if (t.type === "text" && t.content.includes("|")) {
         hasPipe = true;
       }
 
@@ -1377,41 +1546,41 @@ export class CustomParser {
       // 解析数据行
       const dataCells: AstNode[] = [];
       cellContent = [];
-      
+
       while (i < tokens.length) {
         const tok = tokens[i];
-        
-        if (tok.type === 'newline') {
+
+        if (tok.type === "newline") {
           if (cellContent.length > 0) {
             const cellChildren = this.parseInlines(cellContent);
             dataCells.push({
-              id: '',
-              type: 'table_cell',
+              id: "",
+              type: "table_cell",
               props: {},
               children: cellChildren,
-              meta: { range: { start: 0, end: 0 }, status: 'stable' }
+              meta: { range: { start: 0, end: 0 }, status: "stable" },
             });
           }
           i++;
           break;
         }
-        
-        if (tok.type === 'text') {
-          const parts = tok.content.split('|');
+
+        if (tok.type === "text") {
+          const parts = tok.content.split("|");
           for (let j = 0; j < parts.length; j++) {
             const part = parts[j].trim();
             if (part) {
-              cellContent.push({ type: 'text', content: part });
+              cellContent.push({ type: "text", content: part });
             }
             if (j < parts.length - 1) {
               if (cellContent.length > 0) {
                 const cellChildren = this.parseInlines(cellContent);
                 dataCells.push({
-                  id: '',
-                  type: 'table_cell',
+                  id: "",
+                  type: "table_cell",
                   props: {},
                   children: cellChildren,
-                  meta: { range: { start: 0, end: 0 }, status: 'stable' }
+                  meta: { range: { start: 0, end: 0 }, status: "stable" },
                 });
                 cellContent = [];
               }
@@ -1420,17 +1589,17 @@ export class CustomParser {
         } else {
           cellContent.push(tok);
         }
-        
+
         i++;
       }
 
       if (dataCells.length > 0) {
         rows.push({
-          id: '',
-          type: 'table_row',
+          id: "",
+          type: "table_row",
           props: {},
           children: dataCells,
-          meta: { range: { start: 0, end: 0 }, status: 'stable' }
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
       }
     }
@@ -1441,22 +1610,22 @@ export class CustomParser {
 
     return {
       node: {
-        id: '',
-        type: 'table',
+        id: "",
+        type: "table",
         props: {},
         children: rows,
-        meta: { range: { start: 0, end: 0 }, status: 'stable' }
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
       },
-      nextIndex: i
+      nextIndex: i,
     };
   }
 
   private createTextNode(content: string): TextNode {
     return {
-      id: '',
-      type: 'text',
+      id: "",
+      type: "text",
       props: { content },
-      meta: { range: { start: 0, end: 0 }, status: 'stable' }
+      meta: { range: { start: 0, end: 0 }, status: "stable" },
     };
   }
 
@@ -1465,14 +1634,14 @@ export class CustomParser {
    * 检测以 [ 开头的链接（包括图片链接和普通链接），移除它们之间的硬换行
    */
   private optimizeBadgeLineBreaks(nodes: AstNode[]): AstNode[] {
-    return nodes.map(node => {
+    return nodes.map((node) => {
       // 只处理段落节点
-      if (node.type !== 'paragraph' || !node.children) {
+      if (node.type !== "paragraph" || !node.children) {
         // 递归处理子节点
         if (node.children) {
           return {
             ...node,
-            children: this.optimizeBadgeLineBreaks(node.children)
+            children: this.optimizeBadgeLineBreaks(node.children),
           };
         }
         return node;
@@ -1481,7 +1650,7 @@ export class CustomParser {
       // 处理段落内的子节点
       const children = node.children;
       const optimizedChildren: AstNode[] = [];
-      
+
       for (let i = 0; i < children.length; i++) {
         const current = children[i];
         const next = children[i + 1];
@@ -1491,13 +1660,11 @@ export class CustomParser {
         // 检测是否是链接或图片节点
         const isLinkLike = (n: AstNode | undefined): boolean => {
           if (!n) return false;
-          return n.type === 'link' || n.type === 'image';
+          return n.type === "link" || n.type === "image";
         };
 
         // 模式1：链接 + 硬换行 + 链接
-        if (isLinkLike(current) &&
-            next?.type === 'hard_break' &&
-            isLinkLike(afterNext)) {
+        if (isLinkLike(current) && next?.type === "hard_break" && isLinkLike(afterNext)) {
           // 保留当前节点，跳过硬换行
           optimizedChildren.push(current);
           i++; // 跳过 hard_break
@@ -1505,12 +1672,14 @@ export class CustomParser {
         }
 
         // 模式2：链接 + 短文本分隔符 + 硬换行 + 链接
-        if (isLinkLike(current) &&
-            next?.type === 'text' &&
-            typeof next.props?.content === 'string' &&
-            next.props.content.trim().length <= 3 && // 短分隔符，如 " •"
-            afterNext?.type === 'hard_break' &&
-            isLinkLike(afterAfterNext)) {
+        if (
+          isLinkLike(current) &&
+          next?.type === "text" &&
+          typeof next.props?.content === "string" &&
+          next.props.content.trim().length <= 3 && // 短分隔符，如 " •"
+          afterNext?.type === "hard_break" &&
+          isLinkLike(afterAfterNext)
+        ) {
           // 保留当前链接和分隔符，跳过硬换行
           optimizedChildren.push(current);
           optimizedChildren.push(next); // 分隔符文本
@@ -1523,7 +1692,7 @@ export class CustomParser {
 
       return {
         ...node,
-        children: optimizedChildren
+        children: optimizedChildren,
       };
     });
   }
@@ -1535,7 +1704,11 @@ export class CustomParser {
 
 // ============ 导出工具函数 ============
 
-export function parseText(text: string, llmThinkTagNames?: Set<string>, llmThinkRules?: LlmThinkRule[]): AstNode[] {
+export function parseText(
+  text: string,
+  llmThinkTagNames?: Set<string>,
+  llmThinkRules?: LlmThinkRule[]
+): AstNode[] {
   const parser = new CustomParser(llmThinkTagNames, llmThinkRules);
   return parser.parse(text);
 }

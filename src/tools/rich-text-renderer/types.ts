@@ -107,6 +107,21 @@ export interface MermaidNode extends BaseAstNode {
 }
 
 /**
+ * LLM 思考节点（块级）
+ * 用于包裹 LLM 的 Chain of Thought（CoT）推理过程
+ */
+export interface LlmThinkNode extends BaseAstNode {
+  type: 'llm_think';
+  props: {
+    rawTagName: string;        // 原始标签名，如 'think', 'guguthink'
+    ruleId: string;             // 命中的规则标识
+    displayName: string;        // 用于 UI 显示的名称
+    collapsedByDefault: boolean; // 是否默认折叠
+  };
+  children: AstNode[];          // 内部可以包含任何 AST 节点
+}
+
+/**
  * 行内代码节点
  */
 export interface InlineCodeNode extends BaseAstNode {
@@ -261,35 +276,35 @@ export interface TableCellNode extends BaseAstNode {
 }
 
 /**
- * 联合类型：所有支持的 AST 节点类型
+ * 联合类型:所有支持的 AST 节点类型
  */
 export type AstNode =
-  // 内联节点
-  | TextNode
-  | StrongNode
-  | EmNode
-  | StrikethroughNode
-  | InlineCodeNode
-  | LinkNode
-  | HtmlInlineNode
-  | HardBreakNode
-  | GenericHtmlNode // V2 架构新增
-
-  // 块级节点
-  | ParagraphNode
-  | HeadingNode
-  | CodeBlockNode
-  | MermaidNode
-  | ListNode
-  | ListItemNode
-  | ImageNode
-  | BlockquoteNode
-  | HrNode
-  | HtmlBlockNode
-  | TableNode
-  | TableRowNode
-  | TableCellNode;
-
+   // 内联节点
+   | TextNode
+   | StrongNode
+   | EmNode
+   | StrikethroughNode
+   | InlineCodeNode
+   | LinkNode
+   | HtmlInlineNode
+   | HardBreakNode
+   | GenericHtmlNode // V2 架构新增
+ 
+   // 块级节点
+   | ParagraphNode
+   | HeadingNode
+   | CodeBlockNode
+   | MermaidNode
+   | LlmThinkNode    // LLM 思考节点
+   | ListNode
+   | ListItemNode
+   | ImageNode
+   | BlockquoteNode
+   | HrNode
+   | HtmlBlockNode
+   | TableNode
+   | TableRowNode
+   | TableCellNode;
 // ============ Patch 指令相关类型 ============
 
 /**
@@ -400,6 +415,10 @@ export type NodeMap = Map<string, NodeIndex>;
  */
 export interface StreamProcessorOptions {
   onPatch: (patches: Patch[]) => void;
+  /** LLM 思考标签名集合（仅 V2 使用） */
+  llmThinkTagNames?: Set<string>;
+  /** LLM 思考规则配置（仅 V2 使用） */
+  llmThinkRules?: LlmThinkRule[];
 }
 
 /**
@@ -408,6 +427,25 @@ export interface StreamProcessorOptions {
 export interface StreamSource {
   subscribe: (callback: (chunk: string) => void) => () => void;
   onComplete?: (callback: () => void) => () => void;
+}
+
+// ============ LLM 思考节点配置 ============
+
+/**
+ * LLM 思考标签规则
+ * 用于配置哪些 XML 标签应该被识别为"思考节点"
+ */
+export interface LlmThinkRule {
+  /** 规则唯一标识，如 'anthropic-cot', 'gugu-think' */
+  id: string;
+  /** 规则类型，目前只支持 'xml_tag' */
+  kind: 'xml_tag';
+  /** XML 标签名，如 'thinking', 'guguthink' */
+  tagName: string;
+  /** 用于 UI 显示的名称，如 "Claude 思考过程" */
+  displayName: string;
+  /** 是否默认折叠，默认 true */
+  collapsedByDefault?: boolean;
 }
 
 // ============ 配置管理相关类型 ============
@@ -478,4 +516,6 @@ export interface TesterConfig {
   visualizeBlockStatus: boolean;
   /** 当前使用的渲染器版本 */
   rendererVersion: RendererVersion;
+  /** LLM 思考块规则配置 */
+  llmThinkRules: LlmThinkRule[];
 }

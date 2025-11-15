@@ -4,7 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { ref, reactive, watch } from 'vue';
-import type { TesterConfig, RendererVersionMeta } from './types';
+import type { TesterConfig, RendererVersionMeta, LlmThinkRule } from './types';
 import { RendererVersion } from './types';
 import { createConfigManager } from '@/utils/configManager';
 import { createModuleLogger } from '@/utils/logger';
@@ -45,6 +45,26 @@ export const availableVersions: RendererVersionMeta[] = [
   },
 ];
 
+/**
+ * 默认的 LLM 思考规则配置
+ */
+export const defaultLlmThinkRules: LlmThinkRule[] = [
+  {
+    id: 'standard-think',
+    kind: 'xml_tag',
+    tagName: 'think',
+    displayName: '思考过程',
+    collapsedByDefault: true,
+  },
+  {
+    id: 'gugu-think',
+    kind: 'xml_tag',
+    tagName: 'guguthink',
+    displayName: '咕咕的思考',
+    collapsedByDefault: false,
+  },
+];
+
 // 创建配置管理器
 const configManager = createConfigManager<TesterConfig>({
   moduleName: 'rich-text-renderer',
@@ -71,6 +91,7 @@ const configManager = createConfigManager<TesterConfig>({
     autoScroll: true,
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
+    llmThinkRules: defaultLlmThinkRules,
   }),
 });
 
@@ -94,6 +115,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
   const autoScroll = ref(true);
   const visualizeBlockStatus = ref(false);
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
+  const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
 
   // 是否已加载配置
   const isConfigLoaded = ref(false);
@@ -123,6 +145,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       autoScroll.value = config.autoScroll;
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
+      llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
 
       isConfigLoaded.value = true;
       logger.info('配置加载成功');
@@ -158,6 +181,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
         autoScroll: autoScroll.value,
         visualizeBlockStatus: visualizeBlockStatus.value,
         rendererVersion: rendererVersion.value,
+        llmThinkRules: llmThinkRules.value,
       };
 
       await configManager.save(config);
@@ -198,6 +222,7 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       autoScroll: autoScroll.value,
       visualizeBlockStatus: visualizeBlockStatus.value,
       rendererVersion: rendererVersion.value,
+      llmThinkRules: llmThinkRules.value,
     };
 
     debouncedSave(config);
@@ -221,8 +246,40 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     autoScroll.value = true;
     visualizeBlockStatus.value = false;
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
+    llmThinkRules.value = [...defaultLlmThinkRules];
 
     saveConfig();
+  }
+
+  /**
+   * 添加新的思考规则
+   */
+  function addLlmThinkRule(rule: LlmThinkRule): void {
+    llmThinkRules.value.push(rule);
+  }
+
+  /**
+   * 更新思考规则
+   */
+  function updateLlmThinkRule(ruleId: string, updates: Partial<LlmThinkRule>): void {
+    const index = llmThinkRules.value.findIndex(r => r.id === ruleId);
+    if (index !== -1) {
+      llmThinkRules.value[index] = { ...llmThinkRules.value[index], ...updates };
+    }
+  }
+
+  /**
+   * 删除思考规则
+   */
+  function removeLlmThinkRule(ruleId: string): void {
+    llmThinkRules.value = llmThinkRules.value.filter(r => r.id !== ruleId);
+  }
+
+  /**
+   * 重置思考规则为默认值
+   */
+  function resetLlmThinkRules(): void {
+    llmThinkRules.value = [...defaultLlmThinkRules];
   }
 
   // ===== 监听状态变化自动保存 =====
@@ -244,10 +301,12 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
       autoScroll,
       visualizeBlockStatus,
       rendererVersion,
+      llmThinkRules,
     ],
     () => {
       autoSaveConfig();
-    }
+    },
+    { deep: true }
   );
 
   return {
@@ -264,11 +323,16 @@ export const useRichTextRendererStore = defineStore('richTextRenderer', () => {
     autoScroll,
     visualizeBlockStatus,
     rendererVersion,
+    llmThinkRules,
     isConfigLoaded,
 
     // Actions
     loadConfig,
     saveConfig,
     resetConfig,
+    addLlmThinkRule,
+    updateLlmThinkRule,
+    removeLlmThinkRule,
+    resetLlmThinkRules,
   };
 });

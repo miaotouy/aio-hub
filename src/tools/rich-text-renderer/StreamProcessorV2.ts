@@ -7,7 +7,7 @@
  * 3. CustomParser 只负责解析完整文本，本类负责流式管理
  */
 
-import type { AstNode, Patch, StreamProcessorOptions } from "./types";
+import type { AstNode, Patch, StreamProcessorOptions, LlmThinkRule } from "./types";
 import { CustomParser } from "./CustomParser";
 
 /**
@@ -19,6 +19,12 @@ import { CustomParser } from "./CustomParser";
  * 3. HTML 标签是否闭合
  */
 class MarkdownBoundaryDetector {
+  private llmThinkTagNames: Set<string>;
+
+  constructor(llmThinkTagNames: Set<string> = new Set()) {
+    this.llmThinkTagNames = llmThinkTagNames;
+  }
+
   isSafeParsePoint(text: string): boolean {
     const lines = text.split("\n");
     if (this.isInsideCodeBlock(lines)) return false;
@@ -54,6 +60,7 @@ class MarkdownBoundaryDetector {
    * 简化策略：统计开放标签和闭合标签的数量
    * - 跳过自闭合标签（如 <br />）
    * - 跳过常见的空标签（如 <img>, <hr>）
+   * - 跳过配置的 LLM 思考标签（动态）
    */
   private hasUnclosedHtmlTags(text: string): boolean {
     const tagStack: string[] = [];
@@ -67,8 +74,8 @@ class MarkdownBoundaryDetector {
       const fullTag = match[0];
       const tagName = match[1].toLowerCase();
 
-      // 忽略 <think> 标签
-      if (tagName === "think") continue;
+      // 忽略配置的 LLM 思考标签
+      if (this.llmThinkTagNames.has(tagName)) continue;
 
       // 跳过自闭合标签
       if (selfClosingTags.has(tagName)) continue;
@@ -125,6 +132,7 @@ export class StreamProcessorV2 {
   private parser: CustomParser;
   private onPatch: (patches: Patch[]) => void;
   private boundaryDetector: MarkdownBoundaryDetector;
+  private llmThinkRules: LlmThinkRule[];
 
   // 状态管理
   private buffer = "";
@@ -134,8 +142,11 @@ export class StreamProcessorV2 {
 
   constructor(options: StreamProcessorOptions) {
     this.onPatch = options.onPatch;
-    this.parser = new CustomParser();
-    this.boundaryDetector = new MarkdownBoundaryDetector();
+    this.llmThinkRules = options.llmThinkRules || [];
+    
+    const llmThinkTagNames = options.llmThinkTagNames || new Set();
+    this.parser = new CustomParser(llmThinkTagNames, this.llmThinkRules);
+    this.boundaryDetector = new MarkdownBoundaryDetector(llmThinkTagNames);
   }
 
   private generateNodeId(): string {

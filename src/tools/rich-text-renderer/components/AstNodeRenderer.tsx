@@ -35,6 +35,7 @@ import HtmlBlockNode from "./nodes/HtmlBlockNode.vue";
 import TableNode from "./nodes/TableNode.vue";
 import TableRowNode from "./nodes/TableRowNode.vue";
 import TableCellNode from "./nodes/TableCellNode.vue";
+import LlmThinkNode from "./nodes/LlmThinkNode.vue";
 
 /**
  * 组件映射表
@@ -57,6 +58,7 @@ const componentMap: Record<string, any> = {
   heading: HeadingNode,
   code_block: CodeBlockNode,
   mermaid: MermaidNode,
+  llm_think: LlmThinkNode,
   list: ListNode,
   list_item: ListItemNode,
   blockquote: BlockquoteNode,

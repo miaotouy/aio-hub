@@ -10,15 +10,26 @@ import { useMarkdownAst } from './composables/useMarkdownAst';
 import { StreamProcessor } from './StreamProcessor';
 import { StreamProcessorV2 } from './StreamProcessorV2';
 import AstNodeRenderer from './components/AstNodeRenderer.tsx';
-import type { StreamSource } from './types';
+import type { StreamSource, LlmThinkRule } from './types';
 import { RendererVersion } from './types';
 
 const props = withDefaults(defineProps<{
   content?: string;
   streamSource?: StreamSource;
   version?: RendererVersion; // 渲染器版本
+  llmThinkRules?: LlmThinkRule[]; // LLM 思考节点规则配置
 }>(), {
-  version: RendererVersion.V1_MARKDOWN_IT
+  version: RendererVersion.V1_MARKDOWN_IT,
+  llmThinkRules: () => [
+    // 默认规则：标准 <think> 标签
+    {
+      id: 'standard-think',
+      kind: 'xml_tag',
+      tagName: 'think',
+      displayName: 'AI 思考过程',
+      collapsedByDefault: true,
+    }
+  ]
 });
 
 const { ast, enqueuePatch } = useMarkdownAst();
@@ -29,7 +40,13 @@ const { ast, enqueuePatch } = useMarkdownAst();
 const createProcessor = (version: RendererVersion) => {
   switch (version) {
     case RendererVersion.V2_CUSTOM_PARSER:
-      return new StreamProcessorV2({ onPatch: enqueuePatch });
+      // 提取思考标签名集合传递给 V2 处理器
+      const thinkTagNames = new Set(props.llmThinkRules?.map(rule => rule.tagName) || []);
+      return new StreamProcessorV2({
+        onPatch: enqueuePatch,
+        llmThinkTagNames: thinkTagNames,
+        llmThinkRules: props.llmThinkRules || []
+      });
     case RendererVersion.V1_MARKDOWN_IT:
     default:
       return new StreamProcessor({ onPatch: enqueuePatch });
@@ -46,8 +63,8 @@ const streamProcessor = ref(createProcessor(props.version));
 
 let unsubscribe: (() => void) | null = null;
 
-// 监听版本变化，重新创建处理器
-watch(() => props.version, (newVersion) => {
+// 监听版本或规则变化，重新创建处理器
+watch(() => [props.version, props.llmThinkRules] as const, ([newVersion]) => {
   streamProcessor.value = createProcessor(newVersion);
   
   // 如果有内容，重新处理
@@ -56,7 +73,7 @@ watch(() => props.version, (newVersion) => {
     streamProcessor.value.process(props.content);
     streamProcessor.value.finalize();
   }
-});
+}, { deep: true });
 
 // 监听 content 属性变化（用于静态内容模式的响应式更新）
 watch(() => props.content, (newContent) => {

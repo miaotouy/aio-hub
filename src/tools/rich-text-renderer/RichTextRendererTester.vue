@@ -194,14 +194,20 @@
             </template>
           </div>
 
+          <!-- LLM 思考块规则配置 -->
+          <div class="control-section">
+            <LlmThinkRulesEditor v-model="llmThinkRules" />
+          </div>
+
           <!-- 文本输入区 -->
-          <div class="control-section text-input-section">
+          <div class="control-section">
             <label class="control-label">Markdown 内容</label>
             <el-input
               v-model="inputContent"
               type="textarea"
               placeholder="在此输入 Markdown 内容..."
               resize="none"
+              :rows="30"
               class="markdown-input"
             />
           </div>
@@ -272,6 +278,7 @@
               :content="currentContent"
               :stream-source="streamSource"
               :version="rendererVersion"
+              :llm-think-rules="llmThinkRules"
             />
             <div v-else class="empty-placeholder">
               <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -284,7 +291,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, shallowRef, onMounted, watch, nextTick } from "vue";
+import { ref, reactive, shallowRef, onMounted, watch, nextTick, computed } from "vue";
 import {
   DArrowLeft,
   DArrowRight,
@@ -299,8 +306,9 @@ import type { StreamSource } from "./types";
 import { presets } from "./presets";
 import { useRichTextRendererStore, availableVersions } from "./store";
 import { storeToRefs } from "pinia";
-import { computed } from "vue";
 import customMessage from "@/utils/customMessage";
+import LlmThinkRulesEditor from "./components/LlmThinkRulesEditor.vue";
+import InfoCard from "@/components/common/InfoCard.vue";
 
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
@@ -317,6 +325,7 @@ const {
   autoScroll,
   visualizeBlockStatus,
   rendererVersion,
+  llmThinkRules,
 } = storeToRefs(store);
 
 // 获取可用的渲染器版本列表（过滤掉未启用的）
@@ -882,13 +891,6 @@ onMounted(async () => {
 }
 
 /* 文本输入区 */
-.text-input-section {
-  flex: 1;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-}
-
 .markdown-input {
   flex: 1;
   display: flex;

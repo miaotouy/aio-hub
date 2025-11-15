@@ -10,7 +10,7 @@
  * 4. 两级解析：块级 → 内联
  */
 
-import type { AstNode, GenericHtmlNode, TextNode, ParagraphNode, HeadingNode } from './types';
+import type { AstNode, GenericHtmlNode, TextNode, ParagraphNode, HeadingNode, LlmThinkNode, LlmThinkRule } from './types';
 
 // ============ 令牌定义 ============
 
@@ -37,7 +37,9 @@ export type Token =
 // ============ 分词器 ============
 
 class Tokenizer {
-  private htmlTagRegex = /^<(\/?)([a-zA-Z0-9]+)\s*([^>]*?)\s*(\/?)>/;
+  // HTML 标签必须以字母开头，后跟字母、数字、连字符或下划线
+  // 拒绝 <100ms> 这类数字开头的非法标签
+  private htmlTagRegex = /^<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*([^>]*?)\s*(\/?)>/;
   
   // HTML void elements (不需要闭合标签的元素)
   private voidElements = new Set([
@@ -92,14 +94,19 @@ class Tokenizer {
             let codeContent = '';
             
             while (i < text.length) {
-              // 检查是否遇到闭合的 ```
-              if (text[i] === '\n' || i === 0) {
-                const checkRemaining = text.slice(i === 0 ? i : i + 1);
-                if (checkRemaining.startsWith('```')) {
-                  if (i > 0 && text[i] === '\n') {
-                    i++; // 跳过最后一个换行
-                  }
-                  i += 3; // 跳过 ```
+              // 检查是否遇到闭合的 ```，允许前面有最多 3-4 个空格缩进
+              if (text[i] === '\n') {
+                const nextIndex = i + 1;
+                let k = nextIndex;
+                let spaceCount = 0;
+                // 跳过最多 4 个空格（兼容常见 Markdown 缩进习惯）
+                while (k < text.length && text[k] === ' ' && spaceCount < 4) {
+                  k++;
+                  spaceCount++;
+                }
+                if (text.slice(k, k + 3) === '```') {
+                  // 将指针移动到 ``` 之后，结束代码块
+                  i = k + 3;
                   break;
                 }
               }
@@ -298,6 +305,14 @@ class Tokenizer {
 // ============ 解析器 ============
 
 export class CustomParser {
+  private llmThinkTagNames: Set<string>;
+  private llmThinkRules: LlmThinkRule[];
+
+  constructor(llmThinkTagNames: Set<string> = new Set(['think']), llmThinkRules: LlmThinkRule[] = []) {
+    this.llmThinkTagNames = llmThinkTagNames;
+    this.llmThinkRules = llmThinkRules;
+  }
+
   /**
    * 解析完整的 Markdown 文本
    */
@@ -369,6 +384,14 @@ export class CustomParser {
         continue;
       }
 
+      // LLM 思考块（优先处理，在 HTML 块之前）
+      if (token.type === 'html_open' && this.llmThinkTagNames.has(token.tagName)) {
+        const { node, nextIndex } = this.parseLlmThinkBlock(tokens, i);
+        if (node) blocks.push(node);
+        i = nextIndex;
+        continue;
+      }
+
       // HTML 块（只处理块级标签）
       if (token.type === 'html_open') {
         const blockLevelTags = ['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'details', 'summary', 'p'];
@@ -380,7 +403,7 @@ export class CustomParser {
           i = nextIndex;
           continue;
         }
-        // 内联标签，交给段落处理
+        // 内联标签,交给段落处理
       }
 
       // 水平线
@@ -440,6 +463,67 @@ export class CustomParser {
       },
       nextIndex: i
     };
+  }
+
+  /**
+   * 解析 LLM 思考块
+   */
+  private parseLlmThinkBlock(tokens: Token[], start: number): { node: LlmThinkNode | null; nextIndex: number } {
+    const openToken = tokens[start];
+    if (openToken.type !== 'html_open') {
+      return { node: null, nextIndex: start + 1 };
+    }
+
+    const tagName = openToken.tagName;
+    
+    // 查找对应的规则
+    const rule = this.llmThinkRules.find(r => r.tagName === tagName);
+    const ruleId = rule?.id || `auto-${tagName}`;
+    const displayName = rule?.displayName || tagName;
+    const collapsedByDefault = rule?.collapsedByDefault ?? true;
+
+    let i = start + 1;
+
+    // 收集内部令牌，直到找到闭合标签
+    const contentTokens: Token[] = [];
+    let depth = 1;
+
+    while (i < tokens.length && depth > 0) {
+      const t = tokens[i];
+
+      if (t.type === 'html_open' && t.tagName === tagName && !t.selfClosing) {
+        depth++;
+        contentTokens.push(t);
+      } else if (t.type === 'html_close' && t.tagName === tagName) {
+        depth--;
+        if (depth === 0) {
+          i++; // 跳过闭合标签
+          break;
+        }
+        contentTokens.push(t);
+      } else {
+        contentTokens.push(t);
+      }
+      i++;
+    }
+
+    // 将内容解析为块级节点
+    const children = contentTokens.length > 0 ? this.parseBlocks(contentTokens) : [];
+
+    const llmThinkNode: LlmThinkNode = {
+      id: '',
+      type: 'llm_think',
+      props: {
+        rawTagName: tagName,
+        ruleId,
+        displayName,
+        collapsedByDefault
+      },
+      children,
+      meta: { range: { start: 0, end: 0 }, status: 'stable' }
+    };
+
+    return { node: llmThinkNode, nextIndex: i };
   }
 
   /**
@@ -1451,7 +1535,7 @@ export class CustomParser {
 
 // ============ 导出工具函数 ============
 
-export function parseText(text: string): AstNode[] {
-  const parser = new CustomParser();
+export function parseText(text: string, llmThinkTagNames?: Set<string>, llmThinkRules?: LlmThinkRule[]): AstNode[] {
+  const parser = new CustomParser(llmThinkTagNames, llmThinkRules);
   return parser.parse(text);
 }

@@ -11,7 +11,7 @@
     </el-form-item>
 
     <el-form-item label="头像">
-      <IconEditor
+      <AvatarEditor
         :model-value="formData.icon || ''"
         @update:icon="handleIconUpdate"
         :mode="formData.iconMode === 'builtin' ? 'upload' : 'path'"
@@ -59,10 +59,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import IconEditor from "@/components/common/IconEditor.vue";
+import AvatarEditor from "@/components/common/AvatarEditor.vue";
 
 import type { IconMode } from "@/tools/llm-chat/types";
-import type { IconUpdatePayload } from "@/components/common/IconEditor.vue";
+import type { IconUpdatePayload } from "@/components/common/AvatarEditor.vue";
 
 interface UserProfileFormData {
   id?: string; // 允许ID传入

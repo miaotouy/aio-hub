@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     Avatar: typeof import('./components/common/Avatar.vue')['default']
+    AvatarEditor: typeof import('./components/common/AvatarEditor.vue')['default']
     BaseDialog: typeof import('./components/common/BaseDialog.vue')['default']
     ComponentHeader: typeof import('./components/ComponentHeader.vue')['default']
     ConnectorIcon: typeof import('./components/icons/ConnectorIcon.vue')['default']
@@ -19,7 +20,6 @@ declare module 'vue' {
     DropZone: typeof import('./components/common/DropZone.vue')['default']
     DynamicIcon: typeof import('./components/common/DynamicIcon.vue')['default']
     GitBranchIcon: typeof import('./components/icons/GitBranchIcon.vue')['default']
-    IconEditor: typeof import('./components/common/IconEditor.vue')['default']
     IconPresetSelector: typeof import('./components/common/IconPresetSelector.vue')['default']
     IEpArrowDown: typeof import('~icons/ep/arrow-down')['default']
     IEpArrowRight: typeof import('~icons/ep/arrow-right')['default']

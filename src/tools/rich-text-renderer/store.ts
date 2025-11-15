@@ -32,9 +32,9 @@ export const availableVersions: RendererVersionMeta[] = [
   {
     version: RendererVersion.PURE_MARKDOWN_IT,
     name: "Pure Markdown-it",
-    description: "纯 markdown-it 渲染，无增量优化（规划中）",
-    enabled: false,
-    tags: ["规划中"],
+    description: "纯 markdown-it 渲染，无增量优化",
+    enabled: true,
+    tags: ["纯渲染"],
   },
   {
     version: RendererVersion.HYBRID_V3,

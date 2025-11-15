@@ -281,32 +281,32 @@ export interface TableCellNode extends BaseAstNode {
  * 联合类型:所有支持的 AST 节点类型
  */
 export type AstNode =
-   // 内联节点
-   | TextNode
-   | StrongNode
-   | EmNode
-   | StrikethroughNode
-   | InlineCodeNode
-   | LinkNode
-   | HtmlInlineNode
-   | HardBreakNode
-   | GenericHtmlNode // V2 架构新增
- 
-   // 块级节点
-   | ParagraphNode
-   | HeadingNode
-   | CodeBlockNode
-   | MermaidNode
-   | LlmThinkNode    // LLM 思考节点
-   | ListNode
-   | ListItemNode
-   | ImageNode
-   | BlockquoteNode
-   | HrNode
-   | HtmlBlockNode
-   | TableNode
-   | TableRowNode
-   | TableCellNode;
+  // 内联节点
+  | TextNode
+  | StrongNode
+  | EmNode
+  | StrikethroughNode
+  | InlineCodeNode
+  | LinkNode
+  | HtmlInlineNode
+  | HardBreakNode
+  | GenericHtmlNode // V2 架构新增
+
+  // 块级节点
+  | ParagraphNode
+  | HeadingNode
+  | CodeBlockNode
+  | MermaidNode
+  | LlmThinkNode    // LLM 思考节点
+  | ListNode
+  | ListItemNode
+  | ImageNode
+  | BlockquoteNode
+  | HrNode
+  | HtmlBlockNode
+  | TableNode
+  | TableRowNode
+  | TableCellNode;
 // ============ Patch 指令相关类型 ============
 
 /**
@@ -453,19 +453,17 @@ export interface LlmThinkRule {
 // ============ 配置管理相关类型 ============
 
 /**
- /**
-  * 渲染器版本枚举
-  */
- export enum RendererVersion {
-   /** V1 - 基于 markdown-it 的增量解析器（不支持 LLM 思考块） */
-   V1_MARKDOWN_IT = 'v1-markdown-it',
-   /** V2 - 基于 CustomParser 的混合解析器（支持 LLM 思考块） */
-   V2_CUSTOM_PARSER = 'v2-custom-parser',
-   /** Pure Markdown-it - 纯 markdown-it 渲染（未来扩展） */
-   PURE_MARKDOWN_IT = 'pure-markdown-it',
-   /** Hybrid V3 - 混合策略 V3（未来扩展） */
-   HYBRID_V3 = 'hybrid-v3',
- }
+ * 渲染器版本枚举
+ *
+ * 各版本的详细描述和元数据请参考 store.ts 中的 availableVersions
+ */
+export enum RendererVersion {
+  V1_MARKDOWN_IT = 'v1-markdown-it',
+  V2_CUSTOM_PARSER = 'v2-custom-parser',
+  PURE_MARKDOWN_IT = 'pure-markdown-it',
+  HYBRID_V3 = 'hybrid-v3',
+}
+
 /**
  * 渲染器版本元数据
  */

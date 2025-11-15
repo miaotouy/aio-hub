@@ -2,6 +2,7 @@
   <component
     :is="safeTagName"
     v-bind="filteredAttributes"
+    :class="computedClass"
     :data-node-id="nodeId"
   >
     <slot />
@@ -18,7 +19,7 @@ const props = defineProps<{
 }>();
 
 // 验证标签名是否合法
-// HTML 标签名必须以字母开头，只能包含字母、数字、连字符和下划线
+// HTML 标签名必须以字母开头,只能包含字母、数字、连字符和下划线
 // 参考：https://html.spec.whatwg.org/multipage/custom-elements.html#valid-custom-element-name
 const isValidTagName = (tag: string): boolean => {
   // 基本规则：以字母开头，后跟字母、数字、连字符或下划线
@@ -35,6 +36,24 @@ const safeTagName = computed(() => {
   return 'span';
 });
 
+// 为特定标签自动添加 Markdown 样式类
+const computedClass = computed(() => {
+  const classes: string[] = [];
+  
+  // 如果用户提供了 class，先添加
+  if (props.attributes.class) {
+    classes.push(props.attributes.class);
+  }
+  
+  // 为特定的 HTML 标签添加 Markdown 样式
+  // 这样可以让 HTML 块内的这些元素保持与 Markdown 元素相同的视觉效果
+  if (props.tagName === 'blockquote') {
+    classes.push('markdown-blockquote');
+  }
+  
+  return classes.length > 0 ? classes.join(' ') : undefined;
+});
+
 // 过滤和处理属性
 // 移除可能有安全风险的属性，并处理特殊属性
 const filteredAttributes = computed(() => {
@@ -49,10 +68,13 @@ const filteredAttributes = computed(() => {
       continue;
     }
     
-    // 处理特殊属性
+    // 跳过 class，因为我们在 computedClass 中统一处理
     if (lowerKey === 'class') {
-      attrs.class = value;
-    } else if (lowerKey === 'style') {
+      continue;
+    }
+    
+    // 处理特殊属性
+    if (lowerKey === 'style') {
       attrs.style = value;
     } else {
       // 其他属性直接传递
@@ -65,5 +87,12 @@ const filteredAttributes = computed(() => {
 </script>
 
 <style scoped>
-/* GenericHtmlNode 不需要特殊样式，完全依赖传入的属性 */
+/* 为 HTML 块内的 blockquote 添加 Markdown 样式 */
+.markdown-blockquote {
+  margin: 12px 0;
+  padding: 8px 16px;
+  border-left: 4px solid var(--primary-color);
+  background-color: var(--hover-bg);
+  color: var(--text-color-light);
+}
 </style>

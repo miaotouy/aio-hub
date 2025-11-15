@@ -707,9 +707,15 @@ export class CustomParser {
         }
         contentTokens.push(t);
       } else {
-        // 过滤纯空白文本（包括缩进）
+        // 过滤纯空白文本（包括缩进）和换行符
+        // HTML 块内的换行由 HTML 本身控制，不应转换为 Markdown 换行
         if (t.type === "text" && /^\s+$/.test(t.content)) {
           // 跳过纯空白
+          i++;
+          continue;
+        }
+        if (t.type === "newline") {
+          // 跳过 HTML 块内的换行符
           i++;
           continue;
         }
@@ -718,9 +724,19 @@ export class CustomParser {
       i++;
     }
 
-    // 递归解析内部内容（块级元素使用块级解析）
+    // 递归解析内部内容
     if (contentTokens.length > 0) {
-      htmlNode.children = this.parseBlocks(contentTokens);
+      // 特例处理 <summary>：
+      // 1. <summary> 必须作为块级标签被解析，以确保它能成为 <details> 的直接子节点。
+      //    如果从 blockLevelTags 移除，它会被当作内联元素并错误地包裹在 <p> 中，
+      //    破坏 <details> 结构，导致浏览器显示默认标题。
+      // 2. 但其内部内容必须被当作内联元素处理，以防止在 <summary> 内部再生成 <p> 标签导致换行。
+      //    因此，此处强制使用内联解析器 (parseInlines) 处理其子节点。
+      if (tagName === "summary") {
+        htmlNode.children = this.parseInlines(contentTokens);
+      } else {
+        htmlNode.children = this.parseBlocks(contentTokens);
+      }
     }
 
     return { node: htmlNode, nextIndex: i };

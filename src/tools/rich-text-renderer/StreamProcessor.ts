@@ -18,6 +18,8 @@ import type {
   HeadingNode,
   CodeBlockNode,
   MermaidNode,
+  LlmThinkNode,
+  LlmThinkRule,
   ListNode,
   ListItemNode,
   BlockquoteNode,
@@ -41,6 +43,12 @@ import type {
  * 根据架构文档 4.1.2 节实现，用于判断 Markdown 文本的解析安全点。
  */
 class MarkdownBoundaryDetector {
+  private llmThinkTagNames: Set<string>;
+
+  constructor(llmThinkTagNames: Set<string> = new Set()) {
+    this.llmThinkTagNames = llmThinkTagNames;
+  }
+
   /**
    * 判断当前文本的末尾是否是一个安全的解析点。
    * 安全点意味着不存在未闭合的块级结构。
@@ -52,6 +60,7 @@ class MarkdownBoundaryDetector {
     // 不安全情况：
     if (this.isInsideCodeBlock(lines)) return false;
     if (this.isIncompleteTable(lastLines)) return false;
+    if (this.hasUnclosedLlmThinkTags(text)) return false;
     // 更多检查可以按需添加...
 
     return true;
@@ -85,6 +94,38 @@ class MarkdownBoundaryDetector {
       }
     }
     return false;
+  }
+
+  /**
+   * 检查是否存在未闭合的 LLM 思考标签
+   */
+  private hasUnclosedLlmThinkTags(text: string): boolean {
+    const thinkTagStack: string[] = [];
+    const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9_-]*)\s*[^>]*?\s*\/?>/g;
+    let match;
+
+    while ((match = tagRegex.exec(text)) !== null) {
+      const fullTag = match[0];
+      const tagName = match[1].toLowerCase();
+
+      // 只处理 LLM 思考标签
+      if (!this.llmThinkTagNames.has(tagName)) continue;
+
+      // 跳过自闭合标签
+      if (fullTag.endsWith("/>")) continue;
+
+      if (fullTag.startsWith("</")) {
+        // 闭合标签
+        if (thinkTagStack.length > 0 && thinkTagStack[thinkTagStack.length - 1] === tagName) {
+          thinkTagStack.pop();
+        }
+      } else {
+        // 开放标签
+        thinkTagStack.push(tagName);
+      }
+    }
+
+    return thinkTagStack.length > 0;
   }
   
   /**
@@ -132,6 +173,8 @@ export class StreamProcessor {
   private onPatch: (patches: Patch[]) => void;
   private md: MarkdownIt;
   private boundaryDetector: MarkdownBoundaryDetector;
+  private llmThinkTagNames: Set<string>;
+  private llmThinkRules: LlmThinkRule[];
 
   // 状态
   private stableAst: AstNode[] = [];      // 已稳定的节点
@@ -140,7 +183,9 @@ export class StreamProcessor {
 
   constructor(options: StreamProcessorOptions) {
     this.onPatch = options.onPatch;
-    this.boundaryDetector = new MarkdownBoundaryDetector();
+    this.llmThinkTagNames = options.llmThinkTagNames || new Set();
+    this.llmThinkRules = options.llmThinkRules || [];
+    this.boundaryDetector = new MarkdownBoundaryDetector(this.llmThinkTagNames);
     
     this.md = new MarkdownIt({
       html: true, // 启用 HTML 解析
@@ -561,11 +606,65 @@ export class StreamProcessor {
         const children = this.extractTableContent(tokens, index);
         return { id: this.generateNodeId(), type: 'table', props: {}, children, meta } as TableNode;
       }
-      case 'html_block':
+      case 'html_block': {
+        // 检查是否是 LLM 思考块
+        const llmThinkNode = this.tryParseLlmThinkBlock(token.content);
+        if (llmThinkNode) {
+          return llmThinkNode;
+        }
         return { id: this.generateNodeId(), type: 'html_block', props: { content: token.content }, meta } as HtmlBlockNode;
+      }
       default:
         return null;
     }
+  }
+
+  /**
+   * 尝试将 HTML 块解析为 LLM 思考块
+   */
+  private tryParseLlmThinkBlock(htmlContent: string): LlmThinkNode | null {
+    // 匹配开始标签：<tagName>
+    const openTagRegex = /<([a-zA-Z][a-zA-Z0-9_-]*)\s*[^>]*?>/;
+    const openMatch = htmlContent.match(openTagRegex);
+    
+    if (!openMatch) return null;
+    
+    const tagName = openMatch[1].toLowerCase();
+    
+    // 检查是否是 LLM 思考标签
+    if (!this.llmThinkTagNames.has(tagName)) return null;
+    
+    // 查找对应的规则
+    const rule = this.llmThinkRules.find((r) => r.tagName === tagName);
+    const ruleId = rule?.id || `auto-${tagName}`;
+    const displayName = rule?.displayName || tagName;
+    const collapsedByDefault = rule?.collapsedByDefault ?? true;
+    
+    // 提取内容（去除开始和结束标签）
+    const closeTagRegex = new RegExp(`</${tagName}\\s*>`, 'i');
+    let content = htmlContent.replace(openTagRegex, '').replace(closeTagRegex, '').trim();
+    
+    // 检查标签是否闭合
+    const isThinking = !closeTagRegex.test(htmlContent);
+    
+    // 解析内容为 AST
+    const contentTokens = this.md.parse(content, {});
+    const children = this.tokensToAst(contentTokens);
+    
+    return {
+      id: this.generateNodeId(),
+      type: 'llm_think',
+      props: {
+        rawTagName: tagName,
+        ruleId,
+        displayName,
+        collapsedByDefault,
+        rawContent: content,
+        isThinking,
+      },
+      children,
+      meta: { range: { start: 0, end: 0 } },
+    } as LlmThinkNode;
   }
 
   private extractContainerContent(tokens: any[], startIndex: number, closingType: string): AstNode[] {

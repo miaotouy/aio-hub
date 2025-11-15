@@ -18,16 +18,16 @@ export const availableVersions: RendererVersionMeta[] = [
   {
     version: RendererVersion.V1_MARKDOWN_IT,
     name: "V1 - Markdown-it",
-    description: "基于 markdown-it 的增量解析器，支持稳定区/待定区分离",
+    description: "基于 markdown-it 的增量解析器，支持稳定区/待定区分离（不支持 LLM 思考块）",
     enabled: true,
     tags: ["稳定", "增量"],
   },
   {
     version: RendererVersion.V2_CUSTOM_PARSER,
     name: "V2 - Custom Parser",
-    description: "基于 CustomParser 的混合解析器，支持复杂 HTML 嵌套",
+    description: "基于 CustomParser 的混合解析器，支持复杂 HTML 嵌套和 LLM 思考块",
     enabled: true,
-    tags: ["实验性", "HTML"],
+    tags: ["实验性", "HTML", "思考块"],
   },
   {
     version: RendererVersion.PURE_MARKDOWN_IT,

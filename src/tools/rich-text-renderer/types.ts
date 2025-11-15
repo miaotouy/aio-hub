@@ -453,19 +453,19 @@ export interface LlmThinkRule {
 // ============ 配置管理相关类型 ============
 
 /**
- * 渲染器版本枚举
- */
-export enum RendererVersion {
-  /** V1 - 基于 markdown-it 的增量解析器 */
-  V1_MARKDOWN_IT = 'v1-markdown-it',
-  /** V2 - 基于 CustomParser 的混合解析器 */
-  V2_CUSTOM_PARSER = 'v2-custom-parser',
-  /** Pure Markdown-it - 纯 markdown-it 渲染（未来扩展） */
-  PURE_MARKDOWN_IT = 'pure-markdown-it',
-  /** Hybrid V3 - 混合策略 V3（未来扩展） */
-  HYBRID_V3 = 'hybrid-v3',
-}
-
+ /**
+  * 渲染器版本枚举
+  */
+ export enum RendererVersion {
+   /** V1 - 基于 markdown-it 的增量解析器（不支持 LLM 思考块） */
+   V1_MARKDOWN_IT = 'v1-markdown-it',
+   /** V2 - 基于 CustomParser 的混合解析器（支持 LLM 思考块） */
+   V2_CUSTOM_PARSER = 'v2-custom-parser',
+   /** Pure Markdown-it - 纯 markdown-it 渲染（未来扩展） */
+   PURE_MARKDOWN_IT = 'pure-markdown-it',
+   /** Hybrid V3 - 混合策略 V3（未来扩展） */
+   HYBRID_V3 = 'hybrid-v3',
+ }
 /**
  * 渲染器版本元数据
  */

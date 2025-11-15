@@ -19,13 +19,14 @@
             <el-tooltip content="选择渲染器版本进行对比测试" placement="bottom">
               <el-select
                 v-model="rendererVersion"
-                style="width: 200px"
+                style="width: 240px"
               >
                 <el-option
                   v-for="versionMeta in enabledVersions"
                   :key="versionMeta.version"
                   :label="versionMeta.name"
                   :value="versionMeta.version"
+                  :title="versionMeta.description"
                 >
                   <div class="version-option">
                     <span>{{ versionMeta.name }}</span>
@@ -1051,8 +1052,12 @@ onMounted(async () => {
 .version-option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 4px;
   width: 100%;
+}
+
+.version-option span:first-child {
+  flex: 1;
 }
 
 /* 渲染容器 */

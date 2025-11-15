@@ -612,29 +612,32 @@ body.transparent-window #app {
 .el-dropdown__popper,
 .el-message-box,
 .el-popover,
+.el-popper,
 .el-popconfirm__popper,
 .el-picker-panel,
 .el-cascader-panel,
 .el-autocomplete-suggestion,
 .el-color-dropdown,
 .el-notification,
+.el-dialog,
 .el-drawer {
-  background-color: var(--container-bg);
+  background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
+  border-radius: 8px;
   box-shadow: var(--el-box-shadow-lighter);
 }
 
-.el-drawer{
-  padding-top: 36px
+.el-drawer {
+  padding-top: 36px;
 }
 
-.el-popper,
 .el-slider__runway,
 .el-progress-bar__outer,
 .el-card,
 .el-table,
-.el-tag{
+.el-tag,
+.el-step__icon {
   background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
 }

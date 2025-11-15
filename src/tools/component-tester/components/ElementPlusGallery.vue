@@ -196,6 +196,7 @@
 
     <div class="section">
       <h2 class="section-title">卡片 Card</h2>
+      <h3 class="subsection-title">自定义 InfoCard 组件</h3>
       <div class="card-demo">
         <InfoCard title="卡片标题">
           <template #headerExtra>
@@ -205,6 +206,24 @@
         </InfoCard>
         <InfoCard content="鼠标悬浮时显示阴影" shadow="hover" />
         <InfoCard content="始终显示阴影" shadow="always" />
+      </div>
+      <h3 class="subsection-title">原生 el-card 组件</h3>
+      <div class="card-demo">
+        <el-card>
+          <template #header>
+            <div class="card-header">
+              <span>卡片标题</span>
+              <el-button text>操作按钮</el-button>
+            </div>
+          </template>
+          <div>卡片内容</div>
+        </el-card>
+        <el-card shadow="hover">
+          <div>鼠标悬浮时显示阴影</div>
+        </el-card>
+        <el-card shadow="always">
+          <div>始终显示阴影</div>
+        </el-card>
       </div>
     </div>
 
@@ -283,16 +302,34 @@
 
     <div class="section">
       <h2 class="section-title">对话框 Dialog</h2>
-      <el-button @click="dialogVisible = true">打开对话框</el-button>
-      <BaseDialog v-model="dialogVisible" title="提示" width="500">
-        <span>这是一段信息</span>
-        <template #footer>
-          <div class="dialog-footer">
-            <el-button @click="dialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="dialogVisible = false">确定</el-button>
-          </div>
-        </template>
-      </BaseDialog>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <div>
+          <h3 class="subsection-title">自定义 BaseDialog 组件</h3>
+          <el-button @click="dialogVisible = true">打开 BaseDialog</el-button>
+          <BaseDialog v-model="dialogVisible" title="提示" width="500">
+            <span>这是一段信息（BaseDialog）</span>
+            <template #footer>
+              <div class="dialog-footer">
+                <el-button @click="dialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="dialogVisible = false">确定</el-button>
+              </div>
+            </template>
+          </BaseDialog>
+        </div>
+        <div>
+          <h3 class="subsection-title">原生 el-dialog 组件</h3>
+          <el-button @click="nativeDialogVisible = true">打开 el-dialog</el-button>
+          <el-dialog v-model="nativeDialogVisible" title="提示" width="500">
+            <span>这是一段信息（el-dialog）</span>
+            <template #footer>
+              <div class="dialog-footer">
+                <el-button @click="nativeDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="nativeDialogVisible = false">确定</el-button>
+              </div>
+            </template>
+          </el-dialog>
+        </div>
+      </div>
     </div>
 
     <div class="section">
@@ -408,6 +445,7 @@ const collapseValue = ref(['1']);
 
 // 对话框和抽屉
 const dialogVisible = ref(false);
+const nativeDialogVisible = ref(false);
 const drawerVisible = ref(false);
 
 // 分页
@@ -605,6 +643,14 @@ const timelineEvents = ref([
   font-weight: 600;
   border-bottom: 2px solid var(--el-color-primary);
   padding-bottom: 8px;
+}
+
+.subsection-title {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .button-demo,

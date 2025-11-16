@@ -592,6 +592,127 @@ export function useNodeManager() {
     });
   };
 
+  /**
+   * 将一个节点及其整个子树重新挂载到另一个父节点下（嫁接功能）
+   *
+   * 用于会话树图中的拖拽嫁接操作。
+   *
+   * @param session - 当前会话
+   * @param nodeId - 要移动的节点 ID
+   * @param newParentId - 新的父节点 ID
+   * @returns 操作是否成功
+   */
+  const reparentSubtree = (
+    session: ChatSession,
+    nodeId: string,
+    newParentId: string
+  ): boolean => {
+    logger.info('🌿 [嫁接] 开始嫁接子树', {
+      sessionId: session.id,
+      nodeId,
+      newParentId,
+    });
+
+    // 验证节点存在性
+    const node = session.nodes[nodeId];
+    const newParent = session.nodes[newParentId];
+
+    if (!node) {
+      logger.warn('🌿 [嫁接] 失败：源节点不存在', {
+        sessionId: session.id,
+        nodeId,
+      });
+      return false;
+    }
+
+    if (!newParent) {
+      logger.warn('🌿 [嫁接] 失败：目标父节点不存在', {
+        sessionId: session.id,
+        newParentId,
+      });
+      return false;
+    }
+
+    // 不允许嫁接根节点
+    if (node.id === session.rootNodeId) {
+      logger.warn('🌿 [嫁接] 失败：不能嫁接根节点', {
+        sessionId: session.id,
+        nodeId,
+      });
+      return false;
+    }
+
+    // 不允许嫁接到自己
+    if (nodeId === newParentId) {
+      logger.warn('🌿 [嫁接] 失败：不能将节点嫁接到自己', {
+        sessionId: session.id,
+        nodeId,
+      });
+      return false;
+    }
+
+    // 防止循环引用：检查新父节点是否是当前节点的子孙
+    const descendants = getAllDescendants(session, nodeId);
+    const descendantIds = new Set(descendants.map(d => d.id));
+    
+    if (descendantIds.has(newParentId)) {
+      logger.warn('🌿 [嫁接] 失败：目标父节点是源节点的子孙，会形成循环', {
+        sessionId: session.id,
+        nodeId,
+        newParentId,
+      });
+      return false;
+    }
+
+    // 如果已经是该父节点的子节点，无需操作
+    if (node.parentId === newParentId) {
+      logger.info('🌿 [嫁接] 节点已经是目标父节点的子节点，无需操作', {
+        sessionId: session.id,
+        nodeId,
+        newParentId,
+      });
+      return true;
+    }
+
+    const oldParentId = node.parentId;
+
+    // 从旧父节点的 childrenIds 中移除
+    if (oldParentId) {
+      const oldParent = session.nodes[oldParentId];
+      if (oldParent) {
+        const oldChildrenCount = oldParent.childrenIds.length;
+        oldParent.childrenIds = oldParent.childrenIds.filter(id => id !== nodeId);
+        logger.debug('🌿 [嫁接] 从旧父节点移除引用', {
+          oldParentId,
+          oldChildrenCount,
+          newChildrenCount: oldParent.childrenIds.length,
+        });
+      }
+    }
+
+    // 更新节点的 parentId
+    node.parentId = newParentId;
+
+    // 将节点添加到新父节点的 childrenIds 中
+    if (!newParent.childrenIds.includes(nodeId)) {
+      newParent.childrenIds.push(nodeId);
+    }
+
+    // 更新会话时间戳
+    session.updatedAt = new Date().toISOString();
+
+    logger.info('🌿 [嫁接] 嫁接成功', {
+      sessionId: session.id,
+      nodeId,
+      role: node.role,
+      oldParentId,
+      newParentId,
+      newParentChildrenCount: newParent.childrenIds.length,
+    });
+
+    return true;
+  };
+
   return {
     generateNodeId,
     createNode,
@@ -606,5 +727,6 @@ export function useNodeManager() {
     getNodePath,
     getAllDescendants,
     transferChildren,
+    reparentSubtree,
   };
 }

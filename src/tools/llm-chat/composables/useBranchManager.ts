@@ -263,6 +263,35 @@ export function useBranchManager() {
     return BranchNavigator.getSiblingIndex(session, nodeId);
   };
 
+  /**
+   * 嫁接分支（将一个节点及其整个子树移动到另一个父节点下）
+   *
+   * 这是会话树图中拖拽嫁接操作的业务层封装。
+   *
+   * @param session - 当前会话
+   * @param nodeId - 要移动的节点 ID
+   * @param newParentId - 新的父节点 ID
+   * @returns 操作是否成功
+   */
+  const graftBranch = (
+    session: ChatSession,
+    nodeId: string,
+    newParentId: string
+  ): boolean => {
+    const nodeManager = useNodeManager();
+    const success = nodeManager.reparentSubtree(session, nodeId, newParentId);
+
+    if (success) {
+      logger.info('分支已嫁接', {
+        sessionId: session.id,
+        nodeId,
+        newParentId,
+      });
+    }
+
+    return success;
+  };
+
   return {
     deleteMessage,
     switchBranch,
@@ -274,5 +303,6 @@ export function useBranchManager() {
     getSiblings,
     isNodeInActivePath,
     getSiblingIndex,
+    graftBranch,
   };
 }

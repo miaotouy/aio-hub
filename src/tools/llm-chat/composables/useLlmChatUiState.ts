@@ -34,6 +34,9 @@ export interface LlmChatUiState {
   advancedParamsExpanded: boolean;
   specialFeaturesExpanded: boolean;
   
+  // 会话视图模式
+  viewMode: 'linear' | 'graph';
+  
   // 配置版本
   version?: string;
 }
@@ -51,6 +54,7 @@ const defaultUiState: LlmChatUiState = {
   basicParamsExpanded: true,
   advancedParamsExpanded: false,
   specialFeaturesExpanded: false,
+  viewMode: 'linear',
   version: '1.0.0',
 };
 
@@ -78,6 +82,7 @@ const presetMessagesExpanded = ref(defaultUiState.presetMessagesExpanded);
 const basicParamsExpanded = ref(defaultUiState.basicParamsExpanded);
 const advancedParamsExpanded = ref(defaultUiState.advancedParamsExpanded);
 const specialFeaturesExpanded = ref(defaultUiState.specialFeaturesExpanded);
+const viewMode = ref<'linear' | 'graph'>(defaultUiState.viewMode);
 
 // 是否已初始化
 let isInitialized = false;
@@ -105,6 +110,7 @@ export function useLlmChatUiState() {
       basicParamsExpanded.value = state.basicParamsExpanded;
       advancedParamsExpanded.value = state.advancedParamsExpanded;
       specialFeaturesExpanded.value = state.specialFeaturesExpanded;
+      viewMode.value = state.viewMode;
       
       isInitialized = true;
       logger.info('UI状态加载成功', state);
@@ -136,6 +142,7 @@ export function useLlmChatUiState() {
       basicParamsExpanded: basicParamsExpanded.value,
       advancedParamsExpanded: advancedParamsExpanded.value,
       specialFeaturesExpanded: specialFeaturesExpanded.value,
+      viewMode: viewMode.value,
     };
     
     debouncedSave(state);
@@ -160,6 +167,7 @@ export function useLlmChatUiState() {
         basicParamsExpanded,
         advancedParamsExpanded,
         specialFeaturesExpanded,
+        viewMode,
       ],
       () => {
         saveUiState();
@@ -187,6 +195,7 @@ export function useLlmChatUiState() {
       basicParamsExpanded.value = defaultUiState.basicParamsExpanded;
       advancedParamsExpanded.value = defaultUiState.advancedParamsExpanded;
       specialFeaturesExpanded.value = defaultUiState.specialFeaturesExpanded;
+      viewMode.value = defaultUiState.viewMode;
       
       logger.info('UI状态已重置');
     } catch (error) {
@@ -207,6 +216,7 @@ export function useLlmChatUiState() {
     basicParamsExpanded,
     advancedParamsExpanded,
     specialFeaturesExpanded,
+    viewMode,
     
     // 方法
     loadUiState,

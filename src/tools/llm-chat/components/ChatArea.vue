@@ -15,6 +15,8 @@ import MessageNavigator from "./message/MessageNavigator.vue";
 import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
+import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
+import ConversationTreeGraph from "./conversation-tree-graph/ConversationTreeGraph.vue";
 import { Setting } from "@element-plus/icons-vue";
 
 const logger = createModuleLogger("ChatArea");
@@ -64,7 +66,12 @@ import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useResolvedAvatar } from "../composables/useResolvedAvatar";
+import { useLlmChatUiState } from "../composables/useLlmChatUiState";
+import { useLlmChatStore } from "../store";
+
 const agentStore = useAgentStore();
+const { viewMode } = useLlmChatUiState();
+const llmChatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
@@ -495,6 +502,9 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- 视图模式切换器 -->
+      <ViewModeSwitcher />
+
       <!-- 用户档案信息（右对齐） -->
       <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
         <span class="profile-name">{{ effectiveUserProfile.name }}</span>
@@ -525,33 +535,41 @@ onMounted(async () => {
       <div class="chat-content">
         <!-- 消息列表容器 - 用于弹性布局 -->
         <div class="message-list-wrapper">
-          <!-- 消息列表 -->
-          <MessageList
-            ref="messageListRef"
-            :messages="finalMessages"
-            :is-sending="finalIsSending"
-            :llm-think-rules="currentAgent?.llmThinkRules"
-            @delete-message="handleDeleteMessage"
-            @regenerate="handleRegenerate"
-            @switch-sibling="handleSwitchSibling"
-            @toggle-enabled="handleToggleEnabled"
-            @edit-message="handleEditMessage"
-            @abort-node="handleAbortNode"
-            @create-branch="handleCreateBranch"
-            @analyze-context="handleAnalyzeContext"
-          />
+          <!-- 根据 viewMode 动态渲染不同的视图 -->
+          <template v-if="viewMode === 'linear'">
+            <!-- 消息列表 -->
+            <MessageList
+              ref="messageListRef"
+              :messages="finalMessages"
+              :is-sending="finalIsSending"
+              :llm-think-rules="currentAgent?.llmThinkRules"
+              @delete-message="handleDeleteMessage"
+              @regenerate="handleRegenerate"
+              @switch-sibling="handleSwitchSibling"
+              @toggle-enabled="handleToggleEnabled"
+              @edit-message="handleEditMessage"
+              @abort-node="handleAbortNode"
+              @create-branch="handleCreateBranch"
+              @analyze-context="handleAnalyzeContext"
+            />
 
-          <!-- 消息导航器 -->
-          <MessageNavigator
-            v-if="settings.uiPreferences.showMessageNavigator"
-            :scroll-element="scrollElement"
-            :message-count="finalMessages.length"
-            :has-new-messages="hasNewMessages"
-            @scroll-to-top="handleScrollToTop"
-            @scroll-to-bottom="handleScrollToBottom"
-            @scroll-to-next="handleScrollToNext"
-            @scroll-to-prev="handleScrollToPrev"
-          />
+            <!-- 消息导航器 -->
+            <MessageNavigator
+              v-if="settings.uiPreferences.showMessageNavigator"
+              :scroll-element="scrollElement"
+              :message-count="finalMessages.length"
+              :has-new-messages="hasNewMessages"
+              @scroll-to-top="handleScrollToTop"
+              @scroll-to-bottom="handleScrollToBottom"
+              @scroll-to-next="handleScrollToNext"
+              @scroll-to-prev="handleScrollToPrev"
+            />
+          </template>
+
+          <!-- 树图视图 -->
+          <template v-else-if="viewMode === 'graph'">
+            <ConversationTreeGraph :session="llmChatStore.currentSession" />
+          </template>
         </div>
 
         <!-- 输入框 -->
@@ -870,7 +888,6 @@ onMounted(async () => {
 .chat-area-container.detached-mode .indicator-handle:active ~ .indicator-border {
   opacity: 0.5;
 }
-
 /* MessageInput 两侧边距，增强层次感 */
 .chat-message-input {
   margin-left: 8px;

@@ -871,6 +871,27 @@ export const useLlmChatStore = defineStore("llmChat", {
       }
     },
 
+    /**
+     * 嫁接分支（将一个节点及其子树移动到另一个父节点下）
+     * 用于会话树图中的拖拽嫁接操作
+     */
+    graftBranch(nodeId: string, newParentId: string): void {
+      const session = this.currentSession;
+      if (!session) {
+        logger.warn("嫁接分支失败：没有活动会话");
+        return;
+      }
+
+      const branchManager = useBranchManager();
+      const success = branchManager.graftBranch(session, nodeId, newParentId);
+
+      if (success) {
+        const sessionManager = useSessionManager();
+        sessionManager.updateSessionDisplayAgent(session);
+        sessionManager.persistSession(session, this.currentSessionId);
+      }
+    },
+
     // ==================== 参数管理 ====================
 
     /**

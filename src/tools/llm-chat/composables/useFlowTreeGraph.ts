@@ -6,6 +6,8 @@ import { BranchNavigator } from "../utils/BranchNavigator";
 import { useLlmChatStore } from "../store";
 import { useAgentStore } from "../agentStore";
 import { useUserProfileStore } from "../userProfileStore";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
 import { createModuleLogger } from "@/utils/logger";
 import type { MenuItem } from "../components/conversation-tree-graph/ContextMenu.vue";
 
@@ -34,10 +36,23 @@ interface FlowNode {
     contentPreview: string;
     isActiveLeaf: boolean;
     isEnabled: boolean;
+    timestamp: string;
+    role: 'user' | 'assistant' | 'system';
+    subtitleInfo: {
+      profileName: string;
+      profileIcon: string | undefined;
+      modelName: string;
+      modelIcon: string | undefined;
+    } | null;
     colors: {
       background: string;
       border: string;
     };
+    tokens?: {
+      total: number;
+      prompt?: number;
+      completion?: number;
+    } | null;
     _node: ChatMessageNode;
   };
 }
@@ -81,6 +96,8 @@ export function useFlowTreeGraph(
   contextMenuState: Ref<ContextMenuState>
 ) {
   const store = useLlmChatStore();
+  const { getProfileById } = useLlmProfiles();
+  const { getModelIcon } = useModelMetadata();
 
   // Vue Flow 的节点和边数据（响应式）
   const nodes = ref<FlowNode[]>([]);
@@ -236,6 +253,42 @@ export function useFlowTreeGraph(
   /**
    * 获取角色的头像和显示名称
    */
+  /**
+   * 获取副标题信息（模型、渠道）
+   */
+  function getSubtitleInfo(node: ChatMessageNode) {
+    const agentStore = useAgentStore();
+    const metadata = node.metadata;
+    if (!metadata || node.role !== 'assistant') return null;
+
+    const agent = metadata.agentId ? agentStore.getAgentById(metadata.agentId) : null;
+
+    const profileId = metadata.profileId || agent?.profileId;
+    const modelId = metadata.modelId || agent?.modelId;
+
+    if (!profileId || !modelId) return null;
+
+    const profile = getProfileById(profileId);
+    if (!profile) return null;
+
+    const model = profile.models.find(m => m.id === modelId);
+    if (!model) return null;
+
+    const modelIcon = getModelIcon(model);
+    const profileIcon = profile.icon || profile.logoUrl;
+    const displayModelName = metadata.modelName || model.name || model.id;
+
+    return {
+      profileName: profile.name,
+      profileIcon: profileIcon,
+      modelName: displayModelName,
+      modelIcon: modelIcon || undefined
+    };
+  }
+
+  /**
+   * 获取角色的头像和显示名称
+   */
   function getRoleDisplay(node: ChatMessageNode): { icon: string; name: string } {
     const agentStore = useAgentStore();
     const userProfileStore = useUserProfileStore();
@@ -325,6 +378,21 @@ export function useFlowTreeGraph(
       const isEnabled = node.isEnabled !== false;
       const roleDisplay = getRoleDisplay(node);
       const contentPreview = truncateText(node.content, 150);
+      const subtitleInfo = getSubtitleInfo(node);
+
+      // 提取 Token 信息
+      let tokens: { total: number; prompt?: number; completion?: number } | null = null;
+      if (node.metadata?.usage) {
+        tokens = {
+          total: node.metadata.usage.totalTokens,
+          prompt: node.metadata.usage.promptTokens,
+          completion: node.metadata.usage.completionTokens,
+        };
+      } else if (node.metadata?.contentTokens) {
+        tokens = {
+          total: node.metadata.contentTokens,
+        };
+      }
 
       const previousNode = previousNodesMap.get(node.id);
       // 如果存在旧节点，则继承其位置，否则使用(0,0)作为初始位置，后续由D3计算
@@ -342,7 +410,11 @@ export function useFlowTreeGraph(
           contentPreview,
           isActiveLeaf,
           isEnabled,
+          timestamp: node.timestamp,
+          role: node.role,
+          subtitleInfo,
           colors,
+          tokens,
           _node: node,
         },
       };
@@ -663,6 +735,59 @@ export function useFlowTreeGraph(
   }
 
   /**
+   * 处理节点复制事件
+   */
+  function handleNodeCopy(nodeId: string): void {
+    const session = sessionRef();
+    if (!session) return;
+
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    navigator.clipboard.writeText(node.content).then(() => {
+      logger.info("节点内容已复制", { nodeId });
+    }).catch(error => {
+      logger.error("复制失败", error);
+    });
+  }
+
+  /**
+   * 处理节点启用/禁用切换
+   */
+  function handleNodeToggleEnabled(nodeId: string): void {
+    logger.info("切换节点启用状态", { nodeId });
+    store.toggleNodeEnabled(nodeId);
+  }
+
+  /**
+   * 处理节点删除事件
+   */
+  function handleNodeDelete(nodeId: string): void {
+    const session = sessionRef();
+    if (!session) return;
+
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    // 根节点不允许删除
+    if (node.id === session.rootNodeId) {
+      logger.warn("根节点不允许删除");
+      return;
+    }
+
+    logger.info("删除节点", { nodeId });
+    store.deleteMessage(nodeId);
+  }
+
+  /**
+   * 处理查看详情事件
+   */
+  function handleNodeViewDetail(nodeId: string): void {
+    logger.info("查看节点详情（切换分支）", { nodeId });
+    store.switchBranch(nodeId);
+  }
+
+  /**
    * 清理资源
    */
   function destroy(): void {
@@ -680,6 +805,10 @@ export function useFlowTreeGraph(
     handleNodeDoubleClick,
     handleNodeDragStop,
     handleNodeContextMenu,
+    handleNodeCopy,
+    handleNodeToggleEnabled,
+    handleNodeDelete,
+    handleNodeViewDetail,
     updateChart,
     updateNodeDimensions, // 暴露给 Vue 组件使用
     destroy,

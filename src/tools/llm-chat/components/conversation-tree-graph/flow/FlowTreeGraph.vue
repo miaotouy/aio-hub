@@ -21,8 +21,14 @@
       <Controls />
       
       <!-- 自定义节点 -->
-      <template #node-custom="{ data }">
-        <GraphNode :data="data" />
+      <template #node-custom="{ data, id }">
+        <GraphNode
+          :data="data"
+          @copy="handleNodeCopy(id)"
+          @toggle-enabled="handleNodeToggleEnabled(id)"
+          @delete="handleNodeDelete(id)"
+          @view-detail="handleNodeViewDetail(id)"
+        />
       </template>
     </VueFlow>
     
@@ -77,6 +83,10 @@ const {
   handleNodeDoubleClick,
   handleNodeDragStop,
   handleNodeContextMenu: onNodeContextMenu,
+  handleNodeCopy,
+  handleNodeToggleEnabled,
+  handleNodeDelete,
+  handleNodeViewDetail,
   updateChart,
   updateNodeDimensions,
 } = useFlowTreeGraph(() => props.session, contextMenu);

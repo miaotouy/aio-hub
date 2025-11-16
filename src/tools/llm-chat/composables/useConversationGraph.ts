@@ -73,42 +73,65 @@ export function useConversationGraph(
   }
 
   /**
-   * 根据节点状态计算颜色
+   * 获取当前主题（明暗）
    */
-  function getNodeColor(session: ChatSession, node: ChatMessageNode): { background: string; border: string } {
+  function isDarkTheme(): boolean {
+    return document.documentElement.classList.contains('dark');
+  }
+
+  /**
+   * 根据节点状态计算颜色（适配主题）
+   */
+  function getNodeColor(session: ChatSession, node: ChatMessageNode): {
+    background: string;
+    border: string;
+    highlight: { background: string; border: string };
+    hover: { background: string; border: string };
+  } {
     const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
     const isActiveLeaf = node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false;
 
-    // 基础颜色（根据角色）
+    const dark = isDarkTheme();
+    
+    // 基础颜色（根据角色和主题）
     let baseColor: string;
+    let gradientColor: string;
     switch (node.role) {
       case "user":
-        baseColor = "#409eff"; // Element Plus 主题色
+        baseColor = dark ? "#409eff" : "#409eff";
+        gradientColor = dark ? "#66b1ff" : "#79bbff";
         break;
       case "assistant":
-        baseColor = "#67c23a"; // 绿色
+        baseColor = dark ? "#67c23a" : "#67c23a";
+        gradientColor = dark ? "#85ce61" : "#95d475";
         break;
       case "system":
-        baseColor = "#e6a23c"; // 橙色
+        baseColor = dark ? "#e6a23c" : "#e6a23c";
+        gradientColor = dark ? "#ebb563" : "#eebe77";
         break;
       default:
-        baseColor = "#909399";
+        baseColor = dark ? "#909399" : "#909399";
+        gradientColor = dark ? "#a6a9ad" : "#b1b3b8";
     }
 
-    // 禁用节点：置灰
+    // 禁用节点：置灰（适配主题）
     if (!isEnabled) {
       return {
-        background: "#d3d3d3",
-        border: "#999",
+        background: dark ? "#4a4a4a" : "#d3d3d3",
+        border: dark ? "#666666" : "#999999",
+        highlight: { background: dark ? "#5a5a5a" : "#e0e0e0", border: dark ? "#777777" : "#888888" },
+        hover: { background: dark ? "#5a5a5a" : "#e0e0e0", border: dark ? "#777777" : "#888888" },
       };
     }
 
-    // 当前叶节点：红色边框高亮
+    // 当前叶节点：红色边框高亮 + 发光效果
     if (isActiveLeaf) {
       return {
         background: baseColor,
         border: "#f56c6c",
+        highlight: { background: gradientColor, border: "#f78989" },
+        hover: { background: gradientColor, border: "#f78989" },
       };
     }
 
@@ -117,13 +140,17 @@ export function useConversationGraph(
       return {
         background: baseColor,
         border: baseColor,
+        highlight: { background: gradientColor, border: gradientColor },
+        hover: { background: gradientColor, border: gradientColor },
       };
     }
 
     // 非活动路径：半透明
     return {
-      background: baseColor + "80", // 添加 alpha 通道
-      border: baseColor + "80",
+      background: baseColor + "60",
+      border: baseColor + "60",
+      highlight: { background: baseColor + "80", border: baseColor + "80" },
+      hover: { background: baseColor + "80", border: baseColor + "80" },
     };
   }
 
@@ -154,26 +181,48 @@ export function useConversationGraph(
       const colors = getNodeColor(session, node);
       const isActiveLeaf = node.id === session.activeLeafId;
       const isEnabled = node.isEnabled !== false;
+      const siblingInfo = BranchNavigator.getSiblingIndex(session, node.id);
 
       return {
         id: node.id,
-        label: `${truncateText(node.content)}\n[${node.role}]`,
+        label: `${truncateText(node.content, 40)}\n[${node.role}]`,
         shape: getNodeShape(node.role),
-        level: depth, // 用于层级布局
+        level: depth,
         color: {
           background: colors.background,
           border: colors.border,
-          highlight: {
-            background: colors.background,
-            border: "#f56c6c",
+          highlight: colors.highlight,
+          hover: colors.hover,
+        },
+        borderWidth: isActiveLeaf ? 5 : 2,
+        borderWidthSelected: 4,
+        opacity: isEnabled ? 1 : 0.5,
+        shadow: isActiveLeaf ? {
+          enabled: true,
+          color: 'rgba(245, 108, 108, 0.5)',
+          size: 15,
+          x: 0,
+          y: 0,
+        } : {
+          enabled: true,
+          color: 'rgba(0, 0, 0, 0.2)',
+          size: 10,
+          x: 2,
+          y: 2,
+        },
+        font: {
+          size: 13,
+          color: isEnabled 
+            ? (isDarkTheme() ? "#e0e0e0" : "#333333")
+            : (isDarkTheme() ? "#666666" : "#999999"),
+          face: "Arial, sans-serif",
+          multi: true,
+          bold: {
+            color: isDarkTheme() ? "#ffffff" : "#000000",
+            size: 14,
           },
         },
-        borderWidth: isActiveLeaf ? 4 : 2,
-        opacity: isEnabled ? 1 : 0.4,
-        font: {
-          size: 12,
-          color: "#333",
-        },
+        title: `角色: ${node.role}\n状态: ${node.isEnabled !== false ? '✅ 启用' : '❌ 禁用'}\n分支: ${siblingInfo.index + 1}/${siblingInfo.total}\n\n内容:\n${truncateText(node.content, 200)}`,
         // 存储原始节点引用，用于交互
         _node: node,
       } as Node & { _node: ChatMessageNode };
@@ -191,24 +240,40 @@ export function useConversationGraph(
     Object.values(session.nodes).forEach((node) => {
       if (node.parentId) {
         const color = getEdgeColor(session, node.parentId, node.id);
-        const isOnActivePath = 
+        const isOnActivePath =
           BranchNavigator.isNodeInActivePath(session, node.parentId) &&
           BranchNavigator.isNodeInActivePath(session, node.id);
 
         edges.push({
           from: node.parentId,
           to: node.id,
-          arrows: "to",
+          arrows: {
+            to: {
+              enabled: true,
+              scaleFactor: 0.8,
+              type: "arrow",
+            },
+          },
           color: {
             color: color,
             highlight: "#409eff",
+            hover: "#409eff",
+            opacity: isOnActivePath ? 1 : 0.5,
           },
-          width: isOnActivePath ? 3 : 1,
+          width: isOnActivePath ? 3 : 1.5,
+          selectionWidth: 2,
           smooth: {
             enabled: true,
             type: "cubicBezier",
-            roundness: 0.2,
+            roundness: 0.3,
           },
+          shadow: isOnActivePath ? {
+            enabled: true,
+            color: 'rgba(64, 158, 255, 0.3)',
+            size: 8,
+            x: 0,
+            y: 0,
+          } : undefined,
         });
       }
     });
@@ -260,7 +325,11 @@ export function useConversationGraph(
         left: 10,
       },
       widthConstraint: {
+        minimum: 80,
         maximum: 200,
+      },
+      shapeProperties: {
+        borderRadius: 8,
       },
     },
     edges: {
@@ -270,6 +339,7 @@ export function useConversationGraph(
         forceDirection: "vertical",
         roundness: 0.4,
       },
+      hoverWidth: 1.5,
     },
   };
 
@@ -290,20 +360,24 @@ export function useConversationGraph(
   }
 
   /**
-   * 处理右键菜单
+   * 处理右键菜单（原生 DOM 事件）
    */
-  function handleContextMenu(params: any): void {
-    if (!params.nodes || params.nodes.length === 0) return;
+  function handleContextMenu(event: MouseEvent): void {
+    // 阻止浏览器默认右键菜单
+    event.preventDefault();
+    
+    if (!networkInstance) return;
 
-    const nodeId = params.nodes[0];
+    // 获取鼠标位置对应的节点
+    const nodeId = networkInstance.getNodeAt({ x: event.offsetX, y: event.offsetY });
+    
+    if (!nodeId) return;
+
     const session = sessionRef();
     if (!session) return;
 
-    const node = session.nodes[nodeId];
+    const node = session.nodes[String(nodeId)];
     if (!node) return;
-
-    // 阻止浏览器默认右键菜单
-    params.event.preventDefault();
 
     // 构建菜单项
     const items: MenuItem[] = [];
@@ -346,8 +420,8 @@ export function useConversationGraph(
     // 显示上下文菜单
     contextMenuState.value = {
       visible: true,
-      x: params.pointer.DOM.x,
-      y: params.pointer.DOM.y,
+      x: event.clientX,
+      y: event.clientY,
       items,
     };
   }
@@ -380,6 +454,9 @@ export function useConversationGraph(
     }
   }
 
+  // 保存容器引用用于清理
+  let containerRef: HTMLElement | null = null;
+
   /**
    * 初始化 Vis.js Network 实例
    */
@@ -391,12 +468,13 @@ export function useConversationGraph(
       const data: Data = { nodes, edges };
 
       networkInstance = new Network(container, data, networkOptions);
+      containerRef = container;
 
       // 绑定双击事件（分支切换）
       networkInstance.on("doubleClick", handleDoubleClick);
 
-      // 绑定右键菜单事件
-      networkInstance.on("oncontext", handleContextMenu);
+      // 绑定原生右键菜单事件
+      container.addEventListener("contextmenu", handleContextMenu);
 
       // 绑定拖拽结束事件（嫁接功能）
       networkInstance.on("dragEnd", handleDragEnd);
@@ -431,6 +509,12 @@ export function useConversationGraph(
    */
   function destroy(): void {
     if (networkInstance) {
+      // 移除事件监听器
+      if (containerRef) {
+        containerRef.removeEventListener("contextmenu", handleContextMenu);
+        containerRef = null;
+      }
+      
       networkInstance.destroy();
       networkInstance = null;
       logger.info("Vis.js Network 已销毁");

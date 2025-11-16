@@ -92,4 +92,31 @@ watch(
   border-radius: 8px;
 }
 </style>
+
+<style>
+/* Vis.js Tooltip 主题适配（全局样式，影响整个应用） */
+.vis-tooltip {
+  position: absolute;
+  visibility: hidden;
+  padding: 12px 16px !important;
+  white-space: pre-wrap !important;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  color: var(--el-text-color-regular) !important;
+  background-color: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+  backdrop-filter: blur(var(--ui-blur)) !important;
+  max-width: 400px !important;
+  word-break: break-word !important;
+  z-index: 10000 !important;
+}
+
+/* 暗色主题下增强对比度 */
+.dark .vis-tooltip {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+</style>
 ]]>

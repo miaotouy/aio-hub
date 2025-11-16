@@ -80,33 +80,26 @@
           refY="3.5"
           orient="auto"
         >
-          <polygon points="0 0, 10 3.5, 0 7" fill="#ff6b6b" />
+          <polygon points="0 0, 10 3.5, 0 7" class="debug-link-arrow" />
         </marker>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
 
       <!-- 绘制连线 -->
       <g class="debug-links">
         <g v-for="link in debugLinkPaths" :key="link?.id">
-          <!-- 连线路径 -->
-          <path
-            :d="link?.path"
-            stroke="#ff6b6b"
-            stroke-width="2"
-            fill="none"
-            stroke-dasharray="5,5"
-            marker-end="url(#arrowhead-debug)"
-          />
-          <!-- 连线信息文本 -->
+          <path :d="link?.path" class="debug-link-path" marker-end="url(#arrowhead-debug)" />
           <text
             v-if="link?.midpoint"
             :x="link.midpoint.x"
             :y="link.midpoint.y"
-            fill="#ffffff"
-            font-size="10"
-            font-family="monospace"
-            text-anchor="middle"
-            dominant-baseline="middle"
-            class="debug-text"
+            class="debug-text debug-link-text"
           >
             {{ link.debugText }}
           </text>
@@ -116,80 +109,61 @@
       <!-- 绘制节点 -->
       <g class="debug-nodes">
         <g v-for="node in debugNodeRects" :key="node.id">
-          <!-- 节点矩形边界 -->
           <rect
             :x="node.x"
             :y="node.y"
             :width="node.width"
             :height="node.height"
-            fill="rgba(255, 107, 107, 0.1)"
-            stroke="#ff6b6b"
-            stroke-width="2"
-            stroke-dasharray="4,4"
+            class="debug-node-rect"
           />
-
-          <!-- 节点中心点 -->
-          <circle :cx="node.cx" :cy="node.cy" r="4" fill="#ff6b6b" />
-
-          <!-- 速度向量（如果存在） -->
+          <circle :cx="node.cx" :cy="node.cy" r="4" class="debug-node-center" />
           <line
             v-if="Math.abs(node.vx) > 0.01 || Math.abs(node.vy) > 0.01"
             :x1="node.cx"
             :y1="node.cy"
             :x2="node.cx + node.vx * 50 * getViewport().zoom"
             :y2="node.cy + node.vy * 50 * getViewport().zoom"
-            stroke="#4ecdc4"
-            stroke-width="2"
+            class="debug-velocity-vector"
             marker-end="url(#arrowhead-velocity)"
           />
-
-          <!-- 固定点标记（如果节点被固定） -->
           <circle
             v-if="node.fx !== undefined || node.fy !== undefined"
             :cx="node.cx"
             :cy="node.cy"
             r="8"
-            fill="none"
-            stroke="#ffd93d"
-            stroke-width="2"
+            class="debug-fixed-marker"
           />
 
+          <!-- 节点信息文本背景 -->
+          <rect
+            :x="node.x + 2"
+            :y="node.y + 4"
+            :width="150"
+            :height="node.textLines.length * 14 + 2"
+            class="debug-text-bg"
+          />
           <!-- 节点信息文本 -->
-          <text
-            :x="node.x + 4"
-            :y="node.y + 14"
-            fill="#ffffff"
-            font-size="11"
-            font-family="monospace"
-            font-weight="bold"
-            class="debug-text"
-          >
-            <tspan v-for="(line, index) in node.textLines" :key="index" :x="node.x + 4" :dy="index === 0 ? 0 : '1.2em'">
+          <text :x="node.x + 4" :y="node.y + 14" class="debug-text debug-node-text">
+            <tspan
+              v-for="(line, index) in node.textLines"
+              :key="index"
+              :x="node.x + 4"
+              :dy="index === 0 ? 0 : '1.2em'"
+            >
               {{ line }}
             </tspan>
           </text>
 
           <!-- 状态徽章 -->
           <g :transform="`translate(${node.x + node.width - 4}, ${node.y + 4})`">
-            <text
-              v-if="node.isActiveLeaf"
-              text-anchor="end"
-              font-size="10"
-              fill="#ff4757"
-              font-weight="bold"
-            >
-              ● Active
-            </text>
-            <text
-              v-if="!node.isEnabled"
-              text-anchor="end"
-              font-size="10"
-              fill="#7f8c8d"
-              font-weight="bold"
-              :y="node.isActiveLeaf ? 12 : 0"
-            >
-              ● Disabled
-            </text>
+            <g v-if="node.isActiveLeaf">
+              <rect x="-40" y="-2" width="40" height="14" rx="4" class="debug-badge-bg-active" />
+              <text text-anchor="end" y="8" class="debug-badge-text-active">● Active</text>
+            </g>
+            <g v-if="!node.isEnabled" :transform="`translate(0, ${node.isActiveLeaf ? 16 : 0})`">
+              <rect x="-50" y="-2" width="50" height="14" rx="4" class="debug-badge-bg-disabled" />
+              <text text-anchor="end" y="8" class="debug-badge-text-disabled">● Disabled</text>
+            </g>
           </g>
         </g>
       </g>
@@ -204,7 +178,7 @@
           refY="3"
           orient="auto"
         >
-          <polygon points="0 0, 8 3, 0 6" fill="#4ecdc4" />
+          <polygon points="0 0, 8 3, 0 6" class="debug-velocity-arrow" />
         </marker>
       </defs>
     </svg>
@@ -407,7 +381,7 @@ const debugNodeRects = computed(() => {
       `ID: ${node.id.slice(0, 8)} | Depth: ${node.depth}`,
       `Pos: (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`,
       `Vel: (${(node.vx ?? 0).toFixed(1)}, ${(node.vy ?? 0).toFixed(1)}) | Speed: ${(Math.sqrt((node.vx ?? 0) ** 2 + (node.vy ?? 0) ** 2) * 50).toFixed(1)}`,
-      `Size: ${(node.width / viewport.zoom).toFixed(0)}x${(node.height / viewport.zoom).toFixed(0)}`,
+      `Size: ${node.width.toFixed(0)}x${node.height.toFixed(0)}`,
     ];
     if (node.fx !== undefined && node.fx !== null && node.fy !== undefined && node.fy !== null) {
       textLines.push(`Fixed: (${node.fx.toFixed(0)}, ${node.fy.toFixed(0)})`);
@@ -606,13 +580,94 @@ onUnmounted(() => {
 .debug-overlay {
   pointer-events: none;
   user-select: none;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
 }
 
 .debug-overlay .debug-text {
-  pointer-events: none;
-  text-shadow:
-    0 0 4px rgba(0, 0, 0, 1),
-    0 0 8px rgba(0, 0, 0, 0.8);
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  font-size: 10px;
+  fill: #e0e0e0;
+  paint-order: stroke;
+  stroke: #1a1a1a;
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
+.debug-overlay .debug-link-text {
+  font-weight: bold;
+  fill: #f0f0f0;
+}
+
+.debug-overlay .debug-node-text {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.debug-text-bg {
+  fill: rgba(26, 26, 26, 0.6);
+  backdrop-filter: blur(2px);
+  rx: 3px;
+}
+
+.debug-link-path {
+  stroke: var(--el-color-danger);
+  stroke-width: 1.5;
+  fill: none;
+  stroke-dasharray: 4, 4;
+  opacity: 0.7;
+}
+
+.debug-link-arrow {
+  fill: var(--el-color-danger);
+}
+
+.debug-node-rect {
+  fill: rgba(var(--el-color-danger-rgb), 0.08);
+  stroke: var(--el-color-danger);
+  stroke-width: 1.5;
+  stroke-dasharray: 3, 3;
+  rx: 4px;
+}
+
+.debug-node-center {
+  fill: var(--el-color-danger);
+  filter: url(#glow);
+}
+
+.debug-velocity-vector {
+  stroke: var(--el-color-success);
+  stroke-width: 2;
+  opacity: 0.8;
+}
+
+.debug-velocity-arrow {
+  fill: var(--el-color-success);
+}
+
+.debug-fixed-marker {
+  fill: none;
+  stroke: var(--el-color-warning);
+  stroke-width: 2.5;
+  stroke-dasharray: 5, 2;
+}
+
+/* 状态徽章样式 */
+.debug-badge-bg-active {
+  fill: rgba(var(--el-color-error-rgb), 0.7);
+}
+.debug-badge-text-active {
   fill: white;
+  font-size: 10px;
+  font-weight: bold;
+  text-anchor: end;
+}
+.debug-badge-bg-disabled {
+  fill: rgba(128, 128, 128, 0.7);
+}
+.debug-badge-text-disabled {
+  fill: #e0e0e0;
+  font-size: 10px;
+  font-weight: bold;
+  text-anchor: end;
 }
 </style>

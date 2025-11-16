@@ -7,6 +7,7 @@
       :min-zoom="0.2"
       :max-zoom="4"
       fit-view-on-init
+      @connect="handleEdgeConnect"
       @node-double-click="handleNodeDoubleClick"
       @node-drag-start="handleNodeDragStart"
       @node-drag="handleNodeDrag"
@@ -274,6 +275,7 @@ const {
   handleNodeToggleEnabled,
   handleNodeDelete,
   handleNodeViewDetail: onNodeViewDetail,
+  handleEdgeConnect,
   closeDetailPopup,
   updateChart,
   updateNodeDimensions,

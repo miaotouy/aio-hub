@@ -550,6 +550,73 @@ export function useNodeManager() {
   };
 
   /**
+   * 获取节点的所有祖先节点（递归）
+   */
+  const getAllAncestors = (
+    session: ChatSession,
+    nodeId: string
+  ): ChatMessageNode[] => {
+    const ancestors: ChatMessageNode[] = [];
+    let currentId: string | null = nodeId;
+
+    while (currentId !== null) {
+      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      if (!node) break;
+      
+      if (node.parentId) {
+        const parent: ChatMessageNode | undefined = session.nodes[node.parentId];
+        if (parent) {
+          ancestors.push(parent);
+          currentId = parent.id;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    return ancestors;
+  };
+
+  /**
+   * 判断两个节点的关系类型
+   * @param session - 会话对象
+   * @param nodeA - 节点A的ID
+   * @param nodeB - 节点B的ID
+   * @returns 节点B相对于节点A的关系
+   */
+  const getNodeRelationship = (
+    session: ChatSession,
+    nodeA: string,
+    nodeB: string
+  ): 'ancestor' | 'descendant' | 'sibling' | 'other' => {
+    const nodeAObj = session.nodes[nodeA];
+    const nodeBObj = session.nodes[nodeB];
+
+    if (!nodeAObj || !nodeBObj) return 'other';
+
+    // B 是 A 的祖先
+    const ancestors = getAllAncestors(session, nodeA);
+    if (ancestors.some(n => n.id === nodeB)) {
+      return 'ancestor';
+    }
+
+    // B 是 A 的后代
+    const descendants = getAllDescendants(session, nodeA);
+    if (descendants.some(n => n.id === nodeB)) {
+      return 'descendant';
+    }
+
+    // B 是 A 的兄弟
+    if (nodeAObj.parentId === nodeBObj.parentId && nodeAObj.parentId !== null) {
+      return 'sibling';
+    }
+
+    return 'other';
+  };
+
+  /**
    * 将某个节点的子节点嫁接到另一个节点
    * 用于非破坏性编辑时转移子树
    */
@@ -713,6 +780,88 @@ export function useNodeManager() {
     return true;
   };
 
+  /**
+   * 将单个节点重新挂载到另一个父节点下（不移动子树）
+   * 它的子节点将被其原父节点"收养"
+   */
+  const reparentNode = (
+    session: ChatSession,
+    nodeId: string,
+    newParentId: string
+  ): boolean => {
+    logger.info('🌿 [单点移动] 开始移动单个节点', {
+      sessionId: session.id,
+      nodeId,
+      newParentId,
+    });
+
+    const nodeToMove = session.nodes[nodeId];
+    const newParent = session.nodes[newParentId];
+
+    if (!nodeToMove || !newParent) {
+      logger.warn('🌿 [单点移动] 失败：源节点或目标父节点不存在', { nodeId, newParentId });
+      return false;
+    }
+    if (nodeToMove.id === session.rootNodeId) {
+      logger.warn('🌿 [单点移动] 失败：不能移动根节点');
+      return false;
+    }
+    if (nodeId === newParentId) {
+      logger.warn('🌿 [单点移动] 失败：不能将节点移动到自己');
+      return false;
+    }
+    if (nodeToMove.parentId === newParentId) {
+      logger.info('🌿 [单点移动] 节点已经是目标父节点的子节点，无需操作');
+      return true;
+    }
+    
+    // 【关键】循环引用检查：不能将节点移动到自己的后代下
+    const descendants = getAllDescendants(session, nodeId);
+    if (descendants.some(d => d.id === newParentId)) {
+      logger.warn('🌿 [单点移动] 失败：不能将节点移动到自己的后代节点下，会造成循环引用', {
+        nodeId,
+        newParentId,
+        descendantCount: descendants.length
+      });
+      throw new Error('无法将节点移动到其自己的子孙节点下，这会导致循环引用。');
+    }
+
+    const oldParentId = nodeToMove.parentId;
+    const oldParent = oldParentId ? session.nodes[oldParentId] : null;
+
+    // 1. 从旧父节点断开连接
+    if (oldParent) {
+      oldParent.childrenIds = oldParent.childrenIds.filter(id => id !== nodeId);
+      
+      // 2. 将此节点的子节点交给旧父节点"收养"
+      if (nodeToMove.childrenIds.length > 0) {
+        oldParent.childrenIds.push(...nodeToMove.childrenIds);
+        nodeToMove.childrenIds.forEach(childId => {
+          const child = session.nodes[childId];
+          if (child) {
+            child.parentId = oldParent.id;
+          }
+        });
+      }
+    }
+
+    // 3. 更新此节点的父节点
+    nodeToMove.parentId = newParentId;
+
+    // 4. 将此节点添加到新父节点的子节点列表
+    if (!newParent.childrenIds.includes(nodeId)) {
+      newParent.childrenIds.push(nodeId);
+    }
+    
+    // 5. 清空此节点的子节点列表
+    nodeToMove.childrenIds = [];
+
+    session.updatedAt = new Date().toISOString();
+    logger.info('🌿 [单点移动] 成功', { nodeId, oldParentId, newParentId });
+
+    return true;
+  };
+
   return {
     generateNodeId,
     createNode,
@@ -726,7 +875,10 @@ export function useNodeManager() {
     validateNodeIntegrity,
     getNodePath,
     getAllDescendants,
+    getAllAncestors,
+    getNodeRelationship,
     transferChildren,
     reparentSubtree,
+    reparentNode,
   };
 }

@@ -4,13 +4,13 @@
       :class="['graph-node', { 'active-leaf': data.isActiveLeaf, 'is-disabled': !data.isEnabled }]"
       :style="nodeStyle"
     >
-      <!-- 连接点 -->
+      <!-- 顶部：树结构入边的目标连接点 -->
       <Handle type="target" :position="Position.Top" />
       
       <!-- 节点内容 -->
       <GraphNodeContent :data="data" />
       
-      <!-- 连接点 -->
+      <!-- 底部：树结构出边的源连接点 -->
       <Handle type="source" :position="Position.Bottom" />
     </div>
     

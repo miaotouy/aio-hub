@@ -8,6 +8,7 @@ import { useAgentStore } from "../agentStore";
 import { useUserProfileStore } from "../userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
+import { useNodeManager } from "./useNodeManager";
 import { createModuleLogger } from "@/utils/logger";
 import type { MenuItem } from "../components/conversation-tree-graph/ContextMenu.vue";
 
@@ -145,6 +146,13 @@ export function useFlowTreeGraph(
   let simulation: d3Force.Simulation<D3Node, D3Link> | null = null;
   const d3Nodes = ref<D3Node[]>([]);
   const d3Links = ref<D3Link[]>([]);
+
+  // 用于子树拖拽的状态
+  const subtreeDragState = reactive({
+    isDragging: false,
+    rootNodeId: null as string | null,
+    descendantIds: new Set<string>(),
+  });
 
   /**
    * 计算每个节点的后代总数
@@ -771,10 +779,23 @@ export function useFlowTreeGraph(
    * 处理节点拖拽开始事件
    */
   function handleNodeDragStart(event: any): void {
-    if (layoutMode.value !== 'physics') return;
-
     const nodeId = event.node.id;
-    logger.debug("节点拖拽开始 (Physics 模式)", { nodeId });
+    const isShiftPressed = event.event?.shiftKey || false;
+
+    // 如果按住 Shift，则准备拖拽整个子树
+    if (isShiftPressed) {
+      const session = sessionRef();
+      if (session) {
+        const nodeManager = useNodeManager();
+        const descendants = nodeManager.getAllDescendants(session, nodeId);
+        subtreeDragState.isDragging = true;
+        subtreeDragState.rootNodeId = nodeId;
+        subtreeDragState.descendantIds = new Set(descendants.map((d: ChatMessageNode) => d.id));
+        logger.info(`准备拖拽子树，包含 ${subtreeDragState.descendantIds.size} 个子孙节点`, { rootNodeId: nodeId });
+      }
+    }
+
+    logger.debug("节点拖拽开始 (Physics 模式)", { nodeId, isShiftPressed });
 
     // 激活模拟
     if (simulation) {
@@ -786,23 +807,43 @@ export function useFlowTreeGraph(
    * 处理节点拖拽中事件
    */
   function handleNodeDrag(event: any): void {
-    if (layoutMode.value !== 'physics') return;
-
-    const nodeId = event.node.id;
-    const { x, y } = event.node.position;
-
-    // 更新 D3 模拟中对应节点的位置
-    if (simulation) {
+    if (!simulation) return;
+  
+    const { node, movement } = event;
+    const nodeId = node.id;
+  
+    // 保持模拟活跃
+    if (simulation.alpha() < 0.1) {
+      simulation.alpha(0.3).restart();
+    }
+  
+    // 如果正在拖拽子树
+    if (subtreeDragState.isDragging && subtreeDragState.rootNodeId) {
+      const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
+      
+      simulation.nodes().forEach(d3Node => {
+        if (allNodeIds.includes(d3Node.id)) {
+          // 如果节点是拖拽的根节点，直接使用它的位置
+          if (d3Node.id === nodeId) {
+            d3Node.fx = node.position.x + d3Node.width / 2;
+            d3Node.fy = node.position.y + d3Node.height / 2;
+          } else {
+            // 如果是子孙节点，应用相同的位移增量
+            d3Node.x = (d3Node.x ?? 0) + movement.x;
+            d3Node.y = (d3Node.y ?? 0) + movement.y;
+            // 同时固定住它们的位置，防止物理引擎干扰
+            d3Node.fx = d3Node.x;
+            d3Node.fy = d3Node.y;
+          }
+        }
+      });
+    } else {
+      // 只拖拽单个节点
       const d3Node = simulation.nodes().find(n => n.id === nodeId);
       if (d3Node) {
         // Vue Flow 的 position 是左上角，需要转换回 D3 的中心点坐标
-        d3Node.fx = x + d3Node.width / 2;
-        d3Node.fy = y + d3Node.height / 2;
-      }
-
-      // 保持模拟活跃
-      if (simulation.alpha() < 0.1) {
-        simulation.alpha(0.3);
+        d3Node.fx = node.position.x + d3Node.width / 2;
+        d3Node.fy = node.position.y + d3Node.height / 2;
       }
     }
   }
@@ -825,24 +866,119 @@ export function useFlowTreeGraph(
    * 处理拖拽结束事件
    */
   function handleNodeDragStop(event: any): void {
-    if (layoutMode.value !== 'physics') return;
+    if (!simulation) return;
 
     const draggedNodeId = event.node.id;
     const session = sessionRef();
     if (!session) return;
 
-    // Physics 模式：释放节点固定，除了根节点
-    if (simulation && draggedNodeId !== session.rootNodeId) {
-      const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
-      if (d3Node) {
-        d3Node.fx = null;
-        d3Node.fy = null;
+    // 如果是子树拖拽结束
+    if (subtreeDragState.isDragging) {
+      const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
+      simulation.nodes().forEach(d3Node => {
+        if (allNodeIds.includes(d3Node.id) && d3Node.id !== session.rootNodeId) {
+          d3Node.fx = null;
+          d3Node.fy = null;
+        }
+      });
+      // 重置状态
+      subtreeDragState.isDragging = false;
+      subtreeDragState.rootNodeId = null;
+      subtreeDragState.descendantIds.clear();
+      logger.info("子树拖拽结束");
+    } else {
+      // 单个节点拖拽结束
+      if (draggedNodeId !== session.rootNodeId) {
+        const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
+        if (d3Node) {
+          d3Node.fx = null;
+          d3Node.fy = null;
+        }
       }
     }
     
     // 降低模拟活跃度
-    if (simulation) {
-      simulation.alphaTarget(0);
+    simulation.alphaTarget(0);
+  }
+
+  /**
+   * 处理 Vue Flow 的连线事件，用作嫁接/移动交互
+   * 核心设计：根据节点的实际父子关系来决定操作类型，而非依赖视图层的连接方向
+   */
+  function handleEdgeConnect(connection: any): void {
+    const session = sessionRef();
+    if (!session) return;
+
+    const sourceId = connection?.source as string | undefined;
+    const targetId = connection?.target as string | undefined;
+    const event = connection?.event as MouseEvent | undefined;
+
+    if (!sourceId || !targetId) {
+      logger.warn("连线操作失败：缺少有效的节点 ID", { connection });
+      return;
+    }
+
+    // 预设消息不参与嫁接
+    if (sourceId.startsWith("preset-") || targetId.startsWith("preset-")) {
+      logger.debug("忽略预设消息的连线操作");
+      return;
+    }
+
+    // 不允许自己连接自己
+    if (sourceId === targetId) {
+      logger.debug("忽略自我连接");
+      return;
+    }
+
+    const isShiftPressed = event?.shiftKey || false;
+    const nodeManager = useNodeManager();
+
+    // 使用节点管理器判断实际的父子关系
+    const relationship = nodeManager.getNodeRelationship(session, sourceId, targetId);
+
+    logger.info("触发连线操作", {
+      sourceId,
+      targetId,
+      relationship,
+      isShiftPressed,
+    });
+
+    // 根据实际关系来决定操作
+    // 注意：Vue Flow 的连线是单向的，从 source 指向 target
+    // 在 Vue Flow 中：
+    // - source: 连线的起点（从哪个节点的 source handle 拖出）
+    // - target: 连线的终点（拖到哪个节点的 target handle）
+    // 语义：target 节点应该成为 source 节点的子节点
+    const nodeIdToMove = targetId;  // target 是要移动的节点
+    const newParentId = sourceId;   // source 是新的父节点
+
+    try {
+      if (isShiftPressed) {
+        // 按住 Shift：嫁接整个子树
+        logger.info("执行子树嫁接", {
+          nodeId: nodeIdToMove,
+          newParentId,
+          relationship,
+          note: "target 节点成为 source 节点的子节点"
+        });
+        store.graftBranch(nodeIdToMove, newParentId);
+      } else {
+        // 未按 Shift：只移动单个节点
+        logger.info("执行单点移动", {
+          nodeId: nodeIdToMove,
+          newParentId,
+          relationship,
+          note: "target 节点成为 source 节点的子节点"
+        });
+        store.moveNode(nodeIdToMove, newParentId);
+      }
+    } catch (error) {
+      logger.error("连线操作失败", error, {
+        sourceId,
+        targetId,
+        relationship,
+        isShiftPressed,
+      });
     }
   }
 
@@ -1080,6 +1216,7 @@ export function useFlowTreeGraph(
     handleNodeDragStart,
     handleNodeDrag,
     handleNodeDragStop,
+    handleEdgeConnect,
     handleNodeContextMenu,
     handleNodeCopy,
     handleNodeToggleEnabled,

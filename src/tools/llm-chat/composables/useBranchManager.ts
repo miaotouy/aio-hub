@@ -292,6 +292,24 @@ export function useBranchManager() {
     return success;
   };
 
+  /**
+   * 移动单个节点（不包含子树）
+   */
+  const moveNode = (
+    session: ChatSession,
+    nodeId: string,
+    newParentId: string
+  ): boolean => {
+    const nodeManager = useNodeManager();
+    const success = nodeManager.reparentNode(session, nodeId, newParentId);
+
+    if (success) {
+      logger.info('单个节点已移动', { sessionId: session.id, nodeId, newParentId });
+    }
+
+    return success;
+  };
+
   return {
     deleteMessage,
     switchBranch,
@@ -304,5 +322,6 @@ export function useBranchManager() {
     isNodeInActivePath,
     getSiblingIndex,
     graftBranch,
+    moveNode,
   };
 }

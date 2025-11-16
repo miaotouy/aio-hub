@@ -892,6 +892,26 @@ export const useLlmChatStore = defineStore("llmChat", {
       }
     },
 
+    /**
+     * 移动单个节点（不包含其子树）
+     */
+    moveNode(nodeId: string, newParentId: string): void {
+      const session = this.currentSession;
+      if (!session) {
+        logger.warn("移动节点失败：没有活动会话");
+        return;
+      }
+
+      const branchManager = useBranchManager();
+      const success = branchManager.moveNode(session, nodeId, newParentId);
+
+      if (success) {
+        const sessionManager = useSessionManager();
+        sessionManager.updateSessionDisplayAgent(session);
+        sessionManager.persistSession(session, this.currentSessionId);
+      }
+    },
+
     // ==================== 参数管理 ====================
 
     /**

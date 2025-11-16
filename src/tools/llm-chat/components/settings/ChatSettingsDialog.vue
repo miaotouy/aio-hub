@@ -26,7 +26,7 @@
             </template>
           </el-autocomplete>
         </div>
-        
+
         <!-- 快速导航标签页 -->
         <div class="settings-tabs">
           <el-tabs
@@ -52,131 +52,144 @@
         </div>
         <div class="settings-content" ref="scrollContainerRef">
           <el-form :model="localSettings" label-width="120px" label-position="left">
-          <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
-            <div class="settings-section">
-              <div class="section-title">
-                <el-icon><component :is="section.icon" /></el-icon>
-                <span>{{ section.title }}</span>
-              </div>
+            <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
+              <div class="settings-section">
+                <div class="section-title">
+                  <el-icon><component :is="section.icon" /></el-icon>
+                  <span>{{ section.title }}</span>
+                </div>
 
-              <template v-for="item in section.items" :key="item.id">
-                <el-form-item
-                  v-if="!item.visible || item.visible(localSettings)"
-                  :label="renderHint(item.label)"
-                  :data-setting-id="item.id"
-                  style="padding-left: 26px;"
-                >
-                  <!-- Block layout (default) -->
-                  <template v-if="item.layout !== 'inline'">
-                    <div class="setting-item-content">
-                      <!-- Standard Component -->
-                      <component
-                        v-if="item.component !== 'SliderWithInput'"
-                        :is="resolveComponent(item.component)"
-                        :class="getComponentClass(item)"
-                        :model-value="get(localSettings, item.modelPath)"
-                        @update:model-value="
-                          (value: any) => set(localSettings, item.modelPath, value)
-                        "
-                        v-bind="item.props"
-                      >
-                        <!-- RadioGroup options -->
-                        <template v-if="item.component === 'ElRadioGroup' && item.options">
-                          <el-radio
-                            v-for="option in item.options"
-                            :key="option.value.toString()"
-                            :value="option.value"
-                          >
-                            {{ option.label }}
-                          </el-radio>
-                        </template>
-                        <!-- Select options -->
-                        <template v-if="item.component === 'ElSelect' && item.options">
-                          <el-option
-                            v-for="option in item.options"
-                            :key="option.value.toString()"
-                            :label="option.label"
-                            :value="option.value"
-                            :title="option.description"
-                          >
-                            <div class="select-option-with-tags">
-                              <span>{{ option.label }}</span>
-                              <div v-if="option.tags && option.tags.length > 0" class="tags-container">
-                                <el-tag
-                                  v-for="tag in option.tags"
-                                  :key="tag"
-                                  size="small"
-                                  :type="tag === '基础' ? 'success' : tag === '高级' ? 'warning' : 'info'"
-                                  class="option-tag"
+                <template v-for="item in section.items" :key="item.id">
+                  <el-form-item
+                    v-if="!item.visible || item.visible(localSettings)"
+                    :label="renderHint(item.label)"
+                    :data-setting-id="item.id"
+                    style="padding-left: 26px"
+                  >
+                    <!-- Block layout (default) -->
+                    <template v-if="item.layout !== 'inline'">
+                      <div class="setting-item-content">
+                        <!-- Standard Component -->
+                        <component
+                          v-if="item.component !== 'SliderWithInput'"
+                          :is="resolveComponent(item.component)"
+                          :class="getComponentClass(item)"
+                          :model-value="get(localSettings, item.modelPath)"
+                          @update:model-value="
+                            (value: any) => set(localSettings, item.modelPath, value)
+                          "
+                          v-bind="item.props"
+                        >
+                          <!-- RadioGroup options -->
+                          <template v-if="item.component === 'ElRadioGroup' && item.options">
+                            <el-radio
+                              v-for="option in item.options"
+                              :key="option.value.toString()"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </el-radio>
+                          </template>
+                          <!-- Select options -->
+                          <template v-if="item.component === 'ElSelect' && item.options">
+                            <el-option
+                              v-for="option in item.options"
+                              :key="option.value.toString()"
+                              :label="option.label"
+                              :value="option.value"
+                              :title="option.description"
+                            >
+                              <div class="select-option-with-tags">
+                                <span>{{ option.label }}</span>
+                                <div
+                                  v-if="option.tags && option.tags.length > 0"
+                                  class="tags-container"
                                 >
-                                  {{ tag }}
-                                </el-tag>
+                                  <el-tag
+                                    v-for="tag in option.tags"
+                                    :key="tag"
+                                    size="small"
+                                    :type="
+                                      tag === '基础'
+                                        ? 'success'
+                                        : tag === '高级'
+                                          ? 'warning'
+                                          : 'info'
+                                    "
+                                    class="option-tag"
+                                  >
+                                    {{ tag }}
+                                  </el-tag>
+                                </div>
                               </div>
-                            </div>
-                          </el-option>
-                        </template>
-                      </component>
-                      <!-- SliderWithInput Custom Composite Component -->
-                      <div v-if="item.component === 'SliderWithInput'" class="slider-with-input">
-                        <el-slider
-                          :model-value="get(localSettings, item.modelPath)"
-                          @update:model-value="
-                            (value: any) => set(localSettings, item.modelPath, value)
-                          "
-                          v-bind="item.props"
-                          class="slider-part"
-                        />
-                        <el-input-number
-                          :model-value="get(localSettings, item.modelPath)"
-                          @update:model-value="
-                            (value: any) => set(localSettings, item.modelPath, value)
-                          "
-                          v-bind="item.props"
-                          class="input-part"
-                          :controls="true"
-                        />
+                            </el-option>
+                          </template>
+                        </component>
+                        <!-- SliderWithInput Custom Composite Component -->
+                        <div v-if="item.component === 'SliderWithInput'" class="slider-with-input">
+                          <el-slider
+                            :model-value="get(localSettings, item.modelPath)"
+                            @update:model-value="
+                              (value: any) => set(localSettings, item.modelPath, value)
+                            "
+                            v-bind="item.props"
+                            class="slider-part"
+                          />
+                          <el-input-number
+                            :model-value="get(localSettings, item.modelPath)"
+                            @update:model-value="
+                              (value: any) => set(localSettings, item.modelPath, value)
+                            "
+                            v-bind="item.props"
+                            class="input-part"
+                            :controls="true"
+                          />
+                        </div>
+                        <div
+                          v-if="item.slots?.append"
+                          class="append-slot"
+                          @click="handleComponentClick(item.id as string)"
+                        >
+                          <component :is="item.slots.append" />
+                        </div>
                       </div>
-                      <div
-                        v-if="item.slots?.append"
-                        class="append-slot"
-                        @click="handleComponentClick(item.id as string)"
-                      >
-                        <component :is="item.slots.append" />
+                      <div v-if="item.hint" class="form-hint" v-html="renderHint(item.hint)"></div>
+                      <!-- 渲染器详情显示 - 仅显示当前选中的 -->
+                      <div v-if="item.id === 'rendererVersion' && item.options" class="form-hint">
+                        {{
+                          item.options.find(
+                            (opt: any) => opt.value === get(localSettings, item.modelPath)
+                          )?.description
+                        }}
                       </div>
-                    </div>
-                    <div v-if="item.hint" class="form-hint" v-html="renderHint(item.hint)"></div>
-                    <!-- 渲染器详情显示 - 仅显示当前选中的 -->
-                    <div v-if="item.id === 'rendererVersion' && item.options" class="form-hint">
-                      {{ item.options.find((opt: any) => opt.value === get(localSettings, item.modelPath))?.description }}
-                    </div>
-                  </template>
+                    </template>
 
-                  <!-- Inline layout -->
-                  <template v-else>
-                    <div class="setting-item-content-inline">
-                      <component
-                        :is="resolveComponent(item.component)"
-                        :class="getComponentClass(item)"
-                        :model-value="get(localSettings, item.modelPath)"
-                        @update:model-value="
-                          (value: any) => set(localSettings, item.modelPath, value)
-                        "
-                        v-bind="item.props"
-                      />
-                      <div
-                        v-if="item.hint"
-                        class="form-hint-inline"
-                        v-html="renderHint(item.hint)"
-                      ></div>
-                    </div>
-                  </template>
-                </el-form-item>
-              </template>
-            </div>
-            <el-divider v-if="sectionIndex < settingsConfig.length - 1" />
-          </template>
-        </el-form>
-      </div>
+                    <!-- Inline layout -->
+                    <template v-else>
+                      <div class="setting-item-content-inline">
+                        <component
+                          :is="resolveComponent(item.component)"
+                          :class="getComponentClass(item)"
+                          :model-value="get(localSettings, item.modelPath)"
+                          @update:model-value="
+                            (value: any) => set(localSettings, item.modelPath, value)
+                          "
+                          v-bind="item.props"
+                        />
+                        <div
+                          v-if="item.hint"
+                          class="form-hint-inline"
+                          v-html="renderHint(item.hint)"
+                        ></div>
+                      </div>
+                    </template>
+                  </el-form-item>
+                </template>
+              </div>
+              <el-divider v-if="sectionIndex < settingsConfig.length - 1" />
+            </template>
+          </el-form>
+        </div>
       </div>
     </template>
 
@@ -273,7 +286,6 @@ const loadLocalSettings = async () => {
     isLoadingSettings.value = false;
   }
 };
-
 
 watch(
   () => localSettings.value.shortcuts.send,
@@ -398,24 +410,24 @@ let isClickingTab = false;
 
 const handleTabClick = (tab: any) => {
   if (!scrollContainerRef.value) return;
-  
+
   const sectionTitle = tab.props.name;
-  
-  const allSections = scrollContainerRef.value.querySelectorAll('.settings-section');
+
+  const allSections = scrollContainerRef.value.querySelectorAll(".settings-section");
   let targetSection: HTMLElement | null = null;
-  
+
   for (const section of allSections) {
-    const titleElement = section.querySelector('.section-title span');
+    const titleElement = section.querySelector(".section-title span");
     if (titleElement && titleElement.textContent === sectionTitle) {
       targetSection = section as HTMLElement;
       break;
     }
   }
-  
+
   if (targetSection) {
     isClickingTab = true;
     targetSection.scrollIntoView({ behavior: "smooth", block: "start" });
-    
+
     targetSection.classList.add("section-highlight");
     setTimeout(() => {
       targetSection.classList.remove("section-highlight");
@@ -496,32 +508,32 @@ const removeScrollListener = () => {
 
 const addScrollListener = () => {
   if (!scrollContainerRef.value) return;
-  
+
   removeScrollListener();
-  
-  const sections = scrollContainerRef.value.querySelectorAll('.settings-section');
+
+  const sections = scrollContainerRef.value.querySelectorAll(".settings-section");
   const sectionElements = Array.from(sections) as HTMLElement[];
-  
+
   const options = {
     root: scrollContainerRef.value,
-    rootMargin: '-30% 0px -60% 0px',
-    threshold: 0
+    rootMargin: "-30% 0px -60% 0px",
+    threshold: 0,
   };
-  
+
   scrollObserver = new IntersectionObserver((entries) => {
     if (isClickingTab) return;
-    entries.forEach(entry => {
+    entries.forEach((entry) => {
       if (entry.isIntersecting) {
         const sectionElement = entry.target as HTMLElement;
-        const titleElement = sectionElement.querySelector('.section-title span');
+        const titleElement = sectionElement.querySelector(".section-title span");
         if (titleElement && titleElement.textContent) {
           activeTab.value = titleElement.textContent;
         }
       }
     });
   }, options);
-  
-  sectionElements.forEach(section => {
+
+  sectionElements.forEach((section) => {
     scrollObserver!.observe(section);
   });
 };
@@ -600,8 +612,9 @@ watch(
   background-color: var(--el-color-primary-light-9);
   border-radius: 4px;
   transition: background-color 0.3s ease-in-out;
+  /* 垂直方向的 padding 和 margin 互相抵消，避免布局抖动 */
   padding: 4px 8px;
-  margin: -4px -8px 20px;
+  margin: -4px -8px;
 }
 
 .settings-section {
@@ -754,7 +767,7 @@ watch(
 
 .navigation-tabs :deep(.el-tabs__item.is-active) {
   color: var(--el-color-primary);
-  background-color: var(--el-color-primary-light-8);
+  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 30%, transparent);
   border-radius: 4px 4px 0 0;
 }
 
@@ -774,22 +787,23 @@ watch(
 .settings-section.section-highlight {
   animation: highlightSection 1.5s ease-out;
 }
-
 @keyframes highlightSection {
   0% {
     background-color: transparent;
+    outline: 0px solid transparent;
   }
   30% {
-    background-color: var(--el-color-primary-light-9);
+    background-color: var(--el-color-primary-light-7);
     border-radius: 8px;
-    padding: 8px;
-    margin: -8px;
+    /* 使用 outline 代替 padding/margin 来避免布局抖动 */
+    outline: 8px solid var(--el-color-primary-light-7);
+    outline-offset: -8px;
   }
   100% {
     background-color: transparent;
     border-radius: 8px;
-    padding: 8px;
-    margin: -8px;
+    outline: 0px solid transparent;
+    outline-offset: 0px;
   }
 }
 
@@ -799,19 +813,19 @@ watch(
     /* 在小屏幕上提供更多空间 */
     --el-dialog-padding-primary: 12px;
   }
-  
+
   .settings-header {
     padding: 0 8px 12px;
   }
-  
+
   .settings-tabs {
     padding: 0 8px 12px;
   }
-  
+
   :deep(.el-form-item) {
     margin-bottom: 16px;
   }
-  
+
   .settings-section {
     margin-bottom: 20px;
   }
@@ -822,11 +836,11 @@ watch(
     font-size: 15px;
     margin-bottom: 12px;
   }
-  
+
   :deep(.el-form-item) {
     margin-bottom: 14px;
   }
-  
+
   .form-hint {
     margin-top: 2px;
   }

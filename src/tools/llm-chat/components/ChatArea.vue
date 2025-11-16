@@ -690,7 +690,7 @@ onMounted(async () => {
 .agent-info.clickable,
 .model-info.clickable,
 .user-profile-info {
-  padding: 4px 16px;
+  padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;

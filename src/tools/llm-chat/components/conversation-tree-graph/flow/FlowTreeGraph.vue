@@ -15,13 +15,13 @@
     >
       <!-- 背景网格 -->
       <Background pattern-color="#aaa" :gap="16" />
-      
+
       <!-- 小地图 -->
       <MiniMap />
-      
+
       <!-- 控制器 -->
       <Controls />
-      
+
       <!-- 自定义节点 -->
       <template #node-custom="{ data, id }">
         <GraphNode
@@ -33,7 +33,7 @@
         />
       </template>
     </VueFlow>
-    
+
     <!-- 控制按钮组 -->
     <div class="control-buttons">
       <el-button-group>
@@ -42,17 +42,11 @@
           :content="layoutMode === 'tree' ? '切换到物理悬挂模式' : '切换到树状布局模式'"
           placement="bottom"
         >
-          <el-button
-            :icon="layoutMode === 'tree' ? Grid : Share"
-            @click="toggleLayoutMode"
-          />
+          <el-button :icon="layoutMode === 'tree' ? Grid : Share" @click="toggleLayoutMode" />
         </el-tooltip>
-        
+
         <!-- 调试模式切换按钮 -->
-        <el-tooltip
-          :content="debugMode ? '关闭调试模式' : '开启调试模式'"
-          placement="bottom"
-        >
+        <el-tooltip :content="debugMode ? '关闭调试模式' : '开启调试模式'" placement="bottom">
           <el-button
             :icon="View"
             :type="debugMode ? 'primary' : 'default'"
@@ -61,7 +55,7 @@
         </el-tooltip>
       </el-button-group>
     </div>
-    
+
     <!-- D3 调试可视化叠加层 -->
     <svg
       v-if="debugMode"
@@ -89,27 +83,39 @@
           <polygon points="0 0, 10 3.5, 0 7" fill="#ff6b6b" />
         </marker>
       </defs>
-      
+
       <!-- 绘制连线 -->
       <g class="debug-links">
-        <path
-          v-for="link in debugLinkPaths"
-          :key="link?.id"
-          :d="link?.path"
-          stroke="#ff6b6b"
-          stroke-width="2"
-          fill="none"
-          stroke-dasharray="5,5"
-          marker-end="url(#arrowhead-debug)"
-        />
+        <g v-for="link in debugLinkPaths" :key="link?.id">
+          <!-- 连线路径 -->
+          <path
+            :d="link?.path"
+            stroke="#ff6b6b"
+            stroke-width="2"
+            fill="none"
+            stroke-dasharray="5,5"
+            marker-end="url(#arrowhead-debug)"
+          />
+          <!-- 连线信息文本 -->
+          <text
+            v-if="link?.midpoint"
+            :x="link.midpoint.x"
+            :y="link.midpoint.y"
+            fill="#ffffff"
+            font-size="10"
+            font-family="monospace"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            class="debug-text"
+          >
+            {{ link.debugText }}
+          </text>
+        </g>
       </g>
-      
+
       <!-- 绘制节点 -->
       <g class="debug-nodes">
-        <g
-          v-for="node in debugNodeRects"
-          :key="node.id"
-        >
+        <g v-for="node in debugNodeRects" :key="node.id">
           <!-- 节点矩形边界 -->
           <rect
             :x="node.x"
@@ -121,15 +127,10 @@
             stroke-width="2"
             stroke-dasharray="4,4"
           />
-          
+
           <!-- 节点中心点 -->
-          <circle
-            :cx="node.cx"
-            :cy="node.cy"
-            r="4"
-            fill="#ff6b6b"
-          />
-          
+          <circle :cx="node.cx" :cy="node.cy" r="4" fill="#ff6b6b" />
+
           <!-- 速度向量（如果存在） -->
           <line
             v-if="Math.abs(node.vx) > 0.01 || Math.abs(node.vy) > 0.01"
@@ -141,7 +142,7 @@
             stroke-width="2"
             marker-end="url(#arrowhead-velocity)"
           />
-          
+
           <!-- 固定点标记（如果节点被固定） -->
           <circle
             v-if="node.fx !== undefined || node.fy !== undefined"
@@ -152,21 +153,47 @@
             stroke="#ffd93d"
             stroke-width="2"
           />
-          
-          <!-- 节点 ID 标签 -->
+
+          <!-- 节点信息文本 -->
           <text
             :x="node.x + 4"
             :y="node.y + 14"
-            fill="#ff6b6b"
+            fill="#ffffff"
             font-size="11"
             font-family="monospace"
             font-weight="bold"
+            class="debug-text"
           >
-            {{ node.id.slice(0, 8) }}
+            <tspan v-for="(line, index) in node.textLines" :key="index" :x="node.x + 4" :dy="index === 0 ? 0 : '1.2em'">
+              {{ line }}
+            </tspan>
           </text>
+
+          <!-- 状态徽章 -->
+          <g :transform="`translate(${node.x + node.width - 4}, ${node.y + 4})`">
+            <text
+              v-if="node.isActiveLeaf"
+              text-anchor="end"
+              font-size="10"
+              fill="#ff4757"
+              font-weight="bold"
+            >
+              ● Active
+            </text>
+            <text
+              v-if="!node.isEnabled"
+              text-anchor="end"
+              font-size="10"
+              fill="#7f8c8d"
+              font-weight="bold"
+              :y="node.isActiveLeaf ? 12 : 0"
+            >
+              ● Disabled
+            </text>
+          </g>
         </g>
       </g>
-      
+
       <!-- 速度向量箭头标记 -->
       <defs>
         <marker
@@ -181,7 +208,7 @@
         </marker>
       </defs>
     </svg>
-    
+
     <!-- 右键上下文菜单 -->
     <ContextMenu
       v-model:visible="contextMenu.visible"
@@ -189,7 +216,7 @@
       :y="contextMenu.y"
       :items="contextMenu.items"
     />
-    
+
     <!-- 节点详情悬浮窗 -->
     <GraphNodeDetailPopup
       v-if="session"
@@ -204,22 +231,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
-import { VueFlow, useVueFlow } from '@vue-flow/core';
-import { Background } from '@vue-flow/background';
-import { MiniMap } from '@vue-flow/minimap';
-import { Controls } from '@vue-flow/controls';
-import { Grid, Share, View } from '@element-plus/icons-vue';
-import type { ChatSession, ChatMessageNode } from '../../../types';
-import { useFlowTreeGraph } from '../../../composables/useFlowTreeGraph';
-import { useAgentStore } from '../../../agentStore';
-import GraphNode from './components/GraphNode.vue';
-import GraphNodeDetailPopup from './components/GraphNodeDetailPopup.vue';
-import ContextMenu from '../ContextMenu.vue';
-import '@vue-flow/core/dist/style.css';
-import '@vue-flow/core/dist/theme-default.css';
-import '@vue-flow/controls/dist/style.css';
-import '@vue-flow/minimap/dist/style.css';
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { VueFlow, useVueFlow } from "@vue-flow/core";
+import { Background } from "@vue-flow/background";
+import { MiniMap } from "@vue-flow/minimap";
+import { Controls } from "@vue-flow/controls";
+import { Grid, Share, View } from "@element-plus/icons-vue";
+import type { ChatSession, ChatMessageNode } from "../../../types";
+import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
+import { useAgentStore } from "../../../agentStore";
+import GraphNode from "./components/GraphNode.vue";
+import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
+import ContextMenu from "../ContextMenu.vue";
+import "@vue-flow/core/dist/style.css";
+import "@vue-flow/core/dist/theme-default.css";
+import "@vue-flow/controls/dist/style.css";
+import "@vue-flow/minimap/dist/style.css";
 
 /**
  * 会话树图组件 V2
@@ -291,19 +318,19 @@ const llmThinkRulesForDetail = computed(() => {
   if (!selectedNodeForDetail.value) {
     return undefined;
   }
-  
+
   const agentId = selectedNodeForDetail.value.metadata?.agentId;
   if (!agentId) {
     return undefined;
   }
-  
+
   const agent = agentStore.getAgentById(agentId);
   return agent?.llmThinkRules;
 });
 
 // 切换布局模式
 const toggleLayoutMode = () => {
-  const newMode = layoutMode.value === 'tree' ? 'physics' : 'tree';
+  const newMode = layoutMode.value === "tree" ? "physics" : "tree";
   switchLayoutMode(newMode);
 };
 
@@ -335,8 +362,8 @@ const dimensionsWatchStop = watch(
   () => getNodes.value,
   (vueFlowNodes) => {
     const dimensionsMap = new Map<string, { width: number; height: number }>();
-    
-    vueFlowNodes.forEach(node => {
+
+    vueFlowNodes.forEach((node) => {
       // Vue Flow 的 node.dimensions 包含渲染后的实际尺寸
       if (node.dimensions?.width && node.dimensions?.height) {
         dimensionsMap.set(node.id, {
@@ -350,7 +377,7 @@ const dimensionsWatchStop = watch(
       updateNodeDimensions(dimensionsMap);
     }
   },
-  { deep: true, flush: 'post' } // flush: 'post' 确保在 DOM 更新后执行
+  { deep: true, flush: "post" } // flush: 'post' 确保在 DOM 更新后执行
 );
 
 onUnmounted(() => {
@@ -373,8 +400,19 @@ const transformD3ToSvg = (x: number, y: number) => {
 const debugNodeRects = computed(() => {
   if (!debugMode.value) return [];
   const viewport = getViewport();
-  return d3Nodes.value.map(node => {
+  return d3Nodes.value.map((node) => {
     const pos = transformD3ToSvg(node.x ?? 0, node.y ?? 0);
+
+    const textLines = [
+      `ID: ${node.id.slice(0, 8)} | Depth: ${node.depth}`,
+      `Pos: (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`,
+      `Vel: (${(node.vx ?? 0).toFixed(1)}, ${(node.vy ?? 0).toFixed(1)}) | Speed: ${(Math.sqrt((node.vx ?? 0) ** 2 + (node.vy ?? 0) ** 2) * 50).toFixed(1)}`,
+      `Size: ${(node.width / viewport.zoom).toFixed(0)}x${(node.height / viewport.zoom).toFixed(0)}`,
+    ];
+    if (node.fx !== undefined && node.fx !== null && node.fy !== undefined && node.fy !== null) {
+      textLines.push(`Fixed: (${node.fx.toFixed(0)}, ${node.fy.toFixed(0)})`);
+    }
+
     return {
       id: node.id,
       x: pos.x - (node.width / 2) * viewport.zoom,
@@ -387,6 +425,10 @@ const debugNodeRects = computed(() => {
       vy: node.vy ?? 0,
       fx: node.fx,
       fy: node.fy,
+      depth: node.depth,
+      isActiveLeaf: node.isActiveLeaf,
+      isEnabled: node.isEnabled,
+      textLines,
     };
   });
 });
@@ -394,41 +436,66 @@ const debugNodeRects = computed(() => {
 // 计算调试连线的路径
 const debugLinkPaths = computed(() => {
   if (!debugMode.value) return [];
-  return d3Links.value.map((link, index) => {
-    const source = typeof link.source === 'object' ? link.source : d3Nodes.value.find(n => n.id === link.source);
-    const target = typeof link.target === 'object' ? link.target : d3Nodes.value.find(n => n.id === link.target);
-    
-    if (!source || !target) return null;
-    
-    const sourcePos = transformD3ToSvg(source.x ?? 0, source.y ?? 0);
-    const targetPos = transformD3ToSvg(target.x ?? 0, target.y ?? 0);
-    
-    return {
-      id: `link-${index}`,
-      path: `M ${sourcePos.x} ${sourcePos.y} L ${targetPos.x} ${targetPos.y}`,
-      sourceId: typeof link.source === 'object' ? link.source.id : link.source,
-      targetId: typeof link.target === 'object' ? link.target.id : link.target,
-    };
-  }).filter(Boolean);
+  return d3Links.value
+    .map((link, index) => {
+      const source =
+        typeof link.source === "object"
+          ? link.source
+          : d3Nodes.value.find((n) => n.id === link.source);
+      const target =
+        typeof link.target === "object"
+          ? link.target
+          : d3Nodes.value.find((n) => n.id === link.target);
+
+      if (!source || !target) return null;
+
+      const sourcePos = transformD3ToSvg(source.x ?? 0, source.y ?? 0);
+      const targetPos = transformD3ToSvg(target.x ?? 0, target.y ?? 0);
+
+      const midpoint = {
+        x: (sourcePos.x + targetPos.x) / 2,
+        y: (sourcePos.y + targetPos.y) / 2,
+      };
+
+      let debugText = '';
+      if ((link)._debug) {
+        const debugInfo = (link)._debug;
+        debugText = `str: ${debugInfo.strength}, dist: ${debugInfo.distance}`;
+      }
+
+      return {
+        id: `link-${index}`,
+        path: `M ${sourcePos.x} ${sourcePos.y} L ${targetPos.x} ${targetPos.y}`,
+        sourceId: typeof link.source === "object" ? link.source.id : link.source,
+        targetId: typeof link.target === "object" ? link.target.id : link.target,
+        midpoint,
+        debugText,
+      };
+    })
+    .filter(Boolean);
 });
 
 // 监听视口变化以实时更新调试层
 // Vue Flow 的 viewport 变化会自动触发依赖它的 computed 重新计算
 // 这里添加一个定时器确保调试层在模拟运行时持续更新
 let debugUpdateTimer: number | null = null;
-watch(debugMode, (enabled) => {
-  if (enabled) {
-    debugUpdateTimer = window.setInterval(() => {
-      // 强制触发 computed 更新
-      getViewport();
-    }, 50); // 每 50ms 更新一次
-  } else {
-    if (debugUpdateTimer !== null) {
-      clearInterval(debugUpdateTimer);
-      debugUpdateTimer = null;
+watch(
+  debugMode,
+  (enabled) => {
+    if (enabled) {
+      debugUpdateTimer = window.setInterval(() => {
+        // 强制触发 computed 更新
+        getViewport();
+      }, 50); // 每 50ms 更新一次
+    } else {
+      if (debugUpdateTimer !== null) {
+        clearInterval(debugUpdateTimer);
+        debugUpdateTimer = null;
+      }
     }
-  }
-}, { immediate: true });
+  },
+  { immediate: true }
+);
 
 onUnmounted(() => {
   if (debugUpdateTimer !== null) {
@@ -541,8 +608,11 @@ onUnmounted(() => {
   user-select: none;
 }
 
-.debug-overlay text {
+.debug-overlay .debug-text {
   pointer-events: none;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6);
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 1),
+    0 0 8px rgba(0, 0, 0, 0.8);
+  fill: white;
 }
 </style>

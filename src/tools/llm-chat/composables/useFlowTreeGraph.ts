@@ -89,6 +89,8 @@ interface D3Node extends d3Force.SimulationNodeDatum {
   depth: number;
   width: number;
   height: number;
+  isActiveLeaf: boolean;
+  isEnabled: boolean;
 }
 
 /**
@@ -97,6 +99,11 @@ interface D3Node extends d3Force.SimulationNodeDatum {
 interface D3Link extends d3Force.SimulationLinkDatum<D3Node> {
   source: string | D3Node;
   target: string | D3Node;
+  // 附加的调试信息
+  _debug?: {
+    strength: number;
+    distance: number;
+  };
 }
 
 /**
@@ -558,8 +565,11 @@ export function useFlowTreeGraph(
         depth,
         width: existingD3Node?.width || 220, // 初始预估宽度
         height: existingD3Node?.height || 140, // 增加初始预估高度以适应6行文本
-        x: n.position.x,
-        y: n.position.y,
+        isActiveLeaf: n.data.isActiveLeaf,
+        isEnabled: n.data.isEnabled,
+        // 初始化时即转换为中心点坐标
+        x: n.position.x + (existingD3Node?.width || 220) / 2,
+        y: n.position.y + (existingD3Node?.height || 140) / 2,
         ...(!n.position.x && !n.position.y && { y: depth * levelGap })
       };
     });
@@ -576,10 +586,30 @@ export function useFlowTreeGraph(
       simulation.stop();
     }
 
-    d3Links.value = edges.value.map((e) => ({
-      source: e.source,
-      target: e.target,
-    }));
+    // 在这里，我们可以为 d3Links 附加调试信息
+    if (layoutMode.value === 'tree') {
+      d3Links.value = edges.value.map((e) => ({
+        source: e.source,
+        target: e.target,
+        _debug: { strength: 0.2, distance: 50 },
+      }));
+    } else {
+      const descendantCounts = calculateDescendantCounts(session.nodes);
+      d3Links.value = edges.value.map((e) => {
+        const targetNodeId = e.target;
+        const weight = descendantCounts.get(targetNodeId) || 0;
+        const baseDistance = 180;
+        const extraDistancePerNode = 80;
+        const maxExtraDistance = 320;
+        const distance = baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
+
+        return {
+          source: e.source,
+          target: e.target,
+          _debug: { strength: 0.4, distance: Math.round(distance) },
+        };
+      });
+    }
 
     // 根据布局模式选择不同的力配置
     if (layoutMode.value === 'tree') {
@@ -716,8 +746,10 @@ export function useFlowTreeGraph(
       for (const d3Node of simulation.nodes()) {
         const vueNode = nodes.value.find((n) => n.id === d3Node.id);
         if (vueNode) {
-          vueNode.position.x = d3Node.x || 0;
-          vueNode.position.y = d3Node.y || 0;
+          // D3 的坐标是中心点，而 Vue Flow 的 position 是左上角
+          // 因此需要减去 d3Node 中存储的宽高的一半来校正
+          vueNode.position.x = (d3Node.x || 0) - d3Node.width / 2;
+          vueNode.position.y = (d3Node.y || 0) - d3Node.height / 2;
         }
       }
     });
@@ -757,8 +789,9 @@ export function useFlowTreeGraph(
     if (simulation) {
       const d3Node = simulation.nodes().find(n => n.id === nodeId);
       if (d3Node) {
-        d3Node.fx = x;
-        d3Node.fy = y;
+        // Vue Flow 的 position 是左上角，需要转换回 D3 的中心点坐标
+        d3Node.fx = x + d3Node.width / 2;
+        d3Node.fy = y + d3Node.height / 2;
       }
 
       // 保持模拟活跃

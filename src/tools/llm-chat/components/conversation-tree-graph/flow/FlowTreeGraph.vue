@@ -53,6 +53,15 @@
             @click="toggleDebugMode"
           />
         </el-tooltip>
+
+        <!-- 复制调试信息按钮 -->
+        <el-tooltip
+          v-if="debugMode"
+          content="复制调试信息到剪贴板"
+          placement="bottom"
+        >
+          <el-button :icon="CopyDocument" @click="copyDebugInfo" />
+        </el-tooltip>
       </el-button-group>
     </div>
 
@@ -210,7 +219,8 @@ import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { MiniMap } from "@vue-flow/minimap";
 import { Controls } from "@vue-flow/controls";
-import { Grid, Share, View } from "@element-plus/icons-vue";
+import { Grid, Share, View, CopyDocument } from "@element-plus/icons-vue";
+import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
 import { useAgentStore } from "../../../agentStore";
@@ -306,6 +316,100 @@ const llmThinkRulesForDetail = computed(() => {
 const toggleLayoutMode = () => {
   const newMode = layoutMode.value === "tree" ? "physics" : "tree";
   switchLayoutMode(newMode);
+};
+
+// 复制调试信息
+const copyDebugInfo = () => {
+  if (!debugMode.value) {
+    return;
+  }
+
+  try {
+    const viewport = getViewport();
+    
+    // 收集节点信息
+    const nodesInfo = debugNodeRects.value.map((node) => {
+      const d3Node = d3Nodes.value.find((n) => n.id === node.id);
+      return {
+        id: node.id,
+        depth: node.depth,
+        position: {
+          x: (d3Node?.x ?? 0).toFixed(2),
+          y: (d3Node?.y ?? 0).toFixed(2),
+          screenX: node.x.toFixed(2),
+          screenY: node.y.toFixed(2),
+        },
+        velocity: {
+          vx: (d3Node?.vx ?? 0).toFixed(3),
+          vy: (d3Node?.vy ?? 0).toFixed(3),
+          speed: (Math.sqrt((d3Node?.vx ?? 0) ** 2 + (d3Node?.vy ?? 0) ** 2) * 50).toFixed(2),
+        },
+        size: {
+          width: (d3Node?.width ?? 0).toFixed(0),
+          height: (d3Node?.height ?? 0).toFixed(0),
+        },
+        fixed: d3Node?.fx !== undefined && d3Node?.fx !== null && d3Node?.fy !== undefined && d3Node?.fy !== null
+          ? { fx: d3Node.fx.toFixed(2), fy: d3Node.fy.toFixed(2) }
+          : null,
+        state: {
+          isActiveLeaf: node.isActiveLeaf,
+          isEnabled: node.isEnabled,
+        },
+      };
+    });
+
+    // 收集连线信息
+    const linksInfo = debugLinkPaths.value
+      .filter((link) => link !== null)
+      .map((link) => {
+        const d3Link = d3Links.value.find(
+          (l) =>
+            (typeof l.source === "object" ? l.source.id : l.source) === link?.sourceId &&
+            (typeof l.target === "object" ? l.target.id : l.target) === link?.targetId
+        );
+
+        return {
+          source: link?.sourceId.slice(0, 8),
+          target: link?.targetId.slice(0, 8),
+          debug: (d3Link as any)?._debug || null,
+        };
+      });
+
+    // 构建完整的调试信息对象
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      layoutMode: layoutMode.value,
+      viewport: {
+        zoom: viewport.zoom.toFixed(3),
+        x: viewport.x.toFixed(2),
+        y: viewport.y.toFixed(2),
+      },
+      statistics: {
+        totalNodes: nodesInfo.length,
+        totalLinks: linksInfo.length,
+        activeLeaves: nodesInfo.filter((n) => n.state.isActiveLeaf).length,
+        disabledNodes: nodesInfo.filter((n) => !n.state.isEnabled).length,
+        fixedNodes: nodesInfo.filter((n) => n.fixed !== null).length,
+      },
+      nodes: nodesInfo,
+      links: linksInfo,
+    };
+
+    // 复制到剪贴板
+    const jsonString = JSON.stringify(debugInfo, null, 2);
+    navigator.clipboard.writeText(jsonString).then(
+      () => {
+        customMessage.success(`已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`);
+      },
+      (err) => {
+        console.error("复制失败:", err);
+        customMessage.error("复制失败，请查看控制台");
+      }
+    );
+  } catch (error) {
+    console.error("生成调试信息时出错:", error);
+    customMessage.error("生成调试信息失败");
+  }
 };
 
 // 监听 session 变化

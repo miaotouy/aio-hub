@@ -154,6 +154,11 @@ export function useFlowTreeGraph(
     descendantIds: new Set<string>(),
   });
 
+  // 用于手动计算拖拽位移，以避免依赖不稳定的 event.movement
+  const dragPositionState = reactive({
+    lastPosition: null as { x: number; y: number } | null,
+  });
+
   /**
    * 计算每个节点的后代总数
    */
@@ -779,8 +784,9 @@ export function useFlowTreeGraph(
    * 处理节点拖拽开始事件
    */
   function handleNodeDragStart(event: any): void {
-    const nodeId = event.node.id;
-    const isShiftPressed = event.event?.shiftKey || false;
+    const { node, event: domEvent } = event;
+    const nodeId = node.id;
+    const isShiftPressed = domEvent?.shiftKey || false;
 
     // 如果按住 Shift，则准备拖拽整个子树
     if (isShiftPressed) {
@@ -792,6 +798,9 @@ export function useFlowTreeGraph(
         subtreeDragState.rootNodeId = nodeId;
         subtreeDragState.descendantIds = new Set(descendants.map((d: ChatMessageNode) => d.id));
         logger.info(`准备拖拽子树，包含 ${subtreeDragState.descendantIds.size} 个子孙节点`, { rootNodeId: nodeId });
+        
+        // 记录初始位置，用于手动计算位移
+        dragPositionState.lastPosition = { ...node.position };
       }
     }
 
@@ -809,7 +818,7 @@ export function useFlowTreeGraph(
   function handleNodeDrag(event: any): void {
     if (!simulation) return;
   
-    const { node, movement } = event;
+    const { node } = event;
     const nodeId = node.id;
   
     // 保持模拟活跃
@@ -818,7 +827,13 @@ export function useFlowTreeGraph(
     }
   
     // 如果正在拖拽子树
-    if (subtreeDragState.isDragging && subtreeDragState.rootNodeId) {
+    if (subtreeDragState.isDragging && subtreeDragState.rootNodeId && dragPositionState.lastPosition) {
+      // 手动计算位移增量
+      const movement = {
+        x: node.position.x - dragPositionState.lastPosition.x,
+        y: node.position.y - dragPositionState.lastPosition.y,
+      };
+
       const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
       
       simulation.nodes().forEach(d3Node => {
@@ -837,6 +852,9 @@ export function useFlowTreeGraph(
           }
         }
       });
+
+      // 更新上一次的位置
+      dragPositionState.lastPosition = { ...node.position };
     } else {
       // 只拖拽单个节点
       const d3Node = simulation.nodes().find(n => n.id === nodeId);
@@ -872,27 +890,36 @@ export function useFlowTreeGraph(
     const session = sessionRef();
     if (!session) return;
 
+    const shouldRebound = layoutMode.value === 'physics';
+
     // 如果是子树拖拽结束
     if (subtreeDragState.isDragging) {
-      const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
-      simulation.nodes().forEach(d3Node => {
-        if (allNodeIds.includes(d3Node.id) && d3Node.id !== session.rootNodeId) {
-          d3Node.fx = null;
-          d3Node.fy = null;
-        }
-      });
+      // 在 physics 模式下，拖拽结束后节点应该弹回，所以需要解除固定
+      if (shouldRebound) {
+        const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
+        simulation.nodes().forEach(d3Node => {
+          if (allNodeIds.includes(d3Node.id) && d3Node.id !== session.rootNodeId) {
+            d3Node.fx = null;
+            d3Node.fy = null;
+          }
+        });
+      }
       // 重置状态
       subtreeDragState.isDragging = false;
       subtreeDragState.rootNodeId = null;
       subtreeDragState.descendantIds.clear();
+      dragPositionState.lastPosition = null; // 清理位置记录
       logger.info("子树拖拽结束");
     } else {
       // 单个节点拖拽结束
       if (draggedNodeId !== session.rootNodeId) {
-        const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
-        if (d3Node) {
-          d3Node.fx = null;
-          d3Node.fy = null;
+        // 在 physics 模式下，拖拽结束后节点应该弹回
+        if (shouldRebound) {
+          const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
+          if (d3Node) {
+            d3Node.fx = null;
+            d3Node.fy = null;
+          }
         }
       }
     }

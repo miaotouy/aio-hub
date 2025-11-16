@@ -1,13 +1,18 @@
 <template>
-  <div
-    :class="['graph-node', { 'active-leaf': data.isActiveLeaf, 'is-disabled': !data.isEnabled }]"
-    :style="nodeStyle"
-  >
-    <!-- 连接点 -->
-    <Handle type="target" :position="Position.Top" />
-    
-    <!-- 节点内容 -->
-    <GraphNodeContent :data="data" />
+  <div class="node-wrapper">
+    <div
+      :class="['graph-node', { 'active-leaf': data.isActiveLeaf, 'is-disabled': !data.isEnabled }]"
+      :style="nodeStyle"
+    >
+      <!-- 连接点 -->
+      <Handle type="target" :position="Position.Top" />
+      
+      <!-- 节点内容 -->
+      <GraphNodeContent :data="data" />
+      
+      <!-- 连接点 -->
+      <Handle type="source" :position="Position.Bottom" />
+    </div>
     
     <!-- 悬浮操作栏 -->
     <GraphNodeMenubar
@@ -18,9 +23,6 @@
       @delete="handleDelete"
       @view-detail="handleViewDetail"
     />
-    
-    <!-- 连接点 -->
-    <Handle type="source" :position="Position.Bottom" />
   </div>
 </template>
 
@@ -82,6 +84,27 @@ const handleViewDetail = () => emit('view-detail');
 </script>
 
 <style scoped>
+.node-wrapper {
+  position: relative;
+}
+
+/* 扩大悬停触发区域 */
+.node-wrapper::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: -8px;
+  bottom: -56px; /* 覆盖到 menubar 区域 */
+  pointer-events: none;
+}
+
+/* 悬停时显示操作栏 - 扩大触发区域 */
+.node-wrapper:hover .graph-node-menubar,
+.graph-node-menubar:hover {
+  opacity: 1;
+}
+
 .graph-node {
   position: relative;
   padding: 16px;
@@ -96,25 +119,8 @@ const handleViewDetail = () => emit('view-detail');
   transition: all 0.2s ease;
 }
 
-/* 扩大悬停触发区域 */
-.graph-node::after {
-  content: '';
-  position: absolute;
-  left: -8px;
-  right: -8px;
-  top: -8px;
-  bottom: -56px; /* 覆盖到 menubar 区域 */
-  pointer-events: none;
-}
-
 .graph-node:hover {
   border-color: var(--primary-color);
-}
-
-/* 悬停时显示操作栏 - 扩大触发区域 */
-.graph-node:hover .graph-node-menubar,
-.graph-node-menubar:hover {
-  opacity: 1;
 }
 
 .graph-node.active-leaf {

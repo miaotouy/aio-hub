@@ -438,14 +438,11 @@ onMounted(() => {
 });
 
 // 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
-const { getNodes, getViewport, fitView } = useVueFlow();
+const { getNodes, getViewport } = useVueFlow();
 
-// 重置布局
+// 重置布局（保持当前视图）
 const resetLayout = () => {
   updateChart();
-  setTimeout(() => {
-    fitView();
-  }, 100); // 延迟以确保布局计算完成后再 fitView
 };
 
 // 监听节点尺寸变化并同步到 D3

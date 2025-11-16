@@ -38,6 +38,8 @@ interface FlowNode {
     isEnabled: boolean;
     timestamp: string;
     role: 'user' | 'assistant' | 'system';
+    status: 'generating' | 'complete' | 'error';
+    errorMessage?: string;
     subtitleInfo: {
       profileName: string;
       profileIcon: string | undefined;
@@ -412,6 +414,8 @@ export function useFlowTreeGraph(
           isEnabled,
           timestamp: node.timestamp,
           role: node.role,
+          status: node.status,
+          errorMessage: node.metadata?.error,
           subtitleInfo,
           colors,
           tokens,

@@ -44,6 +44,8 @@ interface NodeData {
   isEnabled: boolean;
   timestamp: string;
   role: 'user' | 'assistant' | 'system';
+  status: 'generating' | 'complete' | 'error';
+  errorMessage?: string;
   subtitleInfo: {
     profileName: string;
     profileIcon: string | undefined;

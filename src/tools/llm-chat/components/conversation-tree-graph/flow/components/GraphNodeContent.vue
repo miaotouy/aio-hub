@@ -53,15 +53,39 @@
     </div>
     
     <!-- 内容预览 -->
-    <div class="node-preview">{{ data.contentPreview }}</div>
+    <div class="node-preview">
+      {{ data.contentPreview }}
+      <!-- 生成中指示器 -->
+      <div v-if="data.status === 'generating'" class="streaming-indicator">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+    </div>
+
+    <!-- 错误信息 -->
+    <div v-if="data.errorMessage" class="error-info">
+      <el-button
+        @click="copyError"
+        class="error-copy-btn"
+        :class="{ copied: errorCopied }"
+        :title="errorCopied ? '已复制' : '复制错误信息'"
+        :icon="errorCopied ? Check : Copy"
+        size="small"
+        text
+      />
+      <span class="error-text">{{ truncateError(data.errorMessage) }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
+import { Copy, Check } from 'lucide-vue-next';
 import Avatar from '@/components/common/Avatar.vue';
 import DynamicIcon from '@/components/common/DynamicIcon.vue';
 import { useChatSettings } from '@/tools/llm-chat/composables/useChatSettings';
+import { customMessage } from '@/utils/customMessage';
 
 interface NodeData {
   name: string;
@@ -70,6 +94,8 @@ interface NodeData {
   isActiveLeaf: boolean;
   timestamp: string;
   role: 'user' | 'assistant' | 'system';
+  status: 'generating' | 'complete' | 'error';
+  errorMessage?: string;
   subtitleInfo: {
     profileName: string;
     profileIcon: string | undefined;
@@ -90,6 +116,9 @@ interface Props {
 const props = defineProps<Props>();
 
 const { settings } = useChatSettings();
+
+// 错误信息复制状态
+const errorCopied = ref(false);
 
 // 格式化时间
 const formatTime = (timestamp: string) => {
@@ -112,6 +141,30 @@ const formatTokens = (tokens: { total: number; prompt?: number; completion?: num
     return `${tokens.total} tokens (${tokens.prompt}+${tokens.completion})`;
   }
   return `${tokens.total} tokens`;
+};
+
+// 截断错误信息
+const truncateError = (error: string, maxLength: number = 100): string => {
+  if (error.length <= maxLength) return error;
+  return error.substring(0, maxLength) + '...';
+};
+
+// 复制错误信息
+const copyError = async () => {
+  if (!props.data.errorMessage) return;
+
+  try {
+    await navigator.clipboard.writeText(props.data.errorMessage);
+    errorCopied.value = true;
+    customMessage.success('错误信息已复制');
+
+    // 2秒后重置复制状态
+    setTimeout(() => {
+      errorCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    customMessage.error('复制失败');
+  }
 };
 </script>
 
@@ -216,10 +269,78 @@ const formatTokens = (tokens: { total: number; prompt?: number; completion?: num
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  line-clamp: 4;
-  -webkit-line-clamp: 4;
+  line-clamp: 6;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   line-height: 1.5;
+  word-break: break-word;
+}
+
+/* 生成中指示器 */
+.streaming-indicator {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.streaming-indicator .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  animation: pulse 1.4s infinite ease-in-out;
+}
+
+.streaming-indicator .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.streaming-indicator .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 错误信息 */
+.error-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  background-color: rgba(var(--el-color-danger-rgb, 245, 108, 108), 0.1);
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-danger, #f56c6c);
+}
+
+.error-copy-btn {
+  flex-shrink: 0;
+  padding: 2px;
+  min-height: auto;
+  height: auto;
+}
+
+.error-copy-btn.copied {
+  color: var(--success-color, #67c23a);
+}
+
+.error-text {
+  flex: 1;
+  color: var(--el-color-danger, #f56c6c);
+  font-size: 11px;
+  line-height: 1.4;
   word-break: break-word;
 }
 </style>

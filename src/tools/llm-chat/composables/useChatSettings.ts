@@ -58,6 +58,13 @@ export interface ChatSettings {
     /** 换行快捷键（与发送互补） */
     newLine: "enter" | "shift+enter";
   };
+  /** 关系图快捷键设置 */
+  graphViewShortcuts: {
+    /** 拖拽整个子树的修饰键 */
+    dragSubtree: "shift" | "alt" | "ctrl" | "none";
+    /** 嫁接整个子树的修饰键 */
+    graftSubtree: "shift" | "alt" | "ctrl" | "none";
+  };
   /** 话题命名设置 */
   topicNaming: {
     /** 是否启用话题命名 */
@@ -103,6 +110,10 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     send: "ctrl+enter",
     newLine: "enter",
   },
+  graphViewShortcuts: {
+    dragSubtree: "shift",
+    graftSubtree: "shift",
+  },
   topicNaming: {
     enabled: false,
     modelIdentifier: "", // 需要用户配置
@@ -138,6 +149,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       shortcuts: {
         ...defaultConfig.shortcuts,
         ...(loadedConfig.shortcuts || {}),
+      },
+      graphViewShortcuts: {
+        ...defaultConfig.graphViewShortcuts,
+        ...(loadedConfig.graphViewShortcuts || {}),
       },
       topicNaming: {
         ...defaultConfig.topicNaming,
@@ -215,6 +230,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       shortcuts: {
         ...settings.value.shortcuts,
         ...(updates.shortcuts || {}),
+      },
+      graphViewShortcuts: {
+        ...settings.value.graphViewShortcuts,
+        ...(updates.graphViewShortcuts || {}),
       },
       topicNaming: {
         ...settings.value.topicNaming,

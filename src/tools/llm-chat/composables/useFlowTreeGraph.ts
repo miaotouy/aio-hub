@@ -1,5 +1,6 @@
 import { ref, reactive, type Ref } from "vue";
 import { useMagicKeys } from '@vueuse/core';
+import { useChatSettings } from "./useChatSettings";
 import * as d3Force from "d3-force";
 import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
 import type { ChatSession, ChatMessageNode } from "../types";
@@ -155,7 +156,8 @@ export function useFlowTreeGraph(
   sessionRef: () => ChatSession | null,
   contextMenuState: Ref<ContextMenuState>
 ) {
-  const { shift } = useMagicKeys();
+  const { shift, alt, ctrl } = useMagicKeys();
+  const { settings } = useChatSettings();
   const store = useLlmChatStore();
   const { getProfileById } = useLlmProfiles();
   const { getModelIcon } = useModelMetadata();
@@ -765,10 +767,15 @@ export function useFlowTreeGraph(
   function handleNodeDragStart(event: any): void {
     const { node, event: domEvent } = event;
     const nodeId = node.id;
-    const isShiftPressed = domEvent?.shiftKey || false;
 
-    // 如果按住 Shift，则准备拖拽整个子树
-    if (isShiftPressed) {
+    const dragSubtreeModifier = settings.value.graphViewShortcuts.dragSubtree;
+    const isDragSubtree =
+      (dragSubtreeModifier === 'shift' && (domEvent?.shiftKey || false)) ||
+      (dragSubtreeModifier === 'alt' && (domEvent?.altKey || false)) ||
+      (dragSubtreeModifier === 'ctrl' && (domEvent?.ctrlKey || false));
+
+    // 如果按住指定修饰键，则准备拖拽整个子树
+    if (isDragSubtree) {
       const session = sessionRef();
       if (session) {
         const nodeManager = useNodeManager();
@@ -783,7 +790,7 @@ export function useFlowTreeGraph(
       }
     }
 
-    logger.debug("节点拖拽开始 (Physics 模式)", { nodeId, isShiftPressed });
+    logger.debug("节点拖拽开始 (Physics 模式)", { nodeId, isDragSubtree });
 
     // 激活模拟
     if (simulation) {
@@ -933,7 +940,11 @@ export function useFlowTreeGraph(
       return;
     }
 
-    const isShiftPressed = shift.value;
+    const graftSubtreeModifier = settings.value.graphViewShortcuts.graftSubtree;
+    const isGraftSubtree =
+      (graftSubtreeModifier === "shift" && shift.value) ||
+      (graftSubtreeModifier === "alt" && alt.value) ||
+      (graftSubtreeModifier === "ctrl" && ctrl.value);
     const nodeManager = useNodeManager();
 
     // 使用节点管理器判断实际的父子关系
@@ -943,7 +954,7 @@ export function useFlowTreeGraph(
       sourceId,
       targetId,
       relationship,
-      isShiftPressed,
+      isGraftSubtree,
     });
 
     // 根据实际关系来决定操作
@@ -956,8 +967,8 @@ export function useFlowTreeGraph(
     const newParentId = sourceId;   // source 是新的父节点
 
     try {
-      if (isShiftPressed) {
-        // 按住 Shift：嫁接整个子树
+      if (isGraftSubtree) {
+        // 按住指定修饰键：嫁接整个子树
         logger.info("执行子树嫁接", {
           nodeId: nodeIdToMove,
           newParentId,
@@ -966,7 +977,7 @@ export function useFlowTreeGraph(
         });
         store.graftBranch(nodeIdToMove, newParentId);
       } else {
-        // 未按 Shift：只移动单个节点
+        // 未按修饰键：只移动单个节点
         logger.info("执行单点移动", {
           nodeId: nodeIdToMove,
           newParentId,
@@ -980,7 +991,7 @@ export function useFlowTreeGraph(
         sourceId,
         targetId,
         relationship,
-        isShiftPressed,
+        isGraftSubtree,
       });
     }
   }

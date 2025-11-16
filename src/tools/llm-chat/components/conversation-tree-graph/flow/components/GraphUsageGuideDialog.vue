@@ -21,14 +21,17 @@
 
       <h3>节点交互</h3>
       <ul>
-        <li><strong>拖拽节点:</strong> 在任意布局模式下，都可以拖拽节点。拖拽时按住 <code>Shift</code> 键可以拖动整个子树。</li>
+        <li><strong>拖拽节点:</strong> 在任意布局模式下，都可以拖拽节点。拖拽时按住 <code>{{ dragSubtreeKey }}</code> 键可以拖动整个子树。</li>
         <li><strong>嫁接单个节点 (默认):</strong> 从一个节点的底部连接点拖拽出一条线，连接到另一个节点的顶部连接点，即可将该节点移动到新父节点下。其原有的子节点将被其旧的父节点“收养”。</li>
-        <li><strong>嫁接整个子树:</strong> 按住 <code>Shift</code> 键的同时进行连线操作，会将当前节点及其所有子孙节点一起移动到新的父节点下。</li>
+        <li><strong>嫁接整个子树:</strong> 按住 <code>{{ graftSubtreeKey }}</code> 键的同时进行连线操作，会将当前节点及其所有子孙节点一起移动到新的父节点下。</li>
         <li><strong>右键菜单:</strong> 右键点击节点可进行复制、禁用/启用、删除等操作。</li>
       </ul>
 
       <h3>调试模式</h3>
       <p>点击 <el-icon><View /></el-icon> 按钮可开启调试模式，显示 D3.js 物理引擎的实时模拟状态，包括节点速度、受力等信息，主要用于开发和排错。</p>
+
+      <h3>快捷键配置</h3>
+      <p>所有修饰键（如 <code>Shift</code>, <code>Alt</code> 等）均可在“聊天设置” -> “快捷键”中进行自定义。</p>
     </div>
     <template #footer>
       <span class="dialog-footer">
@@ -42,6 +45,20 @@
 import { computed } from 'vue';
 import { Grid, Share, View } from '@element-plus/icons-vue';
 import BaseDialog from '@/components/common/BaseDialog.vue';
+import { useChatSettings } from '../../../../composables/useChatSettings';
+
+const { settings } = useChatSettings();
+
+const formatModifierKey = (key: 'shift' | 'alt' | 'ctrl' | 'none') => {
+  if (key === 'shift') return 'Shift';
+  if (key === 'alt') return 'Alt';
+  if (key === 'ctrl') return 'Ctrl/Cmd';
+  if (key === 'none') return '无';
+  return key;
+};
+
+const dragSubtreeKey = computed(() => formatModifierKey(settings.value.graphViewShortcuts.dragSubtree));
+const graftSubtreeKey = computed(() => formatModifierKey(settings.value.graphViewShortcuts.graftSubtree));
 
 const props = defineProps<{
   visible: boolean;

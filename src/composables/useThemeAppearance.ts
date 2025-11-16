@@ -15,12 +15,12 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 // --- 颜色混合工具 ---
 
-type RGB = { r: number; g: number; b: number };
+export type RGB = { r: number; g: number; b: number };
 
 /**
  * 将 HEX 颜色字符串转换为 RGB 对象。
  */
-function hexToRgb(hex: string): RGB | null {
+export function hexToRgb(hex: string): RGB | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
@@ -39,7 +39,7 @@ function hexToRgb(hex: string): RGB | null {
  * @param mode - 混合模式。
  * @returns 混合后的结果颜色 {r, g, b}。
  */
-function applyBlendMode(base: RGB, active: RGB, opacity: number, mode: BlendMode): RGB {
+export function applyBlendMode(base: RGB, active: RGB, opacity: number, mode: BlendMode): RGB {
   const blend = (b: number, a: number): number => {
     switch (mode) {
       case "multiply":
@@ -83,6 +83,43 @@ function applyBlendMode(base: RGB, active: RGB, opacity: number, mode: BlendMode
   const b = Math.round(base.b * (1 - opacity) + blendedB * opacity);
 
   return { r, g, b };
+}
+
+/**
+ * 获取经过颜色混合处理后的完整背景色字符串
+ * 此函数会读取当前的全局外观设置，并应用颜色叠加
+ * @param baseRgbVar - 基础 RGB CSS 变量名（如 '--card-bg-rgb'）
+ * @param opacity - 最终不透明度
+ * @returns 完整的 rgba() 颜色字符串
+ */
+export function getBlendedBackgroundColor(baseRgbVar: string, opacity: number): string {
+  const root = document.documentElement;
+  const baseRgbString = getComputedStyle(root).getPropertyValue(baseRgbVar).trim();
+  
+  if (!baseRgbString) {
+    // 如果无法获取 RGB 值，返回透明色
+    return `rgba(0, 0, 0, ${opacity})`;
+  }
+  
+  const [r, g, b] = baseRgbString.split(",").map(Number);
+  let finalRgb: RGB = { r, g, b };
+  
+  // 检查是否启用了颜色叠加
+  const settings = appearanceSettings.value;
+  const overlayEnabled = settings.backgroundColorOverlayEnabled ?? false;
+  
+  if (overlayEnabled) {
+    const overlayColorHex = settings.backgroundColorOverlayColor ?? "#000000";
+    const overlayOpacity = settings.backgroundColorOverlayOpacity ?? 0;
+    const blendMode = settings.backgroundColorOverlayBlendMode ?? "normal";
+    const overlayColorRgb = hexToRgb(overlayColorHex);
+    
+    if (overlayColorRgb) {
+      finalRgb = applyBlendMode(finalRgb, overlayColorRgb, overlayOpacity, blendMode);
+    }
+  }
+  
+  return `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${opacity})`;
 }
 
 // --- 模块级状态 (单例模式) ---

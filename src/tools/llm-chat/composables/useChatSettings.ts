@@ -37,6 +37,10 @@ export interface ChatSettings {
     showMessageNavigator: boolean;
     /** 消息渲染器版本 */
     rendererVersion: RendererVersion;
+    /** 头部背景不透明度 */
+    headerBackgroundOpacity: number;
+    /** 头部背景模糊强度 (px) */
+    headerBlurIntensity: number;
   };
   /** 消息管理设置 */
   messageManagement: {
@@ -87,6 +91,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     lineHeight: 1.6,
     showMessageNavigator: true,
     rendererVersion: RendererVersion.V2_CUSTOM_PARSER, // 默认使用 V2 渲染器
+    headerBackgroundOpacity: 0.3, // 头部背景不透明度
+    headerBlurIntensity: 12, // 头部背景模糊强度
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

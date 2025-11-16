@@ -65,7 +65,7 @@ import { useChatSettings } from "../composables/useChatSettings";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { useThemeAppearance } from "@/composables/useThemeAppearance";
+import { useThemeAppearance, getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
 import { useResolvedAvatar } from "../composables/useResolvedAvatar";
 import { useLlmChatUiState } from "../composables/useLlmChatUiState";
 import { useLlmChatStore } from "../store";
@@ -364,6 +364,23 @@ const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
 const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
 
+// ===== 头部样式计算 =====
+// 根据聊天设置中的独立配置，动态生成头部的背景色和模糊效果
+// 使用 getBlendedBackgroundColor 确保包含颜色混合叠加效果
+const chatHeaderStyle = computed(() => {
+  const opacity = settings.value.uiPreferences.headerBackgroundOpacity ?? 0.7;
+  const blur = settings.value.uiPreferences.headerBlurIntensity ?? 12;
+  
+  // 使用全局颜色混合工具函数，确保包含叠加效果
+  const backgroundColor = getBlendedBackgroundColor('--card-bg-rgb', opacity);
+  const backdropFilter = `blur(${blur}px)`;
+  
+  return {
+    backgroundColor,
+    backdropFilter,
+  };
+});
+
 // ===== MessageNavigator 相关 =====
 // 获取滚动容器引用
 const scrollElement = computed(() => {
@@ -463,7 +480,7 @@ onMounted(async () => {
     @keydown="handleKeyDown"
   >
     <!-- 头部区域 -->
-    <div class="chat-header">
+    <div class="chat-header" :style="chatHeaderStyle">
       <!-- 拖拽手柄 -->
       <ComponentHeader
         ref="headerRef"
@@ -656,9 +673,8 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px 12px 24px; /* 增加底部内边距给遮罩留空间 */
   min-height: 64px; /* 增加高度 */
-  /* 使用全局主题系统的变量，并添加遮罩 */
-  background-color: var(--card-bg); /* 背景色跟随全局透明度设置 */
-  backdrop-filter: blur(var(--ui-blur)); /* 模糊强度跟随全局设置 */
+  /* 背景色和模糊效果由 chatHeaderStyle 计算属性动态提供 */
+  /* 不再使用 var(--card-bg) 和 var(--ui-blur)，而是独立配置 */
   mask-image: linear-gradient(to bottom, black 60%, transparent 100%); /* 底部虚化遮罩 */
   -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
 }

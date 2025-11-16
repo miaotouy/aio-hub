@@ -43,21 +43,21 @@ const handleViewDetail = () => emit('view-detail');
 <template>
   <div class="graph-node-menubar" :style="menubarStyle">
     <!-- 查看详情 -->
-    <el-tooltip content="查看详情" placement="bottom">
+    <el-tooltip content="查看详情" placement="bottom" :show-after="300">
       <button class="menu-btn" @click="handleViewDetail">
         <MessageSquare :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 复制内容 -->
-    <el-tooltip content="复制内容" placement="bottom">
+    <el-tooltip content="复制内容" placement="bottom" :show-after="300">
       <button class="menu-btn" @click="handleCopy">
         <Copy :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 启用/禁用 -->
-    <el-tooltip :content="isEnabled ? '禁用此消息' : '启用此消息'" placement="bottom">
+    <el-tooltip :content="isEnabled ? '禁用此消息' : '启用此消息'" placement="bottom" :show-after="300">
       <button
         class="menu-btn"
         :class="{ 'menu-btn-highlight': !isEnabled }"
@@ -69,7 +69,7 @@ const handleViewDetail = () => emit('view-detail');
     </el-tooltip>
 
     <!-- 删除 -->
-    <el-tooltip content="删除节点" placement="bottom">
+    <el-tooltip content="删除节点" placement="bottom" :show-after="300">
       <button class="menu-btn menu-btn-danger" @click="handleDelete">
         <Trash2 :size="16" />
       </button>

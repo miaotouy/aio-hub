@@ -123,6 +123,9 @@ export function useFlowTreeGraph(
   // 布局模式
   const layoutMode = ref<LayoutMode>('tree');
 
+  // 调试模式
+  const debugMode = ref(false);
+
   // 详情悬浮窗状态
   const detailPopupState = ref<DetailPopupState>({
     visible: false,
@@ -133,6 +136,8 @@ export function useFlowTreeGraph(
 
   // D3 力模拟实例
   let simulation: d3Force.Simulation<D3Node, D3Link> | null = null;
+  const d3Nodes = ref<D3Node[]>([]);
+  const d3Links = ref<D3Link[]>([]);
 
   /**
    * 计算每个节点的后代总数
@@ -545,7 +550,7 @@ export function useFlowTreeGraph(
     const levelGap = 280; // 增加层级间距以适应更高的节点（6行文本）
 
     // 准备 D3 数据
-    const d3Nodes: D3Node[] = nodes.value.map((n) => {
+    d3Nodes.value = nodes.value.map((n) => {
       const depth = depthMap[n.id] ?? 0;
       const existingD3Node = simulation?.nodes().find(d => d.id === n.id);
       return {
@@ -560,7 +565,7 @@ export function useFlowTreeGraph(
     });
 
     // 将根节点钉在顶部中心，作为"锚点"
-    const rootNode = d3Nodes.find((n) => n.id === session.rootNodeId);
+    const rootNode = d3Nodes.value.find((n) => n.id === session.rootNodeId);
     if (rootNode) {
       rootNode.fx = 0;
       rootNode.fy = 0;
@@ -571,7 +576,7 @@ export function useFlowTreeGraph(
       simulation.stop();
     }
 
-    const d3Links: D3Link[] = edges.value.map((e) => ({
+    d3Links.value = edges.value.map((e) => ({
       source: e.source,
       target: e.target,
     }));
@@ -600,7 +605,7 @@ export function useFlowTreeGraph(
       });
 
       // 将计算好的位置应用到 d3Nodes，作为力的目标
-      d3Nodes.forEach(n => {
+      d3Nodes.value.forEach(n => {
         const pos = calculatedPositions.get(n.id);
         if (pos) {
           // 如果是新节点，直接设置位置以避免从(0,0)飞来
@@ -617,10 +622,10 @@ export function useFlowTreeGraph(
         const padding = 150; // X 方向额外间距
 
         return (alpha: number) => {
-          for (let i = 0; i < d3Nodes.length; i++) {
-            const nodeA = d3Nodes[i];
-            for (let j = i + 1; j < d3Nodes.length; j++) {
-              const nodeB = d3Nodes[j];
+          for (let i = 0; i < d3Nodes.value.length; i++) {
+            const nodeA = d3Nodes.value[i];
+            for (let j = i + 1; j < d3Nodes.value.length; j++) {
+              const nodeB = d3Nodes.value[j];
 
               const dx = (nodeB.x ?? 0) - (nodeA.x ?? 0);
               const dy = (nodeB.y ?? 0) - (nodeA.y ?? 0);
@@ -649,9 +654,9 @@ export function useFlowTreeGraph(
       };
 
       simulation = d3Force
-        .forceSimulation(d3Nodes)
+        .forceSimulation(d3Nodes.value)
         // 保持链接关系
-        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links).id(d => d.id).distance(50).strength(0.2))
+        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value).id(d => d.id).distance(50).strength(0.2))
         // 添加基础圆形碰撞力
         .force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 15).strength(0.7))
         // 添加自定义 X 方向碰撞力
@@ -680,9 +685,9 @@ export function useFlowTreeGraph(
       };
 
       simulation = d3Force
-        .forceSimulation(d3Nodes)
-        // 连接力：像坚韧的绳索，拉住节点，长度由子节点“重量”决定
-        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links)
+        .forceSimulation(d3Nodes.value)
+        // 连接力：像坚韧的绳索，拉住节点，长度由子节点"重量"决定
+        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value)
           .id(d => d.id)
           .distance(getLinkDistance) // 使用动态距离函数
           .strength(0.4) // 大幅增强连接强度
@@ -703,7 +708,12 @@ export function useFlowTreeGraph(
 
     // 监听 tick 事件，直接更新节点位置
     simulation.on("tick", () => {
-      for (const d3Node of d3Nodes) {
+      if (!simulation) return;
+      // 在调试模式下，我们希望看到原始 d3 节点位置的变化，所以触发更新
+      if (debugMode.value) {
+        d3Nodes.value = [...simulation.nodes()];
+      }
+      for (const d3Node of simulation.nodes()) {
         const vueNode = nodes.value.find((n) => n.id === d3Node.id);
         if (vueNode) {
           vueNode.position.x = d3Node.x || 0;
@@ -1029,6 +1039,18 @@ export function useFlowTreeGraph(
   }
 
   /**
+   * 切换调试模式
+   */
+  function toggleDebugMode(): void {
+    debugMode.value = !debugMode.value;
+    logger.info(`切换调试模式: ${debugMode.value ? 'ON' : 'OFF'}`);
+    // 如果开启调试模式，可能需要强制更新一下 d3 节点数据
+    if (debugMode.value && simulation) {
+      d3Nodes.value = [...simulation.nodes()];
+    }
+  }
+
+  /**
    * 清理资源
    */
   function destroy(): void {
@@ -1044,6 +1066,9 @@ export function useFlowTreeGraph(
     nodes,
     edges,
     layoutMode,
+    debugMode,
+    d3Nodes,
+    d3Links,
     detailPopupState,
     handleNodeDoubleClick,
     handleNodeDragStart,
@@ -1058,6 +1083,7 @@ export function useFlowTreeGraph(
     updateChart,
     updateNodeDimensions, // 暴露给 Vue 组件使用
     switchLayoutMode, // 暴露布局模式切换函数
+    toggleDebugMode,
     destroy,
   };
 }

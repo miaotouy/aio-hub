@@ -72,6 +72,7 @@ watch(
 .conversation-tree-graph-wrapper {
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   position: relative;
 }
 
@@ -80,7 +81,6 @@ watch(
   height: 100%;
   min-height: 400px;
   background-color: var(--card-bg);
-  border-radius: 8px;
 }
 
 /* Vis.js 网络容器样式调整 */

@@ -568,7 +568,7 @@ onMounted(async () => {
 
           <!-- 树图视图 -->
           <template v-else-if="viewMode === 'graph'">
-            <ConversationTreeGraph :session="llmChatStore.currentSession" />
+            <ConversationTreeGraph :session="llmChatStore.currentSession" class="conversation-tree-graph-box" />
           </template>
         </div>
 
@@ -893,6 +893,11 @@ onMounted(async () => {
   margin-left: 8px;
   margin-right: 8px;
   flex-shrink: 0; /* 关键：防止输入框被压缩 */
+}
+
+.conversation-tree-graph-box {
+  padding: 0 30px;
+  box-sizing: border-box;
 }
 </style>
 

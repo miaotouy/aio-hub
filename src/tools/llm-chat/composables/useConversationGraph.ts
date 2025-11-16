@@ -1,4 +1,4 @@
-import { computed, type Ref } from "vue";
+import { computed, reactive, type Ref } from "vue";
 import { DataSet, Network } from "vis-network/standalone";
 import type { Options, Node, Edge, Data } from "vis-network/standalone";
 import type { ChatSession, ChatMessageNode } from "../types";
@@ -76,11 +76,88 @@ export function useConversationGraph(
    * 获取当前主题（明暗）
    */
   function isDarkTheme(): boolean {
-    return document.documentElement.classList.contains('dark');
+    return document.documentElement.classList.contains("dark");
+  }
+
+  function getCssVar(varName: string): string {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   }
 
   /**
-   * 根据节点状态计算颜色（适配主题）
+   * 创建一个从 CSS 变量中读取颜色的动态调色板
+   * 直接使用 theme-appearance.css 中已经设置好的 CSS 变量，自动跟随主题外观变化
+   */
+  function createThemePalette() {
+    const dark = isDarkTheme();
+    const lightSuffix = dark ? "" : "-light-3";
+    const lighterSuffix = dark ? "-light-3" : "-light-5";
+    const inactiveSuffix = dark ? "-dark-2" : "-light-8";
+
+    // 读取主题外观 CSS 变量（由 useThemeAppearance 动态设置）
+    const cardBg = getCssVar("--card-bg");
+    const containerBg = getCssVar("--container-bg");
+
+    return {
+      user: {
+        // 激活路径节点：使用带透明度的卡片背景色
+        base: cardBg || getCssVar("--el-color-primary"),
+        // 高亮/Hover：Element Plus 浅色变体
+        light: getCssVar(`--el-color-primary${lightSuffix}`),
+        // 非激活路径：使用容器背景色（更透明）
+        lighter: containerBg || getCssVar(`--el-color-primary${lighterSuffix}`),
+      },
+      assistant: {
+        base: cardBg || getCssVar("--el-color-success"),
+        light: getCssVar(`--el-color-success${lightSuffix}`),
+        lighter: containerBg || getCssVar(`--el-color-success${lighterSuffix}`),
+      },
+      system: {
+        base: cardBg || getCssVar("--el-color-warning"),
+        light: getCssVar(`--el-color-warning${lightSuffix}`),
+        lighter: containerBg || getCssVar(`--el-color-warning${lighterSuffix}`),
+      },
+      danger: {
+        base: getCssVar("--el-color-danger"),
+        light: getCssVar(`--el-color-danger${lightSuffix}`),
+        lighter: getCssVar(`--el-color-danger${lighterSuffix}`),
+      },
+      disabled: {
+        base: getCssVar(`--el-color-info${inactiveSuffix}`),
+        light: getCssVar(`--el-color-info${inactiveSuffix}`),
+      },
+      inactive: {
+        base: getCssVar(`--el-color-info-dark-2`),
+        light: getCssVar(`--el-color-info${lightSuffix}`),
+      },
+      edge: {
+        // 活动路径的边：使用纯色 primary，保持鲜艳（不受透明度影响）
+        active: getCssVar("--el-color-primary"),
+        activeHighlight: getCssVar(`--el-color-primary${lightSuffix}`),
+        inactive: getCssVar(`--el-color-info${inactiveSuffix}`),
+        inactiveHighlight: getCssVar(`--el-color-info${lightSuffix}`),
+      },
+      font: {
+        base: getCssVar("--el-text-color-primary"),
+        disabled: getCssVar("--el-text-color-disabled"),
+        white: "#FFFFFF",
+        black: "#000000",
+      },
+    };
+  }
+  // 创建一个响应式的调色板，以便在主题切换时自动更新
+  let palette = reactive(createThemePalette());
+
+  // 监听主题变化以刷新调色板
+  const observer = new MutationObserver(() => {
+    Object.assign(palette, createThemePalette());
+  });
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "style"],
+  });
+
+  /**
+   * 根据节点状态计算颜色（适配主题）- 新版
    */
   function getNodeColor(session: ChatSession, node: ChatMessageNode): {
     background: string;
@@ -92,85 +169,97 @@ export function useConversationGraph(
     const isActiveLeaf = node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false;
 
-    const dark = isDarkTheme();
-    
-    // 基础颜色（根据角色和主题）
-    let baseColor: string;
-    let gradientColor: string;
-    switch (node.role) {
-      case "user":
-        baseColor = dark ? "#409eff" : "#409eff";
-        gradientColor = dark ? "#66b1ff" : "#79bbff";
-        break;
-      case "assistant":
-        baseColor = dark ? "#67c23a" : "#67c23a";
-        gradientColor = dark ? "#85ce61" : "#95d475";
-        break;
-      case "system":
-        baseColor = dark ? "#e6a23c" : "#e6a23c";
-        gradientColor = dark ? "#ebb563" : "#eebe77";
-        break;
-      default:
-        baseColor = dark ? "#909399" : "#909399";
-        gradientColor = dark ? "#a6a9ad" : "#b1b3b8";
-    }
+    // 根据角色获取对应的颜色
+    type RoleColorKey = 'user' | 'assistant' | 'system';
+    const roleKey = node.role as RoleColorKey;
+    const roleColors = (palette[roleKey] && 'base' in palette[roleKey])
+      ? palette[roleKey] as { base: string; light: string; lighter: string }
+      : palette.inactive as { base: string; light: string };
 
-    // 禁用节点：置灰（适配主题）
+    // 禁用节点
     if (!isEnabled) {
       return {
-        background: dark ? "#4a4a4a" : "#d3d3d3",
-        border: dark ? "#666666" : "#999999",
-        highlight: { background: dark ? "#5a5a5a" : "#e0e0e0", border: dark ? "#777777" : "#888888" },
-        hover: { background: dark ? "#5a5a5a" : "#e0e0e0", border: dark ? "#777777" : "#888888" },
+        background: palette.disabled.base,
+        border: palette.disabled.light,
+        highlight: { background: palette.disabled.light, border: palette.disabled.light },
+        hover: { background: palette.disabled.light, border: palette.disabled.light },
       };
     }
 
-    // 当前叶节点：红色边框高亮 + 发光效果
-    if (isActiveLeaf) {
-      return {
-        background: baseColor,
-        border: "#f56c6c",
-        highlight: { background: gradientColor, border: "#f78989" },
-        hover: { background: gradientColor, border: "#f78989" },
-      };
-    }
+    let background: string, border: string;
 
-    // 活动路径上的节点
     if (isOnActivePath) {
-      return {
-        background: baseColor,
-        border: baseColor,
-        highlight: { background: gradientColor, border: gradientColor },
-        hover: { background: gradientColor, border: gradientColor },
-      };
+      background = roleColors.base;
+      border = roleColors.light;
+    } else {
+      // 非活动路径，使用更浅的颜色
+      background = ('lighter' in roleColors ? roleColors.lighter : roleColors.light) as string;
+      border = roleColors.light;
     }
 
-    // 非活动路径：半透明
+    // 当前叶节点，使用危险色边框强调
+    if (isActiveLeaf) {
+      border = palette.danger.base;
+    }
+
     return {
-      background: baseColor + "60",
-      border: baseColor + "60",
-      highlight: { background: baseColor + "80", border: baseColor + "80" },
-      hover: { background: baseColor + "80", border: baseColor + "80" },
+      background,
+      border,
+      highlight: {
+        background: roleColors.light,
+        border: isActiveLeaf ? palette.danger.light : roleColors.light,
+      },
+      hover: {
+        background: roleColors.light,
+        border: isActiveLeaf ? palette.danger.light : roleColors.light,
+      },
     };
   }
 
   /**
-   * 根据边的状态计算颜色
+   * 根据边的状态计算颜色 - 新版
    */
-  function getEdgeColor(session: ChatSession, sourceId: string, targetId: string): string {
+  function getEdgeColor(session: ChatSession, sourceId: string, targetId: string): {
+    color: string;
+    highlight: string;
+    hover: string;
+  } {
     const isSourceOnPath = BranchNavigator.isNodeInActivePath(session, sourceId);
     const isTargetOnPath = BranchNavigator.isNodeInActivePath(session, targetId);
     const isOnActivePath = isSourceOnPath && isTargetOnPath;
 
     if (isOnActivePath) {
-      return "#409eff";
+      return {
+        color: palette.edge.active,
+        highlight: palette.edge.activeHighlight,
+        hover: palette.edge.activeHighlight,
+      };
     }
 
-    return "#99999950"; // 半透明灰色
+    return {
+      color: palette.edge.inactive,
+      highlight: palette.edge.inactiveHighlight,
+      hover: palette.edge.inactiveHighlight,
+    };
+  }
+  /**
+   * 获取角色图标和显示名称
+   */
+  function getRoleDisplay(role: string): { icon: string; name: string } {
+    switch (role) {
+      case "user":
+        return { icon: "👤", name: "用户" };
+      case "assistant":
+        return { icon: "🤖", name: "助手" };
+      case "system":
+        return { icon: "⚙️", name: "系统" };
+      default:
+        return { icon: "❓", name: role };
+    }
   }
 
   /**
-   * 生成 Vis.js 节点数据
+   * 生成 Vis.js 节点数据 - 美化版本
    */
   const nodesData = computed<Node[]>(() => {
     const session = sessionRef();
@@ -181,48 +270,56 @@ export function useConversationGraph(
       const colors = getNodeColor(session, node);
       const isActiveLeaf = node.id === session.activeLeafId;
       const isEnabled = node.isEnabled !== false;
+      const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
       const siblingInfo = BranchNavigator.getSiblingIndex(session, node.id);
+      const roleDisplay = getRoleDisplay(node.role);
+
+      // 截断文本，避免节点过长
+      const contentPreview = truncateText(node.content, 30);
+      const label = `${roleDisplay.icon} ${contentPreview}`;
 
       return {
         id: node.id,
-        label: `${truncateText(node.content, 40)}\n[${node.role}]`,
+        label: label,
         shape: getNodeShape(node.role),
         level: depth,
-        color: {
-          background: colors.background,
-          border: colors.border,
-          highlight: colors.highlight,
-          hover: colors.hover,
-        },
-        borderWidth: isActiveLeaf ? 5 : 2,
-        borderWidthSelected: 4,
-        opacity: isEnabled ? 1 : 0.5,
-        shadow: isActiveLeaf ? {
-          enabled: true,
-          color: 'rgba(245, 108, 108, 0.5)',
-          size: 15,
-          x: 0,
-          y: 0,
-        } : {
-          enabled: true,
-          color: 'rgba(0, 0, 0, 0.2)',
-          size: 10,
-          x: 2,
-          y: 2,
-        },
+        color: colors,
+        borderWidth: isActiveLeaf ? 3 : (isOnActivePath ? 2 : 1.5),
+        borderWidthSelected: 3,
+        opacity: isEnabled ? 1 : 0.7,
+        // 简化阴影，仅在活动节点上提供微妙提示
+        shadow: isActiveLeaf || isOnActivePath
+          ? {
+              enabled: true,
+              color: "rgba(0, 0, 0, 0.25)",
+              size: 10,
+              x: 2,
+              y: 2,
+            }
+          : false,
+        // 统一字体配置
         font: {
-          size: 13,
-          color: isEnabled 
-            ? (isDarkTheme() ? "#e0e0e0" : "#333333")
-            : (isDarkTheme() ? "#666666" : "#999999"),
-          face: "Arial, sans-serif",
-          multi: true,
-          bold: {
-            color: isDarkTheme() ? "#ffffff" : "#000000",
-            size: 14,
-          },
+          size: 14,
+          color: isEnabled ? palette.font.base : palette.font.disabled,
+          face: "var(--font-family)",
+          multi: false,
+          bold: isActiveLeaf
+            ? {
+                color: isDarkTheme() ? palette.font.white : palette.font.black,
+                size: 14,
+              }
+            : undefined,
         },
-        title: `角色: ${node.role}\n状态: ${node.isEnabled !== false ? '✅ 启用' : '❌ 禁用'}\n分支: ${siblingInfo.index + 1}/${siblingInfo.total}\n\n内容:\n${truncateText(node.content, 200)}`,
+        // 丰富的悬停提示
+        title: [
+          `${roleDisplay.icon} ${roleDisplay.name}`,
+          `状态: ${isEnabled ? '✅ 启用' : '❌ 禁用'}`,
+          siblingInfo.total > 1 ? `分支: ${siblingInfo.index + 1}/${siblingInfo.total}` : '',
+          isActiveLeaf ? '🎯 当前活动节点' : (isOnActivePath ? '📍 活动路径' : ''),
+          '',
+          '内容预览:',
+          truncateText(node.content, 200),
+        ].filter(Boolean).join('\n'),
         // 存储原始节点引用，用于交互
         _node: node,
       } as Node & { _node: ChatMessageNode };
@@ -230,16 +327,17 @@ export function useConversationGraph(
   });
 
   /**
-   * 生成 Vis.js 边数据
+   * 生成 Vis.js 边数据 - 美化版本
    */
   const edgesData = computed<Edge[]>(() => {
     const session = sessionRef();
     if (!session) return [];
 
     const edges: Edge[] = [];
+    
     Object.values(session.nodes).forEach((node) => {
       if (node.parentId) {
-        const color = getEdgeColor(session, node.parentId, node.id);
+        const colors = getEdgeColor(session, node.parentId, node.id);
         const isOnActivePath =
           BranchNavigator.isNodeInActivePath(session, node.parentId) &&
           BranchNavigator.isNodeInActivePath(session, node.id);
@@ -250,30 +348,22 @@ export function useConversationGraph(
           arrows: {
             to: {
               enabled: true,
-              scaleFactor: 0.8,
+              scaleFactor: isOnActivePath ? 0.8 : 0.6,
               type: "arrow",
             },
           },
           color: {
-            color: color,
-            highlight: "#409eff",
-            hover: "#409eff",
-            opacity: isOnActivePath ? 1 : 0.5,
+            ...colors,
+            opacity: isOnActivePath ? 0.9 : 0.4,
           },
-          width: isOnActivePath ? 3 : 1.5,
-          selectionWidth: 2,
+          width: isOnActivePath ? 2.2 : 1.5,
+          selectionWidth: 2.5,
           smooth: {
             enabled: true,
             type: "cubicBezier",
-            roundness: 0.3,
+            roundness: 0.4,
           },
-          shadow: isOnActivePath ? {
-            enabled: true,
-            color: 'rgba(64, 158, 255, 0.3)',
-            size: 8,
-            x: 0,
-            y: 0,
-          } : undefined,
+          shadow: false, // 移除边的阴影
         });
       }
     });
@@ -282,7 +372,7 @@ export function useConversationGraph(
   });
 
   /**
-   * Vis.js 网络配置选项
+   * Vis.js 网络配置选项 - 优化的视觉参数
    */
   const networkOptions: Options = {
     layout: {
@@ -290,46 +380,63 @@ export function useConversationGraph(
         enabled: true,
         direction: "UD", // Up-Down (自上而下)
         sortMethod: "directed", // 根据边的方向排序
-        nodeSpacing: 150, // 同层节点之间的水平间距
+        nodeSpacing: 150, // 同层节点的水平间距
         levelSeparation: 120, // 层级之间的垂直间距
         treeSpacing: 200, // 不同树之间的间距
+        blockShifting: true,
+        edgeMinimization: true,
+        parentCentralization: true,
       },
     },
     physics: {
-      enabled: true, // 启用物理引擎，提供拖拽时的动态效果
+      enabled: true,
+      // 只启用分层斥力模型，用于在拖动时提供一些动态反馈，但整体保持稳定
       hierarchicalRepulsion: {
-        centralGravity: 0.0, // 降低中心引力，让节点更自由
-        springLength: 120, // 弹簧长度（节点间期望距离）
-        springConstant: 0.01, // 弹簧常数（越小越柔软）
-        nodeDistance: 150, // 节点间的最小距离
-        damping: 0.09, // 阻尼系数（越大停得越快）
+        centralGravity: 0.0,
+        springLength: 120,
+        springConstant: 0.01,
+        nodeDistance: 150,
+        damping: 0.2, // 增加阻尼，让节点更快稳定下来
       },
-      stabilization: {
-        enabled: true,
-        iterations: 200, // 初始化时的稳定迭代次数
-        updateInterval: 25,
-      },
+      // 禁用其他物理效果，特别是稳定过程，让布局更可预测
+      stabilization: false,
     },
     interaction: {
       dragNodes: true, // 允许拖拽节点
       dragView: true, // 允许拖拽画布
       zoomView: true, // 允许缩放
       hover: true, // 启用 hover 效果
+      tooltipDelay: 200, // 悬停提示延迟
+      keyboard: {
+        enabled: true, // 启用键盘导航
+      },
+      navigationButtons: false, // 不显示导航按钮
+      zoomSpeed: 0.8, // 缩放速度
     },
     nodes: {
       shape: "box",
       margin: {
-        top: 10,
-        right: 10,
-        bottom: 10,
-        left: 10,
+        top: 12,
+        right: 16,
+        bottom: 12,
+        left: 16,
       },
       widthConstraint: {
-        minimum: 80,
-        maximum: 200,
+        minimum: 100,
+        maximum: 280,
       },
       shapeProperties: {
-        borderRadius: 8,
+        borderRadius: 12, // 增加圆角
+        interpolation: false,
+      },
+      scaling: {
+        min: 10,
+        max: 30,
+        label: {
+          enabled: true,
+          min: 12,
+          max: 18,
+        },
       },
     },
     edges: {
@@ -337,9 +444,14 @@ export function useConversationGraph(
         enabled: true,
         type: "cubicBezier",
         forceDirection: "vertical",
-        roundness: 0.4,
+        roundness: 0.5, // 增加圆滑度
       },
-      hoverWidth: 1.5,
+      hoverWidth: 2,
+      selectionWidth: 3,
+      scaling: {
+        min: 1,
+        max: 5,
+      },
     },
   };
 
@@ -519,6 +631,8 @@ export function useConversationGraph(
       networkInstance = null;
       logger.info("Vis.js Network 已销毁");
     }
+    // 停止监听主题变化
+    observer.disconnect();
   }
 
   return {

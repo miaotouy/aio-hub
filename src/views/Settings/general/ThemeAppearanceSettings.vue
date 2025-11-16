@@ -206,6 +206,13 @@
               <el-slider v-model="uiBaseOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
 
+            <el-form-item label="分离窗口不透明度">
+              <el-slider v-model="detachedUiBaseOpacity" :min="0" :max="1" :step="0.05" />
+              <p class="form-item-description">
+                控制分离出去的独立组件窗口内部元素的透明度，独立于主窗口设置。
+              </p>
+            </el-form-item>
+
             <!-- 背景色叠加 -->
             <div class="setting-group-divider">
               <el-divider>
@@ -603,6 +610,11 @@ const enableUiBlur = computed({
 const uiBaseOpacity = computed({
   get: () => appearanceSettings.value.uiBaseOpacity,
   set: (val) => updateAppearanceSetting({ uiBaseOpacity: val }, { debounceUi: true }),
+});
+
+const detachedUiBaseOpacity = computed({
+  get: () => appearanceSettings.value.detachedUiBaseOpacity ?? 0.7,
+  set: (val) => updateAppearanceSetting({ detachedUiBaseOpacity: val }, { debounceUi: true }),
 });
 
 const uiBlurIntensity = computed({

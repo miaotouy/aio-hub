@@ -100,13 +100,14 @@ const debouncedCssUpdate = debounce(
 // 这些是运行时 UI 状态，不持久化
 const appearanceSettings = ref<AppearanceSettings>(defaultAppearanceSettings);
 const currentWallpaper = ref<string>("");
-const isSlideshowPaused = ref(false); // 新增：幻灯片是否暂停
+const isSlideshowPaused = ref(false); // 新增:幻灯片是否暂停
 
 let slideshowTimer: number | null = null;
 const wallpaperList = ref<string[]>([]); // 原始顺序列表
 const shuffledList = ref<string[]>([]); // 打乱后的列表
 let isInitialized = false; // 防止多次初始化
 let themeObserver: MutationObserver | null = null;
+let isDetachedWindow = false; // 标记当前是否为分离窗口
 
 // --- 模块级函数 ---
 
@@ -212,7 +213,10 @@ function _updateCssVariables(settings: AppearanceSettings) {
     const blurValue = settings.enableUiBlur ? `${settings.uiBlurIntensity}px` : "0px";
     root.style.setProperty("--ui-blur", blurValue);
 
-    const baseOpacity = settings.uiBaseOpacity;
+    // 根据是否为分离窗口选择不同的基础透明度
+    const baseOpacity = isDetachedWindow
+      ? (settings.detachedUiBaseOpacity ?? settings.uiBaseOpacity)
+      : settings.uiBaseOpacity;
     const offsets = settings.layerOpacityOffsets || {};
 
     const calculateOpacity = (offset = 0) =>
@@ -493,13 +497,15 @@ async function _applyWindowEffect(effect: WindowEffect, enabled: boolean) {
 /**
  * 初始化主题外观逻辑
  * 应该在 App.vue 中调用一次
+ * @param isDetached - 是否为分离窗口（分离窗口将使用 detachedUiBaseOpacity）
  */
-export async function initThemeAppearance() {
+export async function initThemeAppearance(isDetached = false) {
   if (isInitialized) {
     logger.warn("主题外观已经初始化，跳过重复初始化");
     return;
   }
   isInitialized = true;
+  isDetachedWindow = isDetached;
 
   try {
     // 加载设置

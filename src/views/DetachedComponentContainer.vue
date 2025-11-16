@@ -66,9 +66,10 @@ onMounted(async () => {
   await initialize();
 
   // 初始化主题外观系统（包括透明度、模糊等）
+  // 传入 true 标识这是分离窗口，将使用 detachedUiBaseOpacity
   try {
-    await initThemeAppearance();
-    logger.info('分离组件窗口主题外观系统已初始化');
+    await initThemeAppearance(true);
+    logger.info('分离组件窗口主题外观系统已初始化（使用分离窗口透明度）');
     
     // 组件悬浮窗不使用壁纸背景，通过 CSS 覆盖禁用壁纸显示
     // 不修改持久化设置，避免影响主窗口

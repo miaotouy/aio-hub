@@ -61,6 +61,7 @@ export interface AppearanceSettings {
   enableUiEffects: boolean; // 是否启用界面质感特效
   enableUiBlur: boolean; // 是否启用 UI 元素模糊 (backdrop-filter)
   uiBaseOpacity: number; // UI 基础不透明度 (0.0 - 1.0)
+  detachedUiBaseOpacity?: number; // 分离窗口 UI 基础不透明度 (0.0 - 1.0)
   uiBlurIntensity: number; // UI 模糊强度 (px)
   borderOpacity: number; // 边线不透明度 (0.0 - 1.0)
   codeBlockOpacity?: number; // 代码块背景不透明度
@@ -151,7 +152,8 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   // UI 特效
   enableUiEffects: false, // 默认关闭
   enableUiBlur: true,
-  uiBaseOpacity: 0.85, // 稍微不透明一点，保证可读性
+  uiBaseOpacity: 0.75, // 稍微不透明一点，保证可读性
+  detachedUiBaseOpacity: 0.95, // 分离窗口更不透明，适合独立悬浮效果
   uiBlurIntensity: 15, // 15px 模糊
   borderOpacity: 0.5, // 默认半透明
   codeBlockOpacity: 0.9, // 代码块背景不透明度

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon } from 'element-plus';
-import { List, Grid } from '@element-plus/icons-vue';
+import { List, Grid, Share } from '@element-plus/icons-vue';
 import { useLlmChatUiState } from '../../composables/useLlmChatUiState';
 
 /**
@@ -13,13 +13,20 @@ const { viewMode } = useLlmChatUiState();
 
 // 当前视图模式的显示信息
 const currentModeInfo = computed(() => {
-  return viewMode.value === 'linear'
-    ? { label: '对话视图', icon: List }
-    : { label: '树图视图', icon: Grid };
+  switch (viewMode.value) {
+    case 'linear':
+      return { label: '对话视图', icon: List };
+    case 'graph':
+      return { label: '树图视图', icon: Grid };
+    case 'force-graph':
+      return { label: '高级树图视图', icon: Share };
+    default:
+      return { label: '对话视图', icon: List };
+  }
 });
 
 // 切换视图模式
-const handleSelect = (mode: 'linear' | 'graph') => {
+const handleSelect = (mode: 'linear' | 'graph' | 'force-graph') => {
   viewMode.value = mode;
 };
 </script>
@@ -51,6 +58,15 @@ const handleSelect = (mode: 'linear' | 'graph') => {
             <Grid />
           </ElIcon>
           <span>树图视图</span>
+        </ElDropdownItem>
+        <ElDropdownItem
+          command="force-graph"
+          :class="{ 'is-active': viewMode === 'force-graph' }"
+        >
+          <ElIcon :size="16">
+            <Share />
+          </ElIcon>
+          <span>高级树图视图</span>
         </ElDropdownItem>
       </ElDropdownMenu>
     </template>

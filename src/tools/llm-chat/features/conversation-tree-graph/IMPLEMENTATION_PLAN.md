@@ -44,7 +44,7 @@
 3.  **修改 `src/tools/llm-chat/components/message/MessageHeader.vue`**:
     - 引入并使用 `ViewModeSwitcher.vue`，替换掉原先设想的独立按钮。
 
-4.  **创建文件 `src/tools/llm-chat/components/conversation-tree-graph/ConversationTreeGraph.vue`** (新):
+4.  **创建文件 `src/tools/llm-chat/components/conversation-tree-graph/VisTreeGraph.vue`** (新):
     - **Props**: `session: ChatSession`。
     - **职责**: 渲染 **Vis.js** 画布。
     - **实现骨架**:
@@ -55,7 +55,7 @@
 5.  **修改 `src/tools/llm-chat/components/ChatArea.vue`**:
     - 在 `<template>` 中，使用 `<component :is="activeViewComponent">` 来动态渲染视图。
     - 在 `<script>` 中：
-        - 引入 `MessageList.vue` 和 `ConversationTreeGraph.vue`。
+        - 引入 `MessageList.vue` 和 `VisTreeGraph.vue`。
         - 从 `useLlmChatUiState` 获取 `viewMode`。
         - 创建一个计算属性 `activeViewComponent`，根据 `viewMode.value` 返回对应的组件。
 

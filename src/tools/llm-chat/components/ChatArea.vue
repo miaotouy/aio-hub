@@ -16,7 +16,7 @@ import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
-import ConversationTreeGraph from "./conversation-tree-graph/ConversationTreeGraph.vue";
+import VisTreeGraph from "./conversation-tree-graph/VisTreeGraph.vue";
 import { Setting } from "@element-plus/icons-vue";
 
 const logger = createModuleLogger("ChatArea");
@@ -568,7 +568,7 @@ onMounted(async () => {
 
           <!-- 树图视图 -->
           <template v-else-if="viewMode === 'graph'">
-            <ConversationTreeGraph :session="llmChatStore.currentSession" class="conversation-tree-graph-box" />
+            <VisTreeGraph :session="llmChatStore.currentSession" class="conversation-tree-graph-box" />
           </template>
         </div>
 

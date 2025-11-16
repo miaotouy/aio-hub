@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
 import type { ChatSession } from "../../types";
-import { useConversationGraph } from "../../composables/useConversationGraph";
+import { useVisTreeGraph } from "../../composables/useVisTreeGraph";
 import ContextMenu from "./ContextMenu.vue";
 
 /**
@@ -42,7 +42,7 @@ const contextMenu = ref({
 });
 
 // Composable
-const { init, destroy, updateChart } = useConversationGraph(
+const { init, destroy, updateChart } = useVisTreeGraph(
   () => props.session,
   contextMenu
 );

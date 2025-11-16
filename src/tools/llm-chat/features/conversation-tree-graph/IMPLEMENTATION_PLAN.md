@@ -48,7 +48,7 @@
     - **Props**: `session: ChatSession`。
     - **职责**: 渲染 **Vis.js** 画布。
     - **实现骨架**:
-        - 引入 `useConversationGraph` Composable。
+        - 引入 `useVisTreeGraph` Composable。
         - 在 `onMounted` 中初始化网络。
         - `watch` `props.session` 的变化来更新网络数据。
 
@@ -59,9 +59,9 @@
         - 从 `useLlmChatUiState` 获取 `viewMode`。
         - 创建一个计算属性 `activeViewComponent`，根据 `viewMode.value` 返回对应的组件。
 
-6.  **创建文件 `src/tools/llm-chat/composables/useConversationGraph.ts`** (新):
+6.  **创建文件 `src/tools/llm-chat/composables/useVisTreeGraph.ts`** (新):
     - **职责**: 封装 **Vis.js** 的数据转换、配置选项和事件处理逻辑。
-    - **导出**: `function useConversationGraph(session: Ref<ChatSession | null>)`。
+    - **导出**: `function useVisTreeGraph(session: Ref<ChatSession | null>)`。
     - **实现骨架**:
         - `nodes: Ref<DataSet<any>>`, `edges: Ref<DataSet<any>>`: 响应式的数据集。
         - `options: Ref<Options>`: 包含布局（`hierarchical`）、交互、样式等配置。
@@ -70,9 +70,9 @@
 
 ## Phase 3: 交互功能实现
 
-**目标**: 在 `useConversationGraph.ts` 中实现所有交互逻辑，让图“活”起来。
+**目标**: 在 `useVisTreeGraph.ts` 中实现所有交互逻辑，让图"活"起来。
 
-1.  **完善 `useConversationGraph.ts` 的数据转换和配置**:
+1.  **完善 `useVisTreeGraph.ts` 的数据转换和配置**:
     - **数据转换**: 实现将 `session.nodes` 转换为 Vis.js `nodes` 和 `edges` 的 `DataSet` 的完整逻辑。
     - **状态反馈**:
         - 根据节点的 `isEnabled`, `isNodeInActivePath`, `id === session.activeLeafId` 等状态，为其分配不同的 `color` (背景、边框)。

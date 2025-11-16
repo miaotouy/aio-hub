@@ -24,7 +24,7 @@
     - **成熟社区**: 作为 Vis.js 的社区维护版本，持续活跃且文档齐全。
 - **组件封装**:
   - `VisTreeGraph.vue`: 核心的图表渲染和交互逻辑组件。
-  - `useConversationGraph.ts` (Composable): 封装将会话数据 (`ChatSession`) 转换为 Vis.js `DataSet` (nodes, edges) 的逻辑，并处理网络事件与 `llmChat` store 的交互。
+  - `useVisTreeGraph.ts` (Composable): 封装将会话数据 (`ChatSession`) 转换为 Vis.js `DataSet` (nodes, edges) 的逻辑，并处理网络事件与 `llmChat` store 的交互。
 
 ## 3. 架构与数据流
 
@@ -72,7 +72,7 @@ sequenceDiagram
 
 ### 4.1. 数据映射
 
-在 `useConversationGraph.ts` 中，`ChatSession` 数据将被转换为 Vis.js 需要的 `DataSet` 对象。
+在 `useVisTreeGraph.ts` 中，`ChatSession` 数据将被转换为 Vis.js 需要的 `DataSet` 对象。
 
 - **Nodes (`vis.DataSet`)**:
   - `id`: `ChatMessageNode.id`
@@ -157,9 +157,9 @@ sequenceDiagram
     - 在 `useLlmChatUiState` 中添加 `viewMode` 状态。
     - 在 `MessageHeader.vue` 中创建视图模式切换器下拉菜单。
     - 在 `ChatArea.vue` 中实现基于 `viewMode` 的动态组件切换逻辑。
-    - 创建 `VisTreeGraph.vue` 和 `useConversationGraph.ts` 的组件骨架。
+    - 创建 `VisTreeGraph.vue` 和 `useVisTreeGraph.ts` 的组件骨架。
 2.  **Phase 2: 只读视图与分支切换**
-    - 实现 `useConversationGraph.ts`，完成 `ChatSession` 到 ECharts 数据的转换。
+    - 实现 `useVisTreeGraph.ts`，完成 `ChatSession` 到 Vis.js 数据的转换。
     - 在 `VisTreeGraph.vue` 中渲染基础**层级树图**，并实现当前活动路径的高亮。
     - 实现双击节点切换 `activeLeafId` 的功能。
 3.  **Phase 3: 实现剪枝与状态切换**

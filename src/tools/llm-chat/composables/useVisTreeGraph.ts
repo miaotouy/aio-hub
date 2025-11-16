@@ -9,7 +9,7 @@ import { useUserProfileStore } from "../userProfileStore";
 import { createModuleLogger } from "@/utils/logger";
 import type { MenuItem } from "../components/conversation-tree-graph/ContextMenu.vue";
 
-const logger = createModuleLogger("llm-chat/composables/useConversationGraph");
+const logger = createModuleLogger("llm-chat/composables/useVisTreeGraph");
 
 /**
  * 上下文菜单状态
@@ -22,10 +22,10 @@ interface ContextMenuState {
 }
 
 /**
- * 会话树图 Composable
+ * Vis.js 树图 Composable
  * 负责将 ChatSession 数据转换为 Vis.js Network 数据，并处理图表交互事件
  */
-export function useConversationGraph(
+export function useVisTreeGraph(
   sessionRef: () => ChatSession | null,
   contextMenuState: Ref<ContextMenuState>
 ) {

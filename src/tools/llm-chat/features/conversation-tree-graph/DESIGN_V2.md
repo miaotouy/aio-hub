@@ -29,7 +29,7 @@ V2 方案的核心目标是**提升可视化效果和交互体验**。
 
 ```mermaid
 graph TD
-    A[ChatSession 数据] --> B{useConversationGraphV2.ts};
+    A[ChatSession 数据] --> B{useFlowreeGraph.ts};
     B --> C[创建 D3 Force Simulation];
     C -- 计算出 x, y 坐标 --> D[更新节点位置];
     D --> E{Vue Flow <VueFlow />};
@@ -41,7 +41,7 @@ graph TD
     G -- 状态变更 --> A;
 ```
 
-- **`useConversationGraphV2.ts`**: 新的 Composable，负责创建和管理 D3 物理模拟。它将 `ChatSession` 数据转换为 D3 需要的格式，并在模拟结束后将计算出的坐标同步给 Vue Flow 使用的节点数据。
+- **`useFlowreeGraph.ts`**: 新的 Composable，负责创建和管理 D3 物理模拟。它将 `ChatSession` 数据转换为 D3 需要的格式，并在模拟结束后将计算出的坐标同步给 Vue Flow 使用的节点数据。
 - **`FlowreeGraph.vue`**: 新的图表主组件，内部使用 `<VueFlow>`。它从 Composable 获取节点和边数据，并将其传递给 Vue Flow。
 - **`GraphNode.vue`**: 一个自定义的 Vue Flow 节点组件。它将负责渲染单个消息节点的详细内容，包括头像、角色名、内容摘要、状态图标和操作按钮。
 
@@ -62,8 +62,8 @@ graph TD
 ## 5. V2 实施计划 (Roadmap)
 
 1.  **依赖安装**: 安装 `@vue-flow/core` 和 `d3-force`。
-2.  **组件骨架**: 创建 `FlowreeGraph.vue`, `GraphNode.vue` 和 `useConversationGraphV2.ts` 的基本文件结构。
-3.  **D3 布局集成**: 在 `useConversationGraphV2.ts` 中实现 D3 力导向模拟，并将计算出的布局应用到节点上。
+2.  **组件骨架**: 创建 `FlowreeGraph.vue`, `GraphNode.vue` 和 `useFlowreeGraph.ts` 的基本文件结构。
+3.  **D3 布局集成**: 在 `useFlowreeGraph.ts` 中实现 D3 力导向模拟，并将计算出的布局应用到节点上。
 4.  **Vue Flow 渲染**: 在 `FlowreeGraph.vue` 中集成 `VueFlow`，并使用 `GraphNode.vue` 作为自定义节点进行渲染。
 5.  **交互实现**: 逐一实现拖拽、双击和右键菜单等核心交互。
 6.  **视图切换**: 在 `ViewModeSwitcher.vue` 中增加一个新选项（如“高级树图视图”），并更新 `ChatArea.vue` 的动态组件逻辑以支持新图表。

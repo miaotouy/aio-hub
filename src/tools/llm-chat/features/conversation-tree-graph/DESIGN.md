@@ -8,8 +8,8 @@
 
 核心能力：
 
-1.  **全局可视化**: 以力导向图的形式，完整展示一个会话中的所有消息节点和分支结构。
-2.  **动态探索**: 用户可以拖动节点，观察整个树状结构的动态变化，直观感受分支间的“张力”。
+1.  **全局可视化**: 以**层级树图**的形式，清晰地展示一个会话中的所有消息节点和分支结构。
+2.  **动态探索**: 用户可以拖动、缩放和平移视图，直观地探索复杂的对话分支。
 3.  **分支管理**:
     *   **剪枝 (Pruning)**: 方便地删除某个对话分支。
     *   **嫁接 (Grafting)**: 将一个分支（子树）从一个父节点移动到另一个父节点下。
@@ -17,11 +17,14 @@
 
 ## 2. 技术选型
 
-- **渲染引擎**: **ECharts** (`graph` 系列, `layout: 'force'`)
-  - **原因**: 项目已集成 ECharts，技术栈统一，可复用主题和打包配置。其内置的力导向布局算法能直接满足“力场”、“拖拽晃动”和“张力结构”的核心视觉要求。
+- **渲染引擎**: **Vis.js (`vis-network`)**
+  - **原因**:
+    - **内置层级布局**: 直接支持 `hierarchical` 布局，能够完美实现根节点在上、子节点自然下垂的树状结构，符合功能的核心视觉要求。
+    - **交互性**: 提供丰富的节点和边交互事件，便于实现嫁接、剪枝等复杂操作。
+    - **成熟社区**: 作为 Vis.js 的社区维护版本，持续活跃且文档齐全。
 - **组件封装**:
   - `ConversationTreeGraph.vue`: 核心的图表渲染和交互逻辑组件。
-  - `useConversationGraph.ts` (Composable): 封装将会话数据 (`ChatSession`) 转换为 ECharts `graph` 数据格式（nodes, links）的逻辑，并处理图表事件与 `llmChat` store 的交互。
+  - `useConversationGraph.ts` (Composable): 封装将会话数据 (`ChatSession`) 转换为 Vis.js `DataSet` (nodes, edges) 的逻辑，并处理网络事件与 `llmChat` store 的交互。
 
 ## 3. 架构与数据流
 
@@ -40,8 +43,8 @@ sequenceDiagram
     
     %% 数据读取与渲染
     Store-->>Graph: 提供 currentSession 数据
-    Graph->>Graph: 将 session.nodes 转换为 ECharts graph 数据
-    Graph->>Graph: 渲染力导向图
+    Graph->>Graph: 将 session.nodes 转换为 Vis.js DataSet 数据
+    Graph->>Graph: 渲染层级树图
 
     %% 交互：切换分支
     Graph->>Store: 用户双击节点B，调用 switchBranch(B.id)
@@ -69,19 +72,20 @@ sequenceDiagram
 
 ### 4.1. 数据映射
 
-在 `useConversationGraph.ts` 中，`ChatSession` 数据将被转换为 ECharts 需要的 `nodes` 和 `links` 数组。
+在 `useConversationGraph.ts` 中，`ChatSession` 数据将被转换为 Vis.js 需要的 `DataSet` 对象。
 
-- **GraphNode**:
+- **Nodes (`vis.DataSet`)**:
   - `id`: `ChatMessageNode.id`
-  - `name`: `content` 的摘要
-  - `symbol`: 根据 `role` 决定（如 'rect', 'circle'）
-  - `category`: `role`（用于着色）
-  - `itemStyle`: 根据 `isEnabled`, `onActivePath`, `isActiveLeaf` 等状态动态计算样式（颜色、边框、透明度）。
-  - `label`: 节点上显示的简短文本。
-- **GraphLink**:
-  - `source`: `parentId`
-  - `target`: `id`
-  - `lineStyle`: 根据 `onActivePath` 状态决定样式（高亮或普通）。
+  - `label`: `content` 的摘要或 `role` 名称。
+  - `shape`: 根据 `role` 决定（如 'box', 'ellipse'）。
+  - `color`: 根据 `isEnabled`, `onActivePath`, `isActiveLeaf` 等状态动态计算背景和边框颜色。
+  - `level`: 节点的层级深度，用于层级布局。
+  - `font`: 字体样式配置。
+- **Edges (`vis.DataSet`)**:
+  - `from`: `parentId`
+  - `to`: `id`
+  - `arrows`: 'to' (显示指向箭头)。
+  - `color`: 根据 `onActivePath` 状态决定样式（高亮或普通）。
 
 ### 4.2. 剪枝 (Pruning)
 
@@ -130,7 +134,8 @@ sequenceDiagram
 
 - **基础**:
   - **缩放/平移**: 支持鼠标滚轮缩放和拖拽画布平移。
-  - **节点拖拽**: 节点可自由拖拽，`d3-force` 引擎会自动重新计算布局。
+  - **布局**: 默认采用 `hierarchical` 布局，方向自上而下 (`UD`)。
+  - **节点拖拽**: 节点可拖拽。在层级模式下，拖拽主要用于微调位置，不会改变其父子关系。
 - **高亮**:
   - **当前路径**: 位于 `activePath` 上的节点和边使用主题色高亮。
   - **当前叶节点**: `activeLeafId` 对应的节点额外使用发光或加粗边框效果。
@@ -142,8 +147,9 @@ sequenceDiagram
   - "切换启用/禁用"
   - "复制内容"
 - **嫁接交互**:
-  - 拖动节点 A 至节点 B 上方时，节点 B 显示一个“可吸附”的高亮光圈。
-  - 如果嫁接非法（如形成循环），则高亮光圈为红色，并禁止松手操作。
+  - 开启物理引擎后，拖动节点 A 到节点 B 上方释放，即可触发嫁接。
+  - 在 `dragEnd` 事件中，获取被拖拽节点的最终位置，并使用 `getNodeAt` 方法找到其下方的目标节点。
+  - 根据找到的目标节点执行嫁接逻辑和合法性校验。
 
 ## 6. 实施计划 (Roadmap)
 
@@ -154,15 +160,15 @@ sequenceDiagram
     - 创建 `ConversationTreeGraph.vue` 和 `useConversationGraph.ts` 的组件骨架。
 2.  **Phase 2: 只读视图与分支切换**
     - 实现 `useConversationGraph.ts`，完成 `ChatSession` 到 ECharts 数据的转换。
-    - 在 `ConversationTreeGraph.vue` 中渲染基础力导向图，并实现当前活动路径的高亮。
+    - 在 `ConversationTreeGraph.vue` 中渲染基础**层级树图**，并实现当前活动路径的高亮。
     - 实现双击节点切换 `activeLeafId` 的功能。
 3.  **Phase 3: 实现剪枝与状态切换**
     - 为图表节点添加右键菜单。
     - 将 "剪枝" 和 "切换启用" 菜单项连接到 `useLlmChatStore` 中已有的 `deleteMessage` 和 `toggleNodeEnabled` action。
 4.  **Phase 4: 实现嫁接功能**
-    - 按照设计，在 `NodeManager` -> `BranchManager` -> `Store` 中逐层添加 `graftBranch` 相关 API。
-    - 在 ECharts 中实现拖拽释放事件，调用 `graftBranch` action，并处理合法性校验的视觉反馈。
+    - 按照设计，在 `NodeManager` -> `BranchManager` -> `Store` 中逐层添加 `graftBranch` 相关 API (此部分不受影响)。
+    - 在 Vis.js 中实现拖拽释放事件 (`dragEnd`)，调用 `graftBranch` action，并处理合法性校验。
 5.  **Phase 5: 优化与细节**
-    - 调整力导向图参数，优化布局美感和性能。
+    - 调整**层级布局**参数（如间距、排序算法），优化布局美感和性能。
     - 完善 Tooltip 内容。
     - 适配应用的主题系统（明/暗色模式）。

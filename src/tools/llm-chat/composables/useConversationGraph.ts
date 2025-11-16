@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
-import * as echarts from "echarts";
-import type { EChartsOption } from "echarts";
+import { DataSet, Network } from "vis-network/standalone";
+import type { Options, Node, Edge, Data } from "vis-network/standalone";
 import type { ChatSession, ChatMessageNode } from "../types";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { useLlmChatStore } from "../store";
@@ -20,51 +20,15 @@ interface ContextMenuState {
 }
 
 /**
- * 图节点数据结构
- */
-interface GraphNode {
-  id: string;
-  name: string;
-  category: number;
-  symbolSize: number;
-  symbol: string;
-  label: {
-    show: boolean;
-    formatter: string;
-  };
-  itemStyle: {
-    color?: string;
-    borderColor?: string;
-    borderWidth?: number;
-    opacity?: number;
-  };
-  // 存储原始节点引用，用于交互
-  _node: ChatMessageNode;
-}
-
-/**
- * 图连接数据结构
- */
-interface GraphLink {
-  source: string;
-  target: string;
-  lineStyle: {
-    color?: string;
-    width?: number;
-    opacity?: number;
-  };
-}
-
-/**
  * 会话树图 Composable
- * 负责将 ChatSession 数据转换为 ECharts graph 数据，并处理图表交互事件
+ * 负责将 ChatSession 数据转换为 Vis.js Network 数据，并处理图表交互事件
  */
 export function useConversationGraph(
   sessionRef: () => ChatSession | null,
   contextMenuState: Ref<ContextMenuState>
 ) {
-  // ECharts 实例
-  let chartInstance: echarts.ECharts | null = null;
+  // Vis.js Network 实例
+  let networkInstance: Network | null = null;
   const store = useLlmChatStore();
 
   /**
@@ -76,44 +40,42 @@ export function useConversationGraph(
   }
 
   /**
-   * 根据角色确定节点符号
+   * 根据角色确定节点形状
    */
-  function getNodeSymbol(role: string): string {
+  function getNodeShape(role: string): string {
     switch (role) {
       case "user":
-        return "rect"; // 用户消息用方形
+        return "box"; // 用户消息用方形
       case "assistant":
-        return "circle"; // 助手消息用圆形
+        return "ellipse"; // 助手消息用椭圆
       case "system":
         return "diamond"; // 系统消息用菱形
       default:
-        return "circle";
+        return "ellipse";
     }
   }
 
   /**
-   * 根据角色确定分类（用于着色）
+   * 计算节点的层级深度
    */
-  function getCategoryByRole(role: string): number {
-    switch (role) {
-      case "user":
-        return 0;
-      case "assistant":
-        return 1;
-      case "system":
-        return 2;
-      default:
-        return 3;
+  function calculateNodeDepth(session: ChatSession, nodeId: string): number {
+    let depth = 0;
+    let currentId: string | null = nodeId;
+    
+    while (currentId && currentId !== session.rootNodeId) {
+      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      if (!node || !node.parentId) break;
+      depth++;
+      currentId = node.parentId;
     }
+    
+    return depth;
   }
 
   /**
-   * 计算节点样式（根据状态）
+   * 根据节点状态计算颜色
    */
-  function getNodeStyle(
-    session: ChatSession,
-    node: ChatMessageNode
-  ): GraphNode["itemStyle"] {
+  function getNodeColor(session: ChatSession, node: ChatMessageNode): { background: string; border: string } {
     const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
     const isActiveLeaf = node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false;
@@ -137,235 +99,187 @@ export function useConversationGraph(
     // 禁用节点：置灰
     if (!isEnabled) {
       return {
-        color: "#d3d3d3",
-        borderColor: "#999",
-        borderWidth: 1,
-        opacity: 0.4,
+        background: "#d3d3d3",
+        border: "#999",
       };
     }
 
-    // 当前叶节点：高亮加粗边框
+    // 当前叶节点：红色边框高亮
     if (isActiveLeaf) {
       return {
-        color: baseColor,
-        borderColor: "#f56c6c", // 红色边框
-        borderWidth: 4,
-        opacity: 1,
+        background: baseColor,
+        border: "#f56c6c",
       };
     }
 
-    // 活动路径上的节点：正常显示
+    // 活动路径上的节点
     if (isOnActivePath) {
       return {
-        color: baseColor,
-        borderColor: baseColor,
-        borderWidth: 2,
-        opacity: 1,
+        background: baseColor,
+        border: baseColor,
       };
     }
 
     // 非活动路径：半透明
     return {
-      color: baseColor,
-      borderColor: baseColor,
-      borderWidth: 1,
-      opacity: 0.5,
+      background: baseColor + "80", // 添加 alpha 通道
+      border: baseColor + "80",
     };
   }
 
   /**
-   * 计算连接样式
+   * 根据边的状态计算颜色
    */
-  function getLinkStyle(
-    session: ChatSession,
-    sourceId: string,
-    targetId: string
-  ): GraphLink["lineStyle"] {
+  function getEdgeColor(session: ChatSession, sourceId: string, targetId: string): string {
     const isSourceOnPath = BranchNavigator.isNodeInActivePath(session, sourceId);
     const isTargetOnPath = BranchNavigator.isNodeInActivePath(session, targetId);
     const isOnActivePath = isSourceOnPath && isTargetOnPath;
 
     if (isOnActivePath) {
-      return {
-        color: "#409eff",
-        width: 3,
-        opacity: 1,
-      };
+      return "#409eff";
     }
 
-    return {
-      color: "#999",
-      width: 1,
-      opacity: 0.3,
-    };
+    return "#99999950"; // 半透明灰色
   }
 
   /**
-   * 计算节点的层级深度
+   * 生成 Vis.js 节点数据
    */
-  function calculateNodeDepth(session: ChatSession, nodeId: string): number {
-    let depth = 0;
-    let currentId: string | null = nodeId;
-    
-    while (currentId && currentId !== session.rootNodeId) {
-      const node: ChatMessageNode | undefined = session.nodes[currentId];
-      if (!node || !node.parentId) break;
-      depth++;
-      currentId = node.parentId;
-    }
-    
-    return depth;
-  }
-
-  /**
-   * 生成 ECharts 图表配置
-   */
-  const graphOption = computed<EChartsOption>(() => {
+  const nodesData = computed<Node[]>(() => {
     const session = sessionRef();
-    if (!session) {
-      return {
-        title: {
-          text: "暂无会话数据",
-          left: "center",
-          top: "center",
-          textStyle: {
-            color: "#999",
-            fontSize: 16,
-          },
-        },
-      };
-    }
+    if (!session) return [];
 
-    // 转换节点数据
-    const nodes: GraphNode[] = Object.values(session.nodes).map((node) => {
+    return Object.values(session.nodes).map((node) => {
       const depth = calculateNodeDepth(session, node.id);
-      const isRoot = node.id === session.rootNodeId;
-      
+      const colors = getNodeColor(session, node);
+      const isActiveLeaf = node.id === session.activeLeafId;
+      const isEnabled = node.isEnabled !== false;
+
       return {
         id: node.id,
-        name: truncateText(node.content),
-        category: getCategoryByRole(node.role),
-        symbolSize: node.role === "system" ? 25 : 40,
-        symbol: getNodeSymbol(node.role),
-        // 根节点固定位置，其他节点根据深度设置初始 y 坐标
-        x: isRoot ? 100 : undefined,
-        y: isRoot ? 100 : depth * 120,
-        fixed: isRoot, // 固定根节点
-        label: {
-          show: true,
-          formatter: `{b}\n[${node.role}]`,
+        label: `${truncateText(node.content)}\n[${node.role}]`,
+        shape: getNodeShape(node.role),
+        level: depth, // 用于层级布局
+        color: {
+          background: colors.background,
+          border: colors.border,
+          highlight: {
+            background: colors.background,
+            border: "#f56c6c",
+          },
         },
-        itemStyle: getNodeStyle(session, node),
-        _node: node, // 保存原始引用
-      } as any;
+        borderWidth: isActiveLeaf ? 4 : 2,
+        opacity: isEnabled ? 1 : 0.4,
+        font: {
+          size: 12,
+          color: "#333",
+        },
+        // 存储原始节点引用，用于交互
+        _node: node,
+      } as Node & { _node: ChatMessageNode };
     });
+  });
 
-    // 转换连接数据
-    const links: GraphLink[] = [];
+  /**
+   * 生成 Vis.js 边数据
+   */
+  const edgesData = computed<Edge[]>(() => {
+    const session = sessionRef();
+    if (!session) return [];
+
+    const edges: Edge[] = [];
     Object.values(session.nodes).forEach((node) => {
       if (node.parentId) {
-        links.push({
-          source: node.parentId,
-          target: node.id,
-          lineStyle: getLinkStyle(session, node.parentId, node.id),
+        const color = getEdgeColor(session, node.parentId, node.id);
+        const isOnActivePath = 
+          BranchNavigator.isNodeInActivePath(session, node.parentId) &&
+          BranchNavigator.isNodeInActivePath(session, node.id);
+
+        edges.push({
+          from: node.parentId,
+          to: node.id,
+          arrows: "to",
+          color: {
+            color: color,
+            highlight: "#409eff",
+          },
+          width: isOnActivePath ? 3 : 1,
+          smooth: {
+            enabled: true,
+            type: "cubicBezier",
+            roundness: 0.2,
+          },
         });
       }
     });
 
-    return {
-      title: {
-        text: `会话树图 (${nodes.length} 个节点)`,
-        left: "center",
-        top: 20,
-        textStyle: {
-          fontSize: 14,
-          color: "#606266",
-        },
-      },
-      tooltip: {
-        trigger: "item",
-        formatter: (params: any) => {
-          if (params.dataType === "node") {
-            const node: ChatMessageNode = params.data._node;
-            const siblingInfo = BranchNavigator.getSiblingIndex(session, node.id);
-            const isOnPath = BranchNavigator.isNodeInActivePath(session, node.id);
-            
-            return `
-              <div style="max-width: 300px;">
-                <strong>角色:</strong> ${node.role}<br/>
-                <strong>状态:</strong> ${node.isEnabled !== false ? "启用" : "禁用"}<br/>
-                <strong>路径:</strong> ${isOnPath ? "活动路径" : "非活动"}<br/>
-                <strong>分支:</strong> ${siblingInfo.index + 1}/${siblingInfo.total}<br/>
-                <strong>内容:</strong><br/>
-                ${truncateText(node.content, 100)}
-              </div>
-            `;
-          }
-          return "";
-        },
-      },
-      legend: {
-        data: [
-          { name: "用户", icon: "rect" },
-          { name: "助手", icon: "circle" },
-          { name: "系统", icon: "diamond" },
-        ],
-        top: 50,
-        textStyle: {
-          color: "#606266",
-        },
-      },
-      series: [
-        {
-          type: "graph",
-          layout: "force",
-          data: nodes,
-          links: links,
-          categories: [
-            { name: "用户" },
-            { name: "助手" },
-            { name: "系统" },
-          ],
-          roam: true, // 允许缩放和平移
-          draggable: true, // 允许拖拽节点
-          force: {
-            // 增大斥力，让节点保持距离
-            repulsion: 500,
-            // 增大边长，让树更舒展
-            edgeLength: [100, 250],
-            // 增加重力，让节点向下聚拢（模拟树的下垂感）
-            gravity: 0.15,
-            // 布局迭代次数，增加以获得更稳定的布局
-            layoutAnimation: true,
-            // 摩擦力，减少晃动
-            friction: 0.6,
-          },
-          label: {
-            show: true,
-            position: "right",
-            fontSize: 11,
-          },
-          emphasis: {
-            focus: "adjacency",
-            label: {
-              fontSize: 13,
-            },
-          },
-          // 边的样式
-          edgeSymbol: ['none', 'arrow'],
-          edgeSymbolSize: 8,
-        },
-      ],
-    };
+    return edges;
   });
+
+  /**
+   * Vis.js 网络配置选项
+   */
+  const networkOptions: Options = {
+    layout: {
+      hierarchical: {
+        enabled: true,
+        direction: "UD", // Up-Down (自上而下)
+        sortMethod: "directed", // 根据边的方向排序
+        nodeSpacing: 150, // 同层节点之间的水平间距
+        levelSeparation: 120, // 层级之间的垂直间距
+        treeSpacing: 200, // 不同树之间的间距
+      },
+    },
+    physics: {
+      enabled: true, // 启用物理引擎，提供拖拽时的动态效果
+      hierarchicalRepulsion: {
+        centralGravity: 0.0, // 降低中心引力，让节点更自由
+        springLength: 120, // 弹簧长度（节点间期望距离）
+        springConstant: 0.01, // 弹簧常数（越小越柔软）
+        nodeDistance: 150, // 节点间的最小距离
+        damping: 0.09, // 阻尼系数（越大停得越快）
+      },
+      stabilization: {
+        enabled: true,
+        iterations: 200, // 初始化时的稳定迭代次数
+        updateInterval: 25,
+      },
+    },
+    interaction: {
+      dragNodes: true, // 允许拖拽节点
+      dragView: true, // 允许拖拽画布
+      zoomView: true, // 允许缩放
+      hover: true, // 启用 hover 效果
+    },
+    nodes: {
+      shape: "box",
+      margin: {
+        top: 10,
+        right: 10,
+        bottom: 10,
+        left: 10,
+      },
+      widthConstraint: {
+        maximum: 200,
+      },
+    },
+    edges: {
+      smooth: {
+        enabled: true,
+        type: "cubicBezier",
+        forceDirection: "vertical",
+        roundness: 0.4,
+      },
+    },
+  };
 
   /**
    * 处理双击事件 - 切换分支
    */
-  function handleDblClick(params: any): void {
-    if (params.dataType !== "node") return;
+  function handleDoubleClick(params: any): void {
+    if (!params.nodes || params.nodes.length === 0) return;
 
-    const nodeId = params.data.id;
+    const nodeId = params.nodes[0];
     logger.info("双击节点，切换分支", { nodeId });
 
     try {
@@ -379,14 +293,17 @@ export function useConversationGraph(
    * 处理右键菜单
    */
   function handleContextMenu(params: any): void {
-    if (params.dataType !== "node") return;
+    if (!params.nodes || params.nodes.length === 0) return;
 
-    const node: ChatMessageNode = params.data._node;
+    const nodeId = params.nodes[0];
     const session = sessionRef();
     if (!session) return;
 
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
     // 阻止浏览器默认右键菜单
-    params.event.event.preventDefault();
+    params.event.preventDefault();
 
     // 构建菜单项
     const items: MenuItem[] = [];
@@ -429,58 +346,94 @@ export function useConversationGraph(
     // 显示上下文菜单
     contextMenuState.value = {
       visible: true,
-      x: params.event.event.clientX,
-      y: params.event.event.clientY,
+      x: params.pointer.DOM.x,
+      y: params.pointer.DOM.y,
       items,
     };
   }
 
   /**
-   * 初始化 ECharts 实例
+   * 处理拖拽结束事件 - 嫁接功能
    */
-  function init(container: HTMLElement): void {
+  function handleDragEnd(params: any): void {
+    if (!params.nodes || params.nodes.length === 0) return;
+
+    const draggedNodeId = params.nodes[0];
+    const session = sessionRef();
+    if (!session || !networkInstance) return;
+
+    // 获取释放位置下的目标节点
+    const pointer = params.pointer.DOM;
+    const targetNodeId = networkInstance.getNodeAt(pointer);
+
+    if (!targetNodeId || targetNodeId === draggedNodeId) {
+      logger.debug("拖拽结束：未找到有效的目标节点");
+      return;
+    }
+
+    logger.info("拖拽嫁接操作", { draggedNodeId, targetNodeId });
+
     try {
-      chartInstance = echarts.init(container);
-      chartInstance.setOption(graphOption.value);
-
-      // 绑定双击事件（分支切换）
-      chartInstance.on("dblclick", handleDblClick);
-
-      // 绑定右键菜单事件
-      chartInstance.on("contextmenu", handleContextMenu);
-
-      // TODO: Phase 3.4 - 实现拖拽嫁接功能
-      // 需要精确获取节点在画布上的位置，并实现吸附逻辑
-      // chartInstance.on("dragend", (params) => { ... });
-
-      logger.info("ECharts 图表初始化成功");
+      store.graftBranch(String(draggedNodeId), String(targetNodeId));
     } catch (error) {
-      logger.error("ECharts 图表初始化失败", error);
+      logger.error("嫁接操作失败", error);
     }
   }
 
   /**
-   * 更新图表数据
+   * 初始化 Vis.js Network 实例
+   */
+  function init(container: HTMLElement): void {
+    try {
+      const nodes = new DataSet(nodesData.value);
+      const edges = new DataSet(edgesData.value);
+
+      const data: Data = { nodes, edges };
+
+      networkInstance = new Network(container, data, networkOptions);
+
+      // 绑定双击事件（分支切换）
+      networkInstance.on("doubleClick", handleDoubleClick);
+
+      // 绑定右键菜单事件
+      networkInstance.on("oncontext", handleContextMenu);
+
+      // 绑定拖拽结束事件（嫁接功能）
+      networkInstance.on("dragEnd", handleDragEnd);
+
+      logger.info("Vis.js Network 初始化成功");
+    } catch (error) {
+      logger.error("Vis.js Network 初始化失败", error);
+    }
+  }
+
+  /**
+   * 更新网络数据
    */
   function updateChart(): void {
-    if (chartInstance) {
+    if (networkInstance) {
       try {
-        chartInstance.setOption(graphOption.value, { notMerge: true });
-        logger.debug("图表数据已更新");
+        // 重新创建 DataSet 并更新网络
+        const nodes = new DataSet(nodesData.value);
+        const edges = new DataSet(edgesData.value);
+        
+        networkInstance.setData({ nodes, edges });
+
+        logger.debug("网络数据已更新");
       } catch (error) {
-        logger.error("更新图表数据失败", error);
+        logger.error("更新网络数据失败", error);
       }
     }
   }
 
   /**
-   * 销毁 ECharts 实例
+   * 销毁 Vis.js Network 实例
    */
   function destroy(): void {
-    if (chartInstance) {
-      chartInstance.dispose();
-      chartInstance = null;
-      logger.info("ECharts 图表已销毁");
+    if (networkInstance) {
+      networkInstance.destroy();
+      networkInstance = null;
+      logger.info("Vis.js Network 已销毁");
     }
   }
 

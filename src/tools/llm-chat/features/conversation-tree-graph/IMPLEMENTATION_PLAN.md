@@ -46,11 +46,11 @@
 
 4.  **创建文件 `src/tools/llm-chat/components/conversation-tree-graph/ConversationTreeGraph.vue`** (新):
     - **Props**: `session: ChatSession`。
-    - **职责**: 渲染 ECharts 画布。
+    - **职责**: 渲染 **Vis.js** 画布。
     - **实现骨架**:
-        - 引入 `useConversationGraph` Composable (下一步创建)。
-        - 在 `onMounted` 中初始化图表。
-        - `watch` `props.session` 的变化来更新图表。
+        - 引入 `useConversationGraph` Composable。
+        - 在 `onMounted` 中初始化网络。
+        - `watch` `props.session` 的变化来更新网络数据。
 
 5.  **修改 `src/tools/llm-chat/components/ChatArea.vue`**:
     - 在 `<template>` 中，使用 `<component :is="activeViewComponent">` 来动态渲染视图。
@@ -60,41 +60,44 @@
         - 创建一个计算属性 `activeViewComponent`，根据 `viewMode.value` 返回对应的组件。
 
 6.  **创建文件 `src/tools/llm-chat/composables/useConversationGraph.ts`** (新):
-    - **职责**: 封装 ECharts 的 option 生成和事件处理逻辑。
+    - **职责**: 封装 **Vis.js** 的数据转换、配置选项和事件处理逻辑。
     - **导出**: `function useConversationGraph(session: Ref<ChatSession | null>)`。
     - **实现骨架**:
-        - `graphOption: Ref<ECOption>`: 一个计算属性，此时可以先返回一个空的 option。
-        - `init(element: HTMLElement)`: 初始化 ECharts 实例。
+        - `nodes: Ref<DataSet<any>>`, `edges: Ref<DataSet<any>>`: 响应式的数据集。
+        - `options: Ref<Options>`: 包含布局（`hierarchical`）、交互、样式等配置。
+        - `init(element: HTMLElement)`: 初始化 `vis.Network` 实例。
         - `destroy()`: 销毁实例。
 
 ## Phase 3: 交互功能实现
 
 **目标**: 在 `useConversationGraph.ts` 中实现所有交互逻辑，让图“活”起来。
 
-1.  **完善 `useConversationGraph.ts` 的 `graphOption`**:
-    - 实现将 `session.nodes` 转换为 ECharts `nodes` 和 `links` 的完整逻辑。
-    - **实现高亮与状态反馈**:
-        - 遍历所有节点，使用 `BranchNavigator.isNodeInActivePath` 判断节点是否在当前活动路径上。
-        - 根据节点的 `isEnabled`, `isNodeInActivePath`, `id === session.activeLeafId` 等状态，为其分配不同的 `itemStyle` (颜色、边框、透明度)。
-        - 对 `links` 也进行类似处理。
+1.  **完善 `useConversationGraph.ts` 的数据转换和配置**:
+    - **数据转换**: 实现将 `session.nodes` 转换为 Vis.js `nodes` 和 `edges` 的 `DataSet` 的完整逻辑。
+    - **状态反馈**:
+        - 根据节点的 `isEnabled`, `isNodeInActivePath`, `id === session.activeLeafId` 等状态，为其分配不同的 `color` (背景、边框)。
+        - 对 `edges` 也进行类似处理。
+    - **布局配置**: 在 `options` 中，配置 `layout.hierarchical`，设置方向为 `UD` (Up-Down)，并调整节点间距。
 
 2.  **实现分支切换**:
-    - 在 `init()` 函数中，为 ECharts 实例绑定 `'dblclick'` 事件。
-    - 在事件回调中，获取被点击的节点 ID，调用 `store.switchBranch(nodeId)`。
+    - 在 `init()` 函数中，为 Vis.js 网络实例绑定 `'doubleClick'` 事件。
+    - 在事件回调中，从事件对象中获取被点击的节点 ID，调用 `store.switchBranch(nodeId)`。
 
 3.  **实现剪枝与状态切换 (右键菜单)**:
-    - 为 ECharts 实例绑定 `'contextmenu'` 事件。
+    - 为 Vis.js 网络实例绑定 `'oncontext'` 事件。
     - 在回调中，阻止默认事件，并使用一个全局服务或组件（如 `ContextMenu.show(...)`）来显示自定义菜单。
     - 菜单项绑定 `store.deleteMessage(nodeId)` 和 `store.toggleNodeEnabled(nodeId)`。
 
 4.  **实现嫁接**:
-    - 为 ECharts 实例绑定 `'dragend'` 事件。
+    - 在 Vis.js 的 `options` 中，开启物理引擎和交互。
+    - 为网络实例绑定 `'dragEnd'` 事件。
     - 在回调中：
-        - 获取被拖拽的节点 (`draggedNode`)。
-        - 使用 ECharts API (`convertFromPixel`) 获取鼠标松开位置对应的图表坐标，并找到该坐标下的目标节点 (`targetNode`)。
-        - **执行校验**: 确保 `targetNode` 存在，且不是 `draggedNode` 的子孙。
-        - 调用 `store.graftBranch(draggedNode.id, targetNode.id)`。
+        - 获取被拖拽的节点 ID (`draggedNodeId`)。
+        - 获取释放时的指针坐标。
+        - 使用 `network.getNodeAt(pointer.DOM)` 方法找到指针下的目标节点 ID (`targetNodeId`)。
+        - **执行校验**: 确保 `targetNodeId` 存在，且不是 `draggedNodeId` 的子孙。
+        - 调用 `store.graftBranch(draggedNodeId, targetNodeId)`。
 
 ---
 
-**任务完成标志**: 所有 Phase 1-3 的功能实现完毕，用户可以在 `ChatArea` 中通过视图切换器在“线性视图”和“树图视图”之间无缝切换，并能在树图视图中通过双击、右键、拖拽等方式进行分支切换、剪枝和嫁接操作。
+**任务完成标志**: 所有 Phase 1-3 的功能实现完毕，用户可以在 `ChatArea` 中通过视图切换器在“线性视图”和“树图视图”之间无缝切换，并能在**基于 Vis.js 的层级树图**中通过双击、右键、拖拽等方式进行分支切换、剪枝和嫁接操作。

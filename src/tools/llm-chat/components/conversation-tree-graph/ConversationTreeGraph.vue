@@ -1,6 +1,6 @@
 <template>
   <div class="conversation-tree-graph-wrapper">
-    <div ref="chartContainer" class="conversation-tree-graph"></div>
+    <div ref="networkContainer" class="conversation-tree-graph"></div>
     
     <!-- 右键上下文菜单 -->
     <ContextMenu
@@ -20,7 +20,7 @@ import ContextMenu from "./ContextMenu.vue";
 
 /**
  * 会话树图组件
- * 使用 ECharts 力导向图渲染对话历史的树状结构
+ * 使用 Vis.js 层级布局渲染对话历史的树状结构
  */
 
 // Props
@@ -31,7 +31,7 @@ interface Props {
 const props = defineProps<Props>();
 
 // Refs
-const chartContainer = ref<HTMLElement | null>(null);
+const networkContainer = ref<HTMLElement | null>(null);
 
 // 上下文菜单状态
 const contextMenu = ref({
@@ -49,8 +49,8 @@ const { init, destroy, updateChart } = useConversationGraph(
 
 // Lifecycle
 onMounted(() => {
-  if (chartContainer.value) {
-    init(chartContainer.value);
+  if (networkContainer.value) {
+    init(networkContainer.value);
   }
 });
 
@@ -80,6 +80,15 @@ watch(
   height: 100%;
   min-height: 400px;
   background-color: var(--card-bg);
+  border-radius: 8px;
+}
+
+/* Vis.js 网络容器样式调整 */
+.conversation-tree-graph :deep(.vis-network) {
+  outline: none;
+}
+
+.conversation-tree-graph :deep(canvas) {
   border-radius: 8px;
 }
 </style>

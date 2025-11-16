@@ -8,6 +8,8 @@
       :max-zoom="4"
       fit-view-on-init
       @node-double-click="handleNodeDoubleClick"
+      @node-drag-start="handleNodeDragStart"
+      @node-drag="handleNodeDrag"
       @node-drag-stop="handleNodeDragStop"
       @node-context-menu="handleNodeContextMenu"
     >
@@ -31,6 +33,20 @@
         />
       </template>
     </VueFlow>
+    
+    <!-- 布局模式切换按钮 -->
+    <div class="layout-mode-toggle">
+      <el-tooltip
+        :content="layoutMode === 'tree' ? '切换到物理悬挂模式' : '切换到树状布局模式'"
+        placement="left"
+      >
+        <el-button
+          :icon="layoutMode === 'tree' ? Grid : Share"
+          circle
+          @click="toggleLayoutMode"
+        />
+      </el-tooltip>
+    </div>
     
     <!-- 右键上下文菜单 -->
     <ContextMenu
@@ -59,6 +75,7 @@ import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { MiniMap } from '@vue-flow/minimap';
 import { Controls } from '@vue-flow/controls';
+import { Grid, Share } from '@element-plus/icons-vue';
 import type { ChatSession, ChatMessageNode } from '../../../types';
 import { useFlowTreeGraph } from '../../../composables/useFlowTreeGraph';
 import { useAgentStore } from '../../../agentStore';
@@ -93,8 +110,11 @@ const contextMenu = ref({
 const {
   nodes,
   edges,
+  layoutMode,
   detailPopupState,
   handleNodeDoubleClick,
+  handleNodeDragStart,
+  handleNodeDrag,
   handleNodeDragStop,
   handleNodeContextMenu: onNodeContextMenu,
   handleNodeCopy,
@@ -104,6 +124,7 @@ const {
   closeDetailPopup,
   updateChart,
   updateNodeDimensions,
+  switchLayoutMode,
 } = useFlowTreeGraph(() => props.session, contextMenu);
 
 const agentStore = useAgentStore();
@@ -141,6 +162,12 @@ const llmThinkRulesForDetail = computed(() => {
   const agent = agentStore.getAgentById(agentId);
   return agent?.llmThinkRules;
 });
+
+// 切换布局模式
+const toggleLayoutMode = () => {
+  const newMode = layoutMode.value === 'tree' ? 'physics' : 'tree';
+  switchLayoutMode(newMode);
+};
 
 // 监听 session 变化
 watch(
@@ -259,6 +286,29 @@ onUnmounted(() => {
 /* 暗色主题适配 */
 .dark .flow-tree-graph-wrapper :deep(.vue-flow__controls),
 .dark .flow-tree-graph-wrapper :deep(.vue-flow__minimap) {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 布局模式切换按钮 */
+.layout-mode-toggle {
+  position: absolute;
+  top: 86px;
+  right: 16px;
+  z-index: 5;
+}
+
+.layout-mode-toggle :deep(.el-button) {
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.layout-mode-toggle :deep(.el-button:hover) {
+  background-color: var(--el-fill-color-light);
+}
+
+.dark .layout-mode-toggle :deep(.el-button) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 </style>

@@ -100,6 +100,11 @@ interface D3Link extends d3Force.SimulationLinkDatum<D3Node> {
 }
 
 /**
+ * 布局模式类型
+ */
+export type LayoutMode = 'tree' | 'physics';
+
+/**
  * Vue Flow 树图 Composable
  * 使用 D3 力导向布局 + Vue Flow 渲染
  */
@@ -115,6 +120,9 @@ export function useFlowTreeGraph(
   const nodes = ref<FlowNode[]>([]);
   const edges = ref<FlowEdge[]>([]);
 
+  // 布局模式
+  const layoutMode = ref<LayoutMode>('tree');
+
   // 详情悬浮窗状态
   const detailPopupState = ref<DetailPopupState>({
     visible: false,
@@ -125,6 +133,55 @@ export function useFlowTreeGraph(
 
   // D3 力模拟实例
   let simulation: d3Force.Simulation<D3Node, D3Link> | null = null;
+
+  /**
+   * 计算每个节点的后代总数
+   */
+  function calculateDescendantCounts(nodes: Record<string, ChatMessageNode>): Map<string, number> {
+    const childrenMap = new Map<string, string[]>();
+    Object.values(nodes).forEach(node => {
+      if (node.parentId) {
+        if (!childrenMap.has(node.parentId)) {
+          childrenMap.set(node.parentId, []);
+        }
+        childrenMap.get(node.parentId)!.push(node.id);
+      }
+    });
+
+    const counts = new Map<string, number>();
+
+    // 使用缓存的递归函数计算后代数量
+    function countDescendants(nodeId: string): number {
+      if (counts.has(nodeId)) {
+        return counts.get(nodeId)!;
+      }
+
+      const children = childrenMap.get(nodeId) || [];
+      let count = children.length; // 直接子节点
+      for (const childId of children) {
+        count += countDescendants(childId); // 递归累加
+      }
+
+      counts.set(nodeId, count);
+      return count;
+    }
+
+    // 确保所有节点都被计算
+    for (const nodeId of Object.keys(nodes)) {
+      if (!counts.has(nodeId)) {
+        countDescendants(nodeId);
+      }
+    }
+
+    // 再次遍历，确保没有子节点的节点也被设置为0
+    for (const nodeId of Object.keys(nodes)) {
+      if (!counts.has(nodeId)) {
+        counts.set(nodeId, 0);
+      }
+    }
+
+    return counts;
+  }
 
   /**
    * 截断文本用于显示
@@ -514,93 +571,135 @@ export function useFlowTreeGraph(
       simulation.stop();
     }
 
-    // --- 1. 使用 d3-hierarchy 进行确定性树布局 ---
-    const nodeWidth = 220;
-    const nodeHorizontalPadding = 120;
-
-    const rootHierarchy = stratify<ChatMessageNode>()
-      .id((d: ChatMessageNode) => d.id)
-      .parentId((d: ChatMessageNode) => d.parentId)
-      (Object.values(session.nodes));
-
-    const treeLayout = tree<ChatMessageNode>().nodeSize([
-      nodeWidth + nodeHorizontalPadding,
-      levelGap,
-    ]);
-    
-    treeLayout(rootHierarchy);
-
-    const calculatedPositions = new Map<string, { x: number; y: number }>();
-    rootHierarchy.each((d: HierarchyNode<ChatMessageNode>) => {
-      calculatedPositions.set(d.id!, { x: d.x ?? 0, y: d.y ?? 0 });
-    });
-
-    // --- 2. 使用 d3-force 进行物理微调，解决重叠问题 ---
     const d3Links: D3Link[] = edges.value.map((e) => ({
       source: e.source,
       target: e.target,
     }));
 
-    // 将计算好的位置应用到 d3Nodes，作为力的目标
-    d3Nodes.forEach(n => {
-      const pos = calculatedPositions.get(n.id);
-      if (pos) {
-        // 如果是新节点，直接设置位置以避免从(0,0)飞来
-        if (n.x === 0 && n.y === 0) {
-          n.x = pos.x;
-          n.y = pos.y;
-        }
-        // 旧节点将从当前位置平滑过渡到新位置
-      }
-    });
+    // 根据布局模式选择不同的力配置
+    if (layoutMode.value === 'tree') {
+      // === Tree 模式：使用 d3-hierarchy 进行确定性树布局 ===
+      const nodeWidth = 220;
+      const nodeHorizontalPadding = 120;
 
-    // 创建自定义的 X 方向碰撞力，增大水平方向的碰撞半径
-    const collideXForce = () => {
-      const padding = 150; // X 方向额外间距
-      
-      return (alpha: number) => {
-        for (let i = 0; i < d3Nodes.length; i++) {
-          const nodeA = d3Nodes[i];
-          for (let j = i + 1; j < d3Nodes.length; j++) {
-            const nodeB = d3Nodes[j];
-            
-            const dx = (nodeB.x ?? 0) - (nodeA.x ?? 0);
-            const dy = (nodeB.y ?? 0) - (nodeA.y ?? 0);
-            
-            // 在 X 方向使用更大的半径
-            const radiusX = (nodeA.width + nodeB.width) / 2 + padding;
-            const radiusY = (nodeA.height + nodeB.height) / 2 + 40; // 增加 Y 方向间距以适应更高的节点
-            
-            // 检测椭圆形碰撞
-            const normalizedDistance = Math.sqrt((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY));
-            
-            if (normalizedDistance < 1 && normalizedDistance > 0) {
-              // 计算推开力
-              const pushStrength = (1 - normalizedDistance) * alpha * 0.9;
-              const pushX = (dx / normalizedDistance) * pushStrength;
-              const pushY = (dy / normalizedDistance) * pushStrength;
-              
-              nodeB.vx = (nodeB.vx ?? 0) + pushX;
-              nodeB.vy = (nodeB.vy ?? 0) + pushY;
-              nodeA.vx = (nodeA.vx ?? 0) - pushX;
-              nodeA.vy = (nodeA.vy ?? 0) - pushY;
+      const rootHierarchy = stratify<ChatMessageNode>()
+        .id((d: ChatMessageNode) => d.id)
+        .parentId((d: ChatMessageNode) => d.parentId)
+        (Object.values(session.nodes));
+
+      const treeLayout = tree<ChatMessageNode>().nodeSize([
+        nodeWidth + nodeHorizontalPadding,
+        levelGap,
+      ]);
+
+      treeLayout(rootHierarchy);
+
+      const calculatedPositions = new Map<string, { x: number; y: number }>();
+      rootHierarchy.each((d: HierarchyNode<ChatMessageNode>) => {
+        calculatedPositions.set(d.id!, { x: d.x ?? 0, y: d.y ?? 0 });
+      });
+
+      // 将计算好的位置应用到 d3Nodes，作为力的目标
+      d3Nodes.forEach(n => {
+        const pos = calculatedPositions.get(n.id);
+        if (pos) {
+          // 如果是新节点，直接设置位置以避免从(0,0)飞来
+          if (n.x === 0 && n.y === 0) {
+            n.x = pos.x;
+            n.y = pos.y;
+          }
+          // 旧节点将从当前位置平滑过渡到新位置
+        }
+      });
+
+      // 创建自定义的 X 方向碰撞力，增大水平方向的碰撞半径
+      const collideXForce = () => {
+        const padding = 150; // X 方向额外间距
+
+        return (alpha: number) => {
+          for (let i = 0; i < d3Nodes.length; i++) {
+            const nodeA = d3Nodes[i];
+            for (let j = i + 1; j < d3Nodes.length; j++) {
+              const nodeB = d3Nodes[j];
+
+              const dx = (nodeB.x ?? 0) - (nodeA.x ?? 0);
+              const dy = (nodeB.y ?? 0) - (nodeA.y ?? 0);
+
+              // 在 X 方向使用更大的半径
+              const radiusX = (nodeA.width + nodeB.width) / 2 + padding;
+              const radiusY = (nodeA.height + nodeB.height) / 2 + 40; // 增加 Y 方向间距以适应更高的节点
+
+              // 检测椭圆形碰撞
+              const normalizedDistance = Math.sqrt((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY));
+
+              if (normalizedDistance < 1 && normalizedDistance > 0) {
+                // 计算推开力
+                const pushStrength = (1 - normalizedDistance) * alpha * 0.9;
+                const pushX = (dx / normalizedDistance) * pushStrength;
+                const pushY = (dy / normalizedDistance) * pushStrength;
+
+                nodeB.vx = (nodeB.vx ?? 0) + pushX;
+                nodeB.vy = (nodeB.vy ?? 0) + pushY;
+                nodeA.vx = (nodeA.vx ?? 0) - pushX;
+                nodeA.vy = (nodeA.vy ?? 0) - pushY;
+              }
             }
           }
-        }
+        };
       };
-    };
 
-    simulation = d3Force
-      .forceSimulation(d3Nodes)
-      // 保持链接关系
-      .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links).id(d => d.id).distance(50).strength(0.2))
-      // 添加基础圆形碰撞力
-      .force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 15).strength(0.7))
-      // 添加自定义 X 方向碰撞力
-      .force("collideX", collideXForce())
-      // X 和 Y 方向的力，将节点吸引到 d3-hierarchy 计算出的目标位置
-      .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.5))
-      .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.8));
+      simulation = d3Force
+        .forceSimulation(d3Nodes)
+        // 保持链接关系
+        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links).id(d => d.id).distance(50).strength(0.2))
+        // 添加基础圆形碰撞力
+        .force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 15).strength(0.7))
+        // 添加自定义 X 方向碰撞力
+        .force("collideX", collideXForce())
+        // X 和 Y 方向的力，将节点吸引到 d3-hierarchy 计算出的目标位置
+        .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.5))
+        .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.8));
+
+      logger.info("D3 力模拟已初始化 (Tree 模式)");
+    } else {
+      // === Physics 模式：物理悬挂布局 ===
+      // 增强了物理效果，使其更具“重力感”，并根据子节点数量动态调整距离
+
+      // 1. 计算每个节点的后代数量作为其“重量”
+      const descendantCounts = calculateDescendantCounts(session.nodes);
+
+      // 2. 动态计算连接距离的函数
+      const getLinkDistance = (link: D3Link) => {
+        const targetNodeId = (typeof link.target === 'object' ? link.target.id : link.target);
+        const weight = descendantCounts.get(targetNodeId) || 0;
+        const baseDistance = 180;
+        const extraDistancePerNode = 80;
+        const maxExtraDistance = 320;
+        // 根据权重增加距离，但有一个上限
+        return baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
+      };
+
+      simulation = d3Force
+        .forceSimulation(d3Nodes)
+        // 连接力：像坚韧的绳索，拉住节点，长度由子节点“重量”决定
+        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links)
+          .id(d => d.id)
+          .distance(getLinkDistance) // 使用动态距离函数
+          .strength(0.4) // 大幅增强连接强度
+        )
+        // 排斥力：增强，避免节点重叠
+        .force("charge", d3Force.forceManyBody().strength(-150))
+        // 真正的重力：增强下坠感
+        .force("gravity", d3Force.forceY(400).strength(0.2))
+        // 水平居中力：防止整个图飘走
+        .force("x", d3Force.forceX(0).strength(0.05))
+        // 碰撞力：防止节点重叠
+        .force("collide", d3Force.forceCollide<D3Node>(d => {
+          return Math.max(d.width, d.height) / 2 + 15; // 增加一点碰撞半径
+        }).strength(1));
+
+      logger.info("D3 力模拟已初始化 (Physics 模式，带动态绳长)");
+    }
 
     // 监听 tick 事件，直接更新节点位置
     simulation.on("tick", () => {
@@ -617,10 +716,47 @@ export function useFlowTreeGraph(
     simulation.on("end", () => {
       logger.info("D3 力模拟结束");
     });
-
-    logger.info("D3 力模拟已初始化 (定向树布局)");
   }
 
+
+  /**
+   * 处理节点拖拽开始事件
+   */
+  function handleNodeDragStart(event: any): void {
+    if (layoutMode.value !== 'physics') return;
+
+    const nodeId = event.node.id;
+    logger.debug("节点拖拽开始 (Physics 模式)", { nodeId });
+
+    // 激活模拟
+    if (simulation) {
+      simulation.alphaTarget(0.3).restart();
+    }
+  }
+
+  /**
+   * 处理节点拖拽中事件
+   */
+  function handleNodeDrag(event: any): void {
+    if (layoutMode.value !== 'physics') return;
+
+    const nodeId = event.node.id;
+    const { x, y } = event.node.position;
+
+    // 更新 D3 模拟中对应节点的位置
+    if (simulation) {
+      const d3Node = simulation.nodes().find(n => n.id === nodeId);
+      if (d3Node) {
+        d3Node.fx = x;
+        d3Node.fy = y;
+      }
+
+      // 保持模拟活跃
+      if (simulation.alpha() < 0.1) {
+        simulation.alpha(0.3);
+      }
+    }
+  }
 
   /**
    * 处理双击事件 - 切换分支
@@ -637,46 +773,60 @@ export function useFlowTreeGraph(
   }
 
   /**
-   * 处理拖拽结束事件 - 嫁接功能
+   * 处理拖拽结束事件
    */
   function handleNodeDragStop(event: any): void {
     const draggedNodeId = event.node.id;
     const session = sessionRef();
     if (!session) return;
 
-    // Vue Flow 的拖拽事件不直接提供目标节点
-    // 我们需要通过位置计算最近的节点
-    const draggedNode = nodes.value.find(n => n.id === draggedNodeId);
-    if (!draggedNode) return;
-
-    // 找到最近的节点（除了自己）
-    let closestNodeId: string | null = null;
-    let minDistance = Infinity;
-
-    nodes.value.forEach(node => {
-      if (node.id === draggedNodeId) return;
-
-      const dx = node.position.x - draggedNode.position.x;
-      const dy = node.position.y - draggedNode.position.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance < minDistance && distance < 100) { // 100px 阈值
-        minDistance = distance;
-        closestNodeId = node.id;
+    if (layoutMode.value === 'physics') {
+      // Physics 模式：释放节点固定，除了根节点
+      if (simulation && draggedNodeId !== session.rootNodeId) {
+        const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
+        if (d3Node) {
+          d3Node.fx = null;
+          d3Node.fy = null;
+        }
       }
-    });
+      // 降低模拟活跃度
+      if (simulation) {
+        simulation.alphaTarget(0);
+      }
+    } else {
+      // Tree 模式：嫁接功能
+      const draggedNode = nodes.value.find(n => n.id === draggedNodeId);
+      if (!draggedNode) return;
 
-    if (!closestNodeId) {
-      logger.debug("拖拽结束：未找到有效的目标节点");
-      return;
-    }
+      // 找到最近的节点（除了自己）
+      let closestNodeId: string | null = null;
+      let minDistance = Infinity;
 
-    logger.info("拖拽嫁接操作", { draggedNodeId, targetNodeId: closestNodeId });
+      nodes.value.forEach(node => {
+        if (node.id === draggedNodeId) return;
 
-    try {
-      store.graftBranch(draggedNodeId, closestNodeId);
-    } catch (error) {
-      logger.error("嫁接操作失败", error);
+        const dx = node.position.x - draggedNode.position.x;
+        const dy = node.position.y - draggedNode.position.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < minDistance && distance < 100) { // 100px 阈值
+          minDistance = distance;
+          closestNodeId = node.id;
+        }
+      });
+
+      if (!closestNodeId) {
+        logger.debug("拖拽结束：未找到有效的目标节点");
+        return;
+      }
+
+      logger.info("拖拽嫁接操作", { draggedNodeId, targetNodeId: closestNodeId });
+
+      try {
+        store.graftBranch(draggedNodeId, closestNodeId);
+      } catch (error) {
+        logger.error("嫁接操作失败", error);
+      }
     }
   }
 
@@ -866,6 +1016,19 @@ export function useFlowTreeGraph(
   }
 
   /**
+   * 切换布局模式
+   */
+  function switchLayoutMode(mode: LayoutMode): void {
+    if (layoutMode.value === mode) return;
+
+    logger.info(`切换布局模式: ${layoutMode.value} -> ${mode}`);
+    layoutMode.value = mode;
+
+    // 重新初始化模拟以应用新的布局模式
+    initD3Simulation();
+  }
+
+  /**
    * 清理资源
    */
   function destroy(): void {
@@ -880,8 +1043,11 @@ export function useFlowTreeGraph(
   return {
     nodes,
     edges,
+    layoutMode,
     detailPopupState,
     handleNodeDoubleClick,
+    handleNodeDragStart,
+    handleNodeDrag,
     handleNodeDragStop,
     handleNodeContextMenu,
     handleNodeCopy,
@@ -891,6 +1057,7 @@ export function useFlowTreeGraph(
     closeDetailPopup,
     updateChart,
     updateNodeDimensions, // 暴露给 Vue 组件使用
+    switchLayoutMode, // 暴露布局模式切换函数
     destroy,
   };
 }

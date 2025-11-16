@@ -1,103 +1,117 @@
-# 会话树图 - 实施任务清单
+# 会话树图 V2 - 实施计划
 
-本文档为 `code` 模式提供一个清晰、可执行的任务清单，用于实现“会话树图”功能。
+本文档基于 `DESIGN_V2.md` 和对 V1 代码的调研，提供一个详细、分步的实施计划。
 
-## Phase 1: 核心 API 扩展 (嫁接功能)
+## 1. 核心思路
 
-**目标**: 为“嫁接”功能补充所需的底层 API。
+- **增量开发，平滑过渡**: V2 将作为一种新的视图模式（`force-graph`）被添加，与现有的 V1（`graph`）和线性视图（`linear`）共存。用户可以通过 `ViewModeSwitcher` 自由切换，直到 V2 功能完善并确认可以替换 V1。
+- **逻辑迁移，而非重写**: V1 的 `useVisTreeGraph.ts` 中包含了大量与渲染无关的核心业务逻辑（如数据转换、颜色计算、头像解析、交互回调等）。V2 的 `useFlowTreeGraph.ts` 将迁移并改造这些逻辑，使其适配 Vue Flow 和 D3.js，避免重复劳动。
 
-1.  **修改 `src/tools/llm-chat/composables/useNodeManager.ts`**:
-    - 新增函数 `reparentSubtree(session: ChatSession, nodeId: string, newParentId: string): boolean`。
-    - **实现逻辑**:
-        - 验证 `nodeId` 和 `newParentId` 的存在性。
-        - 验证 `newParentId` 不是 `nodeId` 的子孙，防止循环引用 (可使用 `getAllDescendants` 辅助)。
-        - 从旧父节点的 `childrenIds` 数组中移除 `nodeId`。
-        - 更新 `session.nodes[nodeId].parentId = newParentId`。
-        - 将 `nodeId` 添加到新父节点的 `childrenIds` 数组中。
-        - 返回 `true` 表示成功。
+## 2. 任务分解 (Task Breakdown)
 
-2.  **修改 `src/tools/llm-chat/composables/useBranchManager.ts`**:
-    - 新增函数 `graftBranch(session: ChatSession, nodeId: string, newParentId: string): boolean`。
-    - **实现逻辑**:
-        - 内部调用 `useNodeManager().reparentSubtree(...)`。
-        - 添加相应的日志记录。
+### 阶段一：环境与骨架搭建
 
-3.  **修改 `src/tools/llm-chat/store.ts`**:
-    - 在 `actions` 中新增 `graftBranch(nodeId: string, newParentId: string): void`。
-    - **实现逻辑**:
-        - 获取 `currentSession`。
-        - 调用 `useBranchManager().graftBranch(session, nodeId, newParentId)`。
-        - 如果成功，调用 `sessionManager.persistSession(...)` 持久化。
+1.  **安装依赖**:
+    - 在 `package.json` 中添加以下依赖：
+      ```json
+      "dependencies": {
+        // ...
+        "@vue-flow/core": "^1.33.0",
+        "d3-force": "^3.0.0"
+      },
+      "devDependencies": {
+        // ...
+        "@types/d3-force": "^3.0.9"
+      }
+      ```
+    - 运行 `bun install`。
 
-## Phase 2: UI 框架与视图模式
+2.  **创建文件骨架 (新结构)**:
+    - **Composable**: `src/tools/llm-chat/composables/useFlowTreeGraph.ts`
+    - **主组件**: `src/tools/llm-chat/components/conversation-tree-graph/flow/FlowTreeGraph.vue`
+    - **自定义节点**: `src/tools/llm-chat/components/conversation-tree-graph/flow/components/GraphNode.vue`
 
-**目标**: 搭建视图切换的框架，并创建所需的 UI 组件。
+### 阶段二：核心逻辑实现 (`useFlowTreeGraph.ts`)
 
-1.  **修改 `src/tools/llm-chat/composables/useLlmChatUiState.ts`**:
-    - 新增 `const viewMode = ref<'linear' | 'graph'>('linear')`。
-    - 将 `viewMode` 添加到持久化和跨窗口同步的逻辑中。
+1.  **迁移基础逻辑**:
+    - 从 `useVisTreeGraph.ts` 复制大部分代码到 `useFlowTreeGraph.ts`。
+    - 重点迁移以下函数/逻辑，并做初步适配：
+        - `truncateText`
+        - `getRoleDisplay` (头像和名称解析)
+        - `createThemePalette` 及 `MutationObserver` (动态主题适配)
+        - `getNodeColor`, `getEdgeColor`
+        - 交互回调函数 (`handleDoubleClick`, `handleDragEnd`, `handleContextMenu`) 的基本逻辑。
 
-2.  **创建文件 `src/tools/llm-chat/components/message/ViewModeSwitcher.vue`** (新):
-    - **职责**: 提供一个下拉菜单，用于切换视图模式。
-    - **实现**: 使用 `ElDropdown`，包含“线性视图”和“树图视图”选项。绑定 `useLlmChatUiState().viewMode`。
+2.  **数据格式转换**:
+    - 修改 `nodesData` 计算属性，使其返回 Vue Flow 格式的节点数组 (`Node[]`)。
+        - 关键字段：`id`, `type: 'custom'`, `position: { x: 0, y: 0 }`, `data: { ... }`。
+        - 将 V1 节点的所有业务数据（如 `_node`, `colors`, `isActiveLeaf` 等）都放入 `data` 对象中，传递给自定义节点。
+    - 修改 `edgesData` 计算属性，使其返回 Vue Flow 格式的边数组 (`Edge[]`)。
+        - 关键字段：`id`, `source`, `target`, `animated`, `style`。
 
-3.  **修改 `src/tools/llm-chat/components/message/MessageHeader.vue`**:
-    - 引入并使用 `ViewModeSwitcher.vue`，替换掉原先设想的独立按钮。
+3.  **集成 D3 力导向布局**:
+    - 在 `init` 函数中，创建 `d3.forceSimulation()`。
+    - 配置核心的“力”：`forceLink`, `forceManyBody`, `forceCollide`, `forceCenter`。
+    - 将 Vue Flow 的节点和边数据提供给 D3 Simulation。
+    - 监听 `simulation.on('tick', ...)` 事件，在每次 tick 时更新 Vue Flow 节点的 `position`。
+    - 当模拟稳定后 (`simulation.on('end', ...)`), 停止 tick 更新。
 
-4.  **创建文件 `src/tools/llm-chat/components/conversation-tree-graph/VisTreeGraph.vue`** (新):
-    - **Props**: `session: ChatSession`。
-    - **职责**: 渲染 **Vis.js** 画布。
-    - **实现骨架**:
-        - 引入 `useVisTreeGraph` Composable。
-        - 在 `onMounted` 中初始化网络。
-        - `watch` `props.session` 的变化来更新网络数据。
+### 阶段三：视图渲染 (Vue Flow Components)
 
-5.  **修改 `src/tools/llm-chat/components/ChatArea.vue`**:
-    - 在 `<template>` 中，使用 `<component :is="activeViewComponent">` 来动态渲染视图。
-    - 在 `<script>` 中：
-        - 引入 `MessageList.vue` 和 `VisTreeGraph.vue`。
-        - 从 `useLlmChatUiState` 获取 `viewMode`。
-        - 创建一个计算属性 `activeViewComponent`，根据 `viewMode.value` 返回对应的组件。
+1.  **自定义节点 (`GraphNode.vue`)**:
+    - 存放于 `src/tools/llm-chat/components/conversation-tree-graph/flow/components/GraphNode.vue`。
+    - 使用 `@vue-flow/core` 提供的 `Handle` 组件来定义连接点。
+    - 从 `props.data` 中获取节点的所有业务数据。
+    - 使用 `Avatar`, `ElTooltip` 等现有组件，复现 V1 的节点视觉效果，包括：
+        - 头像、角色名、内容摘要。
+        - 动态的背景色和边框色（基于 `props.data.colors`）。
+        - 使用 `v-if` 显示特殊状态标记（如“当前活动节点”）。
 
-6.  **创建文件 `src/tools/llm-chat/composables/useVisTreeGraph.ts`** (新):
-    - **职责**: 封装 **Vis.js** 的数据转换、配置选项和事件处理逻辑。
-    - **导出**: `function useVisTreeGraph(session: Ref<ChatSession | null>)`。
-    - **实现骨架**:
-        - `nodes: Ref<DataSet<any>>`, `edges: Ref<DataSet<any>>`: 响应式的数据集。
-        - `options: Ref<Options>`: 包含布局（`hierarchical`）、交互、样式等配置。
-        - `init(element: HTMLElement)`: 初始化 `vis.Network` 实例。
-        - `destroy()`: 销毁实例。
+2.  **主图表组件 (`FlowTreeGraph.vue`)**:
+    - 存放于 `src/tools/llm-chat/components/conversation-tree-graph/flow/FlowTreeGraph.vue`。
+    - 引入并使用 Vue Flow 的核心及辅助组件：
+      ```typescript
+      import { VueFlow, Background, MiniMap, Controls } from '@vue-flow/core';
+      ```
+    - 在模板中搭建完整的画布结构：
+      ```vue
+      <VueFlow>
+        <Background />
+        <MiniMap />
+        <Controls />
+        
+        <template #node-custom="props">
+          <GraphNode :data="props.data" />
+        </template>
+      </VueFlow>
+      ```
+    - 从 `useFlowTreeGraph.ts` 获取 `nodes` 和 `edges` 并进行 `v-model` 绑定。
+    - 绑定 Vue Flow 的事件监听器 (`@node-double-click`, `@node-drag-stop`, `@node-context-menu`) 到 `useFlowTreeGraph.ts` 中的处理函数。
+    - 复用 `ContextMenu.vue` 组件，用于显示右键菜单。
 
-## Phase 3: 交互功能实现
+### 阶段四：集成与测试
 
-**目标**: 在 `useVisTreeGraph.ts` 中实现所有交互逻辑，让图"活"起来。
+1.  **更新 `ChatArea.vue`**:
+    - 导入新的主组件: `import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";`
+    - 在模板的视图切换逻辑中，添加 `v-else-if="viewMode === 'force-graph'"` 条件，用于渲染 `FlowTreeGraph` 组件。
+    - 确保将 `llmChatStore.currentSession` 作为 `session` prop 传递给新组件。
 
-1.  **完善 `useVisTreeGraph.ts` 的数据转换和配置**:
-    - **数据转换**: 实现将 `session.nodes` 转换为 Vis.js `nodes` 和 `edges` 的 `DataSet` 的完整逻辑。
-    - **状态反馈**:
-        - 根据节点的 `isEnabled`, `isNodeInActivePath`, `id === session.activeLeafId` 等状态，为其分配不同的 `color` (背景、边框)。
-        - 对 `edges` 也进行类似处理。
-    - **布局配置**: 在 `options` 中，配置 `layout.hierarchical`，设置方向为 `UD` (Up-Down)，并调整节点间距。
+2.  **功能验证**:
+    - 打开 `ViewModeSwitcher`，切换到“高级树图视图”。
+    - **验证布局**: 确认节点是否以力导向方式自然散开。
+    - **验证视觉**: 确认节点颜色、头像、状态等是否与 V1 表现一致，并能响应主题切换。
+    - **验证交互**:
+        - 双击节点是否能切换分支。
+        - 拖拽节点到另一个节点上是否能正确嫁接。
+        - 右键单击节点是否能弹出功能正确的上下文菜单。
+        - 拖拽、缩放、平移画布是否流畅。
 
-2.  **实现分支切换**:
-    - 在 `init()` 函数中，为 Vis.js 网络实例绑定 `'doubleClick'` 事件。
-    - 在事件回调中，从事件对象中获取被点击的节点 ID，调用 `store.switchBranch(nodeId)`。
+## 3. 风险与预案
 
-3.  **实现剪枝与状态切换 (右键菜单)**:
-    - 为 Vis.js 网络实例绑定 `'oncontext'` 事件。
-    - 在回调中，阻止默认事件，并使用一个全局服务或组件（如 `ContextMenu.show(...)`）来显示自定义菜单。
-    - 菜单项绑定 `store.deleteMessage(nodeId)` 和 `store.toggleNodeEnabled(nodeId)`。
-
-4.  **实现嫁接**:
-    - 在 Vis.js 的 `options` 中，开启物理引擎和交互。
-    - 为网络实例绑定 `'dragEnd'` 事件。
-    - 在回调中：
-        - 获取被拖拽的节点 ID (`draggedNodeId`)。
-        - 获取释放时的指针坐标。
-        - 使用 `network.getNodeAt(pointer.DOM)` 方法找到指针下的目标节点 ID (`targetNodeId`)。
-        - **执行校验**: 确保 `targetNodeId` 存在，且不是 `draggedNodeId` 的子孙。
-        - 调用 `store.graftBranch(draggedNodeId, targetNodeId)`。
-
----
-
-**任务完成标志**: 所有 Phase 1-3 的功能实现完毕，用户可以在 `ChatArea` 中通过视图切换器在“线性视图”和“树图视图”之间无缝切换，并能在**基于 Vis.js 的层级树图**中通过双击、右键、拖拽等方式进行分支切换、剪枝和嫁接操作。
+- **性能问题**: 复杂对话（节点 > 200）下，D3 模拟和 Vue Flow 渲染可能出现性能瓶颈。
+  - **预案**:
+    1.  优化 D3 模拟参数，适当减少迭代次数。
+    2.  在 Vue Flow 中启用 `onlyRenderVisibleElements` 优化。
+    3.  探索在拖拽时“重新加热”(`reheat`)模拟，而不是持续运行。
+- **主题适配复杂性**: `useVisTreeGraph.ts` 中的主题适配逻辑与 `vis-network` 的配置项耦合较深。
+  - **预案**: 迁移时仔细解耦，确保颜色计算逻辑是纯粹的，然后将计算结果应用到 Vue Flow 节点的 `style` 和 `class` 上，或者直接透传给 `GraphNode.vue` 组件处理。

@@ -27,7 +27,7 @@
           @copy="handleNodeCopy(id)"
           @toggle-enabled="handleNodeToggleEnabled(id)"
           @delete="handleNodeDelete(id)"
-          @view-detail="handleNodeViewDetail(id)"
+          @view-detail="(event: MouseEvent) => handleNodeViewDetail(id, event)"
         />
       </template>
     </VueFlow>
@@ -39,18 +39,31 @@
       :y="contextMenu.y"
       :items="contextMenu.items"
     />
+    
+    <!-- 节点详情悬浮窗 -->
+    <GraphNodeDetailPopup
+      v-if="session"
+      :session="session"
+      :visible="detailPopupState.visible"
+      :message="selectedNodeForDetail"
+      :llm-think-rules="llmThinkRulesForDetail"
+      :initial-position="detailPopupState.initialPosition"
+      @close="closeDetailPopup"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { MiniMap } from '@vue-flow/minimap';
 import { Controls } from '@vue-flow/controls';
-import type { ChatSession } from '../../../types';
+import type { ChatSession, ChatMessageNode } from '../../../types';
 import { useFlowTreeGraph } from '../../../composables/useFlowTreeGraph';
+import { useAgentStore } from '../../../agentStore';
 import GraphNode from './components/GraphNode.vue';
+import GraphNodeDetailPopup from './components/GraphNodeDetailPopup.vue';
 import ContextMenu from '../ContextMenu.vue';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
@@ -80,22 +93,54 @@ const contextMenu = ref({
 const {
   nodes,
   edges,
+  detailPopupState,
   handleNodeDoubleClick,
   handleNodeDragStop,
   handleNodeContextMenu: onNodeContextMenu,
   handleNodeCopy,
   handleNodeToggleEnabled,
   handleNodeDelete,
-  handleNodeViewDetail,
+  handleNodeViewDetail: onNodeViewDetail,
+  closeDetailPopup,
   updateChart,
   updateNodeDimensions,
 } = useFlowTreeGraph(() => props.session, contextMenu);
+
+const agentStore = useAgentStore();
 
 // 包装右键菜单处理器以适配 Vue Flow 的事件参数
 const handleNodeContextMenu = (event: any) => {
   const mouseEvent = event.event as MouseEvent;
   onNodeContextMenu(mouseEvent, event.node.id);
 };
+
+// 包装查看详情处理器，从 GraphNode 的事件中获取 MouseEvent
+const handleNodeViewDetail = (nodeId: string, event: MouseEvent) => {
+  onNodeViewDetail(nodeId, event);
+};
+
+// 计算选中节点用于详情显示
+const selectedNodeForDetail = computed<ChatMessageNode | null>(() => {
+  if (!detailPopupState.value.nodeId || !props.session) {
+    return null;
+  }
+  return props.session.nodes[detailPopupState.value.nodeId] || null;
+});
+
+// 计算选中节点对应的 LLM 思考规则
+const llmThinkRulesForDetail = computed(() => {
+  if (!selectedNodeForDetail.value) {
+    return undefined;
+  }
+  
+  const agentId = selectedNodeForDetail.value.metadata?.agentId;
+  if (!agentId) {
+    return undefined;
+  }
+  
+  const agent = agentStore.getAgentById(agentId);
+  return agent?.llmThinkRules;
+});
 
 // 监听 session 变化
 watch(

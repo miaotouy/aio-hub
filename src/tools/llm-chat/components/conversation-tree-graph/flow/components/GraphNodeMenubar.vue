@@ -13,13 +13,13 @@ interface Emits {
   (e: 'copy'): void;
   (e: 'toggle-enabled'): void;
   (e: 'delete'): void;
-  (e: 'view-detail'): void;
+  (e: 'view-detail', event: MouseEvent): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// 计算反向缩放以保持固定大小，限定在合理范围内
+// 计算反向缩放以保持固定大小,限定在合理范围内
 const menubarStyle = computed(() => {
   // 计算反向缩放值
   const inverseScale = 1 / props.zoom;
@@ -37,7 +37,7 @@ const menubarStyle = computed(() => {
 const handleCopy = () => emit('copy');
 const handleToggleEnabled = () => emit('toggle-enabled');
 const handleDelete = () => emit('delete');
-const handleViewDetail = () => emit('view-detail');
+const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
 </script>
 
 <template>

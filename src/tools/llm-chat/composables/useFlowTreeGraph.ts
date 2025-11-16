@@ -24,6 +24,16 @@ interface ContextMenuState {
 }
 
 /**
+ * 详情悬浮窗状态
+ */
+export interface DetailPopupState {
+  visible: boolean;
+  nodeId: string | null;
+  targetElement: HTMLElement | null;
+  initialPosition: { x: number; y: number };
+}
+
+/**
  * Vue Flow 节点类型
  */
 interface FlowNode {
@@ -104,6 +114,14 @@ export function useFlowTreeGraph(
   // Vue Flow 的节点和边数据（响应式）
   const nodes = ref<FlowNode[]>([]);
   const edges = ref<FlowEdge[]>([]);
+
+  // 详情悬浮窗状态
+  const detailPopupState = ref<DetailPopupState>({
+    visible: false,
+    nodeId: null,
+    targetElement: null,
+    initialPosition: { x: 200, y: 150 },
+  });
 
   // D3 力模拟实例
   let simulation: d3Force.Simulation<D3Node, D3Link> | null = null;
@@ -786,9 +804,65 @@ export function useFlowTreeGraph(
   /**
    * 处理查看详情事件
    */
-  function handleNodeViewDetail(nodeId: string): void {
-    logger.info("查看节点详情（切换分支）", { nodeId });
-    store.switchBranch(nodeId);
+  function handleNodeViewDetail(nodeId: string, event: MouseEvent): void {
+    logger.info("查看节点详情", { nodeId });
+
+    // 获取被点击的按钮元素（事件目标）
+    const targetElement = event.currentTarget as HTMLElement;
+
+    // 计算弹窗的初始位置，确保在视口内
+    const popupWidth = 400; // 对应 GraphNodeDetailPopup 的 min-width
+    const popupMaxHeight = window.innerHeight * 0.7; // 弹窗最大高度为视口的70%（对应组件的 max-height: 70vh）
+    const padding = 20; // 距离视口边缘的最小距离
+
+    // 获取视口尺寸
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // 计算初始位置（鼠标右侧、稍微上方）
+    let x = event.clientX + 20;
+    let y = event.clientY - 50;
+
+    // 检查右边界
+    if (x + popupWidth + padding > viewportWidth) {
+      // 如果右侧放不下，尝试放在鼠标左侧
+      x = event.clientX - popupWidth - 20;
+      // 如果左侧也放不下，贴近右边界
+      if (x < padding) {
+        x = viewportWidth - popupWidth - padding;
+      }
+    }
+
+    // 检查左边界
+    if (x < padding) {
+      x = padding;
+    }
+
+    // 检查下边界（使用最大高度计算，确保即使内容很长也不会超出）
+    if (y + popupMaxHeight + padding > viewportHeight) {
+      // 如果下方放不下，尝试上移
+      y = viewportHeight - popupMaxHeight - padding - 40;
+    }
+
+    // 检查上边界
+    if (y < padding) {
+      y = padding;
+    }
+
+    // 更新详情悬浮窗状态
+    detailPopupState.value = {
+      visible: true,
+      nodeId,
+      targetElement,
+      initialPosition: { x, y },
+    };
+  }
+
+  /**
+   * 关闭详情悬浮窗
+   */
+  function closeDetailPopup(): void {
+    detailPopupState.value.visible = false;
   }
 
   /**
@@ -806,6 +880,7 @@ export function useFlowTreeGraph(
   return {
     nodes,
     edges,
+    detailPopupState,
     handleNodeDoubleClick,
     handleNodeDragStop,
     handleNodeContextMenu,
@@ -813,6 +888,7 @@ export function useFlowTreeGraph(
     handleNodeToggleEnabled,
     handleNodeDelete,
     handleNodeViewDetail,
+    closeDetailPopup,
     updateChart,
     updateNodeDimensions, // 暴露给 Vue 组件使用
     destroy,

@@ -22,7 +22,7 @@
       @copy="handleCopy"
       @toggle-enabled="handleToggleEnabled"
       @delete="handleDelete"
-      @view-detail="handleViewDetail"
+      @view-detail="(event: MouseEvent) => handleViewDetail(event)"
     />
   </div>
 </template>
@@ -71,7 +71,7 @@ interface Emits {
   (e: 'copy'): void;
   (e: 'toggle-enabled'): void;
   (e: 'delete'): void;
-  (e: 'view-detail'): void;
+  (e: 'view-detail', event: MouseEvent): void;
 }
 
 const props = defineProps<Props>();
@@ -86,7 +86,7 @@ const nodeStyle = computed(() => ({
 const handleCopy = () => emit('copy');
 const handleToggleEnabled = () => emit('toggle-enabled');
 const handleDelete = () => emit('delete');
-const handleViewDetail = () => emit('view-detail');
+const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
 </script>
 
 <style scoped>

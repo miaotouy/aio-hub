@@ -1,4 +1,5 @@
 import { ref, reactive, type Ref } from "vue";
+import { useMagicKeys } from '@vueuse/core';
 import * as d3Force from "d3-force";
 import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
 import type { ChatSession, ChatMessageNode } from "../types";
@@ -113,6 +114,40 @@ interface D3Link extends d3Force.SimulationLinkDatum<D3Node> {
 export type LayoutMode = 'tree' | 'physics';
 
 /**
+ * 自定义 D3 力：模拟持续的重力加速度
+ * @param strength 重力强度，一个正值代表Y轴向下
+ */
+function gravityForce(strength: number) {
+  let nodes: D3Node[];
+
+  // force 函数会在模拟的每个 tick 被调用
+  function force(alpha: number) {
+    for (const node of nodes) {
+      // 只对没有被手动固定的节点施加重力
+      if (node.fy == null) {
+        // 直接给节点的垂直速度 vy 增加一个量
+        // 这个量是重力强度乘以 alpha，这样在模拟稳定时重力也会减弱，防止抖动
+        node.vy = (node.vy || 0) + strength * alpha;
+      }
+    }
+  }
+
+  // D3 用于初始化力的函数
+  force.initialize = (_: D3Node[]) => {
+    nodes = _;
+  };
+
+  // 用于设置或获取重力强度
+  force.strength = (_?: number) => {
+    if (_ === undefined) return strength;
+    strength = +_;
+    return force;
+  };
+
+  return force;
+}
+
+/**
  * Vue Flow 树图 Composable
  * 使用 D3 力导向布局 + Vue Flow 渲染
  */
@@ -120,6 +155,7 @@ export function useFlowTreeGraph(
   sessionRef: () => ChatSession | null,
   contextMenuState: Ref<ContextMenuState>
 ) {
+  const { shift } = useMagicKeys();
   const store = useLlmChatStore();
   const { getProfileById } = useLlmProfiles();
   const { getModelIcon } = useModelMetadata();
@@ -160,54 +196,25 @@ export function useFlowTreeGraph(
   });
 
   /**
-   * 计算每个节点的后代总数
-   */
-  function calculateDescendantCounts(nodes: Record<string, ChatMessageNode>): Map<string, number> {
-    const childrenMap = new Map<string, string[]>();
-    Object.values(nodes).forEach(node => {
-      if (node.parentId) {
-        if (!childrenMap.has(node.parentId)) {
-          childrenMap.set(node.parentId, []);
-        }
-        childrenMap.get(node.parentId)!.push(node.id);
-      }
-    });
-
+    * 计算每个节点的直接子节点数
+    */
+  function calculateDirectChildrenCount(nodes: Record<string, ChatMessageNode>): Map<string, number> {
     const counts = new Map<string, number>();
 
-    // 使用缓存的递归函数计算后代数量
-    function countDescendants(nodeId: string): number {
-      if (counts.has(nodeId)) {
-        return counts.get(nodeId)!;
-      }
-
-      const children = childrenMap.get(nodeId) || [];
-      let count = children.length; // 直接子节点
-      for (const childId of children) {
-        count += countDescendants(childId); // 递归累加
-      }
-
-      counts.set(nodeId, count);
-      return count;
+    // 初始化所有节点的子节点计数为 0
+    for (const nodeId in nodes) {
+      counts.set(nodeId, 0);
     }
 
-    // 确保所有节点都被计算
-    for (const nodeId of Object.keys(nodes)) {
-      if (!counts.has(nodeId)) {
-        countDescendants(nodeId);
-      }
-    }
-
-    // 再次遍历，确保没有子节点的节点也被设置为0
-    for (const nodeId of Object.keys(nodes)) {
-      if (!counts.has(nodeId)) {
-        counts.set(nodeId, 0);
+    // 遍历所有节点，为其父节点增加计数
+    for (const node of Object.values(nodes)) {
+      if (node.parentId && counts.has(node.parentId)) {
+        counts.set(node.parentId, (counts.get(node.parentId) || 0) + 1);
       }
     }
 
     return counts;
   }
-
   /**
    * 截断文本用于显示
    */
@@ -457,9 +464,10 @@ export function useFlowTreeGraph(
   }
 
   /**
-   * 初始化或更新图表数据
-   */
-  function updateChart(): void {
+  * 初始化或更新图表数据
+  * @param forceResetPosition - 如果为 true，则忽略所有现有位置，从 (0,0) 开始
+  */
+  function updateChart(forceResetPosition: boolean = false): void {
     const session = sessionRef();
     if (!session) {
       nodes.value = [];
@@ -469,8 +477,11 @@ export function useFlowTreeGraph(
 
     // 记录旧节点位置，用于在更新时平滑过渡，避免整个树每次都从 (0, 0) 重新收缩成一团
     const previousNodesMap = new Map<string, FlowNode>();
-    for (const n of nodes.value) {
-      previousNodesMap.set(n.id, n);
+    // 仅当不强制重置时才记录旧位置
+    if (!forceResetPosition) {
+      for (const n of nodes.value) {
+        previousNodesMap.set(n.id, n);
+      }
     }
 
     // 转换节点数据为 Vue Flow 格式
@@ -497,10 +508,27 @@ export function useFlowTreeGraph(
       }
 
       const previousNode = previousNodesMap.get(node.id);
-      // 如果存在旧节点，则继承其位置，否则使用(0,0)作为初始位置，后续由D3计算
-      const initialPosition = previousNode
-        ? { ...previousNode.position }
-        : { x: 0, y: 0 };
+      let initialPosition;
+
+      if (previousNode) {
+        // 已有节点：继承位置
+        initialPosition = { ...previousNode.position };
+      } else if (node.parentId && !forceResetPosition) {
+        // 新节点且有父节点：出生在父节点下方 (仅在非强制重置时)
+        const parentNode = previousNodesMap.get(node.parentId);
+        if (parentNode) {
+          initialPosition = {
+            x: parentNode.position.x,
+            y: parentNode.position.y + 240, // 在父节点下方偏移一段距离
+          };
+        } else {
+          // 如果父节点也找不到（理论上不应该），则回退
+          initialPosition = { x: 0, y: 0 };
+        }
+      } else {
+        // 新节点、根节点或强制重置：使用 (0, 0)
+        initialPosition = { x: 0, y: 0 };
+      }
 
       return {
         id: node.id,
@@ -587,172 +615,123 @@ export function useFlowTreeGraph(
       };
     });
 
-    // 将根节点钉在顶部中心，作为"锚点"
-    const rootNode = d3Nodes.value.find((n) => n.id === session.rootNodeId);
-    if (rootNode) {
-      rootNode.fx = 0;
-      rootNode.fy = 0;
-    }
-
     // 停止旧的模拟
     if (simulation) {
       simulation.stop();
     }
 
-    // 在这里，我们可以为 d3Links 附加调试信息
-    if (layoutMode.value === 'tree') {
-      d3Links.value = edges.value.map((e) => ({
+    // --- 1. 确定性布局计算 (所有模式通用) ---
+    const nodeWidth = 220;
+    const nodeHorizontalPadding = 120;
+
+    const rootHierarchy = stratify<ChatMessageNode>()
+      .id((d: ChatMessageNode) => d.id)
+      .parentId((d: ChatMessageNode) => d.parentId)
+      (Object.values(session.nodes));
+
+    const treeLayout = tree<ChatMessageNode>().nodeSize([
+      nodeWidth + nodeHorizontalPadding,
+      levelGap,
+    ]);
+
+    treeLayout(rootHierarchy);
+
+    const calculatedPositions = new Map<string, { x: number; y: number }>();
+    rootHierarchy.each((d: HierarchyNode<ChatMessageNode>) => {
+      calculatedPositions.set(d.id!, { x: d.x ?? 0, y: d.y ?? 0 });
+    });
+
+    // --- 2. 动态链接配置 (所有模式通用) ---
+    const childrenCount = calculateDirectChildrenCount(session.nodes);
+    d3Links.value = edges.value.map((e) => {
+      const sourceNodeId = e.source;
+      // 使用源节点的子节点数量来决定线的长度
+      const weight = childrenCount.get(sourceNodeId) || 0;
+      // 动态计算连线长度，但在不同模式下使用不同的基础值
+      const isPhysics = layoutMode.value === 'physics';
+      const baseDistance = isPhysics ? 180 : 50; // tree 模式基础距离更短
+      const extraDistancePerNode = 80;
+      const maxExtraDistance = 320;
+      // 两种模式都应用基于子节点数量的额外距离
+      const distance =
+        baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
+
+      return {
         source: e.source,
         target: e.target,
-        _debug: { strength: 0.2, distance: 50 },
-      }));
-    } else {
-      const descendantCounts = calculateDescendantCounts(session.nodes);
-      d3Links.value = edges.value.map((e) => {
-        const targetNodeId = e.target;
-        const weight = descendantCounts.get(targetNodeId) || 0;
-        const baseDistance = 180;
-        const extraDistancePerNode = 80;
-        const maxExtraDistance = 320;
-        const distance = baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
-
-        return {
-          source: e.source,
-          target: e.target,
-          _debug: { strength: 0.4, distance: Math.round(distance) },
-        };
-      });
-    }
-
-    // 根据布局模式选择不同的力配置
-    if (layoutMode.value === 'tree') {
-      // === Tree 模式：使用 d3-hierarchy 进行确定性树布局 ===
-      const nodeWidth = 220;
-      const nodeHorizontalPadding = 120;
-
-      const rootHierarchy = stratify<ChatMessageNode>()
-        .id((d: ChatMessageNode) => d.id)
-        .parentId((d: ChatMessageNode) => d.parentId)
-        (Object.values(session.nodes));
-
-      const treeLayout = tree<ChatMessageNode>().nodeSize([
-        nodeWidth + nodeHorizontalPadding,
-        levelGap,
-      ]);
-
-      treeLayout(rootHierarchy);
-
-      const calculatedPositions = new Map<string, { x: number; y: number }>();
-      rootHierarchy.each((d: HierarchyNode<ChatMessageNode>) => {
-        calculatedPositions.set(d.id!, { x: d.x ?? 0, y: d.y ?? 0 });
-      });
-
-      // 将计算好的位置直接应用到 d3Nodes，最小化物理模拟的工作量
-      d3Nodes.value.forEach(n => {
-        const pos = calculatedPositions.get(n.id);
-        if (pos) {
-          // 直接设置到目标位置，让物理模拟只处理碰撞避免
-          n.x = pos.x;
-          n.y = pos.y;
-        }
-      });
-
-      // 创建优化的椭圆碰撞力，使用更高效的算法
-      const ellipticalCollideForce = () => {
-        const paddingX = 150; // X 方向额外间距
-        const paddingY = 40;  // Y 方向额外间距
-        let nodes: D3Node[];
-
-        function force(alpha: number) {
-          // 限制检测范围以优化性能（从 O(n²) 降到接近 O(n)）
-          for (let i = 0; i < nodes.length; i++) {
-            const nodeA = nodes[i];
-            // 只检测附近的节点（基于深度相近）
-            for (let j = i + 1; j < nodes.length && j < i + 20; j++) {
-              const nodeB = nodes[j];
-              
-              // 快速跳过深度差异大的节点（它们不太可能碰撞）
-              if (Math.abs(nodeA.depth - nodeB.depth) > 1) continue;
-
-              const dx = (nodeB.x ?? 0) - (nodeA.x ?? 0);
-              const dy = (nodeB.y ?? 0) - (nodeA.y ?? 0);
-
-              // 椭圆碰撞检测
-              const radiusX = (nodeA.width + nodeB.width) / 2 + paddingX;
-              const radiusY = (nodeA.height + nodeB.height) / 2 + paddingY;
-
-              const normalizedDist = Math.sqrt((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY));
-
-              if (normalizedDist < 1 && normalizedDist > 0.01) {
-                // 使用更强的推开力以快速解决碰撞
-                const pushStrength = (1 - normalizedDist) * alpha * 2.0;
-                const pushX = (dx / normalizedDist) * pushStrength;
-                const pushY = (dy / normalizedDist) * pushStrength;
-
-                nodeB.vx = (nodeB.vx ?? 0) + pushX;
-                nodeB.vy = (nodeB.vy ?? 0) + pushY;
-                nodeA.vx = (nodeA.vx ?? 0) - pushX;
-                nodeA.vy = (nodeA.vy ?? 0) - pushY;
-              }
-            }
-          }
-        }
-
-        force.initialize = (_: D3Node[]) => { nodes = _; };
-        return force;
+        _debug: { strength: isPhysics ? 0.4 : 0.2, distance: Math.round(distance) },
       };
+    });
 
-      simulation = d3Force
-        .forceSimulation(d3Nodes.value)
-        // 加速收敛：更激进的 alpha 衰减
-        .alphaDecay(0.05) // 默认 0.0228，提高到 0.05 加快收敛
-        .alphaMin(0.01)   // 默认 0.001，提高到 0.01 更快停止
-        .velocityDecay(0.6) // 默认 0.4，提高阻尼加快稳定
-        // 保持链接关系，但降低强度（因为初始位置已经正确）
-        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value)
-          .id(d => d.id)
-          .distance(50)
-          .strength(0.1) // 降低链接强度，减少震荡
-        )
-        // 使用更高效的圆形碰撞作为第一道防线
-        .force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 20)
-          .strength(0.9) // 提高强度以快速解决碰撞
-          .iterations(2) // 增加迭代次数提高精度
-        )
-        // 添加优化的椭圆碰撞力
-        .force("collideElliptical", ellipticalCollideForce())
-        // 降低位置约束力的强度（因为初始位置已经正确）
-        .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0)
-          .strength(0.15) // 大幅降低，只用于微调
-        )
-        .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0)
-          .strength(0.2) // 大幅降低，只用于微调
-        );
+    // --- 3. 创建或更新模拟 ---
+    if (!simulation) {
+      // 首次创建
+      simulation = d3Force.forceSimulation<D3Node, D3Link>();
+      logger.info("首次创建 D3 力模拟实例");
+    }
+    simulation.nodes(d3Nodes.value);
 
-      logger.info("D3 力模拟已初始化 (Tree 模式)");
+
+    // --- 4. 根据布局模式配置不同的力 ---
+
+    // 通用力：碰撞力 (所有模式都需要)
+    simulation.force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 40).strength(1));
+
+    // 通用力：链接力 (所有模式都需要，但参数不同)
+    simulation.force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value)
+      .id(d => d.id)
+      .distance(link => link._debug?.distance ?? 150)
+      .strength(link => link._debug?.strength ?? 0.4)
+    );
+
+    if (layoutMode.value === 'tree') {
+      // === Tree 模式：强定位，无电荷力 ===
+      simulation
+        .alpha(1).restart() // 使用高 alpha 快速定位
+        .alphaDecay(0.04)   // 较快的衰减
+        .velocityDecay(0.5) // 较高的阻尼
+        .force("charge", null) // 禁用电荷力
+        .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.15))
+        .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.25));
+
+      // 释放所有节点的固定位置，让它们可以被定位力驱动
+      simulation.nodes().forEach(n => {
+        n.fx = null;
+        n.fy = null;
+      });
+
+      logger.info("D3 力模拟已配置 (Tree 模式)");
+
     } else {
-      // === Physics 模式：物理悬挂布局 (已根据大节点尺寸优化) ===
-      simulation = d3Force
-        .forceSimulation(d3Nodes.value)
-        // 1. 连接力: 像有弹性的绳索，定义基础悬挂长度
-        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value)
-          .id(d => d.id)
-          .distance(250) // 为大节点设置一个更合适的基础距离
-          .strength(0.5) // 保持较高的强度
-        )
-        // 2. 排斥力/电荷力: 核心力量，将大节点互相推开
-        .force("charge", d3Force.forceManyBody().strength(-1200)) // 大幅增强排斥力以适应大尺寸
-        // 3. Y轴力 (重力): 提供一个温和的、持续向下的引导力
-        .force("gravity", d3Force.forceY(0).strength(0.03))
-        // 4. X轴力 (水平居中): 弱力，防止整个树结构在水平方向上漂移
-        .force("x", d3Force.forceX(0).strength(0.02))
-        // 5. 碰撞力: 最后的防线，基于节点实际尺寸防止重叠
-        .force("collide", d3Force.forceCollide<D3Node>(d => {
-          // 使用节点的长边作为半径，并增加更多安全间距
-          return Math.max(d.width, d.height) / 2 + 40;
-        }).strength(1)); // 使用高强度确保不重叠
+      // === Physics 模式：使用自定义重力，移除Y钉固力 ===
+      simulation
+        .alpha(1).restart() // 使用高alpha启动，快速展开
+        .alphaDecay(0.0228)
+        .velocityDecay(0.4)
+        .force("charge", d3Force.forceManyBody().strength(-400))
+        // 移除Y钉固力
+        .force("y", null)
+        // [可选]保留一个极弱的X轴中心力，防止整个图左右漂移
+        .force("x", d3Force.forceX(0).strength(0.005))
+        // ★★★ 添加我们自定义的、真正的重力 ★★★
+        .force("gravity", gravityForce(10)); // 0.2 是一个初始值，可以微调
 
-      logger.info("D3 力模拟已初始化 (Physics 模式，带动态绳长)");
+      // 释放非根节点的固定位置
+      simulation.nodes().forEach(n => {
+        if (n.id !== session.rootNodeId) {
+          n.fx = null;
+          n.fy = null;
+        }
+      });
+      // 将根节点固定在计算出的位置，作为整个物理系统的锚点
+      const rootNode = simulation.nodes().find(n => n.id === session.rootNodeId);
+      const rootPos = calculatedPositions.get(session.rootNodeId);
+      if (rootNode && rootPos) {
+        rootNode.fx = rootPos.x;
+        rootNode.fy = rootPos.y;
+      }
+
+      logger.info("D3 力模拟已配置 (Physics 模式)");
     }
 
     // 监听 tick 事件，直接更新节点位置
@@ -798,7 +777,7 @@ export function useFlowTreeGraph(
         subtreeDragState.rootNodeId = nodeId;
         subtreeDragState.descendantIds = new Set(descendants.map((d: ChatMessageNode) => d.id));
         logger.info(`准备拖拽子树，包含 ${subtreeDragState.descendantIds.size} 个子孙节点`, { rootNodeId: nodeId });
-        
+
         // 记录初始位置，用于手动计算位移
         dragPositionState.lastPosition = { ...node.position };
       }
@@ -817,15 +796,15 @@ export function useFlowTreeGraph(
    */
   function handleNodeDrag(event: any): void {
     if (!simulation) return;
-  
+
     const { node } = event;
     const nodeId = node.id;
-  
+
     // 保持模拟活跃
     if (simulation.alpha() < 0.1) {
       simulation.alpha(0.3).restart();
     }
-  
+
     // 如果正在拖拽子树
     if (subtreeDragState.isDragging && subtreeDragState.rootNodeId && dragPositionState.lastPosition) {
       // 手动计算位移增量
@@ -835,7 +814,7 @@ export function useFlowTreeGraph(
       };
 
       const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
-      
+
       simulation.nodes().forEach(d3Node => {
         if (allNodeIds.includes(d3Node.id)) {
           // 如果节点是拖拽的根节点，直接使用它的位置
@@ -912,18 +891,17 @@ export function useFlowTreeGraph(
       logger.info("子树拖拽结束");
     } else {
       // 单个节点拖拽结束
-      if (draggedNodeId !== session.rootNodeId) {
-        // 在 physics 模式下，拖拽结束后节点应该弹回
-        if (shouldRebound) {
-          const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
-          if (d3Node) {
-            d3Node.fx = null;
-            d3Node.fy = null;
-          }
+      // 在 physics 模式下，拖拽结束后节点应该弹回，所以需要解除固定
+      // 根节点也应该遵循这个规则，以允许其被拖动
+      if (shouldRebound) {
+        const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
+        if (d3Node) {
+          d3Node.fx = null;
+          d3Node.fy = null;
         }
       }
     }
-    
+
     // 降低模拟活跃度
     simulation.alphaTarget(0);
   }
@@ -938,8 +916,6 @@ export function useFlowTreeGraph(
 
     const sourceId = connection?.source as string | undefined;
     const targetId = connection?.target as string | undefined;
-    const event = connection?.event as MouseEvent | undefined;
-
     if (!sourceId || !targetId) {
       logger.warn("连线操作失败：缺少有效的节点 ID", { connection });
       return;
@@ -957,7 +933,7 @@ export function useFlowTreeGraph(
       return;
     }
 
-    const isShiftPressed = event?.shiftKey || false;
+    const isShiftPressed = shift.value;
     const nodeManager = useNodeManager();
 
     // 使用节点管理器判断实际的父子关系
@@ -1220,6 +1196,16 @@ export function useFlowTreeGraph(
   }
 
   /**
+   /**
+    * 重置布局
+    * 强制清除所有位置并重新计算布局
+    */
+  function resetLayout(): void {
+    logger.info("执行彻底的布局重置...");
+    // 强制清除所有现有位置并重新构建图表，然后启动模拟
+    updateChart(true);
+  }
+  /**
    * 清理资源
    */
   function destroy(): void {
@@ -1253,6 +1239,7 @@ export function useFlowTreeGraph(
     updateChart,
     updateNodeDimensions, // 暴露给 Vue 组件使用
     switchLayoutMode, // 暴露布局模式切换函数
+    resetLayout, // 暴露重置布局函数
     toggleDebugMode,
     destroy,
   };

@@ -289,6 +289,7 @@ const {
   updateNodeDimensions,
   switchLayoutMode,
   toggleDebugMode,
+  resetLayout,
 } = useFlowTreeGraph(() => props.session, contextMenu);
 
 const agentStore = useAgentStore();
@@ -455,11 +456,6 @@ onMounted(() => {
 
 // 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
 const { getNodes, getViewport } = useVueFlow();
-
-// 重置布局（保持当前视图）
-const resetLayout = () => {
-  updateChart();
-};
 
 // 监听节点尺寸变化并同步到 D3
 const dimensionsWatchStop = watch(

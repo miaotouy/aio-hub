@@ -6,7 +6,7 @@ import { useLlmChatUiState } from '../../composables/useLlmChatUiState';
 
 /**
  * 视图模式切换器
- * 提供线性视图和树图视图的切换功能
+ * 提供对话视图和树图视图的切换功能
  */
 
 const { viewMode } = useLlmChatUiState();
@@ -14,7 +14,7 @@ const { viewMode } = useLlmChatUiState();
 // 当前视图模式的显示信息
 const currentModeInfo = computed(() => {
   return viewMode.value === 'linear'
-    ? { label: '线性视图', icon: List }
+    ? { label: '对话视图', icon: List }
     : { label: '树图视图', icon: Grid };
 });
 
@@ -41,7 +41,7 @@ const handleSelect = (mode: 'linear' | 'graph') => {
           <ElIcon :size="16">
             <List />
           </ElIcon>
-          <span>线性视图</span>
+          <span>对话视图</span>
         </ElDropdownItem>
         <ElDropdownItem
           command="graph"

@@ -18,6 +18,7 @@
     <GraphNodeMenubar
       :is-enabled="data.isEnabled"
       :is-active-leaf="data.isActiveLeaf"
+      :zoom="viewport.zoom"
       @copy="handleCopy"
       @toggle-enabled="handleToggleEnabled"
       @delete="handleDelete"
@@ -28,9 +29,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Handle, Position } from '@vue-flow/core';
+import { Handle, Position, useVueFlow } from '@vue-flow/core';
 import GraphNodeContent from './GraphNodeContent.vue';
 import GraphNodeMenubar from './GraphNodeMenubar.vue';
+
+// 获取当前画布的缩放级别
+const { viewport } = useVueFlow();
 
 interface NodeData {
   name: string;

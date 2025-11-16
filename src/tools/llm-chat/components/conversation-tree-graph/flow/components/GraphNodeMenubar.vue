@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Copy, Eye, EyeOff, Trash2, MessageSquare } from 'lucide-vue-next';
 import { ElTooltip } from 'element-plus';
 
 interface Props {
   isEnabled: boolean;
   isActiveLeaf: boolean;
+  zoom: number;
 }
 
 interface Emits {
@@ -14,8 +16,23 @@ interface Emits {
   (e: 'view-detail'): void;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+// 计算反向缩放以保持固定大小，限定在合理范围内
+const menubarStyle = computed(() => {
+  // 计算反向缩放值
+  const inverseScale = 1 / props.zoom;
+  // 将缩放值限制在 0.5 到 2 之间，确保在极端缩放下菜单栏不会过大或过小
+  // zoom ∈ [0.5, 2] 时，菜单栏能正常保持固定大小
+  // zoom < 0.5 或 zoom > 2 时，使用边界值避免菜单栏过大或过小
+  const clampedScale = Math.max(0.5, Math.min(2, inverseScale));
+  
+  return {
+    transform: `translateX(-50%) scale(${clampedScale})`,
+    transformOrigin: 'center top',
+  };
+});
 
 const handleCopy = () => emit('copy');
 const handleToggleEnabled = () => emit('toggle-enabled');
@@ -24,7 +41,7 @@ const handleViewDetail = () => emit('view-detail');
 </script>
 
 <template>
-  <div class="graph-node-menubar">
+  <div class="graph-node-menubar" :style="menubarStyle">
     <!-- 查看详情 -->
     <el-tooltip content="查看详情" placement="bottom">
       <button class="menu-btn" @click="handleViewDetail">
@@ -65,7 +82,7 @@ const handleViewDetail = () => emit('view-detail');
   position: absolute;
   bottom: -48px;
   left: 50%;
-  transform: translateX(-50%);
+  /* transform 由 inline style 动态控制 */
   display: flex;
   align-items: center;
   gap: 4px;

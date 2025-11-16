@@ -697,41 +697,26 @@ export function useFlowTreeGraph(
 
       logger.info("D3 力模拟已初始化 (Tree 模式)");
     } else {
-      // === Physics 模式：物理悬挂布局 ===
-      // 增强了物理效果，使其更具“重力感”，并根据子节点数量动态调整距离
-
-      // 1. 计算每个节点的后代数量作为其“重量”
-      const descendantCounts = calculateDescendantCounts(session.nodes);
-
-      // 2. 动态计算连接距离的函数
-      const getLinkDistance = (link: D3Link) => {
-        const targetNodeId = (typeof link.target === 'object' ? link.target.id : link.target);
-        const weight = descendantCounts.get(targetNodeId) || 0;
-        const baseDistance = 180;
-        const extraDistancePerNode = 80;
-        const maxExtraDistance = 320;
-        // 根据权重增加距离，但有一个上限
-        return baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
-      };
-
+      // === Physics 模式：物理悬挂布局 (已根据大节点尺寸优化) ===
       simulation = d3Force
         .forceSimulation(d3Nodes.value)
-        // 连接力：像坚韧的绳索，拉住节点，长度由子节点"重量"决定
+        // 1. 连接力: 像有弹性的绳索，定义基础悬挂长度
         .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value)
           .id(d => d.id)
-          .distance(getLinkDistance) // 使用动态距离函数
-          .strength(0.4) // 大幅增强连接强度
+          .distance(250) // 为大节点设置一个更合适的基础距离
+          .strength(0.5) // 保持较高的强度
         )
-        // 排斥力：增强，避免节点重叠
-        .force("charge", d3Force.forceManyBody().strength(-150))
-        // 真正的重力：增强下坠感
-        .force("gravity", d3Force.forceY(400).strength(0.2))
-        // 水平居中力：防止整个图飘走
-        .force("x", d3Force.forceX(0).strength(0.05))
-        // 碰撞力：防止节点重叠
+        // 2. 排斥力/电荷力: 核心力量，将大节点互相推开
+        .force("charge", d3Force.forceManyBody().strength(-1200)) // 大幅增强排斥力以适应大尺寸
+        // 3. Y轴力 (重力): 提供一个温和的、持续向下的引导力
+        .force("gravity", d3Force.forceY(0).strength(0.03))
+        // 4. X轴力 (水平居中): 弱力，防止整个树结构在水平方向上漂移
+        .force("x", d3Force.forceX(0).strength(0.02))
+        // 5. 碰撞力: 最后的防线，基于节点实际尺寸防止重叠
         .force("collide", d3Force.forceCollide<D3Node>(d => {
-          return Math.max(d.width, d.height) / 2 + 15; // 增加一点碰撞半径
-        }).strength(1));
+          // 使用节点的长边作为半径，并增加更多安全间距
+          return Math.max(d.width, d.height) / 2 + 40;
+        }).strength(1)); // 使用高强度确保不重叠
 
       logger.info("D3 力模拟已初始化 (Physics 模式，带动态绳长)");
     }

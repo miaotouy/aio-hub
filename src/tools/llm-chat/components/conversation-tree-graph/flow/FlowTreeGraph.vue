@@ -39,10 +39,15 @@
       <el-button-group>
         <!-- 布局模式切换按钮 -->
         <el-tooltip
-          :content="layoutMode === 'tree' ? '切换到物理悬挂模式' : '切换到树状布局模式'"
+          :content="layoutMode === 'tree' ? '切换到实时力导向图模式' : '切换到树状布局模式'"
           placement="bottom"
         >
           <el-button :icon="layoutMode === 'tree' ? Grid : Share" @click="toggleLayoutMode" />
+        </el-tooltip>
+
+        <!-- 重置布局按钮 -->
+        <el-tooltip content="重置布局" placement="bottom">
+          <el-button :icon="Refresh" @click="resetLayout" />
         </el-tooltip>
 
         <!-- 调试模式切换按钮 -->
@@ -77,7 +82,7 @@
         width: '100%',
         height: '100%',
         pointerEvents: 'none',
-        zIndex: 1000,
+        zIndex: 10,
       }"
     >
       <defs>
@@ -219,7 +224,7 @@ import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { MiniMap } from "@vue-flow/minimap";
 import { Controls } from "@vue-flow/controls";
-import { Grid, Share, View, CopyDocument } from "@element-plus/icons-vue";
+import { Grid, Share, View, CopyDocument, Refresh } from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
@@ -433,7 +438,15 @@ onMounted(() => {
 });
 
 // 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
-const { getNodes, getViewport } = useVueFlow();
+const { getNodes, getViewport, fitView } = useVueFlow();
+
+// 重置布局
+const resetLayout = () => {
+  updateChart();
+  setTimeout(() => {
+    fitView();
+  }, 100); // 延迟以确保布局计算完成后再 fitView
+};
 
 // 监听节点尺寸变化并同步到 D3
 const dimensionsWatchStop = watch(
@@ -656,7 +669,7 @@ onUnmounted(() => {
   position: absolute;
   top: 86px;
   right: 16px;
-  z-index: 5;
+  z-index: 50;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 4px;

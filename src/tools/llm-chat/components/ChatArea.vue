@@ -574,7 +574,9 @@ onMounted(async () => {
 
           <!-- V2 树图视图 (力导向布局) -->
           <template v-else-if="viewMode === 'force-graph'">
-            <FlowTreeGraph :session="llmChatStore.currentSession" class="conversation-tree-graph-box" />
+            <div class="force-graph-container conversation-tree-graph-box">
+              <FlowTreeGraph :session="llmChatStore.currentSession" />
+            </div>
           </template>
         </div>
 
@@ -904,6 +906,11 @@ onMounted(async () => {
 .conversation-tree-graph-box {
   padding: 0 30px;
   box-sizing: border-box;
+}
+
+.force-graph-container {
+  height: 100%;
+  width: 100%;
 }
 </style>
 

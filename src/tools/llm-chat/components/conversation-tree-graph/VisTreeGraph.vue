@@ -106,7 +106,7 @@ watch(
   color: var(--el-text-color-regular) !important;
   background-color: var(--card-bg) !important;
   border: 1px solid var(--border-color) !important;
-  border-radius: 8px !important;
+  /* border-radius: 8px !important; */
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
   backdrop-filter: blur(var(--ui-blur)) !important;
   max-width: 400px !important;
@@ -119,4 +119,3 @@ watch(
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
 }
 </style>
-]]>

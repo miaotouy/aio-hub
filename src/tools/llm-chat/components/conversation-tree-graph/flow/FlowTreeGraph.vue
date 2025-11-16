@@ -199,7 +199,8 @@ onUnmounted(() => {
   height: 100%;
   position: relative;
   background-color: var(--card-bg);
-  border-radius: 8px;
+  /* border-radius: 8px; */
+  box-sizing: border-box;
 }
 
 /* Vue Flow 容器样式调整 */

@@ -37,8 +37,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
-import { VueFlow } from '@vue-flow/core';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { MiniMap } from '@vue-flow/minimap';
 import { Controls } from '@vue-flow/controls';
@@ -78,6 +78,7 @@ const {
   handleNodeDragStop,
   handleNodeContextMenu: onNodeContextMenu,
   updateChart,
+  updateNodeDimensions,
 } = useFlowTreeGraph(() => props.session, contextMenu);
 
 // 包装右键菜单处理器以适配 Vue Flow 的事件参数
@@ -89,9 +90,12 @@ const handleNodeContextMenu = (event: any) => {
 // 监听 session 变化
 watch(
   () => props.session,
-  (newSession, oldSession) => {
-    // 仅在会话实际发生变化时更新，避免不必要的重绘
-    if (newSession && newSession !== oldSession) {
+  (newSession) => {
+    // 会话内容（节点/边）发生变化时重新计算布局
+    if (newSession) {
+      updateChart();
+    } else {
+      // 会话被清空时也同步清空图数据
       updateChart();
     }
   },
@@ -101,6 +105,36 @@ watch(
 // 组件挂载时立即更新一次图表
 onMounted(() => {
   updateChart();
+});
+
+// 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸
+const { getNodes } = useVueFlow();
+
+// 监听节点尺寸变化并同步到 D3
+const dimensionsWatchStop = watch(
+  () => getNodes.value,
+  (vueFlowNodes) => {
+    const dimensionsMap = new Map<string, { width: number; height: number }>();
+    
+    vueFlowNodes.forEach(node => {
+      // Vue Flow 的 node.dimensions 包含渲染后的实际尺寸
+      if (node.dimensions?.width && node.dimensions?.height) {
+        dimensionsMap.set(node.id, {
+          width: node.dimensions.width,
+          height: node.dimensions.height,
+        });
+      }
+    });
+
+    if (dimensionsMap.size > 0) {
+      updateNodeDimensions(dimensionsMap);
+    }
+  },
+  { deep: true, flush: 'post' } // flush: 'post' 确保在 DOM 更新后执行
+);
+
+onUnmounted(() => {
+  dimensionsWatchStop();
 });
 </script>
 

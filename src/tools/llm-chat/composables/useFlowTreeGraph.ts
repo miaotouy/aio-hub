@@ -1,5 +1,6 @@
 import { ref, reactive, type Ref } from "vue";
-import * as d3 from "d3-force";
+import * as d3Force from "d3-force";
+import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
 import type { ChatSession, ChatMessageNode } from "../types";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { useLlmChatStore } from "../store";
@@ -54,15 +55,19 @@ interface FlowEdge {
 
 /**
  * D3 力导向节点类型（用于布局计算）
+ * 增加 depth 字段用于基于层级的定向布局（自上而下的树形）
  */
-interface D3Node extends d3.SimulationNodeDatum {
+interface D3Node extends d3Force.SimulationNodeDatum {
   id: string;
+  depth: number;
+  width: number;
+  height: number;
 }
 
 /**
  * D3 力导向边类型
  */
-interface D3Link extends d3.SimulationLinkDatum<D3Node> {
+interface D3Link extends d3Force.SimulationLinkDatum<D3Node> {
   source: string | D3Node;
   target: string | D3Node;
 }
@@ -82,12 +87,12 @@ export function useFlowTreeGraph(
   const edges = ref<FlowEdge[]>([]);
 
   // D3 力模拟实例
-  let simulation: d3.Simulation<D3Node, D3Link> | null = null;
+  let simulation: d3Force.Simulation<D3Node, D3Link> | null = null;
 
   /**
    * 截断文本用于显示
    */
-  function truncateText(text: string, maxLength: number = 30): string {
+  function truncateText(text: string, maxLength: number = 150): string {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + "...";
   }
@@ -162,6 +167,23 @@ export function useFlowTreeGraph(
     attributes: true,
     attributeFilter: ["class", "style"],
   });
+
+  /**
+   * 计算节点的层级深度（根节点为 0）
+   */
+  function calculateNodeDepth(session: ChatSession, nodeId: string): number {
+    let depth = 0;
+    let currentId: string | null = nodeId;
+
+    while (currentId && currentId !== session.rootNodeId) {
+      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      if (!node || !node.parentId) break;
+      depth++;
+      currentId = node.parentId;
+    }
+
+    return depth;
+  }
 
   /**
    * 根据节点状态计算颜色
@@ -290,18 +312,30 @@ export function useFlowTreeGraph(
       return;
     }
 
+    // 记录旧节点位置，用于在更新时平滑过渡，避免整个树每次都从 (0, 0) 重新收缩成一团
+    const previousNodesMap = new Map<string, FlowNode>();
+    for (const n of nodes.value) {
+      previousNodesMap.set(n.id, n);
+    }
+
     // 转换节点数据为 Vue Flow 格式
     const flowNodes: FlowNode[] = Object.values(session.nodes).map((node) => {
       const colors = getNodeColor(session, node);
       const isActiveLeaf = node.id === session.activeLeafId;
       const isEnabled = node.isEnabled !== false;
       const roleDisplay = getRoleDisplay(node);
-      const contentPreview = truncateText(node.content, 30);
+      const contentPreview = truncateText(node.content, 150);
+
+      const previousNode = previousNodesMap.get(node.id);
+      // 如果存在旧节点，则继承其位置，否则使用(0,0)作为初始位置，后续由D3计算
+      const initialPosition = previousNode
+        ? { ...previousNode.position }
+        : { x: 0, y: 0 };
 
       return {
         id: node.id,
         type: 'custom',
-        position: { x: 0, y: 0 }, // 初始位置，将由 D3 计算
+        position: initialPosition,
         data: {
           name: roleDisplay.name,
           avatar: roleDisplay.icon,
@@ -347,45 +381,137 @@ export function useFlowTreeGraph(
    * 初始化 D3 力导向模拟
    */
   function initD3Simulation(): void {
-    if (nodes.value.length === 0) return;
+    const session = sessionRef();
+    if (!session || nodes.value.length === 0) return;
+
+    // 计算每个节点的层级深度
+    const depthMap: Record<string, number> = {};
+    Object.values(session.nodes).forEach((node) => {
+      depthMap[node.id] = calculateNodeDepth(session, node.id);
+    });
+
+    // 基于深度预设一个大致的垂直间距，让树有明显的"自上而下"方向
+    const levelGap = 280; // 增加层级间距以适应更高的节点（6行文本）
 
     // 准备 D3 数据
-    const d3Nodes: D3Node[] = nodes.value.map(n => ({
-      id: n.id,
-      x: n.position.x || 0,
-      y: n.position.y || 0,
-    }));
+    const d3Nodes: D3Node[] = nodes.value.map((n) => {
+      const depth = depthMap[n.id] ?? 0;
+      const existingD3Node = simulation?.nodes().find(d => d.id === n.id);
+      return {
+        id: n.id,
+        depth,
+        width: existingD3Node?.width || 220, // 初始预估宽度
+        height: existingD3Node?.height || 140, // 增加初始预估高度以适应6行文本
+        x: n.position.x,
+        y: n.position.y,
+        ...(!n.position.x && !n.position.y && { y: depth * levelGap })
+      };
+    });
 
-    const d3Links: D3Link[] = edges.value.map(e => ({
-      source: e.source,
-      target: e.target,
-    }));
+    // 将根节点钉在顶部中心，作为"锚点"
+    const rootNode = d3Nodes.find((n) => n.id === session.rootNodeId);
+    if (rootNode) {
+      rootNode.fx = 0;
+      rootNode.fy = 0;
+    }
 
     // 停止旧的模拟
     if (simulation) {
       simulation.stop();
     }
 
-    // 创建新的力模拟
-    simulation = d3.forceSimulation(d3Nodes)
-      .force("link", d3.forceLink<D3Node, D3Link>(d3Links)
-        .id(d => d.id)
-        .distance(120)
-        .strength(0.5)
-      )
-      .force("charge", d3.forceManyBody<D3Node>()
-        .strength(-800) // 增加排斥力
-      )
-      .force("collide", d3.forceCollide<D3Node>()
-        .radius(100) // 增加碰撞半径
-        .strength(0.8)
-      )
-      .force("center", d3.forceCenter(400, 300))
-      .force("y", d3.forceY(300).strength(0.1));
-    // 监听 tick 事件，直接更新节点位置以提高性能
+    // --- 1. 使用 d3-hierarchy 进行确定性树布局 ---
+    const nodeWidth = 220;
+    const nodeHorizontalPadding = 120;
+
+    const rootHierarchy = stratify<ChatMessageNode>()
+      .id((d: ChatMessageNode) => d.id)
+      .parentId((d: ChatMessageNode) => d.parentId)
+      (Object.values(session.nodes));
+
+    const treeLayout = tree<ChatMessageNode>().nodeSize([
+      nodeWidth + nodeHorizontalPadding,
+      levelGap,
+    ]);
+    
+    treeLayout(rootHierarchy);
+
+    const calculatedPositions = new Map<string, { x: number; y: number }>();
+    rootHierarchy.each((d: HierarchyNode<ChatMessageNode>) => {
+      calculatedPositions.set(d.id!, { x: d.x ?? 0, y: d.y ?? 0 });
+    });
+
+    // --- 2. 使用 d3-force 进行物理微调，解决重叠问题 ---
+    const d3Links: D3Link[] = edges.value.map((e) => ({
+      source: e.source,
+      target: e.target,
+    }));
+
+    // 将计算好的位置应用到 d3Nodes，作为力的目标
+    d3Nodes.forEach(n => {
+      const pos = calculatedPositions.get(n.id);
+      if (pos) {
+        // 如果是新节点，直接设置位置以避免从(0,0)飞来
+        if (n.x === 0 && n.y === 0) {
+          n.x = pos.x;
+          n.y = pos.y;
+        }
+        // 旧节点将从当前位置平滑过渡到新位置
+      }
+    });
+
+    // 创建自定义的 X 方向碰撞力，增大水平方向的碰撞半径
+    const collideXForce = () => {
+      const padding = 150; // X 方向额外间距
+      
+      return (alpha: number) => {
+        for (let i = 0; i < d3Nodes.length; i++) {
+          const nodeA = d3Nodes[i];
+          for (let j = i + 1; j < d3Nodes.length; j++) {
+            const nodeB = d3Nodes[j];
+            
+            const dx = (nodeB.x ?? 0) - (nodeA.x ?? 0);
+            const dy = (nodeB.y ?? 0) - (nodeA.y ?? 0);
+            
+            // 在 X 方向使用更大的半径
+            const radiusX = (nodeA.width + nodeB.width) / 2 + padding;
+            const radiusY = (nodeA.height + nodeB.height) / 2 + 40; // 增加 Y 方向间距以适应更高的节点
+            
+            // 检测椭圆形碰撞
+            const normalizedDistance = Math.sqrt((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY));
+            
+            if (normalizedDistance < 1 && normalizedDistance > 0) {
+              // 计算推开力
+              const pushStrength = (1 - normalizedDistance) * alpha * 0.9;
+              const pushX = (dx / normalizedDistance) * pushStrength;
+              const pushY = (dy / normalizedDistance) * pushStrength;
+              
+              nodeB.vx = (nodeB.vx ?? 0) + pushX;
+              nodeB.vy = (nodeB.vy ?? 0) + pushY;
+              nodeA.vx = (nodeA.vx ?? 0) - pushX;
+              nodeA.vy = (nodeA.vy ?? 0) - pushY;
+            }
+          }
+        }
+      };
+    };
+
+    simulation = d3Force
+      .forceSimulation(d3Nodes)
+      // 保持链接关系
+      .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links).id(d => d.id).distance(50).strength(0.2))
+      // 添加基础圆形碰撞力
+      .force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 15).strength(0.7))
+      // 添加自定义 X 方向碰撞力
+      .force("collideX", collideXForce())
+      // X 和 Y 方向的力，将节点吸引到 d3-hierarchy 计算出的目标位置
+      .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.5))
+      .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.8));
+
+    // 监听 tick 事件，直接更新节点位置
     simulation.on("tick", () => {
       for (const d3Node of d3Nodes) {
-        const vueNode = nodes.value.find(n => n.id === d3Node.id);
+        const vueNode = nodes.value.find((n) => n.id === d3Node.id);
         if (vueNode) {
           vueNode.position.x = d3Node.x || 0;
           vueNode.position.y = d3Node.y || 0;
@@ -398,8 +524,9 @@ export function useFlowTreeGraph(
       logger.info("D3 力模拟结束");
     });
 
-    logger.info("D3 力模拟已初始化");
+    logger.info("D3 力模拟已初始化 (定向树布局)");
   }
+
 
   /**
    * 处理双击事件 - 切换分支
@@ -514,6 +641,28 @@ export function useFlowTreeGraph(
   }
 
   /**
+   * 更新 D3 模拟中节点的尺寸信息
+   */
+  function updateNodeDimensions(dimensions: Map<string, { width: number; height: number }>) {
+    if (!simulation) return;
+
+    let needsRestart = false;
+    simulation.nodes().forEach(d3Node => {
+      const dim = dimensions.get(d3Node.id);
+      if (dim && (d3Node.width !== dim.width || d3Node.height !== dim.height)) {
+        d3Node.width = dim.width;
+        d3Node.height = dim.height;
+        needsRestart = true;
+      }
+    });
+
+    if (needsRestart) {
+      logger.info("节点尺寸变化，重新加热模拟以调整布局");
+      simulation.alpha(0.3).restart(); // 重新加热并重启模拟
+    }
+  }
+
+  /**
    * 清理资源
    */
   function destroy(): void {
@@ -532,6 +681,7 @@ export function useFlowTreeGraph(
     handleNodeDragStop,
     handleNodeContextMenu,
     updateChart,
+    updateNodeDimensions, // 暴露给 Vue 组件使用
     destroy,
   };
 }

@@ -4,6 +4,8 @@ import type { Options, Node, Edge, Data } from "vis-network/standalone";
 import type { ChatSession, ChatMessageNode } from "../types";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { useLlmChatStore } from "../store";
+import { useAgentStore } from "../agentStore";
+import { useUserProfileStore } from "../userProfileStore";
 import { createModuleLogger } from "@/utils/logger";
 import type { MenuItem } from "../components/conversation-tree-graph/ContextMenu.vue";
 
@@ -243,18 +245,92 @@ export function useConversationGraph(
     };
   }
   /**
-   * 获取角色图标和显示名称
+   * 判断一个图标字符串是否像一个内置的文件名
+   * @param icon 图标字符串
    */
-  function getRoleDisplay(role: string): { icon: string; name: string } {
-    switch (role) {
-      case "user":
-        return { icon: "👤", name: "用户" };
-      case "assistant":
-        return { icon: "🤖", name: "助手" };
-      case "system":
-        return { icon: "⚙️", name: "系统" };
-      default:
-        return { icon: "❓", name: role };
+  function isLikelyFilename(icon: string): boolean {
+    // 一个简单的检查：包含点（用于扩展名）但不包含路径分隔符
+    return icon.includes('.') && !icon.includes('/') && !icon.includes('\\');
+  }
+
+  /**
+   * 获取角色的头像和显示名称
+   * 优先使用消息元数据中的完整快照，回退到当前 store 中的数据
+   * 参考 MessageHeader.vue 的实现
+   */
+  function getRoleDisplay(node: ChatMessageNode): { icon: string; name: string } {
+    const agentStore = useAgentStore();
+    const userProfileStore = useUserProfileStore();
+
+    if (node.role === "user") {
+      // 名称：优先使用快照
+      const name = node.metadata?.userProfileName || "你";
+      
+      // 获取目标对象：优先使用完整快照（同时有 icon 和 id），否则回退到 store
+      let target;
+      if (node.metadata?.userProfileIcon && node.metadata?.userProfileId) {
+        // 快照完整
+        target = {
+          id: node.metadata.userProfileId,
+          icon: node.metadata.userProfileIcon,
+          iconMode: node.metadata.userProfileIconMode,
+        };
+      } else {
+        // 快照不完整，回退到 store
+        const userProfileId = node.metadata?.userProfileId;
+        target = userProfileId
+          ? userProfileStore.getProfileById(userProfileId)
+          : userProfileStore.globalProfile;
+      }
+      
+      // 解析图标路径（内联 useResolvedAvatar 的逻辑）
+      let icon = target?.icon?.trim() || "👤";
+      
+      if (icon && icon !== "👤") {
+        const isBuiltin = target?.iconMode === "builtin";
+        const isLegacyBuiltin = !target?.iconMode && isLikelyFilename(icon);
+        
+        if ((isBuiltin || isLegacyBuiltin) && target?.id) {
+          icon = `appdata://llm-chat/user-profiles/${target.id}/${icon}`;
+        }
+      }
+      
+      return { icon, name };
+    } else if (node.role === "assistant") {
+      // 名称：优先使用快照
+      const name = node.metadata?.agentName || "助手";
+      
+      // 获取目标对象：优先使用完整快照（同时有 icon 和 id），否则回退到 store
+      let target;
+      if (node.metadata?.agentIcon && node.metadata?.agentId) {
+        // 快照完整
+        target = {
+          id: node.metadata.agentId,
+          icon: node.metadata.agentIcon,
+          iconMode: node.metadata.agentIconMode,
+        };
+      } else {
+        // 快照不完整，回退到 store
+        const agentId = node.metadata?.agentId;
+        target = agentId ? agentStore.getAgentById(agentId) : null;
+      }
+      
+      // 解析图标路径（内联 useResolvedAvatar 的逻辑）
+      let icon = target?.icon?.trim() || "🤖";
+      
+      if (icon && icon !== "🤖") {
+        const isBuiltin = target?.iconMode === "builtin";
+        const isLegacyBuiltin = !target?.iconMode && isLikelyFilename(icon);
+        
+        if ((isBuiltin || isLegacyBuiltin) && target?.id) {
+          icon = `appdata://llm-chat/agents/${target.id}/${icon}`;
+        }
+      }
+      
+      return { icon, name };
+    } else {
+      // 系统消息
+      return { icon: "⚙️", name: "系统" };
     }
   }
 
@@ -272,11 +348,20 @@ export function useConversationGraph(
       const isEnabled = node.isEnabled !== false;
       const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
       const siblingInfo = BranchNavigator.getSiblingIndex(session, node.id);
-      const roleDisplay = getRoleDisplay(node.role);
+      const roleDisplay = getRoleDisplay(node);
+
+      const { icon, name } = roleDisplay;
 
       // 截断文本，避免节点过长
       const contentPreview = truncateText(node.content, 30);
-      const label = `${roleDisplay.icon} ${contentPreview}`;
+
+      // 只有当图标不是路径时，才在标签中显示。
+      // 判断标准：不包含 "://", "/", "\", 并且长度较短（过滤掉意外的长字符串）。
+      const isPathLike = icon.includes("://") || icon.includes("/") || icon.includes("\\");
+      const shouldShowIconInLabel = icon && !isPathLike && icon.length < 5;
+
+      const labelPrefix = shouldShowIconInLabel ? `${icon} ` : "";
+      const label = `${labelPrefix}${name}: ${contentPreview}`;
 
       return {
         id: node.id,
@@ -312,7 +397,7 @@ export function useConversationGraph(
         },
         // 丰富的悬停提示
         title: [
-          `${roleDisplay.icon} ${roleDisplay.name}`,
+          `${roleDisplay.name}`,
           `状态: ${isEnabled ? '✅ 启用' : '❌ 禁用'}`,
           siblingInfo.total > 1 ? `分支: ${siblingInfo.index + 1}/${siblingInfo.total}` : '',
           isActiveLeaf ? '🎯 当前活动节点' : (isOnActivePath ? '📍 活动路径' : ''),

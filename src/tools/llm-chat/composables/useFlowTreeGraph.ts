@@ -634,44 +634,47 @@ export function useFlowTreeGraph(
         calculatedPositions.set(d.id!, { x: d.x ?? 0, y: d.y ?? 0 });
       });
 
-      // 将计算好的位置应用到 d3Nodes，作为力的目标
+      // 将计算好的位置直接应用到 d3Nodes，最小化物理模拟的工作量
       d3Nodes.value.forEach(n => {
         const pos = calculatedPositions.get(n.id);
         if (pos) {
-          // 如果是新节点，直接设置位置以避免从(0,0)飞来
-          if (n.x === 0 && n.y === 0) {
-            n.x = pos.x;
-            n.y = pos.y;
-          }
-          // 旧节点将从当前位置平滑过渡到新位置
+          // 直接设置到目标位置，让物理模拟只处理碰撞避免
+          n.x = pos.x;
+          n.y = pos.y;
         }
       });
 
-      // 创建自定义的 X 方向碰撞力，增大水平方向的碰撞半径
-      const collideXForce = () => {
-        const padding = 150; // X 方向额外间距
+      // 创建优化的椭圆碰撞力，使用更高效的算法
+      const ellipticalCollideForce = () => {
+        const paddingX = 150; // X 方向额外间距
+        const paddingY = 40;  // Y 方向额外间距
+        let nodes: D3Node[];
 
-        return (alpha: number) => {
-          for (let i = 0; i < d3Nodes.value.length; i++) {
-            const nodeA = d3Nodes.value[i];
-            for (let j = i + 1; j < d3Nodes.value.length; j++) {
-              const nodeB = d3Nodes.value[j];
+        function force(alpha: number) {
+          // 限制检测范围以优化性能（从 O(n²) 降到接近 O(n)）
+          for (let i = 0; i < nodes.length; i++) {
+            const nodeA = nodes[i];
+            // 只检测附近的节点（基于深度相近）
+            for (let j = i + 1; j < nodes.length && j < i + 20; j++) {
+              const nodeB = nodes[j];
+              
+              // 快速跳过深度差异大的节点（它们不太可能碰撞）
+              if (Math.abs(nodeA.depth - nodeB.depth) > 1) continue;
 
               const dx = (nodeB.x ?? 0) - (nodeA.x ?? 0);
               const dy = (nodeB.y ?? 0) - (nodeA.y ?? 0);
 
-              // 在 X 方向使用更大的半径
-              const radiusX = (nodeA.width + nodeB.width) / 2 + padding;
-              const radiusY = (nodeA.height + nodeB.height) / 2 + 40; // 增加 Y 方向间距以适应更高的节点
+              // 椭圆碰撞检测
+              const radiusX = (nodeA.width + nodeB.width) / 2 + paddingX;
+              const radiusY = (nodeA.height + nodeB.height) / 2 + paddingY;
 
-              // 检测椭圆形碰撞
-              const normalizedDistance = Math.sqrt((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY));
+              const normalizedDist = Math.sqrt((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY));
 
-              if (normalizedDistance < 1 && normalizedDistance > 0) {
-                // 计算推开力
-                const pushStrength = (1 - normalizedDistance) * alpha * 0.9;
-                const pushX = (dx / normalizedDistance) * pushStrength;
-                const pushY = (dy / normalizedDistance) * pushStrength;
+              if (normalizedDist < 1 && normalizedDist > 0.01) {
+                // 使用更强的推开力以快速解决碰撞
+                const pushStrength = (1 - normalizedDist) * alpha * 2.0;
+                const pushX = (dx / normalizedDist) * pushStrength;
+                const pushY = (dy / normalizedDist) * pushStrength;
 
                 nodeB.vx = (nodeB.vx ?? 0) + pushX;
                 nodeB.vy = (nodeB.vy ?? 0) + pushY;
@@ -680,20 +683,38 @@ export function useFlowTreeGraph(
               }
             }
           }
-        };
+        }
+
+        force.initialize = (_: D3Node[]) => { nodes = _; };
+        return force;
       };
 
       simulation = d3Force
         .forceSimulation(d3Nodes.value)
-        // 保持链接关系
-        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value).id(d => d.id).distance(50).strength(0.2))
-        // 添加基础圆形碰撞力
-        .force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 15).strength(0.7))
-        // 添加自定义 X 方向碰撞力
-        .force("collideX", collideXForce())
-        // X 和 Y 方向的力，将节点吸引到 d3-hierarchy 计算出的目标位置
-        .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.5))
-        .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.8));
+        // 加速收敛：更激进的 alpha 衰减
+        .alphaDecay(0.05) // 默认 0.0228，提高到 0.05 加快收敛
+        .alphaMin(0.01)   // 默认 0.001，提高到 0.01 更快停止
+        .velocityDecay(0.6) // 默认 0.4，提高阻尼加快稳定
+        // 保持链接关系，但降低强度（因为初始位置已经正确）
+        .force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value)
+          .id(d => d.id)
+          .distance(50)
+          .strength(0.1) // 降低链接强度，减少震荡
+        )
+        // 使用更高效的圆形碰撞作为第一道防线
+        .force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 20)
+          .strength(0.9) // 提高强度以快速解决碰撞
+          .iterations(2) // 增加迭代次数提高精度
+        )
+        // 添加优化的椭圆碰撞力
+        .force("collideElliptical", ellipticalCollideForce())
+        // 降低位置约束力的强度（因为初始位置已经正确）
+        .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0)
+          .strength(0.15) // 大幅降低，只用于微调
+        )
+        .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0)
+          .strength(0.2) // 大幅降低，只用于微调
+        );
 
       logger.info("D3 力模拟已初始化 (Tree 模式)");
     } else {
@@ -804,57 +825,24 @@ export function useFlowTreeGraph(
    * 处理拖拽结束事件
    */
   function handleNodeDragStop(event: any): void {
+    if (layoutMode.value !== 'physics') return;
+
     const draggedNodeId = event.node.id;
     const session = sessionRef();
     if (!session) return;
 
-    if (layoutMode.value === 'physics') {
-      // Physics 模式：释放节点固定，除了根节点
-      if (simulation && draggedNodeId !== session.rootNodeId) {
-        const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
-        if (d3Node) {
-          d3Node.fx = null;
-          d3Node.fy = null;
-        }
+    // Physics 模式：释放节点固定，除了根节点
+    if (simulation && draggedNodeId !== session.rootNodeId) {
+      const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
+      if (d3Node) {
+        d3Node.fx = null;
+        d3Node.fy = null;
       }
-      // 降低模拟活跃度
-      if (simulation) {
-        simulation.alphaTarget(0);
-      }
-    } else {
-      // Tree 模式：嫁接功能
-      const draggedNode = nodes.value.find(n => n.id === draggedNodeId);
-      if (!draggedNode) return;
-
-      // 找到最近的节点（除了自己）
-      let closestNodeId: string | null = null;
-      let minDistance = Infinity;
-
-      nodes.value.forEach(node => {
-        if (node.id === draggedNodeId) return;
-
-        const dx = node.position.x - draggedNode.position.x;
-        const dy = node.position.y - draggedNode.position.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < minDistance && distance < 100) { // 100px 阈值
-          minDistance = distance;
-          closestNodeId = node.id;
-        }
-      });
-
-      if (!closestNodeId) {
-        logger.debug("拖拽结束：未找到有效的目标节点");
-        return;
-      }
-
-      logger.info("拖拽嫁接操作", { draggedNodeId, targetNodeId: closestNodeId });
-
-      try {
-        store.graftBranch(draggedNodeId, closestNodeId);
-      } catch (error) {
-        logger.error("嫁接操作失败", error);
-      }
+    }
+    
+    // 降低模拟活跃度
+    if (simulation) {
+      simulation.alphaTarget(0);
     }
   }
 

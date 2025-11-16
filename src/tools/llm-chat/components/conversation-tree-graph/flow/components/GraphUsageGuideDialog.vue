@@ -1,0 +1,95 @@
+<template>
+  <BaseDialog
+    v-model="isDialogVisible"
+    title="会话关系图使用说明"
+    width="70vw"
+  >
+    <div class="usage-guide-content">
+      <h3>基本操作</h3>
+      <ul>
+        <li><strong>缩放/平移:</strong> 使用鼠标滚轮缩放视图，按住鼠标中键或空白处拖拽平移画布。</li>
+        <li><strong>重置视图:</strong> 点击右下角的控制器或顶部的“重置布局”按钮可将视图恢复到初始状态。</li>
+        <li><strong>查看节点详情:</strong> 双击节点或点击节点上的“详情”按钮，可以查看该消息的详细信息。</li>
+      </ul>
+
+      <h3>布局模式</h3>
+      <p>关系图支持两种布局模式，可通过顶部按钮切换：</p>
+      <ul>
+        <li><strong>树状布局 ( <el-icon><Grid /></el-icon> 默认):</strong> 严格按照对话的父子关系进行分层排列，结构清晰。此模式下节点位置基本固定，可以拖拽移动。</li>
+        <li><strong>力导向图 ( <el-icon><Share /></el-icon> ):</strong> 节点之间像有物理连线一样，可以拖拽和观察其动态效果。此模式下，拖拽节点会暂时固定其位置，释放后会恢复物理模拟。</li>
+      </ul>
+
+      <h3>节点交互</h3>
+      <ul>
+        <li><strong>拖拽节点:</strong> 在力导向图模式下，可以拖拽节点。拖拽时按住 <code>Alt</code> 键可以拖动整个子树。</li>
+        <li><strong>编辑节点关系 (嫁接):</strong> 从一个节点的底部连接点拖拽出一条线，连接到另一个节点的顶部连接点，即可将 <strong>后者</strong> 移动到 <strong>前者</strong> 下方，成为其子节点。</li>
+        <li><strong>移动单个节点 (无子树):</strong> 按住 <code>Shift</code> 键的同时进行连线操作，只会移动当前节点，其原有的子节点将被其父节点“收养”。</li>
+        <li><strong>右键菜单:</strong> 右键点击节点可进行复制、禁用/启用、删除等操作。</li>
+      </ul>
+
+      <h3>调试模式</h3>
+      <p>点击 <el-icon><View /></el-icon> 按钮可开启调试模式，显示 D3.js 物理引擎的实时模拟状态，包括节点速度、受力等信息，主要用于开发和排错。</p>
+    </div>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button type="primary" @click="$emit('update:visible', false)">我明白了</el-button>
+      </span>
+    </template>
+  </BaseDialog>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue';
+import { Grid, Share, View } from '@element-plus/icons-vue';
+import BaseDialog from '@/components/common/BaseDialog.vue';
+
+const props = defineProps<{
+  visible: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'update:visible', value: boolean): void;
+}>();
+
+const isDialogVisible = computed({
+  get: () => props.visible,
+  set: (val) => emit('update:visible', val),
+});
+</script>
+
+<style scoped>
+.usage-guide-content {
+  padding: 0 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.usage-guide-content h3 {
+  font-size: 16px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  border-left: 3px solid var(--el-color-primary);
+  padding-left: 8px;
+}
+
+.usage-guide-content ul {
+  padding-left: 20px;
+  line-height: 1.8;
+}
+
+.usage-guide-content li {
+  margin-bottom: 8px;
+}
+
+.usage-guide-content .el-icon {
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+.usage-guide-content code {
+  background-color: var(--el-fill-color-light);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'Cascadia Code', monospace;
+}
+</style>

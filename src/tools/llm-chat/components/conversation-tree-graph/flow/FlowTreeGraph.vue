@@ -51,6 +51,11 @@
           <el-button :icon="Refresh" @click="resetLayout" />
         </el-tooltip>
 
+        <!-- 使用说明按钮 -->
+        <el-tooltip content="使用说明" placement="bottom">
+          <el-button :icon="QuestionFilled" @click="isUsageGuideVisible = true" />
+        </el-tooltip>
+
         <!-- 调试模式切换按钮 -->
         <el-tooltip :content="debugMode ? '关闭调试模式' : '开启调试模式'" placement="bottom">
           <el-button
@@ -61,15 +66,14 @@
         </el-tooltip>
 
         <!-- 复制调试信息按钮 -->
-        <el-tooltip
-          v-if="debugMode"
-          content="复制调试信息到剪贴板"
-          placement="bottom"
-        >
+        <el-tooltip v-if="debugMode" content="复制调试信息到剪贴板" placement="bottom">
           <el-button :icon="CopyDocument" @click="copyDebugInfo" />
         </el-tooltip>
       </el-button-group>
     </div>
+
+    <!-- 使用说明弹窗 -->
+    <GraphUsageGuideDialog v-model:visible="isUsageGuideVisible" />
 
     <!-- D3 调试可视化叠加层 -->
     <svg
@@ -225,7 +229,7 @@ import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { MiniMap } from "@vue-flow/minimap";
 import { Controls } from "@vue-flow/controls";
-import { Grid, Share, View, CopyDocument, Refresh } from "@element-plus/icons-vue";
+import { Grid, Share, View, CopyDocument, Refresh, QuestionFilled } from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
@@ -233,6 +237,7 @@ import { useAgentStore } from "../../../agentStore";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
 import ContextMenu from "../ContextMenu.vue";
+import GraphUsageGuideDialog from "./components/GraphUsageGuideDialog.vue";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 import "@vue-flow/controls/dist/style.css";
@@ -248,6 +253,9 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+// 使用说明弹窗状态
+const isUsageGuideVisible = ref(false);
 
 // 上下文菜单状态
 const contextMenu = ref({
@@ -333,7 +341,7 @@ const copyDebugInfo = () => {
 
   try {
     const viewport = getViewport();
-    
+
     // 收集节点信息
     const nodesInfo = debugNodeRects.value.map((node) => {
       const d3Node = d3Nodes.value.find((n) => n.id === node.id);
@@ -355,9 +363,13 @@ const copyDebugInfo = () => {
           width: (d3Node?.width ?? 0).toFixed(0),
           height: (d3Node?.height ?? 0).toFixed(0),
         },
-        fixed: d3Node?.fx !== undefined && d3Node?.fx !== null && d3Node?.fy !== undefined && d3Node?.fy !== null
-          ? { fx: d3Node.fx.toFixed(2), fy: d3Node.fy.toFixed(2) }
-          : null,
+        fixed:
+          d3Node?.fx !== undefined &&
+          d3Node?.fx !== null &&
+          d3Node?.fy !== undefined &&
+          d3Node?.fy !== null
+            ? { fx: d3Node.fx.toFixed(2), fy: d3Node.fy.toFixed(2) }
+            : null,
         state: {
           isActiveLeaf: node.isActiveLeaf,
           isEnabled: node.isEnabled,
@@ -406,7 +418,9 @@ const copyDebugInfo = () => {
     const jsonString = JSON.stringify(debugInfo, null, 2);
     navigator.clipboard.writeText(jsonString).then(
       () => {
-        customMessage.success(`已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`);
+        customMessage.success(
+          `已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`
+        );
       },
       (err) => {
         console.error("复制失败:", err);
@@ -547,9 +561,9 @@ const debugLinkPaths = computed(() => {
         y: (sourcePos.y + targetPos.y) / 2,
       };
 
-      let debugText = '';
-      if ((link)._debug) {
-        const debugInfo = (link)._debug;
+      let debugText = "";
+      if (link._debug) {
+        const debugInfo = link._debug;
         debugText = `str: ${debugInfo.strength}, dist: ${debugInfo.distance}`;
       }
 
@@ -669,14 +683,11 @@ onUnmounted(() => {
   top: 86px;
   right: 16px;
   z-index: 50;
-  background-color: var(--card-bg);
+  display: flex;
+  gap: 8px;
   backdrop-filter: blur(var(--ui-blur));
-  border-radius: 4px;
+  border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.control-buttons :deep(.el-button-group) {
-  overflow: hidden;
 }
 
 .control-buttons :deep(.el-button) {

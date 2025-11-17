@@ -7,20 +7,20 @@
         { 'is-disabled': !data.isEnabled },
         { 'connection-target': isTarget },
         { 'connection-valid': isTarget && isTargetValid },
-        { 'connection-invalid': isTarget && !isTargetValid }
+        { 'connection-invalid': isTarget && !isTargetValid },
       ]"
       :style="nodeStyle"
     >
       <!-- 顶部：树结构入边的目标连接点 -->
       <Handle type="target" :position="Position.Top" />
-      
+
       <!-- 节点内容 -->
       <GraphNodeContent :data="data" />
-      
+
       <!-- 底部：树结构出边的源连接点 -->
       <Handle type="source" :position="Position.Bottom" />
     </div>
-    
+
     <!-- 悬浮操作栏 -->
     <GraphNodeMenubar
       :is-enabled="data.isEnabled"
@@ -35,10 +35,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Handle, Position, useVueFlow } from '@vue-flow/core';
-import GraphNodeContent from './GraphNodeContent.vue';
-import GraphNodeMenubar from './GraphNodeMenubar.vue';
+import { computed } from "vue";
+import { Handle, Position, useVueFlow } from "@vue-flow/core";
+import GraphNodeContent from "./GraphNodeContent.vue";
+import GraphNodeMenubar from "./GraphNodeMenubar.vue";
 
 // 获取当前画布的缩放级别
 const { viewport } = useVueFlow();
@@ -50,8 +50,8 @@ interface NodeData {
   isActiveLeaf: boolean;
   isEnabled: boolean;
   timestamp: string;
-  role: 'user' | 'assistant' | 'system';
-  status: 'generating' | 'complete' | 'error';
+  role: "user" | "assistant" | "system";
+  status: "generating" | "complete" | "error";
   errorMessage?: string;
   subtitleInfo: {
     profileName: string;
@@ -78,25 +78,32 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'copy'): void;
-  (e: 'toggle-enabled'): void;
-  (e: 'delete'): void;
-  (e: 'view-detail', event: MouseEvent): void;
+  (e: "copy"): void;
+  (e: "toggle-enabled"): void;
+  (e: "delete"): void;
+  (e: "view-detail", event: MouseEvent): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const nodeStyle = computed(() => ({
-  backgroundColor: props.data.colors.background,
-  borderColor: props.data.colors.border,
-}));
+const nodeStyle = computed(() => {
+  const style: { backgroundColor: string; borderColor?: string } = {
+    backgroundColor: props.data.colors.background,
+  };
+  // 当节点不是当前活动分支时，才应用数据驱动的边框颜色
+  // 活动分支的边框颜色由 CSS class (.active-leaf) 控制
+  if (!props.data.isActiveLeaf) {
+    style.borderColor = props.data.colors.border;
+  }
+  return style;
+});
 
 // 事件处理
-const handleCopy = () => emit('copy');
-const handleToggleEnabled = () => emit('toggle-enabled');
-const handleDelete = () => emit('delete');
-const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
+const handleCopy = () => emit("copy");
+const handleToggleEnabled = () => emit("toggle-enabled");
+const handleDelete = () => emit("delete");
+const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
 </script>
 
 <style scoped>
@@ -106,7 +113,7 @@ const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
 
 /* 扩大悬停触发区域 */
 .node-wrapper::after {
-  content: '';
+  content: "";
   position: absolute;
   left: -8px;
   right: -8px;
@@ -140,8 +147,8 @@ const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
 }
 
 .graph-node.active-leaf {
-  border-width: 2px;
-  box-shadow: 0 0 0 2px var(--primary-color-light);
+  border-width: 3px;
+  border-color: var(--el-color-warning);
 }
 
 .graph-node.is-disabled {

@@ -37,7 +37,7 @@
 
     <!-- 控制按钮组 -->
     <div class="control-buttons">
-      <el-button-group>
+      <el-button-group style="border-radius: 8px">
         <!-- 布局模式切换按钮 -->
         <el-tooltip
           :content="layoutMode === 'tree' ? '切换到实时力导向图模式' : '切换到树状布局模式'"
@@ -683,12 +683,13 @@ onUnmounted(() => {
   gap: 8px;
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
+  border-color: var(--border-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .control-buttons :deep(.el-button) {
   background-color: transparent;
-  border-color: var(--border-color);
+  border-color: transparent;
 }
 
 .control-buttons :deep(.el-button:hover) {

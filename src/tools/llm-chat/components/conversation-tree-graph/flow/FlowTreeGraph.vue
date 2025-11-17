@@ -1,5 +1,5 @@
 <template>
-  <div class="flow-tree-graph-wrapper">
+  <div ref="wrapperRef" class="flow-tree-graph-wrapper" tabindex="0" style="outline: none">
     <VueFlow
       :nodes="nodes"
       :edges="edges"
@@ -61,6 +61,25 @@
         <!-- 重置布局按钮 -->
         <el-tooltip content="重置布局" placement="bottom">
           <el-button :icon="Refresh" @click="resetLayout" />
+        </el-tooltip>
+
+        <!-- 撤销按钮 -->
+        <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom">
+          <el-button :icon="ArrowLeft" :disabled="!canUndo" @click="undo" />
+        </el-tooltip>
+
+        <!-- 重做按钮 -->
+        <el-tooltip content="重做 (Ctrl+Shift+Z / Ctrl+Y)" placement="bottom">
+          <el-button :icon="ArrowRight" :disabled="!canRedo" @click="redo" />
+        </el-tooltip>
+
+        <!-- 历史记录按钮 -->
+        <el-tooltip content="查看操作历史" placement="bottom">
+          <el-button
+            :icon="Timer"
+            :type="historyPanelState.visible ? 'primary' : 'default'"
+            @click="toggleHistoryPanel"
+          />
         </el-tooltip>
 
         <!-- 使用说明按钮 -->
@@ -232,25 +251,56 @@
       :initial-position="detailPopupState.initialPosition"
       @close="closeDetailPopup"
     />
+
+    <!-- 历史记录悬浮窗 -->
+    <div
+      v-if="historyPanelState.visible"
+      class="history-panel-container"
+      :style="{
+        position: 'fixed',
+        top: `${historyPanelState.y}px`,
+        left: `${historyPanelState.x}px`,
+      }"
+    >
+      <HistoryPanel
+        :history-stack="historyStack"
+        :current-index="currentHistoryIndex"
+        @jump-to="handleJumpToHistory"
+        @close="closeHistoryPanel"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { storeToRefs } from "pinia";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { MiniMap } from "@vue-flow/minimap";
 import { Controls } from "@vue-flow/controls";
-import { Grid, Share, View, CopyDocument, Refresh, QuestionFilled } from "@element-plus/icons-vue";
+import {
+  Grid,
+  Share,
+  View,
+  CopyDocument,
+  Refresh,
+  QuestionFilled,
+  ArrowLeft,
+  ArrowRight,
+  Timer,
+} from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
+import { useLlmChatStore } from "../../../store";
 import { useAgentStore } from "../../../agentStore";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
 import CustomConnectionLine from "./components/CustomConnectionLine.vue";
 import ContextMenu from "../ContextMenu.vue";
 import GraphUsageGuideDialog from "./components/GraphUsageGuideDialog.vue";
+import HistoryPanel from "./components/HistoryPanel.vue";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 import "@vue-flow/controls/dist/style.css";
@@ -267,8 +317,17 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const wrapperRef = ref<HTMLDivElement | null>(null);
+
 // 使用说明弹窗状态
 const isUsageGuideVisible = ref(false);
+
+// 历史记录面板状态
+const historyPanelState = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+});
 
 // 上下文菜单状态
 const contextMenu = ref({
@@ -308,9 +367,51 @@ const {
   switchLayoutMode,
   toggleDebugMode,
   resetLayout,
-} = useFlowTreeGraph(() => props.session, contextMenu);
+} = useFlowTreeGraph(() => props.session, contextMenu, wrapperRef);
 
 const agentStore = useAgentStore();
+const llmChatStore = useLlmChatStore();
+
+// 从 store 中获取历史记录相关的功能和状态
+// 使用 storeToRefs 来保持 canUndo 和 canRedo 的响应性
+const { canUndo, canRedo } = storeToRefs(llmChatStore);
+const { undo, redo, jumpToHistory } = llmChatStore;
+
+// 获取历史记录堆栈和当前索引
+const historyStack = computed(() => props.session?.history ?? []);
+const currentHistoryIndex = computed(() => props.session?.historyIndex ?? 0);
+
+// 关闭历史记录面板
+const closeHistoryPanel = () => {
+  historyPanelState.value.visible = false;
+};
+
+// 切换历史记录面板的显示/隐藏
+const toggleHistoryPanel = (event: MouseEvent) => {
+  if (historyPanelState.value.visible) {
+    closeHistoryPanel();
+  } else {
+    const buttonGroupEl = (event.currentTarget as HTMLElement).closest(".el-button-group");
+    if (!buttonGroupEl) return;
+
+    const rect = buttonGroupEl.getBoundingClientRect();
+    // 380 是面板宽度, 将面板的右边缘与按钮组的右边缘对齐
+    historyPanelState.value.x = rect.right - 380;
+    // 将面板放置在按钮组下方，并留出 8px 间距
+    historyPanelState.value.y = rect.bottom + 8;
+    historyPanelState.value.visible = true;
+  }
+};
+
+// 处理历史跳转
+const handleJumpToHistory = (index: number) => {
+  if (!props.session) return;
+
+  jumpToHistory(index);
+
+  // 关闭面板
+  closeHistoryPanel();
+};
 
 // 包装右键菜单处理器以适配 Vue Flow 的事件参数
 const handleNodeContextMenu = (event: any) => {
@@ -716,6 +817,17 @@ onUnmounted(() => {
 
 .dark .control-buttons :deep(.el-button-group) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.history-panel-container {
+  width: 380px;
+  z-index: 2000;
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-light);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 调试叠加层 */

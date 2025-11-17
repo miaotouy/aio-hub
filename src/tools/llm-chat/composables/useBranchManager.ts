@@ -14,16 +14,24 @@ const logger = createModuleLogger('llm-chat/branch-manager');
 export function useBranchManager() {
   /**
    * 删除消息节点（硬删除：从节点树中移除）
+   * @returns 返回一个包含成功状态和被删除节点列表的对象
    */
-  const deleteMessage = (session: ChatSession, nodeId: string): boolean => {
+  const deleteMessage = (
+    session: ChatSession,
+    nodeId: string
+  ): { success: boolean; deletedNodes: ChatMessageNode[] } => {
     const nodeManager = useNodeManager();
-    const success = nodeManager.hardDeleteNode(session, nodeId);
+    const result = nodeManager.hardDeleteNode(session, nodeId);
 
-    if (success) {
-      logger.info('消息已删除', { sessionId: session.id, nodeId });
+    if (result.success) {
+      logger.info('消息已删除', {
+        sessionId: session.id,
+        nodeId,
+        deletedCount: result.deletedNodes.length,
+      });
     }
 
-    return success;
+    return result;
   };
 
   /**
@@ -95,7 +103,7 @@ export function useBranchManager() {
 
     // 直接更新节点内容
     node.content = newContent;
-    
+
     // 更新附件（如果提供了）
     if (attachments !== undefined) {
       if (attachments.length > 0) {

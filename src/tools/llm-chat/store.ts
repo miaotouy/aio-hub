@@ -1,15 +1,20 @@
 /**
  * LLM Chat 状态管理（树形历史结构）
  * 重构后的精简版本：专注于状态管理，复杂逻辑委托给 composables
+ * 
+ * 现已重构为 Setup Store 以更好地集成 useSessionNodeHistory Composable。
+ * @see UNDO_REDO_DESIGN.md
  */
 
 import { defineStore } from "pinia";
+import { computed, ref } from "vue";
 import { useSessionManager } from "./composables/useSessionManager";
 import { useChatHandler } from "./composables/useChatHandler";
 import { useBranchManager } from "./composables/useBranchManager";
 import { BranchNavigator } from "./utils/BranchNavigator";
 import { useAgentStore } from "./agentStore";
-import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
+import { useSessionNodeHistory } from "./composables/useSessionNodeHistory";
+import type { ChatSession, ChatMessageNode, LlmParameters, HistoryDelta, NodeRelationChange } from "./types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
@@ -17,909 +22,944 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 
 const logger = createModuleLogger("llm-chat/store");
 
-interface LlmChatState {
-  /** 所有会话列表 */
-  sessions: ChatSession[];
-  /** 当前活动会话 ID */
-  currentSessionId: string | null;
-  /** LLM 参数配置 */
-  parameters: LlmParameters;
-  /** 是否正在发送消息（全局锁，防止用户输入新消息） */
-  isSending: boolean;
-  /** 用于中止请求的控制器（按节点ID索引，支持并行生成） */
-  abortControllers: Map<string, AbortController>;
-  /** 正在生成的节点ID集合 */
-  generatingNodes: Set<string>;
-}
+export const useLlmChatStore = defineStore("llmChat", () => {
+  // ==================== State ====================
+  const sessions = ref<ChatSession[]>([]);
+  const currentSessionId = ref<string | null>(null);
+  const parameters = ref<LlmParameters>({
+    temperature: 0.7,
+    maxTokens: 4096,
+  });
+  const isSending = ref(false);
+  const abortControllers = ref(new Map<string, AbortController>());
+  const generatingNodes = ref(new Set<string>());
 
-export const useLlmChatStore = defineStore("llmChat", {
-  state: (): LlmChatState => ({
-    sessions: [],
-    currentSessionId: null,
-    parameters: {
-      temperature: 0.7,
-      maxTokens: 4096,
-    },
-    isSending: false,
-    abortControllers: new Map(),
-    generatingNodes: new Set(),
-  }),
+  // ==================== Getters ====================
+  const currentSession = computed((): ChatSession | null => {
+    if (!currentSessionId.value) return null;
+    return sessions.value.find((s) => s.id === currentSessionId.value) || null;
+  });
 
-  getters: {
-    /** 当前活动会话 */
-    currentSession: (state): ChatSession | null => {
-      if (!state.currentSessionId) return null;
-      return state.sessions.find((s) => s.id === state.currentSessionId) || null;
-    },
+  const currentActivePath = computed((): ChatMessageNode[] => {
+    const session = currentSession.value;
+    if (!session) return [];
 
-    /**
-     * 当前活动路径（UI 渲染数据源）
-     * 注意：不过滤 isEnabled 状态，返回完整路径
-     * 符合设计原则：activeLeafId 决定"看哪条分支"
-     * 过滤掉技术性的根节点（session.rootNodeId），因为它仅作为树结构的根使用，不应显示在 UI 中
-     */
-    currentActivePath(): ChatMessageNode[] {
-      const session = this.currentSession;
-      if (!session) return [];
+    const path: ChatMessageNode[] = [];
+    let currentId: string | null = session.activeLeafId;
 
-      const path: ChatMessageNode[] = [];
+    while (currentId !== null) {
+      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      if (!node) {
+        logger.warn("活动路径中断：节点不存在", { sessionId: session.id, nodeId: currentId });
+        break;
+      }
+
+      path.unshift(node);
+      currentId = node.parentId;
+    }
+
+    return path.filter((node) => node.id !== session.rootNodeId);
+  });
+
+  const currentActivePathWithPresets = computed((): ChatMessageNode[] => {
+    const session = currentSession.value;
+    if (!session) return [];
+
+    const agentStore = useAgentStore();
+    if (!agentStore.currentAgentId) {
+      return currentActivePath.value;
+    }
+
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (!agent || !agent.presetMessages || !agent.displayPresetCount || agent.displayPresetCount <= 0) {
+      return currentActivePath.value;
+    }
+
+    const chatHistoryIndex = agent.presetMessages.findIndex(
+      (msg: ChatMessageNode) => msg.type === 'chat_history'
+    );
+
+    if (chatHistoryIndex === -1) {
+      return currentActivePath.value;
+    }
+
+    const presetsBeforePlaceholder = agent.presetMessages
+      .slice(0, chatHistoryIndex)
+      .filter((msg: ChatMessageNode) =>
+        (msg.role === 'user' || msg.role === 'assistant') &&
+        msg.isEnabled !== false
+      );
+
+    const displayPresets = presetsBeforePlaceholder.slice(-agent.displayPresetCount);
+    const markedPresets = displayPresets.map((msg: ChatMessageNode) => ({
+      ...msg,
+      metadata: {
+        ...msg.metadata,
+        isPresetDisplay: true,
+        agentId: agent.id,
+        agentName: agent.name,
+        agentIcon: agent.icon,
+        profileId: agent.profileId,
+        modelId: agent.modelId,
+      },
+    }));
+
+    return [...markedPresets, ...currentActivePath.value];
+  });
+
+  const llmContext = computed((): Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }> => {
+    return currentActivePath.value
+      .filter((node) => node.isEnabled !== false)
+      .filter((node) => node.role !== "system")
+      .filter((node) => node.role === "user" || node.role === "assistant")
+      .map((node) => ({
+        role: node.role as "user" | "assistant",
+        content: node.content,
+      }));
+  });
+
+  const getSiblings = (nodeId: string): ChatMessageNode[] => {
+    const session = currentSession.value;
+    if (!session) return [];
+
+    if (nodeId.startsWith('preset-')) {
+      logger.warn('尝试获取预设消息的兄弟节点', { nodeId });
+      return [];
+    }
+
+    const { getSiblings } = useBranchManager();
+    return getSiblings(session, nodeId);
+  };
+
+  const isNodeInActivePath = (nodeId: string): boolean => {
+    const session = currentSession.value;
+    if (!session) return false;
+
+    const { isNodeInActivePath } = useBranchManager();
+    return isNodeInActivePath(session, nodeId);
+  };
+
+  const isNodeGenerating = (nodeId: string): boolean => {
+    return generatingNodes.value.has(nodeId);
+  };
+
+  const currentMessageCount = computed((): number => {
+    const session = currentSession.value;
+    if (!session) return 0;
+    return Object.keys(session.nodes).length;
+  });
+
+  // ==================== History Management ====================
+  const historyManager = useSessionNodeHistory(currentSession);
+
+  function undo() {
+    const session = currentSession.value;
+    if (!session || !historyManager.canUndo.value) return;
+
+    historyManager.undo();
+    // After state jump, ensure the active leaf is still valid
+    BranchNavigator.ensureValidActiveLeaf(session);
+
+    const sessionManager = useSessionManager();
+    sessionManager.persistSession(session, currentSessionId.value);
+  }
+
+  function redo() {
+    const session = currentSession.value;
+    if (!session || !historyManager.canRedo.value) return;
+
+    historyManager.redo();
+    // After state jump, ensure the active leaf is still valid
+    BranchNavigator.ensureValidActiveLeaf(session);
+
+    const sessionManager = useSessionManager();
+    sessionManager.persistSession(session, currentSessionId.value);
+  }
+
+  function jumpToHistory(index: number) {
+    const session = currentSession.value;
+    if (!session) return;
+
+    historyManager.jumpToState(index);
+
+    BranchNavigator.ensureValidActiveLeaf(session);
+    const sessionManager = useSessionManager();
+    sessionManager.updateSessionDisplayAgent(session);
+    sessionManager.persistSession(session, currentSessionId.value);
+    logger.info(`已跳转到历史记录索引 ${index}`);
+  }
+
+  // ==================== Actions ====================
+
+  /**
+   * 创建新会话（使用智能体）
+   */
+  function createSession(agentId: string, name?: string): string {
+    const sessionManager = useSessionManager();
+    const { session, sessionId } = sessionManager.createSession(agentId, name);
+
+    sessions.value.push(session);
+    currentSessionId.value = sessionId;
+    sessionManager.persistSession(session, currentSessionId.value);
+
+    // 新会话需要初始化历史
+    historyManager.clearHistory();
+
+    return sessionId;
+  }
+
+  /**
+   * 切换当前会话
+   */
+  function switchSession(sessionId: string): void {
+    const session = sessions.value.find((s) => s.id === sessionId);
+    if (!session) {
+      logger.warn("切换会话失败：会话不存在", { sessionId });
+      return;
+    }
+
+    // ★ 确保切换到的会话有初始化的历史记录
+    if (session.history === undefined || session.historyIndex === undefined) {
+      // 临时设置当前会话ID，以便 historyManager 能正确操作
+      const originalSessionId = currentSessionId.value;
+      currentSessionId.value = session.id;
+      historyManager.clearHistory();
+      // 恢复原始ID，因为下面的代码会正确设置它
+      currentSessionId.value = originalSessionId;
+      logger.info('为旧会话初始化了历史堆栈', { sessionId });
+    }
+
+    currentSessionId.value = sessionId;
+    const sessionManager = useSessionManager();
+    sessionManager.updateCurrentSessionId(sessionId);
+    logger.info("切换会话", { sessionId, sessionName: session.name });
+  }
+
+  /**
+   * 删除会话
+   */
+  async function deleteSession(sessionId: string): Promise<void> {
+    const sessionManager = useSessionManager();
+    const { updatedSessions, newCurrentSessionId } = await sessionManager.deleteSession(
+      sessions.value,
+      sessionId,
+      currentSessionId.value
+    );
+
+    sessions.value = updatedSessions;
+    currentSessionId.value = newCurrentSessionId;
+    persistSessions();
+  }
+
+  /**
+   * 更新会话信息
+   */
+  function updateSession(sessionId: string, updates: Partial<ChatSession>): void {
+    const session = sessions.value.find((s) => s.id === sessionId);
+    if (!session) {
+      logger.warn("更新会话失败：会话不存在", { sessionId });
+      return;
+    }
+
+    const sessionManager = useSessionManager();
+    sessionManager.updateSession(session, updates);
+    sessionManager.persistSession(session, currentSessionId.value);
+  }
+
+  /**
+   * 从文件加载会话
+   */
+  async function loadSessions(): Promise<void> {
+    const sessionManager = useSessionManager();
+    const { sessions: loadedSessions, currentSessionId: loadedId } = await sessionManager.loadSessions();
+
+    sessions.value = loadedSessions;
+    currentSessionId.value = loadedId;
+
+    // 确保加载后的当前会话有历史记录
+    if (currentSession.value && (currentSession.value.history === undefined || currentSession.value.historyIndex === undefined)) {
+      historyManager.clearHistory();
+      logger.info('为加载的当前会话初始化了历史堆栈', { sessionId: currentSession.value.id });
+    }
+
+    await fillMissingTokenMetadata();
+  }
+
+  /**
+   * 重新计算单个节点的 token
+   */
+  async function recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
+    const node = session.nodes[nodeId];
+    if (!node || !node.content) return;
+    if (node.role !== 'user' && node.role !== 'assistant') return;
+
+    let modelId: string | undefined;
+    if (node.role === 'assistant' && node.metadata?.modelId) {
+      modelId = node.metadata.modelId;
+    } else if (node.role === 'user') {
       let currentId: string | null = session.activeLeafId;
-
-      // 从活跃叶节点向上遍历到根节点
       while (currentId !== null) {
-        const node: ChatMessageNode | undefined = session.nodes[currentId];
-        if (!node) {
-          logger.warn("活动路径中断：节点不存在", { sessionId: session.id, nodeId: currentId });
+        const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
+        if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
+          modelId = pathNode.metadata.modelId;
           break;
         }
-
-        path.unshift(node);
-        currentId = node.parentId;
+        currentId = pathNode?.parentId ?? null;
       }
-
-      // 过滤掉技术性的根节点（它是空的系统消息，仅用于构建树结构）
-      return path.filter((node) => node.id !== session.rootNodeId);
-    },
-
-    /**
-     * 带预设消息的活动路径（用于 UI 显示）
-     * 根据当前智能体的 displayPresetCount 配置，在实际会话消息前插入预设消息
-     */
-    currentActivePathWithPresets(): ChatMessageNode[] {
-      const session = this.currentSession;
-      if (!session) return [];
-
-      // 获取当前智能体配置
-      const agentStore = useAgentStore();
-      
-      if (!agentStore.currentAgentId) {
-        return this.currentActivePath;
-      }
-
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
-      if (!agent || !agent.presetMessages || !agent.displayPresetCount || agent.displayPresetCount <= 0) {
-        return this.currentActivePath;
-      }
-
-      // 找到 chat_history 占位符的位置
-      const chatHistoryIndex = agent.presetMessages.findIndex(
-        (msg: ChatMessageNode) => msg.type === 'chat_history'
-      );
-
-      if (chatHistoryIndex === -1) {
-        // 没有占位符，不显示预设消息
-        return this.currentActivePath;
-      }
-
-      // 提取占位符之前的 user/assistant 消息（不包括 system 消息）
-      const presetsBeforePlaceholder = agent.presetMessages
-        .slice(0, chatHistoryIndex)
-        .filter((msg: ChatMessageNode) =>
-          (msg.role === 'user' || msg.role === 'assistant') &&
-          msg.isEnabled !== false
-        );
-
-      // 取最后 N 条预设消息
-      const displayPresets = presetsBeforePlaceholder.slice(-agent.displayPresetCount);
-
-      // 给预设消息添加特殊标记和智能体信息，用于 UI 显示
-      const markedPresets = displayPresets.map((msg: ChatMessageNode) => ({
-        ...msg,
-        metadata: {
-          ...msg.metadata,
-          isPresetDisplay: true, // 标记这是用于显示的预设消息
-          agentId: agent.id,
-          agentName: agent.name,
-          agentIcon: agent.icon,
-          profileId: agent.profileId,
-          modelId: agent.modelId,
-          // modelName 会在 MessageHeader 中从 model 对象获取，这里不需要设置
-        },
-      }));
-
-      // 合并预设消息和实际会话消息
-      return [...markedPresets, ...this.currentActivePath];
-    },
-
-    /**
-     * LLM 上下文（过滤了 isEnabled === false 的节点）
-     * 专门用于构建发送给 LLM 的消息列表
-     * 符合设计原则：isEnabled 决定"这条分支上的哪句话要被 AI 忽略"
-     */
-    llmContext(): Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }> {
-      return this.currentActivePath
-        .filter((node) => node.isEnabled !== false)
-        .filter((node) => node.role !== "system")
-        .filter((node) => node.role === "user" || node.role === "assistant")
-        .map((node) => ({
-          role: node.role as "user" | "assistant",
-          content: node.content,
-        }));
-    },
-
-    /**
-     * 获取某个节点的兄弟节点（包括自己）
-     */
-    getSiblings:
-      (state) =>
-      (nodeId: string): ChatMessageNode[] => {
-        const session = state.sessions.find((s) => s.id === state.currentSessionId);
-        if (!session) return [];
-
-        // 预设消息（带 preset- 前缀的 ID）不在会话节点树中，返回空数组
-        if (nodeId.startsWith('preset-')) {
-          logger.warn('尝试获取预设消息的兄弟节点', { nodeId });
-          return [];
-        }
-
-        const { getSiblings } = useBranchManager();
-        return getSiblings(session, nodeId);
-      },
-
-    /**
-     * 判断节点是否在当前活动路径上
-     */
-    isNodeInActivePath:
-      (state) =>
-      (nodeId: string): boolean => {
-        const session = state.sessions.find((s) => s.id === state.currentSessionId);
-        if (!session) return false;
-
-        const { isNodeInActivePath } = useBranchManager();
-        return isNodeInActivePath(session, nodeId);
-      },
-
-    /**
-     * 判断某个节点是否正在生成
-     */
-    isNodeGenerating:
-      (state) =>
-      (nodeId: string): boolean => {
-        return state.generatingNodes.has(nodeId);
-      },
-
-    /**
-     * 当前会话的消息数量（所有节点，包括禁用的）
-     */
-    currentMessageCount(): number {
-      const session = this.currentSession;
-      if (!session) return 0;
-      return Object.keys(session.nodes).length;
-    },
-  },
-
-  actions: {
-    // ==================== 会话管理 ====================
-
-    /**
-     * 创建新会话（使用智能体）
-     */
-    createSession(agentId: string, name?: string): string {
-      const sessionManager = useSessionManager();
-      const { session, sessionId } = sessionManager.createSession(agentId, name);
-
-      this.sessions.push(session);
-      this.currentSessionId = sessionId;
-      sessionManager.persistSession(session, this.currentSessionId);
-
-      return sessionId;
-    },
-
-    /**
-     * 切换当前会话
-     */
-    switchSession(sessionId: string): void {
-      const session = this.sessions.find((s) => s.id === sessionId);
-      if (!session) {
-        logger.warn("切换会话失败：会话不存在", { sessionId });
-        return;
-      }
-
-      this.currentSessionId = sessionId;
-      
-      // 持久化当前会话 ID
-      const sessionManager = useSessionManager();
-      sessionManager.updateCurrentSessionId(sessionId);
-      
-      logger.info("切换会话", { sessionId, sessionName: session.name });
-    },
-
-    /**
-     * 删除会话
-     */
-    async deleteSession(sessionId: string): Promise<void> {
-      const sessionManager = useSessionManager();
-      const { updatedSessions, newCurrentSessionId } = await sessionManager.deleteSession(
-        this.sessions,
-        sessionId,
-        this.currentSessionId
-      );
-
-      this.sessions = updatedSessions;
-      this.currentSessionId = newCurrentSessionId;
-
-      // 同步索引（文件删除在 SessionManager 中已处理）
-      this.persistSessions();
-    },
-
-    /**
-     * 更新会话信息
-     */
-    updateSession(sessionId: string, updates: Partial<ChatSession>): void {
-      const session = this.sessions.find((s) => s.id === sessionId);
-      if (!session) {
-        logger.warn("更新会话失败：会话不存在", { sessionId });
-        return;
-      }
-
-      const sessionManager = useSessionManager();
-      sessionManager.updateSession(session, updates);
-      sessionManager.persistSession(session, this.currentSessionId);
-    },
-
-    /**
-     * 从文件加载会话
-     */
-    async loadSessions(): Promise<void> {
-      const sessionManager = useSessionManager();
-      const { sessions, currentSessionId } = await sessionManager.loadSessions();
-
-      this.sessions = sessions;
-      this.currentSessionId = currentSessionId;
-
-      // 补充缺失的 token 元数据
-      await this.fillMissingTokenMetadata();
-    },
-
-    /**
-     * 重新计算单个节点的 token
-     * 在编辑消息后调用
-     */
-    async recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
-      const node = session.nodes[nodeId];
-      if (!node || !node.content) {
-        return;
-      }
-
-      // 只处理用户消息和助手消息
-      if (node.role !== 'user' && node.role !== 'assistant') {
-        return;
-      }
-
-      // 确定模型 ID
-      let modelId: string | undefined;
-
-      if (node.role === 'assistant' && node.metadata?.modelId) {
-        // 助手消息：使用其自己的模型
-        modelId = node.metadata.modelId;
-      } else if (node.role === 'user') {
-        // 用户消息：查找会话中任意助手消息的模型
-        // 优先使用当前活动路径上的助手消息
-        let currentId: string | null = session.activeLeafId;
-        while (currentId !== null) {
-          const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
-          if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
-            modelId = pathNode.metadata.modelId;
+      if (!modelId) {
+        for (const n of Object.values(session.nodes)) {
+          if (n.role === 'assistant' && n.metadata?.modelId) {
+            modelId = n.metadata.modelId;
             break;
           }
-          currentId = pathNode?.parentId ?? null;
         }
+      }
+    }
 
-        // 如果活动路径上没有，则查找整个会话
-        if (!modelId) {
-          for (const n of Object.values(session.nodes)) {
-            if (n.role === 'assistant' && n.metadata?.modelId) {
-              modelId = n.metadata.modelId;
+    if (!modelId) {
+      logger.warn('无法确定模型ID，跳过token重新计算', { sessionId: session.id, nodeId, role: node.role });
+      return;
+    }
+
+    try {
+      let fullContent = node.content;
+      if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
+        const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
+        const { getTextAttachmentsContent } = useChatAssetProcessor();
+        const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
+        if (textAttachmentsContent) {
+          fullContent = `${node.content}\n\n${textAttachmentsContent}`;
+        }
+      }
+
+      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+        fullContent,
+        modelId,
+        node.attachments
+      );
+
+      if (!node.metadata) node.metadata = {};
+      node.metadata.contentTokens = tokenResult.count;
+
+      logger.debug('重新计算消息 token', {
+        sessionId: session.id,
+        nodeId,
+        role: node.role,
+        tokens: tokenResult.count,
+        isEstimated: tokenResult.isEstimated,
+      });
+    } catch (error) {
+      logger.warn('重新计算 token 失败', {
+        sessionId: session.id,
+        nodeId,
+        role: node.role,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * 补充会话中缺失的 token 元数据
+   */
+  async function fillMissingTokenMetadata(): Promise<void> {
+    let updatedCount = 0;
+    const sessionsToSave: ChatSession[] = [];
+
+    for (const session of sessions.value) {
+      let sessionUpdated = false;
+      for (const [nodeId, node] of Object.entries(session.nodes)) {
+        if (!node.content || node.metadata?.contentTokens !== undefined) continue;
+
+        let modelId: string | undefined;
+        if (node.role === 'assistant' && node.metadata?.modelId) {
+          modelId = node.metadata.modelId;
+        } else if (node.role === 'user') {
+          let currentId: string | null = session.activeLeafId;
+          while (currentId !== null) {
+            const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
+            if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
+              modelId = pathNode.metadata.modelId;
               break;
             }
+            currentId = pathNode?.parentId ?? null;
           }
-        }
-      }
-
-      if (!modelId) {
-        logger.warn('无法确定模型ID，跳过token重新计算', {
-          sessionId: session.id,
-          nodeId,
-          role: node.role,
-        });
-        return;
-      }
-
-      try {
-        // 如果是用户消息且有文本附件，需要合并文本附件内容
-        let fullContent = node.content;
-        if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
-          const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
-          const { getTextAttachmentsContent } = useChatAssetProcessor();
-          const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-          if (textAttachmentsContent) {
-            fullContent = `${node.content}\n\n${textAttachmentsContent}`;
-          }
-        }
-
-        // 计算消息的 token（包括文本和附件）
-        const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-          fullContent,
-          modelId,
-          node.attachments
-        );
-
-        // 更新节点的 metadata
-        if (!node.metadata) {
-          node.metadata = {};
-        }
-        node.metadata.contentTokens = tokenResult.count;
-
-        logger.debug('重新计算消息 token', {
-          sessionId: session.id,
-          nodeId,
-          role: node.role,
-          tokens: tokenResult.count,
-          isEstimated: tokenResult.isEstimated,
-          hasAttachments: !!node.attachments && node.attachments.length > 0,
-          attachmentCount: node.attachments?.length || 0,
-        });
-      } catch (error) {
-        logger.warn('重新计算 token 失败', {
-          sessionId: session.id,
-          nodeId,
-          role: node.role,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-
-    /**
-     * 补充会话中缺失的 token 元数据
-     * 在加载会话后调用，计算并保存缺失的 contentTokens
-     */
-    async fillMissingTokenMetadata(): Promise<void> {
-      let updatedCount = 0;
-      const sessionsToSave: ChatSession[] = [];
-
-      for (const session of this.sessions) {
-        let sessionUpdated = false;
-
-        for (const [nodeId, node] of Object.entries(session.nodes)) {
-          // 跳过没有内容的节点（如根节点）
-          if (!node.content) continue;
-
-          // 跳过已经有 contentTokens 的节点
-          if (node.metadata?.contentTokens !== undefined) continue;
-
-          // 需要模型 ID 来计算 token
-          let modelId: string | undefined;
-
-          if (node.role === 'assistant' && node.metadata?.modelId) {
-            // 助手消息：使用其自己的模型
-            modelId = node.metadata.modelId;
-          } else if (node.role === 'user') {
-            // 用户消息：查找会话中任意助手消息的模型
-            // 优先使用当前活动路径上的助手消息
-            let currentId: string | null = session.activeLeafId;
-            while (currentId !== null) {
-              const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
-              if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
-                modelId = pathNode.metadata.modelId;
+          if (!modelId) {
+            for (const n of Object.values(session.nodes)) {
+              if (n.role === 'assistant' && n.metadata?.modelId) {
+                modelId = n.metadata.modelId;
                 break;
               }
-              currentId = pathNode?.parentId ?? null;
-            }
-
-            // 如果活动路径上没有，则查找整个会话
-            if (!modelId) {
-              for (const n of Object.values(session.nodes)) {
-                if (n.role === 'assistant' && n.metadata?.modelId) {
-                  modelId = n.metadata.modelId;
-                  break;
-                }
-              }
             }
           }
+        }
 
-          if (!modelId) {
-            // 无法确定模型，跳过
-            logger.debug('无法确定模型ID，跳过token计算', {
-              sessionId: session.id,
-              nodeId,
-              role: node.role,
-            });
-            continue;
-          }
+        if (!modelId) continue;
 
-          try {
-            // 如果是用户消息且有文本附件，需要合并文本附件内容
-            let fullContent = node.content;
-            if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
-              const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
-              const { getTextAttachmentsContent } = useChatAssetProcessor();
-              const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-              if (textAttachmentsContent) {
-                fullContent = `${node.content}\n\n${textAttachmentsContent}`;
-              }
+        try {
+          let fullContent = node.content;
+          if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
+            const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
+            const { getTextAttachmentsContent } = useChatAssetProcessor();
+            const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
+            if (textAttachmentsContent) {
+              fullContent = `${node.content}\n\n${textAttachmentsContent}`;
             }
-
-            // 计算消息的 token（包括文本和附件）
-            const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-              fullContent,
-              modelId,
-              node.attachments
-            );
-
-            // 更新节点的 metadata
-            if (!node.metadata) {
-              node.metadata = {};
-            }
-            node.metadata.contentTokens = tokenResult.count;
-
-            updatedCount++;
-            sessionUpdated = true;
-
-            logger.debug('补充缺失的 token 元数据', {
-              sessionId: session.id,
-              nodeId,
-              role: node.role,
-              tokens: tokenResult.count,
-              isEstimated: tokenResult.isEstimated,
-              hasAttachments: !!node.attachments && node.attachments.length > 0,
-              attachmentCount: node.attachments?.length || 0,
-            });
-          } catch (error) {
-            logger.warn('计算 token 失败', {
-              sessionId: session.id,
-              nodeId,
-              role: node.role,
-              hasAttachments: !!node.attachments && node.attachments.length > 0,
-              error: error instanceof Error ? error.message : String(error),
-            });
           }
-        }
-
-        // 记录需要保存的会话
-        if (sessionUpdated) {
-          sessionsToSave.push(session);
-        }
-      }
-
-      // 批量保存更新的会话
-      if (sessionsToSave.length > 0) {
-        const sessionManager = useSessionManager();
-        for (const session of sessionsToSave) {
-          sessionManager.persistSession(session, this.currentSessionId);
-        }
-
-        logger.info('补充 token 元数据完成', {
-          totalUpdated: updatedCount,
-          sessionsUpdated: sessionsToSave.length,
-        });
-      }
-    },
-
-    /**
-     * 持久化会话到文件
-     */
-    persistSessions(): void {
-      const sessionManager = useSessionManager();
-      sessionManager.persistSessions(this.sessions, this.currentSessionId);
-    },
-
-    /**
-     * 导出当前会话为 Markdown
-     */
-    exportSessionAsMarkdown(sessionId?: string): string {
-      const session = sessionId
-        ? this.sessions.find((s) => s.id === sessionId)
-        : this.currentSession;
-
-      const sessionManager = useSessionManager();
-      return sessionManager.exportSessionAsMarkdown(session || null, this.currentActivePath);
-    },
-
-    /**
-     * 清空所有会话
-     */
-    clearAllSessions(): void {
-      this.sessions = [];
-      this.currentSessionId = null;
-      this.persistSessions();
-
-      const sessionManager = useSessionManager();
-      sessionManager.clearAllSessions();
-      logger.info("清空所有会话");
-    },
-
-    // ==================== 核心聊天逻辑 ====================
-
-    /**
-     * 发送消息
-     */
-    async sendMessage(content: string, attachments?: Asset[]): Promise<void> {
-      const session = this.currentSession;
-      if (!session) {
-        logger.error("发送消息失败：没有活动会话", new Error("No active session"));
-        throw new Error("请先创建或选择一个会话");
-      }
-
-      if (this.isSending) {
-        logger.warn("发送消息失败：正在发送中", { sessionId: session.id });
-        return;
-      }
-
-      this.isSending = true;
-
-      try {
-        const chatHandler = useChatHandler();
-        await chatHandler.sendMessage(
-          session,
-          content,
-          this.currentActivePath,
-          this.abortControllers,
-          this.generatingNodes,
-          attachments
-        );
-
-        // 更新会话显示的智能体
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-
-        sessionManager.persistSession(session, this.currentSessionId);
-      } catch (error) {
-        const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.currentSessionId);
-        throw error;
-      } finally {
-        // 如果没有其他节点在生成，则解除全局锁
-        if (this.generatingNodes.size === 0) {
-          this.isSending = false;
-        }
-      }
-    },
-
-    /**
-     * 从指定节点重新生成
-     */
-    async regenerateFromNode(nodeId: string): Promise<void> {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("重新生成失败：没有活动会话");
-        return;
-      }
-
-      try {
-        const chatHandler = useChatHandler();
-        await chatHandler.regenerateFromNode(
-          session,
-          nodeId,
-          this.currentActivePath,
-          this.abortControllers,
-          this.generatingNodes
-        );
-
-        // 更新会话显示的智能体
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-
-        sessionManager.persistSession(session, this.currentSessionId);
-      } catch (error) {
-        const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.currentSessionId);
-        throw error;
-      } finally {
-        // 如果没有其他节点在生成，则解除全局锁
-        if (this.generatingNodes.size === 0) {
-          this.isSending = false;
-        }
-      }
-    },
-
-    /**
-     * 重新生成最后一条助手消息（向后兼容）
-     */
-    async regenerateLastMessage(): Promise<void> {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("重新生成失败：没有活动会话");
-        return;
-      }
-
-      const branchManager = useBranchManager();
-      const result = branchManager.prepareRegenerateLastMessage(session);
-
-      if (!result.shouldRegenerate || !result.userContent || !result.newActiveLeafId) {
-        return;
-      }
-
-      // 将活跃叶节点回退到用户消息
-      session.activeLeafId = result.newActiveLeafId;
-
-      // 更新路径上所有父节点的选择记忆
-      BranchNavigator.updateSelectionMemory(session, result.newActiveLeafId);
-
-      // 重新发送用户消息（会创建新的助手节点作为兄弟分支）
-      await this.sendMessage(result.userContent);
-    },
-
-    /**
-     * 中止当前发送（中止所有正在生成的节点）
-     */
-    abortSending(): void {
-      if (this.abortControllers.size > 0) {
-        this.abortControllers.forEach((controller, nodeId) => {
-          controller.abort();
-          logger.info("已中止节点生成", { nodeId });
-        });
-        this.abortControllers.clear();
-        this.generatingNodes.clear();
-        logger.info("已中止所有消息发送");
-      }
-    },
-
-    /**
-     * 中止指定节点的生成
-     */
-    abortNodeGeneration(nodeId: string): void {
-      const controller = this.abortControllers.get(nodeId);
-      if (controller) {
-        controller.abort();
-        this.abortControllers.delete(nodeId);
-        this.generatingNodes.delete(nodeId);
-        logger.info("已中止节点生成", { nodeId });
-      }
-    },
-
-    // ==================== 分支操作 ====================
-
-    /**
-     * 删除消息节点（软删除：通过 isEnabled 标记）
-     */
-    deleteMessage(nodeId: string): void {
-      const session = this.currentSession;
-      if (!session) return;
-
-      const branchManager = useBranchManager();
-      const success = branchManager.deleteMessage(session, nodeId);
-
-      if (success) {
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.currentSessionId);
-      }
-    },
-
-    /**
-     * 切换到指定分支（将某个节点设为活跃叶节点）
-     */
-    switchBranch(nodeId: string): void {
-      const session = this.currentSession;
-      if (!session) return;
-
-      const branchManager = useBranchManager();
-      const success = branchManager.switchBranch(session, nodeId);
-      if (success) {
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.currentSessionId);
-      }
-    },
-
-    /**
-     * 切换到兄弟分支
-     */
-    switchToSiblingBranch(nodeId: string, direction: "prev" | "next"): void {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("切换兄弟分支失败：没有活动会话");
-        return;
-      }
-
-      const branchManager = useBranchManager();
-      const newLeafId = branchManager.switchToSiblingBranch(session, nodeId, direction);
-
-      if (newLeafId !== session.activeLeafId) {
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.currentSessionId);
-      }
-    },
-
-    /**
-     /**
-       * 编辑消息（原地修改内容和附件）
-       * 对于预设消息，会反向保存到智能体配置
-       */
-      async editMessage(nodeId: string, newContent: string, attachments?: Asset[]): Promise<void> {
-        const session = this.currentSession;
-        if (!session) {
-          logger.warn("编辑消息失败：没有活动会话");
-          return;
-        }
-  
-        // 检查是否是预设消息（通过 ID 前缀识别）
-        if (nodeId.startsWith('preset-')) {
-          // 预设消息：反向保存到智能体配置
-          const agentStore = useAgentStore();
-          if (!agentStore.currentAgentId) {
-            logger.warn("编辑预设消息失败：没有当前智能体");
-            return;
-          }
-          
-          const success = agentStore.updatePresetMessage(
-            agentStore.currentAgentId,
-            nodeId,
-            newContent
+          const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+            fullContent,
+            modelId,
+            node.attachments
           );
-          
-          if (success) {
-            logger.info("预设消息已更新并保存到智能体配置", {
-              agentId: agentStore.currentAgentId,
-              nodeId,
-              contentLength: newContent.length,
-            });
-          }
-          return;
+
+          if (!node.metadata) node.metadata = {};
+          node.metadata.contentTokens = tokenResult.count;
+          updatedCount++;
+          sessionUpdated = true;
+        } catch (error) {
+          logger.warn('计算 token 失败', { sessionId: session.id, nodeId, error });
         }
-        
-        // 普通消息：使用原有逻辑
-        const branchManager = useBranchManager();
-        const success = branchManager.editMessage(session, nodeId, newContent, attachments);
-  
-        if (success) {
-          // 重新计算编辑后消息的 token
-          await this.recalculateNodeTokens(session, nodeId);
-          
-          const sessionManager = useSessionManager();
-          sessionManager.persistSession(session, this.currentSessionId);
-        }
-      },
-    /**
-     * 创建分支（创建源节点的兄弟节点，复制内容）
-     */
-    createBranch(sourceNodeId: string): void {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("创建分支失败：没有活动会话");
-        return;
+      }
+      if (sessionUpdated) sessionsToSave.push(session);
+    }
+
+    if (sessionsToSave.length > 0) {
+      const sessionManager = useSessionManager();
+      for (const session of sessionsToSave) {
+        sessionManager.persistSession(session, currentSessionId.value);
+      }
+      logger.info('补充 token 元数据完成', { totalUpdated: updatedCount, sessionsUpdated: sessionsToSave.length });
+    }
+  }
+
+  /**
+   * 持久化会话到文件
+   */
+  function persistSessions(): void {
+    const sessionManager = useSessionManager();
+    sessionManager.persistSessions(sessions.value, currentSessionId.value);
+  }
+
+  /**
+   * 导出当前会话为 Markdown
+   */
+  function exportSessionAsMarkdown(sessionId?: string): string {
+    const session = sessionId
+      ? sessions.value.find((s) => s.id === sessionId)
+      : currentSession.value;
+    const sessionManager = useSessionManager();
+    return sessionManager.exportSessionAsMarkdown(session || null, currentActivePath.value);
+  }
+
+  /**
+   * 清空所有会话
+   */
+  function clearAllSessions(): void {
+    sessions.value = [];
+    currentSessionId.value = null;
+    persistSessions();
+    const sessionManager = useSessionManager();
+    sessionManager.clearAllSessions();
+    logger.info("清空所有会话");
+  }
+
+  /**
+   * 发送消息（历史断点）
+   */
+  async function sendMessage(content: string, attachments?: Asset[]): Promise<void> {
+    const session = currentSession.value;
+    if (!session) throw new Error("请先创建或选择一个会话");
+    if (isSending.value) {
+      logger.warn("发送消息失败：正在发送中", { sessionId: session.id });
+      return;
+    }
+
+    isSending.value = true;
+
+    try {
+      const chatHandler = useChatHandler();
+      await chatHandler.sendMessage(
+        session,
+        content,
+        currentActivePath.value,
+        abortControllers.value,
+        generatingNodes.value,
+        attachments
+      );
+
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+
+      // ★ 清空历史堆栈（历史断点）
+      historyManager.clearHistory();
+
+    } catch (error) {
+      const sessionManager = useSessionManager();
+      sessionManager.persistSession(session, currentSessionId.value);
+      throw error;
+    } finally {
+      if (generatingNodes.value.size === 0) {
+        isSending.value = false;
+      }
+    }
+  }
+
+  /**
+   * 从指定节点重新生成（历史断点）
+   */
+  async function regenerateFromNode(nodeId: string): Promise<void> {
+    const session = currentSession.value;
+    if (!session) return;
+
+    try {
+      const chatHandler = useChatHandler();
+      await chatHandler.regenerateFromNode(
+        session,
+        nodeId,
+        currentActivePath.value,
+        abortControllers.value,
+        generatingNodes.value
+      );
+
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+
+      // ★ 清空历史堆栈（历史断点）
+      historyManager.clearHistory();
+
+    } catch (error) {
+      const sessionManager = useSessionManager();
+      sessionManager.persistSession(session, currentSessionId.value);
+      throw error;
+    } finally {
+      if (generatingNodes.value.size === 0) {
+        isSending.value = false;
+      }
+    }
+  }
+
+  /**
+   * 重新生成最后一条助手消息（向后兼容）
+   */
+  async function regenerateLastMessage(): Promise<void> {
+    const session = currentSession.value;
+    if (!session) return;
+
+    const branchManager = useBranchManager();
+    const result = branchManager.prepareRegenerateLastMessage(session);
+
+    if (!result.shouldRegenerate || !result.userContent || !result.newActiveLeafId) {
+      return;
+    }
+
+    session.activeLeafId = result.newActiveLeafId;
+    BranchNavigator.updateSelectionMemory(session, result.newActiveLeafId);
+    await sendMessage(result.userContent);
+  }
+
+  /**
+   * 中止当前发送
+   */
+  function abortSending(): void {
+    if (abortControllers.value.size > 0) {
+      abortControllers.value.forEach((controller, nodeId) => {
+        controller.abort();
+        logger.info("已中止节点生成", { nodeId });
+      });
+      abortControllers.value.clear();
+      generatingNodes.value.clear();
+      logger.info("已中止所有消息发送");
+    }
+  }
+
+  /**
+   * 中止指定节点的生成
+   */
+  function abortNodeGeneration(nodeId: string): void {
+    const controller = abortControllers.value.get(nodeId);
+    if (controller) {
+      controller.abort();
+      abortControllers.value.delete(nodeId);
+      generatingNodes.value.delete(nodeId);
+      logger.info("已中止节点生成", { nodeId });
+    }
+  }
+
+  // ==================== Branch Operations (with History) ====================
+
+  /**
+   * 编辑消息
+   */
+  async function editMessage(nodeId: string, newContent: string, attachments?: Asset[]): Promise<void> {
+    const session = currentSession.value;
+    if (!session) return;
+
+    if (nodeId.startsWith('preset-')) {
+      const agentStore = useAgentStore();
+      if (!agentStore.currentAgentId) return;
+      agentStore.updatePresetMessage(agentStore.currentAgentId, nodeId, newContent);
+      return;
+    }
+
+    const previousNodeState = structuredClone(session.nodes[nodeId]);
+    const branchManager = useBranchManager();
+    const success = branchManager.editMessage(session, nodeId, newContent, attachments);
+
+    if (success) {
+      const finalNodeState = structuredClone(session.nodes[nodeId]);
+      const delta: HistoryDelta = {
+        type: 'update',
+        payload: { nodeId, previousNodeState, finalNodeState },
+      };
+      historyManager.recordHistory('NODE_EDIT', [delta], { targetNodeId: nodeId });
+
+      await recalculateNodeTokens(session, nodeId);
+      const sessionManager = useSessionManager();
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
+
+  /**
+   * 删除消息节点
+   */
+  function deleteMessage(nodeId: string): void {
+    const session = currentSession.value;
+    if (!session) return;
+
+    const branchManager = useBranchManager();
+    const { success, deletedNodes } = branchManager.deleteMessage(session, nodeId);
+
+    if (success && deletedNodes.length > 0) {
+      const deltas: HistoryDelta[] = deletedNodes.map((node) => {
+        const relationChange = extractRelationChange(session, node, 'delete');
+        return {
+          type: 'delete',
+          payload: { deletedNode: node, relationChange },
+        };
+      });
+
+      historyManager.recordHistory('NODES_DELETE', deltas, {
+        targetNodeId: nodeId,
+        affectedNodeCount: deletedNodes.length,
+      });
+
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
+
+  /**
+   * 切换到指定分支
+   */
+  function switchBranch(nodeId: string): void {
+    const session = currentSession.value;
+    if (!session) return;
+
+    const oldLeafId = session.activeLeafId;
+    const branchManager = useBranchManager();
+    const success = branchManager.switchBranch(session, nodeId);
+
+    if (success) {
+      const newLeafId = session.activeLeafId;
+
+      // 只有当活动节点真正改变时才记录历史
+      if (oldLeafId !== newLeafId) {
+        const delta: HistoryDelta = {
+          type: 'active_leaf_change',
+          payload: { oldLeafId, newLeafId },
+        };
+        historyManager.recordHistory('ACTIVE_NODE_SWITCH', [delta], {
+          sourceNodeId: oldLeafId,
+          targetNodeId: newLeafId,
+        });
       }
 
-      const branchManager = useBranchManager();
-      const newNodeId = branchManager.createBranch(session, sourceNodeId);
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
 
-      if (newNodeId) {
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.currentSessionId);
-      }
-    },
+  /**
+   * 切换到兄弟分支
+   */
+  function switchToSiblingBranch(nodeId: string, direction: "prev" | "next"): void {
+    const session = currentSession.value;
+    if (!session) return;
 
-    /**
-     * 编辑用户消息（向后兼容）
-     * @deprecated 使用 editMessage 代替
-     */
-    editUserMessage(nodeId: string, newContent: string): void {
-      this.editMessage(nodeId, newContent);
-    },
+    const branchManager = useBranchManager();
+    const newLeafId = branchManager.switchToSiblingBranch(session, nodeId, direction);
 
-    /**
-     * 编辑助手消息（向后兼容）
-     * @deprecated 使用 editMessage 代替
-     */
-    editAssistantMessage(nodeId: string, newContent: string): void {
-      this.editMessage(nodeId, newContent);
-    },
+    if (newLeafId !== session.activeLeafId) {
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
 
-    /**
-     * 切换节点启用状态
-     * 对于预设消息，会反向保存到智能体配置
-     */
-    toggleNodeEnabled(nodeId: string): void {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("切换节点状态失败：没有活动会话");
-        return;
-      }
+  /**
+   * 创建分支
+   */
+  function createBranch(sourceNodeId: string): void {
+    const session = currentSession.value;
+    if (!session) return;
 
-      // 检查是否是预设消息（通过 ID 前缀识别）
-      if (nodeId.startsWith('preset-')) {
-        // 预设消息：反向保存到智能体配置
-        const agentStore = useAgentStore();
-        if (!agentStore.currentAgentId) {
-          logger.warn("切换预设消息状态失败：没有当前智能体");
-          return;
-        }
-        
-        const success = agentStore.togglePresetMessageEnabled(
-          agentStore.currentAgentId,
-          nodeId
-        );
-        
-        if (success) {
-          logger.info("预设消息启用状态已切换并保存到智能体配置", {
-            agentId: agentStore.currentAgentId,
-            nodeId,
-          });
-        }
-        return;
+    const branchManager = useBranchManager();
+    const newNodeId = branchManager.createBranch(session, sourceNodeId);
+
+    if (newNodeId) {
+      const newNode = session.nodes[newNodeId];
+      if (newNode) {
+        const relationChange = extractRelationChange(session, newNode, 'create');
+        const delta: HistoryDelta = {
+          type: 'create',
+          payload: { node: newNode, relationChange },
+        };
+        historyManager.recordHistory('BRANCH_CREATE', [delta], { targetNodeId: newNodeId });
       }
 
-      // 普通消息：使用原有逻辑
-      const branchManager = useBranchManager();
-      const success = branchManager.toggleNodeEnabled(session, nodeId);
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
 
-      if (success) {
-        const sessionManager = useSessionManager();
-        sessionManager.persistSession(session, this.currentSessionId);
+  /**
+   * 切换节点启用状态
+   */
+  function toggleNodeEnabled(nodeId: string): void {
+    const session = currentSession.value;
+    if (!session) return;
+
+    if (nodeId.startsWith('preset-')) {
+      const agentStore = useAgentStore();
+      if (!agentStore.currentAgentId) return;
+      agentStore.togglePresetMessageEnabled(agentStore.currentAgentId, nodeId);
+      return;
+    }
+
+    const previousNodeState = structuredClone(session.nodes[nodeId]);
+    const branchManager = useBranchManager();
+    const success = branchManager.toggleNodeEnabled(session, nodeId);
+
+    if (success) {
+      const finalNodeState = structuredClone(session.nodes[nodeId]);
+      const delta: HistoryDelta = {
+        type: 'update',
+        payload: { nodeId, previousNodeState, finalNodeState },
+      };
+      historyManager.recordHistory('NODE_TOGGLE_ENABLED', [delta], { targetNodeId: nodeId });
+
+      const sessionManager = useSessionManager();
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
+
+  /**
+   * 嫁接分支
+   */
+  function graftBranch(nodeId: string, newParentId: string): void {
+    const session = currentSession.value;
+    if (!session) return;
+
+    const relationChanges = captureRelationChangesForGraft(session, nodeId, newParentId);
+    const branchManager = useBranchManager();
+    const success = branchManager.graftBranch(session, nodeId, newParentId);
+
+    if (success) {
+      const delta: HistoryDelta = {
+        type: 'relation',
+        payload: { changes: relationChanges },
+      };
+      historyManager.recordHistory('BRANCH_GRAFT', [delta], {
+        targetNodeId: nodeId,
+        destinationNodeId: newParentId,
+      });
+
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
+
+  /**
+   * 移动单个节点
+   */
+  function moveNode(nodeId: string, newParentId: string): void {
+    const session = currentSession.value;
+    if (!session) return;
+
+    const relationChanges = captureRelationChangesForMove(session, nodeId, newParentId);
+    const branchManager = useBranchManager();
+    const success = branchManager.moveNode(session, nodeId, newParentId);
+
+    if (success) {
+      const delta: HistoryDelta = {
+        type: 'relation',
+        payload: { changes: relationChanges },
+      };
+      historyManager.recordHistory('NODE_MOVE', [delta], {
+        targetNodeId: nodeId,
+        destinationNodeId: newParentId,
+      });
+
+      const sessionManager = useSessionManager();
+      sessionManager.updateSessionDisplayAgent(session);
+      sessionManager.persistSession(session, currentSessionId.value);
+    }
+  }
+
+  // ==================== Deprecated Methods ====================
+  function editUserMessage(nodeId: string, newContent: string): void {
+    editMessage(nodeId, newContent);
+  }
+  function editAssistantMessage(nodeId: string, newContent: string): void {
+    editMessage(nodeId, newContent);
+  }
+
+  // ==================== Parameter Management ====================
+  function updateParameters(newParameters: Partial<LlmParameters>): void {
+    Object.assign(parameters.value, newParameters);
+    logger.info("更新参数配置", { parameters: newParameters });
+  }
+
+  // ==================== Helper Functions ====================
+  function extractRelationChange(
+    session: ChatSession,
+    node: ChatMessageNode,
+    operation: "delete" | "create"
+  ): NodeRelationChange {
+    const oldParentId = operation === 'delete' ? node.parentId : null;
+    const newParentId = operation === 'create' ? node.parentId : null;
+    const affectedParents: NodeRelationChange["affectedParents"] = {};
+
+    if (oldParentId) {
+      const oldParent = session.nodes[oldParentId];
+      if (oldParent) {
+        affectedParents[oldParentId] = {
+          oldChildren: [...oldParent.childrenIds],
+          newChildren: oldParent.childrenIds.filter((id) => id !== node.id),
+        };
       }
-    },
+    }
 
-    /**
-     * 嫁接分支（将一个节点及其子树移动到另一个父节点下）
-     * 用于会话树图中的拖拽嫁接操作
-     */
-    graftBranch(nodeId: string, newParentId: string): void {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("嫁接分支失败：没有活动会话");
-        return;
+    if (newParentId) {
+      const newParent = session.nodes[newParentId];
+      if (newParent) {
+        affectedParents[newParentId] = {
+          oldChildren: [...newParent.childrenIds],
+          newChildren: [...newParent.childrenIds, node.id],
+        };
       }
+    }
 
-      const branchManager = useBranchManager();
-      const success = branchManager.graftBranch(session, nodeId, newParentId);
+    return {
+      nodeId: node.id,
+      oldParentId,
+      newParentId,
+      affectedParents,
+    };
+  }
 
-      if (success) {
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.currentSessionId);
+  function captureRelationChangesForGraft(
+    session: ChatSession,
+    nodeId: string,
+    newParentId: string
+  ): NodeRelationChange[] {
+    const node = session.nodes[nodeId];
+    if (!node) return [];
+    const oldParentId = node.parentId;
+    const affectedParents: NodeRelationChange["affectedParents"] = {};
+
+    if (oldParentId) {
+      const oldParent = session.nodes[oldParentId];
+      if (oldParent) {
+        affectedParents[oldParentId] = {
+          oldChildren: [...oldParent.childrenIds],
+          newChildren: oldParent.childrenIds.filter((id) => id !== nodeId),
+        };
       }
-    },
+    }
 
-    /**
-     * 移动单个节点（不包含其子树）
-     */
-    moveNode(nodeId: string, newParentId: string): void {
-      const session = this.currentSession;
-      if (!session) {
-        logger.warn("移动节点失败：没有活动会话");
-        return;
-      }
+    const newParent = session.nodes[newParentId];
+    if (newParent) {
+      affectedParents[newParentId] = {
+        oldChildren: [...newParent.childrenIds],
+        newChildren: [...newParent.childrenIds, nodeId],
+      };
+    }
 
-      const branchManager = useBranchManager();
-      const success = branchManager.moveNode(session, nodeId, newParentId);
+    return [{
+      nodeId,
+      oldParentId,
+      newParentId,
+      affectedParents,
+    }];
+  }
 
-      if (success) {
-        const sessionManager = useSessionManager();
-        sessionManager.updateSessionDisplayAgent(session);
-        sessionManager.persistSession(session, this.currentSessionId);
-      }
-    },
+  function captureRelationChangesForMove(
+    session: ChatSession,
+    nodeId: string,
+    newParentId: string
+  ): NodeRelationChange[] {
+    return captureRelationChangesForGraft(session, nodeId, newParentId);
+  }
 
-    // ==================== 参数管理 ====================
+  // ==================== Return ====================
+  return {
+    // State
+    sessions,
+    currentSessionId,
+    parameters,
+    isSending,
+    abortControllers,
+    generatingNodes,
 
-    /**
-     * 更新参数配置
-     */
-    updateParameters(parameters: Partial<LlmParameters>): void {
-      Object.assign(this.parameters, parameters);
-      logger.info("更新参数配置", { parameters });
-    },
-  },
+    // Getters
+    currentSession,
+    currentActivePath,
+    currentActivePathWithPresets,
+    llmContext,
+    getSiblings,
+    isNodeInActivePath,
+    isNodeGenerating,
+    currentMessageCount,
+
+    // History
+    undo,
+    redo,
+    jumpToHistory,
+    canUndo: historyManager.canUndo,
+    canRedo: historyManager.canRedo,
+
+    // Actions
+    createSession,
+    switchSession,
+    deleteSession,
+    updateSession,
+    loadSessions,
+    recalculateNodeTokens,
+    fillMissingTokenMetadata,
+    persistSessions,
+    exportSessionAsMarkdown,
+    clearAllSessions,
+    sendMessage,
+    regenerateFromNode,
+    regenerateLastMessage,
+    abortSending,
+    abortNodeGeneration,
+    editMessage,
+    deleteMessage,
+    switchBranch,
+    switchToSiblingBranch,
+    createBranch,
+    toggleNodeEnabled,
+    graftBranch,
+    moveNode,
+    editUserMessage,
+    editAssistantMessage,
+    updateParameters,
+  };
 });

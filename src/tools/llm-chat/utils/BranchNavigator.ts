@@ -208,4 +208,20 @@ export class BranchNavigator {
       total: siblings.length,
     };
   }
+
+  /**
+   * 确保当前活动叶节点 ID 是有效的
+   * 如果当前 activeLeafId 指向的节点不存在，则重置为根节点
+   */
+  static ensureValidActiveLeaf(session: ChatSession): void {
+    if (!session.nodes[session.activeLeafId]) {
+      const oldLeafId = session.activeLeafId;
+      session.activeLeafId = session.rootNodeId;
+      logger.warn('活动叶节点无效，已重置为根节点', {
+        sessionId: session.id,
+        invalidLeafId: oldLeafId,
+        newLeafId: session.rootNodeId,
+      });
+    }
+  }
 }

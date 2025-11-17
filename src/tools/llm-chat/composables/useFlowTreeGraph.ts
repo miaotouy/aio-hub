@@ -1,5 +1,5 @@
 import { ref, reactive, type Ref } from "vue";
-import { useMagicKeys } from '@vueuse/core';
+import { useMagicKeys, onKeyStroke } from '@vueuse/core';
 import { useChatSettings } from "./useChatSettings";
 import * as d3Force from "d3-force";
 import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
@@ -165,7 +165,8 @@ function gravityForce(strength: number) {
  */
 export function useFlowTreeGraph(
   sessionRef: () => ChatSession | null,
-  contextMenuState: Ref<ContextMenuState>
+  contextMenuState: Ref<ContextMenuState>,
+  target: Ref<HTMLElement | null>
 ) {
   const { shift, alt, ctrl } = useMagicKeys();
   const { settings } = useChatSettings();
@@ -315,6 +316,32 @@ export function useFlowTreeGraph(
     attributes: true,
     attributeFilter: ["class", "style"],
   });
+
+  // 注册撤销快捷键 (Ctrl+Z / Cmd+Z)
+  onKeyStroke(
+    (event) => (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z',
+    (event) => {
+      if (store.canUndo) {
+        event.preventDefault();
+        store.undo();
+      }
+    },
+    { target }
+  );
+
+  // 注册重做快捷键 (Ctrl+Shift+Z, Cmd+Shift+Z, Ctrl+Y, Cmd+Y)
+  onKeyStroke(
+    (event) =>
+      ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'z') ||
+      ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'y'),
+    (event) => {
+      if (store.canRedo) {
+        event.preventDefault();
+        store.redo();
+      }
+    },
+    { target }
+  );
 
   /**
    * 计算节点的层级深度（根节点为 0）

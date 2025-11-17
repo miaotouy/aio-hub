@@ -1,5 +1,5 @@
 import { h } from "vue";
-import { Setting, Delete, Tickets, ChatDotRound, RefreshLeft } from "@element-plus/icons-vue";
+import { Setting, Delete, Tickets, ChatDotRound, RefreshLeft, Cpu } from "@element-plus/icons-vue";
 import { ElButton, ElIcon } from "element-plus";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "./settings-types";
@@ -308,6 +308,21 @@ export const settingsConfig: SettingsSection[] = [
         hint: "生成标题时引用的最近消息数量",
         keywords: "topic naming context message 话题 命名 上下文",
         visible: (settings) => settings.topicNaming.enabled,
+      },
+    ],
+  },
+  {
+    title: "开发者选项",
+    icon: Cpu,
+    items: [
+      {
+        id: "debugModeEnabled",
+        label: "启用调试模式",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "developer.debugModeEnabled",
+        hint: "启用后，将在高级关系图等区域显示用于调试的额外按钮和信息。",
+        keywords: "developer debug 开发者 调试",
       },
     ],
   },

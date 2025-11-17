@@ -87,8 +87,12 @@
           <el-button :icon="QuestionFilled" @click="isUsageGuideVisible = true" />
         </el-tooltip>
 
-        <!-- 调试模式切换按钮 -->
-        <el-tooltip :content="debugMode ? '关闭调试模式' : '开启调试模式'" placement="bottom">
+        <!-- 调试模式切换按钮 - 仅在设置中启用调试模式时显示 -->
+        <el-tooltip
+          v-if="chatSettings.developer.debugModeEnabled"
+          :content="debugMode ? '关闭调试叠加层' : '显示调试叠加层'"
+          placement="bottom"
+        >
           <el-button
             :icon="View"
             :type="debugMode ? 'primary' : 'default'"
@@ -96,9 +100,13 @@
           />
         </el-tooltip>
 
-        <!-- 复制调试信息按钮 -->
-        <el-tooltip v-if="debugMode" content="复制调试信息到剪贴板" placement="bottom">
-          <el-button :icon="CopyDocument" @click="copyDebugInfo" />
+        <!-- 复制调试信息按钮 - 与调试模式按钮一起出现，保持布局稳定 -->
+        <el-tooltip
+          v-if="chatSettings.developer.debugModeEnabled"
+          content="复制调试信息到剪贴板"
+          placement="bottom"
+        >
+          <el-button :icon="CopyDocument" :disabled="!debugMode" @click="copyDebugInfo" />
         </el-tooltip>
       </el-button-group>
     </div>
@@ -106,9 +114,9 @@
     <!-- 使用说明弹窗 -->
     <GraphUsageGuideDialog v-model:visible="isUsageGuideVisible" />
 
-    <!-- D3 调试可视化叠加层 -->
+    <!-- D3 调试可视化叠加层 - 仅在设置中启用调试模式且用户开启叠加层时显示 -->
     <svg
-      v-if="debugMode"
+      v-if="chatSettings.developer.debugModeEnabled && debugMode"
       ref="debugSvgRef"
       class="debug-overlay"
       :style="{
@@ -373,6 +381,10 @@ const {
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
 const { settings: chatSettings } = useChatSettings();
+
+// 确保聊天设置已加载
+const { loadSettings } = useChatSettings();
+loadSettings();
 
 // 从 store 中获取历史记录相关的功能和状态
 // 使用 storeToRefs 来保持 canUndo 和 canRedo 的响应性

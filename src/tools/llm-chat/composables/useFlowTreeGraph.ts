@@ -317,9 +317,27 @@ export function useFlowTreeGraph(
     attributeFilter: ["class", "style"],
   });
 
-  // 注册撤销快捷键 (Ctrl+Z / Cmd+Z)
+  const getBindingState = (binding: string) => {
+    const parts = binding.toLowerCase().split("+");
+    const key = parts.pop() || "";
+    const ctrl = parts.includes("ctrl") || parts.includes("cmd");
+    const shift = parts.includes("shift");
+    const alt = parts.includes("alt");
+    return { key, ctrl, shift, alt };
+  };
+
+  // 注册撤销快捷键
   onKeyStroke(
-    (event) => (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z',
+    (event) => {
+      if (settings.value.shortcuts.undo === "none") return false;
+      const binding = getBindingState(settings.value.shortcuts.undo);
+      const isTriggered =
+        event.key.toLowerCase() === binding.key &&
+        (event.ctrlKey || event.metaKey) === binding.ctrl &&
+        event.shiftKey === binding.shift &&
+        event.altKey === binding.alt;
+      return isTriggered;
+    },
     (event) => {
       if (store.canUndo) {
         event.preventDefault();
@@ -329,11 +347,18 @@ export function useFlowTreeGraph(
     { target }
   );
 
-  // 注册重做快捷键 (Ctrl+Shift+Z, Cmd+Shift+Z, Ctrl+Y, Cmd+Y)
+  // 注册重做快捷键
   onKeyStroke(
-    (event) =>
-      ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'z') ||
-      ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'y'),
+    (event) => {
+      if (settings.value.shortcuts.redo === "none") return false;
+      const binding = getBindingState(settings.value.shortcuts.redo);
+      const isTriggered =
+        event.key.toLowerCase() === binding.key &&
+        (event.ctrlKey || event.metaKey) === binding.ctrl &&
+        event.shiftKey === binding.shift &&
+        event.altKey === binding.alt;
+      return isTriggered;
+    },
     (event) => {
       if (store.canRedo) {
         event.preventDefault();

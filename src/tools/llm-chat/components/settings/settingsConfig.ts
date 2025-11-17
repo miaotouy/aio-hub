@@ -163,6 +163,37 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "shortcut keybinding 发送 快捷键",
       },
       {
+        id: "undo",
+        label: "撤销操作",
+        component: "ElRadioGroup",
+        modelPath: "shortcuts.undo",
+        options: [
+          { label: "Ctrl/Cmd + Z", value: "ctrl+z" },
+          { label: "Alt + Z", value: "alt+z" },
+          { label: "Ctrl/Cmd + U", value: "ctrl+u" },
+          { label: "Alt + Backspace", value: "alt+backspace" },
+          { label: "无", value: "none" },
+        ],
+        hint: "在高级关系图中撤销上一步操作。",
+        keywords: "shortcut keybinding graph undo aoe 快捷键 关系图 撤销",
+      },
+      {
+        id: "redo",
+        label: "重做操作",
+        component: "ElRadioGroup",
+        modelPath: "shortcuts.redo",
+        options: [
+          { label: "Ctrl/Cmd + Shift + Z", value: "ctrl+shift+z" },
+          { label: "Ctrl/Cmd + Y", value: "ctrl+y" },
+          { label: "Alt + Shift + Z", value: "alt+shift+z" },
+          { label: "Ctrl/Cmd + Shift + Y", value: "ctrl+shift+y" },
+          { label: "Alt + Shift + Backspace", value: "alt+shift+backspace" },
+          { label: "无", value: "none" },
+        ],
+        hint: "在高级关系图中重做已撤销的操作。",
+        keywords: "shortcut keybinding graph redo aoe 快捷键 关系图 重做",
+      },
+      {
         id: "dragSubtree",
         label: "拖拽子树修饰键",
         component: "ElRadioGroup",
@@ -229,7 +260,7 @@ export const settingsConfig: SettingsSection[] = [
               ElButton,
               {
                 // @ts-ignore - This will be handled in the main component via a custom event
-                onClick: () => {},
+                onClick: () => { },
                 size: "small",
                 class: "reset-prompt-btn",
                 title: "重置为默认提示词",

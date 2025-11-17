@@ -64,12 +64,12 @@
         </el-tooltip>
 
         <!-- 撤销按钮 -->
-        <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom">
+        <el-tooltip :content="undoTooltip" placement="bottom">
           <el-button :icon="ArrowLeft" :disabled="!canUndo" @click="undo" />
         </el-tooltip>
 
         <!-- 重做按钮 -->
-        <el-tooltip content="重做 (Ctrl+Shift+Z / Ctrl+Y)" placement="bottom">
+        <el-tooltip :content="redoTooltip" placement="bottom">
           <el-button :icon="ArrowRight" :disabled="!canRedo" @click="redo" />
         </el-tooltip>
 
@@ -295,6 +295,7 @@ import type { ChatSession, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
 import { useLlmChatStore } from "../../../store";
 import { useAgentStore } from "../../../agentStore";
+import { useChatSettings } from "../../../composables/useChatSettings";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
 import CustomConnectionLine from "./components/CustomConnectionLine.vue";
@@ -371,11 +372,42 @@ const {
 
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
+const { settings: chatSettings } = useChatSettings();
 
 // 从 store 中获取历史记录相关的功能和状态
 // 使用 storeToRefs 来保持 canUndo 和 canRedo 的响应性
 const { canUndo, canRedo } = storeToRefs(llmChatStore);
 const { undo, redo, jumpToHistory } = llmChatStore;
+
+// 格式化快捷键显示文本
+const formatShortcutDisplay = (shortcut: string): string => {
+  if (shortcut === "none") return "";
+  
+  const parts = shortcut.split("+");
+  return parts
+    .map((part) => {
+      const normalized = part.toLowerCase();
+      if (normalized === "ctrl" || normalized === "cmd") return "Ctrl/Cmd";
+      if (normalized === "shift") return "Shift";
+      if (normalized === "alt") return "Alt";
+      if (normalized === "backspace") return "Backspace";
+      return part.toUpperCase();
+    })
+    .join(" + ");
+};
+
+// 动态生成撤销/重做按钮的提示文本
+const undoTooltip = computed(() => {
+  const shortcut = chatSettings.value.shortcuts.undo;
+  if (shortcut === "none") return "撤销";
+  return `撤销 (${formatShortcutDisplay(shortcut)})`;
+});
+
+const redoTooltip = computed(() => {
+  const shortcut = chatSettings.value.shortcuts.redo;
+  if (shortcut === "none") return "重做";
+  return `重做 (${formatShortcutDisplay(shortcut)})`;
+});
 
 // 获取历史记录堆栈和当前索引
 const historyStack = computed(() => props.session?.history ?? []);

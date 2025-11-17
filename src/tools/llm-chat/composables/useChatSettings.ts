@@ -57,6 +57,10 @@ export interface ChatSettings {
     send: "ctrl+enter" | "enter";
     /** 换行快捷键（与发送互补） */
     newLine: "enter" | "shift+enter";
+    /** 撤销操作 */
+    undo: string;
+    /** 重做操作 */
+    redo: string;
   };
   /** 关系图快捷键设置 */
   graphViewShortcuts: {
@@ -109,6 +113,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   shortcuts: {
     send: "ctrl+enter",
     newLine: "enter",
+    undo: "ctrl+z",
+    redo: "ctrl+shift+z",
   },
   graphViewShortcuts: {
     dragSubtree: "alt",

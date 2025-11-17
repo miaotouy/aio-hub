@@ -37,6 +37,17 @@ export interface DetailPopupState {
 }
 
 /**
+ * 连接预览状态
+ */
+export interface ConnectionPreviewState {
+  isConnecting: boolean;      // 是否正在连接中
+  sourceNodeId: string | null;  // 连接的源节点 ID
+  targetNodeId: string | null;  // 当前悬停的目标节点 ID
+  isTargetValid: boolean;     // 目标节点是否有效
+  isGrafting: boolean;        // 是否为嫁接子树模式
+}
+
+/**
  * Vue Flow 节点类型
  */
 interface FlowNode {
@@ -195,6 +206,15 @@ export function useFlowTreeGraph(
   // 用于手动计算拖拽位移，以避免依赖不稳定的 event.movement
   const dragPositionState = reactive({
     lastPosition: null as { x: number; y: number } | null,
+  });
+
+  // 连接预览状态
+  const connectionPreviewState = reactive<ConnectionPreviewState>({
+    isConnecting: false,
+    sourceNodeId: null,
+    targetNodeId: null,
+    isTargetValid: false,
+    isGrafting: false,
   });
 
   /**
@@ -917,6 +937,98 @@ export function useFlowTreeGraph(
    * 处理 Vue Flow 的连线事件，用作嫁接/移动交互
    * 核心设计：根据节点的实际父子关系来决定操作类型，而非依赖视图层的连接方向
    */
+  /**
+   * 核心预检函数，检查连接的有效性
+   */
+  function checkConnectionValidity(nodeIdToMove: string, newParentId: string): boolean {
+    const session = sessionRef();
+    if (!session) return false;
+
+    // 规则 1: 不能连接到自身
+    if (nodeIdToMove === newParentId) return false;
+
+    const nodeToMove = session.nodes[nodeIdToMove];
+    const newParent = session.nodes[newParentId];
+    if (!nodeToMove || !newParent) return false;
+
+    // 规则 2: 不能操作预设消息节点
+    if (nodeIdToMove.startsWith("preset-") || newParentId.startsWith("preset-")) return false;
+
+    // 规则 3: 不能将节点移动到其自身的子孙节点下（防止循环依赖）
+    const nodeManager = useNodeManager();
+    const descendants = nodeManager.getAllDescendants(session, nodeIdToMove);
+    if (descendants.some(d => d.id === newParentId)) return false;
+
+    // 规则 4: 不能移动根节点
+    if (nodeIdToMove === session.rootNodeId) return false;
+
+    // 规则 5: 如果目标父节点已经是当前父节点，则为无效操作
+    if (nodeToMove.parentId === newParentId) return false;
+
+    return true;
+  }
+
+  /**
+   * 处理连接开始事件
+   */
+  function handleConnectionStart({ nodeId }: { event?: MouseEvent, nodeId?: string }): void {
+    if (!nodeId) return;
+
+    const graftSubtreeModifier = settings.value.graphViewShortcuts.graftSubtree;
+    const isGrafting =
+      (graftSubtreeModifier === "shift" && shift.value) ||
+      (graftSubtreeModifier === "alt" && alt.value) ||
+      (graftSubtreeModifier === "ctrl" && ctrl.value);
+
+    Object.assign(connectionPreviewState, {
+      isConnecting: true,
+      sourceNodeId: nodeId,
+      targetNodeId: null,
+      isTargetValid: false,
+      isGrafting,
+    });
+    logger.debug("连接开始", { sourceNodeId: nodeId, isGrafting });
+  }
+
+  /**
+   * 处理连接结束事件
+   */
+  function handleConnectionEnd(): void {
+    Object.assign(connectionPreviewState, {
+      isConnecting: false,
+      sourceNodeId: null,
+      targetNodeId: null,
+      isTargetValid: false,
+      isGrafting: false,
+    });
+    logger.debug("连接结束");
+  }
+
+  /**
+   * 处理鼠标进入节点事件（连接时）
+   */
+  function handleNodeMouseEnter(nodeId: string): void {
+    if (!connectionPreviewState.isConnecting || !connectionPreviewState.sourceNodeId) return;
+
+    const isValid = checkConnectionValidity(connectionPreviewState.sourceNodeId, nodeId);
+    connectionPreviewState.targetNodeId = nodeId;
+    connectionPreviewState.isTargetValid = isValid;
+    logger.debug("连接时鼠标进入节点", { targetNodeId: nodeId, isValid });
+  }
+
+  /**
+   * 处理鼠标离开节点事件（连接时）
+   */
+  function handleNodeMouseLeave(): void {
+    if (!connectionPreviewState.isConnecting) return;
+
+    connectionPreviewState.targetNodeId = null;
+    connectionPreviewState.isTargetValid = false;
+  }
+
+  /**
+   * 处理 Vue Flow 的连线事件，用作嫁接/移动交互
+   */
   function handleEdgeConnect(connection: any): void {
     const session = sessionRef();
     if (!session) return;
@@ -928,71 +1040,29 @@ export function useFlowTreeGraph(
       return;
     }
 
-    // 预设消息不参与嫁接
-    if (sourceId.startsWith("preset-") || targetId.startsWith("preset-")) {
-      logger.debug("忽略预设消息的连线操作");
+    // Vue Flow 中，source 是起点，target 是终点。
+    // 我们的操作语义是：将 target 节点移动到 source 节点下
+    const nodeIdToMove = targetId;
+    const newParentId = sourceId;
+
+    // 最终验证
+    if (!checkConnectionValidity(nodeIdToMove, newParentId)) {
+      logger.warn("无效的连接操作被阻止", { nodeIdToMove, newParentId });
       return;
     }
 
-    // 不允许自己连接自己
-    if (sourceId === targetId) {
-      logger.debug("忽略自我连接");
-      return;
-    }
-
-    const graftSubtreeModifier = settings.value.graphViewShortcuts.graftSubtree;
-    const isGraftSubtree =
-      (graftSubtreeModifier === "shift" && shift.value) ||
-      (graftSubtreeModifier === "alt" && alt.value) ||
-      (graftSubtreeModifier === "ctrl" && ctrl.value);
-    const nodeManager = useNodeManager();
-
-    // 使用节点管理器判断实际的父子关系
-    const relationship = nodeManager.getNodeRelationship(session, sourceId, targetId);
-
-    logger.info("触发连线操作", {
-      sourceId,
-      targetId,
-      relationship,
-      isGraftSubtree,
-    });
-
-    // 根据实际关系来决定操作
-    // 注意：Vue Flow 的连线是单向的，从 source 指向 target
-    // 在 Vue Flow 中：
-    // - source: 连线的起点（从哪个节点的 source handle 拖出）
-    // - target: 连线的终点（拖到哪个节点的 target handle）
-    // 语义：target 节点应该成为 source 节点的子节点
-    const nodeIdToMove = targetId;  // target 是要移动的节点
-    const newParentId = sourceId;   // source 是新的父节点
+    const isGraftSubtree = connectionPreviewState.isGrafting;
 
     try {
       if (isGraftSubtree) {
-        // 按住指定修饰键：嫁接整个子树
-        logger.info("执行子树嫁接", {
-          nodeId: nodeIdToMove,
-          newParentId,
-          relationship,
-          note: "target 节点成为 source 节点的子节点"
-        });
+        logger.info("执行子树嫁接", { nodeIdToMove, newParentId });
         store.graftBranch(nodeIdToMove, newParentId);
       } else {
-        // 未按修饰键：只移动单个节点
-        logger.info("执行单点移动", {
-          nodeId: nodeIdToMove,
-          newParentId,
-          relationship,
-          note: "target 节点成为 source 节点的子节点"
-        });
+        logger.info("执行单点移动", { nodeIdToMove, newParentId });
         store.moveNode(nodeIdToMove, newParentId);
       }
     } catch (error) {
-      logger.error("连线操作失败", error, {
-        sourceId,
-        targetId,
-        relationship,
-        isGraftSubtree,
-      });
+      logger.error("连线操作失败", error, { nodeIdToMove, newParentId, isGraftSubtree });
     }
   }
 
@@ -1236,11 +1306,16 @@ export function useFlowTreeGraph(
     d3Nodes,
     d3Links,
     detailPopupState,
+    connectionPreviewState,
     handleNodeDoubleClick,
     handleNodeDragStart,
     handleNodeDrag,
     handleNodeDragStop,
     handleEdgeConnect,
+    handleConnectionStart,
+    handleConnectionEnd,
+    handleNodeMouseEnter,
+    handleNodeMouseLeave,
     handleNodeContextMenu,
     handleNodeCopy,
     handleNodeToggleEnabled,

@@ -8,6 +8,8 @@
       :max-zoom="4"
       fit-view-on-init
       @connect="handleEdgeConnect"
+      @connect-start="handleConnectionStart"
+      @connect-end="handleConnectionEnd"
       @node-double-click="handleNodeDoubleClick"
       @node-drag-start="handleNodeDragStart"
       @node-drag="handleNodeDrag"
@@ -27,11 +29,21 @@
       <template #node-custom="{ data, id }">
         <GraphNode
           :data="data"
+          :is-connecting="connectionPreviewState.isConnecting"
+          :is-target="connectionPreviewState.targetNodeId === id"
+          :is-target-valid="connectionPreviewState.isTargetValid"
           @copy="handleNodeCopy(id)"
           @toggle-enabled="handleNodeToggleEnabled(id)"
           @delete="handleNodeDelete(id)"
           @view-detail="(event: MouseEvent) => handleNodeViewDetail(id, event)"
+          @mouseenter="handleNodeMouseEnter(id)"
+          @mouseleave="handleNodeMouseLeave()"
         />
+      </template>
+
+      <!-- 自定义连接线 -->
+      <template #connection-line="props">
+        <CustomConnectionLine v-bind="props" :connection-state="connectionPreviewState" />
       </template>
     </VueFlow>
 
@@ -236,6 +248,7 @@ import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
 import { useAgentStore } from "../../../agentStore";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
+import CustomConnectionLine from "./components/CustomConnectionLine.vue";
 import ContextMenu from "../ContextMenu.vue";
 import GraphUsageGuideDialog from "./components/GraphUsageGuideDialog.vue";
 import "@vue-flow/core/dist/style.css";
@@ -274,6 +287,7 @@ const {
   d3Nodes,
   d3Links,
   detailPopupState,
+  connectionPreviewState,
   handleNodeDoubleClick,
   handleNodeDragStart,
   handleNodeDrag,
@@ -284,6 +298,10 @@ const {
   handleNodeDelete,
   handleNodeViewDetail: onNodeViewDetail,
   handleEdgeConnect,
+  handleConnectionStart,
+  handleConnectionEnd,
+  handleNodeMouseEnter,
+  handleNodeMouseLeave,
   closeDetailPopup,
   updateChart,
   updateNodeDimensions,

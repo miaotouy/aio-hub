@@ -1,7 +1,14 @@
 <template>
   <div class="node-wrapper">
     <div
-      :class="['graph-node', { 'active-leaf': data.isActiveLeaf, 'is-disabled': !data.isEnabled }]"
+      :class="[
+        'graph-node',
+        { 'active-leaf': data.isActiveLeaf },
+        { 'is-disabled': !data.isEnabled },
+        { 'connection-target': isTarget },
+        { 'connection-valid': isTarget && isTargetValid },
+        { 'connection-invalid': isTarget && !isTargetValid }
+      ]"
       :style="nodeStyle"
     >
       <!-- 顶部：树结构入边的目标连接点 -->
@@ -65,6 +72,9 @@ interface NodeData {
 
 interface Props {
   data: NodeData;
+  isConnecting: boolean;
+  isTarget: boolean;
+  isTargetValid: boolean;
 }
 
 interface Emits {
@@ -140,5 +150,25 @@ const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
 
 .graph-node.is-disabled :deep(.node-preview) {
   color: var(--text-color-light);
+}
+
+.graph-node.connection-valid {
+  /* 有效目标：绿色边框 + 多层光晕 + 背景高亮 */
+  border-color: var(--el-color-success);
+  box-shadow:
+    0 0 0 1px var(--el-color-success),
+    0 0 16px 4px color-mix(in srgb, var(--el-color-success) 40%, transparent),
+    inset 0 0 20px color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  background-color: color-mix(in srgb, var(--el-color-success) 8%, var(--card-bg));
+}
+
+.graph-node.connection-invalid {
+  /* 无效目标：红色边框 + 多层光晕 + 警告背景 */
+  border-color: var(--el-color-danger);
+  box-shadow:
+    0 0 0 1px var(--el-color-danger),
+    0 0 16px 4px color-mix(in srgb, var(--el-color-danger) 50%, transparent),
+    inset 0 0 20px color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+  background-color: color-mix(in srgb, var(--el-color-danger) 5%, var(--card-bg));
 }
 </style>

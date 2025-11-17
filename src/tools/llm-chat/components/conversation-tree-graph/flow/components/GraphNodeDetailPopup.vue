@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { X } from 'lucide-vue-next';
 import { useDraggable } from '@vueuse/core';
 import type { ChatMessageNode, ChatSession } from '../../../../types';
@@ -37,11 +37,81 @@ watch(
   () => props.visible,
   (isVisible) => {
     if (isVisible && !isDragging.value && props.initialPosition) {
+      // Reset to auto height to adapt to content
+      height.value = null;
+      // Set initial position to allow rendering and measurement
       x.value = props.initialPosition.x;
       y.value = props.initialPosition.y;
+
+      nextTick(() => {
+        if (popupRef.value && props.initialPosition) {
+          const popupRect = popupRef.value.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+
+          // Adjust position
+          let newX = props.initialPosition.x;
+          let newY = props.initialPosition.y;
+
+          if (newX + popupRect.width > viewportWidth) {
+            newX = viewportWidth - popupRect.width - 20;
+          }
+          newX = Math.max(20, newX);
+
+          if (newY + popupRect.height > viewportHeight) {
+            newY = viewportHeight - popupRect.height - 20;
+          }
+          newY = Math.max(20, newY);
+
+          x.value = newX;
+          y.value = newY;
+
+          // If content causes overflow, explicitly set height to trigger scrollbar
+          const maxHeight = viewportHeight * 0.8;
+          if (popupRect.height > maxHeight) {
+            height.value = maxHeight;
+          }
+        }
+      });
     }
   }
 );
+// --------------------
+
+// --- Resizing Logic ---
+const width = ref(600); // Initial width
+const height = ref<number | null>(null); // Initial height is auto
+
+const initResize = (e: MouseEvent) => {
+  // If height is auto, capture the current rendered height before starting resize
+  if (height.value === null && popupRef.value) {
+    height.value = popupRef.value.offsetHeight;
+  }
+
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const startWidth = width.value;
+  const startHeight = height.value ?? 500; // Fallback if somehow null
+
+  const doDrag = (moveEvent: MouseEvent) => {
+    const newWidth = startWidth + moveEvent.clientX - startX;
+    const newHeight = startHeight + moveEvent.clientY - startY;
+    // Add constraints
+    width.value = Math.max(500, newWidth);
+    height.value = Math.max(300, newHeight);
+  };
+
+  const stopDrag = () => {
+    window.removeEventListener('mousemove', doDrag);
+    window.removeEventListener('mouseup', stopDrag);
+    document.body.style.cursor = '';
+  };
+
+  window.addEventListener('mousemove', doDrag);
+  window.addEventListener('mouseup', stopDrag);
+  e.preventDefault();
+  document.body.style.cursor = 'se-resize';
+};
 // --------------------
 
 // 为 ChatMessage 组件准备 props
@@ -78,7 +148,7 @@ const chatMessageProps = computed(() => {
     ref="popupRef"
     class="graph-node-detail-popup-wrapper"
     v-show="visible"
-    :style="{ top: `${y}px`, left: `${x}px` }"
+    :style="{ top: `${y}px`, left: `${x}px`, width: `${width}px`, height: height ? `${height}px` : 'auto' }"
   >
     <div class="graph-node-detail-popup">
       <div ref="headerRef" class="popup-header">
@@ -90,6 +160,7 @@ const chatMessageProps = computed(() => {
       <div class="detail-popup-content">
         <ChatMessage v-if="chatMessageProps" v-bind="chatMessageProps" />
       </div>
+      <div class="resize-handle" @mousedown="initResize"></div>
     </div>
   </div>
 </template>
@@ -97,15 +168,19 @@ const chatMessageProps = computed(() => {
 <style scoped>
 .graph-node-detail-popup-wrapper {
   position: fixed;
-  min-width: 400px; /* 增加最小宽度 */
-  max-width: 60vw; /* 增加最大宽度 */
   z-index: 2500; /* Higher than el-popover's default z-index */
+  max-height: 80vh;
+  display: flex; /* Make wrapper a flex container */
+  flex-direction: column;
+  /* Size is now controlled by JS */
 }
 
 .graph-node-detail-popup {
   display: flex;
   flex-direction: column;
   width: 100%;
+  flex: 1; /* Allow this to grow and shrink */
+  min-height: 0; /* Crucial for nested flex scrolling */
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -148,7 +223,8 @@ const chatMessageProps = computed(() => {
 }
 
 .detail-popup-content {
-  max-height: 70vh;
+  flex: 1;
+  min-height: 0; /* Important for flexbox scrolling */
   overflow-y: auto;
   padding: 16px;
 }
@@ -165,5 +241,28 @@ const chatMessageProps = computed(() => {
 /* 移除悬浮时的高亮效果 */
 .detail-popup-content :deep(.chat-message:hover) {
   border-color: transparent;
+}
+
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  z-index: 1;
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid var(--el-text-color-placeholder);
+  border-right: 2px solid var(--el-text-color-placeholder);
+  opacity: 0.7;
+  border-bottom-right-radius: 6px;
 }
 </style>

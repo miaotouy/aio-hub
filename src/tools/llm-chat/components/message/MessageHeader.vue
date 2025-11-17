@@ -10,6 +10,7 @@ import { useChatSettings } from '../../composables/useChatSettings';
 import Avatar from '@/components/common/Avatar.vue';
 import DynamicIcon from '@/components/common/DynamicIcon.vue';
 import { useResolvedAvatar } from '../../composables/useResolvedAvatar';
+import { formatRelativeTime } from '@/utils/time';
 
 interface Props {
   message: ChatMessageNode;
@@ -70,14 +71,6 @@ const agentProfileInfo = computed(() => {
     modelIcon: modelIcon
   };
 });
-
-// 格式化时间
-const formatTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
 
 // 获取当前生效的用户档案（用于兼容旧消息）
 const effectiveUserProfile = computed(() => {
@@ -210,7 +203,7 @@ const shouldShowSubtitle = computed(() => {
       <span class="generating-text">生成中</span>
     </div>
     
-    <span v-if="settings.uiPreferences.showTimestamp" class="message-time">{{ formatTime(message.timestamp) }}</span>
+    <span v-if="settings.uiPreferences.showTimestamp" class="message-time">{{ formatRelativeTime(message.timestamp) }}</span>
   </div>
 </template>
 

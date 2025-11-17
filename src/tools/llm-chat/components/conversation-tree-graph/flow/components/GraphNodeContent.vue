@@ -43,7 +43,7 @@
         <!-- 时间戳和 Token 信息 -->
         <div v-if="settings.uiPreferences.showTimestamp || (settings.uiPreferences.showTokenCount && data.tokens)" class="node-meta">
           <span v-if="settings.uiPreferences.showTimestamp" class="meta-item">
-            {{ formatTime(data.timestamp) }}
+            {{ formatRelativeTime(data.timestamp) }}
           </span>
           <span v-if="settings.uiPreferences.showTokenCount && data.tokens" class="meta-item">
             {{ formatTokens(data.tokens) }}
@@ -86,6 +86,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import DynamicIcon from '@/components/common/DynamicIcon.vue';
 import { useChatSettings } from '@/tools/llm-chat/composables/useChatSettings';
 import { customMessage } from '@/utils/customMessage';
+import { formatRelativeTime } from '@/utils/time';
 
 interface NodeData {
   name: string;
@@ -119,14 +120,6 @@ const { settings } = useChatSettings();
 
 // 错误信息复制状态
 const errorCopied = ref(false);
-
-// 格式化时间
-const formatTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
 
 // 是否显示副标题
 const shouldShowSubtitle = computed(() => {

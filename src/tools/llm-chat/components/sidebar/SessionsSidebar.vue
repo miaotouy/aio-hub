@@ -16,6 +16,7 @@ import { useTopicNamer } from "../../composables/useTopicNamer";
 import { useSessionManager } from "../../composables/useSessionManager";
 import { customMessage } from "@/utils/customMessage";
 import ExportSessionDialog from "../export/ExportSessionDialog.vue";
+import { formatRelativeTime } from "@/utils/time";
 
 interface Props {
   sessions: ChatSession[];
@@ -175,26 +176,6 @@ const resetFilters = () => {
   sortOrder.value = "desc";
   filterAgent.value = "all";
   filterTime.value = "all";
-};
-
-// 格式化日期
-const formatDate = (timestamp: string) => {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "刚刚";
-  if (diffMins < 60) return `${diffMins} 分钟前`;
-  if (diffHours < 24) return `${diffHours} 小时前`;
-  if (diffDays < 7) return `${diffDays} 天前`;
-
-  return date.toLocaleDateString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-  });
 };
 
 // 获取消息数量（排除系统根节点）
@@ -445,7 +426,7 @@ const handleFilterCommand = (command: string) => {
           </div>
           <div class="session-info">
             <span class="message-count">{{ getMessageCount(session) }} 条</span>
-            <span class="session-time">{{ formatDate(session.updatedAt) }}</span>
+            <span class="session-time">{{ formatRelativeTime(session.updatedAt) }}</span>
             <el-dropdown
               @command="handleMenuCommand($event, session)"
               trigger="click"

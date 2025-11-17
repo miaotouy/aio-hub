@@ -807,11 +807,17 @@ onMounted(async () => {
 
 /* 消息列表容器 - 弹性增长，占据所有剩余空间 */
 .message-list-wrapper {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1; /* 关键：弹性增长，占据所有剩余空间 */
   min-height: 0;
   overflow: hidden; /* 防止内容溢出 */
+
+  /* 使用 mask-image 实现顶部透明渐隐遮罩，以支持半透明背景 */
+  --mask-height: 50px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black var(--mask-height));
+  mask-image: linear-gradient(to bottom, transparent 0%, black var(--mask-height));
 }
 
 /* 分离手柄的特定样式 */

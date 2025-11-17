@@ -111,8 +111,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     newLine: "enter",
   },
   graphViewShortcuts: {
-    dragSubtree: "shift",
-    graftSubtree: "shift",
+    dragSubtree: "alt",
+    graftSubtree: "alt",
   },
   topicNaming: {
     enabled: false,

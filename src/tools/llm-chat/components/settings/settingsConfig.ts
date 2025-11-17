@@ -168,8 +168,8 @@ export const settingsConfig: SettingsSection[] = [
         component: "ElRadioGroup",
         modelPath: "graphViewShortcuts.dragSubtree",
         options: [
-          { label: "Shift", value: "shift" },
           { label: "Alt", value: "alt" },
+          { label: "Shift", value: "shift" },
           { label: "Ctrl/Cmd", value: "ctrl" },
           { label: "无", value: "none" },
         ],
@@ -182,8 +182,8 @@ export const settingsConfig: SettingsSection[] = [
         component: "ElRadioGroup",
         modelPath: "graphViewShortcuts.graftSubtree",
         options: [
-          { label: "Shift", value: "shift" },
           { label: "Alt", value: "alt" },
+          { label: "Shift", value: "shift" },
           { label: "Ctrl/Cmd", value: "ctrl" },
           { label: "无", value: "none" },
         ],

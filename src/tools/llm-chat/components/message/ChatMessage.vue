@@ -6,12 +6,15 @@ import MessageHeader from './MessageHeader.vue';
 import MessageContent from './MessageContent.vue';
 import MessageMenubar from './MessageMenubar.vue';
 
+import type { ButtonVisibility } from '../../types';
+
 interface Props {
   message: ChatMessageNode;
   isSending: boolean;
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
   llmThinkRules?: import('@/tools/rich-text-renderer/types').LlmThinkRule[];
+  buttonVisibility?: ButtonVisibility;
 }
 
 interface Emits {
@@ -93,6 +96,7 @@ defineExpose({
       :is-sending="isSending"
       :siblings="props.siblings"
       :current-sibling-index="props.currentSiblingIndex"
+      :button-visibility="props.buttonVisibility"
       @copy="copyMessage"
       @edit="startEdit"
       @delete="emit('delete')"

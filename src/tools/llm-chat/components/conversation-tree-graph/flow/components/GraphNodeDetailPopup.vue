@@ -56,6 +56,19 @@ const chatMessageProps = computed(() => {
     siblings: [props.message], // 传自身组成的数组，禁用分支切换
     currentSiblingIndex: 0, // 索引为0
     llmThinkRules: props.llmThinkRules,
+    // 在节点详情弹窗中，只显示部分功能
+    buttonVisibility: {
+      copy: true,
+      edit: false,
+      createBranch: false,
+      delete: false,
+      regenerate: false,
+      toggleEnabled: false,
+      abort: false,
+      analyzeContext: true,
+      exportBranch: true,
+      moreMenu: true,
+    },
   };
 });
 </script>

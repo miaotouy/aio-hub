@@ -17,7 +17,7 @@ import {
   Menu,
   Download,
 } from "lucide-vue-next";
-import type { ChatMessageNode } from "../../types";
+import type { ChatMessageNode, ButtonVisibility } from "../../types";
 import { useLlmChatStore } from "../../store";
 import { useAgentStore } from "../../agentStore";
 import { useSessionManager } from "../../composables/useSessionManager";
@@ -31,6 +31,7 @@ interface Props {
   isSending: boolean;
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
+  buttonVisibility?: ButtonVisibility;
 }
 interface Emits {
   (e: "copy"): void;
@@ -46,7 +47,20 @@ interface Emits {
 
 const agentStore = useAgentStore();
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  buttonVisibility: () => ({
+    copy: true,
+    edit: true,
+    createBranch: true,
+    delete: true,
+    regenerate: true,
+    toggleEnabled: true,
+    abort: true,
+    analyzeContext: true,
+    exportBranch: true,
+    moreMenu: true,
+  }),
+});
 const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
@@ -280,20 +294,26 @@ const presetCount = computed(() => {
     <div v-if="siblings.length > 1" class="separator"></div>
 
     <!-- 更多菜单 -->
-    <el-tooltip content="更多" placement="top">
+    <el-tooltip v-if="props.buttonVisibility.moreMenu" content="更多" placement="top">
       <el-dropdown trigger="click" placement="top">
         <button class="menu-btn">
           <Menu :size="16" />
         </button>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item @click="handleAnalyzeContext">
+            <el-dropdown-item
+              v-if="props.buttonVisibility.analyzeContext"
+              @click="handleAnalyzeContext"
+            >
               <div class="dropdown-item-content">
                 <BarChart3 :size="16" />
                 <span>上下文分析</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item @click="showExportDialog = true">
+            <el-dropdown-item
+              v-if="props.buttonVisibility.exportBranch"
+              @click="showExportDialog = true"
+            >
               <div class="dropdown-item-content">
                 <Download :size="16" />
                 <span>导出分支</span>
@@ -304,7 +324,7 @@ const presetCount = computed(() => {
       </el-dropdown>
     </el-tooltip>
     <!-- 复制 -->
-    <el-tooltip content="复制" placement="top">
+    <el-tooltip v-if="props.buttonVisibility.copy" content="复制" placement="top">
       <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click="copyMessage">
         <Check v-if="copied" :size="16" />
         <Copy v-else :size="16" />
@@ -312,7 +332,7 @@ const presetCount = computed(() => {
     </el-tooltip>
 
     <!-- 终止生成（仅在生成中显示） -->
-    <el-tooltip v-if="isGenerating" content="终止生成" placement="top">
+    <el-tooltip v-if="isGenerating && props.buttonVisibility.abort" content="终止生成" placement="top">
       <button class="menu-btn menu-btn-abort" @click="handleAbort">
         <XCircle :size="16" />
       </button>
@@ -320,7 +340,9 @@ const presetCount = computed(() => {
 
     <!-- 编辑（用户和助手消息都可以，生成中不可编辑） -->
     <el-tooltip
-      v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+      v-if="
+        (isUserMessage || isAssistantMessage) && !isGenerating && props.buttonVisibility.edit
+      "
       content="编辑"
       placement="top"
     >
@@ -331,7 +353,12 @@ const presetCount = computed(() => {
 
     <!-- 创建分支（用户和助手消息都可以，生成中不可创建，预设消息不可创建分支） -->
     <el-tooltip
-      v-if="(isUserMessage || isAssistantMessage) && !isGenerating && !isPresetDisplay"
+      v-if="
+        (isUserMessage || isAssistantMessage) &&
+        !isGenerating &&
+        !isPresetDisplay &&
+        props.buttonVisibility.createBranch
+      "
       content="创建分支"
       placement="top"
     >
@@ -353,7 +380,11 @@ const presetCount = computed(() => {
 
     <!-- 重新生成（用户和助手消息都可以，不禁用以支持并行生成，预设消息不可重新生成） -->
     <el-tooltip
-      v-if="(isUserMessage || isAssistantMessage) && !isPresetDisplay"
+      v-if="
+        (isUserMessage || isAssistantMessage) &&
+        !isPresetDisplay &&
+        props.buttonVisibility.regenerate
+      "
       :content="isUserMessage ? '重新生成回复' : '重新生成'"
       placement="top"
     >
@@ -375,7 +406,7 @@ const presetCount = computed(() => {
 
     <!-- 启用/禁用（生成中不可切换） -->
     <el-tooltip
-      v-if="!isGenerating"
+      v-if="!isGenerating && props.buttonVisibility.toggleEnabled"
       :content="isDisabled ? '启用此消息' : '禁用此消息'"
       placement="top"
     >
@@ -390,7 +421,11 @@ const presetCount = computed(() => {
     </el-tooltip>
 
     <!-- 删除（生成中不可删除，预设消息也不可删除） -->
-    <el-tooltip v-if="!isGenerating && !isPresetDisplay" content="删除" placement="top">
+    <el-tooltip
+      v-if="!isGenerating && !isPresetDisplay && props.buttonVisibility.delete"
+      content="删除"
+      placement="top"
+    >
       <button class="menu-btn menu-btn-danger" @click="handleDelete">
         <Trash2 :size="16" />
       </button>

@@ -86,7 +86,7 @@ const currentAgent = computed(() => {
   return agentStore.getAgentById(finalCurrentAgentId.value);
 });
 
-const agentAvatarSrc = useResolvedAvatar(currentAgent, 'agent');
+const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
 
 // 当前模型信息
 const currentModel = computed(() => {
@@ -117,7 +117,7 @@ const effectiveUserProfile = computed(() => {
   return userProfileStore.globalProfile;
 });
 
-const userProfileAvatarSrc = useResolvedAvatar(effectiveUserProfile, 'user-profile');
+const userProfileAvatarSrc = useResolvedAvatar(effectiveUserProfile, "user-profile");
 
 // ===== 拖拽与分离功能 =====
 const { detachedComponents } = useDetachedManager();
@@ -370,11 +370,11 @@ const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId)
 const chatHeaderStyle = computed(() => {
   const opacity = settings.value.uiPreferences.headerBackgroundOpacity ?? 0.7;
   const blur = settings.value.uiPreferences.headerBlurIntensity ?? 12;
-  
+
   // 使用全局颜色混合工具函数，确保包含叠加效果
-  const backgroundColor = getBlendedBackgroundColor('--card-bg-rgb', opacity);
+  const backgroundColor = getBlendedBackgroundColor("--card-bg-rgb", opacity);
   const backdropFilter = `blur(${blur}px)`;
-  
+
   return {
     backgroundColor,
     backdropFilter,
@@ -433,9 +433,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
   // 检查焦点是否在输入框或其他可编辑元素上
   const target = e.target as HTMLElement;
   const isEditableElement =
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.isContentEditable;
+    target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
   // 如果焦点在可编辑元素上，不拦截键盘事件
   if (isEditableElement) {
@@ -520,9 +518,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 视图模式切换器 -->
-      <ViewModeSwitcher />
-
       <!-- 用户档案信息（右对齐） -->
       <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
         <span class="profile-name">{{ effectiveUserProfile.name }}</span>
@@ -536,6 +531,9 @@ onMounted(async () => {
           />
         </el-tooltip>
       </div>
+
+      <!-- 视图模式切换器 -->
+      <ViewModeSwitcher />
 
       <!-- 设置按钮 -->
       <el-tooltip content="聊天设置" placement="bottom">
@@ -586,7 +584,10 @@ onMounted(async () => {
 
           <!-- V1 树图视图 (层级布局) -->
           <template v-else-if="viewMode === 'graph'">
-            <VisTreeGraph :session="llmChatStore.currentSession" class="conversation-tree-graph-box" />
+            <VisTreeGraph
+              :session="llmChatStore.currentSession"
+              class="conversation-tree-graph-box"
+            />
           </template>
 
           <!-- V2 树图视图 (力导向布局) -->
@@ -880,7 +881,7 @@ onMounted(async () => {
 
 /* 弧度线段视觉效果 */
 .chat-area-container.detached-mode .indicator-handle::before {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   right: 0;
@@ -929,4 +930,3 @@ onMounted(async () => {
   width: 100%;
 }
 </style>
-

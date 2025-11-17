@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon } from 'element-plus';
-import { List, Grid, Share } from '@element-plus/icons-vue';
+import { List } from '@element-plus/icons-vue';
+import { GitMerge, Network } from 'lucide-vue-next';
 import { useLlmChatUiState } from '../../composables/useLlmChatUiState';
 
 /**
@@ -17,9 +18,9 @@ const currentModeInfo = computed(() => {
     case 'linear':
       return { label: '对话视图', icon: List };
     case 'graph':
-      return { label: '树图视图', icon: Grid };
+      return { label: '树图视图', icon: GitMerge };
     case 'force-graph':
-      return { label: '高级树图视图', icon: Share };
+      return { label: '高级树图视图', icon: Network };
     default:
       return { label: '对话视图', icon: List };
   }
@@ -55,7 +56,7 @@ const handleSelect = (mode: 'linear' | 'graph' | 'force-graph') => {
           :class="{ 'is-active': viewMode === 'graph' }"
         >
           <ElIcon :size="16">
-            <Grid />
+            <GitMerge />
           </ElIcon>
           <span>树图视图</span>
         </ElDropdownItem>
@@ -64,7 +65,7 @@ const handleSelect = (mode: 'linear' | 'graph' | 'force-graph') => {
           :class="{ 'is-active': viewMode === 'force-graph' }"
         >
           <ElIcon :size="16">
-            <Share />
+            <Network />
           </ElIcon>
           <span>高级树图视图</span>
         </ElDropdownItem>

@@ -137,5 +137,20 @@ const chatMessageProps = computed(() => {
 .detail-popup-content {
   max-height: 70vh;
   overflow-y: auto;
+  padding: 16px;
+}
+
+/* 覆盖内部 ChatMessage 的样式，使其与弹窗融合 */
+.detail-popup-content :deep(.chat-message) {
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+/* 移除悬浮时的高亮效果 */
+.detail-popup-content :deep(.chat-message:hover) {
+  border-color: transparent;
 }
 </style>

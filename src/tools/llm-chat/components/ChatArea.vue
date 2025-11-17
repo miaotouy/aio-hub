@@ -16,7 +16,6 @@ import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
-import VisTreeGraph from "./conversation-tree-graph/VisTreeGraph.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import { Setting } from "@element-plus/icons-vue";
 
@@ -579,14 +578,6 @@ onMounted(async () => {
               @scroll-to-bottom="handleScrollToBottom"
               @scroll-to-next="handleScrollToNext"
               @scroll-to-prev="handleScrollToPrev"
-            />
-          </template>
-
-          <!-- V1 树图视图 (层级布局) -->
-          <template v-else-if="viewMode === 'graph'">
-            <VisTreeGraph
-              :session="llmChatStore.currentSession"
-              class="conversation-tree-graph-box"
             />
           </template>
 

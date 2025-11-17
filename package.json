@@ -118,7 +118,6 @@
     "tesseract.js": "^6.0.1",
     "v-viewer": "^3.0.22",
     "viewerjs": "^1.11.7",
-    "vis-network": "^10.0.2",
     "vite-plugin-vue-devtools": "^8.0.0",
     "vue": "^3.5.13",
     "vue-codemirror": "^6.1.1",

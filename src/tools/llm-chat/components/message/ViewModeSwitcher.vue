@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon } from 'element-plus';
 import { List } from '@element-plus/icons-vue';
-import { GitMerge, Network } from 'lucide-vue-next';
+import { Network } from 'lucide-vue-next';
 import { useLlmChatUiState } from '../../composables/useLlmChatUiState';
 
 /**
@@ -17,8 +17,6 @@ const currentModeInfo = computed(() => {
   switch (viewMode.value) {
     case 'linear':
       return { label: '对话视图', icon: List };
-    case 'graph':
-      return { label: '树图视图', icon: GitMerge };
     case 'force-graph':
       return { label: '高级树图视图', icon: Network };
     default:
@@ -27,7 +25,7 @@ const currentModeInfo = computed(() => {
 });
 
 // 切换视图模式
-const handleSelect = (mode: 'linear' | 'graph' | 'force-graph') => {
+const handleSelect = (mode: 'linear' | 'force-graph') => {
   viewMode.value = mode;
 };
 </script>
@@ -50,15 +48,6 @@ const handleSelect = (mode: 'linear' | 'graph' | 'force-graph') => {
             <List />
           </ElIcon>
           <span>对话视图</span>
-        </ElDropdownItem>
-        <ElDropdownItem
-          command="graph"
-          :class="{ 'is-active': viewMode === 'graph' }"
-        >
-          <ElIcon :size="16">
-            <GitMerge />
-          </ElIcon>
-          <span>树图视图</span>
         </ElDropdownItem>
         <ElDropdownItem
           command="force-graph"

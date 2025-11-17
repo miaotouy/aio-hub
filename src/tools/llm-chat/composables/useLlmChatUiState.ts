@@ -35,7 +35,7 @@ export interface LlmChatUiState {
   specialFeaturesExpanded: boolean;
   
   // 会话视图模式
-  viewMode: 'linear' | 'graph' | 'force-graph';
+  viewMode: 'linear' | 'force-graph';
   
   // 配置版本
   version?: string;
@@ -82,7 +82,7 @@ const presetMessagesExpanded = ref(defaultUiState.presetMessagesExpanded);
 const basicParamsExpanded = ref(defaultUiState.basicParamsExpanded);
 const advancedParamsExpanded = ref(defaultUiState.advancedParamsExpanded);
 const specialFeaturesExpanded = ref(defaultUiState.specialFeaturesExpanded);
-const viewMode = ref<'linear' | 'graph' | 'force-graph'>(defaultUiState.viewMode);
+const viewMode = ref<'linear' | 'force-graph'>(defaultUiState.viewMode);
 
 // 是否已初始化
 let isInitialized = false;

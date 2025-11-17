@@ -1,8 +1,8 @@
 <template>
   <div class="flow-tree-graph-wrapper">
     <VueFlow
-      v-model:nodes="nodes"
-      v-model:edges="edges"
+      :nodes="nodes"
+      :edges="edges"
       :default-viewport="{ zoom: 1, x: 0, y: 0 }"
       :min-zoom="0.2"
       :max-zoom="4"

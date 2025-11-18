@@ -17,18 +17,39 @@ const errorHandler = createModuleErrorHandler('color-picker/useColorExtractor');
 const logger = createModuleLogger('color-picker/useColorExtractor');
 
 /**
+ * 创建一个可供分析的、同源的 Image 元素
+ * @param blob 图片 Blob 数据
+ */
+function getAnalyzableImage(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(blob);
+    image.crossOrigin = 'Anonymous'; // 尽管是blob，也最好加上
+    image.src = url;
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = (err) => {
+      URL.revokeObjectURL(url);
+      reject(err);
+    };
+  });
+}
+
+/**
  * 颜色提取器 Composable
  */
 export function useColorExtractor() {
   const isProcessing = ref(false);
 
   /**
-   * 从图片元素提取颜色
-   * @param imageElement HTMLImageElement 元素
+   * 从图片元素或 Blob 提取颜色
+   * @param imageSource HTMLImageElement 元素或图片 Blob
    * @param algorithms 要执行的算法数组，如果为空则执行所有算法
    */
   async function extractColors(
-    imageElement: HTMLImageElement,
+    imageSource: HTMLImageElement | Blob,
     algorithms: AnalysisAlgorithm[] = ['quantize', 'vibrant', 'average']
   ): Promise<ColorAnalysisResult> {
     isProcessing.value = true;
@@ -40,25 +61,36 @@ export function useColorExtractor() {
     };
 
     try {
+      const imageElement =
+        imageSource instanceof HTMLImageElement
+          ? imageSource
+          : await getAnalyzableImage(imageSource);
+
       // 并行执行所有请求的算法
       const promises: Promise<void>[] = [];
 
       if (algorithms.includes('quantize')) {
-        promises.push(extractQuantizeColors(imageElement).then(res => {
-          result.quantize = res;
-        }));
+        promises.push(
+          extractQuantizeColors(imageElement).then((res) => {
+            result.quantize = res;
+          })
+        );
       }
 
       if (algorithms.includes('vibrant')) {
-        promises.push(extractVibrantColors(imageElement).then(res => {
-          result.vibrant = res;
-        }));
+        promises.push(
+          extractVibrantColors(imageElement).then((res) => {
+            result.vibrant = res;
+          })
+        );
       }
 
       if (algorithms.includes('average')) {
-        promises.push(extractAverageColor(imageElement).then(res => {
-          result.average = res;
-        }));
+        promises.push(
+          extractAverageColor(imageElement).then((res) => {
+            result.average = res;
+          })
+        );
       }
 
       await Promise.all(promises);
@@ -83,10 +115,14 @@ export function useColorExtractor() {
    * 提取主色调 (Color Thief)
    */
   async function extractQuantizeColors(
-    imageElement: HTMLImageElement,
+    imageSource: HTMLImageElement | Blob,
     colorCount: number = 8
   ): Promise<QuantizeResult | null> {
     return errorHandler.wrapAsync(async () => {
+      const imageElement =
+        imageSource instanceof HTMLImageElement
+          ? imageSource
+          : await getAnalyzableImage(imageSource);
       const colorThief = new ColorThief();
 
       // 确保图片已加载完成
@@ -143,9 +179,13 @@ export function useColorExtractor() {
    * 提取设计感调色板 (Vibrant)
    */
   async function extractVibrantColors(
-    imageElement: HTMLImageElement
+    imageSource: HTMLImageElement | Blob
   ): Promise<VibrantResult | null> {
     return errorHandler.wrapAsync(async () => {
+      const imageElement =
+        imageSource instanceof HTMLImageElement
+          ? imageSource
+          : await getAnalyzableImage(imageSource);
       // 确保图片已加载完成
       if (!imageElement.complete) {
         await new Promise((resolve, reject) => {
@@ -182,9 +222,13 @@ export function useColorExtractor() {
    * 提取平均色 (Fast Average Color)
    */
   async function extractAverageColor(
-    imageElement: HTMLImageElement
+    imageSource: HTMLImageElement | Blob
   ): Promise<AverageResult | null> {
     return errorHandler.wrapAsync(async () => {
+      const imageElement =
+        imageSource instanceof HTMLImageElement
+          ? imageSource
+          : await getAnalyzableImage(imageSource);
       const fac = new FastAverageColor();
 
       try {

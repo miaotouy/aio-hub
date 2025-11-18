@@ -240,24 +240,6 @@ function onAlgorithmChange() {
   // 未来可以根据算法切换触发重新分析
 }
 
-// 创建一个可供分析的、同源的 Image 元素
-function getAnalyzableImage(blob: Blob): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    const url = URL.createObjectURL(blob);
-    image.crossOrigin = 'Anonymous'; // 尽管是blob，也最好加上
-    image.src = url;
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(image);
-    };
-    image.onerror = (err) => {
-      URL.revokeObjectURL(url);
-      reject(err);
-    };
-  });
-}
-
 async function runInitialAnalysis() {
   if (!currentImageBlob.value) return;
 
@@ -271,11 +253,12 @@ async function runInitialAnalysis() {
     if (!asset) throw new Error('资产创建失败');
     store.setCurrentImage(asset.id, asset.name);
 
-    // 2. 创建用于分析的图像
-    const analysisImage = await getAnalyzableImage(currentImageBlob.value);
-
-    // 3. 进行颜色分析
-    const result = await extractColors(analysisImage);
+    // 2. 进行颜色分析 (直接传递 Blob)
+    if (!currentImageBlob.value) {
+      // 应该不会发生，但在类型上做个保护
+      throw new Error('当前没有可分析的图片 Blob');
+    }
+    const result = await extractColors(currentImageBlob.value);
     store.setAnalysisResult(result);
 
     // 4. 保存到历史记录（使用持久化存储）
@@ -304,8 +287,11 @@ async function onQuantizeCountChange() {
   if (currentImageBlob.value && store.selectedAlgorithm === 'quantize') {
     store.setAnalyzing(true);
     try {
-      const analysisImage = await getAnalyzableImage(currentImageBlob.value);
-      const result = await extractQuantizeColors(analysisImage, store.quantizeColorCount);
+      if (!currentImageBlob.value) return;
+      const result = await extractQuantizeColors(
+        currentImageBlob.value,
+        store.quantizeColorCount
+      );
       if (result) {
         store.updateAlgorithmResult('quantize', result);
       }

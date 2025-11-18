@@ -283,15 +283,8 @@ const totalAssets = computed(() => assetStats.value.totalAssets);
 const totalSize = computed(() => assetStats.value.totalSize);
 const typeCounts = computed(() => assetStats.value.typeCounts);
 
-// 计算来源模块统计
-const sourceModuleCounts = computed(() => {
-  const counts: Record<string, number> = {};
-  assets.value.forEach((asset) => {
-    const module = asset.sourceModule || 'unknown';
-    counts[module] = (counts[module] || 0) + 1;
-  });
-  return counts;
-});
+// 使用后端提供的全局来源模块统计
+const sourceModuleCounts = computed(() => assetStats.value.sourceModuleCounts || {});
 
 // 事件处理
 const handleSelectAsset = async (asset: Asset) => {

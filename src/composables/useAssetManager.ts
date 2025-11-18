@@ -1,6 +1,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ref, computed, onUnmounted } from "vue";
+import { createModuleLogger } from "@/utils/logger";
 import type {
   Asset,
   AssetImportOptions,
@@ -215,6 +216,8 @@ export const assetManagerEngine = {
   },
 };
 
+const logger = createModuleLogger("useAssetManager");
+
 /**
  * 资产管理 Composable
  *
@@ -242,6 +245,7 @@ export function useAssetManager() {
     totalAssets: 0,
     totalSize: 0,
     typeCounts: { image: 0, video: 0, audio: 0, document: 0, other: 0 },
+    sourceModuleCounts: {},
   });
 
   // --- 方法 ---
@@ -311,7 +315,20 @@ export function useAssetManager() {
    */
   const fetchAssetStats = async () => {
     try {
-      assetStats.value = await assetManagerEngine.getAssetStats();
+      const stats = await assetManagerEngine.getAssetStats();
+      assetStats.value = stats;
+
+      // 记录统计信息
+      const moduleCount = Object.keys(stats.sourceModuleCounts || {}).length;
+      logger.info("资产统计已更新", {
+        totalAssets: stats.totalAssets,
+        totalSize: assetManagerEngine.formatFileSize(stats.totalSize),
+        sourceModuleCount: moduleCount,
+      });
+      
+      if (moduleCount > 0) {
+        logger.debug("来源模块分布", stats.sourceModuleCounts, true);
+      }
     } catch (err) {
       handleError(err, "获取资产统计信息失败");
     }

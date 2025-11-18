@@ -62,6 +62,7 @@ pub struct AssetStats {
     pub total_assets: u64,
     pub total_size: u64,
     pub type_counts: HashMap<AssetType, u64>,
+    pub source_module_counts: HashMap<String, u64>,
 }
 
 

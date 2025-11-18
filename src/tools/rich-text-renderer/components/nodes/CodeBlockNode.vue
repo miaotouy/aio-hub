@@ -84,6 +84,8 @@ import {
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { getMonacoLanguageId } from "@/utils/codeLanguages";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 // 动态导入，避免类型检查时就报错
 type StreamMonacoModule = typeof import("stream-monaco");
 
@@ -95,6 +97,10 @@ const props = defineProps<{
 
 const editorEl = ref<HTMLElement | null>(null);
 const { isDark } = useTheme();
+const logger = createModuleLogger("tools/rich-text-renderer/components/nodes/CodeBlockNode.vue");
+const errorHandler = createModuleErrorHandler(
+  "tools/rich-text-renderer/components/nodes/CodeBlockNode.vue"
+);
 
 // 复制状态
 const copied = ref(false);
@@ -134,9 +140,6 @@ let cleanupEditor: () => void = () => {};
 let setTheme: (theme: any) => Promise<void> = async () => {};
 let getEditorView: () => any = () => ({ updateOptions: () => {} });
 
-// 滚动事件处理器清理函数
-let cleanupScrollHandler: (() => void) | null = null;
-
 // ResizeObserver 清理函数
 let cleanupResizeObserver: (() => void) | null = null;
 
@@ -150,8 +153,7 @@ const copyCode = async () => {
       copied.value = false;
     }, 2000);
   } catch (error) {
-    console.error("[CodeBlockNode] 复制失败:", error);
-    customMessage.error("复制失败");
+    errorHandler.error(error, "复制失败");
   }
 };
 
@@ -161,17 +163,26 @@ const computeContentHeight = (): number | null => {
     const editor = getEditorView();
     if (!editor) return null;
 
+    let height = 0;
+
     // 优先使用 Monaco 的 contentHeight
     if (typeof editor.getContentHeight === "function") {
       const h = editor.getContentHeight();
-      if (h > 0) return Math.ceil(h);
+      if (h > 0) {
+        height = h;
+      }
     }
 
-    // 后备方案：行数 * 行高
-    const model = editor.getModel?.();
-    const lineCount = model?.getLineCount?.() || 1;
-    const lineHeight = 18; // 默认行高
-    return Math.ceil(lineCount * lineHeight);
+    // 后备方案
+    if (height === 0) {
+      const model = editor.getModel?.();
+      const lineCount = model?.getLineCount?.() || 1;
+      const lineHeight = 18; // 默认行高
+      height = lineCount * lineHeight;
+    }
+
+    // +12px 缓冲区，为水平滚动条预留空间，避免展开时出现垂直滚动条
+    return Math.ceil(height) + 12;
   } catch {
     return null;
   }
@@ -185,13 +196,14 @@ const setAutomaticLayout = (enabled: boolean) => {
       editor.updateOptions({ automaticLayout: enabled });
     }
   } catch (error) {
-    console.error("[CodeBlockNode] 设置 automaticLayout 失败:", error);
+    errorHandler.error(error, "设置 automaticLayout 失败", { showToUser: false });
   }
 };
 
 // 切换展开/折叠
 const toggleExpand = async () => {
   isExpanded.value = !isExpanded.value;
+  logger.debug("切换展开状态", { isExpanded: isExpanded.value });
 
   const editor = getEditorView();
   // 我们要操作的是 .code-editor-container，它是 editorEl 的父元素
@@ -210,6 +222,8 @@ const toggleExpand = async () => {
       setAutomaticLayout(true);
       editorEl.value.style.height = `${contentHeight}px`;
       container.style.maxHeight = `${contentHeight}px`;
+      // 禁用 Monaco 的滚轮处理，让事件冒泡到外层，实现滚动消息列表
+      editor.updateOptions({ scrollbar: { handleMouseWheel: false } });
     } else {
       // 收起：禁用自动布局，editorEl 高度限制为 min(内容高度, 500px)
       setAutomaticLayout(false);
@@ -217,6 +231,8 @@ const toggleExpand = async () => {
       const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
       editorEl.value.style.height = `${editorHeight}px`;
       container.style.maxHeight = ""; // 恢复由 CSS 控制（500px）
+      // 启用 Monaco 的滚轮处理，实现编辑器内部滚动
+      editor.updateOptions({ scrollbar: { handleMouseWheel: true } });
     }
 
     // 触发重新布局
@@ -225,7 +241,7 @@ const toggleExpand = async () => {
       setTimeout(() => editor.layout(), 50);
     }
   } catch (error) {
-    console.error("[CodeBlockNode] 切换展开状态失败:", error);
+    errorHandler.error(error, "切换展开状态失败");
   }
 };
 
@@ -254,7 +270,7 @@ const updateEditorFontSize = (size: number) => {
       editor.updateOptions({ fontSize: size });
     }
   } catch (error) {
-    console.error("[CodeBlockNode] 更新字体大小失败:", error);
+    errorHandler.error(error, "更新字体大小失败", { showToUser: false, context: { size } });
   }
 };
 
@@ -294,7 +310,7 @@ const toggleWordWrap = () => {
       });
     }
   } catch (error) {
-    console.error("[CodeBlockNode] 切换换行失败:", error);
+    errorHandler.error(error, "切换换行失败");
   }
 };
 
@@ -314,7 +330,7 @@ onMounted(async () => {
     const useMonaco = sm.useMonaco;
 
     if (typeof useMonaco !== "function") {
-      console.warn("[CodeBlockNode] stream-monaco is not installed or useMonaco not found.");
+      logger.warn("stream-monaco 未安装或 useMonaco 未找到");
       return;
     }
 
@@ -391,36 +407,6 @@ onMounted(async () => {
       editorEl.value.style.maxHeight = "none";
     }
 
-    // 添加滚动穿透处理器以修复嵌套滚动问题
-    const monacoContainer = editorEl.value?.querySelector(".monaco-editor") as HTMLElement;
-    if (monacoContainer) {
-      const handleWheel = (event: WheelEvent) => {
-        const monacoScrollable = monacoContainer.querySelector(".overflow-guard") as HTMLElement;
-        if (!monacoScrollable) return;
-
-        const { scrollTop, scrollHeight, clientHeight } = monacoScrollable;
-        const isAtTop = event.deltaY < 0 && scrollTop === 0;
-        const isAtBottom = event.deltaY > 0 && scrollHeight - scrollTop - clientHeight < 1;
-
-        if (isAtTop || isAtBottom) {
-          // 在滚动边界时，允许父容器滚动
-          // 不阻止默认行为，让事件冒泡
-          return;
-        } else {
-          // 在内容区域内，阻止事件冒泡防止父容器滚动
-          event.stopPropagation();
-        }
-      };
-
-      // 在捕获阶段监听，优先于 Monaco 的处理
-      monacoContainer.addEventListener("wheel", handleWheel, { capture: true, passive: true });
-
-      // 保存清理函数
-      cleanupScrollHandler = () => {
-        monacoContainer.removeEventListener("wheel", handleWheel, { capture: true });
-      };
-    }
-
     // 强制重新布局以确保尺寸正确
     if (typeof editor.layout === "function") {
       editor.layout();
@@ -446,7 +432,7 @@ onMounted(async () => {
       };
     }
   } catch (error) {
-    console.error("[CodeBlockNode] Failed to initialize Monaco editor via stream-monaco:", error);
+    errorHandler.error(error, "初始化代码块失败");
   }
 });
 
@@ -457,11 +443,6 @@ watch(isDark, async (dark) => {
 onUnmounted(() => {
   // 清理编辑器
   cleanupEditor();
-  // 清理滚动事件监听器
-  if (cleanupScrollHandler) {
-    cleanupScrollHandler();
-    cleanupScrollHandler = null;
-  }
   // 清理 ResizeObserver
   if (cleanupResizeObserver) {
     cleanupResizeObserver();

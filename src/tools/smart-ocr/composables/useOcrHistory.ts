@@ -10,7 +10,7 @@ import { exists, readTextFile, writeTextFile, remove } from '@tauri-apps/plugin-
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { createConfigManager } from '@/utils/configManager';
 import { useAssetManager } from '@/composables/useAssetManager';
-import type { OcrHistoryIndexItem, OcrHistoryRecord } from '../types';
+import type { OcrHistoryIndexItem, OcrHistoryRecord, OcrEngineConfig } from '../types';
 import { createModuleLogger } from '@/utils/logger';
 import { nanoid } from 'nanoid';
 
@@ -35,6 +35,22 @@ function createDefaultIndex(): HistoryIndex {
     version: '1.0.0',
     records: [],
   };
+}
+
+/**
+ * 获取引擎详细信息
+ */
+function getEngineDetail(config: OcrEngineConfig): string {
+  switch (config.type) {
+    case 'tesseract':
+      return config.language;
+    case 'vlm':
+      return config.modelId;
+    case 'cloud':
+      return config.name;
+    default:
+      return '';
+  }
 }
 
 /**
@@ -145,6 +161,7 @@ export function useOcrHistory() {
         engine: record.engine,
         createdAt: record.createdAt,
         textPreview: fullText.substring(0, 100), // 截取前100个字符作为预览
+        engineDetail: getEngineDetail(record.engineConfig),
       };
 
       // 4. 更新索引文件

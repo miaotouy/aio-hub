@@ -150,6 +150,7 @@ export interface OcrHistoryIndexItem {
   engine: OcrEngineType;
   createdAt: string;
   textPreview: string; // 识别文本的简短预览
+  engineDetail?: string; // 引擎详细信息（如模型名称、语言等）
 }
 
 /**

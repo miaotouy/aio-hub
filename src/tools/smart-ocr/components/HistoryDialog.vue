@@ -237,9 +237,21 @@ watch(
               <div class="text-preview">{{ row.textPreview }}</div>
             </template>
           </el-table-column>
-          <el-table-column label="引擎" width="120">
+          <el-table-column label="引擎" width="160">
             <template #default="{ row }">
-              <el-tag>{{ row.engine }}</el-tag>
+              <div class="engine-info">
+                <el-tag size="small">{{ row.engine }}</el-tag>
+                <el-tooltip
+                  v-if="row.engineDetail"
+                  :content="row.engineDetail"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <span class="engine-detail">
+                    {{ row.engineDetail }}
+                  </span>
+                </el-tooltip>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="识别时间" width="180">
@@ -322,5 +334,21 @@ watch(
 .no-more {
   border-top: 1px solid var(--el-border-color-lighter);
   background-color: var(--el-fill-color-blank);
+}
+
+.engine-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.engine-detail {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 </style>

@@ -13,6 +13,11 @@
           </el-icon>
         </el-button>
       </el-tooltip>
+      <el-tooltip content="刷新列表" placement="bottom">
+        <el-button @click="emit('refresh')">
+          <el-icon><Refresh /></el-icon>
+        </el-button>
+      </el-tooltip>
       <el-divider direction="vertical" />
       <el-dropdown>
         <el-button>
@@ -200,6 +205,7 @@ const emit = defineEmits<{
   clearSelection: [];
   deleteSelected: [];
   "toggle-sidebar": [];
+  refresh: [];
 }>();
 
 // 容器宽度检测

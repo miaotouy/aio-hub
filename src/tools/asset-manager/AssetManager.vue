@@ -17,6 +17,7 @@
       @delete-selected="handleDeleteSelected"
       @clear-selection="clearSelection"
       @toggle-sidebar="isSidebarCollapsed = !isSidebarCollapsed"
+      @refresh="fetchData(false)"
     />
 
     <!-- 重建索引进度条 -->

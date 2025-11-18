@@ -813,17 +813,15 @@ fn check_duplicate_in_current_month(
                 let reader = BufReader::new(catalog_file);
 
                 // 在 Catalog 中查找对应的条目
-                for line in reader.lines() {
-                    if let Ok(line_content) = line {
-                        if line_content.trim().is_empty() {
-                            continue;
-                        }
-                        if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
-                            if entry.id == asset_id {
-                                // 找到了！迁移旧数据并返回完整的 Asset
-                                entry.migrate_if_needed();
-                                return Ok(Some(convert_entry_to_asset(entry, base_dir)));
-                            }
+                for line_content in reader.lines().map_while(Result::ok) {
+                    if line_content.trim().is_empty() {
+                        continue;
+                    }
+                    if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
+                        if entry.id == asset_id {
+                            // 找到了！迁移旧数据并返回完整的 Asset
+                            entry.migrate_if_needed();
+                            return Ok(Some(convert_entry_to_asset(entry, base_dir)));
                         }
                     }
                 }

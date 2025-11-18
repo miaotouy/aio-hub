@@ -216,7 +216,7 @@ tauri::Builder::default()
                 Target::new(TargetKind::Stdout),
                 Target::new(TargetKind::Folder {
                     path: log_dir,
-                    file_name: Some(log_filename.into()),
+                    file_name: Some(log_filename),
                 }),
             ])
             .timezone_strategy(TimezoneStrategy::UseLocal) // 使用本地时区

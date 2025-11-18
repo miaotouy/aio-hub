@@ -98,7 +98,17 @@ export default class RegexApplierService implements ToolService {
   public readonly name = 'Regex Applier';
   public readonly description = '正则表达式批量应用工具';
 
-  private store = usePresetStore();
+  private _store: ReturnType<typeof usePresetStore> | null = null;
+  
+  /**
+   * 获取 store 实例（惰性初始化）
+   */
+  private get store() {
+    if (!this._store) {
+      this._store = usePresetStore();
+    }
+    return this._store;
+  }
 
   // ==================== 核心业务方法 ====================
 

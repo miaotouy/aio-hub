@@ -40,7 +40,17 @@ export default class LlmChatService implements ToolService {
   public readonly name = 'LLM 聊天输入管理';
   public readonly description = '管理 LLM 聊天输入框的内容和附件，支持跨窗口和工具间协同';
 
-  private inputManager = useChatInputManager();
+  private _inputManager: ReturnType<typeof useChatInputManager> | null = null;
+  
+  /**
+   * 获取输入管理器实例（惰性初始化）
+   */
+  private get inputManager() {
+    if (!this._inputManager) {
+      this._inputManager = useChatInputManager();
+    }
+    return this._inputManager;
+  }
 
   // ==================== 核心业务方法 ====================
 

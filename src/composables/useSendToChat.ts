@@ -62,8 +62,13 @@ export interface SendToChatOptions {
  * 使用发送到聊天功能
  */
 export function useSendToChat() {
-  // 获取 llmChat 服务
-  const llmChatService = serviceRegistry.getService<LlmChatService>('llm-chat');
+  /**
+   * 延迟获取 llmChat 服务
+   * 确保在组件上下文中调用，避免生命周期钩子警告
+   */
+  const getLlmChatService = () => {
+    return serviceRegistry.getService<LlmChatService>('llm-chat');
+  };
   
   /**
    * 格式化内容
@@ -104,6 +109,7 @@ export function useSendToChat() {
       
       // 发送到聊天输入框
       const { position = 'append' } = options;
+      const llmChatService = getLlmChatService();
       llmChatService.addContentToInput(formattedContent, { position });
       
       // 显示成功提示

@@ -19,9 +19,29 @@ export default class ColorPickerService implements ToolService {
   public readonly name = 'Color Picker';
   public readonly description = '从图片中提取和分析颜色方案';
 
-  // 将 composables 实例化，作为私有成员使用
-  private extractor = useColorExtractor();
-  private history = useColorHistory();
+  // 使用惰性初始化避免生命周期钩子警告
+  private _extractor: ReturnType<typeof useColorExtractor> | null = null;
+  private _history: ReturnType<typeof useColorHistory> | null = null;
+  
+  /**
+   * 获取颜色提取器实例（惰性初始化）
+   */
+  private get extractor() {
+    if (!this._extractor) {
+      this._extractor = useColorExtractor();
+    }
+    return this._extractor;
+  }
+  
+  /**
+   * 获取历史记录管理器实例（惰性初始化）
+   */
+  private get history() {
+    if (!this._history) {
+      this._history = useColorHistory();
+    }
+    return this._history;
+  }
 
   /**
    * 将颜色转换工具集作为静态属性暴露，方便外部直接调用。

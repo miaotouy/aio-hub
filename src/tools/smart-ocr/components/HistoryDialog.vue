@@ -23,7 +23,7 @@ const emit = defineEmits<{
 
 const logger = createModuleLogger("HistoryDialog");
 const { loadHistoryIndex, deleteRecord, loadFullRecord: loadHistoryRecord } = useOcrHistory();
-const { getAssetUrl } = useAssetManager();
+const { getAssetBasePath, convertToAssetProtocol } = useAssetManager();
 const imageViewer = useImageViewer();
 const { copy, copied } = useClipboard();
 
@@ -36,6 +36,7 @@ const hasMore = ref(true);
 const isLoading = ref(false);
 const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
+const assetBasePath = ref("");
 
 const isDialogVisible = computed({
   get: () => props.visible,
@@ -71,7 +72,7 @@ async function loadPage(page: number) {
   }
 
   displayedHistory.value.push(...pageRecords);
-  await generateThumbnails(pageRecords);
+  updateImageUrls(pageRecords);
 
   hasMore.value = end < allHistory.value.length;
   currentPage.value = page;
@@ -102,53 +103,38 @@ function handleScroll(event: Event) {
   }
 }
 
-async function generateThumbnails(records: OcrHistoryIndexItem[]) {
-  // 并行获取所有缩略图
-  const promises = records.map(async (record) => {
+function updateImageUrls(records: OcrHistoryIndexItem[]) {
+  if (!assetBasePath.value) return;
+
+  records.forEach((record) => {
     if (record.assetId && !thumbnailUrls.value[record.id]) {
-      try {
-        // 构建一个临时的 Asset-like 对象以使用 getAssetUrl
-        const pseudoAsset = {
-          id: record.assetId,
-          path: record.assetPath,
-          mimeType: record.assetMimeType,
-          // getAssetUrl 需要的其他字段可以暂时为空
-          type: "image" as const,
-          sourceModule: "smart-ocr",
-          name: "",
-          size: 0,
-          createdAt: "",
-          origins: [], // 必需字段，用于类型兼容性
-        };
-        const url = await getAssetUrl(pseudoAsset, true); // true 表示使用缩略图
-        if (url) {
-          thumbnailUrls.value[record.id] = url;
-        }
-      } catch (error) {
-        logger.warn("生成缩略图失败", { recordId: record.id, assetId: record.assetId });
-      }
+      // 默认尝试使用缩略图路径 (.thumbnails/{uuid}.jpg)
+      const thumbPath = `.thumbnails/${record.assetId}.jpg`;
+      thumbnailUrls.value[record.id] = convertToAssetProtocol(thumbPath, assetBasePath.value);
     }
   });
-  await Promise.all(promises);
 }
 
-async function handlePreview(record: OcrHistoryIndexItem) {
-  if (!record.assetId) return;
+function handleImageError(record: OcrHistoryIndexItem) {
+  if (!record.assetId || !record.assetPath || !assetBasePath.value) return true;
+
+  const currentSrc = thumbnailUrls.value[record.id];
+  const originalSrc = convertToAssetProtocol(record.assetPath, assetBasePath.value);
+
+  // 如果当前是缩略图，尝试降级到原图
+  if (currentSrc && currentSrc.includes(".thumbnails")) {
+    thumbnailUrls.value[record.id] = originalSrc;
+    return false; // 阻止默认的 error 行为，尝试加载新 URL
+  }
+
+  return true; // 已经是原图还报错，显示 fallback
+}
+
+function handlePreview(record: OcrHistoryIndexItem) {
+  if (!record.assetId || !record.assetPath || !assetBasePath.value) return;
 
   try {
-    // 构建完整的 Asset 对象以获取完整图片 URL
-    const pseudoAsset = {
-      id: record.assetId,
-      path: record.assetPath,
-      mimeType: record.assetMimeType,
-      type: "image" as const,
-      sourceModule: "smart-ocr",
-      name: "",
-      size: 0,
-      createdAt: "",
-      origins: [], // 必需字段，用于类型兼容性
-    };
-    const fullImageUrl = await getAssetUrl(pseudoAsset, false); // false 表示获取完整图片
+    const fullImageUrl = convertToAssetProtocol(record.assetPath, assetBasePath.value);
     if (fullImageUrl) {
       imageViewer.show(fullImageUrl);
     }
@@ -208,8 +194,15 @@ async function handleCopy(record: OcrHistoryIndexItem) {
 
 watch(
   () => props.visible,
-  (isVisible) => {
+  async (isVisible) => {
     if (isVisible) {
+      if (!assetBasePath.value) {
+        try {
+          assetBasePath.value = await getAssetBasePath();
+        } catch (error) {
+          logger.error("获取资产根目录失败", error);
+        }
+      }
       fetchHistory();
     }
   }
@@ -222,9 +215,9 @@ watch(
     title="OCR 历史记录"
     width="80%"
   >
-    <div class="history-dialog-content" v-loading="isLoading">
+    <div class="history-dialog-content">
       <div class="table-wrapper" @scroll="handleScroll">
-        <el-table :data="displayedHistory" height="60vh" empty-text="暂无历史记录">
+        <el-table :data="displayedHistory" height="60vh" empty-text="暂无历史记录" v-loading="isLoading">
           <el-table-column label="预览" width="100">
             <template #default="{ row }">
               <el-avatar
@@ -233,6 +226,7 @@ watch(
                 :src="thumbnailUrls[row.id]"
                 class="thumbnail-preview"
                 @click="handlePreview(row)"
+                @error="() => handleImageError(row)"
               >
                 🖼️
               </el-avatar>

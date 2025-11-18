@@ -666,6 +666,7 @@ export function useAssetManager() {
 
     // 方法 - 直接从 engine 暴露，因为它们是无状态的
     getAssetBasePath: assetManagerEngine.getAssetBasePath,
+    convertToAssetProtocol: assetManagerEngine.convertToAssetProtocol,
     getAssetBinary: assetManagerEngine.getAssetBinary,
     getAssetUrl: assetManagerEngine.getAssetUrl,
     getAssetIcon: assetManagerEngine.getAssetIcon,

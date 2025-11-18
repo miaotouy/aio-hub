@@ -22,7 +22,7 @@ const emit = defineEmits<{
 
 const logger = createModuleLogger('ColorPickerHistoryDialog');
 const { loadHistoryIndex, deleteRecord, clearAllRecords } = useColorHistory();
-const { getAssetUrl } = useAssetManager();
+const { getAssetBasePath, convertToAssetProtocol } = useAssetManager();
 const imageViewer = useImageViewer();
 
 // 分页相关状态
@@ -33,6 +33,7 @@ const currentPage = ref(1);
 const hasMore = ref(true);
 const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
+const assetBasePath = ref('');
 
 const isDialogVisible = computed({
   get: () => props.visible,
@@ -66,7 +67,7 @@ async function loadPage(page: number) {
   }
 
   displayedHistory.value.push(...pageRecords);
-  await generateThumbnails(pageRecords);
+  updateImageUrls(pageRecords);
 
   hasMore.value = end < allHistory.value.length;
   currentPage.value = page;
@@ -97,52 +98,42 @@ function handleScroll(event: Event) {
   }
 }
 
-async function generateThumbnails(records: ColorHistoryIndexItem[]) {
-  // 并行获取所有缩略图
-  const promises = records.map(async (record) => {
+function updateImageUrls(records: ColorHistoryIndexItem[]) {
+  if (!assetBasePath.value) return;
+  
+  records.forEach((record) => {
     if (record.assetId && !thumbnailUrls.value[record.id]) {
-      try {
-        // 构建一个临时的 Asset-like 对象以使用 getAssetUrl
-        const pseudoAsset = {
-          id: record.assetId,
-          path: record.assetPath,
-          mimeType: record.assetMimeType,
-          type: 'image' as const,
-          sourceModule: 'color-picker',
-          name: '',
-          size: 0,
-          createdAt: '',
-          origins: [],
-        };
-        const url = await getAssetUrl(pseudoAsset, true); // true 表示使用缩略图
-        if (url) {
-          thumbnailUrls.value[record.id] = url;
-        }
-      } catch (error) {
-        logger.warn('生成缩略图失败', { recordId: record.id, assetId: record.assetId });
-      }
+      // 默认尝试使用缩略图路径 (.thumbnails/{uuid}.jpg)
+      // 使用 convertToAssetProtocol 直接生成 asset:// 链接，无需异步读取文件
+      const thumbPath = `.thumbnails/${record.assetId}.jpg`;
+      thumbnailUrls.value[record.id] = convertToAssetProtocol(thumbPath, assetBasePath.value);
     }
   });
-  await Promise.all(promises);
 }
 
-async function handlePreview(record: ColorHistoryIndexItem) {
-  if (!record.assetId) return;
+function handleImageError(record: ColorHistoryIndexItem) {
+  if (!record.assetId || !record.assetPath || !assetBasePath.value) return true;
+
+  const currentSrc = thumbnailUrls.value[record.id];
+  const originalSrc = convertToAssetProtocol(record.assetPath, assetBasePath.value);
+
+  // 如果当前是缩略图（包含 .thumbnails），尝试降级到原图
+  if (currentSrc && currentSrc.includes('.thumbnails')) {
+    thumbnailUrls.value[record.id] = originalSrc;
+    // 返回 false 阻止默认的 error 行为（显示 fallback slot），
+    // 因为我们修改了 src，el-avatar 会尝试加载新 URL
+    return false;
+  }
+  
+  // 如果已经是原图还报错，则显示默认的 fallback slot
+  return true;
+}
+
+function handlePreview(record: ColorHistoryIndexItem) {
+  if (!record.assetId || !record.assetPath || !assetBasePath.value) return;
 
   try {
-    // 构建完整的 Asset 对象以获取完整图片 URL
-    const pseudoAsset = {
-      id: record.assetId,
-      path: record.assetPath,
-      mimeType: record.assetMimeType,
-      type: 'image' as const,
-      sourceModule: 'color-picker',
-      name: '',
-      size: 0,
-      createdAt: '',
-      origins: [],
-    };
-    const fullImageUrl = await getAssetUrl(pseudoAsset, false); // false 表示获取完整图片
+    const fullImageUrl = convertToAssetProtocol(record.assetPath, assetBasePath.value);
     if (fullImageUrl) {
       imageViewer.show(fullImageUrl);
     }
@@ -219,8 +210,15 @@ async function handleClearAll() {
 
 watch(
   () => props.visible,
-  (isVisible) => {
+  async (isVisible) => {
     if (isVisible) {
+      if (!assetBasePath.value) {
+        try {
+          assetBasePath.value = await getAssetBasePath();
+        } catch (error) {
+          logger.error('获取资产根目录失败', error);
+        }
+      }
       fetchHistory();
     }
   }
@@ -256,6 +254,7 @@ watch(
                   :src="thumbnailUrls[record.id]"
                   class="thumbnail-preview"
                   @click="handlePreview(record)"
+                  @error="() => handleImageError(record)"
                 >
                   🖼️
                 </el-avatar>

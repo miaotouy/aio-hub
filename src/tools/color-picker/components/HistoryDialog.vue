@@ -236,7 +236,7 @@ watch(
     v-model="isDialogVisible"
     title="颜色分析历史"
     width="80%"
-    height="70vh"
+    height="80vh"
     :show-close="true"
     :show-footer="true"
   >

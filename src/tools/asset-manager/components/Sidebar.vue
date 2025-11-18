@@ -78,7 +78,9 @@
         >
           <div class="radio-content">
             <span class="radio-label">
-              <component :is="getModuleIcon(module)" :size="16" />
+              <span class="icon-wrapper">
+                <component :is="getModuleIcon(module)" :size="16" />
+              </span>
               {{ getModuleLabel(module) }}
             </span>
             <span class="count">{{ count }}</span>
@@ -265,6 +267,16 @@ const formatSize = (bytes: number) => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  vertical-align: middle;
 }
 
 .count {

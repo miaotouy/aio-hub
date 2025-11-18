@@ -17,7 +17,7 @@
  */
 
 import { serviceRegistry } from '@/services/registry';
-import type LlmChatService from '@/tools/llm-chat/llmChat.service';
+import type LlmChatService from '@/tools/llm-chat/llmChat.registry';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
 

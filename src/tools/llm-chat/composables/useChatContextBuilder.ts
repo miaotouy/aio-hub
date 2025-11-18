@@ -7,7 +7,7 @@ import type { ChatSession, ChatMessageNode, ContextPostProcessRule } from "../ty
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { createModuleLogger } from "@/utils/logger";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { useChatAssetProcessor } from "./useChatAssetProcessor";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { useAgentStore } from "../agentStore";

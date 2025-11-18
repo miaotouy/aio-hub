@@ -11,7 +11,7 @@ import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { useTopicNamer } from "./useTopicNamer";
 import { useSessionManager } from "./useSessionManager";
 import { useMessageProcessor } from "./useMessageProcessor";

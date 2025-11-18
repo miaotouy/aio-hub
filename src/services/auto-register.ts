@@ -14,12 +14,12 @@ type ServiceModule = {
 /**
  * 自动发现并注册所有工具服务
  *
- * 此函数会扫描 src/tools 目录下所有以 .service.ts 结尾的文件，
+ * 此函数会扫描 src/tools 目录下所有以 .registry.ts 结尾的文件，
  * 动态导入它们，实例化默认导出的服务类，并注册到服务注册表中。
  *
  * 约定：
- * - 服务文件必须以 .service.ts 结尾
- * - 服务文件必须默认导出一个实现了 ToolService 接口的类
+ * - 工具注册表文件必须以 .registry.ts 结尾
+ * - 文件必须默认导出一个实现了 ToolService 接口的类
  *
  * @returns Promise，在所有服务注册完成后 resolve
  */
@@ -27,14 +27,14 @@ export async function autoRegisterServices(): Promise<void> {
   logger.info("开始自动扫描和注册服务");
 
   try {
-    // 使用 Vite 的 import.meta.glob 匹配 src/tools/ 目录下所有以 .service.ts 结尾的文件
-    const serviceModules = import.meta.glob<ServiceModule>("../tools/**/*.service.ts");
+    // 使用 Vite 的 import.meta.glob 匹配 src/tools/ 目录下所有以 .registry.ts 结尾的文件
+    const serviceModules = import.meta.glob<ServiceModule>("../tools/**/*.registry.ts");
 
     const modulePaths = Object.keys(serviceModules);
     logger.info(`发现 ${modulePaths.length} 个服务模块文件`, { paths: modulePaths });
 
     if (modulePaths.length === 0) {
-      logger.warn("未发现任何服务模块，请确保服务文件以 .service.ts 结尾");
+      logger.debug("未发现任何工具注册表模块，请确保文件以 .registry.ts 结尾");
       return;
     }
 

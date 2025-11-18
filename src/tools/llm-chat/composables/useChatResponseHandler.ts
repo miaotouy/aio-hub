@@ -6,7 +6,7 @@
 import type { ChatSession } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 

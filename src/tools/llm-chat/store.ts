@@ -18,7 +18,7 @@ import type { ChatSession, ChatMessageNode, LlmParameters, HistoryDelta, NodeRel
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 
 const logger = createModuleLogger("llm-chat/store");
 

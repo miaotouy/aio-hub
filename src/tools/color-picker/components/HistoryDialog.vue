@@ -31,7 +31,6 @@ const allHistory = ref<ColorHistoryIndexItem[]>([]); // 所有历史记录
 const displayedHistory = ref<ColorHistoryIndexItem[]>([]); // 当前显示的记录
 const currentPage = ref(1);
 const hasMore = ref(true);
-const isLoading = ref(false);
 const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
 
@@ -41,7 +40,6 @@ const isDialogVisible = computed({
 });
 
 async function fetchHistory() {
-  isLoading.value = true;
   currentPage.value = 1;
   displayedHistory.value = [];
   try {
@@ -54,8 +52,6 @@ async function fetchHistory() {
   } catch (error) {
     logger.error('加载历史记录索引失败', error);
     customMessage.error('加载历史记录失败');
-  } finally {
-    isLoading.value = false;
   }
 }
 
@@ -240,7 +236,7 @@ watch(
     :show-close="true"
     :show-footer="true"
   >
-    <div class="history-dialog-content" v-loading="isLoading">
+    <div class="history-dialog-content">
       <div v-if="displayedHistory.length > 0" class="history-list-container" @scroll="handleScroll">
         <el-scrollbar>
           <div class="history-grid">
@@ -250,7 +246,11 @@ watch(
               class="history-card"
             >
               <div class="card-image">
+                <el-icon v-if="record.assetId && !thumbnailUrls[record.id]" class="is-loading" :size="28">
+                  <Loading />
+                </el-icon>
                 <el-avatar
+                  v-else
                   shape="square"
                   :size="120"
                   :src="thumbnailUrls[record.id]"

@@ -112,7 +112,7 @@ export interface TraditionalProfile {
 ### 4.1. 提供商抽象层 (Provider Abstraction Layer)
 
 - **`useTranslationProfiles.ts`**: 新建的 Composable，负责管理 `translation-service/profiles.json`，提供对传统翻译服务配置的增删改查能力。
-- **`translator.service.ts`**:
+- **`translator.registry.ts`**:
   - 定义统一的 `TranslationProvider` 接口：`interface TranslationProvider { translate(text: string, options: TranslationChannel): Promise<{ content: string; error?: Error; }> }`
   - 实现 `LlmTranslationProvider`：内部调用 `useLlmRequest`，将 `TranslationChannel` 配置转换为 `LlmRequestOptions`。
   - 实现 `TraditionalTranslationProvider`：根据 `providerType` 调用不同的传统 API 客户端。
@@ -136,7 +136,7 @@ export interface TraditionalProfile {
 2.  **定义核心类型**: 完成 `types.ts` 中 `PresetSlot`, `TranslationChannel` 等核心数据结构的定义。
 3.  **构建 Provider 抽象**:
     - 创建 `useTranslationProfiles` Composable 及对应的配置文件。
-    - 在 `translator.service.ts` 中定义 `TranslationProvider` 接口。
+    - 在 `translator.registry.ts` 中定义 `TranslationProvider` 接口。
     - 优先实现 `LlmTranslationProvider`，使其能够调用已有的 LLM 服务。
 4.  **基础 UI**: 实现一个最简 UI，包含输入框和单一结果展示区，验证 `LlmTranslationProvider` 工作正常。
 

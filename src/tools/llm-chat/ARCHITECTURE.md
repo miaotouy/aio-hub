@@ -97,7 +97,7 @@ graph TD
 - **`useChatInputManager`**: 这是一个全局单例 Composable，统一管理聊天输入框的状态（文本和附件）。
 - **跨窗口同步**: 确保主窗口和分离窗口的输入内容实时同步。
 - **草稿持久化**: 未发送的输入内容（包括附件）会自动保存到 `localStorage`，在应用重启后可以恢复，防止意外丢失。
-- **外观服务**: 通过 `llmChat.service.ts` 提供一个轻量级的外观，为其他工具（如 Agent）提供一个稳定的编程接口来与输入框交互。
+- **外观服务**: 通过 `llmChat.registry.ts` 提供一个轻量级的外观，为其他工具（如 Agent）提供一个稳定的编程接口来与输入框交互。
 
 ### 1.7. 上下文管理与截断 (Context Management)
 
@@ -234,7 +234,7 @@ graph TD
 - **View (Vue Components)**:
   - 位于 `components/` 目录下，负责UI渲染和用户交互。`LlmChat.vue` 是主入口。
 - **Service (Facade)**:
-  - `llmChat.service.ts`: 提供一个轻量级的外观服务，封装内部实现，为外部工具提供稳定的交互接口。
+  - `llmChat.registry.ts`: 提供一个轻量级的外观服务，封装内部实现，为外部工具提供稳定的交互接口。
 
 ## 3. 数据流：发送一条新消息
 

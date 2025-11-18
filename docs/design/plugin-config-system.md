@@ -155,7 +155,7 @@ export default {
 
 1.  **[x] 设计与文档**: 完成本文档。
 2.  **[ ] 更新类型定义**: 在 `src/services/plugin-types.ts` 中为 `PluginManifest` 添加 `settingsSchema` 定义。
-3.  **[ ] 创建核心服务**: 创建 `src/services/plugin-config.service.ts`，实现上述 API 和迁移逻辑。
+3.  **[ ] 创建核心服务**: 创建 `src/services/plugin-config.registry.ts`，实现上述 API 和迁移逻辑。
 4.  **[ ] 集成到插件生命周期**:
     - 修改 `plugin-loader.ts`，在加载时初始化插件配置。
     - 修改 `js-plugin-adapter.ts`，向 `context` 注入 `settings` API。

@@ -162,7 +162,7 @@ sequenceDiagram
 src/
 ├── services/
 │   └── browser-connector/
-│       ├── connector.service.ts   # 核心服务，管理WebSocket和消息路由
+│       ├── connector.registry.ts   # 核心服务，管理WebSocket和消息路由
 │       └── data-handler.ts      # 负责处理接收到的数据
 └── tools/
     └── bilibili-companion/
@@ -182,7 +182,7 @@ extensions/
     │   │   └── SubtitleList.vue
     │   ├── services/
     │   │   ├── bilibili.controller.ts # B站播放器交互逻辑
-    │   │   └── connection.service.ts  # 封装WebSocket连接
+    │   │   └── connection.registry.ts  # 封装WebSocket连接
     │   └── store.ts               # 扩展内部的状态管理 (Pinia)
     ├── manifest.json
     └── ... (构建配置)
@@ -202,8 +202,8 @@ extensions/
 
 ### Phase 2: 与 AIO Hub 建立数据通道
 
-1.  **WebSocket 服务**: 在 AIO Hub 中实现 `connector.service.ts`，启动 WebSocket 服务并监听连接。
-2.  **扩展连接**: 在扩展中实现 `connection.service.ts`，连接到 AIO Hub 的 WebSocket 服务。
+1.  **WebSocket 服务**: 在 AIO Hub 中实现 `connector.registry.ts`，启动 WebSocket 服务并监听连接。
+2.  **扩展连接**: 在扩展中实现 `connection.registry.ts`，连接到 AIO Hub 的 WebSocket 服务。
 3.  **数据推送**: 在扩展的 UI 中添加“发送到知识库”按钮，点击后，通过 WebSocket 发送 `PUSH_VIDEO_DATA` 事件。
 4.  **数据接收与处理**: 在 AIO Hub 的 `data-handler.ts` 中实现对接收数据的解析和处理逻辑（例如，打印到控制台）。
 5.  **端到端验证**: 验证从扩展点击按钮到 AIO Hub 成功接收到完整数据的链路。

@@ -25,7 +25,7 @@
 #### 1.2 多模态处理增强
 - [ ] **自动降维处理**：
   - [x] 实现模型能力检测逻辑 (`src/composables/useModelMetadata.ts`)
-  - [ ] **集成 OCR**: 在 `useChatHandler` 中，为不支持图片输入的模型自动调用 `smart-ocr` 服务进行转写。(依赖: `smartOcr.service.ts` 已提供 `processImages` 接口)
+  - [ ] **集成 OCR**: 在 `useChatHandler` 中，为不支持图片输入的模型自动调用 `smart-ocr` 服务进行转写。(依赖: `smartOcr.registry.ts` 已提供 `processImages` 接口)
   - [ ] **集成 ASR (新功能)**: 集成语音识别服务，自动转写音视频内容为文本。
   - [ ] 在上下文构建时智能选择原始内容或转写文本。
 

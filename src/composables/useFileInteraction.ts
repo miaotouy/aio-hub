@@ -13,6 +13,8 @@ export interface FileInteractionOptions extends Omit<FileDropOptions, 'onDrop'> 
   enablePaste?: boolean
   // 粘贴时的文件处理方式
   pasteMode?: 'file' | 'asset'
+  // 来源模块标识 (e.g., 'llm-chat', 'file-import')
+  sourceModule?: string
   // 文件处理回调（用于拖放和粘贴）
   onFiles?: (files: File[]) => void | Promise<void>
   // 路径处理回调（用于拖放）
@@ -77,6 +79,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   const {
     enablePaste = true,
     pasteMode = 'file',
+    sourceModule = 'file-import',
     onFiles,
     onPaths,
     onAssets,
@@ -121,6 +124,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
             origin: {
               type: 'clipboard',
               source: 'clipboard',
+              sourceModule,
             },
           },
         })
@@ -350,6 +354,7 @@ export function useChatFileInteraction(
 ) {
   return useFileInteraction({
     ...options,
+    sourceModule: 'llm-chat',
     pasteMode: 'asset',
     multiple: true,
     showPasteMessage: false, // 由调用者自行控制消息显示

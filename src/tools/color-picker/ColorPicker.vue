@@ -146,7 +146,16 @@ async function runInitialAnalysis() {
     const buffer = await currentImageBlob.value.arrayBuffer();
     // 使用 blob 的 name 属性，如果它是一个 File 对象
     const fileName = (currentImageBlob.value as File).name || 'image.png';
-    const asset = await assetManager.importAssetFromBytes(buffer, fileName);
+    const asset = await assetManager.importAssetFromBytes(buffer, fileName, {
+      sourceModule: 'color-picker',
+      origin: {
+        type: 'local',
+        source: 'color-picker',
+        sourceModule: 'color-picker',
+      },
+      generateThumbnail: true,
+      enableDeduplication: true,
+    });
     if (!asset) throw new Error('资产创建失败');
     store.setCurrentImage(asset.id, asset.name);
 
@@ -272,6 +281,7 @@ const handleFilePaths = async (paths: string[]) => {
 // 设置文件拖放和粘贴交互
 const { isDraggingOver: isDraggingOverInternal, cleanup } = useFileInteraction({
   element: dropAreaRef,
+  sourceModule: 'color-picker',
   onPaths: handleFilePaths,
   onFiles: handleImageFiles,
   imageOnly: true,

@@ -11,7 +11,7 @@ import {
   Menu,
   FolderOpened,
 } from '@element-plus/icons-vue';
-import { Braces, FlaskConical } from 'lucide-vue-next';
+import { Braces, FlaskConical, Pipette } from 'lucide-vue-next';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
 import RichTextRendererIcon from '../components/icons/RichTextRendererIcon.vue';
@@ -47,6 +47,14 @@ const initialTools: ToolConfig[] = [
     icon: markRaw(OcrIcon),
     component: () => import('../tools/smart-ocr/SmartOcr.vue'),
     description: '智能OCR文字识别工具，支持多引擎和智能切图',
+    category: 'AI 工具'
+  },
+  {
+    name: '图片色彩分析',
+    path: '/color-picker',
+    icon: markRaw(Pipette),
+    component: () => import('../tools/color-picker/ColorPicker.vue'),
+    description: '从图片中提取颜色，支持多种算法分析主色调、调色板和平均色',
     category: 'AI 工具'
   },
   // 文本处理

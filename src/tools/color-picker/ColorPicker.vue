@@ -111,6 +111,7 @@ import { hexToRgb } from './composables/useColorConverter';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { createModuleLogger } from '@/utils/logger';
+import { useDebounceFn } from '@vueuse/core';
 import InfoCard from '@/components/common/InfoCard.vue';
 import RightPanel from './components/RightPanel.vue';
 import HistoryDialog from './components/HistoryDialog.vue';
@@ -120,7 +121,7 @@ const logger = createModuleLogger('color-picker/ColorPicker');
 const store = useColorPickerStore();
 const assetManager = useAssetManager();
 const { extractColors, extractQuantizeColors } = useColorExtractor();
-const { addRecord, loadFullRecord } = useColorHistory();
+const { addRecord, updateRecord, loadFullRecord } = useColorHistory();
 
 // const { imageRef, onImageLoad } = useColorAnalysis();
 const imageRef = ref<HTMLImageElement | null>(null);
@@ -169,16 +170,18 @@ async function runInitialAnalysis() {
 
     // 4. 保存到历史记录（使用持久化存储）
     try {
-      await addRecord(
+      const record = await addRecord(
         {
           assetId: asset.id,
           sourceImageName: asset.name,
           createdAt: Date.now(),
           analysisResult: result,
+          manualPalette: [],
         },
         asset
       );
-      logger.info('已保存分析结果到历史记录', { assetId: asset.id });
+      store.setCurrentRecordId(record.id);
+      logger.info('已保存分析结果到历史记录', { assetId: asset.id, recordId: record.id });
     } catch (error) {
       errorHandler.error(error, '保存历史记录失败');
     }
@@ -231,6 +234,7 @@ const handleImageFiles = (files: File[]) => {
     URL.revokeObjectURL(imageUrl.value);
   }
   currentImageBlob.value = null;
+  // store.clearCurrent() 已经清除了 recordId，这里不需要重复清除
 
   // 保存 Blob 用于后续分析
   currentImageBlob.value = file;
@@ -253,6 +257,7 @@ const handleFilePaths = async (paths: string[]) => {
     URL.revokeObjectURL(imageUrl.value);
   }
   currentImageBlob.value = null;
+  // store.clearCurrent() 已经清除了 recordId
 
   // 2. 立即使用 tauri api 创建预览URL以快速显示图片
   imageUrl.value = convertFileSrc(path);
@@ -337,6 +342,7 @@ async function handleLoadFromHistory(recordId: string) {
       URL.revokeObjectURL(imageUrl.value);
     }
     currentImageBlob.value = null;
+    store.setCurrentRecordId(null); // 暂停记录关联，避免加载过程触发自动保存
 
     // 从资产获取图片
     const asset = assetManager.assets.value.find(a => a.id === record.assetId);
@@ -351,7 +357,16 @@ async function handleLoadFromHistory(recordId: string) {
     // 设置 store 状态
     store.setCurrentImage(record.assetId, record.sourceImageName);
     store.setAnalysisResult(record.analysisResult);
-    store.clearManualPalette();
+    
+    // 恢复手动取色板
+    if (record.manualPalette) {
+      // 需要手动赋值，因为 store 中没有 setManualPalette 方法，但 manualPalette 是 ref
+      store.manualPalette = [...record.manualPalette];
+    } else {
+      store.clearManualPalette();
+    }
+
+    store.setCurrentRecordId(recordId); // 重新建立关联
 
     customMessage.success('已加载历史记录');
     logger.info('从历史记录加载成功', { recordId });
@@ -389,6 +404,31 @@ function useManualPicker() {
 
   return { openEyeDropper, isEyeDropperSupported };
 }
+
+// --- Auto Save Logic ---
+
+const autoSaveToHistory = useDebounceFn(async () => {
+  if (!store.currentRecordId || !store.currentAnalysisResult) return;
+
+  try {
+    await updateRecord(store.currentRecordId, {
+      analysisResult: store.currentAnalysisResult,
+      manualPalette: store.manualPalette,
+    });
+  } catch (error) {
+    logger.warn('自动保存历史记录失败', error);
+  }
+}, 1000);
+
+watch(
+  [() => store.currentAnalysisResult, () => store.manualPalette],
+  () => {
+    if (store.currentRecordId) {
+      autoSaveToHistory();
+    }
+  },
+  { deep: true }
+);
 
 // 清理
 onUnmounted(() => {

@@ -12,7 +12,7 @@ import { createConfigManager } from '@/utils/configManager';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { createModuleLogger } from '@/utils/logger';
 import { nanoid } from 'nanoid';
-import type { ColorAnalysisResult } from '../colorPicker.store';
+import type { ColorAnalysisResult, ManualColor } from '../colorPicker.store';
 
 const logger = createModuleLogger('color-picker/history');
 
@@ -41,6 +41,7 @@ export interface ColorHistoryRecord {
   sourceImageName: string;
   createdAt: number;
   analysisResult: ColorAnalysisResult; // 完整的分析结果
+  manualPalette?: ManualColor[]; // 手动取色记录
 }
 
 /**
@@ -233,6 +234,50 @@ export function useColorHistory() {
   }
 
   /**
+   * 更新一条已存在的历史记录
+   */
+  async function updateRecord(
+    recordId: string,
+    updates: Partial<Omit<ColorHistoryRecord, 'id' | 'createdAt'>>
+  ): Promise<void> {
+    try {
+      // 1. 读取现有记录
+      const recordPath = await getHistoryRecordPath(recordId);
+      if (!(await exists(recordPath))) {
+        logger.warn('尝试更新不存在的记录', { recordId });
+        return;
+      }
+      
+      const content = await readTextFile(recordPath);
+      const record: ColorHistoryRecord = JSON.parse(content);
+
+      // 2. 应用更新
+      const updatedRecord = {
+        ...record,
+        ...updates,
+      };
+
+      // 3. 保存回文件
+      await writeTextFile(recordPath, JSON.stringify(updatedRecord, null, 2));
+
+      // 4. 如果更新了影响索引的字段（如 analysisResult），也更新索引
+      if (updates.analysisResult) {
+        const index = await loadHistoryIndex();
+        const indexItem = index.records.find(r => r.id === recordId);
+        if (indexItem) {
+          indexItem.colorPreview = extractPreviewColors(updatedRecord.analysisResult);
+          await saveHistoryIndex(index);
+        }
+      }
+
+      logger.debug('历史记录已更新', { recordId });
+    } catch (error) {
+      logger.error('更新历史记录失败', error, { recordId });
+      throw error;
+    }
+  }
+
+  /**
    * 删除一条历史记录
    */
   async function deleteRecord(recordId: string): Promise<void> {
@@ -310,6 +355,7 @@ export function useColorHistory() {
     loadHistoryIndex,
     loadFullRecord,
     addRecord,
+    updateRecord,
     deleteRecord,
     clearAllRecords,
   };

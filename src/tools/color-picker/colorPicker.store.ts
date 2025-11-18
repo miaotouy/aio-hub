@@ -67,6 +67,7 @@ export const useColorPickerStore = defineStore('color-picker', () => {
   // 当前工作区
   const currentImageAssetUri = ref<string | null>(null);
   const currentImageName = ref<string | null>(null);
+  const currentRecordId = ref<string | null>(null); // 当前关联的历史记录 ID
   const currentAnalysisResult = ref<ColorAnalysisResult | null>(null);
   
   // UI 状态
@@ -110,6 +111,13 @@ export const useColorPickerStore = defineStore('color-picker', () => {
     currentImageAssetUri.value = assetUri;
     currentImageName.value = imageName;
     logger.info('设置当前图片', { assetUri, imageName });
+  }
+
+  /**
+   * 设置当前历史记录 ID
+   */
+  function setCurrentRecordId(id: string | null) {
+    currentRecordId.value = id;
   }
   
   /**
@@ -211,6 +219,7 @@ export const useColorPickerStore = defineStore('color-picker', () => {
   function clearCurrent() {
     currentImageAssetUri.value = null;
     currentImageName.value = null;
+    currentRecordId.value = null;
     currentAnalysisResult.value = null;
     manualPalette.value = [];
     logger.info('清除当前工作区');
@@ -222,6 +231,7 @@ export const useColorPickerStore = defineStore('color-picker', () => {
   function reset() {
     currentImageAssetUri.value = null;
     currentImageName.value = null;
+    currentRecordId.value = null;
     currentAnalysisResult.value = null;
     selectedAlgorithm.value = 'quantize';
     preferredFormat.value = 'hex';
@@ -235,6 +245,7 @@ export const useColorPickerStore = defineStore('color-picker', () => {
     // 状态
     currentImageAssetUri,
     currentImageName,
+    currentRecordId,
     currentAnalysisResult,
     selectedAlgorithm,
     preferredFormat,
@@ -249,6 +260,7 @@ export const useColorPickerStore = defineStore('color-picker', () => {
     
     // 方法
     setCurrentImage,
+    setCurrentRecordId,
     setAnalysisResult,
     updateAlgorithmResult,
     setAlgorithm,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { ElMessageBox, ElIcon } from 'element-plus';
+import { ElMessageBox, ElAvatar, ElIcon } from 'element-plus';
 import { Loading } from '@element-plus/icons-vue';
 import { useColorHistory } from '../composables/useColorHistory';
 import type { ColorHistoryIndexItem } from '../composables/useColorHistory';
@@ -10,7 +10,6 @@ import { createModuleLogger } from '@/utils/logger';
 import { customMessage } from '@/utils/customMessage';
 import { format } from 'date-fns';
 import BaseDialog from '@/components/common/BaseDialog.vue';
-import Avatar from '@/components/common/Avatar.vue';
 
 const props = defineProps<{
   visible: boolean;
@@ -250,13 +249,16 @@ watch(
               :key="record.id"
               class="history-card"
             >
-              <div class="card-image" @click="handlePreview(record)">
-                <Avatar 
-                  :src="thumbnailUrls[record.id]" 
-                  :alt="record.sourceImageName" 
-                  :size="120"
+              <div class="card-image">
+                <el-avatar
                   shape="square"
-                />
+                  :size="120"
+                  :src="thumbnailUrls[record.id]"
+                  class="thumbnail-preview"
+                  @click="handlePreview(record)"
+                >
+                  🖼️
+                </el-avatar>
               </div>
               
               <div class="card-content">
@@ -369,9 +371,15 @@ watch(
   justify-content: center;
 }
 
-.card-image :deep(.el-avatar) {
+.thumbnail-preview {
+  cursor: pointer;
+  transition: transform 0.2s;
   width: 100%;
   height: 100%;
+}
+
+.thumbnail-preview:hover {
+  transform: scale(1.05);
 }
 
 .card-content {

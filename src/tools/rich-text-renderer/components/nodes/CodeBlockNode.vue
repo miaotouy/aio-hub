@@ -341,6 +341,8 @@ onMounted(async () => {
       fontSize: 13,
       lineNumbers: "on" as const,
       renderLineHighlight: "none" as const,
+      // 禁用验证装饰器（波浪线），避免流式传输时频繁报错
+      renderValidationDecorations: "off" as const,
       scrollbar: {
         // 让 Monaco 自己处理滚动
         vertical: "auto" as const,
@@ -358,6 +360,8 @@ onMounted(async () => {
     const helpers = useMonaco({
       ...editorOptions,
       themes: [themeLight.default, themeDark.default],
+      // 关键：节流更新，避免每一帧都重绘导致 CPU 飙升和闪烁
+      updateThrottleMs: 120,
     });
 
     // 创建空编辑器，然后通过 updateCode 填充内容，

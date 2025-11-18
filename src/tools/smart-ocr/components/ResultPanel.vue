@@ -1,13 +1,26 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { customMessage } from '@/utils/customMessage';
-import { CopyDocument, Loading, CircleCheck, CircleClose, Refresh, Hide, ChatDotRound, ArrowDown, ArrowRight, Edit, Check, Close } from '@element-plus/icons-vue';
-import type { OcrResult, UploadedImage, ImageBlock } from '../types';
-import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { createModuleLogger } from '@utils/logger';
-import { useSendToChat } from '@/composables/useSendToChat';
+import { computed, ref } from "vue";
+import { customMessage } from "@/utils/customMessage";
+import {
+  CopyDocument,
+  Loading,
+  CircleCheck,
+  CircleClose,
+  Refresh,
+  Hide,
+  ChatDotRound,
+  ArrowDown,
+  ArrowRight,
+  Edit,
+  Check,
+  Close,
+} from "@element-plus/icons-vue";
+import type { OcrResult, UploadedImage, ImageBlock } from "../types";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { createModuleLogger } from "@utils/logger";
+import { useSendToChat } from "@/composables/useSendToChat";
 
-const logger = createModuleLogger('smart-ocr/ResultPanel');
+const logger = createModuleLogger("smart-ocr/ResultPanel");
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
@@ -18,7 +31,7 @@ const collapsedBlocks = ref<Set<string>>(new Set());
 
 // 编辑状态管理
 const editingBlockId = ref<string | null>(null);
-const editingText = ref<string>('');
+const editingText = ref<string>("");
 
 const props = defineProps<{
   ocrResults: OcrResult[];
@@ -36,84 +49,84 @@ const emit = defineEmits<{
 // 按图片分组结果
 const groupedResults = computed(() => {
   const groups = new Map<string, OcrResult[]>();
-  
-  props.ocrResults.forEach(result => {
+
+  props.ocrResults.forEach((result) => {
     if (!groups.has(result.imageId)) {
       groups.set(result.imageId, []);
     }
     groups.get(result.imageId)!.push(result);
   });
-  
+
   return groups;
 });
 
 // 计算已完成的数量
 const completedCount = computed(() => {
-  return props.ocrResults.filter(r => r.status === 'success').length;
+  return props.ocrResults.filter((r) => r.status === "success").length;
 });
 
 // 计算总文本（排除被忽略的块）
 const allText = computed(() => {
   return props.ocrResults
-    .filter(r => r.status === 'success' && !r.ignored)
-    .map(r => r.text)
-    .join('\n\n');
+    .filter((r) => r.status === "success" && !r.ignored)
+    .map((r) => r.text)
+    .join("\n\n");
 });
 
 // 获取图片名称
 const getImageName = (imageId: string) => {
-  const image = props.uploadedImages.find(img => img.id === imageId);
-  return image?.name || '未知图片';
+  const image = props.uploadedImages.find((img) => img.id === imageId);
+  return image?.name || "未知图片";
 };
 
 // 获取块在图片中的索引
 const getBlockIndex = (imageId: string, blockId: string) => {
   const blocks = props.imageBlocksMap.get(imageId) || [];
-  return blocks.findIndex(b => b.id === blockId) + 1;
+  return blocks.findIndex((b) => b.id === blockId) + 1;
 };
 
 // 复制文本
-const copyText = async (text: string, context: string = '单个结果') => {
+const copyText = async (text: string, context: string = "单个结果") => {
   try {
     await writeText(text);
-    customMessage.success('已复制到剪贴板');
+    customMessage.success("已复制到剪贴板");
   } catch (error) {
     logger.error(`复制${context}到剪贴板失败`, error, {
       context,
       textLength: text.length,
     });
-    customMessage.error('复制失败');
+    customMessage.error("复制失败");
   }
 };
 
 // 复制所有文本
 const copyAllText = async () => {
   if (!allText.value) {
-    customMessage.warning('暂无可复制的内容');
+    customMessage.warning("暂无可复制的内容");
     return;
   }
-  await copyText(allText.value, '全部结果');
+  await copyText(allText.value, "全部结果");
 };
 
 // 发送所有文本到聊天
 const sendAllToChat = () => {
   if (!allText.value) {
-    customMessage.warning('暂无可发送的内容');
+    customMessage.warning("暂无可发送的内容");
     return;
   }
   sendToChat(allText.value, {
-    successMessage: '已将OCR识别结果发送到聊天',
+    successMessage: "已将OCR识别结果发送到聊天",
   });
 };
 
 // 获取状态图标
-const getStatusIcon = (status: OcrResult['status']) => {
+const getStatusIcon = (status: OcrResult["status"]) => {
   switch (status) {
-    case 'success':
+    case "success":
       return CircleCheck;
-    case 'error':
+    case "error":
       return CircleClose;
-    case 'processing':
+    case "processing":
       return Loading;
     default:
       return Loading;
@@ -121,41 +134,41 @@ const getStatusIcon = (status: OcrResult['status']) => {
 };
 
 // 获取状态类型
-const getStatusType = (status: OcrResult['status']): 'success' | 'danger' | 'warning' | 'info' => {
+const getStatusType = (status: OcrResult["status"]): "success" | "danger" | "warning" | "info" => {
   switch (status) {
-    case 'success':
-      return 'success';
-    case 'error':
-      return 'danger';
-    case 'processing':
-      return 'warning';
+    case "success":
+      return "success";
+    case "error":
+      return "danger";
+    case "processing":
+      return "warning";
     default:
-      return 'info';
+      return "info";
   }
 };
 
 // 获取状态文本
-const getStatusText = (status: OcrResult['status']) => {
+const getStatusText = (status: OcrResult["status"]) => {
   switch (status) {
-    case 'success':
-      return '完成';
-    case 'error':
-      return '失败';
-    case 'processing':
-      return '识别中';
+    case "success":
+      return "完成";
+    case "error":
+      return "失败";
+    case "processing":
+      return "识别中";
     default:
-      return '等待中';
+      return "等待中";
   }
 };
 
 // 处理重试
 const handleRetry = (blockId: string) => {
-  emit('retryBlock', blockId);
+  emit("retryBlock", blockId);
 };
 
 // 处理忽略切换
 const handleToggleIgnore = (blockId: string) => {
-  emit('toggleIgnore', blockId);
+  emit("toggleIgnore", blockId);
 };
 
 // 切换图片组折叠状态
@@ -190,7 +203,7 @@ const isBlockCollapsed = (blockId: string) => {
 const startEdit = (blockId: string, currentText: string) => {
   editingBlockId.value = blockId;
   editingText.value = currentText;
-  logger.info('开始编辑文本', { blockId, textLength: currentText.length });
+  logger.info("开始编辑文本", { blockId, textLength: currentText.length });
 };
 
 // 保存编辑
@@ -198,22 +211,22 @@ const saveEdit = () => {
   if (editingBlockId.value) {
     const blockId = editingBlockId.value;
     const newText = editingText.value;
-    
-    emit('updateText', blockId, newText);
-    
+
+    emit("updateText", blockId, newText);
+
     editingBlockId.value = null;
-    editingText.value = '';
-    
-    customMessage.success('文本已更新');
-    logger.info('保存编辑', { blockId, textLength: newText.length });
+    editingText.value = "";
+
+    customMessage.success("文本已更新");
+    logger.info("保存编辑", { blockId, textLength: newText.length });
   }
 };
 
 // 取消编辑
 const cancelEdit = () => {
   editingBlockId.value = null;
-  editingText.value = '';
-  logger.info('取消编辑');
+  editingText.value = "";
+  logger.info("取消编辑");
 };
 
 // 检查是否正在编辑
@@ -230,12 +243,7 @@ const isEditing = (blockId: string) => {
         <el-tag v-if="ocrResults.length > 0" size="small">
           {{ completedCount }} / {{ ocrResults.length }}
         </el-tag>
-        <el-button
-          v-if="allText"
-          size="small"
-          :icon="CopyDocument"
-          @click="copyAllText"
-        >
+        <el-button v-if="allText" size="small" :icon="CopyDocument" @click="copyAllText">
           复制全部
         </el-button>
         <el-button
@@ -249,22 +257,18 @@ const isEditing = (blockId: string) => {
         </el-button>
       </div>
     </div>
-    
+
     <div class="panel-content">
       <template v-if="ocrResults.length === 0 && !isProcessing">
         <div class="empty-state">
           <el-empty description="暂无识别结果" />
         </div>
       </template>
-      
+
       <template v-else>
         <div class="result-list">
           <!-- 按图片分组显示 -->
-          <div
-            v-for="[imageId, results] in groupedResults"
-            :key="imageId"
-            class="image-group"
-          >
+          <div v-for="[imageId, results] in groupedResults" :key="imageId" class="image-group">
             <div class="group-header" @click="toggleGroupCollapse(imageId)">
               <div class="group-header-left">
                 <el-icon class="collapse-icon">
@@ -275,10 +279,10 @@ const isEditing = (blockId: string) => {
                 </el-text>
               </div>
               <el-tag size="small">
-                {{ results.filter(r => r.status === 'success').length }} / {{ results.length }}
+                {{ results.filter((r) => r.status === "success").length }} / {{ results.length }}
               </el-tag>
             </div>
-            
+
             <div v-show="!isGroupCollapsed(imageId)" class="group-content">
               <div
                 v-for="result in results"
@@ -302,42 +306,52 @@ const isEditing = (blockId: string) => {
                     <el-tag v-if="result.ignored" size="small" type="info">已忽略</el-tag>
                   </div>
                   <div class="header-actions" @click.stop>
-                    <el-button
+                    <el-tooltip
                       v-if="result.status === 'error' || result.status === 'success'"
-                      size="small"
-                      :icon="Refresh"
-                      @click="handleRetry(result.blockId)"
+                      content="重试"
+                      placement="top"
                     >
-                      重试
-                    </el-button>
-                    <el-button
+                      <el-button
+                        size="small"
+                        :icon="Refresh"
+                        @click="handleRetry(result.blockId)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
                       v-if="result.status === 'success'"
-                      size="small"
-                      :icon="Hide"
-                      :type="result.ignored ? 'primary' : 'default'"
-                      @click="handleToggleIgnore(result.blockId)"
+                      :content="result.ignored ? '取消忽略' : '忽略'"
+                      placement="top"
                     >
-                      {{ result.ignored ? '取消忽略' : '忽略' }}
-                    </el-button>
-                    <el-button
+                      <el-button
+                        size="small"
+                        :icon="Hide"
+                        :type="result.ignored ? 'primary' : 'default'"
+                        @click="handleToggleIgnore(result.blockId)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
                       v-if="result.status === 'success' && !isEditing(result.blockId)"
-                      size="small"
-                      :icon="Edit"
-                      @click="startEdit(result.blockId, result.text)"
+                      content="编辑"
+                      placement="top"
                     >
-                      编辑
-                    </el-button>
-                    <el-button
-                      v-if="result.status === 'success' && result.text && !isEditing(result.blockId)"
-                      size="small"
-                      :icon="CopyDocument"
-                      @click="copyText(result.text)"
+                      <el-button
+                        size="small"
+                        :icon="Edit"
+                        @click="startEdit(result.blockId, result.text)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
+                      v-if="
+                        result.status === 'success' && result.text && !isEditing(result.blockId)
+                      "
+                      content="复制"
+                      placement="top"
                     >
-                      复制
-                    </el-button>
+                      <el-button size="small" :icon="CopyDocument" @click="copyText(result.text)" />
+                    </el-tooltip>
                   </div>
                 </div>
-                
+
                 <div v-show="!isBlockCollapsed(result.blockId)" class="result-content">
                   <template v-if="result.status === 'processing'">
                     <div class="loading-state">
@@ -345,13 +359,13 @@ const isEditing = (blockId: string) => {
                       <el-text type="info">正在识别...</el-text>
                     </div>
                   </template>
-                  
+
                   <template v-else-if="result.status === 'error'">
                     <div class="error-state">
-                      <el-text type="danger">{{ result.error || '识别失败' }}</el-text>
+                      <el-text type="danger">{{ result.error || "识别失败" }}</el-text>
                     </div>
                   </template>
-                  
+
                   <template v-else-if="result.status === 'success'">
                     <!-- 编辑模式 -->
                     <template v-if="isEditing(result.blockId)">
@@ -364,29 +378,25 @@ const isEditing = (blockId: string) => {
                           class="edit-textarea"
                         />
                         <div class="edit-actions">
-                          <el-button
-                            size="small"
-                            type="primary"
-                            :icon="Check"
-                            @click="saveEdit"
-                          >
-                            保存
-                          </el-button>
-                          <el-button
-                            size="small"
-                            :icon="Close"
-                            @click="cancelEdit"
-                          >
-                            取消
-                          </el-button>
+                          <el-tooltip content="保存" placement="top">
+                            <el-button
+                              size="small"
+                              type="primary"
+                              :icon="Check"
+                              @click="saveEdit"
+                            />
+                          </el-tooltip>
+                          <el-tooltip content="取消" placement="top">
+                            <el-button size="small" :icon="Close" @click="cancelEdit" />
+                          </el-tooltip>
                         </div>
                       </div>
                     </template>
-                    
+
                     <!-- 显示模式 -->
                     <template v-else>
                       <div class="text-content">
-                        <pre>{{ result.text || '(无文本)' }}</pre>
+                        <pre>{{ result.text || "(无文本)" }}</pre>
                       </div>
                       <div v-if="result.confidence" class="confidence">
                         <el-text size="small" type="info">
@@ -395,7 +405,7 @@ const isEditing = (blockId: string) => {
                       </div>
                     </template>
                   </template>
-                  
+
                   <template v-else>
                     <div class="pending-state">
                       <el-text type="info">等待处理...</el-text>
@@ -420,16 +430,20 @@ const isEditing = (blockId: string) => {
 }
 
 .panel-header {
-  padding: 20px;
+  padding: 16px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  flex-shrink: 0;
+  border-radius: 8px 8px 0 0;
 }
 
 .panel-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-color);
 }
@@ -437,18 +451,14 @@ const isEditing = (blockId: string) => {
 .header-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 2px;
   align-items: center;
-}
-
-:deep(.el-button) {
-    margin-left: 2px;
 }
 
 .panel-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 12px;
 }
 
 .empty-state {
@@ -457,34 +467,29 @@ const isEditing = (blockId: string) => {
   justify-content: center;
   height: 100%;
 }
-
 .result-list {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .image-group {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
-
 .group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 12px;
   background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 6px;
   border: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.2s;
   user-select: none;
-}
-
-.group-header:hover {
-  background-color: var(--bg-color);
 }
 
 .group-header-left {
@@ -502,12 +507,11 @@ const isEditing = (blockId: string) => {
   font-weight: 600;
   font-size: 15px;
 }
-
 .group-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-left: 8px;
+  gap: 10px;
+  padding-left: 6px;
   transition: all 0.3s ease;
   overflow: hidden;
 }
@@ -517,6 +521,7 @@ const isEditing = (blockId: string) => {
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--bg-color);
+  backdrop-filter: blur(var(--ui-blur));
   transition: opacity 0.2s;
 }
 
@@ -524,21 +529,17 @@ const isEditing = (blockId: string) => {
   opacity: 0.5;
 }
 .result-header {
-  padding: 12px;
+  padding: 10px;
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   box-sizing: border-box;
   cursor: pointer;
   transition: background-color 0.2s;
   user-select: none;
-}
-
-.result-header:hover {
-  background-color: var(--bg-color);
 }
 
 .header-left {
@@ -549,11 +550,10 @@ const isEditing = (blockId: string) => {
 }
 
 .result-content {
-  padding: 16px;
+  padding: 0;
   transition: all 0.3s ease;
   overflow: hidden;
 }
-
 .loading-state,
 .error-state,
 .pending-state {
@@ -570,20 +570,20 @@ const isEditing = (blockId: string) => {
 }
 
 .text-content {
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
-
 .text-content pre {
   margin: 0;
+  padding: 12px;
+  background-color: transparent;
+  backdrop-filter: none;
+  border: none;
+  border-radius: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
   color: var(--text-color);
 }
 
@@ -594,23 +594,23 @@ const isEditing = (blockId: string) => {
 .edit-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .edit-textarea {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: 13px;
 }
 
 .edit-textarea :deep(textarea) {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: 13px;
   line-height: 1.6;
 }
 
 .edit-actions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   justify-content: flex-end;
 }
 

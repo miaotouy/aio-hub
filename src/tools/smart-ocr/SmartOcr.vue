@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { storeToRefs } from 'pinia';
-import { customMessage } from '@/utils/customMessage';
-import ControlPanel from './components/ControlPanel.vue';
-import HistoryDialog from './components/HistoryDialog.vue';
-import PreviewPanel from './components/PreviewPanel.vue';
-import ResultPanel from './components/ResultPanel.vue';
-import SidebarToggleIcon from '@/components/icons/SidebarToggleIcon.vue';
-import type { UploadedImage } from './types';
-import { useSmartOcrUiState } from './composables/useSmartOcrUiState';
-import { useSmartOcrStore } from './smartOcr.store';
-import { useSmartOcrRunner } from './composables/useSmartOcrRunner';
-import { useOcrHistory } from './composables/useOcrHistory';
-import { useAssetManager } from '@/composables/useAssetManager';
-import { createModuleLogger } from '@utils/logger';
-import { nanoid } from 'nanoid';
+import { ref, onMounted, onUnmounted } from "vue";
+import { storeToRefs } from "pinia";
+import { customMessage } from "@/utils/customMessage";
+import ControlPanel from "./components/ControlPanel.vue";
+import HistoryDialog from "./components/HistoryDialog.vue";
+import PreviewPanel from "./components/PreviewPanel.vue";
+import ResultPanel from "./components/ResultPanel.vue";
+import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
+import type { UploadedImage } from "./types";
+import { useSmartOcrUiState } from "./composables/useSmartOcrUiState";
+import { useSmartOcrStore } from "./smartOcr.store";
+import { useSmartOcrRunner } from "./composables/useSmartOcrRunner";
+import { useOcrHistory } from "./composables/useOcrHistory";
+import { useAssetManager } from "@/composables/useAssetManager";
+import { createModuleLogger } from "@utils/logger";
+import { nanoid } from "nanoid";
 
 // 创建模块日志记录器
-const log = createModuleLogger('SmartOCR');
+const log = createModuleLogger("SmartOCR");
 
 // 1. 获取 store 和响应式状态
 const store = useSmartOcrStore();
@@ -76,8 +76,8 @@ const handleLeftDragStart = (e: MouseEvent) => {
   dragStartX.value = e.clientX;
   dragStartWidth.value = leftPanelWidth.value;
   e.preventDefault();
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
 };
 
 const handleRightDragStart = (e: MouseEvent) => {
@@ -85,8 +85,8 @@ const handleRightDragStart = (e: MouseEvent) => {
   dragStartX.value = e.clientX;
   dragStartWidth.value = rightPanelWidth.value;
   e.preventDefault();
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
 };
 
 const handleMouseMove = (e: MouseEvent) => {
@@ -108,8 +108,8 @@ const handleMouseMove = (e: MouseEvent) => {
 const handleMouseUp = () => {
   isDraggingLeft.value = false;
   isDraggingRight.value = false;
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
 };
 
 // 组件挂载时初始化
@@ -120,18 +120,18 @@ onMounted(async () => {
 
   // 初始化 OCR（加载配置）
   await initialize();
-  
-  log.info('SmartOCR 组件已挂载，Store 和 Runner 已初始化');
+
+  log.info("SmartOCR 组件已挂载，Store 和 Runner 已初始化");
 
   // 注册鼠标事件监听
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener("mousemove", handleMouseMove);
+  document.addEventListener("mouseup", handleMouseUp);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', handleMouseUp);
-  log.info('SmartOCR 组件已卸载');
+  document.removeEventListener("mousemove", handleMouseMove);
+  document.removeEventListener("mouseup", handleMouseUp);
+  log.info("SmartOCR 组件已卸载");
 });
 
 // 处理图片上传
@@ -146,7 +146,7 @@ const handleImagesUpload = (images: UploadedImage[]) => {
 // 处理图片删除
 const handleImageRemove = (imageId: string) => {
   removeImage(imageId);
-  
+
   // 如果删除的是当前选中的图片，选中下一张
   if (selectedImageId.value === imageId) {
     selectedImageId.value = uploadedImages.value[0]?.id || null;
@@ -157,14 +157,13 @@ const handleImageRemove = (imageId: string) => {
 const handleClearAllImages = () => {
   store.reset();
   selectedImageId.value = null;
-  customMessage.success('已清除所有图片');
+  customMessage.success("已清除所有图片");
 };
 
 // 处理图片选择
 const handleImageSelect = (imageId: string) => {
   selectedImageId.value = imageId;
 };
-
 
 // 处理单个图片切图
 const handleSliceImage = async (imageId: string) => {
@@ -179,20 +178,20 @@ const handleSliceAllImages = async () => {
 // 处理重试单个块
 const handleRetryBlock = async (blockId: string) => {
   await retryBlock({ blockId });
-  customMessage.success('重试完成');
+  customMessage.success("重试完成");
 };
 
 // 处理切换忽略状态
 const handleToggleIgnore = (blockId: string) => {
   toggleBlockIgnore(blockId);
   const result = ocrResults.value.find((r: any) => r.blockId === blockId);
-  customMessage.success(result?.ignored ? '已忽略该块' : '已取消忽略');
+  customMessage.success(result?.ignored ? "已忽略该块" : "已取消忽略");
 };
 
 // 处理文本更新
 const handleUpdateText = (blockId: string, text: string) => {
   updateBlockText(blockId, text);
-  log.info('更新块文本', { blockId, textLength: text.length });
+  log.info("更新块文本", { blockId, textLength: text.length });
 };
 
 // ==================== 历史记录处理 ====================
@@ -236,18 +235,18 @@ const handleLoadRecord = async (recordId: string) => {
   try {
     const fullRecord = await loadFullRecord(recordId);
     if (!fullRecord) {
-      customMessage.error('找不到该历史记录的详细数据');
+      customMessage.error("找不到该历史记录的详细数据");
       return;
     }
 
     const assetBinary = await getAssetBinary(fullRecord.assetPath);
     const file = new File([assetBinary], fullRecord.id, { type: fullRecord.assetMimeType });
-    
+
     const uploadedImage = await createUploadedImageFromFile(file);
     addImages([uploadedImage]);
 
     // 关键：将历史结果与新加载的图片关联起来
-    const newResults = fullRecord.results.map(res => ({
+    const newResults = fullRecord.results.map((res) => ({
       ...res,
       imageId: uploadedImage.id, // 将结果中的 imageId 更新为新图片的 ID
     }));
@@ -256,10 +255,10 @@ const handleLoadRecord = async (recordId: string) => {
     // 选中新加载的图片
     selectedImageId.value = uploadedImage.id;
     isHistoryDialogVisible.value = false;
-    customMessage.success('历史记录已加载');
+    customMessage.success("历史记录已加载");
   } catch (error) {
     customMessage.error(`加载历史记录失败: ${error}`);
-    log.error('加载历史记录失败', error, { recordId });
+    log.error("加载历史记录失败", error, { recordId });
   }
 };
 
@@ -267,7 +266,7 @@ const handleReRecognize = async (recordId: string) => {
   try {
     const fullRecord = await loadFullRecord(recordId);
     if (!fullRecord) {
-      customMessage.error('找不到该历史记录的详细数据');
+      customMessage.error("找不到该历史记录的详细数据");
       return;
     }
 
@@ -276,7 +275,7 @@ const handleReRecognize = async (recordId: string) => {
 
     const uploadedImage = await createUploadedImageFromFile(file);
     addImages([uploadedImage]);
-    
+
     // 选中新加载的图片
     selectedImageId.value = uploadedImage.id;
 
@@ -286,7 +285,7 @@ const handleReRecognize = async (recordId: string) => {
     isHistoryDialogVisible.value = false;
   } catch (error) {
     customMessage.error(`重识别失败: ${error}`);
-    log.error('重识别失败', error, { recordId });
+    log.error("重识别失败", error, { recordId });
   }
 };
 </script>
@@ -445,9 +444,9 @@ const handleReRecognize = async (recordId: string) => {
   height: 100%;
   display: flex;
   position: relative;
-  padding: 20px;
+  padding: 12px;
   background-color: var(--bg-color);
-  gap: 16px;
+  gap: 12px;
   box-sizing: border-box;
 }
 

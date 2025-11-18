@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import InfoCard from "@/components/common/InfoCard.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { Setting } from "@element-plus/icons-vue";
@@ -32,7 +31,7 @@ const emit = defineEmits<{
   updateEngineConfig: [config: Partial<OcrEngineConfig>];
   updateSlicerConfig: [config: Partial<SlicerConfig>];
   runFullOcrProcess: [options: { imageIds?: string[] }];
-  'open-history': [];
+  "open-history": [];
 }>();
 
 // 使用 composables
@@ -51,65 +50,65 @@ const slicerConfig = computed(() => props.slicerConfig);
 // 引擎类型
 // 引擎类型
 const engineType = computed({
-  get: () => engineConfig.value?.type ?? 'native',
+  get: () => engineConfig.value?.type ?? "native",
   set: (value) => {
     // 切换类型时，发送一个仅包含类型的新对象
-    emit('updateEngineConfig', { type: value });
+    emit("updateEngineConfig", { type: value });
   },
 });
 // Tesseract 语言
 const engineLanguage = computed({
-  get: () => (engineConfig.value?.type === 'tesseract' ? engineConfig.value.language : ''),
+  get: () => (engineConfig.value?.type === "tesseract" ? engineConfig.value.language : ""),
   set: (value) => {
-    emit('updateEngineConfig', { language: value });
+    emit("updateEngineConfig", { language: value });
   },
 });
 
 // VLM 提示词
 const enginePrompt = computed({
-  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.prompt : ''),
+  get: () => (engineConfig.value?.type === "vlm" ? engineConfig.value.prompt : ""),
   set: (value) => {
-    emit('updateEngineConfig', { prompt: value });
+    emit("updateEngineConfig", { prompt: value });
   },
 });
 
 // VLM 温度
 const engineTemperature = computed({
-  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.temperature ?? 0.7 : 0.7),
+  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.temperature ?? 0.7) : 0.7),
   set: (value) => {
-    emit('updateEngineConfig', { temperature: value });
+    emit("updateEngineConfig", { temperature: value });
   },
 });
 
 // VLM 最大 Token
 const engineMaxTokens = computed({
-  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.maxTokens ?? 4096 : 4096),
+  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.maxTokens ?? 4096) : 4096),
   set: (value) => {
-    emit('updateEngineConfig', { maxTokens: value });
+    emit("updateEngineConfig", { maxTokens: value });
   },
 });
 
 // VLM 并发数
 const engineConcurrency = computed({
-  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.concurrency ?? 3 : 3),
+  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.concurrency ?? 3) : 3),
   set: (value) => {
-    emit('updateEngineConfig', { concurrency: value });
+    emit("updateEngineConfig", { concurrency: value });
   },
 });
 
 // VLM 请求延迟
 const engineDelay = computed({
-  get: () => (engineConfig.value?.type === 'vlm' ? engineConfig.value.delay ?? 0 : 0),
+  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.delay ?? 0) : 0),
   set: (value) => {
-    emit('updateEngineConfig', { delay: value });
+    emit("updateEngineConfig", { delay: value });
   },
 });
 
 // Cloud OCR 选中的服务
 const cloudActiveProfileId = computed({
-  get: () => (engineConfig.value?.type === 'cloud' ? engineConfig.value.activeProfileId : ''),
+  get: () => (engineConfig.value?.type === "cloud" ? engineConfig.value.activeProfileId : ""),
   set: (value) => {
-    emit('updateEngineConfig', { activeProfileId: value });
+    emit("updateEngineConfig", { activeProfileId: value });
   },
 });
 
@@ -117,7 +116,7 @@ const cloudActiveProfileId = computed({
 const slicerEnabled = computed({
   get: () => slicerConfig.value.enabled,
   set: (value) => {
-    emit('updateSlicerConfig', { enabled: value });
+    emit("updateSlicerConfig", { enabled: value });
   },
 });
 
@@ -125,7 +124,7 @@ const slicerEnabled = computed({
 const slicerAspectRatioThreshold = computed({
   get: () => slicerConfig.value.aspectRatioThreshold,
   set: (value) => {
-    emit('updateSlicerConfig', { aspectRatioThreshold: value });
+    emit("updateSlicerConfig", { aspectRatioThreshold: value });
   },
 });
 
@@ -133,7 +132,7 @@ const slicerAspectRatioThreshold = computed({
 const slicerBlankThreshold = computed({
   get: () => slicerConfig.value.blankThreshold,
   set: (value) => {
-    emit('updateSlicerConfig', { blankThreshold: value });
+    emit("updateSlicerConfig", { blankThreshold: value });
   },
 });
 
@@ -141,7 +140,7 @@ const slicerBlankThreshold = computed({
 const slicerMinBlankHeight = computed({
   get: () => slicerConfig.value.minBlankHeight,
   set: (value) => {
-    emit('updateSlicerConfig', { minBlankHeight: value });
+    emit("updateSlicerConfig", { minBlankHeight: value });
   },
 });
 
@@ -149,7 +148,7 @@ const slicerMinBlankHeight = computed({
 const slicerMinCutHeight = computed({
   get: () => slicerConfig.value.minCutHeight,
   set: (value) => {
-    emit('updateSlicerConfig', { minCutHeight: value });
+    emit("updateSlicerConfig", { minCutHeight: value });
   },
 });
 
@@ -157,7 +156,7 @@ const slicerMinCutHeight = computed({
 const slicerCutLineOffset = computed({
   get: () => slicerConfig.value.cutLineOffset,
   set: (value) => {
-    emit('updateSlicerConfig', { cutLineOffset: value });
+    emit("updateSlicerConfig", { cutLineOffset: value });
   },
 });
 
@@ -171,14 +170,14 @@ const selectedImage = computed(() => {
 const selectedModelCombo = computed({
   get: () => {
     const config = engineConfig.value;
-    if (config?.type !== 'vlm' || !config.profileId || !config.modelId) return '';
+    if (config?.type !== "vlm" || !config.profileId || !config.modelId) return "";
     return `${config.profileId}:${config.modelId}`;
   },
   set: (value: string) => {
     if (!value) return;
-    const [profileId, modelId] = value.split(':');
-    if (engineConfig.value?.type === 'vlm') {
-      emit('updateEngineConfig', { profileId, modelId });
+    const [profileId, modelId] = value.split(":");
+    if (engineConfig.value?.type === "vlm") {
+      emit("updateEngineConfig", { profileId, modelId });
     }
   },
 });
@@ -198,7 +197,7 @@ const handleStartOcr = async () => {
   });
 
   try {
-    emit('runFullOcrProcess', { imageIds: [selectedImage.value.id] });
+    emit("runFullOcrProcess", { imageIds: [selectedImage.value.id] });
     customMessage.success("识别完成");
   } catch (error) {
     logger.error("单张图片OCR识别失败", {
@@ -228,8 +227,8 @@ const handleBatchOcr = async () => {
 
   try {
     // 一次性处理所有图片，避免结果被覆盖
-    emit('runFullOcrProcess', {
-      imageIds: uploadedImages.value.map(img => img.id)
+    emit("runFullOcrProcess", {
+      imageIds: uploadedImages.value.map((img) => img.id),
     });
 
     logger.info("批量OCR识别完成", {
@@ -266,38 +265,36 @@ const handleNavigateToSettings = () => {
   <div class="control-panel">
     <div class="panel-header">
       <h3>控制面板</h3>
-      <el-button circle @click="emit('open-history')" title="历史记录">
-        <History :size="18" />
+      <el-button circle size="small" @click="emit('open-history')" title="历史记录">
+        <History :size="16" />
       </el-button>
     </div>
 
     <div class="panel-content">
       <!-- OCR引擎选择 -->
-      <InfoCard class="section-card">
-        <template #header>
-          <div class="card-header card-header-with-action">
-            <div class="card-header-title">
-              <el-icon><Setting /></el-icon>
-              <span>OCR引擎</span>
-            </div>
-            <el-tooltip
-              :content="
-                engineType === 'vlm'
-                  ? '前往 LLM 服务设置配置视觉模型'
-                  : engineType === 'cloud'
-                    ? '前往 OCR 服务设置配置云端服务'
-                    : '前往 LLM 服务设置（推荐配置 VLM）'
-              "
-              placement="left"
-            >
-              <el-button type="primary" text size="small" @click="handleNavigateToSettings">
-                配置
-              </el-button>
-            </el-tooltip>
+      <div class="section-block">
+        <div class="section-header">
+          <div class="section-title">
+            <el-icon><Setting /></el-icon>
+            <span>OCR引擎</span>
           </div>
-        </template>
+          <el-tooltip
+            :content="
+              engineType === 'vlm'
+                ? '前往 LLM 服务设置配置视觉模型'
+                : engineType === 'cloud'
+                  ? '前往 OCR 服务设置配置云端服务'
+                  : '前往 LLM 服务设置（推荐配置 VLM）'
+            "
+            placement="left"
+          >
+            <el-button type="primary" text size="small" @click="handleNavigateToSettings">
+              配置
+            </el-button>
+          </el-tooltip>
+        </div>
 
-        <el-form label-position="top" size="small">
+        <el-form label-position="top" size="small" class="section-form">
           <el-form-item label="引擎类型">
             <el-select v-model="engineType" style="width: 100%">
               <el-option label="Native OCR (系统原生)" value="native" />
@@ -481,18 +478,18 @@ const handleNavigateToSettings = () => {
             </el-form-item>
           </template>
         </el-form>
-      </InfoCard>
+      </div>
 
       <!-- 智能切图配置 -->
-      <InfoCard class="section-card">
-        <template #header>
-          <div class="card-header">
+      <div class="section-block">
+        <div class="section-header">
+          <div class="section-title">
             <el-icon><i-ep-scissor /></el-icon>
             <span>智能切图</span>
           </div>
-        </template>
+        </div>
 
-        <el-form label-position="top" size="small">
+        <el-form label-position="top" size="small" class="section-form">
           <el-form-item>
             <el-switch v-model="slicerEnabled" active-text="启用" inactive-text="禁用" />
           </el-form-item>
@@ -625,7 +622,7 @@ const handleNavigateToSettings = () => {
             </el-form-item>
           </template>
         </el-form>
-      </InfoCard>
+      </div>
     </div>
 
     <!-- 操作按钮 - 固定在底部 -->
@@ -689,53 +686,67 @@ const handleNavigateToSettings = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 16px;
   border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  flex-shrink: 0;
+  border-radius: 8px 8px 0 0;
 }
 
 .panel-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-color);
 }
 
 .panel-content {
   flex: 1;
-  padding: 20px;
-  padding-bottom: 16px;
+  padding: 12px;
   overflow-y: auto;
 }
 
-.section-card {
-  margin-bottom: 16px;
+/* 区块样式 */
+.section-block {
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  overflow: hidden;
 }
 
-.section-card:last-of-type {
+.section-block:last-child {
   margin-bottom: 0;
 }
 
-.card-header {
+.section-header {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-/* 带操作按钮的卡片头部 */
-.card-header-with-action {
   justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color);
 }
 
-.card-header-title {
+.section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.section-form {
+  padding: 12px;
 }
 
 .panel-footer {
-  padding: 16px 20px;
+  padding: 12px;
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .button-group {
@@ -761,25 +772,17 @@ const handleNavigateToSettings = () => {
 }
 
 /* Element Plus 组件样式覆盖 */
-:deep(.el-card__header) {
-  padding: 12px 16px;
-}
-
-:deep(.el-card__body) {
-  padding: 16px;
-}
-
 :deep(.el-form-item) {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+}
+
+:deep(.el-form-item:last-child) {
+  margin-bottom: 0;
 }
 
 :deep(.el-form-item__label) {
   font-weight: 500;
   color: var(--text-color);
-}
-
-:deep(.el-descriptions) {
-  --el-descriptions-item-bordered-label-background: var(--bg-color);
 }
 
 /* 调整滑块和输入框的宽度占比 */

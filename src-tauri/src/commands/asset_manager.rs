@@ -764,6 +764,8 @@ fn check_duplicate_in_current_month(
     asset_type: &AssetType,
     file_hash: &str,
 ) -> Result<Option<Asset>, String> {
+    use std::io::{BufRead, BufReader};
+
     let now = Utc::now();
     let year_month = now.format("%Y-%m").to_string();
 
@@ -792,9 +794,44 @@ fn check_duplicate_in_current_month(
             let file_path = month_dir.join(filename);
 
             // 验证文件是否仍然存在
-            if file_path.exists() {
-                return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
+            if !file_path.exists() {
+                return Ok(None);
             }
+
+            // 从文件名提取 UUID（去除扩展名）
+            let asset_id = file_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .ok_or("无法解析文件名")?;
+
+            // 尝试从 Catalog 中读取完整的资产信息（包括 origins）
+            let catalog_path = get_catalog_path(base_dir)?;
+            if catalog_path.exists() {
+
+                let catalog_file = fs::File::open(&catalog_path)
+                    .map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
+                let reader = BufReader::new(catalog_file);
+
+                // 在 Catalog 中查找对应的条目
+                for line in reader.lines() {
+                    if let Ok(line_content) = line {
+                        if line_content.trim().is_empty() {
+                            continue;
+                        }
+                        if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
+                            if entry.id == asset_id {
+                                // 找到了！迁移旧数据并返回完整的 Asset
+                                entry.migrate_if_needed();
+                                return Ok(Some(convert_entry_to_asset(entry, base_dir)));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 如果 Catalog 中没有找到，回退到从文件系统构建（但会丢失 origins）
+            log::warn!("在 Catalog 中未找到资产 {}，使用文件系统信息重建（将丢失来源信息）", asset_id);
+            return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
         }
     }
 
@@ -1697,6 +1734,11 @@ pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
         stats.total_assets += 1;
         stats.total_size += entry.size;
         *stats.type_counts.entry(entry.asset_type).or_insert(0) += 1;
+        
+        // 统计来源模块
+        for origin in &entry.origins {
+            *stats.source_module_counts.entry(origin.source_module.clone()).or_insert(0) += 1;
+        }
     }
 
     Ok(stats)

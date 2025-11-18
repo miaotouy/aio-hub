@@ -309,7 +309,6 @@ export function useAssetManager() {
       handleError(err, "加载资产列表失败");
     }
   };
-
   /**
    * 获取资产统计信息
    */
@@ -320,14 +319,22 @@ export function useAssetManager() {
 
       // 记录统计信息
       const moduleCount = Object.keys(stats.sourceModuleCounts || {}).length;
+      const moduleCounts = stats.sourceModuleCounts || {};
+
       logger.info("资产统计已更新", {
         totalAssets: stats.totalAssets,
         totalSize: assetManagerEngine.formatFileSize(stats.totalSize),
         sourceModuleCount: moduleCount,
+        rawSourceModuleCounts: moduleCounts,
       });
-      
+
       if (moduleCount > 0) {
-        logger.debug("来源模块分布", stats.sourceModuleCounts, true);
+        logger.debug("来源模块分布", { moduleCounts });
+      } else {
+        logger.warn("未找到任何来源模块统计数据", {
+          hint: "可能需要重建 Catalog 索引或检查资产的 origins 数据",
+          rawStats: stats,
+        });
       }
     } catch (err) {
       handleError(err, "获取资产统计信息失败");
@@ -608,12 +615,12 @@ export function useAssetManager() {
   const deleteAssetsCompletely = async (assetIds: string[]): Promise<string[]> => {
     try {
       const failedIds = await assetManagerEngine.removeAssetsCompletely(assetIds);
-      
+
       // 从本地列表中移除成功删除的资产
       const successIds = assetIds.filter(id => !failedIds.includes(id));
       assets.value = assets.value.filter(a => !successIds.includes(a.id));
       totalItems.value -= successIds.length;
-      
+
       await fetchAssetStats();
       return failedIds;
     } catch (err) {
@@ -671,18 +678,18 @@ export function useAssetManager() {
     importMultipleAssets,
     importAssetFromBytes,
     importAssetFromClipboard,
-    
+
     // 删除方法 - 业务模块应使用 removeSourceFromAsset
     removeSourceFromAsset,
     removeSourceFromAssets,
-    
+
     // 删除方法 - 资产管理器使用
     deleteAssetCompletely,
     deleteAssetsCompletely,
-    
+
     // Deprecated 方法
     removeAsset, // @deprecated 直接操作本地列表，不推荐使用
-    
+
     rebuildHashIndex,
     rebuildCatalogIndex,
   };

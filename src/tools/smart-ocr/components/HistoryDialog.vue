@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
-import { ElMessageBox, ElAvatar, ElIcon } from "element-plus";
+import { ref, watch, computed, nextTick, onUnmounted } from "vue";
+import { ElMessageBox, ElAvatar, ElIcon, ElTable } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
 import { useClipboard } from "@vueuse/core";
 import { useOcrHistory } from "../composables/useOcrHistory";
@@ -37,6 +37,7 @@ const isLoading = ref(false);
 const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
 const assetBasePath = ref("");
+const tableRef = ref<InstanceType<typeof ElTable>>();
 
 const isDialogVisible = computed({
   get: () => props.visible,
@@ -100,6 +101,17 @@ function handleScroll(event: Event) {
   // 当滚动到距离底部 100px 时触发加载
   if (scrollHeight - scrollTop - clientHeight < 100) {
     loadMore();
+  }
+}
+
+function setupScrollListener(attach: boolean) {
+  const wrapper = tableRef.value?.$el.querySelector(".el-scrollbar__wrap");
+  if (!wrapper) return;
+
+  if (attach) {
+    wrapper.addEventListener("scroll", handleScroll);
+  } else {
+    wrapper.removeEventListener("scroll", handleScroll);
   }
 }
 
@@ -204,20 +216,29 @@ watch(
         }
       }
       fetchHistory();
+      nextTick(() => setupScrollListener(true));
+    } else {
+      setupScrollListener(false);
     }
   }
 );
+
+onUnmounted(() => {
+  setupScrollListener(false);
+});
 </script>
 
 <template>
-  <BaseDialog
-    v-model="isDialogVisible"
-    title="OCR 历史记录"
-    width="80%"
-  >
+  <BaseDialog v-model="isDialogVisible" title="OCR 历史记录" width="80%">
     <div class="history-dialog-content">
-      <div class="table-wrapper" @scroll="handleScroll">
-        <el-table :data="displayedHistory" height="60vh" empty-text="暂无历史记录" v-loading="isLoading">
+      <div class="table-wrapper">
+        <el-table
+          ref="tableRef"
+          :data="displayedHistory"
+          height="60vh"
+          empty-text="暂无历史记录"
+          v-loading="isLoading"
+        >
           <el-table-column label="预览" width="100">
             <template #default="{ row }">
               <el-avatar
@@ -267,18 +288,20 @@ watch(
               <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
             </template>
           </el-table-column>
-        </el-table>
 
-        <!-- 加载更多提示 -->
-        <div v-if="isLoadingMore" class="loading-more">
-          <el-icon class="is-loading">
-            <Loading />
-          </el-icon>
-          <span>加载中...</span>
-        </div>
-        <div v-else-if="!hasMore && displayedHistory.length > 0" class="no-more">
-          已加载全部 {{ allHistory.length }} 条记录
-        </div>
+          <template #append>
+            <!-- 加载更多提示 -->
+            <div v-if="isLoadingMore" class="loading-more">
+              <el-icon class="is-loading">
+                <Loading />
+              </el-icon>
+              <span>加载中...</span>
+            </div>
+            <div v-else-if="!hasMore && displayedHistory.length > 0" class="no-more">
+              已加载全部 {{ allHistory.length }} 条记录
+            </div>
+          </template>
+        </el-table>
       </div>
     </div>
   </BaseDialog>
@@ -290,8 +313,7 @@ watch(
 }
 
 .table-wrapper {
-  height: 60vh;
-  overflow-y: auto;
+  /* 移除双重滚动条：高度控制交给 el-table */
   position: relative;
 }
 

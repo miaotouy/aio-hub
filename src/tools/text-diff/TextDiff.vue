@@ -195,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, shallowRef } from "vue";
+import { ref } from "vue";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
 import {
   ArrowUp,
@@ -207,412 +207,44 @@ import {
   Document,
   Delete,
 } from "@element-plus/icons-vue";
-import type { editor } from "monaco-editor";
-import { customMessage } from "@/utils/customMessage";
 import { useFileDrop } from "@composables/useFileDrop";
-import { serviceRegistry } from "@/services/registry";
-import type TextDiffService from "./textDiff.registry";
-
-// 获取服务实例
-const textDiffService = serviceRegistry.getService<TextDiffService>("text-diff");
+import { useTextDiff } from "./composables/useTextDiff";
 
 // 编辑器引用
 const richCodeEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
-
-// 文本内容
-const textA = ref("");
-const textB = ref("");
-const language = ref<string>("plaintext");
-
-// 文件路径与名称状态
-const leftFilePath = ref<string>("");
-const leftFileName = ref<string>("");
-const rightFilePath = ref<string>("");
-const rightFileName = ref<string>("");
 
 // 拖放区域引用
 const leftDropZone = ref<HTMLElement>();
 const rightDropZone = ref<HTMLElement>();
 
-// 布局与比对选项
-const renderSideBySide = ref(true); // 并排/内联
-const ignoreWhitespace = ref(true); // 忽略行尾空白
-const renderOverviewRuler = ref(false); // 只看变更
-const wordWrap = ref(false); // 自动换行
-const ignoreCaseInDiffComputing = ref(false); // 忽略大小写（实验）
-
-// 差异导航状态
-const currentDiffIndex = ref(0);
-const totalDiffs = ref(0);
-const diffEditor = shallowRef<editor.IStandaloneDiffEditor | null>(null);
-const diffNavigator = shallowRef<any>(null);
-
-// 编辑器配置（计算属性）
-const editorOptions = computed(() => ({
-  readOnly: false, // 控制右侧（修改后）窗格是否可编辑
-  originalEditable: true, // 允许编辑左侧（原始）窗格
-  renderSideBySide: renderSideBySide.value,
-  automaticLayout: true,
-  fontSize: 14,
-  lineNumbers: "on" as const,
-  minimap: { enabled: true },
-  scrollBeyondLastLine: false,
-  wordWrap: (wordWrap.value ? "on" : "off") as "on" | "off",
-  folding: true,
-  renderWhitespace: "selection" as const,
-  diffWordWrap: (wordWrap.value ? "on" : "off") as "on" | "off",
-  // 忽略空白差异
-  ignoreTrimWhitespace: ignoreWhitespace.value,
-  // 只看变更相关选项
-  renderOverviewRuler: !renderOverviewRuler.value,
-  renderIndicators: !renderOverviewRuler.value,
-  // 差异算法优化
-  diffAlgorithm: "advanced" as const,
-}));
-
-// 是否可以导航
-const canNavigate = computed(() => totalDiffs.value > 0);
-
-// 编辑器挂载处理
-const handleEditorMounted = (editorInstance: any) => {
-  // RichCodeEditor 的 @mount 事件返回的是一个联合类型。
-  // 在这个组件中，我们确定它是一个 diff 编辑器，所以这里进行类型断言。
-  diffEditor.value = editorInstance as editor.IStandaloneDiffEditor;
-
-  // 创建差异导航器
-  // Monaco Editor 的 DiffNavigator 需要通过全局 monaco 对象访问
-  if (diffEditor.value) {
-    // 等待 monaco 加载完成后再创建 navigator
-    nextTick(() => {
-      const monacoGlobal = (window as any).monaco;
-      if (monacoGlobal?.editor?.createDiffNavigator && diffEditor.value) {
-        try {
-          diffNavigator.value = monacoGlobal.editor.createDiffNavigator(diffEditor.value, {
-            followsCaret: true,
-            ignoreCharChanges: true,
-          });
-        } catch (error) {
-          console.warn("创建 diff navigator 失败:", error);
-        }
-      }
-    });
-  }
-
-  // 初始化差异计数
-  updateDiffCount();
-};
-
-// 更新差异计数
-const updateDiffCount = () => {
-  if (!diffEditor.value) {
-    totalDiffs.value = 0;
-    currentDiffIndex.value = 0;
-    return;
-  }
-
-  try {
-    const lineChanges = diffEditor.value.getLineChanges() || [];
-    totalDiffs.value = lineChanges.length;
-    currentDiffIndex.value = 0;
-  } catch (error) {
-    totalDiffs.value = 0;
-  }
-};
-
-// 上一处差异
-const goToPreviousDiff = () => {
-  if (!diffNavigator.value || !canNavigate.value) return;
-
-  try {
-    diffNavigator.value.previous();
-    if (currentDiffIndex.value > 0) {
-      currentDiffIndex.value--;
-    } else {
-      currentDiffIndex.value = totalDiffs.value - 1;
-    }
-  } catch (error) {
-    // 忽略导航错误
-  }
-};
-
-// 下一处差异
-const goToNextDiff = () => {
-  if (!diffNavigator.value || !canNavigate.value) return;
-
-  try {
-    diffNavigator.value.next();
-    if (currentDiffIndex.value < totalDiffs.value - 1) {
-      currentDiffIndex.value++;
-    } else {
-      currentDiffIndex.value = 0;
-    }
-  } catch (error) {
-    // 忽略导航错误
-  }
-};
-
-// 清空文本
-const clearTexts = (side: "left" | "right" | "all") => {
-  if (side === "left" || side === "all") {
-    textA.value = "";
-    leftFilePath.value = "";
-    leftFileName.value = "";
-    // 直接操作 Monaco 编辑器实例来清空内容,
-    // 因为 RichCodeEditor 可能不会在 prop 更新时自动清空编辑器。
-    diffEditor.value?.getOriginalEditor().setValue("");
-  }
-  if (side === "right" || side === "all") {
-    textB.value = "";
-    rightFilePath.value = "";
-    rightFileName.value = "";
-    diffEditor.value?.getModifiedEditor().setValue("");
-  }
-};
-
-// 交换左右文本
-const swapTexts = () => {
-  const temp = textA.value;
-  textA.value = textB.value;
-  textB.value = temp;
-};
-
-// 监听文本变化，更新差异计数
-watch(
-  [textA, textB],
-  () => {
-    nextTick(() => {
-      updateDiffCount();
-    });
-  },
-  { flush: "post" }
-);
-
-// 监听比对选项变化，重新计算差异
-watch([ignoreWhitespace, ignoreCaseInDiffComputing], () => {
-  nextTick(() => {
-    updateDiffCount();
-  });
-});
-
-// ====== 文件操作功能 ======
-
-// ====== 文件操作功能 ======
-
-// 打开文件（调用服务）
-const openFile = async (side: "left" | "right") => {
-  const result = await textDiffService.openFile(side);
-
-  if (result.success) {
-    if (side === "left") {
-      textA.value = result.content;
-      leftFilePath.value = result.filePath;
-      leftFileName.value = result.fileName;
-    } else {
-      textB.value = result.content;
-      rightFilePath.value = result.filePath;
-      rightFileName.value = result.fileName;
-    }
-
-    // 自动推断语言
-    language.value = result.language;
-
-    // 检查大文件
-    if (result.content.length > 10 * 1024 * 1024) {
-      customMessage.warning("文件较大（>10MB），可能影响性能");
-    }
-
-    customMessage.success(`已加载: ${result.fileName}`);
-  } else if (result.error && result.error !== "用户取消操作") {
-    customMessage.error(result.error);
-  }
-};
-
-// 保存文件（调用服务）
-const saveFile = async (side: "left" | "right" | "both") => {
-  if (side === "both") {
-    await saveFile("left");
-    await saveFile("right");
-    return;
-  }
-
-  const content = side === "left" ? textA.value : textB.value;
-  const currentName = side === "left" ? leftFileName.value : rightFileName.value;
-
-  if (!content) {
-    customMessage.warning(`${side === "left" ? "左侧" : "右侧"}内容为空`);
-    return;
-  }
-
-  const result = await textDiffService.saveFile(content, currentName || "untitled.txt", side);
-
-  if (result.success) {
-    if (side === "left") {
-      leftFilePath.value = result.filePath;
-      leftFileName.value = result.fileName;
-    } else {
-      rightFilePath.value = result.filePath;
-      rightFileName.value = result.fileName;
-    }
-
-    customMessage.success(`已保存: ${result.fileName}`);
-  } else if (result.error && result.error !== "用户取消操作") {
-    customMessage.error(result.error);
-  }
-};
-// 处理文件拖放
-const handleFileDrop = async (paths: string[], side: "left" | "right") => {
-  if (paths.length === 0) return;
-
-  // 如果拖入两个文件，分配到左右
-  if (paths.length === 2) {
-    const [path1, path2] = paths.sort();
-    await loadFileToSide(path1, "left");
-    await loadFileToSide(path2, "right");
-    return;
-  }
-
-  // 单文件：优先填充空侧，否则填充目标侧
-  if (paths.length === 1) {
-    if (!textA.value && side === "left") {
-      await loadFileToSide(paths[0], "left");
-    } else if (!textB.value && side === "right") {
-      await loadFileToSide(paths[0], "right");
-    } else if (!textA.value) {
-      await loadFileToSide(paths[0], "left");
-    } else if (!textB.value) {
-      await loadFileToSide(paths[0], "right");
-    } else {
-      await loadFileToSide(paths[0], side);
-    }
-  }
-};
-
-// 加载文件到指定侧（调用服务）
-const loadFileToSide = async (filePath: string, side: "left" | "right") => {
-  const result = await textDiffService.loadFile(filePath);
-
-  if (result.success) {
-    if (side === "left") {
-      textA.value = result.content;
-      leftFilePath.value = result.filePath;
-      leftFileName.value = result.fileName;
-    } else {
-      textB.value = result.content;
-      rightFilePath.value = result.filePath;
-      rightFileName.value = result.fileName;
-    }
-
-    language.value = result.language;
-
-    // 检查大文件
-    if (result.content.length > 10 * 1024 * 1024) {
-      customMessage.warning("文件较大（>10MB），可能影响性能");
-    }
-  } else {
-    customMessage.error(result.error || "加载文件失败");
-  }
-};
-
-// ====== 剪贴板操作 ======
-
-// 复制到剪贴板（调用服务）
-const copyToClipboard = async (type: "left" | "right" | "patch") => {
-  let content = "";
-  let label = "";
-
-  if (type === "left") {
-    content = textA.value;
-    label = "左侧内容";
-    if (!content) {
-      customMessage.warning("左侧内容为空");
-      return;
-    }
-  } else if (type === "right") {
-    content = textB.value;
-    label = "右侧内容";
-    if (!content) {
-      customMessage.warning("右侧内容为空");
-      return;
-    }
-  } else if (type === "patch") {
-    const patchResult = textDiffService.generatePatch(textA.value, textB.value, {
-      oldFileName: leftFileName.value,
-      newFileName: rightFileName.value,
-      ignoreWhitespace: ignoreWhitespace.value,
-    });
-
-    if (!patchResult.success) {
-      customMessage.warning(patchResult.error || "无法生成补丁");
-      return;
-    }
-
-    content = patchResult.patch;
-    label = "补丁";
-  }
-
-  const result = await textDiffService.copyToClipboard(content);
-
-  if (result.success) {
-    customMessage.success(`已复制${label}到剪贴板`);
-  } else {
-    customMessage.error(result.error || "复制失败");
-  }
-};
-
-// 从剪贴板粘贴（调用服务）
-const pasteFromClipboard = async (side: "left" | "right") => {
-  const result = await textDiffService.pasteFromClipboard();
-
-  if (result.success) {
-    if (side === "left") {
-      textA.value = result.content;
-      leftFilePath.value = "";
-      leftFileName.value = "";
-    } else {
-      textB.value = result.content;
-      rightFilePath.value = "";
-      rightFileName.value = "";
-    }
-
-    customMessage.success(`已粘贴到${side === "left" ? "左侧" : "右侧"}`);
-  } else {
-    customMessage.error(result.error || "粘贴失败");
-  }
-};
-
-// ====== 补丁生成与导出 ======
-
-// 导出补丁文件（调用服务）
-const exportPatch = async () => {
-  // 生成补丁
-  const patchResult = textDiffService.generatePatch(textA.value, textB.value, {
-    oldFileName: leftFileName.value,
-    newFileName: rightFileName.value,
-    ignoreWhitespace: ignoreWhitespace.value,
-  });
-
-  if (!patchResult.success) {
-    customMessage.warning(patchResult.error || "无法生成补丁");
-    return;
-  }
-
-  // 生成默认文件名
-  let defaultName = "diff.patch";
-  if (leftFileName.value && rightFileName.value) {
-    const leftBase = leftFileName.value.replace(/\.[^.]+$/, "");
-    const rightBase = rightFileName.value.replace(/\.[^.]+$/, "");
-    defaultName = `${leftBase}_vs_${rightBase}.patch`;
-  }
-
-  // 导出补丁
-  const exportResult = await textDiffService.exportPatch(patchResult.patch, defaultName);
-
-  if (exportResult.success) {
-    customMessage.success(`补丁已导出: ${exportResult.fileName}`);
-  } else if (exportResult.error && exportResult.error !== "用户取消操作") {
-    customMessage.error(exportResult.error);
-  }
-};
+// 使用 Composable 获取所有状态和逻辑
+const {
+  textA,
+  textB,
+  language,
+  leftFileName,
+  rightFileName,
+  renderSideBySide,
+  ignoreWhitespace,
+  renderOverviewRuler,
+  wordWrap,
+  ignoreCaseInDiffComputing,
+  currentDiffIndex,
+  totalDiffs,
+  editorOptions,
+  canNavigate,
+  handleEditorMounted,
+  goToPreviousDiff,
+  goToNextDiff,
+  clearTexts,
+  swapTexts,
+  openFile,
+  saveFile,
+  handleFileDrop,
+  copyToClipboard,
+  pasteFromClipboard,
+  exportPatch,
+} = useTextDiff();
 
 // 设置文件拖放
 const { isDraggingOver: isLeftDragging } = useFileDrop({

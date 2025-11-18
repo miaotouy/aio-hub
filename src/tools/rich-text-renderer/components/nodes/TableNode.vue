@@ -20,9 +20,13 @@ defineProps<{
 }
 
 .markdown-table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
+  border-radius: 8px;
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
+  overflow: hidden;
 }
 
 .markdown-table :deep(th),
@@ -32,7 +36,7 @@ defineProps<{
 }
 
 .markdown-table :deep(th) {
-  background-color: var(--hover-bg);
+  background-color: var(--card-bg);
   font-weight: 600;
 }
 </style>

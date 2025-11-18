@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onUnmounted } from "vue";
-import { ElMessageBox, ElAvatar, ElIcon, ElTable } from "element-plus";
-import { Loading } from "@element-plus/icons-vue";
+import { ElMessageBox, ElAvatar, ElIcon, ElTable, ElInput } from "element-plus";
+import { Loading, Search } from "@element-plus/icons-vue";
 import { useClipboard } from "@vueuse/core";
 import { useOcrHistory } from "../composables/useOcrHistory";
 import type { OcrHistoryIndexItem } from "../types";
@@ -39,6 +39,18 @@ const thumbnailUrls = ref<Record<string, string>>({});
 const assetBasePath = ref("");
 const tableRef = ref<InstanceType<typeof ElTable>>();
 
+const searchQuery = ref("");
+const filteredHistory = computed(() => {
+  if (!searchQuery.value.trim()) return allHistory.value;
+  const query = searchQuery.value.toLowerCase().trim();
+  return allHistory.value.filter((record) => {
+    const text = record.textPreview?.toLowerCase() || "";
+    const engine = record.engine?.toLowerCase() || "";
+    const detail = record.engineDetail?.toLowerCase() || "";
+    return text.includes(query) || engine.includes(query) || detail.includes(query);
+  });
+});
+
 const isDialogVisible = computed({
   get: () => props.visible,
   set: (val) => emit("update:visible", val),
@@ -51,7 +63,7 @@ async function fetchHistory() {
   try {
     const index = await loadHistoryIndex();
     allHistory.value = index.records;
-    hasMore.value = allHistory.value.length > PAGE_SIZE;
+    // hasMore 状态将在 loadPage 中更新
 
     // 加载第一页
     await loadPage(1);
@@ -63,19 +75,23 @@ async function fetchHistory() {
 }
 
 async function loadPage(page: number) {
+  const sourceList = filteredHistory.value;
   const start = (page - 1) * PAGE_SIZE;
   const end = start + PAGE_SIZE;
-  const pageRecords = allHistory.value.slice(start, end);
+  const pageRecords = sourceList.slice(start, end);
 
   if (pageRecords.length === 0) {
-    hasMore.value = false;
+    if (page === 1) {
+      // 如果是第一页且没有记录（可能是搜索结果为空），也要更新状态
+      hasMore.value = false;
+    }
     return;
   }
 
   displayedHistory.value.push(...pageRecords);
   updateImageUrls(pageRecords);
 
-  hasMore.value = end < allHistory.value.length;
+  hasMore.value = end < sourceList.length;
   currentPage.value = page;
 }
 
@@ -176,7 +192,7 @@ async function handleDelete(record: OcrHistoryIndexItem) {
     delete thumbnailUrls.value[record.id];
 
     // 更新 hasMore 状态
-    hasMore.value = displayedHistory.value.length < allHistory.value.length;
+    hasMore.value = displayedHistory.value.length < filteredHistory.value.length;
 
     logger.info("历史记录已删除", { recordId: record.id });
   } catch (error) {
@@ -203,6 +219,12 @@ async function handleCopy(record: OcrHistoryIndexItem) {
     customMessage.error("复制失败");
   }
 }
+
+watch(searchQuery, () => {
+  currentPage.value = 1;
+  displayedHistory.value = [];
+  loadPage(1);
+});
 
 watch(
   () => props.visible,
@@ -231,6 +253,14 @@ onUnmounted(() => {
 <template>
   <BaseDialog v-model="isDialogVisible" title="OCR 历史记录" width="80%">
     <div class="history-dialog-content">
+      <div class="search-bar">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索识别内容、引擎..."
+          clearable
+          :prefix-icon="Search"
+        />
+      </div>
       <div class="table-wrapper">
         <el-table
           ref="tableRef"
@@ -298,7 +328,7 @@ onUnmounted(() => {
               <span>加载中...</span>
             </div>
             <div v-else-if="!hasMore && displayedHistory.length > 0" class="no-more">
-              已加载全部 {{ allHistory.length }} 条记录
+              已加载全部 {{ filteredHistory.length }} 条记录
             </div>
           </template>
         </el-table>
@@ -310,6 +340,13 @@ onUnmounted(() => {
 <style scoped>
 .history-dialog-content {
   min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.search-bar {
+  width: 300px;
 }
 
 .table-wrapper {

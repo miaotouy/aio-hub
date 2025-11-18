@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onUnmounted } from "vue";
-import { ElMessageBox, ElAvatar, ElIcon, ElTable, ElInput } from "element-plus";
+import {
+  ElMessageBox,
+  ElAvatar,
+  ElIcon,
+  ElTable,
+  ElInput,
+  ElSelect,
+  ElOption,
+  ElDatePicker,
+} from "element-plus";
 import { Loading, Search } from "@element-plus/icons-vue";
 import { useClipboard } from "@vueuse/core";
 import { useOcrHistory } from "../composables/useOcrHistory";
@@ -40,15 +49,83 @@ const assetBasePath = ref("");
 const tableRef = ref<InstanceType<typeof ElTable>>();
 
 const searchQuery = ref("");
+const filterEngine = ref<string>("");
+// Element Plus DatePicker type="daterange" 绑定的值类型
+const filterDate = ref<[Date, Date] | undefined>(undefined);
+
+const engineOptions = [
+  { label: "全部引擎", value: "" },
+  { label: "Tesseract", value: "tesseract" },
+  { label: "Native (本地)", value: "native" },
+  { label: "VLM (大模型)", value: "vlm" },
+  { label: "Cloud (云端)", value: "cloud" },
+];
+
+const dateShortcuts = [
+  {
+    text: "最近一周",
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 7);
+      return [start, end];
+    },
+  },
+  {
+    text: "最近一个月",
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);
+      return [start, end];
+    },
+  },
+  {
+    text: "最近三个月",
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 90);
+      return [start, end];
+    },
+  },
+];
+
 const filteredHistory = computed(() => {
-  if (!searchQuery.value.trim()) return allHistory.value;
-  const query = searchQuery.value.toLowerCase().trim();
-  return allHistory.value.filter((record) => {
-    const text = record.textPreview?.toLowerCase() || "";
-    const engine = record.engine?.toLowerCase() || "";
-    const detail = record.engineDetail?.toLowerCase() || "";
-    return text.includes(query) || engine.includes(query) || detail.includes(query);
-  });
+  let result = allHistory.value;
+
+  // 1. 文本搜索
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase().trim();
+    result = result.filter((record) => {
+      const text = record.textPreview?.toLowerCase() || "";
+      const engine = record.engine?.toLowerCase() || "";
+      const detail = record.engineDetail?.toLowerCase() || "";
+      return text.includes(query) || engine.includes(query) || detail.includes(query);
+    });
+  }
+
+  // 2. 引擎筛选
+  if (filterEngine.value) {
+    result = result.filter((record) => record.engine === filterEngine.value);
+  }
+
+  // 3. 日期筛选
+  if (filterDate.value) {
+    const [startDate, endDate] = filterDate.value;
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    result = result.filter((record) => {
+      const recordDate = new Date(record.createdAt);
+      return recordDate >= start && recordDate <= end;
+    });
+  }
+
+  return result;
 });
 
 const isDialogVisible = computed({
@@ -220,7 +297,7 @@ async function handleCopy(record: OcrHistoryIndexItem) {
   }
 }
 
-watch(searchQuery, () => {
+watch([searchQuery, filterEngine, filterDate], () => {
   currentPage.value = 1;
   displayedHistory.value = [];
   loadPage(1);
@@ -253,12 +330,31 @@ onUnmounted(() => {
 <template>
   <BaseDialog v-model="isDialogVisible" title="OCR 历史记录" width="80%">
     <div class="history-dialog-content">
-      <div class="search-bar">
+      <div class="filter-bar">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索识别内容、引擎..."
+          placeholder="搜索识别内容..."
           clearable
           :prefix-icon="Search"
+          class="search-input"
+        />
+        <el-select v-model="filterEngine" placeholder="引擎类型" clearable class="filter-select">
+          <el-option
+            v-for="item in engineOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <el-date-picker
+          v-model="filterDate"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          class="filter-date"
+          :shortcuts="dateShortcuts"
+          size="default"
         />
       </div>
       <div class="table-wrapper">
@@ -345,8 +441,23 @@ onUnmounted(() => {
   gap: 16px;
 }
 
-.search-bar {
-  width: 300px;
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search-input {
+  width: 340px;
+}
+
+.filter-select {
+  width: 140px;
+}
+
+.filter-date {
+  width: 220px !important;
 }
 
 .table-wrapper {

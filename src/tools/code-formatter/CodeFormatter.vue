@@ -68,8 +68,8 @@ import { WarningFilled } from '@element-plus/icons-vue';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
 import { serviceRegistry } from '@/services/registry';
-import type CodeFormatterService from './codeFormatter.service';
-import type { SupportedLanguage } from './codeFormatter.service';
+import type CodeFormatterService from './codeFormatter.registry';
+import type { SupportedLanguage } from './codeFormatter.registry';
 import { useSendToChat } from '@/composables/useSendToChat';
 
 // 获取服务实例

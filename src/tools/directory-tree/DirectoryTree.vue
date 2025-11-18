@@ -159,7 +159,7 @@ import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import { type DirectoryTreeConfig } from "./config";
 import { serviceRegistry } from "@/services";
-import type DirectoryTreeService from "./directoryTree.service";
+import type DirectoryTreeService from "./directoryTree.registry";
 import { createModuleLogger } from "@utils/logger";
 import { useSendToChat } from "@/composables/useSendToChat";
 

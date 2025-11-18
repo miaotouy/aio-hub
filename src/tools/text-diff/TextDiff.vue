@@ -211,7 +211,7 @@ import type { editor } from "monaco-editor";
 import { customMessage } from "@/utils/customMessage";
 import { useFileDrop } from "@composables/useFileDrop";
 import { serviceRegistry } from "@/services/registry";
-import type TextDiffService from "./textDiff.service";
+import type TextDiffService from "./textDiff.registry";
 
 // 获取服务实例
 const textDiffService = serviceRegistry.getService<TextDiffService>("text-diff");

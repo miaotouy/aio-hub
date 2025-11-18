@@ -113,7 +113,7 @@ import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
 import RichCodeEditor from '@components/common/RichCodeEditor.vue';
 import { serviceRegistry } from '@/services/registry';
-import type JsonFormatterService from './jsonFormatter.service';
+import type JsonFormatterService from './jsonFormatter.registry';
 import { useSendToChat } from '@/composables/useSendToChat';
 
 // 获取服务实例

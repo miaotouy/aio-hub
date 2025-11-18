@@ -341,7 +341,7 @@ import type { LogEntry, RegexPreset } from "./types";
 import { loadAppConfig, appConfigManager, type AppConfig } from "./appConfig";
 import { createModuleLogger } from "@utils/logger";
 import { serviceRegistry } from "@/services/registry";
-import type RegexApplierService from "./regexApplier.service";
+import type RegexApplierService from "./regexApplier.registry";
 import { useSendToChat } from "@/composables/useSendToChat";
 
 // 创建模块日志器

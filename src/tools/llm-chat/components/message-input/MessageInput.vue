@@ -10,7 +10,7 @@ import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useChatHandler } from "@/tools/llm-chat/composables/useChatHandler";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.service";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";

@@ -4,6 +4,7 @@ import { ElMessageBox, ElAvatar, ElIcon } from 'element-plus';
 import { Loading } from '@element-plus/icons-vue';
 import { useColorHistory } from '../composables/useColorHistory';
 import type { ColorHistoryIndexItem } from '../composables/useColorHistory';
+import { calculateColorDistance } from '../composables/useColorConverter';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { useImageViewer } from '@/composables/useImageViewer';
 import { createModuleLogger } from '@/utils/logger';
@@ -35,9 +36,51 @@ const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
 const assetBasePath = ref('');
 
+// 搜索状态
+const searchQuery = ref('');
+const searchColor = ref('');
+const colorThreshold = ref(60);
+
 const isDialogVisible = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val),
+});
+
+// 过滤后的历史记录
+const filteredHistory = computed(() => {
+  let result = allHistory.value;
+
+  // 文本搜索
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(item =>
+      item.sourceImageName.toLowerCase().includes(query)
+    );
+  }
+
+  // 颜色搜索
+  if (searchColor.value && /^#[0-9A-F]{6}$/i.test(searchColor.value)) {
+    const targetColor = searchColor.value;
+    const THRESHOLD = colorThreshold.value;
+    
+    result = result.filter(item => {
+      // 检查预览颜色中是否有相似的颜色
+      return item.colorPreview.some(color => {
+        const distance = calculateColorDistance(color, targetColor);
+        return distance < THRESHOLD;
+      });
+    });
+  }
+
+  return result;
+});
+
+// 监听过滤结果变化，重置分页
+watch(filteredHistory, () => {
+  currentPage.value = 1;
+  displayedHistory.value = [];
+  // 重新加载第一页
+  loadPage(1);
 });
 
 async function fetchHistory() {
@@ -46,10 +89,7 @@ async function fetchHistory() {
   try {
     const index = await loadHistoryIndex();
     allHistory.value = index.records;
-    hasMore.value = allHistory.value.length > PAGE_SIZE;
-
-    // 加载第一页
-    await loadPage(1);
+    // hasMore 的初始状态会在 watch(filteredHistory) 中被正确设置，因为 allHistory 赋值会触发 computed 更新
   } catch (error) {
     logger.error('加载历史记录索引失败', error);
     customMessage.error('加载历史记录失败');
@@ -59,17 +99,25 @@ async function fetchHistory() {
 async function loadPage(page: number) {
   const start = (page - 1) * PAGE_SIZE;
   const end = start + PAGE_SIZE;
-  const pageRecords = allHistory.value.slice(start, end);
+  const pageRecords = filteredHistory.value.slice(start, end);
 
   if (pageRecords.length === 0) {
+    if (page === 1) {
+      displayedHistory.value = [];
+    }
     hasMore.value = false;
     return;
   }
 
-  displayedHistory.value.push(...pageRecords);
+  if (page === 1) {
+    displayedHistory.value = [...pageRecords];
+  } else {
+    displayedHistory.value.push(...pageRecords);
+  }
+  
   updateImageUrls(pageRecords);
 
-  hasMore.value = end < allHistory.value.length;
+  hasMore.value = end < filteredHistory.value.length;
   currentPage.value = page;
 }
 
@@ -231,10 +279,43 @@ watch(
     title="颜色分析历史"
     width="80%"
     height="80vh"
-    :show-close="true"
-    :show-footer="true"
+    :show-close-button="true"
   >
     <div class="history-dialog-content">
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索文件名..."
+          clearable
+          prefix-icon="Search"
+          class="search-input"
+        />
+        <div class="color-search">
+          <span class="label">颜色筛选:</span>
+          <el-color-picker
+            v-model="searchColor"
+            size="default"
+            :predefine="['#ff4500', '#ff8c00', '#ffd700', '#90ee90', '#00ced1', '#1e90ff', '#c71585']"
+          />
+          
+          <template v-if="searchColor">
+            <div class="threshold-control">
+              <span class="label">容差: {{ colorThreshold }}</span>
+              <el-slider
+                v-model="colorThreshold"
+                :min="0"
+                :max="200"
+                :step="5"
+                size="small"
+                style="width: 120px"
+              />
+            </div>
+            <el-button link @click="searchColor = ''" size="small">清除</el-button>
+          </template>
+        </div>
+      </div>
+
       <div v-if="displayedHistory.length > 0" class="history-list-container" @scroll="handleScroll">
         <el-scrollbar>
           <div class="history-grid">
@@ -305,7 +386,7 @@ watch(
         </el-scrollbar>
       </div>
       <div v-else class="empty-state">
-        <el-empty description="暂无历史记录" />
+        <el-empty :description="searchQuery || searchColor ? '没有找到匹配的记录' : '暂无历史记录'" />
       </div>
     </div>
 
@@ -328,11 +409,44 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 16px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 4px;
+}
+
+.search-input {
+  width: 340px;
+}
+
+.color-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.threshold-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--el-border-color);
+}
+
+.label {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
 }
 
 .history-list-container {
   flex-grow: 1;
-  margin: -16px; /* 抵消 BaseDialog 的 padding */
+  margin: 0 -16px -16px -16px; /* 抵消 BaseDialog 的 padding，但保留顶部间距 */
   height: 100%;
   overflow-y: auto;
 }

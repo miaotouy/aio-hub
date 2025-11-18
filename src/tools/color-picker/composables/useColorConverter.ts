@@ -246,3 +246,19 @@ export function getContrastColor(hex: string): string {
   const yiq = ((rgb.r * 299) + (rgb.g * 587) + (rgb.b * 114)) / 1000;
   return yiq >= 128 ? '#000000' : '#FFFFFF';
 }
+/**
+ * 计算两个 HEX 颜色之间的欧几里得距离
+ * @param color1 第一个颜色 (HEX)
+ * @param color2 第二个颜色 (HEX)
+ * @returns 距离值 (0 - 441.67)
+ */
+export function calculateColorDistance(color1: string, color2: string): number {
+  const rgb1 = hexToRgb(color1);
+  const rgb2 = hexToRgb(color2);
+
+  return Math.sqrt(
+    Math.pow(rgb1.r - rgb2.r, 2) +
+    Math.pow(rgb1.g - rgb2.g, 2) +
+    Math.pow(rgb1.b - rgb2.b, 2)
+  );
+}

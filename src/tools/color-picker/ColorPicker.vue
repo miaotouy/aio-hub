@@ -173,7 +173,7 @@ async function runInitialAnalysis() {
       const record = await addRecord(
         {
           assetId: asset.id,
-          sourceImageName: asset.name,
+          sourceImageName: fileName, // 使用原始文件名，避免资产重命名导致的问题
           createdAt: Date.now(),
           analysisResult: result,
           manualPalette: [],

@@ -100,12 +100,6 @@ const resetOrder = () => {
   }
 };
 
-// 判断工具图标是否为插件图标
-// 插件图标通过 createPluginIcon 创建，都有 setup 函数
-// 而内置图标（Element Plus 图标等）没有 setup 函数
-const isPluginIcon = (tool: ToolConfig) => {
-  return tool.icon && typeof tool.icon === 'object' && 'setup' in tool.icon;
-};
 </script>
 
 <template>
@@ -162,16 +156,10 @@ const isPluginIcon = (tool: ToolConfig) => {
             <el-icon class="drag-handle">
               <Rank />
             </el-icon>
-            <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
-            <component
-              v-if="isPluginIcon(tool)"
-              :is="tool.icon"
-              class="plugin-icon-wrapper"
-            />
-            <!-- 普通图标用 el-icon 包裹 -->
-            <el-icon v-else class="tool-icon">
+            <!-- 统一的图标容器 -->
+            <span class="icon-wrapper">
               <component :is="tool.icon" />
-            </el-icon>
+            </span>
             <div class="tool-info">
               <span class="tool-name">{{ tool.name }}</span>
               <span v-if="tool.description" class="tool-description">{{
@@ -274,24 +262,18 @@ const isPluginIcon = (tool: ToolConfig) => {
   width: 100%;
 }
 
-.tool-icon {
-  font-size: 20px;
-  color: var(--primary-color);
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-/* 插件图标样式 - 模拟 el-icon 的布局 */
-.plugin-icon-wrapper {
+/* 统一的图标容器样式 */
+.icon-wrapper {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 20px;
   height: 20px;
-  font-size: 20px; /* 让 Emoji 图标尺寸正确 */
+  font-size: 20px;
   color: var(--primary-color);
   margin-top: 2px;
   flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .tool-info {

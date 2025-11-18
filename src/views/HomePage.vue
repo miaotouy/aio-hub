@@ -81,16 +81,10 @@
               </template>
             </el-dropdown>
 
-            <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
-            <component
-              v-if="tool.path.startsWith('/plugin-')"
-              :is="tool.icon"
-              class="plugin-icon-large"
-            />
-            <!-- 普通图标用 el-icon 包裹 -->
-            <el-icon v-else :size="48">
+            <!-- 统一的图标容器 -->
+            <span class="icon-wrapper">
               <component :is="tool.icon" />
-            </el-icon>
+            </span>
             <div class="tool-name">{{ tool.name }}</div>
             <div class="tool-description">{{ tool.description }}</div>
           </component>
@@ -519,15 +513,15 @@ watch(
   margin: 0;
 }
 
-/* 插件图标样式 - 大尺寸 */
-.plugin-icon-large {
+/* 统一的图标容器样式 - 大尺寸 */
+.icon-wrapper {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px;
-  line-height: 1; /* 确保行高不会影响尺寸 */
-  min-width: 48px; /* 保证占位 */
-  min-height: 48px;
+  width: 48px;
+  height: 48px;
+  font-size: 48px;
+  line-height: 1;
   margin-bottom: 15px;
   color: var(--primary-color);
 }

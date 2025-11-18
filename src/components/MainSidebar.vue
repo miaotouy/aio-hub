@@ -199,14 +199,10 @@ onUnmounted(() => {
                   style="width: 100%; height: 100%"
                 >
                   <span class="menu-item-trigger">
-                    <!-- 插件图标直接渲染，不用 el-icon 包裹 -->
-                    <component
-                      v-if="tool.path.startsWith('/plugin-')"
-                      :is="tool.icon"
-                      class="plugin-icon-wrapper"
-                    />
-                    <!-- 普通图标用 el-icon 包裹 -->
-                    <el-icon v-else><component :is="tool.icon" /></el-icon>
+                    <!-- 统一的图标容器 -->
+                    <span class="icon-wrapper">
+                      <component :is="tool.icon" />
+                    </span>
                     <!-- 手动处理标题，以使其成为触发器的一部分 -->
                     <template v-if="!isCollapsed">
                       <span class="menu-item-title-text">{{ tool.name }}</span>
@@ -469,8 +465,8 @@ onUnmounted(() => {
   justify-content: center;
 }
 
-/* 插件图标样式 - 模拟 el-icon 的布局 */
-.plugin-icon-wrapper {
+/* 统一的图标容器样式 */
+.icon-wrapper {
   display: inline-flex;
   align-items: center;
   justify-content: center;

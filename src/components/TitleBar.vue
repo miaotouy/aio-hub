@@ -103,14 +103,6 @@ const useDefaultIcon = computed(() => {
   return route.path === "/" || !toolsStore.tools.find((tool) => tool.path === route.path);
 });
 
-// 判断当前图标是否为插件图标
-// 插件图标通过 createPluginIcon 建，都有 setup 函数
-// 而内置图标（Element Plus 图标等）没有 setup 函数
-const isPluginIcon = computed(() => {
-  const icon = currentIcon.value;
-  return icon && typeof icon === "object" && "setup" in icon;
-});
-
 const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 
 // 检查窗口是否最大化
@@ -289,12 +281,10 @@ const goToProfileSettings = () => {
       <div class="title-area">
         <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
         <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" />
-        <!-- 插件图标直接渲染，不用 el-icon 包裹（避免 Emoji 被拉伸） -->
-        <component v-else-if="isPluginIcon" :is="currentIcon" class="plugin-icon-wrapper" />
-        <!-- 普通图标用 el-icon 包裹 -->
-        <el-icon v-else class="tool-icon" :size="20">
+        <!-- 统一的图标容器 -->
+        <span v-else class="icon-wrapper">
           <component :is="currentIcon" />
-        </el-icon>
+        </span>
         <span class="app-title">{{ currentToolName }}</span>
       </div>
 
@@ -484,22 +474,16 @@ const goToProfileSettings = () => {
   object-fit: contain;
 }
 
-.tool-icon {
-  color: var(--sidebar-text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-/* 插件图标样式 - 模拟 el-icon 的布局 */
-.plugin-icon-wrapper {
+/* 统一的图标容器样式 */
+.icon-wrapper {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 20px;
   height: 20px;
-  font-size: 20px; /* 让 Emoji 图标尺寸正确 */
+  font-size: 20px;
+  color: var(--sidebar-text);
+  flex-shrink: 0;
   vertical-align: middle;
 }
 

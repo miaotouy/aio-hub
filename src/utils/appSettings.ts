@@ -86,6 +86,8 @@ export interface AppearanceSettings {
   backgroundColorOverlayColor?: string; // 叠加颜色 (HEX)
   backgroundColorOverlayOpacity?: number; // 叠加不透明度 (0-1)
   backgroundColorOverlayBlendMode?: BlendMode; // 混合模式
+  autoExtractColorFromWallpaper?: boolean; // 是否自动从壁纸提取颜色
+  wallpaperExtractedColor?: string; // 从壁纸提取的颜色
 }
 
 export interface AppSettings {
@@ -179,6 +181,8 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   backgroundColorOverlayColor: "#409eff", // 默认使用主题色
   backgroundColorOverlayOpacity: 0.3,
   backgroundColorOverlayBlendMode: "overlay",
+  autoExtractColorFromWallpaper: false, // 默认不自动取色
+  wallpaperExtractedColor: "", // 默认无提取颜色
 };
 
 // 默认设置

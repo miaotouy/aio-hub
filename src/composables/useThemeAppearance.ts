@@ -9,13 +9,48 @@ import {
   defaultAppearanceSettings,
 } from "@/utils/appSettings";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { useTheme } from "@/composables/useTheme";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import ColorThief from "color-thief-ts";
 
 // --- 颜色混合工具 ---
 
 export type RGB = { r: number; g: number; b: number };
+
+/**
+ * 将 ColorThief 返回的颜色统一转换为 RGB 数组
+ * color-thief-ts 可能返回 string (HEX) 或 number[] (RGB)
+ */
+function formatToRgbArray(color: string | number[]): number[] {
+  if (typeof color === 'string') {
+    // HEX 字符串转 RGB 数组
+    const hex = color.startsWith('#') ? color.slice(1) : color;
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+    ];
+  }
+  if (Array.isArray(color)) {
+    return color;
+  }
+  // 异常情况，返回黑色
+  logger.warn('ColorThief 返回了未预期的颜色格式', { color });
+  return [0, 0, 0];
+}
+
+/**
+ * 计算颜色的感知亮度 (0-1)
+ */
+function calculateLuminance(rgb: number[]): number {
+  const [r, g, b] = rgb.map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
 
 /**
  * 将 HEX 颜色字符串转换为 RGB 对象。
@@ -24,10 +59,10 @@ export function hexToRgb(hex: string): RGB | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    }
     : null;
 }
 
@@ -62,8 +97,8 @@ export function applyBlendMode(base: RGB, active: RGB, opacity: number, mode: Bl
         return a < 128
           ? b - (1 - 2 * (a / 255)) * b * (1 - b / 255)
           : b +
-              (2 * (a / 255) - 1) *
-                ((b < 64 ? ((16 * b - 12) * b + 4) * b : Math.sqrt(b * 255)) - b);
+          (2 * (a / 255) - 1) *
+          ((b < 64 ? ((16 * b - 12) * b + 4) * b : Math.sqrt(b * 255)) - b);
       case "difference":
         return Math.abs(b - a);
       case "exclusion":
@@ -95,36 +130,41 @@ export function applyBlendMode(base: RGB, active: RGB, opacity: number, mode: Bl
 export function getBlendedBackgroundColor(baseRgbVar: string, opacity: number): string {
   const root = document.documentElement;
   const baseRgbString = getComputedStyle(root).getPropertyValue(baseRgbVar).trim();
-  
+
   if (!baseRgbString) {
     // 如果无法获取 RGB 值，返回透明色
     return `rgba(0, 0, 0, ${opacity})`;
   }
-  
+
   const [r, g, b] = baseRgbString.split(",").map(Number);
   let finalRgb: RGB = { r, g, b };
-  
+
   // 检查是否启用了颜色叠加
   const settings = appearanceSettings.value;
   const overlayEnabled = settings.backgroundColorOverlayEnabled ?? false;
-  
+
   if (overlayEnabled) {
-    const overlayColorHex = settings.backgroundColorOverlayColor ?? "#000000";
+    // 如果开启了自动取色并且存在提取的颜色，则使用它
+    const overlayColorHex =
+      settings.autoExtractColorFromWallpaper && settings.wallpaperExtractedColor
+        ? settings.wallpaperExtractedColor
+        : settings.backgroundColorOverlayColor ?? "#000000";
     const overlayOpacity = settings.backgroundColorOverlayOpacity ?? 0;
     const blendMode = settings.backgroundColorOverlayBlendMode ?? "normal";
     const overlayColorRgb = hexToRgb(overlayColorHex);
-    
+
     if (overlayColorRgb) {
       finalRgb = applyBlendMode(finalRgb, overlayColorRgb, overlayOpacity, blendMode);
     }
   }
-  
+
   return `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${opacity})`;
 }
 
 // --- 模块级状态 (单例模式) ---
 const logger = createModuleLogger("ThemeAppearance");
 const errorHandler = createModuleErrorHandler("ThemeAppearance");
+const colorThief = new ColorThief();
 
 const debouncedCssUpdate = debounce(
   (settings: AppearanceSettings) => {
@@ -261,7 +301,11 @@ function _updateCssVariables(settings: AppearanceSettings) {
 
     // --- 背景色叠加逻辑 ---
     const overlayEnabled = settings.backgroundColorOverlayEnabled ?? false;
-    const overlayColorHex = settings.backgroundColorOverlayColor ?? "#000000";
+    // 如果开启了自动取色并且存在提取的颜色，则使用它
+    const overlayColorHex =
+      settings.autoExtractColorFromWallpaper && settings.wallpaperExtractedColor
+        ? settings.wallpaperExtractedColor
+        : settings.backgroundColorOverlayColor ?? "#000000";
     const overlayOpacity = settings.backgroundColorOverlayOpacity ?? 0;
     const blendMode = settings.backgroundColorOverlayBlendMode ?? "normal";
     const overlayColorRgb = hexToRgb(overlayColorHex);
@@ -329,11 +373,11 @@ function _updateCssVariables(settings: AppearanceSettings) {
     setElementBackground("container", overlayOpacityValue);
 
     root.style.setProperty("--border-opacity", String(settings.borderOpacity));
-    
+
     // 代码块背景：使用独立的透明度设置
     const codeBlockOpacity = settings.codeBlockOpacity ?? defaultAppearanceSettings.codeBlockOpacity;
     root.style.setProperty("--code-block-opacity", String(codeBlockOpacity));
-    
+
     // 为代码块计算完整的背景色（包含颜色混合）
     const codeBlockBgVar = "--code-block-bg";
     const codeBlockBaseRgb = getComputedStyle(root).getPropertyValue("--card-bg-rgb").trim();
@@ -393,7 +437,7 @@ function _stopSlideshow() {
   }
 }
 
-function _switchToWallpaper(index: number, settings: AppearanceSettings) {
+async function _switchToWallpaper(index: number, settings: AppearanceSettings) {
   const list = settings.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
   if (index < 0 || index >= list.length) {
     logger.warn(`无效的壁纸索引: ${index}`);
@@ -411,6 +455,17 @@ function _switchToWallpaper(index: number, settings: AppearanceSettings) {
       updateAppearanceSetting({ wallpaperSlideshowCurrentIndex: index });
     }
     logger.debug("幻灯片切换", { index, path: imagePath });
+
+    // 如果开启了自动取色，从新壁纸提取颜色
+    if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
+      const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
+      if (extractedColor) {
+        updateAppearanceSetting({
+          wallpaperExtractedColor: extractedColor,
+          backgroundColorOverlayEnabled: true,
+        });
+      }
+    }
   } catch (error) {
     errorHandler.warn(error, `转换壁纸路径失败: ${imagePath}`, {
       operation: "转换壁纸路径",
@@ -476,6 +531,79 @@ async function _startSlideshow(settings: AppearanceSettings) {
   }
 }
 
+async function _extractColorFromWallpaper(wallpaperUrl: string): Promise<string | null> {
+  const { isDark } = useTheme(); // 获取当前主题状态
+
+  try {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+
+    return new Promise((resolve) => {
+      img.onload = () => {
+        try {
+          // 获取调色板，而不是单一颜色
+          const rawPalette = colorThief.getPalette(img, 5);
+          if (!rawPalette || rawPalette.length === 0) {
+            logger.warn("无法从壁纸获取调色板");
+            resolve(null);
+            return;
+          }
+
+          // 统一格式为 RGB 数组
+          const palette = (rawPalette as (string | number[])[]).map(formatToRgbArray);
+
+          // 根据亮度排序
+          const sortedPalette = palette
+            .map((color) => ({ color, luminance: calculateLuminance(color) }))
+            .sort((a, b) => a.luminance - b.luminance);
+
+          let selectedColorRgb: number[];
+
+          // 姐姐说得对，不能闪瞎眼。暗色模式用较暗的颜色，亮色模式用较亮的颜色。
+          if (isDark.value) {
+            // 暗色模式：选择第二暗的颜色，如果只有一个颜色就选最暗的
+            selectedColorRgb = sortedPalette[1]?.color ?? sortedPalette[0].color;
+          } else {
+            // 亮色模式：选择第二亮的颜色，如果只有一个颜色就选最亮的
+            selectedColorRgb =
+              sortedPalette[sortedPalette.length - 2]?.color ??
+              sortedPalette[sortedPalette.length - 1].color;
+          }
+
+          const hexColor = `#${selectedColorRgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+
+          if (hexColor) {
+            logger.info("从壁纸智能提取颜色成功", {
+              color: hexColor,
+              theme: isDark.value ? "dark" : "light",
+            });
+            resolve(hexColor);
+          } else {
+            resolve(null);
+          }
+        } catch (error) {
+          errorHandler.warn(error, "提取壁纸颜色时发生错误", {
+            operation: "提取壁纸颜色",
+          });
+          resolve(null);
+        }
+      };
+
+      img.onerror = () => {
+        logger.warn("加载壁纸图片失败，无法提取颜色");
+        resolve(null);
+      };
+
+      img.src = wallpaperUrl;
+    });
+  } catch (error) {
+    errorHandler.warn(error, "提取壁纸颜色失败", {
+      operation: "提取壁纸颜色",
+    });
+    return null;
+  }
+}
+
 async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: AppearanceSettings) {
   _stopSlideshow(); // 默认先停止旧的轮播
 
@@ -492,6 +620,17 @@ async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: Appe
       shuffledList.value = [];
       currentWallpaper.value = convertFileSrc(settings.wallpaperPath);
       logger.info("静态壁纸加载成功");
+
+      // 如果开启了自动取色，从壁纸提取颜色
+      if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
+        const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
+        if (extractedColor) {
+          updateAppearanceSetting({
+            wallpaperExtractedColor: extractedColor,
+            backgroundColorOverlayEnabled: true, // 自动启用颜色叠加
+          });
+        }
+      }
     } catch (error) {
       errorHandler.error(error, "转换静态壁纸路径失败", {
         operation: "转换静态壁纸路径",
@@ -544,6 +683,8 @@ export async function initThemeAppearance(isDetached = false) {
   isInitialized = true;
   isDetachedWindow = isDetached;
 
+  const { isDark } = useTheme();
+
   try {
     // 加载设置
     const settings = await appSettingsManager.load();
@@ -560,6 +701,20 @@ export async function initThemeAppearance(isDetached = false) {
         settings.appearance.enableWindowEffects ?? true
       );
     }
+
+    // 监听主题变化（亮/暗模式切换），如果开启了自动取色，则重新提取适合当前主题的颜色
+    watch(isDark, async () => {
+      const settings = appearanceSettings.value;
+      if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
+        logger.info("主题已切换，重新提取适合当前主题的壁纸颜色...");
+        const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
+        if (extractedColor) {
+          updateAppearanceSetting({
+            wallpaperExtractedColor: extractedColor,
+          });
+        }
+      }
+    });
 
     // 监听设置变化并更新 UI
     watch(
@@ -578,6 +733,21 @@ export async function initThemeAppearance(isDetached = false) {
           newSettings.wallpaperSlideshowInterval !== old.wallpaperSlideshowInterval
         ) {
           await _updateWallpaper(newSettings, old);
+        }
+
+        // 如果自动取色开关发生变化，且当前有壁纸，则重新提取颜色
+        if (
+          newSettings.autoExtractColorFromWallpaper !== old.autoExtractColorFromWallpaper &&
+          newSettings.autoExtractColorFromWallpaper &&
+          currentWallpaper.value
+        ) {
+          const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
+          if (extractedColor) {
+            updateAppearanceSetting({
+              wallpaperExtractedColor: extractedColor,
+              backgroundColorOverlayEnabled: true,
+            });
+          }
         }
 
         if (
@@ -779,6 +949,31 @@ export function useThemeAppearance() {
     logger.info("壁纸列表已刷新");
   };
 
+  /**
+   * 手动从当前壁纸提取颜色
+   */
+  const extractColorFromCurrentWallpaper = async () => {
+    if (!currentWallpaper.value) {
+      logger.warn("当前没有壁纸，无法提取颜色");
+      return;
+    }
+
+    try {
+      const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
+      if (extractedColor) {
+        updateAppearanceSetting({
+          backgroundColorOverlayColor: extractedColor,
+          backgroundColorOverlayEnabled: true,
+        });
+        logger.info("手动提取壁纸颜色成功", { color: extractedColor });
+      }
+    } catch (error) {
+      errorHandler.error(error, "手动提取壁纸颜色失败", {
+        operation: "手动提取壁纸颜色",
+      });
+    }
+  };
+
   return {
     appearanceSettings: computed(() => appearanceSettings.value),
     currentWallpaper: computed(() => currentWallpaper.value),
@@ -801,5 +996,8 @@ export function useThemeAppearance() {
     toggleShuffle,
     reshuffle,
     refreshWallpaperList,
+
+    // 颜色提取
+    extractColorFromCurrentWallpaper,
   };
 }

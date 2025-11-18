@@ -227,19 +227,51 @@
               class="color-overlay-group"
               :class="{ 'is-disabled': !backgroundColorOverlayEnabled }"
             >
+              <el-form-item>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <el-switch v-model="autoExtractColorFromWallpaper" />
+                  <span style="font-size: 14px;">自动从壁纸提取颜色</span>
+                  <el-tooltip
+                    content="启用后，每次切换壁纸时会自动提取主色调并应用到背景色叠加"
+                    placement="top"
+                  >
+                    <el-icon style="cursor: help; color: var(--el-text-color-secondary);">
+                      <QuestionFilled />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
+              </el-form-item>
+
               <el-row :gutter="20">
-                <el-col :span="12">
+                <el-col :span="14">
                   <el-form-item label="叠加颜色">
                     <div class="color-picker-with-input">
-                      <el-color-picker v-model="backgroundColorOverlayColor" />
-                      <el-input v-model="backgroundColorOverlayColor" placeholder="颜色值" />
-                      <el-tooltip content="吸管 (ESC 取消)" placement="top">
+                      <el-color-picker
+                        :model-value="effectiveOverlayColor"
+                        @update:model-value="onOverlayColorChange"
+                        :disabled="autoExtractColorFromWallpaper"
+                      />
+                      <el-input
+                        :model-value="effectiveOverlayColor"
+                        @update:model-value="onOverlayColorChange"
+                        placeholder="颜色值"
+                        :disabled="autoExtractColorFromWallpaper"
+                      />
+                      <el-tooltip content="从屏幕取色 (ESC 取消)" placement="top">
                         <el-button :icon="Pipette" circle @click="openEyeDropper" />
+                      </el-tooltip>
+                      <el-tooltip content="从当前壁纸取色" placement="top">
+                        <el-button
+                          :icon="RefreshCw"
+                          circle
+                          @click="extractColorFromCurrentWallpaper"
+                          :disabled="!currentWallpaper"
+                        />
                       </el-tooltip>
                     </div>
                   </el-form-item>
                 </el-col>
-                <el-col :span="12">
+                <el-col :span="10">
                   <el-form-item label="混合模式">
                     <el-select v-model="backgroundColorOverlayBlendMode" class="full-width">
                       <el-option
@@ -328,7 +360,7 @@
 import { computed, ref, watch, nextTick, onMounted } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import { useElementSize } from "@vueuse/core";
-import { Pipette } from "lucide-vue-next";
+import { Pipette, RefreshCw } from "lucide-vue-next";
 import { useImageViewer } from "@/composables/useImageViewer";
 import {
   Picture,
@@ -339,6 +371,7 @@ import {
   Sort,
   MagicStick,
   RefreshLeft,
+  QuestionFilled,
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
@@ -362,6 +395,7 @@ const {
   toggleShuffle,
   reshuffle,
   refreshWallpaperList,
+  extractColorFromCurrentWallpaper,
 } = useThemeAppearance();
 
 const isGlassEffectActive = computed(() =>
@@ -658,6 +692,18 @@ const backgroundColorOverlayColor = computed({
   set: (val) => updateAppearanceSetting({ backgroundColorOverlayColor: val }),
 });
 
+// 计算实际生效的叠加颜色
+const effectiveOverlayColor = computed(() => {
+  return autoExtractColorFromWallpaper.value && appearanceSettings.value.wallpaperExtractedColor
+    ? appearanceSettings.value.wallpaperExtractedColor
+    : appearanceSettings.value.backgroundColorOverlayColor ?? "#409eff";
+});
+
+// 处理手动颜色输入
+const onOverlayColorChange = (val: string) => {
+  updateAppearanceSetting({ backgroundColorOverlayColor: val });
+};
+
 const backgroundColorOverlayOpacity = computed({
   get: () => appearanceSettings.value.backgroundColorOverlayOpacity ?? 0.3,
   set: (val) =>
@@ -667,6 +713,11 @@ const backgroundColorOverlayOpacity = computed({
 const backgroundColorOverlayBlendMode = computed({
   get: () => appearanceSettings.value.backgroundColorOverlayBlendMode ?? "overlay",
   set: (val: BlendMode) => updateAppearanceSetting({ backgroundColorOverlayBlendMode: val }),
+});
+
+const autoExtractColorFromWallpaper = computed({
+  get: () => appearanceSettings.value.autoExtractColorFromWallpaper ?? false,
+  set: (val) => updateAppearanceSetting({ autoExtractColorFromWallpaper: val }),
 });
 
 const wallpaperPreviewStyle = computed(() => {

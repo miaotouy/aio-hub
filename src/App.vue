@@ -6,7 +6,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { ElMessageBox } from "element-plus";
 import { Loading } from '@element-plus/icons-vue';
 import { useDark } from "@vueuse/core";
-import { useWindowSyncBus } from "./composables/useWindowSyncBus";
 import { useDetachedManager } from "./composables/useDetachedManager";
 import {
   loadAppSettingsAsync,
@@ -17,10 +16,7 @@ import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/lo
 import { applyThemeColors } from "./utils/themeColors";
 import TitleBar from "./components/TitleBar.vue";
 import MainSidebar from "./components/MainSidebar.vue";
-import SyncServiceProvider from "./components/SyncServiceProvider.vue";
-import ImageViewer from "./components/common/ImageViewer.vue";
-import ModelSelectDialog from "./components/common/ModelSelectDialog.vue";
-import { useImageViewer } from "./composables/useImageViewer";
+import GlobalProviders from "./components/GlobalProviders.vue";
 import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
 
@@ -35,9 +31,6 @@ const router = useRouter();
 const { isDetached, initialize } = useDetachedManager();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
 const isDark = useDark(); // 监听主题模式
-
-// 全局图片查看器
-const imageViewer = useImageViewer();
 
 // 判断当前是否为特殊路由（不需要显示侧边栏）
 const isSpecialRoute = computed(() => {
@@ -151,10 +144,6 @@ onMounted(async () => {
     } catch (error) {
       logger.warn("加载工具可见性缓存失败", { error });
     }
-
-    // 初始化跨窗口通信总线
-    const { initializeSyncBus } = useWindowSyncBus();
-    initializeSyncBus();
 
     // 初始化统一的分离窗口管理器
     await initialize();
@@ -284,27 +273,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- 全局同步服务提供者 - 无界面，仅在主窗口启动服务 -->
-  <SyncServiceProvider />
-  
-  <!-- 全局图片查看器 -->
-  <ImageViewer
-    v-if="imageViewer.state.value.visible"
-    :images="imageViewer.state.value.images"
-    :initial-index="imageViewer.state.value.currentIndex"
-    :options="imageViewer.state.value.options"
-    @close="imageViewer.hide()"
-    @change="(index) => imageViewer.state.value.currentIndex = index"
-  />
-  
-  <!-- 全局模型选择弹窗 -->
-  <ModelSelectDialog />
-  
-  <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
-  <TitleBar v-if="!isSpecialRoute" />
+  <GlobalProviders>
+    <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
+    <TitleBar v-if="!isSpecialRoute" />
 
-  <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
-  <el-container :class="['common-layout', { 'no-titlebar': isSpecialRoute }]">
+    <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
+    <el-container :class="['common-layout', { 'no-titlebar': isSpecialRoute }]">
     <!-- 骨架屏 -->
     <template v-if="isLoading">
       <div class="app-skeleton">
@@ -361,8 +335,9 @@ onUnmounted(() => {
           </router-view>
         </el-main>
       </el-container>
-    </template>
-  </el-container>
+      </template>
+    </el-container>
+  </GlobalProviders>
 </template>
 
 <style>

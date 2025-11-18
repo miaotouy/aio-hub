@@ -2,7 +2,6 @@
 import { ref, shallowRef, onMounted, onUnmounted, type Component, watch } from "vue";
 import { Loading } from '@element-plus/icons-vue';
 import { useRoute } from "vue-router";
-import { useWindowSyncBus } from "../composables/useWindowSyncBus";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -14,14 +13,10 @@ import { getDetachableComponentConfig, loadDetachableComponent } from "../config
 import { loadAppSettingsAsync } from "../utils/appSettings";
 import { applyThemeColors } from "../utils/themeColors";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
-import ImageViewer from "../components/common/ImageViewer.vue";
-import ModelSelectDialog from "../components/common/ModelSelectDialog.vue";
-import { useImageViewer } from "../composables/useImageViewer";
+import GlobalProviders from "../components/GlobalProviders.vue";
 
 const logger = createModuleLogger("DetachedComponentContainer");
 
-// 全局图片查看器
-const imageViewer = useImageViewer();
 const route = useRoute();
 const { currentTheme } = useTheme();
 
@@ -58,10 +53,6 @@ watch(
   { immediate: true, deep: true }
 );
 onMounted(async () => {
-  // 初始化此窗口的通信总线
-  const { initializeSyncBus } = useWindowSyncBus();
-  initializeSyncBus();
-
   // 初始化分离窗口管理器，以便能正确检测其他组件的分离状态
   const { initialize } = useDetachedManager();
   await initialize();
@@ -208,21 +199,9 @@ onUnmounted(() => {
     class="detached-component-container"
     :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
   >
-    <!-- 全局图片查看器 - 分离组件窗口也需要独立的图片查看功能 -->
-    <ImageViewer
-      v-if="imageViewer.state.value.visible"
-      :images="imageViewer.state.value.images"
-      :initial-index="imageViewer.state.value.currentIndex"
-      :options="imageViewer.state.value.options"
-      @close="imageViewer.hide()"
-      @change="(index) => imageViewer.state.value.currentIndex = index"
-    />
-    
-    <!-- 全局模型选择弹窗 -->
-    <ModelSelectDialog />
-
-    <!-- 组件渲染区域 -->
-    <div class="component-wrapper">
+    <GlobalProviders>
+      <!-- 组件渲染区域 -->
+      <div class="component-wrapper">
       <Suspense v-if="componentToRender">
         <component
           :is="componentToRender"
@@ -245,9 +224,10 @@ onUnmounted(() => {
         <p v-else>未指定要加载的组件ID。</p>
       </div>
 
-      <!-- 预览模式提示 -->
-      <DetachPreviewHint :visible="isPreview" />
-    </div>
+        <!-- 预览模式提示 -->
+        <DetachPreviewHint :visible="isPreview" />
+      </div>
+    </GlobalProviders>
   </div>
 </template>
 

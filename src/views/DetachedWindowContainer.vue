@@ -7,7 +7,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
 import { useDetachedManager } from "../composables/useDetachedManager";
-import { useWindowSyncBus } from "../composables/useWindowSyncBus";
 import { useLlmChatStateConsumer } from "../tools/llm-chat/composables/useLlmChatStateConsumer";
 import { initThemeAppearance, cleanupThemeAppearance } from "../composables/useThemeAppearance";
 import { createModuleLogger } from "../utils/logger";
@@ -16,15 +15,10 @@ import { applyThemeColors } from "../utils/themeColors";
 import { useToolsStore } from "../stores/tools";
 import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
-import SyncServiceProvider from "../components/SyncServiceProvider.vue";
-import ImageViewer from "../components/common/ImageViewer.vue";
-import ModelSelectDialog from "../components/common/ModelSelectDialog.vue";
-import { useImageViewer } from "../composables/useImageViewer";
+import GlobalProviders from "../components/GlobalProviders.vue";
 
 const logger = createModuleLogger("DetachedWindowContainer");
 
-// 全局图片查看器
-const imageViewer = useImageViewer();
 const route = useRoute();
 const { currentTheme } = useTheme();
 const { initialize: initializeDetachedManager } = useDetachedManager();
@@ -51,10 +45,6 @@ const isPreview = ref(true);
 const showTitleBar = computed(() => true);
 
 onMounted(async () => {
-  // 初始化跨窗口通信总线
-  const { initializeSyncBus } = useWindowSyncBus();
-  initializeSyncBus();
-  
   // 初始化统一的分离窗口管理器
   await initializeDetachedManager();
   // 初始化主题外观系统（包括壁纸、透明度、模糊等）
@@ -169,25 +159,10 @@ onUnmounted(() => {
     class="detached-container"
     :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
   >
-    <!-- 全局同步服务提供者 - 分离的工具窗口也需要同步服务 -->
-    <SyncServiceProvider />
-    
-    <!-- 全局图片查看器 - 分离窗口也需要独立的图片查看功能 -->
-    <ImageViewer
-      v-if="imageViewer.state.value.visible"
-      :images="imageViewer.state.value.images"
-      :initial-index="imageViewer.state.value.currentIndex"
-      :options="imageViewer.state.value.options"
-      @close="imageViewer.hide()"
-      @change="(index) => imageViewer.state.value.currentIndex = index"
-    />
-    
-    <!-- 全局模型选择弹窗 -->
-    <ModelSelectDialog />
+    <GlobalProviders>
+      <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
 
-    <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
-
-    <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
+      <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
       <Suspense v-if="toolComponent">
         <component :is="toolComponent" />
         <template #fallback>
@@ -196,14 +171,15 @@ onUnmounted(() => {
             <p>组件加载中...</p>
           </div>
         </template>
-      </Suspense>
-      <div v-else class="loading-message">
-        <p>加载中...</p>
+        </Suspense>
+        <div v-else class="loading-message">
+          <p>加载中...</p>
+        </div>
       </div>
-    </div>
 
-    <!-- 预览模式提示 -->
-    <DetachPreviewHint :visible="isPreview" />
+      <!-- 预览模式提示 -->
+      <DetachPreviewHint :visible="isPreview" />
+    </GlobalProviders>
   </div>
 </template>
 <style scoped>

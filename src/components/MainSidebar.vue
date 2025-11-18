@@ -171,11 +171,15 @@ onUnmounted(() => {
             @select="handleSelect"
           >
             <el-menu-item index="/">
-              <el-icon><i-ep-home-filled /></el-icon>
+              <span class="icon-wrapper">
+                <i-ep-home-filled />
+              </span>
               <template #title>主页</template>
             </el-menu-item>
             <el-menu-item index="/extensions">
-              <el-icon><Puzzle :size="18" /></el-icon>
+              <span class="icon-wrapper">
+                <Puzzle />
+              </span>
               <template #title>扩展</template>
             </el-menu-item>
             <el-tooltip
@@ -470,9 +474,9 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1em;
-  height: 1em;
-  font-size: inherit;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
   vertical-align: middle;
 }
 </style>

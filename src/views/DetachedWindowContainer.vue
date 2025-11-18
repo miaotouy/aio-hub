@@ -18,6 +18,7 @@ import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import SyncServiceProvider from "../components/SyncServiceProvider.vue";
 import ImageViewer from "../components/common/ImageViewer.vue";
+import ModelSelectDialog from "../components/common/ModelSelectDialog.vue";
 import { useImageViewer } from "../composables/useImageViewer";
 
 const logger = createModuleLogger("DetachedWindowContainer");
@@ -181,6 +182,9 @@ onUnmounted(() => {
       @change="(index) => imageViewer.state.value.currentIndex = index"
     />
     
+    <!-- 全局模型选择弹窗 -->
+    <ModelSelectDialog />
+
     <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
 
     <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">

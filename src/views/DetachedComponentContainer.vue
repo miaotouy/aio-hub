@@ -15,6 +15,7 @@ import { loadAppSettingsAsync } from "../utils/appSettings";
 import { applyThemeColors } from "../utils/themeColors";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import ImageViewer from "../components/common/ImageViewer.vue";
+import ModelSelectDialog from "../components/common/ModelSelectDialog.vue";
 import { useImageViewer } from "../composables/useImageViewer";
 
 const logger = createModuleLogger("DetachedComponentContainer");
@@ -217,6 +218,9 @@ onUnmounted(() => {
       @change="(index) => imageViewer.state.value.currentIndex = index"
     />
     
+    <!-- 全局模型选择弹窗 -->
+    <ModelSelectDialog />
+
     <!-- 组件渲染区域 -->
     <div class="component-wrapper">
       <Suspense v-if="componentToRender">

@@ -3,8 +3,8 @@
     <div
       v-if="props.modelValue"
       class="base-dialog-backdrop"
-      :style="{ zIndex: dynamicZIndex }"
-      :class="{ 
+      :style="backdropStyles"
+      :class="{
         'backdrop-visible': showContentTransition,
         'backdrop-hidden': !showContentTransition 
       }"
@@ -74,6 +74,7 @@ const props = withDefaults(defineProps<{
   width?: string;
   maxWidth?: string;
   height?: string;
+  top?: string;
   showCloseButton?: boolean;
   closeOnBackdropClick?: boolean;
   bare?: boolean;
@@ -108,6 +109,19 @@ const isGlassEffectActive = computed(() =>
 
 const showContentTransition = ref(false);
 const dynamicZIndex = ref(props.zIndex);
+
+const backdropStyles = computed(() => {
+  const styles: Record<string, any> = {
+    zIndex: dynamicZIndex.value,
+  };
+  if (props.top) {
+    styles.alignItems = 'flex-start';
+    styles.paddingTop = props.top;
+  } else {
+    styles.alignItems = 'center';
+  }
+  return styles;
+});
 
 // 格式化尺寸值，为纯数字添加 'px' 单位
 const formatSize = (value?: string | number): string | undefined => {

@@ -221,9 +221,6 @@ watch(
     v-model="isDialogVisible"
     title="OCR 历史记录"
     width="80%"
-    top="10vh"
-    append-to-body
-    destroy-on-close
   >
     <div class="history-dialog-content" v-loading="isLoading">
       <div class="table-wrapper" @scroll="handleScroll">

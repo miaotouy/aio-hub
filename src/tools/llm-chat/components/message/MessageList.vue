@@ -77,6 +77,8 @@ const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 // 自动滚动到底部
 const scrollToBottom = () => {
+  // 直接使用原生滚动，强制滚到真正的底部
+  // 不依赖虚拟列表的高度计算，确保流式输出时能及时跟随
   nextTick(() => {
     if (messagesContainer.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
@@ -84,12 +86,50 @@ const scrollToBottom = () => {
   });
 };
 
-// 监听消息变化，自动滚动
+// 记录用户是否接近底部
+const isNearBottom = ref(true);
+
+// 滚动事件处理
+const onScroll = () => {
+  if (!messagesContainer.value) return;
+  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
+  // 阈值设为 100px，在这个范围内认为用户想看最新消息
+  isNearBottom.value = scrollHeight - clientHeight - scrollTop < 100;
+};
+
+// 监听消息数量、总高度变化以及最后一条消息的内容变化
 watch(
-  () => props.messages.length,
-  () => {
-    if (settings.value.uiPreferences.autoScroll) {
-      scrollToBottom();
+  [
+    () => props.messages.length,
+    totalSize,
+    // 监听最后一条消息的内容，以便在流式输出时更及时地触发滚动
+    () => {
+      const lastMsg = props.messages[props.messages.length - 1];
+      return lastMsg ? lastMsg.content : "";
+    }
+  ],
+  ([newLength, newTotalSize, newLastContent], [oldLength, oldTotalSize, oldLastContent]) => {
+    if (!settings.value.uiPreferences.autoScroll) return;
+
+    const isNewMessage = newLength !== oldLength;
+    const isContentChanged = newLastContent !== oldLastContent;
+    
+    // 策略：
+    // 1. 如果是新消息出现，且用户之前就在底部附近，或者这是第一条消息，则滚动
+    // 2. 如果仅仅是内容变长(流式输出)，且用户在底部附近，则跟随滚动
+    // 3. 如果用户已经手动向上滚动查看历史(isNearBottom 为 false)，则不打扰
+    
+    if (isNewMessage) {
+      // 对于新消息，我们稍微放宽一点条件，只要不是离得太远，通常都希望看到新消息
+      // 或者是用户自己发送的消息（这里简化处理，假设新消息都滚动，除非用户特意翻上去）
+      if (isNearBottom.value || newLength === 1) {
+        scrollToBottom();
+      }
+    } else if (isContentChanged || newTotalSize !== oldTotalSize) {
+      // 内容变化（流式输出）或总高度变化
+      if (isNearBottom.value) {
+        scrollToBottom();
+      }
     }
   }
 );
@@ -97,7 +137,7 @@ watch(
 // 滚动到顶部
 const scrollToTop = () => {
   if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = 0;
+    virtualizer.value.scrollToIndex(0, { align: "start" });
   }
 };
 
@@ -129,7 +169,7 @@ defineExpose({
 
 <template>
   <div class="message-list-container">
-    <div ref="messagesContainer" class="message-list">
+    <div ref="messagesContainer" class="message-list" @scroll="onScroll">
       <div v-if="messages.length === 0" class="empty-state">
         <p>👋 开始新的对话吧！</p>
       </div>

@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Auto-generated type definitions
+components.d.ts
+src/components.d.ts
+
 # Rust build artifacts
 target/
 Cargo.lock

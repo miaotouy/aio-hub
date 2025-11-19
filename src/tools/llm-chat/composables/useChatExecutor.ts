@@ -118,6 +118,12 @@ export function useChatExecutor() {
     abortControllers.set(assistantNode.id, abortController);
     generatingNodes.add(assistantNode.id);
 
+    // 记录请求开始时间
+    assistantNode.metadata = {
+      ...assistantNode.metadata,
+      requestStartTime: Date.now(),
+    };
+
     try {
       const { sendRequest } = useLlmRequest();
 

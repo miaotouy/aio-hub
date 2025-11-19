@@ -150,6 +150,14 @@ export interface ChatMessageNode {
     reasoningEndTime?: number;
     /** 是否为预设消息的显示副本（用于 UI 区分） */
     isPresetDisplay?: boolean;
+    /** 请求开始时间戳 */
+    requestStartTime?: number;
+    /** 请求结束时间戳 */
+    requestEndTime?: number;
+    /** 首字生成时间戳（用于计算 TTFT） */
+    firstTokenTime?: number;
+    /** 平均生成速度 (tokens/s) */
+    tokensPerSecond?: number;
   };
 }
 

@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Loader2 } from 'lucide-vue-next';
-import type { ChatMessageNode } from '../../types';
-import { useAgentStore } from '../../agentStore';
-import { useUserProfileStore } from '../../userProfileStore';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { useModelMetadata } from '@/composables/useModelMetadata';
-import { useChatSettings } from '../../composables/useChatSettings';
-import Avatar from '@/components/common/Avatar.vue';
-import DynamicIcon from '@/components/common/DynamicIcon.vue';
-import { useResolvedAvatar } from '../../composables/useResolvedAvatar';
-import { formatRelativeTime } from '@/utils/time';
+import { computed } from "vue";
+import type { ChatMessageNode } from "../../types";
+import { useAgentStore } from "../../agentStore";
+import { useUserProfileStore } from "../../userProfileStore";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
+import { useChatSettings } from "../../composables/useChatSettings";
+import Avatar from "@/components/common/Avatar.vue";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
+import { formatRelativeTime } from "@/utils/time";
 
 interface Props {
   message: ChatMessageNode;
@@ -35,40 +34,40 @@ const agent = computed(() => {
 const agentProfileInfo = computed(() => {
   const metadata = props.message.metadata;
   if (!metadata) return null;
-  
+
   // 优先从消息元数据中读取 profileId 和 modelId
   const profileId = metadata.profileId;
   const modelId = metadata.modelId;
-  
+
   // 如果元数据中没有，回退到从智能体读取（兼容旧消息）
   const fallbackProfileId = agent.value?.profileId;
   const fallbackModelId = agent.value?.modelId;
-  
+
   const actualProfileId = profileId || fallbackProfileId;
   const actualModelId = modelId || fallbackModelId;
-  
+
   if (!actualProfileId || !actualModelId) return null;
-  
+
   const profile = getProfileById(actualProfileId);
   if (!profile) return null;
-  
-  const model = profile.models.find(m => m.id === actualModelId);
+
+  const model = profile.models.find((m) => m.id === actualModelId);
   if (!model) return null;
-  
+
   // 获取模型图标
   const modelIcon = getModelIcon(model);
-  
+
   // 获取渠道图标（Profile 的 icon 或 logoUrl）
   const profileIcon = profile.icon || profile.logoUrl;
-  
+
   // 优先使用元数据中的模型名称，如果没有则使用 model 对象的名称
   const displayModelName = metadata.modelName || model.name || model.id;
-  
+
   return {
     profileName: profile.name,
     profileIcon: profileIcon,
     modelName: displayModelName,
-    modelIcon: modelIcon
+    modelIcon: modelIcon,
   };
 });
 
@@ -79,14 +78,14 @@ const effectiveUserProfile = computed(() => {
     const profile = userProfileStore.getProfileById(agent.value.userProfileId);
     if (profile) return profile;
   }
-  
+
   // 回退到全局用户档案
   return userProfileStore.globalProfile;
 });
 
 // 根据角色决定显示的名称和图标
 const displayName = computed(() => {
-  if (props.message.role === 'user') {
+  if (props.message.role === "user") {
     // 优先使用消息元数据中的用户档案快照
     if (props.message.metadata?.userProfileName) {
       return props.message.metadata.userProfileName;
@@ -96,12 +95,12 @@ const displayName = computed(() => {
       return effectiveUserProfile.value.name;
     }
     // 最后使用默认值
-    return '你';
-  } else if (props.message.role === 'assistant') {
+    return "你";
+  } else if (props.message.role === "assistant") {
     // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）
-    return props.message.metadata?.agentName || agent.value?.name || '助手';
+    return props.message.metadata?.agentName || agent.value?.name || "助手";
   } else {
-    return '系统';
+    return "系统";
   }
 });
 
@@ -134,38 +133,34 @@ const assistantAvatarTarget = computed(() => {
 });
 
 // 使用 useResolvedAvatar 解析最终的头像路径
-const userAvatarSrc = useResolvedAvatar(userAvatarTarget, 'user-profile');
-const assistantAvatarSrc = useResolvedAvatar(assistantAvatarTarget, 'agent');
+const userAvatarSrc = useResolvedAvatar(userAvatarTarget, "user-profile");
+const assistantAvatarSrc = useResolvedAvatar(assistantAvatarTarget, "agent");
 
 // 根据角色选择最终要显示的图标
 const displayIcon = computed(() => {
-  if (props.message.role === 'user') {
+  if (props.message.role === "user") {
     return userAvatarSrc.value;
   }
-  if (props.message.role === 'assistant') {
+  if (props.message.role === "assistant") {
     return assistantAvatarSrc.value;
   }
-  return '⚙️'; // 系统消息
+  return "⚙️"; // 系统消息
 });
 
 // 检查是否应该显示副标题（基于设置和数据可用性）
 const shouldShowSubtitle = computed(() => {
-  return settings.value.uiPreferences.showModelInfo &&
-         props.message.role === 'assistant' &&
-         !!agentProfileInfo.value;
+  return (
+    settings.value.uiPreferences.showModelInfo &&
+    props.message.role === "assistant" &&
+    !!agentProfileInfo.value
+  );
 });
 </script>
 
 <template>
   <div class="message-header">
     <div class="header-left">
-      <Avatar
-        :src="displayIcon || ''"
-        :alt="displayName"
-        :size="40"
-        shape="square"
-        :radius="6"
-      />
+      <Avatar :src="displayIcon || ''" :alt="displayName" :size="40" shape="square" :radius="6" />
       <div class="message-info">
         <span class="message-name">{{ displayName }}</span>
         <div v-if="shouldShowSubtitle && agentProfileInfo" class="message-subtitle">
@@ -196,14 +191,31 @@ const shouldShowSubtitle = computed(() => {
         </div>
       </div>
     </div>
-    
-    <!-- 生成状态指示器 -->
-    <div v-if="message.status === 'generating'" class="generating-indicator">
-      <Loader2 :size="14" class="spinning-icon" />
-      <span class="generating-text">生成中</span>
+
+    <div class="header-right">
+      <!-- 性能指标 -->
+      <div
+        v-if="message.status === 'complete' && message.metadata?.tokensPerSecond"
+        class="performance-stats"
+      >
+        <el-tooltip content="生成速度" placement="top">
+          <span class="stat-item">{{ message.metadata.tokensPerSecond }} t/s</span>
+        </el-tooltip>
+        <el-tooltip
+          v-if="message.metadata.requestStartTime && message.metadata.firstTokenTime"
+          content="首字延迟 (TTFT)"
+          placement="top"
+        >
+          <span class="stat-item">
+            {{ message.metadata.firstTokenTime - message.metadata.requestStartTime }}ms
+          </span>
+        </el-tooltip>
+      </div>
+
+      <span v-if="settings.uiPreferences.showTimestamp" class="message-time">{{
+        formatRelativeTime(message.timestamp)
+      }}</span>
     </div>
-    
-    <span v-if="settings.uiPreferences.showTimestamp" class="message-time">{{ formatRelativeTime(message.timestamp) }}</span>
   </div>
 </template>
 
@@ -266,35 +278,32 @@ const shouldShowSubtitle = computed(() => {
   opacity: 0.5;
 }
 
-.generating-indicator {
+.header-right {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  background-color: var(--primary-color);
-  color: white;
-  font-size: 11px;
-  font-weight: 500;
+  gap: 8px;
   margin-left: auto;
-  margin-right: 8px;
 }
 
-.spinning-icon {
-  animation: spin 1s linear infinite;
+.performance-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-color-tertiary);
+  background-color: var(--bg-color-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.generating-text {
+.stat-item {
   white-space: nowrap;
+}
+
+.stat-item:not(:last-child)::after {
+  content: "|";
+  margin-left: 6px;
+  opacity: 0.3;
 }
 
 .message-time {

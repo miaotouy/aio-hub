@@ -23,6 +23,14 @@ export function useChatResponseHandler() {
     const node = session.nodes[nodeId];
     if (!node) return;
 
+    // 记录首字时间
+    if (!node.metadata?.firstTokenTime) {
+      node.metadata = {
+        ...node.metadata,
+        firstTokenTime: Date.now(),
+      };
+    }
+
     if (isReasoning) {
       // 推理内容流式更新
       if (!node.metadata) {
@@ -160,11 +168,28 @@ export function useChatResponseHandler() {
     // 使用 API 返回的 completionTokens 作为助手消息的 contentTokens
     const contentTokens = response.usage?.completionTokens;
 
+    // 计算性能指标
+    const requestEndTime = Date.now();
+    let tokensPerSecond: number | undefined;
+
+    if (contentTokens && finalNode.metadata?.firstTokenTime) {
+      // 计算生成时间（毫秒）
+      const generationTime = requestEndTime - finalNode.metadata.firstTokenTime;
+      if (generationTime > 0) {
+        // 计算 tokens/s
+        tokensPerSecond = (contentTokens / generationTime) * 1000;
+        // 保留两位小数
+        tokensPerSecond = Math.round(tokensPerSecond * 100) / 100;
+      }
+    }
+
     finalNode.metadata = {
       ...finalNode.metadata,
       usage: response.usage,
       contentTokens,
       reasoningContent: response.reasoningContent || existingReasoningContent,
+      requestEndTime,
+      tokensPerSecond,
     };
 
     if (contentTokens !== undefined) {

@@ -12,7 +12,8 @@ import AvatarEditor from "@/components/common/AvatarEditor.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref } from "vue";
 import LlmThinkRulesEditor from "@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue";
-import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
+import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/MarkdownStyleEditor.vue";
+import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {
   visible: boolean;
@@ -46,6 +47,7 @@ interface Emits {
         maxTokens: number;
       };
       llmThinkRules: LlmThinkRule[];
+      richTextStyleOptions: RichTextRendererStyleOptions;
     }
   ): void;
 }
@@ -73,6 +75,7 @@ const editForm = reactive({
   presetMessages: [] as ChatMessageNode[],
   displayPresetCount: 0, // 显示的预设消息数量
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
+  richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
 });
 
 // 监听对话框打开，加载数据
@@ -104,6 +107,9 @@ const loadFormData = () => {
     editForm.llmThinkRules = props.agent.llmThinkRules
       ? JSON.parse(JSON.stringify(props.agent.llmThinkRules))
       : [];
+    editForm.richTextStyleOptions = props.agent.richTextStyleOptions
+      ? JSON.parse(JSON.stringify(props.agent.richTextStyleOptions))
+      : {};
   } else if (props.mode === "create" && props.initialData) {
     // 创建模式：使用初始数据
     editForm.name = props.initialData.name || "";
@@ -122,6 +128,7 @@ const loadFormData = () => {
       : [];
     editForm.displayPresetCount = 0;
     editForm.llmThinkRules = [];
+    editForm.richTextStyleOptions = {};
   }
 };
 
@@ -180,6 +187,7 @@ const handleSave = () => {
     displayPresetCount: editForm.displayPresetCount,
     parameters,
     llmThinkRules: editForm.llmThinkRules,
+    richTextStyleOptions: editForm.richTextStyleOptions,
   });
 
   handleClose();
@@ -299,10 +307,22 @@ const handleSave = () => {
 
       <!-- 思考块规则配置 -->
       <el-form-item label="思考块规则">
-        <div class="form-hint">
-          配置 LLM 输出中的思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
+        <div style="width: 100%">
+          <div class="form-hint">
+            配置 LLM 输出中的思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
+          </div>
+          <LlmThinkRulesEditor v-model="editForm.llmThinkRules" />
         </div>
-        <LlmThinkRulesEditor v-model="editForm.llmThinkRules" />
+      </el-form-item>
+
+      <!-- 样式自定义 -->
+      <el-form-item label="回复样式">
+        <div style="width: 100%">
+          <div class="form-hint">
+            自定义该智能体回复内容的 Markdown 渲染样式（如粗体颜色、发光效果等）。
+          </div>
+          <MarkdownStyleEditor v-model="editForm.richTextStyleOptions" />
+        </div>
       </el-form-item>
     </el-form>
 

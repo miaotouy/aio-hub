@@ -11,6 +11,9 @@
             <el-button :icon="DArrowRight" circle @click="isInputCollapsed = false" />
           </el-tooltip>
           <h3 class="page-title">富文本渲染器测试</h3>
+          <el-tooltip content="配置 Markdown 渲染样式" placement="bottom">
+            <el-button :icon="Brush" circle @click="isStyleEditorVisible = true" />
+          </el-tooltip>
           <el-tag v-if="isRendering" type="primary" effect="dark">
             <el-icon class="is-loading"><Loading /></el-icon>
             渲染中...
@@ -307,6 +310,7 @@
               :stream-source="streamSource"
               :version="rendererVersion"
               :llm-think-rules="llmThinkRules"
+              :style-options="richTextStyleOptions"
             />
             <div v-else class="empty-placeholder">
               <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -315,6 +319,19 @@
         </InfoCard>
       </div>
     </div>
+
+    <!-- 样式配置弹窗 -->
+    <BaseDialog
+      v-model="isStyleEditorVisible"
+      title="Markdown 样式配置"
+      width="80vw"
+      height="70vh"
+    >
+      <MarkdownStyleEditor v-model="richTextStyleOptions" />
+      <template #footer>
+        <el-button type="primary" @click="isStyleEditorVisible = false">完成</el-button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -328,6 +345,7 @@ import {
   RefreshRight,
   Loading,
   CopyDocument,
+  Brush,
 } from "@element-plus/icons-vue";
 import RichTextRenderer from "./RichTextRenderer.vue";
 import type { StreamSource } from "./types";
@@ -336,7 +354,9 @@ import { useRichTextRendererStore, availableVersions } from "./store";
 import { storeToRefs } from "pinia";
 import customMessage from "@/utils/customMessage";
 import LlmThinkRulesEditor from "./components/LlmThinkRulesEditor.vue";
+import MarkdownStyleEditor from "./components/MarkdownStyleEditor.vue";
 import InfoCard from "@/components/common/InfoCard.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 
 // 使用 store 管理配置状态
@@ -355,7 +375,11 @@ const {
   visualizeBlockStatus,
   rendererVersion,
   llmThinkRules,
+  richTextStyleOptions,
 } = storeToRefs(store);
+
+// 样式编辑器显示状态
+const isStyleEditorVisible = ref(false);
 
 // Token 流式控制
 const selectedTokenizer = ref("gpt4o");

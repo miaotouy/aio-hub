@@ -7,7 +7,7 @@ import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
-import type { LlmThinkRule } from '@/tools/rich-text-renderer/types';
+import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 import { createModuleLogger } from '@utils/logger';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -31,6 +31,7 @@ export interface ExportableAgent {
   displayPresetCount?: number;
   parameters: LlmParameters;
   llmThinkRules?: LlmThinkRule[];
+  richTextStyleOptions?: RichTextRendererStyleOptions;
 }
 
 /**
@@ -148,6 +149,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         displayPresetCount?: number;
         parameters?: Partial<LlmParameters>;
         llmThinkRules?: LlmThinkRule[];
+        richTextStyleOptions?: RichTextRendererStyleOptions;
       }
     ): string {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -164,6 +166,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         presetMessages: options?.presetMessages,
         displayPresetCount: options?.displayPresetCount,
         llmThinkRules: options?.llmThinkRules,
+        richTextStyleOptions: options?.richTextStyleOptions,
         parameters: {
           // 基础采样参数
           temperature: options?.parameters?.temperature ?? 0.7,
@@ -564,6 +567,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
             displayPresetCount: agent.displayPresetCount,
             parameters: agent.parameters,
             llmThinkRules: agent.llmThinkRules,
+            richTextStyleOptions: agent.richTextStyleOptions,
           };
 
           // 处理图标资产
@@ -753,6 +757,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
               displayPresetCount: resolvedAgent.displayPresetCount,
               parameters: resolvedAgent.parameters,
               llmThinkRules: resolvedAgent.llmThinkRules,
+              richTextStyleOptions: resolvedAgent.richTextStyleOptions,
             }
           );
           logger.info('智能体已导入', { agentId: newAgentId, agentName });

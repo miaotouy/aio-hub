@@ -14,8 +14,10 @@ defineProps<{
 .markdown-blockquote {
   margin: 12px 0;
   padding: 8px 16px;
-  border-left: 4px solid var(--primary-color);
-  background-color: var(--hover-bg);
-  color: var(--text-color-light);
+  border-left: 4px solid var(--md-blockquote-border-color, var(--primary-color));
+  background-color: var(--md-blockquote-bg-color, var(--hover-bg));
+  color: var(--md-blockquote-color, var(--text-color-light));
+  font-style: var(--md-blockquote-font-style, inherit);
+  box-shadow: var(--md-blockquote-box-shadow, none);
 }
 </style>

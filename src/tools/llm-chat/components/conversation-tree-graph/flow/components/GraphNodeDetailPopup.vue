@@ -4,12 +4,13 @@ import { X } from 'lucide-vue-next';
 import { useDraggable } from '@vueuse/core';
 import type { ChatMessageNode, ChatSession } from '../../../../types';
 import ChatMessage from '../../../message/ChatMessage.vue';
-import type { LlmThinkRule } from '@/tools/rich-text-renderer/types';
+import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 
 interface Props {
   session: ChatSession;
   message: ChatMessageNode | null;
   llmThinkRules?: LlmThinkRule[];
+  richTextStyleOptions?: RichTextRendererStyleOptions;
   visible: boolean;
   initialPosition?: { x: number; y: number };
 }
@@ -126,6 +127,7 @@ const chatMessageProps = computed(() => {
     siblings: [props.message], // 传自身组成的数组，禁用分支切换
     currentSiblingIndex: 0, // 索引为0
     llmThinkRules: props.llmThinkRules,
+    richTextStyleOptions: props.richTextStyleOptions,
     // 在节点详情弹窗中，只显示部分功能
     buttonVisibility: {
       copy: true,

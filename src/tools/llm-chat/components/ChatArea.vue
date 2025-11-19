@@ -238,6 +238,7 @@ const handleSaveAgent = (data: {
     maxTokens: number;
   };
   llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
+  richTextStyleOptions: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
 }) => {
   if (currentAgent.value) {
     logger.info("保存智能体", { agentId: currentAgent.value.id, data });
@@ -253,6 +254,7 @@ const handleSaveAgent = (data: {
       displayPresetCount: data.displayPresetCount,
       parameters: data.parameters,
       llmThinkRules: data.llmThinkRules,
+      richTextStyleOptions: data.richTextStyleOptions,
     });
   }
   showEditAgentDialog.value = false;
@@ -560,6 +562,7 @@ onMounted(async () => {
               :messages="finalMessages"
               :is-sending="finalIsSending"
               :llm-think-rules="currentAgent?.llmThinkRules"
+              :rich-text-style-options="currentAgent?.richTextStyleOptions"
               @delete-message="handleDeleteMessage"
               @regenerate="handleRegenerate"
               @switch-sibling="handleSwitchSibling"

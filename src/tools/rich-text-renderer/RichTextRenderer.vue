@@ -1,5 +1,5 @@
 <template>
-  <div class="rich-text-renderer">
+  <div class="rich-text-renderer" :style="cssVariables">
     <!-- AST 渲染模式（V1/V2 等） -->
     <AstNodeRenderer
       v-if="useAstRenderer"
@@ -21,7 +21,7 @@ import { useMarkdownAst } from './composables/useMarkdownAst';
 import { StreamProcessor } from './StreamProcessor';
 import { StreamProcessorV2 } from './StreamProcessorV2';
 import AstNodeRenderer from './components/AstNodeRenderer.tsx';
-import type { StreamSource, LlmThinkRule } from './types';
+import type { StreamSource, LlmThinkRule, RichTextRendererStyleOptions, MarkdownStyleOption } from './types';
 import { RendererVersion } from './types';
 
 const props = withDefaults(defineProps<{
@@ -29,6 +29,7 @@ const props = withDefaults(defineProps<{
   streamSource?: StreamSource;
   version?: RendererVersion; // 渲染器版本
   llmThinkRules?: LlmThinkRule[]; // LLM 思考节点规则配置
+  styleOptions?: RichTextRendererStyleOptions; // 样式配置
 }>(), {
   version: RendererVersion.V1_MARKDOWN_IT,
   llmThinkRules: () => [
@@ -40,7 +41,49 @@ const props = withDefaults(defineProps<{
       displayName: 'AI 思考过程',
       collapsedByDefault: true,
     }
-  ]
+  ],
+  styleOptions: () => ({})
+});
+
+/**
+ * 将样式配置转换为 CSS 变量
+ */
+const cssVariables = computed(() => {
+  const vars: Record<string, string> = {};
+  const opts = props.styleOptions;
+  
+  if (!opts) return vars;
+
+  // 辅助函数：生成变量名并赋值
+  const addVars = (prefix: string, style?: MarkdownStyleOption) => {
+    if (!style) return;
+    if (style.color) vars[`--md-${prefix}-color`] = style.color;
+    if (style.backgroundColor) vars[`--md-${prefix}-bg-color`] = style.backgroundColor;
+    if (style.borderColor) vars[`--md-${prefix}-border-color`] = style.borderColor;
+    if (style.fontWeight) vars[`--md-${prefix}-font-weight`] = String(style.fontWeight);
+    if (style.fontStyle) vars[`--md-${prefix}-font-style`] = style.fontStyle;
+    if (style.textDecoration) vars[`--md-${prefix}-text-decoration`] = style.textDecoration;
+    if (style.textShadow) vars[`--md-${prefix}-text-shadow`] = style.textShadow;
+    if (style.boxShadow) vars[`--md-${prefix}-box-shadow`] = style.boxShadow;
+    if (style.borderRadius) vars[`--md-${prefix}-border-radius`] = style.borderRadius;
+  };
+
+  addVars('strong', opts.strong);
+  addVars('em', opts.em);
+  addVars('strikethrough', opts.strikethrough);
+  addVars('blockquote', opts.blockquote);
+  addVars('inline-code', opts.inlineCode);
+  addVars('link', opts.link);
+  
+  // 标题
+  addVars('h1', opts.h1);
+  addVars('h2', opts.h2);
+  addVars('h3', opts.h3);
+  addVars('h4', opts.h4);
+  addVars('h5', opts.h5);
+  addVars('h6', opts.h6);
+
+  return vars;
 });
 
 // 是否使用 AST 渲染器（V1 / V2 等）

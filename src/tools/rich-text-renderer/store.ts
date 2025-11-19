@@ -4,7 +4,7 @@
 
 import { defineStore } from "pinia";
 import { ref, reactive, watch } from "vue";
-import type { TesterConfig, RendererVersionMeta, LlmThinkRule } from "./types";
+import type { TesterConfig, RendererVersionMeta, LlmThinkRule, RichTextRendererStyleOptions } from "./types";
 import { RendererVersion } from "./types";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -92,6 +92,7 @@ const configManager = createConfigManager<TesterConfig>({
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
     llmThinkRules: defaultLlmThinkRules,
+    richTextStyleOptions: {},
   }),
 });
 
@@ -116,6 +117,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const visualizeBlockStatus = ref(false);
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
+  const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
 
   // 是否已加载配置
   const isConfigLoaded = ref(false);
@@ -155,6 +157,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
+      richTextStyleOptions.value = config.richTextStyleOptions || {};
 
       isConfigLoaded.value = true;
       logger.info("配置加载成功");
@@ -191,6 +194,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         visualizeBlockStatus: visualizeBlockStatus.value,
         rendererVersion: rendererVersion.value,
         llmThinkRules: llmThinkRules.value,
+        richTextStyleOptions: richTextStyleOptions.value,
       };
 
       await configManager.save(config);
@@ -232,6 +236,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus: visualizeBlockStatus.value,
       rendererVersion: rendererVersion.value,
       llmThinkRules: llmThinkRules.value,
+      richTextStyleOptions: richTextStyleOptions.value,
     };
 
     debouncedSave(config);
@@ -256,6 +261,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus.value = false;
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
     llmThinkRules.value = [...defaultLlmThinkRules];
+    richTextStyleOptions.value = {};
 
     saveConfig();
   }
@@ -311,6 +317,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus,
       rendererVersion,
       llmThinkRules,
+      richTextStyleOptions,
     ],
     () => {
       autoSaveConfig();
@@ -333,6 +340,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus,
     rendererVersion,
     llmThinkRules,
+    richTextStyleOptions,
     isConfigLoaded,
 
     // Actions

@@ -242,6 +242,7 @@ const handleSaveAgent = (data: {
     maxTokens: number;
   };
   llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
+  richTextStyleOptions: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
 }) => {
   if (editDialogMode.value === "edit" && editingAgent.value) {
     // 更新模式
@@ -257,6 +258,7 @@ const handleSaveAgent = (data: {
       displayPresetCount: data.displayPresetCount,
       parameters: data.parameters,
       llmThinkRules: data.llmThinkRules,
+      richTextStyleOptions: data.richTextStyleOptions,
     });
     customMessage.success("智能体已更新");
   } else {
@@ -269,6 +271,7 @@ const handleSaveAgent = (data: {
       displayPresetCount: data.displayPresetCount,
       parameters: data.parameters,
       llmThinkRules: data.llmThinkRules,
+      richTextStyleOptions: data.richTextStyleOptions,
     });
     customMessage.success(`智能体 "${data.name}" 创建成功`);
     // 自动选中新创建的智能体

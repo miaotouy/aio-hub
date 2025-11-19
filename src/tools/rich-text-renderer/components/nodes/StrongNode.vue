@@ -12,6 +12,10 @@ defineProps<{
 
 <style scoped>
 .markdown-strong {
-  font-weight: 600;
+  font-weight: var(--md-strong-font-weight, 600);
+  color: var(--md-strong-color, inherit);
+  background-color: var(--md-strong-bg-color, transparent);
+  text-shadow: var(--md-strong-text-shadow, none);
+  text-decoration: var(--md-strong-text-decoration, none);
 }
 </style>

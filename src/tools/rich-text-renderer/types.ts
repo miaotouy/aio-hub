@@ -544,4 +544,43 @@ export interface TesterConfig {
   rendererVersion: RendererVersion;
   /** LLM 思考块规则配置 */
   llmThinkRules: LlmThinkRule[];
+  /** 富文本样式配置 */
+  richTextStyleOptions: RichTextRendererStyleOptions;
+}
+
+// ============ 样式配置相关类型 ============
+
+/**
+ * Markdown 元素样式配置项
+ * 用于生成 CSS 变量，支持颜色、发光等效果
+ */
+export interface MarkdownStyleOption {
+  color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  fontWeight?: string | number;
+  fontStyle?: string;
+  textDecoration?: string;
+  textShadow?: string; // 用于发光效果
+  boxShadow?: string;  // 用于发光效果
+  borderRadius?: string;
+}
+
+/**
+ * 富文本渲染器样式配置
+ */
+export interface RichTextRendererStyleOptions {
+  strong?: MarkdownStyleOption;
+  em?: MarkdownStyleOption;
+  strikethrough?: MarkdownStyleOption;
+  blockquote?: MarkdownStyleOption;
+  inlineCode?: MarkdownStyleOption;
+  link?: MarkdownStyleOption;
+  // 标题样式
+  h1?: MarkdownStyleOption;
+  h2?: MarkdownStyleOption;
+  h3?: MarkdownStyleOption;
+  h4?: MarkdownStyleOption;
+  h5?: MarkdownStyleOption;
+  h6?: MarkdownStyleOption;
 }

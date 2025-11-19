@@ -14,6 +14,7 @@ interface Props {
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
+  richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   buttonVisibility?: ButtonVisibility;
 }
 
@@ -86,6 +87,7 @@ defineExpose({
       :message="message"
       :is-editing="isEditing"
       :llm-think-rules="llmThinkRules"
+      :rich-text-style-options="richTextStyleOptions"
       @save-edit="saveEdit"
       @cancel-edit="cancelEdit"
     />

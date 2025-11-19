@@ -255,7 +255,8 @@
       :session="session"
       :visible="detailPopupState.visible"
       :message="selectedNodeForDetail"
-      :llm-think-rules="llmThinkRulesForDetail"
+      :llm-think-rules="agentConfigForDetail.llmThinkRules"
+      :rich-text-style-options="agentConfigForDetail.richTextStyleOptions"
       :initial-position="detailPopupState.initialPosition"
       @close="closeDetailPopup"
     />
@@ -476,19 +477,27 @@ const selectedNodeForDetail = computed<ChatMessageNode | null>(() => {
   return props.session.nodes[detailPopupState.value.nodeId] || null;
 });
 
-// 计算选中节点对应的 LLM 思考规则
-const llmThinkRulesForDetail = computed(() => {
+// 计算选中节点对应的 Agent 配置
+const agentConfigForDetail = computed(() => {
   if (!selectedNodeForDetail.value) {
-    return undefined;
+    return { llmThinkRules: undefined, richTextStyleOptions: undefined };
   }
 
   const agentId = selectedNodeForDetail.value.metadata?.agentId;
   if (!agentId) {
-    return undefined;
+    // 如果消息没有关联 Agent，则尝试使用当前激活的 Agent
+    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId ?? "");
+    return {
+      llmThinkRules: currentAgent?.llmThinkRules,
+      richTextStyleOptions: currentAgent?.richTextStyleOptions,
+    };
   }
 
   const agent = agentStore.getAgentById(agentId);
-  return agent?.llmThinkRules;
+  return {
+    llmThinkRules: agent?.llmThinkRules,
+    richTextStyleOptions: agent?.richTextStyleOptions,
+  };
 });
 
 // 切换布局模式

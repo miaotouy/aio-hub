@@ -813,11 +813,20 @@ onMounted(async () => {
   flex: 1; /* 关键：弹性增长，占据所有剩余空间 */
   min-height: 0;
   overflow: hidden; /* 防止内容溢出 */
+}
 
-  /* 使用 mask-image 实现顶部透明渐隐遮罩，以支持半透明背景 */
-  --mask-height: 50px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black var(--mask-height));
-  mask-image: linear-gradient(to bottom, transparent 0%, black var(--mask-height));
+/* 使用伪元素叠加层实现顶部渐隐，避免 mask 与 backdrop-filter 冲突 */
+.message-list-wrapper::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px; /* 渐变的高度 */
+  /* 关键：从 var(--card-bg) 开始渐变，它本身就包含了UI透明度 */
+  background: linear-gradient(to bottom, var(--card-bg) 20%, transparent 100%);
+  pointer-events: none; /* 允许鼠标事件穿透 */
+  z-index: 2; /* 确保在消息列表内容之上 */
 }
 
 /* 分离手柄的特定样式 */

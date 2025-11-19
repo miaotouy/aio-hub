@@ -587,6 +587,12 @@ export class CustomParser {
           "details",
           "summary",
           "p",
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "h5",
+          "h6",
         ];
         const isBlockLevel = blockLevelTags.includes(token.tagName);
 
@@ -865,14 +871,96 @@ export class CustomParser {
       //    破坏 <details> 结构，导致浏览器显示默认标题。
       // 2. 但其内部内容必须被当作内联元素处理，以防止在 <summary> 内部再生成 <p> 标签导致换行。
       //    因此，此处强制使用内联解析器 (parseInlines) 处理其子节点。
-      if (tagName === "summary") {
+      //
+      // 特例处理 <p> 和 标题：
+      // <p> 和 标题标签内部不应该再包含块级元素（包括 <p>），否则会导致 HTML 结构错误。
+      // 因此强制将其内容解析为内联元素。
+      if (
+        tagName === "summary" ||
+        tagName === "p" ||
+        /^h[1-6]$/.test(tagName)
+      ) {
         htmlNode.children = this.parseInlines(contentTokens);
       } else {
-        htmlNode.children = this.parseBlocks(contentTokens);
+        // 检测是否只包含内联内容（没有块级结构）
+        // 如果内容中没有双换行、没有块级标记，则视为纯内联内容
+        const hasBlockStructure = this.hasBlockLevelStructure(contentTokens);
+
+        if (!hasBlockStructure) {
+          // 纯内联内容，直接使用内联解析，避免被包裹成段落
+          htmlNode.children = this.parseInlines(contentTokens);
+        } else {
+          // 包含块级结构，使用块级解析
+          htmlNode.children = this.parseBlocks(contentTokens);
+        }
       }
     }
 
     return { node: htmlNode, nextIndex: i };
+  }
+
+  /**
+   * 检测 token 序列是否包含块级结构
+   */
+  private hasBlockLevelStructure(tokens: Token[]): boolean {
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+
+      // 双换行表示块级分隔
+      if (t.type === "newline" && t.count >= 2) {
+        return true;
+      }
+
+      // 块级标记
+      if (
+        t.type === "heading_marker" ||
+        t.type === "hr_marker" ||
+        t.type === "code_fence" ||
+        t.type === "list_marker" ||
+        t.type === "blockquote_marker"
+      ) {
+        return true;
+      }
+
+      // 块级 HTML 标签
+      if (t.type === "html_open") {
+        const blockLevelTags = [
+          "div",
+          "section",
+          "article",
+          "aside",
+          "header",
+          "footer",
+          "main",
+          "nav",
+          "blockquote",
+          "pre",
+          "table",
+          "ul",
+          "ol",
+          "li",
+          "dl",
+          "dt",
+          "dd",
+          "figure",
+          "figcaption",
+          "details",
+          "summary",
+          "p",
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "h5",
+          "h6",
+        ];
+        if (blockLevelTags.includes(t.tagName)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -909,6 +997,12 @@ export class CustomParser {
       "details",
       "summary",
       "p",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
     ];
 
     while (i < tokens.length) {
@@ -930,6 +1024,7 @@ export class CustomParser {
         t.type === "heading_marker" ||
         t.type === "hr_marker" ||
         t.type === "code_fence" ||
+        t.type === "katex_block" ||
         t.type === "list_marker" ||
         t.type === "blockquote_marker"
       ) {

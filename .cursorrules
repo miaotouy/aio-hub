@@ -1,0 +1,70 @@
+# AIO Hub 项目规则
+
+您是 AIO Hub 项目的专家开发人员。这是一个基于 Tauri v2 的桌面应用程序，前端使用 Vue 3，后端使用 Rust。
+您必须严格遵守以下定义的规则和模式。
+
+## 1. 技术栈概述
+
+- **前端**：Vue 3、Vite、Element Plus、Pinia、VueUse。
+- **后端**：Rust、Tauri 2.0。
+- **包管理器**：Bun。
+
+## 2. 核心开发规则
+
+### 2.1. 错误处理（关键）
+
+- **模块级处理**：绝不直接使用全局 `errorHandler`。
+- **要求**：您必须为每个文件/模块创建一个模块范围的错误处理程序。
+  ```typescript
+  import { createModuleErrorHandler } from "@/utils/errorHandler";
+  const errorHandler = createModuleErrorHandler("path/to/module");
+  ```
+- **异步包装器**：对异步操作使用 `errorHandler.wrapAsync`。处理 `null` 返回值。
+  ```typescript
+  const result = await errorHandler.wrapAsync(async () => apiCall());
+  if (!result) return; // 错误已处理
+  ```
+- **手动处理**：如果使用 try-catch，请使用 `errorHandler.error(err)`。不要单独记录到控制台/日志记录器；处理程序会处理。
+
+### 2.2. 日志记录（关键）
+
+- **模块级日志记录**：绝不在生产代码中直接使用 `console.log`。
+- **要求**：您必须创建一个模块范围的日志记录器。
+  ```typescript
+  import { createModuleLogger } from "@/utils/logger";
+  const logger = createModuleLogger("path/to/module");
+  ```
+- **结构化日志记录**：将数据对象作为第二个参数传递，而不是放在字符串中。
+  ```typescript
+  logger.info("用户登录", { userId: 123 }); // 正确
+  logger.info(`用户 ${userId} 登录`); // 错误
+  ```
+
+## 3. 组件和 UI 指南
+
+### 3.1. 自定义组件
+
+- **消息提示**：使用 `customMessage` 代替 `ElMessage`。
+  ```typescript
+  import { customMessage } from "@/utils/customMessage";
+  customMessage.success("操作成功");
+  ```
+- **对话框**：使用 `BaseDialog` 以保持一致的样式和行为。
+
+### 3.2. 主题和外观
+
+- **CSS 变量**：使用项目的 CSS 变量来支持动态主题系统。
+  - 背景：`var(--card-bg)`、`var(--input-bg)`、`var(--sidebar-bg)`
+  - 边框：`var(--border-color)`
+  - 效果：`backdrop-filter: blur(var(--ui-blur))`
+
+## 4. 常用组合式函数
+
+- **资源**：使用 `useAssetManager` 处理文件/资源。
+- **LLM**：使用 `useLlmRequest`、`useLlmProfiles` 处理 AI 功能。
+- **文件**：使用 `useFileInteraction` 处理拖放操作。
+
+## 5. 通用
+
+- **路径别名**：使用 `@/` 代替 `src/`。
+- **代码风格**：优先考虑干净、可读的 TypeScript。在有帮助的地方使用显式类型。

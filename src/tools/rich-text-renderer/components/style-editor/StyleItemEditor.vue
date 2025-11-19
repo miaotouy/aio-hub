@@ -115,7 +115,12 @@
                   size="small"
                   @change="(v: string | null) => (textShadowValues.color = v || '')"
                 />
-                <el-input v-model="textShadowValues.color" placeholder="颜色" size="small" clearable />
+                <el-input
+                  v-model="textShadowValues.color"
+                  placeholder="颜色"
+                  size="small"
+                  clearable
+                />
               </div>
             </div>
           </el-form-item>
@@ -219,6 +224,23 @@ const emit = defineEmits<{
 
 const localValue = reactive<MarkdownStyleOption>({});
 
+const addUnit = (val: string) => {
+  if (!val) return "0";
+  const v = val.trim();
+  if (v === "0") return "0";
+  // 如果是纯数字（允许负号和小数点），添加 px
+  if (/^-?(\d+(\.\d*)?|\.\d+)$/.test(v)) {
+    return `${v}px`;
+  }
+  return v;
+};
+
+const removePx = (val: string) => {
+  if (!val) return "";
+  // 仅当以 px 结尾且前面是数字时才移除
+  return val.replace(/^(-?[\d.]+)px$/i, "$1");
+};
+
 // 计算预览样式
 const previewStyle = computed(() => {
   const style: Record<string, string | number> = {};
@@ -236,7 +258,13 @@ const previewStyle = computed(() => {
     style.borderStyle = "solid";
     style.borderWidth = "1px";
   }
-  if (v.borderRadius) style.borderRadius = v.borderRadius;
+  if (v.borderRadius) {
+    style.borderRadius = v.borderRadius;
+    // 如果有圆角但没有边框和背景，添加一个虚线边框以便预览
+    if (!v.borderColor && !v.backgroundColor) {
+      style.border = "1px dashed var(--el-border-color)";
+    }
+  }
 
   if (v.textShadow) style.textShadow = v.textShadow;
   if (v.boxShadow) style.boxShadow = v.boxShadow;
@@ -255,7 +283,9 @@ const borderRadiusValues = reactive({
 let isParsingBorderRadius = false; // 用于防止解析时触发回写的标志
 
 // 根据模式计算输入框的禁用状态
-const isTrDisabled = computed(() => borderRadiusMode.value === "uniform" || borderRadiusMode.value === "vertical");
+const isTrDisabled = computed(
+  () => borderRadiusMode.value === "uniform" || borderRadiusMode.value === "vertical"
+);
 const isBlDisabled = computed(
   () =>
     borderRadiusMode.value === "uniform" ||
@@ -325,10 +355,21 @@ watch(
       localValue.borderRadius = "";
       return;
     }
-    const v_tl = tl || "0";
-    const v_tr = tr || "0";
-    const v_bl = bl || "0";
-    const v_br = br || "0";
+    const v_tl = addUnit(tl);
+    const v_tr = addUnit(tr);
+    const v_bl = addUnit(bl);
+    const v_br = addUnit(br);
+
+    // 优化：如果所有值都是 0 或空，则清空
+    if (
+      (v_tl === "0" || !tl) &&
+      (v_tr === "0" || !tr) &&
+      (v_bl === "0" || !bl) &&
+      (v_br === "0" || !br)
+    ) {
+      localValue.borderRadius = "";
+      return;
+    }
 
     if (v_tl === v_tr && v_tl === v_bl && v_tl === v_br) {
       localValue.borderRadius = v_tl;
@@ -380,7 +421,12 @@ watch(
       bl = parts[3] || "";
     }
 
-    Object.assign(borderRadiusValues, { tl, tr, bl, br });
+    Object.assign(borderRadiusValues, {
+      tl: removePx(tl),
+      tr: removePx(tr),
+      bl: removePx(bl),
+      br: removePx(br),
+    });
 
     if (tl === tr && tl === bl && tl === br) {
       borderRadiusMode.value = "uniform";
@@ -413,31 +459,38 @@ const boxShadowValues = reactive({
 let isParsingTextShadow = false;
 let isParsingBoxShadow = false;
 
-const COLOR_REGEX = /^(#([0-9a-f]{3}){1,2}|(rgba?|hsla?)\(.*\)|[a-z]+)$/i;
+// 支持 3位hex, 6位hex, 4位hex(alpha), 8位hex(alpha), rgb/a, hsl/a, 颜色名
+const COLOR_REGEX = /^(#([0-9a-fA-F]{3,4}){1,2}|(rgba?|hsla?)\(.*\)|[a-z]+)$/i;
 
 const parseSingleShadow = (value: string | null | undefined) => {
   const defaultState = { offsetX: "", offsetY: "", blur: "", spread: "", color: "", inset: false };
   if (!value || value === "none") return defaultState;
 
-  const firstShadow = value.split(",")[0].trim();
+  // 只处理第一组阴影
+  const firstShadow = value.split(/,(?![^(]*\))/)[0].trim();
+  // 按空格分割，但忽略括号内的空格
   const parts = firstShadow.split(/\s+(?![^(]*\))/);
   const result = { ...defaultState };
 
-  if (parts[0].toLowerCase() === "inset") {
+  // 检查 inset
+  if (parts[0] && parts[0].toLowerCase() === "inset") {
     result.inset = true;
     parts.shift();
   }
 
+  // 查找颜色
+  // 注意：有些颜色可能在最后，有些在最前
   const colorIndex = parts.findIndex((p) => COLOR_REGEX.test(p));
   if (colorIndex > -1) {
     result.color = parts.splice(colorIndex, 1)[0];
   }
 
+  // 剩下的部分应该是长度值
   const [offsetX, offsetY, blur, spread] = parts;
-  result.offsetX = offsetX || "";
-  result.offsetY = offsetY || "";
-  result.blur = blur || "";
-  result.spread = spread || ""; // Only used for box-shadow
+  result.offsetX = removePx(offsetX || "");
+  result.offsetY = removePx(offsetY || "");
+  result.blur = removePx(blur || "");
+  result.spread = removePx(spread || ""); // Only used for box-shadow
 
   return result;
 };
@@ -455,11 +508,11 @@ const composeShadow = (
 
   const parts = [];
   if (type === "box" && inset) parts.push("inset");
-  parts.push(offsetX || "0");
-  parts.push(offsetY || "0");
-  if (blur) parts.push(blur);
+  parts.push(addUnit(offsetX));
+  parts.push(addUnit(offsetY));
+  if (blur) parts.push(addUnit(blur));
   if (type === "box" && spread) {
-    parts.push(spread);
+    parts.push(addUnit(spread));
   }
   if (color) parts.push(color);
 
@@ -525,9 +578,7 @@ watch(
     const safeNewVal = newVal || {};
 
     // 1. 找出需要删除的 key
-    const keysToRemove = Object.keys(localValue).filter(
-      (key) => !(key in safeNewVal)
-    );
+    const keysToRemove = Object.keys(localValue).filter((key) => !(key in safeNewVal));
 
     // 2. 找出需要更新的 key
     const keysToUpdate = Object.keys(safeNewVal).filter(
@@ -541,9 +592,7 @@ watch(
 
     // 执行更新
     keysToRemove.forEach((key) => delete (localValue as any)[key]);
-    keysToUpdate.forEach(
-      (key) => ((localValue as any)[key] = (safeNewVal as any)[key])
-    );
+    keysToUpdate.forEach((key) => ((localValue as any)[key] = (safeNewVal as any)[key]));
   },
   { immediate: true, deep: true }
 );

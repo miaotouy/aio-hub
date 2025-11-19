@@ -7,7 +7,7 @@
  */
 
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, toRaw } from "vue";
 import { useSessionManager } from "./composables/useSessionManager";
 import { useChatHandler } from "./composables/useChatHandler";
 import { useBranchManager } from "./composables/useBranchManager";
@@ -602,12 +602,12 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       return;
     }
 
-    const previousNodeState = structuredClone(session.nodes[nodeId]);
+    const previousNodeState = structuredClone(toRaw(session.nodes[nodeId]));
     const branchManager = useBranchManager();
     const success = branchManager.editMessage(session, nodeId, newContent, attachments);
 
     if (success) {
-      const finalNodeState = structuredClone(session.nodes[nodeId]);
+      const finalNodeState = structuredClone(toRaw(session.nodes[nodeId]));
       const delta: HistoryDelta = {
         type: 'update',
         payload: { nodeId, previousNodeState, finalNodeState },
@@ -740,12 +740,12 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       return;
     }
 
-    const previousNodeState = structuredClone(session.nodes[nodeId]);
+    const previousNodeState = structuredClone(toRaw(session.nodes[nodeId]));
     const branchManager = useBranchManager();
     const success = branchManager.toggleNodeEnabled(session, nodeId);
 
     if (success) {
-      const finalNodeState = structuredClone(session.nodes[nodeId]);
+      const finalNodeState = structuredClone(toRaw(session.nodes[nodeId]));
       const delta: HistoryDelta = {
         type: 'update',
         payload: { nodeId, previousNodeState, finalNodeState },

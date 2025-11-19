@@ -81,7 +81,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import AvatarEditor from "@/components/common/AvatarEditor.vue";
-import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/MarkdownStyleEditor.vue";
+import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 import type { IconMode } from "@/tools/llm-chat/types";

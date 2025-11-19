@@ -12,7 +12,7 @@ import AvatarEditor from "@/components/common/AvatarEditor.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref } from "vue";
 import LlmThinkRulesEditor from "@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue";
-import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/MarkdownStyleEditor.vue";
+import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {

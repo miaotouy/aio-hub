@@ -354,7 +354,7 @@ import { useRichTextRendererStore, availableVersions } from "./store";
 import { storeToRefs } from "pinia";
 import customMessage from "@/utils/customMessage";
 import LlmThinkRulesEditor from "./components/LlmThinkRulesEditor.vue";
-import MarkdownStyleEditor from "./components/MarkdownStyleEditor.vue";
+import MarkdownStyleEditor from "./components/style-editor/MarkdownStyleEditor.vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";

@@ -1,5 +1,22 @@
 <template>
   <div class="style-item-editor">
+    <!-- 预览区域 -->
+    <div v-if="previewText" class="preview-section">
+      <div class="preview-header">
+        <span class="preview-label">效果预览</span>
+      </div>
+      <div class="preview-viewport">
+        <component
+          :is="previewTag || 'div'"
+          class="preview-content"
+          :class="{ 'is-block': isBlock }"
+          :style="previewStyle"
+        >
+          {{ previewText }}
+        </component>
+      </div>
+    </div>
+
     <el-form label-position="top" size="small">
       <el-row :gutter="16">
         <!-- 1. 文本颜色 -->
@@ -191,6 +208,9 @@ import type { MarkdownStyleOption } from "../../types";
 
 const props = defineProps<{
   modelValue?: MarkdownStyleOption;
+  previewText?: string;
+  isBlock?: boolean;
+  previewTag?: string;
 }>();
 
 const emit = defineEmits<{
@@ -198,6 +218,31 @@ const emit = defineEmits<{
 }>();
 
 const localValue = reactive<MarkdownStyleOption>({});
+
+// 计算预览样式
+const previewStyle = computed(() => {
+  const style: Record<string, string | number> = {};
+  const v = localValue;
+
+  if (v.color) style.color = v.color;
+  if (v.backgroundColor) style.backgroundColor = v.backgroundColor;
+
+  if (v.fontWeight) style.fontWeight = v.fontWeight;
+  if (v.fontStyle) style.fontStyle = v.fontStyle;
+  if (v.textDecoration) style.textDecoration = v.textDecoration;
+
+  if (v.borderColor) {
+    style.borderColor = v.borderColor;
+    style.borderStyle = "solid";
+    style.borderWidth = "1px";
+  }
+  if (v.borderRadius) style.borderRadius = v.borderRadius;
+
+  if (v.textShadow) style.textShadow = v.textShadow;
+  if (v.boxShadow) style.boxShadow = v.boxShadow;
+
+  return style;
+});
 
 // --- 新增：高级圆角编辑器逻辑 ---
 const borderRadiusMode = ref("uniform"); // uniform, horizontal, vertical, cross, custom
@@ -525,10 +570,43 @@ watch(
 </script>
 
 <style scoped>
-/* .style-item-editor {
-  No specific container style needed as el-form handles it
-} 
-*/
+.preview-section {
+  margin-bottom: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preview-header {
+  padding: 8px 12px;
+  background-color: var(--el-fill-color-light);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.preview-viewport {
+  padding: 4px;
+  background-color: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  font-size: 16px;
+}
+
+.preview-content {
+  transition: all 0.3s ease;
+  padding: 4px 8px;
+  margin: 0;
+}
+
+.preview-content.is-block {
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+}
+
 .color-picker-row {
   display: flex;
   gap: 8px;

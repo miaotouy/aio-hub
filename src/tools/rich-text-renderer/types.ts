@@ -614,3 +614,13 @@ export interface RichTextRendererStyleOptions {
   h5?: MarkdownStyleOption;
   h6?: MarkdownStyleOption;
 }
+
+/**
+ * 富文本渲染测试预设内容
+ */
+export interface RenderPreset {
+  id: string;
+  name: string;
+  content: string;
+  description?: string;
+}

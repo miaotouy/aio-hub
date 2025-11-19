@@ -36,6 +36,7 @@ interface Emits {
   (e: "delete-message", messageId: string): void;
   (e: "regenerate", messageId: string): void;
   (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
+  (e: "switch-branch", nodeId: string): void;
   (e: "toggle-enabled", nodeId: string): void;
   (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
   (e: "abort-node", nodeId: string): void;
@@ -356,6 +357,7 @@ const handleDeleteMessage = (messageId: string) => emit("delete-message", messag
 const handleRegenerate = (messageId: string) => emit("regenerate", messageId);
 const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") =>
   emit("switch-sibling", nodeId, direction);
+const handleSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
 const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) =>
   emit("edit-message", nodeId, newContent, attachments);
@@ -561,6 +563,7 @@ onMounted(async () => {
               @delete-message="handleDeleteMessage"
               @regenerate="handleRegenerate"
               @switch-sibling="handleSwitchSibling"
+              @switch-branch="handleSwitchBranch"
               @toggle-enabled="handleToggleEnabled"
               @edit-message="handleEditMessage"
               @abort-node="handleAbortNode"

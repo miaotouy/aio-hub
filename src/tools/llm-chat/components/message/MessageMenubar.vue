@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ElMessageBox, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
+import {
+  ElMessageBox,
+  ElTooltip,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+  ElPopover,
+} from "element-plus";
+import BranchSelector from "./BranchSelector.vue";
 import {
   Copy,
   Edit,
@@ -41,6 +49,7 @@ interface Emits {
   (e: "regenerate"): void;
   (e: "toggle-enabled"): void;
   (e: "switch", direction: "prev" | "next"): void;
+  (e: "switch-branch", nodeId: string): void;
   (e: "abort"): void;
   (e: "analyze-context"): void;
 }
@@ -165,7 +174,7 @@ const handleExportBranch = async (options: ExportOptions) => {
 
     // 导出分支
     const { exportBranchAsMarkdown, exportBranchAsJson } = useSessionManager();
-    
+
     let content: string;
     let fileExtension: string;
     let filterName: string;
@@ -265,6 +274,15 @@ const currentPresetMessages = computed(() => {
 const presetCount = computed(() => {
   return currentPresetMessages.value.length;
 });
+
+// 分支快速切换相关
+const showBranchPopover = ref(false);
+
+// 处理切换到指定分支
+const handleSwitchToBranch = (nodeId: string) => {
+  showBranchPopover.value = false;
+  emit("switch-branch", nodeId);
+};
 </script>
 
 <template>
@@ -280,7 +298,34 @@ const presetCount = computed(() => {
           <ChevronLeft :size="16" />
         </button>
       </el-tooltip>
-      <div class="branch-indicator">{{ currentSiblingIndex + 1 }} / {{ siblings.length }}</div>
+
+      <!-- 分支选择器 Popover -->
+      <el-popover
+        v-model:visible="showBranchPopover"
+        placement="top"
+        :width="320"
+        trigger="click"
+        popper-class="branch-selector-popover"
+      >
+        <template #reference>
+          <div class="branch-indicator-wrapper">
+            <el-tooltip content="点击查看分支列表" placement="top">
+              <div
+                class="branch-indicator clickable"
+                :class="{ 'popover-active': showBranchPopover }"
+              >
+                {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
+              </div>
+            </el-tooltip>
+          </div>
+        </template>
+        <BranchSelector
+          v-if="showBranchPopover"
+          :siblings="siblings"
+          :current-sibling-index="currentSiblingIndex"
+          @switch-branch="handleSwitchToBranch"
+        />
+      </el-popover>
       <el-tooltip content="下一个版本" placement="top">
         <button
           class="menu-btn"
@@ -332,7 +377,11 @@ const presetCount = computed(() => {
     </el-tooltip>
 
     <!-- 终止生成（仅在生成中显示） -->
-    <el-tooltip v-if="isGenerating && props.buttonVisibility.abort" content="终止生成" placement="top">
+    <el-tooltip
+      v-if="isGenerating && props.buttonVisibility.abort"
+      content="终止生成"
+      placement="top"
+    >
       <button class="menu-btn menu-btn-abort" @click="handleAbort">
         <XCircle :size="16" />
       </button>
@@ -340,9 +389,7 @@ const presetCount = computed(() => {
 
     <!-- 编辑（用户和助手消息都可以，生成中不可编辑） -->
     <el-tooltip
-      v-if="
-        (isUserMessage || isAssistantMessage) && !isGenerating && props.buttonVisibility.edit
-      "
+      v-if="(isUserMessage || isAssistantMessage) && !isGenerating && props.buttonVisibility.edit"
       content="编辑"
       placement="top"
     >
@@ -555,5 +602,18 @@ const presetCount = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.branch-indicator.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.branch-indicator.clickable:hover,
+.branch-indicator.popover-active {
+  background-color: var(--hover-bg);
+  color: var(--text-color);
 }
 </style>

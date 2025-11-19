@@ -10,12 +10,13 @@ import ChatMessage from "./ChatMessage.vue";
 interface Props {
   messages: ChatMessageNode[];
   isSending: boolean;
-  llmThinkRules?: import('@/tools/rich-text-renderer/types').LlmThinkRule[];
+  llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
 }
 interface Emits {
   (e: "delete-message", messageId: string): void;
   (e: "regenerate", messageId: string): void;
   (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
+  (e: "switch-branch", nodeId: string): void;
   (e: "toggle-enabled", nodeId: string): void;
   (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
   (e: "abort-node", nodeId: string): void;
@@ -31,8 +32,8 @@ const { settings } = useChatSettings();
 
 // 为每条消息计算兄弟节点信息
 const getMessageSiblings = (messageId: string) => {
-  const message = props.messages.find(m => m.id === messageId);
-  
+  const message = props.messages.find((m) => m.id === messageId);
+
   // 预设消息不在会话节点树中，返回只包含自己的特殊结构（不显示分支导航）
   if (message?.metadata?.isPresetDisplay) {
     return {
@@ -40,7 +41,7 @@ const getMessageSiblings = (messageId: string) => {
       currentIndex: 0,
     };
   }
-  
+
   const siblings = store.getSiblings(messageId);
   // 找到在当前活动路径上的兄弟节点（而不是传入的 messageId 自己）
   const currentIndex = siblings.findIndex((s) => store.isNodeInActivePath(s.id));
@@ -106,19 +107,19 @@ watch(
     () => {
       const lastMsg = props.messages[props.messages.length - 1];
       return lastMsg ? lastMsg.content : "";
-    }
+    },
   ],
   ([newLength, newTotalSize, newLastContent], [oldLength, oldTotalSize, oldLastContent]) => {
     if (!settings.value.uiPreferences.autoScroll) return;
 
     const isNewMessage = newLength !== oldLength;
     const isContentChanged = newLastContent !== oldLastContent;
-    
+
     // 策略：
     // 1. 如果是新消息出现，且用户之前就在底部附近，或者这是第一条消息，则滚动
     // 2. 如果仅仅是内容变长(流式输出)，且用户在底部附近，则跟随滚动
     // 3. 如果用户已经手动向上滚动查看历史(isNearBottom 为 false)，则不打扰
-    
+
     if (isNewMessage) {
       // 对于新消息，我们稍微放宽一点条件，只要不是离得太远，通常都希望看到新消息
       // 或者是用户自己发送的消息（这里简化处理，假设新消息都滚动，除非用户特意翻上去）
@@ -216,6 +217,7 @@ defineExpose({
                 (direction: 'prev' | 'next') =>
                   emit('switch-sibling', messages[virtualItem.index].id, direction)
               "
+              @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"
               @toggle-enabled="emit('toggle-enabled', messages[virtualItem.index].id)"
               @edit="
                 (newContent: string, attachments?: Asset[]) =>

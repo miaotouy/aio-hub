@@ -1,32 +1,33 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import type { ChatMessageNode } from '../../types';
-import type { Asset } from '@/types/asset-management';
-import MessageHeader from './MessageHeader.vue';
-import MessageContent from './MessageContent.vue';
-import MessageMenubar from './MessageMenubar.vue';
+import { ref, computed } from "vue";
+import type { ChatMessageNode } from "../../types";
+import type { Asset } from "@/types/asset-management";
+import MessageHeader from "./MessageHeader.vue";
+import MessageContent from "./MessageContent.vue";
+import MessageMenubar from "./MessageMenubar.vue";
 
-import type { ButtonVisibility } from '../../types';
+import type { ButtonVisibility } from "../../types";
 
 interface Props {
   message: ChatMessageNode;
   isSending: boolean;
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
-  llmThinkRules?: import('@/tools/rich-text-renderer/types').LlmThinkRule[];
+  llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
   buttonVisibility?: ButtonVisibility;
 }
 
 interface Emits {
-  (e: 'delete'): void;
-  (e: 'regenerate'): void;
-  (e: 'switch-sibling', direction: 'prev' | 'next'): void;
-  (e: 'toggle-enabled'): void;
-  (e: 'edit', newContent: string, attachments?: Asset[]): void;
-  (e: 'copy'): void;
-  (e: 'abort'): void;
-  (e: 'create-branch'): void;
-  (e: 'analyze-context'): void;
+  (e: "delete"): void;
+  (e: "regenerate"): void;
+  (e: "switch-sibling", direction: "prev" | "next"): void;
+  (e: "switch-branch", nodeId: string): void;
+  (e: "toggle-enabled"): void;
+  (e: "edit", newContent: string, attachments?: Asset[]): void;
+  (e: "copy"): void;
+  (e: "abort"): void;
+  (e: "create-branch"): void;
+  (e: "analyze-context"): void;
 }
 
 const props = defineProps<Props>();
@@ -46,7 +47,7 @@ const startEdit = () => {
 
 // 保存编辑
 const saveEdit = (newContent: string, attachments?: Asset[]) => {
-  emit('edit', newContent, attachments);
+  emit("edit", newContent, attachments);
   isEditing.value = false;
 };
 
@@ -59,9 +60,9 @@ const cancelEdit = () => {
 const copyMessage = async () => {
   try {
     await navigator.clipboard.writeText(props.message.content);
-    emit('copy');
+    emit("copy");
   } catch (error) {
-    console.error('复制失败', error);
+    console.error("复制失败", error);
   }
 };
 
@@ -76,11 +77,11 @@ defineExpose({
     :class="[
       'chat-message',
       `message-${message.role}`,
-      { 'is-disabled': isDisabled, 'is-preset-display': isPresetDisplay }
+      { 'is-disabled': isDisabled, 'is-preset-display': isPresetDisplay },
     ]"
   >
     <MessageHeader :message="message" />
-    
+
     <MessageContent
       :message="message"
       :is-editing="isEditing"
@@ -103,6 +104,7 @@ defineExpose({
       @regenerate="emit('regenerate')"
       @toggle-enabled="emit('toggle-enabled')"
       @switch="(direction: 'prev' | 'next') => emit('switch-sibling', direction)"
+      @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"
       @abort="emit('abort')"
       @create-branch="emit('create-branch')"
       @analyze-context="emit('analyze-context')"

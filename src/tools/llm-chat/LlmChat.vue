@@ -25,8 +25,8 @@ const userProfileStore = useUserProfileStore();
 const bus = useWindowSyncBus();
 
 // 检测当前窗口类型
-const isInDetachedToolWindow = bus.windowType === 'detached-tool';
-logger.info('LlmChat 窗口类型', { windowType: bus.windowType, isInDetachedToolWindow });
+const isInDetachedToolWindow = bus.windowType === "detached-tool";
+logger.info("LlmChat 窗口类型", { windowType: bus.windowType, isInDetachedToolWindow });
 
 // 初始化状态同步引擎（智能体、会话、设置等）
 useLlmChatSync();
@@ -154,8 +154,8 @@ const handleSendMessage = async (content: string, attachments?: any[]) => {
   }
 
   if (isInDetachedToolWindow) {
-    logger.info('代理发送消息操作到主窗口', { content, attachmentCount: attachments?.length });
-    await bus.requestAction('send-message', { content, attachments });
+    logger.info("代理发送消息操作到主窗口", { content, attachmentCount: attachments?.length });
+    await bus.requestAction("send-message", { content, attachments });
   } else {
     await store.sendMessage(content, attachments);
   }
@@ -164,8 +164,8 @@ const handleSendMessage = async (content: string, attachments?: any[]) => {
 // 处理中止发送
 const handleAbortSending = () => {
   if (isInDetachedToolWindow) {
-    logger.info('代理中止发送操作到主窗口');
-    bus.requestAction('abort-sending', {});
+    logger.info("代理中止发送操作到主窗口");
+    bus.requestAction("abort-sending", {});
   } else {
     store.abortSending();
   }
@@ -174,8 +174,8 @@ const handleAbortSending = () => {
 // 处理重新生成
 const handleRegenerate = async (messageId: string) => {
   if (isInDetachedToolWindow) {
-    logger.info('代理重新生成操作到主窗口', { messageId });
-    await bus.requestAction('regenerate-from-node', { messageId });
+    logger.info("代理重新生成操作到主窗口", { messageId });
+    await bus.requestAction("regenerate-from-node", { messageId });
   } else {
     await store.regenerateFromNode(messageId);
   }
@@ -184,28 +184,38 @@ const handleRegenerate = async (messageId: string) => {
 // 处理删除消息
 const handleDeleteMessage = (messageId: string) => {
   if (isInDetachedToolWindow) {
-    logger.info('代理删除消息操作到主窗口', { messageId });
-    bus.requestAction('delete-message', { messageId });
+    logger.info("代理删除消息操作到主窗口", { messageId });
+    bus.requestAction("delete-message", { messageId });
   } else {
     store.deleteMessage(messageId);
   }
 };
 
 // 处理切换兄弟分支
-const handleSwitchSibling = (nodeId: string, direction: 'prev' | 'next') => {
+const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") => {
   if (isInDetachedToolWindow) {
-    logger.info('代理切换兄弟分支操作到主窗口', { nodeId, direction });
-    bus.requestAction('switch-sibling', { nodeId, direction });
+    logger.info("代理切换兄弟分支操作到主窗口", { nodeId, direction });
+    bus.requestAction("switch-sibling", { nodeId, direction });
   } else {
     store.switchToSiblingBranch(nodeId, direction);
+  }
+};
+
+// 处理切换到指定分支
+const handleSwitchBranch = (nodeId: string) => {
+  if (isInDetachedToolWindow) {
+    logger.info("代理切换分支操作到主窗口", { nodeId });
+    bus.requestAction("switch-branch", { nodeId });
+  } else {
+    store.switchBranch(nodeId);
   }
 };
 
 // 处理切换节点启用状态
 const handleToggleEnabled = (nodeId: string) => {
   if (isInDetachedToolWindow) {
-    logger.info('代理切换节点启用状态操作到主窗口', { nodeId });
-    bus.requestAction('toggle-enabled', { nodeId });
+    logger.info("代理切换节点启用状态操作到主窗口", { nodeId });
+    bus.requestAction("toggle-enabled", { nodeId });
   } else {
     store.toggleNodeEnabled(nodeId);
   }
@@ -214,12 +224,12 @@ const handleToggleEnabled = (nodeId: string) => {
 // 处理编辑消息（使用统一方法）
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: any[]) => {
   if (isInDetachedToolWindow) {
-    logger.info('代理编辑消息操作到主窗口', {
+    logger.info("代理编辑消息操作到主窗口", {
       nodeId,
       contentLength: newContent.length,
-      attachmentCount: attachments?.length
+      attachmentCount: attachments?.length,
     });
-    bus.requestAction('edit-message', { nodeId, newContent, attachments });
+    bus.requestAction("edit-message", { nodeId, newContent, attachments });
   } else {
     store.editMessage(nodeId, newContent, attachments);
   }
@@ -228,8 +238,8 @@ const handleEditMessage = (nodeId: string, newContent: string, attachments?: any
 // 处理创建分支
 const handleCreateBranch = (nodeId: string) => {
   if (isInDetachedToolWindow) {
-    logger.info('代理创建分支操作到主窗口', { nodeId });
-    bus.requestAction('create-branch', { nodeId });
+    logger.info("代理创建分支操作到主窗口", { nodeId });
+    bus.requestAction("create-branch", { nodeId });
   } else {
     store.createBranch(nodeId);
   }
@@ -237,8 +247,8 @@ const handleCreateBranch = (nodeId: string) => {
 // 处理中止单个节点的生成
 const handleAbortNode = (nodeId: string) => {
   if (isInDetachedToolWindow) {
-    logger.info('代理中止节点生成操作到主窗口', { nodeId });
-    bus.requestAction('abort-node', { nodeId });
+    logger.info("代理中止节点生成操作到主窗口", { nodeId });
+    bus.requestAction("abort-node", { nodeId });
   } else {
     store.abortNodeGeneration(nodeId);
   }
@@ -250,7 +260,7 @@ const analyzingNodeId = ref<string | null>(null);
 
 // 处理打开上下文分析器
 const handleAnalyzeContext = (nodeId: string) => {
-  logger.info('打开上下文分析器', { nodeId });
+  logger.info("打开上下文分析器", { nodeId });
   analyzingNodeId.value = nodeId;
   showContextAnalyzer.value = true;
 };
@@ -289,7 +299,6 @@ useStateSyncEngine(parametersToSync, {
   // 主窗口只推送，不接收
   autoPush: true,
 });
-
 </script>
 
 <template>
@@ -314,9 +323,18 @@ useStateSyncEngine(parametersToSync, {
             <el-skeleton animated>
               <template #template>
                 <div class="skeleton-header">
-                  <el-skeleton-item variant="circle" style="width: 28px; height: 28px; flex-shrink: 0" />
-                  <el-skeleton-item variant="text" style="height: 20px; width: 30%; margin-left: 12px" />
-                  <el-skeleton-item variant="text" style="height: 20px; width: 25%; margin-left: 16px" />
+                  <el-skeleton-item
+                    variant="circle"
+                    style="width: 28px; height: 28px; flex-shrink: 0"
+                  />
+                  <el-skeleton-item
+                    variant="text"
+                    style="height: 20px; width: 30%; margin-left: 12px"
+                  />
+                  <el-skeleton-item
+                    variant="text"
+                    style="height: 20px; width: 25%; margin-left: 16px"
+                  />
                   <el-skeleton-item
                     variant="circle"
                     style="width: 28px; height: 28px; margin-left: auto; flex-shrink: 0"
@@ -326,7 +344,10 @@ useStateSyncEngine(parametersToSync, {
                   <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
                 </div>
                 <div class="skeleton-input">
-                  <el-skeleton-item variant="rect" style="height: 50px; width: 100%; border-radius: 8px" />
+                  <el-skeleton-item
+                    variant="rect"
+                    style="height: 50px; width: 100%; border-radius: 8px"
+                  />
                 </div>
               </template>
             </el-skeleton>
@@ -387,12 +408,7 @@ useStateSyncEngine(parametersToSync, {
             @click="isLeftSidebarCollapsed = false"
           >
             <SidebarToggleIcon class="expand-icon trapezoid" />
-            <svg
-              class="arrow-icon expanded"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-            >
+            <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <polyline
                 points="9 18 15 12 9 6"
                 stroke-width="2"
@@ -419,6 +435,7 @@ useStateSyncEngine(parametersToSync, {
             @delete-message="handleDeleteMessage"
             @regenerate="handleRegenerate"
             @switch-sibling="handleSwitchSibling"
+            @switch-branch="handleSwitchBranch"
             @toggle-enabled="handleToggleEnabled"
             @edit-message="handleEditMessage"
             @abort-node="handleAbortNode"
@@ -429,12 +446,7 @@ useStateSyncEngine(parametersToSync, {
           <!-- 分离后的占位提示 -->
           <div v-else class="detached-placeholder">
             <div class="placeholder-content">
-              <svg
-                class="placeholder-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-              >
+              <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
                 <path d="M9 3v18M3 9h18M3 15h6M15 15h6" stroke-width="2" />
               </svg>
@@ -450,12 +462,7 @@ useStateSyncEngine(parametersToSync, {
             @click="isRightSidebarCollapsed = false"
           >
             <SidebarToggleIcon class="expand-icon trapezoid" flip />
-            <svg
-              class="arrow-icon expanded"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-            >
+            <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <polyline
                 points="15 18 9 12 15 6"
                 stroke-width="2"

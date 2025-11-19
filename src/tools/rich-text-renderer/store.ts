@@ -106,6 +106,7 @@ const configManager = createConfigManager<TesterConfig>({
       includeNormalizedOriginal: true,
       includeNormalizedRendered: true,
       includeComparison: true,
+      includeStyleConfig: true,
     },
   }),
 });
@@ -139,6 +140,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     includeNormalizedOriginal: true,
     includeNormalizedRendered: true,
     includeComparison: true,
+    includeStyleConfig: true,
   });
 
   // 是否已加载配置
@@ -187,6 +189,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         copyOptions.includeNormalizedOriginal = config.copyOptions.includeNormalizedOriginal;
         copyOptions.includeNormalizedRendered = config.copyOptions.includeNormalizedRendered;
         copyOptions.includeComparison = config.copyOptions.includeComparison;
+        copyOptions.includeStyleConfig = config.copyOptions.includeStyleConfig ?? true; // 默认为 true
       }
 
       isConfigLoaded.value = true;
@@ -300,6 +303,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     copyOptions.includeNormalizedOriginal = true;
     copyOptions.includeNormalizedRendered = true;
     copyOptions.includeComparison = true;
+    copyOptions.includeStyleConfig = true;
 
     saveConfig();
   }
@@ -362,6 +366,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       () => copyOptions.includeNormalizedOriginal,
       () => copyOptions.includeNormalizedRendered,
       () => copyOptions.includeComparison,
+      () => copyOptions.includeStyleConfig,
     ],
     () => {
       autoSaveConfig();

@@ -530,6 +530,7 @@ export interface CopyOptions {
   includeNormalizedOriginal: boolean;
   includeNormalizedRendered: boolean;
   includeComparison: boolean;
+  includeStyleConfig: boolean;
 }
 
 /**

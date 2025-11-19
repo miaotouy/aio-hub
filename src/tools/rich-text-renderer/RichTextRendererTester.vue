@@ -100,6 +100,7 @@
                   >规范化后的渲染文本</el-checkbox
                 >
                 <el-checkbox v-model="copyOptions.includeComparison">对比信息</el-checkbox>
+                <el-checkbox v-model="copyOptions.includeStyleConfig">MD 样式配置</el-checkbox>
               </div>
             </el-popover>
           </el-button-group>
@@ -804,6 +805,13 @@ const copyComparison = async () => {
   if (copyOptions.value.includeConfig) {
     comparisonText += `========== 测试配置 ==========
 ${configInfo}
+
+`;
+  }
+
+  if (copyOptions.value.includeStyleConfig) {
+    comparisonText += `========== Markdown 样式配置 ==========
+${JSON.stringify(richTextStyleOptions.value, null, 2)}
 
 `;
   }

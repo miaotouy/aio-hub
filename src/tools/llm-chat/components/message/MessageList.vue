@@ -11,7 +11,8 @@ interface Props {
   messages: ChatMessageNode[];
   isSending: boolean;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
-  richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
+  richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions; // 智能体样式（默认）
+  userRichTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions; // 用户样式
 }
 interface Emits {
   (e: "delete-message", messageId: string): void;
@@ -212,7 +213,11 @@ defineExpose({
                 getMessageSiblings(messages[virtualItem.index].id).currentIndex
               "
               :llm-think-rules="llmThinkRules"
-              :rich-text-style-options="richTextStyleOptions"
+              :rich-text-style-options="
+                messages[virtualItem.index].role === 'user'
+                  ? userRichTextStyleOptions || richTextStyleOptions
+                  : richTextStyleOptions
+              "
               @delete="emit('delete-message', messages[virtualItem.index].id)"
               @regenerate="emit('regenerate', messages[virtualItem.index].id)"
               @switch-sibling="

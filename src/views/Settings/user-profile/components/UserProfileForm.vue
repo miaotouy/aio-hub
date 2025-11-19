@@ -42,6 +42,27 @@
       <div class="form-hint">此描述将作为用户角色在对话中的身份信息</div>
     </el-form-item>
 
+    <el-divider />
+
+    <el-form-item label="消息样式">
+      <el-radio-group v-model="formData.richTextStyleBehavior" @change="handleInput">
+        <el-radio-button label="follow_agent">跟随智能体</el-radio-button>
+        <el-radio-button label="custom">自定义</el-radio-button>
+      </el-radio-group>
+    </el-form-item>
+
+    <div v-if="formData.richTextStyleBehavior === 'custom'" class="style-editor-container">
+      <MarkdownStyleEditor
+        :model-value="formData.richTextStyleOptions || {}"
+        @update:model-value="
+          (val) => {
+            formData.richTextStyleOptions = val;
+            handleInput();
+          }
+        "
+      />
+    </div>
+ 
     <!-- 可选的元数据显示 -->
     <template v-if="showMetadata">
       <el-divider />
@@ -60,6 +81,8 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import AvatarEditor from "@/components/common/AvatarEditor.vue";
+import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/MarkdownStyleEditor.vue";
+import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 import type { IconMode } from "@/tools/llm-chat/types";
 import type { IconUpdatePayload } from "@/components/common/AvatarEditor.vue";
@@ -72,6 +95,8 @@ interface UserProfileFormData {
   content: string;
   createdAt?: string;
   lastUsedAt?: string;
+  richTextStyleOptions?: RichTextRendererStyleOptions;
+  richTextStyleBehavior?: "follow_agent" | "custom";
 }
 
 interface Props {
@@ -111,19 +136,29 @@ const emit = defineEmits<{
 }>();
 
 // 内部表单数据
-const formData = ref<UserProfileFormData>({ ...props.modelValue });
+const formData = ref<UserProfileFormData>({
+  ...props.modelValue,
+  richTextStyleBehavior: props.modelValue.richTextStyleBehavior || "follow_agent",
+});
 
 // 监听外部数据变化
 watch(
   () => props.modelValue,
   (newValue) => {
-    formData.value = { ...newValue };
+    formData.value = {
+      ...newValue,
+      richTextStyleBehavior: newValue.richTextStyleBehavior || "follow_agent",
+    };
   },
   { deep: true }
 );
 
 // 处理输入变化
 const handleInput = () => {
+  // 确保 richTextStyleOptions 已初始化
+  if (!formData.value.richTextStyleOptions) {
+    formData.value.richTextStyleOptions = {};
+  }
   emit("update:modelValue", { ...formData.value });
 };
 
@@ -157,5 +192,10 @@ const formatDateTime = (dateStr?: string) => {
 .info-text {
   font-size: 14px;
   color: var(--text-color);
+}
+
+.style-editor-container {
+  margin-left: 80px; /* 与 el-form-item 的 label-width 对齐 */
+  margin-bottom: 18px; /* 与 el-form-item 的默认 margin-bottom 对齐 */
 }
 </style>

@@ -31,6 +31,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import UserProfileForm from "@/views/Settings/user-profile/components/UserProfileForm.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { UserProfile } from "../../types";
+import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {
   visible: boolean;
@@ -39,19 +40,36 @@ interface Props {
 
 interface Emits {
   (e: "update:visible", value: boolean): void;
-  (e: "save", data: { id: string; name: string; content: string; icon?: string }): void;
+  (e: "save", data: {
+    id: string;
+    name: string;
+    content: string;
+    icon?: string;
+    richTextStyleOptions?: RichTextRendererStyleOptions;
+    richTextStyleBehavior?: "follow_agent" | "custom";
+  }): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 // 表单数据
-const form = ref({
+const form = ref<{
+  name: string;
+  icon: string;
+  content: string;
+  createdAt: string;
+  lastUsedAt: string;
+  richTextStyleOptions?: RichTextRendererStyleOptions;
+  richTextStyleBehavior?: "follow_agent" | "custom";
+}>({
   name: "",
   icon: "",
   content: "",
   createdAt: "",
   lastUsedAt: "",
+  richTextStyleOptions: {},
+  richTextStyleBehavior: "follow_agent",
 });
 
 // 监听传入的档案数据变化
@@ -65,6 +83,8 @@ watch(
         content: profile.content,
         createdAt: profile.createdAt,
         lastUsedAt: profile.lastUsedAt || "",
+        richTextStyleOptions: profile.richTextStyleOptions || {},
+        richTextStyleBehavior: profile.richTextStyleBehavior || "follow_agent",
       };
     }
   },
@@ -98,6 +118,8 @@ const handleSave = () => {
     name: form.value.name.trim(),
     content: form.value.content.trim(),
     icon: form.value.icon?.trim() || undefined,
+    richTextStyleOptions: form.value.richTextStyleOptions,
+    richTextStyleBehavior: form.value.richTextStyleBehavior,
   });
 
   handleVisibleChange(false);

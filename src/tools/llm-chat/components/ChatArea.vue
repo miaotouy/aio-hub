@@ -119,6 +119,17 @@ const effectiveUserProfile = computed(() => {
 
 const userProfileAvatarSrc = useResolvedAvatar(effectiveUserProfile, "user-profile");
 
+// 计算用户消息的样式配置
+const userRichTextStyleOptions = computed(() => {
+  const profile = effectiveUserProfile.value;
+  // 如果用户档案设置为自定义样式，则使用档案中的配置
+  if (profile && profile.richTextStyleBehavior === "custom") {
+    return profile.richTextStyleOptions;
+  }
+  // 否则返回 undefined，MessageList 会自动回退到智能体样式
+  return undefined;
+});
+
 // ===== 拖拽与分离功能 =====
 const { detachedComponents } = useDetachedManager();
 const { startDetaching } = useDetachable();
@@ -563,6 +574,7 @@ onMounted(async () => {
               :is-sending="finalIsSending"
               :llm-think-rules="currentAgent?.llmThinkRules"
               :rich-text-style-options="currentAgent?.richTextStyleOptions"
+              :user-rich-text-style-options="userRichTextStyleOptions"
               @delete-message="handleDeleteMessage"
               @regenerate="handleRegenerate"
               @switch-sibling="handleSwitchSibling"

@@ -558,6 +558,19 @@ export interface UserProfile {
    * 最后使用时间
    */
   lastUsedAt?: string;
+
+  /**
+   * 富文本渲染器样式配置
+   * 用于自定义该用户档案下，用户消息的 Markdown 样式
+   */
+  richTextStyleOptions?: RichTextRendererStyleOptions;
+
+  /**
+   * 消息样式行为
+   * - follow_agent (默认): 跟随当前智能体的样式配置
+   * - custom: 使用用户档案自己独立的样式配置
+   */
+  richTextStyleBehavior?: "follow_agent" | "custom";
 }
 /**
  * 智能体（Agent）- 包含完整的对话预设配置

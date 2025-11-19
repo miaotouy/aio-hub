@@ -195,7 +195,11 @@ const shouldShowSubtitle = computed(() => {
     <div class="header-right">
       <!-- 性能指标 -->
       <div
-        v-if="message.status === 'complete' && message.metadata?.tokensPerSecond"
+        v-if="
+          message.status === 'complete' &&
+          message.metadata?.tokensPerSecond &&
+          settings.uiPreferences.showPerformanceMetrics
+        "
         class="performance-stats"
       >
         <el-tooltip content="生成速度" placement="top">

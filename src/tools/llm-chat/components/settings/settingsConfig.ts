@@ -38,6 +38,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui model name 模型",
       },
       {
+        id: "showPerformanceMetrics",
+        label: "显示性能指标",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showPerformanceMetrics",
+        hint: "显示生成速度(t/s)和首字延迟(TTFT)",
+        keywords: "ui performance metrics speed latency 性能 速度 延迟",
+      },
+      {
         id: "autoScroll",
         label: "自动滚动",
         layout: "inline",

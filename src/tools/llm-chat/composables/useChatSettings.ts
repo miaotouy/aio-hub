@@ -27,6 +27,8 @@ export interface ChatSettings {
     showTokenCount: boolean;
     /** 是否显示模型信息 */
     showModelInfo: boolean;
+    /** 是否显示性能指标 */
+    showPerformanceMetrics: boolean;
     /** 是否自动滚动到最新消息 */
     autoScroll: boolean;
     /** 消息字体大小 (px) */
@@ -102,6 +104,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showTimestamp: false,
     showTokenCount: true,
     showModelInfo: true,
+    showPerformanceMetrics: true,
     autoScroll: true,
     fontSize: 14,
     lineHeight: 1.6,

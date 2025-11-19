@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { watch, reactive } from "vue";
-import type { MarkdownStyleOption } from "../types";
+import type { MarkdownStyleOption } from "../../types";
 
 const props = defineProps<{
   modelValue?: MarkdownStyleOption;

@@ -169,6 +169,12 @@ export const v2ParserTestPreset: RenderPreset = {
   </div>
 </details>
 
+<details>
+  <summary>Summary 内部不应产生 P 标签</summary>
+  这是一个 **Details** 的直接子内容。
+</details>
+
+
 ### 14. 语义化标签嵌套
 
 <article>
@@ -200,6 +206,68 @@ export const v2ParserTestPreset: RenderPreset = {
   五层嵌套的内容，包含 **所有** *类型* 的 \`Markdown\` [语法](https://example.com)
 </div></div></div></div></div>
 
+---
+
+## V2 新增特性测试
+
+### 16. KaTeX 数学公式
+
+#### 块级公式
+
+$$
+f(x) = \\int_{-\\infty}^\\infty \\hat f(\\xi)\\,e^{2 \\pi i \\xi x} \\,d\\xi
+$$
+
+#### 行内公式
+
+这是一个行内公式 $E=mc^2$ 的示例，它应该和文本在同一行。
+
+#### 混合内容
+
+<div>
+  <p>HTML 标签内的公式 $a^2 + b^2 = c^2$</p>
+  <ul>
+    <li>列表项中的公式：$\\frac{\\partial L}{\\partial q_i} - \\frac{d}{dt}\\frac{\\partial L}{\\partial \\dot{q}_i} = 0$</li>
+  </ul>
+</div>
+
+### 17. LLM 思考标签
+
+<think>
+这是一个 LLM 思考块。
+内部可以包含 **Markdown** 语法。
+
+- 列表项 1
+- 列表项 2
+</think>
+
+<think>
+  <p>这是在思考块内部的 HTML 段落</p>
+  <think>
+    这是一个嵌套的思考块，包含 \`代码\`。
+  </think>
+</think>
+
+这是一个未闭合的思考块（模拟流式输出）：
+<think>
+  内部有一些内容，但是标签没有闭合。
+
+### 18. Markdown 引号
+
+这是一个 “中文引号” 的例子。
+这是另一个 "英文引号" 的例子。
+这是一个不成对的引号 “ 后面没有闭合。
+
+### 19. 徽章换行优化
+
+下面两个徽章在源码中是换行的，但应该渲染在同一行。
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Made with Vue](https://img.shields.io/badge/made%20with-Vue.js-brightgreen.svg)](https://vuejs.org/)
+
+### 20. HTML 解析健壮性
+
+这个 \`<100ms>\` 不应该被解析为 HTML 标签，而应视为纯文本。
+
 ## 总结
 
 V2 解析器应该能够：
@@ -208,5 +276,10 @@ V2 解析器应该能够：
 ✅ 处理带属性的 HTML 标签
 ✅ 支持自闭合标签
 ✅ 混合处理块级和内联元素
-✅ 保持语义化和可访问性`,
+✅ 保持语义化和可访问性
+✅ **(新增)** 解析 KaTeX 数学公式（行内和块级）
+✅ **(新增)** 专门处理 LLM 思考标签并支持嵌套
+✅ **(新增)** 解析 Markdown 风格引号
+✅ **(新增)** 优化连续链接（徽章）的换行
+✅ **(新增)** 避免将非标准标签（如 \`<100ms>\`）解析为 HTML`,
 };

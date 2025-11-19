@@ -20,6 +20,11 @@
             <div class="section-header">删除线 (Strikethrough)</div>
             <StyleItemEditor v-model="localValue.strikethrough.value" />
           </div>
+          <el-divider />
+          <div class="style-section">
+            <div class="section-header">引号 (Quote)</div>
+            <StyleItemEditor v-model="localValue.quote.value" />
+          </div>
         </div>
       </el-tab-pane>
 
@@ -130,6 +135,7 @@ const localValue = {
   strong: createProxy("strong"),
   em: createProxy("em"),
   strikethrough: createProxy("strikethrough"),
+  quote: createProxy("quote"),
   blockquote: createProxy("blockquote"),
   inlineCode: createProxy("inlineCode"),
   link: createProxy("link"),

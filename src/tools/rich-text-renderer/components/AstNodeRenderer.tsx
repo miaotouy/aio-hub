@@ -16,6 +16,7 @@ import TextNode from "./nodes/TextNode.vue";
 import StrongNode from "./nodes/StrongNode.vue";
 import EmNode from "./nodes/EmNode.vue";
 import StrikethroughNode from "./nodes/StrikethroughNode.vue";
+import QuoteNode from "./nodes/QuoteNode.vue";
 import InlineCodeNode from "./nodes/InlineCodeNode.vue";
 import LinkNode from "./nodes/LinkNode.vue";
 import ImageNode from "./nodes/ImageNode.vue";
@@ -48,6 +49,7 @@ const componentMap: Record<string, any> = {
   strong: StrongNode,
   em: EmNode,
   strikethrough: StrikethroughNode,
+  quote: QuoteNode,
   inline_code: InlineCodeNode,
   katex_inline: KatexRenderer,
   link: LinkNode,

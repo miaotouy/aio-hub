@@ -37,6 +37,7 @@ export type Token =
   | { type: "em_delimiter"; marker: "*" | "_"; raw: string }
   | { type: "inline_code"; content: string }
   | { type: "strikethrough_delimiter"; marker: "~~"; raw: string }
+  | { type: "quote_delimiter"; marker: "“" | "”" | "\""; raw: string }
   | { type: "image_marker"; raw: string }
   | { type: "link_text_open"; raw: string }
   | { type: "link_text_close"; raw: string }
@@ -249,6 +250,24 @@ class Tokenizer {
       }
 
       // Markdown 内联定界符
+      if (remaining.startsWith("“")) {
+        tokens.push({ type: "quote_delimiter", marker: "“", raw: "“" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+      if (remaining.startsWith("”")) {
+        tokens.push({ type: "quote_delimiter", marker: "”", raw: "”" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+      if (remaining.startsWith("\"")) {
+        tokens.push({ type: "quote_delimiter", marker: "\"", raw: "\"" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
       if (remaining.startsWith("~~")) {
         tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
         i += 2;
@@ -374,7 +393,7 @@ class Tokenizer {
       }
 
       // 普通文本
-      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n|\$/;
+      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n|\$|“|”|"/;
       const nextSpecialIndex = remaining.search(specialChars);
 
       const textContent =
@@ -721,6 +740,7 @@ export class CustomParser {
         case "strong_delimiter":
         case "em_delimiter":
         case "strikethrough_delimiter":
+        case "quote_delimiter":
         case "image_marker":
         case "link_text_open":
         case "link_text_close":
@@ -1103,6 +1123,62 @@ export class CustomParser {
           meta: { range: { start: 0, end: 0 }, status: "stable" },
         });
         continue;
+      }
+
+      // 引号 (支持 “...” 和 ”...“ 以及 “...“ 和 "..." 等各种组合)
+      if (token.type === "quote_delimiter") {
+        flushText();
+        
+        // 记录起始引号，用于如果匹配失败时还原文本
+        const startMarker = token.marker;
+        
+        // 查找下一个引号作为闭合标记
+        let foundClosing = false;
+        let tempI = i + 1;
+        while (tempI < tokens.length) {
+          const t = tokens[tempI];
+          // 只要遇到任何一个引号标记，都视为闭合
+          // 这样可以支持 “内容“ (两左) 或 ”内容“ (反向) 等非标准情况
+          if (t.type === "quote_delimiter") {
+            foundClosing = true;
+            break;
+          }
+          tempI++;
+        }
+
+        if (foundClosing) {
+          i++; // 跳过起始引号
+          const innerTokens: Token[] = [];
+          let endMarker = "";
+          
+          while (i < tokens.length) {
+            const t = tokens[i];
+            if (t.type === "quote_delimiter") {
+              endMarker = t.marker;
+              i++; // 跳过闭合引号
+              break;
+            }
+            innerTokens.push(t);
+            i++;
+          }
+
+          nodes.push({
+            id: "",
+            type: "quote",
+            props: {
+              startMarker,
+              endMarker,
+            },
+            children: this.parseInlines(innerTokens),
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
+          });
+          continue;
+        } else {
+          // 没找到闭合引号，当作普通文本处理
+          accumulatedText += startMarker;
+          i++;
+          continue;
+        }
       }
 
       // 图片 ![alt](url)

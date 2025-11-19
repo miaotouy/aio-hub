@@ -64,6 +64,19 @@ export interface StrikethroughNode extends BaseAstNode {
 }
 
 /**
+ * 引号节点（内联）
+ * 用于包裹被引号括起来的内容，如 "Hello" 或 “你好”
+ */
+export interface QuoteNode extends BaseAstNode {
+  type: 'quote';
+  props: {
+    startMarker: string;
+    endMarker: string;
+  };
+  children: AstNode[];
+}
+
+/**
  * 段落节点
  */
 export interface ParagraphNode extends BaseAstNode {
@@ -310,6 +323,7 @@ export type AstNode =
   | StrongNode
   | EmNode
   | StrikethroughNode
+  | QuoteNode
   | InlineCodeNode
   | LinkNode
   | HtmlInlineNode
@@ -573,6 +587,7 @@ export interface RichTextRendererStyleOptions {
   strong?: MarkdownStyleOption;
   em?: MarkdownStyleOption;
   strikethrough?: MarkdownStyleOption;
+  quote?: MarkdownStyleOption;
   blockquote?: MarkdownStyleOption;
   inlineCode?: MarkdownStyleOption;
   link?: MarkdownStyleOption;

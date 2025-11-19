@@ -26,12 +26,12 @@ export type Token =
   | { type: "text"; content: string }
   | { type: "newline"; count: number }
   | {
-      type: "html_open";
-      tagName: string;
-      attributes: Record<string, string>;
-      selfClosing: boolean;
-      raw: string;
-    }
+    type: "html_open";
+    tagName: string;
+    attributes: Record<string, string>;
+    selfClosing: boolean;
+    raw: string;
+  }
   | { type: "html_close"; tagName: string; raw: string }
   | { type: "strong_delimiter"; marker: "**" | "__"; raw: string }
   | { type: "em_delimiter"; marker: "*" | "_"; raw: string }
@@ -140,7 +140,7 @@ class Tokenizer {
 
           // 收集公式内容
           let formulaContent = "";
-          
+
           while (i < text.length) {
             // 检查是否遇到闭合的 $$
             if (text[i] === "$" && i + 1 < text.length && text[i + 1] === "$") {
@@ -274,6 +274,30 @@ class Tokenizer {
         atLineStart = false;
         continue;
       }
+      // Handle *** (triple delimiter) for bold-italic
+      if (remaining.startsWith("***")) {
+        // Heuristic: check if right-flanking (followed by whitespace or end)
+        // If right-flanking, it's likely closing: * then **
+        // If left-flanking (followed by non-whitespace), it's likely opening: ** then *
+
+        const charAfter = remaining[3];
+        // Support ASCII and CJK punctuation
+        const isRightFlanking = !charAfter || /\s/.test(charAfter) || /[.,!?;:，。！？；：、]/.test(charAfter);
+
+        if (isRightFlanking) {
+          // Closing: * then **
+          tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
+          tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
+        } else {
+          // Opening: ** then *
+          tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
+          tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
+        }
+        i += 3;
+        atLineStart = false;
+        continue;
+      }
+
       if (remaining.startsWith("**")) {
         tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
         i += 2;
@@ -315,14 +339,14 @@ class Tokenizer {
           continue;
         }
       }
-      
+
       // KaTeX 块级公式 $$...$$ (非行首位置的处理)
       if (remaining.startsWith("$$")) {
         i += 2; // 跳过开始的 $$
-        
+
         // 收集公式内容
         let formulaContent = "";
-        
+
         while (i < text.length) {
           // 检查是否遇到闭合的 $$
           if (text[i] === "$" && i + 1 < text.length && text[i + 1] === "$") {
@@ -333,13 +357,13 @@ class Tokenizer {
           formulaContent += text[i];
           i++;
         }
-        
+
         // 添加 KaTeX 块级 token
         tokens.push({ type: "katex_block", content: formulaContent.trim() });
         atLineStart = false;
         continue;
       }
-      
+
       // KaTeX 行内公式 $...$ - 立即处理完整的公式
       if (remaining.startsWith("$")) {
         // 尝试匹配完整的行内公式 $...$
@@ -359,7 +383,7 @@ class Tokenizer {
           continue;
         }
       }
-      
+
       // 图片标记 ![
       if (remaining.startsWith("![")) {
         tokens.push({ type: "image_marker", raw: "!" });
@@ -1024,53 +1048,91 @@ export class CustomParser {
       // 加粗
       if (token.type === "strong_delimiter") {
         flushText();
-        i++;
 
-        const innerTokens: Token[] = [];
-        while (i < tokens.length) {
-          const t = tokens[i];
+        // 预先检查是否有闭合标记
+        let hasClosing = false;
+        let tempI = i + 1;
+        while (tempI < tokens.length) {
+          const t = tokens[tempI];
           if (t.type === "strong_delimiter" && t.marker === token.marker) {
-            i++;
+            hasClosing = true;
             break;
           }
-          innerTokens.push(t);
-          i++;
+          tempI++;
         }
 
-        nodes.push({
-          id: "",
-          type: "strong",
-          props: {},
-          children: this.parseInlines(innerTokens),
-          meta: { range: { start: 0, end: 0 }, status: "stable" },
-        });
-        continue;
+        if (hasClosing) {
+          i++;
+          const innerTokens: Token[] = [];
+          while (i < tokens.length) {
+            const t = tokens[i];
+            if (t.type === "strong_delimiter" && t.marker === token.marker) {
+              i++;
+              break;
+            }
+            innerTokens.push(t);
+            i++;
+          }
+
+          nodes.push({
+            id: "",
+            type: "strong",
+            props: {},
+            children: this.parseInlines(innerTokens),
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
+          });
+          continue;
+        } else {
+          // 没有闭合标记，当作普通文本处理
+          accumulatedText += token.marker;
+          i++;
+          continue;
+        }
       }
 
       // 斜体
       if (token.type === "em_delimiter") {
         flushText();
-        i++;
 
-        const innerTokens: Token[] = [];
-        while (i < tokens.length) {
-          const t = tokens[i];
+        // 预先检查是否有闭合标记
+        let hasClosing = false;
+        let tempI = i + 1;
+        while (tempI < tokens.length) {
+          const t = tokens[tempI];
           if (t.type === "em_delimiter" && t.marker === token.marker) {
-            i++;
+            hasClosing = true;
             break;
           }
-          innerTokens.push(t);
-          i++;
+          tempI++;
         }
 
-        nodes.push({
-          id: "",
-          type: "em",
-          props: {},
-          children: this.parseInlines(innerTokens),
-          meta: { range: { start: 0, end: 0 }, status: "stable" },
-        });
-        continue;
+        if (hasClosing) {
+          i++;
+          const innerTokens: Token[] = [];
+          while (i < tokens.length) {
+            const t = tokens[i];
+            if (t.type === "em_delimiter" && t.marker === token.marker) {
+              i++;
+              break;
+            }
+            innerTokens.push(t);
+            i++;
+          }
+
+          nodes.push({
+            id: "",
+            type: "em",
+            props: {},
+            children: this.parseInlines(innerTokens),
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
+          });
+          continue;
+        } else {
+          // 没有闭合标记，当作普通文本处理
+          accumulatedText += token.marker;
+          i++;
+          continue;
+        }
       }
 
       // 行内代码 - 直接使用分词器处理好的内容
@@ -1102,36 +1164,55 @@ export class CustomParser {
       // 删除线
       if (token.type === "strikethrough_delimiter") {
         flushText();
-        i++;
 
-        const innerTokens: Token[] = [];
-        while (i < tokens.length) {
-          const t = tokens[i];
+        // 预先检查是否有闭合标记
+        let hasClosing = false;
+        let tempI = i + 1;
+        while (tempI < tokens.length) {
+          const t = tokens[tempI];
           if (t.type === "strikethrough_delimiter") {
-            i++;
+            hasClosing = true;
             break;
           }
-          innerTokens.push(t);
-          i++;
+          tempI++;
         }
 
-        nodes.push({
-          id: "",
-          type: "strikethrough",
-          props: {},
-          children: this.parseInlines(innerTokens),
-          meta: { range: { start: 0, end: 0 }, status: "stable" },
-        });
-        continue;
+        if (hasClosing) {
+          i++;
+          const innerTokens: Token[] = [];
+          while (i < tokens.length) {
+            const t = tokens[i];
+            if (t.type === "strikethrough_delimiter") {
+              i++;
+              break;
+            }
+            innerTokens.push(t);
+            i++;
+          }
+
+          nodes.push({
+            id: "",
+            type: "strikethrough",
+            props: {},
+            children: this.parseInlines(innerTokens),
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
+          });
+          continue;
+        } else {
+          // 没有闭合标记，当作普通文本处理
+          accumulatedText += token.marker;
+          i++;
+          continue;
+        }
       }
 
       // 引号 (支持 “...” 和 ”...“ 以及 “...“ 和 "..." 等各种组合)
       if (token.type === "quote_delimiter") {
         flushText();
-        
+
         // 记录起始引号，用于如果匹配失败时还原文本
         const startMarker = token.marker;
-        
+
         // 查找下一个引号作为闭合标记
         let foundClosing = false;
         let tempI = i + 1;
@@ -1150,7 +1231,7 @@ export class CustomParser {
           i++; // 跳过起始引号
           const innerTokens: Token[] = [];
           let endMarker = "";
-          
+
           while (i < tokens.length) {
             const t = tokens[i];
             if (t.type === "quote_delimiter") {

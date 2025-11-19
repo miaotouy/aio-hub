@@ -1,6 +1,8 @@
 <template>
   <p class="markdown-paragraph">
-    <slot />
+    <span class="markdown-paragraph-content">
+      <slot />
+    </span>
   </p>
 </template>
 
@@ -14,9 +16,12 @@ defineProps<{
 .markdown-paragraph {
   margin: 0;
   line-height: 1.6;
-  color: var(--md-paragraph-color, var(--text-color));
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+.markdown-paragraph-content {
+  color: var(--md-paragraph-color, var(--text-color));
 
   /* 动态样式 */
   font-weight: var(--md-paragraph-font-weight, inherit);
@@ -27,6 +32,10 @@ defineProps<{
   border-color: var(--md-paragraph-border-color, transparent);
   border-radius: var(--md-paragraph-border-radius, 0);
   box-shadow: var(--md-paragraph-box-shadow, none);
+
+  /* 优化多行文本的背景渲染 */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 .markdown-paragraph:first-child {

@@ -890,10 +890,170 @@ export class CustomParser {
           // 纯内联内容，直接使用内联解析，避免被包裹成段落
           htmlNode.children = this.parseInlines(contentTokens);
         } else {
-          // 包含块级结构，使用块级解析
-          htmlNode.children = this.parseBlocks(contentTokens);
+          // 包含块级结构，使用HTML内容专用解析(不包裹内联HTML为段落)
+          htmlNode.children = this.parseHtmlContent(contentTokens);
         }
       }
+    }
+
+    return { node: htmlNode, nextIndex: i };
+  }
+
+  /**
+   * 解析 HTML 块内的混合内容
+   * 与 parseBlocks 不同,此方法:
+   * 1. 不会将内联HTML标签包裹成段落
+   * 2. 保持HTML原始结构
+   */
+  private parseHtmlContent(tokens: Token[]): AstNode[] {
+    const nodes: AstNode[] = [];
+    let i = 0;
+
+    const blockLevelTags = [
+      "div",
+      "section",
+      "article",
+      "aside",
+      "header",
+      "footer",
+      "main",
+      "nav",
+      "blockquote",
+      "pre",
+      "table",
+      "ul",
+      "ol",
+      "li",
+      "dl",
+      "dt",
+      "dd",
+      "figure",
+      "figcaption",
+      "details",
+      "summary",
+      "p",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+    ];
+
+    while (i < tokens.length) {
+      const token = tokens[i];
+
+      // 跳过换行和纯空白
+      if (token.type === "newline") {
+        i++;
+        continue;
+      }
+
+      if (token.type === "text" && /^\s+$/.test(token.content)) {
+        i++;
+        continue;
+      }
+
+      // 块级HTML标签 → 使用parseHtmlBlock
+      if (token.type === "html_open" && blockLevelTags.includes(token.tagName)) {
+        const { node, nextIndex } = this.parseHtmlBlock(tokens, i);
+        if (node) nodes.push(node);
+        i = nextIndex;
+        continue;
+      }
+
+      // 内联HTML标签 → 直接处理,不包裹成段落
+      if (token.type === "html_open") {
+        const { node, nextIndex } = this.parseInlineHtmlTag(tokens, i);
+        if (node) nodes.push(node);
+        i = nextIndex;
+        continue;
+      }
+
+      // 其他内联内容 → 收集后使用parseInlines
+      const inlineTokens: Token[] = [];
+      while (i < tokens.length) {
+        const t = tokens[i];
+
+        // 遇到块级HTML或换行,停止收集
+        if (t.type === "html_open" && blockLevelTags.includes(t.tagName)) {
+          break;
+        }
+        if (t.type === "newline" && i + 1 < tokens.length) {
+          const next = tokens[i + 1];
+          if (
+            next.type === "newline" ||
+            (next.type === "html_open" && blockLevelTags.includes(next.tagName))
+          ) {
+            i++; // 跳过这个换行
+            break;
+          }
+        }
+
+        inlineTokens.push(t);
+        i++;
+      }
+
+      if (inlineTokens.length > 0) {
+        const inlineNodes = this.parseInlines(inlineTokens);
+        nodes.push(...inlineNodes);
+      }
+    }
+
+    return nodes;
+  }
+
+  /**
+   * 解析内联HTML标签(在HTML块内部使用)
+   */
+  private parseInlineHtmlTag(
+    tokens: Token[],
+    start: number
+  ): { node: GenericHtmlNode | null; nextIndex: number } {
+    const openToken = tokens[start];
+    if (openToken.type !== "html_open") {
+      return { node: null, nextIndex: start + 1 };
+    }
+
+    const tagName = openToken.tagName;
+    const htmlNode: GenericHtmlNode = {
+      id: "",
+      type: "generic_html",
+      props: { tagName, attributes: openToken.attributes },
+      children: [],
+      meta: { range: { start: 0, end: 0 }, status: "stable" },
+    };
+
+    if (openToken.selfClosing) {
+      return { node: htmlNode, nextIndex: start + 1 };
+    }
+
+    let i = start + 1;
+    const innerTokens: Token[] = [];
+    let depth = 1;
+
+    while (i < tokens.length && depth > 0) {
+      const t = tokens[i];
+
+      if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
+        depth++;
+        innerTokens.push(t);
+      } else if (t.type === "html_close" && t.tagName === tagName) {
+        depth--;
+        if (depth === 0) {
+          i++;
+          break;
+        }
+        innerTokens.push(t);
+      } else {
+        innerTokens.push(t);
+      }
+      i++;
+    }
+
+    // 递归解析内部内容(使用parseInlines保持内联特性)
+    if (innerTokens.length > 0) {
+      htmlNode.children = this.parseInlines(innerTokens);
     }
 
     return { node: htmlNode, nextIndex: i };

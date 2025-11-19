@@ -33,6 +33,8 @@ const tag = computed(() => `h${Math.min(Math.max(props.level, 1), 6)}`);
   background-color: var(--md-h1-bg-color, transparent);
   font-family: var(--md-h1-font-family, inherit);
   text-shadow: var(--md-h1-text-shadow, none);
+  border-radius: var(--md-h1-border-radius, 0);
+  box-shadow: var(--md-h1-box-shadow, none);
 }
 
 .heading-2 {
@@ -43,6 +45,8 @@ const tag = computed(() => `h${Math.min(Math.max(props.level, 1), 6)}`);
   background-color: var(--md-h2-bg-color, transparent);
   font-family: var(--md-h2-font-family, inherit);
   text-shadow: var(--md-h2-text-shadow, none);
+  border-radius: var(--md-h2-border-radius, 0);
+  box-shadow: var(--md-h2-box-shadow, none);
 }
 
 .heading-3 {
@@ -51,6 +55,9 @@ const tag = computed(() => `h${Math.min(Math.max(props.level, 1), 6)}`);
   background-color: var(--md-h3-bg-color, transparent);
   font-family: var(--md-h3-font-family, inherit);
   text-shadow: var(--md-h3-text-shadow, none);
+  border-radius: var(--md-h3-border-radius, 0);
+  box-shadow: var(--md-h3-box-shadow, none);
+  padding: 2px 4px;
 }
 
 .heading-4 {
@@ -59,6 +66,9 @@ const tag = computed(() => `h${Math.min(Math.max(props.level, 1), 6)}`);
   background-color: var(--md-h4-bg-color, transparent);
   font-family: var(--md-h4-font-family, inherit);
   text-shadow: var(--md-h4-text-shadow, none);
+  border-radius: var(--md-h4-border-radius, 0);
+  box-shadow: var(--md-h4-box-shadow, none);
+  padding: 2px 4px;
 }
 
 .heading-5 {
@@ -67,6 +77,9 @@ const tag = computed(() => `h${Math.min(Math.max(props.level, 1), 6)}`);
   background-color: var(--md-h5-bg-color, transparent);
   font-family: var(--md-h5-font-family, inherit);
   text-shadow: var(--md-h5-text-shadow, none);
+  border-radius: var(--md-h5-border-radius, 0);
+  box-shadow: var(--md-h5-box-shadow, none);
+  padding: 2px 4px;
 }
 
 .heading-6 {
@@ -75,6 +88,9 @@ const tag = computed(() => `h${Math.min(Math.max(props.level, 1), 6)}`);
   background-color: var(--md-h6-bg-color, transparent);
   font-family: var(--md-h6-font-family, inherit);
   text-shadow: var(--md-h6-text-shadow, none);
+  border-radius: var(--md-h6-border-radius, 0);
+  box-shadow: var(--md-h6-box-shadow, none);
+  padding: 2px 4px;
 }
 
 .markdown-heading:first-child {

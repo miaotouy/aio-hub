@@ -20,5 +20,8 @@ defineProps<{
   border: 1px solid var(--md-inline-code-border-color, transparent);
   box-shadow: var(--md-inline-code-box-shadow, none);
   text-shadow: var(--md-inline-code-text-shadow, none);
+  font-weight: var(--md-inline-code-font-weight, inherit);
+  font-style: var(--md-inline-code-font-style, inherit);
+  text-decoration: var(--md-inline-code-text-decoration, none);
 }
 </style>

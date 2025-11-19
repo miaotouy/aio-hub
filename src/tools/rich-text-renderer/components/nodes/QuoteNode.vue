@@ -22,7 +22,8 @@ defineProps<{
   text-shadow: var(--md-quote-text-shadow, none);
   text-decoration: var(--md-quote-text-decoration, none);
   border-radius: var(--md-quote-border-radius, 0);
-  border: var(--md-quote-border-color, none);
+  border: 1px solid var(--md-quote-border-color, transparent);
   box-shadow: var(--md-quote-box-shadow, none);
+  padding: 0 2px;
 }
 </style>

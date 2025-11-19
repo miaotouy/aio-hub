@@ -26,6 +26,12 @@ defineProps<{
   transition: border-color 0.2s;
   text-shadow: var(--md-link-text-shadow, none);
   font-weight: var(--md-link-font-weight, inherit);
+  background-color: var(--md-link-bg-color, transparent);
+  border: 1px solid var(--md-link-border-color, transparent);
+  border-radius: var(--md-link-border-radius, 0);
+  box-shadow: var(--md-link-box-shadow, none);
+  padding: 0 2px;
+  font-style: var(--md-link-font-style, inherit);
 }
 
 .markdown-link:hover {

@@ -19,5 +19,6 @@ defineProps<{
   color: var(--md-blockquote-color, var(--text-color-light));
   font-style: var(--md-blockquote-font-style, inherit);
   box-shadow: var(--md-blockquote-box-shadow, none);
+  border-radius: var(--md-blockquote-border-radius, 4px);
 }
 </style>

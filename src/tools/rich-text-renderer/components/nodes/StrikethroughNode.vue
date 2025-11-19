@@ -18,5 +18,9 @@ defineProps<{
   text-shadow: var(--md-strikethrough-text-shadow, none);
   text-decoration-color: var(--md-strikethrough-text-decoration-color, inherit);
   text-decoration-style: var(--md-strikethrough-text-decoration-style, solid);
+  border: 1px solid var(--md-strikethrough-border-color, transparent);
+  border-radius: var(--md-strikethrough-border-radius, 0);
+  box-shadow: var(--md-strikethrough-box-shadow, none);
+  padding: 0 2px;
 }
 </style>

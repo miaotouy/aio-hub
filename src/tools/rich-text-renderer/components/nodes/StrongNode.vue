@@ -17,5 +17,9 @@ defineProps<{
   background-color: var(--md-strong-bg-color, transparent);
   text-shadow: var(--md-strong-text-shadow, none);
   text-decoration: var(--md-strong-text-decoration, none);
+  border: 1px solid var(--md-strong-border-color, transparent);
+  border-radius: var(--md-strong-border-radius, 0);
+  box-shadow: var(--md-strong-box-shadow, none);
+  padding: 0 2px;
 }
 </style>

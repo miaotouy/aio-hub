@@ -74,15 +74,35 @@
               清空输出
             </el-button>
           </el-tooltip>
-          <el-tooltip content="复制原文和渲染后的 HTML，便于对比排查问题" placement="bottom">
-            <el-button
-              :icon="CopyDocument"
-              @click="copyComparison"
-              :disabled="!inputContent.trim() || (!currentContent && !streamSource)"
-            >
-              复制对比
-            </el-button>
-          </el-tooltip>
+          <el-button-group>
+            <el-tooltip content="复制原文和渲染后的 HTML，便于对比排查问题" placement="bottom">
+              <el-button
+                :icon="CopyDocument"
+                @click="copyComparison"
+                :disabled="!inputContent.trim() || (!currentContent && !streamSource)"
+              >
+                复制对比
+              </el-button>
+            </el-tooltip>
+            <el-popover placement="bottom" :width="220" trigger="click">
+              <template #reference>
+                <el-button :icon="Setting" />
+              </template>
+              <div class="copy-options">
+                <div class="option-header">复制内容配置</div>
+                <el-checkbox v-model="copyOptions.includeConfig">测试配置</el-checkbox>
+                <el-checkbox v-model="copyOptions.includeOriginal">Markdown 原文</el-checkbox>
+                <el-checkbox v-model="copyOptions.includeHtml">渲染后的 HTML</el-checkbox>
+                <el-checkbox v-model="copyOptions.includeNormalizedOriginal"
+                  >规范化后的原文</el-checkbox
+                >
+                <el-checkbox v-model="copyOptions.includeNormalizedRendered"
+                  >规范化后的渲染文本</el-checkbox
+                >
+                <el-checkbox v-model="copyOptions.includeComparison">对比信息</el-checkbox>
+              </div>
+            </el-popover>
+          </el-button-group>
         </div>
       </div>
     </div>
@@ -321,12 +341,7 @@
     </div>
 
     <!-- 样式配置弹窗 -->
-    <BaseDialog
-      v-model="isStyleEditorVisible"
-      title="Markdown 样式配置"
-      width="80vw"
-      height="70vh"
-    >
+    <BaseDialog v-model="isStyleEditorVisible" title="Markdown 样式配置" width="80vw" height="70vh">
       <MarkdownStyleEditor v-model="richTextStyleOptions" />
       <template #footer>
         <el-button type="primary" @click="isStyleEditorVisible = false">完成</el-button>
@@ -346,6 +361,7 @@ import {
   Loading,
   CopyDocument,
   Brush,
+  Setting,
 } from "@element-plus/icons-vue";
 import RichTextRenderer from "./RichTextRenderer.vue";
 import type { StreamSource } from "./types";
@@ -376,6 +392,7 @@ const {
   rendererVersion,
   llmThinkRules,
   richTextStyleOptions,
+  copyOptions,
 } = storeToRefs(store);
 
 // 样式编辑器显示状态
@@ -754,7 +771,8 @@ const copyComparison = async () => {
   const normalizedRendered = normalizeWhitespace(renderedText);
 
   // 构建测试配置信息
-  let configInfo = `流式输出: ${streamEnabled.value ? "启用" : "禁用"}`;
+  let configInfo = `渲染器版本: ${rendererVersion.value}`;
+  configInfo += `\n流式输出: ${streamEnabled.value ? "启用" : "禁用"}`;
 
   if (streamEnabled.value) {
     configInfo += `\n分词器: ${selectedTokenizer.value}`;
@@ -781,22 +799,45 @@ const copyComparison = async () => {
   const isMatched = normalizedDiff === 0;
 
   // 构建对比内容
-  const comparisonText = `========== 测试配置 ==========
+  let comparisonText = "";
+
+  if (copyOptions.value.includeConfig) {
+    comparisonText += `========== 测试配置 ==========
 ${configInfo}
 
-========== Markdown 原文 ==========
+`;
+  }
+
+  if (copyOptions.value.includeOriginal) {
+    comparisonText += `========== Markdown 原文 ==========
 ${inputContent.value}
 
-========== 渲染后的 HTML ==========
+`;
+  }
+
+  if (copyOptions.value.includeHtml) {
+    comparisonText += `========== 渲染后的 HTML ==========
 ${htmlContent}
 
-========== 规范化后的原文 ==========
+`;
+  }
+
+  if (copyOptions.value.includeNormalizedOriginal) {
+    comparisonText += `========== 规范化后的原文 ==========
 ${normalizedInput}
 
-========== 规范化后的渲染文本 ==========
+`;
+  }
+
+  if (copyOptions.value.includeNormalizedRendered) {
+    comparisonText += `========== 规范化后的渲染文本 ==========
 ${normalizedRendered}
 
-========== 对比信息 ==========
+`;
+  }
+
+  if (copyOptions.value.includeComparison) {
+    comparisonText += `========== 对比信息 ==========
 原文字符数（带标记）: ${inputContent.value.length}
 原文字符数（纯文本）: ${cleanedInput.length}
 渲染文本字符数: ${renderedText.length}
@@ -811,6 +852,7 @@ HTML 完整字符数: ${htmlContent.length}
 渲染时间: ${new Date().toLocaleString("zh-CN")}
 =============================
 `;
+  }
 
   try {
     await navigator.clipboard.writeText(comparisonText);
@@ -1151,5 +1193,25 @@ onMounted(async () => {
     height: 400px;
     margin-bottom: 16px;
   }
+}
+
+.copy-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.copy-options :deep(.el-checkbox) {
+  margin-right: 0;
+  height: 24px;
 }
 </style>

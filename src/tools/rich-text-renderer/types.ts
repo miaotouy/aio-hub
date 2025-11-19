@@ -521,6 +521,18 @@ export interface RendererVersionMeta {
 }
 
 /**
+ * 复制选项配置
+ */
+export interface CopyOptions {
+  includeConfig: boolean;
+  includeOriginal: boolean;
+  includeHtml: boolean;
+  includeNormalizedOriginal: boolean;
+  includeNormalizedRendered: boolean;
+  includeComparison: boolean;
+}
+
+/**
  * 测试页面配置
  */
 export interface TesterConfig {
@@ -560,6 +572,8 @@ export interface TesterConfig {
   llmThinkRules: LlmThinkRule[];
   /** 富文本样式配置 */
   richTextStyleOptions: RichTextRendererStyleOptions;
+  /** 复制选项配置 */
+  copyOptions: CopyOptions;
 }
 
 // ============ 样式配置相关类型 ============

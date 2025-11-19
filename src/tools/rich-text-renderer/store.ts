@@ -4,7 +4,13 @@
 
 import { defineStore } from "pinia";
 import { ref, reactive, watch } from "vue";
-import type { TesterConfig, RendererVersionMeta, LlmThinkRule, RichTextRendererStyleOptions } from "./types";
+import type {
+  TesterConfig,
+  RendererVersionMeta,
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+  CopyOptions,
+} from "./types";
 import { RendererVersion } from "./types";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -93,6 +99,14 @@ const configManager = createConfigManager<TesterConfig>({
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
     llmThinkRules: defaultLlmThinkRules,
     richTextStyleOptions: {},
+    copyOptions: {
+      includeConfig: true,
+      includeOriginal: true,
+      includeHtml: true,
+      includeNormalizedOriginal: true,
+      includeNormalizedRendered: true,
+      includeComparison: true,
+    },
   }),
 });
 
@@ -118,6 +132,14 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
   const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
+  const copyOptions = reactive<CopyOptions>({
+    includeConfig: true,
+    includeOriginal: true,
+    includeHtml: true,
+    includeNormalizedOriginal: true,
+    includeNormalizedRendered: true,
+    includeComparison: true,
+  });
 
   // 是否已加载配置
   const isConfigLoaded = ref(false);
@@ -158,6 +180,14 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       rendererVersion.value = config.rendererVersion;
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
       richTextStyleOptions.value = config.richTextStyleOptions || {};
+      if (config.copyOptions) {
+        copyOptions.includeConfig = config.copyOptions.includeConfig;
+        copyOptions.includeOriginal = config.copyOptions.includeOriginal;
+        copyOptions.includeHtml = config.copyOptions.includeHtml;
+        copyOptions.includeNormalizedOriginal = config.copyOptions.includeNormalizedOriginal;
+        copyOptions.includeNormalizedRendered = config.copyOptions.includeNormalizedRendered;
+        copyOptions.includeComparison = config.copyOptions.includeComparison;
+      }
 
       isConfigLoaded.value = true;
       logger.info("配置加载成功");
@@ -195,6 +225,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         rendererVersion: rendererVersion.value,
         llmThinkRules: llmThinkRules.value,
         richTextStyleOptions: richTextStyleOptions.value,
+        copyOptions: { ...copyOptions },
       };
 
       await configManager.save(config);
@@ -237,6 +268,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       rendererVersion: rendererVersion.value,
       llmThinkRules: llmThinkRules.value,
       richTextStyleOptions: richTextStyleOptions.value,
+      copyOptions: { ...copyOptions },
     };
 
     debouncedSave(config);
@@ -262,6 +294,12 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
     llmThinkRules.value = [...defaultLlmThinkRules];
     richTextStyleOptions.value = {};
+    copyOptions.includeConfig = true;
+    copyOptions.includeOriginal = true;
+    copyOptions.includeHtml = true;
+    copyOptions.includeNormalizedOriginal = true;
+    copyOptions.includeNormalizedRendered = true;
+    copyOptions.includeComparison = true;
 
     saveConfig();
   }
@@ -318,6 +356,12 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       rendererVersion,
       llmThinkRules,
       richTextStyleOptions,
+      () => copyOptions.includeConfig,
+      () => copyOptions.includeOriginal,
+      () => copyOptions.includeHtml,
+      () => copyOptions.includeNormalizedOriginal,
+      () => copyOptions.includeNormalizedRendered,
+      () => copyOptions.includeComparison,
     ],
     () => {
       autoSaveConfig();
@@ -341,6 +385,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     rendererVersion,
     llmThinkRules,
     richTextStyleOptions,
+    copyOptions,
     isConfigLoaded,
 
     // Actions

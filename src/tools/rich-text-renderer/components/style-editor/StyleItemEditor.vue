@@ -104,9 +104,9 @@
           <el-form-item label="文本发光 (Text Shadow)">
             <div class="shadow-editor">
               <div class="shadow-inputs">
-                <el-input v-model="textShadowValues.offsetX" size="small" placeholder="X" />
-                <el-input v-model="textShadowValues.offsetY" size="small" placeholder="Y" />
-                <el-input v-model="textShadowValues.blur" size="small" placeholder="模糊" />
+                <el-input v-model.trim="textShadowValues.offsetX" size="small" placeholder="X" />
+                <el-input v-model.trim="textShadowValues.offsetY" size="small" placeholder="Y" />
+                <el-input v-model.trim="textShadowValues.blur" size="small" placeholder="模糊" />
               </div>
               <div class="color-picker-row">
                 <el-color-picker
@@ -177,10 +177,10 @@
           <el-form-item label="盒阴影 (Box Shadow)">
             <div class="shadow-editor">
               <div class="shadow-inputs shadow-inputs-box">
-                <el-input v-model="boxShadowValues.offsetX" size="small" placeholder="X" />
-                <el-input v-model="boxShadowValues.offsetY" size="small" placeholder="Y" />
-                <el-input v-model="boxShadowValues.blur" size="small" placeholder="模糊" />
-                <el-input v-model="boxShadowValues.spread" size="small" placeholder="扩散" />
+                <el-input v-model.trim="boxShadowValues.offsetX" size="small" placeholder="X" />
+                <el-input v-model.trim="boxShadowValues.offsetY" size="small" placeholder="Y" />
+                <el-input v-model.trim="boxShadowValues.blur" size="small" placeholder="模糊" />
+                <el-input v-model.trim="boxShadowValues.spread" size="small" placeholder="扩散" />
               </div>
               <div class="shadow-controls">
                 <div class="color-picker-row">
@@ -224,14 +224,19 @@ const emit = defineEmits<{
 
 const localValue = reactive<MarkdownStyleOption>({});
 
-const addUnit = (val: string) => {
-  if (!val) return "0";
-  const v = val.trim();
+const addUnit = (val: string | number) => {
+  if (val === "" || val === null || val === undefined) return "0";
+  const v = String(val).trim();
   if (v === "0") return "0";
+
+  // 尝试更宽松的数字匹配，处理 "5." 这种情况
   // 如果是纯数字（允许负号和小数点），添加 px
-  if (/^-?(\d+(\.\d*)?|\.\d+)$/.test(v)) {
-    return `${v}px`;
+  // 使用 parseFloat 辅助判断是否为有效数字
+  const num = parseFloat(v);
+  if (!isNaN(num) && /^-?[\d.]+$/.test(v)) {
+    return `${num}px`;
   }
+
   return v;
 };
 
@@ -459,38 +464,48 @@ const boxShadowValues = reactive({
 let isParsingTextShadow = false;
 let isParsingBoxShadow = false;
 
-// 支持 3位hex, 6位hex, 4位hex(alpha), 8位hex(alpha), rgb/a, hsl/a, 颜色名
-const COLOR_REGEX = /^(#([0-9a-fA-F]{3,4}){1,2}|(rgba?|hsla?)\(.*\)|[a-z]+)$/i;
-
 const parseSingleShadow = (value: string | null | undefined) => {
-  const defaultState = { offsetX: "", offsetY: "", blur: "", spread: "", color: "", inset: false };
+  const defaultState = {
+    offsetX: "",
+    offsetY: "",
+    blur: "",
+    spread: "",
+    color: "",
+    inset: false,
+  };
   if (!value || value === "none") return defaultState;
 
   // 只处理第一组阴影
-  const firstShadow = value.split(/,(?![^(]*\))/)[0].trim();
-  // 按空格分割，但忽略括号内的空格
-  const parts = firstShadow.split(/\s+(?![^(]*\))/);
+  let shadowStr = value.split(/,(?![^(]*\))/)[0].trim();
   const result = { ...defaultState };
 
-  // 检查 inset
-  if (parts[0] && parts[0].toLowerCase() === "inset") {
+  // 1. 提取 inset
+  if (/^inset\s+/i.test(shadowStr)) {
     result.inset = true;
-    parts.shift();
+    shadowStr = shadowStr.replace(/^inset\s+/i, "").trim();
   }
 
-  // 查找颜色
-  // 注意：有些颜色可能在最后，有些在最前
-  const colorIndex = parts.findIndex((p) => COLOR_REGEX.test(p));
-  if (colorIndex > -1) {
-    result.color = parts.splice(colorIndex, 1)[0];
+  // 2. 提取颜色 (改进的正则，支持 rgb/rgba/hsl/hsla/hex/named-color)
+  // 优先匹配末尾的颜色，然后是开头的颜色
+  const colorRegex = /((?:rgba?|hsla?|color)\s*\([^\)]+\)|#[0-9a-fA-F]+|[a-z]+)/i;
+
+  let colorMatch = shadowStr.match(new RegExp(colorRegex.source + "$", "i"));
+  if (!colorMatch) {
+    colorMatch = shadowStr.match(new RegExp("^" + colorRegex.source, "i"));
   }
 
-  // 剩下的部分应该是长度值
-  const [offsetX, offsetY, blur, spread] = parts;
-  result.offsetX = removePx(offsetX || "");
-  result.offsetY = removePx(offsetY || "");
-  result.blur = removePx(blur || "");
-  result.spread = removePx(spread || ""); // Only used for box-shadow
+  if (colorMatch) {
+    result.color = colorMatch[0];
+    // 移除颜色部分，只替换一次
+    shadowStr = shadowStr.replace(colorMatch[0], "").trim();
+  }
+
+  // 3. 剩下的应该是长度值
+  const parts = shadowStr.split(/\s+/);
+  if (parts[0]) result.offsetX = removePx(parts[0]);
+  if (parts[1]) result.offsetY = removePx(parts[1]);
+  if (parts[2]) result.blur = removePx(parts[2]);
+  if (parts[3]) result.spread = removePx(parts[3]);
 
   return result;
 };
@@ -623,7 +638,7 @@ watch(
   margin-bottom: 24px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  overflow: hidden;
+  /* overflow: hidden; 防止阴影被遮挡 */
 }
 
 .preview-header {
@@ -635,12 +650,12 @@ watch(
 }
 
 .preview-viewport {
-  padding: 4px;
+  padding: 24px; /* 增加内边距以显示阴影和发光效果 */
   background-color: var(--bg-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 60px;
+  min-height: 80px;
   font-size: 16px;
 }
 

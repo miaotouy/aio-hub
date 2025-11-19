@@ -596,12 +596,14 @@ watch(
 }
 
 .preview-content {
+  display: inline-block;
   transition: all 0.3s ease;
   padding: 4px 8px;
   margin: 0;
 }
 
 .preview-content.is-block {
+  display: block;
   width: 100%;
   padding: 16px;
   text-align: left;

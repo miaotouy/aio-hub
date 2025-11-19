@@ -47,6 +47,7 @@
             <StyleItemEditor
               v-model="localValue.quote.value"
               preview-text="“这是一段被引号包裹的文本预览”"
+              preview-tag="span"
             />
           </div>
         </div>

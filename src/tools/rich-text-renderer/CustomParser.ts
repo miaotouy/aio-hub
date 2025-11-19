@@ -1861,12 +1861,49 @@ export class CustomParser {
         // 遇到其他块级标记结束当前项
         if (
           tok.type === "heading_marker" ||
-          tok.type === "html_open" ||
           tok.type === "hr_marker" ||
           tok.type === "code_fence" ||
           tok.type === "blockquote_marker"
         ) {
           break;
+        }
+
+        // HTML 标签：只有块级标签才结束列表项
+        if (tok.type === "html_open") {
+          const blockLevelTags = [
+            "div",
+            "section",
+            "article",
+            "aside",
+            "header",
+            "footer",
+            "main",
+            "nav",
+            "blockquote",
+            "pre",
+            "table",
+            "ul",
+            "ol",
+            "li",
+            "dl",
+            "dt",
+            "dd",
+            "figure",
+            "figcaption",
+            "details",
+            "summary",
+            "p",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+          ];
+          if (blockLevelTags.includes(tok.tagName)) {
+            break; // 块级标签结束列表项
+          }
+          // 内联标签继续收集
         }
 
         // 遇到双换行结束当前项

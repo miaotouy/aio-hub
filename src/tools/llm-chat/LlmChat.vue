@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed, ref, onUnmounted, nextTick } from "vue";
+import { onMounted, computed, ref, onUnmounted, nextTick, defineAsyncComponent } from "vue";
 import { useLlmChatStore } from "./store";
 import { useAgentStore } from "./agentStore";
 import { useUserProfileStore } from "./userProfileStore";
@@ -10,10 +10,14 @@ import { useLlmChatSync } from "./composables/useLlmChatSync";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "./types/sync";
 import ChatArea from "./components/ChatArea.vue";
-import SessionsSidebar from "./components/sidebar/SessionsSidebar.vue";
-import LeftSidebar from "./components/sidebar/LeftSidebar.vue";
 import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
-import ContextAnalyzerDialog from "./components/context-analyzer/ContextAnalyzerDialog.vue";
+const LeftSidebar = defineAsyncComponent(() => import("./components/sidebar/LeftSidebar.vue"));
+const SessionsSidebar = defineAsyncComponent(
+  () => import("./components/sidebar/SessionsSidebar.vue")
+);
+const ContextAnalyzerDialog = defineAsyncComponent(
+  () => import("./components/context-analyzer/ContextAnalyzerDialog.vue")
+);
 import { createModuleLogger } from "@utils/logger";
 import { initializeMacroEngine } from "./macro-engine";
 
@@ -120,9 +124,11 @@ onMounted(async () => {
     // 启动UI状态自动保存
     startWatching();
 
-    await agentStore.loadAgents();
-    await userProfileStore.loadProfiles();
-    await store.loadSessions();
+    await Promise.all([
+      agentStore.loadAgents(),
+      userProfileStore.loadProfiles(),
+      store.loadSessions(),
+    ]);
 
     logger.info("LLM Chat 模块已加载", {
       sessionCount: store.sessions.length,

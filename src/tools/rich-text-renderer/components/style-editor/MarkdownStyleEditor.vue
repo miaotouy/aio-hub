@@ -202,7 +202,7 @@ const localValue = {
 
 .tab-content {
   padding: 24px;
-  max-width: 1000px;
+  /* max-width: 1000px; Remove max-width to allow full width usage */
 }
 
 .style-section {

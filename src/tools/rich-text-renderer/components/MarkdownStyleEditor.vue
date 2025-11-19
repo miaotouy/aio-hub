@@ -7,6 +7,11 @@
       <el-tab-pane label="基础格式" name="basic">
         <div class="tab-content">
           <div class="style-section">
+            <div class="section-header">普通文本 (Paragraph)</div>
+            <StyleItemEditor v-model="localValue.paragraph.value" />
+          </div>
+          <el-divider />
+          <div class="style-section">
             <div class="section-header">粗体 (Strong)</div>
             <StyleItemEditor v-model="localValue.strong.value" />
           </div>
@@ -132,6 +137,7 @@ const createProxy = (key: keyof RichTextRendererStyleOptions) => {
 };
 
 const localValue = {
+  paragraph: createProxy("paragraph"),
   strong: createProxy("strong"),
   em: createProxy("em"),
   strikethrough: createProxy("strikethrough"),

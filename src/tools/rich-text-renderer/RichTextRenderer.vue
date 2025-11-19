@@ -68,6 +68,7 @@ const cssVariables = computed(() => {
     if (style.borderRadius) vars[`--md-${prefix}-border-radius`] = style.borderRadius;
   };
 
+  addVars('paragraph', opts.paragraph);
   addVars('strong', opts.strong);
   addVars('em', opts.em);
   addVars('strikethrough', opts.strikethrough);

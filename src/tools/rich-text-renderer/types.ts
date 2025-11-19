@@ -584,6 +584,7 @@ export interface MarkdownStyleOption {
  * 富文本渲染器样式配置
  */
 export interface RichTextRendererStyleOptions {
+  paragraph?: MarkdownStyleOption;
   strong?: MarkdownStyleOption;
   em?: MarkdownStyleOption;
   strikethrough?: MarkdownStyleOption;

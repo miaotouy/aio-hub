@@ -98,7 +98,7 @@ import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
-import type { RichTextRendererStyleOptions, MarkdownStyleOption } from "../types";
+import type { RichTextRendererStyleOptions, MarkdownStyleOption } from "../../types";
 import StyleItemEditor from "./StyleItemEditor.vue";
 
 const props = defineProps<{

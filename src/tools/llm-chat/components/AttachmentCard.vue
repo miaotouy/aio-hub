@@ -1,38 +1,38 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import type { Asset } from '@/types/asset-management';
-import { useImageViewer } from '@/composables/useImageViewer';
-import { assetManagerEngine } from '@/composables/useAssetManager';
-import { createModuleLogger } from '@utils/logger';
+import { computed, ref, watch } from "vue";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import type { Asset } from "@/types/asset-management";
+import { useImageViewer } from "@/composables/useImageViewer";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { createModuleLogger } from "@utils/logger";
 
-const logger = createModuleLogger('AttachmentCard');
+const logger = createModuleLogger("AttachmentCard");
 
 interface Props {
   asset: Asset;
   removable?: boolean;
-  size?: 'small' | 'medium' | 'large';
+  size?: "small" | "medium" | "large";
   /** 所有附件列表，用于图片预览时的图片切换 */
   allAssets?: Asset[];
 }
 
 interface Emits {
-  (e: 'remove', asset: Asset): void;
-  (e: 'preview-document', asset: Asset): void;
+  (e: "remove", asset: Asset): void;
+  (e: "preview-document", asset: Asset): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   removable: true,
-  size: 'medium',
+  size: "medium",
 });
 
 const emit = defineEmits<Emits>();
 
 const { show: showImage } = useImageViewer();
-const assetUrl = ref<string>('');
+const assetUrl = ref<string>("");
 const isLoadingUrl = ref(true);
 const loadError = ref(false);
-const basePath = ref<string>('');
+const basePath = ref<string>("");
 
 // 格式化文件大小
 const formattedSize = computed(() => {
@@ -44,21 +44,21 @@ const formattedSize = computed(() => {
 });
 
 // 是否为图片或视频类型（使用方形卡片）
-const isImage = computed(() => props.asset.type === 'image');
-const isVideo = computed(() => props.asset.type === 'video');
+const isImage = computed(() => props.asset.type === "image");
+const isVideo = computed(() => props.asset.type === "video");
 
 // 是否应该使用长条形式（非图片/视频类型）
 const isBarLayout = computed(() => !isImage.value && !isVideo.value);
 
 // 是否为文档类型（可以点击预览）
-const isDocument = computed(() => props.asset.type === 'document');
+const isDocument = computed(() => props.asset.type === "document");
 
 // 获取文件后缀名
 const fileExtension = computed(() => {
   const name = props.asset.name;
-  const lastDotIndex = name.lastIndexOf('.');
+  const lastDotIndex = name.lastIndexOf(".");
   if (lastDotIndex === -1 || lastDotIndex === name.length - 1) {
-    return '';
+    return "";
   }
   return name.substring(lastDotIndex);
 });
@@ -66,68 +66,63 @@ const fileExtension = computed(() => {
 // 获取文件类型图标
 const fileTypeIcon = computed(() => {
   switch (props.asset.type) {
-    case 'image':
-      return '🖼️';
-    case 'audio':
-      return '🎵';
-    case 'video':
-      return '🎬';
-    case 'document':
-      return '📄';
+    case "image":
+      return "🖼️";
+    case "audio":
+      return "🎵";
+    case "video":
+      return "🎬";
+    case "document":
+      return "📄";
     default:
-      return '📎';
+      return "📎";
   }
 });
 
 // 加载资产 URL
 const loadAssetUrl = async () => {
+  isLoadingUrl.value = true;
+  loadError.value = false;
   try {
-    isLoadingUrl.value = true;
-    loadError.value = false;
-    
     // 判断是否为 pending/importing 状态
-    const isPending = props.asset.importStatus === 'pending' || props.asset.importStatus === 'importing';
-    
+    const isPending =
+      props.asset.importStatus === "pending" || props.asset.importStatus === "importing";
+
     if (isPending) {
-      // pending 状态：使用原始路径读取文件并创建 Blob URL
+      // pending 状态：使用原始路径通过 convertFileSrc 创建一个快速预览 URL
       const originalPath = props.asset.originalPath || props.asset.path;
-      
+
       if (!originalPath) {
-        throw new Error('缺少原始路径');
+        throw new Error("缺少原始路径");
       }
-      
-      const bytes = await invoke<number[]>('read_file_binary', {
-        path: originalPath,
-      });
-      
-      const uint8Array = new Uint8Array(bytes);
-      const blob = new Blob([uint8Array], { type: props.asset.mimeType });
-      const url = URL.createObjectURL(blob);
-      assetUrl.value = url;
+
+      // 使用 convertFileSrc 立即生成可用的 URL，这比读取整个文件要快得多
+      assetUrl.value = convertFileSrc(originalPath);
     } else {
       // 已导入状态：使用同步的 asset:// 协议
       if (!basePath.value) {
         basePath.value = await assetManagerEngine.getAssetBasePath();
       }
-      
+
       const path = props.asset.thumbnailPath || props.asset.path;
       assetUrl.value = assetManagerEngine.convertToAssetProtocol(path, basePath.value);
     }
   } catch (error) {
-    logger.error('加载资产 URL 失败', error, { asset: props.asset });
+    logger.error("加载资产 URL 失败", error, { asset: props.asset });
     loadError.value = true;
-  } finally {
-    isLoadingUrl.value = false;
   }
+
+  // 无论成功或失败，都应尽快完成 loading 状态
+  isLoadingUrl.value = false;
 };
 
 // 是否正在导入
-const isImporting = computed(() =>
-  props.asset.importStatus === 'pending' || props.asset.importStatus === 'importing'
+const isImporting = computed(
+  () => props.asset.importStatus === "pending" || props.asset.importStatus === "importing"
 );
 
 // 是否导入失败
-const hasImportError = computed(() => props.asset.importStatus === 'error');
+const hasImportError = computed(() => props.asset.importStatus === "error");
 
 // 处理点击预览
 const handlePreview = async () => {
@@ -136,78 +131,79 @@ const handlePreview = async () => {
     await handleImagePreview();
     return;
   }
-  
+
   // 文档类型：发出预览事件
   if (isDocument.value) {
-    emit('preview-document', props.asset);
+    emit("preview-document", props.asset);
     return;
   }
 };
 
 // 处理图片预览
 const handleImagePreview = async () => {
-  
   try {
     // 获取所有图片类型的附件
     const allAssets = props.allAssets || [props.asset];
-    const imageAssets = allAssets.filter(asset => asset.type === 'image');
-    
+    const imageAssets = allAssets.filter((asset) => asset.type === "image");
+
     // 查找当前图片在图片列表中的索引
-    const currentIndex = imageAssets.findIndex(asset => asset.id === props.asset.id);
-    
+    const currentIndex = imageAssets.findIndex((asset) => asset.id === props.asset.id);
+
     // 确保有 basePath
     if (!basePath.value) {
       basePath.value = await assetManagerEngine.getAssetBasePath();
     }
-    
+
     // 为所有图片生成 URL
     const imageUrls: string[] = [];
     for (const imageAsset of imageAssets) {
-      const isPending = imageAsset.importStatus === 'pending' || imageAsset.importStatus === 'importing';
-      
+      const isPending =
+        imageAsset.importStatus === "pending" || imageAsset.importStatus === "importing";
+
       if (isPending) {
-        // pending 状态：创建 Blob URL
+        // pending 状态：使用 convertFileSrc 创建 URL
         const originalPath = imageAsset.originalPath || imageAsset.path;
-        const bytes = await invoke<number[]>('read_file_binary', {
-          path: originalPath,
-        });
-        const uint8Array = new Uint8Array(bytes);
-        const blob = new Blob([uint8Array], { type: imageAsset.mimeType });
-        const url = URL.createObjectURL(blob);
-        imageUrls.push(url);
+        if (originalPath) {
+          const url = convertFileSrc(originalPath);
+          imageUrls.push(url);
+        }
       } else {
         // 已导入状态：使用 asset:// 协议
         const url = assetManagerEngine.convertToAssetProtocol(imageAsset.path, basePath.value);
         imageUrls.push(url);
       }
     }
-    
-  // 传递图片数组和当前索引给图片查看器
-  showImage(imageUrls, currentIndex >= 0 ? currentIndex : 0);
+
+    // 传递图片数组和当前索引给图片查看器
+    showImage(imageUrls, currentIndex >= 0 ? currentIndex : 0);
   } catch (error) {
-    logger.error('打开图片预览失败', error);
+    logger.error("打开图片预览失败", error);
   }
 };
 
 // 处理移除
 const handleRemove = (e: Event) => {
   e.stopPropagation();
-  emit('remove', props.asset);
+  emit("remove", props.asset);
 };
 
 // 监听 asset 变化，重新加载 URL
-watch(() => props.asset, () => {
-  // 如果旧 URL 是 Blob URL，先释放
-  if (assetUrl.value && assetUrl.value.startsWith('blob:')) {
-    URL.revokeObjectURL(assetUrl.value);
-  }
-  loadAssetUrl();
-}, { immediate: true });
+watch(
+  () => props.asset,
+  () => {
+    // 如果旧 URL 是 Blob URL，先释放
+    if (assetUrl.value && assetUrl.value.startsWith("blob:")) {
+      URL.revokeObjectURL(assetUrl.value);
+    }
+    loadAssetUrl();
+  },
+  { immediate: true }
+);
 
 // 组件卸载时释放 Blob URL（只有 pending 状态的才是 Blob URL）
-import { onUnmounted } from 'vue';
+import { onUnmounted } from "vue";
 onUnmounted(() => {
-  if (assetUrl.value && assetUrl.value.startsWith('blob:')) {
+  if (assetUrl.value && assetUrl.value.startsWith("blob:")) {
     URL.revokeObjectURL(assetUrl.value);
   }
 });
@@ -224,17 +220,13 @@ onUnmounted(() => {
         'is-bar-layout': isBarLayout,
         'is-document': isDocument,
         'has-error': loadError || hasImportError,
-        'is-importing': isImporting
-      }
+        'is-importing': isImporting,
+      },
     ]"
   >
     <!-- 长条布局（非图片/视频类型） -->
     <template v-if="isBarLayout">
-      <div
-        class="bar-layout-content"
-        :class="{ 'clickable': isDocument }"
-        @click="handlePreview"
-      >
+      <div class="bar-layout-content" :class="{ clickable: isDocument }" @click="handlePreview">
         <!-- 文件图标区域 -->
         <div class="bar-icon-area">
           <template v-if="isLoadingUrl">
@@ -246,13 +238,13 @@ onUnmounted(() => {
           <template v-else>
             <span class="icon-emoji">{{ fileTypeIcon }}</span>
           </template>
-          
+
           <!-- 导入状态指示器 -->
           <div v-if="isImporting" class="bar-import-overlay">
             <div class="import-spinner-small"></div>
           </div>
         </div>
-        
+
         <!-- 文件信息区域 -->
         <div class="bar-info-area">
           <div class="bar-file-name" :title="asset.name">{{ asset.name }}</div>
@@ -263,7 +255,7 @@ onUnmounted(() => {
         </div>
       </div>
     </template>
-    
+
     <!-- 方形卡片布局（图片/视频） -->
     <template v-else>
       <!-- 预览区域 -->
@@ -276,7 +268,7 @@ onUnmounted(() => {
         <template v-else-if="loadError || hasImportError">
           <div class="error-placeholder">
             <span class="icon">⚠️</span>
-            <span class="text">{{ hasImportError ? '导入失败' : '加载失败' }}</span>
+            <span class="text">{{ hasImportError ? "导入失败" : "加载失败" }}</span>
           </div>
         </template>
         <template v-else>
@@ -285,13 +277,13 @@ onUnmounted(() => {
             :src="assetUrl"
             :alt="asset.name"
             class="preview-image"
-            :class="{ 'clickable': isImage }"
+            :class="{ clickable: isImage }"
           />
           <div v-else class="file-icon">
             <span class="icon">{{ fileTypeIcon }}</span>
           </div>
         </template>
-        
+
         <!-- 导入状态指示器 -->
         <div v-if="isImporting" class="import-status-overlay">
           <div class="import-spinner"></div>
@@ -300,12 +292,7 @@ onUnmounted(() => {
     </template>
 
     <!-- 移除按钮 -->
-    <button
-      v-if="removable"
-      class="remove-button"
-      @click="handleRemove"
-      title="移除附件"
-    >
+    <button v-if="removable" class="remove-button" @click="handleRemove" title="移除附件">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="12"
@@ -477,7 +464,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.75) 0%,
+    rgba(0, 0, 0, 0.5) 60%,
+    transparent 100%
+  );
   backdrop-filter: blur(2px);
 }
 
@@ -509,7 +501,7 @@ onUnmounted(() => {
   padding: 1px 4px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.2);
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: 9px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
@@ -640,7 +632,7 @@ onUnmounted(() => {
 .bar-file-ext {
   flex-shrink: 0;
   border-radius: 3px;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-color-secondary);

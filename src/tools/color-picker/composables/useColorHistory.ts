@@ -38,6 +38,7 @@ export interface ColorHistoryIndexItem {
 export interface ColorHistoryRecord {
   id: string;
   assetId: string;
+  assetPath: string; // 图片的相对路径
   sourceImageName: string;
   createdAt: number;
   analysisResult: ColorAnalysisResult; // 完整的分析结果
@@ -170,12 +171,13 @@ export function useColorHistory() {
    * 添加一条新的历史记录
    */
   async function addRecord(
-    recordData: Omit<ColorHistoryRecord, 'id'>,
+    recordData: Omit<ColorHistoryRecord, 'id' | 'assetPath'>,
     asset: import('@/types/asset-management').Asset
   ): Promise<ColorHistoryRecord> {
     const record: ColorHistoryRecord = {
       ...recordData,
       id: nanoid(),
+      assetPath: asset.path, // 确保 assetPath 被保存
     };
 
     try {

@@ -197,5 +197,6 @@ const formatDateTime = (dateStr?: string) => {
 .style-editor-container {
   margin-left: 80px; /* 与 el-form-item 的 label-width 对齐 */
   margin-bottom: 18px; /* 与 el-form-item 的默认 margin-bottom 对齐 */
+  height: 700px;
 }
 </style>

@@ -321,7 +321,9 @@ const handleSave = () => {
           <div class="form-hint">
             自定义该智能体回复内容的 Markdown 渲染样式（如粗体颜色、发光效果等）。
           </div>
-          <MarkdownStyleEditor v-model="editForm.richTextStyleOptions" />
+          <div style="height: 700px">
+            <MarkdownStyleEditor v-model="editForm.richTextStyleOptions" />
+          </div>
         </div>
       </el-form-item>
     </el-form>

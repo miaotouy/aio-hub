@@ -1,117 +1,40 @@
 <template>
-  <div class="rich-text-renderer-tester">
-    <!-- 顶部操作栏 -->
-    <div class="header-bar">
-      <div class="header-content">
-        <div class="header-left">
-          <el-tooltip v-if="!isInputCollapsed" content="折叠输入栏" placement="bottom">
-            <el-button :icon="DArrowLeft" circle @click="isInputCollapsed = true" />
-          </el-tooltip>
-          <el-tooltip v-else content="展开输入栏" placement="bottom">
-            <el-button :icon="DArrowRight" circle @click="isInputCollapsed = false" />
-          </el-tooltip>
-          <h3 class="page-title">富文本渲染器测试</h3>
-          <el-tooltip content="配置 Markdown 渲染样式" placement="bottom">
-            <el-button :icon="Brush" circle @click="isStyleEditorVisible = true" />
-          </el-tooltip>
-          <el-tag v-if="isRendering" type="primary" effect="dark">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            渲染中...
-          </el-tag>
-          <div class="version-selector">
-            <el-tooltip content="选择渲染器版本进行对比测试" placement="bottom">
-              <el-select v-model="rendererVersion" style="width: 260px">
-                <el-option
-                  v-for="versionMeta in enabledVersions"
-                  :key="versionMeta.version"
-                  :label="versionMeta.name"
-                  :value="versionMeta.version"
-                  :title="versionMeta.description"
-                >
-                  <div class="version-option">
-                    <span>{{ versionMeta.name }}</span>
-                    <el-tag
-                      v-for="tag in versionMeta.tags"
-                      :key="tag"
-                      size="small"
-                      :type="tag === '基础' ? 'success' : tag === '高级' ? 'warning' : 'info'"
-                      style="margin-left: 4px"
-                    >
-                      {{ tag }}
-                    </el-tag>
-                  </div>
-                </el-option>
-              </el-select>
-            </el-tooltip>
-          </div>
-        </div>
-        <div class="header-right">
-          <el-tooltip
-            :content="
-              isRendering
-                ? '停止当前的渲染'
-                : streamEnabled
-                  ? '开始流式渲染输入的 Markdown 内容'
-                  : '立即渲染输入的 Markdown 内容'
-            "
-            placement="bottom"
-          >
-            <el-button
-              :type="isRendering ? 'danger' : 'primary'"
-              :icon="isRendering ? VideoPause : VideoPlay"
-              @click="isRendering ? stopRender() : startRender()"
-              :disabled="!isRendering && !inputContent.trim()"
-            >
-              {{ isRendering ? "停止" : streamEnabled ? "开始流式渲染" : "立即渲染" }}
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="清空右侧的渲染输出区域" placement="bottom">
-            <el-button
-              :icon="RefreshRight"
-              @click="clearOutput"
-              :disabled="!currentContent && !streamSource"
-            >
-              清空输出
-            </el-button>
-          </el-tooltip>
-          <el-button-group>
-            <el-tooltip content="复制原文和渲染后的 HTML，便于对比排查问题" placement="bottom">
-              <el-button
-                :icon="CopyDocument"
-                @click="copyComparison"
-                :disabled="!inputContent.trim() || (!currentContent && !streamSource)"
+  <div
+    ref="containerRef"
+    class="rich-text-renderer-tester"
+    :class="{ 'is-narrow': isNarrow, 'is-mobile': isMobile }"
+  >
+    <div class="tester-layout">
+      <!-- 左侧配置栏 -->
+      <aside v-show="!isConfigCollapsed" class="config-sidebar">
+        <InfoCard title="渲染配置" class="config-card">
+          <!-- 渲染器版本选择 -->
+          <div class="control-section">
+            <label class="control-label">渲染器版本</label>
+            <el-select v-model="rendererVersion" style="width: 100%">
+              <el-option
+                v-for="versionMeta in enabledVersions"
+                :key="versionMeta.version"
+                :label="versionMeta.name"
+                :value="versionMeta.version"
+                :title="versionMeta.description"
               >
-                复制对比
-              </el-button>
-            </el-tooltip>
-            <el-popover placement="bottom" :width="220" trigger="click">
-              <template #reference>
-                <el-button :icon="Setting" />
-              </template>
-              <div class="copy-options">
-                <div class="option-header">复制内容配置</div>
-                <el-checkbox v-model="copyOptions.includeConfig">测试配置</el-checkbox>
-                <el-checkbox v-model="copyOptions.includeOriginal">Markdown 原文</el-checkbox>
-                <el-checkbox v-model="copyOptions.includeHtml">渲染后的 HTML</el-checkbox>
-                <el-checkbox v-model="copyOptions.includeNormalizedOriginal"
-                  >规范化后的原文</el-checkbox
-                >
-                <el-checkbox v-model="copyOptions.includeNormalizedRendered"
-                  >规范化后的渲染文本</el-checkbox
-                >
-                <el-checkbox v-model="copyOptions.includeComparison">对比信息</el-checkbox>
-                <el-checkbox v-model="copyOptions.includeStyleConfig">MD 样式配置</el-checkbox>
-              </div>
-            </el-popover>
-          </el-button-group>
-        </div>
-      </div>
-    </div>
+                <div class="version-option">
+                  <span>{{ versionMeta.name }}</span>
+                  <el-tag
+                    v-for="tag in versionMeta.tags"
+                    :key="tag"
+                    size="small"
+                    :type="tag === '基础' ? 'success' : tag === '高级' ? 'warning' : 'info'"
+                    style="margin-left: 4px"
+                  >
+                    {{ tag }}
+                  </el-tag>
+                </div>
+              </el-option>
+            </el-select>
+          </div>
 
-    <div class="tester-container">
-      <!-- 左侧输入栏 -->
-      <div v-show="!isInputCollapsed" class="input-panel">
-        <InfoCard title="内容输入" class="input-card">
           <!-- 预设内容选择 -->
           <div class="control-section">
             <label class="control-label">预设内容</label>
@@ -263,82 +186,190 @@
           <div class="control-section">
             <LlmThinkRulesEditor v-model="llmThinkRules" />
           </div>
+        </InfoCard>
+      </aside>
 
-          <!-- 文本输入区 -->
-          <div class="control-section">
-            <label class="control-label">Markdown 内容</label>
+      <!-- 右侧工作区 -->
+      <main class="workspace-container" ref="workspaceRef">
+        <!-- 工作区工具栏 -->
+        <div class="workspace-toolbar">
+          <div class="toolbar-left">
+            <!-- 侧边栏折叠按钮 -->
+            <el-tooltip
+              :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'"
+              placement="bottom"
+            >
+              <el-button
+                :icon="isConfigCollapsed ? DArrowRight : DArrowLeft"
+                @click="isConfigCollapsed = !isConfigCollapsed"
+                size="small"
+              />
+            </el-tooltip>
+
+            <!-- 样式配置按钮 -->
+            <el-tooltip content="配置 Markdown 渲染样式" placement="bottom">
+              <el-button :icon="Brush" @click="isStyleEditorVisible = true" size="small" />
+            </el-tooltip>
+
+            <!-- 渲染状态标签 -->
+            <el-tag v-if="isRendering" type="primary" effect="dark" size="small">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              渲染中...
+            </el-tag>
+
+            <!-- 三状态布局切换 -->
+            <el-divider direction="vertical" />
+            <el-radio-group v-model="layoutMode" size="small">
+              <el-radio-button value="split">分栏</el-radio-button>
+              <el-radio-button value="input-only">仅输入</el-radio-button>
+              <el-radio-button value="preview-only">仅预览</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div class="toolbar-right">
+            <el-tooltip
+              :content="
+                isRendering
+                  ? '停止当前的渲染'
+                  : streamEnabled
+                    ? '开始流式渲染输入的 Markdown 内容'
+                    : '立即渲染输入的 Markdown 内容'
+              "
+              placement="bottom"
+            >
+              <el-button
+                :type="isRendering ? 'danger' : 'primary'"
+                :icon="isRendering ? VideoPause : VideoPlay"
+                @click="isRendering ? stopRender() : startRender()"
+                :disabled="!isRendering && !inputContent.trim()"
+                size="small"
+              >
+                {{ isRendering ? "停止" : streamEnabled ? "流式渲染" : "立即渲染" }}
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="清空渲染输出" placement="bottom">
+              <el-button
+                :icon="RefreshRight"
+                @click="clearOutput"
+                :disabled="!currentContent && !streamSource"
+                size="small"
+              >
+                清空
+              </el-button>
+            </el-tooltip>
+            <el-button-group>
+              <el-tooltip content="复制原文和渲染后的 HTML" placement="bottom">
+                <el-button
+                  :icon="CopyDocument"
+                  @click="copyComparison"
+                  :disabled="!inputContent.trim() || (!currentContent && !streamSource)"
+                  size="small"
+                >
+                  复制对比
+                </el-button>
+              </el-tooltip>
+              <el-popover placement="bottom" :width="220" trigger="click">
+                <template #reference>
+                  <el-button :icon="Setting" size="small" />
+                </template>
+                <div class="copy-options">
+                  <div class="option-header">复制内容配置</div>
+                  <el-checkbox v-model="copyOptions.includeConfig">测试配置</el-checkbox>
+                  <el-checkbox v-model="copyOptions.includeOriginal">Markdown 原文</el-checkbox>
+                  <el-checkbox v-model="copyOptions.includeHtml">渲染后的 HTML</el-checkbox>
+                  <el-checkbox v-model="copyOptions.includeNormalizedOriginal"
+                    >规范化后的原文</el-checkbox
+                  >
+                  <el-checkbox v-model="copyOptions.includeNormalizedRendered"
+                    >规范化后的渲染文本</el-checkbox
+                  >
+                  <el-checkbox v-model="copyOptions.includeComparison">对比信息</el-checkbox>
+                  <el-checkbox v-model="copyOptions.includeStyleConfig">MD 样式配置</el-checkbox>
+                </div>
+              </el-popover>
+            </el-button-group>
+          </div>
+        </div>
+
+        <!-- 工作区内容 -->
+        <div class="workspace-content" :class="[layoutMode, { 'is-compact': isWorkspaceCompact }]">
+          <!-- 输入区 -->
+          <div v-show="layoutMode === 'split' || layoutMode === 'input-only'" class="input-area">
+            <div class="area-header">
+              <h4>Markdown 内容</h4>
+            </div>
             <el-input
               v-model="inputContent"
               type="textarea"
               placeholder="在此输入 Markdown 内容..."
               resize="none"
-              :rows="30"
               class="markdown-input"
             />
           </div>
-        </InfoCard>
-      </div>
 
-      <!-- 右侧渲染预览区 -->
-      <div class="preview-panel">
-        <InfoCard title="渲染预览" class="preview-card">
-          <template #headerExtra>
-            <div class="preview-header-controls">
-              <div class="render-stats" v-if="renderStats.totalTokens > 0">
-                <el-tag size="small" type="info">
-                  {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
-                </el-tag>
-                <el-tag
-                  v-if="streamEnabled && renderStats.speed > 0"
-                  size="small"
-                  :type="isRendering ? 'primary' : 'info'"
-                >
-                  {{ renderStats.speed.toFixed(1) }} token/秒
-                </el-tag>
-                <el-tag
-                  v-if="renderStats.elapsedTime > 0"
-                  size="small"
-                  :type="isRendering ? 'warning' : 'info'"
-                >
-                  {{ formatElapsedTime(renderStats.elapsedTime) }}
-                </el-tag>
-                <el-tag size="small" type="success"> {{ renderStats.totalChars }} 字符 </el-tag>
-              </div>
-              <div class="visualizer-toggle">
-                <el-tooltip content="渲染时自动滚动到底部" placement="top">
-                  <el-switch v-model="autoScroll" size="small" />
-                </el-tooltip>
-                <span>自动滚动</span>
-              </div>
-              <div class="visualizer-toggle">
-                <el-tooltip content="可视化稳定区和待定区" placement="top">
-                  <el-switch v-model="visualizeBlockStatus" size="small" />
-                </el-tooltip>
-                <span>可视化块状态</span>
+          <!-- 预览区 -->
+          <div
+            v-show="layoutMode === 'split' || layoutMode === 'preview-only'"
+            class="preview-area"
+          >
+            <div class="area-header">
+              <h4>渲染预览</h4>
+              <div class="preview-header-controls">
+                <div class="render-stats" v-if="renderStats.totalTokens > 0">
+                  <el-tag size="small" type="info">
+                    {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
+                  </el-tag>
+                  <el-tag
+                    v-if="streamEnabled && renderStats.speed > 0"
+                    size="small"
+                    :type="isRendering ? 'primary' : 'info'"
+                  >
+                    {{ renderStats.speed.toFixed(1) }} token/秒
+                  </el-tag>
+                  <el-tag
+                    v-if="renderStats.elapsedTime > 0"
+                    size="small"
+                    :type="isRendering ? 'warning' : 'info'"
+                  >
+                    {{ formatElapsedTime(renderStats.elapsedTime) }}
+                  </el-tag>
+                  <el-tag size="small" type="success">{{ renderStats.totalChars }} 字符 </el-tag>
+                </div>
+                <div class="visualizer-toggle">
+                  <el-tooltip content="渲染时自动滚动到底部" placement="top">
+                    <el-switch v-model="autoScroll" size="small" />
+                  </el-tooltip>
+                  <span>自动滚动</span>
+                </div>
+                <div class="visualizer-toggle">
+                  <el-tooltip content="可视化稳定区和待定区" placement="top">
+                    <el-switch v-model="visualizeBlockStatus" size="small" />
+                  </el-tooltip>
+                  <span>可视化块状态</span>
+                </div>
               </div>
             </div>
-          </template>
-
-          <div
-            class="render-container"
-            :class="{ 'visualize-block-status': visualizeBlockStatus }"
-            ref="renderContainerRef"
-          >
-            <RichTextRenderer
-              v-if="currentContent || streamSource"
-              :key="renderKey"
-              :content="currentContent"
-              :stream-source="streamSource"
-              :version="rendererVersion"
-              :llm-think-rules="llmThinkRules"
-              :style-options="richTextStyleOptions"
-            />
-            <div v-else class="empty-placeholder">
-              <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
+            <div
+              class="render-container"
+              :class="{ 'visualize-block-status': visualizeBlockStatus }"
+              ref="renderContainerRef"
+            >
+              <RichTextRenderer
+                v-if="currentContent || streamSource"
+                :key="renderKey"
+                :content="currentContent"
+                :stream-source="streamSource"
+                :version="rendererVersion"
+                :llm-think-rules="llmThinkRules"
+                :style-options="richTextStyleOptions"
+              />
+              <div v-else class="empty-placeholder">
+                <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
+              </div>
             </div>
           </div>
-        </InfoCard>
-      </div>
+        </div>
+      </main>
     </div>
 
     <!-- 样式配置弹窗 -->
@@ -353,6 +384,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, shallowRef, onMounted, watch, nextTick, computed } from "vue";
+import { useElementSize } from "@vueuse/core";
 import {
   DArrowLeft,
   DArrowRight,
@@ -376,10 +408,21 @@ import InfoCard from "@/components/common/InfoCard.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 
+// 容器尺寸检测
+const containerRef = ref<HTMLDivElement | null>(null);
+const { width: containerWidth } = useElementSize(containerRef);
+const isNarrow = computed(() => containerWidth.value < 1200);
+const isMobile = computed(() => containerWidth.value < 768);
+
+// 工作区尺寸检测
+const workspaceRef = ref<HTMLElement | null>(null);
+const { width: workspaceWidth } = useElementSize(workspaceRef);
+// 当工作区宽度小于 800px 时，认为是紧凑模式，强制垂直排列
+const isWorkspaceCompact = computed(() => workspaceWidth.value < 800);
+
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
 const {
-  isInputCollapsed,
   selectedPreset,
   inputContent,
   streamEnabled,
@@ -395,6 +438,10 @@ const {
   richTextStyleOptions,
   copyOptions,
 } = storeToRefs(store);
+
+// 新的布局状态
+const isConfigCollapsed = ref(false);
+const layoutMode = ref<"split" | "input-only" | "preview-only">("split");
 
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
@@ -951,44 +998,8 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* 顶部工具栏 */
-.header-bar {
-  margin-bottom: 16px;
-  flex-shrink: 0;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  padding: 12px 20px;
-  border-radius: 8px;
-  backdrop-filter: blur(var(--ui-blur));
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-/* 主容器 */
-.tester-container {
+/* 新布局系统 */
+.tester-layout {
   flex: 1;
   display: flex;
   gap: 16px;
@@ -996,20 +1007,20 @@ onMounted(async () => {
   min-height: 0;
 }
 
-/* 输入面板 */
-.input-panel {
-  width: 450px;
+/* 配置侧边栏 */
+.config-sidebar {
+  width: 400px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
 }
 
-.input-card {
+.config-card {
   height: 100%;
 }
 
-.input-card :deep(.el-card__body) {
-  height: calc(100% - 60px);
+.config-card :deep(.info-card-body) {
+  height: calc(100% - 50px);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -1017,24 +1028,112 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
-/* 预览面板 */
-.preview-panel {
+/* 工作区 */
+.workspace-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.preview-card {
-  height: 100%;
+/* 工作区工具栏 */
+.workspace-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  flex-shrink: 0;
 }
 
-.preview-card :deep(.el-card__body) {
-  height: calc(100% - 60px);
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 工作区内容 */
+.workspace-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Split 模式 */
+.workspace-content.split {
+  gap: 0;
   padding: 0;
+}
+
+.workspace-content.split .input-area,
+.workspace-content.split .preview-area {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Split 模式下的分割线 */
+.workspace-content.split .input-area {
+  border-right: 1px solid var(--border-color);
+}
+
+/* 工作区紧凑模式（宽度不足时自动垂直排列） */
+.workspace-content.split.is-compact {
+  flex-direction: column;
+}
+
+.workspace-content.split.is-compact .input-area {
+  border-right: none;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* 单一视图模式 */
+.workspace-content.input-only,
+.workspace-content.preview-only {
+  padding: 0;
+}
+
+.workspace-content.input-only .input-area,
+.workspace-content.preview-only .preview-area {
+  flex: 1;
+  width: 100%;
+}
+
+/* 输入区和预览区 */
+.input-area,
+.preview-area {
   display: flex;
   flex-direction: column;
+  background: var(--bg-color);
+  /* 移除独立边框和圆角，实现无缝融合 */
+  border: none;
+  border-radius: 0;
   overflow: hidden;
+}
+
+.area-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px; /*稍微减小一点高度，更紧凑 */
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  flex-shrink: 0;
+}
+
+.area-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
 }
 
 /* 控制区域 */
@@ -1116,6 +1215,7 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .markdown-input :deep(.el-textarea__inner) {
@@ -1126,17 +1226,13 @@ onMounted(async () => {
   line-height: 1.6;
   background-color: var(--input-bg);
   color: var(--text-color);
+  border: none;
 }
 
 /* 渲染统计 */
 .render-stats {
   display: flex;
   gap: 8px;
-  align-items: center;
-}
-
-.header-left .version-selector {
-  display: flex;
   align-items: center;
 }
 
@@ -1180,29 +1276,6 @@ onMounted(async () => {
   }
 }
 
-/* 响应式调整 */
-@media (max-width: 1200px) {
-  .input-panel {
-    width: 400px;
-  }
-}
-
-@media (max-width: 768px) {
-  .rich-text-renderer-tester {
-    padding: 12px;
-  }
-
-  .tester-container {
-    flex-direction: column;
-  }
-
-  .input-panel {
-    width: 100%;
-    height: 400px;
-    margin-bottom: 16px;
-  }
-}
-
 .copy-options {
   display: flex;
   flex-direction: column;
@@ -1221,5 +1294,27 @@ onMounted(async () => {
 .copy-options :deep(.el-checkbox) {
   margin-right: 0;
   height: 24px;
+}
+
+/* 容器查询式响应式调整 */
+.rich-text-renderer-tester.is-narrow .config-sidebar {
+  width: 350px;
+}
+
+.rich-text-renderer-tester.is-mobile {
+  padding: 12px;
+}
+
+.rich-text-renderer-tester.is-mobile .tester-layout {
+  flex-direction: column;
+}
+
+.rich-text-renderer-tester.is-mobile .config-sidebar {
+  width: 100%;
+  height: 400px;
+}
+
+.rich-text-renderer-tester.is-mobile .workspace-content.split {
+  flex-direction: column;
 }
 </style>

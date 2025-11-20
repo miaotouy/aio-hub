@@ -1,0 +1,267 @@
+import { Token, ParserContext } from "../types";
+import { AstNode, GenericHtmlNode, LlmThinkNode } from "../../types";
+import { BLOCK_LEVEL_TAGS, hasBlockLevelStructure } from "../utils/block-utils";
+import { parseInlineHtmlTag } from "../inline/parseHtmlInline";
+import { tokensToRawText } from "../utils/text-utils";
+
+/**
+ * 解析 HTML 块（仅处理块级标签）
+ */
+export function parseHtmlBlock(
+  ctx: ParserContext,
+  tokens: Token[],
+  start: number
+): { node: GenericHtmlNode | null; nextIndex: number } {
+  const openToken = tokens[start];
+  if (openToken.type !== "html_open") {
+    return { node: null, nextIndex: start + 1 };
+  }
+
+  const tagName = openToken.tagName;
+  const attributes = openToken.attributes;
+  const isSelfClosing = openToken.selfClosing;
+
+  let i = start + 1;
+
+  const htmlNode: GenericHtmlNode = {
+    id: "",
+    type: "generic_html",
+    props: { tagName, attributes },
+    children: [],
+    meta: { range: { start: 0, end: 0 }, status: "stable" },
+  };
+
+  if (isSelfClosing) {
+    return { node: htmlNode, nextIndex: i };
+  }
+
+  // 收集内部令牌
+  const contentTokens: Token[] = [];
+  let depth = 1;
+
+  while (i < tokens.length && depth > 0) {
+    const t = tokens[i];
+
+    if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
+      depth++;
+      contentTokens.push(t);
+    } else if (t.type === "html_close" && t.tagName === tagName) {
+      depth--;
+      if (depth === 0) {
+        i++; // 跳过闭合标签
+        break;
+      }
+      contentTokens.push(t);
+    } else {
+      // 过滤纯空白文本（包括缩进）和换行符
+      // HTML 块内的换行由 HTML 本身控制，不应转换为 Markdown 换行
+      if (t.type === "text" && /^\s+$/.test(t.content)) {
+        // 跳过纯空白
+        i++;
+        continue;
+      }
+      if (t.type === "newline") {
+        // 跳过 HTML 块内的换行符
+        i++;
+        continue;
+      }
+      contentTokens.push(t);
+    }
+    i++;
+  }
+
+  // 递归解析内部内容
+  if (contentTokens.length > 0) {
+    // 特例处理 <summary>：
+    // 1. <summary> 必须作为块级标签被解析，以确保它能成为 <details> 的直接子节点。
+    //    如果从 blockLevelTags 移除，它会被当作内联元素并错误地包裹在 <p> 中，
+    //    破坏 <details> 结构，导致浏览器显示默认标题。
+    // 2. 但其内部内容必须被当作内联元素处理，以防止在 <summary> 内部再生成 <p> 标签导致换行。
+    //    因此，此处强制使用内联解析器 (parseInlines) 处理其子节点。
+    //
+    // 特例处理 <p> 和 标题：
+    // <p> 和 标题标签内部不应该再包含块级元素（包括 <p>），否则会导致 HTML 结构错误。
+    // 因此强制将其内容解析为内联元素。
+    if (
+      tagName === "summary" ||
+      tagName === "p" ||
+      /^h[1-6]$/.test(tagName)
+    ) {
+      htmlNode.children = ctx.parseInlines(contentTokens);
+    } else {
+      // 检测是否只包含内联内容（没有块级结构）
+      // 如果内容中没有双换行、没有块级标记，则视为纯内联内容
+      const hasBlockStructure = hasBlockLevelStructure(contentTokens);
+
+      if (!hasBlockStructure) {
+        // 纯内联内容，直接使用内联解析，避免被包裹成段落
+        htmlNode.children = ctx.parseInlines(contentTokens);
+      } else {
+        // 包含块级结构，使用HTML内容专用解析(不包裹内联HTML为段落)
+        htmlNode.children = parseHtmlContent(ctx, contentTokens);
+      }
+    }
+  }
+
+  return { node: htmlNode, nextIndex: i };
+}
+
+/**
+ * 解析 HTML 块内的混合内容
+ * 与 parseBlocks 不同,此方法:
+ * 1. 不会将内联HTML标签包裹成段落
+ * 2. 保持HTML原始结构
+ */
+export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[] {
+  const nodes: AstNode[] = [];
+  let i = 0;
+
+  while (i < tokens.length) {
+    const token = tokens[i];
+
+    // 跳过换行和纯空白
+    if (token.type === "newline") {
+      i++;
+      continue;
+    }
+
+    if (token.type === "text" && /^\s+$/.test(token.content)) {
+      i++;
+      continue;
+    }
+
+    // 块级HTML标签 → 使用parseHtmlBlock
+    if (token.type === "html_open" && BLOCK_LEVEL_TAGS.has(token.tagName)) {
+      const { node, nextIndex } = parseHtmlBlock(ctx, tokens, i);
+      if (node) nodes.push(node);
+      i = nextIndex;
+      continue;
+    }
+
+    // 内联HTML标签 → 直接处理,不包裹成段落
+    if (token.type === "html_open") {
+      const { node, nextIndex } = parseInlineHtmlTag(ctx, tokens, i);
+      if (node) nodes.push(node);
+      i = nextIndex;
+      continue;
+    }
+
+    // 其他内联内容 → 收集后使用parseInlines
+    const inlineTokens: Token[] = [];
+    while (i < tokens.length) {
+      const t = tokens[i];
+
+      // 遇到块级HTML或换行,停止收集
+      if (t.type === "html_open" && BLOCK_LEVEL_TAGS.has(t.tagName)) {
+        break;
+      }
+      if (t.type === "newline" && i + 1 < tokens.length) {
+        const next = tokens[i + 1];
+        if (
+          next.type === "newline" ||
+          (next.type === "html_open" && BLOCK_LEVEL_TAGS.has(next.tagName))
+        ) {
+          i++; // 跳过这个换行
+          break;
+        }
+      }
+
+      inlineTokens.push(t);
+      i++;
+    }
+
+    if (inlineTokens.length > 0) {
+      const inlineNodes = ctx.parseInlines(inlineTokens);
+      nodes.push(...inlineNodes);
+    }
+  }
+
+  return nodes;
+}
+
+/**
+ * 解析 LLM 思考块
+ */
+export function parseLlmThinkBlock(
+  ctx: ParserContext,
+  tokens: Token[],
+  start: number
+): { node: LlmThinkNode | null; nextIndex: number } {
+  const openToken = tokens[start];
+  if (openToken.type !== "html_open") {
+    return { node: null, nextIndex: start + 1 };
+  }
+
+  const tagName = openToken.tagName;
+  const options = ctx.getOptions();
+
+  // 查找对应的规则
+  const rule = options.llmThinkRules.find((r) => r.tagName === tagName);
+  const ruleId = rule?.id || `auto-${tagName}`;
+  const displayName = rule?.displayName || tagName;
+  const collapsedByDefault = rule?.collapsedByDefault ?? true;
+
+  let i = start + 1;
+
+  // 收集内部令牌，直到找到闭合标签
+  const contentTokens: Token[] = [];
+  let depth = 1;
+  let isThinking = false; // 标记是否正在思考中（标签未闭合）
+
+  while (i < tokens.length && depth > 0) {
+    const t = tokens[i];
+
+    if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
+      depth++;
+      contentTokens.push(t);
+    } else if (t.type === "html_close" && t.tagName === tagName) {
+      depth--;
+      if (depth === 0) {
+        i++; // 跳过闭合标签
+        break;
+      }
+      contentTokens.push(t);
+    } else {
+      contentTokens.push(t);
+    }
+    i++;
+  }
+
+  // 如果遍历完所有令牌后 depth 仍大于 0，说明标签未闭合，正在思考中
+  if (depth > 0) {
+    isThinking = true;
+  }
+
+  // 移除开头的换行符（与代码围栏处理保持一致）
+  if (contentTokens.length > 0 && contentTokens[0].type === "newline") {
+    contentTokens.shift();
+  }
+
+  // 移除结尾的换行符
+  while (contentTokens.length > 0 && contentTokens[contentTokens.length - 1].type === "newline") {
+    contentTokens.pop();
+  }
+
+  // 将令牌转换为原始文本内容
+  const rawContent = tokensToRawText(contentTokens);
+
+  // 将内容解析为块级节点
+  const children = contentTokens.length > 0 ? ctx.parseBlocks(contentTokens) : [];
+
+  const llmThinkNode: LlmThinkNode = {
+    id: "",
+    type: "llm_think",
+    props: {
+      rawTagName: tagName,
+      ruleId,
+      displayName,
+      collapsedByDefault,
+      rawContent,
+      isThinking, // 添加思考中状态
+    },
+    children,
+    meta: { range: { start: 0, end: 0 }, status: "stable" },
+  };
+
+  return { node: llmThinkNode, nextIndex: i };
+}

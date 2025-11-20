@@ -239,11 +239,12 @@ class Tokenizer {
 
         // 引用标记
         if (remaining.startsWith("> ") || remaining.startsWith(">")) {
-          const match = remaining.match(/^>\s?/);
+          const match = remaining.match(/^>[ \t]?/);
           if (match) {
             tokens.push({ type: "blockquote_marker", raw: match[0] });
             i += match[0].length;
-            atLineStart = false;
+            // 保持 atLineStart 为 true，以便后续内容（如嵌套引用 > 或标题 #）能被识别为块级标记
+            atLineStart = true;
             continue;
           }
         }
@@ -1741,30 +1742,11 @@ export class CustomParser {
     const quoteLines: Token[][] = [];
     let currentLine: Token[] = [];
 
+    let isLineStart = true;
+
     // 收集所有引用行
     while (i < tokens.length) {
       const t = tokens[i];
-
-      // 遇到非引用标记的行首标记，结束引用
-      if (
-        t.type === "heading_marker" ||
-        t.type === "hr_marker" ||
-        t.type === "code_fence" ||
-        t.type === "list_marker"
-      ) {
-        break;
-      }
-
-      // 引用标记
-      if (t.type === "blockquote_marker") {
-        // 保存上一行（如果有）
-        if (currentLine.length > 0) {
-          quoteLines.push(currentLine);
-          currentLine = [];
-        }
-        i++;
-        continue;
-      }
 
       // 换行
       if (t.type === "newline") {
@@ -1780,7 +1762,46 @@ export class CustomParser {
         }
 
         i++;
+        isLineStart = true;
         continue;
+      }
+
+      if (isLineStart) {
+        // 引用标记：这是引用行，消耗标记
+        if (t.type === "blockquote_marker") {
+          i++;
+          isLineStart = false;
+          continue;
+        }
+
+        // 非引用标记的行首：检查是否是其他块级标记
+        // 如果是，说明引用结束（除非是懒惰延续，但这里简化处理，遇到新块即结束）
+        if (
+          t.type === "heading_marker" ||
+          t.type === "hr_marker" ||
+          t.type === "code_fence" ||
+          t.type === "list_marker" ||
+          t.type === "katex_block"
+        ) {
+          break;
+        }
+
+        // HTML 块级标签也应该结束引用
+        if (t.type === "html_open") {
+          const blockLevelTags = [
+            "div", "section", "article", "aside", "header", "footer",
+            "main", "nav", "blockquote", "pre", "table", "ul", "ol",
+            "li", "dl", "dt", "dd", "figure", "figcaption", "details",
+            "summary", "p", "h1", "h2", "h3", "h4", "h5", "h6"
+          ];
+          if (blockLevelTags.includes(t.tagName)) {
+            break;
+          }
+        }
+
+        // 如果是普通文本或其他内联元素，视为懒惰延续或引用内容的一部分
+        // 标记不再是行首，继续收集
+        isLineStart = false;
       }
 
       // 收集内容

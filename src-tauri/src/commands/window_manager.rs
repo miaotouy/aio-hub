@@ -426,7 +426,7 @@ async fn create_preview_window_internal(
         builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
         builder = builder.transparent(true);
     }
@@ -717,7 +717,7 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
         builder = builder.transparent(true);
     }

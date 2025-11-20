@@ -327,10 +327,21 @@
           <template #header>
             <div class="card-header">
               <span>窗口特效 (实验性)</span>
-              <el-switch v-model="enableWindowEffects" />
+              <el-switch v-model="enableWindowEffects" :disabled="isLinux" />
             </div>
           </template>
-          <el-form label-position="top" :disabled="!enableWindowEffects">
+
+          <el-alert
+            v-if="isLinux"
+            title="Linux 系统暂不支持窗口特效"
+            type="warning"
+            description="由于兼容性原因（如 WebKitGTK 和显卡驱动冲突导致的白屏），窗口特效在 Linux 上已被暂时禁用。"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 16px"
+          />
+
+          <el-form label-position="top" :disabled="!enableWindowEffects || isLinux">
             <el-form-item label="窗口背景特效">
               <el-select v-model="windowEffect" class="full-width">
                 <el-option label="无" value="none" />
@@ -377,6 +388,7 @@ import { ElMessageBox } from "element-plus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import type { WallpaperFit, BlendMode } from "@/utils/appSettings";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { type } from "@tauri-apps/plugin-os";
 
 const {
   appearanceSettings,
@@ -441,8 +453,13 @@ const blendModes: BlendMode[] = [
   "luminosity",
 ];
 
+const isLinux = ref(false);
+
 // --- 生命周期钩子 ---
 onMounted(() => {
+  // 检测操作系统
+  isLinux.value = type() === "linux";
+
   // 如果以轮播模式启动，刷新列表以填充缩略图
   if (wallpaperMode.value === "slideshow") {
     refreshWallpaperList();

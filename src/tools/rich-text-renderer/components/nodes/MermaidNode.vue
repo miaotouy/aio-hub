@@ -54,13 +54,8 @@
       </div>
     </div>
     <div class="mermaid-container" :class="{ expanded: isExpanded }" ref="containerRef">
-      <div v-if="nodeStatus === 'pending'" class="mermaid-pending">
-        <div class="pending-icon">
-          <Loader2 class="animate-spin" :size="24" />
-        </div>
-        <div class="pending-text">正在接收图表数据...</div>
-      </div>
-      <div v-else-if="error" class="mermaid-error">
+      <!-- 错误状态：只有在稳定状态下的错误才显示 -->
+      <div v-if="error && nodeStatus === 'stable'" class="mermaid-error">
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
         <details class="error-details">
@@ -68,7 +63,17 @@
           <pre class="error-code">{{ content }}</pre>
         </details>
       </div>
-      <div v-else ref="mermaidRef" class="mermaid-svg"></div>
+      
+      <!-- 加载状态：只有在 pending 且从未渲染成功过时显示 -->
+      <div v-else-if="nodeStatus === 'pending' && !hasRendered" class="mermaid-pending">
+        <div class="pending-icon">
+          <Loader2 class="animate-spin" :size="24" />
+        </div>
+        <div class="pending-text">正在接收图表数据...</div>
+      </div>
+      
+      <!-- 图表显示区域：只要渲染成功过就显示，即使现在是 pending 状态 -->
+      <div v-show="hasRendered" ref="mermaidRef" class="mermaid-svg"></div>
     </div>
   </div>
 
@@ -131,6 +136,8 @@ const error = ref<string>("");
 const isExpanded = ref(false);
 const showViewer = ref(false);
 const isRendering = ref(false);
+const hasRendered = ref(false); // 是否至少成功渲染过一次
+const lastRenderId = ref(0); // 用于并发控制
 
 // 缩放控制
 const scaleMin = 0.5;
@@ -233,38 +240,40 @@ const openViewer = () => {
 const renderDiagram = async () => {
   if (!mermaid) return;
 
-  // 如果节点处于 pending 状态，跳过渲染
-  if (nodeStatus.value === 'pending') {
-    return;
-  }
+  // 记录当前的渲染 ID，用于并发控制
+  const currentRenderId = Date.now();
+  lastRenderId.value = currentRenderId;
 
   try {
-    error.value = "";
     isRendering.value = true;
-
+    
     // 等待 DOM 更新，确保 mermaidRef 已经绑定到新的元素
     await nextTick();
     
+    // 如果已经有新的渲染请求，取消当前的
+    if (currentRenderId !== lastRenderId.value) return;
+
     if (!mermaidRef.value) {
       return;
     }
 
-    // 清理之前的渲染
+    // 生成唯一 ID
+    const id = `mermaid-${props.nodeId}-${currentRenderId}`;
+
+    // 尝试渲染图表
+    // mermaid.render 会抛出异常如果语法无效
+    const { svg } = await mermaid.render(id, props.content);
+
+    // 再次检查并发
+    if (currentRenderId !== lastRenderId.value) return;
+
+    // 渲染成功，清理之前的状态
     if (renderCleanup) {
       renderCleanup();
       renderCleanup = null;
     }
 
-    // 清空容器
-    mermaidRef.value.innerHTML = "";
-
-    // 生成唯一 ID
-    const id = `mermaid-${props.nodeId}-${Date.now()}`;
-
-    // 渲染图表
-    const { svg } = await mermaid.render(id, props.content);
-
-    // 插入 SVG
+    // 清空容器并插入新 SVG
     if (mermaidRef.value) {
       mermaidRef.value.innerHTML = svg;
 
@@ -278,12 +287,30 @@ const renderDiagram = async () => {
           mermaidRef.value.innerHTML = "";
         }
       };
+      
+      // 标记渲染成功
+      hasRendered.value = true;
+      error.value = ""; // 只有成功了才清空错误
     }
   } catch (err: any) {
-    logger.error("Mermaid 渲染失败", err);
-    error.value = err?.message || "未知错误";
+    // 检查并发
+    if (currentRenderId !== lastRenderId.value) return;
+
+    // 只有在 stable 状态下才显示错误
+    // 在 pending 状态下，无论是否渲染过，都忽略错误（避免输入过程中的闪烁）
+    if (nodeStatus.value === 'stable') {
+      logger.error("Mermaid 渲染失败", err);
+      error.value = err?.message || "未知错误";
+    } else {
+      // pending 状态，忽略错误
+      // 如果还没渲染过，UI 会显示 loading
+      // 如果已经渲染过，UI 会显示旧图表
+      logger.debug("Mermaid pending render failed (ignored)", err);
+    }
   } finally {
-    isRendering.value = false;
+    if (currentRenderId === lastRenderId.value) {
+      isRendering.value = false;
+    }
   }
 };
 
@@ -342,12 +369,8 @@ watch(
   async ([newContent, newStatus], [oldContent, oldStatus]) => {
     if (!mermaid) return;
     
-    // 只有在从 pending 转为 stable 或内容变化时才重新渲染
-    const shouldRender =
-      (oldStatus === 'pending' && newStatus === 'stable') || // 状态变为稳定
-      (newStatus === 'stable' && newContent !== oldContent); // 内容变化且状态稳定
-    
-    if (shouldRender) {
+    // 只要内容变化就尝试渲染，不再限制状态
+    if (newContent !== oldContent || newStatus !== oldStatus) {
       await renderDiagram();
     }
   }

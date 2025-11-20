@@ -10,11 +10,12 @@ Directory Janitor 是一个目录清理工具，旨在通过高性能后端扫�
 
 所有核心的文件系统扫描和过滤操作都由 Rust 后端执行，以确保最佳性能和安全性。
 
-- **调用方式**: 前端通过 Tauri `invoke` 调用 `scan_directory` 命令。
+- **调用方式**: 前端通过 Tauri `invoke` 调用 `analyze_directory_for_cleanup` 和 `cleanup_items` 等命令。
 - **核心优势**:
   - **高性能**: Rust 在处理大规模文件系统遍历时远快于 Node.js。
   - **准确性**: 直接使用原生文件系统 API，确保过滤条件（如文件年龄、大小）的准确性。
   - **安全性**: 利用 Rust 的内存安全特性，减少潜在的执行风险。
+  - **可控性**: 后端任务（扫描与清理）支持通过 `stop_directory_scan` 等命令随时取消，并通过 Tauri Event 向前端实时上报进度。
 
 ### 1.2. 灵活的过滤规则 (Flexible Filtering Rules)
 
@@ -47,25 +48,38 @@ Directory Janitor 是一个目录清理工具，旨在通过高性能后端扫�
 sequenceDiagram
     participant User as 用户
     participant UI (DirectoryJanitor.vue)
-    participant Service (DirectoryJanitorService)
     participant Runner (useDirectoryJanitorRunner)
     participant Rust as Rust Backend
     participant Trash as 回收站
 
     User->>UI: 设置参数并点击"开始"
-    UI->>Service: scanAndCleanup(options)
-    Service->>Runner: 创建 runner 实例并执行
-    Runner->>Rust: invoke('scan_directory', options)
+    UI->>Runner: 创建 runner 实例并执行
+    Runner->>Rust: invoke('analyze_directory_for_cleanup', options)
+
+    loop 扫描过程
+        Rust-->>UI: (Event) directory-scan-progress
+    end
+
     Rust-->>Runner: 返回符合条件的文件列表
-    
-    Note right of Runner: UI 请求用户确认
-    
-    Runner->>Rust: invoke('move_to_trash', paths)
-    Rust->>Trash: 移动文件
+
+    User->>UI: 确认删除
+    UI->>Runner: 调用 cleanup()
+    Runner->>Rust: invoke('cleanup_items', paths)
+
+    loop 清理过程
+        Rust-->>UI: (Event) directory-cleanup-progress
+    end
+
+    Rust->>Trash: (循环) 移动文件
     Rust-->>Runner: 返回清理结果
-    
-    Runner-->>Service: 返回扫描和清理的摘要
-    Service-->>UI: 显示操作结果
+
+    Runner-->>UI: 显示操作结果
+
+    alt 用户中途取消
+        User->>UI: 点击 "停止"
+        UI->>Rust: invoke('stop_directory_scan')
+        Rust->>Rust: 设置取消标志
+    end
 ```
 
 ## 4. 核心逻辑

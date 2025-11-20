@@ -20,7 +20,7 @@ Directory Tree 是一个目录结构可视化工具，旨在通过高性能后�
 
 为了生成干净、有意义的目录树，工具集成了强大的过滤系统。
 
-- **.gitignore 集成**: 支持自动查找并应用项目中的 `.gitignore` 规则，这是最常用的过滤方式。
+- **.gitignore 集成**: 支持自动查找并应用项目中的 `.gitignore` 规则，这是最常用的过滤方式。后端对 gitignore 语义有良好支持，包括否定规则 (`!`) 和 `**` 模式。
 - **自定义规则**: 允许用户提供自定义的 `glob` 模式列表进行过滤。
 - **组合模式**: 支持同时应用 `.gitignore` 和自定义规则，实现最大灵活性。
 - **实现方式**: 前端通过传递一个特殊标记 `__USE_GITIGNORE__` 来告知后端启用 `.gitignore` 模式。
@@ -39,17 +39,17 @@ sequenceDiagram
     participant UI (DirectoryTree.vue)
     participant Service (DirectoryTreeService)
     participant Rust as Rust Backend
-    
+
     User->>UI: 拖拽目录或手动选择
     UI->>Service: generateTree(options)
     Service->>Service: 解析过滤模式 (gitignore/custom/both)
     Service->>Service: 准备 ignorePatterns 数组
     Service->>Rust: invoke('generate_directory_tree', params)
-    
+
     Rust->>Rust: 遍历文件系统
     Rust->>Rust: 应用过滤规则
     Rust-->>Service: 返回 { tree, stats }
-    
+
     Service->>Service: (可选) 构建元数据头部
     Service-->>UI: 返回 TreeGenerationResult
     UI->>User: 显示最终的目录树字符串

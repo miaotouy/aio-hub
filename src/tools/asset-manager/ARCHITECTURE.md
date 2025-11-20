@@ -19,7 +19,7 @@ Asset Manager 是应用的**中央资产管理中心**，提供统一的资产�
 所有查询、筛选和排序操作都通过 Rust 后端执行，以获得高性能。
 
 - **核心优势**:
-  - **高性能**: 利用 SQLite FTS 实现全文搜索，支持复杂筛选和分页加载。
+  - **高性能**: 通过读取一个中央 `assets.jsonl` 索引文件到内存中进行快速筛选和排序。
   - **准确性**: 直接操作文件系统元数据，保证数据一致性。
 - **查询接口**: 前端通过 `invoke` 调用 Rust 命令（如 `list_assets_paginated`）执行查询。
 
@@ -48,7 +48,7 @@ sequenceDiagram
     Tool->>AM: importAssetFromBytes(buffer)
     AM->>AM: 计算文件哈希值
     AM->>Rust: 检查哈希是否存在
-    
+
     alt 已存在
         Rust-->>AM: 返回已有 assetId
     else 不存在
@@ -56,7 +56,7 @@ sequenceDiagram
         AM->>Rust: 创建新的资产记录
         Rust-->>AM: 返回新 assetId
     end
-    
+
     AM-->>Tool: 返回 asset 对象
 ```
 
@@ -68,5 +68,5 @@ sequenceDiagram
 
 ## 5. 未来展望
 
-- **性能优化**: 针对超过10万个资产的场景，优化后端查询性能。
+- **性能优化**: 当前索引机制（读取 `assets.jsonl` 到内存）在资产超过10万个时可能遇到瓶颈。未来应考虑将索引迁移到 SQLite 数据库，以提升大规模数据集下的查询性能。
 - **视频处理**: 改进视频缩略图的生成速度和效率。

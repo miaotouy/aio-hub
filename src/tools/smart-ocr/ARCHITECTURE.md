@@ -55,19 +55,19 @@ sequenceDiagram
 
     User->>UI: 上传多张图片
     UI->>Service: processImages(images, engineConfig, slicerConfig)
-    
+
     loop 对每张图片
         Service->>Slicer: sliceImage(image, config)
         Slicer-->>Service: 返回 ImageBlock[] 数组
     end
-    
+
     Service->>Runner: runOcr(all_blocks, engineConfig)
-    
+
     par 并行/并发处理
         Runner->>Engine: (循环) 识别每个 Block
         Engine-->>Runner: 返回 OcrResult
     end
-    
+
     Runner-->>Service: 返回所有 OcrResult
     Service->>Service: 格式化摘要
     Service-->>UI: 返回 FormattedOcrSummary
@@ -79,3 +79,4 @@ sequenceDiagram
 - **新增 OCR 引擎**: 集成更多优秀的开源或商业 OCR 引擎。
 - **版面分析与优化**: 增加表格识别和版面还原能力，而不仅仅是提取纯文本。
 - **倾斜校正**: 在 OCR 预处理阶段增加自动倾斜校正功能，提高识别准确率。
+- **原生引擎多语言支持**: 当前 Rust 后端的原生 OCR 实现（`windows_ocr`）将识别语言硬编码为 `"zh-Hans"`。后续需要将其参数化，允许前端根据用户选择传递语言代码，以支持多语言识别。

@@ -293,6 +293,20 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       }
     }
 
+    // Autolink: <url>
+    if (token.type === "autolink") {
+      flushText();
+      nodes.push({
+        id: "",
+        type: "link",
+        props: { href: token.url, title: "" },
+        children: [createTextNode(token.url)],
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
+      });
+      i++;
+      continue;
+    }
+
     // 图片 ![alt](url)
     if (token.type === "image_marker") {
       flushText();

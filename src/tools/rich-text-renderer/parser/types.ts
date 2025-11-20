@@ -29,7 +29,8 @@ export type Token =
   | { type: "hr_marker"; raw: string }
   | { type: "code_fence"; language: string; raw: string }
   | { type: "katex_block"; content: string }
-  | { type: "katex_inline"; content: string };
+  | { type: "katex_inline"; content: string }
+  | { type: "autolink"; url: string; raw: string };
 
 // ============ 解析器上下文 ============
 

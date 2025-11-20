@@ -70,6 +70,21 @@ export class Tokenizer {
         continue;
       }
 
+      // Autolink: <url> 或 <email>
+      // 必须在 HTML 标签检查之前，避免 <https://...> 被识别为 HTML 标签
+      const autolinkRegex = /^<((?:https?|ftps?|mailto):[^\s>]+)>/;
+      const autolinkMatch = remaining.match(autolinkRegex);
+      if (autolinkMatch) {
+        tokens.push({
+          type: "autolink",
+          url: autolinkMatch[1],
+          raw: autolinkMatch[0],
+        });
+        i += autolinkMatch[0].length;
+        atLineStart = false;
+        continue;
+      }
+
       // HTML 标签（无论是否行首都有效，且优先于块级 Markdown 标记）
       const htmlMatch = remaining.match(this.htmlTagRegex);
       if (htmlMatch) {

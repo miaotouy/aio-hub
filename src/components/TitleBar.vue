@@ -487,6 +487,12 @@ const goToProfileSettings = () => {
   vertical-align: middle;
 }
 
+.icon-wrapper svg,
+.icon-wrapper img {
+  width: 1em;
+  height: 1em;
+}
+
 .app-title {
   font-size: 16px;
   color: var(--sidebar-text);

@@ -525,4 +525,10 @@ watch(
   margin-bottom: 15px;
   color: var(--primary-color);
 }
+
+.icon-wrapper svg,
+.icon-wrapper img {
+  width: 1em;
+  height: 1em;
+}
 </style>

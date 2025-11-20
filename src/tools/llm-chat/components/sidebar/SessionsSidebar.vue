@@ -14,6 +14,7 @@ import {
 import Avatar from "@/components/common/Avatar.vue";
 import { useTopicNamer } from "../../composables/useTopicNamer";
 import { useSessionManager } from "../../composables/useSessionManager";
+import { useChatSettings } from "../../composables/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
 import ExportSessionDialog from "../export/ExportSessionDialog.vue";
 import { formatRelativeTime } from "@/utils/time";
@@ -38,6 +39,7 @@ const agentStore = useAgentStore();
 const searchQuery = ref("");
 const { generateTopicName, isGenerating } = useTopicNamer();
 const { persistSession } = useSessionManager();
+const { settings } = useChatSettings();
 
 // 排序和筛选相关状态
 type SortBy = "updatedAt" | "createdAt" | "messageCount" | "name";
@@ -294,6 +296,20 @@ const handleFilterCommand = (command: string) => {
       break;
   }
 };
+
+// 处理会话点击
+const handleSessionClick = (session: ChatSession) => {
+  // 如果开启了自动切换智能体，且会话有绑定的智能体
+  if (settings.value.uiPreferences.autoSwitchAgentOnSessionChange && session.displayAgentId) {
+    // 检查智能体是否存在
+    const agent = agentStore.getAgentById(session.displayAgentId);
+    if (agent) {
+      agentStore.selectAgent(session.displayAgentId);
+    }
+  }
+  
+  emit("switch", session.id);
+};
 </script>
 
 <template>
@@ -402,7 +418,7 @@ const handleFilterCommand = (command: string) => {
         v-for="session in filteredSessions"
         :key="session.id"
         :class="['session-item', { active: session.id === currentSessionId }]"
-        @click="emit('switch', session.id)"
+        @click="handleSessionClick(session)"
       >
         <div class="session-content">
           <div class="session-title">

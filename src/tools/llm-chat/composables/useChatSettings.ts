@@ -43,6 +43,8 @@ export interface ChatSettings {
     headerBackgroundOpacity: number;
     /** 头部背景模糊强度 (px) */
     headerBlurIntensity: number;
+    /** 切换会话时自动切换智能体 */
+    autoSwitchAgentOnSessionChange: boolean;
   };
   /** 消息管理设置 */
   messageManagement: {
@@ -112,6 +114,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     rendererVersion: RendererVersion.V2_CUSTOM_PARSER, // 默认使用 V2 渲染器
     headerBackgroundOpacity: 0.3, // 头部背景不透明度
     headerBlurIntensity: 12, // 头部背景模糊强度
+    autoSwitchAgentOnSessionChange: true, // 默认开启
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

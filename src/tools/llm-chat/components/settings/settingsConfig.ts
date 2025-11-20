@@ -65,6 +65,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui navigator 导航",
       },
       {
+        id: "autoSwitchAgentOnSessionChange",
+        label: "自动切换智能体",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.autoSwitchAgentOnSessionChange",
+        hint: "切换会话时，自动切换到该会话使用的智能体",
+        keywords: "ui agent switch session 智能体 切换 会话",
+      },
+      {
         id: "fontSize",
         label: "字体大小 ({{ localSettings.uiPreferences.fontSize }}px)",
         component: "ElSlider",

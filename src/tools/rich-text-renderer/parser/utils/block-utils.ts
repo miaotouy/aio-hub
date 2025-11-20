@@ -29,6 +29,16 @@ export const BLOCK_LEVEL_TAGS = new Set([
   "h4",
   "h5",
   "h6",
+  "form",
+  "fieldset",
+  "legend",
+  "iframe",
+  "video",
+  "audio",
+  "canvas",
+  "noscript",
+  "script",
+  "style",
 ]);
 
 export function isBlockLevelTag(tagName: string): boolean {

@@ -14,13 +14,22 @@
         </div>
       </div>
       <div class="nav-actions">
+        <el-tooltip content="一键启用/禁用所有样式" placement="bottom">
+          <el-switch
+            v-model="allEnabled"
+            active-text="全部启用"
+            inactive-text="全部禁用"
+            inline-prompt
+            style="margin-right: 12px"
+            @change="handleToggleAll"
+          />
+        </el-tooltip>
         <el-tooltip content="重置为默认样式" placement="bottom">
           <el-button
             class="reset-button"
             :icon="Refresh"
             @click="handleReset"
             circle
-            size="small"
           />
         </el-tooltip>
       </div>
@@ -201,6 +210,23 @@ const tabs = [
   { label: "标题", name: "heading" },
 ];
 
+// 全局开关状态（直接绑定到 modelValue.globalEnabled）
+const allEnabled = computed({
+  get: () => props.modelValue.globalEnabled !== false,
+  set: (val: boolean) => {
+    emit("update:modelValue", {
+      ...props.modelValue,
+      globalEnabled: val,
+    });
+  },
+});
+
+// 一键启用/禁用所有样式（只控制全局开关，不修改子项）
+const handleToggleAll = (enabled: boolean) => {
+  // allEnabled 的 setter 已经处理了更新逻辑
+  customMessage.success(enabled ? "已启用所有样式" : "已禁用所有样式");
+};
+
 const handleReset = () => {
   ElMessageBox.confirm("确定要重置所有 Markdown 样式配置吗？此操作无法撤销。", "确认重置", {
     confirmButtonText: "重置",
@@ -209,6 +235,7 @@ const handleReset = () => {
   })
     .then(() => {
       emit("update:modelValue", {});
+      allEnabled.value = true;
       customMessage.success("样式已重置为默认值");
     })
     .catch(() => {});
@@ -216,11 +243,24 @@ const handleReset = () => {
 
 // 创建一个代理对象，用于处理 v-model 的双向绑定
 // 这样可以避免维护一个 localValue 副本，直接操作 modelValue
-const createProxy = (key: keyof RichTextRendererStyleOptions) => {
+const createProxy = (key: Exclude<keyof RichTextRendererStyleOptions, 'globalEnabled'>) => {
   return computed({
     get: () => props.modelValue[key] || {},
     set: (val: MarkdownStyleOption) => {
+      // 过滤掉 undefined 或 null
+      if (val === undefined || val === null) {
+        const { [key]: _, ...rest } = props.modelValue;
+        emit("update:modelValue", rest);
+        return;
+      }
+      
       const newValue = { ...props.modelValue, [key]: val };
+      
+      // 如果对象为空，则从父对象中删除该键
+      if (Object.keys(val).length === 0) {
+        delete newValue[key];
+      }
+      
       emit("update:modelValue", newValue);
     },
   });

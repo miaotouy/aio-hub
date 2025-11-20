@@ -1,49 +1,50 @@
 <template>
   <div class="rich-text-renderer" :style="cssVariables">
     <!-- AST 渲染模式（V1/V2 等） -->
-    <AstNodeRenderer
-      v-if="useAstRenderer"
-      :nodes="ast"
-    />
+    <AstNodeRenderer v-if="useAstRenderer" :nodes="ast" />
     <!-- 纯 markdown-it 渲染模式 -->
-    <div
-      v-else
-      class="pure-markdown-renderer"
-      v-html="htmlContent"
-    />
+    <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch, ref, computed } from 'vue';
-import MarkdownIt from 'markdown-it';
-import { useMarkdownAst } from './composables/useMarkdownAst';
-import { StreamProcessor } from './StreamProcessor';
-import { StreamProcessorV2 } from './StreamProcessorV2';
-import AstNodeRenderer from './components/AstNodeRenderer.tsx';
-import type { StreamSource, LlmThinkRule, RichTextRendererStyleOptions, MarkdownStyleOption } from './types';
-import { RendererVersion } from './types';
+import { onMounted, onBeforeUnmount, watch, ref, computed } from "vue";
+import MarkdownIt from "markdown-it";
+import { useMarkdownAst } from "./composables/useMarkdownAst";
+import { StreamProcessor } from "./StreamProcessor";
+import { StreamProcessorV2 } from "./StreamProcessorV2";
+import AstNodeRenderer from "./components/AstNodeRenderer.tsx";
+import type {
+  StreamSource,
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+  MarkdownStyleOption,
+} from "./types";
+import { RendererVersion } from "./types";
 
-const props = withDefaults(defineProps<{
-  content?: string;
-  streamSource?: StreamSource;
-  version?: RendererVersion; // 渲染器版本
-  llmThinkRules?: LlmThinkRule[]; // LLM 思考节点规则配置
-  styleOptions?: RichTextRendererStyleOptions; // 样式配置
-}>(), {
-  version: RendererVersion.V1_MARKDOWN_IT,
-  llmThinkRules: () => [
-    // 默认规则：标准 <think> 标签
-    {
-      id: 'standard-think',
-      kind: 'xml_tag',
-      tagName: 'think',
-      displayName: 'AI 思考过程',
-      collapsedByDefault: true,
-    }
-  ],
-  styleOptions: () => ({})
-});
+const props = withDefaults(
+  defineProps<{
+    content?: string;
+    streamSource?: StreamSource;
+    version?: RendererVersion; // 渲染器版本
+    llmThinkRules?: LlmThinkRule[]; // LLM 思考节点规则配置
+    styleOptions?: RichTextRendererStyleOptions; // 样式配置
+  }>(),
+  {
+    version: RendererVersion.V1_MARKDOWN_IT,
+    llmThinkRules: () => [
+      // 默认规则：标准 <think> 标签
+      {
+        id: "standard-think",
+        kind: "xml_tag",
+        tagName: "think",
+        displayName: "AI 思考过程",
+        collapsedByDefault: true,
+      },
+    ],
+    styleOptions: () => ({}),
+  }
+);
 
 /**
  * 将样式配置转换为 CSS 变量
@@ -51,12 +52,17 @@ const props = withDefaults(defineProps<{
 const cssVariables = computed(() => {
   const vars: Record<string, string> = {};
   const opts = props.styleOptions;
-  
+
   if (!opts) return vars;
+
+  // 全局总开关：如果关闭则不生成任何 CSS 变量
+  if (opts.globalEnabled === false) return vars;
 
   // 辅助函数：生成变量名并赋值
   const addVars = (prefix: string, style?: MarkdownStyleOption) => {
     if (!style) return;
+    // 子项开关：如果 enabled 为 false，则跳过生成 CSS 变量
+    if (style.enabled === false) return;
     if (style.color) vars[`--md-${prefix}-color`] = style.color;
     if (style.backgroundColor) vars[`--md-${prefix}-bg-color`] = style.backgroundColor;
     if (style.borderColor) vars[`--md-${prefix}-border-color`] = style.borderColor;
@@ -68,40 +74,41 @@ const cssVariables = computed(() => {
     if (style.borderRadius) vars[`--md-${prefix}-border-radius`] = style.borderRadius;
   };
 
-  addVars('paragraph', opts.paragraph);
-  addVars('strong', opts.strong);
-  addVars('em', opts.em);
-  addVars('strikethrough', opts.strikethrough);
-  addVars('quote', opts.quote);
-  addVars('blockquote', opts.blockquote);
-  addVars('inline-code', opts.inlineCode);
-  addVars('link', opts.link);
-  
+  addVars("paragraph", opts.paragraph);
+  addVars("strong", opts.strong);
+  addVars("em", opts.em);
+  addVars("strikethrough", opts.strikethrough);
+  addVars("quote", opts.quote);
+  addVars("blockquote", opts.blockquote);
+  addVars("inline-code", opts.inlineCode);
+  addVars("link", opts.link);
+
   // 标题
-  addVars('h1', opts.h1);
-  addVars('h2', opts.h2);
-  addVars('h3', opts.h3);
-  addVars('h4', opts.h4);
-  addVars('h5', opts.h5);
-  addVars('h6', opts.h6);
+  addVars("h1", opts.h1);
+  addVars("h2", opts.h2);
+  addVars("h3", opts.h3);
+  addVars("h4", opts.h4);
+  addVars("h5", opts.h5);
+  addVars("h6", opts.h6);
 
   return vars;
 });
 
 // 是否使用 AST 渲染器（V1 / V2 等）
-const useAstRenderer = computed(() =>
-  props.version === RendererVersion.V1_MARKDOWN_IT ||
-  props.version === RendererVersion.V2_CUSTOM_PARSER
+const useAstRenderer = computed(
+  () =>
+    props.version === RendererVersion.V1_MARKDOWN_IT ||
+    props.version === RendererVersion.V2_CUSTOM_PARSER
 );
 
 // AST 状态
 const { ast, enqueuePatch } = useMarkdownAst();
 
 // 纯 markdown-it 渲染的 HTML
-const htmlContent = ref('');
+const htmlContent = ref("");
 
 // 流式累积的原始文本缓冲
-const buffer = ref('');
+const buffer = ref("");
 
 // markdown-it 实例（纯渲染模式）
 const md = new MarkdownIt({
@@ -118,11 +125,11 @@ const createProcessor = (version: RendererVersion) => {
   switch (version) {
     case RendererVersion.V2_CUSTOM_PARSER: {
       // 提取思考标签名集合传递给 V2 处理器
-      const thinkTagNames = new Set(props.llmThinkRules?.map(rule => rule.tagName) || []);
+      const thinkTagNames = new Set(props.llmThinkRules?.map((rule) => rule.tagName) || []);
       return new StreamProcessorV2({
         onPatch: enqueuePatch,
         llmThinkTagNames: thinkTagNames,
-        llmThinkRules: props.llmThinkRules || []
+        llmThinkRules: props.llmThinkRules || [],
       });
     }
     case RendererVersion.V1_MARKDOWN_IT:
@@ -145,10 +152,10 @@ watch(
   (newContent) => {
     if (props.streamSource) return;
 
-    if (typeof newContent !== 'string' || !newContent) {
+    if (typeof newContent !== "string" || !newContent) {
       // 清空
-      buffer.value = '';
-      htmlContent.value = '';
+      buffer.value = "";
+      htmlContent.value = "";
       streamProcessor.value?.reset?.();
       return;
     }
@@ -210,8 +217,8 @@ onMounted(() => {
   if (!props.streamSource) return;
 
   // 初始化状态
-  buffer.value = '';
-  htmlContent.value = '';
+  buffer.value = "";
+  htmlContent.value = "";
 
   if (useAstRenderer.value) {
     streamProcessor.value = createProcessor(props.version);

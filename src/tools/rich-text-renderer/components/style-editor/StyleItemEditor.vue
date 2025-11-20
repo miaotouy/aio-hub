@@ -1,5 +1,10 @@
 <template>
   <div class="style-item-editor">
+    <!-- 启用开关 -->
+    <div class="enable-switch-row">
+      <el-switch v-model="isEnabled" active-text="启用" inactive-text="禁用" inline-prompt />
+    </div>
+
     <!-- 预览区域 -->
     <div v-if="previewText" class="preview-section">
       <div class="preview-header">
@@ -11,6 +16,8 @@
           class="preview-content"
           :class="{ 'is-block': isBlock }"
           :style="previewStyle"
+          :href="previewTag === 'a' ? '#' : undefined"
+          @click.prevent
         >
           {{ previewText }}
         </component>
@@ -223,6 +230,7 @@ const emit = defineEmits<{
 }>();
 
 const localValue = reactive<MarkdownStyleOption>({});
+const isEnabled = ref(true);
 
 const addUnit = (val: string | number) => {
   if (val === "" || val === null || val === undefined) return "0";
@@ -587,10 +595,14 @@ watch(
 );
 // --- 高级阴影编辑器逻辑结束 ---
 
+// 监听外部 modelValue 变化，同步到内部状态
 watch(
   () => props.modelValue,
   (newVal) => {
     const safeNewVal = newVal || {};
+
+    // 同步 enabled 状态
+    isEnabled.value = safeNewVal.enabled !== false;
 
     // 1. 找出需要删除的 key
     const keysToRemove = Object.keys(localValue).filter((key) => !(key in safeNewVal));
@@ -612,30 +624,61 @@ watch(
   { immediate: true, deep: true }
 );
 
+// 监听 enabled 开关变化
+watch(isEnabled, () => {
+  // 触发 emit
+  emitValue();
+});
+
+// 监听 localValue 变化
 watch(
   localValue,
-  (newVal) => {
-    // 过滤空值
-    const cleanVal: MarkdownStyleOption = {};
-    if (newVal.color) cleanVal.color = newVal.color;
-    if (newVal.backgroundColor) cleanVal.backgroundColor = newVal.backgroundColor;
-    if (newVal.textShadow) cleanVal.textShadow = newVal.textShadow;
-    if (newVal.fontWeight) cleanVal.fontWeight = newVal.fontWeight;
-    if (newVal.fontStyle) cleanVal.fontStyle = newVal.fontStyle;
-    if (newVal.textDecoration) cleanVal.textDecoration = newVal.textDecoration;
-    if (newVal.borderColor) cleanVal.borderColor = newVal.borderColor;
-    if (newVal.borderRadius) cleanVal.borderRadius = newVal.borderRadius;
-    if (newVal.boxShadow) cleanVal.boxShadow = newVal.boxShadow;
-
-    emit("update:modelValue", cleanVal);
+  () => {
+    emitValue();
   },
   { deep: true }
 );
+
+// 统一的 emit 函数
+const emitValue = () => {
+  // 过滤空值并发出
+  const cleanVal: MarkdownStyleOption = {};
+
+  if (localValue.color) cleanVal.color = localValue.color;
+  if (localValue.backgroundColor) cleanVal.backgroundColor = localValue.backgroundColor;
+  if (localValue.textShadow) cleanVal.textShadow = localValue.textShadow;
+  if (localValue.fontWeight) cleanVal.fontWeight = localValue.fontWeight;
+  if (localValue.fontStyle) cleanVal.fontStyle = localValue.fontStyle;
+  if (localValue.textDecoration) cleanVal.textDecoration = localValue.textDecoration;
+  if (localValue.borderColor) cleanVal.borderColor = localValue.borderColor;
+  if (localValue.borderRadius) cleanVal.borderRadius = localValue.borderRadius;
+  if (localValue.boxShadow) cleanVal.boxShadow = localValue.boxShadow;
+
+  // 始终附加 enabled 状态
+  cleanVal.enabled = isEnabled.value;
+
+  // 优化：如果只有一个 enabled:true 且没有其他任何样式，则视为“默认”，发出一个空对象
+  if (Object.keys(cleanVal).length === 1 && cleanVal.enabled === true) {
+    emit("update:modelValue", {});
+    return;
+  }
+
+  emit("update:modelValue", cleanVal);
+};
 </script>
 
 <style scoped>
+/* 启用开关行 */
+.enable-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .preview-section {
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   /* overflow: hidden; 防止阴影被遮挡 */
@@ -650,7 +693,7 @@ watch(
 }
 
 .preview-viewport {
-  padding: 24px; /* 增加内边距以显示阴影和发光效果 */
+  padding: 12px; /* 增加内边距以显示阴影和发光效果 */
   background-color: var(--bg-color);
   display: flex;
   align-items: center;

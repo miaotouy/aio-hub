@@ -584,6 +584,7 @@ export interface TesterConfig {
  * 用于生成 CSS 变量，支持颜色、发光等效果
  */
 export interface MarkdownStyleOption {
+  enabled?: boolean; // 是否启用此样式配置（false 时保留配置但不应用）
   color?: string;
   backgroundColor?: string;
   borderColor?: string;
@@ -599,6 +600,8 @@ export interface MarkdownStyleOption {
  * 富文本渲染器样式配置
  */
 export interface RichTextRendererStyleOptions {
+  /** 全局总开关：控制是否应用任何自定义样式 */
+  globalEnabled?: boolean;
   paragraph?: MarkdownStyleOption;
   strong?: MarkdownStyleOption;
   em?: MarkdownStyleOption;

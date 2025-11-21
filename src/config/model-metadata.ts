@@ -543,7 +543,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   {
     id: "provider-kwai",
     matchType: "provider",
-    matchValue: "kwai-kolors",
+    matchValue: "kwai-kolors|kwaipilot",
+    useRegex: true,
     properties: {
       icon: `${PRESET_ICONS_DIR}/kolors-color.svg`,
       group: "Kwai",
@@ -758,6 +759,43 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "Black Forest Labs 提供商图标",
   },
+  {
+    id: "model-prefix-nemotron",
+    matchType: "modelPrefix",
+    matchValue: "nemotron",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/nvidia-color.svg`,
+      group: "NVIDIA",
+    },
+    priority: 20,
+    enabled: true,
+    description: "Nemotron 系列模型图标",
+  },
+  {
+    id: "provider-nvidia",
+    matchType: "provider",
+    matchValue: "nvidia",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/nvidia-color.svg`,
+      group: "NVIDIA",
+    },
+    priority: 10,
+    enabled: true,
+    description: "NVIDIA 提供商图标",
+  },
+  {
+    id: "provider-meituan",
+    matchType: "provider",
+    matchValue: "meituan",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/meituan-color.svg`,
+      group: "Meituan",
+    },
+    priority: 10,
+    enabled: true,
+    description: "美团提供商图标",
+  },
+
   // API 服务商
   {
     id: "provider-openrouter",
@@ -1667,7 +1705,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   {
     id: "model-prefix-kolors",
     matchType: "modelPrefix",
-    matchValue: "kolors",
+    matchValue: "kolors|kat-coder",
+    useRegex: true,
     properties: {
       icon: `${PRESET_ICONS_DIR}/kolors-color.svg`,
       group: "Kwai",

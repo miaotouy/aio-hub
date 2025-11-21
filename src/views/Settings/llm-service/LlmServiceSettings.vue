@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ElMessageBox, ElLoading } from "element-plus";
+import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
@@ -227,6 +227,7 @@ const clearAllModels = () => {
 
 const showModelFetcherDialog = ref(false);
 const fetchedModels = ref<LlmModelInfo[]>([]);
+const isFetchingModels = ref(false);
 
 // 从 API 获取模型列表
 const fetchModels = async () => {
@@ -235,11 +236,7 @@ const fetchModels = async () => {
     return;
   }
 
-  const loading = ElLoading.service({
-    lock: true,
-    text: "正在从 API 获取模型列表...",
-    background: "rgba(0, 0, 0, 0.7)",
-  });
+  isFetchingModels.value = true;
 
   try {
     const models = await fetchModelsFromApi(selectedProfile.value);
@@ -254,7 +251,7 @@ const fetchModels = async () => {
   } catch (error: any) {
     customMessage.error(`获取模型列表失败: ${error.message}`);
   } finally {
-    loading.close();
+    isFetchingModels.value = false;
   }
 };
 
@@ -432,6 +429,7 @@ const showCustomHeadersDialog = ref(false);
               <ModelList
                 :models="editForm.models"
                 :expand-state="editForm.modelGroupsExpandState || {}"
+                :loading="isFetchingModels"
                 @add="addModel"
                 @edit="editModel"
                 @delete="deleteModel"

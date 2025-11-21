@@ -10,11 +10,13 @@ interface Props {
   models: LlmModelInfo[];
   editable?: boolean;
   expandState?: Record<string, boolean>;
+  loading?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   editable: true,
   expandState: () => ({}),
+  loading: false,
 });
 
 interface Emits {
@@ -86,7 +88,7 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
     <div class="list-header">
       <span class="model-count">已添加 {{ models.length }} 个模型</span>
       <div class="list-actions">
-        <el-button v-if="editable" size="small" @click="emit('fetch')"> 从 API 获取 </el-button>
+        <el-button v-if="editable" size="small" :loading="loading" @click="emit('fetch')"> 从 API 获取 </el-button>
         <el-button v-if="editable" type="primary" size="small" :icon="Plus" @click="emit('add')">
           手动添加
         </el-button>

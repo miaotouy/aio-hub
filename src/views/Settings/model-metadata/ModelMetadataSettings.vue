@@ -110,8 +110,10 @@
             <div class="result-label">匹配规则</div>
             <div class="result-value matched-rule">
               <div class="rule-info">
-                <span class="rule-badge">{{ getMatchTypeLabel(testMatchedRule.matchType) }}</span>
-                <span v-if="testMatchedRule.useRegex" class="regex-badge">RegEx</span>
+                <el-tag :type="getMatchTypeTagType(testMatchedRule.matchType)">{{
+                  getMatchTypeLabel(testMatchedRule.matchType)
+                }}</el-tag>
+                <el-tag v-if="testMatchedRule.useRegex" type="success" effect="light">RegEx</el-tag>
                 <code class="rule-match-value">{{ testMatchedRule.matchValue }}</code>
               </div>
               <div class="rule-meta">
@@ -173,7 +175,9 @@
             <div class="result-value candidate-rules">
               <div v-for="rule in candidateRules" :key="rule.id" class="candidate-rule">
                 <div class="candidate-main">
-                  <span class="rule-badge small">{{ getMatchTypeLabel(rule.matchType) }}</span>
+                  <el-tag :type="getMatchTypeTagType(rule.matchType)" size="small">{{
+                    getMatchTypeLabel(rule.matchType)
+                  }}</el-tag>
                   <code>{{ rule.matchValue }}</code>
                   <el-tag v-if="rule.enabled === false" type="info" size="small">禁用</el-tag>
                 </div>
@@ -207,8 +211,12 @@
 
             <div class="config-info">
               <div class="config-header">
-                <span class="config-type-badge">{{ getMatchTypeLabel(config.matchType) }}</span>
-                <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
+                <el-tag :type="getMatchTypeTagType(config.matchType)" effect="plain">{{
+                  getMatchTypeLabel(config.matchType)
+                }}</el-tag>
+                <el-tag v-if="config.useRegex" type="success" effect="plain" title="使用正则表达式"
+                  >RegEx</el-tag
+                >
                 <span class="config-value">{{ config.matchValue }}</span>
               </div>
               <div v-if="config.properties?.group" class="config-group">
@@ -259,9 +267,8 @@
       </div>
 
       <!-- 固定分页 -->
-      <div class="pagination-container">
+      <div v-if="sortedConfigs.length > pageSize" class="pagination-container">
         <el-pagination
-          v-if="sortedConfigs.length > 0"
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="[12, 24, 48, 96]"
@@ -448,6 +455,19 @@ function getMatchTypeLabel(type: MetadataMatchType): string {
     modelGroup: "Group",
   };
   return labels[type] || type;
+}
+
+// 获取匹配类型的标签类型
+function getMatchTypeTagType(
+  type: MetadataMatchType
+): "" | "success" | "info" | "warning" | "danger" {
+  const types: Record<MetadataMatchType, "" | "success" | "info" | "warning" | "danger"> = {
+    provider: "",
+    model: "info",
+    modelPrefix: "warning",
+    modelGroup: "success",
+  };
+  return types[type] || "";
 }
 
 // 选择预设图标
@@ -817,21 +837,6 @@ function formatDateTime(dateString: string): string {
   flex-wrap: wrap;
 }
 
-.rule-badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  background: var(--primary-color);
-  color: white;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.rule-badge.small {
-  font-size: 0.7rem;
-  padding: 0.1rem 0.4rem;
-}
-
 .rule-match-value {
   font-family: "Consolas", "Monaco", monospace;
   background: rgba(0, 0, 0, 0.2);
@@ -1079,33 +1084,9 @@ function formatDateTime(dateString: string): string {
   margin-bottom: 0.25rem;
 }
 
-.config-type-badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  background: transparent;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
-  border-radius: 3px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.regex-badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  background: transparent;
-  color: #10b981;
-  border: 1px solid #10b981;
-  border-radius: 3px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  margin-left: 0.25rem;
-}
-
 .config-value {
   font-weight: 500;
   font-family: "Consolas", "Monaco", monospace;
-  margin-left: 0.5rem;
 }
 
 .config-group {

@@ -48,8 +48,14 @@ function isMonochromeColor(color: string): boolean {
  * 处理 SVG 内容，将黑白颜色替换为 currentColor
  */
 function processSvgContent(svgText: string): string {
+  // 安全清洗：移除可能存在的 meta、script 等标签，防止 CSP 警告和 XSS 风险
+  // 如果 fetch 返回了 HTML 页面（如 404），这也能防止渲染出奇怪的东西
+  let processed = svgText
+    .replace(/<meta[^>]*>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+
   // 替换 fill 和 stroke 属性中的黑白颜色
-  let processed = svgText.replace(
+  processed = processed.replace(
     /\b(fill|stroke)\s*=\s*["']([^"']+)["']/gi,
     (match, attr, color) => {
       if (isMonochromeColor(color)) {

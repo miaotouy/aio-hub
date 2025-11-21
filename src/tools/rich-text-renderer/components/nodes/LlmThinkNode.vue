@@ -5,8 +5,10 @@
         <span class="llm-think-icon" :class="{ 'is-expanded': !isCollapsed }">
           <ChevronRight :size="16" />
         </span>
-        <span class="llm-think-label">{{ isThinking ? '思考中' : props.displayName }}</span>
-        <el-tag v-if="!isThinking" size="small" type="primary" effect="light">{{ props.rawTagName }}</el-tag>
+        <span class="llm-think-label">{{ isThinking ? "思考中" : props.displayName }}</span>
+        <el-tag size="small" type="primary" effect="light">{{ props.rawTagName }}</el-tag>
+        <!-- 思考用时显示 -->
+        <span v-if="thinkingTimeFormatted" class="thinking-time">{{ thinkingTimeFormatted }}</span>
         <!-- 思考中指示器 -->
         <div v-if="isThinking" class="thinking-indicator">
           <span class="thinking-dot"></span>
@@ -14,7 +16,7 @@
           <span class="thinking-dot"></span>
         </div>
       </div>
-      
+
       <!-- 思考预览（仅在折叠时显示） -->
       <div v-if="isCollapsed && previewContent" class="think-preview">
         {{ previewContent }}
@@ -34,7 +36,11 @@
 
         <!-- 复制按钮 -->
         <el-tooltip :content="copied ? '已复制' : '复制内容'" :show-after="300">
-          <button class="action-btn" :class="{ 'action-btn-active': copied }" @click.stop="copyContent">
+          <button
+            class="action-btn"
+            :class="{ 'action-btn-active': copied }"
+            @click.stop="copyContent"
+          >
             <Check v-if="copied" :size="14" />
             <Copy v-else :size="14" />
           </button>
@@ -54,9 +60,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { Copy, Check, Code2, ChevronRight } from 'lucide-vue-next';
-import { customMessage } from '@/utils/customMessage';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
+import { Copy, Check, Code2, ChevronRight } from "lucide-vue-next";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   rawTagName: string;
@@ -65,6 +71,17 @@ interface Props {
   collapsedByDefault: boolean;
   rawContent?: string; // 原始文本内容
   isThinking?: boolean; // 是否正在思考中
+  generationMeta?: {
+    requestStartTime?: number;
+    requestEndTime?: number;
+    firstTokenTime?: number;
+    tokensPerSecond?: number;
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+  };
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -76,11 +93,56 @@ const showRaw = ref(false);
 const copied = ref(false);
 const isThinking = computed(() => props.isThinking);
 
+// 实时计时状态（用于流式传输期间的实时显示和持久化）
+const realtimeDurationMs = ref<number | null>(null);
+const timerId = ref<number | null>(null);
+// 本地记录的开始时间（用于正文捕获等没有 meta 信息的场景）
+const localStartTime = ref<number | null>(null);
+
+// 格式化时间（毫秒 -> 可读字符串）
+const formatDuration = (ms: number): string => {
+  if (ms < 1000) {
+    return `${ms}ms`;
+  } else if (ms < 60000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  } else {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = ((ms % 60000) / 1000).toFixed(0);
+    return `${minutes}m ${seconds}s`;
+  }
+};
+
+// 计算并格式化思考时间
+const thinkingTimeFormatted = computed(() => {
+  // 优先使用实时计时结果（流式期间或持久化后）
+  if (realtimeDurationMs.value !== null) {
+    return formatDuration(realtimeDurationMs.value);
+  }
+
+  // 如果没有实时结果，尝试从元数据估算
+  const meta = props.generationMeta;
+  if (!meta) return null;
+
+  // 方案1: 使用精确的时间戳计算
+  if (meta.requestEndTime && meta.requestStartTime) {
+    const duration = meta.requestEndTime - meta.requestStartTime;
+    return formatDuration(duration);
+  }
+
+  // 方案2: 使用 tokens 和速度估算
+  if (meta.tokensPerSecond && meta.usage?.completionTokens) {
+    const estimatedMs = (meta.usage.completionTokens / meta.tokensPerSecond) * 1000;
+    return `~${formatDuration(Math.round(estimatedMs))}`;
+  }
+
+  return null;
+});
+
 // 获取预览内容（最后一行非空文本）
 const previewContent = computed(() => {
-  if (!props.rawContent) return '';
-  
-  const lines = props.rawContent.split('\n');
+  if (!props.rawContent) return "";
+
+  const lines = props.rawContent.split("\n");
   // 从后往前找第一个非空行
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
@@ -88,7 +150,7 @@ const previewContent = computed(() => {
       return line;
     }
   }
-  return '';
+  return "";
 });
 
 const toggleCollapse = () => {
@@ -101,21 +163,73 @@ const toggleRawView = () => {
 
 const copyContent = async () => {
   try {
-    const textToCopy = showRaw.value ? (props.rawContent || '') : props.rawContent || '';
+    const textToCopy = showRaw.value ? props.rawContent || "" : props.rawContent || "";
     await navigator.clipboard.writeText(textToCopy);
     copied.value = true;
-    customMessage.success('内容已复制');
+    customMessage.success("内容已复制");
     setTimeout(() => {
       copied.value = false;
     }, 2000);
   } catch (error) {
-    console.error('[LlmThinkNode] 复制失败:', error);
-    customMessage.error('复制失败');
+    console.error("[LlmThinkNode] 复制失败:", error);
+    customMessage.error("复制失败");
   }
 };
 
+// 监听思考状态和开始时间，启动/停止实时计时器
+watch(
+  [() => props.isThinking, () => props.generationMeta?.requestStartTime],
+  ([thinking, metaStartTime]) => {
+    // 1. 确定有效的开始时间
+    let startTime = metaStartTime;
+    
+    // 如果正在思考但没有 meta 时间，尝试使用或初始化本地开始时间
+    if (thinking && !startTime) {
+      if (!localStartTime.value) {
+        localStartTime.value = Date.now();
+      }
+      startTime = localStartTime.value;
+    }
+
+    // 2. 停止逻辑: 思考结束
+    if (!thinking) {
+      if (timerId.value !== null) {
+        clearInterval(timerId.value);
+        timerId.value = null;
+      }
+
+      // 思考结束时，计算最终时长
+      const meta = props.generationMeta;
+      if (meta?.requestEndTime && meta?.requestStartTime) {
+        // 场景A: 有完整的 meta 信息，使用精确时间
+        realtimeDurationMs.value = meta.requestEndTime - meta.requestStartTime;
+      } else if (localStartTime.value) {
+        // 场景B: 只有本地计时，定格在当前时长
+        realtimeDurationMs.value = Date.now() - localStartTime.value;
+      }
+      return;
+    }
+
+    // 3. 启动逻辑: 正在思考且有有效开始时间
+    if (thinking && startTime && timerId.value === null) {
+      const effectiveStartTime = startTime; // 闭包捕获
+      timerId.value = window.setInterval(() => {
+        realtimeDurationMs.value = Date.now() - effectiveStartTime;
+      }, 100);
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
   isCollapsed.value = props.collapsedByDefault;
+});
+
+onBeforeUnmount(() => {
+  // 清理定时器
+  if (timerId.value !== null) {
+    clearInterval(timerId.value);
+  }
 });
 </script>
 
@@ -173,7 +287,17 @@ onMounted(() => {
 }
 
 .llm-think-title .el-tag {
-  font-family: 'Monaco', 'Consolas', monospace;
+  font-family: "Monaco", "Consolas", monospace;
+}
+
+.thinking-time {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  background-color: var(--el-fill-color-light);
+  border-radius: 4px;
+  font-family: "Monaco", "Consolas", monospace;
 }
 
 .think-preview {
@@ -185,14 +309,20 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: 'Monaco', 'Consolas', monospace;
+  font-family: "Monaco", "Consolas", monospace;
   animation: fadeIn 0.3s ease;
   user-select: none;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(2px); }
-  to { opacity: 0.6; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 0.6;
+    transform: translateY(0);
+  }
 }
 
 .header-actions {
@@ -219,7 +349,7 @@ onMounted(() => {
 }
 
 .action-btn::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: 6px;
@@ -274,7 +404,7 @@ onMounted(() => {
 .raw-content {
   margin: 0;
   padding: 14px;
-  font-family: 'Monaco', 'Consolas', monospace;
+  font-family: "Monaco", "Consolas", monospace;
   font-size: 13px;
   line-height: 1.6;
   color: var(--el-text-color-primary);
@@ -302,18 +432,13 @@ onMounted(() => {
 }
 
 .llm-think-node.is-thinking::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(64, 158, 255, 0.15) 50%,
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(64, 158, 255, 0.15) 50%, transparent);
   animation: shimmer 2s infinite;
   pointer-events: none;
   z-index: 1;
@@ -357,7 +482,9 @@ onMounted(() => {
 }
 
 @keyframes thinkingPulse {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     opacity: 0.3;
     transform: scale(0.8);
   }
@@ -373,7 +500,8 @@ onMounted(() => {
 }
 
 @keyframes breathingBorder {
-  0%, 100% {
+  0%,
+  100% {
     border-color: var(--el-color-primary);
     box-shadow: 0 0 10px rgba(64, 158, 255, 0.2);
   }

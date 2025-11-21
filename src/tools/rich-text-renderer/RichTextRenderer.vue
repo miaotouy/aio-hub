@@ -1,7 +1,7 @@
 <template>
   <div class="rich-text-renderer" :style="cssVariables">
     <!-- AST 渲染模式（V1/V2 等） -->
-    <AstNodeRenderer v-if="useAstRenderer" :nodes="ast" />
+    <AstNodeRenderer v-if="useAstRenderer" :nodes="ast" :generation-meta="generationMeta" />
     <!-- 纯 markdown-it 渲染模式 -->
     <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
   </div>
@@ -29,6 +29,7 @@ const props = withDefaults(
     version?: RendererVersion; // 渲染器版本
     llmThinkRules?: LlmThinkRule[]; // LLM 思考节点规则配置
     styleOptions?: RichTextRendererStyleOptions; // 样式配置
+    generationMeta?: any; // 生成元数据（用于计时）
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,

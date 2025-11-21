@@ -99,6 +99,9 @@ const AstNodeRenderer = defineComponent({
       type: Array as PropType<AstNode[]>,
       required: true,
     },
+    generationMeta: {
+      type: Object as PropType<any>,
+    },
   },
   setup(props) {
     return (): VNode[] => {
@@ -107,7 +110,7 @@ const AstNodeRenderer = defineComponent({
 
         // 构建子节点 - 通过变量引用实现递归
         const children: VNode | undefined = node.children?.length
-          ? h(AstNodeRenderer, { nodes: node.children })
+          ? h(AstNodeRenderer, { nodes: node.children, generationMeta: props.generationMeta })
           : undefined;
 
         // 为 KaTeX 节点添加 displayMode 属性
@@ -116,6 +119,7 @@ const AstNodeRenderer = defineComponent({
           nodeId: node.id,
           'data-node-status': node.meta.status,
           ...node.props,
+          generationMeta: props.generationMeta,
         };
 
         // 根据节点类型设置 displayMode

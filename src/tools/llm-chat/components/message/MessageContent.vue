@@ -53,32 +53,6 @@ const errorCopied = ref(false);
 const documentPreviewVisible = ref(false);
 const previewingAsset = ref<Asset | null>(null);
 
-// 计算推理用时（毫秒）
-const reasoningDuration = computed(() => {
-  const start = props.message.metadata?.reasoningStartTime;
-  const end = props.message.metadata?.reasoningEndTime;
-  if (start && end) {
-    return end - start;
-  }
-  return null;
-});
-
-// 格式化推理用时
-const formattedReasoningDuration = computed(() => {
-  const duration = reasoningDuration.value;
-  if (duration === null) return "";
-
-  if (duration < 1000) {
-    return `${duration}ms`;
-  } else if (duration < 60000) {
-    return `${(duration / 1000).toFixed(2)}s`;
-  } else {
-    const minutes = Math.floor(duration / 60000);
-    const seconds = ((duration % 60000) / 1000).toFixed(0);
-    return `${minutes}m ${seconds}s`;
-  }
-});
-
 // 判断是否正在推理中
 const isReasoning = computed(() => {
   return !!(
@@ -86,6 +60,20 @@ const isReasoning = computed(() => {
     props.message.metadata?.reasoningContent &&
     !props.message.metadata?.reasoningEndTime
   );
+});
+
+// 提取生成元数据用于渲染器计时
+const generationMetaForRenderer = computed(() => {
+  const metadata = props.message.metadata;
+  if (!metadata) return undefined;
+  
+  return {
+    requestStartTime: metadata.requestStartTime,
+    requestEndTime: metadata.requestEndTime,
+    firstTokenTime: metadata.firstTokenTime,
+    tokensPerSecond: metadata.tokensPerSecond,
+    usage: metadata.usage,
+  };
 });
 
 // 编辑区域引用
@@ -217,12 +205,13 @@ watch(
     <!-- 推理内容（DeepSeek reasoning） -->
     <LlmThinkNode
       v-if="message.metadata?.reasoningContent"
-      :raw-tag-name="formattedReasoningDuration || 'DeepSeek'"
+      raw-tag-name="reasoning"
       rule-id="reasoning-metadata"
       display-name="深度思考"
       :is-thinking="isReasoning"
       :collapsed-by-default="true"
       :raw-content="message.metadata.reasoningContent"
+      :generation-meta="generationMetaForRenderer"
     >
       <RichTextRenderer
         :content="message.metadata.reasoningContent"
@@ -287,6 +276,7 @@ watch(
         :version="settings.uiPreferences.rendererVersion"
         :llm-think-rules="llmThinkRules"
         :style-options="richTextStyleOptions"
+        :generation-meta="generationMetaForRenderer"
       />
       <div v-if="message.status === 'generating'" class="streaming-indicator">
         <span class="dot"></span>

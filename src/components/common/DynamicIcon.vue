@@ -12,6 +12,7 @@
       v-else-if="iconUrl && !hasFailed"
       :src="iconUrl"
       class="dynamic-icon"
+      :class="{ 'load-failed': hasFailed }"
       @error="handleImageError"
       v-bind="$attrs"
     />
@@ -68,7 +69,7 @@ watch(
 );
 
 const wrapperStyle = computed(() => ({
-  borderRadius: 'inherit', // 继承父容器的圆角
+  borderRadius: "inherit", // 继承父容器的圆角
 }));
 </script>
 
@@ -81,6 +82,10 @@ const wrapperStyle = computed(() => ({
   height: 100%;
   vertical-align: middle;
   overflow: hidden; /* 确保子元素不会溢出圆角 */
+  /* 修复在部分弹窗中导致背景/壁纸不可见的渲染 Bug */
+  /* 通过创建新的堆叠上下文和合成层来隔离组件渲染 */
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 /* 图标容器统一样式 */
@@ -93,6 +98,10 @@ const wrapperStyle = computed(() => ({
 
 .dynamic-icon:where(img) {
   object-fit: contain;
+}
+
+.dynamic-icon.load-failed {
+  visibility: hidden;
 }
 
 .dynamic-icon:not(img) :deep(svg) {
@@ -108,12 +117,11 @@ const wrapperStyle = computed(() => ({
   align-items: center;
   justify-content: center;
   background-color: var(--container-bg);
+  border-radius: 8px;
   border: 1px solid var(--border-color);
   color: var(--text-color-secondary);
   font-weight: 600;
-  font-size: 60%; /* 相对于容器高度 */
   text-transform: uppercase;
   box-sizing: border-box;
-  border-radius: inherit; /* 继承父容器的圆角 */
 }
 </style>

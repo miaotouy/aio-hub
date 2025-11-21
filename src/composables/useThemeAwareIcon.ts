@@ -101,7 +101,28 @@ async function fetchAndProcessSvg(url: string): Promise<string> {
       throw new Error(`Failed to fetch SVG: ${response.statusText}`);
     }
 
+    // 检查 Content-Type，防止将 HTML 页面（如 404 页面）当做 SVG 处理
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("text/html")) {
+      throw new Error(`Expected SVG but got HTML for: ${url}`);
+    }
+
     const svgText = await response.text();
+
+    // 二次检查内容特征，确保它是 SVG 而不是 HTML 页面
+    const trimmed = svgText.trim();
+    if (
+      trimmed.toLowerCase().startsWith("<!doctype html") ||
+      trimmed.toLowerCase().startsWith("<html")
+    ) {
+      throw new Error(`Content looks like HTML, not SVG for: ${url}`);
+    }
+
+    // 宽松检查：必须包含 <svg 标签
+    if (!trimmed.includes("<svg")) {
+      throw new Error(`Invalid SVG content (no <svg> tag found) for: ${url}`);
+    }
+
     const processed = processSvgContent(svgText);
 
     // 缓存结果

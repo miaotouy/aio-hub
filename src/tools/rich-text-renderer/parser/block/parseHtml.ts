@@ -171,8 +171,16 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
     }
 
     if (inlineTokens.length > 0) {
-      const inlineNodes = ctx.parseInlines(inlineTokens);
-      nodes.push(...inlineNodes);
+      // 检查这些内联 tokens 是否包含块级结构（如列表、引用等）
+      // 如果包含，使用 parseBlocks 解析以支持 Markdown 块级语法
+      // 如果不包含，使用 parseInlines 解析以避免将普通文本包裹在 <p> 中
+      if (hasBlockLevelStructure(inlineTokens)) {
+        const blockNodes = ctx.parseBlocks(inlineTokens);
+        nodes.push(...blockNodes);
+      } else {
+        const inlineNodes = ctx.parseInlines(inlineTokens);
+        nodes.push(...inlineNodes);
+      }
     }
   }
 

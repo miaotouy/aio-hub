@@ -1,7 +1,13 @@
 <template>
   <div class="model-metadata-settings">
     <div class="settings-header">
-      <h2>模型元数据配置</h2>
+      <div class="settings-stats">
+        <span>总配置: {{ configs.length }}</span>
+        <span>已启用: {{ enabledCount }}</span>
+        <span v-if="searchText || filterEnabled !== 'all'">
+          当前显示: {{ filteredConfigs.length }}
+        </span>
+      </div>
       <div class="header-actions">
         <el-button @click="showPresets = true">查看预设</el-button>
         <el-button @click="handleImport">导入配置</el-button>
@@ -10,14 +16,6 @@
         <el-button @click="handleReset" type="warning">重置为默认</el-button>
         <el-button @click="handleAdd" type="primary">添加配置</el-button>
       </div>
-    </div>
-
-    <div class="settings-stats">
-      <span>总配置: {{ configs.length }}</span>
-      <span>已启用: {{ enabledCount }}</span>
-      <span v-if="searchText || filterEnabled !== 'all'">
-        当前显示: {{ filteredConfigs.length }}
-      </span>
     </div>
 
     <!-- 工具栏 -->
@@ -81,7 +79,9 @@
                 <span v-if="config.useRegex" class="regex-badge" title="使用正则表达式">RegEx</span>
                 <span class="config-value">{{ config.matchValue }}</span>
               </div>
-              <div v-if="config.properties?.group" class="config-group">分组: {{ config.properties.group }}</div>
+              <div v-if="config.properties?.group" class="config-group">
+                分组: {{ config.properties.group }}
+              </div>
               <div v-if="config.priority" class="config-priority">
                 优先级: {{ config.priority }}
               </div>
@@ -91,7 +91,11 @@
               <div class="config-path">{{ config.properties?.icon }}</div>
             </div>
 
-            <div v-if="config.createdAt" class="config-created-date" :title="`创建于 ${formatDateTime(config.createdAt)}`">
+            <div
+              v-if="config.createdAt"
+              class="config-created-date"
+              :title="`创建于 ${formatDateTime(config.createdAt)}`"
+            >
               {{ formatDate(config.createdAt) }}
             </div>
 
@@ -112,13 +116,7 @@
                   <Edit />
                 </el-icon>
               </el-button>
-              <el-button
-                text
-                circle
-                type="danger"
-                @click="handleDelete(config.id)"
-                title="删除"
-              >
+              <el-button text circle type="danger" @click="handleDelete(config.id)" title="删除">
                 <el-icon>
                   <Delete />
                 </el-icon>
@@ -157,11 +155,11 @@
     <BaseDialog v-model="showPresets" title="预设图标" width="80%">
       <template #content>
         <IconPresetSelector
-        :icons="presetIcons"
-        :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
-        show-search
-        show-categories
-        @select="selectPreset"
+          :icons="presetIcons"
+          :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
+          show-search
+          show-categories
+          @select="selectPreset"
         />
       </template>
     </BaseDialog>
@@ -466,9 +464,9 @@ function formatDate(dateString: string): string {
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
   if (diffInDays === 0) {
-    return '今天';
+    return "今天";
   } else if (diffInDays === 1) {
-    return '昨天';
+    return "昨天";
   } else if (diffInDays < 7) {
     return `${diffInDays}天前`;
   } else if (diffInDays < 30) {
@@ -487,11 +485,11 @@ function formatDate(dateString: string): string {
 function formatDateTime(dateString: string): string {
   const date = new Date(dateString);
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 </script>
@@ -513,7 +511,7 @@ function formatDateTime(dateString: string): string {
   gap: 0.5rem;
   margin-bottom: 0.75rem;
   flex-shrink: 0;
-  padding: 8px;
+  padding: 8px 16px;
   background: var(--container-bg);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
@@ -533,15 +531,8 @@ function formatDateTime(dateString: string): string {
 
 .settings-stats {
   display: flex;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem;
-  background: var(--container-bg);
-  border-radius: 4px;
+  gap: 1rem;
   font-size: 0.9rem;
-  flex-shrink: 0;
-  border-radius: 8px;
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 工具栏 */

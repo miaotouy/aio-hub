@@ -7,6 +7,7 @@ import type { ChatSession } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { processInlineData } from "@/composables/useAttachmentProcessor";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 
@@ -140,16 +141,43 @@ export function useChatResponseHandler() {
   /**
    * 完成节点生成（更新最终状态和元数据）
    */
-  const finalizeNode = (
+  const finalizeNode = async (
     session: ChatSession,
     nodeId: string,
     response: any,
     agentId: string
-  ): void => {
+  ): Promise<void> => {
     const finalNode = session.nodes[nodeId];
     if (!finalNode) return;
 
-    finalNode.content = response.content;
+    // 处理响应内容中的 Base64 数据，转换为附件
+    let processedContent = response.content;
+    let newAssets = [];
+    
+    try {
+      const result = await processInlineData(response.content, { sizeThresholdKB: 100 });
+      processedContent = result.processedText;
+      newAssets = result.newAssets;
+      
+      if (newAssets.length > 0) {
+        logger.info("✨ 模型响应中检测到 Base64 数据并已转换为附件", {
+          nodeId,
+          assetCount: newAssets.length,
+          originalLength: response.content.length,
+          processedLength: processedContent.length,
+        });
+        
+        // 将新附件添加到节点
+        finalNode.attachments = [...(finalNode.attachments || []), ...newAssets];
+      }
+    } catch (error) {
+      logger.warn("处理模型响应中的 Base64 数据失败，使用原始内容", {
+        nodeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    finalNode.content = processedContent;
     finalNode.status = "complete";
 
     // 保留流式更新时设置的推理内容和时间戳

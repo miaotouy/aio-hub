@@ -250,7 +250,7 @@ export function useChatExecutor() {
       await validateAndFixUsage(response, agentConfig.modelId, messages);
 
       // 完成节点生成
-      finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId);
+      await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId);
 
       logger.info("请求执行成功", {
         sessionId: session.id,

@@ -77,3 +77,34 @@ export function mapMimeToLanguage(mimeType: string): string {
   // 4. 如果都找不到，返回 'plaintext'
   return 'plaintext';
 }
+
+/**
+ * 根据 MIME 类型获取常见的文件扩展名
+ * @param mimeType - MIME 类型字符串，例如 'image/png', 'application/pdf'
+ * @returns 文件扩展名（不含点号），如果无法识别则返回 null
+ */
+export function getExtensionFromMimeType(mimeType: string): string | null {
+  if (!mimeType) return null;
+
+  const mainType = mimeType.split(';')[0].trim();
+
+  // 1. 使用反向映射直接查找（最可靠）
+  const reverseMap = getReverseMimeMap();
+  const extension = reverseMap[mainType];
+  if (extension) {
+    return extension;
+  }
+
+  // 2. 尝试从 MIME 类型的子类型中提取扩展名（例如 'image/png' -> 'png'）
+  const subtype = mainType.split('/')[1];
+  if (subtype) {
+    // 移除可能的 '+' 后缀（如 'svg+xml' -> 'svg'）
+    const potentialExt = subtype.split('+')[0];
+    // 只返回看起来像有效扩展名的结果（2-5个字符的小写字母/数字）
+    if (/^[a-z0-9]{2,5}$/.test(potentialExt)) {
+      return potentialExt;
+    }
+  }
+
+  return null;
+}

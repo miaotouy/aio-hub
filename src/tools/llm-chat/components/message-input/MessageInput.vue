@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
+import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
 import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
@@ -627,6 +628,51 @@ const handleDetach = async () => {
     logger.error("通过菜单分离窗口失败", { error });
   }
 };
+
+/**
+ * 处理粘贴事件，智能提取 Base64 图像
+ */
+const handlePaste = async (event: ClipboardEvent) => {
+  const text = event.clipboardData?.getData("text/plain");
+  if (!text) return;
+
+  // 检查是否包含潜在的 Base64 图像数据
+  if (!text.includes("data:image") || !text.includes(";base64,")) {
+    return; // 不含 Base64 图像，使用默认粘贴行为
+  }
+
+  event.preventDefault();
+  logger.info("检测到粘贴内容中可能含有 Base64 图像，开始处理...");
+
+  const { processedText, newAssets } = await processInlineData(text, {
+    sizeThresholdKB: 100, // 大于 100KB 的图像才转换为附件
+    assetImportOptions: {
+      sourceModule: "llm-chat-paste",
+    },
+  });
+
+  if (newAssets.length > 0) {
+    inputManager.addAssets(newAssets);
+    customMessage.success(`已自动转换 ${newAssets.length} 个粘贴的图像为附件`);
+  }
+
+  // 将处理后的文本插入到光标位置
+  const textarea = textareaRef.value;
+  if (textarea) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newContent =
+      inputText.value.substring(0, start) + processedText + inputText.value.substring(end);
+    inputText.value = newContent;
+
+    // 移动光标到插入文本的末尾
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = start + processedText.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  }
+};
 </script>
 <template>
   <div
@@ -689,6 +735,7 @@ const handleDetach = async () => {
             rows="1"
             @keydown="handleKeydown"
             @input="autoResize"
+            @paste="handlePaste"
           />
           <MessageInputToolbar
             :is-sending="isSending"

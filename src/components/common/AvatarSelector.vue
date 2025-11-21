@@ -15,7 +15,7 @@ import { extname } from "@tauri-apps/api/path";
  * 判断一个图标字符串是否像一个内置的文件名
  */
 function isLikelyFilename(icon: string): boolean {
-  return icon.includes('.') && !icon.includes('/') && !icon.includes('\\');
+  return icon.includes(".") && !icon.includes("/") && !icon.includes("\\");
 }
 
 interface Props {
@@ -153,19 +153,19 @@ const clearIcon = () => {
 // 解析最终的头像显示路径
 const resolvedAvatarSrc = computed(() => {
   if (!props.modelValue) return "";
-  
+
   const icon = props.modelValue.trim();
   if (!icon) return "";
-  
+
   // 如果是上传模式且提供了 entityId 和 profileType，需要解析为 appdata:// 路径
-  if (props.mode === 'upload' && props.entityId && isLikelyFilename(icon)) {
-    if (props.profileType === 'agent') {
+  if (props.mode === "upload" && props.entityId && isLikelyFilename(icon)) {
+    if (props.profileType === "agent") {
       return `appdata://llm-chat/agents/${props.entityId}/${icon}`;
-    } else if (props.profileType === 'user') {
+    } else if (props.profileType === "user") {
       return `appdata://llm-chat/user-profiles/${props.entityId}/${icon}`;
     }
   }
-  
+
   // 其他情况直接返回原值（emoji、URL、路径等）
   return icon;
 });
@@ -219,22 +219,20 @@ const handleIconClick = () => {
     </div>
     <div class="icon-controls-container">
       <div v-if="showModeSwitch" class="mode-switch-container">
-        <div class="switch-hint-wrapper">
-          <el-switch
-            :model-value="mode"
-            active-value="upload"
-            inactive-value="path"
-            active-text="上传专属头像"
-            inactive-text="输入路径/Emoji"
-            @change="$emit('update:mode', $event as 'path' | 'upload')"
-          />
-          <div class="form-hint">
-            {{
-              mode === "upload"
-                ? "上传的头像将与实体绑定存储，推荐用于自定义、非公开的头像。"
-                : "引用外部路径或输入Emoji，适合使用网络图片或预设图标。"
-            }}
-          </div>
+        <el-switch
+          :model-value="mode"
+          active-value="upload"
+          inactive-value="path"
+          active-text="上传专属头像"
+          inactive-text="输入路径/Emoji"
+          @change="$emit('update:mode', $event as 'path' | 'upload')"
+        />
+        <div class="form-hint">
+          {{
+            mode === "upload"
+              ? "上传的头像将与实体绑定存储，推荐用于自定义、非公开的头像。"
+              : "引用外部路径或输入Emoji，适合使用网络图片或预设图标。"
+          }}
         </div>
       </div>
 
@@ -292,12 +290,7 @@ const handleIconClick = () => {
   </div>
 
   <!-- 预设图标选择对话框 -->
-  <BaseDialog
-    v-model="showPresetIconDialog"
-    title="选择预设图标"
-    width="80%"
-    height="70vh"
-  >
+  <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" height="70vh">
     <template #content>
       <IconPresetSelector
         :icons="PRESET_ICONS"
@@ -330,21 +323,11 @@ const handleIconClick = () => {
 }
 
 .mode-switch-container {
-  flex: 1;
-  margin-bottom: 12px;
-  padding: 8px;
-  border-radius: 4px;
-}
-
-.switch-hint-wrapper {
   display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.switch-hint-wrapper .form-hint {
-  margin-top: 0;
+  flex-direction: column;
+  gap: 4px;
   flex: 1;
+  border-radius: 4px;
 }
 
 .upload-mode-controls {
@@ -359,7 +342,11 @@ const handleIconClick = () => {
 .form-hint {
   font-size: 12px;
   color: var(--text-color-secondary);
-  margin-top: 8px;
+  margin-top: 6px;
+}
+
+.mode-switch-container .form-hint {
+  margin-top: 0;
 }
 
 /* 可点击的头像 */

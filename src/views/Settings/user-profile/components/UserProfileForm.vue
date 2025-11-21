@@ -1,5 +1,10 @@
 <template>
-  <el-form :model="formData" label-width="80px" label-position="left">
+  <el-form
+    :model="formData"
+    label-width="80px"
+    label-position="left"
+    require-asterisk-position="right"
+  >
     <el-form-item label="名称" :required="required">
       <el-input
         v-model="formData.name"
@@ -62,7 +67,7 @@
         "
       />
     </div>
- 
+
     <!-- 可选的元数据显示 -->
     <template v-if="showMetadata">
       <el-divider />

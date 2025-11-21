@@ -70,6 +70,26 @@ export class Tokenizer {
         continue;
       }
 
+      // 转义字符 (高优先级)
+      if (remaining.startsWith("\\")) {
+        if (remaining.length > 1) {
+          const nextChar = remaining[1];
+          // ASCII 标点符号范围：
+          // ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+          if (/^[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(nextChar)) {
+            tokens.push({ type: "text", content: nextChar });
+            i += 2;
+            atLineStart = false;
+            continue;
+          }
+        }
+        // 如果不是有效的转义序列，或者只有反斜杠，当作普通文本
+        tokens.push({ type: "text", content: "\\" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+
       // Autolink: <url> 或 <email>
       // 必须在 HTML 标签检查之前，避免 <https://...> 被识别为 HTML 标签
       const autolinkRegex = /^<((?:https?|ftps?|mailto):[^\s>]+)>/;
@@ -426,7 +446,7 @@ export class Tokenizer {
       }
 
       // 普通文本
-      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n|\$|“|”|"/;
+      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n|\$|“|”|"|\\/;
       const nextSpecialIndex = remaining.search(specialChars);
 
       const textContent =

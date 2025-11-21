@@ -44,6 +44,8 @@ export interface LlmParameterSupport {
   // 特殊功能
   thinking?: boolean; // Claude 思考模式
   thinkingConfig?: boolean; // Gemini 思考配置
+  thinkingLevel?: boolean; // Gemini 思考级别
+  mediaResolution?: boolean; // Gemini 媒体分辨率
   webSearch?: boolean; // 网络搜索
   fileSearch?: boolean; // 文件搜索
   reasoning?: boolean; // 推理模式
@@ -124,6 +126,8 @@ export interface ModelCapabilities {
   reasoning?: boolean;
   /** 是否支持图像生成 */
   imageGeneration?: boolean;
+  /** 是否支持音频输入/输出 */
+  audio?: boolean;
   /** 是否支持视频生成 */
   videoGeneration?: boolean;
   /** 是否支持音乐生成 */

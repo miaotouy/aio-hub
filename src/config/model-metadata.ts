@@ -795,6 +795,18 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "美团提供商图标",
   },
+  {
+    id: "model-prefix-longcat",
+    matchType: "modelPrefix",
+    matchValue: "longcat",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/meituan-color.svg`,
+      group: "Meituan",
+    },
+    priority: 20,
+    enabled: true,
+    description: "美团 Longcat 系列模型图标",
+  },
 
   // API 服务商
   {
@@ -808,6 +820,18 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 10,
     enabled: true,
     description: "OpenRouter 提供商图标",
+  },
+  {
+    id: "model-prefix-openrouter",
+    matchType: "modelPrefix",
+    matchValue: "openrouter",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/openrouter.svg`,
+      group: "OpenRouter",
+    },
+    priority: 20,
+    enabled: true,
+    description: "OpenRouter 模型区匹配图标",
   },
 
   // === Model Prefix 级别匹配（优先级 20-25） ===
@@ -1646,6 +1670,18 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
 
   // Microsoft 系列模型
   {
+    id: "model-prefix-microsoft",
+    matchType: "modelPrefix",
+    matchValue: "microsoft",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+      group: "Microsoft",
+    },
+    priority: 15,
+    enabled: true,
+    description: "Microsoft 系列模型（通过 ID 匹配）",
+  },
+  {
     id: "model-prefix-phi",
     matchType: "modelPrefix",
     matchValue: "phi-",
@@ -1974,6 +2010,23 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "可灵视频生成模型图标",
   },
+  // Google Veo 视频生成
+  {
+    id: "model-veo",
+    matchType: "modelPrefix",
+    matchValue: "veo",
+    properties: {
+      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      group: "Gemini",
+      capabilities: {
+        videoGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "Veo 视频生成模型",
+  },
+
 
   // Suno 音乐生成
   {

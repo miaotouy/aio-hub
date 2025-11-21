@@ -867,6 +867,50 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
 
   // Google 系列模型
   {
+    id: "model-prefix-gemini-3",
+    matchType: "modelPrefix",
+    matchValue: "gemini-3",
+    properties: {
+      group: "Gemini 3",
+    },
+    priority: 22,
+    enabled: true,
+    description: "Gemini 3 系列模型分组",
+  },
+  {
+    id: "model-prefix-gemini-2.5",
+    matchType: "modelPrefix",
+    matchValue: "gemini-2.5",
+    properties: {
+      group: "Gemini 2.5",
+    },
+    priority: 22,
+    enabled: true,
+    description: "Gemini 2.5 系列模型分组",
+  },
+    {
+    id: "model-prefix-gemini-2.0",
+    matchType: "modelPrefix",
+    matchValue: "gemini-2.0",
+    properties: {
+      group: "Gemini 2.0",
+    },
+    priority: 22,
+    enabled: true,
+    description: "Gemini 2.0 系列模型分组",
+  },
+  {
+    id: "model-prefix-gemini-1.5",
+    matchType: "modelPrefix",
+    matchValue: "gemini-1.5",
+    properties: {
+      group: "Gemini 1.5",
+    },
+    priority: 22,
+    enabled: true,
+    description: "Gemini 1.5 系列模型分组",
+  },
+  {
     id: "model-prefix-gemini",
     matchType: "modelPrefix",
     matchValue: "gemini-",

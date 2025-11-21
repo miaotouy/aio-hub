@@ -3,7 +3,7 @@
     :model-value="visible"
     @update:model-value="handleVisibleChange"
     title="创建用户档案"
-    width="500px"
+    width="80vw"
   >
     <template #content>
       <UserProfileForm

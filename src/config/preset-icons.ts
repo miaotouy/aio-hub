@@ -262,6 +262,12 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     category: "国内 AI",
   },
   {
+    name: "龙猫 (彩色)",
+    path: "longcat-color.svg",
+    suggestedFor: ["meituan", "longcat"],
+    category: "国内 AI",
+  },
+  {
     name: "Z AI",
     path: "zai.svg",
     suggestedFor: ["z-ai"],
@@ -287,7 +293,7 @@ export const PRESET_ICONS: PresetIconInfo[] = [
   },
   {
     name: "盘古 (Ascend Tribe)",
-    path: "ascend_tribe.svg",
+    path: "ascend_tribe.png",
     suggestedFor: ["pangu", "ascend-tribe"],
     category: "国内 AI",
   },

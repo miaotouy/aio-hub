@@ -788,7 +788,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "meituan",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/meituan-color.svg`,
+      icon: `${PRESET_ICONS_DIR}/longcat-color.svg`,
       group: "Meituan",
     },
     priority: 10,
@@ -800,7 +800,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "longcat",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/meituan-color.svg`,
+      icon: `${PRESET_ICONS_DIR}/longcat-color.svg`,
       group: "Meituan",
     },
     priority: 20,

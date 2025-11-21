@@ -197,6 +197,9 @@ export function useFlowTreeGraph(
   const d3Nodes = ref<D3Node[]>([]);
   const d3Links = ref<D3Link[]>([]);
 
+  // 记录上一次的拓扑结构指纹，用于判断是否需要重新布局
+  let lastStructureFingerprint = "";
+
   // 用于子树拖拽的状态
   const subtreeDragState = reactive({
     isDragging: false,
@@ -238,6 +241,17 @@ export function useFlowTreeGraph(
 
     return counts;
   }
+  /**
+   * 计算会话的拓扑结构指纹
+   * 只关注节点ID和父子关系，不关注内容
+   */
+  function getStructureFingerprint(session: ChatSession): string {
+    return Object.values(session.nodes)
+      .map(n => `${n.id}:${n.parentId || ''}`)
+      .sort()
+      .join('|');
+  }
+
   /**
    * 截断文本用于显示
    */
@@ -546,8 +560,13 @@ export function useFlowTreeGraph(
     if (!session) {
       nodes.value = [];
       edges.value = [];
+      lastStructureFingerprint = "";
       return;
     }
+
+    // 计算当前的拓扑结构指纹
+    const currentFingerprint = getStructureFingerprint(session);
+    const isStructureChanged = forceResetPosition || currentFingerprint !== lastStructureFingerprint;
 
     // 记录旧节点位置，用于在更新时平滑过渡，避免整个树每次都从 (0, 0) 重新收缩成一团
     const previousNodesMap = new Map<string, FlowNode>();
@@ -647,7 +666,25 @@ export function useFlowTreeGraph(
       }
     });
 
-    logger.info(`准备更新图表，转换得到 ${flowNodes.length} 个节点和 ${flowEdges.length} 条边。`);
+    // 如果拓扑结构没有变化，只是内容更新（如流式生成），则仅更新节点数据，不重新初始化布局
+    if (!isStructureChanged && nodes.value.length > 0) {
+      logger.info(`检测到内容更新（非结构变化），更新节点数据，跳过布局重算`, {
+        nodeCount: flowNodes.length,
+        edgeCount: flowEdges.length,
+      });
+
+      // 直接替换 nodes 和 edges，触发 Vue Flow 更新
+      // 注意：flowNodes 在生成时已经继承了 previousNodesMap 中的位置信息，
+      // 所以这里直接赋值不会导致位置跳变，同时能确保 data 的更新被视图响应。
+      nodes.value = flowNodes;
+      edges.value = flowEdges;
+
+      return; // 跳过布局重算
+    }
+
+    // 拓扑结构发生变化，需要完整的布局重算
+    logger.info(`准备更新图表（结构变化），转换得到 ${flowNodes.length} 个节点和 ${flowEdges.length} 条边。`);
+    lastStructureFingerprint = currentFingerprint;
     nodes.value = flowNodes;
     edges.value = flowEdges;
 

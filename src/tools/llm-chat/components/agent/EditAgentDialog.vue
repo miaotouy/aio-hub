@@ -2,13 +2,13 @@
 import { reactive, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode, IconMode } from "../../types";
-import type { IconUpdatePayload } from "@/components/common/AvatarEditor.vue";
+import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { useUserProfileStore } from "../../userProfileStore";
-import AvatarEditor from "@/components/common/AvatarEditor.vue";
+import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref } from "vue";
 import LlmThinkRulesEditor from "@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue";
@@ -208,7 +208,7 @@ const handleSave = () => {
       </el-form-item>
 
       <el-form-item label="图标">
-        <AvatarEditor
+        <AvatarSelector
           :model-value="editForm.icon"
           @update:icon="handleIconUpdate"
           :mode="editForm.iconMode === 'builtin' ? 'upload' : 'path'"

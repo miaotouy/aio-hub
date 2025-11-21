@@ -198,8 +198,8 @@ const handleIconClick = () => {
 </script>
 
 <template>
-  <div class="icon-editor-layout">
-    <div class="icon-preview-container">
+  <div class="avatar-selector-layout">
+    <div class="avatar-preview-container">
       <el-tooltip
         :content="isImagePath ? '点击放大查看' : ''"
         :disabled="!isImagePath"
@@ -311,7 +311,7 @@ const handleIconClick = () => {
 </template>
 
 <style scoped>
-.icon-editor-layout {
+.avatar-selector-layout {
   display: flex;
   flex-direction: row;
   gap: 16px;
@@ -319,7 +319,7 @@ const handleIconClick = () => {
   align-items: flex-start;
 }
 
-.icon-preview-container {
+.avatar-preview-container {
   flex-shrink: 0;
 }
 

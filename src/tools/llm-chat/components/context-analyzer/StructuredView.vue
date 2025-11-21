@@ -229,6 +229,30 @@
             </div>
           </template>
           <div class="message-content">{{ msg.content }}</div>
+          <!-- 附件分析 -->
+          <div v-if="msg.attachments && msg.attachments.length > 0" class="attachments-section">
+            <div class="attachments-title">附件分析</div>
+            <div class="attachments-grid">
+              <div v-for="(att, attIndex) in msg.attachments" :key="attIndex" class="attachment-card">
+                <div class="attachment-info">
+                  <span class="attachment-name">{{ att.name }}</span>
+                  <span class="attachment-size">{{ formatFileSize(att.size) }}</span>
+                </div>
+                <div class="attachment-token-info">
+                  <el-tooltip v-if="att.error" :content="att.error" placement="top">
+                    <el-tag type="danger" size="small" effect="dark">计算错误</el-tag>
+                  </el-tooltip>
+                  <el-tag v-else-if="att.tokenCount !== undefined" :type="att.isEstimated ? 'warning' : 'success'" size="small">
+                    {{ att.tokenCount.toLocaleString() }} tokens
+                  </el-tag>
+                  <el-tag v-else type="info" size="small">N/A</el-tag>
+                  <div v-if="att.metadata?.width" class="attachment-meta">
+                    {{ att.metadata.width }}x{{ att.metadata.height }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </InfoCard>
       </div>
     </div>
@@ -242,6 +266,13 @@ import type { ContextPreviewData } from '../../composables/useChatHandler';
 defineProps<{
   contextData: ContextPreviewData;
 }>();
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${units[i]}`;
+};
 </script>
 
 <style scoped>
@@ -415,5 +446,66 @@ defineProps<{
   max-height: 400px;
   overflow-y: auto;
   line-height: 1.6;
+}
+
+.attachments-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.attachments-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+}
+
+.attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.attachment-card {
+  background-color: var(--el-fill-color-light);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attachment-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.attachment-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+}
+
+.attachment-size {
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+}
+
+.attachment-token-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+}
+
+.attachment-meta {
+  font-family: var(--font-family-code);
+  font-size: 11px;
 }
 </style>

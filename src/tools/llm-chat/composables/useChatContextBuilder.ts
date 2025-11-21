@@ -6,12 +6,15 @@
 import type { ChatSession, ChatMessageNode, ContextPostProcessRule } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
+import { getMatchedModelProperties } from "@/config/model-metadata";
+import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { useChatAssetProcessor } from "./useChatAssetProcessor";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { useAgentStore } from "../agentStore";
 import type { ProcessableMessage } from "./useMessageProcessor";
+import type { Asset, AssetMetadata } from "@/types/asset-management";
 
 const logger = createModuleLogger("llm-chat/context-builder");
 
@@ -59,6 +62,16 @@ export interface ContextPreviewData {
     agentName?: string;
     /** 节点所使用的智能体图标（快照） */
     agentIcon?: string;
+    /** 附件的详细分析 */
+    attachments?: Array<{
+      name: string;
+      type: Asset["type"];
+      size: number;
+      tokenCount?: number;
+      isEstimated: boolean;
+      metadata?: AssetMetadata;
+      error?: string;
+    }>;
   }>;
   /** 最终构建的消息列表（用于原始请求展示） */
   finalMessages: Array<{
@@ -828,30 +841,119 @@ export function useChatContextBuilder() {
     // 从节点路径中提取会话历史
     const chatHistoryData = await Promise.all(
       nodePath
-        .filter((node: ChatMessageNode) => node.isEnabled !== false && (node.role === 'user' || node.role === 'assistant'))
+        .filter(
+          (node: ChatMessageNode) =>
+            node.isEnabled !== false && (node.role === "user" || node.role === "assistant")
+        )
         .map(async (node: ChatMessageNode, index: number) => {
-          let content = typeof node.content === "string" ? node.content : JSON.stringify(node.content);
-          if (node.role === "user" && node.attachments && node.attachments.length > 0) {
-            const { getTextAttachmentsContent } = useChatAssetProcessor();
-            const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-            if (textAttachmentsContent) content = `${content}\n\n${textAttachmentsContent}`;
-          }
-          
-          let tokenCount: number | undefined;
-          const sanitizedContent = sanitizeForCharCount(content);
-          if (agentConfig) { // 只有在有 Agent 配置时才计算 token
+          // --- 文本内容和 Token 计算 ---
+          const { getTextAttachmentsContent } = useChatAssetProcessor();
+          const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
+          const combinedTextContent = textAttachmentsContent
+            ? `${node.content}\n\n${textAttachmentsContent}`
+            : node.content;
+
+          const sanitizedContent = sanitizeForCharCount(combinedTextContent);
+          let textTokenCount: number | undefined;
+
+          if (agentConfig) {
             try {
-              const tokenResult = (node.role === "user" && node.attachments && node.attachments.length > 0)
-                ? await tokenCalculatorService.calculateMessageTokens(content, agentConfig.modelId, node.attachments)
-                : await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
-              tokenCount = tokenResult.count;
-              chatHistoryTokenCount += tokenResult.count;
-              if (tokenResult.isEstimated) isEstimated = true;
+              const textTokenResult = await tokenCalculatorService.calculateTokens(
+                combinedTextContent,
+                agentConfig.modelId
+              );
+              textTokenCount = textTokenResult.count;
+              if (textTokenResult.isEstimated) isEstimated = true;
             } catch (error) {
-              logger.warn("计算会话历史 token 失败", { nodeId: node.id, index, error: error instanceof Error ? error.message : String(error) });
+              logger.warn("计算历史消息文本 token 失败", {
+                nodeId: node.id,
+                error: error instanceof Error ? error.message : String(error),
+              });
             }
           }
-          return { role: node.role, content, charCount: sanitizedContent.length, tokenCount, source: "session_history", nodeId: node.id, index };
+
+          // --- 附件分析和 Token 计算 ---
+          let attachmentsData: ContextPreviewData["chatHistory"][0]["attachments"];
+          let attachmentsTokenCount = 0;
+
+          if (agentConfig && node.attachments && node.attachments.length > 0) {
+            const modelMetadata = getMatchedModelProperties(agentConfig.modelId);
+            const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
+
+            attachmentsData = await Promise.all(
+              node.attachments.map(async (asset) => {
+                let tokenCount: number | undefined;
+                let isAttachmentEstimated = false;
+                let attachmentError: string | undefined;
+
+                if (asset.type === "image" && visionTokenCost) {
+                  if (asset.metadata?.width && asset.metadata?.height) {
+                    try {
+                      tokenCount = tokenCalculatorEngine.calculateImageTokens(
+                        asset.metadata.width,
+                        asset.metadata.height,
+                        visionTokenCost
+                      );
+                      isAttachmentEstimated = false;
+                    } catch (e) {
+                      attachmentError = e instanceof Error ? e.message : "图片 Token 计算异常";
+                      isAttachmentEstimated = true;
+                    }
+                  } else {
+                    attachmentError = "缺少图片尺寸信息，使用默认值估算";
+                    // 使用默认值进行估算
+                    tokenCount = tokenCalculatorEngine.calculateImageTokens(
+                      1024,
+                      1024,
+                      visionTokenCost
+                    );
+                    isAttachmentEstimated = true;
+                  }
+                } else if (asset.type !== "image") {
+                  // 非图片附件的 Token 已包含在文本内容中
+                  tokenCount = 0;
+                  isAttachmentEstimated = false;
+                } else {
+                  attachmentError = "模型不支持图片或计费规则未知";
+                  isAttachmentEstimated = true;
+                }
+                
+                if (tokenCount) {
+                  attachmentsTokenCount += tokenCount;
+                }
+                if (isAttachmentEstimated) {
+                  isEstimated = true;
+                }
+
+                return {
+                  name: asset.name,
+                  type: asset.type,
+                  size: asset.size,
+                  tokenCount,
+                  isEstimated: isAttachmentEstimated,
+                  metadata: asset.metadata,
+                  error: attachmentError,
+                };
+              })
+            );
+          }
+          
+          // --- 合并 Token ---
+          const totalNodeTokenCount = (textTokenCount ?? 0) + attachmentsTokenCount;
+          if (textTokenCount !== undefined) {
+              chatHistoryTokenCount += totalNodeTokenCount;
+          }
+
+          return {
+            role: node.role,
+            content: combinedTextContent,
+            charCount: sanitizedContent.length,
+            tokenCount: textTokenCount !== undefined ? totalNodeTokenCount : undefined,
+            source: "session_history",
+            nodeId: node.id,
+            index,
+            attachments: attachmentsData,
+          };
         })
     );
 

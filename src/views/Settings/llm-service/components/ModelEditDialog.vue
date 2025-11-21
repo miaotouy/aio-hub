@@ -325,6 +325,13 @@ const applyOutputPreset = (value: number) => {
             class="capability-item"
           >
             <el-switch v-model="modelEditForm.capabilities![capability.key]" size="small" />
+            <el-icon
+              v-if="capability.icon"
+              class="capability-icon"
+              :style="{ color: capability.color }"
+            >
+              <component :is="capability.icon" />
+            </el-icon>
             <span class="capability-label">{{ capability.label }}</span>
             <el-tooltip :content="capability.description" placement="top" effect="dark">
               <el-icon class="capability-info">
@@ -461,7 +468,7 @@ const applyOutputPreset = (value: number) => {
 /* 能力开关网格布局 */
 .capabilities-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 16px 12px;
   padding: 8px 0 0 28px;
 }
@@ -481,12 +488,23 @@ const applyOutputPreset = (value: number) => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
+.capability-icon {
+  margin: 0 2px 0 4px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .capability-label {
   font-size: 13px;
   color: var(--text-color);
   flex: 1;
   user-select: none;
   cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .capability-info {

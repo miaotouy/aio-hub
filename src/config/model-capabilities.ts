@@ -3,25 +3,28 @@
  *
  * 定义了所有可用的模型能力及其展示信息，包括：
  * - UI 展示标签和描述
- * - 图标组件引用（Element Plus Icons）
+ * - 图标组件引用（Lucide Icons）
  * - 图标颜色和样式
  */
 
 import { markRaw, type Component } from 'vue';
 import {
-  View,
-  Search,
-  Tools,
-  Document,
-  Cpu,
-  MagicStick,
-  FolderOpened,
-  Picture,
-  Film,
-  Headset,
-  DataLine,
-  Sort,
-} from '@element-plus/icons-vue';
+  Eye,
+  Brain,
+  BrainCircuit,
+  Globe,
+  Blocks,
+  Terminal,
+  FileSearch,
+  Image,
+  Mic,
+  Video,
+  Music,
+  Network,
+  ListOrdered,
+  Monitor,
+  FileText,
+} from 'lucide-vue-next';
 
 /**
  * 能力配置项
@@ -55,97 +58,121 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     key: "vision",
     label: "视觉",
     description: "支持图像输入 (Vision Language Model)",
-    icon: markRaw(View),
-    color: "#409eff",
+    icon: markRaw(Eye),
+    color: "#0ea5e9", // Sky 500 - 清澈的视觉
     className: "vision",
   },
   {
     key: "thinking",
     label: "思考",
     description: "启用模型的'思考'模式 (例如 Google Gemini, Anthropic Claude)",
-    icon: markRaw(Cpu),
-    color: "#9c27b0",
+    icon: markRaw(Brain),
+    color: "#a855f7", // Purple 500 - 智慧与神秘
     className: "thinking",
   },
   {
     key: "reasoning",
     label: "推理",
     description: "启用模型的'推理'模式 (例如 OpenAI o-series 模型的 reasoning 参数)",
-    icon: markRaw(MagicStick),
-    color: "#ff6b9d",
+    icon: markRaw(BrainCircuit),
+    color: "#ec4899", // Pink 500 - 活跃的思维火花
     className: "reasoning",
   },
   {
     key: "webSearch",
     label: "联网",
     description: "支持实时联网搜索获取最新信息",
-    icon: markRaw(Search),
-    color: "#67c23a",
+    icon: markRaw(Globe),
+    color: "#10b981", // Emerald 500 - 畅通的网络
     className: "web-search",
   },
   {
     key: "toolUse",
     label: "工具",
     description: "支持 Function Calling / Tool Use",
-    icon: markRaw(Tools),
-    color: "#e6a23c",
+    icon: markRaw(Blocks),
+    color: "#f97316", // Orange 500 - 实用的工具箱
     className: "tool-use",
   },
   {
     key: "codeExecution",
     label: "代码",
     description: "支持代码解释器执行代码",
-    icon: markRaw(Document),
-    color: "#f56c6c",
+    icon: markRaw(Terminal),
+    color: "#3b82f6", // Blue 500 - 科技与代码
     className: "code-exec",
   },
   {
     key: "fileSearch",
     label: "文件",
     description: "支持文件搜索和分析功能",
-    icon: markRaw(FolderOpened),
-    color: "#909399",
+    icon: markRaw(FileSearch),
+    color: "#eab308", // Yellow 500 - 经典的文件夹色
     className: "file-search",
   },
   {
     key: "imageGeneration",
     label: "图像生成",
     description: "支持文本到图像的生成",
-    icon: markRaw(Picture),
-    color: "#f57c00",
+    icon: markRaw(Image),
+    color: "#f43f5e", // Rose 500 - 艺术创作
     className: "image-gen",
+  },
+  {
+    key: "audio",
+    label: "音频",
+    description: "支持音频输入或输出",
+    icon: markRaw(Mic),
+    color: "#06b6d4", // Cyan 500 - 清晰的声波
+    className: "audio",
   },
   {
     key: "videoGeneration",
     label: "视频生成",
     description: "支持文本到视频的生成",
-    icon: markRaw(Film),
-    color: "#1976d2",
+    icon: markRaw(Video),
+    color: "#8b5cf6", // Violet 500 - 动态影像
     className: "video-gen",
   },
   {
     key: "musicGeneration",
     label: "音乐生成",
     description: "支持文本到音乐的生成",
-    icon: markRaw(Headset),
-    color: "#ff4081",
+    icon: markRaw(Music),
+    color: "#d946ef", // Fuchsia 500 - 律动的旋律
     className: "music-gen",
   },
   {
     key: "embedding",
     label: "嵌入",
     description: "支持生成文本嵌入向量 (Embedding)",
-    icon: markRaw(DataLine),
-    color: "#607d8b",
+    icon: markRaw(Network),
+    color: "#64748b", // Slate 500 - 稳重的底层数据
     className: "embedding",
   },
   {
     key: "rerank",
     label: "重排",
     description: "支持对文档或结果进行重排序 (Rerank)",
-    icon: markRaw(Sort),
-    color: "#8d6e63",
+    icon: markRaw(ListOrdered),
+    color: "#14b8a6", // Teal 500 - 有序整理
     className: "rerank",
+  },
+  {
+    key: "computerUse",
+    label: "计算机",
+    description: "支持模拟用户操作计算机 (Computer Use)",
+    icon: markRaw(Monitor),
+    color: "#6366f1", // Indigo 500 - 智能控制
+    className: "computer-use",
+  },
+  {
+    key: "document",
+    label: "文档",
+    description: "支持原生文档格式处理 (如 PDF)",
+    icon: markRaw(FileText),
+    color: "#ef4444", // Red 500 - 致敬 PDF 图标
+    className: "document",
   },
 ] as const;
 

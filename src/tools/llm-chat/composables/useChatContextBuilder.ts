@@ -653,6 +653,12 @@ export function useChatContextBuilder() {
     ) => ProcessableMessage[],
     agentId?: string
   ): Promise<ContextPreviewData | null> => {
+    const sanitizeForCharCount = (text: string): string => {
+      if (!text) return "";
+      const base64ImageRegex = /!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g;
+      return text.replace(base64ImageRegex, "[IMAGE]");
+    };
+
     // 获取目标节点
     const targetNode = session.nodes[targetNodeId];
     if (!targetNode) {
@@ -778,15 +784,16 @@ export function useChatContextBuilder() {
       const systemMessages = messages.filter((m) => m.role === "system");
       if (systemMessages.length > 0) {
         const combinedSystemContent = systemMessages.map((m) => typeof m.content === "string" ? m.content : JSON.stringify(m.content)).join("\n\n");
+        const sanitizedSystemContent = sanitizeForCharCount(combinedSystemContent);
         try {
           const tokenResult = await tokenCalculatorService.calculateTokens(combinedSystemContent, agentConfig.modelId);
           systemPromptTokenCount = tokenResult.count;
           isEstimated = tokenResult.isEstimated ?? false;
           tokenizerName = tokenResult.tokenizerName;
-          systemPromptData = { content: combinedSystemContent, charCount: combinedSystemContent.length, tokenCount: tokenResult.count, source: "agent_preset" };
+          systemPromptData = { content: combinedSystemContent, charCount: sanitizedSystemContent.length, tokenCount: tokenResult.count, source: "agent_preset" };
         } catch (error) {
           logger.warn("计算系统消息 token 失败", { error: error instanceof Error ? error.message : String(error) });
-          systemPromptData = { content: combinedSystemContent, charCount: combinedSystemContent.length, source: "agent_preset" };
+          systemPromptData = { content: combinedSystemContent, charCount: sanitizedSystemContent.length, source: "agent_preset" };
         }
       }
     }
@@ -804,6 +811,7 @@ export function useChatContextBuilder() {
             ? (typeof messageInFinal.content === "string" ? messageInFinal.content : JSON.stringify(messageInFinal.content))
             : (typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content));
           
+          const sanitizedContent = sanitizeForCharCount(content);
           let tokenCount: number | undefined;
           try {
             const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
@@ -813,7 +821,7 @@ export function useChatContextBuilder() {
           } catch (error) {
             logger.warn("计算预设消息 token 失败", { index, error: error instanceof Error ? error.message : String(error) });
           }
-          return { role: msg.role, content, charCount: content.length, tokenCount, source: "agent_preset", index };
+          return { role: msg.role, content, charCount: sanitizedContent.length, tokenCount, source: "agent_preset", index };
         })
     ) : [];
 
@@ -830,6 +838,7 @@ export function useChatContextBuilder() {
           }
           
           let tokenCount: number | undefined;
+          const sanitizedContent = sanitizeForCharCount(content);
           if (agentConfig) { // 只有在有 Agent 配置时才计算 token
             try {
               const tokenResult = (node.role === "user" && node.attachments && node.attachments.length > 0)
@@ -842,7 +851,7 @@ export function useChatContextBuilder() {
               logger.warn("计算会话历史 token 失败", { nodeId: node.id, index, error: error instanceof Error ? error.message : String(error) });
             }
           }
-          return { role: node.role, content, charCount: content.length, tokenCount, source: "session_history", nodeId: node.id, index };
+          return { role: node.role, content, charCount: sanitizedContent.length, tokenCount, source: "session_history", nodeId: node.id, index };
         })
     );
 

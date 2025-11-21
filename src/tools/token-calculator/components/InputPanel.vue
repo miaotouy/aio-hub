@@ -2,7 +2,7 @@
   <div ref="rootEl" class="input-panel">
     <div class="panel-header">
       <span class="panel-title">输入文本</span>
-      <el-tag type="info" size="small" effect="plain">{{ inputText.length }} 字符</el-tag>
+      <el-tag type="info" size="small" effect="plain">{{ sanitizedCharacterCount }} 字符</el-tag>
     </div>
     <div class="panel-content">
       <el-input
@@ -21,6 +21,7 @@ import { ref } from 'vue';
 
 interface Props {
   inputText: string;
+  sanitizedCharacterCount: number;
 }
 
 interface Emits {

@@ -18,6 +18,7 @@
         <InputPanel
           ref="inputPanel"
           v-model:input-text="inputText"
+          :sanitized-character-count="sanitizedCharacterCount"
           @update:input-text="handleInputChange"
         />
 
@@ -34,7 +35,7 @@
           :is-calculating="isCalculating"
           :calculation-result="calculationResult"
           :tokenized-text="tokenizedText"
-          :character-count="inputText.length"
+          :character-count="sanitizedCharacterCount"
           :get-token-color="getTokenColor"
         />
       </div>
@@ -62,6 +63,7 @@ const {
   tokenizedText,
   maxDisplayTokens,
   availableModels,
+  sanitizedCharacterCount,
   handleInputChange,
   setInputText,
   clearAll,

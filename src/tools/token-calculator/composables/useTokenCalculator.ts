@@ -210,6 +210,7 @@ class TokenCalculatorEngine {
       };
     }
 
+    const sanitizedText = this._sanitizeText(text);
     const tokenizer = await this.getTokenizer(modelId);
 
     if (tokenizer) {
@@ -217,7 +218,7 @@ class TokenCalculatorEngine {
       // 先尝试从元数据获取分词器名称
       const metadata = getMatchedModelProperties(modelId);
       let tokenizerName = metadata?.tokenizer;
-      
+
       // 如果元数据中没有，则尝试从正则匹配获取
       if (!tokenizerName) {
         const mapping = this.findTokenizerMapping(modelId);
@@ -225,7 +226,7 @@ class TokenCalculatorEngine {
       }
 
       try {
-        const encoded = tokenizer.encode(text, undefined, {
+        const encoded = tokenizer.encode(sanitizedText, undefined, {
           add_special_tokens: true,
         });
         return {
@@ -236,12 +237,12 @@ class TokenCalculatorEngine {
       } catch (error) {
         console.error(`Error encoding text with ${tokenizerName}:`, error);
         // 降级到估算
-        return this.estimateTokens(text);
+        return this.estimateTokens(sanitizedText);
       }
     }
 
     // 无法找到匹配的 tokenizer，使用估算
-    return this.estimateTokens(text);
+    return this.estimateTokens(sanitizedText);
   }
 
   /**
@@ -252,10 +253,11 @@ class TokenCalculatorEngine {
    * - 特殊字符（标点符号等）：约 1 字符 = 1 token
    */
   estimateTokens(text: string): TokenCalculationResult {
+    const sanitizedText = this._sanitizeText(text);
     // 统计不同类型的字符
-    const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
-    const specialChars = (text.match(/[^\w\s\u4e00-\u9fa5]/g) || []).length;
-    const otherChars = text.length - chineseChars - specialChars;
+    const chineseChars = (sanitizedText.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const specialChars = (sanitizedText.match(/[^\w\s\u4e00-\u9fa5]/g) || []).length;
+    const otherChars = sanitizedText.length - chineseChars - specialChars;
 
     // 应用不同的估算规则
     const estimatedCount = Math.ceil(
@@ -286,11 +288,12 @@ class TokenCalculatorEngine {
       };
     }
 
+    const sanitizedText = this._sanitizeText(text);
     const tokenizer = await this.getTokenizerByName(tokenizerName);
 
     if (tokenizer) {
       try {
-        const encoded = tokenizer.encode(text, undefined, {
+        const encoded = tokenizer.encode(sanitizedText, undefined, {
           add_special_tokens: true,
         });
         return {
@@ -301,12 +304,12 @@ class TokenCalculatorEngine {
       } catch (error) {
         console.error(`Error encoding text with ${tokenizerName}:`, error);
         // 降级到估算
-        return this.estimateTokens(text);
+        return this.estimateTokens(sanitizedText);
       }
     }
 
     // 无法找到分词器，使用估算
-    return this.estimateTokens(text);
+    return this.estimateTokens(sanitizedText);
   }
 
   /**
@@ -341,6 +344,7 @@ class TokenCalculatorEngine {
       return { tokens: [] };
     }
 
+    const sanitizedText = this._sanitizeText(text);
     let tokenizer: PreTrainedTokenizer | null = null;
 
     // 根据标识符类型获取 tokenizer
@@ -356,7 +360,7 @@ class TokenCalculatorEngine {
 
     try {
       // 编码文本获取 token IDs
-      const encoded = tokenizer.encode(text, undefined, {
+      const encoded = tokenizer.encode(sanitizedText, undefined, {
         add_special_tokens: true,
       });
 
@@ -473,6 +477,21 @@ class TokenCalculatorEngine {
 
     // 步骤 4: 计算总成本
     return baseCost + (totalTiles * tileCost);
+  }
+
+  /**
+   * 从文本中移除 Base64 图像数据，以防止在 Token 计算时造成性能问题。
+   * @param text - 原始文本
+   * @returns 清理后的文本
+   */
+  private _sanitizeText(text: string): string {
+    // 正则表达式匹配 Markdown 图片语法中的 data:image/...;base64,...
+    // 使用非贪婪匹配 (.*?) 来防止匹配到多个图片
+    const base64ImageRegex = /!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g;
+
+    // 将匹配到的 Base64 图片替换为一个简短的占位符
+    // 这个占位符的 Token 数量是可预测且小的
+    return text.replace(base64ImageRegex, '[IMAGE]');
   }
 }
 

@@ -130,6 +130,16 @@ export function useTokenCalculator() {
 
   // ==================== 计算属性 ====================
 
+  /** 净化后的字符数（用于显示） */
+  const sanitizedCharacterCount = computed(() => {
+    if (!inputText.value) return 0;
+    // 正则表达式匹配 Markdown 图片语法中的 data:image/...;base64,...
+    const base64ImageRegex = /!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g;
+    // 替换为简短占位符后再计算长度
+    const sanitizedText = inputText.value.replace(base64ImageRegex, '[IMAGE]');
+    return sanitizedText.length;
+  });
+
   /** 可用模型列表 */
   const { profiles } = useLlmProfiles();
   const availableModels = computed(() => {
@@ -462,6 +472,7 @@ export function useTokenCalculator() {
     
     // 计算属性
     availableModels,
+    sanitizedCharacterCount,
     
     // 方法
     calculateTokens,

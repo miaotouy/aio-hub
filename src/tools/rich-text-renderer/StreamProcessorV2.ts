@@ -252,6 +252,9 @@ export class StreamProcessorV2 {
     this.assignIds(finalAst);
     this.markNodesStatus(finalAst, "stable");
 
+    // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
+    this.forceStopThinking(finalAst);
+
     // 计算 diff
     const patches = this.diffAst(currentFullAst, finalAst);
 
@@ -428,6 +431,21 @@ export class StreamProcessorV2 {
       node.meta.status = status;
       if (node.children) {
         this.markNodesStatus(node.children, status);
+      }
+    }
+  }
+
+  /**
+   * 强制结束所有思考节点的思考状态
+   * 用于流结束时，确保即使标签未闭合，也不再显示"思考中"动画
+   */
+  private forceStopThinking(nodes: AstNode[]): void {
+    for (const node of nodes) {
+      if (node.type === "llm_think" && node.props.isThinking) {
+        node.props.isThinking = false;
+      }
+      if (node.children) {
+        this.forceStopThinking(node.children);
       }
     }
   }

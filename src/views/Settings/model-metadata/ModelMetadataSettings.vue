@@ -81,14 +81,11 @@
             class="config-item"
             :class="{ disabled: config.enabled === false }"
           >
-            <div class="config-icon">
-              <DynamicIcon
-                v-if="config.properties?.icon"
-                :src="getDisplayIconPath(config.properties.icon)"
-                :alt="config.matchValue"
-              />
-              <div v-else class="icon-placeholder">?</div>
-            </div>
+            <DynamicIcon
+              class="config-icon"
+              :src="getDisplayIconPath(config.properties?.icon || '')"
+              :alt="config.matchValue"
+            />
 
             <div class="config-info">
               <div class="config-header">
@@ -726,22 +723,11 @@ function formatDateTime(dateString: string): string {
   border-color: var(--primary-color);
 }
 
-.config-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.icon-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--input-bg);
+.configs-list.grid-view .config-icon {
   border-radius: 4px;
-  font-size: 1.5rem;
-  color: var(--text-color-light);
+}
+.configs-list.list-view .config-icon {
+  border-radius: 4px;
 }
 
 .config-info {

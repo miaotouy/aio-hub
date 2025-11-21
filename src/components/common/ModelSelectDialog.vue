@@ -105,13 +105,11 @@ watch(isDialogVisible, async (visible) => {
                 :class="['model-item', { 'is-current': isCurrentModel(group.profile, model) }]"
                 @click="handleSelectModel(group.profile, model)">
                 <div class="model-item-content">
-                  <div class="model-avatar">
-                    <DynamicIcon v-if="getModelIcon(model)" :src="getModelIcon(model)!" :alt="model.name"
-                      class="model-icon" />
-                    <div v-else class="model-icon-placeholder">
-                      {{ model.name.substring(0, 2).toUpperCase() }}
-                    </div>
-                  </div>
+                  <DynamicIcon
+                    class="model-avatar"
+                    :src="getModelIcon(model) || ''"
+                    :alt="model.name"
+                  />
                   <div class="model-info">
                     <div class="model-header">
                       <span class="model-name-text">{{ model.name }}</span>
@@ -214,28 +212,10 @@ html:not(.dark) .model-item.is-current {
 }
 
 .model-avatar {
-  flex-shrink: 0;
-}
-
-.model-icon {
   width: 32px;
   height: 32px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-.model-icon-placeholder {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: white;
   flex-shrink: 0;
+  border-radius: 6px;
 }
 
 .model-info {

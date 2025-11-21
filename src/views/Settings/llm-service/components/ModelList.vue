@@ -138,16 +138,11 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
           <div v-show="isGroupExpanded(group.name)" class="group-content">
             <div v-for="item in group.models" :key="item.model.id" class="model-item">
               <!-- Logo -->
-              <div class="model-logo">
-                <DynamicIcon
-                  v-if="getModelIcon(item.model)"
-                  :src="getModelIcon(item.model)!"
-                  :alt="item.model.name"
-                />
-                <div v-else class="logo-placeholder">
-                  {{ item.model.name.substring(0, 2).toUpperCase() }}
-                </div>
-              </div>
+              <DynamicIcon
+                class="model-logo"
+                :src="getModelIcon(item.model) || ''"
+                :alt="item.model.name"
+              />
 
               <!-- 模型信息 -->
               <div class="model-info">
@@ -359,29 +354,7 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
 .model-logo {
   width: 32px;
   height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-}
-
-.model-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 4px;
-}
-
-.logo-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary-color);
-  color: #ffffff;
-  font-weight: 600;
-  font-size: 14px;
   border-radius: 4px;
 }
 

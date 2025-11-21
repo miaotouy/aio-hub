@@ -97,14 +97,10 @@ const modelGroups = computed(() => {
       <template #prefix>
         <div v-if="selectedModelInfo" class="selected-model-display-prefix">
           <DynamicIcon
-            v-if="getModelIcon(selectedModelInfo.model)"
-            :src="getModelIcon(selectedModelInfo.model)!"
+            :src="getModelIcon(selectedModelInfo.model) || ''"
             :alt="selectedModelInfo.label"
             class="model-icon"
           />
-          <div v-else class="model-icon-placeholder">
-            {{ selectedModelInfo.model.name.substring(0, 2).toUpperCase() }}
-          </div>
         </div>
       </template>
 
@@ -117,14 +113,10 @@ const modelGroups = computed(() => {
         >
           <div class="option-item">
             <DynamicIcon
-              v-if="getModelIcon(item.model)"
-              :src="getModelIcon(item.model)!"
+              :src="getModelIcon(item.model) || ''"
               :alt="item.label"
               class="model-icon"
             />
-            <div v-else class="model-icon-placeholder">
-              {{ item.model.name.substring(0, 2).toUpperCase() }}
-            </div>
             <span class="model-name">{{ item.label }}</span>
             <el-text v-if="item.model.group" size="small" type="info" class="model-group-tag">
               {{ item.model.group }}
@@ -166,21 +158,7 @@ const modelGroups = computed(() => {
 .model-icon {
   width: 20px;
   height: 20px;
-  object-fit: contain;
-}
-
-.model-icon-placeholder {
-  width: 20px;
-  height: 20px;
   border-radius: 4px;
-  background: var(--el-color-primary-light-7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  flex-shrink: 0;
 }
 
 .option-item {

@@ -522,10 +522,9 @@ onMounted(async () => {
         <div v-if="currentModel" class="model-info clickable" @click="handleSelectModel">
           <el-tooltip content="点击选择模型" placement="bottom">
             <DynamicIcon
-              v-if="modelIcon"
-              :src="modelIcon"
+              :src="modelIcon || ''"
               class="model-icon"
-              :alt="currentModel.name || currentModel.id"
+              :alt="currentModel?.name || currentModel?.id || ''"
             />
           </el-tooltip>
           <span class="model-name">{{ currentModel.name || currentModel.id }}</span>

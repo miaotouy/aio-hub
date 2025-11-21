@@ -318,12 +318,10 @@ const showCustomHeadersDialog = ref(false);
       >
         <template #item="{ profile }">
           <DynamicIcon
-            v-if="getProviderIcon(profile)"
-            :src="getProviderIcon(profile)!"
+            :src="getProviderIcon(profile) || ''"
             class="profile-icon"
-            alt=""
+            :alt="profile.name"
           />
-          <div v-else class="profile-icon-placeholder"></div>
           <div class="profile-info">
             <div class="profile-name">{{ profile.name }}</div>
             <div class="profile-type">{{ getProviderTypeInfo(profile.type)?.name }}</div>
@@ -545,16 +543,11 @@ const showCustomHeadersDialog = ref(false);
   margin-top: 2px;
 }
 
-.profile-icon,
-.profile-icon-placeholder {
+.profile-icon {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
   border-radius: 4px;
-}
-
-.profile-icon-placeholder {
-  background-color: var(--el-fill-color-light);
 }
 
 /* 表单提示 */

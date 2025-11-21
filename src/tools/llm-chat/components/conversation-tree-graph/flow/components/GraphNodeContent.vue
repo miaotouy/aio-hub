@@ -20,8 +20,7 @@
           <!-- 模型信息 -->
           <div class="subtitle-item">
             <DynamicIcon
-              v-if="data.subtitleInfo.modelIcon"
-              :src="data.subtitleInfo.modelIcon"
+              :src="data.subtitleInfo.modelIcon || ''"
               :alt="data.subtitleInfo.modelName"
               class="subtitle-icon"
             />
@@ -32,8 +31,7 @@
           <!-- 渠道信息 -->
           <div class="subtitle-item">
             <DynamicIcon
-              v-if="data.subtitleInfo.profileIcon"
-              :src="data.subtitleInfo.profileIcon"
+              :src="data.subtitleInfo.profileIcon || ''"
               :alt="data.subtitleInfo.profileName"
               class="subtitle-icon"
             />

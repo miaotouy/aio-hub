@@ -198,22 +198,18 @@ const siblingsWithDisplayInfo = computed(() => {
           <div v-if="item.modelInfo" class="branch-meta">
             <div class="meta-item">
               <DynamicIcon
-                v-if="item.modelInfo.modelIcon"
-                :src="item.modelInfo.modelIcon"
+                :src="item.modelInfo.modelIcon || ''"
                 :alt="item.modelInfo.modelName"
                 class="meta-icon"
-                @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
               />
               <span class="meta-text">{{ item.modelInfo.modelName }}</span>
             </div>
             <span class="meta-separator">·</span>
             <div class="meta-item">
               <DynamicIcon
-                v-if="item.modelInfo.profileIcon"
-                :src="item.modelInfo.profileIcon"
+                :src="item.modelInfo.profileIcon || ''"
                 :alt="item.modelInfo.profileName"
                 class="meta-icon"
-                @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
               />
               <span class="meta-text">{{ item.modelInfo.profileName }}</span>
             </div>

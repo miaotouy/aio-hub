@@ -102,8 +102,7 @@
         <h4>图标预览</h4>
         <DynamicIcon
           :src="getDisplayIconPath(localConfig.properties.icon)"
-          alt="预览"
-          @error="handleImageError"
+          :alt="localConfig.matchValue || '预览'"
         />
       </div>
     </div>
@@ -166,11 +165,6 @@ function handleSave() {
   }
 
   emit("save", localConfig.value);
-}
-
-function handleImageError(e: Event) {
-  const img = e.target as HTMLImageElement;
-  img.style.display = "none";
 }
 
 async function handleSelectFile() {

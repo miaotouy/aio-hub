@@ -167,11 +167,9 @@ const shouldShowSubtitle = computed(() => {
           <!-- 模型信息 -->
           <div class="subtitle-item">
             <DynamicIcon
-              v-if="agentProfileInfo.modelIcon"
-              :src="agentProfileInfo.modelIcon"
+              :src="agentProfileInfo.modelIcon || ''"
               :alt="agentProfileInfo.modelName"
               class="subtitle-icon"
-              @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
             />
             <span class="subtitle-text">{{ agentProfileInfo.modelName }}</span>
           </div>
@@ -180,11 +178,9 @@ const shouldShowSubtitle = computed(() => {
           <!-- 渠道信息 -->
           <div class="subtitle-item">
             <DynamicIcon
-              v-if="agentProfileInfo.profileIcon"
-              :src="agentProfileInfo.profileIcon"
+              :src="agentProfileInfo.profileIcon || ''"
               :alt="agentProfileInfo.profileName"
               class="subtitle-icon"
-              @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
             />
             <span class="subtitle-text">{{ agentProfileInfo.profileName }}</span>
           </div>

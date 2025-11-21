@@ -1,23 +1,29 @@
 <template>
-  <!-- SVG 图标：渲染处理后的内容 -->
-  <span
-    v-if="isSvg && svgContent"
-    class="dynamic-icon"
-    v-html="svgContent"
-    v-bind="$attrs"
-  />
-  <!-- PNG 或其他图标：直接使用 img 标签 -->
-  <img
-    v-else-if="iconUrl"
-    :src="iconUrl"
-    class="dynamic-icon"
-    @error="handleImageError"
-    v-bind="$attrs"
-  />
+  <span class="dynamic-icon-wrapper" :style="wrapperStyle">
+    <!-- 成功加载：SVG -->
+    <span
+      v-if="isSvg && svgContent && !hasFailed"
+      class="dynamic-icon"
+      v-html="svgContent"
+      v-bind="$attrs"
+    />
+    <!-- 成功加载：Image -->
+    <img
+      v-else-if="iconUrl && !hasFailed"
+      :src="iconUrl"
+      class="dynamic-icon"
+      @error="handleImageError"
+      v-bind="$attrs"
+    />
+    <!-- 兜底逻辑 -->
+    <span v-else class="dynamic-icon-fallback">
+      {{ fallbackText }}
+    </span>
+  </span>
 </template>
 
 <script setup lang="ts">
-import { toRefs, ref } from "vue";
+import { toRefs, ref, watch, computed } from "vue";
 import { useThemeAwareIcon } from "@composables/useThemeAwareIcon";
 
 const props = defineProps({
@@ -25,48 +31,89 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  alt: {
+    type: String,
+    default: "",
+  },
 });
 
-const { src } = toRefs(props);
+const { src, alt } = toRefs(props);
 const { isSvg, svgContent, iconUrl } = useThemeAwareIcon(src);
 
-const FALLBACK_ICON_SRC = "/model-icons/openai.svg";
 const hasFailed = ref(false);
 
-const handleImageError = (e: Event) => {
-  const img = e.target as HTMLImageElement;
-  // 如果已经是兜底图标了还出错，那就直接隐藏，别无限循环了
-  if (hasFailed.value || img.src.includes(FALLBACK_ICON_SRC)) {
-    img.style.display = "none";
-    return;
-  }
-  // 设置为兜底图标
+const handleImageError = () => {
   hasFailed.value = true;
-  img.src = FALLBACK_ICON_SRC;
 };
+
+// 兜底文字
+const fallbackText = computed(() => {
+  if (alt.value) {
+    return alt.value.charAt(0);
+  }
+  return ""; // 如果没有 alt，则为空白占位符
+});
+
+// 当 src 变化时，重置失败状态
+watch(
+  src,
+  (newSrc) => {
+    hasFailed.value = false;
+    // 如果新 src 为空，直接进入失败状态，显示兜底
+    if (!newSrc) {
+      hasFailed.value = true;
+    }
+  },
+  { immediate: true }
+);
+
+const wrapperStyle = computed(() => ({
+  borderRadius: 'inherit', // 继承父容器的圆角
+}));
 </script>
 
 <style scoped>
+.dynamic-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  vertical-align: middle;
+  overflow: hidden; /* 确保子元素不会溢出圆角 */
+}
+
 /* 图标容器统一样式 */
 .dynamic-icon {
   display: inline-block;
-  vertical-align: middle;
-  /* 使用主题文字颜色，让 currentColor 能够响应 */
   color: var(--el-text-color-primary);
-  /* 确保容器本身也能继承父容器的尺寸 */
   width: 100%;
   height: 100%;
 }
 
-/* img 标签需要保持 object-fit */
 .dynamic-icon:where(img) {
   object-fit: contain;
 }
 
-/* SVG 容器需要确保内部 SVG 继承尺寸 */
 .dynamic-icon:not(img) :deep(svg) {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.dynamic-icon-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--container-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color-secondary);
+  font-weight: 600;
+  font-size: 60%; /* 相对于容器高度 */
+  text-transform: uppercase;
+  box-sizing: border-box;
+  border-radius: inherit; /* 继承父容器的圆角 */
 }
 </style>

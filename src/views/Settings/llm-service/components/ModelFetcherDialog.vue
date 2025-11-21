@@ -211,8 +211,11 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                 :class="{ selected: isModelSelected(model), disabled: isModelExisting(model.id) }"
                 @click="toggleModelSelection(model)"
               >
-                <DynamicIcon v-if="getModelIcon(model)" :src="getModelIcon(model)!" class="model-icon" :alt="model.name" />
-                <div v-else class="model-icon-placeholder" />
+                <DynamicIcon
+                  :src="getModelIcon(model) || ''"
+                  :alt="formatModelName(model.id)"
+                  class="model-icon"
+                />
                 <div class="model-info">
                   <div class="model-name-row">
                     <span class="model-name">{{ formatModelName(model.id) }}</span>
@@ -370,22 +373,12 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
   cursor: not-allowed;
   opacity: 0.6;
 }
-.model-icon,
-.model-icon-placeholder {
+.model-icon {
   width: 32px;
   height: 32px;
   margin-right: 12px;
   flex-shrink: 0;
-}
-.model-icon-placeholder {
-  background: var(--primary-color);
   border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-weight: 600;
-  font-size: 14px;
 }
 .model-info {
   flex-grow: 1;

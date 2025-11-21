@@ -108,15 +108,11 @@ const getCategoryLabel = (category: ProviderType | "all") => {
               class="preset-card"
               @click="createFromPresetTemplate(preset)"
             >
-              <div class="preset-icon">
-                <DynamicIcon v-if="preset.logoUrl" :src="preset.logoUrl" :alt="preset.name" />
-                <DynamicIcon
-                  v-else-if="getProviderIconForPreset(preset.type)"
-                  :src="getProviderIconForPreset(preset.type)!"
-                  :alt="preset.name"
-                />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
+              <DynamicIcon
+                class="preset-icon"
+                :src="preset.logoUrl || getProviderIconForPreset(preset.type) || ''"
+                :alt="preset.name"
+              />
               <div class="preset-info">
                 <div class="preset-name">{{ preset.name }}</div>
                 <el-tooltip :content="preset.description" placement="top" :show-after="500">
@@ -249,23 +245,6 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   overflow: hidden;
 }
 
-.preset-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.preset-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary-color);
-  color: white;
-  font-size: 18px;
-  font-weight: bold;
-}
 
 .preset-info {
   flex: 1;

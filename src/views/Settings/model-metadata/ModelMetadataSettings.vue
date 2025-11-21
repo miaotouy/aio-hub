@@ -21,15 +21,41 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="search-box">
+        <!-- 普通模式：搜索框 -->
         <el-input
+          v-if="!testMode"
           v-model="searchText"
           @input="resetPage"
           placeholder="搜索配置（匹配值、类型、分组、描述）..."
           clearable
         />
+        <!-- 测试模式：模型ID和Provider输入 -->
+        <div v-else class="test-mode-inputs">
+          <el-input
+            v-model="testModelId"
+            placeholder="输入模型 ID（如 gpt-4o, claude-3-opus）"
+            clearable
+            class="test-model-input"
+          />
+          <el-input
+            v-model="testProvider"
+            placeholder="Provider（可选，如 openai）"
+            clearable
+            class="test-provider-input"
+          />
+        </div>
       </div>
 
       <div class="toolbar-controls">
+        <!-- 测试模式开关 -->
+        <el-tooltip content="测试模式：输入模型ID查看匹配结果" placement="top">
+          <el-switch
+            v-model="testMode"
+            active-text="测试"
+            inactive-text=""
+            class="test-mode-switch"
+          />
+        </el-tooltip>
         <el-select v-model="sortBy" placeholder="排序方式">
           <el-option label="按优先级排序" value="priority" />
           <el-option label="按类型排序" value="type" />
@@ -51,6 +77,112 @@
             <el-icon><List /></el-icon>
           </el-radio-button>
         </el-radio-group>
+      </div>
+    </div>
+
+    <!-- 测试模式结果面板 -->
+    <div v-if="testMode" class="test-result-panel">
+      <div class="test-result-header">
+        <span class="test-result-title">🔍 匹配测试结果</span>
+        <span v-if="testModelId" class="test-input-summary">
+          模型: <code>{{ testModelId }}</code>
+          <template v-if="testProvider">
+            | Provider: <code>{{ testProvider }}</code></template
+          >
+        </span>
+      </div>
+
+      <div v-if="!testModelId" class="test-result-empty">请输入模型 ID 进行测试</div>
+
+      <div v-else class="test-result-content">
+        <!-- 匹配结果 -->
+        <div class="result-section">
+          <div class="result-label">匹配状态</div>
+          <div class="result-value">
+            <el-tag v-if="testMatchedRule" type="success" size="large"> ✓ 已匹配 </el-tag>
+            <el-tag v-else type="danger" size="large"> ✗ 未匹配 </el-tag>
+          </div>
+        </div>
+
+        <!-- 匹配到的规则 -->
+        <template v-if="testMatchedRule">
+          <div class="result-section">
+            <div class="result-label">匹配规则</div>
+            <div class="result-value matched-rule">
+              <div class="rule-info">
+                <span class="rule-badge">{{ getMatchTypeLabel(testMatchedRule.matchType) }}</span>
+                <span v-if="testMatchedRule.useRegex" class="regex-badge">RegEx</span>
+                <code class="rule-match-value">{{ testMatchedRule.matchValue }}</code>
+              </div>
+              <div class="rule-meta">
+                <span>优先级: {{ testMatchedRule.priority || 0 }}</span>
+                <span>ID: {{ testMatchedRule.id }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-section">
+            <div class="result-label">图标路径</div>
+            <div class="result-value">
+              <code class="icon-path">{{ testMatchedRule.properties?.icon || "无" }}</code>
+            </div>
+          </div>
+
+          <div class="result-section">
+            <div class="result-label">图标预览</div>
+            <div class="result-value">
+              <DynamicIcon
+                v-if="testMatchedRule.properties?.icon"
+                class="test-icon-preview"
+                :src="getDisplayIconPath(testMatchedRule.properties.icon)"
+                :alt="testModelId"
+              />
+              <span v-else class="no-icon">无图标</span>
+            </div>
+          </div>
+
+          <div v-if="testMatchedRule.properties?.group" class="result-section">
+            <div class="result-label">分组名称</div>
+            <div class="result-value">
+              <el-tag>{{ testMatchedRule.properties.group }}</el-tag>
+            </div>
+          </div>
+
+          <div v-if="testMatchedRule.description" class="result-section">
+            <div class="result-label">规则描述</div>
+            <div class="result-value">{{ testMatchedRule.description }}</div>
+          </div>
+        </template>
+
+        <!-- 未匹配时的调试信息 -->
+        <template v-else>
+          <div class="result-section">
+            <div class="result-label">可能的原因</div>
+            <div class="result-value debug-hints">
+              <ul>
+                <li>没有匹配此模型 ID 的规则</li>
+                <li>匹配规则可能被禁用了</li>
+                <li>检查规则的 matchType 和 matchValue 是否正确</li>
+                <li v-if="testProvider">如果是 provider 匹配，确认 provider 值正确</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="result-section">
+            <div class="result-label">候选规则（按优先级）</div>
+            <div class="result-value candidate-rules">
+              <div v-for="rule in candidateRules" :key="rule.id" class="candidate-rule">
+                <div class="candidate-main">
+                  <span class="rule-badge small">{{ getMatchTypeLabel(rule.matchType) }}</span>
+                  <code>{{ rule.matchValue }}</code>
+                  <el-tag v-if="rule.enabled === false" type="info" size="small">禁用</el-tag>
+                </div>
+                <div class="candidate-meta">优先级: {{ rule.priority || 0 }}</div>
+              </div>
+              <div v-if="candidateRules.length === 0" class="no-candidates">没有相关的候选规则</div>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -179,7 +311,6 @@
 import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelMetadata } from "@composables/useModelMetadata";
 import type { ModelMetadataRule, MetadataMatchType } from "../../../types/model-metadata";
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
@@ -200,6 +331,8 @@ const {
   mergeWithDefaults,
   exportRules: exportConfigs,
   importRules: importConfigs,
+  getMatchedRule,
+  getDisplayIconPath,
 } = useModelMetadata();
 
 const showPresets = ref(false);
@@ -213,6 +346,39 @@ const filterEnabled = ref<"all" | "enabled" | "disabled">("all");
 const currentPage = ref(1);
 const pageSize = ref(12);
 const viewMode = ref<"grid" | "list">("grid");
+
+// 测试模式
+const testMode = ref(false);
+const testModelId = ref("");
+const testProvider = ref("");
+
+// 测试匹配结果
+const testMatchedRule = computed(() => {
+  if (!testMode.value || !testModelId.value.trim()) return null;
+  return getMatchedRule(testModelId.value.trim(), testProvider.value.trim() || undefined);
+});
+
+// 候选规则（用于调试未匹配情况）
+const candidateRules = computed(() => {
+  if (!testMode.value || !testModelId.value.trim()) return [];
+
+  const searchLower = testModelId.value.toLowerCase();
+  const providerLower = testProvider.value.toLowerCase();
+
+  // 找出可能相关的规则（按优先级排序）
+  return configs.value
+    .filter((rule) => {
+      // 包含搜索词的规则
+      const matchValueLower = rule.matchValue.toLowerCase();
+      return (
+        matchValueLower.includes(searchLower) ||
+        searchLower.includes(matchValueLower) ||
+        (rule.matchType === "provider" && providerLower.includes(matchValueLower))
+      );
+    })
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+    .slice(0, 10); // 最多显示10条
+});
 
 // 过滤后的配置列表
 const filteredConfigs = computed(() => {
@@ -433,29 +599,6 @@ function handleImport() {
   input.click();
 }
 
-/**
- * 获取用于显示的图标路径
- * 如果是绝对路径（本地文件），则转换为 Tauri asset URL
- */
-function getDisplayIconPath(iconPath: string): string {
-  if (!iconPath) return "";
-
-  // 检查是否为绝对路径
-  // Windows: C:\, D:\, E:\ 等
-  // 但要排除 /model-icons/ 这样的相对路径
-  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
-  // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
-  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
-
-  if (isWindowsAbsolutePath || isUnixAbsolutePath) {
-    // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
-    return convertFileSrc(iconPath);
-  }
-
-  // 相对路径（包括 /model-icons/ 开头的预设图标）直接返回
-  return iconPath;
-}
-
 // 格式化日期（简短格式）
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -562,6 +705,224 @@ function formatDateTime(dateString: string): string {
 
 .el-select {
   width: 150px;
+}
+
+/* 测试模式输入框 */
+.test-mode-inputs {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.test-model-input {
+  flex: 2;
+}
+
+.test-provider-input {
+  flex: 1;
+  max-width: 200px;
+}
+
+.test-mode-switch {
+  margin-right: 0.5rem;
+}
+
+/* 测试结果面板 */
+.test-result-panel {
+  background: var(--container-bg);
+  border: 2px solid var(--primary-color);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.test-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.test-result-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.test-input-summary {
+  font-size: 0.9rem;
+  color: var(--text-color-light);
+}
+
+.test-input-summary code {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-family: "Consolas", "Monaco", monospace;
+  color: var(--primary-color);
+}
+
+.test-result-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-color-light);
+  font-size: 0.95rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.test-result-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.result-section {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.result-label {
+  flex-shrink: 0;
+  width: 100px;
+  font-weight: 500;
+  color: var(--text-color-light);
+  padding-top: 0.25rem;
+}
+
+.result-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.matched-rule {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rule-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.rule-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.rule-badge.small {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+}
+
+.rule-match-value {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.rule-meta {
+  font-size: 0.85rem;
+  color: var(--text-color-light);
+  display: flex;
+  gap: 1rem;
+}
+
+.icon-path {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  word-break: break-all;
+  display: block;
+}
+
+.test-icon-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.no-icon {
+  color: var(--text-color-light);
+  font-style: italic;
+}
+
+.debug-hints {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.debug-hints ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.debug-hints li {
+  margin: 0.25rem 0;
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+.candidate-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.candidate-rule {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.candidate-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.candidate-main code {
+  font-family: "Consolas", "Monaco", monospace;
+}
+
+.candidate-meta {
+  color: var(--text-color-light);
+  font-size: 0.85rem;
+}
+
+.no-candidates {
+  color: var(--text-color-light);
+  font-style: italic;
+  padding: 0.5rem;
 }
 
 /* 配置列表容器 */

@@ -132,11 +132,7 @@ const handleMouseLeave = () => {
         placement="right"
         :show-after="300"
       >
-        <div
-          class="nav-button"
-          :class="{ disabled: !canScrollUp }"
-          @click="handleScrollToPrev"
-        >
+        <div class="nav-button" :class="{ disabled: !canScrollUp }" @click="handleScrollToPrev">
           <el-icon :size="14">
             <ArrowUp />
           </el-icon>
@@ -231,10 +227,10 @@ const handleMouseLeave = () => {
 .message-navigator::before {
   content: "";
   position: absolute;
-  top: -60px;
-  bottom: -60px;
+  top: -40px;
+  bottom: -40px;
   left: -10px;
-  right: -100px;
+  right: -40px;
   z-index: -1;
   pointer-events: auto;
   /* 调试用：取消注释可以看到触发区域 */

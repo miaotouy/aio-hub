@@ -16,19 +16,29 @@ export function parseList(
   }
 
   const ordered = firstMarker.ordered;
+  const baseIndent = firstMarker.indent || 0;
   let i = start;
   const items: AstNode[] = [];
 
   while (i < tokens.length) {
     const t = tokens[i];
 
-    // 检查是否是同类型的列表标记
+    // 检查是否是列表标记
     if (t.type !== "list_marker") {
       break;
     }
 
-    // 不同类型的列表标记，结束当前列表
-    if (t.ordered !== ordered) {
+    // 检查缩进：如果缩进小于基准缩进，说明列表结束（回到了上一级）
+    if ((t.indent || 0) < baseIndent) {
+      break;
+    }
+
+
+    // 检查列表类型是否一致 (ordered vs unordered)
+    // 注意：不同层级的列表类型可以不同，但同级应该一致（通常）
+    // 但 Markdown 允许混合。不过为了简单，我们通常按类型分组。
+    // 如果类型不同且缩进相同，通常视为两个列表。
+    if (t.ordered !== ordered && (t.indent || 0) === baseIndent) {
       break;
     }
 
@@ -39,13 +49,22 @@ export function parseList(
     while (i < tokens.length) {
       const tok = tokens[i];
 
-      // 遇到新的列表项结束当前项
+      // 遇到列表标记
       if (tok.type === "list_marker") {
-        break;
+        const nextIndent = tok.indent || 0;
+
+        // 如果是同级或更高级（缩进更小）的列表标记，结束当前项
+        if (nextIndent <= baseIndent) {
+          break;
+        }
+
+        // 如果是子列表（缩进更大），它是当前项的一部分，继续收集
+        // 这样 parseBlocks 就会包含这个 list_marker，并递归调用 parseList
       }
 
-      // 遇到其他块级标记结束当前项
-      if (isBlockStart(tok)) {
+      if (tok.type !== "list_marker" && isBlockStart(tok)) {
+        // 如果是其他块级元素，暂时保持原样（打断列表）
+        // 除非我们需要支持列表内嵌套其他块
         break;
       }
 

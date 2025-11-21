@@ -25,7 +25,7 @@ export type Token =
   | { type: "link_url_close"; raw: string }
   | { type: "heading_marker"; level: number; raw: string }
   | { type: "blockquote_marker"; raw: string }
-  | { type: "list_marker"; ordered: boolean; raw: string }
+  | { type: "list_marker"; ordered: boolean; raw: string; indent: number }
   | { type: "hr_marker"; raw: string }
   | { type: "code_fence"; language: string; raw: string }
   | { type: "katex_block"; content: string }

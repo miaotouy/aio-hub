@@ -114,18 +114,31 @@ export class Tokenizer {
 
       // 块级标记（只在行首有效）
       if (atLineStart) {
-        // 允许前导空格（0-4个）用于块级元素缩进
-        // 这符合 Markdown 标准，列表项可以有 0-4 个空格缩进
-        const leadingSpaceMatch = remaining.match(/^( {1,4})(?=[*+\-]|\d+\.|#{1,6}\s|>|```|\$\$)/);
-        if (leadingSpaceMatch) {
-          // 跳过前导空格，保持 atLineStart 为 true
-          i += leadingSpaceMatch[1].length;
-          continue;
-        }
+        // 允许前导空格（0-3个）用于块级元素缩进
+        // 这符合 Markdown 标准，列表项可以有 0-3 个空格缩进作为顶级列表
+        // 但是嵌套列表可能有更多缩进，所以我们需要在这里捕获缩进，而不是跳过它
+        // 实际上，我们需要让具体的 block matcher 去处理缩进
+        // 所以这里不再统一跳过前导空格，而是让每个 matcher 自己处理
+
+        // 但是为了保持兼容性，对于非列表的块级元素，我们可能还是需要跳过 0-3 个空格
+        // 让我们看看哪些需要处理：
+        // KaTeX: $$ (0-3 spaces)
+        // Code Fence: ``` (0-3 spaces)
+        // Heading: # (0-3 spaces)
+        // HR: --- (0-3 spaces)
+        // Blockquote: > (0-3 spaces)
+        // List: * (any spaces? No, indentation matters)
+
+        // 策略：
+        // 1. 获取当前行的缩进
+        const indentMatch = remaining.match(/^( *)/);
+        const indent = indentMatch ? indentMatch[1].length : 0;
+
 
         // KaTeX 块级公式 $$...$$ - 立即处理整个公式块
-        if (remaining.startsWith("$$")) {
-          i += 2; // 跳过开始的 $$
+        // 允许 0-3 个空格缩进
+        if (indent < 4 && remaining.slice(indent).startsWith("$$")) {
+          i += indent + 2; // 跳过缩进和 $$
 
           // 收集公式内容
           let formulaContent = "";
@@ -148,11 +161,12 @@ export class Tokenizer {
         }
 
         // 代码围栏 - 立即处理整个代码块
-        if (remaining.startsWith("```")) {
-          const openMatch = remaining.match(/^```(\w*)/);
+        // 允许 0-3 个空格缩进
+        if (indent < 4 && remaining.slice(indent).startsWith("```")) {
+          const openMatch = remaining.slice(indent).match(/^```(\w*)/);
           if (openMatch) {
             const language = openMatch[1] || "";
-            i += openMatch[0].length; // 跳过开始标记
+            i += indent + openMatch[0].length; // 跳过缩进和开始标记
 
             // 跳过开始标记后的第一个换行符（如果有）
             if (i < text.length && text[i] === "\n") {
@@ -192,46 +206,51 @@ export class Tokenizer {
         }
 
         // 标题标记
-        const headingMatch = remaining.match(/^(#{1,6})\s/);
-        if (headingMatch) {
+        // 允许 0-3 个空格缩进
+        const headingMatch = remaining.slice(indent).match(/^(#{1,6})\s/);
+        if (indent < 4 && headingMatch) {
           tokens.push({
             type: "heading_marker",
             level: headingMatch[1].length,
             raw: headingMatch[0],
           });
-          i += headingMatch[0].length;
+          i += indent + headingMatch[0].length;
           atLineStart = false;
           continue;
         }
 
         // 水平线 - 必须是独立的一行（只能跟空白字符或换行）
-        const hrMatch = remaining.match(/^(---+|\*\*\*+|___+)(\s*)(?=\n|$)/);
-        if (hrMatch) {
+        // 允许 0-3 个空格缩进
+        const hrMatch = remaining.slice(indent).match(/^(---+|\*\*\*+|___+)(\s*)(?=\n|$)/);
+        if (indent < 4 && hrMatch) {
           tokens.push({ type: "hr_marker", raw: hrMatch[0] });
-          i += hrMatch[0].length;
+          i += indent + hrMatch[0].length;
           atLineStart = false;
           continue;
         }
 
-        // 列表标记（不包含前导空白）
-        const listMatch = remaining.match(/^([*+-]|\d+\.)\s/);
+        // 列表标记（包含前导空白）
+        // 列表项的缩进非常重要，用于确定嵌套层级
+        const listMatch = remaining.slice(indent).match(/^([*+-]|\d+\.)\s/);
         if (listMatch) {
           tokens.push({
             type: "list_marker",
             ordered: /\d+\./.test(listMatch[1]),
             raw: listMatch[0],
+            indent: indent, // 记录缩进量
           });
-          i += listMatch[0].length;
+          i += indent + listMatch[0].length;
           atLineStart = false;
           continue;
         }
 
         // 引用标记
-        if (remaining.startsWith("> ") || remaining.startsWith(">")) {
-          const match = remaining.match(/^>[ \t]?/);
+        // 允许 0-3 个空格缩进
+        if (indent < 4 && (remaining.slice(indent).startsWith("> ") || remaining.slice(indent).startsWith(">"))) {
+          const match = remaining.slice(indent).match(/^>[ \t]?/);
           if (match) {
             tokens.push({ type: "blockquote_marker", raw: match[0] });
-            i += match[0].length;
+            i += indent + match[0].length;
             // 保持 atLineStart 为 true，以便后续内容（如嵌套引用 > 或标题 #）能被识别为块级标记
             atLineStart = true;
             continue;

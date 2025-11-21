@@ -857,8 +857,29 @@ ${configInfo}
   }
 
   if (copyOptions.value.includeStyleConfig) {
+    const styles = richTextStyleOptions.value;
+    const enabledStyles: Record<string, unknown> = {};
+
+    // 首先检查并包含总开关的状态
+    if (typeof styles.globalEnabled === "boolean") {
+      enabledStyles.globalEnabled = styles.globalEnabled;
+    }
+
+    // 只有在总开关启用时，才检查并包含其他启用的样式项
+    // 如果 globalEnabled 未定义，则默认为启用
+    if (styles.globalEnabled !== false) {
+      for (const [key, value] of Object.entries(styles)) {
+        if (key === "globalEnabled") continue; // 跳过已处理的总开关
+
+        // 检查是否为带有 enabled: true 的样式对象
+        if (typeof value === "object" && value !== null && "enabled" in value && value.enabled) {
+          enabledStyles[key] = value;
+        }
+      }
+    }
+
     comparisonText += `========== Markdown 样式配置 ==========
-${JSON.stringify(richTextStyleOptions.value, null, 2)}
+${JSON.stringify(enabledStyles, null, 2)}
 
 `;
   }

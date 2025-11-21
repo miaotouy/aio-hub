@@ -45,26 +45,14 @@
           <el-option label="仅禁用" value="disabled" />
         </el-select>
 
-        <el-button-group class="view-toggle">
-          <el-button
-            @click="viewMode = 'grid'"
-            :type="viewMode === 'grid' ? 'primary' : ''"
-            title="网格视图"
-          >
-            <el-icon>
-              <Grid />
-            </el-icon>
-          </el-button>
-          <el-button
-            @click="viewMode = 'list'"
-            :type="viewMode === 'list' ? 'primary' : ''"
-            title="列表视图"
-          >
-            <el-icon>
-              <List />
-            </el-icon>
-          </el-button>
-        </el-button-group>
+        <el-radio-group v-model="viewMode" class="view-toggle">
+          <el-radio-button value="grid" title="网格视图">
+            <el-icon><Grid /></el-icon>
+          </el-radio-button>
+          <el-radio-button value="list" title="列表视图">
+            <el-icon><List /></el-icon>
+          </el-radio-button>
+        </el-radio-group>
       </div>
     </div>
 
@@ -822,5 +810,9 @@ function formatDateTime(dateString: string): string {
   background: var(--container-bg);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
+}
+
+.el-button {
+  margin-left: 0px;
 }
 </style>

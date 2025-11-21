@@ -37,7 +37,7 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 无缝集成，灵活扩展。
 
 - **多服务商支持**: 原生支持 OpenAI, Anthropic (Claude), Google (Gemini), Cohere, DeepSeek 等多家主流 LLM 供应商。并且通过兼容 OpenAI API 的接口（如 Ollama, LM Studio, Llama.cpp），轻松接入和管理本地运行的语言模型。
-- **自定义端点**: 支持添加任意符合 OpenAI 规范的 API 端点，具备极高的可扩展性。
+- **自定义端点**: 支持为所有已集成的服务类型（如 OpenAI, Claude, Gemini 等）添加自定义 API 端点，具备极高的可扩展性。
 - **可视化模型管理**: 在设置中可以集中管理所有模型的元数据，定义其能力（如视觉、工具使用），并在工具中根据任务需求（如“需要视觉能力”）进行智能筛选。
 
 ### 🌳 双视图对话管理 (Dual-View Conversation Management)

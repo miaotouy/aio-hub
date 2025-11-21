@@ -26,10 +26,13 @@
       :is-enabled="data.isEnabled"
       :is-active-leaf="data.isActiveLeaf"
       :zoom="viewport.zoom"
+      :role="data.role"
       @copy="handleCopy"
       @toggle-enabled="handleToggleEnabled"
       @delete="handleDelete"
       @view-detail="(event: MouseEvent) => handleViewDetail(event)"
+      @regenerate="handleRegenerate"
+      @create-branch="handleCreateBranch"
     />
   </div>
 </template>
@@ -82,6 +85,8 @@ interface Emits {
   (e: "toggle-enabled"): void;
   (e: "delete"): void;
   (e: "view-detail", event: MouseEvent): void;
+  (e: "regenerate"): void;
+  (e: "create-branch"): void;
 }
 
 const props = defineProps<Props>();
@@ -104,6 +109,8 @@ const handleCopy = () => emit("copy");
 const handleToggleEnabled = () => emit("toggle-enabled");
 const handleDelete = () => emit("delete");
 const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
+const handleRegenerate = () => emit("regenerate");
+const handleCreateBranch = () => emit("create-branch");
 </script>
 
 <style scoped>

@@ -36,6 +36,8 @@
           @toggle-enabled="handleNodeToggleEnabled(id)"
           @delete="handleNodeDelete(id)"
           @view-detail="(event: MouseEvent) => handleNodeViewDetail(id, event)"
+          @regenerate="handleNodeRegenerate(id)"
+          @create-branch="handleNodeCreateBranch(id)"
           @mouseenter="handleNodeMouseEnter(id)"
           @mouseleave="handleNodeMouseLeave()"
         />
@@ -366,6 +368,8 @@ const {
   handleNodeToggleEnabled,
   handleNodeDelete,
   handleNodeViewDetail: onNodeViewDetail,
+  handleNodeRegenerate,
+  handleNodeCreateBranch,
   handleEdgeConnect,
   handleConnectionStart,
   handleConnectionEnd,

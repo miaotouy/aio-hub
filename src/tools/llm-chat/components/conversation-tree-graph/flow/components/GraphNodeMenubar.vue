@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Copy, Eye, EyeOff, Trash2, MessageSquare } from 'lucide-vue-next';
+import { Copy, Eye, EyeOff, Trash2, MessageSquare, RefreshCw, GitFork } from 'lucide-vue-next';
 import { ElTooltip } from 'element-plus';
 
 interface Props {
   isEnabled: boolean;
   isActiveLeaf: boolean;
   zoom: number;
+  role: 'user' | 'assistant' | 'system';
 }
 
 interface Emits {
@@ -14,10 +15,14 @@ interface Emits {
   (e: 'toggle-enabled'): void;
   (e: 'delete'): void;
   (e: 'view-detail', event: MouseEvent): void;
+  (e: 'regenerate'): void;
+  (e: 'create-branch'): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const isUserOrAssistant = computed(() => props.role === 'user' || props.role === 'assistant');
 
 // 计算反向缩放以保持固定大小,限定在合理范围内
 const menubarStyle = computed(() => {
@@ -38,6 +43,8 @@ const handleCopy = () => emit('copy');
 const handleToggleEnabled = () => emit('toggle-enabled');
 const handleDelete = () => emit('delete');
 const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
+const handleRegenerate = () => emit('regenerate');
+const handleCreateBranch = () => emit('create-branch');
 </script>
 
 <template>
@@ -53,6 +60,20 @@ const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
     <el-tooltip content="复制内容" placement="bottom" :show-after="300">
       <button class="menu-btn" @click="handleCopy">
         <Copy :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 创建分支 -->
+    <el-tooltip v-if="isUserOrAssistant" content="创建分支" placement="bottom" :show-after="300">
+      <button class="menu-btn" @click="handleCreateBranch">
+        <GitFork :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 重新生成 -->
+    <el-tooltip v-if="isUserOrAssistant" :content="role === 'user' ? '重新生成回复' : '重新生成'" placement="bottom" :show-after="300">
+      <button class="menu-btn" @click="handleRegenerate">
+        <RefreshCw :size="16" />
       </button>
     </el-tooltip>
 

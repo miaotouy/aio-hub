@@ -1277,6 +1277,34 @@ export function useFlowTreeGraph(
   }
 
   /**
+   * 处理重新生成事件
+   */
+  function handleNodeRegenerate(nodeId: string): void {
+    const session = sessionRef();
+    if (!session) return;
+
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    logger.info("重新生成", { nodeId, role: node.role });
+    store.regenerateFromNode(nodeId);
+  }
+
+  /**
+   * 处理创建分支事件
+   */
+  function handleNodeCreateBranch(nodeId: string): void {
+    const session = sessionRef();
+    if (!session) return;
+
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    logger.info("创建分支", { nodeId, role: node.role });
+    store.createBranch(nodeId);
+  }
+
+  /**
    * 处理查看详情事件
    */
   function handleNodeViewDetail(nodeId: string, event: MouseEvent): void {
@@ -1409,6 +1437,8 @@ export function useFlowTreeGraph(
     handleNodeCopy,
     handleNodeToggleEnabled,
     handleNodeDelete,
+    handleNodeRegenerate,
+    handleNodeCreateBranch,
     handleNodeViewDetail,
     closeDetailPopup,
     updateChart,

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ChevronRight, ChevronDown, Copy, Check } from "lucide-vue-next";
+import { Copy, Check } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/useChatSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import { useAttachmentManager } from "../../composables/useAttachmentManager";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -41,9 +42,6 @@ const hasAttachments = computed(() => {
   return props.message.attachments && props.message.attachments.length > 0;
 });
 
-
-// 推理内容展开状态
-const isReasoningExpanded = ref(false);
 
 // 编辑状态
 const editingContent = ref("");
@@ -83,39 +81,12 @@ const formattedReasoningDuration = computed(() => {
 
 // 判断是否正在推理中
 const isReasoning = computed(() => {
-  return (
+  return !!(
     props.message.status === "generating" &&
     props.message.metadata?.reasoningContent &&
     !props.message.metadata?.reasoningEndTime
   );
 });
-
-// 获取推理内容的最新片段（用于跑马灯显示）
-const reasoningPreview = computed(() => {
-  const content = props.message.metadata?.reasoningContent;
-  if (!content) return "";
-
-  // 获取最后100个字符作为预览
-  const previewLength = 100;
-  if (content.length <= previewLength) {
-    return content;
-  }
-
-  // 从最后开始截取，找到一个合适的断句位置
-  const preview = content.slice(-previewLength);
-  // 尝试从句号、问号、感叹号等位置开始
-  const sentenceEnd = preview.search(/[。！？\.\!\?]\s*/);
-  if (sentenceEnd !== -1 && sentenceEnd < previewLength - 20) {
-    return preview.slice(sentenceEnd + 1).trim();
-  }
-
-  return "..." + preview.trim();
-});
-
-// 推理内容切换
-const toggleReasoning = () => {
-  isReasoningExpanded.value = !isReasoningExpanded.value;
-};
 
 // 编辑区域引用
 const editAreaRef = ref<HTMLElement | undefined>(undefined);
@@ -244,31 +215,21 @@ watch(
     </div>
 
     <!-- 推理内容（DeepSeek reasoning） -->
-    <div v-if="message.metadata?.reasoningContent" class="reasoning-section">
-      <button
-        @click="toggleReasoning"
-        class="reasoning-toggle"
-        :class="{ expanded: isReasoningExpanded }"
-      >
-        <ChevronRight v-if="!isReasoningExpanded" :size="14" class="toggle-icon" />
-        <ChevronDown v-else :size="14" class="toggle-icon" />
-        <span class="toggle-text">思维链推理过程</span>
-        <!-- 推理进行中：显示内容跑马灯 -->
-        <div v-if="isReasoning && !isReasoningExpanded" class="reasoning-marquee">
-          <span class="marquee-content">{{ reasoningPreview }}</span>
-        </div>
-        <!-- 推理完成：显示用时 -->
-        <span
-          v-else-if="formattedReasoningDuration && !isReasoningExpanded"
-          class="reasoning-duration"
-        >
-          {{ formattedReasoningDuration }}
-        </span>
-      </button>
-      <div v-if="isReasoningExpanded" class="reasoning-content">
-        <pre class="reasoning-text">{{ message.metadata.reasoningContent }}</pre>
-      </div>
-    </div>
+    <LlmThinkNode
+      v-if="message.metadata?.reasoningContent"
+      :raw-tag-name="formattedReasoningDuration || 'DeepSeek'"
+      rule-id="reasoning-metadata"
+      display-name="深度思考"
+      :is-thinking="isReasoning"
+      :collapsed-by-default="true"
+      :raw-content="message.metadata.reasoningContent"
+    >
+      <RichTextRenderer
+        :content="message.metadata.reasoningContent"
+        :version="settings.uiPreferences.rendererVersion"
+        :style-options="richTextStyleOptions"
+      />
+    </LlmThinkNode>
 
     <!-- 编辑模式 -->
     <div
@@ -554,105 +515,5 @@ watch(
 }
 
 /* 推理内容样式 */
-.reasoning-section {
-  margin-bottom: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  overflow: hidden;
-  background-color: var(--container-bg);
-}
-
-.reasoning-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background-color: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text-color);
-  font-size: 13px;
-  transition: background-color 0.2s;
-}
-
-.reasoning-toggle:hover {
-  background-color: var(--hover-bg);
-}
-
-.reasoning-toggle.expanded {
-  border-bottom: 1px solid var(--border-color);
-}
-
-.toggle-icon {
-  color: var(--text-color-light);
-  flex-shrink: 0;
-}
-
-.toggle-text {
-  flex: 1;
-  text-align: left;
-  font-weight: 500;
-}
-
-.reasoning-duration {
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  margin-left: 4px;
-  flex-shrink: 0;
-}
-
-.reasoning-marquee {
-  flex: 1;
-  margin-left: 8px;
-  overflow: hidden;
-  position: relative;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  padding: 0 8px;
-}
-
-.marquee-content {
-  display: inline-block;
-  white-space: nowrap;
-  color: var(--text-color-light);
-  font-size: 12px;
-  animation: marquee-scroll 15s linear infinite;
-  padding-right: 50px;
-}
-
-@keyframes marquee-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-100%);
-  }
-}
-
-/* 当内容较短时，停止滚动 */
-.reasoning-marquee:hover .marquee-content {
-  animation-play-state: paused;
-}
-
-.reasoning-content {
-  padding: 12px;
-  background-color: var(--bg-color);
-  border-top: 1px solid var(--border-color);
-}
-
-.reasoning-text {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  color: var(--text-color-light);
-  font-family: "Courier New", monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  opacity: 0.85;
-}
+/* 样式已移除，使用 LlmThinkNode 组件 */
 </style>

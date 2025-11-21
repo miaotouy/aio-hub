@@ -1,8 +1,10 @@
 <template>
   <div class="llm-think-node" :class="{ 'is-collapsed': isCollapsed, 'is-thinking': isThinking }">
-    <div class="llm-think-header">
-      <div class="llm-think-title" @click="toggleCollapse">
-        <span class="llm-think-icon">{{ isCollapsed ? '▶' : '▼' }}</span>
+    <div class="llm-think-header" @click="toggleCollapse">
+      <div class="llm-think-title">
+        <span class="llm-think-icon" :class="{ 'is-expanded': !isCollapsed }">
+          <ChevronRight :size="16" />
+        </span>
         <span class="llm-think-label">{{ isThinking ? '思考中' : props.displayName }}</span>
         <el-tag v-if="!isThinking" size="small" type="primary" effect="light">{{ props.rawTagName }}</el-tag>
         <!-- 思考中指示器 -->
@@ -12,13 +14,19 @@
           <span class="thinking-dot"></span>
         </div>
       </div>
+      
+      <!-- 思考预览（仅在折叠时显示） -->
+      <div v-if="isCollapsed && previewContent" class="think-preview">
+        {{ previewContent }}
+      </div>
+
       <div class="header-actions">
         <!-- 切换渲染/原始视图 -->
         <el-tooltip :content="showRaw ? '显示渲染内容' : '显示原始文本'" :show-after="300">
           <button
             class="action-btn"
             :class="{ 'action-btn-active': showRaw }"
-            @click="toggleRawView"
+            @click.stop="toggleRawView"
           >
             <Code2 :size="14" />
           </button>
@@ -26,7 +34,7 @@
 
         <!-- 复制按钮 -->
         <el-tooltip :content="copied ? '已复制' : '复制内容'" :show-after="300">
-          <button class="action-btn" :class="{ 'action-btn-active': copied }" @click="copyContent">
+          <button class="action-btn" :class="{ 'action-btn-active': copied }" @click.stop="copyContent">
             <Check v-if="copied" :size="14" />
             <Copy v-else :size="14" />
           </button>
@@ -47,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { Copy, Check, Code2 } from 'lucide-vue-next';
+import { Copy, Check, Code2, ChevronRight } from 'lucide-vue-next';
 import { customMessage } from '@/utils/customMessage';
 
 interface Props {
@@ -67,6 +75,21 @@ const isCollapsed = ref(props.collapsedByDefault);
 const showRaw = ref(false);
 const copied = ref(false);
 const isThinking = computed(() => props.isThinking);
+
+// 获取预览内容（最后一行非空文本）
+const previewContent = computed(() => {
+  if (!props.rawContent) return '';
+  
+  const lines = props.rawContent.split('\n');
+  // 从后往前找第一个非空行
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (line) {
+      return line;
+    }
+  }
+  return '';
+});
 
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value;
@@ -120,6 +143,7 @@ onMounted(() => {
   user-select: none;
   background: var(--el-fill-color-lighter);
   transition: background 0.2s ease;
+  cursor: pointer;
 }
 
 .llm-think-title {
@@ -128,18 +152,20 @@ onMounted(() => {
   gap: 8px;
   font-weight: 500;
   color: var(--el-text-color-primary);
-  cursor: pointer;
-  flex: 1;
+  /* 移除 flex: 1，让它只占用必要空间，以便给 preview 留出空间 */
+  flex-shrink: 0;
 }
 
 .llm-think-icon {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--el-color-primary, #409eff);
   transition: transform 0.2s ease;
 }
 
-.is-collapsed .llm-think-icon {
-  transform: rotate(0deg);
+.llm-think-icon.is-expanded {
+  transform: rotate(90deg);
 }
 
 .llm-think-label {
@@ -148,6 +174,25 @@ onMounted(() => {
 
 .llm-think-title .el-tag {
   font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.think-preview {
+  flex: 1;
+  margin: 0 16px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Monaco', 'Consolas', monospace;
+  animation: fadeIn 0.3s ease;
+  user-select: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 0.6; transform: translateY(0); }
 }
 
 .header-actions {
@@ -181,10 +226,11 @@ onMounted(() => {
   background-color: var(--el-fill-color);
   opacity: 0;
   transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
 }
 
 .action-btn:hover:not(:disabled) {
-  color: var(--el-text-color-primary);
+  color: var(--el-color-primary);
   transform: translateY(-1px);
 }
 

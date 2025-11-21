@@ -24,6 +24,7 @@ export { PRESET_ICONS_DIR, PRESET_ICONS } from "./preset-icons";
  */
 export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   // === 能力自动匹配 (优先级 5) ===
+  // 视觉能力
   {
     id: "capability-vision-vl",
     matchType: "modelPrefix",
@@ -35,7 +36,228 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 5,
     enabled: true,
-    description: "为所有包含 'vl' 的模型自动添加视觉能力。这是一个非独占规则，会与其他规则合并。",
+    description: "为包含 'vl' 的模型自动添加视觉能力",
+  },
+  {
+    id: "capability-vision-keywords",
+    matchType: "modelPrefix",
+    matchValue: "vision|visual|multimodal|vlm",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        vision: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含视觉相关关键词的模型自动添加视觉能力",
+  },
+
+  // 工具调用能力
+  {
+    id: "capability-tool-use",
+    matchType: "modelPrefix",
+    matchValue: "tools?|function|fc",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        toolUse: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含工具调用关键词的模型自动添加工具调用能力",
+  },
+
+  // 思考模式
+  {
+    id: "capability-thinking",
+    matchType: "modelPrefix",
+    matchValue: "think|extended-thinking",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        thinking: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含思考关键词的模型自动添加思考模式能力",
+  },
+
+  // 推理能力
+  {
+    id: "capability-reasoning",
+    matchType: "modelPrefix",
+    matchValue: "reason|reasoning",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        reasoning: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含推理关键词的模型自动添加推理能力",
+  },
+
+  // 代码执行
+  {
+    id: "capability-code-execution",
+    matchType: "modelPrefix",
+    matchValue: "code-execution|code-interpreter|execute",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        codeExecution: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含代码执行关键词的模型自动添加代码执行能力",
+  },
+
+  // 联网搜索
+  {
+    id: "capability-web-search",
+    matchType: "modelPrefix",
+    matchValue: "search|web-search|grounded",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        webSearch: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含搜索关键词的模型自动添加联网搜索能力",
+  },
+
+  // 文件搜索
+  {
+    id: "capability-file-search",
+    matchType: "modelPrefix",
+    matchValue: "file-search|retrieval",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        fileSearch: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含文件搜索关键词的模型自动添加文件搜索能力",
+  },
+
+  // 计算机使用
+  {
+    id: "capability-computer-use",
+    matchType: "modelPrefix",
+    matchValue: "computer-use|browser-use",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        computerUse: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含计算机使用关键词的模型自动添加计算机使用能力",
+  },
+
+  // 文档处理
+  {
+    id: "capability-document",
+    matchType: "modelPrefix",
+    matchValue: "doc|document|pdf",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        document: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含文档处理关键词的模型自动添加文档处理能力",
+  },
+
+  // 图像生成
+  {
+    id: "capability-image-generation",
+    matchType: "modelPrefix",
+    matchValue: "image-gen|txt2img|dall-?e|diffusion|image",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        imageGeneration: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含图像生成关键词的模型自动添加图像生成能力",
+  },
+
+  // 视频生成
+  {
+    id: "capability-video-generation",
+    matchType: "modelPrefix",
+    matchValue: "video-gen|txt2vid|sora|kling|video",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        videoGeneration: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含视频生成关键词的模型自动添加视频生成能力",
+  },
+
+  // 音乐生成
+  {
+    id: "capability-music-generation",
+    matchType: "modelPrefix",
+    matchValue: "music-gen|audio-gen|suno",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        musicGeneration: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含音乐生成关键词的模型自动添加音乐生成能力",
+  },
+
+  // 嵌入 (Embedding)
+  {
+    id: "capability-embedding",
+    matchType: "modelPrefix",
+    matchValue: "embed|embedding|bge",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        embedding: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含嵌入关键词的模型自动添加嵌入能力",
+  },
+
+  // 重排 (Rerank)
+  {
+    id: "capability-rerank",
+    matchType: "modelPrefix",
+    matchValue: "rerank",
+    properties: {
+      capabilities: {
+        rerank: true,
+      },
+    },
+    priority: 5,
+    enabled: true,
+    description: "为包含重排关键词的模型自动添加重排能力",
   },
 
   // === Provider 级别匹配（优先级 10） ===
@@ -888,7 +1110,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "Gemini 2.5 系列模型分组",
   },
-    {
+  {
     id: "model-prefix-gemini-2.0",
     matchType: "modelPrefix",
     matchValue: "gemini-2.0",
@@ -1636,18 +1858,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "TTS 文本转语音模型",
   },
   {
-    id: "model-text-embedding",
-    matchType: "modelPrefix",
-    matchValue: "text-embedding",
-    properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
-      group: "OpenAI",
-    },
-    priority: 30,
-    enabled: true,
-    description: "Text Embedding 嵌入模型",
-  },
-  {
     id: "model-text-moderation",
     matchType: "modelPrefix",
     matchValue: "text-moderation|omni-moderation",
@@ -1659,18 +1869,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 30,
     enabled: true,
     description: "内容审核模型",
-  },
-  {
-    id: "model-computer-use",
-    matchType: "modelPrefix",
-    matchValue: "computer-use",
-    properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
-      group: "OpenAI",
-    },
-    priority: 30,
-    enabled: true,
-    description: "Computer Use 计算机使用工具专用模型",
   },
   {
     id: "model-codex",
@@ -1693,7 +1891,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
     },
-    priority: 30,
+    priority: 10,
     enabled: true,
     description: "Babbage 系列模型（已弃用）",
   },
@@ -1705,7 +1903,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `${PRESET_ICONS_DIR}/openai.svg`,
       group: "OpenAI",
     },
-    priority: 30,
+    priority: 10,
     enabled: true,
     description: "Davinci 系列模型（已弃用）",
   },

@@ -132,6 +132,8 @@ export interface ModelCapabilities {
   embedding?: boolean;
   /** 是否支持重排（Rerank） */
   rerank?: boolean;
+  /** 是否支持计算机使用（Computer Use） */
+  computerUse?: boolean;
   
   /**
    * 文档处理能力

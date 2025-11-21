@@ -17,6 +17,7 @@ const emit = defineEmits(["update:visible", "add-models"]);
 const { getDisplayIconPath, getIconPath, getModelGroup, getMatchedProperties } = useModelMetadata();
 
 const searchQuery = ref("");
+const selectedCapabilities = ref<string[]>([]);
 const selectedModels = ref<LlmModelInfo[]>([]);
 const expandedGroups = ref<Record<string, boolean>>({});
 
@@ -41,18 +42,35 @@ const groupedModels = computed(() => {
 
   return groups;
 });
-
 // 过滤后的模型
 const filteredGroups = computed(() => {
-  if (!searchQuery.value) {
+  const query = searchQuery.value ? searchQuery.value.toLowerCase() : "";
+  const caps = selectedCapabilities.value;
+
+  if (!query && caps.length === 0) {
     return groupedModels.value;
   }
-  const query = searchQuery.value.toLowerCase();
+
   const result: Record<string, LlmModelInfo[]> = {};
   for (const group in groupedModels.value) {
-    const filtered = groupedModels.value[group].filter(
-      (model) => model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query)
-    );
+    const filtered = groupedModels.value[group].filter((model) => {
+      // 1. 搜索词匹配
+      const matchesQuery =
+        !query ||
+        model.id.toLowerCase().includes(query) ||
+        model.name.toLowerCase().includes(query);
+      if (!matchesQuery) return false;
+
+      // 2. 能力匹配 (AND 逻辑：必须包含所有选中的能力)
+      if (caps.length > 0) {
+        const modelCaps = getActiveCapabilities(model).map((c) => c.key) as string[];
+        const hasAllCaps = caps.every((cap) => modelCaps.includes(cap));
+        if (!hasAllCaps) return false;
+      }
+
+      return true;
+    });
+
     if (filtered.length > 0) {
       result[group] = filtered;
     }
@@ -228,6 +246,29 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
             clearable
             class="search-input"
           />
+          <el-select
+            v-model="selectedCapabilities"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="能力筛选"
+            style="width: 160px"
+            clearable
+          >
+            <el-option
+              v-for="cap in MODEL_CAPABILITIES"
+              :key="cap.key"
+              :label="cap.label"
+              :value="cap.key"
+            >
+              <div style="display: flex; align-items: center">
+                <el-icon style="margin-right: 8px" :style="{ color: cap.color }">
+                  <component :is="cap.icon" />
+                </el-icon>
+                <span>{{ cap.label }}</span>
+              </div>
+            </el-option>
+          </el-select>
           <el-button @click="toggleSelectAll">{{ isAllSelected ? "取消全选" : "全选" }}</el-button>
           <el-button @click="copyModelsJson">
             <el-icon class="el-icon--left"><i-ep-copy-document /></el-icon>

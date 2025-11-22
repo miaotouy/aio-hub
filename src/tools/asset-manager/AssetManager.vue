@@ -125,6 +125,7 @@ import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { useVideoViewer } from "@/composables/useVideoViewer";
 import { customMessage } from "@/utils/customMessage";
 import type {
   Asset,
@@ -158,6 +159,7 @@ const {
   rebuildCatalogIndex,
 } = useAssetManager();
 const imageViewer = useImageViewer();
+const videoViewer = useVideoViewer();
 
 // --- 状态管理 ---
 const config = ref(createDefaultConfig());
@@ -298,6 +300,8 @@ const handleSelectAsset = async (asset: Asset) => {
   if (asset.type === "image") {
     const url = await assetManagerEngine.getAssetUrl(asset);
     imageViewer.show(url);
+  } else if (asset.type === "video") {
+    videoViewer.previewVideo(asset);
   } else if (asset.type === "document") {
     selectedAssetForPreview.value = asset;
     isPreviewDialogVisible.value = true;
@@ -318,10 +322,10 @@ const handleShowInFolder = async (path: string) => {
 const handleDeleteAsset = async (assetId: string) => {
   try {
     // 使用新的批量完全删除命令
-    await invoke('remove_asset_completely', { assetId });
+    await invoke("remove_asset_completely", { assetId });
 
     // 从本地列表中移除
-    const index = assets.value.findIndex(a => a.id === assetId);
+    const index = assets.value.findIndex((a) => a.id === assetId);
     if (index !== -1) {
       assets.value.splice(index, 1);
     }
@@ -407,13 +411,13 @@ const handleDeleteSelected = async () => {
 
     // 使用新的批量完全删除命令
     const idsToDelete = Array.from(selectedAssetIds.value);
-    const failedIds = await invoke<string[]>('remove_assets_completely', {
-      assetIds: idsToDelete
+    const failedIds = await invoke<string[]>("remove_assets_completely", {
+      assetIds: idsToDelete,
     });
 
     // 从本地列表中移除成功删除的资产
-    const successIds = idsToDelete.filter(id => !failedIds.includes(id));
-    assets.value = assets.value.filter(a => !successIds.includes(a.id));
+    const successIds = idsToDelete.filter((id) => !failedIds.includes(id));
+    assets.value = assets.value.filter((a) => !successIds.includes(a.id));
 
     // 从重复文件哈希集合中移除
     successIds.forEach((id) => duplicateHashes.value.delete(id));
@@ -433,9 +437,7 @@ const handleDeleteSelected = async () => {
     if (failedIds.length === 0) {
       customMessage.success(`已成功删除 ${successIds.length} 个资产`);
     } else {
-      customMessage.warning(
-        `已删除 ${successIds.length} 个资产，${failedIds.length} 个失败`
-      );
+      customMessage.warning(`已删除 ${successIds.length} 个资产，${failedIds.length} 个失败`);
     }
   } catch (err) {
     // 用户取消操作

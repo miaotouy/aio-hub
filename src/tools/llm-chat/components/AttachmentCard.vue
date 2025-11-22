@@ -3,12 +3,13 @@ import { computed, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Asset } from "@/types/asset-management";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { createModuleLogger } from "@utils/logger";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
-import { generateVideoThumbnail } from '@/utils/mediaThumbnailUtils';
+import { generateVideoThumbnail } from "@/utils/mediaThumbnailUtils";
 
 const logger = createModuleLogger("AttachmentCard");
 
@@ -39,6 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const { show: showImage } = useImageViewer();
+const { previewVideo } = useVideoViewer();
 const { saveAssetThumbnail } = useAssetManager();
 const assetUrl = ref<string>("");
 const isLoadingUrl = ref(true);
@@ -171,6 +173,13 @@ const handlePreview = async () => {
     return;
   }
 
+  // 视频类型：打开视频预览
+  if (isVideo.value) {
+    // 传入当前缩略图作为 poster，提升体验
+    previewVideo(props.asset, { poster: assetUrl.value });
+    return;
+  }
+
   // 文档类型：打开预览对话框
   if (isDocument.value) {
     showDocumentPreview.value = true;
@@ -265,7 +274,11 @@ onUnmounted(() => {
   >
     <!-- 长条布局（非图片类型） -->
     <template v-if="isBarLayout">
-      <div class="bar-layout-container" :class="{ clickable: isDocument }" @click="handlePreview">
+      <div
+        class="bar-layout-container"
+        :class="{ clickable: isDocument || isVideo }"
+        @click="handlePreview"
+      >
         <!-- 文件图标区域 -->
         <div class="bar-icon-wrapper">
           <template v-if="isLoadingUrl">

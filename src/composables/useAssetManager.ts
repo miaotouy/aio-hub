@@ -88,25 +88,25 @@ export const assetManagerEngine = {
     }
   },
   /**
-   * 获取资产的显示 URL (异步获取 Blob URL)
+   * 获取资产的显示 URL
+   * 对于缩略图，使用 Blob URL 以便缓存和快速显示
+   * 对于原图/视频，优先使用 asset:// 协议以支持流式加载和避免内存阻塞
    */
   getAssetUrl: async (asset: Asset, useThumbnail = false): Promise<string> => {
     try {
-      const path = useThumbnail && asset.thumbnailPath ? asset.thumbnailPath : asset.path;
-
-      // 获取二进制数据
-      const bytes = await invoke<number[]>("get_asset_binary", {
-        relativePath: path,
-      });
-
-      // 转换为 Uint8Array
-      const uint8Array = new Uint8Array(bytes);
-
-      // 创建 Blob
-      const blob = new Blob([uint8Array], { type: asset.mimeType });
-
-      // 创建 Blob URL
-      return URL.createObjectURL(blob);
+      if (useThumbnail && asset.thumbnailPath) {
+        // 获取缩略图二进制数据 (缩略图通常较小，适合 Blob)
+        const bytes = await invoke<number[]>("get_asset_binary", {
+          relativePath: asset.thumbnailPath,
+        });
+        const uint8Array = new Uint8Array(bytes);
+        const blob = new Blob([uint8Array], { type: "image/jpeg" }); // 缩略图通常是 JPEG
+        return URL.createObjectURL(blob);
+      } else {
+        // 获取原始文件，使用 asset:// 协议
+        const basePath = await assetManagerEngine.getAssetBasePath();
+        return assetManagerEngine.convertToAssetProtocol(asset.path, basePath);
+      }
     } catch (error) {
       console.error("获取资产 URL 失败:", error, asset);
       return "";

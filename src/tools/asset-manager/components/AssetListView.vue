@@ -21,11 +21,15 @@
       <el-table-column width="60" align="center">
         <template #default="{ row }">
           <div class="type-icon">
-            <img
-              v-if="shouldShowThumbnail(row)"
-              :src="getAssetUrl(row)"
-              class="thumbnail"
-            />
+            <template v-if="shouldShowThumbnail(row)">
+              <img
+                :src="getDisplayUrl(row)"
+                class="thumbnail"
+              />
+              <div v-if="row.type === 'video'" class="video-overlay-small">
+                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </div>
+            </template>
             <FileIcon
               v-else
               :file-name="row.name"
@@ -128,10 +132,12 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import { View, Delete, MoreFilled, FolderOpened } from '@element-plus/icons-vue';
 import type { Asset, AssetType } from '@/types/asset-management';
-import { assetManagerEngine } from '@/composables/useAssetManager';
+import { useAssetManager, assetManagerEngine } from '@/composables/useAssetManager';
 import FileIcon from '@/components/common/FileIcon.vue';
+import { generateVideoThumbnail } from '@/utils/mediaThumbnailUtils';
 
 interface Props {
   assets: Asset[];
@@ -146,6 +152,10 @@ const props = withDefaults(defineProps<Props>(), {
   selectedIds: () => new Set(),
   assetUrls: () => new Map(),
 });
+
+const { saveAssetThumbnail } = useAssetManager();
+const localThumbnails = ref<Map<string, string>>(new Map());
+const processingAssets = ref<Set<string>>(new Set());
 
 const emit = defineEmits<{
   select: [asset: Asset];
@@ -221,9 +231,68 @@ const getRowClassName = ({ row }: { row: Asset }) => {
 const shouldShowThumbnail = (asset: Asset) => {
   // 图片总是显示
   if (asset.type === 'image') return true;
-  // 音频和视频只有在有缩略图路径时才显示
-  if ((asset.type === 'audio' || asset.type === 'video') && asset.thumbnailPath) return true;
+  // 音频有缩略图时显示
+  if (asset.type === 'audio' && asset.thumbnailPath) return true;
+  // 视频总是显示
+  if (asset.type === 'video') return true;
   return false;
+};
+// 获取显示的 URL
+const getDisplayUrl = (asset: Asset) => {
+  // 1. 优先使用本地生成的 Base64 缩略图
+  if (localThumbnails.value.has(asset.id)) {
+    return localThumbnails.value.get(asset.id);
+  }
+
+  const url = getAssetUrl(asset);
+  if (!url) return undefined;
+
+  // 2. 如果是视频，且没有后端缩略图，说明这个 URL 是原视频路径
+  // 我们不应该在 img 标签中显示原视频路径，而应该等待本地缩略图生成
+  if (asset.type === 'video' && !asset.thumbnailPath) {
+    return undefined;
+  }
+
+  // 3. 其他情况（图片，或有缩略图的音频/视频），直接显示
+  return url;
+};
+
+// 监听 assets 和 assetUrls 变化，处理没有缩略图的视频
+watch(
+  [() => props.assets, () => props.assetUrls],
+  ([newAssets, newUrls]) => {
+    for (const asset of newAssets) {
+      if (
+        asset.type === 'video' &&
+        !asset.thumbnailPath &&
+        !processingAssets.value.has(asset.id) &&
+        newUrls.has(asset.id)
+      ) {
+        processVideoThumbnail(asset);
+      }
+    }
+  },
+  { immediate: true, deep: true }
+);
+
+// 处理视频缩略图生成
+const processVideoThumbnail = async (asset: Asset) => {
+  if (processingAssets.value.has(asset.id)) return;
+  
+  const videoUrl = props.assetUrls.get(asset.id);
+  if (!videoUrl) return;
+
+  processingAssets.value.add(asset.id);
+
+  try {
+    const base64 = await generateVideoThumbnail(videoUrl);
+    localThumbnails.value.set(asset.id, base64);
+    await saveAssetThumbnail(asset.id, base64);
+  } catch (error) {
+    console.error('生成视频缩略图失败:', asset.name, error);
+  } finally {
+    processingAssets.value.delete(asset.id);
+  }
 };
 </script>
 

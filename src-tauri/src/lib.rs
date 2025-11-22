@@ -96,6 +96,7 @@ use commands::{
     rebuild_hash_index,
     find_duplicate_files,
     delete_asset,
+    save_asset_thumbnail,
     // Lazy loading commands
     list_assets_paginated,
     get_asset_stats,
@@ -327,6 +328,7 @@ tauri::Builder::default()
             rebuild_hash_index,
             find_duplicate_files,
             delete_asset,
+            save_asset_thumbnail,
             // Lazy loading commands
             list_assets_paginated,
             get_asset_stats,

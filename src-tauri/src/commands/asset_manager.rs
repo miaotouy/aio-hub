@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
 use content_inspector::{inspect, ContentType};
 use infer;
@@ -920,6 +921,55 @@ fn generate_image_thumbnail(
         .map_err(|e| format!("保存缩略图失败: {}", e))?;
 
     Ok(Some(thumbnail_relative))
+}
+
+/// 保存前端生成的缩略图
+#[tauri::command]
+pub async fn save_asset_thumbnail(
+    app: AppHandle,
+    asset_id: String,
+    base64_data: String,
+) -> Result<Asset, String> {
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+
+    // 1. 解码 Base64 数据
+    // 前端传来的通常带有 "data:image/jpeg;base64," 前缀，需要去掉
+    let base64_str = if let Some(index) = base64_data.find(',') {
+        &base64_data[index + 1..]
+    } else {
+        &base64_data
+    };
+
+    let image_data = general_purpose::STANDARD
+        .decode(base64_str)
+        .map_err(|e| format!("Base64 解码失败: {}", e))?;
+
+    // 2. 保存缩略图文件
+    let thumbnail_relative = format!(".thumbnails/{}.jpg", asset_id);
+    let thumbnail_path = base_dir.join(&thumbnail_relative);
+
+    if let Some(parent) = thumbnail_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建缩略图目录失败: {}", e))?;
+    }
+
+    fs::write(&thumbnail_path, &image_data).map_err(|e| format!("写入缩略图文件失败: {}", e))?;
+
+    // 3. 更新 Asset 信息
+    let mut updated_asset: Option<Asset> = None;
+
+    update_catalog_in_place(&base_dir, |entries| {
+        for entry in entries.iter_mut() {
+            if entry.id == asset_id {
+                // 实际上 convert_entry_to_asset 会自动检查文件是否存在来设置 thumbnail_path
+                // 这里我们不需要修改 entry 的字段，只需要触发一次保存和重新读取即可
+                updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
+                break;
+            }
+        }
+    })?;
+
+    updated_asset.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
 }
 
 /// 生成音频封面缩略图

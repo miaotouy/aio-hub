@@ -80,10 +80,11 @@ const loadAssetUrls = async () => {
     // 音频/视频如果有缩略图，也生成 URL
     if (
       asset.type === 'image' ||
-      ((asset.type === 'audio' || asset.type === 'video') && asset.thumbnailPath)
+      asset.type === 'video' || // 视频总是生成 URL（用于前端生成缩略图）
+      (asset.type === 'audio' && asset.thumbnailPath)
     ) {
       try {
-        // 优先使用缩略图，如果没有缩略图（或者是图片且没生成缩略图）则使用原路径
+        // 优先使用缩略图，如果没有缩略图（或者是图片/视频且没生成缩略图）则使用原路径
         const path = asset.thumbnailPath || asset.path;
         const url = assetManagerEngine.convertToAssetProtocol(path, basePath.value);
         newUrls.set(asset.id, url);

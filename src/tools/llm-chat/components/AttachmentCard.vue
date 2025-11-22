@@ -3,11 +3,12 @@ import { computed, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Asset } from "@/types/asset-management";
 import { useImageViewer } from "@/composables/useImageViewer";
-import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { createModuleLogger } from "@utils/logger";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
+import { generateVideoThumbnail } from '@/utils/mediaThumbnailUtils';
 
 const logger = createModuleLogger("AttachmentCard");
 
@@ -38,6 +39,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const { show: showImage } = useImageViewer();
+const { saveAssetThumbnail } = useAssetManager();
 const assetUrl = ref<string>("");
 const isLoadingUrl = ref(true);
 const loadError = ref(false);
@@ -78,53 +80,6 @@ const fileExtension = computed(() => {
   if (index === -1) return "";
   return name.slice(index + 1).toUpperCase();
 });
-
-// 生成视频缩略图
-const generateVideoThumbnail = async (videoUrl: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.src = videoUrl;
-    video.muted = true;
-    video.preload = "metadata";
-
-    video.onloadedmetadata = () => {
-      // 确保截取时间点在视频时长范围内
-      // 如果视频超过1秒，取第1秒；否则取中间点
-      const time = video.duration > 1 ? 1 : video.duration / 2;
-      video.currentTime = time;
-    };
-
-    video.onloadeddata = () => {
-      // 确保 seek 完成
-      if (video.readyState >= 2) {
-        capture();
-      }
-    };
-
-    video.onseeked = capture;
-
-    function capture() {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d");
-        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-        resolve(dataUrl);
-      } catch (e) {
-        reject(e);
-      } finally {
-        // 清理
-        video.src = "";
-        video.load();
-      }
-    }
-
-    video.onerror = (e) => reject(e);
-  });
-};
 
 // 加载资产 URL
 const loadAssetUrl = async () => {
@@ -171,12 +126,21 @@ const loadAssetUrl = async () => {
           basePath.value
         );
       } else if (isVideo.value) {
-        // 视频且无缩略图：前端动态生成
+        // 视频且无缩略图：前端动态生成并保存
         const videoPathUrl = assetManagerEngine.convertToAssetProtocol(
           props.asset.path,
           basePath.value
         );
-        assetUrl.value = await generateVideoThumbnail(videoPathUrl);
+        try {
+          const base64 = await generateVideoThumbnail(videoPathUrl);
+          assetUrl.value = base64;
+          // 异步保存到后端
+          saveAssetThumbnail(props.asset.id, base64).catch((err) => {
+            logger.warn("保存视频缩略图失败", { error: err, assetId: props.asset.id });
+          });
+        } catch (e) {
+          logger.warn("生成视频缩略图失败", { error: e, asset: props.asset });
+        }
       } else {
         // 其他情况（如没有封面的音频），不设置 assetUrl，使用默认图标
         assetUrl.value = "";

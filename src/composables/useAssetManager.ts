@@ -214,6 +214,18 @@ export const assetManagerEngine = {
   rebuildCatalogIndex: async (): Promise<string> => {
     return await invoke<string>("rebuild_catalog_index");
   },
+
+  /**
+   * 保存资产缩略图
+   * @param assetId 资产 ID
+   * @param base64Data Base64 编码的图片数据
+   */
+  saveAssetThumbnail: async (assetId: string, base64Data: string): Promise<Asset> => {
+    return await invoke<Asset>("save_asset_thumbnail", {
+      assetId,
+      base64Data,
+    });
+  },
 };
 
 const logger = createModuleLogger("useAssetManager");
@@ -693,6 +705,7 @@ export function useAssetManager() {
 
     rebuildHashIndex,
     rebuildCatalogIndex,
+    saveAssetThumbnail: assetManagerEngine.saveAssetThumbnail,
   };
 }
 

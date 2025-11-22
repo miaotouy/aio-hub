@@ -84,8 +84,8 @@ onBeforeUnmount(() => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
+  background-color: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(var(--ui-blur));
   z-index: 2000; /* 确保高于大多数元素 */
   display: flex;
   justify-content: center;
@@ -96,11 +96,12 @@ onBeforeUnmount(() => {
 .video-viewer-container {
   width: 90%;
   height: 90%;
-  max-width: 1280px;
+  max-width: 3000px;
   display: flex;
   flex-direction: column;
   background: transparent;
   border-radius: 8px;
+  border: 1px solid var(--border-color);
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
@@ -112,8 +113,10 @@ onBeforeUnmount(() => {
   align-items: center;
   padding: 0 16px;
   background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(var(--ui-blur));
   color: white;
   flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .viewer-title {

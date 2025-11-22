@@ -64,8 +64,12 @@ export interface ContextPreviewData {
     agentIcon?: string;
     /** 附件的详细分析 */
     attachments?: Array<{
+      id: string;
       name: string;
       type: Asset["type"];
+      path: string;
+      importStatus?: Asset["importStatus"];
+      originalPath?: string;
       size: number;
       tokenCount?: number;
       isEstimated: boolean;
@@ -827,8 +831,12 @@ export function useChatContextBuilder() {
               if (isAttachmentEstimated) isEstimated = true;
 
               attachmentsData.push({
+                id: asset.id,
                 name: asset.name,
                 type: asset.type,
+                path: asset.path,
+                importStatus: asset.importStatus,
+                originalPath: asset.originalPath,
                 size: asset.size,
                 tokenCount,
                 isEstimated: isAttachmentEstimated,
@@ -868,8 +876,12 @@ export function useChatContextBuilder() {
               if (isAttachmentEstimated) isEstimated = true;
 
               attachmentsData.push({
+                id: asset.id,
                 name: asset.name,
                 type: asset.type,
+                path: asset.path,
+                importStatus: asset.importStatus,
+                originalPath: asset.originalPath,
                 size: asset.size,
                 tokenCount,
                 isEstimated: isAttachmentEstimated,
@@ -881,8 +893,12 @@ export function useChatContextBuilder() {
             // 处理其他附件
             for (const asset of otherAttachments) {
               attachmentsData.push({
+                id: asset.id,
                 name: asset.name,
                 type: asset.type,
+                path: asset.path,
+                importStatus: asset.importStatus,
+                originalPath: asset.originalPath,
                 size: asset.size,
                 tokenCount: undefined,
                 isEstimated: true,

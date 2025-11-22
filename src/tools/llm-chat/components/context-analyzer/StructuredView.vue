@@ -234,10 +234,20 @@
             <div class="attachments-title">附件分析</div>
             <div class="attachments-grid">
               <div v-for="(att, attIndex) in msg.attachments" :key="attIndex" class="attachment-card">
+                <!-- 图片预览 -->
+                <div
+                  v-if="att.type === 'image'"
+                  class="attachment-preview clickable"
+                  @click="handleImagePreview(msg.attachments!, attIndex)"
+                >
+                  <img :src="getAssetUrl(att)" :alt="att.name" loading="lazy" />
+                </div>
+                
                 <div class="attachment-info">
-                  <span class="attachment-name">{{ att.name }}</span>
+                  <span class="attachment-name" :title="att.name">{{ att.name }}</span>
                   <span class="attachment-size">{{ formatFileSize(att.size) }}</span>
                 </div>
+                
                 <div class="attachment-token-info">
                   <el-tooltip v-if="att.error" :content="att.error" placement="top">
                     <el-tag type="danger" size="small" effect="dark">计算错误</el-tag>
@@ -259,13 +269,60 @@
   </div>
 </template>
 <script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import InfoCard from '@/components/common/InfoCard.vue';
 import Avatar from '@/components/common/Avatar.vue';
-import type { ContextPreviewData } from '../../composables/useChatHandler';
+import type { ContextPreviewData } from '../../composables/useChatContextBuilder';
+import { assetManagerEngine } from '@/composables/useAssetManager';
+import { useImageViewer } from '@/composables/useImageViewer';
 
 defineProps<{
   contextData: ContextPreviewData;
 }>();
+
+const basePath = ref<string>("");
+const { show: showImage } = useImageViewer();
+
+onMounted(async () => {
+  basePath.value = await assetManagerEngine.getAssetBasePath();
+});
+
+const getAssetUrl = (asset: any) => {
+  if (!asset) return "";
+  
+  // 判断是否为 pending/importing 状态
+  const isPending = asset.importStatus === "pending" || asset.importStatus === "importing";
+
+  if (isPending) {
+    // pending 状态：使用原始路径通过 convertFileSrc 创建一个快速预览 URL
+    const originalPath = asset.originalPath || asset.path;
+    if (!originalPath) return "";
+    return convertFileSrc(originalPath);
+  } else {
+    // 已导入状态：使用同步的 asset:// 协议
+    if (!basePath.value) return "";
+    return assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+  }
+};
+
+const handleImagePreview = (attachments: any[], currentIndex: number) => {
+  // 过滤出所有的图片附件
+  const imageAssets = attachments.filter(att => att.type === 'image');
+  
+  // 找到当前点击图片在图片列表中的索引
+  const currentImage = attachments[currentIndex];
+  const imageIndex = imageAssets.findIndex(img => img.id === currentImage.id);
+  
+  if (imageIndex === -1) return;
+
+  // 生成 URL 列表
+  const urls = imageAssets.map(img => getAssetUrl(img)).filter(url => !!url);
+  
+  if (urls.length > 0) {
+    showImage(urls, imageIndex);
+  }
+};
 
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return "0 B";
@@ -475,6 +532,34 @@ const formatFileSize = (bytes: number): string => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow: hidden;
+}
+
+.attachment-preview {
+  width: 100%;
+  height: 100px;
+  background-color: var(--el-fill-color);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.attachment-preview.clickable {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.attachment-preview.clickable:hover {
+  opacity: 0.9;
+}
+
+.attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .attachment-info {

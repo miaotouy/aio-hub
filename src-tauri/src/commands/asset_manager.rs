@@ -1,6 +1,8 @@
 use chrono::Utc;
 use content_inspector::{inspect, ContentType};
 use infer;
+use lofty::file::TaggedFileExt;
+use lofty::probe::Probe;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -527,8 +529,10 @@ pub async fn import_asset_from_path(
         }
     }
 
-    let thumbnail_path = if opts.generate_thumbnail && matches!(asset_type, AssetType::Image) {
-        generate_thumbnail(&target_path, &base_dir, &uuid)?
+    let thumbnail_path = if opts.generate_thumbnail
+        && (matches!(asset_type, AssetType::Image) || matches!(asset_type, AssetType::Audio))
+    {
+        generate_thumbnail(&target_path, &base_dir, &uuid, &asset_type)?
     } else {
         None
     };
@@ -659,8 +663,10 @@ pub async fn import_asset_from_bytes(
         }
     }
 
-    let thumbnail_path = if opts.generate_thumbnail && matches!(asset_type, AssetType::Image) {
-        generate_thumbnail(&target_path, &base_dir, &uuid)?
+    let thumbnail_path = if opts.generate_thumbnail
+        && (matches!(asset_type, AssetType::Image) || matches!(asset_type, AssetType::Audio))
+    {
+        generate_thumbnail(&target_path, &base_dir, &uuid, &asset_type)?
     } else {
         None
     };
@@ -874,6 +880,20 @@ fn generate_thumbnail(
     source_path: &Path,
     base_dir: &Path,
     uuid: &str,
+    asset_type: &AssetType,
+) -> Result<Option<String>, String> {
+    match asset_type {
+        AssetType::Image => generate_image_thumbnail(source_path, base_dir, uuid),
+        AssetType::Audio => generate_audio_thumbnail(source_path, base_dir, uuid),
+        _ => Ok(None),
+    }
+}
+
+/// 生成图片缩略图
+fn generate_image_thumbnail(
+    source_path: &Path,
+    base_dir: &Path,
+    uuid: &str,
 ) -> Result<Option<String>, String> {
     let img = match image::open(source_path) {
         Ok(img) => img,
@@ -898,6 +918,65 @@ fn generate_thumbnail(
         .to_rgb8()
         .save_with_format(&thumbnail_path, image::ImageFormat::Jpeg)
         .map_err(|e| format!("保存缩略图失败: {}", e))?;
+
+    Ok(Some(thumbnail_relative))
+}
+
+/// 生成音频封面缩略图
+fn generate_audio_thumbnail(
+    source_path: &Path,
+    base_dir: &Path,
+    uuid: &str,
+) -> Result<Option<String>, String> {
+    // 使用 Probe 读取文件，这样更健壮
+    let tagged_file = match Probe::open(source_path) {
+        Ok(probe) => match probe.read() {
+            Ok(tf) => tf,
+            Err(_) => return Ok(None),
+        },
+        Err(_) => return Ok(None),
+    };
+
+    // 尝试获取标签
+    let tag = match tagged_file.primary_tag() {
+        Some(tag) => tag,
+        None => match tagged_file.first_tag() {
+            Some(tag) => tag,
+            None => return Ok(None),
+        },
+    };
+
+    // 获取图片列表
+    let pictures = tag.pictures();
+    if pictures.is_empty() {
+        return Ok(None);
+    }
+
+    // 取第一张图片
+    let picture = &pictures[0];
+    let data = picture.data();
+
+    // 加载图片数据
+    let img = match image::load_from_memory(data) {
+        Ok(img) => img,
+        Err(_) => return Ok(None),
+    };
+
+    // 生成缩略图
+    let thumbnail = img.thumbnail(400, 400);
+
+    let thumbnail_relative = format!(".thumbnails/{}.jpg", uuid);
+    let thumbnail_path = base_dir.join(&thumbnail_relative);
+
+    if let Some(parent) = thumbnail_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建缩略图目录失败: {}", e))?;
+    }
+
+    // 保存
+    thumbnail
+        .to_rgb8()
+        .save_with_format(&thumbnail_path, image::ImageFormat::Jpeg)
+        .map_err(|e| format!("保存音频封面失败: {}", e))?;
 
     Ok(Some(thumbnail_relative))
 }

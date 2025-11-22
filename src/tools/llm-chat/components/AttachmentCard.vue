@@ -60,9 +60,10 @@ const formattedSize = computed(() => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 });
 
-// 是否为图片或视频类型（使用方形卡片）
+// 是否为图片类型
 const isImage = computed(() => props.asset.type === "image");
-// const isVideo = computed(() => props.asset.type === "video"); // 视频现在也用横条
+// 是否为视频类型
+const isVideo = computed(() => props.asset.type === "video");
 
 // 是否应该使用长条形式（非图片类型都用长条）
 const isBarLayout = computed(() => !isImage.value);
@@ -78,6 +79,53 @@ const fileExtension = computed(() => {
   return name.slice(index + 1).toUpperCase();
 });
 
+// 生成视频缩略图
+const generateVideoThumbnail = async (videoUrl: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.src = videoUrl;
+    video.muted = true;
+    video.preload = "metadata";
+
+    video.onloadedmetadata = () => {
+      // 确保截取时间点在视频时长范围内
+      // 如果视频超过1秒，取第1秒；否则取中间点
+      const time = video.duration > 1 ? 1 : video.duration / 2;
+      video.currentTime = time;
+    };
+
+    video.onloadeddata = () => {
+      // 确保 seek 完成
+      if (video.readyState >= 2) {
+        capture();
+      }
+    };
+
+    video.onseeked = capture;
+
+    function capture() {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        resolve(dataUrl);
+      } catch (e) {
+        reject(e);
+      } finally {
+        // 清理
+        video.src = "";
+        video.load();
+      }
+    }
+
+    video.onerror = (e) => reject(e);
+  });
+};
+
 // 加载资产 URL
 const loadAssetUrl = async () => {
   isLoadingUrl.value = true;
@@ -87,31 +135,59 @@ const loadAssetUrl = async () => {
     const isPending =
       props.asset.importStatus === "pending" || props.asset.importStatus === "importing";
 
+    if (!basePath.value && !isPending) {
+      basePath.value = await assetManagerEngine.getAssetBasePath();
+    }
+
     if (isPending) {
-      // pending 状态：使用原始路径通过 convertFileSrc 创建一个快速预览 URL
+      // pending 状态
       const originalPath = props.asset.originalPath || props.asset.path;
+      if (!originalPath) throw new Error("缺少原始路径");
 
-      if (!originalPath) {
-        throw new Error("缺少原始路径");
+      const fileUrl = convertFileSrc(originalPath);
+
+      if (isVideo.value) {
+        // 视频：尝试生成预览
+        assetUrl.value = await generateVideoThumbnail(fileUrl);
+      } else if (isImage.value) {
+        // 图片：直接使用文件 URL
+        assetUrl.value = fileUrl;
+      } else {
+        // 音频或其他：暂时显示图标，等待后端处理完成
+        assetUrl.value = "";
       }
-
-      // 使用 convertFileSrc 立即生成可用的 URL，这比读取整个文件要快得多
-      assetUrl.value = convertFileSrc(originalPath);
     } else {
-      // 已导入状态：使用同步的 asset:// 协议
-      if (!basePath.value) {
-        basePath.value = await assetManagerEngine.getAssetBasePath();
+      // 已导入状态
+      if (props.asset.thumbnailPath) {
+        // 有缩略图（图片、音频、或者后端生成的视频缩略图）
+        assetUrl.value = assetManagerEngine.convertToAssetProtocol(
+          props.asset.thumbnailPath,
+          basePath.value
+        );
+      } else if (isImage.value) {
+        // 图片本身
+        assetUrl.value = assetManagerEngine.convertToAssetProtocol(
+          props.asset.path,
+          basePath.value
+        );
+      } else if (isVideo.value) {
+        // 视频且无缩略图：前端动态生成
+        const videoPathUrl = assetManagerEngine.convertToAssetProtocol(
+          props.asset.path,
+          basePath.value
+        );
+        assetUrl.value = await generateVideoThumbnail(videoPathUrl);
+      } else {
+        // 其他情况（如没有封面的音频），不设置 assetUrl，使用默认图标
+        assetUrl.value = "";
       }
-
-      const path = props.asset.thumbnailPath || props.asset.path;
-      assetUrl.value = assetManagerEngine.convertToAssetProtocol(path, basePath.value);
     }
   } catch (error) {
-    logger.error("加载资产 URL 失败", error, { asset: props.asset });
-    loadError.value = true;
+    logger.warn("加载资产预览失败", { error, asset: props.asset });
+    // 不设置 loadError，这样会显示默认图标而不是错误图标
+    assetUrl.value = "";
   }
 
-  // 无论成功或失败，都应尽快完成 loading 状态
   isLoadingUrl.value = false;
 };
 
@@ -235,7 +311,26 @@ onUnmounted(() => {
             <span class="icon-emoji error">⚠️</span>
           </template>
           <template v-else>
-            <div class="file-type-badge" :data-type="asset.type">
+            <div v-if="assetUrl" class="bar-thumbnail-wrapper">
+              <img :src="assetUrl" class="bar-thumbnail-image" alt="预览" />
+              <div v-if="isVideo" class="bar-video-overlay">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="play-icon"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              </div>
+            </div>
+            <div v-else class="file-type-badge" :data-type="asset.type">
               <FileIcon :file-name="asset.name" :file-type="asset.type" :size="20" />
             </div>
           </template>
@@ -760,6 +855,42 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(1px);
   border-radius: 8px;
+  z-index: 2;
+}
+
+.bar-thumbnail-wrapper {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.bar-thumbnail-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bar-video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.bar-video-overlay .play-icon {
+  width: 16px;
+  height: 16px;
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 .import-spinner-small {

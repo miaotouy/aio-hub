@@ -21,7 +21,7 @@
         />
         <!-- 缩略图或图标 -->
         <div class="asset-preview" @click.stop="handleSelect(asset)">
-          <template v-if="asset.type === 'image'">
+          <template v-if="shouldShowThumbnail(asset)">
             <!-- 只有在 URL 准备好时才渲染图片 -->
             <template v-if="assetUrls.has(asset.id)">
               <img
@@ -131,6 +131,15 @@ const handleShowInFolder = (path: string) => {
 
 const formatFileSize = (bytes: number) => {
   return assetManagerEngine.formatFileSize(bytes);
+};
+
+// 判断是否应该显示缩略图
+const shouldShowThumbnail = (asset: Asset) => {
+  // 图片总是显示
+  if (asset.type === 'image') return true;
+  // 音频和视频只有在有缩略图路径时才显示（避免加载原文件导致裂图）
+  if ((asset.type === 'audio' || asset.type === 'video') && asset.thumbnailPath) return true;
+  return false;
 };
 </script>
 

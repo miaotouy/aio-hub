@@ -76,9 +76,16 @@ const loadAssetUrls = async () => {
   
   const newUrls = new Map<string, string>();
   for (const asset of props.assets) {
-    if (asset.type === 'image') {
+    // 图片总是生成 URL
+    // 音频/视频如果有缩略图，也生成 URL
+    if (
+      asset.type === 'image' ||
+      ((asset.type === 'audio' || asset.type === 'video') && asset.thumbnailPath)
+    ) {
       try {
-        const url = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+        // 优先使用缩略图，如果没有缩略图（或者是图片且没生成缩略图）则使用原路径
+        const path = asset.thumbnailPath || asset.path;
+        const url = assetManagerEngine.convertToAssetProtocol(path, basePath.value);
         newUrls.set(asset.id, url);
       } catch (error) {
         console.error('生成资产 URL 失败:', asset.id, error);

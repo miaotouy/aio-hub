@@ -22,7 +22,7 @@
         <template #default="{ row }">
           <div class="type-icon">
             <img
-              v-if="row.type === 'image'"
+              v-if="shouldShowThumbnail(row)"
               :src="getAssetUrl(row)"
               class="thumbnail"
             />
@@ -215,6 +215,15 @@ const getRowClassName = ({ row }: { row: Asset }) => {
     classes.push('selected-row');
   }
   return classes.join(' ');
+};
+
+// 判断是否应该显示缩略图
+const shouldShowThumbnail = (asset: Asset) => {
+  // 图片总是显示
+  if (asset.type === 'image') return true;
+  // 音频和视频只有在有缩略图路径时才显示
+  if ((asset.type === 'audio' || asset.type === 'video') && asset.thumbnailPath) return true;
+  return false;
 };
 </script>
 

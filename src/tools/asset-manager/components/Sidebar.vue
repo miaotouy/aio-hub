@@ -60,6 +60,39 @@
 
     <el-divider />
 
+    <!-- 按来源方式筛选 -->
+    <div class="filter-section">
+      <h3 class="section-title">来源方式</h3>
+      <el-radio-group v-model="internalSelectedOrigin" @change="handleOriginChange">
+        <el-radio value="all" class="filter-radio">
+          <div class="radio-content">
+            <span>全部</span>
+            <span class="count">{{ totalAssets }}</span>
+          </div>
+        </el-radio>
+        <el-radio value="local" class="filter-radio">
+          <div class="radio-content">
+            <span class="radio-label"><HardDrive :size="16" /> {{ getOriginLabel('local') }}</span>
+            <span class="count">{{ originCounts?.local || 0 }}</span>
+          </div>
+        </el-radio>
+        <el-radio value="clipboard" class="filter-radio">
+          <div class="radio-content">
+            <span class="radio-label"><Clipboard :size="16" /> {{ getOriginLabel('clipboard') }}</span>
+            <span class="count">{{ originCounts?.clipboard || 0 }}</span>
+          </div>
+        </el-radio>
+        <el-radio value="network" class="filter-radio">
+          <div class="radio-content">
+            <span class="radio-label"><Globe :size="16" /> {{ getOriginLabel('network') }}</span>
+            <span class="count">{{ originCounts?.network || 0 }}</span>
+          </div>
+        </el-radio>
+      </el-radio-group>
+    </div>
+
+    <el-divider />
+
     <!-- 按来源模块筛选 -->
     <div class="filter-section">
       <h3 class="section-title">来源模块</h3>
@@ -94,41 +127,51 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import type { AssetType, AssetStats } from '@/types/asset-management';
+import type { AssetType, AssetStats, AssetOriginType } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 import { useToolsStore } from '@/stores/tools';
+import { getOriginLabel } from '../utils/displayUtils';
 import {
   Image,
   Video,
   Music,
   FileText,
   Paperclip,
-  HelpCircle
+  HelpCircle,
+  HardDrive,
+  Clipboard,
+  Globe,
 } from 'lucide-vue-next';
 
 interface Props {
   selectedType: AssetType | 'all';
   selectedSourceModule?: string | 'all';
+  selectedOrigin?: AssetOriginType | 'all';
   totalAssets: number;
   totalSize: number;
   typeCounts: AssetStats['typeCounts'];
   sourceModuleCounts?: Record<string, number>;
+  originCounts?: Record<AssetOriginType, number>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selectedSourceModule: 'all',
+  selectedOrigin: 'all',
   sourceModuleCounts: () => ({}),
+  originCounts: () => ({ local: 0, clipboard: 0, network: 0 }),
 });
 
 const emit = defineEmits<{
   'update:selectedType': [value: AssetType | 'all'];
   'update:selectedSourceModule': [value: string | 'all'];
+  'update:selectedOrigin': [value: AssetOriginType | 'all'];
   'update:showDuplicatesOnly': [value: boolean];
 }>();
 
 // 内部状态
 const internalSelectedType = ref(props.selectedType);
 const internalSelectedSourceModule = ref(props.selectedSourceModule);
+const internalSelectedOrigin = ref(props.selectedOrigin);
 
 // 监听 props 变化
 watch(() => props.selectedType, (newVal) => {
@@ -139,6 +182,10 @@ watch(() => props.selectedSourceModule, (newVal) => {
   internalSelectedSourceModule.value = newVal;
 });
 
+watch(() => props.selectedOrigin, (newVal) => {
+  internalSelectedOrigin.value = newVal;
+});
+
 // 事件处理
 const handleTypeChange = (value: string | number | boolean) => {
   emit('update:selectedType', value as AssetType | 'all');
@@ -146,6 +193,10 @@ const handleTypeChange = (value: string | number | boolean) => {
 
 const handleSourceModuleChange = (value: string | number | boolean) => {
   emit('update:selectedSourceModule', value as string | 'all');
+};
+
+const handleOriginChange = (value: string | number | boolean) => {
+  emit('update:selectedOrigin', value as AssetOriginType | 'all');
 };
 
 // 从工具注册表动态获取工具配置

@@ -78,7 +78,7 @@
               type="info"
               effect="plain"
             >
-              {{ getOriginLabel(origin.type) }}
+              {{ getOriginDisplayText(origin) }}
             </el-tag>
             <el-tag v-if="row.origins.length > 2" size="small" type="info" effect="plain">
               +{{ row.origins.length - 2 }}
@@ -127,8 +127,9 @@
 
 <script setup lang="ts">
 import { View, Delete, MoreFilled, FolderOpened } from "@element-plus/icons-vue";
-import type { Asset, AssetType } from "@/types/asset-management";
+import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
+import { getTypeLabel, getOriginDisplayText } from "../utils/displayUtils";
 import AssetIcon from "./AssetIcon.vue";
 
 interface Props {
@@ -173,26 +174,6 @@ const formatFileSize = (bytes: number) => {
   return assetManagerEngine.formatFileSize(bytes);
 };
 
-const getTypeLabel = (type: AssetType): string => {
-  const labels: Record<AssetType, string> = {
-    image: "图片",
-    video: "视频",
-    audio: "音频",
-    document: "文档",
-    other: "其他",
-  };
-  return labels[type];
-};
-
-const getOriginLabel = (type: string): string => {
-  const labels: Record<string, string> = {
-    local: "本地",
-    clipboard: "剪贴板",
-    network: "网络",
-  };
-  return labels[type] || type;
-};
-
 const formatDate = (isoString: string): string => {
   const date = new Date(isoString);
   return date.toLocaleString("zh-CN", {
@@ -221,9 +202,6 @@ const getRowClassName = ({ row }: { row: Asset }) => {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  background-color: var(--container-bg);
-  border-radius: 8px;
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .type-icon {
@@ -286,5 +264,11 @@ const getRowClassName = ({ row }: { row: Asset }) => {
 
 :deep(.el-table__row.selected-row:hover .el-table__cell) {
   background-color: color-mix(in srgb, var(--primary-color) 30%, transparent) !important;
+}
+.el-table {
+  box-sizing: border-box;
+  background-color: var(--container-bg);
+  padding: 8px;
+  border-radius: 8px;
 }
 </style>

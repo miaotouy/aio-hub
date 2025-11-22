@@ -66,6 +66,7 @@ pub struct AssetStats {
     pub total_size: u64,
     pub type_counts: HashMap<AssetType, u64>,
     pub source_module_counts: HashMap<String, u64>,
+    pub origin_counts: HashMap<AssetOriginType, u64>,
 }
 
 
@@ -1861,10 +1862,10 @@ pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
         stats.total_assets += 1;
         stats.total_size += entry.size;
         *stats.type_counts.entry(entry.asset_type).or_insert(0) += 1;
-        
-        // 统计来源模块
+        // 统计来源模块和来源方式
         for origin in &entry.origins {
             *stats.source_module_counts.entry(origin.source_module.clone()).or_insert(0) += 1;
+            *stats.origin_counts.entry(origin.origin_type.clone()).or_insert(0) += 1;
         }
     }
 

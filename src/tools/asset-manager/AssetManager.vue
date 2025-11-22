@@ -43,11 +43,13 @@
         <Sidebar
           v-model:selected-type="listPayload.filterType"
           v-model:selected-source-module="listPayload.filterSourceModule"
+          v-model:selected-origin="listPayload.filterOrigin"
           v-model:show-duplicates-only="listPayload.showDuplicatesOnly"
           :total-assets="totalAssets"
           :total-size="totalSize"
           :type-counts="typeCounts"
           :source-module-counts="sourceModuleCounts"
+          :origin-counts="originCounts"
         />
       </el-aside>
 
@@ -127,6 +129,7 @@ import { customMessage } from "@/utils/customMessage";
 import type {
   Asset,
   AssetType,
+  AssetOriginType,
   DuplicateFilesResult,
   AssetGroupBy,
   AssetSortBy,
@@ -178,6 +181,7 @@ const listPayload = reactive({
   sortOrder: "desc" as "asc" | "desc",
   filterType: "all" as AssetType | "all",
   filterSourceModule: "all" as string | "all",
+  filterOrigin: "all" as AssetOriginType | "all",
   searchQuery: config.value.searchQuery,
   showDuplicatesOnly: false,
 });
@@ -225,6 +229,7 @@ watch(
     listPayload.sortOrder,
     listPayload.filterType,
     listPayload.filterSourceModule,
+    listPayload.filterOrigin,
     listPayload.showDuplicatesOnly,
   ],
   () => {
@@ -286,6 +291,7 @@ const typeCounts = computed(() => assetStats.value.typeCounts);
 
 // 使用后端提供的全局来源模块统计
 const sourceModuleCounts = computed(() => assetStats.value.sourceModuleCounts || {});
+const originCounts = computed(() => assetStats.value.originCounts || {});
 
 // 事件处理
 const handleSelectAsset = async (asset: Asset) => {

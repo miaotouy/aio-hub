@@ -253,4 +253,5 @@ export interface AssetStats {
   totalSize: number;
   typeCounts: Record<AssetType, number>;
   sourceModuleCounts: Record<string, number>;
+  originCounts: Record<AssetOriginType, number>;
 }

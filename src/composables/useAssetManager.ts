@@ -258,6 +258,7 @@ export function useAssetManager() {
     totalSize: 0,
     typeCounts: { image: 0, video: 0, audio: 0, document: 0, other: 0 },
     sourceModuleCounts: {},
+    originCounts: { local: 0, clipboard: 0, network: 0 },
   });
 
   // --- 方法 ---

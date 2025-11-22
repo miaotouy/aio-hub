@@ -1,20 +1,40 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
-import { ElInput, ElEmpty } from 'element-plus';
-import { useModelSelectDialog } from '@/composables/useModelSelectDialog';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { useModelMetadata } from '@/composables/useModelMetadata';
-import type { LlmProfile, LlmModelInfo } from '@/types/llm-profiles';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import DynamicIcon from '@/components/common/DynamicIcon.vue';
-import { MODEL_CAPABILITIES } from '@/config/model-capabilities';
+import { computed, ref, watch, nextTick } from "vue";
+import { ElInput, ElEmpty, ElSelect, ElOption, ElIcon } from "element-plus";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
+import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 
 const { isDialogVisible, currentSelection, select, cancel } = useModelSelectDialog();
 const { enabledProfiles } = useLlmProfiles();
-const { getModelIcon } = useModelMetadata();
+const { getModelIcon, getMatchedProperties } = useModelMetadata();
 
-const searchQuery = ref('');
+const searchQuery = ref("");
+const selectedCapabilities = ref<string[]>([]);
 const modelListWrapperRef = ref<HTMLDivElement>();
+
+// --- 能力筛选相关函数 ---
+
+// 获取模型能力
+function getModelCapabilities(model: LlmModelInfo) {
+  // 优先使用模型自身的能力配置
+  if (model.capabilities) {
+    return model.capabilities;
+  }
+  // 否则使用元数据规则匹配的能力
+  const matchedProps = getMatchedProperties(model.id, model.provider);
+  return matchedProps?.capabilities || {};
+}
+
+// 获取激活的能力列表
+function getActiveCapabilities(model: LlmModelInfo) {
+  const capabilities = getModelCapabilities(model);
+  return MODEL_CAPABILITIES.filter((cap) => capabilities[cap.key as keyof typeof capabilities]);
+}
 
 // 组合并筛选所有可用模型
 const allModels = computed(() => {
@@ -29,16 +49,30 @@ const allModels = computed(() => {
     });
   });
 
-  if (!searchQuery.value) {
+  const lowerCaseQuery = searchQuery.value.toLowerCase();
+  const caps = selectedCapabilities.value;
+
+  if (!lowerCaseQuery && caps.length === 0) {
     return models;
   }
 
-  const lowerCaseQuery = searchQuery.value.toLowerCase();
-  return models.filter(
-    ({ model, profile }) =>
+  return models.filter(({ model, profile }) => {
+    // 1. 搜索词匹配
+    const matchesQuery =
+      !lowerCaseQuery ||
       model.name.toLowerCase().includes(lowerCaseQuery) ||
-      profile.name.toLowerCase().includes(lowerCaseQuery)
-  );
+      profile.name.toLowerCase().includes(lowerCaseQuery);
+    if (!matchesQuery) return false;
+
+    // 2. 能力匹配 (AND 逻辑：必须包含所有选中的能力)
+    if (caps.length > 0) {
+      const modelCaps = getActiveCapabilities(model).map((c) => c.key) as string[];
+      const hasAllCaps = caps.every((cap) => modelCaps.includes(cap));
+      if (!hasAllCaps) return false;
+    }
+
+    return true;
+  });
 });
 // 按 profile 分组
 const modelGroups = computed(() => {
@@ -58,8 +92,9 @@ const modelGroups = computed(() => {
 // 判断是否为当前选中的模型
 function isCurrentModel(profile: LlmProfile, model: LlmModelInfo): boolean {
   if (!currentSelection.value) return false;
-  return currentSelection.value.profile.id === profile.id &&
-         currentSelection.value.model.id === model.id;
+  return (
+    currentSelection.value.profile.id === profile.id && currentSelection.value.model.id === model.id
+  );
 }
 
 // 生成模型的唯一 key
@@ -82,18 +117,47 @@ watch(isDialogVisible, async (visible) => {
     const currentKey = getModelKey(currentSelection.value.profile, currentSelection.value.model);
     const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`);
     if (currentElement && modelListWrapperRef.value) {
-      currentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      currentElement.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }
 });
 </script>
 
 <template>
-  <BaseDialog v-model="isDialogVisible" title="搜索模型" width="600px" @close="handleClose">
+  <BaseDialog v-model="isDialogVisible" title="搜索模型" width="700px" @close="handleClose">
     <template #content>
       <div class="model-select-content">
-        <el-input v-model="searchQuery" placeholder="搜索模型名称或服务商..." clearable class="search-input" />
-
+        <div class="search-bar">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索模型名称或服务商..."
+            clearable
+            class="search-input"
+          />
+          <el-select
+            v-model="selectedCapabilities"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="能力筛选"
+            class="capability-select"
+            clearable
+          >
+            <el-option
+              v-for="cap in MODEL_CAPABILITIES"
+              :key="cap.key"
+              :label="cap.label"
+              :value="cap.key"
+            >
+              <div style="display: flex; align-items: center">
+                <el-icon style="margin-right: 8px" :style="{ color: cap.color }">
+                  <component :is="cap.icon" />
+                </el-icon>
+                <span>{{ cap.label }}</span>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
         <div ref="modelListWrapperRef" class="model-list-wrapper">
           <div v-if="allModels.length > 0" class="model-list">
             <div v-for="group in modelGroups" :key="group.profile.id" class="model-group">
@@ -103,7 +167,8 @@ watch(isDialogVisible, async (visible) => {
                 :key="model.id"
                 :data-model-key="getModelKey(group.profile, model)"
                 :class="['model-item', { 'is-current': isCurrentModel(group.profile, model) }]"
-                @click="handleSelectModel(group.profile, model)">
+                @click="handleSelectModel(group.profile, model)"
+              >
                 <div class="model-item-content">
                   <DynamicIcon
                     class="model-avatar"
@@ -114,11 +179,16 @@ watch(isDialogVisible, async (visible) => {
                     <div class="model-header">
                       <span class="model-name-text">{{ model.name }}</span>
                       <div class="model-capabilities">
-                        <template v-for="capability in MODEL_CAPABILITIES" :key="capability.key">
-                          <el-tooltip v-if="model.capabilities?.[capability.key]" :content="capability.description"
-                            placement="top">
-                            <el-icon class="capability-icon" :class="capability.className"
-                              :style="{ color: capability.color }">
+                        <template
+                          v-for="capability in getActiveCapabilities(model)"
+                          :key="capability.key"
+                        >
+                          <el-tooltip :content="capability.description" placement="top">
+                            <el-icon
+                              class="capability-icon"
+                              :class="capability.className"
+                              :style="{ color: capability.color }"
+                            >
                               <component :is="capability.icon" />
                             </el-icon>
                           </el-tooltip>
@@ -146,8 +216,18 @@ watch(isDialogVisible, async (visible) => {
   max-height: 60vh;
 }
 
-.search-input {
+.search-bar {
+  display: flex;
+  gap: 12px;
   flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+}
+
+.capability-select {
+  width: 180px;
 }
 
 .model-list-wrapper {
@@ -244,7 +324,7 @@ html:not(.dark) .model-item.is-current {
 
 .model-id-text {
   font-size: 12px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   color: var(--el-text-color-regular);
 }
 

@@ -5,24 +5,34 @@
     :class="{ 'is-fullscreen': isFullscreen, 'controls-visible': isControlsVisible || !isPlaying }"
     @mousemove="handleMouseMove"
     @mouseleave="handleMouseLeave"
-    @click="togglePlay"
+    @click="handleContainerClick"
+    @dblclick="toggleFullscreen"
   >
     <!-- 视频核心 -->
     <video
       ref="videoRef"
       class="video-element"
+      crossorigin="anonymous"
       :src="src"
       :poster="poster"
-      :loop="loop"
-      :muted="muted"
+      :loop="isLoop"
+      :muted="isMuted"
       :autoplay="autoplay"
+      :style="{
+        objectFit: objectFit,
+        transform: isMirrored ? 'scaleX(-1)' : 'none',
+      }"
       @timeupdate="handleTimeUpdate"
       @loadedmetadata="handleLoadedMetadata"
       @ended="handleEnded"
-      @play="isPlaying = true"
-      @pause="isPlaying = false"
+      @play="onPlay"
+      @pause="onPause"
+      @waiting="isLoading = true"
+      @canplay="isLoading = false"
       @volumechange="handleVolumeChange"
       @error="handleError"
+      @enterpictureinpicture="handlePiPChange"
+      @leavepictureinpicture="handlePiPChange"
     ></video>
 
     <!-- 加载中状态 -->
@@ -37,16 +47,37 @@
     </div>
 
     <!-- 播放按钮覆盖层 (暂停时显示) -->
-    <div v-if="!isPlaying && !isLoading && !error" class="play-overlay">
+    <div v-if="!isPlaying && !isLoading && !error && showPlayIconOnPause" class="play-overlay">
       <div class="play-icon-circle">
         <component :is="Play" class="play-icon-large" />
       </div>
     </div>
 
     <!-- 底部控制栏 -->
-    <div class="controls-bar" @click.stop>
+    <div class="controls-bar" @click.stop @dblclick.stop>
       <!-- 进度条 -->
-      <div class="progress-bar-container" @click="seek" @mousemove="handleProgressHover">
+      <div
+        class="progress-bar-container"
+        ref="progressBarRef"
+        @mousedown="startDragging"
+        @mousemove="handleProgressHover"
+        @mouseleave="showHoverPreview = false"
+      >
+        <!-- 悬停时间预览 -->
+        <div
+          v-if="showHoverPreview"
+          class="hover-time-tooltip"
+          :style="{ left: hoverPosition + '%' }"
+        >
+          {{ formattedHoverTime }}
+        </div>
+
+        <!-- 悬停指示器 (上下三角) -->
+        <div v-if="showHoverPreview" class="hover-indicator" :style="{ left: hoverPosition + '%' }">
+          <div class="indicator-top"></div>
+          <div class="indicator-bottom"></div>
+        </div>
+
         <div class="progress-background"></div>
         <div class="progress-buffered" :style="{ width: bufferedPercentage + '%' }"></div>
         <div class="progress-current" :style="{ width: progressPercentage + '%' }">
@@ -55,11 +86,58 @@
       </div>
 
       <div class="controls-row">
+        <!-- 左侧：播放控制与时间 -->
         <div class="controls-left">
-          <!-- 播放/暂停 -->
-          <button class="control-btn" @click="togglePlay">
+          <button class="control-btn" @click="togglePlay" title="播放/暂停 (Space)">
             <component :is="isPlaying ? Pause : Play" />
           </button>
+
+          <span class="time-display">{{ formattedCurrentTime }} / {{ formattedDuration }}</span>
+        </div>
+
+        <!-- 中间：帧控制与截图 -->
+        <div class="controls-center">
+          <button class="control-btn" @click="captureSnapshot" title="截图">
+            <Camera :size="20" />
+          </button>
+          <div class="divider-vertical"></div>
+          <button class="control-btn" @click="stepFrame(-1)" title="上一帧">
+            <div class="icon-with-dot left">
+              <ChevronLeft :size="20" />
+              <div class="dot"></div>
+            </div>
+          </button>
+          <button class="control-btn" @click="stepFrame(1)" title="下一帧">
+            <div class="icon-with-dot right">
+              <div class="dot"></div>
+              <ChevronRight :size="20" />
+            </div>
+          </button>
+        </div>
+
+        <!-- 右侧：高级功能 -->
+        <div class="controls-right">
+          <!-- 倍速 -->
+          <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
+            <button
+              class="control-btn text-btn"
+              @click="showPlaybackRateMenu = !showPlaybackRateMenu"
+              @mouseenter="showPlaybackRateMenu = true"
+            >
+              {{ playbackRate }}x
+            </button>
+            <div v-if="showPlaybackRateMenu" class="popup-menu rate-menu">
+              <div
+                v-for="rate in [2.0, 1.5, 1.25, 1.0, 0.75, 0.5]"
+                :key="rate"
+                class="menu-item"
+                :class="{ active: playbackRate === rate }"
+                @click="setPlaybackRate(rate)"
+              >
+                {{ rate }}x
+              </div>
+            </div>
+          </div>
 
           <!-- 音量 -->
           <div
@@ -84,20 +162,50 @@
             </div>
           </div>
 
-          <!-- 时间 -->
-          <span class="time-display">{{ formattedCurrentTime }} / {{ formattedDuration }}</span>
-        </div>
-
-        <div class="controls-right">
-          <!-- 倍速 -->
-          <div class="playback-rate-control">
-            <button class="control-btn text-btn" @click="cyclePlaybackRate">
-              {{ playbackRate }}x
+          <!-- 设置 -->
+          <div class="menu-container" @mouseleave="showSettingsMenu = false">
+            <button
+              class="control-btn"
+              @click="showSettingsMenu = !showSettingsMenu"
+              @mouseenter="showSettingsMenu = true"
+            >
+              <Settings :size="20" />
             </button>
+            <div v-if="showSettingsMenu" class="popup-menu settings-menu">
+              <div class="menu-item" @click="toggleLoop">
+                <Repeat :size="16" />
+                <span>循环播放</span>
+                <Check v-if="isLoop" :size="16" class="check-icon" />
+              </div>
+              <div class="menu-item" @click="toggleMirror">
+                <FlipHorizontal :size="16" />
+                <span>镜像翻转</span>
+                <Check v-if="isMirrored" :size="16" class="check-icon" />
+              </div>
+              <div class="menu-item" @click="cycleObjectFit">
+                <Monitor :size="16" />
+                <span
+                  >画面:
+                  {{
+                    objectFit === "contain" ? "适应" : objectFit === "cover" ? "填充" : "拉伸"
+                  }}</span
+                >
+              </div>
+              <div class="menu-item" @click="toggleShowPlayIconOnPause">
+                <PlayCircle :size="16" />
+                <span>暂停显示图标</span>
+                <Check v-if="showPlayIconOnPause" :size="16" class="check-icon" />
+              </div>
+            </div>
           </div>
 
+          <!-- 画中画 -->
+          <button class="control-btn" @click="togglePiP" title="画中画">
+            <PictureInPicture2 :size="20" />
+          </button>
+
           <!-- 全屏 -->
-          <button class="control-btn" @click="toggleFullscreen">
+          <button class="control-btn" @click="toggleFullscreen" title="全屏 (F)">
             <component :is="isFullscreen ? Minimize : Maximize" />
           </button>
         </div>
@@ -108,7 +216,26 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
-import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize } from "lucide-vue-next";
+import {
+  Play,
+  Pause,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Maximize,
+  Minimize,
+  Camera,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Repeat,
+  Monitor,
+  FlipHorizontal,
+  PictureInPicture2,
+  PlayCircle,
+} from "lucide-vue-next";
+import { customMessage } from "@/utils/customMessage";
 
 const props = withDefaults(
   defineProps<{
@@ -128,20 +255,43 @@ const props = withDefaults(
 // Refs
 const videoRef = ref<HTMLVideoElement | null>(null);
 const playerContainer = ref<HTMLElement | null>(null);
+const progressBarRef = ref<HTMLElement | null>(null);
 
 // State
 const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
-const volume = ref(1);
-const isMuted = ref(props.muted);
+
+const STORAGE_KEY_VOLUME = "video-player-volume";
+const STORAGE_KEY_MUTED = "video-player-muted";
+const STORAGE_KEY_SHOW_PLAY_ICON = "video-player-show-play-icon";
+
+const savedVolume = localStorage.getItem(STORAGE_KEY_VOLUME);
+const savedMuted = localStorage.getItem(STORAGE_KEY_MUTED);
+const savedShowPlayIcon = localStorage.getItem(STORAGE_KEY_SHOW_PLAY_ICON);
+
+const volume = ref(savedVolume !== null ? parseFloat(savedVolume) : 1);
+const isMuted = ref(savedMuted !== null ? savedMuted === "true" : props.muted);
+const isLoop = ref(props.loop);
 const bufferedPercentage = ref(0);
 const isFullscreen = ref(false);
 const isControlsVisible = ref(true);
 const showVolumeSlider = ref(false);
+const showPlaybackRateMenu = ref(false);
+const showSettingsMenu = ref(false);
 const playbackRate = ref(1);
 const isLoading = ref(true);
 const error = ref(false);
+const isPiP = ref(false);
+const isMirrored = ref(false);
+const objectFit = ref<"contain" | "cover" | "fill">("contain");
+const showPlayIconOnPause = ref(savedShowPlayIcon !== null ? savedShowPlayIcon === "true" : true);
+
+// Dragging State
+const isDragging = ref(false);
+const hoverTime = ref(0);
+const hoverPosition = ref(0);
+const showHoverPreview = ref(false);
 
 // Controls visibility timer
 let controlsTimer: number | null = null;
@@ -160,6 +310,7 @@ const volumeIcon = computed(() => {
 
 const formattedCurrentTime = computed(() => formatTime(currentTime.value));
 const formattedDuration = computed(() => formatTime(duration.value));
+const formattedHoverTime = computed(() => formatTime(hoverTime.value));
 
 // Methods
 function formatTime(seconds: number): string {
@@ -181,8 +332,23 @@ function togglePlay() {
   }
 }
 
+function onPlay() {
+  isPlaying.value = true;
+  isLoading.value = false;
+}
+
+function onPause() {
+  isPlaying.value = false;
+}
+
+function handleContainerClick(e: MouseEvent) {
+  // Prevent click when interacting with controls (handled by .stop on controls bar, but safety first)
+  if ((e.target as HTMLElement).closest(".controls-bar")) return;
+  togglePlay();
+}
+
 function handleTimeUpdate() {
-  if (!videoRef.value) return;
+  if (!videoRef.value || isDragging.value) return; // Don't update while dragging
   currentTime.value = videoRef.value.currentTime;
   updateBuffered();
 }
@@ -191,7 +357,6 @@ function updateBuffered() {
   if (!videoRef.value) return;
   const buffered = videoRef.value.buffered;
   if (buffered.length > 0) {
-    // 找到当前播放时间所在的缓冲段
     for (let i = 0; i < buffered.length; i++) {
       if (
         buffered.start(i) <= videoRef.value.currentTime &&
@@ -222,18 +387,52 @@ function handleError() {
   error.value = true;
 }
 
-function seek(e: MouseEvent) {
-  if (!videoRef.value || duration.value === 0) return;
-  const container = (e.target as HTMLElement).closest(".progress-bar-container") as HTMLElement;
-  const rect = container.getBoundingClientRect();
-  const pos = (e.clientX - rect.left) / rect.width;
-  videoRef.value.currentTime = pos * duration.value;
+// Seeking & Dragging
+function calculateTimeFromEvent(e: MouseEvent): number {
+  if (!progressBarRef.value || duration.value === 0) return 0;
+  const rect = progressBarRef.value.getBoundingClientRect();
+  const offsetX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+  return (offsetX / rect.width) * duration.value;
+}
+
+function startDragging(e: MouseEvent) {
+  if (duration.value === 0) return;
+  isDragging.value = true;
+  handleDrag(e);
+  document.addEventListener("mousemove", handleDrag);
+  document.addEventListener("mouseup", stopDragging);
+}
+
+function handleDrag(e: MouseEvent) {
+  if (!isDragging.value) return;
+  const time = calculateTimeFromEvent(e);
+  currentTime.value = time; // Immediate visual feedback
+  // Optional: Seek video while dragging (can be resource intensive)
+  // if (videoRef.value) videoRef.value.currentTime = time;
+}
+
+function stopDragging(e: MouseEvent) {
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  document.removeEventListener("mousemove", handleDrag);
+  document.removeEventListener("mouseup", stopDragging);
+
+  // Final seek
+  const time = calculateTimeFromEvent(e);
+  currentTime.value = time;
+  if (videoRef.value) {
+    videoRef.value.currentTime = time;
+  }
 }
 
 function handleProgressHover(e: MouseEvent) {
-  // TODO: Implement hover preview logic here
-  // 暂时忽略参数，避免 lint 错误
-  void e;
+  if (!progressBarRef.value) return;
+  const rect = progressBarRef.value.getBoundingClientRect();
+  const offsetX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+
+  hoverPosition.value = (offsetX / rect.width) * 100;
+  hoverTime.value = (offsetX / rect.width) * duration.value;
+  showHoverPreview.value = true;
 }
 
 function toggleMute() {
@@ -257,15 +456,16 @@ function handleVolumeChange() {
   if (!videoRef.value) return;
   volume.value = videoRef.value.volume;
   isMuted.value = videoRef.value.muted;
+
+  localStorage.setItem(STORAGE_KEY_VOLUME, volume.value.toString());
+  localStorage.setItem(STORAGE_KEY_MUTED, isMuted.value.toString());
 }
 
-function cyclePlaybackRate() {
+function setPlaybackRate(rate: number) {
   if (!videoRef.value) return;
-  const rates = [0.5, 1, 1.5, 2];
-  const currentIndex = rates.indexOf(playbackRate.value);
-  const nextRate = rates[(currentIndex + 1) % rates.length];
-  videoRef.value.playbackRate = nextRate;
-  playbackRate.value = nextRate;
+  videoRef.value.playbackRate = rate;
+  playbackRate.value = rate;
+  showPlaybackRateMenu.value = false;
 }
 
 function toggleFullscreen() {
@@ -282,6 +482,90 @@ function toggleFullscreen() {
 
 function handleFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement;
+}
+
+async function togglePiP() {
+  if (!videoRef.value) return;
+  try {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+    } else {
+      await videoRef.value.requestPictureInPicture();
+    }
+  } catch (err) {
+    console.error("PiP failed:", err);
+  }
+}
+
+function handlePiPChange() {
+  isPiP.value = !!document.pictureInPictureElement;
+}
+
+function stepFrame(frames: number) {
+  if (!videoRef.value) return;
+  // Assume 30fps if unknown, which is 0.0333s per frame
+  const frameDuration = 1 / 30;
+  videoRef.value.currentTime = Math.min(
+    Math.max(videoRef.value.currentTime + frames * frameDuration, 0),
+    duration.value
+  );
+}
+
+function captureSnapshot() {
+  if (!videoRef.value) return;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = videoRef.value.videoWidth;
+  canvas.height = videoRef.value.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // Apply mirroring if active
+  if (isMirrored.value) {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+
+  ctx.drawImage(videoRef.value, 0, 0, canvas.width, canvas.height);
+
+  try {
+    const dataUrl = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.download = `snapshot-${formatTime(currentTime.value).replace(":", "-")}.png`;
+    link.href = dataUrl;
+    link.click();
+    customMessage.success("截图已保存");
+  } catch (err) {
+    console.error("Snapshot failed:", err);
+    if (err instanceof DOMException && err.name === "SecurityError") {
+      customMessage.error("截图失败: 无法截取跨域视频");
+    } else {
+      customMessage.error("截图失败");
+    }
+  }
+}
+
+function toggleLoop() {
+  isLoop.value = !isLoop.value;
+  if (videoRef.value) {
+    videoRef.value.loop = isLoop.value;
+  }
+}
+
+function toggleMirror() {
+  isMirrored.value = !isMirrored.value;
+}
+
+function toggleShowPlayIconOnPause() {
+  showPlayIconOnPause.value = !showPlayIconOnPause.value;
+  localStorage.setItem(STORAGE_KEY_SHOW_PLAY_ICON, showPlayIconOnPause.value.toString());
+}
+
+function cycleObjectFit() {
+  const modes: ("contain" | "cover" | "fill")[] = ["contain", "cover", "fill"];
+  const idx = modes.indexOf(objectFit.value);
+  objectFit.value = modes[(idx + 1) % modes.length];
 }
 
 function handleMouseMove() {
@@ -304,6 +588,59 @@ function resetControlsTimer() {
   }
 }
 
+// Global Keyboard Shortcuts
+function handleKeydown(e: KeyboardEvent) {
+  // If user is typing in an input, ignore
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+  switch (e.code) {
+    case "Space":
+    case "KeyK": // YouTube style
+      e.preventDefault();
+      togglePlay();
+      break;
+    case "ArrowLeft":
+      e.preventDefault();
+      skip(-5);
+      break;
+    case "ArrowRight":
+      e.preventDefault();
+      skip(5);
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      adjustVolume(0.1);
+      break;
+    case "ArrowDown":
+      e.preventDefault();
+      adjustVolume(-0.1);
+      break;
+    case "KeyF":
+      e.preventDefault();
+      toggleFullscreen();
+      break;
+    case "KeyM":
+      e.preventDefault();
+      toggleMute();
+      break;
+  }
+}
+
+function skip(seconds: number) {
+  if (!videoRef.value) return;
+  videoRef.value.currentTime = Math.min(
+    Math.max(videoRef.value.currentTime + seconds, 0),
+    duration.value
+  );
+}
+
+function adjustVolume(delta: number) {
+  if (!videoRef.value) return;
+  const newVol = Math.min(Math.max(videoRef.value.volume + delta, 0), 1);
+  videoRef.value.volume = newVol;
+  volume.value = newVol;
+}
+
 // Watchers
 watch(isPlaying, (val) => {
   if (val) {
@@ -317,16 +654,27 @@ watch(isPlaying, (val) => {
 // Lifecycle
 onMounted(() => {
   document.addEventListener("fullscreenchange", handleFullscreenChange);
-  if (props.autoplay && videoRef.value) {
-    videoRef.value.play().catch(() => {
-      // Autoplay blocked, expected behavior in some cases
-    });
+  document.addEventListener("keydown", handleKeydown);
+
+  if (videoRef.value) {
+    // Apply saved volume
+    videoRef.value.volume = volume.value;
+    // Muted state is handled by :muted binding in template
+
+    if (props.autoplay) {
+      videoRef.value.play().catch(() => {
+        // Autoplay blocked
+      });
+    }
   }
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  document.removeEventListener("keydown", handleKeydown);
   if (controlsTimer) clearTimeout(controlsTimer);
+  document.removeEventListener("mousemove", handleDrag);
+  document.removeEventListener("mouseup", stopDragging);
 });
 </script>
 
@@ -374,7 +722,7 @@ onBeforeUnmount(() => {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(var(--ui-blur));
   display: flex;
   justify-content: center;
@@ -503,13 +851,39 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
 }
 
 .controls-left,
+.controls-center,
 .controls-right {
   display: flex;
   align-items: center;
+}
+
+.controls-left {
   gap: 12px;
+  flex: 1;
+}
+
+.controls-center {
+  gap: 8px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.controls-right {
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 4px;
 }
 
 .control-btn {
@@ -540,7 +914,8 @@ onBeforeUnmount(() => {
 .text-btn {
   font-size: 13px;
   font-weight: 600;
-  width: 32px;
+  min-width: 32px;
+  padding: 0 8px;
 }
 
 .time-display {
@@ -594,5 +969,166 @@ onBeforeUnmount(() => {
 .is-fullscreen {
   width: 100vw;
   height: 100vh;
+}
+
+.hover-time-tooltip {
+  position: absolute;
+  top: -48px; /* Force above progress bar and indicator */
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.hover-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.indicator-top {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid white;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+.indicator-bottom {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 6px solid white;
+  margin-top: 6px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+/* Menus */
+.menu-container {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.popup-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(28, 28, 30, 0.95);
+  backdrop-filter: blur(12px);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 100;
+  min-width: 120px;
+  animation: slideUp 0.2s cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* 修复悬停间隙问题：添加透明桥接层 */
+.popup-menu::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 20px; /* 覆盖 margin-bottom 的区域 */
+  background: transparent;
+}
+
+.rate-menu {
+  min-width: 80px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.menu-item.active {
+  color: var(--el-color-primary);
+  background: rgba(64, 158, 255, 0.1);
+}
+
+.check-icon {
+  margin-left: auto;
+  color: var(--el-color-primary);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* Icon with Dot */
+.icon-with-dot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-with-dot .dot {
+  width: 3px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 50%;
+  position: absolute;
+}
+
+.icon-with-dot.left .dot {
+  left: 2px;
+}
+
+.icon-with-dot.right .dot {
+  right: 2px;
 }
 </style>

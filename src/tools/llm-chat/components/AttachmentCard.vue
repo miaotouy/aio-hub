@@ -7,6 +7,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { createModuleLogger } from "@utils/logger";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
+import FileIcon from "@/components/common/FileIcon.vue";
 
 const logger = createModuleLogger("AttachmentCard");
 
@@ -75,22 +76,6 @@ const fileExtension = computed(() => {
   const index = name.lastIndexOf(".");
   if (index === -1) return "";
   return name.slice(index + 1).toUpperCase();
-});
-
-// 获取文件类型图标
-const fileTypeIcon = computed(() => {
-  switch (props.asset.type) {
-    case "image":
-      return "🖼️";
-    case "audio":
-      return "🎵";
-    case "video":
-      return "🎬";
-    case "document":
-      return "📄";
-    default:
-      return "📎";
-  }
 });
 
 // 加载资产 URL
@@ -251,7 +236,7 @@ onUnmounted(() => {
           </template>
           <template v-else>
             <div class="file-type-badge" :data-type="asset.type">
-              <span class="icon-emoji">{{ fileTypeIcon }}</span>
+              <FileIcon :file-name="asset.name" :file-type="asset.type" :size="20" />
             </div>
           </template>
 
@@ -314,7 +299,7 @@ onUnmounted(() => {
             :class="{ clickable: isImage }"
           />
           <div v-else class="file-icon">
-            <span class="icon">{{ fileTypeIcon }}</span>
+            <FileIcon :file-name="asset.name" :file-type="asset.type" :size="36" />
           </div>
         </template>
 

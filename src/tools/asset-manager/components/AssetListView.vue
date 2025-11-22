@@ -26,9 +26,12 @@
               :src="getAssetUrl(row)"
               class="thumbnail"
             />
-            <span v-else class="emoji-icon">
-              {{ getAssetIcon(row) }}
-            </span>
+            <FileIcon
+              v-else
+              :file-name="row.name"
+              :file-type="row.type"
+              :size="32"
+            />
           </div>
         </template>
       </el-table-column>
@@ -128,6 +131,7 @@
 import { View, Delete, MoreFilled, FolderOpened } from '@element-plus/icons-vue';
 import type { Asset, AssetType } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
+import FileIcon from '@/components/common/FileIcon.vue';
 
 interface Props {
   assets: Asset[];
@@ -165,10 +169,6 @@ const handleDelete = (assetId: string) => {
 
 const handleShowInFolder = (path: string) => {
   emit('show-in-folder', path);
-};
-
-const getAssetIcon = (asset: Asset) => {
-  return assetManagerEngine.getAssetIcon(asset);
 };
 
 const formatFileSize = (bytes: number) => {

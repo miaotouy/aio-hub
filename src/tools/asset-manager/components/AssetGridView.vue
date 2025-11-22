@@ -37,7 +37,7 @@
             </div>
           </template>
           <div v-else class="preview-icon">
-            {{ getAssetIcon(asset) }}
+            <FileIcon :file-name="asset.name" :file-type="asset.type" :size="48" />
           </div>
         </div>
 
@@ -86,6 +86,7 @@
 import { MoreFilled, View, Delete, FolderOpened } from '@element-plus/icons-vue';
 import type { Asset } from '@/types/asset-management';
 import { assetManagerEngine } from '@/composables/useAssetManager';
+import FileIcon from '@/components/common/FileIcon.vue';
 
 interface Props {
   assets: Asset[];
@@ -126,10 +127,6 @@ const handleDelete = (assetId: string) => {
 
 const handleShowInFolder = (path: string) => {
   emit('show-in-folder', path);
-};
-
-const getAssetIcon = (asset: Asset) => {
-  return assetManagerEngine.getAssetIcon(asset);
 };
 
 const formatFileSize = (bytes: number) => {

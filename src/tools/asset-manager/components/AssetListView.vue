@@ -2,12 +2,14 @@
   <div class="asset-list-view">
     <el-table
       :data="assets"
-        style="width: 100%"
-        :row-class-name="getRowClassName"
-        @row-click="(row: Asset, _column: any, event: MouseEvent) => emit('selection-change', row, event)"
-      >
-        <!-- 复选框列 -->
-        <el-table-column width="45" align="center">
+      style="width: 100%"
+      :row-class-name="getRowClassName"
+      @row-click="
+        (row: Asset, _column: any, event: MouseEvent) => emit('selection-change', row, event)
+      "
+    >
+      <!-- 复选框列 -->
+      <el-table-column width="45" align="center">
         <template #default="{ row }">
           <el-checkbox
             :model-value="props.selectedIds.has(row.id)"
@@ -21,20 +23,12 @@
       <el-table-column width="60" align="center">
         <template #default="{ row }">
           <div class="type-icon">
-            <template v-if="shouldShowThumbnail(row)">
-              <img
-                :src="getDisplayUrl(row)"
-                class="thumbnail"
-              />
-              <div v-if="row.type === 'video'" class="video-overlay-small">
-                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              </div>
-            </template>
-            <FileIcon
-              v-else
-              :file-name="row.name"
-              :file-type="row.type"
-              :size="32"
+            <AssetIcon
+              :asset="row"
+              :asset-url="getAssetUrl(row)"
+              :icon-size="32"
+              :video-icon-size="12"
+              class="list-thumbnail"
             />
           </div>
         </template>
@@ -45,7 +39,12 @@
         <template #default="{ row }">
           <div class="file-name">
             {{ row.name }}
-            <el-tag v-if="props.duplicateHashes.has(row.id)" size="small" type="warning" effect="plain">
+            <el-tag
+              v-if="props.duplicateHashes.has(row.id)"
+              size="small"
+              type="warning"
+              effect="plain"
+            >
               重复
             </el-tag>
           </div>
@@ -81,12 +80,7 @@
             >
               {{ getOriginLabel(origin.type) }}
             </el-tag>
-            <el-tag
-              v-if="row.origins.length > 2"
-              size="small"
-              type="info"
-              effect="plain"
-            >
+            <el-tag v-if="row.origins.length > 2" size="small" type="info" effect="plain">
               +{{ row.origins.length - 2 }}
             </el-tag>
           </div>
@@ -132,12 +126,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { View, Delete, MoreFilled, FolderOpened } from '@element-plus/icons-vue';
-import type { Asset, AssetType } from '@/types/asset-management';
-import { useAssetManager, assetManagerEngine } from '@/composables/useAssetManager';
-import FileIcon from '@/components/common/FileIcon.vue';
-import { generateVideoThumbnail } from '@/utils/mediaThumbnailUtils';
+import { View, Delete, MoreFilled, FolderOpened } from "@element-plus/icons-vue";
+import type { Asset, AssetType } from "@/types/asset-management";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import AssetIcon from "./AssetIcon.vue";
 
 interface Props {
   assets: Asset[];
@@ -153,32 +145,28 @@ const props = withDefaults(defineProps<Props>(), {
   assetUrls: () => new Map(),
 });
 
-const { saveAssetThumbnail } = useAssetManager();
-const localThumbnails = ref<Map<string, string>>(new Map());
-const processingAssets = ref<Set<string>>(new Set());
-
 const emit = defineEmits<{
   select: [asset: Asset];
   delete: [assetId: string];
-  'selection-change': [asset: Asset, event: MouseEvent];
-  'show-in-folder': [path: string];
+  "selection-change": [asset: Asset, event: MouseEvent];
+  "show-in-folder": [path: string];
 }>();
 
 // 获取资产的 URL
 const getAssetUrl = (asset: Asset): string => {
-  return props.assetUrls.get(asset.id) || '';
+  return props.assetUrls.get(asset.id) || "";
 };
 
 const handleSelect = (asset: Asset) => {
-  emit('select', asset);
+  emit("select", asset);
 };
 
 const handleDelete = (assetId: string) => {
-  emit('delete', assetId);
+  emit("delete", assetId);
 };
 
 const handleShowInFolder = (path: string) => {
-  emit('show-in-folder', path);
+  emit("show-in-folder", path);
 };
 
 const formatFileSize = (bytes: number) => {
@@ -187,112 +175,44 @@ const formatFileSize = (bytes: number) => {
 
 const getTypeLabel = (type: AssetType): string => {
   const labels: Record<AssetType, string> = {
-    image: '图片',
-    video: '视频',
-    audio: '音频',
-    document: '文档',
-    other: '其他',
+    image: "图片",
+    video: "视频",
+    audio: "音频",
+    document: "文档",
+    other: "其他",
   };
   return labels[type];
 };
 
 const getOriginLabel = (type: string): string => {
   const labels: Record<string, string> = {
-    local: '本地',
-    clipboard: '剪贴板',
-    network: '网络',
+    local: "本地",
+    clipboard: "剪贴板",
+    network: "网络",
   };
   return labels[type] || type;
 };
 
 const formatDate = (isoString: string): string => {
   const date = new Date(isoString);
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
 const getRowClassName = ({ row }: { row: Asset }) => {
   const classes = [];
   if (props.duplicateHashes.has(row.id)) {
-    classes.push('duplicate-row');
+    classes.push("duplicate-row");
   }
   if (props.selectedIds.has(row.id)) {
-    classes.push('selected-row');
+    classes.push("selected-row");
   }
-  return classes.join(' ');
-};
-
-// 判断是否应该显示缩略图
-const shouldShowThumbnail = (asset: Asset) => {
-  // 图片总是显示
-  if (asset.type === 'image') return true;
-  // 音频有缩略图时显示
-  if (asset.type === 'audio' && asset.thumbnailPath) return true;
-  // 视频总是显示
-  if (asset.type === 'video') return true;
-  return false;
-};
-// 获取显示的 URL
-const getDisplayUrl = (asset: Asset) => {
-  // 1. 优先使用本地生成的 Base64 缩略图
-  if (localThumbnails.value.has(asset.id)) {
-    return localThumbnails.value.get(asset.id);
-  }
-
-  const url = getAssetUrl(asset);
-  if (!url) return undefined;
-
-  // 2. 如果是视频，且没有后端缩略图，说明这个 URL 是原视频路径
-  // 我们不应该在 img 标签中显示原视频路径，而应该等待本地缩略图生成
-  if (asset.type === 'video' && !asset.thumbnailPath) {
-    return undefined;
-  }
-
-  // 3. 其他情况（图片，或有缩略图的音频/视频），直接显示
-  return url;
-};
-
-// 监听 assets 和 assetUrls 变化，处理没有缩略图的视频
-watch(
-  [() => props.assets, () => props.assetUrls],
-  ([newAssets, newUrls]) => {
-    for (const asset of newAssets) {
-      if (
-        asset.type === 'video' &&
-        !asset.thumbnailPath &&
-        !processingAssets.value.has(asset.id) &&
-        newUrls.has(asset.id)
-      ) {
-        processVideoThumbnail(asset);
-      }
-    }
-  },
-  { immediate: true, deep: true }
-);
-
-// 处理视频缩略图生成
-const processVideoThumbnail = async (asset: Asset) => {
-  if (processingAssets.value.has(asset.id)) return;
-  
-  const videoUrl = props.assetUrls.get(asset.id);
-  if (!videoUrl) return;
-
-  processingAssets.value.add(asset.id);
-
-  try {
-    const base64 = await generateVideoThumbnail(videoUrl);
-    localThumbnails.value.set(asset.id, base64);
-    await saveAssetThumbnail(asset.id, base64);
-  } catch (error) {
-    console.error('生成视频缩略图失败:', asset.name, error);
-  } finally {
-    processingAssets.value.delete(asset.id);
-  }
+  return classes.join(" ");
 };
 </script>
 

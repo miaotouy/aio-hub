@@ -103,7 +103,7 @@ export interface ContextPreviewData {
 }
 
 export function useChatContextBuilder() {
-  const { buildMessageContentForLlm, prepareSimpleMessageForTokenCalc } = useMessageBuilder();
+  const { buildMessageContentForLlm, prepareStructuredMessageForAnalysis } = useMessageBuilder();
   const { processMacros, processMacrosBatch } = useMacroProcessor();
 
   /**
@@ -773,19 +773,18 @@ export function useChatContextBuilder() {
             node.isEnabled !== false && (node.role === "user" || node.role === "assistant")
         )
         .map(async (node: ChatMessageNode, index: number) => {
-          // --- 使用统一的消息构建器准备 Token 计算数据 ---
-          const { combinedText: combinedTextContent } = await prepareSimpleMessageForTokenCalc(
-            node.content,
-            node.attachments
-          );
+          // 使用结构化分析器准备数据
+          const { originalText, textAttachments, imageAttachments, otherAttachments } =
+            await prepareStructuredMessageForAnalysis(node.content, node.attachments);
 
-          const sanitizedContent = sanitizeForCharCount(combinedTextContent);
+          const sanitizedContent = sanitizeForCharCount(originalText);
           let textTokenCount: number | undefined;
 
+          // 1. 计算正文 Token（仅 originalText）
           if (agentConfig) {
             try {
               const textTokenResult = await tokenCalculatorService.calculateTokens(
-                combinedTextContent,
+                originalText,
                 agentConfig.modelId
               );
               textTokenCount = textTokenResult.count;
@@ -798,87 +797,118 @@ export function useChatContextBuilder() {
             }
           }
 
-          // --- 附件分析和 Token 计算 ---
-          let attachmentsData: ContextPreviewData["chatHistory"][0]["attachments"];
+          // 2. 附件分析和 Token 计算（独立计算每个附件）
+          const attachmentsData: ContextPreviewData["chatHistory"][0]["attachments"] = [];
           let attachmentsTokenCount = 0;
 
           if (agentConfig && node.attachments && node.attachments.length > 0) {
             const modelMetadata = getMatchedModelProperties(agentConfig.modelId);
             const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
 
-            attachmentsData = await Promise.all(
-              node.attachments.map(async (asset) => {
-                let tokenCount: number | undefined;
-                let isAttachmentEstimated = false;
-                let attachmentError: string | undefined;
+            // 处理文本附件
+            for (const item of textAttachments) {
+              const { asset, content } = item;
+              let tokenCount: number | undefined;
+              let isAttachmentEstimated = false;
+              
+              try {
+                const result = await tokenCalculatorService.calculateTokens(
+                  content,
+                  agentConfig.modelId
+                );
+                tokenCount = result.count;
+                isAttachmentEstimated = result.isEstimated ?? false;
+              } catch (error) {
+                logger.warn("计算文本附件 Token 失败", { assetId: asset.id, error });
+                isAttachmentEstimated = true;
+              }
 
-                if (asset.type === "image" && visionTokenCost) {
-                  if (asset.metadata?.width && asset.metadata?.height) {
-                    try {
-                      tokenCount = tokenCalculatorEngine.calculateImageTokens(
-                        asset.metadata.width,
-                        asset.metadata.height,
-                        visionTokenCost
-                      );
-                      isAttachmentEstimated = false;
-                    } catch (e) {
-                      attachmentError = e instanceof Error ? e.message : "图片 Token 计算异常";
-                      isAttachmentEstimated = true;
-                    }
-                  } else {
-                    attachmentError = "缺少图片尺寸信息，使用默认值估算";
-                    // 使用默认值进行估算
+              if (tokenCount !== undefined) attachmentsTokenCount += tokenCount;
+              if (isAttachmentEstimated) isEstimated = true;
+
+              attachmentsData.push({
+                name: asset.name,
+                type: asset.type,
+                size: asset.size,
+                tokenCount,
+                isEstimated: isAttachmentEstimated,
+                metadata: asset.metadata,
+              });
+            }
+
+            // 处理图片附件
+            for (const asset of imageAttachments) {
+              let tokenCount: number | undefined;
+              let isAttachmentEstimated = false;
+              let attachmentError: string | undefined;
+
+              if (visionTokenCost) {
+                if (asset.metadata?.width && asset.metadata?.height) {
+                  try {
                     tokenCount = tokenCalculatorEngine.calculateImageTokens(
-                      1024,
-                      1024,
+                      asset.metadata.width,
+                      asset.metadata.height,
                       visionTokenCost
                     );
+                  } catch (e) {
+                    attachmentError = e instanceof Error ? e.message : "图片 Token 计算异常";
                     isAttachmentEstimated = true;
                   }
-                } else if (asset.type !== "image") {
-                  // 非图片附件的 Token 已包含在文本内容中
-                  tokenCount = 0;
-                  isAttachmentEstimated = false;
                 } else {
-                  attachmentError = "模型不支持图片或计费规则未知";
+                  attachmentError = "缺少图片尺寸信息，使用默认值估算";
+                  tokenCount = tokenCalculatorEngine.calculateImageTokens(1024, 1024, visionTokenCost);
                   isAttachmentEstimated = true;
                 }
-                
-                if (tokenCount) {
-                  attachmentsTokenCount += tokenCount;
-                }
-                if (isAttachmentEstimated) {
-                  isEstimated = true;
-                }
+              } else {
+                attachmentError = "模型不支持视觉能力或计费规则未知";
+                isAttachmentEstimated = true;
+              }
 
-                return {
-                  name: asset.name,
-                  type: asset.type,
-                  size: asset.size,
-                  tokenCount,
-                  isEstimated: isAttachmentEstimated,
-                  metadata: asset.metadata,
-                  error: attachmentError,
-                };
-              })
-            );
+              if (tokenCount !== undefined) attachmentsTokenCount += tokenCount;
+              if (isAttachmentEstimated) isEstimated = true;
+
+              attachmentsData.push({
+                name: asset.name,
+                type: asset.type,
+                size: asset.size,
+                tokenCount,
+                isEstimated: isAttachmentEstimated,
+                metadata: asset.metadata,
+                error: attachmentError,
+              });
+            }
+
+            // 处理其他附件
+            for (const asset of otherAttachments) {
+              attachmentsData.push({
+                name: asset.name,
+                type: asset.type,
+                size: asset.size,
+                tokenCount: undefined,
+                isEstimated: true,
+                metadata: asset.metadata,
+                error: "暂不支持此类型附件的 Token 计算",
+              });
+              isEstimated = true;
+            }
           }
-          
+
           // --- 合并 Token ---
+          // 总 Token = 正文 Token + 所有附件 Token
           const totalNodeTokenCount = (textTokenCount ?? 0) + attachmentsTokenCount;
           if (textTokenCount !== undefined) {
-              chatHistoryTokenCount += totalNodeTokenCount;
+            chatHistoryTokenCount += totalNodeTokenCount;
           }
 
           return {
             role: node.role,
-            content: combinedTextContent,
+            content: originalText, // 使用原始正文，不包含附件内容
             charCount: sanitizedContent.length,
             tokenCount: textTokenCount !== undefined ? totalNodeTokenCount : undefined,
             source: "session_history",
             nodeId: node.id,
             index,
-            attachments: attachmentsData,
+            attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
           };
         })
     );

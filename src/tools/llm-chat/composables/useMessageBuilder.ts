@@ -5,6 +5,7 @@
  * 这是一个核心的消息处理模块，为以下场景提供统一的消息格式化能力：
  * 1. Token 计算 - prepareSimpleMessageForTokenCalc
  * 2. 构建发送给 LLM 的消息 - buildMessageContentForLlm
+ * 3. 上下文分析 - prepareStructuredMessageForAnalysis
  */
 
 import type { Asset } from "@/types/asset-management";
@@ -12,6 +13,7 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { useChatAssetProcessor } from "./useChatAssetProcessor";
 import { createModuleLogger } from "@/utils/logger";
+import { isTextFile } from "@/utils/fileTypeDetector";
 
 const logger = createModuleLogger("llm-chat/message-builder");
 
@@ -62,6 +64,65 @@ export function useMessageBuilder() {
       combinedText,
       imageAttachments,
     };
+  };
+
+  /**
+   * 为上下文分析准备结构化消息
+   * 
+   * 将消息拆解为：原始文本、文本附件内容列表、图片附件列表、其他附件列表
+   * 用于 UI 展示和分项 Token 计算，避免将附件内容合并到正文中
+   * 
+   * @param text 原始文本
+   * @param attachments 附件列表
+   */
+  const prepareStructuredMessageForAnalysis = async (
+    text: string,
+    attachments?: Asset[]
+  ): Promise<{
+    originalText: string;
+    textAttachments: Array<{ asset: Asset; content: string }>;
+    imageAttachments: Asset[];
+    otherAttachments: Asset[];
+  }> => {
+    const result = {
+      originalText: text,
+      textAttachments: [] as Array<{ asset: Asset; content: string }>,
+      imageAttachments: [] as Asset[],
+      otherAttachments: [] as Asset[],
+    };
+
+    if (!attachments || attachments.length === 0) {
+      return result;
+    }
+
+    for (const asset of attachments) {
+      if (asset.type === 'image') {
+        result.imageAttachments.push(asset);
+      } else if (asset.type === 'document' && isTextFile(asset.name, asset.mimeType)) {
+        // 对于文本文件，尝试读取内容
+        try {
+          // 这里我们利用 assetToMessageContent 来获取格式化后的内容
+          // 注意：这里不传 capabilities，因为我们只想要基础的文本内容
+          const content = await assetToMessageContent(asset);
+          if (content && content.type === 'text' && content.text) {
+            result.textAttachments.push({
+              asset,
+              content: content.text
+            });
+          } else {
+            // 如果转换失败或不是文本类型（虽然检测说是文本文件），归类为其他
+            result.otherAttachments.push(asset);
+          }
+        } catch (error) {
+          logger.warn("读取文本附件内容失败", { assetId: asset.id, error });
+          result.otherAttachments.push(asset);
+        }
+      } else {
+        result.otherAttachments.push(asset);
+      }
+    }
+
+    return result;
   };
 
   /**
@@ -126,6 +187,7 @@ export function useMessageBuilder() {
 
   return {
     prepareSimpleMessageForTokenCalc,
+    prepareStructuredMessageForAnalysis,
     buildMessageContentForLlm,
   };
 }

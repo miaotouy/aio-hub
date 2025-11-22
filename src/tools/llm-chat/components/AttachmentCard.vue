@@ -5,6 +5,8 @@ import type { Asset } from "@/types/asset-management";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { createModuleLogger } from "@utils/logger";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const logger = createModuleLogger("AttachmentCard");
 
@@ -39,6 +41,14 @@ const assetUrl = ref<string>("");
 const isLoadingUrl = ref(true);
 const loadError = ref(false);
 const basePath = ref<string>("");
+const showDocumentPreview = ref(false);
+
+// 预览文件的路径
+const previewFilePath = computed(() => {
+  const isPending =
+    props.asset.importStatus === "pending" || props.asset.importStatus === "importing";
+  return isPending ? props.asset.originalPath || props.asset.path : props.asset.path;
+});
 
 // 格式化文件大小
 const formattedSize = computed(() => {
@@ -138,9 +148,9 @@ const handlePreview = async () => {
     return;
   }
 
-  // 文档类型：发出预览事件
+  // 文档类型：打开预览对话框
   if (isDocument.value) {
-    emit("preview-document", props.asset);
+    showDocumentPreview.value = true;
     return;
   }
 };
@@ -335,6 +345,23 @@ onUnmounted(() => {
         <line x1="6" y1="6" x2="18" y2="18"></line>
       </svg>
     </button>
+
+    <!-- 文档预览对话框 -->
+    <BaseDialog
+      v-model="showDocumentPreview"
+      :title="asset.name"
+      width="80vw"
+      height="80vh"
+      :show-close-button="true"
+      :close-on-backdrop-click="true"
+    >
+      <DocumentViewer
+        v-if="showDocumentPreview"
+        :file-path="previewFilePath"
+        :file-name="asset.name"
+        :show-engine-switch="true"
+      />
+    </BaseDialog>
   </div>
 </template>
 

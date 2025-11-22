@@ -298,8 +298,20 @@ const originCounts = computed(() => assetStats.value.originCounts || {});
 // 事件处理
 const handleSelectAsset = async (asset: Asset) => {
   if (asset.type === "image") {
-    const url = await assetManagerEngine.getAssetUrl(asset);
-    imageViewer.show(url);
+    // 筛选当前列表中的所有图片
+    const imageAssets = assets.value.filter((a) => a.type === "image");
+
+    // 批量生成 URL 列表
+    // 使用已缓存的 assetBasePath 避免重复 IPC 调用，大幅提升性能
+    const urls = imageAssets.map((a) =>
+      assetManagerEngine.convertToAssetProtocol(a.path, assetBasePath.value)
+    );
+
+    // 找到当前点击图片在列表中的索引
+    const index = imageAssets.findIndex((a) => a.id === asset.id);
+
+    // 打开查看器，传入完整列表和当前索引
+    imageViewer.show(urls, index >= 0 ? index : 0);
   } else if (asset.type === "video") {
     videoViewer.previewVideo(asset);
   } else if (asset.type === "document") {

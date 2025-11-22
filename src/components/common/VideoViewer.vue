@@ -11,7 +11,7 @@
       <div class="video-viewer-container">
         <!-- 顶部栏 -->
         <div class="viewer-header">
-          <span class="viewer-title">{{ title || "视频预览" }}</span>
+          <span class="viewer-title">{{ displayTitle }}</span>
           <button class="close-btn" @click="handleClose">
             <X />
           </button>
@@ -19,7 +19,13 @@
 
         <!-- 播放器区域 -->
         <div class="player-wrapper">
-          <VideoPlayer v-if="visible" :src="src" :autoplay="true" :poster="poster" />
+          <VideoPlayer
+            v-if="visible"
+            :src="src"
+            :title="displayTitle"
+            :autoplay="true"
+            :poster="poster"
+          />
         </div>
       </div>
     </div>
@@ -27,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
+import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { X } from "lucide-vue-next";
 import VideoPlayer from "./VideoPlayer.vue";
 
@@ -44,6 +50,19 @@ const emit = defineEmits<{
 }>();
 
 const overlayRef = ref<HTMLElement | null>(null);
+
+const displayTitle = computed(() => {
+  if (props.title) return props.title;
+  if (!props.src) return "视频预览";
+  try {
+    const urlParts = props.src.split(/[/\\]/);
+    let name = urlParts.pop() || "";
+    name = name.split("?")[0];
+    return decodeURIComponent(name) || "视频预览";
+  } catch {
+    return "视频预览";
+  }
+});
 
 function handleClose() {
   emit("update:visible", false);

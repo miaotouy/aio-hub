@@ -30,7 +30,7 @@ export function useVideoViewer() {
    */
   const previewVideo = async (source: string | Asset, options: { title?: string; poster?: string } = {}) => {
     let url = '';
-    let title = options.title || '视频预览';
+    let title = options.title || '';
 
     try {
       if (typeof source === 'string') {
@@ -62,7 +62,7 @@ export function useVideoViewer() {
 
       // 更新状态
       state.src = url;
-      state.title = title;
+      state.title = title || '视频预览';
       state.poster = options.poster;
       state.visible = true;
 

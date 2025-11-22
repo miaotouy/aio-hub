@@ -53,6 +53,11 @@
       </div>
     </div>
 
+    <!-- 顶部标题栏 -->
+    <div class="top-bar">
+      <span class="video-title">{{ videoName }}</span>
+    </div>
+
     <!-- 底部控制栏 -->
     <div class="controls-bar" @click.stop @dblclick.stop>
       <!-- 进度条 -->
@@ -240,6 +245,7 @@ import { customMessage } from "@/utils/customMessage";
 const props = withDefaults(
   defineProps<{
     src: string;
+    title?: string;
     poster?: string;
     autoplay?: boolean;
     loop?: boolean;
@@ -311,6 +317,21 @@ const volumeIcon = computed(() => {
 const formattedCurrentTime = computed(() => formatTime(currentTime.value));
 const formattedDuration = computed(() => formatTime(duration.value));
 const formattedHoverTime = computed(() => formatTime(hoverTime.value));
+
+const videoName = computed(() => {
+  if (props.title) return props.title;
+  if (!props.src) return "video";
+  try {
+    // 尝试从 URL/路径中提取文件名
+    const urlParts = props.src.split(/[/\\]/);
+    let name = urlParts.pop() || "";
+    // 去除 query string
+    name = name.split("?")[0];
+    return decodeURIComponent(name);
+  } catch {
+    return "video";
+  }
+});
 
 // Methods
 function formatTime(seconds: number): string {
@@ -532,7 +553,9 @@ function captureSnapshot() {
   try {
     const dataUrl = canvas.toDataURL("image/png");
     const link = document.createElement("a");
-    link.download = `snapshot-${formatTime(currentTime.value).replace(":", "-")}.png`;
+    // 处理文件名，移除非法字符
+    const safeName = videoName.value.replace(/[<>:"/\\|?*]/g, "_");
+    link.download = `${safeName}-snapshot-${formatTime(currentTime.value).replace(":", "-")}.png`;
     link.href = dataUrl;
     link.click();
     customMessage.success("截图已保存");
@@ -761,6 +784,39 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 8px;
   color: white;
+}
+
+/* Top Bar */
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
+  padding: 16px 20px 24px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+  z-index: 20;
+  pointer-events: none; /* 让点击穿透，除非以后加按钮 */
+}
+
+.controls-visible .top-bar {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.video-title {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 /* Controls Bar */

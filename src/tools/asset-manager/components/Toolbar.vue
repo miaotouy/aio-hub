@@ -139,7 +139,7 @@
       <el-radio-group
         v-if="internalViewMode === 'grid'"
         v-model="internalGridCardSize"
-        size="medium"
+        size="default"
         style="margin-left: 8px"
         @change="handleGridCardSizeChange"
       >

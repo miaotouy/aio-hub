@@ -2,7 +2,11 @@
   <div
     ref="playerContainer"
     class="video-player"
-    :class="{ 'is-fullscreen': isFullscreen, 'controls-visible': isControlsVisible || !isPlaying }"
+    :class="{
+      'is-fullscreen': isFullscreen,
+      'is-web-fullscreen': isWebFullscreen,
+      'controls-visible': isControlsVisible || !isPlaying,
+    }"
     @mousemove="handleMouseMove"
     @mouseleave="handleMouseLeave"
     @click="handleContainerClick"
@@ -106,6 +110,9 @@
             <Camera :size="20" />
           </button>
           <div class="divider-vertical"></div>
+          <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
+            <Rewind :size="20" />
+          </button>
           <button class="control-btn" @click="stepFrame(-1)" title="上一帧">
             <div class="icon-with-dot left">
               <ChevronLeft :size="20" />
@@ -117,6 +124,9 @@
               <div class="dot"></div>
               <ChevronRight :size="20" />
             </div>
+          </button>
+          <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
+            <FastForward :size="20" />
           </button>
         </div>
 
@@ -204,6 +214,11 @@
             </div>
           </div>
 
+          <!-- 网页全屏 -->
+          <button class="control-btn" @click="toggleWebFullscreen" title="网页全屏">
+            <component :is="isWebFullscreen ? Shrink : Expand" :size="20" />
+          </button>
+
           <!-- 画中画 -->
           <button class="control-btn" @click="togglePiP" title="画中画">
             <PictureInPicture2 :size="20" />
@@ -239,6 +254,10 @@ import {
   FlipHorizontal,
   PictureInPicture2,
   PlayCircle,
+  Rewind,
+  FastForward,
+  Expand,
+  Shrink,
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 
@@ -281,6 +300,7 @@ const isMuted = ref(savedMuted !== null ? savedMuted === "true" : props.muted);
 const isLoop = ref(props.loop);
 const bufferedPercentage = ref(0);
 const isFullscreen = ref(false);
+const isWebFullscreen = ref(false);
 const isControlsVisible = ref(true);
 const showVolumeSlider = ref(false);
 const showPlaybackRateMenu = ref(false);
@@ -492,6 +512,7 @@ function setPlaybackRate(rate: number) {
 function toggleFullscreen() {
   if (!playerContainer.value) return;
 
+  // 如果在网页全屏模式下请求系统全屏，先退出网页全屏（可选，取决于交互偏好，这里保持独立）
   if (!document.fullscreenElement) {
     playerContainer.value.requestFullscreen().catch((err) => {
       console.error(`Error attempting to enable fullscreen: ${err.message}`);
@@ -501,8 +522,20 @@ function toggleFullscreen() {
   }
 }
 
+function toggleWebFullscreen() {
+  // 如果当前是系统全屏，先退出系统全屏
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  }
+  isWebFullscreen.value = !isWebFullscreen.value;
+}
+
 function handleFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement;
+  // 如果进入系统全屏，自动退出网页全屏，避免样式冲突
+  if (isFullscreen.value) {
+    isWebFullscreen.value = false;
+  }
 }
 
 async function togglePiP() {
@@ -645,6 +678,12 @@ function handleKeydown(e: KeyboardEvent) {
     case "KeyM":
       e.preventDefault();
       toggleMute();
+      break;
+    case "Escape":
+      if (isWebFullscreen.value) {
+        e.preventDefault();
+        toggleWebFullscreen();
+      }
       break;
   }
 }
@@ -1025,6 +1064,16 @@ onBeforeUnmount(() => {
 .is-fullscreen {
   width: 100vw;
   height: 100vh;
+}
+
+.is-web-fullscreen {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999;
+  background: #000;
 }
 
 .hover-time-tooltip {

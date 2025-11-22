@@ -14,6 +14,12 @@ interface Props {
   size?: "small" | "medium" | "large";
   /** 所有附件列表，用于图片预览时的图片切换 */
   allAssets?: Asset[];
+  /** Token 计数 */
+  tokenCount?: number;
+  /** 是否为估算值 */
+  tokenEstimated?: boolean;
+  /** Token 计算错误信息 */
+  tokenError?: string;
 }
 
 interface Emits {
@@ -251,6 +257,17 @@ onUnmounted(() => {
           <div class="bar-file-meta">
             <span class="bar-file-size">{{ formattedSize }}</span>
             <span v-if="fileExtension" class="bar-file-ext">{{ fileExtension }}</span>
+            
+            <!-- Token 信息 -->
+            <template v-if="tokenError || tokenCount !== undefined">
+              <span class="bar-meta-divider">•</span>
+              <span v-if="tokenError" class="bar-token-tag error" :title="tokenError">
+                Token 错误
+              </span>
+              <span v-else class="bar-token-tag" :class="{ estimated: tokenEstimated }">
+                {{ tokenCount!.toLocaleString() }} tokens
+              </span>
+            </template>
           </div>
         </div>
       </div>
@@ -287,6 +304,16 @@ onUnmounted(() => {
         <!-- 导入状态指示器 -->
         <div v-if="isImporting" class="import-status-overlay">
           <div class="import-spinner"></div>
+        </div>
+        
+        <!-- Token 信息标签（方形布局专用） -->
+        <div v-if="!isBarLayout && (tokenError || tokenCount !== undefined)" class="token-badge">
+          <span v-if="tokenError" class="token-tag error" :title="tokenError">
+            Token 错误
+          </span>
+          <span v-else class="token-tag" :class="{ estimated: tokenEstimated }">
+            {{ tokenCount!.toLocaleString() }}
+          </span>
         </div>
       </div>
     </template>
@@ -638,6 +665,26 @@ onUnmounted(() => {
   color: var(--text-color-secondary);
 }
 
+.bar-meta-divider {
+  color: var(--text-color-light);
+  margin: 0 2px;
+}
+
+.bar-token-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--el-color-success);
+  font-weight: 500;
+}
+
+.bar-token-tag.estimated {
+  color: var(--el-color-warning);
+}
+
+.bar-token-tag.error {
+  color: var(--el-color-danger);
+}
+
 .spinner-small {
   width: 16px;
   height: 16px;
@@ -668,5 +715,34 @@ onUnmounted(() => {
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+/* Token 标签（方形布局专用） */
+.token-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.token-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  color: #67c23a;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.token-tag.estimated {
+  color: #e6a23c;
+}
+
+.token-tag.error {
+  color: #f56c6c;
 }
 </style>

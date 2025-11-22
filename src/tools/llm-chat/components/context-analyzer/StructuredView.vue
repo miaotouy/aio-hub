@@ -233,34 +233,17 @@
           <div v-if="msg.attachments && msg.attachments.length > 0" class="attachments-section">
             <div class="attachments-title">附件分析</div>
             <div class="attachments-grid">
-              <div v-for="(att, attIndex) in msg.attachments" :key="attIndex" class="attachment-card">
-                <!-- 图片预览 -->
-                <div
-                  v-if="att.type === 'image'"
-                  class="attachment-preview clickable"
-                  @click="handleImagePreview(msg.attachments!, attIndex)"
-                >
-                  <img :src="getAssetUrl(att)" :alt="att.name" loading="lazy" />
-                </div>
-                
-                <div class="attachment-info">
-                  <span class="attachment-name" :title="att.name">{{ att.name }}</span>
-                  <span class="attachment-size">{{ formatFileSize(att.size) }}</span>
-                </div>
-                
-                <div class="attachment-token-info">
-                  <el-tooltip v-if="att.error" :content="att.error" placement="top">
-                    <el-tag type="danger" size="small" effect="dark">计算错误</el-tag>
-                  </el-tooltip>
-                  <el-tag v-else-if="att.tokenCount !== undefined" :type="att.isEstimated ? 'warning' : 'success'" size="small">
-                    {{ att.tokenCount.toLocaleString() }} tokens
-                  </el-tag>
-                  <el-tag v-else type="info" size="small">N/A</el-tag>
-                  <div v-if="att.metadata?.width" class="attachment-meta">
-                    {{ att.metadata.width }}x{{ att.metadata.height }}
-                  </div>
-                </div>
-              </div>
+              <AttachmentCard
+                v-for="(att, attIndex) in msg.attachments"
+                :key="attIndex"
+                :asset="att as unknown as Asset"
+                :all-assets="msg.attachments as unknown as Asset[]"
+                :token-count="att.tokenCount"
+                :token-estimated="att.isEstimated"
+                :token-error="att.error"
+                :removable="false"
+                size="large"
+              />
             </div>
           </div>
         </InfoCard>
@@ -269,67 +252,15 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import InfoCard from '@/components/common/InfoCard.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import AttachmentCard from '../AttachmentCard.vue';
 import type { ContextPreviewData } from '../../composables/useChatContextBuilder';
-import { assetManagerEngine } from '@/composables/useAssetManager';
-import { useImageViewer } from '@/composables/useImageViewer';
+import type { Asset } from '@/types/asset-management';
 
 defineProps<{
   contextData: ContextPreviewData;
 }>();
-
-const basePath = ref<string>("");
-const { show: showImage } = useImageViewer();
-
-onMounted(async () => {
-  basePath.value = await assetManagerEngine.getAssetBasePath();
-});
-
-const getAssetUrl = (asset: any) => {
-  if (!asset) return "";
-  
-  // 判断是否为 pending/importing 状态
-  const isPending = asset.importStatus === "pending" || asset.importStatus === "importing";
-
-  if (isPending) {
-    // pending 状态：使用原始路径通过 convertFileSrc 创建一个快速预览 URL
-    const originalPath = asset.originalPath || asset.path;
-    if (!originalPath) return "";
-    return convertFileSrc(originalPath);
-  } else {
-    // 已导入状态：使用同步的 asset:// 协议
-    if (!basePath.value) return "";
-    return assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
-  }
-};
-
-const handleImagePreview = (attachments: any[], currentIndex: number) => {
-  // 过滤出所有的图片附件
-  const imageAssets = attachments.filter(att => att.type === 'image');
-  
-  // 找到当前点击图片在图片列表中的索引
-  const currentImage = attachments[currentIndex];
-  const imageIndex = imageAssets.findIndex(img => img.id === currentImage.id);
-  
-  if (imageIndex === -1) return;
-
-  // 生成 URL 列表
-  const urls = imageAssets.map(img => getAssetUrl(img)).filter(url => !!url);
-  
-  if (urls.length > 0) {
-    showImage(urls, imageIndex);
-  }
-};
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${units[i]}`;
-};
 </script>
 
 <style scoped>
@@ -519,78 +450,8 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .attachments-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
-}
-
-.attachment-card {
-  background-color: var(--el-fill-color-light);
-  border-radius: 4px;
-  padding: 8px 12px;
-  font-size: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  overflow: hidden;
-}
-
-.attachment-preview {
-  width: 100%;
-  height: 100px;
-  background-color: var(--el-fill-color);
-  border-radius: 4px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
-}
-
-.attachment-preview.clickable {
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.attachment-preview.clickable:hover {
-  opacity: 0.9;
-}
-
-.attachment-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.attachment-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.attachment-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--el-text-color-primary);
-  font-weight: 500;
-}
-
-.attachment-size {
-  color: var(--el-text-color-secondary);
-  flex-shrink: 0;
-}
-
-.attachment-token-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--el-text-color-secondary);
-}
-
-.attachment-meta {
-  font-family: var(--font-family-code);
-  font-size: 11px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 </style>

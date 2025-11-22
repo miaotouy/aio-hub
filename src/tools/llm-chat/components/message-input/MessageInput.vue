@@ -11,6 +11,7 @@ import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useChatHandler } from "@/tools/llm-chat/composables/useChatHandler";
+import { useMessageBuilder } from "@/tools/llm-chat/composables/useMessageBuilder";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
@@ -351,6 +352,9 @@ const handleDragStart = (e: MouseEvent) => {
 const { createResizeHandler } = useWindowResize();
 const handleWindowResizeStart = createResizeHandler("SouthEast");
 
+// 消息构建器（用于准备 Token 计算的数据）
+const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
+
 // 计算当前输入的 token 数量
 const calculateInputTokens = async () => {
   // 如果没有文本且没有附件，重置 token 计数
@@ -415,10 +419,21 @@ const calculateInputTokens = async () => {
 
   isCalculatingTokens.value = true;
   try {
-    const result = await tokenCalculatorService.calculateMessageTokens(
+    // 使用 MessageBuilder 预处理消息，将文本附件合并到文本中
+    const attachments = inputManager.attachmentCount.value > 0
+      ? [...inputManager.attachments.value]
+      : undefined;
+    
+    const { combinedText, imageAttachments } = await prepareSimpleMessageForTokenCalc(
       inputText.value,
+      attachments
+    );
+
+    // 使用合并后的文本和图片附件进行 token 计算
+    const result = await tokenCalculatorService.calculateMessageTokens(
+      combinedText,
       modelId,
-      inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined
+      imageAttachments.length > 0 ? imageAttachments : undefined
     );
     tokenCount.value = result.count;
     tokenEstimated.value = result.isEstimated ?? false;

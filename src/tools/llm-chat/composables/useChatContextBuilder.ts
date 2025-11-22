@@ -10,7 +10,7 @@ import { getMatchedModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
-import { useChatAssetProcessor } from "./useChatAssetProcessor";
+import { useMessageBuilder } from "./useMessageBuilder";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { useAgentStore } from "../agentStore";
 import type { ProcessableMessage } from "./useMessageProcessor";
@@ -103,7 +103,7 @@ export interface ContextPreviewData {
 }
 
 export function useChatContextBuilder() {
-  const { assetToMessageContent } = useChatAssetProcessor();
+  const { buildMessageContentForLlm, prepareSimpleMessageForTokenCalc } = useMessageBuilder();
   const { processMacros, processMacrosBatch } = useMacroProcessor();
 
   /**
@@ -302,87 +302,21 @@ export function useChatContextBuilder() {
       .filter((node) => node.role !== "system")
       .filter((node) => node.role === "user" || node.role === "assistant")
       .map(async (node) => {
-        let content: string | LlmMessageContent[] = node.content;
+        // 使用统一的消息构建器处理文本和附件
+        const content = await buildMessageContentForLlm(
+          node.content,
+          node.attachments,
+          capabilities
+        );
 
-        // 如果节点有附件，构建多模态消息
         if (node.attachments && node.attachments.length > 0) {
-          logger.info("📎 检测到节点包含附件", {
+          logger.info("📦 消息构建完成", {
             nodeId: node.id,
             role: node.role,
             attachmentCount: node.attachments.length,
-            attachments: node.attachments.map((a) => ({
-              id: a.id,
-              name: a.name,
-              type: a.type,
-              mimeType: a.mimeType,
-              importStatus: a.importStatus,
-            })),
+            contentType: typeof content === "string" ? "text" : "multimodal",
+            partsCount: typeof content === "string" ? 1 : content.length,
           }, true);
-
-          const messageContents: LlmMessageContent[] = [];
-
-          // 添加文本内容（如果有）
-          if (node.content && node.content.trim() !== "") {
-            messageContents.push({
-              type: "text",
-              text: node.content,
-            });
-            logger.debug("添加文本内容到消息", {
-              nodeId: node.id,
-              textLength: node.content.length,
-            });
-          }
-
-          // 转换附件（传递模型能力信息以实现智能处理）
-          for (const asset of node.attachments) {
-            logger.debug("开始转换附件", {
-              nodeId: node.id,
-              assetId: asset.id,
-              assetName: asset.name,
-              assetType: asset.type,
-              importStatus: asset.importStatus,
-              modelCapabilities: capabilities
-                ? {
-                    vision: capabilities.vision,
-                    document: capabilities.document,
-                  }
-                : undefined,
-            });
-
-            const attachmentContent = await assetToMessageContent(asset, capabilities);
-            if (attachmentContent) {
-              messageContents.push(attachmentContent);
-              logger.info("✅ 附件转换成功", {
-                nodeId: node.id,
-                assetId: asset.id,
-                assetName: asset.name,
-                contentType: attachmentContent.type,
-              });
-            } else {
-              logger.warn("⚠️ 附件转换失败或跳过", {
-                nodeId: node.id,
-                assetId: asset.id,
-                assetName: asset.name,
-                assetType: asset.type,
-              });
-            }
-          }
-
-          content = messageContents;
-
-          logger.info("📦 多模态消息构建完成", {
-            nodeId: node.id,
-            role: node.role,
-            originalAttachmentCount: node.attachments.length,
-            finalMessagePartsCount: messageContents.length,
-            hasTextContent: node.content && node.content.trim() !== "",
-          }, true);
-        } else {
-          logger.debug("节点无附件，使用纯文本内容", {
-            nodeId: node.id,
-            role: node.role,
-            contentLength: node.content.length,
-          });
         }
 
         return {
@@ -767,19 +701,12 @@ export function useChatContextBuilder() {
       messages = await Promise.all(nodePath
         .filter((node: ChatMessageNode) => node.isEnabled !== false && (node.role === 'user' || node.role === 'assistant'))
         .map(async (node: ChatMessageNode) => {
-          let content: string | LlmMessageContent[] = node.content;
-          if (node.attachments && node.attachments.length > 0) {
-            const messageContents: LlmMessageContent[] = [];
-            if (node.content && node.content.trim() !== "") {
-              messageContents.push({ type: "text", text: node.content });
-            }
-            for (const asset of node.attachments) {
-              // 在没有模型信息时，capabilities 为 undefined，assetToMessageContent 会做降级处理
-              const attachmentContent = await assetToMessageContent(asset, undefined);
-              if (attachmentContent) messageContents.push(attachmentContent);
-            }
-            content = messageContents;
-          }
+          // 使用统一的消息构建器，在没有模型信息时 capabilities 为 undefined
+          const content = await buildMessageContentForLlm(
+            node.content,
+            node.attachments,
+            undefined
+          );
           return { role: node.role as "user" | "assistant", content };
         }));
     }
@@ -846,12 +773,11 @@ export function useChatContextBuilder() {
             node.isEnabled !== false && (node.role === "user" || node.role === "assistant")
         )
         .map(async (node: ChatMessageNode, index: number) => {
-          // --- 文本内容和 Token 计算 ---
-          const { getTextAttachmentsContent } = useChatAssetProcessor();
-          const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-          const combinedTextContent = textAttachmentsContent
-            ? `${node.content}\n\n${textAttachmentsContent}`
-            : node.content;
+          // --- 使用统一的消息构建器准备 Token 计算数据 ---
+          const { combinedText: combinedTextContent } = await prepareSimpleMessageForTokenCalc(
+            node.content,
+            node.attachments
+          );
 
           const sanitizedContent = sanitizeForCharCount(combinedTextContent);
           let textTokenCount: number | undefined;

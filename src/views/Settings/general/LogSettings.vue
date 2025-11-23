@@ -29,12 +29,22 @@ const bufferSizeOptions = [
   { label: "5 万条", value: 50000 },
 ];
 
+// 单个日志文件大小选项
+const maxFileSizeOptions = [
+  { label: "1 MB", value: 1024 * 1024 },
+  { label: "2 MB", value: 2 * 1024 * 1024 },
+  { label: "5 MB", value: 5 * 1024 * 1024 },
+  { label: "10 MB", value: 10 * 1024 * 1024 },
+  { label: "20 MB", value: 20 * 1024 * 1024 },
+];
+
 // 组件属性
 const props = defineProps<{
   logLevel?: "DEBUG" | "INFO" | "WARN" | "ERROR";
   logToFile?: boolean;
   logToConsole?: boolean;
   logBufferSize?: number;
+  maxFileSize?: number;
 }>();
 
 // 事件
@@ -43,6 +53,7 @@ const emit = defineEmits<{
   "update:logToFile": [value: boolean];
   "update:logToConsole": [value: boolean];
   "update:logBufferSize": [value: number];
+  "update:maxFileSize": [value: number];
 }>();
 
 // 内部状态
@@ -50,6 +61,7 @@ const internalLogLevel = ref<"DEBUG" | "INFO" | "WARN" | "ERROR">("INFO");
 const internalLogToFile = ref<boolean>(true);
 const internalLogToConsole = ref<boolean>(true);
 const internalLogBufferSize = ref<number>(1000);
+const internalMaxFileSize = ref<number>(2 * 1024 * 1024);
 
 // 日志统计信息
 const logStats = ref({
@@ -70,12 +82,14 @@ onMounted(async () => {
   if (props.logToFile !== undefined) internalLogToFile.value = props.logToFile;
   if (props.logToConsole !== undefined) internalLogToConsole.value = props.logToConsole;
   if (props.logBufferSize) internalLogBufferSize.value = props.logBufferSize;
+  if (props.maxFileSize) internalMaxFileSize.value = props.maxFileSize;
 
   // 立即应用当前的日志级别设置（确保界面状态和实际运行状态一致）
   logger.setLevel(LogLevel[internalLogLevel.value as keyof typeof LogLevel]);
   logger.setLogToFile(internalLogToFile.value);
   logger.setLogToConsole(internalLogToConsole.value);
   logger.setLogBufferSize(internalLogBufferSize.value);
+  logger.setMaxFileSize(internalMaxFileSize.value);
 
   // 获取日志统计信息
   updateLogStats();
@@ -117,6 +131,13 @@ watch(
   () => props.logBufferSize,
   (newValue) => {
     if (newValue) internalLogBufferSize.value = newValue;
+  }
+);
+
+watch(
+  () => props.maxFileSize,
+  (newValue) => {
+    if (newValue) internalMaxFileSize.value = newValue;
   }
 );
 
@@ -228,6 +249,12 @@ watch(internalLogBufferSize, (newValue) => {
   // 更新日志缓冲区大小
   logger.setLogBufferSize(newValue);
 });
+
+watch(internalMaxFileSize, (newValue) => {
+  emit("update:maxFileSize", newValue);
+  // 更新日志文件大小限制
+  logger.setMaxFileSize(newValue);
+});
 </script>
 
 <template>
@@ -290,6 +317,26 @@ watch(internalLogBufferSize, (newValue) => {
       <el-select v-model="internalLogBufferSize" style="width: 150px">
         <el-option
           v-for="option in bufferSizeOptions"
+          :key="option.value"
+          :label="option.label"
+          :value="option.value"
+        />
+      </el-select>
+    </div>
+
+    <!-- 单个日志文件大小限制 -->
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>文件分割阈值</span>
+        <el-tooltip content="当单个日志文件超过此大小时，将自动分割并创建新文件" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <el-select v-model="internalMaxFileSize" style="width: 150px">
+        <el-option
+          v-for="option in maxFileSizeOptions"
           :key="option.value"
           :label="option.label"
           :value="option.value"

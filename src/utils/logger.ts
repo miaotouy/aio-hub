@@ -3,7 +3,7 @@
  * 提供分级日志、错误追踪和日志持久化功能
  */
 
-import { writeTextFile, exists, mkdir } from "@tauri-apps/plugin-fs";
+import { writeTextFile, exists, mkdir, stat, rename } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
 
 export enum LogLevel {
@@ -28,9 +28,13 @@ class Logger {
   private logBuffer: LogEntry[] = [];
   private maxBufferSize = 1000;
   private logFilePath: string | null = null;
+  private logsDir: string | null = null;
   private isInitialized = false;
   private logToFile = true;
   private logToConsole = true;
+  private maxFileSize = 2 * 1024 * 1024; // 2MB
+  private currentFileSize = 0;
+  private isRotating = false;
 
   constructor() {
     this.initialize();
@@ -42,14 +46,23 @@ class Logger {
   private async initialize() {
     try {
       const appDir = await appDataDir();
-      const logsDir = await join(appDir, "logs");
+      this.logsDir = await join(appDir, "logs");
 
-      if (!(await exists(logsDir))) {
-        await mkdir(logsDir, { recursive: true });
+      if (!(await exists(this.logsDir))) {
+        await mkdir(this.logsDir, { recursive: true });
       }
 
       const date = new Date().toISOString().split("T")[0];
-      this.logFilePath = await join(logsDir, `app-${date}.log`);
+      this.logFilePath = await join(this.logsDir, `app-${date}.log`);
+
+      // 获取当前文件大小
+      if (await exists(this.logFilePath)) {
+        const fileInfo = await stat(this.logFilePath);
+        this.currentFileSize = fileInfo.size;
+      } else {
+        this.currentFileSize = 0;
+      }
+
       this.isInitialized = true;
     } catch (error) {
       console.error("初始化日志系统失败:", error);
@@ -89,6 +102,13 @@ class Logger {
   }
 
   /**
+   * 设置单个日志文件最大大小 (字节)
+   */
+  setMaxFileSize(size: number) {
+    this.maxFileSize = size;
+  }
+
+  /**
    * 获取当前日志配置
    */
   getLogConfig() {
@@ -97,8 +117,47 @@ class Logger {
       logToFile: this.logToFile,
       logToConsole: this.logToConsole,
       bufferSize: this.maxBufferSize,
+      maxFileSize: this.maxFileSize,
     };
   }
+
+  /**
+   * 检查并轮转日志文件
+   */
+  private async checkAndRotate() {
+    if (this.isRotating) return;
+
+    // 注意：这里使用 < 判断，意味着只有当前文件实际大小已经超过限制时才会轮转
+    // 如果 writeLog 预判会超标但当前未超标，这里会跳过，等到下一次写入时再轮转
+    // 这是设计上的软限制
+    if (!this.logFilePath || !this.logsDir || this.currentFileSize < this.maxFileSize) {
+      return;
+    }
+
+    this.isRotating = true;
+    try {
+      // 生成备份文件名: app-YYYY-MM-DD.HH-mm-ss.log
+      const now = new Date();
+      const timeStr = now.toTimeString().split(" ")[0].replace(/:/g, "-");
+      const dateStr = now.toISOString().split("T")[0];
+      const backupName = `app-${dateStr}.${timeStr}.log`;
+      const backupPath = await join(this.logsDir, backupName);
+
+      // 重命名当前日志文件
+      await rename(this.logFilePath, backupPath);
+
+      // 重置当前文件大小
+      this.currentFileSize = 0;
+
+      // 在控制台记录轮转信息（不写入文件以免死循环）
+      console.log(`[Logger] 日志文件已轮转: ${backupName}`);
+    } catch (error) {
+      console.error("[Logger] 日志轮转失败:", error);
+    } finally {
+      this.isRotating = false;
+    }
+  }
+
 
   /**
    * 格式化日志条目
@@ -121,92 +180,100 @@ class Logger {
 
     return log;
   }
-/**
- * 写入日志
- */
-private async writeLog(entry: LogEntry) {
-  // 添加到缓冲区
-  this.logBuffer.push(entry);
+  /**
+   * 写入日志
+   */
+  private async writeLog(entry: LogEntry) {
+    // 添加到缓冲区
+    this.logBuffer.push(entry);
 
-  // 保持缓冲区大小
-  if (this.logBuffer.length > this.maxBufferSize) {
-    this.logBuffer.shift();
-  }
+    // 保持缓冲区大小
+    if (this.logBuffer.length > this.maxBufferSize) {
+      this.logBuffer.shift();
+    }
 
-  // 输出到控制台（如果启用）
-  if (this.logToConsole) {
-    if (entry.collapsed) {
-      // 使用折叠组显示
-      const levelStr = LogLevel[entry.level];
-      const groupTitle = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
-      
-      // 根据日志级别选择合适的控制台方法
-      const consoleMethod = this.getConsoleMethod(entry.level);
-      consoleMethod(groupTitle);
-      console.groupCollapsed('详细信息');
-      
-      if (entry.data) {
-        try {
-          console.log('数据:', entry.data);
-        } catch (error) {
-          console.log('数据: [无法序列化]');
+    // 输出到控制台（如果启用）
+    if (this.logToConsole) {
+      if (entry.collapsed) {
+        // 使用折叠组显示
+        const levelStr = LogLevel[entry.level];
+        const groupTitle = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
+
+        // 根据日志级别选择合适的控制台方法
+        const consoleMethod = this.getConsoleMethod(entry.level);
+        consoleMethod(groupTitle);
+        console.groupCollapsed('详细信息');
+
+        if (entry.data) {
+          try {
+            console.log('数据:', entry.data);
+          } catch (error) {
+            console.log('数据: [无法序列化]');
+          }
+        }
+
+        if (entry.stack) {
+          console.log('堆栈:', entry.stack);
+        }
+
+        console.groupEnd();
+      } else {
+        // 原有的非折叠逻辑
+        const consoleMsg = this.formatLogEntry(entry);
+        switch (entry.level) {
+          case LogLevel.DEBUG:
+            console.debug(consoleMsg);
+            break;
+          case LogLevel.INFO:
+            console.info(consoleMsg);
+            break;
+          case LogLevel.WARN:
+            console.warn(consoleMsg);
+            break;
+          case LogLevel.ERROR:
+            console.error(consoleMsg);
+            break;
         }
       }
-      
-      if (entry.stack) {
-        console.log('堆栈:', entry.stack);
-      }
-      
-      console.groupEnd();
-    } else {
-      // 原有的非折叠逻辑
-      const consoleMsg = this.formatLogEntry(entry);
-      switch (entry.level) {
-        case LogLevel.DEBUG:
-          console.debug(consoleMsg);
-          break;
-        case LogLevel.INFO:
-          console.info(consoleMsg);
-          break;
-        case LogLevel.WARN:
-          console.warn(consoleMsg);
-          break;
-        case LogLevel.ERROR:
-          console.error(consoleMsg);
-          break;
+    }
+
+    // 写入文件（异步，不阻塞）
+    if (this.logToFile && this.isInitialized && this.logFilePath) {
+      try {
+        const logLine = this.formatLogEntry(entry) + "\n";
+        const lineSize = new TextEncoder().encode(logLine).length;
+
+        // 检查是否需要轮转（加上新日志大小后是否超标）
+        if (this.currentFileSize + lineSize > this.maxFileSize) {
+          await this.checkAndRotate();
+        }
+
+        await writeTextFile(this.logFilePath, logLine, { append: true });
+        this.currentFileSize += lineSize;
+      } catch (error) {
+        // 写入失败不影响主流程
+        console.error("写入日志文件失败:", error);
       }
     }
   }
 
-  // 写入文件（异步，不阻塞）
-  if (this.logToFile && this.isInitialized && this.logFilePath) {
-    try {
-      const logLine = this.formatLogEntry(entry) + "\n";
-      await writeTextFile(this.logFilePath, logLine, { append: true });
-    } catch (error) {
-      // 写入失败不影响主流程
-      console.error("写入日志文件失败:", error);
+  /**
+   * 根据日志级别获取对应的控制台方法
+   */
+  private getConsoleMethod(level: LogLevel): typeof console.log {
+    switch (level) {
+      case LogLevel.DEBUG:
+        return console.debug.bind(console);
+      case LogLevel.INFO:
+        return console.info.bind(console);
+      case LogLevel.WARN:
+        return console.warn.bind(console);
+      case LogLevel.ERROR:
+        return console.error.bind(console);
+      default:
+        return console.log.bind(console);
     }
   }
-}
-
-/**
- * 根据日志级别获取对应的控制台方法
- */
-private getConsoleMethod(level: LogLevel): typeof console.log {
-  switch (level) {
-    case LogLevel.DEBUG:
-      return console.debug.bind(console);
-    case LogLevel.INFO:
-      return console.info.bind(console);
-    case LogLevel.WARN:
-      return console.warn.bind(console);
-    case LogLevel.ERROR:
-      return console.error.bind(console);
-    default:
-      return console.log.bind(console);
-  }
-}
 
   /**
    * 创建日志条目

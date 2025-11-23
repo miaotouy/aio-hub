@@ -56,6 +56,7 @@ const settings = ref<AppSettings>({
   logToFile: true,
   logToConsole: true,
   logBufferSize: 1000,
+  maxFileSize: 2 * 1024 * 1024,
   version: "1.0.0",
 });
 
@@ -598,6 +599,7 @@ onUnmounted(() => {
                   v-model:log-to-file="settings.logToFile"
                   v-model:log-to-console="settings.logToConsole"
                   v-model:log-buffer-size="settings.logBufferSize"
+                  v-model:max-file-size="settings.maxFileSize"
                 />
 
                 <!-- 工具模块配置 -->

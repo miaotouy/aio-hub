@@ -39,11 +39,17 @@ export function useLogConfig() {
         logger.setLogBufferSize(settings.logBufferSize);
       }
 
+      // 设置单个日志文件最大大小
+      if (settings.maxFileSize !== undefined) {
+        logger.setMaxFileSize(settings.maxFileSize);
+      }
+
       moduleLogger.info("日志配置已应用", {
         level: settings.logLevel,
         logToFile: settings.logToFile,
         logToConsole: settings.logToConsole,
         bufferSize: settings.logBufferSize,
+        maxFileSize: settings.maxFileSize,
       });
     } catch (error) {
       errorHandler.error(error, "应用日志配置失败", { showToUser: false });
@@ -72,6 +78,7 @@ export function useLogConfig() {
         () => settings.logToFile,
         () => settings.logToConsole,
         () => settings.logBufferSize,
+        () => settings.maxFileSize,
       ],
       () => {
         applyLogConfig(settings);

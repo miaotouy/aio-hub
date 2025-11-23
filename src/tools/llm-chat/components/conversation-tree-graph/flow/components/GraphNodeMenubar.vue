@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Copy, Eye, EyeOff, Trash2, MessageSquare, RefreshCw, GitFork } from 'lucide-vue-next';
-import { ElTooltip } from 'element-plus';
+import { ElTooltip, ElPopconfirm } from 'element-plus';
 
 interface Props {
   isEnabled: boolean;
@@ -90,11 +90,24 @@ const handleCreateBranch = () => emit('create-branch');
     </el-tooltip>
 
     <!-- 删除 -->
-    <el-tooltip content="删除节点" placement="bottom" :show-after="300">
-      <button class="menu-btn menu-btn-danger" @click="handleDelete">
-        <Trash2 :size="16" />
-      </button>
-    </el-tooltip>
+    <el-popconfirm
+      title="确定要删除此节点吗？"
+      confirm-button-text="删除"
+      cancel-button-text="取消"
+      confirm-button-type="danger"
+      width="200"
+      @confirm="handleDelete"
+    >
+      <template #reference>
+        <div class="delete-btn-wrapper">
+          <el-tooltip content="删除节点" placement="bottom" :show-after="300">
+            <button class="menu-btn menu-btn-danger">
+              <Trash2 :size="16" />
+            </button>
+          </el-tooltip>
+        </div>
+      </template>
+    </el-popconfirm>
   </div>
 </template>
 
@@ -150,5 +163,11 @@ const handleCreateBranch = () => emit('create-branch');
 .menu-btn-danger:hover {
   background-color: var(--error-color);
   color: white;
+}
+
+.delete-btn-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

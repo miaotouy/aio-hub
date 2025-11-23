@@ -4,13 +4,86 @@
  * 封装了与 WindowSyncBus 交互的状态同步逻辑，
  * 实现了自动的状态推送和接收，并支持增量更新。
  */
-import { ref, onUnmounted, type Ref, isRef, watch } from 'vue';
+import { ref, onUnmounted, type Ref, isRef, watch, nextTick, getCurrentInstance } from 'vue';
 import { useWindowSyncBus } from './useWindowSyncBus';
 import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator } from '@/utils/sync-helpers';
 import { createModuleLogger } from '@/utils/logger';
 import type { StateSyncConfig, StateSyncPayload, JsonPatchOperation, BaseMessage, StateKey } from '@/types/window-sync';
 
 const logger = createModuleLogger('StateSyncEngine');
+
+// ==========================================
+// 全局同步源注册中心
+// ==========================================
+
+type SyncSource = {
+  pushState: (isFullSync?: boolean, targetWindowLabel?: string, silent?: boolean) => Promise<void>;
+  stateKey: string;
+};
+
+const syncRegistry = new Set<SyncSource>();
+let isRegistryInitialized = false;
+
+/**
+ * 初始化全局注册中心监听器
+ * 确保只在主窗口或工具窗口（数据源头）初始化一次
+ */
+function initRegistryListeners() {
+  if (isRegistryInitialized) return;
+  
+  const bus = useWindowSyncBus();
+  
+  // 仅主窗口和工具窗口需要响应同步请求
+  if (bus.windowType !== 'main' && bus.windowType !== 'detached-tool') {
+    return;
+  }
+
+  // 1. 监听初始状态请求，批量推送所有注册源的全量状态
+  bus.onInitialStateRequest((requesterLabel) => {
+    logger.info(`[${bus.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，开始批量推送...`);
+    
+    for (const source of syncRegistry) {
+      // 强制推送全量状态给请求者（静默模式）
+      source.pushState(true, requesterLabel, true).catch(err => {
+        logger.error('批量推送状态失败', err, { stateKey: source.stateKey });
+      });
+    }
+    
+    logger.info(`[${bus.windowType}] 已向 ${requesterLabel} 批量推送所有状态`);
+  });
+
+  // 2. 监听重连事件，广播所有注册源的全量状态
+  bus.onReconnect(() => {
+    logger.info(`[${bus.windowType}] 窗口重新获得焦点，开始广播所有状态...`);
+    
+    for (const source of syncRegistry) {
+      // 广播全量状态（静默模式）
+      source.pushState(true, undefined, true).catch(err => {
+        logger.error('广播状态失败', err, { stateKey: source.stateKey });
+      });
+    }
+    
+    logger.info(`[${bus.windowType}] 所有状态广播完成`);
+  });
+
+  isRegistryInitialized = true;
+  logger.info('StateSyncEngine 全局注册中心已初始化');
+}
+
+/**
+ * 注册外部同步源（用于非 useStateSyncEngine 创建的自定义同步逻辑）
+ * 例如：ChatInputManager
+ */
+export function registerSyncSource(source: SyncSource) {
+  // 确保监听器已初始化
+  initRegistryListeners();
+  
+  syncRegistry.add(source);
+  
+  return () => {
+    syncRegistry.delete(source);
+  };
+}
 
 export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   stateSource: Ref<T> | T,
@@ -23,7 +96,6 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     enableDelta = true,
     deltaThreshold = 0.5,
     debounce: debounceDelay = 100,
-    requestOnMount = false,
   } = config;
 
   const bus = useWindowSyncBus();
@@ -47,6 +119,12 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     const pushState = async (isFullSync = false, targetWindowLabel?: string, silent = false) => {
       if (!isInitialized) {
         logger.warn('无法推送状态，因为未初始化', { stateKey });
+        return;
+      }
+
+      // 【关键修复】如果正在应用外部状态，则跳过推送，防止无限循环
+      if (isApplyingExternalState) {
+        logger.debug('正在应用外部状态，跳过推送', { stateKey });
         return;
       }
   
@@ -115,7 +193,11 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     } catch (error) {
       logger.error('应用状态更新失败', error as Error, { stateKey });
     } finally {
-      isApplyingExternalState = false;
+      // 【关键修复】使用 nextTick 延迟重置标志位
+      // 确保在 Vue 的响应式系统完成更新、watch 回调执行之后再允许推送
+      nextTick(() => {
+        isApplyingExternalState = false;
+      });
     }
   };
 
@@ -138,10 +220,6 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   if (autoReceive) {
     unlistenStateSync = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
     logger.debug('已启动自动接收', { stateKey, windowType: bus.windowType });
-    
-    if (requestOnMount && bus.windowType !== 'main') {
-      bus.requestSpecificState(stateKey);
-    }
   }
 
   const manualPush = (isFullSync = true, targetWindowLabel?: string, silent = false) => {
@@ -149,13 +227,31 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     return pushState(isFullSync, targetWindowLabel, silent);
   };
 
+  // 注册到全局注册中心
+  // 只有配置了 autoPush 的引擎才需要响应全局请求
+  let unregister: (() => void) | null = null;
+  if (autoPush && (bus.windowType === 'main' || bus.windowType === 'detached-tool')) {
+    unregister = registerSyncSource({
+      pushState: manualPush,
+      stateKey
+    });
+  }
+
+  let isCleaned = false;
   const cleanup = () => {
+    if (isCleaned) return;
+    isCleaned = true;
+    
     stopWatching?.();
     unlistenStateSync?.();
+    unregister?.();
     logger.info('StateSyncEngine 已清理', { stateKey });
   };
 
-  onUnmounted(cleanup);
+  // 仅在有活跃组件实例时自动注册清理
+  if (getCurrentInstance()) {
+    onUnmounted(cleanup);
+  }
 
   return {
     state,

@@ -142,6 +142,12 @@ onMounted(async () => {
         
         if (componentConfig) {
           logger.info("正在加载组件", { id });
+
+          // 如果组件配置了环境初始化钩子，则执行它
+          if (componentConfig.initializeEnvironment) {
+            logger.info("执行组件的环境初始化钩子", { id });
+            componentConfig.initializeEnvironment();
+          }
           
           // 加载组件
           componentToRender.value = loadDetachableComponent(id);

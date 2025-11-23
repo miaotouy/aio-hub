@@ -3,6 +3,7 @@
  * 负责树形对话历史的节点操作逻辑
  */
 
+import { toRaw } from 'vue';
 import type { ChatSession, ChatMessageNode } from '../types';
 import { BranchNavigator } from '../utils/BranchNavigator';
 import { createModuleLogger } from '@/utils/logger';
@@ -385,7 +386,15 @@ export function useNodeManager() {
     const deletedNodes: ChatMessageNode[] = [];
     nodesToDeleteIds.forEach(id => {
       if (session.nodes[id]) {
-        deletedNodes.push(structuredClone(session.nodes[id]));
+        try {
+          // 使用 toRaw 获取原始对象，避免 DataCloneError
+          deletedNodes.push(structuredClone(toRaw(session.nodes[id])));
+        } catch (error) {
+          logger.warn('无法克隆节点进行备份，将跳过备份直接删除', { nodeId: id, error });
+          // 即使深拷贝失败，也尝试保留一个浅拷贝或原始对象，以免返回空导致上层逻辑错误
+          // 这里使用解构来创建一个新的普通对象，去除 Proxy
+          deletedNodes.push({ ...toRaw(session.nodes[id]) });
+        }
         delete session.nodes[id];
       }
     });

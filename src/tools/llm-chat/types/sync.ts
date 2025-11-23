@@ -26,10 +26,12 @@ export type LlmChatStateKey =
   | 'chat-current-session-id'  // 当前会话ID
   | 'chat-parameters'       // 参数配置
   | 'chat-is-sending'       // 是否正在发送消息
+  | 'chat-generating-nodes' // 正在生成的节点集合
   | 'chat-user-profiles'    // 用户档案列表（完整）
   | 'chat-global-profile-id' // 全局用户档案ID
   | 'chat-input-state'      // 输入框状态（文本内容）
-  | 'chat-settings';        // 聊天设置（UI偏好、快捷键等）
+  | 'chat-settings'         // 聊天设置（UI偏好、快捷键等）
+  | 'chat-current-session-data'; // 当前会话的完整数据（用于轻量级同步）
 
 /**
  * LLM Chat 状态键常量
@@ -43,10 +45,12 @@ export const CHAT_STATE_KEYS = {
   CURRENT_SESSION_ID: 'chat-current-session-id' as const,
   PARAMETERS: 'chat-parameters' as const,
   IS_SENDING: 'chat-is-sending' as const,
+  GENERATING_NODES: 'chat-generating-nodes' as const,
   USER_PROFILES: 'chat-user-profiles' as const,
   GLOBAL_PROFILE_ID: 'chat-global-profile-id' as const,
   INPUT_STATE: 'chat-input-state' as const,
   SETTINGS: 'chat-settings' as const,
+  CURRENT_SESSION_DATA: 'chat-current-session-data' as const,
 } as const;
 
 /**

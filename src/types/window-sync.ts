@@ -23,8 +23,7 @@ export type WindowMessageType =
   | "action-request" // 操作请求（分离窗口 → 主窗口）
   | "action-response" // 操作响应（主窗口 → 分离窗口）
   | "heartbeat" // 心跳检测
-  | "request-initial-state" // 请求初始状态（通用）
-  | "request-specific-state"; // 请求特定状态
+  | "request-initial-state"; // 请求初始状态（通用）
 
 /**
  * 状态键类型（用于标识不同的状态数据）
@@ -173,7 +172,7 @@ export type ActionHandler = (action: string, params: any, requestId: string) => 
 /**
  * 初始状态请求处理器（主窗口使用）
  */
-export type InitialStateRequestHandler = (requesterLabel: string, stateKey?: StateKey) => void;
+export type InitialStateRequestHandler = (requesterLabel: string) => void;
 
 // 配置选项
 
@@ -193,7 +192,7 @@ export interface StateSyncConfig<K extends StateKey = StateKey> {
   deltaThreshold?: number;
   /** 防抖延迟（毫秒） */
   debounce?: number;
-  /** 是否在挂载时自动请求初始状态（仅分离窗口有效） */
+  /** 是否在挂载时自动请求初始状态（仅分离窗口有效） - @deprecated 已废弃，请使用 bus.requestInitialState() */
   requestOnMount?: boolean;
 }
 /**

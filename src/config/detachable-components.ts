@@ -1,6 +1,7 @@
 import { defineAsyncComponent, type Component, type Ref, computed } from 'vue';
 import { useDetachedChatArea } from '../tools/llm-chat/composables/useDetachedChatArea';
 import { useDetachedChatInput } from '../tools/llm-chat/composables/useDetachedChatInput';
+import { useLlmChatStateConsumer } from '../tools/llm-chat/composables/useLlmChatStateConsumer';
 
 /**
  * 分离逻辑钩子 (Logic Hook) 的接口定义
@@ -58,6 +59,11 @@ export interface DetachableComponentRegistration {
    * 在分离窗口中使用的逻辑钩子
    */
   logicHook: DetachedLogicHook;
+  /**
+   * 可选的环境初始化钩子
+   * 在组件被加载到分离容器时执行，用于设置特定的环境（如启动状态消费者）
+   */
+  initializeEnvironment?: () => void;
 }
 
 /**
@@ -73,11 +79,13 @@ export const detachableComponentRegistry: Record<string, DetachableComponentRegi
   'chat-area': {
     component: () => import('../tools/llm-chat/components/ChatArea.vue'),
     logicHook: useDetachedChatAreaAdapter,
+    initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: false }),
   },
   // LLM Chat: 消息输入框
   'chat-input': {
     component: () => import('../tools/llm-chat/components/message-input/MessageInput.vue'),
     logicHook: useDetachedChatInput,
+    initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: false }),
   },
   // 未来可以在此添加更多可分离的组件
   // 'some-other-component': {

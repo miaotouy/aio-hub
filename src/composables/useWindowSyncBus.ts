@@ -38,7 +38,7 @@ class WindowSyncBus {
   // 基础信息
   private readonly windowLabel: string;
   private readonly windowType: WindowType;
-  
+
   // 连接管理
   private connectedWindows = ref(new Map<string, WindowInfo>());
   private messageHandlers = new Map<WindowMessageType, Set<MessageHandler<any>>>();
@@ -47,15 +47,15 @@ class WindowSyncBus {
   private reconnectionHandlers = new Set<() => void>();
   private actionHandler: ActionHandler | null = null;
   private initialStateRequestHandler: InitialStateRequestHandler | null = null;
-  
+
   // 心跳管理
   private heartbeatInterval: number | null = null;
   private heartbeatSequence = 0;
   private config: Required<WindowSyncBusConfig>;
-  
+
   // Tauri 事件监听器
   private eventUnlisteners: TauriUnlistenFn[] = [];
-  
+
   // 初始化状态
   private initialized = false;
 
@@ -63,7 +63,7 @@ class WindowSyncBus {
     // 获取当前窗口信息
     const currentWindow = getCurrentWebviewWindow();
     this.windowLabel = currentWindow.label;
-    
+
     // 判断窗口类型 - 基于路由路径而不是窗口标签
     if (this.windowLabel === 'main') {
       this.windowType = 'main';
@@ -79,14 +79,14 @@ class WindowSyncBus {
         this.windowType = 'detached-tool';
       }
     }
-    
+
     // 配置
     this.config = {
       heartbeatInterval: config?.heartbeatInterval ?? 30000,
       heartbeatTimeout: config?.heartbeatTimeout ?? 60000,
       enableHeartbeat: config?.enableHeartbeat ?? true,
     };
-    
+
     logger.info('WindowSyncBus 实例创建', {
       windowLabel: this.windowLabel,
       windowType: this.windowType,
@@ -222,9 +222,6 @@ class WindowSyncBus {
       case 'request-initial-state':
         this.handleInitialStateRequest(message.from);
         break;
-     case 'request-specific-state':
-       this.handleSpecificStateRequest(message as BaseMessage<{ stateKey: StateKey }>);
-       break;
     }
 
     // 调用注册的消息处理器
@@ -253,7 +250,7 @@ class WindowSyncBus {
     };
 
     this.connectedWindows.value.set(message.from, windowInfo);
-    
+
     logger.info('窗口已连接', { windowInfo });
 
     // 通知连接处理器
@@ -389,7 +386,7 @@ class WindowSyncBus {
     for (const label of disconnectedWindows) {
       const windowInfo = this.connectedWindows.value.get(label)!;
       this.connectedWindows.value.delete(label);
-      
+
       logger.warn('窗口心跳超时，已断开', { label });
 
       // 通知断开处理器
@@ -485,47 +482,36 @@ class WindowSyncBus {
       });
     });
   }
-  
+
   /**
    * 请求初始状态（分离窗口使用）
+   * 改为广播模式：向所有窗口发送请求，由拥有数据的窗口响应
    */
   async requestInitialState(): Promise<void> {
-    logger.info('向主窗口请求初始状态');
-    await this.sendMessage('request-initial-state', {}, 'main');
+    logger.info('广播初始状态请求（由拥有数据的窗口响应）');
+    await this.sendMessage('request-initial-state', {});
   }
 
   /**
    * 请求特定状态（分离窗口使用）
    */
-  async requestSpecificState(stateKey: StateKey): Promise<void> {
-    logger.info(`向主窗口请求特定状态: ${stateKey}`);
-    await this.sendMessage('request-specific-state', { stateKey }, 'main');
+  /**
+   * 监听初始状态请求（主窗口使用）
+   */
+  onInitialStateRequest(handler: InitialStateRequestHandler): UnlistenFn {
+    this.initialStateRequestHandler = handler;
+    return () => {
+      this.initialStateRequestHandler = null;
+    };
   }
-  
-/**
- * 监听初始状态请求（主窗口使用）
- */
-onInitialStateRequest(handler: InitialStateRequestHandler): UnlistenFn {
-  this.initialStateRequestHandler = handler;
-  return () => {
-    this.initialStateRequestHandler = null;
-  };
-}
+  private handleInitialStateRequest(requesterLabel: string): void {
+    // 只要窗口注册了处理器，就应该响应（无论是 main 还是 detached-tool）
+    if (this.initialStateRequestHandler) {
+      logger.info(`[${this.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，准备批量推送`);
+      this.initialStateRequestHandler(requesterLabel);
+    }
+  }
 
-private handleInitialStateRequest(requesterLabel: string): void {
-  if (this.windowType === 'main' && this.initialStateRequestHandler) {
-    logger.info(`收到来自 ${requesterLabel} 的初始状态请求，准备推送`);
-    this.initialStateRequestHandler(requesterLabel);
-  }
-}
-
-private handleSpecificStateRequest(message: BaseMessage<{ stateKey: StateKey }>): void {
-  if (this.windowType === 'main' && this.initialStateRequestHandler) {
-    logger.info(`收到来自 ${message.from} 的特定状态请求: ${message.payload.stateKey}`);
-    // 复用同一个 handler，但传入 stateKey
-    this.initialStateRequestHandler(message.from, message.payload.stateKey);
-  }
-}
 
   /**
    * 注册操作处理器（主窗口使用）
@@ -641,13 +627,13 @@ export function useWindowSyncBus() {
     if (bus['initialized']) {
       return;
     }
-    
+
     // 如果提供了配置，则更新实例的配置
     if (config) {
       Object.assign(bus['config'], config);
       logger.info('总线配置已更新', bus['config']);
     }
-    
+
     // 初始化核心监听器
     await bus.initialize();
 
@@ -660,20 +646,19 @@ export function useWindowSyncBus() {
   return {
     // 新的初始化函数
     initializeSyncBus,
-    
+
     // 公开请求初始状态的函数
     requestInitialState: bus.requestInitialState.bind(bus),
-    requestSpecificState: bus.requestSpecificState.bind(bus),
 
     // 基础信息
     windowLabel: bus['windowLabel'],
     windowType: bus['windowType'],
     connectedWindows: bus.connectedWindowsList,
-    
+
     // 核心 API
     syncState: bus.syncState.bind(bus),
     requestAction: bus.requestAction.bind(bus),
-    
+
     // 事件监听
     onActionRequest: bus.onActionRequest.bind(bus),
     onInitialStateRequest: bus.onInitialStateRequest.bind(bus),
@@ -681,7 +666,7 @@ export function useWindowSyncBus() {
     onConnect: bus.onConnect.bind(bus),
     onDisconnect: bus.onDisconnect.bind(bus),
     onReconnect: bus.onReconnect.bind(bus),
-    
+
     // 生命周期
     cleanup: bus.cleanup.bind(bus),
   };

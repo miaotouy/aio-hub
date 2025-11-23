@@ -471,16 +471,29 @@ onMounted(async () => {
 
   logger.info("ChatArea mounted", {
     props: {
-      messages: props.messages?.length,
+      messagesCount: props.messages?.length,
       isSending: props.isSending,
       disabled: props.disabled,
       isDetached: props.isDetached,
       currentAgentId: props.currentAgentId,
       currentModelId: props.currentModelId,
     },
-    agent: currentAgent.value,
-    model: currentModel.value,
+    agent: currentAgent.value?.name,
+    model: currentModel.value?.name,
   });
+
+  // 监视 props.messages 的变化，用于调试
+  watch(
+    () => props.messages,
+    (newMessages) => {
+      logger.debug("ChatArea props.messages 更新", {
+        newCount: newMessages?.length,
+        // 只打印第一条消息的内容以避免日志过长
+        firstMessageContent: newMessages && newMessages.length > 0 ? newMessages[0].content : "N/A",
+      });
+    },
+    { deep: true, immediate: true }
+  );
 });
 </script>
 

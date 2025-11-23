@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed, ref, onUnmounted, nextTick, defineAsyncComponent } from "vue";
+import { onMounted, computed, ref, onUnmounted, defineAsyncComponent } from "vue";
 import { useLlmChatStore } from "./store";
 import { useAgentStore } from "./agentStore";
 import { useUserProfileStore } from "./userProfileStore";
@@ -33,7 +33,8 @@ const isInDetachedToolWindow = bus.windowType === "detached-tool";
 logger.info("LlmChat 窗口类型", { windowType: bus.windowType, isInDetachedToolWindow });
 
 // 初始化状态同步引擎（智能体、会话、设置等）
-useLlmChatSync();
+// 注意：不立即初始化，等待数据加载完成后再启动
+const { initialize: initializeSync } = useLlmChatSync();
 
 // UI状态持久化
 const {
@@ -110,42 +111,72 @@ const { isDetached } = useDetachedManager();
 
 // 对话区域是否已分离的状态
 const isChatAreaDetached = computed(() => isDetached("chat-area"));
-
-// 组件挂载时加载会话、智能体和用户档案
+// 组件挂载时的初始化逻辑
 onMounted(async () => {
   isLoading.value = true;
-  try {
-    // 初始化宏引擎（全局一次）
-    initializeMacroEngine();
 
-    // 加载UI状态
-    await loadUiState();
+  // 初始化宏引擎（全局一次）
+  initializeMacroEngine();
+  // 加载并启动UI状态的持久化
+  await loadUiState();
+  startWatching();
 
-    // 启动UI状态自动保存
-    startWatching();
+  // 根据窗口类型执行不同的初始化策略
+  if (bus.windowType === "main") {
+    // ================== 主窗口初始化 ==================
+    logger.info("主窗口：开始加载核心数据...");
+    try {
+      // 1. 先加载所有核心数据
+      await Promise.all([
+        agentStore.loadAgents(),
+        userProfileStore.loadProfiles(),
+        store.loadSessions(),
+      ]);
 
-    await Promise.all([
-      agentStore.loadAgents(),
-      userProfileStore.loadProfiles(),
-      store.loadSessions(),
-    ]);
+      logger.info("主窗口：核心数据加载完成", {
+        sessionCount: store.sessions.length,
+        agentCount: agentStore.agents.length,
+        profileCount: userProfileStore.profiles.length,
+      });
 
-    logger.info("LLM Chat 模块已加载", {
-      sessionCount: store.sessions.length,
-      agentCount: agentStore.agents.length,
-      profileCount: userProfileStore.profiles.length,
-    });
+      // 2. 数据加载完成后，再启动状态同步引擎
+      initializeSync();
+      logger.info("主窗口：状态同步引擎已启动");
 
-    // 如果没有会话且有选中的智能体，创建一个新会话
-    if (store.sessions.length === 0 && agentStore.currentAgentId) {
-      handleNewSession({ agentId: agentStore.currentAgentId });
+      // 3. 处理初始会话
+      if (store.sessions.length === 0 && agentStore.currentAgentId) {
+        handleNewSession({ agentId: agentStore.currentAgentId });
+      }
+    } catch (error) {
+      logger.error("主窗口初始化LLM Chat模块失败", error);
+    } finally {
+      isLoading.value = false;
     }
-  } catch (error) {
-    logger.error("初始化LLM Chat模块失败", error);
-  } finally {
-    // 使用 nextTick 确保在 DOM 更新后再隐藏骨架屏
-    await nextTick();
-    isLoading.value = false;
+  } else {
+    // ================== 分离窗口初始化 ==================
+    logger.info("分离窗口：开始独立加载核心数据...");
+    try {
+      // 1. 分离窗口独立加载所有核心数据（与主窗口相同）
+      await Promise.all([
+        agentStore.loadAgents(),
+        userProfileStore.loadProfiles(),
+        store.loadSessions(),
+      ]);
+
+      logger.info("分离窗口：核心数据加载完成", {
+        sessionCount: store.sessions.length,
+        agentCount: agentStore.agents.length,
+        profileCount: userProfileStore.profiles.length,
+      });
+
+      // 2. 数据加载完成后，启动状态同步引擎用于后续的跨窗口状态同步
+      initializeSync();
+      logger.info("分离窗口：状态同步引擎已启动（用于跨窗口同步）");
+    } catch (error) {
+      logger.error("分离窗口初始化LLM Chat模块失败", error);
+    } finally {
+      isLoading.value = false;
+    }
   }
 });
 // 当前选中的智能体ID（独立于会话）

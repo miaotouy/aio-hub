@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
-import { Loading } from '@element-plus/icons-vue';
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  defineAsyncComponent,
+  type Component,
+  watch,
+} from "vue";
+import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
 import { useDetachedManager } from "../composables/useDetachedManager";
-import { useLlmChatStateConsumer } from "../tools/llm-chat/composables/useLlmChatStateConsumer";
 import { initThemeAppearance, cleanupThemeAppearance } from "../composables/useThemeAppearance";
 import { createModuleLogger } from "../utils/logger";
 import { loadAppSettingsAsync } from "../utils/appSettings";
@@ -50,11 +58,11 @@ onMounted(async () => {
   // 初始化主题外观系统（包括壁纸、透明度、模糊等）
   try {
     await initThemeAppearance();
-    logger.info('分离窗口主题外观系统已初始化');
+    logger.info("分离窗口主题外观系统已初始化");
   } catch (error) {
-    logger.warn('初始化分离窗口主题外观失败', { error });
+    logger.warn("初始化分离窗口主题外观失败", { error });
   }
-  
+
   // 加载并应用主题色系统
   try {
     const settings = await loadAppSettingsAsync();
@@ -65,7 +73,7 @@ onMounted(async () => {
       danger: settings.dangerColor,
       info: settings.infoColor,
     });
-    logger.info('分离窗口主题色已应用', {
+    logger.info("分离窗口主题色已应用", {
       themeColor: settings.themeColor,
       successColor: settings.successColor,
       warningColor: settings.warningColor,
@@ -73,15 +81,15 @@ onMounted(async () => {
       infoColor: settings.infoColor,
     });
   } catch (error) {
-    logger.warn('应用分离窗口主题色失败', { error });
+    logger.warn("应用分离窗口主题色失败", { error });
   }
-  
+
   // 如果是 llm-chat 工具窗口，启动状态消费者
   // 这确保分离的工具窗口能从主窗口接收完整状态，成为主窗口的副本
-  if (toolPath.value === '/llm-chat') {
-    logger.info('启动 LLM Chat 状态消费者（作为主窗口的副本）');
-    useLlmChatStateConsumer();
-  }
+  // if (toolPath.value === '/llm-chat') {
+  //   logger.info('启动 LLM Chat 状态消费者（作为主窗口的副本）');
+  //   useLlmChatStateConsumer();
+  // }
 
   // 监听 tools store 的就绪状态
   // 分离窗口需要等待主窗口的插件加载完成后才能正确渲染插件 UI
@@ -89,7 +97,7 @@ onMounted(async () => {
     () => toolsStore.isReady,
     (isReady) => {
       if (isReady) {
-        logger.info('Tools store 已就绪，开始加载工具组件');
+        logger.info("Tools store 已就绪，开始加载工具组件");
         const config = toolConfig.value;
         if (config) {
           try {
@@ -102,7 +110,7 @@ onMounted(async () => {
           logger.error("未找到工具配置", { toolPath: toolPath.value });
         }
       } else {
-        logger.info('等待 Tools store 就绪...');
+        logger.info("等待 Tools store 就绪...");
       }
     },
     { immediate: true }
@@ -163,14 +171,14 @@ onUnmounted(() => {
       <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
 
       <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
-      <Suspense v-if="toolComponent">
-        <component :is="toolComponent" />
-        <template #fallback>
-          <div class="loading-message">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <p>组件加载中...</p>
-          </div>
-        </template>
+        <Suspense v-if="toolComponent">
+          <component :is="toolComponent" />
+          <template #fallback>
+            <div class="loading-message">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <p>组件加载中...</p>
+            </div>
+          </template>
         </Suspense>
         <div v-else class="loading-message">
           <p>加载中...</p>

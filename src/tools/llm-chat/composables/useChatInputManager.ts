@@ -17,6 +17,7 @@ import { ref, watch, type Ref } from "vue";
 import { getOrCreateInstance } from "@/utils/singleton";
 import { useAttachmentManager, type UseAttachmentManagerReturn } from "./useAttachmentManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { registerSyncSource } from "@/composables/useStateSyncEngine";
 import {
   calculateDiff,
   applyPatches,
@@ -77,6 +78,7 @@ class ChatInputManager {
 
   // 监听器清理函数
   private unlistenStateSync: (() => void) | null = null;
+  private unregisterSyncSource: (() => void) | null = null;
 
   constructor() {
     // 创建附件管理器
@@ -200,9 +202,18 @@ class ChatInputManager {
       }
     });
 
-    // 如果不是主窗口，请求初始状态
-    if (this.bus.windowType !== "main") {
-      this.bus.requestSpecificState(CHAT_STATE_KEYS.INPUT_STATE);
+    // 如果不是主窗口，初始状态将由 useLlmChatStateConsumer 统一请求
+    // 此处不再单独请求
+
+    // 注册到全局同步源（仅主窗口和工具窗口）
+    // 这样当有新窗口请求初始状态时，InputManager 也能自动响应
+    if (this.bus.windowType === 'main' || this.bus.windowType === 'detached-tool') {
+      this.unregisterSyncSource = registerSyncSource({
+        pushState: async (isFullSync, targetWindowLabel, silent) => {
+          this.pushState(isFullSync, targetWindowLabel, silent);
+        },
+        stateKey: CHAT_STATE_KEYS.INPUT_STATE
+      });
     }
 
     logger.info("ChatInputManager 初始化完成，包含跨窗口同步");
@@ -211,7 +222,7 @@ class ChatInputManager {
   /**
    * 防抖推送状态到其他窗口
    */
-  private debouncedPushState(): void {
+  public debouncedPushState(): void {
     if (this.pushTimer) {
       clearTimeout(this.pushTimer);
     }
@@ -224,33 +235,29 @@ class ChatInputManager {
   /**
    * 推送状态到其他窗口
    */
-  private pushState(): void {
+  public pushState(isFullSync = false, targetWindowLabel?: string, silent = false): void {
     if (this.isApplyingSyncState) return;
 
     const newValue = this.syncState.value;
     const newVersion = VersionGenerator.next();
 
-    // 计算差异
-    const patches = calculateDiff(this.lastSyncedValue, newValue);
-    if (patches.length === 0) {
-      logger.debug("输入状态无变化，跳过同步");
-      return;
+    const shouldForceFullSync = isFullSync || !shouldUseDelta([], newValue, 0.5);
+
+    if (shouldForceFullSync) {
+      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, newValue, newVersion, true, targetWindowLabel);
+      if (!silent) logger.debug("执行全量输入状态同步", { version: newVersion, targetWindow: targetWindowLabel });
+    } else {
+      const patches = calculateDiff(this.lastSyncedValue, newValue);
+      if (patches.length === 0) {
+        if (!silent) logger.debug("输入状态无变化，跳过同步");
+        return;
+      }
+      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, patches, newVersion, false, targetWindowLabel);
+      if (!silent) logger.debug("执行增量输入状态同步", { version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
     }
-
-    // 决定使用全量还是增量同步
-    const useDelta = shouldUseDelta(patches, newValue, 0.5);
-
-    this.bus.syncState(
-      CHAT_STATE_KEYS.INPUT_STATE,
-      useDelta ? patches : newValue,
-      newVersion,
-      !useDelta
-    );
 
     this.stateVersion = newVersion;
     this.lastSyncedValue = JSON.parse(JSON.stringify(newValue));
-
-    logger.debug("已推送输入状态", { version: newVersion, useDelta });
   }
 
   /**
@@ -265,6 +272,9 @@ class ChatInputManager {
     }
     if (this.unlistenStateSync) {
       this.unlistenStateSync();
+    }
+    if (this.unregisterSyncSource) {
+      this.unregisterSyncSource();
     }
     logger.info("ChatInputManager 已清理");
   }
@@ -477,5 +487,8 @@ export function useChatInputManager() {
     clearAttachments: manager.attachmentManager.clearAttachments,
     /** 获取所有附件 */
     getAttachments: manager.getAttachments.bind(manager),
+
+    // 暴露给 useLlmChatSync 用于手动触发推送
+    pushState: manager.pushState.bind(manager),
   };
 }

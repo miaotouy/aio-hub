@@ -1,24 +1,24 @@
 /**
  * LLM Chat 状态管理（树形历史结构）
- * 重构后的精简版本：专注于状态管理，复杂逻辑委托给 composables
+ * 重构后的精简版本：专注于状态管理，复杂逻辑委托给 composables 和 services
  * 
- * 现已重构为 Setup Store 以更好地集成 useSessionNodeHistory Composable。
  * @see UNDO_REDO_DESIGN.md
  */
 
 import { defineStore } from "pinia";
-import { computed, ref, toRaw } from "vue";
+import { computed, ref } from "vue";
 import { useSessionManager } from "./composables/useSessionManager";
 import { useChatHandler } from "./composables/useChatHandler";
 import { useBranchManager } from "./composables/useBranchManager";
 import { BranchNavigator } from "./utils/BranchNavigator";
 import { useAgentStore } from "./agentStore";
 import { useSessionNodeHistory } from "./composables/useSessionNodeHistory";
-import type { ChatSession, ChatMessageNode, LlmParameters, HistoryDelta, NodeRelationChange } from "./types";
+import { useGraphActions } from "./composables/useGraphActions";
+import { recalculateNodeTokens as recalculateNodeTokensService, fillMissingTokenMetadata as fillMissingTokenMetadataService } from "./utils/chatTokenUtils";
+import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -188,7 +188,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     logger.info(`已跳转到历史记录索引 ${index}`);
   }
 
-  // ==================== 操作 ====================
+  // ==================== 图操作 (委托给 useGraphActions) ====================
+  const graphActions = useGraphActions(currentSession, currentSessionId, historyManager);
+
+  // ==================== 会话操作 ====================
 
   /**
    * 创建新会话（使用智能体）
@@ -285,152 +288,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
-   * 重新计算单个节点的 token
-   */
-  async function recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
-    const node = session.nodes[nodeId];
-    if (!node || !node.content) return;
-    if (node.role !== 'user' && node.role !== 'assistant') return;
-
-    let modelId: string | undefined;
-    if (node.role === 'assistant' && node.metadata?.modelId) {
-      modelId = node.metadata.modelId;
-    } else if (node.role === 'user') {
-      let currentId: string | null = session.activeLeafId;
-      while (currentId !== null) {
-        const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
-        if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
-          modelId = pathNode.metadata.modelId;
-          break;
-        }
-        currentId = pathNode?.parentId ?? null;
-      }
-      if (!modelId) {
-        for (const n of Object.values(session.nodes)) {
-          if (n.role === 'assistant' && n.metadata?.modelId) {
-            modelId = n.metadata.modelId;
-            break;
-          }
-        }
-      }
-    }
-
-    if (!modelId) {
-      logger.warn('无法确定模型ID，跳过token重新计算', { sessionId: session.id, nodeId, role: node.role });
-      return;
-    }
-
-    try {
-      let fullContent = node.content;
-      if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
-        const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
-        const { getTextAttachmentsContent } = useChatAssetProcessor();
-        const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-        if (textAttachmentsContent) {
-          fullContent = `${node.content}\n\n${textAttachmentsContent}`;
-        }
-      }
-
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-        fullContent,
-        modelId,
-        node.attachments
-      );
-
-      if (!node.metadata) node.metadata = {};
-      node.metadata.contentTokens = tokenResult.count;
-
-      logger.debug('重新计算消息 token', {
-        sessionId: session.id,
-        nodeId,
-        role: node.role,
-        tokens: tokenResult.count,
-        isEstimated: tokenResult.isEstimated,
-      });
-    } catch (error) {
-      logger.warn('重新计算 token 失败', {
-        sessionId: session.id,
-        nodeId,
-        role: node.role,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  /**
-   * 补充会话中缺失的 token 元数据
-   */
-  async function fillMissingTokenMetadata(): Promise<void> {
-    let updatedCount = 0;
-    const sessionsToSave: ChatSession[] = [];
-
-    for (const session of sessions.value) {
-      let sessionUpdated = false;
-      for (const [nodeId, node] of Object.entries(session.nodes)) {
-        if (!node.content || node.metadata?.contentTokens !== undefined) continue;
-
-        let modelId: string | undefined;
-        if (node.role === 'assistant' && node.metadata?.modelId) {
-          modelId = node.metadata.modelId;
-        } else if (node.role === 'user') {
-          let currentId: string | null = session.activeLeafId;
-          while (currentId !== null) {
-            const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
-            if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
-              modelId = pathNode.metadata.modelId;
-              break;
-            }
-            currentId = pathNode?.parentId ?? null;
-          }
-          if (!modelId) {
-            for (const n of Object.values(session.nodes)) {
-              if (n.role === 'assistant' && n.metadata?.modelId) {
-                modelId = n.metadata.modelId;
-                break;
-              }
-            }
-          }
-        }
-
-        if (!modelId) continue;
-
-        try {
-          let fullContent = node.content;
-          if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
-            const { useChatAssetProcessor } = await import('./composables/useChatAssetProcessor');
-            const { getTextAttachmentsContent } = useChatAssetProcessor();
-            const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-            if (textAttachmentsContent) {
-              fullContent = `${node.content}\n\n${textAttachmentsContent}`;
-            }
-          }
-          const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-            fullContent,
-            modelId,
-            node.attachments
-          );
-
-          if (!node.metadata) node.metadata = {};
-          node.metadata.contentTokens = tokenResult.count;
-          updatedCount++;
-          sessionUpdated = true;
-        } catch (error) {
-          logger.warn('计算 token 失败', { sessionId: session.id, nodeId, error });
-        }
-      }
-      if (sessionUpdated) sessionsToSave.push(session);
-    }
-
-    if (sessionsToSave.length > 0) {
-      const sessionManager = useSessionManager();
-      for (const session of sessionsToSave) {
-        sessionManager.persistSession(session, currentSessionId.value);
-      }
-      logger.info('补充 token 元数据完成', { totalUpdated: updatedCount, sessionsUpdated: sessionsToSave.length });
-    }
-  }
-
-  /**
    * 持久化会话到文件
    */
   function persistSessions(): void {
@@ -460,6 +317,30 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessionManager.clearAllSessions();
     logger.info("清空所有会话");
   }
+
+  // ==================== Token 操作 (委托给 Service) ====================
+
+  /**
+   * 重新计算单个节点的 token
+   */
+  async function recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
+    await recalculateNodeTokensService(session, nodeId);
+  }
+
+  /**
+   * 补充会话中缺失的 token 元数据
+   */
+  async function fillMissingTokenMetadata(): Promise<void> {
+    const sessionsToSave = await fillMissingTokenMetadataService(sessions.value);
+    if (sessionsToSave.length > 0) {
+      const sessionManager = useSessionManager();
+      for (const session of sessionsToSave) {
+        sessionManager.persistSession(session, currentSessionId.value);
+      }
+    }
+  }
+
+  // ==================== 发送/生成操作 ====================
 
   /**
    * 发送消息（历史断点）
@@ -590,325 +471,18 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   }
 
-  // ==================== 分支操作 (带历史记录) ====================
-
-  /**
-   * 编辑消息
-   */
-  async function editMessage(nodeId: string, newContent: string, attachments?: Asset[]): Promise<void> {
-    const session = currentSession.value;
-    if (!session) return;
-
-    if (nodeId.startsWith('preset-')) {
-      const agentStore = useAgentStore();
-      if (!agentStore.currentAgentId) return;
-      agentStore.updatePresetMessage(agentStore.currentAgentId, nodeId, newContent);
-      return;
-    }
-
-    const previousNodeState = structuredClone(toRaw(session.nodes[nodeId]));
-    const branchManager = useBranchManager();
-    const success = branchManager.editMessage(session, nodeId, newContent, attachments);
-
-    if (success) {
-      const finalNodeState = structuredClone(toRaw(session.nodes[nodeId]));
-      const delta: HistoryDelta = {
-        type: 'update',
-        payload: { nodeId, previousNodeState, finalNodeState },
-      };
-      historyManager.recordHistory('NODE_EDIT', [delta], { targetNodeId: nodeId });
-
-      await recalculateNodeTokens(session, nodeId);
-      const sessionManager = useSessionManager();
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  /**
-   * 删除消息节点
-   */
-  function deleteMessage(nodeId: string): void {
-    const session = currentSession.value;
-    if (!session) return;
-
-    const branchManager = useBranchManager();
-    const { success, deletedNodes } = branchManager.deleteMessage(session, nodeId);
-
-    if (success && deletedNodes.length > 0) {
-      const deltas: HistoryDelta[] = deletedNodes.map((node) => {
-        const relationChange = extractRelationChange(session, node, 'delete');
-        return {
-          type: 'delete',
-          payload: { deletedNode: node, relationChange },
-        };
-      });
-
-      historyManager.recordHistory('NODES_DELETE', deltas, {
-        targetNodeId: nodeId,
-        affectedNodeCount: deletedNodes.length,
-      });
-
-      const sessionManager = useSessionManager();
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  /**
-   * 切换到指定分支
-   */
-  function switchBranch(nodeId: string): void {
-    const session = currentSession.value;
-    if (!session) return;
-
-    const oldLeafId = session.activeLeafId;
-    const branchManager = useBranchManager();
-    const success = branchManager.switchBranch(session, nodeId);
-
-    if (success) {
-      const newLeafId = session.activeLeafId;
-
-      // 只有当活动节点真正改变时才记录历史
-      if (oldLeafId !== newLeafId) {
-        const delta: HistoryDelta = {
-          type: 'active_leaf_change',
-          payload: { oldLeafId, newLeafId },
-        };
-        historyManager.recordHistory('ACTIVE_NODE_SWITCH', [delta], {
-          sourceNodeId: oldLeafId,
-          targetNodeId: newLeafId,
-        });
-      }
-
-      const sessionManager = useSessionManager();
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  /**
-   * 切换到兄弟分支
-   */
-  function switchToSiblingBranch(nodeId: string, direction: "prev" | "next"): void {
-    const session = currentSession.value;
-    if (!session) return;
-
-    const branchManager = useBranchManager();
-    const newLeafId = branchManager.switchToSiblingBranch(session, nodeId, direction);
-
-    if (newLeafId !== session.activeLeafId) {
-      const sessionManager = useSessionManager();
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  /**
-   * 创建分支
-   */
-  function createBranch(sourceNodeId: string): void {
-    const session = currentSession.value;
-    if (!session) return;
-
-    const branchManager = useBranchManager();
-    const newNodeId = branchManager.createBranch(session, sourceNodeId);
-
-    if (newNodeId) {
-      const newNode = session.nodes[newNodeId];
-      if (newNode) {
-        const relationChange = extractRelationChange(session, newNode, 'create');
-        const delta: HistoryDelta = {
-          type: 'create',
-          payload: { node: newNode, relationChange },
-        };
-        historyManager.recordHistory('BRANCH_CREATE', [delta], { targetNodeId: newNodeId });
-      }
-
-      const sessionManager = useSessionManager();
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  /**
-   * 切换节点启用状态
-   */
-  function toggleNodeEnabled(nodeId: string): void {
-    const session = currentSession.value;
-    if (!session) return;
-
-    if (nodeId.startsWith('preset-')) {
-      const agentStore = useAgentStore();
-      if (!agentStore.currentAgentId) return;
-      agentStore.togglePresetMessageEnabled(agentStore.currentAgentId, nodeId);
-      return;
-    }
-
-    const previousNodeState = structuredClone(toRaw(session.nodes[nodeId]));
-    const branchManager = useBranchManager();
-    const success = branchManager.toggleNodeEnabled(session, nodeId);
-
-    if (success) {
-      const finalNodeState = structuredClone(toRaw(session.nodes[nodeId]));
-      const delta: HistoryDelta = {
-        type: 'update',
-        payload: { nodeId, previousNodeState, finalNodeState },
-      };
-      historyManager.recordHistory('NODE_TOGGLE_ENABLED', [delta], { targetNodeId: nodeId });
-
-      const sessionManager = useSessionManager();
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  /**
-   * 嫁接分支
-   */
-  function graftBranch(nodeId: string, newParentId: string): void {
-    const session = currentSession.value;
-    if (!session) return;
-
-    const relationChanges = captureRelationChangesForGraft(session, nodeId, newParentId);
-    const branchManager = useBranchManager();
-    const success = branchManager.graftBranch(session, nodeId, newParentId);
-
-    if (success) {
-      const delta: HistoryDelta = {
-        type: 'relation',
-        payload: { changes: relationChanges },
-      };
-      historyManager.recordHistory('BRANCH_GRAFT', [delta], {
-        targetNodeId: nodeId,
-        destinationNodeId: newParentId,
-      });
-
-      const sessionManager = useSessionManager();
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  /**
-   * 移动单个节点
-   */
-  function moveNode(nodeId: string, newParentId: string): void {
-    const session = currentSession.value;
-    if (!session) return;
-
-    const relationChanges = captureRelationChangesForMove(session, nodeId, newParentId);
-    const branchManager = useBranchManager();
-    const success = branchManager.moveNode(session, nodeId, newParentId);
-
-    if (success) {
-      const delta: HistoryDelta = {
-        type: 'relation',
-        payload: { changes: relationChanges },
-      };
-      historyManager.recordHistory('NODE_MOVE', [delta], {
-        targetNodeId: nodeId,
-        destinationNodeId: newParentId,
-      });
-
-      const sessionManager = useSessionManager();
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
-    }
-  }
-
-  // ==================== 已弃用方法 ====================
-  function editUserMessage(nodeId: string, newContent: string): void {
-    editMessage(nodeId, newContent);
-  }
-  function editAssistantMessage(nodeId: string, newContent: string): void {
-    editMessage(nodeId, newContent);
-  }
-
   // ==================== 参数管理 ====================
   function updateParameters(newParameters: Partial<LlmParameters>): void {
     Object.assign(parameters.value, newParameters);
     logger.info("更新参数配置", { parameters: newParameters });
   }
 
-  // ==================== 辅助函数 ====================
-  function extractRelationChange(
-    session: ChatSession,
-    node: ChatMessageNode,
-    operation: "delete" | "create"
-  ): NodeRelationChange {
-    const oldParentId = operation === 'delete' ? node.parentId : null;
-    const newParentId = operation === 'create' ? node.parentId : null;
-    const affectedParents: NodeRelationChange["affectedParents"] = {};
-
-    if (oldParentId) {
-      const oldParent = session.nodes[oldParentId];
-      if (oldParent) {
-        affectedParents[oldParentId] = {
-          oldChildren: [...oldParent.childrenIds],
-          newChildren: oldParent.childrenIds.filter((id) => id !== node.id),
-        };
-      }
-    }
-
-    if (newParentId) {
-      const newParent = session.nodes[newParentId];
-      if (newParent) {
-        affectedParents[newParentId] = {
-          oldChildren: [...newParent.childrenIds],
-          newChildren: [...newParent.childrenIds, node.id],
-        };
-      }
-    }
-
-    return {
-      nodeId: node.id,
-      oldParentId,
-      newParentId,
-      affectedParents,
-    };
+  // ==================== 已弃用方法 (保留兼容性) ====================
+  function editUserMessage(nodeId: string, newContent: string): void {
+    graphActions.editMessage(nodeId, newContent);
   }
-
-  function captureRelationChangesForGraft(
-    session: ChatSession,
-    nodeId: string,
-    newParentId: string
-  ): NodeRelationChange[] {
-    const node = session.nodes[nodeId];
-    if (!node) return [];
-    const oldParentId = node.parentId;
-    const affectedParents: NodeRelationChange["affectedParents"] = {};
-
-    if (oldParentId) {
-      const oldParent = session.nodes[oldParentId];
-      if (oldParent) {
-        affectedParents[oldParentId] = {
-          oldChildren: [...oldParent.childrenIds],
-          newChildren: oldParent.childrenIds.filter((id) => id !== nodeId),
-        };
-      }
-    }
-
-    const newParent = session.nodes[newParentId];
-    if (newParent) {
-      affectedParents[newParentId] = {
-        oldChildren: [...newParent.childrenIds],
-        newChildren: [...newParent.childrenIds, nodeId],
-      };
-    }
-
-    return [{
-      nodeId,
-      oldParentId,
-      newParentId,
-      affectedParents,
-    }];
-  }
-
-  function captureRelationChangesForMove(
-    session: ChatSession,
-    nodeId: string,
-    newParentId: string
-  ): NodeRelationChange[] {
-    return captureRelationChangesForGraft(session, nodeId, newParentId);
+  function editAssistantMessage(nodeId: string, newContent: string): void {
+    graphActions.editMessage(nodeId, newContent);
   }
 
   // ==================== 返回 ====================
@@ -938,30 +512,31 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     canUndo: historyManager.canUndo,
     canRedo: historyManager.canRedo,
 
-    // 操作
+    // 会话操作
     createSession,
     switchSession,
     deleteSession,
     updateSession,
     loadSessions,
-    recalculateNodeTokens,
-    fillMissingTokenMetadata,
     persistSessions,
     exportSessionAsMarkdown,
     clearAllSessions,
+
+    // Token 操作
+    recalculateNodeTokens,
+    fillMissingTokenMetadata,
+
+    // 发送/生成操作
     sendMessage,
     regenerateFromNode,
     regenerateLastMessage,
     abortSending,
     abortNodeGeneration,
-    editMessage,
-    deleteMessage,
-    switchBranch,
-    switchToSiblingBranch,
-    createBranch,
-    toggleNodeEnabled,
-    graftBranch,
-    moveNode,
+
+    // 图操作 (从 useGraphActions 展开)
+    ...graphActions,
+    
+    // 兼容旧接口
     editUserMessage,
     editAssistantMessage,
     updateParameters,

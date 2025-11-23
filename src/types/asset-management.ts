@@ -223,7 +223,7 @@ export interface DuplicateFilesResult {
  */
 export type AssetGroupBy = 'month' | 'type' | 'origin' | 'source-module' | 'none';
 
-// --- Lazy Loading & Pagination Types ---
+// --- 懒加载与分页类型 ---
 
 export type AssetSortBy = 'date' | 'name' | 'size';
 export type SortOrder = 'asc' | 'desc';

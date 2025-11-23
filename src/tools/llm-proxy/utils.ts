@@ -70,17 +70,17 @@ export function formatJson(str: string): string {
  */
 export function filterRecords(records: CombinedRecord[], options: FilterOptions): CombinedRecord[] {
   let filtered = records;
-  
+
   // 按搜索词过滤
   if (options.searchQuery) {
     const query = options.searchQuery.toLowerCase();
     filtered = filtered.filter(record => {
       return record.request.url.toLowerCase().includes(query) ||
-             record.request.body?.toLowerCase().includes(query) ||
-             record.response?.body?.toLowerCase().includes(query);
+        record.request.body?.toLowerCase().includes(query) ||
+        record.response?.body?.toLowerCase().includes(query);
     });
   }
-  
+
   // 按状态码过滤
   if (options.filterStatus) {
     filtered = filtered.filter(record => {
@@ -89,7 +89,7 @@ export function filterRecords(records: CombinedRecord[], options: FilterOptions)
       return status.startsWith(options.filterStatus[0]);
     });
   }
-  
+
   // 按时间倒序排列
   return filtered.sort((a, b) => b.request.timestamp - a.request.timestamp);
 }
@@ -100,25 +100,25 @@ export function filterRecords(records: CombinedRecord[], options: FilterOptions)
 export function maskSensitiveData(text: string): string {
   // 常见的 API Key 模式
   const patterns = [
-    // Authorization header: Bearer token, API Key, etc.
+    // Authorization 请求头：Bearer aken、API Key 等
     /(?<=Authorization:\s*)(Bearer\s+)?[\w-]{20,}/gi,
     /(?<=X-API-Key:\s*)[\w-]{20,}/gi,
     /(?<=API-Key:\s*)[\w-]{20,}/gi,
     /(?<=x-api-key:\s*)[\w-]{20,}/gi,
 
-    // OpenAI API Key
+    // OpenAI API 密钥
     /(?<=api[_-]?key["']?\s*[:=]\s*["']?)sk-[\w-]{40,}/gi,
     /\bsk-[\w-]{40,}\b/g,
 
-    // Anthropic API Key
+    // Anthropic API 密钥
     /(?<=x-api-key:\s*)sk-ant-[\w-]{40,}/gi,
     /\bsk-ant-[\w-]{40,}\b/g,
 
-    // Google/Gemini API Key
+    // Google/Gemini API 密钥
     /(?<=key[\"']?\s*[:=]\s*[\"']?)AIza[\w-]{35}/gi,
     /\bAIza[\w-]{35}\b/g,
 
-    // Generic API keys in JSON
+    // JSON 中的通用 API 密钥
     /(?<="api[_-]?key"\s*:\s*")[^"]{20,}(?=")/gi,
     /(?<='api[_-]?key'\s*:\s*')[^']{20,}(?=')/gi,
   ];

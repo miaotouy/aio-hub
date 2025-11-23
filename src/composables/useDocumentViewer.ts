@@ -25,7 +25,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
 
   const isTextContent = computed(() => {
     if (!mimeType.value) return false;
-    // A more robust check for text-based content
+    // 对基于文本的内容进行更健壮的检查
     return mimeType.value.startsWith('text/') 
       || mimeType.value.includes('json') 
       || mimeType.value.includes('xml')

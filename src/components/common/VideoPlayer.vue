@@ -12,7 +12,7 @@
     @click="handleContainerClick"
     @dblclick="toggleFullscreen"
   >
-    <!-- 视频核心 -->
+    <!-- 视频元素 -->
     <video
       ref="videoRef"
       class="video-element"
@@ -39,12 +39,12 @@
       @leavepictureinpicture="handlePiPChange"
     ></video>
 
-    <!-- 加载中状态 -->
+    <!-- 加载状态 -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner"></div>
     </div>
 
-    <!-- 错误状态 -->
+    <!-- 错误提示 -->
     <div v-if="error" class="error-overlay">
       <span class="error-icon">⚠️</span>
       <span class="error-text">无法播放视频</span>
@@ -132,7 +132,7 @@
 
         <!-- 右侧：高级功能 -->
         <div class="controls-right">
-          <!-- 倍速 -->
+          <!-- 倍速控制 -->
           <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
             <button
               class="control-btn text-btn"
@@ -154,7 +154,7 @@
             </div>
           </div>
 
-          <!-- 音量 -->
+          <!-- 音量控制 -->
           <div
             class="volume-control"
             @mouseenter="showVolumeSlider = true"
@@ -177,7 +177,7 @@
             </div>
           </div>
 
-          <!-- 设置 -->
+          <!-- 设置菜单 -->
           <div class="menu-container" @mouseleave="showSettingsMenu = false">
             <button
               class="control-btn"
@@ -219,12 +219,12 @@
             <component :is="isWebFullscreen ? Shrink : Expand" :size="20" />
           </button>
 
-          <!-- 画中画 -->
+          <!-- 画中画模式 -->
           <button class="control-btn" @click="togglePiP" title="画中画">
             <PictureInPicture2 :size="20" />
           </button>
 
-          <!-- 全屏 -->
+          <!-- 全屏模式 -->
           <button class="control-btn" @click="toggleFullscreen" title="全屏 (F)">
             <component :is="isFullscreen ? Minimize : Maximize" />
           </button>
@@ -277,12 +277,12 @@ const props = withDefaults(
   }
 );
 
-// Refs
+// 引用
 const videoRef = ref<HTMLVideoElement | null>(null);
 const playerContainer = ref<HTMLElement | null>(null);
 const progressBarRef = ref<HTMLElement | null>(null);
 
-// State
+// 状态
 const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
@@ -313,16 +313,16 @@ const isMirrored = ref(false);
 const objectFit = ref<"contain" | "cover" | "fill">("contain");
 const showPlayIconOnPause = ref(savedShowPlayIcon !== null ? savedShowPlayIcon === "true" : true);
 
-// Dragging State
+// 拖拽状态
 const isDragging = ref(false);
 const hoverTime = ref(0);
 const hoverPosition = ref(0);
 const showHoverPreview = ref(false);
 
-// Controls visibility timer
+// 控制栏可见性定时器
 let controlsTimer: number | null = null;
 
-// Computed
+// 计算属性
 const progressPercentage = computed(() => {
   if (duration.value === 0) return 0;
   return (currentTime.value / duration.value) * 100;
@@ -353,7 +353,7 @@ const videoName = computed(() => {
   }
 });
 
-// Methods
+// 方法
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return "00:00";
   const m = Math.floor(seconds / 60);
@@ -383,13 +383,13 @@ function onPause() {
 }
 
 function handleContainerClick(e: MouseEvent) {
-  // Prevent click when interacting with controls (handled by .stop on controls bar, but safety first)
+  // 防止在交互控制栏时触发点击（控制栏已使用.stop修饰符，但为了安全起见）
   if ((e.target as HTMLElement).closest(".controls-bar")) return;
   togglePlay();
 }
 
 function handleTimeUpdate() {
-  if (!videoRef.value || isDragging.value) return; // Don't update while dragging
+  if (!videoRef.value || isDragging.value) return; // 拖拽时不更新时间
   currentTime.value = videoRef.value.currentTime;
   updateBuffered();
 }
@@ -428,7 +428,7 @@ function handleError() {
   error.value = true;
 }
 
-// Seeking & Dragging
+// 跳转与拖拽
 function calculateTimeFromEvent(e: MouseEvent): number {
   if (!progressBarRef.value || duration.value === 0) return 0;
   const rect = progressBarRef.value.getBoundingClientRect();
@@ -447,8 +447,8 @@ function startDragging(e: MouseEvent) {
 function handleDrag(e: MouseEvent) {
   if (!isDragging.value) return;
   const time = calculateTimeFromEvent(e);
-  currentTime.value = time; // Immediate visual feedback
-  // Optional: Seek video while dragging (can be resource intensive)
+  currentTime.value = time; // 立即视觉反馈
+  // 可选：拖拽时跳转视频（可能消耗较多资源）
   // if (videoRef.value) videoRef.value.currentTime = time;
 }
 
@@ -458,7 +458,7 @@ function stopDragging(e: MouseEvent) {
   document.removeEventListener("mousemove", handleDrag);
   document.removeEventListener("mouseup", stopDragging);
 
-  // Final seek
+  // 最终跳转
   const time = calculateTimeFromEvent(e);
   currentTime.value = time;
   if (videoRef.value) {
@@ -557,7 +557,7 @@ function handlePiPChange() {
 
 function stepFrame(frames: number) {
   if (!videoRef.value) return;
-  // Assume 30fps if unknown, which is 0.0333s per frame
+  // 假设30fps，即每帧0.0333秒
   const frameDuration = 1 / 30;
   videoRef.value.currentTime = Math.min(
     Math.max(videoRef.value.currentTime + frames * frameDuration, 0),
@@ -575,7 +575,7 @@ function captureSnapshot() {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // Apply mirroring if active
+  // 如果启用了镜像则应用翻转
   if (isMirrored.value) {
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
@@ -644,14 +644,14 @@ function resetControlsTimer() {
   }
 }
 
-// Global Keyboard Shortcuts
+// 全局键盘快捷键
 function handleKeydown(e: KeyboardEvent) {
-  // If user is typing in an input, ignore
+  // 如果用户正在输入，则忽略
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
   switch (e.code) {
     case "Space":
-    case "KeyK": // YouTube style
+    case "KeyK": // YouTube风格快捷键
       e.preventDefault();
       togglePlay();
       break;
@@ -703,7 +703,7 @@ function adjustVolume(delta: number) {
   volume.value = newVol;
 }
 
-// Watchers
+// 监听器
 watch(isPlaying, (val) => {
   if (val) {
     resetControlsTimer();
@@ -713,19 +713,19 @@ watch(isPlaying, (val) => {
   }
 });
 
-// Lifecycle
+// 生命周期
 onMounted(() => {
   document.addEventListener("fullscreenchange", handleFullscreenChange);
   document.addEventListener("keydown", handleKeydown);
 
   if (videoRef.value) {
-    // Apply saved volume
+    // 应用保存的音量
     videoRef.value.volume = volume.value;
-    // Muted state is handled by :muted binding in template
+    // 静音状态由模板中的 :muted 绑定处理
 
     if (props.autoplay) {
       videoRef.value.play().catch(() => {
-        // Autoplay blocked
+        // 自动播放被阻止
       });
     }
   }
@@ -760,7 +760,7 @@ onBeforeUnmount(() => {
   object-fit: contain;
 }
 
-/* Overlays */
+/* 覆盖层样式 */
 .loading-overlay,
 .error-overlay,
 .play-overlay {
@@ -825,7 +825,7 @@ onBeforeUnmount(() => {
   color: white;
 }
 
-/* Top Bar */
+/* 顶部标题栏 */
 .top-bar {
   position: absolute;
   top: 0;
@@ -858,7 +858,7 @@ onBeforeUnmount(() => {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-/* Controls Bar */
+/* 控制栏 */
 .controls-bar {
   position: absolute;
   bottom: 0;
@@ -882,7 +882,7 @@ onBeforeUnmount(() => {
   transform: translateY(0);
 }
 
-/* Progress Bar */
+/* 进度条 */
 .progress-bar-container {
   position: relative;
   height: 4px;
@@ -941,7 +941,7 @@ onBeforeUnmount(() => {
   transform: translateY(-50%) scale(1);
 }
 
-/* Controls Row */
+/* 控制按钮行 */
 .controls-row {
   display: flex;
   justify-content: space-between;
@@ -1019,7 +1019,7 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* Volume Slider */
+/* 音量滑块 */
 .volume-control {
   display: flex;
   align-items: center;
@@ -1060,7 +1060,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-/* Fullscreen override */
+/* 全屏样式覆盖 */
 .is-fullscreen {
   width: 100vw;
   height: 100vh;
@@ -1078,7 +1078,7 @@ onBeforeUnmount(() => {
 
 .hover-time-tooltip {
   position: absolute;
-  top: -48px; /* Force above progress bar and indicator */
+  top: -48px; /* 强制显示在进度条和指示器上方 */
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1131,7 +1131,7 @@ onBeforeUnmount(() => {
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
 }
 
-/* Menus */
+/* 菜单样式 */
 .menu-container {
   position: relative;
   height: 100%;
@@ -1213,7 +1213,7 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Icon with Dot */
+/* 带点的图标 */
 .icon-with-dot {
   position: relative;
   display: flex;

@@ -100,7 +100,7 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
     selectedItems.value.reduce((sum, item) => sum + item.size, 0)
   );
 
-  // ==================== Actions ====================
+  // ==================== 操作 ====================
 
   /**
    * 清除所有筛选条件
@@ -158,7 +158,7 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
     selectedItems,
     selectedSize,
 
-    // Actions
+    // 操作
     clearFilters,
     reset,
   };

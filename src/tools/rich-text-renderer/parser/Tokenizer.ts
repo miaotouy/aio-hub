@@ -23,31 +23,10 @@ export class Tokenizer {
     "source",
     "track",
     "wbr",
-    "think", // Added think to void elements? No, wait. The original code didn't have think in voidElements.
-    // Checking original code...
-    // Original code:
-    /*
-    private voidElements = new Set([
-      "area",
-      "base",
-      "br",
-      "col",
-      "embed",
-      "hr",
-      "img",
-      "input",
-      "link",
-      "meta",
-      "param",
-      "source",
-      "track",
-      "wbr",
-    ]);
-    */
   ]);
 
   constructor() {
-    // Initialize void elements if needed, but they are static
+    // 如果需要，初始化 void 元素，但它们是静态的
   }
 
   /**
@@ -74,8 +53,7 @@ export class Tokenizer {
       if (remaining.startsWith("\\")) {
         if (remaining.length > 1) {
           const nextChar = remaining[1];
-          // ASCII 标点符号范围：
-          // ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+          // ASCII 标点符号范围
           if (/^[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(nextChar)) {
             tokens.push({ type: "text", content: nextChar });
             i += 2;
@@ -142,12 +120,12 @@ export class Tokenizer {
 
         // 但是为了保持兼容性，对于非列表的块级元素，我们可能还是需要跳过 0-3 个空格
         // 让我们看看哪些需要处理：
-        // KaTeX: $$ (0-3 spaces)
-        // Code Fence: ``` (0-3 spaces)
-        // Heading: # (0-3 spaces)
-        // HR: --- (0-3 spaces)
-        // Blockquote: > (0-3 spaces)
-        // List: * (any spaces? No, indentation matters)
+        // KaTeX: $$ (0-3个空格)
+        // 代码围栏: ``` (0-3个空格)
+        // 标题: # (0-3个空格)
+        // 水平线: --- (0-3个空格)
+        // 引用: > (0-3个空格)
+        // 列表: * (任何空格? 不，缩进很重要)
 
         // 策略：
         // 1. 获取当前行的缩进
@@ -303,22 +281,22 @@ export class Tokenizer {
         atLineStart = false;
         continue;
       }
-      // Handle *** (triple delimiter) for bold-italic
+      // 处理 *** (三重分隔符) 以实现粗斜体
       if (remaining.startsWith("***")) {
-        // Heuristic: check if right-flanking (followed by whitespace or end)
-        // If right-flanking, it's likely closing: * then **
-        // If left-flanking (followed by non-whitespace), it's likely opening: ** then *
+        // 启发式规则：检查是否为右侧定界 (后跟空白或结尾)
+        // 如果是右侧定界，很可能是闭合：* 然后 **
+        // 如果是左侧定界 (后跟非空白)，很可能是开启：** 然后 *
 
         const charAfter = remaining[3];
-        // Support ASCII and CJK punctuation
+        // 支持 ASCII 和 CJK 标点
         const isRightFlanking = !charAfter || /\s/.test(charAfter) || /[.,!?;:，。！？；：、]/.test(charAfter);
 
         if (isRightFlanking) {
-          // Closing: * then **
+          // 闭合: * then **
           tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
           tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
         } else {
-          // Opening: ** then *
+          // 开启: ** then *
           tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
           tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
         }

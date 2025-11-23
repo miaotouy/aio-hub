@@ -23,7 +23,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 const logger = createModuleLogger("llm-chat/store");
 
 export const useLlmChatStore = defineStore("llmChat", () => {
-  // ==================== State ====================
+  // ==================== 状态 ====================
   const sessions = ref<ChatSession[]>([]);
   const currentSessionId = ref<string | null>(null);
   const parameters = ref<LlmParameters>({
@@ -34,7 +34,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const abortControllers = ref(new Map<string, AbortController>());
   const generatingNodes = ref(new Set<string>());
 
-  // ==================== Getters ====================
   const currentSession = computed((): ChatSession | null => {
     if (!currentSessionId.value) return null;
     return sessions.value.find((s) => s.id === currentSessionId.value) || null;
@@ -149,7 +148,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return Object.keys(session.nodes).length;
   });
 
-  // ==================== History Management ====================
+  // ==================== 历史记录管理 ====================
   const historyManager = useSessionNodeHistory(currentSession);
 
   function undo() {
@@ -157,7 +156,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     if (!session || !historyManager.canUndo.value) return;
 
     historyManager.undo();
-    // After state jump, ensure the active leaf is still valid
+    // 状态跳转后，确保活动叶节点仍然有效
     BranchNavigator.ensureValidActiveLeaf(session);
 
     const sessionManager = useSessionManager();
@@ -169,7 +168,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     if (!session || !historyManager.canRedo.value) return;
 
     historyManager.redo();
-    // After state jump, ensure the active leaf is still valid
+    // 状态跳转后，确保活动叶节点仍然有效
     BranchNavigator.ensureValidActiveLeaf(session);
 
     const sessionManager = useSessionManager();
@@ -189,7 +188,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     logger.info(`已跳转到历史记录索引 ${index}`);
   }
 
-  // ==================== Actions ====================
+  // ==================== 操作 ====================
 
   /**
    * 创建新会话（使用智能体）
@@ -586,7 +585,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   }
 
-  // ==================== Branch Operations (with History) ====================
+  // ==================== 分支操作 (带历史记录) ====================
 
   /**
    * 编辑消息
@@ -811,7 +810,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   }
 
-  // ==================== Deprecated Methods ====================
+  // ==================== 已弃用方法 ====================
   function editUserMessage(nodeId: string, newContent: string): void {
     editMessage(nodeId, newContent);
   }
@@ -819,13 +818,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     editMessage(nodeId, newContent);
   }
 
-  // ==================== Parameter Management ====================
+  // ==================== 参数管理 ====================
   function updateParameters(newParameters: Partial<LlmParameters>): void {
     Object.assign(parameters.value, newParameters);
     logger.info("更新参数配置", { parameters: newParameters });
   }
 
-  // ==================== Helper Functions ====================
+  // ==================== 辅助函数 ====================
   function extractRelationChange(
     session: ChatSession,
     node: ChatMessageNode,
@@ -907,9 +906,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return captureRelationChangesForGraft(session, nodeId, newParentId);
   }
 
-  // ==================== Return ====================
+  // ==================== 返回 ====================
   return {
-    // State
+    // 状态
     sessions,
     currentSessionId,
     parameters,
@@ -927,14 +926,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     isNodeGenerating,
     currentMessageCount,
 
-    // History
+    // 历史记录
     undo,
     redo,
     jumpToHistory,
     canUndo: historyManager.canUndo,
     canRedo: historyManager.canRedo,
 
-    // Actions
+    // 操作
     createSession,
     switchSession,
     deleteSession,

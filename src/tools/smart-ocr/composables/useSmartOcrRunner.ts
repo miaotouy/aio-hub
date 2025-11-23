@@ -51,7 +51,7 @@ export interface FormattedOcrSummary {
   };
 }
 
-// ==================== Composable ====================
+// ==================== 可组合函数 ====================
 
 /**
  * Smart OCR 业务逻辑编排器

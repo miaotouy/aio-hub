@@ -569,12 +569,12 @@ export function useAssetManager() {
       if (index === -1) return; // Not in the current list, do nothing
 
       if (result.deleted) {
-        // Asset was fully deleted (no more sources)
+        // 资产被完全删除（不再有任何来源）
         assets.value.splice(index, 1);
         totalItems.value--;
         await fetchAssetStats(); // Update stats
       } else if (result.asset) {
-        // Asset was updated (source removed, but still has other sources)
+        // 资产已更新（来源已移除，但仍有其他来源）
         assets.value.splice(index, 1, result.asset);
       }
     } catch (err) {

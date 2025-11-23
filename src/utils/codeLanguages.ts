@@ -7,7 +7,7 @@ export interface LanguageDefinition {
   codemirror: () => Promise<LanguageSupport | null>;
 }
 
-// A Map for quick lookups by alias.
+// 用于通过别名快速查找的 Map。
 const languageAliasMap = new Map<string, LanguageDefinition>();
 
 const languages: LanguageDefinition[] = [
@@ -160,7 +160,7 @@ const languages: LanguageDefinition[] = [
     aliases: ['swift'],
     monaco: 'swift',
     codemirror: async () => {
-      // codemirror-lang-swift not found, fallback to plaintext
+      // 未找到 codemirror-lang-swift，回退到纯文本
       return null;
     },
   },
@@ -229,7 +229,7 @@ const languages: LanguageDefinition[] = [
   },
 ];
 
-// Populate the map
+// 填充 Map
 languages.forEach(lang => {
   languageAliasMap.set(lang.id, lang);
   lang.aliases.forEach(alias => {

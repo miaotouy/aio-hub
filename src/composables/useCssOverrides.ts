@@ -110,7 +110,7 @@ export function useCssOverrides() {
       if (appSettings.cssOverride) {
         userSettings.value = { ...appSettings.cssOverride };
 
-        // Backward compatibility: migrate old customContent to pureCustomContent
+        // 向后兼容：将旧的 customContent 迁移到 pureCustomContent
         if (typeof userSettings.value.pureCustomContent === 'undefined') {
           if (userSettings.value.basedOnPresetId === null) {
             userSettings.value.pureCustomContent = userSettings.value.customContent;
@@ -120,7 +120,7 @@ export function useCssOverrides() {
           }
         }
 
-        // Load correct content into editor
+        // 将正确的内容加载到编辑器中
         if (userSettings.value.basedOnPresetId === null) {
           editorContent.value = userSettings.value.pureCustomContent || '';
         } else {

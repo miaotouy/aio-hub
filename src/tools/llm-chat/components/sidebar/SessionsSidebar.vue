@@ -449,7 +449,7 @@ const handleSessionClick = (session: ChatSession) => {
               @click.stop
               class="menu-dropdown"
             >
-              <el-button :icon="MoreFilled" size="small" text class="btn-menu" title="更多操作" />
+              <el-button :icon="MoreFilled" size="small" text class="btn-menu" title="更多操作" @click.stop/>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item

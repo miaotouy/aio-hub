@@ -11,7 +11,7 @@ import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import iconBlack from "../assets/aio-icon-black.svg";
 import iconWhite from "../assets/aio-icon-white.svg";
 
-// Props
+// 属性
 interface Props {
   collapsed: boolean;
   toolsVisible: Record<string, boolean>;
@@ -20,7 +20,7 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// Emits
+// 事件
 const emit = defineEmits<{
   "update:collapsed": [value: boolean];
 }>();
@@ -150,7 +150,13 @@ onUnmounted(() => {
 <template>
   <el-aside
     :width="isCollapsed ? '64px' : '220px'"
-    :class="['main-sidebar', { 'is-collapsed': isCollapsed, 'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur }]"
+    :class="[
+      'main-sidebar',
+      {
+        'is-collapsed': isCollapsed,
+        'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
+      },
+    ]"
   >
     <!-- 上部分：标题和导航 -->
     <div class="sidebar-top">
@@ -354,8 +360,8 @@ onUnmounted(() => {
 }
 
 .menu-container {
-  -ms-overflow-style: none;  /* IE 和 Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none; /* IE 和 Edge */
+  scrollbar-width: none; /* Firefox */
 }
 
 .el-menu-vertical-demo {

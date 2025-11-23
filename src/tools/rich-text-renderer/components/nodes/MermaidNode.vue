@@ -305,7 +305,7 @@ const renderDiagram = async () => {
       // pending 状态，忽略错误
       // 如果还没渲染过，UI 会显示 loading
       // 如果已经渲染过，UI 会显示旧图表
-      // logger.debug("Mermaid pending render failed (ignored)", err);
+      // logger.debug("Mermaid pending 状态渲染失败（已忽略）", err);
     }
   } finally {
     if (currentRenderId === lastRenderId.value) {

@@ -293,7 +293,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       }
     }
 
-    // Autolink: <url>
+    // 自动链接: <url>
     if (token.type === "autolink") {
       flushText();
       nodes.push({

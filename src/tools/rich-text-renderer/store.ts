@@ -112,7 +112,7 @@ const configManager = createConfigManager<TesterConfig>({
 });
 
 export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
-  // ===== State =====
+  // ===== 状态 =====
   const isInputCollapsed = ref(false);
   const selectedPreset = ref("");
   const inputContent = ref("");
@@ -146,7 +146,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   // 是否已加载配置
   const isConfigLoaded = ref(false);
 
-  // ===== Actions =====
+  // ===== 操作 =====
 
   /**
    * 从文件加载配置
@@ -375,7 +375,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   );
 
   return {
-    // State
+    // 状态
     isInputCollapsed,
     selectedPreset,
     inputContent,
@@ -393,7 +393,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     copyOptions,
     isConfigLoaded,
 
-    // Actions
+    // 操作
     loadConfig,
     saveConfig,
     resetConfig,

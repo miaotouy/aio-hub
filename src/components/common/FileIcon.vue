@@ -109,7 +109,7 @@ const getIconByExtension = (fileName: string): string => {
     'ini': 'vscode-icons:file-type-ini',
     'env': 'vscode-icons:file-type-dotenv',
     
-    // Markdown
+    // Markdown 文档
     'md': 'vscode-icons:file-type-markdown',
     'mdx': 'vscode-icons:file-type-mdx',
     

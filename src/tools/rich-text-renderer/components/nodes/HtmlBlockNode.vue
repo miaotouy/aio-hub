@@ -16,36 +16,36 @@ const props = defineProps<{
 const sanitizedContent = computed(() => {
   return DOMPurify.sanitize(props.content, {
     ALLOWED_TAGS: [
-      // Structure & Semantics
+      // 结构与语义
       'div', 'p', 'section', 'article', 'aside', 'header', 'footer', 'nav', 'main',
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'blockquote', 'figure', 'figcaption',
-      // Text Formatting
+      // 文本格式
       'span', 'b', 'i', 'u', 's', 'em', 'strong', 'code', 'pre', 'br', 'hr',
       'mark', 'small', 'del', 'ins', 'sub', 'sup', 'abbr', 'kbd', 'q', 'cite', 'time',
-      // Links & Media
+      // 链接与媒体
       'a', 'img', 'audio', 'video', 'source', 'iframe',
-      // Lists
+      // 列表
       'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-      // Tables
+      // 表格
       'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
-      // Forms
+      // 表单
       'form', 'fieldset', 'legend', 'label', 'input', 'button', 'select', 'option', 'textarea',
-      // Interactive
+      // 交互式
       'details', 'summary',
-      // Meter & Progress
+      // 仪表与进度
       'progress', 'meter',
-      // Custom XML for test
+      // 用于测试的自定义 XML
       'user', 'name', 'age', 'email', 'config', 'setting'
     ],
     ALLOWED_ATTR: [
-      // General
+      // 通用
       'class', 'id', 'style', 'title', 'lang', 'dir',
       // Links
       'href', 'target', 'rel', 'download',
       // Media
       'src', 'alt', 'width', 'height', 'poster', 'preload', 'controls', 'autoplay', 'loop', 'muted',
-      // iframe - use with caution
+      // iframe - 谨慎使用
       'allowfullscreen', 'frameborder',
       // Tables
       'colspan', 'rowspan', 'scope', 'align', 'valign',
@@ -56,7 +56,7 @@ const sanitizedContent = computed(() => {
       'open',
       // Meter & Progress
       'low', 'high', 'optimum',
-      // Other
+      // 其他
       'datetime', 'cite', 'onclick', 'loading', 'decoding', 'aria-label', 'aria-pressed'
     ],
     ALLOW_DATA_ATTR: true, // Allow all data-* attributes

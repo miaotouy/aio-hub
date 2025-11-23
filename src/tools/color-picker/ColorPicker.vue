@@ -123,7 +123,7 @@ const assetManager = useAssetManager();
 const { extractColors, extractQuantizeColors } = useColorExtractor();
 const { addRecord, updateRecord, loadFullRecord } = useColorHistory();
 
-// const { imageRef, onImageLoad } = useColorAnalysis();
+// 图片引用与加载处理
 const imageRef = ref<HTMLImageElement | null>(null);
 const { isHistoryDialogVisible } = useDialogs();
 const { openEyeDropper, isEyeDropperSupported } = useManualPicker();
@@ -221,7 +221,7 @@ function clearWorkspace() {
   currentImageBlob.value = null;
 }
 
-// --- Image Handling Logic ---
+// --- 图像处理逻辑 ---
 
 // 统一处理来自 Web API 的图片文件 (文件选择器, 粘贴)
 const handleImageFiles = (files: File[]) => {
@@ -322,7 +322,7 @@ onMounted(async () => {
   }
 });
 
-// --- Dialogs Logic ---
+// --- 对话框逻辑 ---
 function useDialogs() {
   const isHistoryDialogVisible = ref(false);
   return { isHistoryDialogVisible };
@@ -375,7 +375,7 @@ async function handleLoadFromHistory(recordId: string) {
   }
 }
 
-// --- Manual Picker Logic ---
+// --- 手动拾色器逻辑 ---
 function useManualPicker() {
   const isEyeDropperSupported = 'EyeDropper' in window;
 
@@ -405,7 +405,7 @@ function useManualPicker() {
   return { openEyeDropper, isEyeDropperSupported };
 }
 
-// --- Auto Save Logic ---
+// --- 自动保存逻辑 ---
 
 const autoSaveToHistory = useDebounceFn(async () => {
   if (!store.currentRecordId || !store.currentAnalysisResult) return;

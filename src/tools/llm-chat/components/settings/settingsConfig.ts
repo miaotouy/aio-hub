@@ -277,7 +277,7 @@ export const settingsConfig: SettingsSection[] = [
             h(
               ElButton,
               {
-                // @ts-ignore - This will be handled in the main component via a custom event
+                // 这将通过自定义事件在主组件中处理
                 onClick: () => { },
                 size: "small",
                 class: "reset-prompt-btn",

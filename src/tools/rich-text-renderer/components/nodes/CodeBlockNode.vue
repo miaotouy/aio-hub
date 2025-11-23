@@ -377,7 +377,7 @@ onMounted(async () => {
     setTheme = helpers.setTheme;
     getEditorView = helpers.getEditorView || getEditorView;
 
-    // Use updateCode to load the initial content, mimicking the streaming path
+    // 使用 updateCode 加载初始内容，模拟流式路径
     if (props.content) {
       updateCode(props.content, monacoLanguage.value);
     }

@@ -149,13 +149,13 @@
 import { useRecordDetail } from '../composables/useRecordDetail';
 import type { CombinedRecord } from '../types';
 
-// Props
+// 属性
 const props = defineProps<{
   record: CombinedRecord | null;
   maskApiKeys?: boolean;
 }>();
 
-// Emits
+// 事件
 defineEmits<{
   'close': [];
 }>();

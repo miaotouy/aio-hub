@@ -2042,7 +2042,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "Suno 音乐生成模型图标",
   },
 
-  // Midjourney
+  // Midjourney 系列模型图标
   {
     id: "model-midjourney",
     matchType: "modelPrefix",

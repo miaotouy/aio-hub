@@ -81,10 +81,10 @@ const { content, title, bare } = toRefs(props);
 const slots = useSlots();
 
 const showHeader = computed(() => {
-  // Header should be shown if:
-  // 1. A title is provided.
-  // 2. The 'header' or 'headerExtra' slot is used by the parent.
-  // 3. 'bare' mode is active, as it uses the header area.
+  // 头部在以下情况显示：
+  // 1. 提供了 title prop。
+  // 2. 父组件使用了 'header' 或 'headerExtra' 插槽。
+  // 3. 'bare' 模式激活时（因为它会使用头部区域）。
   return !!(props.title || slots.header || slots.headerExtra || props.bare);
 });
 

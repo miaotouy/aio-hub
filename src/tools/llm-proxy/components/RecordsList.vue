@@ -24,10 +24,10 @@
     </div>
 
     <div class="records-list">
-      <div 
-        v-for="record in filteredRecords" 
+      <div
+        v-for="record in filteredRecords"
         :key="record.id"
-        :class="['record-item', { 'selected': selectedRecord?.id === record.id }]"
+        :class="['record-item', { selected: selectedRecord?.id === record.id }]"
         @click="$emit('select', record)"
       >
         <div class="record-header">
@@ -36,16 +36,14 @@
           </span>
           <span class="url">{{ formatUrl(record.request.url) }}</span>
           <span :class="['status', getStatusClass(record.response?.status)]">
-            {{ record.response?.status || 'Pending' }}
+            {{ record.response?.status || "Pending" }}
           </span>
         </div>
         <div class="record-meta">
           <span class="timestamp">{{ formatTime(record.request.timestamp) }}</span>
-          <span class="duration" v-if="record.response">
-            {{ record.response.duration_ms }}ms
-          </span>
+          <span class="duration" v-if="record.response"> {{ record.response.duration_ms }}ms </span>
           <span class="size">
-            ↑ {{ formatSize(record.request.request_size) }} 
+            ↑ {{ formatSize(record.request.request_size) }}
             <template v-if="record.response">
               ↓ {{ formatSize(record.response.response_size) }}
             </template>
@@ -57,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 // 类型定义
 interface RequestRecord {
@@ -86,7 +84,7 @@ interface CombinedRecord {
   response?: ResponseRecord;
 }
 
-// Props
+// 属性
 const props = defineProps<{
   records: CombinedRecord[];
   selectedRecord: CombinedRecord | null;
@@ -94,36 +92,38 @@ const props = defineProps<{
   filterStatus: string;
 }>();
 
-// Emits
+// 事件
 defineEmits<{
-  'update:searchQuery': [value: string];
-  'update:filterStatus': [value: string];
-  'select': [record: CombinedRecord];
+  "update:searchQuery": [value: string];
+  "update:filterStatus": [value: string];
+  select: [record: CombinedRecord];
 }>();
 
 // 计算属性
 const filteredRecords = computed(() => {
   let filtered = props.records;
-  
+
   // 按搜索词过滤
   if (props.searchQuery) {
     const query = props.searchQuery.toLowerCase();
-    filtered = filtered.filter(record => {
-      return record.request.url.toLowerCase().includes(query) ||
-             record.request.body?.toLowerCase().includes(query) ||
-             record.response?.body?.toLowerCase().includes(query);
+    filtered = filtered.filter((record) => {
+      return (
+        record.request.url.toLowerCase().includes(query) ||
+        record.request.body?.toLowerCase().includes(query) ||
+        record.response?.body?.toLowerCase().includes(query)
+      );
     });
   }
-  
+
   // 按状态码过滤
   if (props.filterStatus) {
-    filtered = filtered.filter(record => {
+    filtered = filtered.filter((record) => {
       if (!record.response) return false;
       const status = record.response.status.toString();
       return status.startsWith(props.filterStatus[0]);
     });
   }
-  
+
   // 按时间倒序排列
   return filtered.sort((a, b) => b.request.timestamp - a.request.timestamp);
 });
@@ -144,19 +144,19 @@ function formatTime(timestamp: number): string {
 }
 
 function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
 function getStatusClass(status?: number): string {
-  if (!status) return '';
-  if (status >= 200 && status < 300) return 'success';
-  if (status >= 400 && status < 500) return 'client-error';
-  if (status >= 500) return 'server-error';
-  return '';
+  if (!status) return "";
+  if (status >= 200 && status < 300) return "success";
+  if (status >= 400 && status < 500) return "client-error";
+  if (status >= 500) return "server-error";
+  return "";
 }
 </script>
 

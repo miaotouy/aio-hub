@@ -4,7 +4,7 @@ import { useAgentPresets } from '@/composables/useAgentPresets';
 import Avatar from '@/components/common/Avatar.vue';
 import type { AgentPreset } from '../../types';
 
-// Emits
+// 事件
 interface Emits {
   (e: 'update:visible', value: boolean): void;
   (e: 'create-from-preset', preset: AgentPreset): void;

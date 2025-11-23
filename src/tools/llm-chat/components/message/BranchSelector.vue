@@ -30,12 +30,12 @@ const { getModelIcon } = useModelMetadata();
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar> | null>(null);
 const branchItemsRef = ref<HTMLDivElement[]>([]);
 
-// Reset refs before each update to avoid stale references
+// 每次更新前重置 refs，以避免引用失效
 onBeforeUpdate(() => {
   branchItemsRef.value = [];
 });
 
-// Scroll to the current branch item when the component is mounted
+// 组件挂载时滚动到当前分支项
 onMounted(() => {
   nextTick(() => {
     const currentItemEl = branchItemsRef.value[props.currentSiblingIndex];
@@ -46,10 +46,10 @@ onMounted(() => {
       const scrollbarHeight = scrollbarEl.clientHeight;
       const itemHeight = currentItemEl.clientHeight;
 
-      // Calculate the desired scroll position to center the item
+      // 计算期望的滚动位置以使项目居中
       const scrollTop = currentItemEl.offsetTop - scrollbarHeight / 2 + itemHeight / 2;
 
-      // Ensure scroll position is not negative
+      // 确保滚动位置不为负
       const finalScrollTop = Math.max(0, scrollTop);
 
       scrollbarRef.value.setScrollTop(finalScrollTop);

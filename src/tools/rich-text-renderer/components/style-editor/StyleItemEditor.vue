@@ -91,7 +91,7 @@
           </el-form-item>
         </el-col>
 
-        <!-- 6. 边框颜色 (Moved up to group with simple items) -->
+        <!-- 6. 边框颜色 -->
         <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4">
           <el-form-item label="边框颜色">
             <div class="color-picker-row">
@@ -106,7 +106,7 @@
           </el-form-item>
         </el-col>
 
-        <!-- 7. 文本发光 (Complex) -->
+        <!-- 7. 文本发光 -->
         <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="8">
           <el-form-item label="文本发光 (Text Shadow)">
             <div class="shadow-editor">
@@ -133,7 +133,7 @@
           </el-form-item>
         </el-col>
 
-        <!-- 8. 圆角 (Complex) -->
+        <!-- 8. 圆角 -->
         <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="8">
           <el-form-item label="圆角 (Border Radius)">
             <div class="border-radius-editor">
@@ -179,7 +179,7 @@
           </el-form-item>
         </el-col>
 
-        <!-- 9. 盒阴影 (Complex) -->
+        <!-- 9. 盒阴影 -->
         <el-col :xs="24" :sm="24" :md="24" :lg="12" :xl="8">
           <el-form-item label="盒阴影 (Box Shadow)">
             <div class="shadow-editor">
@@ -218,10 +218,24 @@
 import { watch, reactive, ref, computed, nextTick } from "vue";
 import type { MarkdownStyleOption } from "../../types";
 
+// 属性 & 事件
+
 const props = defineProps<{
+  /**
+   * v-model 绑定的样式对象
+   */
   modelValue?: MarkdownStyleOption;
+  /**
+   * 预览区域显示的文本
+   */
   previewText?: string;
+  /**
+   * 预览内容是否为块级元素
+   */
   isBlock?: boolean;
+  /**
+   * 预览内容使用的 HTML 标签
+   */
   previewTag?: string;
 }>();
 
@@ -229,9 +243,26 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: MarkdownStyleOption): void;
 }>();
 
+// ==============================
+// 本地状态
+
+/**
+ * 组件内部维护的样式对象，用于双向绑定
+ */
 const localValue = reactive<MarkdownStyleOption>({});
+
+/**
+ * 控制该样式是否启用的开关
+ */
 const isEnabled = ref(true);
 
+// ==============================
+// 工具函数
+
+/**
+ * 为纯数字或数字字符串添加 "px" 单位
+ * @param val 输入值
+ */
 const addUnit = (val: string | number) => {
   if (val === "" || val === null || val === undefined) return "0";
   const v = String(val).trim();
@@ -248,13 +279,22 @@ const addUnit = (val: string | number) => {
   return v;
 };
 
+/**
+ * 从字符串末尾移除 "px" 单位
+ * @param val 输入字符串
+ */
 const removePx = (val: string) => {
   if (!val) return "";
   // 仅当以 px 结尾且前面是数字时才移除
   return val.replace(/^(-?[\d.]+)px$/i, "$1");
 };
 
-// 计算预览样式
+// ==============================
+// 计算属性
+
+/**
+ * 根据 localValue 计算出用于预览的内联样式对象
+ */
 const previewStyle = computed(() => {
   const style: Record<string, string | number> = {};
   const v = localValue;
@@ -285,17 +325,33 @@ const previewStyle = computed(() => {
   return style;
 });
 
-// --- 新增：高级圆角编辑器逻辑 ---
-const borderRadiusMode = ref("uniform"); // uniform, horizontal, vertical, cross, custom
+// ==============================
+// 圆角 (Border Radius) 编辑器逻辑
+
+/**
+ * 圆角设置模式:
+ * - uniform: 统一设置
+ * - horizontal: 左右不同
+ * - vertical: 上下不同
+ * - cross: 对角交错
+ * - custom: 分别设置
+ */
+const borderRadiusMode = ref("uniform");
 const borderRadiusValues = reactive({
   tl: "", // top-left
   tr: "", // top-right
   bl: "", // bottom-left
   br: "", // bottom-right
 });
-let isParsingBorderRadius = false; // 用于防止解析时触发回写的标志
 
-// 根据模式计算输入框的禁用状态
+/**
+ * 解析标志位，防止在解析外部 CSS 值时触发 watch 回写，导致死循环
+ */
+let isParsingBorderRadius = false;
+
+/**
+ * 根据当前模式，计算各个圆角输入框是否应被禁用
+ */
 const isTrDisabled = computed(
   () => borderRadiusMode.value === "uniform" || borderRadiusMode.value === "vertical"
 );
@@ -307,7 +363,10 @@ const isBlDisabled = computed(
 );
 const isBrDisabled = computed(() => borderRadiusMode.value !== "custom");
 
-// 监听值的变化，根据模式同步更新其他输入框
+/**
+ * 监听用户输入，根据当前模式自动同步更新其他关联的输入框
+ * 例如，在 "uniform" 模式下，修改左上角圆角会同步到所有其他角
+ */
 watch(
   borderRadiusValues,
   (values) => {
@@ -336,7 +395,9 @@ watch(
   { deep: true }
 );
 
-// 监听模式变化，强制同步一次值
+/**
+ * 监听模式切换，强制同步一次值以匹配新模式的规则
+ */
 watch(borderRadiusMode, () => {
   const { tl, tr, bl } = borderRadiusValues;
   switch (borderRadiusMode.value) {
@@ -358,7 +419,10 @@ watch(borderRadiusMode, () => {
   }
 });
 
-// 将四个值组合成最终的 CSS 字符串
+/**
+ * 将四个独立的圆角值组合成最终的 `border-radius` CSS 字符串
+ * 并进行优化，如 `10px 10px 10px 10px` 会被简化为 `10px`
+ */
 watch(
   borderRadiusValues,
   (v) => {
@@ -397,7 +461,10 @@ watch(
   { deep: true }
 );
 
-// 解析外部传入的 borderRadius 字符串
+/**
+ * 监听外部传入的 `modelValue.borderRadius` 变化，
+ * 解析 CSS 字符串，并更新到 `borderRadiusValues` 和 `borderRadiusMode`
+ */
 watch(
   () => props.modelValue?.borderRadius,
   (newCss) => {
@@ -457,9 +524,11 @@ watch(
   },
   { immediate: true }
 );
-// --- 高级圆角编辑器逻辑结束 ---
+// --- 圆角 (Border Radius) 编辑器逻辑结束 ---
 
-// --- 新增：高级阴影编辑器 ---
+// ==============================
+// 阴影 (Shadow) 编辑器逻辑
+
 const textShadowValues = reactive({ offsetX: "", offsetY: "", blur: "", color: "" });
 const boxShadowValues = reactive({
   offsetX: "",
@@ -469,9 +538,17 @@ const boxShadowValues = reactive({
   color: "",
   inset: false,
 });
+
+/**
+ * 解析标志位，防止循环触发
+ */
 let isParsingTextShadow = false;
 let isParsingBoxShadow = false;
 
+/**
+ * 将单个阴影 CSS 字符串解析为结构化对象
+ * @param value CSS `text-shadow` 或 `box-shadow` 字符串
+ */
 const parseSingleShadow = (value: string | null | undefined) => {
   const defaultState = {
     offsetX: "",
@@ -518,6 +595,11 @@ const parseSingleShadow = (value: string | null | undefined) => {
   return result;
 };
 
+/**
+ * 将结构化的阴影对象组合成 CSS 字符串
+ * @param values 阴影值对象
+ * @param type 'text' 或 'box'
+ */
 const composeShadow = (
   values: typeof textShadowValues | typeof boxShadowValues,
   type: "text" | "box"
@@ -542,7 +624,7 @@ const composeShadow = (
   return parts.join(" ");
 };
 
-// Text Shadow Logic
+// 文本阴影逻辑
 watch(
   textShadowValues,
   (newValues) => {
@@ -567,7 +649,7 @@ watch(
   { immediate: true }
 );
 
-// Box Shadow Logic
+// 容器盒阴影逻辑
 watch(
   boxShadowValues,
   (newValues) => {

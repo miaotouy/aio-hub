@@ -19,7 +19,7 @@ import { Token, ParserContext, ParserOptions } from "./parser/types";
 import { optimizeBadgeLineBreaks } from "./parser/utils/text-utils";
 import { isTableStart, BLOCK_LEVEL_TAGS } from "./parser/utils/block-utils";
 
-// Import Parsers
+// 导入解析器
 import { parseCodeBlock } from "./parser/block/parseCodeBlock";
 import { parseHeading } from "./parser/block/parseHeading";
 import { parseBlockquote } from "./parser/block/parseBlockquote";

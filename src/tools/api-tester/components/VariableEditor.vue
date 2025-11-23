@@ -115,17 +115,17 @@ function onTypeChange() {
     if (!editableVariable.value.options) {
       editableVariable.value.options = [];
     }
-    // If current value is not a string, reset it.
+    // 如果当前值不是字符串，则重置。
     if (typeof currentValue !== "string") {
       editableVariable.value.value = "";
     }
   } else if (currentType === "boolean") {
-    // If current value is not a boolean, reset it.
+    // 如果当前值不是布尔值，则重置。
     if (typeof currentValue !== "boolean") {
       editableVariable.value.value = false;
     }
   } else if (currentType === "string") {
-    // If current value is not a string, reset it.
+    // 如果当前值不是字符串，则重置。
     if (typeof currentValue !== "string") {
       editableVariable.value.value = "";
     }

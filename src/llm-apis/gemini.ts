@@ -377,7 +377,7 @@ function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerati
     }
   }
 
-  // Logprobs
+  // 对数概率
   if (options.logprobs) {
     config.responseLogprobs = true;
     if (options.topLogprobs !== undefined) {

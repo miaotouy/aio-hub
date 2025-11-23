@@ -26,7 +26,7 @@ const handleClose = () => {
   emit('close');
 };
 
-// --- Dragging Logic ---
+// --- 拖拽逻辑 ---
 const popupRef = ref<HTMLElement | null>(null);
 const headerRef = ref<HTMLElement | null>(null);
 const { x, y, isDragging } = useDraggable(popupRef, {
@@ -38,9 +38,9 @@ watch(
   () => props.visible,
   (isVisible) => {
     if (isVisible && !isDragging.value && props.initialPosition) {
-      // Reset to auto height to adapt to content
+      // 重置为自动高度以适应内容
       height.value = null;
-      // Set initial position to allow rendering and measurement
+      // 设置初始位置以便渲染和测量
       x.value = props.initialPosition.x;
       y.value = props.initialPosition.y;
 
@@ -50,7 +50,7 @@ watch(
           const viewportWidth = window.innerWidth;
           const viewportHeight = window.innerHeight;
 
-          // Adjust position
+          // 调整位置
           let newX = props.initialPosition.x;
           let newY = props.initialPosition.y;
 
@@ -67,7 +67,7 @@ watch(
           x.value = newX;
           y.value = newY;
 
-          // If content causes overflow, explicitly set height to trigger scrollbar
+          // 如果内容导致溢出，则明确设置高度以触发滚动条
           const maxHeight = viewportHeight * 0.8;
           if (popupRect.height > maxHeight) {
             height.value = maxHeight;
@@ -77,14 +77,13 @@ watch(
     }
   }
 );
-// --------------------
 
-// --- Resizing Logic ---
+// --- 缩放逻辑 ---
 const width = ref(600); // Initial width
 const height = ref<number | null>(null); // Initial height is auto
 
 const initResize = (e: MouseEvent) => {
-  // If height is auto, capture the current rendered height before starting resize
+  // 如果高度是自动的，在开始调整大小前捕获当前渲染的高度
   if (height.value === null && popupRef.value) {
     height.value = popupRef.value.offsetHeight;
   }
@@ -97,7 +96,7 @@ const initResize = (e: MouseEvent) => {
   const doDrag = (moveEvent: MouseEvent) => {
     const newWidth = startWidth + moveEvent.clientX - startX;
     const newHeight = startHeight + moveEvent.clientY - startY;
-    // Add constraints
+    // 添加约束
     width.value = Math.max(500, newWidth);
     height.value = Math.max(300, newHeight);
   };
@@ -113,7 +112,6 @@ const initResize = (e: MouseEvent) => {
   e.preventDefault();
   document.body.style.cursor = 'se-resize';
 };
-// --------------------
 
 // 为 ChatMessage 组件准备 props
 const chatMessageProps = computed(() => {

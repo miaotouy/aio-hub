@@ -18,7 +18,7 @@ export interface ImageMetadataResult {
   fullExifInfo: object | null;
 }
 
-// ==================== Composable ====================
+// ==================== 可组合函数 ====================
 
 /**
  * 图片元数据解析器 Composable
@@ -41,10 +41,10 @@ export function useMediaInfoParser() {
     let stCharacterInfo: object | null = null;
     const fullExifInfo: object | null = output ? output : null;
 
-    // --- ST Character Card Parsing ---
+    // --- ST 角色卡解析 ---
     stCharacterInfo = await parseCharacterData(buffer);
 
-    // --- WebUI Info Parsing ---
+    // --- WebUI 信息解析 ---
     let parameters = output?.parameters || output?.userComment;
     if (parameters) {
       if (parameters instanceof Uint8Array) {
@@ -55,7 +55,7 @@ export function useMediaInfoParser() {
       }
     }
 
-    // --- ComfyUI Info Parsing ---
+    // --- ComfyUI 信息解析 ---
     if (output?.workflow) {
       try {
         comfyuiWorkflow = JSON.parse(output.workflow);
@@ -96,7 +96,7 @@ export function useMediaInfoParser() {
     const generationInfo = Object.entries(genInfoObject)
       .map(([key, value]) => `${key}: ${value}`)
       .join('\n');
-    
+
     // 提取负面提示时，需要考虑到它可能不存在，或者后面直接就是生成参数
     const negativePromptEndIndex = rest.search(new RegExp(`(${fields.join('|')}):`));
     const negativePrompt = (negativePromptEndIndex === -1 ? rest : rest.substring(0, negativePromptEndIndex)).trim();

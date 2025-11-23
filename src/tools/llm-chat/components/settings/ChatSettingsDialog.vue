@@ -338,7 +338,7 @@ const handleReset = async () => {
     await loadLocalSettings();
     customMessage.success("已恢复默认设置");
   } catch {
-    // User cancelled
+    // 用户取消
   }
 };
 
@@ -351,7 +351,7 @@ const handleClosed = () => {
   saveStatus.value = "idle";
 };
 
-// --- Config-driven rendering ---
+// --- 配置驱动渲染 ---
 const componentMap: Record<string, Component> = {
   ElSwitch,
   ElSlider,
@@ -400,11 +400,11 @@ const handleComponentClick = (itemId: string) => {
   }
 };
 
-// --- Search functionality ---
+// --- 搜索功能 ---
 const scrollContainerRef = ref<HTMLElement | null>(null);
 const searchQuery = ref("");
 
-// --- Tab navigation functionality ---
+// --- 标签页导航功能 ---
 const activeTab = ref("");
 let isClickingTab = false;
 

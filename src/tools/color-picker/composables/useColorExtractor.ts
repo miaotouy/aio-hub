@@ -140,8 +140,8 @@ export function useColorExtractor() {
       const palette = colorThief.getPalette(imageElement, colorCount);
       const dominantColor = colorThief.getColor(imageElement);
 
-      // Based on debug logs, color-thief-ts can return hex strings directly.
-      // This function handles both string and array formats for robustness.
+      // 根据调试日志，color-thief-ts 可以直接返回十六进制字符串。
+      // 此函数处理字符串和数组格式以增强健壮性。
       const formatToHex = (color: string | number[]): string => {
         if (typeof color === 'string') {
           return color.startsWith('#') ? color : `#${color}`;
@@ -149,7 +149,7 @@ export function useColorExtractor() {
         if (Array.isArray(color)) {
           return `#${color.map((c: number) => c.toString(16).padStart(2, '0')).join('')}`;
         }
-        // Fallback for unexpected formats
+        // 针对意外格式的回退处理
         logger.warn('Unexpected color format from ColorThief', { color });
         return '#000000';
       };

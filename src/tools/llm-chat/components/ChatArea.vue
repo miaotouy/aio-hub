@@ -69,8 +69,10 @@ import { useThemeAppearance, getBlendedBackgroundColor } from "@/composables/use
 import { useResolvedAvatar } from "../composables/useResolvedAvatar";
 import { useLlmChatUiState } from "../composables/useLlmChatUiState";
 import { useLlmChatStore } from "../store";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
 const agentStore = useAgentStore();
+const bus = useWindowSyncBus();
 const { viewMode } = useLlmChatUiState();
 const llmChatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
@@ -225,16 +227,29 @@ const handleSelectModel = async () => {
     });
 
     // 更新智能体的 profileId 和 modelId
-    agentStore.updateAgent(currentAgent.value.id, {
+    const updates = {
       profileId: result.profile.id,
       modelId: result.model.id,
-    });
+    };
+
+    if (bus.windowType === "detached-component") {
+      try {
+        await bus.requestAction("update-agent", {
+          agentId: currentAgent.value.id,
+          updates,
+        });
+      } catch (error) {
+        logger.error("请求更新智能体失败", error as Error);
+      }
+    } else {
+      agentStore.updateAgent(currentAgent.value.id, updates);
+    }
   } else {
     logger.info("用户取消了模型选择");
   }
 };
 
-const handleSaveAgent = (data: {
+const handleSaveAgent = async (data: {
   name: string;
   description: string;
   icon: string;
@@ -253,7 +268,7 @@ const handleSaveAgent = (data: {
 }) => {
   if (currentAgent.value) {
     logger.info("保存智能体", { agentId: currentAgent.value.id, data });
-    agentStore.updateAgent(currentAgent.value.id, {
+    const updates = {
       name: data.name,
       description: data.description,
       icon: data.icon,
@@ -266,7 +281,20 @@ const handleSaveAgent = (data: {
       parameters: data.parameters,
       llmThinkRules: data.llmThinkRules,
       richTextStyleOptions: data.richTextStyleOptions,
-    });
+    };
+
+    if (bus.windowType === "detached-component") {
+      try {
+        await bus.requestAction("update-agent", {
+          agentId: currentAgent.value.id,
+          updates,
+        });
+      } catch (error) {
+        logger.error("请求更新智能体失败", error as Error);
+      }
+    } else {
+      agentStore.updateAgent(currentAgent.value.id, updates);
+    }
   }
   showEditAgentDialog.value = false;
 };
@@ -280,10 +308,21 @@ const handleEditUserProfile = () => {
   }
 };
 
-const handleSaveUserProfile = (updates: Partial<Omit<UserProfile, "id" | "createdAt">>) => {
+const handleSaveUserProfile = async (updates: Partial<Omit<UserProfile, "id" | "createdAt">>) => {
   if (effectiveUserProfile.value) {
     logger.info("保存用户档案", { profileId: effectiveUserProfile.value.id, updates });
-    userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
+    if (bus.windowType === "detached-component") {
+      try {
+        await bus.requestAction("update-user-profile", {
+          profileId: effectiveUserProfile.value.id,
+          updates,
+        });
+      } catch (error) {
+        logger.error("请求更新用户档案失败", error as Error);
+      }
+    } else {
+      userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
+    }
   }
   showEditProfileDialog.value = false;
 };

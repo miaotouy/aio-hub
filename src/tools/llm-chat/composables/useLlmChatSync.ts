@@ -172,6 +172,17 @@ export function useLlmChatSync() {
       case 'abort-node':
         store.abortNodeGeneration(params.nodeId);
         return Promise.resolve();
+      case 'update-agent':
+        agentStore.updateAgent(params.agentId, params.updates);
+        return Promise.resolve();
+      case 'update-user-profile':
+        userProfileStore.updateProfile(params.profileId, params.updates);
+        return Promise.resolve();
+      case 'update-chat-settings':
+        // 使用 useChatSettings 的 updateSettings 方法更新设置
+        // 这会更新主窗口的 settings ref，进而触发 useStateSyncEngine 的广播
+        const { updateSettings } = useChatSettings();
+        return updateSettings(params.updates);
       default:
         logger.warn('未知的操作请求', { action });
         return Promise.reject(new Error(`Unknown action: ${action}`));

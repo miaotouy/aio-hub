@@ -248,11 +248,13 @@ import {
   type ChatSettings,
   DEFAULT_SETTINGS,
 } from "../../composables/useChatSettings";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
 import { settingsConfig } from "./settingsConfig";
 import type { SettingComponent, SettingItem } from "./settings-types";
 
 const logger = createModuleLogger("ChatSettingsDialog");
+const bus = useWindowSyncBus();
 
 interface Props {
   visible: boolean;
@@ -298,7 +300,15 @@ const autoSave = debounce(async () => {
   if (isLoadingSettings.value) return;
   try {
     saveStatus.value = "saving";
-    await updateSettings(localSettings.value);
+
+    if (bus.windowType === "detached-component") {
+      await bus.requestAction("update-chat-settings", {
+        updates: localSettings.value,
+      });
+    } else {
+      await updateSettings(localSettings.value);
+    }
+
     logger.info("设置已自动保存");
     saveStatus.value = "success";
     lastSaveTime.value = new Date().toLocaleTimeString();
@@ -334,7 +344,15 @@ const handleReset = async () => {
       cancelButtonText: "取消",
       type: "warning",
     });
-    await resetSettings();
+
+    if (bus.windowType === "detached-component") {
+      await bus.requestAction("update-chat-settings", {
+        updates: DEFAULT_SETTINGS,
+      });
+    } else {
+      await resetSettings();
+    }
+
     await loadLocalSettings();
     customMessage.success("已恢复默认设置");
   } catch {

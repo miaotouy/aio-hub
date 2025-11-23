@@ -23,7 +23,11 @@ import {
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "../config/preset-icons";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { createConfigManager } from "@utils/configManager";
-import { logger } from "@utils/logger";
+import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+
+const logger = createModuleLogger("ModelMetadata");
+const errorHandler = createModuleErrorHandler("ModelMetadata");
 
 const STORAGE_KEY = "model-icon-configs"; // 用于 localStorage 数据迁移（向后兼容）
 const CONFIG_VERSION = "2.0.0"; // 版本号升级到 2.0.0
@@ -73,7 +77,7 @@ export function useModelMetadata() {
         // 尝试从 localStorage 迁移（兼容最旧的版本）
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          logger.info("useModelMetadata", "检测到 localStorage 中的旧版数据，开始迁移", {
+          logger.info("检测到 localStorage 中的旧版数据，开始迁移", {
             storageKey: STORAGE_KEY,
           });
 
@@ -102,12 +106,12 @@ export function useModelMetadata() {
 
               // 清除 localStorage 数据
               localStorage.removeItem(STORAGE_KEY);
-              logger.info("useModelMetadata", "localStorage 数据迁移完成", {
+              logger.info("localStorage 数据迁移完成", {
                 ruleCount: data.rules.length,
               });
             }
           } catch (e) {
-            logger.error("useModelMetadata", "localStorage 数据迁移失败", e);
+            errorHandler.error(e, "localStorage 数据迁移失败", { showToUser: false });
           }
         }
       }
@@ -115,7 +119,7 @@ export function useModelMetadata() {
       rules.value = data.rules;
       isLoaded.value = true;
     } catch (error) {
-      logger.error("useModelMetadata", "加载模型元数据规则失败", error);
+      errorHandler.error(error, "加载模型元数据规则失败");
       // 加载失败时使用默认配置
       rules.value = [...DEFAULT_METADATA_RULES];
       isLoaded.value = true;
@@ -135,8 +139,8 @@ export function useModelMetadata() {
       await configManager.save(data);
       return true;
     } catch (error) {
-      logger.error("useModelMetadata", "保存模型元数据规则失败", error, {
-        ruleCount: rules.value.length,
+      errorHandler.error(error, "保存模型元数据规则失败", {
+        context: { ruleCount: rules.value.length },
       });
       return false;
     }
@@ -158,14 +162,15 @@ export function useModelMetadata() {
       if (newRule.properties.icon && !isValidIconPath(newRule.properties.icon)) {
         throw new Error("无效的图标路径");
       }
-
       rules.value.push(newRule);
       await saveRules();
       return true;
     } catch (error) {
-      logger.error("useModelMetadata", "添加规则失败", error, {
-        matchType: rule.matchType,
-        matchValue: rule.matchValue,
+      errorHandler.error(error, "添加规则失败", {
+        context: {
+          matchType: rule.matchType,
+          matchValue: rule.matchValue,
+        },
       });
       return false;
     }
@@ -199,9 +204,11 @@ export function useModelMetadata() {
       await saveRules();
       return true;
     } catch (error) {
-      logger.error("useModelMetadata", "更新规则失败", error, {
-        ruleId: id,
-        updates,
+      errorHandler.error(error, "更新规则失败", {
+        context: {
+          ruleId: id,
+          updates,
+        },
       });
       return false;
     }
@@ -221,9 +228,7 @@ export function useModelMetadata() {
       await saveRules();
       return true;
     } catch (error) {
-      logger.error("useModelMetadata", "删除规则失败", error, {
-        ruleId: id,
-      });
+      errorHandler.error(error, "删除规则失败", { context: { ruleId: id } });
       return false;
     }
   }
@@ -254,7 +259,7 @@ export function useModelMetadata() {
       await saveRules();
       return true;
     } catch (error) {
-      logger.error("useModelMetadata", "重置规则失败", error);
+      errorHandler.error(error, "重置规则失败");
       return false;
     }
   }
@@ -267,13 +272,13 @@ export function useModelMetadata() {
     try {
       const now = new Date().toISOString();
       const currentRules = [...rules.value];
-      
+
       // 创建当前规则的 ID 映射
       const currentRuleIds = new Set(currentRules.map((r) => r.id));
-      
+
       let addedCount = 0;
       let updatedCount = 0;
-      
+
       // 遍历所有默认规则
       for (const defaultRule of DEFAULT_METADATA_RULES) {
         if (!currentRuleIds.has(defaultRule.id)) {
@@ -287,19 +292,19 @@ export function useModelMetadata() {
         // 如果规则已存在，我们不做任何修改，以保护用户配置
         // 可选：如果需要更新描述等非关键字段，可以在这里添加逻辑
       }
-      
+
       rules.value = currentRules;
       await saveRules();
-      
-      logger.info("useModelMetadata", "合并内置配置完成", {
+
+      logger.info("合并内置配置完成", {
         added: addedCount,
         updated: updatedCount,
         total: rules.value.length,
       });
-      
+
       return { added: addedCount, updated: updatedCount };
     } catch (error) {
-      logger.error("useModelMetadata", "合并内置配置失败", error);
+      errorHandler.error(error, "合并内置配置失败");
       throw error;
     }
   }
@@ -476,7 +481,7 @@ export function useModelMetadata() {
       await saveRules();
       return true;
     } catch (error) {
-      logger.error("useModelMetadata", "导入规则失败", error);
+      errorHandler.error(error, "导入规则失败");
       return false;
     }
   }

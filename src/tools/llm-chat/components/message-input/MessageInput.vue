@@ -18,12 +18,14 @@ import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler"; // <-- 插入
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import MessageInputToolbar from "./MessageInputToolbar.vue";
 import type { MacroDefinition } from "../../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
+const errorHandler = createModuleErrorHandler("MessageInput"); // <-- 插入
 
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
@@ -184,7 +186,7 @@ const handleTriggerAttachment = async () => {
       await inputManager.addAttachments(paths);
     }
   } catch (error) {
-    logger.error("打开文件选择对话框失败", error);
+    errorHandler.error(error, "打开文件选择对话框失败"); // <-- 替换
     customMessage.error("选择文件失败");
   }
 };
@@ -321,7 +323,7 @@ const handleDragStart = (e: MouseEvent) => {
 
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
-    logger.error("无法获取容器尺寸，无法开始拖拽");
+    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸，无法开始拖拽"); // <-- 替换
     return;
   }
 
@@ -450,7 +452,7 @@ const calculateInputTokens = async () => {
     tokenCount.value = result.count;
     tokenEstimated.value = result.isEstimated ?? false;
   } catch (error) {
-    logger.error("计算 token 失败", error);
+    errorHandler.error(error, "计算 token 失败"); // <-- 替换
     tokenCount.value = 0;
     tokenEstimated.value = false;
   } finally {
@@ -610,7 +612,7 @@ function handleInsertMacro(macro: MacroDefinition) {
 const handleDetach = async () => {
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
-    logger.error("无法获取容器尺寸");
+    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸"); // <-- 替换
     return;
   }
 
@@ -649,10 +651,10 @@ const handleDetach = async () => {
       });
       logger.info("通过菜单分离窗口成功", { sessionId });
     } else {
-      logger.error("开始分离会话失败，未返回会话 ID");
+      errorHandler.error(new Error("Session ID is null"), "开始分离会话失败，未返回会话 ID"); // <-- 替换
     }
   } catch (error) {
-    logger.error("通过菜单分离窗口失败", { error });
+    errorHandler.error(error, "通过菜单分离窗口失败"); // <-- 替换
   }
 };
 

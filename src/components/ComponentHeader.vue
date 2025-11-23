@@ -4,9 +4,11 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { CornerDownLeft, Pin, ExternalLink, Minus, Plus } from "lucide-vue-next";
 
 const logger = createModuleLogger("ComponentHeader");
+const errorHandler = createModuleErrorHandler("ComponentHeader");
 
 interface Props {
   position?: "top" | "bottom" | "left" | "right";
@@ -42,7 +44,7 @@ onMounted(async () => {
       const win = getCurrentWebviewWindow();
       isPinned.value = await win.isAlwaysOnTop();
     } catch (error) {
-      logger.error("获取窗口置顶状态失败", { error });
+      errorHandler.error(error, "获取窗口置顶状态失败", { showToUser: false });
     }
   }
 
@@ -51,7 +53,7 @@ onMounted(async () => {
     const plat = await platform();
     isMac.value = plat === "macos";
   } catch (error) {
-    logger.error("检查操作系统平台失败", { error });
+    errorHandler.error(error, "检查操作系统平台失败", { showToUser: false });
   }
 });
 
@@ -93,7 +95,7 @@ const handleReattach = async () => {
     await invoke("close_detached_window", { label: currentWindow.label });
     emit("reattach");
   } catch (error) {
-    logger.error("重新附着失败", { error });
+    errorHandler.error(error, "重新附着失败");
   }
 };
 
@@ -113,14 +115,7 @@ const togglePin = async () => {
 
     logger.info("窗口置顶状态已更新", { newStatus: newPinStatus });
   } catch (error: any) {
-    // 详细的错误信息
-    const errorDetail = {
-      message: error?.message || "未知错误",
-      type: error?.constructor?.name || typeof error,
-      detail: JSON.stringify(error, null, 2),
-      stack: error?.stack,
-    };
-    logger.error("切换窗口置顶失败", errorDetail);
+    errorHandler.error(error, "切换窗口置顶失败");
   } finally {
     closeMenu();
   }

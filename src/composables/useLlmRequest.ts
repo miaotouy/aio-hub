@@ -5,6 +5,7 @@
 
 import { useLlmProfiles } from "./useLlmProfiles";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
 import { callOpenAiCompatibleApi } from "../llm-apis/openai-compatible";
 import { callOpenAiResponsesApi } from "../llm-apis/openai-responses";
@@ -16,6 +17,7 @@ import { filterParametersByCapabilities } from "../llm-apis/request-builder";
 import type { LlmProfile } from "../types/llm-profiles";
 
 const logger = createModuleLogger("LlmRequest");
+const errorHandler = createModuleErrorHandler("LlmRequest");
 
 export function useLlmRequest() {
   const { getProfileById } = useLlmProfiles();
@@ -35,16 +37,17 @@ export function useLlmRequest() {
       const profile: LlmProfile | undefined = getProfileById(options.profileId);
       if (!profile) {
         const error = new Error(`未找到配置 ID: ${options.profileId}`);
-        logger.error("配置不存在", error, { profileId: options.profileId });
+        errorHandler.error(error, "配置不存在", { context: { profileId: options.profileId } });
         throw error;
       }
-
       // 检查配置是否启用
       if (!profile.enabled) {
         const error = new Error(`配置 "${profile.name}" 未启用`);
-        logger.error("配置未启用", error, {
-          profileId: options.profileId,
-          profileName: profile.name,
+        errorHandler.error(error, "配置未启用", {
+          context: {
+            profileId: options.profileId,
+            profileName: profile.name,
+          }
         });
         throw error;
       }
@@ -53,10 +56,12 @@ export function useLlmRequest() {
       const model = profile.models.find((m) => m.id === options.modelId);
       if (!model) {
         const error = new Error(`未找到模型 ID: ${options.modelId}`);
-        logger.error("模型不存在", error, {
-          profileId: options.profileId,
-          modelId: options.modelId,
-          availableModels: profile.models.map((m) => m.id),
+        errorHandler.error(error, "模型不存在", {
+          context: {
+            profileId: options.profileId,
+            modelId: options.modelId,
+            availableModels: profile.models.map((m) => m.id),
+          }
         });
         throw error;
       }
@@ -68,7 +73,7 @@ export function useLlmRequest() {
 
       // 根据 Provider 和 Model 能力智能过滤参数
       const filteredOptions = filterParametersByCapabilities(options, profile, model) as LlmRequestOptions;
-      
+
       logger.debug("参数过滤完成", {
         originalParams: Object.keys(options).length,
         filteredParams: Object.keys(filteredOptions).length,
@@ -97,7 +102,7 @@ export function useLlmRequest() {
           break;
         default:
           const error = new Error(`不支持的提供商类型: ${profile.type}`);
-          logger.error("不支持的提供商类型", error, { providerType: profile.type });
+          errorHandler.error(error, "不支持的提供商类型", { context: { providerType: profile.type } });
           throw error;
       }
 
@@ -117,9 +122,11 @@ export function useLlmRequest() {
           modelId: options.modelId,
         });
       } else {
-        logger.error("LLM 请求失败", error, {
-          profileId: options.profileId,
-          modelId: options.modelId,
+        errorHandler.error(error, "LLM 请求失败", {
+          context: {
+            profileId: options.profileId,
+            modelId: options.modelId,
+          }
         });
       }
       throw error;

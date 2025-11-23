@@ -20,8 +20,10 @@ import { serviceRegistry } from '@/services/registry';
 import type LlmChatService from '@/tools/llm-chat/llmChat.registry';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('useSendToChat');
+const errorHandler = createModuleErrorHandler('useSendToChat');
 
 /**
  * 发送选项
@@ -124,9 +126,7 @@ export function useSendToChat() {
       
       return true;
     } catch (error: any) {
-      const errorMsg = options.errorMessage || `发送失败: ${error.message}`;
-      customMessage.error(errorMsg);
-      logger.error('发送内容到聊天失败', error);
+      errorHandler.error(error, options.errorMessage || '发送内容到聊天失败');
       return false;
     }
   };

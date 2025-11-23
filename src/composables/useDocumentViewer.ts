@@ -3,8 +3,10 @@ import { useAssetManager } from '@/composables/useAssetManager';
 import { detectMimeTypeFromBuffer } from '@/utils/fileTypeDetector';
 import { mapMimeToLanguage } from '@/utils/mimeToLanguage';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('useDocumentViewer');
+const errorHandler = createModuleErrorHandler('useDocumentViewer');
 
 export interface UseDocumentViewerOptions {
   content?: string | Uint8Array;
@@ -118,7 +120,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       // 优先基于文件扩展名判断 Markdown，避免内容嗅探误判
       if (options.fileName?.toLowerCase().endsWith('.md') || options.fileName?.toLowerCase().endsWith('.markdown')) {
         detectedMime = 'text/markdown';
-        logger.debug(`[DocumentViewer] Forced markdown mode for file: ${options.fileName}`);
+        logger.debug('Forced markdown mode', { fileName: options.fileName });
       } else {
         detectedMime = await detectMimeTypeFromBuffer(buffer, hint);
       }
@@ -127,7 +129,11 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       const detectedLanguage = mapMimeToLanguage(detectedMime) || 'plaintext';
       language.value = detectedLanguage;
 
-      logger.debug(`[DocumentViewer] Mime: ${detectedMime}, Lang: ${detectedLanguage}, Hint: ${hint}`);
+      logger.debug('Document details', {
+        mime: detectedMime,
+        lang: detectedLanguage,
+        hint
+      });
       
       // 只有在 decodedContent 尚未被设置时才解码
       if (decodedContent.value === null && (isTextContent.value || detectedMime === 'application/octet-stream')) {
@@ -139,7 +145,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         }
       }
     } catch (e: any) {
-      logger.debug('[DocumentViewer]Error details:', {
+      logger.debug('Error details', {
         type: typeof e,
         isError: e instanceof Error,
         raw: e,
@@ -168,7 +174,8 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       }
 
       error.value = errorMessage;
-      logger.error(`[DocumentViewer]加载文档失败:`, e);
+      // 由于已经手动设置了 error.value，这里可以选择静默处理
+      errorHandler.error(e, '加载文档失败', { showToUser: false });
     } finally {
       isLoading.value = false;
     }

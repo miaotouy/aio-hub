@@ -432,9 +432,11 @@ export const useApiTesterStore = defineStore("apiTester", {
       try {
         localStorage.setItem("api-tester-profiles", JSON.stringify(this.savedProfiles));
       } catch (error) {
-        logger.error("保存 Profile 配置失败", error, {
-          operation: "persistProfiles",
-          profilesCount: this.savedProfiles.length,
+        errorHandler.error(error, "保存 Profile 配置失败", {
+          context: {
+            operation: "persistProfiles",
+            profilesCount: this.savedProfiles.length,
+          },
         });
       }
     },
@@ -447,8 +449,10 @@ export const useApiTesterStore = defineStore("apiTester", {
           this.savedProfiles = JSON.parse(stored);
         }
       } catch (error) {
-        logger.error("加载 Profile 配置失败", error, {
-          operation: "loadProfiles",
+        errorHandler.error(error, "加载 Profile 配置失败", {
+          context: {
+            operation: "loadProfiles",
+          },
         });
       }
 

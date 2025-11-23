@@ -6,9 +6,11 @@
 
 import { createConfigManager, type ConfigManager } from '@/utils/configManager';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import type { PluginManifest, SettingsSchema } from './plugin-types';
 
 const logger = createModuleLogger('PluginConfigService');
+const errorHandler = createModuleErrorHandler('PluginConfigService');
 
 /**
  * 插件配置项
@@ -127,35 +129,39 @@ class PluginConfigService {
   async setValue(pluginId: string, key: string, value: any): Promise<void> {
     const manager = this.configManagers.get(pluginId);
     if (!manager) {
-      logger.error(`插件配置管理器不存在`, new Error('Manager not found'), { pluginId });
-      throw new Error(`插件 ${pluginId} 的配置管理器不存在`);
+      const err = new Error(`插件 ${pluginId} 的配置管理器不存在`);
+      errorHandler.error(err, `插件配置管理器不存在`, { context: { pluginId } });
+      throw err;
     }
 
     const schema = this.schemas.get(pluginId);
     if (!schema) {
-      logger.error(`插件配置模式不存在`, new Error('Schema not found'), { pluginId });
-      throw new Error(`插件 ${pluginId} 的配置模式不存在`);
+      const err = new Error(`插件 ${pluginId} 的配置模式不存在`);
+      errorHandler.error(err, `插件配置模式不存在`, { context: { pluginId } });
+      throw err;
     }
 
     // 验证配置键是否存在
     if (!(key in schema.properties)) {
-      logger.error(`配置键不存在`, new Error('Invalid key'), { pluginId, key });
-      throw new Error(`配置键 ${key} 不存在于插件 ${pluginId} 的配置模式中`);
+      const err = new Error(`配置键 ${key} 不存在于插件 ${pluginId} 的配置模式中`);
+      errorHandler.error(err, `配置键不存在`, { context: { pluginId, key } });
+      throw err;
     }
 
     // 验证值类型
     const property = schema.properties[key];
     const valueType = typeof value;
     if (valueType !== property.type) {
-      logger.error(`配置值类型不匹配`, new Error('Type mismatch'), {
-        pluginId,
-        key,
-        expectedType: property.type,
-        actualType: valueType,
+      const err = new Error(`配置值类型不匹配：期望 ${property.type}，实际 ${valueType}`);
+      errorHandler.error(err, `配置值类型不匹配`, {
+        context: {
+          pluginId,
+          key,
+          expectedType: property.type,
+          actualType: valueType,
+        }
       });
-      throw new Error(
-        `配置值类型不匹配：期望 ${property.type}，实际 ${valueType}`
-      );
+      throw err;
     }
 
     // 更新配置

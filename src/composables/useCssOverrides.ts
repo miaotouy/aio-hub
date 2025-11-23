@@ -8,9 +8,11 @@ import { builtInCssPresets, getPresetById } from '@/config/css-presets';
 import type { CssPreset, UserCssSettings } from '@/types/css-override';
 import { loadAppSettings, updateAppSettings } from '@/utils/appSettings';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { customMessage } from '@/utils/customMessage';
 
 const moduleLogger = createModuleLogger('css-overrides');
+const errorHandler = createModuleErrorHandler('css-overrides');
 
 export function useCssOverrides() {
   // ========== 状态管理 ==========
@@ -133,8 +135,7 @@ export function useCssOverrides() {
         });
       }
     } catch (error) {
-      moduleLogger.error('加载 CSS 配置失败', error);
-      customMessage.error('加载 CSS 配置失败');
+      errorHandler.error(error, '加载 CSS 配置失败');
     }
   }
 
@@ -167,8 +168,7 @@ export function useCssOverrides() {
       });
     } catch (error) {
       saveStatus.value = 'unsaved';
-      moduleLogger.error('保存 CSS 配置失败', error);
-      customMessage.error('保存 CSS 配置失败');
+      errorHandler.error(error, '保存 CSS 配置失败');
     }
   }
 

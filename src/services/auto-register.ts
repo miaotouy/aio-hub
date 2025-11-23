@@ -2,9 +2,11 @@ import { serviceRegistry } from "./registry";
 import type { ToolService } from "./types";
 import { pluginManager } from "./plugin-manager";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useToolsStore } from "@/stores/tools";
 
 const logger = createModuleLogger("services/auto-register");
+const errorHandler = createModuleErrorHandler("services/auto-register");
 
 // 定义模块导出的类型，期望是一个可以 new 的类
 type ServiceModule = {
@@ -65,7 +67,7 @@ export async function autoRegisterServices(): Promise<void> {
 
         instances.push(instance);
       } catch (error) {
-        logger.error(`加载服务模块失败: ${path}`, error);
+        errorHandler.error(error, '加载服务模块失败', { context: { path } });
         failedModules.push({ path, error });
       }
     }
@@ -102,7 +104,7 @@ export async function autoRegisterServices(): Promise<void> {
       const loadedPlugins = pluginManager.getInstalledPlugins();
       logger.info(`已加载 ${loadedPlugins.length} 个插件`);
     } catch (error) {
-      logger.error("插件加载过程中发生错误", error);
+      errorHandler.error(error, "插件加载过程中发生错误");
       // 插件加载失败不应阻止应用启动
     }
 
@@ -113,7 +115,7 @@ export async function autoRegisterServices(): Promise<void> {
     toolsStore.setReady();
     logger.info("Tools store 已标记为就绪状态");
   } catch (error) {
-    logger.error("自动注册服务过程中发生严重错误", error);
+    errorHandler.error(error, "自动注册服务过程中发生严重错误");
     throw error;
   }
 }

@@ -7,9 +7,11 @@
 import type { ServiceMetadata } from "./types";
 import type { PluginProxy, PluginManifest, JsPluginExport } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 
 const logger = createModuleLogger("services/js-plugin-adapter");
+const errorHandler = createModuleErrorHandler("services/js-plugin-adapter");
 
 /**
  * JS 插件适配器类
@@ -132,7 +134,7 @@ export class JsPluginAdapter implements PluginProxy {
       // 将 context 注入到参数中
       return method({ ...params, context });
     } catch (error) {
-      logger.error(`插件方法调用失败: ${this.id}.${methodName}`, error);
+      errorHandler.error(error, '插件方法调用失败', { context: { pluginId: this.id, methodName } });
       throw error;
     }
   }

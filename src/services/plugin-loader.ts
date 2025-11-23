@@ -19,10 +19,12 @@ import type { JsPluginAdapter } from './js-plugin-adapter';
 import { createSidecarPluginProxy } from './sidecar-plugin-adapter';
 import { createNativePluginProxy } from './native-plugin-adapter';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { pluginConfigService } from './plugin-config.service';
 import { pluginStateService } from './plugin-state.service';
 
 const logger = createModuleLogger('services/plugin-loader');
+const errorHandler = createModuleErrorHandler('services/plugin-loader');
 
 /**
  * 插件加载器类
@@ -151,8 +153,9 @@ export class PluginLoader {
             
             // 检查 index.ts 是否存在
             if (!pluginModules[pluginModulePath]) {
-              logger.error(`JS 插件缺少 index.ts: ${pluginId}`);
-              throw new Error(`JS 插件必须包含 index.ts 文件`);
+              const err = new Error(`JS 插件必须包含 index.ts 文件`);
+              errorHandler.error(err, 'JS 插件缺少 index.ts', { context: { pluginId } });
+              throw err;
             }
 
             proxy = createJsPluginProxy(manifest, devInstallPath, true);
@@ -199,7 +202,7 @@ export class PluginLoader {
           // 将插件代理添加到结果列表
           result.plugins.push(proxy);
         } catch (error) {
-          logger.error(`加载开发插件失败: ${pluginId}`, error);
+          errorHandler.error(error, '加载开发插件失败', { context: { pluginId } });
           result.failed.push({
             id: pluginId,
             path: manifestPath,
@@ -208,7 +211,7 @@ export class PluginLoader {
         }
       }
     } catch (error) {
-      logger.error('加载开发插件过程中发生错误', error);
+      errorHandler.error(error, '加载开发插件过程中发生错误');
     }
 
     logger.info('开发插件加载完成', {
@@ -289,7 +292,7 @@ export class PluginLoader {
             logger.warn(`未知的插件类型: ${manifest.type}`, { pluginId });
           }
         } catch (error) {
-          logger.error(`加载生产插件失败: ${pluginId}`, error);
+          errorHandler.error(error, '加载生产插件失败', { context: { pluginId } });
           result.failed.push({
             id: pluginId,
             path: pluginPath,
@@ -298,7 +301,7 @@ export class PluginLoader {
         }
       }
     } catch (error) {
-      logger.error('加载生产插件过程中发生错误', error);
+      errorHandler.error(error, '加载生产插件过程中发生错误');
     }
 
     logger.info('生产插件加载完成', {
@@ -362,7 +365,7 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      logger.error(`加载生产插件失败: ${manifest.id}`, error);
+      errorHandler.error(error, '加载生产插件失败', { context: { pluginId: manifest.id } });
       throw error;
     }
   }
@@ -399,7 +402,7 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      logger.error(`加载 Sidecar 插件失败: ${manifest.id}`, error);
+      errorHandler.error(error, '加载 Sidecar 插件失败', { context: { pluginId: manifest.id } });
       throw error;
     }
   }
@@ -436,7 +439,7 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      logger.error(`加载原生插件失败: ${manifest.id}`, error);
+      errorHandler.error(error, '加载原生插件失败', { context: { pluginId: manifest.id } });
       throw error;
     }
   }
@@ -474,7 +477,7 @@ export class PluginLoader {
       logger.info(`插件 ${pluginId} 已移入回收站`);
       return true;
     } catch (error) {
-      logger.error(`卸载插件失败: ${pluginId}`, error);
+      errorHandler.error(error, '卸载插件失败', { context: { pluginId } });
       throw error;
     }
   }

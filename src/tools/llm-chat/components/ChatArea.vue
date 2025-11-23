@@ -8,6 +8,7 @@ import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
 import MessageInput from "./message-input/MessageInput.vue";
@@ -20,6 +21,7 @@ import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import { Setting } from "@element-plus/icons-vue";
 
 const logger = createModuleLogger("ChatArea");
+const errorHandler = createModuleErrorHandler("ChatArea");
 
 interface Props {
   messages?: ChatMessageNode[];
@@ -140,7 +142,7 @@ const handleDragStart = (e: MouseEvent) => {
 
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
-    logger.error("无法获取容器尺寸，无法开始拖拽");
+    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸，无法开始拖拽");
     return;
   }
 
@@ -239,7 +241,7 @@ const handleSelectModel = async () => {
           updates,
         });
       } catch (error) {
-        logger.error("请求更新智能体失败", error as Error);
+        errorHandler.error(error, "请求更新智能体失败");
       }
     } else {
       agentStore.updateAgent(currentAgent.value.id, updates);
@@ -290,7 +292,7 @@ const handleSaveAgent = async (data: {
           updates,
         });
       } catch (error) {
-        logger.error("请求更新智能体失败", error as Error);
+        errorHandler.error(error, "请求更新智能体失败");
       }
     } else {
       agentStore.updateAgent(currentAgent.value.id, updates);
@@ -318,7 +320,7 @@ const handleSaveUserProfile = async (updates: Partial<Omit<UserProfile, "id" | "
           updates,
         });
       } catch (error) {
-        logger.error("请求更新用户档案失败", error as Error);
+        errorHandler.error(error, "请求更新用户档案失败");
       }
     } else {
       userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
@@ -346,7 +348,7 @@ const isInputVisible = computed(() => {
 const handleDetach = async () => {
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
-    logger.error("无法获取容器尺寸");
+    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸");
     return;
   }
 
@@ -386,10 +388,10 @@ const handleDetach = async () => {
       });
       logger.info("通过菜单分离窗口成功", { sessionId });
     } else {
-      logger.error("开始分离会话失败，未返回会话 ID");
+      errorHandler.error(new Error("Session ID is null"), "开始分离会话失败，未返回会话 ID");
     }
   } catch (error) {
-    logger.error("通过菜单分离窗口失败", { error });
+    errorHandler.error(error, "通过菜单分离窗口失败");
   }
 };
 

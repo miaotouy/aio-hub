@@ -2,8 +2,10 @@ import { ref, type Ref } from "vue";
 import type Viewer from "viewerjs";
 import { acquireBlobUrl, releaseBlobUrl } from "@/utils/avatarImageCache";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("useImageViewer");
+const errorHandler = createModuleErrorHandler("useImageViewer");
 
 export interface ImageViewerState {
   /** 当前显示的图片列表（处理后的 URL） */
@@ -100,7 +102,11 @@ export function useImageViewer(): UseImageViewerReturn {
             logger.debug(`路径 ${sanitizedSrc} 成功转换为 Blob URL`);
             return blobUrl;
           } else {
-            logger.error(`路径 ${sanitizedSrc} 转换为 Blob URL 失败`);
+            errorHandler.error(
+              new Error("Conversion failed"),
+              "路径转换为 Blob URL 失败",
+              { context: { path: sanitizedSrc }, showToUser: false }
+            );
             return src; // 转换失败，返回原始路径，让其自然裂开
           }
         }

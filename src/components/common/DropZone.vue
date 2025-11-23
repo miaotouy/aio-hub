@@ -35,10 +35,10 @@ import { FolderAdd } from '@element-plus/icons-vue'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { customMessage } from '@/utils/customMessage'
-import { createModuleLogger } from '@utils/logger'
+import { createModuleErrorHandler } from '@/utils/errorHandler'
 
-// 创建模块日志器
-const logger = createModuleLogger('DropZone')
+// 创建错误处理器
+const errorHandler = createModuleErrorHandler('DropZone')
 
 // Props 定义
 interface Props {
@@ -232,7 +232,7 @@ const handleFileDrop = async (paths: string[]) => {
             isValid = false
           }
         } catch (error) {
-          logger.error('检查路径类型失败', error, { path })
+          errorHandler.error(error, '检查路径类型失败', { path, showToUser: false })
         }
       }
       
@@ -274,9 +274,8 @@ const handleFileDrop = async (paths: string[]) => {
     }
     
   } catch (error: any) {
-    logger.error('处理拖放文件失败', error, { paths: validPaths })
+    errorHandler.error(error, '处理拖放文件失败', { paths: validPaths })
     emit('error', error.toString())
-    customMessage.error(`处理失败: ${error}`)
   }
 }
 

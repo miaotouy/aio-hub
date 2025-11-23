@@ -1,8 +1,10 @@
 import { useRouter, useRoute } from "vue-router";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("SettingsNavigator");
+const errorHandler = createModuleErrorHandler("SettingsNavigator");
 
 /**
  * 设置页面导航 Composable
@@ -49,7 +51,7 @@ export function useSettingsNavigator() {
         router.push({ path: "/settings", query: { section: sectionId } });
       }
     } catch (error) {
-      logger.error("导航到设置页面失败", { error, sectionId });
+      errorHandler.error(error, "导航到设置页面失败", { context: { sectionId } });
       // 降级处理：尝试直接使用路由导航
       router.push({ path: "/settings", query: { section: sectionId } });
     }

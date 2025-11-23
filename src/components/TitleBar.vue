@@ -18,6 +18,7 @@ import iconBlack from "../assets/aio-icon-black.svg";
 import iconWhite from "../assets/aio-icon-white.svg";
 import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from "@utils/appSettings";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { platform } from "@tauri-apps/plugin-os";
 import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
@@ -34,6 +35,7 @@ const props = defineProps<{
 
 // 创建模块日志记录器
 const logger = createModuleLogger("TitleBar");
+const errorHandler = createModuleErrorHandler("TitleBar");
 
 const router = useRouter();
 const toolsStore = useToolsStore();
@@ -143,7 +145,7 @@ const saveWindowConfig = debounce(async () => {
     await invoke("save_window_config", { label: windowLabel });
     logger.debug(`窗口配置已保存: ${windowLabel}`);
   } catch (error) {
-    logger.error("保存窗口配置失败", error);
+    errorHandler.error(error, "保存窗口配置失败", { showToUser: false });
   }
 }, 500); // 500ms 防抖
 
@@ -176,7 +178,7 @@ onMounted(async () => {
   try {
     settings.value = await loadAppSettingsAsync();
   } catch (error) {
-    logger.error("加载应用设置失败", error);
+    errorHandler.error(error, "加载应用设置失败");
   }
 
   // 监听设置变化事件

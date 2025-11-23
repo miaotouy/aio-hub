@@ -7,11 +7,13 @@
 import type { ServiceMetadata } from "./types";
 import type { PluginProxy, PluginManifest, PlatformKey } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 const logger = createModuleLogger("services/sidecar-plugin-adapter");
+const errorHandler = createModuleErrorHandler("services/sidecar-plugin-adapter");
 
 /**
  * Sidecar 输出事件
@@ -240,16 +242,16 @@ export class SidecarPluginAdapter implements PluginProxy {
           
           resolve(data.data);
         } catch (error) {
-          logger.error("解析结果数据失败", { error, data: event.data });
+          errorHandler.error(error, "解析结果数据失败", { context: { data: event.data } });
           reject(new Error(`解析结果失败: ${error}`));
         }
       };
 
-      const errorHandler = (event: SidecarOutputEvent) => {
+      const customErrorHandler = (event: SidecarOutputEvent) => {
         if (hasResult) return;
         hasResult = true;
 
-        logger.error(`方法执行失败: ${methodName}`, { error: event.data });
+        errorHandler.error(new Error(event.data), '方法执行失败', { context: { methodName } });
         
         // 清理临时处理器
         this.eventHandlers.delete("progress");
@@ -258,11 +260,11 @@ export class SidecarPluginAdapter implements PluginProxy {
         
         reject(new Error(event.data));
       };
-
+ 
       // 注册临时处理器
       this.eventHandlers.set("progress", progressHandler);
       this.eventHandlers.set("result", resultHandler);
-      this.eventHandlers.set("error", errorHandler);
+      this.eventHandlers.set("error", customErrorHandler);
 
       // 调用后端命令
       invoke<string>("execute_sidecar", { request })
@@ -295,7 +297,7 @@ export class SidecarPluginAdapter implements PluginProxy {
             this.eventHandlers.delete("result");
             this.eventHandlers.delete("error");
             
-            logger.error(`调用后端命令失败: ${methodName}`, error);
+            errorHandler.error(error, '调用后端命令失败', { context: { methodName } });
             reject(error);
           }
         });

@@ -7,8 +7,10 @@ import type { OcrProfile } from '../types/ocr-profiles';
 import type { OcrPreset } from '../config/ocr-providers';
 import { createConfigManager } from '@utils/configManager';
 import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('OcrProfiles');
+const errorHandler = createModuleErrorHandler('OcrProfiles');
 
 const STORAGE_KEY = 'ocr-profiles'; // 用于 localStorage 数据迁移
 
@@ -51,7 +53,7 @@ export function useOcrProfiles() {
             localStorage.removeItem(STORAGE_KEY);
             logger.info('数据迁移完成', { profileCount: loadedProfiles.length });
           } catch (parseError) {
-            logger.error('解析 localStorage 数据失败', parseError);
+            errorHandler.error(parseError, '解析 localStorage 数据失败', { showToUser: false });
           }
         }
       }
@@ -60,7 +62,7 @@ export function useOcrProfiles() {
       isLoaded.value = true;
       logger.info('OCR 配置加载成功', { profileCount: loadedProfiles.length });
     } catch (error) {
-      logger.error('加载 OCR 配置失败', error);
+      errorHandler.error(error, '加载 OCR 配置失败');
       profiles.value = [];
       isLoaded.value = true;
     }
@@ -75,7 +77,7 @@ export function useOcrProfiles() {
       await configManager.save({ profiles: profiles.value });
       logger.info('OCR 配置保存成功');
     } catch (error) {
-      logger.error('保存 OCR 配置失败', error, { profileCount: profiles.value.length });
+      errorHandler.error(error, '保存 OCR 配置失败', { context: { profileCount: profiles.value.length } });
       throw error;
     }
   };
@@ -97,9 +99,11 @@ export function useOcrProfiles() {
       }
       await saveToStorage();
     } catch (error) {
-      logger.error('保存 OCR 配置失败', error, {
-        profileId: profile.id,
-        profileName: profile.name
+      errorHandler.error(error, '保存 OCR 配置失败', {
+        context: {
+          profileId: profile.id,
+          profileName: profile.name
+        }
       });
       throw error;
     }
@@ -120,7 +124,7 @@ export function useOcrProfiles() {
         logger.warn('尝试删除不存在的配置', { profileId: id });
       }
     } catch (error) {
-      logger.error('删除 OCR 配置失败', error, { profileId: id });
+      errorHandler.error(error, '删除 OCR 配置失败', { context: { profileId: id } });
       throw error;
     }
   };
@@ -157,7 +161,7 @@ export function useOcrProfiles() {
         logger.warn('尝试切换不存在的配置', { profileId: id });
       }
     } catch (error) {
-      logger.error('切换配置状态失败', error, { profileId: id });
+      errorHandler.error(error, '切换配置状态失败', { context: { profileId: id } });
       throw error;
     }
   };

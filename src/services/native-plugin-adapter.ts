@@ -7,11 +7,13 @@
 import type { ServiceMetadata } from "./types";
 import type { PluginProxy, PluginManifest, PlatformKey } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 import { invoke } from "@tauri-apps/api/core";
 import { path } from "@tauri-apps/api";
 
 const logger = createModuleLogger("services/native-plugin-adapter");
+const errorHandler = createModuleErrorHandler("services/native-plugin-adapter");
 
 /**
  * 原生插件适配器类
@@ -64,7 +66,7 @@ export class NativePluginAdapter implements PluginProxy {
       this.enabled = true;
       logger.info(`原生插件 ${this.id} 启用成功`);
     } catch (error) {
-      logger.error(`启用原生插件失败: ${this.id}`, error);
+      errorHandler.error(error, '启用原生插件失败', { context: { pluginId: this.id } });
       throw error;
     }
   }
@@ -86,7 +88,7 @@ export class NativePluginAdapter implements PluginProxy {
       this.enabled = false;
       logger.info(`原生插件 ${this.id} 禁用成功`);
     } catch (error) {
-      logger.error(`禁用原生插件失败: ${this.id}`, error);
+      errorHandler.error(error, '禁用原生插件失败', { context: { pluginId: this.id } });
       // 即使卸载失败，也标记为禁用
       this.enabled = false;
     }
@@ -192,7 +194,7 @@ export class NativePluginAdapter implements PluginProxy {
         return result;
       }
     } catch (error) {
-      logger.error(`原生方法调用失败: ${this.id}.${methodName}`, error);
+      errorHandler.error(error, '原生方法调用失败', { context: { pluginId: this.id, methodName } });
       throw error;
     }
   }

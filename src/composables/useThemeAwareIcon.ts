@@ -1,8 +1,8 @@
 import { ref, watch, computed, Ref } from "vue";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useTheme } from "./useTheme";
 
-const logger = createModuleLogger("ThemeAwareIcon");
+const errorHandler = createModuleErrorHandler("ThemeAwareIcon");
 
 // 缓存处理后的 SVG 内容
 const svgCache = new Map<string, string>();
@@ -129,7 +129,7 @@ async function fetchAndProcessSvg(url: string): Promise<string> {
     svgCache.set(url, processed);
     return processed;
   } catch (error) {
-    logger.error(`Error processing SVG at ${url}:`, error);
+    // 由调用方处理错误日志和 UI
     throw error;
   }
 }
@@ -169,7 +169,10 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
       svgContent.value = await fetchAndProcessSvg(iconSrcRef.value);
     } catch (err) {
       error.value = err as Error;
-      logger.error("Failed to load SVG:", err);
+      errorHandler.error(err, "加载或处理SVG图标失败", {
+        showToUser: false, // 通常由 UI 的 error state 反映，无需弹窗
+        context: { iconSrc: iconSrcRef.value },
+      });
     } finally {
       isLoading.value = false;
     }

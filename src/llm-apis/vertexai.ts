@@ -3,6 +3,7 @@ import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -13,6 +14,7 @@ import {
 } from "./request-builder";
 
 const logger = createModuleLogger("VertexAiApi");
+const errorHandler = createModuleErrorHandler("VertexAiApi");
 
 /**
  * Vertex AI Content Part 类型
@@ -370,10 +372,11 @@ async function callVertexAiGemini(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("Vertex AI Gemini 请求失败", new Error(errorText), {
-        status: response.status,
+      const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+      errorHandler.error(err, "Vertex AI Gemini 请求失败", {
+        context: { status: response.status },
       });
-      throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+      throw err;
     }
 
     if (!response.body) {
@@ -452,10 +455,11 @@ async function callVertexAiGemini(
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.error("Vertex AI Gemini 请求失败", new Error(errorText), {
-      status: response.status,
+    const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+    errorHandler.error(err, "Vertex AI Gemini 请求失败", {
+      context: { status: response.status },
     });
-    throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+    throw err;
   }
 
   const data = await response.json();
@@ -589,10 +593,11 @@ async function callVertexAiClaude(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("Vertex AI Claude 请求失败", new Error(errorText), {
-        status: response.status,
+      const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+      errorHandler.error(err, "Vertex AI Claude 请求失败", {
+        context: { status: response.status },
       });
-      throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+      throw err;
     }
 
     if (!response.body) {
@@ -657,10 +662,11 @@ async function callVertexAiClaude(
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.error("Vertex AI Claude 请求失败", new Error(errorText), {
-      status: response.status,
+    const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+    errorHandler.error(err, "Vertex AI Claude 请求失败", {
+      context: { status: response.status },
     });
-    throw new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
+    throw err;
   }
 
   const data = await response.json();

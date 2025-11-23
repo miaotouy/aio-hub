@@ -3,6 +3,7 @@ import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common
 import { fetchWithRetry } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { parseSSEStream } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -12,6 +13,7 @@ import {
 } from "./request-builder";
 
 const logger = createModuleLogger("ClaudeApi");
+const errorHandler = createModuleErrorHandler("ClaudeApi");
 
 /**
  * Claude API 消息内容块类型
@@ -386,11 +388,13 @@ const parseClaudeSSE = async (
             logger.debug("流结束");
             break;
 
-          case "error":
-            logger.error("流错误", new Error(event.error?.message), {
-              errorType: event.error?.type,
+          case "error": {
+            const err = new Error(event.error?.message || "未知流错误");
+            errorHandler.error(err, "流错误", {
+              context: { errorType: event.error?.type },
             });
-            throw new Error(`Claude API 错误: ${event.error?.message}`);
+            throw err;
+          }
         }
       } catch (parseError) {
         logger.warn("解析流数据失败", { data, error: parseError });
@@ -523,10 +527,11 @@ export const callClaudeApi = async (
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("Claude API 请求失败", new Error(errorText), {
-        status: response.status,
+      const err = new Error(`Claude API 请求失败 (${response.status}): ${errorText}`);
+      errorHandler.error(err, "Claude API 请求失败", {
+        context: { status: response.status },
       });
-      throw new Error(`Claude API 请求失败 (${response.status}): ${errorText}`);
+      throw err;
     }
 
     if (!response.body) {
@@ -561,10 +566,11 @@ export const callClaudeApi = async (
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.error("Claude API 请求失败", new Error(errorText), {
-      status: response.status,
+    const err = new Error(`Claude API 请求失败 (${response.status}): ${errorText}`);
+    errorHandler.error(err, "Claude API 请求失败", {
+      context: { status: response.status },
     });
-    throw new Error(`Claude API 请求失败 (${response.status}): ${errorText}`);
+    throw err;
   }
 
   const data: ClaudeResponse = await response.json();

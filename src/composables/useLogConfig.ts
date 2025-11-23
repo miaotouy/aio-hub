@@ -7,8 +7,10 @@ import { watch } from "vue";
 import { logger, LogLevel } from "@/utils/logger";
 import { loadAppSettings, type AppSettings } from "@/utils/appSettings";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const moduleLogger = createModuleLogger("useLogConfig");
+const errorHandler = createModuleErrorHandler("useLogConfig");
 
 export function useLogConfig() {
   /**
@@ -44,7 +46,7 @@ export function useLogConfig() {
         bufferSize: settings.logBufferSize,
       });
     } catch (error) {
-      moduleLogger.error("应用日志配置失败", error);
+      errorHandler.error(error, "应用日志配置失败", { showToUser: false });
     }
   };
 
@@ -56,7 +58,7 @@ export function useLogConfig() {
       const settings = await loadAppSettings();
       applyLogConfig(settings);
     } catch (error) {
-      moduleLogger.error("初始化日志配置失败", error);
+      errorHandler.error(error, "初始化日志配置失败", { showToUser: false });
     }
   };
 

@@ -8,9 +8,11 @@ import { getProviderTypeInfo } from "../config/llm-providers";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { fetchWithRetry } from "./common";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "../config/model-metadata";
 
 const logger = createModuleLogger("ModelFetcher");
+const errorHandler = createModuleErrorHandler("ModelFetcher");
 
 /**
  * 从 API 获取模型列表
@@ -55,9 +57,11 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
 
     return models;
   } catch (error) {
-    logger.error("获取模型列表失败", error, {
-      profileName: profile.name,
-      providerType: profile.type,
+    errorHandler.error(error, "获取模型列表失败", {
+      context: {
+        profileName: profile.name,
+        providerType: profile.type,
+      },
     });
     throw error;
   }

@@ -10,6 +10,7 @@ import { listen, emit as tauriEmit, type UnlistenFn as TauriUnlistenFn } from '@
 import { getCurrentWebviewWindow, getAllWebviewWindows } from '@tauri-apps/api/webviewWindow';
 import { getOrCreateInstance } from '@/utils/singleton';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import type {
   WindowType,
   WindowMessageType,
@@ -30,6 +31,7 @@ import type {
 } from '@/types/window-sync';
 
 const logger = createModuleLogger('WindowSyncBus');
+const errorHandler = createModuleErrorHandler('WindowSyncBus');
 
 /**
  * 窗口同步总线类
@@ -127,7 +129,7 @@ class WindowSyncBus {
       this.initialized = true;
       logger.info('WindowSyncBus 核心监听器初始化完成');
     } catch (error) {
-      logger.error('WindowSyncBus 初始化失败', error as Error);
+      errorHandler.error(error, 'WindowSyncBus 初始化失败');
       throw error;
     }
   }
@@ -178,7 +180,7 @@ class WindowSyncBus {
         await tauriEmit('window-sync-message', message);
       }
     } catch (error) {
-      logger.error('发送消息失败', error as Error, { type, target });
+      errorHandler.error(error, '发送消息失败', { context: { type, target } });
     }
   }
 
@@ -231,7 +233,7 @@ class WindowSyncBus {
         try {
           handler(message.payload, message);
         } catch (error) {
-          logger.error('消息处理器执行失败', error as Error, { type: message.type });
+          errorHandler.error(error, '消息处理器执行失败', { context: { type: message.type } });
         }
       }
     }
@@ -258,7 +260,7 @@ class WindowSyncBus {
       try {
         handler(message.from, windowInfo);
       } catch (error) {
-        logger.error('连接处理器执行失败', error as Error);
+        errorHandler.error(error, '连接处理器执行失败');
       }
     }
 
@@ -394,7 +396,7 @@ class WindowSyncBus {
         try {
           handler(label, windowInfo);
         } catch (error) {
-          logger.error('断开处理器执行失败', error as Error);
+          errorHandler.error(error, '断开处理器执行失败');
         }
       }
     }
@@ -411,7 +413,7 @@ class WindowSyncBus {
         try {
           handler();
         } catch (error) {
-          logger.error('重连处理器执行失败', error as Error);
+          errorHandler.error(error, '重连处理器执行失败');
         }
       }
     } else {

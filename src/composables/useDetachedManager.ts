@@ -2,10 +2,12 @@ import { ref, computed, readonly } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getOrCreateInstance } from "@/utils/singleton";
 import { type AppSettings, loadAppSettings } from "@/utils/appSettings";
 
 const logger = createModuleLogger("DetachedManager");
+const errorHandler = createModuleErrorHandler("DetachedManager");
 
 export interface DetachedWindow {
   label: string;
@@ -126,7 +128,7 @@ const useDetachedWindowManager = () => {
         }
       });
     } catch (error) {
-      logger.error("初始化分离窗口管理器失败", error);
+      errorHandler.error(error, "初始化分离窗口管理器失败");
     }
   };
 
@@ -183,7 +185,7 @@ const useDetachedWindowManager = () => {
       logger.info("工具窗口创建成功", { result });
       return true;
     } catch (error) {
-      logger.error("创建工具窗口失败", error, { config });
+      errorHandler.error(error, "创建工具窗口失败", { context: { config } });
       return false;
     }
   };
@@ -198,7 +200,7 @@ const useDetachedWindowManager = () => {
       logger.info("窗口聚焦成功", { label });
       return true;
     } catch (error) {
-      logger.error("聚焦窗口失败", error, { label });
+      errorHandler.error(error, "聚焦窗口失败", { context: { label } });
       return false;
     }
   };
@@ -214,7 +216,7 @@ const useDetachedWindowManager = () => {
       }
       return adjusted;
     } catch (error) {
-      logger.error("调整窗口位置失败", error, { label });
+      errorHandler.error(error, "调整窗口位置失败", { context: { label }, showToUser: false });
       return false;
     }
   };
@@ -248,7 +250,7 @@ const useDetachedWindowManager = () => {
       logger.info("窗口关闭成功", { label: labelToClose });
       return true;
     } catch (error) {
-      logger.error("关闭窗口失败", error, { label: labelToClose, id });
+      errorHandler.error(error, "关闭窗口失败", { context: { label: labelToClose, id } });
       return false;
     }
   };

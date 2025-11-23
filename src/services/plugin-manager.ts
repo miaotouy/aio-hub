@@ -11,9 +11,11 @@ import { useToolsStore } from "@/stores/tools";
 import type { ToolConfig } from "@/services/types";
 import { markRaw, h, type Component } from "vue";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginStateService } from "./plugin-state.service";
 
 const logger = createModuleLogger("services/plugin-manager");
+const errorHandler = createModuleErrorHandler("services/plugin-manager");
 
 /**
  * 检查字符串是否为单个 Emoji
@@ -93,7 +95,7 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
       });
     }
   } catch (error) {
-    logger.error("创建插件图标失败", { pluginPath, iconConfig, error });
+    errorHandler.error(error, "创建插件图标失败", { context: { pluginPath, iconConfig } });
     // 返回默认图标
     return markRaw({
       template:
@@ -182,10 +184,11 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
         return module.default;
       }
     } catch (error) {
-      logger.error("插件组件加载失败", {
-        pluginPath,
-        componentFile,
-        error,
+      errorHandler.error(error, "插件组件加载失败", {
+        context: {
+          pluginPath,
+          componentFile,
+        },
       });
       throw new Error(
         `加载插件组件失败: ${error instanceof Error ? error.message : String(error)}`
@@ -289,7 +292,7 @@ class PluginManager {
             logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
           }
         } catch (error) {
-          logger.error(`注册插件UI失败: ${plugin.manifest.id}`, error);
+          errorHandler.error(error, '注册插件UI失败', { context: { pluginId: plugin.manifest.id } });
         }
       }
     }
@@ -317,7 +320,7 @@ class PluginManager {
     try {
       unregisterPluginUi(pluginId);
     } catch (error) {
-      logger.error(`移除插件UI失败: ${pluginId}`, error);
+      errorHandler.error(error, '移除插件UI失败', { context: { pluginId } });
     }
 
     // 2. 从服务注册表注销
@@ -410,7 +413,7 @@ class PluginManager {
                 logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
               }
             } catch (error) {
-              logger.error(`注册插件UI失败: ${plugin.manifest.id}`, error);
+              errorHandler.error(error, '注册插件UI失败', { context: { pluginId: plugin.manifest.id } });
             }
           }
         }
@@ -418,7 +421,7 @@ class PluginManager {
 
       return result;
     } catch (error) {
-      logger.error(`从 ZIP 安装插件失败`, error);
+      errorHandler.error(error, `从 ZIP 安装插件失败`);
       throw error;
     }
   }

@@ -1,7 +1,9 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@utils/errorHandler';
 
 const logger = createModuleLogger('WindowResize');
+const errorHandler = createModuleErrorHandler('WindowResize');
 
 /**
  * Tauri v2 调整方向类型
@@ -103,10 +105,7 @@ export function useWindowResize() {
       await window.startResizeDragging(direction as any);
       logger.info('窗口调整完成', { direction });
     } catch (error: any) {
-      logger.error('窗口调整失败', {
-        direction,
-        error: String(error),
-      });
+      errorHandler.error(error, '窗口调整失败', { context: { direction } });
     }
   };
 

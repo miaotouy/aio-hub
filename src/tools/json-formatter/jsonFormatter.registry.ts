@@ -1,7 +1,9 @@
 import type { ToolService } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('services/json-formatter');
+const errorHandler = createModuleErrorHandler('services/json-formatter');
 
 /**
  * JSON 格式化选项
@@ -87,7 +89,7 @@ export default class JsonFormatterService implements ToolService {
       };
     } catch (error: any) {
       const errorMessage = `JSON 解析错误: ${error.message}`;
-      logger.error('JSON 解析失败', error);
+      errorHandler.error(error, 'JSON 解析失败');
       return {
         data: null,
         success: false,
@@ -143,7 +145,7 @@ export default class JsonFormatterService implements ToolService {
       };
     } catch (error: any) {
       const errorMessage = `格式化失败: ${error.message}`;
-      logger.error('JSON 格式化失败', error);
+      errorHandler.error(error, 'JSON 格式化失败');
       return {
         formatted: '',
         parsed: parseResult.data,
@@ -266,9 +268,8 @@ export default class JsonFormatterService implements ToolService {
 
       reader.onerror = (e) => {
         const error = `读取文件失败: ${e.target?.error?.message || '未知错误'}`;
-        logger.error('文件读取失败', {
-          fileName: file.name,
-          error: e.target?.error,
+        errorHandler.error(e.target?.error || new Error('Unknown error'), '文件读取失败', {
+          context: { fileName: file.name },
         });
         resolve({
           content: '',

@@ -1,7 +1,9 @@
 import type { ToolService } from "./types";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("services/registry");
+const errorHandler = createModuleErrorHandler("services/registry");
 
 /**
  * 服务注册表
@@ -35,7 +37,7 @@ class ServiceRegistry {
         this.services.set(instance.id, instance);
         logger.debug(`服务 "${instance.id}" 注册成功`);
       } catch (error) {
-        logger.error(`服务 "${instance.id}" 注册失败`, error);
+        errorHandler.error(error, '服务注册失败', { context: { serviceId: instance.id } });
         throw error;
       }
     }
@@ -114,7 +116,7 @@ class ServiceRegistry {
       logger.info(`服务 "${id}" 已注销`);
       return true;
     } catch (error) {
-      logger.error(`注销服务 "${id}" 时出错`, error);
+      errorHandler.error(error, '注销服务时出错', { context: { serviceId: id } });
       throw error;
     }
   }
@@ -132,7 +134,7 @@ class ServiceRegistry {
           logger.debug(`服务 "${id}" 已清理`);
         }
       } catch (error) {
-        logger.error(`清理服务 "${id}" 时出错`, error);
+        errorHandler.error(error, '清理服务时出错', { context: { serviceId: id } });
       }
     }
 

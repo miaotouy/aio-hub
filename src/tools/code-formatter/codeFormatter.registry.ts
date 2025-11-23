@@ -1,5 +1,6 @@
 import type { ToolService } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 // prettier standalone 版本（浏览器兼容）
 import * as prettier from 'prettier/standalone';
@@ -11,6 +12,7 @@ import * as parserTypeScript from 'prettier/plugins/typescript';
 import * as parserEstree from 'prettier/plugins/estree';
 
 const logger = createModuleLogger('services/code-formatter');
+const errorHandler = createModuleErrorHandler('services/code-formatter');
 
 // 缓存动态加载的插件
 let prettierPluginPhp: any = null;
@@ -140,7 +142,7 @@ export default class CodeFormatterService implements ToolService {
       };
     } catch (error: any) {
       const errorMessage = `格式化错误: ${error.message}`;
-      logger.error('代码格式化失败', { language, error });
+      errorHandler.error(error, '代码格式化失败', { context: { language } });
 
       return {
         formatted: code, // 返回原始代码
@@ -199,7 +201,7 @@ export default class CodeFormatterService implements ToolService {
             prettierPluginPhp = await import('@prettier/plugin-php/standalone');
             logger.info('PHP 插件加载成功');
           } catch (e) {
-            logger.error('PHP 插件加载失败', e);
+            errorHandler.error(e, 'PHP 插件加载失败');
             return {
               plugins: [],
               parser: '',
@@ -221,7 +223,7 @@ export default class CodeFormatterService implements ToolService {
             prettierPluginXml = await import('@prettier/plugin-xml');
             logger.info('XML 插件加载成功');
           } catch (e) {
-            logger.error('XML 插件加载失败', e);
+            errorHandler.error(e, 'XML 插件加载失败');
             return {
               plugins: [],
               parser: '',

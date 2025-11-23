@@ -2,10 +2,12 @@ import { ref, onMounted, onUnmounted, Ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { customMessage } from '@/utils/customMessage'
 import { createModuleLogger } from '@utils/logger'
+import { createModuleErrorHandler } from '@/utils/errorHandler'
 import { useFileDrop, type FileDropOptions } from './useFileDrop'
 import type { Asset } from '@/types/asset-management'
 
 const logger = createModuleLogger('useFileInteraction')
+const errorHandler = createModuleErrorHandler('useFileInteraction')
 
 // 文件交互选项接口
 export interface FileInteractionOptions extends Omit<FileDropOptions, 'onDrop'> {
@@ -137,11 +139,13 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
           type: file.type,
         })
       } catch (error) {
-        logger.error('文件转换为 Asset 失败', error, {
-          filename: file.name,
-          type: file.type,
-        })
-        throw error
+        // 这里不向上抛出错误，以免中断整个粘贴过程
+        errorHandler.error(error, `文件 ${file.name} 转换为 Asset 失败`, {
+          context: {
+            filename: file.name,
+            type: file.type,
+          }
+        });
       }
     }
     
@@ -218,8 +222,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         }
       }
     } catch (error) {
-      logger.error('粘贴文件失败', error)
-      customMessage.error('粘贴文件失败')
+      errorHandler.error(error, '粘贴文件失败');
     } finally {
       isPasting.value = false
     }

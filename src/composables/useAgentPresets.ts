@@ -7,8 +7,10 @@
 import { ref, computed } from 'vue';
 import type { AgentPreset } from '@/tools/llm-chat/types';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('AgentPresets');
+const errorHandler = createModuleErrorHandler('AgentPresets');
 
 // 使用 Vite 的 import.meta.glob 自动发现和加载所有预设文件
 // eager: true 表示在模块加载时立即导入，而不是懒加载
@@ -62,7 +64,7 @@ export function useAgentPresets() {
 
       logger.info('智能体预设加载成功', { presetCount: loadedPresets.length });
     } catch (error) {
-      logger.error('加载智能体预设失败', error);
+      errorHandler.error(error, '加载智能体预设失败');
       presets.value = [];
       isLoaded.value = true;
     }

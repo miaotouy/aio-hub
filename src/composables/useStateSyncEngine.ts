@@ -8,9 +8,11 @@ import { ref, onUnmounted, type Ref, isRef, watch, nextTick, getCurrentInstance 
 import { useWindowSyncBus } from './useWindowSyncBus';
 import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator } from '@/utils/sync-helpers';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import type { StateSyncConfig, StateSyncPayload, JsonPatchOperation, BaseMessage, StateKey } from '@/types/window-sync';
 
 const logger = createModuleLogger('StateSyncEngine');
+const errorHandler = createModuleErrorHandler('StateSyncEngine');
 
 // ==========================================
 // 全局同步源注册中心
@@ -45,7 +47,7 @@ function initRegistryListeners() {
     for (const source of syncRegistry) {
       // 强制推送全量状态给请求者（静默模式）
       source.pushState(true, requesterLabel, true).catch(err => {
-        logger.error('批量推送状态失败', err, { stateKey: source.stateKey });
+        errorHandler.error(err, '批量推送状态失败', { context: { stateKey: source.stateKey }, showToUser: false });
       });
     }
     
@@ -59,7 +61,7 @@ function initRegistryListeners() {
     for (const source of syncRegistry) {
       // 广播全量状态（静默模式）
       source.pushState(true, undefined, true).catch(err => {
-        logger.error('广播状态失败', err, { stateKey: source.stateKey });
+        errorHandler.error(err, '广播状态失败', { context: { stateKey: source.stateKey }, showToUser: false });
       });
     }
     
@@ -191,7 +193,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       stateVersion.value = payload.version;
       lastSyncedValue = safeDeepClone(state.value);
     } catch (error) {
-      logger.error('应用状态更新失败', error as Error, { stateKey });
+      errorHandler.error(error as Error, '应用状态更新失败', { context: { stateKey }, showToUser: false });
     } finally {
       // 【关键修复】使用 nextTick 延迟重置标志位
       // 确保在 Vue 的响应式系统完成更新、watch 回调执行之后再允许推送

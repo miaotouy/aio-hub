@@ -43,11 +43,11 @@ import { ElCard, ElButton } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { CopyDocument } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
-// 创建日志实例
-const logger = createModuleLogger("InfoCard");
+// 创建错误处理器
+const errorHandler = createModuleErrorHandler("InfoCard");
 
 const { appearanceSettings } = useThemeAppearance();
 
@@ -94,11 +94,10 @@ const copyContent = async () => {
     await writeText(content.value);
     customMessage.success("已复制到剪贴板！");
   } catch (error) {
-    logger.error("复制内容到剪贴板失败", error, {
+    errorHandler.error(error, "复制内容到剪贴板失败", {
       title: title.value,
-      contentLength: content.value.length,
+      contentLength: content.value?.length,
     });
-    customMessage.error("复制失败");
   }
 };
 </script>

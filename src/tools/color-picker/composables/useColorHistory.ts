@@ -11,10 +11,12 @@ import { appDataDir, join } from '@tauri-apps/api/path';
 import { createConfigManager } from '@/utils/configManager';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { nanoid } from 'nanoid';
 import type { ColorAnalysisResult, ManualColor } from '../colorPicker.store';
 
 const logger = createModuleLogger('color-picker/history');
+const errorHandler = createModuleErrorHandler('color-picker/history');
 
 const MODULE_NAME = 'color-picker';
 const HISTORY_SUBDIR = 'history';
@@ -135,7 +137,7 @@ export function useColorHistory() {
       const content = await readTextFile(recordPath);
       return JSON.parse(content);
     } catch (error) {
-      logger.error('加载历史记录失败', error, { recordId });
+      errorHandler.error(error, '加载历史记录失败', { context: { recordId } });
       return null;
     }
   }
@@ -230,7 +232,7 @@ export function useColorHistory() {
       logger.info('新的颜色分析历史记录已添加', { recordId: record.id });
       return record;
     } catch (error) {
-      logger.error('添加历史记录失败', error, { record });
+      errorHandler.error(error, '添加历史记录失败', { context: { recordId: record.id } });
       throw error;
     }
   }
@@ -274,7 +276,7 @@ export function useColorHistory() {
 
       logger.debug('历史记录已更新', { recordId });
     } catch (error) {
-      logger.error('更新历史记录失败', error, { recordId });
+      errorHandler.error(error, '更新历史记录失败', { context: { recordId } });
       throw error;
     }
   }
@@ -300,7 +302,7 @@ export function useColorHistory() {
         await removeSourceFromAsset(assetId, MODULE_NAME);
         logger.info('已从资产移除 color-picker 来源', { assetId });
       } catch (assetError) {
-        logger.error('移除资产来源失败', assetError, { assetId });
+        errorHandler.error(assetError, '移除资产来源失败', { context: { assetId } });
         // 即使资产来源移除失败，也继续删除记录
       }
 
@@ -315,7 +317,7 @@ export function useColorHistory() {
 
       logger.info('历史记录已删除', { recordId });
     } catch (error) {
-      logger.error('删除历史记录失败', error, { recordId });
+      errorHandler.error(error, '删除历史记录失败', { context: { recordId } });
       throw error;
     }
   }
@@ -348,7 +350,7 @@ export function useColorHistory() {
       
       logger.info('已清空所有历史记录');
     } catch (error) {
-      logger.error('清空历史记录失败', error);
+      errorHandler.error(error, '清空历史记录失败');
       throw error;
     }
   }

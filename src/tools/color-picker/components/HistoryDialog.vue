@@ -8,6 +8,7 @@ import { calculateColorDistance } from '../composables/useColorConverter';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { useImageViewer } from '@/composables/useImageViewer';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { customMessage } from '@/utils/customMessage';
 import { format } from 'date-fns';
 import BaseDialog from '@/components/common/BaseDialog.vue';
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const logger = createModuleLogger('ColorPickerHistoryDialog');
+const errorHandler = createModuleErrorHandler('ColorPickerHistoryDialog');
 const { loadHistoryIndex, deleteRecord, clearAllRecords } = useColorHistory();
 const { getAssetBasePath, convertToAssetProtocol } = useAssetManager();
 const imageViewer = useImageViewer();
@@ -91,8 +93,7 @@ async function fetchHistory() {
     allHistory.value = index.records;
     // hasMore 的初始状态会在 watch(filteredHistory) 中被正确设置，因为 allHistory 赋值会触发 computed 更新
   } catch (error) {
-    logger.error('加载历史记录索引失败', error);
-    customMessage.error('加载历史记录失败');
+    errorHandler.error(error, '加载历史记录索引失败');
   }
 }
 
@@ -128,7 +129,7 @@ async function loadMore() {
   try {
     await loadPage(currentPage.value + 1);
   } catch (error) {
-    logger.error('加载更多历史记录失败', error);
+    errorHandler.error(error, '加载更多历史记录失败');
   } finally {
     isLoadingMore.value = false;
   }
@@ -186,7 +187,7 @@ function handlePreview(record: ColorHistoryIndexItem) {
       imageViewer.show(fullImageUrl);
     }
   } catch (error) {
-    logger.error('预览图片失败', error, { recordId: record.id });
+    errorHandler.error(error, '预览图片失败', { context: { recordId: record.id } });
   }
 }
 
@@ -222,8 +223,7 @@ async function handleDelete(record: ColorHistoryIndexItem) {
     logger.info('历史记录已删除', { recordId: record.id });
   } catch (error) {
     if (error !== 'cancel') {
-      logger.error('删除历史记录失败', error, { recordId: record.id });
-      customMessage.error('删除失败');
+      errorHandler.error(error, '删除历史记录失败', { context: { recordId: record.id } });
     }
   }
 }
@@ -250,8 +250,7 @@ async function handleClearAll() {
     logger.info('已清空所有历史记录');
   } catch (error) {
     if (error !== 'cancel') {
-      logger.error('清空历史记录失败', error);
-      customMessage.error('清空失败');
+      errorHandler.error(error, '清空历史记录失败');
     }
   }
 }
@@ -264,7 +263,7 @@ watch(
         try {
           assetBasePath.value = await getAssetBasePath();
         } catch (error) {
-          logger.error('获取资产根目录失败', error);
+          errorHandler.error(error, '获取资产根目录失败');
         }
       }
       fetchHistory();

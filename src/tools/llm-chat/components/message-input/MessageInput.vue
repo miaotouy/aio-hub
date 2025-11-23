@@ -35,6 +35,13 @@ const isStreamingEnabled = computed(() => {
   return settingsLoaded.value ? settings.value.uiPreferences.isStreaming : false;
 });
 
+// 计算当前分支是否正在生成
+const isCurrentBranchGenerating = computed(() => {
+  const session = chatStore.currentSession;
+  if (!session || !session.activeLeafId) return false;
+  return chatStore.isNodeGenerating(session.activeLeafId);
+});
+
 // Token 计数相关
 const tokenCount = ref<number>(0);
 const isCalculatingTokens = ref(false);
@@ -46,7 +53,7 @@ const isLoadingContextStats = ref(false);
 
 // 切换流式输出模式
 const toggleStreaming = () => {
-  if (!props.isSending) {
+  if (!isCurrentBranchGenerating.value) {
     updateSettings({
       uiPreferences: {
         ...settings.value.uiPreferences,
@@ -154,7 +161,13 @@ const handleSend = () => {
 
 // 处理中止
 const handleAbort = () => {
-  emit("abort");
+  const session = chatStore.currentSession;
+  if (session && session.activeLeafId && isCurrentBranchGenerating.value) {
+    chatStore.abortNodeGeneration(session.activeLeafId);
+  } else {
+    // 回退：如果没有明确的活动节点，尝试中止所有（虽然这种情况很少见）
+    emit("abort");
+  }
 };
 
 const handleTriggerAttachment = async () => {
@@ -420,10 +433,9 @@ const calculateInputTokens = async () => {
   isCalculatingTokens.value = true;
   try {
     // 使用 MessageBuilder 预处理消息，将文本附件合并到文本中
-    const attachments = inputManager.attachmentCount.value > 0
-      ? [...inputManager.attachments.value]
-      : undefined;
-    
+    const attachments =
+      inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
+
     const { combinedText, imageAttachments } = await prepareSimpleMessageForTokenCalc(
       inputText.value,
       attachments
@@ -555,11 +567,11 @@ onMounted(async () => {
   // 加载聊天设置（确保 isLoaded 标志被设置）
   if (!settingsLoaded.value) {
     await loadSettings();
-    logger.info('MessageInput 聊天设置已加载', {
-      isStreaming: settings.value.uiPreferences.isStreaming
+    logger.info("MessageInput 聊天设置已加载", {
+      isStreaming: settings.value.uiPreferences.isStreaming,
     });
   }
-  
+
   loadContextStats();
 });
 /**
@@ -753,7 +765,7 @@ const handlePaste = async (event: ClipboardEvent) => {
             @paste="handlePaste"
           />
           <MessageInputToolbar
-            :is-sending="isSending"
+            :is-sending="isCurrentBranchGenerating"
             :disabled="disabled"
             :is-detached="props.isDetached"
             :is-expanded="isExpanded"
@@ -1014,7 +1026,7 @@ const handlePaste = async (event: ClipboardEvent) => {
 
 /* 弧度线段视觉效果 */
 .message-input-container.detached-mode .indicator-handle::before {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   right: 0;

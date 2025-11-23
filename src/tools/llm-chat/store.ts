@@ -467,8 +467,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   async function sendMessage(content: string, attachments?: Asset[]): Promise<void> {
     const session = currentSession.value;
     if (!session) throw new Error("请先创建或选择一个会话");
-    if (isSending.value) {
-      logger.warn("发送消息失败：正在发送中", { sessionId: session.id });
+
+    // 检查当前活动分支是否正在生成
+    if (session.activeLeafId && generatingNodes.value.has(session.activeLeafId)) {
+      logger.warn("发送消息失败：当前分支正在生成中", {
+        sessionId: session.id,
+        nodeId: session.activeLeafId,
+      });
       return;
     }
 

@@ -62,15 +62,16 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { ElButton, ElEmpty } from "element-plus";
-import { customMessage } from "@/utils/customMessage";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import InfoCard from "@components/common/InfoCard.vue";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useMediaInfoParser } from "./composables/useMediaInfoParser";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 
 const logger = createModuleLogger("MediaInfoReader");
+const errorHandler = createModuleErrorHandler("MediaInfoReader");
 
 // 使用 composable 获取解析功能
 const { parseImageBuffer } = useMediaInfoParser();
@@ -132,8 +133,7 @@ const openFilePicker = async () => {
       await parseImageFromBuffer(fileArray, path);
     }
   } catch (error) {
-    logger.error("打开文件选择器失败", error);
-    customMessage.error("打开文件失败");
+    errorHandler.error(error, "打开文件失败");
   }
 };
 
@@ -167,8 +167,7 @@ const parseImageFromBuffer = async (buffer: Uint8Array, fileName?: string) => {
 
     logger.debug("图片解析成功", { fileName });
   } catch (error) {
-    logger.error("解析图片信息失败", error, { fileName });
-    customMessage.error("解析图片信息失败");
+    errorHandler.error(error, "解析图片信息失败", { context: { fileName } });
     webuiInfo.value = { positivePrompt: "", negativePrompt: "", generationInfo: "" };
     comfyuiWorkflow.value = "";
     stCharacterInfo.value = "";
@@ -196,8 +195,7 @@ const handlePaths = async (paths: string[]) => {
     // 解析图片
     await parseImageFromBuffer(fileArray, path);
   } catch (error) {
-    logger.error("读取拖放的文件失败", error, { path });
-    customMessage.error("读取文件失败");
+    errorHandler.error(error, "读取文件失败", { context: { path } });
   }
 };
 

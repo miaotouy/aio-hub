@@ -17,10 +17,10 @@ import {
 } from "@element-plus/icons-vue";
 import type { OcrResult, UploadedImage, ImageBlock } from "../types";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
 
-const logger = createModuleLogger("smart-ocr/ResultPanel");
+const errorHandler = createModuleErrorHandler("smart-ocr/ResultPanel");
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
@@ -91,11 +91,12 @@ const copyText = async (text: string, context: string = "单个结果") => {
     await writeText(text);
     customMessage.success("已复制到剪贴板");
   } catch (error) {
-    logger.error(`复制${context}到剪贴板失败`, error, {
-      context,
-      textLength: text.length,
+    errorHandler.error(error as Error, `复制${context}到剪贴板失败`, {
+      context: {
+        context,
+        textLength: text.length,
+      },
     });
-    customMessage.error("复制失败");
   }
 };
 
@@ -203,7 +204,6 @@ const isBlockCollapsed = (blockId: string) => {
 const startEdit = (blockId: string, currentText: string) => {
   editingBlockId.value = blockId;
   editingText.value = currentText;
-  logger.info("开始编辑文本", { blockId, textLength: currentText.length });
 };
 
 // 保存编辑
@@ -218,7 +218,6 @@ const saveEdit = () => {
     editingText.value = "";
 
     customMessage.success("文本已更新");
-    logger.info("保存编辑", { blockId, textLength: newText.length });
   }
 };
 
@@ -226,7 +225,6 @@ const saveEdit = () => {
 const cancelEdit = () => {
   editingBlockId.value = null;
   editingText.value = "";
-  logger.info("取消编辑");
 };
 
 // 检查是否正在编辑

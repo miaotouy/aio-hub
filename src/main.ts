@@ -15,7 +15,7 @@ import { listen } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia"; // 导入 Pinia
-import { errorHandler, ErrorLevel } from "./utils/errorHandler";
+import { errorHandler, ErrorLevel, createModuleErrorHandler } from "./utils/errorHandler";
 import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
 import { loadAppSettingsAsync, type AppSettings } from "./utils/appSettings";
 import { initTheme } from "./composables/useTheme";
@@ -25,6 +25,7 @@ import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
 
 const logger = createModuleLogger("Main");
+const moduleErrorHandler = createModuleErrorHandler("Main");
 
 /**
  * 应用日志配置到 logger 实例
@@ -59,7 +60,7 @@ const applyLogConfig = (settings: AppSettings) => {
       bufferSize: settings.logBufferSize,
     });
   } catch (error) {
-    logger.error("应用日志配置失败", error);
+    moduleErrorHandler.error(error, "应用日志配置失败", { showToUser: false });
   }
 };
 
@@ -116,11 +117,6 @@ app.config.globalProperties.$message = customMessage;
 
 // 全局错误处理
 app.config.errorHandler = (err, instance, info) => {
-  logger.error("Vue 全局错误", err, {
-    componentName: instance?.$options?.name || "Unknown",
-    errorInfo: info,
-  });
-
   errorHandler.handle(err, {
     module: "Vue",
     level: ErrorLevel.ERROR,
@@ -143,10 +139,6 @@ app.config.warnHandler = (msg, instance, trace) => {
 
 // 未捕获的 Promise 错误
 window.addEventListener("unhandledrejection", (event) => {
-  logger.error("未捕获的 Promise 错误", event.reason, {
-    promise: event.promise,
-  });
-
   errorHandler.handle(event.reason, {
     module: "Promise",
     level: ErrorLevel.ERROR,
@@ -164,13 +156,6 @@ window.addEventListener("error", (event) => {
     event.preventDefault();
     return;
   }
-
-  logger.error("全局错误", event.error, {
-    message: event.message,
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-  });
 
   errorHandler.handle(event.error, {
     module: "Global",
@@ -213,7 +198,6 @@ const initializeApp = async () => {
     app.mount("#app");
     logger.info("应用挂载完成");
   } catch (error) {
-    logger.error("应用初始化失败", error);
     // 可以在这里显示一个全局的错误提示
     errorHandler.handle(error, {
       module: "Main",

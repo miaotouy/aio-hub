@@ -19,9 +19,11 @@ const ContextAnalyzerDialog = defineAsyncComponent(
   () => import("./components/context-analyzer/ContextAnalyzerDialog.vue")
 );
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { initializeMacroEngine } from "./macro-engine";
 
 const logger = createModuleLogger("LlmChat");
+const errorHandler = createModuleErrorHandler("LlmChat");
 const isLoading = ref(true);
 const store = useLlmChatStore();
 const agentStore = useAgentStore();
@@ -148,7 +150,7 @@ onMounted(async () => {
         handleNewSession({ agentId: agentStore.currentAgentId });
       }
     } catch (error) {
-      logger.error("主窗口初始化LLM Chat模块失败", error);
+      errorHandler.error(error, "主窗口初始化LLM Chat模块失败", { showToUser: false });
     } finally {
       isLoading.value = false;
     }
@@ -173,7 +175,7 @@ onMounted(async () => {
       initializeSync();
       logger.info("分离窗口：状态同步引擎已启动（用于跨窗口同步）");
     } catch (error) {
-      logger.error("分离窗口初始化LLM Chat模块失败", error);
+      errorHandler.error(error, "分离窗口初始化LLM Chat模块失败", { showToUser: false });
     } finally {
       isLoading.value = false;
     }

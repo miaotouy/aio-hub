@@ -18,12 +18,14 @@ import { useUserProfileStore } from "../userProfileStore";
 import { useNodeManager } from "./useNodeManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useChatExecutor } from "./useChatExecutor";
 import { useChatContextBuilder, type ContextPreviewData } from "./useChatContextBuilder";
 import { useMessageProcessor } from "./useMessageProcessor";
 import { useMacroProcessor } from "./useMacroProcessor";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
+const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
 
 export type { ContextPreviewData };
 
@@ -58,7 +60,9 @@ export function useChatHandler() {
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
-      logger.error("发送消息失败：没有选中智能体", new Error("No agent selected"));
+      errorHandler.error(new Error("No agent selected"), "发送消息失败：没有选中智能体", {
+        showToUser: false,
+      });
       throw new Error("请先选择一个智能体");
     }
 
@@ -66,7 +70,11 @@ export function useChatHandler() {
       parameterOverrides: session.parameterOverrides,
     });
     if (!agentConfig) {
-      logger.error("发送消息失败：无法获取智能体配置", new Error("Agent config not found"));
+      errorHandler.error(
+        new Error("Agent config not found"),
+        "发送消息失败：无法获取智能体配置",
+        { showToUser: false }
+      );
       throw new Error("无法获取智能体配置");
     }
 
@@ -182,7 +190,9 @@ export function useChatHandler() {
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
-      logger.error("重新生成失败：没有选中智能体", new Error("No agent selected"));
+      errorHandler.error(new Error("No agent selected"), "重新生成失败：没有选中智能体", {
+        showToUser: false,
+      });
       return;
     }
 
@@ -191,7 +201,11 @@ export function useChatHandler() {
     });
 
     if (!agentConfig) {
-      logger.error("重新生成失败：无法获取智能体配置", new Error("Agent config not found"));
+      errorHandler.error(
+        new Error("Agent config not found"),
+        "重新生成失败：无法获取智能体配置",
+        { showToUser: false }
+      );
       return;
     }
 

@@ -26,10 +26,12 @@ import {
 } from "@/utils/sync-helpers";
 import { CHAT_STATE_KEYS } from "../types/sync";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { Asset } from "@/types/asset-management";
 import type { StateSyncPayload, JsonPatchOperation } from "@/types/window-sync";
 
 const logger = createModuleLogger("ChatInputManager");
+const errorHandler = createModuleErrorHandler("ChatInputManager");
 
 const STORAGE_KEY = "llm-chat-input-draft";
 
@@ -196,7 +198,7 @@ class ChatInputManager {
         this.stateVersion = payload.version;
         this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
       } catch (error) {
-        logger.error("应用输入状态更新失败", error as Error);
+        errorHandler.error(error as Error, "应用输入状态更新失败", { showToUser: false });
       } finally {
         this.isApplyingSyncState = false;
       }
@@ -305,7 +307,7 @@ class ChatInputManager {
         }
       }
     } catch (error) {
-      logger.error("恢复输入状态失败", error);
+      errorHandler.error(error, "恢复输入状态失败", { showToUser: false });
     }
   }
 
@@ -338,7 +340,7 @@ class ChatInputManager {
         attachmentCount: this.attachmentManager.attachments.value.length,
       });
     } catch (error) {
-      logger.error("保存输入状态失败", error);
+      errorHandler.error(error, "保存输入状态失败", { showToUser: false });
     }
   }
 

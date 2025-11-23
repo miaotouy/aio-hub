@@ -13,6 +13,7 @@ import {
   type AppSettings,
 } from "./utils/appSettings";
 import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
+import { createModuleErrorHandler } from "./utils/errorHandler";
 import { applyThemeColors } from "./utils/themeColors";
 import TitleBar from "./components/TitleBar.vue";
 import MainSidebar from "./components/MainSidebar.vue";
@@ -21,6 +22,7 @@ import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
 
 const logger = createModuleLogger("App");
+const errorHandler = createModuleErrorHandler("App");
 const isLoading = ref(true); // 控制骨架屏显示
 
 // 初始化主题，必须在其他操作之前
@@ -154,7 +156,7 @@ onMounted(async () => {
     // 初始化主题外观
     await initThemeAppearance();
   } catch (error) {
-    logger.error("App 初始化失败", error);
+    errorHandler.error(error, "App 初始化失败");
   } finally {
     await nextTick();
     isLoading.value = false;

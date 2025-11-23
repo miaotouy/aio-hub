@@ -16,7 +16,7 @@ import { useOcrHistory } from "../composables/useOcrHistory";
 import type { OcrHistoryIndexItem } from "../types";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
-import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { format } from "date-fns";
 
@@ -30,7 +30,7 @@ const emit = defineEmits<{
   (e: "re-recognize", recordId: string): void;
 }>();
 
-const logger = createModuleLogger("HistoryDialog");
+const errorHandler = createModuleErrorHandler("HistoryDialog");
 const { loadHistoryIndex, deleteRecord, loadFullRecord: loadHistoryRecord } = useOcrHistory();
 const { getAssetBasePath, convertToAssetProtocol } = useAssetManager();
 const imageViewer = useImageViewer();
@@ -145,7 +145,7 @@ async function fetchHistory() {
     // 加载第一页
     await loadPage(1);
   } catch (error) {
-    logger.error("加载历史记录索引失败", error);
+    errorHandler.error(error as Error, "加载历史记录索引失败", { showToUser: false });
   } finally {
     isLoading.value = false;
   }
@@ -179,7 +179,7 @@ async function loadMore() {
   try {
     await loadPage(currentPage.value + 1);
   } catch (error) {
-    logger.error("加载更多历史记录失败", error);
+    errorHandler.error(error as Error, "加载更多历史记录失败", { showToUser: false });
   } finally {
     isLoadingMore.value = false;
   }
@@ -244,7 +244,7 @@ function handlePreview(record: OcrHistoryIndexItem) {
       imageViewer.show(fullImageUrl);
     }
   } catch (error) {
-    logger.error("预览图片失败", error, { recordId: record.id });
+    errorHandler.error(error as Error, "预览图片失败", { context: { recordId: record.id } });
   }
 }
 
@@ -271,10 +271,11 @@ async function handleDelete(record: OcrHistoryIndexItem) {
     // 更新 hasMore 状态
     hasMore.value = displayedHistory.value.length < filteredHistory.value.length;
 
-    logger.info("历史记录已删除", { recordId: record.id });
   } catch (error) {
     if (error !== "cancel") {
-      logger.error("删除历史记录失败", error, { recordId: record.id });
+      errorHandler.error(error as Error, "删除历史记录失败", {
+        context: { recordId: record.id },
+      });
     }
   }
 }
@@ -292,8 +293,7 @@ async function handleCopy(record: OcrHistoryIndexItem) {
       customMessage.warning("未能加载到有效的文本内容");
     }
   } catch (error) {
-    logger.error("复制失败", error, { recordId: record.id });
-    customMessage.error("复制失败");
+    errorHandler.error(error as Error, "复制失败", { context: { recordId: record.id } });
   }
 }
 
@@ -311,7 +311,7 @@ watch(
         try {
           assetBasePath.value = await getAssetBasePath();
         } catch (error) {
-          logger.error("获取资产根目录失败", error);
+          errorHandler.error(error as Error, "获取资产根目录失败", { showToUser: false });
         }
       }
       fetchHistory();

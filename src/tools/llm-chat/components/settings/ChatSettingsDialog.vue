@@ -250,10 +250,12 @@ import {
 } from "../../composables/useChatSettings";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { settingsConfig } from "./settingsConfig";
 import type { SettingComponent, SettingItem } from "./settings-types";
 
 const logger = createModuleLogger("ChatSettingsDialog");
+const errorHandler = createModuleErrorHandler("ChatSettingsDialog");
 const bus = useWindowSyncBus();
 
 interface Props {
@@ -313,8 +315,7 @@ const autoSave = debounce(async () => {
     saveStatus.value = "success";
     lastSaveTime.value = new Date().toLocaleTimeString();
   } catch (error) {
-    logger.error("自动保存设置失败", error as Error);
-    customMessage.error("自动保存设置失败");
+    errorHandler.error(error as Error, "自动保存设置失败");
     saveStatus.value = "error";
   }
 }, 500);

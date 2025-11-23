@@ -11,10 +11,12 @@ import { appDataDir, join } from '@tauri-apps/api/path';
 import { createConfigManager } from '@/utils/configManager';
 import { useAssetManager } from '@/composables/useAssetManager';
 import type { OcrHistoryIndexItem, OcrHistoryRecord, OcrEngineConfig } from '../types';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { createModuleLogger } from '@/utils/logger';
 import { nanoid } from 'nanoid';
 
 const logger = createModuleLogger('smart-ocr/history');
+const errorHandler = createModuleErrorHandler('smart-ocr/history');
 
 const MODULE_NAME = 'smart-ocr';
 const HISTORY_SUBDIR = 'history';
@@ -125,7 +127,10 @@ export function useOcrHistory() {
       const content = await readTextFile(recordPath);
       return JSON.parse(content);
     } catch (error) {
-      logger.error('加载历史记录失败', error, { recordId });
+      errorHandler.error(error as Error, '加载历史记录失败', {
+        context: { recordId },
+        showToUser: false,
+      });
       return null;
     }
   }
@@ -172,7 +177,10 @@ export function useOcrHistory() {
       logger.info('新的 OCR 历史记录已添加', { recordId: record.id });
       return record;
     } catch (error) {
-      logger.error('添加历史记录失败', error, { record });
+      errorHandler.error(error as Error, '添加历史记录失败', {
+        context: { recordId: record.id },
+        showToUser: false,
+      });
       throw error;
     }
   }
@@ -198,7 +206,10 @@ export function useOcrHistory() {
         await removeSourceFromAsset(assetId, 'smart-ocr');
         logger.info('已从资产移除 smart-ocr 来源', { assetId });
       } catch (assetError) {
-        logger.error('移除资产来源失败', assetError, { assetId });
+        errorHandler.error(assetError as Error, '移除资产来源失败', {
+          context: { assetId },
+          showToUser: false,
+        });
         // 即使资产来源移除失败，也继续删除记录
       }
 
@@ -213,7 +224,10 @@ export function useOcrHistory() {
 
       logger.info('历史记录已删除', { recordId });
     } catch (error) {
-      logger.error('删除历史记录失败', error, { recordId });
+      errorHandler.error(error as Error, '删除历史记录失败', {
+        context: { recordId },
+        showToUser: false,
+      });
       throw error;
     }
   }

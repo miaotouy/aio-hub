@@ -1,9 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@utils/errorHandler';
 import type { ProxyConfig, ProxyStatus, RequestRecord, ResponseRecord, StreamUpdate } from './types';
 
 const logger = createModuleLogger('LlmProxy/ProxyService');
+const errorHandler = createModuleErrorHandler('LlmProxy/ProxyService');
 
 // 事件监听器清理函数集合
 const eventListeners: Set<() => void> = new Set();
@@ -18,7 +20,7 @@ export async function startProxyService(config: ProxyConfig): Promise<string> {
     logger.info('代理服务启动成功', { result });
     return result as string;
   } catch (error) {
-    logger.error('启动代理服务失败', error, { config });
+    errorHandler.error(error, '启动代理服务失败', { context: { config }, showToUser: false });
     throw new Error(`启动代理失败: ${error}`);
   }
 }
@@ -37,7 +39,7 @@ export async function stopProxyService(): Promise<string> {
     
     return result as string;
   } catch (error) {
-    logger.error('停止代理服务失败', error);
+    errorHandler.error(error, '停止代理服务失败', { showToUser: false });
     throw new Error(`停止代理失败: ${error}`);
   }
 }
@@ -51,7 +53,7 @@ export async function getProxyServiceStatus(): Promise<ProxyStatus> {
     logger.debug('获取代理状态', { status });
     return status;
   } catch (error) {
-    logger.error('获取代理状态失败', error);
+    errorHandler.error(error, '获取代理状态失败', { showToUser: false });
     throw new Error(`获取代理状态失败: ${error}`);
   }
 }
@@ -66,7 +68,7 @@ export async function updateProxyTarget(targetUrl: string): Promise<string> {
     logger.info('代理目标地址更新成功', { result });
     return result as string;
   } catch (error) {
-    logger.error('更新代理目标地址失败', error, { targetUrl });
+    errorHandler.error(error, '更新代理目标地址失败', { context: { targetUrl }, showToUser: false });
     throw new Error(`更新目标地址失败: ${error}`);
   }
 }
@@ -91,7 +93,7 @@ export async function onRequestEvent(callback: (request: RequestRecord) => void)
       logger.debug('代理请求事件监听器已清理');
     };
   } catch (error) {
-    logger.error('设置代理请求事件监听器失败', error);
+    errorHandler.error(error, '设置代理请求事件监听器失败', { showToUser: false });
     throw new Error(`设置请求监听器失败: ${error}`);
   }
 }
@@ -120,7 +122,7 @@ export async function onResponseEvent(callback: (response: ResponseRecord) => vo
       logger.debug('代理响应事件监听器已清理');
     };
   } catch (error) {
-    logger.error('设置代理响应事件监听器失败', error);
+    errorHandler.error(error, '设置代理响应事件监听器失败', { showToUser: false });
     throw new Error(`设置响应监听器失败: ${error}`);
   }
 }
@@ -149,7 +151,7 @@ export async function onStreamUpdateEvent(callback: (update: StreamUpdate) => vo
       logger.debug('流式更新事件监听器已清理');
     };
   } catch (error) {
-    logger.error('设置流式更新事件监听器失败', error);
+    errorHandler.error(error, '设置流式更新事件监听器失败', { showToUser: false });
     throw new Error(`设置流式监听器失败: ${error}`);
   }
 }
@@ -164,7 +166,7 @@ export function clearAllEventListeners(): void {
     try {
       unlisten();
     } catch (error) {
-      logger.error('清理事件监听器失败', error);
+      errorHandler.error(error, '清理事件监听器失败', { showToUser: false });
     }
   });
   
@@ -180,7 +182,7 @@ export async function isProxyRunning(): Promise<boolean> {
     const status = await getProxyServiceStatus();
     return status.is_running;
   } catch (error) {
-    logger.error('检查代理运行状态失败', error);
+    errorHandler.error(error, '检查代理运行状态失败', { showToUser: false });
     return false;
   }
 }

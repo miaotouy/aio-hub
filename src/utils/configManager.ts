@@ -7,8 +7,10 @@ import { mkdir, exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-f
 import { appDataDir, join } from "@tauri-apps/api/path";
 import * as yaml from "js-yaml";
 import { createModuleLogger } from "./logger";
+import { createModuleErrorHandler } from "./errorHandler";
 
 const logger = createModuleLogger("ConfigManager");
+const errorHandler = createModuleErrorHandler("ConfigManager");
 
 export type FileType = "json" | "yaml" | "jsonl";
 
@@ -73,7 +75,10 @@ export class ConfigManager<T extends Record<string, any>> {
           await this.save(config);
           logger.debug(`防抖保存完成`, { moduleName: this.moduleName, delay });
         } catch (error) {
-          logger.error(`防抖保存失败`, error, { moduleName: this.moduleName });
+          errorHandler.error(error as Error, `防抖保存失败`, {
+            context: { moduleName: this.moduleName },
+            showToUser: false,
+          });
         }
       }, delay);
     };
@@ -90,9 +95,12 @@ export class ConfigManager<T extends Record<string, any>> {
       // 只在错误时输出，正常情况不需要日志
       return configPath;
     } catch (error) {
-      logger.error(`获取配置路径失败`, error, {
-        moduleName: this.moduleName,
-        fileName: this.fileName,
+      errorHandler.error(error as Error, `获取配置路径失败`, {
+        context: {
+          moduleName: this.moduleName,
+          fileName: this.fileName,
+        },
+        showToUser: false,
       });
       throw new Error(
         `获取配置路径失败: ${error instanceof Error ? error.message : String(error)}`
@@ -113,7 +121,10 @@ export class ConfigManager<T extends Record<string, any>> {
         await mkdir(moduleDir, { recursive: true });
       }
     } catch (error) {
-      logger.error(`创建模块目录失败`, error, { moduleName: this.moduleName });
+      errorHandler.error(error as Error, `创建模块目录失败`, {
+        context: { moduleName: this.moduleName },
+        showToUser: false,
+      });
       throw new Error(
         `创建模块目录失败: ${error instanceof Error ? error.message : String(error)}`
       );
@@ -174,10 +185,13 @@ export class ConfigManager<T extends Record<string, any>> {
       logger.debug(`配置加载成功`, { moduleName: this.moduleName });
       return mergedConfig;
     } catch (error: any) {
-      logger.error(`加载配置失败`, error, {
-        moduleName: this.moduleName,
-        fileName: this.fileName,
-        errorMessage: error?.message,
+      errorHandler.error(error as Error, `加载配置失败`, {
+        context: {
+          moduleName: this.moduleName,
+          fileName: this.fileName,
+          errorMessage: error?.message,
+        },
+        showToUser: false,
       });
 
       // 加载失败时返回默认配置
@@ -220,9 +234,12 @@ export class ConfigManager<T extends Record<string, any>> {
       // 保存成功时输出简洁日志
       logger.info(`配置保存成功`, { moduleName: this.moduleName });
     } catch (error: any) {
-      logger.error(`保存配置失败`, error, {
-        moduleName: this.moduleName,
-        errorMessage: error?.message,
+      errorHandler.error(error as Error, `保存配置失败`, {
+        context: {
+          moduleName: this.moduleName,
+          errorMessage: error?.message,
+        },
+        showToUser: false,
       });
       throw new Error(`保存配置失败: ${error?.message || String(error)}`);
     }
@@ -240,7 +257,10 @@ export class ConfigManager<T extends Record<string, any>> {
       // save() 已经会输出日志，这里不需要重复
       return newConfig;
     } catch (error) {
-      logger.error(`更新配置失败`, error, { moduleName: this.moduleName });
+      errorHandler.error(error as Error, `更新配置失败`, {
+        context: { moduleName: this.moduleName },
+        showToUser: false,
+      });
       throw error;
     }
   }

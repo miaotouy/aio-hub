@@ -6,12 +6,14 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import { generateVideoThumbnail } from "@/utils/mediaThumbnailUtils";
 
 const logger = createModuleLogger("AttachmentCard");
+const errorHandler = createModuleErrorHandler("AttachmentCard");
 
 interface Props {
   asset: Asset;
@@ -225,7 +227,7 @@ const handleImagePreview = async () => {
     // 传递图片数组和当前索引给图片查看器
     showImage(imageUrls, currentIndex >= 0 ? currentIndex : 0);
   } catch (error) {
-    logger.error("打开图片预览失败", error);
+    errorHandler.error(error, "打开图片预览失败");
   }
 };
 

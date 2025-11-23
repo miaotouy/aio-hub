@@ -9,12 +9,14 @@ import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@utils/errorHandler';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 import { customMessage } from '@/utils/customMessage';
 
 const logger = createModuleLogger('llm-chat/agentStore');
+const errorHandler = createModuleErrorHandler('llm-chat/agentStore');
 
 // ===== 导入导出相关类型定义 =====
 
@@ -367,8 +369,9 @@ export const useAgentStore = defineStore('llmChatAgent', {
     persistAgent(agent: ChatAgent): void {
       const { persistAgent: persistAgentToStorage } = useAgentStorage();
       persistAgentToStorage(agent).catch(error => {
-        logger.error('持久化智能体失败', error as Error, {
-          agentId: agent.id,
+        errorHandler.error(error as Error, '持久化智能体失败', {
+          showToUser: false,
+          context: { agentId: agent.id },
         });
       });
     },
@@ -379,8 +382,9 @@ export const useAgentStore = defineStore('llmChatAgent', {
     persistAgents(): void {
       const { saveAgents } = useAgentStorage();
       saveAgents(this.agents).catch(error => {
-        logger.error('持久化所有智能体失败', error as Error, {
-          agentCount: this.agents.length,
+        errorHandler.error(error as Error, '持久化所有智能体失败', {
+          showToUser: false,
+          context: { agentCount: this.agents.length },
         });
       });
     },
@@ -407,7 +411,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
           this.createDefaultAgents();
         }
       } catch (error) {
-        logger.error('加载智能体失败', error as Error);
+        errorHandler.error(error as Error, '加载智能体失败', { showToUser: false });
         this.agents = [];
         this.createDefaultAgents();
       }
@@ -620,8 +624,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         logger.info('智能体导出成功', { count: agentsToExport.length, fileName });
         customMessage.success(`成功导出 ${agentsToExport.length} 个智能体`);
       } catch (error) {
-        logger.error('导出智能体失败', error as Error, { agentIds });
-        customMessage.error(`导出失败: ${error}`);
+        errorHandler.error(error as Error, '导出智能体失败', { context: { agentIds } });
       }
     },
 
@@ -700,8 +703,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
         return result;
       } catch (error) {
-        logger.error('预检导入失败', error as Error, { fileName: file.name });
-        customMessage.error(`预检失败: ${error}`);
+        errorHandler.error(error as Error, '预检导入失败', { context: { fileName: file.name } });
         throw error;
       }
     },
@@ -765,8 +767,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
         customMessage.success(`成功导入 ${params.resolvedAgents.length} 个智能体`);
       } catch (error) {
-        logger.error('确认导入失败', error as Error);
-        customMessage.error(`导入失败: ${error}`);
+        errorHandler.error(error as Error, '确认导入失败');
       }
     },
   },

@@ -161,10 +161,12 @@ import { type DirectoryTreeConfig } from "./config";
 import { serviceRegistry } from "@/services";
 import type DirectoryTreeService from "./directoryTree.registry";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
 
 // 创建模块日志器
 const logger = createModuleLogger("tools/directory-tree");
+const errorHandler = createModuleErrorHandler("tools/directory-tree");
 
 // 获取服务实例
 const treeService = serviceRegistry.getService<DirectoryTreeService>('directory-tree');
@@ -228,7 +230,7 @@ onMounted(async () => {
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
   } catch (error) {
-    logger.error("加载配置失败", error);
+    errorHandler.error(error, "加载配置失败", { showToUser: false });
   } finally {
     isLoadingConfig.value = false;
   }
@@ -253,14 +255,16 @@ const debouncedSaveConfig = debounce(async () => {
     };
     await treeService.saveConfig(config);
   } catch (error) {
-    logger.error("保存配置失败", error, {
-      customPatterns: customPattern.value,
-      lastFilterMode: filterMode.value,
-      lastTargetPath: targetPath.value,
-      showFiles: showFiles.value,
-      showHidden: showHidden.value,
-      showSize: showSize.value,
-      maxDepth: maxDepth.value,
+    errorHandler.error(error, "保存配置失败", {
+      context: {
+        customPatterns: customPattern.value,
+        lastFilterMode: filterMode.value,
+        lastTargetPath: targetPath.value,
+        showFiles: showFiles.value,
+        showHidden: showHidden.value,
+        showSize: showSize.value,
+        maxDepth: maxDepth.value,
+      },
     });
   }
 }, 500);
@@ -291,8 +295,7 @@ const selectDirectory = async () => {
       targetPath.value = selected;
     }
   } catch (error) {
-    logger.error("选择目录失败", error);
-    customMessage.error("选择目录失败");
+    errorHandler.error(error, "选择目录失败");
   }
 };
 
@@ -334,8 +337,7 @@ const copyToClipboard = async () => {
     await writeText(treeResult.value);
     customMessage.success("已复制到剪贴板");
   } catch (error) {
-    logger.error("复制到剪贴板失败", error);
-    customMessage.error("复制到剪贴板失败");
+    errorHandler.error(error, "复制到剪贴板失败");
   }
 };
 
@@ -345,8 +347,7 @@ const exportToFile = async () => {
     await treeService.exportToFile(treeResult.value, targetPath.value);
     customMessage.success("文件保存成功");
   } catch (error) {
-    logger.error("保存文件失败", error);
-    customMessage.error("保存文件失败");
+    errorHandler.error(error, "保存文件失败");
   }
 };
 

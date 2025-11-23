@@ -164,8 +164,10 @@ import {
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("MermaidInteractiveViewer");
+const errorHandler = createModuleErrorHandler("MermaidInteractiveViewer");
 
 const props = defineProps<{
   content: string;
@@ -322,8 +324,7 @@ const copyCode = async () => {
       copied.value = false;
     }, 2000);
   } catch (err) {
-    logger.error("复制失败", err);
-    customMessage.error("复制失败");
+    errorHandler.error(err, "复制失败");
   }
 };
 
@@ -356,8 +357,7 @@ const downloadSvg = () => {
     URL.revokeObjectURL(url);
     customMessage.success("SVG 文件已下载");
   } catch (err) {
-    logger.error("下载 SVG 失败", err);
-    customMessage.error("下载失败");
+    errorHandler.error(err, "下载 SVG 失败");
   }
 };
 
@@ -433,8 +433,7 @@ const copyImage = async () => {
               imageCopied.value = false;
             }, 2000);
           } catch (err) {
-            logger.error("复制图片到剪贴板失败", err);
-            customMessage.error("复制图片失败，请尝试下载 PNG");
+            errorHandler.error(err, "复制图片失败，请尝试下载 PNG");
           }
         }, "image/png");
       } catch (err) {
@@ -448,15 +447,13 @@ const copyImage = async () => {
     };
 
     img.onerror = (err) => {
-      logger.error("图片加载失败", err);
-      customMessage.error("生成图片失败");
+      errorHandler.error(err, "生成图片失败");
     };
 
     img.crossOrigin = "anonymous";
     img.src = svgDataUrl;
   } catch (err) {
-    logger.error("复制图片失败", err);
-    customMessage.error("复制图片失败");
+    errorHandler.error(err, "复制图片失败");
   }
 };
 
@@ -551,16 +548,14 @@ const downloadPng = async () => {
     };
 
     img.onerror = (err) => {
-      logger.error("图片加载失败", err);
-      customMessage.error("生成 PNG 失败");
+      errorHandler.error(err, "生成 PNG 失败");
     };
 
     // 设置 crossOrigin 以允许跨域资源
     img.crossOrigin = "anonymous";
     img.src = svgDataUrl;
   } catch (err) {
-    logger.error("下载 PNG 失败", err);
-    customMessage.error("下载失败");
+    errorHandler.error(err, "下载失败");
   }
 };
 // 渲染图表
@@ -594,7 +589,7 @@ const renderDiagram = async () => {
       };
     }
   } catch (err: any) {
-    logger.error("Mermaid 渲染失败", err);
+    errorHandler.error(err, "Mermaid 渲染失败", { showToUser: false });
     error.value = err?.message || "未知错误";
     errorDetails.value = err?.stack || JSON.stringify(err, null, 2);
   }
@@ -618,7 +613,7 @@ const initMermaid = async () => {
 
     await renderDiagram();
   } catch (err) {
-    logger.error("Mermaid 初始化失败", err);
+    errorHandler.error(err, "Mermaid 初始化失败", { showToUser: false });
     error.value = "Mermaid 库加载失败";
     errorDetails.value = String(err);
   }
@@ -641,7 +636,7 @@ watch(isDark, async (dark) => {
 
     await renderDiagram();
   } catch (err) {
-    logger.error("主题切换失败", err);
+    errorHandler.error(err, "主题切换失败", { showToUser: false });
   }
 });
 

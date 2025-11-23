@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, markRaw } from "vue";
 import { getName, getVersion } from "@tauri-apps/api/app";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import iconColor from "@/assets/aio-icon-color.svg";
 import {
   User,
@@ -11,8 +11,8 @@ import {
   Present,
 } from "@element-plus/icons-vue";
 
-// 创建模块日志记录器
-const logger = createModuleLogger("AboutSettings");
+// 创建模块错误处理器
+const errorHandler = createModuleErrorHandler("AboutSettings");
 
 // 应用信息
 const appInfo = ref({
@@ -68,9 +68,12 @@ onMounted(async () => {
     appInfo.value.name = await getName();
     appInfo.value.version = await getVersion();
   } catch (error) {
-    logger.error("获取应用信息失败", error, {
-      fallbackName: "AIO Hub",
-      fallbackVersion: "1.0.0",
+    errorHandler.error(error as Error, "获取应用信息失败", {
+      context: {
+        fallbackName: "AIO Hub",
+        fallbackVersion: "1.0.0",
+      },
+      showToUser: false,
     });
     appInfo.value.name = "AIO Hub";
     appInfo.value.version = "1.0.0";

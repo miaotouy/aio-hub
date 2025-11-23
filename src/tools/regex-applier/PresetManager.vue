@@ -320,11 +320,13 @@ import { usePresetStore } from "./store";
 import type { RegexPreset } from "./types";
 import debounce from "lodash/debounce";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { parseRegexPattern } from "./engine";
 import { invoke } from "@tauri-apps/api/core";
 
 const store = usePresetStore();
 const logger = createModuleLogger("PresetManager");
+const errorHandler = createModuleErrorHandler("PresetManager");
 
 // Rust 验证结果类型
 interface RegexValidation {
@@ -780,7 +782,10 @@ const validateRustCompatibility = debounce(async () => {
       });
     }
   } catch (error: any) {
-    logger.error("调用 Rust 验证命令失败", { error: error.message });
+    errorHandler.error(error, "调用 Rust 验证命令失败", {
+      context: { error: error.message },
+      showToUser: false,
+    });
     rustValidation.value = null;
   }
 }, 300);

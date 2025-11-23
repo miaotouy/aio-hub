@@ -3,12 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Asset, AssetImportStatus } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { nanoid } from "nanoid";
 import { useAgentStore } from "../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { detectFileType, isTextFile as checkIsTextFile } from "@/utils/fileTypeDetector";
 
 const logger = createModuleLogger("AttachmentManager");
+const errorHandler = createModuleErrorHandler("AttachmentManager");
 
 export interface AttachmentManagerOptions {
   /** 最大附件数量 */
@@ -111,7 +113,7 @@ export function useAttachmentManager(
 
       return true;
     } catch (error) {
-      logger.error("验证文件失败", error, { path });
+      errorHandler.error(error, "验证文件失败", { context: { path }, showToUser: false });
       customMessage.error("验证文件失败");
       return false;
     }
@@ -232,7 +234,7 @@ export function useAttachmentManager(
 
       return pendingAsset;
     } catch (error) {
-      logger.error("创建待导入资产失败", error, { path });
+      errorHandler.error(error, "创建待导入资产失败", { context: { path }, showToUser: false });
       return null;
     }
   };
@@ -243,7 +245,10 @@ export function useAttachmentManager(
    */
   const importPendingAsset = async (pendingAsset: Asset): Promise<void> => {
     if (!pendingAsset.originalPath) {
-      logger.error("缺少原始路径，无法导入", { assetId: pendingAsset.id });
+      errorHandler.error(new Error("缺少原始路径，无法导入"), "缺少原始路径，无法导入", {
+        context: { assetId: pendingAsset.id },
+        showToUser: false,
+      });
       return;
     }
 
@@ -303,9 +308,12 @@ export function useAttachmentManager(
         });
       }
     } catch (error) {
-      logger.error("导入资产失败", error, {
-        assetId: pendingAsset.id,
-        path: pendingAsset.originalPath,
+      errorHandler.error(error, "导入资产失败", {
+        context: {
+          assetId: pendingAsset.id,
+          path: pendingAsset.originalPath,
+        },
+        showToUser: false,
       });
 
       // 标记为错误状态

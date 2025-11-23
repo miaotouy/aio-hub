@@ -1,5 +1,6 @@
 import { computed, type Ref } from 'vue';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import type {
   ChatSession,
   HistoryEntry,
@@ -11,6 +12,7 @@ import type {
 } from '../types';
 
 const logger = createModuleLogger('useSessionNodeHistory');
+const errorHandler = createModuleErrorHandler('useSessionNodeHistory');
 
 /**
  * 创建一个节点的纯净克隆，只包含 ChatMessageNode 中定义的字段。
@@ -24,8 +26,9 @@ function cloneNodes(nodes: Record<string, ChatMessageNode>): Record<string, Chat
   try {
     return JSON.parse(JSON.stringify(nodes));
   } catch (error) {
-    logger.error("克隆节点失败，可能存在循环引用或其他不可序列化的数据", error, {
-      nodeCount: Object.keys(nodes).length,
+    errorHandler.error(error as Error, "克隆节点失败，可能存在循环引用或其他不可序列化的数据", {
+      showToUser: false,
+      context: { nodeCount: Object.keys(nodes).length },
     });
     // 作为备用方案，返回一个空对象，防止整个应用崩溃
     return {};
@@ -179,7 +182,10 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
     }
 
     if (snapshotIndex < 0) {
-      logger.error('找不到锚点快照，历史数据可能已损坏。', { targetIndex });
+      errorHandler.error(new Error('Anchor snapshot not found'), '找不到锚点快照，历史数据可能已损坏。', {
+        showToUser: false,
+        context: { targetIndex },
+      });
       clearHistory();
       return;
     }

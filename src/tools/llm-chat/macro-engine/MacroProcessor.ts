@@ -6,8 +6,10 @@
 import type { MacroContext } from './MacroContext';
 import { MacroRegistry, MacroPhase } from './MacroRegistry';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('llm-chat/macro-processor');
+const errorHandler = createModuleErrorHandler('llm-chat/macro-processor');
 
 /**
  * 宏验证结果
@@ -201,10 +203,9 @@ export class MacroProcessor {
           resultLength: result.length,
         });
       } catch (error) {
-        logger.error('宏执行失败', error as Error, {
-          phase,
-          name,
-          args,
+        errorHandler.error(error as Error, '宏执行失败', {
+          showToUser: false,
+          context: { phase, name, args },
         });
         // 保持原始宏不变
       }

@@ -11,8 +11,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { createConfigManager } from "@/utils/configManager";
 import type { UserProfile } from "../types";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("llm-chat/user-profile-storage");
+const errorHandler = createModuleErrorHandler("llm-chat/user-profile-storage");
 
 const MODULE_NAME = "llm-chat";
 const PROFILES_SUBDIR = "user-profiles";
@@ -121,7 +123,10 @@ export function useUserProfileStorage() {
       // logger.debug('用户档案加载成功', { profileId, name: profile.name });
       return profile;
     } catch (error) {
-      logger.error("加载用户档案失败", error as Error, { profileId });
+      errorHandler.error(error as Error, "加载用户档案失败", {
+        showToUser: false,
+        context: { profileId },
+      });
       return null;
     }
   }
@@ -183,7 +188,10 @@ export function useUserProfileStorage() {
         name: profile.name,
       });
     } catch (error) {
-      logger.error("保存用户档案失败", error as Error, { profileId: profile.id });
+      errorHandler.error(error as Error, "保存用户档案失败", {
+        showToUser: false,
+        context: { profileId: profile.id },
+      });
       throw error;
     }
   }
@@ -207,7 +215,10 @@ export function useUserProfileStorage() {
         logger.warn("用户档案目录不存在，跳过删除", { profileId, path: profileDir });
       }
     } catch (error) {
-      logger.error("删除用户档案目录失败", error as Error, { profileId });
+      errorHandler.error(error as Error, "删除用户档案目录失败", {
+        showToUser: false,
+        context: { profileId },
+      });
       throw error;
     }
   }
@@ -236,7 +247,7 @@ export function useUserProfileStorage() {
       logger.debug("扫描用户档案目录完成", { count: profileIds.length });
       return profileIds;
     } catch (error) {
-      logger.error("扫描用户档案目录失败", error as Error);
+      errorHandler.error(error as Error, "扫描用户档案目录失败", { showToUser: false });
       return [];
     }
   }
@@ -367,7 +378,10 @@ export function useUserProfileStorage() {
 
         logger.info(`用户档案 ${profileId} 迁移成功`);
       } catch (error) {
-        logger.error(`迁移用户档案 ${profileId} 失败`, error as Error, { oldPath });
+        errorHandler.error(error as Error, `迁移用户档案 ${profileId} 失败`, {
+          showToUser: false,
+          context: { oldPath },
+        });
       }
     }
     logger.info("用户档案数据迁移完成");
@@ -413,7 +427,7 @@ export function useUserProfileStorage() {
 
       return profiles;
     } catch (error) {
-      logger.error("加载所有用户档案失败", error as Error);
+      errorHandler.error(error as Error, "加载所有用户档案失败", { showToUser: false });
       return [];
     }
   };
@@ -445,7 +459,10 @@ export function useUserProfileStorage() {
 
       logger.debug("单个用户档案保存成功", { profileId: profile.id });
     } catch (error) {
-      logger.error("保存单个用户档案失败", error as Error, { profileId: profile.id });
+      errorHandler.error(error as Error, "保存单个用户档案失败", {
+        showToUser: false,
+        context: { profileId: profile.id },
+      });
       throw error;
     }
   };
@@ -469,8 +486,9 @@ export function useUserProfileStorage() {
         profileCount: profiles.length,
       });
     } catch (error) {
-      logger.error("批量保存所有用户档案失败", error as Error, {
-        profileCount: profiles.length,
+      errorHandler.error(error as Error, "批量保存所有用户档案失败", {
+        showToUser: false,
+        context: { profileCount: profiles.length },
       });
       throw error;
     }
@@ -497,7 +515,10 @@ export function useUserProfileStorage() {
 
       logger.info("用户档案已删除", { profileId });
     } catch (error) {
-      logger.error("删除用户档案失败", error as Error, { profileId });
+      errorHandler.error(error as Error, "删除用户档案失败", {
+        showToUser: false,
+        context: { profileId },
+      });
       throw error;
     }
   };
@@ -512,7 +533,7 @@ export function useUserProfileStorage() {
         globalProfileId: index.globalProfileId,
       };
     } catch (error) {
-      logger.error("加载用户档案设置失败", error as Error);
+      errorHandler.error(error as Error, "加载用户档案设置失败", { showToUser: false });
       return { globalProfileId: null };
     }
   };
@@ -529,7 +550,7 @@ export function useUserProfileStorage() {
       await saveIndex(index);
       logger.debug("保存用户档案设置成功", settings);
     } catch (error) {
-      logger.error("保存用户档案设置失败", error as Error);
+      errorHandler.error(error as Error, "保存用户档案设置失败", { showToUser: false });
       throw error;
     }
   };

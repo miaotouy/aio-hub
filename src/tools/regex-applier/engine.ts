@@ -5,8 +5,10 @@
 
 import type { RegexRule, ApplyResult, LogEntry } from './types';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('RegexEngine');
+const errorHandler = createModuleErrorHandler('RegexEngine');
 
 /**
  * 解析正则表达式字符串，支持 /pattern/flags 格式
@@ -104,9 +106,12 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
         `规则 ${index + 1} 错误: 无效的正则表达式 "${rule.regex}" - ${e.message}`,
         'error'
       );
-      logger.error(`规则 ${index + 1} 应用失败`, e, {
-        regex: rule.regex,
-        replacement: rule.replacement
+      errorHandler.error(e, `规则 ${index + 1} 应用失败`, {
+        context: {
+          regex: rule.regex,
+          replacement: rule.replacement,
+        },
+        showToUser: false,
       });
     }
   });

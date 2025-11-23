@@ -10,8 +10,10 @@ import {
 import { filterCommits as processFilter } from "./useGitProcessor";
 import { useGitAnalyzerState } from "./useGitAnalyzerState";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("GitAnalyzerRunner");
+const errorHandler = createModuleErrorHandler("GitAnalyzerRunner");
 
 /**
  * Git 分析器业务编排器
@@ -39,8 +41,7 @@ export function useGitAnalyzerRunner() {
         customMessage.success(`已选择目录: ${selected}`);
       }
     } catch (error) {
-      logger.error("选择目录失败", error as Error);
-      customMessage.error("选择目录失败");
+      errorHandler.error(error as Error, "选择目录失败");
     }
   }
 
@@ -171,8 +172,9 @@ export function useGitAnalyzerRunner() {
       case "error":
         state.progress.value.loading = false;
         state.loading.value = false;
-        customMessage.error(`${isIncremental ? '增量' : ''}加载失败: ${event.message}`);
-        logger.error(`${isIncremental ? '增量' : ''}加载失败`, new Error(event.message || "Unknown error"));
+        const errorMsg = `${isIncremental ? "增量" : ""}加载失败: ${event.message}`;
+        customMessage.error(errorMsg);
+        errorHandler.error(new Error(event.message || "Unknown error"), errorMsg, { showToUser: false });
         break;
     }
   }

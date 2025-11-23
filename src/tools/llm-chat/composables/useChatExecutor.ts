@@ -11,6 +11,7 @@ import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { useTopicNamer } from "./useTopicNamer";
 import { useSessionManager } from "./useSessionManager";
@@ -20,6 +21,7 @@ import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useChatAssetProcessor } from "./useChatAssetProcessor";
 
 const logger = createModuleLogger("llm-chat/executor");
+const errorHandler = createModuleErrorHandler("llm-chat/executor");
 
 /**
  * 请求执行参数
@@ -61,7 +63,9 @@ export function useChatExecutor() {
 
     // 获取当前 Agent 配置
     if (!agentStore.currentAgentId) {
-      logger.error("执行请求失败：没有选中智能体", new Error("No agent selected"));
+      errorHandler.error(new Error("No agent selected"), "执行请求失败：没有选中智能体", {
+        showToUser: false,
+      });
       throw new Error("请先选择一个智能体");
     }
 
@@ -70,7 +74,11 @@ export function useChatExecutor() {
     });
 
     if (!agentConfig) {
-      logger.error("执行请求失败：无法获取智能体配置", new Error("Agent config not found"));
+      errorHandler.error(
+        new Error("Agent config not found"),
+        "执行请求失败：无法获取智能体配置",
+        { showToUser: false }
+      );
       throw new Error("无法获取智能体配置");
     }
 

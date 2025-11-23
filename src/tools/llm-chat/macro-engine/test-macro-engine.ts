@@ -5,8 +5,10 @@
 
 import { initializeMacroEngine, MacroProcessor, createMacroContext } from './index';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('llm-chat/macro-test');
+const errorHandler = createModuleErrorHandler('llm-chat/macro-test');
 
 /**
  * 运行宏引擎测试
@@ -59,7 +61,7 @@ async function testSimpleSubstitution(processor: MacroProcessor): Promise<void> 
   if (result.output === '你好 张三，我是 AI助手。') {
     logger.info('✅ 测试通过');
   } else {
-    logger.error('❌ 测试失败', new Error('输出不符合预期'));
+    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
   }
 }
 
@@ -83,7 +85,7 @@ async function testVariableOperations(processor: MacroProcessor): Promise<void> 
   if (result.output === '计数器初始值: 0增加后: 2') {
     logger.info('✅ 测试通过');
   } else {
-    logger.error('❌ 测试失败', new Error('输出不符合预期'));
+    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
   }
 }
 
@@ -108,7 +110,7 @@ async function testDateTimeMacros(processor: MacroProcessor): Promise<void> {
   if (result.output.includes('当前时间:') && result.output.includes('日期:')) {
     logger.info('✅ 测试通过');
   } else {
-    logger.error('❌ 测试失败', new Error('输出不符合预期'));
+    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
   }
 }
 
@@ -133,7 +135,7 @@ async function testFunctionMacros(processor: MacroProcessor): Promise<void> {
   if (result.output.includes('随机选择:') && result.output.includes('\n第二行')) {
     logger.info('✅ 测试通过');
   } else {
-    logger.error('❌ 测试失败', new Error('输出不符合预期'));
+    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
   }
 }
 
@@ -185,7 +187,9 @@ async function testFullPipeline(processor: MacroProcessor): Promise<void> {
   if (checks.every(check => check)) {
     logger.info('✅ 测试通过');
   } else {
-    logger.error('❌ 测试失败', new Error('输出不符合预期'));
-    logger.info('检查结果:', checks);
+    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', {
+      showToUser: false,
+      context: { checks },
+    });
   }
 }

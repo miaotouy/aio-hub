@@ -9,8 +9,10 @@ import DOMPurify from 'dompurify';
 import { readTextFile, exists } from '@tauri-apps/plugin-fs';
 import { path } from '@tauri-apps/api';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('PluginDetailPanel');
+const errorHandler = createModuleErrorHandler('PluginDetailPanel');
 
 // Markdown 渲染器
 const md = new MarkdownIt({
@@ -113,7 +115,7 @@ async function loadReadme() {
     
     logger.info('README 加载成功');
   } catch (error) {
-    logger.error('加载 README 失败', error);
+    errorHandler.error(error as Error, '加载 README 失败', { showToUser: false });
     readmeError.value = error instanceof Error ? error.message : '未知错误';
     readmeHtml.value = `<p class="readme-error">加载 README 失败: ${readmeError.value}</p>`;
   } finally {

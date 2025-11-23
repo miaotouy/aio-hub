@@ -102,10 +102,10 @@ import { useGitAnalyzerState } from "./composables/useGitAnalyzerState";
 import { useGitAnalyzerRunner } from "./composables/useGitAnalyzerRunner";
 import { useCharts } from "./composables/useCharts";
 import { useCommitDetail } from "./composables/useCommitDetail";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 // 创建模块日志记录器
-const logger = createModuleLogger("GitAnalyzer");
+const errorHandler = createModuleErrorHandler("GitAnalyzer");
 
 // 配置状态
 const config = ref<GitAnalyzerConfig | null>(null);
@@ -238,7 +238,10 @@ async function loadConfig() {
     }
     commitRange.value = loadedConfig.commitRange || [0, 0];
   } catch (error) {
-    logger.error("加载配置失败", error, { repoPath: repoPath.value });
+    errorHandler.error(error, "加载配置失败", {
+      showToUser: false,
+      context: { repoPath: repoPath.value },
+    });
   }
 }
 

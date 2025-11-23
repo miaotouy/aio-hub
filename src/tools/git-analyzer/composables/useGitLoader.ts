@@ -2,8 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { GitCommit, GitBranch } from "../types";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("GitLoader");
+const errorHandler = createModuleErrorHandler("GitLoader");
 
 // ==================== 类型定义 ====================
 
@@ -58,7 +60,7 @@ export async function fetchBranches(path: string): Promise<GitBranch[]> {
     logger.info(`成功获取 ${branches.length} 个分支`);
     return branches;
   } catch (error) {
-    logger.error("获取分支列表失败", error as Error, { path });
+    errorHandler.error(error as Error, "获取分支列表失败", { context: { path }, showToUser: false });
     throw error;
   }
 }
@@ -82,7 +84,7 @@ export async function fetchBranchCommits(
     logger.info(`成功获取 ${commits.length} 条提交`);
     return commits;
   } catch (error) {
-    logger.error("获取分支提交失败", error as Error, { path, branch, limit });
+    errorHandler.error(error as Error, "获取分支提交失败", { context: { path, branch, limit }, showToUser: false });
     throw error;
   }
 }
@@ -104,7 +106,7 @@ export async function fetchCommitDetail(
     logger.info(`成功获取提交 ${hash} 的详情`);
     return commit;
   } catch (error) {
-    logger.error("获取提交详情失败", error as Error, { path, hash });
+    errorHandler.error(error as Error, "获取提交详情失败", { context: { path, hash }, showToUser: false });
     throw error;
   }
 }
@@ -158,7 +160,7 @@ export async function streamLoadRepository(
       if (unlisten) {
         unlisten();
       }
-      logger.error("流式加载失败", error as Error, { path, limit });
+      errorHandler.error(error as Error, "流式加载失败", { context: { path, limit }, showToUser: false });
       reject(error);
     }
   });
@@ -214,7 +216,7 @@ export async function streamIncrementalLoad(
       if (unlisten) {
         unlisten();
       }
-      logger.error("增量加载失败", error as Error, { path, branch, skip, limit });
+      errorHandler.error(error as Error, "增量加载失败", { context: { path, branch, skip, limit }, showToUser: false });
       reject(error);
     }
   });

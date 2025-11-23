@@ -4,8 +4,10 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { loadConfig, saveConfig, type DirectoryTreeConfig } from './config';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('services/directory-tree');
+const errorHandler = createModuleErrorHandler('services/directory-tree');
 
 /**
  * 生成目录树的参数
@@ -121,9 +123,12 @@ export default class DirectoryTreeService implements ToolService {
         stats: result.stats,
       };
     } catch (error: any) {
-      logger.error('生成目录树失败', error, {
-        path: options.path,
-        configuration: options,
+      errorHandler.error(error, '生成目录树失败', {
+        showToUser: false,
+        context: {
+          path: options.path,
+          configuration: options,
+        },
       });
       throw error;
     }
@@ -147,7 +152,7 @@ export default class DirectoryTreeService implements ToolService {
 
       return null;
     } catch (error) {
-      logger.error('选择目录失败', error);
+      errorHandler.error(error, '选择目录失败', { showToUser: false });
       throw error;
     }
   }
@@ -190,7 +195,7 @@ export default class DirectoryTreeService implements ToolService {
         logger.info('文件保存成功', { path: savePath });
       }
     } catch (error) {
-      logger.error('保存文件失败', error);
+      errorHandler.error(error, '保存文件失败', { showToUser: false });
       throw error;
     }
   }
@@ -204,7 +209,7 @@ export default class DirectoryTreeService implements ToolService {
       logger.debug('配置加载成功', { config });
       return config;
     } catch (error) {
-      logger.error('加载配置失败', error);
+      errorHandler.error(error, '加载配置失败', { showToUser: false });
       throw error;
     }
   }
@@ -217,7 +222,7 @@ export default class DirectoryTreeService implements ToolService {
       await saveConfig(config);
       logger.debug('配置保存成功');
     } catch (error) {
-      logger.error('保存配置失败', error);
+      errorHandler.error(error, '保存配置失败', { showToUser: false });
       throw error;
     }
   }

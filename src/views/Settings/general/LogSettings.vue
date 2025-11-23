@@ -6,9 +6,10 @@ import { customMessage } from "@/utils/customMessage";
 import { logger, LogLevel } from "@/utils/logger";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const moduleLogger = createModuleLogger("LogSettings");
+const errorHandler = createModuleErrorHandler("LogSettings");
 
 // 日志级别选项
 const logLevelOptions = [
@@ -86,7 +87,7 @@ onMounted(async () => {
     const date = new Date().toISOString().split("T")[0];
     logFilePath.value = await join(logsDir, `app-${date}.log`);
   } catch (error) {
-    moduleLogger.error("获取日志文件路径失败", error);
+    errorHandler.error(error as Error, "获取日志文件路径失败", { showToUser: false });
   }
 });
 
@@ -139,8 +140,7 @@ const handleOpenLogDir = async () => {
     await openPath(logsDir);
     customMessage.success("日志目录已打开");
   } catch (error) {
-    moduleLogger.error("打开日志目录失败", error);
-    customMessage.error("无法打开日志目录");
+    errorHandler.error(error as Error, "打开日志目录失败");
   }
 };
 
@@ -162,8 +162,7 @@ const handleClearLogBuffer = async () => {
     customMessage.success("日志缓冲区已清空");
   } catch (error) {
     if (error !== "cancel") {
-      moduleLogger.error("清空日志缓冲区失败", error);
-      customMessage.error("清空日志缓冲区失败");
+      errorHandler.error(error as Error, "清空日志缓冲区失败");
     }
   }
 };
@@ -188,8 +187,7 @@ const handleExportLogs = async () => {
       customMessage.success("日志导出成功");
     }
   } catch (error) {
-    moduleLogger.error("导出日志失败", error);
-    customMessage.error("导出日志失败");
+    errorHandler.error(error as Error, "导出日志失败");
   }
 };
 

@@ -119,7 +119,7 @@ import { computed } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ModelMetadataRule } from "@/types/model-metadata";
-import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
@@ -138,7 +138,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const logger = createModuleLogger("ModelMetadataConfigEditor");
+const errorHandler = createModuleErrorHandler("ModelMetadataConfigEditor");
 
 const isDialogVisible = computed({
   get: () => !!props.modelValue,
@@ -185,10 +185,11 @@ async function handleSelectFile() {
       localConfig.value.properties.icon = selected;
     }
   } catch (error) {
-    logger.error("选择本地图标文件失败", error, {
-      filters: ["png", "jpg", "jpeg", "svg", "webp", "ico"],
+    errorHandler.error(error as Error, "选择本地图标文件失败", {
+      context: {
+        filters: ["png", "jpg", "jpeg", "svg", "webp", "ico"],
+      },
     });
-    alert("选择文件失败: " + error);
   }
 }
 

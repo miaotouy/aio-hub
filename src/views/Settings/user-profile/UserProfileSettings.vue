@@ -92,9 +92,11 @@ import ProfileEditor from "../shared/ProfileEditor.vue";
 import CreateUserProfileDialog from "./components/CreateUserProfileDialog.vue";
 import UserProfileForm from "./components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useResolvedAvatar } from '@/tools/llm-chat/composables/useResolvedAvatar';
 
 const logger = createModuleLogger("UserProfileSettings");
+const errorHandler = createModuleErrorHandler("UserProfileSettings");
 const userProfileStore = useUserProfileStore();
 
 // 加载状态
@@ -293,8 +295,7 @@ onMounted(async () => {
       selectProfile(selectedProfileId.value);
     }
   } catch (error) {
-    logger.error('加载用户档案失败', error as Error);
-    customMessage.error('加载用户档案失败');
+    errorHandler.error(error, '加载用户档案失败');
   } finally {
     isLoading.value = false;
   }

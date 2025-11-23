@@ -14,8 +14,10 @@ import { loadAppSettingsAsync } from "../utils/appSettings";
 import { applyThemeColors } from "../utils/themeColors";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import GlobalProviders from "../components/GlobalProviders.vue";
+import { createModuleErrorHandler } from "../utils/errorHandler";
 
 const logger = createModuleLogger("DetachedComponentContainer");
+const errorHandler = createModuleErrorHandler("DetachedComponentContainer");
 
 const route = useRoute();
 const { currentTheme } = useTheme();
@@ -121,7 +123,7 @@ onMounted(async () => {
         logger.info("窗口未固定，保持预览模式");
       }
     } catch (error) {
-      logger.error("检查窗口固定状态失败，默认使用预览模式", { error });
+      errorHandler.error(error, "检查窗口固定状态失败，默认使用预览模式", { showToUser: false });
       isPreview.value = true;
     }
   };
@@ -168,10 +170,16 @@ onMounted(async () => {
             listenersKeys: Object.keys(componentEventListeners.value)
           });
         } else {
-          logger.error("未找到或未注册可分离的组件", { id });
+          errorHandler.error(new Error(`未找到或未注册可分离的组件: ${id}`), "未找到或未注册可分离的组件", {
+            context: { id },
+            showToUser: false,
+          });
         }
       } catch (error) {
-        logger.error("解析路由中的组件配置失败", { error, config: route.query.config });
+        errorHandler.error(error, "解析路由中的组件配置失败", {
+          context: { config: route.query.config },
+          showToUser: false,
+        });
       }
     } else {
       logger.warn("路由参数中未找到组件配置", { query: route.query });

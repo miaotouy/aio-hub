@@ -12,9 +12,12 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useNodeManager } from "./useNodeManager";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
 import type { MenuItem } from "../components/conversation-tree-graph/ContextMenu.vue";
 
 const logger = createModuleLogger("llm-chat/composables/useFlowTreeGraph");
+const errorHandler = createModuleErrorHandler("llm-chat/composables/useFlowTreeGraph");
 
 /**
  * 上下文菜单状态
@@ -971,7 +974,7 @@ export function useFlowTreeGraph(
     try {
       store.switchBranch(nodeId);
     } catch (error) {
-      logger.error("切换分支失败", error);
+      errorHandler.error(error, "切换分支失败");
     }
   }
 
@@ -1151,7 +1154,9 @@ export function useFlowTreeGraph(
         store.moveNode(nodeIdToMove, newParentId);
       }
     } catch (error) {
-      logger.error("连线操作失败", error, { nodeIdToMove, newParentId, isGraftSubtree });
+      errorHandler.error(error, "连线操作失败", {
+        context: { nodeIdToMove, newParentId, isGraftSubtree },
+      });
     }
   }
 
@@ -1241,11 +1246,15 @@ export function useFlowTreeGraph(
     const node = session.nodes[nodeId];
     if (!node) return;
 
-    navigator.clipboard.writeText(node.content).then(() => {
-      logger.info("节点内容已复制", { nodeId });
-    }).catch(error => {
-      logger.error("复制失败", error);
-    });
+    navigator.clipboard
+      .writeText(node.content)
+      .then(() => {
+        logger.info("节点内容已复制", { nodeId });
+        customMessage.success("节点内容已复制");
+      })
+      .catch((error) => {
+        errorHandler.error(error, "复制失败");
+      });
   }
 
   /**

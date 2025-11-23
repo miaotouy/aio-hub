@@ -1,9 +1,11 @@
 import { ref, reactive } from 'vue';
 import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@utils/errorHandler';
 import type { CombinedRecord, RequestRecord, ResponseRecord, FilterOptions } from './types';
 import { filterRecords } from './utils';
 
 const logger = createModuleLogger('LlmProxy/RecordManager');
+const errorHandler = createModuleErrorHandler('LlmProxy/RecordManager');
 
 // 记录存储
 const records = ref<CombinedRecord[]>([]);
@@ -227,7 +229,7 @@ export function importRecordsFromJson(jsonData: string): { success: boolean; imp
     return { success: true, imported };
     
   } catch (error) {
-    logger.error('导入记录失败', error);
+    errorHandler.error(error, '导入记录失败', { showToUser: false });
     return { success: false, imported: 0, error: `解析失败: ${error}` };
   }
 }

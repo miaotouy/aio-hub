@@ -8,6 +8,7 @@ import { pluginManager } from '@/services/plugin-manager';
 import type { PluginProxy, PluginManifest } from '@/services/plugin-types';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { pluginStateService } from '@/services/plugin-state.service';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -16,6 +17,7 @@ import { useFileDrop } from '@/composables/useFileDrop';
 import { compareVersions } from 'compare-versions';
 
 const logger = createModuleLogger('PluginManager/InstalledPlugins');
+const errorHandler = createModuleErrorHandler('PluginManager/InstalledPlugins');
 
 // 安装进度相关状态
 interface InstallProgress {
@@ -91,8 +93,7 @@ async function loadPlugins() {
     plugins.value = pluginManager.getInstalledPlugins();
     logger.info('已加载插件列表', { count: plugins.value.length });
   } catch (error) {
-    logger.error('加载插件列表失败', error);
-    customMessage.error('加载插件列表失败');
+    errorHandler.error(error as Error, '加载插件列表失败');
   } finally {
     loading.value = false;
   }
@@ -146,15 +147,19 @@ async function togglePlugin(plugin: PluginProxy) {
           await pluginManager.loadAllPlugins();
           logger.info('已重新注册插件 UI', { pluginId: plugin.id });
         } catch (error) {
-          logger.error('重新注册插件 UI 失败', error, { pluginId: plugin.id });
+          errorHandler.error(error as Error, '重新注册插件 UI 失败', {
+            context: { pluginId: plugin.id },
+            showToUser: false,
+          });
         }
       }
       customMessage.success(`已启用插件: ${plugin.name}`);
       logger.info('插件已启用', { pluginId: plugin.id });
     }
   } catch (error) {
-    logger.error('切换插件状态失败', error, { pluginId: plugin.id });
-    customMessage.error(`操作失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    errorHandler.error(error as Error, '切换插件状态失败', {
+      context: { pluginId: plugin.id },
+    });
   }
 }
 
@@ -211,15 +216,16 @@ async function uninstallPlugin(plugin: PluginProxy) {
       // 刷新插件列表
       await loadPlugins();
     } catch (error) {
-      logger.error('卸载插件失败', error, { pluginId: plugin.id });
-      customMessage.error(`卸载失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      errorHandler.error(error as Error, '卸载插件失败', {
+        context: { pluginId: plugin.id },
+      });
     } finally {
       loading.value = false;
     }
   } catch (error) {
     // 用户取消操作
     if (error !== 'cancel') {
-      logger.error('卸载确认失败', error);
+      errorHandler.error(error as Error, '卸载确认失败', { showToUser: false });
     }
   }
 }
@@ -287,7 +293,10 @@ async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
       conflicts: conflicts.length > 0 ? conflicts : undefined,
     };
   } catch (error) {
-    logger.error('插件预检失败', error, { zipPath });
+    errorHandler.error(error as Error, '插件预检失败', {
+      context: { zipPath },
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -303,9 +312,7 @@ async function startPreflightFlow(zipPath: string) {
     const result = await preflightPlugin(zipPath);
     preflightResult.value = result;
   } catch (error) {
-    logger.error('预检失败', error);
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    customMessage.error(`预检失败: ${errorMsg}`);
+    errorHandler.error(error as Error, '预检失败');
     showPreflightDialog.value = false;
   } finally {
     preflightLoading.value = false;
@@ -349,9 +356,7 @@ async function handlePreflightConfirm(result: PreflightResult) {
     // 刷新插件列表
     await loadPlugins();
   } catch (error) {
-    logger.error('安装插件失败', error);
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    customMessage.error(`安装失败: ${errorMsg}`);
+    errorHandler.error(error as Error, '安装插件失败');
   } finally {
     // 清理进度监听器
     if (progressUnlisten) {
@@ -398,8 +403,7 @@ async function importPlugin() {
     // 使用预检流程
     await startPreflightFlow(selected);
   } catch (error) {
-    logger.error('打开文件对话框失败', error);
-    customMessage.error('无法打开文件选择对话框');
+    errorHandler.error(error as Error, '打开文件对话框失败');
   }
 }
 

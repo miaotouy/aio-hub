@@ -49,9 +49,11 @@ import { commitCache } from '../composables/useCommitCache'
 import ExportConfiguration from './ExportConfiguration.vue'
 import ExportPreview from './ExportPreview.vue'
 import { createModuleLogger } from '@utils/logger'
+import { createModuleErrorHandler } from '@/utils/errorHandler'
 
 // 创建模块日志记录器
 const logger = createModuleLogger('ExportModule')
+const errorHandler = createModuleErrorHandler('ExportModule')
 const { sendToChat } = useSendToChat()
 
 const props = defineProps<{
@@ -174,13 +176,14 @@ async function loadCommitsWithFiles() {
     commitCache.setBatchCommits(props.repoPath, props.branch, commits)
     customMessage.success('已加载文件变更信息')
   } catch (error) {
-    logger.error('加载文件变更信息失败', error, {
-      repoPath: props.repoPath,
-      branch: props.branch,
-      totalCommits: props.commits.length,
-      includeFiles: exportConfig.value.includeFiles,
+    errorHandler.error(error, '加载文件变更信息失败', {
+      context: {
+        repoPath: props.repoPath,
+        branch: props.branch,
+        totalCommits: props.commits.length,
+        includeFiles: exportConfig.value.includeFiles,
+      },
     })
-    customMessage.error('加载文件信息失败')
   } finally {
     loadingFiles.value = false
   }
@@ -227,13 +230,14 @@ async function updatePreview() {
   try {
     previewContent.value = reportGenerator.generateReport()
   } catch (error) {
-    logger.error('生成报告预览失败', error, {
-      format: exportConfig.value.format,
-      commitRange: exportConfig.value.commitRange,
-      includes: exportConfig.value.includes,
-      includeFiles: exportConfig.value.includeFiles,
+    errorHandler.error(error, '生成报告预览失败', {
+      context: {
+        format: exportConfig.value.format,
+        commitRange: exportConfig.value.commitRange,
+        includes: exportConfig.value.includes,
+        includeFiles: exportConfig.value.includeFiles,
+      },
     })
-    customMessage.error('生成预览失败')
   } finally {
     generating.value = false
   }
@@ -245,11 +249,12 @@ async function copyToClipboard() {
     await navigator.clipboard.writeText(previewContent.value)
     customMessage.success('已复制到剪贴板')
   } catch (error) {
-    logger.error('复制报告内容到剪贴板失败', error, {
-      format: exportConfig.value.format,
-      contentLength: previewContent.value.length,
+    errorHandler.error(error, '复制报告内容到剪贴板失败', {
+      context: {
+        format: exportConfig.value.format,
+        contentLength: previewContent.value.length,
+      },
     })
-    customMessage.error('复制失败')
   }
 }
 
@@ -324,13 +329,14 @@ async function handleExport() {
       visible.value = false
     }
   } catch (error) {
-    logger.error('导出报告文件失败', error, {
-      format: exportConfig.value.format,
-      defaultFileName: defaultName,
-      contentLength: previewContent.value.length,
-      commitRange: exportConfig.value.commitRange,
+    errorHandler.error(error, '导出报告文件失败', {
+      context: {
+        format: exportConfig.value.format,
+        defaultFileName: defaultName,
+        contentLength: previewContent.value.length,
+        commitRange: exportConfig.value.commitRange,
+      },
     })
-    customMessage.error('导出失败')
   } finally {
     exporting.value = false
   }

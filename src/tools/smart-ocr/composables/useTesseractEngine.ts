@@ -1,8 +1,10 @@
 import { createWorker, Worker } from 'tesseract.js';
 import type { ImageBlock, OcrResult } from '../types';
-import { createModuleLogger } from '@utils/logger';
+import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('OCR/TesseractEngine');
+const errorHandler = createModuleErrorHandler('OCR/TesseractEngine');
 
 /**
  * Tesseract OCR 引擎 Composable
@@ -58,7 +60,10 @@ export function useTesseractEngine() {
         confidence: result.data.confidence / 100,
       };
     } catch (error) {
-      logger.error('Tesseract 识别失败', error, { language });
+      errorHandler.error(error as Error, 'Tesseract 识别失败', {
+        context: { language },
+        showToUser: false,
+      });
       throw error;
     }
   };
@@ -114,9 +119,12 @@ export function useTesseractEngine() {
           textLength: text.length,
         });
       } catch (error) {
-        logger.error(`图片块识别失败 ${i + 1}/${blocks.length}`, error, {
-          blockId: block.id,
-          language,
+        errorHandler.error(error as Error, `图片块识别失败 ${i + 1}/${blocks.length}`, {
+          context: {
+            blockId: block.id,
+            language,
+          },
+          showToUser: false,
         });
         results[i].status = 'error';
         results[i].error = (error as Error).message;

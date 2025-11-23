@@ -4,8 +4,10 @@ import { ElMessage } from 'element-plus';
 import { pluginConfigService } from '@/services/plugin-config.service';
 import type { PluginProxy, SettingsSchema, SettingsProperty } from '@/services/plugin-types';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('PluginManager/PluginSettingsPanel');
+const errorHandler = createModuleErrorHandler('PluginManager/PluginSettingsPanel');
 
 // Props
 interface Props {
@@ -57,8 +59,9 @@ async function loadConfig() {
     }
     logger.debug('配置加载完成', { pluginId: props.plugin.id, config: formData.value });
   } catch (error) {
-    logger.error('加载配置失败', error, { pluginId: props.plugin.id });
-    ElMessage.error('加载配置失败');
+    errorHandler.error(error as Error, '加载配置失败', {
+      context: { pluginId: props.plugin.id },
+    });
   } finally {
     loading.value = false;
   }
@@ -80,8 +83,9 @@ async function saveConfig() {
     ElMessage.success('配置已保存');
     logger.info('配置保存成功', { pluginId: props.plugin.id });
   } catch (error) {
-    logger.error('保存配置失败', error, { pluginId: props.plugin.id });
-    ElMessage.error(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    errorHandler.error(error as Error, '保存配置失败', {
+      context: { pluginId: props.plugin.id },
+    });
   } finally {
     saving.value = false;
   }

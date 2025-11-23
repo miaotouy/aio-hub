@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { OcrApiRequest } from "@/types/ocr-profiles";
 import type { Variable } from "@/tools/api-tester/types";
-import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 interface Props {
   modelValue: OcrApiRequest;
@@ -18,8 +18,8 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// 日志记录器
-const logger = createModuleLogger("CustomOcrRequestEditor");
+// 错误处理器
+const errorHandler = createModuleErrorHandler("CustomOcrRequestEditor");
 
 // 本地编辑状态
 const localValue = ref<OcrApiRequest>({ ...props.modelValue });
@@ -106,11 +106,12 @@ async function handleSelectFile() {
       localValue.value.iconPath = selected;
     }
   } catch (error) {
-    logger.error("选择 Body 模板文件失败", error, {
-      context: "handleSelectFile",
-      currentIconPath: localValue.value.iconPath,
+    errorHandler.error(error, "选择图标文件失败", {
+      context: {
+        operation: "handleSelectFile",
+        currentIconPath: localValue.value.iconPath,
+      },
     });
-    alert("选择文件失败: " + error);
   }
 }
 

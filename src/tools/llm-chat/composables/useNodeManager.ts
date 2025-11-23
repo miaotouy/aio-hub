@@ -7,8 +7,10 @@ import { toRaw } from 'vue';
 import type { ChatSession, ChatMessageNode } from '../types';
 import { BranchNavigator } from '../utils/BranchNavigator';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('llm-chat/node-manager');
+const errorHandler = createModuleErrorHandler('llm-chat/node-manager');
 
 /**
  * 创建节点的配置
@@ -455,10 +457,13 @@ export function useNodeManager() {
 
     const isValid = errors.length === 0;
     if (!isValid) {
-      logger.error('节点完整性验证失败', new Error('Node integrity check failed'), {
-        sessionId: session.id,
-        errorCount: errors.length,
-        errors,
+      errorHandler.error(new Error('Node integrity check failed'), '节点完整性验证失败', {
+        showToUser: false,
+        context: {
+          sessionId: session.id,
+          errorCount: errors.length,
+          errors,
+        },
       });
     }
 

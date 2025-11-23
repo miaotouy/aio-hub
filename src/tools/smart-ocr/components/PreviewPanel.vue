@@ -5,7 +5,7 @@ import { Upload, Delete, Picture, Scissor, Plus } from "@element-plus/icons-vue"
 import type { ImageBlock, CutLine, UploadedImage } from "../types";
 import { useFileDrop } from "@composables/useFileDrop";
 import { invoke } from "@tauri-apps/api/core";
-import { logger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { detectFileType } from "@/utils/fileTypeDetector";
 
@@ -33,6 +33,9 @@ const previewBodyRef = ref<HTMLDivElement>();
 
 // 拖拽状态 - 浏览器内部拖拽
 const isDragging = ref(false);
+
+// 模块错误处理器
+const errorHandler = createModuleErrorHandler("SmartOcr.PreviewPanel");
 
 // 全局图片查看器
 const imageViewer = useImageViewer();
@@ -71,12 +74,13 @@ const { isDraggingOver: isTauriDragging } = useFileDrop({
         files.push(file);
       } catch (error) {
         const fileName = path.split(/[/\\]/).pop() || path;
-        logger.error("PreviewPanel", "文件读取失败", error, {
-          action: "readFileAsTauriDrop",
-          filePath: path,
-          fileName,
+        errorHandler.error(error as Error, `读取文件失败: ${fileName}`, {
+          context: {
+            action: "readFileAsTauriDrop",
+            filePath: path,
+            fileName,
+          },
         });
-        customMessage.error(`读取文件失败: ${fileName}`);
       }
     }
 
@@ -158,13 +162,14 @@ const handleFiles = async (files: FileList | File[]) => {
         dataUrl: img.src,
       });
     } catch (error) {
-      logger.error("PreviewPanel", "图片加载失败", error, {
-        action: "loadImage",
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
+      errorHandler.error(error as Error, `加载图片 ${file.name} 失败`, {
+        context: {
+          action: "loadImage",
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        },
       });
-      customMessage.error(`加载图片 ${file.name} 失败`);
     }
   }
 

@@ -14,12 +14,12 @@ import {
 import { applyThemeColors } from "@utils/themeColors";
 import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useToolsStore } from "@/stores/tools";
 import { useTheme } from "../composables/useTheme";
 import { useLogConfig } from "../composables/useLogConfig";
 
-const logger = createModuleLogger("Settings");
+const errorHandler = createModuleErrorHandler("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
 const { applyLogConfig, watchLogConfig } = useLogConfig();
 const toolsStore = useToolsStore();
@@ -205,8 +205,7 @@ const handleReset = async () => {
   } catch (error) {
     // 用户取消了操作
     if (error !== "cancel") {
-      logger.error("重置应用设置失败", error);
-      customMessage.error("重置设置失败");
+      errorHandler.error(error, "重置应用设置失败");
     }
   }
 };
@@ -241,8 +240,7 @@ const onConfigImported = async (resultMessage: string) => {
 
     customMessage.success(resultMessage);
   } catch (error) {
-    logger.error("导入配置后刷新设置失败", error);
-    customMessage.error("刷新设置失败");
+    errorHandler.error(error, "导入配置后刷新设置失败");
   }
 };
 
@@ -274,7 +272,10 @@ watch(
       await invoke("set_show_tray_icon", { show: newValue });
       customMessage.success(newValue ? "托盘图标已显示" : "托盘图标已隐藏");
     } catch (error) {
-      logger.error("更新托盘图标显示状态失败", error, { show: newValue });
+      errorHandler.error(error, "更新托盘图标显示状态失败", {
+        context: { show: newValue },
+        showToUser: false,
+      });
       customMessage.error("更新托盘图标失败");
     }
   }
@@ -290,7 +291,10 @@ watch(
       // 同步到 Rust 后端
       await invoke("update_tray_setting", { enabled: newValue });
     } catch (error) {
-      logger.error("更新系统托盘设置失败", error, { enabled: newValue });
+      errorHandler.error(error, "更新系统托盘设置失败", {
+        context: { enabled: newValue },
+        showToUser: false,
+      });
       customMessage.error("更新托盘设置失败");
     }
   }
@@ -431,8 +435,9 @@ onMounted(async () => {
     try {
       await invoke("update_tray_setting", { enabled: settings.value.minimizeToTray || false });
     } catch (error) {
-      logger.error("初始化系统托盘设置失败", error, {
-        enabled: settings.value.minimizeToTray || false,
+      errorHandler.error(error, "初始化系统托盘设置失败", {
+        context: { enabled: settings.value.minimizeToTray || false },
+        showToUser: false,
       });
     }
 

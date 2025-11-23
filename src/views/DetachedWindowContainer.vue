@@ -24,8 +24,10 @@ import { useToolsStore } from "../stores/tools";
 import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import GlobalProviders from "../components/GlobalProviders.vue";
+import { createModuleErrorHandler } from "../utils/errorHandler";
 
 const logger = createModuleLogger("DetachedWindowContainer");
+const errorHandler = createModuleErrorHandler("DetachedWindowContainer");
 
 const route = useRoute();
 const { currentTheme } = useTheme();
@@ -104,10 +106,13 @@ onMounted(async () => {
             logger.info("加载工具组件", { toolPath: toolPath.value, toolName: config.name });
             toolComponent.value = defineAsyncComponent(config.component);
           } catch (error) {
-            logger.error("加载工具组件失败", { error, toolPath: toolPath.value });
+            errorHandler.error(error, "加载工具组件失败", { context: { toolPath: toolPath.value }, showToUser: false });
           }
         } else {
-          logger.error("未找到工具配置", { toolPath: toolPath.value });
+          errorHandler.error(new Error(`未找到工具配置: ${toolPath.value}`), "未找到工具配置", {
+            context: { toolPath: toolPath.value },
+            showToUser: false,
+          });
         }
       } else {
         logger.info("等待 Tools store 就绪...");
@@ -138,7 +143,7 @@ onMounted(async () => {
         logger.info("窗口未固定，保持预览模式");
       }
     } catch (error) {
-      logger.error("检查窗口固定状态失败，默认使用预览模式", { error });
+      errorHandler.error(error, "检查窗口固定状态失败，默认使用预览模式", { showToUser: false });
       isPreview.value = true;
     }
   };

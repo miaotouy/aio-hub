@@ -9,8 +9,10 @@ import { createConfigManager } from "@/utils/configManager";
 import { debounce } from "lodash-es";
 import type { ChatSession } from "../types";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("llm-chat/storage-separated");
+const errorHandler = createModuleErrorHandler("llm-chat/storage-separated");
 
 const MODULE_NAME = "llm-chat";
 const SESSIONS_SUBDIR = "sessions";
@@ -104,7 +106,10 @@ export function useChatStorageSeparated() {
       // logger.debug('会话加载成功', { sessionId, nodeCount: Object.keys(session.nodes).length });
       return session;
     } catch (error) {
-      logger.error("加载会话失败", error as Error, { sessionId });
+      errorHandler.error(error as Error, "加载会话失败", {
+        showToUser: false,
+        context: { sessionId },
+      });
       return null;
     }
   }
@@ -159,7 +164,10 @@ export function useChatStorageSeparated() {
         nodeCount: Object.keys(session.nodes).length,
       });
     } catch (error) {
-      logger.error("保存会话失败", error as Error, { sessionId: session.id });
+      errorHandler.error(error as Error, "保存会话失败", {
+        showToUser: false,
+        context: { sessionId: session.id },
+      });
       throw error;
     }
   }
@@ -176,7 +184,10 @@ export function useChatStorageSeparated() {
         logger.info("会话文件已删除", { sessionId });
       }
     } catch (error) {
-      logger.error("删除会话文件失败", error as Error, { sessionId });
+      errorHandler.error(error as Error, "删除会话文件失败", {
+        showToUser: false,
+        context: { sessionId },
+      });
       throw error;
     }
   }
@@ -204,7 +215,7 @@ export function useChatStorageSeparated() {
       logger.debug("扫描会话目录完成", { count: sessionIds.length });
       return sessionIds;
     } catch (error) {
-      logger.error("扫描会话目录失败", error as Error);
+      errorHandler.error(error as Error, "扫描会话目录失败", { showToUser: false });
       return [];
     }
   }
@@ -339,7 +350,7 @@ export function useChatStorageSeparated() {
         currentSessionId: index.currentSessionId,
       };
     } catch (error) {
-      logger.error("加载所有会话失败", error as Error);
+      errorHandler.error(error as Error, "加载所有会话失败", { showToUser: false });
       return { sessions: [], currentSessionId: null };
     }
   }
@@ -375,7 +386,10 @@ export function useChatStorageSeparated() {
 
       logger.debug("单个会话保存成功", { sessionId: session.id });
     } catch (error) {
-      logger.error("保存单个会话失败", error as Error, { sessionId: session.id });
+      errorHandler.error(error as Error, "保存单个会话失败", {
+        showToUser: false,
+        context: { sessionId: session.id },
+      });
       throw error;
     }
   }
@@ -407,8 +421,9 @@ export function useChatStorageSeparated() {
         currentSessionId,
       });
     } catch (error) {
-      logger.error("批量保存所有会话失败", error as Error, {
-        sessionCount: sessions.length,
+      errorHandler.error(error as Error, "批量保存所有会话失败", {
+        showToUser: false,
+        context: { sessionCount: sessions.length },
       });
       throw error;
     }
@@ -435,7 +450,10 @@ export function useChatStorageSeparated() {
 
       logger.info("会话已删除", { sessionId });
     } catch (error) {
-      logger.error("删除会话失败", error as Error, { sessionId });
+      errorHandler.error(error as Error, "删除会话失败", {
+        showToUser: false,
+        context: { sessionId },
+      });
       throw error;
     }
   }
@@ -450,7 +468,10 @@ export function useChatStorageSeparated() {
       await saveIndex(index);
       logger.debug("当前会话 ID 已更新", { currentSessionId });
     } catch (error) {
-      logger.error("更新当前会话 ID 失败", error as Error, { currentSessionId });
+      errorHandler.error(error as Error, "更新当前会话 ID 失败", {
+        showToUser: false,
+        context: { currentSessionId },
+      });
       throw error;
     }
   }
@@ -464,7 +485,7 @@ export function useChatStorageSeparated() {
         await saveSessions(sessions, currentSessionId);
         logger.debug("防抖保存完成", { delay });
       } catch (error) {
-        logger.error("防抖保存失败", error as Error);
+        errorHandler.error(error as Error, "防抖保存失败", { showToUser: false });
       }
     }, delay);
   }

@@ -2,8 +2,10 @@
 import { shallowRef, onMounted, computed, defineAsyncComponent, Component } from "vue";
 import { useRoute } from "vue-router";
 import { createModuleLogger } from "../utils/logger";
+import { createModuleErrorHandler } from "../utils/errorHandler";
 
 const logger = createModuleLogger("ComponentContainer");
+const errorHandler = createModuleErrorHandler("ComponentContainer");
 const route = useRoute();
 const componentToRender = shallowRef<Component | null>(null);
 
@@ -17,7 +19,7 @@ const componentConfig = computed(() => {
     try {
       return JSON.parse(decodeURIComponent(configStr));
     } catch (error) {
-      logger.error("解析组件配置失败", { error, configStr });
+      errorHandler.error(error, "解析组件配置失败", { context: { configStr }, showToUser: false });
       return {};
     }
   }
@@ -55,7 +57,10 @@ onMounted(() => {
     logger.info("正在加载组件", { componentId: id, props: componentProps.value });
     componentToRender.value = defineAsyncComponent(componentRegistry[id]);
   } else {
-    logger.error("未找到或未注册可分离的组件", { componentId: id });
+    errorHandler.error(new Error(`未找到或未注册可分离的组件: ${id}`), "未找到或未注册可分离的组件", {
+      context: { componentId: id },
+      showToUser: false,
+    });
   }
 });
 </script>

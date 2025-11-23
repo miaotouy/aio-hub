@@ -10,8 +10,10 @@ import type { UserProfile } from '../types';
 import { createMacroContext, extractContextFromSession } from '../macro-engine/MacroContext';
 import { MacroProcessor } from '../macro-engine/MacroProcessor';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('llm-chat/use-macro-processor');
+const errorHandler = createModuleErrorHandler('llm-chat/use-macro-processor');
 
 /**
  * 上下文覆盖选项
@@ -121,8 +123,9 @@ export function useMacroProcessor() {
 
       return result.output;
     } catch (error) {
-      logger.error('宏处理失败', error as Error, {
-        textPreview: text.substring(0, 100),
+      errorHandler.error(error as Error, '宏处理失败', {
+        showToUser: false,
+        context: { textPreview: text.substring(0, 100) },
       });
       // 处理失败时返回原文本
       return text;

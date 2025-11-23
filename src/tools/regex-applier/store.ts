@@ -15,10 +15,10 @@ import {
   touchPreset as touchPresetTimestamp,
   presetsConfigManager
 } from './presets';
-import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@utils/errorHandler';
 
 // 创建模块日志记录器
-const logger = createModuleLogger('regex-applier/store');
+const errorHandler = createModuleErrorHandler('regex-applier/store');
 
 export const usePresetStore = defineStore('preset', () => {
   // ===== 状态 =====
@@ -90,8 +90,9 @@ export const usePresetStore = defineStore('preset', () => {
       version.value = config.version || '1.0.0';
 
     } catch (error: any) {
-      logger.error('加载预设失败', error, {
-        context: '从文件加载预设配置时发生错误，将使用默认配置'
+      errorHandler.error(error, '加载预设失败', {
+        context: { context: '从文件加载预设配置时发生错误，将使用默认配置' },
+        showToUser: false,
       });
       // 加载失败时创建默认配置
       const defaultPreset = createNewPreset('默认预设', '空白预设，可以开始添加你的规则');

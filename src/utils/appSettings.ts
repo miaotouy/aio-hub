@@ -5,6 +5,7 @@
 
 import { createConfigManager } from "./configManager";
 import { logger } from "./logger";
+import { createModuleErrorHandler } from "./errorHandler";
 import type { UserCssSettings } from "@/types/css-override";
 
 // 壁纸模式类型
@@ -274,6 +275,8 @@ export const appSettingsManager = createConfigManager<AppSettings>({
 // 缓存当前设置，避免频繁的异步读取
 let cachedSettings: AppSettings | null = null;
 
+const errorHandler = createModuleErrorHandler("appSettings");
+
 /**
  * 加载应用设置（异步版本）
  */
@@ -284,7 +287,10 @@ export const loadAppSettingsAsync = async (): Promise<AppSettings> => {
     logger.info("appSettings", "应用设置加载成功");
     return settings;
   } catch (error) {
-    logger.error("appSettings", "加载应用设置失败", error, { operation: "load" });
+    errorHandler.error(error as Error, "加载应用设置失败", {
+      context: { operation: "load" },
+      showToUser: false,
+    });
     return defaultAppSettings;
   }
 };
@@ -298,7 +304,10 @@ export const saveAppSettingsAsync = async (settings: AppSettings): Promise<void>
     cachedSettings = settings;
     logger.info("appSettings", "应用设置保存成功");
   } catch (error) {
-    logger.error("appSettings", "保存应用设置失败", error, { operation: "save" });
+    errorHandler.error(error as Error, "保存应用设置失败", {
+      context: { operation: "save" },
+      showToUser: false,
+    });
     throw error;
   }
 };
@@ -317,9 +326,12 @@ export const updateAppSettingsAsync = async (
     });
     return updatedSettings;
   } catch (error) {
-    logger.error("appSettings", "更新应用设置失败", error, {
-      operation: "update",
-      updatedKeys: Object.keys(updates),
+    errorHandler.error(error as Error, "更新应用设置失败", {
+      context: {
+        operation: "update",
+        updatedKeys: Object.keys(updates),
+      },
+      showToUser: false,
     });
     throw error;
   }
@@ -335,7 +347,10 @@ export const resetAppSettingsAsync = async (): Promise<AppSettings> => {
     logger.info("appSettings", "应用设置重置成功");
     return defaultAppSettings;
   } catch (error) {
-    logger.error("appSettings", "重置应用设置失败", error, { operation: "reset" });
+    errorHandler.error(error as Error, "重置应用设置失败", {
+      context: { operation: "reset" },
+      showToUser: false,
+    });
     throw error;
   }
 };
@@ -381,7 +396,10 @@ export const resetAppSettings = (): AppSettings => {
   cachedSettings = defaultAppSettings;
   // 异步保存，不等待结果
   resetAppSettingsAsync().catch((error) => {
-    logger.error("appSettings", "异步重置设置失败", error, { operation: "resetAsync" });
+    errorHandler.error(error as Error, "异步重置设置失败", {
+      context: { operation: "resetAsync" },
+      showToUser: false,
+    });
   });
   return defaultAppSettings;
 };

@@ -1,8 +1,10 @@
 import type { ImageBlock, OcrResult } from '../types';
 import { useLlmRequest } from '@/composables/useLlmRequest';
-import { createModuleLogger } from '@utils/logger';
+import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('OCR/VlmEngine');
+const errorHandler = createModuleErrorHandler('OCR/VlmEngine');
 
 /**
  * VLM 引擎配置接口
@@ -130,10 +132,13 @@ export function useVlmEngine() {
           textLength: text.length,
         });
       } catch (error) {
-        logger.error(`图片块识别失败 ${index + 1}/${blocks.length}`, error, {
-          blockId: block.id,
-          modelId: config.modelId,
-          profileId: config.profileId,
+        errorHandler.error(error as Error, `图片块识别失败 ${index + 1}/${blocks.length}`, {
+          context: {
+            blockId: block.id,
+            modelId: config.modelId,
+            profileId: config.profileId,
+          },
+          showToUser: false,
         });
         results[index].status = 'error';
         results[index].error = (error as Error).message;

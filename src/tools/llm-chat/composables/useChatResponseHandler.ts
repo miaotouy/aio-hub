@@ -6,10 +6,12 @@
 import type { ChatSession } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { processInlineData } from "@/composables/useAttachmentProcessor";
 
 const logger = createModuleLogger("llm-chat/response-handler");
+const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
 
 export function useChatResponseHandler() {
   /**
@@ -131,8 +133,9 @@ export function useChatResponseHandler() {
           tokenizerName: completionResult.tokenizerName,
         });
       } catch (error) {
-        logger.error("本地 token 计算失败，保留原始 usage", error as Error, {
-          modelId,
+        errorHandler.error(error as Error, "本地 token 计算失败，保留原始 usage", {
+          showToUser: false,
+          context: { modelId },
         });
       }
     }
@@ -277,7 +280,10 @@ export function useChatResponseHandler() {
         ...errorNode.metadata,
         error: error instanceof Error ? error.message : String(error),
       };
-      logger.error(`${context}失败`, error as Error, { nodeId });
+      errorHandler.error(error as Error, `${context}失败`, {
+        showToUser: false,
+        context: { nodeId },
+      });
     }
   };
 

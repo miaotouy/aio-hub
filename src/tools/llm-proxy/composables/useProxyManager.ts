@@ -1,5 +1,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@utils/errorHandler';
 import { customMessage } from '@utils/customMessage';
 import {
   startProxyService,
@@ -22,6 +23,7 @@ import { maskSensitiveData, copyToClipboard } from '../utils';
 import type { ProxyConfig, LlmProxySettings } from '../types';
 
 const logger = createModuleLogger('LlmProxy/ProxyManager');
+const errorHandler = createModuleErrorHandler('LlmProxy/ProxyManager');
 
 /**
  * LLM 代理管理器组合式函数
@@ -104,7 +106,7 @@ export function useProxyManager() {
 
     } catch (err) {
       error.value = err instanceof Error ? err.message : '启动失败';
-      logger.error('启动代理服务失败', err);
+      errorHandler.error(err, '启动代理服务失败', { showToUser: false });
       throw err;
     } finally {
       isLoading.value = false;
@@ -131,7 +133,7 @@ export function useProxyManager() {
 
     } catch (err) {
       error.value = err instanceof Error ? err.message : '停止失败';
-      logger.error('停止代理服务失败', err);
+      errorHandler.error(err, '停止代理服务失败', { showToUser: false });
       throw err;
     } finally {
       isLoading.value = false;
@@ -161,7 +163,7 @@ export function useProxyManager() {
 
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新失败';
-      logger.error('更新代理目标地址失败', err);
+      errorHandler.error(err, '更新代理目标地址失败', { showToUser: false });
       throw err;
     } finally {
       isLoading.value = false;
@@ -190,7 +192,7 @@ export function useProxyManager() {
       }
 
     } catch (err) {
-      logger.error('检查代理状态失败', err);
+      errorHandler.error(err, '检查代理状态失败', { showToUser: false });
       isRunning.value = false;
     }
   }
@@ -215,7 +217,7 @@ export function useProxyManager() {
       logger.debug('事件监听器设置完成');
 
     } catch (err) {
-      logger.error('设置事件监听器失败', err);
+      errorHandler.error(err, '设置事件监听器失败', { showToUser: false });
       cleanupEventListeners();
       throw err;
     }
@@ -258,7 +260,7 @@ export function useProxyManager() {
       });
 
     } catch (err) {
-      logger.error('加载配置失败', err);
+      errorHandler.error(err, '加载配置失败', { showToUser: false });
       throw err;
     }
   }
@@ -277,7 +279,7 @@ export function useProxyManager() {
       logger.debug('配置已保存');
 
     } catch (err) {
-      logger.error('保存配置失败', err);
+      errorHandler.error(err, '保存配置失败', { showToUser: false });
       throw err;
     }
   }
@@ -319,14 +321,14 @@ export function useProxyManager() {
   // 监听配置变化并自动保存
   watch([config, maskApiKeys, targetUrlHistory], () => {
     saveConfig().catch(err => {
-      logger.error('自动保存配置失败', err);
+      errorHandler.error(err, '自动保存配置失败', { showToUser: false });
     });
   }, { deep: true });
 
   // 监听过滤选项变化并自动保存
   watch(() => recordManager.getFilterOptions(), () => {
     saveConfig().catch(err => {
-      logger.error('自动保存过滤选项失败', err);
+      errorHandler.error(err, '自动保存过滤选项失败', { showToUser: false });
     });
   }, { deep: true });
 

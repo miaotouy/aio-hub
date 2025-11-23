@@ -55,8 +55,10 @@ import MacroDebugView from './MacroDebugView.vue';
 import { useChatHandler, type ContextPreviewData } from '../../composables/useChatHandler';
 import type { ChatSession } from '../../types';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('llm-chat/context-analyzer-dialog');
+const errorHandler = createModuleErrorHandler('llm-chat/context-analyzer-dialog');
 
 const props = defineProps<{
   visible: boolean;
@@ -124,7 +126,10 @@ const analyzeContext = async () => {
     });
   } catch (err) {
     error.value = err instanceof Error ? err.message : '分析上下文时发生错误';
-    logger.error('上下文分析异常', err as Error, { nodeId: props.nodeId });
+    errorHandler.error(err as Error, '上下文分析异常', {
+      context: { nodeId: props.nodeId },
+      showToUser: false,
+    });
   } finally {
     loading.value = false;
   }

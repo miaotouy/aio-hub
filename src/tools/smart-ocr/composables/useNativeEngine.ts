@@ -1,8 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ImageBlock, OcrResult } from '../types';
-import { createModuleLogger } from '@utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('OCR/NativeEngine');
+const errorHandler = createModuleErrorHandler('OCR/NativeEngine');
 
 /**
  * Native OCR 引擎 Composable
@@ -29,7 +31,7 @@ export function useNativeEngine() {
         confidence: result.confidence,
       };
     } catch (error) {
-      logger.error('Native OCR 识别失败', error);
+      errorHandler.error(error as Error, 'Native OCR 识别失败', { showToUser: false });
       throw error;
     }
   };
@@ -82,9 +84,12 @@ export function useNativeEngine() {
           textLength: text.length,
         });
       } catch (error) {
-        logger.error(`图片块识别失败 ${i + 1}/${blocks.length}`, error, {
-          blockId: block.id,
-          engine: 'native',
+        errorHandler.error(error as Error, `图片块识别失败 ${i + 1}/${blocks.length}`, {
+          context: {
+            blockId: block.id,
+            engine: 'native',
+          },
+          showToUser: false,
         });
         results[i].status = 'error';
         results[i].error = (error as Error).message;

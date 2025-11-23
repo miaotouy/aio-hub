@@ -44,12 +44,14 @@ import { ElMessageBox } from "element-plus";
 import ConfigPanel from "./components/ConfigPanel.vue";
 import ResultPanel from "./components/ResultPanel.vue";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { formatBytes } from "./utils";
 import { useDirectoryJanitorStore } from "./store";
 import { useDirectoryJanitorRunner } from "./composables/useDirectoryJanitorRunner";
 
 const logger = createModuleLogger("tools/directory-janitor");
+const errorHandler = createModuleErrorHandler("tools/directory-janitor");
 
 // 使用 Pinia store
 const store = useDirectoryJanitorStore();
@@ -76,8 +78,7 @@ const stopScan = async () => {
     customMessage.success('已停止扫描');
     logger.info('用户手动停止扫描');
   } catch (error) {
-    logger.error('停止扫描失败', error);
-    customMessage.error('停止扫描失败');
+    errorHandler.error(error, '停止扫描失败');
   }
 };
 
@@ -91,8 +92,7 @@ const stopCleanup = async () => {
     customMessage.success('已停止清理');
     logger.info('用户手动停止清理');
   } catch (error) {
-    logger.error('停止清理失败', error);
-    customMessage.error('停止清理失败');
+    errorHandler.error(error, '停止清理失败');
   }
 };
 

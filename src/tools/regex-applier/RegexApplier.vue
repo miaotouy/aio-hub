@@ -340,12 +340,14 @@ import { usePresetStore } from "./store";
 import type { LogEntry, RegexPreset } from "./types";
 import { loadAppConfig, appConfigManager, type AppConfig } from "./appConfig";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { serviceRegistry } from "@/services/registry";
 import type RegexApplierService from "./regexApplier.registry";
 import { useSendToChat } from "@/composables/useSendToChat";
 
 // 创建模块日志器
 const logger = createModuleLogger("RegexApplier");
+const errorHandler = createModuleErrorHandler("RegexApplier");
 
 // 获取服务实例
 const regexService = serviceRegistry.getService<RegexApplierService>('regex-applier')!;
@@ -467,7 +469,7 @@ onMounted(async () => {
 
     addLog("已恢复上次的设置", "info");
   } catch (error) {
-    logger.error("加载应用配置失败", error);
+    errorHandler.error(error, "加载应用配置失败", { showToUser: false });
     // 如果没有选中的预设，默认选中第一个
     if (selectedPresetIds.value.length === 0 && store.presets.length > 0) {
       selectedPresetIds.value = [store.presets[0].id];
@@ -847,8 +849,7 @@ const selectFiles = async () => {
       addFiles([selected]);
     }
   } catch (error) {
-    logger.error("选择文件失败", error, { operation: "selectFiles" });
-    customMessage.error("选择文件失败");
+    errorHandler.error(error, "选择文件失败", { context: { operation: "selectFiles" } });
   }
 };
 
@@ -865,8 +866,7 @@ const selectFolders = async () => {
       addFiles([selected]);
     }
   } catch (error) {
-    logger.error("选择文件夹失败", error, { operation: "selectFolders" });
-    customMessage.error("选择文件夹失败");
+    errorHandler.error(error, "选择文件夹失败", { context: { operation: "selectFolders" } });
   }
 };
 
@@ -881,8 +881,9 @@ const selectOutputDirectory = async () => {
       outputDirectory.value = selected;
     }
   } catch (error) {
-    logger.error("选择输出目录失败", error, { operation: "selectOutputDirectory" });
-    customMessage.error("选择目录失败");
+    errorHandler.error(error, "选择目录失败", {
+      context: { operation: "selectOutputDirectory" },
+    });
   }
 };
 
@@ -969,10 +970,13 @@ const processFiles = async () => {
       addLog(`已从列表中移除 ${successfulFiles.length} 个成功处理的文件`);
     }
   } catch (error: any) {
-    logger.error("文件处理失败", error, {
-      operation: "processFiles",
-      fileCount: files.value.length,
-      outputDir: outputDirectory.value,
+    errorHandler.error(error, "文件处理失败", {
+      context: {
+        operation: "processFiles",
+        fileCount: files.value.length,
+        outputDir: outputDirectory.value,
+      },
+      showToUser: false,
     });
     customMessage.error(`文件处理失败: ${error}`);
     addLog(`文件处理失败: ${error}`, "error");

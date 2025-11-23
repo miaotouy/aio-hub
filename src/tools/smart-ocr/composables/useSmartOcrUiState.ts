@@ -5,8 +5,10 @@
 import { ref, watch } from 'vue';
 import { createConfigManager } from '@/utils/configManager';
 import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('SmartOcrUiState');
+const errorHandler = createModuleErrorHandler('SmartOcrUiState');
 
 export interface SmartOcrUiState {
   // 侧边栏折叠状态
@@ -71,7 +73,7 @@ export function useSmartOcrUiState() {
       isInitialized = true;
       logger.info('UI状态加载成功', state);
     } catch (error) {
-      logger.error('加载UI状态失败', error as Error);
+      errorHandler.error(error as Error, '加载UI状态失败', { showToUser: false });
       // 加载失败时使用默认值
       isInitialized = true;
     }
@@ -126,7 +128,7 @@ export function useSmartOcrUiState() {
       
       logger.info('UI状态已重置');
     } catch (error) {
-      logger.error('重置UI状态失败', error as Error);
+      errorHandler.error(error as Error, '重置UI状态失败');
     }
   };
   

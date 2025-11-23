@@ -14,8 +14,10 @@ import type {
 import { RendererVersion } from "./types";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("rich-text-renderer/store");
+const errorHandler = createModuleErrorHandler("rich-text-renderer/store");
 
 /**
  * 可用的渲染器版本列表
@@ -195,7 +197,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       isConfigLoaded.value = true;
       logger.info("配置加载成功");
     } catch (error) {
-      logger.error("加载配置失败", error);
+      errorHandler.error(error, "加载配置失败", { showToUser: false });
       // 加载失败时使用默认值（已在 ref 初始化时设置）
       isConfigLoaded.value = true;
     }
@@ -234,7 +236,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       await configManager.save(config);
       logger.debug("配置保存成功");
     } catch (error) {
-      logger.error("保存配置失败", error);
+      errorHandler.error(error, "保存配置失败", { showToUser: false });
     }
   }
 

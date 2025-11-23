@@ -1,7 +1,7 @@
 import { homeDir } from "@tauri-apps/api/path";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger("tools/directory-janitor/utils");
+const errorHandler = createModuleErrorHandler("tools/directory-janitor/utils");
 
 /**
  * 格式化字节数
@@ -77,7 +77,7 @@ export const resolveEnvPath = async (path: string): Promise<string> => {
         resolvedPath = resolvedPath.replace(/%HOME%/gi, homePath);
       }
     } catch (error) {
-      logger.error("解析环境变量失败", error);
+      errorHandler.error(error, "解析环境变量失败", { showToUser: false });
     }
   }
 
@@ -91,7 +91,7 @@ export const resolveEnvPath = async (path: string): Promise<string> => {
         resolvedPath = resolvedPath.replace(/\$\{HOME\}/g, homePath);
       }
     } catch (error) {
-      logger.error("解析环境变量失败", error);
+      errorHandler.error(error, "解析环境变量失败", { showToUser: false });
     }
   }
 

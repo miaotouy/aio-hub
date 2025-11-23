@@ -4,9 +4,11 @@ import { useNativeEngine } from './useNativeEngine';
 import { useVlmEngine } from './useVlmEngine';
 import { useCloudOcrRunner } from './useCloudOcrRunner';
 import { useOcrProfiles } from '@/composables/useOcrProfiles';
-import { createModuleLogger } from '@utils/logger';
+import { createModuleLogger } from '@/utils/logger';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 const logger = createModuleLogger('OCR/Runner');
+const errorHandler = createModuleErrorHandler('OCR/Runner');
 
 /**
  * OCR 运行器 Composable
@@ -69,9 +71,12 @@ export function useOcrRunner() {
 
       return finalResults;
     } catch (error) {
-      logger.error(`OCR 识别失败 [${config.type}]`, error, {
-        engineType: config.type,
-        blocksCount: blocks.length,
+      errorHandler.error(error as Error, `OCR 识别失败 [${config.type}]`, {
+        context: {
+          engineType: config.type,
+          blocksCount: blocks.length,
+        },
+        showToUser: false,
       });
       throw error;
     }
@@ -126,17 +131,21 @@ export function useOcrRunner() {
 
     if (!profile) {
       const errorMsg = '请先在设置中配置云端 OCR 服务';
-      logger.error('云端 OCR 配置缺失', new Error(errorMsg), {
-        activeProfileId: config.activeProfileId,
+      errorHandler.error(new Error(errorMsg), '云端 OCR 配置缺失', {
+        context: { activeProfileId: config.activeProfileId },
+        showToUser: false,
       });
       throw new Error(errorMsg);
     }
 
     if (!profile.enabled) {
       const errorMsg = `云端 OCR 服务 "${profile.name}" 未启用`;
-      logger.error('云端 OCR 服务未启用', new Error(errorMsg), {
-        profileId: profile.id,
-        profileName: profile.name,
+      errorHandler.error(new Error(errorMsg), '云端 OCR 服务未启用', {
+        context: {
+          profileId: profile.id,
+          profileName: profile.name,
+        },
+        showToUser: false,
       });
       throw new Error(errorMsg);
     }

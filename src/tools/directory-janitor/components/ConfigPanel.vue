@@ -139,8 +139,10 @@ import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import { builtInPresets, type CleanupPreset } from "../presets";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("tools/directory-janitor/ConfigPanel");
+const errorHandler = createModuleErrorHandler("tools/directory-janitor/ConfigPanel");
 
 interface Props {
   scanPath: string;
@@ -254,8 +256,7 @@ const selectDirectory = async () => {
       localScanPath.value = selected;
     }
   } catch (error) {
-    logger.error("选择目录失败", error);
-    customMessage.error("选择目录失败");
+    errorHandler.error(error, "选择目录失败");
   }
 };
 

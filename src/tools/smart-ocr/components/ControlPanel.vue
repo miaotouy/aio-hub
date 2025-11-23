@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
 import type { UploadedImage, OcrEngineConfig, SlicerConfig } from "../types";
 import type { SmartOcrConfig } from "../config";
-import { useLlmProfiles } from "@composables/useLlmProfiles";
-import { useOcrProfiles } from "@composables/useOcrProfiles";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useOcrProfiles } from "@/composables/useOcrProfiles";
 import { getTesseractLanguageOptions } from "../language-packs";
 import { History } from "lucide-vue-next";
 
-// 创建模块日志记录器
-const logger = createModuleLogger("SmartOCR.ControlPanel");
+// 创建模块错误处理器
+const errorHandler = createModuleErrorHandler("SmartOCR.ControlPanel");
 
 // 设置页导航
 const { navigateToSettings } = useSettingsNavigator();
@@ -189,24 +189,18 @@ const handleStartOcr = async () => {
     return;
   }
 
-  logger.info("开始执行单张图片OCR识别", {
-    imageId: selectedImage.value.id,
-    imageName: selectedImage.value.name,
-    engineType: engineConfig.value.type,
-    slicerEnabled: slicerConfig.value.enabled,
-  });
-
   try {
     emit("runFullOcrProcess", { imageIds: [selectedImage.value.id] });
-    customMessage.success("识别完成");
+    // 父组件会处理消息
+    // customMessage.success("识别完成");
   } catch (error) {
-    logger.error("单张图片OCR识别失败", {
-      imageId: selectedImage.value?.id,
-      imageName: selectedImage.value?.name,
-      engineType: engineConfig.value.type,
-      error: error instanceof Error ? error.message : String(error),
+    errorHandler.error(error as Error, "单张图片OCR识别失败", {
+      context: {
+        imageId: selectedImage.value?.id,
+        imageName: selectedImage.value?.name,
+        engineType: engineConfig.value.type,
+      },
     });
-    customMessage.error("识别失败: " + (error as Error).message);
   }
 };
 
@@ -217,12 +211,6 @@ const handleBatchOcr = async () => {
     return;
   }
 
-  logger.info("开始批量OCR识别所有图片", {
-    totalImages: uploadedImages.value.length,
-    engineType: engineConfig.value.type,
-    slicerEnabled: slicerConfig.value.enabled,
-  });
-
   customMessage.info(`准备批量识别 ${uploadedImages.value.length} 张图片`);
 
   try {
@@ -230,20 +218,15 @@ const handleBatchOcr = async () => {
     emit("runFullOcrProcess", {
       imageIds: uploadedImages.value.map((img) => img.id),
     });
-
-    logger.info("批量OCR识别完成", {
-      totalImages: uploadedImages.value.length,
-      engineType: engineConfig.value.type,
-    });
-
-    customMessage.success("批量识别完成");
+    // 父组件会处理消息
+    // customMessage.success("批量识别完成");
   } catch (error) {
-    logger.error("批量OCR识别失败", {
-      totalImages: uploadedImages.value.length,
-      engineType: engineConfig.value.type,
-      error: error instanceof Error ? error.message : String(error),
+    errorHandler.error(error as Error, "批量OCR识别失败", {
+      context: {
+        totalImages: uploadedImages.value.length,
+        engineType: engineConfig.value.type,
+      },
     });
-    customMessage.error("批量识别失败: " + (error as Error).message);
   }
 };
 

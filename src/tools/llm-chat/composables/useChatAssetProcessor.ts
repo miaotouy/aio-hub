@@ -8,9 +8,11 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { isTextFile } from "@/utils/fileTypeDetector";
 
 const logger = createModuleLogger("llm-chat/asset-processor");
+const errorHandler = createModuleErrorHandler("llm-chat/asset-processor");
 
 export function useChatAssetProcessor() {
   /**
@@ -68,11 +70,14 @@ export function useChatAssetProcessor() {
     }
 
     // 超时
-    logger.error("资产导入超时", {
-      timeout,
-      stillPendingCount: assets.filter(
-        (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
-      ).length,
+    errorHandler.error(new Error("资产导入超时"), "资产导入超时", {
+      context: {
+        timeout,
+        stillPendingCount: assets.filter(
+          (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
+        ).length,
+      },
+      showToUser: false,
     });
     return false;
   };
@@ -154,9 +159,12 @@ export function useChatAssetProcessor() {
               text: `[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\``,
             };
           } catch (error) {
-            logger.error("读取文本文件失败，尝试使用 base64", error as Error, {
-              assetId: asset.id,
-              assetName: asset.name,
+            errorHandler.error(error as Error, "读取文本文件失败，尝试使用 base64", {
+              context: {
+                assetId: asset.id,
+                assetName: asset.name,
+              },
+              showToUser: false,
             });
             // 如果读取失败，降级到 base64（用于非文本文档如 PDF）
           }
@@ -213,9 +221,12 @@ export function useChatAssetProcessor() {
       });
       return null;
     } catch (error) {
-      logger.error("附件转换失败", error as Error, {
-        assetId: asset.id,
-        assetName: asset.name,
+      errorHandler.error(error as Error, "附件转换失败", {
+        context: {
+          assetId: asset.id,
+          assetName: asset.name,
+        },
+        showToUser: false,
       });
       return null;
     }

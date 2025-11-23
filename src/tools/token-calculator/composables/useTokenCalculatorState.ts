@@ -123,7 +123,7 @@ export function useTokenCalculator() {
       configLoaded.value = true;
       logger.info('配置加载成功', config);
     } catch (error) {
-      logger.error('加载配置失败', error);
+      errorHandler.error(error as Error, '加载配置失败', { showToUser: false });
       configLoaded.value = true; // 即使失败也标记为已加载，使用默认值
     }
   };
@@ -229,7 +229,7 @@ export function useTokenCalculator() {
       }
     } catch (error) {
       // 出错时使用简单分词作为回退
-      logger.error('分词可视化失败，使用简单分词', error);
+      errorHandler.error(error as Error, '分词可视化失败，使用简单分词', { showToUser: false });
       await generateSimpleTokenizedText(text);
     }
   };

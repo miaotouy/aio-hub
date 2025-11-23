@@ -4,12 +4,14 @@ import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { invoke } from "@tauri-apps/api/core";
-import { createModuleLogger } from "@utils/logger";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
 
 const logger = createModuleLogger("GeneralSettings");
+const errorHandler = createModuleErrorHandler("GeneralSettings");
 
 const props = defineProps<{
   showTrayIcon: boolean;
@@ -63,8 +65,7 @@ const handleClearWindowState = async () => {
     customMessage.success("窗口状态已清除");
   } catch (error) {
     if (error !== "cancel") {
-      logger.error("清除窗口状态失败", error);
-      customMessage.error("清除窗口状态失败");
+      errorHandler.error(error as Error, "清除窗口状态失败");
     }
   }
 };
@@ -90,8 +91,7 @@ const handleOpenConfigDir = async () => {
       });
     }
   } catch (error) {
-    logger.error("获取配置目录路径失败", error);
-    customMessage.error("无法访问配置目录");
+    errorHandler.error(error as Error, "获取配置目录路径失败");
   }
 };
 
@@ -131,8 +131,7 @@ const handleExportConfig = async () => {
       }
     }
   } catch (error) {
-    logger.error("导出配置失败", error);
-    customMessage.error("导出配置失败");
+    errorHandler.error(error as Error, "导出配置失败");
   }
 };
 
@@ -191,8 +190,7 @@ const handleImportConfig = async () => {
     logger.info("配置已导入，请求父组件刷新", { result, mergeMode });
   } catch (error) {
     if (error !== "cancel") {
-      logger.error("导入配置失败", error);
-      customMessage.error("导入配置失败");
+      errorHandler.error(error as Error, "导入配置失败");
     }
   }
 };

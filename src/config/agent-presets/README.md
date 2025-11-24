@@ -13,14 +13,18 @@
 
 ```typescript
 interface AgentPreset {
+  // 预设配置的版本号 (可选, 默认为 1)
+  // 用于未来的配置迁移
+  version?: number;
+
   // 预设的唯一ID (通常是文件名，由加载器自动注入)
-  id: string; 
-  
+  id: string;
+
   // 预设名称，将显示在UI上
-  name: string; 
-  
+  name: string;
+
   // 预设的简短描述
-  description: string; 
+  description: string;
   
   // 预设的图标 (推荐使用 Emoji)
   icon: string; 
@@ -47,6 +51,7 @@ interface AgentPreset {
 
 ```json
 {
+  "version": 1,
   "name": "多语言翻译专家",
   "description": "精通世界多种语言，提供精准、流畅的翻译。",
   "icon": "🌐",

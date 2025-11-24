@@ -681,6 +681,14 @@ export interface ChatAgent {
  */
 export interface AgentPreset {
   /**
+   * 预设配置的版本号。
+   *
+   * 用于未来的迁移和兼容性检查。
+   * 如果未指定，默认为 1。
+   */
+  version?: number;
+
+  /**
    * 预设的唯一标识符（通常为文件名）
    */
   id: string;

@@ -5,6 +5,7 @@ import { customMessage } from "@/utils/customMessage";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { updateAppSettings, loadAppSettings } from "@/utils/appSettings";
+import { resetAssetBasePathCache } from "@/composables/useAssetManager";
 
 // 资产路径配置
 const customAssetPath = ref<string>("");
@@ -21,7 +22,7 @@ const loadConfig = async () => {
 
     // 获取默认路径
     defaultAssetPath.value = await invoke<string>("get_asset_base_path");
-    
+
     // 获取当前实际使用的路径
     currentAssetPath.value = customAssetPath.value || defaultAssetPath.value;
   } catch (error) {
@@ -50,13 +51,22 @@ const selectCustomPath = async () => {
     customMessage.error("选择目录失败");
   }
 };
-
 // 保存配置
 const saveConfig = () => {
   try {
+    const oldSettings = loadAppSettings();
+    if (oldSettings.customAssetPath === customAssetPath.value) {
+      customMessage.info("资产路径未发生变化");
+      return;
+    }
+
     updateAppSettings({ customAssetPath: customAssetPath.value });
     currentAssetPath.value = customAssetPath.value || defaultAssetPath.value;
-    customMessage.success("资产路径配置已保存");
+
+    // 清除 useAssetManager 中的路径缓存，以便下次能获取到最新路径
+    resetAssetBasePathCache();
+
+    customMessage.success("资产路径配置已保存，将在下次资源加载时生效");
   } catch (error) {
     console.error("保存配置失败:", error);
     customMessage.error("保存配置失败");
@@ -72,8 +82,8 @@ const resetToDefault = () => {
 // 打开资产目录
 const openAssetDirectory = async () => {
   try {
-    await invoke("open_file_directory", { 
-      filePath: currentAssetPath.value 
+    await invoke("open_file_directory", {
+      filePath: currentAssetPath.value,
     });
   } catch (error) {
     console.error("打开目录失败:", error);
@@ -118,15 +128,9 @@ onMounted(() => {
           </el-tooltip>
         </div>
         <div class="path-input-group">
-          <el-input
-            v-model="customAssetPath"
-            placeholder="留空使用默认路径"
-            readonly
-          >
+          <el-input v-model="customAssetPath" placeholder="留空使用默认路径" readonly>
             <template #append>
-              <el-button :icon="FolderOpened" @click="selectCustomPath">
-                选择目录
-              </el-button>
+              <el-button :icon="FolderOpened" @click="selectCustomPath"> 选择目录 </el-button>
             </template>
           </el-input>
           <el-button
@@ -152,9 +156,7 @@ onMounted(() => {
         </div>
         <div class="current-path-display">
           <el-input :model-value="currentAssetPath" readonly />
-          <el-button @click="openAssetDirectory" type="primary" plain>
-            打开目录
-          </el-button>
+          <el-button @click="openAssetDirectory" type="primary" plain> 打开目录 </el-button>
         </div>
       </div>
     </div>
@@ -163,12 +165,7 @@ onMounted(() => {
 
     <div class="setting-group">
       <div class="group-title">说明</div>
-      <el-alert
-        title="关于资产管理"
-        type="info"
-        :closable="false"
-        show-icon
-      >
+      <el-alert title="关于资产管理" type="info" :closable="false" show-icon>
         <ul class="info-list">
           <li>资产包括 LLM 聊天中的附件、OCR 处理的图片等文件</li>
           <li>默认存储在应用数据目录，可能占用系统盘空间</li>

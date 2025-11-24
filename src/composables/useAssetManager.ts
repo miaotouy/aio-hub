@@ -17,6 +17,14 @@ import type {
 let _cachedBasePath: string | null = null;
 
 /**
+ * 重置资产根目录的缓存。
+ * 当用户在设置中更改了资产路径时，需要调用此函数。
+ */
+export function resetAssetBasePathCache() {
+  _cachedBasePath = null;
+}
+
+/**
  * 资产管理核心引擎
  *
  * 包含所有与后端交互和无状态的业务逻辑。

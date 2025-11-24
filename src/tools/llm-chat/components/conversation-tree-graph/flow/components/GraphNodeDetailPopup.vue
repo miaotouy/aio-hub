@@ -3,7 +3,9 @@ import { computed, ref, watch, nextTick } from 'vue';
 import { X } from 'lucide-vue-next';
 import { useDraggable } from '@vueuse/core';
 import type { ChatMessageNode, ChatSession } from '../../../../types';
+import type { Asset } from '@/types/asset-management';
 import ChatMessage from '../../../message/ChatMessage.vue';
+import { useLlmChatStore } from '../../../../store';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 
 interface Props {
@@ -22,8 +24,23 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
+const store = useLlmChatStore();
+
 const handleClose = () => {
   emit('close');
+};
+
+const handleEdit = (newContent: string, attachments?: Asset[]) => {
+  if (props.message) {
+    store.editMessage(props.message.id, newContent, attachments);
+  }
+};
+
+const handleRegenerate = () => {
+  if (props.message) {
+    store.regenerateFromNode(props.message.id);
+    handleClose(); // 重新生成通常会跳转到新分支，关闭弹窗体验更好
+  }
 };
 
 // --- 拖拽逻辑 ---
@@ -129,10 +146,10 @@ const chatMessageProps = computed(() => {
     // 在节点详情弹窗中，只显示部分功能
     buttonVisibility: {
       copy: true,
-      edit: false,
+      edit: true,
       createBranch: false,
       delete: false,
-      regenerate: false,
+      regenerate: true,
       toggleEnabled: false,
       abort: false,
       analyzeContext: true,
@@ -158,7 +175,12 @@ const chatMessageProps = computed(() => {
         </button>
       </div>
       <div class="detail-popup-content">
-        <ChatMessage v-if="chatMessageProps" v-bind="chatMessageProps" />
+        <ChatMessage
+          v-if="chatMessageProps"
+          v-bind="chatMessageProps"
+          @edit="handleEdit"
+          @regenerate="handleRegenerate"
+        />
       </div>
       <div class="resize-handle" @mousedown="initResize"></div>
     </div>

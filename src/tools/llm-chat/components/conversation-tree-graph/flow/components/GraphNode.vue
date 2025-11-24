@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Handle, Position, useVueFlow } from "@vue-flow/core";
+import type { Asset } from "@/types/asset-management";
 import GraphNodeContent from "./GraphNodeContent.vue";
 import GraphNodeMenubar from "./GraphNodeMenubar.vue";
 
@@ -71,6 +72,7 @@ interface NodeData {
     prompt?: number;
     completion?: number;
   } | null;
+  attachments?: Asset[];
 }
 
 interface Props {

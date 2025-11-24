@@ -11,6 +11,7 @@ import { useUserProfileStore } from "../userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useNodeManager } from "./useNodeManager";
+import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -82,6 +83,7 @@ interface FlowNode {
       prompt?: number;
       completion?: number;
     } | null;
+    attachments?: Asset[];
     _node: ChatMessageNode;
   };
 }
@@ -588,6 +590,7 @@ export function useFlowTreeGraph(
       const roleDisplay = getRoleDisplay(node);
       const contentPreview = truncateText(node.content, 150);
       const subtitleInfo = getSubtitleInfo(node);
+      const attachments = node.attachments || [];
 
       // 提取 Token 信息
       let tokens: { total: number; prompt?: number; completion?: number } | null = null;
@@ -643,6 +646,7 @@ export function useFlowTreeGraph(
           subtitleInfo,
           colors,
           tokens,
+          attachments,
           _node: node,
         },
       };

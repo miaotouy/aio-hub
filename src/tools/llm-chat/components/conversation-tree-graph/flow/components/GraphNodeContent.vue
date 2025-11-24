@@ -61,6 +61,19 @@
       </div>
     </div>
 
+    <!-- 附件列表 -->
+    <div v-if="data.attachments && data.attachments.length > 0" class="node-attachments">
+      <AttachmentCard
+        v-for="asset in data.attachments"
+        :key="asset.id"
+        :asset="asset"
+        size="small"
+        :removable="false"
+        :all-assets="data.attachments"
+        class="mini-attachment-card"
+      />
+    </div>
+
     <!-- 错误信息 -->
     <div v-if="data.errorMessage" class="error-info">
       <el-button
@@ -82,6 +95,8 @@ import { ref, computed } from 'vue';
 import { Copy, Check } from 'lucide-vue-next';
 import Avatar from '@/components/common/Avatar.vue';
 import DynamicIcon from '@/components/common/DynamicIcon.vue';
+import AttachmentCard from '@/tools/llm-chat/components/AttachmentCard.vue';
+import type { Asset } from '@/types/asset-management';
 import { useChatSettings } from '@/tools/llm-chat/composables/useChatSettings';
 import { customMessage } from '@/utils/customMessage';
 import { formatRelativeTime } from '@/utils/time';
@@ -106,6 +121,7 @@ interface NodeData {
     prompt?: number;
     completion?: number;
   } | null;
+  attachments?: Asset[];
 }
 
 interface Props {
@@ -283,12 +299,22 @@ const copyError = async () => {
   animation: pulse 1.4s infinite ease-in-out;
 }
 
-.streaming-indicator .dot:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
 .streaming-indicator .dot:nth-child(2) {
   animation-delay: -0.16s;
+}
+
+/* 附件列表样式 */
+.node-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* 调整附件卡片在节点中的样式 */
+.mini-attachment-card {
+  /* 覆盖默认宽度，使其在节点中更紧凑 */
+  max-width: 100%;
 }
 
 @keyframes pulse {

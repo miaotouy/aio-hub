@@ -24,6 +24,10 @@
           <el-icon><CopyDocument /></el-icon>
           复制
         </el-button>
+        <el-button size="small" @click="handlePaste">
+          <el-icon><DocumentCopy /></el-icon>
+          粘贴
+        </el-button>
         <el-button size="small" @click="handleImport">
           <el-icon><Upload /></el-icon>
           导入
@@ -339,6 +343,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, toRaw } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useUserProfileStore } from "../../userProfileStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
 import {
@@ -346,6 +351,7 @@ import {
   Download,
   Upload,
   CopyDocument,
+  DocumentCopy,
   Plus,
   Rank,
   Edit,
@@ -810,11 +816,62 @@ async function handleCopy() {
   }
   try {
     const dataStr = JSON.stringify(toRaw(localMessages.value), null, 2);
-    await navigator.clipboard.writeText(dataStr);
+    await writeText(dataStr);
     customMessage.success("预设已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");
     console.error("Copy error:", error);
+  }
+}
+
+/**
+ * 粘贴预设消息
+ */
+async function handlePaste() {
+  try {
+    const text = await readText();
+    if (!text) {
+      customMessage.warning("剪贴板为空");
+      return;
+    }
+
+    let imported: ChatMessageNode[];
+    try {
+      imported = JSON.parse(text);
+    } catch (e) {
+      customMessage.error("剪贴板内容不是有效的 JSON 格式");
+      return;
+    }
+
+    // 简单验证
+    if (!Array.isArray(imported)) {
+      customMessage.error("剪贴板内容格式不正确（应为消息数组）");
+      return;
+    }
+
+    // 如果当前已有消息（除了占位符），提示确认覆盖
+    const hasRealMessages = localMessages.value.some(
+      (m) => m.type !== "chat_history" && m.type !== "user_profile"
+    );
+
+    if (hasRealMessages) {
+      try {
+        await ElMessageBox.confirm("粘贴将覆盖当前所有预设消息，确定要继续吗？", "确认粘贴", {
+          type: "warning",
+          confirmButtonText: "覆盖",
+          cancelButtonText: "取消",
+        });
+      } catch {
+        return; // 用户取消
+      }
+    }
+
+    localMessages.value = imported;
+    syncToParent();
+    customMessage.success("粘贴成功");
+  } catch (error) {
+    customMessage.error("无法读取剪贴板");
+    console.error("Paste error:", error);
   }
 }
 

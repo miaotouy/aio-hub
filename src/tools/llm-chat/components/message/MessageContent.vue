@@ -70,9 +70,12 @@ const generationMetaForRenderer = computed(() => {
   return {
     requestStartTime: metadata.requestStartTime,
     requestEndTime: metadata.requestEndTime,
+    reasoningStartTime: metadata.reasoningStartTime,
+    reasoningEndTime: metadata.reasoningEndTime,
     firstTokenTime: metadata.firstTokenTime,
     tokensPerSecond: metadata.tokensPerSecond,
     usage: metadata.usage,
+    modelId: metadata.modelId, // 传递模型 ID
   };
 });
 

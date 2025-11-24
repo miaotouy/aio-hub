@@ -63,6 +63,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { Copy, Check, Code2, ChevronRight } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 
 interface Props {
   rawTagName: string;
@@ -74,6 +75,8 @@ interface Props {
   generationMeta?: {
     requestStartTime?: number;
     requestEndTime?: number;
+    reasoningStartTime?: number;
+    reasoningEndTime?: number;
     firstTokenTime?: number;
     tokensPerSecond?: number;
     usage?: {
@@ -81,6 +84,7 @@ interface Props {
       completionTokens: number;
       totalTokens: number;
     };
+    modelId?: string;
   };
 }
 
@@ -98,6 +102,8 @@ const realtimeDurationMs = ref<number | null>(null);
 const timerId = ref<number | null>(null);
 // 本地记录的开始时间（用于正文捕获等没有 meta 信息的场景）
 const localStartTime = ref<number | null>(null);
+// 估算时长（用于历史记录回显）
+const estimatedDurationMs = ref<number | null>(null);
 
 // 格式化时间（毫秒 -> 可读字符串）
 const formatDuration = (ms: number): string => {
@@ -114,29 +120,58 @@ const formatDuration = (ms: number): string => {
 
 // 计算并格式化思考时间
 const thinkingTimeFormatted = computed(() => {
-  // 优先使用实时计时结果（流式期间或持久化后）
+  // 1. 优先使用实时计时结果（流式期间或持久化后）
   if (realtimeDurationMs.value !== null) {
     return formatDuration(realtimeDurationMs.value);
   }
 
-  // 如果没有实时结果，尝试从元数据估算
-  const meta = props.generationMeta;
-  if (!meta) return null;
+  // 2. 尝试从元数据计算（仅限 reasoning-metadata 节点）
+  if (props.ruleId === "reasoning-metadata" && props.generationMeta) {
+    const meta = props.generationMeta;
+    
+    // 方案A: 优先使用思考时间戳
+    if (meta.reasoningEndTime && meta.reasoningStartTime) {
+      return formatDuration(meta.reasoningEndTime - meta.reasoningStartTime);
+    }
 
-  // 方案1: 使用精确的时间戳计算
-  if (meta.requestEndTime && meta.requestStartTime) {
-    const duration = meta.requestEndTime - meta.requestStartTime;
-    return formatDuration(duration);
+    // 方案B: 使用请求时间戳（降级）
+    if (meta.requestEndTime && meta.requestStartTime) {
+      return formatDuration(meta.requestEndTime - meta.requestStartTime);
+    }
   }
 
-  // 方案2: 使用 tokens 和速度估算
-  if (meta.tokensPerSecond && meta.usage?.completionTokens) {
-    const estimatedMs = (meta.usage.completionTokens / meta.tokensPerSecond) * 1000;
-    return `~${formatDuration(Math.round(estimatedMs))}`;
+  // 3. 使用估算时间（用于普通 think 节点的回显）
+  if (estimatedDurationMs.value !== null) {
+    return `~${formatDuration(estimatedDurationMs.value)}`;
   }
 
   return null;
 });
+
+// 估算思考时间（针对非 metadata 节点）
+const calculateEstimatedTime = async () => {
+  // 如果已有实时时间或正在思考，无需估算
+  if (realtimeDurationMs.value !== null || props.isThinking) return;
+
+  const meta = props.generationMeta;
+  const tps = meta?.tokensPerSecond;
+  const modelId = meta?.modelId;
+
+  // 只有当存在生成速度、模型ID且有内容时才进行估算
+  if (!tps || !modelId || !props.rawContent) return;
+
+  try {
+    const result = await tokenCalculatorService.calculateTokens(props.rawContent, modelId);
+    const tokenCount = result.count;
+    
+    if (tokenCount > 0) {
+      // 估算耗时 = (Token数 / 每秒Token数) * 1000
+      estimatedDurationMs.value = Math.round((tokenCount / tps) * 1000);
+    }
+  } catch (e) {
+    console.warn("[LlmThinkNode] Failed to estimate duration:", e);
+  }
+};
 
 // 获取预览内容（最后一行非空文本）
 const previewContent = computed(() => {
@@ -178,12 +213,21 @@ const copyContent = async () => {
 
 // 监听思考状态和开始时间，启动/停止实时计时器
 watch(
-  [() => props.isThinking, () => props.generationMeta?.requestStartTime],
-  ([thinking, metaStartTime]) => {
+  [
+    () => props.isThinking,
+    () => props.generationMeta?.requestStartTime,
+    () => props.generationMeta?.reasoningStartTime,
+  ],
+  ([thinking, requestStartTime, reasoningStartTime]) => {
     // 1. 确定有效的开始时间
-    let startTime = metaStartTime;
-    
-    // 如果正在思考但没有 meta 时间，尝试使用或初始化本地开始时间
+    let startTime: number | undefined;
+
+    // 只有特定的元数据节点才使用传入的 meta 时间
+    if (props.ruleId === "reasoning-metadata") {
+      startTime = reasoningStartTime || requestStartTime;
+    }
+
+    // 如果正在思考且没有确定开始时间（或者是普通节点），使用本地时间
     if (thinking && !startTime) {
       if (!localStartTime.value) {
         localStartTime.value = Date.now();
@@ -200,12 +244,24 @@ watch(
 
       // 思考结束时，计算最终时长
       const meta = props.generationMeta;
-      if (meta?.requestEndTime && meta?.requestStartTime) {
-        // 场景A: 有完整的 meta 信息，使用精确时间
-        realtimeDurationMs.value = meta.requestEndTime - meta.requestStartTime;
+      
+      // 只有元数据节点才尝试从 meta 计算最终时长
+      if (props.ruleId === "reasoning-metadata") {
+        if (meta?.reasoningEndTime && meta?.reasoningStartTime) {
+          // 场景A: 有完整的 reasoning meta 信息，优先使用
+          realtimeDurationMs.value = meta.reasoningEndTime - meta.reasoningStartTime;
+        } else if (meta?.requestEndTime && meta?.requestStartTime) {
+          // 场景B: 有完整的 request meta 信息，降级使用
+          realtimeDurationMs.value = meta.requestEndTime - meta.requestStartTime;
+        } else if (localStartTime.value) {
+          realtimeDurationMs.value = Date.now() - localStartTime.value;
+        }
       } else if (localStartTime.value) {
-        // 场景B: 只有本地计时，定格在当前时长
+        // 普通节点：仅使用本地计时定格
         realtimeDurationMs.value = Date.now() - localStartTime.value;
+      } else {
+        // 既没有实时计时，也不是 metadata 节点（例如历史记录回显），尝试触发估算
+        calculateEstimatedTime();
       }
       return;
     }
@@ -223,6 +279,10 @@ watch(
 
 onMounted(() => {
   isCollapsed.value = props.collapsedByDefault;
+  // 组件挂载时，如果不是思考状态且没有实时时间，尝试估算
+  if (!props.isThinking && realtimeDurationMs.value === null) {
+    calculateEstimatedTime();
+  }
 });
 
 onBeforeUnmount(() => {

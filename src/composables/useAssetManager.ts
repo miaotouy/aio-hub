@@ -13,6 +13,9 @@ import type {
   AssetStats,
 } from "@/types/asset-management";
 
+// 缓存资产根目录，避免重复 IPC 调用
+let _cachedBasePath: string | null = null;
+
 /**
  * 资产管理核心引擎
  *
@@ -24,7 +27,9 @@ export const assetManagerEngine = {
    * 获取资产存储根目录
    */
   getAssetBasePath: async (): Promise<string> => {
-    return await invoke<string>("get_asset_base_path");
+    if (_cachedBasePath) return _cachedBasePath;
+    _cachedBasePath = await invoke<string>("get_asset_base_path");
+    return _cachedBasePath;
   },
 
   /**

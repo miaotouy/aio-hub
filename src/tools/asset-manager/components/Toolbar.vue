@@ -424,4 +424,7 @@ const handleRebuildIndex = () => {
   background-color: var(--el-color-warning-light-9);
   color: var(--el-color-warning);
 }
+.el-button {
+  margin: 0px;
+}
 </style>

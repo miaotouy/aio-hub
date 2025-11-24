@@ -81,6 +81,12 @@ export class CustomParser implements ParserContext {
         continue;
       }
 
+      // 跳过 HTML 注释
+      if (token.type === "html_comment") {
+        i++;
+        continue;
+      }
+
       // 代码块
       if (token.type === "code_fence") {
         const { node, nextIndex } = parseCodeBlock(tokens, i);

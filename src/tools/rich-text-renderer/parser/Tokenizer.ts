@@ -83,6 +83,19 @@ export class Tokenizer {
         continue;
       }
 
+      // HTML 注释 (优先于 HTML 标签)
+      const commentMatch = remaining.match(/^<!--[\s\S]*?-->/);
+      if (commentMatch) {
+        tokens.push({
+          type: "html_comment",
+          content: commentMatch[0].slice(4, -3), // 去掉 <!-- 和 -->
+          raw: commentMatch[0],
+        });
+        i += commentMatch[0].length;
+        atLineStart = false;
+        continue;
+      }
+
       // HTML 标签（无论是否行首都有效，且优先于块级 Markdown 标记）
       const htmlMatch = remaining.match(this.htmlTagRegex);
       if (htmlMatch) {

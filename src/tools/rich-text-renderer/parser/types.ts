@@ -13,6 +13,7 @@ export type Token =
     raw: string;
   }
   | { type: "html_close"; tagName: string; raw: string }
+  | { type: "html_comment"; content: string; raw: string }
   | { type: "strong_delimiter"; marker: "**" | "__"; raw: string }
   | { type: "em_delimiter"; marker: "*" | "_"; raw: string }
   | { type: "inline_code"; content: string }

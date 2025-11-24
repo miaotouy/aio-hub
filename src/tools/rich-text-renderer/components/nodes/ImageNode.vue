@@ -219,6 +219,7 @@ const handleDownload = async () => {
 }
 
 .markdown-image {
+  margin-left: -4px;
   max-width: 100%;
   height: auto;
   border-radius: 4px;

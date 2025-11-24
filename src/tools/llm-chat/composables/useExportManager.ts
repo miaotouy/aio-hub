@@ -338,7 +338,32 @@ export function useExportManager() {
     // 过滤掉系统根节点
     const messagePath = path.filter((node) => node.id !== session.rootNodeId);
 
-    const result: any = {
+    interface ExportMessage {
+      role: string;
+      content: string;
+      timestamp: number;
+      isEnabled?: boolean;
+      user?: { name: string; icon?: string };
+      agent?: { name: string; icon?: string };
+      model?: { name: string; id?: string; provider?: string };
+      attachments?: { name: string; type: string; id: string }[];
+      tokenUsage?: { total: number; prompt: number; completion: number };
+      error?: string;
+    }
+
+    interface ExportResult {
+      session: {
+        name: string;
+        createdAt: string;
+        updatedAt: string;
+      };
+      exportTime: string;
+      messageCount: number;
+      messages: ExportMessage[];
+      presetMessages?: any[]; // 预设消息结构可能较复杂，暂用 any 或根据实际情况定义
+    }
+
+    const result: ExportResult = {
       session: {
         name: session.name,
         createdAt: session.createdAt,
@@ -346,7 +371,7 @@ export function useExportManager() {
       },
       exportTime: new Date().toISOString(),
       messageCount: messagePath.length,
-      messages: [] as any[],
+      messages: [] as ExportMessage[],
     };
 
     // 准备要导出的消息列表

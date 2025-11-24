@@ -297,7 +297,9 @@ export function useAttachmentManager(
           importStatus: "complete" as AssetImportStatus,
         };
         // 删除 originalPath 属性（如果存在）
-        delete (updatedAsset as any).originalPath;
+        if ("originalPath" in updatedAsset) {
+          delete (updatedAsset as { originalPath?: string }).originalPath;
+        }
         
         // 使用数组的 splice 方法替换元素，确保触发响应式
         attachments.value.splice(index, 1, updatedAsset);

@@ -231,10 +231,16 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
 
   // 转换文档部分
   for (const doc of parsed.documentParts) {
-    blocks.push({
-      type: "document",
-      source: doc.source as any,
-    });
+    if (doc.source.base64 || doc.source.data) {
+      blocks.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: doc.source.mimeType || "application/pdf",
+          data: doc.source.base64 || doc.source.data || "",
+        },
+      });
+    }
   }
 
   return blocks;
@@ -545,7 +551,7 @@ export const callClaudeApi = async (
       content: result.fullContent,
       usage: result.usage,
       isStream: true,
-      finishReason: result.stopReason as any,
+      finishReason: result.stopReason as LlmResponse["finishReason"],
       stopSequence: result.stopSequence,
       toolCalls: result.toolCalls,
     };

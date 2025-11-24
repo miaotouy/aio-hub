@@ -51,7 +51,7 @@ export interface FormattedRepoAnalysis {
     /** 当前分支 */
     branch: string;
     /** 统计信息 */
-    statistics: RepoStatistics;
+    statistics?: RepoStatistics;
     /** 贡献者排行 */
     topContributors: Array<{ name: string; count: number }>;
     /** 最近的提交 */
@@ -252,7 +252,7 @@ export default class GitAnalyzerService implements ToolService {
           details: {
             path,
             branch: targetBranch,
-            statistics: includes.includes('statistics') ? statistics : undefined as any,
+            statistics: includes.includes('statistics') ? statistics : undefined,
             topContributors,
             recentCommits,
           },

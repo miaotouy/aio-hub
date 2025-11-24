@@ -288,9 +288,14 @@ export function useChatStorageSeparated() {
       let index = await loadIndex();
 
       // 2. 迁移旧版本索引（v2.0.0 只有 sessionIds）
-      if (!index.sessions && (index as any).sessionIds) {
+      // 定义旧版本索引接口用于类型安全访问
+      interface LegacyIndex {
+        sessionIds?: string[];
+      }
+      
+      if (!index.sessions && (index as unknown as LegacyIndex).sessionIds) {
         logger.info("检测到旧版本索引，开始迁移");
-        const oldIds = (index as any).sessionIds as string[];
+        const oldIds = (index as unknown as LegacyIndex).sessionIds as string[];
         const sessions = await Promise.all(oldIds.map((id) => loadSession(id)));
         index.sessions = sessions
           .filter((s): s is ChatSession => s !== null)

@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ElMessage, ElNotification, ElMessageBox, ElLoading } from 'element-plus';
+import { ElMessage, ElNotification, ElMessageBox, ElLoading, type MessageOptions } from 'element-plus';
 import { customMessage } from '@/utils/customMessage';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { h } from 'vue';
@@ -135,7 +135,7 @@ const showCenteredMessage = () => {
   ElMessage({
     message: '居中的文字',
     center: true,
-  } as any); // 类型定义缺少 center 属性，使用 any 绕过
+  } as MessageOptions & { center?: boolean });
   lastResult.value = '显示了居中消息';
 };
 

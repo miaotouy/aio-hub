@@ -112,14 +112,20 @@ const openFilePicker = async () => {
 
     if (result) {
       let path: string;
+      // 定义简单的文件响应接口
+      interface FileResponse {
+        path: string;
+        name?: string;
+      }
+
       if (typeof result === "string") {
         path = result;
       } else if (Array.isArray(result)) {
         // multiple: false 时不应发生，但为类型安全起见进行处理
-        path = (result as any)[0].path;
+        path = (result as FileResponse[])[0].path;
       } else {
         // 处理 result 是单个文件对象的情况
-        path = (result as any).path;
+        path = (result as FileResponse).path;
       }
 
       const fileArray = await readFile(path);

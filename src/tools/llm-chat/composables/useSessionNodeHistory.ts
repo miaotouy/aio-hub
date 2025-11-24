@@ -134,7 +134,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
         session.activeLeafId = delta.payload.oldLeafId;
       }
     } else {
-      logger.warn('未知的 delta 类型', { deltaType: (delta as any).type });
+      logger.warn('未知的 delta 类型', { deltaType: (delta as { type: unknown }).type });
     }
   }
 

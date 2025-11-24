@@ -259,8 +259,8 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
         },
         animationDelay: (idx: number) => idx * 100 + index * 100,
       })),
-      animationEasing: 'elasticOut' as any,
-      animationEasingUpdate: 'elasticOut' as any,
+      animationEasing: 'elasticOut' as const,
+      animationEasingUpdate: 'elasticOut' as const,
       animationDuration: 1000,
       animationDurationUpdate: 500,
     };

@@ -101,8 +101,14 @@ export function useWindowResize() {
 
     try {
       const window = getCurrentWindow();
+      
+      // 定义扩展的 Window 接口以支持 Tauri v2 API
+      interface TauriWindowExtended {
+        startResizeDragging: (direction: string) => Promise<void>;
+      }
+
       // 使用 Tauri v2 原生 API
-      await window.startResizeDragging(direction as any);
+      await (window as unknown as TauriWindowExtended).startResizeDragging(direction);
       logger.info('窗口调整完成', { direction });
     } catch (error: any) {
       errorHandler.error(error, '窗口调整失败', { context: { direction } });

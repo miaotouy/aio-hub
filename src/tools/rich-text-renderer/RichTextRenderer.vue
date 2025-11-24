@@ -117,7 +117,7 @@ const extractImages = (nodes: AstNode[]): string[] => {
   const traverse = (nodeList: AstNode[]) => {
     for (const node of nodeList) {
       if (node.type === "image" && "src" in node.props) {
-        images.push((node.props as any).src);
+        images.push((node.props as { src: string }).src);
       }
       if (node.children && node.children.length > 0) {
         traverse(node.children);

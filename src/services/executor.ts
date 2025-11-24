@@ -95,12 +95,12 @@ export async function execute<TData = any>(
     }
 
     // 2. 验证方法是否存在
-    if (typeof (serviceInstance as any)[method] !== 'function') {
+    if (typeof (serviceInstance as Record<string, any>)[method] !== 'function') {
       throw new Error(`方法不存在: ${serviceId}.${method}`);
     }
 
     // 3. 执行方法调用
-    const result = await (serviceInstance as any)[method](params);
+    const result = await (serviceInstance as Record<string, any>)[method](params);
 
     logger.info('服务调用成功', {
       serviceId,

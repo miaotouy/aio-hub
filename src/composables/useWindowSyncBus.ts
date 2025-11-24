@@ -433,7 +433,7 @@ class WindowSyncBus {
     target?: string
   ): Promise<void> {
     const payload: StateSyncPayload = {
-      stateType: stateType as any,
+      stateType: stateType,
       version,
       isFull,
       data: isFull ? data : undefined,

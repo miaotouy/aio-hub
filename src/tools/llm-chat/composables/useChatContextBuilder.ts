@@ -3,7 +3,7 @@
  * 负责构建发送给 LLM 的最终消息列表
  */
 
-import type { ChatSession, ChatMessageNode, ContextPostProcessRule } from "../types";
+import type { ChatSession, ChatMessageNode, ContextPostProcessRule, UserProfile } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { getMatchedModelProperties } from "@/config/model-metadata";
@@ -297,7 +297,7 @@ export function useChatContextBuilder() {
     agentConfig: any,
     _currentUserMessage: string,
     session: ChatSession,
-    effectiveUserProfile?: { id: string; name: string; content: string } | null,
+    effectiveUserProfile?: Partial<UserProfile> | null,
     capabilities?: ModelCapabilities
   ): Promise<LlmContextData> => {
     // 过滤出有效的对话上下文（排除禁用节点和系统节点）
@@ -364,7 +364,7 @@ export function useChatContextBuilder() {
           const processedUserProfile = await processMacros(userProfilePrompt, {
             session,
             agent: currentAgent ?? undefined,
-            userProfile: effectiveUserProfile as any,
+            userProfile: effectiveUserProfile as UserProfile,
           });
 
           systemMessagesList.push({
@@ -388,7 +388,7 @@ export function useChatContextBuilder() {
         const processedContent = await processMacros(msg.content, {
           session,
           agent: currentAgent ?? undefined,
-          userProfile: effectiveUserProfile as any,
+          userProfile: effectiveUserProfile as UserProfile,
         });
 
         systemMessagesList.push({
@@ -404,7 +404,7 @@ export function useChatContextBuilder() {
       const processedUserProfile = await processMacros(userProfilePrompt, {
         session,
         agent: currentAgent ?? undefined,
-        userProfile: effectiveUserProfile as any,
+        userProfile: effectiveUserProfile as UserProfile,
       });
 
       systemMessagesList.push({
@@ -440,7 +440,7 @@ export function useChatContextBuilder() {
       {
         session,
         agent: currentAgent ?? undefined,
-        userProfile: effectiveUserProfile as any,
+        userProfile: effectiveUserProfile as UserProfile,
       }
     );
 
@@ -501,7 +501,7 @@ export function useChatContextBuilder() {
         {
           session,
           agent: currentAgent ?? undefined,
-          userProfile: effectiveUserProfile as any,
+          userProfile: effectiveUserProfile as UserProfile,
         }
       );
 
@@ -510,7 +510,7 @@ export function useChatContextBuilder() {
         {
           session,
           agent: currentAgent ?? undefined,
-          userProfile: effectiveUserProfile as any,
+          userProfile: effectiveUserProfile as UserProfile,
         }
       );
 

@@ -57,7 +57,7 @@ export function useOcrRunner() {
           finalResults = await runCloudEngine(blocks, config, onProgress);
           break;
         default:
-          throw new Error(`不支持的引擎类型: ${(config as any).type}`);
+          throw new Error(`不支持的引擎类型: ${(config as { type: unknown }).type}`);
       }
 
       const successCount = finalResults.filter((r) => r.status === 'success').length;

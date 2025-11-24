@@ -15,6 +15,7 @@ import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { createModuleLogger } from '@/utils/logger';
 import type { LlmChatStateKey } from '../types/sync';
 import { CHAT_STATE_KEYS, createChatSyncConfig } from '../types/sync';
+import type { ChatSession } from '../types';
 
 const logger = createModuleLogger('LlmChatSync');
 
@@ -82,13 +83,14 @@ export function useLlmChatSync() {
     createStateEngine(allSessions, CHAT_STATE_KEYS.SESSIONS);
     // 同步当前会话的完整数据（作为独立通道，供轻量级消费者使用）
     // 注意：这里我们传递 computed ref，useStateSyncEngine 会将其视为只读源进行发送
-    createStateEngine(currentSessionData as any, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
+    // 使用 Ref<T> 强制转换 computed 属性，因为 useStateSyncEngine 接受只读源
+    createStateEngine(currentSessionData as Ref<ChatSession | undefined>, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
     // 同步当前激活的会话ID
     createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
     // 同步发送状态
     createStateEngine(isSending, CHAT_STATE_KEYS.IS_SENDING);
     // 同步正在生成的节点列表
-    createStateEngine(generatingNodesArray as any, CHAT_STATE_KEYS.GENERATING_NODES);
+    createStateEngine(generatingNodesArray as Ref<string[]>, CHAT_STATE_KEYS.GENERATING_NODES);
     // 同步用户档案列表
     createStateEngine(userProfiles, CHAT_STATE_KEYS.USER_PROFILES);
     // 同步全局用户档案ID

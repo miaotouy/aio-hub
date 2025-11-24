@@ -80,7 +80,7 @@ class GlobalErrorHandler {
     if (error instanceof Error) {
       message = error.message;
       stack = error.stack;
-      code = (error as any).code;
+      code = (error as { code?: string }).code;
     } else if (typeof error === 'string') {
       message = error;
     } else if (error && typeof error === 'object') {

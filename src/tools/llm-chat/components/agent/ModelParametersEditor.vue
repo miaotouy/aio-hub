@@ -101,6 +101,9 @@ const availableRules = [
   },
 ];
 
+// 定义规则类型
+type RuleType = (typeof availableRules)[number]["type"];
+
 // 检查规则是否启用
 const isRuleEnabled = (ruleType: string) => {
   const rules = localParams.value.contextPostProcessing?.rules || [];
@@ -125,7 +128,7 @@ const toggleRule = (ruleType: string, enabled: boolean) => {
       const newRules = [
         ...currentRules,
         {
-          type: ruleType as any,
+          type: ruleType as RuleType,
           enabled: true,
           separator: "\n\n---\n\n",
         },

@@ -541,11 +541,21 @@ const confirmClearWallpaper = async () => {
 };
 
 // 吸管功能
+interface EyeDropper {
+  open(): Promise<{ sRGBHex: string }>;
+}
+
+interface WindowWithEyeDropper extends Window {
+  EyeDropper?: {
+    new (): EyeDropper;
+  };
+}
+
 const openEyeDropper = async () => {
   // EyeDropper API 不是标准窗口类型定义的一部分。
-  // 我们将其转换为 `any` 类型来访问它。
-  const global = window as any;
-  if (!("EyeDropper" in global)) {
+  // 我们将其转换为扩展后的 Window 类型来访问它。
+  const global = window as unknown as WindowWithEyeDropper;
+  if (!global.EyeDropper) {
     console.warn("当前环境不支持 EyeDropper API。");
     // 你可以在这里使用 `ElMessage` 来通知用户。
     // 例如：ElMessage.warning('吸管功能不受支持。');

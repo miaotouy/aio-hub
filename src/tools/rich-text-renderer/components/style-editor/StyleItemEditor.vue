@@ -687,11 +687,13 @@ watch(
     isEnabled.value = safeNewVal.enabled !== false;
 
     // 1. 找出需要删除的 key
-    const keysToRemove = Object.keys(localValue).filter((key) => !(key in safeNewVal));
+    const keysToRemove = (Object.keys(localValue) as Array<keyof MarkdownStyleOption>).filter(
+      (key) => !(key in safeNewVal)
+    );
 
     // 2. 找出需要更新的 key
-    const keysToUpdate = Object.keys(safeNewVal).filter(
-      (key) => (localValue as any)[key] !== (safeNewVal as any)[key]
+    const keysToUpdate = (Object.keys(safeNewVal) as Array<keyof MarkdownStyleOption>).filter(
+      (key) => localValue[key] !== safeNewVal[key]
     );
 
     // 如果没有变化，直接返回，打断循环
@@ -700,8 +702,12 @@ watch(
     }
 
     // 执行更新
-    keysToRemove.forEach((key) => delete (localValue as any)[key]);
-    keysToUpdate.forEach((key) => ((localValue as any)[key] = (safeNewVal as any)[key]));
+    keysToRemove.forEach((key) => delete localValue[key]);
+    keysToUpdate.forEach((key) => {
+      // 使用 Record<string, any> 断言来处理动态属性赋值
+      // 这是安全的，因为 keysToUpdate 来源于同一类型的对象
+      (localValue as Record<string, any>)[key] = safeNewVal[key];
+    });
   },
   { immediate: true, deep: true }
 );

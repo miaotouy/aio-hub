@@ -310,7 +310,7 @@ import { useChatSettings } from "../../../composables/useChatSettings";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
 import CustomConnectionLine from "./components/CustomConnectionLine.vue";
-import ContextMenu from "../ContextMenu.vue";
+import ContextMenu, { type MenuItem } from "../ContextMenu.vue";
 import GraphUsageGuideDialog from "./components/GraphUsageGuideDialog.vue";
 import HistoryPanel from "./components/HistoryPanel.vue";
 import "@vue-flow/core/dist/style.css";
@@ -346,7 +346,7 @@ const contextMenu = ref({
   visible: false,
   x: 0,
   y: 0,
-  items: [] as any[],
+  items: [] as MenuItem[],
 });
 
 // Composable
@@ -567,7 +567,7 @@ const copyDebugInfo = () => {
         return {
           source: link?.sourceId.slice(0, 8),
           target: link?.targetId.slice(0, 8),
-          debug: (d3Link as any)?._debug || null,
+          debug: (d3Link as unknown as { _debug?: any })?._debug || null,
         };
       });
 

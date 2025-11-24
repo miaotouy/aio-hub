@@ -144,7 +144,7 @@ export function getValueByPath(obj: any, path: string): any {
       logger.debug(`步骤 ${i + 1}: 访问数组索引`, {
         键: key,
         索引: index,
-        数组长度: (currentValue as any)?.length,
+        数组长度: (currentValue as unknown[] | undefined)?.length,
         结果类型: typeof currentValue
       });
     } else {

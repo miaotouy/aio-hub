@@ -49,9 +49,14 @@ export function useMarkdownAst() {
         let combinedText = patch.text;
         let j = i + 1;
         
-        while (j < patches.length && patches[j].op === 'text-append' && (patches[j] as any).id === patch.id) {
-          combinedText += (patches[j] as any).text;
-          j++;
+        while (j < patches.length) {
+          const nextPatch = patches[j];
+          if (nextPatch.op === 'text-append' && nextPatch.id === patch.id) {
+            combinedText += nextPatch.text;
+            j++;
+          } else {
+            break;
+          }
         }
         
         coalesced.push({

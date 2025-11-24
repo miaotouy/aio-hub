@@ -353,7 +353,7 @@ export function useModelMetadata() {
     defaultValue?: ModelMetadataProperties[K]
   ): ModelMetadataProperties[K] | undefined {
     // 第一优先级：模型自身的属性（如果模型对象支持该属性）
-    const modelValue = (model as any)[propertyKey];
+    const modelValue = (model as Record<string, any>)[propertyKey as string];
     if (modelValue !== undefined) {
       return modelValue;
     }

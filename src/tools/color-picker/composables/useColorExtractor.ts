@@ -156,7 +156,7 @@ export function useColorExtractor() {
 
       // 将主色调放在第一位，然后添加调色板颜色
       const rawColors = [
-        formatToHex(dominantColor as any),
+        formatToHex(dominantColor as number[]),
         ...palette.map((pColor: string | number[]) => formatToHex(pColor))
       ];
 

@@ -642,7 +642,7 @@ async function callVertexAiClaude(
     return {
       content: fullContent,
       usage,
-      finishReason: stopReason as any,
+      finishReason: stopReason as LlmResponse["finishReason"],
       isStream: true,
     };
   }

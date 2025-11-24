@@ -106,10 +106,9 @@ export class JsPluginAdapter implements PluginProxy {
    * 动态方法调用代理
    *
    * 使用 Proxy 来拦截所有方法调用，转发到插件的实际实现
-   * @internal 此方法通过 Proxy 动态调用，TypeScript 无法检测到使用
+   * @internal 此方法通过 Proxy 动态调用
    */
-  // @ts-expect-error - 此方法通过 Proxy 动态调用
-  private callPluginMethod(methodName: string, params: any): any {
+  public callPluginMethod(methodName: string, params: any): any {
     if (!this.enabled) {
       throw new Error(`插件 ${this.id} 未启用`);
     }
@@ -175,7 +174,7 @@ export function createJsPluginProxy(
 
       // 返回一个函数，调用插件的实际方法
       return (params: any) => {
-        return (target as any).callPluginMethod(propStr, params);
+        return target.callPluginMethod(propStr, params);
       };
     },
   }) as PluginProxy;

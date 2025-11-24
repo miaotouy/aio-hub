@@ -309,8 +309,7 @@ export class SidecarPluginAdapter implements PluginProxy {
    *
    * @internal 此方法通过 Proxy 动态调用
    */
-  // @ts-expect-error - 此方法通过 Proxy 动态调用
-  private callPluginMethod(methodName: string, params: any): any {
+  public callPluginMethod(methodName: string, params: any): any {
     return this.executeSidecar(methodName, params);
   }
 }
@@ -351,7 +350,7 @@ export function createSidecarPluginProxy(
 
       // 返回一个函数，调用插件的实际方法
       return (params: any) => {
-        return (target as any).callPluginMethod(propStr, params);
+        return target.callPluginMethod(propStr, params);
       };
     },
   }) as PluginProxy;

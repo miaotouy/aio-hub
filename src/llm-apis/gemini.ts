@@ -287,7 +287,7 @@ function buildGeminiTools(options: LlmRequestOptions): GeminiTool[] | undefined 
 
   // 代码执行（Gemini 特有功能）
   // 检查是否需要启用代码执行（通过特殊标记或配置）
-  if ((options as any).enableCodeExecution) {
+  if ((options as ExtendedLlmRequestOptions).enableCodeExecution) {
     tools.push({ codeExecution: {} });
   }
 
@@ -325,7 +325,7 @@ function buildGeminiToolConfig(options: LlmRequestOptions): GeminiToolConfig | u
  */
 function buildGeminiSafetySettings(options: LlmRequestOptions): GeminiSafetySetting[] | undefined {
   // 可以通过 options 传入自定义安全设置
-  const customSettings = (options as any).safetySettings;
+  const customSettings = (options as ExtendedLlmRequestOptions).safetySettings;
   if (customSettings) {
     return customSettings;
   }
@@ -386,7 +386,7 @@ function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerati
   }
 
   // 扩展参数支持
-  const extendedOptions = options as any;
+  const extendedOptions = options as ExtendedLlmRequestOptions;
 
   // 思考配置
   if (extendedOptions.thinkingConfig) {
@@ -748,6 +748,20 @@ function parseGeminiLogprobs(logprobsResult: any): LlmResponse["logprobs"] {
     .filter(Boolean);
 
   return content.length > 0 ? { content } : undefined;
+}
+
+/**
+/**
+ * 扩展的请求选项接口
+ */
+interface ExtendedLlmRequestOptions extends LlmRequestOptions {
+  enableCodeExecution?: boolean;
+  safetySettings?: GeminiSafetySetting[];
+  thinkingConfig?: GeminiThinkingConfig;
+  speechConfig?: GeminiSpeechConfig;
+  responseModalities?: Array<"TEXT" | "IMAGE" | "AUDIO">;
+  mediaResolution?: GeminiGenerationConfig["mediaResolution"];
+  enableEnhancedCivicAnswers?: boolean;
 }
 
 /**

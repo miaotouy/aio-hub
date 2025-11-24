@@ -190,25 +190,25 @@ export const updateEngineConfig = (
     case 'tesseract':
       newEngineConfigs.tesseract = {
         ...newEngineConfigs.tesseract,
-        ...(engineConfig as any)
+        ...(engineConfig as Partial<typeof newEngineConfigs.tesseract>)
       };
       break;
     case 'native':
       newEngineConfigs.native = {
         ...newEngineConfigs.native,
-        ...(engineConfig as any)
+        ...(engineConfig as Partial<typeof newEngineConfigs.native>)
       };
       break;
     case 'vlm':
       newEngineConfigs.vlm = {
         ...newEngineConfigs.vlm,
-        ...(engineConfig as any)
+        ...(engineConfig as Partial<typeof newEngineConfigs.vlm>)
       };
       break;
     case 'cloud':
       newEngineConfigs.cloud = {
         ...newEngineConfigs.cloud,
-        ...(engineConfig as any)
+        ...(engineConfig as Partial<typeof newEngineConfigs.cloud>)
       };
       break;
   }

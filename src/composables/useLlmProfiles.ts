@@ -37,16 +37,15 @@ export function useLlmProfiles() {
       return profile as LlmProfile;
     }
 
-    // 迁移旧格式
-    const migratedProfile: LlmProfile = {
-      ...profile,
-      apiKeys: profile.apiKey ? [profile.apiKey] : [],
-      logoUrl: profile.logoUrl || undefined,
-      customHeaders: profile.customHeaders || undefined,
-    };
+    // 迁移旧格式：解构出 apiKey，其余属性放入 rest
+    const { apiKey, ...rest } = profile;
 
-    // 删除旧的 apiKey 字段
-    delete (migratedProfile as any).apiKey;
+    const migratedProfile: LlmProfile = {
+      ...rest,
+      apiKeys: apiKey ? [apiKey] : [],
+      logoUrl: rest.logoUrl || undefined,
+      customHeaders: rest.customHeaders || undefined,
+    };
 
     return migratedProfile;
   };

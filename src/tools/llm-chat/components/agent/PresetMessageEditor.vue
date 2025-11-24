@@ -145,6 +145,8 @@ function handleInsertMacro(macro: MacroDefinition) {
   // 获取当前光标位置
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
+  // 记录当前滚动位置
+  const scrollTop = textarea.scrollTop;
 
   // 要插入的文本
   const insertText = macro.example || `{{${macro.name}}}`;
@@ -166,6 +168,8 @@ function handleInsertMacro(macro: MacroDefinition) {
     textarea.focus();
     const newCursorPos = start + insertText.length;
     textarea.setSelectionRange(newCursorPos, newCursorPos);
+    // 恢复滚动位置
+    textarea.scrollTop = scrollTop;
   }, 0);
 }
 

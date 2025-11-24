@@ -174,7 +174,7 @@ const handleCreateFromBlank = () => {
       },
     ],
     temperature: 0.7,
-    maxTokens: 4096,
+    maxTokens: 8192,
   };
 
   editDialogVisible.value = true;
@@ -211,7 +211,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
       timestamp: new Date().toISOString(),
     })),
     temperature: preset.parameters.temperature,
-    maxTokens: preset.parameters.maxTokens || 4096,
+    maxTokens: preset.parameters.maxTokens || 8192,
   };
 
   editDialogVisible.value = true;

@@ -172,7 +172,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         parameters: {
           // 基础采样参数
           temperature: options?.parameters?.temperature ?? 0.7,
-          maxTokens: options?.parameters?.maxTokens ?? 4096,
+          maxTokens: options?.parameters?.maxTokens ?? 8192,
           topP: options?.parameters?.topP,
           topK: options?.parameters?.topK,
           frequencyPenalty: options?.parameters?.frequencyPenalty,

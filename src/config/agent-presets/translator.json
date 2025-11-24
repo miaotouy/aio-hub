@@ -17,7 +17,7 @@
   ],
   "parameters": {
     "temperature": 0.3,
-    "maxTokens": 4096
+    "maxTokens": 8192
   },
   "tags": ["实用工具", "翻译", "语言"]
 }

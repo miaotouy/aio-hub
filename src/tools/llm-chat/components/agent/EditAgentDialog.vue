@@ -173,7 +173,7 @@ const handleSave = () => {
   const parameters =
     props.mode === "edit" && props.agent
       ? props.agent.parameters
-      : { temperature: 0.7, maxTokens: 4096 };
+      : { temperature: 0.7, maxTokens: 8192 };
 
   emit("save", {
     name: editForm.name,

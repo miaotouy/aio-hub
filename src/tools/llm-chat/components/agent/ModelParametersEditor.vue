@@ -319,9 +319,9 @@ const hasSpecialFeatures = computed(() => {
 });
 
 // 计算 maxTokens 滑块的最大值
-// 如果模型定义了上下文窗口限制，使用它；否则使用默认值 32768
+// 如果模型定义了上下文窗口限制，使用它；否则使用默认值 131072
 const maxTokensLimit = computed(() => {
-  return props.contextLengthLimit || 32768;
+  return props.contextLengthLimit || 131072;
 });
 
 // 监听上下文限制变化，自动调整 maxTokens 值
@@ -749,7 +749,7 @@ watch(
             @update:model-value="
               updateParameter('contextManagement', {
                 enabled: $event,
-                maxContextTokens: localParams.contextManagement?.maxContextTokens ?? 4096,
+                maxContextTokens: localParams.contextManagement?.maxContextTokens ?? 128000,
                 retainedCharacters: localParams.contextManagement?.retainedCharacters ?? 200,
               })
             "
@@ -763,7 +763,7 @@ watch(
         <label class="param-label">
           <span>最大上下文 Token 数</span>
           <el-input-number
-            :model-value="localParams.contextManagement?.maxContextTokens ?? 4096"
+            :model-value="localParams.contextManagement?.maxContextTokens ?? 8192"
             @update:model-value="
               updateParameter('contextManagement', {
                 ...localParams.contextManagement!,
@@ -771,14 +771,14 @@ watch(
               })
             "
             :min="0"
-            :max="contextLengthLimit || 1000000"
+            :max="contextLengthLimit || 4000000"
             :step="512"
             :controls="false"
             class="param-input"
           />
         </label>
         <el-slider
-          :model-value="localParams.contextManagement?.maxContextTokens ?? 4096"
+          :model-value="localParams.contextManagement?.maxContextTokens ?? 8192"
           @update:model-value="
             updateParameter('contextManagement', {
               ...localParams.contextManagement!,
@@ -786,7 +786,7 @@ watch(
             })
           "
           :min="0"
-          :max="Math.min(contextLengthLimit || 256000, 256000)"
+          :max="Math.min(contextLengthLimit || 2000000, 2000000)"
           :step="512"
           :show-tooltip="false"
         />

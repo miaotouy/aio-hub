@@ -17,7 +17,7 @@
   ],
   "parameters": {
     "temperature": 0.8,
-    "maxTokens": 4096
+    "maxTokens": 8192
   },
   "tags": ["创意", "写作", "文案"]
 }

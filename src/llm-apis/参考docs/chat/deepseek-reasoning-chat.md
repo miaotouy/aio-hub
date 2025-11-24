@@ -23,7 +23,7 @@ curl https://api.deepseek.com/v1/chat/completions \
         "content": "9.11 and 9.8, which is greater?"
       }
     ],
-    "max_tokens": 4096
+    "max_tokens": 32768
   }'
 ```
 
@@ -130,7 +130,7 @@ Authorization: Bearer $NEWAPI_API_KEY
 - 类型：整数
 - 必需：否
 - 默认值：4096
-- 最大值：8192
+- 最大值：65536
 
 最终回答的最大长度（不含思维链输出）。请注意，思维链的输出最多可以达到 32K tokens。
 

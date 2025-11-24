@@ -532,7 +532,7 @@ async function callVertexAiClaude(
   const body: VertexAiClaudeRequest = {
     anthropic_version: "vertex-2023-10-16",
     messages: buildClaudeMessages(options.messages),
-    max_tokens: commonParams.maxTokens || 4096,
+    max_tokens: commonParams.maxTokens || 8192,
   };
 
   // 添加参数

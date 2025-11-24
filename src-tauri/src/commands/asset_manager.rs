@@ -69,7 +69,6 @@ pub struct AssetStats {
     pub origin_counts: HashMap<AssetOriginType, u64>,
 }
 
-
 /// 资产的来源类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
@@ -249,27 +248,92 @@ pub fn guess_mime_type(path: &Path) -> String {
         // 常见的文本文件扩展名（更全面的列表）
         let text_extensions = [
             // 常规文本
-            "txt", "text", "log", "cfg", "conf", "ini", "env",
+            "txt",
+            "text",
+            "log",
+            "cfg",
+            "conf",
+            "ini",
+            "env",
             // 标记语言
-            "md", "markdown", "rst", "adoc", "asciidoc",
-            "xml", "html", "htm", "xhtml", "svg",
+            "md",
+            "markdown",
+            "rst",
+            "adoc",
+            "asciidoc",
+            "xml",
+            "html",
+            "htm",
+            "xhtml",
+            "svg",
             // 数据格式
-            "json", "yaml", "yml", "toml", "csv", "tsv",
+            "json",
+            "yaml",
+            "yml",
+            "toml",
+            "csv",
+            "tsv",
             // 编程语言
-            "js", "jsx", "ts", "tsx", "mjs", "cjs",
-            "py", "pyw", "pyi", "rb", "php", "java", "kt", "kts",
-            "c", "cpp", "cc", "cxx", "h", "hpp", "hxx",
-            "cs", "go", "rs", "swift", "m", "mm",
-            "scala", "lua", "perl", "pl", "r",
-            "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
+            "js",
+            "jsx",
+            "ts",
+            "tsx",
+            "mjs",
+            "cjs",
+            "py",
+            "pyw",
+            "pyi",
+            "rb",
+            "php",
+            "java",
+            "kt",
+            "kts",
+            "c",
+            "cpp",
+            "cc",
+            "cxx",
+            "h",
+            "hpp",
+            "hxx",
+            "cs",
+            "go",
+            "rs",
+            "swift",
+            "m",
+            "mm",
+            "scala",
+            "lua",
+            "perl",
+            "pl",
+            "r",
+            "sh",
+            "bash",
+            "zsh",
+            "fish",
+            "ps1",
+            "bat",
+            "cmd",
             // Web
-            "css", "scss", "sass", "less", "styl",
-            "vue", "svelte", "astro",
+            "css",
+            "scss",
+            "sass",
+            "less",
+            "styl",
+            "vue",
+            "svelte",
+            "astro",
             // 配置和脚本
-            "gitignore", "dockerignore", "editorconfig",
-            "makefile", "cmake", "gradle",
+            "gitignore",
+            "dockerignore",
+            "editorconfig",
+            "makefile",
+            "cmake",
+            "gradle",
             // 其他
-            "sql", "graphql", "proto", "thrift",
+            "sql",
+            "graphql",
+            "proto",
+            "thrift",
         ];
 
         if text_extensions.contains(&ext_str.as_str()) {
@@ -482,9 +546,13 @@ pub async fn import_asset_from_path(
             });
 
             // 避免重复添加完全相同的来源
-            if !existing_asset.origins.iter().any(|o| o.source_module == new_origin.source_module) {
+            if !existing_asset
+                .origins
+                .iter()
+                .any(|o| o.source_module == new_origin.source_module)
+            {
                 existing_asset.origins.push(new_origin.clone());
-                
+
                 // 立即更新 Catalog 以持久化新来源
                 let asset_id = existing_asset.id.clone();
                 update_catalog_in_place(&base_dir, |entries| {
@@ -541,7 +609,10 @@ pub async fn import_asset_from_path(
     };
 
     // 确定 source_module
-    let source_module = opts.source_module.clone().unwrap_or_else(|| "unknown".to_string());
+    let source_module = opts
+        .source_module
+        .clone()
+        .unwrap_or_else(|| "unknown".to_string());
 
     let origin = opts.origin.unwrap_or_else(|| AssetOrigin {
         origin_type: AssetOriginType::Local,
@@ -620,9 +691,13 @@ pub async fn import_asset_from_bytes(
                 source_module: opts.source_module.unwrap_or_else(|| "unknown".to_string()),
             });
 
-            if !existing_asset.origins.iter().any(|o| o.source_module == new_origin.source_module) {
+            if !existing_asset
+                .origins
+                .iter()
+                .any(|o| o.source_module == new_origin.source_module)
+            {
                 existing_asset.origins.push(new_origin.clone());
-                
+
                 // 立即更新 Catalog 以持久化新来源
                 let asset_id = existing_asset.id.clone();
                 update_catalog_in_place(&base_dir, |entries| {
@@ -675,7 +750,10 @@ pub async fn import_asset_from_bytes(
     };
 
     // 确定 source_module
-    let source_module = opts.source_module.clone().unwrap_or_else(|| "unknown".to_string());
+    let source_module = opts
+        .source_module
+        .clone()
+        .unwrap_or_else(|| "unknown".to_string());
 
     let origin = opts.origin.unwrap_or_else(|| AssetOrigin {
         origin_type: AssetOriginType::Clipboard,
@@ -816,7 +894,6 @@ fn check_duplicate_in_current_month(
             // 尝试从 Catalog 中读取完整的资产信息（包括 origins）
             let catalog_path = get_catalog_path(base_dir)?;
             if catalog_path.exists() {
-
                 let catalog_file = fs::File::open(&catalog_path)
                     .map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
                 let reader = BufReader::new(catalog_file);
@@ -837,7 +914,10 @@ fn check_duplicate_in_current_month(
             }
 
             // 如果 Catalog 中没有找到，回退到从文件系统构建（但会丢失 origins）
-            log::warn!("在 Catalog 中未找到资产 {}，使用文件系统信息重建（将丢失来源信息）", asset_id);
+            log::warn!(
+                "在 Catalog 中未找到资产 {}，使用文件系统信息重建（将丢失来源信息）",
+                asset_id
+            );
             return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
         }
     }
@@ -1137,7 +1217,7 @@ fn build_asset_from_path(file_path: &Path, base_dir: &Path) -> Result<Asset, Str
             .map(|t| chrono::DateTime::<Utc>::from(t).to_rfc3339())
             .unwrap_or_default(),
         source_module: "unknown".to_string(), // 从文件系统重建时无法确定来源模块
-        origins: vec![], // 无法从文件系统确定来源
+        origins: vec![],                      // 无法从文件系统确定来源
         metadata: Some(asset_metadata),
     })
 }
@@ -1530,7 +1610,7 @@ struct CatalogEntry {
     #[serde(default = "default_origins")]
     origins: Vec<AssetOrigin>,
     sha256: Option<String>,
-    
+
     // 旧版本字段，仅用于向后兼容
     #[serde(skip_serializing)]
     source_module: Option<String>,
@@ -1599,7 +1679,11 @@ fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
     let thumbnail_relative = format!(".thumbnails/{}.jpg", entry.id);
     let thumbnail_path = base_dir.join(&thumbnail_relative);
 
-    let source_module = entry.origins.first().map(|o| o.source_module.clone()).unwrap_or_else(|| "unknown".to_string());
+    let source_module = entry
+        .origins
+        .first()
+        .map(|o| o.source_module.clone())
+        .unwrap_or_else(|| "unknown".to_string());
 
     Asset {
         id: entry.id,
@@ -1712,8 +1796,8 @@ pub async fn list_assets_paginated(
         });
     }
 
-    let file = fs::File::open(&catalog_path)
-        .map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
+    let file =
+        fs::File::open(&catalog_path).map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
     let reader = BufReader::new(file);
 
     let mut all_entries = Vec::new();
@@ -1724,10 +1808,10 @@ pub async fn list_assets_paginated(
         }
         let mut entry: CatalogEntry = serde_json::from_str(&line_content)
             .map_err(|e| format!("解析 Catalog 条目失败: {}", e))?;
-        
+
         // 迁移旧格式数据
         entry.migrate_if_needed();
-        
+
         all_entries.push(entry);
     }
 
@@ -1760,12 +1844,22 @@ pub async fn list_assets_paginated(
                 .is_none_or(|t| entry.asset_type == *t);
 
             let origin_match = payload.filter_origin.as_ref().is_none_or(|filter_origin| {
-                entry.origins.iter().any(|o| &o.origin_type == filter_origin)
+                entry
+                    .origins
+                    .iter()
+                    .any(|o| &o.origin_type == filter_origin)
             });
 
-            let source_module_match = payload.filter_source_module.as_ref().is_none_or(|filter_module| {
-                entry.origins.iter().any(|o| &o.source_module == filter_module)
-            });
+            let source_module_match =
+                payload
+                    .filter_source_module
+                    .as_ref()
+                    .is_none_or(|filter_module| {
+                        entry
+                            .origins
+                            .iter()
+                            .any(|o| &o.source_module == filter_module)
+                    });
 
             let search_match = match &payload.search_query {
                 Some(query) if !query.is_empty() => {
@@ -1806,12 +1900,16 @@ pub async fn list_assets_paginated(
     // --- 分页 ---
     let total_items = sorted_entries.len() as u64;
     let page_size = payload.page_size as u64;
-    let total_pages = if total_items == 0 { 0 } else { total_items.div_ceil(page_size) } as u32;
+    let total_pages = if total_items == 0 {
+        0
+    } else {
+        total_items.div_ceil(page_size)
+    } as u32;
 
     let page_index = payload.page.saturating_sub(1) as u64;
     let start = page_index * page_size;
     let end = (start + page_size).min(total_items);
-    
+
     let items_for_page = if start < total_items {
         sorted_entries[start as usize..end as usize]
             .iter()
@@ -1842,8 +1940,8 @@ pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
         return Ok(AssetStats::default());
     }
 
-    let file = fs::File::open(&catalog_path)
-        .map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
+    let file =
+        fs::File::open(&catalog_path).map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
     let reader = BufReader::new(file);
 
     let mut stats = AssetStats::default();
@@ -1856,7 +1954,7 @@ pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
 
         let mut entry: CatalogEntry = serde_json::from_str(&line_content)
             .map_err(|e| format!("解析 Catalog 条目失败: {}", e))?;
-        
+
         // 迁移旧格式数据
         entry.migrate_if_needed();
 
@@ -1865,8 +1963,14 @@ pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
         *stats.type_counts.entry(entry.asset_type).or_insert(0) += 1;
         // 统计来源模块和来源方式
         for origin in &entry.origins {
-            *stats.source_module_counts.entry(origin.source_module.clone()).or_insert(0) += 1;
-            *stats.origin_counts.entry(origin.origin_type.clone()).or_insert(0) += 1;
+            *stats
+                .source_module_counts
+                .entry(origin.source_module.clone())
+                .or_insert(0) += 1;
+            *stats
+                .origin_counts
+                .entry(origin.origin_type.clone())
+                .or_insert(0) += 1;
         }
     }
 
@@ -1875,16 +1979,33 @@ pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
 
 #[tauri::command]
 pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
-    use std::io::{BufWriter, Write};
+    use std::io::{BufRead, BufReader, BufWriter, Write};
 
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
     let catalog_path = get_catalog_path(&base_dir)?;
 
+    // 第一步：读取现有的 Catalog 以保留元数据（如 origins, source_module）
+    let mut existing_metadata: HashMap<String, CatalogEntry> = HashMap::new();
+    if catalog_path.exists() {
+        if let Ok(file) = fs::File::open(&catalog_path) {
+            let reader = BufReader::new(file);
+            for line in reader.lines().map_while(Result::ok) {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line) {
+                    entry.migrate_if_needed();
+                    existing_metadata.insert(entry.id.clone(), entry);
+                }
+            }
+        }
+    }
+
     let asset_type_dirs = ["images", "audio", "videos", "documents", "other"];
     let mut all_file_paths: Vec<(PathBuf, String)> = Vec::new();
 
-    // 第一步：收集所有文件路径并统计总数
+    // 第二步：收集所有文件路径并统计总数
     for type_dir_str in &asset_type_dirs {
         let type_dir = base_dir.join(type_dir_str);
         if !type_dir.exists() || !type_dir.is_dir() {
@@ -1901,7 +2022,8 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
                 if let Ok(file_entries) = fs::read_dir(&year_month_path) {
                     for file_entry in file_entries.flatten() {
                         let file_path = file_entry.path();
-                        if file_path.is_file() && file_path.file_name() != Some(".index.json".as_ref())
+                        if file_path.is_file()
+                            && file_path.file_name() != Some(".index.json".as_ref())
                         {
                             all_file_paths.push((file_path, type_dir_str.to_string()));
                         }
@@ -1913,24 +2035,29 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
 
     let total_files = all_file_paths.len();
 
-    // 第二步：处理文件并写入 Catalog，同时报告进度
-    let file = fs::File::create(&catalog_path)
-        .map_err(|e| format!("无法创建 Catalog 文件: {}", e))?;
+    // 第三步：处理文件并写入 Catalog，同时报告进度
+    let file =
+        fs::File::create(&catalog_path).map_err(|e| format!("无法创建 Catalog 文件: {}", e))?;
     let mut writer = BufWriter::new(file);
 
     for (current_processed, (file_path, asset_type_str)) in all_file_paths.iter().enumerate() {
         let current_processed = current_processed + 1;
 
-        if let Ok(asset) = build_asset_from_path(file_path, &base_dir) {
+        if let Ok(mut asset) = build_asset_from_path(file_path, &base_dir) {
+            // 尝试从旧数据中恢复元数据
+            if let Some(old_entry) = existing_metadata.get(&asset.id) {
+                asset.origins = old_entry.origins.clone();
+                // 保持 source_module 兼容性
+                if let Some(first_origin) = asset.origins.first() {
+                    asset.source_module = first_origin.source_module.clone();
+                }
+            }
+
             let entry = convert_asset_to_catalog_entry(&asset);
             let line = serde_json::to_string(&entry)
                 .map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
             if let Err(e) = writeln!(writer, "{}", line) {
-                log::error!(
-                    "写入 Catalog 文件失败 for {}: {}",
-                    file_path.display(),
-                    e
-                );
+                log::error!("写入 Catalog 文件失败 for {}: {}", file_path.display(), e);
             }
         }
 
@@ -1950,12 +2077,8 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
         .flush()
         .map_err(|e| format!("刷新 Catalog 文件缓冲区失败: {}", e))?;
 
-    Ok(format!(
-        "目录索引重建完成，共处理 {} 个资产。",
-        total_files
-    ))
+    Ok(format!("目录索引重建完成，共处理 {} 个资产。", total_files))
 }
-
 /// 读取所有 catalog 条目，应用修改，然后将其写回。
 fn update_catalog_in_place<F>(base_dir: &Path, mut modifier: F) -> Result<(), String>
 where
@@ -1994,10 +2117,9 @@ where
     let mut writer = BufWriter::new(output_file);
 
     for entry in entries {
-        let line = serde_json::to_string(&entry)
-            .map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
-        writeln!(writer, "{}", line)
-            .map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
+        let line =
+            serde_json::to_string(&entry).map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
+        writeln!(writer, "{}", line).map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
     }
 
     writer
@@ -2009,7 +2131,6 @@ where
 
     Ok(())
 }
-
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2042,12 +2163,18 @@ pub async fn remove_asset_source(
                 if entry.origins.is_empty() {
                     // 没有来源了，标记为待删除
                     asset_to_delete = Some((entry.id.clone(), entry.path.clone()));
-                    result = Some(RemoveSourceResult { deleted: true, asset: None });
+                    result = Some(RemoveSourceResult {
+                        deleted: true,
+                        asset: None,
+                    });
                     return false; // 从条目列表中移除
                 } else {
                     // 仍然有来源，准备返回更新后的资产
                     updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
-                    result = Some(RemoveSourceResult { deleted: false, asset: updated_asset.clone() });
+                    result = Some(RemoveSourceResult {
+                        deleted: false,
+                        asset: updated_asset.clone(),
+                    });
                     return true; // 保留在条目列表中
                 }
             }
@@ -2067,7 +2194,6 @@ pub async fn remove_asset_source(
     result.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
 }
 
-
 /// 为现有资产添加一个新来源
 #[tauri::command]
 pub async fn add_asset_source(
@@ -2083,7 +2209,11 @@ pub async fn add_asset_source(
         for entry in entries.iter_mut() {
             if entry.id == asset_id {
                 // 如果来源不存在，则添加新来源
-                if !entry.origins.iter().any(|o| o.source_module == origin.source_module) {
+                if !entry
+                    .origins
+                    .iter()
+                    .any(|o| o.source_module == origin.source_module)
+                {
                     entry.origins.push(origin.clone());
                 }
                 updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
@@ -2097,10 +2227,7 @@ pub async fn add_asset_source(
 
 /// 完全删除资产（移除所有来源并删除文件）
 #[tauri::command]
-pub async fn remove_asset_completely(
-    app: AppHandle,
-    asset_id: String,
-) -> Result<(), String> {
+pub async fn remove_asset_completely(app: AppHandle, asset_id: String) -> Result<(), String> {
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
 

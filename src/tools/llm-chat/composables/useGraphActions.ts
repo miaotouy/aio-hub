@@ -42,11 +42,12 @@ export function useGraphActions(
       return;
     }
 
-    const previousNodeState = structuredClone(toRaw(session.nodes[nodeId]));
+    // 使用 JSON 序列化来创建快照，避免 structuredClone 处理 Vue Proxy 或特殊对象时出错
+    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
     const success = branchManager.editMessage(session, nodeId, newContent, attachments);
 
     if (success) {
-      const finalNodeState = structuredClone(toRaw(session.nodes[nodeId]));
+      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
       const delta: HistoryDelta = {
         type: 'update',
         payload: { nodeId, previousNodeState, finalNodeState },
@@ -170,11 +171,11 @@ export function useGraphActions(
       return;
     }
 
-    const previousNodeState = structuredClone(toRaw(session.nodes[nodeId]));
+    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
     const success = branchManager.toggleNodeEnabled(session, nodeId);
 
     if (success) {
-      const finalNodeState = structuredClone(toRaw(session.nodes[nodeId]));
+      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
       const delta: HistoryDelta = {
         type: 'update',
         payload: { nodeId, previousNodeState, finalNodeState },

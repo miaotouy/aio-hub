@@ -20,8 +20,8 @@ const { settings } = useChatSettings();
 interface Props {
   message: ChatMessageNode;
   isEditing?: boolean;
-  llmThinkRules?: import('@/tools/rich-text-renderer/types').LlmThinkRule[];
-  richTextStyleOptions?: import('@/tools/rich-text-renderer/types').RichTextRendererStyleOptions;
+  llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
+  richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
 }
 
 interface Emits {
@@ -41,7 +41,6 @@ const attachmentManager = useAttachmentManager();
 const hasAttachments = computed(() => {
   return props.message.attachments && props.message.attachments.length > 0;
 });
-
 
 // 编辑状态
 const editingContent = ref("");
@@ -66,7 +65,7 @@ const isReasoning = computed(() => {
 const generationMetaForRenderer = computed(() => {
   const metadata = props.message.metadata;
   if (!metadata) return undefined;
-  
+
   return {
     requestStartTime: metadata.requestStartTime,
     requestEndTime: metadata.requestEndTime,
@@ -85,10 +84,10 @@ const editAreaRef = ref<HTMLElement | undefined>(undefined);
 // 当进入编辑模式时，初始化编辑内容和附件
 const initEditMode = () => {
   editingContent.value = props.message.content;
-  
+
   // 清空附件管理器
   attachmentManager.clearAttachments();
-  
+
   // 加载现有附件
   if (props.message.attachments && props.message.attachments.length > 0) {
     props.message.attachments.forEach((asset) => {
@@ -101,9 +100,10 @@ const initEditMode = () => {
 const saveEdit = () => {
   if (editingContent.value.trim()) {
     // 传递文本内容和附件列表
-    const attachments = attachmentManager.attachments.value.length > 0
-      ? attachmentManager.attachments.value
-      : undefined;
+    const attachments =
+      attachmentManager.attachments.value.length > 0
+        ? attachmentManager.attachments.value
+        : undefined;
     emit("save-edit", editingContent.value, attachments);
   }
 };
@@ -141,7 +141,7 @@ const { isDraggingOver } = useChatFileInteraction({
   },
   onAssets: async (assets) => {
     if (!props.isEditing) return;
-    logger.info('编辑模式粘贴文件', { count: assets.length });
+    logger.info("编辑模式粘贴文件", { count: assets.length });
     let successCount = 0;
     for (const asset of assets) {
       if (attachmentManager.addAsset(asset)) {
@@ -149,9 +149,8 @@ const { isDraggingOver } = useChatFileInteraction({
       }
     }
     if (successCount > 0) {
-      const message = successCount === 1
-        ? `已粘贴文件: ${assets[0].name}`
-        : `已粘贴 ${successCount} 个文件`;
+      const message =
+        successCount === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${successCount} 个文件`;
       customMessage.success(message);
     }
   },
@@ -231,7 +230,10 @@ watch(
       :class="{ 'is-dragging': isDraggingOver }"
     >
       <!-- 编辑模式的附件展示 -->
-      <div v-if="attachmentManager.hasAttachments.value" class="attachments-section edit-attachments">
+      <div
+        v-if="attachmentManager.hasAttachments.value"
+        class="attachments-section edit-attachments"
+      >
         <div class="attachments-list">
           <AttachmentCard
             v-for="attachment in attachmentManager.attachments.value"
@@ -289,9 +291,19 @@ watch(
     </template>
 
     <!-- 元数据 -->
-    <div v-if="(settings.uiPreferences.showTokenCount && (message.metadata?.usage || message.metadata?.contentTokens !== undefined)) || message.metadata?.error" class="message-meta">
+    <div
+      v-if="
+        (settings.uiPreferences.showTokenCount &&
+          (message.metadata?.usage || message.metadata?.contentTokens !== undefined)) ||
+        message.metadata?.error
+      "
+      class="message-meta"
+    >
       <!-- API 返回的完整 Usage 信息（助手消息） -->
-      <div v-if="settings.uiPreferences.showTokenCount && message.metadata?.usage" class="usage-info">
+      <div
+        v-if="settings.uiPreferences.showTokenCount && message.metadata?.usage"
+        class="usage-info"
+      >
         <span>Token: {{ message.metadata.usage.totalTokens }}</span>
         <span class="usage-detail">
           (输入: {{ message.metadata.usage.promptTokens }}, 输出:
@@ -299,8 +311,13 @@ watch(
         </span>
       </div>
       <!-- 本地计算的单条消息 Token（用户消息） -->
-      <div v-else-if="settings.uiPreferences.showTokenCount && message.metadata?.contentTokens !== undefined" class="usage-info">
-        <span>本条消息: {{ message.metadata.contentTokens.toLocaleString('en-US') }} tokens</span>
+      <div
+        v-else-if="
+          settings.uiPreferences.showTokenCount && message.metadata?.contentTokens !== undefined
+        "
+        class="usage-info"
+      >
+        <span>本条消息: {{ message.metadata.contentTokens.toLocaleString("en-US") }} tokens</span>
       </div>
       <div v-if="message.metadata?.error" class="error-info">
         <el-button
@@ -339,7 +356,7 @@ watch(
 .message-content {
   margin: 8px 0;
   font-size: v-bind('settings.uiPreferences.fontSize + "px"');
-  line-height: v-bind('settings.uiPreferences.lineHeight');
+  line-height: v-bind("settings.uiPreferences.lineHeight");
 }
 
 /* 使用深度选择器强制 RichTextRenderer 继承字体设置 */
@@ -400,6 +417,7 @@ watch(
 
 .usage-info {
   color: var(--text-color-light);
+  margin: 4px 0;
 }
 
 .usage-detail {
@@ -434,7 +452,9 @@ watch(
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: var(--container-bg);
-  transition: border-color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
 }
 
 .edit-mode.is-dragging {

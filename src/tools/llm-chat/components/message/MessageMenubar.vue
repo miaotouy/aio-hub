@@ -503,20 +503,15 @@ const handleSwitchToBranch = (nodeId: string) => {
 
 <style scoped>
 .message-menubar {
-  position: absolute;
-  bottom: 8px;
-  right: 12px;
   display: flex;
   align-items: center;
   gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
   padding: 4px;
   border-radius: 8px;
   background-color: var(--container-bg-light);
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  z-index: 10;
 }
 
 .branch-control {

@@ -81,57 +81,100 @@ defineExpose({
       { 'is-disabled': isDisabled, 'is-preset-display': isPresetDisplay },
     ]"
   >
-    <MessageHeader :message="message" />
+    <!-- 背景层：独立出来规避嵌套 backdrop-filter 冲突 -->
+    <div class="message-background"></div>
 
-    <MessageContent
-      :message="message"
-      :is-editing="isEditing"
-      :llm-think-rules="llmThinkRules"
-      :rich-text-style-options="richTextStyleOptions"
-      @save-edit="saveEdit"
-      @cancel-edit="cancelEdit"
-    />
+    <!-- 内容层：提高层级 -->
+    <div class="message-inner">
+      <MessageHeader :message="message" />
+
+      <MessageContent
+        :message="message"
+        :is-editing="isEditing"
+        :llm-think-rules="llmThinkRules"
+        :rich-text-style-options="richTextStyleOptions"
+        @save-edit="saveEdit"
+        @cancel-edit="cancelEdit"
+      />
+    </div>
 
     <!-- 悬浮操作栏（始终显示，除非正在编辑） -->
-    <MessageMenubar
-      v-if="!isEditing"
-      :message="message"
-      :is-sending="isSending"
-      :siblings="props.siblings"
-      :current-sibling-index="props.currentSiblingIndex"
-      :button-visibility="props.buttonVisibility"
-      @copy="copyMessage"
-      @edit="startEdit"
-      @delete="emit('delete')"
-      @regenerate="emit('regenerate')"
-      @toggle-enabled="emit('toggle-enabled')"
-      @switch="(direction: 'prev' | 'next') => emit('switch-sibling', direction)"
-      @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"
-      @abort="emit('abort')"
-      @create-branch="emit('create-branch')"
-      @analyze-context="emit('analyze-context')"
-    />
+    <div class="menubar-wrapper" v-if="!isEditing">
+      <MessageMenubar
+        :message="message"
+        :is-sending="isSending"
+        :siblings="props.siblings"
+        :current-sibling-index="props.currentSiblingIndex"
+        :button-visibility="props.buttonVisibility"
+        @copy="copyMessage"
+        @edit="startEdit"
+        @delete="emit('delete')"
+        @regenerate="emit('regenerate')"
+        @toggle-enabled="emit('toggle-enabled')"
+        @switch="(direction: 'prev' | 'next') => emit('switch-sibling', direction)"
+        @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"
+        @abort="emit('abort')"
+        @create-branch="emit('create-branch')"
+        @analyze-context="emit('analyze-context')"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .chat-message {
-  padding: 16px;
-  border-radius: 8px;
-  transition: all 0.2s;
   position: relative;
+  padding: 16px;
+  /* 移除原有的背景和边框样式，移交给 .message-background */
+  transition: all 0.2s;
+}
+
+/* 背景层样式 */
+.message-background {
+  position: absolute;
+  inset: 0; /* 撑满父容器 */
+  border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
+  transition: all 0.2s;
+  z-index: 0;
+  pointer-events: none; /* 让点击穿透到内容 */
 }
 
-.chat-message:hover {
+/* 内容层样式 */
+.message-inner {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hover 效果迁移：hover 父容器，改变背景层的边框 */
+.chat-message:hover .message-background {
   border-color: var(--primary-color);
 }
 
 /* 悬停时显示操作栏 */
-.chat-message:hover .message-menubar {
+.chat-message:hover .menubar-wrapper {
   opacity: 1;
+}
+
+.menubar-wrapper {
+  position: sticky;
+  bottom: 8px;
+  display: flex;
+  justify-content: flex-end;
+  /* 通过负margin覆盖在内容上，消除占位 */
+  margin-top: -46px;
+  z-index: 10;
+  padding-right: 12px;
+
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none; /* 避免透明层阻挡点击 */
+}
+
+.menubar-wrapper > * {
+  pointer-events: auto; /* 恢复按钮点击 */
 }
 
 /* 禁用状态样式 */

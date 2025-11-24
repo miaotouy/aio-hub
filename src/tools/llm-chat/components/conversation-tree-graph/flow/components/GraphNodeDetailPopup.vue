@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
-import { X } from 'lucide-vue-next';
-import { useDraggable } from '@vueuse/core';
-import type { ChatMessageNode, ChatSession } from '../../../../types';
-import type { Asset } from '@/types/asset-management';
-import ChatMessage from '../../../message/ChatMessage.vue';
-import { useLlmChatStore } from '../../../../store';
-import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
+import { computed, ref, watch, nextTick } from "vue";
+import { X } from "lucide-vue-next";
+import { useDraggable } from "@vueuse/core";
+import type { ChatMessageNode, ChatSession } from "../../../../types";
+import type { Asset } from "@/types/asset-management";
+import ChatMessage from "../../../message/ChatMessage.vue";
+import { useLlmChatStore } from "../../../../store";
+import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {
   session: ChatSession;
@@ -18,7 +18,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'close'): void;
+  (e: "close"): void;
 }
 
 const props = defineProps<Props>();
@@ -27,7 +27,7 @@ const emit = defineEmits<Emits>();
 const store = useLlmChatStore();
 
 const handleClose = () => {
-  emit('close');
+  emit("close");
 };
 
 const handleEdit = (newContent: string, attachments?: Asset[]) => {
@@ -119,15 +119,15 @@ const initResize = (e: MouseEvent) => {
   };
 
   const stopDrag = () => {
-    window.removeEventListener('mousemove', doDrag);
-    window.removeEventListener('mouseup', stopDrag);
-    document.body.style.cursor = '';
+    window.removeEventListener("mousemove", doDrag);
+    window.removeEventListener("mouseup", stopDrag);
+    document.body.style.cursor = "";
   };
 
-  window.addEventListener('mousemove', doDrag);
-  window.addEventListener('mouseup', stopDrag);
+  window.addEventListener("mousemove", doDrag);
+  window.addEventListener("mouseup", stopDrag);
   e.preventDefault();
-  document.body.style.cursor = 'se-resize';
+  document.body.style.cursor = "se-resize";
 };
 
 // 为 ChatMessage 组件准备 props
@@ -165,7 +165,12 @@ const chatMessageProps = computed(() => {
     ref="popupRef"
     class="graph-node-detail-popup-wrapper"
     v-show="visible"
-    :style="{ top: `${y}px`, left: `${x}px`, width: `${width}px`, height: height ? `${height}px` : 'auto' }"
+    :style="{
+      top: `${y}px`,
+      left: `${x}px`,
+      width: `${width}px`,
+      height: height ? `${height}px` : 'auto',
+    }"
   >
     <div class="graph-node-detail-popup">
       <div ref="headerRef" class="popup-header">
@@ -253,15 +258,21 @@ const chatMessageProps = computed(() => {
 
 /* 覆盖内部 ChatMessage 的样式，使其与弹窗融合 */
 .detail-popup-content :deep(.chat-message) {
+  /* 在弹窗内，外层容器已提供 padding，故移除组件自身的 padding 以免双重边距 */
   padding: 0;
   border: none;
-  background-color: transparent;
-  backdrop-filter: none;
   box-shadow: none;
 }
 
-/* 移除悬浮时的高亮效果 */
-.detail-popup-content :deep(.chat-message:hover) {
+/* 专门处理背景层，使其透明 */
+.detail-popup-content :deep(.message-background) {
+  background-color: transparent;
+  backdrop-filter: none;
+  border-color: transparent;
+}
+
+/* 移除悬浮时的高亮效果，现在需要作用在背景层上 */
+.detail-popup-content :deep(.chat-message:hover .message-background) {
   border-color: transparent;
 }
 
@@ -276,7 +287,7 @@ const chatMessageProps = computed(() => {
 }
 
 .resize-handle::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 3px;
   right: 3px;

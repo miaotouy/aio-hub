@@ -20,6 +20,10 @@
           <el-icon><Download /></el-icon>
           导出
         </el-button>
+        <el-button size="small" @click="handleCopy">
+          <el-icon><CopyDocument /></el-icon>
+          复制
+        </el-button>
         <el-button size="small" @click="handleImport">
           <el-icon><Upload /></el-icon>
           导入
@@ -333,7 +337,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, toRaw } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
 import { useUserProfileStore } from "../../userProfileStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
@@ -341,6 +345,7 @@ import {
   QuestionFilled,
   Download,
   Upload,
+  CopyDocument,
   Plus,
   Rank,
   Edit,
@@ -792,6 +797,24 @@ function handleExport() {
  */
 function handleImport() {
   importFileInput.value?.click();
+}
+
+/**
+ * 复制预设消息
+ */
+async function handleCopy() {
+  if (localMessages.value.length === 0) {
+    ElMessage.warning("没有可复制的预设消息");
+    return;
+  }
+  try {
+    const dataStr = JSON.stringify(toRaw(localMessages.value), null, 2);
+    await navigator.clipboard.writeText(dataStr);
+    ElMessage.success("预设已复制到剪贴板");
+  } catch (error) {
+    ElMessage.error("复制失败");
+    console.error("Copy error:", error);
+  }
 }
 
 /**

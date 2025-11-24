@@ -52,6 +52,12 @@ const saveEdit = (newContent: string, attachments?: Asset[]) => {
   isEditing.value = false;
 };
 
+// 事件处理函数（避免模板中的隐式 any）
+const onRegenerate = (options?: { modelId?: string; profileId?: string }) =>
+  emit("regenerate", options);
+const onSwitchSibling = (direction: "prev" | "next") => emit("switch-sibling", direction);
+const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
+
 // 取消编辑
 const cancelEdit = () => {
   isEditing.value = false;
@@ -109,10 +115,10 @@ defineExpose({
         @copy="copyMessage"
         @edit="startEdit"
         @delete="emit('delete')"
-        @regenerate="(options?: { modelId?: string; profileId?: string }) => emit('regenerate', options)"
+        @regenerate="onRegenerate"
         @toggle-enabled="emit('toggle-enabled')"
-        @switch="(direction: 'prev' | 'next') => emit('switch-sibling', direction)"
-        @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"
+        @switch="onSwitchSibling"
+        @switch-branch="onSwitchBranch"
         @abort="emit('abort')"
         @create-branch="emit('create-branch')"
         @analyze-context="emit('analyze-context')"

@@ -32,6 +32,19 @@ const emit = defineEmits<Emits>();
 const store = useLlmChatStore();
 const { settings } = useChatSettings();
 
+// 事件处理工厂函数（避免模板中的隐式 any）
+const createRegenerateHandler =
+  (id: string) => (options?: { modelId?: string; profileId?: string }) =>
+    emit("regenerate", id, options);
+
+const createSwitchSiblingHandler = (id: string) => (direction: "prev" | "next") =>
+  emit("switch-sibling", id, direction);
+
+const createEditHandler = (id: string) => (newContent: string, attachments?: Asset[]) =>
+  emit("edit-message", id, newContent, attachments);
+
+const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
+
 // 为每条消息计算兄弟节点信息
 const getMessageSiblings = (messageId: string) => {
   const message = props.messages.find((m) => m.id === messageId);
@@ -219,20 +232,11 @@ defineExpose({
                   : richTextStyleOptions
               "
               @delete="emit('delete-message', messages[virtualItem.index].id)"
-              @regenerate="
-                (options?: { modelId?: string; profileId?: string }) =>
-                  emit('regenerate', messages[virtualItem.index].id, options)
-              "
-              @switch-sibling="
-                (direction: 'prev' | 'next') =>
-                  emit('switch-sibling', messages[virtualItem.index].id, direction)
-              "
-              @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"
+              @regenerate="createRegenerateHandler(messages[virtualItem.index].id)"
+              @switch-sibling="createSwitchSiblingHandler(messages[virtualItem.index].id)"
+              @switch-branch="onSwitchBranch"
               @toggle-enabled="emit('toggle-enabled', messages[virtualItem.index].id)"
-              @edit="
-                (newContent: string, attachments?: Asset[]) =>
-                  emit('edit-message', messages[virtualItem.index].id, newContent, attachments)
-              "
+              @edit="createEditHandler(messages[virtualItem.index].id)"
               @copy="() => {}"
               @abort="emit('abort-node', messages[virtualItem.index].id)"
               @create-branch="emit('create-branch', messages[virtualItem.index].id)"

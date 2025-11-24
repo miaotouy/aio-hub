@@ -408,10 +408,8 @@ const handleSendMessage = (content: string, attachments?: Asset[]) =>
   emit("send", content, attachments);
 const handleAbort = () => emit("abort");
 const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
-const handleRegenerate = (
-  messageId: string,
-  options?: { modelId?: string; profileId?: string }
-) => emit("regenerate", messageId, options);
+const handleRegenerate = (messageId: string, options?: { modelId?: string; profileId?: string }) =>
+  emit("regenerate", messageId, options);
 const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") =>
   emit("switch-sibling", nodeId, direction);
 const handleSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
@@ -526,17 +524,18 @@ onMounted(async () => {
     model: currentModel.value?.name,
   });
 
-  // 监视 props.messages 的变化，用于调试
+  // 监视 props.messages 的数量变化，用于调试
   watch(
-    () => props.messages,
-    (newMessages) => {
-      logger.debug("ChatArea props.messages 更新", {
-        newCount: newMessages?.length,
+    () => props.messages?.length,
+    (newCount) => {
+      logger.debug("ChatArea props.messages 数量更新", {
+        newCount,
         // 只打印第一条消息的内容以避免日志过长
-        firstMessageContent: newMessages && newMessages.length > 0 ? newMessages[0].content : "N/A",
+        firstMessageContent:
+          props.messages && props.messages.length > 0 ? props.messages[0].content : "N/A",
       });
     },
-    { deep: true, immediate: true }
+    { immediate: true }
   );
 });
 </script>

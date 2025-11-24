@@ -1,3 +1,5 @@
+import type { Ref } from "vue";
+
 /**
  * 富文本渲染引擎 - 核心类型定义
  * 
@@ -627,4 +629,18 @@ export interface RenderPreset {
   name: string;
   content: string;
   description?: string;
+}
+
+// ============ 上下文相关类型 ============
+
+/**
+ * 注入 Key
+ */
+export const RICH_TEXT_CONTEXT_KEY = Symbol("rich-text-context");
+
+/**
+ * 富文本上下文接口
+ */
+export interface RichTextContext {
+  images: Ref<string[]>;
 }

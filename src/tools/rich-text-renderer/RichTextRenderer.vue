@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch, ref, computed } from "vue";
+import { onMounted, onBeforeUnmount, watch, ref, computed, provide } from "vue";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
 import { StreamProcessor } from "./StreamProcessor";
@@ -19,8 +19,9 @@ import type {
   LlmThinkRule,
   RichTextRendererStyleOptions,
   MarkdownStyleOption,
+  AstNode,
 } from "./types";
-import { RendererVersion } from "./types";
+import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
 
 const props = withDefaults(
   defineProps<{
@@ -104,6 +105,44 @@ const useAstRenderer = computed(
 
 // AST 状态
 const { ast, enqueuePatch } = useMarkdownAst();
+
+// 图片列表状态
+const imageList = ref<string[]>([]);
+
+/**
+ * 递归提取 AST 中的所有图片链接
+ */
+const extractImages = (nodes: AstNode[]): string[] => {
+  const images: string[] = [];
+  const traverse = (nodeList: AstNode[]) => {
+    for (const node of nodeList) {
+      if (node.type === "image" && "src" in node.props) {
+        images.push((node.props as any).src);
+      }
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    }
+  };
+  traverse(nodes);
+  return images;
+};
+
+// 监听 AST 变化，更新图片列表
+watch(
+  ast,
+  (newAst) => {
+    if (useAstRenderer.value) {
+      imageList.value = extractImages(newAst);
+    }
+  },
+  { deep: true }
+);
+
+// 提供上下文给子组件
+provide(RICH_TEXT_CONTEXT_KEY, {
+  images: imageList,
+});
 
 // 纯 markdown-it 渲染的 HTML
 const htmlContent = ref("");

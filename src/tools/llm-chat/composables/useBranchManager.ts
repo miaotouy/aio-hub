@@ -156,6 +156,7 @@ export function useBranchManager() {
       parentId: sourceNode.parentId,
       role: sourceNode.role,
       content: sourceNode.content,
+      attachments: sourceNode.attachments ? [...sourceNode.attachments] : undefined,
       isEnabled: true,
       status: 'complete',
     });

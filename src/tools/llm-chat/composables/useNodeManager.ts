@@ -5,6 +5,7 @@
 
 import { toRaw } from 'vue';
 import type { ChatSession, ChatMessageNode } from '../types';
+import type { Asset } from '@/types/asset-management';
 import { BranchNavigator } from '../utils/BranchNavigator';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
@@ -22,6 +23,7 @@ export interface CreateNodeConfig {
   status?: 'complete' | 'generating' | 'error';
   isEnabled?: boolean;
   metadata?: Record<string, any>;
+  attachments?: Asset[];
 }
 
 /**
@@ -52,6 +54,7 @@ export function useNodeManager() {
       isEnabled: config.isEnabled !== false,
       timestamp: now,
       metadata: config.metadata,
+      attachments: config.attachments,
     };
   };
 

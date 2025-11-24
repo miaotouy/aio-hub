@@ -14,6 +14,7 @@ import { mermaidDiagramsPreset } from './presets/mermaid-diagrams';
 import { llmThinkNodesPreset } from './presets/llm-think-nodes';
 import { katexFormulasPreset } from './presets/katex-formulas';
 import { quotesPreset } from './presets/quotes';
+import { themeVariableTest } from './presets/theme-variable-test';
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -31,4 +32,5 @@ export const presets: RenderPreset[] = [
   llmThinkNodesPreset,
   katexFormulasPreset,
   quotesPreset,
+  themeVariableTest,
 ];

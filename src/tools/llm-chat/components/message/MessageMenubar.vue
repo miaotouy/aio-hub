@@ -24,10 +24,12 @@ import {
   BarChart3,
   Menu,
   Download,
+  AtSign,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ButtonVisibility } from "../../types";
 import { useLlmChatStore } from "../../store";
 import { useAgentStore } from "../../agentStore";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useSessionManager } from "../../composables/useSessionManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -46,7 +48,7 @@ interface Emits {
   (e: "edit"): void;
   (e: "create-branch"): void;
   (e: "delete"): void;
-  (e: "regenerate"): void;
+  (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
   (e: "toggle-enabled"): void;
   (e: "switch", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
@@ -55,6 +57,7 @@ interface Emits {
 }
 
 const agentStore = useAgentStore();
+const { open: openModelSelectDialog } = useModelSelectDialog();
 
 const props = withDefaults(defineProps<Props>(), {
   buttonVisibility: () => ({
@@ -123,6 +126,17 @@ const handleDelete = async () => {
   }
 };
 const handleRegenerate = () => emit("regenerate");
+// 切换模型重新生成
+const handleRegenerateWithModel = async () => {
+  const result = await openModelSelectDialog();
+  if (result) {
+    emit("regenerate", {
+      modelId: result.model.id,
+      profileId: result.profile.id,
+    });
+  }
+  // result 为 null 表示用户取消选择，不做任何操作
+};
 const handleToggleEnabled = () => emit("toggle-enabled");
 const handleAbort = () => {
   console.log("[MessageMenubar] 停止按钮点击", {
@@ -437,6 +451,21 @@ const handleSwitchToBranch = (nodeId: string) => {
     >
       <button class="menu-btn" @click="handleRegenerate">
         <RefreshCw :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 切换模型重新生成（用户和助手消息都可以，预设消息不可） -->
+    <el-tooltip
+      v-if="
+        (isUserMessage || isAssistantMessage) &&
+        !isPresetDisplay &&
+        props.buttonVisibility.regenerate
+      "
+      content="切换模型重新生成"
+      placement="top"
+    >
+      <button class="menu-btn" @click="handleRegenerateWithModel">
+        <AtSign :size="16" />
       </button>
     </el-tooltip>
 

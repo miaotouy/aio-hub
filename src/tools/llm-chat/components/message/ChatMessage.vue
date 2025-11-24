@@ -20,7 +20,7 @@ interface Props {
 
 interface Emits {
   (e: "delete"): void;
-  (e: "regenerate"): void;
+  (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
   (e: "switch-sibling", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
   (e: "toggle-enabled"): void;
@@ -109,7 +109,7 @@ defineExpose({
         @copy="copyMessage"
         @edit="startEdit"
         @delete="emit('delete')"
-        @regenerate="emit('regenerate')"
+        @regenerate="(options?: { modelId?: string; profileId?: string }) => emit('regenerate', options)"
         @toggle-enabled="emit('toggle-enabled')"
         @switch="(direction: 'prev' | 'next') => emit('switch-sibling', direction)"
         @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"

@@ -36,7 +36,7 @@ interface Emits {
   (e: "send", content: string, attachments?: Asset[]): void;
   (e: "abort"): void;
   (e: "delete-message", messageId: string): void;
-  (e: "regenerate", messageId: string): void;
+  (e: "regenerate", messageId: string, options?: { modelId?: string; profileId?: string }): void;
   (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
   (e: "toggle-enabled", nodeId: string): void;
@@ -408,7 +408,10 @@ const handleSendMessage = (content: string, attachments?: Asset[]) =>
   emit("send", content, attachments);
 const handleAbort = () => emit("abort");
 const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
-const handleRegenerate = (messageId: string) => emit("regenerate", messageId);
+const handleRegenerate = (
+  messageId: string,
+  options?: { modelId?: string; profileId?: string }
+) => emit("regenerate", messageId, options);
 const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") =>
   emit("switch-sibling", nodeId, direction);
 const handleSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);

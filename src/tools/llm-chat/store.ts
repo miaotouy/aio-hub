@@ -392,7 +392,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 从指定节点重新生成（历史断点）
    */
-  async function regenerateFromNode(nodeId: string): Promise<void> {
+  async function regenerateFromNode(
+    nodeId: string,
+    options?: { modelId?: string; profileId?: string }
+  ): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
@@ -403,7 +406,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         nodeId,
         currentActivePath.value,
         abortControllers.value,
-        generatingNodes.value
+        generatingNodes.value,
+        options
       );
 
       const sessionManager = useSessionManager();

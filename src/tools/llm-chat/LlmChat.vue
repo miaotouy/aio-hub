@@ -211,12 +211,15 @@ const handleAbortSending = () => {
 };
 
 // 处理重新生成
-const handleRegenerate = async (messageId: string) => {
+const handleRegenerate = async (
+  messageId: string,
+  options?: { modelId?: string; profileId?: string }
+) => {
   if (isInDetachedToolWindow) {
-    logger.info("代理重新生成操作到主窗口", { messageId });
-    await bus.requestAction("regenerate-from-node", { messageId });
+    logger.info("代理重新生成操作到主窗口", { messageId, options });
+    await bus.requestAction("regenerate-from-node", { messageId, options });
   } else {
-    await store.regenerateFromNode(messageId);
+    await store.regenerateFromNode(messageId, options);
   }
 };
 

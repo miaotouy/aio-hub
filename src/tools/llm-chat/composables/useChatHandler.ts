@@ -176,7 +176,8 @@ export function useChatHandler() {
     nodeId: string,
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
-    generatingNodes: Set<string>
+    generatingNodes: Set<string>,
+    options?: { modelId?: string; profileId?: string }
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -207,6 +208,16 @@ export function useChatHandler() {
         { showToUser: false }
       );
       return;
+    }
+
+    // 如果提供了特定的模型选项，覆盖 agentConfig 中的设置
+    if (options?.modelId && options?.profileId) {
+      agentConfig.modelId = options.modelId;
+      agentConfig.profileId = options.profileId;
+      logger.info("使用指定的模型进行重试", {
+        modelId: options.modelId,
+        profileId: options.profileId,
+      });
     }
 
     // 使用节点管理器创建重新生成分支

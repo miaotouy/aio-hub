@@ -16,7 +16,7 @@ interface Props {
 }
 interface Emits {
   (e: "delete-message", messageId: string): void;
-  (e: "regenerate", messageId: string): void;
+  (e: "regenerate", messageId: string, options?: { modelId?: string; profileId?: string }): void;
   (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
   (e: "toggle-enabled", nodeId: string): void;
@@ -219,7 +219,10 @@ defineExpose({
                   : richTextStyleOptions
               "
               @delete="emit('delete-message', messages[virtualItem.index].id)"
-              @regenerate="emit('regenerate', messages[virtualItem.index].id)"
+              @regenerate="
+                (options?: { modelId?: string; profileId?: string }) =>
+                  emit('regenerate', messages[virtualItem.index].id, options)
+              "
               @switch-sibling="
                 (direction: 'prev' | 'next') =>
                   emit('switch-sibling', messages[virtualItem.index].id, direction)

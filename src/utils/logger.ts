@@ -127,15 +127,38 @@ class Logger {
   private async checkAndRotate() {
     if (this.isRotating) return;
 
-    // 注意：这里使用 < 判断，意味着只有当前文件实际大小已经超过限制时才会轮转
-    // 如果 writeLog 预判会超标但当前未超标，这里会跳过，等到下一次写入时再轮转
-    // 这是设计上的软限制
-    if (!this.logFilePath || !this.logsDir || this.currentFileSize < this.maxFileSize) {
+    // 必须有路径
+    if (!this.logFilePath || !this.logsDir) {
+      return;
+    }
+
+    // 1. 内存预判：如果内存计数器显示未超标，直接返回，避免频繁 IO
+    if (this.currentFileSize < this.maxFileSize) {
       return;
     }
 
     this.isRotating = true;
     try {
+      // 2. 真实性检查：多窗口环境下，内存状态可能滞后
+      // 必须获取文件实际大小，确认是否真的需要轮转
+      if (!(await exists(this.logFilePath))) {
+        // 文件不存在，说明可能被删除了或刚被轮转，重置状态
+        this.currentFileSize = 0;
+        return;
+      }
+
+      const fileInfo = await stat(this.logFilePath);
+      const realSize = fileInfo.size;
+
+      // 如果实际大小小于阈值，说明文件已经被其他实例轮转过了
+      if (realSize < this.maxFileSize) {
+        // 同步内存状态为真实大小
+        this.currentFileSize = realSize;
+        // console.debug("[Logger] 文件大小未达标(可能已被其他窗口轮转)，跳过轮转");
+        return;
+      }
+
+      // 3. 执行轮转
       // 生成备份文件名: app-YYYY-MM-DD.HH-mm-ss.log
       const now = new Date();
       const timeStr = now.toTimeString().split(" ")[0].replace(/:/g, "-");

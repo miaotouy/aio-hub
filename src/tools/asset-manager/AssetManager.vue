@@ -17,7 +17,7 @@
       @delete-selected="handleDeleteSelected"
       @clear-selection="clearSelection"
       @toggle-sidebar="isSidebarCollapsed = !isSidebarCollapsed"
-      @refresh="fetchData(false)"
+      @refresh="handleRefresh"
     />
 
     <!-- 重建索引进度条 -->
@@ -202,6 +202,16 @@ const fetchData = async (append = false) => {
     if (mainView) mainView.scrollTop = 0;
   }
   await loadAssetsPaginated({ ...listPayload }, append);
+};
+
+const handleRefresh = async () => {
+  try {
+    await Promise.all([fetchData(false), fetchAssetStats()]);
+    customMessage.success("已刷新");
+  } catch (error) {
+    console.error("刷新失败:", error);
+    customMessage.error("刷新失败");
+  }
 };
 
 // 防抖的搜索触发

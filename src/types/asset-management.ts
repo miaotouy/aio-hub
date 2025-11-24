@@ -8,7 +8,7 @@
 /**
  * 资产的来源类型
  */
-export type AssetOriginType = "local" | "clipboard" | "network";
+export type AssetOriginType = "local" | "clipboard" | "network" | "generated";
 
 /**
  * 资产的通用类型

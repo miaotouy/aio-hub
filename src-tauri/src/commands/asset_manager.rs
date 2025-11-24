@@ -77,6 +77,7 @@ pub enum AssetOriginType {
     Local,
     Clipboard,
     Network,
+    Generated,
 }
 
 /// 资产的通用类型

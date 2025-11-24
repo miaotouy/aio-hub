@@ -158,7 +158,18 @@ export function useChatResponseHandler() {
     let newAssets = [];
     
     try {
-      const result = await processInlineData(response.content, { sizeThresholdKB: 100 });
+      const modelId = finalNode.metadata?.modelId || "unknown-model";
+      const result = await processInlineData(response.content, {
+        sizeThresholdKB: 100,
+        assetImportOptions: {
+          sourceModule: "llm-chat",
+          origin: {
+            type: "generated",
+            source: `generated-by:${modelId}`,
+            sourceModule: "llm-chat",
+          },
+        },
+      });
       processedContent = result.processedText;
       newAssets = result.newAssets;
       

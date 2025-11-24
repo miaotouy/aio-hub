@@ -88,6 +88,12 @@
             <span class="count">{{ originCounts?.network || 0 }}</span>
           </div>
         </el-radio>
+        <el-radio value="generated" class="filter-radio">
+          <div class="radio-content">
+            <span class="radio-label"><Sparkles :size="16" /> {{ getOriginLabel('generated') }}</span>
+            <span class="count">{{ originCounts?.generated || 0 }}</span>
+          </div>
+        </el-radio>
       </el-radio-group>
     </div>
 
@@ -141,6 +147,7 @@ import {
   HardDrive,
   Clipboard,
   Globe,
+  Sparkles,
 } from 'lucide-vue-next';
 
 interface Props {
@@ -158,7 +165,7 @@ const props = withDefaults(defineProps<Props>(), {
   selectedSourceModule: 'all',
   selectedOrigin: 'all',
   sourceModuleCounts: () => ({}),
-  originCounts: () => ({ local: 0, clipboard: 0, network: 0 }),
+  originCounts: () => ({ local: 0, clipboard: 0, network: 0, generated: 0 }),
 });
 
 const emit = defineEmits<{

@@ -126,7 +126,8 @@ export async function processInlineData(
           generateThumbnail: true,
           enableDeduplication: true,
           ...options?.assetImportOptions,
-          origin: {
+          // 优先使用传入的 origin，如果没有则使用默认值
+          origin: options?.assetImportOptions?.origin || {
             type: "clipboard", // 假设来自粘贴或类似操作
             source: "base64-inline",
             sourceModule: options?.assetImportOptions?.sourceModule || "unknown",

@@ -23,6 +23,7 @@ export const getOriginLabel = (type: string): string => {
     local: "本地",
     clipboard: "剪贴板",
     network: "网络",
+    generated: "生成内容",
   };
   return labels[type] || type;
 };

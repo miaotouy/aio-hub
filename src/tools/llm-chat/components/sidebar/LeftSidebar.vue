@@ -1,9 +1,31 @@
 <script setup lang="ts">
-import AgentsSidebar from "./AgentsSidebar.vue";
-import ParametersSidebar from "./ParametersSidebar.vue";
+import { defineAsyncComponent, h } from "vue";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
+import { ElSkeleton } from "element-plus";
 
 const { leftSidebarActiveTab: activeTab } = useLlmChatUiState();
+
+// 简单的加载占位组件
+const SidebarLoading = {
+  render() {
+    return h("div", { style: "padding: 16px" }, [
+      h(ElSkeleton, { rows: 6, animated: true, style: "width: 100%" }),
+    ]);
+  },
+};
+
+// 异步加载侧边栏组件
+const AgentsSidebar = defineAsyncComponent({
+  loader: () => import("./AgentsSidebar.vue"),
+  loadingComponent: SidebarLoading,
+  delay: 0, // 立即显示 loading
+});
+
+const ParametersSidebar = defineAsyncComponent({
+  loader: () => import("./ParametersSidebar.vue"),
+  loadingComponent: SidebarLoading,
+  delay: 0,
+});
 </script>
 
 <template>

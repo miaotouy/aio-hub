@@ -182,6 +182,28 @@
             </template>
           </div>
 
+          <!-- 元数据模拟 -->
+          <div class="control-section">
+            <div class="control-header">
+              <el-tooltip
+                content="模拟生成元数据（如开始时间等），用于测试计时功能"
+                placement="right"
+              >
+                <label class="control-label">元数据模拟</label>
+              </el-tooltip>
+              <el-switch v-model="simulateMeta" />
+            </div>
+
+            <template v-if="simulateMeta">
+              <div class="control-item">
+                <label>模拟项</label>
+                <div style="font-size: 12px; color: var(--text-color-secondary)">
+                  将在流式开始时自动注入 requestStartTime，结束时注入 requestEndTime。
+                </div>
+              </div>
+            </template>
+          </div>
+
           <!-- LLM 思考块规则配置 -->
           <div class="control-section">
             <LlmThinkRulesEditor v-model="llmThinkRules" />
@@ -362,6 +384,7 @@
                 :version="rendererVersion"
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
+                :generation-meta="simulateMeta ? generationMeta : undefined"
               />
               <div v-else class="empty-placeholder">
                 <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -458,6 +481,18 @@ const isRendering = ref(false);
 const currentContent = ref("");
 const streamSource = shallowRef<StreamSource | undefined>(undefined);
 
+// 模拟的元数据
+const simulateMeta = ref(false);
+const generationMeta = reactive<{
+  requestStartTime?: number;
+  firstTokenTime?: number;
+  reasoningStartTime?: number;
+  reasoningEndTime?: number;
+  requestEndTime?: number;
+  tokensPerSecond?: number;
+  modelId?: string;
+}>({});
+
 // 渲染统计
 const renderStats = reactive({
   totalChars: 0,
@@ -539,6 +574,21 @@ const createStreamSource = (content: string): StreamSource => {
     renderStats.startTime = Date.now();
     renderStats.elapsedTime = 0;
 
+    // 初始化元数据
+    if (simulateMeta.value) {
+      generationMeta.requestStartTime = renderStats.startTime;
+      generationMeta.modelId = "test-model-v1";
+      // 清理旧的结束时间
+      generationMeta.requestEndTime = undefined;
+      generationMeta.reasoningEndTime = undefined;
+      generationMeta.firstTokenTime = undefined;
+    } else {
+      // 如果不模拟，清空 meta
+      Object.keys(generationMeta).forEach((key) => {
+        delete (generationMeta as any)[key];
+      });
+    }
+
     // 启动计时器，每100ms更新一次耗时
     elapsedTimer = window.setInterval(() => {
       renderStats.elapsedTime = Date.now() - renderStats.startTime;
@@ -561,6 +611,11 @@ const createStreamSource = (content: string): StreamSource => {
 
         for (let i = 0; i < chars.length; i++) {
           if (signal.aborted) break;
+
+          // 模拟 firstTokenTime
+          if (simulateMeta.value && i === 0) {
+            generationMeta.firstTokenTime = Date.now();
+          }
 
           subscribers.forEach((cb) => cb(chars[i]));
           renderStats.renderedTokens = i + 1;
@@ -595,6 +650,11 @@ const createStreamSource = (content: string): StreamSource => {
 
           while (tokenIndex < tokens.length) {
             if (signal.aborted) break;
+
+            // 模拟 firstTokenTime
+            if (simulateMeta.value && tokenIndex === 0) {
+              generationMeta.firstTokenTime = Date.now();
+            }
 
             // 随机 token 数量（在设定范围内波动）
             const randomTokens = Math.floor(
@@ -644,6 +704,11 @@ const createStreamSource = (content: string): StreamSource => {
           for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += tokensPerInterval) {
             if (signal.aborted) break;
 
+            // 模拟 firstTokenTime
+            if (simulateMeta.value && tokenIndex === 0) {
+              generationMeta.firstTokenTime = Date.now();
+            }
+
             const actualTokens = Math.min(tokensPerInterval, tokens.length - tokenIndex);
             const endCharIndex = tokenCharPositions[tokenIndex + actualTokens];
             const chunk = content.substring(lastCharIndex, endCharIndex);
@@ -672,6 +737,19 @@ const createStreamSource = (content: string): StreamSource => {
     }
     // 最后更新一次耗时
     renderStats.elapsedTime = Date.now() - renderStats.startTime;
+
+    // 模拟结束时间
+    if (simulateMeta.value) {
+      generationMeta.requestEndTime = Date.now();
+      // 计算 TPS
+      if (generationMeta.requestStartTime) {
+        const durationSeconds =
+          (generationMeta.requestEndTime - generationMeta.requestStartTime) / 1000;
+        if (durationSeconds > 0) {
+          generationMeta.tokensPerSecond = renderStats.totalTokens / durationSeconds;
+        }
+      }
+    }
 
     isRendering.value = false;
     // 通知订阅者流已完成

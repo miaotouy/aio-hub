@@ -355,7 +355,8 @@ import {
   Service,
   View,
 } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "./PresetMessageEditor.vue";
 import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
@@ -368,7 +369,7 @@ interface Props {
   /** 模型ID，用于 token 计算 */
   modelId?: string;
   /** Agent 名称，用于导出文件名 */
-  agentName?:string;
+  agentName?: string;
   /** 当前 Agent，用于确定生效的用户档案 */
   agent?: { userProfileId?: string | null } | null;
 }
@@ -637,11 +638,11 @@ function handleEditMessage(index: number) {
 
   // 不允许编辑历史消息占位符和用户档案占位符
   if (message.type === "chat_history") {
-    ElMessage.warning("历史消息占位符不可编辑");
+    customMessage.warning("历史消息占位符不可编辑");
     return;
   }
   if (message.type === "user_profile") {
-    ElMessage.warning("用户档案占位符不可编辑");
+    customMessage.warning("用户档案占位符不可编辑");
     return;
   }
 
@@ -661,7 +662,7 @@ function handleViewUserProfile() {
   if (effectiveUserProfile.value) {
     showUserProfileDialog.value = true;
   } else {
-    ElMessage.info("当前没有生效的用户档案");
+    customMessage.info("当前没有生效的用户档案");
   }
 }
 
@@ -738,11 +739,11 @@ async function handleDeleteMessage(index: number) {
 
   // 不允许删除历史消息占位符和用户档案占位符
   if (message.type === "chat_history") {
-    ElMessage.warning("历史消息占位符不可删除");
+    customMessage.warning("历史消息占位符不可删除");
     return;
   }
   if (message.type === "user_profile") {
-    ElMessage.warning("用户档案占位符不可删除");
+    customMessage.warning("用户档案占位符不可删除");
     return;
   }
 
@@ -752,7 +753,7 @@ async function handleDeleteMessage(index: number) {
     });
     localMessages.value.splice(index, 1);
     syncToParent();
-    ElMessage.success("删除成功");
+    customMessage.success("删除成功");
   } catch {
     // 用户取消
   }
@@ -771,7 +772,7 @@ function handleToggleEnabled(_index: number) {
  */
 function handleExport() {
   if (localMessages.value.length === 0) {
-    ElMessage.warning("没有可导出的预设消息");
+    customMessage.warning("没有可导出的预设消息");
     return;
   }
 
@@ -789,7 +790,7 @@ function handleExport() {
   link.click();
   URL.revokeObjectURL(url);
 
-  ElMessage.success("导出成功");
+  customMessage.success("导出成功");
 }
 
 /**
@@ -804,15 +805,15 @@ function handleImport() {
  */
 async function handleCopy() {
   if (localMessages.value.length === 0) {
-    ElMessage.warning("没有可复制的预设消息");
+    customMessage.warning("没有可复制的预设消息");
     return;
   }
   try {
     const dataStr = JSON.stringify(toRaw(localMessages.value), null, 2);
     await navigator.clipboard.writeText(dataStr);
-    ElMessage.success("预设已复制到剪贴板");
+    customMessage.success("预设已复制到剪贴板");
   } catch (error) {
-    ElMessage.error("复制失败");
+    customMessage.error("复制失败");
     console.error("Copy error:", error);
   }
 }
@@ -836,9 +837,9 @@ async function handleFileSelected(event: Event) {
 
     localMessages.value = imported;
     syncToParent();
-    ElMessage.success("导入成功");
+    customMessage.success("导入成功");
   } catch (error) {
-    ElMessage.error("导入失败：文件格式不正确");
+    customMessage.error("导入失败：文件格式不正确");
     console.error("Import error:", error);
   } finally {
     // 清空 input，允许重复导入同一文件

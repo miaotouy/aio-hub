@@ -31,9 +31,11 @@ const props = withDefaults(
     llmThinkRules?: LlmThinkRule[]; // LLM 思考节点规则配置
     styleOptions?: RichTextRendererStyleOptions; // 样式配置
     generationMeta?: any; // 生成元数据（用于计时）
+    isStreaming?: boolean; // 是否处于流式传输中（用于控制思考块的闭合状态）
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
+    isStreaming: false,
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
       {
@@ -208,7 +210,11 @@ watch(
       }
       streamProcessor.value.reset();
       streamProcessor.value.process(newContent);
-      streamProcessor.value.finalize();
+      
+      // 只有在非流式状态下才 finalize（finalize 会强制结束思考状态）
+      if (!props.isStreaming) {
+        streamProcessor.value.finalize();
+      }
     } else {
       // 纯 markdown-it：直接全量渲染
       htmlContent.value = md.render(newContent);
@@ -248,6 +254,19 @@ watch(
     }
   },
   { deep: true }
+);
+
+/**
+ * 监听流式状态变化
+ * 当流式结束时，确保执行 finalize 以清理状态（如强制结束思考）
+ */
+watch(
+  () => props.isStreaming,
+  (newIsStreaming) => {
+    if (!newIsStreaming && useAstRenderer.value && streamProcessor.value) {
+      streamProcessor.value.finalize();
+    }
+  }
 );
 
 /**

@@ -282,6 +282,7 @@ watch(
         :llm-think-rules="llmThinkRules"
         :style-options="richTextStyleOptions"
         :generation-meta="generationMetaForRenderer"
+        :is-streaming="message.status === 'generating'"
       />
       <div v-if="message.status === 'generating'" class="streaming-indicator">
         <span class="dot"></span>

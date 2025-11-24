@@ -184,6 +184,9 @@
 
               <!-- 操作按钮 -->
               <div class="message-actions">
+                <el-button link size="small" @click="handleViewUserProfile">
+                  <el-icon><View /></el-icon>
+                </el-button>
                 <el-switch
                   v-model="element.isEnabled"
                   :active-value="true"
@@ -225,6 +228,9 @@
 
               <!-- 操作按钮 -->
               <div class="message-actions-compact" @click.stop>
+                <el-button link size="small" @click="handleEditMessage(index)">
+                  <el-icon><Edit /></el-icon>
+                </el-button>
                 <el-switch
                   v-model="element.isEnabled"
                   :active-value="true"
@@ -232,9 +238,6 @@
                   size="small"
                   @change="handleToggleEnabled(index)"
                 />
-                <el-button link size="small" @click="handleEditMessage(index)">
-                  <el-icon><Edit /></el-icon>
-                </el-button>
               </div>
             </div>
 
@@ -275,6 +278,12 @@
 
               <!-- 操作按钮 -->
               <div class="message-actions">
+                <el-button link size="small" @click="handleEditMessage(index)">
+                  <el-icon><Edit /></el-icon>
+                </el-button>
+                <el-button link size="small" type="danger" @click="handleDeleteMessage(index)">
+                  <el-icon><Delete /></el-icon>
+                </el-button>
                 <el-switch
                   v-model="element.isEnabled"
                   :active-value="true"
@@ -282,12 +291,6 @@
                   size="small"
                   @change="handleToggleEnabled(index)"
                 />
-                <el-button link size="small" @click="handleEditMessage(index)">
-                  <el-icon><Edit /></el-icon>
-                </el-button>
-                <el-button link size="small" type="danger" @click="handleDeleteMessage(index)">
-                  <el-icon><Delete /></el-icon>
-                </el-button>
               </div>
             </div>
           </div>
@@ -318,13 +321,22 @@
       style="display: none"
       @change="handleFileSelected"
     />
+
+    <!-- 用户档案编辑对话框 -->
+    <EditUserProfileDialog
+      :visible="showUserProfileDialog"
+      :profile="effectiveUserProfile"
+      @update:visible="showUserProfileDialog = $event"
+      @save="handleSaveUserProfile"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
-import type { ChatMessageNode, MessageRole } from "../../types";
+import { useUserProfileStore } from "../../userProfileStore";
+import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
 import {
   QuestionFilled,
   Download,
@@ -336,10 +348,12 @@ import {
   ChatDotRound,
   User,
   Service,
+  View,
 } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "./PresetMessageEditor.vue";
+import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
 
 interface Props {
   modelValue?: ChatMessageNode[];
@@ -349,7 +363,9 @@ interface Props {
   /** 模型ID，用于 token 计算 */
   modelId?: string;
   /** Agent 名称，用于导出文件名 */
-  agentName?: string;
+  agentName?:string;
+  /** 当前 Agent，用于确定生效的用户档案 */
+  agent?: { userProfileId?: string | null } | null;
 }
 
 interface Emits {
@@ -362,9 +378,21 @@ const props = withDefaults(defineProps<Props>(), {
   compact: false,
   modelId: "",
   agentName: "",
+  agent: null,
 });
 
 const emit = defineEmits<Emits>();
+
+const userProfileStore = useUserProfileStore();
+const showUserProfileDialog = ref(false);
+
+// 当前生效的用户档案（智能体绑定 > 全局配置）
+const effectiveUserProfile = computed(() => {
+  if (props.agent?.userProfileId) {
+    return userProfileStore.getProfileById(props.agent.userProfileId) || null;
+  }
+  return userProfileStore.globalProfile;
+});
 
 // 本地消息列表
 const localMessages = ref<ChatMessageNode[]>([]);
@@ -619,6 +647,27 @@ function handleEditMessage(index: number) {
     content: message.content,
   };
   editDialogVisible.value = true;
+}
+
+/**
+ * 查看/编辑用户档案
+ */
+function handleViewUserProfile() {
+  if (effectiveUserProfile.value) {
+    showUserProfileDialog.value = true;
+  } else {
+    ElMessage.info("当前没有生效的用户档案");
+  }
+}
+
+/**
+ * 保存用户档案
+ */
+function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "createdAt">>) {
+  if (effectiveUserProfile.value) {
+    userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
+  }
+  showUserProfileDialog.value = false;
 }
 
 /**

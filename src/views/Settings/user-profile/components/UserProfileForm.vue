@@ -51,8 +51,8 @@
 
     <el-form-item label="消息样式">
       <el-radio-group v-model="formData.richTextStyleBehavior" @change="handleInput">
-        <el-radio-button label="follow_agent">跟随智能体</el-radio-button>
-        <el-radio-button label="custom">自定义</el-radio-button>
+        <el-radio-button value="follow_agent">跟随智能体</el-radio-button>
+        <el-radio-button value="custom">自定义</el-radio-button>
       </el-radio-group>
     </el-form-item>
 

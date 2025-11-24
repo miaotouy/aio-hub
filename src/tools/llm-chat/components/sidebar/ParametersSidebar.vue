@@ -190,7 +190,12 @@ const handleSaveEdit = (data: {
         <!-- 预设消息分组 -->
         <ConfigSection title="预设消息" :icon="'i-ep-chat-line-round'" v-model:expanded="presetMessagesExpanded">
           <div class="preset-messages-compact">
-            <AgentPresetEditor v-model="presetMessages" :compact="true" height="400px" />
+            <AgentPresetEditor
+              v-model="presetMessages"
+              :compact="true"
+              :agent="currentAgent"
+              height="400px"
+            />
           </div>
         </ConfigSection>
 

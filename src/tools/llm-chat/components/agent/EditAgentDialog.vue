@@ -301,6 +301,7 @@ const handleSave = () => {
           v-model="editForm.presetMessages"
           :model-id="editForm.modelId"
           :agent-name="editForm.name"
+          :agent="editForm"
           height="300px"
         />
       </el-form-item>

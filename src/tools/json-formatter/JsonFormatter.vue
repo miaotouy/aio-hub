@@ -3,148 +3,264 @@
     <div class="tool-wrapper">
       <!-- 固定顶栏工具栏 -->
       <div class="toolbar">
-      <div class="toolbar-left">
-        <el-button @click="pasteToJson" size="small" type="primary">
-          <el-icon>
-            <DocumentCopy />
-          </el-icon>
-          粘贴
-        </el-button>
-        <el-button @click="copyFormattedJson" size="small">
-          <el-icon>
-            <CopyDocument />
-          </el-icon>
-          复制
-        </el-button>
-        <el-button @click="sendToChat" size="small" type="success" plain>
-          <el-icon>
-            <ChatDotRound />
-          </el-icon>
-          发送到聊天
-        </el-button>
-      </div>
-
-      <div class="toolbar-center">
-        <span class="expand-label">展开层级:</span>
-        <el-slider v-model="defaultExpandDepth" :min="1" :max="10" :step="1" :show-tooltip="false"
-          class="expand-slider" @change="handleFormatJson" />
-        <el-input-number v-model="defaultExpandDepth" :min="1" :max="10" size="small" controls-position="right"
-          class="expand-number" @change="handleFormatJson" />
-      </div>
-
-      <div class="toolbar-right">
-        <el-button @click="clearAll" size="small" type="danger" plain>
-          <el-icon>
-            <Delete />
-          </el-icon>
-          清空
-        </el-button>
-      </div>
-    </div>
-
-    <!-- 主编辑区域 -->
-    <div class="editor-container" ref="editorContainer">
-      <!-- 输入区域 -->
-      <div class="editor-panel input-panel" ref="inputPanel">
-        <div class="panel-header">
-          <span class="panel-title">输入 JSON</span>
-          <div v-if="rawJsonInput" class="char-count">
-            {{ rawJsonInput.length }} 字符
-          </div>
-        </div>
-        <div class="editor-content" @dragover.prevent="handleDragOver" @drop.prevent="handleDrop"
-          @dragenter="handleDragEnter" @dragleave="handleDragLeave">
-          <div v-if="isDragging" class="drag-overlay">
+        <div class="toolbar-left">
+          <el-button @click="pasteToJson" size="small" type="primary">
             <el-icon>
-              <Upload />
+              <DocumentCopy />
             </el-icon>
-            <p>拖拽文件到此处</p>
-          </div>
-          <RichCodeEditor
-            v-model="rawJsonInput"
-            language="json"
-            @update:modelValue="handleFormatJson"
-            class="input-editor"
+            粘贴
+          </el-button>
+          <el-button @click="copyFormattedJson" size="small">
+            <el-icon>
+              <CopyDocument />
+            </el-icon>
+            复制
+          </el-button>
+          <el-button @click="sendToChat" size="small" type="success" plain>
+            <el-icon>
+              <ChatDotRound />
+            </el-icon>
+            发送到聊天
+          </el-button>
+          <el-tooltip
+            :content="isClipboardListening ? '关闭剪贴板监听' : '开启剪贴板监听 (自动识别 JSON)'"
+            placement="bottom"
+          >
+            <el-button
+              @click="toggleClipboardMonitor"
+              size="small"
+              :type="isClipboardListening ? 'warning' : 'info'"
+              :plain="!isClipboardListening"
+            >
+              <el-icon>
+                <component :is="isClipboardListening ? Connection : Close" />
+              </el-icon>
+              {{ isClipboardListening ? "监听中" : "监听关" }}
+            </el-button>
+          </el-tooltip>
+        </div>
+
+        <div class="toolbar-center">
+          <span class="expand-label">展开层级:</span>
+          <el-slider
+            v-model="defaultExpandDepth"
+            :min="1"
+            :max="10"
+            :step="1"
+            :show-tooltip="false"
+            class="expand-slider"
+            @change="handleFormatJson"
+          />
+          <el-input-number
+            v-model="defaultExpandDepth"
+            :min="1"
+            :max="10"
+            size="small"
+            controls-position="right"
+            class="expand-number"
+            @change="handleFormatJson"
           />
         </div>
-      </div>
 
-      <!-- 分割线，用于左右布局时的视觉分隔和拖拽调整 -->
-      <div class="divider" @mousedown="startResize"></div>
-
-      <!-- 输出区域 -->
-      <div class="editor-panel output-panel" ref="outputPanel">
-        <div class="panel-header">
-          <span class="panel-title">{{ outputTitle }}</span>
-        </div>
-        <div class="editor-content">
-          <div v-if="jsonError" class="error-message">
+        <div class="toolbar-right">
+          <el-button @click="clearAll" size="small" type="danger" plain>
             <el-icon>
-              <WarningFilled />
+              <Delete />
             </el-icon>
-            <span>{{ jsonError }}</span>
-          </div>
-          <RichCodeEditor
-            v-else
-            v-model="formattedJsonOutput"
-            language="json"
-            :read-only="true"
-            class="output-editor"
-          />
+            清空
+          </el-button>
         </div>
       </div>
-    </div>
+
+      <!-- 主编辑区域 -->
+      <div class="editor-container" ref="editorContainer">
+        <!-- 输入区域 -->
+        <div class="editor-panel input-panel" ref="inputPanel">
+          <div class="panel-header">
+            <span class="panel-title">输入 JSON</span>
+            <div v-if="rawJsonInput" class="char-count">{{ rawJsonInput.length }} 字符</div>
+          </div>
+          <div
+            class="editor-content"
+            @dragover.prevent="handleDragOver"
+            @drop.prevent="handleDrop"
+            @dragenter="handleDragEnter"
+            @dragleave="handleDragLeave"
+          >
+            <div v-if="isDragging" class="drag-overlay">
+              <el-icon>
+                <Upload />
+              </el-icon>
+              <p>拖拽文件到此处</p>
+            </div>
+            <RichCodeEditor
+              v-model="rawJsonInput"
+              language="json"
+              @update:modelValue="handleFormatJson"
+              class="input-editor"
+            />
+          </div>
+        </div>
+
+        <!-- 分割线，用于左右布局时的视觉分隔和拖拽调整 -->
+        <div class="divider" @mousedown="startResize"></div>
+
+        <!-- 输出区域 -->
+        <div class="editor-panel output-panel" ref="outputPanel">
+          <div class="panel-header">
+            <span class="panel-title">{{ outputTitle }}</span>
+          </div>
+          <div class="editor-content">
+            <div v-if="jsonError" class="error-message">
+              <el-icon>
+                <WarningFilled />
+              </el-icon>
+              <span>{{ jsonError }}</span>
+            </div>
+            <RichCodeEditor
+              v-else
+              v-model="formattedJsonOutput"
+              language="json"
+              :read-only="true"
+              class="output-editor"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { customMessage } from '@/utils/customMessage';
+import { ref, onMounted, onUnmounted, computed } from "vue";
+import { customMessage } from "@/utils/customMessage";
 import {
   WarningFilled,
   DocumentCopy,
   CopyDocument,
   Delete,
   Upload,
-  ChatDotRound
-} from '@element-plus/icons-vue';
-import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
-import debounce from 'lodash/debounce';
-import RichCodeEditor from '@components/common/RichCodeEditor.vue';
-import { serviceRegistry } from '@/services/registry';
-import type JsonFormatterService from './jsonFormatter.registry';
-import { useSendToChat } from '@/composables/useSendToChat';
+  ChatDotRound,
+  Connection,
+  Close,
+} from "@element-plus/icons-vue";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { ElNotification } from "element-plus";
+import debounce from "lodash/debounce";
+import RichCodeEditor from "@components/common/RichCodeEditor.vue";
+import { serviceRegistry } from "@/services/registry";
+import type JsonFormatterService from "./jsonFormatter.registry";
+import { useSendToChat } from "@/composables/useSendToChat";
 
 // 获取服务实例
-const jsonFormatterService = serviceRegistry.getService<JsonFormatterService>('json-formatter');
+const jsonFormatterService = serviceRegistry.getService<JsonFormatterService>("json-formatter");
 
 // 获取发送到聊天功能
 const { sendCodeToChat } = useSendToChat();
 
 // UI 状态
-const rawJsonInput = ref('');
+const rawJsonInput = ref("");
 const isDragging = ref(false);
-const formattedJsonOutput = ref('');
+const formattedJsonOutput = ref("");
 const parsedJsonData = ref<any>(null);
-const jsonError = ref('');
+const jsonError = ref("");
 const defaultExpandDepth = ref(3);
+const isClipboardListening = ref(false);
+let unlistenClipboard: UnlistenFn | null = null;
+
+// 剪贴板监听逻辑
+const setupClipboardMonitor = async () => {
+  try {
+    // 启动后端监听服务
+    await invoke("start_clipboard_monitor");
+
+    // 监听前端事件
+    unlistenClipboard = await listen("clipboard-changed", async (event: { payload: string }) => {
+      const content = event.payload;
+      // 避免处理自己的复制操作（简单的防抖/循环检测）
+      if (content === formattedJsonOutput.value || content === rawJsonInput.value) {
+        return;
+      }
+
+      try {
+        // 调用 Tauri 命令识别剪贴板内容类型
+        const contentType: string = await invoke("get_clipboard_content_type", { content });
+
+        if (contentType === "json") {
+          // 如果当前输入框为空，直接填入
+          if (!rawJsonInput.value.trim()) {
+            rawJsonInput.value = content;
+            handleFormatJson();
+            customMessage.success("已自动检测并粘贴 JSON 内容");
+          } else {
+            // 如果不为空，提示用户
+            ElNotification({
+              title: "检测到新 JSON",
+              message: "剪贴板中有新的 JSON 内容，是否替换当前内容？",
+              type: "info",
+              duration: 5000,
+              position: "bottom-right",
+              onClick: () => {
+                rawJsonInput.value = content;
+                handleFormatJson();
+                customMessage.success("已替换为剪贴板内容");
+              },
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Clipboard check failed:", error);
+      }
+    });
+
+    isClipboardListening.value = true;
+    customMessage.success("剪贴板监听已开启");
+  } catch (error) {
+    customMessage.error("无法启动剪贴板监听");
+    console.error(error);
+    isClipboardListening.value = false;
+  }
+};
+
+const stopClipboardMonitor = async () => {
+  try {
+    if (unlistenClipboard) {
+      unlistenClipboard();
+      unlistenClipboard = null;
+    }
+    await invoke("stop_clipboard_monitor");
+    isClipboardListening.value = false;
+    customMessage.info("剪贴板监听已关闭");
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const toggleClipboardMonitor = () => {
+  if (isClipboardListening.value) {
+    stopClipboardMonitor();
+  } else {
+    setupClipboardMonitor();
+  }
+};
 
 // 计算输出标题
 const outputTitle = computed(() => {
   if (jsonError.value) {
-    return '格式化输出 - 错误';
+    return "格式化输出 - 错误";
   } else if (parsedJsonData.value) {
-    return '格式化输出 - 有效 JSON';
+    return "格式化输出 - 有效 JSON";
   }
-  return '格式化输出';
+  return "格式化输出";
 });
 
 // 格式化 JSON（调用服务）
 const formatJsonInternal = () => {
-  jsonError.value = '';
+  jsonError.value = "";
   if (!rawJsonInput.value.trim()) {
-    formattedJsonOutput.value = '';
+    formattedJsonOutput.value = "";
     parsedJsonData.value = null;
     return;
   }
@@ -157,9 +273,9 @@ const formatJsonInternal = () => {
     formattedJsonOutput.value = result.formatted;
     parsedJsonData.value = result.parsed;
   } else {
-    jsonError.value = result.error || '格式化失败';
+    jsonError.value = result.error || "格式化失败";
     parsedJsonData.value = null;
-    formattedJsonOutput.value = '';
+    formattedJsonOutput.value = "";
   }
 };
 
@@ -170,7 +286,7 @@ const pasteToJson = async () => {
     const text = await readText();
     rawJsonInput.value = text;
     handleFormatJson();
-    customMessage.success('已从剪贴板粘贴内容');
+    customMessage.success("已从剪贴板粘贴内容");
   } catch (error: any) {
     customMessage.error(`粘贴失败: ${error.message}`);
   }
@@ -178,28 +294,28 @@ const pasteToJson = async () => {
 
 const copyFormattedJson = async () => {
   if (!formattedJsonOutput.value) {
-    customMessage.warning('没有可复制的内容');
+    customMessage.warning("没有可复制的内容");
     return;
   }
   try {
     await writeText(formattedJsonOutput.value);
-    customMessage.success('已复制到剪贴板');
+    customMessage.success("已复制到剪贴板");
   } catch (error: any) {
     customMessage.error(`复制失败: ${error.message}`);
   }
 };
 
 const sendToChat = () => {
-  sendCodeToChat(formattedJsonOutput.value, 'json', {
-    successMessage: '已将格式化的 JSON 发送到聊天',
+  sendCodeToChat(formattedJsonOutput.value, "json", {
+    successMessage: "已将格式化的 JSON 发送到聊天",
   });
 };
 
 const clearAll = () => {
-  rawJsonInput.value = '';
-  formattedJsonOutput.value = '';
+  rawJsonInput.value = "";
+  formattedJsonOutput.value = "";
   parsedJsonData.value = null;
-  jsonError.value = '';
+  jsonError.value = "";
 };
 
 // 分割线拖拽功能
@@ -219,8 +335,8 @@ const startResize = (e: MouseEvent) => {
     initialInputWidth = inputPanel.value.offsetWidth;
     initialOutputWidth = outputPanel.value.offsetWidth;
   }
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
+  document.addEventListener("mousemove", onMouseMove);
+  document.addEventListener("mouseup", onMouseUp);
 };
 
 const onMouseMove = (e: MouseEvent) => {
@@ -244,15 +360,15 @@ const onMouseMove = (e: MouseEvent) => {
   }
 
   inputPanel.value.style.flexBasis = `${newInputWidth}px`;
-  inputPanel.value.style.flexGrow = '0';
+  inputPanel.value.style.flexGrow = "0";
   outputPanel.value.style.flexBasis = `${newOutputWidth}px`;
-  outputPanel.value.style.flexGrow = '0';
+  outputPanel.value.style.flexGrow = "0";
 };
 
 const onMouseUp = () => {
   isResizing = false;
-  document.removeEventListener('mousemove', onMouseMove);
-  document.removeEventListener('mouseup', onMouseUp);
+  document.removeEventListener("mousemove", onMouseMove);
+  document.removeEventListener("mouseup", onMouseUp);
 };
 
 // 拖拽文件处理
@@ -289,13 +405,13 @@ const handleDrop = async (event: DragEvent) => {
   if (files && files.length > 0) {
     const file = files[0];
     const result = await jsonFormatterService.readFile(file);
-    
+
     if (result.success) {
       rawJsonInput.value = result.content;
       handleFormatJson();
       customMessage.success(`成功读取文件: ${result.fileName}`);
     } else {
-      customMessage.error(result.error || '读取文件失败');
+      customMessage.error(result.error || "读取文件失败");
     }
   }
 };
@@ -305,8 +421,12 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onMouseMove);
-  document.removeEventListener('mouseup', onMouseUp);
+  document.removeEventListener("mousemove", onMouseMove);
+  document.removeEventListener("mouseup", onMouseUp);
+  // 组件销毁时停止监听
+  if (isClipboardListening.value) {
+    stopClipboardMonitor();
+  }
 });
 </script>
 
@@ -550,8 +670,7 @@ onUnmounted(() => {
   justify-content: center;
   height: 100%;
   color: var(--text-color-light);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 14px;
 }
-
 </style>

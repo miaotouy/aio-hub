@@ -242,6 +242,42 @@ export const useAgentStore = defineStore('llmChatAgent', {
     },
 
     /**
+     * 复制智能体
+     * @param agentId 要复制的智能体 ID
+     * @returns 新智能体的 ID
+     */
+    duplicateAgent(agentId: string): string | null {
+      const originalAgent = this.getAgentById(agentId);
+      if (!originalAgent) {
+        logger.warn('复制智能体失败：原始智能体不存在', { agentId });
+        return null;
+      }
+
+      // 深度复制原始智能体的数据
+      const newAgentData = JSON.parse(JSON.stringify(originalAgent));
+
+      // 创建新的唯一 ID 和名称
+      const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const newName = `${originalAgent.name} 副本`;
+
+      // 准备新的智能体对象
+      const newAgent: ChatAgent = {
+        ...newAgentData,
+        id: newAgentId,
+        name: newName,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: undefined, // 复制出的智能体不应继承使用时间
+      };
+
+      this.agents.push(newAgent);
+      this.persistAgents(); // 重新持久化所有智能体
+
+      logger.info('智能体已复制', { originalAgentId: agentId, newAgentId, newName });
+
+      return newAgentId;
+    },
+
+    /**
      * 删除智能体
      */
     async deleteAgent(agentId: string): Promise<void> {

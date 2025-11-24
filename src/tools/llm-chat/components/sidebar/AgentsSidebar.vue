@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
-import { Plus, Edit, Delete, MoreFilled, Search, Download, Upload } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, MoreFilled, Search, Download, Upload, CopyDocument } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode } from "../../types";
@@ -302,6 +302,16 @@ const handleDelete = (agent: ChatAgent) => {
       // 用户取消
     });
 };
+
+// 复制智能体
+const handleDuplicateAgent = (agent: ChatAgent) => {
+  const newAgentId = agentStore.duplicateAgent(agent.id);
+  if (newAgentId) {
+    customMessage.success(`智能体 "${agent.name}" 已复制`);
+    // 可以选择是否自动选中新的智能体
+    // selectAgent(newAgentId);
+  }
+};
 </script>
 
 <template>
@@ -362,6 +372,10 @@ const handleDelete = (agent: ChatAgent) => {
                 <el-dropdown-item @click="handleEdit(agent)">
                   <el-icon><Edit /></el-icon>
                   编辑
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleDuplicateAgent(agent)">
+                  <el-icon><CopyDocument /></el-icon>
+                  创建副本
                 </el-dropdown-item>
                 <el-dropdown-item @click="handleExportAgents([agent.id], { includeAssets: true })">
                   <el-icon><Download /></el-icon>

@@ -19,8 +19,15 @@ import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
 import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
-const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
-  useLlmProfiles();
+const {
+  profiles,
+  saveProfile,
+  deleteProfile,
+  toggleProfileEnabled,
+  generateId,
+  createFromPreset,
+  updateProfilesOrder,
+} = useLlmProfiles();
 // 使用统一的图标获取方法
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
 
@@ -312,6 +319,7 @@ const showCustomHeadersDialog = ref(false);
         @select="selectProfile"
         @add="handleAddClick"
         @toggle="handleToggle"
+        @update:profiles="updateProfilesOrder"
       >
         <template #item="{ profile }">
           <DynamicIcon

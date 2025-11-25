@@ -10,8 +10,15 @@ import { ocrProviderTypes, ocrPresets } from "@config/ocr-providers";
 import type { OcrProfile, OcrProviderType, OcrApiRequest } from "../../../types/ocr-profiles";
 import type { OcrPreset } from "@config/ocr-providers";
 
-const { profiles, saveProfile, deleteProfile, toggleProfileEnabled, generateId, createFromPreset } =
-  useOcrProfiles();
+const {
+  profiles,
+  saveProfile,
+  deleteProfile,
+  toggleProfileEnabled,
+  generateId,
+  createFromPreset,
+  updateProfilesOrder,
+} = useOcrProfiles();
 
 // 防抖保存的计时器
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -221,6 +228,7 @@ const createDefaultApiRequest = (): OcrApiRequest => {
         @select="selectProfile"
         @add="handleAddClick"
         @toggle="handleToggle"
+        @update:profiles="updateProfilesOrder"
       >
         <template #item="{ profile }">
           <div class="profile-info">

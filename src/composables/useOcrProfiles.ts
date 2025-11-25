@@ -167,6 +167,20 @@ export function useOcrProfiles() {
   };
 
   /**
+   * 更新配置顺序
+   */
+  const updateProfilesOrder = async (newProfiles: OcrProfile[]) => {
+    try {
+      logger.info('更新 OCR 配置顺序', { count: newProfiles.length });
+      profiles.value = newProfiles;
+      await saveToStorage();
+    } catch (error) {
+      errorHandler.error(error, '更新 OCR 配置顺序失败');
+      throw error;
+    }
+  };
+
+  /**
    * 生成唯一 ID
    */
   const generateId = (): string => {
@@ -206,6 +220,7 @@ export function useOcrProfiles() {
     getProfileById,
     enabledProfiles,
     toggleProfileEnabled,
+    updateProfilesOrder,
     generateId,
     createFromPreset,
   };

@@ -14,6 +14,7 @@
         title="用户档案"
         :profiles="profiles"
         :selected-id="selectedProfileId"
+        :sortable="false"
         @select="selectProfile"
         @add="handleAddClick"
         @toggle="handleToggle"

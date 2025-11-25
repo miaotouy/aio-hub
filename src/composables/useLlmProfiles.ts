@@ -201,6 +201,20 @@ export function useLlmProfiles() {
   };
 
   /**
+   * 更新配置顺序
+   */
+  const updateProfilesOrder = async (newProfiles: LlmProfile[]) => {
+    try {
+      logger.info("更新 LLM 配置顺序", { count: newProfiles.length });
+      profiles.value = newProfiles;
+      await saveToStorage();
+    } catch (error) {
+      errorHandler.error(error, "更新 LLM 配置顺序失败");
+      throw error;
+    }
+  };
+
+  /**
    * 生成唯一 ID
    */
   const generateId = (): string => {
@@ -257,6 +271,7 @@ export function useLlmProfiles() {
     enabledProfiles,
     visionProfiles,
     toggleProfileEnabled,
+    updateProfilesOrder,
     generateId,
     createFromPreset,
     getSupportedParameters,

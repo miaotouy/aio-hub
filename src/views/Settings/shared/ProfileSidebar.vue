@@ -1,21 +1,33 @@
 <script setup lang="ts" generic="T extends { id: string; name: string; enabled: boolean }">
+import { computed } from "vue";
 import { Plus } from "@element-plus/icons-vue";
+import { GripVertical } from "lucide-vue-next";
+import VueDraggable from "vuedraggable";
 
 interface Props {
   title: string;
   profiles: T[];
   selectedId: string | null;
+  sortable?: boolean;
 }
 
-defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  sortable: true,
+});
 
 interface Emits {
   (e: "select", id: string): void;
   (e: "add"): void;
   (e: "toggle", profile: T): void;
+  (e: "update:profiles", profiles: T[]): void;
 }
 
 const emit = defineEmits<Emits>();
+
+const draggableProfiles = computed({
+  get: () => props.profiles,
+  set: (value) => emit("update:profiles", value),
+});
 </script>
 
 <template>
@@ -28,29 +40,44 @@ const emit = defineEmits<Emits>();
     </div>
 
     <div class="sidebar-content">
-      <div
-        v-for="profile in profiles"
-        :key="profile.id"
-        class="sidebar-item"
-        :class="{ active: selectedId === profile.id }"
-        @click="emit('select', profile.id)"
+      <VueDraggable
+        v-model="draggableProfiles"
+        item-key="id"
+        handle=".drag-handle"
+        :animation="200"
+        ghost-class="ghost"
+        :disabled="!sortable"
+        :force-fallback="true"
+        :fallback-tolerance="3"
       >
-        <!-- 自定义列表项内容插槽 -->
-        <slot name="item" :profile="profile">
-          <div class="item-info">
-            <div class="item-name">{{ profile.name }}</div>
-          </div>
-        </slot>
+        <template #item="{ element: profile }">
+          <div
+            class="sidebar-item"
+            :class="{ active: selectedId === profile.id }"
+            @click="emit('select', profile.id)"
+          >
+            <div v-if="sortable" class="drag-handle" @click.stop>
+              <GripVertical :size="14" class="icon" />
+            </div>
 
-        <div class="switch-container">
-          <el-switch
-            :model-value="profile.enabled"
-            size="small"
-            @click.stop
-            @change="emit('toggle', profile)"
-          />
-        </div>
-      </div>
+            <!-- 自定义列表项内容插槽 -->
+            <slot name="item" :profile="profile">
+              <div class="item-info">
+                <div class="item-name">{{ profile.name }}</div>
+              </div>
+            </slot>
+
+            <div class="switch-container">
+              <el-switch
+                :model-value="profile.enabled"
+                size="small"
+                @click.stop
+                @change="emit('toggle', profile)"
+              />
+            </div>
+          </div>
+        </template>
+      </VueDraggable>
 
       <div v-if="profiles.length === 0" class="sidebar-empty">
         <p>还没有配置</p>
@@ -103,11 +130,31 @@ const emit = defineEmits<Emits>();
   padding: 12px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s;
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
+  border-left: 3px solid transparent;
+  user-select: none;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-color-secondary);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  margin-left: -4px;
+}
+
+.sidebar-item:hover .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .switch-container {
@@ -120,7 +167,13 @@ const emit = defineEmits<Emits>();
 
 .sidebar-item.active {
   background: rgba(var(--primary-color-rgb), 0.1);
-  border-left: 3px solid var(--primary-color);
+  border-left-color: var(--primary-color);
+}
+
+.ghost {
+  opacity: 0.5;
+  background: var(--bg-color);
+  border: 1px dashed var(--border-color);
 }
 
 .item-info {

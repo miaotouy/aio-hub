@@ -147,6 +147,8 @@
               ghost-class="ghost-rule"
               drag-class="drag-rule"
               :force-fallback="true"
+              :fallback-tolerance="3"
+              :animation="200"
             >
               <div
                 v-for="rule in filteredRules"

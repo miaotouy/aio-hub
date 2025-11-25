@@ -149,6 +149,8 @@ const resetOrder = () => {
       ghost-class="ghost"
       chosen-class="chosen"
       :force-fallback="true"
+      :fallback-tolerance="3"
+      :animation="200"
     >
       <div v-for="tool in sortedTools" :key="tool.path" class="tool-item">
         <el-checkbox v-if="toolsVisible" v-model="toolsVisible[getToolIdFromPath(tool.path)]">
@@ -216,6 +218,7 @@ const resetOrder = () => {
   overflow: hidden;
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
+  user-select: none;
 }
 
 /* 拖拽手柄样式 */

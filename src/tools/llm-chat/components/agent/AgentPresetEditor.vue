@@ -52,6 +52,8 @@
           ghost-class="ghost-message"
           drag-class="drag-message"
           :force-fallback="true"
+          :fallback-tolerance="3"
+          :animation="200"
         >
           <div
             v-for="(element, index) in localMessages"

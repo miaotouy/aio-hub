@@ -76,6 +76,8 @@
           ghost-class="ghost"
           drag-class="drag"
           :force-fallback="true"
+          :fallback-tolerance="3"
+          :animation="200"
         >
           <div v-for="preset in selectedPresets" :key="preset.id" class="preset-tag">
             <span class="preset-tag-content">

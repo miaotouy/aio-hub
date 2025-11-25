@@ -77,8 +77,9 @@ export interface VisionTokenCost {
    * - 'fixed': 固定成本（每张图片固定 token 数）
    * - 'openai_tile': OpenAI 的瓦片计算法（基础成本 + 瓦片数 × 瓦片成本）
    * - 'claude_3': Claude 3 的动态计算（API 会返回实际值，这里作为预估）
+   * - 'gemini_2_0': Gemini 2.0 的瓦片计算法
    */
-  calculationMethod: 'fixed' | 'openai_tile' | 'claude_3';
+  calculationMethod: 'fixed' | 'openai_tile' | 'claude_3' | 'gemini_2_0';
   
   /**
    * 计算参数

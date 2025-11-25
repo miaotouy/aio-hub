@@ -40,6 +40,22 @@ export interface AvailableModel {
 // 重新导出 engine 中的类型，方便统一从 composable 导入
 export type { TokenCalculationResult } from './useTokenCalculator';
 
+/** 媒体类型 */
+export type MediaType = 'image' | 'video' | 'audio';
+
+/** 媒体项 */
+export interface MediaItem {
+  id: string;
+  type: MediaType;
+  name: string;
+  params: {
+    width?: number;
+    height?: number;
+    duration?: number;
+  };
+  tokenCount?: number;
+}
+
 /**
  * Token 计算器 Composable
  * 
@@ -54,6 +70,9 @@ export function useTokenCalculator() {
 
   /** 输入文本 */
   const inputText = ref('');
+
+  /** 媒体列表 */
+  const mediaItems = ref<MediaItem[]>([]);
 
   /** 计算模式 */
   const calculationMode = ref<CalculationMode>('model');
@@ -97,6 +116,8 @@ export function useTokenCalculator() {
       maxDisplayTokens: maxDisplayTokens.value,
       version: '1.0.0'
     };
+    
+    // 注意：我们暂不持久化 mediaItems，因为通常这是临时计算
 
     debouncedSaveConfig(config);
     logger.info('配置已保存', config);
@@ -264,7 +285,8 @@ export function useTokenCalculator() {
    * 计算 Token（防抖）
    */
   const calculateTokens = debounce(async () => {
-    if (!inputText.value) {
+    // 如果没有文本且没有媒体，直接归零
+    if (!inputText.value && mediaItems.value.length === 0) {
       calculationResult.value = {
         count: 0,
         isEstimated: false,
@@ -292,6 +314,39 @@ export function useTokenCalculator() {
             selectedModelId.value
           );
         }
+
+        // === 计算媒体 Token ===
+        let mediaTotal = 0;
+        
+        // 获取模型元数据以确定视觉计算规则
+        // 如果是 tokenizer 模式，或者模型未定义视觉规则，我们默认使用 Gemini 2.0 规则作为参考
+        // 这样用户添加了媒体至少能看到一个合理的数字，而不是 0
+        const metadata = getMatchedModelProperties(selectedModelId.value);
+        const defaultVisionCost = { calculationMethod: 'gemini_2_0', parameters: {} } as const;
+        const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
+
+        mediaItems.value.forEach(item => {
+          let count = 0;
+          if (item.type === 'image' && item.params.width && item.params.height) {
+            count = tokenCalculatorEngine.calculateImageTokens(
+              item.params.width, 
+              item.params.height, 
+              visionTokenCost
+            );
+          } else if (item.type === 'video' && item.params.duration) {
+            count = tokenCalculatorEngine.calculateVideoTokens(item.params.duration);
+          } else if (item.type === 'audio' && item.params.duration) {
+            count = tokenCalculatorEngine.calculateAudioTokens(item.params.duration);
+          }
+          
+          // 更新单个 item 的 token 数（用于 UI 显示）
+          item.tokenCount = count;
+          mediaTotal += count;
+        });
+
+        // 将媒体 Token 累加到总数
+        result.count += mediaTotal;
+        result.mediaTokenCount = mediaTotal;
         
         calculationResult.value = result;
         await generateTokenizedText();
@@ -299,6 +354,7 @@ export function useTokenCalculator() {
         logger.info('Token 计算完成', {
           mode: calculationMode.value,
           count: result.count,
+          mediaTokenCount: mediaTotal,
           tokenizerName: result.tokenizerName,
           isEstimated: result.isEstimated,
         });
@@ -339,6 +395,7 @@ export function useTokenCalculator() {
    */
   const clearAll = (): void => {
     inputText.value = '';
+    mediaItems.value = [];
     calculationResult.value = {
       count: 0,
       isEstimated: false,
@@ -346,6 +403,32 @@ export function useTokenCalculator() {
     };
     tokenizedText.value = [];
     logger.info('清空所有内容');
+  };
+
+  // ==================== 媒体操作 ====================
+
+  /**
+   * 添加媒体项
+   */
+  const addMediaItem = (item: Omit<MediaItem, 'id' | 'tokenCount'>): void => {
+    const newItem: MediaItem = {
+      ...item,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      tokenCount: 0
+    };
+    mediaItems.value.push(newItem);
+    calculateTokens();
+  };
+
+  /**
+   * 移除媒体项
+   */
+  const removeMediaItem = (id: string): void => {
+    const index = mediaItems.value.findIndex(item => item.id === id);
+    if (index !== -1) {
+      mediaItems.value.splice(index, 1);
+      calculateTokens();
+    }
   };
 
   // ==================== 工具方法 ====================
@@ -390,7 +473,7 @@ export function useTokenCalculator() {
    */
   watch(selectedModelId, (newId, oldId) => {
     // 只有在真正切换了模型时才重新计算（避免初始化时重复计算）
-    if (oldId && newId !== oldId && inputText.value) {
+    if (oldId && newId !== oldId) {
       calculateTokens();
       logger.info('切换模型/分词器', {
         mode: calculationMode.value,
@@ -463,6 +546,7 @@ export function useTokenCalculator() {
   return {
     // 状态
     inputText,
+    mediaItems,
     calculationMode,
     selectedModelId,
     isCalculating,
@@ -479,6 +563,8 @@ export function useTokenCalculator() {
     handleInputChange,
     setInputText,
     clearAll,
+    addMediaItem,
+    removeMediaItem,
     getTokenColor,
     initializeDefaultModel,
   };

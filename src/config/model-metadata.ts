@@ -1156,6 +1156,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "gemini-3",
     properties: {
       group: "Gemini 3",
+      capabilities: {
+        visionTokenCost: {
+          calculationMethod: "gemini_2_0", // Gemini 3 沿用 2.0 的计算规则
+          parameters: {},
+        },
+      },
     },
     priority: 22,
     enabled: true,
@@ -1167,6 +1173,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "gemini-2.5",
     properties: {
       group: "Gemini 2.5",
+      capabilities: {
+        visionTokenCost: {
+          calculationMethod: "gemini_2_0", // Gemini 2.5 沿用 2.0 的计算规则
+          parameters: {},
+        },
+      },
     },
     priority: 22,
     enabled: true,
@@ -1178,6 +1190,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "gemini-2.0",
     properties: {
       group: "Gemini 2.0",
+      capabilities: {
+        visionTokenCost: {
+          calculationMethod: "gemini_2_0",
+          parameters: {
+            // 参数由引擎内部处理
+          },
+        },
+      },
     },
     priority: 22,
     enabled: true,

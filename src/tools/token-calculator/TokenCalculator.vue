@@ -19,7 +19,10 @@
           ref="inputPanel"
           v-model:input-text="inputText"
           :sanitized-character-count="sanitizedCharacterCount"
+          :media-items="mediaItems"
           @update:input-text="handleInputChange"
+          @add-media="addMediaItem"
+          @remove-media="removeMediaItem"
         />
 
         <!-- 分割线 -->
@@ -56,6 +59,7 @@ import ResultPanel from './components/ResultPanel.vue';
 // 使用 composable
 const {
   inputText,
+  mediaItems,
   calculationMode,
   selectedModelId,
   isCalculating,
@@ -67,6 +71,8 @@ const {
   handleInputChange,
   setInputText,
   clearAll,
+  addMediaItem,
+  removeMediaItem,
   getTokenColor,
   initializeDefaultModel,
 } = useTokenCalculator();

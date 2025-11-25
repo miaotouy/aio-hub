@@ -15,6 +15,9 @@
         <div class="stat-card">
           <div class="stat-label">Token 数量</div>
           <div class="stat-value">{{ calculationResult.count }}</div>
+          <div v-if="calculationResult.mediaTokenCount" class="stat-sub-note">
+            (含 {{ calculationResult.mediaTokenCount }} 媒体)
+          </div>
           <div v-if="calculationResult.isEstimated" class="stat-note">
             <el-icon>
               <WarningFilled />
@@ -29,11 +32,21 @@
         <div class="stat-card">
           <div class="stat-label">字符数</div>
           <div class="stat-value">{{ characterCount }}</div>
+          <div class="stat-sub-note">
+            {{ calculationResult.count - (calculationResult.mediaTokenCount || 0) }} 文本 Token
+          </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Token/字符比</div>
           <div class="stat-value">
-            {{ characterCount > 0 ? (calculationResult.count / characterCount).toFixed(3) : "0" }}
+            {{
+              characterCount > 0
+                ? (
+                    (calculationResult.count - (calculationResult.mediaTokenCount || 0)) /
+                    characterCount
+                  ).toFixed(3)
+                : "0"
+            }}
           </div>
         </div>
       </div>
@@ -43,13 +56,18 @@
         <div class="section-header">
           <div class="section-title">Token 分块可视化</div>
           <div
-            v-if="tokenizedText.length > 0 && calculationResult.count > tokenizedText.length"
+            v-if="
+              tokenizedText.length > 0 &&
+              calculationResult.count - (calculationResult.mediaTokenCount || 0) >
+                tokenizedText.length
+            "
             class="truncation-notice"
           >
             <el-icon>
               <WarningFilled />
             </el-icon>
-            显示 {{ tokenizedText.length }} / {{ calculationResult.count }} 个 Token
+            显示 {{ tokenizedText.length }} /
+            {{ calculationResult.count - (calculationResult.mediaTokenCount || 0) }} 个文本 Token
           </div>
         </div>
         <div v-if="tokenizedText.length > 0" ref="tokenBlocksContainer" class="token-blocks">
@@ -404,6 +422,12 @@ defineExpose({ rootEl });
   margin-top: 4px;
   font-size: 12px;
   color: #f59e0b;
+}
+
+.stat-sub-note {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  margin-top: 2px;
 }
 
 /* 可视化区域 */

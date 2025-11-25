@@ -32,6 +32,8 @@ interface TokenizerMapping {
 export interface TokenCalculationResult {
   /** Token 数量 */
   count: number;
+  /** 媒体 Token 数量 */
+  mediaTokenCount?: number;
   /** 是否为估算值 */
   isEstimated: boolean;
   /** 使用的 tokenizer 名称 */
@@ -426,10 +428,52 @@ class TokenCalculatorEngine {
         // Claude 3：使用预估值（实际值由 API 返回）
         return parameters.costPerImage || 0;
 
+      case 'gemini_2_0':
+        // Gemini 2.0 图片计算逻辑
+        return this.calculateGemini2ImageTokens(width, height);
+
       default:
         console.warn(`Unknown vision token calculation method: ${calculationMethod}`);
         return 0;
     }
+  }
+
+  /**
+   * Gemini 2.0 图片 Token 计算
+   *
+   * 规则：
+   * 1. 如果宽高都 <= 384，则固定 258 tokens
+   * 2. 否则，裁剪并缩放为 768x768 的 tiles，每个 tile 258 tokens
+   */
+  private calculateGemini2ImageTokens(width: number, height: number): number {
+    // 规则 1: 小图固定成本
+    if (width <= 384 && height <= 384) {
+      return 258;
+    }
+
+    // 规则 2: 大图按 768x768 切分
+    // 假设算法为覆盖原图所需的 768x768 瓦片数量
+    const tilesX = Math.ceil(width / 768);
+    const tilesY = Math.ceil(height / 768);
+    const totalTiles = tilesX * tilesY;
+
+    return totalTiles * 258;
+  }
+
+  /**
+   * 计算视频 Token
+   * 规则：263 tokens per second
+   */
+  calculateVideoTokens(durationSeconds: number): number {
+    return Math.ceil(durationSeconds) * 263;
+  }
+
+  /**
+   * 计算音频 Token
+   * 规则：32 tokens per second
+   */
+  calculateAudioTokens(durationSeconds: number): number {
+    return Math.ceil(durationSeconds) * 32;
   }
 
   /**

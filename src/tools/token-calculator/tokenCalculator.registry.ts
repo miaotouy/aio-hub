@@ -101,42 +101,53 @@ class TokenCalculatorService implements ToolService {
     if (attachments && attachments.length > 0) {
       // 获取模型的视觉 token 计费规则
       const metadata = getMatchedModelProperties(modelId);
-      const visionTokenCost = metadata?.capabilities?.visionTokenCost;
+      
+      // 如果模型未定义视觉规则，默认使用 Gemini 2.0 规则作为参考
+      // 这样即使在未配置的模型上也能得到一个估算值
+      const defaultVisionCost = { calculationMethod: 'gemini_2_0', parameters: {} } as const;
+      const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
 
-      if (visionTokenCost) {
-        // 只处理图片类型的附件
-        const imageAttachments = attachments.filter(asset => asset.type === 'image');
-        
-        for (const asset of imageAttachments) {
+      for (const asset of attachments) {
+        // 处理图片
+        if (asset.type === 'image') {
           // 检查是否有宽高信息
-          if (asset.metadata?.width && asset.metadata?.height) {
-            const imageTokens = tokenCalculatorEngine.calculateImageTokens(
-              asset.metadata.width,
-              asset.metadata.height,
-              visionTokenCost
-            );
-            totalTokens += imageTokens;
-          } else {
-            // 如果没有宽高信息，使用默认值（假设是常见分辨率）
-            // 这里使用 1024x1024 作为默认值
-            const imageTokens = tokenCalculatorEngine.calculateImageTokens(
-              1024,
-              1024,
-              visionTokenCost
-            );
-            totalTokens += imageTokens;
+          const width = asset.metadata?.width || 1024;
+          const height = asset.metadata?.height || 1024;
+          
+          const imageTokens = tokenCalculatorEngine.calculateImageTokens(
+            width,
+            height,
+            visionTokenCost
+          );
+          totalTokens += imageTokens;
+        }
+        // 处理视频
+        else if (asset.type === 'video') {
+          if (asset.metadata?.duration) {
+            totalTokens += tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+          }
+        }
+        // 处理音频
+        else if (asset.type === 'audio') {
+          if (asset.metadata?.duration) {
+            totalTokens += tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
           }
         }
       }
     }
 
     // 判断是否为估算值
-    const hasAttachmentsWithoutDimensions = attachments && attachments.length > 0 &&
-      !attachments.every(a => a.type !== 'image' || (a.metadata?.width && a.metadata?.height));
+    // 如果有附件且缺少元数据（如宽高或时长），则标记为估算值
+    const hasAttachmentsWithoutMetadata = attachments && attachments.length > 0 &&
+      attachments.some(a => {
+        if (a.type === 'image') return !a.metadata?.width || !a.metadata?.height;
+        if (a.type === 'video' || a.type === 'audio') return !a.metadata?.duration;
+        return false;
+      });
 
     return {
       count: totalTokens,
-      isEstimated: (textResult.isEstimated ?? false) || !!hasAttachmentsWithoutDimensions,
+      isEstimated: (textResult.isEstimated ?? false) || !!hasAttachmentsWithoutMetadata,
       tokenizerName: textResult.tokenizerName,
     };
   }

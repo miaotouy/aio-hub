@@ -32,15 +32,14 @@ const emit = defineEmits<Emits>();
 const store = useLlmChatStore();
 const { settings } = useChatSettings();
 
-// 事件处理工厂函数（避免模板中的隐式 any）
-const createRegenerateHandler =
-  (id: string) => (options?: { modelId?: string; profileId?: string }) =>
-    emit("regenerate", id, options);
+// 事件处理函数
+const onRegenerate = (id: string, options?: { modelId?: string; profileId?: string }) =>
+  emit("regenerate", id, options);
 
-const createSwitchSiblingHandler = (id: string) => (direction: "prev" | "next") =>
+const onSwitchSibling = (id: string, direction: "prev" | "next") =>
   emit("switch-sibling", id, direction);
 
-const createEditHandler = (id: string) => (newContent: string, attachments?: Asset[]) =>
+const onEditMessage = (id: string, newContent: string, attachments?: Asset[]) =>
   emit("edit-message", id, newContent, attachments);
 
 const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
@@ -232,11 +231,16 @@ defineExpose({
                   : richTextStyleOptions
               "
               @delete="emit('delete-message', messages[virtualItem.index].id)"
-              @regenerate="createRegenerateHandler(messages[virtualItem.index].id)"
-              @switch-sibling="createSwitchSiblingHandler(messages[virtualItem.index].id)"
+              @regenerate="(options) => onRegenerate(messages[virtualItem.index].id, options)"
+              @switch-sibling="
+                (direction) => onSwitchSibling(messages[virtualItem.index].id, direction)
+              "
               @switch-branch="onSwitchBranch"
               @toggle-enabled="emit('toggle-enabled', messages[virtualItem.index].id)"
-              @edit="createEditHandler(messages[virtualItem.index].id)"
+              @edit="
+                (content, attachments) =>
+                  onEditMessage(messages[virtualItem.index].id, content, attachments)
+              "
               @copy="() => {}"
               @abort="emit('abort-node', messages[virtualItem.index].id)"
               @create-branch="emit('create-branch', messages[virtualItem.index].id)"

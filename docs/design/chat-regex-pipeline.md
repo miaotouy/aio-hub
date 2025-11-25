@@ -30,6 +30,7 @@ interface RegexRule {
   replacement: string; // 替换内容 (支持 $1, $2 等捕获组)
   flags?: string; // 正则标志 (g, i, m 等，默认为 gm)
   order?: number; // 排序权重 (可选，UI 拖拽排序使用)
+  testCase?: string; // 测试用例 (可选，用于测试规则效果)
 }
 ```
 
@@ -180,6 +181,16 @@ export interface UserProfile {
 2.  新增 `processMessages` 主函数，统一协调结构处理和内容处理。
 
 ```typescript
+export interface ProcessedMessage extends ProcessableMessage {
+  // 新增：调试信息，记录应用了哪些规则
+  _appliedRegexRules?: {
+    source: "global" | "agent" | "user";
+    ruleName: string;
+    originalContentLength: number;
+    newContentLength: number;
+  }[];
+}
+
 export interface MessageProcessingOptions {
   structureRules: ContextPostProcessRule[]; // 结构性规则
   // 提供一个函数，根据消息元数据动态获取规则
@@ -200,11 +211,22 @@ export function useMessageProcessor() {
       const rules = getRules(msg);
       if (!rules.length) return msg;
 
+      // 记录应用的规则用于调试
+      const appliedRulesInfo = [];
+      let currentContent = msg.content;
+
+      // 逐条应用规则并记录
+      // (实际实现中 applyRegexRules 可能需要改造以支持返回详细信息，
+      // 或者在这里简单记录规则列表)
+
       // 对 msg.content 进行正则替换 (支持多模态文本部分)
-      // 注意：这里应该返回一个新的 msg 对象，保持不可变性
+      const newContent = applyRegexRules(msg.content, rules);
+
       return {
         ...msg,
-        content: applyRegexRules(msg.content, rules),
+        content: newContent,
+        // 附加调试元数据（注意：这不应污染持久化的消息对象，仅在运行时存在）
+        _appliedRegexRules: rules.map((r) => ({ name: r.name, id: r.id })),
       };
     });
   };
@@ -263,6 +285,44 @@ messages = processMessages(messages, {
   structureRules,
   getRulesForMessage,
 });
+```
+
+### 3.6 上下文分析器支持 (Context Analyzer Support)
+
+为了方便调试 Input Pipeline 的效果，上下文分析器需要展示每条消息实际应用了哪些正则规则。
+
+**修改文件**:
+
+1.  `src/tools/llm-chat/composables/useChatContextBuilder.ts`
+2.  `src/tools/llm-chat/components/context-analyzer/StructuredView.vue`
+
+**逻辑**:
+
+1.  **数据透传**: `useChatContextBuilder` 在构建上下文预览数据时，需要保留 `processMessages` 返回结果中的 `_appliedRegexRules` 字段。
+2.  **UI 展示**: 在 `StructuredView.vue` 的消息卡片 (`InfoCard`) 中，新增一个“正则处理记录”区域。
+    - 当 `_appliedRegexRules` 存在且不为空时显示。
+    - 展示应用的规则名称列表，使用 `el-tag` 或列表形式。
+    - 提供直观的视觉反馈，表明该消息的内容已被修改。
+
+**UI 示例**:
+
+```html
+<!-- 在 MessageCard 的 headerTags 中增加一个图标或标签 -->
+<el-tooltip v-if="msg._appliedRegexRules?.length" content="已应用正则处理">
+  <el-tag type="warning" size="small" effect="plain">
+    <i class="i-lucide-regex" /> {{ msg._appliedRegexRules.length }}
+  </el-tag>
+</el-tooltip>
+
+<!-- 在 MessageCard 的内容区域下方或详情弹窗中 -->
+<div v-if="msg._appliedRegexRules" class="regex-debug-info">
+  <div class="debug-title">应用规则:</div>
+  <div class="rule-list">
+    <span v-for="rule in msg._appliedRegexRules" :key="rule.id" class="rule-tag">
+      {{ rule.name }}
+    </span>
+  </div>
+</div>
 ```
 
 ---

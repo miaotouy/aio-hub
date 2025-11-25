@@ -159,6 +159,27 @@ export interface UserProfile {
 2.  **User**: `UserProfileForm.vue`
 3.  **Global**: `ChatSettingsDialog.vue`
 
+#### UI 组件设计细节
+
+**1. `RegexPipelinePanel` (管道编辑器)**
+
+- **复用策略**: 借鉴 `RegexApplier` 中 `VueDraggableNext` 的核心逻辑，复用其拖拽排序、事件处理机制。
+- **UI 改进**:
+  - 弃用 `RegexApplier` 的简单 Tag 样式。
+  - 采用 **垂直卡片列表 (Vertical Card List)** 布局，更符合“管道流”的视觉隐喻。
+  - 每个卡片包含：
+    - **拖拽手柄**: 明确的排序交互区域。
+    - **基本信息**: 名称、描述、规则数量统计。
+    - **快捷操作**: 启用/禁用开关 (Switch)、编辑按钮 (Edit)、删除按钮 (Delete)。
+
+**2. `RegexRuleSetEditor` (规则集编辑器)**
+
+- **复用策略**: 深度复用 `PresetManager.vue` 的左右分栏布局。
+  - **左侧**: 规则列表，支持拖拽排序。
+  - **右侧**: 规则详情编辑 + 实时测试预览。
+- **功能增强**:
+  - 增加“快捷规则模板” (Quick Patterns)，如一键插入“移除 Markdown 图片”、“匹配 XML 标签”等常用正则。
+
 ### 3.4 渲染层改造 (Output Pipeline)
 
 **修改文件**: `src/tools/rich-text-renderer/RichTextRenderer.vue`

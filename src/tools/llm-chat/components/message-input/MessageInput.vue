@@ -438,16 +438,16 @@ const calculateInputTokens = async () => {
     const attachments =
       inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
 
-    const { combinedText, imageAttachments } = await prepareSimpleMessageForTokenCalc(
+    const { combinedText, mediaAttachments } = await prepareSimpleMessageForTokenCalc(
       inputText.value,
       attachments
     );
 
-    // 使用合并后的文本和图片附件进行 token 计算
+    // 使用合并后的文本和媒体附件进行 token 计算
     const result = await tokenCalculatorService.calculateMessageTokens(
       combinedText,
       modelId,
-      imageAttachments.length > 0 ? imageAttachments : undefined
+      mediaAttachments.length > 0 ? mediaAttachments : undefined
     );
     tokenCount.value = result.count;
     tokenEstimated.value = result.isEstimated ?? false;

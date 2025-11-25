@@ -781,8 +781,14 @@ export function useChatContextBuilder() {
         )
         .map(async (node: ChatMessageNode, index: number) => {
           // 使用结构化分析器准备数据
-          const { originalText, textAttachments, imageAttachments, otherAttachments } =
-            await prepareStructuredMessageForAnalysis(node.content, node.attachments);
+          const {
+            originalText,
+            textAttachments,
+            imageAttachments,
+            videoAttachments,
+            audioAttachments,
+            otherAttachments
+          } = await prepareStructuredMessageForAnalysis(node.content, node.attachments);
 
           const sanitizedContent = sanitizeForCharCount(originalText);
           let textTokenCount: number | undefined;
@@ -875,6 +881,78 @@ export function useChatContextBuilder() {
                 }
               } else {
                 attachmentError = "模型不支持视觉能力或计费规则未知";
+                isAttachmentEstimated = true;
+              }
+
+              if (tokenCount !== undefined) attachmentsTokenCount += tokenCount;
+              if (isAttachmentEstimated) isEstimated = true;
+
+              attachmentsData.push({
+                id: asset.id,
+                name: asset.name,
+                type: asset.type,
+                path: asset.path,
+                importStatus: asset.importStatus,
+                originalPath: asset.originalPath,
+                size: asset.size,
+                tokenCount,
+                isEstimated: isAttachmentEstimated,
+                metadata: asset.metadata,
+                error: attachmentError,
+              });
+            }
+
+            // 处理视频附件
+            for (const asset of videoAttachments) {
+              let tokenCount: number | undefined;
+              let isAttachmentEstimated = false;
+              let attachmentError: string | undefined;
+
+              if (asset.metadata?.duration) {
+                try {
+                  tokenCount = tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+                } catch (e) {
+                  attachmentError = e instanceof Error ? e.message : "视频 Token 计算异常";
+                  isAttachmentEstimated = true;
+                }
+              } else {
+                attachmentError = "缺少视频时长信息，无法计算";
+                isAttachmentEstimated = true;
+              }
+
+              if (tokenCount !== undefined) attachmentsTokenCount += tokenCount;
+              if (isAttachmentEstimated) isEstimated = true;
+
+              attachmentsData.push({
+                id: asset.id,
+                name: asset.name,
+                type: asset.type,
+                path: asset.path,
+                importStatus: asset.importStatus,
+                originalPath: asset.originalPath,
+                size: asset.size,
+                tokenCount,
+                isEstimated: isAttachmentEstimated,
+                metadata: asset.metadata,
+                error: attachmentError,
+              });
+            }
+
+            // 处理音频附件
+            for (const asset of audioAttachments) {
+              let tokenCount: number | undefined;
+              let isAttachmentEstimated = false;
+              let attachmentError: string | undefined;
+
+              if (asset.metadata?.duration) {
+                try {
+                  tokenCount = tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
+                } catch (e) {
+                  attachmentError = e instanceof Error ? e.message : "音频 Token 计算异常";
+                  isAttachmentEstimated = true;
+                }
+              } else {
+                attachmentError = "缺少音频时长信息，无法计算";
                 isAttachmentEstimated = true;
               }
 

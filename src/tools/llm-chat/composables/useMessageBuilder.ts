@@ -28,16 +28,16 @@ export function useMessageBuilder() {
    *
    * @param text 原始文本
    * @param attachments 附件列表
-   * @returns 合并后的文本和纯图片附件列表
+   * @returns 合并后的文本和媒体附件列表（图片、视频、音频）
    */
   const prepareSimpleMessageForTokenCalc = async (
     text: string,
     attachments?: Asset[]
-  ): Promise<{ combinedText: string; imageAttachments: Asset[] }> => {
+  ): Promise<{ combinedText: string; mediaAttachments: Asset[] }> => {
     if (!attachments || attachments.length === 0) {
       return {
         combinedText: text,
-        imageAttachments: [],
+        mediaAttachments: [],
       };
     }
 
@@ -49,20 +49,23 @@ export function useMessageBuilder() {
       ? `${text}\n\n${textAttachmentsContent}`
       : text;
 
-    // 过滤出图片附件
-    const imageAttachments = attachments.filter(asset => asset.type === 'image');
+    // 过滤出媒体附件（图片、视频、音频）
+    // 这些附件需要单独计算 Token，不能合并到文本中
+    const mediaAttachments = attachments.filter(asset =>
+      asset.type === 'image' || asset.type === 'video' || asset.type === 'audio'
+    );
 
     logger.debug("消息准备完成（用于 Token 计算）", {
       originalTextLength: text.length,
       textAttachmentsCount: attachments.filter(a => a.type === 'document').length,
       textAttachmentsContentLength: textAttachmentsContent.length,
       combinedTextLength: combinedText.length,
-      imageAttachmentsCount: imageAttachments.length,
+      mediaAttachmentsCount: mediaAttachments.length,
     });
 
     return {
       combinedText,
-      imageAttachments,
+      mediaAttachments,
     };
   };
 
@@ -82,12 +85,16 @@ export function useMessageBuilder() {
     originalText: string;
     textAttachments: Array<{ asset: Asset; content: string }>;
     imageAttachments: Asset[];
+    videoAttachments: Asset[];
+    audioAttachments: Asset[];
     otherAttachments: Asset[];
   }> => {
     const result = {
       originalText: text,
       textAttachments: [] as Array<{ asset: Asset; content: string }>,
       imageAttachments: [] as Asset[],
+      videoAttachments: [] as Asset[],
+      audioAttachments: [] as Asset[],
       otherAttachments: [] as Asset[],
     };
 
@@ -98,6 +105,10 @@ export function useMessageBuilder() {
     for (const asset of attachments) {
       if (asset.type === 'image') {
         result.imageAttachments.push(asset);
+      } else if (asset.type === 'video') {
+        result.videoAttachments.push(asset);
+      } else if (asset.type === 'audio') {
+        result.audioAttachments.push(asset);
       } else if (asset.type === 'document' && isTextFile(asset.name, asset.mimeType)) {
         // 对于文本文件，尝试读取内容
         try {

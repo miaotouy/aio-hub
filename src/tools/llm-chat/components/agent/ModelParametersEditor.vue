@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
+import { Setting, Collection, ChatDotRound, WarningFilled } from "@element-plus/icons-vue";
 import type { LlmParameters } from "../../types";
 import type { ProviderType, LlmParameterSupport } from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -641,84 +642,44 @@ watch(
     >
       <!-- 当前上下文统计 -->
       <div v-if="contextStats" class="context-stats-card">
-        <div class="stats-title">
-          <span>当前上下文使用情况</span>
-          <el-tag v-if="contextStats.tokenizerName" size="small" type="info">
-            {{ contextStats.isEstimated ? "估算" : "精确" }} - {{ contextStats.tokenizerName }}
-          </el-tag>
-        </div>
-        <div class="stats-grid">
-          <div class="stat-item primary">
-            <div class="stat-label">总计</div>
-            <div class="stat-value">
-              <template v-if="contextStats.totalTokenCount !== undefined">
-                {{ contextStats.totalTokenCount.toLocaleString() }} tokens
-                <span class="char-hint"
-                  >{{ contextStats.totalCharCount.toLocaleString() }} 字符</span
-                >
-              </template>
-              <template v-else> {{ contextStats.totalCharCount.toLocaleString() }} 字符 </template>
+        <!-- 核心指标卡片 -->
+        <div class="summary-card">
+          <!-- 总数 -->
+          <div class="total-section">
+            <div class="stat-label">Total Tokens</div>
+            <div class="total-value">
+              <span class="number">{{
+                contextStats.totalTokenCount?.toLocaleString() ?? "---"
+              }}</span>
             </div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">系统提示</div>
-            <div class="stat-value">
-              <template v-if="contextStats.systemPromptTokenCount !== undefined">
-                {{ contextStats.systemPromptTokenCount.toLocaleString() }} tokens
-              </template>
-              <template v-else>
-                {{ contextStats.systemPromptCharCount.toLocaleString() }} 字符
-              </template>
-            </div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">预设消息</div>
-            <div class="stat-value">
-              <template v-if="contextStats.presetMessagesTokenCount !== undefined">
-                {{ contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
-              </template>
-              <template v-else>
-                {{ contextStats.presetMessagesCharCount.toLocaleString() }} 字符
-              </template>
-            </div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">会话历史</div>
-            <div class="stat-value">
-              <template v-if="contextStats.chatHistoryTokenCount !== undefined">
-                {{ contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
-              </template>
-              <template v-else>
-                {{ contextStats.chatHistoryCharCount.toLocaleString() }} 字符
-              </template>
-            </div>
-          </div>
-        </div>
-        <div
-          v-if="
-            localParams.contextManagement?.enabled &&
-            localParams.contextManagement.maxContextTokens > 0
-          "
-          class="usage-bar"
-        >
-          <div class="usage-label">
-            <span>使用率</span>
-            <span class="usage-percent">
-              {{
+
+            <!-- 使用率展示 -->
+            <div
+              v-if="
+                localParams.contextManagement?.enabled &&
+                localParams.contextManagement.maxContextTokens > 0 &&
                 contextStats.totalTokenCount !== undefined
-                  ? Math.round(
+              "
+              class="usage-info"
+            >
+              <div class="usage-text">
+                <span
+                  >使用率
+                  {{
+                    Math.round(
                       (contextStats.totalTokenCount /
                         localParams.contextManagement.maxContextTokens) *
                         100
                     )
-                  : 0
-              }}%
-            </span>
-          </div>
-          <el-progress
-            :percentage="
-              contextStats.totalTokenCount !== undefined
-                ? Math.min(
+                  }}%</span
+                >
+                <span class="limit-text"
+                  >/ {{ localParams.contextManagement.maxContextTokens.toLocaleString() }}</span
+                >
+              </div>
+              <el-progress
+                :percentage="
+                  Math.min(
                     100,
                     Math.round(
                       (contextStats.totalTokenCount /
@@ -726,20 +687,141 @@ watch(
                         100
                     )
                   )
-                : 0
-            "
-            :color="
-              contextStats.totalTokenCount !== undefined &&
-              contextStats.totalTokenCount > localParams.contextManagement.maxContextTokens
-                ? '#F56C6C'
-                : contextStats.totalTokenCount !== undefined &&
-                    contextStats.totalTokenCount >
-                      localParams.contextManagement.maxContextTokens * 0.8
-                  ? '#E6A23C'
-                  : '#67C23A'
-            "
-            :show-text="false"
-          />
+                "
+                :color="
+                  contextStats.totalTokenCount > localParams.contextManagement.maxContextTokens
+                    ? '#F56C6C'
+                    : contextStats.totalTokenCount >
+                        localParams.contextManagement.maxContextTokens * 0.8
+                      ? '#E6A23C'
+                      : '#67C23A'
+                "
+                :show-text="false"
+                :stroke-width="6"
+                class="mini-progress"
+              />
+            </div>
+
+            <div v-if="contextStats.isEstimated" class="estimate-badge">
+              <el-icon><WarningFilled /></el-icon>
+              <span>估算值 ({{ contextStats.tokenizerName }})</span>
+            </div>
+            <div v-else class="tokenizer-badge">
+              <span>{{ contextStats.tokenizerName }}</span>
+            </div>
+          </div>
+
+          <!-- 分布详情 -->
+          <div class="breakdown-section">
+            <!-- 系统提示 -->
+            <div class="breakdown-item">
+              <div class="item-icon system-icon">
+                <el-icon><Setting /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">系统提示</span>
+                  <span class="item-value">
+                    {{
+                      contextStats.systemPromptTokenCount?.toLocaleString() ??
+                      contextStats.systemPromptCharCount.toLocaleString() + " 字符"
+                    }}
+                  </span>
+                </div>
+                <div
+                  class="progress-bg"
+                  v-if="
+                    contextStats.totalTokenCount &&
+                    contextStats.systemPromptTokenCount !== undefined
+                  "
+                >
+                  <div
+                    class="progress-bar system-bar"
+                    :style="{
+                      width: `${((contextStats.systemPromptTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
+                    }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 预设消息 -->
+            <div class="breakdown-item">
+              <div class="item-icon preset-icon">
+                <el-icon><Collection /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">预设消息</span>
+                  <span class="item-value">
+                    {{
+                      contextStats.presetMessagesTokenCount?.toLocaleString() ??
+                      contextStats.presetMessagesCharCount.toLocaleString() + " 字符"
+                    }}
+                  </span>
+                </div>
+                <div
+                  class="progress-bg"
+                  v-if="
+                    contextStats.totalTokenCount &&
+                    contextStats.presetMessagesTokenCount !== undefined
+                  "
+                >
+                  <div
+                    class="progress-bar preset-bar"
+                    :style="{
+                      width: `${((contextStats.presetMessagesTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
+                    }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 会话历史 -->
+            <div class="breakdown-item">
+              <div class="item-icon history-icon">
+                <el-icon><ChatDotRound /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">会话历史</span>
+                  <span class="item-value">
+                    {{
+                      contextStats.chatHistoryTokenCount?.toLocaleString() ??
+                      contextStats.chatHistoryCharCount.toLocaleString() + " 字符"
+                    }}
+                  </span>
+                </div>
+                <div
+                  class="progress-bg"
+                  v-if="
+                    contextStats.totalTokenCount && contextStats.chatHistoryTokenCount !== undefined
+                  "
+                >
+                  <div
+                    class="progress-bar history-bar"
+                    :style="{
+                      width: `${((contextStats.chatHistoryTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
+                    }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部辅助信息 -->
+          <div class="stats-footer">
+            <div class="footer-item">
+              <span class="label">总字符数:</span>
+              <span class="value">{{ contextStats.totalCharCount.toLocaleString() }}</span>
+            </div>
+            <div class="footer-item" v-if="contextStats.totalTokenCount">
+              <span class="label">Token/字符:</span>
+              <span class="value">{{
+                (contextStats.totalTokenCount / (contextStats.totalCharCount || 1)).toFixed(3)
+              }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -920,7 +1002,10 @@ watch(
 /* 上下文统计卡片 */
 .context-stats-card {
   margin-bottom: 20px;
-  padding: 16px;
+}
+
+/* 汇总卡片布局 */
+.summary-card {
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--primary-color) 2%, var(--card-bg)),
@@ -928,84 +1013,181 @@ watch(
   );
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
-.stats-title {
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 总数区域 */
+.total-section {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.stat-item {
-  padding: 10px;
-  background-color: var(--container-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-}
-
-.stat-item.primary {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-success) 8%, var(--container-bg)),
-    color-mix(in srgb, var(--el-color-success) 4%, var(--container-bg))
-  );
-  backdrop-filter: blur(var(--ui-blur));
-  border-color: var(--el-color-success);
+  text-align: center;
+  border-bottom: 1px solid var(--border-color-light);
+  padding-bottom: 16px;
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-color-secondary);
   margin-bottom: 4px;
+  font-weight: 500;
 }
 
-.stat-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-color);
+.total-value .number {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--primary-color);
+  font-family: "Consolas", "Monaco", monospace;
+  letter-spacing: -1px;
+  line-height: 1.2;
+}
+
+.estimate-badge {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.stat-item.primary .stat-value {
-  font-size: 16px;
-  color: var(--el-color-success);
-}
-
-.char-hint {
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 2px 8px;
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-radius: 4px;
   font-size: 11px;
-  font-weight: normal;
-  color: var(--text-color-secondary);
+  font-weight: 500;
 }
 
-.usage-bar {
+.tokenizer-badge {
+  margin-top: 8px;
+  padding: 2px 8px;
+  background-color: var(--bg-color-soft);
+  color: var(--text-color-secondary);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.usage-info {
+  width: 100%;
   margin-top: 12px;
 }
 
-.usage-label {
+.usage-text {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
+  align-items: baseline;
   font-size: 11px;
+  margin-bottom: 4px;
   color: var(--text-color-secondary);
 }
 
-.usage-percent {
+.limit-text {
+  opacity: 0.7;
+}
+
+/* 分布详情 */
+.breakdown-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.system-icon {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+.preset-icon {
+  background-color: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+}
+.history-icon {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; /* 防止溢出 */
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.item-label {
+  color: var(--text-color-secondary);
+}
+
+.item-value {
   font-weight: 600;
+  color: var(--text-color);
+  font-family: "Consolas", monospace;
+}
+
+.progress-bg {
+  height: 4px;
+  background-color: var(--border-color-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.system-bar {
+  background-color: #3b82f6;
+}
+.preset-bar {
+  background-color: #8b5cf6;
+}
+.history-bar {
+  background-color: #10b981;
+}
+
+/* 底部辅助信息 */
+.stats-footer {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 0 8px;
+}
+
+.footer-item {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  display: flex;
+  gap: 4px;
+}
+
+.footer-item .value {
+  font-family: "Consolas", monospace;
   color: var(--text-color);
 }
 
@@ -1013,6 +1195,8 @@ watch(
   color: var(--text-color-secondary);
   font-size: 11px;
 }
+
+/* 响应式调整 - 移除不再需要的 @container 查询，因为现在默认就是垂直布局 */
 
 .param-group {
   padding: 12px;

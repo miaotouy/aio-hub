@@ -1,4 +1,5 @@
 import { createModuleLogger } from "@utils/logger";
+import { fetch } from '@tauri-apps/plugin-http';
 
 const logger = createModuleLogger("LlmApiCommon");
 

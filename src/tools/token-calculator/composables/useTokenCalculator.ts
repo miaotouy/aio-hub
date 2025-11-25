@@ -30,10 +30,18 @@ interface TokenizerMapping {
  * Token 计算结果
  */
 export interface TokenCalculationResult {
-  /** Token 数量 */
+  /** Token 总数量 */
   count: number;
-  /** 媒体 Token 数量 */
+  /** 文本 Token 数量 */
+  textTokenCount?: number;
+  /** 媒体 Token 总数量 */
   mediaTokenCount?: number;
+  /** 图片 Token 数量 */
+  imageTokenCount?: number;
+  /** 视频 Token 数量 */
+  videoTokenCount?: number;
+  /** 音频 Token 数量 */
+  audioTokenCount?: number;
   /** 是否为估算值 */
   isEstimated: boolean;
   /** 使用的 tokenizer 名称 */

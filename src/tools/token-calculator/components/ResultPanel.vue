@@ -10,43 +10,126 @@
       </div>
     </div>
     <div class="panel-content">
-      <!-- Token 统计信息 -->
-      <div class="stats-section">
-        <div class="stat-card">
-          <div class="stat-label">Token 数量</div>
-          <div class="stat-value">{{ calculationResult.count }}</div>
-          <div v-if="calculationResult.mediaTokenCount" class="stat-sub-note">
-            (含 {{ calculationResult.mediaTokenCount }} 媒体)
+      <!-- 新版统计区域 -->
+      <div class="stats-container">
+        <!-- 核心指标卡片 -->
+        <div class="summary-card">
+          <!-- 左侧：总数 -->
+          <div class="total-section">
+            <div class="stat-label">Total Tokens</div>
+            <div class="total-value">
+              <span class="number">{{ calculationResult.count }}</span>
+            </div>
+            <div v-if="calculationResult.isEstimated" class="estimate-badge">
+              <el-icon><WarningFilled /></el-icon>
+              <span>估算值</span>
+            </div>
           </div>
-          <div v-if="calculationResult.isEstimated" class="stat-note">
-            <el-icon>
-              <WarningFilled />
-            </el-icon>
-            估算值
+
+          <!-- 右侧：分布详情 -->
+          <div class="breakdown-section">
+            <!-- 文本 -->
+            <div class="breakdown-item">
+              <div class="item-icon text-icon">
+                <el-icon><Document /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">文本</span>
+                  <span class="item-value">{{ calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0)) }}</span>
+                </div>
+                <div class="progress-bg">
+                  <div 
+                    class="progress-bar text-bar" 
+                    :style="{ width: getPercentage(calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0))) }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 图片 -->
+            <div class="breakdown-item" :class="{ 'is-empty': !calculationResult.imageTokenCount }">
+              <div class="item-icon image-icon">
+                <el-icon><Picture /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">图片</span>
+                  <span class="item-value">{{ calculationResult.imageTokenCount || 0 }}</span>
+                </div>
+                <div class="progress-bg">
+                  <div 
+                    class="progress-bar image-bar" 
+                    :style="{ width: getPercentage(calculationResult.imageTokenCount) }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 视频 -->
+            <div class="breakdown-item" :class="{ 'is-empty': !calculationResult.videoTokenCount }">
+              <div class="item-icon video-icon">
+                <el-icon><VideoPlay /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">视频</span>
+                  <span class="item-value">{{ calculationResult.videoTokenCount || 0 }}</span>
+                </div>
+                <div class="progress-bg">
+                  <div 
+                    class="progress-bar video-bar" 
+                    :style="{ width: getPercentage(calculationResult.videoTokenCount) }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 音频 -->
+            <div class="breakdown-item" :class="{ 'is-empty': !calculationResult.audioTokenCount }">
+              <div class="item-icon audio-icon">
+                <el-icon><Microphone /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">音频</span>
+                  <span class="item-value">{{ calculationResult.audioTokenCount || 0 }}</span>
+                </div>
+                <div class="progress-bg">
+                  <div 
+                    class="progress-bar audio-bar" 
+                    :style="{ width: getPercentage(calculationResult.audioTokenCount) }"
+                  ></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">使用的分词器</div>
-          <div class="stat-value tokenizer-name">{{ calculationResult.tokenizerName }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">字符数</div>
-          <div class="stat-value">{{ characterCount }}</div>
-          <div class="stat-sub-note">
-            {{ calculationResult.count - (calculationResult.mediaTokenCount || 0) }} 文本 Token
+
+        <!-- 辅助信息网格 -->
+        <div class="details-grid">
+          <div class="detail-card">
+            <div class="detail-label">分词器</div>
+            <div class="detail-value tokenizer-name" :title="calculationResult.tokenizerName">
+              {{ calculationResult.tokenizerName }}
+            </div>
           </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Token/字符比</div>
-          <div class="stat-value">
-            {{
-              characterCount > 0
-                ? (
-                    (calculationResult.count - (calculationResult.mediaTokenCount || 0)) /
-                    characterCount
-                  ).toFixed(3)
-                : "0"
-            }}
+          <div class="detail-card">
+            <div class="detail-label">字符数</div>
+            <div class="detail-value">{{ characterCount }}</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Token/字符</div>
+            <div class="detail-value">
+              {{
+                characterCount > 0
+                  ? (
+                      (calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0))) /
+                      characterCount
+                    ).toFixed(3)
+                  : "0"
+              }}
+            </div>
           </div>
         </div>
       </div>
@@ -58,7 +141,7 @@
           <div
             v-if="
               tokenizedText.length > 0 &&
-              calculationResult.count - (calculationResult.mediaTokenCount || 0) >
+              (calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0))) >
                 tokenizedText.length
             "
             class="truncation-notice"
@@ -67,7 +150,7 @@
               <WarningFilled />
             </el-icon>
             显示 {{ tokenizedText.length }} /
-            {{ calculationResult.count - (calculationResult.mediaTokenCount || 0) }} 个文本 Token
+            {{ calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0)) }} 个文本 Token
           </div>
         </div>
         <div v-if="tokenizedText.length > 0" ref="tokenBlocksContainer" class="token-blocks">
@@ -114,7 +197,7 @@
             </div>
           </div>
         </div>
-        <div v-else class="empty-placeholder">暂无数据</div>
+        <div v-else class="empty-placeholder">暂无文本数据</div>
       </div>
     </div>
   </div>
@@ -124,7 +207,14 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useElementSize } from "@vueuse/core";
-import { Loading, WarningFilled } from "@element-plus/icons-vue";
+import { 
+  Loading, 
+  WarningFilled, 
+  Document, 
+  Picture, 
+  VideoPlay, 
+  Microphone 
+} from "@element-plus/icons-vue";
 import type {
   TokenCalculationResult,
   TokenBlock,
@@ -139,6 +229,12 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+// 计算百分比
+const getPercentage = (value: number | undefined) => {
+  if (!value || props.calculationResult.count === 0) return '0%';
+  return `${(value / props.calculationResult.count * 100).toFixed(1)}%`;
+};
 
 // 滚动容器（可视区域）
 const tokenBlocksContainer = ref<HTMLElement | null>(null);
@@ -366,81 +462,201 @@ defineExpose({ rootEl });
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 0 20px 20px 20px;
+  gap: 16px;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-/* 统计信息区域 */
-.stats-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+/* 统计容器 */
+.stats-container {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  margin-bottom: 20px;
-  box-sizing: border-box;
   flex-shrink: 0;
 }
 
-.stat-card {
-  background-color: rgba(var(--primary-color-rgb), 0.05);
+/* 汇总卡片 */
+.summary-card {
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 14px;
-  text-align: center;
-  transition: all 0.2s ease;
-  box-sizing: border-box;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  gap: 24px;
+  box-shadow: var(--shadow-sm);
 }
 
-.stat-card:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+/* 左侧总数区域 */
+.total-section {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  border-right: 1px solid var(--border-color-light);
+  padding-right: 20px;
 }
 
 .stat-label {
-  font-size: 12px;
-  color: var(--text-color-light);
-  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+  margin-bottom: 8px;
+  font-weight: 500;
 }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
+.total-value {
+  display: flex;
+  align-items: baseline;
+  line-height: 1;
+}
+
+.total-value .number {
+  font-size: 42px;
+  font-weight: 700;
   color: var(--primary-color);
-  font-family: "Consolas", "Monaco", "Courier New", monospace;
+  font-family: "Consolas", "Monaco", monospace;
+  letter-spacing: -1px;
 }
 
-.stat-value.tokenizer-name {
-  font-size: 18px;
-  color: var(--text-color);
+.estimate-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 4px 8px;
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.stat-note {
+/* 右侧分布详情 */
+.breakdown-section {
+  flex: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.breakdown-item.is-empty {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.item-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  margin-top: 4px;
-  font-size: 12px;
-  color: #f59e0b;
+  font-size: 18px;
 }
 
-.stat-sub-note {
-  font-size: 11px;
+.text-icon { background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.image-icon { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
+.video-icon { background-color: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+.audio-icon { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+.item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.item-label {
   color: var(--text-color-secondary);
-  margin-top: 2px;
+}
+
+.item-value {
+  font-weight: 600;
+  color: var(--text-color);
+  font-family: "Consolas", monospace;
+}
+
+.progress-bg {
+  height: 4px;
+  background-color: var(--border-color-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.text-bar { background-color: #3b82f6; }
+.image-bar { background-color: #10b981; }
+.video-bar { background-color: #8b5cf6; }
+.audio-bar { background-color: #f59e0b; }
+
+/* 详情网格 */
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.detail-card {
+  background-color: var(--bg-color-soft);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.detail-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-color);
+  font-family: "Consolas", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-value.tokenizer-name {
+  font-size: 14px;
 }
 
 /* 可视化区域 */
 .visualization-section {
-  background-color: rgba(var(--primary-color-rgb), 0.03);
+  background-color: var(--bg-color);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 18px;
   box-sizing: border-box;
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0; /* 关键：允许 flex item 缩小 */
 }
 
 .section-header {
@@ -483,7 +699,6 @@ defineExpose({ rootEl });
   gap: 3px;
   align-content: flex-start;
   padding-bottom: 4px;
-  /* 使用 padding-bottom 而不是 margin-bottom，便于虚拟列表正确计算高度 */
 }
 
 .token-block {
@@ -505,5 +720,29 @@ defineExpose({ rootEl });
   text-align: center;
   color: var(--text-color-light);
   padding: 40px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .summary-card {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .total-section {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color-light);
+    padding-right: 0;
+    padding-bottom: 16px;
+    align-items: center;
+  }
+
+  .breakdown-section {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

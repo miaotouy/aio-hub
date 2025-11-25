@@ -317,6 +317,9 @@ export function useTokenCalculator() {
 
         // === 计算媒体 Token ===
         let mediaTotal = 0;
+        let imageTotal = 0;
+        let videoTotal = 0;
+        let audioTotal = 0;
         
         // 获取模型元数据以确定视觉计算规则
         // 如果是 tokenizer 模式，或者模型未定义视觉规则，我们默认使用 Gemini 2.0 规则作为参考
@@ -329,14 +332,17 @@ export function useTokenCalculator() {
           let count = 0;
           if (item.type === 'image' && item.params.width && item.params.height) {
             count = tokenCalculatorEngine.calculateImageTokens(
-              item.params.width, 
-              item.params.height, 
+              item.params.width,
+              item.params.height,
               visionTokenCost
             );
+            imageTotal += count;
           } else if (item.type === 'video' && item.params.duration) {
             count = tokenCalculatorEngine.calculateVideoTokens(item.params.duration);
+            videoTotal += count;
           } else if (item.type === 'audio' && item.params.duration) {
             count = tokenCalculatorEngine.calculateAudioTokens(item.params.duration);
+            audioTotal += count;
           }
           
           // 更新单个 item 的 token 数（用于 UI 显示）
@@ -344,9 +350,18 @@ export function useTokenCalculator() {
           mediaTotal += count;
         });
 
+        // 记录文本 Token 数量（当前 result.count 仅包含文本）
+        const textTokenCount = result.count;
+
         // 将媒体 Token 累加到总数
         result.count += mediaTotal;
+        
+        // 填充详细统计
+        result.textTokenCount = textTokenCount;
         result.mediaTokenCount = mediaTotal;
+        result.imageTokenCount = imageTotal;
+        result.videoTokenCount = videoTotal;
+        result.audioTokenCount = audioTotal;
         
         calculationResult.value = result;
         await generateTokenizedText();

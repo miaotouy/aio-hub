@@ -96,6 +96,11 @@ class TokenCalculatorService implements ToolService {
     // 1. 计算文本 Token
     const textResult = await tokenCalculatorEngine.calculateTokens(text, modelId);
     let totalTokens = textResult.count;
+    const textTokenCount = textResult.count;
+    let mediaTokenCount = 0;
+    let imageTokenCount = 0;
+    let videoTokenCount = 0;
+    let audioTokenCount = 0;
 
     // 2. 如果有附件，计算附件 Token
     if (attachments && attachments.length > 0) {
@@ -119,18 +124,26 @@ class TokenCalculatorService implements ToolService {
             height,
             visionTokenCost
           );
+          imageTokenCount += imageTokens;
+          mediaTokenCount += imageTokens;
           totalTokens += imageTokens;
         }
         // 处理视频
         else if (asset.type === 'video') {
           if (asset.metadata?.duration) {
-            totalTokens += tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+            const videoTokens = tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+            videoTokenCount += videoTokens;
+            mediaTokenCount += videoTokens;
+            totalTokens += videoTokens;
           }
         }
         // 处理音频
         else if (asset.type === 'audio') {
           if (asset.metadata?.duration) {
-            totalTokens += tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
+            const audioTokens = tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
+            audioTokenCount += audioTokens;
+            mediaTokenCount += audioTokens;
+            totalTokens += audioTokens;
           }
         }
       }
@@ -147,6 +160,11 @@ class TokenCalculatorService implements ToolService {
 
     return {
       count: totalTokens,
+      textTokenCount,
+      mediaTokenCount,
+      imageTokenCount,
+      videoTokenCount,
+      audioTokenCount,
       isEstimated: (textResult.isEstimated ?? false) || !!hasAttachmentsWithoutMetadata,
       tokenizerName: textResult.tokenizerName,
     };

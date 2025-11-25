@@ -762,6 +762,9 @@ export function useChatContextBuilder() {
             tokenCount = tokenResult.count;
             presetMessagesTokenCount += tokenResult.count;
             if (tokenResult.isEstimated) isEstimated = true;
+            if (tokenResult.tokenizerName && !tokenizerName) {
+              tokenizerName = tokenResult.tokenizerName;
+            }
           } catch (error) {
             logger.warn("计算预设消息 token 失败", { index, error: error instanceof Error ? error.message : String(error) });
           }
@@ -793,6 +796,9 @@ export function useChatContextBuilder() {
               );
               textTokenCount = textTokenResult.count;
               if (textTokenResult.isEstimated) isEstimated = true;
+              if (textTokenResult.tokenizerName && !tokenizerName) {
+                tokenizerName = textTokenResult.tokenizerName;
+              }
             } catch (error) {
               logger.warn("计算历史消息文本 token 失败", {
                 nodeId: node.id,

@@ -160,6 +160,29 @@ const scrollToPrev = () => {
   container.scrollBy({ top: -scrollAmount, behavior: "smooth" });
 };
 
+// 事件处理函数
+// 注意：将 payload 放在前面，messageId 放在后面，以便在模板中利用 $event 直接传参
+// 从而避免在模板中编写箭头函数，解决 VSCode 隐式 any 报错和 vue-tsc 解析错误
+const handleRegenerate = (
+  options: { modelId?: string; profileId?: string } | undefined,
+  messageId: string
+) => {
+  emit("regenerate", messageId, options);
+};
+
+const handleSwitchSibling = (direction: "prev" | "next", messageId: string) => {
+  emit("switch-sibling", messageId, direction);
+};
+
+const handleSwitchBranch = (nodeId: string) => {
+  emit("switch-branch", nodeId);
+};
+
+// 编辑消息涉及多个参数，模板中只能用箭头函数，这里保持参数顺序不变
+const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) => {
+  emit("edit-message", nodeId, newContent, attachments);
+};
+
 // 暴露滚动方法和容器引用供外部调用
 defineExpose({
   scrollToBottom,
@@ -219,19 +242,13 @@ defineExpose({
                   : richTextStyleOptions
               "
               @delete="emit('delete-message', messages[virtualItem.index].id)"
-              @regenerate="
-                (options?: { modelId?: string; profileId?: string }) =>
-                  emit('regenerate', messages[virtualItem.index].id, options)
-              "
-              @switch-sibling="
-                (direction: 'prev' | 'next') =>
-                  emit('switch-sibling', messages[virtualItem.index].id, direction)
-              "
-              @switch-branch="(nodeId: string) => emit('switch-branch', nodeId)"
+              @regenerate="handleRegenerate($event, messages[virtualItem.index].id)"
+              @switch-sibling="handleSwitchSibling($event, messages[virtualItem.index].id)"
+              @switch-branch="handleSwitchBranch"
               @toggle-enabled="emit('toggle-enabled', messages[virtualItem.index].id)"
               @edit="
-                (newContent: string, attachments?: Asset[]) =>
-                  emit('edit-message', messages[virtualItem.index].id, newContent, attachments)
+                (newContent: any, attachments: any) =>
+                  handleEditMessage(messages[virtualItem.index].id, newContent, attachments)
               "
               @copy="() => {}"
               @abort="emit('abort-node', messages[virtualItem.index].id)"

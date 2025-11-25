@@ -74,6 +74,11 @@ export function hasBlockLevelStructure(tokens: Token[]): boolean {
         return true;
       }
     }
+
+    // 检查表格
+    if (isTableStart(tokens, i)) {
+      return true;
+    }
   }
 
   return false;

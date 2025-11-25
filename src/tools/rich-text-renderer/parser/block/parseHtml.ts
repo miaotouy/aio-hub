@@ -53,18 +53,6 @@ export function parseHtmlBlock(
       }
       contentTokens.push(t);
     } else {
-      // 过滤纯空白文本（包括缩进）和换行符
-      // HTML 块内的换行由 HTML 本身控制，不应转换为 Markdown 换行
-      if (t.type === "text" && /^\s+$/.test(t.content)) {
-        // 跳过纯空白
-        i++;
-        continue;
-      }
-      if (t.type === "newline") {
-        // 跳过 HTML 块内的换行符
-        i++;
-        continue;
-      }
       contentTokens.push(t);
     }
     i++;
@@ -126,6 +114,12 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
     }
 
     if (token.type === "text" && /^\s+$/.test(token.content)) {
+      i++;
+      continue;
+    }
+
+    // 跳过 HTML 注释
+    if (token.type === "html_comment") {
       i++;
       continue;
     }

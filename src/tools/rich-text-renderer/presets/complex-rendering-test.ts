@@ -205,10 +205,10 @@ graph TD
     <!-- Markdown Table inside HTML container -->
     | 缓冲区 ID | 负载内容 (Payload) | 完整性校验 | 处理进度 |
     | :--- | :--- | :--- | :--- |
-    | \`0x1A4F\` | **Key_Gen_Init** | $\\checkmark$ Pass | <div style="width: 100px; height: 6px; background: var(--border-color); border-radius: 3px;"><div style="width: 100%; height: 100%; background: var(--el-color-success); border-radius: 3px;"></div></div> |
-    | \`0x1A50\` | \`{ "vector": [0, 1] }\` | $\\checkmark$ Pass | <div style="width: 100px; height: 6px; background: var(--border-color); border-radius: 3px;"><div style="width: 85%; height: 100%; background: var(--el-color-success); border-radius: 3px;"></div></div> |
-    | \`0x1A51\` | *Noise_Correction* | ⚠️ **Warn** | <div style="width: 100px; height: 6px; background: var(--border-color); border-radius: 3px;"><div style="width: 45%; height: 100%; background: var(--el-color-warning); border-radius: 3px;"></div></div> |
-    | \`0x1A52\` | ~~Decoherence~~ | ❌ **Fail** | <div style="width: 100px; height: 6px; background: var(--border-color); border-radius: 3px;"><div style="width: 10%; height: 100%; background: var(--el-color-danger); border-radius: 3px;"></div></div> |
+    | \`0x1A4F\` | **Key_Gen_Init** | $\\checkmark$ Pass | <span style="display: inline-block; width: 100px; height: 6px; background: var(--border-color); border-radius: 3px; vertical-align: middle;"><span style="display: block; width: 100%; height: 100%; background: var(--el-color-success); border-radius: 3px;"></span></span> |
+    | \`0x1A50\` | \`{ "vector": [0, 1] }\` | $\\checkmark$ Pass | <span style="display: inline-block; width: 100px; height: 6px; background: var(--border-color); border-radius: 3px; vertical-align: middle;"><span style="display: block; width: 85%; height: 100%; background: var(--el-color-success); border-radius: 3px;"></span></span> |
+    | \`0x1A51\` | *Noise_Correction* | ⚠️ **Warn** | <span style="display: inline-block; width: 100px; height: 6px; background: var(--border-color); border-radius: 3px; vertical-align: middle;"><span style="display: block; width: 45%; height: 100%; background: var(--el-color-warning); border-radius: 3px;"></span></span> |
+    | \`0x1A52\` | ~~Decoherence~~ | ❌ **Fail** | <span style="display: inline-block; width: 100px; height: 6px; background: var(--border-color); border-radius: 3px; vertical-align: middle;"><span style="display: block; width: 10%; height: 100%; background: var(--el-color-danger); border-radius: 3px;"></span></span> |
 
   </div>
 

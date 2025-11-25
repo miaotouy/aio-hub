@@ -30,6 +30,7 @@ import type { ChatMessageNode, ButtonVisibility } from "../../types";
 import { useLlmChatStore } from "../../store";
 import { useAgentStore } from "../../agentStore";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useSessionManager } from "../../composables/useSessionManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -58,6 +59,7 @@ interface Emits {
 
 const agentStore = useAgentStore();
 const { open: openModelSelectDialog } = useModelSelectDialog();
+const { getProfileById } = useLlmProfiles();
 
 const props = withDefaults(defineProps<Props>(), {
   buttonVisibility: () => ({
@@ -128,7 +130,32 @@ const handleDelete = async () => {
 const handleRegenerate = () => emit("regenerate");
 // 切换模型重新生成
 const handleRegenerateWithModel = async () => {
-  const result = await openModelSelectDialog();
+  // 尝试定位当前消息使用的模型，如果消息没有记录（如 User 消息），则回退到当前智能体的模型
+  let currentSelection = null;
+  let targetModelId = props.message.metadata?.modelId;
+  let targetProfileId = props.message.metadata?.profileId;
+
+  if (!targetModelId || !targetProfileId) {
+    if (agentStore.currentAgentId) {
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (agent) {
+        targetModelId = targetModelId || agent.modelId;
+        targetProfileId = targetProfileId || agent.profileId;
+      }
+    }
+  }
+
+  if (targetProfileId && targetModelId) {
+    const profile = getProfileById(targetProfileId);
+    if (profile) {
+      const model = profile.models.find((m) => m.id === targetModelId);
+      if (model) {
+        currentSelection = { profile, model };
+      }
+    }
+  }
+
+  const result = await openModelSelectDialog(currentSelection);
   if (result) {
     emit("regenerate", {
       modelId: result.model.id,

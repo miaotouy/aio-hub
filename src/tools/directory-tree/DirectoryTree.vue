@@ -32,7 +32,12 @@
               <el-checkbox v-model="showFiles" label="显示文件" />
               <el-checkbox v-model="showHidden" label="显示隐藏文件" />
               <el-checkbox v-model="showSize" label="显示文件大小" />
-              <el-checkbox v-model="showDirSize" label="显示目录大小" />
+              <el-checkbox v-model="showDirSize">
+                显示目录大小
+                <el-tooltip content="仅计算当前可见（未被过滤）文件的总大小" placement="top">
+                  <el-icon class="info-icon" @click.prevent.stop><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </el-checkbox>
               <el-checkbox v-model="includeMetadata" label="输出包含配置和统计" />
               <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
             </div>
@@ -153,6 +158,7 @@ import {
   Download,
   DataAnalysis,
   ChatDotRound,
+  QuestionFilled,
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash-es";
@@ -170,7 +176,7 @@ const logger = createModuleLogger("tools/directory-tree");
 const errorHandler = createModuleErrorHandler("tools/directory-tree");
 
 // 获取服务实例
-const treeService = serviceRegistry.getService<DirectoryTreeService>('directory-tree');
+const treeService = serviceRegistry.getService<DirectoryTreeService>("directory-tree");
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
@@ -261,15 +267,15 @@ const debouncedSaveConfig = debounce(async () => {
   } catch (error) {
     errorHandler.error(error, "保存配置失败", {
       context: {
-          customPatterns: customPattern.value,
-          lastFilterMode: filterMode.value,
-          lastTargetPath: targetPath.value,
-          showFiles: showFiles.value,
-          showHidden: showHidden.value,
-          showSize: showSize.value,
-          showDirSize: showDirSize.value,
-          maxDepth: maxDepth.value,
-        },
+        customPatterns: customPattern.value,
+        lastFilterMode: filterMode.value,
+        lastTargetPath: targetPath.value,
+        showFiles: showFiles.value,
+        showHidden: showHidden.value,
+        showSize: showSize.value,
+        showDirSize: showDirSize.value,
+        maxDepth: maxDepth.value,
+      },
     });
   }
 }, 500);
@@ -361,9 +367,9 @@ const exportToFile = async () => {
 // 发送到聊天
 const sendTreeToChat = () => {
   sendToChat(treeResult.value, {
-    format: 'code',
-    language: 'text',
-    successMessage: '已将目录树发送到聊天',
+    format: "code",
+    language: "text",
+    successMessage: "已将目录树发送到聊天",
   });
 };
 </script>
@@ -455,6 +461,20 @@ const sendTreeToChat = () => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.info-icon {
+  font-size: 14px;
+  color: var(--text-color-light);
+  cursor: help;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+  margin-top: -2px;
+}
+
+.info-icon:hover {
+  color: var(--primary-color);
 }
 
 .custom-pattern-input {

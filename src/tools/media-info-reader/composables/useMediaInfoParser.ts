@@ -295,6 +295,46 @@ export function useMediaInfoParser() {
             const text = new TextDecoder().decode(chunkData.subarray(nullSeparatorIndex + 1));
             textChunks.push({ keyword, text });
           }
+        } else if (type === 'iTXt') {
+          // 支持 iTXt 块 (International Text)
+          // 结构: Keyword | Null | CompFlag | CompMethod | LangTag | Null | TransKeyword | Null | Text
+          const chunkData = uint8Buffer.subarray(offset, offset + length);
+          let ptr = 0;
+
+          // 1. Keyword
+          const keywordEnd = chunkData.indexOf(0, ptr);
+          if (keywordEnd !== -1) {
+            const keyword = new TextDecoder('latin1').decode(chunkData.subarray(ptr, keywordEnd));
+            ptr = keywordEnd + 1;
+
+            if (ptr + 2 <= chunkData.length) {
+              const compressionFlag = chunkData[ptr++];
+              ptr++; // Skip compression method
+
+              // 2. Language tag
+              const langTagEnd = chunkData.indexOf(0, ptr);
+              if (langTagEnd !== -1) {
+                ptr = langTagEnd + 1;
+
+                // 3. Translated keyword
+                const transKeywordEnd = chunkData.indexOf(0, ptr);
+                if (transKeywordEnd !== -1) {
+                  ptr = transKeywordEnd + 1;
+
+                  // 4. Text
+                  if (compressionFlag === 0) {
+                    // 未压缩
+                    const text = new TextDecoder('utf-8').decode(chunkData.subarray(ptr));
+                    textChunks.push({ keyword, text });
+                  } else {
+                    // 压缩数据 (zlib)，暂不支持解压，跳过
+                    // 如果未来需要支持压缩的 iTXt，需要引入 pako 或类似库
+                    logger.debug(`跳过压缩的 iTXt 块: ${keyword}`);
+                  }
+                }
+              }
+            }
+          }
         }
 
         offset += length;

@@ -363,8 +363,16 @@ fn generate_tree_recursive(
     // 然后添加自定义规则（无论是否使用 gitignore）
     ignore_patterns.extend(config.custom_patterns.iter().cloned());
     
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;
+    // 使用 match 处理 read_dir 结果，遇到权限错误时优雅降级
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => {
+            // 如果是权限错误，我们记录一下（或者在结果中标记），但不中断整个过程
+            // 这里我们选择在输出中添加一个提示，然后返回 Ok 继续处理其他目录
+            output.push_str(&format!("{}[权限被拒绝]\n", prefix));
+            return Ok(());
+        }
+    };
     
     let mut items: Vec<_> = entries
         .filter_map(|e| e.ok())

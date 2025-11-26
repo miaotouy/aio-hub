@@ -6,6 +6,7 @@
  */
 
 import type { PresetIconInfo } from "../types/model-metadata";
+import { AVAILABLE_ICONS } from "./generated-icon-list";
 
 /**
  * 预设图标目录（相对于 public 目录）
@@ -13,11 +14,9 @@ import type { PresetIconInfo } from "../types/model-metadata";
 export const PRESET_ICONS_DIR = "/model-icons";
 
 /**
- * 预设图标列表（按分类组织）
- * 
- * 这个列表用于在 UI 中展示可选的预设图标。
+ * 手动维护的精选图标列表
  */
-export const PRESET_ICONS: PresetIconInfo[] = [
+const MANUAL_PRESET_ICONS: PresetIconInfo[] = [
   // === 主流 AI 服务商 ===
   {
     name: "OpenAI",
@@ -581,4 +580,42 @@ export const PRESET_ICONS: PresetIconInfo[] = [
     suggestedFor: ["notebooklm"],
     category: "其他",
   },
+];
+
+/**
+ * 自动生成其他图标列表
+ * 过滤掉已经在手动列表中存在的图标
+ */
+const manualPaths = new Set(MANUAL_PRESET_ICONS.map((i) => i.path));
+
+const autoIcons: PresetIconInfo[] = AVAILABLE_ICONS.filter(
+  (path) => !manualPaths.has(path)
+).map((path) => {
+  // 简单的名称处理
+  // 1. 移除扩展名
+  let name = path.replace(/\.[^/.]+$/, "");
+
+  // 2. 将连字符替换为空格，保留完整语义以区分不同变体（如 color, text）
+  name = name.replace(/-/g, " ");
+
+  // 3. 每个单词首字母大写 (Title Case)
+  name = name.replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // 4. 特殊处理：将常见的 Color, Text 等词加上括号，使其更像变体说明（可选，视审美而定，这里选择直接展示更清晰）
+  // 例如: "Openai Color" vs "Openai"
+
+  return {
+    name: name,
+    path: path,
+    suggestedFor: [],
+    category: "其他图标", // 统一归类到新分类
+  };
+});
+
+/**
+ * 最终导出的预设图标列表（包含手动精选和自动生成的）
+ */
+export const PRESET_ICONS: PresetIconInfo[] = [
+  ...MANUAL_PRESET_ICONS,
+  ...autoIcons,
 ];

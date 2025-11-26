@@ -101,6 +101,7 @@
       "devDependencies": {
         "@babel/runtime": "^7.28.4",
         "@iconify-json/ep": "^1.2.2",
+        "@lobehub/icons-static-svg": "^1.73.0",
         "@tauri-apps/cli": "^2",
         "@tomjs/vite-plugin-monaco-editor": "^1.1.1",
         "@types/d3-force": "^3.0.10",
@@ -466,6 +467,8 @@
     "@lezer/xml": ["@lezer/xml@1.0.6", "", { "dependencies": { "@lezer/common": "^1.2.0", "@lezer/highlight": "^1.0.0", "@lezer/lr": "^1.0.0" } }, "sha512-CdDwirL0OEaStFue/66ZmFSeppuL6Dwjlk8qk153mSQwiSH/Dlri4GNymrNWnUmPl2Um7QfV1FO9KFUyX3Twww=="],
 
     "@lezer/yaml": ["@lezer/yaml@1.0.3", "", { "dependencies": { "@lezer/common": "^1.2.0", "@lezer/highlight": "^1.0.0", "@lezer/lr": "^1.4.0" } }, "sha512-GuBLekbw9jDBDhGur82nuwkxKQ+a3W5H0GfaAthDXcAu+XdpS43VlnxA9E9hllkpSP5ellRDKjLLj7Lu9Wr6xA=="],
+
+    "@lobehub/icons-static-svg": ["@lobehub/icons-static-svg@1.73.0", "", {}, "sha512-ydKUCDoopdmulbjDZo/gppaODd5Ju5nPneVcN9A5dAz9IJZUMkLms8bqostMLrqcdMQ8resKjLuV9RhJaWhaag=="],
 
     "@marijn/find-cluster-break": ["@marijn/find-cluster-break@1.0.2", "", {}, "sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g=="],
 

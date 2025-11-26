@@ -35,7 +35,8 @@
     "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
     "format": "bun run format:frontend ; bun run format:backend",
     "format:frontend": "prettier --write . --cache",
-    "format:backend": "cargo fmt --manifest-path src-tauri/Cargo.toml"
+    "format:backend": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "sync:icons": "bun scripts/sync-icons.ts"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",
@@ -135,6 +136,7 @@
   "devDependencies": {
     "@babel/runtime": "^7.28.4",
     "@iconify-json/ep": "^1.2.2",
+    "@lobehub/icons-static-svg": "^1.73.0",
     "@tauri-apps/cli": "^2",
     "@tomjs/vite-plugin-monaco-editor": "^1.1.1",
     "@types/d3-force": "^3.0.10",

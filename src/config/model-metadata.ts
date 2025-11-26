@@ -9,6 +9,7 @@ import type { ModelMetadataRule, ModelMetadataProperties } from "../types/model-
 import { createModuleLogger } from "@utils/logger";
 import { merge } from "lodash-es";
 import { PRESET_ICONS_DIR } from "./preset-icons";
+import { AVAILABLE_ICONS } from "./generated-icon-list";
 
 // 创建模块日志器
 const logger = createModuleLogger("model-metadata");
@@ -2265,8 +2266,58 @@ export function getModelIconPath(
   provider?: string,
   rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
 ): string | undefined {
+  // 1. 尝试使用规则匹配
   const properties = getMatchedModelProperties(modelId, provider, rules);
-  return properties?.icon;
+  if (properties?.icon) {
+    return properties.icon;
+  }
+
+  // 2. 规则未匹配到图标，尝试动态查找
+  // 动态查找候选词列表
+  const candidates: string[] = [];
+
+  if (provider) {
+    candidates.push(provider.toLowerCase());
+  }
+
+  const normalizedModelId = modelId.toLowerCase();
+  // 完整 ID
+  candidates.push(normalizedModelId);
+
+  // 处理 modelId，提取可能的关键词
+  // 移除常见的版本号和无关字符，尝试匹配核心名称
+  // 例如 "gpt-4-turbo" -> 尝试 "gpt-4", "gpt"
+  // 例如 "google/gemini-pro" -> 尝试 "gemini-pro", "gemini", "google"
+  const parts = normalizedModelId.split(/[-_/]/);
+  if (parts.length > 0) {
+    // 添加所有分割部分
+    candidates.push(...parts);
+  }
+
+  // 去重
+  const uniqueCandidates = [...new Set(candidates)];
+
+  // 遍历候选词查找图标
+  // 优先查找彩色图标 (-color.svg)，然后是普通图标 (.svg)
+  for (const candidate of uniqueCandidates) {
+    // 忽略过短的候选词（如 v1, ai 等通用词），避免错误匹配
+    if (candidate.length < 2) continue;
+
+    const colorIcon = `${candidate}-color.svg`;
+    const monoIcon = `${candidate}.svg`;
+
+    // 检查彩色图标
+    if (AVAILABLE_ICONS.includes(colorIcon as any)) {
+      return `${PRESET_ICONS_DIR}/${colorIcon}`;
+    }
+
+    // 检查普通图标
+    if (AVAILABLE_ICONS.includes(monoIcon as any)) {
+      return `${PRESET_ICONS_DIR}/${monoIcon}`;
+    }
+  }
+
+  return undefined;
 }
 
 /**

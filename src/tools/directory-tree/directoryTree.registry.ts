@@ -21,6 +21,8 @@ export interface GenerateTreeOptions {
   showHidden: boolean;
   /** 是否显示文件大小 */
   showSize: boolean;
+  /** 是否显示目录大小 */
+  showDirSize: boolean;
   /** 最大深度（0 表示无限制） */
   maxDepth: number;
   /** 过滤模式 */
@@ -96,6 +98,7 @@ export default class DirectoryTreeService implements ToolService {
         showFiles: options.showFiles,
         showHidden: options.showHidden,
         showSize: options.showSize,
+        showDirSize: options.showDirSize,
         maxDepth: options.maxDepth === 10 ? 0 : options.maxDepth, // 10 表示无限制，传 0
         ignorePatterns,
       });
@@ -113,6 +116,7 @@ export default class DirectoryTreeService implements ToolService {
           显示文件: options.showFiles,
           显示隐藏: options.showHidden,
           显示大小: options.showSize,
+          显示目录大小: options.showDirSize,
           过滤模式: options.filterMode,
           最大深度: options.maxDepth === 10 ? '无限制' : options.maxDepth,
         },
@@ -272,6 +276,13 @@ export default class DirectoryTreeService implements ToolService {
                   defaultValue: false,
                 },
                 {
+                  name: 'showDirSize',
+                  type: 'boolean',
+                  description: '是否显示目录大小信息',
+                  required: false,
+                  defaultValue: false,
+                },
+                {
                   name: 'maxDepth',
                   type: 'number',
                   description: '目录树的最大深度（0 表示无限制，10 也表示无限制）',
@@ -327,6 +338,7 @@ export default class DirectoryTreeService implements ToolService {
       `- 显示文件: ${options.showFiles ? '是' : '否'}`,
       `- 显示隐藏: ${options.showHidden ? '是' : '否'}`,
       `- 显示大小: ${options.showSize ? '是' : '否'}`,
+      `- 显示目录大小: ${options.showDirSize ? '是' : '否'}`,
       `- 过滤模式: ${
         options.filterMode === 'gitignore'
           ? '使用 .gitignore'

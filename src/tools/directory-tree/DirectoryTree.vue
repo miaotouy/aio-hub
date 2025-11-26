@@ -32,6 +32,7 @@
               <el-checkbox v-model="showFiles" label="显示文件" />
               <el-checkbox v-model="showHidden" label="显示隐藏文件" />
               <el-checkbox v-model="showSize" label="显示文件大小" />
+              <el-checkbox v-model="showDirSize" label="显示目录大小" />
               <el-checkbox v-model="includeMetadata" label="输出包含配置和统计" />
               <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
             </div>
@@ -179,6 +180,7 @@ const targetPath = ref("");
 const showFiles = ref(true);
 const showHidden = ref(false);
 const showSize = ref(false);
+const showDirSize = ref(false);
 const filterMode = ref<"none" | "gitignore" | "custom" | "both">("none");
 const customPattern = ref("");
 const maxDepth = ref(5);
@@ -226,6 +228,7 @@ onMounted(async () => {
     showFiles.value = config.showFiles;
     showHidden.value = config.showHidden;
     showSize.value = config.showSize ?? false; // 兼容旧配置
+    showDirSize.value = config.showDirSize ?? false; // 兼容旧配置
     maxDepth.value = config.maxDepth;
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
@@ -248,6 +251,7 @@ const debouncedSaveConfig = debounce(async () => {
       showFiles: showFiles.value,
       showHidden: showHidden.value,
       showSize: showSize.value,
+      showDirSize: showDirSize.value,
       maxDepth: maxDepth.value,
       autoGenerateOnDrop: autoGenerateOnDrop.value,
       includeMetadata: includeMetadata.value,
@@ -257,14 +261,15 @@ const debouncedSaveConfig = debounce(async () => {
   } catch (error) {
     errorHandler.error(error, "保存配置失败", {
       context: {
-        customPatterns: customPattern.value,
-        lastFilterMode: filterMode.value,
-        lastTargetPath: targetPath.value,
-        showFiles: showFiles.value,
-        showHidden: showHidden.value,
-        showSize: showSize.value,
-        maxDepth: maxDepth.value,
-      },
+          customPatterns: customPattern.value,
+          lastFilterMode: filterMode.value,
+          lastTargetPath: targetPath.value,
+          showFiles: showFiles.value,
+          showHidden: showHidden.value,
+          showSize: showSize.value,
+          showDirSize: showDirSize.value,
+          maxDepth: maxDepth.value,
+        },
     });
   }
 }, 500);
@@ -278,6 +283,7 @@ watch(
     showFiles,
     showHidden,
     showSize,
+    showDirSize,
     maxDepth,
     autoGenerateOnDrop,
     includeMetadata,
@@ -313,6 +319,7 @@ const generateTree = async () => {
       showFiles: showFiles.value,
       showHidden: showHidden.value,
       showSize: showSize.value,
+      showDirSize: showDirSize.value,
       maxDepth: maxDepth.value,
       filterMode: filterMode.value,
       customPattern: customPattern.value,

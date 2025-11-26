@@ -254,6 +254,24 @@ fn should_ignore(path: &str, file_name: &str, rules: &[IgnoreRule]) -> bool {
     ignored
 }
 
+// 递归计算目录大小
+fn get_dir_size(path: &Path) -> u64 {
+    let mut size = 0;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                if let Ok(metadata) = fs::metadata(&path) {
+                    size += metadata.len();
+                }
+            } else if path.is_dir() {
+                size += get_dir_size(&path);
+            }
+        }
+    }
+    size
+}
+
 // Tauri 命令：生成目录树
 #[tauri::command]
 pub async fn generate_directory_tree(
@@ -261,6 +279,7 @@ pub async fn generate_directory_tree(
     show_files: bool,
     show_hidden: bool,
     show_size: bool,
+    show_dir_size: Option<bool>, // 新增参数，使用 Option 保持向后兼容
     max_depth: usize,
     ignore_patterns: Vec<String>
 ) -> Result<DirectoryTreeResult, String> {
@@ -293,6 +312,7 @@ pub async fn generate_directory_tree(
         show_files,
         show_hidden,
         show_size,
+        show_dir_size: show_dir_size.unwrap_or(false),
         max_depth,
         use_gitignore,
         custom_patterns: &custom_patterns,
@@ -328,6 +348,7 @@ struct TreeConfig<'a> {
     show_files: bool,
     show_hidden: bool,
     show_size: bool,
+    show_dir_size: bool,
     max_depth: usize,
     use_gitignore: bool,
     custom_patterns: &'a [IgnoreRule],
@@ -451,7 +472,13 @@ fn generate_tree_recursive(
         let extension = if is_last { "    " } else { "│   " };
         
         if path.is_dir() {
-            output.push_str(&format!("{}{}{}/\n", prefix, connector, file_name));
+            if config.show_dir_size {
+                let size = get_dir_size(&path);
+                let size_str = format_size(size);
+                output.push_str(&format!("{}{}{}/ ({})\n", prefix, connector, file_name, size_str));
+            } else {
+                output.push_str(&format!("{}{}{}/\n", prefix, connector, file_name));
+            }
             
             // 递归处理子目录
             let new_prefix = format!("{}{}", prefix, extension);

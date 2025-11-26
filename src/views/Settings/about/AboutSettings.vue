@@ -2,25 +2,71 @@
 import { ref, onMounted, markRaw } from "vue";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
 import iconColor from "@/assets/aio-icon-color.svg";
-import {
-  User,
-  Link,
-  DocumentCopy,
-  Star,
-  Present,
-} from "@element-plus/icons-vue";
+import { compareVersions } from "compare-versions";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import { User, Link, DocumentCopy, Star, Present } from "@element-plus/icons-vue";
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler("AboutSettings");
+
+// 暴露枚举给模板使用
+const rendererVersion = RendererVersion;
 
 // 应用信息
 const appInfo = ref({
   name: "",
   version: "",
 });
+const isCheckingUpdate = ref(false);
+const showUpdateDialog = ref(false);
+const updateInfo = ref({
+  version: "",
+  body: "",
+  url: "",
+});
 
+// 检查更新
+const checkUpdate = async (event?: MouseEvent) => {
+  const forceShow = event?.altKey; // 按住 Alt 键强制显示
+  isCheckingUpdate.value = true;
+  try {
+    const response = await fetch("https://api.github.com/repos/miaotouy/aio-hub/releases/latest");
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.statusText}`);
+    }
 
+    const data = await response.json();
+    const latestVersion = data.tag_name.replace(/^v/, "");
+    const currentVersion = appInfo.value.version;
+
+    if (forceShow || compareVersions(latestVersion, currentVersion) > 0) {
+      updateInfo.value = {
+        version: data.tag_name,
+        body: data.body,
+        url: data.html_url,
+      };
+      showUpdateDialog.value = true;
+      if (forceShow) {
+        customMessage.success("已强制显示更新弹窗 (Alt Key Detected)");
+      }
+    } else {
+      customMessage.success("当前已是最新版本");
+    }
+  } catch (error) {
+    errorHandler.error(error as Error, "检查更新失败", { showToUser: true });
+  } finally {
+    isCheckingUpdate.value = false;
+  }
+};
+
+const handleUpdateConfirm = () => {
+  openUrl(updateInfo.value.url);
+  showUpdateDialog.value = false;
+};
 // 链接
 const links = [
   {
@@ -43,13 +89,13 @@ const links = [
 // 支持项目
 const supportActions = [
   {
-    title: "⭐ 给项目点个 Star",
+    title: "给项目点个 Star",
     description: "在 GitHub 上为项目点亮 Star，这是对作者最大的鼓励",
     icon: markRaw(Star),
     action: "https://github.com/miaotouy/aio-hub",
   },
   {
-    title: "☕ 爱发电赞助",
+    title: "爱发电赞助",
     description: "支持作者继续开发维护，探索更多创新功能",
     icon: markRaw(Present),
     action: "https://afdian.com/a/miaotouy",
@@ -88,7 +134,19 @@ onMounted(async () => {
       <img :src="iconColor" alt="App Icon" class="app-icon" />
       <div class="app-info">
         <h1 class="app-name">{{ appInfo.name || "AIO Hub" }}</h1>
-        <p class="app-version">版本 {{ appInfo.version || "1.0.0" }}</p>
+        <div class="app-version-row">
+          <p class="app-version">版本 {{ appInfo.version || "1.0.0" }}</p>
+          <el-button
+            link
+            type="primary"
+            size="small"
+            :loading="isCheckingUpdate"
+            @click="checkUpdate"
+            title="按住 Alt 点击可强制测试弹窗"
+          >
+            检查更新
+          </el-button>
+        </div>
         <p class="app-description">提供多种实用的开发和日常工具，以及高可控性的LLM交互。</p>
       </div>
     </div>
@@ -142,6 +200,27 @@ onMounted(async () => {
     <div class="copyright">
       <p>© 2025 miaotouy. All rights reserved.</p>
     </div>
+
+    <!-- 更新弹窗 -->
+    <BaseDialog
+      v-model="showUpdateDialog"
+      :title="`发现新版本 ${updateInfo.version}`"
+      width="70vw"
+      height="80vh"
+    >
+      <template #content>
+        <div class="update-content">
+          <RichTextRenderer
+            :content="updateInfo.body"
+            :version="rendererVersion.V2_CUSTOM_PARSER"
+          />
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="showUpdateDialog = false">暂不更新</el-button>
+        <el-button type="primary" @click="handleUpdateConfirm"> 前往下载 </el-button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -182,8 +261,15 @@ onMounted(async () => {
   color: var(--el-text-color-primary);
 }
 
+.app-version-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .app-version {
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: 16px;
   color: var(--el-color-primary);
   font-weight: 500;
@@ -351,6 +437,10 @@ onMounted(async () => {
   margin: 0;
   font-size: 13px;
   color: var(--el-text-color-secondary);
+}
+
+.update-content {
+  padding: 0 8px;
 }
 
 /* 响应式 */

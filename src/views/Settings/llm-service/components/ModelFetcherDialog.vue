@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { merge } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
@@ -212,14 +213,16 @@ const formatModelName = (modelId: string): string => {
 
 // 获取模型能力
 const getModelCapabilities = (model: LlmModelInfo) => {
-  // 优先使用模型自身的能力配置
-  if (model.capabilities) {
-    return model.capabilities;
-  }
-
-  // 否则使用元数据规则匹配的能力
+  // 获取元数据规则匹配的能力
   const matchedProps = getMatchedProperties(model.id, model.provider);
-  return matchedProps?.capabilities || {};
+  const matchedCapabilities = matchedProps?.capabilities || {};
+
+  // 获取模型自身的能力配置
+  const modelCapabilities = model.capabilities || {};
+
+  // 合并能力：模型自身能力覆盖元数据匹配能力
+  // 注意：merge 会修改第一个参数，所以需要创建一个新对象作为目标
+  return merge({}, matchedCapabilities, modelCapabilities);
 };
 
 // 获取激活的能力列表

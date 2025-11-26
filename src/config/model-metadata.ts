@@ -1214,6 +1214,74 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "Gemini 1.5 系列模型分组",
   },
+  // === Gemini 细分能力匹配（优先级 25-26） ===
+  // Gemini 高级能力模型 (Thinking, Code Execution, Search)
+  // 覆盖: Gemini 3 Pro, Gemini 2.5 Pro/Flash/Flash-Lite
+  {
+    id: "model-gemini-advanced",
+    matchType: "modelPrefix",
+    matchValue: "gemini-(?:3|2\\.5)-(?:pro|flash)(?!.*(?:image|tts))",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        thinking: true,
+        codeExecution: true,
+        fileSearch: true,
+        webSearch: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "Gemini 高级模型（支持思考、代码执行、联网搜索）",
+  },
+  // Gemini 2.0 Flash (Code Execution, Search)
+  {
+    id: "model-gemini-2.0-flash",
+    matchType: "modelPrefix",
+    matchValue: "gemini-2\\.0-flash(?!.*(?:image|live|lite))",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        codeExecution: true,
+        webSearch: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "Gemini 2.0 Flash（支持代码执行、联网搜索）",
+  },
+  // Gemini 图像生成模型
+  {
+    id: "model-gemini-image",
+    matchType: "modelPrefix",
+    matchValue: "gemini-.*image",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        imageGeneration: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "Gemini 图像生成模型",
+  },
+  // Gemini 2.5 Live 模型
+  {
+    id: "model-gemini-2.5-live",
+    matchType: "modelPrefix",
+    matchValue: "gemini-2\\.5-.*live",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        thinking: true,
+        webSearch: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "Gemini 2.5 Live 模型（支持思考、联网搜索）",
+  },
+
   {
     id: "model-prefix-gemini",
     matchType: "modelPrefix",
@@ -1224,9 +1292,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       tokenizer: "gemini", // Gemini 系列使用专用分词器
       capabilities: {
         vision: true,
-        thinking: true,
         toolUse: true,
-        codeExecution: true,
         document: true, // 支持 PDF 文档（inline_data 方式，最多 3600 页）
         visionTokenCost: {
           calculationMethod: "fixed",
@@ -1242,7 +1308,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 20,
     enabled: true,
-    description: "Gemini 系列模型（支持视觉、思考模式、工具调用、代码执行和文档处理，最多 3600 页）",
+    description: "Gemini 系列模型（基础配置：支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gemma3",

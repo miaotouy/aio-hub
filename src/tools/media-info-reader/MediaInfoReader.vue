@@ -114,86 +114,24 @@
 
         <!-- ST Character Tab -->
         <el-tab-pane label="ST Character" name="st" v-if="stCharacterInfo">
-          <div class="tab-content scrollable st-content">
-            <!-- 角色卡片视图 -->
-            <div v-if="stDisplayData" class="st-card-view">
-              <div class="st-header">
-                <h2 class="st-name">{{ stDisplayData.name || "Unknown Character" }}</h2>
-                <div class="st-meta">
-                  <el-tag v-if="stDisplayData.creator" size="small" effect="plain"
-                    >By {{ stDisplayData.creator }}</el-tag
-                  >
-                  <el-tag v-if="stDisplayData.version" size="small" effect="plain"
-                    >v{{ stDisplayData.version }}</el-tag
-                  >
-                </div>
-              </div>
+          <StCharacterInfo :st-character-info="stCharacterInfo" />
+        </el-tab-pane>
 
-              <div class="st-fields">
-                <div class="info-section" v-if="stDisplayData.description">
-                  <div class="section-header">
-                    <span class="label">Description</span
-                    ><CopyButton :text="stDisplayData.description" />
-                  </div>
-                  <div class="text-block">{{ stDisplayData.description }}</div>
-                </div>
-
-                <div class="info-section" v-if="stDisplayData.personality">
-                  <div class="section-header">
-                    <span class="label">Personality</span
-                    ><CopyButton :text="stDisplayData.personality" />
-                  </div>
-                  <div class="text-block">{{ stDisplayData.personality }}</div>
-                </div>
-
-                <div class="info-section" v-if="stDisplayData.first_mes">
-                  <div class="section-header">
-                    <span class="label">First Message</span
-                    ><CopyButton :text="stDisplayData.first_mes" />
-                  </div>
-                  <div class="text-block">{{ stDisplayData.first_mes }}</div>
-                </div>
-
-                <div class="info-section" v-if="stDisplayData.scenario">
-                  <div class="section-header">
-                    <span class="label">Scenario</span><CopyButton :text="stDisplayData.scenario" />
-                  </div>
-                  <div class="text-block">{{ stDisplayData.scenario }}</div>
-                </div>
-
-                <div class="info-section" v-if="stDisplayData.mes_example">
-                  <div class="section-header">
-                    <span class="label">Message Examples</span
-                    ><CopyButton :text="stDisplayData.mes_example" />
-                  </div>
-                  <div class="text-block">{{ stDisplayData.mes_example }}</div>
-                </div>
-              </div>
+        <!-- Full Info Tab -->
+        <el-tab-pane label="完整元数据" name="full">
+          <div class="full-info-wrapper">
+            <div class="section-header full-info-header">
+              <span class="label">Full Metadata JSON</span>
+              <CopyButton :text="fullExifInfo" />
             </div>
-
-            <el-divider content-position="left">原始数据</el-divider>
-
-            <!-- 原始 JSON -->
-            <div class="editor-container raw-json-editor">
+            <div class="editor-container-flex">
               <RichCodeEditor
-                :model-value="stCharacterInfo"
+                :model-value="fullExifInfo"
                 language="json"
                 :read-only="true"
                 :minimap="false"
               />
             </div>
-          </div>
-        </el-tab-pane>
-
-        <!-- Full Info Tab -->
-        <el-tab-pane label="完整元数据" name="full">
-          <div class="editor-container">
-            <RichCodeEditor
-              :model-value="fullExifInfo"
-              language="json"
-              :read-only="true"
-              :minimap="false"
-            />
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -202,15 +140,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from "vue";
-import { ElButton, ElEmpty, ElMessage, ElIcon, ElTag, ElDivider } from "element-plus";
+import { ref, computed } from "vue";
+import { ElButton, ElEmpty, ElIcon } from "element-plus";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { Delete, Upload, FolderOpened, CopyDocument, Check } from "@element-plus/icons-vue";
-import { useClipboard } from "@vueuse/core";
+import { Delete, Upload, FolderOpened } from "@element-plus/icons-vue";
 
 import InfoCard from "@components/common/InfoCard.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import CopyButton from "./components/CopyButton.vue";
+import StCharacterInfo from "./components/StCharacterInfo.vue";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useMediaInfoParser } from "./composables/useMediaInfoParser";
@@ -218,31 +157,6 @@ import { useFileInteraction } from "@/composables/useFileInteraction";
 
 const logger = createModuleLogger("MediaInfoReader");
 const errorHandler = createModuleErrorHandler("MediaInfoReader");
-
-// 简单的复制按钮组件
-const CopyButton = {
-  props: ["text"],
-  setup(props: { text: string }) {
-    const { copy, copied } = useClipboard();
-    return () =>
-      h(
-        ElButton,
-        {
-          size: "small",
-          link: true,
-          type: copied.value ? "success" : "primary",
-          icon: copied.value ? Check : CopyDocument,
-          onClick: () => {
-            if (props.text) {
-              copy(props.text);
-              ElMessage.success("已复制");
-            }
-          },
-        },
-        () => (copied.value ? "已复制" : "复制")
-      );
-  },
-};
 
 // 使用 composable 获取解析功能
 const { parseImageBuffer } = useMediaInfoParser();
@@ -263,45 +177,6 @@ const hasData = computed(
     stCharacterInfo.value ||
     fullExifInfo.value
 );
-
-// 解析 ST 角色卡数据，提取常用字段
-const stDisplayData = computed(() => {
-  if (!stCharacterInfo.value) return null;
-
-  try {
-    const data = JSON.parse(stCharacterInfo.value);
-
-    // 处理 V2/V3 格式 (数据在 data 字段下)
-    if (data.spec === "chara_card_v2" || data.spec === "chara_card_v3" || data.data) {
-      return {
-        name: data.data?.name,
-        description: data.data?.description,
-        personality: data.data?.personality,
-        scenario: data.data?.scenario,
-        first_mes: data.data?.first_mes,
-        mes_example: data.data?.mes_example,
-        creator: data.data?.creator,
-        version: data.data?.character_version,
-        tags: data.data?.tags,
-      };
-    }
-
-    // 处理 V1 格式 (扁平结构)
-    return {
-      name: data.name,
-      description: data.description,
-      personality: data.personality,
-      scenario: data.scenario,
-      first_mes: data.first_mes,
-      mes_example: data.mes_example,
-      creator: data.creator,
-      version: data.character_version,
-      tags: data.tags,
-    };
-  } catch (e) {
-    return null;
-  }
-});
 
 // 辅助函数：将 Uint8Array 转换为 Base64
 const uint8ArrayToBase64 = (bytes: Uint8Array) => {
@@ -463,8 +338,9 @@ const { isDraggingOver } = useFileInteraction({
 
 /* Left Panel */
 .left-panel {
-  flex: 1;
-  min-width: 700px;
+  flex: 2;
+  min-width: 500px;
+  width: 60vw;
   display: flex;
   flex-direction: column;
 }
@@ -623,56 +499,27 @@ const { isDraggingOver } = useFileInteraction({
   width: 100%;
 }
 
-.raw-json-editor {
-  height: 800px; /* 给原始数据一个固定高度 */
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-}
-
-/* ST Content Styles */
-.st-content {
-  gap: 24px;
-}
-
-.st-header {
+.full-info-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
+  height: 100%;
+}
+
+.full-info-header {
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-bg);
 }
 
-.st-name {
-  margin: 0;
-  font-size: 1.5em;
-  color: var(--primary-color);
-}
-
-.st-meta {
-  display: flex;
-  gap: 8px;
-}
-
-.st-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.text-block {
-  background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 12px;
-  font-size: 0.95em;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  color: var(--text-color);
+.editor-container-flex {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* Responsive */
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   .media-info-reader-container {
     flex-direction: column;
     overflow-y: auto;
@@ -686,7 +533,7 @@ const { isDraggingOver } = useFileInteraction({
 
   .right-panel {
     flex: 1;
-    min-height: 400px;
+    min-height: 800px;
   }
 }
 </style>

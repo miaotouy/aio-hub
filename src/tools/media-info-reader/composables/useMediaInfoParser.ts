@@ -39,20 +39,47 @@ export function useMediaInfoParser() {
     let webuiInfo: WebUIInfo = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
     let comfyuiWorkflow: string | object = '';
     let stCharacterInfo: object | null = null;
+    // --- 预处理：清洗数据 ---
+    // 在进行任何解析之前，先确保 output 中的 UserComment/parameters 是正确解码的字符串
+    // 这样不仅 parseWebUIInfo 能用，fullExifInfo 也能显示可读文本
+    if (output) {
+      let rawParams = output.parameters || output.userComment;
+
+      // 1. 处理类数组对象或 Uint8Array
+      if (rawParams && typeof rawParams === 'object') {
+        const buffer = convertToUint8Array(rawParams);
+        if (buffer) {
+          rawParams = decodeUserComment(buffer);
+        }
+      }
+
+      // 2. 处理被错误解码的字符串 (回滚并重解码)
+      if (typeof rawParams === 'string' && rawParams.startsWith('UNICODE')) {
+        const recoveredBuffer = stringToBuffer(rawParams);
+        rawParams = decodeUserComment(recoveredBuffer);
+      }
+
+      // 3. 清理字符串
+      if (typeof rawParams === 'string') {
+        rawParams = rawParams.replace(/\0/g, '').trim();
+
+        // 4. 回写清洗后的数据到 output
+        // 优先更新来源字段，确保 fullExifInfo 显示正确
+        if (output.userComment) output.userComment = rawParams;
+        if (output.parameters) output.parameters = rawParams;
+      }
+    }
+
     const fullExifInfo: object | null = output ? output : null;
 
     // --- ST 角色卡解析 ---
     stCharacterInfo = await parseCharacterData(buffer);
 
     // --- WebUI 信息解析 ---
-    let parameters = output?.parameters || output?.userComment;
-    if (parameters) {
-      if (parameters instanceof Uint8Array) {
-        parameters = new TextDecoder().decode(parameters);
-      }
-      if (typeof parameters === 'string') {
-        webuiInfo = parseWebUIInfo(parameters);
-      }
+    // 现在可以直接从 output 中安全获取已清洗的字符串
+    const parameters = output?.parameters || output?.userComment;
+    if (parameters && typeof parameters === 'string') {
+      webuiInfo = parseWebUIInfo(parameters);
     }
 
     // --- ComfyUI 信息解析 ---
@@ -70,6 +97,93 @@ export function useMediaInfoParser() {
       stCharacterInfo,
       fullExifInfo,
     };
+  };
+
+  /**
+   * 尝试将各种奇怪的输入转换为 Uint8Array
+   */
+  const convertToUint8Array = (data: any): Uint8Array | null => {
+    if (data instanceof Uint8Array) return data;
+    // 处理类数组对象 { "0": 85, "1": 78 ... }
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const keys = Object.keys(data);
+      // 简单检查：key 都是数字
+      if (keys.length > 0 && keys.every(k => !isNaN(Number(k)))) {
+        const len = Math.max(...keys.map(Number)) + 1;
+        const arr = new Uint8Array(len);
+        for (const key of keys) {
+          arr[Number(key)] = data[key];
+        }
+        return arr;
+      }
+    }
+    // 处理普通数组
+    if (Array.isArray(data)) {
+      return new Uint8Array(data);
+    }
+    return null;
+  };
+
+  /**
+   * 将被错误解码为 Latin1/Binary 的字符串还原为 Buffer
+   */
+  const stringToBuffer = (str: string): Uint8Array => {
+    const arr = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) {
+      arr[i] = str.charCodeAt(i);
+    }
+    return arr;
+  };
+
+  /**
+   * 智能解码 UserComment Buffer
+   * 处理 EXIF 规范中的编码前缀 (UNICODE, ASCII 等)
+   */
+  const decodeUserComment = (buffer: Uint8Array): string => {
+    // 检查前 8 个字节的编码标识
+    if (buffer.length < 8) {
+      return new TextDecoder().decode(buffer);
+    }
+
+    const prefixData = buffer.slice(0, 8);
+    const prefix = new TextDecoder('ascii').decode(prefixData);
+
+    // 检查 UNICODE 前缀 (55 4E 49 43 4F 44 45 00)
+    if (prefix.startsWith('UNICODE')) {
+      const payload = buffer.slice(8);
+      // 检测字节序: 统计奇数位和偶数位的 0x00 数量
+      // 英文文本在 UTF-16 中会有大量的 0x00
+      // LE (Little Endian): 'A' -> 41 00 (0 在奇数位)
+      // BE (Big Endian):    'A' -> 00 41 (0 在偶数位)
+      let evenNulls = 0;
+      let oddNulls = 0;
+      for (let i = 0; i < Math.min(payload.length, 100); i++) {
+        if (payload[i] === 0) {
+          if (i % 2 === 0) evenNulls++;
+          else oddNulls++;
+        }
+      }
+
+      const encoding = evenNulls > oddNulls ? 'utf-16be' : 'utf-16le';
+      logger.debug(`检测到 UNICODE 编码，判定为 ${encoding}`, { evenNulls, oddNulls });
+
+      try {
+        return new TextDecoder(encoding).decode(payload);
+      } catch (e) {
+        logger.warn(`尝试使用 ${encoding} 解码失败`, e);
+        // Fallback
+        return new TextDecoder('utf-16le').decode(payload);
+      }
+    }
+
+    // 检查 ASCII 前缀 (41 53 43 49 49 00 00 00)
+    if (prefix.startsWith('ASCII')) {
+      const payload = buffer.slice(8);
+      return new TextDecoder('utf-8').decode(payload);
+    }
+
+    // 默认回退到 UTF-8
+    return new TextDecoder().decode(buffer);
   };
 
   /**

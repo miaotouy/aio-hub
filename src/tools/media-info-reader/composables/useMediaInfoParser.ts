@@ -9,6 +9,7 @@ export interface WebUIInfo {
   positivePrompt: string;
   negativePrompt: string;
   generationInfo: string;
+  civitaiResources?: any[];
 }
 
 export interface ImageMetadataResult {
@@ -195,8 +196,23 @@ export function useMediaInfoParser() {
     const parts = parameters.split('Negative prompt:');
     const positivePrompt = parts[0].trim();
     const rest = parts[1] || '';
-
-    const fields = ["Steps", "Sampler", "CFG scale", "Seed", "Size", "Model", "VAE hash", "VAE", "TI hashes", "Version", "Hashes"];
+    const fields = [
+      "Steps",
+      "Sampler",
+      "CFG scale",
+      "Seed",
+      "Size",
+      "Model",
+      "VAE hash",
+      "VAE",
+      "TI hashes",
+      "Version",
+      "Hashes",
+      "Civitai resources",
+      "Civitai metadata",
+      "Clip skip",
+      "Created Date",
+    ];
     const regex = new RegExp(`(${fields.join('|')}):\\s*(.*?)\\s*(?=(${fields.join('|')}):|$)`, 'g');
 
     const genInfoObject: { [key: string]: string } = {};
@@ -207,6 +223,37 @@ export function useMediaInfoParser() {
       genInfoObject[key] = value;
     }
 
+    let civitaiResources: any[] | undefined;
+    const rawResources = genInfoObject['Civitai resources'];
+    if (rawResources) {
+      try {
+        civitaiResources = JSON.parse(rawResources);
+      } catch (e) {
+        // 尝试提取 [...] 部分，以防解析失败（例如后面跟了其他未被识别的字段）
+        const jsonMatch = rawResources.match(/\[.*\]/s);
+        if (jsonMatch) {
+          try {
+            civitaiResources = JSON.parse(jsonMatch[0]);
+          } catch (e2) {
+            logger.warn('尝试提取并解析 Civitai resources 失败', e2);
+          }
+        } else {
+          logger.warn('解析 Civitai resources 失败', e);
+        }
+      }
+
+      if (civitaiResources) {
+        // 从 generationInfo 中移除 Civitai resources，因为它太长了，单独展示更好
+        delete genInfoObject['Civitai resources'];
+      }
+    }
+
+    // 移除空的 Civitai metadata
+    const civitaiMetadata = genInfoObject['Civitai metadata'];
+    if (civitaiMetadata && (civitaiMetadata.trim() === '{}' || civitaiMetadata.trim() === '')) {
+      delete genInfoObject['Civitai metadata'];
+    }
+
     const generationInfo = Object.entries(genInfoObject)
       .map(([key, value]) => `${key}: ${value}`)
       .join('\n');
@@ -215,7 +262,7 @@ export function useMediaInfoParser() {
     const negativePromptEndIndex = rest.search(new RegExp(`(${fields.join('|')}):`));
     const negativePrompt = (negativePromptEndIndex === -1 ? rest : rest.substring(0, negativePromptEndIndex)).trim();
 
-    return { positivePrompt, negativePrompt, generationInfo };
+    return { positivePrompt, negativePrompt, generationInfo, civitaiResources };
   };
 
   /**

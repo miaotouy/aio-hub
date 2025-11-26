@@ -97,6 +97,50 @@
                 </div>
               </div>
             </div>
+
+            <div
+              class="info-section"
+              v-if="webuiInfo.civitaiResources && webuiInfo.civitaiResources.length > 0"
+            >
+              <div class="section-header">
+                <span class="label">Civitai Resources</span>
+              </div>
+              <div class="resources-grid">
+                <div
+                  v-for="(resource, idx) in webuiInfo.civitaiResources"
+                  :key="idx"
+                  class="resource-card"
+                >
+                  <div class="card-header">
+                    <el-tag
+                      size="small"
+                      effect="dark"
+                      :type="getResourceTypeTag(resource.type)"
+                      class="resource-type-tag"
+                    >
+                      {{ resource.type }}
+                    </el-tag>
+                    <el-tag
+                      v-if="resource.weight !== undefined"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      class="weight-tag"
+                    >
+                      w: {{ resource.weight }}
+                    </el-tag>
+                  </div>
+                  <div class="model-info">
+                    <div class="model-name" :title="resource.modelName">
+                      {{ resource.modelName }}
+                    </div>
+                    <div class="version-name" :title="resource.modelVersionName">
+                      {{ resource.modelVersionName }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </el-tab-pane>
 
@@ -141,7 +185,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ElButton, ElEmpty, ElIcon } from "element-plus";
+import { ElButton, ElEmpty, ElIcon, ElTag } from "element-plus";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { Delete, Upload, FolderOpened } from "@element-plus/icons-vue";
@@ -165,7 +209,12 @@ const previewSrc = ref("");
 const activeTab = ref("webui");
 const dropAreaRef = ref<HTMLElement>();
 
-const webuiInfo = ref({ positivePrompt: "", negativePrompt: "", generationInfo: "" });
+const webuiInfo = ref<{
+  positivePrompt: string;
+  negativePrompt: string;
+  generationInfo: string;
+  civitaiResources?: any[];
+}>({ positivePrompt: "", negativePrompt: "", generationInfo: "" });
 const comfyuiWorkflow = ref("");
 const stCharacterInfo = ref("");
 const fullExifInfo = ref("");
@@ -194,6 +243,21 @@ const clearWorkspace = () => {
   comfyuiWorkflow.value = "";
   stCharacterInfo.value = "";
   fullExifInfo.value = "";
+};
+
+const getResourceTypeTag = (type: string) => {
+  switch (type?.toLowerCase()) {
+    case "checkpoint":
+      return "success";
+    case "lora":
+      return "warning";
+    case "lycoris":
+      return "danger";
+    case "embedding":
+      return "info";
+    default:
+      return "primary";
+  }
 };
 
 const openFilePicker = async () => {
@@ -492,6 +556,72 @@ const { isDraggingOver } = useFileInteraction({
 
 .param-line {
   margin-bottom: 4px;
+}
+
+.resources-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.resource-card {
+  background-color: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.resource-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--el-box-shadow-light);
+  border-color: var(--primary-color);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.resource-type-tag {
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 0.7em;
+}
+
+.weight-tag {
+  font-family: var(--font-code);
+  font-size: 0.8em;
+}
+
+.model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-name {
+  font-weight: 600;
+  font-size: 0.95em;
+  line-height: 1.4;
+  color: var(--text-color);
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.version-name {
+  font-size: 0.85em;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .editor-container {

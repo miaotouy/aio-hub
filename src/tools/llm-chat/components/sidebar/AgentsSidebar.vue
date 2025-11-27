@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, defineAsyncComponent } from "vue";
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
@@ -64,9 +65,26 @@ const filteredAndSortedAgents = computed(() => {
   });
 
   const end = performance.now();
-  console.log(`[AgentsSidebar] filteredAndSortedAgents calculation took ${(end - start).toFixed(2)}ms for ${agents.length} agents`);
+  console.log(
+    `[AgentsSidebar] filteredAndSortedAgents calculation took ${(end - start).toFixed(2)}ms for ${agents.length} agents`
+  );
   return agents;
 });
+
+// 虚拟滚动
+const parentRef = ref<HTMLElement | null>(null);
+
+const virtualizer = useVirtualizer({
+  get count() {
+    return filteredAndSortedAgents.value.length;
+  },
+  getScrollElement: () => parentRef.value,
+  estimateSize: () => 65, // 预估高度（基于未选中状态：padding 24 + content 32 + margin 8）
+  overscan: 10,
+});
+
+const virtualItems = computed(() => virtualizer.value.getVirtualItems());
+const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 onMounted(() => {
   console.log("[AgentsSidebar] Mounted");
@@ -337,7 +355,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
       </el-select>
     </div>
 
-    <div class="agents-list">
+    <div class="agents-list" ref="parentRef">
       <div v-if="filteredAndSortedAgents.length === 0 && !searchQuery" class="empty-state">
         <p>暂无智能体</p>
         <p class="hint">点击下方按钮创建智能体</p>
@@ -348,17 +366,38 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
         <p class="hint">尝试其他搜索关键词</p>
       </div>
 
-      <AgentListItem
-        v-for="agent in filteredAndSortedAgents"
-        :key="agent.id"
-        :agent="agent"
-        :selected="isAgentSelected(agent.id)"
-        @select="selectAgent"
-        @edit="handleEdit"
-        @duplicate="handleDuplicateAgent"
-        @export="(a) => handleExportAgents([a.id], { includeAssets: true })"
-        @delete="handleDelete"
-      />
+      <div
+        v-else
+        :style="{
+          height: `${totalSize}px`,
+          width: '100%',
+          position: 'relative',
+        }"
+      >
+        <div
+          v-for="virtualItem in virtualItems"
+          :key="filteredAndSortedAgents[virtualItem.index].id"
+          :data-index="virtualItem.index"
+          :ref="(el) => virtualizer.measureElement(el as HTMLElement)"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${virtualItem.start}px)`,
+          }"
+        >
+          <AgentListItem
+            :agent="filteredAndSortedAgents[virtualItem.index]"
+            :selected="isAgentSelected(filteredAndSortedAgents[virtualItem.index].id)"
+            @select="selectAgent"
+            @edit="handleEdit"
+            @duplicate="handleDuplicateAgent"
+            @export="(a) => handleExportAgents([a.id], { includeAssets: true })"
+            @delete="handleDelete"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- 底部常驻添加按钮 -->
@@ -403,7 +442,11 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
     />
 
     <!-- 导出对话框 -->
-    <ExportAgentDialog v-if="exportDialogVisible" v-model:visible="exportDialogVisible" @export="handleExportAgents" />
+    <ExportAgentDialog
+      v-if="exportDialogVisible"
+      v-model:visible="exportDialogVisible"
+      @export="handleExportAgents"
+    />
 
     <!-- 导入对话框 -->
     <ImportAgentDialog

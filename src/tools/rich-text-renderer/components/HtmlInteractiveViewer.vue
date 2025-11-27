@@ -196,9 +196,7 @@ watch(
   height: 100%;
   width: 100%;
   background-color: var(--bg-color);
-  border-radius: 6px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
   box-sizing: border-box;
 }
 
@@ -213,8 +211,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: var(--el-fill-color-lighter); /* 使用应用主题色 */
-  border-bottom: 1px solid var(--border-color);
+  background-color:  var(--card-bg);
   flex-shrink: 0;
 }
 
@@ -254,21 +251,42 @@ watch(
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 1px solid transparent;
+  border: none;
   border-radius: 4px;
   background-color: transparent;
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background-color: var(--el-fill-color);
+  opacity: 0;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tool-btn:hover:not(:disabled) {
-  background-color: var(--el-fill-color-dark);
   color: var(--el-text-color-primary);
+  transform: translateY(-1px);
+}
+
+.tool-btn:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.tool-btn:active:not(:disabled) {
+  transform: translateY(0);
+  transition-duration: 0.05s;
 }
 
 .tool-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 

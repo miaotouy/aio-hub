@@ -592,7 +592,6 @@ watch(
   justify-content: space-between;
   padding: 8px 12px;
   background-color: var(--code-block-bg, var(--card-bg));
-  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -688,7 +687,7 @@ watch(
 }
 
 .html-preview-container {
-  height: 500px; /* 默认高度 */
+  height: 800px; /* 默认高度 */
   border-top: 1px solid var(--border-color);
 }
 

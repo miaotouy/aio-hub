@@ -293,16 +293,14 @@
             </el-tooltip>
             <el-tooltip
               :content="
-                syncInputProgress && cachedInputContent
-                  ? '清空输出并重置输入内容'
-                  : '清空渲染输出'
+                syncInputProgress && cachedInputContent ? '清空输出并重置输入内容' : '清空渲染输出'
               "
               placement="bottom"
             >
               <el-button
                 :icon="RefreshRight"
                 @click="clearOutput"
-                :disabled="(!currentContent && !streamSource) && !cachedInputContent"
+                :disabled="!currentContent && !streamSource && !cachedInputContent"
                 size="small"
               >
                 {{ syncInputProgress && cachedInputContent ? "重置" : "清空" }}
@@ -350,6 +348,7 @@
               <h4>Markdown 内容</h4>
             </div>
             <el-input
+              ref="inputRef"
               v-model="inputContent"
               type="textarea"
               placeholder="在此输入 Markdown 内容..."
@@ -464,6 +463,7 @@ import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useT
 
 // 容器尺寸检测
 const containerRef = ref<HTMLDivElement | null>(null);
+const inputRef = ref<any>(null);
 const { width: containerWidth } = useElementSize(containerRef);
 const isNarrow = computed(() => containerWidth.value < 1200);
 const isMobile = computed(() => containerWidth.value < 768);
@@ -1091,10 +1091,19 @@ HTML 完整字符数: ${htmlContent.length}
 
 // 自动滚动到底部
 const scrollToBottom = () => {
-  if (autoScroll.value && renderContainerRef.value) {
+  if (autoScroll.value) {
     nextTick(() => {
+      // 预览区滚动
       if (renderContainerRef.value) {
         renderContainerRef.value.scrollTop = renderContainerRef.value.scrollHeight;
+      }
+
+      // 输入区滚动 (仅在同步输入进度开启时)
+      if (syncInputProgress.value && inputRef.value) {
+        const textarea = inputRef.value.textarea;
+        if (textarea) {
+          textarea.scrollTop = textarea.scrollHeight;
+        }
       }
     });
   }

@@ -1,10 +1,34 @@
 <template>
-  <div class="markdown-code-block">
+  <div class="markdown-code-block" v-bind="$attrs">
     <div class="code-header">
       <div class="language-info">
         <span class="language-tag">{{ language || "文本" }}</span>
+        <!-- 预览模式指示器 -->
+        <span v-if="isHtml && viewMode === 'preview'" class="mode-tag">预览模式</span>
       </div>
       <div class="header-actions">
+        <!-- HTML 预览切换按钮 -->
+        <template v-if="isHtml">
+          <el-tooltip :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'" :show-after="300">
+            <button
+              class="action-btn"
+              :class="{ 'action-btn-active': viewMode === 'preview' }"
+              @click="toggleViewMode"
+            >
+              <Code v-if="viewMode === 'preview'" :size="14" />
+              <Eye v-else :size="14" />
+            </button>
+          </el-tooltip>
+          
+          <el-tooltip content="在弹窗中预览" :show-after="300">
+            <button class="action-btn" @click="openDialogPreview">
+              <ExternalLink :size="14" />
+            </button>
+          </el-tooltip>
+          
+          <div class="divider"></div>
+        </template>
+
         <!-- 字体大小调整按钮 -->
         <el-tooltip content="减小字体" :show-after="300">
           <button
@@ -63,14 +87,29 @@
       </div>
     </div>
     <!-- 容器本身负责滚动，而不是 Monaco 编辑器 -->
-    <div class="code-editor-container" :class="{ expanded: isExpanded }">
+    <div class="code-editor-container" :class="{ expanded: isExpanded }" v-show="viewMode === 'code'">
       <div ref="editorEl"></div>
     </div>
+
+    <!-- HTML 预览区域 (内嵌) -->
+    <div v-if="viewMode === 'preview'" class="html-preview-container">
+      <HtmlInteractiveViewer :content="content" :immediate="closed" />
+    </div>
   </div>
+
+  <!-- 弹窗预览 -->
+  <BaseDialog
+    v-model="showDialog"
+    title="HTML 预览"
+    width="90%"
+    height="85vh"
+  >
+    <HtmlInteractiveViewer :content="content" :immediate="true" />
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, inject } from "vue";
 import {
   Copy,
   Check,
@@ -80,19 +119,31 @@ import {
   Minus,
   RotateCcw,
   WrapText,
+  Eye,
+  Code,
+  ExternalLink,
 } from "lucide-vue-next";
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { getMonacoLanguageId } from "@/utils/codeLanguages";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import HtmlInteractiveViewer from "../HtmlInteractiveViewer.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
+
 // 动态导入，避免类型检查时就报错
 type StreamMonacoModule = typeof import("stream-monaco");
+
+defineOptions({
+  inheritAttrs: false,
+});
 
 const props = defineProps<{
   nodeId: string;
   content: string;
   language?: string;
+  closed?: boolean;
 }>();
 
 const editorEl = ref<HTMLElement | null>(null);
@@ -101,6 +152,30 @@ const logger = createModuleLogger("tools/rich-text-renderer/components/nodes/Cod
 const errorHandler = createModuleErrorHandler(
   "tools/rich-text-renderer/components/nodes/CodeBlockNode.vue"
 );
+
+// 注入上下文以获取全局设置
+const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
+const defaultRenderHtml = context?.defaultRenderHtml;
+
+// 视图模式
+const viewMode = ref<'code' | 'preview'>('code');
+const showDialog = ref(false);
+
+// 判断是否为 HTML
+const isHtml = computed(() => {
+  const lang = props.language?.toLowerCase();
+  return lang === 'html' || lang === 'xml' || lang === 'svg';
+});
+
+// 切换视图模式
+const toggleViewMode = () => {
+  viewMode.value = viewMode.value === 'code' ? 'preview' : 'code';
+};
+
+// 打开弹窗预览
+const openDialogPreview = () => {
+  showDialog.value = true;
+};
 
 // 复制状态
 const copied = ref(false);
@@ -315,6 +390,11 @@ const toggleWordWrap = () => {
 };
 
 onMounted(async () => {
+  // 初始化视图模式
+  if (isHtml.value && defaultRenderHtml?.value) {
+    viewMode.value = 'preview';
+  }
+
   if (!editorEl.value) return;
 
   try {
@@ -601,6 +681,11 @@ watch(
   transition: max-height 0.3s ease-in-out;
   /* 容器不需要滚动，让内部 Monaco 处理 */
   overflow: hidden;
+}
+
+.html-preview-container {
+  height: 500px; /* 默认高度 */
+  border-top: 1px solid var(--border-color);
 }
 
 /* Monaco 编辑器容器的 div 高度由 JS 动态设置 */

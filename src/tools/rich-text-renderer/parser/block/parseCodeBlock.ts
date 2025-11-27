@@ -37,6 +37,7 @@ export function parseCodeBlock(
       props: {
         language,
         content: fence.raw, // raw 现在包含完整的代码内容
+        closed: fence.closed,
       },
       meta: { range: { start: 0, end: 0 }, status: "stable" },
     },

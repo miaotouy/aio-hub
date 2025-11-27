@@ -32,10 +32,12 @@ const props = withDefaults(
     styleOptions?: RichTextRendererStyleOptions; // 样式配置
     generationMeta?: any; // 生成元数据（用于计时）
     isStreaming?: boolean; // 是否处于流式传输中（用于控制思考块的闭合状态）
+    defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
     isStreaming: false,
+    defaultRenderHtml: false,
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
       {
@@ -144,6 +146,7 @@ watch(
 // 提供上下文给子组件
 provide(RICH_TEXT_CONTEXT_KEY, {
   images: imageList,
+  defaultRenderHtml: computed(() => props.defaultRenderHtml),
 });
 
 // 纯 markdown-it 渲染的 HTML

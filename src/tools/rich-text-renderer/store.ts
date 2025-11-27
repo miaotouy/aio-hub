@@ -99,6 +99,7 @@ const configManager = createConfigManager<TesterConfig>({
     autoScroll: true,
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
+    defaultRenderHtml: false,
     llmThinkRules: defaultLlmThinkRules,
     richTextStyleOptions: {},
     copyOptions: {
@@ -133,6 +134,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const autoScroll = ref(true);
   const visualizeBlockStatus = ref(false);
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
+  const defaultRenderHtml = ref(false);
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
   const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
   const copyOptions = reactive<CopyOptions>({
@@ -182,6 +184,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       autoScroll.value = config.autoScroll;
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
+      defaultRenderHtml.value = config.defaultRenderHtml ?? false;
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
       richTextStyleOptions.value = config.richTextStyleOptions || {};
       if (config.copyOptions) {
@@ -228,6 +231,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         autoScroll: autoScroll.value,
         visualizeBlockStatus: visualizeBlockStatus.value,
         rendererVersion: rendererVersion.value,
+        defaultRenderHtml: defaultRenderHtml.value,
         llmThinkRules: llmThinkRules.value,
         richTextStyleOptions: richTextStyleOptions.value,
         copyOptions: { ...copyOptions },
@@ -271,6 +275,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       autoScroll: autoScroll.value,
       visualizeBlockStatus: visualizeBlockStatus.value,
       rendererVersion: rendererVersion.value,
+      defaultRenderHtml: defaultRenderHtml.value,
       llmThinkRules: llmThinkRules.value,
       richTextStyleOptions: richTextStyleOptions.value,
       copyOptions: { ...copyOptions },
@@ -297,6 +302,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     autoScroll.value = true;
     visualizeBlockStatus.value = false;
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
+    defaultRenderHtml.value = false;
     llmThinkRules.value = [...defaultLlmThinkRules];
     richTextStyleOptions.value = {};
     copyOptions.includeConfig = true;
@@ -360,6 +366,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       autoScroll,
       visualizeBlockStatus,
       rendererVersion,
+      defaultRenderHtml,
       llmThinkRules,
       richTextStyleOptions,
       () => copyOptions.includeConfig,
@@ -390,6 +397,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     autoScroll,
     visualizeBlockStatus,
     rendererVersion,
+    defaultRenderHtml,
     llmThinkRules,
     richTextStyleOptions,
     copyOptions,

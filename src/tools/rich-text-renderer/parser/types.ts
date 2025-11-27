@@ -28,7 +28,7 @@ export type Token =
   | { type: "blockquote_marker"; raw: string }
   | { type: "list_marker"; ordered: boolean; raw: string; indent: number }
   | { type: "hr_marker"; raw: string }
-  | { type: "code_fence"; language: string; raw: string }
+  | { type: "code_fence"; language: string; raw: string; closed?: boolean }
   | { type: "katex_block"; content: string }
   | { type: "katex_inline"; content: string }
   | { type: "autolink"; url: string; raw: string };

@@ -35,6 +35,16 @@
             </el-select>
           </div>
 
+          <!-- HTML 渲染控制 -->
+          <div class="control-section">
+            <div class="control-header">
+              <label class="control-label">HTML 预览</label>
+              <el-tooltip content="开启后，HTML 代码块将默认以预览模式显示" placement="left">
+                <el-switch v-model="defaultRenderHtml" />
+              </el-tooltip>
+            </div>
+          </div>
+
           <!-- 预设内容选择 -->
           <div class="control-section">
             <label class="control-label">预设内容</label>
@@ -382,6 +392,7 @@
                 :content="currentContent"
                 :stream-source="streamSource"
                 :version="rendererVersion"
+                :default-render-html="defaultRenderHtml"
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
                 :generation-meta="simulateMeta ? generationMeta : undefined"
@@ -457,6 +468,7 @@ const {
   autoScroll,
   visualizeBlockStatus,
   rendererVersion,
+  defaultRenderHtml,
   llmThinkRules,
   richTextStyleOptions,
   copyOptions,

@@ -16,6 +16,8 @@ import { katexFormulasPreset } from './presets/katex-formulas';
 import { quotesPreset } from './presets/quotes';
 import { themeVariableTest } from './presets/theme-variable-test';
 import { complexRenderingTestPreset } from './presets/complex-rendering-test';
+import { htmlScriptTestPreset } from './presets/html-script-test';
+import { htmlGameSnakePreset } from './presets/html-game-snake';
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -35,4 +37,6 @@ export const presets: RenderPreset[] = [
   quotesPreset,
   themeVariableTest,
   complexRenderingTestPreset,
+  htmlScriptTestPreset,
+  htmlGameSnakePreset,
 ];

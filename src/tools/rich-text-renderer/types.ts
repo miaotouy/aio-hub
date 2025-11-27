@@ -106,6 +106,8 @@ export interface CodeBlockNode extends BaseAstNode {
   props: {
     language?: string;
     content: string;
+    /** 代码块是否已闭合（流式传输中可能未闭合） */
+    closed?: boolean;
   };
   children?: never;
 }
@@ -577,6 +579,8 @@ export interface TesterConfig {
   richTextStyleOptions: RichTextRendererStyleOptions;
   /** 复制选项配置 */
   copyOptions: CopyOptions;
+  /** 是否默认渲染 HTML 代码块 */
+  defaultRenderHtml?: boolean;
 }
 
 // ============ 样式配置相关类型 ============
@@ -643,4 +647,5 @@ export const RICH_TEXT_CONTEXT_KEY = Symbol("rich-text-context");
  */
 export interface RichTextContext {
   images: Ref<string[]>;
+  defaultRenderHtml?: Ref<boolean>;
 }

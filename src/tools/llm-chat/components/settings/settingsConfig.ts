@@ -110,6 +110,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui header blur 模糊",
       },
       {
+        id: "defaultRenderHtml",
+        label: "自动渲染 HTML",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.defaultRenderHtml",
+        hint: "检测到 HTML 代码块时自动开启预览模式",
+        keywords: "ui html render preview 预览 渲染",
+      },
+      {
         id: "rendererVersion",
         label: "消息渲染器",
         component: "ElSelect",

@@ -186,6 +186,7 @@ export class Tokenizer {
 
             // 收集代码块内容（原始文本，不做任何解析）
             let codeContent = "";
+            let closed = false;
 
             while (i < text.length) {
               // 检查是否遇到闭合的 ```，允许前面有最多 3-4 个空格缩进
@@ -201,6 +202,7 @@ export class Tokenizer {
                 if (text.slice(k, k + 3) === "```") {
                   // 将指针移动到 ``` 之后，结束代码块
                   i = k + 3;
+                  closed = true;
                   break;
                 }
               }
@@ -210,7 +212,7 @@ export class Tokenizer {
             }
 
             // 添加代码块 token（包含完整内容）
-            tokens.push({ type: "code_fence", language, raw: codeContent });
+            tokens.push({ type: "code_fence", language, raw: codeContent, closed });
             atLineStart = true;
             continue;
           }

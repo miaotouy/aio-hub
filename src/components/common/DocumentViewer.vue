@@ -1,16 +1,24 @@
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect, onMounted } from 'vue';
-import { useDocumentViewer } from '@/composables/useDocumentViewer';
-import { createModuleLogger } from '@/utils/logger';
-import RichCodeEditor from './RichCodeEditor.vue';
-import RichTextRenderer from '@/tools/rich-text-renderer/RichTextRenderer.vue';
-import { RendererVersion } from '@/tools/rich-text-renderer/types';
-import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElMessage, ElTooltip, ElRadioGroup, ElRadioButton } from 'element-plus';
-import { useClipboard } from '@vueuse/core';
-import { Copy, Download, Book, Code } from 'lucide-vue-next';
-import { saveAs } from 'file-saver';
-import { useTheme } from '@/composables/useTheme';
-import { useThemeAppearance } from '@/composables/useThemeAppearance';
+import { ref, computed, watch, watchEffect } from "vue";
+import { useDocumentViewer } from "@/composables/useDocumentViewer";
+import { createModuleLogger } from "@/utils/logger";
+import RichCodeEditor from "./RichCodeEditor.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import HtmlInteractiveViewer from "@/tools/rich-text-renderer/components/HtmlInteractiveViewer.vue";
+import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import {
+  ElSkeleton,
+  ElAlert,
+  ElButton,
+  ElButtonGroup,
+  ElMessage,
+  ElTooltip,
+  ElRadioGroup,
+  ElRadioButton,
+} from "element-plus";
+import { useClipboard } from "@vueuse/core";
+import { Copy, Download, Book, Code } from "lucide-vue-next";
+import { saveAs } from "file-saver";
 
 // --- 属性定义 ---
 interface DocumentViewerProps {
@@ -18,17 +26,17 @@ interface DocumentViewerProps {
   filePath?: string;
   fileName?: string;
   fileTypeHint?: string;
-  editorType?: 'codemirror' | 'monaco';
+  editorType?: "codemirror" | "monaco";
   showEngineSwitch?: boolean;
 }
 const props = withDefaults(defineProps<DocumentViewerProps>(), {
-  editorType: 'codemirror',
+  editorType: "codemirror",
   showEngineSwitch: false,
 });
 
-const logger = createModuleLogger('DocumentViewer');
+const logger = createModuleLogger("DocumentViewer");
 watchEffect(() => {
-  logger.debug('Props received/updated:', {
+  logger.debug("Props received/updated:", {
     fileName: props.fileName,
     fileTypeHint: props.fileTypeHint,
     filePath: props.filePath,
@@ -49,56 +57,8 @@ const {
   isRenderableHtml,
 } = useDocumentViewer(props);
 // --- 视图逻辑 ---
-const viewMode = ref<'source' | 'preview'>('preview');
+const viewMode = ref<"source" | "preview">("preview");
 const currentEditorType = ref(props.editorType);
-// --- 主题支持 ---
-const { isDark } = useTheme();
-const { appearanceSettings } = useThemeAppearance();
-const themeCssText = ref('');
-
-/**
- * 从主文档中提取主题相关的 CSS 变量，并生成样式表文本
- */
-function updateThemeCss() {
-  const styles = getComputedStyle(document.documentElement);
-  const customProps = [];
-  for (let i = 0; i < styles.length; i++) {
-    const propName = styles[i];
-    if (propName.startsWith('--')) {
-      customProps.push(propName);
-    }
-  }
-
-  const rootStyles = customProps
-    .map(prop => `${prop}: ${styles.getPropertyValue(prop)};`)
-    .join('\n');
-
-  const finalCss = `
-    :root {
-      ${rootStyles}
-      color-scheme: ${isDark.value ? 'dark' : 'light'};
-    }
-    body {
-      background-color: var(--vscode-editor-background);
-      color: var(--el-text-color-primary);
-      font-family: var(--el-font-family, sans-serif);
-      padding: 16px;
-      margin: 0;
-      box-sizing: border-box;
-    }
-  `;
-  themeCssText.value = finalCss;
-  logger.debug('Generated theme CSS for iframe');
-}
-
-onMounted(() => {
-  // 等待一小段时间，确保主应用样式已完全计算
-  setTimeout(updateThemeCss, 200);
-});
-
-watch([isDark, appearanceSettings], () => {
-  updateThemeCss();
-}, { deep: true });
 
 // 提取 HTML 标题
 const htmlTitle = computed(() => {
@@ -107,35 +67,16 @@ const htmlTitle = computed(() => {
   return titleMatch ? titleMatch[1].trim() : null;
 });
 
-// 为 HTML 内容注入主题样式
-const themedHtmlContent = computed(() => {
-  if (!decodedContent.value) return '';
-  if (!isHtml.value) return decodedContent.value;
-
-  const styleTag = `<style>${themeCssText.value}</style>`;
-
-  // 检查是否已有 </head> 标签
-  if (decodedContent.value.includes('</head>')) {
-    // 在 </head> 前插入样式
-    return decodedContent.value.replace('</head>', `${styleTag}</head>`);
-  } else if (decodedContent.value.includes('<head>')) {
-    // 在 <head> 后插入样式
-    return decodedContent.value.replace('<head>', `<head>${styleTag}`);
-  } else if (decodedContent.value.includes('<body>')) {
-    // 在 <body> 前插入 head
-    return decodedContent.value.replace('<body>', `<head>${styleTag}</head><body>`);
-  } else {
-    // 没有 head 和 body 标签, 可能是片段, 包裹起来
-    return `<!DOCTYPE html><html><head>${styleTag}</head><body>${decodedContent.value}</body></html>`;
-  }
-});
-
 // HTML 默认显示源码
-watch(isHtml, (newIsHtml) => {
-  if (newIsHtml) {
-    viewMode.value = 'source';
-  }
-}, { immediate: true });
+watch(
+  isHtml,
+  (newIsHtml) => {
+    if (newIsHtml) {
+      viewMode.value = "source";
+    }
+  },
+  { immediate: true }
+);
 
 watch(
   () => props.editorType,
@@ -150,11 +91,11 @@ const showToolbar = computed(() => !isLoading.value && !error.value && decodedCo
 const canPreview = computed(() => isMarkdown.value || isRenderableHtml.value);
 
 const editorLanguage = computed(() => {
-  if (viewMode.value === 'source') {
-    if (isMarkdown.value) return 'markdown';
-    if (isHtml.value) return 'html';
+  if (viewMode.value === "source") {
+    if (isMarkdown.value) return "markdown";
+    if (isHtml.value) return "html";
   }
-  return language.value || 'plaintext';
+  return language.value || "plaintext";
 });
 
 // --- 工具栏逻辑 (来自 DocumentViewerToolbar.vue) ---
@@ -163,22 +104,22 @@ const { copy } = useClipboard();
 function handleCopy() {
   if (!decodedContent.value) return;
   copy(decodedContent.value);
-  ElMessage.success('已复制到剪贴板');
+  ElMessage.success("已复制到剪贴板");
 }
 
 function handleDownload() {
   try {
     if (!decodedContent.value) return;
-    const blob = new Blob([decodedContent.value], { type: mimeType.value || 'text/plain' });
-    saveAs(blob, props.fileName || '下载文件.txt');
+    const blob = new Blob([decodedContent.value], { type: mimeType.value || "text/plain" });
+    saveAs(blob, props.fileName || "下载文件.txt");
   } catch (error) {
-    console.error('下载文件失败:', error);
-    ElMessage.error('下载文件失败');
+    console.error("下载文件失败:", error);
+    ElMessage.error("下载文件失败");
   }
 }
 
 function toggleViewMode() {
-  viewMode.value = viewMode.value === 'preview' ? 'source' : 'preview';
+  viewMode.value = viewMode.value === "preview" ? "source" : "preview";
 }
 </script>
 
@@ -240,7 +181,7 @@ function toggleViewMode() {
           show-icon
         />
       </div>
-      
+
       <RichTextRenderer
         v-else-if="isMarkdown && viewMode === 'preview'"
         :content="decodedContent || undefined"
@@ -248,14 +189,19 @@ function toggleViewMode() {
         class="markdown-preview"
       />
 
-      <iframe
+      <HtmlInteractiveViewer
         v-else-if="isRenderableHtml && viewMode === 'preview'"
-        :srcdoc="themedHtmlContent"
-        class="html-preview-iframe"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-      ></iframe>
+        :content="decodedContent || ''"
+        :show-toolbar="false"
+        :bordered="false"
+        :immediate="true"
+        class="html-preview-component"
+      />
 
-      <div v-else-if="isHtml && !isRenderableHtml && viewMode === 'preview'" class="unrenderable-html-placeholder">
+      <div
+        v-else-if="isHtml && !isRenderableHtml && viewMode === 'preview'"
+        class="unrenderable-html-placeholder"
+      >
         <el-alert
           title="无法直接预览"
           description="此 HTML 文件可能是一个需要编译的组件模板 (例如 Vue 或 React 组件)，而不是一个独立的网页，因此无法直接预览。"
@@ -273,7 +219,7 @@ function toggleViewMode() {
         :editor-type="currentEditorType"
         class="code-viewer"
       />
-      
+
       <div v-else class="empty-state">
         <p>没有可供预览的内容</p>
       </div>
@@ -364,12 +310,9 @@ function toggleViewMode() {
   box-sizing: border-box;
 }
 /* HTML 预览样式 */
-.html-preview-iframe {
-  display: block; /* 修复 iframe 底部可能存在的额外空间问题 */
+.html-preview-component {
   width: 100%;
   height: 100%;
-  border: none;
-  background-color: var(--vscode-editor-background);
   box-sizing: border-box;
 }
 </style>

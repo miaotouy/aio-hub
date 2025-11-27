@@ -1,5 +1,5 @@
 <template>
-  <span class="dynamic-icon-wrapper" :style="wrapperStyle">
+  <span ref="wrapperRef" class="dynamic-icon-wrapper" :style="wrapperStyle">
     <!-- 成功加载：SVG -->
     <span
       v-if="isSvg && svgContent && !hasFailed"
@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { toRefs, ref, watch, computed } from "vue";
+import { toRefs, ref, watch, computed, onMounted, onUnmounted } from "vue";
 import { useThemeAwareIcon } from "@composables/useThemeAwareIcon";
 
 const props = defineProps({
@@ -36,10 +36,43 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  lazy: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const { src, alt } = toRefs(props);
-const { isSvg, svgContent, iconUrl } = useThemeAwareIcon(src);
+
+// 懒加载控制
+const shouldLoad = ref(!props.lazy);
+const wrapperRef = ref<HTMLElement | null>(null);
+let observer: IntersectionObserver | null = null;
+
+onMounted(() => {
+  if (props.lazy) {
+    observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        shouldLoad.value = true;
+        observer?.disconnect();
+        observer = null;
+      }
+    });
+    if (wrapperRef.value) {
+      observer.observe(wrapperRef.value);
+    }
+  }
+});
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect();
+  }
+});
+
+// 只有当 shouldLoad 为 true 时，才将真实的 src 传递给 useThemeAwareIcon
+const effectiveSrc = computed(() => (shouldLoad.value ? src.value : ""));
+const { isSvg, svgContent, iconUrl } = useThemeAwareIcon(effectiveSrc);
 
 const hasFailed = ref(false);
 

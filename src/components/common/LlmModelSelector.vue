@@ -116,6 +116,7 @@ const modelGroups = computed(() => {
               :src="getModelIcon(item.model) || ''"
               :alt="item.label"
               class="model-icon"
+              lazy
             />
             <span class="model-name">{{ item.label }}</span>
             <el-text v-if="item.model.group" size="small" type="info" class="model-group-tag">

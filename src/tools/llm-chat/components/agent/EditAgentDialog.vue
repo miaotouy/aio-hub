@@ -10,9 +10,14 @@ import Avatar from "@/components/common/Avatar.vue";
 import { useUserProfileStore } from "../../userProfileStore";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
-import { ref } from "vue";
-import LlmThinkRulesEditor from "@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue";
-import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue";
+import { ref, defineAsyncComponent } from "vue";
+
+const LlmThinkRulesEditor = defineAsyncComponent(
+  () => import("@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue")
+);
+const MarkdownStyleEditor = defineAsyncComponent(
+  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
+);
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {
@@ -78,6 +83,8 @@ const editForm = reactive({
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
 });
 
+const activeCollapseNames = ref<string[]>([]);
+
 // 监听对话框打开，加载数据
 watch(
   () => props.visible,
@@ -130,6 +137,7 @@ const loadFormData = () => {
     editForm.llmThinkRules = [];
     editForm.richTextStyleOptions = {};
   }
+  activeCollapseNames.value = [];
 };
 
 // 监听 modelCombo 的变化，拆分为 profileId 和 modelId
@@ -306,27 +314,25 @@ const handleSave = () => {
         />
       </el-form-item>
 
-      <!-- 思考块规则配置 -->
-      <el-form-item label="思考块规则">
-        <div style="width: 100%">
-          <div class="form-hint">
+      <el-divider content-position="left">高级设置</el-divider>
+
+      <el-collapse v-model="activeCollapseNames">
+        <el-collapse-item title="思考块规则配置" name="thinkRules">
+          <div class="form-hint" style="margin-bottom: 12px">
             配置 LLM 输出中的思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
           </div>
           <LlmThinkRulesEditor v-model="editForm.llmThinkRules" />
-        </div>
-      </el-form-item>
+        </el-collapse-item>
 
-      <!-- 样式自定义 -->
-      <el-form-item label="回复样式">
-        <div style="width: 100%">
-          <div class="form-hint">
+        <el-collapse-item title="回复样式自定义" name="styleOptions">
+          <div class="form-hint" style="margin-bottom: 12px">
             自定义该智能体回复内容的 Markdown 渲染样式（如粗体颜色、发光效果等）。
           </div>
           <div style="height: 700px">
             <MarkdownStyleEditor v-model="editForm.richTextStyleOptions" />
           </div>
-        </div>
-      </el-form-item>
+        </el-collapse-item>
+      </el-collapse>
     </el-form>
 
     <template #footer>

@@ -227,16 +227,40 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     icon: preset.icon,
     profileId: defaultProfile.id,
     modelId: defaultModel.id,
-    // 深度复制 presetMessages，并确保它们有唯一的 ID
-    presetMessages: JSON.parse(JSON.stringify(preset.presetMessages)).map((msg: any) => ({
-      ...msg,
-      id: `preset-${msg.role}-${Date.now()}-${Math.random()}`,
-      parentId: null,
-      childrenIds: [],
-      status: "complete",
-      isEnabled: true,
-      timestamp: new Date().toISOString(),
-    })),
+    // 深度复制 presetMessages，并确保它们有唯一的 ID，同时保持引用关系
+    presetMessages: (() => {
+      const rawMessages = JSON.parse(JSON.stringify(preset.presetMessages));
+      const idMap = new Map<string, string>();
+      
+      // 第一步：生成新 ID 映射
+      rawMessages.forEach((msg: any) => {
+        const newId = `preset-${msg.role}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        idMap.set(msg.id, newId);
+      });
+
+      // 第二步：重建消息，更新 ID 引用
+      return rawMessages.map((msg: any) => {
+        const newId = idMap.get(msg.id)!;
+        
+        // 更新 parentId
+        const newParentId = msg.parentId ? idMap.get(msg.parentId) || null : null;
+        
+        // 更新 childrenIds
+        const newChildrenIds = (msg.childrenIds || [])
+          .map((childId: string) => idMap.get(childId))
+          .filter((id: string | undefined): id is string => !!id);
+
+        return {
+          ...msg,
+          id: newId,
+          parentId: newParentId,
+          childrenIds: newChildrenIds,
+          status: "complete",
+          isEnabled: true,
+          timestamp: new Date().toISOString(),
+        };
+      });
+    })(),
     temperature: preset.parameters.temperature,
     maxTokens: preset.parameters.maxTokens || 8192,
   };

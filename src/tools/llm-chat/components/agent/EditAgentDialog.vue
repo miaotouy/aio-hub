@@ -102,16 +102,6 @@ watch(activeCollapseNames, (newNames) => {
   }
 });
 
-// 监听对话框打开，加载数据
-watch(
-  () => props.visible,
-  (newVisible) => {
-    if (newVisible) {
-      loadFormData();
-    }
-  }
-);
-
 // 加载表单数据
 const loadFormData = () => {
   if (props.mode === "edit" && props.agent) {
@@ -159,6 +149,17 @@ const loadFormData = () => {
   styleOptionsLoaded.value = false;
   styleLoading.value = false;
 };
+
+// 监听对话框打开，加载数据
+watch(
+  () => props.visible,
+  (newVisible) => {
+    if (newVisible) {
+      loadFormData();
+    }
+  },
+  { immediate: true }
+);
 // 监听 modelCombo 的变化，拆分为 profileId 和 modelId
 const handleModelComboChange = (value: string) => {
   if (value) {

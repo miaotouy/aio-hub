@@ -545,6 +545,10 @@ export interface TesterConfig {
   version: string;
   /** 输入栏是否折叠 */
   isInputCollapsed: boolean;
+  /** 配置侧边栏是否折叠 */
+  isConfigCollapsed?: boolean;
+  /** 布局模式 */
+  layoutMode?: "split" | "input-only" | "preview-only";
   /** 当前选中的预设 ID */
   selectedPreset: string;
   /** 流式输出是否启用 */

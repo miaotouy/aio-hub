@@ -53,7 +53,7 @@
             class="preview-area"
           >
             <div class="area-header" ref="previewHeaderRef">
-              <h4>渲染预览</h4>
+              <h4 style="min-width: 80px;">渲染预览</h4>
               <div class="preview-header-controls" :class="{ 'is-compact': isHeaderCompact }">
                 <div class="render-stats" v-if="renderStats.totalTokens > 0">
                   <el-tag size="small" type="info">
@@ -149,8 +149,8 @@ const isMobile = computed(() => containerWidth.value < 768);
 // 工作区尺寸检测
 const workspaceRef = ref<HTMLElement | null>(null);
 const { width: workspaceWidth } = useElementSize(workspaceRef);
-// 当工作区宽度小于 800px 时，认为是紧凑模式，强制垂直排列
-const isWorkspaceCompact = computed(() => workspaceWidth.value < 800);
+// 当工作区宽度小于 900px 时，认为是紧凑模式，强制垂直排列
+const isWorkspaceCompact = computed(() => workspaceWidth.value < 900);
 
 // 预览区头部尺寸检测（用于控制 header controls 的布局）
 const previewHeaderRef = ref<HTMLElement | null>(null);
@@ -161,6 +161,8 @@ const isHeaderCompact = computed(() => headerWidth.value < 750);
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
 const {
+  isConfigCollapsed,
+  layoutMode,
   selectedPreset,
   inputContent,
   streamEnabled,
@@ -178,10 +180,6 @@ const {
   richTextStyleOptions,
   copyOptions,
 } = storeToRefs(store);
-
-// 新的布局状态
-const isConfigCollapsed = ref(false);
-const layoutMode = ref<"split" | "input-only" | "preview-only">("split");
 
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);

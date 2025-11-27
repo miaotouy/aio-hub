@@ -28,16 +28,6 @@
         </el-select>
       </div>
 
-      <!-- HTML 渲染控制 -->
-      <div class="control-section">
-        <div class="control-header">
-          <label class="control-label">HTML 预览</label>
-          <el-tooltip content="开启后，HTML 代码块将默认以预览模式显示" placement="left">
-            <el-switch v-model="defaultRenderHtml" />
-          </el-tooltip>
-        </div>
-      </div>
-
       <!-- 预设内容选择 -->
       <div class="control-section">
         <label class="control-label">预设内容</label>
@@ -55,6 +45,16 @@
             :value="preset.id"
           />
         </el-select>
+      </div>
+
+      <!-- HTML 渲染控制 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label">HTML 预览</label>
+          <el-tooltip content="开启后，HTML 代码块将默认以预览模式显示" placement="left">
+            <el-switch v-model="defaultRenderHtml" />
+          </el-tooltip>
+        </div>
       </div>
 
       <!-- 流式输出控制 -->
@@ -200,10 +200,7 @@
       <!-- 元数据模拟 -->
       <div class="control-section">
         <div class="control-header">
-          <el-tooltip
-            content="模拟生成元数据（如开始时间等），用于测试计时功能"
-            placement="right"
-          >
+          <el-tooltip content="模拟生成元数据（如开始时间等），用于测试计时功能" placement="right">
             <label class="control-label">元数据模拟</label>
           </el-tooltip>
           <el-switch v-model="simulateMeta" />

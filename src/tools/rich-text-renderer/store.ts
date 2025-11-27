@@ -82,6 +82,8 @@ const configManager = createConfigManager<TesterConfig>({
   createDefault: () => ({
     version: "1.0.0",
     isInputCollapsed: false,
+    isConfigCollapsed: false,
+    layoutMode: "split",
     selectedPreset: "",
     streamEnabled: true,
     syncInputProgress: false,
@@ -118,6 +120,8 @@ const configManager = createConfigManager<TesterConfig>({
 export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   // ===== 状态 =====
   const isInputCollapsed = ref(false);
+  const isConfigCollapsed = ref(false);
+  const layoutMode = ref<"split" | "input-only" | "preview-only">("split");
   const selectedPreset = ref("");
   const inputContent = ref("");
   const streamEnabled = ref(true);
@@ -164,6 +168,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
 
       // 应用配置到状态
       isInputCollapsed.value = config.isInputCollapsed;
+      isConfigCollapsed.value = config.isConfigCollapsed ?? false;
+      layoutMode.value = config.layoutMode ?? "split";
       selectedPreset.value = config.selectedPreset;
       inputContent.value = config.inputContent;
       streamEnabled.value = config.streamEnabled;
@@ -217,6 +223,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       const config: TesterConfig = {
         version: "1.0.0",
         isInputCollapsed: isInputCollapsed.value,
+        isConfigCollapsed: isConfigCollapsed.value,
+        layoutMode: layoutMode.value,
         selectedPreset: selectedPreset.value,
         inputContent: inputContent.value,
         streamEnabled: streamEnabled.value,
@@ -262,6 +270,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     const config: TesterConfig = {
       version: "1.0.0",
       isInputCollapsed: isInputCollapsed.value,
+      isConfigCollapsed: isConfigCollapsed.value,
+      layoutMode: layoutMode.value,
       selectedPreset: selectedPreset.value,
       inputContent: inputContent.value,
       streamEnabled: streamEnabled.value,
@@ -294,6 +304,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
    */
   function resetConfig(): void {
     isInputCollapsed.value = false;
+    isConfigCollapsed.value = false;
+    layoutMode.value = "split";
     selectedPreset.value = "";
     inputContent.value = "";
     streamEnabled.value = true;
@@ -359,6 +371,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   watch(
     [
       isInputCollapsed,
+      isConfigCollapsed,
+      layoutMode,
       selectedPreset,
       inputContent,
       streamEnabled,
@@ -393,6 +407,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   return {
     // 状态
     isInputCollapsed,
+    isConfigCollapsed,
+    layoutMode,
     selectedPreset,
     inputContent,
     streamEnabled,

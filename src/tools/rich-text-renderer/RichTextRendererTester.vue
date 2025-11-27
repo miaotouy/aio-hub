@@ -52,9 +52,9 @@
             v-show="layoutMode === 'split' || layoutMode === 'preview-only'"
             class="preview-area"
           >
-            <div class="area-header">
+            <div class="area-header" ref="previewHeaderRef">
               <h4>渲染预览</h4>
-              <div class="preview-header-controls">
+              <div class="preview-header-controls" :class="{ 'is-compact': isHeaderCompact }">
                 <div class="render-stats" v-if="renderStats.totalTokens > 0">
                   <el-tag size="small" type="info">
                     {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
@@ -151,6 +151,12 @@ const workspaceRef = ref<HTMLElement | null>(null);
 const { width: workspaceWidth } = useElementSize(workspaceRef);
 // 当工作区宽度小于 800px 时，认为是紧凑模式，强制垂直排列
 const isWorkspaceCompact = computed(() => workspaceWidth.value < 800);
+
+// 预览区头部尺寸检测（用于控制 header controls 的布局）
+const previewHeaderRef = ref<HTMLElement | null>(null);
+const { width: headerWidth } = useElementSize(previewHeaderRef);
+// 当 header 宽度小于 750px 时，将 tags 换行显示
+const isHeaderCompact = computed(() => headerWidth.value < 750);
 
 // 使用 store 管理配置状态
 const store = useRichTextRendererStore();
@@ -805,6 +811,24 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+/* 紧凑模式下的 header controls */
+.preview-header-controls.is-compact {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 16px; /* 行间距 8px，列间距 16px */
+}
+
+.preview-header-controls.is-compact .render-stats {
+  order: 2; /* 放到第二行 */
+  width: 100%; /* 独占一行 */
+  justify-content: flex-end; /* 内容靠右 */
+  margin-top: 4px;
+}
+
+.preview-header-controls.is-compact .visualizer-toggle {
+  order: 1; /* 开关保持在第一行 */
 }
 
 .visualizer-toggle {

@@ -2,10 +2,7 @@
   <div class="workspace-toolbar">
     <div class="toolbar-left">
       <!-- 侧边栏折叠按钮 -->
-      <el-tooltip
-        :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'"
-        placement="bottom"
-      >
+      <el-tooltip :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'" placement="bottom">
         <el-button
           :icon="isConfigCollapsed ? DArrowRight : DArrowLeft"
           @click="$emit('update:isConfigCollapsed', !isConfigCollapsed)"
@@ -150,13 +147,16 @@ const { inputContent, streamEnabled, syncInputProgress, copyOptions } = storeToR
 <style scoped>
 .workspace-toolbar {
   display: flex;
-  justify-content: space-between;
+  /* 移除 space-between，改用 margin-left: auto 实现两端对齐 */
+  /* justify-content: space-between; */
   align-items: center;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
+  flex-wrap: wrap; /* 允许换行 */
+  gap: 12px; /* 换行后的间距 */
 }
 
 .toolbar-left,
@@ -164,6 +164,12 @@ const { inputContent, streamEnabled, syncInputProgress, copyOptions } = storeToR
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap; /* 内部也允许换行 */
+}
+
+/* 让右侧工具栏自动靠右，即使在换行后也能保持靠右对齐 */
+.toolbar-right {
+  margin-left: auto;
 }
 
 /* Loading 图标动画 */
@@ -198,5 +204,9 @@ const { inputContent, streamEnabled, syncInputProgress, copyOptions } = storeToR
 .copy-options :deep(.el-checkbox) {
   margin-right: 0;
   height: 24px;
+}
+
+.el-button {
+  margin: 0px;
 }
 </style>

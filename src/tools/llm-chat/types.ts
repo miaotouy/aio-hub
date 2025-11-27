@@ -92,7 +92,7 @@ export interface ChatMessageNode {
   /**
    * 消息创建的时间戳 (ISO 8601 格式)
    */
-  timestamp: string;
+  timestamp?: string;
 
   /**
    * 附加元数据

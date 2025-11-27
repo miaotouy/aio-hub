@@ -687,7 +687,8 @@ watch(
 }
 
 .html-preview-container {
-  height: 800px; /* 默认高度 */
+  min-height: 450px;
+  height: 65vh;
   border-top: 1px solid var(--border-color);
 }
 

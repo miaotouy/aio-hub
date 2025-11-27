@@ -18,8 +18,8 @@
           </button>
         </el-tooltip>
 
-        <el-tooltip content="在浏览器中打开" placement="bottom">
-          <button class="tool-btn" @click="openInBrowser">
+        <el-tooltip :content="!immediate ? '内容生成中...' : '在浏览器中打开'" placement="bottom">
+          <button class="tool-btn" :disabled="!immediate" @click="openInBrowser">
             <ExternalLink :size="14" />
           </button>
         </el-tooltip>
@@ -262,9 +262,14 @@ watch(
   transition: all 0.2s;
 }
 
-.tool-btn:hover {
+.tool-btn:hover:not(:disabled) {
   background-color: var(--el-fill-color-dark);
   color: var(--el-text-color-primary);
+}
+
+.tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 内容区域 */

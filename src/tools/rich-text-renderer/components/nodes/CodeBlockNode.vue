@@ -20,8 +20,12 @@
             </button>
           </el-tooltip>
           
-          <el-tooltip content="在弹窗中预览" :show-after="300">
-            <button class="action-btn" @click="openDialogPreview">
+          <el-tooltip :content="closed === false ? '内容生成中...' : '在弹窗中预览'" :show-after="300">
+            <button
+              class="action-btn"
+              :disabled="closed === false"
+              @click="openDialogPreview"
+            >
               <ExternalLink :size="14" />
             </button>
           </el-tooltip>

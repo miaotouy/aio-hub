@@ -416,8 +416,10 @@ fn render_tree(
         
         let size_str = if child.is_dir {
              if config.show_dir_size { format!(" ({})", format_size(child.size)) } else { String::new() }
+        } else if config.show_size {
+            format!(" ({})", format_size(child.size))
         } else {
-             if config.show_size { format!(" ({})", format_size(child.size)) } else { String::new() }
+            String::new()
         };
 
         let error_str = child.error.as_deref().unwrap_or("");

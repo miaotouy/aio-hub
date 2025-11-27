@@ -202,6 +202,15 @@ export function useFlowTreeGraph(
   const d3Nodes = ref<D3Node[]>([]);
   const d3Links = ref<D3Link[]>([]);
 
+  // 节点真实尺寸缓存
+  const measuredDimensions = reactive(new Map<string, { width: number; height: number }>());
+  // 是否正在等待节点尺寸更新（用于初始布局优化）
+  const isWaitingForDimensions = ref(false);
+  // 等待尺寸更新的节点 ID 集合
+  const pendingNodeIds = ref(new Set<string>());
+  // 布局超时定时器
+  let layoutTimeoutId: any = null;
+
   // 记录上一次的拓扑结构指纹，用于判断是否需要重新布局
   let lastStructureFingerprint = "";
 
@@ -712,8 +721,32 @@ export function useFlowTreeGraph(
     nodes.value = flowNodes;
     edges.value = flowEdges;
 
-    // 启动 D3 力模拟进行布局
-    initD3Simulation();
+    // --- 优化：先等待节点尺寸到位，再计算布局 ---
+    // 1. 标记开始等待
+    isWaitingForDimensions.value = true;
+    pendingNodeIds.value = new Set(flowNodes.map(n => n.id));
+
+    // 2. 清除旧的超时
+    if (layoutTimeoutId) {
+      clearTimeout(layoutTimeoutId);
+      layoutTimeoutId = null;
+    }
+
+    // 3. 设置新的超时兜底 (300ms)
+    // 如果 300ms 内节点尺寸还没全部回来（比如节点不可见），强制开始布局
+    layoutTimeoutId = setTimeout(() => {
+      if (isWaitingForDimensions.value) {
+        logger.warn("等待节点尺寸超时，强制开始布局", {
+          pendingCount: pendingNodeIds.value.size
+        });
+        isWaitingForDimensions.value = false;
+        pendingNodeIds.value.clear();
+        initD3Simulation();
+      }
+    }, 300);
+
+    // 注意：这里不再立即调用 initD3Simulation()
+    // 而是等待 updateNodeDimensions 被调用
   }
 
   /**
@@ -736,22 +769,30 @@ export function useFlowTreeGraph(
     d3Nodes.value = nodes.value.map((n) => {
       const depth = depthMap[n.id] ?? 0;
       const existingD3Node = simulation?.nodes().find(d => d.id === n.id);
+      const measured = measuredDimensions.get(n.id);
 
-      // 估算节点高度：基础高度 + 附件高度
+      // 估算节点高度：基础高度 + 附件高度 (作为回退)
       const baseHeight = 140; // 基础高度 (6行文本)
       const attachmentHeight = (n.data.attachments?.length || 0) * 160; // 每个附件约 160px (extra-large 模式)
       const estimatedHeight = baseHeight + attachmentHeight;
 
+      // 优先使用：
+      // 1. 刚刚测量到的真实尺寸 (measured)
+      // 2. 之前 D3 模拟中的尺寸 (existingD3Node)
+      // 3. 估算尺寸 (estimatedHeight)
+      const finalWidth = measured?.width || existingD3Node?.width || 220;
+      const finalHeight = measured?.height || existingD3Node?.height || estimatedHeight;
+
       return {
         id: n.id,
         depth,
-        width: existingD3Node?.width || 220, // 初始预估宽度
-        height: existingD3Node?.height || estimatedHeight, // 动态预估高度
+        width: finalWidth,
+        height: finalHeight,
         isActiveLeaf: n.data.isActiveLeaf,
         isEnabled: n.data.isEnabled,
         // 初始化时即转换为中心点坐标
-        x: n.position.x + (existingD3Node?.width || 220) / 2,
-        y: n.position.y + (existingD3Node?.height || estimatedHeight) / 2,
+        x: n.position.x + finalWidth / 2,
+        y: n.position.y + finalHeight / 2,
         ...(!n.position.x && !n.position.y && { y: depth * levelGap })
       };
     });
@@ -790,9 +831,9 @@ export function useFlowTreeGraph(
       const weight = childrenCount.get(sourceNodeId) || 0;
       // 动态计算连线长度，但在不同模式下使用不同的基础值
       const isPhysics = layoutMode.value === 'physics';
-      const baseDistance = isPhysics ? 180 : 50; // tree 模式基础距离更短
-      const extraDistancePerNode = 80;
-      const maxExtraDistance = 320;
+      const baseDistance = isPhysics ? 180 : 80;
+      const extraDistancePerNode = 30;
+      const maxExtraDistance = 420;
       // 两种模式都应用基于子节点数量的额外距离
       const distance =
         baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
@@ -855,7 +896,7 @@ export function useFlowTreeGraph(
         // [可选]保留一个极弱的X轴中心力，防止整个图左右漂移
         .force("x", d3Force.forceX(0).strength(0.005))
         // ★★★ 添加我们自定义的、真正的重力 ★★★
-        .force("gravity", gravityForce(10)); // 0.2 是一个初始值，可以微调
+        .force("gravity", gravityForce(6)); // 0.2 是一个初始值，可以微调
 
       // 释放非根节点的固定位置
       simulation.nodes().forEach(n => {
@@ -1245,6 +1286,32 @@ export function useFlowTreeGraph(
    * 更新 D3 模拟中节点的尺寸信息
    */
   function updateNodeDimensions(dimensions: Map<string, { width: number; height: number }>) {
+    // 1. 始终更新真实尺寸缓存
+    for (const [id, dim] of dimensions) {
+      measuredDimensions.set(id, dim);
+    }
+
+    // 2. 如果处于等待初始布局状态
+    if (isWaitingForDimensions.value) {
+      // 从等待列表中移除已更新尺寸的节点
+      for (const id of dimensions.keys()) {
+        pendingNodeIds.value.delete(id);
+      }
+
+      // 如果所有节点都已就位（或者只剩很少的几个，避免无限等待），开始布局
+      if (pendingNodeIds.value.size === 0) {
+        logger.info("所有节点尺寸已就位，开始初始布局");
+        isWaitingForDimensions.value = false;
+        if (layoutTimeoutId) {
+          clearTimeout(layoutTimeoutId);
+          layoutTimeoutId = null;
+        }
+        initD3Simulation();
+      }
+      return;
+    }
+
+    // 3. 如果是常规运行时的尺寸变化（例如流式生成导致高度变化）
     if (!simulation) return;
 
     let needsRestart = false;
@@ -1258,7 +1325,7 @@ export function useFlowTreeGraph(
     });
 
     if (needsRestart) {
-      logger.info("节点尺寸变化，重新加热模拟以调整布局");
+      // logger.debug("节点尺寸变化，重新加热模拟以调整布局");
       simulation.alpha(0.3).restart(); // 重新加热并重启模拟
     }
   }

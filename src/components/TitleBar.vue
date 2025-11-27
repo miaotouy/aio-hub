@@ -303,7 +303,7 @@ const goToProfileSettings = () => {
             class="control-btn profile-btn"
             :title="
               userProfileStore.globalProfile
-                ? `用户档案: ${userProfileStore.globalProfile.name}`
+                ? `用户档案: ${userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name}`
                 : '选择用户档案'
             "
           >
@@ -311,7 +311,7 @@ const goToProfileSettings = () => {
             <Avatar
               v-if="userProfileStore.globalProfile"
               :src="userProfileStore.globalProfile.icon || ''"
-              :alt="userProfileStore.globalProfile.name"
+              :alt="userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name"
               :size="20"
               shape="square"
               :radius="4"
@@ -336,13 +336,13 @@ const goToProfileSettings = () => {
                 <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
                 <Avatar
                   :src="profile.icon || ''"
-                  :alt="profile.name"
+                  :alt="profile.displayName || profile.name"
                   :size="20"
                   shape="square"
                   :radius="4"
                   style="margin-right: 8px"
                 />
-                <span>{{ profile.name }}</span>
+                <span>{{ profile.displayName || profile.name }}</span>
               </el-dropdown-item>
               <el-dropdown-item divided @click="goToProfileSettings">
                 <el-icon><Setting /></el-icon>

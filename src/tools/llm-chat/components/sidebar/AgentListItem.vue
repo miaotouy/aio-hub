@@ -44,12 +44,12 @@ const showActions = computed(() => isHovered.value || isMenuOpen.value);
   >
     <Avatar
       :src="avatarSrc || ''"
-      :alt="agent.name"
+      :alt="agent.displayName || agent.name"
       :class="['agent-icon', { selected }]"
     />
     
     <div class="agent-info">
-      <div class="agent-name">{{ agent.name }}</div>
+      <div class="agent-name">{{ agent.displayName || agent.name }}</div>
       <!-- 只在选中时显示详细信息 -->
       <div v-if="selected && agent.description" class="agent-desc">
         {{ agent.description }}

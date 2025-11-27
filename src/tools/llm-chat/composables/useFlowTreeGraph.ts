@@ -496,7 +496,17 @@ export function useFlowTreeGraph(
     const userProfileStore = useUserProfileStore();
 
     if (node.role === "user") {
-      const name = node.metadata?.userProfileName || "你";
+      // 尝试获取最新名称作为回退
+      const userProfileId = node.metadata?.userProfileId;
+      const currentProfile = userProfileId
+        ? userProfileStore.getProfileById(userProfileId)
+        : userProfileStore.globalProfile;
+
+      const name =
+        node.metadata?.userProfileName ||
+        currentProfile?.displayName ||
+        currentProfile?.name ||
+        "你";
 
       let target;
       if (node.metadata?.userProfileIcon && node.metadata?.userProfileId) {
@@ -525,7 +535,14 @@ export function useFlowTreeGraph(
 
       return { icon, name };
     } else if (node.role === "assistant") {
-      const name = node.metadata?.agentName || "助手";
+      const agentId = node.metadata?.agentId;
+      const currentAgent = agentId ? agentStore.getAgentById(agentId) : null;
+
+      const name =
+        node.metadata?.agentName ||
+        currentAgent?.displayName ||
+        currentAgent?.name ||
+        "助手";
 
       let target;
       if (node.metadata?.agentIcon && node.metadata?.agentId) {
@@ -639,7 +656,7 @@ export function useFlowTreeGraph(
           contentPreview,
           isActiveLeaf,
           isEnabled,
-          timestamp: node.timestamp,
+          timestamp: node.timestamp || "",
           role: node.role,
           status: node.status,
           errorMessage: node.metadata?.error,

@@ -25,6 +25,7 @@ const errorHandler = createModuleErrorHandler('llm-chat/agentStore');
  */
 export interface ExportableAgent {
   name: string;
+  displayName?: string;
   description?: string;
   icon?: string;
   modelId: string;
@@ -144,6 +145,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       profileId: string,
       modelId: string,
       options?: {
+        displayName?: string;
         description?: string;
         icon?: string;
         userProfileId?: string | null;
@@ -160,6 +162,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       const agent: ChatAgent = {
         id: agentId,
         name,
+        displayName: options?.displayName,
         description: options?.description,
         icon: options?.icon,
         profileId,
@@ -212,7 +215,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       };
 
       this.agents.push(agent);
-      this.persistAgents();
+      this.persistAgent(agent);
 
       logger.info('创建新智能体', {
         agentId,
@@ -236,7 +239,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       Object.assign(agent, updates);
-      this.persistAgent(agent); // 只保存这一个智能体
+      this.persistAgent(agent);
 
       logger.info('更新智能体', { agentId, updates });
     },
@@ -259,18 +262,20 @@ export const useAgentStore = defineStore('llmChatAgent', {
       // 创建新的唯一 ID 和名称
       const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const newName = `${originalAgent.name} 副本`;
+      const newDisplayName = originalAgent.displayName ? `${originalAgent.displayName} 副本` : undefined;
 
       // 准备新的智能体对象
       const newAgent: ChatAgent = {
         ...newAgentData,
         id: newAgentId,
         name: newName,
+        displayName: newDisplayName,
         createdAt: new Date().toISOString(),
         lastUsedAt: undefined, // 复制出的智能体不应继承使用时间
       };
 
       this.agents.push(newAgent);
-      this.persistAgents(); // 重新持久化所有智能体
+      this.persistAgent(newAgent);
 
       logger.info('智能体已复制', { originalAgentId: agentId, newAgentId, newName });
 
@@ -329,7 +334,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       const agent = this.agents.find(a => a.id === agentId);
       if (agent) {
         agent.lastUsedAt = new Date().toISOString();
-        this.persistAgent(agent); // 只保存这一个智能体
+        this.persistAgent(agent);
       }
     },
 
@@ -599,6 +604,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         for (const agent of agentsToExport) {
           const exportableAgent: ExportableAgent = {
             name: agent.name,
+            displayName: agent.displayName,
             description: agent.description,
             icon: agent.icon, // 可能会被后续逻辑替换
             modelId: agent.modelId,
@@ -788,6 +794,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
             resolvedAgent.finalProfileId,
             resolvedAgent.finalModelId,
             {
+              displayName: resolvedAgent.displayName,
               description: resolvedAgent.description,
               icon: finalIcon,
               userProfileId: resolvedAgent.userProfileId,

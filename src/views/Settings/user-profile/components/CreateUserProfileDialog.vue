@@ -36,7 +36,7 @@ interface Props {
 
 interface Emits {
   (e: 'update:visible', value: boolean): void;
-  (e: 'create', data: { name: string; content: string; icon?: string }): void;
+  (e: 'create', data: { name: string; displayName?: string; content: string; icon?: string }): void;
 }
 
 defineProps<Props>();
@@ -45,6 +45,7 @@ const emit = defineEmits<Emits>();
 // 表单数据
 const form = ref({
   name: '',
+  displayName: '',
   icon: '',
   content: ''
 });
@@ -60,6 +61,7 @@ const handleVisibleChange = (value: boolean) => {
     // 关闭时重置表单
     form.value = {
       name: '',
+      displayName: '',
       icon: '',
       content: ''
     };
@@ -76,6 +78,7 @@ const handleCreate = () => {
 
   emit('create', {
     name: form.value.name.trim(),
+    displayName: form.value.displayName?.trim() || undefined,
     content: form.value.content.trim(),
     icon: form.value.icon?.trim() || undefined
   });

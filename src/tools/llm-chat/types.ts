@@ -521,9 +521,14 @@ export interface UserProfile {
   id: string;
 
   /**
-   * 档案名称
+   * 档案名称（用作唯一标识符的一部分，也是宏替换的 ID）
    */
   name: string;
+
+  /**
+   * 显示名称（UI 显示优先使用，不影响宏替换）
+   */
+  displayName?: string;
 
   /**
    * 档案图标（emoji、图标路径或相对文件名）
@@ -584,9 +589,14 @@ export interface ChatAgent {
   id: string;
 
   /**
-   * 智能体名称
+   * 智能体名称（用作唯一标识符的一部分，也是宏替换的 ID）
    */
   name: string;
+
+  /**
+   * 显示名称（UI 显示优先使用，不影响宏替换）
+   */
+  displayName?: string;
 
   /**
    * 智能体描述（可选）
@@ -697,6 +707,11 @@ export interface AgentPreset {
    * 预设名称（显示在UI上）
    */
   name: string;
+
+  /**
+   * 显示名称（UI 显示优先使用）
+   */
+  displayName?: string;
 
   /**
    * 预设的简短描述

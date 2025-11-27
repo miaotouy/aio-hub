@@ -23,6 +23,7 @@ const AGENTS_SUBDIR = "agents";
 interface AgentIndexItem {
   id: string;
   name: string;
+  displayName?: string;
   description?: string;
   icon?: string;
   profileId: string;
@@ -243,6 +244,7 @@ export function useAgentStorageSeparated() {
     return {
       id: agent.id,
       name: agent.name,
+      displayName: agent.displayName,
       description: agent.description,
       icon: agent.icon,
       profileId: agent.profileId,

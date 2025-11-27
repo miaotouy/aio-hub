@@ -5,14 +5,26 @@
     label-position="left"
     require-asterisk-position="right"
   >
-    <el-form-item label="名称" :required="required">
+    <el-form-item label="ID/名称" :required="required">
       <el-input
         v-model="formData.name"
-        placeholder="例如: 魔法少年"
+        placeholder="例如: user1"
         maxlength="50"
         show-word-limit
         @input="handleInput"
       />
+      <div class="form-hint" v-pre>此名称将作为宏替换的 ID（如 {{user}}），请使用简洁的名称。</div>
+    </el-form-item>
+
+    <el-form-item label="显示名称">
+      <el-input
+        v-model="formData.displayName"
+        placeholder="例如: 魔法少年（可选）"
+        maxlength="50"
+        show-word-limit
+        @input="handleInput"
+      />
+      <div class="form-hint">在界面上显示的名称。如果不填，则显示上面的 ID/名称。</div>
     </el-form-item>
 
     <el-form-item label="头像">
@@ -114,6 +126,7 @@ const MarkdownStyleEditor = defineAsyncComponent(
 interface UserProfileFormData {
   id?: string; // 允许ID传入
   name: string;
+  displayName?: string;
   icon?: string;
   iconMode?: IconMode;
   content: string;

@@ -5,6 +5,8 @@
 
 import type { ChatSession, ChatMessageNode } from "../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useUserProfileStore } from "../userProfileStore";
+import { useAgentStore } from "../agentStore";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("llm-chat/export-manager");
@@ -33,6 +35,8 @@ const isEmoji = (str: string): boolean => {
 
 export function useExportManager() {
   const { getProfileById } = useLlmProfiles();
+  const userProfileStore = useUserProfileStore();
+  const agentStore = useAgentStore();
 
   /**
    * 导出当前会话为 Markdown
@@ -61,7 +65,7 @@ export function useExportManager() {
       if (node.role === "system") return; // 跳过系统根节点
 
       const role = node.role === "user" ? "用户" : "助手";
-      const time = new Date(node.timestamp).toLocaleTimeString("zh-CN");
+      const time = node.timestamp ? new Date(node.timestamp).toLocaleTimeString("zh-CN") : "";
 
       lines.push(`## ${role} (${time})`);
       lines.push("");
@@ -181,14 +185,24 @@ export function useExportManager() {
 
     // 添加消息
     allMessages.forEach((node) => {
-      const time = new Date(node.timestamp).toLocaleTimeString("zh-CN");
+      const time = node.timestamp ? new Date(node.timestamp).toLocaleTimeString("zh-CN") : "";
       const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
 
       if (node.role === "user") {
         // 用户消息
-        const userName = includeUserProfile && node.metadata?.userProfileName
-          ? node.metadata.userProfileName
-          : "用户";
+        let userName = "用户";
+        if (includeUserProfile) {
+          if (node.metadata?.userProfileName) {
+            userName = node.metadata.userProfileName;
+          } else if (node.metadata?.userProfileId) {
+            // 尝试从 Store 获取最新信息作为回退
+            const profile = userProfileStore.getProfileById(node.metadata.userProfileId);
+            if (profile) {
+              userName = profile.displayName || profile.name;
+            }
+          }
+        }
+
         const userIcon = includeUserProfile && node.metadata?.userProfileIcon && isEmoji(node.metadata.userProfileIcon)
           ? node.metadata.userProfileIcon
           : "";
@@ -204,9 +218,19 @@ export function useExportManager() {
         }
       } else if (node.role === "assistant") {
         // 助手消息
-        const agentName = includeAgentInfo && node.metadata?.agentName
-          ? node.metadata.agentName
-          : "助手";
+        let agentName = "助手";
+        if (includeAgentInfo) {
+          if (node.metadata?.agentName) {
+            agentName = node.metadata.agentName;
+          } else if (node.metadata?.agentId) {
+            // 尝试从 Store 获取最新信息作为回退
+            const agent = agentStore.getAgentById(node.metadata.agentId);
+            if (agent) {
+              agentName = agent.displayName || agent.name;
+            }
+          }
+        }
+
         const agentIcon = includeAgentInfo && node.metadata?.agentIcon && isEmoji(node.metadata.agentIcon)
           ? node.metadata.agentIcon
           : "";
@@ -542,7 +566,7 @@ export function useExportManager() {
       const indent = "  ".repeat(depth);
 
       // 格式化时间和状态
-      const time = new Date(node.timestamp).toLocaleTimeString("zh-CN");
+      const time = node.timestamp ? new Date(node.timestamp).toLocaleTimeString("zh-CN") : "";
       const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
 
       // 根据角色确定图标和名称

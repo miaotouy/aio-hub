@@ -37,6 +37,7 @@ const filteredAndSortedAgents = computed(() => {
     agents = agents.filter((agent) => {
       return (
         agent.name.toLowerCase().includes(query) ||
+        (agent.displayName && agent.displayName.toLowerCase().includes(query)) ||
         (agent.description && agent.description.toLowerCase().includes(query)) ||
         (agent.icon && agent.icon.toLowerCase().includes(query))
       );
@@ -51,7 +52,9 @@ const filteredAndSortedAgents = computed(() => {
         const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
         return bTime - aTime;
       case "name":
-        return a.name.localeCompare(b.name, undefined, {
+        const nameA = a.displayName || a.name;
+        const nameB = b.displayName || b.name;
+        return nameA.localeCompare(nameB, undefined, {
           sensitivity: "base",
           numeric: true,
         });
@@ -223,6 +226,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
   editingAgent.value = null;
   editDialogInitialData.value = {
     name: preset.name,
+    displayName: preset.displayName,
     description: preset.description,
     icon: preset.icon,
     profileId: defaultProfile.id,
@@ -280,6 +284,7 @@ const handleEdit = (agent: ChatAgent) => {
 // 保存智能体
 const handleSaveAgent = (data: {
   name: string;
+  displayName?: string;
   description: string;
   icon: string;
   iconMode: "path" | "builtin";
@@ -299,6 +304,7 @@ const handleSaveAgent = (data: {
     // 更新模式
     agentStore.updateAgent(editingAgent.value.id, {
       name: data.name,
+      displayName: data.displayName,
       description: data.description,
       icon: data.icon,
       iconMode: data.iconMode,
@@ -315,6 +321,7 @@ const handleSaveAgent = (data: {
   } else {
     // 创建模式
     const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, {
+      displayName: data.displayName,
       description: data.description,
       icon: data.icon,
       userProfileId: data.userProfileId,

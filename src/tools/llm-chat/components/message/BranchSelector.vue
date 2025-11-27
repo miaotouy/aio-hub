@@ -85,7 +85,10 @@ const siblingsWithDisplayInfo = computed(() => {
       if (sibling.metadata?.userProfileName) {
         displayName = sibling.metadata.userProfileName;
       } else {
-        displayName = userProfileStore.globalProfile?.name || "你";
+        displayName =
+          userProfileStore.globalProfile?.displayName ||
+          userProfileStore.globalProfile?.name ||
+          "你";
       }
 
       // 解析头像
@@ -105,7 +108,8 @@ const siblingsWithDisplayInfo = computed(() => {
       const agentId = sibling.metadata?.agentId;
       const agent = agentId ? agentStore.getAgentById(agentId) : null;
 
-      displayName = sibling.metadata?.agentName || agent?.name || "助手";
+      displayName =
+        sibling.metadata?.agentName || agent?.displayName || agent?.name || "助手";
 
       // 解析头像
       const avatarTarget = computed(() => {

@@ -67,6 +67,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       name: string,
       content: string,
       options?: {
+        displayName?: string;
         icon?: string;
       }
     ): string {
@@ -76,6 +77,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       const profile: UserProfile = {
         id: profileId,
         name,
+        displayName: options?.displayName,
         icon: options?.icon,
         content,
         enabled: true, // 默认启用
@@ -105,7 +107,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
 
       Object.assign(profile, updates);
 
-      this.persistProfile(profileId); // 使用单个档案保存
+      this.persistProfile(profileId);
       logger.info('更新用户档案成功', { profileId, updates });
     },
 
@@ -163,7 +165,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       const profile = this.profiles.find(p => p.id === profileId);
       if (profile) {
         profile.lastUsedAt = new Date().toISOString();
-        this.persistProfile(profileId); // 使用单个档案保存
+        this.persistProfile(profileId);
       }
     },
 
@@ -178,7 +180,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       }
 
       profile.enabled = !profile.enabled;
-      this.persistProfile(profileId); // 使用单个档案保存
+      this.persistProfile(profileId);
 
       logger.info('切换用户档案启用状态', {
         profileId,

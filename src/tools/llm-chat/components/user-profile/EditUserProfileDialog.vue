@@ -43,6 +43,7 @@ interface Emits {
   (e: "save", data: {
     id: string;
     name: string;
+    displayName?: string;
     content: string;
     icon?: string;
     richTextStyleOptions?: RichTextRendererStyleOptions;
@@ -56,6 +57,7 @@ const emit = defineEmits<Emits>();
 // 表单数据
 const form = ref<{
   name: string;
+  displayName: string;
   icon: string;
   content: string;
   createdAt: string;
@@ -64,6 +66,7 @@ const form = ref<{
   richTextStyleBehavior?: "follow_agent" | "custom";
 }>({
   name: "",
+  displayName: "",
   icon: "",
   content: "",
   createdAt: "",
@@ -79,6 +82,7 @@ watch(
     if (profile) {
       form.value = {
         name: profile.name,
+        displayName: profile.displayName || "",
         icon: profile.icon || "",
         content: profile.content,
         createdAt: profile.createdAt,
@@ -116,6 +120,7 @@ const handleSave = () => {
   emit("save", {
     id: props.profile.id,
     name: form.value.name.trim(),
+    displayName: form.value.displayName?.trim() || undefined,
     content: form.value.content.trim(),
     icon: form.value.icon?.trim() || undefined,
     richTextStyleOptions: form.value.richTextStyleOptions,

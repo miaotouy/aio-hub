@@ -94,7 +94,7 @@ const getCategoryLabel = (category: string | 'all') => {
                 :radius="6"
               />
               <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
+                <div class="preset-name">{{ preset.displayName || preset.name }}</div>
                 <el-tooltip :content="preset.description" placement="top" :show-after="500">
                   <div class="preset-desc">{{ preset.description }}</div>
                 </el-tooltip>

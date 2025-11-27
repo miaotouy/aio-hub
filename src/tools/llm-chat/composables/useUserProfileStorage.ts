@@ -25,6 +25,7 @@ const PROFILES_SUBDIR = "user-profiles";
 interface ProfileIndexItem {
   id: string;
   name: string;
+  displayName?: string;
   icon?: string;
   createdAt: string;
   lastUsedAt?: string;
@@ -259,6 +260,7 @@ export function useUserProfileStorage() {
     return {
       id: profile.id,
       name: profile.name,
+      displayName: profile.displayName,
       icon: profile.icon,
       createdAt: profile.createdAt,
       lastUsedAt: profile.lastUsedAt,

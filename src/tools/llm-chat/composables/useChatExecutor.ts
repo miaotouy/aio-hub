@@ -84,7 +84,7 @@ export function useChatExecutor() {
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）
     const userProfileStore = useUserProfileStore();
-    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null =
+    let effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string; content: string } | null =
       null;
 
     const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
@@ -402,7 +402,7 @@ export function useChatExecutor() {
    */
   const saveUserProfileSnapshot = (
     userNode: ChatMessageNode,
-    effectiveUserProfile: { id: string; name: string; icon?: string } | null
+    effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string } | null
   ): void => {
     if (!effectiveUserProfile) {
       return;
@@ -411,7 +411,7 @@ export function useChatExecutor() {
     userNode.metadata = {
       ...userNode.metadata,
       userProfileId: effectiveUserProfile.id,
-      userProfileName: effectiveUserProfile.name,
+      userProfileName: effectiveUserProfile.displayName || effectiveUserProfile.name,
       userProfileIcon: effectiveUserProfile.icon,
     };
 

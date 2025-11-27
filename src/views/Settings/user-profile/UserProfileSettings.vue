@@ -27,7 +27,7 @@
             class="profile-icon"
           />
           <div class="profile-info">
-            <div class="profile-name">{{ profile.name }}</div>
+            <div class="profile-name">{{ profile.displayName || profile.name }}</div>
             <div class="profile-description" v-if="profile.content">
               {{ profile.content.length > 40 ? profile.content.substring(0, 40) + '...' : profile.content }}
             </div>
@@ -114,10 +114,11 @@ const selectedProfileId = ref<string | null>(null);
 
 // 编辑表单
 const editForm = ref<UserProfile>({
-  id: "",
-  name: "",
-  icon: "",
-  content: "",
+id: "",
+name: "",
+displayName: "",
+icon: "",
+content: "",
   createdAt: "",
 });
 
@@ -157,11 +158,14 @@ const handleAddClick = () => {
 };
 
 // 处理创建档案
-const handleCreateProfile = (data: { name: string; content: string; icon?: string }) => {
+const handleCreateProfile = (data: { name: string; displayName?: string; content: string; icon?: string }) => {
   const profileId = userProfileStore.createProfile(
     data.name,
     data.content,
-    data.icon ? { icon: data.icon } : undefined
+    {
+      displayName: data.displayName,
+      icon: data.icon,
+    }
   );
   
   // 选中新创建的档案
@@ -190,12 +194,16 @@ const saveCurrentProfile = () => {
     userProfileStore.createProfile(
       editForm.value.name.trim(),
       editForm.value.content.trim(),
-      editForm.value.icon ? { icon: editForm.value.icon } : undefined
+      {
+        displayName: editForm.value.displayName?.trim() || undefined,
+        icon: editForm.value.icon,
+      }
     );
   } else {
     // 现有档案：更新
     userProfileStore.updateProfile(editForm.value.id, {
       name: editForm.value.name.trim(),
+      displayName: editForm.value.displayName?.trim() || undefined,
       icon: editForm.value.icon?.trim() || undefined,
       content: editForm.value.content.trim(),
     });

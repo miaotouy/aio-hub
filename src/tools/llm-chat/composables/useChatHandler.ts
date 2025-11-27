@@ -113,7 +113,7 @@ export function useChatHandler() {
     }
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）
-    let effectiveUserProfile: { id: string; name: string; icon?: string; content: string } | null =
+    let effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string; content: string } | null =
       null;
     if (currentAgent?.userProfileId) {
       const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
@@ -141,7 +141,7 @@ export function useChatHandler() {
     // 直接修改 session.nodes 中的节点，确保响应式更新
     session.nodes[assistantNode.id].metadata = {
       agentId: agentStore.currentAgentId,
-      agentName: currentAgent?.name,
+      agentName: currentAgent?.displayName || currentAgent?.name,
       agentIcon: currentAgent?.icon,
       agentIconMode: currentAgent?.iconMode,
       profileId: agentConfig.profileId,
@@ -245,7 +245,7 @@ export function useChatHandler() {
     // 直接修改 session.nodes 中的节点，确保响应式更新
     session.nodes[assistantNode.id].metadata = {
       agentId: agentStore.currentAgentId,
-      agentName: currentAgent?.name,
+      agentName: currentAgent?.displayName || currentAgent?.name,
       agentIcon: currentAgent?.icon,
       agentIconMode: currentAgent?.iconMode,
       profileId: agentConfig.profileId,

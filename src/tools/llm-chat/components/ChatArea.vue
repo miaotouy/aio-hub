@@ -253,6 +253,7 @@ const handleSelectModel = async () => {
 
 const handleSaveAgent = async (data: {
   name: string;
+  displayName?: string;
   description: string;
   icon: string;
   iconMode: "path" | "builtin";
@@ -272,6 +273,7 @@ const handleSaveAgent = async (data: {
     logger.info("保存智能体", { agentId: currentAgent.value.id, data });
     const updates = {
       name: data.name,
+      displayName: data.displayName,
       description: data.description,
       icon: data.icon,
       iconMode: data.iconMode,
@@ -567,13 +569,13 @@ onMounted(async () => {
           <el-tooltip content="点击编辑智能体" placement="bottom">
             <Avatar
               :src="agentAvatarSrc || ''"
-              :alt="currentAgent.name"
+              :alt="currentAgent.displayName || currentAgent.name"
               :size="28"
               shape="square"
               :radius="6"
             />
           </el-tooltip>
-          <span class="agent-name">{{ currentAgent.name }}</span>
+          <span class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
         </div>
         <div v-if="currentModel" class="model-info clickable" @click="handleSelectModel">
           <el-tooltip content="点击选择模型" placement="bottom">
@@ -589,11 +591,11 @@ onMounted(async () => {
 
       <!-- 用户档案信息（右对齐） -->
       <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
-        <span class="profile-name">{{ effectiveUserProfile.name }}</span>
+        <span class="profile-name">{{ effectiveUserProfile.displayName || effectiveUserProfile.name }}</span>
         <el-tooltip content="点击编辑用户档案" placement="bottom">
           <Avatar
             :src="userProfileAvatarSrc || ''"
-            :alt="effectiveUserProfile.name"
+            :alt="effectiveUserProfile.displayName || effectiveUserProfile.name"
             :size="28"
             shape="square"
             :radius="4"

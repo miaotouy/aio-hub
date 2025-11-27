@@ -26,6 +26,7 @@ interface Props {
   agent?: ChatAgent | null;
   initialData?: {
     name?: string;
+    displayName?: string;
     description?: string;
     icon?: string;
     profileId?: string;
@@ -39,6 +40,7 @@ interface Emits {
     e: "save",
     data: {
       name: string;
+      displayName?: string;
       description: string;
       icon: string;
       iconMode: IconMode;
@@ -70,6 +72,7 @@ const userProfileStore = useUserProfileStore();
 // 编辑表单
 const editForm = reactive({
   name: "",
+  displayName: "",
   description: "",
   icon: "",
   iconMode: "path" as IconMode,
@@ -107,6 +110,7 @@ const loadFormData = () => {
   if (props.mode === "edit" && props.agent) {
     // 编辑模式：加载现有智能体数据
     editForm.name = props.agent.name;
+    editForm.displayName = props.agent.displayName || "";
     editForm.description = props.agent.description || "";
     editForm.icon = props.agent.icon || "";
     editForm.iconMode = props.agent.iconMode || "path";
@@ -127,6 +131,7 @@ const loadFormData = () => {
   } else if (props.mode === "create" && props.initialData) {
     // 创建模式：使用初始数据
     editForm.name = props.initialData.name || "";
+    editForm.displayName = props.initialData.displayName || "";
     editForm.description = props.initialData.description || "";
     editForm.icon = props.initialData.icon || "";
     editForm.iconMode = "path"; // 创建模式总是 path
@@ -205,6 +210,7 @@ const handleSave = () => {
 
   emit("save", {
     name: editForm.name,
+    displayName: editForm.displayName || undefined,
     description: editForm.description,
     icon: editForm.icon,
     iconMode: editForm.iconMode,
@@ -231,8 +237,14 @@ const handleSave = () => {
   >
     <el-form :model="editForm" label-width="100px" label-position="left">
       <!-- 基本信息 -->
-      <el-form-item label="名称" required>
-        <el-input v-model="editForm.name" placeholder="输入智能体名称" />
+      <el-form-item label="ID/名称" required>
+        <el-input v-model="editForm.name" placeholder="输入智能体名称（用作 ID 和宏替换）" />
+        <div class="form-hint" v-pre>此名称将作为宏替换的 ID（如 {{char}}），请使用简洁的名称。</div>
+      </el-form-item>
+
+      <el-form-item label="显示名称">
+        <el-input v-model="editForm.displayName" placeholder="UI 显示名称（可选）" />
+        <div class="form-hint">在界面上显示的名称。如果不填，则显示上面的 ID/名称。</div>
       </el-form-item>
 
       <el-form-item label="图标">

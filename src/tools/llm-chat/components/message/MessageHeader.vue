@@ -212,7 +212,7 @@ const shouldShowSubtitle = computed(() => {
         </el-tooltip>
       </div>
 
-      <span v-if="settings.uiPreferences.showTimestamp" class="message-time">{{
+      <span v-if="settings.uiPreferences.showTimestamp && message.timestamp" class="message-time">{{
         formatRelativeTime(message.timestamp)
       }}</span>
     </div>

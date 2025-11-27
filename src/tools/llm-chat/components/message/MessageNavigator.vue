@@ -8,6 +8,8 @@ interface Props {
   scrollElement: HTMLElement | null;
   /** 消息总数 */
   messageCount: number;
+  /** 当前可视消息索引 (1-based) */
+  currentIndex?: number;
   /** 是否有新消息（用于显示徽章） */
   hasNewMessages?: boolean;
 }
@@ -56,19 +58,34 @@ watchEffect(() => {
   }
 });
 
-// 当前滚动位置的百分比（0-100），使用响应式值
+// 当前可见的消息索引
+const currentMessageIndex = computed(() => {
+  // 如果外部传入了准确的索引（通常来自虚拟列表），直接使用
+  if (props.currentIndex !== undefined) {
+    return props.currentIndex;
+  }
+  // 降级方案：基于滚动百分比估算
+  if (props.messageCount === 0) return 0;
+  // 这里暂时无法准确估算，只能返回 0 或基于像素的粗略值，但在 MessageList 场景下通常都有 currentIndex
+  return 1;
+});
+
+// 当前滚动位置的百分比（0-100）
+// 改为基于索引计算，以解决虚拟列表高度动态变化导致的进度条抖动和提前触底问题
 const scrollPercentage = computed(() => {
+  if (props.messageCount === 0) return 0;
+  
+  // 如果有准确的当前索引，优先使用索引计算进度
+  // 这样进度条是均匀线性的，不会受长短消息影响
+  if (props.currentIndex !== undefined) {
+    return Math.min(100, Math.round((props.currentIndex / props.messageCount) * 100));
+  }
+
+  // 降级方案：基于像素滚动（仅当没有 currentIndex 时）
   if (!props.scrollElement || scrollHeight.value <= clientHeight.value) return 100;
   const maxScroll = scrollHeight.value - clientHeight.value;
   if (maxScroll <= 0) return 100;
-  // 限制百分比在 0-100 范围内，防止进度条溢出
   return Math.min(100, Math.max(0, Math.round((y.value / maxScroll) * 100)));
-});
-
-// 估算当前可见的消息索引（基于滚动百分比）
-const currentMessageIndex = computed(() => {
-  if (props.messageCount === 0) return 0;
-  return Math.round((scrollPercentage.value / 100) * (props.messageCount - 1)) + 1;
 });
 
 // 是否显示导航器：有消息且不是很少的消息时显示

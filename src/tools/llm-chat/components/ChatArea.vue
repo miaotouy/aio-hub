@@ -646,6 +646,7 @@ onMounted(async () => {
               v-if="settings.uiPreferences.showMessageNavigator"
               :scroll-element="scrollElement"
               :message-count="finalMessages.length"
+              :current-index="messageListRef?.currentVisibleIndex"
               :has-new-messages="hasNewMessages"
               @scroll-to-top="handleScrollToTop"
               @scroll-to-bottom="handleScrollToBottom"

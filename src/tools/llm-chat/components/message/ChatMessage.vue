@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import MessageHeader from "./MessageHeader.vue";
@@ -41,6 +42,23 @@ const isEditing = ref(false);
 const isDisabled = computed(() => props.message.isEnabled === false);
 const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
 
+// ===== 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) =====
+const messageRef = ref<HTMLElement | null>(null);
+const messageHeight = ref(0);
+const BLOCK_SIZE = 2000; // 每个背景块的高度限制在 2000px 以内
+
+useResizeObserver(messageRef, (entries) => {
+  const entry = entries[0];
+  const { height } = entry.contentRect;
+  messageHeight.value = height;
+});
+
+// 计算需要多少个背景块
+const backgroundBlocks = computed(() => {
+  if (messageHeight.value <= 0) return 1;
+  return Math.ceil(messageHeight.value / BLOCK_SIZE);
+});
+
 // 开始编辑
 const startEdit = () => {
   isEditing.value = true;
@@ -81,14 +99,26 @@ defineExpose({
 
 <template>
   <div
+    ref="messageRef"
     :class="[
       'chat-message',
       `message-${message.role}`,
       { 'is-disabled': isDisabled, 'is-preset-display': isPresetDisplay },
     ]"
   >
-    <!-- 背景层：独立出来规避嵌套 backdrop-filter 冲突 -->
-    <div class="message-background"></div>
+    <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
+    <div class="message-background-container">
+      <div
+        v-for="i in backgroundBlocks"
+        :key="i"
+        class="message-background-slice"
+        :style="{
+          top: `${(i - 1) * BLOCK_SIZE}px`,
+          height: i === backgroundBlocks ? 'auto' : `${BLOCK_SIZE}px`,
+          bottom: i === backgroundBlocks ? '0' : 'auto',
+        }"
+      ></div>
+    </div>
 
     <!-- 内容层：提高层级 -->
     <div class="message-inner">
@@ -135,17 +165,27 @@ defineExpose({
   transition: all 0.2s;
 }
 
-/* 背景层样式 */
-.message-background {
+/* 背景层容器 */
+.message-background-container {
   position: absolute;
-  inset: 0; /* 撑满父容器 */
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* 容器本身负责圆角和边框 */
   border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: border-color 0.2s;
+  overflow: hidden; /* 确保切片不溢出圆角 */
+}
+
+/* 背景切片 */
+.message-background-slice {
+  position: absolute;
+  left: 0;
+  right: 0;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
-  transition: all 0.2s;
-  z-index: 0;
-  pointer-events: none; /* 让点击穿透到内容 */
+  /* 移除子元素的边框和圆角，由容器统一管理 */
 }
 
 /* 内容层样式 */
@@ -155,7 +195,7 @@ defineExpose({
 }
 
 /* Hover 效果迁移：hover 父容器，改变背景层的边框 */
-.chat-message:hover .message-background {
+.chat-message:hover .message-background-container {
   border-color: var(--primary-color);
 }
 

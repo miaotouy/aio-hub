@@ -75,6 +75,32 @@ const virtualizer = useVirtualizer({
 // 虚拟项列表
 const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 
+// 计算当前视口中最主要显示的消息索引
+const currentVisibleIndex = computed(() => {
+  const items = virtualItems.value;
+  if (items.length === 0 || !messagesContainer.value) return 0;
+
+  // 如果已经滚动到底部，直接返回总数，确保显示 N/N
+  if (isNearBottom.value) {
+    return props.messages.length;
+  }
+
+  const container = messagesContainer.value;
+  const scrollTop = container.scrollTop;
+  const clientHeight = container.clientHeight;
+  const scrollBottom = scrollTop + clientHeight;
+
+  // 找到视口内最底部的消息
+  // 过滤掉那些起始位置在视口下方的元素（overscan）
+  // 然后取最后一个，即为当前视口中最下面一条可见的消息
+  const visibleItems = items.filter((item) => item.start < scrollBottom);
+  
+  if (visibleItems.length === 0) return 0;
+  
+  const lastVisibleItem = visibleItems[visibleItems.length - 1];
+  return lastVisibleItem.index + 1; // 转换为 1-based 索引
+});
+
 // 总高度
 const totalSize = computed(() => virtualizer.value.getTotalSize());
 
@@ -146,20 +172,43 @@ const scrollToTop = () => {
 
 // 滚动到下一条消息
 const scrollToNext = () => {
-  if (!messagesContainer.value) return;
-  const container = messagesContainer.value;
-  const scrollAmount = Math.min(container.clientHeight * 0.8, 500); // 滚动80%的视口高度或500px
-  container.scrollBy({ top: scrollAmount, behavior: "smooth" });
+  const items = virtualizer.value.getVirtualItems();
+  if (items.length === 0 || !messagesContainer.value) return;
+
+  const scrollTop = messagesContainer.value.scrollTop;
+
+  // 找到第一个真正可见的消息（底部位置大于当前滚动位置）
+  // items 包含 overscan 的元素，所以 items[0] 可能是视口上方的元素
+  const firstVisibleItem = items.find((item) => item.end > scrollTop);
+  
+  // 如果没找到（理论上不可能），就回退到第一个 item
+  const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
+  const nextIndex = currentIndex + 1;
+
+  if (nextIndex < props.messages.length) {
+    // 注意：动态高度的虚拟列表不支持 smooth 滚动，必须使用 auto
+    virtualizer.value.scrollToIndex(nextIndex, { align: "start", behavior: "auto" });
+  }
 };
 
 // 滚动到上一条消息
 const scrollToPrev = () => {
-  if (!messagesContainer.value) return;
-  const container = messagesContainer.value;
-  const scrollAmount = Math.min(container.clientHeight * 0.8, 500);
-  container.scrollBy({ top: -scrollAmount, behavior: "smooth" });
-};
+  const items = virtualizer.value.getVirtualItems();
+  if (items.length === 0 || !messagesContainer.value) return;
 
+  const scrollTop = messagesContainer.value.scrollTop;
+
+  // 找到第一个真正可见的消息
+  const firstVisibleItem = items.find((item) => item.end > scrollTop);
+  
+  const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
+  const prevIndex = currentIndex - 1;
+
+  if (prevIndex >= 0) {
+    // 注意：动态高度的虚拟列表不支持 smooth 滚动，必须使用 auto
+    virtualizer.value.scrollToIndex(prevIndex, { align: "start", behavior: "auto" });
+  }
+};
 // 事件处理函数
 // 注意：将 payload 放在前面，messageId 放在后面，以便在模板中利用 $event 直接传参
 // 从而避免在模板中编写箭头函数，解决 VSCode 隐式 any 报错和 vue-tsc 解析错误
@@ -190,6 +239,7 @@ defineExpose({
   scrollToNext,
   scrollToPrev,
   getScrollElement,
+  currentVisibleIndex,
 });
 </script>
 

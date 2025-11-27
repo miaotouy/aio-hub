@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, onMounted, defineAsyncComponent } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
-import { Plus, Edit, Delete, MoreFilled, Search, Download, Upload, CopyDocument } from "@element-plus/icons-vue";
+import { Plus, MoreFilled, Search, Download, Upload } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode } from "../../types";
-import CreateAgentDialog from "../agent/CreateAgentDialog.vue";
-import EditAgentDialog from "../agent/EditAgentDialog.vue";
 import type { AgentPreset } from "../../types";
-import ExportAgentDialog from "../export/ExportAgentDialog.vue";
-import ImportAgentDialog from "../export/ImportAgentDialog.vue";
-import Avatar from "@/components/common/Avatar.vue";
-import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
+import AgentListItem from "./AgentListItem.vue";
+
+console.log("[AgentsSidebar] Setup started");
+
+const CreateAgentDialog = defineAsyncComponent(() => import("../agent/CreateAgentDialog.vue"));
+const EditAgentDialog = defineAsyncComponent(() => import("../agent/EditAgentDialog.vue"));
+const ExportAgentDialog = defineAsyncComponent(() => import("../export/ExportAgentDialog.vue"));
+const ImportAgentDialog = defineAsyncComponent(() => import("../export/ImportAgentDialog.vue"));
 
 const agentStore = useAgentStore();
 
@@ -25,6 +27,7 @@ const searchQuery = ref("");
 
 // 过滤和排序后的智能体列表
 const filteredAndSortedAgents = computed(() => {
+  const start = performance.now();
   let agents = [...agentStore.agents];
 
   // 搜索过滤
@@ -60,7 +63,13 @@ const filteredAndSortedAgents = computed(() => {
     }
   });
 
+  const end = performance.now();
+  console.log(`[AgentsSidebar] filteredAndSortedAgents calculation took ${(end - start).toFixed(2)}ms for ${agents.length} agents`);
   return agents;
+});
+
+onMounted(() => {
+  console.log("[AgentsSidebar] Mounted");
 });
 
 // 当前选中的智能体ID（从 store 读取）
@@ -279,10 +288,6 @@ const handleSaveAgent = (data: {
   }
 };
 
-const getAvatarSrc = (agent: ChatAgent) => {
-  return useResolvedAvatar(ref(agent), "agent").value;
-};
-
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
   ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？文件将被移入回收站。`, "确认删除", {
@@ -343,53 +348,17 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
         <p class="hint">尝试其他搜索关键词</p>
       </div>
 
-      <div
+      <AgentListItem
         v-for="agent in filteredAndSortedAgents"
         :key="agent.id"
-        :class="['agent-item', { selected: isAgentSelected(agent.id) }]"
-        @click="selectAgent(agent.id)"
-      >
-        <Avatar
-          :src="getAvatarSrc(agent) || ''"
-          :alt="agent.name"
-          :class="['agent-icon', { selected: isAgentSelected(agent.id) }]"
-        />
-        <div class="agent-info">
-          <div class="agent-name">{{ agent.name }}</div>
-          <!-- 只在选中时显示详细信息 -->
-          <template v-if="isAgentSelected(agent.id)">
-            <div v-if="agent.description" class="agent-desc">
-              {{ agent.description }}
-            </div>
-          </template>
-        </div>
-        <!-- 三点菜单 -->
-        <div class="agent-actions" @click.stop>
-          <el-dropdown trigger="click">
-            <el-button text circle :icon="MoreFilled" />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="handleEdit(agent)">
-                  <el-icon><Edit /></el-icon>
-                  编辑
-                </el-dropdown-item>
-                <el-dropdown-item @click="handleDuplicateAgent(agent)">
-                  <el-icon><CopyDocument /></el-icon>
-                  创建副本
-                </el-dropdown-item>
-                <el-dropdown-item @click="handleExportAgents([agent.id], { includeAssets: true })">
-                  <el-icon><Download /></el-icon>
-                  导出此智能体
-                </el-dropdown-item>
-                <el-dropdown-item @click="handleDelete(agent)" divided>
-                  <el-icon><Delete /></el-icon>
-                  删除
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </div>
+        :agent="agent"
+        :selected="isAgentSelected(agent.id)"
+        @select="selectAgent"
+        @edit="handleEdit"
+        @duplicate="handleDuplicateAgent"
+        @export="(a) => handleExportAgents([a.id], { includeAssets: true })"
+        @delete="handleDelete"
+      />
     </div>
 
     <!-- 底部常驻添加按钮 -->
@@ -417,6 +386,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
 
     <!-- 创建智能体选择对话框 -->
     <CreateAgentDialog
+      v-if="createDialogVisible"
       v-model:visible="createDialogVisible"
       @create-from-preset="handleCreateFromPreset"
       @create-from-blank="handleCreateFromBlank"
@@ -424,6 +394,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
 
     <!-- 智能体编辑对话框 -->
     <EditAgentDialog
+      v-if="editDialogVisible"
       v-model:visible="editDialogVisible"
       :mode="editDialogMode"
       :agent="editingAgent"
@@ -432,10 +403,11 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
     />
 
     <!-- 导出对话框 -->
-    <ExportAgentDialog v-model:visible="exportDialogVisible" @export="handleExportAgents" />
+    <ExportAgentDialog v-if="exportDialogVisible" v-model:visible="exportDialogVisible" @export="handleExportAgents" />
 
     <!-- 导入对话框 -->
     <ImportAgentDialog
+      v-if="importDialogVisible"
       v-model:visible="importDialogVisible"
       :preflight-result="importPreflightResult"
       :loading="importLoading"
@@ -502,92 +474,6 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
   font-size: 12px;
   margin-top: 8px;
   opacity: 0.7;
-}
-
-.agent-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background-color: var(--container-bg);
-  border-left: 3px solid transparent;
-  backdrop-filter: blur(var(--ui-blur));
-}
-
-.agent-item:hover {
-  background-color: var(--hover-bg);
-}
-
-.agent-item.selected {
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  border-left-color: var(--primary-color);
-}
-
-.agent-item:hover .agent-actions {
-  opacity: 1;
-}
-
-.agent-actions {
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.agent-item.selected .agent-actions {
-  opacity: 1;
-}
-
-.agent-actions .el-button {
-  width: 28px;
-  height: 28px;
-  font-size: 16px;
-}
-
-.agent-icon {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  border-radius: 6px;
-  transition: all 0.2s;
-  font-size: 24px;
-}
-
-.agent-icon.selected {
-  width: 48px;
-  height: 48px;
-  font-size: 32px;
-  border-radius: 8px;
-}
-
-.agent-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.agent-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-color);
-  margin-bottom: 4px;
-}
-
-.agent-desc {
-  font-size: 11px;
-  color: var(--text-color-light);
-  margin-top: 4px;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* 滚动条样式 */

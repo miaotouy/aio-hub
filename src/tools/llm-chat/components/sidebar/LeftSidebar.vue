@@ -2,7 +2,9 @@
 import { defineAsyncComponent, h } from "vue";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { ElSkeleton } from "element-plus";
+import { createModuleLogger } from "@/utils/logger";
 
+const logger = createModuleLogger("llm-chat/sidebar");
 const { leftSidebarActiveTab: activeTab } = useLlmChatUiState();
 
 // 简单的加载占位组件
@@ -16,13 +18,25 @@ const SidebarLoading = {
 
 // 异步加载侧边栏组件
 const AgentsSidebar = defineAsyncComponent({
-  loader: () => import("./AgentsSidebar.vue"),
+  loader: () => {
+    logger.info("开始加载 AgentsSidebar", { tag: "agent" });
+    return import("./AgentsSidebar.vue").then((comp) => {
+      logger.info("AgentsSidebar 加载完成", { tag: "agent" });
+      return comp;
+    });
+  },
   loadingComponent: SidebarLoading,
   delay: 0, // 立即显示 loading
 });
 
 const ParametersSidebar = defineAsyncComponent({
-  loader: () => import("./ParametersSidebar.vue"),
+  loader: () => {
+    logger.info("开始加载 ParametersSidebar", { tag: "agent" });
+    return import("./ParametersSidebar.vue").then((comp) => {
+      logger.info("ParametersSidebar 加载完成", { tag: "agent" });
+      return comp;
+    });
+  },
   loadingComponent: SidebarLoading,
   delay: 0,
 });

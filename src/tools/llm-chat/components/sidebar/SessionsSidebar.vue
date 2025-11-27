@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useVirtualList } from "@vueuse/core";
 import { useAgentStore } from "../../agentStore";
 import type { ChatSession } from "../../types";
 import {
@@ -162,6 +163,12 @@ const filteredSessions = computed(() => {
   return sessions;
 });
 
+// 虚拟滚动列表
+const { list, containerProps, wrapperProps } = useVirtualList(filteredSessions, {
+  // 67px item height + 4px margin
+  itemHeight: 71,
+});
+
 // 检查是否有活动的筛选
 const hasActiveFilters = computed(() => {
   return (
@@ -307,7 +314,7 @@ const handleSessionClick = (session: ChatSession) => {
       agentStore.selectAgent(session.displayAgentId);
     }
   }
-  
+
   emit("switch", session.id);
 };
 </script>
@@ -404,7 +411,7 @@ const handleSessionClick = (session: ChatSession) => {
       </div>
       <div class="session-count">{{ filteredSessions.length }} / {{ sessions.length }} 个会话</div>
     </div>
-    <div class="sessions-list">
+    <div class="sessions-list" v-bind="filteredSessions.length > 0 ? containerProps : {}">
       <div v-if="sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
         <p class="hint">点击上方 "+" 按钮创建新会话</p>
@@ -414,57 +421,68 @@ const handleSessionClick = (session: ChatSession) => {
         <p>未找到匹配的会话</p>
       </div>
 
-      <div
-        v-for="session in filteredSessions"
-        :key="session.id"
-        :class="['session-item', { active: session.id === currentSessionId }]"
-        @click="handleSessionClick(session)"
-      >
-        <div class="session-content">
-          <div class="session-title">
-            <el-tooltip
-              v-if="getSessionDisplayAgent(session)"
-              :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`"
-              placement="top"
-              :show-after="500"
-            >
-              <Avatar
-                :src="getSessionDisplayAgent(session)?.icon || ''"
-                :alt="getSessionDisplayAgent(session)?.name"
-                :size="20"
-                shape="square"
-                :radius="4"
-              />
-            </el-tooltip>
-            <span :class="['title-text', { generating: isGenerating(session.id) }]">
-              {{ session.name }}
-            </span>
-          </div>
-          <div class="session-info">
-            <span class="message-count">{{ getMessageCount(session) }} 条</span>
-            <span class="session-time">{{ formatRelativeTime(session.updatedAt) }}</span>
-            <el-dropdown
-              @command="handleMenuCommand($event, session)"
-              trigger="click"
-              @click.stop
-              class="menu-dropdown"
-            >
-              <el-button :icon="MoreFilled" size="small" text class="btn-menu" title="更多操作" @click.stop/>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    command="generate-name"
-                    :icon="MagicStick"
-                    :disabled="isGenerating(session.id)"
-                  >
-                    {{ isGenerating(session.id) ? "生成中..." : "生成标题" }}
-                  </el-dropdown-item>
-                  <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
-                  <el-dropdown-item command="export" :icon="Operation"> 导出会话 </el-dropdown-item>
-                  <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+      <div v-else v-bind="wrapperProps">
+        <div
+          v-for="{ data: session } in list"
+          :key="session.id"
+          :class="['session-item', { active: session.id === currentSessionId }]"
+          @click="handleSessionClick(session)"
+        >
+          <div class="session-content">
+            <div class="session-title">
+              <el-tooltip
+                v-if="getSessionDisplayAgent(session)"
+                :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`"
+                placement="top"
+                :show-after="500"
+              >
+                <Avatar
+                  :src="getSessionDisplayAgent(session)?.icon || ''"
+                  :alt="getSessionDisplayAgent(session)?.name"
+                  :size="20"
+                  shape="square"
+                  :radius="4"
+                />
+              </el-tooltip>
+              <span :class="['title-text', { generating: isGenerating(session.id) }]">
+                {{ session.name }}
+              </span>
+            </div>
+            <div class="session-info">
+              <span class="message-count">{{ getMessageCount(session) }} 条</span>
+              <span class="session-time">{{ formatRelativeTime(session.updatedAt) }}</span>
+              <el-dropdown
+                @command="handleMenuCommand($event, session)"
+                trigger="click"
+                @click.stop
+                class="menu-dropdown"
+              >
+                <el-button
+                  :icon="MoreFilled"
+                  size="small"
+                  text
+                  class="btn-menu"
+                  title="更多操作"
+                  @click.stop
+                />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      command="generate-name"
+                      :icon="MagicStick"
+                      :disabled="isGenerating(session.id)"
+                    >
+                      {{ isGenerating(session.id) ? "生成中..." : "生成标题" }}
+                    </el-dropdown-item>
+                    <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
+                    <el-dropdown-item command="export" :icon="Operation">
+                      导出会话
+                    </el-dropdown-item>
+                    <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </div>
         </div>
       </div>
@@ -487,10 +505,7 @@ const handleSessionClick = (session: ChatSession) => {
     </el-dialog>
 
     <!-- 导出会话对话框 -->
-    <ExportSessionDialog
-      v-model:visible="exportSessionDialogVisible"
-      :session="sessionToExport"
-    />
+    <ExportSessionDialog v-model:visible="exportSessionDialogVisible" :session="sessionToExport" />
   </div>
 </template>
 
@@ -553,6 +568,8 @@ const handleSessionClick = (session: ChatSession) => {
   gap: 8px;
   padding: 12px;
   margin-bottom: 4px;
+  height: 67px; /* 固定高度以配合虚拟滚动 (71px - 4px margin) */
+  box-sizing: border-box;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;

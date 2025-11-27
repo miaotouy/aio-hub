@@ -327,7 +327,10 @@ const handleSave = () => {
       <el-collapse v-model="activeCollapseNames">
         <el-collapse-item title="思考块规则配置" name="thinkRules">
           <div class="form-hint" style="margin-bottom: 12px">
-            配置 LLM 输出中的思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
+            <p>
+              配置 LLM 输出中的自定义思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
+            </p>
+            <p>注意：这个规则需要和预设消息内容搭配使用。</p>
           </div>
           <LlmThinkRulesEditor v-if="thinkRulesLoaded" v-model="editForm.llmThinkRules" />
         </el-collapse-item>

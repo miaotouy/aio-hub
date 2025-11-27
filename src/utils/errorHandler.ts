@@ -145,21 +145,25 @@ class GlobalErrorHandler {
    */
   private logError(error: StandardError): void {
     const logData = {
+      module: error.module,
       code: error.code,
       context: error.context,
       timestamp: error.timestamp,
     };
 
+    // 在消息前加上模块名，方便快速识别
+    const messageWithModule = `[${error.module}] ${error.message}`;
+
     switch (error.level) {
       case ErrorLevel.INFO:
-        logger.info(error.message, logData);
+        logger.info(messageWithModule, logData);
         break;
       case ErrorLevel.WARNING:
-        logger.warn(error.message, logData);
+        logger.warn(messageWithModule, logData);
         break;
       case ErrorLevel.ERROR:
       case ErrorLevel.CRITICAL:
-        logger.error(error.message, error.originalError, logData);
+        logger.error(messageWithModule, error.originalError, logData);
         break;
     }
   }

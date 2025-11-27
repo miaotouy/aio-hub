@@ -165,18 +165,20 @@ import { debounce } from "lodash-es";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import { type DirectoryTreeConfig } from "./config";
-import { serviceRegistry } from "@/services";
-import type DirectoryTreeService from "./directoryTree.registry";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
+import {
+  generateTree as generateTreeAction,
+  selectDirectory as selectDirectoryAction,
+  exportToFile as exportToFileAction,
+  loadConfig,
+  saveConfig,
+} from "./actions";
 
 // 创建模块日志器
 const logger = createModuleLogger("tools/directory-tree");
 const errorHandler = createModuleErrorHandler("tools/directory-tree");
-
-// 获取服务实例
-const treeService = serviceRegistry.getService<DirectoryTreeService>("directory-tree");
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
@@ -227,7 +229,7 @@ const handlePathDrop = (paths: string[]) => {
 // 加载配置
 onMounted(async () => {
   try {
-    const config = await treeService.loadConfig();
+    const config = await loadConfig();
     customPattern.value = config.customPatterns;
     filterMode.value = config.lastFilterMode;
     targetPath.value = config.lastTargetPath;
@@ -263,7 +265,7 @@ const debouncedSaveConfig = debounce(async () => {
       includeMetadata: includeMetadata.value,
       version: "1.0.0",
     };
-    await treeService.saveConfig(config);
+    await saveConfig(config);
   } catch (error) {
     errorHandler.error(error, "保存配置失败", {
       context: {
@@ -302,7 +304,7 @@ watch(
 // 选择目录
 const selectDirectory = async () => {
   try {
-    const selected = await treeService.selectDirectory("选择要分析的目录");
+    const selected = await selectDirectoryAction("选择要分析的目录");
     if (selected) {
       targetPath.value = selected;
     }
@@ -320,7 +322,7 @@ const generateTree = async () => {
 
   isGenerating.value = true;
   try {
-    const result = await treeService.generateTree({
+    const result = await generateTreeAction({
       path: targetPath.value,
       showFiles: showFiles.value,
       showHidden: showHidden.value,
@@ -357,7 +359,7 @@ const copyToClipboard = async () => {
 // 导出为文件
 const exportToFile = async () => {
   try {
-    await treeService.exportToFile(treeResult.value, targetPath.value);
+    await exportToFileAction(treeResult.value, targetPath.value);
     customMessage.success("文件保存成功");
   } catch (error) {
     errorHandler.error(error, "保存文件失败");

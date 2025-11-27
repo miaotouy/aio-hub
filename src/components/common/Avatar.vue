@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { acquireBlobUrl, releaseBlobUrl } from "@/utils/avatarImageCache";
+import { useIntersectionObserver } from "@vueuse/core";
 
 interface Props {
   /** 头像源：可以是图片 URL、appdata:// 路径、emoji 或其他字符 */
@@ -17,6 +18,10 @@ interface Props {
   backgroundColor?: string;
   /** 边框样式（可选） */
   border?: boolean;
+  /** 是否启用懒加载（仅针对 appdata:// 和本地路径） */
+  lazy?: boolean;
+  /** 懒加载触发距离 */
+  rootMargin?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -26,7 +31,29 @@ const props = withDefaults(defineProps<Props>(), {
   alt: "",
   backgroundColor: "",
   border: true,
+  lazy: true,
+  rootMargin: "100px",
 });
+
+const containerRef = ref<HTMLElement | null>(null);
+const shouldLoad = ref(false);
+
+// 如果启用了懒加载，使用 IntersectionObserver
+if (props.lazy) {
+  useIntersectionObserver(
+    containerRef,
+    ([{ isIntersecting }]) => {
+      if (isIntersecting) {
+        shouldLoad.value = true;
+      }
+    },
+    {
+      rootMargin: props.rootMargin,
+    }
+  );
+} else {
+  shouldLoad.value = true;
+}
 
 const imageLoadFailed = ref(false);
 const processedSrc = ref("");
@@ -82,7 +109,15 @@ const processSrc = async () => {
     /^[A-Za-z]:[\/\\]/.test(sanitizedSrc.value) || // Windows 绝对路径
     sanitizedSrc.value.startsWith("\\\\") // UNC 路径
   ) {
+    // 如果启用了懒加载且尚未进入视口，则暂停加载
+    if (props.lazy && !shouldLoad.value) {
+      return;
+    }
+
     const blobUrl = await acquireBlobUrl(sanitizedSrc.value);
+    // 再次检查 src 是否在等待期间发生了变化（虽然 watch 会处理，但为了安全）
+    if (sanitizedSrc.value !== _currentProcessingSrc) return;
+
     if (blobUrl) {
       processedSrc.value = blobUrl;
       managedSrc.value = sanitizedSrc.value; // 标记为已管理
@@ -100,10 +135,13 @@ const processSrc = async () => {
   isSrcReady.value = true;
 };
 
+let _currentProcessingSrc = "";
+
 // 监听器现在会处理旧值的清理
 watch(
   sanitizedSrc,
   (_newSrc, oldSrc) => {
+    _currentProcessingSrc = _newSrc;
     // 如果旧的 src 是我们管理的 appdata:// 或本地路径，则释放它
     if (
       oldSrc &&
@@ -117,6 +155,14 @@ watch(
   },
   { immediate: true }
 );
+
+// 监听 shouldLoad 变化，触发加载
+watch(shouldLoad, (val) => {
+  if (val) {
+    _currentProcessingSrc = sanitizedSrc.value;
+    processSrc();
+  }
+});
 
 // onBeforeUnmount 进行最终清理
 onBeforeUnmount(() => {
@@ -187,7 +233,7 @@ const handleImageError = (event: Event) => {
 </script>
 
 <template>
-  <div class="avatar-container" :style="containerStyle">
+  <div class="avatar-container" :style="containerStyle" ref="containerRef">
     <!-- 图片模式 -->
     <img
       v-if="isImagePath && !imageLoadFailed && isSrcReady && processedSrc"

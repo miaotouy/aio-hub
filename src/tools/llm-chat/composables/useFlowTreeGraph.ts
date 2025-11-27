@@ -992,6 +992,15 @@ export function useFlowTreeGraph(
       simulation.alpha(0.3).restart();
     }
 
+    // 关键修正：确保 nodes.value 中的引用是最新的
+    // Vue Flow 在拖拽时可能会产生新的节点对象实例，导致 nodes.value 中的旧对象失效
+    // 如果 tick 函数操作的是旧对象，视图就不会更新，导致"脱钩"
+    const localNodeIndex = nodes.value.findIndex(n => n.id === nodeId);
+    if (localNodeIndex !== -1 && nodes.value[localNodeIndex] !== node) {
+      // 更新引用，确保 tick 能控制到真正的视图节点
+      nodes.value[localNodeIndex] = node;
+    }
+
     // 如果正在拖拽子树
     if (subtreeDragState.isDragging && subtreeDragState.rootNodeId && dragPositionState.lastPosition) {
       // 手动计算位移增量
@@ -1078,11 +1087,16 @@ export function useFlowTreeGraph(
       logger.info("子树拖拽结束");
     } else {
       // 单个节点拖拽结束
-      // 在 physics 模式下，拖拽结束后节点应该弹回，所以需要解除固定
-      // 根节点也应该遵循这个规则，以允许其被拖动
-      if (shouldRebound) {
-        const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
-        if (d3Node) {
+      const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
+      if (d3Node) {
+        // 关键修正：松手瞬间，强制将 D3 节点的物理坐标(x,y)同步到 Vue Flow 的视觉位置
+        // 否则 D3 节点可能还在"追赶"鼠标的路上，导致松手后位置突变或脱节
+        d3Node.x = event.node.position.x + d3Node.width / 2;
+        d3Node.y = event.node.position.y + d3Node.height / 2;
+
+        // 在 physics 模式下，拖拽结束后节点应该弹回，所以需要解除固定
+        // 根节点也应该遵循这个规则，以允许其被拖动
+        if (shouldRebound) {
           d3Node.fx = null;
           d3Node.fy = null;
         }

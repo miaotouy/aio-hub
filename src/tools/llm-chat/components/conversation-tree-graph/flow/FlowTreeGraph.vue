@@ -49,6 +49,28 @@
       </template>
     </VueFlow>
 
+    <!-- 状态信息面板 (HUD) -->
+    <div class="graph-hud-panel">
+      <div class="hud-item">
+        <span class="hud-label">FPS</span>
+        <span class="hud-value" :class="{ 'low-fps': graphStats.fps < 30 }">{{
+          graphStats.fps
+        }}</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">NODES</span>
+        <span class="hud-value">{{ nodes.length }}</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">MODE</span>
+        <span class="hud-value">{{ layoutMode === "tree" ? "TREE" : "PHYSICS" }}</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">ZOOM</span>
+        <span class="hud-value">{{ graphStats.zoom.toFixed(2) }}x</span>
+      </div>
+    </div>
+
     <!-- 控制按钮组 -->
     <div class="control-buttons">
       <el-button-group style="border-radius: 8px">
@@ -284,7 +306,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed, reactive } from "vue";
 import { storeToRefs } from "pinia";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
@@ -399,7 +421,7 @@ const { undo, redo, jumpToHistory } = llmChatStore;
 // 格式化快捷键显示文本
 const formatShortcutDisplay = (shortcut: string): string => {
   if (shortcut === "none") return "";
-  
+
   const parts = shortcut.split("+");
   return parts
     .map((part) => {
@@ -632,6 +654,45 @@ onMounted(() => {
 
 // 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
 const { getNodes, getViewport } = useVueFlow();
+
+// 状态监控 (FPS & Zoom)
+const graphStats = reactive({
+  fps: 60,
+  zoom: 1,
+});
+
+let frameCount = 0;
+let lastTime = performance.now();
+let animationFrameId: number | null = null;
+
+const updateStats = () => {
+  const now = performance.now();
+  frameCount++;
+
+  if (now - lastTime >= 1000) {
+    graphStats.fps = Math.round((frameCount * 1000) / (now - lastTime));
+    frameCount = 0;
+    lastTime = now;
+  }
+
+  // 实时更新 Zoom (虽然有 onViewportChange，但在 RAF 中读取可以减少响应式开销)
+  const vp = getViewport();
+  if (Math.abs(graphStats.zoom - vp.zoom) > 0.01) {
+    graphStats.zoom = vp.zoom;
+  }
+
+  animationFrameId = requestAnimationFrame(updateStats);
+};
+
+onMounted(() => {
+  updateStats();
+});
+
+onUnmounted(() => {
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+  }
+});
 
 // 监听节点尺寸变化并同步到 D3
 const dimensionsWatchStop = watch(
@@ -876,6 +937,51 @@ onUnmounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* HUD 面板样式 */
+.graph-hud-panel {
+  position: absolute;
+  top: 86px;
+  left: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: 6px;
+  border-left: 1px solid rgba(var(--el-color-primary-rgb), 0.6);
+  pointer-events: none; /* 允许点击穿透 */
+  user-select: none;
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s ease;
+}
+
+.hud-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  line-height: 1.4;
+}
+
+.hud-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: bold;
+}
+
+.hud-value {
+  font-weight: 500;
+  min-width: 40px;
+  text-align: right;
+}
+
+.hud-value.low-fps {
+  color: var(--el-color-danger);
+}
+
 .history-panel-container {
   width: 380px;
   z-index: 2000;
@@ -980,5 +1086,9 @@ onUnmounted(() => {
   font-size: 10px;
   font-weight: bold;
   text-anchor: end;
+}
+
+.el-button{
+    backdrop-filter: none;
 }
 </style>

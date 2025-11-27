@@ -25,9 +25,9 @@ export function useDetachedChatArea() {
   logger.info('useDetachedChatArea 已初始化 (简化版)');
 
   // 1. 操作代理
-  const sendMessage = (content: string) => {
-    logger.info('代理发送消息操作', { content });
-    return bus.requestAction('send-message', { content });
+  const sendMessage = (content: string, attachments?: any[]) => {
+    logger.info('代理发送消息操作', { content, attachmentCount: attachments?.length });
+    return bus.requestAction('send-message', { content, attachments });
   };
 
   const abortSending = () => {
@@ -35,9 +35,9 @@ export function useDetachedChatArea() {
     return bus.requestAction('abort-sending', {});
   };
 
-  const regenerateLastMessage = (messageId: string) => {
-    logger.info('代理重新生成操作', { messageId });
-    return bus.requestAction('regenerate-from-node', { messageId });
+  const regenerateLastMessage = (messageId: string, options?: { modelId?: string; profileId?: string }) => {
+    logger.info('代理重新生成操作', { messageId, options });
+    return bus.requestAction('regenerate-from-node', { messageId, options });
   };
 
   const deleteMessage = (messageId: string) => {
@@ -55,9 +55,9 @@ export function useDetachedChatArea() {
     return bus.requestAction('toggle-enabled', { nodeId });
   };
 
-  const editMessage = (nodeId: string, newContent: string) => {
-    logger.info('代理编辑消息操作', { nodeId, contentLength: newContent.length });
-    return bus.requestAction('edit-message', { nodeId, newContent });
+  const editMessage = (nodeId: string, newContent: string, attachments?: any[]) => {
+    logger.info('代理编辑消息操作', { nodeId, contentLength: newContent.length, attachmentCount: attachments?.length });
+    return bus.requestAction('edit-message', { nodeId, newContent, attachments });
   };
 
   const createBranch = (nodeId: string) => {
@@ -68,6 +68,11 @@ export function useDetachedChatArea() {
   const abortNode = (nodeId: string) => {
     logger.info('代理中止节点生成操作', { nodeId });
     return bus.requestAction('abort-node', { nodeId });
+  };
+
+  const analyzeContext = (nodeId: string) => {
+    logger.info('代理上下文分析操作', { nodeId });
+    return bus.requestAction('analyze-context', { nodeId });
   };
 
   // 4. 导出的计算属性和操作（现在可以直接从 Store 获取）
@@ -101,5 +106,6 @@ export function useDetachedChatArea() {
     editMessage,
     createBranch,
     abortNode,
+    analyzeContext,
   };
 }

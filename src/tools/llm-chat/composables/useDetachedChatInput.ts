@@ -45,9 +45,9 @@ export function useDetachedChatInput() {
   });
 
   // 4. 操作代理
-  const handleSendMessage = (content: string) => {
-    logger.info('代理发送消息操作', { content });
-    bus.requestAction('send-message', { content });
+  const handleSendMessage = (content: string, attachments?: any[]) => {
+    logger.info('代理发送消息操作', { content, attachmentCount: attachments?.length });
+    bus.requestAction('send-message', { content, attachments });
   };
 
   const handleAbort = () => {

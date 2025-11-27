@@ -43,6 +43,7 @@ function useDetachedChatAreaAdapter(): { props: Ref<any>; listeners: Record<stri
       'edit-message': chatArea.editMessage,
       'abort-node': chatArea.abortNode,
       'create-branch': chatArea.createBranch,
+      'analyze-context': chatArea.analyzeContext,
     },
   };
 }

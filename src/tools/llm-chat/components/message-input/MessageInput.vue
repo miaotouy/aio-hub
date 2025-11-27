@@ -12,6 +12,7 @@ import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useChatHandler } from "@/tools/llm-chat/composables/useChatHandler";
 import { useMessageBuilder } from "@/tools/llm-chat/composables/useMessageBuilder";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
@@ -26,6 +27,7 @@ import type { MacroDefinition } from "../../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
 const errorHandler = createModuleErrorHandler("MessageInput"); // <-- 插入
+const bus = useWindowSyncBus();
 
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
@@ -149,7 +151,11 @@ const handleSend = () => {
   const attachments =
     inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
 
-  emit("send", content, attachments);
+  if (props.isDetached) {
+    bus.requestAction("send-message", { content, attachments });
+  } else {
+    emit("send", content, attachments);
+  }
 
   // 清空输入框和附件（使用全局管理器）
   inputManager.clear();
@@ -163,6 +169,11 @@ const handleSend = () => {
 
 // 处理中止
 const handleAbort = () => {
+  if (props.isDetached) {
+    bus.requestAction("abort-sending", {});
+    return;
+  }
+
   const session = chatStore.currentSession;
   if (session && session.activeLeafId && isCurrentBranchGenerating.value) {
     chatStore.abortNodeGeneration(session.activeLeafId);

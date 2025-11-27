@@ -17,13 +17,13 @@
       @node-context-menu="handleNodeContextMenu"
     >
       <!-- 背景网格 -->
-      <Background pattern-color="#aaa" :gap="16" />
+      <Background v-if="viewSettings.showBackground" pattern-color="#aaa" :gap="16" />
 
       <!-- 小地图 -->
-      <MiniMap />
+      <MiniMap v-if="viewSettings.showMiniMap" />
 
       <!-- 控制器 -->
-      <Controls />
+      <Controls v-if="viewSettings.showControls" />
 
       <!-- 自定义节点 -->
       <template #node-custom="{ data, id }">
@@ -50,7 +50,7 @@
     </VueFlow>
 
     <!-- 状态信息面板 (HUD) -->
-    <div class="graph-hud-panel">
+    <div v-if="viewSettings.showHud" class="graph-hud-panel">
       <div class="hud-item">
         <span class="hud-label">FPS</span>
         <span class="hud-value" :class="{ 'low-fps': graphStats.fps < 30 }">{{
@@ -105,6 +105,11 @@
               :type="historyPanelState.visible ? 'primary' : 'default'"
               @click="toggleHistoryPanel"
             />
+          </el-tooltip>
+
+          <!-- 视图设置按钮 -->
+          <el-tooltip content="视图设置" placement="bottom">
+            <el-button ref="viewSettingsBtnRef" :icon="Operation" />
           </el-tooltip>
 
           <!-- 使用说明按钮 -->
@@ -300,6 +305,30 @@
       @close="closeDetailPopup"
     />
 
+    <!-- 视图设置弹窗 -->
+    <el-popover
+      :virtual-ref="viewSettingsBtnRef"
+      virtual-triggering
+      trigger="click"
+      placement="bottom"
+      :width="200"
+    >
+      <div class="view-settings-list">
+        <div class="view-setting-item">
+          <el-checkbox v-model="viewSettings.showBackground" label="显示背景网格" />
+        </div>
+        <div class="view-setting-item">
+          <el-checkbox v-model="viewSettings.showMiniMap" label="显示小地图" />
+        </div>
+        <div class="view-setting-item">
+          <el-checkbox v-model="viewSettings.showControls" label="显示控制器" />
+        </div>
+        <div class="view-setting-item">
+          <el-checkbox v-model="viewSettings.showHud" label="显示信息面板" />
+        </div>
+      </div>
+    </el-popover>
+
     <!-- 历史记录悬浮窗 -->
     <div
       v-if="historyPanelState.visible"
@@ -340,6 +369,7 @@ import {
   Timer,
   DArrowLeft,
   DArrowRight,
+  Operation,
 } from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
@@ -370,6 +400,15 @@ interface Props {
 const props = defineProps<Props>();
 
 const wrapperRef = ref<HTMLDivElement | null>(null);
+const viewSettingsBtnRef = ref();
+
+// 视图设置状态 (持久化)
+const viewSettings = useStorage("llm-chat-flow-graph-view-settings", {
+  showBackground: true,
+  showMiniMap: true,
+  showControls: true,
+  showHud: true,
+});
 
 // 使用说明弹窗状态
 const isUsageGuideVisible = ref(false);
@@ -1111,5 +1150,21 @@ onUnmounted(() => {
 
 .el-button {
   backdrop-filter: none;
+}
+
+.view-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.view-setting-item {
+  display: flex;
+  align-items: center;
+}
+
+.view-setting-item :deep(.el-checkbox) {
+  margin-right: 0;
+  width: 100%;
 }
 </style>

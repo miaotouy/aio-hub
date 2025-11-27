@@ -1,7 +1,45 @@
 <template>
   <div class="markdown-style-editor">
-    <!-- 顶部导航栏 -->
-    <div class="editor-nav">
+    <!-- 骨架屏加载状态 -->
+    <template v-if="loading">
+      <div class="editor-nav">
+        <div class="nav-tabs">
+          <el-skeleton animated class="nav-skeleton">
+            <template #template>
+              <div style="display: flex; gap: 20px; align-items: center; height: 100%">
+                <el-skeleton-item variant="text" style="width: 60px" />
+                <el-skeleton-item variant="text" style="width: 60px" />
+                <el-skeleton-item variant="text" style="width: 60px" />
+                <el-skeleton-item variant="text" style="width: 60px" />
+              </div>
+            </template>
+          </el-skeleton>
+        </div>
+      </div>
+      <div class="editor-content" style="padding: 24px; overflow: hidden">
+        <el-skeleton animated>
+          <template #template>
+            <div style="margin-bottom: 40px">
+              <el-skeleton-item variant="text" style="width: 150px; margin-bottom: 16px" />
+              <el-skeleton-item variant="rect" style="height: 120px; width: 100%; border-radius: 8px" />
+            </div>
+            <div style="margin-bottom: 40px">
+              <el-skeleton-item variant="text" style="width: 100px; margin-bottom: 16px" />
+              <el-skeleton-item variant="rect" style="height: 80px; width: 100%; border-radius: 8px" />
+            </div>
+            <div>
+              <el-skeleton-item variant="text" style="width: 120px; margin-bottom: 16px" />
+              <el-skeleton-item variant="rect" style="height: 80px; width: 100%; border-radius: 8px" />
+            </div>
+          </template>
+        </el-skeleton>
+      </div>
+    </template>
+
+    <!-- 实际内容 -->
+    <template v-else>
+      <!-- 顶部导航栏 -->
+      <div class="editor-nav">
       <div class="nav-tabs">
         <div
           v-for="tab in tabs"
@@ -182,6 +220,7 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -195,6 +234,7 @@ import StyleItemEditor from "./StyleItemEditor.vue";
 
 const props = defineProps<{
   modelValue: RichTextRendererStyleOptions;
+  loading?: boolean;
 }>();
 
 const emit = defineEmits<{

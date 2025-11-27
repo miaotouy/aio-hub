@@ -86,10 +86,20 @@ const editForm = reactive({
 const activeCollapseNames = ref<string[]>([]);
 const thinkRulesLoaded = ref(false);
 const styleOptionsLoaded = ref(false);
+const styleLoading = ref(false);
 
 watch(activeCollapseNames, (newNames) => {
   if (newNames.includes("thinkRules")) thinkRulesLoaded.value = true;
-  if (newNames.includes("styleOptions")) styleOptionsLoaded.value = true;
+  if (newNames.includes("styleOptions")) {
+    if (!styleOptionsLoaded.value) {
+      styleLoading.value = true;
+      // 模拟加载延迟，提升体验
+      setTimeout(() => {
+        styleLoading.value = false;
+      }, 500);
+    }
+    styleOptionsLoaded.value = true;
+  }
 });
 
 // 监听对话框打开，加载数据
@@ -147,6 +157,7 @@ const loadFormData = () => {
   activeCollapseNames.value = [];
   thinkRulesLoaded.value = false;
   styleOptionsLoaded.value = false;
+  styleLoading.value = false;
 };
 // 监听 modelCombo 的变化，拆分为 profileId 和 modelId
 const handleModelComboChange = (value: string) => {
@@ -343,6 +354,7 @@ const handleSave = () => {
             <MarkdownStyleEditor
               v-if="styleOptionsLoaded"
               v-model="editForm.richTextStyleOptions"
+              :loading="styleLoading"
             />
           </div>
         </el-collapse-item>

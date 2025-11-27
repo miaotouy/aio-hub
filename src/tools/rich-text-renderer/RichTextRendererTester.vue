@@ -397,7 +397,7 @@
 
     <!-- 样式配置弹窗 -->
     <BaseDialog v-model="isStyleEditorVisible" title="Markdown 样式配置" width="80vw" height="70vh">
-      <MarkdownStyleEditor v-model="richTextStyleOptions" />
+      <MarkdownStyleEditor v-model="richTextStyleOptions" :loading="isStyleLoading" />
       <template #footer>
         <el-button type="primary" @click="isStyleEditorVisible = false">完成</el-button>
       </template>
@@ -468,6 +468,7 @@ const layoutMode = ref<"split" | "input-only" | "preview-only">("split");
 
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
+const isStyleLoading = ref(false);
 
 // Token 流式控制
 const selectedTokenizer = ref("gpt4o");
@@ -1040,7 +1041,15 @@ watch(
 
 // 组件挂载时加载配置
 onMounted(async () => {
-  await store.loadConfig();
+  isStyleLoading.value = true;
+  try {
+    await store.loadConfig();
+  } finally {
+    // 稍微延迟一点，让骨架屏展示一下，避免闪烁
+    setTimeout(() => {
+      isStyleLoading.value = false;
+    }, 500);
+  }
 });
 </script>
 

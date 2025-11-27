@@ -50,22 +50,39 @@
     <el-divider />
 
     <el-form-item label="消息样式">
-      <el-radio-group v-model="formData.richTextStyleBehavior" @change="handleInput">
+      <el-radio-group v-model="formData.richTextStyleBehavior" @change="handleBehaviorChange">
         <el-radio-button value="follow_agent">跟随智能体</el-radio-button>
         <el-radio-button value="custom">自定义</el-radio-button>
       </el-radio-group>
     </el-form-item>
 
     <div v-if="formData.richTextStyleBehavior === 'custom'" class="style-editor-container">
-      <MarkdownStyleEditor
-        :model-value="formData.richTextStyleOptions || {}"
-        @update:model-value="
-          (val) => {
-            formData.richTextStyleOptions = val;
-            handleInput();
-          }
-        "
-      />
+      <Suspense>
+        <template #default>
+          <MarkdownStyleEditor
+            :model-value="formData.richTextStyleOptions || {}"
+            :loading="styleLoading"
+            @update:model-value="
+              (val) => {
+                formData.richTextStyleOptions = val;
+                handleInput();
+              }
+            "
+          />
+        </template>
+        <template #fallback>
+          <div class="editor-placeholder">
+            <el-skeleton animated>
+              <template #template>
+                <div style="margin-bottom: 20px">
+                  <el-skeleton-item variant="text" style="width: 30%" />
+                </div>
+                <el-skeleton-item variant="rect" style="height: 200px" />
+              </template>
+            </el-skeleton>
+          </div>
+        </template>
+      </Suspense>
     </div>
 
     <!-- 可选的元数据显示 -->
@@ -84,13 +101,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, defineAsyncComponent } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
-import MarkdownStyleEditor from "@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
-
 import type { IconMode } from "@/tools/llm-chat/types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
+
+const MarkdownStyleEditor = defineAsyncComponent(
+  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
+);
 
 interface UserProfileFormData {
   id?: string; // 允许ID传入
@@ -146,6 +165,8 @@ const formData = ref<UserProfileFormData>({
   richTextStyleBehavior: props.modelValue.richTextStyleBehavior || "follow_agent",
 });
 
+const styleLoading = ref(false);
+
 // 监听外部数据变化
 watch(
   () => props.modelValue,
@@ -165,6 +186,18 @@ const handleInput = () => {
     formData.value.richTextStyleOptions = {};
   }
   emit("update:modelValue", { ...formData.value });
+};
+
+// 处理样式行为切换
+const handleBehaviorChange = (val: string | number | boolean | undefined) => {
+  if (val === "custom") {
+    styleLoading.value = true;
+    // 模拟数据加载延迟，给予骨架屏展示时间，提升体验
+    setTimeout(() => {
+      styleLoading.value = false;
+    }, 500);
+  }
+  handleInput();
 };
 
 const handleIconUpdate = (payload: IconUpdatePayload) => {

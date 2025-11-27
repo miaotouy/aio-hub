@@ -230,7 +230,7 @@
 
             <!-- 样式配置按钮 -->
             <el-tooltip content="配置 Markdown 渲染样式" placement="bottom">
-              <el-button :icon="Brush" @click="isStyleEditorVisible = true" size="small" />
+              <el-button :icon="Brush" @click="openStyleEditor" size="small" />
             </el-tooltip>
 
             <!-- 渲染状态标签 -->
@@ -469,6 +469,15 @@ const layoutMode = ref<"split" | "input-only" | "preview-only">("split");
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
 const isStyleLoading = ref(false);
+
+const openStyleEditor = () => {
+  isStyleLoading.value = true;
+  isStyleEditorVisible.value = true;
+  // 延迟关闭 loading，确保弹窗动画流畅，且骨架屏能展示出来
+  setTimeout(() => {
+    isStyleLoading.value = false;
+  }, 300);
+};
 
 // Token 流式控制
 const selectedTokenizer = ref("gpt4o");

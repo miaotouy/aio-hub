@@ -276,6 +276,7 @@ export const htmlGameSnakePreset: RenderPreset = {
     }
     
     updateColors();
+    console.debug('Canvas resized to:', canvas.width, 'x', canvas.height);
   }
 
   window.addEventListener('resize', resizeCanvas);
@@ -294,6 +295,8 @@ export const htmlGameSnakePreset: RenderPreset = {
 
   function startGame() {
     if (isGameRunning) return;
+    
+    console.info('Game started! Good luck, Cyber Snake.');
     
     // 重置状态
     snake = [{x: 10, y: 10}, {x: 9, y: 10}, {x: 8, y: 10}];
@@ -351,10 +354,13 @@ export const htmlGameSnakePreset: RenderPreset = {
     if (head.x === food.x && head.y === food.y) {
       score += 10;
       scoreEl.textContent = score;
+      console.log('Yummy! Food eaten. Current score:', score);
+      
       if (score > highScore) {
         highScore = score;
         highScoreEl.textContent = highScore;
         localStorage.setItem('snakeHighScore', highScore);
+        console.log('New High Score achieved!', highScore);
       }
       generateFood();
       // 加速
@@ -442,6 +448,9 @@ export const htmlGameSnakePreset: RenderPreset = {
     isGameRunning = false;
     finalScoreEl.textContent = score;
     gameOverScreen.classList.add('active');
+    
+    console.warn('Game Over! Final Score:', score);
+    console.error('System Failure: Snake collision detected at', snake[0].x, snake[0].y);
   }
 
   // 键盘控制

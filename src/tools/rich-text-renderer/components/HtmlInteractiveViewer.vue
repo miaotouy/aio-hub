@@ -45,14 +45,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { RotateCw, ExternalLink, Loader2 } from "lucide-vue-next";
 import { useDebounceFn, useThrottleFn } from "@vueuse/core";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  createModuleErrorHandler,
+  ErrorLevel,
+} from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import { useIframeTheme } from "@/composables/useIframeTheme";
 
 const errorHandler = createModuleErrorHandler("HtmlInteractiveViewer");
+const iframeErrorHandler = createModuleErrorHandler("HtmlInteractiveViewer:Iframe");
+const logger = createModuleLogger("HtmlInteractiveViewer:Iframe");
 
 const props = withDefaults(
   defineProps<{
@@ -129,9 +135,133 @@ const title = computed(() => {
   const match = props.content.match(/<title[^>]*>(.*?)<\/title>/i);
   return match && match[1] ? match[1].trim() : "HTML Preview";
 });
+
+// 注入日志捕获脚本
+const logCaptureScript = `
+<script>
+  (function() {
+    function proxyConsole(method) {
+      const original = console[method];
+      console[method] = function(...args) {
+        original.apply(console, args);
+        try {
+          const safeArgs = args.map(arg => {
+            try {
+              return typeof arg === 'object' ? JSON.parse(JSON.stringify(arg)) : arg;
+            } catch (e) {
+              return String(arg);
+            }
+          });
+          window.parent.postMessage({
+            type: 'iframe-log',
+            level: method,
+            args: safeArgs
+          }, '*');
+        } catch (e) {
+          // ignore serialization errors
+        }
+      };
+    }
+    ['log', 'info', 'warn', 'error', 'debug'].forEach(proxyConsole);
+    
+    window.addEventListener('error', function(event) {
+      window.parent.postMessage({
+        type: 'iframe-log',
+        level: 'error',
+        args: [event.message, 'at', event.filename || 'unknown', ':', event.lineno, ':', event.colno]
+      }, '*');
+    });
+  })();
+<\/script>
+`;
+
 // 构建 srcdoc
 const srcDoc = computed(() => {
-  return themedContent.value;
+  let content = themedContent.value;
+  if (!content) return '';
+
+  // 将日志脚本注入到 head 或 body 开头
+  if (content.includes('<head>')) {
+    return content.replace('<head>', `<head>${logCaptureScript}`);
+  } else if (content.includes('<body')) {
+    return content.replace(/<body/i, `<body>${logCaptureScript}`);
+  } else {
+    // 如果都没有，直接拼接到最前面
+    return logCaptureScript + content;
+  }
+});
+
+// 处理 iframe 传来的日志
+const handleIframeMessage = (event: MessageEvent) => {
+  if (event.data && event.data.type === "iframe-log") {
+    const { level, args } = event.data;
+
+    // 构造符合 Logger 规范的 message 和 data
+    let message = "";
+    let extraData: any = undefined;
+
+    if (args && args.length > 0) {
+      const first = args[0];
+      if (typeof first === "string") {
+        message = first;
+        if (args.length > 1) {
+          extraData = args.slice(1);
+        }
+      } else {
+        // 第一个参数不是字符串，可能是对象
+        try {
+          const str = JSON.stringify(first);
+          message = str.length > 50 ? str.slice(0, 50) + "..." : str;
+        } catch {
+          message = "[Object]";
+        }
+        extraData = args;
+      }
+    } else {
+      message = "[Empty Log]";
+    }
+
+    // 映射到系统 Logger
+    switch (level) {
+      case "log":
+      case "info":
+        logger.info(message, extraData);
+        break;
+      case "warn":
+        logger.warn(message, extraData);
+        break;
+      case "error":
+        // 尝试从 args 中提取类似 Error 的对象，如果没有则使用 message
+        const errorPayload =
+          args.find(
+            (a: any) => a && typeof a === "object" && (a.message || a.stack)
+          ) || message;
+
+        // 使用 iframeErrorHandler 处理错误，模块名会显示为 "HtmlInteractiveViewer:Iframe"
+        iframeErrorHandler.handle(errorPayload, {
+          level: ErrorLevel.ERROR,
+          showToUser: false,
+          context: {
+            originalArgs: extraData,
+            source: "iframe",
+          },
+        });
+        break;
+      case "debug":
+        logger.debug(message, extraData);
+        break;
+      default:
+        logger.info(message, extraData);
+    }
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('message', handleIframeMessage);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleIframeMessage);
 });
 
 const onLoad = () => {

@@ -171,11 +171,21 @@ defineExpose({
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  /* 容器本身负责圆角和边框 */
+  /* 容器本身负责圆角 */
+  border-radius: 8px;
+  overflow: hidden; /* 确保切片不溢出圆角 */
+}
+
+/* 独立的边框层：避免被 overflow: hidden 裁剪圆角 */
+.chat-message::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   transition: border-color 0.2s;
-  overflow: hidden; /* 确保切片不溢出圆角 */
 }
 
 /* 背景切片 */
@@ -194,8 +204,8 @@ defineExpose({
   z-index: 1;
 }
 
-/* Hover 效果迁移：hover 父容器，改变背景层的边框 */
-.chat-message:hover .message-background-container {
+/* Hover 效果迁移：hover 父容器，改变独立边框层的颜色 */
+.chat-message:hover::after {
   border-color: var(--primary-color);
 }
 

@@ -84,6 +84,13 @@ const editForm = reactive({
 });
 
 const activeCollapseNames = ref<string[]>([]);
+const thinkRulesLoaded = ref(false);
+const styleOptionsLoaded = ref(false);
+
+watch(activeCollapseNames, (newNames) => {
+  if (newNames.includes("thinkRules")) thinkRulesLoaded.value = true;
+  if (newNames.includes("styleOptions")) styleOptionsLoaded.value = true;
+});
 
 // 监听对话框打开，加载数据
 watch(
@@ -138,8 +145,9 @@ const loadFormData = () => {
     editForm.richTextStyleOptions = {};
   }
   activeCollapseNames.value = [];
+  thinkRulesLoaded.value = false;
+  styleOptionsLoaded.value = false;
 };
-
 // 监听 modelCombo 的变化，拆分为 profileId 和 modelId
 const handleModelComboChange = (value: string) => {
   if (value) {
@@ -321,7 +329,7 @@ const handleSave = () => {
           <div class="form-hint" style="margin-bottom: 12px">
             配置 LLM 输出中的思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
           </div>
-          <LlmThinkRulesEditor v-model="editForm.llmThinkRules" />
+          <LlmThinkRulesEditor v-if="thinkRulesLoaded" v-model="editForm.llmThinkRules" />
         </el-collapse-item>
 
         <el-collapse-item title="回复样式自定义" name="styleOptions">
@@ -329,7 +337,10 @@ const handleSave = () => {
             自定义该智能体回复内容的 Markdown 渲染样式（如粗体颜色、发光效果等）。
           </div>
           <div style="height: 700px">
-            <MarkdownStyleEditor v-model="editForm.richTextStyleOptions" />
+            <MarkdownStyleEditor
+              v-if="styleOptionsLoaded"
+              v-model="editForm.richTextStyleOptions"
+            />
           </div>
         </el-collapse-item>
       </el-collapse>

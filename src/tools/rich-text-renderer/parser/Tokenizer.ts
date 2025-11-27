@@ -173,7 +173,8 @@ export class Tokenizer {
 
         // 代码围栏 - 立即处理整个代码块
         // 允许 0-3 个空格缩进
-        if (indent < 4 && remaining.slice(indent).startsWith("```")) {
+        // 修正：为了兼容 AI 输出中可能存在的深层缩进，放宽限制到 20 个空格
+        if (indent < 20 && remaining.slice(indent).startsWith("```")) {
           const openMatch = remaining.slice(indent).match(/^```(\w*)/);
           if (openMatch) {
             const language = openMatch[1] || "";
@@ -195,7 +196,8 @@ export class Tokenizer {
                 let k = nextIndex;
                 let spaceCount = 0;
                 // 跳过最多 4 个空格（兼容常见 Markdown 缩进习惯）
-                while (k < text.length && text[k] === " " && spaceCount < 4) {
+                // 修正：为了兼容 AI 输出中可能存在的深层缩进，放宽限制到 20 个空格
+                while (k < text.length && text[k] === " " && spaceCount < 20) {
                   k++;
                   spaceCount++;
                 }
@@ -209,6 +211,16 @@ export class Tokenizer {
 
               codeContent += text[i];
               i++;
+            }
+
+            // 处理缩进：移除代码块内容中每一行开头多余的缩进
+            // 缩进量以代码块围栏（```）前的空格数为准
+            if (indent > 0) {
+              const dedentRegex = new RegExp(`^ {0,${indent}}`);
+              codeContent = codeContent
+                .split("\n")
+                .map((line) => line.replace(dedentRegex, ""))
+                .join("\n");
             }
 
             // 添加代码块 token（包含完整内容）

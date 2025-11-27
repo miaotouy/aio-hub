@@ -18,6 +18,7 @@ import { themeVariableTest } from './presets/theme-variable-test';
 import { complexRenderingTestPreset } from './presets/complex-rendering-test';
 import { htmlScriptTestPreset } from './presets/html-script-test';
 import { htmlGameSnakePreset } from './presets/html-game-snake';
+import { indentedCodePreset } from './presets/indented-code';
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -39,4 +40,5 @@ export const presets: RenderPreset[] = [
   complexRenderingTestPreset,
   htmlScriptTestPreset,
   htmlGameSnakePreset,
+  indentedCodePreset,
 ];

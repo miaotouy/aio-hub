@@ -124,7 +124,7 @@ defineProps<{
   cachedInputContent: string;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   (e: "update:isConfigCollapsed", value: boolean): void;
   (e: "openStyleEditor"): void;
   (e: "startRender"): void;

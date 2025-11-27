@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import { acquireBlobUrl, releaseBlobUrl } from "@/utils/avatarImageCache";
+import {
+  acquireBlobUrl,
+  releaseBlobUrl,
+  acquireBlobUrlSync,
+} from "@/utils/avatarImageCache";
 import { useIntersectionObserver } from "@vueuse/core";
 
 interface Props {
@@ -82,48 +86,66 @@ const isImagePath = computed(() => {
 
 // 异步处理路径转换
 const processSrc = async () => {
-  isSrcReady.value = false;
-  imageLoadFailed.value = false;
-  processedSrc.value = "";
-  managedSrc.value = null; // 重置管理状态
+  const currentSrc = sanitizedSrc.value;
 
-  if (!sanitizedSrc.value) {
+  if (!currentSrc) {
     isSrcReady.value = true;
+    imageLoadFailed.value = false;
+    processedSrc.value = "";
+    managedSrc.value = null;
     return;
   }
 
   // HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
   if (
-    sanitizedSrc.value.startsWith("http") ||
-    sanitizedSrc.value.startsWith("data:") ||
-    sanitizedSrc.value.startsWith("/")
+    currentSrc.startsWith("http") ||
+    currentSrc.startsWith("data:") ||
+    currentSrc.startsWith("/")
   ) {
-    processedSrc.value = sanitizedSrc.value;
+    processedSrc.value = currentSrc;
     isSrcReady.value = true;
+    imageLoadFailed.value = false;
+    managedSrc.value = null;
     return;
   }
 
   // appdata:// 协议或本地绝对路径 - 使用缓存获取 Blob URL
   if (
-    sanitizedSrc.value.startsWith("appdata://") ||
-    /^[A-Za-z]:[\/\\]/.test(sanitizedSrc.value) || // Windows 绝对路径
-    sanitizedSrc.value.startsWith("\\\\") // UNC 路径
+    currentSrc.startsWith("appdata://") ||
+    /^[A-Za-z]:[\/\\]/.test(currentSrc) || // Windows 绝对路径
+    currentSrc.startsWith("\\\\") // UNC 路径
   ) {
     // 如果启用了懒加载且尚未进入视口，则暂停加载
     if (props.lazy && !shouldLoad.value) {
       return;
     }
 
-    const blobUrl = await acquireBlobUrl(sanitizedSrc.value);
+    // 1. 尝试同步获取缓存（避免闪烁）
+    const cachedUrl = acquireBlobUrlSync(currentSrc);
+    if (cachedUrl) {
+      processedSrc.value = cachedUrl;
+      managedSrc.value = currentSrc;
+      isSrcReady.value = true;
+      imageLoadFailed.value = false;
+      return;
+    }
+
+    // 2. 缓存未命中，进入异步加载状态
+    isSrcReady.value = false;
+    imageLoadFailed.value = false;
+    processedSrc.value = "";
+    managedSrc.value = null; // 重置管理状态
+
+    const blobUrl = await acquireBlobUrl(currentSrc);
     // 再次检查 src 是否在等待期间发生了变化（虽然 watch 会处理，但为了安全）
     if (sanitizedSrc.value !== _currentProcessingSrc) return;
 
     if (blobUrl) {
       processedSrc.value = blobUrl;
-      managedSrc.value = sanitizedSrc.value; // 标记为已管理
+      managedSrc.value = currentSrc; // 标记为已管理
     } else {
       console.error(
-        `[Avatar Debug] FAILED: Could not acquire blob url for src: ${sanitizedSrc.value}`
+        `[Avatar Debug] FAILED: Could not acquire blob url for src: ${currentSrc}`
       );
       imageLoadFailed.value = true;
     }

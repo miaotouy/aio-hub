@@ -1,7 +1,32 @@
 import { reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
-const cache = reactive(new Map<string, { blobUrl: string; refCount: number }>());
+const cache = reactive(
+  new Map<
+    string,
+    { blobUrl: string; refCount: number; timeoutId?: ReturnType<typeof setTimeout> }
+  >()
+);
+
+const CACHE_EXPIRATION_MS = 30000; // 30秒缓存过期时间
+
+/**
+ * 同步尝试获取已缓存的 Blob URL
+ * 如果缓存命中，会增加引用计数并取消待删除定时器
+ */
+export function acquireBlobUrlSync(src: string): string | null {
+  const cached = cache.get(src);
+  if (cached) {
+    // 如果有待删除定时器，取消它
+    if (cached.timeoutId) {
+      clearTimeout(cached.timeoutId);
+      cached.timeoutId = undefined;
+    }
+    cached.refCount++;
+    return cached.blobUrl;
+  }
+  return null;
+}
 
 /**
  * 获取给定 appdata:// 路径的 Blob URL
@@ -11,11 +36,9 @@ const cache = reactive(new Map<string, { blobUrl: string; refCount: number }>())
  * @returns Blob URL，失败时返回 null
  */
 export async function acquireBlobUrl(src: string): Promise<string | null> {
-  const cached = cache.get(src);
-  if (cached) {
-    cached.refCount++;
-    return cached.blobUrl;
-  }
+  // 先尝试同步获取
+  const syncUrl = acquireBlobUrlSync(src);
+  if (syncUrl) return syncUrl;
 
   try {
     let bytes: number[];
@@ -56,8 +79,16 @@ export function releaseBlobUrl(src: string) {
   if (entry) {
     entry.refCount--;
     if (entry.refCount <= 0) {
-      URL.revokeObjectURL(entry.blobUrl);
-      cache.delete(src);
+      // 不要立即删除，而是设置定时器
+      if (entry.timeoutId) clearTimeout(entry.timeoutId);
+
+      entry.timeoutId = setTimeout(() => {
+        // 再次检查引用计数（防止在定时器期间又被引用了）
+        if (entry.refCount <= 0) {
+          URL.revokeObjectURL(entry.blobUrl);
+          cache.delete(src);
+        }
+      }, CACHE_EXPIRATION_MS);
     }
   }
 }

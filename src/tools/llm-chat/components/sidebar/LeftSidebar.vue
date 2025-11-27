@@ -60,8 +60,11 @@ const ParametersSidebar = defineAsyncComponent({
     </div>
 
     <div class="sidebar-content">
-      <AgentsSidebar v-if="activeTab === 'agents'" />
-      <ParametersSidebar v-if="activeTab === 'parameters'" />
+      <KeepAlive>
+        <component
+          :is="activeTab === 'agents' ? AgentsSidebar : ParametersSidebar"
+        />
+      </KeepAlive>
     </div>
   </div>
 </template>

@@ -176,6 +176,8 @@ const {
   visualizeBlockStatus,
   rendererVersion,
   defaultRenderHtml,
+  simulateMeta,
+  selectedTokenizer,
   llmThinkRules,
   richTextStyleOptions,
   copyOptions,
@@ -194,16 +196,12 @@ const openStyleEditor = () => {
   }, 300);
 };
 
-// Token 流式控制
-const selectedTokenizer = ref("gpt4o");
-
 // 渲染状态
 const isRendering = ref(false);
 const currentContent = ref("");
 const streamSource = shallowRef<StreamSource | undefined>(undefined);
 
 // 模拟的元数据
-const simulateMeta = ref(false);
 const generationMeta = reactive<{
   requestStartTime?: number;
   firstTokenTime?: number;

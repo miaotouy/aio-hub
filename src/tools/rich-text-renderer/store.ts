@@ -103,6 +103,8 @@ const configManager = createConfigManager<TesterConfig>({
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
     defaultRenderHtml: false,
+    simulateMeta: false,
+    selectedTokenizer: "gpt4o",
     llmThinkRules: defaultLlmThinkRules,
     richTextStyleOptions: {},
     copyOptions: {
@@ -141,6 +143,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const visualizeBlockStatus = ref(false);
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
   const defaultRenderHtml = ref(false);
+  const simulateMeta = ref(false);
+  const selectedTokenizer = ref("gpt4o");
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
   const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
   const copyOptions = reactive<CopyOptions>({
@@ -194,6 +198,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
       defaultRenderHtml.value = config.defaultRenderHtml ?? false;
+      simulateMeta.value = config.simulateMeta ?? false;
+      selectedTokenizer.value = config.selectedTokenizer ?? "gpt4o";
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
       richTextStyleOptions.value = config.richTextStyleOptions || {};
       if (config.copyOptions) {
@@ -244,6 +250,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         visualizeBlockStatus: visualizeBlockStatus.value,
         rendererVersion: rendererVersion.value,
         defaultRenderHtml: defaultRenderHtml.value,
+        simulateMeta: simulateMeta.value,
+        selectedTokenizer: selectedTokenizer.value,
         llmThinkRules: llmThinkRules.value,
         richTextStyleOptions: richTextStyleOptions.value,
         copyOptions: { ...copyOptions },
@@ -291,6 +299,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus: visualizeBlockStatus.value,
       rendererVersion: rendererVersion.value,
       defaultRenderHtml: defaultRenderHtml.value,
+      simulateMeta: simulateMeta.value,
+      selectedTokenizer: selectedTokenizer.value,
       llmThinkRules: llmThinkRules.value,
       richTextStyleOptions: richTextStyleOptions.value,
       copyOptions: { ...copyOptions },
@@ -321,6 +331,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus.value = false;
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
     defaultRenderHtml.value = false;
+    simulateMeta.value = false;
+    selectedTokenizer.value = "gpt4o";
     llmThinkRules.value = [...defaultLlmThinkRules];
     richTextStyleOptions.value = {};
     copyOptions.includeConfig = true;
@@ -388,6 +400,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus,
       rendererVersion,
       defaultRenderHtml,
+      simulateMeta,
+      selectedTokenizer,
       llmThinkRules,
       richTextStyleOptions,
       () => copyOptions.includeConfig,
@@ -422,6 +436,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus,
     rendererVersion,
     defaultRenderHtml,
+    simulateMeta,
+    selectedTokenizer,
     llmThinkRules,
     richTextStyleOptions,
     copyOptions,

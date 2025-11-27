@@ -587,6 +587,10 @@ export interface TesterConfig {
   copyOptions: CopyOptions;
   /** 是否默认渲染 HTML 代码块 */
   defaultRenderHtml?: boolean;
+  /** 是否模拟元数据 */
+  simulateMeta?: boolean;
+  /** 选中的分词器 */
+  selectedTokenizer?: string;
 }
 
 // ============ 样式配置相关类型 ============

@@ -18,7 +18,7 @@ const errorHandler = createModuleErrorHandler("AttachmentCard");
 interface Props {
   asset: Asset;
   removable?: boolean;
-  size?: "small" | "medium" | "large";
+  size?: "small" | "medium" | "large" | "extra-large";
   /** 所有附件列表，用于图片预览时的图片切换 */
   allAssets?: Asset[];
   /** Token 计数 */
@@ -479,6 +479,31 @@ onUnmounted(() => {
 
 .attachment-card.size-large .file-icon .icon {
   font-size: 48px;
+}
+
+.attachment-card.size-extra-large {
+  width: 100%;
+}
+
+.attachment-card.size-extra-large .attachment-preview {
+  width: 100%;
+  height: auto;
+  min-height: 50px;
+}
+
+.attachment-card.size-extra-large .preview-image {
+  height: auto;
+  object-fit: contain;
+}
+
+.attachment-card.size-extra-large .file-icon .icon {
+  font-size: 64px;
+}
+
+/* 针对 extra-large 模式下长条布局的覆盖 */
+.attachment-card.size-extra-large.is-bar-layout {
+  width: 100%;
+  max-width: 100%;
 }
 
 .attachment-card:hover {

@@ -67,7 +67,7 @@
         v-for="asset in data.attachments"
         :key="asset.id"
         :asset="asset"
-        size="small"
+        size="extra-large"
         :removable="false"
         :all-assets="data.attachments"
         class="mini-attachment-card"

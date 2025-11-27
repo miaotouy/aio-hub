@@ -736,16 +736,22 @@ export function useFlowTreeGraph(
     d3Nodes.value = nodes.value.map((n) => {
       const depth = depthMap[n.id] ?? 0;
       const existingD3Node = simulation?.nodes().find(d => d.id === n.id);
+
+      // 估算节点高度：基础高度 + 附件高度
+      const baseHeight = 140; // 基础高度 (6行文本)
+      const attachmentHeight = (n.data.attachments?.length || 0) * 160; // 每个附件约 160px (extra-large 模式)
+      const estimatedHeight = baseHeight + attachmentHeight;
+
       return {
         id: n.id,
         depth,
         width: existingD3Node?.width || 220, // 初始预估宽度
-        height: existingD3Node?.height || 140, // 增加初始预估高度以适应6行文本
+        height: existingD3Node?.height || estimatedHeight, // 动态预估高度
         isActiveLeaf: n.data.isActiveLeaf,
         isEnabled: n.data.isEnabled,
         // 初始化时即转换为中心点坐标
         x: n.position.x + (existingD3Node?.width || 220) / 2,
-        y: n.position.y + (existingD3Node?.height || 140) / 2,
+        y: n.position.y + (existingD3Node?.height || estimatedHeight) / 2,
         ...(!n.position.x && !n.position.y && { y: depth * levelGap })
       };
     });

@@ -74,6 +74,18 @@
             </div>
 
             <template v-if="streamEnabled">
+              <div class="control-item">
+                <div class="control-header">
+                  <el-tooltip
+                    content="开启后，输入框将实时显示流式生成的内容（打字机效果）"
+                    placement="right"
+                  >
+                    <label>同步输入进度</label>
+                  </el-tooltip>
+                  <el-switch v-model="syncInputProgress" size="small" />
+                </div>
+              </div>
+
               <!-- 分词器选择 -->
               <div class="control-item">
                 <el-tooltip content="选择用于分词的模型，影响 token 分隔的准确性" placement="right">
@@ -279,14 +291,21 @@
                 {{ isRendering ? "停止" : streamEnabled ? "流式渲染" : "立即渲染" }}
               </el-button>
             </el-tooltip>
-            <el-tooltip content="清空渲染输出" placement="bottom">
+            <el-tooltip
+              :content="
+                syncInputProgress && cachedInputContent
+                  ? '清空输出并重置输入内容'
+                  : '清空渲染输出'
+              "
+              placement="bottom"
+            >
               <el-button
                 :icon="RefreshRight"
                 @click="clearOutput"
-                :disabled="!currentContent && !streamSource"
+                :disabled="(!currentContent && !streamSource) && !cachedInputContent"
                 size="small"
               >
-                清空
+                {{ syncInputProgress && cachedInputContent ? "重置" : "清空" }}
               </el-button>
             </el-tooltip>
             <el-button-group>
@@ -336,6 +355,7 @@
               placeholder="在此输入 Markdown 内容..."
               resize="none"
               class="markdown-input"
+              :readonly="isRendering && syncInputProgress"
             />
           </div>
 
@@ -460,6 +480,7 @@ const {
   selectedPreset,
   inputContent,
   streamEnabled,
+  syncInputProgress,
   streamSpeed,
   initialDelay,
   fluctuationEnabled,
@@ -540,6 +561,7 @@ const formatElapsedTime = (ms: number): string => {
 
 // 流式渲染控制器
 let streamAbortController: AbortController | null = null;
+let inputSyncUnsubscribe: (() => void) | null = null;
 
 // 计时器
 let elapsedTimer: number | null = null;
@@ -547,6 +569,9 @@ let elapsedTimer: number | null = null;
 // 渲染 key，用于强制重新挂载组件
 const renderKey = ref(0);
 const renderContainerRef = ref<HTMLDivElement | null>(null);
+
+// 缓存的输入内容（用于同步模式下的重置）
+const cachedInputContent = ref("");
 
 // 加载预设内容
 const loadPreset = () => {
@@ -795,8 +820,22 @@ const startRender = () => {
 
   if (streamEnabled.value) {
     // 流式模式
+    const fullContent = inputContent.value;
     currentContent.value = "";
-    streamSource.value = createStreamSource(inputContent.value);
+
+    if (syncInputProgress.value) {
+      cachedInputContent.value = fullContent;
+      inputContent.value = "";
+    }
+
+    const source = createStreamSource(fullContent);
+    streamSource.value = source;
+
+    if (syncInputProgress.value) {
+      inputSyncUnsubscribe = source.subscribe((chunk) => {
+        inputContent.value += chunk;
+      });
+    }
   } else {
     // 立即渲染模式
     streamSource.value = undefined;
@@ -815,6 +854,10 @@ const stopRender = () => {
     streamAbortController.abort();
     streamAbortController = null;
   }
+  if (inputSyncUnsubscribe) {
+    inputSyncUnsubscribe();
+    inputSyncUnsubscribe = null;
+  }
   // 停止计时器
   if (elapsedTimer !== null) {
     clearInterval(elapsedTimer);
@@ -826,6 +869,13 @@ const stopRender = () => {
 // 清空输出
 const clearOutput = () => {
   stopRender();
+
+  // 如果有缓存的内容，恢复输入
+  if (syncInputProgress.value && cachedInputContent.value) {
+    inputContent.value = cachedInputContent.value;
+    cachedInputContent.value = "";
+  }
+
   currentContent.value = "";
   streamSource.value = undefined;
   renderStats.totalChars = 0;

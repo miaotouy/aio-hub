@@ -549,6 +549,8 @@ export interface TesterConfig {
   selectedPreset: string;
   /** 流式输出是否启用 */
   streamEnabled: boolean;
+  /** 是否同步输入进度（打字机效果） */
+  syncInputProgress?: boolean;
   /** 流式输出速度（字符/秒） */
   streamSpeed: number;
   /** 初始延迟（毫秒） */

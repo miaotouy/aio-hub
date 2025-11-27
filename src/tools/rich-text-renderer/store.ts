@@ -84,6 +84,7 @@ const configManager = createConfigManager<TesterConfig>({
     isInputCollapsed: false,
     selectedPreset: "",
     streamEnabled: true,
+    syncInputProgress: false,
     streamSpeed: 100,
     initialDelay: 500,
     fluctuationEnabled: false,
@@ -120,6 +121,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const selectedPreset = ref("");
   const inputContent = ref("");
   const streamEnabled = ref(true);
+  const syncInputProgress = ref(false);
   const streamSpeed = ref(100);
   const initialDelay = ref(500);
   const fluctuationEnabled = ref(false);
@@ -165,6 +167,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedPreset.value = config.selectedPreset;
       inputContent.value = config.inputContent;
       streamEnabled.value = config.streamEnabled;
+      syncInputProgress.value = config.syncInputProgress ?? false;
       streamSpeed.value = config.streamSpeed;
       initialDelay.value = config.initialDelay;
       fluctuationEnabled.value = config.fluctuationEnabled;
@@ -217,6 +220,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         selectedPreset: selectedPreset.value,
         inputContent: inputContent.value,
         streamEnabled: streamEnabled.value,
+        syncInputProgress: syncInputProgress.value,
         streamSpeed: streamSpeed.value,
         initialDelay: initialDelay.value,
         fluctuationEnabled: fluctuationEnabled.value,
@@ -261,6 +265,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedPreset: selectedPreset.value,
       inputContent: inputContent.value,
       streamEnabled: streamEnabled.value,
+      syncInputProgress: syncInputProgress.value,
       streamSpeed: streamSpeed.value,
       initialDelay: initialDelay.value,
       fluctuationEnabled: fluctuationEnabled.value,
@@ -292,6 +297,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     selectedPreset.value = "";
     inputContent.value = "";
     streamEnabled.value = true;
+    syncInputProgress.value = false;
     streamSpeed.value = 100;
     initialDelay.value = 500;
     fluctuationEnabled.value = false;
@@ -356,6 +362,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedPreset,
       inputContent,
       streamEnabled,
+      syncInputProgress,
       streamSpeed,
       initialDelay,
       fluctuationEnabled,
@@ -389,6 +396,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     selectedPreset,
     inputContent,
     streamEnabled,
+    syncInputProgress,
     streamSpeed,
     initialDelay,
     fluctuationEnabled,

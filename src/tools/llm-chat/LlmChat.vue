@@ -185,29 +185,17 @@ onMounted(async () => {
 const currentAgentId = computed(() => agentStore.currentAgentId || "");
 
 // 处理发送消息
-// 如果在 detached-tool 窗口中，代理操作回主窗口
 const handleSendMessage = async (content: string, attachments?: any[]) => {
   if (!store.currentSession) {
     logger.warn("发送消息失败：没有活动会话");
     return;
   }
-
-  if (isInDetachedToolWindow) {
-    logger.info("代理发送消息操作到主窗口", { content, attachmentCount: attachments?.length });
-    await bus.requestAction("send-message", { content, attachments });
-  } else {
-    await store.sendMessage(content, attachments);
-  }
+  await store.sendMessage(content, attachments);
 };
 
 // 处理中止发送
 const handleAbortSending = () => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理中止发送操作到主窗口");
-    bus.requestAction("abort-sending", {});
-  } else {
-    store.abortSending();
-  }
+  store.abortSending();
 };
 
 // 处理重新生成
@@ -215,85 +203,41 @@ const handleRegenerate = async (
   messageId: string,
   options?: { modelId?: string; profileId?: string }
 ) => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理重新生成操作到主窗口", { messageId, options });
-    await bus.requestAction("regenerate-from-node", { messageId, options });
-  } else {
-    await store.regenerateFromNode(messageId, options);
-  }
+  await store.regenerateFromNode(messageId, options);
 };
 
 // 处理删除消息
 const handleDeleteMessage = (messageId: string) => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理删除消息操作到主窗口", { messageId });
-    bus.requestAction("delete-message", { messageId });
-  } else {
-    store.deleteMessage(messageId);
-  }
+  store.deleteMessage(messageId);
 };
 
 // 处理切换兄弟分支
 const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理切换兄弟分支操作到主窗口", { nodeId, direction });
-    bus.requestAction("switch-sibling", { nodeId, direction });
-  } else {
-    store.switchToSiblingBranch(nodeId, direction);
-  }
+  store.switchToSiblingBranch(nodeId, direction);
 };
 
 // 处理切换到指定分支
 const handleSwitchBranch = (nodeId: string) => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理切换分支操作到主窗口", { nodeId });
-    bus.requestAction("switch-branch", { nodeId });
-  } else {
-    store.switchBranch(nodeId);
-  }
+  store.switchBranch(nodeId);
 };
 
 // 处理切换节点启用状态
 const handleToggleEnabled = (nodeId: string) => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理切换节点启用状态操作到主窗口", { nodeId });
-    bus.requestAction("toggle-enabled", { nodeId });
-  } else {
-    store.toggleNodeEnabled(nodeId);
-  }
+  store.toggleNodeEnabled(nodeId);
 };
 
 // 处理编辑消息（使用统一方法）
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: any[]) => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理编辑消息操作到主窗口", {
-      nodeId,
-      contentLength: newContent.length,
-      attachmentCount: attachments?.length,
-    });
-    bus.requestAction("edit-message", { nodeId, newContent, attachments });
-  } else {
-    store.editMessage(nodeId, newContent, attachments);
-  }
+  store.editMessage(nodeId, newContent, attachments);
 };
 
 // 处理创建分支
 const handleCreateBranch = (nodeId: string) => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理创建分支操作到主窗口", { nodeId });
-    bus.requestAction("create-branch", { nodeId });
-  } else {
-    store.createBranch(nodeId);
-  }
+  store.createBranch(nodeId);
 };
 // 处理中止单个节点的生成
 const handleAbortNode = (nodeId: string) => {
-  if (isInDetachedToolWindow) {
-    logger.info("代理中止节点生成操作到主窗口", { nodeId });
-    bus.requestAction("abort-node", { nodeId });
-  } else {
-    store.abortNodeGeneration(nodeId);
-  }
+  store.abortNodeGeneration(nodeId);
 };
 
 // 上下文分析对话框状态

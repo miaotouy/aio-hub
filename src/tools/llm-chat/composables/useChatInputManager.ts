@@ -204,9 +204,6 @@ class ChatInputManager {
       }
     });
 
-    // 如果不是主窗口，初始状态将由 useLlmChatStateConsumer 统一请求
-    // 此处不再单独请求
-
     // 注册到全局同步源（仅主窗口和工具窗口）
     // 这样当有新窗口请求初始状态时，InputManager 也能自动响应
     if (this.bus.windowType === 'main' || this.bus.windowType === 'detached-tool') {

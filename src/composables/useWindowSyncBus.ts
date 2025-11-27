@@ -407,8 +407,8 @@ class WindowSyncBus {
    */
   private handleReconnect(): void {
     logger.info('窗口重新获得焦点，触发重连逻辑');
-    if (this.windowType === 'main') {
-      // 主窗口触发重连事件
+    // 主窗口和工具窗口（作为数据源）触发重连事件（广播状态）
+    if (this.windowType === 'main' || this.windowType === 'detached-tool') {
       for (const handler of this.reconnectionHandlers) {
         try {
           handler();
@@ -417,7 +417,7 @@ class WindowSyncBus {
         }
       }
     } else {
-      // 分离窗口请求初始状态
+      // 组件窗口（作为消费者）请求初始状态
       this.requestInitialState();
     }
   }

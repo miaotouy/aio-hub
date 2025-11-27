@@ -1,16 +1,15 @@
 /**
  * LLM Chat 状态消费者 Composable
  *
- * 封装了在分离的工具窗口 (detached-tool) 中消费状态的逻辑。
- * 它负责从上游窗口（通常是主窗口）接收完整状态，并填充到当前窗口的 Pinia Store 中。
+ * 封装了在分离的组件窗口 (detached-component) 中消费状态的逻辑。
+ * 它负责从上游窗口（主窗口或分离的工具窗口）接收完整状态，并填充到当前窗口的 Pinia Store 中。
  *
- * 这确保了 detached-tool 窗口能成为 main 窗口的精确副本，从而可以独立显示 UI，
- * 同时也能向它自己分离出的子组件 (detached-component) 提供状态。
+ * 注意：分离的工具窗口 (detached-tool) 现在作为独立数据源运行，不再使用此 Consumer。
+ * 此 Consumer 主要用于像 ChatArea 这样被单独分离出去的子组件。
  *
  * 核心原则：
  * - 只接收状态，不推送状态（autoPush: false）
- * - 不处理业务逻辑，所有操作都代理回主窗口
- * - 作为主窗口和深层子组件之间的"中继站"
+ * - 不处理业务逻辑，所有操作都代理回上游窗口
  */
 import { ref, watch } from 'vue';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';

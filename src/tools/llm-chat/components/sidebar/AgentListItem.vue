@@ -10,7 +10,7 @@ const props = defineProps<{
   selected: boolean;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   (e: "select", id: string): void;
   (e: "edit", agent: ChatAgent): void;
   (e: "duplicate", agent: ChatAgent): void;

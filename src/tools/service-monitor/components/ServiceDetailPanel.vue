@@ -50,13 +50,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { ToolService, ServiceMetadata } from '@/services/types';
+import type { ToolRegistry, ServiceMetadata } from '@/services/types';
 import { InfoFilled } from '@element-plus/icons-vue';
 import ServiceMethods from './ServiceMethods.vue';
 import InfoCard from '@/components/common/InfoCard.vue';
 
 const props = defineProps<{
-  service: ToolService | null;
+  service: ToolRegistry | null;
 }>();
 
 // 是否有元数据

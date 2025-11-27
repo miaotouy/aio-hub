@@ -1,4 +1,4 @@
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { invoke } from '@tauri-apps/api/core';
@@ -120,10 +120,10 @@ export interface FormattedLogSummary {
 
 /**
  * 符号链接移动工具服务
- * 
+ *
  * 提供文件/目录的移动、链接创建、验证和日志管理功能
  */
-export default class SymlinkMoverService implements ToolService {
+export default class SymlinkMoverRegistry implements ToolRegistry {
   public readonly id = 'symlink-mover';
   public readonly name = '符号链接移动工具';
   public readonly description = '将文件移动到目标目录并在原位置创建链接，或仅创建链接';

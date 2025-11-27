@@ -1,12 +1,12 @@
-import type { ToolService } from "@/services/types";
+import type { ToolRegistry } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { fetchBranches, fetchBranchCommits, fetchCommitDetail } from "./composables/useGitLoader";
 import { getContributorStats } from "./composables/useGitProcessor";
 import type { GitCommit, RepoStatistics } from "./types";
 
-const logger = createModuleLogger("services/git-analyzer");
-const errorHandler = createModuleErrorHandler("services/git-analyzer");
+const logger = createModuleLogger("tools/git-analyzer");
+const errorHandler = createModuleErrorHandler("tools/git-analyzer");
 
 // ==================== Agent 调用接口类型 ====================
 
@@ -100,10 +100,10 @@ export interface GetCommitDetailOptions {
   hash: string;
 }
 
-// ==================== 服务类 ====================
+// ==================== 注册器类 ====================
 
 /**
- * Git 仓库分析服务
+ * Git 仓库分析注册器
  *
  * 提供无状态的 Git 仓库分析接口：
  * 1. `getFormattedAnalysis`: 获取仓库的格式化分析摘要
@@ -113,7 +113,7 @@ export interface GetCommitDetailOptions {
  *
  * UI 层通过 useGitAnalyzerState 和 useGitAnalyzerRunner composables 管理状态和业务逻辑
  */
-export default class GitAnalyzerService implements ToolService {
+export default class GitAnalyzerRegistry implements ToolRegistry {
   public readonly id = "git-analyzer";
   public readonly name = "Git 仓库分析";
   public readonly description = "分析 Git 仓库的提交历史、贡献者统计和活跃度";

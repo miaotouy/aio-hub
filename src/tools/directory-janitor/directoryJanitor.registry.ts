@@ -1,11 +1,11 @@
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { useDirectoryJanitorRunner, type ScanOptions, type FormattedScanResult } from './composables/useDirectoryJanitorRunner';
 import { formatBytes } from './utils';
 
-const logger = createModuleLogger('services/directory-janitor');
-const errorHandler = createModuleErrorHandler('services/directory-janitor');
+const logger = createModuleLogger('tools/directory-janitor');
+const errorHandler = createModuleErrorHandler('tools/directory-janitor');
 
 // ==================== Agent 调用接口类型 ====================
 
@@ -38,10 +38,10 @@ export interface FormattedCleanupResult {
   };
 }
 
-// ==================== 服务类 ====================
+// ==================== 注册器类 ====================
 
 /**
- * 目录清道夫服务
+ * 目录清道夫注册器
  *
  * 提供无状态的目录扫描和清理接口：
  * 1. `scanDirectory`: 扫描目录并返回符合条件的文件和目录列表
@@ -50,7 +50,7 @@ export interface FormattedCleanupResult {
  *
  * UI 层通过 useDirectoryJanitorState 和 useDirectoryJanitorRunner composables 管理状态和业务逻辑
  */
-export default class DirectoryJanitorService implements ToolService {
+export default class DirectoryJanitorRegistry implements ToolRegistry {
   public readonly id = 'directory-janitor';
   public readonly name = '目录清道夫';
   public readonly description = '扫描和清理目录中的过期文件和大文件';

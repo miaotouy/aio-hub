@@ -4,7 +4,7 @@
  * 定义了插件清单、插件接口和相关的管理类型
  */
 
-import type { ToolService, MethodMetadata } from './types';
+import type { ToolRegistry, MethodMetadata } from './types';
 
 // ==================== 插件清单类型 ====================
 
@@ -160,9 +160,9 @@ export interface JsPluginExport {
 /**
  * 插件代理接口
  *
- * 将插件包装成符合 ToolService 接口的代理对象
+ * 将插件包装成符合 ToolRegistry 接口的代理对象
  */
-export interface PluginProxy extends ToolService {
+export interface PluginProxy extends ToolRegistry {
   /** 插件清单 */
   manifest: PluginManifest;
   /** 插件安装路径 */

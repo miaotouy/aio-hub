@@ -1,4 +1,4 @@
-import type { ToolService, ServiceMetadata } from '@/services/types';
+import type { ToolRegistry, ServiceMetadata } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { loadFile, generatePatch } from './engine';
 import type { FileReadResult, PatchOptions, PatchResult } from './types';
@@ -9,7 +9,7 @@ const logger = createModuleLogger('services/text-diff');
  * TextDiff 服务
  * 提供文本差异对比的核心功能，供其他工具和 Agent 调用
  */
-export default class TextDiffService implements ToolService {
+export default class TextDiffRegistry implements ToolRegistry {
   public readonly id = 'text-diff';
   public readonly name = '文本差异对比工具';
   public readonly description = '提供文本差异对比的文件操作、补丁生成等功能';

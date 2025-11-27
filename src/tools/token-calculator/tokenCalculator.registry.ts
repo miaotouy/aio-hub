@@ -3,7 +3,7 @@
  * 服务层外壳，负责将 tokenCalculatorEngine 的功能注册为可跨模块调用的服务
  */
 
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { tokenCalculatorEngine, type TokenCalculationResult } from './composables/useTokenCalculator';
 import type { Asset } from '@/types/asset-management';
 import { getMatchedModelProperties } from '@/config/model-metadata';
@@ -17,9 +17,9 @@ import { getMatchedModelProperties } from '@/config/model-metadata';
  * 3. 提供服务元数据供监控和文档使用
  * 
  * 注意：内部 UI 逻辑应直接使用 composables/useTokenCalculator，
- * 而不是通过这个 service 绕远路
+ * 而不是通过这个 registry 绕远路
  */
-class TokenCalculatorService implements ToolService {
+class TokenCalculatorRegistry implements ToolRegistry {
   public readonly id = 'token-calculator';
   public readonly name = 'Token 计算器';
   public readonly description = '计算文本的 Token 数量，支持多种 LLM 分词器';
@@ -273,10 +273,12 @@ console.log(result);
 }
 
 // 导出类供自动注册系统使用
-export default TokenCalculatorService;
+export default TokenCalculatorRegistry;
 
 // 同时导出单例实例供直接使用（跨模块调用场景）
-export const tokenCalculatorService = new TokenCalculatorService();
+export const tokenCalculatorRegistry = new TokenCalculatorRegistry();
+// 兼容旧代码
+export const tokenCalculatorService = tokenCalculatorRegistry;
 
 // 重新导出类型，方便外部模块导入
 export type { TokenCalculationResult } from './composables/useTokenCalculator';

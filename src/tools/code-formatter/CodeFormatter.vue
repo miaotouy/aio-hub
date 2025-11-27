@@ -67,13 +67,13 @@ import { customMessage } from '@/utils/customMessage';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
-import { serviceRegistry } from '@/services/registry';
-import type CodeFormatterService from './codeFormatter.registry';
+import { toolRegistryManager } from '@/services/registry';
+import type CodeFormatterRegistry from './codeFormatter.registry';
 import type { SupportedLanguage } from './codeFormatter.registry';
 import { useSendToChat } from '@/composables/useSendToChat';
 
 // 获取服务实例
-const codeFormatterService = serviceRegistry.getService<CodeFormatterService>('code-formatter');
+const codeFormatterRegistry = toolRegistryManager.getRegistry<CodeFormatterRegistry>('code-formatter');
 
 // 获取发送到聊天功能
 const { sendCodeToChat } = useSendToChat();
@@ -92,7 +92,7 @@ const formatCodeInternal = async () => {
     return;
   }
 
-  const result = await codeFormatterService.formatCode(
+  const result = await codeFormatterRegistry.formatCode(
     rawCodeInput.value,
     language.value
   );

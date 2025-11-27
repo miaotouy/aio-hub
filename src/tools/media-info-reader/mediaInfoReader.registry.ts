@@ -1,4 +1,4 @@
-import type { ToolService } from "@/services/types";
+import type { ToolRegistry } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { readFile } from '@tauri-apps/plugin-fs';
@@ -20,7 +20,7 @@ export type { ImageMetadataResult, WebUIInfo };
  * 提供从 AI 生成图片中提取元数据的能力
  * 服务层仅作为薄层入口，核心业务逻辑在 useMediaInfoParser composable 中
  */
-export default class MediaInfoReaderService implements ToolService {
+export default class MediaInfoReaderRegistry implements ToolRegistry {
   public readonly id = "media-info-reader";
   public readonly name = "AI 图片元数据读取器";
   public readonly description = "从 AI 生成的图片（如 Stable Diffusion, ComfyUI）中提取 Prompt 和其他元数据。";

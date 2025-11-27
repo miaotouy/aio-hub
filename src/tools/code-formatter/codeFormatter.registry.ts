@@ -1,4 +1,4 @@
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 
@@ -11,8 +11,8 @@ import * as parserMarkdown from 'prettier/plugins/markdown';
 import * as parserTypeScript from 'prettier/plugins/typescript';
 import * as parserEstree from 'prettier/plugins/estree';
 
-const logger = createModuleLogger('services/code-formatter');
-const errorHandler = createModuleErrorHandler('services/code-formatter');
+const logger = createModuleLogger('tools/code-formatter');
+const errorHandler = createModuleErrorHandler('tools/code-formatter');
 
 // 缓存动态加载的插件
 let prettierPluginPhp: any = null;
@@ -70,10 +70,10 @@ interface LanguageConfig {
 }
 
 /**
- * CodeFormatter 服务
+ * CodeFormatter 注册器
  * 提供多语言代码格式化功能，基于 Prettier
  */
-export default class CodeFormatterService implements ToolService {
+export default class CodeFormatterRegistry implements ToolRegistry {
   public readonly id = 'code-formatter';
   public readonly name = '代码格式化工具';
   public readonly description = '提供多语言代码格式化功能，基于 Prettier';

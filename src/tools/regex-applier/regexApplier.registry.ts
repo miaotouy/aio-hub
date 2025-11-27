@@ -3,7 +3,7 @@
  * 封装正则应用的核心业务逻辑，与 Pinia store 配合使用
  */
 
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { customMessage } from '@/utils/customMessage';
@@ -93,7 +93,7 @@ export interface OneClickOptions {
 
 // ==================== 服务类 ====================
 
-export default class RegexApplierService implements ToolService {
+export default class RegexApplierRegistry implements ToolRegistry {
   public readonly id = 'regex-applier';
   public readonly name = 'Regex Applier';
   public readonly description = '正则表达式批量应用工具';

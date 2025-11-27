@@ -2,19 +2,19 @@ import { createModuleLogger } from '@/utils/logger';
 import { useColorExtractor } from './composables/useColorExtractor';
 import { useColorHistory } from './composables/useColorHistory';
 import * as ColorConverter from './composables/useColorConverter';
-import type { ServiceMetadata, ToolService } from '@/services/types';
+import type { ServiceMetadata, ToolRegistry } from '@/services/types';
 import type { Asset } from '@/types/asset-management';
 import type { ColorAnalysisResult, AnalysisAlgorithm } from './colorPicker.store';
 
-const logger = createModuleLogger('color-picker/service');
+const logger = createModuleLogger('tools/color-picker');
 
 /**
- * Color Picker 服务类
+ * Color Picker 注册器
  *
- * 实现了 ToolService 接口，并作为颜色提取、历史记录等功能的统一门户。
- * 此服务将被自动注册系统发现并实例化。
+ * 实现了 ToolRegistry 接口，并作为颜色提取、历史记录等功能的统一门户。
+ * 此注册器将被自动注册系统发现并实例化。
  */
-export default class ColorPickerService implements ToolService {
+export default class ColorPickerRegistry implements ToolRegistry {
   public readonly id = 'color-picker';
   public readonly name = 'Color Picker';
   public readonly description = '从图片中提取和分析颜色方案';
@@ -45,7 +45,7 @@ export default class ColorPickerService implements ToolService {
 
   /**
    * 将颜色转换工具集作为静态属性暴露，方便外部直接调用。
-   * @example ColorPickerService.converter.rgbToHex(255, 0, 0)
+   * @example ColorPickerRegistry.converter.rgbToHex(255, 0, 0)
    */
   public static converter = ColorConverter;
 

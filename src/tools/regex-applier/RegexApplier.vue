@@ -343,8 +343,8 @@ import type { LogEntry, RegexPreset } from "./types";
 import { loadAppConfig, appConfigManager, type AppConfig } from "./appConfig";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import { serviceRegistry } from "@/services/registry";
-import type RegexApplierService from "./regexApplier.registry";
+import { toolRegistryManager } from "@/services/registry";
+import type RegexApplierRegistry from "./regexApplier.registry";
 import { useSendToChat } from "@/composables/useSendToChat";
 
 // 创建模块日志器
@@ -352,7 +352,7 @@ const logger = createModuleLogger("RegexApplier");
 const errorHandler = createModuleErrorHandler("RegexApplier");
 
 // 获取服务实例
-const regexService = serviceRegistry.getService<RegexApplierService>('regex-applier')!;
+const regexRegistry = toolRegistryManager.getRegistry<RegexApplierRegistry>('regex-applier')!;
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
@@ -587,7 +587,7 @@ const processText = async () => {
   }
 
   // 使用服务处理文本
-  const result = await regexService.processText({
+  const result = await regexRegistry.processText({
     sourceText: sourceText.value,
     presetIds: selectedPresetIds.value,
   });
@@ -600,7 +600,7 @@ const processText = async () => {
 };
 
 const pasteToSource = async () => {
-  const text = await regexService.pasteFromClipboard();
+  const text = await regexRegistry.pasteFromClipboard();
   if (text !== null) {
     sourceText.value = text;
     addLog("已从剪贴板粘贴内容到输入框。");
@@ -608,7 +608,7 @@ const pasteToSource = async () => {
 };
 
 const copyResult = async () => {
-  const success = await regexService.copyToClipboard(resultText.value);
+  const success = await regexRegistry.copyToClipboard(resultText.value);
   if (success) {
     addLog("处理结果已复制到剪贴板。");
   }
@@ -628,7 +628,7 @@ const oneClickProcess = async () => {
   }
   addLog("执行一键处理剪贴板...");
   
-  const result = await regexService.oneClickProcess({
+  const result = await regexRegistry.oneClickProcess({
     presetIds: selectedPresetIds.value,
   });
   
@@ -921,7 +921,7 @@ const processFiles = async () => {
     addLog(`开始处理 ${filePaths.length} 个文件...`);
 
     // 使用服务处理文件
-    const result = await regexService.processFiles({
+    const result = await regexRegistry.processFiles({
       filePaths,
       outputDir: outputDirectory.value,
       presetIds: selectedPresetIds.value,

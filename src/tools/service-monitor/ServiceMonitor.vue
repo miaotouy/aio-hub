@@ -4,35 +4,35 @@
       <!-- 左侧：服务列表 -->
       <el-aside width="300px" class="service-list-panel">
         <div class="panel-header">
-          <h3>已注册服务</h3>
-          <el-tag :type="services.length > 0 ? 'success' : 'info'" size="small">
-            {{ services.length }} 个服务
+          <h3>已注册工具</h3>
+          <el-tag :type="registries.length > 0 ? 'success' : 'info'" size="small">
+            {{ registries.length }} 个工具
           </el-tag>
         </div>
         
         <el-scrollbar class="service-list-scrollbar">
           <div class="service-list">
             <div
-              v-for="service in services"
-              :key="service.id"
+              v-for="registry in registries"
+              :key="registry.id"
               class="service-item"
-              :class="{ active: selectedService?.id === service.id }"
-              @click="selectService(service)"
+              :class="{ active: selectedRegistry?.id === registry.id }"
+              @click="selectRegistry(registry)"
             >
               <div class="service-item-header">
-                <span class="service-id">{{ service.id }}</span>
+                <span class="service-id">{{ registry.id }}</span>
               </div>
-              <div v-if="service.name" class="service-name">
-                {{ service.name }}
+              <div v-if="registry.name" class="service-name">
+                {{ registry.name }}
               </div>
-              <div v-if="service.description" class="service-description">
-                {{ service.description }}
+              <div v-if="registry.description" class="service-description">
+                {{ registry.description }}
               </div>
             </div>
             
             <el-empty
-              v-if="services.length === 0"
-              description="暂无已注册的服务"
+              v-if="registries.length === 0"
+              description="暂无已注册的工具"
               :image-size="80"
             />
           </div>
@@ -41,7 +41,7 @@
 
       <!-- 右侧：服务详情 -->
       <el-main class="service-detail-panel">
-        <ServiceDetailPanel :service="selectedService" />
+        <ServiceDetailPanel :service="selectedRegistry" />
       </el-main>
     </el-container>
   </div>
@@ -49,33 +49,33 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { serviceRegistry } from '@/services/registry';
-import type { ToolService } from '@/services/types';
+import { toolRegistryManager } from '@/services/registry';
+import type { ToolRegistry } from '@/services/types';
 import ServiceDetailPanel from './components/ServiceDetailPanel.vue';
 
-// 服务列表
-const services = ref<ToolService[]>([]);
+// 工具列表
+const registries = ref<ToolRegistry[]>([]);
 
-// 当前选中的服务
-const selectedService = ref<ToolService | null>(null);
+// 当前选中的工具
+const selectedRegistry = ref<ToolRegistry | null>(null);
 
-// 选择服务
-const selectService = (service: ToolService) => {
-  selectedService.value = service;
+// 选择工具
+const selectRegistry = (registry: ToolRegistry) => {
+  selectedRegistry.value = registry;
 };
 
-// 加载服务列表
-const loadServices = () => {
-  services.value = serviceRegistry.getAllServices();
+// 加载工具列表
+const loadRegistries = () => {
+  registries.value = toolRegistryManager.getAllTools();
   
-  // 如果有服务，默认选中第一个
-  if (services.value.length > 0 && !selectedService.value) {
-    selectedService.value = services.value[0];
+  // 如果有工具，默认选中第一个
+  if (registries.value.length > 0 && !selectedRegistry.value) {
+    selectedRegistry.value = registries.value[0];
   }
 };
 
 onMounted(() => {
-  loadServices();
+  loadRegistries();
 });
 </script>
 

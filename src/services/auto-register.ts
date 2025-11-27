@@ -1,5 +1,5 @@
-import { serviceRegistry } from "./registry";
-import type { ToolService } from "./types";
+import { toolRegistryManager } from "./registry";
+import type { ToolRegistry } from "./types";
 import { pluginManager } from "./plugin-manager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -10,20 +10,20 @@ const errorHandler = createModuleErrorHandler("services/auto-register");
 
 // 定义模块导出的类型，期望是一个可以 new 的类
 type ServiceModule = {
-  default: new () => ToolService;
+  default: new () => ToolRegistry;
 };
 
 /**
- * 自动发现并注册所有工具服务
+ * 自动发现并注册所有工具
  *
  * 此函数会扫描 src/tools 目录下所有以 .registry.ts 结尾的文件，
- * 动态导入它们，实例化默认导出的服务类，并注册到服务注册表中。
+ * 动态导入它们，实例化默认导出的注册类，并注册到工具注册表中。
  *
  * 约定：
  * - 工具注册表文件必须以 .registry.ts 结尾
- * - 文件必须默认导出一个实现了 ToolService 接口的类
+ * - 文件必须默认导出一个实现了 ToolRegistry 接口的类
  *
- * @returns Promise，在所有服务注册完成后 resolve
+ * @returns Promise，在所有工具注册完成后 resolve
  */
 export async function autoRegisterServices(): Promise<void> {
   logger.info("开始自动扫描和注册服务");
@@ -40,45 +40,45 @@ export async function autoRegisterServices(): Promise<void> {
       return;
     }
 
-    const instances: ToolService[] = [];
+    const instances: ToolRegistry[] = [];
     const failedModules: Array<{ path: string; error: any }> = [];
 
-    // 动态导入并实例化所有服务
+    // 动态导入并实例化所有工具
     for (const path in serviceModules) {
       try {
-        // logger.debug(`正在加载服务模块: ${path}`);
+        // logger.debug(`正在加载工具模块: ${path}`);
         const module = await serviceModules[path]();
-        const ServiceClass = module.default;
+        const RegistryClass = module.default;
 
-        if (!ServiceClass) {
+        if (!RegistryClass) {
           throw new Error("模块未导出默认类");
         }
 
-        if (typeof ServiceClass !== "function") {
+        if (typeof RegistryClass !== "function") {
           throw new Error("默认导出不是一个可实例化的类");
         }
 
-        const instance = new ServiceClass();
+        const instance = new RegistryClass();
 
-        // 验证实例是否实现了 ToolService 接口
+        // 验证实例是否实现了 ToolRegistry 接口
         if (!instance.id) {
-          throw new Error("服务实例缺少必需的 id 属性");
+          throw new Error("工具实例缺少必需的 id 属性");
         }
 
         instances.push(instance);
       } catch (error) {
-        errorHandler.error(error, '加载服务模块失败', { context: { path } });
+        errorHandler.error(error, '加载工具模块失败', { context: { path } });
         failedModules.push({ path, error });
       }
     }
 
-    // 批量注册所有成功加载的服务
+    // 批量注册所有成功加载的工具
     if (instances.length > 0) {
-      await serviceRegistry.register(...instances);
+      await toolRegistryManager.register(...instances);
     }
 
-    // 输出服务注册摘要（合并成功和失败）
-    logger.info("服务自动注册完成", {
+    // 输出工具注册摘要（合并成功和失败）
+    logger.info("工具自动注册完成", {
       总计: modulePaths.length,
       成功: instances.length,
       失败: failedModules.length,

@@ -1,13 +1,13 @@
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { generateTree, type GenerateTreeOptions, type TreeGenerationResult } from './actions';
 
 /**
- * 目录树工具服务注册
- * 
- * 仅作为 ToolService 接口的适配器，用于向 LLM 暴露核心功能。
+ * 目录树工具注册器
+ *
+ * 仅作为 ToolRegistry 接口的适配器，用于向 LLM 暴露核心功能。
  * 具体的业务逻辑和 UI 交互应直接使用 actions.ts 中的函数。
  */
-export default class DirectoryTreeService implements ToolService {
+export default class DirectoryTreeRegistry implements ToolRegistry {
   public readonly id = 'directory-tree';
   public readonly name = '目录结构浏览器';
   public readonly description = '生成目录树结构，支持过滤规则和深度限制';

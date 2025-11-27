@@ -1,9 +1,9 @@
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 
-const logger = createModuleLogger('services/json-formatter');
-const errorHandler = createModuleErrorHandler('services/json-formatter');
+const logger = createModuleLogger('tools/json-formatter');
+const errorHandler = createModuleErrorHandler('tools/json-formatter');
 
 /**
  * JSON 格式化选项
@@ -56,10 +56,10 @@ export interface FileReadResult {
 }
 
 /**
- * JsonFormatter 服务
+ * JsonFormatter 注册器
  * 提供 JSON 解析、格式化和文件处理功能
  */
-export default class JsonFormatterService implements ToolService {
+export default class JsonFormatterRegistry implements ToolRegistry {
   public readonly id = 'json-formatter';
   public readonly name = 'JSON 格式化工具';
   public readonly description = '提供 JSON 解析、格式化和美化功能，支持自定义展开层级';

@@ -3,7 +3,7 @@
  * 提供标准化的服务调用接口，实现关注点分离
  */
 
-import { serviceRegistry } from './registry';
+import { toolRegistryManager } from './registry';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 
@@ -68,19 +68,19 @@ export async function execute<TData = any>(
   });
 
   try {
-    // 1. 查找服务实例
-    // 开发模式下，如果找不到原始 ID 的服务，自动尝试 -dev 后缀
-    let serviceInstance;
+    // 1. 查找工具实例
+    // 开发模式下，如果找不到原始 ID 的工具，自动尝试 -dev 后缀
+    let toolInstance;
     try {
-      serviceInstance = serviceRegistry.getService(serviceId);
+      toolInstance = toolRegistryManager.getRegistry(serviceId);
     } catch (error) {
       // 在开发模式下，尝试添加 -dev 后缀
       if (import.meta.env.DEV) {
         const devServiceId = `${serviceId}-dev`;
-        logger.debug(`服务 "${serviceId}" 未找到，尝试开发模式 ID: ${devServiceId}`);
+        logger.debug(`工具 "${serviceId}" 未找到，尝试开发模式 ID: ${devServiceId}`);
         try {
-          serviceInstance = serviceRegistry.getService(devServiceId);
-          logger.info(`使用开发模式服务: ${devServiceId}`);
+          toolInstance = toolRegistryManager.getRegistry(devServiceId);
+          logger.info(`使用开发模式工具: ${devServiceId}`);
         } catch {
           // 仍然找不到，抛出原始错误
           throw error;
@@ -90,17 +90,17 @@ export async function execute<TData = any>(
       }
     }
     
-    if (!serviceInstance) {
-      throw new Error(`服务未找到: ${serviceId}`);
+    if (!toolInstance) {
+      throw new Error(`工具未找到: ${serviceId}`);
     }
 
     // 2. 验证方法是否存在
-    if (typeof (serviceInstance as Record<string, any>)[method] !== 'function') {
+    if (typeof (toolInstance as Record<string, any>)[method] !== 'function') {
       throw new Error(`方法不存在: ${serviceId}.${method}`);
     }
 
     // 3. 执行方法调用
-    const result = await (serviceInstance as Record<string, any>)[method](params);
+    const result = await (toolInstance as Record<string, any>)[method](params);
 
     logger.info('服务调用成功', {
       serviceId,

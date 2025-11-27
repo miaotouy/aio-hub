@@ -16,8 +16,8 @@
  * - TextDiff - 发送 diff 结果
  */
 
-import { serviceRegistry } from '@/services/registry';
-import type LlmChatService from '@/tools/llm-chat/llmChat.registry';
+import { toolRegistryManager } from '@/services/registry';
+import type LlmChatRegistry from '@/tools/llm-chat/llmChat.registry';
 import { customMessage } from '@/utils/customMessage';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
@@ -68,8 +68,8 @@ export function useSendToChat() {
    * 延迟获取 llmChat 服务
    * 确保在组件上下文中调用，避免生命周期钩子警告
    */
-  const getLlmChatService = () => {
-    return serviceRegistry.getService<LlmChatService>('llm-chat');
+  const getLlmChatRegistry = () => {
+    return toolRegistryManager.getRegistry<LlmChatRegistry>('llm-chat');
   };
   
   /**
@@ -111,8 +111,8 @@ export function useSendToChat() {
       
       // 发送到聊天输入框
       const { position = 'append' } = options;
-      const llmChatService = getLlmChatService();
-      llmChatService.addContentToInput(formattedContent, { position });
+      const llmChatRegistry = getLlmChatRegistry();
+      llmChatRegistry.addContentToInput(formattedContent, { position });
       
       // 显示成功提示
       const successMsg = options.successMessage || '已发送到聊天输入框';

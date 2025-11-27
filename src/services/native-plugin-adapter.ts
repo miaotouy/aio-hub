@@ -1,7 +1,7 @@
 /**
  * 原生插件适配器
  *
- * 将原生插件包装成符合 ToolService 接口的代理对象
+ * 将原生插件包装成符合 ToolRegistry 接口的代理对象
  */
 
 import type { ServiceMetadata } from "./types";
@@ -18,7 +18,7 @@ const errorHandler = createModuleErrorHandler("services/native-plugin-adapter");
 /**
  * 原生插件适配器类
  *
- * 将一个原生插件包装成 ToolService 接口
+ * 将一个原生插件包装成 ToolRegistry 接口
  */
 export class NativePluginAdapter implements PluginProxy {
   public readonly id: string;
@@ -133,7 +133,7 @@ export class NativePluginAdapter implements PluginProxy {
   }
 
   /**
-   * 初始化方法 (ToolService 接口)
+   * 初始化方法 (ToolRegistry 接口)
    */
   async initialize(): Promise<void> {
     logger.debug(`初始化插件: ${this.id}`);
@@ -141,7 +141,7 @@ export class NativePluginAdapter implements PluginProxy {
   }
 
   /**
-   * 销毁方法 (ToolService 接口)
+   * 销毁方法 (ToolRegistry 接口)
    */
   dispose(): void {
     this.disable();
@@ -149,7 +149,7 @@ export class NativePluginAdapter implements PluginProxy {
   }
 
   /**
-   * 获取服务元数据 (ToolService 接口)
+   * 获取服务元数据 (ToolRegistry 接口)
    */
   getMetadata(): ServiceMetadata {
     return {

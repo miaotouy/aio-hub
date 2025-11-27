@@ -5,7 +5,7 @@
  * 不包含核心业务逻辑，仅作为 useChatInputManager 的薄层封装。
  */
 
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { useChatInputManager } from './composables/useChatInputManager';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
@@ -35,7 +35,7 @@ export interface AddContentOptions {
 
 // ==================== 服务类 ====================
 
-export default class LlmChatService implements ToolService {
+export default class LlmChatRegistry implements ToolRegistry {
   public readonly id = 'llm-chat';
   public readonly name = 'LLM 聊天输入管理';
   public readonly description = '管理 LLM 聊天输入框的内容和附件，支持跨窗口和工具间协同';

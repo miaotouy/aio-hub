@@ -1,7 +1,7 @@
 /**
  * Sidecar 插件适配器
  *
- * 将 Sidecar 插件包装成符合 ToolService 接口的代理对象
+ * 将 Sidecar 插件包装成符合 ToolRegistry 接口的代理对象
  */
 
 import type { ServiceMetadata } from "./types";
@@ -38,7 +38,7 @@ interface SidecarExecuteRequest {
 /**
  * Sidecar 插件适配器类
  *
- * 将一个 Sidecar 插件包装成 ToolService 接口
+ * 将一个 Sidecar 插件包装成 ToolRegistry 接口
  */
 export class SidecarPluginAdapter implements PluginProxy {
   public readonly id: string;
@@ -118,14 +118,14 @@ export class SidecarPluginAdapter implements PluginProxy {
   }
 
   /**
-   * 初始化方法 (ToolService 接口)
+   * 初始化方法 (ToolRegistry 接口)
    */
   async initialize(): Promise<void> {
     logger.debug(`初始化插件: ${this.id}`);
   }
 
   /**
-   * 销毁方法 (ToolService 接口)
+   * 销毁方法 (ToolRegistry 接口)
    */
   dispose(): void {
     this.disable();
@@ -133,7 +133,7 @@ export class SidecarPluginAdapter implements PluginProxy {
   }
 
   /**
-   * 获取服务元数据 (ToolService 接口)
+   * 获取服务元数据 (ToolRegistry 接口)
    */
   getMetadata(): ServiceMetadata {
     return {

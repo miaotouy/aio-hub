@@ -4,7 +4,7 @@
  * 提供插件的加载、卸载等运行时管理功能
  */
 
-import { serviceRegistry } from "./registry";
+import { toolRegistryManager } from "./registry";
 import { createPluginLoader, PluginLoader } from "./plugin-loader";
 import type { PluginProxy } from "./plugin-types";
 import { useToolsStore } from "@/stores/tools";
@@ -278,9 +278,9 @@ class PluginManager {
 
     const result = await this.loader.loadAll();
 
-    // 注册加载成功的插件到服务注册表
+    // 注册加载成功的插件到工具注册表
     if (result.plugins.length > 0) {
-      await serviceRegistry.register(...result.plugins);
+      await toolRegistryManager.register(...result.plugins);
 
       // 注册插件UI（仅为启用的插件注册）
       for (const plugin of result.plugins) {
@@ -323,10 +323,10 @@ class PluginManager {
       errorHandler.error(error, '移除插件UI失败', { context: { pluginId } });
     }
 
-    // 2. 从服务注册表注销
-    const unregistered = await serviceRegistry.unregister(pluginId);
+    // 2. 从工具注册表注销
+    const unregistered = await toolRegistryManager.unregister(pluginId);
     if (!unregistered) {
-      logger.warn(`插件 ${pluginId} 未在服务注册表中找到`);
+      logger.warn(`插件 ${pluginId} 未在工具注册表中找到`);
     }
 
     // 3. 删除插件文件到回收站
@@ -338,11 +338,11 @@ class PluginManager {
    * 获取所有已安装的插件
    */
   getInstalledPlugins(): PluginProxy[] {
-    const allServices = serviceRegistry.getAllServices();
+    const allRegistries = toolRegistryManager.getAllTools();
 
     // 过滤出插件（检查是否有 manifest 属性）
-    return allServices.filter(
-      (service): service is PluginProxy => "manifest" in service && "enabled" in service
+    return allRegistries.filter(
+      (registry): registry is PluginProxy => "manifest" in registry && "enabled" in registry
     );
   }
 
@@ -350,7 +350,7 @@ class PluginManager {
    * 检查插件是否已安装
    */
   isPluginInstalled(pluginId: string): boolean {
-    return serviceRegistry.hasService(pluginId);
+    return toolRegistryManager.hasTool(pluginId);
   }
 
   /**
@@ -360,12 +360,12 @@ class PluginManager {
    */
   getPlugin(pluginId: string): PluginProxy | undefined {
     try {
-      const service = serviceRegistry.getService(pluginId);
-      if ("manifest" in service && "enabled" in service) {
-        return service as PluginProxy;
+      const registry = toolRegistryManager.getRegistry(pluginId);
+      if ("manifest" in registry && "enabled" in registry) {
+        return registry as PluginProxy;
       }
     } catch {
-      // 服务不存在
+      // 工具不存在
     }
     return undefined;
   }
@@ -401,7 +401,7 @@ class PluginManager {
 
         // 注册新加载的插件
         if (loadResult.plugins.length > 0) {
-          await serviceRegistry.register(...loadResult.plugins);
+          await toolRegistryManager.register(...loadResult.plugins);
 
           // 注册插件UI（仅为启用的插件注册）
           for (const plugin of loadResult.plugins) {

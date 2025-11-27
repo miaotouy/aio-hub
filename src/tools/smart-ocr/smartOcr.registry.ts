@@ -1,4 +1,4 @@
-import type { ToolService } from '@/services/types';
+import type { ToolRegistry } from '@/services/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import type { UploadedImage, OcrEngineConfig, SlicerConfig, OcrEngineType, ImageBlock, OcrResult } from './types';
@@ -65,7 +65,7 @@ export interface ProcessImagesFromPathsOptions {
  * 2. `processImagesFromPaths`: 从文件路径处理图片，适用于 Agent 或外部调用
  * 3. 查询接口：获取可用引擎、参数说明等元数据
  */
-export default class SmartOcrService implements ToolService {
+export default class SmartOcrRegistry implements ToolRegistry {
   public readonly id = 'smart-ocr';
   public readonly name = '智能 OCR';
   public readonly description = '智能图片文字识别工具，支持多种 OCR 引擎和智能切图';

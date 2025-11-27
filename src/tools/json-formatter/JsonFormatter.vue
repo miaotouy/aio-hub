@@ -150,12 +150,12 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";
 import debounce from "lodash/debounce";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
-import { serviceRegistry } from "@/services/registry";
-import type JsonFormatterService from "./jsonFormatter.registry";
+import { toolRegistryManager } from "@/services/registry";
+import type JsonFormatterRegistry from "./jsonFormatter.registry";
 import { useSendToChat } from "@/composables/useSendToChat";
 
 // 获取服务实例
-const jsonFormatterService = serviceRegistry.getService<JsonFormatterService>("json-formatter");
+const jsonFormatterRegistry = toolRegistryManager.getRegistry<JsonFormatterRegistry>("json-formatter");
 
 // 获取发送到聊天功能
 const { sendCodeToChat } = useSendToChat();
@@ -265,7 +265,7 @@ const formatJsonInternal = () => {
     return;
   }
 
-  const result = jsonFormatterService.formatJson(rawJsonInput.value, {
+  const result = jsonFormatterRegistry.formatJson(rawJsonInput.value, {
     expandDepth: defaultExpandDepth.value,
   });
 
@@ -404,7 +404,7 @@ const handleDrop = async (event: DragEvent) => {
 
   if (files && files.length > 0) {
     const file = files[0];
-    const result = await jsonFormatterService.readFile(file);
+    const result = await jsonFormatterRegistry.readFile(file);
 
     if (result.success) {
       rawJsonInput.value = result.content;

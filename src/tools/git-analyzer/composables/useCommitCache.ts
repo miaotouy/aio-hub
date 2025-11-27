@@ -4,13 +4,13 @@ import { createModuleLogger } from '@utils/logger'
 const logger = createModuleLogger('git-analyzer:cache')
 
 /**
- * Git Commit 缓存服务
- * 
+ * Git Commit 缓存管理器
+ *
  * 统一管理提交详情的缓存，支持：
  * 1. 单个提交详情缓存（CommitDetailDialog 使用）
  * 2. 批量提交文件信息缓存（ExportModule 使用）
  */
-class CommitCacheService {
+class CommitCacheManager {
   // 单个提交详情缓存: hash -> GitCommit
   private detailCache = new Map<string, GitCommit>()
   
@@ -113,4 +113,4 @@ class CommitCacheService {
 }
 
 // 创建单例实例
-export const commitCache = new CommitCacheService()
+export const commitCache = new CommitCacheManager()

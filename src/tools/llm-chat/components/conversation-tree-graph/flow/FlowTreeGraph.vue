@@ -73,68 +73,83 @@
 
     <!-- 控制按钮组 -->
     <div class="control-buttons">
-      <el-button-group style="border-radius: 8px">
-        <!-- 布局模式切换按钮 -->
-        <el-tooltip
-          :content="layoutMode === 'tree' ? '切换到实时力导向图模式' : '切换到树状布局模式'"
-          placement="bottom"
-        >
-          <el-button :icon="layoutMode === 'tree' ? Grid : Share" @click="toggleLayoutMode" />
-        </el-tooltip>
+      <transition name="el-fade-in-linear" mode="out-in">
+        <el-button-group v-if="isControlsExpanded" style="border-radius: 8px">
+          <!-- 布局模式切换按钮 -->
+          <el-tooltip
+            :content="layoutMode === 'tree' ? '切换到实时力导向图模式' : '切换到树状布局模式'"
+            placement="bottom"
+          >
+            <el-button :icon="layoutMode === 'tree' ? Grid : Share" @click="toggleLayoutMode" />
+          </el-tooltip>
 
-        <!-- 重置布局按钮 -->
-        <el-tooltip content="重置布局" placement="bottom">
-          <el-button :icon="Refresh" @click="resetLayout" />
-        </el-tooltip>
+          <!-- 重置布局按钮 -->
+          <el-tooltip content="重置布局" placement="bottom">
+            <el-button :icon="Refresh" @click="resetLayout" />
+          </el-tooltip>
 
-        <!-- 撤销按钮 -->
-        <el-tooltip :content="undoTooltip" placement="bottom">
-          <el-button :icon="ArrowLeft" :disabled="!canUndo" @click="undo" />
-        </el-tooltip>
+          <!-- 撤销按钮 -->
+          <el-tooltip :content="undoTooltip" placement="bottom">
+            <el-button :icon="ArrowLeft" :disabled="!canUndo" @click="undo" />
+          </el-tooltip>
 
-        <!-- 重做按钮 -->
-        <el-tooltip :content="redoTooltip" placement="bottom">
-          <el-button :icon="ArrowRight" :disabled="!canRedo" @click="redo" />
-        </el-tooltip>
+          <!-- 重做按钮 -->
+          <el-tooltip :content="redoTooltip" placement="bottom">
+            <el-button :icon="ArrowRight" :disabled="!canRedo" @click="redo" />
+          </el-tooltip>
 
-        <!-- 历史记录按钮 -->
-        <el-tooltip content="查看操作历史" placement="bottom">
-          <el-button
-            :icon="Timer"
-            :type="historyPanelState.visible ? 'primary' : 'default'"
-            @click="toggleHistoryPanel"
-          />
-        </el-tooltip>
+          <!-- 历史记录按钮 -->
+          <el-tooltip content="查看操作历史" placement="bottom">
+            <el-button
+              :icon="Timer"
+              :type="historyPanelState.visible ? 'primary' : 'default'"
+              @click="toggleHistoryPanel"
+            />
+          </el-tooltip>
 
-        <!-- 使用说明按钮 -->
-        <el-tooltip content="使用说明" placement="bottom">
-          <el-button :icon="QuestionFilled" @click="isUsageGuideVisible = true" />
-        </el-tooltip>
+          <!-- 使用说明按钮 -->
+          <el-tooltip content="使用说明" placement="bottom">
+            <el-button :icon="QuestionFilled" @click="isUsageGuideVisible = true" />
+          </el-tooltip>
 
-        <!-- 调试模式切换按钮 - 仅在设置中启用调试模式时显示 -->
-        <el-tooltip
-          v-if="chatSettings.developer.debugModeEnabled"
-          :content="debugMode ? '关闭调试叠加层' : '显示调试叠加层'"
-          placement="bottom"
-        >
-          <el-button
-            :icon="View"
-            :type="debugMode ? 'primary' : 'default'"
-            @click="toggleDebugMode"
-          />
-        </el-tooltip>
+          <!-- 调试模式切换按钮 - 仅在设置中启用调试模式时显示 -->
+          <template v-if="chatSettings.developer.debugModeEnabled">
+            <el-tooltip
+              :content="debugMode ? '关闭调试叠加层' : '显示调试叠加层'"
+              placement="bottom"
+            >
+              <el-button
+                :icon="View"
+                :type="debugMode ? 'primary' : 'default'"
+                @click="toggleDebugMode"
+              />
+            </el-tooltip>
 
-        <!-- 复制调试信息按钮 - 与调试模式按钮一起出现，保持布局稳定 -->
-        <el-tooltip
-          v-if="chatSettings.developer.debugModeEnabled"
-          content="复制调试信息到剪贴板"
-          placement="bottom"
-        >
-          <el-button :icon="CopyDocument" :disabled="!debugMode" @click="copyDebugInfo" />
-        </el-tooltip>
-      </el-button-group>
+            <!-- 复制调试信息按钮 - 与调试模式按钮一起出现，保持布局稳定 -->
+            <el-tooltip content="复制调试信息到剪贴板" placement="bottom">
+              <el-button :icon="CopyDocument" :disabled="!debugMode" @click="copyDebugInfo" />
+            </el-tooltip>
+          </template>
+
+          <!-- 收起按钮 -->
+          <el-tooltip content="收起工具栏" placement="bottom">
+            <el-button :icon="DArrowRight" @click="isControlsExpanded = false" />
+          </el-tooltip>
+        </el-button-group>
+
+        <!-- 展开按钮 (折叠状态下显示) -->
+        <div v-else>
+          <el-tooltip content="展开工具栏" placement="bottom">
+            <el-button
+              :icon="DArrowLeft"
+              circle
+              @click="isControlsExpanded = true"
+              style="box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1)"
+            />
+          </el-tooltip>
+        </div>
+      </transition>
     </div>
-
     <!-- 使用说明弹窗 -->
     <GraphUsageGuideDialog v-model:visible="isUsageGuideVisible" />
 
@@ -307,6 +322,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed, reactive } from "vue";
+import { useStorage } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
@@ -322,6 +338,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Timer,
+  DArrowLeft,
+  DArrowRight,
 } from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
@@ -355,6 +373,9 @@ const wrapperRef = ref<HTMLDivElement | null>(null);
 
 // 使用说明弹窗状态
 const isUsageGuideVisible = ref(false);
+
+// 控制栏展开状态
+const isControlsExpanded = useStorage("llm-chat-flow-graph-controls-expanded", true);
 
 // 历史记录面板状态
 const historyPanelState = ref({
@@ -1088,7 +1109,7 @@ onUnmounted(() => {
   text-anchor: end;
 }
 
-.el-button{
-    backdrop-filter: none;
+.el-button {
+  backdrop-filter: none;
 }
 </style>

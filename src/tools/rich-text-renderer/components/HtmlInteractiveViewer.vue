@@ -47,7 +47,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { RotateCw, ExternalLink, Loader2 } from "lucide-vue-next";
-import { useDebounceFn } from "@vueuse/core";
+import { useDebounceFn, useThrottleFn } from "@vueuse/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { useIframeTheme } from "@/composables/useIframeTheme";
@@ -83,16 +83,17 @@ const renderContent = ref("");
 const isContentStable = (html: string): boolean => {
   if (!html) return false;
   const trimmed = html.trim();
-  
+
   // 1. 长度检查：太短的内容通常是不完整的
   if (trimmed.length < 5) return false;
 
   // 2. 脚本完整性检查
-  // 如果包含 script 标签但没有结束标签，视为不稳定，绝对不要渲染，否则可能会执行错误的 js
-  const hasScriptStart = /<script/i.test(trimmed);
-  const hasScriptEnd = /<\/script>/i.test(trimmed);
-  
-  if (hasScriptStart && !hasScriptEnd) {
+  // 如果包含 script 标签，必须确保所有 script 标签都已闭合
+  const scriptStartCount = (trimmed.match(/<script/gi) || []).length;
+  const scriptEndCount = (trimmed.match(/<\/script>/gi) || []).length;
+
+  // 如果开始标签比结束标签多，说明有未闭合的脚本
+  if (scriptStartCount > scriptEndCount) {
     return false;
   }
 
@@ -100,17 +101,26 @@ const isContentStable = (html: string): boolean => {
   return true;
 };
 
-// 防抖更新渲染内容
+// 防抖更新渲染内容 (用于非流式但不立即渲染的场景，或者作为节流的补充)
 const debouncedUpdateContent = useDebounceFn((newContent: string) => {
-  // 如果内容稳定，或者虽然不稳定但这是第一次渲染（避免永远不显示），则更新
-  // 但对于流式传输，我们倾向于等待稳定
   if (isContentStable(newContent)) {
     renderContent.value = newContent;
   } else if (!renderContent.value && newContent.length > 100) {
-    // 如果当前是空的，且新内容已经很长了但还没检测到闭合标签（可能是长文本），也尝试渲染一下
     renderContent.value = newContent;
   }
-}, 500); // 500ms 防抖，平衡响应速度和闪烁频率
+}, 200);
+
+// 节流更新渲染内容 (专门用于流式传输场景)
+// 降低 iframe 更新频率，避免流式输出时频繁重绘
+const throttledUpdateContent = useThrottleFn((newContent: string) => {
+  // 在节流更新中，我们依然要检查内容的稳定性，避免渲染出破碎的 HTML
+  if (isContentStable(newContent)) {
+    renderContent.value = newContent;
+  } else if (!renderContent.value && newContent.length > 100) {
+    // 兜底：如果一直不稳定但内容很长，也尝试渲染
+    renderContent.value = newContent;
+  }
+}, 1000); // 1秒更新一次，既能看到进度，又不会太卡
 
 // 使用 useIframeTheme 自动注入主题样式，依赖 renderContent 而不是 props.content
 const { themedContent } = useIframeTheme(() => renderContent.value);
@@ -135,7 +145,6 @@ const refresh = () => {
   iframeKey.value++;
 };
 
-
 const openInBrowser = () => {
   try {
     const blob = new Blob([srcDoc.value], { type: "text/html;charset=utf-8" });
@@ -151,25 +160,29 @@ const openInBrowser = () => {
 };
 
 watch(
-  () => props.content,
-  (newContent) => {
+  [() => props.content, () => props.immediate],
+  ([newContent, isImmediate]) => {
     // 只有当显示内容为空时（首次加载），才立即显示 loading
     // 后续更新尽量静默，避免遮罩层频繁闪烁
     if (!renderContent.value) {
       loading.value = true;
     }
 
-    // 优化：如果开启了 immediate 模式，或内容已经稳定（例如非流式加载的完整HTML，或流式加载完成），
-    // 立即渲染以消除防抖带来的延迟（白屏）
-    if (props.immediate || isContentStable(newContent)) {
+    if (isImmediate) {
+      // 立即模式（已闭合或非流式）：直接更新，不节流，确保最终结果立即显示
       renderContent.value = newContent;
-      // 取消可能的待执行防抖，避免重复更新
+
+      // 取消可能的待执行的节流/防抖，避免重复更新
       const debouncedFn = debouncedUpdateContent as any;
-      if (debouncedFn.cancel) {
-        debouncedFn.cancel();
-      }
+      if (debouncedFn.cancel) debouncedFn.cancel();
+
+      // useThrottleFn 返回的函数没有暴露 cancel 方法，但在 VueUse 中通常不需要手动 cancel，
+      // 因为我们已经覆盖了 renderContent.value
     } else {
-      debouncedUpdateContent(newContent);
+      // 流式模式：使用节流更新
+      // 注意：这里不再因为 isContentStable 为 true 就立即更新，
+      // 而是强制走节流逻辑，以降低 iframe 刷新频率。
+      throttledUpdateContent(newContent);
     }
   },
   { immediate: true }

@@ -331,11 +331,11 @@ export const htmlGameSnakePreset: RenderPreset = {
   function update() {
     const head = { x: snake[0].x + dx, y: snake[0].y + dy };
     
-    // 碰撞检测 (墙壁)
-    if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
-      gameOver();
-      return;
-    }
+    // 穿墙处理 (Wrap around)
+    if (head.x < 0) head.x = TILE_COUNT - 1;
+    if (head.x >= TILE_COUNT) head.x = 0;
+    if (head.y < 0) head.y = TILE_COUNT - 1;
+    if (head.y >= TILE_COUNT) head.y = 0;
     
     // 碰撞检测 (自身)
     for (let i = 0; i < snake.length; i++) {
@@ -408,16 +408,17 @@ export const htmlGameSnakePreset: RenderPreset = {
     // 绘制蛇
     snake.forEach((part, index) => {
       ctx.fillStyle = index === 0 ? colorSnakeHead : colorSnakeBody;
-      // 稍微小一点，留出缝隙
-      ctx.fillRect(part.x * GRID_SIZE + 1, part.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2);
       
-      // 简单的发光效果
+      // 简单的发光效果 (必须在绘制前设置)
       if (index === 0) {
         ctx.shadowBlur = 15;
         ctx.shadowColor = colorSnakeHead;
       } else {
         ctx.shadowBlur = 0;
       }
+
+      // 稍微小一点，留出缝隙
+      ctx.fillRect(part.x * GRID_SIZE + 1, part.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2);
     });
     ctx.shadowBlur = 0;
 

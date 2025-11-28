@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import type { AgentImportPreflightResult, ResolvedAgentToImport } from '../../agentStore';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag, ElSelect, ElOption, ElInput, ElRadioGroup, ElRadio } from 'element-plus';
+import { ref, watch } from "vue";
+import type { AgentImportPreflightResult, ResolvedAgentToImport } from "../../agentStore";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag } from "element-plus";
 
 const props = defineProps<{
   visible: boolean;
@@ -12,9 +13,9 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update:visible': [value: boolean];
-  'confirm': [resolvedAgents: ResolvedAgentToImport[]];
-  'cancel': [];
+  "update:visible": [value: boolean];
+  confirm: [resolvedAgents: ResolvedAgentToImport[]];
+  cancel: [];
 }>();
 
 const { enabledProfiles } = useLlmProfiles();
@@ -25,13 +26,21 @@ const resolvedAgents = ref<ResolvedAgentToImport[]>([]);
 // 当预检结果变化时，初始化 resolvedAgents
 const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
   resolvedAgents.value = result.agents.map((agent, index) => {
-    const conflict = result.nameConflicts.find(c => c.agentIndex === index);
-    const unmatched = result.unmatchedModels.find(m => m.agentIndex === index);
+    const unmatched = result.unmatchedModels.find((m) => m.agentIndex === index);
 
     // 尝试为不匹配的模型找一个可用的
-    let finalProfileId = '';
+    let finalProfileId = "";
     let finalModelId = agent.modelId;
-    if (unmatched) {
+
+    // 查找本地是否有匹配的模型（即使 modelId 相同，profileId 也可能不同，需要重新匹配）
+    const matchedProfile = enabledProfiles.value.find((p) =>
+      p.models.some((m) => m.id === agent.modelId)
+    );
+
+    if (matchedProfile) {
+      finalProfileId = matchedProfile.id;
+    } else if (unmatched) {
+      // 确实找不到匹配的模型，回退到默认第一个
       const firstProfile = enabledProfiles.value[0];
       if (firstProfile && firstProfile.models.length > 0) {
         finalProfileId = firstProfile.id;
@@ -43,27 +52,30 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
       ...agent,
       finalProfileId,
       finalModelId,
-      overwriteExisting: !!conflict,
-      newName: conflict ? `${agent.name}_imported` : undefined,
+      overwriteExisting: false,
     };
   });
 };
 
 // 监听 props 变化以初始化数据
-watch(() => props.preflightResult, (newResult) => {
-  if (newResult) {
-    initializeResolvedAgents(newResult);
-  }
-}, { immediate: true });
+watch(
+  () => props.preflightResult,
+  (newResult) => {
+    if (newResult) {
+      initializeResolvedAgents(newResult);
+    }
+  },
+  { immediate: true }
+);
 
 const handleConfirm = () => {
   if (!props.preflightResult) return;
-  emit('confirm', resolvedAgents.value);
+  emit("confirm", resolvedAgents.value);
 };
 
 const handleCancel = () => {
-  emit('update:visible', false);
-  emit('cancel');
+  emit("update:visible", false);
+  emit("cancel");
 };
 </script>
 
@@ -86,9 +98,8 @@ const handleCancel = () => {
           class="summary-alert"
         >
           <template #default>
-            <p>即将导入 <strong>{{ preflightResult.agents.length }}</strong> 个智能体。</p>
-            <p v-if="preflightResult.nameConflicts.length > 0" class="conflict-detail">
-              发现 <strong>{{ preflightResult.nameConflicts.length }}</strong> 个名称冲突。
+            <p>
+              即将导入 <strong>{{ preflightResult.agents.length }}</strong> 个智能体。
             </p>
             <p v-if="preflightResult.unmatchedModels.length > 0" class="conflict-detail">
               发现 <strong>{{ preflightResult.unmatchedModels.length }}</strong> 个模型不匹配。
@@ -109,60 +120,36 @@ const handleCancel = () => {
                 {{ agent.name }}
               </ElDescriptionsItem>
               <ElDescriptionsItem label="状态">
-                <ElTag v-if="preflightResult.nameConflicts.find(c => c.agentIndex === index)" type="warning" size="small">
-                  名称冲突
-                </ElTag>
-                <ElTag v-if="preflightResult.unmatchedModels.find(m => m.agentIndex === index)" type="danger" size="small">
+                <ElTag
+                  v-if="preflightResult.unmatchedModels.find((m) => m.agentIndex === index)"
+                  type="danger"
+                  size="small"
+                >
                   模型不匹配
                 </ElTag>
-                <ElTag v-else type="success" size="small">
-                  可直接导入
-                </ElTag>
+                <ElTag v-else type="success" size="small"> 可直接导入 </ElTag>
               </ElDescriptionsItem>
             </ElDescriptions>
 
             <!-- 冲突解决选项 -->
-            <div class="resolve-options">
-              <!-- 名称冲突解决 -->
-              <div v-if="preflightResult.nameConflicts.find(c => c.agentIndex === index)" class="option-group">
-                <h5>名称冲突解决</h5>
-                <ElRadioGroup v-model="resolvedAgents[index].overwriteExisting">
-                  <ElRadio :label="true">覆盖现有智能体</ElRadio>
-                  <ElRadio :label="false">重命名后导入</ElRadio>
-                </ElRadioGroup>
-                <ElInput
-                  v-if="!resolvedAgents[index].overwriteExisting"
-                  v-model="resolvedAgents[index].newName"
-                  placeholder="请输入新名称"
-                  size="small"
-                />
-              </div>
-
+            <div
+              class="resolve-options"
+              v-if="preflightResult.unmatchedModels.find((m) => m.agentIndex === index)"
+            >
               <!-- 模型不匹配解决 -->
-              <div v-if="preflightResult.unmatchedModels.find(m => m.agentIndex === index)" class="option-group">
+              <div class="option-group">
                 <h5>模型重映射</h5>
                 <p class="help-text">原模型 ({{ agent.modelId }}) 不可用，请选择一个新模型：</p>
-                <ElSelect v-model="resolvedAgents[index].finalProfileId" placeholder="选择 Profile" size="small">
-                  <ElOption
-                    v-for="profile in enabledProfiles"
-                    :key="profile.id"
-                    :label="profile.name"
-                    :value="profile.id"
-                  />
-                </ElSelect>
-                <ElSelect
-                  v-model="resolvedAgents[index].finalModelId"
-                  placeholder="选择模型"
-                  size="small"
-                  style="margin-left: 8px;"
-                >
-                  <ElOption
-                    v-for="model in (enabledProfiles.find(p => p.id === resolvedAgents[index].finalProfileId)?.models || [])"
-                    :key="model.id"
-                    :label="model.name"
-                    :value="model.id"
-                  />
-                </ElSelect>
+                <LlmModelSelector
+                  :model-value="`${resolvedAgents[index].finalProfileId}:${resolvedAgents[index].finalModelId}`"
+                  @update:model-value="
+                    (val) => {
+                      const [pId, mId] = val.split(':');
+                      resolvedAgents[index].finalProfileId = pId;
+                      resolvedAgents[index].finalModelId = mId;
+                    }
+                  "
+                />
               </div>
             </div>
           </div>
@@ -175,9 +162,7 @@ const handleCancel = () => {
     </template>
 
     <template #footer>
-      <ElButton @click="handleCancel" :disabled="loading">
-        取消
-      </ElButton>
+      <ElButton @click="handleCancel" :disabled="loading"> 取消 </ElButton>
       <ElButton
         type="primary"
         @click="handleConfirm"

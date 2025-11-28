@@ -100,15 +100,14 @@ export async function preflightImportAgents(
     await Promise.all(fileList.map((file, index) => parseFile(file, index)));
 
     // 检测冲突和模型匹配情况
-    const { existingAgentNames, availableModelIds } = context;
+    const { availableModelIds } = context;
 
+    // 名字冲突不再视为问题，始终返回空数组
     const nameConflicts: AgentImportPreflightResult['nameConflicts'] = [];
     const unmatchedModels: AgentImportPreflightResult['unmatchedModels'] = [];
 
     combinedAgents.forEach((agent, index) => {
-      if (existingAgentNames.includes(agent.name)) {
-        nameConflicts.push({ agentIndex: index, agentName: agent.name });
-      }
+      // 移除名字冲突检测逻辑
       if (!availableModelIds.includes(agent.modelId)) {
         unmatchedModels.push({ agentIndex: index, agentName: agent.name, modelId: agent.modelId });
       }
@@ -144,7 +143,7 @@ export async function importAssets(
   assets: Record<string, ArrayBuffer>
 ): Promise<Record<string, string>> {
   const assetPathMapping: Record<string, string> = {};
-  
+
   for (const [relativePath, binary] of Object.entries(assets)) {
     try {
       const originalName = relativePath.split('/').pop() || 'asset';
@@ -156,6 +155,6 @@ export async function importAssets(
       logger.warn('导入资产失败', { relativePath, error });
     }
   }
-  
+
   return assetPathMapping;
 }

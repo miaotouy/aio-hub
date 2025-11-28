@@ -459,7 +459,8 @@ const localValue = {
 
 .tab-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  /* 使用 min(100%, 340px) 既能保证窄屏下不溢出，又能让分列时的最小宽度更宽敞 */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr));
   gap: 0 24px; /* 列间距 */
   padding: 24px;
 }

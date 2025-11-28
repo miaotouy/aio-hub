@@ -1,7 +1,8 @@
 <template>
   <Teleport to="body">
     <div
-      v-if="props.modelValue"
+      v-if="props.destroyOnClose ? props.modelValue : hasOpened"
+      v-show="props.modelValue"
       class="base-dialog-backdrop"
       :style="backdropStyles"
       :class="{
@@ -81,6 +82,7 @@ const props = withDefaults(defineProps<{
   dialogClass?: string;
   contentClass?: string;
   zIndex?: number;
+  destroyOnClose?: boolean;
 }>(), {
   showCloseButton: true,
   closeOnBackdropClick: true,
@@ -90,6 +92,7 @@ const props = withDefaults(defineProps<{
   dialogClass: '',
   contentClass: '',
   zIndex: 1999,
+  destroyOnClose: true,
 });
 
 const emit = defineEmits<{
@@ -97,6 +100,9 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'open'): void;
 }>();
+
+// 记录是否已经打开过
+const hasOpened = ref(false);
 
 const slots = useSlots();
 const hasFooterSlot = computed(() => !!slots.footer);
@@ -161,6 +167,7 @@ const dialogStyles = computed(() => {
 
 watch(() => props.modelValue, (newValue) => {
   if (newValue) {
+    hasOpened.value = true;
     emit('open');
     // 对话框打开时，可能需要递增 z-index（如果有多个对话框）
     // 这里简化处理，直接使用传入的 zIndex

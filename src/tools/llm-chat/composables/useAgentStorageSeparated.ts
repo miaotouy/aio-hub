@@ -30,6 +30,8 @@ interface AgentIndexItem {
   modelId: string;
   lastUsedAt?: string;
   createdAt: string;
+  category?: string;
+  tags?: string[];
 }
 
 /**
@@ -237,9 +239,8 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   /**
-    * 从智能体创建索引项
-    */
+   * 从智能体创建索引项
+   */
   function createIndexItem(agent: ChatAgent): AgentIndexItem {
     return {
       id: agent.id,
@@ -251,6 +252,8 @@ export function useAgentStorageSeparated() {
       modelId: agent.modelId,
       lastUsedAt: agent.lastUsedAt,
       createdAt: agent.createdAt,
+      category: agent.category,
+      tags: agent.tags,
     };
   }
   /**

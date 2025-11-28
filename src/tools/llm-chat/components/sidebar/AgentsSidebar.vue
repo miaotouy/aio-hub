@@ -301,6 +301,8 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     })(),
     temperature: preset.parameters.temperature,
     maxTokens: preset.parameters.maxTokens || 8192,
+    category: preset.category,
+    tags: preset.tags ? [...preset.tags] : [],
   };
 
   editDialogVisible.value = true;

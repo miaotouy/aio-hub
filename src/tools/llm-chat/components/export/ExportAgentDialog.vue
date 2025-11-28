@@ -21,6 +21,7 @@ const emit = defineEmits<{
       includeAssets: boolean;
       format: 'json' | 'yaml';
       exportType: 'zip' | 'folder' | 'file';
+      separateFolders: boolean;
     },
   ];
 }>();
@@ -31,6 +32,7 @@ const selectedAgentIds = ref<string[]>([]);
 const includeAssets = ref(true);
 const exportFormat = ref<'json' | 'yaml'>('json');
 const exportType = ref<'zip' | 'folder' | 'file'>('zip');
+const separateFolders = ref(false);
 
 // 监听导出类型变化，自动调整 includeAssets
 watch(exportType, (newType) => {
@@ -62,6 +64,7 @@ const handleExport = () => {
     includeAssets: includeAssets.value,
     format: exportFormat.value,
     exportType: exportType.value,
+    separateFolders: separateFolders.value,
   });
   handleClose();
 };
@@ -162,6 +165,13 @@ const singleTargetAgent = computed(() => {
               v-model="includeAssets"
               label="包含图标等资产文件"
               :disabled="exportType === 'file'"
+            />
+          </div>
+
+          <div class="option-item" v-if="!isSingleMode">
+            <el-checkbox
+              v-model="separateFolders"
+              label="为每个智能体创建独立文件夹"
             />
           </div>
           

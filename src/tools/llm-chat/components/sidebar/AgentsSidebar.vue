@@ -152,6 +152,7 @@ const handleExportAgents = (
     includeAssets: boolean;
     format?: "json" | "yaml";
     exportType?: "zip" | "folder" | "file";
+    separateFolders?: boolean;
   }
 ) => {
   agentStore.exportAgents(agentIds, options);

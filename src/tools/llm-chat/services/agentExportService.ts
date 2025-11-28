@@ -21,6 +21,7 @@ export interface ExportAgentsOptions {
   includeAssets: boolean;
   format?: 'json' | 'yaml';
   exportType?: 'zip' | 'folder' | 'file';
+  separateFolders?: boolean;
 }
 
 /**
@@ -45,7 +46,6 @@ export async function exportAgents(
     const exportType = options.exportType || 'zip';
     // 增强文件名过滤，防止路径遍历和非法字符
     const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.\./g, '').trim();
-
     // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
     if (exportType === 'file' && agents.length > 1) {
       const selected = await open({
@@ -61,6 +61,21 @@ export async function exportAgents(
 
       const targetDir = selected as string;
       let successCount = 0;
+      const separateFolders = options.separateFolders || false;
+
+      // 用于处理重名
+      const usedNames = new Set<string>();
+      const getUniqueName = (name: string) => {
+        const safe = sanitizeFilename(name);
+        let result = safe;
+        let counter = 1;
+        while (usedNames.has(result)) {
+          result = `${safe}_${counter}`;
+          counter++;
+        }
+        usedNames.add(result);
+        return result;
+      };
 
       for (const agent of agents) {
         // 构造单个 Agent 的导出对象
@@ -91,11 +106,19 @@ export async function exportAgents(
           ? yaml.dump(exportData)
           : JSON.stringify(exportData, null, 2);
 
-        const safeName = sanitizeFilename(agent.name);
-        const fileName = `${safeName}.agent.${format}`;
-        const filePath = await join(targetDir, fileName);
+        const uniqueName = getUniqueName(agent.name);
+        const fileName = `${uniqueName}.agent.${format}`;
 
-        // 同样使用强制写入，确保有权限写入
+        let filePath: string;
+        if (separateFolders) {
+          // 如果选择独立文件夹，则创建 子文件夹/文件名
+          const agentDir = await join(targetDir, uniqueName);
+          filePath = await join(agentDir, fileName);
+        } else {
+          filePath = await join(targetDir, fileName);
+        }
+
+        // 同样使用强制写入，确保有权限写入（会自动创建父目录）
         const encoder = new TextEncoder();
         const contentBytes = encoder.encode(contentString);
 
@@ -110,10 +133,12 @@ export async function exportAgents(
       return;
     }
 
+
     // 下面是常规导出逻辑（ZIP, Folder, 或单文件）
 
     // 只有 zip 和 folder 模式才支持包含资产，file 模式强制不包含
     const shouldIncludeAssets = options.includeAssets && exportType !== 'file';
+    const separateFolders = options.separateFolders || false;
 
     // 生成基础名称（用于文件名或文件夹名）
     let baseName = 'agents_export';
@@ -130,7 +155,7 @@ export async function exportAgents(
     // 准备导出环境
     const zip = exportType === 'zip' ? new JSZip() : null;
     let targetDir = '';
-    let assetsDir = '';
+    let commonAssetsDir = ''; // 仅在非分离模式下使用
 
     if (exportType === 'folder') {
       // 选择目标目录
@@ -145,29 +170,44 @@ export async function exportAgents(
         return;
       }
 
-      // 创建导出子目录
+      // 创建导出根目录
       targetDir = await join(selected as string, baseName);
 
-      // 注意：folder 模式下我们不再预先创建目录，而是依赖后端的 write_file_force 自动创建
-      // 这样可以绕过前端对 assets 子目录的权限限制
-      if (shouldIncludeAssets) {
-        assetsDir = await join(targetDir, 'assets');
+      // 如果不分离文件夹，则创建公共 assets 目录
+      if (shouldIncludeAssets && !separateFolders) {
+        commonAssetsDir = await join(targetDir, 'assets');
       }
     } else if (exportType === 'zip') {
-      // ZIP 模式下，assets 文件夹在内存中创建
-      if (shouldIncludeAssets) {
+      // ZIP 模式下，如果不分离文件夹，则创建公共 assets 文件夹
+      if (shouldIncludeAssets && !separateFolders) {
         zip?.folder('assets');
       }
     }
 
-    const exportableAgents: ExportableAgent[] = [];
+    // 用于保存最后一次生成的配置内容（供单文件导出使用）
+    let lastContentString = '';
+
+    // 用于处理文件名冲突
+    const usedFileNames = new Set<string>();
+    const getUniqueFileName = (name: string) => {
+      let fileName = sanitizeFilename(name);
+      let counter = 1;
+      while (usedFileNames.has(fileName)) {
+        fileName = `${sanitizeFilename(name)}_${counter}`;
+        counter++;
+      }
+      usedFileNames.add(fileName);
+      return fileName;
+    };
 
     for (const agent of agents) {
+      const uniqueName = getUniqueFileName(agent.name);
+
       const exportableAgent: ExportableAgent = {
         name: agent.name,
         displayName: agent.displayName,
         description: agent.description,
-        icon: agent.icon, // 可能会被后续逻辑替换
+        icon: agent.icon,
         iconMode: agent.iconMode,
         modelId: agent.modelId,
         userProfileId: agent.userProfileId,
@@ -180,135 +220,120 @@ export async function exportAgents(
         category: agent.category,
       };
 
+      // 确定当前 Agent 的 assets 目录
+      let currentAgentAssetsDir = '';
+      let currentAgentAssetsZipFolder: JSZip | null = null;
+      let assetsRelativePrefix = 'assets';
+
+      if (shouldIncludeAssets) {
+        if (separateFolders) {
+          // 分离模式：assets 在 Agent 独立目录下
+          if (exportType === 'folder') {
+            const agentDir = await join(targetDir, uniqueName);
+            currentAgentAssetsDir = await join(agentDir, 'assets');
+          } else if (exportType === 'zip' && zip) {
+            currentAgentAssetsZipFolder = zip.folder(uniqueName)?.folder('assets') || null;
+          }
+          assetsRelativePrefix = 'assets'; // 在独立目录中，引用路径仍为 assets/xxx
+        } else {
+          // 混合模式：assets 在公共目录下
+          if (exportType === 'folder') {
+            currentAgentAssetsDir = commonAssetsDir;
+          } else if (exportType === 'zip' && zip) {
+            currentAgentAssetsZipFolder = zip.folder('assets') || null;
+          }
+          assetsRelativePrefix = 'assets';
+        }
+      }
+
       // 处理图标资产
       if (shouldIncludeAssets && agent.icon) {
-        if (agent.icon.startsWith('appdata://')) {
-          const relativePath = agent.icon.replace('appdata://', '');
-          try {
+        const processAsset = async (binary: Uint8Array, originalName: string) => {
+          const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
+
+          if (exportType === 'zip') {
+            currentAgentAssetsZipFolder?.file(uniqueFileName, binary);
+          } else if (exportType === 'folder' && currentAgentAssetsDir) {
+            const assetPath = await join(currentAgentAssetsDir, uniqueFileName);
+            try {
+              await invoke('write_file_force', {
+                path: assetPath,
+                content: Array.from(binary)
+              });
+            } catch (writeError) {
+              logger.error('写入资产文件失败', writeError as Error, { assetPath });
+              throw writeError;
+            }
+          }
+
+          exportableAgent.icon = `${assetsRelativePrefix}/${uniqueFileName}`;
+        };
+
+        try {
+          if (agent.icon.startsWith('appdata://')) {
+            const relativePath = agent.icon.replace('appdata://', '');
             const iconBinary = await assetManagerEngine.getAssetBinary(relativePath);
             const originalName = relativePath.split('/').pop() || 'icon.png';
-            const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
-
-            if (exportType === 'zip' && zip) {
-              zip.folder('assets')?.file(uniqueFileName, iconBinary);
-            } else if (exportType === 'folder' && assetsDir) {
-              const assetPath = await join(assetsDir, uniqueFileName);
-              try {
-                // 使用后端强制写入命令，绕过前端权限检查
-                // 将 Uint8Array 转换为普通数组传递给 Rust
-                await invoke('write_file_force', {
-                  path: assetPath,
-                  content: Array.from(new Uint8Array(iconBinary))
-                });
-              } catch (writeError) {
-                logger.error('写入资产文件失败', writeError as Error, { assetPath });
-                throw writeError;
-              }
-            }
-
-            exportableAgent.icon = `assets/${uniqueFileName}`;
-          } catch (error) {
-            // 如果是 forbidden path 错误，可能是致命的，最好记录详细信息
-            logger.warn('导出图标失败，将使用原始路径', {
-              agentId: agent.id,
-              iconPath: agent.icon,
-              error,
-            });
-          }
-        } else if (agent.icon.startsWith('/')) {
-          // 处理内置资产（如 /agent-icons/...）
-          try {
-            // 使用 fetch 获取 Web 资源（兼容开发环境和生产环境）
+            await processAsset(new Uint8Array(iconBinary), originalName);
+          } else if (agent.icon.startsWith('/')) {
             const response = await fetch(agent.icon);
-            if (!response.ok) {
-              throw new Error(`Fetch failed: ${response.statusText}`);
-            }
+            if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
             const blob = await response.blob();
             const arrayBuffer = await blob.arrayBuffer();
-            const iconBinary = new Uint8Array(arrayBuffer);
-
-            const originalName = agent.icon.split('/').pop() || 'icon.png';
-            const uniqueFileName = `builtin_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
-
-            if (exportType === 'zip' && zip) {
-              zip.folder('assets')?.file(uniqueFileName, iconBinary);
-            } else if (exportType === 'folder' && assetsDir) {
-              const assetPath = await join(assetsDir, uniqueFileName);
-              try {
-                // 使用后端强制写入命令，绕过前端权限检查
-                await invoke('write_file_force', {
-                  path: assetPath,
-                  content: Array.from(iconBinary) // iconBinary 已经是 Uint8Array
-                });
-              } catch (writeError) {
-                logger.error('写入内置图标失败', writeError as Error, { assetPath });
-                throw writeError;
-              }
-            }
-
-            exportableAgent.icon = `assets/${uniqueFileName}`;
-          } catch (error) {
-            logger.warn('导出内置图标失败，将使用原始路径', {
-              agentId: agent.id,
-              iconPath: agent.icon,
-              error,
-            });
-          }
-        } else if (/^[A-Za-z]:[\/\\]/.test(agent.icon) || agent.icon.startsWith('\\\\')) {
-          // 处理本地绝对路径（Windows 盘符路径或 UNC 路径）
-          try {
+            await processAsset(new Uint8Array(arrayBuffer), agent.icon.split('/').pop() || 'icon.png');
+          } else if (/^[A-Za-z]:[\/\\]/.test(agent.icon) || agent.icon.startsWith('\\\\')) {
             const iconBinary = await readFile(agent.icon);
-
-            // 从路径中提取文件名，处理正反斜杠
-            const originalName = agent.icon.split(/[/\\]/).pop() || 'icon.png';
-            const uniqueFileName = `local_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
-
-            if (exportType === 'zip' && zip) {
-              zip.folder('assets')?.file(uniqueFileName, iconBinary);
-            } else if (exportType === 'folder' && assetsDir) {
-              const assetPath = await join(assetsDir, uniqueFileName);
-              try {
-                // 使用后端强制写入命令，绕过前端权限检查
-                await invoke('write_file_force', {
-                  path: assetPath,
-                  content: Array.from(iconBinary) // readFile 返回的是 Uint8Array
-                });
-              } catch (writeError) {
-                logger.error('写入本地图标失败', writeError as Error, { assetPath });
-                throw writeError;
-              }
-            }
-
-            exportableAgent.icon = `assets/${uniqueFileName}`;
-          } catch (error) {
-            logger.warn('导出本地图标失败，将使用原始路径', {
-              agentId: agent.id,
-              iconPath: agent.icon,
-              error,
-            });
+            await processAsset(iconBinary, agent.icon.split(/[/\\]/).pop() || 'icon.png');
           }
+        } catch (error) {
+          logger.warn('导出图标失败，将使用原始路径', {
+            agentId: agent.id,
+            iconPath: agent.icon,
+            error,
+          });
         }
-        // 网络图片或 Emoji 不需要处理
       }
-      exportableAgents.push(exportableAgent);
+
+      // 为每个智能体生成独立的导出数据
+      const exportData: AgentExportFile = {
+        version: 1,
+        type: 'AIO_Agent_Export',
+        agents: [exportableAgent],
+      };
+
+      const contentString = format === 'yaml'
+        ? yaml.dump(exportData)
+        : JSON.stringify(exportData, null, 2);
+
+      lastContentString = contentString;
+      const configFileName = `${uniqueName}.agent.${format}`;
+
+      if (exportType === 'zip' && zip) {
+        if (separateFolders) {
+          zip.folder(uniqueName)?.file(configFileName, contentString);
+        } else {
+          zip.file(configFileName, contentString);
+        }
+      } else if (exportType === 'folder' && targetDir) {
+        let configPath: string;
+        if (separateFolders) {
+          const agentDir = await join(targetDir, uniqueName);
+          configPath = await join(agentDir, configFileName);
+        } else {
+          configPath = await join(targetDir, configFileName);
+        }
+
+        const encoder = new TextEncoder();
+        const contentBytes = encoder.encode(contentString);
+
+        await invoke('write_file_force', {
+          path: configPath,
+          content: Array.from(contentBytes)
+        });
+      }
     }
 
-    // 创建导出数据对象
-    const exportData: AgentExportFile = {
-      version: 1,
-      type: 'AIO_Agent_Export',
-      agents: exportableAgents,
-    };
-
-    const contentString = format === 'yaml'
-      ? yaml.dump(exportData)
-      : JSON.stringify(exportData, null, 2);
-
-    const configFileName = `agent.${format}`;
-
     if (exportType === 'zip' && zip) {
-      zip.file(configFileName, contentString);
-
       // 生成 ZIP 文件数据
       const content = await zip.generateAsync({ type: 'uint8array' });
       const fileName = `${baseName}.agent.zip`;
@@ -330,18 +355,6 @@ export async function exportAgents(
         return; // 用户取消，不显示成功消息
       }
     } else if (exportType === 'folder' && targetDir) {
-      // 写入配置文件
-      const configPath = await join(targetDir, configFileName);
-
-      // 同样使用强制写入，确保目录被正确创建
-      const encoder = new TextEncoder();
-      const contentBytes = encoder.encode(contentString);
-
-      await invoke('write_file_force', {
-        path: configPath,
-        content: Array.from(contentBytes)
-      });
-
       logger.info('智能体导出成功 (Folder)', { count: agents.length, targetDir });
     } else if (exportType === 'file') {
       // 直接导出单个配置文件
@@ -356,7 +369,7 @@ export async function exportAgents(
       });
 
       if (savePath) {
-        await writeTextFile(savePath, contentString);
+        await writeTextFile(savePath, lastContentString);
         logger.info('智能体导出成功 (File)', { count: agents.length, fileName: savePath });
       } else {
         logger.info('用户取消了文件导出');

@@ -82,11 +82,18 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
 
       // 预先检查是否有闭合标记
       let hasClosing = false;
+      let closingToken: Token | null = null;
       let tempI = i + 1;
       while (tempI < tokens.length) {
         const t = tokens[tempI];
         if (t.type === "strong_delimiter" && t.marker === token.marker) {
           hasClosing = true;
+          closingToken = t;
+          break;
+        }
+        if (t.type === "triple_delimiter") {
+          hasClosing = true;
+          closingToken = t;
           break;
         }
         tempI++;
@@ -97,7 +104,11 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         const innerTokens: Token[] = [];
         while (i < tokens.length) {
           const t = tokens[i];
-          if (t.type === "strong_delimiter" && t.marker === token.marker) {
+          if (t === closingToken) {
+            // 如果是 triple_delimiter，我们需要把剩余的 * 放回 innerTokens
+            if (t.type === "triple_delimiter") {
+              innerTokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
+            }
             i++;
             break;
           }
@@ -127,11 +138,18 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
 
       // 预先检查是否有闭合标记
       let hasClosing = false;
+      let closingToken: Token | null = null;
       let tempI = i + 1;
       while (tempI < tokens.length) {
         const t = tokens[tempI];
         if (t.type === "em_delimiter" && t.marker === token.marker) {
           hasClosing = true;
+          closingToken = t;
+          break;
+        }
+        if (t.type === "triple_delimiter") {
+          hasClosing = true;
+          closingToken = t;
           break;
         }
         tempI++;
@@ -142,7 +160,73 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         const innerTokens: Token[] = [];
         while (i < tokens.length) {
           const t = tokens[i];
-          if (t.type === "em_delimiter" && t.marker === token.marker) {
+          if (t === closingToken) {
+            // 如果是 triple_delimiter，我们需要把剩余的 ** 放回 innerTokens
+            if (t.type === "triple_delimiter") {
+              innerTokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
+            }
+            i++;
+            break;
+          }
+          innerTokens.push(t);
+          i++;
+        }
+
+        nodes.push({
+          id: "",
+          type: "em",
+          props: {},
+          children: ctx.parseInlines(innerTokens),
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+        continue;
+      } else {
+        // 没有闭合标记，当作普通文本处理
+        accumulatedText += token.marker;
+        i++;
+        continue;
+      }
+    }
+
+    // 三重分隔符 (***) -> 视为 em start + strong start
+    if (token.type === "triple_delimiter") {
+      flushText();
+
+      // 尝试作为 em 开启 (因为 *** 通常解析为 <em><strong>...</strong></em>)
+      // 寻找 em 闭合 (可以是 * 或 ***)
+      let hasClosing = false;
+      let closingToken: Token | null = null;
+      let tempI = i + 1;
+      while (tempI < tokens.length) {
+        const t = tokens[tempI];
+        if (t.type === "em_delimiter" && t.marker === "*") {
+          hasClosing = true;
+          closingToken = t;
+          break;
+        }
+        if (t.type === "triple_delimiter") {
+          hasClosing = true;
+          closingToken = t;
+          break;
+        }
+        tempI++;
+      }
+
+      if (hasClosing) {
+        i++;
+        // 既然 *** 视为 <em><strong>，那么 innerTokens 应该以 <strong> 开始
+        const innerTokens: Token[] = [
+          { type: "strong_delimiter", marker: "**", raw: "**" }
+        ];
+
+        while (i < tokens.length) {
+          const t = tokens[i];
+          if (t === closingToken) {
+            // 如果闭合是 ***，它提供了 * (em close) 和 ** (strong close)
+            // 我们需要把 ** (strong close) 放入 innerTokens
+            if (t.type === "triple_delimiter") {
+              innerTokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
+            }
             i++;
             break;
           }
@@ -564,14 +648,14 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
     // 文本 (包含自动链接检测)
     if (token.type === "text") {
       const content = token.content;
-      
+
       // 正则匹配 URL 和 邮箱
       // 1. http/https 开头的链接
       // 2. www. 开头的链接
       // 3. 邮箱地址
       // 注意：排除末尾的标点符号
       const urlRegex = /((?:https?:\/\/|www\.)[^\s<]+)|([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
-      
+
       let match;
       let lastIndex = 0;
       let hasMatch = false;
@@ -581,11 +665,11 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
 
       while ((match = urlRegex.exec(content)) !== null) {
         hasMatch = true;
-        
+
         // 在处理匹配之前，先处理之前的文本
         // 1. 如果有 accumulatedText，先 flush
         flushText();
-        
+
         // 2. 处理当前 content 中匹配项之前的文本
         const preText = content.slice(lastIndex, match.index);
         if (preText) {
@@ -595,7 +679,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         // 3. 处理匹配到的 URL/邮箱
         let url = match[0];
         let text = url;
-        
+
         // 处理末尾标点符号 (常见痛点: URL 后面的句号或逗号不应包含在 URL 中)
         const trailingPunctuation = /[.,;!?)]+$/;
         const punctuationMatch = url.match(trailingPunctuation);
@@ -629,14 +713,14 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         // 因为我们调整了 lastIndex（如果需要的话），或者它本身就在 match[0] 之后
         // 修正逻辑：上面的 lastIndex 回退逻辑对于 exec 循环可能比较复杂
         // 更简单的做法：手动处理标点
-        
+
         if (punctuationMatch) {
-            // 这种情况下，标点符号实际上还在 content 中等待处理
-            // 我们不需要回退 lastIndex，因为我们已经手动截断了 url
-            // 但是我们需要把标点符号留给下一轮或者作为文本添加
-            // 实际上，exec 的 lastIndex 已经指向了完整 match[0] 的末尾
-            // 我们只需要把标点符号作为普通文本添加即可
-            nodes.push(createTextNode(punctuationMatch[0]));
+          // 这种情况下，标点符号实际上还在 content 中等待处理
+          // 我们不需要回退 lastIndex，因为我们已经手动截断了 url
+          // 但是我们需要把标点符号留给下一轮或者作为文本添加
+          // 实际上，exec 的 lastIndex 已经指向了完整 match[0] 的末尾
+          // 我们只需要把标点符号作为普通文本添加即可
+          nodes.push(createTextNode(punctuationMatch[0]));
         }
 
         lastIndex = match.index + match[0].length;

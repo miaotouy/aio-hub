@@ -325,23 +325,7 @@ export class Tokenizer {
 
       // 处理 *** (三重分隔符) 以实现粗斜体
       if (remaining.startsWith("***")) {
-        // 启发式规则：检查是否为右侧定界 (后跟空白或结尾)
-        // 如果是右侧定界，很可能是闭合：* 然后 **
-        // 如果是左侧定界 (后跟非空白)，很可能是开启：** 然后 *
-
-        const charAfter = remaining[3];
-        // 支持 ASCII 和 CJK 标点
-        const isRightFlanking = !charAfter || /\s/.test(charAfter) || /[.,!?;:，。！？；：、]/.test(charAfter);
-
-        if (isRightFlanking) {
-          // 闭合: * then **
-          tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
-          tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
-        } else {
-          // 开启: ** then *
-          tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
-          tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
-        }
+        tokens.push({ type: "triple_delimiter", marker: "***", raw: "***" });
         i += 3;
         atLineStart = false;
         continue;
@@ -379,17 +363,17 @@ export class Tokenizer {
         if (startTicksMatch) {
           const startTicks = startTicksMatch[0];
           const tickCount = startTicks.length;
-          
+
           // 2. 寻找匹配的闭合反引号（数量必须相同）
           // 注意：内容中可以包含反引号，只要数量不等于 tickCount
           let contentEndIndex = -1;
           let searchIndex = tickCount;
-          
+
           while (searchIndex < remaining.length) {
             // 查找下一个反引号
             const nextTickIndex = remaining.indexOf("`", searchIndex);
             if (nextTickIndex === -1) break;
-            
+
             // 检查这一组反引号的长度
             let currentTickCount = 0;
             let k = nextTickIndex;
@@ -397,27 +381,27 @@ export class Tokenizer {
               currentTickCount++;
               k++;
             }
-            
+
             if (currentTickCount === tickCount) {
               // 找到了匹配的闭合标记
               contentEndIndex = nextTickIndex;
               break;
             }
-            
+
             // 继续搜索
             searchIndex = k;
           }
-          
+
           if (contentEndIndex !== -1) {
             // 提取内容
             let content = remaining.slice(tickCount, contentEndIndex);
-            
+
             // 规范处理：如果代码块首尾都有空格，且内容非纯空格，则剥离首尾的一个空格
             // e.g. `` ` `` -> `
             if (content.length >= 2 && content.startsWith(" ") && content.endsWith(" ") && content.trim().length > 0) {
-               content = content.slice(1, -1);
+              content = content.slice(1, -1);
             }
-            
+
             tokens.push({ type: "inline_code", content });
             i += contentEndIndex + tickCount;
             atLineStart = false;

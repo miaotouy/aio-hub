@@ -16,6 +16,7 @@ export type Token =
   | { type: "html_comment"; content: string; raw: string }
   | { type: "strong_delimiter"; marker: "**" | "__"; raw: string }
   | { type: "em_delimiter"; marker: "*" | "_"; raw: string }
+  | { type: "triple_delimiter"; marker: "***"; raw: string }
   | { type: "inline_code"; content: string }
   | { type: "strikethrough_delimiter"; marker: "~~"; raw: string }
   | { type: "subscript_delimiter"; marker: "~"; raw: string }

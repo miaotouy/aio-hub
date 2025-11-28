@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useAgentStore } from '../../agentStore';
+import { resolveAvatarPath } from '../../composables/useResolvedAvatar';
 
 import BaseDialog from '@/components/common/BaseDialog.vue';
 import Avatar from '@/components/common/Avatar.vue';
@@ -115,7 +116,7 @@ const singleTargetAgent = computed(() => {
             >
               <div class="agent-item">
                 <Avatar
-                  :src="agent.icon || ''"
+                  :src="resolveAvatarPath(agent, 'agent') || ''"
                   :alt="agent.name"
                   :size="18"
                   shape="square"
@@ -131,7 +132,7 @@ const singleTargetAgent = computed(() => {
         <!-- 单个 Agent 信息 (仅单选模式显示) -->
         <div v-else-if="singleTargetAgent" class="single-agent-info">
           <Avatar
-            :src="singleTargetAgent.icon || ''"
+            :src="resolveAvatarPath(singleTargetAgent, 'agent') || ''"
             :alt="singleTargetAgent.name"
             :size="48"
             shape="square"
@@ -215,10 +216,13 @@ const singleTargetAgent = computed(() => {
 
 .agent-checkbox-item {
   width: 100%;
+  margin-right: 0;
 }
 
 .agent-checkbox-item :deep(.el-checkbox__label) {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  display: flex;
 }
 
 .agent-item {
@@ -226,6 +230,7 @@ const singleTargetAgent = computed(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-width: 0;
 }
 
 .agent-icon-avatar {
@@ -235,6 +240,9 @@ const singleTargetAgent = computed(() => {
 .agent-name {
   font-size: 14px;
   color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .option-item {

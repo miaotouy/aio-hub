@@ -1,7 +1,6 @@
 import { h } from "vue";
-import { Setting, Delete, Tickets, ChatDotRound, RefreshLeft, Cpu } from "@element-plus/icons-vue";
+import { Setting, Delete, Tickets, ChatDotRound, RefreshLeft, Cpu, Connection } from "@element-plus/icons-vue";
 import { ElButton, ElIcon } from "element-plus";
-import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/store";
 
@@ -141,6 +140,28 @@ export const settingsConfig: SettingsSection[] = [
     ],
   },
   {
+    title: "模型设置",
+    icon: Connection,
+    items: [
+      {
+        id: "defaultModel",
+        label: "默认模型",
+        component: "LlmModelSelector",
+        modelPath: "modelPreferences.defaultModel",
+        hint: "新建智能体或会话时默认使用的模型，作为兜底选项",
+        keywords: "model default 默认 模型",
+      },
+      {
+        id: "translationModel",
+        label: "翻译模型",
+        component: "LlmModelSelector",
+        modelPath: "modelPreferences.translationModel",
+        hint: "用于消息翻译功能的模型",
+        keywords: "model translate 翻译 模型",
+      },
+    ],
+  },
+  {
     title: "消息管理",
     icon: Delete,
     items: [
@@ -266,7 +287,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "modelIdentifier",
         label: "命名模型",
-        component: LlmModelSelector,
+        component: "LlmModelSelector",
         modelPath: "topicNaming.modelIdentifier",
         hint: "用于生成会话标题的 LLM 模型",
         keywords: "topic naming model 话题 命名 模型",

@@ -48,6 +48,13 @@ export interface ChatSettings {
     /** 是否默认渲染 HTML 代码块 */
     defaultRenderHtml: boolean;
   };
+  /** 模型偏好设置 */
+  modelPreferences: {
+    /** 默认 LLM 模型（用于新建会话兜底） */
+    defaultModel: string;
+    /** 翻译使用的 LLM 模型 */
+    translationModel: string;
+  };
   /** 消息管理设置 */
   messageManagement: {
     /** 是否在删除消息前确认 */
@@ -119,6 +126,10 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     autoSwitchAgentOnSessionChange: true, // 默认开启
     defaultRenderHtml: false, // 默认不自动渲染 HTML
   },
+  modelPreferences: {
+    defaultModel: "",
+    translationModel: "",
+  },
   messageManagement: {
     confirmBeforeDeleteMessage: false,
     confirmBeforeDeleteSession: true,
@@ -164,6 +175,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       uiPreferences: {
         ...defaultConfig.uiPreferences,
         ...(loadedConfig.uiPreferences || {}),
+      },
+      modelPreferences: {
+        ...defaultConfig.modelPreferences,
+        ...(loadedConfig.modelPreferences || {}),
       },
       messageManagement: {
         ...defaultConfig.messageManagement,
@@ -249,6 +264,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       uiPreferences: {
         ...settings.value.uiPreferences,
         ...(updates.uiPreferences || {}),
+      },
+      modelPreferences: {
+        ...settings.value.modelPreferences,
+        ...(updates.modelPreferences || {}),
       },
       messageManagement: {
         ...settings.value.messageManagement,

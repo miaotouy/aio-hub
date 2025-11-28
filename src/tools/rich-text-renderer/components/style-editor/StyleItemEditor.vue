@@ -1,5 +1,5 @@
 <template>
-  <div class="style-item-editor">
+  <div ref="editorRef" class="style-item-editor">
     <!-- 启用开关 -->
     <div class="enable-switch-row">
       <el-switch v-model="isEnabled" active-text="启用" inactive-text="禁用" inline-prompt />
@@ -27,7 +27,7 @@
     <el-form label-position="top" size="small">
       <el-row :gutter="16">
         <!-- 1. 文本颜色 -->
-        <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4">
+        <el-col :span="colSpan">
           <el-form-item label="文本颜色">
             <div class="color-picker-row">
               <el-color-picker v-model="localValue.color" show-alpha size="small" />
@@ -37,7 +37,7 @@
         </el-col>
 
         <!-- 2. 背景颜色 -->
-        <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4">
+        <el-col :span="colSpan">
           <el-form-item label="背景颜色">
             <div class="color-picker-row">
               <el-color-picker v-model="localValue.backgroundColor" show-alpha size="small" />
@@ -52,7 +52,7 @@
         </el-col>
 
         <!-- 3. 字体粗细 -->
-        <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4">
+        <el-col :span="colSpan">
           <el-form-item label="字体粗细">
             <el-select v-model="localValue.fontWeight" placeholder="默认" clearable size="small">
               <el-option label="默认" value="" />
@@ -64,7 +64,7 @@
         </el-col>
 
         <!-- 4. 字体样式 -->
-        <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4">
+        <el-col :span="colSpan">
           <el-form-item label="字体样式">
             <el-select v-model="localValue.fontStyle" placeholder="默认" clearable size="small">
               <el-option label="默认" value="" />
@@ -75,7 +75,7 @@
         </el-col>
 
         <!-- 5. 文本装饰 -->
-        <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4">
+        <el-col :span="colSpan">
           <el-form-item label="文本装饰">
             <el-select
               v-model="localValue.textDecoration"
@@ -92,7 +92,7 @@
         </el-col>
 
         <!-- 6. 边框颜色 -->
-        <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4">
+        <el-col :span="colSpan">
           <el-form-item label="边框颜色">
             <div class="color-picker-row">
               <el-color-picker v-model="localValue.borderColor" show-alpha size="small" />
@@ -107,7 +107,7 @@
         </el-col>
 
         <!-- 7. 文本发光 -->
-        <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="8">
+        <el-col :span="colSpanAdvanced">
           <el-form-item label="文本发光 (Text Shadow)">
             <div class="shadow-editor">
               <div class="shadow-inputs">
@@ -134,7 +134,7 @@
         </el-col>
 
         <!-- 8. 圆角 -->
-        <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="8">
+        <el-col :span="colSpanAdvanced">
           <el-form-item label="圆角 (Border Radius)">
             <div class="border-radius-editor">
               <el-radio-group v-model="borderRadiusMode" size="small" class="radius-mode-group">
@@ -180,7 +180,7 @@
         </el-col>
 
         <!-- 9. 盒阴影 -->
-        <el-col :xs="24" :sm="24" :md="24" :lg="12" :xl="8">
+        <el-col :span="colSpanBoxShadow">
           <el-form-item label="盒阴影 (Box Shadow)">
             <div class="shadow-editor">
               <div class="shadow-inputs shadow-inputs-box">
@@ -216,6 +216,7 @@
 
 <script setup lang="ts">
 import { watch, reactive, ref, computed, nextTick } from "vue";
+import { useElementSize } from "@vueuse/core";
 import type { MarkdownStyleOption } from "../../types";
 
 // 属性 & 事件
@@ -255,6 +256,25 @@ const localValue = reactive<MarkdownStyleOption>({});
  * 控制该样式是否启用的开关
  */
 const isEnabled = ref(true);
+const editorRef = ref<HTMLElement | null>(null);
+
+// ==============================
+// 响应式布局
+const { width } = useElementSize(editorRef);
+
+// 根据容器宽度动态计算 el-col 的 span 值
+// 基础项：<420单列(24)，<700双列(12)，>=700三列(8)
+const colSpan = computed(() => {
+  if (width.value < 420) return 24;
+  if (width.value < 700) return 12;
+  return 8;
+});
+// 高级项：<680单列(24)，>=680双列(12)
+const colSpanAdvanced = computed(() => (width.value < 680 ? 24 : 12));
+
+// 盒阴影：由于它是高级选项中的第3个（奇数），在双列布局下会导致右侧留白。
+// 且盒阴影控件较多，给予全宽空间更利于操作。
+const colSpanBoxShadow = computed(() => 24);
 
 // ==============================
 // 工具函数
@@ -781,7 +801,8 @@ const emitValue = () => {
 }
 
 .preview-viewport {
-  padding: 12px; /* 增加内边距以显示阴影和发光效果 */
+  padding: 12px;
+  /* 增加内边距以显示阴影和发光效果 */
   background-color: var(--bg-color);
   display: flex;
   align-items: center;
@@ -802,6 +823,7 @@ const emitValue = () => {
   color: var(--md-link-color, var(--primary-color));
   text-decoration: var(--md-link-text-decoration, underline);
 }
+
 .preview-content:is(a):hover {
   color: var(--md-link-hover-color, var(--md-link-color, var(--primary-color)));
   opacity: 0.8;
@@ -838,10 +860,10 @@ const emitValue = () => {
 
 .radius-inputs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
   gap: 8px;
   flex: 1;
-  min-width: 250px;
+  min-width: 220px;
 }
 
 .shadow-editor {
@@ -850,6 +872,7 @@ const emitValue = () => {
   gap: 8px;
   width: 100%;
 }
+
 .shadow-inputs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
@@ -857,10 +880,12 @@ const emitValue = () => {
   flex: 2;
   min-width: 200px;
 }
+
 .shadow-editor > .color-picker-row {
   flex: 1;
   min-width: 160px;
 }
+
 .shadow-controls {
   display: flex;
   justify-content: space-between;
@@ -869,6 +894,7 @@ const emitValue = () => {
   flex: 1;
   min-width: 220px;
 }
+
 .shadow-controls .color-picker-row {
   flex: 1;
 }

@@ -164,8 +164,14 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
 
   /**
    * 从文件加载配置
+   * @param force 是否强制重新加载
    */
-  async function loadConfig(): Promise<void> {
+  async function loadConfig(force = false): Promise<void> {
+    // 如果已经加载过且不是强制加载，直接返回
+    if (isConfigLoaded.value && !force) {
+      return;
+    }
+
     try {
       logger.info("开始加载配置");
       const config = await configManager.load();

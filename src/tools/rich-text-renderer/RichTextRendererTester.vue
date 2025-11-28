@@ -114,13 +114,19 @@
       </main>
     </div>
 
-    <!-- 样式配置弹窗 -->
-    <BaseDialog v-model="isStyleEditorVisible" title="Markdown 样式配置" width="80vw" height="70vh">
+    <!-- 样式配置悬浮窗 -->
+    <DraggablePanel
+      v-model="isStyleEditorVisible"
+      title="Markdown 样式配置"
+      width="600px"
+      height="600px"
+      :initial-x="100"
+      :initial-y="100"
+      :destroy-on-close="false"
+      persistence-key="markdown-style-editor-panel"
+    >
       <MarkdownStyleEditor v-model="richTextStyleOptions" :loading="isStyleLoading" />
-      <template #footer>
-        <el-button type="primary" @click="isStyleEditorVisible = false">完成</el-button>
-      </template>
-    </BaseDialog>
+    </DraggablePanel>
   </div>
 </template>
 
@@ -134,7 +140,7 @@ import { useRichTextRendererStore } from "./store";
 import { storeToRefs } from "pinia";
 import customMessage from "@/utils/customMessage";
 import MarkdownStyleEditor from "./components/style-editor/MarkdownStyleEditor.vue";
-import BaseDialog from "@/components/common/BaseDialog.vue";
+import DraggablePanel from "@/components/common/DraggablePanel.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import TesterConfigSidebar from "./components/tester/TesterConfigSidebar.vue";
 import TesterToolbar from "./components/tester/TesterToolbar.vue";
@@ -186,14 +192,25 @@ const {
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
 const isStyleLoading = ref(false);
+// 标记是否已经初始化过编辑器（配合 destroyOnClose=false 使用）
+const hasInitializedEditor = ref(false);
 
 const openStyleEditor = () => {
-  isStyleLoading.value = true;
   isStyleEditorVisible.value = true;
-  // 延迟关闭 loading，确保弹窗动画流畅，且骨架屏能展示出来
-  setTimeout(() => {
-    isStyleLoading.value = false;
-  }, 300);
+
+  // 只有在第一次打开，且配置已加载的情况下，才通过骨架屏延迟渲染
+  // 这样可以让悬浮窗先"弹"出来，避免重型组件渲染阻塞 UI 导致点击无反应
+  if (!hasInitializedEditor.value) {
+    // 只有当配置已经加载完毕时，我们才需要人为制造延迟
+    // 如果配置没加载完，loading 状态本来就是 true，不需要我们要干预
+    if (store.isConfigLoaded) {
+      isStyleLoading.value = true;
+      setTimeout(() => {
+        isStyleLoading.value = false;
+      }, 200);
+    }
+    hasInitializedEditor.value = true;
+  }
 };
 
 // 渲染状态
@@ -789,14 +806,13 @@ watch(
 
 // 组件挂载时加载配置
 onMounted(async () => {
-  isStyleLoading.value = true;
-  try {
-    await store.loadConfig();
-  } finally {
-    // 稍微延迟一点，让骨架屏展示一下，避免闪烁
-    setTimeout(() => {
+  if (!store.isConfigLoaded) {
+    isStyleLoading.value = true;
+    try {
+      await store.loadConfig();
+    } finally {
       isStyleLoading.value = false;
-    }, 500);
+    }
   }
 });
 </script>

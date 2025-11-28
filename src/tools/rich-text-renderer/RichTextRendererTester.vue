@@ -53,7 +53,7 @@
             class="preview-area"
           >
             <div class="area-header" ref="previewHeaderRef">
-              <h4 style="min-width: 80px;">渲染预览</h4>
+              <h4 style="min-width: 80px">渲染预览</h4>
               <div class="preview-header-controls" :class="{ 'is-compact': isHeaderCompact }">
                 <div class="render-stats" v-if="renderStats.totalTokens > 0">
                   <el-tag size="small" type="info">
@@ -116,6 +116,7 @@
 
     <!-- 样式配置悬浮窗 -->
     <DraggablePanel
+      ref="styleEditorPanelRef"
       v-model="isStyleEditorVisible"
       title="Markdown 样式配置"
       width="600px"
@@ -141,6 +142,7 @@ import { storeToRefs } from "pinia";
 import customMessage from "@/utils/customMessage";
 import MarkdownStyleEditor from "./components/style-editor/MarkdownStyleEditor.vue";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
+import type { DraggablePanelInstance } from "@/components/common/DraggablePanel.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import TesterConfigSidebar from "./components/tester/TesterConfigSidebar.vue";
 import TesterToolbar from "./components/tester/TesterToolbar.vue";
@@ -192,11 +194,20 @@ const {
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
 const isStyleLoading = ref(false);
+const styleEditorPanelRef = ref<DraggablePanelInstance | null>(null);
 // 标记是否已经初始化过编辑器（配合 destroyOnClose=false 使用）
 const hasInitializedEditor = ref(false);
 
 const openStyleEditor = () => {
+  // 总是确保面板可见
   isStyleEditorVisible.value = true;
+
+  // 显式调用 activate。这能处理两种情况：
+  // 1. 面板首次打开时，确保其状态正确。
+  // 2. 面板已打开时，再次点击按钮，可以强制执行位置和状态检查，将其带回视野。
+  nextTick(() => {
+    styleEditorPanelRef.value?.activate();
+  });
 
   // 只有在第一次打开，且配置已加载的情况下，才通过骨架屏延迟渲染
   // 这样可以让悬浮窗先"弹"出来，避免重型组件渲染阻塞 UI 导致点击无反应

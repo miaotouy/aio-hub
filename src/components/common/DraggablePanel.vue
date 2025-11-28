@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div
-      v-if="destroyOnClose ? modelValue : (modelValue || hasOpened)"
+      v-if="destroyOnClose ? modelValue : modelValue || hasOpened"
       v-show="modelValue"
       ref="panelRef"
       class="draggable-panel"
@@ -17,10 +17,7 @@
             @click.stop="toggleMinimize"
             :title="isMinimized ? '展开' : '最小化'"
           >
-            <component
-              :is="isMinimized ? Square : Minus"
-              :size="14"
-            />
+            <component :is="isMinimized ? Square : Minus" :size="14" />
           </div>
           <div class="control-btn close-btn" @click.stop="close" title="关闭">
             <X :size="14" />
@@ -34,11 +31,7 @@
       </div>
 
       <!-- 调整大小手柄 -->
-      <div
-        v-if="resizable && !isMinimized"
-        class="resize-handle"
-        @mousedown="initResize"
-      ></div>
+      <div v-if="resizable && !isMinimized" class="resize-handle" @mousedown="initResize"></div>
     </div>
   </Teleport>
 </template>
@@ -47,6 +40,10 @@
 import { ref, computed, watch, nextTick } from "vue";
 import { useDraggable, useWindowSize, useStorage } from "@vueuse/core";
 import { Minus, Square, X } from "lucide-vue-next";
+
+export interface DraggablePanelInstance {
+  activate: () => void;
+}
 
 const props = withDefaults(
   defineProps<{
@@ -116,22 +113,87 @@ const { x, y } = useDraggable(panelRef, {
   },
 });
 
-// 确保面板在视口内
+// 确保面板在视口内 (基础边界检查)
 const ensureInViewport = (targetX: number, targetY: number) => {
+  const topMargin = 50; // 顶部安全边距
+  const sideMargin = 0; // 左右拖拽时允许贴边，或者设为 20 保持一致
+
   const maxX = windowWidth.value - 50;
   const maxY = windowHeight.value - 30;
 
   let newX = targetX;
   let newY = targetY;
 
-  if (newX < 0) newX = 0;
+  if (newX < sideMargin) newX = sideMargin;
   if (newX > maxX) newX = maxX;
-  if (newY < 0) newY = 0;
+  // 修复：使用 topMargin 而不是 0，防止被标题栏遮挡
+  if (newY < topMargin) newY = topMargin;
   if (newY > maxY) newY = maxY;
 
   x.value = newX;
   y.value = newY;
 };
+
+// 智能调整：适配视口尺寸和位置
+const fitToViewport = () => {
+  const vw = windowWidth.value;
+  const vh = windowHeight.value;
+  const topMargin = 50; // 顶部安全边距，避开自定义标题栏
+  const sideMargin = 20; // 其他方向的安全边距
+
+  // 1. 尺寸适配：如果超过视口大小，则缩小
+  if (currentWidth.value > vw) {
+    currentWidth.value = Math.max(props.minWidth, vw - sideMargin * 2);
+  }
+  // 只有非最小化状态才检查高度
+  if (!isMinimized.value && currentHeight.value > vh) {
+    currentHeight.value = Math.max(props.minHeight, vh - topMargin - sideMargin);
+  }
+
+  // 2. 位置归位：确保完全在视口内
+  let newX = x.value;
+  let newY = y.value;
+
+  // 检查右边界
+  if (newX + currentWidth.value > vw) {
+    newX = Math.max(sideMargin, vw - currentWidth.value - sideMargin);
+  }
+  // 检查下边界 (仅当非最小化时考虑高度，最小化时高度很小通常不会超)
+  const actualHeight = isMinimized.value ? 50 : currentHeight.value;
+  if (newY + actualHeight > vh) {
+    newY = Math.max(sideMargin, vh - actualHeight - sideMargin);
+  }
+
+  // 检查左/上边界 (优先级最高)
+  if (newX < 0) newX = sideMargin;
+  if (newY < 0) newY = topMargin;
+
+  x.value = newX;
+  y.value = newY;
+
+  // 如果有持久化，更新存储
+  if (props.persistenceKey) {
+    initialPosition.value = { x: newX, y: newY };
+  }
+};
+
+// 激活面板：展开、置顶、归位
+const activate = () => {
+  // 1. 如果最小化了，展开
+  if (isMinimized.value) {
+    isMinimized.value = false;
+  }
+
+  // 2. 确保在视口内并适配尺寸
+  // 使用 nextTick 确保展开动画或 DOM 更新后计算准确
+  nextTick(() => {
+    fitToViewport();
+  });
+};
+
+defineExpose({
+  activate,
+});
 
 // --- 调整大小逻辑 ---
 const initResize = (e: MouseEvent) => {
@@ -194,20 +256,11 @@ watch(
   (val) => {
     if (val) {
       hasOpened.value = true;
-      
-      // 每次打开时，确保在可视范围内
-      // 使用 nextTick 确保 DOM 更新后获取准确尺寸（如果需要更精确的计算）
-      nextTick(() => {
-        ensureInViewport(x.value, y.value);
-        
-        // 如果当前位置完全在屏幕外，重置到中心或默认位置
-        if (x.value > windowWidth.value || y.value > windowHeight.value) {
-           x.value = Math.min(windowWidth.value / 2 - currentWidth.value / 2, Math.max(0, windowWidth.value - currentWidth.value - 20));
-           y.value = Math.min(windowHeight.value / 2 - currentHeight.value / 2, Math.max(0, windowHeight.value - currentHeight.value - 20));
-        }
-      });
+      // 打开时自动激活（归位、展开）
+      activate();
     }
-  }
+  },
+  { immediate: true }
 );
 
 // 监听 props 变化更新内部尺寸（如果外部改变了 props）
@@ -231,7 +284,10 @@ watch(
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: height 0.3s ease, width 0.3s ease, opacity 0.2s;
+  transition:
+    height 0.3s ease,
+    width 0.3s ease,
+    opacity 0.2s;
 }
 
 .draggable-panel.is-minimized {

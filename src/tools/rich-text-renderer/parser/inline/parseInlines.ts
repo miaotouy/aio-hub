@@ -471,9 +471,98 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       }
     }
 
-    // 文本
+    // 文本 (包含自动链接检测)
     if (token.type === "text") {
-      accumulatedText += token.content;
+      const content = token.content;
+      
+      // 正则匹配 URL 和 邮箱
+      // 1. http/https 开头的链接
+      // 2. www. 开头的链接
+      // 3. 邮箱地址
+      // 注意：排除末尾的标点符号
+      const urlRegex = /((?:https?:\/\/|www\.)[^\s<]+)|([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
+      
+      let match;
+      let lastIndex = 0;
+      let hasMatch = false;
+
+      // 必须重置 lastIndex，因为 regex 是带 g 标志的
+      urlRegex.lastIndex = 0;
+
+      while ((match = urlRegex.exec(content)) !== null) {
+        hasMatch = true;
+        
+        // 在处理匹配之前，先处理之前的文本
+        // 1. 如果有 accumulatedText，先 flush
+        flushText();
+        
+        // 2. 处理当前 content 中匹配项之前的文本
+        const preText = content.slice(lastIndex, match.index);
+        if (preText) {
+          nodes.push(createTextNode(preText));
+        }
+
+        // 3. 处理匹配到的 URL/邮箱
+        let url = match[0];
+        let text = url;
+        
+        // 处理末尾标点符号 (常见痛点: URL 后面的句号或逗号不应包含在 URL 中)
+        const trailingPunctuation = /[.,;!?)]+$/;
+        const punctuationMatch = url.match(trailingPunctuation);
+        if (punctuationMatch) {
+          const punctuation = punctuationMatch[0];
+          url = url.slice(0, -punctuation.length);
+          text = url;
+          // 调整 regex 的 lastIndex，以便下一次循环能正确处理标点
+          // 注意：exec 循环会自动更新 lastIndex 到匹配项末尾，我们需要回退
+          urlRegex.lastIndex -= punctuation.length;
+        }
+
+        // 如果是 www. 开头，补全 https://
+        if (url.startsWith("www.")) {
+          url = "https://" + url;
+        }
+        // 如果是邮箱，补全 mailto:
+        else if (match[2]) { // match[2] 是邮箱捕获组
+          url = "mailto:" + url;
+        }
+
+        nodes.push({
+          id: "",
+          type: "link",
+          props: { href: url, title: "" },
+          children: [createTextNode(text)],
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+
+        // 如果有分离出的标点，它会在下一次循环或者循环结束后作为普通文本处理
+        // 因为我们调整了 lastIndex（如果需要的话），或者它本身就在 match[0] 之后
+        // 修正逻辑：上面的 lastIndex 回退逻辑对于 exec 循环可能比较复杂
+        // 更简单的做法：手动处理标点
+        
+        if (punctuationMatch) {
+            // 这种情况下，标点符号实际上还在 content 中等待处理
+            // 我们不需要回退 lastIndex，因为我们已经手动截断了 url
+            // 但是我们需要把标点符号留给下一轮或者作为文本添加
+            // 实际上，exec 的 lastIndex 已经指向了完整 match[0] 的末尾
+            // 我们只需要把标点符号作为普通文本添加即可
+            nodes.push(createTextNode(punctuationMatch[0]));
+        }
+
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (hasMatch) {
+        // 处理剩余文本
+        const remainingText = content.slice(lastIndex);
+        if (remainingText) {
+          accumulatedText = remainingText; // 留给下一次迭代或 flush
+        }
+      } else {
+        // 没有匹配到 URL，照常处理
+        accumulatedText += content;
+      }
+
       i++;
       continue;
     }

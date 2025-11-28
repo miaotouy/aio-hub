@@ -19,6 +19,7 @@ import { complexRenderingTestPreset } from './presets/complex-rendering-test';
 import { htmlScriptTestPreset } from './presets/html-script-test';
 import { htmlGameSnakePreset } from './presets/html-game-snake';
 import { indentedCodePreset } from './presets/indented-code';
+import { htmlNewlineTestPreset } from './presets/html-newline-test';
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -41,4 +42,5 @@ export const presets: RenderPreset[] = [
   htmlScriptTestPreset,
   htmlGameSnakePreset,
   indentedCodePreset,
+  htmlNewlineTestPreset,
 ];

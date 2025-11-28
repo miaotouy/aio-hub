@@ -4,6 +4,60 @@ import { BLOCK_LEVEL_TAGS, hasBlockLevelStructure } from "../utils/block-utils";
 import { parseInlineHtmlTag } from "../inline/parseHtmlInline";
 import { tokensToRawText } from "../utils/text-utils";
 
+// 需要保留空白符的标签
+const PRE_FORMATTED_TAGS = new Set(["pre", "textarea", "code"]);
+
+/**
+ * 处理 HTML 内容的 tokens，移除多余的换行符
+ * 用于在调用 parseInlines 之前预处理 tokens
+ */
+function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
+  const isPreFormatted = PRE_FORMATTED_TAGS.has(tagName);
+
+  // 预格式化标签特殊处理：仅移除首尾换行，保留中间内容原样
+  if (isPreFormatted) {
+    const result = [...tokens];
+    
+    // 移除开头的换行 (通常 HTML 会忽略 <pre> 后紧跟的第一个换行)
+    if (result.length > 0 && result[0].type === "newline") {
+      result.shift();
+    }
+    
+    // 移除结尾的换行 (通常 HTML 会忽略 </pre> 前紧跟的最后一个换行)
+    if (result.length > 0 && result[result.length - 1].type === "newline") {
+      result.pop();
+    }
+    
+    return result;
+  }
+
+  // 非预格式化标签：移除首尾换行，中间换行转空格
+  const result: Token[] = [];
+  
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    
+    // 将 newline token 转换为空格文本 token
+    // 在 HTML 块上下文中，换行符通常应视为空格，而不是硬换行 <br>
+    if (token.type === "newline") {
+      // 如果是首尾的换行，直接忽略（HTML 忽略标签前后的空白）
+      if (i === 0 || i === tokens.length - 1) {
+        continue;
+      }
+      
+      // 中间的换行转为空格
+      result.push({
+        type: "text",
+        content: " "
+      });
+    } else {
+      result.push(token);
+    }
+  }
+  
+  return result;
+}
+
 /**
  * 解析 HTML 块（仅处理块级标签）
  */
@@ -75,7 +129,9 @@ export function parseHtmlBlock(
       tagName === "p" ||
       /^h[1-6]$/.test(tagName)
     ) {
-      htmlNode.children = ctx.parseInlines(contentTokens);
+      // 预处理 tokens，处理换行符
+      const normalizedTokens = normalizeHtmlTokens(contentTokens, tagName);
+      htmlNode.children = ctx.parseInlines(normalizedTokens);
     } else {
       // 检测是否只包含内联内容（没有块级结构）
       // 如果内容中没有双换行、没有块级标记，则视为纯内联内容
@@ -83,7 +139,9 @@ export function parseHtmlBlock(
 
       if (!hasBlockStructure) {
         // 纯内联内容，直接使用内联解析，避免被包裹成段落
-        htmlNode.children = ctx.parseInlines(contentTokens);
+        // 预处理 tokens，处理换行符
+        const normalizedTokens = normalizeHtmlTokens(contentTokens, tagName);
+        htmlNode.children = ctx.parseInlines(normalizedTokens);
       } else {
         // 包含块级结构，使用HTML内容专用解析(不包裹内联HTML为段落)
         htmlNode.children = parseHtmlContent(ctx, contentTokens);

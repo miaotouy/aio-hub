@@ -308,6 +308,21 @@ export class Tokenizer {
         atLineStart = false;
         continue;
       }
+      // 下标 ~
+      if (remaining.startsWith("~")) {
+        tokens.push({ type: "subscript_delimiter", marker: "~", raw: "~" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+      // 上标 ^
+      if (remaining.startsWith("^")) {
+        tokens.push({ type: "superscript_delimiter", marker: "^", raw: "^" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+
       // 处理 *** (三重分隔符) 以实现粗斜体
       if (remaining.startsWith("***")) {
         // 启发式规则：检查是否为右侧定界 (后跟空白或结尾)
@@ -357,20 +372,64 @@ export class Tokenizer {
         continue;
       }
       // 行内代码 - 立即处理完整的代码块
+      // 支持任意数量的反引号作为定界符 (e.g. `` ` ``)
       if (remaining.startsWith("`")) {
-        const codeMatch = remaining.match(/^`([^`]*)`/);
-        if (codeMatch) {
-          // 找到了完整的行内代码
-          tokens.push({ type: "inline_code", content: codeMatch[1] });
-          i += codeMatch[0].length;
-          atLineStart = false;
-          continue;
-        } else {
-          // 没有找到匹配的反引号，按普通文本处理
-          tokens.push({ type: "text", content: "`" });
-          i += 1;
-          atLineStart = false;
-          continue;
+        // 1. 确定起始反引号的数量
+        const startTicksMatch = remaining.match(/^`+/);
+        if (startTicksMatch) {
+          const startTicks = startTicksMatch[0];
+          const tickCount = startTicks.length;
+          
+          // 2. 寻找匹配的闭合反引号（数量必须相同）
+          // 注意：内容中可以包含反引号，只要数量不等于 tickCount
+          let contentEndIndex = -1;
+          let searchIndex = tickCount;
+          
+          while (searchIndex < remaining.length) {
+            // 查找下一个反引号
+            const nextTickIndex = remaining.indexOf("`", searchIndex);
+            if (nextTickIndex === -1) break;
+            
+            // 检查这一组反引号的长度
+            let currentTickCount = 0;
+            let k = nextTickIndex;
+            while (k < remaining.length && remaining[k] === "`") {
+              currentTickCount++;
+              k++;
+            }
+            
+            if (currentTickCount === tickCount) {
+              // 找到了匹配的闭合标记
+              contentEndIndex = nextTickIndex;
+              break;
+            }
+            
+            // 继续搜索
+            searchIndex = k;
+          }
+          
+          if (contentEndIndex !== -1) {
+            // 提取内容
+            let content = remaining.slice(tickCount, contentEndIndex);
+            
+            // 规范处理：如果代码块首尾都有空格，且内容非纯空格，则剥离首尾的一个空格
+            // e.g. `` ` `` -> `
+            if (content.length >= 2 && content.startsWith(" ") && content.endsWith(" ") && content.trim().length > 0) {
+               content = content.slice(1, -1);
+            }
+            
+            tokens.push({ type: "inline_code", content });
+            i += contentEndIndex + tickCount;
+            atLineStart = false;
+            continue;
+          } else {
+            // 没有找到匹配的闭合标记，把起始的第一个反引号当作普通文本
+            // 剩下的反引号会在下一次循环中处理
+            tokens.push({ type: "text", content: "`" });
+            i += 1;
+            atLineStart = false;
+            continue;
+          }
         }
       }
 
@@ -451,7 +510,7 @@ export class Tokenizer {
       }
 
       // 普通文本
-      const specialChars = /<|`|\*|_|~|!|\[|\]|\(|\)|#|>|\n|\$|“|”|"|\\/;
+      const specialChars = /<|`|\*|_|~|\^|!|\[|\]|\(|\)|#|>|\n|\$|“|”|"|\\/;
       const nextSpecialIndex = remaining.search(specialChars);
 
       const textContent =

@@ -18,6 +18,8 @@ export type Token =
   | { type: "em_delimiter"; marker: "*" | "_"; raw: string }
   | { type: "inline_code"; content: string }
   | { type: "strikethrough_delimiter"; marker: "~~"; raw: string }
+  | { type: "subscript_delimiter"; marker: "~"; raw: string }
+  | { type: "superscript_delimiter"; marker: "^"; raw: string }
   | { type: "quote_delimiter"; marker: "“" | "”" | "\""; raw: string }
   | { type: "image_marker"; raw: string }
   | { type: "link_text_open"; raw: string }

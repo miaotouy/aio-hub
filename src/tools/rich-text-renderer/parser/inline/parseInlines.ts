@@ -237,6 +237,96 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       }
     }
 
+    // 下标
+    if (token.type === "subscript_delimiter") {
+      flushText();
+
+      // 预先检查是否有闭合标记
+      let hasClosing = false;
+      let tempI = i + 1;
+      while (tempI < tokens.length) {
+        const t = tokens[tempI];
+        if (t.type === "subscript_delimiter") {
+          hasClosing = true;
+          break;
+        }
+        tempI++;
+      }
+
+      if (hasClosing) {
+        i++;
+        const innerTokens: Token[] = [];
+        while (i < tokens.length) {
+          const t = tokens[i];
+          if (t.type === "subscript_delimiter") {
+            i++;
+            break;
+          }
+          innerTokens.push(t);
+          i++;
+        }
+
+        nodes.push({
+          id: "",
+          type: "generic_html",
+          props: { tagName: "sub", attributes: {} },
+          children: ctx.parseInlines(innerTokens),
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+        continue;
+      } else {
+        // 没有闭合标记，当作普通文本处理
+        accumulatedText += token.marker;
+        i++;
+        continue;
+      }
+    }
+
+    // 上标
+    if (token.type === "superscript_delimiter") {
+      flushText();
+
+      // 预先检查是否有闭合标记
+      let hasClosing = false;
+      let tempI = i + 1;
+      while (tempI < tokens.length) {
+        const t = tokens[tempI];
+        if (t.type === "superscript_delimiter") {
+          hasClosing = true;
+          break;
+        }
+        tempI++;
+      }
+
+      if (hasClosing) {
+        i++;
+        const innerTokens: Token[] = [];
+        while (i < tokens.length) {
+          const t = tokens[i];
+          if (t.type === "superscript_delimiter") {
+            i++;
+            break;
+          }
+          innerTokens.push(t);
+          i++;
+        }
+
+        nodes.push({
+          id: "",
+          type: "generic_html",
+          props: { tagName: "sup", attributes: {} },
+          children: ctx.parseInlines(innerTokens),
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+        continue;
+      } else {
+        // 没有闭合标记，当作普通文本处理
+        accumulatedText += token.marker;
+        i++;
+        continue;
+      }
+    }
+
     // 引号 (支持 “...” 和 ”...“ 以及 “...“ 和 "..." 等各种组合)
     if (token.type === "quote_delimiter") {
       flushText();

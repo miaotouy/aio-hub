@@ -45,7 +45,13 @@ export async function acquireBlobUrl(src: string): Promise<string | null> {
 
     if (src.startsWith("appdata://")) {
       // 处理 appdata:// 协议，调用专用的资产读取命令
-      const relativePath = src.substring(10).replace(/\\/g, "/");
+      let pathPart = src.substring(10);
+      // 移除 query string (如果存在)，以便正确读取文件
+      const queryIndex = pathPart.indexOf("?");
+      if (queryIndex !== -1) {
+        pathPart = pathPart.substring(0, queryIndex);
+      }
+      const relativePath = pathPart.replace(/\\/g, "/");
       // 使用新的独立于资产系统的二进制文件读取命令
       bytes = await invoke<number[]>("read_app_data_file_binary", {
         relativePath,

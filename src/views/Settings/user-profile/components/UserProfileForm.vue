@@ -31,17 +31,9 @@
       <AvatarSelector
         :model-value="formData.icon || ''"
         @update:icon="handleIconUpdate"
-        :mode="formData.iconMode === 'builtin' ? 'upload' : 'path'"
         :entity-id="profileId"
         profile-type="user"
-        show-mode-switch
         :name-for-fallback="formData.name"
-        @update:mode="
-          (newMode) => {
-            formData.iconMode = newMode === 'upload' ? 'builtin' : 'path';
-            handleInput();
-          }
-        "
       />
       <div class="form-hint">上传的头像将与该档案绑定存储，删除档案时会一并清除。</div>
     </el-form-item>
@@ -116,7 +108,6 @@
 import { ref, watch, defineAsyncComponent } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
-import type { IconMode } from "@/tools/llm-chat/types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 
 const MarkdownStyleEditor = defineAsyncComponent(
@@ -128,7 +119,6 @@ interface UserProfileFormData {
   name: string;
   displayName?: string;
   icon?: string;
-  iconMode?: IconMode;
   content: string;
   createdAt?: string;
   lastUsedAt?: string;
@@ -215,11 +205,6 @@ const handleBehaviorChange = (val: string | number | boolean | undefined) => {
 
 const handleIconUpdate = (payload: IconUpdatePayload) => {
   formData.value.icon = payload.value;
-  if (payload.source === "upload") {
-    formData.value.iconMode = "builtin";
-  } else {
-    formData.value.iconMode = "path";
-  }
   handleInput();
 };
 

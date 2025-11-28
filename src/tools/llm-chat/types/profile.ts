@@ -1,5 +1,4 @@
 import type { RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
-import type { IconMode } from './common';
 
 /**
  * 用户档案 (User Profile)
@@ -25,12 +24,6 @@ export interface UserProfile {
    * 档案图标（emoji、图标路径或相对文件名）
    */
   icon?: string;
-
-  /**
-   * 图标模式
-   * @default 'path'
-   */
-  iconMode?: IconMode;
 
   /**
    * 档案内容（描述性文本）

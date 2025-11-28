@@ -1,5 +1,5 @@
 import type { Asset } from '@/types/asset-management';
-import type { IconMode, MessageRole, MessageStatus, MessageType } from './common';
+import type { MessageRole, MessageStatus, MessageType } from './common';
 
 /**
  * 消息节点（树形结构）
@@ -75,16 +75,12 @@ export interface ChatMessageNode {
     agentName?: string;
     /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
     agentIcon?: string;
-    /** Agent 图标模式快照 */
-    agentIconMode?: IconMode;
     /** 生成此消息时使用的用户档案 ID */
     userProfileId?: string;
     /** 生成此消息时使用的用户档案名称（快照） */
     userProfileName?: string;
     /** 生成此消息时使用的用户档案图标（快照） */
     userProfileIcon?: string;
-    /** 用户档案图标模式快照 */
-    userProfileIconMode?: IconMode;
     /** 生成此消息时使用的 Profile ID */
     profileId?: string;
     /** 生成此消息时使用的模型 ID */

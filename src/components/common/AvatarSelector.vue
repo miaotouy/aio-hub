@@ -20,33 +20,27 @@ function isLikelyFilename(icon: string): boolean {
 
 interface Props {
   modelValue: string;
-  mode?: "path" | "upload";
-  /** 在 'upload' 模式下必须提供，用于确定上传目录 */
+  /** 用于上传专属头像，必须提供才能使用上传功能 */
   entityId?: string;
-  /** 在 'upload' 模式下必须提供，用于确定上传目录 */
+  /** 用于确定上传目录 */
   profileType?: "agent" | "user";
-  /** 是否显示模式切换开关 */
-  showModeSwitch?: boolean;
   /** 用于 Avatar 的回退文本，建议使用 name 而非 displayName */
   nameForFallback?: string;
 }
 const props = withDefaults(defineProps<Props>(), {
-  mode: "path",
   entityId: "",
   profileType: "agent",
-  showModeSwitch: false,
   nameForFallback: "图标",
 });
 
 export interface IconUpdatePayload {
   value: string;
-  source: "input" | "upload" | "preset" | "clear" | "mode-switch";
+  source: "input" | "upload" | "preset" | "clear";
 }
 
 interface Emits {
   (e: "update:modelValue", value: string): void;
   (e: "update:icon", payload: IconUpdatePayload): void;
-  (e: "update:mode", mode: "path" | "upload"): void;
 }
 const emit = defineEmits<Emits>();
 
@@ -103,38 +97,36 @@ const uploadCustomImage = async () => {
 
     if (!selectedPath) return;
 
+    // **上传逻辑：与 assets 解耦**
+    if (!props.entityId) {
+      customMessage.error("上传失败：缺少 entityId");
+      return;
+    }
+
     isUploadingImage.value = true;
 
-    if (props.mode === "upload") {
-      // **上传模式：与 assets 解耦**
-      if (!props.entityId) {
-        customMessage.error("上传失败：缺少 entityId");
-        return;
-      }
+    const extension = await extname(selectedPath);
+    const newFilename = `avatar${extension ? `.${extension.slice(1)}` : ""}`;
 
-      const extension = await extname(selectedPath);
-      const newFilename = `avatar${extension ? `.${extension.slice(1)}` : ""}`;
-
-      let subdirectory = "";
-      if (props.profileType === "agent") {
-        subdirectory = `llm-chat/agents/${props.entityId}`;
-      } else if (props.profileType === "user") {
-        subdirectory = `llm-chat/user-profiles/${props.entityId}`;
-      } else {
-        customMessage.error(`上传失败：未知的 profileType '${props.profileType}'`);
-        return;
-      }
-
-      await invoke("copy_file_to_app_data", {
-        sourcePath: selectedPath,
-        subdirectory,
-        newFilename,
-      });
-
-      // v-model 只存储文件名
-      emit("update:icon", { value: newFilename, source: "upload" });
-      customMessage.success("专属头像上传成功");
+    let subdirectory = "";
+    if (props.profileType === "agent") {
+      subdirectory = `llm-chat/agents/${props.entityId}`;
+    } else if (props.profileType === "user") {
+      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
+    } else {
+      customMessage.error(`上传失败：未知的 profileType '${props.profileType}'`);
+      return;
     }
+
+    await invoke("copy_file_to_app_data", {
+      sourcePath: selectedPath,
+      subdirectory,
+      newFilename,
+    });
+
+    // v-model 只存储文件名
+    emit("update:icon", { value: newFilename, source: "upload" });
+    customMessage.success("专属头像上传成功");
   } catch (error) {
     console.error("上传图像失败:", error);
     customMessage.error(`上传图像失败: ${error}`);
@@ -157,8 +149,9 @@ const resolvedAvatarSrc = computed(() => {
   const icon = props.modelValue.trim();
   if (!icon) return "";
 
-  // 如果是上传模式且提供了 entityId 和 profileType，需要解析为 appdata:// 路径
-  if (props.mode === "upload" && props.entityId && isLikelyFilename(icon)) {
+  // 如果提供了 entityId 且是文件名格式，优先解析为 appdata:// 路径
+  // 这允许用户上传头像后，modelValue 仅存储文件名，保持数据整洁
+  if (props.entityId && isLikelyFilename(icon)) {
     if (props.profileType === "agent") {
       return `appdata://llm-chat/agents/${props.entityId}/${icon}`;
     } else if (props.profileType === "user") {
@@ -218,74 +211,47 @@ const handleIconClick = () => {
       </el-tooltip>
     </div>
     <div class="icon-controls-container">
-      <div v-if="showModeSwitch" class="mode-switch-container">
-        <el-switch
-          :model-value="mode"
-          active-value="upload"
-          inactive-value="path"
-          active-text="上传专属头像"
-          inactive-text="输入路径/Emoji"
-          @change="$emit('update:mode', $event as 'path' | 'upload')"
-        />
-        <div class="form-hint">
-          {{
-            mode === "upload"
-              ? "上传的头像将与实体绑定存储，推荐用于自定义、非公开的头像。"
-              : "引用外部路径或输入Emoji，适合使用网络图片或预设图标。"
-          }}
-        </div>
-      </div>
+      <el-input
+        :model-value="modelValue"
+        @update:model-value="$emit('update:icon', { value: $event, source: 'input' })"
+        placeholder="输入 Emoji / 路径 / 上传头像"
+        class="icon-input"
+      >
+        <template #append>
+          <el-button-group>
+            <el-tooltip content="选择预设图标" placement="top">
+              <el-button @click="openPresetIconSelector">
+                <el-icon><Star /></el-icon>
+              </el-button>
+            </el-tooltip>
+            
+            <el-tooltip content="引用本地图像 (绝对路径)" placement="top">
+              <el-button @click="selectLocalImage">
+                <el-icon><FolderOpened /></el-icon>
+              </el-button>
+            </el-tooltip>
 
-      <!-- 路径模式：显示输入框和完整按钮组 -->
-      <template v-if="mode === 'path'">
-        <el-input
-          :model-value="modelValue"
-          @update:model-value="$emit('update:icon', { value: $event, source: 'input' })"
-          placeholder="输入 emoji、路径或选择图像"
-          class="icon-input"
-        >
-          <template #append>
-            <el-button-group>
-              <el-tooltip content="选择预设图标" placement="top">
-                <el-button @click="openPresetIconSelector">
-                  <el-icon><Star /></el-icon>
-                </el-button>
-              </el-tooltip>
-              <el-tooltip content="选择本地图像" placement="top">
-                <el-button @click="selectLocalImage">
-                  <el-icon><FolderOpened /></el-icon>
-                </el-button>
-              </el-tooltip>
-              <el-tooltip content="重置为默认" placement="top">
-                <el-button @click="clearIcon">
-                  <el-icon><RefreshLeft /></el-icon>
-                </el-button>
-              </el-tooltip>
-            </el-button-group>
-          </template>
-        </el-input>
-        <div class="form-hint">可以输入 emoji、从预设选择、上传图像或输入绝对路径</div>
-      </template>
-
-      <!-- 上传模式：只显示上传和重置按钮 -->
-      <template v-else-if="mode === 'upload'">
-        <div class="upload-mode-controls">
-          <el-tooltip content="上传专属头像，将与该智能体绑定存储" placement="top">
-            <el-button
-              @click="uploadCustomImage"
-              :loading="isUploadingImage"
-              type="primary"
-              :icon="Upload"
+            <el-tooltip
+              v-if="entityId"
+              content="上传专属头像 (存入 AppData)"
+              placement="top"
             >
-              上传专属头像
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="重置为默认图标" placement="top">
-            <el-button @click="clearIcon" :icon="RefreshLeft"> 重置 </el-button>
-          </el-tooltip>
-        </div>
-        <div class="form-hint">上传的头像将与该智能体绑定存储，删除智能体时会一并清除。</div>
-      </template>
+              <el-button @click="uploadCustomImage" :loading="isUploadingImage">
+                <el-icon><Upload /></el-icon>
+              </el-button>
+            </el-tooltip>
+
+            <el-tooltip content="重置为默认" placement="top">
+              <el-button @click="clearIcon">
+                <el-icon><RefreshLeft /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </el-button-group>
+        </template>
+      </el-input>
+      <div class="form-hint">
+        支持 Emoji、预设图标、本地路径引用{{ entityId ? '或上传专属头像' : '' }}。
+      </div>
     </div>
   </div>
 
@@ -322,19 +288,6 @@ const handleIconClick = () => {
   flex-direction: column;
 }
 
-.mode-switch-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  border-radius: 4px;
-}
-
-.upload-mode-controls {
-  display: flex;
-  gap: 12px;
-}
-
 .icon-input {
   width: 100%;
 }
@@ -343,10 +296,6 @@ const handleIconClick = () => {
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 6px;
-}
-
-.mode-switch-container .form-hint {
-  margin-top: 0;
 }
 
 /* 可点击的头像 */

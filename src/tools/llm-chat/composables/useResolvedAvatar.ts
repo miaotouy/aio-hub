@@ -1,9 +1,9 @@
 import { computed, type Ref } from 'vue';
-import type { ChatAgent, UserProfile, IconMode } from '../types';
+import type { ChatAgent, UserProfile } from '../types';
 
 type EntityType = 'agent' | 'user-profile';
 // 兼容智能体、用户档案以及消息元数据中的快照
-type Entity = (ChatAgent | UserProfile | { id: string; icon?: string; iconMode?: IconMode });
+type Entity = (ChatAgent | UserProfile | { id: string; icon?: string });
 
 /**
  * 判断一个图标字符串是否像一个内置的文件名
@@ -27,12 +27,10 @@ export function resolveAvatarPath(entity: Entity | undefined | null, type: Entit
     return null;
   }
 
-  // 对于新实体, `iconMode` 是唯一标准
-  const isBuiltin = entity.iconMode === "builtin";
-  // 为了向后兼容, 如果 `iconMode` 不存在, 我们根据图标字符串的格式进行猜测
-  const isLegacyBuiltin = !entity.iconMode && isLikelyFilename(icon);
-
-  if (isBuiltin || isLegacyBuiltin) {
+  // 自动推断：如果看起来像文件名（包含扩展名且无路径分隔符），
+  // 则认为是 AppData 中的资源，自动拼接路径。
+  // 否则认为是完整路径、URL 或 Emoji，直接返回。
+  if (isLikelyFilename(icon)) {
     if (type === "agent") {
       return `appdata://llm-chat/agents/${entity.id}/${icon}`;
     } else {
@@ -41,8 +39,6 @@ export function resolveAvatarPath(entity: Entity | undefined | null, type: Entit
     }
   }
 
-  // 如果 iconMode 是 'path', 或者对于旧数据它不像一个文件名,
-  // 我们就假定它是一个完整的 URL、emoji 或其他可以直接使用的值。
   return icon;
 }
 

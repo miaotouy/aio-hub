@@ -1,5 +1,4 @@
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
-import type { IconMode } from './common';
 import type { LlmParameters } from './llm';
 import type { ChatMessageNode } from './message';
 
@@ -35,12 +34,6 @@ export interface ChatAgent {
    * 智能体图标（emoji、图标路径或相对文件名）
    */
   icon?: string;
-
-  /**
-   * 图标模式
-   * @default 'path'
-   */
-  iconMode?: IconMode;
 
   /**
    * 使用的 Profile ID

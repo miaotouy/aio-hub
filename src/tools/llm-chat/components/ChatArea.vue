@@ -259,7 +259,6 @@ const handleSaveAgent = async (data: AgentEditData) => {
       displayName: data.displayName,
       description: data.description,
       icon: data.icon,
-      iconMode: data.iconMode,
       profileId: data.profileId,
       modelId: data.modelId,
       userProfileId: data.userProfileId,

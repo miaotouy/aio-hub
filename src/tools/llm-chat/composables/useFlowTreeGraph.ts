@@ -522,7 +522,6 @@ export function useFlowTreeGraph(
         target = {
           id: node.metadata.userProfileId,
           icon: node.metadata.userProfileIcon,
-          iconMode: node.metadata.userProfileIconMode,
         };
       } else {
         const userProfileId = node.metadata?.userProfileId;
@@ -534,10 +533,8 @@ export function useFlowTreeGraph(
       let icon = target?.icon?.trim() || "👤";
 
       if (icon && icon !== "👤") {
-        const isBuiltin = target?.iconMode === "builtin";
-        const isLegacyBuiltin = !target?.iconMode && isLikelyFilename(icon);
-
-        if ((isBuiltin || isLegacyBuiltin) && target?.id) {
+        // 如果是文件名格式，则转换为 appdata:// 路径
+        if (isLikelyFilename(icon) && target?.id) {
           icon = `appdata://llm-chat/user-profiles/${target.id}/${icon}`;
         }
       }
@@ -558,7 +555,6 @@ export function useFlowTreeGraph(
         target = {
           id: node.metadata.agentId,
           icon: node.metadata.agentIcon,
-          iconMode: node.metadata.agentIconMode,
         };
       } else {
         const agentId = node.metadata?.agentId;
@@ -568,10 +564,8 @@ export function useFlowTreeGraph(
       let icon = target?.icon?.trim() || "🤖";
 
       if (icon && icon !== "🤖") {
-        const isBuiltin = target?.iconMode === "builtin";
-        const isLegacyBuiltin = !target?.iconMode && isLikelyFilename(icon);
-
-        if ((isBuiltin || isLegacyBuiltin) && target?.id) {
+        // 如果是文件名格式，则转换为 appdata:// 路径
+        if (isLikelyFilename(icon) && target?.id) {
           icon = `appdata://llm-chat/agents/${target.id}/${icon}`;
         }
       }

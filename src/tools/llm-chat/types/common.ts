@@ -15,10 +15,3 @@ export type MessageStatus = "generating" | "complete" | "error";
  * - user_profile: 用户档案占位符（用于标记用户档案内容的插入位置）
  */
 export type MessageType = "message" | "chat_history" | "user_profile";
-
-/**
- * 头像模式
- * - path: icon 字段是一个完整的路径或 emoji
- * - builtin: icon 字段是内置于 Agent/Profile 目录下的相对文件名
- */
-export type IconMode = "path" | "builtin";

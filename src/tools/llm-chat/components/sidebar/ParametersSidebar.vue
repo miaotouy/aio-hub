@@ -107,7 +107,6 @@ const handleSaveEdit = (data: AgentEditData) => {
     name: data.name,
     description: data.description,
     icon: data.icon,
-    iconMode: data.iconMode,
     profileId: data.profileId,
     modelId: data.modelId,
     userProfileId: data.userProfileId,

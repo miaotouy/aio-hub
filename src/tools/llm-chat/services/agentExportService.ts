@@ -84,7 +84,6 @@ export async function exportAgents(
           displayName: agent.displayName,
           description: agent.description,
           icon: agent.icon, // 仅配置文件模式不处理资产，保持原样
-          iconMode: agent.iconMode,
           modelId: agent.modelId,
           userProfileId: agent.userProfileId,
           presetMessages: agent.presetMessages,
@@ -208,7 +207,6 @@ export async function exportAgents(
         displayName: agent.displayName,
         description: agent.description,
         icon: agent.icon,
-        iconMode: agent.iconMode,
         modelId: agent.modelId,
         userProfileId: agent.userProfileId,
         presetMessages: agent.presetMessages,

@@ -112,7 +112,6 @@ const userAvatarTarget = computed(() => {
     return {
       id: metadata.userProfileId,
       icon: metadata.userProfileIcon,
-      iconMode: metadata.userProfileIconMode,
     };
   }
   // 回退到当前生效的用户档案
@@ -125,7 +124,6 @@ const assistantAvatarTarget = computed(() => {
     return {
       id: metadata.agentId,
       icon: metadata.agentIcon,
-      iconMode: metadata.agentIconMode,
     };
   }
   // 回退到当前 Agent

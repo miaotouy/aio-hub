@@ -1,4 +1,4 @@
-import type { ChatMessageNode, LlmParameters, IconMode } from '../types';
+import type { ChatMessageNode, LlmParameters } from '../types';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 
 /**
@@ -9,7 +9,6 @@ export interface ExportableAgent {
   displayName?: string;
   description?: string;
   icon?: string;
-  iconMode?: IconMode;
   modelId: string;
   userProfileId?: string | null;
   presetMessages?: ChatMessageNode[];

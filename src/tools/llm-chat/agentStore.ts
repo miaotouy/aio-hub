@@ -6,7 +6,7 @@ import { defineStore } from 'pinia';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
-import type { ChatAgent, ChatMessageNode, LlmParameters, IconMode } from './types';
+import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
@@ -93,7 +93,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
         displayName?: string;
         description?: string;
         icon?: string;
-        iconMode?: IconMode;
         userProfileId?: string | null;
         presetMessages?: ChatMessageNode[];
         displayPresetCount?: number;
@@ -113,7 +112,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
         displayName: options?.displayName,
         description: options?.description,
         icon: options?.icon,
-        iconMode: options?.iconMode,
         profileId,
         modelId,
         userProfileId: options?.userProfileId ?? null,
@@ -604,7 +602,6 @@ export const useAgentStore = defineStore('llmChatAgent', {
               displayName: resolvedAgent.displayName,
               description: resolvedAgent.description,
               icon: finalIcon,
-              iconMode: resolvedAgent.iconMode,
               userProfileId: resolvedAgent.userProfileId,
               presetMessages: resolvedAgent.presetMessages,
               displayPresetCount: resolvedAgent.displayPresetCount,

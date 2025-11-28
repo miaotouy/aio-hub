@@ -2,7 +2,7 @@
 import { reactive, watch, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useAgentStore } from "../../agentStore";
-import type { ChatAgent, ChatMessageNode, IconMode, AgentEditData } from "../../types";
+import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
@@ -70,7 +70,6 @@ const editForm = reactive({
   displayName: "",
   description: "",
   icon: "",
-  iconMode: "path" as IconMode,
   profileId: "",
   modelId: "",
   modelCombo: "", // 用于 LlmModelSelector 的组合值 (profileId:modelId)
@@ -110,7 +109,6 @@ const loadFormData = () => {
     editForm.displayName = props.agent.displayName || "";
     editForm.description = props.agent.description || "";
     editForm.icon = props.agent.icon || "";
-    editForm.iconMode = props.agent.iconMode || "path";
     editForm.profileId = props.agent.profileId;
     editForm.modelId = props.agent.modelId;
     editForm.modelCombo = `${props.agent.profileId}:${props.agent.modelId}`;
@@ -133,7 +131,6 @@ const loadFormData = () => {
     editForm.displayName = props.initialData.displayName || "";
     editForm.description = props.initialData.description || "";
     editForm.icon = props.initialData.icon || "";
-    editForm.iconMode = "path"; // 创建模式总是 path
     editForm.profileId = props.initialData.profileId || "";
     editForm.modelId = props.initialData.modelId || "";
     editForm.modelCombo =
@@ -181,12 +178,6 @@ const handleModelComboChange = (value: string) => {
 };
 const handleIconUpdate = (payload: IconUpdatePayload) => {
   editForm.icon = payload.value;
-  if (payload.source === "upload") {
-    editForm.iconMode = "builtin";
-  } else {
-    // input, preset, clear 都应视为 path 模式
-    editForm.iconMode = "path";
-  }
 };
 
 // 关闭对话框
@@ -218,7 +209,6 @@ const handleSave = () => {
     displayName: editForm.displayName || undefined,
     description: editForm.description,
     icon: editForm.icon,
-    iconMode: editForm.iconMode,
     profileId: editForm.profileId,
     modelId: editForm.modelId,
     userProfileId: editForm.userProfileId,
@@ -258,16 +248,9 @@ const handleSave = () => {
         <AvatarSelector
           :model-value="editForm.icon"
           @update:icon="handleIconUpdate"
-          :mode="editForm.iconMode === 'builtin' ? 'upload' : 'path'"
           :entity-id="agent?.id"
           profile-type="agent"
-          show-mode-switch
           :name-for-fallback="editForm.name"
-          @update:mode="
-            (newMode) => {
-              editForm.iconMode = newMode === 'upload' ? 'builtin' : 'path';
-            }
-          "
         />
       </el-form-item>
 

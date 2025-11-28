@@ -97,7 +97,6 @@ const siblingsWithDisplayInfo = computed(() => {
           return {
             id: sibling.metadata.userProfileId,
             icon: sibling.metadata.userProfileIcon,
-            iconMode: sibling.metadata.userProfileIconMode,
           };
         }
         return userProfileStore.globalProfile;
@@ -117,7 +116,6 @@ const siblingsWithDisplayInfo = computed(() => {
           return {
             id: sibling.metadata.agentId,
             icon: sibling.metadata.agentIcon,
-            iconMode: sibling.metadata.agentIconMode,
           };
         }
         return agent;

@@ -153,14 +153,13 @@ export function useUserProfileStorage() {
       const profilePath = await getProfileConfigPath(profile.id);
 
       // 在序列化之前，处理 icon 路径
-      // 仅当 iconMode 为 'builtin' 时，才将其从完整的 appdata 路径转换回相对文件名
       const profileToSave = JSON.parse(JSON.stringify(profile)); // 深拷贝以避免修改内存状态
-      if (profileToSave.iconMode === "builtin") {
-        const icon = profileToSave.icon?.trim();
-        const selfAssetPathPrefix = `appdata://llm-chat/user-profiles/${profile.id}/`;
-        if (icon && icon.startsWith(selfAssetPathPrefix)) {
-          profileToSave.icon = icon.substring(selfAssetPathPrefix.length);
-        }
+
+      // 如果 icon 是完整的 appdata 路径（指向自己的目录），转换为相对文件名
+      const icon = profileToSave.icon?.trim();
+      const selfAssetPathPrefix = `appdata://llm-chat/user-profiles/${profile.id}/`;
+      if (icon && icon.startsWith(selfAssetPathPrefix)) {
+        profileToSave.icon = icon.substring(selfAssetPathPrefix.length);
       }
 
       const newContent = JSON.stringify(profileToSave, null, 2);

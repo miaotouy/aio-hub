@@ -14,7 +14,7 @@ import JSZip from 'jszip';
 import yaml from 'js-yaml';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile, writeFile, mkdir } from '@tauri-apps/plugin-fs';
+import { writeTextFile, writeFile, mkdir, readFile } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
 import { customMessage } from '@/utils/customMessage';
 
@@ -119,14 +119,14 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     defaultAgent: (state): ChatAgent | null => {
       if (state.agents.length === 0) return null;
-      
+
       // 返回最近使用的智能体
       const sorted = [...state.agents].sort((a, b) => {
         const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
         const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
         return bTime - aTime;
       });
-      
+
       return sorted[0];
     },
 
@@ -159,7 +159,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         richTextStyleOptions?: RichTextRendererStyleOptions;
       }
     ): string {
-      const agentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = new Date().toISOString();
 
       const agent: ChatAgent = {
@@ -263,7 +263,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       const newAgentData = JSON.parse(JSON.stringify(originalAgent));
 
       // 创建新的唯一 ID 和名称
-      const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const newName = `${originalAgent.name} 副本`;
       const newDisplayName = originalAgent.displayName ? `${originalAgent.displayName} 副本` : undefined;
 
@@ -296,14 +296,14 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       const agent = this.agents[index];
-      
+
       // 调用存储层删除（会移入回收站）
       const { deleteAgent } = useAgentStorage();
       await deleteAgent(agentId);
-      
+
       // 从内存中移除
       this.agents.splice(index, 1);
-      
+
       // 如果删除的是当前智能体，切换到第一个智能体
       const { currentAgentId } = useLlmChatUiState();
       if (currentAgentId.value === agentId) {
@@ -360,10 +360,10 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
       // 更新内容
       presetMessage.content = newContent;
-      
+
       // 持久化智能体
       this.persistAgent(agent);
-      
+
       logger.info('预设消息已更新', {
         agentId,
         presetNodeId,
@@ -393,10 +393,10 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
       // 切换启用状态
       presetMessage.isEnabled = !(presetMessage.isEnabled ?? true);
-      
+
       // 持久化智能体
       this.persistAgent(agent);
-      
+
       logger.info('预设消息启用状态已切换', {
         agentId,
         presetNodeId,
@@ -440,11 +440,11 @@ export const useAgentStore = defineStore('llmChatAgent', {
       try {
         const { loadAgents } = useAgentStorage();
         const agents = await loadAgents();
-        
+
         if (agents.length > 0) {
           this.agents = agents;
           logger.info('加载智能体成功', { agentCount: this.agents.length });
-          
+
           // 自动选择默认智能体（最近使用的）
           const { currentAgentId } = useLlmChatUiState();
           if (!currentAgentId.value && this.defaultAgent) {
@@ -466,7 +466,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     createDefaultAgents(): void {
       const { enabledProfiles } = useLlmProfiles();
-      
+
       if (enabledProfiles.value.length === 0) {
         logger.warn('无法创建默认智能体：没有可用的 Profile');
         return;
@@ -623,7 +623,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
             logger.info('用户取消了导出目录选择');
             return;
           }
-          
+
           const targetDir = selected as string;
           let successCount = 0;
 
@@ -656,15 +656,15 @@ export const useAgentStore = defineStore('llmChatAgent', {
             const safeName = sanitizeFilename(agent.name);
             const fileName = `${safeName}.agent.${format}`;
             const filePath = await join(targetDir, fileName);
-            
+
             await writeTextFile(filePath, contentString);
             successCount++;
           }
-          
+
           customMessage.success(`成功导出 ${successCount} 个配置文件`);
           return;
         }
-        
+
         // 下面是常规导出逻辑（ZIP, Folder, 或单文件）
 
         // 只有 zip 和 folder 模式才支持包含资产，file 模式强制不包含
@@ -703,7 +703,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
           // 创建导出子目录
           targetDir = await join(selected as string, baseName);
           await mkdir(targetDir, { recursive: true });
-          
+
           if (shouldIncludeAssets) {
             assetsDir = await join(targetDir, 'assets');
             await mkdir(assetsDir, { recursive: true });
@@ -739,8 +739,8 @@ export const useAgentStore = defineStore('llmChatAgent', {
               try {
                 const iconBinary = await assetManagerEngine.getAssetBinary(relativePath);
                 const originalName = relativePath.split('/').pop() || 'icon.png';
-                const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${originalName}`;
-                
+                const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
+
                 if (exportType === 'zip' && zip) {
                   zip.folder('assets')?.file(uniqueFileName, iconBinary);
                 } else if (exportType === 'folder' && assetsDir) {
@@ -757,10 +757,63 @@ export const useAgentStore = defineStore('llmChatAgent', {
                 });
                 // 如果失败，保留原始路径，但记录错误
               }
+            } else if (agent.icon.startsWith('/')) {
+              // 处理内置资产（如 /agent-icons/...）
+              try {
+                // 使用 fetch 获取 Web 资源（兼容开发环境和生产环境）
+                const response = await fetch(agent.icon);
+                if (!response.ok) {
+                  throw new Error(`Fetch failed: ${response.statusText}`);
+                }
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                const iconBinary = new Uint8Array(arrayBuffer);
+
+                const originalName = agent.icon.split('/').pop() || 'icon.png';
+                const uniqueFileName = `builtin_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
+
+                if (exportType === 'zip' && zip) {
+                  zip.folder('assets')?.file(uniqueFileName, iconBinary);
+                } else if (exportType === 'folder' && assetsDir) {
+                  const assetPath = await join(assetsDir, uniqueFileName);
+                  await writeFile(assetPath, iconBinary);
+                }
+
+                exportableAgent.icon = `assets/${uniqueFileName}`;
+              } catch (error) {
+                logger.warn('导出内置图标失败，将使用原始路径', {
+                  agentId: agent.id,
+                  iconPath: agent.icon,
+                  error,
+                });
+              }
+            } else if (/^[A-Za-z]:[\/\\]/.test(agent.icon) || agent.icon.startsWith('\\\\')) {
+              // 处理本地绝对路径（Windows 盘符路径或 UNC 路径）
+              try {
+                const iconBinary = await readFile(agent.icon);
+
+                // 从路径中提取文件名，处理正反斜杠
+                const originalName = agent.icon.split(/[/\\]/).pop() || 'icon.png';
+                const uniqueFileName = `local_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
+
+                if (exportType === 'zip' && zip) {
+                  zip.folder('assets')?.file(uniqueFileName, iconBinary);
+                } else if (exportType === 'folder' && assetsDir) {
+                  const assetPath = await join(assetsDir, uniqueFileName);
+                  await writeFile(assetPath, iconBinary);
+                }
+
+                exportableAgent.icon = `assets/${uniqueFileName}`;
+              } catch (error) {
+                logger.warn('导出本地图标失败，将使用原始路径', {
+                  agentId: agent.id,
+                  iconPath: agent.icon,
+                  error,
+                });
+              }
             }
             // 网络图片或 Emoji 不需要处理
           }
-
           exportableAgents.push(exportableAgent);
         }
 
@@ -774,16 +827,16 @@ export const useAgentStore = defineStore('llmChatAgent', {
         const contentString = format === 'yaml'
           ? yaml.dump(exportData)
           : JSON.stringify(exportData, null, 2);
-        
+
         const configFileName = `agent.${format}`;
 
         if (exportType === 'zip' && zip) {
           zip.file(configFileName, contentString);
-          
+
           // 生成 ZIP 文件数据
           const content = await zip.generateAsync({ type: 'uint8array' });
           const fileName = `${baseName}.agent.zip`;
-          
+
           // 使用系统对话框保存文件
           const savePath = await save({
             defaultPath: fileName,
@@ -804,12 +857,12 @@ export const useAgentStore = defineStore('llmChatAgent', {
           // 写入配置文件
           const configPath = await join(targetDir, configFileName);
           await writeTextFile(configPath, contentString);
-          
+
           logger.info('智能体导出成功 (Folder)', { count: agentsToExport.length, targetDir });
         } else if (exportType === 'file') {
           // 直接导出单个配置文件
           const fileName = `${baseName}.agent.${format}`;
-          
+
           const savePath = await save({
             defaultPath: fileName,
             filters: [{
@@ -894,7 +947,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
           // 处理资产合并（避免多文件导入时的资产冲突）
           // 如果有资产，给资产路径加上前缀，并更新 agent 中的引用
           const assetPrefix = fileList.length > 1 ? `file_${fileIndex}_` : '';
-          
+
           for (const [path, content] of Object.entries(fileAssets)) {
             // path 类似 "assets/icon.png"
             const fileName = path.split('/').pop() || 'unknown';
@@ -990,7 +1043,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
               await this.deleteAgent(existingAgent.id);
             }
           }
-          
+
           const agentName = resolvedAgent.newName || resolvedAgent.name;
           const newAgentId = this.createAgent(
             agentName,

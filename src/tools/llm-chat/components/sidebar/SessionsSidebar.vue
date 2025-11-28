@@ -16,6 +16,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import { useTopicNamer } from "../../composables/useTopicNamer";
 import { useSessionManager } from "../../composables/useSessionManager";
 import { useChatSettings } from "../../composables/useChatSettings";
+import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { customMessage } from "@/utils/customMessage";
 import ExportSessionDialog from "../export/ExportSessionDialog.vue";
 import { formatRelativeTime } from "@/utils/time";
@@ -362,7 +363,7 @@ const handleSessionClick = (session: ChatSession) => {
                   @click="filterAgent = agent.id"
                 >
                   <Avatar
-                    :src="agent.icon || ''"
+                    :src="resolveAvatarPath(agent, 'agent') || ''"
                     :alt="agent.displayName || agent.name"
                     :size="16"
                     shape="square"
@@ -416,7 +417,7 @@ const handleSessionClick = (session: ChatSession) => {
                 :show-after="500"
               >
                 <Avatar
-                  :src="getSessionDisplayAgent(session)?.icon || ''"
+                  :src="resolveAvatarPath(getSessionDisplayAgent(session), 'agent') || ''"
                   :alt="
                     getSessionDisplayAgent(session)?.displayName ||
                     getSessionDisplayAgent(session)?.name

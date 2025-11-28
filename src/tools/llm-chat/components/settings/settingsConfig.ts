@@ -1,5 +1,13 @@
 import { h } from "vue";
-import { Setting, Delete, Tickets, ChatDotRound, RefreshLeft, Cpu, Connection } from "@element-plus/icons-vue";
+import { RefreshLeft } from "@element-plus/icons-vue";
+import {
+  Settings2,
+  Bot,
+  MessageSquareMore,
+  Keyboard,
+  PenTool,
+  TerminalSquare,
+} from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/store";
@@ -7,7 +15,7 @@ import { availableVersions } from "@/tools/rich-text-renderer/store";
 export const settingsConfig: SettingsSection[] = [
   {
     title: "界面偏好",
-    icon: Setting,
+    icon: Settings2,
     items: [
       {
         id: "showTimestamp",
@@ -141,7 +149,7 @@ export const settingsConfig: SettingsSection[] = [
   },
   {
     title: "模型设置",
-    icon: Connection,
+    icon: Bot,
     items: [
       {
         id: "defaultModel",
@@ -163,7 +171,7 @@ export const settingsConfig: SettingsSection[] = [
   },
   {
     title: "消息管理",
-    icon: Delete,
+    icon: MessageSquareMore,
     items: [
       {
         id: "confirmBeforeDeleteMessage",
@@ -196,7 +204,7 @@ export const settingsConfig: SettingsSection[] = [
   },
   {
     title: "快捷键",
-    icon: Tickets,
+    icon: Keyboard,
     items: [
       {
         id: "send",
@@ -273,7 +281,7 @@ export const settingsConfig: SettingsSection[] = [
   },
   {
     title: "话题命名",
-    icon: ChatDotRound,
+    icon: PenTool,
     items: [
       {
         id: "enabled",
@@ -361,7 +369,7 @@ export const settingsConfig: SettingsSection[] = [
   },
   {
     title: "开发者选项",
-    icon: Cpu,
+    icon: TerminalSquare,
     items: [
       {
         id: "debugModeEnabled",

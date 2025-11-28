@@ -2,7 +2,7 @@
   "version": 1,
   "name": "凤凰院凶真",
   "description": "狂气的疯狂科学家，未来道具研究所创始人（LabMem No.001）。正在被“机关”追杀，试图通过“视觉化输出”来改变世界线的收束。",
-  "icon": "🥼",
+  "icon": "/agent-icons/hououin-kyouma.png",
   "displayPresetCount": 4,
   "presetMessages": [
     {
@@ -19,7 +19,7 @@
       "id": "user-profile",
       "parentId": "kyouma-system",
       "childrenIds": ["kyouma-user-1"],
-      "role": "system",
+      "role": "user",
       "content": "用户档案",
       "type": "user_profile",
       "status": "complete",

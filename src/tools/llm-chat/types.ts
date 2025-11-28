@@ -765,6 +765,16 @@ export interface AgentPreset {
    * 例如: "编程", "写作", "角色扮演", "工具"
    */
   category?: string;
+
+  /**
+   * LLM 思考块规则配置
+   */
+  llmThinkRules?: LlmThinkRule[];
+
+  /**
+   * 富文本渲染器样式配置
+   */
+  richTextStyleOptions?: RichTextRendererStyleOptions;
 }
 
 /**
@@ -782,3 +792,9 @@ export interface ButtonVisibility {
   exportBranch?: boolean;
   moreMenu?: boolean;
 }
+
+/**
+ * 智能体编辑/创建数据
+ * 剔除系统生成的只读字段
+ */
+export type AgentEditData = Omit<ChatAgent, "id" | "createdAt" | "lastUsedAt">;

@@ -2,7 +2,7 @@
 import { reactive, watch, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useAgentStore } from "../../agentStore";
-import type { ChatAgent, ChatMessageNode, IconMode } from "../../types";
+import type { ChatAgent, ChatMessageNode, IconMode, AgentEditData } from "../../types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
@@ -35,33 +35,13 @@ interface Props {
     presetMessages?: ChatMessageNode[];
     tags?: string[];
     category?: string;
+    llmThinkRules?: LlmThinkRule[];
+    richTextStyleOptions?: RichTextRendererStyleOptions;
   } | null;
 }
 interface Emits {
   (e: "update:visible", value: boolean): void;
-  (
-    e: "save",
-    data: {
-      name: string;
-      displayName?: string;
-      description: string;
-      icon: string;
-      iconMode: IconMode;
-      profileId: string;
-      modelId: string;
-      userProfileId: string | null;
-      presetMessages: ChatMessageNode[];
-      displayPresetCount: number;
-      parameters: {
-        temperature: number;
-        maxTokens: number;
-      };
-      llmThinkRules: LlmThinkRule[];
-      richTextStyleOptions: RichTextRendererStyleOptions;
-      tags?: string[];
-      category?: string;
-    }
-  ): void;
+  (e: "save", data: AgentEditData): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -167,8 +147,12 @@ const loadFormData = () => {
     editForm.displayPresetCount = 0;
     editForm.tags = props.initialData.tags ? JSON.parse(JSON.stringify(props.initialData.tags)) : [];
     editForm.category = props.initialData.category || "";
-    editForm.llmThinkRules = [];
-    editForm.richTextStyleOptions = {};
+    editForm.llmThinkRules = props.initialData.llmThinkRules
+      ? JSON.parse(JSON.stringify(props.initialData.llmThinkRules))
+      : [];
+    editForm.richTextStyleOptions = props.initialData.richTextStyleOptions
+      ? JSON.parse(JSON.stringify(props.initialData.richTextStyleOptions))
+      : {};
   }
   activeCollapseNames.value = [];
   thinkRulesLoaded.value = false;

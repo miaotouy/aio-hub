@@ -7,7 +7,7 @@ import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { Plus, MoreFilled, Search, Download, Upload } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatAgent, ChatMessageNode } from "../../types";
+import type { ChatAgent, AgentEditData } from "../../types";
 import type { AgentPreset } from "../../types";
 import AgentListItem from "./AgentListItem.vue";
 
@@ -303,6 +303,10 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     maxTokens: preset.parameters.maxTokens || 8192,
     category: preset.category,
     tags: preset.tags ? [...preset.tags] : [],
+    llmThinkRules: preset.llmThinkRules ? JSON.parse(JSON.stringify(preset.llmThinkRules)) : [],
+    richTextStyleOptions: preset.richTextStyleOptions
+      ? JSON.parse(JSON.stringify(preset.richTextStyleOptions))
+      : {},
   };
 
   editDialogVisible.value = true;
@@ -318,55 +322,15 @@ const handleEdit = (agent: ChatAgent) => {
 };
 
 // 保存智能体
-const handleSaveAgent = (data: {
-  name: string;
-  displayName?: string;
-  description: string;
-  icon: string;
-  iconMode: "path" | "builtin";
-  profileId: string;
-  modelId: string;
-  userProfileId: string | null;
-  presetMessages: ChatMessageNode[];
-  displayPresetCount: number;
-  parameters: {
-    temperature: number;
-    maxTokens: number;
-  };
-  llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
-  richTextStyleOptions: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
-}) => {
+// 使用统一的 AgentEditData 类型，确保字段完整传递
+const handleSaveAgent = (data: AgentEditData) => {
   if (editDialogMode.value === "edit" && editingAgent.value) {
     // 更新模式
-    agentStore.updateAgent(editingAgent.value.id, {
-      name: data.name,
-      displayName: data.displayName,
-      description: data.description,
-      icon: data.icon,
-      iconMode: data.iconMode,
-      profileId: data.profileId,
-      modelId: data.modelId,
-      userProfileId: data.userProfileId,
-      presetMessages: data.presetMessages,
-      displayPresetCount: data.displayPresetCount,
-      parameters: data.parameters,
-      llmThinkRules: data.llmThinkRules,
-      richTextStyleOptions: data.richTextStyleOptions,
-    });
+    agentStore.updateAgent(editingAgent.value.id, data);
     customMessage.success("智能体已更新");
   } else {
     // 创建模式
-    const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, {
-      displayName: data.displayName,
-      description: data.description,
-      icon: data.icon,
-      userProfileId: data.userProfileId,
-      presetMessages: data.presetMessages,
-      displayPresetCount: data.displayPresetCount,
-      parameters: data.parameters,
-      llmThinkRules: data.llmThinkRules,
-      richTextStyleOptions: data.richTextStyleOptions,
-    });
+    const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, data);
     customMessage.success(`智能体 "${data.name}" 创建成功`);
     // 自动选中新创建的智能体
     selectAgent(newAgentId);

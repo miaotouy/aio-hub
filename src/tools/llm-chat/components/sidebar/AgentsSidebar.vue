@@ -339,7 +339,8 @@ const handleSaveAgent = (data: AgentEditData) => {
 
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
-  ElMessageBox.confirm(`确定要删除智能体 "${agent.name}" 吗？文件将被移入回收站。`, "确认删除", {
+  const name = agent.displayName || agent.name;
+  ElMessageBox.confirm(`确定要删除智能体 "${name}" 吗？文件将被移入回收站。`, "确认删除", {
     confirmButtonText: "删除",
     cancelButtonText: "取消",
     type: "warning",
@@ -361,7 +362,8 @@ const handleDelete = (agent: ChatAgent) => {
 const handleDuplicateAgent = (agent: ChatAgent) => {
   const newAgentId = agentStore.duplicateAgent(agent.id);
   if (newAgentId) {
-    customMessage.success(`智能体 "${agent.name}" 已复制`);
+    const name = agent.displayName || agent.name;
+    customMessage.success(`智能体 "${name}" 已复制`);
     // 可以选择是否自动选中新的智能体
     // selectAgent(newAgentId);
   }

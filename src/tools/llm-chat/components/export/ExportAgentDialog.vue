@@ -123,7 +123,7 @@ const singleTargetAgent = computed(() => {
                   :radius="3"
                   class="agent-icon-avatar"
                 />
-                <span class="agent-name">{{ agent.name }}</span>
+                <span class="agent-name">{{ agent.displayName || agent.name }}</span>
               </div>
             </el-checkbox>
           </el-checkbox-group>

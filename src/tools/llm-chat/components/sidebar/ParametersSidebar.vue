@@ -133,7 +133,7 @@ const handleSaveEdit = (data: AgentEditData) => {
           class="agent-icon"
         />
         <div class="agent-info">
-          <h4>{{ currentAgent.name }}</h4>
+          <h4>{{ currentAgent.displayName || currentAgent.name }}</h4>
           <p v-if="currentAgent.description" class="agent-description">
             {{ currentAgent.description }}
           </p>

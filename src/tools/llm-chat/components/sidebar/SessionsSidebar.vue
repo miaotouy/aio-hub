@@ -363,12 +363,12 @@ const handleSessionClick = (session: ChatSession) => {
                 >
                   <Avatar
                     :src="agent.icon || ''"
-                    :alt="agent.name"
+                    :alt="agent.displayName || agent.name"
                     :size="16"
                     shape="square"
                     :radius="3"
                   />
-                  <span class="agent-name">{{ agent.name }}</span>
+                  <span class="agent-name">{{ agent.displayName || agent.name }}</span>
                 </div>
               </div>
             </div>
@@ -408,13 +408,19 @@ const handleSessionClick = (session: ChatSession) => {
             <div class="session-title">
               <el-tooltip
                 v-if="getSessionDisplayAgent(session)"
-                :content="`当前使用: ${getSessionDisplayAgent(session)?.name}`"
+                :content="`当前使用: ${
+                  getSessionDisplayAgent(session)?.displayName ||
+                  getSessionDisplayAgent(session)?.name
+                }`"
                 placement="top"
                 :show-after="500"
               >
                 <Avatar
                   :src="getSessionDisplayAgent(session)?.icon || ''"
-                  :alt="getSessionDisplayAgent(session)?.name"
+                  :alt="
+                    getSessionDisplayAgent(session)?.displayName ||
+                    getSessionDisplayAgent(session)?.name
+                  "
                   :size="20"
                   shape="square"
                   :radius="4"

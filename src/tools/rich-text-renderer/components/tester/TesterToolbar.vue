@@ -2,7 +2,7 @@
   <div class="workspace-toolbar">
     <div class="toolbar-left">
       <!-- 侧边栏折叠按钮 -->
-      <el-tooltip :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'" placement="bottom">
+      <el-tooltip :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'" placement="bottom" :show-after="300">
         <el-button
           :icon="isConfigCollapsed ? DArrowRight : DArrowLeft"
           @click="$emit('update:isConfigCollapsed', !isConfigCollapsed)"
@@ -11,8 +11,8 @@
       </el-tooltip>
 
       <!-- 样式配置按钮 -->
-      <el-tooltip content="配置 Markdown 渲染样式" placement="bottom">
-        <el-button :icon="Brush" @click="$emit('openStyleEditor')" size="small" />
+      <el-tooltip content="配置 Markdown 渲染样式" placement="bottom" :show-after="300">
+        <el-button :icon="Brush" @click="$emit('openStyleEditor')" size="small"/>
       </el-tooltip>
 
       <!-- 渲染状态标签 -->
@@ -40,6 +40,7 @@
               : '立即渲染输入的 Markdown 内容'
         "
         placement="bottom"
+        :show-after="300"
       >
         <el-button
           :type="isRendering ? 'danger' : 'primary'"
@@ -56,6 +57,7 @@
           syncInputProgress && cachedInputContent ? '清空输出并重置输入内容' : '清空渲染输出'
         "
         placement="bottom"
+        :show-after="300"
       >
         <el-button
           :icon="RefreshRight"
@@ -67,7 +69,7 @@
         </el-button>
       </el-tooltip>
       <el-button-group>
-        <el-tooltip content="复制原文和渲染后的 HTML" placement="bottom">
+        <el-tooltip content="复制原文和渲染后的 HTML" placement="bottom" :show-after="300">
           <el-button
             :icon="CopyDocument"
             @click="$emit('copyComparison')"

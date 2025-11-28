@@ -76,13 +76,13 @@
                   <el-tag size="small" type="success">{{ renderStats.totalChars }} 字符 </el-tag>
                 </div>
                 <div class="visualizer-toggle">
-                  <el-tooltip content="渲染时自动滚动到底部" placement="top">
+                  <el-tooltip content="渲染时自动滚动到底部" placement="top" :show-after="300">
                     <el-switch v-model="autoScroll" size="small" />
                   </el-tooltip>
                   <span>自动滚动</span>
                 </div>
                 <div class="visualizer-toggle">
-                  <el-tooltip content="可视化稳定区和待定区" placement="top">
+                  <el-tooltip content="可视化稳定区和待定区" placement="top" :show-after="300">
                     <el-switch v-model="visualizeBlockStatus" size="small" />
                   </el-tooltip>
                   <span>可视化块状态</span>

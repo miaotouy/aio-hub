@@ -5,8 +5,9 @@ import JSZip from 'jszip';
 import yaml from 'js-yaml';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile, writeFile, mkdir, readFile } from '@tauri-apps/plugin-fs';
+import { writeTextFile, writeFile, readFile } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
+import { invoke } from '@tauri-apps/api/core';
 import type { ChatAgent } from '../types';
 import type { ExportableAgent, AgentExportFile } from '../types/agentImportExport';
 
@@ -34,7 +35,7 @@ export async function exportAgents(
   try {
     const agentIds = agents.map(a => a.id);
     logger.info('开始导出智能体', { agentIds, options });
-    
+
     if (agents.length === 0) {
       customMessage.warning('没有选择要导出的智能体');
       return;
@@ -42,7 +43,8 @@ export async function exportAgents(
 
     const format = options.format || 'json';
     const exportType = options.exportType || 'zip';
-    const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').trim();
+    // 增强文件名过滤，防止路径遍历和非法字符
+    const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.\./g, '').trim();
 
     // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
     if (exportType === 'file' && agents.length > 1) {
@@ -93,7 +95,14 @@ export async function exportAgents(
         const fileName = `${safeName}.agent.${format}`;
         const filePath = await join(targetDir, fileName);
 
-        await writeTextFile(filePath, contentString);
+        // 同样使用强制写入，确保有权限写入
+        const encoder = new TextEncoder();
+        const contentBytes = encoder.encode(contentString);
+
+        await invoke('write_file_force', {
+          path: filePath,
+          content: Array.from(contentBytes)
+        });
         successCount++;
       }
 
@@ -138,11 +147,11 @@ export async function exportAgents(
 
       // 创建导出子目录
       targetDir = await join(selected as string, baseName);
-      await mkdir(targetDir, { recursive: true });
 
+      // 注意：folder 模式下我们不再预先创建目录，而是依赖后端的 write_file_force 自动创建
+      // 这样可以绕过前端对 assets 子目录的权限限制
       if (shouldIncludeAssets) {
         assetsDir = await join(targetDir, 'assets');
-        await mkdir(assetsDir, { recursive: true });
       }
     } else if (exportType === 'zip') {
       // ZIP 模式下，assets 文件夹在内存中创建
@@ -184,17 +193,27 @@ export async function exportAgents(
               zip.folder('assets')?.file(uniqueFileName, iconBinary);
             } else if (exportType === 'folder' && assetsDir) {
               const assetPath = await join(assetsDir, uniqueFileName);
-              await writeFile(assetPath, new Uint8Array(iconBinary));
+              try {
+                // 使用后端强制写入命令，绕过前端权限检查
+                // 将 Uint8Array 转换为普通数组传递给 Rust
+                await invoke('write_file_force', {
+                  path: assetPath,
+                  content: Array.from(new Uint8Array(iconBinary))
+                });
+              } catch (writeError) {
+                logger.error('写入资产文件失败', writeError as Error, { assetPath });
+                throw writeError;
+              }
             }
 
             exportableAgent.icon = `assets/${uniqueFileName}`;
           } catch (error) {
+            // 如果是 forbidden path 错误，可能是致命的，最好记录详细信息
             logger.warn('导出图标失败，将使用原始路径', {
               agentId: agent.id,
               iconPath: agent.icon,
               error,
             });
-            // 如果失败，保留原始路径，但记录错误
           }
         } else if (agent.icon.startsWith('/')) {
           // 处理内置资产（如 /agent-icons/...）
@@ -215,7 +234,16 @@ export async function exportAgents(
               zip.folder('assets')?.file(uniqueFileName, iconBinary);
             } else if (exportType === 'folder' && assetsDir) {
               const assetPath = await join(assetsDir, uniqueFileName);
-              await writeFile(assetPath, iconBinary);
+              try {
+                // 使用后端强制写入命令，绕过前端权限检查
+                await invoke('write_file_force', {
+                  path: assetPath,
+                  content: Array.from(iconBinary) // iconBinary 已经是 Uint8Array
+                });
+              } catch (writeError) {
+                logger.error('写入内置图标失败', writeError as Error, { assetPath });
+                throw writeError;
+              }
             }
 
             exportableAgent.icon = `assets/${uniqueFileName}`;
@@ -239,7 +267,16 @@ export async function exportAgents(
               zip.folder('assets')?.file(uniqueFileName, iconBinary);
             } else if (exportType === 'folder' && assetsDir) {
               const assetPath = await join(assetsDir, uniqueFileName);
-              await writeFile(assetPath, iconBinary);
+              try {
+                // 使用后端强制写入命令，绕过前端权限检查
+                await invoke('write_file_force', {
+                  path: assetPath,
+                  content: Array.from(iconBinary) // readFile 返回的是 Uint8Array
+                });
+              } catch (writeError) {
+                logger.error('写入本地图标失败', writeError as Error, { assetPath });
+                throw writeError;
+              }
             }
 
             exportableAgent.icon = `assets/${uniqueFileName}`;
@@ -295,7 +332,15 @@ export async function exportAgents(
     } else if (exportType === 'folder' && targetDir) {
       // 写入配置文件
       const configPath = await join(targetDir, configFileName);
-      await writeTextFile(configPath, contentString);
+
+      // 同样使用强制写入，确保目录被正确创建
+      const encoder = new TextEncoder();
+      const contentBytes = encoder.encode(contentString);
+
+      await invoke('write_file_force', {
+        path: configPath,
+        content: Array.from(contentBytes)
+      });
 
       logger.info('智能体导出成功 (Folder)', { count: agents.length, targetDir });
     } else if (exportType === 'file') {

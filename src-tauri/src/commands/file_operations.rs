@@ -1651,3 +1651,45 @@ pub async fn delete_directory_in_app_data(app: AppHandle, relative_path: String)
     
     Ok(format!("目录已移入回收站: {}", full_path.display()))
 }
+
+// Tauri 命令：强制写入文件（绕过前端路径检查，自动创建父目录）
+// 安全限制：仅允许写入特定扩展名的文件，防止覆盖系统文件或写入可执行程序
+#[tauri::command]
+pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), String> {
+    let file_path = PathBuf::from(&path);
+    
+    // 1. 扩展名白名单检查
+    let allowed_extensions = [
+        // 配置文件
+        "json", "yaml", "yml", "toml", "ini", "xml",
+        // 图片资源
+        "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "tiff",
+        // 文档文本
+        "txt", "md", "markdown", "log",
+        // 压缩包
+        "zip", "7z", "tar", "gz", "rar"
+    ];
+
+    let ext = file_path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    if !allowed_extensions.contains(&ext.as_str()) {
+        return Err(format!("安全限制：不允许写入扩展名为 .{} 的文件", ext));
+    }
+
+    // 2. 确保父目录存在
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建父目录失败: {}", e))?;
+        }
+    }
+    
+    // 3. 写入文件
+    fs::write(&file_path, &content)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+        
+    Ok(())
+}

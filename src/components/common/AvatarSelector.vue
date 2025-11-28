@@ -6,10 +6,11 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Star, Upload, RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
+import { Star, Upload, RefreshLeft, FolderOpened, Clock } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { invoke } from "@tauri-apps/api/core";
-import { extname } from "@tauri-apps/api/path";
+import { extname, appDataDir, join } from "@tauri-apps/api/path";
+import { readDir } from "@tauri-apps/plugin-fs";
 
 /**
  * 判断一个图标字符串是否像一个内置的文件名
@@ -50,8 +51,88 @@ const imageViewer = useImageViewer();
 // 预设图标对话框
 const showPresetIconDialog = ref(false);
 
+// 历史头像按钮引用
+const historyButtonRef = ref();
+
 // 图像上传中状态
 const isUploadingImage = ref(false);
+
+// 历史头像列表
+const historyAvatars = ref<string[]>([]);
+const isLoadingHistory = ref(false);
+
+// 加载历史头像
+const loadHistoryAvatars = async () => {
+  if (!props.entityId) return;
+
+  isLoadingHistory.value = true;
+  historyAvatars.value = [];
+
+  try {
+    const appData = await appDataDir();
+    let subdirectory = "";
+
+    if (props.profileType === "agent") {
+      subdirectory = `llm-chat/agents/${props.entityId}`;
+    } else if (props.profileType === "user") {
+      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
+    } else {
+      return;
+    }
+
+    const fullPath = await join(appData, subdirectory);
+
+    // 读取目录
+    const entries = await readDir(fullPath);
+
+    // 过滤出图片文件 (以 avatar- 开头，或者是图片扩展名)
+    // 我们的上传逻辑生成的是 avatar-{timestamp}.ext
+    const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"];
+
+    const avatars = entries
+      .filter((entry) => {
+        if (!entry.isFile || !entry.name) return false;
+        const lowerName = entry.name.toLowerCase();
+        // 必须是图片扩展名
+        const hasImgExt = imageExtensions.some((ext) => lowerName.endsWith(ext));
+        // 最好是 avatar- 开头，或者是以前上传的图片
+        return hasImgExt;
+      })
+      .map((entry) => entry.name!)
+      .sort((a, b) => {
+        // 尝试按文件名中的时间戳倒序排序
+        // 格式: avatar-1716xxxxxx.png
+        const getTimestamp = (name: string) => {
+          const match = name.match(/avatar-(\d+)/);
+          return match ? parseInt(match[1]) : 0;
+        };
+
+        const timeA = getTimestamp(a);
+        const timeB = getTimestamp(b);
+
+        if (timeA && timeB) {
+          return timeB - timeA;
+        }
+
+        // 如果没有时间戳，按文件名倒序 (通常也能保证较新的在前面)
+        return b.localeCompare(a);
+      });
+
+    historyAvatars.value = avatars;
+  } catch (error) {
+    // 目录可能不存在，忽略错误
+    console.debug("加载历史头像失败 (可能是目录不存在):", error);
+  } finally {
+    isLoadingHistory.value = false;
+  }
+};
+
+// 选择历史头像
+const selectHistoryAvatar = (filename: string) => {
+  emit("update:icon", { value: filename, source: "input" });
+  // 自动关闭 popover (通过点击 document body 实现，或者让用户自己点击外部)
+  customMessage.success("已切换为历史头像");
+};
 
 // 打开预设图标选择器
 const openPresetIconSelector = () => {
@@ -199,6 +280,7 @@ const handleIconClick = () => {
         :content="isImagePath ? '点击放大查看' : ''"
         :disabled="!isImagePath"
         placement="top"
+        show-after="300"
       >
         <Avatar
           :src="resolvedAvatarSrc"
@@ -221,13 +303,13 @@ const handleIconClick = () => {
       >
         <template #append>
           <el-button-group>
-            <el-tooltip content="选择预设图标" placement="top">
+            <el-tooltip content="选择预设图标" placement="top" show-after="300">
               <el-button @click="openPresetIconSelector">
                 <el-icon><Star /></el-icon>
               </el-button>
             </el-tooltip>
-            
-            <el-tooltip content="引用本地图像 (绝对路径)" placement="top">
+
+            <el-tooltip content="引用本地图像 (绝对路径)" placement="top" show-after="300">
               <el-button @click="selectLocalImage">
                 <el-icon><FolderOpened /></el-icon>
               </el-button>
@@ -237,13 +319,56 @@ const handleIconClick = () => {
               v-if="entityId"
               content="上传专属头像 (存入 AppData)"
               placement="top"
+              show-after="300"
             >
               <el-button @click="uploadCustomImage" :loading="isUploadingImage">
                 <el-icon><Upload /></el-icon>
               </el-button>
             </el-tooltip>
 
-            <el-tooltip content="重置为默认" placement="top">
+            <!-- 历史头像选择按钮 -->
+            <el-tooltip v-if="entityId" content="历史头像" placement="top" show-after="300">
+              <el-button ref="historyButtonRef">
+                <el-icon><Clock /></el-icon>
+              </el-button>
+            </el-tooltip>
+
+            <el-popover
+              v-if="entityId"
+              :virtual-ref="historyButtonRef"
+              virtual-triggering
+              placement="bottom"
+              :width="320"
+              trigger="click"
+              @show="loadHistoryAvatars"
+            >
+              <div class="history-avatars-panel">
+                <div class="panel-header">历史头像</div>
+
+                <div v-if="isLoadingHistory" class="loading-state">加载中...</div>
+
+                <div v-else-if="historyAvatars.length === 0" class="empty-state">暂无上传记录</div>
+
+                <div v-else class="avatar-grid">
+                  <div
+                    v-for="filename in historyAvatars"
+                    :key="filename"
+                    class="history-avatar-item"
+                    :class="{ active: modelValue === filename }"
+                    @click="selectHistoryAvatar(filename)"
+                  >
+                    <Avatar
+                      :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
+                      :size="48"
+                      shape="square"
+                      :radius="6"
+                    />
+                  </div>
+                </div>
+              </div>
+            </el-popover>
+
+            <el-tooltip content="重置为默认" placement="top" show-after="300">
               <el-button @click="clearIcon">
                 <el-icon><RefreshLeft /></el-icon>
               </el-button>
@@ -252,7 +377,7 @@ const handleIconClick = () => {
         </template>
       </el-input>
       <div class="form-hint">
-        支持 Emoji、预设图标、本地路径引用{{ entityId ? '或上传专属头像' : '' }}。
+        支持 Emoji、预设图标、本地路径引用{{ entityId ? "或上传专属头像" : "" }}。
       </div>
     </div>
   </div>
@@ -308,5 +433,54 @@ const handleIconClick = () => {
 
 .clickable-avatar:hover {
   opacity: 0.8;
+}
+
+/* 历史头像面板样式 */
+.history-avatars-panel {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.panel-header {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  color: var(--text-color-primary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.loading-state,
+.empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-color-secondary);
+  font-size: 13px;
+}
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.history-avatar-item {
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2px;
+}
+
+.history-avatar-item:hover {
+  background-color: var(--bg-color-hover);
+}
+
+.history-avatar-item.active {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-9);
 }
 </style>

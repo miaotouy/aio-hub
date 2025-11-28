@@ -15,7 +15,17 @@
 - **核心框架**: Vue 3 + Vite
 - **UI 框架**: Element Plus + lucide-vue-next
 - **状态管理**: Pinia
-- **核心工具**: VueUse, Lodash-es, ECharts
+- **核心工具**:
+  - `@vueuse/core`: 响应式工具集
+  - `lodash-es`: 实用工具函数库
+  - `echarts`: 数据可视化
+  - `date-fns`: 日期时间处理
+  - `markdown-it`: Markdown 解析
+  - `dompurify`: HTML 安全净化
+  - `viewerjs`: 图片查看器核心
+  - `mermaid`: 流程图与图表渲染
+  - `katex`: 数学公式渲染
+  - `@vue-flow/core`: 节点编辑器与图谱引擎
 - **代码编辑**: CodeMirror, Monaco Editor
 - **桌面框架**: Tauri 2.0
 - **包管理器**: Bun
@@ -139,20 +149,27 @@
 
 ### 3.2. 通用 UI 组件
 
-项目在 `src/components/common/` 目录下封装了一系列可复用的通用组件，详细使用方法请参考各组件的示例文档：
+项目主要在 `src/components/common/` 目录下（部分位于 `src/components/` 或 `src/tools/`）封装了一系列可复用的通用组件，详细使用方法请参考各组件的示例文档：
 
 - **BaseDialog** - 解决 Element Plus Dialog 样式问题的干净对话框组件，支持精确高度控制和 bare 模式。
+- **DraggablePanel** - 通用悬浮面板组件，支持拖拽移动、调整大小、最小化、视口自动吸附和状态持久化。
 - **Avatar** - 通用头像组件，自动识别图片/Emoji/文字，支持 `appdata://` 路径，支持名字首字回退。
+- **AvatarSelector** - 高级头像选择器（暂时只支持chat相关的头像选择），支持预设图标、本地图片引用、图片上传（自动存入 AppData）和历史记录管理。
 - **RichCodeEditor** - 双引擎代码编辑器（CodeMirror/Monaco），自动适配主题。
 - **LlmModelSelector** - LLM 模型下拉选择器，支持按能力筛选和分组显示。
 - **ModelSelectDialog** - LLM 模型弹窗，提供可视化的模型选择界面和搜索筛选功能。
 - **ImageViewer** - 基于 Viewer.js 的图片查看器组件，支持缩放、旋转等操作。
+- **VideoPlayer** - 全功能视频播放器，支持倍速、画中画、截图、快捷键控制。
+- **VideoViewer** - 基于 VideoPlayer 的模态框视频查看器。
+- **FileIcon** - 文件图标组件，基于文件名后缀自动匹配 VSCode 风格或 Lucide 图标。
 - **DropZone** - 文件拖放区域组件，支持文件类型过滤和自定义验证。
 - **IconPresetSelector** - 图标预设选择器，支持搜索和分类过滤。
 - **DynamicIcon** - 动态图标加载组件，支持 SVG/图片/Emoji。
 - **DetachPreviewHint** - 可分离窗口的预览提示组件。
 - **InfoCard** - 信息卡片组件，el-card的封装，用于展示结构化信息。
 - **DocumentViewer** - 多格式文档预览组件，支持 Markdown 渲染、HTML 页面预览和代码文件预览，提供源码/预览模式切换和双引擎代码编辑器。
+- **ComponentHeader** - (`src/components/`) 标准化的工具头部组件，提供统一的标题、折叠、菜单（置顶/分离）交互，自动适配拖拽模式。
+
 
 ## 4. 核心特性与 Composables
 

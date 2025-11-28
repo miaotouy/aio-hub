@@ -115,14 +115,25 @@ const editDialogInitialData = ref<any>(null);
 
 // 导入导出对话框状态
 const exportDialogVisible = ref(false);
+const exportInitialSelection = ref<string[]>([]);
 const importDialogVisible = ref(false);
 const importPreflightResult = ref<any>(null);
 const importLoading = ref(false);
 
-// 导出相关
+// 打开导出对话框
+const handleOpenExportDialog = (agentIds?: string[]) => {
+  exportInitialSelection.value = agentIds || [];
+  exportDialogVisible.value = true;
+};
+
+// 执行导出
 const handleExportAgents = (
   agentIds: string[],
-  options: { includeAssets: boolean; format?: "json" | "yaml" }
+  options: {
+    includeAssets: boolean;
+    format?: "json" | "yaml";
+    exportType?: "zip" | "folder" | "file";
+  }
 ) => {
   agentStore.exportAgents(agentIds, options);
 };
@@ -427,7 +438,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
             @select="selectAgent"
             @edit="handleEdit"
             @duplicate="handleDuplicateAgent"
-            @export="(a, format) => handleExportAgents([a.id], { includeAssets: true, format })"
+            @export="(a) => handleOpenExportDialog([a.id])"
             @delete="handleDelete"
           />
         </div>
@@ -448,7 +459,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
               <el-icon><Download /></el-icon>
               导入智能体...
             </el-dropdown-item>
-            <el-dropdown-item @click="exportDialogVisible = true">
+            <el-dropdown-item @click="handleOpenExportDialog()">
               <el-icon><Upload /></el-icon>
               批量导出智能体...
             </el-dropdown-item>
@@ -479,6 +490,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
     <ExportAgentDialog
       v-if="exportDialogVisible"
       v-model:visible="exportDialogVisible"
+      :initial-selection="exportInitialSelection"
       @export="handleExportAgents"
     />
 

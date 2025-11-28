@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAgentStore } from '../../agentStore';
 
 import BaseDialog from '@/components/common/BaseDialog.vue';
@@ -7,13 +7,21 @@ import Avatar from '@/components/common/Avatar.vue';
 import { ElCheckbox, ElCheckboxGroup, ElRadioGroup, ElRadio } from 'element-plus';
 import type { CheckboxValueType } from 'element-plus';
 
-defineProps<{
+const props = defineProps<{
   visible: boolean;
+  initialSelection?: string[];
 }>();
 
 const emit = defineEmits<{
   'update:visible': [value: boolean];
-  'export': [agentIds: string[], options: { includeAssets: boolean; format: 'json' | 'yaml' }];
+  'export': [
+    agentIds: string[],
+    options: {
+      includeAssets: boolean;
+      format: 'json' | 'yaml';
+      exportType: 'zip' | 'folder' | 'file';
+    },
+  ];
 }>();
 
 const agentStore = useAgentStore();
@@ -21,6 +29,16 @@ const agentStore = useAgentStore();
 const selectedAgentIds = ref<string[]>([]);
 const includeAssets = ref(true);
 const exportFormat = ref<'json' | 'yaml'>('json');
+const exportType = ref<'zip' | 'folder' | 'file'>('zip');
+
+// 监听导出类型变化，自动调整 includeAssets
+watch(exportType, (newType) => {
+  if (newType === 'file') {
+    includeAssets.value = false;
+  } else {
+    includeAssets.value = true;
+  }
+});
 
 const agents = computed(() => agentStore.agents);
 const isIndeterminate = computed(() => {
@@ -42,6 +60,7 @@ const handleExport = () => {
   emit('export', selectedAgentIds.value, {
     includeAssets: includeAssets.value,
     format: exportFormat.value,
+    exportType: exportType.value,
   });
   handleClose();
 };
@@ -50,25 +69,35 @@ const handleClose = () => {
   emit('update:visible', false);
 };
 
-// 当对话框打开时，默认全选
+// 当对话框打开时，根据 props 初始化选中状态
 const handleOpen = () => {
-  selectedAgentIds.value = agents.value.map(agent => agent.id);
+  if (props.initialSelection && props.initialSelection.length > 0) {
+    selectedAgentIds.value = [...props.initialSelection];
+  } else {
+    selectedAgentIds.value = agents.value.map(agent => agent.id);
+  }
 };
+
+const isSingleMode = computed(() => props.initialSelection?.length === 1);
+const singleTargetAgent = computed(() => {
+  if (!isSingleMode.value) return null;
+  return agents.value.find(a => a.id === props.initialSelection![0]);
+});
 </script>
 
 <template>
   <BaseDialog
     :model-value="visible"
     @update:model-value="$emit('update:visible', $event)"
-    title="导出智能体"
+    :title="isSingleMode ? '导出智能体' : '批量导出智能体'"
     width="600px"
     @close="handleClose"
     @open="handleOpen"
   >
     <template #content>
       <div class="export-dialog-content">
-        <!-- Agent 选择列表 -->
-        <div class="agent-list-section">
+        <!-- Agent 选择列表 (仅多选模式显示) -->
+        <div v-if="!isSingleMode" class="agent-list-section">
           <h4>选择要导出的智能体</h4>
           <el-checkbox
             :indeterminate="isIndeterminate"
@@ -81,7 +110,7 @@ const handleOpen = () => {
             <el-checkbox
               v-for="agent in agents"
               :key="agent.id"
-              :label="agent.id"
+              :value="agent.id"
               class="agent-checkbox-item"
             >
               <div class="agent-item">
@@ -99,17 +128,47 @@ const handleOpen = () => {
           </el-checkbox-group>
         </div>
 
+        <!-- 单个 Agent 信息 (仅单选模式显示) -->
+        <div v-else-if="singleTargetAgent" class="single-agent-info">
+          <Avatar
+            :src="singleTargetAgent.icon || ''"
+            :alt="singleTargetAgent.name"
+            :size="48"
+            shape="square"
+            :radius="8"
+          />
+          <div class="info-text">
+            <div class="name">{{ singleTargetAgent.displayName || singleTargetAgent.name }}</div>
+            <div class="desc" v-if="singleTargetAgent.description">{{ singleTargetAgent.description }}</div>
+          </div>
+        </div>
+
         <!-- 导出选项 -->
         <div class="options-section">
           <h4>导出选项</h4>
+          
           <div class="option-item">
-            <el-checkbox v-model="includeAssets" label="包含图标等资产文件" />
+            <span class="label">导出方式：</span>
+            <el-radio-group v-model="exportType" size="small">
+              <el-radio value="zip">ZIP 压缩包</el-radio>
+              <el-radio value="folder">文件夹</el-radio>
+              <el-radio value="file">仅配置文件</el-radio>
+            </el-radio-group>
           </div>
+
+          <div class="option-item">
+            <el-checkbox
+              v-model="includeAssets"
+              label="包含图标等资产文件"
+              :disabled="exportType === 'file'"
+            />
+          </div>
+          
           <div class="option-item format-select">
             <span class="label">文件格式：</span>
             <el-radio-group v-model="exportFormat" size="small">
-              <el-radio label="json">JSON</el-radio>
-              <el-radio label="yaml">YAML</el-radio>
+              <el-radio value="json">JSON</el-radio>
+              <el-radio value="yaml">YAML</el-radio>
             </el-radio-group>
           </div>
         </div>
@@ -123,7 +182,7 @@ const handleOpen = () => {
         @click="handleExport"
         :disabled="selectedAgentIds.length === 0"
       >
-        导出 ({{ selectedAgentIds.length }})
+        {{ isSingleMode ? '导出' : `导出 (${selectedAgentIds.length})` }}
       </el-button>
     </template>
   </BaseDialog>
@@ -192,5 +251,40 @@ const handleOpen = () => {
 .format-select .label {
   font-size: 14px;
   color: var(--el-text-color-regular);
+}
+
+.single-agent-info {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background-color: var(--bg-color-soft);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.single-agent-info .info-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.single-agent-info .name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 4px;
+}
+
+.single-agent-info .desc {
+  font-size: 13px;
+  color: var(--text-color-light);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>

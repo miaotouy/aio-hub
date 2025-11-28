@@ -11,9 +11,11 @@ import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-te
 import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import yaml from 'js-yaml';
 import { assetManagerEngine } from '@/composables/useAssetManager';
+import { open, save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile, writeFile, mkdir } from '@tauri-apps/plugin-fs';
+import { join } from '@tauri-apps/api/path';
 import { customMessage } from '@/utils/customMessage';
 
 const logger = createModuleLogger('llm-chat/agentStore');
@@ -591,7 +593,11 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     async exportAgents(
       agentIds: string[],
-      options: { includeAssets: boolean; format?: 'json' | 'yaml' }
+      options: {
+        includeAssets: boolean;
+        format?: 'json' | 'yaml';
+        exportType?: 'zip' | 'folder' | 'file';
+      }
     ): Promise<void> {
       try {
         logger.info('开始导出智能体', { agentIds, options });
@@ -602,8 +608,57 @@ export const useAgentStore = defineStore('llmChatAgent', {
         }
 
         const format = options.format || 'json';
-        const zip = new JSZip();
-        const assetsFolder = zip.folder('assets');
+        const exportType = options.exportType || 'zip';
+        
+        // 只有 zip 和 folder 模式才支持包含资产，file 模式强制不包含
+        const shouldIncludeAssets = options.includeAssets && exportType !== 'file';
+
+        // 生成基础名称（用于文件名或文件夹名）
+        const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').trim();
+        let baseName = 'agents_export';
+        const count = agentsToExport.length;
+
+        if (count === 1) {
+          baseName = sanitizeFilename(agentsToExport[0].name);
+        } else if (count > 1 && count <= 3) {
+          baseName = agentsToExport.map(a => sanitizeFilename(a.name)).join(' & ');
+        } else if (count > 3) {
+          baseName = `${agentsToExport.slice(0, 2).map(a => sanitizeFilename(a.name)).join(' & ')}_等${count}个智能体`;
+        }
+
+        // 准备导出环境
+        const zip = exportType === 'zip' ? new JSZip() : null;
+        let targetDir = '';
+        let assetsDir = '';
+
+        if (exportType === 'folder') {
+          // 选择目标目录
+          const selected = await open({
+            directory: true,
+            multiple: false,
+            title: '选择导出目录',
+          });
+
+          if (!selected) {
+            logger.info('用户取消了导出目录选择');
+            return;
+          }
+
+          // 创建导出子目录
+          targetDir = await join(selected as string, baseName);
+          await mkdir(targetDir, { recursive: true });
+          
+          if (shouldIncludeAssets) {
+            assetsDir = await join(targetDir, 'assets');
+            await mkdir(assetsDir, { recursive: true });
+          }
+        } else if (exportType === 'zip') {
+          // ZIP 模式下，assets 文件夹在内存中创建
+          if (shouldIncludeAssets) {
+            zip?.folder('assets');
+          }
+        }
+
         const exportableAgents: ExportableAgent[] = [];
 
         for (const agent of agentsToExport) {
@@ -622,14 +677,21 @@ export const useAgentStore = defineStore('llmChatAgent', {
           };
 
           // 处理图标资产
-          if (options.includeAssets && agent.icon) {
+          if (shouldIncludeAssets && agent.icon) {
             if (agent.icon.startsWith('appdata://')) {
               const relativePath = agent.icon.replace('appdata://', '');
               try {
                 const iconBinary = await assetManagerEngine.getAssetBinary(relativePath);
                 const originalName = relativePath.split('/').pop() || 'icon.png';
                 const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${originalName}`;
-                assetsFolder?.file(uniqueFileName, iconBinary);
+                
+                if (exportType === 'zip' && zip) {
+                  zip.folder('assets')?.file(uniqueFileName, iconBinary);
+                } else if (exportType === 'folder' && assetsDir) {
+                  const assetPath = await join(assetsDir, uniqueFileName);
+                  await writeFile(assetPath, new Uint8Array(iconBinary));
+                }
+
                 exportableAgent.icon = `assets/${uniqueFileName}`;
               } catch (error) {
                 logger.warn('导出图标失败，将使用原始路径', {
@@ -646,38 +708,69 @@ export const useAgentStore = defineStore('llmChatAgent', {
           exportableAgents.push(exportableAgent);
         }
 
-        // 创建导出文件
+        // 创建导出数据对象
         const exportData: AgentExportFile = {
           version: 1,
           type: 'AIO_Agent_Export',
           agents: exportableAgents,
         };
 
-        if (format === 'yaml') {
-          zip.file('agent.yaml', yaml.dump(exportData));
-        } else {
-          zip.file('agent.json', JSON.stringify(exportData, null, 2));
+        const contentString = format === 'yaml'
+          ? yaml.dump(exportData)
+          : JSON.stringify(exportData, null, 2);
+        
+        const configFileName = `agent.${format}`;
+
+        if (exportType === 'zip' && zip) {
+          zip.file(configFileName, contentString);
+          
+          // 生成 ZIP 文件数据
+          const content = await zip.generateAsync({ type: 'uint8array' });
+          const fileName = `${baseName}.agent.zip`;
+          
+          // 使用系统对话框保存文件
+          const savePath = await save({
+            defaultPath: fileName,
+            filters: [{
+              name: 'Agent Export Zip',
+              extensions: ['zip']
+            }]
+          });
+
+          if (savePath) {
+            await writeFile(savePath, content);
+            logger.info('智能体导出成功 (ZIP)', { count: agentsToExport.length, fileName: savePath });
+          } else {
+            logger.info('用户取消了 ZIP 导出');
+            return; // 用户取消，不显示成功消息
+          }
+        } else if (exportType === 'folder' && targetDir) {
+          // 写入配置文件
+          const configPath = await join(targetDir, configFileName);
+          await writeTextFile(configPath, contentString);
+          
+          logger.info('智能体导出成功 (Folder)', { count: agentsToExport.length, targetDir });
+        } else if (exportType === 'file') {
+          // 直接导出单个配置文件
+          const fileName = `${baseName}.agent.${format}`;
+          
+          const savePath = await save({
+            defaultPath: fileName,
+            filters: [{
+              name: `Agent Export ${format.toUpperCase()}`,
+              extensions: [format]
+            }]
+          });
+
+          if (savePath) {
+            await writeTextFile(savePath, contentString);
+            logger.info('智能体导出成功 (File)', { count: agentsToExport.length, fileName: savePath });
+          } else {
+            logger.info('用户取消了文件导出');
+            return;
+          }
         }
 
-        // 生成并下载 ZIP 文件
-        const content = await zip.generateAsync({ type: 'blob' });
-
-        // 根据导出的 Agent 数量生成更友好的文件名
-        const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').trim();
-        let baseName = 'agents_export';
-        const count = agentsToExport.length;
-
-        if (count === 1) {
-          baseName = sanitizeFilename(agentsToExport[0].name);
-        } else if (count > 1 && count <= 3) {
-          baseName = agentsToExport.map(a => sanitizeFilename(a.name)).join(' & ');
-        } else if (count > 3) {
-          baseName = `${agentsToExport.slice(0, 2).map(a => sanitizeFilename(a.name)).join(' & ')}_等${count}个智能体`;
-        }
-        const fileName = `${baseName}.agent.zip`;
-        saveAs(content, fileName);
-
-        logger.info('智能体导出成功', { count: agentsToExport.length, fileName });
         customMessage.success(`成功导出 ${agentsToExport.length} 个智能体`);
       } catch (error) {
         errorHandler.error(error as Error, '导出智能体失败', { context: { agentIds } });

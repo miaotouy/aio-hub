@@ -93,8 +93,8 @@
               v-model="localValue.paragraph.value"
               preview-text="这是一段普通的文本内容预览，用于展示样式的实际效果。"
               preview-tag="p"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">粗体 (Strong)</div>
@@ -102,8 +102,8 @@
               v-model="localValue.strong.value"
               preview-text="这是一段粗体文本预览"
               preview-tag="strong"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">斜体 (Em)</div>
@@ -111,8 +111,8 @@
               v-model="localValue.em.value"
               preview-text="这是一段斜体文本预览"
               preview-tag="em"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">删除线 (Strikethrough)</div>
@@ -120,8 +120,8 @@
               v-model="localValue.strikethrough.value"
               preview-text="这是一段删除线文本预览"
               preview-tag="del"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">引号 (Quote)</div>
@@ -142,8 +142,8 @@
               preview-text="这是一个引用块的内容预览，通常用于引用他人的话语或段落。"
               is-block
               preview-tag="blockquote"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">行内代码 (Inline Code)</div>
@@ -176,8 +176,8 @@
               preview-text="一级标题预览"
               is-block
               preview-tag="h1"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">二级标题 (H2)</div>
@@ -186,8 +186,8 @@
               preview-text="二级标题预览"
               is-block
               preview-tag="h2"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">三级标题 (H3)</div>
@@ -196,8 +196,8 @@
               preview-text="三级标题预览"
               is-block
               preview-tag="h3"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">四级标题 (H4)</div>
@@ -206,8 +206,8 @@
               preview-text="四级标题预览"
               is-block
               preview-tag="h4"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">五级标题 (H5)</div>
@@ -216,8 +216,8 @@
               preview-text="五级标题预览"
               is-block
               preview-tag="h5"
+              show-divider
             />
-            <el-divider />
           </div>
           <div class="style-section">
             <div class="section-header">六级标题 (H6)</div>
@@ -472,14 +472,6 @@ const localValue = {
   page-break-inside: avoid;
 }
 
-/* 分割线样式 */
-.style-section:not(:last-child) .el-divider {
-  margin: 24px 0;
-}
-
-.style-section:last-child .el-divider {
-  display: none;
-}
 
 .section-header {
   font-size: 15px;

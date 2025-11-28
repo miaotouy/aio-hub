@@ -211,6 +211,9 @@
         </el-col>
       </el-row>
     </el-form>
+
+    <!-- 分割线 -->
+    <el-divider v-if="showDivider" style="margin-top: 24px" />
   </div>
 </template>
 
@@ -238,6 +241,10 @@ const props = defineProps<{
    * 预览内容使用的 HTML 标签
    */
   previewTag?: string;
+  /**
+   * 是否显示底部分割线
+   */
+  showDivider?: boolean;
 }>();
 
 const emit = defineEmits<{

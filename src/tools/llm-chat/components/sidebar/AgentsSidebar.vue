@@ -23,15 +23,32 @@ const agentStore = useAgentStore();
 // 使用持久化的UI状态
 const { agentSortBy } = useLlmChatUiState();
 
-// 搜索状态（不需要持久化）
+// 搜索和筛选状态
 const searchQuery = ref("");
+const selectedCategory = ref("all");
+
+// 获取所有唯一的分类
+const allCategories = computed(() => {
+  const categories = new Set<string>();
+  agentStore.agents.forEach((agent) => {
+    if (agent.category) {
+      categories.add(agent.category);
+    }
+  });
+  return Array.from(categories).sort();
+});
 
 // 过滤和排序后的智能体列表
 const filteredAndSortedAgents = computed(() => {
   const start = performance.now();
   let agents = [...agentStore.agents];
 
-  // 搜索过滤
+  // 1. 分类过滤
+  if (selectedCategory.value !== "all") {
+    agents = agents.filter((agent) => agent.category === selectedCategory.value);
+  }
+
+  // 2. 搜索过滤
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase().trim();
     agents = agents.filter((agent) => {
@@ -39,12 +56,14 @@ const filteredAndSortedAgents = computed(() => {
         agent.name.toLowerCase().includes(query) ||
         (agent.displayName && agent.displayName.toLowerCase().includes(query)) ||
         (agent.description && agent.description.toLowerCase().includes(query)) ||
-        (agent.icon && agent.icon.toLowerCase().includes(query))
+        (agent.icon && agent.icon.toLowerCase().includes(query)) ||
+        (agent.category && agent.category.toLowerCase().includes(query)) ||
+        (agent.tags && agent.tags.some((tag) => tag.toLowerCase().includes(query)))
       );
     });
   }
 
-  // 排序
+  // 3. 排序
   agents.sort((a, b) => {
     switch (agentSortBy.value) {
       case "lastUsed":
@@ -250,7 +269,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     presetMessages: (() => {
       const rawMessages = JSON.parse(JSON.stringify(preset.presetMessages));
       const idMap = new Map<string, string>();
-      
+
       // 第一步：生成新 ID 映射
       rawMessages.forEach((msg: any) => {
         const newId = `preset-${msg.role}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -260,10 +279,10 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
       // 第二步：重建消息，更新 ID 引用
       return rawMessages.map((msg: any) => {
         const newId = idMap.get(msg.id)!;
-        
+
         // 更新 parentId
         const newParentId = msg.parentId ? idMap.get(msg.parentId) || null : null;
-        
+
         // 更新 childrenIds
         const newChildrenIds = (msg.childrenIds || [])
           .map((childId: string) => idMap.get(childId))
@@ -387,18 +406,36 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
   <div class="agents-sidebar-content">
     <!-- 搜索和排序工具栏 -->
     <div class="agents-toolbar">
-      <el-input
-        v-model="searchQuery"
-        :prefix-icon="Search"
-        placeholder="搜索智能体..."
-        clearable
-        size="small"
-      />
-      <el-select v-model="agentSortBy" size="small" style="width: 160px">
-        <el-option label="最近使用" value="lastUsed" />
-        <el-option label="按名称" value="name" />
-        <el-option label="创建时间" value="createdAt" />
-      </el-select>
+      <div class="toolbar-row">
+        <el-input
+          v-model="searchQuery"
+          :prefix-icon="Search"
+          placeholder="搜索名称、描述或标签..."
+          clearable
+          size="small"
+        />
+      </div>
+      <div class="toolbar-row">
+        <el-select
+          v-if="allCategories.length > 0"
+          v-model="selectedCategory"
+          size="small"
+          placeholder="全部分类"
+          style="flex: 1"
+        >
+          <el-option label="全部分类" value="all" />
+          <el-option v-for="cat in allCategories" :key="cat" :label="cat" :value="cat" />
+        </el-select>
+        <el-select
+          v-model="agentSortBy"
+          size="small"
+          :style="{ width: allCategories.length > 0 ? '110px' : '100%' }"
+        >
+          <el-option label="最近使用" value="lastUsed" />
+          <el-option label="按名称" value="name" />
+          <el-option label="创建时间" value="createdAt" />
+        </el-select>
+      </div>
     </div>
 
     <div class="agents-list" ref="parentRef">
@@ -518,10 +555,17 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
   flex-shrink: 0;
   padding: 8px 12px;
   display: flex;
+  flex-direction: column;
   gap: 8px;
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
+}
+
+.toolbar-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
 }
 
 .hint {

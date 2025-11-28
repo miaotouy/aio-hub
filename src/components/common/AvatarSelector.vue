@@ -8,6 +8,7 @@ import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Star, Upload, RefreshLeft, FolderOpened, Clock } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { extname, appDataDir, join } from "@tauri-apps/api/path";
 import { readDir } from "@tauri-apps/plugin-fs";
@@ -47,6 +48,23 @@ const emit = defineEmits<Emits>();
 
 // 图片查看器
 const imageViewer = useImageViewer();
+
+// 响应式布局
+const containerRef = ref<HTMLElement | null>(null);
+const controlsContainerRef = ref<HTMLElement | null>(null);
+
+const { width: containerWidth } = useElementSize(containerRef);
+const { width: controlsContainerWidth } = useElementSize(controlsContainerRef);
+
+// 控制整体布局 (横向/纵向)
+const isCompact = computed(() => containerWidth.value < 500);
+const avatarSize = computed(() => (isCompact.value ? 100 : 128));
+
+// 单独控制按钮组是否换行
+const shouldWrapButtons = computed(() => controlsContainerWidth.value < 560);
+
+// 复用按钮组模板
+const [DefineActionButtons, ReuseActionButtons] = createReusableTemplate();
 
 // 预设图标对话框
 const showPresetIconDialog = ref(false);
@@ -274,7 +292,7 @@ const handleIconClick = () => {
 </script>
 
 <template>
-  <div class="avatar-selector-layout">
+  <div class="avatar-selector-layout" ref="containerRef" :class="{ 'is-compact': isCompact }">
     <div class="avatar-preview-container">
       <el-tooltip
         :content="isImagePath ? '点击放大查看' : ''"
@@ -285,7 +303,7 @@ const handleIconClick = () => {
         <Avatar
           :src="resolvedAvatarSrc"
           :alt="nameForFallback"
-          :size="128"
+          :size="avatarSize"
           shape="square"
           :radius="8"
           :border="false"
@@ -294,88 +312,100 @@ const handleIconClick = () => {
         />
       </el-tooltip>
     </div>
-    <div class="icon-controls-container">
+    <div class="icon-controls-container" ref="controlsContainerRef">
+      <!-- 定义按钮组模板 -->
+      <DefineActionButtons>
+        <el-button-group :class="{ 'compact-button-group': shouldWrapButtons }">
+          <el-tooltip content="选择预设图标" placement="top" show-after="300">
+            <el-button @click="openPresetIconSelector">
+              <el-icon><Star /></el-icon>
+            </el-button>
+          </el-tooltip>
+
+          <el-tooltip content="引用本地图像 (绝对路径)" placement="top" show-after="300">
+            <el-button @click="selectLocalImage">
+              <el-icon><FolderOpened /></el-icon>
+            </el-button>
+          </el-tooltip>
+
+          <el-tooltip
+            v-if="entityId"
+            content="上传专属头像 (存入 AppData)"
+            placement="top"
+            show-after="300"
+          >
+            <el-button @click="uploadCustomImage" :loading="isUploadingImage">
+              <el-icon><Upload /></el-icon>
+            </el-button>
+          </el-tooltip>
+
+          <!-- 历史头像选择按钮 -->
+          <el-tooltip v-if="entityId" content="历史头像" placement="top" show-after="300">
+            <el-button ref="historyButtonRef">
+              <el-icon><Clock /></el-icon>
+            </el-button>
+          </el-tooltip>
+
+          <el-popover
+            v-if="entityId"
+            :virtual-ref="historyButtonRef"
+            virtual-triggering
+            placement="bottom"
+            :width="320"
+            trigger="click"
+            @show="loadHistoryAvatars"
+          >
+            <div class="history-avatars-panel">
+              <div class="panel-header">历史头像</div>
+
+              <div v-if="isLoadingHistory" class="loading-state">加载中...</div>
+
+              <div v-else-if="historyAvatars.length === 0" class="empty-state">暂无上传记录</div>
+
+              <div v-else class="avatar-grid">
+                <div
+                  v-for="filename in historyAvatars"
+                  :key="filename"
+                  class="history-avatar-item"
+                  :class="{ active: modelValue === filename }"
+                  @click="selectHistoryAvatar(filename)"
+                >
+                  <Avatar
+                    :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
+                    :size="48"
+                    shape="square"
+                    :radius="6"
+                  />
+                </div>
+              </div>
+            </div>
+          </el-popover>
+
+          <el-tooltip content="重置为默认" placement="top" show-after="300">
+            <el-button @click="clearIcon">
+              <el-icon><RefreshLeft /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </el-button-group>
+      </DefineActionButtons>
+
       <el-input
         :model-value="modelValue"
         @update:model-value="$emit('update:icon', { value: $event, source: 'input' })"
         placeholder="输入 Emoji / 路径 / 上传头像"
         class="icon-input"
       >
-        <template #append>
-          <el-button-group>
-            <el-tooltip content="选择预设图标" placement="top" show-after="300">
-              <el-button @click="openPresetIconSelector">
-                <el-icon><Star /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <el-tooltip content="引用本地图像 (绝对路径)" placement="top" show-after="300">
-              <el-button @click="selectLocalImage">
-                <el-icon><FolderOpened /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <el-tooltip
-              v-if="entityId"
-              content="上传专属头像 (存入 AppData)"
-              placement="top"
-              show-after="300"
-            >
-              <el-button @click="uploadCustomImage" :loading="isUploadingImage">
-                <el-icon><Upload /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <!-- 历史头像选择按钮 -->
-            <el-tooltip v-if="entityId" content="历史头像" placement="top" show-after="300">
-              <el-button ref="historyButtonRef">
-                <el-icon><Clock /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <el-popover
-              v-if="entityId"
-              :virtual-ref="historyButtonRef"
-              virtual-triggering
-              placement="bottom"
-              :width="320"
-              trigger="click"
-              @show="loadHistoryAvatars"
-            >
-              <div class="history-avatars-panel">
-                <div class="panel-header">历史头像</div>
-
-                <div v-if="isLoadingHistory" class="loading-state">加载中...</div>
-
-                <div v-else-if="historyAvatars.length === 0" class="empty-state">暂无上传记录</div>
-
-                <div v-else class="avatar-grid">
-                  <div
-                    v-for="filename in historyAvatars"
-                    :key="filename"
-                    class="history-avatar-item"
-                    :class="{ active: modelValue === filename }"
-                    @click="selectHistoryAvatar(filename)"
-                  >
-                    <Avatar
-                      :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
-                      :size="48"
-                      shape="square"
-                      :radius="6"
-                    />
-                  </div>
-                </div>
-              </div>
-            </el-popover>
-
-            <el-tooltip content="重置为默认" placement="top" show-after="300">
-              <el-button @click="clearIcon">
-                <el-icon><RefreshLeft /></el-icon>
-              </el-button>
-            </el-tooltip>
-          </el-button-group>
+        <!-- 宽屏模式：显示在 Input 内部 -->
+        <template #append v-if="!shouldWrapButtons">
+          <ReuseActionButtons />
         </template>
       </el-input>
+
+      <!-- 紧凑模式：显示在 Input 下方 -->
+      <div v-if="shouldWrapButtons" class="compact-actions-wrapper">
+        <ReuseActionButtons />
+      </div>
+
       <div class="form-hint">
         支持 Emoji、预设图标、本地路径引用{{ entityId ? "或上传专属头像" : "" }}。
       </div>
@@ -403,6 +433,31 @@ const handleIconClick = () => {
   gap: 16px;
   width: 100%;
   align-items: flex-start;
+}
+
+.avatar-selector-layout.is-compact {
+  flex-direction: column;
+  align-items: center;
+}
+
+.avatar-selector-layout.is-compact .icon-controls-container {
+  width: 100%;
+}
+
+.compact-actions-wrapper {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.compact-button-group {
+  display: flex;
+  width: 100%;
+}
+
+.compact-button-group .el-button {
+  flex: 1;
 }
 
 .avatar-preview-container {

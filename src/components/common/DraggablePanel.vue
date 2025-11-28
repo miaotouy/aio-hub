@@ -45,7 +45,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
-import { useDraggable, useWindowSize } from "@vueuse/core";
+import { useDraggable, useWindowSize, useStorage } from "@vueuse/core";
 import { Minus, Square, X } from "lucide-vue-next";
 
 const props = withDefaults(
@@ -60,6 +60,7 @@ const props = withDefaults(
     resizable?: boolean;
     minWidth?: number;
     minHeight?: number;
+    persistenceKey?: string; // 新增：用于本地存储的唯一键
   }>(),
   {
     title: "悬浮面板",
@@ -71,6 +72,7 @@ const props = withDefaults(
     resizable: true,
     minWidth: 300,
     minHeight: 200,
+    persistenceKey: undefined,
   }
 );
 
@@ -85,20 +87,32 @@ const handleRef = ref<HTMLElement | null>(null);
 const isMinimized = ref(false);
 const isResizing = ref(false);
 
-// 内部尺寸状态
-const currentWidth = ref(parseInt(props.width) || 400);
-const currentHeight = ref(parseInt(props.height) || 500);
+// 根据是否有 persistenceKey，决定使用 useStorage 还是 ref
+const currentWidth = props.persistenceKey
+  ? useStorage(`${props.persistenceKey}-width`, parseInt(props.width) || 400)
+  : ref(parseInt(props.width) || 400);
+
+const currentHeight = props.persistenceKey
+  ? useStorage(`${props.persistenceKey}-height`, parseInt(props.height) || 500)
+  : ref(parseInt(props.height) || 500);
 
 // 窗口尺寸，用于边界检查
 const { width: windowWidth, height: windowHeight } = useWindowSize();
 
+const initialPosition = props.persistenceKey
+  ? useStorage(`${props.persistenceKey}-position`, { x: props.initialX, y: props.initialY })
+  : ref({ x: props.initialX, y: props.initialY });
+
 // 使用 useDraggable
 const { x, y } = useDraggable(panelRef, {
-  initialValue: { x: props.initialX, y: props.initialY },
+  initialValue: initialPosition,
   handle: handleRef,
   preventDefault: true,
   onEnd: (position) => {
     ensureInViewport(position.x, position.y);
+    if (props.persistenceKey) {
+      initialPosition.value = { x: x.value, y: y.value };
+    }
   },
 });
 
@@ -143,6 +157,10 @@ const initResize = (e: MouseEvent) => {
     window.removeEventListener("mousemove", doDrag);
     window.removeEventListener("mouseup", stopDrag);
     document.body.style.cursor = "";
+    // 持久化尺寸
+    if (props.persistenceKey) {
+      // useStorage 会自动处理更新
+    }
   };
 
   window.addEventListener("mousemove", doDrag);

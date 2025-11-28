@@ -27,7 +27,7 @@ interface Props {
   profileType?: "agent" | "user";
   /** 是否显示模式切换开关 */
   showModeSwitch?: boolean;
-  /** 用于 Avatar 的回退文本 */
+  /** 用于 Avatar 的回退文本，建议使用 name 而非 displayName */
   nameForFallback?: string;
 }
 const props = withDefaults(defineProps<Props>(), {

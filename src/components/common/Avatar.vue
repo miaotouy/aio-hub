@@ -16,7 +16,7 @@ interface Props {
   shape?: "circle" | "square";
   /** 圆角大小（仅当 shape 为 square 时生效，px） */
   radius?: number;
-  /** 备用文字（当图片加载失败时显示首字符） */
+  /** 备用文字（当图片加载失败时显示首字符，建议使用 name 而非 displayName ） */
   alt?: string;
   /** 背景色（可选，默认使用主题色） */
   backgroundColor?: string;

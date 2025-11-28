@@ -797,6 +797,16 @@ const emitValue = () => {
   margin: 0;
 }
 
+/* 针对链接类型的默认样式，与 LinkNode 保持一致 */
+.preview-content:is(a) {
+  color: var(--md-link-color, var(--primary-color));
+  text-decoration: var(--md-link-text-decoration, underline);
+}
+.preview-content:is(a):hover {
+  color: var(--md-link-hover-color, var(--md-link-color, var(--primary-color)));
+  opacity: 0.8;
+}
+
 .preview-content.is-block {
   display: block;
   width: 100%;

@@ -21,9 +21,7 @@ defineProps<{
 <style scoped>
 .markdown-link {
   color: var(--md-link-color, var(--primary-color));
-  text-decoration: var(--md-link-text-decoration, none);
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.2s;
+  text-decoration: var(--md-link-text-decoration, underline);
   text-shadow: var(--md-link-text-shadow, none);
   font-weight: var(--md-link-font-weight, inherit);
   background-color: var(--md-link-bg-color, transparent);
@@ -32,9 +30,11 @@ defineProps<{
   box-shadow: var(--md-link-box-shadow, none);
   padding: 0 2px;
   font-style: var(--md-link-font-style, inherit);
+  transition: color 0.2s, border-color 0.2s;
 }
 
 .markdown-link:hover {
-  border-bottom-color: var(--md-link-color, var(--primary-color));
+  color: var(--md-link-hover-color, var(--md-link-color, var(--primary-color)));
+  opacity: 0.8;
 }
 </style>

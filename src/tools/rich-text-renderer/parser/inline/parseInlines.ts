@@ -309,6 +309,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
 
     // 图片 ![alt](url)
     if (token.type === "image_marker") {
+      const startI = i;
       flushText();
       i++;
 
@@ -333,7 +334,10 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         // 收集 URL
         let src = "";
         let title = "";
+        let hasUrl = false;
+
         if (i < tokens.length && tokens[i].type === "link_url_open") {
+          hasUrl = true;
           i++;
 
           while (i < tokens.length) {
@@ -358,13 +362,20 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           }
         }
 
-        nodes.push({
-          id: "",
-          type: "image",
-          props: { src, alt, title },
-          meta: { range: { start: 0, end: 0 }, status: "stable" },
-        });
-        continue;
+        if (hasUrl) {
+          nodes.push({
+            id: "",
+            type: "image",
+            props: { src, alt, title },
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
+          });
+          continue;
+        } else {
+          // 缺少 URL 部分，回退为普通文本
+          i = startI + 1; // 回到 ! 之后
+          accumulatedText += "!";
+          continue;
+        }
       } else {
         // 不是图片语法，按普通文本处理
         accumulatedText += "!";
@@ -374,6 +385,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
 
     // 链接 [text](url)
     if (token.type === "link_text_open") {
+      const startI = i;
       flushText();
       i++;
 
@@ -403,7 +415,10 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       // 收集 URL
       let href = "";
       let title = "";
+      let hasUrl = false;
+
       if (i < tokens.length && tokens[i].type === "link_url_open") {
+        hasUrl = true;
         i++;
 
         let parenDepth = 1; // 已经遇到了一个 (
@@ -439,14 +454,21 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         }
       }
 
-      nodes.push({
-        id: "",
-        type: "link",
-        props: { href, title },
-        children: ctx.parseInlines(linkTextTokens),
-        meta: { range: { start: 0, end: 0 }, status: "stable" },
-      });
-      continue;
+      if (hasUrl) {
+        nodes.push({
+          id: "",
+          type: "link",
+          props: { href, title },
+          children: ctx.parseInlines(linkTextTokens),
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+        continue;
+      } else {
+        // 缺少 URL 部分，回退为普通文本
+        i = startI + 1; // 回到 [ 之后
+        accumulatedText += "[";
+        continue;
+      }
     }
 
     // 文本
@@ -465,6 +487,23 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         props: {},
         meta: { range: { start: 0, end: 0 }, status: "stable" },
       });
+      i++;
+      continue;
+    }
+
+    // 处理未被消费的特殊字符 (如孤立的括号)
+    if (
+      token.type === "link_url_open" ||
+      token.type === "link_url_close" ||
+      token.type === "link_text_close"
+    ) {
+      accumulatedText +=
+        token.raw ||
+        (token.type === "link_url_open"
+          ? "("
+          : token.type === "link_url_close"
+            ? ")"
+            : "]");
       i++;
       continue;
     }

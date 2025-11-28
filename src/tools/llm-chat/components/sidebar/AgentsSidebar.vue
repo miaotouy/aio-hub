@@ -143,14 +143,15 @@ const handleImportFromFile = async () => {
   try {
     const input = document.createElement("input");
     input.type = "file";
+    input.multiple = true;
     input.accept = ".agent.zip,.agent.json,.agent.yaml,.agent.yml";
     input.onchange = async (event) => {
-      const file = (event.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      const files = Array.from((event.target as HTMLInputElement).files || []);
+      if (files.length === 0) return;
 
       importLoading.value = true;
       try {
-        const result = await agentStore.preflightImportAgents(file);
+        const result = await agentStore.preflightImportAgents(files);
         importPreflightResult.value = result;
         importDialogVisible.value = true;
       } catch (error) {

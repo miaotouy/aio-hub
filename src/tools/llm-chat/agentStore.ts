@@ -609,12 +609,68 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
         const format = options.format || 'json';
         const exportType = options.exportType || 'zip';
+        const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').trim();
+
+        // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
+        if (exportType === 'file' && agentsToExport.length > 1) {
+          const selected = await open({
+            directory: true,
+            multiple: false,
+            title: '选择导出目录',
+          });
+
+          if (!selected) {
+            logger.info('用户取消了导出目录选择');
+            return;
+          }
+          
+          const targetDir = selected as string;
+          let successCount = 0;
+
+          for (const agent of agentsToExport) {
+            // 构造单个 Agent 的导出对象
+            const exportableAgent: ExportableAgent = {
+              name: agent.name,
+              displayName: agent.displayName,
+              description: agent.description,
+              icon: agent.icon, // 仅配置文件模式不处理资产，保持原样
+              modelId: agent.modelId,
+              userProfileId: agent.userProfileId,
+              presetMessages: agent.presetMessages,
+              displayPresetCount: agent.displayPresetCount,
+              parameters: agent.parameters,
+              llmThinkRules: agent.llmThinkRules,
+              richTextStyleOptions: agent.richTextStyleOptions,
+            };
+
+            const exportData: AgentExportFile = {
+              version: 1,
+              type: 'AIO_Agent_Export',
+              agents: [exportableAgent],
+            };
+
+            const contentString = format === 'yaml'
+              ? yaml.dump(exportData)
+              : JSON.stringify(exportData, null, 2);
+
+            const safeName = sanitizeFilename(agent.name);
+            const fileName = `${safeName}.agent.${format}`;
+            const filePath = await join(targetDir, fileName);
+            
+            await writeTextFile(filePath, contentString);
+            successCount++;
+          }
+          
+          customMessage.success(`成功导出 ${successCount} 个配置文件`);
+          return;
+        }
         
+        // 下面是常规导出逻辑（ZIP, Folder, 或单文件）
+
         // 只有 zip 和 folder 模式才支持包含资产，file 模式强制不包含
         const shouldIncludeAssets = options.includeAssets && exportType !== 'file';
 
         // 生成基础名称（用于文件名或文件夹名）
-        const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').trim();
         let baseName = 'agents_export';
         const count = agentsToExport.length;
 
@@ -778,58 +834,86 @@ export const useAgentStore = defineStore('llmChatAgent', {
     },
 
     /**
-     * 预检导入文件
-     * @param file 导入的文件
+     * 预检导入文件（支持单个或批量）
+     * @param files 导入的文件或文件数组
      * @returns 预检结果
      */
-    async preflightImportAgents(file: File): Promise<AgentImportPreflightResult> {
+    async preflightImportAgents(files: File | File[]): Promise<AgentImportPreflightResult> {
       try {
-        logger.info('开始预检导入文件', { fileName: file.name, size: file.size });
-        
-        const assets: Record<string, ArrayBuffer> = {};
-        let agentExportFile: AgentExportFile;
+        const fileList = Array.isArray(files) ? files : [files];
+        logger.info('开始预检导入文件', { count: fileList.length });
 
-        if (file.name.endsWith('.zip')) {
-          const zip = new JSZip();
-          const zipContent = await zip.loadAsync(file);
+        const combinedAgents: ExportableAgent[] = [];
+        const combinedAssets: Record<string, ArrayBuffer> = {};
 
-          // 尝试读取 agent.json 或 agent.yaml
-          const agentJsonFile = zipContent.file('agent.json');
-          const agentYamlFile = zipContent.file('agent.yaml') || zipContent.file('agent.yml');
+        // 辅助函数：解析单个文件
+        const parseFile = async (file: File, fileIndex: number) => {
+          let agentExportFile: AgentExportFile;
+          const fileAssets: Record<string, ArrayBuffer> = {};
 
-          if (agentJsonFile) {
-            const agentJsonText = await agentJsonFile.async('text');
-            agentExportFile = JSON.parse(agentJsonText);
-          } else if (agentYamlFile) {
-            const agentYamlText = await agentYamlFile.async('text');
-            agentExportFile = yaml.load(agentYamlText) as AgentExportFile;
-          } else {
-            throw new Error('ZIP 文件中未找到 agent.json 或 agent.yaml');
-          }
+          if (file.name.endsWith('.zip')) {
+            const zip = new JSZip();
+            const zipContent = await zip.loadAsync(file);
 
-          // 读取所有资产文件
-          const assetFiles = zipContent.file(/^assets\/.*/);
-          for (const assetFile of assetFiles) {
-            if (!assetFile.dir) {
-              const binary = await assetFile.async('arraybuffer');
-              assets[assetFile.name] = binary;
+            const agentJsonFile = zipContent.file('agent.json');
+            const agentYamlFile = zipContent.file('agent.yaml') || zipContent.file('agent.yml');
+
+            if (agentJsonFile) {
+              const agentJsonText = await agentJsonFile.async('text');
+              agentExportFile = JSON.parse(agentJsonText);
+            } else if (agentYamlFile) {
+              const agentYamlText = await agentYamlFile.async('text');
+              agentExportFile = yaml.load(agentYamlText) as AgentExportFile;
+            } else {
+              throw new Error(`ZIP 文件 ${file.name} 中未找到 agent.json 或 agent.yaml`);
             }
-          }
-        } else if (file.name.endsWith('.json')) {
-          const jsonText = await file.text();
-          agentExportFile = JSON.parse(jsonText);
-        } else if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
-          const yamlText = await file.text();
-          agentExportFile = yaml.load(yamlText) as AgentExportFile;
-        } else {
-          throw new Error(
-            '不支持的文件格式，请选择 .agent.zip, .agent.json, .agent.yaml 或 .agent.yml 文件'
-          );
-        }
 
-        if (agentExportFile.type !== 'AIO_Agent_Export') {
-          throw new Error('无效的智能体导出文件');
-        }
+            const assetFiles = zipContent.file(/^assets\/.*/);
+            for (const assetFile of assetFiles) {
+              if (!assetFile.dir) {
+                const binary = await assetFile.async('arraybuffer');
+                fileAssets[assetFile.name] = binary;
+              }
+            }
+          } else if (file.name.endsWith('.json')) {
+            const jsonText = await file.text();
+            agentExportFile = JSON.parse(jsonText);
+          } else if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
+            const yamlText = await file.text();
+            agentExportFile = yaml.load(yamlText) as AgentExportFile;
+          } else {
+            throw new Error(
+              `不支持的文件格式: ${file.name}，请选择 .agent.zip, .agent.json, .agent.yaml 或 .agent.yml 文件`
+            );
+          }
+
+          if (agentExportFile.type !== 'AIO_Agent_Export') {
+            throw new Error(`无效的智能体导出文件: ${file.name}`);
+          }
+
+          // 处理资产合并（避免多文件导入时的资产冲突）
+          // 如果有资产，给资产路径加上前缀，并更新 agent 中的引用
+          const assetPrefix = fileList.length > 1 ? `file_${fileIndex}_` : '';
+          
+          for (const [path, content] of Object.entries(fileAssets)) {
+            // path 类似 "assets/icon.png"
+            const fileName = path.split('/').pop() || 'unknown';
+            const newPath = `assets/${assetPrefix}${fileName}`;
+            combinedAssets[newPath] = content;
+          }
+
+          // 将 agent 加入总列表，并更新图标引用
+          agentExportFile.agents.forEach(agent => {
+            if (agent.icon && agent.icon.startsWith('assets/') && assetPrefix) {
+              const fileName = agent.icon.split('/').pop() || 'unknown';
+              agent.icon = `assets/${assetPrefix}${fileName}`;
+            }
+            combinedAgents.push(agent);
+          });
+        };
+
+        // 并行处理所有文件
+        await Promise.all(fileList.map((file, index) => parseFile(file, index)));
 
         // 检测冲突和模型匹配情况
         const { enabledProfiles } = useLlmProfiles();
@@ -839,7 +923,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         const nameConflicts: AgentImportPreflightResult['nameConflicts'] = [];
         const unmatchedModels: AgentImportPreflightResult['unmatchedModels'] = [];
 
-        agentExportFile.agents.forEach((agent, index) => {
+        combinedAgents.forEach((agent, index) => {
           if (existingAgentNames.includes(agent.name)) {
             nameConflicts.push({ agentIndex: index, agentName: agent.name });
           }
@@ -849,13 +933,14 @@ export const useAgentStore = defineStore('llmChatAgent', {
         });
 
         const result: AgentImportPreflightResult = {
-          agents: agentExportFile.agents,
-          assets,
+          agents: combinedAgents,
+          assets: combinedAssets,
           nameConflicts,
           unmatchedModels,
         };
 
         logger.info('预检导入完成', {
+          fileCount: fileList.length,
           totalAgents: result.agents.length,
           conflicts: result.nameConflicts.length,
           unmatched: result.unmatchedModels.length,
@@ -863,7 +948,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
         return result;
       } catch (error) {
-        errorHandler.error(error as Error, '预检导入失败', { context: { fileName: file.name } });
+        errorHandler.error(error as Error, '预检导入失败');
         throw error;
       }
     },

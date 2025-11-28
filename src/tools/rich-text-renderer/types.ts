@@ -207,6 +207,19 @@ export interface BlockquoteNode extends BaseAstNode {
 }
 
 /**
+ * Alert 警告块节点 (GitHub 风格)
+ * > [!NOTE]
+ * > content
+ */
+export interface AlertNode extends BaseAstNode {
+  type: 'alert';
+  props: {
+    alertType: 'note' | 'tip' | 'important' | 'warning' | 'caution';
+  };
+  children: AstNode[];
+}
+
+/**
  * 水平线节点
  */
 export interface HrNode extends BaseAstNode {
@@ -345,6 +358,7 @@ export type AstNode =
   | ListItemNode
   | ImageNode
   | BlockquoteNode
+  | AlertNode
   | HrNode
   | HtmlBlockNode
   | TableNode
@@ -624,6 +638,7 @@ export interface RichTextRendererStyleOptions {
   strikethrough?: MarkdownStyleOption;
   quote?: MarkdownStyleOption;
   blockquote?: MarkdownStyleOption;
+  alert?: MarkdownStyleOption;
   inlineCode?: MarkdownStyleOption;
   link?: MarkdownStyleOption;
   // 标题样式

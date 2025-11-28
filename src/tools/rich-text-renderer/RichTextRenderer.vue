@@ -86,6 +86,7 @@ const cssVariables = computed(() => {
   addVars("strikethrough", opts.strikethrough);
   addVars("quote", opts.quote);
   addVars("blockquote", opts.blockquote);
+  addVars("alert", opts.alert);
   addVars("inline-code", opts.inlineCode);
   addVars("link", opts.link);
 

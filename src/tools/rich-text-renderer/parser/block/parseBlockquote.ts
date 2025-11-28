@@ -73,6 +73,50 @@ export function parseBlockquote(
 
   // 将所有行合并，用单换行分隔
   const allTokens: Token[] = [];
+
+  // 检查是否是 GitHub 风格的 Alert
+  // 格式: > [!NOTE]
+  // Token 序列: link_text_open([), text(!), text(NOTE), link_text_close(])
+  let alertType: 'note' | 'tip' | 'important' | 'warning' | 'caution' | null = null;
+
+  if (quoteLines.length > 0) {
+    const firstLine = quoteLines[0];
+    // 匹配 [!TYPE] 格式，允许 Token 分割差异
+    if (firstLine.length >= 3 && firstLine[0].type === 'link_text_open') {
+      // 寻找闭合的 ]
+      let closeIndex = -1;
+      let contentText = '';
+      
+      // 限制搜索范围，避免过度搜索
+      const searchLimit = Math.min(firstLine.length, 6);
+      
+      for (let k = 1; k < searchLimit; k++) {
+        const t = firstLine[k];
+        if (t.type === 'link_text_close') {
+          closeIndex = k;
+          break;
+        }
+        if (t.type === 'text') {
+          contentText += t.content;
+        } else {
+          // 如果遇到非文本节点（如加粗等），则不是标准的 Alert 格式
+          break;
+        }
+      }
+
+      if (closeIndex !== -1 && contentText.startsWith('!')) {
+        const type = contentText.substring(1).toUpperCase(); // 去掉 !
+        const validTypes = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
+
+        if (validTypes.includes(type)) {
+          alertType = type.toLowerCase() as any;
+          // 移除 Alert 标记 tokens (从 [ 到 ])
+          firstLine.splice(0, closeIndex + 1);
+        }
+      }
+    }
+  }
+
   for (let j = 0; j < quoteLines.length; j++) {
     allTokens.push(...quoteLines[j]);
     if (j < quoteLines.length - 1) {
@@ -81,6 +125,21 @@ export function parseBlockquote(
   }
 
   const children = ctx.parseBlocks(allTokens);
+
+  if (alertType) {
+    return {
+      node: {
+        id: "",
+        type: "alert",
+        props: {
+          alertType,
+        },
+        children,
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
+      },
+      nextIndex: i,
+    };
+  }
 
   return {
     node: {

@@ -31,6 +31,7 @@ import MermaidNode from "./nodes/MermaidNode.vue";
 import ListNode from "./nodes/ListNode.vue";
 import ListItemNode from "./nodes/ListItemNode.vue";
 import BlockquoteNode from "./nodes/BlockquoteNode.vue";
+import AlertNode from "./nodes/AlertNode.vue";
 import HrNode from "./nodes/HrNode.vue";
 import HtmlBlockNode from "./nodes/HtmlBlockNode.vue";
 import TableNode from "./nodes/TableNode.vue";
@@ -66,6 +67,7 @@ const componentMap: Record<string, any> = {
   list: ListNode,
   list_item: ListItemNode,
   blockquote: BlockquoteNode,
+  alert: AlertNode,
   hr: HrNode,
   html_block: HtmlBlockNode,
   table: TableNode,

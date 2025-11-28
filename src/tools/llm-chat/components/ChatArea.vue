@@ -2,7 +2,7 @@
 import { ref, computed, toRef, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip, ElIcon } from "element-plus";
-import type { ChatMessageNode, UserProfile } from "../types";
+import type { ChatMessageNode, UserProfile, AgentEditData } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
@@ -251,24 +251,7 @@ const handleSelectModel = async () => {
   }
 };
 
-const handleSaveAgent = async (data: {
-  name: string;
-  displayName?: string;
-  description: string;
-  icon: string;
-  iconMode: "path" | "builtin";
-  profileId: string;
-  modelId: string;
-  userProfileId: string | null;
-  presetMessages: ChatMessageNode[];
-  displayPresetCount: number;
-  parameters: {
-    temperature: number;
-    maxTokens: number;
-  };
-  llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
-  richTextStyleOptions: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
-}) => {
+const handleSaveAgent = async (data: AgentEditData) => {
   if (currentAgent.value) {
     logger.info("保存智能体", { agentId: currentAgent.value.id, data });
     const updates = {

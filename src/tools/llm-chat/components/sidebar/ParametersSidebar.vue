@@ -10,7 +10,7 @@ import EditAgentDialog from "../agent/EditAgentDialog.vue";
 import ModelParametersEditor from "../agent/ModelParametersEditor.vue";
 import ConfigSection from "../common/ConfigSection.vue";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatMessageNode, LlmParameters } from "../../types";
+import type { ChatMessageNode, LlmParameters, AgentEditData } from "../../types";
 import { Edit } from "@element-plus/icons-vue";
 
 const agentStore = useAgentStore();
@@ -101,22 +101,7 @@ const openEditDialog = () => {
 };
 
 // 保存编辑的智能体
-const handleSaveEdit = (data: {
-  name: string;
-  description: string;
-  icon: string;
-  iconMode: "path" | "builtin";
-  profileId: string;
-  modelId: string;
-  userProfileId: string | null;
-  presetMessages: ChatMessageNode[];
-  displayPresetCount: number;
-  parameters: {
-    temperature: number;
-    maxTokens: number;
-  };
-  llmThinkRules: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
-}) => {
+const handleSaveEdit = (data: AgentEditData) => {
   if (!currentAgent.value || !agentStore.currentAgentId) return;
   agentStore.updateAgent(agentStore.currentAgentId, {
     name: data.name,

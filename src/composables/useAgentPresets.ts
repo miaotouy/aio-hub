@@ -120,6 +120,19 @@ export function useAgentPresets() {
   });
 
   /**
+   * 获取所有唯一的分类（按字母顺序排序）
+   */
+  const allCategories = computed(() => {
+    const categorySet = new Set<string>();
+    presets.value.forEach((preset) => {
+      if (preset.category) {
+        categorySet.add(preset.category);
+      }
+    });
+    return Array.from(categorySet).sort();
+  });
+
+  /**
    * 按标签分组的预设
    */
   const presetsByTag = computed(() => {
@@ -150,6 +163,8 @@ export function useAgentPresets() {
     getPresetsByTag,
     /** 所有唯一标签 */
     allTags,
+    /** 所有唯一分类 */
+    allCategories,
     /** 按标签分组的预设 */
     presetsByTag,
   };

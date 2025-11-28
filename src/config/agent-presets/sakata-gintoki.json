@@ -101,5 +101,6 @@
     "temperature": 0.9,
     "maxTokens": 8192
   },
-  "tags": ["角色扮演", "银魂", "动漫"]
+  "tags": ["银魂", "动漫"],
+  "category": "角色扮演"
 }

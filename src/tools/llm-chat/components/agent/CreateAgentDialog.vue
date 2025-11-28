@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { Search } from 'lucide-vue-next';
 import { useAgentPresets } from '@/composables/useAgentPresets';
 import Avatar from '@/components/common/Avatar.vue';
 import type { AgentPreset } from '../../types';
@@ -13,16 +14,32 @@ interface Emits {
 
 defineProps<{ visible: boolean }>();
 const emit = defineEmits<Emits>();
+const { presets, allCategories } = useAgentPresets();
+const selectedCategory = ref<string | 'all'>('all');
+const searchQuery = ref('');
 
-const { presets, allTags } = useAgentPresets();
-const selectedTag = ref<string | 'all'>('all');
-
-// 根据分类过滤预设
+// 根据分类和搜索词过滤预设
 const filteredPresets = computed(() => {
-  if (selectedTag.value === 'all') {
-    return presets.value;
+  let result = presets.value;
+
+  // 1. 分类过滤
+  if (selectedCategory.value !== 'all') {
+    result = result.filter((p) => p.category === selectedCategory.value);
   }
-  return presets.value.filter((p) => p.tags?.includes(selectedTag.value));
+
+  // 2. 搜索过滤
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter((p) =>
+      p.name.toLowerCase().includes(query) ||
+      p.displayName?.toLowerCase().includes(query) ||
+      p.description?.toLowerCase().includes(query) ||
+      p.category?.toLowerCase().includes(query) ||
+      p.tags?.some(tag => tag.toLowerCase().includes(query))
+    );
+  }
+
+  return result;
 });
 
 // 从预设创建
@@ -57,23 +74,33 @@ const getCategoryLabel = (category: string | 'all') => {
         <h4>从预设模板创建</h4>
         <p class="preset-section-desc">选择一个预设模板，快速开始你的对话。</p>
 
+        <!-- 搜索框 -->
+        <div class="search-bar">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索预设名称、描述或标签..."
+            :prefix-icon="Search"
+            clearable
+          />
+        </div>
+
         <!-- 分类标签 -->
-        <div class="category-tabs">
+        <div class="category-tabs" v-if="allCategories.length > 0">
           <button
-            @click="selectedTag = 'all'"
-            :class="{ active: selectedTag === 'all' }"
+            @click="selectedCategory = 'all'"
+            :class="{ active: selectedCategory === 'all' }"
             class="category-tab"
           >
             全部
           </button>
           <button
-            v-for="tag in allTags"
-            :key="tag"
-            @click="selectedTag = tag"
-            :class="{ active: selectedTag === tag }"
+            v-for="cat in allCategories"
+            :key="cat"
+            @click="selectedCategory = cat"
+            :class="{ active: selectedCategory === cat }"
             class="category-tab"
           >
-            {{ getCategoryLabel(tag) }}
+            {{ getCategoryLabel(cat) }}
           </button>
         </div>
 
@@ -141,6 +168,9 @@ const getCategoryLabel = (category: string | 'all') => {
   margin: 0 0 16px 0;
   font-size: 13px;
   color: var(--text-color-secondary);
+}
+.search-bar {
+  margin-bottom: 16px;
 }
 .category-tabs {
   display: flex;

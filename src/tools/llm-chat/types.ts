@@ -673,6 +673,19 @@ export interface ChatAgent {
   richTextStyleOptions?: RichTextRendererStyleOptions;
 
   /**
+   * 筛选标签
+   * 用于在UI中进行分组和筛选
+   */
+  tags?: string[];
+
+  /**
+   * 智能体分类
+   * 用于在UI中进行大类筛选
+   * 例如: "编程", "写作", "角色扮演", "工具"
+   */
+  category?: string;
+
+  /**
    * 创建时间
    */
   createdAt: string;
@@ -745,6 +758,13 @@ export interface AgentPreset {
    * 用于在UI中进行分组和筛选
    */
   tags?: string[];
+
+  /**
+   * 预设分类（可选）
+   * 用于在创建对话框中进行大类筛选（替代原有的 Tag 筛选）
+   * 例如: "编程", "写作", "角色扮演", "工具"
+   */
+  category?: string;
 }
 
 /**

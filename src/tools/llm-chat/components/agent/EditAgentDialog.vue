@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, watch } from "vue";
+import { reactive, watch, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
+import { useAgentStore } from "../../agentStore";
 import type { ChatAgent, ChatMessageNode, IconMode } from "../../types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
@@ -32,6 +33,8 @@ interface Props {
     profileId?: string;
     modelId?: string;
     presetMessages?: ChatMessageNode[];
+    tags?: string[];
+    category?: string;
   } | null;
 }
 interface Emits {
@@ -55,6 +58,8 @@ interface Emits {
       };
       llmThinkRules: LlmThinkRule[];
       richTextStyleOptions: RichTextRendererStyleOptions;
+      tags?: string[];
+      category?: string;
     }
   ): void;
 }
@@ -68,6 +73,16 @@ const emit = defineEmits<Emits>();
 
 // 用户档案 Store
 const userProfileStore = useUserProfileStore();
+const agentStore = useAgentStore();
+
+// 从所有 agent 中提取的不重复标签列表
+const allTags = computed(() => {
+  const tagSet = new Set<string>();
+  agentStore.agents.forEach((agent) => {
+    agent.tags?.forEach((tag) => tagSet.add(tag));
+  });
+  return Array.from(tagSet);
+});
 
 // 编辑表单
 const editForm = reactive({
@@ -84,6 +99,8 @@ const editForm = reactive({
   displayPresetCount: 0, // 显示的预设消息数量
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
+  tags: [] as string[],
+  category: "",
 });
 
 const activeCollapseNames = ref<string[]>([]);
@@ -122,6 +139,8 @@ const loadFormData = () => {
       ? JSON.parse(JSON.stringify(props.agent.presetMessages))
       : [];
     editForm.displayPresetCount = props.agent.displayPresetCount || 0;
+    editForm.tags = props.agent.tags ? JSON.parse(JSON.stringify(props.agent.tags)) : [];
+    editForm.category = props.agent.category || "";
     editForm.llmThinkRules = props.agent.llmThinkRules
       ? JSON.parse(JSON.stringify(props.agent.llmThinkRules))
       : [];
@@ -146,6 +165,8 @@ const loadFormData = () => {
       ? JSON.parse(JSON.stringify(props.initialData.presetMessages))
       : [];
     editForm.displayPresetCount = 0;
+    editForm.tags = props.initialData.tags ? JSON.parse(JSON.stringify(props.initialData.tags)) : [];
+    editForm.category = props.initialData.category || "";
     editForm.llmThinkRules = [];
     editForm.richTextStyleOptions = {};
   }
@@ -222,6 +243,8 @@ const handleSave = () => {
     parameters,
     llmThinkRules: editForm.llmThinkRules,
     richTextStyleOptions: editForm.richTextStyleOptions,
+    tags: editForm.tags,
+    category: editForm.category,
   });
 
   handleClose();
@@ -262,6 +285,27 @@ const handleSave = () => {
             }
           "
         />
+      </el-form-item>
+
+      <el-form-item label="分类">
+        <el-input v-model="editForm.category" placeholder="为智能体设置一个分类（可选）" />
+        <div class="form-hint">用于在侧边栏对智能体进行分组。</div>
+      </el-form-item>
+
+      <el-form-item label="标签">
+        <el-select
+          v-model="editForm.tags"
+          multiple
+          filterable
+          allow-create
+          default-first-option
+          placeholder="输入或选择标签"
+          style="width: 100%"
+          :reserve-keyword="false"
+        >
+          <el-option v-for="tag in allTags" :key="tag" :label="tag" :value="tag" />
+        </el-select>
+        <div class="form-hint">为智能体添加标签，便于筛选和搜索。按 Enter 键创建新标签。</div>
       </el-form-item>
 
       <el-form-item label="描述">

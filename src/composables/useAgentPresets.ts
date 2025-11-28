@@ -8,15 +8,21 @@ import { ref, computed } from 'vue';
 import type { AgentPreset } from '@/tools/llm-chat/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import yaml from 'js-yaml';
 
 const logger = createModuleLogger('AgentPresets');
 const errorHandler = createModuleErrorHandler('AgentPresets');
 
-// 使用 Vite 的 import.meta.glob 自动发现和加载所有预设文件
-// eager: true 表示在模块加载时立即导入，而不是懒加载
-const presetModules = import.meta.glob<{ default: Omit<AgentPreset, 'id'> }>(
+// 加载 JSON 预设
+const jsonModules = import.meta.glob<{ default: Omit<AgentPreset, 'id'> }>(
   '@/config/agent-presets/*.json',
   { eager: true }
+);
+
+// 加载 YAML 预设 (作为纯文本加载，然后运行时解析)
+const yamlModules = import.meta.glob<string>(
+  '@/config/agent-presets/*.{yaml,yml}',
+  { eager: true, query: '?raw', import: 'default' }
 );
 
 // 全局状态
@@ -29,7 +35,8 @@ export function useAgentPresets() {
    * 例如: '/src/config/agent-presets/translator.json' -> 'translator'
    */
   const extractIdFromPath = (path: string): string => {
-    const match = path.match(/\/([^/]+)\.json$/);
+    // 匹配 .json, .yaml, .yml
+    const match = path.match(/\/([^/]+)\.(json|yaml|yml)$/);
     return match ? match[1] : '';
   };
 
@@ -42,15 +49,32 @@ export function useAgentPresets() {
 
       const loadedPresets: AgentPreset[] = [];
 
-      // 遍历所有自动发现的预设模块
-      for (const [path, module] of Object.entries(presetModules)) {
+      // 1. 处理 JSON 模块
+      for (const [path, module] of Object.entries(jsonModules)) {
         const id = extractIdFromPath(path);
         if (id && module.default) {
-          // 将文件名作为 ID 注入到预设对象中
           loadedPresets.push({
             id,
             ...module.default,
           });
+        }
+      }
+
+      // 2. 处理 YAML 模块
+      for (const [path, content] of Object.entries(yamlModules)) {
+        const id = extractIdFromPath(path);
+        if (id && content) {
+          try {
+            const parsed = yaml.load(content) as Omit<AgentPreset, 'id'>;
+            if (parsed) {
+              loadedPresets.push({
+                id,
+                ...parsed,
+              });
+            }
+          } catch (e) {
+            logger.error(`解析 YAML 预设失败: ${path}`, e as Error);
+          }
         }
       }
 

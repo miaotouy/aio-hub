@@ -120,7 +120,10 @@ const importPreflightResult = ref<any>(null);
 const importLoading = ref(false);
 
 // 导出相关
-const handleExportAgents = (agentIds: string[], options: { includeAssets: boolean }) => {
+const handleExportAgents = (
+  agentIds: string[],
+  options: { includeAssets: boolean; format?: "json" | "yaml" }
+) => {
   agentStore.exportAgents(agentIds, options);
 };
 
@@ -129,7 +132,7 @@ const handleImportFromFile = async () => {
   try {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".agent.zip,.agent.json";
+    input.accept = ".agent.zip,.agent.json,.agent.yaml,.agent.yml";
     input.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
       if (!file) return;
@@ -424,7 +427,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
             @select="selectAgent"
             @edit="handleEdit"
             @duplicate="handleDuplicateAgent"
-            @export="(a) => handleExportAgents([a.id], { includeAssets: true })"
+            @export="(a, format) => handleExportAgents([a.id], { includeAssets: true, format })"
             @delete="handleDelete"
           />
         </div>

@@ -16,14 +16,33 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button size="small" @click="handleExport">
-          <el-icon><Download /></el-icon>
-          导出
-        </el-button>
-        <el-button size="small" @click="handleCopy">
-          <el-icon><CopyDocument /></el-icon>
-          复制
-        </el-button>
+        <el-dropdown trigger="click" @command="handleExport">
+          <el-button size="small">
+            <el-icon><Download /></el-icon>
+            导出
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
+              <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <el-dropdown trigger="click" @command="handleCopy">
+          <el-button size="small">
+            <el-icon><CopyDocument /></el-icon>
+            复制
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="json">复制为 JSON</el-dropdown-item>
+              <el-dropdown-item command="yaml">复制为 YAML</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button size="small" @click="handlePaste">
           <el-icon><DocumentCopy /></el-icon>
           粘贴
@@ -327,7 +346,7 @@
     <input
       ref="importFileInput"
       type="file"
-      accept=".json"
+      accept=".json,.yaml,.yml"
       style="display: none"
       @change="handleFileSelected"
     />
@@ -346,6 +365,7 @@
 import { ref, computed, watch, toRaw } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import yaml from "js-yaml";
 import { useUserProfileStore } from "../../userProfileStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
 import {
@@ -362,6 +382,7 @@ import {
   User,
   Service,
   View,
+  ArrowDown,
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -778,14 +799,27 @@ function handleToggleEnabled(_index: number) {
 /**
  * 导出预设消息
  */
-function handleExport() {
+function handleExport(format: "json" | "yaml" = "json") {
   if (localMessages.value.length === 0) {
     customMessage.warning("没有可导出的预设消息");
     return;
   }
 
-  const dataStr = JSON.stringify(localMessages.value, null, 2);
-  const dataBlob = new Blob([dataStr], { type: "application/json" });
+  let dataStr = "";
+  let mimeType = "";
+  let extension = "";
+
+  if (format === "yaml") {
+    dataStr = yaml.dump(toRaw(localMessages.value));
+    mimeType = "application/x-yaml";
+    extension = "yaml";
+  } else {
+    dataStr = JSON.stringify(localMessages.value, null, 2);
+    mimeType = "application/json";
+    extension = "json";
+  }
+
+  const dataBlob = new Blob([dataStr], { type: mimeType });
   const url = URL.createObjectURL(dataBlob);
   const link = document.createElement("a");
   link.href = url;
@@ -793,12 +827,12 @@ function handleExport() {
   // 使用 agent 名称和日期作为文件名
   const agentNamePart = props.agentName ? `${props.agentName}-` : "";
   const datePart = new Date().toISOString().split("T")[0];
-  link.download = `${agentNamePart}preset-messages-${datePart}.json`;
+  link.download = `${agentNamePart}preset-messages-${datePart}.${extension}`;
 
   link.click();
   URL.revokeObjectURL(url);
 
-  customMessage.success("导出成功");
+  customMessage.success(`已导出为 ${format.toUpperCase()} 格式`);
 }
 
 /**
@@ -811,15 +845,20 @@ function handleImport() {
 /**
  * 复制预设消息
  */
-async function handleCopy() {
+async function handleCopy(format: "json" | "yaml" = "json") {
   if (localMessages.value.length === 0) {
     customMessage.warning("没有可复制的预设消息");
     return;
   }
   try {
-    const dataStr = JSON.stringify(toRaw(localMessages.value), null, 2);
+    let dataStr = "";
+    if (format === "yaml") {
+      dataStr = yaml.dump(toRaw(localMessages.value));
+    } else {
+      dataStr = JSON.stringify(toRaw(localMessages.value), null, 2);
+    }
     await writeText(dataStr);
-    customMessage.success("预设已复制到剪贴板");
+    customMessage.success(`预设已作为 ${format.toUpperCase()} 复制到剪贴板`);
   } catch (error) {
     customMessage.error("复制失败");
     console.error("Copy error:", error);
@@ -839,10 +878,16 @@ async function handlePaste() {
 
     let imported: ChatMessageNode[];
     try {
+      // 尝试解析为 JSON
       imported = JSON.parse(text);
     } catch (e) {
-      customMessage.error("剪贴板内容不是有效的 JSON 格式");
-      return;
+      try {
+        // 尝试解析为 YAML
+        imported = yaml.load(text) as ChatMessageNode[];
+      } catch (yamlError) {
+        customMessage.error("剪贴板内容不是有效的 JSON 或 YAML 格式");
+        return;
+      }
     }
 
     // 简单验证
@@ -887,7 +932,19 @@ async function handleFileSelected(event: Event) {
 
   try {
     const content = await file.text();
-    const imported = JSON.parse(content) as ChatMessageNode[];
+    let imported: ChatMessageNode[];
+
+    try {
+      // 优先尝试 JSON
+      imported = JSON.parse(content) as ChatMessageNode[];
+    } catch (e) {
+      try {
+        // JSON 失败则尝试 YAML
+        imported = yaml.load(content) as ChatMessageNode[];
+      } catch (yamlError) {
+        throw new Error("无法解析文件内容：既不是有效的 JSON 也不是有效的 YAML");
+      }
+    }
 
     // 简单验证
     if (!Array.isArray(imported)) {

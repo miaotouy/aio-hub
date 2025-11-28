@@ -4,7 +4,7 @@ import { useAgentStore } from '../../agentStore';
 
 import BaseDialog from '@/components/common/BaseDialog.vue';
 import Avatar from '@/components/common/Avatar.vue';
-import { ElCheckbox, ElCheckboxGroup } from 'element-plus';
+import { ElCheckbox, ElCheckboxGroup, ElRadioGroup, ElRadio } from 'element-plus';
 import type { CheckboxValueType } from 'element-plus';
 
 defineProps<{
@@ -13,13 +13,14 @@ defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [value: boolean];
-  'export': [agentIds: string[], options: { includeAssets: boolean }];
+  'export': [agentIds: string[], options: { includeAssets: boolean; format: 'json' | 'yaml' }];
 }>();
 
 const agentStore = useAgentStore();
 
 const selectedAgentIds = ref<string[]>([]);
 const includeAssets = ref(true);
+const exportFormat = ref<'json' | 'yaml'>('json');
 
 const agents = computed(() => agentStore.agents);
 const isIndeterminate = computed(() => {
@@ -33,13 +34,15 @@ const isAllSelected = computed(() => {
 const handleCheckAllChange = (val: CheckboxValueType) => {
   selectedAgentIds.value = val ? agents.value.map(agent => agent.id) : [];
 };
-
 const handleExport = () => {
   if (selectedAgentIds.value.length === 0) {
     // 可以在这里加一个提示，但通常按钮会是禁用状态
     return;
   }
-  emit('export', selectedAgentIds.value, { includeAssets: includeAssets.value });
+  emit('export', selectedAgentIds.value, {
+    includeAssets: includeAssets.value,
+    format: exportFormat.value,
+  });
   handleClose();
 };
 
@@ -99,7 +102,16 @@ const handleOpen = () => {
         <!-- 导出选项 -->
         <div class="options-section">
           <h4>导出选项</h4>
-          <el-checkbox v-model="includeAssets" label="包含图标等资产文件" />
+          <div class="option-item">
+            <el-checkbox v-model="includeAssets" label="包含图标等资产文件" />
+          </div>
+          <div class="option-item format-select">
+            <span class="label">文件格式：</span>
+            <el-radio-group v-model="exportFormat" size="small">
+              <el-radio label="json">JSON</el-radio>
+              <el-radio label="yaml">YAML</el-radio>
+            </el-radio-group>
+          </div>
         </div>
       </div>
     </template>
@@ -164,5 +176,21 @@ const handleOpen = () => {
 .agent-name {
   font-size: 14px;
   color: var(--el-text-color-primary);
+}
+
+.option-item {
+  margin-bottom: 8px;
+}
+
+.format-select {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.format-select .label {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
 }
 </style>

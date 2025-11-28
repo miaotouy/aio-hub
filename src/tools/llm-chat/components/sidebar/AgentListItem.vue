@@ -14,7 +14,7 @@ defineEmits<{
   (e: "select", id: string): void;
   (e: "edit", agent: ChatAgent): void;
   (e: "duplicate", agent: ChatAgent): void;
-  (e: "export", agent: ChatAgent): void;
+  (e: "export", agent: ChatAgent, format: "json" | "yaml"): void;
   (e: "delete", agent: ChatAgent): void;
 }>();
 
@@ -75,9 +75,13 @@ const showActions = computed(() => isHovered.value || isMenuOpen.value);
               <el-icon><CopyDocument /></el-icon>
               创建副本
             </el-dropdown-item>
-            <el-dropdown-item @click="$emit('export', agent)">
+            <el-dropdown-item @click="$emit('export', agent, 'json')">
               <el-icon><Download /></el-icon>
-              导出此智能体
+              导出 (JSON)
+            </el-dropdown-item>
+            <el-dropdown-item @click="$emit('export', agent, 'yaml')">
+              <el-icon><Download /></el-icon>
+              导出 (YAML)
             </el-dropdown-item>
             <el-dropdown-item @click="$emit('delete', agent)" divided>
               <el-icon><Delete /></el-icon>

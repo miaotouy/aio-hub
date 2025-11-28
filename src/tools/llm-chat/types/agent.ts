@@ -1,0 +1,212 @@
+import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
+import type { IconMode } from './common';
+import type { LlmParameters } from './llm';
+import type { ChatMessageNode } from './message';
+
+/**
+ * 智能体（Agent）- 包含完整的对话预设配置
+ *
+ * 智能体是模型、系统提示词、参数等配置的集合，
+ * 用户可以创建多个预设智能体（如"编程助手"、"翻译专家"等），
+ * 并在会话中快速切换
+ */
+export interface ChatAgent {
+  /**
+   * 智能体的唯一标识符
+   */
+  id: string;
+
+  /**
+   * 智能体名称（用作唯一标识符的一部分，也是宏替换的 ID）
+   */
+  name: string;
+
+  /**
+   * 显示名称（UI 显示优先使用，不影响宏替换）
+   */
+  displayName?: string;
+
+  /**
+   * 智能体描述（可选）
+   */
+  description?: string;
+
+  /**
+   * 智能体图标（emoji、图标路径或相对文件名）
+   */
+  icon?: string;
+
+  /**
+   * 图标模式
+   * @default 'path'
+   */
+  iconMode?: IconMode;
+
+  /**
+   * 使用的 Profile ID
+   */
+  profileId: string;
+
+  /**
+   * 使用的模型 ID
+   */
+  modelId: string;
+
+  /**
+   * 绑定的用户档案 ID（可选）
+   * 如果设置，则覆盖全局默认的用户档案
+   */
+  userProfileId?: string | null;
+
+  /**
+   * 预设消息序列
+   *
+   * 这是智能体的核心配置，用于构建对话的上下文基础。
+   * 支持插入系统消息、用户示例、助手回答等，实现 Few-shot、角色扮演等高级功能。
+   *
+   * 特殊占位符：
+   * - 可以包含一个特殊的 type='chat_history' 节点，标记【实际会话消息】的插入位置
+   * - 如果没有占位符，则默认将实际会话追加在预设消息之后
+   */
+  presetMessages?: ChatMessageNode[];
+
+  /**
+   * 在聊天界面显示的预设消息数量
+   *
+   * 从 chat_history 占位符位置开始，向前倒数 N 条预设消息显示在聊天列表中。
+   * 这些消息作为开场白展示，类似于角色卡的问候语。
+   *
+   * - 0 或 undefined: 不显示任何预设消息（默认）
+   * - N > 0: 显示倒数 N 条预设消息
+   *
+   * 注意：只会显示 chat_history 占位符之前的 user/assistant 消息，不包括 system 消息
+   */
+  displayPresetCount?: number;
+
+  /**
+   * 参数配置
+   */
+  parameters: LlmParameters;
+
+  /**
+   * LLM 思考块规则配置
+   * 用于识别和渲染 LLM 输出中的思考过程（如 Chain of Thought）
+   */
+  llmThinkRules?: LlmThinkRule[];
+
+  /**
+   * 富文本渲染器样式配置
+   * 用于自定义该智能体回复的 Markdown 样式
+   */
+  richTextStyleOptions?: RichTextRendererStyleOptions;
+
+  /**
+   * 筛选标签
+   * 用于在UI中进行分组和筛选
+   */
+  tags?: string[];
+
+  /**
+   * 智能体分类
+   * 用于在UI中进行大类筛选
+   * 例如: "编程", "写作", "角色扮演", "工具"
+   */
+  category?: string;
+
+  /**
+   * 创建时间
+   */
+  createdAt: string;
+
+  /**
+   * 最后使用时间
+   */
+  lastUsedAt?: string;
+}
+
+/**
+ * 智能体预设模板（从配置文件加载）
+ *
+ * 预设是一个智能体的模板，不包含具体的 profileId 和 modelId。
+ * 用户在创建智能体时，可以从预设中选择一个作为起点，然后指定使用的模型。
+ */
+export interface AgentPreset {
+  /**
+   * 预设配置的版本号。
+   *
+   * 用于未来的迁移和兼容性检查。
+   * 如果未指定，默认为 1。
+   */
+  version?: number;
+
+  /**
+   * 预设的唯一标识符（通常为文件名）
+   */
+  id: string;
+
+  /**
+   * 预设名称（显示在UI上）
+   */
+  name: string;
+
+  /**
+   * 显示名称（UI 显示优先使用）
+   */
+  displayName?: string;
+
+  /**
+   * 预设的简短描述
+   */
+  description: string;
+
+  /**
+   * 预设的图标（推荐使用 Emoji）
+   */
+  icon: string;
+
+  /**
+   * 预设消息序列
+   * 通常包含系统提示词和示例对话
+   */
+  presetMessages: ChatMessageNode[];
+
+  /**
+   * 在聊天界面显示的预设消息数量
+   * 从 chat_history 占位符位置开始，向前倒数 N 条预设消息显示在聊天列表中
+   */
+  displayPresetCount?: number;
+
+  /**
+   * 默认的模型参数
+   */
+  parameters: LlmParameters;
+
+  /**
+   * 分类标签（可选）
+   * 用于在UI中进行分组和筛选
+   */
+  tags?: string[];
+
+  /**
+   * 预设分类（可选）
+   * 用于在创建对话框中进行大类筛选（替代原有的 Tag 筛选）
+   * 例如: "编程", "写作", "角色扮演", "工具"
+   */
+  category?: string;
+
+  /**
+   * LLM 思考块规则配置
+   */
+  llmThinkRules?: LlmThinkRule[];
+
+  /**
+   * 富文本渲染器样式配置
+   */
+  richTextStyleOptions?: RichTextRendererStyleOptions;
+}
+
+/**
+ * 智能体编辑/创建数据
+ * 剔除系统生成的只读字段
+ */
+export type AgentEditData = Omit<ChatAgent, "id" | "createdAt" | "lastUsedAt">;

@@ -282,28 +282,6 @@ const handleMenuCommand = (
   }
 };
 
-// 处理筛选菜单命令
-const handleFilterCommand = (command: string) => {
-  if (command === "reset") {
-    resetFilters();
-    return;
-  }
-
-  const [type, value] = command.split(":");
-
-  switch (type) {
-    case "sort":
-      sortBy.value = value as SortBy;
-      break;
-    case "time":
-      filterTime.value = value as TimeFilter;
-      break;
-    case "agent":
-      filterAgent.value = value;
-      break;
-  }
-};
-
 // 处理会话点击
 const handleSessionClick = (session: ChatSession) => {
   // 如果开启了自动切换智能体，且会话有绑定的智能体
@@ -324,90 +302,88 @@ const handleSessionClick = (session: ChatSession) => {
     <div class="sessions-sidebar-header">
       <div class="header-top">
         <el-input v-model="searchQuery" placeholder="搜索会话..." :prefix-icon="Search" clearable />
-        <el-dropdown trigger="click" @command="handleFilterCommand">
-          <el-button
-            :icon="Operation"
-            circle
-            title="排序与筛选"
-            :type="hasActiveFilters ? 'primary' : undefined"
-          />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item divided disabled>排序方式</el-dropdown-item>
-              <el-dropdown-item
-                :class="{ 'is-active': sortBy === 'updatedAt' }"
-                command="sort:updatedAt"
-              >
-                最近更新
-              </el-dropdown-item>
-              <el-dropdown-item
-                :class="{ 'is-active': sortBy === 'createdAt' }"
-                command="sort:createdAt"
-              >
-                创建时间
-              </el-dropdown-item>
-              <el-dropdown-item
-                :class="{ 'is-active': sortBy === 'messageCount' }"
-                command="sort:messageCount"
-              >
-                消息数量
-              </el-dropdown-item>
-              <el-dropdown-item :class="{ 'is-active': sortBy === 'name' }" command="sort:name">
-                名称 (A-Z)
-              </el-dropdown-item>
 
-              <el-dropdown-item divided disabled>时间范围</el-dropdown-item>
-              <el-dropdown-item :class="{ 'is-active': filterTime === 'all' }" command="time:all">
-                全部
-              </el-dropdown-item>
-              <el-dropdown-item
-                :class="{ 'is-active': filterTime === 'today' }"
-                command="time:today"
-              >
-                今天
-              </el-dropdown-item>
-              <el-dropdown-item :class="{ 'is-active': filterTime === 'week' }" command="time:week">
-                本周
-              </el-dropdown-item>
-              <el-dropdown-item
-                :class="{ 'is-active': filterTime === 'month' }"
-                command="time:month"
-              >
-                本月
-              </el-dropdown-item>
-              <el-dropdown-item
-                :class="{ 'is-active': filterTime === 'older' }"
-                command="time:older"
-              >
-                更早
-              </el-dropdown-item>
-
-              <el-dropdown-item v-if="availableAgents.length > 0" divided disabled>
-                智能体
-              </el-dropdown-item>
-              <el-dropdown-item
-                v-if="availableAgents.length > 0"
-                :class="{ 'is-active': filterAgent === 'all' }"
-                command="agent:all"
-              >
-                全部
-              </el-dropdown-item>
-              <el-dropdown-item
-                v-for="agent in availableAgents"
-                :key="agent.id"
-                :class="{ 'is-active': filterAgent === agent.id }"
-                :command="`agent:${agent.id}`"
-              >
-                {{ agent.name }}
-              </el-dropdown-item>
-
-              <el-dropdown-item v-if="hasActiveFilters" divided command="reset">
-                重置筛选
-              </el-dropdown-item>
-            </el-dropdown-menu>
+        <el-popover trigger="click" width="320" popper-class="filter-popover">
+          <template #reference>
+            <div>
+              <el-tooltip content="排序与筛选" placement="bottom" :show-after="500">
+                <el-button
+                  :icon="Operation"
+                  circle
+                  :type="hasActiveFilters ? 'primary' : undefined"
+                />
+              </el-tooltip>
+            </div>
           </template>
-        </el-dropdown>
-        <el-button :icon="Plus" @click="handleQuickNewSession" title="新建对话" circle />
+
+          <div class="filter-panel">
+            <div class="filter-section">
+              <div class="section-header">
+                <span class="section-title">排序方式</span>
+              </div>
+              <el-radio-group v-model="sortBy" size="small">
+                <el-radio-button value="updatedAt">最近更新</el-radio-button>
+                <el-radio-button value="createdAt">创建时间</el-radio-button>
+                <el-radio-button value="messageCount">消息数</el-radio-button>
+                <el-radio-button value="name">名称</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <div class="filter-section">
+              <div class="section-header">
+                <span class="section-title">时间范围</span>
+              </div>
+              <el-radio-group v-model="filterTime" size="small">
+                <el-radio-button value="all">全部</el-radio-button>
+                <el-radio-button value="today">今天</el-radio-button>
+                <el-radio-button value="week">本周</el-radio-button>
+                <el-radio-button value="month">本月</el-radio-button>
+                <el-radio-button value="older">更早</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <div class="filter-section" v-if="availableAgents.length > 0">
+              <div class="section-header">
+                <span class="section-title">智能体</span>
+              </div>
+              <div class="agent-list-scroll">
+                <div
+                  class="agent-filter-item"
+                  :class="{ active: filterAgent === 'all' }"
+                  @click="filterAgent = 'all'"
+                >
+                  <span class="agent-name">全部智能体</span>
+                </div>
+                <div
+                  v-for="agent in availableAgents"
+                  :key="agent.id"
+                  class="agent-filter-item"
+                  :class="{ active: filterAgent === agent.id }"
+                  @click="filterAgent = agent.id"
+                >
+                  <Avatar
+                    :src="agent.icon || ''"
+                    :alt="agent.name"
+                    :size="16"
+                    shape="square"
+                    :radius="3"
+                  />
+                  <span class="agent-name">{{ agent.name }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="filter-footer" v-if="hasActiveFilters">
+              <el-button size="small" link type="primary" @click="resetFilters"
+                >重置所有筛选</el-button
+              >
+            </div>
+          </div>
+        </el-popover>
+
+        <el-tooltip content="新建对话" placement="bottom" :show-after="500">
+          <el-button :icon="Plus" @click="handleQuickNewSession" circle />
+        </el-tooltip>
       </div>
       <div class="session-count">{{ filteredSessions.length }} / {{ sessions.length }} 个会话</div>
     </div>
@@ -454,17 +430,13 @@ const handleSessionClick = (session: ChatSession) => {
               <el-dropdown
                 @command="handleMenuCommand($event, session)"
                 trigger="click"
-                @click.stop
                 class="menu-dropdown"
               >
-                <el-button
-                  :icon="MoreFilled"
-                  size="small"
-                  text
-                  class="btn-menu"
-                  title="更多操作"
-                  @click.stop
-                />
+                <div @click.stop>
+                  <el-tooltip content="更多操作" placement="top" :show-after="500">
+                    <el-button :icon="MoreFilled" size="small" text class="btn-menu" />
+                  </el-tooltip>
+                </div>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item
@@ -703,5 +675,86 @@ const handleSessionClick = (session: ChatSession) => {
 :deep(.el-dropdown-menu__item.is-active) {
   color: var(--primary-color);
   background-color: rgba(var(--primary-color-rgb), 0.1);
+}
+
+/* Popover 内部样式 */
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-light);
+}
+
+.agent-list-scroll {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.agent-list-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.agent-list-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color);
+  border-radius: 2px;
+}
+
+.agent-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-color);
+  transition: all 0.2s;
+}
+
+.agent-filter-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.agent-filter-item.active {
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+  color: var(--primary-color);
+}
+
+.agent-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.el-radio-group {
+  backdrop-filter: none;
 }
 </style>

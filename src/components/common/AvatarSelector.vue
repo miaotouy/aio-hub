@@ -106,7 +106,9 @@ const uploadCustomImage = async () => {
     isUploadingImage.value = true;
 
     const extension = await extname(selectedPath);
-    const newFilename = `avatar${extension ? `.${extension}` : ""}`;
+    // 使用时间戳作为文件名的一部分，解决缓存问题并保留历史
+    const timestamp = Date.now();
+    const newFilename = `avatar-${timestamp}${extension ? `.${extension}` : ""}`;
 
     let subdirectory = "";
     if (props.profileType === "agent") {

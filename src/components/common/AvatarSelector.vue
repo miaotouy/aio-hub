@@ -106,7 +106,7 @@ const uploadCustomImage = async () => {
     isUploadingImage.value = true;
 
     const extension = await extname(selectedPath);
-    const newFilename = `avatar${extension ? `.${extension.slice(1)}` : ""}`;
+    const newFilename = `avatar${extension ? `.${extension}` : ""}`;
 
     let subdirectory = "";
     if (props.profileType === "agent") {

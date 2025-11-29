@@ -66,10 +66,11 @@ const handleSliderChange = (val: number) => {
         :max="activeConfig.max"
         :step="activeConfig.step"
         :precision="activeConfig.precision"
-        :controls="false"
+        :controls="true"
         :placeholder="activeConfig.placeholder"
         class="param-input"
         :disabled="disabled"
+        size="small"
       />
       
       <!-- Switch -->

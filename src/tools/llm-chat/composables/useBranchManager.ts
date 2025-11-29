@@ -7,6 +7,8 @@ import type { ChatSession, ChatMessageNode } from '../types';
 import type { Asset } from '@/types/asset-management';
 import { useNodeManager } from './useNodeManager';
 import { BranchNavigator } from '../utils/BranchNavigator';
+import { useAgentStore } from '../agentStore';
+import { useUserProfileStore } from '../userProfileStore';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('llm-chat/branch-manager');
@@ -164,6 +166,42 @@ export function useBranchManager() {
     // 如果是助手消息，复制元数据
     if (sourceNode.role === 'assistant' && sourceNode.metadata) {
       newNode.metadata = { ...sourceNode.metadata };
+    }
+
+    // 如果是用户消息，处理元数据（身份快照）
+    if (sourceNode.role === 'user') {
+      if (sourceNode.metadata?.userProfileId) {
+        // 1. 如果源节点有用户档案信息（历史快照），直接复制，保持历史一致性
+        newNode.metadata = { ...sourceNode.metadata };
+      } else {
+        // 2. 如果源节点没有（旧消息），捕获当前生效的用户档案作为新节点的身份
+        // 这样可以确保新分支记录了创建时的上下文（如别名、头像等），而不是回退到全局默认值
+        const agentStore = useAgentStore();
+        const userProfileStore = useUserProfileStore();
+
+        let effectiveProfile = userProfileStore.globalProfile;
+
+        // 尝试从当前 Agent 获取绑定的 Profile
+        if (agentStore.currentAgentId) {
+          const agent = agentStore.getAgentById(agentStore.currentAgentId);
+          if (agent?.userProfileId) {
+            const boundProfile = userProfileStore.getProfileById(agent.userProfileId);
+            if (boundProfile) {
+              effectiveProfile = boundProfile;
+            }
+          }
+        }
+
+        if (effectiveProfile) {
+          newNode.metadata = {
+            ...(newNode.metadata || {}),
+            userProfileId: effectiveProfile.id,
+            // 优先使用 displayName (别名)，其次使用 name
+            userProfileName: effectiveProfile.displayName || effectiveProfile.name,
+            userProfileIcon: effectiveProfile.icon,
+          };
+        }
+      }
     }
 
     // 添加新节点到会话

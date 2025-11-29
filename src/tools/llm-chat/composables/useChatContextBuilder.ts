@@ -6,6 +6,7 @@
 import type { ChatSession, ChatMessageNode, ContextPostProcessRule, UserProfile } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
+import type { LlmParameters } from "../types/llm";
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { createModuleLogger } from "@/utils/logger";
@@ -105,6 +106,8 @@ export interface ContextPreviewData {
     profileId: string;
     modelId: string;
   };
+  /** LLM 请求参数 */
+  parameters?: LlmParameters;
 }
 
 export function useChatContextBuilder() {
@@ -1063,6 +1066,7 @@ export function useChatContextBuilder() {
         profileId: agentConfig?.profileId ?? '',
         modelId: agentConfig?.modelId ?? '',
       },
+      parameters: agentConfig?.parameters,
     };
 
     logger.debug("🔍 生成上下文预览数据", {

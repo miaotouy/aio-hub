@@ -28,6 +28,7 @@ const dynamicFileName = computed(() => {
 const formattedJson = computed(() => {
   const requestBody: Record<string, any> = {
     model: props.contextData.agentInfo.modelId,
+    ...props.contextData.parameters, // 展开显示请求参数
     messages: props.contextData.finalMessages,
   };
 

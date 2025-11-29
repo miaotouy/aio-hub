@@ -10,6 +10,8 @@ import { useAgentStore } from "../../agentStore";
 import { useChatHandler } from "../../composables/useChatHandler";
 import type { ContextPreviewData } from "../../composables/useChatHandler";
 import ConfigSection from "../common/ConfigSection.vue";
+import ParameterItem from "./ParameterItem.vue";
+import { parameterConfigs } from "../../config/parameter-config";
 
 /**
  * 模型参数编辑器组件
@@ -65,6 +67,7 @@ const updateParameter = <K extends keyof LlmParameters>(key: K, value: LlmParame
   };
   emit("update:modelValue", localParams.value);
 };
+
 // 折叠状态管理 - 使用 useLlmChatUiState
 const { basicParamsExpanded, advancedParamsExpanded, specialFeaturesExpanded } =
   useLlmChatUiState();
@@ -74,7 +77,59 @@ const contextManagementExpanded = ref(true);
 // 上下文后处理折叠状态（局部状态）
 const postProcessingExpanded = ref(true);
 
-// 可用的后处理规则定义
+// --- 参数配置分组 ---
+
+const basicConfigs = computed(() => 
+  parameterConfigs.filter(c => c.group === 'basic' && supportedParameters.value[c.supportedKey])
+);
+
+const advancedConfigs = computed(() => 
+  parameterConfigs.filter(c => c.group === 'advanced' && supportedParameters.value[c.supportedKey])
+);
+
+const specialConfigs = computed(() => 
+  parameterConfigs.filter(c => c.group === 'special' && supportedParameters.value[c.supportedKey])
+);
+
+// --- 动态覆盖逻辑 ---
+
+// 计算 maxTokens 滑块的最大值
+const maxTokensLimit = computed(() => {
+  return props.contextLengthLimit || 131072;
+});
+
+// 覆盖配置对象
+const overrides = computed(() => ({
+  maxTokens: {
+    max: maxTokensLimit.value,
+  }
+}));
+
+// 监听上下文限制变化，自动调整 maxTokens 值
+watch(
+  () => props.contextLengthLimit,
+  (newLimit) => {
+    if (newLimit && localParams.value.maxTokens > newLimit) {
+      // 如果当前值超过了新的限制，自动调整到最大值
+      updateParameter("maxTokens", newLimit);
+    }
+
+    // 同时检查上下文管理的 maxContextTokens 是否超限
+    if (
+      newLimit &&
+      localParams.value.contextManagement?.maxContextTokens &&
+      localParams.value.contextManagement.maxContextTokens > newLimit
+    ) {
+      updateParameter("contextManagement", {
+        ...localParams.value.contextManagement,
+        maxContextTokens: newLimit,
+      });
+    }
+  }
+);
+
+// --- 上下文后处理逻辑 (保留原有逻辑) ---
+
 const availableRules = [
   {
     type: "merge-system-to-head" as const,
@@ -102,28 +157,23 @@ const availableRules = [
   },
 ];
 
-// 定义规则类型
 type RuleType = (typeof availableRules)[number]["type"];
 
-// 检查规则是否启用
 const isRuleEnabled = (ruleType: string) => {
   const rules = localParams.value.contextPostProcessing?.rules || [];
   return rules.some((r) => r.type === ruleType && r.enabled);
 };
 
-// 获取规则的分隔符
 const getRuleSeparator = (ruleType: string) => {
   const rules = localParams.value.contextPostProcessing?.rules || [];
   const rule = rules.find((r) => r.type === ruleType);
   return rule?.separator || "";
 };
 
-// 切换规则启用状态
 const toggleRule = (ruleType: string, enabled: boolean) => {
   const currentRules = localParams.value.contextPostProcessing?.rules || [];
 
   if (enabled) {
-    // 添加规则（如果不存在）
     const exists = currentRules.some((r) => r.type === ruleType);
     if (!exists) {
       const newRules = [
@@ -136,29 +186,26 @@ const toggleRule = (ruleType: string, enabled: boolean) => {
       ];
       updateParameter("contextPostProcessing", { rules: newRules });
     } else {
-      // 更新现有规则
       const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, enabled: true } : r));
       updateParameter("contextPostProcessing", { rules: newRules });
     }
   } else {
-    // 禁用规则
     const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, enabled: false } : r));
     updateParameter("contextPostProcessing", { rules: newRules });
   }
 };
 
-// 更新规则分隔符
 const updateRuleSeparator = (ruleType: string, separator: string) => {
   const currentRules = localParams.value.contextPostProcessing?.rules || [];
   const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, separator } : r));
   updateParameter("contextPostProcessing", { rules: newRules });
 };
 
-// 上下文统计数据
+// --- 上下文统计数据逻辑 (保留原有逻辑) ---
+
 const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
 const isLoadingStats = ref(false);
 
-// 获取当前会话的上下文统计
 const loadContextStats = async () => {
   const chatStore = useLlmChatStore();
   const session = chatStore.currentSession;
@@ -171,12 +218,10 @@ const loadContextStats = async () => {
   isLoadingStats.value = true;
   try {
     const { getLlmContextForPreview } = useChatHandler();
-    // 传入当前选中的智能体 ID，让上下文构建器使用它来计算统计数据。
-    // 如果 currentAgentId 为空，getLlmContextForPreview 内部会处理这种情况，只计算会话历史。
     const previewData = await getLlmContextForPreview(
       session,
       session.activeLeafId,
-      agentStore.currentAgentId ?? undefined // 明确传递当前选中的 agentId
+      agentStore.currentAgentId ?? undefined
     );
 
     if (previewData) {
@@ -190,163 +235,58 @@ const loadContextStats = async () => {
   }
 };
 
-// Store 引用（在 setup 顶层）
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
-
-// 用于跟踪消息生成状态
 let previousGeneratingCount = 0;
 
-// 初始加载统计
 onMounted(() => {
   loadContextStats();
 });
 
-// 监听会话变化，重新加载统计
-watch(
-  () => chatStore.currentSessionId,
-  () => {
-    loadContextStats();
-  }
-);
-
-// 监听活跃叶节点变化
-watch(
-  () => chatStore.currentSession?.activeLeafId,
-  () => {
-    loadContextStats();
-  }
-);
-
-// 监听智能体切换（模型可能改变，需要重新计算上下文统计）
-watch(
-  () => agentStore.currentAgentId,
-  () => {
-    loadContextStats();
-  }
-);
-
-// 监听智能体模型变化（用户在智能体内更换模型）
+watch(() => chatStore.currentSessionId, () => loadContextStats());
+watch(() => chatStore.currentSession?.activeLeafId, () => loadContextStats());
+watch(() => agentStore.currentAgentId, () => loadContextStats());
 watch(
   () => {
     if (!agentStore.currentAgentId) return null;
     const agent = agentStore.getAgentById(agentStore.currentAgentId);
     return agent?.modelId;
   },
-  () => {
-    loadContextStats();
-  }
+  () => loadContextStats()
 );
-
-// 监听上下文管理参数变化，重新计算统计
 watch(
   () => localParams.value.contextManagement,
-  () => {
-    // 延迟执行，避免频繁更新
-    setTimeout(() => {
-      loadContextStats();
-    }, 300);
-  },
+  () => setTimeout(loadContextStats, 300),
   { deep: true }
 );
-
-// 监听上下文后处理规则变化，重新计算统计
 watch(
   () => localParams.value.contextPostProcessing,
-  () => {
-    // 延迟执行，避免频繁更新
-    setTimeout(() => {
-      loadContextStats();
-    }, 300);
-  },
+  () => setTimeout(loadContextStats, 300),
   { deep: true }
 );
-
-// 监听消息生成完成，重新计算统计
-// 当 generatingNodes 从有值变为空时，说明所有消息都生成完成了
 watch(
   () => chatStore.generatingNodes.size,
   (newSize) => {
-    // 只在从生成中变为完成时刷新（size 从 > 0 变为 0）
     if (previousGeneratingCount > 0 && newSize === 0) {
       loadContextStats();
     }
     previousGeneratingCount = newSize;
   }
 );
-
-// 监听智能体预设消息变化，重新计算统计
 watch(
   () => {
     if (!agentStore.currentAgentId) return null;
     const agent = agentStore.getAgentById(agentStore.currentAgentId);
     return agent?.presetMessages;
   },
-  () => {
-    loadContextStats();
-  },
+  () => loadContextStats(),
   { deep: true }
 );
-
-// 监听会话中消息的编辑/删除等操作（通过 updatedAt 时间戳）
-// 但排除新消息生成时的更新（因为已经在上面的 generatingNodes 监听中处理）
 watch(
   () => chatStore.currentSession?.updatedAt,
   (newTime, oldTime) => {
-    // 只在非生成状态时才刷新（避免发送消息时立即刷新）
     if (chatStore.generatingNodes.size === 0 && newTime !== oldTime) {
       loadContextStats();
-    }
-  }
-);
-
-// 检查是否有高级参数
-const hasAdvancedParams = computed(() => {
-  return (
-    supportedParameters.value.seed ||
-    supportedParameters.value.stop ||
-    supportedParameters.value.maxCompletionTokens ||
-    supportedParameters.value.reasoningEffort ||
-    supportedParameters.value.logprobs ||
-    supportedParameters.value.topLogprobs
-  );
-});
-
-// 检查是否有特殊功能
-const hasSpecialFeatures = computed(() => {
-  return (
-    supportedParameters.value.thinking ||
-    supportedParameters.value.webSearch ||
-    supportedParameters.value.tools ||
-    supportedParameters.value.responseFormat
-  );
-});
-
-// 计算 maxTokens 滑块的最大值
-// 如果模型定义了上下文窗口限制，使用它；否则使用默认值 131072
-const maxTokensLimit = computed(() => {
-  return props.contextLengthLimit || 131072;
-});
-
-// 监听上下文限制变化，自动调整 maxTokens 值
-watch(
-  () => props.contextLengthLimit,
-  (newLimit) => {
-    if (newLimit && localParams.value.maxTokens > newLimit) {
-      // 如果当前值超过了新的限制，自动调整到最大值
-      updateParameter("maxTokens", newLimit);
-    }
-
-    // 同时检查上下文管理的 maxContextTokens 是否超限
-    if (
-      newLimit &&
-      localParams.value.contextManagement?.maxContextTokens &&
-      localParams.value.contextManagement.maxContextTokens > newLimit
-    ) {
-      updateParameter("contextManagement", {
-        ...localParams.value.contextManagement,
-        maxContextTokens: newLimit,
-      });
     }
   }
 );
@@ -356,282 +296,32 @@ watch(
   <div class="model-parameters-editor" :class="{ compact }">
     <!-- 基础参数分组 -->
     <ConfigSection title="基础参数" :icon="'i-ep-setting'" v-model:expanded="basicParamsExpanded">
-      <!-- Temperature -->
-      <div v-if="supportedParameters.temperature" class="param-group">
-        <label class="param-label">
-          <span>Temperature</span>
-          <el-input-number
-            :model-value="localParams.temperature"
-            @update:model-value="updateParameter('temperature', $event)"
-            :min="0"
-            :max="2"
-            :step="0.01"
-            :precision="2"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.temperature"
-          @update:model-value="updateParameter('temperature', $event)"
-          :min="0"
-          :max="2"
-          :step="0.01"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">
-          控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。
-        </div>
-      </div>
-
-      <!-- Max Tokens -->
-      <div v-if="supportedParameters.maxTokens" class="param-group">
-        <label class="param-label">
-          <span>Max Tokens</span>
-          <el-input-number
-            :model-value="localParams.maxTokens"
-            @update:model-value="updateParameter('maxTokens', $event)"
-            :min="256"
-            :max="maxTokensLimit"
-            :step="256"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.maxTokens"
-          @update:model-value="updateParameter('maxTokens', $event)"
-          :min="256"
-          :max="maxTokensLimit"
-          :step="256"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">
-          单次响应的最大 token 数量。
-          <span v-if="contextLengthLimit" class="limit-hint"
-            >（受模型上下文窗口限制: {{ contextLengthLimit.toLocaleString() }}）</span
-          >
-        </div>
-      </div>
-
-      <!-- Top P -->
-      <div v-if="supportedParameters.topP" class="param-group">
-        <label class="param-label">
-          <span>Top P</span>
-          <el-input-number
-            :model-value="localParams.topP ?? 0.9"
-            @update:model-value="updateParameter('topP', $event)"
-            :min="0"
-            :max="1"
-            :step="0.01"
-            :precision="2"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.topP ?? 0.9"
-          @update:model-value="updateParameter('topP', $event)"
-          :min="0"
-          :max="1"
-          :step="0.01"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">核采样概率（0-1）。控制候选词的多样性。</div>
-      </div>
-
-      <!-- Top K -->
-      <div v-if="supportedParameters.topK" class="param-group">
-        <label class="param-label">
-          <span>Top K</span>
-          <el-input-number
-            :model-value="localParams.topK ?? 40"
-            @update:model-value="updateParameter('topK', $event)"
-            :min="1"
-            :max="100"
-            :step="1"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.topK ?? 40"
-          @update:model-value="updateParameter('topK', $event)"
-          :min="1"
-          :max="100"
-          :step="1"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">保留概率最高的 K 个候选词。</div>
-      </div>
-
-      <!-- Frequency Penalty -->
-      <div v-if="supportedParameters.frequencyPenalty" class="param-group">
-        <label class="param-label">
-          <span>Frequency Penalty</span>
-          <el-input-number
-            :model-value="localParams.frequencyPenalty ?? 0"
-            @update:model-value="updateParameter('frequencyPenalty', $event)"
-            :min="-2"
-            :max="2"
-            :step="0.01"
-            :precision="2"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.frequencyPenalty ?? 0"
-          @update:model-value="updateParameter('frequencyPenalty', $event)"
-          :min="-2"
-          :max="2"
-          :step="0.01"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">降低重复词汇的出现频率（-2.0 到 2.0）。</div>
-      </div>
-
-      <!-- Presence Penalty -->
-      <div v-if="supportedParameters.presencePenalty" class="param-group">
-        <label class="param-label">
-          <span>Presence Penalty</span>
-          <el-input-number
-            :model-value="localParams.presencePenalty ?? 0"
-            @update:model-value="updateParameter('presencePenalty', $event)"
-            :min="-2"
-            :max="2"
-            :step="0.01"
-            :precision="2"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.presencePenalty ?? 0"
-          @update:model-value="updateParameter('presencePenalty', $event)"
-          :min="-2"
-          :max="2"
-          :step="0.01"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">鼓励模型谈论新话题（-2.0 到 2.0）。</div>
-      </div>
+      <ParameterItem
+        v-for="config in basicConfigs"
+        :key="config.key"
+        :config="config"
+        :model-value="localParams[config.key]"
+        @update:model-value="updateParameter(config.key, $event)"
+        :overrides="overrides[config.key as keyof typeof overrides]"
+      />
+      <div v-if="basicConfigs.length === 0" class="empty-hint">此模型没有可配置的基础参数</div>
     </ConfigSection>
 
     <!-- 高级参数分组 -->
     <ConfigSection
-      v-if="hasAdvancedParams"
+      v-if="advancedConfigs.length > 0"
       title="高级参数"
       :icon="'i-ep-tools'"
       v-model:expanded="advancedParamsExpanded"
     >
-      <!-- Seed -->
-      <div v-if="supportedParameters.seed" class="param-group">
-        <label class="param-label">
-          <span>Seed</span>
-          <el-input-number
-            :model-value="localParams.seed ?? undefined"
-            @update:model-value="updateParameter('seed', $event || undefined)"
-            placeholder="随机"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <div class="param-desc">随机种子，用于确定性采样。设置相同的种子可以获得相同的输出。</div>
-      </div>
-
-      <!-- Stop Sequences -->
-      <div v-if="supportedParameters.stop" class="param-group">
-        <label class="param-label param-label-single">
-          <span>Stop Sequences</span>
-        </label>
-        <el-input
-          :model-value="
-            Array.isArray(localParams.stop) ? localParams.stop.join(', ') : (localParams.stop ?? '')
-          "
-          @update:model-value="
-            updateParameter(
-              'stop',
-              $event ? $event.split(',').map((s: string) => s.trim()) : undefined
-            )
-          "
-          placeholder="用逗号分隔多个序列"
-        />
-        <div class="param-desc">停止序列，模型遇到这些文本时会停止生成。</div>
-      </div>
-
-      <!-- Max Completion Tokens -->
-      <div v-if="supportedParameters.maxCompletionTokens" class="param-group">
-        <label class="param-label">
-          <span>Max Completion Tokens</span>
-          <el-input-number
-            :model-value="localParams.maxCompletionTokens ?? undefined"
-            @update:model-value="updateParameter('maxCompletionTokens', $event || undefined)"
-            :min="1"
-            :max="128000"
-            placeholder="默认"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <div class="param-desc">补全中可生成的最大标记数。优先级高于 Max Tokens。</div>
-      </div>
-
-      <!-- Reasoning Effort -->
-      <div v-if="supportedParameters.reasoningEffort" class="param-group">
-        <label class="param-label">
-          <span>Reasoning Effort</span>
-          <el-select
-            :model-value="localParams.reasoningEffort ?? ''"
-            @update:model-value="updateParameter('reasoningEffort', $event || undefined)"
-            placeholder="默认"
-            style="width: 130px"
-          >
-            <el-option label="默认" value="" />
-            <el-option label="Low（低）" value="low" />
-            <el-option label="Medium（中）" value="medium" />
-            <el-option label="High（高）" value="high" />
-          </el-select>
-        </label>
-        <div class="param-desc">推理工作约束（OpenAI o1 系列模型）。</div>
-      </div>
-
-      <!-- Logprobs -->
-      <div v-if="supportedParameters.logprobs" class="param-group">
-        <label class="param-label">
-          <span>Logprobs</span>
-          <el-switch
-            :model-value="localParams.logprobs ?? false"
-            @update:model-value="updateParameter('logprobs', $event)"
-          />
-        </label>
-        <div class="param-desc">是否返回 logprobs（对数概率）。</div>
-      </div>
-
-      <!-- Top Logprobs -->
-      <div v-if="supportedParameters.topLogprobs && localParams.logprobs" class="param-group">
-        <label class="param-label">
-          <span>Top Logprobs</span>
-          <el-input-number
-            :model-value="localParams.topLogprobs ?? 0"
-            @update:model-value="updateParameter('topLogprobs', $event)"
-            :min="0"
-            :max="20"
-            :step="1"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.topLogprobs ?? 0"
-          @update:model-value="updateParameter('topLogprobs', $event)"
-          :min="0"
-          :max="20"
-          :step="1"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">返回的 top logprobs 数量（0-20）。</div>
-      </div>
+      <ParameterItem
+        v-for="config in advancedConfigs"
+        :key="config.key"
+        :config="config"
+        :model-value="localParams[config.key]"
+        @update:model-value="updateParameter(config.key, $event)"
+        :overrides="overrides[config.key as keyof typeof overrides]"
+      />
     </ConfigSection>
 
     <!-- 上下文管理分组 -->
@@ -965,24 +655,19 @@ watch(
 
     <!-- 特殊功能分组 -->
     <ConfigSection
-      v-if="hasSpecialFeatures"
+      v-if="specialConfigs.length > 0"
       title="特殊功能"
       :icon="'i-ep-magic-stick'"
       v-model:expanded="specialFeaturesExpanded"
     >
-      <!-- Claude Thinking Mode -->
-      <div v-if="supportedParameters.thinking" class="param-group">
-        <label class="param-label">
-          <span>Thinking Mode (Claude)</span>
-          <el-switch
-            :model-value="localParams.thinking?.type === 'enabled'"
-            @update:model-value="
-              updateParameter('thinking', $event ? { type: 'enabled' } : { type: 'disabled' })
-            "
-          />
-        </label>
-        <div class="param-desc">启用 Claude 的思考模式，模型会先思考再回答。</div>
-      </div>
+      <ParameterItem
+        v-for="config in specialConfigs"
+        :key="config.key"
+        :config="config"
+        :model-value="localParams[config.key]"
+        @update:model-value="updateParameter(config.key, $event)"
+        :overrides="overrides[config.key as keyof typeof overrides]"
+      />
 
       <div class="param-hint">
         其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。
@@ -1196,8 +881,6 @@ watch(
   font-size: 11px;
 }
 
-/* 响应式调整 - 移除不再需要的 @container 查询，因为现在默认就是垂直布局 */
-
 .param-group {
   padding: 12px;
   margin-bottom: 20px;
@@ -1216,45 +899,8 @@ watch(
   color: var(--text-color);
 }
 
-.param-label-single {
-  justify-content: flex-start;
-}
-
-.param-value {
-  font-family: "Consolas", "Monaco", monospace;
-  color: var(--primary-color);
-  font-size: 12px;
-}
-
 .param-input {
   width: 100px !important;
-}
-
-/* Element Plus 组件样式调整 */
-:deep(.el-slider__runway) {
-  background-color: var(--container-bg);
-  border: 1px solid var(--border-color);
-}
-
-:deep(.el-slider__bar) {
-  background-color: var(--primary-color);
-}
-
-:deep(.el-slider__button) {
-  border-color: var(--primary-color);
-  background-color: var(--primary-color);
-}
-
-:deep(.el-select .el-input__wrapper) {
-  background-color: var(--container-bg);
-}
-
-:deep(.el-switch__core) {
-  background-color: var(--border-color);
-}
-
-:deep(.el-switch.is-checked .el-switch__core) {
-  background-color: var(--primary-color);
 }
 
 .param-desc {
@@ -1351,5 +997,15 @@ watch(
 .rule-separator :deep(.el-input) {
   flex: 1;
   max-width: 300px;
+}
+
+.empty-hint {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  background: var(--container-bg);
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
 }
 </style>

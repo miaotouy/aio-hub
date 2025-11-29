@@ -1,0 +1,187 @@
+import type { LlmParameters } from "../types";
+import type { LlmParameterSupport } from "@/types/llm-profiles";
+
+export type ParameterType = "slider" | "switch" | "select" | "number" | "text";
+
+export interface ParameterConfig {
+  key: keyof LlmParameters;
+  label: string;
+  type: ParameterType;
+  description: string;
+  group: "basic" | "advanced" | "special";
+  supportedKey: keyof LlmParameterSupport; // 用于判断是否显示
+  
+  // Slider/Number specific
+  min?: number;
+  max?: number;
+  step?: number;
+  precision?: number;
+  
+  // Select specific
+  options?: { label: string; value: any }[];
+  
+  // Transform functions (optional)
+  format?: (val: any) => any;
+  parse?: (val: any) => any;
+  
+  // Placeholder for text/number input
+  placeholder?: string;
+}
+
+export const parameterConfigs: ParameterConfig[] = [
+  // --- Basic Parameters ---
+  {
+    key: "temperature",
+    label: "Temperature",
+    type: "slider",
+    description: "控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。",
+    group: "basic",
+    supportedKey: "temperature",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    precision: 2,
+  },
+  {
+    key: "maxTokens",
+    label: "Max Tokens",
+    type: "slider",
+    description: "单次响应的最大 token 数量。",
+    group: "basic",
+    supportedKey: "maxTokens",
+    min: 256,
+    // max will be dynamic based on model context limit
+    step: 256,
+  },
+  {
+    key: "topP",
+    label: "Top P",
+    type: "slider",
+    description: "核采样概率（0-1）。控制候选词的多样性。",
+    group: "basic",
+    supportedKey: "topP",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    precision: 2,
+  },
+  {
+    key: "topK",
+    label: "Top K",
+    type: "slider",
+    description: "保留概率最高的 K 个候选词。",
+    group: "basic",
+    supportedKey: "topK",
+    min: 1,
+    max: 100,
+    step: 1,
+  },
+  {
+    key: "frequencyPenalty",
+    label: "Frequency Penalty",
+    type: "slider",
+    description: "降低重复词汇的出现频率（-2.0 到 2.0）。",
+    group: "basic",
+    supportedKey: "frequencyPenalty",
+    min: -2,
+    max: 2,
+    step: 0.01,
+    precision: 2,
+  },
+  {
+    key: "presencePenalty",
+    label: "Presence Penalty",
+    type: "slider",
+    description: "鼓励模型谈论新话题（-2.0 到 2.0）。",
+    group: "basic",
+    supportedKey: "presencePenalty",
+    min: -2,
+    max: 2,
+    step: 0.01,
+    precision: 2,
+  },
+
+  // --- Advanced Parameters ---
+  {
+    key: "seed",
+    label: "Seed",
+    type: "number",
+    description: "随机种子，用于确定性采样。设置相同的种子可以获得相同的输出。",
+    group: "advanced",
+    supportedKey: "seed",
+    placeholder: "随机",
+  },
+  {
+    key: "stop",
+    label: "Stop Sequences",
+    type: "text",
+    description: "停止序列，模型遇到这些文本时会停止生成。",
+    group: "advanced",
+    supportedKey: "stop",
+    placeholder: "用逗号分隔多个序列",
+    // format array to string for display
+    format: (val: string[] | string | undefined) => {
+        if (Array.isArray(val)) return val.join(", ");
+        return val || "";
+    },
+    // parse string back to array
+    parse: (val: string) => val ? val.split(",").map(s => s.trim()) : undefined
+  },
+  {
+    key: "maxCompletionTokens",
+    label: "Max Completion Tokens",
+    type: "slider",
+    description: "补全中可生成的最大标记数。优先级高于 Max Tokens。",
+    group: "advanced",
+    supportedKey: "maxCompletionTokens",
+    min: 1,
+    max: 128000,
+    step: 64,
+    placeholder: "默认",
+  },
+  {
+    key: "reasoningEffort",
+    label: "Reasoning Effort",
+    type: "select",
+    description: "推理工作约束（OpenAI o1 系列模型）。",
+    group: "advanced",
+    supportedKey: "reasoningEffort",
+    options: [
+      { label: "默认", value: "" },
+      { label: "Low（低）", value: "low" },
+      { label: "Medium（中）", value: "medium" },
+      { label: "High（高）", value: "high" },
+    ],
+  },
+  {
+    key: "logprobs",
+    label: "Logprobs",
+    type: "switch",
+    description: "是否返回 logprobs（对数概率）。",
+    group: "advanced",
+    supportedKey: "logprobs",
+  },
+  {
+    key: "topLogprobs",
+    label: "Top Logprobs",
+    type: "slider",
+    description: "返回的 top logprobs 数量（0-20）。",
+    group: "advanced",
+    supportedKey: "topLogprobs",
+    min: 0,
+    max: 20,
+    step: 1,
+  },
+
+  // --- Special Features ---
+  {
+    key: "thinking",
+    label: "Thinking Mode (Claude)",
+    type: "switch",
+    description: "启用 Claude 的思考模式，模型会先思考再回答。",
+    group: "special",
+    supportedKey: "thinking",
+    format: (val: any) => val?.type === 'enabled',
+    parse: (val: boolean) => val ? { type: 'enabled' } : { type: 'disabled' }
+  }
+];

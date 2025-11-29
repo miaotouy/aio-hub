@@ -125,5 +125,7 @@ export interface ChatMessageNode {
     firstTokenTime?: number;
     /** 平均生成速度 (tokens/s) */
     tokensPerSecond?: number;
+    /** 请求参数快照（记录生成此消息时实际使用的参数） */
+    requestParameters?: Record<string, any>;
   };
 }

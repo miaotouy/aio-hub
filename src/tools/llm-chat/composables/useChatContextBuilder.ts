@@ -14,6 +14,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 import { useMessageBuilder } from "./useMessageBuilder";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { useAgentStore } from "../agentStore";
+import { ALL_LLM_PARAMETER_KEYS } from "../config/parameter-config";
 import { resolveAvatarPath } from "./useResolvedAvatar";
 import type { ProcessableMessage } from "./useMessageProcessor";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
@@ -1061,12 +1062,45 @@ export function useChatContextBuilder() {
       },
       agentInfo: {
         id: effectiveAgentId ?? '',
-        name: agent?.name,
-        icon: resolveAvatarPath(agent, 'agent') || undefined,
-        profileId: agentConfig?.profileId ?? '',
-        modelId: agentConfig?.modelId ?? '',
+        name: targetNode.metadata?.agentName || agent?.name,
+        icon: targetNode.metadata?.agentIcon || resolveAvatarPath(agent, 'agent') || undefined,
+        profileId: targetNode.metadata?.profileId || agentConfig?.profileId || '',
+        modelId: targetNode.metadata?.modelId || agentConfig?.modelId || '',
       },
-      parameters: agentConfig?.parameters,
+      // 优先使用节点元数据中的参数快照，否则回退到使用当前配置（并应用过滤）
+      parameters: (() => {
+        // 1. 尝试读取历史快照
+        if (targetNode.metadata?.requestParameters) {
+          return targetNode.metadata.requestParameters;
+        }
+
+        // 2. 回退逻辑：使用当前配置并过滤（兼容旧数据）
+        if (!agentConfig?.parameters) return undefined;
+        
+        const configParams = agentConfig.parameters;
+        // 注意：如果 enabledParameters 不存在或不是数组，则视为不进行过滤（显示所有参数）
+        // 这可能是用户遇到“没过滤”的原因之一，所以这里我们加一个保险：
+        // 如果是回退模式，且 metadata.modelId 与当前 modelId 不一致，我们应该更加谨慎
+        // 但目前我们只能依赖 enabledParameters
+        const isStrictFilter = Array.isArray(configParams.enabledParameters);
+        const enabledList = configParams.enabledParameters || [];
+        
+        const effectiveParams: Record<string, any> = {};
+        
+        ALL_LLM_PARAMETER_KEYS.forEach((key) => {
+          const hasValue = configParams[key] !== undefined;
+          
+          // 如果启用了严格过滤，则只保留在列表中的参数
+          // 否则保留所有参数
+          const isEnabled = isStrictFilter ? enabledList.includes(key) : true;
+
+          if (hasValue && isEnabled) {
+            effectiveParams[key] = configParams[key];
+          }
+        });
+        
+        return effectiveParams;
+      })(),
     };
 
     logger.debug("🔍 生成上下文预览数据", {

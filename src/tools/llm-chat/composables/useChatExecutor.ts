@@ -13,6 +13,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { ALL_LLM_PARAMETER_KEYS } from "../config/parameter-config";
 import { useTopicNamer } from "./useTopicNamer";
 import { useSessionManager } from "./useSessionManager";
 import { useMessageProcessor } from "./useMessageProcessor";
@@ -131,19 +132,38 @@ export function useChatExecutor() {
       ...assistantNode.metadata,
       requestStartTime: Date.now(),
     };
+try {
+  const { sendRequest } = useLlmRequest();
 
-    // 辅助函数：获取生效的参数
-    const getEffectiveParam = <K extends keyof import("../types").LlmParameters>(key: K) => {
-      const params = agentConfig.parameters;
-      // 如果存在 enabledParameters 且该参数不在其中，则视为禁用（返回 undefined）
-      if (params.enabledParameters && !params.enabledParameters.includes(key)) {
-        return undefined;
+  // 动态构建生效的参数对象
+  // 策略：如果 enabledParameters 存在，则仅包含其中的参数；否则（兼容旧数据）包含所有非 undefined 参数
+  const effectiveParams: Record<string, any> = {};
+  const configParams = agentConfig.parameters;
+  
+  // 检查是否启用了严格过滤模式（即存在 enabledParameters 字段）
+  const isStrictFilter = Array.isArray(configParams.enabledParameters);
+  const enabledList = configParams.enabledParameters || [];
+
+  ALL_LLM_PARAMETER_KEYS.forEach((key) => {
+    const hasValue = configParams[key] !== undefined;
+    // 如果是严格过滤模式，必须在 enabledList 中；否则只要有值就发送
+    const isEnabled = isStrictFilter ? enabledList.includes(key) : true;
+
+    if (hasValue && isEnabled) {
+      effectiveParams[key] = configParams[key];
+    }
+  });
+
+      // 保存参数快照到节点元数据
+      // 这样后续查看历史记录时，能看到当时真实的请求参数
+      assistantNode.metadata = {
+        ...assistantNode.metadata,
+        requestParameters: effectiveParams,
+      };
+      // 确保 session 中的节点也更新了
+      if (session.nodes[assistantNode.id]) {
+        session.nodes[assistantNode.id].metadata = assistantNode.metadata;
       }
-      return params[key];
-    };
-
-    try {
-      const { sendRequest } = useLlmRequest();
 
       // 构建 LLM 上下文（传递会话、用户档案和模型能力）
       let { messages } = await buildLlmContext(
@@ -212,43 +232,7 @@ export function useChatExecutor() {
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
         messages,
-        // 基础采样参数
-        temperature: getEffectiveParam("temperature"),
-        maxTokens: getEffectiveParam("maxTokens"),
-        topP: getEffectiveParam("topP"),
-        topK: getEffectiveParam("topK"),
-        frequencyPenalty: getEffectiveParam("frequencyPenalty"),
-        presencePenalty: getEffectiveParam("presencePenalty"),
-        seed: getEffectiveParam("seed"),
-        stop: getEffectiveParam("stop"),
-        // 高级参数
-        n: getEffectiveParam("n"),
-        logprobs: getEffectiveParam("logprobs"),
-        topLogprobs: getEffectiveParam("topLogprobs"),
-        maxCompletionTokens: getEffectiveParam("maxCompletionTokens"),
-        reasoningEffort: getEffectiveParam("reasoningEffort"),
-        logitBias: getEffectiveParam("logitBias"),
-        store: getEffectiveParam("store"),
-        user: getEffectiveParam("user"),
-        serviceTier: getEffectiveParam("serviceTier"),
-        // 响应格式
-        responseFormat: getEffectiveParam("responseFormat"),
-        // 工具调用
-        tools: getEffectiveParam("tools"),
-        toolChoice: getEffectiveParam("toolChoice"),
-        parallelToolCalls: getEffectiveParam("parallelToolCalls"),
-        // 多模态输出
-        modalities: getEffectiveParam("modalities"),
-        audio: getEffectiveParam("audio"),
-        prediction: getEffectiveParam("prediction"),
-        // 特殊功能
-        webSearchOptions: getEffectiveParam("webSearchOptions"),
-        streamOptions: getEffectiveParam("streamOptions"),
-        metadata: getEffectiveParam("metadata"),
-        // Claude 特有参数
-        thinking: getEffectiveParam("thinking"),
-        stopSequences: getEffectiveParam("stopSequences"),
-        claudeMetadata: getEffectiveParam("claudeMetadata"),
+        ...effectiveParams, // 展开动态构建的参数，确保未启用的参数连 key 都不存在
         // 流式响应（根据用户设置）
         stream: settings.value.uiPreferences.isStreaming,
         signal: abortController.signal,

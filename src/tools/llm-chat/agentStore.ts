@@ -122,6 +122,8 @@ export const useAgentStore = defineStore('llmChatAgent', {
         tags: options?.tags,
         category: options?.category,
         parameters: {
+          // 核心控制参数
+          enabledParameters: options?.parameters?.enabledParameters,
           // 基础采样参数
           temperature: options?.parameters?.temperature ?? 0.7,
           maxTokens: options?.parameters?.maxTokens ?? 8192,
@@ -481,6 +483,8 @@ export const useAgentStore = defineStore('llmChatAgent', {
 
       // 合并智能体参数和覆盖参数
       const parameters: LlmParameters = {
+        // 核心控制参数
+        enabledParameters: overrides?.parameterOverrides?.enabledParameters ?? agent.parameters.enabledParameters,
         // 基础采样参数
         temperature: overrides?.parameterOverrides?.temperature ?? agent.parameters.temperature,
         maxTokens: overrides?.parameterOverrides?.maxTokens ?? agent.parameters.maxTokens,

@@ -1,6 +1,50 @@
 import type { LlmParameters } from "../types";
 import type { LlmParameterSupport } from "@/types/llm-profiles";
 
+/**
+ * 所有支持发送给 LLM 的参数键列表（白名单）
+ * 用于过滤掉内部状态字段（如 enabledParameters, contextManagement 等）
+ */
+export const ALL_LLM_PARAMETER_KEYS = [
+  // 基础采样参数
+  "temperature",
+  "maxTokens",
+  "topP",
+  "topK",
+  "frequencyPenalty",
+  "presencePenalty",
+  "seed",
+  "stop",
+  // 高级参数
+  "n",
+  "logprobs",
+  "topLogprobs",
+  "maxCompletionTokens",
+  "reasoningEffort",
+  "logitBias",
+  "store",
+  "user",
+  "serviceTier",
+  // 响应格式
+  "responseFormat",
+  // 工具调用
+  "tools",
+  "toolChoice",
+  "parallelToolCalls",
+  // 多模态输出
+  "modalities",
+  "audio",
+  "prediction",
+  // 特殊功能
+  "webSearchOptions",
+  "streamOptions",
+  "metadata",
+  // Claude 特有参数
+  "thinking",
+  "stopSequences",
+  "claudeMetadata",
+] as const;
+
 export type ParameterType = "slider" | "switch" | "select" | "number" | "text";
 
 export interface ParameterConfig {

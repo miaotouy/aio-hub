@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import {
-  acquireBlobUrl,
-  releaseBlobUrl,
-  acquireBlobUrlSync,
-} from "@/utils/avatarImageCache";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { acquireBlobUrl, releaseBlobUrl, acquireBlobUrlSync } from "@/utils/avatarImageCache";
 import { useIntersectionObserver } from "@vueuse/core";
 
 interface Props {
@@ -72,15 +69,17 @@ const sanitizedSrc = computed(() => {
 
 // 判断是否为图片路径
 const isImagePath = computed(() => {
+  const s = sanitizedSrc.value;
   return (
-    sanitizedSrc.value &&
-    (sanitizedSrc.value.startsWith("/") ||
-      sanitizedSrc.value.startsWith("appdata://") ||
-      sanitizedSrc.value.startsWith("http://") ||
-      sanitizedSrc.value.startsWith("https://") ||
-      sanitizedSrc.value.startsWith("data:") ||
-      /^[A-Za-z]:[\/\\]/.test(sanitizedSrc.value) || // Windows 绝对路径（支持正反斜杠）
-      sanitizedSrc.value.startsWith("\\\\")) // UNC 路径
+    s &&
+    (s.startsWith("/") ||
+      s.startsWith("appdata://") ||
+      s.startsWith("http://") ||
+      s.startsWith("https://") ||
+      s.startsWith("data:") ||
+      s.startsWith("file://") ||
+      /^[A-Za-z]:[\/\\]/.test(s) || // Windows 绝对路径（支持正反斜杠）
+      s.startsWith("\\\\")) // UNC 路径
   );
 });
 
@@ -96,7 +95,7 @@ const processSrc = async () => {
     return;
   }
 
-  // HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
+  // 1. HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
   if (
     currentSrc.startsWith("http") ||
     currentSrc.startsWith("data:") ||
@@ -109,18 +108,43 @@ const processSrc = async () => {
     return;
   }
 
-  // appdata:// 协议或本地绝对路径 - 使用缓存获取 Blob URL
+  // 2. 本地绝对路径或 file:// 协议 - 使用 convertFileSrc
   if (
-    currentSrc.startsWith("appdata://") ||
-    /^[A-Za-z]:[\/\\]/.test(currentSrc) || // Windows 绝对路径
-    currentSrc.startsWith("\\\\") // UNC 路径
+    currentSrc.startsWith("file://") ||
+    /^[A-Za-z]:[\/\\]/.test(currentSrc) ||
+    currentSrc.startsWith("\\\\")
   ) {
+    let path = currentSrc;
+    if (path.startsWith("file://")) {
+      try {
+        // 尝试解析 file URL
+        const url = new URL(currentSrc);
+        path = decodeURIComponent(url.pathname);
+        // Windows 上 pathname 开头可能是 /C:/... 需要去掉开头的 /
+        if (/^\/[A-Za-z]:/.test(path)) {
+          path = path.slice(1);
+        }
+      } catch (e) {
+        // 解析失败，简单去掉前缀
+        path = currentSrc.replace(/^file:\/\//, "");
+      }
+    }
+
+    processedSrc.value = convertFileSrc(path);
+    isSrcReady.value = true;
+    imageLoadFailed.value = false;
+    managedSrc.value = null;
+    return;
+  }
+
+  // 3. appdata:// 协议 - 使用缓存获取 Blob URL
+  if (currentSrc.startsWith("appdata://")) {
     // 如果启用了懒加载且尚未进入视口，则暂停加载
     if (props.lazy && !shouldLoad.value) {
       return;
     }
 
-    // 1. 尝试同步获取缓存（避免闪烁）
+    // 3.1 尝试同步获取缓存（避免闪烁）
     const cachedUrl = acquireBlobUrlSync(currentSrc);
     if (cachedUrl) {
       processedSrc.value = cachedUrl;
@@ -130,23 +154,21 @@ const processSrc = async () => {
       return;
     }
 
-    // 2. 缓存未命中，进入异步加载状态
+    // 3.2 缓存未命中，进入异步加载状态
     isSrcReady.value = false;
     imageLoadFailed.value = false;
     processedSrc.value = "";
     managedSrc.value = null; // 重置管理状态
 
     const blobUrl = await acquireBlobUrl(currentSrc);
-    // 再次检查 src 是否在等待期间发生了变化（虽然 watch 会处理，但为了安全）
+    // 再次检查 src 是否在等待期间发生了变化
     if (sanitizedSrc.value !== _currentProcessingSrc) return;
 
     if (blobUrl) {
       processedSrc.value = blobUrl;
       managedSrc.value = currentSrc; // 标记为已管理
     } else {
-      console.error(
-        `[Avatar Debug] FAILED: Could not acquire blob url for src: ${currentSrc}`
-      );
+      console.error(`[Avatar Debug] FAILED: Could not acquire blob url for src: ${currentSrc}`);
       imageLoadFailed.value = true;
     }
     isSrcReady.value = true;
@@ -164,13 +186,8 @@ watch(
   sanitizedSrc,
   (_newSrc, oldSrc) => {
     _currentProcessingSrc = _newSrc;
-    // 如果旧的 src 是我们管理的 appdata:// 或本地路径，则释放它
-    if (
-      oldSrc &&
-      (oldSrc.startsWith("appdata://") ||
-        /^[A-Za-z]:[\/\\]/.test(oldSrc) ||
-        oldSrc.startsWith("\\\\"))
-    ) {
+    // 如果旧的 src 是我们管理的 appdata:// (注意：现在本地路径不由 blob 管理了)，则释放它
+    if (oldSrc && oldSrc.startsWith("appdata://")) {
       releaseBlobUrl(oldSrc);
     }
     processSrc();

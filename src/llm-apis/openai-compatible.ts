@@ -9,6 +9,33 @@ import {
   buildBase64DataUrl,
 } from "./request-builder";
 
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("openai-compatible");
+
+// 定义所有已知的、非模型参数的顶层选项键
+// 用于从 options 中分离出需要透传的自定义模型参数
+const KNOWN_NON_MODEL_OPTIONS_KEYS = [
+  "messages",
+  "modelId",
+  "stream",
+  "onStream",
+  "onReasoningStream",
+  "signal",
+  "maxRetries",
+  "timeout",
+  // LlmParameters 中定义的键也会被 options 继承，这里把它们都列出来
+  "temperature", "maxTokens", "topP", "topK", "frequencyPenalty", "presencePenalty", "seed", "stop",
+  "n", "logprobs", "topLogprobs", "maxCompletionTokens", "reasoningEffort", "logitBias", "store",
+  "user", "serviceTier", "responseFormat", "tools", "toolChoice", "parallelToolCalls",
+  "modalities", "audio", "prediction", "webSearchOptions", "streamOptions", "metadata",
+  "thinking", "stopSequences", "claudeMetadata", "safetySettings", "contextManagement",
+  "contextPostProcessing", "enabledParameters",
+  // custom 字段是参数容器，不应被透传
+  "custom",
+];
+
+
 /**
  * 调用 OpenAI 兼容格式的 API
  */
@@ -165,6 +192,46 @@ export const callOpenAiCompatibleApi = async (
     body.safety_settings = extendedOptions.safetySettings;
   }
 
+  // 警告：如果 custom 字段仍然存在，说明上游逻辑可能存在问题
+  if (extendedOptions.custom && typeof extendedOptions.custom === "object" && Object.keys(extendedOptions.custom).length > 0) {
+    logger.warn(
+      "检测到 'custom' 参数容器，但它未被上游逻辑解包。这可能是一个错误。",
+      { customParams: extendedOptions.custom }
+    );
+  }
+
+  // 动态透传所有未知的自定义参数
+  for (const key in options) {
+    if (Object.prototype.hasOwnProperty.call(options, key)) {
+      // @ts-expect-error - key is a string
+      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.includes(key) && options[key] !== undefined) {
+        // 直接使用原始 key，不强制转换 snake_case
+        // 既然是自定义参数，用户在 JSON 中输入什么 key，就应该原样发送什么 key
+        // 这样可以兼容那些可能使用驼峰命名的非标准参数
+        const rawKey = key;
+        // @ts-expect-error - key is a string
+        const value = options[key];
+
+        // 检查是否需要合并对象
+        if (
+          body[rawKey] &&
+          typeof body[rawKey] === "object" &&
+          !Array.isArray(body[rawKey]) &&
+          body[rawKey] !== null &&
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          value !== null
+        ) {
+          // 执行浅合并，对于 LLM 参数的单层嵌套（如 metadata）足够了
+          body[rawKey] = { ...body[rawKey], ...value };
+        } else {
+          body[rawKey] = value;
+        }
+      }
+    }
+  }
+
   // 如果启用流式响应
   if (options.stream && options.onStream) {
     body.stream = true;
@@ -225,19 +292,19 @@ export const callOpenAiCompatibleApi = async (
               totalTokens: json.usage.total_tokens,
               promptTokensDetails: json.usage.prompt_tokens_details
                 ? {
-                    cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
-                    audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-                  }
+                  cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+                  audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+                }
                 : undefined,
               completionTokensDetails: json.usage.completion_tokens_details
                 ? {
-                    reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
-                    audioTokens: json.usage.completion_tokens_details.audio_tokens,
-                    acceptedPredictionTokens:
-                      json.usage.completion_tokens_details.accepted_prediction_tokens,
-                    rejectedPredictionTokens:
-                      json.usage.completion_tokens_details.rejected_prediction_tokens,
-                  }
+                  reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
+                  audioTokens: json.usage.completion_tokens_details.audio_tokens,
+                  acceptedPredictionTokens:
+                    json.usage.completion_tokens_details.accepted_prediction_tokens,
+                  rejectedPredictionTokens:
+                    json.usage.completion_tokens_details.rejected_prediction_tokens,
+                }
                 : undefined,
             };
           }
@@ -298,44 +365,44 @@ export const callOpenAiCompatibleApi = async (
   // 提取音频信息
   const audio = message?.audio
     ? {
-        id: message.audio.id,
-        data: message.audio.data,
-        transcript: message.audio.transcript,
-        expiresAt: message.audio.expires_at,
-      }
+      id: message.audio.id,
+      data: message.audio.data,
+      transcript: message.audio.transcript,
+      expiresAt: message.audio.expires_at,
+    }
     : undefined;
 
   // 处理 logprobs（包括 refusal）
   const logprobs = choice.logprobs
     ? {
-        content: choice.logprobs.content,
-        refusal: choice.logprobs.refusal,
-      }
+      content: choice.logprobs.content,
+      refusal: choice.logprobs.refusal,
+    }
     : undefined;
 
   // 构建 usage 信息
   const usage = data.usage
     ? {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-        totalTokens: data.usage.total_tokens,
-        promptTokensDetails: data.usage.prompt_tokens_details
-          ? {
-              cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
-              audioTokens: data.usage.prompt_tokens_details.audio_tokens,
-            }
-          : undefined,
-        completionTokensDetails: data.usage.completion_tokens_details
-          ? {
-              reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
-              audioTokens: data.usage.completion_tokens_details.audio_tokens,
-              acceptedPredictionTokens:
-                data.usage.completion_tokens_details.accepted_prediction_tokens,
-              rejectedPredictionTokens:
-                data.usage.completion_tokens_details.rejected_prediction_tokens,
-            }
-          : undefined,
-      }
+      promptTokens: data.usage.prompt_tokens,
+      completionTokens: data.usage.completion_tokens,
+      totalTokens: data.usage.total_tokens,
+      promptTokensDetails: data.usage.prompt_tokens_details
+        ? {
+          cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
+          audioTokens: data.usage.prompt_tokens_details.audio_tokens,
+        }
+        : undefined,
+      completionTokensDetails: data.usage.completion_tokens_details
+        ? {
+          reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
+          audioTokens: data.usage.completion_tokens_details.audio_tokens,
+          acceptedPredictionTokens:
+            data.usage.completion_tokens_details.accepted_prediction_tokens,
+          rejectedPredictionTokens:
+            data.usage.completion_tokens_details.rejected_prediction_tokens,
+        }
+        : undefined,
+    }
     : undefined;
 
   // 如果有拒绝消息，优先返回拒绝消息

@@ -3,7 +3,7 @@
  * 负责核心的 LLM 请求执行逻辑，消除重复代码
  */
 
-import type { ChatSession, ChatMessageNode } from "../types";
+import type { ChatSession, ChatMessageNode, LlmParameters } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useAgentStore } from "../agentStore";
 import { useUserProfileStore } from "../userProfileStore";
@@ -136,23 +136,27 @@ try {
   const { sendRequest } = useLlmRequest();
 
   // 动态构建生效的参数对象
-  // 策略：如果 enabledParameters 存在，则仅包含其中的参数；否则（兼容旧数据）包含所有非 undefined 参数
   const effectiveParams: Record<string, any> = {};
   const configParams = agentConfig.parameters;
-  
-  // 检查是否启用了严格过滤模式（即存在 enabledParameters 字段）
+
+  // 1. 处理标准参数，并应用 enabledParameters 过滤
   const isStrictFilter = Array.isArray(configParams.enabledParameters);
-  const enabledList = configParams.enabledParameters || [];
+  const enabledList = new Set(configParams.enabledParameters || []);
 
-  ALL_LLM_PARAMETER_KEYS.forEach((key) => {
-    const hasValue = configParams[key] !== undefined;
-    // 如果是严格过滤模式，必须在 enabledList 中；否则只要有值就发送
-    const isEnabled = isStrictFilter ? enabledList.includes(key) : true;
+  for (const key of ALL_LLM_PARAMETER_KEYS) {
+    const value = configParams[key as keyof Omit<LlmParameters, 'custom'>];
+    if (value === undefined) continue;
 
-    if (hasValue && isEnabled) {
-      effectiveParams[key] = configParams[key];
+    const isEnabled = isStrictFilter ? enabledList.has(key as any) : true;
+    if (isEnabled) {
+      effectiveParams[key] = value;
     }
-  });
+  }
+
+  // 2. 解包并添加自定义参数
+  if (configParams.custom && typeof configParams.custom === 'object') {
+    Object.assign(effectiveParams, configParams.custom);
+  }
 
       // 保存参数快照到节点元数据
       // 这样后续查看历史记录时，能看到当时真实的请求参数

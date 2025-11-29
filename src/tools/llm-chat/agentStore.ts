@@ -122,45 +122,13 @@ export const useAgentStore = defineStore('llmChatAgent', {
         tags: options?.tags,
         category: options?.category,
         parameters: {
-          // 核心控制参数
-          enabledParameters: options?.parameters?.enabledParameters,
-          // 基础采样参数
-          temperature: options?.parameters?.temperature ?? 0.7,
-          maxTokens: options?.parameters?.maxTokens ?? 8192,
-          topP: options?.parameters?.topP,
-          topK: options?.parameters?.topK,
-          frequencyPenalty: options?.parameters?.frequencyPenalty,
-          presencePenalty: options?.parameters?.presencePenalty,
-          seed: options?.parameters?.seed,
-          stop: options?.parameters?.stop,
-          // 高级参数
-          n: options?.parameters?.n,
-          logprobs: options?.parameters?.logprobs,
-          topLogprobs: options?.parameters?.topLogprobs,
-          maxCompletionTokens: options?.parameters?.maxCompletionTokens,
-          reasoningEffort: options?.parameters?.reasoningEffort,
-          logitBias: options?.parameters?.logitBias,
-          store: options?.parameters?.store,
-          user: options?.parameters?.user,
-          serviceTier: options?.parameters?.serviceTier,
-          // 响应格式
-          responseFormat: options?.parameters?.responseFormat,
-          // 工具调用
-          tools: options?.parameters?.tools,
-          toolChoice: options?.parameters?.toolChoice,
-          parallelToolCalls: options?.parameters?.parallelToolCalls,
-          // 多模态输出
-          modalities: options?.parameters?.modalities,
-          audio: options?.parameters?.audio,
-          prediction: options?.parameters?.prediction,
-          // 特殊功能
-          webSearchOptions: options?.parameters?.webSearchOptions,
-          streamOptions: options?.parameters?.streamOptions,
-          metadata: options?.parameters?.metadata,
-          // Claude 特有参数
-          thinking: options?.parameters?.thinking,
-          stopSequences: options?.parameters?.stopSequences,
-          claudeMetadata: options?.parameters?.claudeMetadata,
+          // 默认值
+          temperature: 0.7,
+          maxTokens: 8192,
+          // 传入的标准参数会覆盖默认值
+          ...(options?.parameters || {}),
+          // 单独处理自定义参数容器，确保它不会被上面的展开覆盖掉
+          custom: options?.parameters?.custom || undefined,
         },
         createdAt: now,
       };
@@ -481,47 +449,14 @@ export const useAgentStore = defineStore('llmChatAgent', {
         return null;
       }
 
-      // 合并智能体参数和覆盖参数
+      // 分别合并基础参数和自定义参数容器
       const parameters: LlmParameters = {
-        // 核心控制参数
-        enabledParameters: overrides?.parameterOverrides?.enabledParameters ?? agent.parameters.enabledParameters,
-        // 基础采样参数
-        temperature: overrides?.parameterOverrides?.temperature ?? agent.parameters.temperature,
-        maxTokens: overrides?.parameterOverrides?.maxTokens ?? agent.parameters.maxTokens,
-        topP: overrides?.parameterOverrides?.topP ?? agent.parameters.topP,
-        topK: overrides?.parameterOverrides?.topK ?? agent.parameters.topK,
-        frequencyPenalty: overrides?.parameterOverrides?.frequencyPenalty ?? agent.parameters.frequencyPenalty,
-        presencePenalty: overrides?.parameterOverrides?.presencePenalty ?? agent.parameters.presencePenalty,
-        seed: overrides?.parameterOverrides?.seed ?? agent.parameters.seed,
-        stop: overrides?.parameterOverrides?.stop ?? agent.parameters.stop,
-        // 高级参数
-        n: overrides?.parameterOverrides?.n ?? agent.parameters.n,
-        logprobs: overrides?.parameterOverrides?.logprobs ?? agent.parameters.logprobs,
-        topLogprobs: overrides?.parameterOverrides?.topLogprobs ?? agent.parameters.topLogprobs,
-        maxCompletionTokens: overrides?.parameterOverrides?.maxCompletionTokens ?? agent.parameters.maxCompletionTokens,
-        reasoningEffort: overrides?.parameterOverrides?.reasoningEffort ?? agent.parameters.reasoningEffort,
-        logitBias: overrides?.parameterOverrides?.logitBias ?? agent.parameters.logitBias,
-        store: overrides?.parameterOverrides?.store ?? agent.parameters.store,
-        user: overrides?.parameterOverrides?.user ?? agent.parameters.user,
-        serviceTier: overrides?.parameterOverrides?.serviceTier ?? agent.parameters.serviceTier,
-        // 响应格式
-        responseFormat: overrides?.parameterOverrides?.responseFormat ?? agent.parameters.responseFormat,
-        // 工具调用
-        tools: overrides?.parameterOverrides?.tools ?? agent.parameters.tools,
-        toolChoice: overrides?.parameterOverrides?.toolChoice ?? agent.parameters.toolChoice,
-        parallelToolCalls: overrides?.parameterOverrides?.parallelToolCalls ?? agent.parameters.parallelToolCalls,
-        // 多模态输出
-        modalities: overrides?.parameterOverrides?.modalities ?? agent.parameters.modalities,
-        audio: overrides?.parameterOverrides?.audio ?? agent.parameters.audio,
-        prediction: overrides?.parameterOverrides?.prediction ?? agent.parameters.prediction,
-        // 特殊功能
-        webSearchOptions: overrides?.parameterOverrides?.webSearchOptions ?? agent.parameters.webSearchOptions,
-        streamOptions: overrides?.parameterOverrides?.streamOptions ?? agent.parameters.streamOptions,
-        metadata: overrides?.parameterOverrides?.metadata ?? agent.parameters.metadata,
-        // Claude 特有参数
-        thinking: overrides?.parameterOverrides?.thinking ?? agent.parameters.thinking,
-        stopSequences: overrides?.parameterOverrides?.stopSequences ?? agent.parameters.stopSequences,
-        claudeMetadata: overrides?.parameterOverrides?.claudeMetadata ?? agent.parameters.claudeMetadata,
+        ...agent.parameters,
+        ...(overrides?.parameterOverrides || {}),
+        custom: {
+          ...(agent.parameters.custom || {}),
+          ...(overrides?.parameterOverrides?.custom || {}),
+        },
       };
 
       return {

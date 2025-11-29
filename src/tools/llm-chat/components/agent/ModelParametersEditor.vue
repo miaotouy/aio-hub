@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
-import { Setting, Collection, ChatDotRound, WarningFilled } from "@element-plus/icons-vue";
+import {
+  Setting,
+  Collection,
+  ChatDotRound,
+  WarningFilled,
+  Plus,
+  EditPen,
+} from "@element-plus/icons-vue";
 import type { LlmParameters, GeminiSafetySetting } from "../../types";
 import type { ProviderType, LlmParameterSupport } from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -11,6 +18,9 @@ import { useChatHandler } from "../../composables/useChatHandler";
 import type { ContextPreviewData } from "../../composables/useChatHandler";
 import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import { customMessage } from "@/utils/customMessage";
 import { parameterConfigs } from "../../config/parameter-config";
 
 /**
@@ -55,11 +65,11 @@ const initLocalParams = (params: LlmParameters): LlmParameters => {
     // 获取所有非 undefined 的参数键作为启用的参数
     // 这样既兼容了旧数据（有值的参数保持启用），又满足了新需求（没值的高级参数默认关闭）
     const enabledKeys = (Object.keys(newParams) as Array<keyof LlmParameters>).filter((key) => {
-      if (key === "enabledParameters") return false;
+      if (key === "enabledParameters" || key === "custom") return false;
       return newParams[key] !== undefined;
     });
 
-    newParams.enabledParameters = enabledKeys;
+    newParams.enabledParameters = enabledKeys as Array<keyof Omit<LlmParameters, "custom">>;
   }
 
   return newParams;
@@ -90,23 +100,25 @@ const updateParameter = <K extends keyof LlmParameters>(key: K, value: LlmParame
 // 检查参数是否启用
 const isParameterEnabled = (key: keyof LlmParameters) => {
   // initLocalParams 保证了 enabledParameters 一定存在
-  return localParams.value.enabledParameters?.includes(key) ?? false;
+  // 使用类型断言，因为我们知道这里处理的 key 都是标准参数
+  return localParams.value.enabledParameters?.includes(key as any) ?? false;
 };
 
 // 切换参数启用状态
 const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
   const currentEnabled = localParams.value.enabledParameters || [];
 
-  let newEnabled: Array<keyof LlmParameters>;
+  let newEnabled: Array<keyof Omit<LlmParameters, 'custom'>>;
 
   if (enabled) {
-    if (!currentEnabled.includes(key)) {
-      newEnabled = [...currentEnabled, key];
+    // 使用类型断言，因为我们知道这里处理的 key 都是标准参数
+    if (!currentEnabled.includes(key as any)) {
+      newEnabled = [...currentEnabled, key as any];
     } else {
-      newEnabled = currentEnabled;
+      newEnabled = currentEnabled as Array<keyof Omit<LlmParameters, 'custom'>>;
     }
   } else {
-    newEnabled = currentEnabled.filter((k) => k !== key);
+    newEnabled = currentEnabled.filter((k) => k !== key) as Array<keyof Omit<LlmParameters, 'custom'>>;
   }
 
   localParams.value = {
@@ -117,8 +129,12 @@ const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
 };
 
 // 折叠状态管理 - 使用 useLlmChatUiState
-const { basicParamsExpanded, advancedParamsExpanded, specialFeaturesExpanded } =
-  useLlmChatUiState();
+const {
+  basicParamsExpanded,
+  advancedParamsExpanded,
+  specialFeaturesExpanded,
+  customParamsExpanded,
+} = useLlmChatUiState();
 
 // 上下文管理折叠状态（局部状态）
 const contextManagementExpanded = ref(true);
@@ -142,6 +158,51 @@ const advancedConfigs = computed(() =>
 const specialConfigs = computed(() =>
   parameterConfigs.filter((c) => c.group === "special" && supportedParameters.value[c.supportedKey])
 );
+
+// --- 自定义参数逻辑 ---
+
+const isCustomParamsDialogVisible = ref(false);
+const customParamsJsonString = ref("");
+
+// 自定义参数直接从 `custom` 字段读取
+const customParams = computed(() => {
+  return localParams.value.custom || {};
+});
+
+const hasCustomParams = computed(() => Object.keys(customParams.value).length > 0);
+
+// 打开弹窗时，初始化 JSON 字符串
+const openCustomParamsDialog = () => {
+  customParamsJsonString.value = JSON.stringify(customParams.value, null, 2);
+  isCustomParamsDialogVisible.value = true;
+};
+
+// 保存自定义参数
+const saveCustomParams = () => {
+  try {
+    const newCustomParams = JSON.parse(customParamsJsonString.value);
+    if (typeof newCustomParams !== "object" || newCustomParams === null) {
+      throw new Error("JSON 必须是一个对象");
+    }
+
+    // 直接将新的自定义参数对象赋值给 `custom` 字段
+    const newLocalParams = { ...localParams.value, custom: newCustomParams };
+    localParams.value = newLocalParams;
+    emit("update:modelValue", localParams.value);
+
+    isCustomParamsDialogVisible.value = false;
+    customMessage.success("自定义参数已保存");
+  } catch (error: any) {
+    customMessage.error(`JSON 格式错误: ${error.message}`);
+  }
+};
+
+// 监听自定义参数变化，更新 JSON 字符串（如果弹窗是打开的）
+watch(customParams, (newVal) => {
+  if (isCustomParamsDialogVisible.value) {
+    customParamsJsonString.value = JSON.stringify(newVal, null, 2);
+  }
+});
 
 // --- 动态覆盖逻辑 ---
 
@@ -282,7 +343,10 @@ const getSafetyThreshold = (category: string) => {
   return setting?.threshold;
 };
 
-const updateSafetySetting = (category: string, threshold: GeminiSafetySetting["threshold"] | undefined) => {
+const updateSafetySetting = (
+  category: string,
+  threshold: GeminiSafetySetting["threshold"] | undefined
+) => {
   const currentSettings = localParams.value.safetySettings || [];
   let newSettings: GeminiSafetySetting[];
 
@@ -828,6 +892,59 @@ watch(
         其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。
       </div>
     </ConfigSection>
+
+    <!-- 自定义参数分组 -->
+    <ConfigSection
+      title="自定义参数"
+      :icon="'i-ep-circle-plus'"
+      v-model:expanded="customParamsExpanded"
+    >
+      <div class="custom-params-container">
+        <div class="param-hint">你可以在这里添加自定义参数。参数将以 JSON 格式合并到请求体中。</div>
+        <el-button
+          :type="hasCustomParams ? 'primary' : 'default'"
+          :plain="hasCustomParams"
+          @click="openCustomParamsDialog"
+          class="edit-button"
+        >
+          <el-icon class="el-icon--left">
+            <component :is="hasCustomParams ? EditPen : Plus" />
+          </el-icon>
+          {{ hasCustomParams ? "编辑自定义参数" : "添加自定义参数" }}
+        </el-button>
+        <div v-if="hasCustomParams" class="custom-params-preview">
+          <pre><code>{{ JSON.stringify(customParams, null, 2) }}</code></pre>
+        </div>
+      </div>
+    </ConfigSection>
+
+    <!-- 自定义参数编辑弹窗 -->
+    <BaseDialog
+      v-model="isCustomParamsDialogVisible"
+      title="编辑自定义参数"
+      width="800px"
+      :show-close="false"
+      class="custom-params-dialog"
+    >
+      <div class="dialog-content">
+        <p class="dialog-hint">
+          请以 JSON 格式输入您想添加或覆盖的参数。这些参数将与标准参数合并后发送给 LLM API。
+        </p>
+        <RichCodeEditor
+          v-model="customParamsJsonString"
+          language="json"
+          class="json-editor"
+          :line-numbers="true"
+          :word-wrap="true"
+        />
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="isCustomParamsDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveCustomParams">保存</el-button>
+        </div>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -1169,5 +1286,52 @@ watch(
   background: var(--container-bg);
   border-radius: 8px;
   border: 1px dashed var(--border-color);
+}
+
+/* 自定义参数样式 */
+.custom-params-container {
+  padding: 0 12px 12px;
+}
+
+.edit-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.custom-params-preview {
+  margin-top: 16px;
+  padding: 12px;
+  background-color: var(--vscode-editor-background);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+}
+
+.custom-params-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text-color);
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 12px;
+}
+
+/* 弹窗样式 */
+.dialog-content {
+  padding: 0 20px;
+}
+
+.dialog-hint {
+  font-size: 14px;
+  color: var(--text-color-secondary);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.json-editor {
+  height: 400px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 </style>

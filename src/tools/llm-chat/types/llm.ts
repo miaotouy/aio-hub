@@ -43,6 +43,9 @@ export interface GeminiSafetySetting {
  * 支持大多数 LLM API 的通用参数
  */
 export interface LlmParameters {
+  /** 自定义参数容器 */
+  custom?: Record<string, any>;
+
   // ===== 基础采样参数 =====
   /** 温度，控制输出的随机性（0-2） */
   temperature?: number;
@@ -201,5 +204,5 @@ export interface LlmParameters {
    * 如果存在此字段，只有在此列表中的参数才会被发送给 LLM API。
    * 如果不存在此字段，则回退到旧行为（发送所有非 undefined 的参数）。
    */
-  enabledParameters?: Array<keyof LlmParameters>;
+  enabledParameters?: Array<keyof Omit<LlmParameters, "custom">>;
 }

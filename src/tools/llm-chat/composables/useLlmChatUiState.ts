@@ -35,6 +35,7 @@ export interface LlmChatUiState {
   basicParamsExpanded: boolean;
   advancedParamsExpanded: boolean;
   specialFeaturesExpanded: boolean;
+  customParamsExpanded: boolean;
   
   // 会话视图模式
   viewMode: 'linear' | 'force-graph';
@@ -56,6 +57,7 @@ const defaultUiState: LlmChatUiState = {
   basicParamsExpanded: true,
   advancedParamsExpanded: false,
   specialFeaturesExpanded: false,
+  customParamsExpanded: false,
   viewMode: 'linear',
   version: '1.0.0',
 };
@@ -84,6 +86,7 @@ const presetMessagesExpanded = ref(defaultUiState.presetMessagesExpanded);
 const basicParamsExpanded = ref(defaultUiState.basicParamsExpanded);
 const advancedParamsExpanded = ref(defaultUiState.advancedParamsExpanded);
 const specialFeaturesExpanded = ref(defaultUiState.specialFeaturesExpanded);
+const customParamsExpanded = ref(defaultUiState.customParamsExpanded);
 const viewMode = ref<'linear' | 'force-graph'>(defaultUiState.viewMode);
 
 // 是否已初始化
@@ -112,6 +115,7 @@ export function useLlmChatUiState() {
       basicParamsExpanded.value = state.basicParamsExpanded;
       advancedParamsExpanded.value = state.advancedParamsExpanded;
       specialFeaturesExpanded.value = state.specialFeaturesExpanded;
+      customParamsExpanded.value = state.customParamsExpanded;
       viewMode.value = state.viewMode;
       
       isInitialized = true;
@@ -144,6 +148,7 @@ export function useLlmChatUiState() {
       basicParamsExpanded: basicParamsExpanded.value,
       advancedParamsExpanded: advancedParamsExpanded.value,
       specialFeaturesExpanded: specialFeaturesExpanded.value,
+      customParamsExpanded: customParamsExpanded.value,
       viewMode: viewMode.value,
     };
     
@@ -169,6 +174,7 @@ export function useLlmChatUiState() {
         basicParamsExpanded,
         advancedParamsExpanded,
         specialFeaturesExpanded,
+        customParamsExpanded,
         viewMode,
       ],
       () => {
@@ -197,6 +203,7 @@ export function useLlmChatUiState() {
       basicParamsExpanded.value = defaultUiState.basicParamsExpanded;
       advancedParamsExpanded.value = defaultUiState.advancedParamsExpanded;
       specialFeaturesExpanded.value = defaultUiState.specialFeaturesExpanded;
+      customParamsExpanded.value = defaultUiState.customParamsExpanded;
       viewMode.value = defaultUiState.viewMode;
       
       logger.info('UI状态已重置');
@@ -218,6 +225,7 @@ export function useLlmChatUiState() {
     basicParamsExpanded,
     advancedParamsExpanded,
     specialFeaturesExpanded,
+    customParamsExpanded,
     viewMode,
     
     // 方法

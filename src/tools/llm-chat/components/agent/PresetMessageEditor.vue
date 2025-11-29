@@ -26,8 +26,8 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="内容">
-          <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-            <div style="display: flex; justify-content: flex-start; align-items: center;">
+          <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+            <div style="display: flex; justify-content: flex-start; align-items: center; gap: 8px">
               <el-popover
                 v-model:visible="macroSelectorVisible"
                 placement="bottom-start"
@@ -36,13 +36,37 @@
                 popper-class="macro-selector-popover"
               >
                 <template #reference>
-                  <el-button size="small" :type="macroSelectorVisible ? 'primary' : 'default'" plain>
-                    <el-icon style="margin-right: 4px;"><MagicStick /></el-icon>
+                  <el-button
+                    size="small"
+                    :type="macroSelectorVisible ? 'primary' : 'default'"
+                    plain
+                  >
+                    <el-icon style="margin-right: 4px"><MagicStick /></el-icon>
                     插入宏
                   </el-button>
                 </template>
                 <MacroSelector @insert="handleInsertMacro" />
               </el-popover>
+              <el-button size="small" @click="handleCopy" plain title="复制内容">
+                <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
+                复制
+              </el-button>
+              <el-button size="small" @click="handlePaste" plain title="粘贴到光标处">
+                <el-icon style="margin-right: 4px"><DocumentAdd /></el-icon>
+                粘贴
+              </el-button>
+              <el-popconfirm
+                title="确定要用剪贴板内容覆盖当前内容吗？"
+                @confirm="handleOverwrite"
+                width="220"
+              >
+                <template #reference>
+                  <el-button size="small" plain title="用剪贴板内容覆盖" type="warning">
+                    <el-icon style="margin-right: 4px"><Document /></el-icon>
+                    覆盖
+                  </el-button>
+                </template>
+              </el-popconfirm>
             </div>
             <el-input
               ref="contentInputRef"
@@ -72,8 +96,12 @@ import {
   User,
   Service,
   MagicStick,
+  CopyDocument,
+  DocumentAdd,
+  Document,
 } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { MacroDefinition } from "../../macro-engine";
 import MacroSelector from "./MacroSelector.vue";
 
@@ -100,6 +128,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+
+const errorHandler = createModuleErrorHandler("llm-chat/PresetMessageEditor");
 
 // 表单数据
 const form = ref<MessageForm>({
@@ -153,9 +183,7 @@ function handleInsertMacro(macro: MacroDefinition) {
 
   // 拼接新内容
   const newContent =
-    form.value.content.substring(0, start) +
-    insertText +
-    form.value.content.substring(end);
+    form.value.content.substring(0, start) + insertText + form.value.content.substring(end);
 
   // 更新内容
   form.value.content = newContent;
@@ -174,11 +202,92 @@ function handleInsertMacro(macro: MacroDefinition) {
 }
 
 /**
+ * 复制内容
+ */
+async function handleCopy() {
+  const result = await errorHandler.wrapAsync(
+    async () => {
+      await navigator.clipboard.writeText(form.value.content);
+      return true;
+    },
+    { userMessage: "复制失败" }
+  );
+
+  if (result) {
+    customMessage.success("已复制到剪贴板");
+  }
+}
+
+/**
+ * 粘贴内容
+ */
+async function handlePaste() {
+  const text = await errorHandler.wrapAsync(
+    async () => {
+      return await navigator.clipboard.readText();
+    },
+    { userMessage: "粘贴失败，请检查剪贴板权限" }
+  );
+
+  if (!text) return;
+
+  // 获取 textarea 元素
+  const textarea = contentInputRef.value?.$el?.querySelector("textarea");
+  if (!textarea) {
+    // 如果没找到 textarea，直接追加
+    form.value.content += text;
+    customMessage.success("已粘贴");
+    return;
+  }
+
+  // 获取当前光标位置
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  // 记录当前滚动位置
+  const scrollTop = textarea.scrollTop;
+
+  // 拼接新内容
+  const newContent =
+    form.value.content.substring(0, start) + text + form.value.content.substring(end);
+
+  // 更新内容
+  form.value.content = newContent;
+
+  // 设置新的光标位置
+  setTimeout(() => {
+    textarea.focus();
+    const newCursorPos = start + text.length;
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    // 恢复滚动位置
+    textarea.scrollTop = scrollTop;
+  }, 0);
+
+  customMessage.success("已粘贴");
+}
+
+/**
+ * 覆盖内容
+ */
+async function handleOverwrite() {
+  const text = await errorHandler.wrapAsync(
+    async () => {
+      return await navigator.clipboard.readText();
+    },
+    { userMessage: "覆盖失败，请检查剪贴板权限" }
+  );
+
+  if (!text) return;
+
+  form.value.content = text;
+  customMessage.success("已覆盖内容");
+}
+
+/**
  * 保存消息
  */
 function handleSave() {
   if (!form.value.content.trim()) {
-    ElMessage.warning("消息内容不能为空");
+    customMessage.warning("消息内容不能为空");
     return;
   }
 
@@ -186,5 +295,4 @@ function handleSave() {
 }
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>

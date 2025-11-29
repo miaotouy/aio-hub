@@ -20,6 +20,25 @@ export interface ContextPostProcessRule {
 }
 
 /**
+ * Gemini 安全设置
+ */
+export interface GeminiSafetySetting {
+  category:
+  | "HARM_CATEGORY_HARASSMENT"
+  | "HARM_CATEGORY_HATE_SPEECH"
+  | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+  | "HARM_CATEGORY_DANGEROUS_CONTENT"
+  | "HARM_CATEGORY_CIVIC_INTEGRITY";
+  threshold:
+  | "BLOCK_NONE"
+  | "BLOCK_ONLY_HIGH"
+  | "BLOCK_MEDIUM_AND_ABOVE"
+  | "BLOCK_LOW_AND_ABOVE"
+  | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
+  | "OFF";
+}
+
+/**
  * LLM 参数配置
  * 支持大多数 LLM API 的通用参数
  */
@@ -151,6 +170,10 @@ export interface LlmParameters {
   claudeMetadata?: {
     user_id?: string;
   };
+
+  // ===== Gemini 特有参数 =====
+  /** Gemini: 安全设置 */
+  safetySettings?: GeminiSafetySetting[];
 
   // ===== 上下文管理 =====
   /** 上下文管理配置 */

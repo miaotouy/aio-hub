@@ -97,6 +97,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       mediaResolution: true,
       codeExecution: true,
       modalities: true,
+      safetySettings: true,
     },
   },
   {
@@ -172,6 +173,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       mediaResolution: true,
       codeExecution: true,
       modalities: true,
+      safetySettings: true,
     },
   },
 ];

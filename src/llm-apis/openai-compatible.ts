@@ -158,6 +158,13 @@ export const callOpenAiCompatibleApi = async (
     body.stream_options = options.streamOptions;
   }
 
+  // 透传 Gemini 安全设置 (如果存在)
+  // 许多聚合网关（如 One API）支持通过 safety_settings 字段透传 Gemini 安全配置
+  const extendedOptions = options as any;
+  if (extendedOptions.safetySettings) {
+    body.safety_settings = extendedOptions.safetySettings;
+  }
+
   // 如果启用流式响应
   if (options.stream && options.onStream) {
     body.stream = true;

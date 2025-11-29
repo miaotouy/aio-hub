@@ -324,20 +324,36 @@ function buildGeminiToolConfig(options: LlmRequestOptions): GeminiToolConfig | u
  * 构建安全设置
  */
 function buildGeminiSafetySettings(options: LlmRequestOptions): GeminiSafetySetting[] | undefined {
-  // 可以通过 options 传入自定义安全设置
-  const customSettings = (options as ExtendedLlmRequestOptions).safetySettings;
-  if (customSettings) {
-    return customSettings;
-  }
-
-  // 默认使用宽松的安全设置
-  return [
+  const defaultSettings: GeminiSafetySetting[] = [
     { category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "OFF" },
     { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "OFF" },
     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "OFF" },
     { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
   ];
+
+  // 可以通过 options 传入自定义安全设置
+  const customSettings = (options as ExtendedLlmRequestOptions).safetySettings;
+
+  if (!customSettings || customSettings.length === 0) {
+    return defaultSettings;
+  }
+
+  // 合并逻辑：默认设置 + 自定义设置（覆盖同名 category）
+  // 使用 Map 来去重，以 category 为 key
+  const settingsMap = new Map<string, GeminiSafetySetting>();
+
+  // 先放入默认设置
+  for (const setting of defaultSettings) {
+    settingsMap.set(setting.category, setting);
+  }
+
+  // 再放入自定义设置（覆盖默认）
+  for (const setting of customSettings) {
+    settingsMap.set(setting.category, setting);
+  }
+
+  return Array.from(settingsMap.values());
 }
 
 /**

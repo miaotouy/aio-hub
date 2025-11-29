@@ -32,7 +32,15 @@ const currentProfile = computed(() => {
 });
 
 // 获取当前渠道类型
-const currentProviderType = computed(() => currentProfile.value?.type);
+const currentProviderType = computed(() => {
+  const type = currentProfile.value?.type;
+  // 特殊处理：如果是 OpenAI 兼容接口，但模型名包含 gemini，强制识别为 gemini 类型
+  // 这样可以激活 Gemini 专属的 UI 配置（如安全设置）
+  if (type === "openai" && currentAgent.value?.modelId.toLowerCase().includes("gemini")) {
+    return "gemini";
+  }
+  return type;
+});
 
 // 获取当前选中的模型
 const currentModel = computed(() => {

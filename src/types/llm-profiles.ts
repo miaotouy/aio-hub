@@ -50,6 +50,7 @@ export interface LlmParameterSupport {
   fileSearch?: boolean; // 文件搜索
   reasoning?: boolean; // 推理模式
   codeExecution?: boolean; // 代码执行
+  safetySettings?: boolean; // 安全设置 (Gemini)
   modalities?: boolean; // 多模态输出
   audio?: boolean; // 音频输出
   prediction?: boolean; // 预测输出

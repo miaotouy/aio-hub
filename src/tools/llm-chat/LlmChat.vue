@@ -7,6 +7,7 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatUiState } from "./composables/useLlmChatUiState";
 import { useLlmChatSync } from "./composables/useLlmChatSync";
+import { useChatSettings } from "./composables/useChatSettings";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "./types/sync";
 import ChatArea from "./components/ChatArea.vue";
@@ -28,6 +29,7 @@ const isLoading = ref(true);
 const store = useLlmChatStore();
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
+const chatSettings = useChatSettings();
 const bus = useWindowSyncBus();
 
 // 检测当前窗口类型
@@ -133,12 +135,14 @@ onMounted(async () => {
         agentStore.loadAgents(),
         userProfileStore.loadProfiles(),
         store.loadSessions(),
+        chatSettings.loadSettings(),
       ]);
 
       logger.info("主窗口：核心数据加载完成", {
         sessionCount: store.sessions.length,
         agentCount: agentStore.agents.length,
         profileCount: userProfileStore.profiles.length,
+        settingsLoaded: chatSettings.isLoaded.value,
       });
 
       // 2. 数据加载完成后，再启动状态同步引擎
@@ -163,12 +167,14 @@ onMounted(async () => {
         agentStore.loadAgents(),
         userProfileStore.loadProfiles(),
         store.loadSessions(),
+        chatSettings.loadSettings(),
       ]);
 
       logger.info("分离窗口：核心数据加载完成", {
         sessionCount: store.sessions.length,
         agentCount: agentStore.agents.length,
         profileCount: userProfileStore.profiles.length,
+        settingsLoaded: chatSettings.isLoaded.value,
       });
 
       // 2. 数据加载完成后，启动状态同步引擎用于后续的跨窗口状态同步

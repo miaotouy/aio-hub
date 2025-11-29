@@ -15,7 +15,7 @@
             <span class="summary-value">
               <Avatar
                 v-if="currentAgent?.icon"
-                :src="currentAgent.icon!"
+                :src="agentAvatarSrc || ''"
                 :alt="currentAgent.name!"
                 :size="24"
                 shape="square"
@@ -122,6 +122,7 @@ import type { ChatSession, ChatMessageNode } from "../../types";
 import { useExportManager } from "../../composables/useExportManager";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 
 interface Props {
   visible: boolean;
@@ -183,6 +184,8 @@ const currentAgent = computed(() => {
   if (!agentStore.currentAgentId) return null;
   return agentStore.getAgentById(agentStore.currentAgentId);
 });
+
+const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
 
 // 获取模型信息
 const modelInfo = computed(() => {

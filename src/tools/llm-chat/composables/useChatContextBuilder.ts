@@ -13,6 +13,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 import { useMessageBuilder } from "./useMessageBuilder";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { useAgentStore } from "../agentStore";
+import { resolveAvatarPath } from "./useResolvedAvatar";
 import type { ProcessableMessage } from "./useMessageProcessor";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 
@@ -570,11 +571,11 @@ export function useChatContextBuilder() {
           typeof msg.content === "string"
             ? msg.content.length
             : msg.content.reduce(
-                (sum, part) =>
-                  sum +
-                  (typeof part === "object" && "text" in part && part.text ? part.text.length : 0),
-                0
-              ),
+              (sum, part) =>
+                sum +
+                (typeof part === "object" && "text" in part && part.text ? part.text.length : 0),
+              0
+            ),
       })),
     }, true);
 
@@ -754,7 +755,7 @@ export function useChatContextBuilder() {
           const content = messageInFinal
             ? (typeof messageInFinal.content === "string" ? messageInFinal.content : JSON.stringify(messageInFinal.content))
             : (typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content));
-          
+
           const sanitizedContent = sanitizeForCharCount(content);
           let tokenCount: number | undefined;
           try {
@@ -826,7 +827,7 @@ export function useChatContextBuilder() {
               const { asset, content } = item;
               let tokenCount: number | undefined;
               let isAttachmentEstimated = false;
-              
+
               try {
                 const result = await tokenCalculatorService.calculateTokens(
                   content,
@@ -1000,6 +1001,21 @@ export function useChatContextBuilder() {
             chatHistoryTokenCount += totalNodeTokenCount;
           }
 
+          // 获取消息对应的 Agent 信息（用于头像展示）
+          let msgAgentName: string | undefined;
+          let msgAgentIcon: string | undefined;
+
+          if (node.role === 'assistant') {
+            const msgAgentId = node.metadata?.agentId || effectiveAgentId;
+            if (msgAgentId) {
+              const msgAgent = agentStore.getAgentById(msgAgentId);
+              if (msgAgent) {
+                msgAgentName = msgAgent.name;
+                msgAgentIcon = resolveAvatarPath(msgAgent, 'agent') || undefined;
+              }
+            }
+          }
+
           return {
             role: node.role,
             content: originalText, // 使用原始正文，不包含附件内容
@@ -1008,6 +1024,8 @@ export function useChatContextBuilder() {
             source: "session_history",
             nodeId: node.id,
             index,
+            agentName: msgAgentName,
+            agentIcon: msgAgentIcon,
             attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
           };
         })
@@ -1041,7 +1059,7 @@ export function useChatContextBuilder() {
       agentInfo: {
         id: effectiveAgentId ?? '',
         name: agent?.name,
-        icon: agent?.icon,
+        icon: resolveAvatarPath(agent, 'agent') || undefined,
         profileId: agentConfig?.profileId ?? '',
         modelId: agentConfig?.modelId ?? '',
       },

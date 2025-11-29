@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
+import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import AgentPresetEditor from "../agent/AgentPresetEditor.vue";
@@ -21,6 +22,8 @@ const currentAgent = computed(() => {
   if (!agentStore.currentAgentId) return null;
   return agentStore.getAgentById(agentStore.currentAgentId);
 });
+
+const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
 
 // 获取当前选中的 profile
 const currentProfile = computed(() => {
@@ -124,7 +127,7 @@ const handleSaveEdit = (data: AgentEditData) => {
     <div class="section-header">
       <div v-if="currentAgent" class="agent-header">
         <Avatar
-          :src="currentAgent.icon || ''"
+          :src="agentAvatarSrc || ''"
           :alt="currentAgent.name"
           :size="48"
           shape="square"

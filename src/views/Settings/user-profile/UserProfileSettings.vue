@@ -94,7 +94,7 @@ import CreateUserProfileDialog from "./components/CreateUserProfileDialog.vue";
 import UserProfileForm from "./components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { useResolvedAvatar } from '@/tools/llm-chat/composables/useResolvedAvatar';
+import { resolveAvatarPath } from '@/tools/llm-chat/composables/useResolvedAvatar';
 
 const logger = createModuleLogger("UserProfileSettings");
 const errorHandler = createModuleErrorHandler("UserProfileSettings");
@@ -131,7 +131,7 @@ const profiles = computed(() => {
 });
 
 const getAvatarSrc = (profile: UserProfile) => {
-  return useResolvedAvatar(ref(profile), 'user-profile').value;
+  return resolveAvatarPath(profile, 'user-profile');
 };
 
 // 计算当前选中的档案

@@ -12,13 +12,7 @@ import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { extname, appDataDir, join } from "@tauri-apps/api/path";
 import { readDir } from "@tauri-apps/plugin-fs";
-
-/**
- * 判断一个图标字符串是否像一个内置的文件名
- */
-function isLikelyFilename(icon: string): boolean {
-  return icon.includes(".") && !icon.includes("/") && !icon.includes("\\");
-}
+import { resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
 
 interface Props {
   modelValue: string;
@@ -245,22 +239,19 @@ const clearIcon = () => {
 
 // 解析最终的头像显示路径
 const resolvedAvatarSrc = computed(() => {
-  if (!props.modelValue) return "";
-
-  const icon = props.modelValue.trim();
+  const icon = props.modelValue?.trim();
   if (!icon) return "";
 
-  // 如果提供了 entityId 且是文件名格式，优先解析为 appdata:// 路径
-  // 这允许用户上传头像后，modelValue 仅存储文件名，保持数据整洁
-  if (props.entityId && isLikelyFilename(icon)) {
-    if (props.profileType === "agent") {
-      return `appdata://llm-chat/agents/${props.entityId}/${icon}`;
-    } else if (props.profileType === "user") {
-      return `appdata://llm-chat/user-profiles/${props.entityId}/${icon}`;
-    }
+  // 构造一个临时对象来复用 resolveAvatarPath 的逻辑
+  // 如果有 entityId，resolveAvatarPath 会自动处理 appdata:// 路径
+  if (props.entityId) {
+    const type = props.profileType === "agent" ? "agent" : "user-profile";
+    const resolved = resolveAvatarPath({ id: props.entityId, icon }, type);
+    if (resolved) return resolved;
   }
 
-  // 其他情况直接返回原值（emoji、URL、路径等）
+  // 如果没有 entityId 或者解析结果为空（理论上 resolveAvatarPath 会返回 icon 本身如果不是文件名），
+  // 但为了保险，我们直接返回原值
   return icon;
 });
 
@@ -270,15 +261,16 @@ const sanitizedModelValue = computed(() => {
 });
 
 const isImagePath = computed(() => {
+  const s = sanitizedModelValue.value;
   return (
-    sanitizedModelValue.value &&
-    (sanitizedModelValue.value.startsWith("/") ||
-      sanitizedModelValue.value.startsWith("appdata://") ||
-      sanitizedModelValue.value.startsWith("http://") ||
-      sanitizedModelValue.value.startsWith("https://") ||
-      sanitizedModelValue.value.startsWith("data:") ||
-      /^[A-Za-z]:[\\/]/.test(sanitizedModelValue.value) || // Windows 绝对路径（支持正反斜杠）
-      sanitizedModelValue.value.startsWith("\\\\")) // UNC 路径
+    s &&
+    (s.startsWith("/") ||
+      s.startsWith("appdata://") ||
+      s.startsWith("http://") ||
+      s.startsWith("https://") ||
+      s.startsWith("data:") ||
+      /^[A-Za-z]:[\\/]/.test(s) || // Windows 绝对路径（支持正反斜杠）
+      s.startsWith("\\\\")) // UNC 路径
   );
 });
 

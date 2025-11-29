@@ -26,6 +26,7 @@ import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import { debounce } from "lodash-es";
+import { useResolvedAvatar, resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -42,6 +43,12 @@ const toolsStore = useToolsStore();
 const { currentTheme, applyTheme, isDark } = useTheme();
 const { appearanceSettings } = useThemeAppearance();
 const userProfileStore = useUserProfileStore();
+
+// 解析当前选中的全局用户档案头像
+const globalProfileAvatarSrc = useResolvedAvatar(
+  computed(() => userProfileStore.globalProfile),
+  "user-profile"
+);
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
@@ -263,6 +270,11 @@ const handleProfileSelect = (profileId: string | null) => {
 const goToProfileSettings = () => {
   router.push("/settings?section=user-profiles");
 };
+
+// 获取档案头像路径（用于列表）
+const getProfileAvatarSrc = (profile: any) => {
+  return resolveAvatarPath(profile, "user-profile");
+};
 </script>
 
 <template>
@@ -310,7 +322,7 @@ const goToProfileSettings = () => {
             <!-- 如果有选中档案，使用 Avatar（有头像显示头像，无头像显示首字母） -->
             <Avatar
               v-if="userProfileStore.globalProfile"
-              :src="userProfileStore.globalProfile.icon || ''"
+              :src="globalProfileAvatarSrc || ''"
               :alt="userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name"
               :size="20"
               shape="square"
@@ -335,7 +347,7 @@ const goToProfileSettings = () => {
               >
                 <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
                 <Avatar
-                  :src="profile.icon || ''"
+                  :src="getProfileAvatarSrc(profile) || ''"
                   :alt="profile.displayName || profile.name"
                   :size="20"
                   shape="square"

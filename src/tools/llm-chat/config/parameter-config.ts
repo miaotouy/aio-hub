@@ -10,20 +10,23 @@ export interface ParameterConfig {
   description: string;
   group: "basic" | "advanced" | "special";
   supportedKey: keyof LlmParameterSupport; // 用于判断是否显示
-  
+
   // Slider/Number specific
   min?: number;
   max?: number;
   step?: number;
   precision?: number;
-  
+
   // Select specific
   options?: { label: string; value: any }[];
-  
+
+  // Default value for reset
+  defaultValue?: any;
+
   // Transform functions (optional)
   format?: (val: any) => any;
   parse?: (val: any) => any;
-  
+
   // Placeholder for text/number input
   placeholder?: string;
 }
@@ -41,6 +44,7 @@ export const parameterConfigs: ParameterConfig[] = [
     max: 2,
     step: 0.01,
     precision: 2,
+    defaultValue: 1,
   },
   {
     key: "maxTokens",
@@ -52,6 +56,7 @@ export const parameterConfigs: ParameterConfig[] = [
     min: 256,
     // max will be dynamic based on model context limit
     step: 256,
+    defaultValue: 4096,
   },
   {
     key: "topP",
@@ -64,6 +69,7 @@ export const parameterConfigs: ParameterConfig[] = [
     max: 1,
     step: 0.01,
     precision: 2,
+    defaultValue: 1,
   },
   {
     key: "topK",
@@ -75,6 +81,7 @@ export const parameterConfigs: ParameterConfig[] = [
     min: 1,
     max: 100,
     step: 1,
+    defaultValue: 40,
   },
   {
     key: "frequencyPenalty",
@@ -87,6 +94,7 @@ export const parameterConfigs: ParameterConfig[] = [
     max: 2,
     step: 0.01,
     precision: 2,
+    defaultValue: 0,
   },
   {
     key: "presencePenalty",
@@ -99,6 +107,7 @@ export const parameterConfigs: ParameterConfig[] = [
     max: 2,
     step: 0.01,
     precision: 2,
+    defaultValue: 0,
   },
 
   // --- Advanced Parameters ---
@@ -110,6 +119,7 @@ export const parameterConfigs: ParameterConfig[] = [
     group: "advanced",
     supportedKey: "seed",
     placeholder: "随机",
+    defaultValue: undefined,
   },
   {
     key: "stop",
@@ -119,10 +129,11 @@ export const parameterConfigs: ParameterConfig[] = [
     group: "advanced",
     supportedKey: "stop",
     placeholder: "用逗号分隔多个序列",
+    defaultValue: undefined,
     // format array to string for display
     format: (val: string[] | string | undefined) => {
-        if (Array.isArray(val)) return val.join(", ");
-        return val || "";
+      if (Array.isArray(val)) return val.join(", ");
+      return val || "";
     },
     // parse string back to array
     parse: (val: string) => val ? val.split(",").map(s => s.trim()) : undefined
@@ -138,6 +149,7 @@ export const parameterConfigs: ParameterConfig[] = [
     max: 128000,
     step: 64,
     placeholder: "默认",
+    defaultValue: undefined,
   },
   {
     key: "reasoningEffort",
@@ -146,6 +158,7 @@ export const parameterConfigs: ParameterConfig[] = [
     description: "推理工作约束（OpenAI o1 系列模型）。",
     group: "advanced",
     supportedKey: "reasoningEffort",
+    defaultValue: "medium",
     options: [
       { label: "默认", value: "" },
       { label: "Low（低）", value: "low" },
@@ -160,6 +173,7 @@ export const parameterConfigs: ParameterConfig[] = [
     description: "是否返回 logprobs（对数概率）。",
     group: "advanced",
     supportedKey: "logprobs",
+    defaultValue: false,
   },
   {
     key: "topLogprobs",
@@ -171,6 +185,7 @@ export const parameterConfigs: ParameterConfig[] = [
     min: 0,
     max: 20,
     step: 1,
+    defaultValue: 0,
   },
 
   // --- Special Features ---
@@ -181,6 +196,7 @@ export const parameterConfigs: ParameterConfig[] = [
     description: "启用 Claude 的思考模式，模型会先思考再回答。",
     group: "special",
     supportedKey: "thinking",
+    defaultValue: { type: 'disabled' },
     format: (val: any) => val?.type === 'enabled',
     parse: (val: boolean) => val ? { type: 'enabled' } : { type: 'disabled' }
   }

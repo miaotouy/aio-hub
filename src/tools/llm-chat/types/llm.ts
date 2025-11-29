@@ -26,9 +26,9 @@ export interface ContextPostProcessRule {
 export interface LlmParameters {
   // ===== 基础采样参数 =====
   /** 温度，控制输出的随机性（0-2） */
-  temperature: number;
+  temperature?: number;
   /** 单次响应的最大 token 数量 */
-  maxTokens: number;
+  maxTokens?: number;
   /** Top-p 采样参数（0-1） */
   topP?: number;
   /** Top-k 采样参数 */
@@ -172,4 +172,11 @@ export interface LlmParameters {
     /** 处理规则列表，按顺序执行 */
     rules: ContextPostProcessRule[];
   };
+
+  /**
+   * 显式启用的参数列表
+   * 如果存在此字段，只有在此列表中的参数才会被发送给 LLM API。
+   * 如果不存在此字段，则回退到旧行为（发送所有非 undefined 的参数）。
+   */
+  enabledParameters?: Array<keyof LlmParameters>;
 }

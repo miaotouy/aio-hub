@@ -47,14 +47,33 @@ const supportedParameters = computed<LlmParameterSupport>(() => {
   return getSupportedParameters(props.providerType);
 });
 
+// 初始化参数逻辑：如果 enabledParameters 不存在，根据值是否为 undefined 智能推断
+const initLocalParams = (params: LlmParameters): LlmParameters => {
+  const newParams = { ...params };
+
+  if (!newParams.enabledParameters) {
+    // 获取所有非 undefined 的参数键作为启用的参数
+    // 这样既兼容了旧数据（有值的参数保持启用），又满足了新需求（没值的高级参数默认关闭）
+    const enabledKeys = (Object.keys(newParams) as Array<keyof LlmParameters>).filter((key) => {
+      if (key === "enabledParameters") return false;
+      return newParams[key] !== undefined;
+    });
+
+    newParams.enabledParameters = enabledKeys;
+  }
+
+  return newParams;
+};
+
 // 本地状态
-const localParams = ref<LlmParameters>({ ...props.modelValue });
+const localParams = ref<LlmParameters>(initLocalParams(props.modelValue));
 
 // 监听外部值变化
 watch(
   () => props.modelValue,
   (newVal) => {
-    localParams.value = { ...newVal };
+    // 使用相同的初始化逻辑，确保外部更新也能正确处理启用状态
+    localParams.value = initLocalParams(newVal);
   },
   { deep: true }
 );
@@ -64,6 +83,35 @@ const updateParameter = <K extends keyof LlmParameters>(key: K, value: LlmParame
   localParams.value = {
     ...localParams.value,
     [key]: value,
+  };
+  emit("update:modelValue", localParams.value);
+};
+
+// 检查参数是否启用
+const isParameterEnabled = (key: keyof LlmParameters) => {
+  // initLocalParams 保证了 enabledParameters 一定存在
+  return localParams.value.enabledParameters?.includes(key) ?? false;
+};
+
+// 切换参数启用状态
+const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
+  const currentEnabled = localParams.value.enabledParameters || [];
+
+  let newEnabled: Array<keyof LlmParameters>;
+
+  if (enabled) {
+    if (!currentEnabled.includes(key)) {
+      newEnabled = [...currentEnabled, key];
+    } else {
+      newEnabled = currentEnabled;
+    }
+  } else {
+    newEnabled = currentEnabled.filter((k) => k !== key);
+  }
+
+  localParams.value = {
+    ...localParams.value,
+    enabledParameters: newEnabled,
   };
   emit("update:modelValue", localParams.value);
 };
@@ -79,16 +127,18 @@ const postProcessingExpanded = ref(true);
 
 // --- 参数配置分组 ---
 
-const basicConfigs = computed(() => 
-  parameterConfigs.filter(c => c.group === 'basic' && supportedParameters.value[c.supportedKey])
+const basicConfigs = computed(() =>
+  parameterConfigs.filter((c) => c.group === "basic" && supportedParameters.value[c.supportedKey])
 );
 
-const advancedConfigs = computed(() => 
-  parameterConfigs.filter(c => c.group === 'advanced' && supportedParameters.value[c.supportedKey])
+const advancedConfigs = computed(() =>
+  parameterConfigs.filter(
+    (c) => c.group === "advanced" && supportedParameters.value[c.supportedKey]
+  )
 );
 
-const specialConfigs = computed(() => 
-  parameterConfigs.filter(c => c.group === 'special' && supportedParameters.value[c.supportedKey])
+const specialConfigs = computed(() =>
+  parameterConfigs.filter((c) => c.group === "special" && supportedParameters.value[c.supportedKey])
 );
 
 // --- 动态覆盖逻辑 ---
@@ -102,14 +152,18 @@ const maxTokensLimit = computed(() => {
 const overrides = computed(() => ({
   maxTokens: {
     max: maxTokensLimit.value,
-  }
+  },
 }));
 
 // 监听上下文限制变化，自动调整 maxTokens 值
 watch(
   () => props.contextLengthLimit,
   (newLimit) => {
-    if (newLimit && localParams.value.maxTokens > newLimit) {
+    if (
+      newLimit &&
+      localParams.value.maxTokens !== undefined &&
+      localParams.value.maxTokens > newLimit
+    ) {
       // 如果当前值超过了新的限制，自动调整到最大值
       updateParameter("maxTokens", newLimit);
     }
@@ -243,9 +297,18 @@ onMounted(() => {
   loadContextStats();
 });
 
-watch(() => chatStore.currentSessionId, () => loadContextStats());
-watch(() => chatStore.currentSession?.activeLeafId, () => loadContextStats());
-watch(() => agentStore.currentAgentId, () => loadContextStats());
+watch(
+  () => chatStore.currentSessionId,
+  () => loadContextStats()
+);
+watch(
+  () => chatStore.currentSession?.activeLeafId,
+  () => loadContextStats()
+);
+watch(
+  () => agentStore.currentAgentId,
+  () => loadContextStats()
+);
 watch(
   () => {
     if (!agentStore.currentAgentId) return null;
@@ -301,7 +364,9 @@ watch(
         :key="config.key"
         :config="config"
         :model-value="localParams[config.key]"
+        :enabled="isParameterEnabled(config.key)"
         @update:model-value="updateParameter(config.key, $event)"
+        @update:enabled="toggleParameterEnabled(config.key, $event)"
         :overrides="overrides[config.key as keyof typeof overrides]"
       />
       <div v-if="basicConfigs.length === 0" class="empty-hint">此模型没有可配置的基础参数</div>
@@ -319,7 +384,9 @@ watch(
         :key="config.key"
         :config="config"
         :model-value="localParams[config.key]"
+        :enabled="isParameterEnabled(config.key)"
         @update:model-value="updateParameter(config.key, $event)"
+        @update:enabled="toggleParameterEnabled(config.key, $event)"
         :overrides="overrides[config.key as keyof typeof overrides]"
       />
     </ConfigSection>
@@ -665,7 +732,9 @@ watch(
         :key="config.key"
         :config="config"
         :model-value="localParams[config.key]"
+        :enabled="isParameterEnabled(config.key)"
         @update:model-value="updateParameter(config.key, $event)"
+        @update:enabled="toggleParameterEnabled(config.key, $event)"
         :overrides="overrides[config.key as keyof typeof overrides]"
       />
 

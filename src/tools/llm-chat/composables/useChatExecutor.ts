@@ -114,7 +114,7 @@ export function useChatExecutor() {
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
-    
+
     // 提取模型能力（用于智能附件处理）
     const capabilities = model?.capabilities;
 
@@ -130,6 +130,16 @@ export function useChatExecutor() {
     assistantNode.metadata = {
       ...assistantNode.metadata,
       requestStartTime: Date.now(),
+    };
+
+    // 辅助函数：获取生效的参数
+    const getEffectiveParam = <K extends keyof import("../types").LlmParameters>(key: K) => {
+      const params = agentConfig.parameters;
+      // 如果存在 enabledParameters 且该参数不在其中，则视为禁用（返回 undefined）
+      if (params.enabledParameters && !params.enabledParameters.includes(key)) {
+        return undefined;
+      }
+      return params[key];
     };
 
     try {
@@ -203,54 +213,54 @@ export function useChatExecutor() {
         modelId: agentConfig.modelId,
         messages,
         // 基础采样参数
-        temperature: agentConfig.parameters.temperature,
-        maxTokens: agentConfig.parameters.maxTokens,
-        topP: agentConfig.parameters.topP,
-        topK: agentConfig.parameters.topK,
-        frequencyPenalty: agentConfig.parameters.frequencyPenalty,
-        presencePenalty: agentConfig.parameters.presencePenalty,
-        seed: agentConfig.parameters.seed,
-        stop: agentConfig.parameters.stop,
+        temperature: getEffectiveParam("temperature"),
+        maxTokens: getEffectiveParam("maxTokens"),
+        topP: getEffectiveParam("topP"),
+        topK: getEffectiveParam("topK"),
+        frequencyPenalty: getEffectiveParam("frequencyPenalty"),
+        presencePenalty: getEffectiveParam("presencePenalty"),
+        seed: getEffectiveParam("seed"),
+        stop: getEffectiveParam("stop"),
         // 高级参数
-        n: agentConfig.parameters.n,
-        logprobs: agentConfig.parameters.logprobs,
-        topLogprobs: agentConfig.parameters.topLogprobs,
-        maxCompletionTokens: agentConfig.parameters.maxCompletionTokens,
-        reasoningEffort: agentConfig.parameters.reasoningEffort,
-        logitBias: agentConfig.parameters.logitBias,
-        store: agentConfig.parameters.store,
-        user: agentConfig.parameters.user,
-        serviceTier: agentConfig.parameters.serviceTier,
+        n: getEffectiveParam("n"),
+        logprobs: getEffectiveParam("logprobs"),
+        topLogprobs: getEffectiveParam("topLogprobs"),
+        maxCompletionTokens: getEffectiveParam("maxCompletionTokens"),
+        reasoningEffort: getEffectiveParam("reasoningEffort"),
+        logitBias: getEffectiveParam("logitBias"),
+        store: getEffectiveParam("store"),
+        user: getEffectiveParam("user"),
+        serviceTier: getEffectiveParam("serviceTier"),
         // 响应格式
-        responseFormat: agentConfig.parameters.responseFormat,
+        responseFormat: getEffectiveParam("responseFormat"),
         // 工具调用
-        tools: agentConfig.parameters.tools,
-        toolChoice: agentConfig.parameters.toolChoice,
-        parallelToolCalls: agentConfig.parameters.parallelToolCalls,
+        tools: getEffectiveParam("tools"),
+        toolChoice: getEffectiveParam("toolChoice"),
+        parallelToolCalls: getEffectiveParam("parallelToolCalls"),
         // 多模态输出
-        modalities: agentConfig.parameters.modalities,
-        audio: agentConfig.parameters.audio,
-        prediction: agentConfig.parameters.prediction,
+        modalities: getEffectiveParam("modalities"),
+        audio: getEffectiveParam("audio"),
+        prediction: getEffectiveParam("prediction"),
         // 特殊功能
-        webSearchOptions: agentConfig.parameters.webSearchOptions,
-        streamOptions: agentConfig.parameters.streamOptions,
-        metadata: agentConfig.parameters.metadata,
+        webSearchOptions: getEffectiveParam("webSearchOptions"),
+        streamOptions: getEffectiveParam("streamOptions"),
+        metadata: getEffectiveParam("metadata"),
         // Claude 特有参数
-        thinking: agentConfig.parameters.thinking,
-        stopSequences: agentConfig.parameters.stopSequences,
-        claudeMetadata: agentConfig.parameters.claudeMetadata,
+        thinking: getEffectiveParam("thinking"),
+        stopSequences: getEffectiveParam("stopSequences"),
+        claudeMetadata: getEffectiveParam("claudeMetadata"),
         // 流式响应（根据用户设置）
         stream: settings.value.uiPreferences.isStreaming,
         signal: abortController.signal,
         onStream: settings.value.uiPreferences.isStreaming
           ? (chunk: string) => {
-              handleStreamUpdate(session, assistantNode.id, chunk, false);
-            }
+            handleStreamUpdate(session, assistantNode.id, chunk, false);
+          }
           : undefined,
         onReasoningStream: settings.value.uiPreferences.isStreaming
           ? (chunk: string) => {
-              handleStreamUpdate(session, assistantNode.id, chunk, true);
-            }
+            handleStreamUpdate(session, assistantNode.id, chunk, true);
+          }
           : undefined,
       });
 
@@ -365,12 +375,12 @@ export function useChatExecutor() {
       // 获取文本附件的内容并合并到消息文本中
       const { getTextAttachmentsContent } = useChatAssetProcessor();
       const textAttachmentsContent = await getTextAttachmentsContent(attachments);
-      
+
       // 合并原始内容和文本附件内容
       const fullContent = textAttachmentsContent
         ? `${content}\n\n${textAttachmentsContent}`
         : content;
-      
+
       // 使用完整内容计算 token
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         fullContent,

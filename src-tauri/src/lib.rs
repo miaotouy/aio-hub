@@ -202,6 +202,10 @@ use chrono::Local;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 解决 Linux 下 WebKitGTK 渲染崩溃问题 (EGL_BAD_PARAMETER)
+    #[cfg(target_os = "linux")]
+    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
     let context = tauri::generate_context!();
 
     // Manually construct the path to AppData/Roaming/{bundle_id}/logs

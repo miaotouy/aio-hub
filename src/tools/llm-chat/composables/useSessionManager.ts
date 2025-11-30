@@ -9,6 +9,7 @@ import { useChatStorageSeparated as useChatStorage } from "./useChatStorageSepar
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useExportManager } from "./useExportManager";
+import { getLocalISOString } from "@/utils/time";
 
 const logger = createModuleLogger("llm-chat/session-manager");
 const errorHandler = createModuleErrorHandler("llm-chat/session-manager");
@@ -60,7 +61,7 @@ export function useSessionManager() {
 
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const rootNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
+    const now = getLocalISOString();
 
     // 创建根节点（系统节点，不显示内容）
     const rootNode: ChatMessageNode = {
@@ -161,7 +162,7 @@ export function useSessionManager() {
    * 更新会话信息
    */
   const updateSession = (session: ChatSession, updates: Partial<ChatSession>): void => {
-    Object.assign(session, updates, { updatedAt: new Date().toISOString() });
+    Object.assign(session, updates, { updatedAt: getLocalISOString() });
     logger.info("更新会话", { sessionId: session.id, updates });
   };
 

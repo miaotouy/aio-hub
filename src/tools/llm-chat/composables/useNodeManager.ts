@@ -9,6 +9,7 @@ import type { Asset } from '@/types/asset-management';
 import { BranchNavigator } from '../utils/BranchNavigator';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { getLocalISOString } from '@/utils/time';
 
 const logger = createModuleLogger('llm-chat/node-manager');
 const errorHandler = createModuleErrorHandler('llm-chat/node-manager');
@@ -42,7 +43,7 @@ export function useNodeManager() {
    */
   const createNode = (config: CreateNodeConfig): ChatMessageNode => {
     const nodeId = generateNodeId();
-    const now = new Date().toISOString();
+    const now = getLocalISOString();
 
     return {
       id: nodeId,
@@ -270,7 +271,7 @@ export function useNodeManager() {
 
     const previousLeafId = session.activeLeafId;
     session.activeLeafId = nodeId;
-    session.updatedAt = new Date().toISOString();
+    session.updatedAt = getLocalISOString();
 
     // 更新路径上所有父节点的选择记忆
     BranchNavigator.updateSelectionMemory(session, nodeId);
@@ -298,7 +299,7 @@ export function useNodeManager() {
     }
 
     node.isEnabled = false;
-    session.updatedAt = new Date().toISOString();
+    session.updatedAt = getLocalISOString();
 
     logger.info('节点已软删除', {
       sessionId: session.id,
@@ -404,7 +405,7 @@ export function useNodeManager() {
       }
     });
 
-    session.updatedAt = new Date().toISOString();
+    session.updatedAt = getLocalISOString();
 
     logger.info('🗑️ [硬删除] 删除完成', {
       sessionId: session.id,
@@ -744,7 +745,7 @@ export function useNodeManager() {
     }
 
     // 更新会话时间戳
-    session.updatedAt = new Date().toISOString();
+    session.updatedAt = getLocalISOString();
 
     logger.info('🌿 [嫁接] 嫁接成功', {
       sessionId: session.id,
@@ -834,7 +835,7 @@ export function useNodeManager() {
     // 5. 清空此节点的子节点列表
     nodeToMove.childrenIds = [];
 
-    session.updatedAt = new Date().toISOString();
+    session.updatedAt = getLocalISOString();
     logger.info('🌿 [单点移动] 成功', { nodeId, oldParentId, newParentId });
 
     return true;

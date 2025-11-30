@@ -11,6 +11,7 @@ import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-te
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { customMessage } from '@/utils/customMessage';
+import { getLocalISOString } from '@/utils/time';
 import { exportAgents } from './services/agentExportService';
 import { preflightImportAgents, importAssets } from './services/agentImportService';
 import type { ConfirmImportParams } from './types/agentImportExport';
@@ -104,7 +105,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
     ): string {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      const now = new Date().toISOString();
+      const now = getLocalISOString();
 
       const agent: ChatAgent = {
         id: agentId,
@@ -189,7 +190,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         id: newAgentId,
         name: newName,
         displayName: newDisplayName,
-        createdAt: new Date().toISOString(),
+        createdAt: getLocalISOString(),
         lastUsedAt: undefined, // 复制出的智能体不应继承使用时间
       };
 
@@ -252,7 +253,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
     updateLastUsed(agentId: string): void {
       const agent = this.agents.find(a => a.id === agentId);
       if (agent) {
-        agent.lastUsedAt = new Date().toISOString();
+        agent.lastUsedAt = getLocalISOString();
         this.persistAgent(agent);
       }
     },
@@ -405,7 +406,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
           role: 'system',
           status: 'complete',
           isEnabled: true,
-          timestamp: new Date().toISOString(),
+          timestamp: getLocalISOString(),
         },
       ];
 

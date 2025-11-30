@@ -64,3 +64,24 @@ export function formatRelativeTime(timestamp: string | Date, now: Date = new Dat
   // 更早
   return `${dateYear}-${(dateMonth + 1).toString().padStart(2, '0')}-${dateDate.toString().padStart(2, '0')} ${timeStr}`;
 }
+
+/**
+ * 获取本地时区的 ISO 格式字符串 (YYYY-MM-DDTHH:mm:ss.sss)
+ *
+ * 与 `new Date().toISOString()` 的区别在于，后者总是返回 UTC 时间。
+ * 此函数返回的日期和时间部分反映的是运行环境的本地时间。
+ *
+ * @param date 可选的 Date 对象，默认为当前时间
+ * @returns 本地时区的 ISO 格式字符串
+ */
+export function getLocalISOString(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+  const milliseconds = date.getMilliseconds().toString().padStart(3, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
+}

@@ -119,9 +119,27 @@ export interface ContextPreviewData {
   parameters?: LlmParameters;
   /** 目标节点的时间戳（用于宏预览） */
   targetTimestamp?: number;
+  /** 用户信息（用于宏预览） */
+  userInfo?: {
+    id?: string;
+    name?: string;
+    displayName?: string;
+    icon?: string;
+  };
 }
 
 export function useChatContextBuilder() {
+  const getValidTimestamp = (ts: any): number | null => {
+    if (typeof ts === 'number') {
+      return isFinite(ts) ? ts : null;
+    }
+    if (typeof ts === 'string') {
+      const num = Number(ts);
+      return isFinite(num) ? num : null;
+    }
+    return null;
+  };
+
   const { buildMessageContentForLlm, prepareStructuredMessageForAnalysis } = useMessageBuilder();
   const { processMacros, processMacrosBatch } = useMacroProcessor();
   const { calculatePostProcessingTokenDelta } = useMessageProcessor();
@@ -647,6 +665,9 @@ export function useChatContextBuilder() {
       return null;
     }
 
+    // 提前计算时间戳，以便在宏处理中使用
+    const targetTimestamp = getValidTimestamp(targetNode.timestamp) ?? undefined;
+
     // 获取到目标节点的完整路径
     const nodePath = nodeManager.getNodePath(session, targetNodeId);
 
@@ -695,12 +716,13 @@ export function useChatContextBuilder() {
       // 1. 尝试从 Store 获取完整档案（为了 content）
       const storeProfile = userProfileStore.getProfileById(relevantUserNode.metadata.userProfileId);
 
-      // 2. 构建生效的 Profile，优先使用 metadata 中的快照信息（name/icon），content 使用 store 中的最新值
-      // 注意：如果 store 中找不到（已被删除），则 content 为空，但至少保留了身份信息
+      // 2. 构建生效的 Profile
+      // name 始终从 store 获取，确保是唯一的 ID name
+      // displayName 优先使用快照，然后回退到 store
       effectiveUserProfile = {
         id: relevantUserNode.metadata.userProfileId,
-        name: relevantUserNode.metadata.userProfileName || storeProfile?.name || 'User',
-        displayName: relevantUserNode.metadata.userProfileName || storeProfile?.displayName,
+        name: storeProfile?.name || 'User', // 修正：直接从 store 获取 name (ID)
+        displayName: relevantUserNode.metadata.userProfileName || storeProfile?.displayName, // 快照中的 userProfileName 实际上是 displayName
         icon: relevantUserNode.metadata.userProfileIcon || storeProfile?.icon,
         content: storeProfile?.content || ''
       };
@@ -825,7 +847,8 @@ export function useChatContextBuilder() {
             content = await processMacros(content, {
               session,
               agent: agent ?? undefined,
-              userProfile: effectiveUserProfile // 注入恢复的用户档案
+              userProfile: effectiveUserProfile, // 注入恢复的用户档案
+              timestamp: targetTimestamp,
             });
           } catch (error) {
             logger.warn("预设消息宏处理失败，将使用原始内容", { index, error });
@@ -855,7 +878,7 @@ export function useChatContextBuilder() {
             source: "agent_preset",
             index,
             // 如果是 user 角色，注入当时的用户信息
-            userName: msg.role === 'user' ? (effectiveUserProfile?.displayName || effectiveUserProfile?.name) : undefined,
+            userName: msg.role === 'user' ? effectiveUserProfile?.name : undefined, // 修正：使用 name (ID)
             userIcon: msg.role === 'user' ? effectiveUserProfile?.icon : undefined
           };
         })
@@ -1254,7 +1277,13 @@ export function useChatContextBuilder() {
 
         return effectiveParams;
       })(),
-      targetTimestamp: typeof targetNode.timestamp === 'string' ? Number(targetNode.timestamp) : targetNode.timestamp,
+      targetTimestamp: targetTimestamp,
+      userInfo: {
+        id: effectiveUserProfile?.id,
+        name: effectiveUserProfile?.name,
+        displayName: effectiveUserProfile?.displayName,
+        icon: effectiveUserProfile?.icon,
+      },
     };
 
     logger.debug("🔍 生成上下文预览数据", {

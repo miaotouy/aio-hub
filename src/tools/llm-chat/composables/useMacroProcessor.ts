@@ -32,6 +32,8 @@ export interface MacroContextOverrides {
   userName?: string;
   /** 强制覆盖角色名 */
   charName?: string;
+  /** 强制覆盖时间戳 */
+  timestamp?: number;
 }
 
 export function useMacroProcessor() {
@@ -82,6 +84,7 @@ export function useMacroProcessor() {
       agent,
       userProfile,
       session: contextOverrides?.session,
+      timestamp: contextOverrides?.timestamp,
     });
 
     // 如果提供了 session，从中提取额外的上下文信息

@@ -8,7 +8,7 @@
       <!-- 宏统计信息 -->
       <div class="macro-stats">
         <InfoCard title="宏执行概览">
-          <el-descriptions :column="2" border size="small">
+          <el-descriptions :column="2" :border="true" size="small">
             <el-descriptions-item label="宏总数">
               {{ macroResult?.macroCount || 0 }}
             </el-descriptions-item>
@@ -19,7 +19,7 @@
         </InfoCard>
       </div>
 
-      <!-- 检测到的宏列表 (优化版) -->
+      <!-- 检测到的宏列表 -->
       <div v-if="uniqueDetectedMacros.length > 0" class="detected-macros">
         <InfoCard title="检测到的宏">
           <el-table :data="uniqueDetectedMacros" stripe size="small">
@@ -57,7 +57,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column prop="count" label="次数" width="70" align="center" />
+            <el-table-column prop="count" label="次数" width="70" :align="'center'" />
 
             <el-table-column label="完整表达式" min-width="160" show-overflow-tooltip>
               <template #default="{ row }">
@@ -68,65 +68,101 @@
         </InfoCard>
       </div>
 
-      <!-- 处理过程展示 (优化版) -->
-      <div v-if="macroResult?.phaseOutputs" class="phase-outputs">
-        <InfoCard title="处理流水线">
+      <!-- 宏替换差异视图 -->
+      <div v-if="messageResults.length > 0" class="macro-diff-view">
+        <InfoCard title="宏替换结果对比">
           <template #header-extra>
-            <el-switch
-              v-model="showOriginal"
-              active-text="显示原文"
-              inline-prompt
-              style="margin-left: 12px"
-            />
+            <div class="diff-controls">
+              <el-button link type="primary" size="small" @click="toggleAllContext">
+                {{ allContextExpanded ? "收起未变行" : "展开全部" }}
+              </el-button>
+            </div>
           </template>
 
-          <div v-if="showOriginal" class="original-preview mb-4">
-            <div class="phase-label">原始输入 (Original)</div>
-            <div class="phase-content">
-              <pre>{{ macroResult.phaseOutputs.original }}</pre>
-            </div>
-          </div>
+          <div class="messages-diff-list">
+            <el-collapse v-model="activeMessageNames">
+              <el-collapse-item
+                v-for="(msgResult, msgIndex) in messageResults"
+                :key="msgIndex"
+                :name="msgIndex"
+                :disabled="!msgResult.hasChanges && !msgResult.hasMacros"
+              >
+                <template #title>
+                  <div class="message-diff-header">
+                    <span class="role-tag" :class="msgResult.role">{{
+                      msgResult.role.toUpperCase()
+                    }}</span>
+                    <span class="diff-status">
+                      <el-tag v-if="msgResult.hasChanges" size="small" type="warning" effect="plain"
+                        >已修改</el-tag
+                      >
+                      <el-tag
+                        v-else-if="msgResult.hasMacros"
+                        size="small"
+                        type="info"
+                        effect="plain"
+                        >含宏 (未变)</el-tag
+                      >
+                      <span v-else class="no-change-text">无宏且无变化</span>
+                    </span>
+                  </div>
+                </template>
 
-          <el-steps
-            :active="activeStep"
-            finish-status="success"
-            process-status="success"
-            simple
-            style="margin-bottom: 16px"
-          >
-            <el-step title="预处理" @click="activeStep = 0" class="cursor-pointer" />
-            <el-step title="替换" @click="activeStep = 1" class="cursor-pointer" />
-            <el-step title="后处理" @click="activeStep = 2" class="cursor-pointer" />
-          </el-steps>
+                <div class="diff-container">
+                  <div v-for="(hunk, index) in msgResult.diffHunks" :key="index" class="diff-hunk">
+                    <!-- 差异块头部（折叠的上下文） -->
+                    <div
+                      v-if="hunk.isCollapsed"
+                      class="hunk-divider"
+                      @click.stop="expandHunk(msgIndex, index)"
+                    >
+                      <el-icon><MoreFilled /></el-icon>
+                      <span>展开 {{ hunk.lines.length }} 行未变化内容</span>
+                    </div>
 
-          <div class="step-content">
-            <div v-if="activeStep === 0">
-              <div class="phase-header">
-                <span class="phase-title">阶段一：预处理 (Pre-Process)</span>
-                <span class="phase-desc">处理 setvar, incvar 等状态变更宏</span>
-              </div>
-              <div class="phase-content">
-                <pre>{{ macroResult.phaseOutputs.afterPreProcess }}</pre>
-              </div>
-            </div>
-            <div v-if="activeStep === 1">
-              <div class="phase-header">
-                <span class="phase-title">阶段二：替换 (Substitute)</span>
-                <span class="phase-desc">替换 user, char 等静态变量</span>
-              </div>
-              <div class="phase-content">
-                <pre>{{ macroResult.phaseOutputs.afterSubstitute }}</pre>
-              </div>
-            </div>
-            <div v-if="activeStep === 2">
-              <div class="phase-header">
-                <span class="phase-title">阶段三：后处理 (Post-Process)</span>
-                <span class="phase-desc">执行 time, random 等动态函数</span>
-              </div>
-              <div class="phase-content">
-                <pre>{{ macroResult.phaseOutputs.afterPostProcess }}</pre>
-              </div>
-            </div>
+                    <!-- 差异块内容 -->
+                    <div v-else class="hunk-content">
+                      <div
+                        v-for="(line, lineIndex) in hunk.lines"
+                        :key="lineIndex"
+                        class="diff-line"
+                        :class="{
+                          'is-added': line.type === 'add',
+                          'is-removed': line.type === 'remove',
+                          'is-context': line.type === 'context',
+                        }"
+                      >
+                        <div class="line-number">
+                          <span v-if="line.oldLineNo">{{ line.oldLineNo }}</span>
+                          <span v-else>&nbsp;</span>
+                        </div>
+                        <div class="line-number">
+                          <span v-if="line.newLineNo">{{ line.newLineNo }}</span>
+                          <span v-else>&nbsp;</span>
+                        </div>
+                        <div class="line-content">
+                          <template v-if="line.parts">
+                            <span
+                              v-for="(part, pIndex) in line.parts"
+                              :key="pIndex"
+                              :class="{
+                                'word-added': part.added,
+                                'word-removed': part.removed,
+                              }"
+                              >{{ part.value }}</span
+                            >
+                          </template>
+                          <template v-else>
+                            {{ line.content }}
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="msgResult.diffHunks.length === 0" class="no-changes">内容无变化</div>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
           </div>
         </InfoCard>
       </div>
@@ -137,39 +173,63 @@
 <script setup lang="ts">
 import { ref, computed, watch, reactive } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
-import { Loading } from "@element-plus/icons-vue";
+import { Loading, MoreFilled } from "@element-plus/icons-vue";
 import { MacroProcessor, MacroRegistry } from "../../macro-engine";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { MacroProcessResult } from "../../macro-engine";
 import type { ContextPreviewData } from "../../composables/useChatContextBuilder";
 import { useAgentStore } from "../../agentStore";
+import { diffLines, diffWordsWithSpace, type Change } from "diff";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
 }>();
 
-const activeStep = ref(2); // 默认显示最后一步（后处理结果）
-const showOriginal = ref(false); // 默认折叠原文
 const macroResult = ref<MacroProcessResult | null>(null);
-const macroPreviews = reactive<Record<string, string>>({}); // 存储宏预览值
+const macroPreviews = reactive<Record<string, string>>({});
 const agentStore = useAgentStore();
 
-// 从 contextData 中提取所有原始文本（包含宏的）
+// Diff 状态
+interface DiffLine {
+  type: "add" | "remove" | "context";
+  content: string;
+  oldLineNo?: number;
+  newLineNo?: number;
+  parts?: Change[]; // 用于词级差异
+}
+
+interface DiffHunk {
+  lines: DiffLine[];
+  isCollapsed: boolean;
+  isChangeHunk: boolean; // 如果此块包含更改则为 True
+  hasMacro: boolean; // 如果此块包含宏（即使未更改）则为 True
+}
+
+interface MessageDiffResult {
+  role: string;
+  original: string;
+  modified: string;
+  diffHunks: DiffHunk[];
+  hasChanges: boolean;
+  hasMacros: boolean;
+}
+
+const messageResults = ref<MessageDiffResult[]>([]);
+const activeMessageNames = ref<number[]>([]);
+const allContextExpanded = ref(false);
+
+// 从 contextData 中提取所有原始文本 (仅用于宏统计)
 const combinedOriginalText = computed(() => {
   if (!props.contextData) return "";
-
   const texts: string[] = [];
-
-  // 1. 预设消息
   props.contextData.presetMessages.forEach((msg) => {
     const raw = (msg as any).originalContent || msg.content;
     if (raw) texts.push(raw);
   });
-
   return texts.join("\n");
 });
 
-// 检测原始消息中的宏
+// 检测原始消息中的宏 (仅用于统计)
 const detectedMacros = computed(() => {
   if (!combinedOriginalText.value) return [];
   return MacroProcessor.extractMacros(combinedOriginalText.value);
@@ -181,7 +241,6 @@ const uniqueDetectedMacros = computed(() => {
   const map = new Map<string, { name: string; args: string[]; fullMatch: string; count: number }>();
 
   macros.forEach((m) => {
-    // 使用 fullMatch 作为唯一标识
     if (map.has(m.fullMatch)) {
       map.get(m.fullMatch)!.count++;
     } else {
@@ -197,70 +256,295 @@ const uniqueDetectedMacros = computed(() => {
   return Array.from(map.values());
 });
 
-// 是否包含宏
 const hasMacros = computed(() => detectedMacros.value.length > 0);
 
-// 当上下文数据变化时，重新处理宏
+// 检查字符串是否包含宏模式的辅助函数
+const containsMacro = (text: string) => /\{\{.*?\}\}/.test(text);
+
+// 计算差异 (纯函数)
+const getDiffHunks = (original: string, modified: string): DiffHunk[] => {
+  const linesDiff = diffLines(original, modified);
+  const hunks: DiffHunk[] = [];
+  let currentHunk: DiffLine[] = [];
+  let oldLineCount = 1;
+  let newLineCount = 1;
+  let currentHunkHasChange = false;
+  let currentHunkHasMacro = false;
+
+  // 推送当前块的辅助函数
+  const pushHunk = () => {
+    if (currentHunk.length > 0) {
+      const shouldExpand = currentHunkHasChange || currentHunkHasMacro;
+
+      hunks.push({
+        lines: [...currentHunk],
+        isCollapsed: !shouldExpand,
+        isChangeHunk: currentHunkHasChange,
+        hasMacro: currentHunkHasMacro,
+      });
+      currentHunk = [];
+      currentHunkHasChange = false;
+      currentHunkHasMacro = false;
+    }
+  };
+
+  const rawOps: { type: "add" | "remove" | "common"; lines: string[] }[] = linesDiff
+    .map((part) => {
+      let lines = part.value.split("\n");
+      if (lines.length > 0 && lines[lines.length - 1] === "") {
+        lines.pop();
+      }
+      return {
+        type: (part.added ? "add" : part.removed ? "remove" : "common") as
+          | "add"
+          | "remove"
+          | "common",
+        lines: lines,
+      };
+    })
+    .filter((op) => op.lines.length > 0);
+
+  let i = 0;
+  while (i < rawOps.length) {
+    const op = rawOps[i];
+
+    if (op.type === "common") {
+      pushHunk(); // 关闭上一个块
+
+      op.lines.forEach((line) => {
+        if (containsMacro(line)) currentHunkHasMacro = true;
+        currentHunk.push({
+          type: "context",
+          content: line,
+          oldLineNo: oldLineCount++,
+          newLineNo: newLineCount++,
+        });
+      });
+      pushHunk(); // 关闭此上下文块
+      i++;
+    } else {
+      // 检测到更改
+      currentHunkHasChange = true;
+
+      // 检查替换块（删除后紧跟添加）
+      const nextOp = rawOps[i + 1];
+
+      if (op.type === "remove" && nextOp && nextOp.type === "add") {
+        const removeLines = op.lines;
+        const addLines = nextOp.lines;
+        const maxLen = Math.max(removeLines.length, addLines.length);
+
+        for (let k = 0; k < maxLen; k++) {
+          const remLine = removeLines[k];
+          const addLine = addLines[k];
+
+          if (remLine !== undefined && addLine !== undefined) {
+            // 检查行是否实际上相同（diffLines 可能过于激进或者是空白差异）
+            if (remLine === addLine) {
+              if (containsMacro(remLine)) currentHunkHasMacro = true;
+              currentHunk.push({
+                type: "context",
+                content: remLine,
+                oldLineNo: oldLineCount++,
+                newLineNo: newLineCount++,
+              });
+            } else {
+              // 实际差异 -> 词级差异
+              if (containsMacro(remLine)) currentHunkHasMacro = true;
+
+              const wordDiff = diffWordsWithSpace(remLine, addLine);
+
+              // 对于旧行：显示公共部分 + 删除部分（过滤掉添加部分）
+              currentHunk.push({
+                type: "remove",
+                content: remLine,
+                oldLineNo: oldLineCount++,
+                parts: wordDiff.filter((p) => !p.added),
+              });
+
+              // 对于新行：显示公共部分 + 添加部分（过滤掉删除部分）
+              currentHunk.push({
+                type: "add",
+                content: addLine,
+                newLineNo: newLineCount++,
+                parts: wordDiff.filter((p) => !p.removed),
+              });
+            }
+          } else if (remLine !== undefined) {
+            if (containsMacro(remLine)) currentHunkHasMacro = true;
+            currentHunk.push({
+              type: "remove",
+              content: remLine,
+              oldLineNo: oldLineCount++,
+            });
+          } else if (addLine !== undefined) {
+            currentHunk.push({
+              type: "add",
+              content: addLine,
+              newLineNo: newLineCount++,
+            });
+          }
+        }
+        i += 2;
+      } else {
+        // 单个块（仅添加或删除）
+        op.lines.forEach((line) => {
+          if (op.type === "remove") {
+            if (containsMacro(line)) currentHunkHasMacro = true;
+            currentHunk.push({
+              type: "remove",
+              content: line,
+              oldLineNo: oldLineCount++,
+            });
+          } else {
+            currentHunk.push({
+              type: "add",
+              content: line,
+              newLineNo: newLineCount++,
+            });
+          }
+        });
+        i++;
+      }
+    }
+  }
+  pushHunk(); // 刷新最后一块
+
+  return hunks;
+};
+
+const toggleAllContext = () => {
+  allContextExpanded.value = !allContextExpanded.value;
+  messageResults.value.forEach((msg) => {
+    msg.diffHunks.forEach((h) => {
+      h.isCollapsed = !allContextExpanded.value;
+    });
+  });
+};
+
+const expandHunk = (msgIndex: number, hunkIndex: number) => {
+  const msg = messageResults.value[msgIndex];
+  if (msg && msg.diffHunks[hunkIndex]) {
+    msg.diffHunks[hunkIndex].isCollapsed = false;
+  }
+};
+
 watch(
   () => props.contextData,
   async (newData) => {
     if (!newData || !hasMacros.value) {
       macroResult.value = null;
+      messageResults.value = [];
+      activeMessageNames.value = [];
       return;
     }
 
-    // 构建宏上下文
     const agentId = newData.agentInfo.id;
     const agent = agentStore.getAgentById(agentId);
 
-    const context = createMacroContext({
-      userName: "User",
-      charName: newData.agentInfo.name || "Assistant",
+    // 基础上下文，用于宏预览等
+    const baseContext = createMacroContext({
+      userName: newData.userInfo?.name || "User",
+      charName: agent?.name || newData.agentInfo.name || "Assistant",
       agent: agent || undefined,
       timestamp: newData.targetTimestamp,
     });
 
-    // 如果有参数覆盖，注入到变量中
     if (newData.parameters) {
       Object.entries(newData.parameters).forEach(([key, value]) => {
         if (typeof value === "string" || typeof value === "number") {
-          context.variables.set(key, value);
+          baseContext.variables.set(key, value);
         }
       });
     }
 
-    // 1. 执行宏处理（开启调试模式）
     const processor = new MacroProcessor();
+    const results: MessageDiffResult[] = [];
+    const activeNames: number[] = [];
+    let totalMacroCount = 0;
+
     try {
-      macroResult.value = await processor.process(combinedOriginalText.value, context, {
-        debug: true,
-      });
-    } catch (error) {
-      console.error("宏处理预览失败:", error);
-      // 降级显示
+      // 分别处理每条消息
+      for (let i = 0; i < newData.presetMessages.length; i++) {
+        const msg = newData.presetMessages[i];
+        const original = (msg as any).originalContent || msg.content || "";
+
+        // 如果消息为空，跳过
+        if (!original.trim()) {
+          continue;
+        }
+
+        // 为每条消息创建特定的上下文，确保时间戳和角色名称正确
+        // 注意：presetMessages 没有节点时间戳，所以回退到 targetTimestamp
+        const messageTimestamp = (msg as any).timestamp || newData.targetTimestamp;
+        const messageContext = createMacroContext({
+          userName: baseContext.userName,
+          charName: baseContext.charName,
+          agent: baseContext.agent,
+          userProfile: baseContext.userProfileObj,
+          timestamp: messageTimestamp,
+        });
+
+        const processResult = await processor.process(original, messageContext, {
+          debug: true,
+        });
+
+        const modified = processResult.phaseOutputs?.afterPostProcess || original;
+        const hunks = getDiffHunks(original, modified);
+        const hasChanges = original !== modified;
+        const hasMacros = containsMacro(original);
+
+        if (hasChanges) {
+          activeNames.push(i);
+        }
+
+        results.push({
+          role: msg.role,
+          original,
+          modified,
+          diffHunks: hunks,
+          hasChanges,
+          hasMacros,
+        });
+
+        // 累加统计信息
+        if (processResult) {
+          totalMacroCount += processResult.macroCount;
+        }
+      }
+
+      messageResults.value = results;
+      activeMessageNames.value = activeNames;
+
+      // 构造一个伪造的 macroResult 用于顶部统计
+      // 注意：这里我们尽可能保持 macroResult 的结构以兼容现有代码
+      // 但实际上我们更关心的是 macroCount
       macroResult.value = {
-        output: combinedOriginalText.value,
-        hasMacros: true,
-        macroCount: detectedMacros.value.length,
+        output: "", // 仅用于占位，不再重要
+        hasMacros: totalMacroCount > 0,
+        macroCount: totalMacroCount,
         phaseOutputs: {
           original: combinedOriginalText.value,
-          afterPreProcess: "处理出错",
-          afterSubstitute: "处理出错",
-          afterPostProcess: "处理出错",
+          afterPreProcess: "",
+          afterSubstitute: "",
+          afterPostProcess: "",
         },
       };
+    } catch (error) {
+      console.error("宏处理预览失败:", error);
+      macroResult.value = null;
+      messageResults.value = [];
     }
 
-    // 2. 计算每个宏的预览值
-    // 清空旧预览
+    // 预览 (保持不变，基于 detectedMacros)
     Object.keys(macroPreviews).forEach((key) => delete macroPreviews[key]);
-
     const registry = MacroRegistry.getInstance();
     for (const macro of uniqueDetectedMacros.value) {
       const def = registry.getMacro(macro.name);
       if (def) {
         try {
-          const result = await def.execute(context, macro.args);
+          // 宏预览也使用基础上下文
+          const result = await def.execute(baseContext, macro.args);
           macroPreviews[macro.fullMatch] = result;
         } catch (e) {
           macroPreviews[macro.fullMatch] = "(执行错误)";
@@ -313,70 +597,103 @@ watch(
   color: var(--el-text-color-secondary);
 }
 
-.original-preview {
-  margin-bottom: 16px;
-  border: 1px dashed var(--el-border-color);
-  border-radius: 4px;
-  padding: 12px;
-  background-color: var(--el-fill-color-lighter);
-}
-
-.phase-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 8px;
-  font-weight: 600;
-}
-
-.cursor-pointer {
-  cursor: pointer;
-}
-
-.phase-header {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.phase-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
-.phase-desc {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
-
-.phase-content {
-  padding: 12px;
-  background-color: var(--el-fill-color-light);
-  border-radius: 4px;
-  border: 1px solid var(--el-border-color-lighter);
-}
-
-.phase-content pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: "Consolas", "Monaco", "Courier New", monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--el-text-color-regular);
-}
-
 .no-args {
   color: var(--el-text-color-placeholder);
   font-size: 12px;
 }
 
-:deep(.el-step.is-process .el-step__title) {
-  font-weight: 800;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+/* Diff 样式 */
+.diff-container {
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
+  font-size: 13px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--el-bg-color);
+}
+
+.diff-hunk {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.diff-hunk:last-child {
+  border-bottom: none;
+}
+
+.hunk-divider {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  padding: 4px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  user-select: none;
+}
+.hunk-divider:hover {
+  background-color: var(--el-fill-color);
+  color: var(--el-color-primary);
+}
+
+.diff-line {
+  display: flex;
+  line-height: 20px;
+}
+
+.line-number {
+  width: 40px;
+  text-align: right;
+  padding-right: 8px;
+  color: var(--el-text-color-placeholder);
+  background-color: var(--el-fill-color-lighter);
+  border-right: 1px solid var(--el-border-color-lighter);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-content {
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex-grow: 1;
+}
+
+/* 颜色 */
+.is-added {
+  background-color: var(--el-color-success-light-9);
+}
+.is-added .line-number {
+  background-color: var(--el-color-success-light-8);
+  color: var(--el-color-success-dark-2);
+}
+
+.is-removed {
+  background-color: var(--el-color-danger-light-9);
+}
+.is-removed .line-number {
+  background-color: var(--el-color-danger-light-8);
+  color: var(--el-color-danger-dark-2);
+}
+
+.is-context {
+  color: var(--el-text-color-regular);
+}
+
+/* 词级高亮 */
+.word-added {
+  background-color: var(--el-color-success-light-5);
+  border-radius: 2px;
+}
+
+.word-removed {
+  background-color: var(--el-color-danger-light-5);
+  text-decoration: line-through;
+  border-radius: 2px;
+}
+
+.no-changes {
+  padding: 20px;
+  text-align: center;
+  color: var(--el-text-color-secondary);
 }
 </style>

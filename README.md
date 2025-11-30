@@ -164,7 +164,10 @@ _专为 LLM 流式输出打造的高性能渲染方案_
 
 无需配置环境，开箱即用。
 
-[![下载最新版本](https://img.shields.io/github/v/release/miaotouy/aio-hub?style=for-the-badge&logo=github&label=下载最新版本)](https://github.com/miaotouy/aio-hub/releases/latest)
+[![下载正式版本](https://img.shields.io/github/v/release/miaotouy/aio-hub?style=for-the-badge&logo=github&label=下载正式版本)](https://github.com/miaotouy/aio-hub/releases/latest)
+[![下载预览版](https://img.shields.io/github/v/release/miaotouy/aio-hub?include_prereleases&style=for-the-badge&logo=github&label=下载预览版&color=yellow)](https://github.com/miaotouy/aio-hub/releases)
+
+> 🚀 **提示**：正式版更新较慢，推荐下载 **预览版** (Pre-release) 以体验最新的功能特性与 Bug 修复！
 
 | 平台        | 格式        | 说明                                |
 | :---------- | :---------- | :---------------------------------- |

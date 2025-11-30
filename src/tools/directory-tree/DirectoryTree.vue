@@ -133,6 +133,9 @@
             <el-tooltip content="发送到聊天" placement="top">
               <el-button :icon="ChatDotRound" text circle @click="sendTreeToChat" />
             </el-tooltip>
+            <el-tooltip content="清空结果" placement="top">
+              <el-button :icon="Delete" text circle @click="resetTree" />
+            </el-tooltip>
             <div class="divider-vertical"></div>
             <el-tooltip
               :content="showResultFilter ? '收起视图控制' : '展开视图控制'"
@@ -199,6 +202,7 @@ import {
   ChatDotRound,
   QuestionFilled,
   Filter,
+  Delete,
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash-es";
@@ -405,6 +409,14 @@ onMounted(async () => {
     maxDepth.value = config.maxDepth;
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
+
+    // 恢复上次生成的结果
+    if (config.lastTreeResult) {
+      treeResult.value = config.lastTreeResult;
+    }
+    if (config.lastStatsInfo) {
+      statsInfo.value = config.lastStatsInfo;
+    }
   } catch (error) {
     errorHandler.error(error, "加载配置失败", { showToUser: false });
   } finally {
@@ -428,6 +440,8 @@ const debouncedSaveConfig = debounce(async () => {
       maxDepth: maxDepth.value,
       autoGenerateOnDrop: autoGenerateOnDrop.value,
       includeMetadata: includeMetadata.value,
+      lastTreeResult: treeResult.value,
+      lastStatsInfo: statsInfo.value,
       version: "1.0.0",
     };
     await saveConfig(config);
@@ -502,6 +516,9 @@ const generateTree = async () => {
     treeResult.value = result.tree;
     statsInfo.value = result.stats;
 
+    // 立即触发保存，包含最新的结果
+    debouncedSaveConfig();
+
     customMessage.success("目录树生成成功");
   } catch (error: any) {
     customMessage.error(`生成失败: ${error}`);
@@ -538,6 +555,18 @@ const sendTreeToChat = () => {
     language: "text",
     successMessage: "已将目录树发送到聊天",
   });
+};
+
+// 重置目录树
+const resetTree = () => {
+  treeResult.value = "";
+  statsInfo.value = null;
+  secondaryExcludePattern.value = "";
+
+  // 保存清空后的状态
+  debouncedSaveConfig();
+
+  customMessage.success("结果已清空");
 };
 </script>
 

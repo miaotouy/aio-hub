@@ -8,6 +8,20 @@ import { createConfigManager, ConfigManager } from '../../utils/configManager';
 const CONFIG_VERSION = '1.0.0';
 
 /**
+ * 目录树统计信息接口
+ */
+export interface TreeStats {
+  total_dirs: number;
+  total_files: number;
+  filtered_dirs: number;
+  filtered_files: number;
+  show_files: boolean;
+  show_hidden: boolean;
+  max_depth: string;
+  filter_count: number;
+}
+
+/**
  * 目录树配置接口
  */
 export interface DirectoryTreeConfig {
@@ -28,6 +42,10 @@ export interface DirectoryTreeConfig {
   autoGenerateOnDrop: boolean;
   /** 输出时是否包含配置和统计信息 */
   includeMetadata: boolean;
+  /** 上次生成的目录树结果 */
+  lastTreeResult?: string;
+  /** 上次生成的统计信息 */
+  lastStatsInfo?: TreeStats | null;
   /** 配置版本 */
   version: string;
 }
@@ -47,6 +65,8 @@ function createDefaultConfig(): DirectoryTreeConfig {
     maxDepth: 5,
     autoGenerateOnDrop: true,  // 默认开启自动生成
     includeMetadata: false,  // 默认不包含元数据
+    lastTreeResult: '',
+    lastStatsInfo: null,
     version: CONFIG_VERSION
   };
 }

@@ -4,8 +4,20 @@
  */
 
 import { createConfigManager, ConfigManager } from '../../utils/configManager';
+import type { GenerateTreeOptions } from './actions';
 
 const CONFIG_VERSION = '1.0.0';
+
+/**
+ * 树节点结构
+ */
+export interface TreeNode {
+  name: string;
+  is_dir: boolean;
+  size: number;
+  children: TreeNode[];
+  error?: string;
+}
 
 /**
  * 目录树统计信息接口
@@ -19,6 +31,7 @@ export interface TreeStats {
   show_hidden: boolean;
   max_depth: string;
   filter_count: number;
+  generated_at: string;
 }
 
 /**
@@ -34,6 +47,7 @@ export interface DirectoryTreeConfig {
   /** 上次的显示选项 */
   showFiles: boolean;
   showHidden: boolean;
+  /** 视图选项 */
   showSize: boolean;
   showDirSize: boolean;
   /** 上次的深度限制 */
@@ -42,10 +56,12 @@ export interface DirectoryTreeConfig {
   autoGenerateOnDrop: boolean;
   /** 输出时是否包含配置和统计信息 */
   includeMetadata: boolean;
-  /** 上次生成的目录树结果 */
-  lastTreeResult?: string;
+  /** 上次生成的结构化数据 */
+  lastTreeStructure?: TreeNode | null;
   /** 上次生成的统计信息 */
   lastStatsInfo?: TreeStats | null;
+  /** 上次生成的配置选项（用于重建元数据） */
+  lastGenerationOptions?: GenerateTreeOptions | null;
   /** 配置版本 */
   version: string;
 }
@@ -60,13 +76,14 @@ function createDefaultConfig(): DirectoryTreeConfig {
     lastTargetPath: '',
     showFiles: true,
     showHidden: false,
-    showSize: false,  // 默认不显示文件大小
-    showDirSize: false, // 默认不显示目录大小
+    showSize: true,
+    showDirSize: true,
     maxDepth: 5,
     autoGenerateOnDrop: true,  // 默认开启自动生成
     includeMetadata: false,  // 默认不包含元数据
-    lastTreeResult: '',
+    lastTreeStructure: null,
     lastStatsInfo: null,
+    lastGenerationOptions: null,
     version: CONFIG_VERSION
   };
 }

@@ -1,19 +1,19 @@
-use std::fs;
-use std::path::{Path, PathBuf};
 use regex::Regex;
 use serde::Serialize;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 // 格式化文件大小，转换为人类可读的格式
-fn format_size(size: u64) -> String {
+fn _format_size(size: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = size as f64;
     let mut unit_index = 0;
-    
+
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{:.0} {}", size, UNITS[unit_index])
     } else {
@@ -25,7 +25,7 @@ fn format_size(size: u64) -> String {
 #[derive(Clone)]
 struct IgnoreRule {
     regex: Regex,
-    negated: bool,  // true 表示这是一个否定规则（以 ! 开头）
+    negated: bool, // true 表示这是一个否定规则（以 ! 开头）
 }
 
 // 统计信息结构
@@ -50,7 +50,7 @@ impl TreeStats {
 // 返回结果结构，包含目录树和统计信息
 #[derive(Serialize)]
 pub struct DirectoryTreeResult {
-    pub tree: String,
+    pub structure: TreeNode,
     pub stats: DirectoryTreeStats,
 }
 
@@ -78,16 +78,16 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
     if pattern.is_empty() {
         return None;
     }
-    
+
     // 检查是否是否定规则
     let (negated, pattern) = if let Some(stripped) = pattern.strip_prefix('!') {
         (true, stripped)
     } else {
         (false, pattern)
     };
-    
+
     let mut regex_pattern = String::new();
-    
+
     // 处理特殊的 ** 模式
     // 如果模式是 "dir/**"，应该匹配 dir/ 下的所有内容，但不包括 dir 本身
     if pattern.contains("/**") {
@@ -95,7 +95,7 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
         if parts.len() == 2 {
             let dir_part = parts[0];
             let after_part = parts[1];
-            
+
             // 如果以 / 开头，从根路径匹配
             if let Some(stripped) = dir_part.strip_prefix('/') {
                 regex_pattern.push_str(&format!("^{}/", stripped));
@@ -103,10 +103,10 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
                 // 可以匹配任何路径下的该目录
                 regex_pattern.push_str(&format!("(^|.*/){}/", dir_part));
             }
-            
+
             // ** 匹配任意深度的路径
             regex_pattern.push_str(".*");
-            
+
             // 处理 ** 之后的部分
             if !after_part.is_empty() {
                 for ch in after_part.chars() {
@@ -119,12 +119,14 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
                     }
                 }
             }
-            
+
             regex_pattern.push('$');
-            return Regex::new(&regex_pattern).ok().map(|regex| IgnoreRule { regex, negated });
+            return Regex::new(&regex_pattern)
+                .ok()
+                .map(|regex| IgnoreRule { regex, negated });
         }
     }
-    
+
     // 如果模式以 / 开头，表示从根路径开始匹配
     let starts_with_slash = pattern.starts_with('/');
     let pattern = if starts_with_slash {
@@ -135,7 +137,7 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
         regex_pattern.push_str("(^|.*/|)");
         pattern
     };
-    
+
     // 转换 glob 模式为正则表达式
     let mut i = 0;
     let chars: Vec<char> = pattern.chars().collect();
@@ -147,10 +149,10 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
                     regex_pattern.push_str(".*");
                     i += 1; // 跳过第二个 *
                 } else {
-                    regex_pattern.push_str("[^/]*");  // 单个 * 不匹配路径分隔符
+                    regex_pattern.push_str("[^/]*"); // 单个 * 不匹配路径分隔符
                 }
-            },
-            '?' => regex_pattern.push_str("[^/]"),   // ? 不匹配路径分隔符
+            }
+            '?' => regex_pattern.push_str("[^/]"), // ? 不匹配路径分隔符
             '.' => regex_pattern.push_str(r"\."),
             '+' => regex_pattern.push_str(r"\+"),
             '(' => regex_pattern.push_str(r"\("),
@@ -168,7 +170,7 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
         }
         i += 1;
     }
-    
+
     // 如果模式以 / 结尾，说明只匹配目录（及其所有内容）
     if pattern.ends_with('/') {
         // 匹配目录本身或其任何子路径
@@ -177,27 +179,30 @@ fn glob_to_regex(pattern: &str) -> Option<IgnoreRule> {
         // 模式可以匹配完整路径或目录名
         regex_pattern.push_str("(/.*)?$");
     }
-    
-    Regex::new(&regex_pattern).ok().map(|regex| IgnoreRule { regex, negated })
+
+    Regex::new(&regex_pattern)
+        .ok()
+        .map(|regex| IgnoreRule { regex, negated })
 }
 
 // 收集指定目录及其所有父目录（直到根目录）的 .gitignore 规则
 fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
     let mut patterns = Vec::new();
     let mut current = dir;
-    
+
     // 从当前目录向上遍历到根目录
     loop {
         let gitignore_path = current.join(".gitignore");
         if gitignore_path.exists() {
             if let Ok(content) = fs::read_to_string(&gitignore_path) {
                 // 计算当前 .gitignore 相对于 root 的路径
-                let relative_dir = current.strip_prefix(root)
+                let relative_dir = current
+                    .strip_prefix(root)
                     .ok()
                     .and_then(|p| p.to_str())
                     .unwrap_or("")
                     .replace('\\', "/");
-                
+
                 for line in content.lines() {
                     let line = line.trim();
                     // 跳过空行和注释
@@ -209,7 +214,7 @@ fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
                         } else {
                             line.to_string()
                         };
-                        
+
                         if !patterns.contains(&pattern) {
                             patterns.push(pattern);
                         }
@@ -217,19 +222,19 @@ fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
                 }
             }
         }
-        
+
         // 如果已经到达根目录，停止向上遍历
         if current == root {
             break;
         }
-        
+
         // 尝试获取父目录
         match current.parent() {
             Some(parent) if parent.starts_with(root) => current = parent,
             _ => break,
         }
     }
-    
+
     patterns
 }
 
@@ -237,30 +242,31 @@ fn collect_gitignore_patterns(dir: &Path, root: &Path) -> Vec<String> {
 // 按照 gitignore 规则顺序处理，后面的规则可以覆盖前面的规则
 fn should_ignore(path: &str, file_name: &str, rules: &[IgnoreRule]) -> bool {
     let mut ignored = false;
-    
+
     // 将 Windows 路径分隔符统一转换为 Unix 风格
     let normalized_path = path.replace('\\', "/");
-    
+
     for rule in rules {
         let matches_filename = rule.regex.is_match(file_name);
         let matches_path = rule.regex.is_match(&normalized_path);
-        
+
         if matches_filename || matches_path {
             // 匹配到规则，根据是否是否定规则来决定
             ignored = !rule.negated;
         }
     }
-    
+
     ignored
 }
 
 // 内存中的树节点结构
-struct TreeNode {
-    name: String,
-    is_dir: bool,
-    size: u64,
-    children: Vec<TreeNode>,
-    error: Option<String>, // 记录权限错误等
+#[derive(Serialize, Clone)]
+pub struct TreeNode {
+    pub name: String,
+    pub is_dir: bool,
+    pub size: u64,
+    pub children: Vec<TreeNode>,
+    pub error: Option<String>, // 记录权限错误等
 }
 
 impl TreeNode {
@@ -279,8 +285,6 @@ impl TreeNode {
 struct TreeConfig<'a> {
     show_files: bool,
     show_hidden: bool,
-    show_size: bool,
-    show_dir_size: bool,
     max_depth: usize,
     use_gitignore: bool,
     custom_patterns: &'a [IgnoreRule],
@@ -292,9 +296,13 @@ fn build_tree_recursive(
     dir: &Path,
     current_depth: usize,
     config: &TreeConfig,
-    stats: &mut TreeStats
+    stats: &mut TreeStats,
 ) -> TreeNode {
-    let dir_name = dir.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let dir_name = dir
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
     let mut node = TreeNode::new(dir_name, true);
 
     // 检查深度限制（0 表示无限制）
@@ -336,7 +344,7 @@ fn build_tree_recursive(
         match (a_is_dir, b_is_dir) {
             (true, false) => std::cmp::Ordering::Less,
             (false, true) => std::cmp::Ordering::Greater,
-            _ => a.file_name().cmp(&b.file_name())
+            _ => a.file_name().cmp(&b.file_name()),
         }
     });
 
@@ -346,21 +354,34 @@ fn build_tree_recursive(
         let is_dir = path.is_dir();
 
         // 统计
-        if is_dir { stats.total_dirs += 1; } else { stats.total_files += 1; }
+        if is_dir {
+            stats.total_dirs += 1;
+        } else {
+            stats.total_files += 1;
+        }
 
         // 过滤逻辑
         if !config.show_hidden && file_name.starts_with('.') {
-            if is_dir { stats.filtered_dirs += 1; } else { stats.filtered_files += 1; }
+            if is_dir {
+                stats.filtered_dirs += 1;
+            } else {
+                stats.filtered_files += 1;
+            }
             continue;
         }
 
-        let full_relative_path = path.strip_prefix(root)
+        let full_relative_path = path
+            .strip_prefix(root)
             .ok()
             .and_then(|p| p.to_str())
             .unwrap_or(&file_name);
-        
+
         if should_ignore(full_relative_path, &file_name, &ignore_patterns) {
-            if is_dir { stats.filtered_dirs += 1; } else { stats.filtered_files += 1; }
+            if is_dir {
+                stats.filtered_dirs += 1;
+            } else {
+                stats.filtered_files += 1;
+            }
             continue;
         }
 
@@ -380,7 +401,7 @@ fn build_tree_recursive(
                 size = metadata.len();
             }
             node.size += size; // 累加文件大小
-            
+
             let mut child_node = TreeNode::new(file_name, false);
             child_node.size = size;
             node.children.push(child_node);
@@ -390,101 +411,46 @@ fn build_tree_recursive(
     node
 }
 
-// 将树渲染为字符串
-fn render_tree(
-    node: &TreeNode,
-    output: &mut String,
-    prefix: &str,
-    is_root: bool,
-    config: &TreeConfig
-) {
-    if !is_root {
-        // 渲染当前节点（根节点在外部处理，或者这里处理）
-        // 但通常根节点不带前缀。
-        // 这里我们假设 render_tree 是处理 children 的，或者 process_node
-        // 让我们调整逻辑：render_tree 渲染 node 本身及其 children
-    }
-    
-    // 这里的逻辑有点绕，因为原来的递归是 "处理当前目录的 children"。
-    // 我们采用类似的逻辑：遍历 children 进行渲染。
-    
-    let count = node.children.len();
-    for (index, child) in node.children.iter().enumerate() {
-        let is_last = index == count - 1;
-        let connector = if is_last { "└── " } else { "├── " };
-        let extension = if is_last { "    " } else { "│   " };
-        
-        let size_str = if child.is_dir {
-             if config.show_dir_size { format!(" ({})", format_size(child.size)) } else { String::new() }
-        } else if config.show_size {
-            format!(" ({})", format_size(child.size))
-        } else {
-            String::new()
-        };
-
-        let error_str = child.error.as_deref().unwrap_or("");
-        let slash = if child.is_dir { "/" } else { "" };
-        
-        output.push_str(&format!("{}{}{}{}{}{}\n", prefix, connector, child.name, slash, size_str, error_str));
-        
-        if child.is_dir {
-            let new_prefix = format!("{}{}", prefix, extension);
-            render_tree(child, output, &new_prefix, false, config);
-        }
-    }
-}
-
 // Tauri 命令：生成目录树
 #[tauri::command]
 pub async fn generate_directory_tree(
     path: String,
     show_files: bool,
     show_hidden: bool,
-    show_size: bool,
-    show_dir_size: Option<bool>,
     max_depth: usize,
-    ignore_patterns: Vec<String>
+    ignore_patterns: Vec<String>,
 ) -> Result<DirectoryTreeResult, String> {
     let root_path = PathBuf::from(&path);
-    
+
     if !root_path.exists() {
         return Err(format!("路径不存在: {}", path));
     }
-    
+
     if !root_path.is_dir() {
         return Err(format!("路径不是目录: {}", path));
     }
-    
+
     let use_gitignore = ignore_patterns.iter().any(|p| p == "__USE_GITIGNORE__");
-    let custom_patterns: Vec<IgnoreRule> = ignore_patterns.iter()
+    let custom_patterns: Vec<IgnoreRule> = ignore_patterns
+        .iter()
         .filter(|pattern| !pattern.is_empty() && pattern != &"__USE_GITIGNORE__")
         .filter_map(|pattern| glob_to_regex(pattern))
         .collect();
-    
+
     let mut stats = TreeStats::new();
     let config = TreeConfig {
         show_files,
         show_hidden,
-        show_size,
-        show_dir_size: show_dir_size.unwrap_or(false),
         max_depth,
         use_gitignore,
         custom_patterns: &custom_patterns,
     };
-    
+
     // 1. 构建树（一次遍历，同时计算大小）
     let root_node = build_tree_recursive(&root_path, &root_path, 0, &config, &mut stats);
-    
-    // 2. 渲染树
-    let mut result = String::new();
-    // 渲染根节点
-    let root_size_str = if config.show_dir_size { format!(" ({})", format_size(root_node.size)) } else { String::new() };
-    result.push_str(&format!("{}/{}\n", root_path.file_name().unwrap_or_default().to_string_lossy(), root_size_str));
-    
-    render_tree(&root_node, &mut result, "", true, &config);
-    
+
     Ok(DirectoryTreeResult {
-        tree: result,
+        structure: root_node,
         stats: DirectoryTreeStats {
             total_dirs: stats.total_dirs,
             total_files: stats.total_files,
@@ -492,7 +458,11 @@ pub async fn generate_directory_tree(
             filtered_files: stats.filtered_files,
             show_files,
             show_hidden,
-            max_depth: if max_depth == 0 { "无限制".to_string() } else { max_depth.to_string() },
+            max_depth: if max_depth == 0 {
+                "无限制".to_string()
+            } else {
+                max_depth.to_string()
+            },
             filter_count: custom_patterns.len(),
         },
     })

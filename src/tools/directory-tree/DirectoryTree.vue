@@ -31,14 +31,6 @@
             <div class="checkbox-group">
               <el-checkbox v-model="showFiles" label="显示文件" />
               <el-checkbox v-model="showHidden" label="显示隐藏文件" />
-              <el-checkbox v-model="showSize" label="显示文件大小" />
-              <el-checkbox v-model="showDirSize">
-                显示目录大小
-                <el-tooltip content="仅计算当前可见（未被过滤）文件的总大小" placement="top">
-                  <el-icon class="info-icon" @click.prevent.stop><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </el-checkbox>
-              <el-checkbox v-model="includeMetadata" label="输出包含配置和统计" />
               <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
             </div>
           </div>
@@ -96,7 +88,7 @@
     <div class="result-panel">
       <InfoCard title="目录结构" class="result-card">
         <template #headerExtra>
-          <el-button-group v-if="treeResult">
+          <el-button-group v-if="treeData">
             <el-tooltip v-if="statsInfo" placement="top">
               <template #content>
                 <div class="stats-tooltip">
@@ -152,7 +144,7 @@
           </el-button-group>
         </template>
 
-        <div v-if="showResultFilter && treeResult" class="result-controls">
+        <div v-if="showResultFilter && treeData" class="result-controls">
           <div class="control-row">
             <span class="control-label">显示深度:</span>
             <el-slider
@@ -176,9 +168,17 @@
               class="filter-input"
             />
           </div>
+          <div class="control-row">
+            <span class="control-label">显示选项:</span>
+            <div class="checkbox-group-inline">
+              <el-checkbox v-model="includeMetadata" label="统计信息" size="small" />
+              <el-checkbox v-model="showSize" label="文件大小" size="small" />
+              <el-checkbox v-model="showDirSize" label="目录大小" size="small" />
+            </div>
+          </div>
         </div>
 
-        <div v-if="!treeResult" class="empty-state">
+        <div v-if="!treeData" class="empty-state">
           <el-empty description="选择目录并生成目录树" />
         </div>
 
@@ -200,7 +200,6 @@ import {
   Download,
   DataAnalysis,
   ChatDotRound,
-  QuestionFilled,
   Filter,
   Delete,
 } from "@element-plus/icons-vue";
@@ -208,7 +207,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash-es";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
-import { type DirectoryTreeConfig } from "./config";
+import type { DirectoryTreeConfig, TreeNode, TreeStats } from "./config";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
@@ -216,8 +215,10 @@ import {
   generateTree as generateTreeAction,
   selectDirectory as selectDirectoryAction,
   exportToFile as exportToFileAction,
+  buildMetadataHeader,
   loadConfig,
   saveConfig,
+  type GenerateTreeOptions,
 } from "./actions";
 
 // 创建模块日志器
@@ -231,8 +232,6 @@ const { sendToChat } = useSendToChat();
 const targetPath = ref("");
 const showFiles = ref(true);
 const showHidden = ref(false);
-const showSize = ref(false);
-const showDirSize = ref(false);
 const filterMode = ref<"none" | "gitignore" | "custom" | "both">("none");
 const customPattern = ref("");
 const maxDepth = ref(5);
@@ -240,145 +239,152 @@ const autoGenerateOnDrop = ref(true); // 拖拽后自动生成
 const includeMetadata = ref(false); // 输出时是否包含配置和统计信息
 
 // 结果状态
-const treeResult = ref("");
-const statsInfo = ref<{
-  total_dirs: number;
-  total_files: number;
-  filtered_dirs: number;
-  filtered_files: number;
-  show_files: boolean;
-  show_hidden: boolean;
-  max_depth: string;
-  filter_count: number;
-} | null>(null);
+const treeData = ref<TreeNode | null>(null);
+const lastGenerationOptions = ref<GenerateTreeOptions | null>(null);
+const statsInfo = ref<TreeStats | null>(null);
 const isGenerating = ref(false);
 const isLoadingConfig = ref(true);
 
-// 二次筛选状态
+// 二次筛选/视图控制状态
 const showResultFilter = ref(false);
 const secondaryMaxDepth = ref(10);
 const secondaryExcludePattern = ref("");
+const showSize = ref(true);
+const showDirSize = ref(true);
+
+// 格式化文件大小
+const formatSize = (size: number): string => {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let s = size;
+  let unitIndex = 0;
+  while (s >= 1024 && unitIndex < units.length - 1) {
+    s /= 1024;
+    unitIndex++;
+  }
+  return unitIndex === 0 ? `${s} ${units[unitIndex]}` : `${s.toFixed(2)} ${units[unitIndex]}`;
+};
+
+// 递归计算实际最大深度
+const calculateMaxDepth = (node: TreeNode, currentDepth = 0): number => {
+  let max = currentDepth;
+  for (const child of node.children) {
+    const childDepth = calculateMaxDepth(child, currentDepth + 1);
+    if (childDepth > max) max = childDepth;
+  }
+  return max;
+};
 
 // 计算实际最大深度（用于滑块范围）
 const actualMaxDepth = computed(() => {
-  if (!treeResult.value) return 10;
-  // 简单估算：通过缩进最长的行来判断
-  const lines = treeResult.value.split("\n");
-  let maxIndent = 0;
-  for (const line of lines) {
-    // 匹配行首的 │ 和空格
-    const match = line.match(/^([│\s]*)(?:├──|└──)/);
-    if (match) {
-      const indent = match[1].length / 4 + 1;
-      if (indent > maxIndent) maxIndent = indent;
-    }
-  }
-  return Math.max(maxIndent, 1); // 至少为1
+  if (!treeData.value) return 10;
+  return Math.max(calculateMaxDepth(treeData.value), 1);
 });
 
 // 监听生成结果，自动重置二次筛选
-watch(treeResult, () => {
+watch(treeData, () => {
   secondaryMaxDepth.value = actualMaxDepth.value;
 });
 
-// 处理后的目录树结果
-const processedTreeResult = computed(() => {
-  if (!treeResult.value) return "";
-
-  // 如果没有启用筛选且没有设置过滤词，直接返回原文本（性能优化）
-  if (!showResultFilter.value) return treeResult.value;
-
-  const lines = treeResult.value.split("\n");
-  const result: string[] = [];
-
-  // 状态标记
-  let isMetadataSection = false;
-  let skipUntilDepth = -1; // 用于过滤子树：当 > -1 时，跳过所有深度大于此值的行
-
-  // 预处理过滤词
-  const excludeKeyword = secondaryExcludePattern.value.trim();
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // 1. 处理元数据部分
-    // 如果遇到元数据标记，进入元数据模式
-    if (line.startsWith("# 目录树生成信息")) {
-      isMetadataSection = true;
-      result.push(line);
-      continue;
-    }
-
-    // 如果在元数据区域，直到遇到 "## 目录结构" 退出
-    if (isMetadataSection) {
-      result.push(line);
-      if (line.includes("## 目录结构")) {
-        isMetadataSection = false;
-        // 目录结构后通常跟一个空行，保留它
-        if (i + 1 < lines.length && lines[i + 1].trim() === "") {
-          result.push(lines[i + 1]);
-          i++;
-        }
-      }
-      continue;
-    }
-
-    // 2. 处理树结构部分
-    // 尝试计算深度
-    let depth = 0;
-    // 匹配树状结构前缀：│   ,    , ├──, └──
-    // 标准树结构每层缩进4个字符
-    const match = line.match(/^([│\s]*)(?:├──|└──)/);
-
-    if (match) {
-      // 也就是 (前缀长度 / 4) + 1
-      depth = match[1].length / 4 + 1;
-    } else if (/^[│\s]+$/.test(line)) {
-      // 纯竖线连接行，通常不作为节点，保留即可，或者根据上一行的深度判断
-      // 简单策略：如果上一行被过滤了，这种连接线通常也应该被过滤
-      // 但为了简单，我们暂时保留它，或者视情况而定
-      // 这里我们假设它属于上一级
-      depth = line.length / 4;
-    } else {
-      // 根节点或其他文本（如空行）
-      // 根节点深度为0
-      depth = 0;
-    }
-
-    // 3. 执行过滤逻辑
-
-    // 3.1 子树过滤检查
-    if (skipUntilDepth !== -1) {
-      if (depth > skipUntilDepth) {
-        // 当前行是之前被过滤节点的子节点，跳过
-        continue;
-      } else {
-        // 已经退出了被过滤的子树范围
-        skipUntilDepth = -1;
-      }
-    }
-
-    // 3.2 深度限制 (根节点 depth 0 始终显示)
-    if (depth > 0 && depth > secondaryMaxDepth.value) {
-      continue;
-    }
-
-    // 3.3 关键词过滤 (排除模式)
-    // 只有当行包含具体的树节点内容时才过滤
-    if (excludeKeyword && !line.startsWith("#") && line.trim() !== "") {
-      if (line.includes(excludeKeyword)) {
-        // 标记从当前深度开始过滤
-        skipUntilDepth = depth;
-        continue;
-      }
-    }
-
-    result.push(line);
+// 递归渲染树结构
+const renderTreeRecursive = (
+  node: TreeNode,
+  prefix: string,
+  isLast: boolean,
+  isRoot: boolean,
+  options: {
+    maxDepth: number;
+    excludePattern: string;
+    showSize: boolean;
+    showDirSize: boolean;
+  },
+  currentDepth: number,
+  output: string[]
+) => {
+  // 检查排除模式
+  if (options.excludePattern && node.name.includes(options.excludePattern)) {
+    return;
   }
 
-  return result.join("\n");
-});
+  // 根节点特殊处理
+  if (isRoot) {
+    const sizeStr = options.showDirSize && node.size > 0 ? ` (${formatSize(node.size)})` : "";
+    output.push(`${node.name}${sizeStr}`);
+  } else {
+    // 检查深度限制
+    if (currentDepth > options.maxDepth) {
+      return;
+    }
 
+    const connector = isLast ? "└── " : "├── ";
+    let sizeStr = "";
+    if (node.size > 0) {
+      if (node.is_dir && options.showDirSize) {
+        sizeStr = ` (${formatSize(node.size)})`;
+      } else if (!node.is_dir && options.showSize) {
+        sizeStr = ` (${formatSize(node.size)})`;
+      }
+    }
+
+    const errorStr = node.error ? ` ${node.error}` : "";
+    const slash = node.is_dir ? "/" : "";
+
+    output.push(`${prefix}${connector}${node.name}${slash}${sizeStr}${errorStr}`);
+  }
+
+  // 递归处理子节点
+  if (node.is_dir && node.children.length > 0) {
+    // 如果当前已经是最大深度，不再渲染子节点
+    if (!isRoot && currentDepth >= options.maxDepth) {
+      return;
+    }
+
+    const newPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");
+    const children = node.children; // 这里可以添加排序逻辑，但后端已经排好了
+
+    for (let i = 0; i < children.length; i++) {
+      renderTreeRecursive(
+        children[i],
+        newPrefix,
+        i === children.length - 1,
+        false,
+        options,
+        currentDepth + 1,
+        output
+      );
+    }
+  }
+};
+
+// 处理后的目录树结果
+const processedTreeResult = computed(() => {
+  // 如果有结构化数据，始终使用前端渲染，以支持实时响应所有视图选项
+  if (treeData.value) {
+    const result: string[] = [];
+
+    // 1. 动态生成元数据部分
+    if (includeMetadata.value && lastGenerationOptions.value && statsInfo.value) {
+      const metadata = buildMetadataHeader(lastGenerationOptions.value, statsInfo.value);
+      result.push(metadata);
+    }
+
+    // 2. 基于 treeData 渲染树
+    const maxDepth = showResultFilter.value ? secondaryMaxDepth.value : actualMaxDepth.value;
+    const excludePattern = showResultFilter.value ? secondaryExcludePattern.value.trim() : "";
+
+    const options = {
+      maxDepth,
+      excludePattern,
+      showSize: showSize.value,
+      showDirSize: showDirSize.value,
+    };
+
+    renderTreeRecursive(treeData.value, "", true, true, options, 0, result);
+    return result.join("\n");
+  }
+
+  // 降级：如果没有结构化数据，返回空
+  return "";
+});
 // 处理路径拖放
 const handlePathDrop = (paths: string[]) => {
   if (paths.length > 0) {
@@ -404,18 +410,21 @@ onMounted(async () => {
     targetPath.value = config.lastTargetPath;
     showFiles.value = config.showFiles;
     showHidden.value = config.showHidden;
-    showSize.value = config.showSize ?? false; // 兼容旧配置
-    showDirSize.value = config.showDirSize ?? false; // 兼容旧配置
+    showSize.value = config.showSize ?? true;
+    showDirSize.value = config.showDirSize ?? true;
     maxDepth.value = config.maxDepth;
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
 
     // 恢复上次生成的结果
-    if (config.lastTreeResult) {
-      treeResult.value = config.lastTreeResult;
+    if (config.lastTreeStructure) {
+      treeData.value = config.lastTreeStructure;
     }
     if (config.lastStatsInfo) {
       statsInfo.value = config.lastStatsInfo;
+    }
+    if (config.lastGenerationOptions) {
+      lastGenerationOptions.value = config.lastGenerationOptions;
     }
   } catch (error) {
     errorHandler.error(error, "加载配置失败", { showToUser: false });
@@ -440,8 +449,9 @@ const debouncedSaveConfig = debounce(async () => {
       maxDepth: maxDepth.value,
       autoGenerateOnDrop: autoGenerateOnDrop.value,
       includeMetadata: includeMetadata.value,
-      lastTreeResult: treeResult.value,
+      lastTreeStructure: treeData.value,
       lastStatsInfo: statsInfo.value,
+      lastGenerationOptions: lastGenerationOptions.value,
       version: "1.0.0",
     };
     await saveConfig(config);
@@ -453,8 +463,6 @@ const debouncedSaveConfig = debounce(async () => {
         lastTargetPath: targetPath.value,
         showFiles: showFiles.value,
         showHidden: showHidden.value,
-        showSize: showSize.value,
-        showDirSize: showDirSize.value,
         maxDepth: maxDepth.value,
       },
     });
@@ -501,20 +509,21 @@ const generateTree = async () => {
 
   isGenerating.value = true;
   try {
-    const result = await generateTreeAction({
+    const options: GenerateTreeOptions = {
       path: targetPath.value,
       showFiles: showFiles.value,
       showHidden: showHidden.value,
-      showSize: showSize.value,
-      showDirSize: showDirSize.value,
       maxDepth: maxDepth.value,
       filterMode: filterMode.value,
       customPattern: customPattern.value,
-      includeMetadata: includeMetadata.value,
-    });
+      includeMetadata: false, // 后端不再需要拼接元数据
+    };
 
-    treeResult.value = result.tree;
+    const result = await generateTreeAction(options);
+
+    treeData.value = result.structure;
     statsInfo.value = result.stats;
+    lastGenerationOptions.value = options;
 
     // 立即触发保存，包含最新的结果
     debouncedSaveConfig();
@@ -522,7 +531,7 @@ const generateTree = async () => {
     customMessage.success("目录树生成成功");
   } catch (error: any) {
     customMessage.error(`生成失败: ${error}`);
-    treeResult.value = `错误: ${error}`;
+    treeData.value = null;
   } finally {
     isGenerating.value = false;
   }
@@ -531,7 +540,7 @@ const generateTree = async () => {
 // 复制到剪贴板
 const copyToClipboard = async () => {
   try {
-    await writeText(treeResult.value);
+    await writeText(processedTreeResult.value);
     customMessage.success("已复制到剪贴板");
   } catch (error) {
     errorHandler.error(error, "复制到剪贴板失败");
@@ -541,7 +550,7 @@ const copyToClipboard = async () => {
 // 导出为文件
 const exportToFile = async () => {
   try {
-    await exportToFileAction(treeResult.value, targetPath.value);
+    await exportToFileAction(processedTreeResult.value, targetPath.value);
     customMessage.success("文件保存成功");
   } catch (error) {
     errorHandler.error(error, "保存文件失败");
@@ -550,7 +559,7 @@ const exportToFile = async () => {
 
 // 发送到聊天
 const sendTreeToChat = () => {
-  sendToChat(treeResult.value, {
+  sendToChat(processedTreeResult.value, {
     format: "code",
     language: "text",
     successMessage: "已将目录树发送到聊天",
@@ -559,7 +568,7 @@ const sendTreeToChat = () => {
 
 // 重置目录树
 const resetTree = () => {
-  treeResult.value = "";
+  treeData.value = null;
   statsInfo.value = null;
   secondaryExcludePattern.value = "";
 
@@ -764,6 +773,12 @@ const resetTree = () => {
   align-items: center;
   gap: 12px;
   font-size: 13px;
+}
+
+.checkbox-group-inline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .control-label {

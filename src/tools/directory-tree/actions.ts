@@ -4,7 +4,7 @@ import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { formatDateTime } from '@/utils/time';
-import { loadConfig as loadConfigFromStore, saveConfig as saveConfigToStore, type DirectoryTreeConfig } from './config';
+import { loadConfig as loadConfigFromStore, saveConfig as saveConfigToStore, type DirectoryTreeConfig, type TreeNode } from './config';
 
 const logger = createModuleLogger('tools/directory-tree');
 const errorHandler = createModuleErrorHandler('tools/directory-tree');
@@ -19,10 +19,6 @@ export interface GenerateTreeOptions {
   showFiles: boolean;
   /** 是否显示隐藏文件 */
   showHidden: boolean;
-  /** 是否显示文件大小 */
-  showSize: boolean;
-  /** 是否显示目录大小 */
-  showDirSize: boolean;
   /** 最大深度（0 表示无限制） */
   maxDepth: number;
   /** 过滤模式 */
@@ -37,8 +33,8 @@ export interface GenerateTreeOptions {
  * 目录树生成结果
  */
 export interface TreeGenerationResult {
-  /** 生成的目录树文本 */
-  tree: string;
+  /** 结构化目录树数据 */
+  structure: TreeNode;
   /** 统计信息 */
   stats: {
     total_dirs: number;
@@ -49,15 +45,17 @@ export interface TreeGenerationResult {
     show_hidden: boolean;
     max_depth: string;
     filter_count: number;
+    generated_at: string;
   };
 }
 
 /**
  * 构建元数据头部
  */
-function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGenerationResult['stats']): string {
+export function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGenerationResult['stats']): string {
   return [
     '# 目录树生成信息',
+    `- 生成时间: ${stats.generated_at}`,
     '',
     '## 统计信息',
     `- 总目录: ${stats.total_dirs}`,
@@ -70,8 +68,6 @@ function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGeneration
     `- 目标路径: ${options.path}`,
     `- 显示文件: ${options.showFiles ? '是' : '否'}`,
     `- 显示隐藏: ${options.showHidden ? '是' : '否'}`,
-    `- 显示大小: ${options.showSize ? '是' : '否'}`,
-    `- 显示目录大小: ${options.showDirSize ? '是' : '否'}`,
     `- 过滤模式: ${options.filterMode === 'gitignore'
       ? '使用 .gitignore'
       : options.filterMode === 'custom'
@@ -127,25 +123,22 @@ export async function generateTree(options: GenerateTreeOptions): Promise<TreeGe
       path: options.path,
       showFiles: options.showFiles,
       showHidden: options.showHidden,
-      showSize: options.showSize,
-      showDirSize: options.showDirSize,
       maxDepth: options.maxDepth === 10 ? 0 : options.maxDepth,
       ignorePatterns,
     });
 
-    // 如果启用了包含元数据选项，添加配置和统计信息
-    let outputContent = result.tree;
-    if (options.includeMetadata) {
-      outputContent = buildMetadataHeader(options, result.stats) + result.tree;
-    }
+    const statsWithTime = {
+      ...result.stats,
+      generated_at: formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+    };
 
     logger.info('目录树生成成功', {
-      statistics: result.stats,
+      statistics: statsWithTime,
     });
 
     return {
-      tree: outputContent,
-      stats: result.stats,
+      structure: result.structure,
+      stats: statsWithTime,
     };
   } catch (error: any) {
     errorHandler.error(error, '生成目录树失败', {

@@ -114,7 +114,7 @@ export function useMacroProcessor() {
       const result = await processor.process(text, baseContext);
       
       if (result.hasMacros) {
-        logger.info('宏处理完成', {
+        logger.debug('宏处理完成', {
           originalLength: text.length,
           processedLength: result.output.length,
           macroCount: result.macroCount,

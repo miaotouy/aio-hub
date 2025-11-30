@@ -147,7 +147,7 @@ export function useAgentStorageSeparated() {
 
       // 在序列化之前，处理 icon 路径
       const agentToSave = JSON.parse(JSON.stringify(agent)); // 深拷贝以避免修改内存状态
-      
+
       // 如果 icon 是完整的 appdata 路径（指向自己的目录），转换为相对文件名
       const icon = agentToSave.icon?.trim();
       const selfAssetPathPrefix = `appdata://llm-chat/agents/${agent.id}/`;
@@ -406,10 +406,17 @@ export function useAgentStorageSeparated() {
         await saveIndex(index);
       }
 
-      logger.info(`加载了 ${agents.length} 个智能体`, {
-        currentAgentId: index.currentAgentId,
-        agents: agents.map((a) => ({ id: a.id, name: a.name })),
-      });
+      logger.info(`加载了 ${agents.length} 个智能体`);
+
+      logger.debug(
+        "智能体加载详情",
+        {
+          count: agents.length,
+          fromFile_currentAgentId: index.currentAgentId,
+          agents: agents.map((a) => ({ id: a.id, name: a.name })),
+        },
+        true
+      );
 
       return agents;
     } catch (error) {

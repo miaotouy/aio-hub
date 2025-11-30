@@ -343,12 +343,19 @@ export function useChatStorageSeparated() {
 
       logger.info(`加载了 ${validSessions.length} 个会话`, {
         currentSessionId: index.currentSessionId,
-        sessions: validSessions.map((s) => ({
-          id: s.id,
-          name: s.name,
-          messages: Object.keys(s.nodes).length,
-        })),
       });
+
+      logger.debug(
+        "会话列表详情",
+        {
+          sessions: validSessions.map((s) => ({
+            id: s.id,
+            name: s.name,
+            messages: Object.keys(s.nodes).length,
+          })),
+        },
+        true
+      );
 
       return {
         sessions: validSessions,

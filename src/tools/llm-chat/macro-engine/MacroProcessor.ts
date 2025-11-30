@@ -83,7 +83,7 @@ export class MacroProcessor {
       };
     }
 
-    logger.info('开始宏处理', { textLength: text.length });
+    logger.debug('开始宏处理', { textLength: text.length });
 
     // 三阶段处理
     const original = text;
@@ -121,7 +121,7 @@ export class MacroProcessor {
     logger.debug('后处理完成', { macroCount: afterPostProcess.count });
 
     const duration = Date.now() - startTime;
-    logger.info('宏处理完成', {
+    logger.debug('宏处理完成', {
       macroCount,
       duration: `${duration}ms`,
       originalLength: original.length,

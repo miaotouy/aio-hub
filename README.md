@@ -195,6 +195,21 @@ bun run tauri build
 - **插件开发**: [插件开发指南](docs/guide/plugin-development-guide.md)
 - **常见问题**: [DeepWiki (AI 自动维护)](https://deepwiki.com/miaotouy/aio-hub)
 
+### 📘 架构文档
+- [**项目架构总览**](ARCHITECTURE.md)
+- [**服务与插件系统**](docs/architecture/services-architecture.md)
+- [**LLM API 适配层**](docs/architecture/llm-apis-architecture.md)
+- [**窗口同步架构**](docs/architecture/window-sync-architecture.md)
+- [**主题系统**](docs/architecture/theme-system-architecture.md)
+- [**Composables 概览**](docs/architecture/composables-overview.md)
+
+### 📖 开发指南
+- [**添加新工具**](docs/guide/adding-new-tool.md)
+- [**状态管理指南**](docs/guide/state-management-guide.md)
+- [**图标系统**](src/components/icons/README.md)
+- [**通用组件**](src/components/common/README.md)
+- [**贡献指南**](docs/guide/contribution-guide.md)
+
 如果你喜欢这个项目，欢迎：
 
 - 在 GitHub 上点个 Star

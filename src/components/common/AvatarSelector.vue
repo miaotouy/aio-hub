@@ -290,7 +290,7 @@ const handleIconClick = () => {
         :content="isImagePath ? '点击放大查看' : ''"
         :disabled="!isImagePath"
         placement="top"
-        show-after="300"
+        :show-after="300"
       >
         <Avatar
           :src="resolvedAvatarSrc"
@@ -308,13 +308,13 @@ const handleIconClick = () => {
       <!-- 定义按钮组模板 -->
       <DefineActionButtons>
         <el-button-group :class="{ 'compact-button-group': shouldWrapButtons }">
-          <el-tooltip content="选择预设图标" placement="top" show-after="300">
+          <el-tooltip content="选择预设图标" placement="top" :show-after="300">
             <el-button @click="openPresetIconSelector">
               <el-icon><Star /></el-icon>
             </el-button>
           </el-tooltip>
 
-          <el-tooltip content="引用本地图像 (绝对路径)" placement="top" show-after="300">
+          <el-tooltip content="引用本地图像 (绝对路径)" placement="top" :show-after="300">
             <el-button @click="selectLocalImage">
               <el-icon><FolderOpened /></el-icon>
             </el-button>
@@ -324,7 +324,7 @@ const handleIconClick = () => {
             v-if="entityId"
             content="上传专属头像 (存入 AppData)"
             placement="top"
-            show-after="300"
+            :show-after="300"
           >
             <el-button @click="uploadCustomImage" :loading="isUploadingImage">
               <el-icon><Upload /></el-icon>
@@ -332,7 +332,7 @@ const handleIconClick = () => {
           </el-tooltip>
 
           <!-- 历史头像选择按钮 -->
-          <el-tooltip v-if="entityId" content="历史头像" placement="top" show-after="300">
+          <el-tooltip v-if="entityId" content="历史头像" placement="top" :show-after="300">
             <el-button ref="historyButtonRef">
               <el-icon><Clock /></el-icon>
             </el-button>
@@ -373,7 +373,7 @@ const handleIconClick = () => {
             </div>
           </el-popover>
 
-          <el-tooltip content="重置为默认" placement="top" show-after="300">
+          <el-tooltip content="重置为默认" placement="top" :show-after="300">
             <el-button @click="clearIcon">
               <el-icon><RefreshLeft /></el-icon>
             </el-button>

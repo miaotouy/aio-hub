@@ -923,8 +923,8 @@ watch(
       v-model="isCustomParamsDialogVisible"
       title="编辑自定义参数"
       width="800px"
-      :show-close="false"
-      class="custom-params-dialog"
+      :show-close-button="false"
+      dialog-class="custom-params-dialog"
     >
       <div class="dialog-content">
         <p class="dialog-hint">

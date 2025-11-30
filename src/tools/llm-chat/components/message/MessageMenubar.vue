@@ -277,8 +277,13 @@ const handleExportBranch = async (options: ExportOptions) => {
       filterName = "Markdown";
     }
 
-    // 保存文件
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").split("T")[0];
+    // 保存文件 (使用本地时间)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const timestamp = `${year}-${month}-${day}`;
+    
     const defaultName = `${session.name}-分支-${timestamp}.${fileExtension}`;
 
     const filePath = await save({

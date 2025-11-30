@@ -126,7 +126,7 @@ const checkMaximized = async () => {
 
     logger.debug("窗口最大化状态变化", {
       window: windowLabel,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toLocaleString(),
       from: previousState,
       to: currentState,
       type: changeType,
@@ -134,7 +134,7 @@ const checkMaximized = async () => {
     });
 
     console.log(
-      `[${new Date().toISOString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`
+      `[${new Date().toLocaleString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`
     );
   }
 

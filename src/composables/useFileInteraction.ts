@@ -111,7 +111,17 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         // 生成文件名（如果文件名为空或是默认名称，使用类型生成）
         let filename = file.name
         if (!filename || filename === 'image.png') {
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+          // 使用本地时间生成时间戳
+          const now = new Date()
+          const year = now.getFullYear()
+          const month = String(now.getMonth() + 1).padStart(2, '0')
+          const day = String(now.getDate()).padStart(2, '0')
+          const hours = String(now.getHours()).padStart(2, '0')
+          const minutes = String(now.getMinutes()).padStart(2, '0')
+          const seconds = String(now.getSeconds()).padStart(2, '0')
+          const ms = String(now.getMilliseconds()).padStart(3, '0')
+          const timestamp = `${year}-${month}-${day}T${hours}-${minutes}-${seconds}-${ms}`
+          
           const extension = file.type.split('/')[1] || 'bin'
           const typePrefix = file.type.startsWith('image/') ? 'image' : 'file'
           filename = `pasted-${typePrefix}-${timestamp}.${extension}`

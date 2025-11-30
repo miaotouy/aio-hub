@@ -224,8 +224,13 @@ const handleExport = async () => {
   try {
     exporting.value = true;
 
-    // 生成默认文件名
-    const timestamp = new Date().toISOString().split("T")[0];
+    // 生成默认文件名 (使用本地时间)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const timestamp = `${year}-${month}-${day}`;
+    
     const isJson = exportFormat.value === "json" || exportFormat.value === "raw";
     const extension = isJson ? "json" : "md";
     const defaultFileName = `${props.session.name}-${timestamp}.${extension}`;

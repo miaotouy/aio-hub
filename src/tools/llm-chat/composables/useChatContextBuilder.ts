@@ -134,8 +134,15 @@ export function useChatContextBuilder() {
       return isFinite(ts) ? ts : null;
     }
     if (typeof ts === 'string') {
+      // 尝试直接转换数字 (时间戳字符串)
       const num = Number(ts);
-      return isFinite(num) ? num : null;
+      if (isFinite(num)) return num;
+      
+      // 尝试解析日期字符串 (ISO 格式等)
+      const date = new Date(ts);
+      if (!isNaN(date.getTime())) {
+        return date.getTime();
+      }
     }
     return null;
   };
@@ -332,7 +339,8 @@ export function useChatContextBuilder() {
     _currentUserMessage: string,
     session: ChatSession,
     effectiveUserProfile?: Partial<UserProfile> | null,
-    capabilities?: ModelCapabilities
+    capabilities?: ModelCapabilities,
+    timestamp?: number
   ): Promise<LlmContextData> => {
     // 过滤出有效的对话上下文（排除禁用节点和系统节点）
     const llmContextPromises = activePath
@@ -399,6 +407,7 @@ export function useChatContextBuilder() {
             session,
             agent: currentAgent ?? undefined,
             userProfile: effectiveUserProfile as UserProfile,
+            timestamp,
           });
 
           systemMessagesList.push({
@@ -423,6 +432,7 @@ export function useChatContextBuilder() {
           session,
           agent: currentAgent ?? undefined,
           userProfile: effectiveUserProfile as UserProfile,
+          timestamp,
         });
 
         systemMessagesList.push({
@@ -439,6 +449,7 @@ export function useChatContextBuilder() {
         session,
         agent: currentAgent ?? undefined,
         userProfile: effectiveUserProfile as UserProfile,
+        timestamp,
       });
 
       systemMessagesList.push({
@@ -475,6 +486,7 @@ export function useChatContextBuilder() {
         session,
         agent: currentAgent ?? undefined,
         userProfile: effectiveUserProfile as UserProfile,
+        timestamp,
       }
     );
 
@@ -539,6 +551,7 @@ export function useChatContextBuilder() {
           session,
           agent: currentAgent ?? undefined,
           userProfile: effectiveUserProfile as UserProfile,
+          timestamp,
         }
       );
 
@@ -548,6 +561,7 @@ export function useChatContextBuilder() {
           session,
           agent: currentAgent ?? undefined,
           userProfile: effectiveUserProfile as UserProfile,
+          timestamp,
         }
       );
 
@@ -781,7 +795,10 @@ export function useChatContextBuilder() {
         nodePath,
         agentConfig,
         "", // currentUserMessage 参数已不使用
-        session
+        session,
+        effectiveUserProfile, // effectiveUserProfile
+        undefined, // capabilities
+        targetTimestamp // 传递目标时间戳
       );
       messages = contextData.messages;
 

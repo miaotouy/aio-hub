@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { customMessage } from '@/utils/customMessage'
 import { createModuleLogger } from '@utils/logger'
 import { createModuleErrorHandler } from '@/utils/errorHandler'
+import { formatDateTime } from '@/utils/time'
 import { useFileDrop, type FileDropOptions } from './useFileDrop'
 import type { Asset } from '@/types/asset-management'
 
@@ -112,15 +113,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         let filename = file.name
         if (!filename || filename === 'image.png') {
           // 使用本地时间生成时间戳
-          const now = new Date()
-          const year = now.getFullYear()
-          const month = String(now.getMonth() + 1).padStart(2, '0')
-          const day = String(now.getDate()).padStart(2, '0')
-          const hours = String(now.getHours()).padStart(2, '0')
-          const minutes = String(now.getMinutes()).padStart(2, '0')
-          const seconds = String(now.getSeconds()).padStart(2, '0')
-          const ms = String(now.getMilliseconds()).padStart(3, '0')
-          const timestamp = `${year}-${month}-${day}T${hours}-${minutes}-${seconds}-${ms}`
+          const timestamp = formatDateTime(new Date(), 'yyyy-MM-ddTHH-mm-ss-SSS')
           
           const extension = file.type.split('/')[1] || 'bin'
           const typePrefix = file.type.startsWith('image/') ? 'image' : 'file'

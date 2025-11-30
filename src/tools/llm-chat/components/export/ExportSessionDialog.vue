@@ -100,6 +100,7 @@ import { useExportManager } from "../../composables/useExportManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
+import { formatDateTime } from "@/utils/time";
 
 interface Props {
   visible: boolean;
@@ -225,11 +226,7 @@ const handleExport = async () => {
     exporting.value = true;
 
     // 生成默认文件名 (使用本地时间)
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const timestamp = `${year}-${month}-${day}`;
+    const timestamp = formatDateTime(new Date(), 'yyyy-MM-dd');
     
     const isJson = exportFormat.value === "json" || exportFormat.value === "raw";
     const extension = isJson ? "json" : "md";

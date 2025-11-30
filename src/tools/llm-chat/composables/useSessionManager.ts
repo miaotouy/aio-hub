@@ -9,7 +9,7 @@ import { useChatStorageSeparated as useChatStorage } from "./useChatStorageSepar
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useExportManager } from "./useExportManager";
-import { getLocalISOString } from "@/utils/time";
+import { getLocalISOString, formatDateTime } from "@/utils/time";
 
 const logger = createModuleLogger("llm-chat/session-manager");
 const errorHandler = createModuleErrorHandler("llm-chat/session-manager");
@@ -79,14 +79,7 @@ export function useSessionManager() {
     let sessionName = name;
     if (!sessionName) {
       // 格式化当前时间为 "会话 YYYY-MM-DD HH:mm:ss"
-      const date = new Date();
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      const seconds = String(date.getSeconds()).padStart(2, "0");
-      sessionName = `会话 ${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      sessionName = `会话 ${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`;
     }
 
     const session: ChatSession = {

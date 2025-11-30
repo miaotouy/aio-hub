@@ -11,6 +11,7 @@ import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { formatDateTime } from '@/utils/time';
 
 const logger = createModuleLogger('llm-chat/topic-namer');
 const errorHandler = createModuleErrorHandler('llm-chat/topic-namer');
@@ -161,14 +162,7 @@ export function useTopicNamer() {
       if (!generatedTitle) {
         logger.warn('生成的标题为空，使用默认标题');
         // 使用与 createSession 相同的默认命名格式
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        generatedTitle = `会话 ${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        generatedTitle = `会话 ${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`;
       }
 
       logger.info('会话标题生成成功', {

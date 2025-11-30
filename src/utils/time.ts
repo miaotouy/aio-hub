@@ -85,3 +85,19 @@ export function getLocalISOString(date: Date = new Date()): string {
 
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
+
+import { format } from 'date-fns';
+
+/**
+ * 使用 date-fns 格式化日期和时间
+ * @param date 日期对象、ISO 字符串或时间戳
+ * @param formatString 格式化模板 (例如 'yyyy-MM-dd HH:mm:ss')
+ * @returns 格式化后的字符串
+ */
+export function formatDateTime(
+  date: Date | string | number,
+  formatString: string = 'yyyy-MM-dd_HH-mm-ss'
+): string {
+  const dateObj = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+  return format(dateObj, formatString);
+}

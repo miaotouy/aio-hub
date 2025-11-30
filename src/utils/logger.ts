@@ -5,6 +5,7 @@
 
 import { writeTextFile, exists, mkdir, stat, rename } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
+import { formatDateTime } from "./time";
 
 export enum LogLevel {
   DEBUG = 0,
@@ -53,11 +54,7 @@ class Logger {
       }
 
       // 使用本地时间生成文件名，避免时区导致日期偏差
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const date = `${year}-${month}-${day}`;
+      const date = formatDateTime(new Date(), 'yyyy-MM-dd');
 
       this.logFilePath = await join(this.logsDir, `app-${date}.log`);
 
@@ -167,15 +164,8 @@ class Logger {
       // 3. 执行轮转
       // 生成备份文件名: app-YYYY-MM-DD.HH-mm-ss.log (使用本地时间)
       const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-
-      const dateStr = `${year}-${month}-${day}`;
-      const timeStr = `${hours}-${minutes}-${seconds}`;
+      const dateStr = formatDateTime(now, 'yyyy-MM-dd');
+      const timeStr = formatDateTime(now, 'HH-mm-ss');
       const backupName = `app-${dateStr}.${timeStr}.log`;
       const backupPath = await join(this.logsDir, backupName);
 
@@ -323,15 +313,7 @@ class Logger {
     collapsed?: boolean
   ): LogEntry {
     // 使用本地时间格式 YYYY-MM-DD HH:mm:ss.SSS
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const ms = String(now.getMilliseconds()).padStart(3, '0');
-    const timestamp = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`;
+    const timestamp = formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss.SSS');
 
     return {
       timestamp,

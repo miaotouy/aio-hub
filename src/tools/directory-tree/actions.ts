@@ -3,6 +3,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { formatDateTime } from '@/utils/time';
 import { loadConfig as loadConfigFromStore, saveConfig as saveConfigToStore, type DirectoryTreeConfig } from './config';
 
 const logger = createModuleLogger('tools/directory-tree');
@@ -192,15 +193,8 @@ export async function exportToFile(content: string, targetPath: string): Promise
       return parts[parts.length - 1] || parts[parts.length - 2] || '目录';
     };
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-
     const dirName = getDirName(targetPath);
-    const dateTime = `${year}${month}${day}_${hours}${minutes}`;
+    const dateTime = formatDateTime(new Date(), 'yyyyMMdd_HHmm');
     const defaultFileName = `${dirName}_目录树_${dateTime}.txt`;
 
     const savePath = await saveDialog({

@@ -35,6 +35,7 @@ import { useSessionManager } from "../../composables/useSessionManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
+import { formatDateTime } from "@/utils/time";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 
 interface Props {
@@ -278,11 +279,7 @@ const handleExportBranch = async (options: ExportOptions) => {
     }
 
     // 保存文件 (使用本地时间)
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const timestamp = `${year}-${month}-${day}`;
+    const timestamp = formatDateTime(new Date(), 'yyyy-MM-dd');
     
     const defaultName = `${session.name}-分支-${timestamp}.${fileExtension}`;
 

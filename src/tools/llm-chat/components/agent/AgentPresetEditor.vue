@@ -339,6 +339,8 @@
       v-model:visible="editDialogVisible"
       :is-edit-mode="isEditMode"
       :initial-form="editForm"
+      :agent-name="props.agentName"
+      :user-profile="effectiveUserProfile"
       @save="handleSaveMessage"
     />
 

@@ -30,6 +30,10 @@ interface LlmContextData {
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
   }>;
+  meta?: {
+    sessionMessageCount: number;
+    presetsBeforeCount?: number;
+  };
 }
 
 /**
@@ -484,6 +488,9 @@ export function useChatContextBuilder() {
       content: string | LlmMessageContent[];
     }>;
 
+    // 记录插入点前的预设消息数量，用于后续索引计算
+    let presetsBeforeCount: number | undefined;
+
     if (chatHistoryPlaceholderIndex !== -1) {
       // 如果找到占位符，将会话上下文插入到占位符位置
       // 处理占位符前后的预设消息的宏
@@ -527,6 +534,8 @@ export function useChatContextBuilder() {
         content: presetsBeforeContents[index],
       }));
 
+      presetsBeforeCount = presetsBeforePlaceholder.length;
+
       const presetsAfterPlaceholder: Array<{
         role: "user" | "assistant";
         content: string | LlmMessageContent[];
@@ -558,11 +567,19 @@ export function useChatContextBuilder() {
       content: string | LlmMessageContent[];
     }> = [...systemMessagesList, ...userAssistantMessages];
 
+    // 准备元数据
+    const meta: LlmContextData['meta'] = {
+      sessionMessageCount: sessionContext.length,
+      presetsBeforeCount,
+    };
+
     // 详细的 debug 日志，展示最终构建的消息
     logger.debug("🔍 构建 LLM 上下文完成", {
       systemMessageCount: systemMessagesList.length,
       userAssistantMessageCount: userAssistantMessages.length,
       totalMessages: messages.length,
+      sessionMessageCount: meta.sessionMessageCount,
+      presetsBeforeCount: meta.presetsBeforeCount,
       messages: messages.map((msg, index) => ({
         index,
         role: msg.role,
@@ -583,7 +600,7 @@ export function useChatContextBuilder() {
       })),
     }, true);
 
-    return { messages };
+    return { messages, meta };
   };
 
   /**
@@ -679,9 +696,11 @@ export function useChatContextBuilder() {
       content: string | LlmMessageContent[];
     }> = [];
 
+    let contextData: LlmContextData | null = null;
+
     if (agentConfig) {
       // 有 Agent 配置时，使用完整的上下文构建
-      const contextData = await buildLlmContext(
+      contextData = await buildLlmContext(
         nodePath,
         agentConfig,
         "", // currentUserMessage 参数已不使用
@@ -701,7 +720,16 @@ export function useChatContextBuilder() {
       ];
 
       if (mergedRules.length > 0 && applyProcessingPipeline) {
+        // 🐛 Fix: 在应用后处理规则前备份消息列表
+        // 用于后续准确映射预设消息，防止因合并/删除消息导致索引错位
+        const messagesBeforeProcessing = [...messages];
+
         messages = applyProcessingPipeline(messages, mergedRules);
+
+        // 将备份附加到 messages 对象上（临时属性），以便后续使用
+        // 注意：这里使用类型断言或扩展属性来传递
+        (messages as any)._rawBeforeProcessing = messagesBeforeProcessing;
+
         logger.debug("应用后处理规则（预览）", { mergedRulesCount: mergedRules.length }, true);
       }
     } else {
@@ -749,15 +777,46 @@ export function useChatContextBuilder() {
 
     // 提取预设对话部分（仅当有 Agent 配置时）
     // 注意：预设消息的内容已经在 buildLlmContext 中处理过宏，这里从 finalMessages 中提取
+    // 这里的 filter 条件必须与 buildLlmContext 中构建 userAssistantMessages 的逻辑保持一致
     const presetMessagesData: ContextPreviewData["presetMessages"] = agentConfig ? await Promise.all(
-      (agentConfig.presetMessages || []).filter((msg: any) => msg.isEnabled !== false && msg.role !== "system" && msg.type !== "chat_history")
+      (agentConfig.presetMessages || []).filter((msg: any) => msg.isEnabled !== false && msg.role !== "system" && msg.type !== "chat_history" && msg.type !== "user_profile")
         .map(async (msg: any, index: number) => {
-          // 从 finalMessages 中找到对应的消息（已处理宏）
-          // 预设消息在 finalMessages 中紧跟在 system 消息之后
-          const systemMessageCount = messages.filter((m) => m.role === "system").length;
-          const messageInFinal = messages[systemMessageCount + index];
-          const content = messageInFinal
-            ? (typeof messageInFinal.content === "string" ? messageInFinal.content : JSON.stringify(messageInFinal.content))
+          // Fix: 使用未处理前的消息列表进行映射，以确保索引准确
+          // 如果存在 _rawBeforeProcessing，说明应用了后处理规则，应使用原始列表
+          const sourceMessages = (messages as any)._rawBeforeProcessing || messages;
+
+          // 从 sourceMessages 中找到对应的消息（已处理宏）
+          const systemMessageCount = sourceMessages.filter((m: any) => m.role === "system").length;
+
+          // 计算正确的索引：考虑到会话历史可能插入到预设消息中间
+          let targetIndex = systemMessageCount + index;
+
+          // 如果有元数据且存在历史记录插入口
+          let meta: LlmContextData['meta'];
+          if (contextData && 'meta' in contextData) {
+            meta = contextData.meta;
+          }
+
+          if (meta && meta.presetsBeforeCount !== undefined && meta.sessionMessageCount) {
+            // 如果当前预设消息在插入点之后，需要跳过会话历史的长度
+            if (index >= meta.presetsBeforeCount) {
+              targetIndex += meta.sessionMessageCount;
+            }
+          } else if (meta && meta.sessionMessageCount > 0 && meta.presetsBeforeCount === undefined) {
+            // 如果没有 placeholder (presetsBeforeCount undefined) 但有会话历史
+            // 默认逻辑是预设在前，会话在后，所以不需要调整索引
+            // targetIndex = systemMessageCount + index
+          }
+
+          const messageInSource = sourceMessages[targetIndex];
+
+          // 安全检查：确保找到的消息存在
+          if (!messageInSource) {
+            logger.warn("上下文预览：无法找到对应的预设消息", { index, targetIndex, totalMessages: sourceMessages.length });
+          }
+
+          const content = messageInSource
+            ? (typeof messageInSource.content === "string" ? messageInSource.content : JSON.stringify(messageInSource.content))
             : (typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content));
 
           const sanitizedContent = sanitizeForCharCount(content);
@@ -1076,7 +1135,7 @@ export function useChatContextBuilder() {
 
         // 2. 回退逻辑：使用当前配置并过滤（兼容旧数据）
         if (!agentConfig?.parameters) return undefined;
-        
+
         const configParams = agentConfig.parameters;
         // 注意：如果 enabledParameters 不存在或不是数组，则视为不进行过滤（显示所有参数）
         // 这可能是用户遇到“没过滤”的原因之一，所以这里我们加一个保险：
@@ -1084,12 +1143,12 @@ export function useChatContextBuilder() {
         // 但目前我们只能依赖 enabledParameters
         const isStrictFilter = Array.isArray(configParams.enabledParameters);
         const enabledList = configParams.enabledParameters || [];
-        
+
         const effectiveParams: Record<string, any> = {};
-        
+
         ALL_LLM_PARAMETER_KEYS.forEach((key) => {
           const hasValue = configParams[key] !== undefined;
-          
+
           // 如果启用了严格过滤，则只保留在列表中的参数
           // 否则保留所有参数
           const isEnabled = isStrictFilter ? enabledList.includes(key) : true;
@@ -1098,7 +1157,7 @@ export function useChatContextBuilder() {
             effectiveParams[key] = configParams[key];
           }
         });
-        
+
         return effectiveParams;
       })(),
     };

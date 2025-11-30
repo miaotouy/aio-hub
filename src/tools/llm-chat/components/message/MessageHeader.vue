@@ -153,12 +153,22 @@ const shouldShowSubtitle = computed(() => {
     !!agentProfileInfo.value
   );
 });
+
+const nameForAlt = computed(() => {
+  if (props.message.role === "user") {
+    return props.message.metadata?.userProfileName || effectiveUserProfile.value?.name;
+  } else if (props.message.role === "assistant") {
+    // 从 agent 中获取原始 name，这通常比 displayName 更干净
+    return agent.value?.name;
+  }
+  return "System";
+});
 </script>
 
 <template>
   <div class="message-header">
     <div class="header-left">
-      <Avatar :src="displayIcon || ''" :alt="displayName" :size="40" shape="square" :radius="6" />
+      <Avatar :src="displayIcon || ''" :alt="nameForAlt" :size="40" shape="square" :radius="6" />
       <div class="message-info">
         <span class="message-name">{{ displayName }}</span>
         <div v-if="shouldShowSubtitle && agentProfileInfo" class="message-subtitle">

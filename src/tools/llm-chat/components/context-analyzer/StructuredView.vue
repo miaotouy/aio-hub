@@ -5,8 +5,13 @@
       <div class="agent-info">
         <Avatar
           v-if="contextData.agentInfo.icon"
-          :src="contextData.agentInfo.icon"
-          alt="Agent Icon"
+          :src="
+            resolveAvatarPath(
+              { id: contextData.agentInfo.id, icon: contextData.agentInfo.icon },
+              'agent'
+            ) || ''
+          "
+          :alt="contextData.agentInfo.name"
           :size="96"
           shape="square"
           :radius="8"
@@ -14,7 +19,7 @@
         <div class="agent-details">
           <div class="info-item">
             <span class="label">名称:</span>
-            <span class="value">{{ contextData.agentInfo.name || '未命名' }}</span>
+            <span class="value">{{ contextData.agentInfo.name || "未命名" }}</span>
           </div>
           <div class="info-item">
             <span class="label">模型:</span>
@@ -34,7 +39,8 @@
         <div class="card-header">
           <span>上下文统计</span>
           <el-tag v-if="contextData.statistics.tokenizerName" size="small" type="info">
-            {{ contextData.statistics.isEstimated ? '估算' : '精确' }} - {{ contextData.statistics.tokenizerName }}
+            {{ contextData.statistics.isEstimated ? "估算" : "精确" }} -
+            {{ contextData.statistics.tokenizerName }}
           </el-tag>
         </div>
       </template>
@@ -104,7 +110,11 @@
           <el-tag size="small" type="warning">
             {{ contextData.presetMessages.length }} 条消息
           </el-tag>
-          <el-tag v-if="contextData.statistics.presetMessagesTokenCount !== undefined" size="small" type="success">
+          <el-tag
+            v-if="contextData.statistics.presetMessagesTokenCount !== undefined"
+            size="small"
+            type="success"
+          >
             {{ contextData.statistics.presetMessagesTokenCount.toLocaleString() }} tokens
           </el-tag>
         </div>
@@ -128,23 +138,28 @@
                 />
                 <Avatar
                   v-else
-                  :src="contextData.agentInfo.icon || ''"
+                  :src="
+                    resolveAvatarPath(
+                      { id: contextData.agentInfo.id, icon: contextData.agentInfo.icon },
+                      'agent'
+                    ) || ''
+                  "
                   :alt="contextData.agentInfo.name || '助手'"
                   :size="24"
                   shape="square"
                   :radius="4"
                 />
                 <span class="message-role-name">
-                  {{ msg.role === 'user' ? '用户' : (contextData.agentInfo.name || '助手') }} #{{ index + 1 }}
+                  {{ msg.role === "user" ? "用户" : contextData.agentInfo.name || "助手" }} #{{
+                    index + 1
+                  }}
                 </span>
               </div>
               <div class="header-tags">
                 <el-tag v-if="msg.tokenCount !== undefined" size="small" type="success">
                   {{ msg.tokenCount }} tokens
                 </el-tag>
-                <el-tag size="small" type="info">
-                  {{ msg.charCount }} 字符
-                </el-tag>
+                <el-tag size="small" type="info"> {{ msg.charCount }} 字符 </el-tag>
               </div>
             </div>
           </template>
@@ -158,10 +173,12 @@
       <div class="section-title">
         <span>会话历史</span>
         <div class="header-tags">
-          <el-tag size="small" type="success">
-            {{ contextData.chatHistory.length }} 条消息
-          </el-tag>
-          <el-tag v-if="contextData.statistics.chatHistoryTokenCount !== undefined" size="small" type="success">
+          <el-tag size="small" type="success"> {{ contextData.chatHistory.length }} 条消息 </el-tag>
+          <el-tag
+            v-if="contextData.statistics.chatHistoryTokenCount !== undefined"
+            size="small"
+            type="success"
+          >
             {{ contextData.statistics.chatHistoryTokenCount.toLocaleString() }} tokens
           </el-tag>
         </div>
@@ -192,16 +209,14 @@
                   :radius="4"
                 />
                 <span class="message-role-name">
-                  {{ msg.role === 'user' ? '用户' : (msg.agentName || '助手') }} #{{ index + 1 }}
+                  {{ msg.role === "user" ? "用户" : msg.agentName || "助手" }} #{{ index + 1 }}
                 </span>
               </div>
               <div class="header-tags">
                 <el-tag v-if="msg.tokenCount !== undefined" size="small" type="success">
                   {{ msg.tokenCount }} tokens
                 </el-tag>
-                <el-tag size="small" type="info">
-                  {{ msg.charCount }} 字符
-                </el-tag>
+                <el-tag size="small" type="info"> {{ msg.charCount }} 字符 </el-tag>
               </div>
             </div>
           </template>
@@ -213,8 +228,8 @@
               <AttachmentCard
                 v-for="(att, attIndex) in msg.attachments"
                 :key="attIndex"
-                :asset="att as unknown as Asset"
-                :all-assets="msg.attachments as unknown as Asset[]"
+                :asset="castToAsset(att)"
+                :all-assets="castToAssetArray(msg.attachments)"
                 :token-count="att.tokenCount"
                 :token-estimated="att.isEstimated"
                 :token-error="att.error"
@@ -229,15 +244,20 @@
   </div>
 </template>
 <script setup lang="ts">
-import InfoCard from '@/components/common/InfoCard.vue';
-import Avatar from '@/components/common/Avatar.vue';
-import AttachmentCard from '../AttachmentCard.vue';
-import type { ContextPreviewData } from '../../composables/useChatContextBuilder';
-import type { Asset } from '@/types/asset-management';
+import InfoCard from "@/components/common/InfoCard.vue";
+import Avatar from "@/components/common/Avatar.vue";
+import AttachmentCard from "../AttachmentCard.vue";
+import type { ContextPreviewData } from "../../composables/useChatContextBuilder";
+import type { Asset } from "@/types/asset-management";
+import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 
 defineProps<{
   contextData: ContextPreviewData;
 }>();
+
+// 辅助函数：解决 template 中直接使用 as unknown as 导致的高亮错乱问题
+const castToAsset = (val: any): Asset => val as Asset;
+const castToAssetArray = (val: any): Asset[] => val as Asset[];
 </script>
 
 <style scoped>

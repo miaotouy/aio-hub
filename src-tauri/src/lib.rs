@@ -360,6 +360,15 @@ tauri::Builder::default()
         ])
         // 设置应用
         .setup(|app| {
+            // 打印启动元数据
+            let package_info = app.package_info();
+            log::info!("========================================");
+            log::info!("🚀 应用启动: {}", package_info.name);
+            log::info!("📦 版本: v{}", package_info.version);
+            log::info!("🖥️  系统: {} ({})", std::env::consts::OS, std::env::consts::ARCH);
+            log::info!("⏰ 时间: {}", Local::now().format("%Y-%m-%d %H:%M:%S"));
+            log::info!("========================================");
+
             // 读取配置
             let (show_tray_icon, minimize_to_tray) = {
                 let app_data_dir = app.path().app_data_dir()

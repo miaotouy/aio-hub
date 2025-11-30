@@ -12,7 +12,8 @@ export type SettingComponent =
   | 'ElInputNumber'
   | 'ElInput'
   | 'LlmModelSelector'
-  | 'SliderWithInput';
+  | 'SliderWithInput'
+  | 'MarkdownStyleEditor';
 
 /**
  * 定义单个设置项的配置结构

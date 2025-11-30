@@ -72,6 +72,7 @@ import { useResolvedAvatar } from "../composables/useResolvedAvatar";
 import { useLlmChatUiState } from "../composables/useLlmChatUiState";
 import { useLlmChatStore } from "../store";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
 
 const agentStore = useAgentStore();
 const bus = useWindowSyncBus();
@@ -126,12 +127,21 @@ const userProfileAvatarSrc = useResolvedAvatar(effectiveUserProfile, "user-profi
 // 计算用户消息的样式配置
 const userRichTextStyleOptions = computed(() => {
   const profile = effectiveUserProfile.value;
-  // 如果用户档案设置为自定义样式，则使用档案中的配置
+  // 如果用户档案设置为自定义样式，则使用档案中的配置（合并全局样式）
   if (profile && profile.richTextStyleBehavior === "custom") {
-    return profile.richTextStyleOptions;
+    const globalStyle = settings.value.uiPreferences.markdownStyle;
+    const userStyle = profile.richTextStyleOptions;
+    return mergeStyleOptions(globalStyle, userStyle);
   }
   // 否则返回 undefined，MessageList 会自动回退到智能体样式
   return undefined;
+});
+
+// 计算最终的消息样式配置（合并全局设置和 Agent 设置）
+const finalMessageStyleOptions = computed(() => {
+  const globalStyle = settings.value.uiPreferences.markdownStyle;
+  const agentStyle = currentAgent.value?.richTextStyleOptions;
+  return mergeStyleOptions(globalStyle, agentStyle);
 });
 
 // ===== 拖拽与分离功能 =====
@@ -573,7 +583,9 @@ onMounted(async () => {
 
       <!-- 用户档案信息（右对齐） -->
       <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
-        <span class="profile-name">{{ effectiveUserProfile.displayName || effectiveUserProfile.name }}</span>
+        <span class="profile-name">{{
+          effectiveUserProfile.displayName || effectiveUserProfile.name
+        }}</span>
         <el-tooltip content="点击编辑用户档案" placement="bottom">
           <Avatar
             :src="userProfileAvatarSrc || ''"
@@ -612,7 +624,7 @@ onMounted(async () => {
               :messages="finalMessages"
               :is-sending="finalIsSending"
               :llm-think-rules="currentAgent?.llmThinkRules"
-              :rich-text-style-options="currentAgent?.richTextStyleOptions"
+              :rich-text-style-options="finalMessageStyleOptions"
               :user-rich-text-style-options="userRichTextStyleOptions"
               @delete-message="handleDeleteMessage"
               @regenerate="handleRegenerate"

@@ -263,10 +263,10 @@ const tabs = [
 
 // 全局开关状态（直接绑定到 modelValue.globalEnabled）
 const allEnabled = computed({
-  get: () => props.modelValue.globalEnabled !== false,
+  get: () => (props.modelValue ? props.modelValue.globalEnabled !== false : true),
   set: (val: boolean) => {
     emit("update:modelValue", {
-      ...props.modelValue,
+      ...(props.modelValue || {}),
       globalEnabled: val,
     });
   },
@@ -342,16 +342,17 @@ const handlePasteConfig = async () => {
 // 这样可以避免维护一个 localValue 副本，直接操作 modelValue
 const createProxy = (key: Exclude<keyof RichTextRendererStyleOptions, "globalEnabled">) => {
   return computed({
-    get: () => props.modelValue[key] || {},
+    get: () => (props.modelValue ? props.modelValue[key] || {} : {}),
     set: (val: MarkdownStyleOption) => {
       // 过滤掉 undefined 或 null
       if (val === undefined || val === null) {
+        if (!props.modelValue) return;
         const { [key]: _, ...rest } = props.modelValue;
         emit("update:modelValue", rest);
         return;
       }
 
-      const newValue = { ...props.modelValue, [key]: val };
+      const newValue = { ...(props.modelValue || {}), [key]: val };
 
       // 如果对象为空，则从父对象中删除该键
       if (Object.keys(val).length === 0) {
@@ -471,7 +472,6 @@ const localValue = {
   break-inside: avoid;
   page-break-inside: avoid;
 }
-
 
 .section-header {
   font-size: 15px;

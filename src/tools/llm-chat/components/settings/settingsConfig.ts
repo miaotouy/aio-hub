@@ -7,6 +7,7 @@ import {
   Keyboard,
   PenTool,
   TerminalSquare,
+  Palette,
 } from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
@@ -144,6 +145,23 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "uiPreferences.rendererVersion",
         hint: "",
         keywords: "ui renderer markdown parser 渲染器 解析器",
+      },
+    ],
+  },
+  {
+    title: "样式设置",
+    icon: Palette,
+    items: [
+      {
+        id: "markdownStyle",
+        label: "全局消息样式",
+        component: "MarkdownStyleEditor",
+        props: {
+          "editor-height": "400px",
+        },
+        modelPath: "uiPreferences.markdownStyle",
+        hint: "为所有消息设置一个基础 Markdown 样式，优先级低于智能体自身的样式设置。",
+        keywords: "ui markdown style css 样式",
       },
     ],
   },

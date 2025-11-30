@@ -8,7 +8,10 @@ import { ref } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import {
+  RendererVersion,
+  type RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
@@ -47,6 +50,8 @@ export interface ChatSettings {
     autoSwitchAgentOnSessionChange: boolean;
     /** 是否默认渲染 HTML 代码块 */
     defaultRenderHtml: boolean;
+    /** 全局 Markdown 样式 */
+    markdownStyle?: RichTextRendererStyleOptions;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -125,6 +130,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     headerBlurIntensity: 12, // 头部背景模糊强度
     autoSwitchAgentOnSessionChange: true, // 默认开启
     defaultRenderHtml: false, // 默认不自动渲染 HTML
+    markdownStyle: undefined, // 默认不设置全局样式
   },
   modelPreferences: {
     defaultModel: "",

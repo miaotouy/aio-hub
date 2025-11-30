@@ -69,9 +69,33 @@
                     <!-- Block layout (default) -->
                     <template v-if="item.layout !== 'inline'">
                       <div class="setting-item-content">
+                        <!-- MarkdownStyleEditor Special Layout -->
+                        <div
+                          v-if="item.component === 'MarkdownStyleEditor'"
+                          class="full-width"
+                          style="width: 100%"
+                        >
+                          <el-collapse v-model="activeCollapseNames">
+                            <el-collapse-item title="点击展开编辑样式" name="styleOptions">
+                              <div style="min-height: 500px; height: 60vh">
+                                <component
+                                  v-if="styleOptionsLoaded"
+                                  :is="resolveComponent(item.component)"
+                                  :model-value="get(localSettings, item.modelPath) || {}"
+                                  @update:model-value="
+                                    (value: any) => set(localSettings, item.modelPath, value)
+                                  "
+                                  v-bind="item.props"
+                                  :loading="styleLoading"
+                                />
+                              </div>
+                            </el-collapse-item>
+                          </el-collapse>
+                        </div>
+
                         <!-- Standard Component -->
                         <component
-                          v-if="item.component !== 'SliderWithInput'"
+                          v-else-if="item.component !== 'SliderWithInput'"
                           :is="resolveComponent(item.component)"
                           :class="getComponentClass(item)"
                           :model-value="get(localSettings, item.modelPath)"
@@ -222,7 +246,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, shallowRef, type Component, onUnmounted } from "vue";
+import {
+  ref,
+  watch,
+  nextTick,
+  computed,
+  shallowRef,
+  type Component,
+  onUnmounted,
+  defineAsyncComponent,
+} from "vue";
 import {
   ElMessageBox,
   ElRadio,
@@ -236,6 +269,8 @@ import {
   ElSelect,
   ElOption,
   ElTag,
+  ElCollapse,
+  ElCollapseItem,
 } from "element-plus";
 import { get, set, debounce } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
@@ -253,6 +288,10 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { settingsConfig } from "./settingsConfig";
 import type { SettingComponent, SettingItem } from "./settings-types";
+
+const MarkdownStyleEditor = defineAsyncComponent(
+  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
+);
 
 const logger = createModuleLogger("ChatSettingsDialog");
 const errorHandler = createModuleErrorHandler("ChatSettingsDialog");
@@ -277,6 +316,24 @@ const isLoadingSettings = ref(false);
 const saveStatus = ref<"idle" | "saving" | "success" | "error">("idle");
 const lastSaveTime = ref("");
 
+// --- 懒加载状态管理 ---
+const activeCollapseNames = ref<string[]>([]);
+const styleOptionsLoaded = ref(false);
+const styleLoading = ref(false);
+
+watch(activeCollapseNames, (newNames) => {
+  if (newNames.includes("styleOptions")) {
+    if (!styleOptionsLoaded.value) {
+      styleLoading.value = true;
+      // 模拟加载延迟，提升体验
+      setTimeout(() => {
+        styleLoading.value = false;
+      }, 500);
+    }
+    styleOptionsLoaded.value = true;
+  }
+});
+
 const loadLocalSettings = async () => {
   isLoadingSettings.value = true;
   try {
@@ -284,6 +341,11 @@ const loadLocalSettings = async () => {
       await loadSettings();
     }
     localSettings.value = JSON.parse(JSON.stringify(settings.value));
+    // 重置懒加载状态
+    activeCollapseNames.value = [];
+    styleOptionsLoaded.value = false;
+    styleLoading.value = false;
+
     logger.info("加载本地设置", { settings: localSettings.value });
   } finally {
     await nextTick();
@@ -381,6 +443,7 @@ const componentMap: Record<string, Component> = {
   ElTabPane,
   LlmModelSelector,
   ElSelect,
+  MarkdownStyleEditor,
 };
 
 const resolveComponent = (componentName: SettingComponent | Component) => {

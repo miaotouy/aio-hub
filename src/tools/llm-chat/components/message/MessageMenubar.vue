@@ -564,7 +564,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   gap: 4px;
   padding: 4px;
   border-radius: 8px;
-  background-color: var(--container-bg-light);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);

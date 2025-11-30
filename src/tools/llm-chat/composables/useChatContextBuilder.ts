@@ -14,6 +14,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 import { useMessageBuilder } from "./useMessageBuilder";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { useAgentStore } from "../agentStore";
+import { useUserProfileStore } from "../userProfileStore";
 import { ALL_LLM_PARAMETER_KEYS } from "../config/parameter-config";
 import { resolveAvatarPath } from "./useResolvedAvatar";
 import { useMessageProcessor } from "./useMessageProcessor";
@@ -49,6 +50,10 @@ export interface ContextPreviewData {
     tokenCount?: number;
     source: "agent_preset";
     index: number;
+    /** 节点所使用的用户名称（快照） */
+    userName?: string;
+    /** 节点所使用的用户图标（快照） */
+    userIcon?: string;
   }>;
   /** 会话历史部分 */
   chatHistory: Array<{
@@ -63,6 +68,10 @@ export interface ContextPreviewData {
     agentName?: string;
     /** 节点所使用的智能体图标（快照） */
     agentIcon?: string;
+    /** 节点所使用的用户名称（快照） */
+    userName?: string;
+    /** 节点所使用的用户图标（快照） */
+    userIcon?: string;
     /** 附件的详细分析 */
     attachments?: Array<{
       id: string;
@@ -667,6 +676,39 @@ export function useChatContextBuilder() {
       });
     }
 
+    // 尝试恢复 User Profile (用于宏处理和头像展示)
+    // 优先从目标节点（如果是 User）或其父节点（如果是 Assistant）的 metadata 中恢复
+    let effectiveUserProfile: any = null;
+    const userProfileStore = useUserProfileStore();
+
+    let relevantUserNode: ChatMessageNode | undefined;
+    if (targetNode.role === 'user') {
+      relevantUserNode = targetNode;
+    } else if (targetNode.role === 'assistant' && targetNode.parentId) {
+      relevantUserNode = session.nodes[targetNode.parentId];
+    }
+
+    if (relevantUserNode?.metadata?.userProfileId) {
+      // 1. 尝试从 Store 获取完整档案（为了 content）
+      const storeProfile = userProfileStore.getProfileById(relevantUserNode.metadata.userProfileId);
+
+      // 2. 构建生效的 Profile，优先使用 metadata 中的快照信息（name/icon），content 使用 store 中的最新值
+      // 注意：如果 store 中找不到（已被删除），则 content 为空，但至少保留了身份信息
+      effectiveUserProfile = {
+        id: relevantUserNode.metadata.userProfileId,
+        name: relevantUserNode.metadata.userProfileName || storeProfile?.name || 'User',
+        displayName: relevantUserNode.metadata.userProfileName || storeProfile?.displayName,
+        icon: relevantUserNode.metadata.userProfileIcon || storeProfile?.icon,
+        content: storeProfile?.content || ''
+      };
+
+      logger.debug("上下文预览：恢复用户档案快照", {
+        id: effectiveUserProfile.id,
+        name: effectiveUserProfile.name,
+        hasContent: !!effectiveUserProfile.content
+      });
+    }
+
     // 尝试获取 Agent 配置
     let agentConfig: any = null;
     let agent: any = null;
@@ -779,7 +821,7 @@ export function useChatContextBuilder() {
             content = await processMacros(content, {
               session,
               agent: agent ?? undefined,
-              // 注意：预览模式下暂时未注入 userProfile，如果需要支持用户档案宏，需要在此处获取 effectiveUserProfile
+              userProfile: effectiveUserProfile // 注入恢复的用户档案
             });
           } catch (error) {
             logger.warn("预设消息宏处理失败，将使用原始内容", { index, error });
@@ -806,7 +848,10 @@ export function useChatContextBuilder() {
             charCount: sanitizedContent.length,
             tokenCount,
             source: "agent_preset",
-            index
+            index,
+            // 如果是 user 角色，注入当时的用户信息
+            userName: msg.role === 'user' ? (effectiveUserProfile?.displayName || effectiveUserProfile?.name) : undefined,
+            userIcon: msg.role === 'user' ? effectiveUserProfile?.icon : undefined
           };
         })
     ) : [];
@@ -1041,15 +1086,46 @@ export function useChatContextBuilder() {
           // 获取消息对应的 Agent 信息（用于头像展示）
           let msgAgentName: string | undefined;
           let msgAgentIcon: string | undefined;
+          // 获取消息对应的 User 信息（用于头像展示）
+          let msgUserName: string | undefined;
+          let msgUserIcon: string | undefined;
 
           if (node.role === 'assistant') {
             const msgAgentId = node.metadata?.agentId || effectiveAgentId;
+
+            // 1. 尝试从 Store 获取当前 Agent
+            let storeAgent: any = null;
             if (msgAgentId) {
-              const msgAgent = agentStore.getAgentById(msgAgentId);
-              if (msgAgent) {
-                msgAgentName = msgAgent.name;
-                msgAgentIcon = resolveAvatarPath(msgAgent, 'agent') || undefined;
-              }
+              storeAgent = agentStore.getAgentById(msgAgentId);
+            }
+
+            // 2. 获取名称：优先使用快照，否则使用 Store 中的名称
+            msgAgentName = node.metadata?.agentName || storeAgent?.name;
+
+            // 3. 获取头像：优先使用快照
+            if (node.metadata?.agentIcon && msgAgentId) {
+              msgAgentIcon =
+                resolveAvatarPath(
+                  { id: msgAgentId, icon: node.metadata.agentIcon },
+                  'agent'
+                ) || undefined;
+            }
+
+            // 4. 如果没有快照头像，回退到 Store 中的头像
+            if (!msgAgentIcon && storeAgent) {
+              msgAgentIcon = resolveAvatarPath(storeAgent, 'agent') || undefined;
+            }
+          } else if (node.role === 'user') {
+            // 处理用户消息的快照信息
+            msgUserName = node.metadata?.userProfileName;
+
+            // 处理用户头像
+            if (node.metadata?.userProfileIcon) {
+              // 如果有快照图标，尝试解析
+              // 注意：这里假设用户头像也可以通过 resolveAvatarPath 解析，或者直接是 URL/Emoji
+              // 由于 userProfileIcon 通常是 emoji 或 URL，或者是 appdata:// 路径
+              // 这里我们直接使用，如果是 appdata 路径，Avatar 组件会处理
+              msgUserIcon = node.metadata.userProfileIcon;
             }
           }
 
@@ -1063,6 +1139,8 @@ export function useChatContextBuilder() {
             index,
             agentName: msgAgentName,
             agentIcon: msgAgentIcon,
+            userName: msgUserName,
+            userIcon: msgUserIcon,
             attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
           };
         })

@@ -130,8 +130,8 @@
               <div class="message-title">
                 <Avatar
                   v-if="msg.role === 'user'"
-                  src=""
-                  alt="User"
+                  :src="msg.userIcon || ''"
+                  :alt="msg.userName || 'User'"
                   :size="24"
                   shape="square"
                   :radius="4"
@@ -150,9 +150,12 @@
                   :radius="4"
                 />
                 <span class="message-role-name">
-                  {{ msg.role === "user" ? "用户" : contextData.agentInfo.name || "助手" }} #{{
-                    index + 1
+                  {{
+                    msg.role === "user"
+                      ? msg.userName || "用户"
+                      : contextData.agentInfo.name || "助手"
                   }}
+                  #{{ index + 1 }}
                 </span>
               </div>
               <div class="header-tags">
@@ -194,22 +197,34 @@
               <div class="message-title">
                 <Avatar
                   v-if="msg.role === 'user'"
-                  src=""
-                  alt="User"
+                  :src="msg.userIcon || ''"
+                  :alt="msg.userName || 'User'"
                   :size="24"
                   shape="square"
                   :radius="4"
                 />
                 <Avatar
                   v-else
-                  :src="msg.agentIcon || ''"
-                  :alt="msg.agentName || '助手'"
+                  :src="
+                    msg.agentIcon ||
+                    resolveAvatarPath(
+                      { id: contextData.agentInfo.id, icon: contextData.agentInfo.icon },
+                      'agent'
+                    ) ||
+                    ''
+                  "
+                  :alt="msg.agentName || contextData.agentInfo.name || '助手'"
                   :size="24"
                   shape="square"
                   :radius="4"
                 />
                 <span class="message-role-name">
-                  {{ msg.role === "user" ? "用户" : msg.agentName || "助手" }} #{{ index + 1 }}
+                  {{
+                    msg.role === "user"
+                      ? msg.userName || "用户"
+                      : msg.agentName || contextData.agentInfo.name || "助手"
+                  }}
+                  #{{ index + 1 }}
                 </span>
               </div>
               <div class="header-tags">

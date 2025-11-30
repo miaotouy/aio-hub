@@ -39,29 +39,6 @@
         <div class="stats-table">
           <div class="stats-row">
             <span class="stats-label">
-              <span class="color-indicator" :style="{ backgroundColor: themeColors.primary }"></span>
-              系统提示
-            </span>
-            <span class="stats-value">
-              <template v-if="contextData.statistics.systemPromptTokenCount !== undefined">
-                {{ contextData.statistics.systemPromptTokenCount.toLocaleString() }} tokens
-                <span class="stats-percent">
-                  ({{ getTokenPercentage(contextData.statistics.systemPromptTokenCount) }}%)
-                </span>
-                <span class="char-info">
-                  {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
-                </span>
-              </template>
-              <template v-else>
-                {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
-                <span class="stats-percent">
-                  ({{ getPercentage(contextData.statistics.systemPromptCharCount) }}%)
-                </span>
-              </template>
-            </span>
-          </div>
-          <div class="stats-row">
-            <span class="stats-label">
               <span class="color-indicator" :style="{ backgroundColor: themeColors.warning }"></span>
               预设消息
             </span>
@@ -102,6 +79,29 @@
                 {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
                 <span class="stats-percent">
                   ({{ getPercentage(contextData.statistics.chatHistoryCharCount) }}%)
+                </span>
+              </template>
+            </span>
+          </div>
+          <div class="stats-row" v-if="contextData.statistics.postProcessingTokenCount || contextData.statistics.postProcessingCharCount">
+            <span class="stats-label">
+              <span class="color-indicator" :style="{ backgroundColor: themeColors.danger }"></span>
+              后处理消耗
+            </span>
+            <span class="stats-value">
+              <template v-if="contextData.statistics.postProcessingTokenCount">
+                {{ contextData.statistics.postProcessingTokenCount.toLocaleString() }} tokens
+                <span class="stats-percent">
+                  ({{ getTokenPercentage(contextData.statistics.postProcessingTokenCount) }}%)
+                </span>
+                <span class="char-info" v-if="contextData.statistics.postProcessingCharCount">
+                  {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
+                </span>
+              </template>
+              <template v-else-if="contextData.statistics.postProcessingCharCount">
+                 {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
+                 <span class="stats-percent">
+                  ({{ getPercentage(contextData.statistics.postProcessingCharCount) }}%)
                 </span>
               </template>
             </span>
@@ -155,6 +155,7 @@ const themeColors = computed(() => {
     primary: root.getPropertyValue('--el-color-primary').trim() || '#409eff',
     warning: root.getPropertyValue('--el-color-warning').trim() || '#e6a23c',
     success: root.getPropertyValue('--el-color-success').trim() || '#67c23a',
+    danger: root.getPropertyValue('--el-color-danger').trim() || '#f56c6c',
   };
 });
 

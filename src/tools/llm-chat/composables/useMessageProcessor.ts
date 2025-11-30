@@ -288,7 +288,93 @@ export function useMessageProcessor() {
     return processedMessages;
   };
 
+  /**
+   * 计算后处理规则带来的额外内容（用于 Token 统计）
+   * 返回所有新增内容（分隔符、占位符）拼接后的字符串
+   */
+  const calculatePostProcessingTokenDelta = (
+    messages: ProcessableMessage[],
+    rules: ContextPostProcessRule[]
+  ): string => {
+    let deltaContent = '';
+    let currentMessages = [...messages];
+
+    for (const rule of rules) {
+      if (!rule.enabled) continue;
+      const separator = rule.separator || DEFAULT_SEPARATOR;
+
+      switch (rule.type) {
+        case 'merge-system-to-head': {
+          const systemMessages = currentMessages.filter((m) => m.role === 'system');
+          if (systemMessages.length > 1) {
+            // 增加的内容是 (N-1) 个分隔符
+            for (let i = 0; i < systemMessages.length - 1; i++) {
+              deltaContent += separator;
+            }
+          }
+          currentMessages = handleMergeSystemToHead(currentMessages, separator);
+          break;
+        }
+        case 'merge-consecutive-roles': {
+          if (currentMessages.length === 0) break;
+
+          let currentGroupSize = 1;
+          for (let i = 1; i < currentMessages.length; i++) {
+            if (currentMessages[i].role === currentMessages[i - 1].role) {
+              currentGroupSize++;
+            } else {
+              if (currentGroupSize > 1) {
+                for (let k = 0; k < currentGroupSize - 1; k++) {
+                  deltaContent += separator;
+                }
+              }
+              currentGroupSize = 1;
+            }
+          }
+          // 处理最后一组
+          if (currentGroupSize > 1) {
+            for (let k = 0; k < currentGroupSize - 1; k++) {
+              deltaContent += separator;
+            }
+          }
+
+          currentMessages = handleMergeConsecutiveRoles(currentMessages, separator);
+          break;
+        }
+        case 'ensure-alternating-roles': {
+          const tempResult: ProcessableMessage[] = [];
+          for (let i = 0; i < currentMessages.length; i++) {
+            const current = currentMessages[i];
+            tempResult.push(current);
+
+            if (i < currentMessages.length - 1) {
+              const next = currentMessages[i + 1];
+              if (current.role === 'assistant' && next.role === 'assistant') {
+                const placeholder = '继续';
+                deltaContent += placeholder;
+                tempResult.push({ role: 'user', content: placeholder });
+              } else if (current.role === 'user' && next.role === 'user') {
+                const placeholder = '好的';
+                deltaContent += placeholder;
+                tempResult.push({ role: 'assistant', content: placeholder });
+              }
+            }
+          }
+          currentMessages = tempResult;
+          break;
+        }
+        case 'convert-system-to-user': {
+          currentMessages = handleConvertSystemToUser(currentMessages);
+          break;
+        }
+      }
+    }
+
+    return deltaContent;
+  };
+
   return {
     applyProcessingPipeline,
+    calculatePostProcessingTokenDelta,
   };
 }

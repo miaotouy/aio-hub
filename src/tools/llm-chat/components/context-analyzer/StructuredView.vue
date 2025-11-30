@@ -57,20 +57,6 @@
           <div class="stat-value">{{ contextData.statistics.totalCharCount.toLocaleString() }}</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">系统提示</div>
-          <div class="stat-value">
-            <template v-if="contextData.statistics.systemPromptTokenCount !== undefined">
-              {{ contextData.statistics.systemPromptTokenCount.toLocaleString() }} tokens
-              <span class="char-count">
-                {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
-              </span>
-            </template>
-            <template v-else>
-              {{ contextData.statistics.systemPromptCharCount.toLocaleString() }} 字符
-            </template>
-          </div>
-        </div>
-        <div class="stat-item">
           <div class="stat-label">预设消息</div>
           <div class="stat-value">
             <template v-if="contextData.statistics.presetMessagesTokenCount !== undefined">
@@ -98,25 +84,16 @@
             </template>
           </div>
         </div>
-      </div>
-    </InfoCard>
-
-    <!-- 系统提示 -->
-    <InfoCard
-      v-if="contextData.systemPrompt"
-      title="系统提示 (System Prompt)"
-      :content="contextData.systemPrompt.content"
-    >
-      <template #headerExtra>
-        <div class="header-tags">
-          <el-tag v-if="contextData.systemPrompt.tokenCount !== undefined" size="small" type="success">
-            {{ contextData.systemPrompt.tokenCount }} tokens
-          </el-tag>
-          <el-tag size="small" type="info">
-            {{ contextData.systemPrompt.charCount }} 字符
-          </el-tag>
+        <div v-if="contextData.statistics.postProcessingTokenCount" class="stat-item">
+          <div class="stat-label">后处理消耗</div>
+          <div class="stat-value">
+            {{ contextData.statistics.postProcessingTokenCount.toLocaleString() }} tokens
+            <span class="char-count" v-if="contextData.statistics.postProcessingCharCount">
+              {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
+            </span>
+          </div>
         </div>
-      </template>
+      </div>
     </InfoCard>
 
     <!-- 预设消息 -->

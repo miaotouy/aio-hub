@@ -140,14 +140,14 @@ const onMacroSelectorUpdate = (visible: boolean) => {
             <div style="font-weight: 600; margin-bottom: 4px">历史上下文统计</div>
             <div style="font-size: 12px">
               <div>总计: {{ props.contextStats.totalTokenCount.toLocaleString() }} tokens</div>
-              <div v-if="props.contextStats.systemPromptTokenCount">
-                系统提示: {{ props.contextStats.systemPromptTokenCount.toLocaleString() }} tokens
-              </div>
               <div v-if="props.contextStats.presetMessagesTokenCount">
                 预设消息: {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
               </div>
               <div v-if="props.contextStats.chatHistoryTokenCount">
                 会话历史: {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
+              </div>
+              <div v-if="props.contextStats.postProcessingTokenCount">
+                后处理: {{ props.contextStats.postProcessingTokenCount.toLocaleString() }} tokens
               </div>
               <div v-if="props.contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8">
                 {{ props.contextStats.isEstimated ? "估算" : "精确" }} -

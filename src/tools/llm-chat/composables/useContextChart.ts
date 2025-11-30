@@ -30,6 +30,7 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
       primaryColor: root.getPropertyValue('--el-color-primary').trim() || '#409eff',
       successColor: root.getPropertyValue('--el-color-success').trim() || '#67c23a',
       warningColor: root.getPropertyValue('--el-color-warning').trim() || '#e6a23c',
+      dangerColor: root.getPropertyValue('--el-color-danger').trim() || '#f56c6c',
       bgColor: root.getPropertyValue('--el-bg-color').trim() || '#ffffff',
       containerBg: root.getPropertyValue('--el-fill-color-light').trim() || '#f5f7fa',
     };
@@ -66,22 +67,21 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
 
     // 准备数据（按上下文构建顺序）- 根据模式选择数据源
     const categories = ['上下文内容构成'];
-    const systemPromptData = isTokenMode
-      ? (stats.systemPromptTokenCount && stats.systemPromptTokenCount > 0 ? [stats.systemPromptTokenCount] : [0])
-      : (stats.systemPromptCharCount > 0 ? [stats.systemPromptCharCount] : [0]);
     const presetMessagesData = isTokenMode
       ? (stats.presetMessagesTokenCount && stats.presetMessagesTokenCount > 0 ? [stats.presetMessagesTokenCount] : [0])
       : (stats.presetMessagesCharCount > 0 ? [stats.presetMessagesCharCount] : [0]);
     const chatHistoryData = isTokenMode
       ? (stats.chatHistoryTokenCount && stats.chatHistoryTokenCount > 0 ? [stats.chatHistoryTokenCount] : [0])
       : (stats.chatHistoryCharCount > 0 ? [stats.chatHistoryCharCount] : [0]);
+    const postProcessingData = isTokenMode
+      ? (stats.postProcessingTokenCount && stats.postProcessingTokenCount > 0 ? [stats.postProcessingTokenCount] : [0])
+      : (stats.postProcessingCharCount && stats.postProcessingCharCount > 0 ? [stats.postProcessingCharCount] : [0]);
 
     // 计算每个系列在堆叠中的位置，用于正确设置圆角
-    // 使用主题色：系统提示(蓝色)、预设消息(橙色)、会话历史(绿色)
     const seriesData = [
-      { name: '系统提示', data: systemPromptData, color: colors.primaryColor },
       { name: '预设消息', data: presetMessagesData, color: colors.warningColor },
-      { name: '会话历史', data: chatHistoryData, color: colors.successColor }
+      { name: '会话历史', data: chatHistoryData, color: colors.successColor },
+      { name: '后处理消耗', data: postProcessingData, color: colors.dangerColor }
     ];
 
     // 过滤出有数据的系列
@@ -269,7 +269,6 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
 
     logger.debug('图表渲染完成', {
       totalChars: stats.totalCharCount,
-      systemPrompt: stats.systemPromptCharCount,
       presetMessages: stats.presetMessagesCharCount,
       chatHistory: stats.chatHistoryCharCount,
     });

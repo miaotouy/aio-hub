@@ -290,7 +290,8 @@ export function useChatHandler() {
   const getContextPreview = async (
     session: ChatSession,
     targetNodeId: string,
-    agentId?: string
+    agentId?: string,
+    parameterOverrides?: any
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -304,7 +305,8 @@ export function useChatHandler() {
       nodeManager,
       getProfileById,
       applyProcessingPipeline,
-      agentId
+      agentId,
+      parameterOverrides
     );
   };
 

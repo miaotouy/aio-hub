@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import {
-  Setting,
   Collection,
   ChatDotRound,
   WarningFilled,
   Plus,
   EditPen,
+  MagicStick,
 } from "@element-plus/icons-vue";
 import type { LlmParameters, GeminiSafetySetting } from "../../types";
 import type { ProviderType, LlmParameterSupport } from "@/types/llm-profiles";
@@ -318,6 +318,12 @@ const updateRuleSeparator = (ruleType: string, separator: string) => {
   updateParameter("contextPostProcessing", { rules: newRules });
 };
 
+// 计算是否有开启的后处理规则
+const hasActivePostProcessingRules = computed(() => {
+  const rules = localParams.value.contextPostProcessing?.rules || [];
+  return rules.some((r) => r.enabled);
+});
+
 // --- Gemini 安全设置逻辑 ---
 
 const safetyCategories = [
@@ -391,7 +397,8 @@ const loadContextStats = async () => {
     const previewData = await getLlmContextForPreview(
       session,
       session.activeLeafId,
-      agentStore.currentAgentId ?? undefined
+      agentStore.currentAgentId ?? undefined,
+      localParams.value
     );
 
     if (previewData) {
@@ -586,38 +593,6 @@ watch(
 
           <!-- 分布详情 -->
           <div class="breakdown-section">
-            <!-- 系统提示 -->
-            <div class="breakdown-item">
-              <div class="item-icon system-icon">
-                <el-icon><Setting /></el-icon>
-              </div>
-              <div class="item-content">
-                <div class="item-header">
-                  <span class="item-label">系统提示</span>
-                  <span class="item-value">
-                    {{
-                      contextStats.systemPromptTokenCount?.toLocaleString() ??
-                      contextStats.systemPromptCharCount.toLocaleString() + " 字符"
-                    }}
-                  </span>
-                </div>
-                <div
-                  class="progress-bg"
-                  v-if="
-                    contextStats.totalTokenCount &&
-                    contextStats.systemPromptTokenCount !== undefined
-                  "
-                >
-                  <div
-                    class="progress-bar system-bar"
-                    :style="{
-                      width: `${((contextStats.systemPromptTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
-                    }"
-                  ></div>
-                </div>
-              </div>
-            </div>
-
             <!-- 预设消息 -->
             <div class="breakdown-item">
               <div class="item-icon preset-icon">
@@ -675,6 +650,34 @@ watch(
                     class="progress-bar history-bar"
                     :style="{
                       width: `${((contextStats.chatHistoryTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
+                    }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 后处理消耗 -->
+            <div
+              class="breakdown-item"
+              v-if="
+                hasActivePostProcessingRules && contextStats.postProcessingTokenCount !== undefined
+              "
+            >
+              <div class="item-icon post-process-icon">
+                <el-icon><MagicStick /></el-icon>
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-label">后处理消耗</span>
+                  <span class="item-value">
+                    {{ contextStats.postProcessingTokenCount.toLocaleString() }}
+                  </span>
+                </div>
+                <div class="progress-bg" v-if="contextStats.totalTokenCount">
+                  <div
+                    class="progress-bar post-process-bar"
+                    :style="{
+                      width: `${((contextStats.postProcessingTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
                     }"
                   ></div>
                 </div>
@@ -1067,10 +1070,6 @@ watch(
   flex-shrink: 0;
 }
 
-.system-icon {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
-}
 .preset-icon {
   background-color: rgba(139, 92, 246, 0.1);
   color: #8b5cf6;
@@ -1118,14 +1117,18 @@ watch(
   transition: width 0.3s ease;
 }
 
-.system-bar {
-  background-color: #3b82f6;
-}
 .preset-bar {
   background-color: #8b5cf6;
 }
 .history-bar {
   background-color: #10b981;
+}
+.post-process-icon {
+  background-color: rgba(236, 72, 153, 0.1);
+  color: #ec4899;
+}
+.post-process-bar {
+  background-color: #ec4899;
 }
 
 /* 底部辅助信息 */

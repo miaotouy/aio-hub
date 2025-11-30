@@ -16,6 +16,7 @@ import { useMacroProcessor } from "./useMacroProcessor";
 import { useAgentStore } from "../agentStore";
 import { ALL_LLM_PARAMETER_KEYS } from "../config/parameter-config";
 import { resolveAvatarPath } from "./useResolvedAvatar";
+import { useMessageProcessor } from "./useMessageProcessor";
 import type { ProcessableMessage } from "./useMessageProcessor";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 
@@ -40,16 +41,9 @@ interface LlmContextData {
  * 上下文预览分析结果
  */
 export interface ContextPreviewData {
-  /** 系统提示部分 */
-  systemPrompt?: {
-    content: string;
-    charCount: number;
-    tokenCount?: number;
-    source: "agent_preset";
-  };
-  /** 预设消息部分 */
+  /** 预设消息部分（包含 system/user/assistant 等所有预设） */
   presetMessages: Array<{
-    role: "user" | "assistant";
+    role: "system" | "user" | "assistant";
     content: string;
     charCount: number;
     tokenCount?: number;
@@ -92,14 +86,14 @@ export interface ContextPreviewData {
   /** 统计信息 */
   statistics: {
     totalCharCount: number;
-    systemPromptCharCount: number;
     presetMessagesCharCount: number;
     chatHistoryCharCount: number;
+    postProcessingCharCount?: number;
     messageCount: number;
     totalTokenCount?: number;
-    systemPromptTokenCount?: number;
     presetMessagesTokenCount?: number;
     chatHistoryTokenCount?: number;
+    postProcessingTokenCount?: number;
     isEstimated?: boolean;
     tokenizerName?: string;
   };
@@ -118,6 +112,7 @@ export interface ContextPreviewData {
 export function useChatContextBuilder() {
   const { buildMessageContentForLlm, prepareStructuredMessageForAnalysis } = useMessageBuilder();
   const { processMacros, processMacrosBatch } = useMacroProcessor();
+  const { calculatePostProcessingTokenDelta } = useMessageProcessor();
 
   /**
    * 应用上下文 Token 限制，截断会话历史
@@ -624,7 +619,8 @@ export function useChatContextBuilder() {
       messages: ProcessableMessage[],
       rules: ContextPostProcessRule[]
     ) => ProcessableMessage[],
-    agentId?: string
+    agentId?: string,
+    parameterOverrides?: LlmParameters
   ): Promise<ContextPreviewData | null> => {
     const sanitizeForCharCount = (text: string): string => {
       if (!text) return "";
@@ -680,6 +676,20 @@ export function useChatContextBuilder() {
       agentConfig = agentStore.getAgentConfig(effectiveAgentId, {
         parameterOverrides: session.parameterOverrides,
       });
+
+      // 如果提供了临时的参数覆盖（例如在编辑器中预览时），应用它们
+      if (agentConfig && parameterOverrides) {
+        agentConfig = {
+          ...agentConfig,
+          parameters: {
+            ...agentConfig.parameters,
+            ...parameterOverrides,
+          },
+        };
+        logger.debug("应用临时参数覆盖进行预览", {
+          overridesKeys: Object.keys(parameterOverrides)
+        });
+      }
 
       if (!agentConfig) {
         logger.warn("⚠️ 无法获取 Agent 配置，将只计算会话历史", { agentId: effectiveAgentId });
@@ -749,77 +759,34 @@ export function useChatContextBuilder() {
     }
 
     // 计算 Token 数
-    let systemPromptTokenCount = 0;
     let presetMessagesTokenCount = 0;
     let chatHistoryTokenCount = 0;
+    let postProcessingTokenCount = 0;
+    let postProcessingCharCount = 0;
     let isEstimated = false;
     let tokenizerName = "";
 
-    // 提取系统消息部分（仅当有 Agent 配置时）
-    let systemPromptData: ContextPreviewData["systemPrompt"];
-    if (agentConfig) {
-      const systemMessages = messages.filter((m) => m.role === "system");
-      if (systemMessages.length > 0) {
-        const combinedSystemContent = systemMessages.map((m) => typeof m.content === "string" ? m.content : JSON.stringify(m.content)).join("\n\n");
-        const sanitizedSystemContent = sanitizeForCharCount(combinedSystemContent);
-        try {
-          const tokenResult = await tokenCalculatorService.calculateTokens(combinedSystemContent, agentConfig.modelId);
-          systemPromptTokenCount = tokenResult.count;
-          isEstimated = tokenResult.isEstimated ?? false;
-          tokenizerName = tokenResult.tokenizerName;
-          systemPromptData = { content: combinedSystemContent, charCount: sanitizedSystemContent.length, tokenCount: tokenResult.count, source: "agent_preset" };
-        } catch (error) {
-          logger.warn("计算系统消息 token 失败", { error: error instanceof Error ? error.message : String(error) });
-          systemPromptData = { content: combinedSystemContent, charCount: sanitizedSystemContent.length, source: "agent_preset" };
-        }
-      }
-    }
-
-    // 提取预设对话部分（仅当有 Agent 配置时）
-    // 注意：预设消息的内容已经在 buildLlmContext 中处理过宏，这里从 finalMessages 中提取
-    // 这里的 filter 条件必须与 buildLlmContext 中构建 userAssistantMessages 的逻辑保持一致
+    // 提取预设消息部分（仅当有 Agent 配置时）
+    // 不再区分 System，直接处理所有非占位符的预设消息
     const presetMessagesData: ContextPreviewData["presetMessages"] = agentConfig ? await Promise.all(
-      (agentConfig.presetMessages || []).filter((msg: any) => msg.isEnabled !== false && msg.role !== "system" && msg.type !== "chat_history" && msg.type !== "user_profile")
+      (agentConfig.presetMessages || [])
+        .filter((msg: any) => msg.isEnabled !== false && msg.type !== "chat_history" && msg.type !== "user_profile")
         .map(async (msg: any, index: number) => {
-          // Fix: 使用未处理前的消息列表进行映射，以确保索引准确
-          // 如果存在 _rawBeforeProcessing，说明应用了后处理规则，应使用原始列表
-          const sourceMessages = (messages as any)._rawBeforeProcessing || messages;
+          let content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
 
-          // 从 sourceMessages 中找到对应的消息（已处理宏）
-          const systemMessageCount = sourceMessages.filter((m: any) => m.role === "system").length;
-
-          // 计算正确的索引：考虑到会话历史可能插入到预设消息中间
-          let targetIndex = systemMessageCount + index;
-
-          // 如果有元数据且存在历史记录插入口
-          let meta: LlmContextData['meta'];
-          if (contextData && 'meta' in contextData) {
-            meta = contextData.meta;
+          // 处理宏：确保 Token 计算基于展开后的内容
+          try {
+            content = await processMacros(content, {
+              session,
+              agent: agent ?? undefined,
+              // 注意：预览模式下暂时未注入 userProfile，如果需要支持用户档案宏，需要在此处获取 effectiveUserProfile
+            });
+          } catch (error) {
+            logger.warn("预设消息宏处理失败，将使用原始内容", { index, error });
           }
-
-          if (meta && meta.presetsBeforeCount !== undefined && meta.sessionMessageCount) {
-            // 如果当前预设消息在插入点之后，需要跳过会话历史的长度
-            if (index >= meta.presetsBeforeCount) {
-              targetIndex += meta.sessionMessageCount;
-            }
-          } else if (meta && meta.sessionMessageCount > 0 && meta.presetsBeforeCount === undefined) {
-            // 如果没有 placeholder (presetsBeforeCount undefined) 但有会话历史
-            // 默认逻辑是预设在前，会话在后，所以不需要调整索引
-            // targetIndex = systemMessageCount + index
-          }
-
-          const messageInSource = sourceMessages[targetIndex];
-
-          // 安全检查：确保找到的消息存在
-          if (!messageInSource) {
-            logger.warn("上下文预览：无法找到对应的预设消息", { index, targetIndex, totalMessages: sourceMessages.length });
-          }
-
-          const content = messageInSource
-            ? (typeof messageInSource.content === "string" ? messageInSource.content : JSON.stringify(messageInSource.content))
-            : (typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content));
 
           const sanitizedContent = sanitizeForCharCount(content);
+
           let tokenCount: number | undefined;
           try {
             const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
@@ -832,10 +799,17 @@ export function useChatContextBuilder() {
           } catch (error) {
             logger.warn("计算预设消息 token 失败", { index, error: error instanceof Error ? error.message : String(error) });
           }
-          return { role: msg.role, content, charCount: sanitizedContent.length, tokenCount, source: "agent_preset", index };
+
+          return {
+            role: msg.role,
+            content,
+            charCount: sanitizedContent.length,
+            tokenCount,
+            source: "agent_preset",
+            index
+          };
         })
     ) : [];
-
     // 从节点路径中提取会话历史
     const chatHistoryData = await Promise.all(
       nodePath
@@ -1094,28 +1068,65 @@ export function useChatContextBuilder() {
         })
     );
 
+    // 计算后处理规则带来的额外 Token
+    if (agentConfig) {
+      const modelDefaultRules = model?.defaultPostProcessingRules || [];
+      const agentRules = agentConfig.parameters.contextPostProcessing?.rules || [];
+
+      const modelRulesObjects = modelDefaultRules.map((type: string) => ({ type, enabled: true }));
+      const agentRuleTypes = new Set(agentRules.map((r: any) => r.type));
+      const mergedRules = [
+        ...agentRules,
+        ...modelRulesObjects.filter((r: any) => !agentRuleTypes.has(r.type)),
+      ];
+
+      if (mergedRules.length > 0) {
+        // 构建原始消息列表 (Raw Messages) 用于计算增量
+        // 这里我们需要组合 presetMessagesData 和 chatHistoryData
+        // 注意：这里的顺序应该尽可能的模拟真实构建顺序，通常是 Preset -> History
+        // (虽然真实构建中 History 可能插在 Preset 中间，但对于计算“分隔符增量”来说，简单的拼接通常足够近似，
+        // 除非有 merge-consecutive-roles 且连接处正好是相同角色)
+
+        // 为了更精确，我们应该利用 messages (或 _rawBeforeProcessing)
+        // 因为那里包含了正确的顺序。
+        const rawMessages = (messages as any)._rawBeforeProcessing || messages;
+
+        // 使用 calculatePostProcessingTokenDelta 计算纯增量
+        const deltaContent = calculatePostProcessingTokenDelta(rawMessages, mergedRules);
+
+        if (deltaContent) {
+          postProcessingCharCount = deltaContent.length;
+          try {
+            const tokenResult = await tokenCalculatorService.calculateTokens(deltaContent, agentConfig.modelId);
+            postProcessingTokenCount = tokenResult.count;
+            logger.debug("后处理增量 Token 计算", { deltaContentLength: deltaContent.length, tokenCount: postProcessingTokenCount });
+          } catch (error) {
+            logger.warn("计算后处理增量 Token 失败", { error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+      }
+    }
+
     // 计算统计信息
-    const systemPromptCharCount = systemPromptData?.charCount || 0;
     const presetMessagesCharCount = presetMessagesData.reduce((sum, msg) => sum + msg.charCount, 0);
     const chatHistoryCharCount = chatHistoryData.reduce((sum, msg) => sum + msg.charCount, 0);
-    const totalCharCount = systemPromptCharCount + presetMessagesCharCount + chatHistoryCharCount;
-    const totalTokenCount = systemPromptTokenCount + presetMessagesTokenCount + chatHistoryTokenCount;
+    const totalCharCount = presetMessagesCharCount + chatHistoryCharCount + postProcessingCharCount;
+    const totalTokenCount = presetMessagesTokenCount + chatHistoryTokenCount + postProcessingTokenCount;
 
     const result: ContextPreviewData = {
-      systemPrompt: systemPromptData,
       presetMessages: presetMessagesData,
       chatHistory: chatHistoryData,
       finalMessages: messages,
       statistics: {
         totalCharCount,
-        systemPromptCharCount,
         presetMessagesCharCount,
         chatHistoryCharCount,
+        postProcessingCharCount: agentConfig ? postProcessingCharCount : undefined,
         messageCount: messages.length,
         totalTokenCount: agentConfig ? totalTokenCount : undefined,
-        systemPromptTokenCount: agentConfig ? systemPromptTokenCount : undefined,
         presetMessagesTokenCount: agentConfig ? presetMessagesTokenCount : undefined,
         chatHistoryTokenCount: agentConfig ? chatHistoryTokenCount : undefined,
+        postProcessingTokenCount: agentConfig ? postProcessingTokenCount : undefined,
         isEstimated: agentConfig ? isEstimated : undefined,
         tokenizerName: agentConfig ? tokenizerName : undefined,
       },

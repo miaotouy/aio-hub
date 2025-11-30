@@ -7,111 +7,127 @@
     <div v-else class="macro-debug-content">
       <!-- 宏统计信息 -->
       <div class="macro-stats">
-        <InfoCard title="宏执行统计">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="执行的宏数量">
+        <InfoCard title="宏执行概览">
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item label="宏总数">
               {{ macroResult?.macroCount || 0 }}
             </el-descriptions-item>
-            <el-descriptions-item label="是否包含宏">
-              <el-tag :type="macroResult?.hasMacros ? 'success' : 'info'">
-                {{ macroResult?.hasMacros ? "是" : "否" }}
-              </el-tag>
+            <el-descriptions-item label="去重后数量">
+              {{ uniqueDetectedMacros.length }}
             </el-descriptions-item>
           </el-descriptions>
         </InfoCard>
       </div>
 
-      <!-- 各阶段输出 -->
-      <div v-if="macroResult?.phaseOutputs" class="phase-outputs">
-        <InfoCard>
-          <template #header>
-            <div class="card-header">
-              <span>三阶段处理过程</span>
-              <el-tooltip content="展示宏处理的三个阶段：预处理、替换、后处理" placement="top">
-                <el-icon><QuestionFilled /></el-icon>
-              </el-tooltip>
-            </div>
-          </template>
-
-          <el-collapse v-model="activePhases" accordion>
-            <!-- 原始输入 -->
-            <el-collapse-item name="original">
-              <template #title>
-                <div class="phase-title">
-                  <el-tag type="info" size="small">原始输入</el-tag>
-                  <span class="phase-name">Original</span>
-                </div>
+      <!-- 检测到的宏列表 (优化版) -->
+      <div v-if="uniqueDetectedMacros.length > 0" class="detected-macros">
+        <InfoCard title="检测到的宏">
+          <el-table :data="uniqueDetectedMacros" stripe size="small">
+            <el-table-column prop="name" label="宏名称" width="120">
+              <template #default="{ row }">
+                <el-tag effect="plain">{{ row.name }}</el-tag>
               </template>
-              <div class="phase-content">
-                <pre>{{ macroResult.phaseOutputs.original }}</pre>
-              </div>
-            </el-collapse-item>
+            </el-table-column>
 
-            <!-- 阶段一：预处理 -->
-            <el-collapse-item name="preprocess">
-              <template #title>
-                <div class="phase-title">
-                  <el-tag type="warning" size="small">阶段一</el-tag>
-                  <span class="phase-name">预处理（Pre-Process）</span>
-                  <span class="phase-desc">处理状态变更宏（setvar, incvar 等）</span>
+            <el-table-column label="参数" min-width="120">
+              <template #default="{ row }">
+                <div v-if="row.args && row.args.length > 0" class="args-list">
+                  <el-tag
+                    v-for="(arg, index) in row.args"
+                    :key="index"
+                    size="small"
+                    type="info"
+                    effect="light"
+                  >
+                    {{ arg }}
+                  </el-tag>
                 </div>
+                <span v-else class="no-args">-</span>
               </template>
-              <div class="phase-content">
-                <pre>{{ macroResult.phaseOutputs.afterPreProcess }}</pre>
-              </div>
-            </el-collapse-item>
+            </el-table-column>
 
-            <!-- 阶段二：替换 -->
-            <el-collapse-item name="substitute">
-              <template #title>
-                <div class="phase-title">
-                  <el-tag type="primary" size="small">阶段二</el-tag>
-                  <span class="phase-name">替换（Substitute）</span>
-                  <span class="phase-desc">替换静态值（user, char 等）</span>
-                </div>
+            <el-table-column label="预览值" min-width="150">
+              <template #default="{ row }">
+                <span v-if="macroPreviews[row.fullMatch]" class="preview-value">
+                  {{ macroPreviews[row.fullMatch] }}
+                </span>
+                <span v-else class="preview-loading">
+                  <el-icon class="is-loading"><Loading /></el-icon>
+                </span>
               </template>
-              <div class="phase-content">
-                <pre>{{ macroResult.phaseOutputs.afterSubstitute }}</pre>
-              </div>
-            </el-collapse-item>
+            </el-table-column>
 
-            <!-- 阶段三：后处理 -->
-            <el-collapse-item name="postprocess">
-              <template #title>
-                <div class="phase-title">
-                  <el-tag type="success" size="small">阶段三</el-tag>
-                  <span class="phase-name">后处理（Post-Process）</span>
-                  <span class="phase-desc">执行动态函数（time, random 等）</span>
-                </div>
+            <el-table-column prop="count" label="次数" width="70" align="center" />
+
+            <el-table-column label="完整表达式" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">
+                <code class="macro-code">{{ row.fullMatch }}</code>
               </template>
-              <div class="phase-content">
-                <pre>{{ macroResult.phaseOutputs.afterPostProcess }}</pre>
-              </div>
-            </el-collapse-item>
-          </el-collapse>
+            </el-table-column>
+          </el-table>
         </InfoCard>
       </div>
 
-      <!-- 检测到的宏列表 -->
-      <div v-if="detectedMacros.length > 0" class="detected-macros">
-        <InfoCard title="检测到的宏">
-          <el-table :data="detectedMacros" stripe>
-            <el-table-column prop="name" label="宏名称" width="150" />
-            <el-table-column label="参数" min-width="200">
-              <template #default="{ row }">
-                <el-tag
-                  v-for="(arg, index) in row.args"
-                  :key="index"
-                  size="small"
-                  style="margin-right: 4px"
-                >
-                  {{ arg }}
-                </el-tag>
-                <span v-if="!row.args || row.args.length === 0" class="no-args">无参数</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="fullMatch" label="完整表达式" min-width="200" />
-          </el-table>
+      <!-- 处理过程展示 (优化版) -->
+      <div v-if="macroResult?.phaseOutputs" class="phase-outputs">
+        <InfoCard title="处理流水线">
+          <template #header-extra>
+            <el-switch
+              v-model="showOriginal"
+              active-text="显示原文"
+              inline-prompt
+              style="margin-left: 12px"
+            />
+          </template>
+
+          <div v-if="showOriginal" class="original-preview mb-4">
+            <div class="phase-label">原始输入 (Original)</div>
+            <div class="phase-content">
+              <pre>{{ macroResult.phaseOutputs.original }}</pre>
+            </div>
+          </div>
+
+          <el-steps
+            :active="activeStep"
+            finish-status="success"
+            process-status="success"
+            simple
+            style="margin-bottom: 16px"
+          >
+            <el-step title="预处理" @click="activeStep = 0" class="cursor-pointer" />
+            <el-step title="替换" @click="activeStep = 1" class="cursor-pointer" />
+            <el-step title="后处理" @click="activeStep = 2" class="cursor-pointer" />
+          </el-steps>
+
+          <div class="step-content">
+            <div v-if="activeStep === 0">
+              <div class="phase-header">
+                <span class="phase-title">阶段一：预处理 (Pre-Process)</span>
+                <span class="phase-desc">处理 setvar, incvar 等状态变更宏</span>
+              </div>
+              <div class="phase-content">
+                <pre>{{ macroResult.phaseOutputs.afterPreProcess }}</pre>
+              </div>
+            </div>
+            <div v-if="activeStep === 1">
+              <div class="phase-header">
+                <span class="phase-title">阶段二：替换 (Substitute)</span>
+                <span class="phase-desc">替换 user, char 等静态变量</span>
+              </div>
+              <div class="phase-content">
+                <pre>{{ macroResult.phaseOutputs.afterSubstitute }}</pre>
+              </div>
+            </div>
+            <div v-if="activeStep === 2">
+              <div class="phase-header">
+                <span class="phase-title">阶段三：后处理 (Post-Process)</span>
+                <span class="phase-desc">执行 time, random 等动态函数</span>
+              </div>
+              <div class="phase-content">
+                <pre>{{ macroResult.phaseOutputs.afterPostProcess }}</pre>
+              </div>
+            </div>
+          </div>
         </InfoCard>
       </div>
     </div>
@@ -119,10 +135,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, reactive } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
-import { QuestionFilled } from "@element-plus/icons-vue";
-import { MacroProcessor } from "../../macro-engine";
+import { Loading } from "@element-plus/icons-vue";
+import { MacroProcessor, MacroRegistry } from "../../macro-engine";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { MacroProcessResult } from "../../macro-engine";
 import type { ContextPreviewData } from "../../composables/useChatContextBuilder";
@@ -132,8 +148,10 @@ const props = defineProps<{
   contextData: ContextPreviewData;
 }>();
 
-const activePhases = ref<string>("original");
+const activeStep = ref(2); // 默认显示最后一步（后处理结果）
+const showOriginal = ref(false); // 默认折叠原文
 const macroResult = ref<MacroProcessResult | null>(null);
+const macroPreviews = reactive<Record<string, string>>({}); // 存储宏预览值
 const agentStore = useAgentStore();
 
 // 从 contextData 中提取所有原始文本（包含宏的）
@@ -144,16 +162,9 @@ const combinedOriginalText = computed(() => {
 
   // 1. 预设消息
   props.contextData.presetMessages.forEach((msg) => {
-    // 优先使用 originalContent，如果没有则使用 content
-    // 注意：ContextPreviewData 类型定义中可能还没有 originalContent（如果未更新类型定义），
-    // 但我们已经在 useChatContextBuilder 中添加了它。这里使用类型断言或可选链。
     const raw = (msg as any).originalContent || msg.content;
     if (raw) texts.push(raw);
   });
-
-  // 2. 历史消息（通常不包含宏，但为了完整性也检查一下）
-  // 历史消息一般已经是处理过的，或者用户输入本身就包含宏但已经被处理并存储了。
-  // 在预览中，我们主要关注预设消息中的宏。
 
   return texts.join("\n");
 });
@@ -162,6 +173,28 @@ const combinedOriginalText = computed(() => {
 const detectedMacros = computed(() => {
   if (!combinedOriginalText.value) return [];
   return MacroProcessor.extractMacros(combinedOriginalText.value);
+});
+
+// 去重并统计宏
+const uniqueDetectedMacros = computed(() => {
+  const macros = detectedMacros.value;
+  const map = new Map<string, { name: string; args: string[]; fullMatch: string; count: number }>();
+
+  macros.forEach((m) => {
+    // 使用 fullMatch 作为唯一标识
+    if (map.has(m.fullMatch)) {
+      map.get(m.fullMatch)!.count++;
+    } else {
+      map.set(m.fullMatch, {
+        name: m.name,
+        args: m.args || [],
+        fullMatch: m.fullMatch,
+        count: 1,
+      });
+    }
+  });
+
+  return Array.from(map.values());
 });
 
 // 是否包含宏
@@ -177,17 +210,14 @@ watch(
     }
 
     // 构建宏上下文
-    // 尝试从 store 获取完整的 agent 对象
     const agentId = newData.agentInfo.id;
     const agent = agentStore.getAgentById(agentId);
 
     const context = createMacroContext({
-      userName: "User", // 这里简化处理，实际应该从 userProfile 获取
+      userName: "User",
       charName: newData.agentInfo.name || "Assistant",
       agent: agent || undefined,
       timestamp: newData.targetTimestamp,
-      // 注意：这里缺少 session 对象，某些依赖 session 的宏（如记忆相关）可能无法正确执行
-      // 但对于大多数文本替换宏来说已经足够了
     });
 
     // 如果有参数覆盖，注入到变量中
@@ -199,7 +229,7 @@ watch(
       });
     }
 
-    // 执行宏处理（开启调试模式）
+    // 1. 执行宏处理（开启调试模式）
     const processor = new MacroProcessor();
     try {
       macroResult.value = await processor.process(combinedOriginalText.value, context, {
@@ -220,6 +250,25 @@ watch(
         },
       };
     }
+
+    // 2. 计算每个宏的预览值
+    // 清空旧预览
+    Object.keys(macroPreviews).forEach((key) => delete macroPreviews[key]);
+
+    const registry = MacroRegistry.getInstance();
+    for (const macro of uniqueDetectedMacros.value) {
+      const def = registry.getMacro(macro.name);
+      if (def) {
+        try {
+          const result = await def.execute(context, macro.args);
+          macroPreviews[macro.fullMatch] = result;
+        } catch (e) {
+          macroPreviews[macro.fullMatch] = "(执行错误)";
+        }
+      } else {
+        macroPreviews[macro.fullMatch] = "(未知宏)";
+      }
+    }
   },
   { immediate: true }
 );
@@ -239,37 +288,75 @@ watch(
   gap: 16px;
 }
 
-.card-header {
+.args-list {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.card-header span {
+.macro-code {
+  background-color: var(--el-fill-color-light);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--el-color-primary);
+}
+
+.preview-value {
+  color: var(--el-color-success);
+  font-family: monospace;
   font-weight: 600;
 }
 
-.phase-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
+.preview-loading {
+  color: var(--el-text-color-secondary);
 }
 
-.phase-name {
-  font-weight: 500;
+.original-preview {
+  margin-bottom: 16px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 4px;
+  padding: 12px;
+  background-color: var(--el-fill-color-lighter);
+}
+
+.phase-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.phase-header {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.phase-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
 }
 
 .phase-desc {
-  color: var(--el-text-color-secondary);
   font-size: 12px;
-  margin-left: auto;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
 }
 
 .phase-content {
   padding: 12px;
   background-color: var(--el-fill-color-light);
   border-radius: 4px;
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .phase-content pre {
@@ -279,10 +366,17 @@ watch(
   font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 13px;
   line-height: 1.6;
+  color: var(--el-text-color-regular);
 }
 
 .no-args {
-  color: var(--el-text-color-secondary);
-  font-style: italic;
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+}
+
+:deep(.el-step.is-process .el-step__title) {
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 </style>

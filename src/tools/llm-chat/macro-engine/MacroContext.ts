@@ -43,6 +43,8 @@ export interface MacroContext {
   agent?: ChatAgent;
   /** 当前用户档案引用 */
   userProfileObj?: UserProfile;
+  /** 宏执行时的基准时间戳（可选，默认为当前时间） */
+  timestamp?: number;
 }
 
 /**
@@ -54,6 +56,7 @@ export function createMacroContext(options: {
   session?: ChatSession;
   agent?: ChatAgent;
   userProfile?: UserProfile;
+  timestamp?: number;
 }): MacroContext {
   return {
     userName: options.userName || 'User',
@@ -65,6 +68,7 @@ export function createMacroContext(options: {
     session: options.session,
     agent: options.agent,
     userProfileObj: options.userProfile,
+    timestamp: options.timestamp,
   };
 }
 

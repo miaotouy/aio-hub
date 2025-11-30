@@ -46,6 +46,7 @@ export interface ContextPreviewData {
   presetMessages: Array<{
     role: "system" | "user" | "assistant";
     content: string;
+    originalContent?: string;
     charCount: number;
     tokenCount?: number;
     source: "agent_preset";
@@ -116,6 +117,8 @@ export interface ContextPreviewData {
   };
   /** LLM 请求参数 */
   parameters?: LlmParameters;
+  /** 目标节点的时间戳（用于宏预览） */
+  targetTimestamp?: number;
 }
 
 export function useChatContextBuilder() {
@@ -814,7 +817,8 @@ export function useChatContextBuilder() {
       (agentConfig.presetMessages || [])
         .filter((msg: any) => msg.isEnabled !== false && msg.type !== "chat_history" && msg.type !== "user_profile")
         .map(async (msg: any, index: number) => {
-          let content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+          const originalContent = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+          let content = originalContent;
 
           // 处理宏：确保 Token 计算基于展开后的内容
           try {
@@ -845,6 +849,7 @@ export function useChatContextBuilder() {
           return {
             role: msg.role,
             content,
+            originalContent,
             charCount: sanitizedContent.length,
             tokenCount,
             source: "agent_preset",
@@ -1249,6 +1254,7 @@ export function useChatContextBuilder() {
 
         return effectiveParams;
       })(),
+      targetTimestamp: typeof targetNode.timestamp === 'string' ? Number(targetNode.timestamp) : targetNode.timestamp,
     };
 
     logger.debug("🔍 生成上下文预览数据", {

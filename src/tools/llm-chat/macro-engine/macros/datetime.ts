@@ -47,8 +47,8 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 90,
       supported: true,
-      execute: () => {
-        const now = new Date();
+      execute: (context) => {
+        const now = context.timestamp ? new Date(context.timestamp) : new Date();
         return formatTime(now);
       },
     },
@@ -63,8 +63,8 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 90,
       supported: true,
-      execute: () => {
-        const now = new Date();
+      execute: (context) => {
+        const now = context.timestamp ? new Date(context.timestamp) : new Date();
         return formatDate(now);
       },
     },
@@ -79,8 +79,9 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 70,
       supported: true,
-      execute: () => {
-        return new Date().toISOString();
+      execute: (context) => {
+        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        return now.toISOString();
       },
     },
 
@@ -94,8 +95,9 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 60,
       supported: true,
-      execute: () => {
-        return Date.now().toString();
+      execute: (context) => {
+        const ts = context.timestamp || Date.now();
+        return ts.toString();
       },
     },
 
@@ -109,8 +111,8 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 85,
       supported: true,
-      execute: () => {
-        const now = new Date();
+      execute: (context) => {
+        const now = context.timestamp ? new Date(context.timestamp) : new Date();
         const hours = now.getHours().toString().padStart(2, '0');
         const minutes = now.getMinutes().toString().padStart(2, '0');
         return `${hours}:${minutes}`;
@@ -127,9 +129,9 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 80,
       supported: true,
-      execute: () => {
+      execute: (context) => {
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const now = new Date();
+        const now = context.timestamp ? new Date(context.timestamp) : new Date();
         return days[now.getDay()];
       },
     },

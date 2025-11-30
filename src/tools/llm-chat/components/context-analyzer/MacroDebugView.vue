@@ -1,12 +1,6 @@
 <template>
   <div class="macro-debug-view">
-    <el-alert
-      v-if="!hasMacros"
-      title="未检测到宏"
-      type="info"
-      :closable="false"
-      show-icon
-    >
+    <el-alert v-if="!hasMacros" title="未检测到宏" type="info" :closable="false" show-icon>
       此消息中没有使用任何宏表达式
     </el-alert>
 
@@ -20,7 +14,7 @@
             </el-descriptions-item>
             <el-descriptions-item label="是否包含宏">
               <el-tag :type="macroResult?.hasMacros ? 'success' : 'info'">
-                {{ macroResult?.hasMacros ? '是' : '否' }}
+                {{ macroResult?.hasMacros ? "是" : "否" }}
               </el-tag>
             </el-descriptions-item>
           </el-descriptions>
@@ -125,38 +119,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import InfoCard from '@/components/common/InfoCard.vue';
-import { QuestionFilled } from '@element-plus/icons-vue';
-import { MacroProcessor } from '../../macro-engine';
-import type { MacroProcessResult } from '../../macro-engine';
-import type { ContextPreviewData } from '../../composables/useChatHandler';
+import { ref, computed, watch } from "vue";
+import InfoCard from "@/components/common/InfoCard.vue";
+import { QuestionFilled } from "@element-plus/icons-vue";
+import { MacroProcessor } from "../../macro-engine";
+import { createMacroContext } from "../../macro-engine/MacroContext";
+import type { MacroProcessResult } from "../../macro-engine";
+import type { ContextPreviewData } from "../../composables/useChatContextBuilder";
+import { useAgentStore } from "../../agentStore";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
 }>();
 
-const activePhases = ref<string>('original');
+const activePhases = ref<string>("original");
 const macroResult = ref<MacroProcessResult | null>(null);
+const agentStore = useAgentStore();
+
+// 从 contextData 中提取所有原始文本（包含宏的）
+const combinedOriginalText = computed(() => {
+  if (!props.contextData) return "";
+
+  const texts: string[] = [];
+
+  // 1. 预设消息
+  props.contextData.presetMessages.forEach((msg) => {
+    // 优先使用 originalContent，如果没有则使用 content
+    // 注意：ContextPreviewData 类型定义中可能还没有 originalContent（如果未更新类型定义），
+    // 但我们已经在 useChatContextBuilder 中添加了它。这里使用类型断言或可选链。
+    const raw = (msg as any).originalContent || msg.content;
+    if (raw) texts.push(raw);
+  });
+
+  // 2. 历史消息（通常不包含宏，但为了完整性也检查一下）
+  // 历史消息一般已经是处理过的，或者用户输入本身就包含宏但已经被处理并存储了。
+  // 在预览中，我们主要关注预设消息中的宏。
+
+  return texts.join("\n");
+});
 
 // 检测原始消息中的宏
 const detectedMacros = computed(() => {
-  if (!props.contextData) return [];
-  
-  // 从 systemPrompt 和 presetMessages 中检测宏
-  const texts: string[] = [];
-  
-  if (props.contextData.systemPrompt) {
-    texts.push(props.contextData.systemPrompt.content);
-  }
-  
-  props.contextData.presetMessages.forEach(msg => {
-    texts.push(msg.content);
-  });
-  
-  // 合并所有文本并提取宏
-  const combinedText = texts.join('\n');
-  return MacroProcessor.extractMacros(combinedText);
+  if (!combinedOriginalText.value) return [];
+  return MacroProcessor.extractMacros(combinedOriginalText.value);
 });
 
 // 是否包含宏
@@ -166,18 +171,55 @@ const hasMacros = computed(() => detectedMacros.value.length > 0);
 watch(
   () => props.contextData,
   async (newData) => {
-    if (!newData) {
+    if (!newData || !hasMacros.value) {
       macroResult.value = null;
       return;
     }
 
-    // 这里只是演示宏处理流程，实际应用中需要完整的 MacroContext
-    // 暂时不执行实际的宏处理，只展示检测到的宏
-    macroResult.value = {
-      output: '',
-      hasMacros: hasMacros.value,
-      macroCount: detectedMacros.value.length,
-    };
+    // 构建宏上下文
+    // 尝试从 store 获取完整的 agent 对象
+    const agentId = newData.agentInfo.id;
+    const agent = agentStore.getAgentById(agentId);
+
+    const context = createMacroContext({
+      userName: "User", // 这里简化处理，实际应该从 userProfile 获取
+      charName: newData.agentInfo.name || "Assistant",
+      agent: agent || undefined,
+      timestamp: newData.targetTimestamp,
+      // 注意：这里缺少 session 对象，某些依赖 session 的宏（如记忆相关）可能无法正确执行
+      // 但对于大多数文本替换宏来说已经足够了
+    });
+
+    // 如果有参数覆盖，注入到变量中
+    if (newData.parameters) {
+      Object.entries(newData.parameters).forEach(([key, value]) => {
+        if (typeof value === "string" || typeof value === "number") {
+          context.variables.set(key, value);
+        }
+      });
+    }
+
+    // 执行宏处理（开启调试模式）
+    const processor = new MacroProcessor();
+    try {
+      macroResult.value = await processor.process(combinedOriginalText.value, context, {
+        debug: true,
+      });
+    } catch (error) {
+      console.error("宏处理预览失败:", error);
+      // 降级显示
+      macroResult.value = {
+        output: combinedOriginalText.value,
+        hasMacros: true,
+        macroCount: detectedMacros.value.length,
+        phaseOutputs: {
+          original: combinedOriginalText.value,
+          afterPreProcess: "处理出错",
+          afterSubstitute: "处理出错",
+          afterPostProcess: "处理出错",
+        },
+      };
+    }
   },
   { immediate: true }
 );
@@ -234,7 +276,7 @@ watch(
   margin: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 13px;
   line-height: 1.6;
 }

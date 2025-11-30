@@ -112,6 +112,8 @@
                 :content="previewContent || form.content || '(空)'"
                 :version="settings.uiPreferences.rendererVersion"
                 :default-render-html="settings.uiPreferences.defaultRenderHtml"
+                :llm-think-rules="llmThinkRules"
+                :style-options="richTextStyleOptions"
               />
             </div>
           </div>
@@ -145,6 +147,10 @@ import type { MacroDefinition } from "../../macro-engine";
 import MacroSelector from "./MacroSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 import { useChatSettings } from "../../composables/useChatSettings";
 import * as monaco from "monaco-editor";
 import { MacroProcessor, createMacroContext } from "../../macro-engine";
@@ -160,6 +166,8 @@ interface Props {
   initialForm?: MessageForm;
   agentName?: string;
   userProfile?: UserProfile | null;
+  llmThinkRules?: LlmThinkRule[];
+  richTextStyleOptions?: RichTextRendererStyleOptions;
 }
 
 interface Emits {
@@ -173,6 +181,8 @@ const props = withDefaults(defineProps<Props>(), {
   initialForm: () => ({ role: "system", content: "" }),
   agentName: "Assistant",
   userProfile: null,
+  llmThinkRules: () => [],
+  richTextStyleOptions: () => ({}),
 });
 
 const emit = defineEmits<Emits>();

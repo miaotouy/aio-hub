@@ -341,6 +341,8 @@
       :initial-form="editForm"
       :agent-name="props.agentName"
       :user-profile="effectiveUserProfile"
+      :llm-think-rules="props.agent?.llmThinkRules"
+      :rich-text-style-options="props.agent?.richTextStyleOptions"
       @save="handleSaveMessage"
     />
 
@@ -391,6 +393,10 @@ import { customMessage } from "@/utils/customMessage";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "./PresetMessageEditor.vue";
 import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 
 interface Props {
   modelValue?: ChatMessageNode[];
@@ -401,8 +407,13 @@ interface Props {
   modelId?: string;
   /** Agent 名称，用于导出文件名 */
   agentName?: string;
-  /** 当前 Agent，用于确定生效的用户档案 */
-  agent?: { userProfileId?: string | null } | null;
+  /** 当前 Agent，用于确定生效的用户档案及其他配置 */
+  agent?: {
+    userProfileId?: string | null;
+    llmThinkRules?: LlmThinkRule[];
+    richTextStyleOptions?: RichTextRendererStyleOptions;
+    [key: string]: any;
+  } | null;
 }
 
 interface Emits {

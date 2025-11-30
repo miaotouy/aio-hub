@@ -160,6 +160,7 @@ defineExpose({
 <style scoped>
 .chat-message {
   position: relative;
+  display: flow-root; /* 创建 BFC，确保包含内部所有元素且高度计算准确 */
   padding: 16px;
   /* 移除原有的背景和边框样式，移交给 .message-background */
   transition: all 0.2s;

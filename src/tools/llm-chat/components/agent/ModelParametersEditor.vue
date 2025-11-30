@@ -329,7 +329,7 @@ const safetyCategories = [
 ] as const;
 
 const safetyThresholds = [
-  { label: "默认 (使用系统设置)", value: undefined },
+  { label: "默认 (使用系统设置)", value: "SYSTEM_DEFAULT" },
   { label: "关闭拦截 (OFF)", value: "OFF" },
   { label: "不过滤 (BLOCK_NONE)", value: "BLOCK_NONE" },
   { label: "仅拦截高风险 (BLOCK_ONLY_HIGH)", value: "BLOCK_ONLY_HIGH" },
@@ -340,17 +340,17 @@ const safetyThresholds = [
 const getSafetyThreshold = (category: string) => {
   const settings = localParams.value.safetySettings || [];
   const setting = settings.find((s) => s.category === category);
-  return setting?.threshold;
+  return setting?.threshold ?? "SYSTEM_DEFAULT";
 };
 
 const updateSafetySetting = (
   category: string,
-  threshold: GeminiSafetySetting["threshold"] | undefined
+  threshold: GeminiSafetySetting["threshold"] | "SYSTEM_DEFAULT"
 ) => {
   const currentSettings = localParams.value.safetySettings || [];
   let newSettings: GeminiSafetySetting[];
 
-  if (threshold === undefined) {
+  if (threshold === "SYSTEM_DEFAULT") {
     // 移除该类别的设置
     newSettings = currentSettings.filter((s) => s.category !== category);
   } else {

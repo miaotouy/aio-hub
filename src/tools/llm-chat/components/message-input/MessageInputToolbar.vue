@@ -60,7 +60,6 @@ const onMacroSelectorUpdate = (visible: boolean) => {
       <el-tooltip content="添加附件" placement="top">
         <button
           class="attachment-button"
-          :disabled="props.isSending"
           @click="emit('trigger-attachment')"
         >
           <el-icon><Paperclip /></el-icon>

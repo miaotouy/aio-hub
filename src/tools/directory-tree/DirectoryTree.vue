@@ -133,15 +133,54 @@
             <el-tooltip content="发送到聊天" placement="top">
               <el-button :icon="ChatDotRound" text circle @click="sendTreeToChat" />
             </el-tooltip>
+            <div class="divider-vertical"></div>
+            <el-tooltip
+              :content="showResultFilter ? '收起视图控制' : '展开视图控制'"
+              placement="top"
+            >
+              <el-button
+                :icon="Filter"
+                :type="showResultFilter ? 'primary' : 'default'"
+                text
+                circle
+                @click="showResultFilter = !showResultFilter"
+              />
+            </el-tooltip>
           </el-button-group>
         </template>
+
+        <div v-if="showResultFilter && treeResult" class="result-controls">
+          <div class="control-row">
+            <span class="control-label">显示深度:</span>
+            <el-slider
+              v-model="secondaryMaxDepth"
+              :min="1"
+              :max="actualMaxDepth"
+              :step="1"
+              show-stops
+              size="small"
+              class="depth-slider"
+            />
+            <span class="depth-value">{{ secondaryMaxDepth }} / {{ actualMaxDepth }}</span>
+          </div>
+          <div class="control-row">
+            <span class="control-label">排除内容:</span>
+            <el-input
+              v-model="secondaryExcludePattern"
+              placeholder="输入关键词隐藏行（及子项）"
+              size="small"
+              clearable
+              class="filter-input"
+            />
+          </div>
+        </div>
 
         <div v-if="!treeResult" class="empty-state">
           <el-empty description="选择目录并生成目录树" />
         </div>
 
         <el-scrollbar v-else class="tree-scrollbar">
-          <pre class="tree-content">{{ treeResult }}</pre>
+          <pre class="tree-content">{{ processedTreeResult }}</pre>
         </el-scrollbar>
       </InfoCard>
     </div>
@@ -149,7 +188,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   FolderOpened,
@@ -159,6 +198,7 @@ import {
   DataAnalysis,
   ChatDotRound,
   QuestionFilled,
+  Filter,
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash-es";
@@ -209,6 +249,131 @@ const statsInfo = ref<{
 } | null>(null);
 const isGenerating = ref(false);
 const isLoadingConfig = ref(true);
+
+// 二次筛选状态
+const showResultFilter = ref(false);
+const secondaryMaxDepth = ref(10);
+const secondaryExcludePattern = ref("");
+
+// 计算实际最大深度（用于滑块范围）
+const actualMaxDepth = computed(() => {
+  if (!treeResult.value) return 10;
+  // 简单估算：通过缩进最长的行来判断
+  const lines = treeResult.value.split("\n");
+  let maxIndent = 0;
+  for (const line of lines) {
+    // 匹配行首的 │ 和空格
+    const match = line.match(/^([│\s]*)(?:├──|└──)/);
+    if (match) {
+      const indent = match[1].length / 4 + 1;
+      if (indent > maxIndent) maxIndent = indent;
+    }
+  }
+  return Math.max(maxIndent, 1); // 至少为1
+});
+
+// 监听生成结果，自动重置二次筛选
+watch(treeResult, () => {
+  secondaryMaxDepth.value = actualMaxDepth.value;
+});
+
+// 处理后的目录树结果
+const processedTreeResult = computed(() => {
+  if (!treeResult.value) return "";
+
+  // 如果没有启用筛选且没有设置过滤词，直接返回原文本（性能优化）
+  if (!showResultFilter.value) return treeResult.value;
+
+  const lines = treeResult.value.split("\n");
+  const result: string[] = [];
+
+  // 状态标记
+  let isMetadataSection = false;
+  let skipUntilDepth = -1; // 用于过滤子树：当 > -1 时，跳过所有深度大于此值的行
+
+  // 预处理过滤词
+  const excludeKeyword = secondaryExcludePattern.value.trim();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // 1. 处理元数据部分
+    // 如果遇到元数据标记，进入元数据模式
+    if (line.startsWith("# 目录树生成信息")) {
+      isMetadataSection = true;
+      result.push(line);
+      continue;
+    }
+
+    // 如果在元数据区域，直到遇到 "## 目录结构" 退出
+    if (isMetadataSection) {
+      result.push(line);
+      if (line.includes("## 目录结构")) {
+        isMetadataSection = false;
+        // 目录结构后通常跟一个空行，保留它
+        if (i + 1 < lines.length && lines[i + 1].trim() === "") {
+          result.push(lines[i + 1]);
+          i++;
+        }
+      }
+      continue;
+    }
+
+    // 2. 处理树结构部分
+    // 尝试计算深度
+    let depth = 0;
+    // 匹配树状结构前缀：│   ,    , ├──, └──
+    // 标准树结构每层缩进4个字符
+    const match = line.match(/^([│\s]*)(?:├──|└──)/);
+
+    if (match) {
+      // 也就是 (前缀长度 / 4) + 1
+      depth = match[1].length / 4 + 1;
+    } else if (/^[│\s]+$/.test(line)) {
+      // 纯竖线连接行，通常不作为节点，保留即可，或者根据上一行的深度判断
+      // 简单策略：如果上一行被过滤了，这种连接线通常也应该被过滤
+      // 但为了简单，我们暂时保留它，或者视情况而定
+      // 这里我们假设它属于上一级
+      depth = line.length / 4;
+    } else {
+      // 根节点或其他文本（如空行）
+      // 根节点深度为0
+      depth = 0;
+    }
+
+    // 3. 执行过滤逻辑
+
+    // 3.1 子树过滤检查
+    if (skipUntilDepth !== -1) {
+      if (depth > skipUntilDepth) {
+        // 当前行是之前被过滤节点的子节点，跳过
+        continue;
+      } else {
+        // 已经退出了被过滤的子树范围
+        skipUntilDepth = -1;
+      }
+    }
+
+    // 3.2 深度限制 (根节点 depth 0 始终显示)
+    if (depth > 0 && depth > secondaryMaxDepth.value) {
+      continue;
+    }
+
+    // 3.3 关键词过滤 (排除模式)
+    // 只有当行包含具体的树节点内容时才过滤
+    if (excludeKeyword && !line.startsWith("#") && line.trim() !== "") {
+      if (line.includes(excludeKeyword)) {
+        // 标记从当前深度开始过滤
+        skipUntilDepth = depth;
+        continue;
+      }
+    }
+
+    result.push(line);
+  }
+
+  return result.join("\n");
+});
 
 // 处理路径拖放
 const handlePathDrop = (paths: string[]) => {
@@ -545,5 +710,52 @@ const sendTreeToChat = () => {
 .stats-value {
   font-weight: 600;
   font-family: "Consolas", "Monaco", monospace;
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 16px;
+  background-color: var(--el-border-color);
+  margin: 0 8px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.result-controls {
+  padding: 12px 16px;
+  background-color: var(--el-fill-color-light);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.control-label {
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  min-width: 60px;
+}
+
+.depth-slider {
+  flex: 1;
+  margin-right: 12px;
+}
+
+.depth-value {
+  font-family: monospace;
+  min-width: 40px;
+  text-align: right;
+  color: var(--text-color);
+}
+
+.filter-input {
+  flex: 1;
 }
 </style>

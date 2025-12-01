@@ -20,7 +20,6 @@ export const ALL_LLM_PARAMETER_KEYS = [
   "logprobs",
   "topLogprobs",
   "maxCompletionTokens",
-  "reasoningEffort",
   "logitBias",
   "store",
   "user",
@@ -39,10 +38,12 @@ export const ALL_LLM_PARAMETER_KEYS = [
   "webSearchOptions",
   "streamOptions",
   "metadata",
-  // Claude 特有参数
-  "thinking",
   "stopSequences",
   "claudeMetadata",
+  // 思考能力相关
+  "thinkingEnabled",
+  "thinkingBudget",
+  "reasoningEffort",
 ] as const;
 
 export type ParameterType = "slider" | "switch" | "select" | "number" | "text";
@@ -196,21 +197,6 @@ export const parameterConfigs: ParameterConfig[] = [
     defaultValue: undefined,
   },
   {
-    key: "reasoningEffort",
-    label: "Reasoning Effort",
-    type: "select",
-    description: "推理工作约束（OpenAI o1 系列模型）。",
-    group: "advanced",
-    supportedKey: "reasoningEffort",
-    defaultValue: "medium",
-    options: [
-      { label: "默认", value: "" },
-      { label: "Low（低）", value: "low" },
-      { label: "Medium（中）", value: "medium" },
-      { label: "High（高）", value: "high" },
-    ],
-  },
-  {
     key: "logprobs",
     label: "Logprobs",
     type: "switch",
@@ -233,15 +219,38 @@ export const parameterConfigs: ParameterConfig[] = [
   },
 
   // --- Special Features ---
+  // 思考能力相关参数：
+  // - 所有思考相关参数都使用 supportedKey: "thinking"，由 Provider 层面控制是否显示整个区域
+  // - 具体显示哪个控件由 Model 的 capabilities.thinkingConfigType 决定
   {
-    key: "thinking",
-    label: "Thinking Mode (Claude)",
+    key: "thinkingEnabled",
+    label: "启用思考",
     type: "switch",
-    description: "启用 Claude 的思考模式，模型会先思考再回答。",
+    description: "启用模型的思考/推理能力。",
     group: "special",
     supportedKey: "thinking",
-    defaultValue: { type: 'disabled' },
-    format: (val: any) => val?.type === 'enabled',
-    parse: (val: boolean) => val ? { type: 'enabled' } : { type: 'disabled' }
-  }
+    defaultValue: false,
+  },
+  {
+    key: "thinkingBudget",
+    label: "思考预算",
+    type: "slider",
+    description: "为思考过程分配的 Token 预算。",
+    group: "special",
+    supportedKey: "thinking", // 使用 thinking，由 thinkingConfigType 决定是否显示
+    min: 1000,
+    max: 32000,
+    step: 1000,
+    defaultValue: 8000,
+  },
+  {
+    key: "reasoningEffort",
+    label: "推理等级",
+    type: "select",
+    description: "设置模型的推理/思考等级。",
+    group: "special",
+    supportedKey: "thinking", // 使用 thinking，由 thinkingConfigType 决定是否显示
+    defaultValue: "",
+    options: [], // 选项将由 ModelParametersEditor 动态提供
+  },
 ];

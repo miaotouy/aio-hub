@@ -34,6 +34,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       toolChoice: true,
       parallelToolCalls: true,
       // 特殊功能
+      thinking: true, // 思考能力（具体显示哪种控件由 Model 的 thinkingConfigType 决定）
       webSearch: true,
       modalities: true,
       audio: true,
@@ -92,6 +93,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       tools: true,
       toolChoice: true,
       // 特殊功能
+      thinking: true, // 思考能力（具体显示哪种控件由 Model 的 thinkingConfigType 决定）
       thinkingConfig: true,
       thinkingLevel: true,
       mediaResolution: true,
@@ -142,6 +144,9 @@ export const providerTypes: ProviderTypeInfo[] = [
       // 高级参数
       tools: true,
       toolChoice: true,
+      // 特殊功能
+      thinking: true,
+      thinkingConfig: true, // 允许配置思考参数
     },
   },
   {
@@ -168,6 +173,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       tools: true,
       toolChoice: true,
       // 特殊功能
+      thinking: true, // 思考能力（具体显示哪种控件由 Model 的 thinkingConfigType 决定）
       thinkingConfig: true,
       thinkingLevel: true,
       mediaResolution: true,
@@ -207,7 +213,13 @@ export const llmPresets: LlmPreset[] = [
         name: "GPT-5",
         group: "GPT-5",
         provider: "openai",
-        capabilities: { vision: true, toolUse: true },
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "medium", "high"],
+        },
         description: "旗舰多模态模型，编码与代理任务王者（2025-10-03更新）",
       },
       {
@@ -215,7 +227,13 @@ export const llmPresets: LlmPreset[] = [
         name: "GPT-5 Pro",
         group: "GPT-5",
         provider: "openai",
-        capabilities: { vision: true, toolUse: true },
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "medium", "high"],
+        },
         description: "开发者专属，API增强版",
       },
       {
@@ -263,7 +281,15 @@ export const llmPresets: LlmPreset[] = [
         name: "GPT-5.1",
         group: "GPT-5",
         provider: "openai",
-        capabilities: { vision: true, toolUse: true, webSearch: true, fileSearch: true },
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          webSearch: true,
+          fileSearch: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["none", "minimal", "low", "medium", "high"],
+        },
         description: "Responses旗舰，内置文件/网络搜索，多模态交互",
       },
       {
@@ -271,7 +297,15 @@ export const llmPresets: LlmPreset[] = [
         name: "GPT-5.1 Pro",
         group: "GPT-5",
         provider: "openai",
-        capabilities: { vision: true, toolUse: true, webSearch: true, fileSearch: true },
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          webSearch: true,
+          fileSearch: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["none", "minimal", "low", "medium", "high"],
+        },
         description: "开发者增强版，扩展工具集成",
       },
       {
@@ -287,7 +321,11 @@ export const llmPresets: LlmPreset[] = [
         name: "o3-pro",
         group: "o3",
         provider: "openai",
-        capabilities: { toolUse: true, thinking: true },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
         description: "推理旗舰，可调节推理力度，复杂问题解决专家",
       },
       {
@@ -295,7 +333,11 @@ export const llmPresets: LlmPreset[] = [
         name: "o3-mini",
         group: "o3",
         provider: "openai",
-        capabilities: { toolUse: true, thinking: true },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
         description: "推理轻量版，高效逻辑推理",
       },
       {
@@ -321,7 +363,7 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek Reasoner",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true },
+        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
         description: "推理专用模型",
       },
       {
@@ -329,7 +371,7 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek Chat",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true },
+        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
         description: "通用对话模型",
       },
     ],
@@ -497,7 +539,17 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 3 Pro",
         group: "Gemini 3",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high"],
+        },
         description: "旗舰多模态模型，支持文本、图像、视频、音频、PDF输入 (2025-11)",
       },
       {
@@ -514,7 +566,16 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Pro",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
         description: "先进思考模型，支持长上下文、代码、数学和STEM (2025-06)",
       },
       {
@@ -530,7 +591,16 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
         description: "最佳性价比模型，适用于大规模、低延迟任务 (2025-06)",
       },
       {
@@ -629,7 +699,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude Haiku 4.5",
         group: "Claude 4.5",
         provider: "anthropic",
-        capabilities: { vision: true, toolUse: true },
+        capabilities: { vision: true, toolUse: true, thinking: true, thinkingConfigType: "budget" },
         description: "小模型旗舰，成本敏感任务专家（2025-10-15）",
       },
       {
@@ -637,7 +707,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude Sonnet 4.5",
         group: "Claude 4.5",
         provider: "anthropic",
-        capabilities: { vision: true, toolUse: true },
+        capabilities: { vision: true, toolUse: true, thinking: true, thinkingConfigType: "budget" },
         description: "编码/代理/计算机使用顶级，SWE-bench 77.2%（2025-09-29）",
       },
       {
@@ -645,7 +715,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude Opus 4.1",
         group: "Claude 4",
         provider: "anthropic",
-        capabilities: { vision: true },
+        capabilities: { vision: true, thinking: true, thinkingConfigType: "budget" },
         description: "旗舰推理模型",
       },
       {
@@ -653,7 +723,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude 3.7 Sonnet",
         group: "Claude 3.7",
         provider: "anthropic",
-        capabilities: { vision: true },
+        capabilities: { vision: true, thinking: true, thinkingConfigType: "budget" },
       },
     ],
   },
@@ -670,7 +740,11 @@ export const llmPresets: LlmPreset[] = [
         name: "Command A Reasoning",
         group: "Command A",
         provider: "cohere",
-        capabilities: { toolUse: true },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "budget", // 支持预算配置
+        },
         description: "企业推理旗舰，复杂逻辑分析，256K上下文（2025-08-22）",
       },
       {
@@ -894,6 +968,11 @@ export const llmPresets: LlmPreset[] = [
         name: "Grok 4 Reasoning",
         group: "Grok",
         provider: "xai",
+        capabilities: {
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high"],
+        },
         description: "增强推理版，专攻复杂逻辑和编码",
       },
       {
@@ -1001,7 +1080,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Magistral",
         group: "Magistral",
         provider: "mistral",
-        capabilities: { thinking: true },
+        capabilities: { thinking: true, thinkingConfigType: "switch" },
         description: "推理模型家族（2025-06-10）",
       },
     ],
@@ -1068,7 +1147,7 @@ export const llmPresets: LlmPreset[] = [
         name: "ERNIE X1.1",
         group: "ERNIE X1",
         provider: "baidu",
-        capabilities: { thinking: true },
+        capabilities: { thinking: true, thinkingConfigType: "switch" },
         description: "推理模型升级，代理能力增强（2025-09-09）",
       },
       {

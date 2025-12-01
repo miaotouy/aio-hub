@@ -67,7 +67,7 @@ export const callOpenAiResponsesApi = async (
       // 处理文档附件（PDF 等）
       for (const documentPart of parsed.documentParts) {
         const source = documentPart.source;
-        
+
         if (source.type === "file_url") {
           // 外部 URL 方式
           contentArray.push({
@@ -102,7 +102,7 @@ export const callOpenAiResponsesApi = async (
   // 如果只有一条消息且是纯文本，可以使用简化格式
   const input =
     messages.length === 1 &&
-    typeof messages[0].content === "string"
+      typeof messages[0].content === "string"
       ? messages[0].content
       : messages;
 
@@ -148,12 +148,23 @@ export const callOpenAiResponsesApi = async (
     };
   }
 
-  // 推理配置（o系列模型）
-  if (options.seed !== undefined) {
-    // Responses API 中 reasoning effort 通过独立参数传递
-    body.reasoning = body.reasoning || {};
-    if (typeof options.seed === "string") {
-      body.reasoning.effort = options.seed; // 复用 seed 字段传递 effort
+  // 推理/思考配置
+  const reasoning: any = {};
+  if (options.reasoningEffort) {
+    reasoning.effort = options.reasoningEffort;
+  }
+
+  if (Object.keys(reasoning).length > 0) {
+    body.reasoning = reasoning;
+  }
+
+  // o3 模型的 thinking 参数
+  if (options.thinkingEnabled) {
+    body.thinking = {
+      type: "enabled",
+    };
+    if (options.thinkingBudget) {
+      body.thinking.budget_tokens = options.thinkingBudget;
     }
   }
 
@@ -387,10 +398,10 @@ export const callOpenAiResponsesApi = async (
     annotations: annotations.length > 0 ? annotations : undefined,
     usage: data.usage
       ? {
-          promptTokens: data.usage.input_tokens,
-          completionTokens: data.usage.output_tokens,
-          totalTokens: data.usage.total_tokens,
-        }
+        promptTokens: data.usage.input_tokens,
+        completionTokens: data.usage.output_tokens,
+        totalTokens: data.usage.total_tokens,
+      }
       : undefined,
   };
 };

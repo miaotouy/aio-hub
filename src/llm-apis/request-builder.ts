@@ -451,9 +451,22 @@ export function filterParametersByCapabilities(
   }
 
   // ===== 推理模式（o系列模型） =====
-  const supportsReasoning = supported.reasoningEffort && (!capabilities || capabilities.reasoning);
+  // 兼容旧的 reasoningEffort 检查，或者新的 thinking 检查
+  const supportsReasoning =
+    (supported.reasoningEffort || supported.thinking) &&
+    (!capabilities || capabilities.thinking);
+
   if (supportsReasoning && options.reasoningEffort !== undefined) {
     filtered.reasoningEffort = options.reasoningEffort;
+  }
+
+  // ===== 思考模式 (通用) =====
+  // 只要 Provider 支持 thinking，就允许传递这些通用参数
+  // 具体参数的转换由各 API 模块内部处理
+  const supportsThinking = supported.thinking && (!capabilities || capabilities.thinking);
+  if (supportsThinking) {
+    if (options.thinkingEnabled !== undefined) filtered.thinkingEnabled = options.thinkingEnabled;
+    if (options.thinkingBudget !== undefined) filtered.thinkingBudget = options.thinkingBudget;
   }
 
   // ===== 网络搜索 =====
@@ -488,23 +501,12 @@ export function filterParametersByCapabilities(
 
   // Claude 特有参数
   if (profile.type === 'claude') {
-    // Thinking 模式（需要模型支持）
-    const supportsThinking = supported.thinking && (!capabilities || capabilities.thinking);
-    if (supportsThinking && options.thinking !== undefined) {
-      filtered.thinking = options.thinking;
-    }
     if (options.stopSequences !== undefined) filtered.stopSequences = options.stopSequences;
     if (options.claudeMetadata !== undefined) filtered.claudeMetadata = options.claudeMetadata;
   }
 
   // Gemini/VertexAI 特有参数
   if (profile.type === 'gemini' || profile.type === 'vertexai') {
-    // Gemini 的 thinking 是通过 thinkingConfig 参数控制的
-    const supportsThinking = supported.thinkingConfig && (!capabilities || capabilities.thinking);
-    if (supportsThinking && options.thinking !== undefined) {
-      // Gemini 使用不同的参数名，这里可能需要转换
-      // 具体实现在各 API 模块中处理
-    }
     // 代码执行
     const supportsCodeExecution = supported.codeExecution && (!capabilities || capabilities.codeExecution);
     if (supportsCodeExecution) {

@@ -473,8 +473,15 @@ export const callClaudeApi = async (
   if (options.claudeMetadata) {
     body.metadata = options.claudeMetadata;
   }
-  if (options.thinking) {
-    body.thinking = options.thinking;
+
+  // 适配 Claude Thinking 模式
+  if (options.thinkingEnabled) {
+    body.thinking = {
+      type: "enabled",
+      budget_tokens: options.thinkingBudget || 4096,
+    };
+    // Thinking 模式下，temperature 建议不传或设为 1.0，避免冲突
+    delete body.temperature;
   }
 
   // 工具支持
@@ -498,7 +505,7 @@ export const callClaudeApi = async (
   };
 
   // 添加 beta 功能头（如果使用了 thinking 或其他 beta 功能）
-  if (options.thinking?.type === "enabled") {
+  if (options.thinkingEnabled) {
     headers["anthropic-beta"] = "thinking-2025-12-05";
   }
 
@@ -511,7 +518,7 @@ export const callClaudeApi = async (
     model: options.modelId,
     messageCount: messages.length,
     hasTools: !!tools,
-    hasThinking: !!options.thinking,
+    hasThinking: !!options.thinkingEnabled,
     stream: !!options.stream,
   });
 

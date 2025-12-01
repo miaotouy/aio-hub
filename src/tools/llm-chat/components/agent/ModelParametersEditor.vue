@@ -9,7 +9,7 @@ import {
   MagicStick,
 } from "@element-plus/icons-vue";
 import type { LlmParameters, GeminiSafetySetting } from "../../types";
-import type { ProviderType, LlmParameterSupport } from "@/types/llm-profiles";
+import type { ProviderType, LlmParameterSupport, LlmModelInfo } from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { useLlmChatStore } from "../../store";
@@ -31,6 +31,7 @@ import { parameterConfigs } from "../../config/parameter-config";
 interface Props {
   modelValue: LlmParameters;
   providerType?: ProviderType;
+  capabilities?: LlmModelInfo["capabilities"];
   compact?: boolean;
   /** 模型的上下文窗口限制（如果为 undefined 则使用默认最大值） */
   contextLengthLimit?: number;
@@ -108,17 +109,19 @@ const isParameterEnabled = (key: keyof LlmParameters) => {
 const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
   const currentEnabled = localParams.value.enabledParameters || [];
 
-  let newEnabled: Array<keyof Omit<LlmParameters, 'custom'>>;
+  let newEnabled: Array<keyof Omit<LlmParameters, "custom">>;
 
   if (enabled) {
     // 使用类型断言，因为我们知道这里处理的 key 都是标准参数
     if (!currentEnabled.includes(key as any)) {
       newEnabled = [...currentEnabled, key as any];
     } else {
-      newEnabled = currentEnabled as Array<keyof Omit<LlmParameters, 'custom'>>;
+      newEnabled = currentEnabled as Array<keyof Omit<LlmParameters, "custom">>;
     }
   } else {
-    newEnabled = currentEnabled.filter((k) => k !== key) as Array<keyof Omit<LlmParameters, 'custom'>>;
+    newEnabled = currentEnabled.filter((k) => k !== key) as Array<
+      keyof Omit<LlmParameters, "custom">
+    >;
   }
 
   localParams.value = {
@@ -146,18 +149,70 @@ const safetySettingsExpanded = ref(false);
 // --- 参数配置分组 ---
 
 const basicConfigs = computed(() =>
-  parameterConfigs.filter((c) => c.group === "basic" && supportedParameters.value[c.supportedKey])
+  processedConfigs.value.filter((c) => c.group === "basic" && shouldShowParameter(c.key))
 );
 
 const advancedConfigs = computed(() =>
-  parameterConfigs.filter(
-    (c) => c.group === "advanced" && supportedParameters.value[c.supportedKey]
-  )
+  processedConfigs.value.filter((c) => c.group === "advanced" && shouldShowParameter(c.key))
 );
 
 const specialConfigs = computed(() =>
-  parameterConfigs.filter((c) => c.group === "special" && supportedParameters.value[c.supportedKey])
+  processedConfigs.value.filter((c) => c.group === "special" && shouldShowParameter(c.key))
 );
+
+// --- 动态参数处理 ---
+
+// 根据 capabilities 动态处理参数配置，特别是 reasoningEffort 的选项
+const processedConfigs = computed(() => {
+  if (props.capabilities?.thinkingConfigType !== "effort") {
+    return parameterConfigs;
+  }
+
+  return parameterConfigs.map((config) => {
+    if (config.key === "reasoningEffort") {
+      const options = props.capabilities?.reasoningEffortOptions || [];
+      return {
+        ...config,
+        options: [
+          { label: "默认", value: "" },
+          ...options.map((opt) => ({ label: opt, value: opt })),
+        ],
+      };
+    }
+    return config;
+  });
+});
+
+// 根据 provider 支持和 thinkingConfigType 决定是否显示参数
+const shouldShowParameter = (key: keyof LlmParameters): boolean => {
+  const cap = props.capabilities;
+  const config = parameterConfigs.find((c) => c.key === key);
+  if (!config) return false;
+
+  // 对于思考相关的参数，直接根据模型自身 capabilities 判断，绕过 provider 检查
+  if (config.supportedKey === "thinking") {
+    const thinkingType = cap?.thinkingConfigType ?? "none";
+    switch (key) {
+      case "thinkingEnabled":
+        return thinkingType === "switch" || thinkingType === "budget";
+      case "thinkingBudget":
+        // 只有在预算模式且启用了思考时才显示
+        return thinkingType === "budget" && localParams.value.thinkingEnabled === true;
+      case "reasoningEffort":
+        return thinkingType === "effort";
+      default:
+        // 对于未知的 thinking 参数，默认不显示
+        return false;
+    }
+  }
+
+  // 对于其他参数，维持原有的 provider 检查
+  if (!supportedParameters.value[config.supportedKey]) {
+    return false;
+  }
+
+  return true;
+};
 
 // --- 自定义参数逻辑 ---
 
@@ -241,6 +296,88 @@ watch(
         ...localParams.value.contextManagement,
         maxContextTokens: newLimit,
       });
+    }
+  }
+);
+
+// --- Thinking Budget 与 Max Tokens 联动逻辑 ---
+// 确保 maxTokens 始终大于 thinkingBudget (通常需要留出一定的余量用于输出)
+const THINKING_OUTPUT_BUFFER = 4096; // 为思考后的回答预留的 token 数
+
+watch(
+  () => localParams.value.thinkingBudget,
+  (newBudget) => {
+    // 仅当启用了思考模式且是 budget 类型时才处理
+    if (
+      !localParams.value.thinkingEnabled ||
+      props.capabilities?.thinkingConfigType !== "budget" ||
+      !newBudget
+    ) {
+      return;
+    }
+
+    const currentMaxTokens = localParams.value.maxTokens || 0;
+    const requiredMaxTokens = newBudget + THINKING_OUTPUT_BUFFER;
+
+    // 如果当前 maxTokens 不足以容纳 budget + buffer，则自动增加 maxTokens
+    if (currentMaxTokens < requiredMaxTokens) {
+      // 限制不超过上下文上限
+      const limit = maxTokensLimit.value;
+      const targetMaxTokens = Math.min(requiredMaxTokens, limit);
+
+      if (targetMaxTokens > currentMaxTokens) {
+        updateParameter("maxTokens", targetMaxTokens);
+        // 可选：显示轻量提示，但这可能会在拖动滑块时频繁触发，所以暂时不加
+      }
+    }
+  }
+);
+
+watch(
+  () => localParams.value.maxTokens,
+  (newMaxTokens) => {
+    // 仅当启用了思考模式且是 budget 类型时才处理
+    if (
+      !localParams.value.thinkingEnabled ||
+      props.capabilities?.thinkingConfigType !== "budget" ||
+      !localParams.value.thinkingBudget ||
+      !newMaxTokens
+    ) {
+      return;
+    }
+
+    const currentBudget = localParams.value.thinkingBudget;
+    // 如果 maxTokens 减小导致空间不足，自动减小 thinkingBudget
+    // 允许 budget 稍微挤占 buffer，但不能超过 maxTokens 本身（实际上 Claude 要求 max_tokens > budget_tokens）
+    // 这里我们维持一个最小 buffer，比如 1024，或者如果空间实在不够，就让 budget = maxTokens - 1024
+    const minBuffer = 1024;
+
+    if (newMaxTokens < currentBudget + minBuffer) {
+      const targetBudget = Math.max(1024, newMaxTokens - minBuffer); // 保证 budget 至少有 1024
+
+      if (targetBudget < currentBudget) {
+        updateParameter("thinkingBudget", targetBudget);
+      }
+    }
+  }
+);
+
+// 监听 thinkingEnabled 开启时，进行一次初始检查
+watch(
+  () => localParams.value.thinkingEnabled,
+  (enabled) => {
+    if (enabled && props.capabilities?.thinkingConfigType === "budget") {
+      const currentBudget = localParams.value.thinkingBudget || 4096; // 默认值
+      const currentMaxTokens = localParams.value.maxTokens || 0;
+      const requiredMaxTokens = currentBudget + THINKING_OUTPUT_BUFFER;
+
+      if (currentMaxTokens < requiredMaxTokens) {
+        const limit = maxTokensLimit.value;
+        const targetMaxTokens = Math.min(requiredMaxTokens, limit);
+        if (targetMaxTokens > currentMaxTokens) {
+          updateParameter("maxTokens", targetMaxTokens);
+        }
+      }
     }
   }
 );

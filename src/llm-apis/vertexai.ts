@@ -94,16 +94,16 @@ interface VertexAiClaudeRequest {
   messages: Array<{
     role: "user" | "assistant";
     content:
-      | string
-      | Array<{
-          type: "text" | "image";
-          text?: string;
-          source?: {
-            type: "base64";
-            media_type: string;
-            data: string;
-          };
-        }>;
+    | string
+    | Array<{
+      type: "text" | "image";
+      text?: string;
+      source?: {
+        type: "base64";
+        media_type: string;
+        data: string;
+      };
+    }>;
   }>;
   max_tokens: number;
   temperature?: number;
@@ -301,20 +301,42 @@ async function callVertexAiGemini(
   // 从 messages 中提取 system 消息
   const systemMessages = options.messages.filter(m => m.role === 'system');
 
+  // 构建 generationConfig
+  const generationConfig: VertexAiGenerationConfig = {
+    maxOutputTokens: commonParams.maxTokens || 8192,
+    temperature: commonParams.temperature ?? 1.0,
+    topP: commonParams.topP,
+    topK: commonParams.topK,
+    stopSequences: commonParams.stop
+      ? Array.isArray(commonParams.stop)
+        ? commonParams.stop
+        : [commonParams.stop]
+      : undefined,
+  };
+
+  // 添加思考配置（从 gemini.ts 借鉴）
+  const extendedOptions = options as any;
+  if (extendedOptions.thinkingEnabled) {
+    const thinkingConfig: any = {
+      includeThoughts: true,
+    };
+
+    if (extendedOptions.thinkingBudget) {
+      thinkingConfig.thinkingBudget = extendedOptions.thinkingBudget;
+    }
+
+    if (extendedOptions.reasoningEffort) {
+      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toUpperCase();
+    }
+
+    // @ts-ignore - a little hacky but works
+    generationConfig.thinkingConfig = thinkingConfig;
+  }
+
   // 构建请求体
   const body: VertexAiGeminiRequest = {
     contents: buildVertexAiContents(options.messages),
-    generationConfig: {
-      maxOutputTokens: commonParams.maxTokens || 8192,
-      temperature: commonParams.temperature ?? 1.0,
-      topP: commonParams.topP,
-      topK: commonParams.topK,
-      stopSequences: commonParams.stop
-        ? Array.isArray(commonParams.stop)
-          ? commonParams.stop
-          : [commonParams.stop]
-        : undefined,
-    },
+    generationConfig,
   };
 
   // 系统指令 - 从 messages 中提取的 system 消息
@@ -504,10 +526,10 @@ async function callVertexAiGemini(
     content,
     usage: data.usageMetadata
       ? {
-          promptTokens: data.usageMetadata.promptTokenCount || 0,
-          completionTokens: data.usageMetadata.candidatesTokenCount || 0,
-          totalTokens: data.usageMetadata.totalTokenCount || 0,
-        }
+        promptTokens: data.usageMetadata.promptTokenCount || 0,
+        completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+        totalTokens: data.usageMetadata.totalTokenCount || 0,
+      }
       : undefined,
     finishReason: mapVertexAiFinishReason(candidate.finishReason),
     toolCalls,
@@ -694,10 +716,10 @@ async function callVertexAiClaude(
     content: textContent,
     usage: data.usage
       ? {
-          promptTokens: data.usage.input_tokens || 0,
-          completionTokens: data.usage.output_tokens || 0,
-          totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
-        }
+        promptTokens: data.usage.input_tokens || 0,
+        completionTokens: data.usage.output_tokens || 0,
+        totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
+      }
       : undefined,
     finishReason: data.stop_reason,
     stopSequence: data.stop_sequence,

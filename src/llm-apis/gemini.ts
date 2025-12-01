@@ -411,8 +411,23 @@ function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerati
   const extendedOptions = options as ExtendedLlmRequestOptions;
 
   // 思考配置
-  if (extendedOptions.thinkingConfig) {
-    config.thinkingConfig = extendedOptions.thinkingConfig;
+  if (extendedOptions.thinkingEnabled) {
+    const thinkingConfig: any = {
+      includeThoughts: true,
+    };
+
+    // Gemini 2.5+ Budget 模式
+    if (extendedOptions.thinkingBudget) {
+      thinkingConfig.thinkingBudget = extendedOptions.thinkingBudget;
+    }
+
+    // Gemini 3.0 Level 模式 (low/high)
+    if (extendedOptions.reasoningEffort) {
+      // @ts-ignore
+      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toUpperCase();
+    }
+
+    config.thinkingConfig = thinkingConfig;
   }
 
   // 语音配置

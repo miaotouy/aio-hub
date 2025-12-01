@@ -121,6 +121,16 @@ export interface ModelCapabilities {
   codeExecution?: boolean;
   /** 是否支持思考模式 */
   thinking?: boolean;
+  /**
+   * 思考能力的配置模式
+   * - 'none': 无思考能力配置
+   * - 'switch': 简单的启用/禁用开关
+   * - 'budget': 开关 + Token 预算滑块
+   * - 'effort': 推理等级/工作量选择器
+   */
+  thinkingConfigType?: 'none' | 'switch' | 'budget' | 'effort';
+  /** 可用的推理等级选项 (当 thinkingConfigType 为 'effort' 时使用) */
+  reasoningEffortOptions?: string[];
   /** 是否支持文件搜索 */
   fileSearch?: boolean;
   /** 是否支持图像生成 */

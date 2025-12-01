@@ -179,6 +179,7 @@ const handleSaveEdit = (data: AgentEditData) => {
         <ModelParametersEditor
           v-model="modelParameters"
           :provider-type="currentProviderType"
+          :capabilities="currentModel?.capabilities"
           :context-length-limit="contextLengthLimit"
         />
 

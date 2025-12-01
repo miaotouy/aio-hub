@@ -1,8 +1,7 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithRetry } from "./common";
-import { buildLlmApiUrl } from "@utils/llm-api-url";
-import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
+import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
   extractCommonParameters,
@@ -16,7 +15,13 @@ export const callCohereApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = buildLlmApiUrl(profile.baseUrl, "cohere", "chat");
+  // 强制使用 V2 API
+  let baseUrl = profile.baseUrl || "https://api.cohere.com";
+  if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
+  // 移除可能存在的 v1 后缀
+  if (baseUrl.endsWith("/v1")) baseUrl = baseUrl.slice(0, -3);
+  
+  const url = `${baseUrl}/v2/chat`;
 
   // 获取第一个可用的 API Key
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
@@ -72,6 +77,24 @@ export const callCohereApi = async (
     max_tokens: commonParams.maxTokens || 4000,
     temperature: commonParams.temperature ?? 0.5,
   };
+
+  // 思考能力配置 (V2 API)
+  if (options.thinkingEnabled !== undefined) {
+    // 如果显式设置了 thinkingEnabled (true/false)
+    // 注意：如果 thinkingEnabled 为 false，也需要显式传 disabled 吗？
+    // 文档说默认是 enabled (对于支持的模型)，所以如果用户想关掉，需要传 disabled
+    // 如果用户想开启，且有 budget，则传 budget
+    
+    if (options.thinkingEnabled) {
+      const thinkingConfig: any = { type: "enabled" };
+      if (options.thinkingBudget) {
+        thinkingConfig.budget_tokens = options.thinkingBudget;
+      }
+      body.thinking = thinkingConfig;
+    } else {
+      body.thinking = { type: "disabled" };
+    }
+  }
 
   // 添加通用参数
   if (commonParams.topP !== undefined) {
@@ -156,17 +179,27 @@ export const callCohereApi = async (
 
     const reader = response.body.getReader();
     let fullContent = "";
+    let fullReasoning = "";
 
     await parseSSEStream(reader, (data) => {
+      // 提取文本
       const text = extractTextFromSSE(data, "cohere");
       if (text) {
         fullContent += text;
         options.onStream!(text);
       }
+
+      // 提取思考内容
+      const reasoning = extractReasoningFromSSE(data, "cohere");
+      if (reasoning && options.onReasoningStream) {
+        fullReasoning += reasoning;
+        options.onReasoningStream(reasoning);
+      }
     }, undefined, options.signal);
 
     return {
       content: fullContent,
+      reasoningContent: fullReasoning || undefined,
       isStream: true,
     };
   }
@@ -190,14 +223,30 @@ export const callCohereApi = async (
 
   const data = await response.json();
 
-  // 验证响应格式
-  if (!data.text) {
+  // V2 非流式响应格式: message.content[0].text
+  let content = "";
+  if (data.message?.content) {
+    for (const part of data.message.content) {
+      if (part.type === "text") {
+        content += part.text;
+      }
+    }
+  } else if (data.text) {
+    // V1 兼容
+    content = data.text;
+  } else {
     throw new Error(`Cohere API 响应格式异常: ${JSON.stringify(data)}`);
   }
 
   return {
-    content: data.text,
-    usage: data.meta?.tokens
+    content: content,
+    usage: data.usage?.tokens
+      ? {
+          promptTokens: data.usage.tokens.input_tokens,
+          completionTokens: data.usage.tokens.output_tokens,
+          totalTokens: data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
+        }
+      : data.meta?.tokens // V1 兼容
       ? {
           promptTokens: data.meta.tokens.input_tokens,
           completionTokens: data.meta.tokens.output_tokens,

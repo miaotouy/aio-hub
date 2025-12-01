@@ -113,8 +113,13 @@ export function extractTextFromSSE(data: string, providerType: string): string |
         return null;
 
       case 'cohere':
-        // Cohere 格式: text
-        return json.text || null;
+        // Cohere V1 格式: text
+        if (json.text) return json.text;
+        // Cohere V2 格式: delta.message.content.text
+        if (json.type === 'content-delta' && json.delta?.message?.content?.type === 'text') {
+          return json.delta.message.content.text;
+        }
+        return null;
 
       case 'huggingface':
         // Hugging Face 格式: token.text
@@ -146,6 +151,13 @@ export function extractReasoningFromSSE(data: string, providerType: string): str
       case 'openai':
         // DeepSeek reasoning 格式: choices[0].delta.reasoning_content
         return json.choices?.[0]?.delta?.reasoning_content || null;
+
+      case 'cohere':
+        // Cohere V2 格式: delta.message.content.thinking
+        if (json.type === 'content-delta' && json.delta?.message?.content?.type === 'thinking') {
+          return json.delta.message.content.thinking;
+        }
+        return null;
 
       default:
         return null;

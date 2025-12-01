@@ -132,7 +132,11 @@ export interface LlmRequestOptions {
   /** 是否存储输出用于模型蒸馏 */
   store?: boolean;
   /** o系列模型的推理工作约束 */
-  reasoningEffort?: "low" | "medium" | "high";
+  reasoningEffort?: string;
+  /** 是否启用思考模式 */
+  thinkingEnabled?: boolean;
+  /** 思考预算 Token 数 */
+  thinkingBudget?: number;
   /** 元数据键值对 */
   metadata?: Record<string, string>;
   /** 输出模态类型 */
@@ -167,11 +171,6 @@ export interface LlmRequestOptions {
   };
   
   // ===== Claude 特有参数 =====
-  /** Claude: Thinking 模式配置 */
-  thinking?: {
-    type: "enabled" | "disabled";
-    budget_tokens?: number;
-  };
   /** Claude: 停止序列 */
   stopSequences?: string[];
   /** Claude: 元数据（用户ID等） */

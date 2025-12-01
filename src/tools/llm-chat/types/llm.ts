@@ -74,7 +74,7 @@ export interface LlmParameters {
   /** 补全中可生成的最大标记数（替代 maxTokens，优先级更高） */
   maxCompletionTokens?: number;
   /** o系列模型的推理工作约束 */
-  reasoningEffort?: "low" | "medium" | "high";
+  reasoningEffort?: string;
   /** 标记偏差配置 */
   logitBias?: Record<string, number>;
   /** 是否存储输出用于模型蒸馏 */
@@ -160,13 +160,12 @@ export interface LlmParameters {
   };
   /** 元数据键值对 */
   metadata?: Record<string, string>;
+  /** 是否启用思考模式 */
+  thinkingEnabled?: boolean;
+  /** 思考预算 Token 数 */
+  thinkingBudget?: number;
 
   // ===== Claude 特有参数 =====
-  /** Claude: Thinking 模式配置 */
-  thinking?: {
-    type: "enabled" | "disabled";
-    budget_tokens?: number;
-  };
   /** Claude: 停止序列（与 stop 类似，但 Claude 专用） */
   stopSequences?: string[];
   /** Claude: 元数据（用户ID等） */

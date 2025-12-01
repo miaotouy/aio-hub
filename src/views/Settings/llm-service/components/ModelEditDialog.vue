@@ -49,6 +49,7 @@ watch(
         ...newModel,
         capabilities: {
           ...createDefaultCapabilities(),
+          reasoningEffortOptions: [],
           ...newModel.capabilities,
         },
         tokenLimits: newModel.tokenLimits || {},
@@ -60,7 +61,10 @@ watch(
         id: "",
         name: "",
         group: "",
-        capabilities: createDefaultCapabilities(),
+        capabilities: {
+          ...createDefaultCapabilities(),
+          reasoningEffortOptions: [],
+        },
         tokenLimits: {},
         pricing: {},
       };
@@ -340,6 +344,46 @@ const applyOutputPreset = (value: number) => {
             </el-tooltip>
           </div>
         </div>
+
+        <!-- 思考能力配置 -->
+        <el-divider content-position="left">思考能力配置</el-divider>
+
+        <el-form-item label="配置模式">
+          <div style="width: 100%">
+            <el-radio-group v-model="modelEditForm.capabilities!.thinkingConfigType">
+              <el-radio value="none">无</el-radio>
+              <el-radio value="switch">开关模式</el-radio>
+              <el-radio value="budget">预算模式</el-radio>
+              <el-radio value="effort">等级模式</el-radio>
+            </el-radio-group>
+            <div class="form-hint">
+              决定了在 Agent 参数面板中如何配置该模型的思考/推理能力。
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item
+          v-if="modelEditForm.capabilities?.thinkingConfigType === 'effort'"
+          label="可用等级"
+        >
+          <el-select
+            v-model="modelEditForm.capabilities!.reasoningEffortOptions"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            :reserve-keyword="false"
+            placeholder="选择或输入等级，回车添加"
+            style="width: 100%"
+          >
+            <el-option label="low" value="low" />
+            <el-option label="medium" value="medium" />
+            <el-option label="high" value="high" />
+          </el-select>
+          <div class="form-hint">
+            当配置模式为“等级模式”时，在此处定义可用的等级选项。支持手动输入自定义等级。
+          </div>
+        </el-form-item>
 
         <!-- 默认后处理规则 -->
         <el-divider content-position="left">默认配置</el-divider>

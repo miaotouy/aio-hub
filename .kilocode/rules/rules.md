@@ -75,9 +75,12 @@
     // ...继续处理 result
     ```
 
-- **使用模式二：手动处理**
+- **使用模式二：手动处理（快捷方法）**
   - 在 `try...catch` 块中，使用模块处理器的快捷方法 `.error()`, `.warn()` 等。
   - **重要**: `errorHandler` **会自动调用日志系统**。因此，**严禁**在 `catch` 块中同时调用 `logger.error()` 和 `errorHandler.error()`，这会导致日志重复记录。
+  - **快捷方法签名**: `errorHandler.error(error, userMessage?, context?)`
+    - 第二个参数为可选的用户提示消息
+    - 第三个参数为可选的结构化上下文数据（用于日志调试）
   - **示例**:
 
     ```typescript
@@ -92,10 +95,28 @@
     }
     ```
 
-- **关键选项**
+- **使用模式三：手动处理（handle 方法，高级选项）**
+  - 当需要更精细的控制时（如静默处理），使用 `.handle()` 方法。
+  - **示例**:
+
+    ```typescript
+    try {
+      // ...
+    } catch (error) {
+      // 静默处理：只记录日志，不向用户显示提示
+      errorHandler.handle(error, {
+        userMessage: "渲染失败",
+        showToUser: false,
+        context: { diagramType: "mermaid" },
+      });
+    }
+    ```
+
+- **关键选项（仅 `handle` 方法支持）**
   - `showToUser: false`: 静默处理错误，只记录日志而不向用户显示任何提示。适用于后台或非关键操作。
   - `userMessage: '...'`: 自定义向用户显示的消息，覆盖默认生成的友好提示。
   - `context: { ... }`: 附加的结构化数据，会一并记录到日志中，用于调试。
+  - `level: ErrorLevel.WARNING`: 指定错误级别（INFO/WARNING/ERROR/CRITICAL）。
   - **特殊规则**: `AbortError` (通常由用户取消操作触发) 会被系统自动降级为 `INFO` 级别并且静默处理，业务代码中**无需**进行额外捕获和处理。
 
 ### 2.2. 日志系统
@@ -169,7 +190,6 @@
 - **InfoCard** - 信息卡片组件，el-card的封装，用于展示结构化信息。
 - **DocumentViewer** - 多格式文档预览组件，支持 Markdown 渲染、HTML 页面预览和代码文件预览，提供源码/预览模式切换和双引擎代码编辑器。
 - **ComponentHeader** - (`src/components/`) 标准化的工具头部组件，提供统一的标题、折叠、菜单（置顶/分离）交互，自动适配拖拽模式。
-
 
 ## 4. 核心特性与 Composables
 

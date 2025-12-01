@@ -100,14 +100,6 @@
                     <span class="stats-label">总文件:</span>
                     <span class="stats-value">{{ statsInfo.total_files }}</span>
                   </div>
-                  <div class="stats-row">
-                    <span class="stats-label">过滤目录:</span>
-                    <span class="stats-value">{{ statsInfo.filtered_dirs }}</span>
-                  </div>
-                  <div class="stats-row">
-                    <span class="stats-label">过滤文件:</span>
-                    <span class="stats-value">{{ statsInfo.filtered_files }}</span>
-                  </div>
                   <div v-if="statsInfo.filter_count > 0" class="stats-row">
                     <span class="stats-label">过滤规则:</span>
                     <span class="stats-value">{{ statsInfo.filter_count }} 条</span>

@@ -39,8 +39,6 @@ export interface TreeGenerationResult {
   stats: {
     total_dirs: number;
     total_files: number;
-    filtered_dirs: number;
-    filtered_files: number;
     show_files: boolean;
     show_hidden: boolean;
     max_depth: string;
@@ -60,8 +58,6 @@ export function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGen
     '## 统计信息',
     `- 总目录: ${stats.total_dirs}`,
     `- 总文件: ${stats.total_files}`,
-    `- 过滤目录: ${stats.filtered_dirs}`,
-    `- 过滤文件: ${stats.filtered_files}`,
     stats.filter_count > 0 ? `- 过滤规则数: ${stats.filter_count}` : '',
     '',
     '## 生成配置',

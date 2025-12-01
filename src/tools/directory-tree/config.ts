@@ -25,8 +25,6 @@ export interface TreeNode {
 export interface TreeStats {
   total_dirs: number;
   total_files: number;
-  filtered_dirs: number;
-  filtered_files: number;
   show_files: boolean;
   show_hidden: boolean;
   max_depth: string;

@@ -52,8 +52,6 @@ impl TreeNode {
 pub struct DirectoryTreeStats {
     pub total_dirs: usize,
     pub total_files: usize,
-    pub filtered_dirs: usize,
-    pub filtered_files: usize,
     pub show_files: bool,
     pub show_hidden: bool,
     pub max_depth: String,
@@ -413,17 +411,6 @@ pub async fn generate_directory_tree(
         &custom_patterns,
     )?;
 
-    // 计算被过滤的数量
-    let collected_dirs = entries.iter().filter(|e| e.is_dir).count();
-    let collected_files = entries.iter().filter(|e| !e.is_dir).count();
-
-    let filtered_dirs = total_dirs.saturating_sub(collected_dirs);
-    let filtered_files = if show_files {
-        total_files.saturating_sub(collected_files)
-    } else {
-        total_files // 如果不显示文件，所有文件都算被过滤
-    };
-
     // 获取根目录名称
     let root_name = root_path
         .file_name()
@@ -438,8 +425,6 @@ pub async fn generate_directory_tree(
         stats: DirectoryTreeStats {
             total_dirs,
             total_files,
-            filtered_dirs,
-            filtered_files,
             show_files,
             show_hidden,
             max_depth: if max_depth == 0 {

@@ -24,6 +24,9 @@ import {
   ListOrdered,
   Monitor,
   FileText,
+  Code2,
+  MessageSquareMore,
+  Braces,
 } from 'lucide-vue-next';
 
 /**
@@ -173,6 +176,30 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(FileText),
     color: "#ef4444", // Red 500 - 致敬 PDF 图标
     className: "document",
+  },
+  {
+    key: "fim",
+    label: "FIM",
+    description: "支持 Fill In the Middle 补全，用于代码补全等场景",
+    icon: markRaw(Code2),
+    color: "#22c55e", // Green 500 - 代码补全的绿色
+    className: "fim",
+  },
+  {
+    key: "prefixCompletion",
+    label: "续写",
+    description: "支持对话前缀续写，可从指定前缀继续生成",
+    icon: markRaw(MessageSquareMore),
+    color: "#0891b2", // Cyan 600 - 延续的流动感
+    className: "prefix-completion",
+  },
+  {
+    key: "jsonOutput",
+    label: "JSON",
+    description: "支持强制输出 JSON 对象格式",
+    icon: markRaw(Braces),
+    color: "#f59e0b", // Amber 500 - 结构化数据的颜色
+    className: "json-output",
   },
 ] as const;
 

@@ -142,6 +142,36 @@ export interface ModelCapabilities {
   computerUse?: boolean;
   
   /**
+   * 是否支持 FIM (Fill In the Middle) 补全
+   * 用于代码补全等场景，提供前缀和后缀让模型补全中间内容
+   *
+   * 支持的模型示例：
+   * - DeepSeek: 通过 /beta 端点的 completions API
+   */
+  fim?: boolean;
+  
+  /**
+   * 是否支持对话前缀续写 (Prefix Completion)
+   * 允许在 messages 最后一条消息设置 role: assistant 和 prefix: true
+   * 让模型从指定的前缀继续生成
+   *
+   * 支持的模型示例：
+   * - DeepSeek: 通过 /beta 端点
+   * - Gemini: 原生支持续写
+   */
+  prefixCompletion?: boolean;
+
+  /**
+   * 是否支持 JSON 输出模式
+   * 允许强制模型输出合法的 JSON 对象
+   *
+   * 支持的模型示例：
+   * - DeepSeek: 通过 response_format: {'type': 'json_object'}
+   * - OpenAI (GPT-4o, GPT-4-Turbo 等): 通过 response_format: { type: "json_object" }
+   */
+  jsonOutput?: boolean;
+  
+  /**
    * 文档处理能力
    * - true: 支持原生文档格式
    * - false 或 undefined: 不支持，需要提取为文本或提示用户

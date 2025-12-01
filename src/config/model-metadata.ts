@@ -848,6 +848,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        jsonOutput: true, // GPT-4o 支持 JSON 输出模式
         document: true, // 支持文档（通过 OpenAI Responses API 的 file_data/file_url/file_id）
         documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
         visionTokenCost: {
@@ -878,6 +879,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        jsonOutput: true,
         document: true,
         documentFormat: 'openai_file',
         visionTokenCost: {
@@ -960,6 +962,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true,
         toolUse: true,
+        jsonOutput: true,
         document: true, // 支持文档（通过 OpenAI Responses API）
         documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
         visionTokenCost: {
@@ -990,6 +993,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         vision: true, // GPT-4 Turbo 等支持视觉
         toolUse: true,
+        jsonOutput: true,
         visionTokenCost: {
           calculationMethod: "openai_tile",
           parameters: {
@@ -1014,6 +1018,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       tokenizer: "gpt4", // GPT-3.5-turbo 使用 cl100k_base 编码
       capabilities: {
         toolUse: true,
+        jsonOutput: true,
       },
     },
     priority: 20,
@@ -1295,6 +1300,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         toolUse: true,
         document: true, // 支持 PDF 文档（inline_data 方式，最多 3600 页）
+        jsonOutput: true,
+        prefixCompletion: true, // Gemini 原生支持续写
         visionTokenCost: {
           calculationMethod: "fixed",
           parameters: {
@@ -1309,7 +1316,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 20,
     enabled: true,
-    description: "Gemini 系列模型（基础配置：支持视觉、工具调用和文档处理）",
+    description: "Gemini 系列模型（基础配置：支持视觉、工具调用、文档处理和前缀续写）",
   },
   {
     id: "model-prefix-gemma3",
@@ -1349,11 +1356,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       tokenizer: "deepseek_v3", // DeepSeek 系列使用专用分词器
       capabilities: {
         reasoning: true,
+        fim: true, // DeepSeek 支持 FIM 补全（通过 /beta 端点）
+        prefixCompletion: true, // DeepSeek 支持对话前缀续写（通过 /beta 端点）
+        jsonOutput: true, // DeepSeek 支持 JSON 输出模式
       },
     },
     priority: 20,
     enabled: true,
-    description: "DeepSeek 系列模型",
+    description: "DeepSeek 系列模型（支持推理、FIM、续写和 JSON 输出）",
   },
 
   // 智谱 AI 系列模型

@@ -242,6 +242,13 @@ return fibonacci(n-1) + fibonacci(n-2)
 
 空格测试：$a\\ b\\ c$，$x \\quad y$，$m \\qquad n$
 
+非行首块级公式：给定一个 $4 \\times 4$ 的矩阵 $R$：$$R = \\begin{pmatrix}
+q & 0 & 0 & 0 \\\\
+0 & 1 & 0 & 0 \\\\
+0 & q-q^{-1} & 1 & 0 \\\\
+0 & 0 & 0 & q
+\\end{pmatrix}$$
+
 ## 23. 错误处理测试
 
 正确的公式：$x^2 + y^2 = r^2$

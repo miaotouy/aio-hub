@@ -30,7 +30,34 @@ class MarkdownBoundaryDetector {
     if (this.isInsideCodeBlock(lines)) return false;
     if (this.isIncompleteTable(lines.slice(-3))) return false;
     if (this.hasUnclosedHtmlTags(text)) return false;
+    if (this.hasUnclosedKatexBlock(text)) return false;
     return true;
+  }
+
+  /**
+   * 检查是否存在未闭合的 KaTeX 块级公式 $$...$$
+   *
+   * 策略：统计 $$ 的出现次数，如果是奇数则说明有未闭合的块级公式
+   * 注意：需要排除被转义的 \$$ 和行内公式 $...$
+   */
+  private hasUnclosedKatexBlock(text: string): boolean {
+    // 移除转义的 \$
+    const cleanText = text.replace(/\\\$/g, '');
+    
+    // 统计 $$ 的出现次数
+    let count = 0;
+    let i = 0;
+    while (i < cleanText.length) {
+      if (cleanText[i] === '$' && i + 1 < cleanText.length && cleanText[i + 1] === '$') {
+        count++;
+        i += 2; // 跳过这两个 $
+      } else {
+        i++;
+      }
+    }
+    
+    // 如果 $$ 出现次数为奇数，说明有未闭合的块级公式
+    return count % 2 !== 0;
   }
 
   private isInsideCodeBlock(lines: string[]): boolean {

@@ -128,63 +128,71 @@
             <el-tooltip content="清空结果" placement="top">
               <el-button :icon="Delete" text circle @click="resetTree" />
             </el-tooltip>
-            <div class="divider-vertical"></div>
-            <el-tooltip
-              :content="showResultFilter ? '收起视图控制' : '展开视图控制'"
-              placement="top"
-            >
-              <el-button
-                :icon="Filter"
-                :type="showResultFilter ? 'primary' : 'default'"
-                text
-                circle
-                @click="showResultFilter = !showResultFilter"
-              />
-            </el-tooltip>
           </el-button-group>
         </template>
 
-        <div v-if="showResultFilter && treeData" class="result-controls">
-          <div class="control-row">
-            <span class="control-label">显示深度:</span>
-            <el-slider
-              v-model="secondaryMaxDepth"
-              :min="1"
-              :max="actualMaxDepth"
-              :step="1"
-              show-stops
-              size="small"
-              class="depth-slider"
-            />
-            <span class="depth-value">{{ secondaryMaxDepth }} / {{ actualMaxDepth }}</span>
-          </div>
-          <div class="control-row">
-            <span class="control-label">排除内容:</span>
-            <el-input
-              v-model="secondaryExcludePattern"
-              placeholder="输入关键词隐藏行（及子项）"
-              size="small"
-              clearable
-              class="filter-input"
-            />
-          </div>
-          <div class="control-row">
-            <span class="control-label">显示选项:</span>
-            <div class="checkbox-group-inline">
-              <el-checkbox v-model="includeMetadata" label="统计信息" size="small" />
-              <el-checkbox v-model="showSize" label="文件大小" size="small" />
-              <el-checkbox v-model="showDirSize" label="目录大小" size="small" />
+        <div v-if="treeData" class="filter-section">
+          <div class="filter-header" @click="showResultFilter = !showResultFilter">
+            <div class="filter-title">
+              <el-icon><Filter /></el-icon>
+              <span>视图控制与筛选</span>
             </div>
+            <el-icon class="expand-icon" :class="{ 'is-expanded': showResultFilter }">
+              <ArrowRight />
+            </el-icon>
           </div>
+
+          <el-collapse-transition>
+            <div v-show="showResultFilter" class="result-controls">
+              <div class="control-row">
+                <span class="control-label">显示深度:</span>
+                <el-slider
+                  v-model="secondaryMaxDepth"
+                  :min="1"
+                  :max="actualMaxDepth"
+                  :step="1"
+                  show-stops
+                  size="small"
+                  class="depth-slider"
+                />
+                <span class="depth-value">{{ secondaryMaxDepth }} / {{ actualMaxDepth }}</span>
+              </div>
+              <div class="control-row">
+                <span class="control-label">排除内容:</span>
+                <el-input
+                  v-model="secondaryExcludePattern"
+                  placeholder="输入关键词隐藏行（及子项）"
+                  size="small"
+                  clearable
+                  class="filter-input"
+                />
+              </div>
+              <div class="control-row">
+                <span class="control-label">显示选项:</span>
+                <div class="checkbox-group-inline">
+                  <el-checkbox v-model="viewShowFiles" label="显示文件" size="small" />
+                  <el-checkbox v-model="includeMetadata" label="统计信息" size="small" />
+                  <el-checkbox v-model="showSize" label="文件大小" size="small" />
+                  <el-checkbox v-model="showDirSize" label="目录大小" size="small" />
+                </div>
+              </div>
+            </div>
+          </el-collapse-transition>
         </div>
 
         <div v-if="!treeData" class="empty-state">
           <el-empty description="选择目录并生成目录树" />
         </div>
 
-        <el-scrollbar v-else class="tree-scrollbar">
-          <pre class="tree-content">{{ processedTreeResult }}</pre>
-        </el-scrollbar>
+        <div v-else class="tree-editor-container">
+          <RichCodeEditor
+            v-model="editorContent"
+            language="markdown"
+            :line-numbers="true"
+            :read-only="false"
+            editor-type="codemirror"
+          />
+        </div>
       </InfoCard>
     </div>
   </div>
@@ -202,11 +210,13 @@ import {
   ChatDotRound,
   Filter,
   Delete,
+  ArrowRight,
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash-es";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
+import RichCodeEditor from "@components/common/RichCodeEditor.vue";
 import type { DirectoryTreeConfig, TreeNode, TreeStats } from "./config";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -249,8 +259,12 @@ const isLoadingConfig = ref(true);
 const showResultFilter = ref(false);
 const secondaryMaxDepth = ref(10);
 const secondaryExcludePattern = ref("");
+const viewShowFiles = ref(true); // 视图控制中的文件显示开关
 const showSize = ref(true);
 const showDirSize = ref(true);
+
+// 编辑器内容（与 processedTreeResult 解耦，允许临时编辑）
+const editorContent = ref("");
 
 // 格式化文件大小
 const formatSize = (size: number): string => {
@@ -294,12 +308,18 @@ const renderTreeRecursive = (
   options: {
     maxDepth: number;
     excludePattern: string;
+    showFiles: boolean;
     showSize: boolean;
     showDirSize: boolean;
   },
   currentDepth: number,
   output: string[]
 ) => {
+  // 检查是否显示文件
+  if (!node.is_dir && !options.showFiles) {
+    return;
+  }
+
   // 检查排除模式
   if (options.excludePattern && node.name.includes(options.excludePattern)) {
     return;
@@ -339,13 +359,16 @@ const renderTreeRecursive = (
     }
 
     const newPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");
-    const children = node.children; // 这里可以添加排序逻辑，但后端已经排好了
+    // 根据 showFiles 选项过滤子节点，用于正确计算 isLast
+    const filteredChildren = options.showFiles
+      ? node.children
+      : node.children.filter((child) => child.is_dir);
 
-    for (let i = 0; i < children.length; i++) {
+    for (let i = 0; i < filteredChildren.length; i++) {
       renderTreeRecursive(
-        children[i],
+        filteredChildren[i],
         newPrefix,
-        i === children.length - 1,
+        i === filteredChildren.length - 1,
         false,
         options,
         currentDepth + 1,
@@ -368,12 +391,14 @@ const processedTreeResult = computed(() => {
     }
 
     // 2. 基于 treeData 渲染树
-    const maxDepth = showResultFilter.value ? secondaryMaxDepth.value : actualMaxDepth.value;
-    const excludePattern = showResultFilter.value ? secondaryExcludePattern.value.trim() : "";
+    // 解耦面板展开状态与筛选生效逻辑，避免展开/收起时触发重计算
+    const maxDepth = secondaryMaxDepth.value;
+    const excludePattern = secondaryExcludePattern.value.trim();
 
     const options = {
       maxDepth,
       excludePattern,
+      showFiles: viewShowFiles.value,
       showSize: showSize.value,
       showDirSize: showDirSize.value,
     };
@@ -385,6 +410,16 @@ const processedTreeResult = computed(() => {
   // 降级：如果没有结构化数据，返回空
   return "";
 });
+
+// 监听 processedTreeResult 变化，同步到编辑器内容
+watch(
+  processedTreeResult,
+  (newValue) => {
+    editorContent.value = newValue;
+  },
+  { immediate: true }
+);
+
 // 处理路径拖放
 const handlePathDrop = (paths: string[]) => {
   if (paths.length > 0) {
@@ -537,29 +572,29 @@ const generateTree = async () => {
   }
 };
 
-// 复制到剪贴板
+// 复制到剪贴板（使用编辑器当前内容，包含用户的临时修改）
 const copyToClipboard = async () => {
   try {
-    await writeText(processedTreeResult.value);
+    await writeText(editorContent.value);
     customMessage.success("已复制到剪贴板");
   } catch (error) {
     errorHandler.error(error, "复制到剪贴板失败");
   }
 };
 
-// 导出为文件
+// 导出为文件（使用编辑器当前内容，包含用户的临时修改）
 const exportToFile = async () => {
   try {
-    await exportToFileAction(processedTreeResult.value, targetPath.value);
+    await exportToFileAction(editorContent.value, targetPath.value);
     customMessage.success("文件保存成功");
   } catch (error) {
     errorHandler.error(error, "保存文件失败");
   }
 };
 
-// 发送到聊天
+// 发送到聊天（使用编辑器当前内容，包含用户的临时修改）
 const sendTreeToChat = () => {
-  sendToChat(processedTreeResult.value, {
+  sendToChat(editorContent.value, {
     format: "code",
     language: "text",
     successMessage: "已将目录树发送到聊天",
@@ -571,6 +606,7 @@ const resetTree = () => {
   treeData.value = null;
   statsInfo.value = null;
   secondaryExcludePattern.value = "";
+  editorContent.value = "";
 
   // 保存清空后的状态
   debouncedSaveConfig();
@@ -708,24 +744,27 @@ const resetTree = () => {
   justify-content: center;
 }
 
-.tree-scrollbar {
+.tree-editor-container {
   flex: 1;
   min-height: 0;
   box-sizing: border-box;
+  margin: 8px;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.tree-content {
-  margin: 0;
-  padding: 8px;
-  font-family: "Consolas", "Monaco", "Courier New", monospace;
+.tree-editor-container :deep(.rich-code-editor-wrapper) {
+  height: 100%;
+  border-radius: 8px;
+}
+
+.tree-editor-container :deep(.cm-editor) {
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-color);
-  background-color: var(--container-bg);
-  border-radius: 4px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  box-sizing: border-box;
+}
+
+.tree-editor-container :deep(.cm-content) {
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
 }
 
 .stats-tooltip {
@@ -759,10 +798,51 @@ const resetTree = () => {
   vertical-align: middle;
 }
 
+.filter-section {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 8px;
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  background-color: var(--el-fill-color-light);
+  transition: background-color 0.2s;
+  user-select: none;
+  /* 内部不设置圆角，由容器统一控制 */
+}
+
+.filter-header:hover {
+  background-color: var(--el-fill-color);
+}
+
+.filter-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.expand-icon {
+  transition: transform 0.3s;
+  color: var(--text-color-secondary);
+}
+
+.expand-icon.is-expanded {
+  transform: rotate(90deg);
+}
+
 .result-controls {
   padding: 12px 16px;
-  background-color: var(--el-fill-color-light);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  background-color: var(--el-fill-color-lighter);
+  border-top: 1px solid var(--el-border-color-lighter);
   display: flex;
   flex-direction: column;
   gap: 8px;

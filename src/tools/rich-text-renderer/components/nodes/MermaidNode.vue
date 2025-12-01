@@ -3,6 +3,17 @@
     <div class="mermaid-header">
       <div class="language-info">
         <span class="language-tag">Mermaid</span>
+        <!-- 修复状态指示器 -->
+        <el-tooltip v-if="wasFixed" :content="showOriginal ? '当前显示原始代码（有语法问题）' : '代码已自动修复'" :show-after="300">
+          <button
+            class="fix-indicator"
+            :class="{ 'showing-original': showOriginal }"
+            @click="toggleOriginal"
+          >
+            <Wrench :size="12" />
+            <span class="fix-text">{{ showOriginal ? '原始' : '已修复' }}</span>
+          </button>
+        </el-tooltip>
       </div>
       <div class="header-actions">
         <!-- 缩放控制 -->
@@ -59,8 +70,8 @@
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
         <details class="error-details">
-          <summary>查看源代码 (已尝试自动修复)</summary>
-          <pre class="error-code">{{ fixedContent }}</pre>
+          <summary>查看源代码{{ showOriginal ? '' : wasFixed ? ' (已尝试自动修复)' : '' }}</summary>
+          <pre class="error-code">{{ activeContent }}</pre>
         </details>
       </div>
       
@@ -84,7 +95,7 @@
     width="95%"
     height="85vh"
   >
-    <MermaidInteractiveViewer :content="fixedContent" />
+    <MermaidInteractiveViewer :content="activeContent" />
   </BaseDialog>
 </template>
 
@@ -106,6 +117,7 @@ import {
   Minimize2,
   ExternalLink,
   Loader2,
+  Wrench,
 } from "lucide-vue-next";
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
@@ -122,6 +134,24 @@ const props = defineProps<{
 
 // 自动修复 Mermaid 代码
 const fixedContent = computed(() => fixMermaidCode(props.content));
+
+// 判断内容是否被修复过
+const wasFixed = computed(() => fixedContent.value !== props.content);
+
+// 是否显示原始内容
+const showOriginal = ref(false);
+
+// 当前实际使用的内容（用于渲染）
+const activeContent = computed(() => showOriginal.value ? props.content : fixedContent.value);
+
+// 切换显示原始/修复后内容
+const toggleOriginal = async () => {
+  showOriginal.value = !showOriginal.value;
+  // 切换后重新渲染
+  if (mermaid) {
+    await renderDiagram();
+  }
+};
 
 // 获取 attrs 以访问 data-node-status
 const attrs = useAttrs();
@@ -156,10 +186,10 @@ let renderCleanup: (() => void) | null = null;
 // 复制代码
 const copyCode = async () => {
   try {
-    // 复制修复后的代码，确保用户粘贴到别处也能运行
-    await navigator.clipboard.writeText(fixedContent.value);
+    // 复制当前显示的代码
+    await navigator.clipboard.writeText(activeContent.value);
     copied.value = true;
-    customMessage.success("已复制修复后的代码");
+    customMessage.success(showOriginal.value ? "已复制原始代码" : "已复制修复后的代码");
     setTimeout(() => {
       copied.value = false;
     }, 2000);
@@ -265,8 +295,8 @@ const renderDiagram = async () => {
 
     // 尝试渲染图表
     // mermaid.render 会抛出异常如果语法无效
-    // 使用修复后的代码进行渲染
-    const { svg } = await mermaid.render(id, fixedContent.value);
+    // 根据切换状态使用对应的代码进行渲染
+    const { svg } = await mermaid.render(id, activeContent.value);
 
     // 再次检查并发
     if (currentRenderId !== lastRenderId.value) return;
@@ -424,6 +454,38 @@ onBeforeUnmount(() => {
   font-weight: 500;
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
+}
+
+.fix-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 10px;
+  background-color: var(--el-color-success-light-8);
+  color: var(--el-color-success);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fix-indicator:hover {
+  background-color: var(--el-color-success-light-7);
+}
+
+.fix-indicator.showing-original {
+  background-color: var(--el-color-warning-light-8);
+  color: var(--el-color-warning);
+}
+
+.fix-indicator.showing-original:hover {
+  background-color: var(--el-color-warning-light-7);
+}
+
+.fix-text {
+  line-height: 1;
 }
 
 .header-actions {

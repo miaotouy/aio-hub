@@ -284,36 +284,36 @@ export function createModuleErrorHandler(moduleName: string) {
       options: Omit<ErrorHandlerOptions, 'module'> = {}
     ) => errorHandler.wrapSync(fn, { ...options, module: moduleName }),
 
-    info: (error: any, userMessage?: string, options?: Omit<ErrorHandlerOptions, 'module' | 'level' | 'userMessage'>) =>
+    info: (error: any, userMessage?: string, context?: Record<string, any>) =>
       errorHandler.handle(error, {
-        ...options,
         module: moduleName,
         level: ErrorLevel.INFO,
         userMessage,
+        context,
       }),
 
-    warn: (error: any, userMessage?: string, options?: Omit<ErrorHandlerOptions, 'module' | 'level' | 'userMessage'>) =>
+    warn: (error: any, userMessage?: string, context?: Record<string, any>) =>
       errorHandler.handle(error, {
-        ...options,
         module: moduleName,
         level: ErrorLevel.WARNING,
         userMessage,
+        context,
       }),
 
-    error: (error: any, userMessage?: string, options?: Omit<ErrorHandlerOptions, 'module' | 'level' | 'userMessage'>) =>
+    error: (error: any, userMessage?: string, context?: Record<string, any>) =>
       errorHandler.handle(error, {
-        ...options,
         module: moduleName,
         level: ErrorLevel.ERROR,
         userMessage,
+        context,
       }),
 
-    critical: (error: any, userMessage?: string, options?: Omit<ErrorHandlerOptions, 'module' | 'level' | 'userMessage'>) =>
+    critical: (error: any, userMessage?: string, context?: Record<string, any>) =>
       errorHandler.handle(error, {
-        ...options,
         module: moduleName,
         level: ErrorLevel.CRITICAL,
         userMessage,
+        context,
       }),
   };
 }

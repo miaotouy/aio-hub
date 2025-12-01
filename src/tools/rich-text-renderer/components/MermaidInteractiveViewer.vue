@@ -593,7 +593,7 @@ const renderDiagram = async () => {
       };
     }
   } catch (err: any) {
-    errorHandler.error(err, "Mermaid 渲染失败", { showToUser: false });
+    errorHandler.handle(err, { userMessage: "Mermaid 渲染失败", showToUser: false });
     error.value = err?.message || "未知错误";
     errorDetails.value = err?.stack || JSON.stringify(err, null, 2);
   }
@@ -617,7 +617,7 @@ const initMermaid = async () => {
 
     await renderDiagram();
   } catch (err) {
-    errorHandler.error(err, "Mermaid 初始化失败", { showToUser: false });
+    errorHandler.handle(err, { userMessage: "Mermaid 初始化失败", showToUser: false });
     error.value = "Mermaid 库加载失败";
     errorDetails.value = String(err);
   }
@@ -640,7 +640,7 @@ watch(isDark, async (dark) => {
 
     await renderDiagram();
   } catch (err) {
-    errorHandler.error(err, "主题切换失败", { showToUser: false });
+    errorHandler.handle(err, { userMessage: "主题切换失败", showToUser: false });
   }
 });
 

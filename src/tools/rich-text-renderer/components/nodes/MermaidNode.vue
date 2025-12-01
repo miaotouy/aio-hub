@@ -333,7 +333,7 @@ const renderDiagram = async () => {
     // 只有在 stable 状态下才显示错误
     // 在 pending 状态下，无论是否渲染过，都忽略错误（避免输入过程中的闪烁）
     if (nodeStatus.value === 'stable') {
-      errorHandler.error(err, "Mermaid 渲染失败", { showToUser: false });
+      errorHandler.handle(err, { userMessage: "Mermaid 渲染失败", showToUser: false });
       error.value = err?.message || "未知错误";
     } else {
       // pending 状态，忽略错误
@@ -369,7 +369,7 @@ const initMermaid = async () => {
     // 渲染图表
     await renderDiagram();
   } catch (err) {
-    errorHandler.error(err, "Mermaid 初始化失败", { showToUser: false });
+    errorHandler.handle(err, { userMessage: "Mermaid 初始化失败", showToUser: false });
     error.value = "Mermaid 库加载失败";
   }
 };
@@ -393,7 +393,7 @@ watch(isDark, async (dark) => {
     // 重新渲染
     await renderDiagram();
   } catch (err) {
-    errorHandler.error(err, "主题切换失败", { showToUser: false });
+    errorHandler.handle(err, { userMessage: "主题切换失败", showToUser: false });
   }
 });
 

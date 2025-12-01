@@ -133,13 +133,13 @@
       <!-- 源码视图 -->
       <div v-show="viewMode !== 'diagram'" class="source-panel">
         <div class="source-header">
-          <span class="source-title">Mermaid 源码</span>
+          <span class="source-title">Mermaid 源码 (已自动修复)</span>
           <div class="source-info">
             <span>{{ lineCount }} 行</span>
             <span>{{ charCount }} 字符</span>
           </div>
         </div>
-        <pre class="source-code" ref="sourceCodeRef">{{ content }}</pre>
+        <pre class="source-code" ref="sourceCodeRef">{{ fixedContent }}</pre>
       </div>
     </div>
   </div>
@@ -165,6 +165,7 @@ import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { fixMermaidCode } from "@/utils/mermaidFixer";
 
 const logger = createModuleLogger("MermaidInteractiveViewer");
 const errorHandler = createModuleErrorHandler("MermaidInteractiveViewer");
@@ -172,6 +173,9 @@ const errorHandler = createModuleErrorHandler("MermaidInteractiveViewer");
 const props = defineProps<{
   content: string;
 }>();
+
+// 自动修复 Mermaid 代码
+const fixedContent = computed(() => fixMermaidCode(props.content));
 
 const { isDark } = useTheme();
 
@@ -211,8 +215,8 @@ let renderCleanup: (() => void) | null = null;
 
 // 计算属性
 const hasPan = computed(() => panOffset.value.x !== 0 || panOffset.value.y !== 0);
-const lineCount = computed(() => props.content.split("\n").length);
-const charCount = computed(() => props.content.length);
+const lineCount = computed(() => fixedContent.value.split("\n").length);
+const charCount = computed(() => fixedContent.value.length);
 
 // 应用变换
 const applyTransform = () => {
@@ -317,9 +321,9 @@ const handleKeyDown = (e: KeyboardEvent) => {
 // 复制代码
 const copyCode = async () => {
   try {
-    await navigator.clipboard.writeText(props.content);
+    await navigator.clipboard.writeText(fixedContent.value);
     copied.value = true;
-    customMessage.success("源码已复制到剪贴板");
+    customMessage.success("已复制修复后的源码");
     setTimeout(() => {
       copied.value = false;
     }, 2000);
@@ -574,7 +578,7 @@ const renderDiagram = async () => {
     mermaidRef.value.innerHTML = "";
 
     const id = `mermaid-viewer-${Date.now()}`;
-    const { svg } = await mermaid.render(id, props.content);
+    const { svg } = await mermaid.render(id, fixedContent.value);
 
     if (mermaidRef.value) {
       mermaidRef.value.innerHTML = svg;

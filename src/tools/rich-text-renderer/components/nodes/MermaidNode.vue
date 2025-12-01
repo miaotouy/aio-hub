@@ -59,8 +59,8 @@
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
         <details class="error-details">
-          <summary>查看源代码</summary>
-          <pre class="error-code">{{ content }}</pre>
+          <summary>查看源代码 (已尝试自动修复)</summary>
+          <pre class="error-code">{{ fixedContent }}</pre>
         </details>
       </div>
       
@@ -84,7 +84,7 @@
     width="95%"
     height="85vh"
   >
-    <MermaidInteractiveViewer :content="content" />
+    <MermaidInteractiveViewer :content="fixedContent" />
   </BaseDialog>
 </template>
 
@@ -110,6 +110,7 @@ import {
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { fixMermaidCode } from "@/utils/mermaidFixer";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MermaidInteractiveViewer from "../MermaidInteractiveViewer.vue";
 const errorHandler = createModuleErrorHandler("MermaidNode");
@@ -118,6 +119,9 @@ const props = defineProps<{
   nodeId: string;
   content: string;
 }>();
+
+// 自动修复 Mermaid 代码
+const fixedContent = computed(() => fixMermaidCode(props.content));
 
 // 获取 attrs 以访问 data-node-status
 const attrs = useAttrs();
@@ -152,9 +156,10 @@ let renderCleanup: (() => void) | null = null;
 // 复制代码
 const copyCode = async () => {
   try {
-    await navigator.clipboard.writeText(props.content);
+    // 复制修复后的代码，确保用户粘贴到别处也能运行
+    await navigator.clipboard.writeText(fixedContent.value);
     copied.value = true;
-    customMessage.success("代码已复制");
+    customMessage.success("已复制修复后的代码");
     setTimeout(() => {
       copied.value = false;
     }, 2000);
@@ -260,7 +265,8 @@ const renderDiagram = async () => {
 
     // 尝试渲染图表
     // mermaid.render 会抛出异常如果语法无效
-    const { svg } = await mermaid.render(id, props.content);
+    // 使用修复后的代码进行渲染
+    const { svg } = await mermaid.render(id, fixedContent.value);
 
     // 再次检查并发
     if (currentRenderId !== lastRenderId.value) return;

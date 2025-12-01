@@ -74,7 +74,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   {
     id: "capability-thinking",
     matchType: "modelPrefix",
-    matchValue: "think|extended-thinking",
+    matchValue: "think|extended-thinking|reason|reasoning",
     useRegex: true,
     properties: {
       capabilities: {
@@ -83,23 +83,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 5,
     enabled: true,
-    description: "为包含思考关键词的模型自动添加思考模式能力",
-  },
-
-  // 推理能力
-  {
-    id: "capability-reasoning",
-    matchType: "modelPrefix",
-    matchValue: "reason|reasoning",
-    useRegex: true,
-    properties: {
-      capabilities: {
-        reasoning: true,
-      },
-    },
-    priority: 5,
-    enabled: true,
-    description: "为包含推理关键词的模型自动添加推理能力",
+    description: "为包含思考或推理关键词的模型自动添加思考模式能力",
   },
 
   // 代码执行
@@ -1034,7 +1018,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o", // o1 系列使用 o200k_base 编码
       capabilities: {
-        reasoning: true,
+        thinking: true,
         vision: true, // o1 支持视觉输入
         document: true, // 支持文档（通过 OpenAI Responses API）
         documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
@@ -1056,7 +1040,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o", // o4-mini 使用 o200k_base 编码
       capabilities: {
-        reasoning: true,
+        thinking: true,
       },
     },
     priority: 26, // 最高优先级以优先匹配 o4-mini
@@ -1072,7 +1056,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o",
       capabilities: {
-        reasoning: true,
+        thinking: true,
       },
     },
     priority: 26,
@@ -1088,7 +1072,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o",
       capabilities: {
-        reasoning: true,
+        thinking: true,
       },
     },
     priority: 26,
@@ -1104,7 +1088,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o", // o3 系列使用 o200k_base 编码
       capabilities: {
-        reasoning: true,
+        thinking: true,
       },
     },
     priority: 25,
@@ -1355,7 +1339,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "DeepSeek",
       tokenizer: "deepseek_v3", // DeepSeek 系列使用专用分词器
       capabilities: {
-        reasoning: true,
+        thinking: true,
         fim: true, // DeepSeek 支持 FIM 补全（通过 /beta 端点）
         prefixCompletion: true, // DeepSeek 支持对话前缀续写（通过 /beta 端点）
         jsonOutput: true, // DeepSeek 支持 JSON 输出模式

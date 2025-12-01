@@ -10,7 +10,6 @@
 import { markRaw, type Component } from 'vue';
 import {
   Eye,
-  Brain,
   BrainCircuit,
   Globe,
   Blocks,
@@ -68,18 +67,10 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
   {
     key: "thinking",
     label: "思考",
-    description: "启用模型的'思考'模式 (例如 Google Gemini, Anthropic Claude)",
-    icon: markRaw(Brain),
+    description: "启用模型的'思考'或'推理'模式，以进行更复杂的分析和推理。",
+    icon: markRaw(BrainCircuit),
     color: "#a855f7", // Purple 500 - 智慧与神秘
     className: "thinking",
-  },
-  {
-    key: "reasoning",
-    label: "推理",
-    description: "启用模型的'推理'模式 (例如 OpenAI o-series 模型的 reasoning 参数)",
-    icon: markRaw(BrainCircuit),
-    color: "#ec4899", // Pink 500 - 活跃的思维火花
-    className: "reasoning",
   },
   {
     key: "webSearch",

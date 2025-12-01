@@ -64,7 +64,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       // 特殊功能
       webSearch: true,
       fileSearch: true,
-      reasoning: true,
+      thinking: true,
       modalities: true,
     },
   },
@@ -287,7 +287,7 @@ export const llmPresets: LlmPreset[] = [
         name: "o3-pro",
         group: "o3",
         provider: "openai",
-        capabilities: { toolUse: true, reasoning: true },
+        capabilities: { toolUse: true, thinking: true },
         description: "推理旗舰，可调节推理力度，复杂问题解决专家",
       },
       {
@@ -295,7 +295,7 @@ export const llmPresets: LlmPreset[] = [
         name: "o3-mini",
         group: "o3",
         provider: "openai",
-        capabilities: { toolUse: true, reasoning: true },
+        capabilities: { toolUse: true, thinking: true },
         description: "推理轻量版，高效逻辑推理",
       },
       {
@@ -321,7 +321,7 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek Reasoner",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, reasoning: true },
+        capabilities: { toolUse: true, thinking: true },
         description: "推理专用模型",
       },
       {
@@ -329,7 +329,7 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek Chat",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, reasoning: true },
+        capabilities: { toolUse: true, thinking: true },
         description: "通用对话模型",
       },
     ],
@@ -1001,7 +1001,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Magistral",
         group: "Magistral",
         provider: "mistral",
-        capabilities: { reasoning: true },
+        capabilities: { thinking: true },
         description: "推理模型家族（2025-06-10）",
       },
     ],
@@ -1068,7 +1068,7 @@ export const llmPresets: LlmPreset[] = [
         name: "ERNIE X1.1",
         group: "ERNIE X1",
         provider: "baidu",
-        capabilities: { reasoning: true },
+        capabilities: { thinking: true },
         description: "推理模型升级，代理能力增强（2025-09-09）",
       },
       {

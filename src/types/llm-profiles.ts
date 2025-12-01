@@ -48,7 +48,6 @@ export interface LlmParameterSupport {
   mediaResolution?: boolean; // Gemini 媒体分辨率
   webSearch?: boolean; // 网络搜索
   fileSearch?: boolean; // 文件搜索
-  reasoning?: boolean; // 推理模式
   codeExecution?: boolean; // 代码执行
   safetySettings?: boolean; // 安全设置 (Gemini)
   modalities?: boolean; // 多模态输出
@@ -81,7 +80,7 @@ export interface VisionTokenCost {
    * - 'gemini_2_0': Gemini 2.0 的瓦片计算法
    */
   calculationMethod: 'fixed' | 'openai_tile' | 'claude_3' | 'gemini_2_0';
-  
+
   /**
    * 计算参数
    * 根据不同的 calculationMethod 使用不同的参数：
@@ -92,13 +91,13 @@ export interface VisionTokenCost {
   parameters: {
     /** 固定成本（每张图片的 token 数） */
     costPerImage?: number;
-    
+
     /** 基础成本（例如 OpenAI 的固定 85 tokens） */
     baseCost?: number;
-    
+
     /** 每个瓦片的成本（例如 OpenAI 的 170 tokens per tile） */
     tileCost?: number;
-    
+
     /** 瓦片大小（像素，例如 512x512） */
     tileSize?: number;
   };
@@ -110,10 +109,10 @@ export interface VisionTokenCost {
 export interface ModelCapabilities {
   /** 是否支持视觉输入（VLM） */
   vision?: boolean;
-  
+
   /** 视觉 Token 计费规则（仅当 vision 为 true 时有效） */
   visionTokenCost?: VisionTokenCost;
-  
+
   /** 是否支持联网搜索 */
   webSearch?: boolean;
   /** 是否支持工具调用/函数调用 */
@@ -124,8 +123,6 @@ export interface ModelCapabilities {
   thinking?: boolean;
   /** 是否支持文件搜索 */
   fileSearch?: boolean;
-  /** 是否支持推理模式 */
-  reasoning?: boolean;
   /** 是否支持图像生成 */
   imageGeneration?: boolean;
   /** 是否支持音频输入/输出 */
@@ -140,7 +137,7 @@ export interface ModelCapabilities {
   rerank?: boolean;
   /** 是否支持计算机使用（Computer Use） */
   computerUse?: boolean;
-  
+
   /**
    * 是否支持 FIM (Fill In the Middle) 补全
    * 用于代码补全等场景，提供前缀和后缀让模型补全中间内容
@@ -149,7 +146,7 @@ export interface ModelCapabilities {
    * - DeepSeek: 通过 /beta 端点的 completions API
    */
   fim?: boolean;
-  
+
   /**
    * 是否支持对话前缀续写 (Prefix Completion)
    * 允许在 messages 最后一条消息设置 role: assistant 和 prefix: true
@@ -170,7 +167,7 @@ export interface ModelCapabilities {
    * - OpenAI (GPT-4o, GPT-4-Turbo 等): 通过 response_format: { type: "json_object" }
    */
   jsonOutput?: boolean;
-  
+
   /**
    * 文档处理能力
    * - true: 支持原生文档格式
@@ -182,7 +179,7 @@ export interface ModelCapabilities {
    * - GPT-4o/GPT-5 (OpenAI Responses): 支持 PDF 通过 file_url/file_id/file_data
    */
   document?: boolean;
-  
+
   /**
    * 文档格式（仅当 document 为 true 时有效）
    * 指定该模型使用的文档传输格式
@@ -191,7 +188,7 @@ export interface ModelCapabilities {
    * - 'openai_file': OpenAI Responses 格式，支持 file_url/file_id/file_data 三种方式
    */
   documentFormat?: 'base64' | 'openai_file';
-  
+
   /**
    * 文档 Token 计费规则（仅当 document 为 true 时有效）
    * 用于计算 PDF 等文档的 token 消耗
@@ -203,7 +200,7 @@ export interface ModelCapabilities {
      * - 'dynamic': 动态计算（API 返回实际值）
      */
     calculationMethod: 'per_page' | 'dynamic';
-    
+
     /** 每页的 token 数（仅当 calculationMethod 为 'per_page' 时使用） */
     tokensPerPage?: number;
   };

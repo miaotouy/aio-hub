@@ -431,6 +431,19 @@ const chatHeaderStyle = computed(() => {
   };
 });
 
+// ===== 内容宽度限制样式 =====
+const contentWidthStyle = computed(() => {
+  if (!settings.value.uiPreferences.enableContentWidthLimit) {
+    return {};
+  }
+  const maxWidth = settings.value.uiPreferences.contentMaxWidth ?? 800;
+  return {
+    width: "100%",
+    maxWidth: `${maxWidth}px`,
+    alignSelf: "center",
+  };
+});
+
 // ===== MessageNavigator 相关 =====
 // 获取滚动容器引用
 const scrollElement = computed(() => {
@@ -635,6 +648,7 @@ onMounted(async () => {
               @abort-node="handleAbortNode"
               @create-branch="handleCreateBranch"
               @analyze-context="handleAnalyzeContext"
+              :style="contentWidthStyle"
             />
 
             <!-- 消息导航器 -->
@@ -667,6 +681,7 @@ onMounted(async () => {
           :is-sending="finalIsSending"
           @send="handleSendMessage"
           @abort="handleAbort"
+          :style="contentWidthStyle"
         />
       </div>
     </div>
@@ -993,6 +1008,8 @@ onMounted(async () => {
 .chat-message-input {
   margin-left: 8px;
   margin-right: 8px;
+  padding-left: 8px;
+  padding-right: 8px;
   flex-shrink: 0; /* 关键：防止输入框被压缩 */
 }
 

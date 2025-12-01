@@ -52,6 +52,10 @@ export interface ChatSettings {
     defaultRenderHtml: boolean;
     /** 全局 Markdown 样式 */
     markdownStyle?: RichTextRendererStyleOptions;
+    /** 是否启用内容宽度限制 */
+    enableContentWidthLimit: boolean;
+    /** 内容最大宽度 (px) */
+    contentMaxWidth: number;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -131,6 +135,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     autoSwitchAgentOnSessionChange: true, // 默认开启
     defaultRenderHtml: false, // 默认不自动渲染 HTML
     markdownStyle: undefined, // 默认不设置全局样式
+    enableContentWidthLimit: false, // 默认不限制宽度
+    contentMaxWidth: 800, // 默认最大宽度 800px
   },
   modelPreferences: {
     defaultModel: "",

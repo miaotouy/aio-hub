@@ -4,7 +4,7 @@
       <div class="language-info">
         <span class="language-tag">Mermaid</span>
         <!-- 修复状态指示器 -->
-        <el-tooltip v-if="wasFixed" :content="showOriginal ? '当前显示原始代码（有语法问题）' : '代码已自动修复'" :show-after="300">
+        <el-tooltip v-if="wasFixed" :content="showOriginal ? '当前显示原始代码（可能存在语法问题）' : '代码已自动修复'" :show-after="300">
           <button
             class="fix-indicator"
             :class="{ 'showing-original': showOriginal }"

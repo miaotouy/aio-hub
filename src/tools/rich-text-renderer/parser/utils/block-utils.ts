@@ -80,6 +80,20 @@ export function hasBlockLevelStructure(tokens: Token[]): boolean {
     if (isTableStart(tokens, i)) {
       return true;
     }
+
+    // 检查文本内容中的块级特征 (针对 Tokenizer 未识别为块级 Token 的情况)
+    if (t.type === "text") {
+      const content = t.content;
+      // 检查 KaTeX 块级公式 ($$)
+      // 注意：这里简化检查，只要包含 $$ 就认为是块级结构候选，交给 parseBlocks 进一步确认
+      if (content.includes("$$")) {
+        return true;
+      }
+      // 检查代码块围栏 (```)
+      if (content.trim().startsWith("```")) {
+        return true;
+      }
+    }
   }
 
   return false;

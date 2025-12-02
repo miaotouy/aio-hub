@@ -134,9 +134,12 @@ export function parseHtmlBlock(
       htmlNode.children = ctx.parseInlines(normalizedTokens);
     } else {
       // 对于其他所有块级标签（如 <div>, <td>, <li> 等），
-      // 其内容应该被当作一个独立的 Markdown 文档片段进行完整的块级解析。
-      // 这可以正确处理嵌套在 HTML 标签内的 Markdown 块级语法（如代码块、列表、公式等）。
-      htmlNode.children = ctx.parseBlocks(contentTokens);
+      // 使用 parseHtmlContent 进行混合内容解析。
+      // 它能智能处理：
+      // 1. 忽略标签间的空白（修复 Grid 布局问题）
+      // 2. 对纯文本内容使用内联解析（避免不必要的 <p> 包裹，修复 li 内部 p 问题）
+      // 3. 对包含 Markdown 块级语法的片段使用块级解析
+      htmlNode.children = parseHtmlContent(ctx, contentTokens);
     }
   }
 
@@ -236,6 +239,12 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
       if (t.type === "html_open" && BLOCK_LEVEL_TAGS.has(t.tagName)) {
         break;
       }
+
+      // 遇到显式的块级 token 也停止收集，交由主循环处理
+      if (t.type === "katex_block" || t.type === "code_fence") {
+        break;
+      }
+
       if (t.type === "newline" && i + 1 < tokens.length) {
         const next = tokens[i + 1];
         if (

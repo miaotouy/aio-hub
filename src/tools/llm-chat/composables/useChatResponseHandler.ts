@@ -14,6 +14,9 @@ const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
 
 export function useChatResponseHandler() {
+  // 用于节流 reasoning 更新的 Map
+  const reasoningUpdateBuffer = new Map<string, { buffer: string; isScheduled: boolean }>();
+
   /**
    * 处理流式响应更新
    */
@@ -27,7 +30,7 @@ export function useChatResponseHandler() {
     if (!node) return;
 
     // 记录首字时间
-    if (!node.metadata?.firstTokenTime) {
+    if (!node.metadata?.firstTokenTime && !isReasoning) {
       node.metadata = {
         ...node.metadata,
         firstTokenTime: Date.now(),
@@ -35,10 +38,8 @@ export function useChatResponseHandler() {
     }
 
     if (isReasoning) {
-      // 推理内容流式更新
-      if (!node.metadata) {
-        node.metadata = {};
-      }
+      // 推理内容流式更新（节流）
+      if (!node.metadata) node.metadata = {};
       if (!node.metadata.reasoningContent) {
         node.metadata.reasoningContent = "";
         node.metadata.reasoningStartTime = Date.now();
@@ -47,7 +48,24 @@ export function useChatResponseHandler() {
           startTime: node.metadata.reasoningStartTime,
         });
       }
-      node.metadata.reasoningContent += chunk;
+
+      if (!reasoningUpdateBuffer.has(nodeId)) {
+        reasoningUpdateBuffer.set(nodeId, { buffer: "", isScheduled: false });
+      }
+      const state = reasoningUpdateBuffer.get(nodeId)!;
+      state.buffer += chunk;
+
+      if (!state.isScheduled) {
+        state.isScheduled = true;
+        requestAnimationFrame(() => {
+          const nodeToUpdate = session.nodes[nodeId];
+          if (nodeToUpdate && nodeToUpdate.metadata) {
+            nodeToUpdate.metadata.reasoningContent += state.buffer;
+          }
+          state.buffer = "";
+          state.isScheduled = false;
+        });
+      }
     } else {
       // 正文内容流式更新
       // 如果这是第一次接收正文内容，且之前有推理内容但还没记录结束时间
@@ -57,6 +75,13 @@ export function useChatResponseHandler() {
         node.metadata?.reasoningStartTime &&
         !node.metadata?.reasoningEndTime
       ) {
+        // 在开始显示正文前，强制刷新一次 reasoning 缓冲区，确保显示完整
+        const bufferedState = reasoningUpdateBuffer.get(nodeId);
+        if (bufferedState && bufferedState.buffer) {
+          node.metadata.reasoningContent += bufferedState.buffer;
+          bufferedState.buffer = "";
+        }
+
         node.metadata.reasoningEndTime = Date.now();
         logger.info("🕐 推理结束时间已记录（正文开始）", {
           nodeId,
@@ -242,6 +267,15 @@ export function useChatResponseHandler() {
       });
     }
 
+    // 在 finalize 阶段，确保所有缓冲的 reasoning 内容都已写入
+    const bufferedState = reasoningUpdateBuffer.get(nodeId);
+    if (bufferedState && bufferedState.buffer) {
+      finalNode.metadata.reasoningContent =
+        (finalNode.metadata.reasoningContent || "") + bufferedState.buffer;
+      bufferedState.buffer = "";
+      logger.debug("Flushed remaining reasoning buffer on finalize", { nodeId });
+    }
+
     // 如果有推理内容和开始时间，恢复时间戳
     if (finalNode.metadata.reasoningContent && existingReasoningStartTime) {
       finalNode.metadata.reasoningStartTime = existingReasoningStartTime;
@@ -257,6 +291,9 @@ export function useChatResponseHandler() {
         duration: finalNode.metadata.reasoningEndTime - finalNode.metadata.reasoningStartTime,
       });
     }
+
+    // 清理缓冲
+    reasoningUpdateBuffer.delete(nodeId);
 
     // 更新会话中的智能体使用统计
     if (!session.agentUsage) {

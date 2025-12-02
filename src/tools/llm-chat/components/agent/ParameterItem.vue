@@ -124,7 +124,31 @@ const showReset = computed(() => {
     <div v-if="enabled" class="param-body">
       <!-- Slider Type -->
       <template v-if="config.type === 'slider'">
+        <el-select
+          v-if="activeConfig.suggestions"
+          v-model.number="internalValue"
+          filterable
+          allow-create
+          default-first-option
+          :placeholder="activeConfig.placeholder"
+          class="param-input full-width"
+          :disabled="disabled"
+          size="small"
+        >
+          <el-option
+            v-for="item in activeConfig.suggestions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          >
+            <div class="suggestion-item">
+              <span class="label">{{ item.label }}</span>
+              <span class="value">{{ item.value }}</span>
+            </div>
+          </el-option>
+        </el-select>
         <el-input-number
+          v-else
           v-model="internalValue"
           :min="activeConfig.min"
           :max="activeConfig.max"
@@ -150,7 +174,31 @@ const showReset = computed(() => {
 
       <!-- Number Type -->
       <template v-else-if="config.type === 'number'">
+        <el-select
+          v-if="activeConfig.suggestions"
+          v-model.number="internalValue"
+          filterable
+          allow-create
+          default-first-option
+          :placeholder="activeConfig.placeholder"
+          class="param-input full-width"
+          :disabled="disabled"
+          size="small"
+        >
+          <el-option
+            v-for="item in activeConfig.suggestions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          >
+            <div class="suggestion-item">
+              <span class="label">{{ item.label }}</span>
+              <span class="value">{{ item.value }}</span>
+            </div>
+          </el-option>
+        </el-select>
         <el-input-number
+          v-else
           v-model="internalValue"
           :min="activeConfig.min"
           :max="activeConfig.max"
@@ -290,6 +338,17 @@ const showReset = computed(() => {
 .disabled-hint {
   margin-top: 0;
   font-style: italic;
+}
+
+.suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.suggestion-item .value {
+  font-size: 12px;
+  color: var(--text-color-secondary);
 }
 
 /* Element Plus overrides */

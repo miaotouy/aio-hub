@@ -74,6 +74,9 @@ export interface ParameterConfig {
 
   // Placeholder for text/number input
   placeholder?: string;
+
+  // Suggestions for number/slider input
+  suggestions?: { label: string; value: number }[];
 }
 
 export const parameterConfigs: ParameterConfig[] = [
@@ -98,10 +101,18 @@ export const parameterConfigs: ParameterConfig[] = [
     description: "单次响应的最大 token 数量。",
     group: "basic",
     supportedKey: "maxTokens",
-    min: 256,
+    min: 0,
     // max will be dynamic based on model context limit
     step: 256,
     defaultValue: 4096,
+    suggestions: [
+      { label: "4K", value: 4096 },
+      { label: "8K", value: 8192 },
+      { label: "16K", value: 16384 },
+      { label: "32K", value: 32768 },
+      { label: "64K", value: 65536 },
+      { label: "128K", value: 131072 },
+    ],
   },
   {
     key: "topP",

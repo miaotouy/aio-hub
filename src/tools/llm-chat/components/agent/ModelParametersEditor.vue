@@ -21,7 +21,7 @@ import ParameterItem from "./ParameterItem.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
-import { parameterConfigs } from "../../config/parameter-config";
+import { ParameterConfig, parameterConfigs } from "../../config/parameter-config";
 
 /**
  * 模型参数编辑器组件
@@ -514,6 +514,46 @@ const updateSafetySetting = (
   updateParameter("safetySettings", newSettings.length > 0 ? newSettings : undefined);
 };
 
+// --- 上下文管理参数配置 ---
+const maxContextTokensConfig: ParameterConfig = {
+  key: "maxContextTokens" as any,
+  label: "最大上下文 Token 数",
+  type: "slider",
+  description: "会话历史的最大 Token 数量（0 = 不限制，使用模型默认上限）。",
+  group: "basic", // Not used here, but required by type
+  supportedKey: "maxTokens", // Not used here, but required by type
+  min: 0,
+  step: 512,
+  defaultValue: 8192,
+  suggestions: [
+    { label: "4K", value: 4096 },
+    { label: "8K", value: 8192 },
+    { label: "16K", value: 16384 },
+    { label: "32K", value: 32768 },
+    { label: "64K", value: 65536 },
+    { label: "128K", value: 131072 },
+    { label: "256K", value: 262144 },
+    { label: "512K", value: 524288 },
+    { label: "1M", value: 1000000 },
+    { label: "2M", value: 2000000 },
+    { label: "4M", value: 4000000 },
+    { label: "10M", value: 10000000 },
+  ],
+};
+
+const retainedCharactersConfig: ParameterConfig = {
+  key: "retainedCharacters" as any,
+  label: "截断保留字符数",
+  type: "slider",
+  description: "截断消息时保留的开头字符数。0 表示完全删除，推荐 100-200 让消息保留简略开头。",
+  group: "basic",
+  supportedKey: "maxTokens",
+  min: 0,
+  max: 500,
+  step: 10,
+  defaultValue: 200,
+};
+
 // --- 上下文统计数据逻辑 (保留原有逻辑) ---
 
 const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
@@ -857,81 +897,39 @@ watch(
       </div>
 
       <!-- 最大上下文 Token 数 -->
-      <div v-if="localParams.contextManagement?.enabled" class="param-group">
-        <label class="param-label">
-          <span>最大上下文 Token 数</span>
-          <el-input-number
-            :model-value="localParams.contextManagement?.maxContextTokens ?? 8192"
-            @update:model-value="
-              updateParameter('contextManagement', {
-                ...localParams.contextManagement!,
-                maxContextTokens: $event || 0,
-              })
-            "
-            :min="0"
-            :max="contextLengthLimit || 4000000"
-            :step="512"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.contextManagement?.maxContextTokens ?? 8192"
-          @update:model-value="
-            updateParameter('contextManagement', {
-              ...localParams.contextManagement!,
-              maxContextTokens: $event,
-            })
-          "
-          :min="0"
-          :max="Math.min(contextLengthLimit || 2000000, 2000000)"
-          :step="512"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">
-          会话历史的最大 Token 数量（0 = 不限制，使用模型默认上限）。
+      <ParameterItem
+        v-if="localParams.contextManagement?.enabled"
+        :config="maxContextTokensConfig"
+        :model-value="localParams.contextManagement?.maxContextTokens"
+        :overrides="{ max: contextLengthLimit || 4000000 }"
+        :enabled="true"
+        @update:model-value="
+          updateParameter('contextManagement', {
+            ...localParams.contextManagement!,
+            maxContextTokens: $event === null ? 0 : $event,
+          })
+        "
+      >
+        <template #description-suffix>
           <span v-if="contextLengthLimit" class="limit-hint">
             （当前模型上限: {{ contextLengthLimit.toLocaleString() }}）
           </span>
-        </div>
-      </div>
+        </template>
+      </ParameterItem>
 
       <!-- 截断保留字符数 -->
-      <div v-if="localParams.contextManagement?.enabled" class="param-group">
-        <label class="param-label">
-          <span>截断保留字符数</span>
-          <el-input-number
-            :model-value="localParams.contextManagement?.retainedCharacters ?? 200"
-            @update:model-value="
-              updateParameter('contextManagement', {
-                ...localParams.contextManagement!,
-                retainedCharacters: $event || 0,
-              })
-            "
-            :min="0"
-            :max="300"
-            :step="10"
-            :controls="false"
-            class="param-input"
-          />
-        </label>
-        <el-slider
-          :model-value="localParams.contextManagement?.retainedCharacters ?? 200"
-          @update:model-value="
-            updateParameter('contextManagement', {
-              ...localParams.contextManagement!,
-              retainedCharacters: $event,
-            })
-          "
-          :min="0"
-          :max="300"
-          :step="10"
-          :show-tooltip="false"
-        />
-        <div class="param-desc">
-          截断消息时保留的开头字符数。0 表示完全删除，推荐 100-200 让消息保留简略开头。
-        </div>
-      </div>
+      <ParameterItem
+        v-if="localParams.contextManagement?.enabled"
+        :config="retainedCharactersConfig"
+        :model-value="localParams.contextManagement?.retainedCharacters"
+        :enabled="true"
+        @update:model-value="
+          updateParameter('contextManagement', {
+            ...localParams.contextManagement!,
+            retainedCharacters: $event === null ? 0 : $event,
+          })
+        "
+      />
     </ConfigSection>
 
     <!-- 上下文后处理管道分组 -->
@@ -1299,6 +1297,16 @@ watch(
   border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
+}
+
+:deep(.param-group) {
+  padding: 12px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color-light);
+  transition: all 0.3s ease;
 }
 
 .param-label {

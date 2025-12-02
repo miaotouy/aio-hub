@@ -573,6 +573,8 @@ export interface TesterConfig {
   streamSpeed: number;
   /** 初始延迟（毫秒） */
   initialDelay: number;
+  /** AST 更新节流时间（毫秒） */
+  throttleMs?: number;
   /** 波动模式是否启用 */
   fluctuationEnabled: boolean;
   /** 延迟波动范围 */

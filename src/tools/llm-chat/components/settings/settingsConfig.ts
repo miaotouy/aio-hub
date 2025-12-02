@@ -147,6 +147,20 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui renderer markdown parser 渲染器 解析器",
       },
       {
+        id: "rendererThrottleMs",
+        label: "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
+        component: "ElSlider",
+        props: {
+          min: 16,
+          max: 512,
+          step: 8,
+          "format-tooltip": (val: number) => `${val}ms`,
+        },
+        modelPath: "uiPreferences.rendererThrottleMs",
+        hint: "控制消息渲染的节流时间，数值越小越实时，但性能开销越大",
+        keywords: "ui renderer throttle 节流 性能",
+      },
+      {
         id: "enableContentWidthLimit",
         label: "限制内容宽度",
         layout: "inline",

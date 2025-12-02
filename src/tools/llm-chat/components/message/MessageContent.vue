@@ -220,6 +220,7 @@ watch(
         :version="settings.uiPreferences.rendererVersion"
         :style-options="richTextStyleOptions"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
+        :throttle-ms="settings.uiPreferences.rendererThrottleMs"
       />
     </LlmThinkNode>
 
@@ -285,6 +286,7 @@ watch(
         :generation-meta="generationMetaForRenderer"
         :is-streaming="message.status === 'generating'"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
+        :throttle-ms="settings.uiPreferences.rendererThrottleMs"
       />
       <div v-if="message.status === 'generating'" class="streaming-indicator">
         <span class="dot"></span>

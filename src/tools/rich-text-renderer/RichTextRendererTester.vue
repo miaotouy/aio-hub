@@ -104,6 +104,7 @@
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
                 :generation-meta="simulateMeta ? generationMeta : undefined"
+                :throttle-ms="throttleMs"
               />
               <div v-else class="empty-placeholder">
                 <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -177,6 +178,7 @@ const {
   syncInputProgress,
   streamSpeed,
   initialDelay,
+  throttleMs,
   fluctuationEnabled,
   delayFluctuation,
   charsFluctuation,
@@ -672,6 +674,7 @@ const copyComparison = async () => {
     configInfo += `\n分词器: ${selectedTokenizer.value}`;
     configInfo += `\n输出速度: ${streamSpeed.value} token/秒`;
     configInfo += `\n初始延迟: ${initialDelay.value} 毫秒`;
+    configInfo += `\nAST 节流: ${throttleMs.value} 毫秒`;
     configInfo += `\n波动模式: ${fluctuationEnabled.value ? "启用" : "禁用"}`;
 
     if (fluctuationEnabled.value) {

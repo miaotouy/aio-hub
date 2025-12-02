@@ -128,6 +128,26 @@
             </div>
           </div>
 
+          <div class="control-item">
+            <el-tooltip
+              content="控制 AST 更新的节流时间，数值越小越实时，但性能开销越大"
+              placement="right"
+            >
+              <label>AST 节流</label>
+            </el-tooltip>
+            <div class="slider-wrapper">
+              <el-slider
+                v-model="throttleMs"
+                :min="16"
+                :max="512"
+                :step="8"
+                show-input
+                :input-size="'small'"
+              />
+              <span class="unit">毫秒</span>
+            </div>
+          </div>
+
           <!-- 波动模式控制 -->
           <div class="control-item" style="margin-top: 20px">
             <div class="control-header">
@@ -246,6 +266,7 @@ const {
   syncInputProgress,
   streamSpeed,
   initialDelay,
+  throttleMs,
   fluctuationEnabled,
   delayFluctuation,
   charsFluctuation,

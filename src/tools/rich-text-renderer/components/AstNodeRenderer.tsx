@@ -77,6 +77,19 @@ const componentMap: Record<string, any> = {
 };
 
 /**
+ * 不应用 fade-in 动画的节点类型
+ * 这些节点需要在流式输出时立即显示，而不是等内容完成后才显示
+ */
+const NO_ANIMATION_NODE_TYPES = new Set([
+  'llm_think',    // 思考节点需要立即显示，内容逐渐填充
+  'code_block',   // 代码块需要立即显示
+  'mermaid',      // Mermaid 图表需要立即显示
+  'katex_block',  // KaTeX 渲染的数学公式块
+  'html_block',   // 原始 HTML 块，可能包含自己的动画
+  'image',        // 图片有自己的加载效果，不应被干扰
+]);
+
+/**
  * 降级组件：当找不到对应的节点组件时使用
  */
 const FallbackNode = defineComponent({
@@ -115,11 +128,15 @@ const AstNodeRenderer = defineComponent({
           ? h(AstNodeRenderer, { nodes: node.children, generationMeta: props.generationMeta })
           : undefined;
 
+        // 根据节点类型决定是否应用动画
+        const shouldAnimate = !NO_ANIMATION_NODE_TYPES.has(node.type);
+
         // 为 KaTeX 节点添加 displayMode 属性
         const componentProps: any = {
           key: node.id,
           nodeId: node.id,
           'data-node-status': node.meta.status,
+          class: shouldAnimate ? 'rich-text-node' : undefined, // 条件添加动画类名
           ...node.props,
           generationMeta: props.generationMeta,
         };

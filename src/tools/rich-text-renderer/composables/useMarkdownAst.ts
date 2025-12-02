@@ -14,10 +14,12 @@ import type { AstNode, Patch, NodeMap } from '../types';
 const MAX_QUEUE_SIZE = 200;
 const BATCH_TIMEOUT_MS = 32;
 
-export function useMarkdownAst() {
+export function useMarkdownAst(options: { throttleMs?: number } = {}) {
   const ast: ShallowRef<AstNode[]> = shallowRef([]);
   const nodeMap: NodeMap = new Map();
-  
+
+  const throttleMs = options.throttleMs ?? BATCH_TIMEOUT_MS;
+
   let patchQueue: Patch[] = [];
   let rafHandle = 0;
   let timeoutHandle = 0;
@@ -43,12 +45,12 @@ export function useMarkdownAst() {
 
     while (i < patches.length) {
       const patch = patches[i];
-      
+
       if (patch.op === 'text-append') {
         // 收集所有连续的、针对同一节点的 text-append
         let combinedText = patch.text;
         let j = i + 1;
-        
+
         while (j < patches.length) {
           const nextPatch = patches[j];
           if (nextPatch.op === 'text-append' && nextPatch.id === patch.id) {
@@ -58,13 +60,13 @@ export function useMarkdownAst() {
             break;
           }
         }
-        
+
         coalesced.push({
           op: 'text-append',
           id: patch.id,
           text: combinedText,
         });
-        
+
         i = j;
       } else {
         coalesced.push(patch);
@@ -101,7 +103,7 @@ export function useMarkdownAst() {
             }
             return node;
           }
-          
+
           // 递归处理子节点
           if (node.children) {
             const newChildren = applySinglePatch(node.children, patch);
@@ -109,7 +111,7 @@ export function useMarkdownAst() {
               return { ...node, children: newChildren };
             }
           }
-          
+
           return node;
         });
       }
@@ -126,14 +128,14 @@ export function useMarkdownAst() {
               },
             } as AstNode;
           }
-          
+
           if (node.children) {
             const newChildren = applySinglePatch(node.children, patch);
             if (newChildren !== node.children) {
               return { ...node, children: newChildren };
             }
           }
-          
+
           return node;
         });
       }
@@ -144,14 +146,14 @@ export function useMarkdownAst() {
           if (node.id === patch.id) {
             return patch.newNode;
           }
-          
+
           if (node.children) {
             const newChildren = applySinglePatch(node.children, patch);
             if (newChildren !== node.children) {
               return { ...node, children: newChildren };
             }
           }
-          
+
           return node;
         });
       }
@@ -160,7 +162,7 @@ export function useMarkdownAst() {
         // 在指定节点之后插入（支持嵌套）
         let found = false;
         const result: AstNode[] = [];
-        
+
         for (const node of nodes) {
           result.push(node);
           if (node.id === patch.id) {
@@ -176,7 +178,7 @@ export function useMarkdownAst() {
             }
           }
         }
-        
+
         return result;
       }
 
@@ -184,14 +186,14 @@ export function useMarkdownAst() {
         // 在指定节点之前插入（支持嵌套）
         let found = false;
         const result: AstNode[] = [];
-        
+
         for (const node of nodes) {
           if (node.id === patch.id) {
             result.push(patch.newNode);
             found = true;
           }
           result.push(node);
-          
+
           if (!found && node.children) {
             // 递归查找子节点
             const newChildren = applySinglePatch(node.children, patch);
@@ -202,7 +204,7 @@ export function useMarkdownAst() {
             }
           }
         }
-        
+
         return result;
       }
 
@@ -212,14 +214,14 @@ export function useMarkdownAst() {
           if (node.id === patch.id) {
             return false;
           }
-          
+
           if (node.children) {
             const newChildren = applySinglePatch(node.children, patch);
             if (newChildren !== node.children) {
               return true; // 节点本身保留，但子节点已更新
             }
           }
-          
+
           return true;
         }).map(node => {
           if (node.children) {
@@ -240,14 +242,14 @@ export function useMarkdownAst() {
             newChildren.splice(patch.start, patch.deleteCount, ...patch.newChildren);
             return { ...node, children: newChildren };
           }
-          
+
           if (node.children) {
             const newChildren = applySinglePatch(node.children, patch);
             if (newChildren !== node.children) {
               return { ...node, children: newChildren };
             }
           }
-          
+
           return node;
         });
       }
@@ -263,16 +265,16 @@ export function useMarkdownAst() {
   function applyPatches(patches: Patch[]) {
     // 1. 合并连续的 text-append
     const coalesced = coalesceTextAppends(patches);
-    
+
     // 2. 执行不可变更新
     let newRoot = ast.value;
     for (const patch of coalesced) {
       newRoot = applySinglePatch(newRoot, patch);
     }
-    
+
     // 3. 替换引用以触发更新
     ast.value = newRoot;
-    
+
     // 4. 重建 nodeMap
     nodeMap.clear();
     buildNodeMap(newRoot);
@@ -286,7 +288,7 @@ export function useMarkdownAst() {
     clearTimeout(timeoutHandle);
     rafHandle = 0;
     timeoutHandle = 0;
-    
+
     if (patchQueue.length > 0) {
       applyPatches(patchQueue);
       patchQueue = [];
@@ -298,12 +300,17 @@ export function useMarkdownAst() {
    */
   function enqueuePatch(patch: Patch | Patch[]) {
     patchQueue.push(...(Array.isArray(patch) ? patch : [patch]));
-    
-    if (!rafHandle) {
-      rafHandle = requestAnimationFrame(flushPatches);
-      timeoutHandle = window.setTimeout(flushPatches, BATCH_TIMEOUT_MS);
+
+    if (!timeoutHandle) {
+      // 使用配置的 throttleMs
+      timeoutHandle = window.setTimeout(() => {
+        // 在 timeout 回调中请求动画帧，确保在下一帧渲染前更新
+        if (!rafHandle) {
+          rafHandle = requestAnimationFrame(flushPatches);
+        }
+      }, throttleMs);
     }
-    
+
     // 队列过长时立即执行，避免单帧过载
     if (patchQueue.length > MAX_QUEUE_SIZE) {
       flushPatches();

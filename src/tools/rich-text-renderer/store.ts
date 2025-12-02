@@ -89,6 +89,7 @@ const configManager = createConfigManager<TesterConfig>({
     syncInputProgress: false,
     streamSpeed: 100,
     initialDelay: 500,
+    throttleMs: 80,
     fluctuationEnabled: false,
     delayFluctuation: {
       min: 50,
@@ -130,6 +131,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const syncInputProgress = ref(false);
   const streamSpeed = ref(100);
   const initialDelay = ref(500);
+  const throttleMs = ref(80);
   const fluctuationEnabled = ref(false);
   const delayFluctuation = reactive({
     min: 50,
@@ -186,6 +188,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       syncInputProgress.value = config.syncInputProgress ?? false;
       streamSpeed.value = config.streamSpeed;
       initialDelay.value = config.initialDelay;
+      throttleMs.value = config.throttleMs ?? 80;
       fluctuationEnabled.value = config.fluctuationEnabled;
       delayFluctuation.min = config.delayFluctuation.min;
       delayFluctuation.max = config.delayFluctuation.max;
@@ -243,6 +246,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         syncInputProgress: syncInputProgress.value,
         streamSpeed: streamSpeed.value,
         initialDelay: initialDelay.value,
+        throttleMs: throttleMs.value,
         fluctuationEnabled: fluctuationEnabled.value,
         delayFluctuation: {
           min: delayFluctuation.min,
@@ -292,6 +296,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       syncInputProgress: syncInputProgress.value,
       streamSpeed: streamSpeed.value,
       initialDelay: initialDelay.value,
+      throttleMs: throttleMs.value,
       fluctuationEnabled: fluctuationEnabled.value,
       delayFluctuation: {
         min: delayFluctuation.min,
@@ -328,6 +333,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     syncInputProgress.value = false;
     streamSpeed.value = 100;
     initialDelay.value = 500;
+    throttleMs.value = 80;
     fluctuationEnabled.value = false;
     delayFluctuation.min = 50;
     delayFluctuation.max = 200;
@@ -397,6 +403,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       syncInputProgress,
       streamSpeed,
       initialDelay,
+      throttleMs,
       fluctuationEnabled,
       () => delayFluctuation.min,
       () => delayFluctuation.max,
@@ -435,6 +442,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     syncInputProgress,
     streamSpeed,
     initialDelay,
+    throttleMs,
     fluctuationEnabled,
     delayFluctuation,
     charsFluctuation,

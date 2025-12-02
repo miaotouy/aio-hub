@@ -33,11 +33,13 @@ const props = withDefaults(
     generationMeta?: any; // 生成元数据（用于计时）
     isStreaming?: boolean; // 是否处于流式传输中（用于控制思考块的闭合状态）
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
+    throttleMs?: number; // 节流时间（毫秒）
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
     isStreaming: false,
     defaultRenderHtml: false,
+    throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
       {
@@ -109,7 +111,7 @@ const useAstRenderer = computed(
 );
 
 // AST 状态
-const { ast, enqueuePatch } = useMarkdownAst();
+const { ast, enqueuePatch } = useMarkdownAst({ throttleMs: props.throttleMs });
 
 // 图片列表状态
 const imageList = ref<string[]>([]);
@@ -120,12 +122,12 @@ const imageList = ref<string[]>([]);
 const extractImages = (nodes: AstNode[]): string[] => {
   const images: string[] = [];
   const traverse = (nodeList: AstNode[]) => {
-    for (const node of nodeList) {
-      if (node.type === "image" && "src" in node.props) {
-        images.push((node.props as { src: string }).src);
+    for (const nodeListElement of nodeList) {
+      if (nodeListElement.type === "image" && "src" in nodeListElement.props) {
+        images.push((nodeListElement.props as { src: string }).src);
       }
-      if (node.children && node.children.length > 0) {
-        traverse(node.children);
+      if (nodeListElement.children && nodeListElement.children.length > 0) {
+        traverse(nodeListElement.children);
       }
     }
   };
@@ -214,7 +216,7 @@ watch(
       }
       streamProcessor.value.reset();
       streamProcessor.value.process(newContent);
-      
+
       // 只有在非流式状态下才 finalize（finalize 会强制结束思考状态）
       if (!props.isStreaming) {
         streamProcessor.value.finalize();
@@ -324,5 +326,22 @@ onBeforeUnmount(() => {
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);
+}
+
+/* 节点进入动画：淡入+轻微下移 */
+:deep(.rich-text-node) {
+  animation: fade-in-up 0.3s ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

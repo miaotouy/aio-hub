@@ -11,6 +11,9 @@
       <!-- 标题栏 (拖拽区域) -->
       <div ref="handleRef" class="panel-header">
         <div class="header-title">{{ title }}</div>
+        <div class="header-actions" @mousedown.stop>
+          <slot name="header-actions"></slot>
+        </div>
         <div class="header-controls">
           <div
             class="control-btn minimize-btn"
@@ -318,12 +321,21 @@ watch(
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-right: auto; /* 让标题占据左侧剩余空间，把 actions 推到右边 */
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
 }
 
 .header-controls {
   display: flex;
   gap: 8px;
   align-items: center;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-color);
 }
 
 .control-btn {

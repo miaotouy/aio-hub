@@ -2294,3 +2294,65 @@ pub async fn remove_assets_completely(
         Ok(failed_ids)
     }
 }
+
+/// 根据哈希值查找资产
+/// 根据哈希值在当月索引中查找资产
+///
+/// 仅在当前月份的目录中查找，以支持按月滚动的清理策略。
+/// 如果提供了 source_to_add，且找到了资产，会将该来源添加到资产中。
+#[tauri::command]
+pub async fn find_asset_by_hash(
+    app: AppHandle,
+    hash: String,
+    source_to_add: Option<AssetOrigin>,
+) -> Result<Option<Asset>, String> {
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+
+    // 遍历所有资产类型，只检查当月索引
+    // 这样可以避免全量扫描 Catalog，且符合按月管理的策略
+    let asset_types = [
+        AssetType::Image,
+        AssetType::Audio,
+        AssetType::Video,
+        AssetType::Document,
+        AssetType::Other,
+    ];
+
+    for asset_type in &asset_types {
+        // check_duplicate_in_current_month 已经封装了读取当月索引、验证文件存在、读取 Catalog 信息的逻辑
+        if let Ok(Some(asset)) = check_duplicate_in_current_month(&base_dir, asset_type, &hash) {
+            // 找到了！
+            let asset_id = asset.id.clone();
+
+            // 如果需要添加来源，则更新 Catalog
+            if let Some(origin) = source_to_add {
+                let mut updated_asset: Option<Asset> = None;
+
+                update_catalog_in_place(&base_dir, |entries| {
+                    for entry in entries.iter_mut() {
+                        if entry.id == asset_id {
+                            // 如果来源不存在，则添加新来源
+                            if !entry
+                                .origins
+                                .iter()
+                                .any(|o| o.source_module == origin.source_module)
+                            {
+                                entry.origins.push(origin.clone());
+                            }
+                            updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
+                            break;
+                        }
+                    }
+                })?;
+
+                return Ok(updated_asset);
+            } else {
+                // 不需要添加来源，直接返回找到的 Asset
+                return Ok(Some(asset));
+            }
+        }
+    }
+
+    Ok(None)
+}

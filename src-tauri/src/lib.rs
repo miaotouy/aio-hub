@@ -107,6 +107,7 @@ use commands::{
     add_asset_source,
     remove_asset_completely,
     remove_assets_completely,
+    find_asset_by_hash,
     // 插件管理命令
     uninstall_plugin,
     install_plugin_from_zip,
@@ -345,6 +346,7 @@ tauri::Builder::default()
             add_asset_source,
             remove_asset_completely,
             remove_assets_completely,
+            find_asset_by_hash,
             // 插件管理命令
             uninstall_plugin,
             install_plugin_from_zip,

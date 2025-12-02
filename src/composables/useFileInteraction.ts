@@ -100,6 +100,14 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 粘贴处理状态
   const isPasting = ref(false)
 
+  // 计算文件的 SHA-256 哈希值
+  const calculateFileHash = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer()
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  }
+
   // 处理文件对象到 Asset 的转换（优化版：立即返回临时 Asset，后台异步上传）
   const convertFilesToAssets = async (files: File[]): Promise<Asset[]> => {
     const assets: Asset[] = []
@@ -146,22 +154,50 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         // 注意：这里不使用 await，让它在后台运行
         ;(async () => {
           try {
-            const arrayBuffer = await file.arrayBuffer()
-            const bytes = new Uint8Array(arrayBuffer)
+            // 尝试秒传：先计算 Hash 并查找是否存在
+            let realAsset: Asset | null = null
+            
+            if (assetOptions.enableDeduplication) {
+              try {
+                const hash = await calculateFileHash(file)
+                // 查找并尝试添加来源
+                const existingAsset = await invoke<Asset | null>('find_asset_by_hash', {
+                  hash,
+                  sourceToAdd: {
+                    type: 'clipboard',
+                    source: 'clipboard',
+                    sourceModule,
+                  }
+                })
+                
+                if (existingAsset) {
+                  realAsset = existingAsset
+                  logger.info('秒传成功', { filename, assetId: realAsset.id })
+                }
+              } catch (e) {
+                logger.warn('秒传检测失败，降级为普通上传', e)
+              }
+            }
 
-            // 调用后端 API 导入文件
-            const realAsset = await invoke<Asset>('import_asset_from_bytes', {
-              bytes: Array.from(bytes),
-              originalName: filename,
-              options: {
-                ...assetOptions,
-                origin: {
-                  type: 'clipboard',
-                  source: 'clipboard',
-                  sourceModule,
+            // 如果没有秒传成功，执行普通上传
+            if (!realAsset) {
+              const arrayBuffer = await file.arrayBuffer()
+              const bytes = new Uint8Array(arrayBuffer)
+
+              // 调用后端 API 导入文件
+              realAsset = await invoke<Asset>('import_asset_from_bytes', {
+                bytes: Array.from(bytes),
+                originalName: filename,
+                options: {
+                  ...assetOptions,
+                  origin: {
+                    type: 'clipboard',
+                    source: 'clipboard',
+                    sourceModule,
+                  },
                 },
-              },
-            })
+              })
+            }
 
             // 3. 上传成功，更新临时 Asset 的属性
             // 注意：必须修改原对象以保持引用一致，从而触发 UI 更新

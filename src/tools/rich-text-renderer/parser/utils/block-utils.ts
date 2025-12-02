@@ -62,6 +62,7 @@ export function hasBlockLevelStructure(tokens: Token[]): boolean {
       t.type === "heading_marker" ||
       t.type === "hr_marker" ||
       t.type === "code_fence" ||
+      t.type === "katex_block" ||
       t.type === "list_marker" ||
       t.type === "blockquote_marker"
     ) {

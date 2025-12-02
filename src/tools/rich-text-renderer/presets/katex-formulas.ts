@@ -257,6 +257,108 @@ q & 0 & 0 & 0 \\\\
 
 嵌套的美元符号：\$100 和 \$200（应该显示为普通文本）
 
+
+## 24. HTML 和 KaTeX 混排测试
+
+### 24.1 HTML 属性中的 $ 符号
+
+<div style="color: var(--test-$variable); padding: 10px;">
+这是一个包含 CSS 变量（有 $ 符号）的 div，内部有块级公式：
+
+$$
+E = mc^2
+$$
+
+和行内公式：能量 $E$，质量 $m$，光速 $c$。
+</div>
+
+### 24.2 深层嵌套的 HTML 和公式
+
+<section style="background: var(--bg-$color);">
+  <div style="margin: var(--margin-$size);">
+    <p style="color: var(--text-$primary);">
+      勾股定理：
+
+$$
+a^2 + b^2 = c^2
+$$
+
+其中 $a$ 和 $b$ 是直角边，$c$ 是斜边。
+    </p>
+  </div>
+</section>
+
+### 24.3 多个 HTML 块和公式交替
+
+<div style="border: 1px solid var(--border-$color);">
+第一个公式块：
+
+$$
+\\int_{0}^{\\infty} e^{-x} dx = 1
+$$
+</div>
+
+<div style="padding: var(--padding-$size);">
+第二个公式块：
+
+$$
+\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}
+$$
+</div>
+
+### 24.4 HTML 表格中的公式
+
+<table style="width: 100%; border-collapse: collapse; border: 1px solid var(--border-color);">
+  <thead>
+    <tr>
+      <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">变换类型</th>
+      <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">公式</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="border: 1px solid var(--border-color); padding: 8px;">
+        傅里叶变换
+      </td>
+      <td style="border: 1px solid var(--border-color); padding: 8px;">
+        $$
+        F(\\omega) = \\int_{-\\infty}^{\\infty} f(t) e^{-i\\omega t} dt
+        $$
+      </td>
+    </tr>
+    <tr>
+      <td style="border: 1px solid var(--border-color); padding: 8px;">
+        拉普拉斯变换
+      </td>
+      <td style="border: 1px solid var(--border-color); padding: 8px;">
+        $$
+        F(s) = \\int_{0}^{\\infty} f(t) e^{-st} dt
+        $$
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 24.5 非行首块级公式（与 HTML 混合）
+
+<div>量子态的密度矩阵：$$\\rho = \\sum_{i} p_i |\\psi_i\\rangle \\langle\\psi_i|$$</div>
+
+<span style="color: var(--highlight-$color);">薛定谔方程：</span>$$i\\hbar\\frac{\\partial}{\\partial t}|\\psi\\rangle = \\hat{H}|\\psi\\rangle$$
+
+### 24.6 HTML 和 Markdown 列表混合
+
+<div style="background: var(--card-$bg); padding: 15px;">
+
+**重要公式列表：**
+
+1. 欧拉公式：$e^{i\\pi} + 1 = 0$
+2. 高斯积分：
+    $$
+    \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
+    $$
+3. 牛顿第二定律：$F = ma$
+
+</div>
 ## 总结
 
 KaTeX 支持的功能：
@@ -267,6 +369,8 @@ KaTeX 支持的功能：
 - ✅ 希腊字母和特殊符号
 - ✅ 分段函数和多行公式
 - ✅ 与 Markdown 元素混合使用
+- ✅ 与 HTML 元素混合使用
 
-这些测试用例涵盖了 KaTeX 的主要功能和常见使用场景。`,
+这些测试用例涵盖了 KaTeX 的主要功能和常见使用场景。
+`,
 };

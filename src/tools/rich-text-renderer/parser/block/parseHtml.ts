@@ -17,26 +17,26 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
   // 预格式化标签特殊处理：仅移除首尾换行，保留中间内容原样
   if (isPreFormatted) {
     const result = [...tokens];
-    
+
     // 移除开头的换行 (通常 HTML 会忽略 <pre> 后紧跟的第一个换行)
     if (result.length > 0 && result[0].type === "newline") {
       result.shift();
     }
-    
+
     // 移除结尾的换行 (通常 HTML 会忽略 </pre> 前紧跟的最后一个换行)
     if (result.length > 0 && result[result.length - 1].type === "newline") {
       result.pop();
     }
-    
+
     return result;
   }
 
   // 非预格式化标签：移除首尾换行，中间换行转空格
   const result: Token[] = [];
-  
+
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    
+
     // 将 newline token 转换为空格文本 token
     // 在 HTML 块上下文中，换行符通常应视为空格，而不是硬换行 <br>
     if (token.type === "newline") {
@@ -44,7 +44,7 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
       if (i === 0 || i === tokens.length - 1) {
         continue;
       }
-      
+
       // 中间的换行转为空格
       result.push({
         type: "text",
@@ -54,7 +54,7 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
       result.push(token);
     }
   }
-  
+
   return result;
 }
 
@@ -133,19 +133,10 @@ export function parseHtmlBlock(
       const normalizedTokens = normalizeHtmlTokens(contentTokens, tagName);
       htmlNode.children = ctx.parseInlines(normalizedTokens);
     } else {
-      // 检测是否只包含内联内容（没有块级结构）
-      // 如果内容中没有双换行、没有块级标记，则视为纯内联内容
-      const hasBlockStructure = hasBlockLevelStructure(contentTokens);
-
-      if (!hasBlockStructure) {
-        // 纯内联内容，直接使用内联解析，避免被包裹成段落
-        // 预处理 tokens，处理换行符
-        const normalizedTokens = normalizeHtmlTokens(contentTokens, tagName);
-        htmlNode.children = ctx.parseInlines(normalizedTokens);
-      } else {
-        // 包含块级结构，使用HTML内容专用解析(不包裹内联HTML为段落)
-        htmlNode.children = parseHtmlContent(ctx, contentTokens);
-      }
+      // 对于其他所有块级标签（如 <div>, <td>, <li> 等），
+      // 其内容应该被当作一个独立的 Markdown 文档片段进行完整的块级解析。
+      // 这可以正确处理嵌套在 HTML 标签内的 Markdown 块级语法（如代码块、列表、公式等）。
+      htmlNode.children = ctx.parseBlocks(contentTokens);
     }
   }
 
@@ -178,6 +169,44 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
 
     // 跳过 HTML 注释
     if (token.type === "html_comment") {
+      i++;
+      continue;
+    }
+
+    // KaTeX 块级公式（应作为块级元素处理）
+    if (token.type === "katex_block") {
+      nodes.push({
+        id: "",
+        type: "katex_block",
+        props: { content: token.content },
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
+      });
+      i++;
+      continue;
+    }
+
+    // 代码块（应作为块级元素处理）
+    if (token.type === "code_fence") {
+      const language = token.language || "";
+      const content = token.raw;
+      const closed = token.closed ?? true;
+
+      // 检查是否是 Mermaid 图表
+      if (language.toLowerCase() === "mermaid" && closed) {
+        nodes.push({
+          id: "",
+          type: "mermaid",
+          props: { content },
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+      } else {
+        nodes.push({
+          id: "",
+          type: "code_block",
+          props: { language, content, closed },
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+      }
       i++;
       continue;
     }

@@ -668,10 +668,17 @@ const copyComparison = async () => {
     return;
   }
 
-  const htmlContent = renderContainerRef.value.innerHTML;
+  let htmlContent = renderContainerRef.value.innerHTML;
   if (!htmlContent.trim() || renderContainerRef.value.querySelector(".empty-placeholder")) {
     customMessage.warning("没有可复制的 HTML 内容");
     return;
+  }
+
+  // 根据选项决定是否移除块信息属性
+  if (!copyOptions.value.includeBlockInfo) {
+    // 使用正则表达式移除 data-node-id 和 data-node-status 属性
+    htmlContent = htmlContent.replace(/\s*data-node-id="[^"]*"/g, "");
+    htmlContent = htmlContent.replace(/\s*data-node-status="[^"]*"/g, "");
   }
 
   // 提取渲染后的纯文本（去除HTML标签）

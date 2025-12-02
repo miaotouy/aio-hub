@@ -549,6 +549,7 @@ export interface CopyOptions {
   includeNormalizedRendered: boolean;
   includeComparison: boolean;
   includeStyleConfig: boolean;
+  includeBlockInfo: boolean;
 }
 
 /**

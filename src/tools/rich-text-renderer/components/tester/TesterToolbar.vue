@@ -105,6 +105,7 @@
             >
             <el-checkbox v-model="copyOptions.includeComparison">对比信息</el-checkbox>
             <el-checkbox v-model="copyOptions.includeStyleConfig">MD 样式配置</el-checkbox>
+            <el-checkbox v-model="copyOptions.includeBlockInfo">块信息属性</el-checkbox>
           </div>
         </el-popover>
       </el-button-group>

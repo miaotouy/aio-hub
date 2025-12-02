@@ -74,9 +74,12 @@ export const callCohereApi = async (
   const body: any = {
     model: options.modelId,
     messages: messages,
-    max_tokens: commonParams.maxTokens || 4000,
     temperature: commonParams.temperature ?? 0.5,
   };
+
+  if (commonParams.maxTokens !== undefined) {
+    body.max_tokens = commonParams.maxTokens;
+  }
 
   // 思考能力配置 (V2 API)
   if (options.thinkingEnabled !== undefined) {

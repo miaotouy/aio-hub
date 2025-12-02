@@ -108,8 +108,6 @@ export const callOpenAiCompatibleApi = async (
     body.max_completion_tokens = options.maxCompletionTokens;
   } else if (commonParams.maxTokens !== undefined) {
     body.max_tokens = commonParams.maxTokens;
-  } else {
-    body.max_tokens = 4000;
   }
 
   // 添加通用参数

@@ -112,9 +112,12 @@ export const callOpenAiResponsesApi = async (
   const body: any = {
     model: options.modelId,
     input,
-    max_output_tokens: commonParams.maxTokens || 4000,
     temperature: commonParams.temperature ?? 1.0,
   };
+
+  if (commonParams.maxTokens !== undefined) {
+    body.max_output_tokens = commonParams.maxTokens;
+  }
 
   // 添加系统指令 - 从 messages 中提取的 system 消息
   if (systemMessages.length > 0) {

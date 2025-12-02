@@ -39,6 +39,12 @@ export const BLOCK_LEVEL_TAGS = new Set([
   "noscript",
   "script",
   "style",
+  "tbody",
+  "thead",
+  "tfoot",
+  "tr",
+  "th",
+  "td",
 ]);
 
 export function isBlockLevelTag(tagName: string): boolean {

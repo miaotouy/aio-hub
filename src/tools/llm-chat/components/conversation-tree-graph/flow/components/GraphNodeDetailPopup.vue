@@ -260,20 +260,18 @@ const chatMessageProps = computed(() => {
 .detail-popup-content :deep(.chat-message) {
   /* 在弹窗内，外层容器已提供 padding，故移除组件自身的 padding 以免双重边距 */
   padding: 0;
-  border: none;
-  box-shadow: none;
+  /* 移除过渡效果 */
+  transition: none;
 }
 
-/* 专门处理背景层，使其透明 */
-.detail-popup-content :deep(.message-background) {
-  background-color: transparent;
-  backdrop-filter: none;
-  border-color: transparent;
+/* 移除 ChatMessage 自带的边框层 (伪元素) */
+.detail-popup-content :deep(.chat-message::after) {
+  display: none;
 }
 
-/* 移除悬浮时的高亮效果，现在需要作用在背景层上 */
-.detail-popup-content :deep(.chat-message:hover .message-background) {
-  border-color: transparent;
+/* 移除 ChatMessage 自带的背景层容器 */
+.detail-popup-content :deep(.message-background-container) {
+  display: none;
 }
 
 .resize-handle {

@@ -14,8 +14,9 @@ const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
 
 export function useChatResponseHandler() {
-  // 用于节流 reasoning 更新的 Map
+  // 用于节流 reasoning 和 content 更新的 Map
   const reasoningUpdateBuffer = new Map<string, { buffer: string; isScheduled: boolean }>();
+  const contentUpdateBuffer = new Map<string, { buffer: string; isScheduled: boolean }>();
 
   /**
    * 处理流式响应更新
@@ -67,30 +68,46 @@ export function useChatResponseHandler() {
         });
       }
     } else {
-      // 正文内容流式更新
-      // 如果这是第一次接收正文内容，且之前有推理内容但还没记录结束时间
-      if (
-        node.content === "" &&
-        node.metadata?.reasoningContent &&
-        node.metadata?.reasoningStartTime &&
-        !node.metadata?.reasoningEndTime
-      ) {
-        // 在开始显示正文前，强制刷新一次 reasoning 缓冲区，确保显示完整
-        const bufferedState = reasoningUpdateBuffer.get(nodeId);
-        if (bufferedState && bufferedState.buffer) {
-          node.metadata.reasoningContent += bufferedState.buffer;
-          bufferedState.buffer = "";
-        }
+      // 正文内容流式更新（节流）
+      if (!contentUpdateBuffer.has(nodeId)) {
+        contentUpdateBuffer.set(nodeId, { buffer: "", isScheduled: false });
+      }
+      const contentState = contentUpdateBuffer.get(nodeId)!;
+      contentState.buffer += chunk;
 
-        node.metadata.reasoningEndTime = Date.now();
-        logger.info("🕐 推理结束时间已记录（正文开始）", {
-          nodeId,
-          startTime: node.metadata.reasoningStartTime,
-          endTime: node.metadata.reasoningEndTime,
-          duration: node.metadata.reasoningEndTime - node.metadata.reasoningStartTime,
+      if (!contentState.isScheduled) {
+        contentState.isScheduled = true;
+        requestAnimationFrame(() => {
+          const nodeToUpdate = session.nodes[nodeId];
+          if (nodeToUpdate) {
+            // 在更新前检查是否需要结束 reasoning
+            if (
+              nodeToUpdate.content === "" &&
+              nodeToUpdate.metadata?.reasoningContent &&
+              nodeToUpdate.metadata?.reasoningStartTime &&
+              !nodeToUpdate.metadata?.reasoningEndTime
+            ) {
+              // 强制刷新一次 reasoning 缓冲区
+              const reasoningState = reasoningUpdateBuffer.get(nodeId);
+              if (reasoningState && reasoningState.buffer) {
+                nodeToUpdate.metadata.reasoningContent += reasoningState.buffer;
+                reasoningState.buffer = "";
+              }
+              nodeToUpdate.metadata.reasoningEndTime = Date.now();
+              logger.info("🕐 推理结束时间已记录（正文开始）", {
+                nodeId,
+                startTime: nodeToUpdate.metadata.reasoningStartTime,
+                endTime: nodeToUpdate.metadata.reasoningEndTime,
+                duration:
+                  nodeToUpdate.metadata.reasoningEndTime - nodeToUpdate.metadata.reasoningStartTime,
+              });
+            }
+            nodeToUpdate.content += contentState.buffer;
+          }
+          contentState.buffer = "";
+          contentState.isScheduled = false;
         });
       }
-      node.content += chunk;
     }
   };
 
@@ -175,13 +192,33 @@ export function useChatResponseHandler() {
     response: any,
     agentId: string
   ): Promise<void> => {
+    // 强制刷新所有缓冲区以确保最终状态正确
+    const flushAllBuffers = () => {
+      const node = session.nodes[nodeId];
+      if (!node) return;
+
+      const rState = reasoningUpdateBuffer.get(nodeId);
+      if (rState && rState.buffer) {
+        if (!node.metadata) node.metadata = {};
+        node.metadata.reasoningContent = (node.metadata.reasoningContent || "") + rState.buffer;
+        rState.buffer = "";
+      }
+
+      const cState = contentUpdateBuffer.get(nodeId);
+      if (cState && cState.buffer) {
+        node.content = (node.content || "") + cState.buffer;
+        cState.buffer = "";
+      }
+    };
+    flushAllBuffers();
+
     const finalNode = session.nodes[nodeId];
     if (!finalNode) return;
 
     // 处理响应内容中的 Base64 数据，转换为附件
     let processedContent = response.content;
     let newAssets = [];
-    
+
     try {
       const modelId = finalNode.metadata?.modelId || "unknown-model";
       const result = await processInlineData(response.content, {
@@ -197,7 +234,7 @@ export function useChatResponseHandler() {
       });
       processedContent = result.processedText;
       newAssets = result.newAssets;
-      
+
       if (newAssets.length > 0) {
         logger.info("✨ 模型响应中检测到 Base64 数据并已转换为附件", {
           nodeId,
@@ -205,7 +242,7 @@ export function useChatResponseHandler() {
           originalLength: response.content.length,
           processedLength: processedContent.length,
         });
-        
+
         // 将新附件添加到节点
         finalNode.attachments = [...(finalNode.attachments || []), ...newAssets];
       }
@@ -267,13 +304,19 @@ export function useChatResponseHandler() {
       });
     }
 
-    // 在 finalize 阶段，确保所有缓冲的 reasoning 内容都已写入
-    const bufferedState = reasoningUpdateBuffer.get(nodeId);
-    if (bufferedState && bufferedState.buffer) {
+    // 在 finalize 阶段，确保所有缓冲的内容都已写入
+    const reasoningState = reasoningUpdateBuffer.get(nodeId);
+    if (reasoningState && reasoningState.buffer) {
       finalNode.metadata.reasoningContent =
-        (finalNode.metadata.reasoningContent || "") + bufferedState.buffer;
-      bufferedState.buffer = "";
+        (finalNode.metadata.reasoningContent || "") + reasoningState.buffer;
+      reasoningState.buffer = "";
       logger.debug("Flushed remaining reasoning buffer on finalize", { nodeId });
+    }
+    const contentState = contentUpdateBuffer.get(nodeId);
+    if (contentState && contentState.buffer) {
+      finalNode.content += contentState.buffer;
+      contentState.buffer = "";
+      logger.debug("Flushed remaining content buffer on finalize", { nodeId });
     }
 
     // 如果有推理内容和开始时间，恢复时间戳
@@ -294,6 +337,7 @@ export function useChatResponseHandler() {
 
     // 清理缓冲
     reasoningUpdateBuffer.delete(nodeId);
+    contentUpdateBuffer.delete(nodeId);
 
     // 更新会话中的智能体使用统计
     if (!session.agentUsage) {
@@ -333,6 +377,10 @@ export function useChatResponseHandler() {
         context: { nodeId },
       });
     }
+
+    // 清理缓冲
+    reasoningUpdateBuffer.delete(nodeId);
+    contentUpdateBuffer.delete(nodeId);
   };
 
   return {

@@ -23,6 +23,7 @@
           :stream-source="streamSource"
           :cached-input-content="cachedInputContent"
           @openStyleEditor="openStyleEditor"
+          @openAstViewer="openAstViewer"
           @startRender="startRender"
           @stopRender="stopRender"
           @clearOutput="clearOutput"
@@ -96,6 +97,7 @@
             >
               <RichTextRenderer
                 v-if="currentContent || streamSource"
+                ref="rendererRef"
                 :key="renderKey"
                 :content="currentContent"
                 :stream-source="streamSource"
@@ -129,6 +131,9 @@
     >
       <MarkdownStyleEditor v-model="richTextStyleOptions" :loading="isStyleLoading" />
     </DraggablePanel>
+
+    <!-- AST 查看器悬浮窗 -->
+    <AstViewer ref="astViewerPanelRef" v-model="isAstViewerVisible" :data="rendererRef?.ast" />
   </div>
 </template>
 
@@ -144,6 +149,7 @@ import customMessage from "@/utils/customMessage";
 import MarkdownStyleEditor from "./components/style-editor/MarkdownStyleEditor.vue";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
 import type { DraggablePanelInstance } from "@/components/common/DraggablePanel.vue";
+import AstViewer from "./components/ast-viewer/AstViewer.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import TesterConfigSidebar from "./components/tester/TesterConfigSidebar.vue";
 import TesterToolbar from "./components/tester/TesterToolbar.vue";
@@ -199,6 +205,18 @@ const isStyleLoading = ref(false);
 const styleEditorPanelRef = ref<DraggablePanelInstance | null>(null);
 // 标记是否已经初始化过编辑器（配合 destroyOnClose=false 使用）
 const hasInitializedEditor = ref(false);
+
+// AST 查看器状态
+const isAstViewerVisible = ref(false);
+const astViewerPanelRef = ref<InstanceType<typeof AstViewer> | null>(null);
+const rendererRef = ref<InstanceType<typeof RichTextRenderer> | null>(null);
+
+const openAstViewer = () => {
+  isAstViewerVisible.value = true;
+  nextTick(() => {
+    astViewerPanelRef.value?.activate();
+  });
+};
 
 const openStyleEditor = () => {
   // 总是确保面板可见

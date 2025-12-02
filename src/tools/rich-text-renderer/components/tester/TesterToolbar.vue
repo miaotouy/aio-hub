@@ -2,7 +2,11 @@
   <div class="workspace-toolbar">
     <div class="toolbar-left">
       <!-- 侧边栏折叠按钮 -->
-      <el-tooltip :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'" placement="bottom" :show-after="300">
+      <el-tooltip
+        :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'"
+        placement="bottom"
+        :show-after="300"
+      >
         <el-button
           :icon="isConfigCollapsed ? DArrowRight : DArrowLeft"
           @click="$emit('update:isConfigCollapsed', !isConfigCollapsed)"
@@ -12,7 +16,12 @@
 
       <!-- 样式配置按钮 -->
       <el-tooltip content="配置 Markdown 渲染样式" placement="bottom" :show-after="300">
-        <el-button :icon="Brush" @click="$emit('openStyleEditor')" size="small"/>
+        <el-button :icon="Brush" @click="$emit('openStyleEditor')" size="small" />
+      </el-tooltip>
+
+      <!-- 查看 AST 按钮 -->
+      <el-tooltip content="查看当前渲染的 AST 结构" placement="bottom" :show-after="300">
+        <el-button :icon="Atom" @click="$emit('openAstViewer')" size="small" />
       </el-tooltip>
 
       <!-- 渲染状态标签 -->
@@ -115,6 +124,7 @@ import {
   Brush,
   Setting,
 } from "@element-plus/icons-vue";
+import { Atom } from "lucide-vue-next";
 import { storeToRefs } from "pinia";
 import { useRichTextRendererStore } from "../../store";
 import type { StreamSource } from "../../types";
@@ -129,6 +139,7 @@ defineProps<{
 defineEmits<{
   (e: "update:isConfigCollapsed", value: boolean): void;
   (e: "openStyleEditor"): void;
+  (e: "openAstViewer"): void;
   (e: "startRender"): void;
   (e: "stopRender"): void;
   (e: "clearOutput"): void;

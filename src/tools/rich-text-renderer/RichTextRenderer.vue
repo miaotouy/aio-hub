@@ -319,6 +319,11 @@ onBeforeUnmount(() => {
   unsubscribeComplete?.();
   streamProcessor.value?.reset?.();
 });
+
+// 暴露 AST 给父组件（用于测试和调试）
+defineExpose({
+  ast,
+});
 </script>
 
 <style scoped>

@@ -39,7 +39,7 @@
         <div class="card-header">
           <span>上下文统计</span>
           <el-tag v-if="contextData.statistics.tokenizerName" size="small" type="info">
-            {{ contextData.statistics.isEstimated ? "估算" : "精确" }} -
+            {{ contextData.statistics.isEstimated ? "字符估算" : "Token 计算" }} -
             {{ contextData.statistics.tokenizerName }}
           </el-tag>
         </div>

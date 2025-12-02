@@ -1,17 +1,13 @@
 <template>
   <div class="analysis-chart-view">
     <div class="view-header">
-      <el-alert
-        title="内容占比分析"
-        type="success"
-        :closable="false"
-        show-icon
-      >
+      <el-alert title="内容占比分析" type="success" :closable="false" show-icon>
         <template #default>
           <span>
-            {{ chartMode === 'token'
-              ? '以下图表展示了上下文各部分内容的 Token 占比分布。'
-              : '以下图表展示了上下文各部分内容的字符数占比分布。'
+            {{
+              chartMode === "token"
+                ? "以下图表展示了上下文各部分内容的 Token 占比分布。"
+                : "以下图表展示了上下文各部分内容的字符数占比分布。"
             }}
           </span>
         </template>
@@ -32,14 +28,18 @@
           <div class="card-header">
             <span>详细统计</span>
             <el-tag v-if="contextData.statistics.tokenizerName" size="small" type="info">
-              {{ contextData.statistics.isEstimated ? '估算' : '精确' }} - {{ contextData.statistics.tokenizerName }}
+              {{ contextData.statistics.isEstimated ? "字符估算" : "Token 计算" }} -
+              {{ contextData.statistics.tokenizerName }}
             </el-tag>
           </div>
         </template>
         <div class="stats-table">
           <div class="stats-row">
             <span class="stats-label">
-              <span class="color-indicator" :style="{ backgroundColor: themeColors.warning }"></span>
+              <span
+                class="color-indicator"
+                :style="{ backgroundColor: themeColors.warning }"
+              ></span>
               预设消息
             </span>
             <span class="stats-value">
@@ -62,7 +62,10 @@
           </div>
           <div class="stats-row">
             <span class="stats-label">
-              <span class="color-indicator" :style="{ backgroundColor: themeColors.success }"></span>
+              <span
+                class="color-indicator"
+                :style="{ backgroundColor: themeColors.success }"
+              ></span>
               会话历史
             </span>
             <span class="stats-value">
@@ -83,7 +86,13 @@
               </template>
             </span>
           </div>
-          <div class="stats-row" v-if="contextData.statistics.postProcessingTokenCount || contextData.statistics.postProcessingCharCount">
+          <div
+            class="stats-row"
+            v-if="
+              contextData.statistics.postProcessingTokenCount ||
+              contextData.statistics.postProcessingCharCount
+            "
+          >
             <span class="stats-label">
               <span class="color-indicator" :style="{ backgroundColor: themeColors.danger }"></span>
               后处理消耗
@@ -99,8 +108,8 @@
                 </span>
               </template>
               <template v-else-if="contextData.statistics.postProcessingCharCount">
-                 {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
-                 <span class="stats-percent">
+                {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
+                <span class="stats-percent">
                   ({{ getPercentage(contextData.statistics.postProcessingCharCount) }}%)
                 </span>
               </template>
@@ -127,10 +136,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue';
-import InfoCard from '@/components/common/InfoCard.vue';
-import { useContextChart, type ChartMode } from '../../composables/useContextChart';
-import type { ContextPreviewData } from '../../composables/useChatHandler';
+import { ref, onMounted, nextTick, computed, watch } from "vue";
+import InfoCard from "@/components/common/InfoCard.vue";
+import { useContextChart, type ChartMode } from "../../composables/useContextChart";
+import type { ContextPreviewData } from "../../composables/useChatHandler";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
@@ -138,9 +147,12 @@ const props = defineProps<{
 }>();
 
 // 图表模式：token 或 char
-const chartMode = ref<ChartMode>('token');
+const chartMode = ref<ChartMode>("token");
 
-const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(props.contextData, chartMode);
+const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(
+  props.contextData,
+  chartMode
+);
 
 // 图表容器的父元素引用
 const chartContainerRef = ref<HTMLDivElement>();
@@ -152,43 +164,43 @@ const isChartInitialized = ref(false);
 const themeColors = computed(() => {
   const root = getComputedStyle(document.documentElement);
   return {
-    primary: root.getPropertyValue('--el-color-primary').trim() || '#409eff',
-    warning: root.getPropertyValue('--el-color-warning').trim() || '#e6a23c',
-    success: root.getPropertyValue('--el-color-success').trim() || '#67c23a',
-    danger: root.getPropertyValue('--el-color-danger').trim() || '#f56c6c',
+    primary: root.getPropertyValue("--el-color-primary").trim() || "#409eff",
+    warning: root.getPropertyValue("--el-color-warning").trim() || "#e6a23c",
+    success: root.getPropertyValue("--el-color-success").trim() || "#67c23a",
+    danger: root.getPropertyValue("--el-color-danger").trim() || "#f56c6c",
   };
 });
 
 // 计算字符数百分比
 const getPercentage = (value: number): string => {
   const total = props.contextData.statistics.totalCharCount;
-  if (total === 0) return '0.0';
+  if (total === 0) return "0.0";
   return ((value / total) * 100).toFixed(1);
 };
 
 // 计算 token 百分比
 const getTokenPercentage = (value: number): string => {
   const total = props.contextData.statistics.totalTokenCount;
-  if (!total || total === 0) return '0.0';
+  if (!total || total === 0) return "0.0";
   return ((value / total) * 100).toFixed(1);
 };
 
 // 初始化图表（仅在标签页激活时调用一次）
 const initializeChart = () => {
   if (isChartInitialized.value) return;
-  
+
   nextTick(() => {
     // 设置 ResizeObserver 监听容器尺寸变化
     if (chartContainerRef.value) {
       setupResizeObserver(chartContainerRef.value);
     }
-    
+
     // 绘制图表
     drawChart();
-    
+
     // 监听窗口大小变化
-    window.addEventListener('resize', resizeChart);
-    
+    window.addEventListener("resize", resizeChart);
+
     isChartInitialized.value = true;
   });
 };

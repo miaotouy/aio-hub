@@ -58,10 +58,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
       </el-tooltip>
       <!-- Attachment button -->
       <el-tooltip content="添加附件" placement="top">
-        <button
-          class="attachment-button"
-          @click="emit('trigger-attachment')"
-        >
+        <button class="attachment-button" @click="emit('trigger-attachment')">
           <el-icon><Paperclip /></el-icon>
         </button>
       </el-tooltip>
@@ -150,7 +147,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
                 后处理: {{ props.contextStats.postProcessingTokenCount.toLocaleString() }} tokens
               </div>
               <div v-if="props.contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8">
-                {{ props.contextStats.isEstimated ? "估算" : "精确" }} -
+                {{ props.contextStats.isEstimated ? "字符估算" : "Token 计算" }} -
                 {{ props.contextStats.tokenizerName }}
               </div>
             </div>

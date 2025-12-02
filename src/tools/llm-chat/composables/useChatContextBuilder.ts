@@ -137,7 +137,7 @@ export function useChatContextBuilder() {
       // 尝试直接转换数字 (时间戳字符串)
       const num = Number(ts);
       if (isFinite(num)) return num;
-      
+
       // 尝试解析日期字符串 (ISO 格式等)
       const date = new Date(ts);
       if (!isNaN(date.getTime())) {
@@ -781,6 +781,28 @@ export function useChatContextBuilder() {
       }
     }
 
+    // 如果从节点元数据无法恢复 User Profile，尝试从 Agent 配置或全局配置获取
+    // 这种情况通常发生在：
+    // 1. 新会话，还没有生成过节点元数据
+    // 2. 正在预览/编辑 Agent 配置，需要实时反馈当前配置的效果
+    if (!effectiveUserProfile && agentConfig) {
+      if (agentConfig.userProfileId) {
+        effectiveUserProfile = userProfileStore.getProfileById(agentConfig.userProfileId);
+      }
+
+      // 如果 Agent 没有特定绑定，或者是 null（意为继承全局），则使用全局
+      if (!effectiveUserProfile) {
+        effectiveUserProfile = userProfileStore.globalProfile;
+      }
+
+      if (effectiveUserProfile) {
+        logger.debug("上下文预览：使用当前配置的用户档案", {
+          id: effectiveUserProfile.id,
+          source: agentConfig.userProfileId ? "agent_binding" : "global",
+        });
+      }
+    }
+
     // 构建消息列表
     let messages: Array<{
       role: "system" | "user" | "assistant";
@@ -851,31 +873,107 @@ export function useChatContextBuilder() {
     let tokenizerName = "";
 
     // 提取预设消息部分（仅当有 Agent 配置时）
-    // 不再区分 System，直接处理所有非占位符的预设消息
-    const presetMessagesData: ContextPreviewData["presetMessages"] = agentConfig ? await Promise.all(
-      (agentConfig.presetMessages || [])
-        .filter((msg: any) => msg.isEnabled !== false && msg.type !== "chat_history" && msg.type !== "user_profile")
-        .map(async (msg: any, index: number) => {
-          const originalContent = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-          let content = originalContent;
+    let presetMessagesData: ContextPreviewData["presetMessages"] = [];
 
-          // 处理宏：确保 Token 计算基于展开后的内容
+    if (agentConfig) {
+      const rawPresets = agentConfig.presetMessages || [];
+      const hasUserProfilePlaceholder = rawPresets.some((msg: any) => msg.type === "user_profile");
+
+      // 构造待处理列表，包含普通预设和用户档案
+      const itemsToProcess: Array<{
+        role: "system" | "user" | "assistant";
+        content: string;
+        originalContent: string;
+        index: number;
+        isUserProfile?: boolean;
+      }> = [];
+
+      // 1. 遍历原始预设消息
+      for (let i = 0; i < rawPresets.length; i++) {
+        const msg = rawPresets[i];
+        if (msg.isEnabled === false) continue;
+        if (msg.type === "chat_history") continue; // 跳过历史占位符
+
+        if (msg.type === "user_profile") {
+          // 如果遇到用户档案占位符，且有有效档案，则插入
+          if (effectiveUserProfile) {
+            const userProfileContent = `# 用户档案\n${effectiveUserProfile.content}`;
+            itemsToProcess.push({
+              role: msg.role || "system", // 使用配置的角色，默认为 system
+              content: userProfileContent,
+              originalContent: userProfileContent,
+              index: i,
+              isUserProfile: true,
+            });
+          }
+          continue;
+        }
+
+        // 普通消息
+        const contentStr = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+        itemsToProcess.push({
+          role: msg.role,
+          content: contentStr,
+          originalContent: contentStr,
+          index: i,
+        });
+      }
+
+      // 2. 如果没有占位符但有档案，追加到 System 消息组的末尾
+      // (为了模拟 buildLlmContext 中 System 消息优先的行为，我们需要将其插在合适的位置)
+      if (!hasUserProfilePlaceholder && effectiveUserProfile) {
+        const userProfileContent = `# 用户档案\n${effectiveUserProfile.content}`;
+        const newItem = {
+          role: "system" as const,
+          content: userProfileContent,
+          originalContent: userProfileContent,
+          index: rawPresets.length,
+          isUserProfile: true,
+        };
+
+        // 找到最后一个 system 消息的位置
+        let lastSystemIndex = -1;
+        for (let i = itemsToProcess.length - 1; i >= 0; i--) {
+          if (itemsToProcess[i].role === "system") {
+            lastSystemIndex = i;
+            break;
+          }
+        }
+
+        if (lastSystemIndex !== -1) {
+          // 插在最后一个 system 消息之后
+          itemsToProcess.splice(lastSystemIndex + 1, 0, newItem);
+        } else {
+          // 如果没有 system 消息，插在最前面
+          itemsToProcess.unshift(newItem);
+        }
+      }
+
+      // 3. 批量处理宏和 Token 计算
+      presetMessagesData = await Promise.all(
+        itemsToProcess.map(async (item) => {
+          let content = item.content;
+
+          // 处理宏
           try {
             content = await processMacros(content, {
               session,
               agent: agent ?? undefined,
-              userProfile: effectiveUserProfile, // 注入恢复的用户档案
+              userProfile: effectiveUserProfile,
               timestamp: targetTimestamp,
             });
           } catch (error) {
-            logger.warn("预设消息宏处理失败，将使用原始内容", { index, error });
+            logger.warn("预设消息宏处理失败，将使用原始内容", { index: item.index, error });
           }
 
           const sanitizedContent = sanitizeForCharCount(content);
 
           let tokenCount: number | undefined;
           try {
-            const tokenResult = await tokenCalculatorService.calculateTokens(content, agentConfig.modelId);
+            const tokenResult = await tokenCalculatorService.calculateTokens(
+              content,
+              agentConfig.modelId
+            );
             tokenCount = tokenResult.count;
             presetMessagesTokenCount += tokenResult.count;
             if (tokenResult.isEstimated) isEstimated = true;
@@ -883,23 +981,29 @@ export function useChatContextBuilder() {
               tokenizerName = tokenResult.tokenizerName;
             }
           } catch (error) {
-            logger.warn("计算预设消息 token 失败", { index, error: error instanceof Error ? error.message : String(error) });
+            logger.warn("计算预设消息 token 失败", {
+              index: item.index,
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
 
           return {
-            role: msg.role,
+            role: item.role,
             content,
-            originalContent,
+            originalContent: item.originalContent,
             charCount: sanitizedContent.length,
             tokenCount,
             source: "agent_preset",
-            index,
+            index: item.index,
             // 如果是 user 角色，注入当时的用户信息
-            userName: msg.role === 'user' ? effectiveUserProfile?.name : undefined, // 修正：使用 name (ID)
-            userIcon: msg.role === 'user' ? effectiveUserProfile?.icon : undefined
+            userName: item.role === "user" ? effectiveUserProfile?.name : undefined,
+            userIcon: item.role === "user" ? effectiveUserProfile?.icon : undefined,
+            // 标记是否为用户档案（可选，用于前端特殊展示）
+            isUserProfile: item.isUserProfile,
           };
         })
-    ) : [];
+      );
+    }
     // 从节点路径中提取会话历史
     const chatHistoryData = await Promise.all(
       nodePath

@@ -205,6 +205,16 @@
                     </el-icon>
                     用户档案占位符
                   </el-tag>
+                  <!-- Token 数量 -->
+                  <el-tag
+                    v-if="props.modelId && messageTokens.has(element.id) && element.isEnabled"
+                    size="small"
+                    type="info"
+                    effect="plain"
+                    class="token-tag"
+                  >
+                    {{ messageTokens.get(element.id) }} tokens
+                  </el-tag>
                 </div>
 
                 <!-- 消息文本预览 -->
@@ -225,7 +235,6 @@
                 />
               </div>
             </div>
-
             <!-- 普通预设消息 - 紧凑模式 -->
             <div
               v-else-if="props.compact"
@@ -372,6 +381,7 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import yaml from "js-yaml";
 import { useUserProfileStore } from "../../userProfileStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
+import { MacroProcessor, createMacroContext } from "../../macro-engine";
 import {
   QuestionFilled,
   Download,
@@ -393,10 +403,7 @@ import { customMessage } from "@/utils/customMessage";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "./PresetMessageEditor.vue";
 import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
-import type {
-  LlmThinkRule,
-  RichTextRendererStyleOptions,
-} from "@/tools/rich-text-renderer/types";
+import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {
   modelValue?: ChatMessageNode[];
@@ -469,14 +476,48 @@ const calculateAllTokens = async () => {
   const newTokens = new Map<string, number>();
   let hasChanges = false;
 
+  // 创建宏处理上下文
+  const macroContext = createMacroContext({
+    userName: effectiveUserProfile.value?.name || "User",
+    charName: props.agentName || "Assistant",
+    userProfile: effectiveUserProfile.value || undefined,
+    agent: props.agent as any,
+  });
+  const macroProcessor = new MacroProcessor();
+
   for (const message of localMessages.value) {
-    // 跳过占位符
-    if (message.type === "chat_history" || message.type === "user_profile") {
+    // 跳过历史记录占位符（无法预估）
+    if (message.type === "chat_history") {
       continue;
     }
 
+    // 处理用户档案占位符
+    if (message.type === "user_profile") {
+      if (message.isEnabled && effectiveUserProfile.value) {
+        try {
+          // 模拟 useChatContextBuilder 中的构建逻辑
+          const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.value.content}`;
+
+          // 使用 MacroProcessor 进行宏替换
+          const processed = await macroProcessor.process(userProfilePrompt, macroContext);
+
+          const result = await tokenCalculatorEngine.calculateTokens(
+            processed.output,
+            props.modelId
+          );
+          newTokens.set(message.id, result.count);
+        } catch (error) {
+          console.error(`Failed to calculate tokens for user profile:`, error);
+        }
+      }
+      continue;
+    }
+
+    // 处理普通消息
     try {
-      const result = await tokenCalculatorEngine.calculateTokens(message.content, props.modelId);
+      // 先进行宏替换，再计算 Token
+      const processed = await macroProcessor.process(message.content, macroContext);
+      const result = await tokenCalculatorEngine.calculateTokens(processed.output, props.modelId);
       newTokens.set(message.id, result.count);
 
       // 同步更新到消息的 metadata（如果值有变化或不存在）

@@ -1,5 +1,6 @@
-import { ref, onMounted, onUnmounted, Ref, watch } from 'vue'
+import { ref, onMounted, onUnmounted, Ref, watch, reactive } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { nanoid } from 'nanoid'
 import { customMessage } from '@/utils/customMessage'
 import { createModuleLogger } from '@utils/logger'
 import { createModuleErrorHandler } from '@/utils/errorHandler'
@@ -99,59 +100,112 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 粘贴处理状态
   const isPasting = ref(false)
 
-  // 处理文件对象到 Asset 的转换
+  // 处理文件对象到 Asset 的转换（优化版：立即返回临时 Asset，后台异步上传）
   const convertFilesToAssets = async (files: File[]): Promise<Asset[]> => {
     const assets: Asset[] = []
-    
+
     for (const file of files) {
       try {
-        // 读取文件为 ArrayBuffer
-        const arrayBuffer = await file.arrayBuffer()
-        const bytes = new Uint8Array(arrayBuffer)
-        
         // 生成文件名（如果文件名为空或是默认名称，使用类型生成）
         let filename = file.name
         if (!filename || filename === 'image.png') {
           // 使用本地时间生成时间戳
           const timestamp = formatDateTime(new Date(), 'yyyy-MM-ddTHH-mm-ss-SSS')
-          
           const extension = file.type.split('/')[1] || 'bin'
           const typePrefix = file.type.startsWith('image/') ? 'image' : 'file'
           filename = `pasted-${typePrefix}-${timestamp}.${extension}`
         }
-        
-        // 调用后端 API 导入文件
-        const asset = await invoke<Asset>('import_asset_from_bytes', {
-          bytes: Array.from(bytes),
-          originalName: filename,
-          options: {
-            ...assetOptions,
-            origin: {
+
+        // 1. 创建临时 Asset 用于立即展示
+        // 使用 reactive 确保属性变更能被 Vue 追踪
+        const blobUrl = URL.createObjectURL(file)
+        const tempId = nanoid()
+        const tempAsset = reactive<Asset>({
+          id: tempId,
+          type: file.type.startsWith('image/') ? 'image' : 'other', // 简单判断类型
+          mimeType: file.type,
+          name: filename,
+          path: blobUrl, // 使用 blob URL 作为临时路径用于预览
+          size: file.size,
+          createdAt: new Date().toISOString(),
+          sourceModule,
+          origins: [
+            {
               type: 'clipboard',
               source: 'clipboard',
               sourceModule,
             },
-          },
+          ],
+          importStatus: 'importing', // 标记为正在导入
+          originalPath: blobUrl, // 暂存原始路径
         })
-        
-        assets.push(asset)
-        
-        logger.info('文件转换为 Asset 成功', {
-          filename,
-          assetId: asset.id,
-          type: file.type,
-        })
+
+        assets.push(tempAsset)
+
+        // 2. 启动后台异步上传任务
+        // 注意：这里不使用 await，让它在后台运行
+        ;(async () => {
+          try {
+            const arrayBuffer = await file.arrayBuffer()
+            const bytes = new Uint8Array(arrayBuffer)
+
+            // 调用后端 API 导入文件
+            const realAsset = await invoke<Asset>('import_asset_from_bytes', {
+              bytes: Array.from(bytes),
+              originalName: filename,
+              options: {
+                ...assetOptions,
+                origin: {
+                  type: 'clipboard',
+                  source: 'clipboard',
+                  sourceModule,
+                },
+              },
+            })
+
+            // 3. 上传成功，更新临时 Asset 的属性
+            // 注意：必须修改原对象以保持引用一致，从而触发 UI 更新
+            URL.revokeObjectURL(blobUrl) // 释放 blob URL
+
+            // 复制真实 Asset 的属性到临时对象
+            Object.assign(tempAsset, {
+              ...realAsset,
+              importStatus: 'complete',
+            })
+
+            // 清理临时属性
+            if ('originalPath' in tempAsset) {
+              delete (tempAsset as any).originalPath
+            }
+
+            logger.info('文件后台上传完成，已更新 Asset', {
+              filename,
+              tempId,
+              realId: realAsset.id,
+            })
+          } catch (error) {
+            // 处理上传失败
+            tempAsset.importStatus = 'error'
+            tempAsset.importError = error instanceof Error ? error.message : '上传失败'
+            
+            logger.error('文件后台上传失败', error, { filename })
+            errorHandler.error(error, `文件 ${filename} 上传失败`, {
+              showToUser: false,
+              context: { filename },
+            })
+          }
+        })()
       } catch (error) {
-        // 这里不向上抛出错误，以免中断整个粘贴过程
-        errorHandler.error(error, `文件 ${file.name} 转换为 Asset 失败`, {
+        // 创建临时 Asset 阶段的错误（极少发生）
+        errorHandler.error(error, `准备文件 ${file.name} 失败`, {
           context: {
             filename: file.name,
             type: file.type,
-          }
-        });
+          },
+        })
       }
     }
-    
+
     return assets
   }
 

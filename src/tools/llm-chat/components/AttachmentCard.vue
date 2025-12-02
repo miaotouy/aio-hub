@@ -103,7 +103,10 @@ const loadAssetUrl = async () => {
       const originalPath = props.asset.originalPath || props.asset.path;
       if (!originalPath) throw new Error("缺少原始路径");
 
-      const fileUrl = convertFileSrc(originalPath);
+      // 如果是 blob URL，直接使用，不需要转换
+      const fileUrl = originalPath.startsWith("blob:")
+        ? originalPath
+        : convertFileSrc(originalPath);
 
       if (isVideo.value) {
         // 视频：尝试生成预览
@@ -214,7 +217,10 @@ const handleImagePreview = async () => {
         // pending 状态：使用 convertFileSrc 创建 URL
         const originalPath = imageAsset.originalPath || imageAsset.path;
         if (originalPath) {
-          const url = convertFileSrc(originalPath);
+          // 如果是 blob URL，直接使用，不需要转换
+          const url = originalPath.startsWith("blob:")
+            ? originalPath
+            : convertFileSrc(originalPath);
           imageUrls.push(url);
         }
       } else {

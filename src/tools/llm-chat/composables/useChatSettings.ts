@@ -112,6 +112,13 @@ export interface ChatSettings {
     /** 命名时携带的上下文消息数量 */
     contextMessageCount: number;
   };
+  /** 请求设置 */
+  requestSettings: {
+    /** 请求超时时间（毫秒） */
+    timeout: number;
+    /** 最大重试次数 */
+    maxRetries: number;
+  };
   /** 开发者设置 */
   developer: {
     /** 是否启用调试模式 */
@@ -173,6 +180,10 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     autoTriggerThreshold: 3, // 当会话中有 3 条用户消息时自动触发
     contextMessageCount: 6, // 使用最近 6 条消息作为上下文
   },
+  requestSettings: {
+    timeout: 60000, // 默认 60 秒
+    maxRetries: 3, // 默认重试 3 次
+  },
   developer: {
     debugModeEnabled: false,
   },
@@ -213,6 +224,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       topicNaming: {
         ...defaultConfig.topicNaming,
         ...(loadedConfig.topicNaming || {}),
+      },
+      requestSettings: {
+        ...defaultConfig.requestSettings,
+        ...(loadedConfig.requestSettings || {}),
       },
       developer: {
         ...defaultConfig.developer,
@@ -302,6 +317,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       topicNaming: {
         ...settings.value.topicNaming,
         ...(updates.topicNaming || {}),
+      },
+      requestSettings: {
+        ...settings.value.requestSettings,
+        ...(updates.requestSettings || {}),
       },
       developer: {
         ...settings.value.developer,

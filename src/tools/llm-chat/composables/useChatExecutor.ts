@@ -251,6 +251,9 @@ try {
         // 流式响应（根据用户设置）
         stream: settings.value.uiPreferences.isStreaming,
         signal: abortController.signal,
+        // 请求设置（超时和重试）
+        timeout: settings.value.requestSettings.timeout,
+        maxRetries: settings.value.requestSettings.maxRetries,
         onStream: settings.value.uiPreferences.isStreaming
           ? (chunk: string) => {
             handleStreamUpdate(session, assistantNode.id, chunk, false);

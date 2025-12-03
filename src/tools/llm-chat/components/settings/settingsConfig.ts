@@ -8,6 +8,7 @@ import {
   PenTool,
   TerminalSquare,
   Palette,
+  Globe,
 } from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
@@ -424,6 +425,40 @@ export const settingsConfig: SettingsSection[] = [
         hint: "生成标题时引用的最近消息数量",
         keywords: "topic naming context message 话题 命名 上下文",
         visible: (settings) => settings.topicNaming.enabled,
+      },
+    ],
+  },
+  {
+    title: "请求设置",
+    icon: Globe,
+    items: [
+      {
+        id: "timeout",
+        label: "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
+        component: "ElSlider",
+        props: {
+          min: 10000,
+          max: 300000,
+          step: 5000,
+          "format-tooltip": (val: number) => `${(val / 1000).toFixed(0)}秒`,
+        },
+        modelPath: "requestSettings.timeout",
+        hint: "LLM 请求的超时时间，超时后会自动重试（如果未达到最大重试次数）",
+        keywords: "request timeout 请求 超时",
+      },
+      {
+        id: "maxRetries",
+        label: "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 10,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}次`,
+        },
+        modelPath: "requestSettings.maxRetries",
+        hint: "请求失败（超时或网络错误）时的最大重试次数，设为 0 表示不重试",
+        keywords: "request retry 请求 重试",
       },
     ],
   },

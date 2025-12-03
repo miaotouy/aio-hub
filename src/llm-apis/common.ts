@@ -291,6 +291,16 @@ export interface LlmResponse {
 }
 
 /**
+ * 自定义超时错误
+ */
+export class TimeoutError extends Error {
+  constructor(message = 'Request timed out') {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
+/**
  * 延迟函数
  */
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -310,15 +320,20 @@ export const fetchWithRetry = async (
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const timeoutId = setTimeout(() => {
+        controller.abort(new TimeoutError(`Request timed out after ${timeout}ms`));
+      }, timeout);
 
       // 如果外部信号已经中止，立即抛出错误
       if (externalSignal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
+        throw externalSignal.reason || new DOMException('Aborted', 'AbortError');
       }
 
       // 监听外部中止信号
-      const externalAbortHandler = () => controller.abort();
+      const externalAbortHandler = () => {
+        // 传递外部信号的原因
+        controller.abort(externalSignal?.reason);
+      };
       externalSignal?.addEventListener('abort', externalAbortHandler);
 
       const response = await fetch(url, {
@@ -348,9 +363,9 @@ export const fetchWithRetry = async (
     } catch (error: any) {
       lastError = error;
 
-      // 如果是超时或网络错误，重试
-      if (attempt < maxRetries && (error.name === "AbortError" || error instanceof TypeError)) {
-        logger.warn(`请求失败，第 ${attempt + 1}/${maxRetries} 次重试`, {
+      // 如果是超时或网络错误，可以重试
+      if (attempt < maxRetries && (error instanceof TimeoutError || error instanceof TypeError)) {
+        logger.warn(`请求失败 (${error.name})，第 ${attempt + 1}/${maxRetries} 次重试`, {
           url,
           error: error.message,
         });
@@ -358,6 +373,7 @@ export const fetchWithRetry = async (
         continue;
       }
 
+      // 其他错误（包括用户取消）不重试，直接抛出
       throw error;
     }
   }

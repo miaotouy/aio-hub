@@ -7,6 +7,7 @@ import { useLlmProfiles } from "./useLlmProfiles";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
+import { TimeoutError } from "../llm-apis/common";
 import { callOpenAiCompatibleApi } from "../llm-apis/openai-compatible";
 import { callOpenAiResponsesApi } from "../llm-apis/openai-responses";
 import { callGeminiApi } from "../llm-apis/gemini";
@@ -115,8 +116,23 @@ export function useLlmRequest() {
 
       return response;
     } catch (error) {
+      // TimeoutError 是请求超时
+      if (error instanceof TimeoutError) {
+        logger.warn("LLM 请求超时", {
+          profileId: options.profileId,
+          modelId: options.modelId,
+          timeout: options.timeout,
+        });
+        errorHandler.warn(error, "请求超时，请检查网络连接或增加超时时间", {
+          context: {
+            profileId: options.profileId,
+            modelId: options.modelId,
+            timeout: options.timeout,
+          }
+        });
+      }
       // AbortError 是用户主动取消，不应该记录为错误
-      if (error instanceof Error && error.name === 'AbortError') {
+      else if (error instanceof Error && error.name === 'AbortError') {
         logger.info("LLM 请求已取消", {
           profileId: options.profileId,
           modelId: options.modelId,

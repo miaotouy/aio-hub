@@ -584,6 +584,20 @@ class WindowSyncBus {
   }
 
   /**
+   * 检查是否存在下游窗口（detached-component）
+   */
+  get hasDownstreamWindows() {
+    return computed(() => {
+      for (const windowInfo of this.connectedWindows.value.values()) {
+        if (windowInfo.type === 'detached-component') {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  /**
    * 清理资源
    */
   cleanup(): void {
@@ -656,6 +670,7 @@ export function useWindowSyncBus() {
     windowLabel: bus['windowLabel'],
     windowType: bus['windowType'],
     connectedWindows: bus.connectedWindowsList,
+    hasDownstreamWindows: bus.hasDownstreamWindows,
 
     // 核心 API
     syncState: bus.syncState.bind(bus),

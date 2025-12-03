@@ -37,8 +37,8 @@ const isInDetachedToolWindow = bus.windowType === "detached-tool";
 logger.info("LlmChat 窗口类型", { windowType: bus.windowType, isInDetachedToolWindow });
 
 // 初始化状态同步引擎（智能体、会话、设置等）
-// 注意：不立即初始化，等待数据加载完成后再启动
-const { initialize: initializeSync } = useLlmChatSync();
+// 该 Composable 现在会自动管理其生命周期，无需手动初始化
+useLlmChatSync();
 
 // UI状态持久化
 const {
@@ -145,9 +145,8 @@ onMounted(async () => {
         settingsLoaded: chatSettings.isLoaded.value,
       });
 
-      // 2. 数据加载完成后，再启动状态同步引擎
-      initializeSync();
-      logger.info("主窗口：状态同步引擎已启动");
+      // 2. 状态同步引擎已由 useLlmChatSync 自动管理
+      logger.info("主窗口：状态同步服务已激活");
 
       // 3. 处理初始会话
       if (store.sessions.length === 0 && agentStore.currentAgentId) {
@@ -177,9 +176,8 @@ onMounted(async () => {
         settingsLoaded: chatSettings.isLoaded.value,
       });
 
-      // 2. 数据加载完成后，启动状态同步引擎用于后续的跨窗口状态同步
-      initializeSync();
-      logger.info("分离窗口：状态同步引擎已启动（用于跨窗口同步）");
+      // 2. 状态同步引擎已由 useLlmChatSync 自动管理
+      logger.info("分离窗口：状态同步服务已激活（用于跨窗口同步）");
     } catch (error) {
       errorHandler.error(error, "分离窗口初始化LLM Chat模块失败", { showToUser: false });
     } finally {

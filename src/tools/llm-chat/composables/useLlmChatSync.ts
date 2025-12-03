@@ -43,6 +43,18 @@ export function useLlmChatSync() {
   });
 
   /**
+   * 清理所有同步引擎
+   */
+  function cleanupEngines() {
+    if (stateEngines.length > 0) {
+      logger.info('清理所有同步引擎', { count: stateEngines.length });
+      stateEngines.forEach(engine => engine.cleanup());
+      stateEngines.length = 0;
+    }
+    isInitialized = false;
+  }
+
+  /**
    * 初始化同步引擎
    * 必须在数据加载完成后调用
    */
@@ -51,6 +63,9 @@ export function useLlmChatSync() {
       logger.warn('同步引擎已初始化，跳过重复初始化');
       return;
     }
+
+    // 清理旧引擎，以防万一
+    cleanupEngines();
 
     // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
     // 这样分离窗口能获得完整的上下文，可以独立工作
@@ -198,13 +213,31 @@ export function useLlmChatSync() {
     bus.onActionRequest(handleActionRequest);
     logger.info('已注册操作请求处理器', { windowType: bus.windowType });
     
+    // 动态初始化和清理同步引擎
+    watch(bus.hasDownstreamWindows, (hasDownstream) => {
+      if (hasDownstream) {
+        logger.info('检测到下游窗口，初始化同步引擎');
+        initialize();
+      } else {
+        logger.info('所有下游窗口已关闭，清理同步引擎');
+        cleanupEngines();
+      }
+    }, { immediate: true });
+
     // 注意：初始状态请求和重连广播现已由 useStateSyncEngine 的全局注册中心自动处理
     // 无需在此处手动维护
   } else {
     logger.info('detached-component 窗口，不注册处理器（操作将代理至拥有数据的窗口）', { windowType: bus.windowType });
   }
 
-  return {
-    initialize,
-  };
+  // detached-component 窗口需要主动请求初始状态
+  if (bus.windowType === 'detached-component') {
+    // 延迟一点，确保主窗口的监听器已准备好
+    setTimeout(() => {
+      bus.requestInitialState();
+    }, 100);
+  }
+
+  // 返回一个空对象或特定函数，因为现在初始化是自动的
+  return {};
 }

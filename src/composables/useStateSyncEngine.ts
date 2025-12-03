@@ -119,6 +119,12 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   let stopWatching: (() => void) | null = null;
 
     const pushState = async (isFullSync = false, targetWindowLabel?: string, silent = false) => {
+      // 如果没有目标窗口，且没有下游消费者，则跳过同步
+      if (!targetWindowLabel && !bus.hasDownstreamWindows.value) {
+        // logger.debug('没有下游窗口，跳过同步', { stateKey });
+        return;
+      }
+      
       if (!isInitialized) {
         logger.warn('无法推送状态，因为未初始化', { stateKey });
         return;

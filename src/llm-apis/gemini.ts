@@ -9,6 +9,7 @@ import {
   parseToolChoice,
   extractCommonParameters,
   inferMediaMimeType,
+  applyCustomParameters,
 } from "./request-builder";
 
 /**
@@ -555,6 +556,9 @@ export const callGeminiApi = async (
   if (safetySettings) {
     body.safetySettings = safetySettings;
   }
+
+  // 应用自定义参数
+  applyCustomParameters(body, options);
 
   // 构建请求头
   const headers: Record<string, string> = {

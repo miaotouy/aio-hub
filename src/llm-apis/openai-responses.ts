@@ -7,6 +7,7 @@ import {
   parseMessageContents,
   extractCommonParameters,
   buildBase64DataUrl,
+  applyCustomParameters,
 } from "./request-builder";
 
 /**
@@ -175,6 +176,9 @@ export const callOpenAiResponsesApi = async (
   if (commonParams.stop !== undefined) {
     body.truncation = commonParams.stop === "auto" ? "auto" : "disabled";
   }
+
+  // 应用自定义参数
+  applyCustomParameters(body, options);
 
   // 如果启用流式响应
   if (options.stream && options.onStream) {

@@ -7,33 +7,12 @@ import {
   parseMessageContents,
   extractCommonParameters,
   buildBase64DataUrl,
+  applyCustomParameters,
 } from "./request-builder";
 
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("openai-compatible");
-
-// 定义所有已知的、非模型参数的顶层选项键
-// 用于从 options 中分离出需要透传的自定义模型参数
-const KNOWN_NON_MODEL_OPTIONS_KEYS = [
-  "messages",
-  "modelId",
-  "stream",
-  "onStream",
-  "onReasoningStream",
-  "signal",
-  "maxRetries",
-  "timeout",
-  // LlmParameters 中定义的键也会被 options 继承，这里把它们都列出来
-  "temperature", "maxTokens", "topP", "topK", "frequencyPenalty", "presencePenalty", "seed", "stop",
-  "n", "logprobs", "topLogprobs", "maxCompletionTokens", "reasoningEffort", "logitBias", "store",
-  "user", "serviceTier", "responseFormat", "tools", "toolChoice", "parallelToolCalls",
-  "modalities", "audio", "prediction", "webSearchOptions", "streamOptions", "metadata",
-  "thinking", "stopSequences", "claudeMetadata", "safetySettings", "contextManagement",
-  "contextPostProcessing", "enabledParameters",
-  // custom 字段是参数容器，不应被透传
-  "custom",
-];
 
 
 /**
@@ -199,36 +178,7 @@ export const callOpenAiCompatibleApi = async (
   }
 
   // 动态透传所有未知的自定义参数
-  for (const key in options) {
-    if (Object.prototype.hasOwnProperty.call(options, key)) {
-      // @ts-expect-error - key is a string
-      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.includes(key) && options[key] !== undefined) {
-        // 直接使用原始 key，不强制转换 snake_case
-        // 既然是自定义参数，用户在 JSON 中输入什么 key，就应该原样发送什么 key
-        // 这样可以兼容那些可能使用驼峰命名的非标准参数
-        const rawKey = key;
-        // @ts-expect-error - key is a string
-        const value = options[key];
-
-        // 检查是否需要合并对象
-        if (
-          body[rawKey] &&
-          typeof body[rawKey] === "object" &&
-          !Array.isArray(body[rawKey]) &&
-          body[rawKey] !== null &&
-          value &&
-          typeof value === "object" &&
-          !Array.isArray(value) &&
-          value !== null
-        ) {
-          // 执行浅合并，对于 LLM 参数的单层嵌套（如 metadata）足够了
-          body[rawKey] = { ...body[rawKey], ...value };
-        } else {
-          body[rawKey] = value;
-        }
-      }
-    }
-  }
+  applyCustomParameters(body, options);
 
   // 如果启用流式响应
   if (options.stream && options.onStream) {

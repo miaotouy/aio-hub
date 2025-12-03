@@ -11,6 +11,7 @@ import {
   inferImageMimeType,
   extractToolDefinitions,
   parseToolChoice,
+  applyCustomParameters,
 } from "./request-builder";
 
 const logger = createModuleLogger("VertexAiApi");
@@ -361,6 +362,9 @@ async function callVertexAiGemini(
     body.toolConfig = toolConfig;
   }
 
+  // 应用自定义参数
+  applyCustomParameters(body, options);
+
   logger.info("发送 Vertex AI Gemini 请求", {
     model: options.modelId,
     hasTools: !!tools,
@@ -581,6 +585,9 @@ async function callVertexAiClaude(
   if (options.stopSequences && options.stopSequences.length > 0) {
     body.stop_sequences = options.stopSequences;
   }
+
+  // 应用自定义参数
+  applyCustomParameters(body, options);
 
   logger.info("发送 Vertex AI Claude 请求", {
     model: options.modelId,

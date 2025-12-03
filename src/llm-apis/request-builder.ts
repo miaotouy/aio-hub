@@ -516,3 +516,118 @@ export function filterParametersByCapabilities(
 
   return filtered;
 }
+
+/**
+ * 定义所有已知的、在顶层处理的、非自定义透传的选项键。
+ * 用于从 options 中分离出需要透传的未知自定义参数。
+ *
+ * 这个列表的目的是防止已经被明确处理过的参数被错误地再次当成自定义参数合并到请求体中。
+ */
+export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
+  // 核心请求控制参数
+  "messages",
+  "modelId",
+  "profileId", // 在 useLlmRequest 中使用，不应透传
+  "stream",
+  "onStream",
+  "onReasoningStream",
+  "signal",
+  "maxRetries",
+  "timeout",
+
+  // 通用采样参数 (LlmParameters)
+  "temperature",
+  "maxTokens",
+  "topP",
+  "topK",
+  "frequencyPenalty",
+  "presencePenalty",
+  "seed",
+  "stop",
+
+  // 高级通用参数
+  "n",
+  "logprobs",
+  "topLogprobs",
+  "maxCompletionTokens",
+  "responseFormat",
+
+  // 工具调用相关
+  "tools",
+  "toolChoice",
+  "parallelToolCalls",
+
+  // 思考/推理相关
+  "reasoningEffort",
+  "thinking", // 旧版兼容
+  "thinkingEnabled",
+  "thinkingBudget",
+
+  // 多模态与特定功能
+  "modalities",
+  "audio",
+  "prediction",
+  "webSearchOptions",
+  "streamOptions",
+
+  // Provider 特有参数
+  "user", // OpenAI
+  "serviceTier", // OpenAI
+  "logitBias", // OpenAI
+  "store", // OpenAI
+  "metadata", // OpenAI, Claude
+  "stopSequences", // Claude
+  "claudeMetadata", // Claude
+  "safetySettings", // Gemini
+  "enableCodeExecution", // Gemini
+  "speechConfig", // Gemini
+  "responseModalities", // Gemini
+  "mediaResolution", // Gemini
+  "enableEnhancedCivicAnswers", // Gemini
+
+  // 内部控制字段
+  "contextManagement",
+  "contextPostProcessing",
+  "enabledParameters",
+  "custom", // 旧版参数容器
+]);
+
+/**
+ * 将未知的自定义参数合并到请求体中。
+ * 这个函数会遍历 options 对象，找到所有未被 KNOWN_NON_MODEL_OPTIONS_KEYS 定义的键，
+ * 并将它们（及其值）合并到 body 对象中。
+ *
+ * @param body - 将要发送给 API 的请求体对象 (将被原地修改)。
+ * @param options - 包含所有参数的原始 LlmRequestOptions 对象。
+ * @returns 修改后的 body 对象。
+ */
+export function applyCustomParameters(body: any, options: LlmRequestOptions): any {
+  for (const key in options) {
+    if (Object.prototype.hasOwnProperty.call(options, key)) {
+      // @ts-expect-error - key is a string
+      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) && options[key] !== undefined) {
+        const rawKey = key;
+        // @ts-expect-error - key is a string
+        const value = options[key];
+
+        // 检查是否需要合并对象（浅合并）
+        // 这对于像 metadata 或 generationConfig 这样的顶层对象很有用
+        if (
+          body[rawKey] &&
+          typeof body[rawKey] === "object" &&
+          !Array.isArray(body[rawKey]) &&
+          body[rawKey] !== null &&
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          value !== null
+        ) {
+          body[rawKey] = { ...body[rawKey], ...value };
+        } else {
+          body[rawKey] = value;
+        }
+      }
+    }
+  }
+  return body;
+}

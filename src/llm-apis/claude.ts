@@ -10,6 +10,7 @@ import {
   extractToolDefinitions,
   parseToolChoice,
   extractCommonParameters,
+  applyCustomParameters,
 } from "./request-builder";
 
 const logger = createModuleLogger("ClaudeApi");
@@ -493,6 +494,9 @@ export const callClaudeApi = async (
   if (toolChoice) {
     body.tool_choice = toolChoice;
   }
+
+  // 应用自定义参数
+  applyCustomParameters(body, options);
 
   // 获取 API Key
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";

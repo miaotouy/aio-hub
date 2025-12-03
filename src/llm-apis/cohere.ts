@@ -6,6 +6,7 @@ import {
   parseMessageContents,
   extractCommonParameters,
   buildBase64DataUrl,
+  applyCustomParameters,
 } from "./request-builder";
 
 /**
@@ -143,6 +144,9 @@ export const callCohereApi = async (
       };
     }
   }
+
+  // 应用自定义参数
+  applyCustomParameters(body, options);
 
   // 构建请求头
   const headers: Record<string, string> = {

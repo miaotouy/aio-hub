@@ -7,6 +7,7 @@ import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 
 const props = defineProps<{
   visible: boolean;
@@ -39,6 +40,7 @@ const modelEditForm = ref<LlmModelInfo>({
 });
 
 const showPresetIconDialog = ref(false);
+const jsonError = ref<string | null>(null);
 
 // 监听外部模型变化，更新内部表单
 watch(
@@ -54,6 +56,7 @@ watch(
         },
         tokenLimits: newModel.tokenLimits || {},
         pricing: newModel.pricing || {},
+        customParameters: newModel.customParameters || {},
       };
     } else {
       // 新增模式，重置表单
@@ -67,6 +70,7 @@ watch(
         },
         tokenLimits: {},
         pricing: {},
+        customParameters: {},
       };
     }
   },
@@ -115,7 +119,7 @@ const applyPreset = () => {
 
   // 从预设中获取匹配的元数据
   const properties = getMatchedModelProperties(modelId, modelEditForm.value.provider);
-  
+
   if (!properties) {
     customMessage.info("未找到匹配的预设配置");
     return;
@@ -207,6 +211,39 @@ const applyOutputPreset = (value: number) => {
   }
   modelEditForm.value.tokenLimits.output = value;
 };
+
+// 自定义参数的 JSON 字符串计算属性
+const customParametersJsonString = computed({
+  get: () => {
+    if (
+      !modelEditForm.value.customParameters ||
+      Object.keys(modelEditForm.value.customParameters).length === 0
+    ) {
+      return "";
+    }
+    try {
+      return JSON.stringify(modelEditForm.value.customParameters, null, 2);
+    } catch (e) {
+      console.error("Failed to stringify custom parameters:", e);
+      return "{}"; // 返回一个空对象字符串作为回退
+    }
+  },
+  set: (value) => {
+    if (!value.trim()) {
+      modelEditForm.value.customParameters = {};
+      jsonError.value = null;
+      return;
+    }
+    try {
+      modelEditForm.value.customParameters = JSON.parse(value);
+      jsonError.value = null;
+    } catch (e) {
+      // 解析失败时，设置错误提示，并且不更新数据
+      jsonError.value = "JSON 格式无效，请检查语法。";
+      console.warn("Invalid JSON for custom parameters:", e);
+    }
+  },
+});
 </script>
 
 <template>
@@ -219,236 +256,246 @@ const applyOutputPreset = (value: number) => {
   >
     <template #content>
       <div class="form-container">
-      <el-form :model="modelEditForm" label-width="110px">
-        <!-- 基本信息 -->
-        <el-divider content-position="left">基本信息</el-divider>
+        <el-form :model="modelEditForm" label-width="110px">
+          <!-- 基本信息 -->
+          <el-divider content-position="left">基本信息</el-divider>
 
-        <el-form-item label="模型 ID">
-          <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o">
-            <template #append>
-              <el-button :icon="MagicStick" @click="applyPreset" title="根据模型 ID 自动应用预设配置">
-                应用预设
-              </el-button>
-            </template>
-          </el-input>
-          <div class="form-hint">输入模型 ID 后可点击"应用预设"自动填充名称、分组、图标和能力</div>
-        </el-form-item>
-
-        <el-form-item label="显示名称">
-          <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
-        </el-form-item>
-
-        <el-form-item label="分组">
-          <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
-        </el-form-item>
-
-        <el-form-item label="描述">
-          <el-input
-            v-model="modelEditForm.description"
-            type="textarea"
-            :rows="2"
-            placeholder="可选，模型描述信息"
-          />
-        </el-form-item>
-
-        <el-form-item label="模型图标">
-          <el-input v-model="modelEditForm.icon" placeholder="可选，自定义图标路径或选择预设">
-            <template #append>
-              <el-button @click="openModelIconSelector">选择预设</el-button>
-            </template>
-          </el-input>
-          <div class="form-hint">留空则使用全局规则自动匹配</div>
-        </el-form-item>
-
-        <!-- Token 限制 -->
-        <el-divider content-position="left">Token 限制</el-divider>
-
-        <el-form-item label="上下文窗口">
-          <div class="token-input-group">
-            <el-select
-              :model-value="modelEditForm.tokenLimits?.contextLength"
-              @update:model-value="applyContextPreset"
-              placeholder="选择预设"
-              clearable
-              class="preset-selector"
-            >
-              <el-option
-                v-for="preset in contextLengthPresets"
-                :key="preset.value"
-                :label="preset.label"
-                :value="preset.value"
-              />
-            </el-select>
-            <el-input-number
-              v-model="modelEditForm.tokenLimits!.contextLength"
-              :min="0"
-              :max="10000000"
-              :step="1000"
-              controls-position="right"
-              class="token-input"
-            />
-          </div>
-          <div class="form-hint">模型可处理的总 token 数量（包含输入和历史消息）</div>
-        </el-form-item>
-
-        <el-form-item label="输出限制">
-          <div class="token-input-group">
-            <el-select
-              :model-value="modelEditForm.tokenLimits?.output"
-              @update:model-value="applyOutputPreset"
-              placeholder="选择预设"
-              clearable
-              class="preset-selector"
-            >
-              <el-option
-                v-for="preset in outputLimitPresets"
-                :key="preset.value"
-                :label="preset.label"
-                :value="preset.value"
-              />
-            </el-select>
-            <el-input-number
-              v-model="modelEditForm.tokenLimits!.output"
-              :min="0"
-              :max="1000000"
-              :step="1000"
-              controls-position="right"
-              class="token-input"
-            />
-          </div>
-          <div class="form-hint">单次响应最大输出 token 数（包含推理 token）</div>
-        </el-form-item>
-
-        <!-- 模型能力 -->
-        <el-divider content-position="left">模型能力</el-divider>
-
-        <div class="capabilities-grid">
-          <div
-            v-for="capability in MODEL_CAPABILITIES"
-            :key="capability.key"
-            class="capability-item"
-          >
-            <el-switch v-model="modelEditForm.capabilities![capability.key]" size="small" />
-            <el-icon
-              v-if="capability.icon"
-              class="capability-icon"
-              :style="{ color: capability.color }"
-            >
-              <component :is="capability.icon" />
-            </el-icon>
-            <span class="capability-label">{{ capability.label }}</span>
-            <el-tooltip :content="capability.description" placement="top" effect="dark">
-              <el-icon class="capability-info">
-                <InfoFilled />
-              </el-icon>
-            </el-tooltip>
-          </div>
-        </div>
-
-        <!-- 思考能力配置 -->
-        <el-divider content-position="left">思考能力配置</el-divider>
-
-        <el-form-item label="配置模式">
-          <div style="width: 100%">
-            <el-radio-group v-model="modelEditForm.capabilities!.thinkingConfigType">
-              <el-radio value="none">无</el-radio>
-              <el-radio value="switch">开关模式</el-radio>
-              <el-radio value="budget">预算模式</el-radio>
-              <el-radio value="effort">等级模式</el-radio>
-            </el-radio-group>
+          <el-form-item label="模型 ID">
+            <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o">
+              <template #append>
+                <el-button
+                  :icon="MagicStick"
+                  @click="applyPreset"
+                  title="根据模型 ID 自动应用预设配置"
+                >
+                  应用预设
+                </el-button>
+              </template>
+            </el-input>
             <div class="form-hint">
-              决定了在 Agent 参数面板中如何配置该模型的思考/推理能力。
+              输入模型 ID 后可点击"应用预设"自动填充名称、分组、图标和能力
+            </div>
+          </el-form-item>
+
+          <el-form-item label="显示名称">
+            <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
+          </el-form-item>
+
+          <el-form-item label="分组">
+            <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
+          </el-form-item>
+
+          <el-form-item label="描述">
+            <el-input
+              v-model="modelEditForm.description"
+              type="textarea"
+              :rows="2"
+              placeholder="可选，模型描述信息"
+            />
+          </el-form-item>
+
+          <el-form-item label="模型图标">
+            <el-input v-model="modelEditForm.icon" placeholder="可选，自定义图标路径或选择预设">
+              <template #append>
+                <el-button @click="openModelIconSelector">选择预设</el-button>
+              </template>
+            </el-input>
+            <div class="form-hint">留空则使用全局规则自动匹配</div>
+          </el-form-item>
+
+          <!-- Token 限制 -->
+          <el-divider content-position="left">Token 限制</el-divider>
+
+          <el-form-item label="上下文窗口">
+            <div class="token-input-group">
+              <el-select
+                :model-value="modelEditForm.tokenLimits?.contextLength"
+                @update:model-value="applyContextPreset"
+                placeholder="选择预设"
+                clearable
+                class="preset-selector"
+              >
+                <el-option
+                  v-for="preset in contextLengthPresets"
+                  :key="preset.value"
+                  :label="preset.label"
+                  :value="preset.value"
+                />
+              </el-select>
+              <el-input-number
+                v-model="modelEditForm.tokenLimits!.contextLength"
+                :min="0"
+                :max="10000000"
+                :step="1000"
+                controls-position="right"
+                class="token-input"
+              />
+            </div>
+            <div class="form-hint">模型可处理的总 token 数量（包含输入和历史消息）</div>
+          </el-form-item>
+
+          <el-form-item label="输出限制">
+            <div class="token-input-group">
+              <el-select
+                :model-value="modelEditForm.tokenLimits?.output"
+                @update:model-value="applyOutputPreset"
+                placeholder="选择预设"
+                clearable
+                class="preset-selector"
+              >
+                <el-option
+                  v-for="preset in outputLimitPresets"
+                  :key="preset.value"
+                  :label="preset.label"
+                  :value="preset.value"
+                />
+              </el-select>
+              <el-input-number
+                v-model="modelEditForm.tokenLimits!.output"
+                :min="0"
+                :max="1000000"
+                :step="1000"
+                controls-position="right"
+                class="token-input"
+              />
+            </div>
+            <div class="form-hint">单次响应最大输出 token 数（包含推理 token）</div>
+          </el-form-item>
+
+          <!-- 模型能力 -->
+          <el-divider content-position="left">模型能力</el-divider>
+
+          <div class="capabilities-grid">
+            <div
+              v-for="capability in MODEL_CAPABILITIES"
+              :key="capability.key"
+              class="capability-item"
+            >
+              <el-switch v-model="modelEditForm.capabilities![capability.key]" size="small" />
+              <el-icon
+                v-if="capability.icon"
+                class="capability-icon"
+                :style="{ color: capability.color }"
+              >
+                <component :is="capability.icon" />
+              </el-icon>
+              <span class="capability-label">{{ capability.label }}</span>
+              <el-tooltip :content="capability.description" placement="top" effect="dark">
+                <el-icon class="capability-info">
+                  <InfoFilled />
+                </el-icon>
+              </el-tooltip>
             </div>
           </div>
-        </el-form-item>
 
-        <el-form-item
-          v-if="modelEditForm.capabilities?.thinkingConfigType === 'effort'"
-          label="可用等级"
-        >
-          <el-select
-            v-model="modelEditForm.capabilities!.reasoningEffortOptions"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            :reserve-keyword="false"
-            placeholder="选择或输入等级，回车添加"
-            style="width: 100%"
+          <!-- 思考能力配置 -->
+          <el-divider content-position="left">思考能力配置</el-divider>
+
+          <el-form-item label="配置模式">
+            <div style="width: 100%">
+              <el-radio-group v-model="modelEditForm.capabilities!.thinkingConfigType">
+                <el-radio value="none">无</el-radio>
+                <el-radio value="switch">开关模式</el-radio>
+                <el-radio value="budget">预算模式</el-radio>
+                <el-radio value="effort">等级模式</el-radio>
+              </el-radio-group>
+              <div class="form-hint">决定了在 Agent 参数面板中如何配置该模型的思考/推理能力。</div>
+            </div>
+          </el-form-item>
+
+          <el-form-item
+            v-if="modelEditForm.capabilities?.thinkingConfigType === 'effort'"
+            label="可用等级"
           >
-            <el-option label="low" value="low" />
-            <el-option label="medium" value="medium" />
-            <el-option label="high" value="high" />
-          </el-select>
-          <div class="form-hint">
-            当配置模式为“等级模式”时，在此处定义可用的等级选项。支持手动输入自定义等级。
-          </div>
-        </el-form-item>
+            <el-select
+              v-model="modelEditForm.capabilities!.reasoningEffortOptions"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              :reserve-keyword="false"
+              placeholder="选择或输入等级，回车添加"
+              style="width: 100%"
+            >
+              <el-option label="low" value="low" />
+              <el-option label="medium" value="medium" />
+              <el-option label="high" value="high" />
+            </el-select>
+            <div class="form-hint">
+              当配置模式为“等级模式”时，在此处定义可用的等级选项。支持手动输入自定义等级。
+            </div>
+          </el-form-item>
 
-        <!-- 默认后处理规则 -->
-        <el-divider content-position="left">默认配置</el-divider>
+          <!-- 默认后处理规则 -->
+          <el-divider content-position="left">默认配置</el-divider>
 
-        <el-form-item label="默认后处理规则">
-          <el-select
-            v-model="modelEditForm.defaultPostProcessingRules"
-            multiple
-            placeholder="选择该模型的默认后处理规则"
-            style="width: 100%"
-          >
-            <el-option
-              label="合并 System 消息到头部"
-              value="merge-system-to-head"
-            />
-            <el-option
-              label="合并连续相同角色"
-              value="merge-consecutive-roles"
-            />
-            <el-option
-              label="转换 System 为 User"
-              value="convert-system-to-user"
-            />
-            <el-option
-              label="确保角色交替"
-              value="ensure-alternating-roles"
-            />
-          </el-select>
-          <div class="form-hint">
-            该模型的默认后处理规则。这些规则会与智能体配置的规则合并使用。
-          </div>
-        </el-form-item>
+          <el-form-item label="默认后处理规则">
+            <el-select
+              v-model="modelEditForm.defaultPostProcessingRules"
+              multiple
+              placeholder="选择该模型的默认后处理规则"
+              style="width: 100%"
+            >
+              <el-option label="合并 System 消息到头部" value="merge-system-to-head" />
+              <el-option label="合并连续相同角色" value="merge-consecutive-roles" />
+              <el-option label="转换 System 为 User" value="convert-system-to-user" />
+              <el-option label="确保角色交替" value="ensure-alternating-roles" />
+            </el-select>
+            <div class="form-hint">
+              该模型的默认后处理规则。这些规则会与智能体配置的规则合并使用。
+            </div>
+          </el-form-item>
 
-        <!-- 价格信息 -->
-        <el-divider content-position="left">价格配置</el-divider>
+          <!-- 自定义参数 -->
+          <el-divider content-position="left">自定义参数</el-divider>
+          <el-form-item label="模型专属参数" :error="jsonError">
+            <div class="code-editor-wrapper">
+              <RichCodeEditor
+                v-model="customParametersJsonString"
+                language="json"
+                :line-numbers="true"
+                :word-wrap="true"
+                style="height: 220px"
+              />
+            </div>
+            <div class="form-hint">
+              为该模型指定非标准的、专属的 API
+              参数。请输入合法的JSON格式。这些参数将与标准请求参数合并。
+            </div>
+          </el-form-item>
 
-        <el-form-item label="输入价格">
-          <el-input v-model="modelEditForm.pricing!.prompt" placeholder="例如: $0.01 / 1M tokens">
-            <template #prepend>$</template>
-          </el-input>
-          <div class="form-hint">每百万 token 的输入价格</div>
-        </el-form-item>
+          <!-- 价格信息 -->
+          <el-divider content-position="left">价格配置</el-divider>
 
-        <el-form-item label="输出价格">
-          <el-input
-            v-model="modelEditForm.pricing!.completion"
-            placeholder="例如: $0.03 / 1M tokens"
-          >
-            <template #prepend>$</template>
-          </el-input>
-          <div class="form-hint">每百万 token 的输出价格</div>
-        </el-form-item>
+          <el-form-item label="输入价格">
+            <el-input v-model="modelEditForm.pricing!.prompt" placeholder="例如: $0.01 / 1M tokens">
+              <template #prepend>$</template>
+            </el-input>
+            <div class="form-hint">每百万 token 的输入价格</div>
+          </el-form-item>
 
-        <el-form-item label="请求价格">
-          <el-input v-model="modelEditForm.pricing!.request" placeholder="例如: $0.001 / request">
-            <template #prepend>$</template>
-          </el-input>
-          <div class="form-hint">每次请求的固定价格（可选）</div>
-        </el-form-item>
+          <el-form-item label="输出价格">
+            <el-input
+              v-model="modelEditForm.pricing!.completion"
+              placeholder="例如: $0.03 / 1M tokens"
+            >
+              <template #prepend>$</template>
+            </el-input>
+            <div class="form-hint">每百万 token 的输出价格</div>
+          </el-form-item>
 
-        <el-form-item label="图像价格">
-          <el-input v-model="modelEditForm.pricing!.image" placeholder="例如: $0.005 / image">
-            <template #prepend>$</template>
-          </el-input>
-          <div class="form-hint">每张图像的处理价格（可选）</div>
+          <el-form-item label="请求价格">
+            <el-input v-model="modelEditForm.pricing!.request" placeholder="例如: $0.001 / request">
+              <template #prepend>$</template>
+            </el-input>
+            <div class="form-hint">每次请求的固定价格（可选）</div>
+          </el-form-item>
+
+          <el-form-item label="图像价格">
+            <el-input v-model="modelEditForm.pricing!.image" placeholder="例如: $0.005 / image">
+              <template #prepend>$</template>
+            </el-input>
+            <div class="form-hint">每张图像的处理价格（可选）</div>
           </el-form-item>
         </el-form>
       </div>
@@ -463,11 +510,11 @@ const applyOutputPreset = (value: number) => {
     <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%">
       <template #content>
         <IconPresetSelector
-        :icons="PRESET_ICONS"
-        :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
-        show-search
-        show-categories
-        @select="selectPresetIcon"
+          :icons="PRESET_ICONS"
+          :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
+          show-search
+          show-categories
+          @select="selectPresetIcon"
         />
       </template>
     </BaseDialog>
@@ -562,5 +609,23 @@ const applyOutputPreset = (value: number) => {
 .capability-info:hover {
   opacity: 1;
   color: var(--el-color-primary);
+}
+
+.code-editor-wrapper {
+  width: 100%;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+pre {
+  background-color: var(--el-fill-color-light);
+  padding: 8px;
+  border-radius: 4px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-top: 8px;
 }
 </style>

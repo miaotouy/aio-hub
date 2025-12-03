@@ -73,7 +73,16 @@ export function useLlmRequest() {
       });
 
       // 根据 Provider 和 Model 能力智能过滤参数
-      const filteredOptions = filterParametersByCapabilities(options, profile, model) as LlmRequestOptions;
+      let filteredOptions = filterParametersByCapabilities(options, profile, model) as LlmRequestOptions;
+
+      // 合并模型的自定义参数
+      // customParameters 的优先级低于用户在 options 中明确设置的参数
+      if (model.customParameters) {
+        filteredOptions = {
+          ...model.customParameters,
+          ...filteredOptions,
+        };
+      }
 
       logger.debug("参数过滤完成", {
         originalParams: Object.keys(options).length,

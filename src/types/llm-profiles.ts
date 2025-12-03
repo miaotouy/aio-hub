@@ -321,6 +321,12 @@ export interface LlmModelInfo {
    * - 最终生效：智能体的 merge-system-to-head（保留自定义配置）+ 模型的 convert-system-to-user
    */
   defaultPostProcessingRules?: Array<ContextPostProcessRule['type']>;
+  /**
+   * 模型专属的自定义参数（可选）
+   * 用于支持非标准的 API 参数，例如模型路由配置等
+   * 会在请求时与标准参数合并
+   */
+  customParameters?: Record<string, any>;
 }
 
 /**

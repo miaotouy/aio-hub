@@ -49,6 +49,51 @@ export class Tokenizer {
         continue;
       }
 
+      // MathJax 块级公式 \[...\] (优先于转义字符处理)
+      if (remaining.startsWith("\\[")) {
+        i += 2; // 跳过 \[
+
+        // 收集公式内容
+        let formulaContent = "";
+
+        while (i < text.length) {
+          // 检查是否遇到闭合的 \]
+          if (text[i] === "\\" && i + 1 < text.length && text[i + 1] === "]") {
+            // 找到闭合标记，跳过它
+            i += 2;
+            break;
+          }
+          formulaContent += text[i];
+          i++;
+        }
+
+        // 添加块级公式 token（复用 katex_block 类型）
+        tokens.push({ type: "katex_block", content: formulaContent.trim() });
+        atLineStart = false;
+        continue;
+      }
+
+      // MathJax 行内公式 \(...\) (优先于转义字符处理)
+      // 使用更智能的匹配策略：检测嵌套的 MathJax 分隔符
+      const mathjaxMatch = remaining.match(/^\\\((.*?)\\\)/);
+      if (mathjaxMatch) {
+        const formulaContent = mathjaxMatch[1];
+        // 检查公式内容是否有效：
+        // 1. 不能包含换行符（行内公式）
+        // 2. 不能包含未配对的 \( 或 \)（说明 LLM 输出不规范，公式内嵌套了文本和新公式）
+        const hasNewline = formulaContent.includes("\n");
+        const hasNestedMathJax = /\\\(|\\\[/.test(formulaContent);
+
+        if (!hasNewline && !hasNestedMathJax) {
+          tokens.push({ type: "katex_inline", content: formulaContent });
+          i += mathjaxMatch[0].length;
+          atLineStart = false;
+          continue;
+        }
+        // 如果检测到嵌套的 MathJax 分隔符，回退到转义字符处理
+        // 这样 \( 会被当作转义的 ( 处理
+      }
+
       // 转义字符 (高优先级)
       if (remaining.startsWith("\\")) {
         if (remaining.length > 1) {

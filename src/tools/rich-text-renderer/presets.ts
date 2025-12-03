@@ -20,6 +20,7 @@ import { htmlScriptTestPreset } from './presets/html-script-test';
 import { htmlGameSnakePreset } from './presets/html-game-snake';
 import { indentedCodePreset } from './presets/indented-code';
 import { htmlNewlineTestPreset } from './presets/html-newline-test';
+import { mathjaxTestPreset } from './presets/mathjax-test';
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -36,6 +37,7 @@ export const presets: RenderPreset[] = [
   mermaidDiagramsPreset,
   llmThinkNodesPreset,
   katexFormulasPreset,
+  mathjaxTestPreset,
   quotesPreset,
   themeVariableTest,
   complexRenderingTestPreset,

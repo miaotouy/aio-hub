@@ -104,6 +104,7 @@ const configManager = createConfigManager<TesterConfig>({
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
     defaultRenderHtml: false,
+    enableEnterAnimation: true,
     simulateMeta: false,
     selectedTokenizer: "gpt4o",
     llmThinkRules: defaultLlmThinkRules,
@@ -146,6 +147,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const visualizeBlockStatus = ref(false);
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
   const defaultRenderHtml = ref(false);
+  const enableEnterAnimation = ref(true);
   const simulateMeta = ref(false);
   const selectedTokenizer = ref("gpt4o");
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
@@ -209,6 +211,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
       defaultRenderHtml.value = config.defaultRenderHtml ?? false;
+      enableEnterAnimation.value = config.enableEnterAnimation ?? true;
       simulateMeta.value = config.simulateMeta ?? false;
       selectedTokenizer.value = config.selectedTokenizer ?? "gpt4o";
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
@@ -263,6 +266,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         visualizeBlockStatus: visualizeBlockStatus.value,
         rendererVersion: rendererVersion.value,
         defaultRenderHtml: defaultRenderHtml.value,
+        enableEnterAnimation: enableEnterAnimation.value,
         simulateMeta: simulateMeta.value,
         selectedTokenizer: selectedTokenizer.value,
         llmThinkRules: llmThinkRules.value,
@@ -313,6 +317,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus: visualizeBlockStatus.value,
       rendererVersion: rendererVersion.value,
       defaultRenderHtml: defaultRenderHtml.value,
+      enableEnterAnimation: enableEnterAnimation.value,
       simulateMeta: simulateMeta.value,
       selectedTokenizer: selectedTokenizer.value,
       llmThinkRules: llmThinkRules.value,
@@ -346,6 +351,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus.value = false;
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
     defaultRenderHtml.value = false;
+    enableEnterAnimation.value = true;
     simulateMeta.value = false;
     selectedTokenizer.value = "gpt4o";
     llmThinkRules.value = [...defaultLlmThinkRules];
@@ -417,6 +423,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus,
       rendererVersion,
       defaultRenderHtml,
+      enableEnterAnimation,
       simulateMeta,
       selectedTokenizer,
       llmThinkRules,
@@ -455,6 +462,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus,
     rendererVersion,
     defaultRenderHtml,
+    enableEnterAnimation,
     simulateMeta,
     selectedTokenizer,
     llmThinkRules,

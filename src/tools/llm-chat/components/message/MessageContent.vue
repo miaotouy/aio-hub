@@ -221,6 +221,7 @@ watch(
         :style-options="richTextStyleOptions"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+        :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
       />
     </LlmThinkNode>
 
@@ -287,6 +288,7 @@ watch(
         :is-streaming="message.status === 'generating'"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+        :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
       />
       <div v-if="message.status === 'generating'" class="streaming-indicator">
         <span class="dot"></span>

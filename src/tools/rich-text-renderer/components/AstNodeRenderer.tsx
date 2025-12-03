@@ -117,6 +117,10 @@ const AstNodeRenderer = defineComponent({
     generationMeta: {
       type: Object as PropType<any>,
     },
+    enableEnterAnimation: {
+      type: Boolean,
+      default: true,
+    },
   },
   setup(props) {
     return (): VNode[] => {
@@ -125,11 +129,16 @@ const AstNodeRenderer = defineComponent({
 
         // 构建子节点 - 通过变量引用实现递归
         const children: VNode | undefined = node.children?.length
-          ? h(AstNodeRenderer, { nodes: node.children, generationMeta: props.generationMeta })
+          ? h(AstNodeRenderer, {
+              nodes: node.children,
+              generationMeta: props.generationMeta,
+              enableEnterAnimation: props.enableEnterAnimation,
+            })
           : undefined;
 
         // 根据节点类型决定是否应用动画
-        const shouldAnimate = !NO_ANIMATION_NODE_TYPES.has(node.type);
+        const shouldAnimate =
+          props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
 
         // 为 KaTeX 节点添加 displayMode 属性
         const componentProps: any = {

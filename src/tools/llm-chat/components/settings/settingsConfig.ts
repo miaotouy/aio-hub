@@ -161,6 +161,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui renderer throttle 节流 性能",
       },
       {
+        id: "enableEnterAnimation",
+        label: "节点进入动画",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.enableEnterAnimation",
+        hint: "为渲染的消息节点（如代码块、列表）启用淡入动画",
+        keywords: "ui animation effect 动画 特效",
+      },
+      {
         id: "enableContentWidthLimit",
         label: "限制内容宽度",
         layout: "inline",

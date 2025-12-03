@@ -1,7 +1,12 @@
 <template>
   <div class="rich-text-renderer" :style="cssVariables">
     <!-- AST 渲染模式（V1/V2 等） -->
-    <AstNodeRenderer v-if="useAstRenderer" :nodes="ast" :generation-meta="generationMeta" />
+    <AstNodeRenderer
+          v-if="useAstRenderer"
+          :nodes="ast"
+          :generation-meta="generationMeta"
+          :enable-enter-animation="enableEnterAnimation"
+        />
     <!-- 纯 markdown-it 渲染模式 -->
     <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
   </div>
@@ -34,11 +39,13 @@ const props = withDefaults(
     isStreaming?: boolean; // 是否处于流式传输中（用于控制思考块的闭合状态）
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
     throttleMs?: number; // 节流时间（毫秒）
+    enableEnterAnimation?: boolean; // 是否启用节点进入动画
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
     isStreaming: false,
     defaultRenderHtml: false,
+    enableEnterAnimation: true,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签

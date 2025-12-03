@@ -58,6 +58,8 @@ export interface ChatSettings {
     contentMaxWidth: number;
     /** 渲染器更新节流时间 (ms) */
     rendererThrottleMs: number;
+    /** 是否启用节点进入动画 */
+    enableEnterAnimation: boolean;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -140,6 +142,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     enableContentWidthLimit: false, // 默认不限制宽度
     contentMaxWidth: 800, // 默认最大宽度 800px
     rendererThrottleMs: 80, // 默认 80ms
+    enableEnterAnimation: true, // 默认开启
   },
   modelPreferences: {
     defaultModel: "",

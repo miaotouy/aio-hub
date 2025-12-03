@@ -57,6 +57,16 @@
         </div>
       </div>
 
+      <!-- 进入动画控制 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label">节点进入动画</label>
+          <el-tooltip content="开启后，渲染的节点将有淡入效果" placement="left">
+            <el-switch v-model="enableEnterAnimation" />
+          </el-tooltip>
+        </div>
+      </div>
+
       <!-- 流式输出控制 -->
       <div class="control-section">
         <div class="control-header">
@@ -272,6 +282,7 @@ const {
   charsFluctuation,
   rendererVersion,
   defaultRenderHtml,
+  enableEnterAnimation,
   llmThinkRules,
 } = storeToRefs(store);
 

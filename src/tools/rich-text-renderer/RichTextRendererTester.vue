@@ -103,6 +103,7 @@
                 :stream-source="streamSource"
                 :version="rendererVersion"
                 :default-render-html="defaultRenderHtml"
+                :enable-enter-animation="enableEnterAnimation"
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
                 :generation-meta="simulateMeta ? generationMeta : undefined"
@@ -192,6 +193,7 @@ const {
   visualizeBlockStatus,
   rendererVersion,
   defaultRenderHtml,
+  enableEnterAnimation,
   simulateMeta,
   selectedTokenizer,
   llmThinkRules,

@@ -604,6 +604,8 @@ export interface TesterConfig {
   copyOptions: CopyOptions;
   /** 是否默认渲染 HTML 代码块 */
   defaultRenderHtml?: boolean;
+  /** 是否启用节点进入动画 */
+  enableEnterAnimation?: boolean;
   /** 是否模拟元数据 */
   simulateMeta?: boolean;
   /** 选中的分词器 */

@@ -98,13 +98,10 @@ const initEditMode = () => {
 
 // 保存编辑
 const saveEdit = () => {
-  if (editingContent.value.trim()) {
+  if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
     // 传递文本内容和附件列表
-    const attachments =
-      attachmentManager.attachments.value.length > 0
-        ? attachmentManager.attachments.value
-        : undefined;
-    emit("save-edit", editingContent.value, attachments);
+    // 必须传递数组本身，即使是空数组，以便父组件知道需要清空附件
+    emit("save-edit", editingContent.value, attachmentManager.attachments.value);
   }
 };
 

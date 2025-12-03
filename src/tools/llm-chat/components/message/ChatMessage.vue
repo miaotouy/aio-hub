@@ -164,6 +164,10 @@ defineExpose({
   padding: 16px;
   /* 移除原有的背景和边框样式，移交给 .message-background */
   transition: all 0.2s;
+  
+  /* 性能优化：允许浏览器跳过视口外消息的渲染工作 */
+  content-visibility: auto;
+  contain-intrinsic-size: 600px;
 }
 
 /* 背景层容器 */

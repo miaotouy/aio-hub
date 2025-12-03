@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from "vue";
+import { useThrottleFn } from "@vueuse/core";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import type { ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -105,7 +106,7 @@ const currentVisibleIndex = computed(() => {
 const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 // 自动滚动到底部
-const scrollToBottom = () => {
+const scrollToBottom = useThrottleFn(() => {
   // 直接使用原生滚动，强制滚到真正的底部
   // 不依赖虚拟列表的高度计算，确保流式输出时能及时跟随
   nextTick(() => {
@@ -113,7 +114,7 @@ const scrollToBottom = () => {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
     }
   });
-};
+}, 100); // 100ms 节流，避免高频 Layout Thrashing
 
 // 记录用户是否接近底部
 const isNearBottom = ref(true);

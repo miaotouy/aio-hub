@@ -1,5 +1,5 @@
 import type { LlmParameters } from "../types";
-import type { LlmParameterSupport } from "@/types/llm-profiles";
+import type { LlmParameterSupport, ModelCapabilities } from "@/types/llm-profiles";
 
 /**
  * 所有支持发送给 LLM 的参数键列表（白名单）
@@ -265,3 +265,84 @@ export const parameterConfigs: ParameterConfig[] = [
     options: [], // 选项将由 ModelParametersEditor 动态提供
   },
 ];
+
+/**
+ * 判断参数是否被目标模型支持
+ * 复用 ModelParametersEditor.vue 中的 shouldShowParameter 逻辑
+ */
+export function isParameterSupportedByModel(
+  key: keyof LlmParameters,
+  supportedParameters: LlmParameterSupport,
+  capabilities?: ModelCapabilities
+): boolean {
+  const config = parameterConfigs.find((c) => c.key === key);
+  if (!config) {
+    // 对于不在配置列表中的参数（如 custom, contextManagement 等），保留
+    return true;
+  }
+
+  // 对于思考相关的参数，直接根据模型自身 capabilities 判断
+  if (config.supportedKey === "thinking") {
+    const thinkingType = capabilities?.thinkingConfigType ?? "none";
+    switch (key) {
+      case "thinkingEnabled":
+        return thinkingType === "switch" || thinkingType === "budget";
+      case "thinkingBudget":
+        return thinkingType === "budget";
+      case "reasoningEffort":
+        return thinkingType === "effort";
+      default:
+        return false;
+    }
+  }
+
+  // 对于其他参数，检查 provider 是否支持
+  return supportedParameters[config.supportedKey] === true;
+}
+
+/**
+ * 过滤参数，只保留目标模型支持的参数
+ * 用于 @ 切换模型重新生成等场景
+ *
+ * @param parameters 原始参数
+ * @param supportedParameters 目标 provider 支持的参数
+ * @param capabilities 目标模型的能力
+ * @returns 过滤后的参数
+ */
+export function filterParametersForModel(
+  parameters: LlmParameters,
+  supportedParameters: LlmParameterSupport,
+  capabilities?: ModelCapabilities
+): LlmParameters {
+  const filteredParams: LlmParameters = {};
+
+  // 遍历原始参数
+  for (const [key, value] of Object.entries(parameters)) {
+    if (value === undefined) continue;
+
+    // 特殊处理的字段，始终保留
+    if (
+      key === "custom" ||
+      key === "enabledParameters" ||
+      key === "contextManagement" ||
+      key === "contextPostProcessing"
+    ) {
+      (filteredParams as any)[key] = value;
+      continue;
+    }
+
+    // 检查参数是否被目标模型支持
+    if (isParameterSupportedByModel(key as keyof LlmParameters, supportedParameters, capabilities)) {
+      (filteredParams as any)[key] = value;
+    }
+  }
+
+  // 更新 enabledParameters 列表，只保留支持的参数
+  if (filteredParams.enabledParameters) {
+    filteredParams.enabledParameters = filteredParams.enabledParameters.filter((paramKey) =>
+      isParameterSupportedByModel(paramKey as keyof LlmParameters, supportedParameters, capabilities)
+    );
+  }
+
+  return filteredParams;
+}

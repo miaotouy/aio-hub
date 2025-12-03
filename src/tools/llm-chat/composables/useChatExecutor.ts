@@ -40,6 +40,16 @@ interface ExecuteRequestParams {
   abortControllers: Map<string, AbortController>;
   /** 正在生成的节点集合 */
   generatingNodes: Set<string>;
+  /**
+   * Agent 配置（可选）
+   * 如果提供，将使用此配置，否则从 agentStore 获取
+   * 用于支持 @ 切换模型重新生成等场景
+   */
+  agentConfig?: {
+    profileId: string;
+    modelId: string;
+    parameters: LlmParameters;
+  };
 }
 
 export function useChatExecutor() {
@@ -58,21 +68,20 @@ export function useChatExecutor() {
     pathToUserNode,
     abortControllers,
     generatingNodes,
+    agentConfig: providedAgentConfig,
   }: ExecuteRequestParams): Promise<void> => {
     const agentStore = useAgentStore();
     const { settings } = useChatSettings();
 
     // 获取当前 Agent 配置
-    if (!agentStore.currentAgentId) {
-      errorHandler.error(new Error("No agent selected"), "执行请求失败：没有选中智能体", {
-        showToUser: false,
-      });
-      throw new Error("请先选择一个智能体");
-    }
-
-    const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, {
-      parameterOverrides: session.parameterOverrides,
-    });
+    // 优先使用传入的配置，否则从 store 中获取
+    const agentConfig =
+      providedAgentConfig ||
+      (agentStore.currentAgentId
+        ? agentStore.getAgentConfig(agentStore.currentAgentId, {
+            parameterOverrides: session.parameterOverrides,
+          })
+        : null);
 
     if (!agentConfig) {
       errorHandler.error(
@@ -88,7 +97,9 @@ export function useChatExecutor() {
     let effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string; content: string } | null =
       null;
 
-    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
+    const currentAgent = agentStore.currentAgentId
+      ? agentStore.getAgentById(agentStore.currentAgentId)
+      : null;
     if (currentAgent?.userProfileId) {
       // 智能体有绑定的用户档案
       const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
@@ -191,7 +202,7 @@ try {
       }));
 
       // 合并规则：智能体的规则优先，如果智能体已配置某类型规则，则不使用模型的默认规则
-      const agentRuleTypes = new Set(agentRules.map((r) => r.type));
+      const agentRuleTypes = new Set(agentRules.map((r: { type: string; enabled: boolean }) => r.type));
       const mergedRules = [
         ...agentRules,
         ...modelRulesObjects.filter((r) => !agentRuleTypes.has(r.type)),
@@ -256,7 +267,7 @@ try {
       await validateAndFixUsage(response, agentConfig.modelId, messages);
 
       // 完成节点生成
-      await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId);
+      await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId || '');
 
       logger.info("请求执行成功", {
         sessionId: session.id,

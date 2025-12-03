@@ -23,6 +23,7 @@ import { useChatExecutor } from "./useChatExecutor";
 import { useChatContextBuilder, type ContextPreviewData } from "./useChatContextBuilder";
 import { useMessageProcessor } from "./useMessageProcessor";
 import { useMacroProcessor } from "./useMacroProcessor";
+import { filterParametersForModel } from '../config/parameter-config';
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -163,6 +164,7 @@ export function useChatHandler() {
       pathToUserNode: pathWithNewMessage,
       abortControllers,
       generatingNodes,
+      agentConfig,
     });
   };
 
@@ -211,12 +213,33 @@ export function useChatHandler() {
 
     // 如果提供了特定的模型选项，覆盖 agentConfig 中的设置
     if (options?.modelId && options?.profileId) {
-      agentConfig.modelId = options.modelId;
-      agentConfig.profileId = options.profileId;
-      logger.info("使用指定的模型进行重试", {
-        modelId: options.modelId,
-        profileId: options.profileId,
-      });
+      const { getProfileById, getSupportedParameters } = useLlmProfiles();
+      const targetProfile = getProfileById(options.profileId);
+      const targetModel = targetProfile?.models.find(m => m.id === options.modelId);
+
+      if (targetProfile && targetModel) {
+        agentConfig.modelId = options.modelId;
+        agentConfig.profileId = options.profileId;
+
+        // 过滤参数，只保留目标模型支持的参数
+        const supportedParameters = getSupportedParameters(targetProfile.type);
+        agentConfig.parameters = filterParametersForModel(
+          agentConfig.parameters,
+          supportedParameters,
+          targetModel.capabilities
+        );
+
+        logger.info("使用指定的模型进行重试（参数已过滤）", {
+          modelId: options.modelId,
+          profileId: options.profileId,
+          parameterKeys: Object.keys(agentConfig.parameters),
+        });
+      } else {
+        logger.warn("无法找到指定的模型，将使用原始配置", {
+          modelId: options.modelId,
+          profileId: options.profileId,
+        });
+      }
     }
 
     // 使用节点管理器创建重新生成分支
@@ -277,6 +300,7 @@ export function useChatHandler() {
       pathToUserNode,
       abortControllers,
       generatingNodes,
+      agentConfig, // 传递包含正确模型信息的 agentConfig
     });
   };
 

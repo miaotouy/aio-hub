@@ -84,7 +84,7 @@ const NO_ANIMATION_NODE_TYPES = new Set([
   'llm_think',    // 思考节点需要立即显示，内容逐渐填充
   'code_block',   // 代码块需要立即显示
   'mermaid',      // Mermaid 图表需要立即显示
-  'katex_block',  // KaTeX 渲染的数学公式块
+  // 'katex_block',  // KaTeX 渲染的数学公式块
   'html_block',   // 原始 HTML 块，可能包含自己的动画
   'image',        // 图片有自己的加载效果，不应被干扰
 ]);

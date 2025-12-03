@@ -133,7 +133,7 @@ const closeDocumentPreview = () => {
 };
 
 // 统一的文件交互处理（拖放 + 粘贴）
-const { isDraggingOver } = useChatFileInteraction({
+const { isDraggingOver, handlePaste } = useChatFileInteraction({
   element: editAreaRef,
   onPaths: async (paths: string[]) => {
     if (!props.isEditing) return;
@@ -259,7 +259,8 @@ watch(
         placeholder="编辑消息内容、拖入或粘贴文件..."
         @keydown.ctrl.enter="saveEdit"
         @keydown.esc="cancelEdit"
-      />
+        @paste="handlePaste"
+       />
 
       <!-- 操作按钮 -->
       <div class="edit-actions">

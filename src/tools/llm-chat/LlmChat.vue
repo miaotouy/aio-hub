@@ -189,12 +189,19 @@ onMounted(async () => {
 const currentAgentId = computed(() => agentStore.currentAgentId || "");
 
 // 处理发送消息
-const handleSendMessage = async (content: string, attachments?: any[]) => {
+const handleSendMessage = async (payload: {
+  content: string;
+  attachments?: any[];
+  temporaryModel?: any;
+}) => {
   if (!store.currentSession) {
     logger.warn("发送消息失败：没有活动会话");
     return;
   }
-  await store.sendMessage(content, attachments);
+  await store.sendMessage(payload.content, {
+    attachments: payload.attachments,
+    temporaryModel: payload.temporaryModel,
+  });
 };
 
 // 处理中止发送

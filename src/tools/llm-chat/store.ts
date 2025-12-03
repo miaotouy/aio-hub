@@ -15,7 +15,7 @@ import { useAgentStore } from "./agentStore";
 import { useSessionNodeHistory } from "./composables/useSessionNodeHistory";
 import { useGraphActions } from "./composables/useGraphActions";
 import { recalculateNodeTokens as recalculateNodeTokensService, fillMissingTokenMetadata as fillMissingTokenMetadataService } from "./utils/chatTokenUtils";
-import type { ChatSession, ChatMessageNode, LlmParameters } from "./types";
+import type { ChatSession, ChatMessageNode, LlmParameters, ModelIdentifier } from "./types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
@@ -345,7 +345,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 发送消息（历史断点）
    */
-  async function sendMessage(content: string, attachments?: Asset[]): Promise<void> {
+  async function sendMessage(
+    content: string,
+    options?: {
+      attachments?: Asset[];
+      temporaryModel?: ModelIdentifier | null;
+    }
+  ): Promise<void> {
     const session = currentSession.value;
     if (!session) throw new Error("请先创建或选择一个会话");
 
@@ -368,7 +374,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         currentActivePath.value,
         abortControllers.value,
         generatingNodes.value,
-        attachments
+        options
       );
 
       const sessionManager = useSessionManager();
@@ -539,7 +545,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     // 图操作 (从 useGraphActions 展开)
     ...graphActions,
-    
+
     // 兼容旧接口
     editUserMessage,
     editAssistantMessage,

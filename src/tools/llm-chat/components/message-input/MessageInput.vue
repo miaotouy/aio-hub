@@ -15,9 +15,11 @@ import { useMessageBuilder } from "@/tools/llm-chat/composables/useMessageBuilde
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import type { Asset } from "@/types/asset-management";
-import type { ChatMessageNode } from "@/tools/llm-chat/types";
+import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
 import { customMessage } from "@/utils/customMessage";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler"; // <-- 插入
 import ComponentHeader from "@/components/ComponentHeader.vue";
@@ -74,7 +76,14 @@ interface Props {
 }
 
 interface Emits {
-  (e: "send", content: string, attachments?: Asset[]): void;
+  (
+    e: "send",
+    payload: {
+      content: string;
+      attachments?: Asset[];
+      temporaryModel?: ModelIdentifier | null;
+    }
+  ): void;
   (e: "abort"): void;
 }
 
@@ -132,9 +141,10 @@ const { isDraggingOver } = useChatFileInteraction({
 // 处理发送
 const handleSend = () => {
   const content = inputText.value.trim();
-  if (!content || props.disabled) {
+  if ((!content && !inputManager.hasAttachments.value) || props.disabled) {
     logger.info("发送被阻止", {
       hasContent: !!content,
+      hasAttachments: inputManager.hasAttachments.value,
       disabled: props.disabled,
       isDetached: props.isDetached,
     });
@@ -144,17 +154,21 @@ const handleSend = () => {
   logger.info("发送消息", {
     contentLength: content.length,
     attachmentCount: inputManager.attachmentCount.value,
+    temporaryModel: inputManager.temporaryModel.value,
     isDetached: props.isDetached,
   });
 
   // 发送消息和附件
   const attachments =
     inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  const payload = { content, attachments, temporaryModel };
 
   if (props.isDetached) {
-    bus.requestAction("send-message", { content, attachments });
+    bus.requestAction("send-message", payload);
   } else {
-    emit("send", content, attachments);
+    emit("send", payload);
   }
 
   // 清空输入框和附件（使用全局管理器）
@@ -437,6 +451,10 @@ const calculateInputTokens = async () => {
     }
   }
 
+  if (inputManager.temporaryModel.value) {
+    modelId = inputManager.temporaryModel.value.modelId;
+  }
+
   if (!modelId) {
     logger.warn("无法确定模型 ID，无法计算 token");
     tokenCount.value = 0;
@@ -547,6 +565,14 @@ watch(
   () => {
     debouncedCalculateTokens();
     loadContextStats();
+  }
+);
+
+// 监听临时模型变化
+watch(
+  () => inputManager.temporaryModel.value,
+  () => {
+    debouncedCalculateTokens();
   }
 );
 
@@ -713,6 +739,45 @@ const handlePaste = async (event: ClipboardEvent) => {
     }, 0);
   }
 };
+
+// 处理临时模型选择
+const { open: openModelSelectDialog } = useModelSelectDialog();
+const { getProfileById } = useLlmProfiles();
+
+const handleSelectTemporaryModel = async () => {
+  // 尝试定位当前模型，优先使用已选择的临时模型，否则回退到智能体默认模型
+  let currentSelection = null;
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  if (temporaryModel) {
+    const profile = getProfileById(temporaryModel.profileId);
+    if (profile) {
+      const model = profile.models.find((m) => m.id === temporaryModel.modelId);
+      if (model) {
+        currentSelection = { profile, model };
+      }
+    }
+  } else if (agentStore.currentAgentId) {
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (agent) {
+      const profile = getProfileById(agent.profileId);
+      if (profile) {
+        const model = profile.models.find((m) => m.id === agent.modelId);
+        if (model) {
+          currentSelection = { profile, model };
+        }
+      }
+    }
+  }
+
+  const result = await openModelSelectDialog(currentSelection);
+  if (result) {
+    inputManager.setTemporaryModel({
+      profileId: result.profile.id,
+      modelId: result.model.id,
+    });
+  }
+};
 </script>
 <template>
   <div
@@ -790,12 +855,16 @@ const handlePaste = async (event: ClipboardEvent) => {
             :token-estimated="tokenEstimated"
             :input-text="inputText"
             :is-processing-attachments="attachmentManager.isProcessing.value"
+            :temporary-model="inputManager.temporaryModel.value"
+            :has-attachments="attachmentManager.hasAttachments.value"
             @toggle-streaming="toggleStreaming"
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
             @send="handleSend"
             @abort="handleAbort"
             @trigger-attachment="handleTriggerAttachment"
+            @select-temporary-model="handleSelectTemporaryModel"
+            @clear-temporary-model="inputManager.clearTemporaryModel"
           />
         </div>
       </div>

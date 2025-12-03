@@ -205,3 +205,12 @@ export interface LlmParameters {
    */
   enabledParameters?: Array<keyof Omit<LlmParameters, "custom">>;
 }
+/**
+ * 用于唯一标识一个模型的结构
+ */
+export interface ModelIdentifier {
+  /** Profile ID */
+  profileId: string;
+  /** Model ID */
+  modelId: string;
+}

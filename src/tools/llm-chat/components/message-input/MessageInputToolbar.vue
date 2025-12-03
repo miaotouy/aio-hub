@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ElTooltip, ElPopover } from "element-plus";
-import { MagicStick, Paperclip } from "@element-plus/icons-vue";
+import { Paperclip, AtSign, X } from "lucide-vue-next";
+import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
 import type { MacroDefinition } from "../../macro-engine";
+import type { ModelIdentifier } from "../../types";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { computed } from "vue";
 
 interface Props {
   isSending: boolean;
@@ -18,6 +22,8 @@ interface Props {
   tokenEstimated: boolean;
   inputText: string;
   isProcessingAttachments: boolean;
+  temporaryModel: ModelIdentifier | null;
+  hasAttachments: boolean;
 }
 
 const props = defineProps<Props>();
@@ -30,7 +36,23 @@ const emit = defineEmits<{
   (e: "send"): void;
   (e: "abort"): void;
   (e: "trigger-attachment"): void;
+  (e: "select-temporary-model"): void;
+  (e: "clear-temporary-model"): void;
 }>();
+
+const { getProfileById } = useLlmProfiles();
+
+const temporaryModelInfo = computed(() => {
+  if (!props.temporaryModel) return null;
+  const profile = getProfileById(props.temporaryModel.profileId);
+  if (!profile) return null;
+  const model = profile.models.find((m) => m.id === props.temporaryModel?.modelId);
+  if (!model) return null;
+  return {
+    profileName: profile.name,
+    modelName: model.name || model.id,
+  };
+});
 
 const onMacroSelectorUpdate = (visible: boolean) => {
   emit("update:macroSelectorVisible", visible);
@@ -46,6 +68,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
           props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
         "
         placement="top"
+        :show-after="300"
       >
         <button
           class="streaming-icon-button"
@@ -57,13 +80,19 @@ const onMacroSelectorUpdate = (visible: boolean) => {
         </button>
       </el-tooltip>
       <!-- Attachment button -->
-      <el-tooltip content="添加附件" placement="top">
+      <el-tooltip content="添加附件" placement="top" :show-after="300">
         <button class="attachment-button" @click="emit('trigger-attachment')">
           <el-icon><Paperclip /></el-icon>
         </button>
       </el-tooltip>
+      <!-- 临时模型选择器 -->
+      <el-tooltip content="临时指定模型" placement="top" :show-after="300">
+        <button class="tool-btn" @click="emit('select-temporary-model')">
+          <AtSign :size="16" />
+        </button>
+      </el-tooltip>
       <!-- 宏选择器按钮 -->
-      <el-tooltip content="添加宏变量" placement="top">
+      <el-tooltip content="添加宏变量" placement="top" :show-after="300">
         <div>
           <el-popover
             :visible="props.macroSelectorVisible"
@@ -87,6 +116,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
         v-if="!props.isDetached"
         :content="props.isExpanded ? '收起输入框' : '展开输入框'"
         placement="top"
+        :show-after="300"
       >
         <button
           class="expand-toggle-button"
@@ -127,10 +157,28 @@ const onMacroSelectorUpdate = (visible: boolean) => {
       </el-tooltip>
     </div>
     <div class="input-actions">
+      <!-- 临时模型显示 -->
+      <el-tooltip
+        v-if="temporaryModelInfo"
+        :content="`${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
+        placement="top"
+        :show-after="300"
+      >
+        <div class="temporary-model-indicator">
+          <AtSign :size="14" />
+          <span class="model-name">
+            {{ temporaryModelInfo.modelName }}
+          </span>
+          <button class="clear-btn" @click="emit('clear-temporary-model')">
+            <X :size="14" />
+          </button>
+        </div>
+      </el-tooltip>
       <!-- 历史上下文统计 -->
       <el-tooltip
         v-if="props.contextStats && props.contextStats.totalTokenCount !== undefined"
         placement="top"
+        :show-after="300"
       >
         <template #content>
           <div style="text-align: left; line-height: 1.6">
@@ -180,6 +228,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
         v-if="props.tokenCount > 0 || props.isCalculatingTokens"
         :content="props.tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
         placement="top"
+        :show-after="300"
       >
         <span class="token-count input-tokens">
           <svg
@@ -206,7 +255,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
       <button
         v-if="!props.isSending"
         @click="emit('send')"
-        :disabled="props.disabled || !props.inputText.trim()"
+        :disabled="props.disabled || (!props.inputText.trim() && !props.hasAttachments)"
         class="btn-send"
         title="发送 (Ctrl/Cmd + Enter)"
       >
@@ -402,6 +451,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 .input-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .btn-send,
@@ -444,6 +494,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 }
 
 /* 统一工具栏图标按钮样式 */
+.tool-btn,
 .macro-icon-button,
 .attachment-button,
 .expand-toggle-button {
@@ -461,6 +512,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
   font-size: 16px;
 }
 
+.tool-btn:disabled,
 .macro-icon-button:disabled,
 .attachment-button:disabled,
 .expand-toggle-button:disabled {
@@ -468,6 +520,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
   cursor: not-allowed;
 }
 
+.tool-btn:hover:not(:disabled),
 .macro-icon-button:not(.active):hover:not(:disabled),
 .attachment-button:hover:not(:disabled),
 .expand-toggle-button:not(.active):hover:not(:disabled) {
@@ -479,6 +532,44 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 .expand-toggle-button.active {
   background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
   color: var(--primary-color);
+}
+
+.temporary-model-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.temporary-model-indicator .model-name {
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.temporary-model-indicator .clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.temporary-model-indicator .clear-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
 }
 </style>
 

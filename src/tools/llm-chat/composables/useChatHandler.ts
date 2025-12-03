@@ -23,7 +23,8 @@ import { useChatExecutor } from "./useChatExecutor";
 import { useChatContextBuilder, type ContextPreviewData } from "./useChatContextBuilder";
 import { useMessageProcessor } from "./useMessageProcessor";
 import { useMacroProcessor } from "./useMacroProcessor";
-import { filterParametersForModel } from '../config/parameter-config';
+import { filterParametersForModel } from "../config/parameter-config";
+import type { ModelIdentifier } from "../types";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -49,7 +50,10 @@ export function useChatHandler() {
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    attachments?: Asset[]
+    options?: {
+      attachments?: Asset[];
+      temporaryModel?: ModelIdentifier | null;
+    }
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const userProfileStore = useUserProfileStore();
@@ -77,6 +81,36 @@ export function useChatHandler() {
         { showToUser: false }
       );
       throw new Error("无法获取智能体配置");
+    }
+
+    // 如果提供了临时模型，则覆盖 agentConfig
+    if (options?.temporaryModel) {
+      const { getProfileById, getSupportedParameters } = useLlmProfiles();
+      const targetProfile = getProfileById(options.temporaryModel.profileId);
+      const targetModel = targetProfile?.models.find((m) => m.id === options.temporaryModel?.modelId);
+
+      if (targetProfile && targetModel) {
+        agentConfig.modelId = options.temporaryModel.modelId;
+        agentConfig.profileId = options.temporaryModel.profileId;
+
+        // 过滤参数，只保留目标模型支持的参数
+        const supportedParameters = getSupportedParameters(targetProfile.type);
+        agentConfig.parameters = filterParametersForModel(
+          agentConfig.parameters,
+          supportedParameters,
+          targetModel.capabilities
+        );
+        logger.info("使用临时指定的模型（参数已过滤）", {
+          modelId: agentConfig.modelId,
+          profileId: agentConfig.profileId,
+          parameterKeys: Object.keys(agentConfig.parameters),
+        });
+      } else {
+        logger.warn("无法找到指定的临时模型，将使用智能体默认模型", {
+          modelId: options.temporaryModel.modelId,
+          profileId: options.temporaryModel.profileId,
+        });
+      }
     }
 
     // 处理用户输入中的宏
@@ -109,8 +143,8 @@ export function useChatHandler() {
     const pathUserNode = pathWithNewMessage[pathWithNewMessage.length - 1];
 
     // 处理附件（如果有）
-    if (attachments && attachments.length > 0) {
-      await processUserAttachments(userNode, session, attachments, pathUserNode);
+    if (options?.attachments && options.attachments.length > 0) {
+      await processUserAttachments(userNode, session, options.attachments, pathUserNode);
     }
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）
@@ -132,7 +166,13 @@ export function useChatHandler() {
     saveUserProfileSnapshot(userNode, effectiveUserProfile);
 
     // 计算用户消息的 token 数（包括文本和附件）
-    await calculateUserMessageTokens(userNode, session, content, agentConfig.modelId, attachments);
+    await calculateUserMessageTokens(
+      userNode,
+      session,
+      content,
+      agentConfig.modelId,
+      options?.attachments
+    );
     // 获取模型信息用于元数据（提前设置，确保即时显示）
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);

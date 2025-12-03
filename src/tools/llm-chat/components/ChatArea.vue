@@ -33,7 +33,14 @@ interface Props {
 }
 
 interface Emits {
-  (e: "send", content: string, attachments?: Asset[]): void;
+  (
+    e: "send",
+    payload: {
+      content: string;
+      attachments?: Asset[];
+      temporaryModel?: any; // 保持与 LlmChat.vue 一致
+    }
+  ): void;
   (e: "abort"): void;
   (e: "delete-message", messageId: string): void;
   (e: "regenerate", messageId: string, options?: { modelId?: string; profileId?: string }): void;
@@ -398,8 +405,11 @@ const finalDisabled = toRef(props, "disabled");
 const finalCurrentAgentId = toRef(props, "currentAgentId");
 const finalCurrentModelId = toRef(props, "currentModelId");
 
-const handleSendMessage = (content: string, attachments?: Asset[]) =>
-  emit("send", content, attachments);
+const handleSendMessage = (payload: {
+  content: string;
+  attachments?: Asset[];
+  temporaryModel?: any;
+}) => emit("send", payload);
 const handleAbort = () => emit("abort");
 const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
 const handleRegenerate = (messageId: string, options?: { modelId?: string; profileId?: string }) =>

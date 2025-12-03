@@ -88,7 +88,7 @@ const props = defineProps<{
   data: any;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   (e: "update:modelValue", value: boolean): void;
 }>();
 

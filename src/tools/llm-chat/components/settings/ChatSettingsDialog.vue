@@ -7,6 +7,7 @@
     height="calc(100vh - 100px)"
     :close-on-backdrop-click="false"
     dialog-class="chat-settings-dialog"
+    :destroy-on-close="false"
     @close="handleClosed"
   >
     <template #content>

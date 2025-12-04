@@ -350,28 +350,15 @@ export function useChatContextBuilder() {
 
   /**
    * 应用上下文 Token 限制，截断会话历史
+   * 注意：system 消息的合并已移至后处理管道，此处不再单独计算
    */
   const applyContextLimit = async <T extends { role: "user" | "assistant"; content: string | LlmMessageContent[] }>(
     sessionContext: T[],
-    systemMessages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
     presetMessages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>,
     contextManagement: { enabled: boolean; maxContextTokens: number; retainedCharacters: number },
     modelId: string
   ): Promise<T[]> => {
     const { maxContextTokens, retainedCharacters } = contextManagement;
-
-    // 计算系统消息的 token 数
-    let systemPromptTokens = 0;
-    for (const sysMsg of systemMessages) {
-      try {
-        const result = await tokenCalculatorService.calculateTokens(sysMsg.content, modelId);
-        systemPromptTokens += result.count;
-      } catch (error) {
-        logger.warn("计算系统消息 token 失败", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
 
     // 计算预设消息的 token 数（并行计算）
     const presetTokenResults = await Promise.all(
@@ -392,19 +379,17 @@ export function useChatContextBuilder() {
     const presetMessagesTokens = presetTokenResults.reduce((sum, count) => sum + count, 0);
 
     // 计算可用于会话历史的 token 数量
-    const availableTokens = maxContextTokens - systemPromptTokens - presetMessagesTokens;
+    const availableTokens = maxContextTokens - presetMessagesTokens;
 
     logger.info("📊 上下文限制检查", {
       maxContextTokens,
-      systemPromptTokens,
       presetMessagesTokens,
       availableTokens,
       sessionMessageCount: sessionContext.length,
     }, true);
 
     if (availableTokens <= 0) {
-      logger.warn("⚠️ 预设消息和系统提示已超出最大上下文限制，会话历史将被完全截断", {
-        systemPromptTokens,
+      logger.warn("⚠️ 预设消息已超出最大上下文限制，会话历史将被完全截断", {
         presetMessagesTokens,
         maxContextTokens,
       });
@@ -823,7 +808,6 @@ export function useChatContextBuilder() {
 
       sessionContext = await applyContextLimit(
         sessionContext,
-        systemMessagesList,
         presetConversation,
         agentConfig.parameters.contextManagement,
         agentConfig.modelId

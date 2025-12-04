@@ -9,6 +9,7 @@ import type { AgentPreset } from '@/tools/llm-chat/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import yaml from 'js-yaml';
+import agentConfigWizard from '@/config/agent-presets/agent-config-wizard';
 
 const logger = createModuleLogger('AgentPresets');
 const errorHandler = createModuleErrorHandler('AgentPresets');
@@ -77,6 +78,12 @@ export function useAgentPresets() {
           }
         }
       }
+
+      // 3. 添加动态生成的预设
+      loadedPresets.push({
+        id: 'agent-config-wizard',
+        ...agentConfigWizard,
+      });
 
       presets.value = loadedPresets;
       isLoaded.value = true;

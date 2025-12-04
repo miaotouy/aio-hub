@@ -443,10 +443,18 @@ watch(
     const agent = agentStore.getAgentById(agentId);
 
     // 基础上下文，用于宏预览等
+    // 注意：如果 contextData 中有 virtualTimeConfig，应该优先使用（这可能是从历史记录恢复的快照）
+    // 我们需要构造一个临时的 agent 对象或配置来传递给 createMacroContext
+    const effectiveAgent = agent ? {
+      ...agent,
+      // 如果 contextData 中有虚拟时间配置，覆盖 agent 中的配置
+      virtualTimeConfig: newData.agentInfo.virtualTimeConfig || agent.virtualTimeConfig
+    } : (newData.agentInfo.virtualTimeConfig ? { virtualTimeConfig: newData.agentInfo.virtualTimeConfig } : undefined);
+
     const baseContext = createMacroContext({
       userName: newData.userInfo?.name || "User",
       charName: agent?.name || newData.agentInfo.name || "Assistant",
-      agent: agent || undefined,
+      agent: effectiveAgent as any, // 使用带有正确时间配置的 agent
       timestamp: newData.targetTimestamp,
     });
 

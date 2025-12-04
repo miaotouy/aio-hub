@@ -187,6 +187,7 @@ export function useChatHandler() {
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,
+      virtualTimeConfig: currentAgent?.virtualTimeConfig,
     };
 
     logger.debug("已设置助手节点元数据", {
@@ -312,6 +313,7 @@ export function useChatHandler() {
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,
+      virtualTimeConfig: currentAgent?.virtualTimeConfig,
     };
 
     logger.info("🔄 从节点重新生成", {

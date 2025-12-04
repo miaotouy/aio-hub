@@ -1368,7 +1368,8 @@ export function useChatContextBuilder() {
         icon: targetNode.metadata?.agentIcon || resolveAvatarPath(agent, 'agent') || undefined,
         profileId: targetNode.metadata?.profileId || agentConfig?.profileId || '',
         modelId: targetNode.metadata?.modelId || agentConfig?.modelId || '',
-        virtualTimeConfig: agent?.virtualTimeConfig || agentConfig?.virtualTimeConfig,
+        // 优先从节点元数据恢复虚拟时间配置，否则使用当前配置
+        virtualTimeConfig: targetNode.metadata?.virtualTimeConfig || agent?.virtualTimeConfig || agentConfig?.virtualTimeConfig,
       },
       // 优先使用节点元数据中的参数快照，否则回退到使用当前配置（并应用过滤）
       parameters: (() => {

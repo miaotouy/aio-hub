@@ -127,5 +127,11 @@ export interface ChatMessageNode {
     tokensPerSecond?: number;
     /** 请求参数快照（记录生成此消息时实际使用的参数） */
     requestParameters?: Record<string, any>;
+    /** 虚拟时间配置快照（记录生成此消息时使用的虚拟时间配置） */
+    virtualTimeConfig?: {
+      virtualBaseTime: string;
+      realBaseTime: string;
+      timeScale?: number;
+    };
   };
 }

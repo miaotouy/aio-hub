@@ -201,7 +201,7 @@ import { Setting } from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import AttachmentCard from "../AttachmentCard.vue";
-import type { ContextPreviewData } from "../../composables/useChatContextBuilder";
+import type { ContextPreviewData } from "../../types/context";
 import type { Asset } from "@/types/asset-management";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import type { LlmMessageContent } from "@/llm-apis/common";
@@ -240,13 +240,13 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
 
   // 建立预设消息索引 (index -> preset)
   const presetMap = new Map<number, (typeof presetMessages)[0]>();
-  presetMessages.forEach((p) => presetMap.set(p.index, p));
+  presetMessages.forEach((p: any) => presetMap.set(p.index, p));
 
   // 建立历史消息索引 (nodeId -> history)
   const historyMap = new Map<string, (typeof chatHistory)[0]>();
-  chatHistory.forEach((h) => historyMap.set(h.nodeId, h));
+  chatHistory.forEach((h: any) => historyMap.set(h.nodeId, h));
 
-  return finalMessages.map((finalMsg, i) => {
+  return finalMessages.map((finalMsg: any, i: number) => {
     // 基础信息
     const baseMsg: UnifiedMessage = {
       key: `msg-${i}`,

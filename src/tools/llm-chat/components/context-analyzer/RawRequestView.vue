@@ -13,7 +13,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
-import type { ContextPreviewData } from "../../composables/useChatHandler";
+import type { ContextPreviewData } from "../../types/context";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
@@ -38,10 +38,12 @@ const dynamicFileName = computed(() => {
 // 将上下文数据转换为 API 请求格式的 JSON
 const formattedJson = computed(() => {
   // 过滤掉内部元数据，只保留发送给 LLM 的标准字段
-  const cleanMessages = props.contextData.finalMessages.map(({ role, content }) => ({
-    role,
-    content,
-  }));
+  const cleanMessages = props.contextData.finalMessages.map(
+    ({ role, content }: { role: string; content: any }) => ({
+      role,
+      content,
+    })
+  );
 
   const requestBody: Record<string, any> = {
     model: props.contextData.agentInfo.modelId,

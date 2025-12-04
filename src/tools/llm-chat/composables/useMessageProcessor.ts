@@ -6,24 +6,9 @@
 import type { ContextPostProcessRule } from '../types';
 import type { LlmMessageContent } from '@/llm-apis/common';
 import { createModuleLogger } from '@/utils/logger';
+import type { ProcessableMessage } from '../types/context';
 
 const logger = createModuleLogger('llm-chat/message-processor');
-
-/**
- * 统一的消息类型（用于管道处理）
- */
-export interface ProcessableMessage {
-  role: "system" | "user" | "assistant";
-  content: string | LlmMessageContent[];
-  /** 消息来源类型 */
-  sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
-  /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
-  sourceId?: string | number;
-  /** 在来源数组中的索引（用于精确匹配） */
-  sourceIndex?: number;
-  /** 用于存储被合并的原始消息 */
-  _mergedSources?: ProcessableMessage[];
-}
 
 /**
  * 默认分隔符

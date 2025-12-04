@@ -25,6 +25,7 @@ interface Emits {
   (e: "abort-node", nodeId: string): void;
   (e: "create-branch", nodeId: string): void;
   (e: "analyze-context", nodeId: string): void;
+  (e: "save-to-branch", nodeId: string, newContent: string, attachments?: Asset[]): void;
 }
 
 const props = defineProps<Props>();
@@ -233,6 +234,11 @@ const handleEditMessage = (nodeId: string, newContent: string, attachments?: Ass
   emit("edit-message", nodeId, newContent, attachments);
 };
 
+// 处理保存到分支事件
+const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: Asset[]) => {
+  emit("save-to-branch", nodeId, newContent, attachments);
+};
+
 // 暴露滚动方法和容器引用供外部调用
 defineExpose({
   scrollToBottom,
@@ -299,6 +305,10 @@ defineExpose({
               @edit="
                 (newContent: any, attachments: any) =>
                   handleEditMessage(messages[virtualItem.index].id, newContent, attachments)
+              "
+              @save-to-branch="
+                (newContent: any, attachments: any) =>
+                  handleSaveToBranch(messages[virtualItem.index].id, newContent, attachments)
               "
               @copy="() => {}"
               @abort="emit('abort-node', messages[virtualItem.index].id)"

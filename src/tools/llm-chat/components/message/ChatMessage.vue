@@ -30,6 +30,7 @@ interface Emits {
   (e: "abort"): void;
   (e: "create-branch"): void;
   (e: "analyze-context"): void;
+  (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
 }
 
 const props = defineProps<Props>();
@@ -68,6 +69,12 @@ const startEdit = () => {
 const saveEdit = (newContent: string, attachments?: Asset[]) => {
   emit("edit", newContent, attachments);
   isEditing.value = false;
+};
+
+// 保存到分支
+const onSaveToBranch = (newContent: string, attachments?: Asset[]) => {
+  emit("save-to-branch", newContent, attachments);
+  isEditing.value = false; // 保存后同样退出编辑模式
 };
 
 // 事件处理函数（避免模板中的隐式 any）
@@ -131,6 +138,7 @@ defineExpose({
         :rich-text-style-options="richTextStyleOptions"
         @save-edit="saveEdit"
         @cancel-edit="cancelEdit"
+        @save-to-branch="onSaveToBranch"
       />
     </div>
 

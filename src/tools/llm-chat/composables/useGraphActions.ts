@@ -3,14 +3,18 @@ import type { ChatSession, HistoryDelta } from '../types';
 import type { Asset } from '@/types/asset-management';
 import { useBranchManager } from './useBranchManager';
 import { useSessionManager } from './useSessionManager';
+import { useNodeManager } from './useNodeManager';
 import { useAgentStore } from '../agentStore';
-import { 
-  extractRelationChange, 
+import {
+  extractRelationChange,
   captureRelationChangesForGraft,
   captureRelationChangesForMove
 } from '../utils/graphUtils';
 import { recalculateNodeTokens } from '../utils/chatTokenUtils';
 import type { useSessionNodeHistory } from './useSessionNodeHistory';
+import { createModuleLogger } from '@/utils/logger';
+
+const logger = createModuleLogger('llm-chat/graph-actions');
 
 type HistoryManager = ReturnType<typeof useSessionNodeHistory>;
 
@@ -236,12 +240,68 @@ export function useGraphActions(
     }
   }
 
+  /**
+   * 从编辑内容创建新分支（保存编辑到分支）
+   * 本质上是 createBranch + editMessage 的组合
+   */
+  async function createBranchFromEdit(
+    sourceNodeId: string,
+    newContent: string,
+    attachments?: Asset[]
+  ): Promise<void> {
+    const session = currentSession.value;
+    if (!session) return;
+
+    const nodeManager = useNodeManager();
+
+    // 使用 nodeManager 创建新分支节点（保留源节点角色，附件已包含在内）
+    const newNode = nodeManager.createBranchFromEdit(
+      session,
+      sourceNodeId,
+      newContent,
+      attachments
+    );
+
+    if (!newNode) {
+      return;
+    }
+
+    // 记录历史
+    const relationChange = extractRelationChange(session, newNode, 'create');
+    const delta: HistoryDelta = {
+      type: 'create',
+      payload: { node: newNode, relationChange },
+    };
+    historyManager.recordHistory('BRANCH_CREATE_FROM_EDIT', [delta], {
+      sourceNodeId,
+      targetNodeId: newNode.id,
+    });
+
+    // 更新活跃叶节点
+    nodeManager.updateActiveLeaf(session, newNode.id);
+
+    // 重新计算 token
+    await recalculateNodeTokens(session, newNode.id);
+
+    // 持久化
+    sessionManager.updateSessionDisplayAgent(session);
+    sessionManager.persistSession(session, currentSessionId.value);
+
+    logger.info("🌿 从编辑创建新分支", {
+      sessionId: session.id,
+      sourceNodeId,
+      newNodeId: newNode.id,
+      role: newNode.role,
+    });
+  }
+
   return {
     editMessage,
     deleteMessage,
     switchBranch,
     switchToSiblingBranch,
     createBranch,
+    createBranchFromEdit,
     toggleNodeEnabled,
     graftBranch,
     moveNode,

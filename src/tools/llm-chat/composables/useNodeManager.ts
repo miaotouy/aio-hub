@@ -841,6 +841,54 @@ export function useNodeManager() {
     return true;
   };
 
+  /**
+   * 从编辑创建新分支（保存编辑内容为新的兄弟节点）
+   * 用于"保存到分支"功能，保留源节点的角色
+   *
+   * @param session - 当前会话
+   * @param sourceNodeId - 源节点 ID（被编辑的节点）
+   * @param newContent - 新的内容
+   * @param attachments - 可选的附件
+   * @returns 创建的新节点，如果失败返回 null
+   */
+  const createBranchFromEdit = (
+    session: ChatSession,
+    sourceNodeId: string,
+    newContent: string,
+    attachments?: Asset[]
+  ): ChatMessageNode | null => {
+    const sourceNode = session.nodes[sourceNodeId];
+    if (!sourceNode) {
+      logger.warn('从编辑创建分支失败：源节点不存在', {
+        sessionId: session.id,
+        sourceNodeId,
+      });
+      return null;
+    }
+
+    // 创建新节点，保留源节点的角色
+    const newNode = createNode({
+      role: sourceNode.role,
+      content: newContent,
+      parentId: sourceNode.parentId,
+      status: 'complete',
+      attachments,
+    });
+
+    // 添加到会话
+    addNodeToSession(session, newNode);
+
+    logger.info('从编辑创建新分支', {
+      sessionId: session.id,
+      sourceNodeId,
+      sourceRole: sourceNode.role,
+      newNodeId: newNode.id,
+      parentId: sourceNode.parentId,
+    });
+
+    return newNode;
+  };
+
   return {
     generateNodeId,
     createNode,
@@ -848,6 +896,7 @@ export function useNodeManager() {
     disableNodeTree,
     createMessagePair,
     createRegenerateBranch,
+    createBranchFromEdit,
     updateActiveLeaf,
     softDeleteNode,
     hardDeleteNode,

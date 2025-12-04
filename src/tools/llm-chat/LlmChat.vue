@@ -242,6 +242,11 @@ const handleEditMessage = (nodeId: string, newContent: string, attachments?: any
   store.editMessage(nodeId, newContent, attachments);
 };
 
+// 处理从编辑内容创建新分支
+const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: any[]) => {
+  store.createBranchFromEdit(nodeId, newContent, attachments);
+};
+
 // 处理创建分支
 const handleCreateBranch = (nodeId: string) => {
   store.createBranch(nodeId);
@@ -438,6 +443,7 @@ useStateSyncEngine(parametersToSync, {
             @abort-node="handleAbortNode"
             @create-branch="handleCreateBranch"
             @analyze-context="handleAnalyzeContext"
+            @save-to-branch="handleSaveToBranch"
           />
 
           <!-- 分离后的占位提示 -->

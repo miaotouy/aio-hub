@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { Copy, Check } from "lucide-vue-next";
+import { Copy, Check, GitBranch } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
@@ -27,6 +27,7 @@ interface Props {
 interface Emits {
   (e: "save-edit", newContent: string, attachments?: Asset[]): void;
   (e: "cancel-edit"): void;
+  (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -110,6 +111,13 @@ const cancelEdit = () => {
   editingContent.value = "";
   attachmentManager.clearAttachments();
   emit("cancel-edit");
+};
+
+// 保存到新分支
+const saveToBranch = () => {
+  if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
+    emit("save-to-branch", editingContent.value, attachmentManager.attachments.value);
+  }
 };
 
 // 处理附件移除
@@ -257,7 +265,7 @@ watch(
         @keydown.ctrl.enter="saveEdit"
         @keydown.esc="cancelEdit"
         @paste="handlePaste"
-       />
+        />
 
       <!-- 操作按钮 -->
       <div class="edit-actions">
@@ -269,6 +277,7 @@ watch(
         </div>
         <div class="edit-buttons">
           <el-button @click="saveEdit" type="primary" size="small">保存 (Ctrl+Enter)</el-button>
+          <el-button @click="saveToBranch" size="small" :icon="GitBranch">保存到分支</el-button>
           <el-button @click="cancelEdit" size="small">取消 (Esc)</el-button>
         </div>
       </div>

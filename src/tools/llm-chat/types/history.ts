@@ -15,6 +15,7 @@ export type HistoryActionTag =
   | "NODE_MOVE" // 移动单个节点
   | "BRANCH_GRAFT" // 嫁接整个分支
   | "BRANCH_CREATE" // 复制分支
+  | "BRANCH_CREATE_FROM_EDIT" // 从编辑创建分支（保存编辑到新分支）
   | "ACTIVE_NODE_SWITCH"; // 切换活动节点
 
 /**

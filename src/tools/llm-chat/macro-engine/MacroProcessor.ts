@@ -54,9 +54,10 @@ export class MacroProcessor {
 
   /**
    * 获取宏匹配正则（每次都创建新的实例以避免 lastIndex 问题）
+   * 使用负向后瞻 (?<!\\) 确保前面不是反斜杠
    */
   private static getMacroPattern(): RegExp {
-    return /\{\{([^}]+?)\}\}/g;
+    return /(?<!\\)\{\{([^}]+?)\}\}/g;
   }
 
   /**
@@ -119,6 +120,12 @@ export class MacroProcessor {
     current = afterPostProcess.output;
     macroCount += afterPostProcess.count;
     logger.debug('后处理完成', { macroCount: afterPostProcess.count });
+
+    // 最后一步：处理转义字符
+    // 将 \{{ 替换回 {{
+    if (current.includes('\\{{')) {
+      current = current.replace(/\\\{\{/g, '{{');
+    }
 
     const duration = Date.now() - startTime;
     logger.debug('宏处理完成', {
@@ -214,7 +221,9 @@ export class MacroProcessor {
     for (const [macro, result] of replacements) {
       // 转义特殊字符，因为宏中包含 {{}}
       const escapedMacro = macro.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escapedMacro, 'g');
+      // 使用负向后瞻确保只替换未转义的宏
+      // 注意：这会防止 \{{char}} 被替换，但也会导致 \\{{char}} 不被替换（已知限制，暂不处理复杂转义链）
+      const regex = new RegExp(`(?<!\\\\)${escapedMacro}`, 'g');
       output = output.replace(regex, result);
     }
 

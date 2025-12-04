@@ -40,6 +40,13 @@ export interface InjectionStrategy {
    * 相对锚点的位置：'before' | 'after'
    */
   anchorPosition?: "before" | "after";
+
+  /**
+   * 插入顺序（优先级）
+   * 决定了在同一注入点（相同 depth 或相同 anchor）的多个条目间的先后顺序。
+   * 数值越高，优先级越高，内容越靠前。默认为 100。
+   */
+  order?: number;
 }
 
 export interface ChatMessageNode {
@@ -79,6 +86,8 @@ export interface ChatMessageNode {
 1. **深度注入 (depth)** 优先级最高
 2. **锚点注入 (anchorTarget)** 次之
 3. **无策略** 按数组顺序排列
+
+对于注入到相同位置（相同 `depth` 或相同 `anchorTarget`）的多个消息，将根据 `order` 字段进行排序。`order` 值越高的消息，位置越靠前（优先级越高）。如果 `order` 未定义或相同，则按它们在原始数组中的顺序排列。
 
 ## 3. 构建流程
 
@@ -173,6 +182,7 @@ graph TD
 | `content`                | `ChatMessageNode.content`                           |
 | `position: 4 (At Depth)` | `injectionStrategy.depth`                           |
 | `position: 0/1`          | `injectionStrategy.anchorTarget` + `anchorPosition` |
+| `order`                  | `injectionStrategy.order`                           |
 | `key` (关键词)           | 暂不支持，后续由知识库系统处理                      |
 
 **注意**：世界书的关键词触发机制不在本设计范围内，将由后续的知识库系统统一处理。

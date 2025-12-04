@@ -41,6 +41,11 @@ interface Props {
     category?: string;
     llmThinkRules?: LlmThinkRule[];
     richTextStyleOptions?: RichTextRendererStyleOptions;
+    virtualTimeConfig?: {
+      virtualBaseTime: string;
+      realBaseTime: string;
+      timeScale?: number;
+    };
   } | null;
 }
 interface Emits {
@@ -304,12 +309,21 @@ const loadFormData = () => {
       ? JSON.parse(JSON.stringify(props.initialData.richTextStyleOptions))
       : {};
 
-    virtualTimeEnabled.value = false;
-    editForm.virtualTimeConfig = {
-      virtualBaseTime: new Date().toISOString(),
-      realBaseTime: new Date().toISOString(),
-      timeScale: 1.0,
-    };
+    if (props.initialData.virtualTimeConfig) {
+      virtualTimeEnabled.value = true;
+      editForm.virtualTimeConfig = {
+        virtualBaseTime: props.initialData.virtualTimeConfig.virtualBaseTime,
+        realBaseTime: props.initialData.virtualTimeConfig.realBaseTime,
+        timeScale: props.initialData.virtualTimeConfig.timeScale ?? 1.0,
+      };
+    } else {
+      virtualTimeEnabled.value = false;
+      editForm.virtualTimeConfig = {
+        virtualBaseTime: new Date().toISOString(),
+        realBaseTime: new Date().toISOString(),
+        timeScale: 1.0,
+      };
+    }
   }
   activeCollapseNames.value = [];
   thinkRulesLoaded.value = false;

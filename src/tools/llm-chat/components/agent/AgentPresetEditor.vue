@@ -254,6 +254,22 @@
                 </el-icon>
               </div>
 
+              <!-- 注入策略标记（紧凑） -->
+              <span
+                v-if="element.injectionStrategy?.depth !== undefined"
+                class="injection-badge-compact"
+                title="深度注入"
+              >
+                📍{{ element.injectionStrategy.depth }}
+              </span>
+              <span
+                v-else-if="element.injectionStrategy?.anchorTarget"
+                class="injection-badge-compact"
+                title="锚点注入"
+              >
+                ⚓
+              </span>
+
               <!-- 消息文本预览（单行） -->
               <div class="message-text-compact">
                 {{ truncateText(element.content, 60) }}
@@ -295,6 +311,26 @@
                       <component :is="getRoleIcon(element.role)" />
                     </el-icon>
                     {{ getRoleLabel(element.role) }}
+                  </el-tag>
+                  <!-- 注入策略标签 -->
+                  <el-tag
+                    v-if="element.injectionStrategy?.depth !== undefined"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                    class="injection-tag"
+                  >
+                    📍 深度 {{ element.injectionStrategy.depth }}
+                  </el-tag>
+                  <el-tag
+                    v-else-if="element.injectionStrategy?.anchorTarget"
+                    size="small"
+                    type="success"
+                    effect="plain"
+                    class="injection-tag"
+                  >
+                    ⚓ {{ element.injectionStrategy.anchorTarget }}
+                    {{ element.injectionStrategy.anchorPosition === "before" ? "前" : "后" }}
                   </el-tag>
                   <!-- Token 数量 -->
                   <el-tag
@@ -470,9 +506,16 @@ const localMessages = ref<ChatMessageNode[]>([]);
 const editDialogVisible = ref(false);
 const isEditMode = ref(false);
 const editingIndex = ref(-1);
-const editForm = ref({
-  role: "system" as MessageRole,
+import type { InjectionStrategy } from "../../types";
+
+const editForm = ref<{
+  role: MessageRole;
+  content: string;
+  injectionStrategy?: InjectionStrategy;
+}>({
+  role: "system",
   content: "",
+  injectionStrategy: undefined,
 });
 
 // 文件导入
@@ -723,6 +766,7 @@ function handleAddMessage() {
   editForm.value = {
     role: "system",
     content: "",
+    injectionStrategy: undefined,
   };
   editDialogVisible.value = true;
 }
@@ -748,6 +792,7 @@ function handleEditMessage(index: number) {
   editForm.value = {
     role: message.role,
     content: message.content,
+    injectionStrategy: message.injectionStrategy,
   };
   editDialogVisible.value = true;
 }
@@ -776,12 +821,17 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
 /**
  * 保存消息（从子组件接收数据）
  */
-async function handleSaveMessage(form: { role: MessageRole; content: string }) {
+async function handleSaveMessage(form: {
+  role: MessageRole;
+  content: string;
+  injectionStrategy?: InjectionStrategy;
+}) {
   if (isEditMode.value) {
     // 编辑模式：更新现有消息
     const message = localMessages.value[editingIndex.value];
     message.role = form.role;
     message.content = form.content;
+    message.injectionStrategy = form.injectionStrategy;
 
     // 如果有模型ID，重新计算 token
     if (props.modelId) {
@@ -807,6 +857,7 @@ async function handleSaveMessage(form: { role: MessageRole; content: string }) {
       type: "message", // 明确标记为普通消息
       isEnabled: true,
       timestamp: new Date().toISOString(),
+      injectionStrategy: form.injectionStrategy,
     };
 
     // 如果有模型ID，计算并保存 token
@@ -1245,6 +1296,17 @@ async function handleFileSelected(event: Event) {
 
 .token-tag {
   font-variant-numeric: tabular-nums;
+}
+
+/* 注入策略标签样式 */
+.injection-tag {
+  font-size: 12px;
+}
+
+.injection-badge-compact {
+  font-size: 11px;
+  color: var(--el-color-warning);
+  flex-shrink: 0;
 }
 
 .message-text {

@@ -3,7 +3,7 @@
  * 负责构建发送给 LLM 的最终消息列表
  */
 
-import type { ChatSession, ChatMessageNode, ContextPostProcessRule, UserProfile } from "../types";
+import type { ChatSession, ChatMessageNode, ContextPostProcessRule, UserProfile, InjectionStrategy } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import type { LlmParameters } from "../types/llm";
@@ -24,6 +24,15 @@ import type { Asset, AssetMetadata } from "@/types/asset-management";
 const logger = createModuleLogger("llm-chat/context-builder");
 
 /**
+ * 带注入策略的消息包装器（用于内部处理）
+ */
+interface InjectionMessage {
+  message: ChatMessageNode;
+  processedContent?: string;
+  strategy: InjectionStrategy;
+}
+
+/**
  * LLM 上下文构建结果
  * 现在返回统一的消息列表，可包含 system, user, assistant 角色
  */
@@ -31,6 +40,12 @@ interface LlmContextData {
   messages: Array<{
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
+    /** 消息来源类型 */
+    sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+    /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
+    sourceId?: string | number;
+    /** 在来源数组中的索引（用于精确匹配） */
+    sourceIndex?: number;
   }>;
   meta?: {
     sessionMessageCount: number;
@@ -92,6 +107,14 @@ export interface ContextPreviewData {
   finalMessages: Array<{
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
+    /** 消息来源类型 */
+    sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+    /** 用于存储被合并的原始消息 */
+    _mergedSources?: any[];
+    /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
+    sourceId?: string | number;
+    /** 在来源数组中的索引（用于精确匹配） */
+    sourceIndex?: number;
   }>;
   /** 统计信息 */
   statistics: {
@@ -156,16 +179,185 @@ export function useChatContextBuilder() {
   const { processMacros, processMacrosBatch } = useMacroProcessor();
   const { calculatePostProcessingTokenDelta } = useMessageProcessor();
 
+  // ==================== 注入策略辅助函数 ====================
+
+  /**
+   * 消息分类结果
+   */
+  interface ClassifiedMessages {
+    /** 骨架消息：无注入策略，按数组顺序排列 */
+    skeleton: ChatMessageNode[];
+    /** 深度注入消息：有 depth 字段 */
+    depthInjections: InjectionMessage[];
+    /** 锚点注入消息：有 anchorTarget 字段 */
+    anchorInjections: InjectionMessage[];
+  }
+
+  /**
+   * 对预设消息进行分类
+   * 优先级：depth > anchorTarget > 无策略
+   */
+  const classifyPresetMessages = (presetMessages: ChatMessageNode[]): ClassifiedMessages => {
+    const skeleton: ChatMessageNode[] = [];
+    const depthInjections: InjectionMessage[] = [];
+    const anchorInjections: InjectionMessage[] = [];
+
+    for (const msg of presetMessages) {
+      const strategy = msg.injectionStrategy;
+
+      if (!strategy) {
+        // 无策略，作为骨架消息
+        skeleton.push(msg);
+      } else if (strategy.depth !== undefined) {
+        // 深度注入优先
+        depthInjections.push({
+          message: msg,
+          strategy: { ...strategy, order: strategy.order ?? 100 },
+        });
+      } else if (strategy.anchorTarget) {
+        // 锚点注入
+        anchorInjections.push({
+          message: msg,
+          strategy: { ...strategy, order: strategy.order ?? 100 },
+        });
+      } else {
+        // 策略对象存在但没有有效字段，视为骨架消息
+        skeleton.push(msg);
+      }
+    }
+
+    logger.debug("📋 预设消息分类完成", {
+      skeletonCount: skeleton.length,
+      depthInjectionsCount: depthInjections.length,
+      anchorInjectionsCount: anchorInjections.length,
+    });
+
+    return { skeleton, depthInjections, anchorInjections };
+  };
+
+  /**
+   * 按 order 排序注入消息
+   * order 值越大越靠近新消息（对话末尾）
+   */
+  const sortByOrder = (injections: InjectionMessage[]): InjectionMessage[] => {
+    return [...injections].sort((a, b) => (a.strategy.order ?? 100) - (b.strategy.order ?? 100));
+  };
+
+  /**
+   * 将深度注入消息插入到会话历史中
+   * @param history 会话历史消息列表（按时间顺序，最旧在前）
+   * @param depthInjections 深度注入消息列表
+   * @returns 插入后的消息列表
+   */
+  const applyDepthInjections = <T extends { role: string; content: any }>(
+    history: T[],
+    depthInjections: InjectionMessage[],
+    processedContents: Map<string, string>,
+    presetMessages: ChatMessageNode[]
+  ): (T | { role: string; content: string; sourceType: string; sourceId: string; sourceIndex: number })[] => {
+    if (depthInjections.length === 0) {
+      return history;
+    }
+
+    // 按 depth 分组，同一深度的按 order 排序
+    const depthGroups = new Map<number, InjectionMessage[]>();
+    for (const injection of depthInjections) {
+      const depth = injection.strategy.depth ?? 0;
+      if (!depthGroups.has(depth)) {
+        depthGroups.set(depth, []);
+      }
+      depthGroups.get(depth)!.push(injection);
+    }
+
+    // 对每组按 order 排序
+    for (const [depth, group] of depthGroups) {
+      depthGroups.set(depth, sortByOrder(group));
+    }
+
+    // 构建结果数组
+    const result: (T | { role: string; content: string; sourceType: string; sourceId: string; sourceIndex: number })[] = [...history];
+
+    // 按深度从大到小处理（先处理更深的位置，避免索引偏移问题）
+    const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => b - a);
+
+    for (const depth of sortedDepths) {
+      const group = depthGroups.get(depth)!;
+      // 计算插入位置：从末尾往前数 depth 条
+      // depth=0 表示在最后, depth=1 表示倒数第1条之后
+      const insertIndex = Math.max(0, result.length - depth);
+
+      // 将这组消息插入到该位置（按 order 顺序）
+      const injectedMessages = group.map((inj) => ({
+        role: inj.message.role,
+        content: processedContents.get(inj.message.id) ?? inj.message.content,
+        sourceType: "depth_injection",
+        sourceId: inj.message.id,
+        sourceIndex: presetMessages.indexOf(inj.message),
+      }));
+
+      result.splice(insertIndex, 0, ...injectedMessages);
+    }
+
+    logger.debug("📍 深度注入完成", {
+      originalHistoryLength: history.length,
+      injectedCount: depthInjections.length,
+      resultLength: result.length,
+      depths: Array.from(depthGroups.keys()),
+    });
+
+    return result;
+  };
+
+  /**
+   * 获取锚点注入消息（按锚点和位置分组）
+   */
+  const getAnchorInjectionGroups = (
+    anchorInjections: InjectionMessage[]
+  ): Map<string, { before: InjectionMessage[]; after: InjectionMessage[] }> => {
+    const groups = new Map<string, { before: InjectionMessage[]; after: InjectionMessage[] }>();
+
+    for (const injection of anchorInjections) {
+      const target = injection.strategy.anchorTarget!;
+      const position = injection.strategy.anchorPosition ?? 'after';
+
+      if (!groups.has(target)) {
+        groups.set(target, { before: [], after: [] });
+      }
+
+      // 存储完整的 InjectionMessage 对象
+      const group = groups.get(target)!;
+      if (position === 'before') {
+        group.before.push(injection);
+      } else {
+        group.after.push(injection);
+      }
+    }
+
+    // 对每组按 order 排序
+    // 需要分别处理原始的 anchorInjections 来获取 order 信息
+    // 由于我们在构建时丢失了 order 信息，需要在添加时就排好序
+    // 这里的逻辑已在添加时通过 sortByOrder 处理，所以暂时移除这个循环
+
+    return groups;
+  };
+
+  /**
+   * 对锚点注入消息进行排序（在添加到 groups 之前调用）
+   */
+  const getSortedAnchorInjections = (anchorInjections: InjectionMessage[]): InjectionMessage[] => {
+    return sortByOrder(anchorInjections);
+  };
+
   /**
    * 应用上下文 Token 限制，截断会话历史
    */
-  const applyContextLimit = async (
-    sessionContext: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>,
-    systemMessages: Array<{ role: "system"; content: string }>,
+  const applyContextLimit = async <T extends { role: "user" | "assistant"; content: string | LlmMessageContent[] }>(
+    sessionContext: T[],
+    systemMessages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
     presetMessages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>,
     contextManagement: { enabled: boolean; maxContextTokens: number; retainedCharacters: number },
     modelId: string
-  ): Promise<Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>> => {
+  ): Promise<T[]> => {
     const { maxContextTokens, retainedCharacters } = contextManagement;
 
     // 计算系统消息的 token 数
@@ -278,11 +470,9 @@ export function useChatContextBuilder() {
     // 构建结果：对于被截断的消息，保留指定的字符数
     const result = messagesWithTokens.map((msg, index) => {
       if (keptIndices.has(index)) {
-        // 完整保留
-        return {
-          role: msg.role,
-          content: msg.content,
-        };
+        // 完整保留，并保留原始属性
+        const { tokenCount, index: _, ...rest } = msg;
+        return rest as unknown as T;
       } else {
         // 截断处理
         let truncatedContent: string | LlmMessageContent[];
@@ -321,10 +511,11 @@ export function useChatContextBuilder() {
           retainedCharacters,
         });
 
+        const { tokenCount, index: _, ...rest } = msg;
         return {
-          role: msg.role,
+          ...rest,
           content: truncatedContent,
-        };
+        } as unknown as T;
       }
     });
 
@@ -352,7 +543,7 @@ export function useChatContextBuilder() {
       .filter((node) => node.isEnabled !== false)
       .filter((node) => node.role !== "system")
       .filter((node) => node.role === "user" || node.role === "assistant")
-      .map(async (node) => {
+      .map(async (node, index) => {
         // 使用统一的消息构建器处理文本和附件
         const content = await buildMessageContentForLlm(
           node.content,
@@ -373,6 +564,9 @@ export function useChatContextBuilder() {
         return {
           role: node.role as "user" | "assistant",
           content,
+          sourceType: "session_history",
+          sourceId: node.id,
+          sourceIndex: index,
         };
       });
 
@@ -389,10 +583,17 @@ export function useChatContextBuilder() {
     );
 
     // 构建 system 消息列表（包括用户档案）
+    // 💡 Fix: 放宽类型定义，允许通过锚点注入非 system 角色的消息
     const systemMessagesList: Array<{
-      role: "system";
+      role: "system" | "user" | "assistant";
       content: string;
+      sourceType?: string;
+      sourceId?: string | number;
+      sourceIndex?: number;
     }> = [];
+
+    // 记录用户档案在 systemMessagesList 中的索引，用于锚点注入
+    let userProfileInjectionIndex = -1;
 
     // 查找用户档案占位符
     const userProfilePlaceholderIndex = enabledPresets.findIndex(
@@ -402,6 +603,8 @@ export function useChatContextBuilder() {
     // 收集所有 system 消息
     for (let i = 0; i < enabledPresets.length; i++) {
       const msg = enabledPresets[i];
+      // 获取原始索引
+      const originalIndex = presetMessages.indexOf(msg);
 
       // 跳过用户档案占位符本身
       if (msg.type === "user_profile") {
@@ -415,9 +618,15 @@ export function useChatContextBuilder() {
             timestamp,
           });
 
+          // 记录注入位置
+          userProfileInjectionIndex = systemMessagesList.length;
+
           systemMessagesList.push({
             role: "system",
             content: processedUserProfile,
+            sourceType: "user_profile",
+            sourceId: effectiveUserProfile.id,
+            sourceIndex: originalIndex,
           });
 
           logger.debug("在占位符位置注入用户档案（已处理宏）", {
@@ -432,7 +641,12 @@ export function useChatContextBuilder() {
       }
 
       // 收集普通 system 消息（处理宏）
-      if (msg.role === "system" && msg.type !== "chat_history") {
+      // 💡 Fix: 排除掉已作为注入策略处理的消息，防止重复（双重消息 Bug）
+      if (
+        msg.role === "system" &&
+        msg.type !== "chat_history" &&
+        !(msg.injectionStrategy?.depth !== undefined || msg.injectionStrategy?.anchorTarget)
+      ) {
         const processedContent = await processMacros(msg.content, {
           session,
           agent: currentAgent ?? undefined,
@@ -443,6 +657,9 @@ export function useChatContextBuilder() {
         systemMessagesList.push({
           role: "system",
           content: processedContent,
+          sourceType: "agent_preset",
+          sourceId: originalIndex,
+          sourceIndex: originalIndex,
         });
       }
     }
@@ -457,9 +674,15 @@ export function useChatContextBuilder() {
         timestamp,
       });
 
+      // 记录注入位置
+      userProfileInjectionIndex = systemMessagesList.length;
+
       systemMessagesList.push({
         role: "system",
         content: processedUserProfile,
+        sourceType: "user_profile",
+        sourceId: effectiveUserProfile.id,
+        sourceIndex: enabledPresets.length,
       });
 
       logger.debug("追加用户档案到 system 消息末尾（无占位符，已处理宏）", {
@@ -473,16 +696,93 @@ export function useChatContextBuilder() {
     // 会话上下文（完整历史，不再单独处理最后一条）
     let sessionContext = llmContext;
 
-    // 查找历史消息占位符
-    const chatHistoryPlaceholderIndex = enabledPresets.findIndex(
+    // ==================== 注入策略处理 ====================
+    // 对预设消息进行分类
+    const { skeleton, depthInjections, anchorInjections } = classifyPresetMessages(enabledPresets);
+
+    // 预处理所有注入消息的内容（处理宏）
+    const injectionProcessedContents = new Map<string, string>();
+    if (depthInjections.length > 0 || anchorInjections.length > 0) {
+      const allInjectionMessages = [
+        ...depthInjections.map(i => i.message),
+        ...anchorInjections.map(i => i.message),
+      ];
+      const injectionContents = await processMacrosBatch(
+        allInjectionMessages.map((msg) => msg.content),
+        {
+          session,
+          agent: currentAgent ?? undefined,
+          userProfile: effectiveUserProfile as UserProfile,
+          timestamp,
+        }
+      );
+      allInjectionMessages.forEach((msg, index) => {
+        injectionProcessedContents.set(msg.id, injectionContents[index]);
+      });
+
+      logger.debug("🔧 注入消息宏处理完成", {
+        depthInjectionsCount: depthInjections.length,
+        anchorInjectionsCount: anchorInjections.length,
+      });
+    }
+
+    // 查找历史消息占位符（从骨架消息中查找，以保持原有逻辑）
+    const chatHistoryPlaceholderIndex = skeleton.findIndex(
       (msg: any) => msg.type === "chat_history"
     );
 
+    // 获取锚点注入分组（用于后续插入）
+    const anchorGroups = getAnchorInjectionGroups(
+      getSortedAnchorInjections(anchorInjections)
+    );
+
+    // ==================== 应用 user_profile 锚点注入 ====================
+    const userProfileAnchor = anchorGroups.get('user_profile');
+    if (userProfileAnchor && userProfileInjectionIndex !== -1) {
+      // 插入 before 组
+      if (userProfileAnchor.before.length > 0) {
+        const beforeMessages = userProfileAnchor.before.map(inj => ({
+          role: inj.message.role as "system" | "user" | "assistant",
+          content: injectionProcessedContents.get(inj.message.id) ?? inj.message.content,
+          sourceType: "anchor_injection",
+          sourceId: inj.message.id,
+          sourceIndex: presetMessages.indexOf(inj.message),
+        }));
+        systemMessagesList.splice(userProfileInjectionIndex, 0, ...beforeMessages);
+        // 更新索引，因为插入了新消息
+        userProfileInjectionIndex += beforeMessages.length;
+      }
+
+      // 插入 after 组
+      if (userProfileAnchor.after.length > 0) {
+        const afterMessages = userProfileAnchor.after.map(inj => ({
+          role: inj.message.role as "system" | "user" | "assistant",
+          content: injectionProcessedContents.get(inj.message.id) ?? inj.message.content,
+          sourceType: "anchor_injection",
+          sourceId: inj.message.id,
+          sourceIndex: presetMessages.indexOf(inj.message),
+        }));
+        // 插入到 user_profile 之后 (index + 1)
+        systemMessagesList.splice(userProfileInjectionIndex + 1, 0, ...afterMessages);
+      }
+
+      logger.debug("⚓ 已应用 user_profile 锚点注入", {
+        beforeCount: userProfileAnchor.before.length,
+        afterCount: userProfileAnchor.after.length,
+        injectionIndex: userProfileInjectionIndex
+      });
+    } else if (userProfileAnchor) {
+      logger.warn("⚠️ 存在 user_profile 锚点注入消息，但未找到用户档案位置，注入失败");
+    }
+
     // 准备预设对话（用于 token 计算，不包括 system）
     // 需要处理宏
+    // 🐛 Fix: 排除掉已作为注入策略处理的消息，防止重复
     const presetConversationRaw = enabledPresets.filter(
       (msg: any) =>
-        (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
+        (msg.role === "user" || msg.role === "assistant") &&
+        msg.type !== "user_profile" &&
+        !(msg.injectionStrategy?.depth !== undefined || msg.injectionStrategy?.anchorTarget)
     );
 
     const presetConversationContents = await processMacrosBatch(
@@ -498,9 +798,15 @@ export function useChatContextBuilder() {
     const presetConversation: Array<{
       role: "user" | "assistant";
       content: string | LlmMessageContent[];
+      sourceType?: string;
+      sourceId?: string | number;
+      sourceIndex?: number;
     }> = presetConversationRaw.map((msg: any, index: number) => ({
       role: msg.role as "user" | "assistant",
       content: presetConversationContents[index],
+      sourceType: "agent_preset",
+      sourceId: presetMessages.indexOf(msg),
+      sourceIndex: presetMessages.indexOf(msg),
     }));
 
     // 应用上下文 Token 限制（如果启用）
@@ -528,6 +834,9 @@ export function useChatContextBuilder() {
     let userAssistantMessages: Array<{
       role: "user" | "assistant";
       content: string | LlmMessageContent[];
+      sourceType?: string;
+      sourceId?: string | number;
+      sourceIndex?: number;
     }>;
 
     // 记录插入点前的预设消息数量，用于后续索引计算
@@ -540,14 +849,18 @@ export function useChatContextBuilder() {
         .slice(0, chatHistoryPlaceholderIndex)
         .filter(
           (msg: any) =>
-            (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
+            (msg.role === "user" || msg.role === "assistant") &&
+            msg.type !== "user_profile" &&
+            !(msg.injectionStrategy?.depth !== undefined || msg.injectionStrategy?.anchorTarget)
         );
 
       const presetsAfterRaw = enabledPresets
         .slice(chatHistoryPlaceholderIndex + 1)
         .filter(
           (msg: any) =>
-            (msg.role === "user" || msg.role === "assistant") && msg.type !== "user_profile"
+            (msg.role === "user" || msg.role === "assistant") &&
+            msg.type !== "user_profile" &&
+            !(msg.injectionStrategy?.depth !== undefined || msg.injectionStrategy?.anchorTarget)
         );
 
       const presetsBeforeContents = await processMacrosBatch(
@@ -573,9 +886,15 @@ export function useChatContextBuilder() {
       const presetsBeforePlaceholder: Array<{
         role: "user" | "assistant";
         content: string | LlmMessageContent[];
+        sourceType?: string;
+        sourceId?: string | number;
+        sourceIndex?: number;
       }> = presetsBeforeRaw.map((msg: any, index: number) => ({
         role: msg.role as "user" | "assistant",
         content: presetsBeforeContents[index],
+        sourceType: "agent_preset",
+        sourceId: presetMessages.indexOf(msg),
+        sourceIndex: presetMessages.indexOf(msg),
       }));
 
       presetsBeforeCount = presetsBeforePlaceholder.length;
@@ -583,9 +902,15 @@ export function useChatContextBuilder() {
       const presetsAfterPlaceholder: Array<{
         role: "user" | "assistant";
         content: string | LlmMessageContent[];
+        sourceType?: string;
+        sourceId?: string | number;
+        sourceIndex?: number;
       }> = presetsAfterRaw.map((msg: any, index: number) => ({
         role: msg.role as "user" | "assistant",
         content: presetsAfterContents[index],
+        sourceType: "agent_preset",
+        sourceId: presetMessages.indexOf(msg),
+        sourceIndex: presetMessages.indexOf(msg),
       }));
 
       userAssistantMessages = [
@@ -594,15 +919,65 @@ export function useChatContextBuilder() {
         ...presetsAfterPlaceholder,
       ];
 
+      // 应用锚点注入（在 chat_history 位置）
+      const chatHistoryAnchor = anchorGroups.get('chat_history');
+      if (chatHistoryAnchor) {
+        // 找到 sessionContext 的开始位置
+        const sessionStartIndex = presetsBeforePlaceholder.length;
+        // 在 sessionContext 前插入 before 组消息
+        if (chatHistoryAnchor.before.length > 0) {
+          const beforeMessages = chatHistoryAnchor.before.map(inj => ({
+            role: inj.message.role as "user" | "assistant",
+            content: injectionProcessedContents.get(inj.message.id) ?? inj.message.content,
+            sourceType: "anchor_injection",
+            sourceId: inj.message.id,
+            sourceIndex: presetMessages.indexOf(inj.message),
+          }));
+          userAssistantMessages.splice(sessionStartIndex, 0, ...beforeMessages);
+        }
+        // 在 sessionContext 后（presetsAfterPlaceholder 前）插入 after 组消息
+        if (chatHistoryAnchor.after.length > 0) {
+          const afterInsertIndex = sessionStartIndex + chatHistoryAnchor.before.length + sessionContext.length;
+          const afterMessages = chatHistoryAnchor.after.map(inj => ({
+            role: inj.message.role as "user" | "assistant",
+            content: injectionProcessedContents.get(inj.message.id) ?? inj.message.content,
+            sourceType: "anchor_injection",
+            sourceId: inj.message.id,
+            sourceIndex: presetMessages.indexOf(inj.message),
+          }));
+          userAssistantMessages.splice(afterInsertIndex, 0, ...afterMessages);
+        }
+      }
+
       logger.debug("使用历史消息占位符构建上下文", {
         presetsBeforeCount: presetsBeforePlaceholder.length,
         sessionContextCount: sessionContext.length,
         presetsAfterCount: presetsAfterPlaceholder.length,
+        anchorInjectionsApplied: !!chatHistoryAnchor,
         totalUserAssistantMessages: userAssistantMessages.length,
       }, true);
     } else {
       // 如果没有占位符，按原来的逻辑：预设消息在前，会话上下文在后
       userAssistantMessages = [...presetConversation, ...sessionContext];
+    }
+
+    // ==================== 应用深度注入 ====================
+    // 深度注入是相对于会话历史末尾的位置
+    if (depthInjections.length > 0) {
+      const injectedMessages = applyDepthInjections(
+        userAssistantMessages,
+        depthInjections,
+        injectionProcessedContents,
+        presetMessages
+      );
+      // 转换回标准格式（这里其实不需要移除了，因为我们需要这些信息）
+      userAssistantMessages = injectedMessages as any;
+
+      logger.debug("📍 深度注入已应用", {
+        originalLength: userAssistantMessages.length - depthInjections.length,
+        injectedCount: depthInjections.length,
+        finalLength: userAssistantMessages.length,
+      });
     }
 
     // 合并 system 消息和 user/assistant 消息，构建统一的消息列表

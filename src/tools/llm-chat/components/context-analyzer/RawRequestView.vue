@@ -11,9 +11,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import DocumentViewer from '@/components/common/DocumentViewer.vue';
-import type { ContextPreviewData } from '../../composables/useChatHandler';
+import { computed } from "vue";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
+import type { ContextPreviewData } from "../../composables/useChatHandler";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
@@ -24,23 +24,29 @@ const dynamicFileName = computed(() => {
   const now = props.contextData.targetTimestamp
     ? new Date(props.contextData.targetTimestamp)
     : new Date();
-    
+
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
   const timestamp = `${year}-${month}-${day}T${hours}-${minutes}-${seconds}`;
   return `原始 API 请求预览_${timestamp}.json`;
 });
 
 // 将上下文数据转换为 API 请求格式的 JSON
 const formattedJson = computed(() => {
+  // 过滤掉内部元数据，只保留发送给 LLM 的标准字段
+  const cleanMessages = props.contextData.finalMessages.map(({ role, content }) => ({
+    role,
+    content,
+  }));
+
   const requestBody: Record<string, any> = {
     model: props.contextData.agentInfo.modelId,
     ...props.contextData.parameters, // 展开显示请求参数
-    messages: props.contextData.finalMessages,
+    messages: cleanMessages,
   };
 
   // 注意：不再单独添加 system 字段

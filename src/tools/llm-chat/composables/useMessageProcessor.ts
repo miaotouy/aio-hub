@@ -13,8 +13,16 @@ const logger = createModuleLogger('llm-chat/message-processor');
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string | LlmMessageContent[];
+  /** 消息来源类型 */
+  sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+  /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
+  sourceId?: string | number;
+  /** 在来源数组中的索引（用于精确匹配） */
+  sourceIndex?: number;
+  /** 用于存储被合并的原始消息 */
+  _mergedSources?: ProcessableMessage[];
 }
 
 /**
@@ -30,7 +38,7 @@ export function useMessageProcessor() {
     if (typeof content === 'string') {
       return content;
     }
-    
+
     // 多模态内容：提取所有文本部分
     return content
       .filter((part) => part.type === 'text' && part.text)
@@ -68,8 +76,10 @@ export function useMessageProcessor() {
       .join(separator);
 
     const mergedSystemMessage: ProcessableMessage = {
-      role: 'system',
+      role: "system",
       content: mergedSystemContent,
+      sourceType: "merged",
+      _mergedSources: systemMessages,
     };
 
     logger.debug('合并 system 消息', {
@@ -107,10 +117,12 @@ export function useMessageProcessor() {
           const mergedContent = currentGroup
             .map((msg) => contentToString(msg.content))
             .join(separator);
-          
+
           result.push({
             role: currentGroup[0].role,
             content: mergedContent,
+            sourceType: "merged",
+            _mergedSources: currentGroup,
           });
 
           logger.debug('合并连续角色消息', {
@@ -133,10 +145,12 @@ export function useMessageProcessor() {
       const mergedContent = currentGroup
         .map((msg) => contentToString(msg.content))
         .join(separator);
-      
+
       result.push({
         role: currentGroup[0].role,
         content: mergedContent,
+        sourceType: "merged",
+        _mergedSources: currentGroup,
       });
 
       logger.debug('合并连续角色消息（最后一组）', {
@@ -159,7 +173,7 @@ export function useMessageProcessor() {
     messages: ProcessableMessage[]
   ): ProcessableMessage[] => {
     const result: ProcessableMessage[] = [];
-    
+
     for (let i = 0; i < messages.length; i++) {
       const current = messages[i];
       result.push(current);
@@ -167,7 +181,7 @@ export function useMessageProcessor() {
       // 检查下一条消息
       if (i < messages.length - 1) {
         const next = messages[i + 1];
-        
+
         // 如果当前和下一条都是 assistant，插入一个 user 占位符
         if (current.role === 'assistant' && next.role === 'assistant') {
           result.push({

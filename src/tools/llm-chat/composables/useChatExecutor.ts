@@ -79,8 +79,8 @@ export function useChatExecutor() {
       providedAgentConfig ||
       (agentStore.currentAgentId
         ? agentStore.getAgentConfig(agentStore.currentAgentId, {
-            parameterOverrides: session.parameterOverrides,
-          })
+          parameterOverrides: session.parameterOverrides,
+        })
         : null);
 
     if (!agentConfig) {
@@ -143,31 +143,31 @@ export function useChatExecutor() {
       ...assistantNode.metadata,
       requestStartTime: Date.now(),
     };
-try {
-  const { sendRequest } = useLlmRequest();
+    try {
+      const { sendRequest } = useLlmRequest();
 
-  // 动态构建生效的参数对象
-  const effectiveParams: Record<string, any> = {};
-  const configParams = agentConfig.parameters;
+      // 动态构建生效的参数对象
+      const effectiveParams: Record<string, any> = {};
+      const configParams = agentConfig.parameters;
 
-  // 1. 处理标准参数，并应用 enabledParameters 过滤
-  const isStrictFilter = Array.isArray(configParams.enabledParameters);
-  const enabledList = new Set(configParams.enabledParameters || []);
+      // 1. 处理标准参数，并应用 enabledParameters 过滤
+      const isStrictFilter = Array.isArray(configParams.enabledParameters);
+      const enabledList = new Set(configParams.enabledParameters || []);
 
-  for (const key of ALL_LLM_PARAMETER_KEYS) {
-    const value = configParams[key as keyof Omit<LlmParameters, 'custom'>];
-    if (value === undefined) continue;
+      for (const key of ALL_LLM_PARAMETER_KEYS) {
+        const value = configParams[key as keyof Omit<LlmParameters, 'custom'>];
+        if (value === undefined) continue;
 
-    const isEnabled = isStrictFilter ? enabledList.has(key as any) : true;
-    if (isEnabled) {
-      effectiveParams[key] = value;
-    }
-  }
+        const isEnabled = isStrictFilter ? enabledList.has(key as any) : true;
+        if (isEnabled) {
+          effectiveParams[key] = value;
+        }
+      }
 
-  // 2. 解包并添加自定义参数
-  if (configParams.custom && typeof configParams.custom === 'object') {
-    Object.assign(effectiveParams, configParams.custom);
-  }
+      // 2. 解包并添加自定义参数
+      if (configParams.custom && typeof configParams.custom === 'object') {
+        Object.assign(effectiveParams, configParams.custom);
+      }
 
       // 保存参数快照到节点元数据
       // 这样后续查看历史记录时，能看到当时真实的请求参数
@@ -241,12 +241,15 @@ try {
         })),
       });
 
+      // 过滤掉多余的字段（如 sourceType 等），只保留 standard 字段发送给 LLM
+      const messagesForRequest = messages.map(({ role, content }) => ({ role, content }));
+
       // 发送请求（根据用户设置决定是否流式）
       // 传递所有配置的参数，让用户的设置真正生效
       const response = await sendRequest({
         profileId: agentConfig.profileId,
         modelId: agentConfig.modelId,
-        messages,
+        messages: messagesForRequest,
         ...effectiveParams, // 展开动态构建的参数，确保未启用的参数连 key 都不存在
         // 流式响应（根据用户设置）
         stream: settings.value.uiPreferences.isStreaming,
@@ -267,7 +270,7 @@ try {
       });
 
       // 验证并修复 usage 信息（如果不可靠则使用本地计算）
-      await validateAndFixUsage(response, agentConfig.modelId, messages);
+      await validateAndFixUsage(response, agentConfig.modelId, messagesForRequest);
 
       // 完成节点生成
       await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId || '');

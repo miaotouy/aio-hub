@@ -43,6 +43,76 @@
           </div>
         </div>
 
+        <!-- 注入策略配置行 -->
+        <div class="editor-row injection-row">
+          <span class="field-label">注入</span>
+          <div class="injection-config">
+            <!-- 模式选择 -->
+            <el-radio-group v-model="injectionMode" size="small">
+              <el-radio-button value="default">
+                <el-tooltip content="按预设列表顺序排列" placement="top">
+                  <span>跟随列表</span>
+                </el-tooltip>
+              </el-radio-button>
+              <el-radio-button value="depth">
+                <el-tooltip content="插入到会话历史的特定深度" placement="top">
+                  <span>📍 深度</span>
+                </el-tooltip>
+              </el-radio-button>
+              <el-radio-button value="anchor">
+                <el-tooltip content="吸附到特定锚点位置" placement="top">
+                  <span>⚓ 锚点</span>
+                </el-tooltip>
+              </el-radio-button>
+            </el-radio-group>
+
+            <!-- 深度参数 -->
+            <div v-if="injectionMode === 'depth'" class="injection-params">
+              <el-input-number
+                v-model="depthValue"
+                :min="0"
+                :max="99"
+                size="small"
+                controls-position="right"
+              />
+              <span class="param-hint">0 = 紧跟最新消息</span>
+            </div>
+
+            <!-- 锚点参数 -->
+            <div v-if="injectionMode === 'anchor'" class="injection-params">
+              <el-select v-model="anchorTarget" size="small" style="width: 120px">
+                <el-option
+                  v-for="anchor in availableAnchors"
+                  :key="anchor.id"
+                  :label="anchor.name"
+                  :value="anchor.id"
+                />
+              </el-select>
+              <el-radio-group v-model="anchorPosition" size="small">
+                <el-radio-button value="before">之前</el-radio-button>
+                <el-radio-button value="after">之后</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <!-- 优先级 (深度/锚点模式显示) -->
+            <div v-if="injectionMode !== 'default'" class="order-input">
+              <span class="order-label">优先级:</span>
+              <el-input-number
+                v-model="orderValue"
+                :min="0"
+                :max="1000"
+                :step="10"
+                size="small"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <el-tooltip content="值越大越靠近新消息（对话末尾）" placement="top">
+                <el-icon class="info-icon"><InfoFilled /></el-icon>
+              </el-tooltip>
+            </div>
+          </div>
+        </div>
+
         <!-- 第二行：内容标签 + 工具栏 -->
         <div class="editor-row toolbar-row">
           <span class="field-label">内容</span>
@@ -130,8 +200,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import type { MessageRole, UserProfile } from "../../types";
+import { ref, watch, computed } from "vue";
+import type { MessageRole, UserProfile, InjectionStrategy } from "../../types";
 import {
   ChatDotRound,
   User,
@@ -139,6 +209,7 @@ import {
   CopyDocument,
   DocumentAdd,
   Document,
+  InfoFilled,
 } from "@element-plus/icons-vue";
 import { Bot } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
@@ -147,18 +218,20 @@ import type { MacroDefinition } from "../../macro-engine";
 import MacroSelector from "./MacroSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
-import type {
-  LlmThinkRule,
-  RichTextRendererStyleOptions,
-} from "@/tools/rich-text-renderer/types";
+import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import { useChatSettings } from "../../composables/useChatSettings";
+import { useAnchorRegistry } from "../../composables/useAnchorRegistry";
 import * as monaco from "monaco-editor";
 import { MacroProcessor, createMacroContext } from "../../macro-engine";
 
 interface MessageForm {
   role: MessageRole;
   content: string;
+  injectionStrategy?: InjectionStrategy;
 }
+
+/** 注入模式 */
+type InjectionMode = "default" | "depth" | "anchor";
 
 interface Props {
   visible: boolean;
@@ -189,12 +262,23 @@ const emit = defineEmits<Emits>();
 
 const errorHandler = createModuleErrorHandler("llm-chat/PresetMessageEditor");
 const { settings } = useChatSettings();
+const { getAvailableAnchors } = useAnchorRegistry();
 
 // 表单数据
 const form = ref<MessageForm>({
   role: "system",
   content: "",
 });
+
+// 注入策略表单
+const injectionMode = ref<InjectionMode>("default");
+const depthValue = ref(0);
+const anchorTarget = ref("chat_history");
+const anchorPosition = ref<"before" | "after">("after");
+const orderValue = ref(100);
+
+// 可用锚点列表
+const availableAnchors = computed(() => getAvailableAnchors());
 
 // 视图模式：编辑/预览
 const viewMode = ref<"edit" | "preview">("edit");
@@ -238,12 +322,65 @@ watch(viewMode, (newMode) => {
   }
 });
 
+/**
+ * 从 injectionStrategy 恢复 UI 状态
+ */
+const restoreInjectionStrategy = (strategy?: InjectionStrategy) => {
+  if (!strategy) {
+    injectionMode.value = "default";
+    depthValue.value = 0;
+    anchorTarget.value = "chat_history";
+    anchorPosition.value = "after";
+    orderValue.value = 100;
+    return;
+  }
+
+  if (strategy.depth !== undefined) {
+    injectionMode.value = "depth";
+    depthValue.value = strategy.depth;
+  } else if (strategy.anchorTarget) {
+    injectionMode.value = "anchor";
+    anchorTarget.value = strategy.anchorTarget;
+    anchorPosition.value = strategy.anchorPosition ?? "after";
+  } else {
+    injectionMode.value = "default";
+  }
+  orderValue.value = strategy.order ?? 100;
+};
+
+/**
+ * 构建 injectionStrategy 对象
+ */
+const buildInjectionStrategy = (): InjectionStrategy | undefined => {
+  if (injectionMode.value === "default") {
+    return undefined;
+  }
+
+  if (injectionMode.value === "depth") {
+    return {
+      depth: depthValue.value,
+      order: orderValue.value,
+    };
+  }
+
+  if (injectionMode.value === "anchor") {
+    return {
+      anchorTarget: anchorTarget.value,
+      anchorPosition: anchorPosition.value,
+      order: orderValue.value,
+    };
+  }
+
+  return undefined;
+};
+
 // 监听 initialForm 的变化，更新本地表单
 watch(
   () => props.initialForm,
   (newForm) => {
     if (newForm) {
       form.value = { ...newForm };
+      restoreInjectionStrategy(newForm.injectionStrategy);
     }
   },
   { immediate: true, deep: true }
@@ -257,6 +394,7 @@ watch(
       viewMode.value = "edit"; // 默认进入编辑模式
       if (props.initialForm) {
         form.value = { ...props.initialForm };
+        restoreInjectionStrategy(props.initialForm.injectionStrategy);
       }
     }
   }
@@ -377,7 +515,11 @@ function handleSave() {
     return;
   }
 
-  emit("save", { ...form.value });
+  const injectionStrategy = buildInjectionStrategy();
+  emit("save", {
+    ...form.value,
+    injectionStrategy,
+  });
 }
 </script>
 
@@ -470,5 +612,47 @@ function handleSave() {
 
 .preview-content {
   line-height: 1.6;
+}
+
+/* 注入策略配置样式 */
+.injection-row {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.injection-config {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.injection-params {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.param-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.order-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.order-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.info-icon {
+  color: var(--el-text-color-secondary);
+  cursor: help;
 }
 </style>

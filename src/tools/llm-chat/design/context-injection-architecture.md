@@ -64,7 +64,8 @@ export interface InjectionStrategy {
   /**
    * 插入顺序（优先级）
    * 在同一注入点的多个条目间的先后顺序。
-   * 数值越高，位置越靠前。默认为 100。
+   * 值越大越靠近新消息（对话末尾），值越小越靠近 System Prompt。
+   * 默认为 100。
    */
   order?: number;
 }
@@ -108,7 +109,7 @@ export interface ChatMessageNode {
 2. **锚点注入 (anchorTarget)** 次之
 3. **无策略** 按数组顺序排列
 
-对于注入到相同位置的多个消息，根据 `order` 字段排序（值越高越靠前）。
+对于注入到相同位置的多个消息，根据 `order` 字段排序（值越大越靠后/越靠近新消息）。
 
 ## 3. 构建流程
 
@@ -199,18 +200,18 @@ graph TD
 [
   {
     role: "system",
-    content: "角色性格设定...",
-    injectionStrategy: { anchorTarget: "world_info", anchorPosition: "after", order: 200 },
+    content: "世界观设定...",
+    injectionStrategy: { anchorTarget: "world_info", anchorPosition: "after", order: 100 },
   },
   {
     role: "system",
-    content: "世界观设定...",
-    injectionStrategy: { anchorTarget: "world_info", anchorPosition: "after", order: 100 },
+    content: "角色性格设定...",
+    injectionStrategy: { anchorTarget: "world_info", anchorPosition: "after", order: 200 },
   },
 ];
 ```
 
-**效果**：order 值高的（角色性格）排在前面，order 值低的（世界观）排在后面。
+**效果**：order 值大的（角色性格）排在 order 值小的（世界观）后面。
 
 ## 5. 外部格式兼容
 

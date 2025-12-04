@@ -2,6 +2,45 @@ import type { Asset } from '@/types/asset-management';
 import type { MessageRole, MessageStatus, MessageType } from './common';
 
 /**
+ * 注入策略 - 控制消息在上下文中的位置
+ *
+ * 用于预设消息的高级位置控制，支持深度注入和锚点注入两种模式。
+ * 如果未定义此策略，则消息按数组顺序排列（默认行为）。
+ */
+export interface InjectionStrategy {
+  /**
+   * 深度注入：相对于会话历史末尾的位置
+   * - 0: 紧跟在最新消息之后（默认行为）
+   * - N: 插入到倒数第 N 条消息之后
+   *
+   * 适用场景：作者备注、角色提醒等需要"靠近当前对话"的内容
+   */
+  depth?: number;
+
+  /**
+   * 锚点注入：目标锚点的 ID
+   * 如 'chat_history', 'user_profile'
+   *
+   * 注意：锚点由系统内置或插件注册，用户只能选择已存在的锚点
+   */
+  anchorTarget?: string;
+
+  /**
+   * 相对锚点的位置
+   * - 'before': 插入到锚点之前
+   * - 'after': 插入到锚点之后
+   */
+  anchorPosition?: 'before' | 'after';
+
+  /**
+   * 插入顺序权重
+   * 同一注入点内的排序：值越大越靠近新消息（对话末尾），值越小越靠近 System Prompt。
+   * 默认 100。
+   */
+  order?: number;
+}
+
+/**
  * 消息节点（树形结构）
  */
 export interface ChatMessageNode {
@@ -59,6 +98,13 @@ export interface ChatMessageNode {
    * - chat_history: 历史消息占位符
    */
   type?: MessageType;
+
+  /**
+   * 注入策略（可选）
+   * 控制消息在上下文中的精确位置，支持深度注入和锚点注入。
+   * 如果未定义，则按数组顺序排列（现有行为）。
+   */
+  injectionStrategy?: InjectionStrategy;
 
   /**
    * 消息创建的时间戳 (ISO 8601 格式)

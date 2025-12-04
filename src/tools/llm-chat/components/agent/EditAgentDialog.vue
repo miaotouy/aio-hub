@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch, computed } from "vue";
+import { reactive, watch, computed, onUnmounted } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useAgentStore } from "../../agentStore";
 import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../types";
@@ -12,6 +12,10 @@ import { useUserProfileStore } from "../../userProfileStore";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref, defineAsyncComponent } from "vue";
+import { MacroProcessor } from "../../macro-engine/MacroProcessor";
+import MacroSelector from "./MacroSelector.vue";
+import type { MacroDefinition } from "../../macro-engine";
+import { MagicStick } from "@element-plus/icons-vue";
 
 const LlmThinkRulesEditor = defineAsyncComponent(
   () => import("@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue")
@@ -93,6 +97,131 @@ const thinkRulesLoaded = ref(false);
 const styleOptionsLoaded = ref(false);
 const styleLoading = ref(false);
 
+// 宏选择器弹窗状态
+const macroSelectorVisible = ref(false);
+
+// 虚拟时间预览相关
+const macroPreviewInput = ref("{{time}} | {{datetime_cn}} | {{shichen}}");
+const macroPreviewResult = ref("");
+let previewTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * 解析宏字符串并返回结果
+ */
+const parseMacroPreview = async (input: string): Promise<string> => {
+  if (!input.trim()) return "";
+
+  // 构建额外上下文，包含当前表单中的虚拟时间配置
+  const extraContext = {
+    agent:
+      virtualTimeEnabled.value && editForm.virtualTimeConfig
+        ? ({
+            virtualTimeConfig: {
+              virtualBaseTime: editForm.virtualTimeConfig.virtualBaseTime,
+              realBaseTime: editForm.virtualTimeConfig.realBaseTime,
+              timeScale: editForm.virtualTimeConfig.timeScale,
+            },
+          } as ChatAgent)
+        : undefined,
+  };
+
+  // 匹配所有宏 {{macroName}} 或 {{macroName::arg1::arg2}}
+  const macroPattern = /\{\{([a-zA-Z_][a-zA-Z0-9_]*)(?:::([^}]*))?\}\}/g;
+  let result = input;
+
+  // 收集所有匹配项
+  const matches = Array.from(input.matchAll(macroPattern));
+
+  // 使用 Map 缓存结果，避免重复计算
+  const replacements = new Map<string, string>();
+
+  for (const match of matches) {
+    const fullMatch = match[0];
+    const macroName = match[1];
+    const argsStr = match[2];
+    const args = argsStr ? argsStr.split("::") : undefined;
+
+    if (replacements.has(fullMatch)) continue;
+
+    try {
+      // 使用 executeDirectly 执行宏
+      const value = await MacroProcessor.executeDirectly(macroName, args, extraContext);
+      if (value !== null) {
+        replacements.set(fullMatch, value);
+      } else {
+        replacements.set(fullMatch, `[无效宏: ${macroName}]`);
+      }
+    } catch (e) {
+      replacements.set(fullMatch, `[错误: ${macroName}]`);
+    }
+  }
+
+  // 替换所有宏
+  for (const [key, value] of replacements) {
+    // 使用 replaceAll 替换所有出现的相同宏
+    result = result.split(key).join(value);
+  }
+
+  return result;
+};
+
+/**
+ * 更新宏预览结果
+ */
+const updateMacroPreview = async () => {
+  macroPreviewResult.value = await parseMacroPreview(macroPreviewInput.value);
+};
+
+/**
+ * 启动预览定时器
+ */
+const startPreviewTimer = () => {
+  stopPreviewTimer();
+  updateMacroPreview();
+  previewTimer = setInterval(updateMacroPreview, 1000);
+};
+
+/**
+ * 停止预览定时器
+ */
+const stopPreviewTimer = () => {
+  if (previewTimer) {
+    clearInterval(previewTimer);
+    previewTimer = null;
+  }
+};
+
+// 决定预览定时器是否应该运行
+const shouldTimerBeRunning = computed(
+  () => virtualTimeEnabled.value && activeCollapseNames.value.includes("virtualTime")
+);
+
+// 监听所有相关依赖，统一控制定时器
+watch(
+  () => [
+    shouldTimerBeRunning.value,
+    editForm.virtualTimeConfig?.virtualBaseTime,
+    editForm.virtualTimeConfig?.realBaseTime,
+    editForm.virtualTimeConfig?.timeScale,
+    macroPreviewInput.value,
+  ],
+  ([isRunning]) => {
+    if (isRunning) {
+      // 当任何依赖变化且定时器应该运行时，（重新）启动定时器
+      startPreviewTimer();
+    } else {
+      // 否则，停止定时器
+      stopPreviewTimer();
+    }
+  },
+  { deep: true }
+);
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  stopPreviewTimer();
+});
+
 watch(activeCollapseNames, (newNames) => {
   if (newNames.includes("thinkRules")) thinkRulesLoaded.value = true;
   if (newNames.includes("styleOptions")) {
@@ -131,7 +260,7 @@ const loadFormData = () => {
     editForm.richTextStyleOptions = props.agent.richTextStyleOptions
       ? JSON.parse(JSON.stringify(props.agent.richTextStyleOptions))
       : {};
-    
+
     if (props.agent.virtualTimeConfig) {
       virtualTimeEnabled.value = true;
       editForm.virtualTimeConfig = {
@@ -164,7 +293,9 @@ const loadFormData = () => {
       ? JSON.parse(JSON.stringify(props.initialData.presetMessages))
       : [];
     editForm.displayPresetCount = 0;
-    editForm.tags = props.initialData.tags ? JSON.parse(JSON.stringify(props.initialData.tags)) : [];
+    editForm.tags = props.initialData.tags
+      ? JSON.parse(JSON.stringify(props.initialData.tags))
+      : [];
     editForm.category = props.initialData.category || "";
     editForm.llmThinkRules = props.initialData.llmThinkRules
       ? JSON.parse(JSON.stringify(props.initialData.llmThinkRules))
@@ -172,7 +303,7 @@ const loadFormData = () => {
     editForm.richTextStyleOptions = props.initialData.richTextStyleOptions
       ? JSON.parse(JSON.stringify(props.initialData.richTextStyleOptions))
       : {};
-    
+
     virtualTimeEnabled.value = false;
     editForm.virtualTimeConfig = {
       virtualBaseTime: new Date().toISOString(),
@@ -216,6 +347,16 @@ const setRealBaseToNow = () => {
   }
 };
 
+/**
+ * 处理插入宏到预览输入框
+ */
+const handleInsertMacro = (macro: MacroDefinition) => {
+  const insertText = macro.example || `{{${macro.name}}}`;
+  // 直接追加到输入框末尾（简单处理，因为是普通 el-input）
+  macroPreviewInput.value += insertText;
+  macroSelectorVisible.value = false;
+};
+
 // 关闭对话框
 const handleClose = () => {
   emit("update:visible", false);
@@ -255,11 +396,14 @@ const handleSave = () => {
     richTextStyleOptions: editForm.richTextStyleOptions,
     tags: editForm.tags,
     category: editForm.category,
-    virtualTimeConfig: virtualTimeEnabled.value && editForm.virtualTimeConfig ? {
-      virtualBaseTime: editForm.virtualTimeConfig.virtualBaseTime,
-      realBaseTime: editForm.virtualTimeConfig.realBaseTime,
-      timeScale: editForm.virtualTimeConfig.timeScale,
-    } : undefined,
+    virtualTimeConfig:
+      virtualTimeEnabled.value && editForm.virtualTimeConfig
+        ? {
+            virtualBaseTime: editForm.virtualTimeConfig.virtualBaseTime,
+            realBaseTime: editForm.virtualTimeConfig.realBaseTime,
+            timeScale: editForm.virtualTimeConfig.timeScale,
+          }
+        : undefined,
   });
 
   handleClose();
@@ -277,7 +421,9 @@ const handleSave = () => {
       <!-- 基本信息 -->
       <el-form-item label="ID/名称" required>
         <el-input v-model="editForm.name" placeholder="输入智能体名称（用作 ID 和宏替换）" />
-        <div class="form-hint" v-pre>此名称将作为宏替换的 ID（如 {{char}}），请使用简洁的名称。</div>
+        <div class="form-hint" v-pre>
+          此名称将作为宏替换的 ID（如 {{ char }}），请使用简洁的名称。
+        </div>
       </el-form-item>
 
       <el-form-item label="显示名称">
@@ -404,7 +550,8 @@ const handleSave = () => {
         <el-collapse-item title="思考块规则配置" name="thinkRules">
           <div class="form-hint" style="margin-bottom: 12px">
             <p>
-              配置 LLM 输出中的自定义思考过程识别规则（如 Chain of Thought），用于在对话中折叠显示思考内容。
+              配置 LLM 输出中的自定义思考过程识别规则（如 Chain of
+              Thought），用于在对话中折叠显示思考内容。
             </p>
             <p>注意：这个规则需要和预设消息内容搭配使用。</p>
           </div>
@@ -426,7 +573,7 @@ const handleSave = () => {
 
         <el-collapse-item title="虚拟时间线配置" name="virtualTime">
           <div class="form-hint" style="margin-bottom: 12px" v-pre>
-            设定智能体的虚拟时间流逝规则。启用后，{{time}} 等宏将基于此配置计算时间。
+            设定智能体的虚拟时间流逝规则。启用后，{{ time }} 等宏将基于此配置计算时间。
           </div>
           <el-form-item label="启用虚拟时间">
             <el-switch v-model="virtualTimeEnabled" />
@@ -463,9 +610,47 @@ const handleSave = () => {
                 相对于现实时间的流速倍率。1.0 为正常流速，2.0 为两倍速，0.5 为半速。
               </div>
             </el-form-item>
-            <div class="form-hint">
+            <div class="form-hint" style="margin-bottom: 16px">
               计算公式：当前虚拟时间 = 虚拟基准点 + (当前现实时间 - 现实基准点) × 时间流速
             </div>
+
+            <!-- 宏预览区域 -->
+            <el-divider content-position="left">
+              <span style="font-size: 12px; color: var(--el-text-color-secondary)">实时预览</span>
+            </el-divider>
+            <el-form-item label="测试宏">
+              <div class="macro-input-wrapper">
+                <el-input
+                  v-model="macroPreviewInput"
+                  placeholder="输入要测试的宏，如 {{time}} 或 {{datetime_cn}}"
+                  clearable
+                />
+                <el-popover
+                  v-model:visible="macroSelectorVisible"
+                  placement="bottom-end"
+                  :width="400"
+                  trigger="click"
+                  popper-class="macro-selector-popover"
+                >
+                  <template #reference>
+                    <el-button :type="macroSelectorVisible ? 'primary' : 'default'" plain>
+                      <el-icon style="margin-right: 4px"><MagicStick /></el-icon>
+                      插入宏
+                    </el-button>
+                  </template>
+                  <MacroSelector filter="contextFree" @insert="handleInsertMacro" />
+                </el-popover>
+              </div>
+              <div class="form-hint" v-pre>
+                支持的时间宏：{{ time }}, {{ date }}, {{ datetime }}, {{ time24 }}, {{ weekday }},
+                {{ datetime_cn }}, {{ shichen }}, {{ datetime_cn_ancient }} 等
+              </div>
+            </el-form-item>
+            <el-form-item label="预览结果">
+              <div class="macro-preview-result">
+                {{ macroPreviewResult || "（输入宏后显示结果）" }}
+              </div>
+            </el-form-item>
           </template>
         </el-collapse-item>
       </el-collapse>
@@ -501,5 +686,29 @@ const handleSave = () => {
 
 .slider-input-group .el-input-number {
   width: 120px;
+}
+
+/* 宏预览结果样式 */
+.macro-preview-result {
+  padding: 12px 16px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  font-family: var(--el-font-family);
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  min-height: 20px;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+/* 宏输入框包装器 */
+.macro-input-wrapper {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.macro-input-wrapper .el-input {
+  flex: 1;
 }
 </style>

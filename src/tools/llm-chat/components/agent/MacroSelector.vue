@@ -88,9 +88,22 @@ import { ref, computed, onMounted } from "vue";
 import { Search, Plus } from "@element-plus/icons-vue";
 import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
 
+interface Props {
+  /**
+   * 筛选条件
+   * - 'all': 显示所有宏（默认）
+   * - 'contextFree': 只显示不依赖上下文的宏
+   */
+  filter?: 'all' | 'contextFree';
+}
+
 interface Emits {
   (e: "insert", macro: MacroDefinition): void;
 }
+
+const props = withDefaults(defineProps<Props>(), {
+  filter: 'all',
+});
 
 const emit = defineEmits<Emits>();
 
@@ -114,9 +127,14 @@ const groupedMacros = computed(() => {
   const macros = registry.getAllMacros();
 
   // 只保留 supported 为 true 的宏
-  const supportedMacros = macros.filter((macro) => macro.supported !== false);
+  let filteredMacros = macros.filter((macro) => macro.supported !== false);
 
-  return supportedMacros.reduce(
+  // 根据 filter prop 进一步筛选
+  if (props.filter === 'contextFree') {
+    filteredMacros = filteredMacros.filter((macro) => macro.contextFree === true);
+  }
+
+  return filteredMacros.reduce(
     (acc, macro) => {
       if (!acc[macro.type]) {
         acc[macro.type] = [];

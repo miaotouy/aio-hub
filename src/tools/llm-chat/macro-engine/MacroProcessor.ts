@@ -324,11 +324,13 @@ export class MacroProcessor {
    * 用于在没有完整 MacroContext 的情况下执行 contextFree 宏
    * @param macroName 宏名称
    * @param args 可选参数
+   * @param extraContext 可选的额外上下文数据，将合并到最小上下文中
    * @returns 执行结果，如果宏不存在或不是 contextFree 则返回 null
    */
   static async executeDirectly(
     macroName: string,
-    args?: string[]
+    args?: string[],
+    extraContext?: Partial<MacroContext>
   ): Promise<string | null> {
     const registry = MacroRegistry.getInstance();
     const macroDef = registry.getMacro(macroName);
@@ -344,12 +346,13 @@ export class MacroProcessor {
     }
 
     try {
-      // 创建一个最小化的空上下文
+      // 创建一个最小化的空上下文，并合并额外上下文
       const minimalContext: MacroContext = {
         userName: '',
         charName: '',
         variables: new Map(),
         globalVariables: new Map(),
+        ...extraContext,
       };
 
       const result = await macroDef.execute(minimalContext, args);

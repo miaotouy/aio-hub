@@ -3,9 +3,42 @@
  * 提供时间和日期相关的宏
  */
 
+import type { MacroContext } from '../MacroContext';
 import type { MacroRegistry } from '../MacroRegistry';
 import { MacroPhase, MacroType } from '../MacroRegistry';
 import type { MacroDefinition } from '../MacroRegistry';
+
+/**
+ * 计算有效时间（考虑虚拟时间配置）
+ */
+function calculateEffectiveTime(context: MacroContext): Date {
+  // 1. 获取当前现实时间（优先使用 context.timestamp，否则取当前系统时间）
+  const currentRealTime = context.timestamp ? new Date(context.timestamp) : new Date();
+
+  // 2. 检查是否有虚拟时间配置
+  const config = context.agent?.virtualTimeConfig;
+  if (!config) {
+    return currentRealTime;
+  }
+
+  try {
+    // 3. 解析基准时间
+    const virtualBase = new Date(config.virtualBaseTime).getTime();
+    const realBase = new Date(config.realBaseTime).getTime();
+    const timeScale = config.timeScale ?? 1.0;
+
+    // 4. 计算时间差
+    const elapsedRealTime = currentRealTime.getTime() - realBase;
+    const elapsedVirtualTime = elapsedRealTime * timeScale;
+
+    // 5. 返回虚拟时间
+    return new Date(virtualBase + elapsedVirtualTime);
+  } catch (e) {
+    // 如果解析出错，回退到现实时间
+    console.error('Error calculating virtual time:', e);
+    return currentRealTime;
+  }
+}
 
 /**
  * 格式化时间
@@ -48,7 +81,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 90,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         return formatTime(now);
       },
     },
@@ -64,7 +97,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 90,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         return formatDate(now);
       },
     },
@@ -80,7 +113,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 70,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         return now.toISOString();
       },
     },
@@ -96,8 +129,8 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 60,
       supported: true,
       execute: (context) => {
-        const ts = context.timestamp || Date.now();
-        return ts.toString();
+        const now = calculateEffectiveTime(context);
+        return now.getTime().toString();
       },
     },
 
@@ -112,7 +145,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 85,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         const hours = now.getHours().toString().padStart(2, '0');
         const minutes = now.getMinutes().toString().padStart(2, '0');
         return `${hours}:${minutes}`;
@@ -131,7 +164,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       supported: true,
       execute: (context) => {
         const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         return days[now.getDay()];
       },
     },
@@ -147,7 +180,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 89,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
         const month = (now.getMonth() + 1).toString().padStart(2, '0');
         const day = now.getDate().toString().padStart(2, '0');
@@ -166,7 +199,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 88,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
         const month = now.getMonth() + 1;
         const day = now.getDate();
@@ -185,7 +218,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 87,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
         const month = (now.getMonth() + 1).toString().padStart(2, '0');
         const day = now.getDate().toString().padStart(2, '0');
@@ -207,7 +240,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       priority: 86,
       supported: true,
       execute: (context) => {
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
         const month = now.getMonth() + 1;
         const day = now.getDate();
@@ -230,7 +263,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       supported: true,
       execute: (context) => {
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const now = context.timestamp ? new Date(context.timestamp) : new Date();
+        const now = calculateEffectiveTime(context);
         return days[now.getDay()];
       },
     },

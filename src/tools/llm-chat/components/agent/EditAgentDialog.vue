@@ -80,8 +80,14 @@ const editForm = reactive({
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
   tags: [] as string[],
   category: "",
+  virtualTimeConfig: null as {
+    virtualBaseTime: string;
+    realBaseTime: string;
+    timeScale: number;
+  } | null,
 });
 
+const virtualTimeEnabled = ref(false);
 const activeCollapseNames = ref<string[]>([]);
 const thinkRulesLoaded = ref(false);
 const styleOptionsLoaded = ref(false);
@@ -125,6 +131,22 @@ const loadFormData = () => {
     editForm.richTextStyleOptions = props.agent.richTextStyleOptions
       ? JSON.parse(JSON.stringify(props.agent.richTextStyleOptions))
       : {};
+    
+    if (props.agent.virtualTimeConfig) {
+      virtualTimeEnabled.value = true;
+      editForm.virtualTimeConfig = {
+        virtualBaseTime: props.agent.virtualTimeConfig.virtualBaseTime,
+        realBaseTime: props.agent.virtualTimeConfig.realBaseTime,
+        timeScale: props.agent.virtualTimeConfig.timeScale ?? 1.0,
+      };
+    } else {
+      virtualTimeEnabled.value = false;
+      editForm.virtualTimeConfig = {
+        virtualBaseTime: new Date().toISOString(),
+        realBaseTime: new Date().toISOString(),
+        timeScale: 1.0,
+      };
+    }
   } else if (props.mode === "create" && props.initialData) {
     // 创建模式：使用初始数据
     editForm.name = props.initialData.name || "";
@@ -150,6 +172,13 @@ const loadFormData = () => {
     editForm.richTextStyleOptions = props.initialData.richTextStyleOptions
       ? JSON.parse(JSON.stringify(props.initialData.richTextStyleOptions))
       : {};
+    
+    virtualTimeEnabled.value = false;
+    editForm.virtualTimeConfig = {
+      virtualBaseTime: new Date().toISOString(),
+      realBaseTime: new Date().toISOString(),
+      timeScale: 1.0,
+    };
   }
   activeCollapseNames.value = [];
   thinkRulesLoaded.value = false;
@@ -178,6 +207,13 @@ const handleModelComboChange = (value: string) => {
 };
 const handleIconUpdate = (payload: IconUpdatePayload) => {
   editForm.icon = payload.value;
+};
+
+// 设置现实基准时间为当前时间
+const setRealBaseToNow = () => {
+  if (editForm.virtualTimeConfig) {
+    editForm.virtualTimeConfig.realBaseTime = new Date().toISOString();
+  }
 };
 
 // 关闭对话框
@@ -219,6 +255,11 @@ const handleSave = () => {
     richTextStyleOptions: editForm.richTextStyleOptions,
     tags: editForm.tags,
     category: editForm.category,
+    virtualTimeConfig: virtualTimeEnabled.value && editForm.virtualTimeConfig ? {
+      virtualBaseTime: editForm.virtualTimeConfig.virtualBaseTime,
+      realBaseTime: editForm.virtualTimeConfig.realBaseTime,
+      timeScale: editForm.virtualTimeConfig.timeScale,
+    } : undefined,
   });
 
   handleClose();
@@ -381,6 +422,51 @@ const handleSave = () => {
               :loading="styleLoading"
             />
           </div>
+        </el-collapse-item>
+
+        <el-collapse-item title="虚拟时间线配置" name="virtualTime">
+          <div class="form-hint" style="margin-bottom: 12px" v-pre>
+            设定智能体的虚拟时间流逝规则。启用后，{{time}} 等宏将基于此配置计算时间。
+          </div>
+          <el-form-item label="启用虚拟时间">
+            <el-switch v-model="virtualTimeEnabled" />
+          </el-form-item>
+          <template v-if="virtualTimeEnabled && editForm.virtualTimeConfig">
+            <el-form-item label="虚拟基准点">
+              <el-date-picker
+                v-model="editForm.virtualTimeConfig.virtualBaseTime"
+                type="datetime"
+                placeholder="设定虚拟世界的起始时间"
+                style="width: 100%"
+              />
+              <div class="form-hint">设定智能体所处的虚拟世界时间点。</div>
+            </el-form-item>
+            <el-form-item label="现实基准点">
+              <div style="display: flex; gap: 8px; width: 100%">
+                <el-date-picker
+                  v-model="editForm.virtualTimeConfig.realBaseTime"
+                  type="datetime"
+                  placeholder="对应现实世界的时刻"
+                  style="flex: 1"
+                />
+                <el-button @click="setRealBaseToNow">设为现在</el-button>
+              </div>
+              <div class="form-hint">该虚拟时间点所对应的现实世界时间。</div>
+            </el-form-item>
+            <el-form-item label="时间流速">
+              <el-input-number
+                v-model="editForm.virtualTimeConfig.timeScale"
+                :step="0.1"
+                :precision="2"
+              />
+              <div class="form-hint">
+                相对于现实时间的流速倍率。1.0 为正常流速，2.0 为两倍速，0.5 为半速。
+              </div>
+            </el-form-item>
+            <div class="form-hint">
+              计算公式：当前虚拟时间 = 虚拟基准点 + (当前现实时间 - 现实基准点) × 时间流速
+            </div>
+          </template>
         </el-collapse-item>
       </el-collapse>
     </el-form>

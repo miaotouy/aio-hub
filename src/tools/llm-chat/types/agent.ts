@@ -94,6 +94,19 @@ export interface ChatAgent {
   richTextStyleOptions?: RichTextRendererStyleOptions;
 
   /**
+   * 虚拟时间配置
+   * 用于设定智能体的虚拟时间流逝规则
+   */
+  virtualTimeConfig?: {
+    /** 虚拟基准时间 (ISO 8601) */
+    virtualBaseTime: string;
+    /** 现实基准时间 (ISO 8601) */
+    realBaseTime: string;
+    /** 时间流速倍率 (默认为 1.0) */
+    timeScale?: number;
+  };
+
+  /**
    * 筛选标签
    * 用于在UI中进行分组和筛选
    */
@@ -196,6 +209,15 @@ export interface AgentPreset {
    * 富文本渲染器样式配置
    */
   richTextStyleOptions?: RichTextRendererStyleOptions;
+
+  /**
+   * 虚拟时间配置
+   */
+  virtualTimeConfig?: {
+    virtualBaseTime: string;
+    realBaseTime: string;
+    timeScale?: number;
+  };
 }
 
 /**

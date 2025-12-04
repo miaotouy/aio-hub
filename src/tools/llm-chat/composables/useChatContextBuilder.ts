@@ -114,6 +114,11 @@ export interface ContextPreviewData {
     icon?: string;
     profileId: string;
     modelId: string;
+    virtualTimeConfig?: {
+      virtualBaseTime: string;
+      realBaseTime: string;
+      timeScale?: number;
+    };
   };
   /** LLM 请求参数 */
   parameters?: LlmParameters;
@@ -1363,6 +1368,7 @@ export function useChatContextBuilder() {
         icon: targetNode.metadata?.agentIcon || resolveAvatarPath(agent, 'agent') || undefined,
         profileId: targetNode.metadata?.profileId || agentConfig?.profileId || '',
         modelId: targetNode.metadata?.modelId || agentConfig?.modelId || '',
+        virtualTimeConfig: agent?.virtualTimeConfig || agentConfig?.virtualTimeConfig,
       },
       // 优先使用节点元数据中的参数快照，否则回退到使用当前配置（并应用过滤）
       parameters: (() => {

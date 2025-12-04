@@ -80,6 +80,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 90,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         return formatTime(now);
@@ -96,6 +97,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 90,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         return formatDate(now);
@@ -112,6 +114,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 70,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         return now.toISOString();
@@ -128,6 +131,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 60,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         return now.getTime().toString();
@@ -144,6 +148,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 85,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         const hours = now.getHours().toString().padStart(2, '0');
@@ -162,6 +167,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 79,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
         const now = calculateEffectiveTime(context);
@@ -179,6 +185,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 89,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
@@ -198,6 +205,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 88,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
@@ -217,6 +225,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 87,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
@@ -239,6 +248,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 86,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const now = calculateEffectiveTime(context);
         const year = now.getFullYear();
@@ -261,6 +271,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 80,
       supported: true,
+      contextFree: true,
       execute: (context) => {
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const now = calculateEffectiveTime(context);

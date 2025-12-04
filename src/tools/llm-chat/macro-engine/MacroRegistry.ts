@@ -55,6 +55,11 @@ export interface MacroDefinition {
   priority?: number;
   /** 是否已实现（未实现的宏不会在UI中显示） */
   supported?: boolean;
+  /**
+   * 是否不依赖上下文（可直接调用）
+   * 标记为 true 的宏可以在没有完整 MacroContext 的情况下执行
+   */
+  contextFree?: boolean;
   /** 执行函数 */
   execute: (context: MacroContext, args?: string[]) => string | Promise<string>;
 }

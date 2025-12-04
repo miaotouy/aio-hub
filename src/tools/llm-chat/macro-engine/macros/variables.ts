@@ -23,6 +23,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 2,
       priority: 95,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 2) {
           return '[错误: setvar 需要2个参数]';
@@ -46,6 +47,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 1,
       priority: 90,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 1) {
           return '[错误: getvar 需要1个参数]';
@@ -67,6 +69,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 1,
       priority: 90,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 1) {
           return '[错误: incvar 需要1个参数]';
@@ -90,6 +93,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 1,
       priority: 90,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 1) {
           return '[错误: decvar 需要1个参数]';
@@ -113,6 +117,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 2,
       priority: 85,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 2) {
           return '[错误: setglobalvar 需要2个参数]';
@@ -136,6 +141,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 1,
       priority: 85,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 1) {
           return '[错误: getglobalvar 需要1个参数]';
@@ -157,6 +163,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 1,
       priority: 80,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 1) {
           return '[错误: incglobalvar 需要1个参数]';
@@ -180,6 +187,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
       argCount: 1,
       priority: 80,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length < 1) {
           return '[错误: decglobalvar 需要1个参数]';

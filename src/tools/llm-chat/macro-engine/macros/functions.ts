@@ -35,6 +35,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       acceptsArgs: true,
       priority: 85,
       supported: true,
+      contextFree: true,
       execute: (_context, args) => {
         if (!args || args.length === 0) {
           return '[错误: random 需要至少1个参数]';
@@ -54,6 +55,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       acceptsArgs: true,
       priority: 80,
       supported: true,
+      contextFree: false,
       execute: (context, args) => {
         if (!args || args.length === 0) {
           return '[错误: pick 需要至少1个参数]';
@@ -77,6 +79,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       argCount: 1,
       priority: 75,
       supported: true,
+      contextFree: true,
       execute: (_context, args) => {
         if (!args || args.length === 0) {
           return '[错误: roll 需要1个参数]';
@@ -129,6 +132,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 100,
       supported: true,
+      contextFree: true,
       execute: () => '\n',
     },
 
@@ -142,6 +146,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 95,
       supported: true,
+      contextFree: true,
       execute: () => {
         // trim 的实际处理需要在后处理阶段特殊处理
         // 这里返回一个特殊标记，由后处理器识别并处理
@@ -160,6 +165,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       argCount: 2,
       priority: 70,
       supported: true,
+      contextFree: true,
       execute: (_context, args) => {
         if (!args || args.length < 2) {
           return '[错误: randomInt 需要2个参数]';
@@ -192,6 +198,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       argCount: 2,
       priority: 65,
       supported: true,
+      contextFree: true,
       execute: (_context, args) => {
         if (!args || args.length < 2) {
           return '[错误: repeat 需要2个参数]';

@@ -22,6 +22,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 100,
       supported: true,
+      contextFree: false,
       execute: (context) => context.userName || 'User',
     },
 
@@ -35,6 +36,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 100,
       supported: true,
+      contextFree: false,
       execute: (context) => context.charName || 'Assistant',
     },
 
@@ -48,6 +50,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 80,
       supported: true,
+      contextFree: false,
       execute: (context) => context.userProfile || '',
     },
 
@@ -61,6 +64,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 70,
       supported: true,
+      contextFree: false,
       execute: (context) => context.charDescription || '',
     },
 
@@ -74,6 +78,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 70,
       supported: false,
+      contextFree: false,
       execute: (context) => context.charPersonality || '',
     },
 
@@ -87,6 +92,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 60,
       supported: false,
+      contextFree: false,
       execute: (context) => context.scenario || '',
     },
 
@@ -100,6 +106,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 50,
       supported: false,
+      contextFree: false,
       execute: (context) => context.mesExamples || '',
     },
 
@@ -113,6 +120,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 90,
       supported: true,
+      contextFree: false,
       execute: (context) => context.lastMessage || '',
     },
 
@@ -126,6 +134,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 85,
       supported: true,
+      contextFree: false,
       execute: (context) => context.lastUserMessage || '',
     },
 
@@ -139,6 +148,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 85,
       supported: true,
+      contextFree: false,
       execute: (context) => context.lastCharMessage || '',
     },
 
@@ -152,6 +162,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       acceptsArgs: false,
       priority: 75,
       supported: false,
+      contextFree: false,
       execute: (context) => context.input || '',
     },
   ];

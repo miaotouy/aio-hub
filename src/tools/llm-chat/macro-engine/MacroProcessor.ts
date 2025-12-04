@@ -4,7 +4,7 @@
  */
 
 import type { MacroContext } from './MacroContext';
-import { MacroRegistry, MacroPhase } from './MacroRegistry';
+import { MacroRegistry, MacroPhase, type MacroDefinition } from './MacroRegistry';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 
@@ -317,5 +317,67 @@ export class MacroProcessor {
       );
       return { name, args, fullMatch };
     });
+  }
+
+  /**
+   * 直接执行不依赖上下文的宏
+   * 用于在没有完整 MacroContext 的情况下执行 contextFree 宏
+   * @param macroName 宏名称
+   * @param args 可选参数
+   * @returns 执行结果，如果宏不存在或不是 contextFree 则返回 null
+   */
+  static async executeDirectly(
+    macroName: string,
+    args?: string[]
+  ): Promise<string | null> {
+    const registry = MacroRegistry.getInstance();
+    const macroDef = registry.getMacro(macroName);
+
+    if (!macroDef) {
+      logger.warn('尝试直接执行不存在的宏', { macroName });
+      return null;
+    }
+
+    if (!macroDef.contextFree) {
+      logger.warn('尝试直接执行依赖上下文的宏', { macroName });
+      return null;
+    }
+
+    try {
+      // 创建一个最小化的空上下文
+      const minimalContext: MacroContext = {
+        userName: '',
+        charName: '',
+        variables: new Map(),
+        globalVariables: new Map(),
+      };
+
+      const result = await macroDef.execute(minimalContext, args);
+      logger.debug('直接执行宏成功', { macroName, args, resultLength: result.length });
+      return result;
+    } catch (error) {
+      errorHandler.error(error as Error, '直接执行宏失败', {
+        showToUser: false,
+        context: { macroName, args },
+      });
+      return null;
+    }
+  }
+
+  /**
+   * 获取所有可直接调用的宏（contextFree 宏）
+   */
+  static getContextFreeMacros(): MacroDefinition[] {
+    const registry = MacroRegistry.getInstance();
+    return registry.getAllMacros().filter(m => m.contextFree === true);
+  }
+
+  /**
+   * 检查宏是否可以直接调用
+   */
+  static isContextFree(macroName: string): boolean {
+    const registry = MacroRegistry.getInstance();
+    const macroDef = registry.getMacro(macroName);
+    return macroDef?.contextFree === true;
   }
 }

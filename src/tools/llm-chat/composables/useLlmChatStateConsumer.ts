@@ -120,7 +120,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
         });
         
         // 查找是否已存在该会话
-        const existingIndex = store.sessions.findIndex(s => s.id === newSessionData.id);
+        const existingIndex = store.sessions.findIndex((s: ChatSession) => s.id === newSessionData.id);
         
         if (existingIndex >= 0) {
           // 更新现有会话

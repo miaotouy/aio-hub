@@ -222,8 +222,8 @@ const allContextExpanded = ref(false);
 const combinedOriginalText = computed(() => {
   if (!props.contextData) return "";
   const texts: string[] = [];
-  props.contextData.presetMessages.forEach((msg) => {
-    const raw = (msg as any).originalContent || msg.content;
+  props.contextData.presetMessages.forEach((msg: any) => {
+    const raw = msg.originalContent || msg.content;
     if (raw) texts.push(raw);
   });
   return texts.join("\n");

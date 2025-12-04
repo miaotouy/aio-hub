@@ -48,7 +48,7 @@ const getMessageSiblings = (messageId: string) => {
 
   const siblings = store.getSiblings(messageId);
   // 找到在当前活动路径上的兄弟节点（而不是传入的 messageId 自己）
-  const currentIndex = siblings.findIndex((s) => store.isNodeInActivePath(s.id));
+  const currentIndex = siblings.findIndex((s: ChatMessageNode) => store.isNodeInActivePath(s.id));
   return {
     siblings,
     currentIndex,

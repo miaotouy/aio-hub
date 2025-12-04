@@ -20,6 +20,8 @@ import type { ProcessableMessage } from "../types/context";
 
 const logger = createModuleLogger("llm-chat/context-builder");
 
+export type { ContextPreviewData };
+
 export function useChatContextBuilder() {
     const { buildMessageContentForLlm } = useMessageBuilder();
     const { processMacros, processMacrosBatch } = useMacroProcessor();

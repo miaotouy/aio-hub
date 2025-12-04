@@ -35,10 +35,13 @@ interface Props {
   compact?: boolean;
   /** 模型的上下文窗口限制（如果为 undefined 则使用默认最大值） */
   contextLengthLimit?: number;
+  /** 外部传入的上下文统计数据（如果有，组件将不再自行计算） */
+  externalStats?: ContextPreviewData["statistics"] | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   compact: false,
+  externalStats: undefined,
 });
 
 const emit = defineEmits<{
@@ -554,17 +557,29 @@ const retainedCharactersConfig: ParameterConfig = {
   defaultValue: 200,
 };
 
-// --- 上下文统计数据逻辑 (保留原有逻辑) ---
+// --- 上下文统计数据逻辑 ---
 
-const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
+// 本地计算的统计数据
+const localContextStats = ref<ContextPreviewData["statistics"] | null>(null);
 const isLoadingStats = ref(false);
 
+// 最终使用的统计数据（优先使用外部传入）
+const contextStats = computed(() => {
+  if (props.externalStats !== undefined) {
+    return props.externalStats;
+  }
+  return localContextStats.value;
+});
+
 const loadContextStats = async () => {
+  // 如果有外部统计数据，跳过本地计算
+  if (props.externalStats !== undefined) return;
+
   const chatStore = useLlmChatStore();
   const session = chatStore.currentSession;
 
   if (!session || !session.activeLeafId) {
-    contextStats.value = null;
+    localContextStats.value = null;
     return;
   }
 
@@ -579,11 +594,11 @@ const loadContextStats = async () => {
     );
 
     if (previewData) {
-      contextStats.value = previewData.statistics;
+      localContextStats.value = previewData.statistics;
     }
   } catch (error) {
     console.warn("获取上下文统计失败", error);
-    contextStats.value = null;
+    localContextStats.value = null;
   } finally {
     isLoadingStats.value = false;
   }
@@ -597,41 +612,43 @@ onMounted(() => {
   loadContextStats();
 });
 
-watch(
-  () => chatStore.currentSessionId,
-  () => loadContextStats()
-);
-watch(
-  () => chatStore.currentSession?.activeLeafId,
-  () => loadContextStats()
-);
-watch(
-  () => agentStore.currentAgentId,
-  () => loadContextStats()
-);
+// 统一的 Watcher 处理逻辑
+const handleStateChange = () => {
+  if (props.externalStats === undefined) {
+    loadContextStats();
+  }
+};
+
+watch(() => chatStore.currentSessionId, handleStateChange);
+watch(() => chatStore.currentSession?.activeLeafId, handleStateChange);
+watch(() => agentStore.currentAgentId, handleStateChange);
 watch(
   () => {
     if (!agentStore.currentAgentId) return null;
     const agent = agentStore.getAgentById(agentStore.currentAgentId);
     return agent?.modelId;
   },
-  () => loadContextStats()
+  handleStateChange
 );
 watch(
   () => localParams.value.contextManagement,
-  () => setTimeout(loadContextStats, 300),
+  () => {
+    if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
+  },
   { deep: true }
 );
 watch(
   () => localParams.value.contextPostProcessing,
-  () => setTimeout(loadContextStats, 300),
+  () => {
+    if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
+  },
   { deep: true }
 );
 watch(
   () => chatStore.generatingNodes.size,
   (newSize) => {
     if (previousGeneratingCount > 0 && newSize === 0) {
-      loadContextStats();
+      handleStateChange();
     }
     previousGeneratingCount = newSize;
   }
@@ -642,14 +659,14 @@ watch(
     const agent = agentStore.getAgentById(agentStore.currentAgentId);
     return agent?.presetMessages;
   },
-  () => loadContextStats(),
+  handleStateChange,
   { deep: true }
 );
 watch(
   () => chatStore.currentSession?.updatedAt,
   (newTime, oldTime) => {
     if (chatStore.generatingNodes.size === 0 && newTime !== oldTime) {
-      loadContextStats();
+      handleStateChange();
     }
   }
 );

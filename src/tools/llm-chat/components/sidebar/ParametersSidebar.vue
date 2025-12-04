@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useAgentStore } from "../../agentStore";
+import { useLlmChatStore } from "../../store";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
@@ -15,6 +16,7 @@ import type { ChatMessageNode, LlmParameters, AgentEditData } from "../../types"
 import { Edit } from "@element-plus/icons-vue";
 
 const agentStore = useAgentStore();
+const chatStore = useLlmChatStore();
 const { enabledProfiles } = useLlmProfiles();
 
 // 获取当前智能体（从 store 读取）
@@ -181,6 +183,7 @@ const handleSaveEdit = (data: AgentEditData) => {
           :provider-type="currentProviderType"
           :capabilities="currentModel?.capabilities"
           :context-length-limit="contextLengthLimit"
+          :external-stats="chatStore.contextStats"
         />
 
         <!-- 预设消息分组 -->

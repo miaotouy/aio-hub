@@ -10,13 +10,11 @@ import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputMa
 import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
-import { useChatHandler } from "@/tools/llm-chat/composables/useChatHandler";
 import { useMessageBuilder } from "@/tools/llm-chat/composables/useMessageBuilder";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
-import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
 import { customMessage } from "@/utils/customMessage";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -52,10 +50,6 @@ const isCurrentBranchGenerating = computed(() => {
 const tokenCount = ref<number>(0);
 const isCalculatingTokens = ref(false);
 const tokenEstimated = ref(false);
-
-// 历史上下文统计
-const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
-const isLoadingContextStats = ref(false);
 
 // 切换流式输出模式
 const toggleStreaming = () => {
@@ -427,7 +421,8 @@ const calculateInputTokens = async () => {
 
   // 如果活动路径上没有，查找整个会话中的任意助手消息
   if (!modelId) {
-    for (const node of Object.values(session.nodes)) {
+    for (const n of Object.values(session.nodes)) {
+      const node = n as ChatMessageNode;
       if (node.role === "assistant" && node.metadata?.modelId) {
         modelId = node.metadata.modelId;
         break;
@@ -514,57 +509,21 @@ watch(
   { deep: true }
 );
 
-// 加载历史上下文统计
-const loadContextStats = async () => {
-  const session = chatStore.currentSession;
-  if (!session || !session.activeLeafId) {
-    contextStats.value = null;
-    return;
-  }
-
-  isLoadingContextStats.value = true;
-  try {
-    const { getLlmContextForPreview } = useChatHandler();
-    const previewData = await getLlmContextForPreview(
-      session,
-      session.activeLeafId,
-      agentStore.currentAgentId ?? undefined
-    );
-
-    if (previewData) {
-      contextStats.value = previewData.statistics;
-    }
-  } catch (error) {
-    logger.warn("获取历史上下文统计失败", error);
-    contextStats.value = null;
-  } finally {
-    isLoadingContextStats.value = false;
-  }
-};
-
-// 监听当前会话变化（切换会话时重新计算）
+// 监听当前会话变化（切换会话时重新计算当前输入 Token）
 watch(
   () => chatStore.currentSessionId,
   () => {
     debouncedCalculateTokens();
-    loadContextStats();
+    // 触发 Store 刷新上下文统计（虽然 Store 内部有监听，但这里显式调用确保及时性）
+    chatStore.refreshContextStats();
   }
 );
 
-// 监听活跃叶节点变化
-watch(
-  () => chatStore.currentSession?.activeLeafId,
-  () => {
-    loadContextStats();
-  }
-);
-
-// 监听智能体切换（模型可能改变，需要重新计算 token）
+// 监听智能体切换（模型可能改变，需要重新计算当前输入 token）
 watch(
   () => agentStore.currentAgentId,
   () => {
     debouncedCalculateTokens();
-    loadContextStats();
   }
 );
 
@@ -585,19 +544,6 @@ watch(
   },
   () => {
     debouncedCalculateTokens();
-    loadContextStats();
-  }
-);
-
-// 监听消息生成完成
-let previousGeneratingCount = 0;
-watch(
-  () => chatStore.generatingNodes.size,
-  (newSize) => {
-    if (previousGeneratingCount > 0 && newSize === 0) {
-      loadContextStats();
-    }
-    previousGeneratingCount = newSize;
   }
 );
 
@@ -610,8 +556,9 @@ onMounted(async () => {
       isStreaming: settings.value.uiPreferences.isStreaming,
     });
   }
-
-  loadContextStats();
+  
+  // 初始刷新一次上下文统计
+  chatStore.refreshContextStats();
 });
 /**
  * 插入宏到光标位置
@@ -849,7 +796,7 @@ const handleSelectTemporaryModel = async () => {
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"
             v-model:macro-selector-visible="macroSelectorVisible"
-            :context-stats="contextStats"
+            :context-stats="chatStore.contextStats"
             :token-count="tokenCount"
             :is-calculating-tokens="isCalculatingTokens"
             :token-estimated="tokenEstimated"

@@ -29,24 +29,7 @@ interface Props {
   visible: boolean;
   mode: "create" | "edit";
   agent?: ChatAgent | null;
-  initialData?: {
-    name?: string;
-    displayName?: string;
-    description?: string;
-    icon?: string;
-    profileId?: string;
-    modelId?: string;
-    presetMessages?: ChatMessageNode[];
-    tags?: string[];
-    category?: string;
-    llmThinkRules?: LlmThinkRule[];
-    richTextStyleOptions?: RichTextRendererStyleOptions;
-    virtualTimeConfig?: {
-      virtualBaseTime: string;
-      realBaseTime: string;
-      timeScale?: number;
-    };
-  } | null;
+  initialData?: Partial<AgentEditData> | null;
 }
 interface Emits {
   (e: "update:visible", value: boolean): void;
@@ -73,8 +56,8 @@ const allTags = computed(() => {
   return Array.from(tagSet);
 });
 
-// 编辑表单
-const editForm = reactive({
+// 定义表单默认值
+const defaultFormState = {
   name: "",
   displayName: "",
   description: "",
@@ -89,12 +72,15 @@ const editForm = reactive({
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
   tags: [] as string[],
   category: "",
-  virtualTimeConfig: null as {
-    virtualBaseTime: string;
-    realBaseTime: string;
-    timeScale: number;
-  } | null,
-});
+  virtualTimeConfig: {
+    virtualBaseTime: new Date().toISOString(),
+    realBaseTime: new Date().toISOString(),
+    timeScale: 1.0,
+  },
+};
+
+// 编辑表单
+const editForm = reactive(JSON.parse(JSON.stringify(defaultFormState)));
 
 const virtualTimeEnabled = ref(false);
 const activeCollapseNames = ref<string[]>([]);
@@ -243,88 +229,58 @@ watch(activeCollapseNames, (newNames) => {
 
 // 加载表单数据
 const loadFormData = () => {
-  if (props.mode === "edit" && props.agent) {
-    // 编辑模式：加载现有智能体数据
-    editForm.name = props.agent.name;
-    editForm.displayName = props.agent.displayName || "";
-    editForm.description = props.agent.description || "";
-    editForm.icon = props.agent.icon || "";
-    editForm.profileId = props.agent.profileId;
-    editForm.modelId = props.agent.modelId;
-    editForm.modelCombo = `${props.agent.profileId}:${props.agent.modelId}`;
-    editForm.userProfileId = props.agent.userProfileId || null;
-    editForm.presetMessages = props.agent.presetMessages
-      ? JSON.parse(JSON.stringify(props.agent.presetMessages))
-      : [];
-    editForm.displayPresetCount = props.agent.displayPresetCount || 0;
-    editForm.tags = props.agent.tags ? JSON.parse(JSON.stringify(props.agent.tags)) : [];
-    editForm.category = props.agent.category || "";
-    editForm.llmThinkRules = props.agent.llmThinkRules
-      ? JSON.parse(JSON.stringify(props.agent.llmThinkRules))
-      : [];
-    editForm.richTextStyleOptions = props.agent.richTextStyleOptions
-      ? JSON.parse(JSON.stringify(props.agent.richTextStyleOptions))
-      : {};
+  // 1. 重置为默认值
+  const defaults = JSON.parse(JSON.stringify(defaultFormState));
+  Object.assign(editForm, defaults);
 
-    if (props.agent.virtualTimeConfig) {
-      virtualTimeEnabled.value = true;
-      editForm.virtualTimeConfig = {
-        virtualBaseTime: props.agent.virtualTimeConfig.virtualBaseTime,
-        realBaseTime: props.agent.virtualTimeConfig.realBaseTime,
-        timeScale: props.agent.virtualTimeConfig.timeScale ?? 1.0,
-      };
-    } else {
-      virtualTimeEnabled.value = false;
-      editForm.virtualTimeConfig = {
-        virtualBaseTime: new Date().toISOString(),
-        realBaseTime: new Date().toISOString(),
-        timeScale: 1.0,
-      };
-    }
-  } else if (props.mode === "create" && props.initialData) {
-    // 创建模式：使用初始数据
-    editForm.name = props.initialData.name || "";
-    editForm.displayName = props.initialData.displayName || "";
-    editForm.description = props.initialData.description || "";
-    editForm.icon = props.initialData.icon || "";
-    editForm.profileId = props.initialData.profileId || "";
-    editForm.modelId = props.initialData.modelId || "";
-    editForm.modelCombo =
-      props.initialData.profileId && props.initialData.modelId
-        ? `${props.initialData.profileId}:${props.initialData.modelId}`
-        : "";
-    editForm.userProfileId = null;
-    editForm.presetMessages = props.initialData.presetMessages
-      ? JSON.parse(JSON.stringify(props.initialData.presetMessages))
-      : [];
-    editForm.displayPresetCount = 0;
-    editForm.tags = props.initialData.tags
-      ? JSON.parse(JSON.stringify(props.initialData.tags))
-      : [];
-    editForm.category = props.initialData.category || "";
-    editForm.llmThinkRules = props.initialData.llmThinkRules
-      ? JSON.parse(JSON.stringify(props.initialData.llmThinkRules))
-      : [];
-    editForm.richTextStyleOptions = props.initialData.richTextStyleOptions
-      ? JSON.parse(JSON.stringify(props.initialData.richTextStyleOptions))
-      : {};
+  // 默认关闭可选功能
+  virtualTimeEnabled.value = false;
 
-    if (props.initialData.virtualTimeConfig) {
-      virtualTimeEnabled.value = true;
-      editForm.virtualTimeConfig = {
-        virtualBaseTime: props.initialData.virtualTimeConfig.virtualBaseTime,
-        realBaseTime: props.initialData.virtualTimeConfig.realBaseTime,
-        timeScale: props.initialData.virtualTimeConfig.timeScale ?? 1.0,
-      };
-    } else {
-      virtualTimeEnabled.value = false;
-      editForm.virtualTimeConfig = {
-        virtualBaseTime: new Date().toISOString(),
-        realBaseTime: new Date().toISOString(),
-        timeScale: 1.0,
-      };
+  // 确定数据源：编辑模式用 agent，创建模式用 initialData
+  const sourceData = props.mode === "edit" && props.agent ? props.agent : props.initialData || {};
+
+  // 2. 动态合并数据
+  // 遍历 editForm 的 key，如果 sourceData 中有对应的值，则覆盖
+  for (const key of Object.keys(editForm)) {
+    if (key in sourceData) {
+      const val = (sourceData as any)[key];
+      if (val !== undefined && val !== null) {
+        // 对于对象/数组进行深拷贝，避免引用污染
+        if (typeof val === "object") {
+          (editForm as any)[key] = JSON.parse(JSON.stringify(val));
+        } else {
+          (editForm as any)[key] = val;
+        }
+      }
     }
   }
+
+  // 3. 特殊字段处理
+
+  // modelCombo
+  if (editForm.profileId && editForm.modelId) {
+    editForm.modelCombo = `${editForm.profileId}:${editForm.modelId}`;
+  }
+
+  // virtualTimeConfig
+  // 如果源数据中有 virtualTimeConfig，则启用开关
+  if ("virtualTimeConfig" in sourceData && sourceData.virtualTimeConfig) {
+    virtualTimeEnabled.value = true;
+    // 确保 timeScale 有默认值，如果源数据里没有
+    if (editForm.virtualTimeConfig.timeScale === undefined) {
+      editForm.virtualTimeConfig.timeScale = 1.0;
+    }
+  } else {
+    // 即使未启用，也保持 editForm.virtualTimeConfig 有合法的默认值（已在步骤1重置）
+    // 重新生成时间，避免使用旧时间
+    editForm.virtualTimeConfig = {
+      virtualBaseTime: new Date().toISOString(),
+      realBaseTime: new Date().toISOString(),
+      timeScale: 1.0,
+    };
+  }
+
+  // 重置 UI 状态
   activeCollapseNames.value = [];
   thinkRulesLoaded.value = false;
   styleOptionsLoaded.value = false;
@@ -389,11 +345,17 @@ const handleSave = () => {
   }
 
   // 触发保存事件
-  // 参数保留原有值（编辑模式）或使用默认值（创建模式）
-  const parameters =
-    props.mode === "edit" && props.agent
-      ? props.agent.parameters
-      : { temperature: 0.7, maxTokens: 8192 };
+  // 参数处理：
+  // 1. 编辑模式：保留原有参数（因为 Dialog 不提供编辑，由外部 ModelParametersEditor 接管）
+  // 2. 创建模式：优先使用 initialData 中的参数（继承自预设），否则使用默认值
+  let parameters: ChatAgent["parameters"] = { temperature: 0.7, maxTokens: 8192 };
+
+  if (props.mode === "edit" && props.agent) {
+    parameters = props.agent.parameters;
+  } else if (props.mode === "create" && props.initialData?.parameters) {
+    // 确保是深拷贝，避免引用问题
+    parameters = JSON.parse(JSON.stringify(props.initialData.parameters));
+  }
 
   emit("save", {
     name: editForm.name,

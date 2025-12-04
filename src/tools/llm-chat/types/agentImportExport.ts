@@ -16,6 +16,11 @@ export interface ExportableAgent {
   parameters: LlmParameters;
   llmThinkRules?: LlmThinkRule[];
   richTextStyleOptions?: RichTextRendererStyleOptions;
+  virtualTimeConfig?: {
+    virtualBaseTime: string;
+    realBaseTime: string;
+    timeScale?: number;
+  };
   tags?: string[];
   category?: string;
 }

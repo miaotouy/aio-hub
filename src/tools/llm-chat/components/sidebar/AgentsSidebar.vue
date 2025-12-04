@@ -261,16 +261,30 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
 
   editDialogMode.value = "create";
   editingAgent.value = null;
+
+  // 剔除不需要直接复制的字段（如果有的话，目前预设结构基本都可以直接用）
+  // 使用解构和 rest 运算符获取所有其他属性
+  const { presetMessages, parameters, ...otherProps } = preset;
+
   editDialogInitialData.value = {
-    name: preset.name,
-    displayName: preset.displayName,
-    description: preset.description,
-    icon: preset.icon,
+    // 1. 展开所有其他属性 (name, description, icon, category, tags, virtualTimeConfig 等)
+    // 使用深拷贝防止引用污染
+    ...JSON.parse(JSON.stringify(otherProps)),
+
+    // 2. 覆盖或特殊处理的字段
     profileId: defaultProfile.id,
     modelId: defaultModel.id,
+
+    // 兼容处理 parameters (扁平化映射到 editDialogInitialData)
+    // 注意：EditAgentDialog 内部已经支持处理嵌套的 parameters 对象，
+    // 但为了保险和统一，这里我们保留 parameters 对象传递，让 Dialog 内部去解构
+    parameters: parameters
+      ? JSON.parse(JSON.stringify(parameters))
+      : { temperature: 0.7, maxTokens: 8192 },
+
     // 深度复制 presetMessages，并确保它们有唯一的 ID，同时保持引用关系
     presetMessages: (() => {
-      const rawMessages = JSON.parse(JSON.stringify(preset.presetMessages));
+      const rawMessages = JSON.parse(JSON.stringify(presetMessages));
       const idMap = new Map<string, string>();
 
       // 第一步：生成新 ID 映射
@@ -302,14 +316,6 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
         };
       });
     })(),
-    temperature: preset.parameters.temperature,
-    maxTokens: preset.parameters.maxTokens || 8192,
-    category: preset.category,
-    tags: preset.tags ? [...preset.tags] : [],
-    llmThinkRules: preset.llmThinkRules ? JSON.parse(JSON.stringify(preset.llmThinkRules)) : [],
-    richTextStyleOptions: preset.richTextStyleOptions
-      ? JSON.parse(JSON.stringify(preset.richTextStyleOptions))
-      : {},
   };
 
   editDialogVisible.value = true;
@@ -376,21 +382,10 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
 const handleCopyConfig = async (agent: ChatAgent, format: "json" | "yaml") => {
   try {
     // 构造可导出的智能体对象（参照 agentExportService）
-    const exportableAgent: ExportableAgent = {
-      name: agent.name,
-      displayName: agent.displayName,
-      description: agent.description,
-      icon: agent.icon,
-      modelId: agent.modelId,
-      userProfileId: agent.userProfileId,
-      presetMessages: agent.presetMessages,
-      displayPresetCount: agent.displayPresetCount,
-      parameters: agent.parameters,
-      llmThinkRules: agent.llmThinkRules,
-      richTextStyleOptions: agent.richTextStyleOptions,
-      tags: agent.tags,
-      category: agent.category,
-    };
+    // 动态剔除不需要导出的本地字段 (id, createdAt, updatedAt, lastUsedAt)
+    const { id, createdAt, lastUsedAt, ...rest } = agent;
+
+    const exportableAgent: ExportableAgent = JSON.parse(JSON.stringify(rest));
 
     const exportData: AgentExportFile = {
       version: 1,

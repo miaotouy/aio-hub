@@ -319,6 +319,20 @@
                 <el-button link size="small" @click="handleEditMessage(index)">
                   <el-icon><Edit /></el-icon>
                 </el-button>
+                <el-button link size="small" @click="handleCopyMessage(index)" title="复制消息配置">
+                  <el-icon><CopyDocument /></el-icon>
+                </el-button>
+                <el-popconfirm
+                  title="确定要用剪贴板内容覆盖这条消息吗？"
+                  @confirm="handlePasteMessage(index)"
+                  width="220"
+                >
+                  <template #reference>
+                    <el-button link size="small" title="粘贴并覆盖">
+                      <el-icon><DocumentCopy /></el-icon>
+                    </el-button>
+                  </template>
+                </el-popconfirm>
                 <el-button link size="small" type="danger" @click="handleDeleteMessage(index)">
                   <el-icon><Delete /></el-icon>
                 </el-button>
@@ -812,6 +826,81 @@ async function handleSaveMessage(form: { role: MessageRole; content: string }) {
 
   editDialogVisible.value = false;
   syncToParent();
+}
+
+/**
+ * 复制单条消息
+ */
+async function handleCopyMessage(index: number) {
+  const message = localMessages.value[index];
+  // 只复制关键字段
+  const dataToCopy = {
+    role: message.role,
+    content: message.content,
+    metadata: message.metadata,
+  };
+
+  try {
+    await writeText(JSON.stringify(dataToCopy, null, 2));
+    customMessage.success("消息已复制到剪贴板");
+  } catch (error) {
+    customMessage.error("复制失败");
+    console.error("Copy message error:", error);
+  }
+}
+
+/**
+ * 粘贴单条消息
+ */
+async function handlePasteMessage(index: number) {
+  try {
+    const text = await readText();
+    if (!text) {
+      customMessage.warning("剪贴板为空");
+      return;
+    }
+
+    let data: any;
+    let isStructured = false;
+
+    // 尝试解析为结构化数据
+    try {
+      data = JSON.parse(text);
+      if (data && typeof data === "object" && data.role && data.content) {
+        isStructured = true;
+      }
+    } catch {
+      try {
+        data = yaml.load(text);
+        if (data && typeof data === "object" && data.role && data.content) {
+          isStructured = true;
+        }
+      } catch {
+        // 无法解析为 JSON 或 YAML，保持 isStructured 为 false
+      }
+    }
+
+    const message = localMessages.value[index];
+
+    if (isStructured) {
+      // 如果是结构化数据，则覆盖 role, content 和 metadata
+      message.role = data.role;
+      message.content = data.content;
+      if (data.metadata) {
+        message.metadata = { ...message.metadata, ...data.metadata };
+      }
+      customMessage.success("已粘贴并覆盖消息");
+    } else {
+      // 否则，只将纯文本写入 content
+      message.content = text;
+      customMessage.success("已粘贴文本内容");
+    }
+
+    syncToParent();
+  } catch (error) {
+    customMessage.error("粘贴失败");
+    console.error("Paste message error:", error);
+  }
 }
 
 /**

@@ -149,6 +149,7 @@ const actionLabels: Record<HistoryActionTag, string> = {
   NODE_MOVE: "移动节点",
   BRANCH_GRAFT: "嫁接分支",
   BRANCH_CREATE: "创建分支",
+  BRANCH_CREATE_FROM_EDIT: "编辑创建分支",
   ACTIVE_NODE_SWITCH: "切换节点",
 };
 
@@ -162,6 +163,7 @@ const actionTagTypes: Record<HistoryActionTag, any> = {
   NODE_MOVE: "success",
   BRANCH_GRAFT: "success",
   BRANCH_CREATE: "success",
+  BRANCH_CREATE_FROM_EDIT: "success",
   ACTIVE_NODE_SWITCH: "info",
 };
 

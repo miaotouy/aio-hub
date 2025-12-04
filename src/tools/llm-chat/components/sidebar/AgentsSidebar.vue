@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, defineAsyncComponent } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
+import yaml from "js-yaml";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
-import { Plus, MoreFilled, Search, Download, Upload } from "@element-plus/icons-vue";
+import { Plus, MoreFilled, Search, Download, Upload, DocumentAdd } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, AgentEditData } from "../../types";
 import type { AgentPreset } from "../../types";
+import type { ExportableAgent, AgentExportFile } from "../../types/agentImportExport";
 import AgentListItem from "./AgentListItem.vue";
 
 console.log("[AgentsSidebar] Setup started");
@@ -369,6 +371,78 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
     // selectAgent(newAgentId);
   }
 };
+
+// 复制配置到剪贴板
+const handleCopyConfig = async (agent: ChatAgent, format: "json" | "yaml") => {
+  try {
+    // 构造可导出的智能体对象（参照 agentExportService）
+    const exportableAgent: ExportableAgent = {
+      name: agent.name,
+      displayName: agent.displayName,
+      description: agent.description,
+      icon: agent.icon,
+      modelId: agent.modelId,
+      userProfileId: agent.userProfileId,
+      presetMessages: agent.presetMessages,
+      displayPresetCount: agent.displayPresetCount,
+      parameters: agent.parameters,
+      llmThinkRules: agent.llmThinkRules,
+      richTextStyleOptions: agent.richTextStyleOptions,
+      tags: agent.tags,
+      category: agent.category,
+    };
+
+    const exportData: AgentExportFile = {
+      version: 1,
+      type: "AIO_Agent_Export",
+      agents: [exportableAgent],
+    };
+
+    const contentString =
+      format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
+
+    await navigator.clipboard.writeText(contentString);
+    const name = agent.displayName || agent.name;
+    customMessage.success(`智能体 "${name}" 的 ${format.toUpperCase()} 配置已复制到剪贴板`);
+  } catch (error) {
+    customMessage.error(`复制配置失败: ${error}`);
+  }
+};
+
+// 从剪贴板导入
+const handleImportFromClipboard = async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) {
+      customMessage.warning("剪贴板内容为空");
+      return;
+    }
+
+    let file: File;
+    const trimmedText = text.trim();
+
+    // 简单判断是 JSON 还是 YAML
+    if (trimmedText.startsWith("{") && trimmedText.endsWith("}")) {
+      file = new File([text], "from-clipboard.agent.json", { type: "application/json" });
+    } else {
+      // 否则尝试作为 YAML 处理
+      file = new File([text], "from-clipboard.agent.yaml", { type: "application/x-yaml" });
+    }
+
+    importLoading.value = true;
+    try {
+      const result = await agentStore.preflightImportAgents([file]);
+      importPreflightResult.value = result;
+      importDialogVisible.value = true;
+    } catch (error) {
+      // preflightImportAgents 内部已经处理了错误提示
+    } finally {
+      importLoading.value = false;
+    }
+  } catch (error) {
+    customMessage.error(`读取剪贴板失败: ${error}`);
+  }
+};
 </script>
 
 <template>
@@ -446,6 +520,7 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
             @edit="handleEdit"
             @duplicate="handleDuplicateAgent"
             @export="(a) => handleOpenExportDialog([a.id])"
+            @copy-config="handleCopyConfig"
             @delete="handleDelete"
           />
         </div>
@@ -466,7 +541,11 @@ const handleDuplicateAgent = (agent: ChatAgent) => {
               <el-icon><Download /></el-icon>
               导入智能体...
             </el-dropdown-item>
-            <el-dropdown-item @click="handleOpenExportDialog()">
+            <el-dropdown-item @click="handleImportFromClipboard">
+              <el-icon><DocumentAdd /></el-icon>
+              从剪贴板导入
+            </el-dropdown-item>
+            <el-dropdown-item @click="handleOpenExportDialog()" divided>
               <el-icon><Upload /></el-icon>
               批量导出智能体...
             </el-dropdown-item>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Edit, Delete, MoreFilled, Download, CopyDocument } from "@element-plus/icons-vue";
+import { Edit, Delete, MoreFilled, Download, CopyDocument, DocumentCopy } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import type { ChatAgent } from "../../types";
@@ -15,6 +15,7 @@ defineEmits<{
   (e: "edit", agent: ChatAgent): void;
   (e: "duplicate", agent: ChatAgent): void;
   (e: "export", agent: ChatAgent): void;
+  (e: "copy-config", agent: ChatAgent, format: "json" | "yaml"): void;
   (e: "delete", agent: ChatAgent): void;
 }>();
 
@@ -75,7 +76,15 @@ const showActions = computed(() => isHovered.value || isMenuOpen.value);
               <el-icon><CopyDocument /></el-icon>
               创建副本
             </el-dropdown-item>
-            <el-dropdown-item @click="$emit('export', agent)">
+            <el-dropdown-item @click="$emit('copy-config', agent, 'json')" divided>
+              <el-icon><DocumentCopy /></el-icon>
+              复制为 JSON
+            </el-dropdown-item>
+            <el-dropdown-item @click="$emit('copy-config', agent, 'yaml')">
+              <el-icon><DocumentCopy /></el-icon>
+              复制为 YAML
+            </el-dropdown-item>
+            <el-dropdown-item @click="$emit('export', agent)" divided>
               <el-icon><Download /></el-icon>
               导出...
             </el-dropdown-item>

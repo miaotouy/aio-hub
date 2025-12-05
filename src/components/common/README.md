@@ -89,14 +89,35 @@
 
 ### DraggablePanel
 
-可拖拽、可调整大小的悬浮面板，支持位置持久化。
+一个功能强大的悬浮面板组件，支持拖拽、调整大小、最小化、视口边缘吸附和状态持久化。
+
+- **核心特性**:
+  - **拖拽与缩放**: 用户可以自由移动和调整面板大小。
+  - **状态持久化**: 通过 `persistenceKey`，面板的位置和尺寸会自动保存到本地存储，并在下次打开时恢复。
+  - **最小化**: 支持将面板收起到标题栏，节省屏幕空间。
+  - **视口感知**: 面板会自动适应窗口大小变化，并防止被拖拽到屏幕外。
+  - **激活**: 支持从外部调用方法，将面板带到前台并展开。
 
 - **Props**:
-  - `modelValue` (boolean): v-model 控制显示。
-  - `title` (string): 标题。
-  - `persistenceKey` (string): 用于本地存储位置和尺寸的唯一键。
-  - `resizable` (boolean): 是否可调整大小。
-  - `minWidth` / `minHeight` (number): 最小尺寸。
+  - `modelValue` (boolean): `v-model` 控制面板的显示与隐藏。
+  - `title` (string): 面板标题。
+  - `persistenceKey` (string): 用于本地存储的唯一键。如果提供，位置和尺寸将被持久化。
+  - `width` / `height` (string): 初始宽度和高度 (e.g., "400px")。
+  - `initialX` / `initialY` (number): 初始位置的 x/y 坐标。
+  - `resizable` (boolean): 是否允许用户调整大小，默认 `true`。
+  - `minWidth` / `minHeight` (number): 调整大小时的最小宽度和高度。
+  - `destroyOnClose` (boolean): 是否在关闭时从 DOM 中销毁组件，默认 `false`。
+
+- **Slots**:
+  - `default`: 面板的主内容区域。
+  - `header-actions`: 位于标题栏右侧的自定义操作区域，可用于放置额外的控制按钮。
+
+- **Events**:
+  - `update:modelValue (value: boolean)`: 在面板显示/隐藏状态改变时触发。
+  - `close`: 在用户点击关闭按钮时触发。
+
+- **Exposed Methods**:
+  - `activate()`: 激活面板。如果面板已最小化，则会展开；同时会确保面板完整显示在视口内。
 
 - **使用示例** (来自 [`RichTextRendererTester.vue`](../../tools/rich-text-renderer/RichTextRendererTester.vue)):
 
@@ -231,11 +252,18 @@
 
 ### VideoPlayer
 
-全功能视频播放器，支持截图、倍速、画中画、逐帧播放、快捷键控制。
+全功能视频播放器，基于 `plyr` 进行了深度定制和功能增强。
+
+- **核心功能**:
+  - **逐帧播放**: 支持通过快捷键 (`,` 和 `.`) 进行精确的逐帧前进/后退。
+  - **画中画 (PiP)**: 支持将视频窗口置顶播放。
+  - **截图**: 可将当前帧保存为 PNG 图片。
+  - **快捷键支持**: 提供丰富的快捷键，如 `Space` (播放/暂停), `↑`/`↓` (音量), `←`/`→` (快进/快退)。
+  - **智能标题**: 自动从 `src` 中提取文件名作为标题。
 
 - **Props**:
   - `src` (string): 视频源。
-  - `title` (string): 视频标题。
+  - `title` (string): 视频标题 (可选, 会覆盖自动提取的标题)。
   - `poster` (string): 封面图。
   - `autoplay` (boolean): 自动播放。
   - `loop` (boolean): 循环播放。
@@ -273,7 +301,13 @@
 
 ### AvatarSelector
 
-高级头像选择器，支持预设图标、本地图片引用、上传图片（自动存入 AppData）和历史记录管理。
+高级头像选择器，是一个集多种选择方式于一体的强大组件。
+
+- **核心功能**:
+  - **预设图标**: 支持从一个可搜索、可分类的图标库中选择。
+  - **图片上传**: 支持拖拽或点击上传本地图片，图片会自动存入 AppData 并返回 `appdata://` 协议的引用。
+  - **历史记录**: 自动记录用户最近使用过的头像，方便快速复用。
+  - **响应式布局**: 自动适应不同的容器宽度。
 
 - **Props**:
   - `modelValue` (string): 当前头像路径。

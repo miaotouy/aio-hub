@@ -12,7 +12,10 @@ Asset Manager 是应用的**中央资产管理中心**，提供统一的资产�
 
 - **统一存储**: 所有工具的资产都保存到 `$APPDATA/assets/` 目录。
 - **自动去重**: 基于文件哈希值进行重复文件检测，相同文件只存储一次。
-- **来源追踪**: 记录每个资产的来源模块（如 `llm-chat`）和来源类型（如 `local`, `clipboard`）。
+- **来源追踪**: 记录每个资产的来源模块（如 `llm-chat`）和来源类型（如 `local`, `clipboard`, `generated`）。
+- **多媒体元数据提取**:
+  - **视频缩略图**: 自动截取视频文件的第一帧作为预览图。
+  - **音频封面**: 利用 `lofty` 库从音频文件（如 MP3, FLAC）中提取内嵌的专辑封面。
 
 ### 1.2. Rust 后端索引 (Rust-powered Indexing)
 
@@ -45,7 +48,7 @@ sequenceDiagram
     participant Rust as Rust Backend
     participant FS as 文件系统
 
-    Tool->>AM: importAssetFromBytes(buffer)
+    Tool->>AM: importAssetFromBytes(buffer, { type: 'video/mp4' })
     AM->>AM: 计算文件哈希值
     AM->>Rust: 检查哈希是否存在
 
@@ -55,6 +58,7 @@ sequenceDiagram
         AM->>FS: 写入文件到 assets 目录
         AM->>Rust: 创建新的资产记录
         Rust-->>AM: 返回新 assetId
+        Note right of AM: (异步) 如果是视频/音频, <br>则在后台提取缩略图/封面, <br>然后更新资产记录
     end
 
     AM-->>Tool: 返回 asset 对象

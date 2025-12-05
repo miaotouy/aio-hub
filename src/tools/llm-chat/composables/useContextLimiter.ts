@@ -9,9 +9,9 @@ export function useContextLimiter() {
    * 应用上下文 Token 限制，截断会话历史
    * 注意：system 消息的合并已移至后处理管道，此处不再单独计算
    */
-  const applyContextLimit = async <T extends { role: "user" | "assistant"; content: string | LlmMessageContent[] }>(
+  const applyContextLimit = async <T extends { role: "user" | "assistant" | "system"; content: string | LlmMessageContent[] }>(
     sessionContext: T[],
-    presetMessages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>,
+    presetMessages: Array<{ role: "user" | "assistant" | "system"; content: string | LlmMessageContent[] }>,
     contextManagement: { enabled: boolean; maxContextTokens: number; retainedCharacters: number },
     modelId: string
   ): Promise<T[]> => {

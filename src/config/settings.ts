@@ -34,13 +34,13 @@ export const settingsModules: SettingsModule[] = [
   },
   {
     id: "llm-service",
-    title: "LLM 服务配置",
+    title: "LLM AI 服务配置",
     component: defineAsyncComponent(() => import("../views/Settings/llm-service/LlmServiceSettings.vue")),
     minHeight: "600px",
   },
   {
     id: "model-metadata",
-    title: "模型元数据配置",
+    title: "AI 模型元数据配置",
     component: defineAsyncComponent(() => import("../views/Settings/model-metadata/ModelMetadataSettings.vue")),
     minHeight: "800px",
   },

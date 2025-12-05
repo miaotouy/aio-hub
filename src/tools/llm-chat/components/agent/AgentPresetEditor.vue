@@ -16,45 +16,55 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-dropdown trigger="click" @command="handleExport">
-          <el-button size="small">
-            <el-icon><Download /></el-icon>
-            导出
-            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
-              <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <el-tooltip content="将当前预设导出为文件" placement="top" :show-after="300">
+          <el-dropdown trigger="click" @command="handleExport">
+            <el-button size="small">
+              <el-icon><Download /></el-icon>
+              导出
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
+                <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </el-tooltip>
 
-        <el-dropdown trigger="click" @command="handleCopy">
-          <el-button size="small">
-            <el-icon><CopyDocument /></el-icon>
-            复制
-            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+        <el-tooltip content="将当前预设复制到剪贴板" placement="top" :show-after="300">
+          <el-dropdown trigger="click" @command="handleCopy">
+            <el-button size="small">
+              <el-icon><CopyDocument /></el-icon>
+              复制
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="json">复制为 JSON</el-dropdown-item>
+                <el-dropdown-item command="yaml">复制为 YAML</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </el-tooltip>
+        <el-tooltip content="从剪贴板粘贴并覆盖整个预设" placement="top" :show-after="300">
+          <el-button size="small" @click="handlePaste">
+            <el-icon><DocumentCopy /></el-icon>
+            粘贴
           </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="json">复制为 JSON</el-dropdown-item>
-              <el-dropdown-item command="yaml">复制为 YAML</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-        <el-button size="small" @click="handlePaste">
-          <el-icon><DocumentCopy /></el-icon>
-          粘贴
-        </el-button>
-        <el-button size="small" @click="handleImport">
-          <el-icon><Upload /></el-icon>
-          导入
-        </el-button>
-        <el-button type="primary" size="small" @click="handleAddMessage">
-          <el-icon><Plus /></el-icon>
-          添加消息
-        </el-button>
+        </el-tooltip>
+        <el-tooltip content="从文件导入预设" placement="top" :show-after="300">
+          <el-button size="small" @click="handleImport">
+            <el-icon><Upload /></el-icon>
+            导入
+          </el-button>
+        </el-tooltip>
+        <el-tooltip content="添加一条新的预设消息" placement="top" :show-after="300">
+          <el-button type="primary" size="small" @click="handleAddMessage">
+            <el-icon><Plus /></el-icon>
+            添加消息
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
 
@@ -223,9 +233,11 @@
 
               <!-- 操作按钮 -->
               <div class="message-actions">
-                <el-button link size="small" @click="handleViewUserProfile">
-                  <el-icon><View /></el-icon>
-                </el-button>
+                <el-tooltip content="查看/编辑用户档案" placement="top" :show-after="500">
+                  <el-button link size="small" @click="handleViewUserProfile">
+                    <el-icon><View /></el-icon>
+                  </el-button>
+                </el-tooltip>
                 <el-switch
                   v-model="element.isEnabled"
                   :active-value="true"
@@ -282,9 +294,11 @@
 
               <!-- 操作按钮 -->
               <div class="message-actions-compact" @click.stop>
-                <el-button link size="small" @click="handleEditMessage(index)">
-                  <el-icon><Edit /></el-icon>
-                </el-button>
+                <el-tooltip content="编辑消息" placement="top" :show-after="500">
+                  <el-button link size="small" @click="handleEditMessage(index)">
+                    <el-icon><Edit /></el-icon>
+                  </el-button>
+                </el-tooltip>
                 <el-switch
                   v-model="element.isEnabled"
                   :active-value="true"
@@ -352,26 +366,42 @@
 
               <!-- 操作按钮 -->
               <div class="message-actions">
-                <el-button link size="small" @click="handleEditMessage(index)">
-                  <el-icon><Edit /></el-icon>
-                </el-button>
-                <el-button link size="small" @click="handleCopyMessage(index)" title="复制消息配置">
-                  <el-icon><CopyDocument /></el-icon>
-                </el-button>
+                <el-tooltip content="编辑消息" placement="top" :show-after="500">
+                  <el-button link size="small" @click="handleEditMessage(index)">
+                    <el-icon><Edit /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="复制消息配置" placement="top" :show-after="500">
+                  <el-button link size="small" @click="handleCopyMessage(index)">
+                    <el-icon><CopyDocument /></el-icon>
+                  </el-button>
+                </el-tooltip>
                 <el-popconfirm
                   title="确定要用剪贴板内容覆盖这条消息吗？"
                   @confirm="handlePasteMessage(index)"
                   width="220"
                 >
                   <template #reference>
-                    <el-button link size="small" title="粘贴并覆盖">
-                      <el-icon><DocumentCopy /></el-icon>
-                    </el-button>
+                    <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
+                      <el-button link size="small">
+                        <el-icon><DocumentCopy /></el-icon>
+                      </el-button>
+                    </el-tooltip>
                   </template>
                 </el-popconfirm>
-                <el-button link size="small" type="danger" @click="handleDeleteMessage(index)">
-                  <el-icon><Delete /></el-icon>
-                </el-button>
+                <el-popconfirm
+                  title="确定要删除这条预设消息吗？"
+                  @confirm="handleDeleteMessage(index)"
+                  width="240"
+                >
+                  <template #reference>
+                    <el-tooltip content="删除消息" placement="top" :show-after="500">
+                      <el-button link size="small" type="danger">
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                  </template>
+                </el-popconfirm>
                 <el-switch
                   v-model="element.isEnabled"
                   :active-value="true"
@@ -889,7 +919,13 @@ async function handleSaveMessage(form: {
       }
     }
 
-    localMessages.value.push(newMessage);
+    // 默认插入到历史记录占位符之前，对新手更友好
+    const historyIndex = localMessages.value.findIndex((m) => m.type === "chat_history");
+    if (historyIndex !== -1) {
+      localMessages.value.splice(historyIndex, 0, newMessage);
+    } else {
+      localMessages.value.push(newMessage);
+    }
   }
 
   editDialogVisible.value = false;
@@ -974,7 +1010,7 @@ async function handlePasteMessage(index: number) {
 /**
  * 删除消息
  */
-async function handleDeleteMessage(index: number) {
+function handleDeleteMessage(index: number) {
   const message = localMessages.value[index];
 
   // 不允许删除历史消息占位符和用户档案占位符
@@ -987,16 +1023,9 @@ async function handleDeleteMessage(index: number) {
     return;
   }
 
-  try {
-    await ElMessageBox.confirm("确定要删除这条预设消息吗？", "确认删除", {
-      type: "warning",
-    });
-    localMessages.value.splice(index, 1);
-    syncToParent();
-    customMessage.success("删除成功");
-  } catch {
-    // 用户取消
-  }
+  localMessages.value.splice(index, 1);
+  syncToParent();
+  customMessage.success("删除成功");
 }
 
 /**
@@ -1185,7 +1214,8 @@ async function handleFileSelected(event: Event) {
  */
 async function handleSTPresetImport(file: any) {
   const result = parsePromptFile(file);
-  const totalCount = result.systemPrompts.length + result.injectionPrompts.length + result.unorderedPrompts.length;
+  const totalCount =
+    result.systemPrompts.length + result.injectionPrompts.length + result.unorderedPrompts.length;
 
   if (totalCount === 0) {
     customMessage.warning("预设文件中没有可导入的提示词");
@@ -1244,9 +1274,7 @@ function handleConfirmSTImport(data: {
     // 更好的做法是 emit 事件通知父组件
     if (props.agent.generationConfig) {
       Object.assign(props.agent.generationConfig, parameters);
-      customMessage.success(
-        `已导入 ${importedCount} 条消息和 ${importedParamsCount} 个模型参数`
-      );
+      customMessage.success(`已导入 ${importedCount} 条消息和 ${importedParamsCount} 个模型参数`);
     } else {
       customMessage.warning(
         `已导入 ${importedCount} 条消息 (参数导入跳过：Agent 未初始化 generationConfig)`

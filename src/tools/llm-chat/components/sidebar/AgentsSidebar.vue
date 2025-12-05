@@ -368,8 +368,8 @@ const handleDelete = (agent: ChatAgent) => {
 };
 
 // 复制智能体
-const handleDuplicateAgent = (agent: ChatAgent) => {
-  const newAgentId = agentStore.duplicateAgent(agent.id);
+const handleDuplicateAgent = async (agent: ChatAgent) => {
+  const newAgentId = await agentStore.duplicateAgent(agent.id);
   if (newAgentId) {
     const name = agent.displayName || agent.name;
     customMessage.success(`智能体 "${name}" 已复制`);

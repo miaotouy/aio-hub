@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessageBox } from "element-plus";
-import { Loading } from '@element-plus/icons-vue';
+import { Loading } from "@element-plus/icons-vue";
 import { useDark } from "@vueuse/core";
 import { useDetachedManager } from "./composables/useDetachedManager";
 import {
@@ -40,10 +40,7 @@ const isDark = useDark(); // 监听主题模式
 const isSpecialRoute = computed(() => {
   const path = route.path;
   // 使用路径匹配判断是否为分离窗口或特殊路由
-  return (
-    path.startsWith("/detached-window/") ||
-    path.startsWith("/detached-component/")
-  );
+  return path.startsWith("/detached-window/") || path.startsWith("/detached-component/");
 });
 
 // 应用设置
@@ -83,10 +80,12 @@ const cacheToolsVisible = (toolsVisible: Record<string, boolean> | undefined) =>
   }
 };
 
-
 // 将驼峰命名转换为短横线路径
 const camelToKebab = (str: string): string => {
-return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
+  return str
+    .replace(/([A-Z])/g, "-$1")
+    .toLowerCase()
+    .replace(/^-/, "");
 };
 
 // 应用日志配置到 logger 实例
@@ -101,11 +100,11 @@ const applyLogConfig = (settings: AppSettings) => {
     };
     globalLogger.setLevel(levelMap[settings.logLevel] ?? LogLevel.INFO);
   }
-  
+
   // 应用日志输出配置
   globalLogger.setLogToFile(settings.logToFile ?? true);
   globalLogger.setLogToConsole(settings.logToConsole ?? true);
-  
+
   // 应用日志缓冲区大小
   if (settings.logBufferSize) {
     globalLogger.setLogBufferSize(settings.logBufferSize);
@@ -114,20 +113,20 @@ const applyLogConfig = (settings: AppSettings) => {
 
 // 监听设置变化（用于响应设置页面的更改）
 const loadSettings = async () => {
-const settings = await loadAppSettingsAsync();
-appSettings.value = settings;
-isCollapsed.value = settings.sidebarCollapsed;
+  const settings = await loadAppSettingsAsync();
+  appSettings.value = settings;
+  isCollapsed.value = settings.sidebarCollapsed;
 
-// 应用日志配置
-applyLogConfig(settings);
+  // 应用日志配置
+  applyLogConfig(settings);
 
-// 主题设置由 useTheme 模块自动加载和应用
-cacheToolsVisible(settings.toolsVisible);
+  // 主题设置由 useTheme 模块自动加载和应用
+  cacheToolsVisible(settings.toolsVisible);
 
-// 应用主题色
-if (settings.themeColor) {
-  applyThemeColors({ primary: settings.themeColor });
-}
+  // 应用主题色
+  if (settings.themeColor) {
+    applyThemeColors({ primary: settings.themeColor });
+  }
 };
 
 // 存储事件处理函数的引用，用于清理
@@ -193,46 +192,45 @@ onMounted(async () => {
   unlisten = await listen<{ sectionId: string }>("navigate-to-settings", (event) => {
     const { sectionId } = event.payload;
     logger.info("收到来自分离窗口的导航请求", { sectionId });
-    
+
     // 导航到设置页面
     router.push({ path: "/settings", query: { section: sectionId } });
   });
 
   // 监听窗口分离事件，自动导航回主页
-  unlistenDetached = await listen<{ label: string; id: string; type: string }>("window-detached", (event) => {
-    const { id, type } = event.payload;
-    
-    // 只处理工具类型的分离
-    if (type === 'tool') {
-      // 将工具ID（驼峰命名）转换为路由路径（短横线命名）
-      const toolPath = '/' + camelToKebab(id);
-      
-      logger.info("工具已分离，检查是否需要导航", {
-        toolId: id,
-        toolPath,
-        currentPath: route.path
-      });
-      
-      // 如果当前路由正是被分离的工具页面，自动导航回主页
-      if (route.path === toolPath) {
-        logger.info("当前页面已分离，导航回主页", { from: toolPath });
-        router.push('/');
+  unlistenDetached = await listen<{ label: string; id: string; type: string }>(
+    "window-detached",
+    (event) => {
+      const { id, type } = event.payload;
+
+      // 只处理工具类型的分离
+      if (type === "tool") {
+        // 将工具ID（驼峰命名）转换为路由路径（短横线命名）
+        const toolPath = "/" + camelToKebab(id);
+
+        logger.info("工具已分离，检查是否需要导航", {
+          toolId: id,
+          toolPath,
+          currentPath: route.path,
+        });
+
+        // 如果当前路由正是被分离的工具页面，自动导航回主页
+        if (route.path === toolPath) {
+          logger.info("当前页面已分离，导航回主页", { from: toolPath });
+          router.push("/");
+        }
       }
     }
-  });
+  );
 
   // 监听关闭确认请求
   unlistenCloseConfirmation = await listen("request-close-confirmation", async () => {
     try {
-      await ElMessageBox.confirm(
-        '确定要退出程序吗？',
-        '退出确认',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning',
-        }
-      );
+      await ElMessageBox.confirm("确定要退出程序吗？", "退出确认", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      });
       // 用户确认退出
       await invoke("exit_app");
     } catch {
@@ -260,12 +258,12 @@ watch(
 onUnmounted(() => {
   // 清理主题外观资源
   cleanupThemeAppearance();
-  
+
   // 清理事件监听器
   if (handleSettingsChange) {
     window.removeEventListener("app-settings-changed", handleSettingsChange);
   }
-  
+
   // 清理 Tauri 事件监听器
   if (unlisten) {
     unlisten();
@@ -286,62 +284,62 @@ onUnmounted(() => {
 
     <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
     <el-container :class="['common-layout', { 'no-titlebar': isSpecialRoute }]">
-    <!-- 骨架屏 -->
-    <template v-if="isLoading">
-      <div class="app-skeleton">
-        <!-- Sidebar Skeleton -->
-        <el-skeleton
-          v-if="!isCollapsed && !isSpecialRoute"
-          class="sidebar-skeleton"
-          :style="{ width: isCollapsed ? '64px' : '200px' }"
-          animated
-        >
-          <template #template>
-            <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
-          </template>
-        </el-skeleton>
-        <!-- Main Content Skeleton -->
-        <div class="main-content-skeleton">
-          <el-skeleton animated>
+      <!-- 骨架屏 -->
+      <template v-if="isLoading">
+        <div class="app-skeleton">
+          <!-- Sidebar Skeleton -->
+          <el-skeleton
+            v-if="!isCollapsed && !isSpecialRoute"
+            class="sidebar-skeleton"
+            :style="{ width: isCollapsed ? '64px' : '200px' }"
+            animated
+          >
             <template #template>
               <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
             </template>
           </el-skeleton>
+          <!-- Main Content Skeleton -->
+          <div class="main-content-skeleton">
+            <el-skeleton animated>
+              <template #template>
+                <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
+              </template>
+            </el-skeleton>
+          </div>
         </div>
-      </div>
-    </template>
+      </template>
 
-    <!-- 实际内容 -->
-    <template v-else>
-      <!-- 侧边栏 - 仅在非特殊路由显示 -->
-      <MainSidebar
-        v-if="!isSpecialRoute"
-        v-model:collapsed="isCollapsed"
-        :tools-visible="appSettings.toolsVisible || {}"
-        :is-detached="isDetached"
-      />
+      <!-- 实际内容 -->
+      <template v-else>
+        <!-- 侧边栏 - 仅在非特殊路由显示 -->
+        <MainSidebar
+          v-if="!isSpecialRoute"
+          v-model:collapsed="isCollapsed"
+          :tools-visible="appSettings.toolsVisible || {}"
+          :is-detached="isDetached"
+        />
 
-      <el-container>
-        <el-main class="main-content">
-          <router-view v-slot="{ Component, route }">
-            <Suspense>
-              <template #default>
-                <keep-alive :exclude="['Settings']">
-                  <component :is="Component" :key="route.path" />
-                </keep-alive>
-              </template>
-              <template #fallback>
-                <div class="loading-container">
-                  <el-icon class="is-loading" :size="32">
-                    <Loading />
-                  </el-icon>
-                  <p>加载中...</p>
-                </div>
-              </template>
-            </Suspense>
-          </router-view>
-        </el-main>
-      </el-container>
+        <el-container>
+          <el-main class="main-content">
+            <router-view v-slot="{ Component, route }">
+              <Suspense>
+                <template #default>
+                  <keep-alive :exclude="['Settings']">
+                    <component :is="Component" :key="route.path" />
+                  </keep-alive>
+                </template>
+                <template #fallback>
+                  <div class="loading-container">
+                    <el-icon class="is-loading" :size="32">
+                      <Loading />
+                    </el-icon>
+                    <p>加载中...</p>
+                  </div>
+                </template>
+              </Suspense>
+            </router-view>
+          </el-main>
+        </el-container>
       </template>
     </el-container>
   </GlobalProviders>

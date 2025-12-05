@@ -1,4 +1,4 @@
-# LLM Chat: 架构与开发者指南 (v2.1)
+# LLM Chat: 架构与开发者指南 (v2.2)
 
 本文档旨在深入解析 `llm-chat` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
@@ -162,6 +162,37 @@ graph TD
   - **操作上行**: 分离窗口的用户操作（如发送消息、切换分支）被封装为请求，通过 Bus 发送给主窗口。
   - **代理执行**: 主窗口接收请求，执行逻辑，状态更新后自动同步回分离窗口。
 
+### 1.14. 高级上下文注入策略 (Context Injection Strategy)
+
+为了提供类似 SillyTavern 的高级角色扮演体验，系统引入了一套声明式的消息注入机制。
+
+- **核心理念**: 将预设消息的"内容"与"位置"解耦。
+- **三种注入模式**:
+  - **深度注入 (Depth)**: 将消息插入到距离对话历史末尾 N 层的位置（例如：始终在倒数第2条）。
+  - **锚点注入 (Anchor)**: 将消息精准地插入到系统锚点（如 `chat_history`, `user_profile`）的前面或后面。
+  - **顺序控制 (Order)**: 通过优先级数字，决定在同一点注入多条消息时的最终顺序。
+- **系统锚点**:
+  - `chat_history`: 实际对话历史的占位符。
+  - `user_profile`: 用户档案的占位符。
+
+### 1.15. SillyTavern 兼容性 (SillyTavern Compatibility)
+
+为了利用社区丰富的角色资源，系统实现了对部分 SillyTavern 格式配置的导入兼容。
+
+- **角色卡导入**: 支持解析 V2/V3 格式的角色卡（.json/.png），自动映射字段：
+  - `description`, `personality`, `scenario`, `first_mes` -> 预设消息
+  - `depth_prompt` -> 深度注入消息
+  - `avatar` -> 智能体图标
+- **预设文件导入**: 支持导入 ST 的 Context Preset (.json/.yaml)，自动解析 `prompt_order` 并转换为对应的注入策略。
+
+### 1.16. 虚拟时间线 (Virtual Timeline)
+
+为沉浸式角色扮演（RP）引入了独立于现实世界的时间维度。
+
+- **双时钟系统**: 每个智能体可以拥有独立的虚拟时钟。
+- **流速控制**: 支持设定虚拟时间相对于现实时间的流速（例如：现实1小时 = 游戏内1天）。
+- **宏集成**: 系统的时间宏（如 `{{date}}`, `{{time}}`）会自动感知当前的虚拟时间配置，输出虚拟世界的时间。
+
 ## 2. 架构概览
 
 本模块遵循关注点分离的原则，将状态、逻辑和视图清晰地分开。
@@ -226,6 +257,9 @@ sequenceDiagram
 ### 4.3. 上下文构建与处理
 
 - **`useChatContextBuilder`**: **上下文构建引擎**。负责从活动路径和智能体配置中构建发送给 LLM 的消息列表。
+- **`useContextInjection`**: **注入策略处理器**。负责解析消息的注入策略（Depth/Anchor），并将它们精准地插入到上下文流的正确位置。
+- **`useContextLimiter`**: **上下文截断器**。负责根据 Token 限制对上下文进行智能截断，保留关键信息。
+- **`useContextPreview`**: **上下文预览器**。提供完整的上下文可视化分析，包括 Token 统计、注入位置和最终请求结构。
 - **`useMessageProcessor`**: **消息后处理管道**。实现可扩展的消息处理规则系统（如合并 System 消息、确保角色交替）。
 - **`useChatAssetProcessor`**: **附件处理器**。负责将 Asset 转换为 LLM 可接受的消息内容（Base64、OpenAI File 等）。
 
@@ -240,6 +274,7 @@ sequenceDiagram
 - **`useLlmChatSync`**: **跨窗口同步引擎**。初始化状态同步引擎，注册操作代理处理器，确保多窗口协同工作。
 - **`useTopicNamer`**: **话题命名器**。
 - **`useModelSelectDialog`**: **全局模型选择器**。
+- **`useAnchorRegistry`**: **锚点注册表**。管理上下文注入系统中可用的锚点列表。
 
 ### 4.6. 宏处理引擎
 
@@ -300,6 +335,15 @@ sequenceDiagram
   - `presetMessages`: 预设消息序列。
   - `displayPresetCount`: 在聊天界面显示的预设消息数量。
   - `parameters`: LLM 参数配置。
+  - `category`: 智能体分类（如"编程", "角色扮演"）。
+  - `virtualTimeConfig`: 虚拟时间配置（基准时间、流速）。
+  - `llmThinkRules`: LLM 思考过程的解析规则。
+
+- **`InjectionStrategy`**: 消息注入策略。
+  - `depth`: 深度注入位置（距离末尾的消息数）。
+  - `anchorTarget`: 锚点注入目标（如 `chat_history`）。
+  - `anchorPosition`: 相对锚点的位置（`before` / `after`）。
+  - `order`: 同位置多消息的排序权重。
 
 ## 7. 未来展望
 

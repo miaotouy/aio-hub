@@ -765,7 +765,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
       description: '使用指定格式字符串格式化当前日期时间',
       example: '{{datetime_format::YYYY-MM-DD hh:mm:ss a}}',
       acceptsArgs: true,
-      priority: 95,
+      priority: 110,
       supported: true,
       contextFree: true,
       execute: (context, args) => {

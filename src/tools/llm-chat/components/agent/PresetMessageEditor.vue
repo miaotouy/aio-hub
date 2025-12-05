@@ -172,6 +172,7 @@
               language="markdown"
               :line-numbers="true"
               editor-type="codemirror"
+              :completion-source="macroCompletionSource"
             />
           </div>
 
@@ -200,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
 import type { MessageRole, UserProfile, InjectionStrategy } from "../../types";
 import {
   ChatDotRound,
@@ -214,7 +215,6 @@ import {
 import { Bot } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { MacroDefinition } from "../../macro-engine";
 import MacroSelector from "./MacroSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
@@ -222,7 +222,14 @@ import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-te
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useAnchorRegistry } from "../../composables/useAnchorRegistry";
 import * as monaco from "monaco-editor";
-import { MacroProcessor, createMacroContext } from "../../macro-engine";
+import {
+  MacroProcessor,
+  createMacroContext,
+  MacroRegistry,
+  initializeMacroEngine,
+  type MacroDefinition,
+} from "../../macro-engine";
+import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 
 interface MessageForm {
   role: MessageRole;
@@ -289,6 +296,93 @@ const previewContent = ref("");
 // 宏选择器
 const macroSelectorVisible = ref(false);
 const richEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
+
+// 确保宏引擎已初始化
+onMounted(() => {
+  const registry = MacroRegistry.getInstance();
+  const macros = registry.getAllMacros();
+  if (macros.length === 0) {
+    initializeMacroEngine();
+  }
+});
+
+/**
+ * 宏自动补全源
+ * 当用户输入 {{ 时触发宏候选   //}}vscode双花括号高亮显示防溢出补丁
+ */
+const macroCompletionSource = (context: CompletionContext): CompletionResult | null => {
+  // 获取光标前的文本
+  const line = context.state.doc.lineAt(context.pos);
+  const textBefore = line.text.slice(0, context.pos - line.from);
+
+  // 检查是否在 {{ 之后   //}}vscode双花括号高亮显示防溢出补丁
+  const macroMatch = textBefore.match(/\{\{([a-zA-Z0-9_:]*)$/);
+  if (!macroMatch) {
+    return null;
+  }
+
+  const prefix = macroMatch[1].toLowerCase();
+  const startPos = context.pos - macroMatch[1].length;
+
+  // 获取所有支持的宏
+  const registry = MacroRegistry.getInstance();
+  const allMacros = registry.getAllMacros().filter((m) => m.supported !== false);
+
+  // 过滤匹配的宏
+  const matchedMacros = allMacros.filter(
+    (macro) =>
+      macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix)
+  );
+
+  if (matchedMacros.length === 0) {
+    return null;
+  }
+
+  // 智能排序：优先按 priority 降序，然后按类型，最后按名称
+  const typeOrder: Record<string, number> = { value: 0, variable: 1, function: 2 };
+  matchedMacros.sort((a, b) => {
+    // 1. 优先级高的在前 (priority 越大越靠前)
+    const priorityA = a.priority ?? 0;
+    const priorityB = b.priority ?? 0;
+    if (priorityA !== priorityB) return priorityB - priorityA;
+
+    // 2. 按类型排序
+    const orderA = typeOrder[a.type] ?? 99;
+    const orderB = typeOrder[b.type] ?? 99;
+    if (orderA !== orderB) return orderA - orderB;
+
+    // 3. 按名称字母顺序排序
+    return a.name.localeCompare(b.name);
+  });
+
+  return {
+    from: startPos,
+    options: matchedMacros.map((macro) => ({
+      label: macro.name,
+      detail: getTypeLabel(macro.type),
+      info: macro.description,
+      apply: (macro.example || macro.name) + "}}",
+      type: "variable",
+    })),
+    filter: false, // 禁用 CodeMirror 的过滤和排序，完全采用我提供的数据
+  };
+};
+
+/**
+ * 获取宏类型的显示标签
+ */
+function getTypeLabel(type: string): string {
+  switch (type) {
+    case "value":
+      return "值替换";
+    case "variable":
+      return "变量操作";
+    case "function":
+      return "动态函数";
+    default:
+      return type;
+  }
+}
 
 // 处理宏预览
 const processPreviewMacros = async () => {

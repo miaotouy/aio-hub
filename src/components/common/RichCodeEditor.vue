@@ -53,6 +53,7 @@ import {
   completionKeymap,
   closeBrackets,
   closeBracketsKeymap,
+  type CompletionSource,
 } from "@codemirror/autocomplete";
 import { foldGutter, foldKeymap } from "@codemirror/language";
 import { githubLight } from "@uiw/codemirror-theme-github";
@@ -69,6 +70,10 @@ const props = withDefaults(defineProps<{
   lineNumbers?: boolean;
   editorType?: 'codemirror' | 'monaco';
   options?: MonacoEditor.IStandaloneDiffEditorConstructionOptions | MonacoEditor.IStandaloneEditorConstructionOptions;
+  /** 自定义补全源（仅 CodeMirror 支持） */
+  completionSource?: CompletionSource | CompletionSource[];
+  /** 是否禁用默认的语言补全（如 HTML 标签补全） */
+  disableDefaultCompletion?: boolean;
 }>(), {
   modelValue: '',
   original: '',
@@ -78,6 +83,7 @@ const props = withDefaults(defineProps<{
   lineNumbers: true,
   readOnly: false,
   options: () => ({}),
+  disableDefaultCompletion: false,
 });
 
 const emit = defineEmits<{
@@ -307,7 +313,13 @@ const initCodeMirror = async () => {
       indentWithTab,
     ]),
     closeBrackets(),
-    autocompletion(),
+    // 配置自动补全
+    autocompletion({
+      // 如果提供了自定义补全源，使用 override 来控制补全行为
+      override: props.completionSource
+        ? (Array.isArray(props.completionSource) ? props.completionSource : [props.completionSource])
+        : (props.disableDefaultCompletion ? [] : undefined),
+    }),
     EditorView.lineWrapping,
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {

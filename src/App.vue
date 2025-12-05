@@ -20,6 +20,7 @@ import MainSidebar from "./components/MainSidebar.vue";
 import GlobalProviders from "./components/GlobalProviders.vue";
 import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
+import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 
 const logger = createModuleLogger("App");
 const errorHandler = createModuleErrorHandler("App");
@@ -31,6 +32,7 @@ useTheme();
 const route = useRoute();
 const router = useRouter();
 const { isDetached, initialize } = useDetachedManager();
+const userProfileStore = useUserProfileStore();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
 const isDark = useDark(); // 监听主题模式
 
@@ -152,6 +154,9 @@ onMounted(async () => {
 
     // 初始加载设置
     await loadSettings();
+
+    // 初始化用户档案
+    await userProfileStore.loadProfiles();
 
     // 初始化主题外观
     await initThemeAppearance();

@@ -121,7 +121,7 @@ import {
 } from "lucide-vue-next";
 import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { fixMermaidCode } from "@/utils/mermaidFixer";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MermaidInteractiveViewer from "../MermaidInteractiveViewer.vue";
@@ -405,7 +405,12 @@ const renderDiagram = async () => {
 
     // 只有在 stable 状态下才显示错误
     if (nodeStatus.value === 'stable') {
-      errorHandler.handle(err, { userMessage: "Mermaid 渲染失败", showToUser: false });
+      errorHandler.handle(err, {
+        userMessage: "Mermaid 渲染失败",
+        showToUser: false,
+        level: ErrorLevel.WARNING,
+        context: { diagramContent: props.content }
+      });
       error.value = err?.message || "未知错误";
     }
   } finally {

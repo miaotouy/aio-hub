@@ -97,15 +97,16 @@ interface RegexPipelineConfig {
       - **Assistant 角色**: 应用 `[Self Rules (Agent)] -> [Global Output Rules]`。
         - _保持历史一致性，Assistant 的消息由生成它的 Agent 负责解释。_
       - **User 角色**: 根据 UserProfile 的 `regexPipelineBehavior` 决定:
-        - **Merge (默认)**: 应用 `[Self Rules (User)] -> [Context Rules (Current Agent)] -> [Global Output Rules]`。
-        - **Replace**: 应用 `[Context Rules (Current Agent)] -> [Global Output Rules]` (完全由当前 Agent 视角解释用户的话)。
-        - **Ignore**: 应用 `[Self Rules (User)] -> [Global Output Rules]` (仅保留用户自己的习惯)。
+        - **Merge (默认)**: 应用 `[Self Rules (User)] -> [Context Rules (Current Agent)] -> [Global Output Rules]` (用户规则优先，再应用当前智能体规则)。
+        - **Replace**: 应用 `[Context Rules (Current Agent)] -> [Global Output Rules]` (完全由当前 Agent 视角解释用户的话，忽略用户自身规则)。
+        - **Ignore**: 应用 `[Self Rules (User)] -> [Global Output Rules]` (仅保留用户自己的习惯，忽略当前智能体规则)。
   - _注: User 消息引入 Current Agent 规则，是为了实现“状态切换”的动态效果（如切换到“猫娘”模式后，用户历史消息中的特定词汇也被动态修饰）。_
 
 #### **Input Pipeline (提示词层)**
 
 处理发送给模型的 Prompt 消息列表。**同样基于消息节点本身的来源应用规则。**
 
+- **(二期实现)**
 - **执行位置**: 集成在 `useMessageProcessor` 的统一管道中。
 - **处理对象**: 遍历 `messages` 数组，对每条消息独立计算规则并处理。
 - **执行逻辑**:
@@ -121,14 +122,14 @@ interface RegexPipelineConfig {
 
 ### 3.1 基础设施 (Infrastructure)
 
-**新增文件**: `src/utils/regexUtils.ts`
+**新增文件**: `src/tools/llm-chat/utils/regexUtils.ts`
 
 **功能**:
 
 - `applyRegexRules(text, rules)`: 核心处理函数。
-- `resolveRulesForNode(nodeMetadata, globalConfig, userConfig, agentConfig, direction)`:
-  - 根据节点元数据 (`agentId`, `userProfileId`) 动态计算该节点应应用的规则列表。
-  - `direction`: 'input' | 'output'
+- `validateRegexRule(rule)`: 校验单条规则的正则表达式是否合法。
+- `resolveOutputRulesForNode(node, globalConfig, agentConfig, userProfile)`:
+  - 根据消息节点、全局配置、智能体配置和用户档案配置，动态计算该节点在 **Output** 管道应应用的规则列表。
 - `exportRegexConfig(config)` / `importRegexConfig(json)`: 支持配置的导入导出。
 
 ### 3.2 数据层扩展 (Data Layer)
@@ -136,6 +137,7 @@ interface RegexPipelineConfig {
 **修改文件**:
 
 - `src/tools/llm-chat/types.ts`: 扩展 `ChatAgent` 和 `UserProfile`。
+- `src/tools/llm-chat/types/regex.ts`: **(新增)** 定义 `RegexRule`, `RegexRuleSet` 等核心类型。
 - `src/tools/llm-chat/composables/useChatSettings.ts`: 扩展 `ChatSettings`。
 
 ```typescript
@@ -143,7 +145,7 @@ interface RegexPipelineConfig {
 export interface UserProfile {
   // ...
   regexConfig?: RegexPipelineConfig;
-  regexPipelineBehavior?: "merge" | "replace";
+  regexPipelineBehavior?: "merge" | "replace" | "ignore";
 }
 ```
 
@@ -186,13 +188,16 @@ export interface UserProfile {
 
 **逻辑**:
 
-- 接收 `regexPipelines` prop (扁平化后的规则列表)。
-- `ChatMessage.vue` (父组件) 负责根据当前消息节点的 metadata (`agentId` / `userProfileId`)，调用 `resolveRulesForNode` 计算出对应的规则列表，并传递给 `RichTextRenderer`。
-- 在渲染管线的最前端应用正则替换。
+- **Props 传递链**:
+  1. `ChatArea.vue`: 准备好 `global`, `agent`, `user` 三层配置源。
+  2. `MessageList.vue`: 接收配置源，遍历每条消息，调用 `resolveOutputRulesForNode` 计算出该消息最终应用的 `RegexRule[]` 列表。
+  3. `ChatMessage.vue` -> `MessageContent.vue`: 逐级透传计算好的 `RegexRule[]` 列表。
+  4. `RichTextRenderer.vue`: 接收最终的 `rules` prop。
+- **执行逻辑**: 在渲染管线的最前端，调用 `applyRegexRules` 对 `content` 进行处理。
 
 ### 3.5 消息处理层改造 (Input Pipeline)
 
-**核心思想**: 将 Input Regex Pipeline 提升为 `useMessageProcessor` 的核心能力之一，且支持**按节点动态获取规则**。
+**核心思想**: **(二期实现)** 将 Input Regex Pipeline 提升为 `useMessageProcessor` 的核心能力之一，且支持**按节点动态获取规则**。
 
 **修改文件**: `src/tools/llm-chat/composables/useMessageProcessor.ts`
 

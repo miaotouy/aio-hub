@@ -5,7 +5,7 @@ import yaml from "js-yaml";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
-import { Plus, MoreFilled, Search, Download, Upload, DocumentAdd } from "@element-plus/icons-vue";
+import { Plus, Search, Download, Upload, DocumentAdd } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, AgentEditData } from "../../types";
@@ -558,7 +558,7 @@ const handleImportFromTavernCard = async () => {
       </el-button>
       <!-- 导入导出下拉菜单 -->
       <el-dropdown trigger="click">
-        <el-button type="info" :icon="MoreFilled"> </el-button>
+        <el-button type="info">更多</el-button>
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item @click="handleImportFromFile">

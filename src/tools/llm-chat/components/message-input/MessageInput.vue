@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, toRef, computed, watch, onMounted, onUnmounted } from "vue";
+import { useStorage } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useDetachable } from "@/composables/useDetachable";
@@ -22,7 +23,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler"; // <-- 插入
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "../AttachmentCard.vue";
-import MessageInputToolbar from "./MessageInputToolbar.vue";
+import MessageInputToolbar, { type InputToolbarSettings } from "./MessageInputToolbar.vue";
 import type { MacroDefinition } from "../../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
@@ -37,6 +38,11 @@ const { settings, updateSettings, isLoaded: settingsLoaded, loadSettings } = use
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
   return settingsLoaded.value ? settings.value.uiPreferences.isStreaming : false;
+});
+
+// UI 设置状态 (持久化)
+const inputSettings = useStorage<InputToolbarSettings>("chat-input-settings", {
+  showTokenUsage: true,
 });
 
 // 计算当前分支是否正在生成
@@ -556,7 +562,7 @@ onMounted(async () => {
       isStreaming: settings.value.uiPreferences.isStreaming,
     });
   }
-  
+
   // 初始刷新一次上下文统计
   chatStore.refreshContextStats();
 });
@@ -796,6 +802,7 @@ const handleSelectTemporaryModel = async () => {
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"
             v-model:macro-selector-visible="macroSelectorVisible"
+            v-model:settings="inputSettings"
             :context-stats="chatStore.contextStats"
             :token-count="tokenCount"
             :is-calculating-tokens="isCalculatingTokens"

@@ -1,6 +1,12 @@
+<script lang="ts">
+export interface InputToolbarSettings {
+  showTokenUsage: boolean;
+}
+</script>
+
 <script setup lang="ts">
 import { ElTooltip, ElPopover } from "element-plus";
-import { Paperclip, AtSign, X } from "lucide-vue-next";
+import { Paperclip, AtSign, X, Settings } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
@@ -24,6 +30,7 @@ interface Props {
   isProcessingAttachments: boolean;
   temporaryModel: ModelIdentifier | null;
   hasAttachments: boolean;
+  settings: InputToolbarSettings;
 }
 
 const props = defineProps<Props>();
@@ -31,6 +38,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "toggle-streaming"): void;
   (e: "update:macroSelectorVisible", value: boolean): void;
+  (e: "update:settings", value: InputToolbarSettings): void;
   (e: "insert", macro: MacroDefinition): void;
   (e: "toggle-expand"): void;
   (e: "send"): void;
@@ -112,6 +120,39 @@ const onMacroSelectorUpdate = (visible: boolean) => {
           </el-popover>
         </div>
       </el-tooltip>
+
+      <!-- 设置菜单 -->
+      <el-tooltip content="工具栏设置" placement="top" :show-after="300">
+        <div>
+          <el-popover
+            placement="top"
+            :width="200"
+            trigger="click"
+            popper-class="toolbar-settings-popover"
+            :teleported="!props.isDetached"
+          >
+            <template #reference>
+              <button class="tool-btn settings-btn">
+                <Settings :size="16" />
+              </button>
+            </template>
+            <div class="toolbar-settings-content">
+              <div class="setting-item">
+                <span class="setting-label">显示 Token 统计</span>
+                <el-switch
+                  :model-value="props.settings.showTokenUsage"
+                  @update:model-value="
+                    (val: boolean | string | number) =>
+                      emit('update:settings', { ...props.settings, showTokenUsage: val as boolean })
+                  "
+                  size="small"
+                />
+              </div>
+            </div>
+          </el-popover>
+        </div>
+      </el-tooltip>
+
       <el-tooltip
         v-if="!props.isDetached"
         :content="props.isExpanded ? '收起输入框' : '展开输入框'"
@@ -176,7 +217,11 @@ const onMacroSelectorUpdate = (visible: boolean) => {
       </el-tooltip>
       <!-- 历史上下文统计 -->
       <el-tooltip
-        v-if="props.contextStats && props.contextStats.totalTokenCount !== undefined"
+        v-if="
+          props.settings.showTokenUsage &&
+          props.contextStats &&
+          props.contextStats.totalTokenCount !== undefined
+        "
         placement="top"
         :show-after="300"
       >
@@ -225,7 +270,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
       </el-tooltip>
       <!-- 当前输入 Token 计数显示 -->
       <el-tooltip
-        v-if="props.tokenCount > 0 || props.isCalculatingTokens"
+        v-if="props.settings.showTokenUsage && (props.tokenCount > 0 || props.isCalculatingTokens)"
         :content="props.tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
         placement="top"
         :show-after="300"
@@ -596,5 +641,19 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 .macro-selector-popover .macro-selector-body {
   max-height: calc(70vh - 100px);
   overflow-y: auto;
+}
+
+.toolbar-settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-color);
 }
 </style>

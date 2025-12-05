@@ -179,5 +179,7 @@ export interface ChatMessageNode {
       realBaseTime: string;
       timeScale?: number;
     };
+    /** SillyTavern 预设导入时的原始名称 */
+    stPromptName?: string;
   };
 }

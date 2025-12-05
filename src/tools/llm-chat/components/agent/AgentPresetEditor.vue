@@ -421,6 +421,13 @@
       @update:visible="showUserProfileDialog = $event"
       @save="handleSaveUserProfile"
     />
+
+    <!-- ST 预设导入对话框 -->
+    <STPresetImportDialog
+      v-model:visible="showSTImportDialog"
+      :parsed-result="stImportData"
+      @confirm="handleConfirmSTImport"
+    />
   </div>
 </template>
 
@@ -432,6 +439,7 @@ import yaml from "js-yaml";
 import { useUserProfileStore } from "../../userProfileStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
 import { MacroProcessor, createMacroContext } from "../../macro-engine";
+import { isPromptFile, parsePromptFile } from "../../services/sillyTavernParser";
 import {
   QuestionFilled,
   Download,
@@ -453,7 +461,9 @@ import { customMessage } from "@/utils/customMessage";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "./PresetMessageEditor.vue";
 import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
+import STPresetImportDialog from "./STPresetImportDialog.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type { ParsedPromptFile } from "../../services/sillyTavernParser";
 
 interface Props {
   modelValue?: ChatMessageNode[];
@@ -520,6 +530,13 @@ const editForm = ref<{
 
 // 文件导入
 const importFileInput = ref<HTMLInputElement | null>(null);
+const showSTImportDialog = ref(false);
+const stImportData = ref<ParsedPromptFile>({
+  systemPrompts: [],
+  injectionPrompts: [],
+  unorderedPrompts: [],
+  parameters: {},
+});
 
 // Token 计算
 const messageTokens = ref<Map<string, number>>(new Map());
@@ -1126,26 +1143,32 @@ async function handleFileSelected(event: Event) {
 
   try {
     const content = await file.text();
-    let imported: ChatMessageNode[];
+    let parsed: any;
 
     try {
       // 优先尝试 JSON
-      imported = JSON.parse(content) as ChatMessageNode[];
+      parsed = JSON.parse(content);
     } catch (e) {
       try {
         // JSON 失败则尝试 YAML
-        imported = yaml.load(content) as ChatMessageNode[];
+        parsed = yaml.load(content);
       } catch (yamlError) {
         throw new Error("无法解析文件内容：既不是有效的 JSON 也不是有效的 YAML");
       }
     }
 
-    // 简单验证
-    if (!Array.isArray(imported)) {
+    // 检测是否为 SillyTavern 预设文件
+    if (isPromptFile(parsed)) {
+      await handleSTPresetImport(parsed);
+      return;
+    }
+
+    // 原有逻辑：导入 ChatMessageNode[] 格式
+    if (!Array.isArray(parsed)) {
       throw new Error("文件格式不正确");
     }
 
-    localMessages.value = imported;
+    localMessages.value = parsed as ChatMessageNode[];
     syncToParent();
     customMessage.success("导入成功");
   } catch (error) {
@@ -1155,6 +1178,86 @@ async function handleFileSelected(event: Event) {
     // 清空 input，允许重复导入同一文件
     target.value = "";
   }
+}
+
+/**
+ * 处理 SillyTavern 预设文件导入
+ */
+async function handleSTPresetImport(file: any) {
+  const result = parsePromptFile(file);
+  const totalCount = result.systemPrompts.length + result.injectionPrompts.length + result.unorderedPrompts.length;
+
+  if (totalCount === 0) {
+    customMessage.warning("预设文件中没有可导入的提示词");
+    return;
+  }
+
+  stImportData.value = result;
+  showSTImportDialog.value = true;
+}
+
+/**
+ * 确认导入 ST 预设
+ */
+function handleConfirmSTImport(data: {
+  systemPrompts: ChatMessageNode[];
+  injectionPrompts: ChatMessageNode[];
+  unorderedPrompts: ChatMessageNode[];
+  parameters: Record<string, any>;
+}) {
+  const { systemPrompts, injectionPrompts, unorderedPrompts, parameters } = data;
+  let importedCount = 0;
+  const importedParamsCount = Object.keys(parameters).length;
+
+  // 1. 导入消息
+  if (systemPrompts.length > 0 || injectionPrompts.length > 0 || unorderedPrompts.length > 0) {
+    // 找到 chat_history 占位符的位置
+    const historyIndex = localMessages.value.findIndex((m) => m.type === "chat_history");
+
+    // 追加前置消息：插入到 chat_history 之前
+    if (systemPrompts.length > 0) {
+      if (historyIndex !== -1) {
+        localMessages.value.splice(historyIndex, 0, ...systemPrompts);
+      } else {
+        // 如果没有 chat_history，追加到末尾
+        localMessages.value.push(...systemPrompts);
+      }
+      importedCount += systemPrompts.length;
+    }
+
+    // 追加注入消息：直接追加到末尾（它们有自己的 injectionStrategy）
+    if (injectionPrompts.length > 0) {
+      localMessages.value.push(...injectionPrompts);
+      importedCount += injectionPrompts.length;
+    }
+
+    // 追加未排序消息：直接追加到末尾
+    if (unorderedPrompts.length > 0) {
+      localMessages.value.push(...unorderedPrompts);
+      importedCount += unorderedPrompts.length;
+    }
+  }
+
+  // 2. 导入参数 (如果有)
+  if (importedParamsCount > 0 && props.agent) {
+    // 暂时：直接修改 props.agent.parameters (如果存在)
+    // 更好的做法是 emit 事件通知父组件
+    if (props.agent.generationConfig) {
+      Object.assign(props.agent.generationConfig, parameters);
+      customMessage.success(
+        `已导入 ${importedCount} 条消息和 ${importedParamsCount} 个模型参数`
+      );
+    } else {
+      customMessage.warning(
+        `已导入 ${importedCount} 条消息 (参数导入跳过：Agent 未初始化 generationConfig)`
+      );
+    }
+  } else if (importedCount > 0) {
+    customMessage.success(`已导入 ${importedCount} 条消息`);
+  }
+
+  showSTImportDialog.value = false;
+  syncToParent();
 }
 </script>
 

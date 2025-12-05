@@ -47,8 +47,8 @@ export async function preflightImportAgents(
         const zip = new JSZip();
         const zipContent = await zip.loadAsync(file);
 
-        const agentJsonFile = zipContent.file('agent.json');
-        const agentYamlFile = zipContent.file('agent.yaml') || zipContent.file('agent.yml');
+        const agentJsonFile = zipContent.file(/\.agent\.json$/)[0];
+        const agentYamlFile = zipContent.file(/\.agent\.(yaml|yml)$/)[0];
 
         if (agentJsonFile) {
           const agentJsonText = await agentJsonFile.async('text');

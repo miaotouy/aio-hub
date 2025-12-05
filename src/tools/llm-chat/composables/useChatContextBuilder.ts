@@ -13,7 +13,7 @@ import { useAgentStore } from "../agentStore";
 import { useContextInjection } from "./useContextInjection";
 import { useContextLimiter } from "./useContextLimiter";
 import { useContextPreview } from "./useContextPreview";
-import type { LlmContextData, ContextPreviewData } from "../types/context";
+import { type LlmContextData, type ContextPreviewData, SYSTEM_ANCHORS } from "../types/context";
 import type { LlmParameters } from "../types";
 import type { ContextPostProcessRule } from "../types";
 import type { ProcessableMessage } from "../types/context";
@@ -129,7 +129,7 @@ export function useChatContextBuilder() {
     // 准备骨架消息内容进行宏处理
     // 这里需要处理 user_profile 的内容生成
     const skeletonRawContents = skeleton.map((msg) => {
-      if (msg.type === "user_profile") {
+      if (msg.type === SYSTEM_ANCHORS.USER_PROFILE) {
         if (effectiveUserProfile) {
           return `# 用户档案\n${effectiveUserProfile.content}`;
         }
@@ -159,7 +159,7 @@ export function useChatContextBuilder() {
         // 1. 原始消息未禁用
         // 2. 如果是 user_profile，必须有内容
         let isEnabled = msg.isEnabled !== false;
-        if (msg.type === "user_profile" && !content) {
+        if (msg.type === SYSTEM_ANCHORS.USER_PROFILE && !content) {
           isEnabled = false;
         }
 
@@ -167,8 +167,8 @@ export function useChatContextBuilder() {
           role: (msg.role || "system") as "user" | "assistant" | "system",
           content: content,
           type: msg.type, // 保留 type 用于识别占位符
-          sourceType: msg.type === "user_profile" ? "user_profile" : "agent_preset",
-          sourceId: msg.type === "user_profile" ? effectiveUserProfile?.id : presetMessages.indexOf(msg),
+          sourceType: msg.type === SYSTEM_ANCHORS.USER_PROFILE ? "user_profile" : "agent_preset",
+          sourceId: msg.type === SYSTEM_ANCHORS.USER_PROFILE ? effectiveUserProfile?.id : presetMessages.indexOf(msg),
           sourceIndex: presetMessages.indexOf(msg),
           isEnabled,
         };
@@ -176,7 +176,7 @@ export function useChatContextBuilder() {
 
     // ==================== 上下文 Token 限制 ====================
     // 计算用于 Token 限制的预设消息列表 (排除 chat_history 占位符 和 禁用的消息)
-    const presetForTokenCalc = skeletonMessages.filter(msg => msg.isEnabled && msg.type !== "chat_history");
+    const presetForTokenCalc = skeletonMessages.filter(msg => msg.isEnabled && msg.type !== SYSTEM_ANCHORS.CHAT_HISTORY);
 
     if (
       agentConfig.parameters.contextManagement?.enabled &&
@@ -207,7 +207,7 @@ export function useChatContextBuilder() {
 
     // 查找历史消息占位符在处理后列表中的位置
     const chatHistoryIndex = skeletonMessages.findIndex(
-      (msg) => msg.type === "chat_history"
+      (msg) => msg.type === SYSTEM_ANCHORS.CHAT_HISTORY
     );
 
     // 记录插入点前的预设消息数量
@@ -231,7 +231,7 @@ export function useChatContextBuilder() {
       finalMessages = [...before, ...sessionContext, ...after];
 
       // 处理 chat_history 锚点注入
-      const chatHistoryAnchor = anchorGroups.get('chat_history');
+      const chatHistoryAnchor = anchorGroups.get(SYSTEM_ANCHORS.CHAT_HISTORY);
       if (chatHistoryAnchor) {
         const sessionStartIndex = before.length;
 
@@ -272,7 +272,7 @@ export function useChatContextBuilder() {
     // ==================== 处理 user_profile 锚点注入 ====================
     // 由于 user_profile 现在混在 finalMessages 中，我们需要找到它
     // 注意：如果存在多个 user_profile (理论上不该有)，只处理第一个
-    const userProfileAnchor = anchorGroups.get('user_profile');
+    const userProfileAnchor = anchorGroups.get(SYSTEM_ANCHORS.USER_PROFILE);
     if (userProfileAnchor) {
       const userProfileIndex = finalMessages.findIndex(msg => msg.sourceType === "user_profile");
 

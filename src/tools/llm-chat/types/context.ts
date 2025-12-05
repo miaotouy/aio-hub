@@ -4,6 +4,17 @@ import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
 
 /**
+ * 系统内置锚点/消息类型常量
+ * 这些常量同时用于 MessageType 判断和 InjectionStrategy.anchorTarget
+ */
+export const SYSTEM_ANCHORS = {
+  /** 历史消息占位符/锚点 */
+  CHAT_HISTORY: 'chat_history',
+  /** 用户档案占位符/锚点 */
+  USER_PROFILE: 'user_profile',
+} as const;
+
+/**
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {

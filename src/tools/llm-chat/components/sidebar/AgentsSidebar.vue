@@ -438,6 +438,35 @@ const handleImportFromClipboard = async () => {
     customMessage.error(`读取剪贴板失败: ${error}`);
   }
 };
+
+// 从酒馆角色卡导入
+const handleImportFromTavernCard = async () => {
+  try {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.accept = ".json,.png"; // 酒馆角色卡通常是 json 或包含数据的 png
+    input.onchange = async (event) => {
+      const files = Array.from((event.target as HTMLInputElement).files || []);
+      if (files.length === 0) return;
+
+      importLoading.value = true;
+      try {
+        // preflightImportAgents 应该能自动识别文件类型
+        const result = await agentStore.preflightImportAgents(files);
+        importPreflightResult.value = result;
+        importDialogVisible.value = true;
+      } catch (error) {
+        // preflightImportAgents 内部已经处理了错误提示
+      } finally {
+        importLoading.value = false;
+      }
+    };
+    input.click();
+  } catch (error) {
+    customMessage.error(`打开文件选择器失败: ${error}`);
+  }
+};
 </script>
 
 <template>
@@ -535,6 +564,10 @@ const handleImportFromClipboard = async () => {
             <el-dropdown-item @click="handleImportFromFile">
               <el-icon><Download /></el-icon>
               导入智能体...
+            </el-dropdown-item>
+            <el-dropdown-item @click="handleImportFromTavernCard">
+              <el-icon><Download /></el-icon>
+              导入酒馆角色卡...
             </el-dropdown-item>
             <el-dropdown-item @click="handleImportFromClipboard">
               <el-icon><DocumentAdd /></el-icon>

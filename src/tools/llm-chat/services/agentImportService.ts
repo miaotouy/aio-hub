@@ -4,6 +4,8 @@ import JSZip from 'jszip';
 import yaml from 'js-yaml';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 import type { ExportableAgent, AgentExportFile, AgentImportPreflightResult } from '../types/agentImportExport';
+import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from './sillyTavernParser';
+import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
 
 const logger = createModuleLogger('llm-chat/agentImportService');
 const errorHandler = createModuleErrorHandler('llm-chat/agentImportService');
@@ -61,14 +63,85 @@ export async function preflightImportAgents(
         }
       } else if (file.name.endsWith('.json')) {
         const jsonText = await file.text();
-        agentExportFile = JSON.parse(jsonText);
+        const jsonData = JSON.parse(jsonText);
+
+        if (isCharacterCard(jsonData)) {
+          // 这是酒馆角色卡
+          const { agent: parsedAgent, presetMessages } = parseCharacterCard(jsonData);
+
+          if (!parsedAgent.name) {
+            throw new Error(`角色卡文件 ${file.name} 缺少 'name' 字段。`);
+          }
+
+          // 处理 Base64 头像
+          let finalIcon = parsedAgent.icon;
+          if (finalIcon && finalIcon.startsWith('data:image')) {
+            try {
+              const base64Data = finalIcon.split(',')[1];
+              const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
+              const assetPath = `assets/avatar_for_${parsedAgent.name}.png`;
+              fileAssets[assetPath] = buffer;
+              finalIcon = assetPath; // 更新 icon 路径为临时资产路径
+            } catch(e) {
+              logger.warn('解析 Base64 头像失败，将忽略该头像', { error: e });
+              finalIcon = undefined;
+            }
+          }
+
+          const exportableAgent: ExportableAgent = {
+            ...parsedAgent,
+            name: parsedAgent.name, // 明确赋值以收窄类型
+            icon: finalIcon, // 使用处理后的 icon
+            modelId: '', // 模型ID需要用户后续选择
+            parameters: parsedAgent.parameters || {}, // 确保 parameters 字段存在
+            presetMessages,
+          };
+          agentExportFile = {
+            version: 1,
+            type: 'AIO_Agent_Export', // 伪装成标准格式以便后续流程处理
+            agents: [exportableAgent],
+          };
+        } else {
+          // 这是标准的 aio agent 文件
+          agentExportFile = jsonData;
+        }
       } else if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
         const yamlText = await file.text();
         agentExportFile = yaml.load(yamlText) as AgentExportFile;
+      } else if (file.name.endsWith('.png')) {
+        const buffer = await file.arrayBuffer();
+        const jsonData = await parseCharacterDataFromPng(buffer);
+
+        if (jsonData && isCharacterCard(jsonData)) {
+          // 这是酒馆角色卡
+          const { agent: parsedAgent, presetMessages } = parseCharacterCard(jsonData as SillyTavernCharacterCard);
+
+          if (!parsedAgent.name) {
+            throw new Error(`角色卡文件 ${file.name} 缺少 'name' 字段。`);
+          }
+          
+          // 将图片本身作为资产
+          const assetPath = `assets/avatar_for_${parsedAgent.name}.png`;
+          fileAssets[assetPath] = buffer;
+
+          const exportableAgent: ExportableAgent = {
+            ...parsedAgent,
+            name: parsedAgent.name, // 明确赋值以收窄类型
+            icon: assetPath, // 将图标指向新资产
+            modelId: '', // 模型ID需要用户后续选择
+            parameters: parsedAgent.parameters || {}, // 确保 parameters 字段存在
+            presetMessages,
+          };
+          agentExportFile = {
+            version: 1,
+            type: 'AIO_Agent_Export', // 伪装成标准格式以便后续流程处理
+            agents: [exportableAgent],
+          };
+        } else {
+          throw new Error(`无法从 PNG 文件 ${file.name} 中解析出有效的角色卡数据。`);
+        }
       } else {
-        throw new Error(
-          `不支持的文件格式: ${file.name}，请选择 .agent.zip, .agent.json, .agent.yaml 或 .agent.yml 文件`
-        );
+        throw new Error(`不支持的文件格式: ${file.name}`);
       }
 
       if (agentExportFile.type !== 'AIO_Agent_Export') {

@@ -382,10 +382,13 @@ onUnmounted(() => {
 }
 
 /* 确保整个应用没有默认边距 */
+html,
 body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* 强制禁止根元素滚动，防止 scrollIntoView 等行为导致应用整体偏移 */
 }
 
 /* 为透明窗口添加背景 */

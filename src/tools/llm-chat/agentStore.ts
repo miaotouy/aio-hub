@@ -180,10 +180,31 @@ export const useAgentStore = defineStore('llmChatAgent', {
       // 深度复制智能体的数据
       const newAgentData = JSON.parse(JSON.stringify(originalAgent));
 
-      // 创建新的唯一 ID 和名称
+      // 创建新的唯一 ID
       const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      const newName = `${originalAgent.name} 副本`;
-      const newDisplayName = originalAgent.displayName ? `${originalAgent.displayName} 副本` : undefined;
+
+      // 保持 name 不变，因为这可能被宏引用（如 {{char}}）使用
+      const newName = originalAgent.name;
+
+      // 生成唯一的显示名称
+      // 逻辑：优先使用 displayName，没有则使用 name，然后加上“副本”后缀并自动编号
+      const baseDisplayName = originalAgent.displayName || originalAgent.name;
+      
+      // 获取所有现有的“显示名称”（用于冲突检查）
+      // 如果 agent 有 displayName 则取之，否则取 name
+      const existingVisibleNames = this.agents.map(a => a.displayName || a.name);
+
+      const generateUniqueDisplayName = (base: string, existing: string[]) => {
+        let name = `${base} 副本`;
+        let counter = 1;
+        while (existing.includes(name)) {
+          name = `${base} 副本 (${counter})`;
+          counter++;
+        }
+        return name;
+      };
+
+      const newDisplayName = generateUniqueDisplayName(baseDisplayName, existingVisibleNames);
 
       // 如果 icon 是一个私有资产（纯文件名），则复制它
       const icon = originalAgent.icon;

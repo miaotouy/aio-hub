@@ -2,14 +2,21 @@
 
 ## 1. 概述 (Overview)
 
-本设计旨在为 `llm-chat` 工具引入类似“酒馆 (SillyTavern)”的正则脚本能力。通过支持 **Input (Prompt)** 和 **Output (Render)** 两个方向的正则处理管道，实现对对话内容的动态清洗、格式转换和角色扮演增强。
+本设计旨在为 `llm-chat` 工具引入正则规则管道能力，实现对消息内容的动态清洗、格式转换和角色扮演增强。
 
-核心目标：
+### 核心设计原则
 
-1.  **渲染层支持**: `RichTextRenderer` 原生支持正则替换，实现“流式内容的实时处理”。
-2.  **三层配置体系**: 支持 **Global (全局)**、**User (用户)**、**Agent (智能体)** 三层配置叠加，满足不同维度的需求。
-3.  **严格顺序控制**: 规则集（Rule Sets）和规则（Rules）必须支持严格的顺序编排，确保处理逻辑的可预测性。
-4.  **统一管道架构**: 将正则处理作为标准环节集成到现有的消息处理管道 (`useMessageProcessor`) 中，避免逻辑碎片化。
+1.  **自主设计**: 优先保证自身设计的清晰性和可维护性，术语命名遵循项目既有风格（参考 `regex-applier` 工具）。
+2.  **统一模型**: 采用统一的规则列表，每条规则通过属性声明其生效阶段和目标。
+3.  **按需实现**: 只实现核心且明确的功能，对于外部工具的特有参数，按需在导入层处理。
+4.  **兼容导入**: 提供从外部格式（如酒馆 SillyTavern）到自身格式的转换逻辑，但不影响核心设计。
+
+### 核心目标
+
+1.  **层级化配置模型**: 建立 **Config -> Preset (预设/组) -> Rule** 的三层结构，支持按组管理规则。
+2.  **三层配置体系**: 支持 **Global (全局)**、**User (用户)**、**Agent (智能体)** 三层配置。
+3.  **灵活的目标控制**: 所有规则都支持按 `targetRoles` (system/user/assistant 多选) 进行过滤。
+4.  **外部格式兼容**: 支持导入 SillyTavern 等外部正则配置，在导入层完成格式转换。
 
 ---
 
@@ -17,338 +24,497 @@
 
 ### 2.1 数据结构
 
-#### `RegexRule` (正则规则)
+#### `ChatRegexRule` (单条正则规则)
 
-定义单个正则替换规则的标准结构。
-
-```typescript
-interface RegexRule {
-  id: string; // 唯一标识
-  enabled: boolean; // 开关
-  name: string; // 规则名称
-  regex: string; // 正则表达式字符串
-  replacement: string; // 替换内容 (支持 $1, $2 等捕获组)
-  flags?: string; // 正则标志 (g, i, m 等，默认为 gm)
-  order?: number; // 排序权重 (可选，UI 拖拽排序使用)
-  testCase?: string; // 测试用例 (可选，用于测试规则效果)
-}
-```
-
-#### `RegexRuleSet` (正则规则集)
-
-定义一组相关的规则，支持整组开关。
+定义最小执行单元。相比 `regex-applier` 的基础 `RegexRule`，增加了聊天场景特有的配置项。
 
 ```typescript
-interface RegexRuleSet {
+interface ChatRegexRule {
   id: string;
-  name: string; // 规则集名称 (如 "Markdown清洗", "角色修正")
-  enabled: boolean; // 整组开关
-  rules: RegexRule[]; // 规则列表 (有序)
-  description?: string; // 描述
+  enabled: boolean; // 规则级开关
+  name?: string; // 规则名称 (可选)
+
+  // === 核心：正则配置 ===
+  regex: string; // 正则表达式 (命名与 regex-applier 保持一致)
+  replacement: string; // 替换内容
+  flags?: string; // 默认 'gm'
+
+  // === 聊天场景特有配置 ===
+  applyTo: {
+    render: boolean; // 是否应用于渲染层
+    request: boolean; // 是否应用于请求层
+  };
+  targetRoles: MessageRole[]; // 目标消息角色
+  depthRange?: {
+    // 消息深度范围
+    min?: number;
+    max?: number;
+  };
+
+  // === 宏替换模式 (兼容 SillyTavern) ===
+  substitutionMode?: "NONE" | "RAW" | "ESCAPED"; // 默认 'NONE'
+  trimStrings?: string[]; // 从捕获组中移除的字符串列表 (后处理)
+
+  // === 排序与调试 ===
+  order?: number; // 组内排序
+  testInput?: string; // 测试用例
 }
 ```
 
-#### `RegexPipelineConfig` (管道配置)
+#### `ChatRegexPreset` (正则预设/规则组)
 
-集成在 Global, Agent, UserProfile 中的通用配置结构。
+规则的容器，与 `regex-applier` 的 `RegexPreset` 概念一致。
 
 ```typescript
-interface RegexPipelineConfig {
-  output: RegexRuleSet[]; // 输出管道：处理模型返回的内容，用于显示
-  input: RegexRuleSet[]; // 输入管道：处理发送给模型的 Prompt
+interface ChatRegexPreset {
+  id: string;
+  name: string; // 预设名称 (如 "Markdown清洗", "猫娘口癖")
+  description?: string;
+  author?: string; // 作者
+  version?: string; // 版本
+  createdAt?: number; // 创建时间
+  updatedAt?: number; // 更新时间
+  enabled: boolean; // 预设级开关 (关闭后内部所有规则失效)
+
+  // === 规则列表 ===
+  rules: ChatRegexRule[];
+
+  // === 排序 ===
+  order?: number; // 预设间排序
+}
+```
+
+#### `ChatRegexConfig` (配置根对象)
+
+用于 Global, Agent, User 三层配置。
+
+```typescript
+interface ChatRegexConfig {
+  presets: ChatRegexPreset[]; // 预设列表
 }
 ```
 
 ### 2.2 三层配置架构 (Three-Layer Architecture)
 
-系统支持三个层级的配置，优先级和作用范围不同：
+所有层级共享同一套 `ChatRegexConfig` 结构，提供了极大的灵活性和一致性。
 
-1.  **Global (全局设置)**
-    - **位置**: `ChatSettings.regexConfig` (in `useChatSettings`)
-    - **作用**: 系统级通用处理，如通用的 Markdown 格式修复、敏感词过滤等。
-    - **生效范围**: 所有会话。
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Global (全局设置)                        │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ presets: ChatRegexPreset[]                              │   │
+│  │   └─ rules[]: applyTo, targetRoles, depthRange         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                           ↓ 生效于所有会话                   │
+├─────────────────────────────────────────────────────────────┤
+│        Agent (智能体)              User (用户档案)            │
+│  ┌──────────────────────┐    ┌──────────────────────┐      │
+│  │ presets: [...]       │    │ presets: [...]       │      │
+│  └──────────────────────┘    └──────────────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+```
 
-2.  **User (用户档案)**
-    - **位置**: `UserProfile.regexConfig`
-    - **行为控制**: `regexPipelineBehavior` ("merge" | "replace")
-    - **作用**: 用户个人偏好，如特定的称呼替换、阅读习惯调整。
-    - **生效范围**: **按节点生效**。仅作用于关联了该用户档案的消息节点（通常是 Role 为 `user` 的节点，通过 `metadata.userProfileId` 关联）。
-
-3.  **Agent (智能体)**
-    - **位置**: `ChatAgent.regexConfig`
-    - **作用**: 角色扮演特性增强，如解析特定的 XML 标签、角色口癖修正。
-    - **生效范围**: **按节点生效**。仅作用于关联了该智能体的消息节点（通常是 Role 为 `assistant` 的节点，通过 `metadata.agentId` 关联）。
+1.  **Global (全局设置)**: `ChatSettings.regexConfig: ChatRegexConfig`
+2.  **Agent (智能体)**: `ChatAgent.regexConfig: ChatRegexConfig`
+3.  **User (用户档案)**: `UserProfile.regexConfig: ChatRegexConfig`
 
 ### 2.3 处理流程 (Pipeline Flow)
 
-#### **Output Pipeline (显示层)**
+#### **Render Pipeline (渲染层)**
 
-处理消息节点的文本内容，用于渲染显示。**规则的应用是基于节点的，而非基于当前会话状态。**
+在 `RichTextRenderer` 中执行，处理消息内容用于显示。
 
-- **执行逻辑**:
-  1.  **确定上下文**: 渲染器获取当前消息节点的 `metadata` 以及**当前会话激活的智能体 (Current Active Agent)**。
-  2.  **获取规则**:
-      - **Self Rules (自身规则)**:
-        - 如果是 Assistant 节点，加载 `metadata.agentId` 对应 Agent 的 Output 规则。
-        - 如果是 User 节点，加载 `metadata.userProfileId` 对应 UserProfile 的 Output 规则。
-      - **Context Rules (上下文规则)**:
-        - 获取 **Current Active Agent** 的 Output 规则（用于 User 消息的动态渲染）。
-  3.  **组合规则**:
-      - **Assistant 角色**: 应用 `[Self Rules (Agent)] -> [Global Output Rules]`。
-        - _保持历史一致性，Assistant 的消息由生成它的 Agent 负责解释。_
-      - **User 角色**: 根据 UserProfile 的 `regexPipelineBehavior` 决定:
-        - **Merge (默认)**: 应用 `[Self Rules (User)] -> [Context Rules (Current Agent)] -> [Global Output Rules]` (用户规则优先，再应用当前智能体规则)。
-        - **Replace**: 应用 `[Context Rules (Current Agent)] -> [Global Output Rules]` (完全由当前 Agent 视角解释用户的话，忽略用户自身规则)。
-        - **Ignore**: 应用 `[Self Rules (User)] -> [Global Output Rules]` (仅保留用户自己的习惯，忽略当前智能体规则)。
-  - _注: User 消息引入 Current Agent 规则，是为了实现“状态切换”的动态效果（如切换到“猫娘”模式后，用户历史消息中的特定词汇也被动态修饰）。_
+- **逻辑**:
+  1.  **收集规则**: 遍历所有配置 (Global, Agent, User)，提取其中所有 `enabled` 的预设，再将这些预设中的 `rules` 收集到一个扁平化的列表中。
+  2.  **规则级过滤**: 遍历这个扁平列表，根据 `rule.enabled`, `rule.applyTo[stage]`, `rule.targetRoles`, `rule.depthRange` 对每一条规则进行独立过滤。
+  3.  **排序**: 对通过过滤的规则列表进行排序 (按 `order` 字段)。
+  4.  **应用**: 依次应用所有通过的规则。
 
-#### **Input Pipeline (提示词层)**
+#### **Request Pipeline (请求层)**
 
-处理发送给模型的 Prompt 消息列表。**同样基于消息节点本身的来源应用规则。**
+在 `useMessageProcessor` 中执行，处理发送给模型的 Prompt。
 
 - **(二期实现)**
-- **执行位置**: 集成在 `useMessageProcessor` 的统一管道中。
-- **处理对象**: 遍历 `messages` 数组，对每条消息独立计算规则并处理。
-- **执行逻辑**:
-  1.  **Global Rules**: 所有消息首先应用全局 Input 规则（通用清洗）。
-  2.  **Node Specific Rules**:
-      - 对于 **User** 消息: 追加应用该消息所属 UserProfile 的 Input 规则。
-      - 对于 **Assistant** 消息: 追加应用该消息所属 Agent 的 Input 规则。
-- **最终顺序**: `[Global] -> [Node Specific]`
+- **逻辑**: 同 Render Pipeline，但过滤 `applyTo.request=true`
 
 ---
 
-## 3. 详细设计 (Detailed Design)
+## 3. 外部格式导入 (Import Compatibility)
 
-### 3.1 基础设施 (Infrastructure)
+本节描述如何将外部工具（如 SillyTavern）的正则配置导入为本系统的格式。导入逻辑是**单向转换**，不影响核心设计。
 
-**新增文件**: `src/tools/llm-chat/utils/regexUtils.ts`
+### 3.1 SillyTavern 导入
 
-**功能**:
+#### 转换规则
 
-- `applyRegexRules(text, rules)`: 核心处理函数。
-- `validateRegexRule(rule)`: 校验单条规则的正则表达式是否合法。
-- `resolveOutputRulesForNode(node, globalConfig, agentConfig, userProfile)`:
-  - 根据消息节点、全局配置、智能体配置和用户档案配置，动态计算该节点在 **Output** 管道应应用的规则列表。
-- `exportRegexConfig(config)` / `importRegexConfig(json)`: 支持配置的导入导出。
+| 酒馆字段                                  | 处理方式                           |
+| ----------------------------------------- | ---------------------------------- |
+| `scriptName`                              | → `ChatRegexPreset.name`           |
+| `findRegex`                               | → `ChatRegexRule.regex`            |
+| `replaceString`                           | → `ChatRegexRule.replacement`      |
+| `placement`, `markdownOnly`, `promptOnly` | → `applyTo` 字段                   |
+| `minDepth`, `maxDepth`                    | → `depthRange`                     |
+| `trimStrings`                             | → `ChatRegexRule.trimStrings` 字段 |
+| `substituteRegex`                         | → `substitutionMode` 字段          |
+| `runOnEdit`                               | 忽略（暂不支持）                   |
 
-### 3.2 数据层扩展 (Data Layer)
+#### 转换函数
 
-**修改文件**:
-
-- `src/tools/llm-chat/types.ts`: 扩展 `ChatAgent` 和 `UserProfile`。
-- `src/tools/llm-chat/types/regex.ts`: **(新增)** 定义 `RegexRule`, `RegexRuleSet` 等核心类型。
-- `src/tools/llm-chat/composables/useChatSettings.ts`: 扩展 `ChatSettings`。
-
-```typescript
-// UserProfile
-export interface UserProfile {
-  // ...
-  regexConfig?: RegexPipelineConfig;
-  regexPipelineBehavior?: "merge" | "replace" | "ignore";
-}
-```
-
-### 3.3 UI 配置层 (Configuration UI)
-
-**新增组件**: `src/tools/llm-chat/components/common/RegexRulesEditor.vue`
-
-- **功能**: 通用的规则集编辑器，支持拖拽排序、测试、导入导出。
-
-**集成点**:
-
-1.  **Agent**: `EditAgentDialog.vue`
-2.  **User**: `UserProfileForm.vue`
-3.  **Global**: `ChatSettingsDialog.vue`
-
-#### UI 组件设计细节
-
-**1. `RegexPipelinePanel` (管道编辑器)**
-
-- **复用策略**: 借鉴 `RegexApplier` 中 `VueDraggableNext` 的核心逻辑，复用其拖拽排序、事件处理机制。
-- **UI 改进**:
-  - 弃用 `RegexApplier` 的简单 Tag 样式。
-  - 采用 **垂直卡片列表 (Vertical Card List)** 布局，更符合“管道流”的视觉隐喻。
-  - 每个卡片包含：
-    - **拖拽手柄**: 明确的排序交互区域。
-    - **基本信息**: 名称、描述、规则数量统计。
-    - **快捷操作**: 启用/禁用开关 (Switch)、编辑按钮 (Edit)、删除按钮 (Delete)。
-
-**2. `RegexRuleSetEditor` (规则集编辑器)**
-
-- **复用策略**: 深度复用 `PresetManager.vue` 的左右分栏布局。
-  - **左侧**: 规则列表，支持拖拽排序。
-  - **右侧**: 规则详情编辑 + 实时测试预览。
-- **功能增强**:
-  - 增加“快捷规则模板” (Quick Patterns)，如一键插入“移除 Markdown 图片”、“匹配 XML 标签”等常用正则。
-
-### 3.4 渲染层改造 (Output Pipeline)
-
-**修改文件**: `src/tools/rich-text-renderer/RichTextRenderer.vue`
-
-**逻辑**:
-
-- **Props 传递链**:
-  1. `ChatArea.vue`: 准备好 `global`, `agent`, `user` 三层配置源。
-  2. `MessageList.vue`: 接收配置源，遍历每条消息，调用 `resolveOutputRulesForNode` 计算出该消息最终应用的 `RegexRule[]` 列表。
-  3. `ChatMessage.vue` -> `MessageContent.vue`: 逐级透传计算好的 `RegexRule[]` 列表。
-  4. `RichTextRenderer.vue`: 接收最终的 `rules` prop。
-- **执行逻辑**: 在渲染管线的最前端，调用 `applyRegexRules` 对 `content` 进行处理。
-
-### 3.5 消息处理层改造 (Input Pipeline)
-
-**核心思想**: **(二期实现)** 将 Input Regex Pipeline 提升为 `useMessageProcessor` 的核心能力之一，且支持**按节点动态获取规则**。
-
-**修改文件**: `src/tools/llm-chat/composables/useMessageProcessor.ts`
-
-**扩展功能**:
-
-1.  引入 `regexUtils`。
-2.  新增 `processMessages` 主函数，统一协调结构处理和内容处理。
+酒馆的一个 `Script` 对应我们的一个 `ChatRegexPreset`：
 
 ```typescript
-export interface ProcessedMessage extends ProcessableMessage {
-  // 新增：调试信息，记录应用了哪些规则
-  _appliedRegexRules?: {
-    source: "global" | "agent" | "user";
-    ruleName: string;
-    originalContentLength: number;
-    newContentLength: number;
-  }[];
-}
+import { escapeRegExp } from "lodash-es";
+import { v4 as uuidv4 } from "uuid";
 
-export interface MessageProcessingOptions {
-  structureRules: ContextPostProcessRule[]; // 结构性规则
-  // 提供一个函数，根据消息元数据动态获取规则
-  getRulesForMessage: (msg: ProcessableMessage) => RegexRule[];
-}
+/**
+ * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexPreset
+ */
+function convertFromSillyTavern(st: SillyTavernRegexScript): ChatRegexPreset {
+  const rules: ChatRegexRule[] = [];
+  const applyTo = convertPlacementToApplyTo(st);
+  const depthRange =
+    st.minDepth !== null || st.maxDepth !== null
+      ? { min: st.minDepth ?? undefined, max: st.maxDepth ?? undefined }
+      : undefined;
 
-export function useMessageProcessor() {
-  // ... 原有的结构处理函数 ...
+  // 转换 substituteRegex 枚举值到 substitutionMode
+  const substitutionMode = convertSubstituteRegex(st.substituteRegex);
 
-  /**
-   * 应用正则处理
-   */
-  const applyRegexProcessing = (
-    messages: ProcessableMessage[],
-    getRules: (msg: ProcessableMessage) => RegexRule[]
-  ) => {
-    return messages.map((msg) => {
-      const rules = getRules(msg);
-      if (!rules.length) return msg;
-
-      // 记录应用的规则用于调试
-      const appliedRulesInfo = [];
-      let currentContent = msg.content;
-
-      // 逐条应用规则并记录
-      // (实际实现中 applyRegexRules 可能需要改造以支持返回详细信息，
-      // 或者在这里简单记录规则列表)
-
-      // 对 msg.content 进行正则替换 (支持多模态文本部分)
-      const newContent = applyRegexRules(msg.content, rules);
-
-      return {
-        ...msg,
-        content: newContent,
-        // 附加调试元数据（注意：这不应污染持久化的消息对象，仅在运行时存在）
-        _appliedRegexRules: rules.map((r) => ({ name: r.name, id: r.id })),
-      };
+  // 1. 主规则
+  if (st.findRegex) {
+    rules.push({
+      id: uuidv4(),
+      enabled: true,
+      name: "主规则",
+      regex: st.findRegex,
+      replacement: st.replaceString || "",
+      flags: "gm",
+      applyTo: applyTo,
+      targetRoles: ["system", "user", "assistant"],
+      depthRange: depthRange,
+      substitutionMode: substitutionMode,
+      trimStrings: st.trimStrings?.filter(Boolean),
+      order: 0,
     });
-  };
+  }
 
-  /**
-   * 统一消息处理管道
-   * 依次执行：结构调整 -> 内容清洗
-   */
-  const processMessages = (
-    messages: ProcessableMessage[],
-    options: MessageProcessingOptions
-  ): ProcessableMessage[] => {
-    let result = [...messages];
-
-    // 1. 结构处理 (Structure Pipeline)
-    if (options.structureRules.length > 0) {
-      result = applyProcessingPipeline(result, options.structureRules);
-    }
-
-    // 2. 内容处理 (Content Pipeline)
-    // 此时的消息列表已经是结构调整后的（例如 system 消息已合并），
-    // 但每条消息仍应保留原始 metadata 以便正确匹配规则
-    result = applyRegexProcessing(result, options.getRulesForMessage);
-
-    return result;
-  };
-
+  // 3. 构建预设对象
   return {
-    processMessages,
-    // ...
+    id: st.id || uuidv4(),
+    name: st.scriptName || "未命名预设",
+    enabled: !st.disabled,
+    rules: rules,
+    order: 0,
   };
+}
+
+/**
+ * 转换 SillyTavern 的 substituteRegex 枚举值
+ * @see SillyTavern: public/scripts/extensions/regex/engine.js
+ */
+function convertSubstituteRegex(value: number | undefined): "NONE" | "RAW" | "ESCAPED" {
+  switch (value) {
+    case 1:
+      return "RAW";
+    case 2:
+      return "ESCAPED";
+    default:
+      return "NONE";
+  }
+}
+
+function convertPlacementToApplyTo(script: SillyTavernRegexScript): {
+  render: boolean;
+  request: boolean;
+} {
+  let render = script.placement.includes(1);
+  let request = script.placement.includes(2);
+  if (script.markdownOnly) {
+    render = true;
+    request = false;
+  }
+  if (script.promptOnly) {
+    render = false;
+    request = true;
+  }
+  if (!render && !request) {
+    render = true;
+    request = true;
+  }
+  return { render, request };
 }
 ```
 
-**调用点更新**: `src/tools/llm-chat/composables/useChatExecutor.ts`
+---
+
+## 4. 详细设计 (Detailed Design)
+
+### 4.1 类型定义
+
+**新增文件**: `src/tools/llm-chat/types/chatRegex.ts`
 
 ```typescript
-// useChatExecutor.ts
-const { processMessages } = useMessageProcessor();
+// === 消息角色类型 ===
+export type MessageRole = "system" | "user" | "assistant";
 
-// 准备回调函数
-const getRulesForMessage = (msg: ProcessableMessage) => {
-  // 根据 msg.metadata.agentId / userProfileId
-  // 以及当前的全局配置，动态计算 Input 规则
-  return resolveRulesForNode(
-    msg.metadata,
-    globalConfig,
-    userConfigMap, // 需要传入所有 User/Agent 配置以便查找
-    agentConfigMap,
-    "input"
-  );
-};
+// === 单条规则 (聊天场景扩展) ===
+export interface ChatRegexRule {
+  id: string;
+  enabled: boolean;
+  name?: string;
 
-// 调用
-messages = processMessages(messages, {
-  structureRules,
-  getRulesForMessage,
-});
+  // 核心配置
+  regex: string;
+  replacement: string;
+  flags?: string;
+
+  // 聊天场景配置
+  applyTo: {
+    render: boolean;
+    request: boolean;
+  };
+  targetRoles: MessageRole[];
+  depthRange?: {
+    min?: number;
+    max?: number;
+  };
+
+  // 宏替换模式
+  substitutionMode?: "NONE" | "RAW" | "ESCAPED";
+  trimStrings?: string[];
+
+  // 排序与调试
+  order?: number;
+  testInput?: string;
+}
+
+// === 规则预设 (组) - 纯容器 ===
+export interface ChatRegexPreset {
+  id: string;
+  name: string;
+  description?: string;
+  author?: string;
+  version?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  enabled: boolean; // 控制整个预设是否生效
+  rules: ChatRegexRule[];
+  order?: number; // 预设间排序
+}
+
+// === 配置结构 ===
+export interface ChatRegexConfig {
+  presets: ChatRegexPreset[];
+}
 ```
 
-### 3.6 上下文分析器支持 (Context Analyzer Support)
-
-为了方便调试 Input Pipeline 的效果，上下文分析器需要展示每条消息实际应用了哪些正则规则。
+### 4.2 数据层扩展
 
 **修改文件**:
 
-1.  `src/tools/llm-chat/composables/useChatContextBuilder.ts`
-2.  `src/tools/llm-chat/components/context-analyzer/StructuredView.vue`
+- `src/tools/llm-chat/types/agent.ts`: 扩展 `ChatAgent`
+- `src/tools/llm-chat/types/user.ts`: 扩展 `UserProfile`
+- `src/tools/llm-chat/composables/useChatSettings.ts`: 扩展 `ChatSettings`
 
-**逻辑**:
+```typescript
+// ChatAgent, UserProfile, ChatSettings
+// ...
+  regexConfig?: ChatRegexConfig;
+// ...
+```
 
-1.  **数据透传**: `useChatContextBuilder` 在构建上下文预览数据时，需要保留 `processMessages` 返回结果中的 `_appliedRegexRules` 字段。
-2.  **UI 展示**: 在 `StructuredView.vue` 的消息卡片 (`InfoCard`) 中，新增一个“正则处理记录”区域。
-    - 当 `_appliedRegexRules` 存在且不为空时显示。
-    - 展示应用的规则名称列表，使用 `el-tag` 或列表形式。
-    - 提供直观的视觉反馈，表明该消息的内容已被修改。
+### 4.3 工具函数
 
-**UI 示例**:
+**新增文件**: `src/tools/llm-chat/utils/chatRegexUtils.ts`
 
-```html
-<!-- 在 MessageCard 的 headerTags 中增加一个图标或标签 -->
-<el-tooltip v-if="msg._appliedRegexRules?.length" content="已应用正则处理">
-  <el-tag type="warning" size="small" effect="plain">
-    <i class="i-lucide-regex" /> {{ msg._appliedRegexRules.length }}
-  </el-tag>
-</el-tooltip>
+```typescript
+/**
+ * 获取消息节点最终应用的规则列表
+ * @param stage - 当前处理阶段 (render/request)
+ * @param role - 消息角色 (system/user/assistant)
+ * @param messageDepth - 消息深度 (0=最新)
+ * @param configs - 配置列表 (Global, Agent, User)
+ */
+export function resolveRulesForMessage(
+  stage: "render" | "request",
+  role: MessageRole,
+  messageDepth: number,
+  ...configs: (ChatRegexConfig | undefined)[]
+): ChatRegexRule[] {
+  const allRules: ChatRegexRule[] = [];
 
-<!-- 在 MessageCard 的内容区域下方或详情弹窗中 -->
-<div v-if="msg._appliedRegexRules" class="regex-debug-info">
-  <div class="debug-title">应用规则:</div>
-  <div class="rule-list">
-    <span v-for="rule in msg._appliedRegexRules" :key="rule.id" class="rule-tag">
-      {{ rule.name }}
-    </span>
-  </div>
-</div>
+  // 1. 收集所有启用的预设中的规则
+  for (const config of configs) {
+    if (!config?.presets) continue;
+
+    const enabledPresets = config.presets
+      .filter((preset) => preset.enabled)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    for (const preset of enabledPresets) {
+      allRules.push(...preset.rules);
+    }
+  }
+
+  // 2. 对扁平化的规则列表进行过滤和排序
+  return allRules
+    .filter((rule) => {
+      if (!rule.enabled) return false;
+      if (!rule.applyTo[stage]) return false;
+      if (!rule.targetRoles.includes(role)) return false;
+      // 深度检查
+      if (rule.depthRange) {
+        if (rule.depthRange.min !== undefined && messageDepth < rule.depthRange.min) return false;
+        if (rule.depthRange.max !== undefined && messageDepth > rule.depthRange.max) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+```
+
+### 4.4 UI 配置层 (Configuration UI)
+
+**新增组件**: `src/tools/llm-chat/components/common/ChatRegexEditor.vue`
+
+采用 **嵌套式管理** 布局，以适应分组管理的层级结构：
+
+1.  **一级层级 (预设组列表)**:
+    - 采用 **垂直手风琴 (Accordion)** 或 **可展开卡片** 列表形式。
+    - **折叠态**: 显示预设名称、开关、规则数量摘要、拖拽手柄、删除/导出按钮。
+    - **展开态**: 显示该预设的详细编辑界面。
+
+2.  **二级层级 (组内规则管理)**:
+    - 在预设展开区域内，采用 **左右分栏 (Master-Detail)** 布局。
+    - **左侧 (Rule List)**:
+      - 该预设下的规则列表。
+      - 支持组内拖拽排序。
+      - 每项显示：开关、规则名称（或正则预览）。
+    - **右侧 (Rule Form)**:
+      - 当前选中规则的详细属性编辑表单。
+      - 字段分组：
+        - _基础_: 正则表达式、替换内容、Flags。
+        - _范围_: 应用阶段 (Render/Request)、目标角色、深度限制。
+        - _高级_: 宏替换模式、后处理 (Trim Strings)。
+
+**集成点**: `EditAgentDialog.vue`, `UserProfileForm.vue`, `ChatSettingsDialog.vue`
+
+### 4.5 宏替换集成 (Macro Substitution)
+
+当 `ChatRegexRule.substitutionMode` 不为 `'NONE'` 时，需要在应用正则表达式之前，对 `regex` 字段进行宏替换处理。
+
+> **设计原则**: 复用 `llm-chat` 模块已有的宏系统 (`useMacroProcessor`)，而非重新实现。
+
+#### `substitutionMode` 说明
+
+| 模式      | 说明                                              | 用途示例                           |
+| --------- | ------------------------------------------------- | ---------------------------------- |
+| `NONE`    | 不进行宏替换，`regex` 按字面值使用                | 普通正则规则                       |
+| `RAW`     | 将 `{{macro}}` 替换为文本值后，作为正则表达式使用 | 动态匹配（用户名不含特殊字符时）   |
+| `ESCAPED` | 替换宏后，对替换进来的值进行正则转义              | **推荐**：安全地动态匹配任意用户名 |
+
+#### 使用场景示例
+
+**场景**: 为角色创建一个通用的昵称规则，无论当前用户叫什么名字，角色在提到用户时都会在名字前加上特定称呼。
+
+```typescript
+// 规则配置
+const rule: ChatRegexRule = {
+  regex: "{{user}}",
+  replacement: "我亲爱的 {{user}}",
+  substitutionMode: "ESCAPED", // 推荐使用 ESCAPED 模式
+  // ...
+};
+```
+
+**执行流程**:
+
+1. 假设当前用户名为 `C.C.`（含正则特殊字符 `.`）
+2. 宏处理器将 `{{user}}` 替换为 `C.C.`
+3. 因为是 `ESCAPED` 模式，对替换值进行转义：`C\.C\.`
+4. 最终的 `regex` 变为 `/C\.C\./gm`，精确匹配字符串 "C.C."
+5. 如果使用 `RAW` 模式，`regex` 会变成 `/C.C./gm`，`.` 会匹配任意字符，导致错误匹配
+
+#### 实现要点
+
+```typescript
+import { useMacroProcessor } from "@/tools/llm-chat/composables/macros/useMacroProcessor";
+import { escapeRegExp } from "lodash-es";
+
+/**
+ * 处理规则的 regex 字段，根据 substitutionMode 进行宏替换
+ */
+async function processRegexWithMacros(
+  rule: ChatRegexRule,
+  macroContext: MacroContext
+): Promise<string> {
+  if (!rule.substitutionMode || rule.substitutionMode === "NONE") {
+    return rule.regex;
+  }
+
+  const macroProcessor = useMacroProcessor();
+
+  if (rule.substitutionMode === "RAW") {
+    // 直接替换宏
+    return await macroProcessor.process(rule.regex, macroContext);
+  }
+
+  if (rule.substitutionMode === "ESCAPED") {
+    // 替换宏，并对每个宏的值应用正则转义
+    return await macroProcessor.process(rule.regex, macroContext, {
+      valueTransformer: (value) => escapeRegExp(String(value)),
+    });
+  }
+
+  return rule.regex;
+}
 ```
 
 ---
+
+### 4.6 捕获组后处理 (Trim Strings)
+
+`trimStrings` 字段用于在正则替换过程中，对**捕获组的内容**进行二次清理。这在处理复杂的角色扮演格式时非常有用（例如去除不需要的前缀或标记）。
+
+#### 工作原理
+
+当规则的 `replacement` 字段引用了捕获组（如 `$1`、`$<name>`）时：
+
+1.  获取捕获组的原始值。
+2.  遍历 `trimStrings` 列表。
+3.  对每个 trim string 进行宏替换（如将 `{{char}}` 替换为角色名）。
+4.  使用 `replaceAll` 从捕获组的原始值中移除这些字符串。
+5.  使用清理后的值参与最终的 `replacement` 拼接。
+
+#### 示例
+
+**规则配置**:
+
+- `regex`: `/\(思考中：(.*?)\)/`
+- `replacement`: `$1`
+- `trimStrings`: `["..."]`
+
+**输入**: `(思考中：...我在想什么...)`
+**捕获组 $1**: `...我在想什么...`
+**应用 Trim**: 移除 `...` -> `我在想什么`
+**最终输出**: `我在想什么`
+
+---
+
+## 5. 实现计划
+
+### Phase 1: 基础架构 (一期)
+
+1. [ ] **类型**: 定义 `types/chatRegex.ts`
+2. [ ] **数据层**: 扩展 Agent/User/Settings 类型
+3. [ ] **工具函数**: 实现 `utils/chatRegexUtils.ts`
+4. [ ] **导入层**: 实现 SillyTavern 格式转换函数
+5. [ ] **UI**: 实现 `ChatRegexEditor.vue` 组件
+6. [ ] **集成**: 将 UI 集成到 Agent/User/Global 配置界面
+7. [ ] **渲染层**: 实现 Render Pipeline
+
+### Phase 2: 完整功能 (二期)
+
+1. [ ] **请求层**: 实现 Request Pipeline
+2. [ ] **调试**: 上下文分析器支持
+3. [ ] **UX**: 规则模板库、批量操作等

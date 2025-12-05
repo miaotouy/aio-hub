@@ -958,7 +958,7 @@ const handleSelectTemporaryModel = async () => {
   resize: none;
   overflow-y: auto;
   font-family: inherit;
-  min-height: 40px; /* 最小高度约1-2行 */
+  min-height: 54px; /* 最小高度约1-2行 */
   max-height: 70vh; /* 默认最大高度约8行 */
 }
 

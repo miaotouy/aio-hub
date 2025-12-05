@@ -3,6 +3,7 @@
  */
 
 import { defineStore } from 'pinia';
+import { invoke } from '@tauri-apps/api/core';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
@@ -169,20 +170,73 @@ export const useAgentStore = defineStore('llmChatAgent', {
      * @param agentId 要复制的智能体 ID
      * @returns 新智能体的 ID
      */
-    duplicateAgent(agentId: string): string | null {
+    async duplicateAgent(agentId: string): Promise<string | null> {
       const originalAgent = this.getAgentById(agentId);
       if (!originalAgent) {
-        logger.warn('复制智能体失败：原始智能体不存在', { agentId });
+        logger.warn("复制智能体失败：原始智能体不存在", { agentId });
         return null;
       }
 
-      // 深度复制原始智能体的数据
+      // 深度复制智能体的数据
       const newAgentData = JSON.parse(JSON.stringify(originalAgent));
 
       // 创建新的唯一 ID 和名称
       const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const newName = `${originalAgent.name} 副本`;
       const newDisplayName = originalAgent.displayName ? `${originalAgent.displayName} 副本` : undefined;
+
+      // 如果 icon 是一个私有资产（纯文件名），则复制它
+      const icon = originalAgent.icon;
+      // 修正判断逻辑：
+      // 1. 必须存在
+      // 2. 不包含路径分隔符 (\ 或 /)
+      // 3. 不包含冒号 (排除 http:, https:, appdata: 等协议)
+      // 4. 包含点号 (文件名通常有扩展名，而 Emoji 没有)
+      // 之前的 /\p{Emoji}/u 会错误地匹配数字，导致文件名被误判为 Emoji
+      const isAssetIcon = icon && !/[\\/:]/.test(icon) && icon.includes('.');
+
+      logger.debug("尝试复制智能体头像", {
+        agentId,
+        icon,
+        isAssetIcon,
+        hasPathOrProtocol: icon ? /[\\/:]/.test(icon) : "N/A",
+        hasDot: icon ? icon.includes('.') : "N/A"
+      });
+
+      if (isAssetIcon) {
+        try {
+          // 1. 构建源文件相对路径
+          const sourceRelativePath = `llm-chat/agents/${originalAgent.id}/${icon}`;
+          logger.debug("读取源头像文件", { path: sourceRelativePath });
+
+          // 2. 读取源文件二进制数据
+          const fileData: number[] = await invoke("read_app_data_file_binary", {
+            relativePath: sourceRelativePath,
+          });
+
+          // 3. 构建目标子目录
+          const targetSubdirectory = `llm-chat/agents/${newAgentId}`;
+          logger.debug("写入新头像文件", { dir: targetSubdirectory, filename: icon });
+
+          // 4. 写入新文件
+          await invoke("save_uploaded_file", {
+            fileData,
+            subdirectory: targetSubdirectory,
+            filename: icon,
+          });
+          
+          logger.info("成功复制智能体头像", { from: sourceRelativePath, to: targetSubdirectory });
+
+        } catch (error) {
+          logger.error("复制智能体头像过程中出错", error as Error, {
+            agentId: originalAgent.id,
+            icon,
+          });
+          // 即使头像复制失败，也继续创建智能体，只是没有头像
+        }
+      } else {
+        logger.debug("跳过头像复制：不是私有资产", { icon });
+      }
 
       // 准备新的智能体对象
       const newAgent: ChatAgent = {
@@ -197,7 +251,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       this.agents.push(newAgent);
       this.persistAgent(newAgent);
 
-      logger.info('智能体已复制', { originalAgentId: agentId, newAgentId, newName });
+      logger.info("智能体已复制", { originalAgentId: agentId, newAgentId, newName });
 
       return newAgentId;
     },

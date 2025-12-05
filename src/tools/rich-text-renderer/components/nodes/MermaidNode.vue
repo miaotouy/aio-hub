@@ -132,24 +132,29 @@ const props = defineProps<{
   content: string;
 }>();
 
-// 自动修复 Mermaid 代码
-const fixedContent = computed(() => fixMermaidCode(props.content));
+// 修复后的代码（只有在渲染失败后才会被设置）
+const fixedContent = ref<string | null>(null);
 
-// 判断内容是否被修复过
-const wasFixed = computed(() => fixedContent.value !== props.content);
+// 判断当前渲染是否使用了修复后的代码
+const wasFixed = computed(() => fixedContent.value !== null && fixedContent.value !== props.content);
 
-// 是否显示原始内容
+// 是否强制显示原始内容（用户手动切换）
 const showOriginal = ref(false);
 
-// 当前实际使用的内容（用于渲染）
-const activeContent = computed(() => showOriginal.value ? props.content : fixedContent.value);
+// 当前实际使用的内容（用于显示和复制）
+const activeContent = computed(() => {
+  if (showOriginal.value) {
+    return props.content;
+  }
+  return fixedContent.value ?? props.content;
+});
 
 // 切换显示原始/修复后内容
 const toggleOriginal = async () => {
   showOriginal.value = !showOriginal.value;
   // 切换后重新渲染
   if (mermaid) {
-    await renderDiagram();
+    await renderDiagramWithContent(activeContent.value);
   }
 };
 
@@ -269,37 +274,21 @@ const openViewer = () => {
   showViewer.value = true;
 };
 
-// 渲染图表
-const renderDiagram = async () => {
-  if (!mermaid) return;
+/**
+ * 尝试用指定内容渲染图表（不进行修复尝试）
+ * @returns 渲染是否成功
+ */
+const renderDiagramWithContent = async (content: string): Promise<boolean> => {
+  if (!mermaid || !mermaidRef.value) return false;
 
-  // 记录当前的渲染 ID，用于并发控制
-  const currentRenderId = Date.now();
-  lastRenderId.value = currentRenderId;
+  const currentRenderId = lastRenderId.value;
+  const id = `mermaid-${props.nodeId}-${currentRenderId}`;
 
   try {
-    isRendering.value = true;
-    
-    // 等待 DOM 更新，确保 mermaidRef 已经绑定到新的元素
-    await nextTick();
-    
-    // 如果已经有新的渲染请求，取消当前的
-    if (currentRenderId !== lastRenderId.value) return;
+    const { svg } = await mermaid.render(id, content);
 
-    if (!mermaidRef.value) {
-      return;
-    }
-
-    // 生成唯一 ID
-    const id = `mermaid-${props.nodeId}-${currentRenderId}`;
-
-    // 尝试渲染图表
-    // mermaid.render 会抛出异常如果语法无效
-    // 根据切换状态使用对应的代码进行渲染
-    const { svg } = await mermaid.render(id, activeContent.value);
-
-    // 再次检查并发
-    if (currentRenderId !== lastRenderId.value) return;
+    // 检查并发
+    if (currentRenderId !== lastRenderId.value) return false;
 
     // 渲染成功，清理之前的状态
     if (renderCleanup) {
@@ -321,25 +310,103 @@ const renderDiagram = async () => {
           mermaidRef.value.innerHTML = "";
         }
       };
-      
+
       // 标记渲染成功
       hasRendered.value = true;
       error.value = ""; // 只有成功了才清空错误
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// 渲染图表（带自动修复机制）
+const renderDiagram = async () => {
+  if (!mermaid) return;
+
+  // 记录当前的渲染 ID，用于并发控制
+  const currentRenderId = Date.now();
+  lastRenderId.value = currentRenderId;
+
+  try {
+    isRendering.value = true;
+    
+    // 等待 DOM 更新，确保 mermaidRef 已经绑定到新的元素
+    await nextTick();
+    
+    // 如果已经有新的渲染请求，取消当前的
+    if (currentRenderId !== lastRenderId.value) return;
+
+    if (!mermaidRef.value) {
+      return;
+    }
+
+    // 如果用户选择显示原始内容，直接用原始内容渲染
+    if (showOriginal.value) {
+      const success = await renderDiagramWithContent(props.content);
+      if (!success && nodeStatus.value === 'stable') {
+        error.value = "原始代码渲染失败";
+      }
+      return;
+    }
+
+    // 步骤 1: 先尝试用原始代码渲染
+    const originalSuccess = await renderDiagramWithContent(props.content);
+    
+    // 检查并发
+    if (currentRenderId !== lastRenderId.value) return;
+
+    if (originalSuccess) {
+      // 原始代码渲染成功，清除之前可能存在的修复记录
+      fixedContent.value = null;
+      return;
+    }
+
+    // 如果处于 pending 状态（流式输出中），不尝试修复
+    // 因为代码尚未完整，修复通常无意义且可能导致闪烁
+    if (nodeStatus.value !== 'stable') {
+      return;
+    }
+
+    // 步骤 2: 原始代码渲染失败，尝试修复
+    const fixed = fixMermaidCode(props.content);
+    
+    // 如果修复后的代码和原始代码相同，说明修复器没有做任何改动
+    // 这种情况下不需要再次尝试渲染
+    if (fixed === props.content) {
+      // 修复器无法修复，在 stable 状态下显示错误
+      if (nodeStatus.value === 'stable') {
+        error.value = "Mermaid 语法错误，自动修复无效";
+      }
+      return;
+    }
+
+    // 步骤 3: 尝试用修复后的代码渲染
+    const fixedSuccess = await renderDiagramWithContent(fixed);
+    
+    // 检查并发
+    if (currentRenderId !== lastRenderId.value) return;
+
+    if (fixedSuccess) {
+      // 修复后渲染成功，记录修复后的代码
+      fixedContent.value = fixed;
+      return;
+    }
+
+    // 步骤 4: 修复后仍然失败
+    if (nodeStatus.value === 'stable') {
+      error.value = "Mermaid 语法错误，自动修复后仍无法渲染";
     }
   } catch (err: any) {
     // 检查并发
     if (currentRenderId !== lastRenderId.value) return;
 
     // 只有在 stable 状态下才显示错误
-    // 在 pending 状态下，无论是否渲染过，都忽略错误（避免输入过程中的闪烁）
     if (nodeStatus.value === 'stable') {
       errorHandler.handle(err, { userMessage: "Mermaid 渲染失败", showToUser: false });
       error.value = err?.message || "未知错误";
-    } else {
-      // pending 状态，忽略错误
-      // 如果还没渲染过，UI 会显示 loading
-      // 如果已经渲染过，UI 会显示旧图表
-      // logger.debug("Mermaid pending 状态渲染失败（已忽略）", err);
     }
   } finally {
     if (currentRenderId === lastRenderId.value) {
@@ -402,6 +469,12 @@ watch(
   [() => props.content, () => attrs['data-node-status']],
   async ([newContent, newStatus], [oldContent, oldStatus]) => {
     if (!mermaid) return;
+    
+    // 内容变化时，重置修复状态和显示原始状态
+    if (newContent !== oldContent) {
+      fixedContent.value = null;
+      showOriginal.value = false;
+    }
     
     // 只要内容变化就尝试渲染，不再限制状态
     if (newContent !== oldContent || newStatus !== oldStatus) {

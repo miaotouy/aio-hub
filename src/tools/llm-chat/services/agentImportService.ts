@@ -303,10 +303,10 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
           const bytes = Array.from(uint8Array);
 
           // 调用 Rust 端存储头像
-          await invoke('copy_bytes_to_app_data', {
-            bytes,
+          await invoke('save_uploaded_file', {
+            fileData: bytes,
             subdirectory,
-            newFilename,
+            filename: newFilename,
           });
 
           // 3. 更新 Agent 的 icon 字段为最终文件名

@@ -160,7 +160,7 @@ const handleMouseLeave = () => {
       <div class="progress-track">
         <div class="progress-bar" :style="{ height: `${scrollPercentage}%` }" />
         <div class="progress-indicator" :style="{ top: `${scrollPercentage}%` }">
-          <span class="indicator-dot" :class="{ 'has-new': hasNewMessages }"></span>
+          <span class="indicator-dot" :class="{ 'has-new': hasNewMessages && canScrollDown }"></span>
         </div>
       </div>
 

@@ -13,7 +13,7 @@ import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { customMessage } from '@/utils/customMessage';
 import { getLocalISOString } from '@/utils/time';
 import { exportAgents } from './services/agentExportService';
-import { preflightImportAgents, importAssets } from './services/agentImportService';
+import { preflightImportAgents, commitImportAgents } from './services/agentImportService';
 import type { ConfirmImportParams } from './types/agentImportExport';
 
 const logger = createModuleLogger('llm-chat/agentStore');
@@ -514,49 +514,12 @@ export const useAgentStore = defineStore('llmChatAgent', {
       try {
         logger.info('开始确认导入智能体', { agentCount: params.resolvedAgents.length });
 
-        // 1. 导入资产
-        const assetPathMapping = await importAssets(params.assets);
-
-        // 2. 创建智能体
-        for (const resolvedAgent of params.resolvedAgents) {
-          // 替换图标路径
-          let finalIcon = resolvedAgent.icon;
-          if (finalIcon && finalIcon.startsWith('assets/')) {
-            finalIcon = assetPathMapping[finalIcon] || resolvedAgent.icon; // 回退到原始路径
-          }
-
-          // 如果是覆盖模式，先删除旧的
-          if (resolvedAgent.overwriteExisting) {
-            const existingAgent = this.agents.find(a => a.name === resolvedAgent.name);
-            if (existingAgent) {
-              await this.deleteAgent(existingAgent.id);
-            }
-          }
-
-          const agentName = resolvedAgent.newName || resolvedAgent.name;
-          const newAgentId = this.createAgent(
-            agentName,
-            resolvedAgent.finalProfileId,
-            resolvedAgent.finalModelId,
-            {
-              displayName: resolvedAgent.displayName,
-              description: resolvedAgent.description,
-              icon: finalIcon,
-              userProfileId: resolvedAgent.userProfileId,
-              presetMessages: resolvedAgent.presetMessages,
-              displayPresetCount: resolvedAgent.displayPresetCount,
-              parameters: resolvedAgent.parameters,
-              llmThinkRules: resolvedAgent.llmThinkRules,
-              richTextStyleOptions: resolvedAgent.richTextStyleOptions,
-              tags: resolvedAgent.tags,
-              category: resolvedAgent.category,
-            }
-          );
-          logger.info('智能体已导入', { agentId: newAgentId, agentName });
-        }
+        // 将所有复杂的处理逻辑委托给 agentImportService
+        await commitImportAgents(params);
 
         customMessage.success(`成功导入 ${params.resolvedAgents.length} 个智能体`);
       } catch (error) {
+        // commitImportAgents 内部已经处理了错误，这里只记录顶层失败
         errorHandler.error(error as Error, '确认导入失败');
       }
     },

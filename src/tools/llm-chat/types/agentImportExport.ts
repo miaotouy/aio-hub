@@ -5,6 +5,7 @@ import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-te
  * 可导出的 Agent 数据结构（不包含本地元数据）
  */
 export interface ExportableAgent {
+  id?: string;
   name: string;
   displayName?: string;
   description?: string;

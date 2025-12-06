@@ -251,6 +251,14 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty("--wallpaper-url", `url('${currentWallpaper.value}')`);
     root.style.setProperty("--wallpaper-opacity", String(settings.wallpaperOpacity));
     root.style.setProperty("--bg-color", "transparent");
+    // 如果是分离窗口，给 body 添加特殊类名以隐藏全局壁纸（body::before）
+    // 但保留 --wallpaper-url 变量供组件内部使用
+    if (isDetachedWindow) {
+      document.body.classList.add("no-global-wallpaper");
+    } else {
+      document.body.classList.remove("no-global-wallpaper");
+    }
+
 
     // --- 壁纸适应与平铺模式 ---
     const fit = settings.wallpaperFit ?? "cover";
@@ -290,10 +298,9 @@ function _updateCssVariables(settings: AppearanceSettings) {
     const blurValue = settings.enableUiBlur ? `${settings.uiBlurIntensity}px` : "0px";
     root.style.setProperty("--ui-blur", blurValue);
 
-    // 根据是否为分离窗口选择不同的基础透明度
-    const baseOpacity = isDetachedWindow
-      ? (settings.detachedUiBaseOpacity ?? settings.uiBaseOpacity)
-      : settings.uiBaseOpacity;
+    // 基础透明度 - 分离窗口现在使用 --detached-base-bg 作为底层背景，
+    // 所以 --card-bg 等 UI 元素不再需要特殊处理，保持通透
+    const baseOpacity = settings.uiBaseOpacity;
     const offsets = settings.layerOpacityOffsets || {};
 
     const calculateOpacity = (offset = 0) =>
@@ -371,6 +378,25 @@ function _updateCssVariables(settings: AppearanceSettings) {
     const overlayOpacityValue = calculateOpacity(offsets.overlay);
     root.style.setProperty("--overlay-opacity", overlayOpacityValue);
     setElementBackground("container", overlayOpacityValue);
+
+    // --- 分离窗口专用底层背景 ---
+    // 这个变量用于分离窗口的最底层背景，需要较高的不透明度来支撑模糊效果
+    // 壁纸会叠加在这个背景之上，而 UI 内容（使用 --card-bg）则在壁纸之上
+    const detachedBaseOpacity = settings.detachedUiBaseOpacity ?? 0.85;
+    const detachedBaseRgb = getComputedStyle(root).getPropertyValue("--card-bg-rgb").trim();
+    if (detachedBaseRgb) {
+      const [r, g, b] = detachedBaseRgb.split(",").map(Number);
+      let finalRgb: RGB = { r, g, b };
+
+      if (overlayEnabled && overlayColorRgb) {
+        finalRgb = applyBlendMode(finalRgb, overlayColorRgb, overlayOpacity, blendMode);
+      }
+
+      root.style.setProperty(
+        "--detached-base-bg",
+        `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${detachedBaseOpacity})`
+      );
+    }
 
     root.style.setProperty("--border-opacity", String(settings.borderOpacity));
 
@@ -673,7 +699,7 @@ async function _applyWindowEffect(effect: WindowEffect, enabled: boolean) {
 /**
  * 初始化主题外观逻辑
  * 应该在 App.vue 中调用一次
- * @param isDetached - 是否为分离窗口（分离窗口将使用 detachedUiBaseOpacity）
+ * @param isDetached - 是否为分离窗口（分离窗口将禁用根元素壁纸，防止双重显示）
  */
 export async function initThemeAppearance(isDetached = false) {
   if (isInitialized) {

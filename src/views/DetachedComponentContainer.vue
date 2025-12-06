@@ -60,17 +60,13 @@ onMounted(async () => {
   await initialize();
 
   // 初始化主题外观系统（包括透明度、模糊等）
-  // 传入 true 标识这是分离窗口，将使用 detachedUiBaseOpacity
   try {
+    // 传入 true 标识这是分离窗口，将禁用根元素壁纸防止双重显示
     await initThemeAppearance(true);
-    logger.info('分离组件窗口主题外观系统已初始化（使用分离窗口透明度）');
+    logger.info('分离组件窗口主题外观系统已初始化');
     
-    // 组件悬浮窗不使用壁纸背景，通过 CSS 覆盖禁用壁纸显示
-    // 不修改持久化设置，避免影响主窗口
-    const root = document.documentElement;
-    root.style.setProperty('--wallpaper-url', 'none');
-    root.style.setProperty('--wallpaper-opacity', '0');
-    logger.info('分离组件窗口壁纸显示已通过 CSS 禁用');
+    // 组件悬浮窗壁纸显示由组件内部控制（如 ChatArea 的 showWallpaperInDetachedMode）
+    // 不再强制禁用全局壁纸变量，以便组件按需使用
   } catch (error) {
     logger.warn('初始化分离组件窗口主题外观失败', { error });
   }

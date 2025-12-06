@@ -557,6 +557,12 @@ onMounted(async () => {
     tabindex="0"
     @keydown="handleKeyDown"
   >
+    <!-- 分离模式下的壁纸层 -->
+    <div
+      v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode"
+      class="detached-wallpaper"
+    ></div>
+
     <!-- 头部区域 -->
     <div class="chat-header" :style="chatHeaderStyle">
       <!-- 拖拽手柄 -->
@@ -740,6 +746,25 @@ onMounted(async () => {
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),
     0 4px 16px rgba(0, 0, 0, 0.15);
+  /* 分离模式下使用专用的底层背景，提供遮罩能力 */
+  background-color: var(--detached-base-bg, var(--container-bg));
+}
+
+/* 分离模式壁纸层 */
+.detached-wallpaper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  background-image: var(--wallpaper-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--wallpaper-opacity);
+  pointer-events: none;
+  border-radius: inherit; /* 继承容器圆角 */
 }
 
 /* 头部区域 */
@@ -891,8 +916,14 @@ onMounted(async () => {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  /* 提升层级，确保在壁纸之上 */
+  position: relative;
+  z-index: 1;
   background-color: var(--card-bg);
 }
+
+/* 分离模式下，如果启用了壁纸，可以让内容背景稍微透明一点，或者保持 card-bg (本身就是半透明的) */
+/* 这里我们不做特殊处理，直接依赖 card-bg 的透明度 */
 
 /* 消息列表容器 - 弹性增长，占据所有剩余空间 */
 .message-list-wrapper {

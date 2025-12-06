@@ -740,6 +740,12 @@ const handleSelectTemporaryModel = async () => {
       { 'detached-mode': isDetached, 'dragging-over': isDraggingOver },
     ]"
   >
+    <!-- 分离模式下的壁纸层 -->
+    <div
+      v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode"
+      class="detached-wallpaper"
+    ></div>
+
     <!-- 拖拽手柄 -->
     <div
       class="resize-handle"
@@ -865,6 +871,25 @@ const handleSelectTemporaryModel = async () => {
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),
     0 4px 16px rgba(0, 0, 0, 0.15);
+  /* 分离模式下使用专用的底层背景 */
+  background-color: var(--detached-base-bg, var(--container-bg));
+}
+
+/* 分离模式壁纸层 */
+.detached-wallpaper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  background-image: var(--wallpaper-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--wallpaper-opacity);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .main-content {
@@ -874,6 +899,9 @@ const handleSelectTemporaryModel = async () => {
   align-items: stretch;
   min-width: 0;
   background: transparent; /* Ensure it doesn't have its own background */
+  /* 提升层级，确保在壁纸之上 */
+  position: relative;
+  z-index: 1;
 }
 
 /* 分离手柄的特定样式 */
@@ -1009,7 +1037,7 @@ const handleSelectTemporaryModel = async () => {
   width: 94%;
   height: 6px; /* 创建一个足够灵敏的拖拽热区 */
   cursor: row-resize; /* 提示用户此处可拖拽 */
-  z-index: 1; /* 确保在最上层 */
+  z-index: 10; /* 确保在最上层，高于内容和壁纸 */
   border-radius: 3px;
   transition: background-color 0.2s;
 }

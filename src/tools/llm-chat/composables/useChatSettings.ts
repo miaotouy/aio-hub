@@ -62,6 +62,8 @@ export interface ChatSettings {
     rendererThrottleMs: number;
     /** 是否启用节点进入动画 */
     enableEnterAnimation: boolean;
+    /** 分离模式下是否显示壁纸 */
+    showWallpaperInDetachedMode: boolean;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -154,6 +156,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     contentMaxWidth: 800, // 默认最大宽度 800px
     rendererThrottleMs: 80, // 默认 80ms
     enableEnterAnimation: true, // 默认开启
+    showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
   },
   modelPreferences: {
     defaultModel: "",

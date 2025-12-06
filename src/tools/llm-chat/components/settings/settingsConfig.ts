@@ -120,6 +120,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui header blur 模糊",
       },
       {
+        id: "showWallpaperInDetachedMode",
+        label: "分离模式下显示壁纸",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showWallpaperInDetachedMode",
+        hint: "当聊天窗口分离时，在其内部显示全局壁纸",
+        keywords: "ui wallpaper background detached 分离 壁纸 背景",
+      },
+      {
         id: "defaultRenderHtml",
         label: "自动渲染 HTML",
         layout: "inline",

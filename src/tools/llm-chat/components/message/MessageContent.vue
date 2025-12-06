@@ -230,8 +230,11 @@ const copyError = async () => {
 watch(
   [() => props.message.content, () => props.message.metadata?.agentId, () => props.session],
   async ([content, agentId, session]) => {
-    // 仅在非编辑模式下处理宏
-    if (!props.isEditing && content) {
+    // 仅对预设消息进行宏处理（非编辑模式下）
+    // 普通会话消息在发送时已经处理过宏，不需要二次处理
+    const isPresetMessage = props.message.metadata?.isPresetDisplay === true;
+    
+    if (!props.isEditing && content && isPresetMessage) {
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
       displayedContent.value = await processMacros(content, {
         agent,

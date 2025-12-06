@@ -30,7 +30,7 @@ import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import UserProfileForm from "@/views/Settings/user-profile/components/UserProfileForm.vue";
 import { customMessage } from "@/utils/customMessage";
-import type { UserProfile, UserProfileUpdateData } from "../../types";
+import { type UserProfile, type UserProfileUpdateData, createDefaultUserProfileConfig } from "../../types";
 
 interface Props {
   visible: boolean;
@@ -49,17 +49,13 @@ const emit = defineEmits<Emits>();
 // 使用 Omit 可以确保当 UserProfile 增加新字段时，这里会自动包含（虽然可能需要更新初始值）
 type FormState = Omit<UserProfile, "id">;
 
+// 使用默认配置初始化表单，但需要补充 FormState 中必须但 createDefaultUserProfileConfig 中没有的字段（如 createdAt）
+// 实际上 createDefaultUserProfileConfig 返回的是 UserProfileEditData，不包含 createdAt/lastUsedAt
+// 这里我们初始化一个空状态，具体值会由 watch 填充
 const form = ref<FormState>({
-  name: "",
-  displayName: "",
-  icon: "",
-  content: "",
-  enabled: true,
+  ...createDefaultUserProfileConfig(),
   createdAt: "",
   lastUsedAt: "",
-  richTextStyleOptions: {},
-  richTextStyleBehavior: "follow_agent",
-  regexConfig: { presets: [] },
 });
 
 // 监听传入的档案数据变化
@@ -67,17 +63,18 @@ watch(
   () => props.profile,
   (profile) => {
     if (profile) {
+      const defaults = createDefaultUserProfileConfig();
       // 使用解构赋值，自动包含所有字段
       // 对于 undefined 的可选字段，给予默认值
       form.value = {
-        ...profile,
-        // 覆盖可能为 undefined 的字段，确保表单绑定值不为空
-        displayName: profile.displayName || "",
-        icon: profile.icon || "",
-        lastUsedAt: profile.lastUsedAt || "",
-        richTextStyleOptions: profile.richTextStyleOptions || {},
-        richTextStyleBehavior: profile.richTextStyleBehavior || "follow_agent",
-        regexConfig: profile.regexConfig || { presets: [] },
+        ...defaults, // 先应用默认值
+        ...profile,  // 再应用实际值
+        // 确保可选字段不为 undefined/null，虽然 defaults 已经处理了，但 profile 中的 null/undefined 可能会覆盖 defaults
+        displayName: profile.displayName ?? defaults.displayName,
+        icon: profile.icon ?? defaults.icon,
+        richTextStyleOptions: profile.richTextStyleOptions ?? defaults.richTextStyleOptions,
+        richTextStyleBehavior: profile.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
+        regexConfig: profile.regexConfig ?? defaults.regexConfig,
       };
     }
   },

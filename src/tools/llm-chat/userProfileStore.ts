@@ -4,7 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { useUserProfileStorage } from './composables/useUserProfileStorage';
-import type { UserProfile } from './types';
+import { type UserProfile, createDefaultUserProfileConfig } from './types';
 import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
 
@@ -76,18 +76,20 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
     ): string {
       const profileId = `user-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
+      const defaults = createDefaultUserProfileConfig();
 
       const profile: UserProfile = {
+        ...defaults,
         id: profileId,
         name,
-        displayName: options?.displayName,
-        icon: options?.icon,
         content,
-        enabled: true, // 默认启用
         createdAt: now,
-        richTextStyleOptions: options?.richTextStyleOptions,
-        richTextStyleBehavior: options?.richTextStyleBehavior,
-        regexConfig: options?.regexConfig,
+        // 使用传入的 options 覆盖默认值（如果存在）
+        displayName: options?.displayName ?? defaults.displayName,
+        icon: options?.icon ?? defaults.icon,
+        richTextStyleOptions: options?.richTextStyleOptions ?? defaults.richTextStyleOptions,
+        richTextStyleBehavior: options?.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
+        regexConfig: options?.regexConfig ?? defaults.regexConfig,
       };
 
       this.profiles.push(profile);

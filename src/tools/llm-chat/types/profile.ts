@@ -77,3 +77,18 @@ export type UserProfileEditData = Omit<UserProfile, "id" | "createdAt" | "lastUs
  * 包含 id 用于标识要更新的档案
  */
 export type UserProfileUpdateData = UserProfileEditData & { id: string };
+
+/**
+ * 获取默认的用户档案配置
+ * 用于初始化表单或创建新档案时的默认值
+ */
+export const createDefaultUserProfileConfig = (): UserProfileEditData => ({
+  name: "",
+  displayName: "",
+  icon: "",
+  content: "",
+  enabled: true,
+  richTextStyleOptions: {},
+  richTextStyleBehavior: "follow_agent",
+  regexConfig: { presets: [] },
+});

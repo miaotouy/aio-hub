@@ -17,6 +17,7 @@ interface Props {
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
   richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   buttonVisibility?: ButtonVisibility;
+  messageDepth?: number;
 }
 
 interface Emits {
@@ -136,6 +137,7 @@ defineExpose({
         :is-editing="isEditing"
         :llm-think-rules="llmThinkRules"
         :rich-text-style-options="richTextStyleOptions"
+        :message-depth="messageDepth"
         @save-edit="saveEdit"
         @cancel-edit="cancelEdit"
         @save-to-branch="onSaveToBranch"

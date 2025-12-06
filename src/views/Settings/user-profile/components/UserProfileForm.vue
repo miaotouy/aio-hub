@@ -89,6 +89,14 @@
       </Suspense>
     </div>
 
+    <el-divider />
+
+    <el-collapse>
+      <el-collapse-item title="正则管道配置" name="regexConfig">
+        <ChatRegexEditor v-model="formData.regexConfig" />
+      </el-collapse-item>
+    </el-collapse>
+
     <!-- 可选的元数据显示 -->
     <template v-if="showMetadata">
       <el-divider />
@@ -109,9 +117,13 @@ import { ref, watch, defineAsyncComponent } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
+import type { ChatRegexConfig } from "@/tools/llm-chat/types";
 
 const MarkdownStyleEditor = defineAsyncComponent(
   () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
+);
+const ChatRegexEditor = defineAsyncComponent(
+  () => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
 );
 
 interface UserProfileFormData {
@@ -124,6 +136,7 @@ interface UserProfileFormData {
   lastUsedAt?: string;
   richTextStyleOptions?: RichTextRendererStyleOptions;
   richTextStyleBehavior?: "follow_agent" | "custom";
+  regexConfig?: ChatRegexConfig;
 }
 
 interface Props {
@@ -187,6 +200,10 @@ const handleInput = () => {
   // 确保 richTextStyleOptions 已初始化
   if (!formData.value.richTextStyleOptions) {
     formData.value.richTextStyleOptions = {};
+  }
+  // 确保 regexConfig 已初始化
+  if (!formData.value.regexConfig) {
+    formData.value.regexConfig = { presets: [] };
   }
   emit("update:modelValue", { ...formData.value });
 };

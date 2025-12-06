@@ -58,4 +58,10 @@ export interface UserProfile {
    * - custom: 使用用户档案自己独立的样式配置
    */
   richTextStyleBehavior?: "follow_agent" | "custom";
+
+  /**
+   * 正则管道配置
+   * 用于对消息内容进行动态清洗、格式转换等
+   */
+  regexConfig?: import('./chatRegex').ChatRegexConfig;
 }

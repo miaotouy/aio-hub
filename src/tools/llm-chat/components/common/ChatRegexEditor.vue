@@ -1,0 +1,539 @@
+<template>
+  <div class="chat-regex-editor">
+    <!-- 顶部操作栏 -->
+    <div class="editor-header">
+      <div class="header-left">
+        <h4>正则管道配置</h4>
+        <el-tooltip content="用于对消息内容进行动态清洗、格式转换等" placement="right">
+          <el-icon class="info-icon"><InfoIcon /></el-icon>
+        </el-tooltip>
+      </div>
+      <div class="header-actions">
+        <el-button @click="addPreset" size="small" :icon="Plus">
+          新建预设
+        </el-button>
+        <el-dropdown trigger="click" @command="handleImportCommand">
+          <el-button size="small" :icon="Download">
+            导入
+            <el-icon class="el-icon--right"><ChevronDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="sillytavern">从 SillyTavern 导入</el-dropdown-item>
+              <el-dropdown-item command="json">从 JSON 导入</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+    </div>
+
+    <!-- 预设列表 (一级层级) -->
+    <div class="presets-container" v-if="localConfig.presets.length > 0">
+      <el-collapse v-model="expandedPresets">
+        <draggable
+          v-model="localConfig.presets"
+          item-key="id"
+          handle=".preset-drag-handle"
+          ghost-class="drag-ghost"
+          @end="handlePresetReorder"
+        >
+          <template #item="{ element: preset, index }">
+            <el-collapse-item :name="preset.id" class="preset-item">
+              <template #title>
+                <div class="preset-header" @click.stop>
+                  <el-icon class="preset-drag-handle"><GripVertical /></el-icon>
+                  <el-switch
+                    v-model="preset.enabled"
+                    size="small"
+                    @change="handleChange"
+                  />
+                  <span class="preset-name">{{ preset.name }}</span>
+                  <el-tag size="small" type="info">
+                    {{ preset.rules.length }} 条规则
+                  </el-tag>
+                  <div class="preset-actions">
+                    <el-button
+                      @click.stop="duplicatePreset(index)"
+                      :icon="Copy"
+                      size="small"
+                      text
+                      title="复制预设"
+                    />
+                    <el-button
+                      @click.stop="deletePreset(index)"
+                      :icon="Trash2"
+                      size="small"
+                      text
+                      type="danger"
+                      title="删除预设"
+                    />
+                  </div>
+                </div>
+              </template>
+
+              <!-- 预设详情 (二级层级) -->
+              <div class="preset-content">
+                <!-- 预设基本信息 -->
+                <div class="preset-info">
+                  <el-input
+                    v-model="preset.name"
+                    placeholder="预设名称"
+                    size="small"
+                    @input="handleChange"
+                  >
+                    <template #prepend>名称</template>
+                  </el-input>
+                  <el-input
+                    v-model="preset.description"
+                    placeholder="预设描述（可选）"
+                    size="small"
+                    @input="handleChange"
+                  >
+                    <template #prepend>描述</template>
+                  </el-input>
+                </div>
+
+                <!-- 规则列表 -->
+                <div class="rules-section">
+                  <div class="rules-header">
+                    <span class="rules-title">规则列表</span>
+                    <el-button
+                      @click="addRule(preset)"
+                      size="small"
+                      :icon="Plus"
+                      type="primary"
+                      plain
+                    >
+                      添加规则
+                    </el-button>
+                  </div>
+
+                  <div class="rules-list" v-if="preset.rules.length > 0">
+                    <draggable
+                      v-model="preset.rules"
+                      item-key="id"
+                      handle=".rule-drag-handle"
+                      ghost-class="drag-ghost"
+                      @end="handleChange"
+                    >
+                      <template #item="{ element: rule, index: ruleIndex }">
+                        <div
+                          class="rule-item"
+                          :class="{ 'is-selected': selectedRule?.id === rule.id }"
+                          @click="selectRule(preset, rule)"
+                        >
+                          <el-icon class="rule-drag-handle"><GripVertical /></el-icon>
+                          <el-switch
+                            v-model="rule.enabled"
+                            size="small"
+                            @click.stop
+                            @change="handleChange"
+                          />
+                          <span class="rule-name">{{ rule.name || '未命名规则' }}</span>
+                          <code class="rule-preview">{{ truncateRegex(rule.regex) }}</code>
+                          <div class="rule-actions">
+                            <el-button
+                              @click.stop="deleteRule(preset, ruleIndex)"
+                              :icon="Trash2"
+                              size="small"
+                              text
+                              type="danger"
+                            />
+                          </div>
+                        </div>
+                      </template>
+                    </draggable>
+                  </div>
+                  <el-empty v-else description="暂无规则" :image-size="60" />
+                </div>
+              </div>
+            </el-collapse-item>
+          </template>
+        </draggable>
+      </el-collapse>
+    </div>
+    <el-empty v-else description="暂无正则预设" :image-size="80">
+      <el-button @click="addPreset" type="primary">创建预设</el-button>
+    </el-empty>
+
+    <!-- 规则编辑表单 (滑出面板) -->
+    <el-drawer
+      v-model="isRuleEditorVisible"
+      title="编辑规则"
+      direction="rtl"
+      size="500px"
+      :close-on-click-modal="false"
+    >
+      <ChatRegexRuleForm
+        v-if="selectedRule"
+        v-model="selectedRule"
+        @update:model-value="handleRuleUpdate"
+      />
+    </el-drawer>
+
+    <!-- 导入对话框 -->
+    <el-dialog v-model="isImportDialogVisible" title="导入正则脚本" width="600px">
+      <el-input
+        v-model="importJson"
+        type="textarea"
+        :rows="12"
+        placeholder="粘贴 JSON 内容..."
+      />
+      <template #footer>
+        <el-button @click="isImportDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="executeImport">导入</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, watch } from 'vue';
+import draggable from 'vuedraggable';
+import {
+  Plus,
+  Download,
+  ChevronDown,
+  GripVertical,
+  Copy,
+  Trash2,
+  Info as InfoIcon,
+} from 'lucide-vue-next';
+import type { ChatRegexConfig, ChatRegexPreset, ChatRegexRule } from '../../types/chatRegex';
+import {
+  createDefaultChatRegexConfig,
+  createChatRegexPreset,
+  createChatRegexRule,
+} from '../../types/chatRegex';
+import { convertFromSillyTavern, convertMultipleFromSillyTavern } from '../../utils/chatRegexUtils';
+import { customMessage } from '@/utils/customMessage';
+import ChatRegexRuleForm from './ChatRegexRuleForm.vue';
+
+interface Props {
+  modelValue?: ChatRegexConfig;
+}
+
+interface Emits {
+  (e: 'update:modelValue', value: ChatRegexConfig): void;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  modelValue: () => createDefaultChatRegexConfig(),
+});
+const emit = defineEmits<Emits>();
+
+// 本地配置副本
+const localConfig = ref<ChatRegexConfig>(
+  props.modelValue ? JSON.parse(JSON.stringify(props.modelValue)) : createDefaultChatRegexConfig()
+);
+
+// 监听外部变化
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    if (newVal) {
+      localConfig.value = JSON.parse(JSON.stringify(newVal));
+    }
+  },
+  { deep: true }
+);
+
+// UI 状态
+const expandedPresets = ref<string[]>([]);
+const selectedPreset = ref<ChatRegexPreset | null>(null);
+const selectedRule = ref<ChatRegexRule | null>(null);
+const isRuleEditorVisible = ref(false);
+const isImportDialogVisible = ref(false);
+const importJson = ref('');
+const importMode = ref<'sillytavern' | 'json'>('json');
+
+// 通知父组件变更
+function handleChange() {
+  emit('update:modelValue', JSON.parse(JSON.stringify(localConfig.value)));
+}
+
+// =====================
+// 预设操作
+// =====================
+
+function addPreset() {
+  const newPreset = createChatRegexPreset(`预设 ${localConfig.value.presets.length + 1}`);
+  localConfig.value.presets.push(newPreset);
+  expandedPresets.value.push(newPreset.id);
+  handleChange();
+}
+
+function duplicatePreset(index: number) {
+  const original = localConfig.value.presets[index];
+  const copy = JSON.parse(JSON.stringify(original)) as ChatRegexPreset;
+  copy.id = crypto.randomUUID();
+  copy.name = `${original.name} (副本)`;
+  copy.rules = copy.rules.map((rule) => ({
+    ...rule,
+    id: crypto.randomUUID(),
+  }));
+  localConfig.value.presets.splice(index + 1, 0, copy);
+  handleChange();
+}
+
+function deletePreset(index: number) {
+  localConfig.value.presets.splice(index, 1);
+  handleChange();
+}
+
+function handlePresetReorder() {
+  // 更新 order 字段
+  localConfig.value.presets.forEach((preset, index) => {
+    preset.order = index;
+  });
+  handleChange();
+}
+
+// =====================
+// 规则操作
+// =====================
+
+function addRule(preset: ChatRegexPreset) {
+  const newRule = createChatRegexRule({
+    name: `规则 ${preset.rules.length + 1}`,
+  });
+  preset.rules.push(newRule);
+  selectRule(preset, newRule);
+  handleChange();
+}
+
+function deleteRule(preset: ChatRegexPreset, index: number) {
+  preset.rules.splice(index, 1);
+  if (selectedRule.value && preset.rules.every((r) => r.id !== selectedRule.value?.id)) {
+    selectedRule.value = null;
+    isRuleEditorVisible.value = false;
+  }
+  handleChange();
+}
+
+function selectRule(preset: ChatRegexPreset, rule: ChatRegexRule) {
+  selectedPreset.value = preset;
+  selectedRule.value = rule;
+  isRuleEditorVisible.value = true;
+}
+
+function handleRuleUpdate(updatedRule: ChatRegexRule) {
+  if (selectedPreset.value && selectedRule.value) {
+    const ruleIndex = selectedPreset.value.rules.findIndex((r) => r.id === selectedRule.value!.id);
+    if (ruleIndex !== -1) {
+      selectedPreset.value.rules[ruleIndex] = updatedRule;
+      selectedRule.value = updatedRule;
+      handleChange();
+    }
+  }
+}
+
+// =====================
+// 导入
+// =====================
+
+function handleImportCommand(command: string) {
+  importMode.value = command as 'sillytavern' | 'json';
+  importJson.value = '';
+  isImportDialogVisible.value = true;
+}
+
+function executeImport() {
+  try {
+    const data = JSON.parse(importJson.value);
+
+    if (importMode.value === 'sillytavern') {
+      // SillyTavern 格式
+      let presets: ChatRegexPreset[];
+      if (Array.isArray(data)) {
+        presets = convertMultipleFromSillyTavern(data);
+      } else {
+        presets = [convertFromSillyTavern(data)];
+      }
+      localConfig.value.presets.push(...presets);
+      customMessage.success(`成功导入 ${presets.length} 个预设`);
+    } else {
+      // 原生 JSON 格式
+      if (Array.isArray(data)) {
+        localConfig.value.presets.push(...data);
+        customMessage.success(`成功导入 ${data.length} 个预设`);
+      } else if (data.presets) {
+        localConfig.value.presets.push(...data.presets);
+        customMessage.success(`成功导入 ${data.presets.length} 个预设`);
+      } else {
+        localConfig.value.presets.push(data);
+        customMessage.success('成功导入 1 个预设');
+      }
+    }
+
+    handleChange();
+    isImportDialogVisible.value = false;
+  } catch (error) {
+    customMessage.error('导入失败: JSON 格式错误');
+  }
+}
+
+// =====================
+// 工具函数
+// =====================
+
+function truncateRegex(regex: string, maxLength = 30): string {
+  if (!regex) return '(空)';
+  return regex.length > maxLength ? regex.slice(0, maxLength) + '...' : regex;
+}
+</script>
+
+<style scoped>
+.chat-regex-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-left h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.info-icon {
+  color: var(--text-color-light);
+  cursor: help;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 预设项 */
+.preset-item {
+  margin-bottom: 8px;
+}
+
+.preset-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  padding-right: 12px;
+}
+
+.preset-drag-handle {
+  cursor: move;
+  color: var(--text-color-light);
+}
+
+.preset-name {
+  font-weight: 500;
+  flex: 1;
+}
+
+.preset-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.preset-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.preset-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 规则区域 */
+.rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rules-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rules-title {
+  font-weight: 500;
+  color: var(--text-color-secondary);
+}
+
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rule-item:hover {
+  border-color: var(--primary-color);
+}
+
+.rule-item.is-selected {
+  border-color: var(--primary-color);
+  background: var(--primary-color-alpha);
+}
+
+.rule-drag-handle {
+  cursor: move;
+  color: var(--text-color-light);
+}
+
+.rule-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.rule-preview {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-color-light);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-actions {
+  margin-left: auto;
+}
+
+/* 拖拽效果 */
+.drag-ghost {
+  opacity: 0.5;
+  background: var(--primary-color-alpha);
+}
+</style>

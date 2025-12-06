@@ -24,8 +24,13 @@ const MarkdownStyleEditor = defineAsyncComponent(
   () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
 );
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import { createDefaultChatRegexConfig } from "../../types";
 
-interface Props {
+const ChatRegexEditor = defineAsyncComponent(
+  () => import("../common/ChatRegexEditor.vue")
+);
+ 
+ interface Props {
   visible: boolean;
   mode: "create" | "edit";
   agent?: ChatAgent | null;
@@ -70,6 +75,7 @@ const defaultFormState = {
   displayPresetCount: 0, // 显示的预设消息数量
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
+  regexConfig: createDefaultChatRegexConfig(), // 正则管道配置
   tags: [] as string[],
   category: "",
   virtualTimeConfig: {
@@ -380,6 +386,7 @@ const handleSave = () => {
             timeScale: editForm.virtualTimeConfig.timeScale,
           }
         : undefined,
+   regexConfig: editForm.regexConfig,
   });
 
   handleClose();
@@ -629,6 +636,10 @@ const handleSave = () => {
             </el-form-item>
           </template>
         </el-collapse-item>
+
+       <el-collapse-item title="正则管道配置" name="regexConfig">
+         <ChatRegexEditor v-model="editForm.regexConfig" />
+       </el-collapse-item>
       </el-collapse>
     </el-form>
 

@@ -12,6 +12,8 @@ import {
   RendererVersion,
   type RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
+import { createDefaultChatRegexConfig } from "../types";
+import type { ChatRegexConfig } from "../types";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
@@ -124,6 +126,8 @@ export interface ChatSettings {
     /** 是否启用调试模式 */
     debugModeEnabled: boolean;
   };
+  /** 全局正则管道配置 */
+  regexConfig: ChatRegexConfig;
 }
 
 /**
@@ -187,6 +191,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   developer: {
     debugModeEnabled: false,
   },
+  regexConfig: createDefaultChatRegexConfig(),
 };
 
 /**
@@ -233,6 +238,7 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...defaultConfig.developer,
         ...(loadedConfig.developer || {}),
       },
+      regexConfig: loadedConfig.regexConfig ?? defaultConfig.regexConfig,
     };
   },
 });
@@ -326,6 +332,7 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
         ...settings.value.developer,
         ...(updates.developer || {}),
       },
+      regexConfig: updates.regexConfig ?? settings.value.regexConfig,
     };
     await saveSettings();
     logger.info("聊天设置已更新", { updates });

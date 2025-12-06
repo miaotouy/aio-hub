@@ -120,6 +120,12 @@ export interface ChatAgent {
   category?: string;
 
   /**
+   * 正则管道配置
+   * 用于对消息内容进行动态清洗、格式转换等
+   */
+  regexConfig?: import('./chatRegex').ChatRegexConfig;
+
+  /**
    * 创建时间
    */
   createdAt: string;
@@ -218,6 +224,11 @@ export interface AgentPreset {
     realBaseTime: string;
     timeScale?: number;
   };
+
+  /**
+   * 正则管道配置
+   */
+  regexConfig?: import('./chatRegex').ChatRegexConfig;
 }
 
 /**

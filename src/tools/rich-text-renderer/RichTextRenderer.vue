@@ -27,6 +27,8 @@ import type {
   AstNode,
 } from "./types";
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
+import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
+import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
 
 const props = withDefaults(
   defineProps<{
@@ -40,6 +42,7 @@ const props = withDefaults(
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
     throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
+    regexRules?: ChatRegexRule[]; // 正则表达式规则
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
@@ -58,6 +61,7 @@ const props = withDefaults(
       },
     ],
     styleOptions: () => ({}),
+    regexRules: () => [],
   }
 );
 
@@ -200,10 +204,22 @@ let unsubscribe: (() => void) | null = null;
 let unsubscribeComplete: (() => void) | null = null;
 
 /**
- * 静态内容模式：监听 content 变化
+ * 经过正则处理后的内容
+ * 这是所有渲染逻辑的统一入口点
+ */
+const processedContent = computed(() => {
+  const text = props.content || "";
+  if (props.regexRules && props.regexRules.length > 0) {
+    return applyRegexRules(text, props.regexRules);
+  }
+  return text;
+});
+
+/**
+ * 静态内容模式：监听处理后的 content 变化
  */
 watch(
-  () => props.content,
+  processedContent,
   (newContent) => {
     if (props.streamSource) return;
 
@@ -302,12 +318,16 @@ onMounted(() => {
   // 订阅流式数据
   unsubscribe = props.streamSource.subscribe((chunk) => {
     buffer.value += chunk;
+    const bufferToProcess = processedContent.value; // 从 computed 获取处理后的完整 buffer
 
     if (useAstRenderer.value) {
-      streamProcessor.value?.process(chunk);
+      // 对于流式数据，每次都重置并处理整个应用了正则的缓冲区
+      // StreamProcessor 的 diff 机制和 useMarkdownAst 的节流会处理性能问题
+      streamProcessor.value?.reset();
+      streamProcessor.value?.process(bufferToProcess);
     } else {
       // 纯 markdown-it：每次全量重渲染
-      htmlContent.value = md.render(buffer.value);
+      htmlContent.value = md.render(bufferToProcess);
     }
   });
 

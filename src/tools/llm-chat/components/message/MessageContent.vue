@@ -6,6 +6,9 @@ import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/useChatSettings";
+import { useAgentStore } from "../../agentStore";
+import { useUserProfileStore } from "../../userProfileStore";
+import { resolveRulesForMessage } from "../../utils/chatRegexUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -22,6 +25,7 @@ interface Props {
   isEditing?: boolean;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
   richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
+  messageDepth?: number;
 }
 
 interface Emits {
@@ -32,8 +36,12 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   isEditing: false,
+  messageDepth: 0,
 });
 const emit = defineEmits<Emits>();
+
+const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
 
 // 附件管理器 - 用于编辑模式（使用默认配置）
 const attachmentManager = useAttachmentManager();
@@ -77,6 +85,40 @@ const generationMetaForRenderer = computed(() => {
     usage: metadata.usage,
     modelId: metadata.modelId, // 传递模型 ID
   };
+});
+
+// 解析需要传递给渲染器的正则规则
+const activeRules = computed(() => {
+  // 获取相关配置
+  // 1. 全局配置
+  const globalConfig = settings.value.regexConfig;
+
+  // 2. 智能体配置
+  // 优先从消息元数据获取 agentId，回退到当前激活的 agentId
+  const agentId = props.message.metadata?.agentId ?? agentStore.currentAgentId;
+  const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+  const agentConfig = agent?.regexConfig;
+
+  // 3. 用户档案配置
+  // 优先从消息元数据获取 userProfileId，回退到智能体绑定的档案，最后回退到全局档案
+  let userConfig;
+  const userProfileId = props.message.metadata?.userProfileId ?? agent?.userProfileId;
+  if (userProfileId) {
+    const profile = userProfileStore.getProfileById(userProfileId);
+    userConfig = profile?.regexConfig;
+  } else {
+    userConfig = userProfileStore.globalProfile?.regexConfig;
+  }
+
+  // 解析规则
+  return resolveRulesForMessage(
+    "render",
+    props.message.role,
+    props.messageDepth ?? 0,
+    globalConfig,
+    agentConfig,
+    userConfig
+  );
 });
 
 // 编辑区域引用
@@ -288,6 +330,7 @@ watch(
       <RichTextRenderer
         v-if="message.content"
         :content="message.content"
+        :regex-rules="activeRules"
         :version="settings.uiPreferences.rendererVersion"
         :llm-think-rules="llmThinkRules"
         :style-options="richTextStyleOptions"

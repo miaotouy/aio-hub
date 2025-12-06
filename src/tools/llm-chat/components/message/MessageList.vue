@@ -286,6 +286,7 @@ defineExpose({
           <div class="message-wrapper">
             <ChatMessage
               :message="messages[virtualItem.index]"
+              :message-depth="messages.length - 1 - virtualItem.index"
               :is-sending="isSending"
               :siblings="getMessageSiblings(messages[virtualItem.index].id).siblings"
               :current-sibling-index="

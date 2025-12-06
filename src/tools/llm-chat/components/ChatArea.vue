@@ -643,6 +643,7 @@ onMounted(async () => {
             <!-- 消息列表 -->
             <MessageList
               ref="messageListRef"
+              :session="llmChatStore.currentSession"
               :messages="finalMessages"
               :is-sending="finalIsSending"
               :llm-think-rules="currentAgent?.llmThinkRules"

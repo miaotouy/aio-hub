@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { Copy, Check, GitBranch } from "lucide-vue-next";
-import type { ChatMessageNode } from "../../types";
+import type { ChatMessageNode, ChatSession } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useAgentStore } from "../../agentStore";
 import { useUserProfileStore } from "../../userProfileStore";
+import { useMacroProcessor } from "../../composables/useMacroProcessor";
 import { resolveRulesForMessage } from "../../utils/chatRegexUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
@@ -19,8 +20,10 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
+const { processMacros } = useMacroProcessor();
 
 interface Props {
+  session: ChatSession | null;
   message: ChatMessageNode;
   isEditing?: boolean;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
@@ -50,6 +53,9 @@ const attachmentManager = useAttachmentManager();
 const hasAttachments = computed(() => {
   return props.message.attachments && props.message.attachments.length > 0;
 });
+
+// 渲染内容
+const displayedContent = ref(props.message.content);
 
 // 编辑状态
 const editingContent = ref("");
@@ -220,6 +226,24 @@ const copyError = async () => {
   }
 };
 
+// 监听消息内容或相关上下文变化，异步处理宏
+watch(
+  [() => props.message.content, () => props.message.metadata?.agentId, () => props.session],
+  async ([content, agentId, session]) => {
+    // 仅在非编辑模式下处理宏
+    if (!props.isEditing && content) {
+      const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+      displayedContent.value = await processMacros(content, {
+        agent,
+        session: session ?? undefined,
+      });
+    } else {
+      displayedContent.value = content;
+    }
+  },
+  { immediate: true }
+);
+
 // 监听编辑模式变化
 watch(
   () => props.isEditing,
@@ -328,8 +352,8 @@ watch(
     <!-- 正常显示模式 -->
     <template v-else>
       <RichTextRenderer
-        v-if="message.content"
-        :content="message.content"
+        v-if="displayedContent"
+        :content="displayedContent"
         :regex-rules="activeRules"
         :version="settings.uiPreferences.rendererVersion"
         :llm-think-rules="llmThinkRules"

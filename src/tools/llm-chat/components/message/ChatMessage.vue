@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useResizeObserver } from "@vueuse/core";
-import type { ChatMessageNode } from "../../types";
+import type { ChatMessageNode, ChatSession } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import MessageHeader from "./MessageHeader.vue";
 import MessageContent from "./MessageContent.vue";
@@ -10,6 +10,7 @@ import MessageMenubar from "./MessageMenubar.vue";
 import type { ButtonVisibility } from "../../types";
 
 interface Props {
+  session: ChatSession | null;
   message: ChatMessageNode;
   isSending: boolean;
   siblings: ChatMessageNode[];
@@ -133,6 +134,7 @@ defineExpose({
       <MessageHeader :message="message" />
 
       <MessageContent
+        :session="props.session"
         :message="message"
         :is-editing="isEditing"
         :llm-think-rules="llmThinkRules"

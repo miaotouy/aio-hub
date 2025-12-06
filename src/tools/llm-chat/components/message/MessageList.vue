@@ -2,13 +2,14 @@
 import { ref, watch, nextTick, computed } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import type { ChatMessageNode } from "../../types";
+import type { ChatMessageNode, ChatSession } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useLlmChatStore } from "../../store";
 import { useChatSettings } from "../../composables/useChatSettings";
 import ChatMessage from "./ChatMessage.vue";
 
 interface Props {
+  session: ChatSession | null;
   messages: ChatMessageNode[];
   isSending: boolean;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
@@ -285,6 +286,7 @@ defineExpose({
         >
           <div class="message-wrapper">
             <ChatMessage
+              :session="props.session"
               :message="messages[virtualItem.index]"
               :message-depth="messages.length - 1 - virtualItem.index"
               :is-sending="isSending"

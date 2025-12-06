@@ -68,7 +68,7 @@
         </div>
 
         <!-- 底部区域 -->
-        <div v-if="hasFooterSlot" class="dialog-footer" :class="{ 'with-border': !props.bare }">
+        <div v-if="hasFooterSlot && props.showFooter" class="dialog-footer" :class="{ 'with-border': !props.bare }">
           <slot name="footer"></slot>
         </div>
       </div>
@@ -95,6 +95,7 @@ const props = withDefaults(
     contentClass?: string;
     zIndex?: number;
     destroyOnClose?: boolean;
+    showFooter?: boolean; // Added prop
   }>(),
   {
     showCloseButton: true,
@@ -106,6 +107,7 @@ const props = withDefaults(
     contentClass: "",
     zIndex: 1999,
     destroyOnClose: true,
+    showFooter: true, // Default to true if slot exists
   }
 );
 

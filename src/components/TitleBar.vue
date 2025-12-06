@@ -27,6 +27,7 @@ import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import { debounce } from "lodash-es";
 import { useResolvedAvatar, resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
+import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -56,6 +57,7 @@ const isMainWindow = ref(false); // 判断是否为主窗口
 const isMacOS = ref(false); // 判断是否为 macOS
 const route = useRoute();
 const settings = ref<AppSettings | null>(null);
+const showProfileManagerDialog = ref(false);
 
 // 用于区分手动和自动的最大化状态变更
 const isManualMaximizeChange = ref(false);
@@ -266,9 +268,9 @@ const handleProfileSelect = (profileId: string | null) => {
   }
 };
 
-// 导航到档案管理页面
-const goToProfileSettings = () => {
-  router.push("/settings?section=user-profiles");
+// 打开档案管理弹窗
+const openProfileManager = () => {
+  showProfileManagerDialog.value = true;
 };
 
 // 获取档案头像路径（用于列表）
@@ -279,6 +281,9 @@ const getProfileAvatarSrc = (profile: any) => {
 
 <template>
   <Teleport to="body">
+    <!-- 用户档案管理弹窗 -->
+    <UserProfileManagerDialog v-model:visible="showProfileManagerDialog" />
+
     <div
       class="title-bar"
       :class="{
@@ -356,7 +361,7 @@ const getProfileAvatarSrc = (profile: any) => {
                 />
                 <span>{{ profile.displayName || profile.name }}</span>
               </el-dropdown-item>
-              <el-dropdown-item divided @click="goToProfileSettings">
+              <el-dropdown-item divided @click="openProfileManager">
                 <el-icon><Setting /></el-icon>
                 <span>管理用户档案</span>
               </el-dropdown-item>

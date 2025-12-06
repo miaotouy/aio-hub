@@ -435,10 +435,14 @@ function truncateRegex(regex: string, maxLength = 30): string {
 
 <style scoped>
 .chat-regex-editor {
-  min-height: 500px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 300px;
+  max-height: 60vh;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  margin-bottom: 30px;
 }
 
 .editor-header {
@@ -446,7 +450,6 @@ function truncateRegex(regex: string, maxLength = 30): string {
   justify-content: space-between;
   align-items: center;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
 }
 
 .header-left {
@@ -543,8 +546,8 @@ function truncateRegex(regex: string, maxLength = 30): string {
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
-  background-color: var(--card-bg);
+  /* border-bottom: 1px solid var(--border-color); */
+  background-color: var(--bg-color-soft);
 }
 
 .rules-title {

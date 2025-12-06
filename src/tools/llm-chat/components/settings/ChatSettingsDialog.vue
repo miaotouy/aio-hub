@@ -70,24 +70,34 @@
                     <!-- Block layout (default) -->
                     <template v-if="item.layout !== 'inline'">
                       <div class="setting-item-content">
-                        <!-- MarkdownStyleEditor Special Layout -->
+                        <!-- Collapsible Component Template -->
                         <div
-                          v-if="item.component === 'MarkdownStyleEditor'"
+                          v-if="item.collapsible"
                           class="full-width"
                           style="width: 100%"
                         >
                           <el-collapse v-model="activeCollapseNames">
-                            <el-collapse-item title="点击展开编辑样式" name="styleOptions">
-                              <div style="min-height: 500px; height: 60vh">
+                            <el-collapse-item
+                              :title="item.collapsible.title"
+                              :name="item.collapsible.name"
+                            >
+                              <div :style="item.collapsible.style">
                                 <component
-                                  v-if="styleOptionsLoaded"
+                                  v-if="loadedComponents[item.collapsible.name]"
                                   :is="resolveComponent(item.component)"
-                                  :model-value="get(localSettings, item.modelPath) || {}"
+                                  :model-value="
+                                    get(localSettings, item.modelPath) ||
+                                    item.collapsible.defaultValue
+                                  "
                                   @update:model-value="
                                     (value: any) => set(localSettings, item.modelPath, value)
                                   "
                                   v-bind="item.props"
-                                  :loading="styleLoading"
+                                  :loading="
+                                    item.collapsible.useLoading
+                                      ? componentLoading[item.collapsible.name]
+                                      : undefined
+                                  "
                                 />
                               </div>
                             </el-collapse-item>
@@ -278,6 +288,7 @@ import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@eleme
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   useChatSettings,
@@ -319,20 +330,47 @@ const lastSaveTime = ref("");
 
 // --- 懒加载状态管理 ---
 const activeCollapseNames = ref<string[]>([]);
-const styleOptionsLoaded = ref(false);
-const styleLoading = ref(false);
+// 通用懒加载状态
+const loadedComponents = ref<Record<string, boolean>>({});
+const componentLoading = ref<Record<string, boolean>>({});
+
+// 从 settingsConfig 中提取所有的 collapsible 配置
+const allCollapsibleConfigs = computed(() => {
+  const configs: Record<
+    string,
+    {
+      title: string;
+      name: string;
+      style?: any;
+      defaultValue?: any;
+      useLoading?: boolean;
+    }
+  > = {};
+
+  settingsConfig.forEach((section) => {
+    section.items.forEach((item) => {
+      if (item.collapsible) {
+        configs[item.collapsible.name] = item.collapsible;
+      }
+    });
+  });
+  return configs;
+});
 
 watch(activeCollapseNames, (newNames) => {
-  if (newNames.includes("styleOptions")) {
-    if (!styleOptionsLoaded.value) {
-      styleLoading.value = true;
-      // 模拟加载延迟，提升体验
-      setTimeout(() => {
-        styleLoading.value = false;
-      }, 500);
+  newNames.forEach((name) => {
+    // 查找配置
+    const config = allCollapsibleConfigs.value[name];
+    if (config && !loadedComponents.value[name]) {
+      if (config.useLoading) {
+        componentLoading.value[name] = true;
+        setTimeout(() => {
+          componentLoading.value[name] = false;
+        }, 500);
+      }
+      loadedComponents.value[name] = true;
     }
-    styleOptionsLoaded.value = true;
-  }
+  });
 });
 
 const loadLocalSettings = async () => {
@@ -342,10 +380,11 @@ const loadLocalSettings = async () => {
       await loadSettings();
     }
     localSettings.value = JSON.parse(JSON.stringify(settings.value));
-    // 重置懒加载状态
+
+    // 重置状态
     activeCollapseNames.value = [];
-    styleOptionsLoaded.value = false;
-    styleLoading.value = false;
+    loadedComponents.value = {};
+    componentLoading.value = {};
 
     logger.info("加载本地设置", { settings: localSettings.value });
   } finally {
@@ -445,6 +484,7 @@ const componentMap: Record<string, Component> = {
   LlmModelSelector,
   ElSelect,
   MarkdownStyleEditor,
+  ChatRegexEditor,
 };
 
 const resolveComponent = (componentName: SettingComponent | Component) => {

@@ -256,8 +256,7 @@ watchEffect(() => {
   font-weight: 500;
   font-size: 14px;
   color: var(--text-color);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 8px;
 }
 
 .mono-input :deep(textarea) {

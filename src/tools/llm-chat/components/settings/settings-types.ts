@@ -13,7 +13,8 @@ export type SettingComponent =
   | 'ElInput'
   | 'LlmModelSelector'
   | 'SliderWithInput'
-  | 'MarkdownStyleEditor';
+  | 'MarkdownStyleEditor'
+  | 'ChatRegexEditor';
 
 /**
  * 定义单个设置项的配置结构
@@ -76,6 +77,31 @@ export interface SettingItem {
   slots?: {
     default?: () => Component;
     append?: () => Component;
+  };
+  /**
+   * 折叠面板配置，用于大型编辑器组件
+   */
+  collapsible?: {
+    /**
+     * 折叠面板的标题
+     */
+    title: string;
+    /**
+     * 折叠面板的唯一标识，用于状态管理
+     */
+    name: string;
+    /**
+     * 内容区域的样式
+     */
+    style?: Record<string, string>;
+    /**
+     * 模型值的默认值（当 modelPath 对应值为空时使用）
+     */
+    defaultValue?: any;
+    /**
+     * 是否显示加载状态
+     */
+    useLoading?: boolean;
   };
 }
 

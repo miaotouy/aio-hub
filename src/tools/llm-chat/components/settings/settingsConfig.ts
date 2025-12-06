@@ -9,6 +9,7 @@ import {
   TerminalSquare,
   Palette,
   Globe,
+  Regex,
 } from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
@@ -205,6 +206,36 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "uiPreferences.markdownStyle",
         hint: "为所有消息设置一个基础 Markdown 样式，优先级低于智能体自身的样式设置。",
         keywords: "ui markdown style css 样式",
+        collapsible: {
+          title: "点击展开编辑样式",
+          name: "styleOptions",
+          style: { minHeight: "500px", height: "60vh" },
+          defaultValue: {},
+          useLoading: true,
+        },
+      },
+    ],
+  },
+  {
+    title: "正则处理",
+    icon: Regex,
+    items: [
+      {
+        id: "regexConfig",
+        label: "全局正则规则",
+        component: "ChatRegexEditor",
+        props: {
+          "editor-height": "500px",
+        },
+        modelPath: "regexConfig",
+        hint: "配置全局生效的正则替换规则，可用于清洗消息内容或增强角色扮演体验。这些规则将应用于所有会话。",
+        keywords: "regex replace rule pattern 正则 替换 规则",
+        collapsible: {
+          title: "点击展开编辑正则规则",
+          name: "regexOptions",
+          style: { minHeight: "400px" },
+          defaultValue: [],
+        },
       },
     ],
   },

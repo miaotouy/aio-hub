@@ -131,15 +131,26 @@ interface ChatRegexConfig {
       - 而 `depthRange` 的判断基准是 `0` 代表**最新**消息。
       - 因此，在进行深度判断前，需要进行坐标转换：`messageDepth = totalMessages - 1 - i`。
   3.  **规则级过滤**: 遍历这个扁平列表，并为每条消息计算出对应的 `messageDepth`，然后根据 `rule.enabled`, `rule.applyTo[stage]`, `rule.targetRoles`, `rule.depthRange` 对每一条规则进行独立过滤。
-  3.  **排序**: 对通过过滤的规则列表进行排序 (按 `order` 字段)。
-  4.  **应用**: 依次应用所有通过的规则。
+  4.  **排序**: 对通过过滤的规则列表进行排序 (按 `order` 字段)。
+  5.  **宏预处理**: 在应用规则前，使用 `processRulesWithMacros` 对规则列表中的 `regex` 和 `trimStrings` 字段进行宏替换。
+  6.  **应用**: 依次应用所有通过的规则。
 
 #### **Request Pipeline (请求层)**
 
 在 `useMessageProcessor` 中执行，处理发送给模型的 Prompt。
 
-- **(二期实现)**
-- **逻辑**: 同 Render Pipeline，但过滤 `applyTo.request=true`
+- **逻辑**:
+  1.  **执行位置**: 在 `useChatContextBuilder.ts` 的 `buildLlmContext` 函数内部。
+  2.  **作用范围**: **仅处理会话历史消息** (`sessionContext`)，不处理 Agent 的预设消息。
+  3.  **执行时机**: 在从 `activePath` 生成原始历史消息列表后，但在应用 **Token 限制** (`applyContextLimit`) 之前。
+  4.  **处理步骤**:
+      - a. **收集规则**: 遍历所有配置 (Global, Agent, User)，收集所有启用的、`applyTo.request=true` 的规则，形成一个扁平化的规则池。
+      - b. **宏预处理**: 使用 `processRulesWithMacros` 对整个规则池进行宏替换，生成待执行的规则列表。
+      - c. **应用规则**: 遍历 `sessionContext` (历史消息列表)，对**每条消息**：
+          - i. 计算其 `messageDepth`。
+          - ii. 从宏处理过的规则列表中，根据 `targetRoles` 和 `depthRange` 过滤出适用于当前消息的最终规则。
+          - iii. 对消息内容应用这些规则。
+      - d. **返回**: 返回经过正则处理的 `sessionContext`，用于后续的 Token 限制和上下文拼接。
 
 ---
 
@@ -407,7 +418,7 @@ export function resolveRulesForMessage(
 
 当 `ChatRegexRule.substitutionMode` 不为 `'NONE'` 时，需要在应用正则表达式之前，对 `regex` 字段进行宏替换处理。
 
-> **设计原则**: 复用 `llm-chat` 模块已有的宏系统 (`useMacroProcessor`)，而非重新实现。
+> **设计原则**: 正则规则的宏处理，是**复用** `llm-chat` 模块已有的宏系统 (`useMacroProcessor`) 的。它作为应用规则前的一个预处理步骤，用于动态地构建正则表达式和 `trimStrings` 的内容。
 
 #### `substitutionMode` 说明
 
@@ -443,34 +454,53 @@ const rule: ChatRegexRule = {
 
 ```typescript
 import { useMacroProcessor } from "@/tools/llm-chat/composables/macros/useMacroProcessor";
+import type { MacroContext } from "@/tools/llm-chat/composables/macros/types";
 import { escapeRegExp } from "lodash-es";
 
 /**
- * 处理规则的 regex 字段，根据 substitutionMode 进行宏替换
+ * 对规则列表中的 `regex` 和 `trimStrings` 字段进行宏处理
+ *
+ * @param rules - 待处理的规则数组
+ * @param macroContext - 用于宏替换的上下文对象
+ * @returns 返回一个全新的、经过宏处理的规则数组 Promise
  */
-async function processRegexWithMacros(
-  rule: ChatRegexRule,
+export async function processRulesWithMacros(
+  rules: ChatRegexRule[],
   macroContext: MacroContext
-): Promise<string> {
-  if (!rule.substitutionMode || rule.substitutionMode === "NONE") {
-    return rule.regex;
-  }
-
+): Promise<ChatRegexRule[]> {
   const macroProcessor = useMacroProcessor();
+  const processedRules: ChatRegexRule[] = [];
 
-  if (rule.substitutionMode === "RAW") {
-    // 直接替换宏
-    return await macroProcessor.process(rule.regex, macroContext);
+  for (const rule of rules) {
+    // 创建副本以避免修改 Pinia store 中的原始状态
+    const newRule = JSON.parse(JSON.stringify(rule));
+
+    if (newRule.substitutionMode && newRule.substitutionMode !== "NONE") {
+      const transform =
+        newRule.substitutionMode === "ESCAPED"
+          ? (value: unknown) => escapeRegExp(String(value))
+          : undefined;
+
+      // 处理 regex 字段
+      newRule.regex = await macroProcessor.process(newRule.regex, macroContext, {
+        valueTransformer: transform,
+      });
+
+      // 处理 trimStrings 字段
+      if (newRule.trimStrings) {
+        newRule.trimStrings = await Promise.all(
+          newRule.trimStrings.map((str) =>
+            macroProcessor.process(str, macroContext, {
+              valueTransformer: transform, // 同样对 trimStrings 中的宏应用转义
+            })
+          )
+        );
+      }
+    }
+    processedRules.push(newRule);
   }
 
-  if (rule.substitutionMode === "ESCAPED") {
-    // 替换宏，并对每个宏的值应用正则转义
-    return await macroProcessor.process(rule.regex, macroContext, {
-      valueTransformer: (value) => escapeRegExp(String(value)),
-    });
-  }
-
-  return rule.regex;
+  return processedRules;
 }
 ```
 
@@ -509,13 +539,13 @@ async function processRegexWithMacros(
 
 ### Phase 1: 基础架构 (一期)
 
-1. [ ] **类型**: 定义 `types/chatRegex.ts`
-2. [ ] **数据层**: 扩展 Agent/User/Settings 类型
-3. [ ] **工具函数**: 实现 `utils/chatRegexUtils.ts`
-4. [ ] **导入层**: 实现 SillyTavern 格式转换函数
-5. [ ] **UI**: 实现 `ChatRegexEditor.vue` 组件
-6. [ ] **集成**: 将 UI 集成到 Agent/User/Global 配置界面
-7. [ ] **渲染层**: 实现 Render Pipeline
+1. [x] **类型**: 定义 `types/chatRegex.ts`
+2. [x] **数据层**: 扩展 Agent/User/Settings 类型
+3. [x] **工具函数**: 实现 `utils/chatRegexUtils.ts`
+4. [x] **导入层**: 实现 SillyTavern 格式转换函数
+5. [x] **UI**: 实现 `ChatRegexEditor.vue` 组件
+6. [x] **集成**: 将 UI 集成到 Agent/User/Global 配置界面
+7. [x] **渲染层**: 实现 Render Pipeline
 
 ### Phase 2: 完整功能 (二期)
 

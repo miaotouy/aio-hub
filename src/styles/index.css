@@ -2,6 +2,9 @@
 @import "./theme-appearance.css";
 /* 亮色主题变量 */
 :root {
+  /* 布局尺寸 */
+  --titlebar-height: 32px;
+
   /* z-index 规范 */
   --z-index-title-bar: 9999; /* 应用顶层标题栏 */
   --z-index-dialog: 2000; /* 对话框/模态窗口 */
@@ -178,7 +181,7 @@ body.transparent-window #app {
 /* 只对顶部通知设置 top 偏移 */
 .el-notification.top-right,
 .el-notification.top-left {
-  top: 52px !important; /* 标题栏高度32px + 额外间距20px */
+  top: calc(var(--titlebar-height) + 20px) !important;
 }
 
 /* 底部通知保持默认 bottom 定位 */
@@ -188,11 +191,11 @@ body.transparent-window #app {
 }
 
 .el-message {
-  top: 52px; /* 标题栏高度32px + 额外间距20px */
+  top: calc(var(--titlebar-height) + 20px);
 }
 
 .el-message-box {
-  margin-top: 32px; /* 给标题栏留出空间 */
+  margin-top: var(--titlebar-height); /* 给标题栏留出空间 */
 }
 
 /* Element Plus 全局主题适配 - 输入组件 */
@@ -674,8 +677,8 @@ body.transparent-window #app {
 
 /* viewerjs 图片查看器避开标题栏 */
 .viewer-container {
-  top: 32px !important; /* 标题栏高度 */
-  height: calc(100vh - 32px) !important; /* 调整高度以适应顶部偏移 */
+  top: var(--titlebar-height) !important;
+  height: calc(100vh - var(--titlebar-height)) !important;
 }
 
 /* 确保 viewer 的 canvas 和工具栏位置正确 */

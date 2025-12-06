@@ -439,7 +439,7 @@ const getProfileAvatarSrc = (profile: any) => {
 
 <style scoped>
 .title-bar {
-  height: 32px;
+  height: var(--titlebar-height);
   background: var(--sidebar-bg);
   user-select: none;
   display: flex;

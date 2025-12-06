@@ -347,10 +347,10 @@ onUnmounted(() => {
 
 <style>
 .common-layout {
-  height: calc(100vh - 32px); /* 减去标题栏高度 */
+  height: calc(100vh - var(--titlebar-height));
   width: 100vw;
   overflow: hidden; /* 隐藏整个布局的滚动条 */
-  margin-top: 32px; /* 为标题栏留出空间 */
+  margin-top: var(--titlebar-height);
 }
 
 /* 特殊路由（无标题栏）样式 */

@@ -210,7 +210,7 @@ onUnmounted(() => {
 .tool-content {
   flex: 1;
   overflow: auto;
-  padding-top: 32px;
+  padding-top: var(--titlebar-height);
 }
 
 .tool-content.no-titlebar {

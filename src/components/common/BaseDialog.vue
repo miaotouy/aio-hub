@@ -7,7 +7,7 @@
       :style="backdropStyles"
       :class="{
         'backdrop-visible': showContentTransition,
-        'backdrop-hidden': !showContentTransition 
+        'backdrop-hidden': !showContentTransition,
       }"
       @click="props.closeOnBackdropClick && handleClose()"
     >
@@ -19,14 +19,14 @@
           {
             'dialog-enter': showContentTransition,
             'dialog-leave': !showContentTransition,
-            'glass-overlay': isGlassEffectActive && !props.bare
-          }
+            'glass-overlay': isGlassEffectActive && !props.bare,
+          },
         ]"
         :style="dialogStyles"
         @click.stop
       >
         <!-- 头部区域 -->
-        <div 
+        <div
           v-if="hasHeaderSlot || props.title || props.showCloseButton"
           class="dialog-header"
           :class="{ 'with-border': !props.bare }"
@@ -43,8 +43,19 @@
             class="dialog-close-btn"
             aria-label="关闭"
           >
-            <svg class="close-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              class="close-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -66,39 +77,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, useSlots, computed, nextTick } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, useSlots, computed, nextTick } from "vue";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
-const props = withDefaults(defineProps<{
-  modelValue: boolean;
-  title?: string;
-  width?: string;
-  maxWidth?: string;
-  height?: string;
-  top?: string;
-  showCloseButton?: boolean;
-  closeOnBackdropClick?: boolean;
-  bare?: boolean;
-  dialogClass?: string;
-  contentClass?: string;
-  zIndex?: number;
-  destroyOnClose?: boolean;
-}>(), {
-  showCloseButton: true,
-  closeOnBackdropClick: true,
-  width: '600px',
-  height: 'auto',
-  bare: false,
-  dialogClass: '',
-  contentClass: '',
-  zIndex: 1999,
-  destroyOnClose: true,
-});
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean;
+    title?: string;
+    width?: string;
+    maxWidth?: string;
+    height?: string;
+    top?: string;
+    showCloseButton?: boolean;
+    closeOnBackdropClick?: boolean;
+    bare?: boolean;
+    dialogClass?: string;
+    contentClass?: string;
+    zIndex?: number;
+    destroyOnClose?: boolean;
+  }>(),
+  {
+    showCloseButton: true,
+    closeOnBackdropClick: true,
+    width: "600px",
+    height: "auto",
+    bare: false,
+    dialogClass: "",
+    contentClass: "",
+    zIndex: 1999,
+    destroyOnClose: true,
+  }
+);
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: boolean): void;
-  (e: 'close'): void;
-  (e: 'open'): void;
+  (e: "update:modelValue", value: boolean): void;
+  (e: "close"): void;
+  (e: "open"): void;
 }>();
 
 // 记录是否已经打开过
@@ -109,8 +123,8 @@ const hasFooterSlot = computed(() => !!slots.footer);
 const hasHeaderSlot = computed(() => !!slots.header);
 
 const { appearanceSettings } = useThemeAppearance();
-const isGlassEffectActive = computed(() =>
-  appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
+const isGlassEffectActive = computed(
+  () => appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
 );
 
 const showContentTransition = ref(false);
@@ -120,11 +134,19 @@ const backdropStyles = computed(() => {
   const styles: Record<string, any> = {
     zIndex: dynamicZIndex.value,
   };
+
+  // 始终添加顶部内边距以避开标题栏
+  // 这样无论是居中还是自定义 top，都能保证不被遮挡
+  // 且在居中模式下，视觉重心会稍微下移，更符合桌面应用体验
   if (props.top) {
-    styles.alignItems = 'flex-start';
-    styles.paddingTop = props.top;
+    styles.alignItems = "flex-start";
+    // 使用 calc 叠加标题栏高度
+    styles.paddingTop = `calc(var(--titlebar-height) + ${props.top})`;
   } else {
-    styles.alignItems = 'center';
+    styles.alignItems = "center";
+    // 只添加顶部内边距，不添加底部内边距
+    // 这样内容区域的垂直中心会下移 (titlebar-height / 2)，即在"除去标题栏后的剩余空间"内居中
+    styles.paddingTop = "var(--titlebar-height)";
   }
   return styles;
 });
@@ -143,12 +165,12 @@ const formatSize = (value?: string | number): string | undefined => {
 // 计算对话框样式
 const dialogStyles = computed(() => {
   const styles: Record<string, string> = {};
-  
+
   const formattedWidth = formatSize(props.width);
   if (formattedWidth) {
     styles.width = formattedWidth;
   }
-  
+
   const formattedMaxWidth = formatSize(props.maxWidth);
   if (formattedMaxWidth) {
     styles.maxWidth = formattedMaxWidth;
@@ -156,53 +178,57 @@ const dialogStyles = computed(() => {
     // 如果没有指定 maxWidth，则使用 width 作为 maxWidth
     styles.maxWidth = formattedWidth;
   }
-  
+
   const formattedHeight = formatSize(props.height);
-  if (formattedHeight && formattedHeight !== 'auto') {
+  if (formattedHeight && formattedHeight !== "auto") {
     styles.height = formattedHeight;
   }
-  
+
   return styles;
 });
 
-watch(() => props.modelValue, (newValue) => {
-  if (newValue) {
-    hasOpened.value = true;
-    emit('open');
-    // 对话框打开时，可能需要递增 z-index（如果有多个对话框）
-    // 这里简化处理，直接使用传入的 zIndex
-    dynamicZIndex.value = props.zIndex;
-    
-    // DOM 更新后启动入场动画
-    nextTick(() => {
-      showContentTransition.value = true;
-    });
-  } else {
-    showContentTransition.value = false;
-  }
-}, { immediate: true });
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    if (newValue) {
+      hasOpened.value = true;
+      emit("open");
+      // 对话框打开时，可能需要递增 z-index（如果有多个对话框）
+      // 这里简化处理，直接使用传入的 zIndex
+      dynamicZIndex.value = props.zIndex;
+
+      // DOM 更新后启动入场动画
+      nextTick(() => {
+        showContentTransition.value = true;
+      });
+    } else {
+      showContentTransition.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 function handleClose() {
   showContentTransition.value = false;
   // 等待退场动画完成
   setTimeout(() => {
-    emit('update:modelValue', false);
-    emit('close');
+    emit("update:modelValue", false);
+    emit("close");
   }, 300);
 }
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (props.modelValue && event.key === 'Escape' && props.showCloseButton) {
+  if (props.modelValue && event.key === "Escape" && props.showCloseButton) {
     handleClose();
   }
 };
 
 onMounted(() => {
-  document.addEventListener('keydown', handleKeyDown);
+  document.addEventListener("keydown", handleKeyDown);
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleKeyDown);
+  document.removeEventListener("keydown", handleKeyDown);
 });
 </script>
 

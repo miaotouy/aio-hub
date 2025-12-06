@@ -30,8 +30,7 @@ import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import UserProfileForm from "@/views/Settings/user-profile/components/UserProfileForm.vue";
 import { customMessage } from "@/utils/customMessage";
-import type { UserProfile } from "../../types";
-import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type { UserProfile, UserProfileUpdateData } from "../../types";
 
 interface Props {
   visible: boolean;
@@ -40,39 +39,27 @@ interface Props {
 
 interface Emits {
   (e: "update:visible", value: boolean): void;
-  (e: "save", data: {
-    id: string;
-    name: string;
-    displayName?: string;
-    content: string;
-    icon?: string;
-    richTextStyleOptions?: RichTextRendererStyleOptions;
-    richTextStyleBehavior?: "follow_agent" | "custom";
-  }): void;
+  (e: "save", data: UserProfileUpdateData): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// 表单数据
-const form = ref<{
-  name: string;
-  displayName: string;
-  icon: string;
-  content: string;
-  createdAt: string;
-  lastUsedAt: string;
-  richTextStyleOptions?: RichTextRendererStyleOptions;
-  richTextStyleBehavior?: "follow_agent" | "custom";
-}>({
+// 表单数据类型 - 排除 id，其他字段都应该在表单中维护
+// 使用 Omit 可以确保当 UserProfile 增加新字段时，这里会自动包含（虽然可能需要更新初始值）
+type FormState = Omit<UserProfile, "id">;
+
+const form = ref<FormState>({
   name: "",
   displayName: "",
   icon: "",
   content: "",
+  enabled: true,
   createdAt: "",
   lastUsedAt: "",
   richTextStyleOptions: {},
   richTextStyleBehavior: "follow_agent",
+  regexConfig: { presets: [] },
 });
 
 // 监听传入的档案数据变化
@@ -80,15 +67,17 @@ watch(
   () => props.profile,
   (profile) => {
     if (profile) {
+      // 使用解构赋值，自动包含所有字段
+      // 对于 undefined 的可选字段，给予默认值
       form.value = {
-        name: profile.name,
+        ...profile,
+        // 覆盖可能为 undefined 的字段，确保表单绑定值不为空
         displayName: profile.displayName || "",
         icon: profile.icon || "",
-        content: profile.content,
-        createdAt: profile.createdAt,
         lastUsedAt: profile.lastUsedAt || "",
         richTextStyleOptions: profile.richTextStyleOptions || {},
         richTextStyleBehavior: profile.richTextStyleBehavior || "follow_agent",
+        regexConfig: profile.regexConfig || { presets: [] },
       };
     }
   },
@@ -117,15 +106,23 @@ const handleSave = () => {
     return;
   }
 
-  emit("save", {
+  // 1. 提取不需要保存的系统字段
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { createdAt, lastUsedAt, ...rest } = form.value;
+
+  // 2. 构造保存数据
+  // 使用展开运算符自动包含所有字段，这样新增字段时不需要修改这里
+  const saveData: UserProfileUpdateData = {
+    ...rest,
     id: props.profile.id,
+    // 3. 覆盖需要特殊处理的字段 (trim, empty string to undefined)
     name: form.value.name.trim(),
     displayName: form.value.displayName?.trim() || undefined,
     content: form.value.content.trim(),
     icon: form.value.icon?.trim() || undefined,
-    richTextStyleOptions: form.value.richTextStyleOptions,
-    richTextStyleBehavior: form.value.richTextStyleBehavior,
-  });
+  };
+
+  emit("save", saveData);
 
   handleVisibleChange(false);
   customMessage.success("用户档案已更新");

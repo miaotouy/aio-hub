@@ -635,7 +635,7 @@ const handleSave = () => {
           </template>
         </el-collapse-item>
 
-        <el-collapse-item title="正则管道配置" name="regexConfig">
+        <el-collapse-item title="文本替换规则" name="regexConfig">
           <ChatRegexEditor v-model="editForm.regexConfig" />
         </el-collapse-item>
       </el-collapse>

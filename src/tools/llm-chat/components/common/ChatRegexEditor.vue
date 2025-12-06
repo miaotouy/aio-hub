@@ -3,7 +3,7 @@
     <!-- 顶部操作栏 -->
     <div class="editor-header">
       <div class="header-left">
-        <h4>正则管道配置</h4>
+        <h4>文本替换规则</h4>
         <el-tooltip content="用于对消息内容进行动态清洗、格式转换等" placement="right">
           <el-icon class="info-icon"><InfoIcon /></el-icon>
         </el-tooltip>
@@ -192,11 +192,11 @@
         </div>
       </el-collapse>
     </div>
-    <el-empty v-else description="暂无正则预设" :image-size="80">
+    <el-empty v-else description="暂无文本替换规则" :image-size="80">
       <el-button @click="addPreset" type="primary">创建预设</el-button>
     </el-empty>
     <!-- 导入对话框 -->
-    <el-dialog v-model="isImportDialogVisible" title="导入正则脚本" width="600px">
+    <el-dialog v-model="isImportDialogVisible" title="导入规则脚本" width="600px">
       <el-input v-model="importJson" type="textarea" :rows="12" placeholder="粘贴 JSON 内容..." />
       <template #footer>
         <el-button @click="isImportDialogVisible = false">取消</el-button>

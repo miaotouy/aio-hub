@@ -94,7 +94,7 @@
     <el-divider />
 
     <el-collapse>
-      <el-collapse-item title="正则管道配置" name="regexConfig">
+      <el-collapse-item title="文本替换规则" name="regexConfig">
         <ChatRegexEditor v-model="formData.regexConfig" @update:model-value="handleInput" />
       </el-collapse-item>
     </el-collapse>

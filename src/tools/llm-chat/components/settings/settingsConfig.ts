@@ -217,21 +217,21 @@ export const settingsConfig: SettingsSection[] = [
     ],
   },
   {
-    title: "正则处理",
+    title: "文本处理",
     icon: Regex,
     items: [
       {
         id: "regexConfig",
-        label: "全局正则规则",
+        label: "全局文本替换",
         component: "ChatRegexEditor",
         props: {
           "editor-height": "500px",
         },
         modelPath: "regexConfig",
-        hint: "配置全局生效的正则替换规则，可用于清洗消息内容或增强角色扮演体验。这些规则将应用于所有会话。",
+        hint: "配置全局生效的文本替换规则（支持正则），可用于清洗消息内容或增强角色扮演体验。这些规则将应用于所有会话。",
         keywords: "regex replace rule pattern 正则 替换 规则",
         collapsible: {
-          title: "点击展开编辑正则规则",
+          title: "点击展开编辑规则",
           name: "regexOptions",
           style: { minHeight: "400px" },
           defaultValue: [],

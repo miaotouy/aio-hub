@@ -26,7 +26,10 @@ import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import { debounce } from "lodash-es";
-import { useResolvedAvatar, resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
+import {
+  useResolvedAvatar,
+  resolveAvatarPath,
+} from "@/tools/llm-chat/composables/useResolvedAvatar";
 import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
@@ -261,7 +264,19 @@ const handleThemeChange = (theme: "auto" | "light" | "dark") => {
 };
 
 // 用户档案选择处理
-const handleProfileSelect = (profileId: string | null) => {
+const handleProfileSelect = (command: string | null | object) => {
+  // 如果是对象（可能是事件对象或其他非预期值），直接忽略
+  if (typeof command === "object" && command !== null) {
+    return;
+  }
+
+  // 处理特殊命令
+  if (command === "manage_profiles") {
+    openProfileManager();
+    return;
+  }
+
+  const profileId = command as string | null;
   userProfileStore.selectGlobalProfile(profileId);
   if (profileId) {
     userProfileStore.updateLastUsed(profileId);
@@ -288,151 +303,156 @@ const getProfileAvatarSrc = (profile: any) => {
       class="title-bar"
       :class="{
         macos: isMacOS,
-        'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur
+        'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
       }"
       data-tauri-drag-region
     >
-    <div class="title-bar-content">
-      <!-- 左侧占位区域（macOS 需要为原生控件留出空间） -->
-      <div class="left-controls" :class="{ macos: isMacOS }"></div>
+      <div class="title-bar-content">
+        <!-- 左侧占位区域（macOS 需要为原生控件留出空间） -->
+        <div class="left-controls" :class="{ macos: isMacOS }"></div>
 
-      <!-- 中间标题区域 -->
-      <div class="title-area">
-        <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
-        <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" />
-        <!-- 统一的图标容器 -->
-        <span v-else class="icon-wrapper">
-          <component :is="currentIcon" />
-        </span>
-        <span class="app-title">{{ currentToolName }}</span>
-      </div>
+        <!-- 中间标题区域 -->
+        <div class="title-area">
+          <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
+          <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" />
+          <!-- 统一的图标容器 -->
+          <span v-else class="icon-wrapper">
+            <component :is="currentIcon" />
+          </span>
+          <span class="app-title">{{ currentToolName }}</span>
+        </div>
 
-      <!-- 右侧控制区域 -->
-      <div class="right-controls">
-        <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
-        <el-dropdown
-          v-if="isMainWindow"
-          trigger="hover"
-          @command="handleProfileSelect"
-          placement="bottom"
-        >
-          <button
-            class="control-btn profile-btn"
-            :title="
-              userProfileStore.globalProfile
-                ? `用户档案: ${userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name}`
-                : '选择用户档案'
-            "
-          >
-            <!-- 如果有选中档案，使用 Avatar（有头像显示头像，无头像显示首字母） -->
-            <Avatar
-              v-if="userProfileStore.globalProfile"
-              :src="globalProfileAvatarSrc || ''"
-              :alt="userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name"
-              :size="20"
-              shape="square"
-              :radius="4"
-            />
-            <!-- 完全没有档案时显示 User 图标 -->
-            <el-icon v-else><User /></el-icon>
-          </button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                :command="null"
-                :class="{ 'is-active': !userProfileStore.globalProfileId }"
-              >
-                <span>无（不使用）</span>
-              </el-dropdown-item>
-              <el-dropdown-item
-                v-for="profile in userProfileStore.enabledProfiles"
-                :key="profile.id"
-                :command="profile.id"
-                :class="{ 'is-active': userProfileStore.globalProfileId === profile.id }"
-              >
-                <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
-                <Avatar
-                  :src="getProfileAvatarSrc(profile) || ''"
-                  :alt="profile.displayName || profile.name"
-                  :size="20"
-                  shape="square"
-                  :radius="4"
-                  style="margin-right: 8px"
-                />
-                <span>{{ profile.displayName || profile.name }}</span>
-              </el-dropdown-item>
-              <el-dropdown-item divided @click="openProfileManager">
-                <el-icon><Setting /></el-icon>
-                <span>管理用户档案</span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-
-        <!-- 主题切换下拉菜单（仅主窗口显示） -->
-        <el-dropdown
-          v-if="isMainWindow"
-          trigger="hover"
-          @command="handleThemeChange"
-          placement="bottom"
-        >
-          <button class="control-btn theme-btn" :title="getThemeTooltip">
-            <el-icon><component :is="getThemeIcon" /></el-icon>
-          </button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="auto" :class="{ 'is-active': currentTheme === 'auto' }">
-                <el-icon><SystemThemeIcon /></el-icon>
-                <span>跟随系统</span>
-              </el-dropdown-item>
-              <el-dropdown-item command="light" :class="{ 'is-active': currentTheme === 'light' }">
-                <el-icon><Sunny /></el-icon>
-                <span>浅色</span>
-              </el-dropdown-item>
-              <el-dropdown-item command="dark" :class="{ 'is-active': currentTheme === 'dark' }">
-                <el-icon><Moon /></el-icon>
-                <span>深色</span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-
-        <!-- 设置按钮（仅主窗口显示） -->
-        <template v-if="isMainWindow">
-          <el-tooltip content="设置" placement="bottom">
-            <button class="control-btn settings-btn" @click="goToSettings">
-              <el-icon><Setting /></el-icon>
-            </button>
-          </el-tooltip>
-        </template>
-
-        <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
-        <template v-if="!isMacOS">
-          <el-tooltip content="最小化" placement="bottom">
-            <button class="control-btn minimize-btn" @click="minimizeWindow">
-              <el-icon><Minus /></el-icon>
-            </button>
-          </el-tooltip>
-
-          <el-tooltip :content="isMaximized ? '还原' : '最大化'" placement="bottom">
-            <button class="control-btn maximize-btn" @click="toggleMaximize">
-              <el-icon>
-                <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
-              </el-icon>
-            </button>
-          </el-tooltip>
-
-          <el-tooltip
-            :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'"
+        <!-- 右侧控制区域 -->
+        <div class="right-controls">
+          <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
+          <el-dropdown
+            v-if="isMainWindow"
+            trigger="hover"
+            @command="handleProfileSelect"
             placement="bottom"
           >
-            <button class="control-btn close-btn" @click="closeWindow">
-              <el-icon><Close /></el-icon>
+            <button
+              class="control-btn profile-btn"
+              :title="
+                userProfileStore.globalProfile
+                  ? `用户档案: ${userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name}`
+                  : '选择用户档案'
+              "
+            >
+              <!-- 如果有选中档案，使用 Avatar（有头像显示头像，无头像显示首字母） -->
+              <Avatar
+                v-if="userProfileStore.globalProfile"
+                :src="globalProfileAvatarSrc || ''"
+                :alt="
+                  userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name
+                "
+                :size="20"
+                shape="square"
+                :radius="4"
+              />
+              <!-- 完全没有档案时显示 User 图标 -->
+              <el-icon v-else><User /></el-icon>
             </button>
-          </el-tooltip>
-        </template>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  :command="null"
+                  :class="{ 'is-active': !userProfileStore.globalProfileId }"
+                >
+                  <span>无（不使用）</span>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-for="profile in userProfileStore.enabledProfiles"
+                  :key="profile.id"
+                  :command="profile.id"
+                  :class="{ 'is-active': userProfileStore.globalProfileId === profile.id }"
+                >
+                  <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
+                  <Avatar
+                    :src="getProfileAvatarSrc(profile) || ''"
+                    :alt="profile.displayName || profile.name"
+                    :size="20"
+                    shape="square"
+                    :radius="4"
+                    style="margin-right: 8px"
+                  />
+                  <span>{{ profile.displayName || profile.name }}</span>
+                </el-dropdown-item>
+                <el-dropdown-item divided command="manage_profiles">
+                  <el-icon><Setting /></el-icon>
+                  <span>管理用户档案</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 主题切换下拉菜单（仅主窗口显示） -->
+          <el-dropdown
+            v-if="isMainWindow"
+            trigger="hover"
+            @command="handleThemeChange"
+            placement="bottom"
+          >
+            <button class="control-btn theme-btn" :title="getThemeTooltip">
+              <el-icon><component :is="getThemeIcon" /></el-icon>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="auto" :class="{ 'is-active': currentTheme === 'auto' }">
+                  <el-icon><SystemThemeIcon /></el-icon>
+                  <span>跟随系统</span>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="light"
+                  :class="{ 'is-active': currentTheme === 'light' }"
+                >
+                  <el-icon><Sunny /></el-icon>
+                  <span>浅色</span>
+                </el-dropdown-item>
+                <el-dropdown-item command="dark" :class="{ 'is-active': currentTheme === 'dark' }">
+                  <el-icon><Moon /></el-icon>
+                  <span>深色</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 设置按钮（仅主窗口显示） -->
+          <template v-if="isMainWindow">
+            <el-tooltip content="设置" placement="bottom">
+              <button class="control-btn settings-btn" @click="goToSettings">
+                <el-icon><Setting /></el-icon>
+              </button>
+            </el-tooltip>
+          </template>
+
+          <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
+          <template v-if="!isMacOS">
+            <el-tooltip content="最小化" placement="bottom">
+              <button class="control-btn minimize-btn" @click="minimizeWindow">
+                <el-icon><Minus /></el-icon>
+              </button>
+            </el-tooltip>
+
+            <el-tooltip :content="isMaximized ? '还原' : '最大化'" placement="bottom">
+              <button class="control-btn maximize-btn" @click="toggleMaximize">
+                <el-icon>
+                  <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
+                </el-icon>
+              </button>
+            </el-tooltip>
+
+            <el-tooltip
+              :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'"
+              placement="bottom"
+            >
+              <button class="control-btn close-btn" @click="closeWindow">
+                <el-icon><Close /></el-icon>
+              </button>
+            </el-tooltip>
+          </template>
+        </div>
       </div>
-    </div>
     </div>
   </Teleport>
 </template>
@@ -585,7 +605,6 @@ const getProfileAvatarSrc = (profile: any) => {
     background-color: rgba(0, 0, 0, 0.08);
   }
 }
-
 
 /* 下拉菜单项样式 */
 :deep(.el-dropdown-menu__item) {

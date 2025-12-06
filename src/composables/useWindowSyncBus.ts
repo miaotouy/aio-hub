@@ -55,6 +55,10 @@ class WindowSyncBus {
   private heartbeatSequence = 0;
   private config: Required<WindowSyncBusConfig>;
 
+  // 重连防抖
+  private lastReconnectTime = 0;
+  private readonly reconnectDebounceMs = 5000; // 5秒内不重复触发重连
+
   // Tauri 事件监听器
   private eventUnlisteners: TauriUnlistenFn[] = [];
 
@@ -404,9 +408,23 @@ class WindowSyncBus {
 
   /**
    * 处理重连逻辑
+   * 添加防抖机制，避免频繁触发导致性能问题
    */
   private handleReconnect(): void {
+    const now = Date.now();
+    
+    // 防抖检查：如果距离上次重连不到指定时间，则跳过
+    if (now - this.lastReconnectTime < this.reconnectDebounceMs) {
+      logger.debug('重连请求被防抖跳过', {
+        timeSinceLastReconnect: now - this.lastReconnectTime,
+        debounceMs: this.reconnectDebounceMs,
+      });
+      return;
+    }
+    
+    this.lastReconnectTime = now;
     logger.info('窗口重新获得焦点，触发重连逻辑');
+    
     // 主窗口和工具窗口（作为数据源）触发重连事件（广播状态）
     if (this.windowType === 'main' || this.windowType === 'detached-tool') {
       for (const handler of this.reconnectionHandlers) {

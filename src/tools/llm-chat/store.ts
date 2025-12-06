@@ -527,7 +527,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   };
 
-  const debouncedRefreshContextStats = debounce(refreshContextStats, 300);
+  const debouncedRefreshContextStats = debounce(refreshContextStats, 1000);
 
   // 自动监听变化并刷新统计
   watch(
@@ -544,17 +544,18 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         const agentStore = useAgentStore();
         if (!agentStore.currentAgentId) return null;
         const agent = agentStore.getAgentById(agentStore.currentAgentId);
-        return {
+        // 使用 JSON.stringify 进行稳定化比较，避免因对象引用变化（如状态同步时）导致的误触发
+        return JSON.stringify({
           modelId: agent?.modelId,
           params: agent?.parameters,
           presets: agent?.presetMessages,
-        };
+        });
       }
     ],
     () => {
       debouncedRefreshContextStats();
     },
-    { deep: true }
+    { deep: true, immediate: true }
   );
 
   // ==================== 已弃用方法 (保留兼容性) ====================

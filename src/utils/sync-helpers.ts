@@ -7,6 +7,79 @@
 import { compare, applyPatch } from 'fast-json-patch';
 import type { JsonPatchOperation, IdempotencyCacheItem } from '@/types/window-sync';
 
+// 深度比较工具
+
+/**
+ * 深度比较两个值是否相等
+ * 用于状态同步时检测数据是否真的发生了变化
+ *
+ * @param a 第一个值
+ * @param b 第二个值
+ * @returns 是否相等
+ */
+export function deepEqual(a: any, b: any): boolean {
+  // 处理基本类型和引用相等
+  if (a === b) return true;
+  
+  // 处理 null 和 undefined
+  if (a == null || b == null) return a === b;
+  
+  // 处理不同类型
+  const typeA = typeof a;
+  const typeB = typeof b;
+  if (typeA !== typeB) return false;
+  
+  // 处理基本类型
+  if (typeA !== 'object') return a === b;
+  
+  // 处理数组
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  
+  // 处理 Date
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+  
+  // 处理 Set
+  if (a instanceof Set && b instanceof Set) {
+    if (a.size !== b.size) return false;
+    for (const item of a) {
+      if (!b.has(item)) return false;
+    }
+    return true;
+  }
+  
+  // 处理 Map
+  if (a instanceof Map && b instanceof Map) {
+    if (a.size !== b.size) return false;
+    for (const [key, value] of a) {
+      if (!b.has(key) || !deepEqual(value, b.get(key))) return false;
+    }
+    return true;
+  }
+  
+  // 处理普通对象
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  
+  if (keysA.length !== keysB.length) return false;
+  
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    if (!deepEqual(a[key], b[key])) return false;
+  }
+  
+  return true;
+}
+
 // 增量更新工具
 
 /**

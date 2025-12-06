@@ -6,7 +6,7 @@
  */
 import { ref, onUnmounted, type Ref, isRef, watch, nextTick, getCurrentInstance } from 'vue';
 import { useWindowSyncBus } from './useWindowSyncBus';
-import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator } from '@/utils/sync-helpers';
+import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator, deepEqual } from '@/utils/sync-helpers';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import type { StateSyncConfig, StateSyncPayload, JsonPatchOperation, BaseMessage, StateKey } from '@/types/window-sync';
@@ -179,12 +179,24 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   const receiveState = (payload: StateSyncPayload, _message: BaseMessage) => {
     if (payload.stateType !== stateKey) return;
     if (payload.version <= stateVersion.value) {
-      logger.warn('收到旧版本状态，已忽略', { 
-        stateKey, 
-        currentVersion: stateVersion.value, 
-        receivedVersion: payload.version 
+      logger.debug('收到旧版本状态，已忽略', {
+        stateKey,
+        currentVersion: stateVersion.value,
+        receivedVersion: payload.version
       });
       return;
+    }
+
+    // 【性能优化】对于全量同步，先检查数据是否真的发生了变化
+    // 避免因窗口焦点切换等原因导致的无意义状态更新
+    if (payload.isFull) {
+      const newData = payload.data;
+      if (deepEqual(state.value, newData)) {
+        // 数据没有变化，只更新版本号，不触发响应式更新
+        stateVersion.value = payload.version;
+        logger.debug('全量状态数据无变化，跳过更新', { stateKey, version: payload.version });
+        return;
+      }
     }
 
     isApplyingExternalState = true;
@@ -193,7 +205,17 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
         state.value = payload.data;
         logger.debug('已应用全量状态', { stateKey, version: payload.version });
       } else {
-        state.value = applyPatches(state.value, payload.patches as JsonPatchOperation[]);
+        // 对于增量更新，也检查应用后的结果是否真的变化
+        const patchedValue = applyPatches(state.value, payload.patches as JsonPatchOperation[]);
+        if (deepEqual(state.value, patchedValue)) {
+          stateVersion.value = payload.version;
+          lastSyncedValue = safeDeepClone(state.value);
+          logger.debug('增量状态应用后无变化，跳过更新', { stateKey, version: payload.version });
+          // 注意：这里不需要重置 isApplyingExternalState，因为没有触发响应式更新
+          isApplyingExternalState = false;
+          return;
+        }
+        state.value = patchedValue;
         logger.debug('已应用增量状态', { stateKey, version: payload.version });
       }
       stateVersion.value = payload.version;

@@ -520,8 +520,6 @@ watch(
   () => chatStore.currentSessionId,
   () => {
     debouncedCalculateTokens();
-    // 触发 Store 刷新上下文统计（虽然 Store 内部有监听，但这里显式调用确保及时性）
-    chatStore.refreshContextStats();
   }
 );
 
@@ -563,8 +561,6 @@ onMounted(async () => {
     });
   }
 
-  // 初始刷新一次上下文统计
-  chatStore.refreshContextStats();
 });
 /**
  * 插入宏到光标位置

@@ -126,7 +126,11 @@ interface ChatRegexConfig {
 
 - **逻辑**:
   1.  **收集规则**: 遍历所有配置 (Global, Agent, User)，提取其中所有 `enabled` 的预设，再将这些预设中的 `rules` 收集到一个扁平化的列表中。
-  2.  **规则级过滤**: 遍历这个扁平列表，根据 `rule.enabled`, `rule.applyTo[stage]`, `rule.targetRoles`, `rule.depthRange` 对每一条规则进行独立过滤。
+  2.  **计算深度**:
+      - 渲染的消息列表来自于 `useLlmChatStore` 的 `currentActivePath` getter，其数组索引 `i` 是从旧到新 ( `i=0` 为最旧消息)。
+      - 而 `depthRange` 的判断基准是 `0` 代表**最新**消息。
+      - 因此，在进行深度判断前，需要进行坐标转换：`messageDepth = totalMessages - 1 - i`。
+  3.  **规则级过滤**: 遍历这个扁平列表，并为每条消息计算出对应的 `messageDepth`，然后根据 `rule.enabled`, `rule.applyTo[stage]`, `rule.targetRoles`, `rule.depthRange` 对每一条规则进行独立过滤。
   3.  **排序**: 对通过过滤的规则列表进行排序 (按 `order` 字段)。
   4.  **应用**: 依次应用所有通过的规则。
 

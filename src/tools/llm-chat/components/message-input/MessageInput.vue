@@ -93,7 +93,7 @@ const emit = defineEmits<Emits>();
 const textareaRef = ref<HTMLTextAreaElement>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
-const inputAreaRef = ref<HTMLDivElement>();
+// const inputAreaRef = ref<HTMLDivElement>();
 
 // 宏选择器状态
 const macroSelectorVisible = ref(false);

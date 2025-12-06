@@ -103,6 +103,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         richTextStyleOptions?: RichTextRendererStyleOptions;
         tags?: string[];
         category?: string;
+        regexConfig?: import('./types').ChatRegexConfig;
       }
     ): string {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -123,6 +124,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         richTextStyleOptions: options?.richTextStyleOptions,
         tags: options?.tags,
         category: options?.category,
+        regexConfig: options?.regexConfig,
         parameters: {
           // 默认值
           temperature: 0.7,
@@ -189,7 +191,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       // 生成唯一的显示名称
       // 逻辑：优先使用 displayName，没有则使用 name，然后加上“副本”后缀并自动编号
       const baseDisplayName = originalAgent.displayName || originalAgent.name;
-      
+
       // 获取所有现有的“显示名称”（用于冲突检查）
       // 如果 agent 有 displayName 则取之，否则取 name
       const existingVisibleNames = this.agents.map(a => a.displayName || a.name);
@@ -245,7 +247,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
             subdirectory: targetSubdirectory,
             filename: icon,
           });
-          
+
           logger.info("成功复制智能体头像", { from: sourceRelativePath, to: targetSubdirectory });
 
         } catch (error) {

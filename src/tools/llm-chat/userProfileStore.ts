@@ -69,6 +69,9 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       options?: {
         displayName?: string;
         icon?: string;
+        richTextStyleOptions?: import('@/tools/rich-text-renderer/types').RichTextRendererStyleOptions;
+        richTextStyleBehavior?: "follow_agent" | "custom";
+        regexConfig?: import('./types').ChatRegexConfig;
       }
     ): string {
       const profileId = `user-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -82,6 +85,9 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
         content,
         enabled: true, // 默认启用
         createdAt: now,
+        richTextStyleOptions: options?.richTextStyleOptions,
+        richTextStyleBehavior: options?.richTextStyleBehavior,
+        regexConfig: options?.regexConfig,
       };
 
       this.profiles.push(profile);
@@ -122,7 +128,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       }
 
       const profile = this.profiles[index];
-      
+
       // 使用新的 deleteProfile 方法（会同时删除文件和索引）
       const { deleteProfile } = useUserProfileStorage();
       deleteProfile(profileId).catch((error: unknown) => {
@@ -131,7 +137,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
           showToUser: false,
         });
       });
-      
+
       this.profiles.splice(index, 1);
 
       // 如果删除的是当前全局档案，则清除全局设置
@@ -238,7 +244,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
     async loadProfiles(): Promise<void> {
       try {
         const { loadProfiles, loadSettings } = useUserProfileStorage();
-        
+
         // 加载档案列表
         const profiles = await loadProfiles();
         if (profiles.length > 0) {

@@ -40,8 +40,8 @@
       <div class="section-title">应用范围</div>
       <el-form label-position="left" label-width="100px" size="small">
         <el-form-item label="应用阶段">
-          <el-checkbox v-model="localRule.applyTo.render">渲染层</el-checkbox>
-          <el-checkbox v-model="localRule.applyTo.request">请求层</el-checkbox>
+          <el-checkbox v-model="applyToRender">渲染层</el-checkbox>
+          <el-checkbox v-model="applyToRequest">请求层</el-checkbox>
         </el-form-item>
 
         <el-form-item label="目标角色">
@@ -85,9 +85,7 @@
             <el-radio-button value="RAW">原始值</el-radio-button>
             <el-radio-button value="ESCAPED">转义值</el-radio-button>
           </el-radio-group>
-          <div class="form-hint">
-            RAW: 将宏替换为文本值；ESCAPED: 替换后转义正则特殊字符
-          </div>
+          <div class="form-hint">RAW: 将宏替换为文本值；ESCAPED: 替换后转义正则特殊字符</div>
         </el-form-item>
 
         <el-form-item label="后处理移除字符串">
@@ -137,94 +135,106 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect } from 'vue';
-import type { ChatRegexRule } from '../../types/chatRegex';
+import { computed, watchEffect, ref } from "vue";
+import type { ChatRegexRule } from "../../types/chatRegex";
 
 interface Props {
   modelValue: ChatRegexRule;
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: ChatRegexRule): void;
+  (e: "update:modelValue", value: ChatRegexRule): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// 本地规则副本
-const localRule = ref<ChatRegexRule>(JSON.parse(JSON.stringify(props.modelValue)));
+// 使用可写的计算属性代理来处理表单字段，避免使用本地副本和 watch 导致的递归更新
+const createFieldProxy = <K extends keyof ChatRegexRule>(key: K) => {
+  return computed({
+    get: () => props.modelValue[key],
+    set: (value) => {
+      // 创建一个新对象来触发更新，而不是直接修改 prop
+      emit("update:modelValue", { ...props.modelValue, [key]: value });
+    },
+  });
+};
 
-// 监听外部变化
-watch(
-  () => props.modelValue,
-  (newVal) => {
-    localRule.value = JSON.parse(JSON.stringify(newVal));
-  },
-  { deep: true }
-);
+const localRule = {
+  name: createFieldProxy("name"),
+  regex: createFieldProxy("regex"),
+  replacement: createFieldProxy("replacement"),
+  flags: createFieldProxy("flags"),
+  // applyTo 是嵌套对象，需要单独处理
+  targetRoles: createFieldProxy("targetRoles"),
+  substitutionMode: createFieldProxy("substitutionMode"),
+  trimStrings: createFieldProxy("trimStrings"),
+};
 
-// 监听本地变化，通知父组件
-watch(
-  localRule,
-  (newVal) => {
-    emit('update:modelValue', JSON.parse(JSON.stringify(newVal)));
+// 为 applyTo 的嵌套属性创建独立的计算属性
+const applyToRender = computed({
+  get: () => props.modelValue.applyTo?.render ?? false,
+  set: (value) => {
+    const newApplyTo = { ...(props.modelValue.applyTo || {}), render: value };
+    emit("update:modelValue", { ...props.modelValue, applyTo: newApplyTo });
   },
-  { deep: true }
-);
+});
+
+const applyToRequest = computed({
+  get: () => props.modelValue.applyTo?.request ?? false,
+  set: (value) => {
+    const newApplyTo = { ...(props.modelValue.applyTo || {}), request: value };
+    emit("update:modelValue", { ...props.modelValue, applyTo: newApplyTo });
+  },
+});
 
 // 深度范围处理
 const depthMin = computed({
-  get: () => localRule.value.depthRange?.min,
+  get: () => props.modelValue.depthRange?.min,
   set: (val) => {
-    if (!localRule.value.depthRange) {
-      localRule.value.depthRange = {};
+    const newDepthRange = { ...(props.modelValue.depthRange || {}), min: val };
+    if (newDepthRange.min === undefined && newDepthRange.max === undefined) {
+      const { depthRange, ...rest } = props.modelValue;
+      emit("update:modelValue", rest);
+    } else {
+      emit("update:modelValue", { ...props.modelValue, depthRange: newDepthRange });
     }
-    localRule.value.depthRange.min = val;
-    cleanDepthRange();
   },
 });
 
 const depthMax = computed({
-  get: () => localRule.value.depthRange?.max,
+  get: () => props.modelValue.depthRange?.max,
   set: (val) => {
-    if (!localRule.value.depthRange) {
-      localRule.value.depthRange = {};
+    const newDepthRange = { ...(props.modelValue.depthRange || {}), max: val };
+    if (newDepthRange.min === undefined && newDepthRange.max === undefined) {
+      const { depthRange, ...rest } = props.modelValue;
+      emit("update:modelValue", rest);
+    } else {
+      emit("update:modelValue", { ...props.modelValue, depthRange: newDepthRange });
     }
-    localRule.value.depthRange.max = val;
-    cleanDepthRange();
   },
 });
 
-function cleanDepthRange() {
-  if (
-    localRule.value.depthRange &&
-    localRule.value.depthRange.min === undefined &&
-    localRule.value.depthRange.max === undefined
-  ) {
-    localRule.value.depthRange = undefined;
-  }
-}
-
 // 测试功能
-const testInput = ref('');
+const testInput = ref("");
 const testOutput = ref<string | null>(null);
 const testError = ref<string | null>(null);
 
 watchEffect(() => {
-  if (!testInput.value || !localRule.value.regex) {
+  if (!testInput.value || !props.modelValue.regex) {
     testOutput.value = null;
     testError.value = null;
     return;
   }
 
   try {
-    const flags = localRule.value.flags ?? 'gm';
-    const regex = new RegExp(localRule.value.regex, flags);
-    testOutput.value = testInput.value.replace(regex, localRule.value.replacement || '');
+    const flags = props.modelValue.flags ?? "gm";
+    const regex = new RegExp(props.modelValue.regex, flags);
+    testOutput.value = testInput.value.replace(regex, props.modelValue.replacement || "");
     testError.value = null;
   } catch (error) {
     testOutput.value = null;
-    testError.value = error instanceof Error ? error.message : '正则表达式错误';
+    testError.value = error instanceof Error ? error.message : "正则表达式错误";
   }
 });
 </script>
@@ -251,7 +261,7 @@ watchEffect(() => {
 }
 
 .mono-input :deep(textarea) {
-  font-family: 'Fira Code', 'Consolas', monospace;
+  font-family: "Fira Code", "Consolas", monospace;
   font-size: 13px;
 }
 
@@ -286,7 +296,7 @@ watchEffect(() => {
 
 .result-text {
   margin: 0;
-  font-family: 'Fira Code', 'Consolas', monospace;
+  font-family: "Fira Code", "Consolas", monospace;
   font-size: 13px;
   white-space: pre-wrap;
   word-break: break-all;

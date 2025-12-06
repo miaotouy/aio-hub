@@ -165,6 +165,8 @@ const handleCreateProfile = (data: { name: string; displayName?: string; content
     {
       displayName: data.displayName,
       icon: data.icon,
+      // 确保新创建的档案包含空的 regexConfig
+      regexConfig: { presets: [] },
     }
   );
   
@@ -197,6 +199,10 @@ const saveCurrentProfile = () => {
       {
         displayName: editForm.value.displayName?.trim() || undefined,
         icon: editForm.value.icon,
+        // 保存富文本样式和正则配置
+        richTextStyleBehavior: editForm.value.richTextStyleBehavior,
+        richTextStyleOptions: editForm.value.richTextStyleOptions,
+        regexConfig: editForm.value.regexConfig,
       }
     );
   } else {
@@ -206,6 +212,10 @@ const saveCurrentProfile = () => {
       displayName: editForm.value.displayName?.trim() || undefined,
       icon: editForm.value.icon?.trim() || undefined,
       content: editForm.value.content.trim(),
+      // 保存富文本样式和正则配置
+      richTextStyleBehavior: editForm.value.richTextStyleBehavior,
+      richTextStyleOptions: editForm.value.richTextStyleOptions,
+      regexConfig: editForm.value.regexConfig,
     });
   }
   

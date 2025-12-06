@@ -13,7 +13,9 @@
         show-word-limit
         @input="handleInput"
       />
-      <div class="form-hint" v-pre>此名称将作为宏替换的 ID（如 {{user}}），请使用简洁的名称。</div>
+      <div class="form-hint" v-pre>
+        此名称将作为宏替换的 ID（如 {{ user }}），请使用简洁的名称。
+      </div>
     </el-form-item>
 
     <el-form-item label="显示名称">
@@ -93,7 +95,7 @@
 
     <el-collapse>
       <el-collapse-item title="正则管道配置" name="regexConfig">
-        <ChatRegexEditor v-model="formData.regexConfig" />
+        <ChatRegexEditor v-model="formData.regexConfig" @update:model-value="handleInput" />
       </el-collapse-item>
     </el-collapse>
 
@@ -179,6 +181,8 @@ const emit = defineEmits<{
 const formData = ref<UserProfileFormData>({
   ...props.modelValue,
   richTextStyleBehavior: props.modelValue.richTextStyleBehavior || "follow_agent",
+  richTextStyleOptions: props.modelValue.richTextStyleOptions || {},
+  regexConfig: props.modelValue.regexConfig || { presets: [] },
 });
 
 const styleLoading = ref(false);
@@ -190,6 +194,8 @@ watch(
     formData.value = {
       ...newValue,
       richTextStyleBehavior: newValue.richTextStyleBehavior || "follow_agent",
+      richTextStyleOptions: newValue.richTextStyleOptions || {},
+      regexConfig: newValue.regexConfig || { presets: [] },
     };
   },
   { deep: true }
@@ -197,14 +203,6 @@ watch(
 
 // 处理输入变化
 const handleInput = () => {
-  // 确保 richTextStyleOptions 已初始化
-  if (!formData.value.richTextStyleOptions) {
-    formData.value.richTextStyleOptions = {};
-  }
-  // 确保 regexConfig 已初始化
-  if (!formData.value.regexConfig) {
-    formData.value.regexConfig = { presets: [] };
-  }
   emit("update:modelValue", { ...formData.value });
 };
 

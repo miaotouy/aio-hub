@@ -147,9 +147,9 @@ interface ChatRegexConfig {
       - a. **收集规则**: 遍历所有配置 (Global, Agent, User)，收集所有启用的、`applyTo.request=true` 的规则，形成一个扁平化的规则池。
       - b. **宏预处理**: 使用 `processRulesWithMacros` 对整个规则池进行宏替换，生成待执行的规则列表。
       - c. **应用规则**: 遍历 `sessionContext` (历史消息列表)，对**每条消息**：
-          - i. 计算其 `messageDepth`。
-          - ii. 从宏处理过的规则列表中，根据 `targetRoles` 和 `depthRange` 过滤出适用于当前消息的最终规则。
-          - iii. 对消息内容应用这些规则。
+        - i. 计算其 `messageDepth`。
+        - ii. 从宏处理过的规则列表中，根据 `targetRoles` 和 `depthRange` 过滤出适用于当前消息的最终规则。
+        - iii. 对消息内容应用这些规则。
       - d. **返回**: 返回经过正则处理的 `sessionContext`，用于后续的 Token 限制和上下文拼接。
 
 ---
@@ -535,6 +535,16 @@ export async function processRulesWithMacros(
 
 ---
 
+### 4.7 配置持久化 (Configuration Persistence)
+
+正则配置 (`regexConfig`) 的持久化遵循**“随主配置保存”**的原则，不设独立的保存机制，以确保数据一致性。
+
+- **Global (全局)**: `regexConfig` 作为 `ChatSettings` 的一部分，通过 `useChatSettings` 的 `saveSettings` 方法进行持久化。
+- **Agent (智能体)**: `regexConfig` 作为 `ChatAgent` 的一部分，在 `EditAgentDialog.vue` 中点击“保存”时，随整个 Agent 对象一同被保存。
+- **User (用户档案)**: `regexConfig` 作为 `UserProfile` 的一部分，在 `UserProfileForm.vue` 中保存时一并持久化。
+
+---
+
 ## 5. 实现计划
 
 ### Phase 1: 基础架构 (一期)
@@ -546,6 +556,7 @@ export async function processRulesWithMacros(
 5. [x] **UI**: 实现 `ChatRegexEditor.vue` 组件
 6. [x] **集成**: 将 UI 集成到 Agent/User/Global 配置界面
 7. [x] **渲染层**: 实现 Render Pipeline
+8. [x] **持久化**: 确保在 Agent/User/Global 设置保存时，`regexConfig` 被一并持久化。
 
 ### Phase 2: 完整功能 (二期)
 

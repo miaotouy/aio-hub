@@ -26,15 +26,17 @@
     </div>
 
     <!-- 预设列表 (一级层级) -->
-    <div class="presets-container" v-if="localConfig.presets && localConfig.presets.length > 0">
+    <div
+      class="presets-container"
+      v-if="props.modelValue.presets && props.modelValue.presets.length > 0"
+    >
       <el-collapse v-model="expandedPresets">
         <div>
           <draggable
-            v-model="localConfig.presets"
+            v-model="presetsForDraggable"
             item-key="id"
             handle=".preset-drag-handle"
             ghost-class="drag-ghost"
-            @end="handlePresetReorder"
           >
             <template #item="{ element: preset, index }">
               <div>
@@ -43,9 +45,9 @@
                     <div class="preset-header" @click.stop="togglePreset(preset.id)">
                       <el-icon class="preset-drag-handle" @click.stop><GripVertical /></el-icon>
                       <el-switch
-                        v-model="preset.enabled"
+                        :model-value="preset.enabled"
                         size="small"
-                        @change="handleChange"
+                        @update:model-value="updatePresetField(index, 'enabled', $event)"
                         @click.stop
                       />
                       <span class="preset-name">{{ preset.name }}</span>
@@ -75,18 +77,18 @@
                     <!-- 预设基本信息 -->
                     <div class="preset-info">
                       <el-input
-                        v-model="preset.name"
+                        :model-value="preset.name"
+                        @update:model-value="updatePresetField(index, 'name', $event)"
                         placeholder="预设名称"
                         size="small"
-                        @input="handleChange"
                       >
                         <template #prepend>名称</template>
                       </el-input>
                       <el-input
-                        v-model="preset.description"
+                        :model-value="preset.description"
+                        @update:model-value="updatePresetField(index, 'description', $event)"
                         placeholder="预设描述（可选）"
                         size="small"
-                        @input="handleChange"
                       >
                         <template #prepend>描述</template>
                       </el-input>
@@ -114,11 +116,11 @@
                           <div class="rules-list-scroll">
                             <div class="rules-list" v-if="preset.rules.length > 0">
                               <draggable
-                                v-model="preset.rules"
+                                :model-value="preset.rules"
+                                @update:model-value="updateRulesOrder(index, $event)"
                                 item-key="id"
                                 handle=".rule-drag-handle"
                                 ghost-class="drag-ghost"
-                                @end="handleChange"
                               >
                                 <template #item="{ element: rule, index: ruleIndex }">
                                   <div
@@ -133,10 +135,12 @@
                                           rule.name || "未命名规则"
                                         }}</span>
                                         <el-switch
-                                          v-model="rule.enabled"
+                                          :model-value="rule.enabled"
+                                          @update:model-value="
+                                            updateRuleField(index, ruleIndex, 'enabled', $event)
+                                          "
                                           size="small"
                                           @click.stop
-                                          @change="handleChange"
                                         />
                                       </div>
                                       <code class="rule-preview">{{
@@ -145,7 +149,7 @@
                                     </div>
                                     <div class="rule-actions">
                                       <el-button
-                                        @click.stop="deleteRule(preset, ruleIndex)"
+                                        @click.stop="deleteRule(index, ruleIndex)"
                                         :icon="Trash2"
                                         size="small"
                                         text
@@ -169,8 +173,8 @@
                             class="editor-wrapper"
                           >
                             <ChatRegexRuleForm
-                              v-model="selectedRule"
-                              @update:model-value="handleRuleUpdate"
+                              :model-value="selectedRule"
+                              @update:model-value="handleRuleUpdate(index, $event)"
                             />
                           </div>
                           <div v-else class="editor-placeholder">
@@ -203,9 +207,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed } from "vue";
 import draggable from "vuedraggable";
-import { cloneDeep, defaultsDeep } from "lodash-es";
+import { defaultsDeep } from "lodash-es";
 import {
   Plus,
   Download,
@@ -238,24 +242,6 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<Emits>();
 
-// 本地配置副本
-const localConfig = ref<ChatRegexConfig>(
-  defaultsDeep(cloneDeep(props.modelValue), createDefaultChatRegexConfig())
-);
-
-// 监听外部变化
-watch(
-  () => props.modelValue,
-  (newVal) => {
-    const newConfig = defaultsDeep(cloneDeep(newVal), createDefaultChatRegexConfig());
-    // 避免因内部更新触发的不必要循环
-    if (JSON.stringify(newConfig) !== JSON.stringify(localConfig.value)) {
-      localConfig.value = newConfig;
-    }
-  },
-  { deep: true }
-);
-
 // UI 状态
 const expandedPresets = ref<string[]>([]);
 const selectedPreset = ref<ChatRegexPreset | null>(null);
@@ -263,6 +249,21 @@ const selectedRule = ref<ChatRegexRule | null>(null);
 const isImportDialogVisible = ref(false);
 const importJson = ref("");
 const importMode = ref<"sillytavern" | "json">("json");
+
+// 确保 modelValue 始终有 presets 数组
+const presets = computed(() => {
+  const config = defaultsDeep(props.modelValue, createDefaultChatRegexConfig());
+  return config.presets;
+});
+
+// 为 vuedraggable 创建计算属性代理
+const presetsForDraggable = computed({
+  get: () => presets.value,
+  set: (newPresets: ChatRegexPreset[]) => {
+    const reorderedPresets = newPresets.map((p, i) => ({ ...p, order: i }));
+    emit("update:modelValue", { ...props.modelValue, presets: reorderedPresets });
+  },
+});
 
 function togglePreset(presetId: string) {
   const index = expandedPresets.value.indexOf(presetId);
@@ -273,24 +274,19 @@ function togglePreset(presetId: string) {
   }
 }
 
-// 通知父组件变更
-function handleChange() {
-  emit("update:modelValue", JSON.parse(JSON.stringify(localConfig.value)));
-}
-
 // =====================
-// 预设操作
+// 预设操作 (不可变)
 // =====================
 
 function addPreset() {
-  const newPreset = createChatRegexPreset(`预设 ${localConfig.value.presets.length + 1}`);
-  localConfig.value.presets.push(newPreset);
+  const newPreset = createChatRegexPreset(`预设 ${presets.value.length + 1}`);
+  const newPresets = [...presets.value, newPreset];
+  emit("update:modelValue", { ...props.modelValue, presets: newPresets });
   expandedPresets.value.push(newPreset.id);
-  handleChange();
 }
 
 function duplicatePreset(index: number) {
-  const original = localConfig.value.presets[index];
+  const original = presets.value[index];
   const copy = JSON.parse(JSON.stringify(original)) as ChatRegexPreset;
   copy.id = crypto.randomUUID();
   copy.name = `${original.name} (副本)`;
@@ -298,45 +294,55 @@ function duplicatePreset(index: number) {
     ...rule,
     id: crypto.randomUUID(),
   }));
-  localConfig.value.presets.splice(index + 1, 0, copy);
-  handleChange();
+
+  const newPresets = [...presets.value];
+  newPresets.splice(index + 1, 0, copy);
+  emit("update:modelValue", { ...props.modelValue, presets: newPresets });
 }
 
 function deletePreset(index: number) {
-  localConfig.value.presets.splice(index, 1);
-  handleChange();
+  const newPresets = presets.value.filter((_: ChatRegexPreset, i: number) => i !== index);
+  emit("update:modelValue", { ...props.modelValue, presets: newPresets });
 }
 
-function handlePresetReorder() {
-  // 更新 order 字段
-  localConfig.value.presets.forEach((preset, index) => {
-    preset.order = index;
-  });
-  handleChange();
+function updatePresetField<K extends keyof ChatRegexPreset>(
+  presetIndex: number,
+  field: K,
+  value: ChatRegexPreset[K]
+) {
+  const newPresets = [...presets.value];
+  newPresets[presetIndex] = { ...newPresets[presetIndex], [field]: value };
+  emit("update:modelValue", { ...props.modelValue, presets: newPresets });
 }
 
 // =====================
-// 规则操作
+// 规则操作 (不可变)
 // =====================
 
 function addRule(preset: ChatRegexPreset) {
+  const presetIndex = presets.value.findIndex((p: ChatRegexPreset) => p.id === preset.id);
+  if (presetIndex === -1) return;
+
   const newRule = createChatRegexRule({
     name: `规则 ${preset.rules.length + 1}`,
   });
-  preset.rules.push(newRule);
-  selectRule(preset, newRule);
-  handleChange();
+  const newRules = [...preset.rules, newRule];
+  updatePresetField(presetIndex, "rules", newRules);
+
+  // 更新后需要从新的 presets 引用中选择
+  const updatedPreset = presets.value[presetIndex];
+  selectRule(updatedPreset, newRule);
 }
 
-function deleteRule(preset: ChatRegexPreset, index: number) {
-  const deletedRule = preset.rules[index];
-  preset.rules.splice(index, 1);
+function deleteRule(presetIndex: number, ruleIndex: number) {
+  const preset = presets.value[presetIndex];
+  const deletedRuleId = preset.rules[ruleIndex]?.id;
+  const newRules = preset.rules.filter((_: ChatRegexRule, i: number) => i !== ruleIndex);
+  updatePresetField(presetIndex, "rules", newRules);
 
-  // 如果删除的是当前选中的规则，清空选中状态
-  if (selectedRule.value?.id === deletedRule.id) {
+  if (selectedRule.value?.id === deletedRuleId) {
     selectedRule.value = null;
   }
-  handleChange();
 }
 
 function selectRule(preset: ChatRegexPreset, rule: ChatRegexRule) {
@@ -344,15 +350,33 @@ function selectRule(preset: ChatRegexPreset, rule: ChatRegexRule) {
   selectedRule.value = rule;
 }
 
-function handleRuleUpdate(updatedRule: ChatRegexRule) {
-  if (selectedPreset.value && selectedRule.value) {
-    const ruleIndex = selectedPreset.value.rules.findIndex((r) => r.id === selectedRule.value!.id);
-    if (ruleIndex !== -1) {
-      selectedPreset.value.rules[ruleIndex] = updatedRule;
-      selectedRule.value = updatedRule;
-      handleChange();
-    }
-  }
+function handleRuleUpdate(presetIndex: number, updatedRule: ChatRegexRule) {
+  const preset = presets.value[presetIndex];
+  const ruleIndex = preset.rules.findIndex((r: ChatRegexRule) => r.id === updatedRule.id);
+  if (ruleIndex === -1) return;
+
+  const newRules = [...preset.rules];
+  newRules[ruleIndex] = updatedRule;
+  updatePresetField(presetIndex, "rules", newRules);
+
+  // 保持选中状态
+  selectedRule.value = updatedRule;
+}
+
+function updateRuleField<K extends keyof ChatRegexRule>(
+  presetIndex: number,
+  ruleIndex: number,
+  field: K,
+  value: ChatRegexRule[K]
+) {
+  const preset = presets.value[presetIndex];
+  const rule = preset.rules[ruleIndex];
+  const updatedRule = { ...rule, [field]: value };
+  handleRuleUpdate(presetIndex, updatedRule);
+}
+
+function updateRulesOrder(presetIndex: number, newRules: ChatRegexRule[]) {
+  updatePresetField(presetIndex, "rules", newRules);
 }
 
 // =====================
@@ -368,35 +392,34 @@ function handleImportCommand(command: string) {
 function executeImport() {
   try {
     const data = JSON.parse(importJson.value);
+    let importedPresets: ChatRegexPreset[] = [];
 
     if (importMode.value === "sillytavern") {
-      // SillyTavern 格式
-      let presets: ChatRegexPreset[];
       if (Array.isArray(data)) {
-        presets = convertMultipleFromSillyTavern(data);
+        importedPresets = convertMultipleFromSillyTavern(data);
       } else {
-        presets = [convertFromSillyTavern(data)];
+        importedPresets = [convertFromSillyTavern(data)];
       }
-      localConfig.value.presets.push(...presets);
-      customMessage.success(`成功导入 ${presets.length} 个预设`);
     } else {
-      // 原生 JSON 格式
       if (Array.isArray(data)) {
-        localConfig.value.presets.push(...data);
-        customMessage.success(`成功导入 ${data.length} 个预设`);
-      } else if (data.presets) {
-        localConfig.value.presets.push(...data.presets);
-        customMessage.success(`成功导入 ${data.presets.length} 个预设`);
-      } else {
-        localConfig.value.presets.push(data);
-        customMessage.success("成功导入 1 个预设");
+        importedPresets = data;
+      } else if (data.presets && Array.isArray(data.presets)) {
+        importedPresets = data.presets;
+      } else if (typeof data === "object" && data !== null) {
+        importedPresets = [data];
       }
     }
 
-    handleChange();
-    isImportDialogVisible.value = false;
+    if (importedPresets.length > 0) {
+      const newPresets = [...presets.value, ...importedPresets];
+      emit("update:modelValue", { ...props.modelValue, presets: newPresets });
+      customMessage.success(`成功导入 ${importedPresets.length} 个预设`);
+      isImportDialogVisible.value = false;
+    } else {
+      customMessage.warning("未找到可导入的预设");
+    }
   } catch (error) {
-    customMessage.error("导入失败: JSON 格式错误");
+    customMessage.error("导入失败: JSON 格式或内容错误");
   }
 }
 

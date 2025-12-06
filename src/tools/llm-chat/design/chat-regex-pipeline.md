@@ -328,7 +328,7 @@ export interface ChatRegexConfig {
 **修改文件**:
 
 - `src/tools/llm-chat/types/agent.ts`: 扩展 `ChatAgent`
-- `src/tools/llm-chat/types/user.ts`: 扩展 `UserProfile`
+- `src/tools/llm-chat/types/profile.ts`: 扩展 `UserProfile`
 - `src/tools/llm-chat/composables/useChatSettings.ts`: 扩展 `ChatSettings`
 
 ```typescript
@@ -453,8 +453,8 @@ const rule: ChatRegexRule = {
 #### 实现要点
 
 ```typescript
-import { useMacroProcessor } from "@/tools/llm-chat/composables/macros/useMacroProcessor";
-import type { MacroContext } from "@/tools/llm-chat/composables/macros/types";
+import { useMacroProcessor } from "@/tools/llm-chat/composables/useMacroProcessor";
+import type { MacroContext } from "@/tools/llm-chat/macro-engine/MacroContext";
 import { escapeRegExp } from "lodash-es";
 
 /**
@@ -549,6 +549,6 @@ export async function processRulesWithMacros(
 
 ### Phase 2: 完整功能 (二期)
 
-1. [ ] **请求层**: 实现 Request Pipeline
+1. [x] **请求层**: 实现 Request Pipeline
 2. [ ] **调试**: 上下文分析器支持
 3. [ ] **UX**: 规则模板库、批量操作等

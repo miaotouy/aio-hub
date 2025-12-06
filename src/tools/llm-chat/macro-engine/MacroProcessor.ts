@@ -69,6 +69,8 @@ export class MacroProcessor {
     options?: {
       /** 是否启用调试模式（保存各阶段输出） */
       debug?: boolean;
+      /** 值转换器（用于对宏替换结果进行后处理，例如正则转义） */
+      valueTransformer?: (value: string) => string;
     }
   ): Promise<MacroProcessResult> {
     const startTime = Date.now();
@@ -95,7 +97,8 @@ export class MacroProcessor {
     const afterPreProcess = await this.processPhase(
       current,
       context,
-      MacroPhase.PRE_PROCESS
+      MacroPhase.PRE_PROCESS,
+      options?.valueTransformer
     );
     current = afterPreProcess.output;
     macroCount += afterPreProcess.count;
@@ -105,7 +108,8 @@ export class MacroProcessor {
     const afterSubstitute = await this.processPhase(
       current,
       context,
-      MacroPhase.SUBSTITUTE
+      MacroPhase.SUBSTITUTE,
+      options?.valueTransformer
     );
     current = afterSubstitute.output;
     macroCount += afterSubstitute.count;
@@ -115,7 +119,8 @@ export class MacroProcessor {
     const afterPostProcess = await this.processPhase(
       current,
       context,
-      MacroPhase.POST_PROCESS
+      MacroPhase.POST_PROCESS,
+      options?.valueTransformer
     );
     current = afterPostProcess.output;
     macroCount += afterPostProcess.count;
@@ -159,7 +164,8 @@ export class MacroProcessor {
   private async processPhase(
     text: string,
     context: MacroContext,
-    phase: MacroPhase
+    phase: MacroPhase,
+    valueTransformer?: (value: string) => string
   ): Promise<{ output: string; count: number }> {
     let output = text;
     let count = 0;
@@ -199,7 +205,13 @@ export class MacroProcessor {
 
       try {
         // 执行宏
-        const result = await macroDef.execute(context, args);
+        let result = await macroDef.execute(context, args);
+
+        // 应用值转换器
+        if (valueTransformer) {
+          result = valueTransformer(result);
+        }
+
         replacements.set(fullMatch, result);
         count++;
 

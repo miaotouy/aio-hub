@@ -17,6 +17,13 @@ import { type LlmContextData, type ContextPreviewData, SYSTEM_ANCHORS } from "..
 import type { LlmParameters } from "../types";
 import type { ContextPostProcessRule } from "../types";
 import type { ProcessableMessage } from "../types/context";
+import { useChatSettings } from "./useChatSettings";
+import {
+  applyRegexRules,
+  collectRulesForPipeline,
+  processRulesWithMacros,
+} from "../utils/chatRegexUtils";
+import { createMacroContext } from "../macro-engine/MacroContext";
 
 const logger = createModuleLogger("llm-chat/context-builder");
 
@@ -88,6 +95,67 @@ export function useChatContextBuilder() {
 
     // 会话上下文（完整历史）
     let sessionContext = llmContext;
+
+    // ==================== 正则管道处理 (Request) ====================
+    const { settings } = useChatSettings();
+    const globalRegexConfig = settings.value.regexConfig;
+    const agentRegexConfig = agentConfig.regexConfig;
+    const userProfileRegexConfig = effectiveUserProfile?.regexConfig;
+
+    const requestRules = collectRulesForPipeline(
+      "request",
+      globalRegexConfig,
+      agentRegexConfig,
+      userProfileRegexConfig
+    );
+
+    if (requestRules.length > 0) {
+      logger.info(`🔍 [Regex] 请求层发现 ${requestRules.length} 条可用规则`);
+
+      // 1. 宏预处理
+      const macroContext = createMacroContext({
+        agent: currentAgent,
+        userProfile: effectiveUserProfile as UserProfile,
+        session,
+        timestamp,
+      });
+      const processedRules = await processRulesWithMacros(requestRules, macroContext);
+
+      // 2. 应用规则到每条消息
+      for (let i = 0; i < sessionContext.length; i++) {
+        const message = sessionContext[i];
+
+        // 只处理字符串内容
+        if (typeof message.content !== "string") continue;
+
+        // a. 计算深度
+        const messageDepth = sessionContext.length - 1 - i;
+
+        // b. 过滤出适用规则
+        const finalRules = processedRules.filter((rule) => {
+          if (!rule.targetRoles.includes(message.role)) return false;
+          if (rule.depthRange) {
+            if (rule.depthRange.min !== undefined && messageDepth < rule.depthRange.min)
+              return false;
+            if (rule.depthRange.max !== undefined && messageDepth > rule.depthRange.max)
+              return false;
+          }
+          return true;
+        });
+
+        // c. 应用规则
+        if (finalRules.length > 0) {
+          const originalContent = message.content;
+          message.content = applyRegexRules(originalContent, finalRules);
+          if (originalContent !== message.content) {
+            logger.debug(`[Regex] 规则已应用于消息 (depth: ${messageDepth})`, {
+              sourceId: message.sourceId,
+              rulesCount: finalRules.length,
+            }, true);
+          }
+        }
+      }
+    }
 
     // ==================== 注入策略处理 ====================
     // 对预设消息进行分类：skeleton (含 user_profile/chat_history 占位符), depth, anchor

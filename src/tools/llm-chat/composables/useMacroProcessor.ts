@@ -49,7 +49,8 @@ export function useMacroProcessor() {
    */
   const processMacros = async (
     text: string,
-    contextOverrides?: MacroContextOverrides
+    contextOverrides?: MacroContextOverrides,
+    options?: { valueTransformer?: (value: string) => string }
   ): Promise<string> => {
     // 快速检查：如果文本中不包含宏，直接返回
     if (!text.includes('{{')) {
@@ -114,8 +115,10 @@ export function useMacroProcessor() {
 
     // 执行宏处理
     try {
-      const result = await processor.process(text, baseContext);
-      
+      const result = await processor.process(text, baseContext, {
+        valueTransformer: options?.valueTransformer,
+      });
+
       if (result.hasMacros) {
         logger.debug('宏处理完成', {
           originalLength: text.length,
@@ -153,5 +156,6 @@ export function useMacroProcessor() {
   return {
     processMacros,
     processMacrosBatch,
+    processor, // 导出底层实例
   };
 }

@@ -5,12 +5,15 @@
  * @see design/chat-regex-pipeline.md
  */
 
+import { escapeRegExp } from 'lodash-es';
 import type {
   ChatRegexConfig,
   ChatRegexPreset,
   ChatRegexRule,
   MessageRole,
 } from '../types/chatRegex';
+import type { MacroContext } from '../macro-engine/MacroContext';
+import { useMacroProcessor } from '../composables/useMacroProcessor';
 
 // =====================
 // 规则收集
@@ -24,15 +27,16 @@ import type {
  * @param messageDepth - 消息深度 (0=最新)
  * @param configs - 配置列表 (Global, Agent, User)
  */
-export function resolveRulesForMessage(
+/**
+ * 从多个配置源收集适用于特定阶段的所有已启用规则
+ * (用于 Pipeline 的第一步，不过滤 role 和 depth)
+ */
+export function collectRulesForPipeline(
   stage: 'render' | 'request',
-  role: MessageRole,
-  messageDepth: number,
   ...configs: (ChatRegexConfig | undefined)[]
 ): ChatRegexRule[] {
   const allRules: ChatRegexRule[] = [];
 
-  // 1. 收集所有启用的预设中的规则
   for (const config of configs) {
     if (!config?.presets) continue;
 
@@ -41,24 +45,96 @@ export function resolveRulesForMessage(
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     for (const preset of enabledPresets) {
-      allRules.push(...preset.rules);
+      // 过滤出启用的、且适用于当前阶段的规则
+      const applicableRules = preset.rules.filter(
+        (rule) => rule.enabled && rule.applyTo[stage]
+      );
+      allRules.push(...applicableRules);
     }
   }
 
-  // 2. 对扁平化的规则列表进行过滤和排序
-  return allRules
-    .filter((rule) => {
-      if (!rule.enabled) return false;
-      if (!rule.applyTo[stage]) return false;
-      if (!rule.targetRoles.includes(role)) return false;
-      // 深度检查
-      if (rule.depthRange) {
-        if (rule.depthRange.min !== undefined && messageDepth < rule.depthRange.min) return false;
-        if (rule.depthRange.max !== undefined && messageDepth > rule.depthRange.max) return false;
+  return allRules.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+/**
+ * @deprecated 已被 collectRulesForPipeline 和后续的动态过滤取代
+ * 获取消息节点最终应用的规则列表
+ */
+export function resolveRulesForMessage(
+  stage: 'render' | 'request',
+  role: MessageRole,
+  messageDepth: number,
+  ...configs: (ChatRegexConfig | undefined)[]
+): ChatRegexRule[] {
+  // 1. 收集所有适用于该阶段的规则
+  const pipelineRules = collectRulesForPipeline(stage, ...configs);
+
+  // 2. 根据 role 和 depth 进行过滤
+  return pipelineRules.filter((rule) => {
+    if (!rule.targetRoles.includes(role)) return false;
+    // 深度检查
+    if (rule.depthRange) {
+      if (rule.depthRange.min !== undefined && messageDepth < rule.depthRange.min) return false;
+      if (rule.depthRange.max !== undefined && messageDepth > rule.depthRange.max) return false;
+    }
+    return true;
+  });
+}
+
+// =====================
+// 宏处理
+// =====================
+
+/**
+ * 对规则列表中的 `regex` 和 `trimStrings` 字段进行宏处理
+ *
+ * @param rules - 待处理的规则数组
+ * @param macroContext - 用于宏替换的上下文对象
+ * @returns 返回一个全新的、经过宏处理的规则数组 Promise
+ */
+export async function processRulesWithMacros(
+  rules: ChatRegexRule[],
+  macroContext: MacroContext
+): Promise<ChatRegexRule[]> {
+  // useMacroProcessor 可以在 setup 外调用，因为它只依赖 pinia
+  const { processor } = useMacroProcessor();
+  const processedRules: ChatRegexRule[] = [];
+
+  for (const rule of rules) {
+    // 创建副本以避免修改 Pinia store 中的原始状态
+    const newRule = JSON.parse(JSON.stringify(rule));
+
+    if (newRule.substitutionMode && newRule.substitutionMode !== 'NONE') {
+      const transform =
+        newRule.substitutionMode === 'ESCAPED'
+          ? (value: unknown) => escapeRegExp(String(value))
+          : undefined;
+
+      // 处理 regex 字段
+      newRule.regex = (
+        await processor.process(newRule.regex, macroContext, {
+          valueTransformer: transform,
+        })
+      ).output;
+
+      // 处理 trimStrings 字段
+      if (newRule.trimStrings) {
+        newRule.trimStrings = await Promise.all(
+          newRule.trimStrings.map(
+            async (str: string) =>
+              (
+                await processor.process(str, macroContext, {
+                  valueTransformer: transform, // 同样对 trimStrings 中的宏应用转义
+                })
+              ).output
+          )
+        );
       }
-      return true;
-    })
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+    processedRules.push(newRule);
+  }
+
+  return processedRules;
 }
 
 // =====================
@@ -95,7 +171,7 @@ export function applyRegexRules(content: string, rules: ChatRegexRule[]): string
             if (typeof group === 'string') {
               let trimmedGroup = group;
               for (const trimStr of rule.trimStrings!) {
-                trimmedGroup = trimmedGroup.replaceAll(trimStr, '');
+                trimmedGroup = trimmedGroup.split(trimStr).join('');
               }
               // 替换 $1, $2, ... 或 ${1}, ${2}, ...
               processedReplacement = processedReplacement

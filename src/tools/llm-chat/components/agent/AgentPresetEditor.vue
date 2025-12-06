@@ -376,32 +376,36 @@
                     <el-icon><CopyDocument /></el-icon>
                   </el-button>
                 </el-tooltip>
-                <el-popconfirm
-                  title="确定要用剪贴板内容覆盖这条消息吗？"
-                  @confirm="handlePasteMessage(index)"
-                  width="220"
-                >
-                  <template #reference>
-                    <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
-                      <el-button link size="small">
-                        <el-icon><DocumentCopy /></el-icon>
-                      </el-button>
-                    </el-tooltip>
-                  </template>
-                </el-popconfirm>
-                <el-popconfirm
-                  title="确定要删除这条预设消息吗？"
-                  @confirm="handleDeleteMessage(index)"
-                  width="240"
-                >
-                  <template #reference>
-                    <el-tooltip content="删除消息" placement="top" :show-after="500">
-                      <el-button link size="small" type="danger">
-                        <el-icon><Delete /></el-icon>
-                      </el-button>
-                    </el-tooltip>
-                  </template>
-                </el-popconfirm>
+                <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
+                  <span>
+                    <el-popconfirm
+                      title="确定要用剪贴板内容覆盖这条消息吗？"
+                      @confirm="handlePasteMessage(index)"
+                      width="220"
+                    >
+                      <template #reference>
+                        <el-button link size="small">
+                          <el-icon><DocumentCopy /></el-icon>
+                        </el-button>
+                      </template>
+                    </el-popconfirm>
+                  </span>
+                </el-tooltip>
+                <el-tooltip content="删除消息" placement="top" :show-after="500">
+                  <span>
+                    <el-popconfirm
+                      title="确定要删除这条预设消息吗？"
+                      @confirm="handleDeleteMessage(index)"
+                      width="240"
+                    >
+                      <template #reference>
+                        <el-button link size="small" type="danger">
+                          <el-icon><Delete /></el-icon>
+                        </el-button>
+                      </template>
+                    </el-popconfirm>
+                  </span>
+                </el-tooltip>
                 <el-switch
                   v-model="element.isEnabled"
                   :active-value="true"

@@ -18,6 +18,7 @@ import { useSessionManager } from "../../composables/useSessionManager";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { customMessage } from "@/utils/customMessage";
+import { ElMessageBox } from "element-plus";
 import ExportSessionDialog from "../export/ExportSessionDialog.vue";
 import { formatRelativeTime } from "@/utils/time";
 
@@ -67,7 +68,7 @@ const handleQuickNewSession = () => {
   // 使用当前选中的智能体，或使用默认智能体
   const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
   if (!agentId) {
-    alert("没有可用的智能体来创建新会话");
+    customMessage.warning("没有可用的智能体来创建新会话");
     return;
   }
   emit("new-session", { agentId });
@@ -201,9 +202,17 @@ const getSessionDisplayAgent = (session: ChatSession) => {
 
 // 确认删除
 const confirmDelete = (session: ChatSession) => {
-  if (confirm(`确定要删除对话"${session.name}"吗？`)) {
-    emit("delete", session.id);
-  }
+  ElMessageBox.confirm(`确定要删除对话"${session.name}"吗？`, "删除会话", {
+    confirmButtonText: "删除",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(() => {
+      emit("delete", session.id);
+    })
+    .catch(() => {
+      // 用户取消删除
+    });
 };
 
 // 打开重命名对话框
@@ -219,7 +228,7 @@ const confirmRename = () => {
 
   const trimmedName = newSessionName.value.trim();
   if (!trimmedName) {
-    alert("会话名称不能为空");
+    customMessage.warning("会话名称不能为空");
     return;
   }
 

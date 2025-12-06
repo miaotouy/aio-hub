@@ -30,7 +30,10 @@ export default defineConfig({
   // 将 .gz 文件标记为资源文件
   assetsInclude: ['**/*.gz'],
 
-  base: './',
+  // 使用绝对路径作为 base，确保分离窗口（如 /detached-component/xxx）中的资源能正确加载
+  // 如果使用相对路径 './'，当路由是 /detached-component/chat-area 时，
+  // 资源会被错误地请求为 /detached-component/loader.js 而不是 /loader.js
+  base: '/',
 
   plugins: [
     // 生产环境禁用 VueDevTools

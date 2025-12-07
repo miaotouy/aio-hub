@@ -148,16 +148,17 @@
           />
         </el-form-item>
 
-        <el-form-item label="替换结果">
+        <el-form-item>
+          <template #label>
+            替换结果
+            <span v-if="matchCount !== null" class="match-info"> (匹配 {{ matchCount }} 次) </span>
+          </template>
           <div class="test-result" :class="{ 'has-error': testError }">
             <template v-if="testError">
               <span class="error-text">{{ testError }}</span>
             </template>
-            <template v-else-if="testOutput !== null">
-              <pre class="result-text">{{ testOutput }}</pre>
-            </template>
             <template v-else>
-              <span class="placeholder-text">输入测试文本后显示结果</span>
+              <div class="preview-output" v-html="highlightedOutput"></div>
             </template>
           </div>
         </el-form-item>
@@ -167,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watchEffect, ref, reactive } from "vue";
+import { computed, ref, reactive } from "vue";
 import { ChevronRight } from "lucide-vue-next";
 import type { ChatRegexRule } from "../../types/chatRegex";
 
@@ -407,26 +408,102 @@ const applyPreset = (preset: PresetRule) => {
   });
 };
 
+// 工具函数
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    "&": "&",
+    "<": "<",
+    ">": ">",
+    '"': "&quot;",
+    "'": "&#039;",
+    "\n": "<br>",
+  };
+  return text.replace(/[&<>"'\n]/g, (m) => map[m]);
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // 测试功能
 const testInput = ref("");
-const testOutput = ref<string | null>(null);
+const matchCount = ref<number | null>(null);
 const testError = ref<string | null>(null);
 
-watchEffect(() => {
-  if (!testInput.value || !props.modelValue.regex) {
-    testOutput.value = null;
-    testError.value = null;
-    return;
+const highlightedOutput = computed(() => {
+  const input = testInput.value;
+  const regexStr = props.modelValue.regex;
+  const replacement = props.modelValue.replacement;
+  const flagsStr = props.modelValue.flags || "gm";
+
+  if (!input) {
+    matchCount.value = null;
+    return '<span class="placeholder-text">输入测试文本后显示结果</span>';
+  }
+
+  if (!regexStr) {
+    matchCount.value = null;
+    return '<span class="placeholder-text">请输入正则表达式</span>';
   }
 
   try {
-    const flags = props.modelValue.flags ?? "gm";
-    const regex = new RegExp(props.modelValue.regex, flags);
-    testOutput.value = testInput.value.replace(regex, props.modelValue.replacement || "");
     testError.value = null;
+    const regex = new RegExp(regexStr, flagsStr);
+
+    const matches = input.match(regex);
+    matchCount.value = matches ? matches.length : 0;
+
+    // 如果有替换内容，显示替换结果
+    if (replacement !== undefined && replacement !== "") {
+      const result = input.replace(regex, replacement);
+      // 尝试高亮替换后的文本（仅当替换文本不包含特殊引用符时，避免错误高亮）
+      if (!replacement.includes("$")) {
+        const escapedResult = escapeHtml(result);
+        const escapedReplacement = escapeHtml(replacement);
+        try {
+          // 简单的高亮替换内容
+          const highlightRe = new RegExp(escapeRegex(escapedReplacement), "g");
+          return escapedResult.replace(
+            highlightRe,
+            `<mark class="highlight-replacement">${escapedReplacement}</mark>`
+          );
+        } catch (e) {
+          return escapedResult;
+        }
+      }
+      return escapeHtml(result);
+    } else {
+      // 没有替换内容，显示原文本并高亮匹配项
+      // 为了安全地处理 HTML 转义，我们需要手动构建结果
+      let lastIndex = 0;
+      let html = "";
+
+      // 使用 replace 的回调来遍历匹配项
+      // 注意：如果 flags 没有 'g'，replace 只会处理第一个匹配
+      input.replace(regex, (match, ...args) => {
+        // args 的倒数第二个参数是 offset
+        const offset = args[args.length - 2];
+
+        // 添加匹配项之前的文本（转义）
+        if (offset > lastIndex) {
+          html += escapeHtml(input.slice(lastIndex, offset));
+        }
+
+        // 添加匹配项（转义并高亮）
+        html += `<mark class="highlight-match">${escapeHtml(match)}</mark>`;
+
+        lastIndex = offset + match.length;
+        return match; // 返回值不重要
+      });
+
+      // 添加剩余的文本
+      html += escapeHtml(input.slice(lastIndex));
+      return html;
+    }
   } catch (error) {
-    testOutput.value = null;
     testError.value = error instanceof Error ? error.message : "正则表达式错误";
+    matchCount.value = null;
+    return "";
   }
 });
 </script>
@@ -559,6 +636,7 @@ watchEffect(() => {
   border: 1px solid var(--border-color);
   background: var(--container-bg);
   min-height: 60px;
+  width: 100%;
 }
 
 .test-result.has-error {
@@ -572,6 +650,40 @@ watchEffect(() => {
   font-size: 13px;
   white-space: pre-wrap;
   word-break: break-all;
+  border: none;
+}
+
+.preview-output {
+  margin: 0;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+  color: var(--text-color);
+}
+
+.preview-output :deep(mark.highlight-match) {
+  background-color: #ffd700;
+  color: #000;
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.preview-output :deep(mark.highlight-replacement) {
+  background-color: #90ee90;
+  color: #000;
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.match-info {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--primary-color);
+  margin-left: 8px;
 }
 
 .error-text {

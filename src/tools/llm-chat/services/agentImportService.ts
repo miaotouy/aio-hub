@@ -200,7 +200,23 @@ export async function preflightImportAgents(
 
     combinedAgents.forEach((agent, index) => {
       // 移除名字冲突检测逻辑
-      if (agent.modelId && !availableModelIds.includes(agent.modelId)) {
+      let isMatched = false;
+
+      if (agent.modelId) {
+        // 1. 直接匹配
+        if (availableModelIds.includes(agent.modelId)) {
+          isMatched = true;
+        }
+        // 2. 尝试去前缀匹配 (处理 "profileId:modelId" 格式)
+        else if (agent.modelId.includes(':')) {
+          const pureModelId = agent.modelId.split(':')[1];
+          if (pureModelId && availableModelIds.includes(pureModelId)) {
+            isMatched = true;
+          }
+        }
+      }
+
+      if (!isMatched) {
         unmatchedModels.push({ agentIndex: index, agentName: agent.name, modelId: agent.modelId });
       }
     });

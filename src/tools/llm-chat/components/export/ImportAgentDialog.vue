@@ -32,19 +32,30 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
     let finalProfileId = "";
     let finalModelId = agent.modelId;
 
+    // 处理 modelId 可能包含 profileId 前缀的情况
+    let targetModelId = agent.modelId;
+    if (targetModelId && targetModelId.includes(':')) {
+      targetModelId = targetModelId.split(':')[1];
+    }
+
     // 查找本地是否有匹配的模型（即使 modelId 相同，profileId 也可能不同，需要重新匹配）
     const matchedProfile = enabledProfiles.value.find((p) =>
-      p.models.some((m) => m.id === agent.modelId)
+      p.models.some((m) => m.id === targetModelId)
     );
 
     if (matchedProfile) {
       finalProfileId = matchedProfile.id;
-    } else if (unmatched) {
-      // 确实找不到匹配的模型，回退到默认第一个
+      finalModelId = targetModelId; // 确保使用纯净的 modelId
+    } else {
+      // 找不到匹配的模型（无论是标记为 unmatched 还是单纯没找到），回退到默认第一个
       const firstProfile = enabledProfiles.value[0];
       if (firstProfile && firstProfile.models.length > 0) {
         finalProfileId = firstProfile.id;
-        finalModelId = firstProfile.models[0].id;
+        // 如果是 unmatched，我们可能想保留原始 modelId 让用户看到冲突，或者重置为第一个模型
+        // 这里策略是：如果是 unmatched，重置为可用模型；如果只是没找到 profile 但 modelId 没报冲突（理论上不应发生），也重置
+        if (unmatched) {
+          finalModelId = firstProfile.models[0].id;
+        }
       }
     }
 
@@ -57,10 +68,10 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
   });
 };
 
-// 监听 props 变化以初始化数据
+// 监听 props 和 enabledProfiles 变化以初始化数据
 watch(
-  () => props.preflightResult,
-  (newResult) => {
+  [() => props.preflightResult, enabledProfiles],
+  ([newResult]) => {
     if (newResult) {
       initializeResolvedAgents(newResult);
     }

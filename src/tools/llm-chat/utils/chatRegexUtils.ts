@@ -248,7 +248,7 @@ export function applyRegexRules(content: string, rules: ChatRegexRule[]): string
 /**
  * SillyTavern 正则脚本格式
  */
-interface SillyTavernRegexScript {
+export interface SillyTavernRegexScript {
   id?: string;
   scriptName: string;
   findRegex: string;
@@ -264,11 +264,41 @@ interface SillyTavernRegexScript {
 }
 
 /**
- * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexPreset
+ * 解析 SillyTavern 的正则字符串，提取模式和标志
+ * ST 的 findRegex 可能是以下格式：
+ * - `/pattern/flags` - 带分隔符的完整正则
+ * - `pattern` - 纯模式字符串
+ *
+ * @param regexString - ST 的 findRegex 字符串
+ * @returns 解析后的模式和标志
  */
-export function convertFromSillyTavern(st: SillyTavernRegexScript): ChatRegexPreset {
-  const rules: ChatRegexRule[] = [];
+function parseRegexString(regexString: string): { pattern: string; flags: string } {
+  if (!regexString) {
+    return { pattern: '', flags: 'gm' };
+  }
+
+  // 尝试匹配 /pattern/flags 格式
+  const regexMatch = regexString.match(/^\/(.*)\/([gimsuy]*)$/s);
+  if (regexMatch) {
+    const pattern = regexMatch[1];
+    let flags = regexMatch[2] || '';
+    // 确保有 g 和 m 标志（如果原本没有的话，保持原样）
+    // ST 的行为是保留用户设置的标志
+    return { pattern, flags: flags || 'gm' };
+  }
+
+  // 如果不是 /pattern/flags 格式，当作纯模式处理
+  return { pattern: regexString, flags: 'gm' };
+}
+
+/**
+ * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexRule
+ */
+export function convertSillyTavernScriptToRule(st: SillyTavernRegexScript): ChatRegexRule | null {
+  if (!st.findRegex) return null;
+
   const applyTo = convertPlacementToApplyTo(st);
+  const targetRoles = convertPlacementToTargetRoles(st);
   const depthRange =
     st.minDepth !== null || st.maxDepth !== null
       ? { min: st.minDepth ?? undefined, max: st.maxDepth ?? undefined }
@@ -277,29 +307,65 @@ export function convertFromSillyTavern(st: SillyTavernRegexScript): ChatRegexPre
   // 转换 substituteRegex 枚举值到 substitutionMode
   const substitutionMode = convertSubstituteRegex(st.substituteRegex);
 
-  // 主规则
-  if (st.findRegex) {
-    rules.push({
-      id: crypto.randomUUID(),
-      enabled: true,
-      name: '主规则',
-      regex: st.findRegex,
-      replacement: st.replaceString || '',
-      flags: 'gm',
-      applyTo: applyTo,
-      targetRoles: ['system', 'user', 'assistant'],
-      depthRange: depthRange,
-      substitutionMode: substitutionMode,
-      trimStrings: st.trimStrings?.filter(Boolean),
-      order: 0,
-    });
-  }
+  // 解析正则字符串，提取模式和标志
+  const { pattern, flags } = parseRegexString(st.findRegex);
+
+  return {
+    id: crypto.randomUUID(),
+    enabled: !st.disabled, // 规则层级的开关
+    name: st.scriptName || '未命名规则',
+    regex: pattern,
+    replacement: st.replaceString || '',
+    flags: flags,
+    applyTo: applyTo,
+    targetRoles: targetRoles,
+    depthRange: depthRange,
+    substitutionMode: substitutionMode,
+    trimStrings: st.trimStrings?.filter(Boolean),
+    order: 0,
+  };
+}
+
+/**
+ * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexPreset
+ */
+export function convertFromSillyTavern(st: SillyTavernRegexScript): ChatRegexPreset {
+  const rule = convertSillyTavernScriptToRule(st);
+  const rules = rule ? [rule] : [];
 
   // 构建预设对象
   return {
     id: st.id || crypto.randomUUID(),
     name: st.scriptName || '未命名预设',
     enabled: !st.disabled,
+    rules: rules,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    order: 0,
+  };
+}
+
+/**
+ * 将 SillyTavern 的 RegexScript 数组合并转换为单个 ChatRegexPreset
+ */
+export function convertSillyTavernArrayToPreset(scripts: SillyTavernRegexScript[], presetName?: string): ChatRegexPreset {
+  const rules: ChatRegexRule[] = [];
+
+  scripts.forEach((script, index) => {
+    const rule = convertSillyTavernScriptToRule(script);
+    if (rule) {
+      // 保持原有顺序
+      rule.order = index;
+      // 如果脚本本身是禁用的，规则也禁用；预设整体默认启用
+      rule.enabled = !script.disabled;
+      rules.push(rule);
+    }
+  });
+
+  return {
+    id: crypto.randomUUID(),
+    name: presetName || `SillyTavern 导入组 (${new Date().toLocaleDateString()})`,
+    enabled: true,
     rules: rules,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -329,25 +395,82 @@ function convertPlacementToApplyTo(script: SillyTavernRegexScript): {
   render: boolean;
   request: boolean;
 } {
-  let render = script.placement.includes(1);
-  let request = script.placement.includes(2);
+  // ST 逻辑: markdownOnly=true -> Render Only; promptOnly=true -> Request Only
   if (script.markdownOnly) {
-    render = true;
-    request = false;
+    return { render: true, request: false };
   }
   if (script.promptOnly) {
-    render = false;
-    request = true;
+    return { render: false, request: true };
   }
-  if (!render && !request) {
-    render = true;
-    request = true;
-  }
-  return { render, request };
+
+  // 如果都没设置，默认两者都开启，或者根据 placement 判断
+  // 但 placement 更多是关于 Role 的，这里保持默认 true 比较安全，
+  // 因为我们的系统区分了 render/request 阶段，而 ST 是混在一起的。
+  return { render: true, request: true };
 }
 
 /**
- * 批量导入 SillyTavern 正则脚本
+ * 转换 SillyTavern 的 placement 数组到 targetRoles
+ *
+ * ST placement 枚举 (来自 engine.js):
+ * - MD_DISPLAY = 0 (已废弃，但旧数据可能包含)
+ * - USER_INPUT = 1 → user
+ * - AI_OUTPUT = 2 → assistant
+ * - SLASH_COMMAND = 3 (忽略，我们不支持)
+ * - (4 = sendAs, legacy, 已迁移)
+ * - WORLD_INFO = 5 → system (暂未实现世界信息，目前映射到系统消息)
+ * - REASONING = 6 → assistant (推理内容属于 AI 输出)
+ */
+function convertPlacementToTargetRoles(script: SillyTavernRegexScript): MessageRole[] {
+  if (!Array.isArray(script.placement) || script.placement.length === 0) {
+    // 如果没有 placement，默认应用于所有角色
+    return ['system', 'user', 'assistant'];
+  }
+
+  const roles = new Set<MessageRole>();
+
+  // MD_DISPLAY (0) - 已废弃，但为了兼容旧数据，映射到所有角色
+  if (script.placement.includes(0)) {
+    roles.add('system');
+    roles.add('user');
+    roles.add('assistant');
+  }
+
+  // USER_INPUT (1) → user
+  if (script.placement.includes(1)) {
+    roles.add('user');
+  }
+
+  // AI_OUTPUT (2) → assistant
+  if (script.placement.includes(2)) {
+    roles.add('assistant');
+  }
+
+  // SLASH_COMMAND (3) - 忽略，我们不支持斜杠命令
+
+  // WORLD_INFO (5) → system
+  // 世界信息在 ST 中通常注入到上下文，映射到 system 角色
+  if (script.placement.includes(5)) {
+    roles.add('system');
+  }
+
+  // REASONING (6) → assistant
+  // 推理内容属于 AI 的思考过程，映射到 assistant
+  if (script.placement.includes(6)) {
+    roles.add('assistant');
+  }
+
+  // 如果没有匹配到任何已知角色，回退到全部
+  if (roles.size === 0) {
+    return ['system', 'user', 'assistant'];
+  }
+
+  return Array.from(roles);
+}
+
+/**
+ * 批量导入 SillyTavern 正则脚本 (旧版行为：每个脚本转为一个预设)
+ * @deprecated 建议使用 convertSillyTavernArrayToPreset 将其合并为一个预设
  */
 export function convertMultipleFromSillyTavern(scripts: SillyTavernRegexScript[]): ChatRegexPreset[] {
   return scripts.map(convertFromSillyTavern);

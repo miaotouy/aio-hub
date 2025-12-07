@@ -24,6 +24,7 @@ export interface ExportableAgent {
   };
   tags?: string[];
   category?: string;
+  regexConfig?: import('./chatRegex').ChatRegexConfig;
 }
 
 /**

@@ -263,6 +263,7 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
         richTextStyleOptions: resolvedAgent.richTextStyleOptions,
         tags: resolvedAgent.tags,
         category: resolvedAgent.category,
+        regexConfig: resolvedAgent.regexConfig,
       };
 
       let finalAgentId: string;

@@ -206,65 +206,111 @@ interface ChatRegexConfig {
 
 ### 3.1 SillyTavern 导入
 
+#### 酒馆正则系统概述
+
+SillyTavern 的正则系统有以下关键概念：
+
+1. **脚本类型 (`SCRIPT_TYPES`)**：
+   - `GLOBAL (0)`: 全局脚本
+   - `SCOPED (1)`: 角色绑定脚本
+   - `PRESET (2)`: 预设绑定脚本
+
+2. **应用位置 (`regex_placement`)**：指定脚本应用于哪种**内容类型**
+   - `MD_DISPLAY (0)`: 已废弃
+   - `USER_INPUT (1)`: 用户输入的消息
+   - `AI_OUTPUT (2)`: AI 输出的消息
+   - `SLASH_COMMAND (3)`: 斜杠命令
+   - `WORLD_INFO (5)`: 世界信息
+   - `REASONING (6)`: 推理/思考内容 (新增)
+
+3. **处理阶段控制**：
+   - `markdownOnly`: 只在渲染 Markdown 时应用（显示层）
+   - `promptOnly`: 只在生成 Prompt 时应用（请求层）
+
+4. **宏替换模式 (`substitute_find_regex`)**：
+   - `NONE (0)`: 不替换
+   - `RAW (1)`: 原样替换
+   - `ESCAPED (2)`: 转义后替换
+
 #### 转换规则
 
-| 酒馆字段                                  | 处理方式                           |
-| ----------------------------------------- | ---------------------------------- |
-| `scriptName`                              | → `ChatRegexPreset.name`           |
-| `findRegex`                               | → `ChatRegexRule.regex`            |
-| `replaceString`                           | → `ChatRegexRule.replacement`      |
-| `placement`, `markdownOnly`, `promptOnly` | → `applyTo` 字段                   |
-| `minDepth`, `maxDepth`                    | → `depthRange`                     |
-| `trimStrings`                             | → `ChatRegexRule.trimStrings` 字段 |
-| `substituteRegex`                         | → `substitutionMode` 字段          |
-| `runOnEdit`                               | 忽略（暂不支持）                   |
+| 酒馆字段                     | 处理方式                                                |
+| ---------------------------- | ------------------------------------------------------- |
+| `scriptName`                 | → `ChatRegexPreset.name`                                |
+| `findRegex`                  | → 解析为 `ChatRegexRule.regex` (模式) 和 `flags` (标志) |
+| `replaceString`              | → `ChatRegexRule.replacement`                           |
+| `markdownOnly`, `promptOnly` | → `applyTo` 字段 (控制渲染/请求阶段)                    |
+| `placement`                  | → `targetRoles` 字段 (映射到 user/assistant/system)     |
+| `minDepth`, `maxDepth`       | → `depthRange`                                          |
+| `trimStrings`                | → `ChatRegexRule.trimStrings` 字段                      |
+| `substituteRegex`            | → `substitutionMode` 字段                               |
+| `runOnEdit`                  | 忽略（暂不支持）                                        |
 
 #### 转换函数
 
-酒馆的一个 `Script` 对应我们的一个 `ChatRegexPreset`：
+酒馆的一个 `Script` 对应我们的一条 `ChatRegexRule`，而**整个角色卡的所有脚本**会被合并为一个 `ChatRegexPreset`：
 
 ```typescript
 import { escapeRegExp } from "lodash-es";
 import { v4 as uuidv4 } from "uuid";
 
 /**
- * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexPreset
+ * 将 SillyTavern 的 RegexScript 数组合并转换为单个 ChatRegexPreset
  */
-function convertFromSillyTavern(st: SillyTavernRegexScript): ChatRegexPreset {
+export function convertSillyTavernArrayToPreset(
+  scripts: SillyTavernRegexScript[],
+  presetName?: string
+): ChatRegexPreset {
   const rules: ChatRegexRule[] = [];
+
+  scripts.forEach((script, index) => {
+    const rule = convertSillyTavernScriptToRule(script);
+    if (rule) {
+      // 保持原有顺序
+      rule.order = index;
+      // 如果脚本本身是禁用的，规则也禁用；预设整体默认启用
+      rule.enabled = !script.disabled;
+      rules.push(rule);
+    }
+  });
+
+  return {
+    id: uuidv4(),
+    name: presetName || `SillyTavern 导入组`,
+    enabled: true,
+    rules: rules,
+    order: 0,
+  };
+}
+
+/**
+ * 将单个 SillyTavern 脚本转换为规则
+ */
+function convertSillyTavernScriptToRule(st: SillyTavernRegexScript): ChatRegexRule | null {
+  if (!st.findRegex) return null;
+
   const applyTo = convertPlacementToApplyTo(st);
+  const targetRoles = convertPlacementToTargetRoles(st);
   const depthRange =
     st.minDepth !== null || st.maxDepth !== null
       ? { min: st.minDepth ?? undefined, max: st.maxDepth ?? undefined }
       : undefined;
 
-  // 转换 substituteRegex 枚举值到 substitutionMode
   const substitutionMode = convertSubstituteRegex(st.substituteRegex);
+  const { pattern, flags } = parseRegexString(st.findRegex);
 
-  // 1. 主规则
-  if (st.findRegex) {
-    rules.push({
-      id: uuidv4(),
-      enabled: true,
-      name: "主规则",
-      regex: st.findRegex,
-      replacement: st.replaceString || "",
-      flags: "gm",
-      applyTo: applyTo,
-      targetRoles: ["system", "user", "assistant"],
-      depthRange: depthRange,
-      substitutionMode: substitutionMode,
-      trimStrings: st.trimStrings?.filter(Boolean),
-      order: 0,
-    });
-  }
-
-  // 3. 构建预设对象
   return {
-    id: st.id || uuidv4(),
-    name: st.scriptName || "未命名预设",
+    id: uuidv4(),
     enabled: !st.disabled,
-    rules: rules,
+    name: st.scriptName || "未命名规则",
+    regex: pattern,
+    replacement: st.replaceString || "",
+    flags: flags,
+    applyTo: applyTo,
+    targetRoles: targetRoles,
+    depthRange: depthRange,
+    substitutionMode: substitutionMode,
+    trimStrings: st.trimStrings?.filter(Boolean),
     order: 0,
   };
 }
@@ -284,25 +330,45 @@ function convertSubstituteRegex(value: number | undefined): "NONE" | "RAW" | "ES
   }
 }
 
+/**
+ * 转换处理阶段 (Render vs Request)
+ */
 function convertPlacementToApplyTo(script: SillyTavernRegexScript): {
   render: boolean;
   request: boolean;
 } {
-  let render = script.placement.includes(1);
-  let request = script.placement.includes(2);
-  if (script.markdownOnly) {
-    render = true;
-    request = false;
+  if (script.markdownOnly) return { render: true, request: false };
+  if (script.promptOnly) return { render: false, request: true };
+  return { render: true, request: true };
+}
+
+/**
+ * 转换目标角色 (Target Roles)
+ *
+ * ST placement 映射:
+ * - USER_INPUT (1) → user
+ * - AI_OUTPUT (2) → assistant
+ * - WORLD_INFO (5) → system
+ * - REASONING (6) → assistant
+ * - MD_DISPLAY (0) → all (旧版兼容)
+ */
+function convertPlacementToTargetRoles(script: SillyTavernRegexScript): MessageRole[] {
+  if (!Array.isArray(script.placement) || script.placement.length === 0) {
+    return ["system", "user", "assistant"];
   }
-  if (script.promptOnly) {
-    render = false;
-    request = true;
+
+  const roles = new Set<MessageRole>();
+  if (script.placement.includes(0)) {
+    roles.add("system");
+    roles.add("user");
+    roles.add("assistant");
   }
-  if (!render && !request) {
-    render = true;
-    request = true;
-  }
-  return { render, request };
+  if (script.placement.includes(1)) roles.add("user");
+  if (script.placement.includes(2)) roles.add("assistant");
+  if (script.placement.includes(5)) roles.add("system");
+  if (script.placement.includes(6)) roles.add("assistant");
+
+  return roles.size > 0 ? Array.from(roles) : ["system", "user", "assistant"];
 }
 ```
 

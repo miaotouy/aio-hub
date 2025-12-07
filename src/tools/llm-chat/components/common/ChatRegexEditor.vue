@@ -288,7 +288,7 @@ import {
   createChatRegexPreset,
   createChatRegexRule,
 } from "../../types/chatRegex";
-import { convertFromSillyTavern, convertMultipleFromSillyTavern } from "../../utils/chatRegexUtils";
+import { convertFromSillyTavern, convertSillyTavernArrayToPreset } from "../../utils/chatRegexUtils";
 import { customMessage } from "@/utils/customMessage";
 import ChatRegexRuleForm from "./ChatRegexRuleForm.vue";
 
@@ -558,7 +558,8 @@ function executeImport() {
 
     if (importMode.value === "sillytavern") {
       if (Array.isArray(data)) {
-        importedPresets = convertMultipleFromSillyTavern(data);
+        // 将数组合并为一个预设，兼容酒馆的“预设”分组功能
+        importedPresets = [convertSillyTavernArrayToPreset(data)];
       } else {
         importedPresets = [convertFromSillyTavern(data)];
       }

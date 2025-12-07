@@ -12,6 +12,8 @@ import type { MessageRole } from '../types/common';
 import { SYSTEM_ANCHORS } from '../types/context';
 import type { LlmParameters } from '../types/llm';
 import { pick } from 'lodash-es';
+import type { ChatRegexConfig } from '../types/chatRegex';
+import { convertSillyTavernArrayToPreset, type SillyTavernRegexScript } from '../utils/chatRegexUtils';
 
 const logger = createModuleLogger('llm-chat/sillyTavernParser');
 
@@ -32,6 +34,7 @@ export interface SillyTavernCharacterCard {
   tags?: string[];
   avatar?: string;
   creatorcomment?: string; // v2 creator notes
+  regex_scripts?: SillyTavernRegexScript[]; // v2 regex scripts
   // v3 spec 标识
   spec?: 'chara_card_v2' | 'chara_card_v3';
   spec_version?: string;
@@ -59,7 +62,9 @@ export interface SillyTavernCharacterCard {
         depth: number;
         role: MessageRole;
       };
+      regex_scripts?: SillyTavernRegexScript[];
     };
+    regex_scripts?: SillyTavernRegexScript[]; // v3 regex scripts
   };
 }
 
@@ -110,6 +115,7 @@ interface NormalizedCardData {
   alternate_greetings?: string[];
   tags?: string[];
   extensions?: NonNullable<SillyTavernCharacterCard['data']>['extensions'];
+  regex_scripts?: SillyTavernRegexScript[];
 }
 
 export interface ParsedCharacterCard {
@@ -208,18 +214,36 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
     });
   }
 
+  // 9. Regex Scripts
+  let regexConfig: ChatRegexConfig | undefined;
+  // 兼容性处理：regex_scripts 可能直接位于 data 下，也可能位于 extensions 下
+  const rawRegexScripts = data.regex_scripts || data.extensions?.regex_scripts;
+
+  if (rawRegexScripts && Array.isArray(rawRegexScripts) && rawRegexScripts.length > 0) {
+    try {
+      // 将所有脚本合并为一个以角色名命名的预设
+      const presetName = `${data.name} - 导入正则`;
+      const preset = convertSillyTavernArrayToPreset(rawRegexScripts, presetName);
+      regexConfig = { presets: [preset] };
+    } catch (e) {
+      logger.warn('解析正则脚本失败', { error: e });
+    }
+  }
+
   const agent: Partial<ChatAgent> = {
     name: data.name,
     description: data.creator_notes, // 使用 creator_notes 作为 agent 的描述
     icon: card.avatar, // 直接从原始 card 中获取，因为 data 中没有 avatar
     tags: data.tags,
     displayPresetCount: greetings.length,
+    regexConfig: regexConfig, // 赋值正则配置
   };
 
   logger.info('角色卡解析完成', {
     name: agent.name,
     presetCount: presetMessages.length,
     hasDepthPrompt: !!depthPrompt,
+    regexCount: regexConfig?.presets.length || 0,
   });
 
   return { agent, presetMessages };
@@ -437,3 +461,4 @@ function createPresetMessage(
     metadata: name ? { stPromptName: name } : undefined,
   };
 }
+// 注：正则转换逻辑已移至 chatRegexUtils.ts，使用 convertSillyTavernArrayToPreset

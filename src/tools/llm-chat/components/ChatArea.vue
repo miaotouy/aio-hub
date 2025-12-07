@@ -579,8 +579,8 @@ onMounted(async () => {
 
       <!-- 智能体和模型信息 -->
       <div class="agent-model-info">
-        <div v-if="currentAgent" class="agent-info clickable" @click="handleEditAgent">
-          <el-tooltip content="点击编辑智能体" placement="bottom">
+        <el-tooltip v-if="currentAgent" content="点击编辑智能体" placement="bottom">
+          <div class="agent-info clickable" @click="handleEditAgent">
             <Avatar
               :src="agentAvatarSrc || ''"
               :alt="currentAgent.displayName || currentAgent.name"
@@ -588,27 +588,27 @@ onMounted(async () => {
               shape="square"
               :radius="6"
             />
-          </el-tooltip>
-          <span class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
-        </div>
-        <div v-if="currentModel" class="model-info clickable" @click="handleSelectModel">
-          <el-tooltip content="点击选择模型" placement="bottom">
+            <span class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
+          </div>
+        </el-tooltip>
+        <el-tooltip v-if="currentModel" content="点击选择模型" placement="bottom">
+          <div class="model-info clickable" @click="handleSelectModel">
             <DynamicIcon
               :src="modelIcon || ''"
               class="model-icon"
               :alt="currentModel?.name || currentModel?.id || ''"
             />
-          </el-tooltip>
-          <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
-        </div>
+            <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
+          </div>
+        </el-tooltip>
       </div>
 
       <!-- 用户档案信息（右对齐） -->
-      <div v-if="effectiveUserProfile" class="user-profile-info" @click="handleEditUserProfile">
-        <span class="profile-name">{{
-          effectiveUserProfile.displayName || effectiveUserProfile.name
-        }}</span>
-        <el-tooltip content="点击编辑用户档案" placement="bottom">
+      <el-tooltip v-if="effectiveUserProfile" content="点击编辑用户档案" placement="bottom">
+        <div class="user-profile-info" @click="handleEditUserProfile">
+          <span class="profile-name">{{
+            effectiveUserProfile.displayName || effectiveUserProfile.name
+          }}</span>
           <Avatar
             :src="userProfileAvatarSrc || ''"
             :alt="effectiveUserProfile.displayName || effectiveUserProfile.name"
@@ -616,8 +616,8 @@ onMounted(async () => {
             shape="square"
             :radius="4"
           />
-        </el-tooltip>
-      </div>
+        </div>
+      </el-tooltip>
 
       <!-- 视图模式切换器 -->
       <ViewModeSwitcher />

@@ -139,7 +139,7 @@
     <DraggablePanel
       ref="regexConfigPanelRef"
       v-model="isRegexConfigVisible"
-      title="富文本正则处理管道配置"
+      title="富文本渲染器正则配置"
       width="800px"
       height="700px"
       :initial-x="200"

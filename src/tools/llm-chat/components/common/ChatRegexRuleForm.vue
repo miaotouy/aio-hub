@@ -135,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watchEffect, ref } from "vue";
+import { computed, watchEffect, ref, reactive } from "vue";
 import type { ChatRegexRule } from "../../types/chatRegex";
 
 interface Props {
@@ -160,7 +160,7 @@ const createFieldProxy = <K extends keyof ChatRegexRule>(key: K) => {
   });
 };
 
-const localRule = {
+const localRule = reactive({
   name: createFieldProxy("name"),
   regex: createFieldProxy("regex"),
   replacement: createFieldProxy("replacement"),
@@ -169,7 +169,7 @@ const localRule = {
   targetRoles: createFieldProxy("targetRoles"),
   substitutionMode: createFieldProxy("substitutionMode"),
   trimStrings: createFieldProxy("trimStrings"),
-};
+});
 
 // 为 applyTo 的嵌套属性创建独立的计算属性
 const applyToRender = computed({

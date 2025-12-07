@@ -78,6 +78,8 @@ export interface ChatRegexPreset {
   rules: ChatRegexRule[];
   /** 预设间排序 */
   order?: number;
+  /** 预设优先级 (越小越先执行，默认 100) */
+  priority?: number;
 }
 
 /**
@@ -111,6 +113,7 @@ export function createChatRegexPreset(
     name,
     enabled: true,
     rules: [],
+    priority: 100,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...partial,

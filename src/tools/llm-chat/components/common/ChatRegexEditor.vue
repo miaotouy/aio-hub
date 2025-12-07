@@ -56,7 +56,20 @@
                       @click.stop
                     />
                     <span class="preset-name">{{ preset.name }}</span>
-                    <el-tag size="small" type="info"> {{ preset.rules.length }} 条规则 </el-tag>
+                    <el-tag size="small" type="info" style="margin-right: 8px">
+                      {{ preset.rules.length }} 条规则
+                    </el-tag>
+                    <el-tooltip content="执行优先级：数值越小越先执行 (默认 100)" placement="top">
+                      <el-input-number
+                        :model-value="preset.priority ?? 100"
+                        @update:model-value="updatePresetField(index, 'priority', $event)"
+                        @click.stop
+                        size="small"
+                        controls-position="right"
+                        style="width: 85px"
+                        placeholder="权重"
+                      />
+                    </el-tooltip>
                     <div class="preset-actions">
                       <el-button
                         @click.stop="copyPresetToClipboard(preset)"

@@ -38,7 +38,14 @@ function resolveRawRules(
   stage: 'render' | 'request',
   ...configs: (ChatRegexConfig | undefined)[]
 ): ChatRegexRule[] {
-  const allRules: ChatRegexRule[] = [];
+  // 临时包装类型，用于排序
+  type WeightedRule = {
+    rule: ChatRegexRule;
+    priority: number; // Preset priority (default 100)
+    order: number; // Rule order (default 0)
+  };
+
+  const weightedRules: WeightedRule[] = [];
 
   for (const config of configs) {
     if (!config?.presets) continue;
@@ -52,11 +59,28 @@ function resolveRawRules(
       const applicableRules = preset.rules.filter(
         (rule) => rule.enabled && rule.applyTo[stage]
       );
-      allRules.push(...applicableRules);
+
+      // 包装并携带权重
+      for (const rule of applicableRules) {
+        weightedRules.push({
+          rule,
+          priority: preset.priority ?? 100, // 默认权重 100
+          order: rule.order ?? 0,
+        });
+      }
     }
   }
 
-  return allRules.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // 排序: 优先级(小->大) > 规则顺序(小->大)
+  // 优先级越小越先执行
+  weightedRules.sort((a, b) => {
+    const priorityDiff = a.priority - b.priority;
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.order - b.order;
+  });
+
+  // 解包
+  return weightedRules.map((w) => w.rule);
 }
 
 /**

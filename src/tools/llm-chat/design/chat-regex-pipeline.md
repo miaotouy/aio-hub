@@ -81,6 +81,7 @@ interface ChatRegexPreset {
 
   // === 排序 ===
   order?: number; // 预设间排序
+  priority?: number; // 预设优先级 (越小越先执行，默认 100)
 }
 ```
 
@@ -177,7 +178,7 @@ interface ChatRegexConfig {
       - 而 `depthRange` 的判断基准是 `0` 代表**最新**消息。
       - 因此，在进行深度判断前，需要进行坐标转换：`messageDepth = totalMessages - 1 - i`。
   4.  **规则级过滤**: 根据 `rule.enabled`, `rule.applyTo.render`, `rule.targetRoles`, `rule.depthRange` 对规则进行过滤。
-  5.  **排序**: 对通过过滤的规则列表进行排序 (按 `order` 字段)。
+  5.  **排序**: 对通过过滤的规则列表进行排序 (先按预设的 `priority` 字段，再按规则的 `order` 字段)。优先级越小越先执行，默认值为 100。
   6.  **宏预处理**: 在应用规则前，使用 `processRulesWithMacros` 对规则列表中的 `regex` 和 `trimStrings` 字段进行宏替换。
   7.  **应用**: 依次应用所有通过的规则。
 
@@ -427,6 +428,7 @@ export interface ChatRegexPreset {
   enabled: boolean; // 控制整个预设是否生效
   rules: ChatRegexRule[];
   order?: number; // 预设间排序
+  priority?: number; // 预设优先级 (越小越先执行，默认 100)
 }
 
 // === 配置结构 ===
@@ -453,6 +455,8 @@ export interface ChatRegexConfig {
 ### 4.3 规则解析与缓存 (Resolver & Cache)
 
 由于采用了 Message-Bound 策略，我们需要高效地为每条消息解析其对应的规则集。
+
+**排序策略**：系统在合并 Global、Agent、User 三个层级的规则时，会先按预设的 `priority`（优先级）排序，再按规则的 `order`（顺序）排序。优先级数值越小越先执行，默认值为 100。这使得用户可以跨层级控制规则的执行顺序。
 
 **新增 Composable**: `src/tools/llm-chat/composables/useChatRegexResolver.ts`
 

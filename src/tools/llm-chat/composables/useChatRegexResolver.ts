@@ -7,6 +7,7 @@
  * @see design/chat-regex-pipeline.md
  */
 
+import { ref } from 'vue';
 import { createModuleLogger } from '@/utils/logger';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
@@ -22,6 +23,12 @@ const logger = createModuleLogger('llm-chat/regex-resolver');
  * Value: 预解析的规则列表 (未经深度过滤)
  */
 const ruleSetCache = new Map<string, ChatRegexRule[]>();
+
+/**
+ * 缓存版本信号
+ * 用于通知 Vue 响应式系统缓存已发生变化
+ */
+const cacheVersion = ref(0);
 
 /**
  * 从多个配置源收集适用于特定阶段的所有已启用规则
@@ -108,6 +115,11 @@ export function useChatRegexResolver() {
     userId: string | undefined | null,
     stage: 'render' | 'request'
   ): ChatRegexRule[] {
+    // 建立响应式依赖：访问 cacheVersion
+    // 这样当 cacheVersion 变化时，依赖此函数的 computed 会自动重新计算
+    const _version = cacheVersion.value;
+    void _version;
+
     const cacheKey = buildCacheKey(agentId, userId, stage);
 
     // 查缓存
@@ -197,6 +209,7 @@ export function useChatRegexResolver() {
   function clearCache(): void {
     const size = ruleSetCache.size;
     ruleSetCache.clear();
+    cacheVersion.value++; // 触发响应式更新
     logger.info(`[RuleSetCache] 缓存已清除`, { clearedEntries: size });
   }
 
@@ -212,6 +225,7 @@ export function useChatRegexResolver() {
       }
     }
     if (cleared > 0) {
+      cacheVersion.value++; // 触发响应式更新
       logger.debug(`[RuleSetCache] 清除 Agent 相关缓存`, { agentId, clearedEntries: cleared });
     }
   }
@@ -228,6 +242,7 @@ export function useChatRegexResolver() {
       }
     }
     if (cleared > 0) {
+      cacheVersion.value++; // 触发响应式更新
       logger.debug(`[RuleSetCache] 清除 User 相关缓存`, { userId, clearedEntries: cleared });
     }
   }

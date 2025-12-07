@@ -4,9 +4,15 @@
     <div class="editor-header">
       <div class="header-left">
         <h4>文本替换规则</h4>
-        <el-tooltip content="用于对消息内容进行动态清洗、格式转换等" placement="right">
-          <el-icon class="info-icon"><InfoIcon /></el-icon>
-        </el-tooltip>
+        <el-button
+          link
+          type="primary"
+          size="small"
+          :icon="InfoIcon"
+          @click="isHelpDialogVisible = true"
+        >
+          使用说明
+        </el-button>
       </div>
       <div class="header-actions">
         <el-button @click="addPreset" size="small" :icon="Plus"> 新建预设 </el-button>
@@ -275,6 +281,9 @@
         <el-button type="primary" @click="executeImport">导入</el-button>
       </template>
     </el-dialog>
+
+    <!-- 说明弹窗 -->
+    <ChatRegexHelpDialog v-model="isHelpDialogVisible" />
   </div>
 </template>
 
@@ -304,6 +313,7 @@ import {
 import { convertFromSillyTavern, convertSillyTavernArrayToPreset } from "../../utils/chatRegexUtils";
 import { customMessage } from "@/utils/customMessage";
 import ChatRegexRuleForm from "./ChatRegexRuleForm.vue";
+import ChatRegexHelpDialog from "./ChatRegexHelpDialog.vue";
 
 interface Props {
   modelValue?: ChatRegexConfig;
@@ -323,6 +333,7 @@ const expandedPresets = ref<string[]>([]);
 const selectedPreset = ref<ChatRegexPreset | null>(null);
 const selectedRule = ref<ChatRegexRule | null>(null);
 const isImportDialogVisible = ref(false);
+const isHelpDialogVisible = ref(false);
 const importJson = ref("");
 const importMode = ref<"sillytavern" | "json">("json");
 
@@ -676,11 +687,6 @@ function truncateRegex(regex: string, maxLength = 30): string {
   margin: 0;
   font-size: 16px;
   font-weight: 500;
-}
-
-.info-icon {
-  color: var(--text-color-light);
-  cursor: help;
 }
 
 .header-actions {

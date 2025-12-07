@@ -100,7 +100,10 @@
                   <!-- 规则列表 -->
                   <!-- 规则区域 (左右分栏布局) -->
                   <div class="rules-section">
-                    <div class="rules-container">
+                    <div
+                      class="rules-container"
+                      :class="{ 'is-mobile': isMobile, 'show-editor': showMobileEditor }"
+                    >
                       <!-- 左侧：规则列表 -->
                       <div class="rules-sidebar">
                         <div class="rules-header">
@@ -171,6 +174,14 @@
 
                       <!-- 右侧：规则编辑 -->
                       <div class="rules-editor-panel">
+                        <!-- 移动端返回按钮 -->
+                        <div v-if="isMobile" class="mobile-editor-header">
+                          <el-button link @click="backToRuleList" :icon="ArrowLeft">
+                            返回列表
+                          </el-button>
+                          <span class="mobile-title">编辑规则</span>
+                        </div>
+
                         <div
                           v-if="selectedPreset?.id === preset.id && selectedRule"
                           class="editor-wrapper"
@@ -209,8 +220,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
+import { useMediaQuery } from "@vueuse/core";
 import { defaultsDeep } from "lodash-es";
 import {
   Plus,
@@ -220,6 +232,7 @@ import {
   Copy,
   Trash2,
   Info as InfoIcon,
+  ArrowLeft,
 } from "lucide-vue-next";
 import type { ChatRegexConfig, ChatRegexPreset, ChatRegexRule } from "../../types/chatRegex";
 import {
@@ -251,6 +264,19 @@ const selectedRule = ref<ChatRegexRule | null>(null);
 const isImportDialogVisible = ref(false);
 const importJson = ref("");
 const importMode = ref<"sillytavern" | "json">("json");
+
+// 响应式布局状态
+const isMobile = useMediaQuery("(max-width: 768px)");
+const showMobileEditor = ref(false);
+
+// 当从宽屏切换到窄屏时，如果已选中规则，自动显示编辑器
+watch(isMobile, (mobile) => {
+  if (mobile && selectedRule.value) {
+    showMobileEditor.value = true;
+  } else if (!mobile) {
+    showMobileEditor.value = false;
+  }
+});
 
 // 确保 modelValue 始终有 presets 数组
 const presets = computed(() => {
@@ -350,6 +376,13 @@ function deleteRule(presetIndex: number, ruleIndex: number) {
 function selectRule(preset: ChatRegexPreset, rule: ChatRegexRule) {
   selectedPreset.value = preset;
   selectedRule.value = rule;
+  if (isMobile.value) {
+    showMobileEditor.value = true;
+  }
+}
+
+function backToRuleList() {
+  showMobileEditor.value = false;
 }
 
 function handleRuleUpdate(presetIndex: number, updatedRule: ChatRegexRule) {
@@ -689,5 +722,70 @@ function truncateRegex(regex: string, maxLength = 30): string {
   transition: none !important;
   background-color: var(--card-bg);
   z-index: 9999;
+}
+
+/* 响应式布局优化 */
+@media (max-width: 768px) {
+  .rules-container {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .rules-sidebar {
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 1;
+    transform: translateX(0);
+    transition:
+      transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.3s;
+  }
+
+  .rules-editor-panel {
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 2;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background-color: var(--card-bg);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .rules-container.show-editor .rules-sidebar {
+    transform: translateX(-20%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .rules-container.show-editor .rules-editor-panel {
+    transform: translateX(0);
+  }
+
+  .mobile-editor-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-color-soft);
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .mobile-title {
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  /* 调整移动端下的一些内边距 */
+  .editor-wrapper {
+    padding: 12px;
+  }
 }
 </style>

@@ -82,10 +82,10 @@
         <div v-show="testExpanded" class="test-content">
           <el-form label-position="top" size="small">
             <el-form-item label="测试输入">
-              <el-input
-                v-model="testInput"
-                type="textarea"
-                :rows="3"
+                  <el-input
+                    v-model="localRule.testInput"
+                    type="textarea"
+                    :rows="3"
                 placeholder="输入测试文本，观察替换效果"
                 class="mono-input"
               />
@@ -371,6 +371,7 @@ const localRule = reactive({
   targetRoles: createFieldProxy("targetRoles"),
   substitutionMode: createFieldProxy("substitutionMode"),
   trimStrings: createFieldProxy("trimStrings"),
+  testInput: createFieldProxy("testInput"),
 });
 
 // 为 applyTo 的嵌套属性创建独立的计算属性
@@ -442,12 +443,11 @@ function escapeHtml(text: string): string {
 }
 
 // 测试功能
-const testInput = ref("");
 const matchCount = ref<number | null>(null);
 const testError = ref<string | null>(null);
 
 const highlightedOutput = computed(() => {
-  const input = testInput.value;
+  const input = localRule.testInput || "";
   const regexStr = props.modelValue.regex;
   const replacement = props.modelValue.replacement;
   const flagsStr = props.modelValue.flags || "gm";

@@ -656,4 +656,4 @@ export async function processRulesWithMacros(
 
 1. [x] **请求层**: 实现 Request Pipeline
 2. [ ] **调试**: 上下文分析器支持
-3. [ ] **UX**: 规则模板库、批量操作等
+3. [x] **UX**: 规则模板库、批量操作等

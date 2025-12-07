@@ -291,12 +291,7 @@
     </BaseDialog>
 
     <!-- 日志弹窗 -->
-    <BaseDialog
-      v-model="logDialogVisible"
-      title="日志"
-      width="800px"
-      height="auto"
-    >
+    <BaseDialog v-model="logDialogVisible" title="日志" width="800px" height="auto">
       <template #content>
         <div class="log-dialog-content">
           <div class="log-output">
@@ -352,7 +347,7 @@ const logger = createModuleLogger("RegexApplier");
 const errorHandler = createModuleErrorHandler("RegexApplier");
 
 // 获取服务实例
-const regexRegistry = toolRegistryManager.getRegistry<RegexApplierRegistry>('regex-applier')!;
+const regexRegistry = toolRegistryManager.getRegistry<RegexApplierRegistry>("regex-applier")!;
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
@@ -616,7 +611,7 @@ const copyResult = async () => {
 
 const sendResultToChat = () => {
   sendToChat(resultText.value, {
-    successMessage: '已将处理结果发送到聊天',
+    successMessage: "已将处理结果发送到聊天",
   });
   addLog("处理结果已发送到聊天输入框。");
 };
@@ -627,11 +622,11 @@ const oneClickProcess = async () => {
     return;
   }
   addLog("执行一键处理剪贴板...");
-  
+
   const result = await regexRegistry.oneClickProcess({
     presetIds: selectedPresetIds.value,
   });
-  
+
   if (result) {
     addLog(result.summary);
   }
@@ -1078,7 +1073,10 @@ const processFiles = async () => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .preset-tag:hover {

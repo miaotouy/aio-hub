@@ -32,163 +32,165 @@
     >
       <el-collapse v-model="expandedPresets">
         <div>
-          <draggable
+          <VueDraggableNext
             v-model="presetsForDraggable"
             item-key="id"
             handle=".preset-drag-handle"
             ghost-class="drag-ghost"
+            drag-class="sortable-drag"
+            :animation="200"
+            :force-fallback="true"
+            :fallback-tolerance="3"
           >
-            <template #item="{ element: preset, index }">
-              <div>
-                <el-collapse-item :name="preset.id" class="preset-item">
-                  <template #title>
-                    <div class="preset-header" @click.stop="togglePreset(preset.id)">
-                      <el-icon class="preset-drag-handle" @click.stop><GripVertical /></el-icon>
-                      <el-switch
-                        :model-value="preset.enabled"
+            <div v-for="(preset, index) in presetsForDraggable" :key="preset.id">
+              <el-collapse-item :name="preset.id" class="preset-item">
+                <template #title>
+                  <div class="preset-header" @click.stop="togglePreset(preset.id)">
+                    <el-icon class="preset-drag-handle" @click.stop><GripVertical /></el-icon>
+                    <el-switch
+                      :model-value="preset.enabled"
+                      size="small"
+                      @update:model-value="updatePresetField(index, 'enabled', $event)"
+                      @click.stop
+                    />
+                    <span class="preset-name">{{ preset.name }}</span>
+                    <el-tag size="small" type="info"> {{ preset.rules.length }} 条规则 </el-tag>
+                    <div class="preset-actions">
+                      <el-button
+                        @click.stop="duplicatePreset(index)"
+                        :icon="Copy"
                         size="small"
-                        @update:model-value="updatePresetField(index, 'enabled', $event)"
-                        @click.stop
+                        text
+                        title="复制预设"
                       />
-                      <span class="preset-name">{{ preset.name }}</span>
-                      <el-tag size="small" type="info"> {{ preset.rules.length }} 条规则 </el-tag>
-                      <div class="preset-actions">
-                        <el-button
-                          @click.stop="duplicatePreset(index)"
-                          :icon="Copy"
-                          size="small"
-                          text
-                          title="复制预设"
-                        />
-                        <el-button
-                          @click.stop="deletePreset(index)"
-                          :icon="Trash2"
-                          size="small"
-                          text
-                          type="danger"
-                          title="删除预设"
-                        />
-                      </div>
-                    </div>
-                  </template>
-
-                  <!-- 预设详情 (二级层级) -->
-                  <div class="preset-content">
-                    <!-- 预设基本信息 -->
-                    <div class="preset-info">
-                      <el-input
-                        :model-value="preset.name"
-                        @update:model-value="updatePresetField(index, 'name', $event)"
-                        placeholder="预设名称"
+                      <el-button
+                        @click.stop="deletePreset(index)"
+                        :icon="Trash2"
                         size="small"
-                      >
-                        <template #prepend>名称</template>
-                      </el-input>
-                      <el-input
-                        :model-value="preset.description"
-                        @update:model-value="updatePresetField(index, 'description', $event)"
-                        placeholder="预设描述（可选）"
-                        size="small"
-                      >
-                        <template #prepend>描述</template>
-                      </el-input>
+                        text
+                        type="danger"
+                        title="删除预设"
+                      />
                     </div>
+                  </div>
+                </template>
 
-                    <!-- 规则列表 -->
-                    <!-- 规则区域 (左右分栏布局) -->
-                    <div class="rules-section">
-                      <div class="rules-container">
-                        <!-- 左侧：规则列表 -->
-                        <div class="rules-sidebar">
-                          <div class="rules-header">
-                            <span class="rules-title">规则列表</span>
-                            <el-button
-                              @click="addRule(preset)"
-                              size="small"
-                              :icon="Plus"
-                              type="primary"
-                              plain
-                              circle
-                              title="添加规则"
-                            />
-                          </div>
+                <!-- 预设详情 (二级层级) -->
+                <div class="preset-content">
+                  <!-- 预设基本信息 -->
+                  <div class="preset-info">
+                    <el-input
+                      :model-value="preset.name"
+                      @update:model-value="updatePresetField(index, 'name', $event)"
+                      placeholder="预设名称"
+                      size="small"
+                    >
+                      <template #prepend>名称</template>
+                    </el-input>
+                    <el-input
+                      :model-value="preset.description"
+                      @update:model-value="updatePresetField(index, 'description', $event)"
+                      placeholder="预设描述（可选）"
+                      size="small"
+                    >
+                      <template #prepend>描述</template>
+                    </el-input>
+                  </div>
 
-                          <div class="rules-list-scroll">
-                            <div class="rules-list" v-if="preset.rules.length > 0">
-                              <draggable
-                                :model-value="preset.rules"
-                                @update:model-value="updateRulesOrder(index, $event)"
-                                item-key="id"
-                                handle=".rule-drag-handle"
-                                ghost-class="drag-ghost"
-                              >
-                                <template #item="{ element: rule, index: ruleIndex }">
-                                  <div
-                                    class="rule-item"
-                                    :class="{ 'is-selected': selectedRule?.id === rule.id }"
-                                    @click="selectRule(preset, rule)"
-                                  >
-                                    <div class="rule-item-main">
-                                      <div class="rule-item-header">
-                                        <el-icon class="rule-drag-handle"><GripVertical /></el-icon>
-                                        <span class="rule-name">{{
-                                          rule.name || "未命名规则"
-                                        }}</span>
-                                        <el-switch
-                                          :model-value="rule.enabled"
-                                          @update:model-value="
-                                            updateRuleField(index, ruleIndex, 'enabled', $event)
-                                          "
-                                          size="small"
-                                          @click.stop
-                                        />
-                                      </div>
-                                      <code class="rule-preview">{{
-                                        truncateRegex(rule.regex)
-                                      }}</code>
-                                    </div>
-                                    <div class="rule-actions">
-                                      <el-button
-                                        @click.stop="deleteRule(index, ruleIndex)"
-                                        :icon="Trash2"
-                                        size="small"
-                                        text
-                                        type="danger"
-                                      />
-                                    </div>
-                                  </div>
-                                </template>
-                              </draggable>
-                            </div>
-                            <div v-else class="empty-rules">
-                              <span class="text-muted">暂无规则，点击上方 + 添加</span>
-                            </div>
-                          </div>
+                  <!-- 规则列表 -->
+                  <!-- 规则区域 (左右分栏布局) -->
+                  <div class="rules-section">
+                    <div class="rules-container">
+                      <!-- 左侧：规则列表 -->
+                      <div class="rules-sidebar">
+                        <div class="rules-header">
+                          <span class="rules-title">规则列表</span>
+                          <el-button
+                            @click="addRule(preset)"
+                            size="small"
+                            :icon="Plus"
+                            type="primary"
+                            plain
+                            circle
+                            title="添加规则"
+                          />
                         </div>
 
-                        <!-- 右侧：规则编辑 -->
-                        <div class="rules-editor-panel">
-                          <div
-                            v-if="selectedPreset?.id === preset.id && selectedRule"
-                            class="editor-wrapper"
-                          >
-                            <ChatRegexRuleForm
-                              :model-value="selectedRule"
-                              @update:model-value="handleRuleUpdate(index, $event)"
-                            />
+                        <div class="rules-list-scroll">
+                          <div class="rules-list" v-if="preset.rules.length > 0">
+                            <VueDraggableNext
+                              :model-value="preset.rules"
+                              @update:model-value="updateRulesOrder(index, $event)"
+                              item-key="id"
+                              handle=".rule-drag-handle"
+                              ghost-class="drag-ghost"
+                              drag-class="sortable-drag"
+                              :animation="200"
+                              :force-fallback="true"
+                              :fallback-tolerance="3"
+                            >
+                              <div
+                                v-for="(rule, ruleIndex) in preset.rules"
+                                :key="rule.id"
+                                class="rule-item"
+                                :class="{ 'is-selected': selectedRule?.id === rule.id }"
+                                @click="selectRule(preset, rule)"
+                              >
+                                <div class="rule-item-main">
+                                  <div class="rule-item-header">
+                                    <el-icon class="rule-drag-handle"><GripVertical /></el-icon>
+                                    <span class="rule-name">{{ rule.name || "未命名规则" }}</span>
+                                    <el-switch
+                                      :model-value="rule.enabled"
+                                      @update:model-value="
+                                        updateRuleField(index, ruleIndex, 'enabled', $event)
+                                      "
+                                      size="small"
+                                      @click.stop
+                                    />
+                                  </div>
+                                  <code class="rule-preview">{{ truncateRegex(rule.regex) }}</code>
+                                </div>
+                                <div class="rule-actions">
+                                  <el-button
+                                    @click.stop="deleteRule(index, ruleIndex)"
+                                    :icon="Trash2"
+                                    size="small"
+                                    text
+                                    type="danger"
+                                  />
+                                </div>
+                              </div>
+                            </VueDraggableNext>
                           </div>
-                          <div v-else class="editor-placeholder">
-                            <el-icon :size="48" class="placeholder-icon"><InfoIcon /></el-icon>
-                            <p>请从左侧选择一条规则进行编辑</p>
+                          <div v-else class="empty-rules">
+                            <span class="text-muted">暂无规则，点击上方 + 添加</span>
                           </div>
+                        </div>
+                      </div>
+
+                      <!-- 右侧：规则编辑 -->
+                      <div class="rules-editor-panel">
+                        <div
+                          v-if="selectedPreset?.id === preset.id && selectedRule"
+                          class="editor-wrapper"
+                        >
+                          <ChatRegexRuleForm
+                            :model-value="selectedRule"
+                            @update:model-value="handleRuleUpdate(index, $event)"
+                          />
+                        </div>
+                        <div v-else class="editor-placeholder">
+                          <el-icon :size="48" class="placeholder-icon"><InfoIcon /></el-icon>
+                          <p>请从左侧选择一条规则进行编辑</p>
                         </div>
                       </div>
                     </div>
                   </div>
-                </el-collapse-item>
-              </div>
-            </template>
-          </draggable>
+                </div>
+              </el-collapse-item>
+            </div>
+          </VueDraggableNext>
         </div>
       </el-collapse>
     </div>
@@ -208,7 +210,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import draggable from "vuedraggable";
+import { VueDraggableNext } from "vue-draggable-next";
 import { defaultsDeep } from "lodash-es";
 import {
   Plus,
@@ -491,6 +493,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .preset-drag-handle {
   cursor: move;
   color: var(--text-color-light);
+  user-select: none;
 }
 
 .preset-name {
@@ -576,7 +579,10 @@ function truncateRegex(regex: string, maxLength = 30): string {
   border-radius: 6px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .rule-item:hover {
@@ -607,6 +613,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
   cursor: move;
   color: var(--text-color-light);
   font-size: 14px;
+  user-select: none;
 }
 
 .rule-name {
@@ -678,5 +685,14 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .drag-ghost {
   opacity: 0.5;
   background: var(--primary-color-alpha);
+}
+
+.sortable-drag {
+  opacity: 0.8;
+  transform: rotate(2deg);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transition: none !important;
+  background-color: var(--card-bg);
+  z-index: 9999;
 }
 </style>

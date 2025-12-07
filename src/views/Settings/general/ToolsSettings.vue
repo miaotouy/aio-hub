@@ -31,20 +31,20 @@ const orderBeforeDrag = ref<string[]>([]);
 onMounted(() => {
   // 从 store 获取排序后的工具列表
   sortedTools.value = [...toolsStore.orderedTools];
-  
+
   // 确保所有工具都有明确的可见性值
   // 对于未设置的工具，默认设置为 true（显示）
   if (toolsVisible.value) {
     // 检查是否有未定义的工具
-    const hasUndefined = sortedTools.value.some(tool => {
+    const hasUndefined = sortedTools.value.some((tool) => {
       const toolId = getToolIdFromPath(tool.path);
       return toolsVisible.value![toolId] === undefined;
     });
-    
+
     // 如果有未定义的工具，创建新对象以触发响应式更新
     if (hasUndefined) {
       const updated = { ...toolsVisible.value };
-      sortedTools.value.forEach(tool => {
+      sortedTools.value.forEach((tool) => {
         const toolId = getToolIdFromPath(tool.path);
         if (updated[toolId] === undefined) {
           updated[toolId] = true;
@@ -58,21 +58,21 @@ onMounted(() => {
 
 // 拖拽开始时记录当前顺序
 const onDragStart = () => {
-  orderBeforeDrag.value = sortedTools.value.map(tool => tool.path);
+  orderBeforeDrag.value = sortedTools.value.map((tool) => tool.path);
 };
 
 // 拖拽结束时的处理函数
 const onDragEnd = () => {
-  const newOrder = sortedTools.value.map(tool => tool.path);
-  
+  const newOrder = sortedTools.value.map((tool) => tool.path);
+
   // 检查顺序是否真的发生了变化
   const hasChanged = !orderBeforeDrag.value.every((path, index) => path === newOrder[index]);
-  
+
   if (!hasChanged) {
     // 顺序没有变化，可能只是点击，不执行保存
     return;
   }
-  
+
   try {
     updateAppSettings({ toolsOrder: newOrder });
     // 同步更新 store 中的顺序状态，使其他组件立即响应
@@ -99,7 +99,6 @@ const resetOrder = () => {
     customMessage.error("重置工具顺序失败");
   }
 };
-
 </script>
 
 <template>
@@ -116,26 +115,17 @@ const resetOrder = () => {
       <div class="batch-actions">
         <el-button
           size="small"
-          @click="
-            Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = true))
-          "
+          @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = true))"
         >
           全选
         </el-button>
         <el-button
           size="small"
-          @click="
-            Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = false))
-          "
+          @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = false))"
         >
           全不选
         </el-button>
-        <el-button
-          size="small"
-          @click="resetOrder"
-        >
-          重置顺序
-        </el-button>
+        <el-button size="small" @click="resetOrder"> 重置顺序 </el-button>
       </div>
     </div>
 
@@ -147,6 +137,7 @@ const resetOrder = () => {
       @start="onDragStart"
       @end="onDragEnd"
       ghost-class="ghost"
+      drag-class="sortable-drag"
       chosen-class="chosen"
       :force-fallback="true"
       :fallback-tolerance="3"
@@ -164,9 +155,7 @@ const resetOrder = () => {
             </span>
             <div class="tool-info">
               <span class="tool-name">{{ tool.name }}</span>
-              <span v-if="tool.description" class="tool-description">{{
-                tool.description
-              }}</span>
+              <span v-if="tool.description" class="tool-description">{{ tool.description }}</span>
             </div>
           </div>
         </el-checkbox>
@@ -244,6 +233,15 @@ const resetOrder = () => {
 /* 被选中拖拽项的样式 */
 .chosen {
   transform: rotate(3deg);
+}
+
+.sortable-drag {
+  opacity: 0.8;
+  transform: rotate(3deg);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transition: none !important;
+  background: var(--bg-color-overlay);
+  z-index: 9999;
 }
 
 /* 覆盖 element-plus checkbox 样式 */

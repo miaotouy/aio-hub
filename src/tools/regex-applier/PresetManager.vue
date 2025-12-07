@@ -145,7 +145,7 @@
               @end="onRulesReordered"
               class="rules-list"
               ghost-class="ghost-rule"
-              drag-class="drag-rule"
+              drag-class="sortable-drag"
               :force-fallback="true"
               :fallback-tolerance="3"
               :animation="200"
@@ -160,7 +160,10 @@
                 <el-tooltip content="拖动以调整规则顺序" placement="top">
                   <el-icon class="rule-drag-handle"><Rank /></el-icon>
                 </el-tooltip>
-                <el-tooltip :content="rule.enabled ? '点击禁用此规则' : '点击启用此规则'" placement="top">
+                <el-tooltip
+                  :content="rule.enabled ? '点击禁用此规则' : '点击启用此规则'"
+                  placement="top"
+                >
                   <el-checkbox
                     v-model="rule.enabled"
                     @change="onRuleEnabledChange(rule.id)"
@@ -351,24 +354,44 @@ const regexInputRef = ref<any>(null); // 正则输入框的引用
 
 // 快捷常用规则列表
 const quickPatterns = [
-  { label: '数字', value: '\\d+', desc: '匹配一个或多个数字' },
-  { label: '字母', value: '[a-zA-Z]+', desc: '匹配一个或多个字母' },
-  { label: '中文', value: '[\\u4e00-\\u9fa5]+', desc: '匹配一个或多个中文字符' },
-  { label: '空白', value: '\\s+', desc: '匹配一个或多个空白字符' },
-  { label: '邮箱', value: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}', desc: '匹配邮箱地址' },
-  { label: 'URL', value: 'https?://[^\\s]+', desc: '匹配 HTTP/HTTPS URL' },
-  { label: 'IP地址', value: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b', desc: '匹配 IPv4 地址' },
-  { label: '手机号', value: '1[3-9]\\d{9}', desc: '匹配中国大陆手机号' },
-  { label: '日期', value: '\\d{4}-\\d{2}-\\d{2}', desc: '匹配 YYYY-MM-DD 格式日期' },
-  { label: '时间', value: '\\d{2}:\\d{2}(:\\d{2})?', desc: '匹配 HH:MM 或 HH:MM:SS 格式时间' },
-  { label: 'HTML标签', value: '<[^>]+>', desc: '匹配 HTML 标签' },
-  { label: '空行', value: '^\\s*$', desc: '匹配空行或只包含空白的行' },
-  { label: '引号内(双)', value: '"([^"]*)"', desc: '匹配双引号之间的内容（不含引号），捕获组$1为内容' },
-  { label: '引号内(单)', value: "'([^']*)'", desc: '匹配单引号之间的内容（不含引号），捕获组$1为内容' },
-  { label: '标记间(不含)', value: '(?<=START)(.*?)(?=END)', desc: '匹配 START 和 END 之间的内容（不含标记），需手动替换 START/END' },
-  { label: '标记间(包含)', value: 'START(.*?)END', desc: '匹配 START 和 END 之间的内容（包含标记），需手动替换 START/END' },
-  { label: '跨行区间(含标记)', value: '/START.*?END/gs', desc: '匹配 START 到 END 的所有内容（跨行），需手动替换 START/END' },
-  { label: 'UUID', value: '[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', desc: '匹配 UUID' },
+  { label: "数字", value: "\\d+", desc: "匹配一个或多个数字" },
+  { label: "字母", value: "[a-zA-Z]+", desc: "匹配一个或多个字母" },
+  { label: "中文", value: "[\\u4e00-\\u9fa5]+", desc: "匹配一个或多个中文字符" },
+  { label: "空白", value: "\\s+", desc: "匹配一个或多个空白字符" },
+  { label: "邮箱", value: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", desc: "匹配邮箱地址" },
+  { label: "URL", value: "https?://[^\\s]+", desc: "匹配 HTTP/HTTPS URL" },
+  { label: "IP地址", value: "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", desc: "匹配 IPv4 地址" },
+  { label: "手机号", value: "1[3-9]\\d{9}", desc: "匹配中国大陆手机号" },
+  { label: "日期", value: "\\d{4}-\\d{2}-\\d{2}", desc: "匹配 YYYY-MM-DD 格式日期" },
+  { label: "时间", value: "\\d{2}:\\d{2}(:\\d{2})?", desc: "匹配 HH:MM 或 HH:MM:SS 格式时间" },
+  { label: "HTML标签", value: "<[^>]+>", desc: "匹配 HTML 标签" },
+  { label: "空行", value: "^\\s*$", desc: "匹配空行或只包含空白的行" },
+  {
+    label: "引号内(双)",
+    value: '"([^"]*)"',
+    desc: "匹配双引号之间的内容（不含引号），捕获组$1为内容",
+  },
+  {
+    label: "引号内(单)",
+    value: "'([^']*)'",
+    desc: "匹配单引号之间的内容（不含引号），捕获组$1为内容",
+  },
+  {
+    label: "标记间(不含)",
+    value: "(?<=START)(.*?)(?=END)",
+    desc: "匹配 START 和 END 之间的内容（不含标记），需手动替换 START/END",
+  },
+  {
+    label: "标记间(包含)",
+    value: "START(.*?)END",
+    desc: "匹配 START 和 END 之间的内容（包含标记），需手动替换 START/END",
+  },
+  {
+    label: "跨行区间(含标记)",
+    value: "/START.*?END/gs",
+    desc: "匹配 START 到 END 的所有内容（跨行），需手动替换 START/END",
+  },
+  { label: "UUID", value: "[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", desc: "匹配 UUID" },
 ];
 
 // ===== 计算属性 =====
@@ -771,7 +794,7 @@ const validateRustCompatibility = debounce(async () => {
       regex: selectedRule.value.regex,
     });
     rustValidation.value = result;
-    
+
     if (!result.isValid) {
       logger.warn("正则表达式 Rust 兼容性检测失败", {
         regex: selectedRule.value.regex,
@@ -809,26 +832,26 @@ const getOriginalIndex = (ruleId: string): number => {
 // 插入快捷规则到光标位置
 const insertPattern = (pattern: string) => {
   if (!selectedRule.value) return;
-  
-  const textarea = regexInputRef.value?.$el?.querySelector('textarea');
+
+  const textarea = regexInputRef.value?.$el?.querySelector("textarea");
   if (!textarea) {
     // 如果无法获取 textarea，直接追加到末尾
-    selectedRule.value.regex = (selectedRule.value.regex || '') + pattern;
+    selectedRule.value.regex = (selectedRule.value.regex || "") + pattern;
     onRuleEdit();
     return;
   }
 
   const start = textarea.selectionStart || 0;
   const end = textarea.selectionEnd || 0;
-  const currentValue = selectedRule.value.regex || '';
-  
+  const currentValue = selectedRule.value.regex || "";
+
   // 在光标位置插入规则
   const newValue = currentValue.substring(0, start) + pattern + currentValue.substring(end);
   selectedRule.value.regex = newValue;
-  
+
   // 触发保存
   onRuleEdit();
-  
+
   // 设置新的光标位置（插入内容之后）
   setTimeout(() => {
     const newPos = start + pattern.length;
@@ -986,11 +1009,13 @@ function escapeRegex(str: string): string {
   background: var(--primary-color-light);
 }
 
-.rule-item.drag-rule {
+.sortable-drag {
   opacity: 0.8;
   transform: rotate(2deg);
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   transition: none !important;
+  background-color: var(--card-bg);
+  z-index: 9999;
 }
 
 .rule-item:hover {

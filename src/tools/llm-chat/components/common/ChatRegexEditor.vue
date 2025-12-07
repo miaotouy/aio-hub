@@ -439,12 +439,11 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .chat-regex-editor {
   box-sizing: border-box;
   width: 100%;
-  min-height: 300px;
-  max-height: 60vh;
+  min-height: 400px;
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-bottom: 30px;
 }
 
 .editor-header {
@@ -524,7 +523,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .rules-section {
   display: flex;
   flex-direction: column;
-  height: 500px; /* 固定高度以支持滚动 */
+  height: 600px; /* 固定高度以支持滚动 */
   border: 1px solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
@@ -583,10 +582,6 @@ function truncateRegex(regex: string, maxLength = 30): string {
     background-color 0.2s,
     border-color 0.2s,
     box-shadow 0.2s;
-}
-
-.rule-item:hover {
-  background-color: var(--hover-bg-color);
 }
 
 .rule-item.is-selected {

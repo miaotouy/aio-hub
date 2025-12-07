@@ -1,5 +1,37 @@
 <template>
   <div class="chat-regex-rule-form">
+    <!-- 预制规则 -->
+    <div class="form-section preset-section">
+      <div class="section-header" @click="togglePresets">
+        <div class="section-title">
+          <el-icon class="collapse-icon" :class="{ expanded: presetsExpanded }">
+            <ChevronRight />
+          </el-icon>
+          预制规则
+        </div>
+        <span class="preset-hint">点击快速填充</span>
+      </div>
+      <el-collapse-transition>
+        <div v-show="presetsExpanded" class="presets-content">
+          <div class="preset-category" v-for="category in presetCategories" :key="category.name">
+            <div class="category-name">{{ category.name }}</div>
+            <div class="preset-tags">
+              <el-tooltip
+                v-for="preset in category.presets"
+                :key="preset.name"
+                :content="preset.description"
+                placement="top"
+              >
+                <el-tag class="preset-tag" size="small" @click="applyPreset(preset)">
+                  {{ preset.name }}
+                </el-tag>
+              </el-tooltip>
+            </div>
+          </div>
+        </div>
+      </el-collapse-transition>
+    </div>
+
     <!-- 基础配置 -->
     <div class="form-section">
       <div class="section-title">基础配置</div>
@@ -136,7 +168,156 @@
 
 <script setup lang="ts">
 import { computed, watchEffect, ref, reactive } from "vue";
+import { ChevronRight } from "lucide-vue-next";
 import type { ChatRegexRule } from "../../types/chatRegex";
+
+// 预制规则类型
+interface PresetRule {
+  name: string;
+  description: string;
+  regex: string;
+  replacement: string;
+  flags?: string;
+}
+
+interface PresetCategory {
+  name: string;
+  presets: PresetRule[];
+}
+
+// 预制规则分类
+const presetCategories: PresetCategory[] = [
+  {
+    name: "思考标签处理",
+    presets: [
+      {
+        name: "折叠思考块",
+        description: "将 <think>...</think> 或 <thinking>...</thinking> 转换为可折叠的详情块",
+        regex: "<think(?:ing)?>(.*?)</think(?:ing)?>",
+        replacement: "<details><summary>💭 思考过程</summary>\n\n$1\n\n</details>",
+        flags: "gms",
+      },
+      {
+        name: "移除思考块",
+        description: "完全移除 <think>...</think> 或 <thinking>...</thinking> 标签及其内容",
+        regex: "<think(?:ing)?>.*?</think(?:ing)?>",
+        replacement: "",
+        flags: "gms",
+      },
+      {
+        name: "提取思考内容",
+        description: "仅保留思考标签内的内容，移除标签本身",
+        regex: "<think(?:ing)?>(.*?)</think(?:ing)?>",
+        replacement: "$1",
+        flags: "gms",
+      },
+    ],
+  },
+  {
+    name: "格式清理",
+    presets: [
+      {
+        name: "移除多余空行",
+        description: "将连续的多个空行合并为单个空行",
+        regex: "\\n{3,}",
+        replacement: "\\n\\n",
+        flags: "gm",
+      },
+      {
+        name: "移除行首空格",
+        description: "移除每行开头的空白字符",
+        regex: "^[ \\t]+",
+        replacement: "",
+        flags: "gm",
+      },
+      {
+        name: "移除行尾空格",
+        description: "移除每行末尾的空白字符",
+        regex: "[ \\t]+$",
+        replacement: "",
+        flags: "gm",
+      },
+    ],
+  },
+  {
+    name: "内容转换",
+    presets: [
+      {
+        name: "URL 转链接",
+        description: "将纯文本 URL 转换为 Markdown 链接",
+        regex: "(https?://[^\\s<>\"']+)",
+        replacement: "[$1]($1)",
+        flags: "gm",
+      },
+      {
+        name: "强调转粗体",
+        description: "将 *text* 转换为 **text**",
+        regex: "(?<!\\*)\\*([^*]+)\\*(?!\\*)",
+        replacement: "**$1**",
+        flags: "gm",
+      },
+      {
+        name: "移除 Markdown 链接",
+        description: "将 [text](url) 转换为纯文本 text",
+        regex: "\\[([^\\]]+)\\]\\([^)]+\\)",
+        replacement: "$1",
+        flags: "gm",
+      },
+    ],
+  },
+  {
+    name: "代码块处理",
+    presets: [
+      {
+        name: "移除代码块语言标记",
+        description: "移除代码块的语言标识符",
+        regex: "```\\w+\\n",
+        replacement: "```\\n",
+        flags: "gm",
+      },
+      {
+        name: "行内代码转普通文本",
+        description: "移除行内代码的反引号",
+        regex: "`([^`]+)`",
+        replacement: "$1",
+        flags: "gm",
+      },
+    ],
+  },
+  {
+    name: "特殊字符",
+    presets: [
+      {
+        name: "移除 HTML 标签",
+        description: "移除所有 HTML 标签，保留内容",
+        regex: "<[^>]+>",
+        replacement: "",
+        flags: "gm",
+      },
+      {
+        name: "转义 HTML 实体",
+        description: "将 < > & 转换为 HTML 实体",
+        regex: "[<>&]",
+        replacement: "<!-- 需要手动处理 -->",
+        flags: "gm",
+      },
+      {
+        name: "移除 Emoji",
+        description: "移除文本中的 Emoji 表情",
+        regex: "[\\u{1F300}-\\u{1F9FF}\\u{2600}-\\u{26FF}\\u{2700}-\\u{27BF}]",
+        replacement: "",
+        flags: "gmu",
+      },
+    ],
+  },
+];
+
+// 预制规则展开状态
+const presetsExpanded = ref(false);
+
+const togglePresets = () => {
+  presetsExpanded.value = !presetsExpanded.value;
+};
 
 interface Props {
   modelValue: ChatRegexRule;
@@ -215,6 +396,17 @@ const depthMax = computed({
   },
 });
 
+// 应用预制规则
+const applyPreset = (preset: PresetRule) => {
+  emit("update:modelValue", {
+    ...props.modelValue,
+    name: preset.name,
+    regex: preset.regex,
+    replacement: preset.replacement,
+    flags: preset.flags || "gm",
+  });
+};
+
 // 测试功能
 const testInput = ref("");
 const testOutput = ref<string | null>(null);
@@ -257,6 +449,87 @@ watchEffect(() => {
   font-size: 14px;
   color: var(--text-color);
   margin-bottom: 8px;
+}
+
+/* 预制规则样式 */
+.preset-section {
+  background: var(--container-bg);
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-header .section-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 0;
+}
+
+.collapse-icon {
+  transition: transform 0.2s ease;
+  font-size: 14px;
+}
+
+.collapse-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.preset-hint {
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.presets-content {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preset-category {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.category-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color-light);
+}
+
+.preset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-tag {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent) !important;
+  border-color: var(--primary-color) !important;
+  color: var(--primary-color) !important;
+}
+
+.preset-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
+}
+
+.preset-tag:active {
+  transform: translateY(0);
+  opacity: 0.8;
 }
 
 .mono-input :deep(textarea) {

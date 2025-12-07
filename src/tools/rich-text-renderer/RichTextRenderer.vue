@@ -318,7 +318,13 @@ onMounted(() => {
   // 订阅流式数据
   unsubscribe = props.streamSource.subscribe((chunk) => {
     buffer.value += chunk;
-    const bufferToProcess = processedContent.value; // 从 computed 获取处理后的完整 buffer
+    
+    // 在流式模式下，我们必须手动应用正则规则到 buffer
+    // 因为 props.content 通常是空的或静态的，而 buffer 才是包含最新内容的数据源
+    let bufferToProcess = buffer.value;
+    if (props.regexRules && props.regexRules.length > 0) {
+      bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules);
+    }
 
     if (useAstRenderer.value) {
       // 对于流式数据，每次都重置并处理整个应用了正则的缓冲区

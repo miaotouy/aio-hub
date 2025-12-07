@@ -4,6 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { useUserProfileStorage } from './composables/useUserProfileStorage';
+import { useChatRegexResolver } from './composables/useChatRegexResolver';
 import { type UserProfile, createDefaultUserProfileConfig } from './types';
 import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
@@ -102,7 +103,6 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
 
       return profileId;
     },
-
     /**
      * 更新用户档案
      */
@@ -111,6 +111,13 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       if (!profile) {
         logger.warn('更新用户档案失败：档案不存在', { profileId });
         return;
+      }
+
+      // 检查是否更新了正则配置，如果是则清除相关缓存
+      if (updates.regexConfig !== undefined) {
+        const regexResolver = useChatRegexResolver();
+        regexResolver.clearCacheForUser(profileId);
+        logger.debug('UserProfile 正则配置已更新，清除相关缓存', { profileId });
       }
 
       Object.assign(profile, updates);

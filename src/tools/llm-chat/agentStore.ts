@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
+import { useChatRegexResolver } from './composables/useChatRegexResolver';
 import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 import { createModuleLogger } from '@/utils/logger';
@@ -152,21 +153,28 @@ export const useAgentStore = defineStore('llmChatAgent', {
     },
 
     /**
-     * 更新智能体
-     */
-    updateAgent(agentId: string, updates: Partial<Omit<ChatAgent, 'id' | 'createdAt'>>): void {
-      const agent = this.agents.find(a => a.id === agentId);
-      if (!agent) {
-        logger.warn('更新智能体失败：智能体不存在', { agentId });
-        return;
-      }
-
-      Object.assign(agent, updates);
-      this.persistAgent(agent);
-
-      logger.info('更新智能体', { agentId, updates });
-    },
-
+     /**
+      * 更新智能体
+      */
+     updateAgent(agentId: string, updates: Partial<Omit<ChatAgent, 'id' | 'createdAt'>>): void {
+       const agent = this.agents.find(a => a.id === agentId);
+       if (!agent) {
+         logger.warn('更新智能体失败：智能体不存在', { agentId });
+         return;
+       }
+ 
+       // 检查是否更新了正则配置，如果是则清除相关缓存
+       if (updates.regexConfig !== undefined) {
+         const regexResolver = useChatRegexResolver();
+         regexResolver.clearCacheForAgent(agentId);
+         logger.debug('Agent 正则配置已更新，清除相关缓存', { agentId });
+       }
+ 
+       Object.assign(agent, updates);
+       this.persistAgent(agent);
+ 
+       logger.info('更新智能体', { agentId, updates });
+     },
     /**
      * 复制智能体
      * @param agentId 要复制的智能体 ID

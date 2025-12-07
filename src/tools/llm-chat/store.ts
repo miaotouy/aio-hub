@@ -16,6 +16,8 @@ import { useAgentStore } from "./agentStore";
 import { useSessionNodeHistory } from "./composables/useSessionNodeHistory";
 import { useGraphActions } from "./composables/useGraphActions";
 import { recalculateNodeTokens as recalculateNodeTokensService, fillMissingTokenMetadata as fillMissingTokenMetadataService } from "./utils/chatTokenUtils";
+import { useChatRegexResolver } from "./composables/useChatRegexResolver";
+import { useChatSettings } from "./composables/useChatSettings";
 import type { ChatSession, ChatMessageNode, LlmParameters, ModelIdentifier } from "./types";
 import type { ContextPreviewData } from "./composables/useChatHandler";
 import type { LlmMessageContent } from "@/llm-apis/common";
@@ -493,6 +495,24 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     Object.assign(parameters.value, newParameters);
     logger.info("更新参数配置", { parameters: newParameters });
   }
+
+  // ==================== 正则缓存自动清理 ====================
+  // 采用"谁修改谁负责"的策略：
+  // - 全局配置变化：在此处监听 chatSettings.regexConfig
+  // - Agent 配置变化：在 AgentStore.updateAgent() 中处理
+  // - UserProfile 配置变化：在 UserProfileStore.updateProfile() 中处理
+  const regexResolver = useChatRegexResolver();
+  const { settings: chatSettings } = useChatSettings();
+
+  // 监听全局正则配置变化
+  watch(
+    () => chatSettings.value.regexConfig,
+    () => {
+      regexResolver.clearCache();
+      logger.debug("全局正则配置变化，已清除正则缓存");
+    },
+    { deep: true }
+  );
 
   // ==================== 上下文统计管理 ====================
   const refreshContextStats = async () => {

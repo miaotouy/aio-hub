@@ -9,6 +9,8 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { useUserProfileStore } from "../../userProfileStore";
+import { useChatSettings } from "../../composables/useChatSettings";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref, defineAsyncComponent } from "vue";
@@ -49,6 +51,8 @@ const emit = defineEmits<Emits>();
 // 用户档案 Store
 const userProfileStore = useUserProfileStore();
 const agentStore = useAgentStore();
+const { settings } = useChatSettings();
+const { enabledProfiles } = useLlmProfiles();
 
 // 从所有 agent 中提取的不重复标签列表
 const allTags = computed(() => {
@@ -260,6 +264,22 @@ const loadFormData = () => {
   }
 
   // 3. 特殊字段处理
+
+  // 如果是创建模式且没有指定模型，尝试应用全局默认模型
+  if (props.mode === "create" && !editForm.modelId && !editForm.profileId) {
+    const defaultModelId = settings.value.modelPreferences.defaultModel;
+    if (defaultModelId) {
+      // 反查 defaultModelId 属于哪个 profile
+      for (const profile of enabledProfiles.value) {
+        const model = profile.models.find((m) => m.id === defaultModelId);
+        if (model) {
+          editForm.profileId = profile.id;
+          editForm.modelId = model.id;
+          break;
+        }
+      }
+    }
+  }
 
   // modelCombo
   if (editForm.profileId && editForm.modelId) {

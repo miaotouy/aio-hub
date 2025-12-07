@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
+import { useChatSettings } from './composables/useChatSettings';
 import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import { useChatRegexResolver } from './composables/useChatRegexResolver';
@@ -468,6 +469,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     createDefaultAgents(): void {
       const { enabledProfiles } = useLlmProfiles();
+      const { settings } = useChatSettings();
 
       if (enabledProfiles.value.length === 0) {
         logger.warn('无法创建默认智能体：没有可用的 Profile');
@@ -475,11 +477,23 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       const firstProfile = enabledProfiles.value[0];
-      if (firstProfile.models.length === 0) {
-        logger.warn('无法创建默认智能体：Profile 没有可用模型');
-        return;
+      
+      // 确定使用的模型：优先使用全局默认模型，否则回退到第一个 Profile 的第一个模型
+      let targetModelId = settings.value.modelPreferences.defaultModel;
+      
+      // 验证默认模型是否有效（存在于当前启用的 Profile 中）
+      const isDefaultModelValid = enabledProfiles.value.some(p =>
+        p.models.some(m => m.id === targetModelId)
+      );
+
+      if (!targetModelId || !isDefaultModelValid) {
+        if (firstProfile.models.length === 0) {
+          logger.warn('无法创建默认智能体：Profile 没有可用模型');
+          return;
+        }
+        targetModelId = firstProfile.models[0].id;
+        logger.info('全局默认模型未设置或无效，回退使用第一个可用模型', { targetModelId });
       }
-      const firstModel = firstProfile.models[0];
 
       // 创建默认的预设消息
       const defaultPresetMessages: ChatMessageNode[] = [
@@ -499,7 +513,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
       const defaultAgentId = this.createAgent(
         '助手',
         firstProfile.id,
-        firstModel.id,
+        targetModelId,
         {
           description: '一个可以自由定制的对话伙伴',
           icon: '✨',

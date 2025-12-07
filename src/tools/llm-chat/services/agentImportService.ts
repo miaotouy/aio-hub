@@ -12,6 +12,7 @@ import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from '.
 import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
 import { invoke } from '@tauri-apps/api/core';
 import { useAgentStore } from '../agentStore';
+import { useChatSettings } from '../composables/useChatSettings';
 
 const logger = createModuleLogger('llm-chat/agentImportService');
 const errorHandler = createModuleErrorHandler('llm-chat/agentImportService');
@@ -34,6 +35,10 @@ export async function preflightImportAgents(
   try {
     const fileList = Array.isArray(files) ? files : [files];
     logger.info('开始预检导入文件', { count: fileList.length });
+
+    // 获取全局默认模型配置
+    const { settings } = useChatSettings();
+    const defaultModelId = settings.value.modelPreferences.defaultModel;
 
     const combinedAgents: ExportableAgent[] = [];
     const combinedAssets: Record<string, ArrayBuffer> = {};
@@ -98,7 +103,7 @@ export async function preflightImportAgents(
             ...parsedAgent,
             name: parsedAgent.name, // 明确赋值以收窄类型
             icon: finalIcon, // 使用处理后的 icon
-            modelId: '', // 模型ID需要用户后续选择
+            modelId: defaultModelId || '', // 尝试使用默认模型
             parameters: parsedAgent.parameters || {}, // 确保 parameters 字段存在
             presetMessages,
           };
@@ -134,7 +139,7 @@ export async function preflightImportAgents(
             ...parsedAgent,
             name: parsedAgent.name, // 明确赋值以收窄类型
             icon: assetPath, // 将图标指向新资产
-            modelId: '', // 模型ID需要用户后续选择
+            modelId: defaultModelId || '', // 尝试使用默认模型
             parameters: parsedAgent.parameters || {}, // 确保 parameters 字段存在
             presetMessages,
           };
@@ -171,6 +176,12 @@ export async function preflightImportAgents(
           const fileName = agent.icon.split('/').pop() || 'unknown';
           agent.icon = `assets/${assetPrefix}${fileName}`;
         }
+
+        // 如果导入的 Agent 没有 modelId，尝试应用默认模型
+        if (!agent.modelId && defaultModelId) {
+          agent.modelId = defaultModelId;
+        }
+
         // 为每个 agent 分配一个临时的唯一 ID
         agent.id = crypto.randomUUID();
         combinedAgents.push(agent);

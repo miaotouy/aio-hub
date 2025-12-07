@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-regex-editor">
+  <div class="chat-regex-editor" ref="containerRef" :class="{ 'is-compact': isMobile }">
     <!-- 顶部操作栏 -->
     <div class="editor-header">
       <div class="header-left">
@@ -253,7 +253,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
-import { useMediaQuery } from "@vueuse/core";
+import { useElementSize } from "@vueuse/core";
 import { defaultsDeep } from "lodash-es";
 import {
   Plus,
@@ -299,7 +299,9 @@ const importJson = ref("");
 const importMode = ref<"sillytavern" | "json">("json");
 
 // 响应式布局状态
-const isMobile = useMediaQuery("(max-width: 768px)");
+const containerRef = ref<HTMLElement | null>(null);
+const { width: containerWidth } = useElementSize(containerRef);
+const isMobile = computed(() => containerWidth.value < 768);
 const showMobileEditor = ref(false);
 
 // 当从宽屏切换到窄屏时，如果已选中规则，自动显示编辑器
@@ -631,6 +633,8 @@ function truncateRegex(regex: string, maxLength = 30): string {
   justify-content: space-between;
   align-items: center;
   padding-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .header-left {
@@ -653,6 +657,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* 预设项 */
@@ -663,10 +668,20 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .preset-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
   flex: 1;
-  padding-right: 12px;
+  padding-right: 8px;
   cursor: pointer;
+  min-width: 0;
+}
+
+:deep(.el-collapse-item__header) {
+  height: auto !important;
+  min-height: 48px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  line-height: normal;
 }
 
 .preset-drag-handle {
@@ -678,16 +693,22 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .preset-name {
   font-weight: 500;
   flex: 1;
+  min-width: 90px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 4px;
 }
 
 .preset-actions {
   margin-left: auto;
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .preset-content {
-  padding: 16px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -872,67 +893,65 @@ function truncateRegex(regex: string, maxLength = 30): string {
 }
 
 /* 响应式布局优化 */
-@media (max-width: 768px) {
-  .rules-container {
-    position: relative;
-    overflow: hidden;
-  }
+.chat-regex-editor.is-compact .rules-container {
+  position: relative;
+  overflow: hidden;
+}
 
-  .rules-sidebar {
-    width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    z-index: 1;
-    transform: translateX(0);
-    transition:
-      transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-      opacity 0.3s;
-  }
+.chat-regex-editor.is-compact .rules-sidebar {
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 1;
+  transform: translateX(0);
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s;
+}
 
-  .rules-editor-panel {
-    width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    z-index: 2;
-    transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    background-color: var(--card-bg);
-    display: flex;
-    flex-direction: column;
-  }
+.chat-regex-editor.is-compact .rules-editor-panel {
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 2;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: var(--card-bg);
+  display: flex;
+  flex-direction: column;
+}
 
-  .rules-container.show-editor .rules-sidebar {
-    transform: translateX(-20%);
-    opacity: 0;
-    pointer-events: none;
-  }
+.chat-regex-editor.is-compact .rules-container.show-editor .rules-sidebar {
+  transform: translateX(-20%);
+  opacity: 0;
+  pointer-events: none;
+}
 
-  .rules-container.show-editor .rules-editor-panel {
-    transform: translateX(0);
-  }
+.chat-regex-editor.is-compact .rules-container.show-editor .rules-editor-panel {
+  transform: translateX(0);
+}
 
-  .mobile-editor-header {
-    display: flex;
-    align-items: center;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-color-soft);
-    gap: 8px;
-    flex-shrink: 0;
-  }
+.chat-regex-editor.is-compact .mobile-editor-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color-soft);
+  gap: 8px;
+  flex-shrink: 0;
+}
 
-  .mobile-title {
-    font-weight: 500;
-    font-size: 14px;
-  }
+.chat-regex-editor.is-compact .mobile-title {
+  font-weight: 500;
+  font-size: 14px;
+}
 
-  /* 调整移动端下的一些内边距 */
-  .editor-wrapper {
-    padding: 12px;
-  }
+/* 调整移动端下的一些内边距 */
+.chat-regex-editor.is-compact .editor-wrapper {
+  padding: 12px;
 }
 </style>

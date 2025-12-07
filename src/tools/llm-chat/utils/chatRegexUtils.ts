@@ -155,6 +155,7 @@ export async function processRulesWithMacros(
       newRule.regex = (
         await processor.process(newRule.regex, macroContext, {
           valueTransformer: transform,
+          silent: true, // 静默处理，避免在循环中刷屏
         })
       ).output;
 
@@ -166,6 +167,7 @@ export async function processRulesWithMacros(
               (
                 await processor.process(str, macroContext, {
                   valueTransformer: transform, // 同样对 trimStrings 中的宏应用转义
+                  silent: true, // 静默处理
                 })
               ).output
           )

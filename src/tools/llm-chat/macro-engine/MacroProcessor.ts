@@ -71,14 +71,19 @@ export class MacroProcessor {
       debug?: boolean;
       /** 值转换器（用于对宏替换结果进行后处理，例如正则转义） */
       valueTransformer?: (value: string) => string;
+      /** 是否静默模式（不输出日志，用于批量处理） */
+      silent?: boolean;
     }
   ): Promise<MacroProcessResult> {
     const startTime = Date.now();
+    const silent = options?.silent ?? false;
 
     // 检查是否包含宏（使用简单的字符串检查，避免正则状态问题）
     const hasMacros = text.includes('{{');
     if (!hasMacros) {
-      logger.debug('文本不包含宏，跳过处理');
+      if (!silent) {
+        logger.debug('文本不包含宏，跳过处理');
+      }
       return {
         output: text,
         hasMacros: false,
@@ -86,7 +91,9 @@ export class MacroProcessor {
       };
     }
 
-    logger.debug('开始宏处理', { textLength: text.length });
+    if (!silent) {
+      logger.debug('开始宏处理', { textLength: text.length });
+    }
 
     // 三阶段处理
     const original = text;
@@ -98,33 +105,42 @@ export class MacroProcessor {
       current,
       context,
       MacroPhase.PRE_PROCESS,
-      options?.valueTransformer
+      options?.valueTransformer,
+      silent
     );
     current = afterPreProcess.output;
     macroCount += afterPreProcess.count;
-    logger.debug('预处理完成', { macroCount: afterPreProcess.count });
+    if (!silent) {
+      logger.debug('预处理完成', { macroCount: afterPreProcess.count });
+    }
 
     // 阶段二：替换（静态值）
     const afterSubstitute = await this.processPhase(
       current,
       context,
       MacroPhase.SUBSTITUTE,
-      options?.valueTransformer
+      options?.valueTransformer,
+      silent
     );
     current = afterSubstitute.output;
     macroCount += afterSubstitute.count;
-    logger.debug('替换完成', { macroCount: afterSubstitute.count });
+    if (!silent) {
+      logger.debug('替换完成', { macroCount: afterSubstitute.count });
+    }
 
     // 阶段三：后处理（动态函数）
     const afterPostProcess = await this.processPhase(
       current,
       context,
       MacroPhase.POST_PROCESS,
-      options?.valueTransformer
+      options?.valueTransformer,
+      silent
     );
     current = afterPostProcess.output;
     macroCount += afterPostProcess.count;
-    logger.debug('后处理完成', { macroCount: afterPostProcess.count });
+    if (!silent) {
+      logger.debug('后处理完成', { macroCount: afterPostProcess.count });
+    }
 
     // 最后一步：处理转义字符
     // 将 \{{ 替换回 {{
@@ -133,12 +149,14 @@ export class MacroProcessor {
     }
 
     const duration = Date.now() - startTime;
-    logger.debug('宏处理完成', {
-      macroCount,
-      duration: `${duration}ms`,
-      originalLength: original.length,
-      outputLength: current.length,
-    });
+    if (!silent) {
+      logger.debug('宏处理完成', {
+        macroCount,
+        duration: `${duration}ms`,
+        originalLength: original.length,
+        outputLength: current.length,
+      });
+    }
 
     const result: MacroProcessResult = {
       output: current,
@@ -159,13 +177,87 @@ export class MacroProcessor {
   }
 
   /**
+   * 批量处理多个文本中的宏
+   * @param texts 待处理的文本数组
+   * @param context 宏上下文
+   * @param options 处理选项
+   * @returns 批量处理结果
+   */
+  async processBatch(
+    texts: string[],
+    context: MacroContext,
+    options?: {
+      /** 值转换器（用于对宏替换结果进行后处理，例如正则转义） */
+      valueTransformer?: (value: string) => string;
+    }
+  ): Promise<{
+    outputs: string[];
+    totalMacroCount: number;
+    processedCount: number;
+    skippedCount: number;
+  }> {
+    const startTime = Date.now();
+
+    // 快速过滤：找出包含宏的文本
+    const textsWithMacros = texts.filter(t => t.includes('{{'));
+    const skippedCount = texts.length - textsWithMacros.length;
+
+    if (textsWithMacros.length === 0) {
+      logger.debug('批量处理：所有文本均不包含宏，跳过处理', {
+        totalCount: texts.length,
+      });
+      return {
+        outputs: texts,
+        totalMacroCount: 0,
+        processedCount: 0,
+        skippedCount: texts.length,
+      };
+    }
+
+    logger.debug('批量宏处理开始', {
+      totalCount: texts.length,
+      withMacrosCount: textsWithMacros.length,
+      skippedCount,
+    });
+
+    // 并行处理所有文本（静默模式）
+    const results = await Promise.all(
+      texts.map(text => this.process(text, context, {
+        valueTransformer: options?.valueTransformer,
+        silent: true,
+      }))
+    );
+
+    const outputs = results.map(r => r.output);
+    const totalMacroCount = results.reduce((sum, r) => sum + r.macroCount, 0);
+    const processedCount = results.filter(r => r.hasMacros).length;
+
+    const duration = Date.now() - startTime;
+    logger.debug('批量宏处理完成', {
+      totalCount: texts.length,
+      processedCount,
+      skippedCount,
+      totalMacroCount,
+      duration: `${duration}ms`,
+    });
+
+    return {
+      outputs,
+      totalMacroCount,
+      processedCount,
+      skippedCount,
+    };
+  }
+
+  /**
    * 处理特定阶段的宏
    */
   private async processPhase(
     text: string,
     context: MacroContext,
     phase: MacroPhase,
-    valueTransformer?: (value: string) => string
+    valueTransformer?: (value: string) => string,
+    silent?: boolean
   ): Promise<{ output: string; count: number }> {
     let output = text;
     let count = 0;
@@ -176,6 +268,8 @@ export class MacroProcessor {
 
     // 创建替换映射表，用于批量替换
     const replacements = new Map<string, string>();
+    const executedMacros: Array<{ name: string; args?: string[]; resultLength: number }> = [];
+    const unknownMacros: string[] = [];
 
     // 首先收集所有需要替换的宏及其结果（每次创建新的正则实例）
     const matches = Array.from(text.matchAll(MacroProcessor.getMacroPattern()));
@@ -194,7 +288,7 @@ export class MacroProcessor {
 
       const macroDef = this.registry.getMacro(name);
       if (!macroDef) {
-        logger.warn('宏未注册', { name });
+        unknownMacros.push(name);
         continue;
       }
 
@@ -215,8 +309,7 @@ export class MacroProcessor {
         replacements.set(fullMatch, result);
         count++;
 
-        logger.debug('宏执行成功', {
-          phase,
+        executedMacros.push({
           name,
           args,
           resultLength: result.length,
@@ -229,6 +322,25 @@ export class MacroProcessor {
         // 保持原始宏不变
       }
     }
+
+    if (!silent) {
+      if (executedMacros.length > 0) {
+        logger.debug(`阶段 ${phase} 宏批量执行成功`, {
+          phase,
+          count: executedMacros.length,
+          macros: executedMacros,
+        });
+      }
+
+      if (unknownMacros.length > 0) {
+        logger.warn(`阶段 ${phase} 发现未注册宏`, {
+          phase,
+          count: unknownMacros.length,
+          macros: unknownMacros,
+        });
+      }
+    }
+
     // 一次性替换所有宏（使用正则全局替换确保替换所有出现）
     for (const [macro, result] of replacements) {
       // 转义特殊字符，因为宏中包含 {{}}
@@ -238,7 +350,6 @@ export class MacroProcessor {
       const regex = new RegExp(`(?<!\\\\)${escapedMacro}`, 'g');
       output = output.replace(regex, result);
     }
-
 
     return { output, count };
   }

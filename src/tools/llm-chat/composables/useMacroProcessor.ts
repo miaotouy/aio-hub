@@ -47,18 +47,12 @@ export function useMacroProcessor() {
    * @param contextOverrides 可选的上下文覆盖信息
    * @returns 处理后的文本
    */
-  const processMacros = async (
-    text: string,
-    contextOverrides?: MacroContextOverrides,
-    options?: { valueTransformer?: (value: string) => string }
-  ): Promise<string> => {
-    // 快速检查：如果文本中不包含宏，直接返回
-    if (!text.includes('{{')) {
-      return text;
-    }
-
+  /**
+   * 构建宏上下文（内部方法）
+   */
+  const buildMacroContext = (contextOverrides?: MacroContextOverrides) => {
     // 获取当前智能体信息（优先使用传入的，否则使用当前选中的）
-    const agent = contextOverrides?.agent || 
+    const agent = contextOverrides?.agent ||
       (agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : undefined);
 
     // 获取用户档案（优先使用传入的，否则根据智能体绑定或全局配置）
@@ -67,7 +61,7 @@ export function useMacroProcessor() {
       // 如果智能体有绑定的用户档案，使用它
       if (agent?.userProfileId) {
         userProfile = userProfileStore.getProfileById(agent.userProfileId);
-      } 
+      }
       // 否则使用全局用户档案
       else if (userProfileStore.globalProfileId) {
         userProfile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
@@ -103,23 +97,44 @@ export function useMacroProcessor() {
       baseContext.input = contextOverrides.input;
     }
 
-    logger.debug('构建宏上下文', {
-      userName,
-      charName,
-      hasAgent: !!agent,
-      hasUserProfile: !!userProfile,
-      hasSession: !!contextOverrides?.session,
-      hasInput: !!baseContext.input,
-      textLength: text.length,
-    });
+    return { baseContext, userName, charName, agent, userProfile };
+  };
+
+  const processMacros = async (
+    text: string,
+    contextOverrides?: MacroContextOverrides,
+    options?: {
+      valueTransformer?: (value: string) => string;
+      silent?: boolean;
+    }
+  ): Promise<string> => {
+    // 快速检查：如果文本中不包含宏，直接返回
+    if (!text.includes('{{')) {
+      return text;
+    }
+
+    const { baseContext, userName, charName, agent, userProfile } = buildMacroContext(contextOverrides);
+
+    if (!options?.silent) {
+      logger.debug('构建宏上下文', {
+        userName,
+        charName,
+        hasAgent: !!agent,
+        hasUserProfile: !!userProfile,
+        hasSession: !!contextOverrides?.session,
+        hasInput: !!baseContext.input,
+        textLength: text.length,
+      });
+    }
 
     // 执行宏处理
     try {
       const result = await processor.process(text, baseContext, {
         valueTransformer: options?.valueTransformer,
+        silent: options?.silent,
       });
 
-      if (result.hasMacros) {
+      if (result.hasMacros && !options?.silent) {
         logger.debug('宏处理完成', {
           originalLength: text.length,
           processedLength: result.output.length,
@@ -139,18 +154,64 @@ export function useMacroProcessor() {
   };
 
   /**
-   * 批量处理多个文本（并行处理以提高性能）
+   * 批量处理多个文本
    * @param texts 待处理的文本数组
    * @param contextOverrides 可选的上下文覆盖信息
+   * @param options 处理选项
    * @returns 处理后的文本数组
    */
   const processMacrosBatch = async (
     texts: string[],
-    contextOverrides?: MacroContextOverrides
+    contextOverrides?: MacroContextOverrides,
+    options?: {
+      valueTransformer?: (value: string) => string;
+      silent?: boolean;
+    }
   ): Promise<string[]> => {
-    return Promise.all(
-      texts.map(text => processMacros(text, contextOverrides))
-    );
+    // 快速检查：如果没有文本包含宏，直接返回
+    const hasAnyMacros = texts.some(t => t.includes('{{'));
+    if (!hasAnyMacros) {
+      return texts;
+    }
+
+    const { baseContext, userName, charName, agent, userProfile } = buildMacroContext(contextOverrides);
+
+    if (!options?.silent) {
+      logger.debug('批量构建宏上下文', {
+        userName,
+        charName,
+        hasAgent: !!agent,
+        hasUserProfile: !!userProfile,
+        hasSession: !!contextOverrides?.session,
+        hasInput: !!baseContext.input,
+        textCount: texts.length,
+      });
+    }
+
+    // 使用批量处理方法
+    try {
+      const result = await processor.processBatch(texts, baseContext, {
+        valueTransformer: options?.valueTransformer,
+      });
+
+      if (!options?.silent) {
+        logger.debug('批量宏处理完成', {
+          totalCount: texts.length,
+          processedCount: result.processedCount,
+          skippedCount: result.skippedCount,
+          totalMacroCount: result.totalMacroCount,
+        });
+      }
+
+      return result.outputs;
+    } catch (error) {
+      errorHandler.error(error as Error, '批量宏处理失败', {
+        showToUser: false,
+        context: { textCount: texts.length },
+      });
+      // 处理失败时返回原文本
+      return texts;
+    }
   };
 
   return {

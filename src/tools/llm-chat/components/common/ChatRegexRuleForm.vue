@@ -62,7 +62,7 @@
 
         <el-form-item label="正则标志">
           <el-input v-model="localRule.flags" placeholder="默认 gm" style="width: 100px" />
-          <span class="form-hint">常用: g(全局) m(多行) i(忽略大小写)</span>
+          <span class="form-hint">支持: g(全局) i(忽略大小写) m(多行) s(点号通配) u(Unicode) y(粘连)</span>
         </el-form-item>
       </el-form>
     </div>

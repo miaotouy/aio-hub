@@ -510,6 +510,8 @@ export interface LlmThinkRule {
 
 // ============ 配置管理相关类型 ============
 
+import type { ChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
+
 /**
  * 渲染器版本枚举
  *
@@ -610,6 +612,8 @@ export interface TesterConfig {
   simulateMeta?: boolean;
   /** 选中的分词器 */
   selectedTokenizer?: string;
+  /** 正则配置 */
+  regexConfig?: ChatRegexConfig;
 }
 
 // ============ 样式配置相关类型 ============

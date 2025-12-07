@@ -11,6 +11,8 @@ import type {
   RichTextRendererStyleOptions,
   CopyOptions,
 } from "./types";
+import type { ChatRegexConfig, ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
+import { createDefaultChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
 import { RendererVersion } from "./types";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -109,6 +111,7 @@ const configManager = createConfigManager<TesterConfig>({
     selectedTokenizer: "gpt4o",
     llmThinkRules: defaultLlmThinkRules,
     richTextStyleOptions: {},
+    regexConfig: createDefaultChatRegexConfig(),
     copyOptions: {
       includeConfig: true,
       includeOriginal: true,
@@ -152,6 +155,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const selectedTokenizer = ref("gpt4o");
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
   const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
+  const regexConfig = ref<ChatRegexConfig>(createDefaultChatRegexConfig());
   const copyOptions = reactive<CopyOptions>({
     includeConfig: true,
     includeOriginal: true,
@@ -216,6 +220,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedTokenizer.value = config.selectedTokenizer ?? "gpt4o";
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
       richTextStyleOptions.value = config.richTextStyleOptions || {};
+      regexConfig.value = config.regexConfig || createDefaultChatRegexConfig();
       if (config.copyOptions) {
         copyOptions.includeConfig = config.copyOptions.includeConfig;
         copyOptions.includeOriginal = config.copyOptions.includeOriginal;
@@ -271,6 +276,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         selectedTokenizer: selectedTokenizer.value,
         llmThinkRules: llmThinkRules.value,
         richTextStyleOptions: richTextStyleOptions.value,
+        regexConfig: regexConfig.value,
         copyOptions: { ...copyOptions },
       };
 
@@ -322,6 +328,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedTokenizer: selectedTokenizer.value,
       llmThinkRules: llmThinkRules.value,
       richTextStyleOptions: richTextStyleOptions.value,
+      regexConfig: regexConfig.value,
       copyOptions: { ...copyOptions },
     };
 
@@ -356,6 +363,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     selectedTokenizer.value = "gpt4o";
     llmThinkRules.value = [...defaultLlmThinkRules];
     richTextStyleOptions.value = {};
+    regexConfig.value = createDefaultChatRegexConfig();
     copyOptions.includeConfig = true;
     copyOptions.includeOriginal = true;
     copyOptions.includeHtml = true;
@@ -399,6 +407,19 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     llmThinkRules.value = [...defaultLlmThinkRules];
   }
 
+  /**
+   * 获取当前生效的正则规则列表（扁平化）
+   * 仅包含已启用预设中的已启用规则，且按顺序排列
+   */
+  function getActiveRegexRules(): ChatRegexRule[] {
+    if (!regexConfig.value?.presets) return [];
+
+    return regexConfig.value.presets
+      .filter((preset) => preset.enabled)
+      .flatMap((preset) => preset.rules)
+      .filter((rule) => rule.enabled);
+  }
+
   // ===== 监听状态变化自动保存 =====
 
   // 在配置加载完成后，监听所有状态变化并自动保存
@@ -428,6 +449,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedTokenizer,
       llmThinkRules,
       richTextStyleOptions,
+      regexConfig,
       () => copyOptions.includeConfig,
       () => copyOptions.includeOriginal,
       () => copyOptions.includeHtml,
@@ -467,6 +489,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     selectedTokenizer,
     llmThinkRules,
     richTextStyleOptions,
+    regexConfig,
     copyOptions,
     isConfigLoaded,
 
@@ -478,5 +501,6 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     updateLlmThinkRule,
     removeLlmThinkRule,
     resetLlmThinkRules,
+    getActiveRegexRules,
   };
 });

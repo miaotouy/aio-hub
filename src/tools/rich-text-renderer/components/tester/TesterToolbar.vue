@@ -19,6 +19,11 @@
         <el-button :icon="Brush" @click="$emit('openStyleEditor')" size="small" />
       </el-tooltip>
 
+      <!-- 正则规则配置按钮 -->
+      <el-tooltip content="配置正则处理管道" placement="bottom" :show-after="300">
+        <el-button :icon="MagicStick" @click="$emit('openRegexConfig')" size="small" />
+      </el-tooltip>
+
       <!-- 查看 AST 按钮 -->
       <el-tooltip content="查看当前渲染的 AST 结构" placement="bottom" :show-after="300">
         <el-button :icon="Atom" @click="$emit('openAstViewer')" size="small" />
@@ -124,6 +129,7 @@ import {
   CopyDocument,
   Brush,
   Setting,
+  MagicStick,
 } from "@element-plus/icons-vue";
 import { Atom } from "lucide-vue-next";
 import { storeToRefs } from "pinia";
@@ -140,6 +146,7 @@ defineProps<{
 defineEmits<{
   (e: "update:isConfigCollapsed", value: boolean): void;
   (e: "openStyleEditor"): void;
+  (e: "openRegexConfig"): void;
   (e: "openAstViewer"): void;
   (e: "startRender"): void;
   (e: "stopRender"): void;

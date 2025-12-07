@@ -23,6 +23,7 @@
           :stream-source="streamSource"
           :cached-input-content="cachedInputContent"
           @openStyleEditor="openStyleEditor"
+          @openRegexConfig="openRegexConfig"
           @openAstViewer="openAstViewer"
           @startRender="startRender"
           @stopRender="stopRender"
@@ -106,6 +107,7 @@
                 :enable-enter-animation="enableEnterAnimation"
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
+                :regex-rules="activeRegexRules"
                 :generation-meta="simulateMeta ? generationMeta : undefined"
                 :throttle-ms="throttleMs"
               />
@@ -133,6 +135,24 @@
       <MarkdownStyleEditor v-model="richTextStyleOptions" :loading="isStyleLoading" />
     </DraggablePanel>
 
+    <!-- 正则配置悬浮窗 -->
+    <DraggablePanel
+      ref="regexConfigPanelRef"
+      v-model="isRegexConfigVisible"
+      title="富文本正则处理管道配置"
+      width="800px"
+      height="700px"
+      :initial-x="200"
+      :initial-y="100"
+      :destroy-on-close="false"
+      persistence-key="rich-text-regex-config-panel"
+    >
+      <!-- 强制类型转换，因为 storeToRefs 导出的 ref 丢失了类型信息 -->
+      <div class="regex-editor-container">
+        <ChatRegexEditor v-model="storeRegexConfig as ChatRegexConfig" />
+      </div>
+    </DraggablePanel>
+
     <!-- AST 查看器悬浮窗 -->
     <AstViewer ref="astViewerPanelRef" v-model="isAstViewerVisible" :data="rendererRef?.ast" />
   </div>
@@ -154,6 +174,8 @@ import AstViewer from "./components/ast-viewer/AstViewer.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import TesterConfigSidebar from "./components/tester/TesterConfigSidebar.vue";
 import TesterToolbar from "./components/tester/TesterToolbar.vue";
+import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
+import type { ChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
 
 // 容器尺寸检测
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -198,8 +220,11 @@ const {
   selectedTokenizer,
   llmThinkRules,
   richTextStyleOptions,
+  regexConfig: storeRegexConfig,
   copyOptions,
 } = storeToRefs(store);
+
+const activeRegexRules = computed(() => store.getActiveRegexRules());
 
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
@@ -207,6 +232,10 @@ const isStyleLoading = ref(false);
 const styleEditorPanelRef = ref<DraggablePanelInstance | null>(null);
 // 标记是否已经初始化过编辑器（配合 destroyOnClose=false 使用）
 const hasInitializedEditor = ref(false);
+
+// 正则配置状态
+const isRegexConfigVisible = ref(false);
+const regexConfigPanelRef = ref<DraggablePanelInstance | null>(null);
 
 // AST 查看器状态
 const isAstViewerVisible = ref(false);
@@ -217,6 +246,13 @@ const openAstViewer = () => {
   isAstViewerVisible.value = true;
   nextTick(() => {
     astViewerPanelRef.value?.activate();
+  });
+};
+
+const openRegexConfig = () => {
+  isRegexConfigVisible.value = true;
+  nextTick(() => {
+    regexConfigPanelRef.value?.activate();
   });
 };
 
@@ -1094,5 +1130,11 @@ onMounted(async () => {
 
 .rich-text-renderer-tester.is-mobile .workspace-content.split {
   flex-direction: column;
+}
+
+.regex-editor-container {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
 }
 </style>

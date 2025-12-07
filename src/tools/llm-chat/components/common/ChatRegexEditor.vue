@@ -19,13 +19,13 @@
         <el-button @click="pastePreset" size="small" :icon="ClipboardPaste"> 粘贴预设 </el-button>
         <el-dropdown trigger="click" @command="handleImportCommand">
           <el-button size="small" :icon="Download">
-            导入
+            导入预设
             <el-icon class="el-icon--right"><ChevronDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="sillytavern">从 SillyTavern 导入</el-dropdown-item>
-              <el-dropdown-item command="json">从 JSON 导入</el-dropdown-item>
+              <el-dropdown-item command="json">导入 AIO 的预设</el-dropdown-item>
+              <el-dropdown-item command="sillytavern">导入 SillyTavern 的预设</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -273,14 +273,6 @@
     <el-empty v-else description="暂无文本替换规则" :image-size="80">
       <el-button @click="addPreset" type="primary">创建预设</el-button>
     </el-empty>
-    <!-- 导入对话框 -->
-    <el-dialog v-model="isImportDialogVisible" title="导入规则脚本" width="600px">
-      <el-input v-model="importJson" type="textarea" :rows="12" placeholder="粘贴 JSON 内容..." />
-      <template #footer>
-        <el-button @click="isImportDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="executeImport">导入</el-button>
-      </template>
-    </el-dialog>
 
     <!-- 说明弹窗 -->
     <ChatRegexHelpDialog v-model="isHelpDialogVisible" />
@@ -290,7 +282,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
-import { useElementSize } from "@vueuse/core";
+import { useElementSize, useFileDialog } from "@vueuse/core";
 import { defaultsDeep } from "lodash-es";
 import {
   Plus,
@@ -310,7 +302,10 @@ import {
   createChatRegexPreset,
   createChatRegexRule,
 } from "../../types/chatRegex";
-import { convertFromSillyTavern, convertSillyTavernArrayToPreset } from "../../utils/chatRegexUtils";
+import {
+  convertFromSillyTavern,
+  convertSillyTavernArrayToPreset,
+} from "../../utils/chatRegexUtils";
 import { customMessage } from "@/utils/customMessage";
 import ChatRegexRuleForm from "./ChatRegexRuleForm.vue";
 import ChatRegexHelpDialog from "./ChatRegexHelpDialog.vue";
@@ -332,10 +327,26 @@ const emit = defineEmits<Emits>();
 const expandedPresets = ref<string[]>([]);
 const selectedPreset = ref<ChatRegexPreset | null>(null);
 const selectedRule = ref<ChatRegexRule | null>(null);
-const isImportDialogVisible = ref(false);
 const isHelpDialogVisible = ref(false);
-const importJson = ref("");
 const importMode = ref<"sillytavern" | "json">("json");
+
+const { open: openFileDialog, onChange: onFileChange } = useFileDialog({
+  accept: ".json",
+  multiple: false,
+});
+
+onFileChange((files) => {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = e.target?.result as string;
+    if (content) {
+      executeImport(content);
+    }
+  };
+  reader.readAsText(file);
+});
 
 // 响应式布局状态
 const containerRef = ref<HTMLElement | null>(null);
@@ -571,13 +582,12 @@ function updateRulesOrder(presetIndex: number, newRules: ChatRegexRule[]) {
 
 function handleImportCommand(command: string) {
   importMode.value = command as "sillytavern" | "json";
-  importJson.value = "";
-  isImportDialogVisible.value = true;
+  openFileDialog();
 }
 
-function executeImport() {
+function executeImport(jsonContent: string) {
   try {
-    const data = JSON.parse(importJson.value);
+    const data = JSON.parse(jsonContent);
     let importedPresets: ChatRegexPreset[] = [];
 
     if (importMode.value === "sillytavern") {
@@ -601,7 +611,6 @@ function executeImport() {
       const newPresets = [...presets.value, ...importedPresets];
       emit("update:modelValue", { ...props.modelValue, presets: newPresets });
       customMessage.success(`成功导入 ${importedPresets.length} 个预设`);
-      isImportDialogVisible.value = false;
     } else {
       customMessage.warning("未找到可导入的预设");
     }

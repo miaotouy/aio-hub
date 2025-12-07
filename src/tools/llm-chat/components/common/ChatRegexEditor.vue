@@ -143,25 +143,29 @@
                                   <div class="rule-item-header">
                                     <el-icon class="rule-drag-handle"><GripVertical /></el-icon>
                                     <span class="rule-name">{{ rule.name || "未命名规则" }}</span>
-                                    <el-switch
-                                      :model-value="rule.enabled"
-                                      @update:model-value="
-                                        updateRuleField(index, ruleIndex, 'enabled', $event)
-                                      "
-                                      size="small"
+                                    <div
                                       @click.stop
-                                    />
+                                      style="display: flex; align-items: center; gap: 4px"
+                                    >
+                                      <el-switch
+                                        :model-value="rule.enabled"
+                                        @update:model-value="
+                                          updateRuleField(index, ruleIndex, 'enabled', $event)
+                                        "
+                                        size="small"
+                                      />
+                                      <el-button
+                                        @click="deleteRule(index, ruleIndex)"
+                                        :icon="Trash2"
+                                        size="small"
+                                        text
+                                        circle
+                                        type="danger"
+                                        title="删除规则"
+                                      />
+                                    </div>
                                   </div>
                                   <code class="rule-preview">{{ truncateRegex(rule.regex) }}</code>
-                                </div>
-                                <div class="rule-actions">
-                                  <el-button
-                                    @click.stop="deleteRule(index, ruleIndex)"
-                                    :icon="Trash2"
-                                    size="small"
-                                    text
-                                    type="danger"
-                                  />
                                 </div>
                               </div>
                             </VueDraggableNext>
@@ -664,16 +668,6 @@ function truncateRegex(regex: string, maxLength = 30): string {
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
-}
-
-.rule-actions {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.rule-item:hover .rule-actions,
-.rule-item.is-selected .rule-actions {
-  opacity: 1;
 }
 
 .empty-rules {

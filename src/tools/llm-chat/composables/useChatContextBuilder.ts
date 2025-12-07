@@ -17,13 +17,12 @@ import { type LlmContextData, type ContextPreviewData, SYSTEM_ANCHORS } from "..
 import type { LlmParameters } from "../types";
 import type { ContextPostProcessRule } from "../types";
 import type { ProcessableMessage } from "../types/context";
-import { useChatSettings } from "./useChatSettings";
 import {
   applyRegexRules,
-  collectRulesForPipeline,
   processRulesWithMacros,
 } from "../utils/chatRegexUtils";
 import { createMacroContext } from "../macro-engine/MacroContext";
+import { useChatRegexResolver } from "./useChatRegexResolver";
 
 const logger = createModuleLogger("llm-chat/context-builder");
 
@@ -96,65 +95,67 @@ export function useChatContextBuilder() {
     // 会话上下文（完整历史）
     let sessionContext = llmContext;
 
-    // ==================== 正则管道处理 (Request) ====================
-    const { settings } = useChatSettings();
-    const globalRegexConfig = settings.value.regexConfig;
-    const agentRegexConfig = agentConfig.regexConfig;
-    const userProfileRegexConfig = effectiveUserProfile?.regexConfig;
+    // ==================== 正则管道处理 (Request) - Message-Bound 策略 ====================
+    const { resolveRulesExplicit } = useChatRegexResolver();
 
-    const requestRules = collectRulesForPipeline(
-      "request",
-      globalRegexConfig,
-      agentRegexConfig,
-      userProfileRegexConfig
-    );
+    // Request Pipeline 的宏上下文是固定的 (基于当前请求的 Agent/User)
+    const macroContext = createMacroContext({
+      agent: currentAgent,
+      userProfile: effectiveUserProfile as UserProfile,
+      session,
+      timestamp,
+    });
 
-    if (requestRules.length > 0) {
-      logger.info(`🔍 [Regex] 请求层发现 ${requestRules.length} 条可用规则`);
+    // 遍历并应用规则（Message-Bound）
+    const appliedRulesLog: any[] = [];
 
-      // 1. 宏预处理
-      const macroContext = createMacroContext({
-        agent: currentAgent,
-        userProfile: effectiveUserProfile as UserProfile,
-        session,
-        timestamp,
-      });
-      const processedRules = await processRulesWithMacros(requestRules, macroContext);
+    for (let i = 0; i < sessionContext.length; i++) {
+      const message = sessionContext[i];
 
-      // 2. 应用规则到每条消息
-      for (let i = 0; i < sessionContext.length; i++) {
-        const message = sessionContext[i];
+      // 只处理字符串内容
+      if (typeof message.content !== "string") continue;
 
-        // 只处理字符串内容
-        if (typeof message.content !== "string") continue;
+      // 1. 计算深度 (0=最新)
+      const messageDepth = sessionContext.length - 1 - i;
 
-        // a. 计算深度
-        const messageDepth = sessionContext.length - 1 - i;
+      // 2. 获取消息归属 ID
+      // sessionContext 消息是 ProcessableMessage，没有 metadata，
+      // 必须从原始 activePath 中查找对应的 ChatMessageNode 来获取 metadata。
+      // 注意：这里需要确保 activePath 包含 sourceId 对应的节点。
+      const sourceNode = activePath.find(n => n.id === message.sourceId);
+      const agentId = sourceNode?.metadata?.agentId;
+      const userId = sourceNode?.metadata?.userProfileId;
 
-        // b. 过滤出适用规则
-        const finalRules = processedRules.filter((rule) => {
-          if (!rule.targetRoles.includes(message.role)) return false;
-          if (rule.depthRange) {
-            if (rule.depthRange.min !== undefined && messageDepth < rule.depthRange.min)
-              return false;
-            if (rule.depthRange.max !== undefined && messageDepth > rule.depthRange.max)
-              return false;
-          }
-          return true;
-        });
+      // 3. 获取规则集 (已缓存 + 角色/深度过滤)
+      const rawRules = resolveRulesExplicit(
+        agentId,
+        userId,
+        message.role,
+        "request",
+        messageDepth
+      );
 
-        // c. 应用规则
-        if (finalRules.length > 0) {
-          const originalContent = message.content;
-          message.content = applyRegexRules(originalContent, finalRules);
-          if (originalContent !== message.content) {
-            logger.debug(`[Regex] 规则已应用于消息 (depth: ${messageDepth})`, {
-              sourceId: message.sourceId,
-              rulesCount: finalRules.length,
-            }, true);
-          }
+      // 4. 宏预处理 (必须在这里进行，因为规则内容可能包含 {{macro}})
+      const processedRules = await processRulesWithMacros(rawRules, macroContext);
+
+      // 5. 应用规则
+      if (processedRules.length > 0) {
+        const originalContent = message.content;
+        message.content = applyRegexRules(originalContent, processedRules);
+        if (originalContent !== message.content) {
+          appliedRulesLog.push({
+            depth: messageDepth,
+            sourceId: message.sourceId,
+            rulesCount: processedRules.length,
+          });
         }
       }
+    }
+
+    if (appliedRulesLog.length > 0) {
+      logger.debug(`[Regex] 正则规则已应用于 ${appliedRulesLog.length} 条消息`, {
+        details: appliedRulesLog
+      }, true);
     }
 
     // ==================== 注入策略处理 ====================

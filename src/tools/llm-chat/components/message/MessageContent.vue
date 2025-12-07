@@ -9,7 +9,10 @@ import { useChatSettings } from "../../composables/useChatSettings";
 import { useAgentStore } from "../../agentStore";
 import { useUserProfileStore } from "../../userProfileStore";
 import { useMacroProcessor } from "../../composables/useMacroProcessor";
-import { resolveRulesForMessage } from "../../utils/chatRegexUtils";
+import { useChatRegexResolver } from "../../composables/useChatRegexResolver";
+import { processRulesWithMacros } from "../../utils/chatRegexUtils";
+import { createMacroContext } from "../../macro-engine/MacroContext";
+import type { ChatRegexRule } from "../../types/chatRegex";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -21,6 +24,7 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
 const { processMacros } = useMacroProcessor();
+const regexResolver = useChatRegexResolver();
 
 interface Props {
   session: ChatSession | null;
@@ -95,37 +99,70 @@ const generationMetaForRenderer = computed(() => {
 
 // 解析需要传递给渲染器的正则规则
 const activeRules = computed(() => {
-  // 获取相关配置
-  // 1. 全局配置
-  const globalConfig = settings.value.regexConfig;
+  // 渲染层回退逻辑：如果消息中没有 AgentID/UserID，则回退到当前激活的 Agent/User 配置。
+  // 这保证了历史消息在渲染时，如果缺少元数据，会使用当前 Agent 的渲染规则。
 
-  // 2. 智能体配置
-  // 优先从消息元数据获取 agentId，回退到当前激活的 agentId
-  const agentId = props.message.metadata?.agentId ?? agentStore.currentAgentId;
+  // 1. 确定 Agent ID (Message-Bound 优先，Session-Bound 回退)
+  const agentId = props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-  const agentConfig = agent?.regexConfig;
 
-  // 3. 用户档案配置
-  // 优先从消息元数据获取 userProfileId，回退到智能体绑定的档案，最后回退到全局档案
-  let userConfig;
-  const userProfileId = props.message.metadata?.userProfileId ?? agent?.userProfileId;
-  if (userProfileId) {
-    const profile = userProfileStore.getProfileById(userProfileId);
-    userConfig = profile?.regexConfig;
-  } else {
-    userConfig = userProfileStore.globalProfile?.regexConfig;
+  // 2. 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
+  let userProfileId: string | undefined = props.message.metadata?.userProfileId;
+  if (!userProfileId) {
+    // 优先回退到 Agent 绑定的档案
+    userProfileId = agent?.userProfileId ?? undefined;
+  }
+  if (!userProfileId) {
+    // 最后回退到全局档案
+    userProfileId = userProfileStore.globalProfileId ?? undefined;
   }
 
-  // 解析规则
-  return resolveRulesForMessage(
-    "render",
+  return regexResolver.resolveRulesExplicit(
+    agentId,
+    userProfileId,
     props.message.role,
-    props.messageDepth ?? 0,
-    globalConfig,
-    agentConfig,
-    userConfig
+    "render",
+    props.messageDepth ?? 0
   );
 });
+
+// 经过宏处理的最终规则列表
+const processedRules = ref<ChatRegexRule[]>([]);
+
+// 监听 activeRules 变化，进行宏处理
+watch(
+  [activeRules, () => props.session, () => props.message.metadata],
+  async ([rules, session, metadata]) => {
+    if (!rules || rules.length === 0) {
+      processedRules.value = [];
+      return;
+    }
+
+    // 获取上下文信息以构建宏上下文
+    const agentId = metadata?.agentId ?? agentStore.currentAgentId;
+    const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+    
+    let userProfile;
+    let userProfileId: string | undefined = metadata?.userProfileId;
+    if (!userProfileId) userProfileId = agent?.userProfileId ?? undefined;
+    if (!userProfileId) userProfileId = userProfileStore.globalProfileId ?? undefined;
+    
+    if (userProfileId) {
+      userProfile = userProfileStore.getProfileById(userProfileId);
+    } else {
+      userProfile = userProfileStore.globalProfile;
+    }
+
+    const macroContext = createMacroContext({
+      agent,
+      userProfile: userProfile ?? undefined,
+      session: session ?? undefined,
+    });
+
+    processedRules.value = await processRulesWithMacros(rules, macroContext);
+  },
+  { immediate: true }
+);
 
 // 编辑区域引用
 const editAreaRef = ref<HTMLElement | undefined>(undefined);
@@ -357,7 +394,7 @@ watch(
       <RichTextRenderer
         v-if="displayedContent"
         :content="displayedContent"
-        :regex-rules="activeRules"
+        :regex-rules="processedRules"
         :version="settings.uiPreferences.rendererVersion"
         :llm-think-rules="llmThinkRules"
         :style-options="richTextStyleOptions"

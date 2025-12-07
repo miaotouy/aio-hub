@@ -16,20 +16,16 @@ import type { MacroContext } from '../macro-engine/MacroContext';
 import { useMacroProcessor } from '../composables/useMacroProcessor';
 
 // =====================
-// 规则收集
+// 规则收集与过滤
 // =====================
 
 /**
- * 获取消息节点最终应用的规则列表
- *
- * @param stage - 当前处理阶段 (render/request)
- * @param role - 消息角色 (system/user/assistant)
- * @param messageDepth - 消息深度 (0=最新)
- * @param configs - 配置列表 (Global, Agent, User)
- */
-/**
  * 从多个配置源收集适用于特定阶段的所有已启用规则
  * (用于 Pipeline 的第一步，不过滤 role 和 depth)
+ *
+ * @param stage - 当前处理阶段 (render/request)
+ * @param configs - 配置列表 (Global, Agent, User)
+ * @returns 排序后的规则列表
  */
 export function collectRulesForPipeline(
   stage: 'render' | 'request',
@@ -57,8 +53,58 @@ export function collectRulesForPipeline(
 }
 
 /**
- * @deprecated 已被 collectRulesForPipeline 和后续的动态过滤取代
+ * 基础规则解析（不含深度过滤）
+ * 别名函数，与 collectRulesForPipeline 功能相同
+ * 用于 useChatRegexResolver 的缓存机制
+ *
+ * @param stage - 当前处理阶段 (render/request)
+ * @param configs - 配置列表 (Global, Agent, User)
+ * @returns 排序后的规则列表
+ */
+export function resolveRawRules(
+  stage: 'render' | 'request',
+  ...configs: (ChatRegexConfig | undefined)[]
+): ChatRegexRule[] {
+  return collectRulesForPipeline(stage, ...configs);
+}
+
+/**
+ * 根据消息角色过滤规则
+ *
+ * @param rules - 规则列表
+ * @param role - 消息角色
+ * @returns 过滤后的规则列表
+ */
+export function filterRulesByRole(rules: ChatRegexRule[], role: MessageRole): ChatRegexRule[] {
+  return rules.filter((rule) => rule.targetRoles.includes(role));
+}
+
+/**
+ * 根据消息深度过滤规则
+ *
+ * @param rules - 规则列表
+ * @param depth - 消息深度 (0=最新)
+ * @returns 过滤后的规则列表
+ */
+export function filterRulesByDepth(rules: ChatRegexRule[], depth: number): ChatRegexRule[] {
+  return rules.filter((rule) => {
+    if (!rule.depthRange) return true;
+    const { min, max } = rule.depthRange;
+    if (min !== undefined && depth < min) return false;
+    if (max !== undefined && depth > max) return false;
+    return true;
+  });
+}
+
+/**
+ * @deprecated 已被 useChatRegexResolver 取代，保留用于向后兼容
  * 获取消息节点最终应用的规则列表
+ *
+ * @param stage - 当前处理阶段 (render/request)
+ * @param role - 消息角色 (system/user/assistant)
+ * @param messageDepth - 消息深度 (0=最新)
+ * @param configs - 配置列表 (Global, Agent, User)
+ * @returns 过滤后的规则列表
  */
 export function resolveRulesForMessage(
   stage: 'render' | 'request',
@@ -69,16 +115,11 @@ export function resolveRulesForMessage(
   // 1. 收集所有适用于该阶段的规则
   const pipelineRules = collectRulesForPipeline(stage, ...configs);
 
-  // 2. 根据 role 和 depth 进行过滤
-  return pipelineRules.filter((rule) => {
-    if (!rule.targetRoles.includes(role)) return false;
-    // 深度检查
-    if (rule.depthRange) {
-      if (rule.depthRange.min !== undefined && messageDepth < rule.depthRange.min) return false;
-      if (rule.depthRange.max !== undefined && messageDepth > rule.depthRange.max) return false;
-    }
-    return true;
-  });
+  // 2. 根据 role 过滤
+  const roleFiltered = filterRulesByRole(pipelineRules, role);
+
+  // 3. 根据 depth 过滤
+  return filterRulesByDepth(roleFiltered, messageDepth);
 }
 
 // =====================

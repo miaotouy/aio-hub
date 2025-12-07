@@ -118,22 +118,68 @@ interface ChatRegexConfig {
 2.  **Agent (智能体)**: `ChatAgent.regexConfig: ChatRegexConfig`
 3.  **User (用户档案)**: `UserProfile.regexConfig: ChatRegexConfig`
 
-### 2.3 处理流程 (Pipeline Flow)
+### 2.3 配置绑定策略 (Configuration Binding Strategy)
+
+#### 核心原则："谁生的孩子谁负责" (Owner Responsibility)
+
+在多 Agent 切换场景下，正则规则的应用需要考虑**历史一致性**和**数据完整性**。经过分析，我们采用 **Message-Bound (消息绑定)** 策略作为核心设计。
+
+> **关键洞察**：对于像 SillyTavern 卡片这样高度依赖正则的场景，正则规则不仅仅是样式，更是**数据结构的一部分**。Agent 的输出本质上是 "Raw Data + Regex Logic"，只有应用了正则，数据才算完整/正确。
+
+#### 策略对比
+
+| 策略              | 说明                                          | 适用场景                                        |
+| :---------------- | :-------------------------------------------- | :---------------------------------------------- |
+| **Session-Bound** | 使用当前 Active Agent/User 的配置处理所有消息 | ❌ 会导致历史消息"裸奔"（失去必要的清洗和压缩） |
+| **Message-Bound** | 优先使用消息生成时的 Agent/User 配置          | ✅ 保证数据完整性和历史一致性                   |
+
+#### 为什么必须采用 Message-Bound？
+
+以 SillyTavern 的"万界终端系统"卡片为例，其正则配置包含：
+
+1.  **UI 构建类** (`markdownOnly: true`)：注入 CSS/Script/HTML 结构用于渲染
+2.  **数据清洗类** (`promptOnly: true`)：`清理HTML标签（省token）` - 在发送给模型时删除 HTML
+3.  **状态压缩类** (`minDepth: 4`)：`清除旧世界列表` - 折叠旧状态以节省 Token
+
+**如果使用 Session-Bound（当前 Agent 规则）处理历史消息**：
+
+- 切换到另一个 Agent 后，原 Agent 的 `promptOnly` 清洗规则**不会执行**
+- **后果**：大量 HTML 代码作为 Context 发送给模型，导致 Token 爆炸和推理干扰
+- 旧状态信息无法被折叠，占用上下文窗口
+
+**采用 Message-Bound 后**：
+
+- 每条消息应用其**生成时**的 Agent 规则进行"自洁"
+- 即使切换了 Agent，历史消息依然保持干净、压缩的状态
+- 新 Agent 收到的是经过正确处理的历史上下文
+
+#### 最终策略
+
+| 管道层级           | 策略              | 配置来源                                     | 目的                      |
+| :----------------- | :---------------- | :------------------------------------------- | :------------------------ |
+| **Render (渲染)**  | **Message-Bound** | `message.metadata.agentId` / `userProfileId` | 保持视觉上的历史一致性    |
+| **Request (请求)** | **Message-Bound** | `message.metadata.agentId` / `userProfileId` | 保证数据清洗和 Token 优化 |
+| **Global 配置**    | **始终叠加**      | 当前 `ChatSettings.regexConfig`              | 用户全局偏好始终生效      |
+
+---
+
+### 2.4 处理流程 (Pipeline Flow)
 
 #### **Render Pipeline (渲染层)**
 
 在 `RichTextRenderer` 中执行，处理消息内容用于显示。
 
 - **逻辑**:
-  1.  **收集规则**: 遍历所有配置 (Global, Agent, User)，提取其中所有 `enabled` 的预设，再将这些预设中的 `rules` 收集到一个扁平化的列表中。
-  2.  **计算深度**:
+  1.  **解析消息归属**: 从 `message.metadata` 中读取 `agentId` 和 `userProfileId`。
+  2.  **获取规则集**: 调用 `useChatRegexResolver` 获取该消息对应的规则集（优先使用缓存）。
+  3.  **计算深度**:
       - 渲染的消息列表来自于 `useLlmChatStore` 的 `currentActivePath` getter，其数组索引 `i` 是从旧到新 ( `i=0` 为最旧消息)。
       - 而 `depthRange` 的判断基准是 `0` 代表**最新**消息。
       - 因此，在进行深度判断前，需要进行坐标转换：`messageDepth = totalMessages - 1 - i`。
-  3.  **规则级过滤**: 遍历这个扁平列表，并为每条消息计算出对应的 `messageDepth`，然后根据 `rule.enabled`, `rule.applyTo[stage]`, `rule.targetRoles`, `rule.depthRange` 对每一条规则进行独立过滤。
-  4.  **排序**: 对通过过滤的规则列表进行排序 (按 `order` 字段)。
-  5.  **宏预处理**: 在应用规则前，使用 `processRulesWithMacros` 对规则列表中的 `regex` 和 `trimStrings` 字段进行宏替换。
-  6.  **应用**: 依次应用所有通过的规则。
+  4.  **规则级过滤**: 根据 `rule.enabled`, `rule.applyTo.render`, `rule.targetRoles`, `rule.depthRange` 对规则进行过滤。
+  5.  **排序**: 对通过过滤的规则列表进行排序 (按 `order` 字段)。
+  6.  **宏预处理**: 在应用规则前，使用 `processRulesWithMacros` 对规则列表中的 `regex` 和 `trimStrings` 字段进行宏替换。
+  7.  **应用**: 依次应用所有通过的规则。
 
 #### **Request Pipeline (请求层)**
 
@@ -144,13 +190,13 @@ interface ChatRegexConfig {
   2.  **作用范围**: **仅处理会话历史消息** (`sessionContext`)，不处理 Agent 的预设消息。
   3.  **执行时机**: 在从 `activePath` 生成原始历史消息列表后，但在应用 **Token 限制** (`applyContextLimit`) 之前。
   4.  **处理步骤**:
-      - a. **收集规则**: 遍历所有配置 (Global, Agent, User)，收集所有启用的、`applyTo.request=true` 的规则，形成一个扁平化的规则池。
-      - b. **宏预处理**: 使用 `processRulesWithMacros` 对整个规则池进行宏替换，生成待执行的规则列表。
-      - c. **应用规则**: 遍历 `sessionContext` (历史消息列表)，对**每条消息**：
-        - i. 计算其 `messageDepth`。
-        - ii. 从宏处理过的规则列表中，根据 `targetRoles` 和 `depthRange` 过滤出适用于当前消息的最终规则。
-        - iii. 对消息内容应用这些规则。
-      - d. **返回**: 返回经过正则处理的 `sessionContext`，用于后续的 Token 限制和上下文拼接。
+      - a. **遍历消息**: 对 `sessionContext` 中的**每条消息**：
+        - i. **解析消息归属**: 从 `message.metadata` 中读取 `agentId` 和 `userProfileId`。
+        - ii. **获取规则集**: 调用 `useChatRegexResolver` 获取该消息对应的规则集。
+        - iii. **过滤规则**: 根据 `applyTo.request`, `targetRoles`, `depthRange` 过滤。
+        - iv. **宏预处理**: 对规则进行宏替换。
+        - v. **应用规则**: 对消息内容应用这些规则。
+      - b. **返回**: 返回经过正则处理的 `sessionContext`，用于后续的 Token 限制和上下文拼接。
 
 ---
 
@@ -338,53 +384,101 @@ export interface ChatRegexConfig {
 // ...
 ```
 
-### 4.3 工具函数
+### 4.3 规则解析与缓存 (Resolver & Cache)
 
-**新增文件**: `src/tools/llm-chat/utils/chatRegexUtils.ts`
+由于采用了 Message-Bound 策略，我们需要高效地为每条消息解析其对应的规则集。
+
+**新增 Composable**: `src/tools/llm-chat/composables/useChatRegexResolver.ts`
 
 ```typescript
 /**
- * 获取消息节点最终应用的规则列表
- * @param stage - 当前处理阶段 (render/request)
- * @param role - 消息角色 (system/user/assistant)
- * @param messageDepth - 消息深度 (0=最新)
- * @param configs - 配置列表 (Global, Agent, User)
+ * 规则解析器核心逻辑
  */
-export function resolveRulesForMessage(
-  stage: "render" | "request",
-  role: MessageRole,
-  messageDepth: number,
-  ...configs: (ChatRegexConfig | undefined)[]
-): ChatRegexRule[] {
-  const allRules: ChatRegexRule[] = [];
+export function useChatRegexResolver() {
+  const agentStore = useAgentStore();
+  const profileStore = useUserProfileStore();
+  const settingsStore = useChatSettings();
 
-  // 1. 收集所有启用的预设中的规则
-  for (const config of configs) {
-    if (!config?.presets) continue;
+  // 规则集缓存
+  // Key: `${agentId}|${userId}|${globalConfigHash}`
+  // Value: 预编译/解析后的规则列表 (ChatRegexRule[])
+  const ruleSetCache = new Map<string, ChatRegexRule[]>();
 
-    const enabledPresets = config.presets
-      .filter((preset) => preset.enabled)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  /**
+   * 为特定消息解析规则列表
+   * @param message - 消息对象 (需包含 metadata)
+   * @param stage - 处理阶段 (render/request)
+   * @param depth - 消息深度
+   */
+  function resolveRules(
+    message: ChatMessageNode,
+    stage: "render" | "request",
+    depth: number
+  ): ChatRegexRule[] {
+    const agentId = message.metadata?.agentId;
+    const userId = message.metadata?.userProfileId;
 
-    for (const preset of enabledPresets) {
-      allRules.push(...preset.rules);
+    // 1. 构建 Cache Key
+    // 注意：这里需要考虑 Global 配置的变化，可以通过监听 store 变化来清空缓存，
+    // 或者将 Global Config 的 Hash 加入 Key 中。
+    // 简单起见，当 Global/Agent/User 配置更新时，应手动清除相关缓存。
+    const cacheKey = `${agentId || "none"}|${userId || "none"}|${stage}`;
+
+    // 2. 查缓存
+    if (ruleSetCache.has(cacheKey)) {
+      // 注意：这里缓存的是"未经过深度过滤"的规则全集
+      // 深度过滤必须针对每条消息动态进行
+      return filterRulesByDepth(ruleSetCache.get(cacheKey)!, depth);
     }
+
+    // 3. 获取配置对象
+    const globalConfig = settingsStore.settings.regexConfig;
+    const agentConfig = agentId ? agentStore.getAgent(agentId)?.regexConfig : undefined;
+    const userConfig = userId ? profileStore.getProfile(userId)?.regexConfig : undefined;
+
+    // 4. 解析规则 (扁平化 + 阶段过滤 + 角色过滤)
+    // 注意：resolveRawRules 不进行深度过滤
+    const rules = resolveRawRules(stage, message.role, globalConfig, agentConfig, userConfig);
+
+    // 5. 存入缓存
+    ruleSetCache.set(cacheKey, rules);
+
+    // 6. 返回经过深度过滤的结果
+    return filterRulesByDepth(rules, depth);
   }
 
-  // 2. 对扁平化的规则列表进行过滤和排序
-  return allRules
-    .filter((rule) => {
-      if (!rule.enabled) return false;
-      if (!rule.applyTo[stage]) return false;
-      if (!rule.targetRoles.includes(role)) return false;
-      // 深度检查
-      if (rule.depthRange) {
-        if (rule.depthRange.min !== undefined && messageDepth < rule.depthRange.min) return false;
-        if (rule.depthRange.max !== undefined && messageDepth > rule.depthRange.max) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return {
+    resolveRules,
+    clearCache: () => ruleSetCache.clear(),
+  };
+}
+```
+
+**工具函数**: `src/tools/llm-chat/utils/chatRegexUtils.ts`
+
+```typescript
+/**
+ * 基础规则解析（不含深度过滤）
+ */
+export function resolveRawRules(
+  stage: "render" | "request",
+  role: MessageRole,
+  ...configs: (ChatRegexConfig | undefined)[]
+): ChatRegexRule[] {
+  // ... (逻辑同原 resolveRulesForMessage，但不检查 depthRange)
+}
+
+/**
+ * 深度过滤
+ */
+export function filterRulesByDepth(rules: ChatRegexRule[], depth: number): ChatRegexRule[] {
+  return rules.filter((rule) => {
+    if (!rule.depthRange) return true;
+    const { min, max } = rule.depthRange;
+    if (min !== undefined && depth < min) return false;
+    if (max !== undefined && depth > max) return false;
+    return true;
+  });
 }
 ```
 

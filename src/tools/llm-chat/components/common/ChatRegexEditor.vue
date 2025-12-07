@@ -72,14 +72,22 @@
                         text
                         title="导出预设文件"
                       />
-                      <el-button
-                        @click.stop="deletePreset(index)"
-                        :icon="Trash2"
-                        size="small"
-                        text
-                        type="danger"
-                        title="删除预设"
-                      />
+                      <el-popconfirm
+                        title="确定要删除这个预设吗？"
+                        @confirm="deletePreset(index)"
+                        width="200"
+                      >
+                        <template #reference>
+                          <el-button
+                            @click.stop
+                            :icon="Trash2"
+                            size="small"
+                            text
+                            type="danger"
+                            title="删除预设"
+                          />
+                        </template>
+                      </el-popconfirm>
                     </div>
                   </div>
                 </template>
@@ -181,15 +189,22 @@
                                         circle
                                         title="复制规则"
                                       />
-                                      <el-button
-                                        @click="deleteRule(index, ruleIndex)"
-                                        :icon="Trash2"
-                                        size="small"
-                                        text
-                                        circle
-                                        type="danger"
-                                        title="删除规则"
-                                      />
+                                      <el-popconfirm
+                                        title="确定要删除这条规则吗？"
+                                        @confirm="deleteRule(index, ruleIndex)"
+                                        width="200"
+                                      >
+                                        <template #reference>
+                                          <el-button
+                                            :icon="Trash2"
+                                            size="small"
+                                            text
+                                            circle
+                                            type="danger"
+                                            title="删除规则"
+                                          />
+                                        </template>
+                                      </el-popconfirm>
                                     </div>
                                   </div>
                                   <code class="rule-preview">{{ truncateRegex(rule.regex) }}</code>

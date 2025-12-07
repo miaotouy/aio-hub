@@ -67,6 +67,49 @@
       </el-form>
     </div>
 
+    <!-- 规则测试 -->
+    <div class="form-section test-section">
+      <div class="section-header" @click="toggleTest">
+        <div class="section-title">
+          <el-icon class="collapse-icon" :class="{ expanded: testExpanded }">
+            <ChevronRight />
+          </el-icon>
+          规则测试
+        </div>
+        <span class="preset-hint" v-if="!testExpanded">点击展开测试</span>
+      </div>
+      <el-collapse-transition>
+        <div v-show="testExpanded" class="test-content">
+          <el-form label-position="top" size="small">
+            <el-form-item label="测试输入">
+              <el-input
+                v-model="testInput"
+                type="textarea"
+                :rows="3"
+                placeholder="输入测试文本，观察替换效果"
+                class="mono-input"
+              />
+            </el-form-item>
+
+            <el-form-item>
+              <template #label>
+                替换结果
+                <span v-if="matchCount !== null" class="match-info"> (匹配 {{ matchCount }} 次) </span>
+              </template>
+              <div class="test-result" :class="{ 'has-error': testError }">
+                <template v-if="testError">
+                  <span class="error-text">{{ testError }}</span>
+                </template>
+                <template v-else>
+                  <div class="preview-output" v-html="highlightedOutput"></div>
+                </template>
+              </div>
+            </el-form-item>
+          </el-form>
+        </div>
+      </el-collapse-transition>
+    </div>
+
     <!-- 应用范围 -->
     <div class="form-section">
       <div class="section-title">应用范围</div>
@@ -134,36 +177,6 @@
       </el-form>
     </div>
 
-    <!-- 测试区域 -->
-    <div class="form-section">
-      <div class="section-title">规则测试</div>
-      <el-form label-position="top" size="small">
-        <el-form-item label="测试输入">
-          <el-input
-            v-model="testInput"
-            type="textarea"
-            :rows="3"
-            placeholder="输入测试文本，观察替换效果"
-            class="mono-input"
-          />
-        </el-form-item>
-
-        <el-form-item>
-          <template #label>
-            替换结果
-            <span v-if="matchCount !== null" class="match-info"> (匹配 {{ matchCount }} 次) </span>
-          </template>
-          <div class="test-result" :class="{ 'has-error': testError }">
-            <template v-if="testError">
-              <span class="error-text">{{ testError }}</span>
-            </template>
-            <template v-else>
-              <div class="preview-output" v-html="highlightedOutput"></div>
-            </template>
-          </div>
-        </el-form-item>
-      </el-form>
-    </div>
   </div>
 </template>
 
@@ -318,6 +331,13 @@ const presetsExpanded = ref(false);
 
 const togglePresets = () => {
   presetsExpanded.value = !presetsExpanded.value;
+};
+
+// 测试区域展开状态
+const testExpanded = ref(false);
+
+const toggleTest = () => {
+  testExpanded.value = !testExpanded.value;
 };
 
 interface Props {
@@ -529,11 +549,16 @@ const highlightedOutput = computed(() => {
 }
 
 /* 预制规则样式 */
-.preset-section {
+.preset-section,
+.test-section {
   background: var(--container-bg);
   border-radius: 8px;
   padding: 12px;
   border: 1px solid var(--border-color);
+}
+
+.test-content {
+  margin-top: 12px;
 }
 
 .section-header {

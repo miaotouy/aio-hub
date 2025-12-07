@@ -441,10 +441,6 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"'\n]/g, (m) => map[m]);
 }
 
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 // 测试功能
 const testInput = ref("");
 const matchCount = ref<number | null>(null);
@@ -473,25 +469,52 @@ const highlightedOutput = computed(() => {
     const matches = input.match(regex);
     matchCount.value = matches ? matches.length : 0;
 
-    // 如果有替换内容，显示替换结果
+    // 如果有替换内容，显示替换结果并高亮被替换的部分
     if (replacement !== undefined && replacement !== "") {
-      const result = input.replace(regex, replacement);
-      // 尝试高亮替换后的文本（仅当替换文本不包含特殊引用符时，避免错误高亮）
-      if (!replacement.includes("$")) {
-        const escapedResult = escapeHtml(result);
-        const escapedReplacement = escapeHtml(replacement);
-        try {
-          // 简单的高亮替换内容
-          const highlightRe = new RegExp(escapeRegex(escapedReplacement), "g");
-          return escapedResult.replace(
-            highlightRe,
-            `<mark class="highlight-replacement">${escapedReplacement}</mark>`
-          );
-        } catch (e) {
-          return escapedResult;
-        }
+      // 收集所有替换信息：原始位置、匹配长度、替换后的内容
+      interface ReplacementInfo {
+        originalStart: number;
+        originalLength: number;
+        replacedContent: string;
       }
-      return escapeHtml(result);
+      const replacements: ReplacementInfo[] = [];
+
+      // 第一遍：收集所有匹配和替换信息
+      let tempRegex = new RegExp(regexStr, flagsStr);
+      input.replace(tempRegex, (match, ...args) => {
+        const offset = args[args.length - 2] as number;
+        // 计算实际的替换内容（处理 $1, $2 等捕获组引用）
+        const actualReplacement = match.replace(tempRegex, replacement);
+        replacements.push({
+          originalStart: offset,
+          originalLength: match.length,
+          replacedContent: actualReplacement,
+        });
+        return match;
+      });
+
+      // 第二遍：构建带高亮的 HTML
+      // 需要根据原始位置计算替换后的位置偏移
+      let html = "";
+      let lastOriginalIndex = 0;
+      let positionOffset = 0; // 累计的位置偏移量
+
+      for (const rep of replacements) {
+        // 添加匹配项之前的文本（这部分没有变化）
+        if (rep.originalStart > lastOriginalIndex) {
+          html += escapeHtml(input.slice(lastOriginalIndex, rep.originalStart));
+        }
+
+        // 添加替换后的内容（高亮显示）
+        html += `<mark class="highlight-replacement">${escapeHtml(rep.replacedContent)}</mark>`;
+
+        lastOriginalIndex = rep.originalStart + rep.originalLength;
+        positionOffset += rep.replacedContent.length - rep.originalLength;
+      }
+
+      // 添加剩余的文本
+      html += escapeHtml(input.slice(lastOriginalIndex));
+      return html;
     } else {
       // 没有替换内容，显示原文本并高亮匹配项
       // 为了安全地处理 HTML 转义，我们需要手动构建结果

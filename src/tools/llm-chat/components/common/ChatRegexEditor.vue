@@ -10,6 +10,7 @@
       </div>
       <div class="header-actions">
         <el-button @click="addPreset" size="small" :icon="Plus"> 新建预设 </el-button>
+        <el-button @click="pastePreset" size="small" :icon="ClipboardPaste"> 粘贴预设 </el-button>
         <el-dropdown trigger="click" @command="handleImportCommand">
           <el-button size="small" :icon="Download">
             导入
@@ -22,6 +23,7 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <el-button @click="exportAllPresets" size="small" :icon="FileJson"> 导出全部 </el-button>
       </div>
     </div>
 
@@ -57,11 +59,18 @@
                     <el-tag size="small" type="info"> {{ preset.rules.length }} 条规则 </el-tag>
                     <div class="preset-actions">
                       <el-button
-                        @click.stop="duplicatePreset(index)"
+                        @click.stop="copyPresetToClipboard(preset)"
                         :icon="Copy"
                         size="small"
                         text
-                        title="复制预设"
+                        title="复制预设到剪贴板"
+                      />
+                      <el-button
+                        @click.stop="exportPreset(preset)"
+                        :icon="FileJson"
+                        size="small"
+                        text
+                        title="导出预设文件"
                       />
                       <el-button
                         @click.stop="deletePreset(index)"
@@ -108,15 +117,25 @@
                       <div class="rules-sidebar">
                         <div class="rules-header">
                           <span class="rules-title">规则列表</span>
-                          <el-button
-                            @click="addRule(preset)"
-                            size="small"
-                            :icon="Plus"
-                            type="primary"
-                            plain
-                            circle
-                            title="添加规则"
-                          />
+                          <div class="rules-header-actions">
+                            <el-button
+                              @click="pasteRule(index)"
+                              size="small"
+                              :icon="ClipboardPaste"
+                              text
+                              circle
+                              title="粘贴规则"
+                            />
+                            <el-button
+                              @click="addRule(preset)"
+                              size="small"
+                              :icon="Plus"
+                              type="primary"
+                              plain
+                              circle
+                              title="添加规则"
+                            />
+                          </div>
                         </div>
 
                         <div class="rules-list-scroll">
@@ -153,6 +172,14 @@
                                           updateRuleField(index, ruleIndex, 'enabled', $event)
                                         "
                                         size="small"
+                                      />
+                                      <el-button
+                                        @click="copyRuleToClipboard(rule)"
+                                        :icon="Copy"
+                                        size="small"
+                                        text
+                                        circle
+                                        title="复制规则"
                                       />
                                       <el-button
                                         @click="deleteRule(index, ruleIndex)"
@@ -237,6 +264,8 @@ import {
   Trash2,
   Info as InfoIcon,
   ArrowLeft,
+  ClipboardPaste,
+  FileJson,
 } from "lucide-vue-next";
 import type { ChatRegexConfig, ChatRegexPreset, ChatRegexRule } from "../../types/chatRegex";
 import {
@@ -317,19 +346,53 @@ function addPreset() {
   expandedPresets.value.push(newPreset.id);
 }
 
-function duplicatePreset(index: number) {
-  const original = presets.value[index];
-  const copy = JSON.parse(JSON.stringify(original)) as ChatRegexPreset;
-  copy.id = crypto.randomUUID();
-  copy.name = `${original.name} (副本)`;
-  copy.rules = copy.rules.map((rule) => ({
-    ...rule,
-    id: crypto.randomUUID(),
-  }));
+async function copyPresetToClipboard(preset: ChatRegexPreset) {
+  try {
+    const content = JSON.stringify(preset, null, 2);
+    await navigator.clipboard.writeText(content);
+    customMessage.success("预设已复制到剪贴板");
+  } catch (error) {
+    customMessage.error("复制失败");
+    console.error(error);
+  }
+}
 
-  const newPresets = [...presets.value];
-  newPresets.splice(index + 1, 0, copy);
-  emit("update:modelValue", { ...props.modelValue, presets: newPresets });
+async function pastePreset() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) return;
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      customMessage.error("剪贴板内容不是有效的 JSON");
+      return;
+    }
+
+    // 简单的格式检查：必须包含 id, name, rules
+    if (!data || typeof data !== "object" || !Array.isArray(data.rules)) {
+      customMessage.error("剪贴板内容不是有效的正则预设");
+      return;
+    }
+
+    // 创建副本并重置 ID
+    const newPreset = { ...data } as ChatRegexPreset;
+    newPreset.id = crypto.randomUUID();
+    newPreset.name = `${newPreset.name} (导入)`;
+    newPreset.rules = newPreset.rules.map((rule) => ({
+      ...rule,
+      id: crypto.randomUUID(),
+    }));
+
+    const newPresets = [...presets.value, newPreset];
+    emit("update:modelValue", { ...props.modelValue, presets: newPresets });
+    expandedPresets.value.push(newPreset.id);
+    customMessage.success("预设已粘贴");
+  } catch (error) {
+    customMessage.error("粘贴失败");
+    console.error(error);
+  }
 }
 
 function deletePreset(index: number) {
@@ -364,6 +427,49 @@ function addRule(preset: ChatRegexPreset) {
   // 更新后需要从新的 presets 引用中选择
   const updatedPreset = presets.value[presetIndex];
   selectRule(updatedPreset, newRule);
+}
+
+async function copyRuleToClipboard(rule: ChatRegexRule) {
+  try {
+    const content = JSON.stringify(rule, null, 2);
+    await navigator.clipboard.writeText(content);
+    customMessage.success("规则已复制到剪贴板");
+  } catch (error) {
+    customMessage.error("复制失败");
+  }
+}
+
+async function pasteRule(presetIndex: number) {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) return;
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      customMessage.error("剪贴板内容不是有效的 JSON");
+      return;
+    }
+
+    // 简单的格式检查：必须包含 regex, replacement
+    if (!data || typeof data !== "object" || !("regex" in data) || !("replacement" in data)) {
+      customMessage.error("剪贴板内容不是有效的规则");
+      return;
+    }
+
+    const preset = presets.value[presetIndex];
+    const newRule = { ...data } as ChatRegexRule;
+    newRule.id = crypto.randomUUID();
+    newRule.name = `${newRule.name || "未命名规则"} (导入)`;
+
+    const newRules = [...preset.rules, newRule];
+    updatePresetField(presetIndex, "rules", newRules);
+    customMessage.success("规则已粘贴");
+  } catch (error) {
+    customMessage.error("粘贴失败");
+    console.error(error);
+  }
 }
 
 function deleteRule(presetIndex: number, ruleIndex: number) {
@@ -460,6 +566,43 @@ function executeImport() {
   } catch (error) {
     customMessage.error("导入失败: JSON 格式或内容错误");
   }
+}
+
+// =====================
+// 导出
+// =====================
+
+function downloadJson(data: any, filename: string) {
+  try {
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    customMessage.success(`已导出: ${filename}`);
+  } catch (error) {
+    console.error("导出失败", error);
+    customMessage.error("导出文件失败");
+  }
+}
+
+function exportAllPresets() {
+  if (presets.value.length === 0) {
+    customMessage.warning("没有可导出的预设");
+    return;
+  }
+  const date = new Date().toISOString().split("T")[0];
+  downloadJson(presets.value, `regex-presets-all-${date}.json`);
+}
+
+function exportPreset(preset: ChatRegexPreset) {
+  const safeName = preset.name.replace(/[\\/:*?"<>|]/g, "_");
+  downloadJson(preset, `regex-preset-${safeName}.json`);
 }
 
 // =====================
@@ -595,6 +738,12 @@ function truncateRegex(regex: string, maxLength = 30): string {
   font-size: 13px;
 }
 
+.rules-header-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .rules-list-scroll {
   flex: 1;
   overflow-y: auto;
@@ -716,6 +865,10 @@ function truncateRegex(regex: string, maxLength = 30): string {
   transition: none !important;
   background-color: var(--card-bg);
   z-index: 9999;
+}
+
+.el-button {
+  margin: 2px;
 }
 
 /* 响应式布局优化 */

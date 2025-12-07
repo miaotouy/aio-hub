@@ -54,12 +54,24 @@ const computedClass = computed(() => {
   return classes.length > 0 ? classes.join(' ') : undefined;
 });
 
+// 验证属性名是否合法
+const isValidAttributeName = (name: string): boolean => {
+  // 属性名必须以字母或下划线开头（HTML5 实际上允许更多，但为了安全起见我们限制严格一点）
+  // 绝对不能以数字开头，这会导致 setAttribute 报错
+  return /^[a-zA-Z_][a-zA-Z0-9_\-:]*$/.test(name);
+};
+
 // 过滤和处理属性
 // 移除可能有安全风险的属性，并处理特殊属性
 const filteredAttributes = computed(() => {
   const attrs: Record<string, any> = {};
   
   for (const [key, value] of Object.entries(props.attributes)) {
+    // 首先检查属性名是否合法
+    if (!isValidAttributeName(key)) {
+      continue;
+    }
+
     const lowerKey = key.toLowerCase();
     
     // 跳过危险属性

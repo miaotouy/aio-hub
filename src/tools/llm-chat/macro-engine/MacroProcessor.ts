@@ -142,6 +142,13 @@ export class MacroProcessor {
       logger.debug('后处理完成', { macroCount: afterPostProcess.count });
     }
 
+    // 处理 trim 标记
+    // 将 __TRIM__ 及其前后的空白字符全部移除
+    // 这允许在模板中使用 {{trim}} 来消除为了代码可读性而添加的换行符
+    if (current.includes('__TRIM__')) {
+      current = current.replace(/\s*__TRIM__\s*/g, '');
+    }
+
     // 最后一步：处理转义字符
     // 将 \{{ 替换回 {{
     if (current.includes('\\{{')) {

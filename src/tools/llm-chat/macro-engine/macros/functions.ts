@@ -84,39 +84,39 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
         if (!args || args.length === 0) {
           return '[错误: roll 需要1个参数]';
         }
-        
+
         const diceNotation = args[0].toLowerCase();
         const match = diceNotation.match(/^(\d+)d(\d+)$/);
-        
+
         if (!match) {
           return '[错误: 无效的骰子格式，应为 NdM]';
         }
-        
+
         const count = parseInt(match[1], 10);
         const sides = parseInt(match[2], 10);
-        
+
         if (count <= 0 || count > 100) {
           return '[错误: 骰子数量必须在 1-100 之间]';
         }
-        
+
         if (sides <= 0 || sides > 1000) {
           return '[错误: 骰子面数必须在 1-1000 之间]';
         }
-        
+
         let total = 0;
         const rolls: number[] = [];
-        
+
         for (let i = 0; i < count; i++) {
           const roll = Math.floor(Math.random() * sides) + 1;
           rolls.push(roll);
           total += roll;
         }
-        
+
         // 如果只掷一个骰子，直接返回结果
         if (count === 1) {
           return total.toString();
         }
-        
+
         // 多个骰子时，返回详细结果
         return `${total} (${rolls.join(', ')})`;
       },
@@ -141,8 +141,8 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
       name: 'trim',
       type: MacroType.FUNCTION,
       phase: MacroPhase.POST_PROCESS,
-      description: '移除此宏所在位置前后的所有换行符，用于清理格式',
-      example: '文本{{trim}}文本',
+      description: '此宏紧邻的前后所有空白字符（包括换行符、空格、制表符）都会被一并移除，用于清理格式',
+      example: '{{trim}}',
       acceptsArgs: false,
       priority: 95,
       supported: true,
@@ -170,18 +170,18 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
         if (!args || args.length < 2) {
           return '[错误: randomInt 需要2个参数]';
         }
-        
+
         const min = parseInt(args[0], 10);
         const max = parseInt(args[1], 10);
-        
+
         if (isNaN(min) || isNaN(max)) {
           return '[错误: 参数必须是有效的整数]';
         }
-        
+
         if (min >= max) {
           return '[错误: 最小值必须小于最大值]';
         }
-        
+
         const result = Math.floor(Math.random() * (max - min + 1)) + min;
         return result.toString();
       },
@@ -203,18 +203,18 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
         if (!args || args.length < 2) {
           return '[错误: repeat 需要2个参数]';
         }
-        
+
         const text = args[0];
         const count = parseInt(args[1], 10);
-        
+
         if (isNaN(count) || count < 0) {
           return '[错误: 重复次数必须是非负整数]';
         }
-        
+
         if (count > 1000) {
           return '[错误: 重复次数不能超过1000]';
         }
-        
+
         return text.repeat(count);
       },
     },

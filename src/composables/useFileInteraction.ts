@@ -150,90 +150,92 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
 
         assets.push(tempAsset)
 
-        // 2. 启动后台异步上传任务
-        // 注意：这里不使用 await，让它在后台运行
-        ;(async () => {
-          try {
-            // 尝试秒传：先计算 Hash 并查找是否存在
-            let realAsset: Asset | null = null
-            
-            if (assetOptions.enableDeduplication) {
-              try {
-                const hash = await calculateFileHash(file)
-                // 查找并尝试添加来源
-                const existingAsset = await invoke<Asset | null>('find_asset_by_hash', {
-                  hash,
-                  sourceToAdd: {
-                    type: 'clipboard',
-                    source: 'clipboard',
-                    sourceModule,
+          // 2. 启动后台异步上传任务
+          // 注意：这里不使用 await，让它在后台运行
+          ; (async () => {
+            try {
+              // 尝试秒传：先计算 Hash 并查找是否存在
+              let realAsset: Asset | null = null
+
+              if (assetOptions.enableDeduplication) {
+                try {
+                  const hash = await calculateFileHash(file)
+                  // 查找并尝试添加来源
+                  const existingAsset = await invoke<Asset | null>('find_asset_by_hash', {
+                    hash,
+                    sourceToAdd: {
+                      type: 'clipboard',
+                      source: 'clipboard',
+                      sourceModule,
+                    }
+                  })
+
+                  if (existingAsset) {
+                    realAsset = existingAsset
+                    logger.info('秒传成功', { filename, assetId: realAsset.id })
                   }
-                })
-                
-                if (existingAsset) {
-                  realAsset = existingAsset
-                  logger.info('秒传成功', { filename, assetId: realAsset.id })
+                } catch (e) {
+                  errorHandler.warn(e, '秒传检测失败，降级为普通上传', { filename: file.name })
                 }
-              } catch (e) {
-                logger.warn('秒传检测失败，降级为普通上传', e)
               }
-            }
 
-            // 如果没有秒传成功，执行普通上传
-            if (!realAsset) {
-              const arrayBuffer = await file.arrayBuffer()
-              const bytes = new Uint8Array(arrayBuffer)
+              // 如果没有秒传成功，执行普通上传
+              if (!realAsset) {
+                const arrayBuffer = await file.arrayBuffer()
+                const bytes = new Uint8Array(arrayBuffer)
 
-              // 调用后端 API 导入文件
-              realAsset = await invoke<Asset>('import_asset_from_bytes', {
-                bytes: Array.from(bytes),
-                originalName: filename,
-                options: {
-                  ...assetOptions,
-                  origin: {
-                    type: 'clipboard',
-                    source: 'clipboard',
-                    sourceModule,
+                // 调用后端 API 导入文件
+                realAsset = await invoke<Asset>('import_asset_from_bytes', {
+                  bytes: Array.from(bytes),
+                  originalName: filename,
+                  options: {
+                    ...assetOptions,
+                    origin: {
+                      type: 'clipboard',
+                      source: 'clipboard',
+                      sourceModule,
+                    },
                   },
-                },
+                })
+              }
+
+              // 3. 上传成功，更新临时 Asset 的属性
+              // 注意：必须修改原对象以保持引用一致，从而触发 UI 更新
+              URL.revokeObjectURL(blobUrl) // 释放 blob URL
+
+              // 复制真实 Asset 的属性到临时对象
+              Object.assign(tempAsset, {
+                ...realAsset,
+                importStatus: 'complete',
+              })
+
+              // 清理临时属性
+              if ('originalPath' in tempAsset) {
+                delete (tempAsset as any).originalPath
+              }
+
+              logger.info('文件后台上传完成，已更新 Asset', {
+                filename,
+                tempId,
+                realId: realAsset.id,
+              })
+            } catch (error) {
+              // 处理上传失败
+              tempAsset.importStatus = 'error'
+              tempAsset.importError = error instanceof Error ? error.message : '上传失败'
+
+              errorHandler.handle(error, {
+                userMessage: `文件 ${filename} 上传失败`,
+                showToUser: false,
+                context: { filename },
               })
             }
-
-            // 3. 上传成功，更新临时 Asset 的属性
-            // 注意：必须修改原对象以保持引用一致，从而触发 UI 更新
-            URL.revokeObjectURL(blobUrl) // 释放 blob URL
-
-            // 复制真实 Asset 的属性到临时对象
-            Object.assign(tempAsset, {
-              ...realAsset,
-              importStatus: 'complete',
-            })
-
-            // 清理临时属性
-            if ('originalPath' in tempAsset) {
-              delete (tempAsset as any).originalPath
-            }
-
-            logger.info('文件后台上传完成，已更新 Asset', {
-              filename,
-              tempId,
-              realId: realAsset.id,
-            })
-          } catch (error) {
-            // 处理上传失败
-            tempAsset.importStatus = 'error'
-            tempAsset.importError = error instanceof Error ? error.message : '上传失败'
-            
-            logger.error('文件后台上传失败', error, { filename })
-            errorHandler.error(error, `文件 ${filename} 上传失败`, {
-              showToUser: false,
-              context: { filename },
-            })
-          }
-        })()
+          })()
       } catch (error) {
         // 创建临时 Asset 阶段的错误（极少发生）
-        errorHandler.error(error, `准备文件 ${file.name} 失败`, {
+        errorHandler.handle(error, {
+          userMessage: `准备文件 ${file.name} 失败`,
+          showToUser: false,
           context: {
             filename: file.name,
             type: file.type,
@@ -252,16 +254,16 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
     // 检查是否禁用
     if (typeof dropOptions.disabled === 'boolean' && dropOptions.disabled) return
     if (typeof dropOptions.disabled === 'object' && dropOptions.disabled.value) return
-    
+
     const items = clipboardEvent.clipboardData?.items
     if (!items) return
-    
+
     const pastedFiles: File[] = []
-    
+
     // 遍历剪贴板项目，查找文件
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-      
+
       // 只处理文件类型（排除纯文本）
       if (item.kind === 'file') {
         const file = item.getAsFile()
@@ -274,29 +276,29 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         }
       }
     }
-    
+
     if (pastedFiles.length === 0) return
-    
+
     // 阻止默认粘贴行为
     if (preventDefaultOnPaste) {
       clipboardEvent.preventDefault()
     }
-    
+
     logger.info('粘贴文件', {
       count: pastedFiles.length,
       types: pastedFiles.map(f => f.type),
       imageOnly,
     })
-    
+
     // 处理粘贴的文件
     try {
       isPasting.value = true
-      
+
       if (pasteMode === 'asset' && onAssets) {
         // 转换为 Asset
         const assets = await convertFilesToAssets(pastedFiles)
         await onAssets(assets)
-        
+
         if (showPasteMessage && assets.length > 0) {
           const message = assets.length === 1
             ? `已粘贴文件: ${pastedFiles[0].name}`
@@ -306,7 +308,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
       } else if (onFiles) {
         // 直接传递文件对象
         await onFiles(pastedFiles)
-        
+
         if (showPasteMessage) {
           const message = pastedFiles.length === 1
             ? `已粘贴文件: ${pastedFiles[0].name}`
@@ -315,7 +317,10 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         }
       }
     } catch (error) {
-      errorHandler.error(error, '粘贴文件失败');
+      errorHandler.error(error, '粘贴文件失败', {
+        count: pastedFiles.length,
+        types: pastedFiles.map(f => f.type),
+      });
     } finally {
       isPasting.value = false
     }
@@ -342,11 +347,11 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 获取目标元素（用于粘贴事件）
   const getTargetElement = (): HTMLElement | null => {
     if (!options.element) return null
-    
+
     if (typeof options.element === 'string') {
       return document.querySelector(options.element) as HTMLElement
     }
-    
+
     return options.element.value || null
   }
 
@@ -356,10 +361,10 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 设置粘贴事件监听
   const setupPasteListener = () => {
     if (!enablePaste) return
-    
+
     // 先清理旧的监听器
     cleanupPasteListener()
-    
+
     const targetElement = getTargetElement()
     if (targetElement) {
       targetElement.addEventListener('paste', handlePaste)
@@ -383,7 +388,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 清理粘贴事件监听
   const cleanupPasteListener = () => {
     if (!enablePaste) return
-    
+
     if (currentListenerTarget) {
       currentListenerTarget.removeEventListener('paste', handlePaste)
       logger.debug('清理粘贴监听器', {

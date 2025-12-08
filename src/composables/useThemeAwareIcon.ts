@@ -169,8 +169,10 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
       svgContent.value = await fetchAndProcessSvg(iconSrcRef.value);
     } catch (err) {
       error.value = err as Error;
-      errorHandler.error(err, "加载或处理SVG图标失败", {
-        showToUser: false, // 通常由 UI 的 error state 反映，无需弹窗
+      // 使用 handle 方法以支持 showToUser: false 选项，避免不必要的弹窗干扰用户
+      errorHandler.handle(err, {
+        userMessage: "加载或处理SVG图标失败",
+        showToUser: false,
         context: { iconSrc: iconSrcRef.value },
       });
     } finally {

@@ -191,15 +191,45 @@ export async function preflightImportAgents(
     // 并行处理所有文件
     await Promise.all(fileList.map((file, index) => parseFile(file, index)));
 
-    // 检测冲突和模型匹配情况
+    // 自动处理显示名称冲突（只修改 displayName，不修改 name）
+    // 注意：context.existingAgentNames 实际上是从 Store 传入的 existingDisplayNames
+    const usedDisplayNames = new Set(context.existingAgentNames);
+
+    combinedAgents.forEach(agent => {
+      // 获取当前 Agent 想要使用的显示名称（如果没有 displayName 则使用 name）
+      let targetDisplayName = agent.displayName || agent.name;
+      
+      // 检查是否冲突（与现有 Agent 或当前批次中已处理的 Agent）
+      if (usedDisplayNames.has(targetDisplayName)) {
+        let counter = 1;
+        let newDisplayName = `${targetDisplayName} (${counter})`;
+        
+        // 循环查找直到找到一个未被使用的名称
+        while (usedDisplayNames.has(newDisplayName)) {
+          counter++;
+          newDisplayName = `${targetDisplayName} (${counter})`;
+        }
+        
+        // 更新 Agent 的 displayName
+        agent.displayName = newDisplayName;
+        // 注意：我们故意不修改 agent.name，以保持宏引用（如 {{char}}）的正确性
+        
+        // 更新目标名称，以便加入已使用集合
+        targetDisplayName = newDisplayName;
+      }
+      
+      // 将最终确定的显示名称标记为已使用
+      usedDisplayNames.add(targetDisplayName);
+    });
+
+    // 检测模型匹配情况
     const { availableModelIds } = context;
 
-    // 名字冲突不再视为问题，始终返回空数组
+    // 名字冲突不再视为问题（因为已自动解决），始终返回空数组
     const nameConflicts: AgentImportPreflightResult['nameConflicts'] = [];
     const unmatchedModels: AgentImportPreflightResult['unmatchedModels'] = [];
 
     combinedAgents.forEach((agent, index) => {
-      // 移除名字冲突检测逻辑
       let isMatched = false;
 
       if (agent.modelId) {

@@ -597,10 +597,11 @@ export const useAgentStore = defineStore('llmChatAgent', {
     async preflightImportAgents(files: File | File[]) {
       const { enabledProfiles } = useLlmProfiles();
       const availableModelIds = enabledProfiles.value.flatMap(p => p.models.map(m => m.id));
-      const existingAgentNames = this.agents.map(a => a.name);
+      // 收集所有现有的显示名称（用于冲突检测，避免 UI 上混淆）
+      const existingDisplayNames = this.agents.map(a => a.displayName || a.name);
 
       return await preflightImportAgents(files, {
-        existingAgentNames,
+        existingAgentNames: existingDisplayNames, // 这里传递的是显示名称列表
         availableModelIds,
       });
     },

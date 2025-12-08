@@ -16,7 +16,6 @@
           ref="dropAreaRef"
           class="image-preview-area"
           :class="{ highlight: isDraggingOver }"
-          @click="!previewSrc ? openFilePicker() : () => {}"
         >
           <div v-if="!previewSrc" class="upload-prompt">
             <el-icon :size="64"><Upload /></el-icon>
@@ -458,7 +457,6 @@ const { isDraggingOver } = useFileInteraction({
   justify-content: center;
   gap: 16px;
   color: var(--el-text-color-placeholder);
-  cursor: pointer;
   padding: 20px;
   text-align: center;
 }

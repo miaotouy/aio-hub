@@ -52,7 +52,6 @@
             ref="dropAreaRef"
             class="image-preview-area"
             :class="{ highlight: isDraggingOver }"
-            @click="!imageUrl ? openFilePicker() : () => {}"
           >
             <div v-if="!imageUrl" class="upload-prompt">
               <el-icon :size="64"><Upload /></el-icon>
@@ -558,7 +557,6 @@ onUnmounted(() => {
   justify-content: center;
   gap: 16px;
   color: var(--el-text-color-placeholder);
-  cursor: pointer;
 }
 
 .preview-image {

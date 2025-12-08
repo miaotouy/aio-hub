@@ -41,6 +41,7 @@ AIO Hub 采用了**基于事件总线 (Event Bus)** 的架构，实现了松耦�
 ### 3.1 状态同步 (State Sync)
 
 当数据源（如主窗口的 Pinia Store）发生变化时：
+
 1.  Store 触发 `syncState` 方法。
 2.  `WindowSyncBus` 将状态序列化并通过 Tauri 事件广播。
 3.  其他窗口收到 `state-sync` 消息。
@@ -49,6 +50,7 @@ AIO Hub 采用了**基于事件总线 (Event Bus)** 的架构，实现了松耦�
 ### 3.2 操作请求 (Action Request)
 
 当分离的组件需要执行操作（如用户点击"发送"按钮）时：
+
 1.  组件调用 `requestAction`。
 2.  消息被广播到所有窗口。
 3.  拥有该操作处理器的窗口（通常是数据源窗口）捕获请求。
@@ -68,21 +70,46 @@ AIO Hub 采用了**基于事件总线 (Event Bus)** 的架构，实现了松耦�
 `useDetachable` (`src/composables/useDetachable.ts`) 实现了直观的拖拽分离交互。
 
 - **交互逻辑**:
-    - 监听鼠标按下和移动。
-    - 计算拖拽距离，超过阈值（如 50px）触发分离意图。
-    - 调用 Rust 端的 `start_drag_session` (基于 `rdev`) 接管鼠标事件。
+  - 监听鼠标按下和移动。
+  - 计算拖拽距离，超过阈值（如 50px）触发分离意图。
+  - 调用 Rust 端的 `start_drag_session` (基于 `rdev`) 接管鼠标事件。
 - **视觉反馈**: 拖拽过程中显示半透明的窗口快照（由 Rust 端实现）。
 - **无缝切换**: 鼠标释放时，如果满足分离条件，自动创建新窗口并传递初始状态。
 
 ## 6. 开发指南
 
-### 使组件可分离
+### 6.1 注册可分离组件
 
-1.  使用 `DetachableContainer` 包裹组件。
-2.  提供唯一的 `componentId`。
-3.  确保组件的状态可以通过 `props` 或 `Pinia` 恢复。
+可分离组件通过工具注册表 (`ToolRegistry`) 进行动态注册。
 
-### 添加新的同步状态
+1.  **定义组件**: 在工具目录中创建你的 Vue 组件。
+2.  **实现逻辑钩子**: 创建一个适配器或钩子，返回 `{ props, listeners }`，用于在分离窗口中连接状态。
+3.  **在 Registry 中注册**:
+    在你的工具注册类（例如 `LlmChatRegistry`）中，实现 `detachableComponents` 属性：
+
+    ```typescript
+    // src/tools/your-tool/your.registry.ts
+    public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
+      // 使用命名空间 ID: 'tool-id:component-name'
+      'your-tool:component-name': {
+        component: () => import('./components/YourComponent.vue'),
+        logicHook: useYourDetachedLogic, // 或适配器函数
+        initializeEnvironment: () => { /* 初始化逻辑，如状态同步 */ },
+      },
+    };
+    ```
+
+### 6.2 在 UI 中使用
+
+1.  **触发分离**: 使用 `useDetachable` 的 `startDetaching` 方法，传入注册的 ID。
+    ```typescript
+    startDetaching({
+      id: "your-tool:component-name",
+      // ... 其他配置
+    });
+    ```
+
+### 6.3 添加新的同步状态
 
 1.  在 `src/types/window-sync.ts` 中定义新的 `StateKey`。
 2.  在数据源窗口（如主窗口）监听状态变化并调用 `bus.syncState`。

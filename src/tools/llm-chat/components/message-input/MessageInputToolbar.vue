@@ -108,7 +108,29 @@ const handleNewSession = () => {
           <span class="typewriter-icon">A_</span>
         </button>
       </el-tooltip>
-      <!-- Attachment button -->
+
+      <!-- 宏选择器按钮 -->
+      <el-tooltip content="添加宏变量" placement="top" :show-after="300">
+        <div>
+          <el-popover
+            :visible="props.macroSelectorVisible"
+            @update:visible="onMacroSelectorUpdate"
+            :placement="props.isDetached ? 'top-start' : 'bottom-start'"
+            :width="400"
+            trigger="click"
+            popper-class="macro-selector-popover"
+          >
+            <template #reference>
+              <button class="macro-icon-button" :class="{ active: props.macroSelectorVisible }">
+                <el-icon><MagicStick /></el-icon>
+              </button>
+            </template>
+            <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
+          </el-popover>
+        </div>
+      </el-tooltip>
+
+      <!-- 添加附件按钮 -->
       <el-tooltip content="添加附件" placement="top" :show-after="300">
         <button class="attachment-button" @click="emit('trigger-attachment')">
           <el-icon><Paperclip /></el-icon>
@@ -124,17 +146,13 @@ const handleNewSession = () => {
             :width="300"
             trigger="click"
             popper-class="session-list-popover"
-            :teleported="!props.isDetached"
           >
             <template #reference>
               <button class="tool-btn" :class="{ active: sessionListVisible }">
                 <MessageSquare :size="16" />
               </button>
             </template>
-            <MiniSessionList
-              @switch="handleSwitchSession"
-              @new-session="handleNewSession"
-            />
+            <MiniSessionList @switch="handleSwitchSession" @new-session="handleNewSession" />
           </el-popover>
         </div>
       </el-tooltip>
@@ -163,28 +181,6 @@ const handleNewSession = () => {
         </button>
       </el-tooltip>
 
-      <!-- 宏选择器按钮 -->
-      <el-tooltip content="添加宏变量" placement="top" :show-after="300">
-        <div>
-          <el-popover
-            :visible="props.macroSelectorVisible"
-            @update:visible="onMacroSelectorUpdate"
-            :placement="props.isDetached ? 'top-start' : 'bottom-start'"
-            :width="400"
-            trigger="click"
-            popper-class="macro-selector-popover"
-            :teleported="!props.isDetached"
-          >
-            <template #reference>
-              <button class="macro-icon-button" :class="{ active: props.macroSelectorVisible }">
-                <el-icon><MagicStick /></el-icon>
-              </button>
-            </template>
-            <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
-          </el-popover>
-        </div>
-      </el-tooltip>
-
       <!-- 设置菜单 -->
       <el-tooltip content="工具栏设置" placement="top" :show-after="300">
         <div>
@@ -193,7 +189,6 @@ const handleNewSession = () => {
             :width="200"
             trigger="click"
             popper-class="toolbar-settings-popover"
-            :teleported="!props.isDetached"
           >
             <template #reference>
               <button class="tool-btn settings-btn">
@@ -649,9 +644,15 @@ const handleNewSession = () => {
 }
 
 @keyframes pulse {
-  0% { opacity: 0.3; }
-  50% { opacity: 1; }
-  100% { opacity: 0.3; }
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
 }
 
 .macro-icon-button.active,

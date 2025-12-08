@@ -2,6 +2,7 @@
 import { ref, toRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { useStorage } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
@@ -385,7 +386,7 @@ const handleDragStart = (e: MouseEvent) => {
     displayName: "聊天输入框",
     type: "component",
     width: rect.width + 80,
-    height: rect.height + 80,
+    height: Math.max(rect.height + 80, 900), // 增加高度以容纳弹出气泡
     mouseX: e.screenX,
     mouseY: e.screenY,
     handleOffsetX,
@@ -395,7 +396,8 @@ const handleDragStart = (e: MouseEvent) => {
 
 // ===== 窗口大小调整功能 =====
 const { createResizeHandler } = useWindowResize();
-const handleWindowResizeStart = createResizeHandler("SouthEast");
+const handleResizeEast = createResizeHandler("East");
+const handleResizeWest = createResizeHandler("West");
 
 // 消息构建器（用于准备 Token 计算的数据）
 const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
@@ -566,6 +568,25 @@ onMounted(async () => {
     });
   }
 
+  // 如果是分离模式，强制调整窗口高度以容纳弹出气泡
+  if (props.isDetached) {
+    setTimeout(async () => {
+      try {
+        const win = getCurrentWindow();
+        const size = await win.innerSize();
+        // 如果高度不足 900，强制调整为 900，保持宽度不变
+        if (size.height < 900) {
+          await win.setSize(new PhysicalSize(size.width, 900));
+          logger.info("已强制调整分离窗口高度", {
+            originalHeight: size.height,
+            newHeight: 900,
+          });
+        }
+      } catch (e) {
+        logger.warn("调整分离窗口大小失败", e);
+      }
+    }, 100);
+  }
 });
 /**
  * 插入宏到光标位置
@@ -624,7 +645,7 @@ const handleDetach = async () => {
     displayName: "聊天输入框",
     type: "component" as const,
     width: rect.width + 80,
-    height: rect.height + 80,
+    height: Math.max(rect.height + 80, 900), // 增加高度以容纳弹出气泡
     mouseX: window.screenX + rect.left + rect.width / 2,
     mouseY: window.screenY + rect.top + rect.height / 2,
     handleOffsetX,
@@ -736,33 +757,33 @@ const handleSelectTemporaryModel = async () => {
 // 处理输入翻译
 const handleTranslateInput = async () => {
   if (isTranslatingInput.value) return;
-  
+
   const text = inputText.value.trim();
   if (!text) return;
 
   isTranslatingInput.value = true;
-  
+
   // 保存当前光标位置和选区
   const textarea = textareaRef.value;
   const start = textarea ? textarea.selectionStart : 0;
   const end = textarea ? textarea.selectionEnd : 0;
   const hasSelection = start !== end;
-  
+
   // 如果有选区，只翻译选中的文本；否则翻译全部
   const textToTranslate = hasSelection ? text.substring(start, end) : text;
-  
+
   // 使用输入框专用的目标语言
   const targetLang = settings.value.translation.inputTargetLang || "English";
 
   try {
     const translatedText = await translateText(textToTranslate, undefined, undefined, targetLang);
-    
+
     if (translatedText) {
       if (hasSelection) {
         // 替换选中文本
         const newText = text.substring(0, start) + translatedText + text.substring(end);
         inputText.value = newText;
-        
+
         // 恢复光标并选中新翻译的文本
         setTimeout(() => {
           if (textarea) {
@@ -781,7 +802,7 @@ const handleTranslateInput = async () => {
           }
         }, 0);
       }
-      
+
       customMessage.success("翻译完成");
       autoResize(); // 调整高度
     }
@@ -809,7 +830,7 @@ const handleNewSession = () => {
     customMessage.warning("没有可用的智能体来创建新会话");
     return;
   }
-  
+
   if (props.isDetached) {
     bus.requestAction("create-session", { agentId });
   } else {
@@ -919,17 +940,20 @@ const handleNewSession = () => {
         </div>
       </div>
     </div>
-
-    <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
+    <!-- 左侧调整宽度手柄，仅在分离模式下显示 -->
     <div
       v-if="props.isDetached"
-      class="window-resize-indicator"
-      @mousedown="handleWindowResizeStart"
-      title="拖拽调整窗口大小"
-    >
-      <div class="indicator-border"></div>
-      <div class="indicator-handle"></div>
-    </div>
+      class="resize-handle-left"
+      @mousedown="handleResizeWest"
+      title="拖拽调整宽度"
+    ></div>
+    <!-- 右侧调整宽度手柄，仅在分离模式下显示 -->
+    <div
+      v-if="props.isDetached"
+      class="resize-handle-right"
+      @mousedown="handleResizeEast"
+      title="拖拽调整宽度"
+    ></div>
   </div>
 </template>
 
@@ -957,7 +981,12 @@ const handleNewSession = () => {
 
 /* 分离模式下组件完全一致，只是添加更强的阴影 */
 .message-input-container.detached-mode {
-  height: 90vh;
+  /* 移除 height: 100%，改为绝对定位沉底，让出上方空间给气泡 */
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: auto;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),
     0 4px 16px rgba(0, 0, 0, 0.15);
@@ -1059,7 +1088,7 @@ const handleNewSession = () => {
   display: flex;
   flex-direction: column;
   border-radius: 8px; /* Slightly smaller radius for nesting */
-  overflow: hidden;
+  /* overflow: hidden;  <-- 移除此行以允许 popover 在分离模式下溢出显示 */
 }
 
 .message-input-container:focus-within {
@@ -1082,8 +1111,15 @@ const handleNewSession = () => {
 
 /* 分离模式下取消最大高度限制 */
 .message-input-container.detached-mode .message-textarea {
-  max-height: 100%;
-  flex: 1; /* 分离模式下允许填充可用空间 */
+  max-height: 60vh; /* 给予较大的高度限制，但不撑满，留出上方空间给气泡 */
+  flex: none; /* 取消强制填充，让输入框沉底 */
+}
+.message-input-container.detached-mode .input-content {
+  justify-content: flex-end; /* 让输入框在分离窗口中沉底 */
+}
+
+.message-input-container.detached-mode .input-wrapper {
+  flex: none; /* 让 wrapper 根据内容自适应高度，配合 justify-content: flex-end */
 }
 
 .message-textarea:focus {
@@ -1140,76 +1176,46 @@ const handleNewSession = () => {
   background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.4);
 }
 
-/* 右下角调整大小手柄 - 仅在分离模式下显示 */
-.message-input-container.detached-mode .window-resize-indicator {
+/* 左侧调整宽度手柄 - 扩展的透明热区 */
+.resize-handle-left {
   position: absolute;
-  bottom: 0;
-  right: 0;
   top: 0;
-  left: 0;
-  pointer-events: none; /* 整体不接收事件，只有手柄接收 */
-  z-index: 10;
-}
-
-/* 与容器同步的边框，但小一圈 */
-.message-input-container.detached-mode .indicator-border {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  bottom: 6px;
-  left: 6px;
-  border: 1px solid var(--primary-color);
-  border-radius: 18px; /* 比容器的 24px 小 6px */
-  opacity: 0;
-  transition: opacity 0.2s;
-  pointer-events: none;
-}
-
-/* 右下角弧度线段手柄 */
-.message-input-container.detached-mode .indicator-handle {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  width: 16px;
-  height: 16px;
-  pointer-events: auto; /* 只有手柄接收鼠标事件 */
-  cursor: se-resize;
-  border-radius: 0 0 18px 0; /* 与边框圆角一致 */
-  overflow: hidden;
-}
-
-/* 弧度线段视觉效果 */
-.message-input-container.detached-mode .indicator-handle::before {
-  content: "";
-  position: absolute;
   bottom: 0;
-  right: 0;
-  width: 100%;
-  height: 100%;
-  border: 2px solid var(--primary-color);
-  border-radius: 0 0 18px 0;
-  border-top: none;
-  border-left: none;
-  opacity: 0.4;
-  transition: opacity 0.2s;
+  left: -8px; /* 热区超出容器边界 8px，更容易触发 */
+  width: 32px; /* 扩展的热区宽度 */
+  cursor: w-resize;
+  z-index: 20;
 }
 
-/* Hover 效果 */
-.message-input-container.detached-mode .indicator-handle:hover::before {
-  opacity: 0.8;
-  border-color: var(--primary-hover-color, var(--primary-color));
+/* 右侧调整宽度手柄 - 扩展的透明热区 */
+.resize-handle-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -8px; /* 热区超出容器边界 8px，更容易触发 */
+  width: 32px; /* 扩展的热区宽度 */
+  cursor: e-resize;
+  z-index: 20;
 }
 
-.message-input-container.detached-mode .indicator-handle:hover ~ .indicator-border {
-  opacity: 0.3;
+/* 当左侧手柄被 hover 时，给容器添加左侧粗描边 - 描边从容器自己"长出来" */
+.message-input-container.detached-mode:has(.resize-handle-left:hover) {
+  border-left: 4px solid var(--primary-color);
 }
 
-/* Active 效果 */
-.message-input-container.detached-mode .indicator-handle:active::before {
-  opacity: 1;
+/* 当右侧手柄被 hover 时，给容器添加右侧粗描边 - 描边从容器自己"长出来" */
+.message-input-container.detached-mode:has(.resize-handle-right:hover) {
+  border-right: 4px solid var(--primary-color);
 }
 
-.message-input-container.detached-mode .indicator-handle:active ~ .indicator-border {
-  opacity: 0.5;
+/* 当手柄被激活（拖拽中）时，描边更亮 */
+.message-input-container.detached-mode:has(.resize-handle-left:active) {
+  border-left: 4px solid var(--primary-color);
+  box-shadow: -4px 0 12px rgba(var(--primary-color-rgb, 64, 158, 255), 0.4);
+}
+
+.message-input-container.detached-mode:has(.resize-handle-right:active) {
+  border-right: 4px solid var(--primary-color);
+  box-shadow: 4px 0 12px rgba(var(--primary-color-rgb, 64, 158, 255), 0.4);
 }
 </style>

@@ -552,7 +552,7 @@ watch(
   gap: 8px;
   color: var(--error-color);
   margin-top: 8px;
-  margin-bottom: 32px;
+  margin-bottom: 42px;
 }
 
 .error-text {

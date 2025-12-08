@@ -135,6 +135,8 @@ export interface LlmRequestOptions {
   reasoningEffort?: string;
   /** 是否启用思考模式 */
   thinkingEnabled?: boolean;
+  /** 是否包含思考内容（Gemini 特有） */
+  includeThoughts?: boolean;
   /** 思考预算 Token 数 */
   thinkingBudget?: number;
   /** 元数据键值对 */

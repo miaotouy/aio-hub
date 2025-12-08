@@ -44,6 +44,7 @@ export const ALL_LLM_PARAMETER_KEYS = [
   "thinkingEnabled",
   "thinkingBudget",
   "reasoningEffort",
+  "includeThoughts",
 ] as const;
 
 export type ParameterType = "slider" | "switch" | "select" | "number" | "text";
@@ -264,6 +265,15 @@ export const parameterConfigs: ParameterConfig[] = [
     defaultValue: "",
     options: [], // 选项将由 ModelParametersEditor 动态提供
   },
+  {
+    key: "includeThoughts",
+    label: "包含思考摘要",
+    type: "switch",
+    description: "是否在响应中包含思考摘要（Gemini）。启用后，模型会返回思考过程。",
+    group: "special",
+    supportedKey: "thinkingConfig", // 使用 thinkingConfig，因为这是 Gemini 特有的配置
+    defaultValue: false,
+  },
 ];
 
 /**
@@ -294,6 +304,12 @@ export function isParameterSupportedByModel(
       default:
         return false;
     }
+  }
+
+  // 对于 includeThoughts，需要检查 thinkingConfig 支持
+  if (key === "includeThoughts") {
+    // 只有支持 thinkingConfig 的 provider 才显示此参数
+    return supportedParameters.thinkingConfig === true;
   }
 
   // 对于其他参数，检查 provider 是否支持

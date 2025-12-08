@@ -317,17 +317,30 @@ async function callVertexAiGemini(
 
   // 添加思考配置（从 gemini.ts 借鉴）
   const extendedOptions = options as any;
-  if (extendedOptions.thinkingEnabled) {
-    const thinkingConfig: any = {
-      includeThoughts: true,
-    };
+  // 如果 includeThoughts 为 true 或 thinkingEnabled 为 true（向后兼容），则创建 thinkingConfig
+  const shouldIncludeThoughts = extendedOptions.includeThoughts === true || extendedOptions.thinkingEnabled === true;
+  const hasThinkingBudget = extendedOptions.thinkingBudget !== undefined;
+  const hasReasoningEffort = extendedOptions.reasoningEffort !== undefined;
 
-    if (extendedOptions.thinkingBudget) {
+  if (shouldIncludeThoughts || hasThinkingBudget || hasReasoningEffort) {
+    const thinkingConfig: any = {};
+
+    // 只有当显式要求返回思考时才设置 includeThoughts
+    if (extendedOptions.includeThoughts === true) {
+      thinkingConfig.includeThoughts = true;
+    } else if (extendedOptions.thinkingEnabled === true) {
+      // 向后兼容：thinkingEnabled 也意味着 includeThoughts
+      thinkingConfig.includeThoughts = true;
+    }
+
+    // 注意：thinkingBudget 可以是 0（禁用思考）或 -1（动态思考）
+    if (extendedOptions.thinkingBudget !== undefined) {
       thinkingConfig.thinkingBudget = extendedOptions.thinkingBudget;
     }
 
+    // 注意：API 文档显示 thinkingLevel 应该使用小写值
     if (extendedOptions.reasoningEffort) {
-      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toUpperCase();
+      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toLowerCase();
     }
 
     // @ts-ignore - a little hacky but works
@@ -415,13 +428,9 @@ async function callVertexAiGemini(
     let finishReason: LlmResponse["finishReason"] = null;
     let toolCalls: LlmResponse["toolCalls"] = undefined;
 
-    await parseSSEStream(reader, (data) => {
-      const text = extractTextFromSSE(data, "gemini");
-      if (text) {
-        fullContent += text;
-        options.onStream!(text);
-      }
+    let reasoningContent = "";
 
+    await parseSSEStream(reader, (data) => {
       // 提取元数据
       try {
         const json = JSON.parse(data);
@@ -438,32 +447,60 @@ async function callVertexAiGemini(
           finishReason = mapVertexAiFinishReason(json.candidates[0].finishReason);
         }
 
-        // 提取函数调用
-        const functionCall = json.candidates?.[0]?.content?.parts?.[0]?.functionCall;
-        if (functionCall) {
-          toolCalls = [
-            {
-              id: `call_${Date.now()}`,
-              type: "function",
-              function: {
-                name: functionCall.name,
-                arguments: JSON.stringify(functionCall.args || {}),
-              },
-            },
-          ];
+        // 遍历 parts 处理文本和思考摘要
+        const parts = json.candidates?.[0]?.content?.parts;
+        if (parts && Array.isArray(parts)) {
+          for (const part of parts) {
+            if (part.text) {
+              // 检查是否为思考摘要
+              if (part.thought) {
+                reasoningContent += part.text;
+                if (options.onReasoningStream) {
+                  options.onReasoningStream(part.text);
+                }
+              } else {
+                fullContent += part.text;
+                options.onStream!(part.text);
+              }
+            } else if (part.functionCall) {
+              // 提取函数调用
+              toolCalls = [
+                {
+                  id: `call_${Date.now()}`,
+                  type: "function",
+                  function: {
+                    name: part.functionCall.name,
+                    arguments: JSON.stringify(part.functionCall.args || {}),
+                  },
+                },
+              ];
+            }
+          }
         }
       } catch {
-        // 忽略非 JSON 数据
+        // 如果不是 JSON，尝试使用旧的文本提取方式
+        const text = extractTextFromSSE(data, "gemini");
+        if (text) {
+          fullContent += text;
+          options.onStream!(text);
+        }
       }
     }, undefined, options.signal);
 
-    return {
+    const result: LlmResponse = {
       content: fullContent,
       usage,
       finishReason,
       toolCalls,
       isStream: true,
     };
+
+    // 添加思考摘要
+    if (reasoningContent) {
+      result.reasoningContent = reasoningContent;
+    }
+
+    return result;
   }
 
   // 非流式响应
@@ -498,9 +535,16 @@ async function callVertexAiGemini(
 
   let content = "";
   let toolCalls: LlmResponse["toolCalls"] = undefined;
+  let reasoningContent = "";
 
   if (candidate.content?.parts) {
     for (const part of candidate.content.parts) {
+      // 检查是否为思考摘要
+      if (part.thought && part.text) {
+        reasoningContent += part.text;
+        continue;
+      }
+
       if (part.text) {
         content += part.text;
       } else if (part.functionCall) {
@@ -524,9 +568,10 @@ async function callVertexAiGemini(
   logger.info("Vertex AI Gemini 响应成功", {
     contentLength: content.length,
     toolCallsCount: toolCalls?.length || 0,
+    hasReasoningContent: !!reasoningContent,
   });
 
-  return {
+  const result: LlmResponse = {
     content,
     usage: data.usageMetadata
       ? {
@@ -538,6 +583,13 @@ async function callVertexAiGemini(
     finishReason: mapVertexAiFinishReason(candidate.finishReason),
     toolCalls,
   };
+
+  // 添加思考摘要
+  if (reasoningContent) {
+    result.reasoningContent = reasoningContent;
+  }
+
+  return result;
 }
 
 /**

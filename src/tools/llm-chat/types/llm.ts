@@ -164,6 +164,8 @@ export interface LlmParameters {
   thinkingEnabled?: boolean;
   /** 思考预算 Token 数 */
   thinkingBudget?: number;
+  /** 是否包含思考摘要（Gemini） */
+  includeThoughts?: boolean;
 
   // ===== Claude 特有参数 =====
   /** Claude: 停止序列（与 stop 类似，但 Claude 专用） */

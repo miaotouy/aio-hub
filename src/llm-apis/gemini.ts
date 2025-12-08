@@ -412,20 +412,33 @@ function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerati
   const extendedOptions = options as ExtendedLlmRequestOptions;
 
   // 思考配置
-  if (extendedOptions.thinkingEnabled) {
-    const thinkingConfig: any = {
-      includeThoughts: true,
-    };
+  // 如果 includeThoughts 为 true 或 thinkingEnabled 为 true（向后兼容），则创建 thinkingConfig
+  const shouldIncludeThoughts = extendedOptions.includeThoughts === true || extendedOptions.thinkingEnabled === true;
+  const hasThinkingBudget = extendedOptions.thinkingBudget !== undefined;
+  const hasReasoningEffort = extendedOptions.reasoningEffort !== undefined;
+
+  if (shouldIncludeThoughts || hasThinkingBudget || hasReasoningEffort) {
+    const thinkingConfig: any = {};
+
+    // 只有当显式要求返回思考时才设置 includeThoughts
+    if (extendedOptions.includeThoughts === true) {
+      thinkingConfig.includeThoughts = true;
+    } else if (extendedOptions.thinkingEnabled === true) {
+      // 向后兼容：thinkingEnabled 也意味着 includeThoughts
+      thinkingConfig.includeThoughts = true;
+    }
 
     // Gemini 2.5+ Budget 模式
-    if (extendedOptions.thinkingBudget) {
+    // 注意：thinkingBudget 可以是 0（禁用思考）或 -1（动态思考）
+    if (extendedOptions.thinkingBudget !== undefined) {
       thinkingConfig.thinkingBudget = extendedOptions.thinkingBudget;
     }
 
     // Gemini 3.0 Level 模式 (low/high)
+    // 注意：API 文档显示 thinkingLevel 应该使用小写值
     if (extendedOptions.reasoningEffort) {
       // @ts-ignore
-      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toUpperCase();
+      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toLowerCase();
     }
 
     config.thinkingConfig = thinkingConfig;
@@ -599,13 +612,9 @@ export const callGeminiApi = async (
     let finishReason: LlmResponse["finishReason"] = null;
     let toolCalls: LlmResponse["toolCalls"] = undefined;
 
-    await parseSSEStream(reader, (data) => {
-      const text = extractTextFromSSE(data, "gemini");
-      if (text) {
-        fullContent += text;
-        options.onStream!(text);
-      }
+    let reasoningContent = "";
 
+    await parseSSEStream(reader, (data) => {
       // 尝试从流数据中提取详细信息
       try {
         const json = JSON.parse(data);
@@ -624,32 +633,61 @@ export const callGeminiApi = async (
           finishReason = mapGeminiFinishReason(json.candidates[0].finishReason);
         }
 
-        // 提取函数调用
-        const functionCall = json.candidates?.[0]?.content?.parts?.[0]?.functionCall;
-        if (functionCall) {
-          toolCalls = [
-            {
-              id: `call_${Date.now()}`, // Gemini 不提供 ID，生成一个
-              type: "function",
-              function: {
-                name: functionCall.name,
-                arguments: JSON.stringify(functionCall.args || {}),
-              },
-            },
-          ];
+        // 遍历 parts 处理文本和思考摘要
+        const parts = json.candidates?.[0]?.content?.parts;
+        if (parts && Array.isArray(parts)) {
+          for (const part of parts) {
+            if (part.text) {
+              // 检查是否为思考摘要
+              if (part.thought) {
+                reasoningContent += part.text;
+                // 如果有思考流回调，调用它
+                if (options.onReasoningStream) {
+                  options.onReasoningStream(part.text);
+                }
+              } else {
+                fullContent += part.text;
+                options.onStream!(part.text);
+              }
+            } else if (part.functionCall) {
+              // 提取函数调用
+              toolCalls = [
+                {
+                  id: `call_${Date.now()}`, // Gemini 不提供 ID，生成一个
+                  type: "function",
+                  function: {
+                    name: part.functionCall.name,
+                    arguments: JSON.stringify(part.functionCall.args || {}),
+                  },
+                },
+              ];
+            }
+          }
         }
       } catch {
-        // 忽略非 JSON 数据
+        // 如果不是 JSON，尝试使用旧的文本提取方式
+        const text = extractTextFromSSE(data, "gemini");
+        if (text) {
+          fullContent += text;
+          options.onStream!(text);
+        }
       }
     }, undefined, options.signal);
 
-    return {
+    const result: LlmResponse = {
       content: fullContent,
       usage,
       finishReason,
       toolCalls,
       isStream: true,
     };
+
+    // 添加思考摘要
+    if (reasoningContent) {
+      result.reasoningContent = reasoningContent;
+    }
+
+    return result;
   }
 
   // 非流式响应
@@ -689,10 +727,21 @@ function parseGeminiResponse(data: any): LlmResponse {
   // 提取文本内容
   let content = "";
   let toolCalls: LlmResponse["toolCalls"] = undefined;
-  let thoughtsContent = ""; // 思考内容
+  let thoughtsContent = ""; // 思考摘要内容
 
   if (candidate.content?.parts) {
     for (const part of candidate.content.parts) {
+      // 跳过没有文本的 part
+      if (!part.text && !part.functionCall && !part.executableCode && !part.codeExecutionResult) {
+        continue;
+      }
+
+      // 检查是否为思考摘要（Gemini 通过 part.thought 属性标识）
+      if (part.thought && part.text) {
+        thoughtsContent += part.text;
+        continue; // 思考内容不加入主内容
+      }
+
       if (part.text) {
         content += part.text;
       } else if (part.functionCall) {
@@ -715,11 +764,6 @@ function parseGeminiResponse(data: any): LlmResponse {
         content += `\n**代码执行结果 (${outcomeText}):**\n\`\`\`\n${part.codeExecutionResult.output}\n\`\`\`\n`;
       }
     }
-  }
-
-  // 提取思考内容（如果启用了思考模式）
-  if (candidate.thoughts) {
-    thoughtsContent = candidate.thoughts;
   }
 
   // 如果没有内容且没有函数调用，检查是否有错误或安全过滤

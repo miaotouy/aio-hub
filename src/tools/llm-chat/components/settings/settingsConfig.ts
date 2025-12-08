@@ -454,6 +454,7 @@ export const settingsConfig: SettingsSection[] = [
         hint: "使用 <code>{text}</code> 代表原文，<code>{targetLang}</code> 代表目标语言，<code>{thinkTags}</code> 代表需要保护的思考块标签（XML 标签本身保持不变，标签内的内容会被翻译）。<br />例如：<code>Translate to {targetLang}:\\n\\n{text}</code>",
         keywords: "translation prompt 翻译 提示词",
         visible: (settings) => settings.translation.enabled,
+        action: "resetTranslationPrompt",
         slots: {
           append: () =>
             h(
@@ -521,6 +522,7 @@ export const settingsConfig: SettingsSection[] = [
         hint: "使用 <code>{context}</code> 占位符来指定对话内容的位置。<br />例如：<code>请为以下对话生成标题：\\n\\n{context}</code><br />如不使用占位符，对话内容将自动追加到提示词末尾。",
         keywords: "topic naming prompt 话题 命名 提示词",
         visible: (settings) => settings.topicNaming.enabled,
+        action: "resetTopicNamingPrompt",
         slots: {
           append: () =>
             h(

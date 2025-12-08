@@ -185,7 +185,7 @@
                         <div
                           v-if="item.slots?.append"
                           class="append-slot"
-                          @click="handleComponentClick(item.id as string)"
+                          @click="handleComponentClick(item)"
                         >
                           <component :is="item.slots.append" />
                         </div>
@@ -542,11 +542,14 @@ const getComponentClass = (item: SettingItem) => {
   return classes;
 };
 
-const handleComponentClick = (itemId: string) => {
-  if (itemId === "prompt") {
-    handleResetPrompt();
-  } else if (itemId === "transPrompt") {
-    handleResetTranslationPrompt();
+const actionRegistry: Record<string, () => void> = {
+  resetTopicNamingPrompt: handleResetPrompt,
+  resetTranslationPrompt: handleResetTranslationPrompt,
+};
+
+const handleComponentClick = (item: SettingItem) => {
+  if (item.action && actionRegistry[item.action]) {
+    actionRegistry[item.action]();
   }
 };
 

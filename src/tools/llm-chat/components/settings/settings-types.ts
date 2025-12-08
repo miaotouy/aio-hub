@@ -88,6 +88,11 @@ export interface SettingItem {
     append?: () => Component;
   };
   /**
+   * 点击 append slot 区域时触发的动作名称
+   * 配合组件内的 actionRegistry 使用
+   */
+  action?: string;
+  /**
    * 折叠面板配置，用于大型编辑器组件
    */
   collapsible?: {

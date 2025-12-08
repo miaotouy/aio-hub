@@ -26,12 +26,26 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       execute: (context) => context.userName || 'User',
     },
 
-    // 角色名称
+    // 智能体名称
+    {
+      name: 'agent',
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: '当前智能体的名称',
+      example: '{{agent}}',
+      acceptsArgs: false,
+      priority: 200,
+      supported: true,
+      contextFree: false,
+      execute: (context) => context.charName || 'Assistant',
+    },
+
+    // 角色名称 (agent宏的酒馆兼容别名)
     {
       name: 'char',
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: '当前角色（智能体）的名称',
+      description: '当前角色（智能体）的名称 (同 {{agent}})',
       example: '{{char}}',
       acceptsArgs: false,
       priority: 200,

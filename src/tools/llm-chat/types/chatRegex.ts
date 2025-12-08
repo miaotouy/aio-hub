@@ -88,6 +88,13 @@ export interface ChatRegexPreset {
  */
 export interface ChatRegexConfig {
   presets: ChatRegexPreset[];
+  /**
+   * 正则规则绑定模式
+   * - 'message': 每条消息使用其生成时的 Agent/User 配置（消息绑定）
+   * - 'session': 所有消息使用当前会话的 Agent/User 配置（会话绑定）
+   * @default 'message'
+   */
+  bindingMode?: 'message' | 'session';
 }
 
 // === 工厂函数 ===
@@ -98,6 +105,7 @@ export interface ChatRegexConfig {
 export function createDefaultChatRegexConfig(): ChatRegexConfig {
   return {
     presets: [],
+    bindingMode: 'message',
   };
 }
 

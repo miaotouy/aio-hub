@@ -231,6 +231,19 @@ export const settingsConfig: SettingsSection[] = [
     icon: Regex,
     items: [
       {
+        id: "regexBindingMode",
+        label: "正则规则绑定模式",
+        component: "ElRadioGroup",
+        modelPath: "regexConfig.bindingMode",
+        options: [
+          { label: "跟随消息配置", value: "message" },
+          { label: "使用当前会话配置", value: "session" },
+        ],
+        hint: "控制正则规则使用哪套配置：<br/>• <strong>跟随消息配置</strong>：每条消息使用其生成时的 Agent/User 配置（消息绑定）<br/>• <strong>使用当前会话配置</strong>：所有消息使用当前会话的 Agent/User 配置（会话绑定）",
+        keywords: "regex binding mode 绑定 模式 消息 会话",
+        layout: "block",
+      },
+      {
         id: "regexConfig",
         label: "全局文本替换",
         component: "ChatRegexEditor",

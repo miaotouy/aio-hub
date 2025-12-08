@@ -55,6 +55,39 @@ const emit = defineEmits<Emits>();
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 
+/**
+ * 根据绑定模式获取 agentId 和 userProfileId
+ */
+function getAgentAndUserProfileIds(
+  metadata: any,
+  bindingMode: "message" | "session" = "message"
+): { agentId: string | undefined; userProfileId: string | undefined } {
+  let agentId: string | undefined;
+  let userProfileId: string | undefined;
+
+  if (bindingMode === "message") {
+    // 消息绑定模式：优先使用消息元数据，回退到当前激活的 Agent/User 配置
+    agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+    const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+
+    // 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
+    userProfileId = metadata?.userProfileId;
+    if (!userProfileId) {
+      userProfileId = agent?.userProfileId ?? undefined;
+    }
+    if (!userProfileId) {
+      userProfileId = userProfileStore.globalProfileId ?? undefined;
+    }
+  } else {
+    // 会话绑定模式：忽略消息元数据，使用当前激活的 Agent 和全局档案
+    agentId = agentStore.currentAgentId ?? undefined;
+    const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+    userProfileId = agent?.userProfileId ?? userProfileStore.globalProfileId ?? undefined;
+  }
+
+  return { agentId, userProfileId };
+}
+
 // 附件管理器 - 用于编辑模式（使用默认配置）
 const attachmentManager = useAttachmentManager();
 
@@ -104,23 +137,8 @@ const generationMetaForRenderer = computed(() => {
 
 // 解析需要传递给渲染器的正则规则
 const activeRules = computed(() => {
-  // 渲染层回退逻辑：如果消息中没有 AgentID/UserID，则回退到当前激活的 Agent/User 配置。
-  // 这保证了历史消息在渲染时，如果缺少元数据，会使用当前 Agent 的渲染规则。
-
-  // 1. 确定 Agent ID (Message-Bound 优先，Session-Bound 回退)
-  const agentId = props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
-  const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-
-  // 2. 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
-  let userProfileId: string | undefined = props.message.metadata?.userProfileId;
-  if (!userProfileId) {
-    // 优先回退到 Agent 绑定的档案
-    userProfileId = agent?.userProfileId ?? undefined;
-  }
-  if (!userProfileId) {
-    // 最后回退到全局档案
-    userProfileId = userProfileStore.globalProfileId ?? undefined;
-  }
+  const bindingMode = settings.value.regexConfig.bindingMode ?? "message";
+  const { agentId, userProfileId } = getAgentAndUserProfileIds(props.message.metadata, bindingMode);
 
   return regexResolver.resolveRulesExplicit(
     agentId,
@@ -136,27 +154,26 @@ const processedRules = ref<ChatRegexRule[]>([]);
 
 // 监听 activeRules 变化，进行宏处理
 watch(
-  [activeRules, () => props.session, () => props.message.metadata],
-  async ([rules, session, metadata]) => {
+  [
+    activeRules,
+    () => props.session,
+    () => props.message.metadata,
+    () => settings.value.regexConfig.bindingMode,
+  ],
+  async ([rules, session, metadata, bindingMode]) => {
     if (!rules || rules.length === 0) {
       processedRules.value = [];
       return;
     }
 
-    // 获取上下文信息以构建宏上下文
-    const agentId = metadata?.agentId ?? agentStore.currentAgentId;
+    // 根据绑定模式确定 agent 和 userProfile
+    const mode = bindingMode ?? "message";
+    const { agentId, userProfileId } = getAgentAndUserProfileIds(metadata, mode);
+
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-    
-    let userProfile;
-    let userProfileId: string | undefined = metadata?.userProfileId;
-    if (!userProfileId) userProfileId = agent?.userProfileId ?? undefined;
-    if (!userProfileId) userProfileId = userProfileStore.globalProfileId ?? undefined;
-    
-    if (userProfileId) {
-      userProfile = userProfileStore.getProfileById(userProfileId);
-    } else {
-      userProfile = userProfileStore.globalProfile;
-    }
+    let userProfile = userProfileId
+      ? userProfileStore.getProfileById(userProfileId)
+      : userProfileStore.globalProfile;
 
     const macroContext = createMacroContext({
       agent,
@@ -275,7 +292,7 @@ watch(
     // 仅对预设消息进行宏处理（非编辑模式下）
     // 普通会话消息在发送时已经处理过宏，不需要二次处理
     const isPresetMessage = props.message.metadata?.isPresetDisplay === true;
-    
+
     if (!props.isEditing && content && isPresetMessage) {
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
       displayedContent.value = await processMacros(content, {
@@ -310,10 +327,13 @@ const displayMode = computed<TranslationDisplayMode>(() => {
 
 const showOriginal = computed(() => {
   if (props.isEditing) return false; // 编辑模式由专门的区域接管
-  
+
   // 如果没有翻译数据，或者翻译被隐藏了，应该显示原文（兜底，防止消息完全消失）
   const translationHidden = props.message.metadata?.translation?.visible === false;
-  if ((!props.message.metadata?.translation && !props.isTranslating) || (translationHidden && !props.isTranslating)) {
+  if (
+    (!props.message.metadata?.translation && !props.isTranslating) ||
+    (translationHidden && !props.isTranslating)
+  ) {
     return true;
   }
 
@@ -322,15 +342,21 @@ const showOriginal = computed(() => {
 
 const showTranslation = computed(() => {
   if (props.isEditing) return false;
-  
+
   // 检查 visible 属性 (默认为 true，兼容旧数据)
   // 正在翻译时强制显示
-  const isVisible = props.isTranslating || (props.message.metadata?.translation?.visible !== false);
+  const isVisible = props.isTranslating || props.message.metadata?.translation?.visible !== false;
 
   // 只要有元数据，或者正在翻译，或者有临时的翻译内容（应对流式结束但元数据未更新的间隙），都应该显示
-  const hasContent = !!(props.message.metadata?.translation || props.isTranslating || props.translationContent);
-  
-  return isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both");
+  const hasContent = !!(
+    props.message.metadata?.translation ||
+    props.isTranslating ||
+    props.translationContent
+  );
+
+  return (
+    isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both")
+  );
 });
 
 // 响应式布局
@@ -426,7 +452,7 @@ const containerClasses = computed(() => ({
         @keydown.ctrl.enter="saveEdit"
         @keydown.esc="cancelEdit"
         @paste="handlePaste"
-        />
+      />
 
       <!-- 操作按钮 -->
       <div class="edit-actions">
@@ -474,7 +500,10 @@ const containerClasses = computed(() => ({
 
       <!-- 译文区域 -->
       <div v-if="showTranslation" class="translation-column">
-        <div class="translation-header" v-if="displayMode === 'both' || displayMode === 'translation'">
+        <div
+          class="translation-header"
+          v-if="displayMode === 'both' || displayMode === 'translation'"
+        >
           <Languages :size="14" class="translation-icon" />
           <span class="translation-title">翻译结果</span>
           <span class="translation-meta" v-if="message.metadata?.translation">
@@ -483,7 +512,11 @@ const containerClasses = computed(() => ({
         </div>
         <div class="translation-content">
           <RichTextRenderer
-            :content="isTranslating || !message.metadata?.translation ? translationContent : message.metadata.translation.content"
+            :content="
+              isTranslating || !message.metadata?.translation
+                ? translationContent
+                : message.metadata.translation.content
+            "
             :regex-rules="processedRules"
             :version="settings.uiPreferences.rendererVersion"
             :llm-think-rules="llmThinkRules"

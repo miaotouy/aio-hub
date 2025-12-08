@@ -23,6 +23,7 @@ import {
 } from "../utils/chatRegexUtils";
 import { createMacroContext } from "../macro-engine/MacroContext";
 import { useChatRegexResolver } from "./useChatRegexResolver";
+import { useChatSettings } from "./useChatSettings";
 
 const logger = createModuleLogger("llm-chat/context-builder");
 
@@ -94,9 +95,12 @@ export function useChatContextBuilder() {
 
     // 会话上下文（完整历史）
     let sessionContext = llmContext;
-
-    // ==================== 正则管道处理 (Request) - Message-Bound 策略 ====================
+    // ==================== 正则管道处理 (Request) - 支持绑定模式 ====================
     const { resolveRulesExplicit } = useChatRegexResolver();
+
+    // 获取绑定模式设置（从全局设置）
+    const { settings } = useChatSettings();
+    const bindingMode = settings.value.regexConfig.bindingMode;
 
     // Request Pipeline 的宏上下文是固定的 (基于当前请求的 Agent/User)
     const macroContext = createMacroContext({
@@ -106,7 +110,7 @@ export function useChatContextBuilder() {
       timestamp,
     });
 
-    // 遍历并应用规则（Message-Bound）
+    // 遍历并应用规则
     const appliedRulesLog: any[] = [];
 
     for (let i = 0; i < sessionContext.length; i++) {
@@ -118,18 +122,25 @@ export function useChatContextBuilder() {
       // 1. 计算深度 (0=最新)
       const messageDepth = sessionContext.length - 1 - i;
 
-      // 2. 获取消息归属 ID
-      // sessionContext 消息是 ProcessableMessage，没有 metadata，
-      // 必须从原始 activePath 中查找对应的 ChatMessageNode 来获取 metadata。
-      // 注意：这里需要确保 activePath 包含 sourceId 对应的节点。
+      // 2. 获取消息归属 ID（根据绑定模式决定）
       const sourceNode = activePath.find(n => n.id === message.sourceId);
-      const agentId = sourceNode?.metadata?.agentId;
-      const userId = sourceNode?.metadata?.userProfileId;
+      let finalAgentId: string | undefined | null;
+      let finalUserId: string | undefined | null;
+
+      if (bindingMode === 'session') {
+        // 会话绑定：使用当前会话的 Agent/User
+        finalAgentId = currentAgent?.id;
+        finalUserId = effectiveUserProfile?.id;
+      } else {
+        // 消息绑定：使用消息元数据
+        finalAgentId = sourceNode?.metadata?.agentId;
+        finalUserId = sourceNode?.metadata?.userProfileId;
+      }
 
       // 3. 获取规则集 (已缓存 + 角色/深度过滤)
       const rawRules = resolveRulesExplicit(
-        agentId,
-        userId,
+        finalAgentId,
+        finalUserId,
         message.role,
         "request",
         messageDepth

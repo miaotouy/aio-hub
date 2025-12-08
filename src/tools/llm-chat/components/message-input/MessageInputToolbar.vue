@@ -116,7 +116,7 @@ const handleNewSession = () => {
             :visible="props.macroSelectorVisible"
             @update:visible="onMacroSelectorUpdate"
             :placement="props.isDetached ? 'top-start' : 'bottom-start'"
-            :width="400"
+            :width="300"
             trigger="click"
             popper-class="macro-selector-popover"
           >

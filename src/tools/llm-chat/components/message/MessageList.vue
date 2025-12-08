@@ -317,6 +317,10 @@ defineExpose({
               @abort="emit('abort-node', messages[virtualItem.index].id)"
               @create-branch="emit('create-branch', messages[virtualItem.index].id)"
               @analyze-context="emit('analyze-context', messages[virtualItem.index].id)"
+              @update-translation="
+                (translation: any) =>
+                  store.updateMessageTranslation(messages[virtualItem.index].id, translation)
+              "
             />
           </div>
         </div>

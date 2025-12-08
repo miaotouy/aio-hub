@@ -113,12 +113,14 @@
                           @update:model-value="
                             (value: any) => set(localSettings, item.modelPath, value)
                           "
-                          v-bind="item.props"
+                          v-bind="resolveProps(item)"
                         >
                           <!-- RadioGroup options -->
-                          <template v-if="item.component === 'ElRadioGroup' && item.options">
+                          <template
+                            v-if="item.component === 'ElRadioGroup' && resolveOptions(item)"
+                          >
                             <el-radio
-                              v-for="option in item.options"
+                              v-for="option in resolveOptions(item)"
                               :key="option.value.toString()"
                               :value="option.value"
                             >
@@ -126,9 +128,9 @@
                             </el-radio>
                           </template>
                           <!-- Select options -->
-                          <template v-if="item.component === 'ElSelect' && item.options">
+                          <template v-if="item.component === 'ElSelect' && resolveOptions(item)">
                             <el-option
-                              v-for="option in item.options"
+                              v-for="option in resolveOptions(item)"
                               :key="option.value.toString()"
                               :label="option.label"
                               :value="option.value"
@@ -190,9 +192,12 @@
                       </div>
                       <div v-if="item.hint" class="form-hint" v-html="renderHint(item.hint)"></div>
                       <!-- 渲染器详情显示 - 仅显示当前选中的 -->
-                      <div v-if="item.id === 'rendererVersion' && item.options" class="form-hint">
+                      <div
+                        v-if="item.id === 'rendererVersion' && resolveOptions(item)"
+                        class="form-hint"
+                      >
                         {{
-                          item.options.find(
+                          resolveOptions(item)?.find(
                             (opt: any) => opt.value === get(localSettings, item.modelPath)
                           )?.description
                         }}
@@ -209,7 +214,7 @@
                           @update:model-value="
                             (value: any) => set(localSettings, item.modelPath, value)
                           "
-                          v-bind="item.props"
+                          v-bind="resolveProps(item)"
                         />
                         <div
                           v-if="item.hint"
@@ -468,6 +473,11 @@ const handleResetPrompt = () => {
   customMessage.success("已重置为默认提示词");
 };
 
+const handleResetTranslationPrompt = () => {
+  set(localSettings.value, "translation.prompt", DEFAULT_SETTINGS.translation.prompt);
+  customMessage.success("已重置翻译提示词为默认值");
+};
+
 const handleClosed = () => {
   saveStatus.value = "idle";
 };
@@ -494,6 +504,20 @@ const resolveComponent = (componentName: SettingComponent | Component) => {
   return shallowRef(componentName);
 };
 
+const resolveProps = (item: SettingItem) => {
+  if (typeof item.props === "function") {
+    return item.props(localSettings.value);
+  }
+  return item.props || {};
+};
+
+const resolveOptions = (item: SettingItem) => {
+  if (typeof item.options === "function") {
+    return item.options(localSettings.value);
+  }
+  return item.options;
+};
+
 const renderHint = (hint: string) => {
   return hint.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
     try {
@@ -507,9 +531,10 @@ const renderHint = (hint: string) => {
 
 const getComponentClass = (item: SettingItem) => {
   const classes: string[] = [];
+  const props = resolveProps(item);
   if (
     item.component === "ElSlider" ||
-    (item.component === "ElInput" && item.props?.type === "textarea") ||
+    (item.component === "ElInput" && props?.type === "textarea") ||
     item.component === "SliderWithInput"
   ) {
     classes.push("full-width");
@@ -520,6 +545,8 @@ const getComponentClass = (item: SettingItem) => {
 const handleComponentClick = (itemId: string) => {
   if (itemId === "prompt") {
     handleResetPrompt();
+  } else if (itemId === "transPrompt") {
+    handleResetTranslationPrompt();
   }
 };
 

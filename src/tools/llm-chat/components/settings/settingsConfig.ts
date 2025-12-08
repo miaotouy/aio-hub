@@ -10,6 +10,7 @@ import {
   Palette,
   Globe,
   Regex,
+  Languages,
 } from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
@@ -260,14 +261,6 @@ export const settingsConfig: SettingsSection[] = [
         hint: "新建智能体或会话时默认使用的模型，作为兜底选项",
         keywords: "model default 默认 模型",
       },
-      {
-        id: "translationModel",
-        label: "翻译模型",
-        component: "LlmModelSelector",
-        modelPath: "modelPreferences.translationModel",
-        hint: "用于消息翻译功能的模型",
-        keywords: "model translate 翻译 模型",
-      },
     ],
   },
   {
@@ -377,6 +370,123 @@ export const settingsConfig: SettingsSection[] = [
         ],
         hint: "在高级关系图中，按住此键进行连线可嫁接整个子树。",
         keywords: "shortcut keybinding graph graft aoe 快捷键 关系图 嫁接 子树",
+      },
+    ],
+  },
+  {
+    title: "翻译助手",
+    icon: Languages,
+    items: [
+      {
+        id: "transEnabled",
+        label: "启用翻译功能",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "translation.enabled",
+        hint: "开启后，可在消息菜单和输入框中使用翻译功能",
+        keywords: "translation enable 翻译 启用",
+      },
+      {
+        id: "transModel",
+        label: "翻译模型",
+        component: "LlmModelSelector",
+        modelPath: "translation.modelIdentifier",
+        hint: "用于执行翻译任务的 LLM 模型",
+        keywords: "translation model 翻译 模型",
+        visible: (settings) => settings.translation.enabled,
+      },
+      {
+        id: "transTargetLangList",
+        label: "常用语言列表",
+        component: "ElSelect",
+        props: {
+          multiple: true,
+          filterable: true,
+          allowCreate: true,
+          defaultFirstOption: true,
+          placeholder: "输入语言并回车添加",
+        },
+        modelPath: "translation.targetLangList",
+        hint: "设置常用的翻译目标语言列表",
+        keywords: "translation languages list 翻译 语言列表",
+        visible: (settings) => settings.translation.enabled,
+      },
+      {
+        id: "transMessageTargetLang",
+        label: "消息目标语言",
+        component: "ElSelect",
+        props: {
+          placeholder: "选择消息默认目标语言",
+        },
+        modelPath: "translation.messageTargetLang",
+        hint: "翻译接收到的消息时默认使用的目标语言（通常是母语）",
+        keywords: "translation target language message 翻译 目标语言 消息",
+        visible: (settings) => settings.translation.enabled,
+        options: (settings) =>
+          settings.translation.targetLangList.map((lang) => ({
+            label: lang,
+            value: lang,
+          })),
+      },
+      {
+        id: "transInputTargetLang",
+        label: "输入目标语言",
+        component: "ElSelect",
+        props: {
+          placeholder: "选择输入框默认目标语言",
+        },
+        modelPath: "translation.inputTargetLang",
+        hint: "翻译输入框内容时默认使用的目标语言（通常是外语）",
+        keywords: "translation target language input 翻译 目标语言 输入",
+        visible: (settings) => settings.translation.enabled,
+        options: (settings) =>
+          settings.translation.targetLangList.map((lang) => ({
+            label: lang,
+            value: lang,
+          })),
+      },
+      {
+        id: "transPrompt",
+        label: "翻译提示词",
+        component: "ElInput",
+        props: { type: "textarea", rows: 4, placeholder: "输入翻译提示词" },
+        modelPath: "translation.prompt",
+        hint: "使用 <code>{text}</code> 代表原文，<code>{targetLang}</code> 代表目标语言，<code>{thinkTags}</code> 代表需要保护的思考块标签（XML 标签本身保持不变，标签内的内容会被翻译）。<br />例如：<code>Translate to {targetLang}:\\n\\n{text}</code>",
+        keywords: "translation prompt 翻译 提示词",
+        visible: (settings) => settings.translation.enabled,
+        slots: {
+          append: () =>
+            h(
+              ElButton,
+              {
+                onClick: () => { }, // 在主组件处理重置
+                size: "small",
+                class: "reset-trans-prompt-btn", // 特定类名用于事件委托
+                title: "重置为默认提示词",
+              },
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+            ),
+        },
+      },
+      {
+        id: "transTemperature",
+        label: "温度 ({{ localSettings.translation.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "translation.temperature",
+        hint: "较低的温度会产生更确定性的翻译结果",
+        keywords: "translation temperature 翻译 温度",
+        visible: (settings) => settings.translation.enabled,
+      },
+      {
+        id: "transMaxTokens",
+        label: "输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 65536, step: 1024 },
+        modelPath: "translation.maxTokens",
+        hint: "翻译结果的最大 token 数",
+        keywords: "translation max tokens 翻译 上限",
+        visible: (settings) => settings.translation.enabled,
       },
     ],
   },

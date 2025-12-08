@@ -19,6 +19,28 @@ const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
 
 /**
+ * 翻译配置接口
+ */
+export interface TranslationConfig {
+  /** 是否启用翻译功能 */
+  enabled: boolean;
+  /** 使用的模型标识符（格式: profileId:modelId） */
+  modelIdentifier: string;
+  /** 消息默认目标语言 */
+  messageTargetLang: string;
+  /** 输入框默认目标语言 */
+  inputTargetLang: string;
+  /** 常用目标语言列表 */
+  targetLangList: string[];
+  /** 翻译提示词 */
+  prompt: string;
+  /** 温度参数 */
+  temperature: number;
+  /** 输出上限（token） */
+  maxTokens: number;
+}
+
+/**
  * 聊天设置接口
  */
 export interface ChatSettings {
@@ -69,9 +91,9 @@ export interface ChatSettings {
   modelPreferences: {
     /** 默认 LLM 模型（用于新建会话兜底） */
     defaultModel: string;
-    /** 翻译使用的 LLM 模型 */
-    translationModel: string;
   };
+  /** 翻译设置 */
+  translation: TranslationConfig;
   /** 消息管理设置 */
   messageManagement: {
     /** 是否在删除消息前确认 */
@@ -160,7 +182,17 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   },
   modelPreferences: {
     defaultModel: "",
-    translationModel: "",
+  },
+  translation: {
+    enabled: true,
+    modelIdentifier: "", // 需要用户配置
+    messageTargetLang: "Chinese",
+    inputTargetLang: "English",
+    targetLangList: ["Chinese", "English", "Japanese", "Korean", "French", "German", "Spanish", "Russian"],
+    prompt:
+      "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\nOnly output the translated content without any explanation or additional text:\n\n{text}",
+    temperature: 0.3,
+    maxTokens: 2000,
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,
@@ -232,6 +264,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       topicNaming: {
         ...defaultConfig.topicNaming,
         ...(loadedConfig.topicNaming || {}),
+      },
+      translation: {
+        ...defaultConfig.translation,
+        ...(loadedConfig.translation || {}),
       },
       requestSettings: {
         ...defaultConfig.requestSettings,
@@ -326,6 +362,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       topicNaming: {
         ...settings.value.topicNaming,
         ...(updates.topicNaming || {}),
+      },
+      translation: {
+        ...settings.value.translation,
+        ...(updates.translation || {}),
       },
       requestSettings: {
         ...settings.value.requestSettings,

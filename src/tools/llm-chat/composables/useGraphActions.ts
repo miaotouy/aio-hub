@@ -244,6 +244,28 @@ export function useGraphActions(
    * 从编辑内容创建新分支（保存编辑到分支）
    * 本质上是 createBranch + editMessage 的组合
    */
+  /**
+   * 更新消息翻译
+   */
+  function updateMessageTranslation(nodeId: string, translation: any): void {
+    const session = currentSession.value;
+    if (!session) return;
+
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    // 更新 metadata
+    if (!node.metadata) {
+      node.metadata = {};
+    }
+    
+    // 使用 JSON 序列化避免引用问题
+    node.metadata.translation = JSON.parse(JSON.stringify(translation));
+    
+    // 持久化
+    sessionManager.persistSession(session, currentSessionId.value);
+  }
+
   async function createBranchFromEdit(
     sourceNodeId: string,
     newContent: string,
@@ -305,5 +327,6 @@ export function useGraphActions(
     toggleNodeEnabled,
     graftBranch,
     moveNode,
+    updateMessageTranslation,
   };
 }

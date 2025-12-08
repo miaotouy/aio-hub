@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { Copy, Check, GitBranch } from "lucide-vue-next";
-import type { ChatMessageNode, ChatSession } from "../../types";
+import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
+import { useResizeObserver } from "@vueuse/core";
+import type { ChatMessageNode, ChatSession, TranslationDisplayMode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -30,6 +31,8 @@ interface Props {
   session: ChatSession | null;
   message: ChatMessageNode;
   isEditing?: boolean;
+  isTranslating?: boolean;
+  translationContent?: string;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
   richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   messageDepth?: number;
@@ -43,6 +46,8 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   isEditing: false,
+  isTranslating: false,
+  translationContent: "",
   messageDepth: 0,
 });
 const emit = defineEmits<Emits>();
@@ -296,11 +301,58 @@ watch(
     }
   }
 );
+
+// 翻译显示逻辑
+const displayMode = computed<TranslationDisplayMode>(() => {
+  if (props.isTranslating) return "both";
+  return props.message.metadata?.translation?.displayMode || "both";
+});
+
+const showOriginal = computed(() => {
+  if (props.isEditing) return false; // 编辑模式由专门的区域接管
+  
+  // 如果没有翻译数据，或者翻译被隐藏了，应该显示原文（兜底，防止消息完全消失）
+  const translationHidden = props.message.metadata?.translation?.visible === false;
+  if ((!props.message.metadata?.translation && !props.isTranslating) || (translationHidden && !props.isTranslating)) {
+    return true;
+  }
+
+  return displayMode.value === "original" || displayMode.value === "both";
+});
+
+const showTranslation = computed(() => {
+  if (props.isEditing) return false;
+  
+  // 检查 visible 属性 (默认为 true，兼容旧数据)
+  // 正在翻译时强制显示
+  const isVisible = props.isTranslating || (props.message.metadata?.translation?.visible !== false);
+
+  // 只要有元数据，或者正在翻译，或者有临时的翻译内容（应对流式结束但元数据未更新的间隙），都应该显示
+  const hasContent = !!(props.message.metadata?.translation || props.isTranslating || props.translationContent);
+  
+  return isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both");
+});
+
+// 响应式布局
+const containerRef = ref<HTMLElement | null>(null);
+const isWideLayout = ref(false);
+
+useResizeObserver(containerRef, (entries) => {
+  const entry = entries[0];
+  const { width } = entry.contentRect;
+  // 当宽度大于 800px 且处于双语模式时，启用并排布局
+  isWideLayout.value = width > 800 && displayMode.value === "both";
+});
+
+const containerClasses = computed(() => ({
+  "is-wide-layout": isWideLayout.value,
+  "is-translating": props.isTranslating || !!props.message.metadata?.translation,
+}));
 </script>
 
 <template>
-  <div class="message-content">
-    <!-- 附件展示区域 - 非编辑模式 -->
+  <div class="message-content" ref="containerRef" :class="containerClasses">
+    <!-- 附件展示区域 - 非编辑模式 (始终显示在顶部) -->
     <div v-if="!isEditing && hasAttachments" class="attachments-section">
       <div class="attachments-list">
         <AttachmentCard
@@ -315,7 +367,7 @@ watch(
       </div>
     </div>
 
-    <!-- 推理内容（DeepSeek reasoning） -->
+    <!-- 推理内容（DeepSeek reasoning）- 始终显示在顶部 -->
     <LlmThinkNode
       v-if="message.metadata?.reasoningContent"
       raw-tag-name="reasoning"
@@ -389,27 +441,62 @@ watch(
       </div>
     </div>
 
-    <!-- 正常显示模式 -->
-    <template v-else>
-      <RichTextRenderer
-        v-if="displayedContent"
-        :content="displayedContent"
-        :regex-rules="processedRules"
-        :version="settings.uiPreferences.rendererVersion"
-        :llm-think-rules="llmThinkRules"
-        :style-options="richTextStyleOptions"
-        :generation-meta="generationMetaForRenderer"
-        :is-streaming="message.status === 'generating'"
-        :default-render-html="settings.uiPreferences.defaultRenderHtml"
-        :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-        :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
-      />
-      <div v-if="message.status === 'generating'" class="streaming-indicator">
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
+    <!-- 内容显示区域 (Grid Layout) -->
+    <div v-else class="content-display-grid">
+      <!-- 原文区域 -->
+      <div v-if="showOriginal" class="original-column">
+        <div class="translation-header" v-if="displayMode === 'both'">
+          <MessageSquareText :size="14" class="translation-icon" />
+          <span class="translation-title">原文</span>
+        </div>
+        <RichTextRenderer
+          v-if="displayedContent"
+          :content="displayedContent"
+          :regex-rules="processedRules"
+          :version="settings.uiPreferences.rendererVersion"
+          :llm-think-rules="llmThinkRules"
+          :style-options="richTextStyleOptions"
+          :generation-meta="generationMetaForRenderer"
+          :is-streaming="message.status === 'generating'"
+          :default-render-html="settings.uiPreferences.defaultRenderHtml"
+          :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+          :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
+        />
+        <div v-if="message.status === 'generating'" class="streaming-indicator">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
       </div>
-    </template>
+
+      <!-- 译文区域 -->
+      <div v-if="showTranslation" class="translation-column">
+        <div class="translation-header" v-if="displayMode === 'both' || displayMode === 'translation'">
+          <Languages :size="14" class="translation-icon" />
+          <span class="translation-title">翻译结果</span>
+          <span class="translation-meta" v-if="message.metadata?.translation">
+            ({{ message.metadata.translation.targetLang }})
+          </span>
+        </div>
+        <div class="translation-content">
+          <RichTextRenderer
+            :content="isTranslating || !message.metadata?.translation ? translationContent : message.metadata.translation.content"
+            :regex-rules="processedRules"
+            :version="settings.uiPreferences.rendererVersion"
+            :llm-think-rules="llmThinkRules"
+            :style-options="richTextStyleOptions"
+            :default-render-html="settings.uiPreferences.defaultRenderHtml"
+            :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+            :is-streaming="isTranslating"
+          />
+          <div v-if="isTranslating" class="streaming-indicator translation-loading">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 元数据 -->
     <div
@@ -650,4 +737,74 @@ watch(
 
 /* 推理内容样式 */
 /* 样式已移除，使用 LlmThinkNode 组件 */
+
+/* 布局容器 */
+.content-display-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 宽屏并排布局 */
+.is-wide-layout .content-display-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+/* 并排布局时的分隔线 */
+.is-wide-layout .original-column {
+  padding-right: 24px;
+  border-right: 1px dashed var(--border-color);
+  min-width: 0;
+}
+
+/* 翻译列样式 */
+.translation-column {
+  position: relative;
+  min-width: 0;
+}
+
+/* 仅在上下布局时添加背景区分 */
+.message-content:not(.is-wide-layout) .translation-column {
+  margin-top: 8px;
+  padding: 12px;
+  background-color: var(--bg-color-soft, rgba(0, 0, 0, 0.02));
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+}
+
+.translation-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-color-light);
+  user-select: none;
+}
+
+.translation-icon {
+  opacity: 0.7;
+}
+
+.translation-title {
+  font-weight: 500;
+}
+
+.translation-meta {
+  opacity: 0.7;
+}
+
+.translation-content {
+  font-size: 0.95em;
+  color: var(--text-color);
+}
+
+.translation-loading {
+  padding: 4px 0;
+  transform: scale(0.8);
+  transform-origin: left center;
+}
 </style>

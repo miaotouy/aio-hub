@@ -25,9 +25,13 @@ import {
   Menu,
   Download,
   AtSign,
+  Languages,
+  BookOpen,
+  Columns,
 } from "lucide-vue-next";
-import type { ChatMessageNode, ButtonVisibility } from "../../types";
+import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
 import { useLlmChatStore } from "../../store";
+import { useChatSettings } from "../../composables/useChatSettings";
 import { useAgentStore } from "../../agentStore";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -56,11 +60,15 @@ interface Emits {
   (e: "switch-branch", nodeId: string): void;
   (e: "abort"): void;
   (e: "analyze-context"): void;
+  (e: "translate", targetLang?: string): void;
+  (e: "toggle-translation-visible"): void;
+  (e: "change-translation-mode", mode: TranslationDisplayMode): void;
 }
 
 const agentStore = useAgentStore();
 const { open: openModelSelectDialog } = useModelSelectDialog();
 const { getProfileById } = useLlmProfiles();
+const { settings } = useChatSettings();
 
 const props = withDefaults(defineProps<Props>(), {
   buttonVisibility: () => ({
@@ -74,6 +82,7 @@ const props = withDefaults(defineProps<Props>(), {
     analyzeContext: true,
     exportBranch: true,
     moreMenu: true,
+    translate: true,
   }),
 });
 const emit = defineEmits<Emits>();
@@ -174,6 +183,42 @@ const handleAbort = () => {
   });
   emit("abort");
 };
+// 翻译是否正在显示
+const isTranslationVisible = computed(() => {
+  return props.message.metadata?.translation?.visible === true;
+});
+
+// 是否有翻译内容
+const hasTranslation = computed(() => {
+  return !!props.message.metadata?.translation?.content;
+});
+
+// 当前翻译显示模式
+const currentTranslationMode = computed(() => {
+  return props.message.metadata?.translation?.displayMode || "both";
+});
+
+const handleTranslationCommand = (command: string) => {
+  if (command === "toggle-visible") {
+    // 如果没有翻译内容，触发翻译；否则切换显示状态
+    if (!hasTranslation.value) {
+      emit("translate");
+    } else {
+      emit("toggle-translation-visible");
+    }
+  } else if (command === "retry") {
+    // 重试时，优先使用当前已有的目标语言，确保重试操作的一致性
+    const currentLang = props.message.metadata?.translation?.targetLang;
+    emit("translate", currentLang);
+  } else if (command.startsWith("mode-")) {
+    const mode = command.replace("mode-", "") as TranslationDisplayMode;
+    emit("change-translation-mode", mode);
+  } else if (command.startsWith("lang-")) {
+    const lang = command.replace("lang-", "");
+    emit("translate", lang);
+  }
+};
+
 const handleAnalyzeContext = () => {
   console.log("[MessageMenubar] 上下文分析按钮点击", {
     nodeId: props.message.id,
@@ -326,6 +371,18 @@ const handleSwitchToBranch = (nodeId: string) => {
   showBranchPopover.value = false;
   emit("switch-branch", nodeId);
 };
+
+// 快捷键翻译逻辑
+const handleTranslateClick = (e: MouseEvent) => {
+  // 如果按下了 Shift/Ctrl/Alt 键，直接触发默认翻译
+  if (e.shiftKey || e.ctrlKey || e.altKey) {
+    e.stopPropagation(); // 阻止 Dropdown 展开
+    customMessage.success(`快速翻译中 (${settings.value.translation.messageTargetLang})`);
+    emit("translate");
+    return;
+  }
+  // 普通点击，允许冒泡给 Dropdown
+};
 </script>
 
 <template>
@@ -407,6 +464,103 @@ const handleSwitchToBranch = (nodeId: string) => {
                 <span>导出分支</span>
               </div>
             </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </el-tooltip>
+    <!-- 翻译 -->
+    <el-tooltip
+      v-if="
+        !isGenerating &&
+        !isPresetDisplay &&
+        settings.translation.enabled &&
+        props.buttonVisibility.translate
+      "
+      :content="`翻译 (按住 Shift 点击可快速翻译为 ${settings.translation.messageTargetLang})`"
+      placement="top"
+      :show-after="500"
+    >
+      <el-dropdown
+        trigger="click"
+        placement="top"
+        @command="handleTranslationCommand"
+      >
+        <div class="dropdown-trigger-wrapper">
+          <button
+            class="menu-btn"
+            :class="{ 'menu-btn-active': isTranslationVisible }"
+            @click="handleTranslateClick"
+          >
+            <Languages :size="16" />
+          </button>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <!-- 语言选择列表 -->
+            <el-dropdown-item disabled>
+              <span style="font-size: 12px; opacity: 0.7">目标语言</span>
+            </el-dropdown-item>
+
+            <el-dropdown-item
+              v-for="lang in settings.translation.targetLangList"
+              :key="lang"
+              :command="'lang-' + lang"
+            >
+              <div class="dropdown-item-content">
+                <span>{{ lang }}</span>
+                <Check
+                  v-if="message.metadata?.translation?.targetLang === lang"
+                  :size="14"
+                  class="mode-active-icon"
+                />
+              </div>
+            </el-dropdown-item>
+
+            <!-- 分隔线 -->
+            <el-dropdown-item divided disabled>
+              <span style="font-size: 12px; opacity: 0.7">操作</span>
+            </el-dropdown-item>
+
+            <!-- 模式切换：切换/同时 -->
+            <div class="translation-mode-switch">
+              <div
+                class="mode-switch-btn"
+                :class="{ active: currentTranslationMode === 'translation' }"
+                @click.stop="emit('change-translation-mode', 'translation')"
+              >
+                <BookOpen :size="14" />
+                <span>切换</span>
+              </div>
+              <div
+                class="mode-switch-btn"
+                :class="{ active: currentTranslationMode === 'both' }"
+                @click.stop="emit('change-translation-mode', 'both')"
+              >
+                <Columns :size="14" />
+                <span>同时</span>
+              </div>
+            </div>
+
+            <!-- 翻译开关与重试 -->
+            <div class="translation-actions">
+              <div
+                class="action-btn translate-btn"
+                :class="{ active: isTranslationVisible }"
+                @click.stop="handleTranslationCommand('toggle-visible')"
+              >
+                <Languages :size="14" />
+                <span>{{ hasTranslation ? (isTranslationVisible ? "隐藏" : "显示") : "翻译" }}</span>
+              </div>
+              
+              <div
+                class="action-btn retry-btn"
+                @click.stop="handleTranslationCommand('retry')"
+                title="重新翻译"
+              >
+                <RefreshCw :size="14" />
+              </div>
+            </div>
+
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -578,6 +732,84 @@ const handleSwitchToBranch = (nodeId: string) => {
   gap: 2px;
 }
 
+/* 翻译菜单自定义样式 */
+.translation-mode-switch {
+  display: flex;
+  padding: 4px 8px;
+  gap: 4px;
+}
+
+.mode-switch-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-color-light);
+  background-color: var(--bg-color);
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.mode-switch-btn:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.mode-switch-btn.active {
+  background-color: var(--primary-color-alpha, rgba(var(--primary-color-rgb), 0.1));
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.translation-actions {
+  display: flex;
+  padding: 4px 8px 8px;
+  gap: 4px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--primary-color);
+}
+
+.translate-btn {
+  flex: 1;
+}
+
+.translate-btn.active {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.retry-btn {
+  width: 32px;
+  color: var(--text-color-light);
+}
+
+.retry-btn:hover {
+  color: var(--primary-color);
+}
+
 .branch-indicator {
   font-size: 12px;
   padding: 0 4px;
@@ -655,6 +887,12 @@ const handleSwitchToBranch = (nodeId: string) => {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+}
+
+.mode-active-icon {
+  margin-left: auto;
+  color: var(--primary-color);
 }
 
 .branch-indicator.clickable {
@@ -668,5 +906,11 @@ const handleSwitchToBranch = (nodeId: string) => {
 .branch-indicator.popover-active {
   background-color: var(--hover-bg);
   color: var(--text-color);
+}
+
+.dropdown-trigger-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

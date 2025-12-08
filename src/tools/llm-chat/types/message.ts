@@ -43,6 +43,8 @@ export interface InjectionStrategy {
 /**
  * 消息节点（树形结构）
  */
+export type TranslationDisplayMode = "original" | "translation" | "both";
+
 export interface ChatMessageNode {
   /**
    * 消息的唯一标识符
@@ -181,5 +183,20 @@ export interface ChatMessageNode {
     };
     /** SillyTavern 预设导入时的原始名称 */
     stPromptName?: string;
+    /** 消息翻译结果 */
+    translation?: {
+      /** 翻译后的内容 */
+      content: string;
+      /** 目标语言 */
+      targetLang: string;
+      /** 使用的模型标识符 */
+      modelIdentifier?: string;
+      /** 翻译时间戳 */
+      timestamp?: number;
+      /** 是否显示翻译（开关状态） */
+      visible?: boolean;
+      /** 显示模式：translation=仅译文, both=双语对照 */
+      displayMode?: TranslationDisplayMode;
+    };
   };
 }

@@ -6,7 +6,7 @@ export interface InputToolbarSettings {
 
 <script setup lang="ts">
 import { ElTooltip, ElPopover } from "element-plus";
-import { Paperclip, AtSign, X, Settings } from "lucide-vue-next";
+import { Paperclip, AtSign, X, Settings, Languages } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
@@ -31,9 +31,14 @@ interface Props {
   temporaryModel: ModelIdentifier | null;
   hasAttachments: boolean;
   settings: InputToolbarSettings;
+  isTranslating?: boolean;
+  translationEnabled?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  isTranslating: false,
+  translationEnabled: false,
+});
 
 const emit = defineEmits<{
   (e: "toggle-streaming"): void;
@@ -46,6 +51,7 @@ const emit = defineEmits<{
   (e: "trigger-attachment"): void;
   (e: "select-temporary-model"): void;
   (e: "clear-temporary-model"): void;
+  (e: "translate-input"): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
@@ -99,6 +105,25 @@ const onMacroSelectorUpdate = (visible: boolean) => {
           <AtSign :size="16" />
         </button>
       </el-tooltip>
+
+      <!-- 翻译按钮 -->
+      <el-tooltip
+        v-if="props.translationEnabled"
+        content="翻译输入内容"
+        placement="top"
+        :show-after="300"
+      >
+        <button
+          class="tool-btn"
+          :class="{ 'is-loading': props.isTranslating }"
+          :disabled="props.isTranslating || !props.inputText.trim()"
+          @click="emit('translate-input')"
+        >
+          <Languages :size="16" v-if="!props.isTranslating" />
+          <span v-else class="loading-dots">...</span>
+        </button>
+      </el-tooltip>
+
       <!-- 宏选择器按钮 -->
       <el-tooltip content="添加宏变量" placement="top" :show-after="300">
         <div>
@@ -571,6 +596,23 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 .expand-toggle-button:not(.active):hover:not(:disabled) {
   background-color: var(--el-fill-color-light);
   color: var(--text-color-primary);
+}
+
+.tool-btn.is-loading {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.loading-dots {
+  font-size: 12px;
+  font-weight: bold;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
 }
 
 .macro-icon-button.active,

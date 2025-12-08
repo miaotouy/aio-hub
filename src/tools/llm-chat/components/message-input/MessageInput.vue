@@ -11,6 +11,7 @@ import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputMa
 import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import { useTranslation } from "@/tools/llm-chat/composables/useTranslation";
 import { useMessageBuilder } from "@/tools/llm-chat/composables/useMessageBuilder";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -34,6 +35,10 @@ const bus = useWindowSyncBus();
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
 const { settings, updateSettings, isLoaded: settingsLoaded, loadSettings } = useChatSettings();
+const { translateText } = useTranslation();
+
+// 翻译相关状态
+const isTranslatingInput = ref(false);
 
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
@@ -727,6 +732,65 @@ const handleSelectTemporaryModel = async () => {
     });
   }
 };
+
+// 处理输入翻译
+const handleTranslateInput = async () => {
+  if (isTranslatingInput.value) return;
+  
+  const text = inputText.value.trim();
+  if (!text) return;
+
+  isTranslatingInput.value = true;
+  
+  // 保存当前光标位置和选区
+  const textarea = textareaRef.value;
+  const start = textarea ? textarea.selectionStart : 0;
+  const end = textarea ? textarea.selectionEnd : 0;
+  const hasSelection = start !== end;
+  
+  // 如果有选区，只翻译选中的文本；否则翻译全部
+  const textToTranslate = hasSelection ? text.substring(start, end) : text;
+  
+  // 使用输入框专用的目标语言
+  const targetLang = settings.value.translation.inputTargetLang || "English";
+
+  try {
+    const translatedText = await translateText(textToTranslate, undefined, undefined, targetLang);
+    
+    if (translatedText) {
+      if (hasSelection) {
+        // 替换选中文本
+        const newText = text.substring(0, start) + translatedText + text.substring(end);
+        inputText.value = newText;
+        
+        // 恢复光标并选中新翻译的文本
+        setTimeout(() => {
+          if (textarea) {
+            textarea.focus();
+            textarea.setSelectionRange(start, start + translatedText.length);
+          }
+        }, 0);
+      } else {
+        // 替换全部文本
+        inputText.value = translatedText;
+        // 光标移到最后
+        setTimeout(() => {
+          if (textarea) {
+            textarea.focus();
+            textarea.setSelectionRange(translatedText.length, translatedText.length);
+          }
+        }, 0);
+      }
+      
+      customMessage.success("翻译完成");
+      autoResize(); // 调整高度
+    }
+  } catch (error) {
+    // 错误已在 useTranslation 中处理
+  } finally {
+    isTranslatingInput.value = false;
+  }
+};
 </script>
 <template>
   <div
@@ -813,6 +877,8 @@ const handleSelectTemporaryModel = async () => {
             :is-processing-attachments="attachmentManager.isProcessing.value"
             :temporary-model="inputManager.temporaryModel.value"
             :has-attachments="attachmentManager.hasAttachments.value"
+            :is-translating="isTranslatingInput"
+            :translation-enabled="settings.translation.enabled"
             @toggle-streaming="toggleStreaming"
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
@@ -821,6 +887,7 @@ const handleSelectTemporaryModel = async () => {
             @trigger-attachment="handleTriggerAttachment"
             @select-temporary-model="handleSelectTemporaryModel"
             @clear-temporary-model="inputManager.clearTemporaryModel"
+            @translate-input="handleTranslateInput"
           />
         </div>
       </div>

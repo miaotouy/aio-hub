@@ -12,4 +12,5 @@ export interface ButtonVisibility {
   analyzeContext?: boolean;
   exportBranch?: boolean;
   moreMenu?: boolean;
+  translate?: boolean;
 }

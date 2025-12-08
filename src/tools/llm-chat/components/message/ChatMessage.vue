@@ -8,6 +8,9 @@ import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 
 import type { ButtonVisibility } from "../../types";
+import { useTranslation } from "../../composables/useTranslation";
+import { useChatSettings } from "../../composables/useChatSettings";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   session: ChatSession | null;
@@ -33,10 +36,17 @@ interface Emits {
   (e: "create-branch"): void;
   (e: "analyze-context"): void;
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
+  (e: "update-translation", translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+// 翻译相关
+const { translateText } = useTranslation();
+const { settings } = useChatSettings();
+const isTranslating = ref(false);
+const translationContent = ref("");
 
 // 编辑状态
 const isEditing = ref(false);
@@ -100,6 +110,75 @@ const copyMessage = async () => {
   }
 };
 
+// 翻译消息
+const handleTranslate = async (targetLang?: string) => {
+  if (isTranslating.value) return;
+  
+  const content = props.message.content;
+  if (!content.trim()) {
+    customMessage.warning("消息内容为空，无法翻译");
+    return;
+  }
+
+  // 确定目标语言
+  const lang = targetLang || settings.value.translation.messageTargetLang || "Chinese";
+
+  isTranslating.value = true;
+  translationContent.value = "";
+
+  try {
+    const result = await translateText(
+      content,
+      (chunk) => {
+        translationContent.value += chunk;
+      },
+      undefined,
+      lang // 传递目标语言
+    );
+
+    // 翻译完成，发射事件更新消息节点
+    const translation = {
+      content: result,
+      targetLang: lang,
+      modelIdentifier: settings.value.translation.modelIdentifier,
+      timestamp: Date.now(),
+      displayMode: "both" as const, // 默认显示双语
+      visible: true, // 翻译完成后默认显示
+    };
+    
+    emit("update-translation", translation);
+    customMessage.success("翻译完成");
+  } catch (error) {
+    // 错误已在 useTranslation 中处理
+  } finally {
+    isTranslating.value = false;
+  }
+};
+
+// 切换翻译模式
+const handleChangeTranslationMode = (mode: any) => {
+  if (!props.message.metadata?.translation) return;
+  
+  const newTranslation = {
+    ...props.message.metadata.translation,
+    displayMode: mode,
+  };
+  
+  emit("update-translation", newTranslation);
+};
+
+// 切换翻译显示状态
+const handleToggleTranslationVisible = () => {
+  if (!props.message.metadata?.translation) return;
+
+  const newTranslation = {
+    ...props.message.metadata.translation,
+    visible: !props.message.metadata.translation.visible,
+  };
+
+  emit("update-translation", newTranslation);
+};
+
 // 暴露方法供父组件调用
 defineExpose({
   startEdit,
@@ -137,6 +216,8 @@ defineExpose({
         :session="props.session"
         :message="message"
         :is-editing="isEditing"
+        :is-translating="isTranslating"
+        :translation-content="translationContent"
         :llm-think-rules="llmThinkRules"
         :rich-text-style-options="richTextStyleOptions"
         :message-depth="messageDepth"
@@ -164,6 +245,9 @@ defineExpose({
         @abort="emit('abort')"
         @create-branch="emit('create-branch')"
         @analyze-context="emit('analyze-context')"
+        @translate="handleTranslate"
+        @change-translation-mode="handleChangeTranslationMode"
+        @toggle-translation-visible="handleToggleTranslationVisible"
       />
     </div>
   </div>

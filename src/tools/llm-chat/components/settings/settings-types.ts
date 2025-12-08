@@ -41,17 +41,26 @@ export interface SettingItem {
   component: SettingComponent | Component;
   /**
    * 传递给组件的 props
+   * 支持静态对象或动态函数
    */
-  props?: Record<string, any>;
+  props?: Record<string, any> | ((settings: ChatSettings) => Record<string, any>);
   /**
    * 对于 ElRadioGroup, ElSelect 等组件，定义其选项
+   * 支持静态数组或动态函数
    */
-  options?: {
-    label: string;
-    value: string | number | boolean;
-    tags?: string[];
-    description?: string;
-  }[];
+  options?:
+    | {
+        label: string;
+        value: string | number | boolean;
+        tags?: string[];
+        description?: string;
+      }[]
+    | ((settings: ChatSettings) => {
+        label: string;
+        value: string | number | boolean;
+        tags?: string[];
+        description?: string;
+      }[]);
   /**
    * 设置项的描述性提示文字
    */

@@ -19,9 +19,7 @@
         </div>
         <div class="header-right">
           <el-tooltip content="查看历史记录" placement="bottom">
-            <el-button :icon="Clock" @click="isHistoryDialogVisible = true">
-              历史记录
-            </el-button>
+            <el-button :icon="Clock" @click="isHistoryDialogVisible = true"> 历史记录 </el-button>
           </el-tooltip>
           <el-tooltip content="清除当前图片和结果" placement="bottom">
             <el-button :icon="Delete" @click="clearWorkspace" :disabled="!imageUrl">
@@ -43,16 +41,10 @@
               <el-button :icon="FolderOpened" size="small" @click.stop="openFilePicker">
                 替换图片
               </el-button>
-              <el-button :icon="Delete" size="small" @click.stop="clearWorkspace">
-                清除
-              </el-button>
+              <el-button :icon="Delete" size="small" @click.stop="clearWorkspace"> 清除 </el-button>
             </div>
           </template>
-          <div
-            ref="dropAreaRef"
-            class="image-preview-area"
-            :class="{ highlight: isDraggingOver }"
-          >
+          <div ref="dropAreaRef" class="image-preview-area" :class="{ highlight: isDraggingOver }">
             <div v-if="!imageUrl" class="upload-prompt">
               <el-icon :size="64"><Upload /></el-icon>
               <p>拖放图片到此处，或粘贴图片</p>
@@ -63,11 +55,7 @@
             </div>
 
             <template v-else>
-              <img
-                ref="imageRef"
-                :src="imageUrl"
-                class="preview-image"
-              />
+              <img :src="imageUrl" class="preview-image" />
             </template>
           </div>
         </InfoCard>
@@ -92,38 +80,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import {
-  Clock,
-  Delete,
-  Upload,
-  FolderOpened,
-  Loading,
-} from '@element-plus/icons-vue';
-import { useColorPickerStore, type ManualColor } from './colorPicker.store';
-import { useColorExtractor } from './composables/useColorExtractor';
-import { useColorHistory } from './composables/useColorHistory';
-import { useAssetManager } from '@/composables/useAssetManager';
-import { useFileInteraction } from '@/composables/useFileInteraction';
-import { hexToRgb } from './composables/useColorConverter';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { createModuleLogger } from '@/utils/logger';
-import { useDebounceFn } from '@vueuse/core';
-import InfoCard from '@/components/common/InfoCard.vue';
-import RightPanel from './components/RightPanel.vue';
-import HistoryDialog from './components/HistoryDialog.vue';
+import { ref, onMounted, onUnmounted, watch } from "vue";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { Clock, Delete, Upload, FolderOpened, Loading } from "@element-plus/icons-vue";
+import { useColorPickerStore, type ManualColor } from "./colorPicker.store";
+import { useColorExtractor } from "./composables/useColorExtractor";
+import { useColorHistory } from "./composables/useColorHistory";
+import { useAssetManager } from "@/composables/useAssetManager";
+import { useFileInteraction } from "@/composables/useFileInteraction";
+import { hexToRgb } from "./composables/useColorConverter";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+import { useDebounceFn } from "@vueuse/core";
+import InfoCard from "@/components/common/InfoCard.vue";
+import RightPanel from "./components/RightPanel.vue";
+import HistoryDialog from "./components/HistoryDialog.vue";
 
-const errorHandler = createModuleErrorHandler('color-picker/ColorPicker');
-const logger = createModuleLogger('color-picker/ColorPicker');
+const errorHandler = createModuleErrorHandler("color-picker/ColorPicker");
+const logger = createModuleLogger("color-picker/ColorPicker");
 const store = useColorPickerStore();
 const assetManager = useAssetManager();
 const { extractColors, extractQuantizeColors } = useColorExtractor();
 const { addRecord, updateRecord, loadFullRecord } = useColorHistory();
 
 // 图片引用与加载处理
-const imageRef = ref<HTMLImageElement | null>(null);
 const { isHistoryDialogVisible } = useDialogs();
 const { openEyeDropper, isEyeDropperSupported } = useManualPicker();
 
@@ -145,24 +126,24 @@ async function runInitialAnalysis() {
     // 1. 导入资产并设置到 store
     const buffer = await currentImageBlob.value.arrayBuffer();
     // 使用 blob 的 name 属性，如果它是一个 File 对象
-    const fileName = (currentImageBlob.value as File).name || 'image.png';
+    const fileName = (currentImageBlob.value as File).name || "image.png";
     const asset = await assetManager.importAssetFromBytes(buffer, fileName, {
-      sourceModule: 'color-picker',
+      sourceModule: "color-picker",
       origin: {
-        type: 'local',
-        source: 'color-picker',
-        sourceModule: 'color-picker',
+        type: "local",
+        source: "color-picker",
+        sourceModule: "color-picker",
       },
       generateThumbnail: true,
       enableDeduplication: true,
     });
-    if (!asset) throw new Error('资产创建失败');
+    if (!asset) throw new Error("资产创建失败");
     store.setCurrentImage(asset.id, asset.name);
 
     // 2. 进行颜色分析 (直接传递 Blob)
     if (!currentImageBlob.value) {
       // 应该不会发生，但在类型上做个保护
-      throw new Error('当前没有可分析的图片 Blob');
+      throw new Error("当前没有可分析的图片 Blob");
     }
     const result = await extractColors(currentImageBlob.value);
     store.setAnalysisResult(result);
@@ -180,31 +161,28 @@ async function runInitialAnalysis() {
         asset
       );
       store.setCurrentRecordId(record.id);
-      logger.info('已保存分析结果到历史记录', { assetId: asset.id, recordId: record.id });
+      logger.info("已保存分析结果到历史记录", { assetId: asset.id, recordId: record.id });
     } catch (error) {
-      errorHandler.error(error, '保存历史记录失败');
+      errorHandler.error(error, "保存历史记录失败");
     }
   } catch (error) {
-    errorHandler.error(error, '图片初始分析失败');
+    errorHandler.error(error, "图片初始分析失败");
   } finally {
     store.setAnalyzing(false);
   }
 }
 
 async function onQuantizeCountChange() {
-  if (currentImageBlob.value && store.selectedAlgorithm === 'quantize') {
+  if (currentImageBlob.value && store.selectedAlgorithm === "quantize") {
     store.setAnalyzing(true);
     try {
       if (!currentImageBlob.value) return;
-      const result = await extractQuantizeColors(
-        currentImageBlob.value,
-        store.quantizeColorCount
-      );
+      const result = await extractQuantizeColors(currentImageBlob.value, store.quantizeColorCount);
       if (result) {
-        store.updateAlgorithmResult('quantize', result);
+        store.updateAlgorithmResult("quantize", result);
       }
     } catch (error) {
-      errorHandler.error(error, '重新计算颜色数量失败');
+      errorHandler.error(error, "重新计算颜色数量失败");
     } finally {
       store.setAnalyzing(false);
     }
@@ -213,7 +191,7 @@ async function onQuantizeCountChange() {
 
 function clearWorkspace() {
   store.clearCurrent();
-  if (imageUrl.value && imageUrl.value.startsWith('blob:')) {
+  if (imageUrl.value && imageUrl.value.startsWith("blob:")) {
     URL.revokeObjectURL(imageUrl.value);
   }
   imageUrl.value = null;
@@ -229,7 +207,7 @@ const handleImageFiles = (files: File[]) => {
 
   // 清除旧状态
   if (store.hasImage) store.clearCurrent();
-  if (imageUrl.value && imageUrl.value.startsWith('blob:')) {
+  if (imageUrl.value && imageUrl.value.startsWith("blob:")) {
     URL.revokeObjectURL(imageUrl.value);
   }
   currentImageBlob.value = null;
@@ -252,7 +230,7 @@ const handleFilePaths = async (paths: string[]) => {
 
   // 1. 清除旧状态
   if (store.hasImage) store.clearCurrent();
-  if (imageUrl.value && imageUrl.value.startsWith('blob:')) {
+  if (imageUrl.value && imageUrl.value.startsWith("blob:")) {
     URL.revokeObjectURL(imageUrl.value);
   }
   currentImageBlob.value = null;
@@ -263,7 +241,7 @@ const handleFilePaths = async (paths: string[]) => {
 
   // 3. 在后台读取文件并触发分析
   try {
-    const base64Data = await invoke<string>('read_file_as_base64', { path });
+    const base64Data = await invoke<string>("read_file_as_base64", { path });
     const byteCharacters = atob(base64Data);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
@@ -271,21 +249,21 @@ const handleFilePaths = async (paths: string[]) => {
     }
     const byteArray = new Uint8Array(byteNumbers);
     const blob = new Blob([byteArray]);
-    const fileName = path.split(/[/\\]/).pop() || 'image';
+    const fileName = path.split(/[/\\]/).pop() || "image";
 
     // 创建一个伪 File 对象，主要是为了能携带文件名
     currentImageBlob.value = new File([blob], fileName);
 
     runInitialAnalysis();
   } catch (error) {
-    errorHandler.error(error, '读取拖放的文件失败');
+    errorHandler.error(error, "读取拖放的文件失败");
   }
 };
 
 // 设置文件拖放和粘贴交互
 const { isDraggingOver: isDraggingOverInternal, cleanup } = useFileInteraction({
   element: dropAreaRef,
-  sourceModule: 'color-picker',
+  sourceModule: "color-picker",
   onPaths: handleFilePaths,
   onFiles: handleImageFiles,
   imageOnly: true,
@@ -302,7 +280,7 @@ function onFileSelected(event: Event) {
   }
   // 重置输入值，以便可以再次选择相同的文件
   if (target) {
-    target.value = '';
+    target.value = "";
   }
 }
 
@@ -314,7 +292,7 @@ function openFilePicker() {
 // 恢复上次会话
 onMounted(async () => {
   if (store.currentImageAssetUri) {
-    const asset = assetManager.assets.value.find(a => a.id === store.currentImageAssetUri);
+    const asset = assetManager.assets.value.find((a) => a.id === store.currentImageAssetUri);
     if (asset) {
       imageUrl.value = await assetManager.getAssetUrl(asset);
     }
@@ -332,31 +310,31 @@ async function handleLoadFromHistory(recordId: string) {
   try {
     const record = await loadFullRecord(recordId);
     if (!record) {
-      customMessage.error('加载历史记录失败');
+      customMessage.error("加载历史记录失败");
       return;
     }
 
     // 清除当前状态
-    if (imageUrl.value && imageUrl.value.startsWith('blob:')) {
+    if (imageUrl.value && imageUrl.value.startsWith("blob:")) {
       URL.revokeObjectURL(imageUrl.value);
     }
     currentImageBlob.value = null;
     store.setCurrentRecordId(null); // 暂停记录关联，避免加载过程触发自动保存
 
     // 从资产获取图片
-    const asset = assetManager.assets.value.find(a => a.id === record.assetId);
+    const asset = assetManager.assets.value.find((a) => a.id === record.assetId);
     if (!asset) {
-      customMessage.error('未找到关联的图片资产');
+      customMessage.error("未找到关联的图片资产");
       return;
     }
 
     // 设置图片预览
     imageUrl.value = await assetManager.getAssetUrl(asset);
-    
+
     // 设置 store 状态
     store.setCurrentImage(record.assetId, record.sourceImageName);
     store.setAnalysisResult(record.analysisResult);
-    
+
     // 恢复手动取色板
     if (record.manualPalette) {
       // 需要手动赋值，因为 store 中没有 setManualPalette 方法，但 manualPalette 是 ref
@@ -367,16 +345,16 @@ async function handleLoadFromHistory(recordId: string) {
 
     store.setCurrentRecordId(recordId); // 重新建立关联
 
-    customMessage.success('已加载历史记录');
-    logger.info('从历史记录加载成功', { recordId });
+    customMessage.success("已加载历史记录");
+    logger.info("从历史记录加载成功", { recordId });
   } catch (error) {
-    errorHandler.error(error, '加载历史记录失败');
+    errorHandler.error(error, "加载历史记录失败");
   }
 }
 
 // --- 手动拾色器逻辑 ---
 function useManualPicker() {
-  const isEyeDropperSupported = 'EyeDropper' in window;
+  const isEyeDropperSupported = "EyeDropper" in window;
 
   async function openEyeDropper() {
     if (!isEyeDropperSupported) return;
@@ -388,7 +366,7 @@ function useManualPicker() {
       const hex = result.sRGBHex.toUpperCase();
       const rgb = hexToRgb(hex);
 
-      const newColor: Omit<ManualColor, 'id'> = {
+      const newColor: Omit<ManualColor, "id"> = {
         hex,
         rgb,
         position: { x: 0, y: 0 }, // EyeDropper API 不提供坐标
@@ -397,7 +375,7 @@ function useManualPicker() {
       customMessage.success(`已添加颜色: ${hex}`);
     } catch (e) {
       // 用户取消取色
-      console.log('EyeDropper cancelled');
+      console.log("EyeDropper cancelled");
     }
   }
 
@@ -415,7 +393,7 @@ const autoSaveToHistory = useDebounceFn(async () => {
       manualPalette: store.manualPalette,
     });
   } catch (error) {
-    logger.warn('自动保存历史记录失败', error);
+    logger.warn("自动保存历史记录失败", error);
   }
 }, 1000);
 
@@ -431,7 +409,7 @@ watch(
 
 // 清理
 onUnmounted(() => {
-  if (imageUrl.value && imageUrl.value.startsWith('blob:')) {
+  if (imageUrl.value && imageUrl.value.startsWith("blob:")) {
     URL.revokeObjectURL(imageUrl.value);
   }
   cleanup();
@@ -541,7 +519,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: border-color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
   overflow: hidden;
 }
 
@@ -565,7 +545,6 @@ onUnmounted(() => {
   object-fit: contain;
   border-radius: 4px;
 }
-
 
 /* 右侧面板 */
 .right-panel {

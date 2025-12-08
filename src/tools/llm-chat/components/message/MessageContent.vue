@@ -335,13 +335,16 @@ const showTranslation = computed(() => {
 
 // 响应式布局
 const containerRef = ref<HTMLElement | null>(null);
-const isWideLayout = ref(false);
+const containerWidth = ref(0);
 
 useResizeObserver(containerRef, (entries) => {
   const entry = entries[0];
-  const { width } = entry.contentRect;
-  // 当宽度大于 800px 且处于双语模式时，启用并排布局
-  isWideLayout.value = width > 800 && displayMode.value === "both";
+  containerWidth.value = entry.contentRect.width;
+});
+
+const isWideLayout = computed(() => {
+  // 当宽度大于 800px 且处于双语模式，并且确实有翻译内容需要显示时，启用并排布局
+  return containerWidth.value > 800 && displayMode.value === "both" && showTranslation.value;
 });
 
 const containerClasses = computed(() => ({
@@ -445,7 +448,7 @@ const containerClasses = computed(() => ({
     <div v-else class="content-display-grid">
       <!-- 原文区域 -->
       <div v-if="showOriginal" class="original-column">
-        <div class="translation-header" v-if="displayMode === 'both'">
+        <div class="translation-header" v-if="displayMode === 'both' && showTranslation">
           <MessageSquareText :size="14" class="translation-icon" />
           <span class="translation-title">原文</span>
         </div>

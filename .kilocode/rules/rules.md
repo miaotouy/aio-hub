@@ -40,6 +40,28 @@
   - 文件安全删除至回收站 (`trash`)
   - 文件系统操作 (`fs_extra`)
 
+### 1.3. 项目脚本与开发命令
+
+项目使用 Bun 作为包管理器，在 `package.json` 的 `scripts` 字段中定义了一系列开发、构建、检查与格式化的命令。以下为常用脚本的说明：
+
+- **`dev`** – 启动 Vite 开发服务器，用于前端开发。
+- **`build`** – 执行类型检查（`vue-tsc`）并构建前端生产包。
+- **`preview`** – 预览生产构建结果。
+- **`tauri`** – 调用 Tauri CLI（需配合子命令使用）。
+- **`tauri:dev`** – 启动 Tauri 开发模式（同时运行前端开发服务器与本地应用）。
+- **`tauri:build`** – 构建 Tauri 桌面应用（生成安装包）。
+- **`t:d`** – `tauri:dev` 的快捷别名。
+- **`t:b`** – `tauri:build` 的快捷别名。
+- **`check`** – 同时运行前端类型检查与后端代码检查（`cargo clippy`）。
+- **`check:frontend`** – 仅运行前端 TypeScript 类型检查。
+- **`check:backend`** – 仅运行 Rust 代码的 Clippy 检查。
+- **`format`** – 同时格式化前端与后端代码。
+- **`format:frontend`** – 使用 Prettier 格式化前端代码（支持多种文件类型）。
+- **`format:backend`** – 使用 `cargo fmt` 格式化 Rust 代码。
+- **`sync:icons`** – 同步图标资源（将预设图标复制到应用数据目录）。
+
+这些脚本可通过 `bun run <script>` 执行（例如 `bun run dev`）。在开发过程中，最常用的命令是 `bun run tauri:dev`（或 `bun run t:d`）以启动完整的桌面应用开发环境。
+
 ## 2. 核心开发规范
 
 为了保证代码质量和项目可维护性，所有开发活动应遵循以下核心规范。

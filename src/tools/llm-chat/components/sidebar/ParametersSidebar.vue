@@ -66,7 +66,9 @@ const selectedModelCombo = computed({
   },
   set: (value: string) => {
     if (!value || !currentAgent.value || !agentStore.currentAgentId) return;
-    const [profileId, modelId] = value.split(":");
+    const firstColonIndex = value.indexOf(':');
+    const profileId = value.substring(0, firstColonIndex);
+    const modelId = value.substring(firstColonIndex + 1);
     // 直接更新 Agent 的模型配置
     agentStore.updateAgent(agentStore.currentAgentId, { profileId, modelId });
     customMessage.success("模型已更新");

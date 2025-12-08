@@ -239,7 +239,8 @@ export async function preflightImportAgents(
         }
         // 2. 尝试去前缀匹配 (处理 "profileId:modelId" 格式)
         else if (agent.modelId.includes(':')) {
-          const pureModelId = agent.modelId.split(':')[1];
+          const firstColonIndex = agent.modelId.indexOf(':');
+          const pureModelId = agent.modelId.substring(firstColonIndex + 1);
           if (pureModelId && availableModelIds.includes(pureModelId)) {
             isMatched = true;
           }

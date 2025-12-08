@@ -175,7 +175,9 @@ const selectedModelCombo = computed({
   },
   set: (value: string) => {
     if (!value) return;
-    const [profileId, modelId] = value.split(":");
+    const firstColonIndex = value.indexOf(':');
+    const profileId = value.substring(0, firstColonIndex);
+    const modelId = value.substring(firstColonIndex + 1);
     if (engineConfig.value?.type === "vlm") {
       emit("updateEngineConfig", { profileId, modelId });
     }

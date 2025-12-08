@@ -324,7 +324,9 @@ watch(
 // 监听 modelCombo 的变化，拆分为 profileId 和 modelId
 const handleModelComboChange = (value: string) => {
   if (value) {
-    const [profileId, modelId] = value.split(":");
+    const firstColonIndex = value.indexOf(':');
+    const profileId = value.substring(0, firstColonIndex);
+    const modelId = value.substring(firstColonIndex + 1);
     editForm.profileId = profileId;
     editForm.modelId = modelId;
     editForm.modelCombo = value;

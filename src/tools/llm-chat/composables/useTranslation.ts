@@ -47,7 +47,10 @@ export function useTranslation() {
       }
     }
 
-    const [profileId, modelId] = modelIdentifier.split(":");
+    const firstColonIndex = modelIdentifier.indexOf(':');
+    const profileId = modelIdentifier.substring(0, firstColonIndex);
+    const modelId = modelIdentifier.substring(firstColonIndex + 1);
+
     if (!profileId || !modelId) {
       customMessage.error(`翻译模型配置无效: ${modelIdentifier}`);
       return "";

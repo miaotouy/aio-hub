@@ -35,7 +35,8 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
     // 处理 modelId 可能包含 profileId 前缀的情况
     let targetModelId = agent.modelId;
     if (targetModelId && targetModelId.includes(':')) {
-      targetModelId = targetModelId.split(':')[1];
+      const firstColonIndex = targetModelId.indexOf(':');
+      targetModelId = targetModelId.substring(firstColonIndex + 1);
     }
 
     // 查找本地是否有匹配的模型（即使 modelId 相同，profileId 也可能不同，需要重新匹配）
@@ -155,7 +156,9 @@ const handleCancel = () => {
                   :model-value="`${resolvedAgents[index].finalProfileId}:${resolvedAgents[index].finalModelId}`"
                   @update:model-value="
                     (val) => {
-                      const [pId, mId] = val.split(':');
+                      const firstColonIndex = val.indexOf(':');
+                      const pId = val.substring(0, firstColonIndex);
+                      const mId = val.substring(firstColonIndex + 1);
                       resolvedAgents[index].finalProfileId = pId;
                       resolvedAgents[index].finalModelId = mId;
                     }

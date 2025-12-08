@@ -70,7 +70,10 @@ export function useTopicNamer() {
       }
 
       // 解析模型标识符
-      const [profileId, modelId] = namingConfig.modelIdentifier.split(':');
+      const firstColonIndex = namingConfig.modelIdentifier.indexOf(':');
+      const profileId = namingConfig.modelIdentifier.substring(0, firstColonIndex);
+      const modelId = namingConfig.modelIdentifier.substring(firstColonIndex + 1);
+
       if (!profileId || !modelId) {
         errorHandler.error(new Error('Invalid model identifier'), '无效的模型标识符', {
           showToUser: false,

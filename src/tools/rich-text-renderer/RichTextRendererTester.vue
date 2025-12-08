@@ -149,7 +149,7 @@
     >
       <!-- 强制类型转换，因为 storeToRefs 导出的 ref 丢失了类型信息 -->
       <div class="regex-editor-container">
-        <ChatRegexEditor v-model="storeRegexConfig as ChatRegexConfig" />
+        <ChatRegexEditor v-model="typedRegexConfig" />
       </div>
     </DraggablePanel>
 
@@ -225,6 +225,14 @@ const {
 } = storeToRefs(store);
 
 const activeRegexRules = computed(() => store.getActiveRegexRules());
+
+// 修复 v-model 类型转换导致的构建错误
+const typedRegexConfig = computed({
+  get: () => storeRegexConfig.value as ChatRegexConfig,
+  set: (val: ChatRegexConfig) => {
+    storeRegexConfig.value = val;
+  },
+});
 
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);

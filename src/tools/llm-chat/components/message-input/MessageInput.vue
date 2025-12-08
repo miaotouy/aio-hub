@@ -381,7 +381,7 @@ const handleDragStart = (e: MouseEvent) => {
   }
 
   startDetaching({
-    id: "chat-input",
+    id: "llm-chat:chat-input",
     displayName: "聊天输入框",
     type: "component",
     width: rect.width + 80,
@@ -620,7 +620,7 @@ const handleDetach = async () => {
   }
 
   const config = {
-    id: "chat-input",
+    id: "llm-chat:chat-input",
     displayName: "聊天输入框",
     type: "component" as const,
     width: rect.width + 80,

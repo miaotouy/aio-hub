@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { shallowRef, onMounted, computed, defineAsyncComponent, Component } from "vue";
+import { shallowRef, onMounted, computed, Component } from "vue";
 import { useRoute } from "vue-router";
 import { createModuleLogger } from "../utils/logger";
-import { createModuleErrorHandler } from "../utils/errorHandler";
+import { createModuleErrorHandler, ErrorLevel } from "../utils/errorHandler";
+import { loadDetachableComponent } from "../config/detachable-components";
 
 const logger = createModuleLogger("ComponentContainer");
 const errorHandler = createModuleErrorHandler("ComponentContainer");
@@ -19,7 +20,12 @@ const componentConfig = computed(() => {
     try {
       return JSON.parse(decodeURIComponent(configStr));
     } catch (error) {
-      errorHandler.error(error, "解析组件配置失败", { context: { configStr }, showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "解析组件配置失败",
+        context: { configStr },
+        showToUser: false,
+        level: ErrorLevel.ERROR,
+      });
       return {};
     }
   }
@@ -43,23 +49,26 @@ const componentProps = computed(() => {
   return props;
 });
 
-// 组件注册表：将组件 ID 映射到其动态导入函数
-// 这是可拖拽组件的安全注册中心
-const componentRegistry: Record<string, () => Promise<Component>> = {
-  "chat-input": () => import("../tools/llm-chat/components/MessageInput.vue"),
-  // 未来可以在此添加其他可拖拽的组件
-  // 'message-list': () => import('../tools/llm-chat/components/MessageList.vue'),
-};
-
 onMounted(() => {
   const id = componentId.value;
-  if (id && componentRegistry[id]) {
-    logger.info("正在加载组件", { componentId: id, props: componentProps.value });
-    componentToRender.value = defineAsyncComponent(componentRegistry[id]);
+  if (id) {
+    logger.info("正在加载可分离组件", { componentId: id, props: componentProps.value });
+    const component = loadDetachableComponent(id);
+    if (component) {
+      componentToRender.value = component;
+    } else {
+      errorHandler.handle(new Error(`未找到或未注册可分离的组件: ${id}`), {
+        userMessage: "未找到或未注册可分离的组件",
+        context: { componentId: id },
+        showToUser: false,
+        level: ErrorLevel.ERROR,
+      });
+    }
   } else {
-    errorHandler.error(new Error(`未找到或未注册可分离的组件: ${id}`), "未找到或未注册可分离的组件", {
-      context: { componentId: id },
+    errorHandler.handle(new Error("未指定组件ID"), {
+      userMessage: "未指定要加载的组件ID",
       showToUser: false,
+      level: ErrorLevel.ERROR,
     });
   }
 });

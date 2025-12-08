@@ -188,7 +188,7 @@ const handleDragStart = (e: MouseEvent) => {
   }
 
   startDetaching({
-    id: "chat-area",
+    id: "llm-chat:chat-area",
     displayName: "对话区域",
     type: "component",
     width: rect.width,
@@ -327,7 +327,7 @@ const handleResizeStart = createResizeHandler("SouthEast");
 
 const isInputVisible = computed(() => {
   // 只要输入框被独立分离出去，无论 ChatArea 在主窗口还是独立窗口，都应隐藏内部的输入框。
-  const isInputDetached = detachedComponents.value.includes("chat-input");
+  const isInputDetached = detachedComponents.value.includes("llm-chat:chat-input");
   logger.info("MessageInput 分离状态检查", {
     isInputDetached,
     isChatAreaDetached: props.isDetached,
@@ -357,7 +357,7 @@ const handleDetach = async () => {
   }
 
   const config = {
-    id: "chat-area",
+    id: "llm-chat:chat-area",
     displayName: "对话区域",
     type: "component" as const,
     width: rect.width,

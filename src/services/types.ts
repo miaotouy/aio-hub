@@ -29,6 +29,7 @@ export interface ServiceMetadata {
 }
 
 import type { Component } from 'vue';
+import type { DetachableComponentRegistration } from '@/types/detachable';
 
 export interface ToolConfig {
   name: string;
@@ -73,4 +74,10 @@ export interface ToolRegistry {
    * 这是可选的，但强烈推荐实现。
    */
   getMetadata?(): ServiceMetadata;
+
+  /**
+   * 工具提供的可分离组件配置
+   * Key 为组件的唯一标识符（建议使用 namespaced ID，如 'llm-chat:chat-area'）
+   */
+  detachableComponents?: Record<string, DetachableComponentRegistration>;
 }

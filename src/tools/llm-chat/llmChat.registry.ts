@@ -1,15 +1,20 @@
 /**
  * LLM Chat 外观服务
- * 
+ *
  * 轻量级外观服务，为外部调用（尤其是 Agent）提供对 llm-chat 输入框的编程接口。
  * 不包含核心业务逻辑，仅作为 useChatInputManager 的薄层封装。
  */
 
 import type { ToolRegistry } from '@/services/types';
+import type { DetachableComponentRegistration } from '@/types/detachable';
 import { useChatInputManager } from './composables/useChatInputManager';
+import { useDetachedChatArea } from './composables/useDetachedChatArea';
+import { useDetachedChatInput } from './composables/useDetachedChatInput';
+import { useLlmChatStateConsumer } from './composables/useLlmChatStateConsumer';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import type { Asset } from '@/types/asset-management';
+import { computed, type Ref } from 'vue';
 
 const logger = createModuleLogger('services/llm-chat');
 const errorHandler = createModuleErrorHandler('services/llm-chat');
@@ -322,6 +327,57 @@ export default class LlmChatRegistry implements ToolRegistry {
       currentAttachmentCount: this.inputManager.attachmentCount.value,
     };
   }
+
+  // ==================== 分离组件配置 ====================
+
+  /**
+   * useDetachedChatArea 的适配器
+   * 将旧的返回结构转换为新的 { props, listeners } 格式
+   */
+  private useDetachedChatAreaAdapter(): { props: Ref<any>; listeners: Record<string, Function> } {
+    const chatArea = useDetachedChatArea();
+    
+    return {
+      props: computed(() => ({
+        isDetached: true,
+        messages: chatArea.messages.value,
+        isSending: chatArea.isSending.value,
+        disabled: chatArea.disabled.value,
+        currentAgentId: chatArea.currentAgentId.value,
+        currentModelId: chatArea.currentModelId.value,
+      })),
+      listeners: {
+        send: chatArea.sendMessage,
+        abort: chatArea.abortSending,
+        'delete-message': chatArea.deleteMessage,
+        'regenerate': chatArea.regenerateLastMessage,
+        'switch-sibling': chatArea.switchSibling,
+        'toggle-enabled': chatArea.toggleEnabled,
+        'edit-message': chatArea.editMessage,
+        'abort-node': chatArea.abortNode,
+        'create-branch': chatArea.createBranch,
+        'analyze-context': chatArea.analyzeContext,
+      },
+    };
+  }
+
+  /**
+   * 工具提供的可分离组件配置
+   */
+  public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
+    // LLM Chat: 对话区域
+    'llm-chat:chat-area': {
+      component: () => import('./components/ChatArea.vue'),
+      logicHook: () => this.useDetachedChatAreaAdapter(),
+      initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: true }),
+    },
+    // LLM Chat: 消息输入框
+    'llm-chat:chat-input': {
+      component: () => import('./components/message-input/MessageInput.vue'),
+      logicHook: useDetachedChatInput,
+      initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: true }),
+    },
+  };
 
   // ==================== 元数据 ====================
 

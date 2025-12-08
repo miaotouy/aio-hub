@@ -114,7 +114,7 @@ onUnmounted(() => {
 const { isDetached } = useDetachedManager();
 
 // 对话区域是否已分离的状态
-const isChatAreaDetached = computed(() => isDetached("chat-area"));
+const isChatAreaDetached = computed(() => isDetached("llm-chat:chat-area"));
 // 组件挂载时的初始化逻辑
 onMounted(async () => {
   isLoading.value = true;

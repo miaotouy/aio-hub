@@ -14,7 +14,7 @@ import { loadAppSettingsAsync } from "../utils/appSettings";
 import { applyThemeColors } from "../utils/themeColors";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import GlobalProviders from "../components/GlobalProviders.vue";
-import { createModuleErrorHandler } from "../utils/errorHandler";
+import { createModuleErrorHandler, ErrorLevel } from "../utils/errorHandler";
 
 const logger = createModuleLogger("DetachedComponentContainer");
 const errorHandler = createModuleErrorHandler("DetachedComponentContainer");
@@ -119,7 +119,11 @@ onMounted(async () => {
         logger.info("窗口未固定，保持预览模式");
       }
     } catch (error) {
-      errorHandler.error(error, "检查窗口固定状态失败，默认使用预览模式", { showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "检查窗口固定状态失败，默认使用预览模式",
+        showToUser: false,
+        level: ErrorLevel.ERROR,
+      });
       isPreview.value = true;
     }
   };
@@ -166,15 +170,19 @@ onMounted(async () => {
             listenersKeys: Object.keys(componentEventListeners.value)
           });
         } else {
-          errorHandler.error(new Error(`未找到或未注册可分离的组件: ${id}`), "未找到或未注册可分离的组件", {
+          errorHandler.handle(new Error(`未找到或未注册可分离的组件: ${id}`), {
+            userMessage: "未找到或未注册可分离的组件",
             context: { id },
             showToUser: false,
+            level: ErrorLevel.ERROR,
           });
         }
       } catch (error) {
-        errorHandler.error(error, "解析路由中的组件配置失败", {
+        errorHandler.handle(error, {
+          userMessage: "解析路由中的组件配置失败",
           context: { config: route.query.config },
           showToUser: false,
+          level: ErrorLevel.ERROR,
         });
       }
     } else {
@@ -227,8 +235,8 @@ onUnmounted(() => {
       </Suspense>
       <div v-else class="error-message">
         <h2>组件加载失败</h2>
-        <p v-if="route.query.componentId">
-          无法找到ID为 "<strong>{{ route.query.componentId }}</strong
+        <p v-if="currentComponentId">
+          无法找到ID为 "<strong>{{ currentComponentId }}</strong
           >" 的组件。
         </p>
         <p v-else>未指定要加载的组件ID。</p>

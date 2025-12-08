@@ -289,7 +289,7 @@ onUnmounted(() => {
       >
         <!-- 文件图标区域 -->
         <div class="bar-icon-wrapper">
-          <template v-if="isLoadingUrl">
+          <template v-if="isLoadingUrl && !assetUrl">
             <div class="spinner-small"></div>
           </template>
           <template v-else-if="loadError || hasImportError">
@@ -359,7 +359,7 @@ onUnmounted(() => {
     <template v-else>
       <!-- 预览区域 -->
       <div class="attachment-preview" @click="handlePreview">
-        <template v-if="isLoadingUrl">
+        <template v-if="isLoadingUrl && !assetUrl">
           <div class="loading-placeholder">
             <div class="spinner"></div>
           </div>
@@ -384,7 +384,11 @@ onUnmounted(() => {
         </template>
 
         <!-- 导入状态指示器 -->
-        <div v-if="isImporting" class="import-status-overlay">
+        <div
+          v-if="isImporting"
+          class="import-status-overlay"
+          :class="{ 'mini-mode': isImage && assetUrl }"
+        >
           <div class="import-spinner"></div>
         </div>
 
@@ -696,6 +700,22 @@ onUnmounted(() => {
   justify-content: center;
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(2px);
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+/* 迷你模式：仅在右下角显示小转圈，不遮挡图片 */
+.import-status-overlay.mini-mode {
+  top: auto;
+  left: auto;
+  right: 4px;
+  bottom: 4px;
+  width: 20px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  backdrop-filter: none;
+  pointer-events: none; /* 允许点击穿透查看图片 */
 }
 
 .import-spinner {
@@ -705,6 +725,12 @@ onUnmounted(() => {
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+.import-status-overlay.mini-mode .import-spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
 }
 
 /* 长条布局样式 */

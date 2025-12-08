@@ -67,7 +67,9 @@ export type LlmChatAction =
   | 'toggle-enabled'
   | 'edit-message'
   | 'create-branch'
-  | 'abort-node';
+  | 'abort-node'
+  | 'switch-session'
+  | 'create-session';
 
 /**
  * LLM Chat 操作常量
@@ -84,6 +86,8 @@ export const CHAT_ACTIONS = {
   EDIT_MESSAGE: 'edit-message' as const,
   CREATE_BRANCH: 'create-branch' as const,
   ABORT_NODE: 'abort-node' as const,
+  SWITCH_SESSION: 'switch-session' as const,
+  CREATE_SESSION: 'create-session' as const,
 } as const;
 
 /**

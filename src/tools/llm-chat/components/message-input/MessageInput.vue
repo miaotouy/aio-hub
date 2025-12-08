@@ -794,7 +794,11 @@ const handleTranslateInput = async () => {
 
 // 处理切换会话
 const handleSwitchSession = (sessionId: string) => {
-  chatStore.switchSession(sessionId);
+  if (props.isDetached) {
+    bus.requestAction("switch-session", { sessionId });
+  } else {
+    chatStore.switchSession(sessionId);
+  }
 };
 
 // 处理新建会话
@@ -805,7 +809,12 @@ const handleNewSession = () => {
     customMessage.warning("没有可用的智能体来创建新会话");
     return;
   }
-  chatStore.createSession(agentId);
+  
+  if (props.isDetached) {
+    bus.requestAction("create-session", { agentId });
+  } else {
+    chatStore.createSession(agentId);
+  }
 };
 </script>
 <template>

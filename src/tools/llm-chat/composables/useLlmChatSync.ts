@@ -200,6 +200,12 @@ export function useLlmChatSync() {
         // 这会更新主窗口的 settings ref，进而触发 useStateSyncEngine 的广播
         const { updateSettings } = useChatSettings();
         return updateSettings(params.updates);
+      case 'switch-session':
+        store.switchSession(params.sessionId);
+        return Promise.resolve();
+      case 'create-session':
+        store.createSession(params.agentId);
+        return Promise.resolve();
       default:
         logger.warn('未知的操作请求', { action });
         return Promise.reject(new Error(`Unknown action: ${action}`));

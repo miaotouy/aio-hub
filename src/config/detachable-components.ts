@@ -80,13 +80,13 @@ export const detachableComponentRegistry: Record<string, DetachableComponentRegi
   'chat-area': {
     component: () => import('../tools/llm-chat/components/ChatArea.vue'),
     logicHook: useDetachedChatAreaAdapter,
-    initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: false }),
+    initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: true }),
   },
   // LLM Chat: 消息输入框
   'chat-input': {
     component: () => import('../tools/llm-chat/components/message-input/MessageInput.vue'),
     logicHook: useDetachedChatInput,
-    initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: false }),
+    initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: true }),
   },
   // 未来可以在此添加更多可分离的组件
   // 'some-other-component': {

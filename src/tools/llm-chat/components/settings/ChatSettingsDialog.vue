@@ -3,7 +3,7 @@
     :model-value="props.visible"
     @update:model-value="(val: any) => emit('update:visible', val)"
     title="聊天设置"
-    width="80vw"
+    :width="dialogWidth"
     height="calc(100vh - 100px)"
     :close-on-backdrop-click="false"
     dialog-class="chat-settings-dialog"
@@ -11,7 +11,7 @@
     @close="handleClosed"
   >
     <template #content>
-      <div class="settings-container">
+      <div class="settings-container" ref="settingsContainerRef">
         <div class="settings-header">
           <el-autocomplete
             v-model="searchQuery"
@@ -52,7 +52,11 @@
           </el-tabs>
         </div>
         <div class="settings-content" ref="scrollContainerRef">
-          <el-form :model="localSettings" label-width="120px" label-position="left">
+          <el-form
+            :model="localSettings"
+            :label-width="formLabelWidth"
+            :label-position="formLabelPosition"
+          >
             <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
               <div class="settings-section">
                 <div class="section-title">
@@ -71,11 +75,7 @@
                     <template v-if="item.layout !== 'inline'">
                       <div class="setting-item-content">
                         <!-- Collapsible Component Template -->
-                        <div
-                          v-if="item.collapsible"
-                          class="full-width"
-                          style="width: 100%"
-                        >
+                        <div v-if="item.collapsible" class="full-width" style="width: 100%">
                           <el-collapse v-model="activeCollapseNames">
                             <el-collapse-item
                               :title="item.collapsible.title"
@@ -290,6 +290,7 @@ import {
 } from "element-plus";
 import { get, set, debounce } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
+import { useElementSize, useWindowSize } from "@vueuse/core";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
@@ -313,6 +314,26 @@ const MarkdownStyleEditor = defineAsyncComponent(
 const logger = createModuleLogger("ChatSettingsDialog");
 const errorHandler = createModuleErrorHandler("ChatSettingsDialog");
 const bus = useWindowSyncBus();
+
+// --- 响应式布局 ---
+const settingsContainerRef = ref<HTMLElement | null>(null);
+const { width: containerWidth } = useElementSize(settingsContainerRef);
+const { width: windowWidth } = useWindowSize();
+
+const dialogWidth = computed(() => {
+  if (windowWidth.value < 860) {
+    return "98vw";
+  } else if (windowWidth.value < 1400) {
+    return "80vw";
+  } else {
+    return "1200px"; // 大屏固定最大宽度，避免太宽
+  }
+});
+
+const isCompact = computed(() => containerWidth.value < 600);
+
+const formLabelPosition = computed(() => (isCompact.value ? "top" : "left"));
+const formLabelWidth = computed(() => (isCompact.value ? "auto" : "140px"));
 
 interface Props {
   visible: boolean;

@@ -791,6 +791,22 @@ const handleTranslateInput = async () => {
     isTranslatingInput.value = false;
   }
 };
+
+// 处理切换会话
+const handleSwitchSession = (sessionId: string) => {
+  chatStore.switchSession(sessionId);
+};
+
+// 处理新建会话
+const handleNewSession = () => {
+  // 使用当前选中的智能体，或使用默认智能体
+  const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
+  if (!agentId) {
+    customMessage.warning("没有可用的智能体来创建新会话");
+    return;
+  }
+  chatStore.createSession(agentId);
+};
 </script>
 <template>
   <div
@@ -888,6 +904,8 @@ const handleTranslateInput = async () => {
             @select-temporary-model="handleSelectTemporaryModel"
             @clear-temporary-model="inputManager.clearTemporaryModel"
             @translate-input="handleTranslateInput"
+            @switch-session="handleSwitchSession"
+            @new-session="handleNewSession"
           />
         </div>
       </div>

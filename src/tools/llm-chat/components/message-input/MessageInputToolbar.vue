@@ -6,14 +6,15 @@ export interface InputToolbarSettings {
 
 <script setup lang="ts">
 import { ElTooltip, ElPopover } from "element-plus";
-import { Paperclip, AtSign, X, Settings, Languages } from "lucide-vue-next";
+import { Paperclip, AtSign, X, Settings, Languages, MessageSquare } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
+import MiniSessionList from "./MiniSessionList.vue";
 import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ModelIdentifier } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 interface Props {
   isSending: boolean;
@@ -52,6 +53,8 @@ const emit = defineEmits<{
   (e: "select-temporary-model"): void;
   (e: "clear-temporary-model"): void;
   (e: "translate-input"): void;
+  (e: "switch-session", sessionId: string): void;
+  (e: "new-session"): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
@@ -70,6 +73,18 @@ const temporaryModelInfo = computed(() => {
 
 const onMacroSelectorUpdate = (visible: boolean) => {
   emit("update:macroSelectorVisible", visible);
+};
+
+const sessionListVisible = ref(false);
+
+const handleSwitchSession = (sessionId: string) => {
+  emit("switch-session", sessionId);
+  sessionListVisible.value = false;
+};
+
+const handleNewSession = () => {
+  emit("new-session");
+  sessionListVisible.value = false;
 };
 </script>
 
@@ -98,6 +113,30 @@ const onMacroSelectorUpdate = (visible: boolean) => {
         <button class="attachment-button" @click="emit('trigger-attachment')">
           <el-icon><Paperclip /></el-icon>
         </button>
+      </el-tooltip>
+
+      <!-- 会话列表按钮 -->
+      <el-tooltip content="切换会话" placement="top" :show-after="300">
+        <div>
+          <el-popover
+            v-model:visible="sessionListVisible"
+            :placement="props.isDetached ? 'top-start' : 'bottom-start'"
+            :width="300"
+            trigger="click"
+            popper-class="session-list-popover"
+            :teleported="!props.isDetached"
+          >
+            <template #reference>
+              <button class="tool-btn" :class="{ active: sessionListVisible }">
+                <MessageSquare :size="16" />
+              </button>
+            </template>
+            <MiniSessionList
+              @switch="handleSwitchSession"
+              @new-session="handleNewSession"
+            />
+          </el-popover>
+        </div>
       </el-tooltip>
       <!-- 临时模型选择器 -->
       <el-tooltip content="临时指定模型" placement="top" :show-after="300">
@@ -697,5 +736,13 @@ const onMacroSelectorUpdate = (visible: boolean) => {
   align-items: center;
   font-size: 13px;
   color: var(--text-color);
+}
+
+.session-list-popover {
+  padding: 0 !important;
+}
+
+.session-list-popover .el-popover__body {
+  padding: 0;
 }
 </style>

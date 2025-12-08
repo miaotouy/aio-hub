@@ -209,7 +209,41 @@ graph TD
 为了提升对话的灵活性和探索效率，系统提供了一系列高级交互功能。
 
 - **临时模型切换**: 在发送消息时，允许用户临时指定一个不同于当前会话默认设置的模型。这对于快速对比不同模型在同一上下文中的表现非常有用，而无需修改智能体或全局配置。
-- **从编辑创建分支 (Branch from Edit)**: 当用户编辑一条已发送的消息时，除了保存修改外，还可以选择“从当前内容创建新分支”。系统会自动将编辑后的内容作为一条新的用户消息，并基于此生成新的助手回复，从而创建一条全新的对话路径，便于探索“如果这么问会怎样？”的场景。
+- **从编辑创建分支 (Branch from Edit)**: 当用户编辑一条已发送的消息时，除了保存修改外，还可以选择"从当前内容创建新分支"。系统会自动将编辑后的内容作为一条新的用户消息，并基于此生成新的助手回复，从而创建一条全新的对话路径，便于探索"如果这么问会怎样？"的场景。
+
+### 1.19. 正则管道系统 (Regex Pipeline System)
+
+正则管道系统为消息内容提供了强大的动态清洗、格式转换和角色扮演增强能力。
+
+- **三层数据结构**:
+  - **Config**: 配置根对象，包含预设列表。
+  - **Preset (预设/组)**: 规则的容器，支持按组管理和批量开关。
+  - **Rule**: 最小执行单元，定义具体的正则匹配和替换逻辑。
+
+- **三层配置体系**:
+  - **Global (全局)**: 存储于 `ChatSettings.regexConfig`，对所有会话生效。
+  - **Agent (智能体)**: 存储于 `ChatAgent.regexConfig`，针对特定智能体生效。
+  - **User (用户档案)**: 存储于 `UserProfile.regexConfig`，针对特定用户档案生效。
+
+- **Message-Bound 策略**: 采用"谁生的孩子谁负责"原则，每条消息优先使用其生成时的 Agent/User 配置进行处理，确保历史消息的数据完整性和一致性。
+
+- **双管道处理**:
+  - **Render Pipeline (渲染层)**: 在 `RichTextRenderer` 中执行，处理消息的显示内容。
+  - **Request Pipeline (请求层)**: 在 `useChatContextBuilder` 中执行，处理发送给模型的 Prompt。
+
+- **灵活的目标控制**:
+  - **目标角色 (targetRoles)**: 支持按 `system`/`user`/`assistant` 多选过滤。
+  - **深度范围 (depthRange)**: 支持限制规则只在特定深度的消息上生效。
+  - **应用阶段 (applyTo)**: 可分别控制规则在渲染层和请求层的生效状态。
+
+- **宏替换集成**: 支持三种宏替换模式：
+  - `NONE`: 不进行宏替换。
+  - `RAW`: 将宏替换为文本值后作为正则使用。
+  - `ESCAPED`: 替换宏后对值进行正则转义（推荐用于动态匹配用户名等场景）。
+
+- **捕获组后处理 (Trim Strings)**: 支持对正则捕获组的内容进行二次清理，移除不需要的前缀或标记。
+
+- **SillyTavern 兼容**: 支持导入 SillyTavern 的正则脚本配置，自动转换为本系统格式。
 
 ## 2. 架构概览
 
@@ -281,12 +315,22 @@ sequenceDiagram
 - **`useMessageProcessor`**: **消息后处理管道**。实现可扩展的消息处理规则系统（如合并 System 消息、确保角色交替）。
 - **`useChatAssetProcessor`**: **附件处理器**。负责将 Asset 转换为 LLM 可接受的消息内容（Base64、OpenAI File 等）。
 
-### 4.4. 附件与输入管理
+### 4.4. 正则管道处理
+
+- **`useChatRegexResolver`**: **规则解析器**。负责为每条消息解析其对应的规则集，支持缓存优化。根据消息的 `metadata.agentId` 和 `userProfileId` 获取对应的配置，合并 Global、Agent、User 三层规则。
+- **`useChatRegexPipeline`**: **管道执行器**。负责实际执行正则替换逻辑，包括宏预处理、规则过滤、排序和应用。
+- **工具函数 (`chatRegexUtils.ts`)**:
+  - `resolveRawRules`: 基础规则解析（不含深度过滤）。
+  - `filterRulesByDepth`: 深度过滤。
+  - `processRulesWithMacros`: 对规则进行宏替换预处理。
+  - `applyRegexRules`: 应用规则列表到文本内容。
+
+### 4.5. 附件与输入管理
 
 - **`useAttachmentManager`**: **附件的完整管理者**。负责附件的添加、移除、验证、去重和状态追踪。
 - **`useChatInputManager`**: **全局输入状态管理器**。处理输入框文本和附件的跨窗口同步与持久化。
 
-### 4.5. 会话、工具与同步
+### 4.6. 会话、工具与同步
 
 - **`useSessionManager`**: **会话的生命周期管理者**。负责会话的创建、加载、删除和持久化。
 - **`useLlmChatSync`**: **跨窗口同步引擎**。初始化状态同步引擎，注册操作代理处理器，确保多窗口协同工作。
@@ -294,20 +338,20 @@ sequenceDiagram
 - **`useModelSelectDialog`**: **全局模型选择器**。提供弹窗式的模型选择 UI。
 - **`useAnchorRegistry`**: **锚点注册表**。管理上下文注入系统中可用的锚点列表（如 `chat_history`）。
 
-### 4.6. 宏处理引擎
+### 4.7. 宏处理引擎
 
 - **`useMacroProcessor`**: **宏引擎的业务层封装**。
 - **`MacroProcessor`**: **宏执行的核心引擎**。
 - **`MacroRegistry`**: **宏定义的中心化管理器**。
 
-### 4.7. 历史记录管理
+### 4.8. 历史记录管理
 
 - **`useSessionNodeHistory`**: **撤销/重做管理器**。
   - 维护 `history` 栈和 `historyIndex`。
   - 实现 `recordHistory`（记录快照或增量）、`undo`、`redo` 和 `jumpToState`。
   - 处理复杂的节点关系恢复逻辑。
 
-### 4.8. 导出管理
+### 4.9. 导出管理
 
 - **`useExportManager`**: **导出工具**。
   - `exportSessionAsMarkdown`: 导出当前活动路径。
@@ -367,6 +411,23 @@ sequenceDiagram
   - `anchorTarget`: 锚点注入目标（如 `chat_history`）。
   - `anchorPosition`: 相对锚点的位置（`before` / `after`）。
   - `order`: 同位置多消息的排序权重。
+
+- **`ChatRegexRule`**: 单条正则规则。
+  - `regex`, `replacement`, `flags`: 核心正则配置。
+  - `applyTo`: 应用阶段控制（`render` / `request`）。
+  - `targetRoles`: 目标消息角色（`system` / `user` / `assistant`）。
+  - `depthRange`: 消息深度范围限制。
+  - `substitutionMode`: 宏替换模式（`NONE` / `RAW` / `ESCAPED`）。
+  - `trimStrings`: 捕获组后处理字符串列表。
+
+- **`ChatRegexPreset`**: 正则预设/规则组。
+  - `name`, `description`, `author`, `version`: 元信息。
+  - `enabled`: 预设级开关。
+  - `rules`: 规则列表。
+  - `priority`: 预设优先级（越小越先执行，默认 100）。
+
+- **`ChatRegexConfig`**: 正则配置根对象。
+  - `presets`: 预设列表，用于 Global、Agent、User 三层配置。
 
 ## 7. 未来展望
 

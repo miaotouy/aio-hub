@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
-import { fetchWithRetry } from "./common";
+import { fetchWithTimeout } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
@@ -397,14 +397,13 @@ async function callVertexAiGemini(
 
   // 流式响应
   if (options.stream && options.onStream) {
-    const response = await fetchWithRetry(
+    const response = await fetchWithTimeout(
       url,
       {
         method: "POST",
         headers,
         body: JSON.stringify(body),
       },
-      options.maxRetries,
       options.timeout,
       options.signal
     );
@@ -504,14 +503,13 @@ async function callVertexAiGemini(
   }
 
   // 非流式响应
-  const response = await fetchWithRetry(
+  const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     },
-    options.maxRetries,
     options.timeout,
     options.signal
   );
@@ -660,14 +658,13 @@ async function callVertexAiClaude(
 
   // 流式响应
   if (options.stream && options.onStream) {
-    const response = await fetchWithRetry(
+    const response = await fetchWithTimeout(
       url,
       {
         method: "POST",
         headers,
         body: JSON.stringify(body),
       },
-      options.maxRetries,
       options.timeout,
       options.signal
     );
@@ -729,14 +726,13 @@ async function callVertexAiClaude(
   }
 
   // 非流式响应
-  const response = await fetchWithRetry(
+  const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     },
-    options.maxRetries,
     options.timeout,
     options.signal
   );

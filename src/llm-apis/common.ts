@@ -1,14 +1,9 @@
-import { createModuleLogger } from "@utils/logger";
 import { fetch } from '@tauri-apps/plugin-http';
-
-const logger = createModuleLogger("LlmApiCommon");
 
 /**
  * 默认配置
  */
 export const DEFAULT_TIMEOUT = 60000; // 60秒
-export const DEFAULT_MAX_RETRIES = 3;
-export const DEFAULT_RETRY_DELAY = 1000; // 1秒
 
 /**
  * LLM 请求的消息内容
@@ -72,8 +67,6 @@ export interface LlmRequestOptions {
   onReasoningStream?: (chunk: string) => void;
   /** 请求超时时间（毫秒），默认 60000 */
   timeout?: number;
-  /** 最大重试次数，默认 3 */
-  maxRetries?: number;
   /** 用于中止请求的 AbortSignal */
   signal?: AbortSignal;
   
@@ -303,82 +296,40 @@ export class TimeoutError extends Error {
 }
 
 /**
- * 延迟函数
+ * 带超时控制的请求包装器
  */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * 带重试的请求包装器
- */
-export const fetchWithRetry = async (
+export const fetchWithTimeout = async (
   url: string,
   options: RequestInit,
-  maxRetries: number = DEFAULT_MAX_RETRIES,
   timeout: number = DEFAULT_TIMEOUT,
   externalSignal?: AbortSignal
 ): Promise<Response> => {
-  let lastError: Error | null = null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new TimeoutError(`Request timed out after ${timeout}ms`));
+  }, timeout);
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort(new TimeoutError(`Request timed out after ${timeout}ms`));
-      }, timeout);
-
-      // 如果外部信号已经中止，立即抛出错误
-      if (externalSignal?.aborted) {
-        throw externalSignal.reason || new DOMException('Aborted', 'AbortError');
-      }
-
-      // 监听外部中止信号
-      const externalAbortHandler = () => {
-        // 传递外部信号的原因
-        controller.abort(externalSignal?.reason);
-      };
-      externalSignal?.addEventListener('abort', externalAbortHandler);
-
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      externalSignal?.removeEventListener('abort', externalAbortHandler);
-
-      // 如果是 4xx 错误，不重试
-      if (response.status >= 400 && response.status < 500) {
-        return response;
-      }
-
-      // 如果是 5xx 错误，重试
-      if (response.status >= 500 && attempt < maxRetries) {
-        logger.warn(`请求失败 (${response.status})，第 ${attempt + 1}/${maxRetries} 次重试`, {
-          url,
-          status: response.status,
-        });
-        await delay(DEFAULT_RETRY_DELAY * Math.pow(2, attempt));
-        continue;
-      }
-
-      return response;
-    } catch (error: any) {
-      lastError = error;
-
-      // 如果是超时或网络错误，可以重试
-      if (attempt < maxRetries && (error instanceof TimeoutError || error instanceof TypeError)) {
-        logger.warn(`请求失败 (${error.name})，第 ${attempt + 1}/${maxRetries} 次重试`, {
-          url,
-          error: error.message,
-        });
-        await delay(DEFAULT_RETRY_DELAY * Math.pow(2, attempt));
-        continue;
-      }
-
-      // 其他错误（包括用户取消）不重试，直接抛出
-      throw error;
-    }
+  // 如果外部信号已经中止，立即抛出错误
+  if (externalSignal?.aborted) {
+    clearTimeout(timeoutId);
+    throw externalSignal.reason || new DOMException('Aborted', 'AbortError');
   }
 
-  throw lastError || new Error("请求失败");
+  // 监听外部中止信号
+  const externalAbortHandler = () => {
+    // 传递外部信号的原因
+    controller.abort(externalSignal?.reason);
+  };
+  externalSignal?.addEventListener('abort', externalAbortHandler);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', externalAbortHandler);
+  }
 };

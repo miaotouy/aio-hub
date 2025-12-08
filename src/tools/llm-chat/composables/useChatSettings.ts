@@ -144,6 +144,10 @@ export interface ChatSettings {
     timeout: number;
     /** 最大重试次数 */
     maxRetries: number;
+    /** 重试间隔（毫秒） */
+    retryInterval: number;
+    /** 重试模式：固定间隔或指数退避 */
+    retryMode: "fixed" | "exponential";
   };
   /** 开发者设置 */
   developer: {
@@ -222,6 +226,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   requestSettings: {
     timeout: 60000, // 默认 60 秒
     maxRetries: 3, // 默认重试 3 次
+    retryInterval: 1000, // 默认重试间隔 1 秒
+    retryMode: "fixed", // 默认固定间隔
   },
   developer: {
     debugModeEnabled: false,

@@ -625,6 +625,32 @@ export const settingsConfig: SettingsSection[] = [
         hint: "请求失败（超时或网络错误）时的最大重试次数，设为 0 表示不重试",
         keywords: "request retry 请求 重试",
       },
+      {
+        id: "retryInterval",
+        label: "重试间隔 ({{ localSettings.requestSettings.retryInterval }}ms)",
+        component: "ElSlider",
+        props: {
+          min: 500,
+          max: 5000,
+          step: 500,
+          "format-tooltip": (val: number) => `${val}ms`,
+        },
+        modelPath: "requestSettings.retryInterval",
+        hint: "请求失败重试之间的等待时间",
+        keywords: "request retry interval 重试 间隔",
+      },
+      {
+        id: "retryMode",
+        label: "重试模式",
+        component: "ElRadioGroup",
+        modelPath: "requestSettings.retryMode",
+        options: [
+          { label: "固定间隔", value: "fixed" },
+          { label: "指数退避", value: "exponential" },
+        ],
+        hint: "固定间隔：每次重试等待相同时间<br/>指数退避：每次重试等待时间翻倍（推荐）",
+        keywords: "request retry mode strategy 重试 模式 策略",
+      },
     ],
   },
   {

@@ -6,7 +6,7 @@
 import type { LlmProfile, LlmModelInfo, ProviderType, ModelCapabilities } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
-import { fetchWithRetry } from "./common";
+import { fetchWithTimeout } from "./common";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "../config/model-metadata";
@@ -37,7 +37,8 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
   const headers = buildRequestHeaders(profile.type, apiKey);
 
   try {
-    const response = await fetchWithRetry(url, {
+    // 模型列表获取通常不需要很长的超时，默认 60s 足够
+    const response = await fetchWithTimeout(url, {
       method: "GET",
       headers,
     });

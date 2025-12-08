@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
-import { fetchWithRetry } from "./common";
+import { fetchWithTimeout } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 import {
@@ -184,14 +184,13 @@ export const callOpenAiCompatibleApi = async (
   if (options.stream && options.onStream) {
     body.stream = true;
 
-    const response = await fetchWithRetry(
+    const response = await fetchWithTimeout(
       url,
       {
         method: "POST",
         headers,
         body: JSON.stringify(body),
       },
-      options.maxRetries,
       options.timeout,
       options.signal
     );
@@ -273,15 +272,15 @@ export const callOpenAiCompatibleApi = async (
   }
 
   // 非流式响应
-  const response = await fetchWithRetry(
+  const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     },
-    options.maxRetries,
-    options.timeout
+    options.timeout,
+    options.signal
   );
 
   if (!response.ok) {

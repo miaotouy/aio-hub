@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
-import { fetchWithRetry } from "./common";
+import { fetchWithTimeout } from "./common";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -163,14 +163,13 @@ export const callCohereApi = async (
   if (options.stream && options.onStream) {
     body.stream = true;
 
-    const response = await fetchWithRetry(
+    const response = await fetchWithTimeout(
       url,
       {
         method: "POST",
         headers,
         body: JSON.stringify(body),
       },
-      options.maxRetries,
       options.timeout,
       options.signal
     );
@@ -212,15 +211,15 @@ export const callCohereApi = async (
   }
 
   // 非流式响应
-  const response = await fetchWithRetry(
+  const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     },
-    options.maxRetries,
-    options.timeout
+    options.timeout,
+    options.signal // 补上 signal
   );
 
   if (!response.ok) {

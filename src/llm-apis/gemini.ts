@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
-import { fetchWithRetry } from "./common";
+import { fetchWithTimeout } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
@@ -585,14 +585,13 @@ export const callGeminiApi = async (
 
   // 如果启用流式响应
   if (options.stream && options.onStream) {
-    const response = await fetchWithRetry(
+    const response = await fetchWithTimeout(
       url,
       {
         method: "POST",
         headers,
         body: JSON.stringify(body),
       },
-      options.maxRetries,
       options.timeout,
       options.signal
     );
@@ -691,15 +690,15 @@ export const callGeminiApi = async (
   }
 
   // 非流式响应
-  const response = await fetchWithRetry(
+  const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     },
-    options.maxRetries,
-    options.timeout
+    options.timeout,
+    options.signal // 补上 signal
   );
 
   if (!response.ok) {

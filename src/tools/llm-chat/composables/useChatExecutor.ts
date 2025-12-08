@@ -244,36 +244,106 @@ export function useChatExecutor() {
       // 过滤掉多余的字段（如 sourceType 等），只保留 standard 字段发送给 LLM
       const messagesForRequest = messages.map(({ role, content }) => ({ role, content }));
 
-      // 发送请求（根据用户设置决定是否流式）
-      // 传递所有配置的参数，让用户的设置真正生效
-      const response = await sendRequest({
-        profileId: agentConfig.profileId,
-        modelId: agentConfig.modelId,
-        messages: messagesForRequest,
-        ...effectiveParams, // 展开动态构建的参数，确保未启用的参数连 key 都不存在
-        // 流式响应（根据用户设置）
-        stream: settings.value.uiPreferences.isStreaming,
-        signal: abortController.signal,
-        // 请求设置（超时和重试）
-        timeout: settings.value.requestSettings.timeout,
-        maxRetries: settings.value.requestSettings.maxRetries,
-        onStream: settings.value.uiPreferences.isStreaming
-          ? (chunk: string) => {
-            handleStreamUpdate(session, assistantNode.id, chunk, false);
+      // 获取重试配置
+      const maxRetries = settings.value.requestSettings.maxRetries;
+      const retryInterval = settings.value.requestSettings.retryInterval;
+      const retryMode = settings.value.requestSettings.retryMode;
+
+      // 标志位：是否已收到流式数据
+      // 如果已收到数据后发生错误，不应重试，以免内容重复
+      let hasReceivedStreamData = false;
+      let response: any = null;
+
+      // 重试循环
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          // 如果是重试，记录日志
+          if (attempt > 0) {
+            logger.info(`开始第 ${attempt}/${maxRetries} 次重试`, {
+              sessionId: session.id,
+              nodeId: assistantNode.id,
+            });
           }
-          : undefined,
-        onReasoningStream: settings.value.uiPreferences.isStreaming
-          ? (chunk: string) => {
-            handleStreamUpdate(session, assistantNode.id, chunk, true);
+
+          // 发送请求（根据用户设置决定是否流式）
+          // 传递所有配置的参数，让用户的设置真正生效
+          response = await sendRequest({
+            profileId: agentConfig.profileId,
+            modelId: agentConfig.modelId,
+            messages: messagesForRequest,
+            ...effectiveParams, // 展开动态构建的参数，确保未启用的参数连 key 都不存在
+            // 流式响应（根据用户设置）
+            stream: settings.value.uiPreferences.isStreaming,
+            signal: abortController.signal,
+            // 请求设置（超时）
+            timeout: settings.value.requestSettings.timeout,
+            // 注意：不再传递 maxRetries 给底层，由 Executor 控制重试
+            onStream: settings.value.uiPreferences.isStreaming
+              ? (chunk: string) => {
+                hasReceivedStreamData = true; // 标记已收到数据
+                handleStreamUpdate(session, assistantNode.id, chunk, false);
+              }
+              : undefined,
+            onReasoningStream: settings.value.uiPreferences.isStreaming
+              ? (chunk: string) => {
+                hasReceivedStreamData = true; // 标记已收到数据
+                handleStreamUpdate(session, assistantNode.id, chunk, true);
+              }
+              : undefined,
+          });
+
+          // 如果成功执行到这里，说明请求成功，跳出循环
+          break;
+        } catch (error) {
+          // 检查是否应该重试
+          // 1. 如果是用户主动取消 (AbortError)，不重试
+          // 2. 如果已经收到流式数据，不重试（避免内容错乱）
+          // 3. 如果超过最大重试次数，不重试
+          const isAbort = error instanceof Error && error.name === "AbortError";
+          const shouldRetry = !isAbort && !hasReceivedStreamData && attempt < maxRetries;
+
+          if (shouldRetry) {
+            // 计算延迟时间
+            const delayTime = retryMode === "exponential"
+              ? retryInterval * Math.pow(2, attempt)
+              : retryInterval;
+
+            logger.warn(`请求失败，准备重试 (${attempt + 1}/${maxRetries})`, {
+              delay: delayTime,
+              error: error instanceof Error ? error.message : String(error),
+            });
+
+            // 等待延迟，同时监听 abort 信号
+            // 如果在等待期间用户取消，应立即停止等待
+            await new Promise<void>((resolve, reject) => {
+              const timer = setTimeout(resolve, delayTime);
+              
+              const abortHandler = () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+              };
+
+              abortController.signal.addEventListener('abort', abortHandler, { once: true });
+              
+              // 如果定时器触发，记得移除监听器（虽然 once: true 会自动移除，但为了保险）
+              // 这里通过 resolve 的回调链似乎很难移除，但在 resolve 后 abort 也没影响了
+            });
+            
+            continue;
           }
-          : undefined,
-      });
+
+          // 如果不满足重试条件，抛出错误
+          throw error;
+        }
+      }
 
       // 验证并修复 usage 信息（如果不可靠则使用本地计算）
-      await validateAndFixUsage(response, agentConfig.modelId, messagesForRequest);
+      if (response) {
+        await validateAndFixUsage(response, agentConfig.modelId, messagesForRequest);
 
-      // 完成节点生成
-      await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId || '');
+        // 完成节点生成
+        await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId || '');
+      }
 
       logger.info("请求执行成功", {
         sessionId: session.id,

@@ -277,7 +277,10 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...defaultConfig.developer,
         ...(loadedConfig.developer || {}),
       },
-      regexConfig: loadedConfig.regexConfig ?? defaultConfig.regexConfig,
+      regexConfig: {
+        ...defaultConfig.regexConfig,
+        ...(loadedConfig.regexConfig || {}),
+      },
     };
   },
 });

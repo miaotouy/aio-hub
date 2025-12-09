@@ -208,8 +208,14 @@ watch(
       dynamicZIndex.value = props.zIndex;
 
       // DOM 更新后启动入场动画
+      // 使用双重 requestAnimationFrame 确保在浏览器重绘后应用类名
+      // 解决 v-if 导致元素刚插入时动画不触发的问题
       nextTick(() => {
-        showContentTransition.value = true;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            showContentTransition.value = true;
+          });
+        });
       });
     } else {
       showContentTransition.value = false;

@@ -37,7 +37,7 @@ use commands::{
     get_all_operation_logs,
     get_clipboard_content_type,
     get_latest_operation_log,
-    get_proxy_status,
+    get_inspector_status,
     git_cherry_pick,
     git_export_commits,
     git_format_log,
@@ -71,11 +71,11 @@ use commands::{
     get_file_metadata,
     set_window_position,
     start_clipboard_monitor,
-    // LLM代理相关
-    start_llm_proxy,
+    // LLM检查器相关
+    start_llm_inspector,
     stop_clipboard_monitor,
-    stop_llm_proxy,
-    update_proxy_target,
+    stop_llm_inspector,
+    update_inspector_target,
     validate_file_for_link,
     // 新统一分离系统命令
     begin_detach_session,
@@ -281,11 +281,11 @@ tauri::Builder::default()
             cleanup_items,
             stop_directory_scan,
             stop_directory_cleanup,
-            // LLM代理命令
-            start_llm_proxy,
-            stop_llm_proxy,
-            get_proxy_status,
-            update_proxy_target,
+            // LLM检查器命令
+            start_llm_inspector,
+            stop_llm_inspector,
+            get_inspector_status,
+            update_inspector_target,
             // Git分析器命令
             git_load_repository,
             git_load_repository_stream,

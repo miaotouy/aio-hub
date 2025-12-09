@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import DocumentViewer from '@/components/common/DocumentViewer.vue';
+import { ref } from "vue";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const markdownContent = ref(`
 # 你好，文档查看器！
@@ -122,19 +122,24 @@ const markdownContent = ref(`
 \`\`\`
 `);
 
-const jsonContent = ref(JSON.stringify({
-  "theme": "dark",
-  "port": 3000,
-  "features": {
-    "enabled": ["llm-proxy", "asset-manager"],
-    "disabled": []
-  }
-}, null, 2));
-
+const jsonContent = ref(
+  JSON.stringify(
+    {
+      theme: "dark",
+      port: 3000,
+      features: {
+        enabled: ["llm-inspector", "asset-manager"],
+        disabled: [],
+      },
+    },
+    null,
+    2
+  )
+);
 
 const textContent = ref("这是一个用于测试查看器的纯文本文件。");
 
-const binaryContent = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+const binaryContent = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 </script>
 
 <template>
@@ -144,11 +149,7 @@ const binaryContent = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 
     <div class="tester-grid">
       <div class="test-case">
         <h3>Markdown 预览（来自字符串）</h3>
-        <DocumentViewer 
-          :content="markdownContent" 
-          file-name="example.md" 
-          class="viewer-instance" 
-        />
+        <DocumentViewer :content="markdownContent" file-name="example.md" class="viewer-instance" />
       </div>
 
       <div class="test-case">
@@ -161,39 +162,25 @@ const binaryContent = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 
           class="viewer-instance"
         />
       </div>
-      
+
       <div class="test-case">
         <h3>纯文本视图</h3>
-        <DocumentViewer 
-          :content="textContent" 
-          file-name="plain.txt" 
-          class="viewer-instance" 
-        />
+        <DocumentViewer :content="textContent" file-name="plain.txt" class="viewer-instance" />
       </div>
 
       <div class="test-case">
         <h3>二进制文件占位符</h3>
-        <DocumentViewer 
-          :content="binaryContent" 
-          file-name="image.png"
-          class="viewer-instance" 
-        />
+        <DocumentViewer :content="binaryContent" file-name="image.png" class="viewer-instance" />
       </div>
 
       <div class="test-case">
         <h3>空内容</h3>
-        <DocumentViewer 
-          file-name="empty.txt"
-          class="viewer-instance" 
-        />
+        <DocumentViewer file-name="empty.txt" class="viewer-instance" />
       </div>
 
       <div class="test-case">
         <h3>加载失败: 文件不存在</h3>
-        <DocumentViewer
-          file-path="simulated/non-existent/path.txt"
-          class="viewer-instance"
-        />
+        <DocumentViewer file-path="simulated/non-existent/path.txt" class="viewer-instance" />
       </div>
     </div>
   </div>
@@ -204,7 +191,8 @@ const binaryContent = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 
   padding: 16px;
 }
 
-h2, h3 {
+h2,
+h3 {
   margin-bottom: 12px;
 }
 

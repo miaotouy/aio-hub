@@ -1,13 +1,13 @@
 import { createConfigManager } from '@utils/configManager';
 import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
-import type { LlmProxySettings, ProxyConfig } from './types';
+import type { LlmInspectorSettings, InspectorConfig } from './types';
 
-const logger = createModuleLogger('LlmProxy/ConfigManager');
-const errorHandler = createModuleErrorHandler('LlmProxy/ConfigManager');
+const logger = createModuleLogger('LlmInspector/ConfigManager');
+const errorHandler = createModuleErrorHandler('LlmInspector/ConfigManager');
 
 // 默认配置创建函数
-function createDefaultSettings(): LlmProxySettings {
+function createDefaultSettings(): LlmInspectorSettings {
   return {
     config: {
       port: 8999,
@@ -27,8 +27,8 @@ function createDefaultSettings(): LlmProxySettings {
 }
 
 // 创建配置管理器
-const configManager = createConfigManager<LlmProxySettings>({
-  moduleName: 'llm-proxy',
+const configManager = createConfigManager<LlmInspectorSettings>({
+  moduleName: 'llm-inspector',
   fileName: 'settings.json',
   version: '1.0.0',
   createDefault: createDefaultSettings
@@ -37,7 +37,7 @@ const configManager = createConfigManager<LlmProxySettings>({
 /**
  * 加载配置
  */
-export async function loadSettings(): Promise<LlmProxySettings> {
+export async function loadSettings(): Promise<LlmInspectorSettings> {
   try {
     const settings = await configManager.load();
     logger.info('配置加载成功', {
@@ -55,7 +55,7 @@ export async function loadSettings(): Promise<LlmProxySettings> {
 /**
  * 保存配置
  */
-export async function saveSettings(settings: LlmProxySettings): Promise<void> {
+export async function saveSettings(settings: LlmInspectorSettings): Promise<void> {
   try {
     configManager.saveDebounced(settings);
     logger.debug('配置保存请求已提交');
@@ -68,7 +68,7 @@ export async function saveSettings(settings: LlmProxySettings): Promise<void> {
 /**
  * 立即保存配置（不使用防抖）
  */
-export async function saveSettingsImmediate(settings: LlmProxySettings): Promise<void> {
+export async function saveSettingsImmediate(settings: LlmInspectorSettings): Promise<void> {
   try {
     await configManager.save(settings);
     logger.info('配置已立即保存');
@@ -81,7 +81,7 @@ export async function saveSettingsImmediate(settings: LlmProxySettings): Promise
 /**
  * 重置配置为默认值
  */
-export async function resetSettings(): Promise<LlmProxySettings> {
+export async function resetSettings(): Promise<LlmInspectorSettings> {
   try {
     const defaultSettings = createDefaultSettings();
     await saveSettingsImmediate(defaultSettings);
@@ -96,7 +96,7 @@ export async function resetSettings(): Promise<LlmProxySettings> {
 /**
  * 获取默认代理配置
  */
-export function getDefaultProxyConfig(): ProxyConfig {
+export function getDefaultInspectorConfig(): InspectorConfig {
   return {
     port: 8999,
     target_url: 'https://api.openai.com',
@@ -107,7 +107,7 @@ export function getDefaultProxyConfig(): ProxyConfig {
 /**
  * 验证代理配置
  */
-export function validateProxyConfig(config: ProxyConfig): { valid: boolean; errors: string[] } {
+export function validateInspectorConfig(config: InspectorConfig): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // 验证端口
@@ -134,7 +134,7 @@ export function validateProxyConfig(config: ProxyConfig): { valid: boolean; erro
 /**
  * 合并配置（用于更新部分配置）
  */
-export function mergeSettings(base: LlmProxySettings, updates: Partial<LlmProxySettings>): LlmProxySettings {
+export function mergeSettings(base: LlmInspectorSettings, updates: Partial<LlmInspectorSettings>): LlmInspectorSettings {
   return {
     ...base,
     ...updates,
@@ -152,22 +152,22 @@ export function mergeSettings(base: LlmProxySettings, updates: Partial<LlmProxyS
  * @param maxHistory 最大历史记录数，默认 10
  */
 export function addToTargetUrlHistory(
-  settings: LlmProxySettings,
+  settings: LlmInspectorSettings,
   url: string,
   maxHistory: number = 10
-): LlmProxySettings {
+): LlmInspectorSettings {
   // 初始化历史记录（如果不存在）
   const history = settings.targetUrlHistory || [];
-  
+
   // 移除重复项（如果存在）
   const filteredHistory = history.filter(item => item !== url);
-  
+
   // 将新 URL 添加到开头
   const newHistory = [url, ...filteredHistory];
-  
+
   // 限制历史记录数量
   const limitedHistory = newHistory.slice(0, maxHistory);
-  
+
   return {
     ...settings,
     targetUrlHistory: limitedHistory
@@ -178,9 +178,9 @@ export function addToTargetUrlHistory(
  * 从历史记录中移除指定的 URL
  */
 export function removeFromTargetUrlHistory(
-  settings: LlmProxySettings,
+  settings: LlmInspectorSettings,
   url: string
-): LlmProxySettings {
+): LlmInspectorSettings {
   const history = settings.targetUrlHistory || [];
   return {
     ...settings,

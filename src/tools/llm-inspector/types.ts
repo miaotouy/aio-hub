@@ -1,4 +1,4 @@
-// LLM 代理相关类型定义
+// LLM 检查器相关类型定义
 
 export interface HeaderOverrideRule {
   id: string;
@@ -7,13 +7,13 @@ export interface HeaderOverrideRule {
   value: string;
 }
 
-export interface ProxyConfig {
+export interface InspectorConfig {
   port: number;
   target_url: string;
   header_override_rules: HeaderOverrideRule[];
 }
 
-export interface ProxyStatus {
+export interface InspectorStatus {
   is_running: boolean;
   port: number;
   target_url: string;
@@ -51,8 +51,8 @@ export interface StreamUpdate {
   is_complete: boolean;
 }
 
-export interface LlmProxySettings {
-  config: ProxyConfig;
+export interface LlmInspectorSettings {
+  config: InspectorConfig;
   searchQuery: string;
   filterStatus: string;
   maskApiKeys?: boolean;
@@ -64,17 +64,17 @@ export interface StreamBuffer {
   [recordId: string]: string;
 }
 
-export interface ProxyServiceState {
+export interface InspectorServiceState {
   isRunning: boolean;
   port: number;
   targetUrl: string;
 }
 
 // 事件类型
-export type ProxyEventType = 'proxy-request' | 'proxy-response' | 'proxy-stream-update';
+export type InspectorEventType = 'inspector-request' | 'inspector-response' | 'inspector-stream-update';
 
-export interface ProxyEvent<T = any> {
-  type: ProxyEventType;
+export interface InspectorEvent<T = any> {
+  type: InspectorEventType;
   payload: T;
 }
 

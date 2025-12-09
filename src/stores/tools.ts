@@ -133,10 +133,10 @@ const initialTools: ToolConfig[] = [
     category: '开发工具'
   },
   {
-    name: 'LLM 代理监听器',
-    path: '/llm-proxy',
+    name: 'LLM 检查器',
+    path: '/llm-inspector',
     icon: markRaw(Monitor),
-    component: () => import('../tools/llm-proxy/LlmProxy.vue'),
+    component: () => import('../tools/llm-inspector/LlmInspector.vue'),
     description: '监听和分析 LLM API 请求，捕获客户端与服务器之间的通信',
     category: '开发工具'
   },

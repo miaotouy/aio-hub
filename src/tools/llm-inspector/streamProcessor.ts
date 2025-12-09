@@ -3,7 +3,7 @@ import { createModuleLogger } from '@utils/logger';
 import type { StreamUpdate, StreamBuffer } from './types';
 import { formatStreamingResponse, extractStreamContent, extractJsonContent, isJson, formatJson } from './utils';
 
-const logger = createModuleLogger('LlmProxy/StreamProcessor');
+const logger = createModuleLogger('LlmInspector/StreamProcessor');
 
 // 流式缓冲区
 const streamBuffer = ref<StreamBuffer>({});
@@ -37,10 +37,10 @@ export function isActiveStream(streamId: string): boolean {
  * 处理流式更新
  */
 export function processStreamUpdate(update: StreamUpdate): void {
-  logger.debug('处理流式更新', { 
-    streamId: update.id, 
+  logger.debug('处理流式更新', {
+    streamId: update.id,
     isComplete: update.is_complete,
-    chunkLength: update.chunk?.length 
+    chunkLength: update.chunk?.length
   });
 
   // 更新缓冲区
@@ -153,7 +153,7 @@ export function canShowTextMode(recordId: string, originalBody?: string): boolea
   }
 
   const body = streamBuffer.value[recordId] || originalBody || '';
-  
+
   if (!body) {
     return false;
   }
@@ -200,11 +200,11 @@ export function useStreamProcessor() {
     streamBuffer: streamBuffer,
     activeStreamIds: activeStreamIds,
     currentStreamId: currentStreamId,
-    
+
     // 计算属性
     isStreamingActive,
     activeStreamCount,
-    
+
     // 方法
     getStreamBuffer,
     getCurrentStreamId,

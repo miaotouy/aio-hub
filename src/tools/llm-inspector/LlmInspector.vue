@@ -1,9 +1,9 @@
 <template>
-  <div class="llm-proxy-container">
+  <div class="llm-inspector-container">
     <!-- 配置面板 -->
     <div class="config-panel">
-      <h2>LLM 代理监听器</h2>
-      
+      <h2>LLM 检查器</h2>
+
       <!-- 错误提示 -->
       <div v-if="error" class="error-message">
         <span class="error-icon">⚠️</span>
@@ -15,41 +15,33 @@
         <div class="form-row">
           <div class="form-group port-group">
             <label>本地监听端口：</label>
-            <input 
-              v-model.number="config.port" 
-              type="number" 
-              placeholder="8999" 
-              :disabled="isRunning" 
+            <input
+              v-model.number="config.port"
+              type="number"
+              placeholder="8999"
+              :disabled="isRunning"
               min="1024"
-              max="65535" 
-              class="port-input" 
+              max="65535"
+              class="port-input"
             />
             <el-button
               v-if="!isRunning"
-              @click="handleStartProxy"
+              @click="handleStartInspector"
               type="primary"
-              :disabled="!canStartProxy"
+              :disabled="!canStartInspector"
               :loading="isLoading"
             >
-              启动代理
+              启动检查器
             </el-button>
-            <el-button
-              v-else
-              @click="handleStopProxy"
-              type="danger"
-              :loading="isLoading"
-            >
-              停止代理
+            <el-button v-else @click="handleStopInspector" type="danger" :loading="isLoading">
+              停止检查器
             </el-button>
-            <el-button
-              @click="handleClearRecords"
-              :disabled="records.length === 0"
-            >
+            <el-button @click="handleClearRecords" :disabled="records.length === 0">
               清空记录
             </el-button>
           </div>
         </div>
-        
+
         <div class="form-row">
           <div class="form-group target-group">
             <label>目标API地址：</label>
@@ -58,7 +50,7 @@
               :fetch-suggestions="querySearch"
               placeholder="https://api.openai.com"
               class="target-input"
-              style="flex: 1;"
+              style="flex: 1"
               @select="handleSelect"
             />
             <el-button
@@ -70,19 +62,15 @@
             >
               更新地址
             </el-button>
-            <el-button
-              @click="showHeaderDialog = true"
-              title="配置请求头覆盖规则"
-              :icon="Setting"
-            >
+            <el-button @click="showHeaderDialog = true" title="配置请求头覆盖规则" :icon="Setting">
               请求头设置
             </el-button>
           </div>
         </div>
-        
+
         <div v-if="isRunning" class="status-info">
           <span class="status-indicator"></span>
-          代理服务运行中：http://localhost:{{ config.port }}
+          检查器服务运行中：http://localhost:{{ config.port }}
           <span class="stream-info" v-if="activeStreamCount > 0">
             ({{ activeStreamCount }} 个活动流)
           </span>
@@ -103,15 +91,11 @@
             <span class="stat-value">{{ getRecordStats().pending }}</span>
           </div>
         </div>
-        
+
         <div class="form-row">
           <div class="form-group">
             <label class="checkbox-label">
-              <input 
-                type="checkbox" 
-                v-model="maskApiKeys" 
-                class="checkbox-input" 
-              />
+              <input type="checkbox" v-model="maskApiKeys" class="checkbox-input" />
               <span>复制时打码 API Key</span>
             </label>
             <span class="checkbox-hint">开启后复制请求信息时会自动隐藏敏感的 API Key</span>
@@ -130,11 +114,7 @@
     />
 
     <!-- 详情面板组件 -->
-    <RecordDetail
-      :record="selectedRecord"
-      :maskApiKeys="maskApiKeys"
-      @close="selectRecord(null)"
-    />
+    <RecordDetail :record="selectedRecord" :maskApiKeys="maskApiKeys" @close="selectRecord(null)" />
 
     <!-- 请求头覆盖配置弹窗 -->
     <HeaderOverrideDialog
@@ -146,15 +126,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useProxyManager } from './composables/useProxyManager';
-import RecordsList from './components/RecordsList.vue';
-import RecordDetail from './components/RecordDetail.vue';
-import HeaderOverrideDialog from './components/HeaderOverrideDialog.vue';
-import type { HeaderOverrideRule } from './types';
-import { Setting } from '@element-plus/icons-vue';
- 
- // 使用代理管理器
+import { ref } from "vue";
+import { useInspectorManager } from "./composables/useProxyManager";
+import RecordsList from "./components/RecordsList.vue";
+import RecordDetail from "./components/RecordDetail.vue";
+import HeaderOverrideDialog from "./components/HeaderOverrideDialog.vue";
+import type { HeaderOverrideRule } from "./types";
+import { Setting } from "@element-plus/icons-vue";
+
+// 使用检查器管理器
 const {
   // 状态
   isRunning,
@@ -164,45 +144,45 @@ const {
   isLoading,
   error,
   targetUrlHistory,
-  
+
   // 计算属性
-  canStartProxy,
-  
+  canStartInspector,
+
   // 数据
   records,
   selectedRecord,
   filterOptions,
   activeStreamCount,
-  
+
   // 方法
-  startProxy,
-  stopProxy,
+  startInspector,
+  stopInspector,
   updateTargetUrl,
   clearRecords,
   selectRecord,
   getRecordStats,
-  clearError
-} = useProxyManager();
+  clearError,
+} = useInspectorManager();
 
 // 弹窗状态
 const showHeaderDialog = ref(false);
 
 // 事件处理器
-async function handleStartProxy() {
+async function handleStartInspector() {
   try {
-    await startProxy();
+    await startInspector();
   } catch (err) {
-    // 错误已经在 useProxyManager 中处理
-    console.error('启动代理失败:', err);
+    // 错误已经在 useInspectorManager 中处理
+    console.error("启动检查器失败:", err);
   }
 }
 
-async function handleStopProxy() {
+async function handleStopInspector() {
   try {
-    await stopProxy();
+    await stopInspector();
   } catch (err) {
-    // 错误已经在 useProxyManager 中处理
-    console.error('停止代理失败:', err);
+    // 错误已经在 useInspectorManager 中处理
+    console.error("停止检查器失败:", err);
   }
 }
 
@@ -211,7 +191,7 @@ async function handleUpdateTargetUrl() {
     await updateTargetUrl();
   } catch (err) {
     // 错误已经在 useProxyManager 中处理
-    console.error('更新目标地址失败:', err);
+    console.error("更新目标地址失败:", err);
   }
 }
 
@@ -228,7 +208,7 @@ const querySearch = (queryString: string, cb: any) => {
   const results = queryString
     ? targetUrlHistory.value.filter(createFilter(queryString))
     : targetUrlHistory.value;
-  cb(results.map(url => ({ value: url })));
+  cb(results.map((url) => ({ value: url })));
 };
 
 const createFilter = (queryString: string) => {
@@ -243,7 +223,7 @@ const handleSelect = (item: any) => {
 </script>
 
 <style scoped>
-.llm-proxy-container {
+.llm-inspector-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto 1fr;
@@ -364,7 +344,6 @@ const handleSelect = (item: any) => {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
 
 .status-info {
   display: flex;

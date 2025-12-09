@@ -4,8 +4,8 @@ import { createModuleErrorHandler } from '@utils/errorHandler';
 import type { CombinedRecord, RequestRecord, ResponseRecord, FilterOptions } from './types';
 import { filterRecords } from './utils';
 
-const logger = createModuleLogger('LlmProxy/RecordManager');
-const errorHandler = createModuleErrorHandler('LlmProxy/RecordManager');
+const logger = createModuleLogger('LlmInspector/RecordManager');
+const errorHandler = createModuleErrorHandler('LlmInspector/RecordManager');
 
 // 记录存储
 const records = ref<CombinedRecord[]>([]);
@@ -52,10 +52,10 @@ export function getFilterOptions(): FilterOptions {
  * 添加请求记录
  */
 export function addRequestRecord(request: RequestRecord): void {
-  logger.debug('添加请求记录', { 
-    requestId: request.id, 
-    method: request.method, 
-    url: request.url 
+  logger.debug('添加请求记录', {
+    requestId: request.id,
+    method: request.method,
+    url: request.url
   });
 
   const combinedRecord: CombinedRecord = {
@@ -82,16 +82,16 @@ export function addRequestRecord(request: RequestRecord): void {
  * 更新响应记录
  */
 export function updateResponseRecord(response: ResponseRecord): void {
-  logger.debug('更新响应记录', { 
-    requestId: response.id, 
-    status: response.status, 
-    duration: response.duration_ms 
+  logger.debug('更新响应记录', {
+    requestId: response.id,
+    status: response.status,
+    duration: response.duration_ms
   });
 
   const record = records.value.find(r => r.id === response.id);
   if (record) {
     record.response = response;
-    
+
     // 如果当前选中的是这个记录，触发更新
     if (selectedRecord.value?.id === response.id) {
       selectedRecord.value = { ...record };
@@ -125,16 +125,16 @@ export function deleteRecord(recordId: string): boolean {
   const index = records.value.findIndex(r => r.id === recordId);
   if (index !== -1) {
     records.value.splice(index, 1);
-    
+
     // 如果删除的是当前选中的记录，清除选中状态
     if (selectedRecord.value?.id === recordId) {
       selectedRecord.value = null;
     }
-    
+
     logger.debug('删除记录', { recordId });
     return true;
   }
-  
+
   logger.warn('未找到要删除的记录', { recordId });
   return false;
 }
@@ -170,7 +170,7 @@ export function getRecordStats() {
   const total = records.value.length;
   const completed = records.value.filter(r => r.response !== undefined).length;
   const pending = total - completed;
-  
+
   // 状态码统计
   const statusCounts: Record<string, number> = {};
   records.value.forEach(record => {
@@ -198,7 +198,7 @@ export function exportRecordsToJson(): string {
     stats: getRecordStats(),
     records: records.value
   };
-  
+
   return JSON.stringify(exportData, null, 2);
 }
 
@@ -208,7 +208,7 @@ export function exportRecordsToJson(): string {
 export function importRecordsFromJson(jsonData: string): { success: boolean; imported: number; error?: string } {
   try {
     const data = JSON.parse(jsonData);
-    
+
     if (!Array.isArray(data.records)) {
       return { success: false, imported: 0, error: '无效的数据格式' };
     }
@@ -227,7 +227,7 @@ export function importRecordsFromJson(jsonData: string): { success: boolean; imp
 
     logger.info('导入记录', { imported, total: data.records.length });
     return { success: true, imported };
-    
+
   } catch (error) {
     errorHandler.handle(error, { userMessage: '导入记录失败', showToUser: false });
     return { success: false, imported: 0, error: `解析失败: ${error}` };
@@ -252,9 +252,9 @@ export function searchRecords(query: string): CombinedRecord[] {
   const searchQuery = query.toLowerCase();
   return getFilteredRecords().filter(record => {
     return record.request.url.toLowerCase().includes(searchQuery) ||
-           record.request.method.toLowerCase().includes(searchQuery) ||
-           record.request.body?.toLowerCase().includes(searchQuery) ||
-           record.response?.body?.toLowerCase().includes(searchQuery);
+      record.request.method.toLowerCase().includes(searchQuery) ||
+      record.request.body?.toLowerCase().includes(searchQuery) ||
+      record.response?.body?.toLowerCase().includes(searchQuery);
   });
 }
 
@@ -265,7 +265,7 @@ export function useRecordManager() {
     records: records,
     selectedRecord: selectedRecord,
     filterOptions: filterOptions,
-    
+
     // 方法
     getRecords,
     getFilteredRecords,

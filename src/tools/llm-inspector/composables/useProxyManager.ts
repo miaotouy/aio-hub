@@ -3,10 +3,10 @@ import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
 import { customMessage } from '@utils/customMessage';
 import {
-  startProxyService,
-  stopProxyService,
-  getProxyServiceStatus,
-  updateProxyTarget,
+  startInspectorService,
+  stopInspectorService,
+  getInspectorServiceStatus,
+  updateInspectorTarget,
   onRequestEvent,
   onResponseEvent,
   onStreamUpdateEvent,
@@ -17,27 +17,27 @@ import { useStreamProcessor } from '../streamProcessor';
 import {
   loadSettings,
   saveSettings,
-  validateProxyConfig
+  validateInspectorConfig
 } from '../configManager';
 import { maskSensitiveData, copyToClipboard } from '../utils';
-import type { ProxyConfig, LlmProxySettings } from '../types';
+import type { InspectorConfig, LlmInspectorSettings } from '../types';
 
-const logger = createModuleLogger('LlmProxy/ProxyManager');
-const errorHandler = createModuleErrorHandler('LlmProxy/ProxyManager');
+const logger = createModuleLogger('LlmInspector/InspectorManager');
+const errorHandler = createModuleErrorHandler('LlmInspector/InspectorManager');
 
 /**
- * LLM 代理管理器组合式函数
+ * LLM 检查器管理器组合式函数
  */
-export function useProxyManager() {
+export function useInspectorManager() {
   // 基础状态
   const isRunning = ref(false);
   const currentTargetUrl = ref('');
-  const config = ref<ProxyConfig>({
+  const config = ref<InspectorConfig>({
     port: 8999,
     target_url: 'https://api.openai.com',
     header_override_rules: []
   });
-  
+
   // UI 状态
   const maskApiKeys = ref(true);
   const isLoading = ref(false);
@@ -54,7 +54,7 @@ export function useProxyManager() {
   let unlistenStream: (() => void) | null = null;
 
   // 计算属性
-  const proxyStatus = computed(() => ({
+  const inspectorStatus = computed(() => ({
     isRunning: isRunning.value,
     port: config.value.port,
     targetUrl: currentTargetUrl.value,
@@ -62,20 +62,20 @@ export function useProxyManager() {
     activeStreams: streamProcessor.activeStreamCount.value
   }));
 
-  const canStartProxy = computed(() => {
-    return !isRunning.value && 
-           config.value.port > 0 && 
-           config.value.target_url &&
-           !isLoading.value;
+  const canStartInspector = computed(() => {
+    return !isRunning.value &&
+      config.value.port > 0 &&
+      config.value.target_url &&
+      !isLoading.value;
   });
 
-  const canStopProxy = computed(() => {
+  const canStopInspector = computed(() => {
     return isRunning.value && !isLoading.value;
   });
 
   // 方法
-  async function startProxy() {
-    if (!canStartProxy.value) {
+  async function startInspector() {
+    if (!canStartInspector.value) {
       return;
     }
 
@@ -84,12 +84,12 @@ export function useProxyManager() {
       error.value = null;
 
       // 验证配置
-      const validation = validateProxyConfig(config.value);
+      const validation = validateInspectorConfig(config.value);
       if (!validation.valid) {
         throw new Error(validation.errors.join(', '));
       }
 
-      await startProxyService(config.value);
+      await startInspectorService(config.value);
       isRunning.value = true;
       currentTargetUrl.value = config.value.target_url;
 
@@ -113,8 +113,8 @@ export function useProxyManager() {
     }
   }
 
-  async function stopProxy() {
-    if (!canStopProxy.value) {
+  async function stopInspector() {
+    if (!canStopInspector.value) {
       return;
     }
 
@@ -122,7 +122,7 @@ export function useProxyManager() {
       isLoading.value = true;
       error.value = null;
 
-      await stopProxyService();
+      await stopInspectorService();
       isRunning.value = false;
       currentTargetUrl.value = '';
 
@@ -149,7 +149,7 @@ export function useProxyManager() {
       isLoading.value = true;
       error.value = null;
 
-      await updateProxyTarget(config.value.target_url);
+      await updateInspectorTarget(config.value.target_url);
       currentTargetUrl.value = config.value.target_url;
 
       // 添加到历史记录
@@ -170,11 +170,11 @@ export function useProxyManager() {
     }
   }
 
-  async function checkProxyStatus() {
+  async function checkInspectorStatus() {
     try {
-      const status = await getProxyServiceStatus();
+      const status = await getInspectorServiceStatus();
       isRunning.value = status.is_running;
-      
+
       if (status.is_running) {
         config.value.port = status.port;
         config.value.target_url = status.target_url;
@@ -236,7 +236,7 @@ export function useProxyManager() {
       unlistenStream();
       unlistenStream = null;
     }
-    
+
     clearAllEventListeners();
     logger.debug('事件监听器已清理');
   }
@@ -267,7 +267,7 @@ export function useProxyManager() {
 
   async function saveConfig() {
     try {
-      const settings: LlmProxySettings = {
+      const settings: LlmInspectorSettings = {
         config: config.value,
         searchQuery: recordManager.getFilterOptions().searchQuery,
         filterStatus: recordManager.getFilterOptions().filterStatus,
@@ -339,7 +339,7 @@ export function useProxyManager() {
   // 生命周期
   onMounted(async () => {
     await loadConfig();
-    await checkProxyStatus();
+    await checkInspectorStatus();
   });
 
   onUnmounted(() => {
@@ -356,42 +356,42 @@ export function useProxyManager() {
     isLoading,
     error,
     targetUrlHistory,
-    
+
     // 计算属性
-    proxyStatus,
-    canStartProxy,
-    canStopProxy,
-    
+    inspectorStatus,
+    canStartInspector,
+    canStopInspector,
+
     // 记录管理器
     records: recordManager.records,
     selectedRecord: recordManager.selectedRecord,
     filterOptions: recordManager.filterOptions,
     filteredRecords: computed(() => recordManager.getFilteredRecords()),
-    
+
     // 流式处理器
     isStreamingActive: streamProcessor.isStreamingActive,
     activeStreamCount: streamProcessor.activeStreamCount,
-    
+
     // 方法
-    startProxy,
-    stopProxy,
+    startInspector,
+    stopInspector,
     updateTargetUrl,
-    checkProxyStatus,
+    checkInspectorStatus,
     loadConfig,
     saveConfig,
     copyWithMask,
     clearRecords,
-    
+
     // 记录管理方法
     selectRecord: recordManager.selectRecord,
     updateFilterOptions: recordManager.updateFilterOptions,
     getRecordStats: recordManager.getRecordStats,
-    
+
     // 流式处理方法
     getDisplayResponseBody: streamProcessor.getDisplayResponseBody,
     extractContent: streamProcessor.extractContent,
     canShowTextMode: streamProcessor.canShowTextMode,
-    
+
     // 工具方法
     clearError: () => { error.value = null; }
   };

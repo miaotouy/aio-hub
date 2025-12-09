@@ -4,6 +4,7 @@
  */
 
 import { ElNotification } from 'element-plus';
+import { escape } from 'lodash-es';
 import { createModuleLogger } from './logger';
 import { customMessage } from './customMessage';
 
@@ -78,7 +79,7 @@ class GlobalErrorHandler {
     let code: string | undefined;
 
     if (error instanceof Error) {
-      message = error.message;
+      message = error.message || '未知错误';
       stack = error.stack;
       code = (error as { code?: string }).code;
     } else if (typeof error === 'string') {
@@ -111,13 +112,13 @@ class GlobalErrorHandler {
         ...options,
         level: ErrorLevel.INFO,
       });
-      
+
       // 只记录到日志，不显示给用户
       logger.info('操作已取消', {
         module: options.module || 'Unknown',
         context: options.context,
       });
-      
+
       return standardError;
     }
 
@@ -172,27 +173,70 @@ class GlobalErrorHandler {
    * 显示错误给用户
    */
   private showToUser(error: StandardError, userMessage?: string): void {
-    const message = userMessage || this.getUserFriendlyMessage(error);
+    const friendlyMessage = this.getUserFriendlyMessage(error);
+    const safeFriendlyMessage = escape(friendlyMessage);
+    const safeModule = escape(error.module);
+    const safeUserMessage = userMessage ? escape(userMessage) : '';
+
+    // 构建 HTML 格式的消息
+    let htmlMessage = '';
+if (safeUserMessage) {
+  // 如果有自定义消息，将其作为主标题，错误详情作为辅助信息
+  // 使用内联样式以确保在 ElMessage 中正确渲染
+  htmlMessage = `
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      ${
+        error.module !== 'Unknown'
+          ? `<span style="font-size: 12px; opacity: 0.6;">[${safeModule}]</span>`
+          : ''
+      }
+      <span style="font-weight: bold; font-size: 14px; line-height: 1.4;">${safeUserMessage}</span>
+      <span style="font-size: 12px; opacity: 0.8; margin-top: 2px; padding-top: 4px; border-top: 1px solid rgba(128, 128, 128, 0.2); word-break: break-all; user-select: text; line-height: 1.4;">
+        ${safeFriendlyMessage}
+      </span>
+    </div>
+  `;
+} else {
+  // 如果没有自定义消息，直接显示错误详情
+  htmlMessage = `
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      ${
+        error.module !== 'Unknown'
+          ? `<span style="font-weight: bold; font-size: 12px; opacity: 0.8;">[${safeModule}]</span>`
+          : ''
+      }
+      <span style="font-size: 14px; line-height: 1.4; word-break: break-all; user-select: text;">${safeFriendlyMessage}</span>
+    </div>
+  `;
+}
+    const options = {
+      dangerouslyUseHTMLString: true,
+      message: htmlMessage,
+      duration: error.level === ErrorLevel.ERROR ? 5000 : 3000,
+      grouping: true, // 相同消息合并
+    };
 
     switch (error.level) {
       case ErrorLevel.INFO:
-        customMessage.info(message);
+        customMessage.info(options);
         break;
       case ErrorLevel.WARNING:
-        customMessage.warning(message);
+        customMessage.warning(options);
         break;
       case ErrorLevel.ERROR:
-        customMessage.error(message);
+        customMessage.error(options);
         break;
       case ErrorLevel.CRITICAL:
         ElNotification.error({
           title: '严重错误',
-          message,
+          dangerouslyUseHTMLString: true,
+          message: htmlMessage,
           duration: 0, // 不自动关闭
         });
         break;
     }
   }
+
 
   /**
    * 获取用户友好的错误消息
@@ -215,7 +259,7 @@ class GlobalErrorHandler {
     }
 
     // 默认返回原始错误消息
-    return `${error.module}: ${error.message}`;
+    return error.message;
   }
 
   /**

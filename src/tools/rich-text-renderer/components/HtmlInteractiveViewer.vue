@@ -1,5 +1,8 @@
 <template>
-  <div class="html-interactive-viewer" :class="{ 'no-border': !bordered }">
+  <div
+    class="html-interactive-viewer"
+    :class="{ 'no-border': !bordered, 'auto-height': autoHeight }"
+  >
     <!-- 工具栏 -->
     <div class="viewer-toolbar" v-if="showToolbar">
       <div class="toolbar-left">
@@ -27,17 +30,20 @@
     </div>
 
     <!-- 内容区域 -->
-    <div class="viewer-content">
+    <div
+      class="viewer-content"
+      :style="autoHeight ? { height: contentHeight + 'px', flex: 'none' } : {}"
+    >
       <div v-if="loading" class="loading-overlay">
         <Loader2 class="animate-spin" :size="24" />
       </div>
 
       <iframe
         :key="iframeKey"
-        ref="iframeRef"
         class="preview-iframe"
         :srcdoc="srcDoc"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        :scrolling="autoHeight ? 'no' : 'auto'"
         @load="onLoad"
       ></iframe>
     </div>
@@ -48,10 +54,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { RotateCw, ExternalLink, Loader2 } from "lucide-vue-next";
 import { useDebounceFn, useThrottleFn } from "@vueuse/core";
-import {
-  createModuleErrorHandler,
-  ErrorLevel,
-} from "@/utils/errorHandler";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import { useIframeTheme } from "@/composables/useIframeTheme";
@@ -70,16 +73,22 @@ const props = withDefaults(
      * 适用于非流式加载的场景（如查看本地文件），此时内容被认为是完整且稳定的。
      */
     immediate?: boolean;
+    /**
+     * 是否自适应高度。
+     * 如果为 true，组件高度将跟随 iframe 内容高度变化。
+     */
+    autoHeight?: boolean;
   }>(),
   {
     showToolbar: true,
     bordered: true,
     immediate: false,
+    autoHeight: false,
   }
 );
 
-const iframeRef = ref<HTMLIFrameElement | null>(null);
 const loading = ref(true);
+const contentHeight = ref(300); // 默认高度
 // 用于强制重新挂载 iframe 的 key
 const iframeKey = ref(0);
 // 用于实际渲染的内容，与 props.content 解耦以实现防抖和稳定性检查
@@ -136,10 +145,11 @@ const title = computed(() => {
   return match && match[1] ? match[1].trim() : "HTML Preview";
 });
 
-// 注入日志捕获脚本
+// 注入日志捕获和高度监听脚本
 const logCaptureScript = `
 <script>
   (function() {
+    // 日志捕获
     function proxyConsole(method) {
       const original = console[method];
       console[method] = function(...args) {
@@ -171,6 +181,86 @@ const logCaptureScript = `
         args: [event.message, 'at', event.filename || 'unknown', ':', event.lineno, ':', event.colno]
       }, '*');
     });
+
+    // 高度监听 - 防止反馈循环的设计：
+    // 1. 不使用 ResizeObserver（它会监听容器高度变化，形成循环）
+    // 2. 只使用 MutationObserver（监听内容变化）
+    // 3. 添加防抖和高度变化阈值
+    let lastSentHeight = 0;
+    let debounceTimer = null;
+    const HEIGHT_THRESHOLD = 10; // 高度变化超过 10px 才更新
+    const DEBOUNCE_DELAY = 100; // 100ms 防抖
+    
+    const sendHeight = () => {
+      const body = document.body;
+      if (!body) return;
+      
+      // 计算内容的自然高度
+      // 使用 scrollHeight 获取内容完整高度
+      const height = body.scrollHeight;
+      
+      console.debug('[iframe-height] 计算高度:', {
+        bodyScrollHeight: body.scrollHeight,
+        bodyOffsetHeight: body.offsetHeight,
+        bodyClientHeight: body.clientHeight,
+        lastSentHeight: lastSentHeight,
+        diff: Math.abs(height - lastSentHeight),
+        willSend: height > 0 && Math.abs(height - lastSentHeight) > HEIGHT_THRESHOLD
+      });
+      
+      // 只有当高度变化超过阈值时才发送
+      if (height > 0 && Math.abs(height - lastSentHeight) > HEIGHT_THRESHOLD) {
+        lastSentHeight = height;
+        window.parent.postMessage({
+          type: 'iframe-resize',
+          height: height
+        }, '*');
+      }
+    };
+    
+    // 防抖版本的 sendHeight
+    const debouncedSendHeight = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(sendHeight, DEBOUNCE_DELAY);
+    };
+
+    // 设置观察器的函数，需要等 DOM 准备好后调用
+    const setupObservers = () => {
+      const body = document.body;
+      
+      if (!body) {
+        document.addEventListener('DOMContentLoaded', setupObservers);
+        return;
+      }
+      
+      // 只使用 MutationObserver 监听 DOM 内容变化
+      // 不使用 ResizeObserver，避免反馈循环
+      const mutationObserver = new MutationObserver(debouncedSendHeight);
+      mutationObserver.observe(body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      });
+      
+      // 初始发送一次（延迟一帧，确保布局完成）
+      requestAnimationFrame(() => {
+        sendHeight();
+      });
+    };
+    
+    // 根据 DOM 状态决定何时设置观察器
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupObservers);
+    } else {
+      setupObservers();
+    }
+    
+    // load 事件时再发送一次，确保所有资源（如图片）加载完成后高度正确
+    window.addEventListener('load', () => {
+      // 延迟一帧，确保布局完成
+      requestAnimationFrame(sendHeight);
+    });
   })();
 <\/script>
 `;
@@ -178,22 +268,81 @@ const logCaptureScript = `
 // 构建 srcdoc
 const srcDoc = computed(() => {
   let content = themedContent.value;
-  if (!content) return '';
+  if (!content) return "";
 
-  // 将日志脚本注入到 head 或 body 开头
-  if (content.includes('<head>')) {
-    return content.replace('<head>', `<head>${logCaptureScript}`);
-  } else if (content.includes('<body')) {
-    return content.replace(/<body/i, `<body>${logCaptureScript}`);
+  // 如果内容已经包含了 html 标签，则不再包裹，而是尝试注入脚本
+  const trimmed = content.trim().toLowerCase();
+  const isFullHtml = trimmed.includes("<html") || trimmed.includes("<!doctype");
+
+  if (isFullHtml) {
+    // 尝试注入脚本到 head 或 body
+    // 注入脚本
+    if (content.includes("</head>")) {
+      return content.replace("</head>", `${logCaptureScript}</head>`);
+    } else if (content.includes("<body>")) {
+      return content.replace("<body>", `<body>${logCaptureScript}`);
+    } else {
+      // 实在找不到位置，就追加到最后
+      return content + logCaptureScript;
+    }
   } else {
-    // 如果都没有，直接拼接到最前面
-    return logCaptureScript + content;
+    // 片段模式，包裹基本结构
+    // 注意：这里使用 props.content 对应的 themedContent，已经包含了主题变量
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          ${logCaptureScript}
+          <style>
+            body {
+              margin: 0;
+              padding: 16px;
+              padding-bottom: 24px; /* 额外的底部缓冲，避免内容被截断 */
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              color: var(--text-color, #333);
+              background-color: transparent;
+              /* 防止 body 高度跟随 iframe 变化 */
+              height: fit-content !important;
+              min-height: 0 !important;
+            }
+            html {
+              height: auto !important;
+              min-height: 0 !important;
+            }
+            /* 滚动条样式 */
+            ::-webkit-scrollbar { width: 6px; height: 6px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.4); border-radius: 3px; }
+            ::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.6); }
+          </style>
+        </head>
+        <body>
+          ${content}
+        </body>
+      </html>
+    `;
   }
 });
 
-// 处理 iframe 传来的日志
+// 处理 iframe 传来的日志和消息
 const handleIframeMessage = (event: MessageEvent) => {
-  if (event.data && event.data.type === "iframe-log") {
+  if (!event.data) return;
+
+  // 处理高度调整消息
+  if (event.data.type === "iframe-resize" && props.autoHeight) {
+    const newHeight = event.data.height;
+    if (newHeight && newHeight > 0) {
+      // 不再添加缓冲区，因为这会导致反馈循环：
+      // 父组件设置高度 → iframe body 高度变化 → scrollHeight 变化 → 报告新高度 → 循环
+      // 缓冲区改为在 iframe 内部的 body padding-bottom 中提供
+      contentHeight.value = newHeight;
+    }
+    return;
+  }
+
+  if (event.data.type === "iframe-log") {
     const { level, args } = event.data;
 
     // 构造符合 Logger 规范的 message 和 data
@@ -233,9 +382,7 @@ const handleIframeMessage = (event: MessageEvent) => {
       case "error":
         // 尝试从 args 中提取类似 Error 的对象，如果没有则使用 message
         const errorPayload =
-          args.find(
-            (a: any) => a && typeof a === "object" && (a.message || a.stack)
-          ) || message;
+          args.find((a: any) => a && typeof a === "object" && (a.message || a.stack)) || message;
 
         // 使用 iframeErrorHandler 处理错误，模块名会显示为 "HtmlInteractiveViewer:Iframe"
         iframeErrorHandler.handle(errorPayload, {
@@ -257,11 +404,11 @@ const handleIframeMessage = (event: MessageEvent) => {
 };
 
 onMounted(() => {
-  window.addEventListener('message', handleIframeMessage);
+  window.addEventListener("message", handleIframeMessage);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('message', handleIframeMessage);
+  window.removeEventListener("message", handleIframeMessage);
 });
 
 const onLoad = () => {
@@ -330,6 +477,12 @@ watch(
   box-sizing: border-box;
 }
 
+/* 自适应高度模式：移除高度限制和 overflow 裁剪 */
+.html-interactive-viewer.auto-height {
+  height: auto;
+  overflow: visible;
+}
+
 .html-interactive-viewer.no-border {
   border: none;
   border-radius: 0;
@@ -341,7 +494,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color:  var(--card-bg);
+  background-color: var(--card-bg);
   flex-shrink: 0;
 }
 

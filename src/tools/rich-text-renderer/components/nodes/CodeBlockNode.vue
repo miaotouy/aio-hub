@@ -9,7 +9,10 @@
       <div class="header-actions">
         <!-- HTML 预览切换按钮 -->
         <template v-if="isHtml">
-          <el-tooltip :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'" :show-after="300">
+          <el-tooltip
+            :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'"
+            :show-after="300"
+          >
             <button
               class="action-btn"
               :class="{ 'action-btn-active': viewMode === 'preview' }"
@@ -19,17 +22,16 @@
               <Eye v-else :size="14" />
             </button>
           </el-tooltip>
-          
-          <el-tooltip :content="closed === false ? '内容生成中...' : '在弹窗中预览'" :show-after="300">
-            <button
-              class="action-btn"
-              :disabled="closed === false"
-              @click="openDialogPreview"
-            >
+
+          <el-tooltip
+            :content="closed === false ? '内容生成中...' : '在弹窗中预览'"
+            :show-after="300"
+          >
+            <button class="action-btn" :disabled="closed === false" @click="openDialogPreview">
               <ExternalLink :size="14" />
             </button>
           </el-tooltip>
-          
+
           <div class="divider"></div>
         </template>
 
@@ -91,23 +93,22 @@
       </div>
     </div>
     <!-- 容器本身负责滚动，而不是 Monaco 编辑器 -->
-    <div class="code-editor-container" :class="{ expanded: isExpanded }" v-show="viewMode === 'code'">
+    <div
+      class="code-editor-container"
+      :class="{ expanded: isExpanded }"
+      v-show="viewMode === 'code'"
+    >
       <div ref="editorEl"></div>
     </div>
 
     <!-- HTML 预览区域 (内嵌) -->
     <div v-if="viewMode === 'preview'" class="html-preview-container">
-      <HtmlInteractiveViewer :content="content" :immediate="closed" />
+      <HtmlInteractiveViewer :content="content" :immediate="closed" auto-height />
     </div>
   </div>
 
   <!-- 弹窗预览 -->
-  <BaseDialog
-    v-model="showDialog"
-    title="HTML 预览"
-    width="90%"
-    height="85vh"
-  >
+  <BaseDialog v-model="showDialog" title="HTML 预览" width="90%" height="85vh">
     <HtmlInteractiveViewer :content="content" :immediate="true" />
   </BaseDialog>
 </template>
@@ -162,18 +163,18 @@ const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const defaultRenderHtml = context?.defaultRenderHtml;
 
 // 视图模式
-const viewMode = ref<'code' | 'preview'>('code');
+const viewMode = ref<"code" | "preview">("code");
 const showDialog = ref(false);
 
 // 判断是否为 HTML
 const isHtml = computed(() => {
   const lang = props.language?.toLowerCase();
-  return lang === 'html' || lang === 'xml' || lang === 'svg';
+  return lang === "html" || lang === "xml" || lang === "svg";
 });
 
 // 切换视图模式
 const toggleViewMode = () => {
-  viewMode.value = viewMode.value === 'code' ? 'preview' : 'code';
+  viewMode.value = viewMode.value === "code" ? "preview" : "code";
 };
 
 // 打开弹窗预览
@@ -400,7 +401,7 @@ const toggleWordWrap = () => {
 onMounted(async () => {
   // 初始化视图模式
   if (isHtml.value && defaultRenderHtml?.value) {
-    viewMode.value = 'preview';
+    viewMode.value = "preview";
   }
 
   if (!editorEl.value) return;
@@ -585,9 +586,9 @@ watch(
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* 优化：当代码块滚动到屏幕外时，浏览器可以跳过其渲染 */
-  content-visibility: auto;
-  contain-intrinsic-size: 150px; /* 提供一个预估高度 */
+  /* 移除 content-visibility，避免在高度自适应计算时出现问题 */
+  /* content-visibility: auto; */
+  /* contain-intrinsic-size: 150px; */
 }
 
 .code-header {
@@ -691,8 +692,11 @@ watch(
 }
 
 .html-preview-container {
-  min-height: 450px;
-  height: 65vh;
+  /* 移除固定高度，允许自适应 */
+  /* min-height 设置为 500px，防止依赖 vh 的应用（如游戏）因高度塌陷而缩成一团 */
+  min-height: 50px;
+  height: auto;
+  /* max-height: 75vh;  如果不希望有限制，可以注释掉这行，或者设得更大 */
   border-top: 1px solid var(--border-color);
 }
 

@@ -37,16 +37,20 @@ export const htmlGameSnakePreset: RenderPreset = {
 
   body {
     margin: 0;
-    padding: 0;
+    padding: 20px 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
-    background-color: transparent; /* 让父级背景透过来，或者使用 var(--bg-color) */
+    min-height: 400px;
+    height: auto;
+    background-color: transparent;
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    overflow: hidden;
     user-select: none;
+    box-sizing: border-box;
+  }
+  html {
+    height: auto;
   }
 
   .game-container {
@@ -263,9 +267,20 @@ export const htmlGameSnakePreset: RenderPreset = {
 
   // 初始化 Canvas 大小
   function resizeCanvas() {
-    // 简单的自适应逻辑
-    const maxSize = Math.min(window.innerWidth - 60, window.innerHeight - 150, 500);
-    const size = Math.floor(maxSize / GRID_SIZE) * GRID_SIZE;
+    // 在 iframe 自适应高度模式下，不能依赖 body 高度（会形成循环依赖）
+    // 只基于宽度计算，并使用固定的最大/最小尺寸
+    const w = document.body.clientWidth || window.innerWidth;
+    
+    // 基于宽度的自适应，但设置合理的上下限
+    // 最大 500px，最小 400px（确保游戏可玩且能撑开容器）
+    const maxBasedOnWidth = w - 60;
+    const maxFixed = 500;
+    const minFixed = 400;
+    
+    const maxSize = Math.min(maxBasedOnWidth, maxFixed);
+    const safeSize = Math.max(maxSize, minFixed);
+    
+    const size = Math.floor(safeSize / GRID_SIZE) * GRID_SIZE;
     canvas.width = size;
     canvas.height = size;
     TILE_COUNT = size / GRID_SIZE;
@@ -280,6 +295,11 @@ export const htmlGameSnakePreset: RenderPreset = {
   }
 
   window.addEventListener('resize', resizeCanvas);
+  
+  // 额外监听 body 大小变化，确保在 iframe 调整高度时能触发重绘
+  const resizeObserver = new ResizeObserver(() => resizeCanvas());
+  resizeObserver.observe(document.body);
+
   // 监听主题变化（通过 MutationObserver 监听 style 注入变化可能太重，这里利用 focus/blur 或简单的定时检查）
   // 实际上，因为我们每一帧都会用到 colors，我们可以在 draw 循环中动态获取，或者简化处理：
   // 在每一帧绘制时直接使用 fillStyle = 'var(--xxx)' 

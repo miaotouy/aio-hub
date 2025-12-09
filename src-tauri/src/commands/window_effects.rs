@@ -2,20 +2,20 @@ use std::fs;
 use std::path::Path;
 
 #[cfg(target_os = "windows")]
-use window_vibrancy::apply_blur;
-#[cfg(target_os = "windows")]
 use window_vibrancy::apply_acrylic;
+#[cfg(target_os = "windows")]
+use window_vibrancy::apply_blur;
 #[cfg(target_os = "windows")]
 use window_vibrancy::apply_mica;
 #[cfg(target_os = "windows")]
-use window_vibrancy::clear_blur;
-#[cfg(target_os = "windows")]
 use window_vibrancy::clear_acrylic;
+#[cfg(target_os = "windows")]
+use window_vibrancy::clear_blur;
 #[cfg(target_os = "windows")]
 use window_vibrancy::clear_mica;
 
 #[cfg(target_os = "macos")]
-use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+use window_vibrancy::{apply_vibrancy, clear_vibrancy, NSVisualEffectMaterial};
 
 #[tauri::command]
 pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<(), String> {
@@ -61,8 +61,13 @@ pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<
         "vibrancy" => {
             #[cfg(target_os = "macos")]
             {
-                apply_vibrancy(&window, NSVisualEffectMaterial::WindowBackground, None, None)
-                    .map_err(|e| format!("Failed to apply vibrancy effect: {}", e))?;
+                apply_vibrancy(
+                    &window,
+                    NSVisualEffectMaterial::WindowBackground,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to apply vibrancy effect: {}", e))?;
             }
             #[cfg(not(target_os = "macos"))]
             {
@@ -80,9 +85,8 @@ pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<
             }
             #[cfg(target_os = "macos")]
             {
-                // macOS 上通过设置为 None 来清除效果
-                apply_vibrancy(&window, NSVisualEffectMaterial::WindowBackground, None, None)
-                    .map_err(|e| format!("Failed to clear effects: {}", e))?;
+                clear_vibrancy(&window)
+                    .map_err(|e| format!("Failed to clear vibrancy effect: {}", e))?;
             }
         }
         _ => {

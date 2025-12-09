@@ -84,6 +84,11 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   html: "text/html",
   htm: "text/html",
   xhtml: "application/xhtml+xml",
+  tex: "text/x-tex",
+  latex: "text/x-tex",
+  bib: "text/x-bibtex",
+  sty: "text/x-tex",
+  cls: "text/x-tex",
   
   // 数据格式
   json: "application/json",

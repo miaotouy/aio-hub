@@ -663,25 +663,25 @@ export function useFlowTreeGraph(
         const rep = nodeRepMap.get(effectiveParentId);
         if (rep) effectiveParentId = rep;
       }
-      
+
       // 2. 如果代表本身也被隐藏（嵌套压缩），递归查找（这里简单处理，假设只有一层或 rep 指向最外层）
       // 如果 rep 也在 hiddenNodeIds 里，说明出现了嵌套且都被折叠。
       // 为防止死循环，这里只做有限层级的查找或假设 nodeRepMap 已经扁平化（当前实现未扁平化，但通常压缩是线性的）
       // 在当前上下文压缩实现中，通常不会有复杂的嵌套结构，如果有，也通常是线性的。
-      
+
       // 检查 effectiveParentId 是否真的可见
       if (hiddenNodeIds.has(effectiveParentId)) {
         // 这里的逻辑可能需要更健壮，但对于目前的需求，如果父节点不可见，那就断开或连到上一级
         return null;
       }
-      
+
       return effectiveParentId;
     };
 
 
     // 转换节点数据为 Vue Flow 格式
     const flowNodes: FlowNode[] = [];
-    
+
     Object.values(session.nodes).forEach((node) => {
       // 如果节点被隐藏，跳过
       if (hiddenNodeIds.has(node.id)) return;
@@ -773,7 +773,7 @@ export function useFlowTreeGraph(
 
     // 转换边数据为 Vue Flow 格式
     const flowEdges: FlowEdge[] = [];
-    
+
     // 遍历生成的 flowNodes 来建立连接，而不是遍历 session.nodes
     // 这样可以确保只连接可见的节点
     flowNodes.forEach(targetNode => {
@@ -782,7 +782,7 @@ export function useFlowTreeGraph(
 
       // 确定逻辑上的父节点 ID
       let rawParentId = node.parentId;
-      
+
       // 如果是折叠的压缩节点，它的逻辑父节点是它压缩的第一个节点的父节点
       if (targetNode.data.isCompressionNode && !targetNode.data.isExpanded && logicalParentMap.has(node.id)) {
         rawParentId = logicalParentMap.get(node.id)!;
@@ -790,7 +790,7 @@ export function useFlowTreeGraph(
 
       if (rawParentId) {
         const sourceId = getVisibleParentId(rawParentId);
-        
+
         if (sourceId) {
           // 检查源节点是否在 flowNodes 中 (防止连接到已被过滤的节点)
           // 虽然 getVisibleParentId 应该已经处理了，但双重检查更安全
@@ -1509,9 +1509,8 @@ export function useFlowTreeGraph(
   }
 
   /**
-   /**
-    * 处理重新生成事件
-    */
+   * 处理重新生成事件
+   */
   function handleNodeRegenerate(nodeId: string, options?: { modelId?: string; profileId?: string }): void {
     const session = sessionRef();
     if (!session) return;
@@ -1626,10 +1625,9 @@ export function useFlowTreeGraph(
   }
 
   /**
-   /**
-    * 重置布局
-    * 强制清除所有位置并重新计算布局
-    */
+   * 重置布局
+   * 强制清除所有位置并重新计算布局
+   */
   function resetLayout(): void {
     logger.info("执行彻底的布局重置...");
     // 强制清除所有现有位置并重新构建图表，然后启动模拟

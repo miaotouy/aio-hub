@@ -336,9 +336,8 @@ async function loadSettings(): Promise<void> {
 }
 
 /**
- /**
-  * 保存设置
-  */
+ * 保存设置
+ */
 async function saveSettings(): Promise<void> {
   try {
     await settingsManager.save(settings.value);

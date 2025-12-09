@@ -154,28 +154,27 @@ export const useAgentStore = defineStore('llmChatAgent', {
     },
 
     /**
-     /**
-      * 更新智能体
-      */
-     updateAgent(agentId: string, updates: Partial<Omit<ChatAgent, 'id' | 'createdAt'>>): void {
-       const agent = this.agents.find(a => a.id === agentId);
-       if (!agent) {
-         logger.warn('更新智能体失败：智能体不存在', { agentId });
-         return;
-       }
- 
-       // 检查是否更新了正则配置，如果是则清除相关缓存
-       if (updates.regexConfig !== undefined) {
-         const regexResolver = useChatRegexResolver();
-         regexResolver.clearCacheForAgent(agentId);
-         logger.debug('Agent 正则配置已更新，清除相关缓存', { agentId });
-       }
- 
-       Object.assign(agent, updates);
-       this.persistAgent(agent);
- 
-       logger.info('更新智能体', { agentId, updates });
-     },
+     * 更新智能体
+     */
+    updateAgent(agentId: string, updates: Partial<Omit<ChatAgent, 'id' | 'createdAt'>>): void {
+      const agent = this.agents.find(a => a.id === agentId);
+      if (!agent) {
+        logger.warn('更新智能体失败：智能体不存在', { agentId });
+        return;
+      }
+
+      // 检查是否更新了正则配置，如果是则清除相关缓存
+      if (updates.regexConfig !== undefined) {
+        const regexResolver = useChatRegexResolver();
+        regexResolver.clearCacheForAgent(agentId);
+        logger.debug('Agent 正则配置已更新，清除相关缓存', { agentId });
+      }
+
+      Object.assign(agent, updates);
+      this.persistAgent(agent);
+
+      logger.info('更新智能体', { agentId, updates });
+    },
     /**
      * 复制智能体
      * @param agentId 要复制的智能体 ID
@@ -479,10 +478,10 @@ export const useAgentStore = defineStore('llmChatAgent', {
       }
 
       const firstProfile = enabledProfiles.value[0];
-      
+
       // 确定使用的模型：优先使用全局默认模型，否则回退到第一个 Profile 的第一个模型
       let targetModelId = settings.value.modelPreferences.defaultModel;
-      
+
       // 验证默认模型是否有效（存在于当前启用的 Profile 中）
       const isDefaultModelValid = enabledProfiles.value.some(p =>
         p.models.some(m => m.id === targetModelId)

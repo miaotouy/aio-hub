@@ -130,47 +130,46 @@ export function useSmartOcrRunner() {
   }
 
   /**
-   /**
-    * 更新引擎配置
-    */
-   async function updateEngineConfig(partialConfig: Partial<OcrEngineConfig>): Promise<void> {
-     await errorHandler.wrapAsync(
-       async () => {
-         const currentConfig = store.fullConfig;
-         
-         // 确定最终的引擎类型
-         const engineType = partialConfig.type || currentConfig.currentEngineType;
- 
-         // 获取当前该引擎的配置
-         const oldEngineConfig = currentConfig.engineConfigs[engineType];
- 
-         // 合并新旧配置
-         const newEngineConfig = { ...oldEngineConfig, ...partialConfig };
- 
-         // 创建新的引擎配置集合
-         const newEngineConfigs = {
-           ...currentConfig.engineConfigs,
-           [engineType]: newEngineConfig,
-         };
- 
-         // 构建最终的完整配置
-         const updatedFullConfig: SmartOcrConfig = {
-           ...currentConfig,
-           currentEngineType: engineType,
-           engineConfigs: newEngineConfigs,
-         };
- 
-         store.setFullConfig(updatedFullConfig);
-         await saveSmartOcrConfig(updatedFullConfig);
-         logger.info('引擎配置已更新', { partialConfig });
-       },
-       {
-         level: ErrorLevel.ERROR,
-         userMessage: '更新引擎配置失败',
-         context: partialConfig,
-       }
-     );
-   }
+   * 更新引擎配置
+   */
+  async function updateEngineConfig(partialConfig: Partial<OcrEngineConfig>): Promise<void> {
+    await errorHandler.wrapAsync(
+      async () => {
+        const currentConfig = store.fullConfig;
+
+        // 确定最终的引擎类型
+        const engineType = partialConfig.type || currentConfig.currentEngineType;
+
+        // 获取当前该引擎的配置
+        const oldEngineConfig = currentConfig.engineConfigs[engineType];
+
+        // 合并新旧配置
+        const newEngineConfig = { ...oldEngineConfig, ...partialConfig };
+
+        // 创建新的引擎配置集合
+        const newEngineConfigs = {
+          ...currentConfig.engineConfigs,
+          [engineType]: newEngineConfig,
+        };
+
+        // 构建最终的完整配置
+        const updatedFullConfig: SmartOcrConfig = {
+          ...currentConfig,
+          currentEngineType: engineType,
+          engineConfigs: newEngineConfigs,
+        };
+
+        store.setFullConfig(updatedFullConfig);
+        await saveSmartOcrConfig(updatedFullConfig);
+        logger.info('引擎配置已更新', { partialConfig });
+      },
+      {
+        level: ErrorLevel.ERROR,
+        userMessage: '更新引擎配置失败',
+        context: partialConfig,
+      }
+    );
+  }
   /**
    * 更新切图配置
    */
@@ -312,7 +311,7 @@ export function useSmartOcrRunner() {
 
         // 收集要处理的图片ID集合
         const imageIdsToProcess = new Set(imagesToProcess.map(img => img.id));
-        
+
         // 清除要处理的图片的旧结果
         store.clearOcrResults(Array.from(imageIdsToProcess));
 
@@ -341,7 +340,7 @@ export function useSmartOcrRunner() {
         const results = await runOcr(allBlocks, store.engineConfig, (progressResults: OcrResult[]) => {
           // 合并进度结果到现有结果中
           store.updateOcrResults(progressResults);
-          
+
           // 调用外部传入的进度回调
           onProgress?.(store.ocrResults);
         });
@@ -469,9 +468,8 @@ export function useSmartOcrRunner() {
     const errorBlocks = store.ocrResults.filter((r) => r.status === 'error').length;
     const ignoredBlocks = store.ocrResults.filter((r) => r.ignored).length;
 
-    const summary = `OCR 识别完成: ${successBlocks}/${totalBlocks} 块成功识别${
-      errorBlocks > 0 ? `，${errorBlocks} 块失败` : ''
-    }${ignoredBlocks > 0 ? `，${ignoredBlocks} 块被忽略` : ''}`;
+    const summary = `OCR 识别完成: ${successBlocks}/${totalBlocks} 块成功识别${errorBlocks > 0 ? `，${errorBlocks} 块失败` : ''
+      }${ignoredBlocks > 0 ? `，${ignoredBlocks} 块被忽略` : ''}`;
 
     return {
       summary,

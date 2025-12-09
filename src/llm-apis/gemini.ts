@@ -73,18 +73,18 @@ interface GeminiToolConfig {
 // 安全设置
 interface GeminiSafetySetting {
   category:
-    | "HARM_CATEGORY_HARASSMENT"
-    | "HARM_CATEGORY_HATE_SPEECH"
-    | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
-    | "HARM_CATEGORY_DANGEROUS_CONTENT"
-    | "HARM_CATEGORY_CIVIC_INTEGRITY";
+  | "HARM_CATEGORY_HARASSMENT"
+  | "HARM_CATEGORY_HATE_SPEECH"
+  | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+  | "HARM_CATEGORY_DANGEROUS_CONTENT"
+  | "HARM_CATEGORY_CIVIC_INTEGRITY";
   threshold:
-    | "BLOCK_NONE"
-    | "BLOCK_ONLY_HIGH"
-    | "BLOCK_MEDIUM_AND_ABOVE"
-    | "BLOCK_LOW_AND_ABOVE"
-    | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
-    | "OFF";
+  | "BLOCK_NONE"
+  | "BLOCK_ONLY_HIGH"
+  | "BLOCK_MEDIUM_AND_ABOVE"
+  | "BLOCK_LOW_AND_ABOVE"
+  | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
+  | "OFF";
 }
 
 // 响应 Schema - 支持完整的 JSON Schema
@@ -152,10 +152,10 @@ interface GeminiGenerationConfig {
   speechConfig?: GeminiSpeechConfig; // 语音生成配置
   thinkingConfig?: GeminiThinkingConfig; // 思考功能配置
   mediaResolution?:
-    | "MEDIA_RESOLUTION_LOW"
-    | "MEDIA_RESOLUTION_MEDIUM"
-    | "MEDIA_RESOLUTION_HIGH"
-    | "MEDIA_RESOLUTION_UNSPECIFIED";
+  | "MEDIA_RESOLUTION_LOW"
+  | "MEDIA_RESOLUTION_MEDIUM"
+  | "MEDIA_RESOLUTION_HIGH"
+  | "MEDIA_RESOLUTION_UNSPECIFIED";
 }
 
 // 请求体
@@ -828,7 +828,6 @@ function parseGeminiLogprobs(logprobsResult: any): LlmResponse["logprobs"] {
   return content.length > 0 ? { content } : undefined;
 }
 
-/**
 /**
  * 扩展的请求选项接口
  */
